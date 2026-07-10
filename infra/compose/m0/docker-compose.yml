@@ -1,0 +1,66 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    ports:
+      - "${GH_MQTT_PORT_EXTERNAL:-1883}:1883"
+    volumes:
+      - ../../mosquitto/dev/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto-data:/mosquitto/data
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_pub -h 127.0.0.1 -t gh/health -m ping -q 0"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+      start_period: 2s
+    restart: unless-stopped
+
+  manager:
+    build:
+      context: ../../../host/greenhouse-manager
+    environment:
+      GH_SYSTEM_ID: devsystem
+      GH_MQTT_HOST: mosquitto
+      GH_MQTT_PORT: "1883"
+      GH_STALE_AFTER_S: "${GH_STALE_AFTER_S:-30}"
+      GH_LOG_LEVEL: INFO
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    restart: unless-stopped
+
+  simulator:
+    build:
+      context: ../../../host/simulator
+    environment:
+      GH_SYSTEM_ID: devsystem
+      GH_NODE_ID: node_01HZX7AQ5FJ3
+      GH_MQTT_HOST: mosquitto
+      GH_MQTT_PORT: "1883"
+      GH_SIM_INITIAL_DELAY_S: "${GH_SIM_INITIAL_DELAY_S:-3}"
+      GH_SIM_INTERVAL_S: "${GH_SIM_INTERVAL_S:-5}"
+      GH_SIM_DUPLICATE_EVERY: "${GH_SIM_DUPLICATE_EVERY:-5}"
+      GH_SIM_INVALID_EVERY: "${GH_SIM_INVALID_EVERY:-7}"
+      GH_LOG_LEVEL: INFO
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+      manager:
+        condition: service_started
+    restart: unless-stopped
+
+  observer:
+    image: eclipse-mosquitto:2
+    profiles: ["observe"]
+    command:
+      - mosquitto_sub
+      - -h
+      - mosquitto
+      - -t
+      - gh/v1/devsystem/state/#
+      - -v
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+
+volumes:
+  mosquitto-data:
