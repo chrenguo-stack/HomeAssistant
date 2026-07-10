@@ -58,13 +58,9 @@ LoRa 模块引脚在本版不启用。
 - 12 px：Fusion Pixel Font 等宽 BDF；
 - 16 px：Ark Pixel Font 等宽 BDF，仅用于大号数字。
 
-字体不直接提交到本仓库。构建前运行下载脚本，脚本固定使用上游 `2026.07.01` Release，避免浮动的 `latest` 版本造成构建结果变化：
+字体不直接提交到本仓库。下载脚本固定使用上游 `2026.07.01` Release，避免浮动的 `latest` 版本造成构建结果变化。
 
-```bash
-bash tools/fetch_fonts.sh
-```
-
-下载后会生成：
+正常情况下不需要单独执行下载命令。`tools/rc2.sh` 会在运行 ESPHome 前检查字体，缺失时自动下载并生成：
 
 ```text
 fonts/fusion-pixel-10px-monospaced-zh_hans.bdf
@@ -72,15 +68,24 @@ fonts/fusion-pixel-12px-monospaced-zh_hans.bdf
 fonts/ark-pixel-16px-monospaced-zh_cn.bdf
 ```
 
+需要单独准备字体时可以执行：
+
+```bash
+bash tools/fetch_fonts.sh
+```
+
 ## 构建
+
+推荐使用统一入口，它会先检查和准备字体：
 
 ```bash
 cd firmware/esphome_rc/f1_0_rc2
-bash tools/fetch_fonts.sh
-esphome config f1_0_rc2.yml
-esphome compile f1_0_rc2.yml
-esphome run f1_0_rc2.yml --device /dev/cu.usbmodemXXXX
+bash tools/rc2.sh config
+bash tools/rc2.sh compile
+bash tools/rc2.sh run --device /dev/cu.usbmodemXXXX
 ```
+
+直接使用 `esphome config/compile/run` 时，必须先运行 `bash tools/fetch_fonts.sh`。
 
 首次准备字体和 PlatformIO 依赖时，编译电脑需要能够访问 GitHub。
 
