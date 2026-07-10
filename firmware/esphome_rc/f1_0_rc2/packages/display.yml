@@ -1,0 +1,114 @@
+spi:
+  id: bus_spi
+  clk_pin: GPIO2
+  mosi_pin: GPIO3
+
+font:
+  - file: "gfonts://Roboto Mono"
+    id: font_small
+    size: 10
+    glyphs: " !%()+,-./0123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+  - file: "gfonts://Roboto Mono"
+    id: font_medium
+    size: 12
+    glyphs: " !%()+,-./0123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+  - file: "gfonts://Roboto Mono"
+    id: font_large
+    size: 16
+    glyphs: " -./0123456789"
+
+qr_code:
+  - id: setup_qr
+    value: "WIFI:T:nopass;S:gh;;"
+    ecc: LOW
+
+display:
+  - platform: st7920
+    spi_id: bus_spi
+    id: lcd
+    cs_pin:
+      number: GPIO16
+      inverted: true
+    data_rate: 1MHz
+    width: 128
+    height: 64
+    rotation: 270
+    update_interval: 1s
+    lambda: |-
+      auto value_or = [](sensor::Sensor *sensor, const char *fmt, char *out, size_t len) {
+        if (sensor != nullptr && sensor->has_state()) snprintf(out, len, fmt, sensor->state);
+        else snprintf(out, len, "---");
+      };
+
+      if (id(low_battery_mode)) {
+        id(blink_state) = !id(blink_state);
+        it.printf(32, 18, id(font_medium), TextAlign::TOP_CENTER, "LOW BATTERY");
+        char v[16]; value_or(id(battery_voltage), "%.2fV", v, sizeof(v));
+        it.printf(32, 42, id(font_large), TextAlign::TOP_CENTER, "%s", v);
+        it.printf(32, 72, id(font_small), TextAlign::TOP_CENTER, "Charge the battery");
+        if (id(blink_state)) it.rectangle(18, 96, 28, 14);
+        return;
+      }
+
+      it.printf(2, 0, id(font_small), "P%d  %s", id(display_page) + 1, App.get_name().c_str());
+      it.line(0, 13, 63, 13);
+
+      char a[20], b[20], c[20], d[20];
+      switch (id(display_page)) {
+        case 0:
+          value_or(id(scd30_co2), "%.0f", a, sizeof(a));
+          value_or(id(air_temp), "%.1fC", b, sizeof(b));
+          value_or(id(air_humidity), "%.1f%%", c, sizeof(c));
+          value_or(id(illuminance), "%.0flx", d, sizeof(d));
+          it.printf(2, 20, id(font_medium), "CO2  %s", a);
+          it.printf(2, 43, id(font_medium), "TEMP %s", b);
+          it.printf(2, 66, id(font_medium), "RH   %s", c);
+          it.printf(2, 89, id(font_medium), "LUX  %s", d);
+          break;
+        case 1:
+          value_or(id(soil_moisture), "%.1f%%", a, sizeof(a));
+          value_or(id(soil_temperature), "%.1fC", b, sizeof(b));
+          value_or(id(soil_ec), "%.0f", c, sizeof(c));
+          value_or(id(soil_success_rate), "%.0f%%", d, sizeof(d));
+          it.printf(2, 20, id(font_medium), "MOIST %s", a);
+          it.printf(2, 43, id(font_medium), "TEMP  %s", b);
+          it.printf(2, 66, id(font_medium), "EC    %s", c);
+          it.printf(2, 89, id(font_medium), "LINK  %s", d);
+          break;
+        case 2:
+          value_or(id(vpd), "%.2fkPa", a, sizeof(a));
+          value_or(id(dew_point), "%.1fC", b, sizeof(b));
+          value_or(id(absolute_humidity), "%.1f", c, sizeof(c));
+          it.printf(2, 20, id(font_medium), "VPD  %s", a);
+          it.printf(2, 48, id(font_medium), "DEW  %s", b);
+          it.printf(2, 76, id(font_medium), "AH   %s", c);
+          it.printf(2, 99, id(font_small), "g/m3");
+          break;
+        case 3:
+          value_or(id(ppfd), "%.0f", a, sizeof(a));
+          value_or(id(dli_today_sensor), "%.2f", b, sizeof(b));
+          value_or(id(battery_voltage), "%.2fV", c, sizeof(c));
+          value_or(id(battery_level), "%.0f%%", d, sizeof(d));
+          it.printf(2, 20, id(font_medium), "PPFD %s", a);
+          it.printf(2, 43, id(font_medium), "DLI  %s", b);
+          it.printf(2, 66, id(font_medium), "BAT  %s", c);
+          it.printf(2, 89, id(font_medium), "SOC  %s", d);
+          it.printf(2, 112, id(font_small), "MAIN:%s", id(main_power).state ? "ON" : "BAT");
+          break;
+        default:
+          if (id(wifi_component).is_connected()) {
+            it.printf(32, 24, id(font_medium), TextAlign::TOP_CENTER, "WIFI ONLINE");
+            const auto ip = id(wifi_component).wifi_sta_ip().str();
+            it.printf(32, 50, id(font_small), TextAlign::TOP_CENTER, "%s", ip.c_str());
+            value_or(id(wifi_dbm), "%.0fdBm", a, sizeof(a));
+            it.printf(32, 72, id(font_medium), TextAlign::TOP_CENTER, "%s", a);
+            it.printf(32, 100, id(font_small), TextAlign::TOP_CENTER, "HA/API ready");
+          } else {
+            const int scale = 2;
+            const int size = id(setup_qr).get_size() * scale;
+            it.qr_code((64 - size) / 2, 16, id(setup_qr), COLOR_ON, scale);
+            it.printf(32, 82, id(font_small), TextAlign::TOP_CENTER, "Scan to join AP");
+            it.printf(32, 100, id(font_small), TextAlign::TOP_CENTER, "%s", App.get_name().c_str());
+          }
+          break;
+      }
