@@ -1,6 +1,7 @@
 #pragma once
 
 #include "driver/gpio.h"
+#include "esp_err.h"
 #include "esphome/components/uart/uart_component.h"
 #include "esphome/core/log.h"
 
@@ -30,8 +31,13 @@ inline bool set_gpio_input_floating(gpio_num_t pin) {
   return true;
 }
 
-inline void set_soil_uart_high_impedance(esphome::uart::UARTComponent &uart) {
-  const auto flush_result = uart.flush();
+inline void set_soil_uart_high_impedance(esphome::uart::UARTComponent *uart) {
+  if (uart == nullptr) {
+    ESP_LOGE(SOIL_UART_GUARD_TAG, "UART component is null; cannot enter high-impedance state");
+    return;
+  }
+
+  const auto flush_result = uart->flush();
   switch (flush_result) {
     case esphome::uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS:
     case esphome::uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS:
@@ -50,10 +56,15 @@ inline void set_soil_uart_high_impedance(esphome::uart::UARTComponent &uart) {
            tx_ok ? "OK" : "FAIL", rx_ok ? "OK" : "FAIL");
 }
 
-inline void restore_soil_uart(esphome::uart::UARTComponent &uart) {
+inline void restore_soil_uart(esphome::uart::UARTComponent *uart) {
+  if (uart == nullptr) {
+    ESP_LOGE(SOIL_UART_GUARD_TAG, "UART component is null; cannot restore settings");
+    return;
+  }
+
   // ESPHome's ESP-IDF UART implementation reinstalls the driver and reroutes
   // the configured TX/RX pins when load_settings(false) is called.
-  uart.load_settings(false);
+  uart->load_settings(false);
   ESP_LOGI(SOIL_UART_GUARD_TAG, "RS485 UART settings restored");
 }
 
