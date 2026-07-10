@@ -21,7 +21,7 @@ services:
       GH_SYSTEM_ID: devsystem
       GH_MQTT_HOST: mosquitto
       GH_MQTT_PORT: "1883"
-      GH_STALE_AFTER_S: "30"
+      GH_STALE_AFTER_S: "${GH_STALE_AFTER_S:-30}"
       GH_LOG_LEVEL: INFO
     depends_on:
       mosquitto:
@@ -36,10 +36,10 @@ services:
       GH_NODE_ID: node_01HZX7AQ5FJ3
       GH_MQTT_HOST: mosquitto
       GH_MQTT_PORT: "1883"
-      GH_SIM_INITIAL_DELAY_S: "3"
-      GH_SIM_INTERVAL_S: "5"
-      GH_SIM_DUPLICATE_EVERY: "5"
-      GH_SIM_INVALID_EVERY: "7"
+      GH_SIM_INITIAL_DELAY_S: "${GH_SIM_INITIAL_DELAY_S:-3}"
+      GH_SIM_INTERVAL_S: "${GH_SIM_INTERVAL_S:-5}"
+      GH_SIM_DUPLICATE_EVERY: "${GH_SIM_DUPLICATE_EVERY:-5}"
+      GH_SIM_INVALID_EVERY: "${GH_SIM_INVALID_EVERY:-7}"
       GH_LOG_LEVEL: INFO
     depends_on:
       mosquitto:
