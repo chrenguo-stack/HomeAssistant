@@ -1,0 +1,60 @@
+i2c:
+  id: bus_i2c
+  sda: GPIO22
+  scl: GPIO23
+  scan: true
+  frequency: 100kHz
+
+uart:
+  id: uart_485
+  tx_pin: GPIO21
+  rx_pin: GPIO17
+  baud_rate: 4800
+  data_bits: 8
+  parity: NONE
+  stop_bits: 1
+  rx_buffer_size: 256
+
+echo_filtered_modbus:
+  id: modbus_485
+  uart_id: uart_485
+  role: client
+  send_wait_time: 500ms
+  turnaround_time: 200ms
+  disable_crc: false
+  echo_timeout: 100ms
+  filter_function_codes:
+    - 0x03
+  log_filtered_echo: true
+
+modbus_controller:
+  - id: soil_modbus_controller
+    modbus_id: modbus_485
+    address: 0x01
+    command_throttle: 200ms
+    update_interval: never
+    max_cmd_retries: 2
+    offline_skip_updates: 0
+    allow_duplicate_commands: false
+
+    on_command_sent:
+      then:
+        - lambda: |-
+            id(soil_query_count) += 1;
+            ESP_LOGI("soil_modbus", "Command sent [#%d]", id(soil_query_count));
+
+    on_online:
+      then:
+        - binary_sensor.template.publish:
+            id: soil_sensor_online
+            state: ON
+        - logger.log: "[soil_modbus] Controller ONLINE"
+
+    on_offline:
+      then:
+        - binary_sensor.template.publish:
+            id: soil_sensor_online
+            state: OFF
+        - logger.log:
+            level: WARN
+            format: "[soil_modbus] Controller OFFLINE"
