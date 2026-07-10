@@ -1,0 +1,46 @@
+name: N1 ESP32-C6 MQTT firmware CI
+
+on:
+  pull_request:
+    paths:
+      - "firmware/esphome_rc/f1_0_rc2/**"
+      - "firmware/esphome_rc/15_1_2_rs485_modbus_echo_filter/**"
+      - ".github/workflows/n1-firmware-ci.yml"
+  push:
+    branches:
+      - "feature/n1-*"
+    paths:
+      - "firmware/esphome_rc/f1_0_rc2/**"
+      - "firmware/esphome_rc/15_1_2_rs485_modbus_echo_filter/**"
+      - ".github/workflows/n1-firmware-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install ESPHome
+        run: python -m pip install --upgrade "esphome==2026.4.3"
+
+      - name: Prepare CI secrets
+        working-directory: firmware/esphome_rc/f1_0_rc2
+        run: cp secrets.n1.example.yaml secrets.yaml
+
+      - name: Validate N1 configuration
+        working-directory: firmware/esphome_rc/f1_0_rc2
+        run: bash tools/n1.sh config
+
+      - name: Compile N1 firmware
+        working-directory: firmware/esphome_rc/f1_0_rc2
+        run: bash tools/n1.sh compile
