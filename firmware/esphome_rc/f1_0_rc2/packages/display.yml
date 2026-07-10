@@ -3,24 +3,22 @@ spi:
   clk_pin: GPIO2
   mosi_pin: GPIO3
 
-# LCD12864 使用 1 bpp 像素字体，避免矢量字体在 128×64 单色屏上出现
-# 笔画模糊、字宽不稳定和小字号可读性下降。
-# 10/12px 延续 14.8 的 Fusion Pixel Font；16px 数字使用 Ark Pixel Font。
+# 延续 14.8 已验证的 LCD12864 像素字体与界面布局。
 font:
   - file: "fonts/fusion-pixel-10px-monospaced-zh_hans.bdf"
-    id: font_small
+    id: f10
     size: 10
     bpp: 1
     glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~℃°µ³手机相扫码配置节点如需重网络请快速断电启次今日昨较池即将耗尽及时充"
 
   - file: "fonts/fusion-pixel-12px-monospaced-zh_hans.bdf"
-    id: font_medium
+    id: f12
     size: 12
     bpp: 1
     glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~℃°µ二氧化碳气温湿度光照土壤盐传感器失联请检查接线项故障配扫码点置网正启重断电三次进入当前址成功在已连络手机相或动蒸压差露绝对累积今日昨如需快速充设备中量低"
 
   - file: "fonts/ark-pixel-16px-monospaced-zh_cn.bdf"
-    id: font_large
+    id: f16
     size: 16
     bpp: 1
     glyphs: "0123456789.-"
@@ -40,84 +38,263 @@ display:
     data_rate: 1MHz
     width: 128
     height: 64
-    rotation: 270
+    # 14.8 使用 270°；当前 PCB 安装方向要求在其基础上再翻转 180°。
+    # 270° + 180° ≡ 90°，逻辑画布仍为 64×128。
+    rotation: 90
     update_interval: 1s
     lambda: |-
-      auto value_or = [](sensor::Sensor *sensor, const char *fmt, char *out, size_t len) {
-        if (sensor != nullptr && sensor->has_state()) snprintf(out, len, fmt, sensor->state);
-        else snprintf(out, len, "---");
-      };
+      const int page = id(display_page);
 
+      // ─── 低电保护画面（最高优先级） ───
       if (id(low_battery_mode)) {
         id(blink_state) = !id(blink_state);
-        it.printf(32, 18, id(font_medium), TextAlign::TOP_CENTER, "LOW BATTERY");
-        char v[16]; value_or(id(battery_voltage), "%.2fV", v, sizeof(v));
-        it.printf(32, 42, id(font_large), TextAlign::TOP_CENTER, "%s", v);
-        it.printf(32, 72, id(font_small), TextAlign::TOP_CENTER, "Charge the battery");
-        if (id(blink_state)) it.rectangle(18, 96, 28, 14);
+
+        static const uint32_t batt_empty_icon[14] = {
+          0b1111111111111111111111100000,
+          0b1000000000000000000000100000,
+          0b1000000000000000000000111110,
+          0b1000000000000000000000100010,
+          0b1000000000000000000000100010,
+          0b1000000000000000000000100010,
+          0b1000000000000000000000100010,
+          0b1000000000000000000000100010,
+          0b1000000000000000000000100010,
+          0b1000000000000000000000100010,
+          0b1000000000000000000000100010,
+          0b1000000000000000000000111110,
+          0b1000000000000000000000100000,
+          0b1111111111111111111111100000,
+        };
+
+        if (id(blink_state)) {
+          for (int row = 0; row < 14; row++) {
+            const uint32_t bits = batt_empty_icon[row];
+            for (int col = 0; col < 28; col++) {
+              if (bits & (1u << (27 - col))) {
+                it.draw_pixel_at(18 + col, 20 + row, COLOR_ON);
+              }
+            }
+          }
+        }
+
+        it.printf(32, 40, id(f12), TextAlign::TOP_CENTER, "电量低");
+        it.printf(32, 64, id(f10), TextAlign::TOP_CENTER, "电池即将耗尽");
+        it.printf(32, 80, id(f10), TextAlign::TOP_CENTER, "请及时充电");
         return;
       }
 
-      it.printf(2, 0, id(font_small), "P%d  %s", id(display_page) + 1, App.get_name().c_str());
-      it.line(0, 13, 63, 13);
+      // ─── 顶部状态栏：设备后缀 / 电池 / Wi-Fi ───
+      {
+        const std::string name = App.get_name();
+        const std::string id_text = name.length() >= 3 ? name.substr(name.length() - 3) : "---";
+        int tx1 = 0, ty1 = 0, tw = 0, th = 0;
+        it.get_text_bounds(0, 0, id_text.c_str(), id(f10), TextAlign::TOP_LEFT,
+                           &tx1, &ty1, &tw, &th);
 
-      char a[20], b[20], c[20], d[20];
-      switch (id(display_page)) {
-        case 0:
-          value_or(id(scd30_co2), "%.0f", a, sizeof(a));
-          value_or(id(air_temp), "%.1fC", b, sizeof(b));
-          value_or(id(air_humidity), "%.1f%%", c, sizeof(c));
-          value_or(id(illuminance), "%.0flx", d, sizeof(d));
-          it.printf(2, 20, id(font_medium), "CO2  %s", a);
-          it.printf(2, 43, id(font_medium), "TEMP %s", b);
-          it.printf(2, 66, id(font_medium), "RH   %s", c);
-          it.printf(2, 89, id(font_medium), "LUX  %s", d);
-          break;
-        case 1:
-          value_or(id(soil_moisture), "%.1f%%", a, sizeof(a));
-          value_or(id(soil_temperature), "%.1fC", b, sizeof(b));
-          value_or(id(soil_ec), "%.0f", c, sizeof(c));
-          value_or(id(soil_success_rate), "%.0f%%", d, sizeof(d));
-          it.printf(2, 20, id(font_medium), "MOIST %s", a);
-          it.printf(2, 43, id(font_medium), "TEMP  %s", b);
-          it.printf(2, 66, id(font_medium), "EC    %s", c);
-          it.printf(2, 89, id(font_medium), "LINK  %s", d);
-          break;
-        case 2:
-          value_or(id(vpd), "%.2fkPa", a, sizeof(a));
-          value_or(id(dew_point), "%.1fC", b, sizeof(b));
-          value_or(id(absolute_humidity), "%.1f", c, sizeof(c));
-          it.printf(2, 20, id(font_medium), "VPD  %s", a);
-          it.printf(2, 48, id(font_medium), "DEW  %s", b);
-          it.printf(2, 76, id(font_medium), "AH   %s", c);
-          it.printf(2, 99, id(font_small), "g/m3");
-          break;
-        case 3:
-          value_or(id(ppfd), "%.0f", a, sizeof(a));
-          value_or(id(dli_today_sensor), "%.2f", b, sizeof(b));
-          value_or(id(battery_voltage), "%.2fV", c, sizeof(c));
-          value_or(id(battery_level), "%.0f%%", d, sizeof(d));
-          it.printf(2, 20, id(font_medium), "PPFD %s", a);
-          it.printf(2, 43, id(font_medium), "DLI  %s", b);
-          it.printf(2, 66, id(font_medium), "BAT  %s", c);
-          it.printf(2, 89, id(font_medium), "SOC  %s", d);
-          it.printf(2, 112, id(font_small), "MAIN:%s", id(main_power).state ? "ON" : "BAT");
-          break;
-        default:
-          if (id(wifi_component).is_connected()) {
-            it.printf(32, 24, id(font_medium), TextAlign::TOP_CENTER, "WIFI ONLINE");
-            char ip[esphome::network::IP_ADDRESS_BUFFER_SIZE];
-            id(wifi_component).wifi_sta_ip_addresses()[0].str_to(ip);
-            it.printf(32, 50, id(font_small), TextAlign::TOP_CENTER, "%s", ip);
-            value_or(id(wifi_dbm), "%.0fdBm", a, sizeof(a));
-            it.printf(32, 72, id(font_medium), TextAlign::TOP_CENTER, "%s", a);
-            it.printf(32, 100, id(font_small), TextAlign::TOP_CENTER, "HA/API ready");
-          } else {
-            const int scale = 2;
-            const int size = id(setup_qr).get_size() * scale;
-            it.qr_code((64 - size) / 2, 16, id(setup_qr), COLOR_ON, scale);
-            it.printf(32, 82, id(font_small), TextAlign::TOP_CENTER, "Scan to join AP");
-            it.printf(32, 100, id(font_small), TextAlign::TOP_CENTER, "%s", App.get_name().c_str());
+        const int bx = 0;
+        const int by = 0;
+        const int bw = tw + 4;
+        const int bh = 9;
+        it.filled_rectangle(bx + 1, by, bw - 2, 1);
+        it.filled_rectangle(bx, by + 1, bw, bh - 2);
+        it.filled_rectangle(bx + 1, by + bh - 1, bw - 2, 1);
+        it.printf(2, -1, id(f10), COLOR_OFF, COLOR_ON,
+                  TextAlign::TOP_LEFT, "%s", id_text.c_str());
+      }
+
+      it.rectangle(24, 1, 15, 7);
+      it.filled_rectangle(39, 3, 1, 3);
+      if (id(battery_level).has_state()) {
+        int pct = (int) id(battery_level).state;
+        if (pct < 0) pct = 0;
+        if (pct > 100) pct = 100;
+        const int fill = (pct * 13) / 100;
+        if (fill > 0) it.filled_rectangle(25, 2, fill, 5);
+      }
+
+      if (id(wifi_component).is_connected()) {
+        const int dbm = id(wifi_dbm).has_state() ? (int) id(wifi_dbm).state : -127;
+        it.filled_rectangle(53, 7, 2, 2);
+        if (dbm >= -85) it.filled_rectangle(56, 5, 2, 4);
+        if (dbm >= -75) it.filled_rectangle(59, 3, 2, 6);
+        if (dbm >= -65) it.filled_rectangle(62, 1, 2, 8);
+      } else {
+        it.line(55, 0, 63, 8);
+        it.line(55, 8, 63, 0);
+      }
+
+      it.line(0, 10, 63, 10);
+
+      // ─── PAGE 0：气温 / 湿度 ───
+      if (page == 0) {
+        it.printf(0, 16, id(f12), "气温");
+        if (id(air_temp).has_state()) {
+          it.printf(0, 36, id(f16), "%.1f", id(air_temp).state);
+          it.printf(1, 36, id(f16), "%.1f", id(air_temp).state);
+        } else {
+          it.printf(0, 36, id(f16), "---");
+        }
+        it.printf(38, 42, id(f12), "℃");
+        it.line(0, 64, 63, 64);
+
+        it.printf(0, 68, id(f12), "湿度");
+        if (id(air_humidity).has_state()) {
+          it.printf(0, 88, id(f16), "%.1f", id(air_humidity).state);
+          it.printf(1, 88, id(f16), "%.1f", id(air_humidity).state);
+        } else {
+          it.printf(0, 88, id(f16), "---");
+        }
+        it.printf(40, 94, id(f12), "%%");
+      }
+
+      // ─── PAGE 1：二氧化碳 / 累积光照 ───
+      if (page == 1) {
+        it.printf(0, 16, id(f12), "二氧化碳");
+        if (id(scd30_co2).has_state()) {
+          it.printf(0, 36, id(f16), "%.0f", id(scd30_co2).state);
+          it.printf(1, 36, id(f16), "%.0f", id(scd30_co2).state);
+        } else {
+          it.printf(0, 36, id(f16), "---");
+        }
+        it.printf(38, 42, id(f10), "ppm");
+        it.line(0, 64, 63, 64);
+
+        it.printf(0, 68, id(f12), "累积光照");
+        it.printf(2, 84, id(f10), "今日");
+        it.printf(22, 84, id(f10), "%.1f mol", id(dli_today_ram));
+        it.printf(2, 96, id(f10), "较昨日");
+
+        const int bar_x = 2, bar_y = 108, bar_w = 60, bar_h = 4;
+        it.rectangle(bar_x, bar_y, bar_w, bar_h);
+        float ratio = 0.0f;
+        if (id(dli_yesterday) > 0.01f) {
+          ratio = id(dli_today_ram) / id(dli_yesterday);
+        }
+        if (ratio < 0.0f) ratio = 0.0f;
+        if (ratio > 1.0f) ratio = 1.0f;
+        const int fill_w = (int) ((bar_w - 2) * ratio);
+        if (fill_w > 0) it.filled_rectangle(bar_x + 1, bar_y + 1, fill_w, bar_h - 2);
+      }
+
+      // ─── PAGE 2：土壤温度 / 湿度 / 盐度 ───
+      if (page == 2) {
+        it.printf(0, 14, id(f12), "土壤温度");
+        if (id(soil_temperature).has_state()) {
+          it.printf(0, 28, id(f16), "%.1f", id(soil_temperature).state);
+          it.printf(1, 28, id(f16), "%.1f", id(soil_temperature).state);
+        } else {
+          it.printf(0, 28, id(f16), "---");
+        }
+        it.printf(36, 32, id(f12), "℃");
+        it.line(0, 46, 63, 46);
+
+        it.printf(0, 50, id(f12), "土壤湿度");
+        if (id(soil_moisture).has_state()) {
+          it.printf(0, 64, id(f16), "%.1f", id(soil_moisture).state);
+          it.printf(1, 64, id(f16), "%.1f", id(soil_moisture).state);
+        } else {
+          it.printf(0, 64, id(f16), "---");
+        }
+        it.printf(38, 68, id(f12), "%%");
+        it.line(0, 82, 63, 82);
+
+        it.printf(0, 86, id(f12), "土壤盐度");
+        if (id(soil_ec).has_state()) {
+          it.printf(0, 98, id(f16), "%.0f", id(soil_ec).state);
+          it.printf(1, 98, id(f16), "%.0f", id(soil_ec).state);
+        } else {
+          it.printf(0, 98, id(f16), "---");
+        }
+        it.printf(38, 104, id(f10), "µS");
+      }
+
+      // ─── PAGE 3：VPD / 露点 / 绝对湿度 ───
+      if (page == 3) {
+        it.printf(0, 14, id(f12), "蒸气压差");
+        it.printf(50, 18, id(f10), "VPD");
+        if (id(vpd).has_state()) {
+          it.printf(0, 28, id(f16), "%.2f", id(vpd).state);
+          it.printf(1, 28, id(f16), "%.2f", id(vpd).state);
+        } else {
+          it.printf(0, 28, id(f16), "---");
+        }
+        it.printf(38, 34, id(f10), "kPa");
+        it.line(0, 46, 63, 46);
+
+        it.printf(0, 50, id(f12), "露点");
+        if (id(dew_point).has_state()) {
+          it.printf(0, 64, id(f16), "%.1f", id(dew_point).state);
+          it.printf(1, 64, id(f16), "%.1f", id(dew_point).state);
+        } else {
+          it.printf(0, 64, id(f16), "---");
+        }
+        it.printf(38, 68, id(f12), "℃");
+        it.line(0, 82, 63, 82);
+
+        it.printf(0, 86, id(f12), "绝对湿度");
+        if (id(absolute_humidity).has_state()) {
+          it.printf(0, 100, id(f16), "%.1f", id(absolute_humidity).state);
+          it.printf(1, 100, id(f16), "%.1f", id(absolute_humidity).state);
+        } else {
+          it.printf(0, 100, id(f16), "---");
+        }
+        it.printf(38, 104, id(f10), "g/m³");
+      }
+
+      // ─── PAGE 4：配网二维码 / 已联网状态 ───
+      if (page == 4) {
+        if (!id(wifi_component).is_connected()) {
+          const int scale = 2;
+          const int qr_render = id(setup_qr).get_size() * scale;
+          it.qr_code((64 - qr_render) / 2, 14, id(setup_qr), COLOR_ON, scale);
+          it.printf(32, 68, id(f10), TextAlign::TOP_CENTER, "手机相机扫码");
+          it.printf(32, 84, id(f10), TextAlign::TOP_CENTER, "配置节点网络");
+          it.printf(32, 100, id(f10), TextAlign::TOP_CENTER, "%s", App.get_name().c_str());
+        } else {
+          static const uint32_t link_icon[14] = {
+            0b0011111111110000111111111100,
+            0b0111111111110000111111111110,
+            0b1111111111110000111111111111,
+            0b1111111111110000111111111111,
+            0b1111000000000000000000001111,
+            0b1111000111111111111110001111,
+            0b1111000111111111111110001111,
+            0b1111000111111111111110001111,
+            0b1111000111111111111110001111,
+            0b1111000000000000000000001111,
+            0b1111111111110000111111111111,
+            0b1111111111110000111111111111,
+            0b0111111111110000111111111110,
+            0b0011111111110000111111111100,
+          };
+
+          for (int row = 0; row < 14; row++) {
+            const uint32_t bits = link_icon[row];
+            for (int col = 0; col < 28; col++) {
+              if (bits & (1u << (27 - col))) {
+                it.draw_pixel_at(18 + col, 20 + row, COLOR_ON);
+              }
+            }
           }
-          break;
+
+          it.printf(32, 40, id(f12), TextAlign::TOP_CENTER, "已联网");
+          it.printf(32, 64, id(f10), TextAlign::TOP_CENTER, "如需重置网络");
+          it.printf(32, 80, id(f10), TextAlign::TOP_CENTER, "请快速断电");
+          it.printf(32, 96, id(f10), TextAlign::TOP_CENTER, "重启3次");
+        }
+      }
+
+      // ─── 底部页码与时间 ───
+      it.line(0, 118, 63, 118);
+      for (int i = 0; i < 5; i++) {
+        const int px = i * 5;
+        if (i == page) it.filled_rectangle(px, 123, 3, 3);
+        else it.rectangle(px, 123, 3, 3);
+      }
+
+      const auto now = id(system_time).now();
+      if (now.is_valid()) {
+        it.strftime(65, 119, id(f10), TextAlign::TOP_RIGHT, "%H:%M:%S", now);
+      } else {
+        it.printf(65, 119, id(f10), TextAlign::TOP_RIGHT, "--:--:--");
       }
