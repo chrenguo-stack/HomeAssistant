@@ -70,13 +70,20 @@ mdns:
 
 ota:
   - platform: esphome
+    on_begin:
+      then:
+        - switch.turn_off: status_led_switch
+        - script.execute: soil_power_down
+        - script.wait: soil_power_down
+        - logger.log: "[OTA/native] Status LED OFF; RS485 UART high-Z; soil sensor power disabled."
+
   - platform: http_request
     on_begin:
       then:
         - switch.turn_off: status_led_switch
         - script.execute: soil_power_down
         - script.wait: soil_power_down
-        - logger.log: "[OTA] Status LED OFF; RS485 UART high-Z; soil sensor power disabled."
+        - logger.log: "[OTA/http] Status LED OFF; RS485 UART high-Z; soil sensor power disabled."
 
 http_request:
   timeout: 10s
