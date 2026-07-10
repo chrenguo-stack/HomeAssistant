@@ -1,6 +1,6 @@
-# F1.0-RC2 · N0.1 离线整机基线
+# F1.0-RC2 · N0.2 离线整机基线
 
-本目录是按照 V0.5 路线新建的第一版 F1.0-RC2。它不是旧版文件改名，而是从当前 PCB、14.x 成熟功能和 15.1.2 回显过滤 Modbus 基线重新整合。
+本目录是按照 V0.5 路线新建的 F1.0-RC2。它不是旧版文件改名，而是从当前 PCB、14.x 成熟功能和 15.1.2 回显过滤 Modbus 基线重新整合。
 
 ## 本版目标
 
@@ -12,13 +12,31 @@
 - SCD30、SHT30、BH1750；
 - RS485 土壤湿度、温度、电导率；
 - `echo_filtered_modbus` + 官方 `modbus_controller`；
-- LCD12864 五页轮播及 Captive Portal 二维码/联网状态页；
 - TPS2116.ST 主电源状态；
 - 475 kΩ / 475 kΩ 电池 ADC，理论换算 `ADC × 2.0`，预留校准系数；
 - 低电防抖、恢复滞回和 RS485 断电保护；
-- Captive Portal、ESPHome API、mDNS、本地 OTA 与 HTTP Pull OTA。
+- Captive Portal、ESPHome API、mDNS、本地 OTA 与 HTTP Pull OTA；
+- 14.8 LCD12864 五页产品界面、配网二维码和联网状态页。
 
 暂不包含正式 MQTT、greenhouse-manager 配对、ESP-NOW 和 LoRa 业务通信。
+
+## N0.2 LCD 变更
+
+N0.2 恢复 14.8 经过实板调整的产品界面：
+
+- 顶部设备后缀、电池图标和 Wi-Fi 信号；
+- 气温/湿度页；
+- 二氧化碳/DLI 页；
+- 土壤温度/湿度/盐度页；
+- VPD/露点/绝对湿度页；
+- 配网二维码/已联网状态页；
+- 底部分页指示和时间；
+- 大号数值双绘制加粗；
+- 低电保护专用画面。
+
+14.8 的显示旋转角为 `270°`。当前 PCB 安装方向要求在此基础上再调转 `180°`，因此配置使用 `rotation: 90`，逻辑画布仍为 `64×128`。
+
+页面沿用 14.8 的节奏，每 4 秒切换一次。
 
 ## 固定 GPIO
 
@@ -60,7 +78,7 @@ LoRa 模块引脚在本版不启用。
 
 字体不直接提交到本仓库。下载脚本固定使用上游 `2026.07.01` Release，避免浮动的 `latest` 版本造成构建结果变化。
 
-正常情况下不需要单独执行下载命令。`tools/rc2.sh` 会在运行 ESPHome 前检查字体，缺失时自动下载并生成：
+`tools/rc2.sh` 会在运行 ESPHome 前检查字体，缺失时自动下载并生成：
 
 ```text
 fonts/fusion-pixel-10px-monospaced-zh_hans.bdf
@@ -68,41 +86,18 @@ fonts/fusion-pixel-12px-monospaced-zh_hans.bdf
 fonts/ark-pixel-16px-monospaced-zh_cn.bdf
 ```
 
-需要单独准备字体时可以执行：
-
-```bash
-bash tools/fetch_fonts.sh
-```
-
-## 构建
-
-推荐使用统一入口，它会先检查和准备字体：
+## 构建与安装
 
 ```bash
 cd firmware/esphome_rc/f1_0_rc2
 bash tools/rc2.sh config
 bash tools/rc2.sh compile
-bash tools/rc2.sh run --device /dev/cu.usbmodemXXXX
+bash tools/rc2.sh run --device 设备IP或串口
 ```
-
-直接使用 `esphome config/compile/run` 时，必须先运行 `bash tools/fetch_fonts.sh`。
-
-首次准备字体和 PlatformIO 依赖时，编译电脑需要能够访问 GitHub。
 
 ## 当前验证状态
 
-- ESPHome 2026.4.3 配置校验：通过；
-- C++ 代码生成：通过；
-- 当前自动环境因无法解析 GitHub 域名，未能下载 PlatformIO 的 ESP32 平台包，因此尚未完成最终链接；
-- 实板烧录和传感器验证：待进行。
-
-## 首轮实板验收
-
-1. 上电后 LED、LCD 和 Captive Portal 正常；
-2. LCD 每 8 秒切换一页，共五页；
-3. SCD30、SHT30、BH1750 数据有效；
-4. 本地初始化完成后 GPIO15 立即进入“上电—15 秒预热—读取—断电”流程；
-5. 日志出现 `Discarded exact TX echo` 时，土壤数据仍能正常发布；
-6. GPIO0 在主电源/电池路径切换时状态正确；
-7. ADC 电压与万用表读数对比，用于确定 `battery_calibration_factor`；
-8. 无 Wi-Fi 时本地采集和 LCD 不受影响。
+- N0.1 ESPHome 2026.4.3 完整编译：通过；
+- N0.1 OTA：通过；
+- N0.1 整机运行及全部传感器数据：通过；
+- N0.2 14.8 界面迁移和 180° 方向修正：待编译、OTA 与照片回归。
