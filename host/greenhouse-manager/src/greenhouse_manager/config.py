@@ -34,7 +34,7 @@ class Settings:
     log_level: str = "INFO"
 
     @classmethod
-    def from_env(cls) -> "Settings":
+    def from_env(cls) -> Settings:
         settings = cls(
             system_id=os.getenv("GH_SYSTEM_ID", "dev"),
             mqtt_host=os.getenv("GH_MQTT_HOST", "mosquitto"),
