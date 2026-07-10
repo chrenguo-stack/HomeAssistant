@@ -1,0 +1,255 @@
+sensor:
+  - platform: wifi_signal
+    name: "WiFi Signal"
+    id: wifi_dbm
+    update_interval: 60s
+
+  - platform: uptime
+    name: "Uptime"
+    id: uptime_s
+    update_interval: 60s
+
+  - platform: adc
+    pin: GPIO1
+    id: battery_adc
+    internal: true
+    update_interval: 30s
+    attenuation: 12db
+    samples: 16
+    filters:
+      - multiply: ${battery_divider_ratio}
+      - multiply: ${battery_calibration_factor}
+      - median:
+          window_size: 5
+          send_every: 1
+          send_first_at: 1
+    on_value:
+      then:
+        - lambda: |-
+            const float vbat = x;
+            id(battery_voltage).publish_state(vbat);
+
+            static const float table[][2] = {
+              {4.20f, 100.0f}, {4.06f, 90.0f}, {3.98f, 80.0f},
+              {3.92f, 70.0f}, {3.87f, 60.0f}, {3.82f, 50.0f},
+              {3.79f, 40.0f}, {3.77f, 30.0f}, {3.74f, 20.0f},
+              {3.68f, 10.0f}, {3.45f, 5.0f}, {3.00f, 0.0f}
+            };
+            constexpr int n = sizeof(table) / sizeof(table[0]);
+            float pct = 0.0f;
+            if (vbat >= table[0][0]) {
+              pct = 100.0f;
+            } else if (vbat <= table[n - 1][0]) {
+              pct = 0.0f;
+            } else {
+              for (int i = 0; i < n - 1; i++) {
+                if (vbat <= table[i][0] && vbat > table[i + 1][0]) {
+                  const float ratio = (vbat - table[i + 1][0]) /
+                                      (table[i][0] - table[i + 1][0]);
+                  pct = table[i + 1][1] + ratio *
+                        (table[i][1] - table[i + 1][1]);
+                  break;
+                }
+              }
+            }
+            id(battery_level).publish_state(pct);
+
+            const bool grace = millis() < id(wakeup_grace_until_ms);
+            if (!id(low_battery_mode)) {
+              if (vbat <= ${battery_low_threshold}f && !grace) {
+                id(low_bat_count)++;
+                ESP_LOGW("battery", "Low sample %d/3: %.2f V", id(low_bat_count), vbat);
+                if (id(low_bat_count) >= 3) id(enter_low_battery).execute();
+              } else if (vbat > ${battery_low_threshold}f) {
+                id(low_bat_count) = 0;
+              }
+            } else {
+              if (vbat >= ${battery_recovery_threshold}f) {
+                id(recovery_count)++;
+                ESP_LOGW("battery", "Recovery sample %d/3: %.2f V", id(recovery_count), vbat);
+                if (id(recovery_count) >= 3) id(recover_from_low_battery).execute();
+              } else {
+                id(recovery_count) = 0;
+              }
+            }
+
+  - platform: template
+    name: "Battery Voltage"
+    id: battery_voltage
+    unit_of_measurement: "V"
+    accuracy_decimals: 2
+    device_class: voltage
+    state_class: measurement
+
+  - platform: template
+    name: "Battery Level"
+    id: battery_level
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    device_class: battery
+    state_class: measurement
+
+  - platform: scd30
+    i2c_id: bus_i2c
+    address: 0x61
+    update_interval: 30s
+    automatic_self_calibration: true
+    co2:
+      name: "CO2"
+      id: scd30_co2
+      accuracy_decimals: 0
+    temperature:
+      name: "SCD30 Temperature"
+      id: scd30_temp
+      internal: true
+    humidity:
+      name: "SCD30 Humidity"
+      id: scd30_hum
+      internal: true
+
+  - platform: sht3xd
+    i2c_id: bus_i2c
+    address: 0x44
+    update_interval: 30s
+    temperature:
+      name: "Air Temperature"
+      id: air_temp
+      accuracy_decimals: 1
+    humidity:
+      name: "Air Humidity"
+      id: air_humidity
+      accuracy_decimals: 1
+
+  - platform: bh1750
+    i2c_id: bus_i2c
+    address: 0x23
+    name: "Illuminance"
+    id: illuminance
+    update_interval: 30s
+
+  - platform: modbus_controller
+    modbus_controller_id: soil_modbus_controller
+    name: "Soil Moisture"
+    id: soil_moisture
+    register_type: holding
+    address: 0x0000
+    value_type: U_WORD
+    unit_of_measurement: "%"
+    accuracy_decimals: 1
+    state_class: measurement
+    device_class: moisture
+    filters:
+      - multiply: 0.1
+      - lambda: 'if (x < 0.0f || x > 100.0f) return NAN; return x;'
+    on_value:
+      then:
+        - lambda: 'id(soil_success_count) += 1;'
+        - binary_sensor.template.publish:
+            id: soil_sensor_online
+            state: ON
+
+  - platform: modbus_controller
+    modbus_controller_id: soil_modbus_controller
+    name: "Soil Temperature"
+    id: soil_temperature
+    register_type: holding
+    address: 0x0001
+    value_type: S_WORD
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    state_class: measurement
+    device_class: temperature
+    filters:
+      - multiply: 0.1
+      - lambda: 'if (x < -20.0f || x > 80.0f) return NAN; return x;'
+
+  - platform: modbus_controller
+    modbus_controller_id: soil_modbus_controller
+    name: "Soil Conductivity"
+    id: soil_ec
+    register_type: holding
+    address: 0x0002
+    value_type: U_WORD
+    unit_of_measurement: "µS/cm"
+    accuracy_decimals: 0
+    state_class: measurement
+    filters:
+      - lambda: 'if (x < 0.0f || x > 10000.0f) return NAN; return x;'
+
+  - platform: template
+    name: "Soil Query Success Rate"
+    id: soil_success_rate
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    update_interval: 60s
+    lambda: |-
+      if (id(soil_query_count) == 0) return 0.0f;
+      return 100.0f * id(soil_success_count) / id(soil_query_count);
+
+  - platform: template
+    name: "VPD"
+    id: vpd
+    unit_of_measurement: "kPa"
+    accuracy_decimals: 2
+    update_interval: 30s
+    lambda: |-
+      if (!id(air_temp).has_state() || !id(air_humidity).has_state()) return NAN;
+      const float t = id(air_temp).state;
+      const float rh = id(air_humidity).state;
+      const float svp = 0.6108f * expf((17.27f * t) / (t + 237.3f));
+      return svp * (1.0f - rh / 100.0f);
+
+  - platform: template
+    name: "Dew Point"
+    id: dew_point
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    update_interval: 30s
+    lambda: |-
+      if (!id(air_temp).has_state() || !id(air_humidity).has_state()) return NAN;
+      const float t = id(air_temp).state;
+      const float rh = id(air_humidity).state;
+      if (rh <= 0.0f) return NAN;
+      const float a = 17.62f;
+      const float b = 243.12f;
+      const float gamma = logf(rh / 100.0f) + (a * t) / (b + t);
+      return (b * gamma) / (a - gamma);
+
+  - platform: template
+    name: "Absolute Humidity"
+    id: absolute_humidity
+    unit_of_measurement: "g/m³"
+    accuracy_decimals: 1
+    update_interval: 30s
+    lambda: |-
+      if (!id(air_temp).has_state() || !id(air_humidity).has_state()) return NAN;
+      const float t = id(air_temp).state;
+      const float rh = id(air_humidity).state;
+      const float vapor = 6.112f * expf((17.67f * t) / (t + 243.5f)) * rh / 100.0f;
+      return 2.1674f * vapor / (273.15f + t) * 100.0f;
+
+  - platform: template
+    name: "PPFD Estimate"
+    id: ppfd
+    unit_of_measurement: "µmol/m²/s"
+    accuracy_decimals: 0
+    update_interval: 30s
+    lambda: |-
+      if (!id(illuminance).has_state()) return NAN;
+      return id(illuminance).state * 0.0185f;
+
+  - platform: template
+    name: "DLI Today"
+    id: dli_today_sensor
+    unit_of_measurement: "mol/m²/d"
+    accuracy_decimals: 2
+    update_interval: 60s
+    lambda: 'return id(dli_today_ram);'
+
+  - platform: template
+    name: "DLI Yesterday"
+    id: dli_yesterday_sensor
+    unit_of_measurement: "mol/m²/d"
+    accuracy_decimals: 2
+    update_interval: 300s
+    lambda: 'return id(dli_yesterday);'
