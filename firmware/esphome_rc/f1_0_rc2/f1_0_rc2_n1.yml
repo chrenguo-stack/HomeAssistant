@@ -1,0 +1,27 @@
+substitutions:
+  device_name: gh-n1
+  project_version: "F1.0-RC2-N1.0"
+  soil_read_interval: 20min
+  soil_warmup_time: 15s
+  battery_divider_ratio: "2.0"
+  battery_calibration_factor: "1.000"
+  battery_low_threshold: "3.00"
+  battery_recovery_threshold: "3.50"
+  mqtt_system_id: greenhouse
+  mqtt_publish_interval: 60s
+  mqtt_cap_hash: "sha256:fed2dec764f4146d"
+
+external_components:
+  - source:
+      type: local
+      path: ../15_1_2_rs485_modbus_echo_filter/my_components
+    components:
+      - echo_filtered_modbus
+
+packages:
+  core: !include packages/core.yml
+  control: !include packages/control.yml
+  buses: !include packages/buses.yml
+  sensors: !include packages/sensors.yml
+  display: !include packages/display.yml
+  mqtt_n1: !include packages/mqtt_n1.yml
