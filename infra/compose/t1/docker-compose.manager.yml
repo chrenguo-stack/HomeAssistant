@@ -1,0 +1,40 @@
+services:
+  greenhouse-manager:
+    build:
+      context: ../../../host/greenhouse-manager
+    image: greenhouse-manager:n1
+    container_name: greenhouse-manager
+    environment:
+      GH_SYSTEM_ID: "${GH_SYSTEM_ID:-greenhouse}"
+      GH_MQTT_HOST: mosquitto
+      GH_MQTT_PORT: "1883"
+      GH_MQTT_USERNAME: "${GH_MQTT_USERNAME:-}"
+      GH_MQTT_PASSWORD: "${GH_MQTT_PASSWORD:-}"
+      GH_MQTT_TLS: "false"
+      GH_MQTT_CLIENT_ID: greenhouse-manager
+      GH_STALE_AFTER_S: "${GH_STALE_AFTER_S:-180}"
+      GH_DEDUP_CAPACITY: "${GH_DEDUP_CAPACITY:-2048}"
+      GH_LOG_LEVEL: "${GH_LOG_LEVEL:-INFO}"
+    networks:
+      - ha_network
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 96m
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+networks:
+  ha_network:
+    external: true
+    name: ha_docker_default
