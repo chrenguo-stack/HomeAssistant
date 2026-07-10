@@ -1,6 +1,6 @@
 substitutions:
   device_name: gh
-  project_version: "F1.0-RC2-N0.1"
+  project_version: "F1.0-RC2-N0.2"
   soil_read_interval: 20min
   soil_warmup_time: 15s
   battery_divider_ratio: "2.0"
