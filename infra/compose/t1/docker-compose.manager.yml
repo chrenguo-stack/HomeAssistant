@@ -15,6 +15,9 @@ services:
       GH_STALE_AFTER_S: "${GH_STALE_AFTER_S:-180}"
       GH_DEDUP_CAPACITY: "${GH_DEDUP_CAPACITY:-2048}"
       GH_LOG_LEVEL: "${GH_LOG_LEVEL:-INFO}"
+      GH_HA_DISCOVERY_ENABLED: "${GH_HA_DISCOVERY_ENABLED:-true}"
+      GH_HA_DISCOVERY_PREFIX: "${GH_HA_DISCOVERY_PREFIX:-homeassistant}"
+      GH_HA_DEVICE_NAME_PREFIX: "${GH_HA_DEVICE_NAME_PREFIX:-温室监测节点}"
     networks:
       - ha_network
     restart: unless-stopped
