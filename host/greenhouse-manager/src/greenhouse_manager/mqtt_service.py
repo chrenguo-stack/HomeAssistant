@@ -10,7 +10,11 @@ import paho.mqtt.client as mqtt
 
 from .config import Settings
 from .ingest import PublishMessage, TelemetryProcessor
-from .topics import diagnostic_topic, ingress_subscription
+from .topics import (
+    canonical_telemetry_subscription,
+    diagnostic_topic,
+    ingress_subscription,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -82,12 +86,16 @@ class ManagerMqttService:
             _LOGGER.error("MQTT connection rejected: %s", reason_code)
             return
 
-        topic = ingress_subscription(self.settings.system_id)
-        result, _mid = client.subscribe(topic, qos=1)
-        if result != mqtt.MQTT_ERR_SUCCESS:
-            _LOGGER.error("MQTT subscribe failed topic=%s rc=%s", topic, result)
-            return
-        _LOGGER.info("Subscribed to %s", topic)
+        topics = (
+            ingress_subscription(self.settings.system_id),
+            canonical_telemetry_subscription(self.settings.system_id),
+        )
+        for topic in topics:
+            result, _mid = client.subscribe(topic, qos=1)
+            if result != mqtt.MQTT_ERR_SUCCESS:
+                _LOGGER.error("MQTT subscribe failed topic=%s rc=%s", topic, result)
+                continue
+            _LOGGER.info("Subscribed to %s", topic)
 
     def _on_disconnect(
         self,
@@ -103,6 +111,24 @@ class ManagerMqttService:
             _LOGGER.info("MQTT disconnected")
 
     def _on_message(self, client: mqtt.Client, userdata: Any, message: mqtt.MQTTMessage) -> None:
+        canonical_prefix = f"gh/v1/{self.settings.system_id}/state/"
+        if message.topic.startswith(canonical_prefix) and message.topic.endswith("/telemetry"):
+            restored = self.processor.restore_canonical(message.topic, message.payload)
+            if restored.status == "restored":
+                _LOGGER.debug(
+                    "Restored canonical telemetry node=%s key=%s last_seen=%s",
+                    restored.node_id,
+                    restored.dedup_key,
+                    restored.last_seen,
+                )
+            else:
+                _LOGGER.warning(
+                    "Rejected canonical telemetry recovery node=%s reason=%s",
+                    restored.node_id,
+                    restored.reason,
+                )
+            return
+
         result = self.processor.process(message.topic, message.payload)
 
         if result.status == "accepted":
