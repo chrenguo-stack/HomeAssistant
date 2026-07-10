@@ -79,12 +79,13 @@ script:
                   root["cap_hash"] = "${mqtt_cap_hash}";
                   root["fw_version"] = "${project_version}";
 
-                  JsonObject measurements = root.createNestedObject("measurements");
-                  JsonObject quality = root.createNestedObject("quality");
+                  JsonObject measurements = root["measurements"].to<JsonObject>();
+                  JsonObject quality = root["quality"].to<JsonObject>();
 
-                  auto add_sensor = [&](const char *key, auto &sensor, const char *missing_quality) {
-                    if (sensor.has_state() && std::isfinite(sensor.state)) {
-                      measurements[key] = sensor.state;
+                  auto add_sensor = [&](const char *key, auto *sensor, const char *missing_quality) {
+                    if (sensor != nullptr && sensor->has_state() &&
+                        std::isfinite(sensor->state)) {
+                      measurements[key] = sensor->state;
                       quality[key] = "ok";
                     } else {
                       measurements[key] = nullptr;
@@ -117,7 +118,7 @@ script:
                   add_sensor("battery_v", id(battery_voltage), normal_missing);
                   add_sensor("battery_pct", id(battery_level), normal_missing);
 
-                  JsonObject power = root.createNestedObject("power");
+                  JsonObject power = root["power"].to<JsonObject>();
                   power["source"] = id(main_power).state ? "main" : "battery";
                   power["low"] = id(low_battery_mode);
                   if (id(battery_voltage).has_state() &&
