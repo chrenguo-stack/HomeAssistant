@@ -50,16 +50,39 @@ LoRa 模块引脚在本版不启用。
 
 这里没有旧版额外固定 30 秒等待。
 
+## 字体
+
+延续 14.8 已验证的 LCD12864 点阵字体组合：
+
+- 10 px：Fusion Pixel Font 等宽 BDF；
+- 12 px：Fusion Pixel Font 等宽 BDF；
+- 16 px：Ark Pixel Font 等宽 BDF，仅用于大号数字。
+
+字体不直接提交到本仓库。构建前运行下载脚本，脚本固定使用上游 `2026.07.01` Release，避免浮动的 `latest` 版本造成构建结果变化：
+
+```bash
+bash tools/fetch_fonts.sh
+```
+
+下载后会生成：
+
+```text
+fonts/fusion-pixel-10px-monospaced-zh_hans.bdf
+fonts/fusion-pixel-12px-monospaced-zh_hans.bdf
+fonts/ark-pixel-16px-monospaced-zh_cn.bdf
+```
+
 ## 构建
 
 ```bash
 cd firmware/esphome_rc/f1_0_rc2
+bash tools/fetch_fonts.sh
 esphome config f1_0_rc2.yml
 esphome compile f1_0_rc2.yml
 esphome run f1_0_rc2.yml --device /dev/cu.usbmodemXXXX
 ```
 
-字体使用 `gfonts://Roboto Mono`，首次构建需要编译电脑能够访问 Google Fonts。后续会替换为经许可确认的本地产品字体资源。
+首次准备字体和 PlatformIO 依赖时，编译电脑需要能够访问 GitHub。
 
 ## 当前验证状态
 
