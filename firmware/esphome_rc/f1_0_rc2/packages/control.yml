@@ -1,4 +1,20 @@
 script:
+  - id: soil_power_down
+    mode: restart
+    then:
+      - lambda: |-
+          greenhouse::set_soil_uart_high_impedance(id(uart_485));
+      - switch.turn_off: sensor_pwr_switch
+      - delay: 20ms
+
+  - id: soil_power_up
+    mode: restart
+    then:
+      - switch.turn_on: sensor_pwr_switch
+      - delay: 500ms
+      - lambda: |-
+          greenhouse::restore_soil_uart(id(uart_485));
+
   - id: soil_read_cycle
     mode: single
     then:
@@ -9,10 +25,12 @@ script:
             - logger.log: "[soil] Low-battery mode; soil read skipped."
           else:
             - lambda: 'id(soil_cycle_active) = true;'
-            - switch.turn_off: sensor_pwr_switch
+            - script.execute: soil_power_down
+            - script.wait: soil_power_down
             - delay: 250ms
-            - switch.turn_on: sensor_pwr_switch
-            - logger.log: "[soil] Sensor power ON; warm-up started."
+            - script.execute: soil_power_up
+            - script.wait: soil_power_up
+            - logger.log: "[soil] Sensor power ON; UART restored; warm-up started."
             - delay: ${soil_warmup_time}
             - if:
                 condition:
@@ -23,9 +41,10 @@ script:
                   - delay: 8s
                 else:
                   - logger.log: "[soil] Low battery entered during warm-up; request cancelled."
-            - switch.turn_off: sensor_pwr_switch
+            - script.execute: soil_power_down
+            - script.wait: soil_power_down
             - lambda: 'id(soil_cycle_active) = false;'
-            - logger.log: "[soil] Read cycle complete; sensor power OFF."
+            - logger.log: "[soil] Read cycle complete; UART high-Z; sensor power OFF."
 
   - id: enter_low_battery
     mode: single
@@ -33,12 +52,15 @@ script:
       - lambda: |-
           id(low_battery_mode) = true;
           ESP_LOGW("battery", "Entering low-battery protection mode");
-      - switch.turn_off: sensor_pwr_switch
+      - switch.turn_off: status_led_switch
+      - script.execute: soil_power_down
+      - script.wait: soil_power_down
 
   - id: recover_from_low_battery
     mode: single
     then:
       - logger.log: "[battery] Recovery threshold confirmed; restarting node."
+      - switch.turn_off: status_led_switch
       - delay: 2s
       - lambda: 'esp_restart();'
 
@@ -49,10 +71,22 @@ output:
       ignore_strapping_warning: true
     id: sensor_pwr_out
 
+  - platform: gpio
+    pin:
+      number: GPIO6
+      inverted: false
+    id: status_led_out
+
 switch:
   - platform: output
     id: sensor_pwr_switch
     output: sensor_pwr_out
+    internal: true
+    restore_mode: ALWAYS_OFF
+
+  - platform: output
+    id: status_led_switch
+    output: status_led_out
     internal: true
     restore_mode: ALWAYS_OFF
 
