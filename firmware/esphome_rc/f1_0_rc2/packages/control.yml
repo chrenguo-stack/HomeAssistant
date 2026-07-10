@@ -95,7 +95,8 @@ interval:
     then:
       - script.execute: soil_read_cycle
 
-  - interval: 8s
+  # 沿用 14.8 的五页节奏：每页显示 4 秒。
+  - interval: 4s
     then:
       - lambda: 'id(display_page) = (id(display_page) + 1) % 5;'
 
