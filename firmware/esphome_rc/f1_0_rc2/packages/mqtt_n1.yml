@@ -36,6 +36,17 @@ esphome:
                      static_cast<unsigned int>(r2));
             id(n1_boot_id) = boot_id;
             id(n1_seq) = 0;
+
+            if (!std::isfinite(id(dli_today_ram)) || id(dli_today_ram) < 0.0f) {
+              ESP_LOGW("mqtt_n1", "Invalid restored DLI today; resetting to 0");
+              id(dli_today_ram) = 0.0f;
+              id(dli_today_nvs) = 0.0f;
+            }
+            if (!std::isfinite(id(dli_yesterday)) || id(dli_yesterday) < 0.0f) {
+              ESP_LOGW("mqtt_n1", "Invalid restored DLI yesterday; resetting to 0");
+              id(dli_yesterday) = 0.0f;
+            }
+
             ESP_LOGI("mqtt_n1", "node_id=%s boot_id=%s",
                      id(n1_node_id).c_str(), id(n1_boot_id).c_str());
 
@@ -110,27 +121,56 @@ script:
                   add_sensor("absolute_humidity_g_m3", id(absolute_humidity), normal_missing);
                   add_sensor("ppfd_umol_m2_s", id(ppfd), normal_missing);
 
-                  measurements["dli_today_mol_m2_d"] = id(dli_today_ram);
-                  quality["dli_today_mol_m2_d"] = "ok";
-                  measurements["dli_yesterday_mol_m2_d"] = id(dli_yesterday);
-                  quality["dli_yesterday_mol_m2_d"] = "ok";
+                  if (std::isfinite(id(dli_today_ram)) && id(dli_today_ram) >= 0.0f) {
+                    measurements["dli_today_mol_m2_d"] = id(dli_today_ram);
+                    quality["dli_today_mol_m2_d"] = "ok";
+                  } else {
+                    measurements["dli_today_mol_m2_d"] = nullptr;
+                    quality["dli_today_mol_m2_d"] = normal_missing;
+                  }
+                  if (std::isfinite(id(dli_yesterday)) && id(dli_yesterday) >= 0.0f) {
+                    measurements["dli_yesterday_mol_m2_d"] = id(dli_yesterday);
+                    quality["dli_yesterday_mol_m2_d"] = "ok";
+                  } else {
+                    measurements["dli_yesterday_mol_m2_d"] = nullptr;
+                    quality["dli_yesterday_mol_m2_d"] = "fault";
+                  }
 
-                  add_sensor("battery_v", id(battery_voltage), normal_missing);
-                  add_sensor("battery_pct", id(battery_level), normal_missing);
+                  const bool battery_present =
+                      id(battery_voltage).has_state() &&
+                      std::isfinite(id(battery_voltage).state) &&
+                      id(battery_voltage).state > 0.5f;
+                  if (battery_present) {
+                    measurements["battery_v"] = id(battery_voltage).state;
+                    quality["battery_v"] = "ok";
+                    if (id(battery_level).has_state() &&
+                        std::isfinite(id(battery_level).state)) {
+                      measurements["battery_pct"] = id(battery_level).state;
+                      quality["battery_pct"] = "ok";
+                    } else {
+                      measurements["battery_pct"] = nullptr;
+                      quality["battery_pct"] = normal_missing;
+                    }
+                  } else {
+                    measurements["battery_v"] = nullptr;
+                    measurements["battery_pct"] = nullptr;
+                    quality["battery_v"] = "not_present";
+                    quality["battery_pct"] = "not_present";
+                  }
 
                   JsonObject power = root["power"].to<JsonObject>();
                   power["source"] = id(main_power).state ? "main" : "battery";
                   power["low"] = id(low_battery_mode);
-                  if (id(battery_voltage).has_state() &&
-                      std::isfinite(id(battery_voltage).state)) {
+                  if (battery_present) {
                     power["battery_v"] = id(battery_voltage).state;
+                    if (id(battery_level).has_state() &&
+                        std::isfinite(id(battery_level).state)) {
+                      power["battery_pct"] = id(battery_level).state;
+                    } else {
+                      power["battery_pct"] = nullptr;
+                    }
                   } else {
                     power["battery_v"] = nullptr;
-                  }
-                  if (id(battery_level).has_state() &&
-                      std::isfinite(id(battery_level).state)) {
-                    power["battery_pct"] = id(battery_level).state;
-                  } else {
                     power["battery_pct"] = nullptr;
                   }
 
@@ -142,6 +182,21 @@ script:
                 format: "[mqtt_n1] Publish skipped: broker offline."
 
 interval:
+  - interval: 10s
+    then:
+      - lambda: |-
+          if (id(main_power).state) {
+            id(low_bat_count) = 0;
+            id(recovery_count) = 0;
+          }
+          if (!std::isfinite(id(dli_today_ram)) || id(dli_today_ram) < 0.0f) {
+            id(dli_today_ram) = 0.0f;
+            id(dli_today_nvs) = 0.0f;
+          }
+          if (!std::isfinite(id(dli_yesterday)) || id(dli_yesterday) < 0.0f) {
+            id(dli_yesterday) = 0.0f;
+          }
+
   - interval: ${mqtt_publish_interval}
     then:
       - script.execute: publish_n1_telemetry
