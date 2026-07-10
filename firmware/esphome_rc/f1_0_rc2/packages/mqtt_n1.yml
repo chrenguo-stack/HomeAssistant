@@ -120,14 +120,18 @@ script:
                   JsonObject power = root.createNestedObject("power");
                   power["source"] = id(main_power).state ? "main" : "battery";
                   power["low"] = id(low_battery_mode);
-                  power["battery_v"] = id(battery_voltage).has_state() &&
-                                          std::isfinite(id(battery_voltage).state)
-                                        ? id(battery_voltage).state
-                                        : nullptr;
-                  power["battery_pct"] = id(battery_level).has_state() &&
-                                            std::isfinite(id(battery_level).state)
-                                          ? id(battery_level).state
-                                          : nullptr;
+                  if (id(battery_voltage).has_state() &&
+                      std::isfinite(id(battery_voltage).state)) {
+                    power["battery_v"] = id(battery_voltage).state;
+                  } else {
+                    power["battery_v"] = nullptr;
+                  }
+                  if (id(battery_level).has_state() &&
+                      std::isfinite(id(battery_level).state)) {
+                    power["battery_pct"] = id(battery_level).state;
+                  } else {
+                    power["battery_pct"] = nullptr;
+                  }
 
                   ESP_LOGI("mqtt_n1", "Publishing telemetry seq=%u",
                            static_cast<unsigned int>(seq));
