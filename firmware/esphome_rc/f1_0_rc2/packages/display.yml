@@ -106,8 +106,9 @@ display:
         default:
           if (id(wifi_component).is_connected()) {
             it.printf(32, 24, id(font_medium), TextAlign::TOP_CENTER, "WIFI ONLINE");
-            const auto ip = id(wifi_component).wifi_sta_ip().str();
-            it.printf(32, 50, id(font_small), TextAlign::TOP_CENTER, "%s", ip.c_str());
+            char ip[esphome::network::IP_ADDRESS_BUFFER_SIZE];
+            id(wifi_component).wifi_sta_ip_addresses()[0].str_to(ip);
+            it.printf(32, 50, id(font_small), TextAlign::TOP_CENTER, "%s", ip);
             value_or(id(wifi_dbm), "%.0fdBm", a, sizeof(a));
             it.printf(32, 72, id(font_medium), TextAlign::TOP_CENTER, "%s", a);
             it.printf(32, 100, id(font_small), TextAlign::TOP_CENTER, "HA/API ready");
