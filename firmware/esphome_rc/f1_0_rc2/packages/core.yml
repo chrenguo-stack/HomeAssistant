@@ -1,0 +1,177 @@
+esphome:
+  name: ${device_name}
+  name_add_mac_suffix: true
+  project:
+    name: "DIY.Greenhouse_C6"
+    version: ${project_version}
+  on_boot:
+    - priority: 700
+      then:
+        - lambda: |-
+            const std::string ap_ssid = App.get_name();
+            const std::string payload = "WIFI:T:nopass;S:" + ap_ssid + ";;";
+            id(setup_qr).set_value(payload);
+            ESP_LOGI("portal", "Provisioning AP/QR prepared for SSID: %s", ap_ssid.c_str());
+
+    - priority: 500
+      then:
+        - lambda: |-
+            id(dli_today_ram) = id(dli_today_nvs);
+            ESP_LOGI("dli", "Restored DLI today=%.3f, yesterday=%.3f",
+                     id(dli_today_ram), id(dli_yesterday));
+
+    - priority: 100
+      then:
+        - lambda: |-
+            id(wakeup_grace_until_ms) = millis() + 300000UL;
+            ESP_LOGI("battery", "Startup low-battery grace period: 300 seconds");
+
+    # ESPHome has completed local component setup at priority -100. Start the
+    # first soil-read pipeline immediately; there is no extra fixed 30 s delay.
+    - priority: -100
+      then:
+        - logger.log: "[boot] Local initialization complete; starting first soil read cycle."
+        - script.execute: soil_read_cycle
+
+esp32:
+  board: esp32-c6-devkitc-1
+  variant: esp32c6
+  flash_size: 8MB
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG: "y"
+      CONFIG_ESP_CONSOLE_SECONDARY_NONE: "y"
+      CONFIG_ESP_MAIN_TASK_STACK_SIZE: "16384"
+
+logger:
+  level: DEBUG
+  hardware_uart: USB_CDC
+  logs:
+    modbus: DEBUG
+    modbus_controller: DEBUG
+    echo_filtered_modbus: DEBUG
+
+api:
+  reboot_timeout: 0s
+
+mdns:
+  disabled: false
+
+ota:
+  - platform: esphome
+  - platform: http_request
+    on_begin:
+      then:
+        - switch.turn_off: sensor_pwr_switch
+        - logger.log: "[OTA] Soil sensor power disabled before update."
+
+http_request:
+  timeout: 10s
+  watchdog_timeout: 15s
+  verify_ssl: true
+  useragent: esphome/greenhouse-c6
+
+update:
+  - platform: http_request
+    name: "Firmware Update"
+    id: firmware_update
+    source: https://hahub.top/firmware/manifest.json
+    update_interval: 24h
+
+wifi:
+  id: wifi_component
+  fast_connect: false
+  power_save_mode: NONE
+  reboot_timeout: 0s
+  ap:
+
+captive_portal:
+
+factory_reset:
+  resets_required: 3
+  max_delay: 10s
+
+status_led:
+  pin:
+    number: GPIO6
+    inverted: false
+
+time:
+  - platform: sntp
+    id: system_time
+    on_time:
+      - seconds: 0
+        minutes: 0
+        hours: 0
+        then:
+          - lambda: |-
+              id(dli_yesterday) = id(dli_today_ram);
+              id(dli_today_ram) = 0.0f;
+              id(dli_today_nvs) = 0.0f;
+              ESP_LOGI("dli", "Daily reset: yesterday=%.3f mol/m2/d", id(dli_yesterday));
+
+globals:
+  - id: display_page
+    type: int
+    restore_value: false
+    initial_value: '0'
+
+  - id: low_battery_mode
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: low_bat_count
+    type: int
+    restore_value: false
+    initial_value: '0'
+  - id: recovery_count
+    type: int
+    restore_value: false
+    initial_value: '0'
+  - id: wakeup_grace_until_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: blink_state
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+
+  - id: soil_query_count
+    type: int
+    restore_value: false
+    initial_value: '0'
+  - id: soil_success_count
+    type: int
+    restore_value: false
+    initial_value: '0'
+  - id: soil_cycle_active
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+
+  - id: dli_today_ram
+    type: float
+    restore_value: false
+    initial_value: '0.0'
+  - id: dli_today_nvs
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: dli_yesterday
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+
+button:
+  - platform: restart
+    name: "Reboot"
+    id: sys_reboot
+
+  - platform: template
+    name: "Read Soil Sensor Now"
+    id: soil_read_now
+    on_press:
+      then:
+        - script.execute: soil_read_cycle
