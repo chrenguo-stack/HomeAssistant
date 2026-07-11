@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${ROOT_DIR}"
 
 export GH_MQTT_PORT_EXTERNAL="${GH_MQTT_PORT_EXTERNAL:-18884}"
-export GH_SIM_INITIAL_DELAY_S="${GH_SIM_INITIAL_DELAY_S:-1}"
+export GH_SIM_INITIAL_DELAY_S="${GH_SIM_INITIAL_DELAY_S:-3}"
 export GH_SIM_INTERVAL_S="${GH_SIM_INTERVAL_S:-0.5}"
 export GH_SIM_DUPLICATE_EVERY="${GH_SIM_DUPLICATE_EVERY:-2}"
 export GH_SIM_INVALID_EVERY="${GH_SIM_INVALID_EVERY:-3}"
@@ -79,4 +79,18 @@ assert diagnostic["state"] == "invalid_telemetry"
 assert "schema validation failed" in diagnostic["message"]
 PY
 
-echo "M0 vertical slice verified: telemetry, availability and diagnostics are correct."
+compose exec -T manager python - <<'PY'
+from greenhouse_manager.registration import RegistrationRegistry, RegistrationState
+
+with RegistrationRegistry("/var/lib/greenhouse-manager/registration.sqlite3") as registry:
+    records = registry.list_current()
+
+assert len(records) == 1
+record = records[0]
+assert record.hardware_id == "ghw-sim-000000000001"
+assert record.pairing_epoch == 1
+assert record.state == RegistrationState.PENDING
+assert record.node_id is None
+PY
+
+echo "M0 vertical slice verified: telemetry, availability, diagnostics and pairing intake are correct."
