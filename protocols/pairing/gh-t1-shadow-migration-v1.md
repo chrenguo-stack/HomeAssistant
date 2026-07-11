@@ -1,6 +1,6 @@
 # gh-t1-shadow-migration-v1 真实 Broker 影子迁移
 
-状态：Draft / M2.3c  
+状态：Draft / M2.3f  
 关联：Issue #17、`gh-dynsec-profile-v1`
 
 ## 1. 阶段门
@@ -58,3 +58,18 @@ unsubscribePattern   $SYS/#
 并以更高优先级显式拒绝匿名发布或订阅 `$CONTROL/#`。由于 MQTT 的 `#` 不匹配以 `$` 开头的 Topic，`$SYS/#` 必须单独列出。
 
 该宽权限角色只用于保持 legacy manager、Home Assistant 和节点在逐个迁移期间正常工作。它不得授予认证节点，也不得在关闭匿名访问后保留为可连接路径。隔离测试必须同时验证 legacy 应用 Topic 可用、`$SYS` 只读、`$CONTROL` 拒绝，以及每节点认证 ACL 不被放宽。
+
+## 6. 真实快照 shadow candidate
+
+`greenhouse-manager-t1-shadow` 必须以已经通过 `greenhouse-manager-t1-backup verify` 的同机回退包为唯一输入，并满足以下边界：
+
+- 使用 manifest 记录的精确 Mosquitto 镜像 ID；
+- 只修改解压后的配置和数据副本；
+- 候选容器使用 `--network none`，只允许容器内 loopback 探测；
+- 恢复快照文件的数值 UID/GID，并使新增 Dynamic Security 文件归属于快照数据所有者；
+- 管理员密码不得出现在 argv、环境变量、报告或回退包中；
+- 验证 legacy anonymous 应用 Topic 发布/订阅、指定真实 retained Topic 恢复，以及匿名 `$CONTROL/#` 无法创建客户端；
+- 无论成功或失败都删除候选容器；
+- 不停止、重启、重建或修改当前 `mosquitto` 和 `greenhouse-manager`。
+
+该 gate 通过只证明“当前真实配置和 retained 数据可以在隔离副本中加载 Dynamic Security 并保持 legacy 路径”；它不授权在真实 Broker 上加载插件。下一阶段仍需生成真实服务账号、执行影子客户端 ACL 验证，并准备单节点回退步骤。
