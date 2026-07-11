@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import threading
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from contextlib import suppress
 from typing import Any, Protocol
 
@@ -71,6 +71,18 @@ def create_client_command(
     }
 
 
+def set_client_password_command(
+    plan: NodeProvisioningPlan, credentials: NodeCredentials
+) -> dict[str, Any]:
+    if credentials.username != plan.username or credentials.client_id != plan.client_id:
+        raise ValueError("credentials do not match provisioning plan")
+    return {
+        "command": "setClientPassword",
+        "username": plan.username,
+        "password": credentials.password,
+    }
+
+
 class DynsecProvisioner:
     def __init__(self, transport: DynsecTransport) -> None:
         self.transport = transport
@@ -96,6 +108,30 @@ class DynsecProvisioner:
     def deprovision(self, plan: NodeProvisioningPlan) -> None:
         self.transport.execute(({"command": "deleteClient", "username": plan.username},))
         self.transport.execute(({"command": "deleteRole", "rolename": plan.role_name},))
+
+    def rotate_password(
+        self,
+        plan: NodeProvisioningPlan,
+        current: NodeCredentials,
+        replacement: NodeCredentials,
+        verify: Callable[[NodeCredentials], None],
+    ) -> None:
+        if replacement.generation <= current.generation:
+            raise ValueError("replacement generation must increase")
+        set_client_password_command(plan, current)
+        replacement_command = set_client_password_command(plan, replacement)
+        rollback_command = set_client_password_command(plan, current)
+        self.transport.execute((replacement_command,))
+        try:
+            verify(replacement)
+        except Exception:
+            try:
+                self.transport.execute((rollback_command,))
+            except Exception as rollback_error:
+                raise DynsecError(
+                    "credential rotation verification and rollback failed"
+                ) from rollback_error
+            raise
 
     def _best_effort(self, commands: Sequence[dict[str, Any]]) -> None:
         with suppress(Exception):
