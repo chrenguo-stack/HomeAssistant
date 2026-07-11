@@ -29,7 +29,13 @@ class SubscriptionResult:
 
 
 class Session:
-    def __init__(self, *, client_id: str, username: str, password: str) -> None:
+    def __init__(
+        self,
+        *,
+        client_id: str,
+        username: str | None = None,
+        password: str | None = None,
+    ) -> None:
         self.connected = threading.Event()
         self.connection_allowed: bool | None = None
         self.messages: queue.Queue[tuple[str, bytes]] = queue.Queue()
@@ -40,7 +46,8 @@ class Session:
             client_id=client_id,
             protocol=mqtt.MQTTv5,
         )
-        self.client.username_pw_set(username, password)
+        if username is not None:
+            self.client.username_pw_set(username, password)
         self.client.on_connect = self._on_connect
         self.client.on_message = self._on_message
         self.client.on_subscribe = self._on_subscribe
@@ -141,10 +148,48 @@ def main() -> None:
     second_credentials = generate_node_credentials(second_plan)
 
     provisioner.apply_baseline(first_plan)
+    provisioner.apply_legacy_anonymous_shadow()
     provisioner.provision(first_plan, first_credentials)
     provisioner.provision(second_plan, second_credentials)
 
     assert admin.subscribe("#")
+
+    legacy = Session(client_id="gh-legacy-anonymous-test")
+    legacy.start()
+    assert legacy.subscribe("gh/#")
+    assert legacy.subscribe("homeassistant/#")
+    assert legacy.subscribe("$SYS/#")
+    assert not legacy.subscribe("$CONTROL/#")
+
+    legacy_topic = "gh/v1/greenhouse/ingress/node/legacy-node/telemetry"
+    admin.drain()
+    legacy.publish(legacy_topic, b"legacy-shadow")
+    assert admin.wait_for(legacy_topic)
+
+    legacy_canary = "gh-dynsec-legacy-forbidden-canary"
+    legacy.publish(
+        "$CONTROL/dynamic-security/v1",
+        json.dumps(
+            {
+                "commands": [
+                    {
+                        "command": "createClient",
+                        "username": legacy_canary,
+                        "password": "not-a-real-secret",
+                        "clientid": legacy_canary,
+                    }
+                ]
+            },
+            separators=(",", ":"),
+        ).encode(),
+    )
+    time.sleep(0.5)
+    try:
+        transport.execute(({"command": "getClient", "username": legacy_canary},))
+    except DynsecError:
+        pass
+    else:
+        raise AssertionError("legacy anonymous client changed Dynamic Security")
 
     first = Session(
         client_id=first_credentials.client_id,
@@ -282,6 +327,7 @@ def main() -> None:
     rejected_candidate.start(expect_allowed=False)
     rejected_candidate.close()
 
+    legacy.close()
     provisioner.deprovision(first_plan)
     provisioner.deprovision(second_plan)
 
