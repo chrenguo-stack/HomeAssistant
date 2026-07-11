@@ -180,6 +180,45 @@ def _wait_for_file(path: Path, *, timeout_s: float = 10.0) -> bool:
     return path.is_file()
 
 
+def _candidate_diagnostic(
+    runner: CommandRunner, container_id: str, *, secret: str
+) -> str:
+    probes = {
+        "plugin_file": "test -f /usr/lib/mosquitto_dynamic_security.so",
+        "config_plugin_line": (
+            "grep -Fqx 'plugin /usr/lib/mosquitto_dynamic_security.so' "
+            "/mosquitto/config/mosquitto.conf"
+        ),
+        "password_init_readable": (
+            "test -r /mosquitto/config/dynsec-password-init"
+        ),
+        "data_directory_writable": "test -w /mosquitto/data",
+    }
+    results: list[str] = []
+    for name, script in probes.items():
+        return_code, _output = runner.run(
+            ("docker", "exec", container_id, "sh", "-c", script)
+        )
+        results.append(f"{name}={'yes' if return_code == 0 else 'no'}")
+    _return_code, output = runner.run(
+        ("docker", "logs", "--tail", "80", container_id)
+    )
+    safe_lines: list[str] = []
+    for line in output.replace(secret, "[redacted]").splitlines():
+        lowered = line.lower()
+        if any(
+            token in lowered
+            for token in ("dynamic", "plugin", "error", "warning")
+        ):
+            printable = "".join(character for character in line if character.isprintable())
+            safe_lines.append(printable[:240])
+    if safe_lines:
+        results.append("logs=" + " | ".join(safe_lines[-12:]))
+    else:
+        results.append("logs=no relevant candidate log lines")
+    return "; ".join(results)
+
+
 def run_shadow_candidate(
     archive: str | Path,
     *,
@@ -280,7 +319,12 @@ def run_shadow_candidate(
                 )
                 raise ShadowError(
                     "Dynamic Security candidate state was not created "
-                    f"within 10 seconds ({state})"
+                    f"within 10 seconds ({state}); "
+                    + _candidate_diagnostic(
+                        command_runner,
+                        container_id,
+                        secret=admin_password,
+                    )
                 )
             os.chown(dynsec_path, data_stat.st_uid, data_stat.st_gid)
             dynsec_path.chmod(0o600)
