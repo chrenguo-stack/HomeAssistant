@@ -174,3 +174,18 @@ def test_rejects_canonical_telemetry_without_received_at() -> None:
 
     assert restored.status == "rejected"
     assert "missing manager-owned received_at" in (restored.reason or "")
+
+
+def test_retries_unavailable_after_publish_failure() -> None:
+    processor = TelemetryProcessor(system_id="dev", stale_after_s=180)
+    processor.process(TOPIC, json.dumps(valid_payload()), received_at=NOW)
+
+    first = processor.stale_messages(now=NOW + timedelta(seconds=181))
+    assert len(first) == 1
+
+    processor.mark_unavailable_publish_failed(NODE_ID)
+    retry = processor.stale_messages(now=NOW + timedelta(seconds=186))
+
+    assert len(retry) == 1
+    assert retry[0].topic == first[0].topic
+    assert retry[0].payload["state"] == "unavailable"
