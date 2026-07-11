@@ -1,1 +1,373 @@
-ZnJvbSBfX2Z1dHVyZV9fIGltcG9ydCBhbm5vdGF0aW9ucwoKaW1wb3J0IGpzb24KaW1wb3J0IHJlCmltcG9ydCBzcWxpdGUzCmltcG9ydCB0aHJlYWRpbmcKZnJvbSBkYXRhY2xhc3NlcyBpbXBvcnQgZGF0YWNsYXNzCmZyb20gZGF0ZXRpbWUgaW1wb3J0IFVUQywgZGF0ZXRpbWUsIHRpbWVkZWx0YQpmcm9tIGVudW0gaW1wb3J0IFN0ckVudW0KZnJvbSBpbXBvcnRsaWIucmVzb3VyY2VzIGltcG9ydCBmaWxlcwpmcm9tIHBhdGhsaWIgaW1wb3J0IFBhdGgKZnJvbSB0eXBpbmcgaW1wb3J0IEFueSwgTWFwcGluZwoKZnJvbSBqc29uc2NoZW1hIGltcG9ydCBEcmFmdDIwMjAxMlZhbGlkYXRvciwgRm9ybWF0Q2hlY2tlcgoKSEFSRFdBUkVfSURfUEFUVEVSTiA9IHJlLmNvbXBpbGUociJeZ2h3LVthLXowLTldKy1bMC05YS1mXXsxMn0kIikKTk9ERV9JRF9QQVRURVJOID0gcmUuY29tcGlsZShyIl5bQS1aYS16MC05Xy1dezMsNjR9JCIpCgoKY2xhc3MgUmVnaXN0cmF0aW9uU3RhdGUoU3RyRW51bSk6CiAgICBQRU5ESU5HID0gInBlbmRpbmciCiAgICBBUFBST1ZFRCA9ICJhcHByb3ZlZCIKICAgIFJFSkVDVEVEID0gInJlamVjdGVkIgogICAgRVhQSVJFRCA9ICJleHBpcmVkIgoKCmNsYXNzIEhlbGxvVmFsaWRhdGlvbkVycm9yKFZhbHVlRXJyb3IpOgogICAgIiIiUmFpc2VkIHdoZW4gYW4gdW50cnVzdGVkIGhlbGxvIHBheWxvYWQgaXMgbm90IGdoLnBhaXIuaGVsbG8vMS4iIiIKCgpjbGFzcyBSZWdpc3RyYXRpb25Db25mbGljdChSdW50aW1lRXJyb3IpOgogICAgIiIiUmFpc2VkIHdoZW4gYSByZXF1ZXN0ZWQgc3RhdGUgdHJhbnNpdGlvbiBpcyBub3Qgc2FmZS4iIiIKCgpAZGF0YWNsYXNzKGZyb3plbj1UcnVlKQpjbGFzcyBSZWdpc3RyYXRpb25SZWNvcmQ6CiAgICBoYXJkd2FyZV9pZDogc3RyCiAgICBwYWlyaW5nX2lkOiBzdHIKICAgIHBhaXJpbmdfZXBvY2g6IGludAogICAgbW9kZWw6IHN0cgogICAgZndfdmVyc2lvbjogc3RyCiAgICBub2RlX25vbmNlOiBzdHIKICAgIGNhcGFiaWxpdGllczogdHVwbGVbc3RyLCAuLi5dCiAgICBzdGF0ZTogUmVnaXN0cmF0aW9uU3RhdGUKICAgIGZpcnN0X3NlZW5fYXQ6IGRhdGV0aW1lCiAgICBsYXN0X3NlZW5fYXQ6IGRhdGV0aW1lCiAgICBleHBpcmVzX2F0OiBkYXRldGltZQogICAgbm9kZV9pZDogc3RyIHwgTm9uZQogICAgcmVhc29uOiBzdHIgfCBOb25lCgoKQGRhdGFjbGFzcyhmcm96ZW49VHJ1ZSkKY2xhc3MgT2JzZXJ2ZVJlc3VsdDoKICAgIHN0YXR1czogc3RyCiAgICByZWNvcmQ6IFJlZ2lzdHJhdGlvblJlY29yZAogICAgcmVhc29uOiBzdHIgfCBOb25lID0gTm9uZQoKCmRlZiBfdXRjKHZhbHVlOiBkYXRldGltZSkgLT4gZGF0ZXRpbWU6CiAgICBpZiB2YWx1ZS50emluZm8gaXMgTm9uZToKICAgICAgICByYWlzZSBWYWx1ZUVycm9yKCJkYXRldGltZSBtdXN0IGJlIHRpbWV6b25lLWF3YXJlIikKICAgIHJldHVybiB2YWx1ZS5hc3RpbWV6b25lKFVUQykKCgpkZWYgX3RpbWVzdGFtcCh2YWx1ZTogZGF0ZXRpbWUpIC0+IHN0cjoKICAgIHJldHVybiBfdXRjKHZhbHVlKS5pc29mb3JtYXQodGltZXNwZWM9Im1pbGxpc2Vjb25kcyIpLnJlcGxhY2UoIiswMDowMCIsICJaIikKCgpkZWYgX3BhcnNlX3RpbWVzdGFtcCh2YWx1ZTogc3RyKSAtPiBkYXRldGltZToKICAgIHJldHVybiBkYXRldGltZS5mcm9taXNvZm9ybWF0KHZhbHVlLnJlcGxhY2UoIloiLCAiKzAwOjAwIikpLmFzdGltZXpvbmUoVVRDKQoKCmNsYXNzIFJlZ2lzdHJhdGlvblJlZ2lzdHJ5OgogICAgIiIiUGVyc2lzdGVudCwgdGhyZWFkLXNhZmUgTTIgcGFpcmluZyBpbnRha2Ugc3RhdGUuCgogICAgVGhpcyBzbGljZSBkZWxpYmVyYXRlbHkgc3RvcHMgYmVmb3JlIFBvUCB2ZXJpZmljYXRpb24gYW5kIGNyZWRlbnRpYWwgaXNzdWFuY2UuCiAgICBBcHByb3ZpbmcgYSBwZW5kaW5nIHJlY29yZCBpcyBhbiBvcGVyYXRvciBkZWNpc2lvbiBvbmx5OyBpdCBuZXZlciBjcmVhdGVzIGEKICAgIGJyb2tlciBhY2NvdW50IG9yIGdyYW50cyBNUVRUIGFjY2Vzcy4KICAgICIiIgoKICAgIGRlZiBfX2luaXRfXyhzZWxmLCBwYXRoOiBzdHIgfCBQYXRoLCAqLCBwZW5kaW5nX3R0bF9zOiBpbnQgPSAxMjApIC0+IE5vbmU6CiAgICAgICAgaWYgcGVuZGluZ190dGxfcyA8IDE6CiAgICAgICAgICAgIHJhaXNlIFZhbHVlRXJyb3IoInBlbmRpbmdfdHRsX3MgbXVzdCBiZSBwb3NpdGl2ZSIpCiAgICAgICAgc2VsZi5wZW5kaW5nX3R0bCA9IHRpbWVkZWx0YShzZWNvbmRzPXBlbmRpbmdfdHRsX3MpCiAgICAgICAgc2VsZi5fbG9jayA9IHRocmVhZGluZy5STG9jaygpCiAgICAgICAgc2VsZi5fY29ubmVjdGlvbiA9IHNxbGl0ZTMuY29ubmVjdChzdHIocGF0aCksIGlzb2xhdGlvbl9sZXZlbD1Ob25lLCBjaGVja19zYW1lX3RocmVhZD1GYWxzZSkKICAgICAgICBzZWxmLl9jb25uZWN0aW9uLnJvd19mYWN0b3J5ID0gc3FsaXRlMy5Sb3cKICAgICAgICBzZWxmLl92YWxpZGF0b3IgPSBzZWxmLl9sb2FkX3ZhbGlkYXRvcigpCiAgICAgICAgc2VsZi5faW5pdGlhbGl6ZSgpCgogICAgQHN0YXRpY21ldGhvZAogICAgZGVmIF9sb2FkX3ZhbGlkYXRvcigpIC0+IERyYWZ0MjAyMDEyVmFsaWRhdG9yOgogICAgICAgIHNjaGVtYV9wYXRoID0gZmlsZXMoImdyZWVuaG91c2VfbWFuYWdlciIpLmpvaW5wYXRoKCJzY2hlbWFzL2doLnBhaXIuaGVsbG8tMS5zY2hlbWEuanNvbiIpCiAgICAgICAgc2NoZW1hID0ganNvbi5sb2FkcyhzY2hlbWFfcGF0aC5yZWFkX3RleHQoZW5jb2Rpbmc9InV0Zi04IikpCiAgICAgICAgcmV0dXJuIERyYWZ0MjAyMDEyVmFsaWRhdG9yKHNjaGVtYSwgZm9ybWF0X2NoZWNrZXI9Rm9ybWF0Q2hlY2tlcigpKQoKICAgIGRlZiBfaW5pdGlhbGl6ZShzZWxmKSAtPiBOb25lOgogICAgICAgIHdpdGggc2VsZi5fbG9jaywgc2VsZi5fY29ubmVjdGlvbjoKICAgICAgICAgICAgc2VsZi5fY29ubmVjdGlvbi5leGVjdXRlc2NyaXB0KAogICAgICAgICAgICAgICAgIiIiCiAgICAgICAgICAgICAgICBQUkFHTUEgZm9yZWlnbl9rZXlzID0gT047CgogICAgICAgICAgICAgICAgQ1JFQVRFIFRBQkxFIElGIE5PVCBFWElTVFMgcmVnaXN0cmF0aW9ucyAoCiAgICAgICAgICAgICAgICAgICAgaGFyZHdhcmVfaWQgVEVYVCBQUklNQVJZIEtFWSwKICAgICAgICAgICAgICAgICAgICBjdXJyZW50X3BhaXJpbmdfaWQgVEVYVCBOT1QgTlVMTCBVTklRVUUsCiAgICAgICAgICAgICAgICAgICAgcGFpcmluZ19lcG9jaCBJTlRFR0VSIE5PVCBOVUxMIENIRUNLIChwYWlyaW5nX2Vwb2NoID49IDEpLAogICAgICAgICAgICAgICAgICAgIG5vZGVfaWQgVEVYVCBVTklRVUUsCiAgICAgICAgICAgICAgICAgICAgRk9SRUlHTiBLRVkgKGN1cnJlbnRfcGFpcmluZ19pZCkgUkVGRVJFTkNFUyBwYWlyaW5nX3Nlc3Npb25zKHBhaXJpbmdfaWQpCiAgICAgICAgICAgICAgICApOwoKICAgICAgICAgICAgICAgIENSRUFURSBUQUJMRSBJRiBOT1QgRVhJU1RTIHBhaXJpbmdfc2Vzc2lvbnMgKAogICAgICAgICAgICAgICAgICAgIHBhaXJpbmdfaWQgVEVYVCBQUklNQVJZIEtFWSwKICAgICAgICAgICAgICAgICAgICBoYXJkd2FyZV9pZCBURVhUIE5PVCBOVUxMLAogICAgICAgICAgICAgICAgICAgIHBhaXJpbmdfZXBvY2ggSU5URUdFUiBOT1QgTlVMTCBDSEVDSyAocGFpcmluZ19lcG9jaCA+PSAxKSwKICAgICAgICAgICAgICAgICAgICBtb2RlbCBURVhUIE5PVCBOVUxMLAogICAgICAgICAgICAgICAgICAgIGZ3X3ZlcnNpb24gVEVYVCBOT1QgTlVMTCwKICAgICAgICAgICAgICAgICAgICBub2RlX25vbmNlIFRFWFQgTk9UIE5VTEwsCiAgICAgICAgICAgICAgICAgICAgY2FwYWJpbGl0aWVzX2pzb24gVEVYVCBOT1QgTlVMTCwKICAgICAgICAgICAgICAgICAgICBzdGF0ZSBURVhUIE5PVCBOVUxMIENIRUNLIChzdGF0ZSBJTiAoJ3BlbmRpbmcnLCAnYXBwcm92ZWQnLCAncmVqZWN0ZWQnLCAnZXhwaXJlZCcpKSwKICAgICAgICAgICAgICAgICAgICBmaXJzdF9zZWVuX2F0IFRFWFQgTk9UIE5VTEwsCiAgICAgICAgICAgICAgICAgICAgbGFzdF9zZWVuX2F0IFRFWFQgTk9UIE5VTEwsCiAgICAgICAgICAgICAgICAgICAgZXhwaXJlc19hdCBURVhUIE5PVCBOVUxMLAogICAgICAgICAgICAgICAgICAgIHJlYXNvbiBURVhUCiAgICAgICAgICAgICAgICApOwoKICAgICAgICAgICAgICAgIENSRUFURSBJTkRFWCBJRiBOT1QgRVhJU1RTIHBhaXJpbmdfc2Vzc2lvbnNfaGFyZHdhcmVfZXBvY2gKICAgICAgICAgICAgICAgICAgICBPTiBwYWlyaW5nX3Nlc3Npb25zKGhhcmR3YXJlX2lkLCBwYWlyaW5nX2Vwb2NoKTsKICAgICAgICAgICAgICAgICIiIgogICAgICAgICAgICApCgogICAgZGVmIGNsb3NlKHNlbGYpIC0+IE5vbmU6CiAgICAgICAgd2l0aCBzZWxmLl9sb2NrOgogICAgICAgICAgICBzZWxmLl9jb25uZWN0aW9uLmNsb3NlKCkKCiAgICBkZWYgX19lbnRlcl9fKHNlbGYpIC0+IFJlZ2lzdHJhdGlvblJlZ2lzdHJ5OgogICAgICAgIHJldHVybiBzZWxmCgogICAgZGVmIF9fZXhpdF9fKHNlbGYsICpfOiBvYmplY3QpIC0+IE5vbmU6CiAgICAgICAgc2VsZi5jbG9zZSgpCgogICAgZGVmIHZhbGlkYXRlX2hlbGxvKHNlbGYsIHBheWxvYWQ6IE1hcHBpbmdbc3RyLCBBbnldKSAtPiBkaWN0W3N0ciwgQW55XToKICAgICAgICBjYW5kaWRhdGUgPSBkaWN0KHBheWxvYWQpCiAgICAgICAgZXJyb3JzID0gc29ydGVkKHNlbGYuX3ZhbGlkYXRvci5pdGVyX2Vycm9ycyhjYW5kaWRhdGUpLCBrZXk9bGFtYmRhIGVycm9yOiBsaXN0KGVycm9yLnBhdGgpKQogICAgICAgIGlmIGVycm9yczoKICAgICAgICAgICAgZXJyb3IgPSBlcnJvcnNbMF0KICAgICAgICAgICAgbG9jYXRpb24gPSAiLiIuam9pbihzdHIocGFydCkgZm9yIHBhcnQgaW4gZXJyb3IucGF0aCkgb3IgIiQiCiAgICAgICAgICAgIHJhaXNlIEhlbGxvVmFsaWRhdGlvbkVycm9yKGYie2xvY2F0aW9ufToge2Vycm9yLm1lc3NhZ2V9IikKICAgICAgICByZXR1cm4gY2FuZGlkYXRlCgogICAgZGVmIG9ic2VydmVfaGVsbG8oCiAgICAgICAgc2VsZiwKICAgICAgICBwYXlsb2FkOiBNYXBwaW5nW3N0ciwgQW55XSwKICAgICAgICAqLAogICAgICAgIG5vdzogZGF0ZXRpbWUgfCBOb25lID0gTm9uZSwKICAgICkgLT4gT2JzZXJ2ZVJlc3VsdDoKICAgICAgICBoZWxsbyA9IHNlbGYudmFsaWRhdGVfaGVsbG8ocGF5bG9hZCkKICAgICAgICBvYnNlcnZlZF9hdCA9IF91dGMobm93IG9yIGRhdGV0aW1lLm5vdyhVVEMpKQogICAgICAgIHBhaXJpbmdfaWQgPSBoZWxsb1sicGFpcmluZ19pZCJdCiAgICAgICAgaGFyZHdhcmVfaWQgPSBoZWxsb1siaGFyZHdhcmVfaWQiXQogICAgICAgIGVwb2NoID0gaGVsbG9bInBhaXJpbmdfZXBvY2giXQoKICAgICAgICB3aXRoIHNlbGYuX2xvY2ssIHNlbGYuX2Nvbm5lY3Rpb246CiAgICAgICAgICAgIHJlcGxheSA9IHNlbGYuX3Nlc3Npb25fcm93KHBhaXJpbmdfaWQpCiAgICAgICAgICAgIGN1cnJlbnQgPSBzZWxmLl9jdXJyZW50X3JvdyhoYXJkd2FyZV9pZCkKCiAgICAgICAgICAgIGlmIHJlcGxheSBpcyBub3QgTm9uZToKICAgICAgICAgICAgICAgIGlmIHJlcGxheVsiaGFyZHdhcmVfaWQiXSAhPSBoYXJkd2FyZV9pZCBvciByZXBsYXlbInBhaXJpbmdfZXBvY2giXSAhPSBlcG9jaDoKICAgICAgICAgICAgICAgICAgICByZWNvcmQgPSBzZWxmLl9yb3dfdG9fcmVjb3JkKHJlcGxheSwgY3VycmVudFsibm9kZV9pZCJdIGlmIGN1cnJlbnQgZWxzZSBOb25lKQogICAgICAgICAgICAgICAgICAgIHJldHVybiBPYnNlcnZlUmVzdWx0KCJyZWplY3RlZCIsIHJlY29yZCwgInJlcGxheV9kZXRlY3RlZCIpCiAgICAgICAgICAgICAgICBpZiBjdXJyZW50IGlzIE5vbmUgb3IgY3VycmVudFsiY3VycmVudF9wYWlyaW5nX2lkIl0gIT0gcGFpcmluZ19pZDoKICAgICAgICAgICAgICAgICAgICByZXR1cm4gT2JzZXJ2ZVJlc3VsdCgKICAgICAgICAgICAgICAgICAgICAgICAgInJlamVjdGVkIiwKICAgICAgICAgICAgICAgICAgICAgICAgc2VsZi5fcm93X3RvX3JlY29yZChyZXBsYXksIGN1cnJlbnRbIm5vZGVfaWQiXSBpZiBjdXJyZW50IGVsc2UgTm9uZSksCiAgICAgICAgICAgICAgICAgICAgICAgICJyZXBsYXlfZGV0ZWN0ZWQiLAogICAgICAgICAgICAgICAgICAgICkKICAgICAgICAgICAgICAgIGlmIHJlcGxheVsic3RhdGUiXSAhPSBSZWdpc3RyYXRpb25TdGF0ZS5QRU5ESU5HOgogICAgICAgICAgICAgICAgICAgIHJldHVybiBPYnNlcnZlUmVzdWx0KAogICAgICAgICAgICAgICAgICAgICAgICAicmVqZWN0ZWQiLAogICAgICAgICAgICAgICAgICAgICAgICBzZWxmLl9yb3dfdG9fcmVjb3JkKHJlcGxheSwgY3VycmVudFsibm9kZV9pZCJdKSwKICAgICAgICAgICAgICAgICAgICAgICAgInJlcGxheV9kZXRlY3RlZCIsCiAgICAgICAgICAgICAgICAgICAgKQogICAgICAgICAgICAgICAgaWYgb2JzZXJ2ZWRfYXQgPiBfcGFyc2VfdGltZXN0YW1wKHJlcGxheVsiZXhwaXJlc19hdCJdKToKICAgICAgICAgICAgICAgICAgICBzZWxmLl9zZXRfc2Vzc2lvbl9zdGF0ZShwYWlyaW5nX2lkLCBSZWdpc3RyYXRpb25TdGF0ZS5FWFBJUkVELCAiZXhwaXJlZCIpCiAgICAgICAgICAgICAgICAgICAgcmV0dXJuIE9ic2VydmVSZXN1bHQoInJlamVjdGVkIiwgc2VsZi5nZXQoaGFyZHdhcmVfaWQpLCAiZXhwaXJlZCIpCiAgICAgICAgICAgICAgICBzZWxmLl9jb25uZWN0aW9uLmV4ZWN1dGUoCiAgICAgICAgICAgICAgICAgICAgIlVQREFURSBwYWlyaW5nX3Nlc3Npb25zIFNFVCBsYXN0X3NlZW5fYXQgPSA/IFdIRVJFIHBhaXJpbmdfaWQgPSA/IiwKICAgICAgICAgICAgICAgICAgICAoX3RpbWVzdGFtcChvYnNlcnZlZF9hdCksIHBhaXJpbmdfaWQpLAogICAgICAgICAgICAgICAgKQogICAgICAgICAgICAgICAgcmV0dXJuIE9ic2VydmVSZXN1bHQoImR1cGxpY2F0ZSIsIHNlbGYuZ2V0KGhhcmR3YXJlX2lkKSkKCiAgICAgICAgICAgIGlmIGN1cnJlbnQgaXMgbm90IE5vbmUgYW5kIGVwb2NoIDw9IGN1cnJlbnRbInBhaXJpbmdfZXBvY2giXToKICAgICAgICAgICAgICAgIHJldHVybiBPYnNlcnZlUmVzdWx0KCJyZWplY3RlZCIsIHNlbGYuZ2V0KGhhcmR3YXJlX2lkKSwgImdlbmVyYXRpb25fcm9sbGJhY2siKQoKICAgICAgICAgICAgZXhwaXJlc19hdCA9IG9ic2VydmVkX2F0ICsgc2VsZi5wZW5kaW5nX3R0bAogICAgICAgICAgICBzZWxmLl9jb25uZWN0aW9uLmV4ZWN1dGUoCiAgICAgICAgICAgICAgICAiIiIKICAgICAgICAgICAgICAgIElOU0VSVCBJTlRPIHBhaXJpbmdfc2Vzc2lvbnMgKAogICAgICAgICAgICAgICAgICAgIHBhaXJpbmdfaWQsIGhhcmR3YXJlX2lkLCBwYWlyaW5nX2Vwb2NoLCBtb2RlbCwgZndfdmVyc2lvbiwgbm9kZV9ub25jZSwKICAgICAgICAgICAgICAgICAgICBjYXBhYmlsaXRpZXNfanNvbiwgc3RhdGUsIGZpcnN0X3NlZW5fYXQsIGxhc3Rfc2Vlbl9hdCwgZXhwaXJlc19hdCwgcmVhc29uCiAgICAgICAgICAgICAgICApIFZBTFVFUyAoPywgPywgPywgPywgPywgPywgPywgPywgPywgPywgPywgTlVMTCkKICAgICAgICAgICAgICAgICIiIiwKICAgICAgICAgICAgICAgICgKICAgICAgICAgICAgICAgICAgICBwYWlyaW5nX2lkLAogICAgICAgICAgICAgICAgICAgIGhhcmR3YXJlX2lkLAogICAgICAgICAgICAgICAgICAgIGVwb2NoLAogICAgICAgICAgICAgICAgICAgIGhlbGxvWyJtb2RlbCJdLAogICAgICAgICAgICAgICAgICAgIGhlbGxvWyJmd192ZXJzaW9uIl0sCiAgICAgICAgICAgICAgICAgICAgaGVsbG9bIm5vZGVfbm9uY2UiXSwKICAgICAgICAgICAgICAgICAgICBqc29uLmR1bXBzKGhlbGxvWyJjYXBhYmlsaXRpZXMiXSwgc2VwYXJhdG9ycz0oIiwiLCAiOiIpKSwKICAgICAgICAgICAgICAgICAgICBSZWdpc3RyYXRpb25TdGF0ZS5QRU5ESU5HLAogICAgICAgICAgICAgICAgICAgIF90aW1lc3RhbXAob2JzZXJ2ZWRfYXQpLAogICAgICAgICAgICAgICAgICAgIF90aW1lc3RhbXAob2JzZXJ2ZWRfYXQpLAogICAgICAgICAgICAgICAgICAgIF90aW1lc3RhbXAoZXhwaXJlc19hdCksCiAgICAgICAgICAgICAgICApLAogICAgICAgICAgICApCgogICAgICAgICAgICBzdGF0dXMgPSAiY3JlYXRlZCIKICAgICAgICAgICAgbm9kZV9pZCA9IE5vbmUKICAgICAgICAgICAgaWYgY3VycmVudCBpcyBub3QgTm9uZToKICAgICAgICAgICAgICAgIHN0YXR1cyA9ICJzdXBlcnNlZGVkIgogICAgICAgICAgICAgICAgbm9kZV9pZCA9IGN1cnJlbnRbIm5vZGVfaWQiXQogICAgICAgICAgICAgICAgcHJldmlvdXMgPSBzZWxmLl9zZXNzaW9uX3JvdyhjdXJyZW50WyJjdXJyZW50X3BhaXJpbmdfaWQiXSkKICAgICAgICAgICAgICAgIGlmIHByZXZpb3VzIGlzIG5vdCBOb25lIGFuZCBwcmV2aW91c1sic3RhdGUiXSA9PSBSZWdpc3RyYXRpb25TdGF0ZS5QRU5ESU5HOgogICAgICAgICAgICAgICAgICAgIHNlbGYuX3NldF9zZXNzaW9uX3N0YXRlKAogICAgICAgICAgICAgICAgICAgICAgICBjdXJyZW50WyJjdXJyZW50X3BhaXJpbmdfaWQiXSwgUmVnaXN0cmF0aW9uU3RhdGUuUkVKRUNURUQsICJzdXBlcnNlZGVkIgogICAgICAgICAgICAgICAgICAgICkKICAgICAgICAgICAgICAgIHNlbGYuX2Nvbm5lY3Rpb24uZXhlY3V0ZSgKICAgICAgICAgICAgICAgICAgICAiIiIKICAgICAgICAgICAgICAgICAgICBVUERBVEUgcmVnaXN0cmF0aW9ucwogICAgICAgICAgICAgICAgICAgIFNFVCBjdXJyZW50X3BhaXJpbmdfaWQgPSA/LCBwYWlyaW5nX2Vwb2NoID0gPwogICAgICAgICAgICAgICAgICAgIFdIRVJFIGhhcmR3YXJlX2lkID0gPwogICAgICAgICAgICAgICAgICAgICIiIiwKICAgICAgICAgICAgICAgICAgICAocGFpcmluZ19pZCwgZXBvY2gsIGhhcmR3YXJlX2lkKSwKICAgICAgICAgICAgICAgICkKICAgICAgICAgICAgZWxzZToKICAgICAgICAgICAgICAgIHNlbGYuX2Nvbm5lY3Rpb24uZXhlY3V0ZSgKICAgICAgICAgICAgICAgICAgICAiIiIKICAgICAgICAgICAgICAgICAgICBJTlNFUlQgSU5UTyByZWdpc3RyYXRpb25zIChoYXJkd2FyZV9pZCwgY3VycmVudF9wYWlyaW5nX2lkLCBwYWlyaW5nX2Vwb2NoLCBub2RlX2lkKQogICAgICAgICAgICAgICAgICAgIFZBTFVFUyAoPywgPywgPywgPykKICAgICAgICAgICAgICAgICAgICAiIiIsCiAgICAgICAgICAgICAgICAgICAgKGhhcmR3YXJlX2lkLCBwYWlyaW5nX2lkLCBlcG9jaCwgbm9kZV9pZCksCiAgICAgICAgICAgICAgICApCiAgICAgICAgICAgIHJldHVybiBPYnNlcnZlUmVzdWx0KHN0YXR1cywgc2VsZi5nZXQoaGFyZHdhcmVfaWQpKQoKICAgIGRlZiBhcHByb3ZlKAogICAgICAgIHNlbGYsCiAgICAgICAgaGFyZHdhcmVfaWQ6IHN0ciwKICAgICAgICBwYWlyaW5nX2lkOiBzdHIsCiAgICAgICAgKiwKICAgICAgICBub2RlX2lkOiBzdHIgfCBOb25lID0gTm9uZSwKICAgICAgICBub3c6IGRhdGV0aW1lIHwgTm9uZSA9IE5vbmUsCiAgICApIC0+IFJlZ2lzdHJhdGlvblJlY29yZDoKICAgICAgICBvYnNlcnZlZF9hdCA9IF91dGMobm93IG9yIGRhdGV0aW1lLm5vdyhVVEMpKQogICAgICAgIHdpdGggc2VsZi5fbG9jaywgc2VsZi5fY29ubmVjdGlvbjoKICAgICAgICAgICAgcmVjb3JkID0gc2VsZi5fcmVxdWlyZV9jdXJyZW50KGhhcmR3YXJlX2lkLCBwYWlyaW5nX2lkKQogICAgICAgICAgICBpZiByZWNvcmQuc3RhdGUgIT0gUmVnaXN0cmF0aW9uU3RhdGUuUEVORElORzoKICAgICAgICAgICAgICAgIHJhaXNlIFJlZ2lzdHJhdGlvbkNvbmZsaWN0KGYiY2Fubm90IGFwcHJvdmUgcmVnaXN0cmF0aW9uIGluIHtyZWNvcmQuc3RhdGV9IHN0YXRlIikKICAgICAgICAgICAgaWYgb2JzZXJ2ZWRfYXQgPiByZWNvcmQuZXhwaXJlc19hdDoKICAgICAgICAgICAgICAgIHNlbGYuX3NldF9zZXNzaW9uX3N0YXRlKHBhaXJpbmdfaWQsIFJlZ2lzdHJhdGlvblN0YXRlLkVYUElSRUQsICJleHBpcmVkIikKICAgICAgICAgICAgICAgIHJhaXNlIFJlZ2lzdHJhdGlvbkNvbmZsaWN0KCJjYW5ub3QgYXBwcm92ZSBleHBpcmVkIHJlZ2lzdHJhdGlvbiIpCiAgICAgICAgICAgIGFzc2lnbmVkX25vZGVfaWQgPSBub2RlX2lkIG9yIHJlY29yZC5ub2RlX2lkCiAgICAgICAgICAgIGlmIGFzc2lnbmVkX25vZGVfaWQgaXMgTm9uZToKICAgICAgICAgICAgICAgIHJhaXNlIFJlZ2lzdHJhdGlvbkNvbmZsaWN0KCJub2RlX2lkIGlzIHJlcXVpcmVkIGZvciBmaXJzdCBhcHByb3ZhbCIpCiAgICAgICAgICAgIGlmIE5PREVfSURfUEFUVEVSTi5mdWxsbWF0Y2goYXNzaWduZWRfbm9kZV9pZCkgaXMgTm9uZToKICAgICAgICAgICAgICAgIHJhaXNlIFJlZ2lzdHJhdGlvbkNvbmZsaWN0KCJub2RlX2lkIGRvZXMgbm90IG1hdGNoIGdoLW1xdHQtdjEiKQogICAgICAgICAgICB0cnk6CiAgICAgICAgICAgICAgICBzZWxmLl9jb25uZWN0aW9uLmV4ZWN1dGUoCiAgICAgICAgICAgICAgICAgICAgIlVQREFURSByZWdpc3RyYXRpb25zIFNFVCBub2RlX2lkID0gPyBXSEVSRSBoYXJkd2FyZV9pZCA9ID8iLAogICAgICAgICAgICAgICAgICAgIChhc3NpZ25lZF9ub2RlX2lkLCBoYXJkd2FyZV9pZCksCiAgICAgICAgICAgICAgICApCiAgICAgICAgICAgIGV4Y2VwdCBzcWxpdGUzLkludGVncml0eUVycm9yIGFzIGVycm9yOgogICAgICAgICAgICAgICAgcmFpc2UgUmVnaXN0cmF0aW9uQ29uZmxpY3QoIm5vZGVfaWQgaXMgYWxyZWFkeSBhc3NpZ25lZCIpIGZyb20gZXJyb3IKICAgICAgICAgICAgc2VsZi5fc2V0X3Nlc3Npb25fc3RhdGUocGFpcmluZ19pZCwgUmVnaXN0cmF0aW9uU3RhdGUuQVBQUk9WRUQsICJvcGVyYXRvcl9hcHByb3ZlZCIpCiAgICAgICAgICAgIHJldHVybiBzZWxmLmdldChoYXJkd2FyZV9pZCkKCiAgICBkZWYgcmVqZWN0KAogICAgICAgIHNlbGYsCiAgICAgICAgaGFyZHdhcmVfaWQ6IHN0ciwKICAgICAgICBwYWlyaW5nX2lkOiBzdHIsCiAgICAgICAgKiwKICAgICAgICByZWFzb246IHN0ciA9ICJ1c2VyX3JlamVjdGVkIiwKICAgICkgLT4gUmVnaXN0cmF0aW9uUmVjb3JkOgogICAgICAgIHdpdGggc2VsZi5fbG9jaywgc2VsZi5fY29ubmVjdGlvbjoKICAgICAgICAgICAgcmVjb3JkID0gc2VsZi5fcmVxdWlyZV9jdXJyZW50KGhhcmR3YXJlX2lkLCBwYWlyaW5nX2lkKQogICAgICAgICAgICBpZiByZWNvcmQuc3RhdGUgIT0gUmVnaXN0cmF0aW9uU3RhdGUuUEVORElORzoKICAgICAgICAgICAgICAgIHJhaXNlIFJlZ2lzdHJhdGlvbkNvbmZsaWN0KGYiY2Fubm90IHJlamVjdCByZWdpc3RyYXRpb24gaW4ge3JlY29yZC5zdGF0ZX0gc3RhdGUiKQogICAgICAgICAgICBzZWxmLl9zZXRfc2Vzc2lvbl9zdGF0ZShwYWlyaW5nX2lkLCBSZWdpc3RyYXRpb25TdGF0ZS5SRUpFQ1RFRCwgcmVhc29uKQogICAgICAgICAgICByZXR1cm4gc2VsZi5nZXQoaGFyZHdhcmVfaWQpCgogICAgZGVmIGV4cGlyZV9wZW5kaW5nKHNlbGYsICosIG5vdzogZGF0ZXRpbWUgfCBOb25lID0gTm9uZSkgLT4gaW50OgogICAgICAgIG9ic2VydmVkX2F0ID0gX3V0Yyhub3cgb3IgZGF0ZXRpbWUubm93KFVUQykpCiAgICAgICAgd2l0aCBzZWxmLl9sb2NrLCBzZWxmLl9jb25uZWN0aW9uOgogICAgICAgICAgICBjdXJzb3IgPSBzZWxmLl9jb25uZWN0aW9uLmV4ZWN1dGUoCiAgICAgICAgICAgICAgICAiIiIKICAgICAgICAgICAgICAgIFVQREFURSBwYWlyaW5nX3Nlc3Npb25zCiAgICAgICAgICAgICAgICBTRVQgc3RhdGUgPSA/LCByZWFzb24gPSA/CiAgICAgICAgICAgICAgICBXSEVSRSBzdGF0ZSA9ID8gQU5EIGV4cGlyZXNfYXQgPCA/CiAgICAgICAgICAgICAgICAiIiIsCiAgICAgICAgICAgICAgICAoCiAgICAgICAgICAgICAgICAgICAgUmVnaXN0cmF0aW9uU3RhdGUuRVhQSVJFRCwKICAgICAgICAgICAgICAgICAgICAiZXhwaXJlZCIsCiAgICAgICAgICAgICAgICAgICAgUmVnaXN0cmF0aW9uU3RhdGUuUEVORElORywKICAgICAgICAgICAgICAgICAgICBfdGltZXN0YW1wKG9ic2VydmVkX2F0KSwKICAgICAgICAgICAgICAgICksCiAgICAgICAgICAgICkKICAgICAgICAgICAgcmV0dXJuIGN1cnNvci5yb3djb3VudAoKICAgIGRlZiBnZXQoc2VsZiwgaGFyZHdhcmVfaWQ6IHN0cikgLT4gUmVnaXN0cmF0aW9uUmVjb3JkOgogICAgICAgIHdpdGggc2VsZi5fbG9jazoKICAgICAgICAgICAgcm93ID0gc2VsZi5fY3VycmVudF9yb3coaGFyZHdhcmVfaWQpCiAgICAgICAgICAgIGlmIHJvdyBpcyBOb25lOgogICAgICAgICAgICAgICAgcmFpc2UgS2V5RXJyb3IoaGFyZHdhcmVfaWQpCiAgICAgICAgICAgIHJldHVybiBzZWxmLl9yb3dfdG9fcmVjb3JkKHJvdywgcm93WyJub2RlX2lkIl0pCgogICAgZGVmIGxpc3RfY3VycmVudChzZWxmKSAtPiB0dXBsZVtSZWdpc3RyYXRpb25SZWNvcmQsIC4uLl06CiAgICAgICAgd2l0aCBzZWxmLl9sb2NrOgogICAgICAgICAgICByb3dzID0gc2VsZi5fY29ubmVjdGlvbi5leGVjdXRlKAogICAgICAgICAgICAgICAgIiIiCiAgICAgICAgICAgICAgICBTRUxFQ1Qgcy4qLCByLm5vZGVfaWQKICAgICAgICAgICAgICAgIEZST00gcmVnaXN0cmF0aW9ucyBBUyByCiAgICAgICAgICAgICAgICBKT0lOIHBhaXJpbmdfc2Vzc2lvbnMgQVMgcyBPTiBzLnBhaXJpbmdfaWQgPSByLmN1cnJlbnRfcGFpcmluZ19pZAogICAgICAgICAgICAgICAgT1JERVIgQlkgcy5maXJzdF9zZWVuX2F0LCBzLmhhcmR3YXJlX2lkCiAgICAgICAgICAgICAgICAiIiIKICAgICAgICAgICAgKS5mZXRjaGFsbCgpCiAgICAgICAgICAgIHJldHVybiB0dXBsZShzZWxmLl9yb3dfdG9fcmVjb3JkKHJvdywgcm93WyJub2RlX2lkIl0pIGZvciByb3cgaW4gcm93cykKCiAgICBkZWYgX3JlcXVpcmVfY3VycmVudChzZWxmLCBoYXJkd2FyZV9pZDogc3RyLCBwYWlyaW5nX2lkOiBzdHIpIC0+IFJlZ2lzdHJhdGlvblJlY29yZDoKICAgICAgICByZWNvcmQgPSBzZWxmLmdldChoYXJkd2FyZV9pZCkKICAgICAgICBpZiByZWNvcmQucGFpcmluZ19pZCAhPSBwYWlyaW5nX2lkOgogICAgICAgICAgICByYWlzZSBSZWdpc3RyYXRpb25Db25mbGljdCgicGFpcmluZ19pZCBpcyBub3QgdGhlIGN1cnJlbnQgc2Vzc2lvbiIpCiAgICAgICAgcmV0dXJuIHJlY29yZAoKICAgIGRlZiBfY3VycmVudF9yb3coc2VsZiwgaGFyZHdhcmVfaWQ6IHN0cikgLT4gc3FsaXRlMy5Sb3cgfCBOb25lOgogICAgICAgIHJldHVybiBzZWxmLl9jb25uZWN0aW9uLmV4ZWN1dGUoCiAgICAgICAgICAgICIiIgogICAgICAgICAgICBTRUxFQ1Qgcy4qLCByLmN1cnJlbnRfcGFpcmluZ19pZCwgci5ub2RlX2lkCiAgICAgICAgICAgIEZST00gcmVnaXN0cmF0aW9ucyBBUyByCiAgICAgICAgICAgIEpPSU4gcGFpcmluZ19zZXNzaW9ucyBBUyBzIE9OIHMucGFpcmluZ19pZCA9IHIuY3VycmVudF9wYWlyaW5nX2lkCiAgICAgICAgICAgIFdIRVJFIHIuaGFyZHdhcmVfaWQgPSA/CiAgICAgICAgICAgICIiIiwKICAgICAgICAgICAgKGhhcmR3YXJlX2lkLCksCiAgICAgICAgKS5mZXRjaG9uZSgpCgogICAgZGVmIF9zZXNzaW9uX3JvdyhzZWxmLCBwYWlyaW5nX2lkOiBzdHIpIC0+IHNxbGl0ZTMuUm93IHwgTm9uZToKICAgICAgICByZXR1cm4gc2VsZi5fY29ubmVjdGlvbi5leGVjdXRlKAogICAgICAgICAgICAiU0VMRUNUICogRlJPTSBwYWlyaW5nX3Nlc3Npb25zIFdIRVJFIHBhaXJpbmdfaWQgPSA/IiwgKHBhaXJpbmdfaWQsKQogICAgICAgICkuZmV0Y2hvbmUoKQoKICAgIGRlZiBfc2V0X3Nlc3Npb25fc3RhdGUoCiAgICAgICAgc2VsZiwgcGFpcmluZ19pZDogc3RyLCBzdGF0ZTogUmVnaXN0cmF0aW9uU3RhdGUsIHJlYXNvbjogc3RyIHwgTm9uZQogICAgKSAtPiBOb25lOgogICAgICAgIHNlbGYuX2Nvbm5lY3Rpb24uZXhlY3V0ZSgKICAgICAgICAgICAgIlVQREFURSBwYWlyaW5nX3Nlc3Npb25zIFNFVCBzdGF0ZSA9ID8sIHJlYXNvbiA9ID8gV0hFUkUgcGFpcmluZ19pZCA9ID8iLAogICAgICAgICAgICAoc3RhdGUsIHJlYXNvbiwgcGFpcmluZ19pZCksCiAgICAgICAgKQoKICAgIEBzdGF0aWNtZXRob2QKICAgIGRlZiBfcm93X3RvX3JlY29yZChyb3c6IHNxbGl0ZTMuUm93LCBub2RlX2lkOiBzdHIgfCBOb25lKSAtPiBSZWdpc3RyYXRpb25SZWNvcmQ6CiAgICAgICAgcmV0dXJuIFJlZ2lzdHJhdGlvblJlY29yZCgKICAgICAgICAgICAgaGFyZHdhcmVfaWQ9cm93WyJoYXJkd2FyZV9pZCJdLAogICAgICAgICAgICBwYWlyaW5nX2lkPXJvd1sicGFpcmluZ19pZCJdLAogICAgICAgICAgICBwYWlyaW5nX2Vwb2NoPXJvd1sicGFpcmluZ19lcG9jaCJdLAogICAgICAgICAgICBtb2RlbD1yb3dbIm1vZGVsIl0sCiAgICAgICAgICAgIGZ3X3ZlcnNpb249cm93WyJmd192ZXJzaW9uIl0sCiAgICAgICAgICAgIG5vZGVfbm9uY2U9cm93WyJub2RlX25vbmNlIl0sCiAgICAgICAgICAgIGNhcGFiaWxpdGllcz10dXBsZShqc29uLmxvYWRzKHJvd1siY2FwYWJpbGl0aWVzX2pzb24iXSkpLAogICAgICAgICAgICBzdGF0ZT1SZWdpc3RyYXRpb25TdGF0ZShyb3dbInN0YXRlIl0pLAogICAgICAgICAgICBmaXJzdF9zZWVuX2F0PV9wYXJzZV90aW1lc3RhbXAocm93WyJmaXJzdF9zZWVuX2F0Il0pLAogICAgICAgICAgICBsYXN0X3NlZW5fYXQ9X3BhcnNlX3RpbWVzdGFtcChyb3dbImxhc3Rfc2Vlbl9hdCJdKSwKICAgICAgICAgICAgZXhwaXJlc19hdD1fcGFyc2VfdGltZXN0YW1wKHJvd1siZXhwaXJlc19hdCJdKSwKICAgICAgICAgICAgbm9kZV9pZD1ub2RlX2lkLAogICAgICAgICAgICByZWFzb249cm93WyJyZWFzb24iXSwKICAgICAgICApCg==
+from __future__ import annotations
+
+import json
+import re
+import sqlite3
+import threading
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+from enum import StrEnum
+from importlib.resources import files
+from pathlib import Path
+from typing import Any, Mapping
+
+from jsonschema import Draft202012Validator, FormatChecker
+
+HARDWARE_ID_PATTERN = re.compile(r"^ghw-[a-z0-9]+-[0-9a-f]{12}$")
+NODE_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{3,64}$")
+
+
+class RegistrationState(StrEnum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    EXPIRED = "expired"
+
+
+class HelloValidationError(ValueError):
+    """Raised when an untrusted hello payload is not gh.pair.hello/1."""
+
+
+class RegistrationConflict(RuntimeError):
+    """Raised when a requested state transition is not safe."""
+
+
+@dataclass(frozen=True)
+class RegistrationRecord:
+    hardware_id: str
+    pairing_id: str
+    pairing_epoch: int
+    model: str
+    fw_version: str
+    node_nonce: str
+    capabilities: tuple[str, ...]
+    state: RegistrationState
+    first_seen_at: datetime
+    last_seen_at: datetime
+    expires_at: datetime
+    node_id: str | None
+    reason: str | None
+
+
+@dataclass(frozen=True)
+class ObserveResult:
+    status: str
+    record: RegistrationRecord
+    reason: str | None = None
+
+
+def _utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        raise ValueError("datetime must be timezone-aware")
+    return value.astimezone(UTC)
+
+
+def _timestamp(value: datetime) -> str:
+    return _utc(value).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def _parse_timestamp(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(UTC)
+
+
+class RegistrationRegistry:
+    """Persistent, thread-safe M2 pairing intake state.
+
+    This slice deliberately stops before PoP verification and credential issuance.
+    Approving a pending record is an operator decision only; it never creates a
+    broker account or grants MQTT access.
+    """
+
+    def __init__(self, path: str | Path, *, pending_ttl_s: int = 120) -> None:
+        if pending_ttl_s < 1:
+            raise ValueError("pending_ttl_s must be positive")
+        self.pending_ttl = timedelta(seconds=pending_ttl_s)
+        self._lock = threading.RLock()
+        self._connection = sqlite3.connect(str(path), isolation_level=None, check_same_thread=False)
+        self._connection.row_factory = sqlite3.Row
+        self._validator = self._load_validator()
+        self._initialize()
+
+    @staticmethod
+    def _load_validator() -> Draft202012Validator:
+        schema_path = files("greenhouse_manager").joinpath("schemas/gh.pair.hello-1.schema.json")
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        return Draft202012Validator(schema, format_checker=FormatChecker())
+
+    def _initialize(self) -> None:
+        with self._lock, self._connection:
+            self._connection.executescript(
+                """
+                PRAGMA foreign_keys = ON;
+
+                CREATE TABLE IF NOT EXISTS registrations (
+                    hardware_id TEXT PRIMARY KEY,
+                    current_pairing_id TEXT NOT NULL UNIQUE,
+                    pairing_epoch INTEGER NOT NULL CHECK (pairing_epoch >= 1),
+                    node_id TEXT UNIQUE,
+                    FOREIGN KEY (current_pairing_id) REFERENCES pairing_sessions(pairing_id)
+                );
+
+                CREATE TABLE IF NOT EXISTS pairing_sessions (
+                    pairing_id TEXT PRIMARY KEY,
+                    hardware_id TEXT NOT NULL,
+                    pairing_epoch INTEGER NOT NULL CHECK (pairing_epoch >= 1),
+                    model TEXT NOT NULL,
+                    fw_version TEXT NOT NULL,
+                    node_nonce TEXT NOT NULL,
+                    capabilities_json TEXT NOT NULL,
+                    state TEXT NOT NULL CHECK (state IN ('pending', 'approved', 'rejected', 'expired')),
+                    first_seen_at TEXT NOT NULL,
+                    last_seen_at TEXT NOT NULL,
+                    expires_at TEXT NOT NULL,
+                    reason TEXT
+                );
+
+                CREATE INDEX IF NOT EXISTS pairing_sessions_hardware_epoch
+                    ON pairing_sessions(hardware_id, pairing_epoch);
+                """
+            )
+
+    def close(self) -> None:
+        with self._lock:
+            self._connection.close()
+
+    def __enter__(self) -> RegistrationRegistry:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        self.close()
+
+    def validate_hello(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        candidate = dict(payload)
+        errors = sorted(self._validator.iter_errors(candidate), key=lambda error: list(error.path))
+        if errors:
+            error = errors[0]
+            location = ".".join(str(part) for part in error.path) or "$"
+            raise HelloValidationError(f"{location}: {error.message}")
+        return candidate
+
+    def observe_hello(
+        self,
+        payload: Mapping[str, Any],
+        *,
+        now: datetime | None = None,
+    ) -> ObserveResult:
+        hello = self.validate_hello(payload)
+        observed_at = _utc(now or datetime.now(UTC))
+        pairing_id = hello["pairing_id"]
+        hardware_id = hello["hardware_id"]
+        epoch = hello["pairing_epoch"]
+
+        with self._lock, self._connection:
+            replay = self._session_row(pairing_id)
+            current = self._current_row(hardware_id)
+
+            if replay is not None:
+                if replay["hardware_id"] != hardware_id or replay["pairing_epoch"] != epoch:
+                    record = self._row_to_record(replay, current["node_id"] if current else None)
+                    return ObserveResult("rejected", record, "replay_detected")
+                if current is None or current["current_pairing_id"] != pairing_id:
+                    return ObserveResult(
+                        "rejected",
+                        self._row_to_record(replay, current["node_id"] if current else None),
+                        "replay_detected",
+                    )
+                if replay["state"] != RegistrationState.PENDING:
+                    return ObserveResult(
+                        "rejected",
+                        self._row_to_record(replay, current["node_id"]),
+                        "replay_detected",
+                    )
+                if observed_at > _parse_timestamp(replay["expires_at"]):
+                    self._set_session_state(pairing_id, RegistrationState.EXPIRED, "expired")
+                    return ObserveResult("rejected", self.get(hardware_id), "expired")
+                self._connection.execute(
+                    "UPDATE pairing_sessions SET last_seen_at = ? WHERE pairing_id = ?",
+                    (_timestamp(observed_at), pairing_id),
+                )
+                return ObserveResult("duplicate", self.get(hardware_id))
+
+            if current is not None and epoch <= current["pairing_epoch"]:
+                return ObserveResult("rejected", self.get(hardware_id), "generation_rollback")
+
+            expires_at = observed_at + self.pending_ttl
+            self._connection.execute(
+                """
+                INSERT INTO pairing_sessions (
+                    pairing_id, hardware_id, pairing_epoch, model, fw_version, node_nonce,
+                    capabilities_json, state, first_seen_at, last_seen_at, expires_at, reason
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+                """,
+                (
+                    pairing_id,
+                    hardware_id,
+                    epoch,
+                    hello["model"],
+                    hello["fw_version"],
+                    hello["node_nonce"],
+                    json.dumps(hello["capabilities"], separators=(",", ":")),
+                    RegistrationState.PENDING,
+                    _timestamp(observed_at),
+                    _timestamp(observed_at),
+                    _timestamp(expires_at),
+                ),
+            )
+
+            status = "created"
+            node_id = None
+            if current is not None:
+                status = "superseded"
+                node_id = current["node_id"]
+                previous = self._session_row(current["current_pairing_id"])
+                if previous is not None and previous["state"] == RegistrationState.PENDING:
+                    self._set_session_state(
+                        current["current_pairing_id"], RegistrationState.REJECTED, "superseded"
+                    )
+                self._connection.execute(
+                    """
+                    UPDATE registrations
+                    SET current_pairing_id = ?, pairing_epoch = ?
+                    WHERE hardware_id = ?
+                    """,
+                    (pairing_id, epoch, hardware_id),
+                )
+            else:
+                self._connection.execute(
+                    """
+                    INSERT INTO registrations (hardware_id, current_pairing_id, pairing_epoch, node_id)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (hardware_id, pairing_id, epoch, node_id),
+                )
+            return ObserveResult(status, self.get(hardware_id))
+
+    def approve(
+        self,
+        hardware_id: str,
+        pairing_id: str,
+        *,
+        node_id: str | None = None,
+        now: datetime | None = None,
+    ) -> RegistrationRecord:
+        observed_at = _utc(now or datetime.now(UTC))
+        with self._lock, self._connection:
+            record = self._require_current(hardware_id, pairing_id)
+            if record.state != RegistrationState.PENDING:
+                raise RegistrationConflict(f"cannot approve registration in {record.state} state")
+            if observed_at > record.expires_at:
+                self._set_session_state(pairing_id, RegistrationState.EXPIRED, "expired")
+                raise RegistrationConflict("cannot approve expired registration")
+            assigned_node_id = node_id or record.node_id
+            if assigned_node_id is None:
+                raise RegistrationConflict("node_id is required for first approval")
+            if NODE_ID_PATTERN.fullmatch(assigned_node_id) is None:
+                raise RegistrationConflict("node_id does not match gh-mqtt-v1")
+            try:
+                self._connection.execute(
+                    "UPDATE registrations SET node_id = ? WHERE hardware_id = ?",
+                    (assigned_node_id, hardware_id),
+                )
+            except sqlite3.IntegrityError as error:
+                raise RegistrationConflict("node_id is already assigned") from error
+            self._set_session_state(pairing_id, RegistrationState.APPROVED, "operator_approved")
+            return self.get(hardware_id)
+
+    def reject(
+        self,
+        hardware_id: str,
+        pairing_id: str,
+        *,
+        reason: str = "user_rejected",
+    ) -> RegistrationRecord:
+        with self._lock, self._connection:
+            record = self._require_current(hardware_id, pairing_id)
+            if record.state != RegistrationState.PENDING:
+                raise RegistrationConflict(f"cannot reject registration in {record.state} state")
+            self._set_session_state(pairing_id, RegistrationState.REJECTED, reason)
+            return self.get(hardware_id)
+
+    def expire_pending(self, *, now: datetime | None = None) -> int:
+        observed_at = _utc(now or datetime.now(UTC))
+        with self._lock, self._connection:
+            cursor = self._connection.execute(
+                """
+                UPDATE pairing_sessions
+                SET state = ?, reason = ?
+                WHERE state = ? AND expires_at < ?
+                """,
+                (
+                    RegistrationState.EXPIRED,
+                    "expired",
+                    RegistrationState.PENDING,
+                    _timestamp(observed_at),
+                ),
+            )
+            return cursor.rowcount
+
+    def get(self, hardware_id: str) -> RegistrationRecord:
+        with self._lock:
+            row = self._current_row(hardware_id)
+            if row is None:
+                raise KeyError(hardware_id)
+            return self._row_to_record(row, row["node_id"])
+
+    def list_current(self) -> tuple[RegistrationRecord, ...]:
+        with self._lock:
+            rows = self._connection.execute(
+                """
+                SELECT s.*, r.node_id
+                FROM registrations AS r
+                JOIN pairing_sessions AS s ON s.pairing_id = r.current_pairing_id
+                ORDER BY s.first_seen_at, s.hardware_id
+                """
+            ).fetchall()
+            return tuple(self._row_to_record(row, row["node_id"]) for row in rows)
+
+    def _require_current(self, hardware_id: str, pairing_id: str) -> RegistrationRecord:
+        record = self.get(hardware_id)
+        if record.pairing_id != pairing_id:
+            raise RegistrationConflict("pairing_id is not the current session")
+        return record
+
+    def _current_row(self, hardware_id: str) -> sqlite3.Row | None:
+        return self._connection.execute(
+            """
+            SELECT s.*, r.current_pairing_id, r.node_id
+            FROM registrations AS r
+            JOIN pairing_sessions AS s ON s.pairing_id = r.current_pairing_id
+            WHERE r.hardware_id = ?
+            """,
+            (hardware_id,),
+        ).fetchone()
+
+    def _session_row(self, pairing_id: str) -> sqlite3.Row | None:
+        return self._connection.execute(
+            "SELECT * FROM pairing_sessions WHERE pairing_id = ?", (pairing_id,)
+        ).fetchone()
+
+    def _set_session_state(
+        self, pairing_id: str, state: RegistrationState, reason: str | None
+    ) -> None:
+        self._connection.execute(
+            "UPDATE pairing_sessions SET state = ?, reason = ? WHERE pairing_id = ?",
+            (state, reason, pairing_id),
+        )
+
+    @staticmethod
+    def _row_to_record(row: sqlite3.Row, node_id: str | None) -> RegistrationRecord:
+        return RegistrationRecord(
+            hardware_id=row["hardware_id"],
+            pairing_id=row["pairing_id"],
+            pairing_epoch=row["pairing_epoch"],
+            model=row["model"],
+            fw_version=row["fw_version"],
+            node_nonce=row["node_nonce"],
+            capabilities=tuple(json.loads(row["capabilities_json"])),
+            state=RegistrationState(row["state"]),
+            first_seen_at=_parse_timestamp(row["first_seen_at"]),
+            last_seen_at=_parse_timestamp(row["last_seen_at"]),
+            expires_at=_parse_timestamp(row["expires_at"]),
+            node_id=node_id,
+            reason=row["reason"],
+        )
