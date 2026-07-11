@@ -8,6 +8,7 @@ on:
       - "infra/compose/m0/**"
       - "infra/mosquitto/dev/**"
       - "protocols/mqtt/**"
+      - "protocols/pairing/**"
       - ".github/workflows/m0-vertical-slice-ci.yml"
   push:
     branches:
@@ -18,6 +19,7 @@ on:
       - "infra/compose/m0/**"
       - "infra/mosquitto/dev/**"
       - "protocols/mqtt/**"
+      - "protocols/pairing/**"
       - ".github/workflows/m0-vertical-slice-ci.yml"
 
 permissions:
