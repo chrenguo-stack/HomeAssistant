@@ -7,7 +7,8 @@ on:
       - "host/greenhouse-manager/**"
       - "infra/compose/m0/**"
       - "infra/mosquitto/dev/**"
-      - "protocols/mqtt/**"\n      - "protocols/pairing/**"
+      - "protocols/mqtt/**"
+      - "protocols/pairing/**"
       - ".github/workflows/m0-vertical-slice-ci.yml"
   push:
     branches:
@@ -17,7 +18,8 @@ on:
       - "host/greenhouse-manager/**"
       - "infra/compose/m0/**"
       - "infra/mosquitto/dev/**"
-      - "protocols/mqtt/**"\n      - "protocols/pairing/**"
+      - "protocols/mqtt/**"
+      - "protocols/pairing/**"
       - ".github/workflows/m0-vertical-slice-ci.yml"
 
 permissions:
