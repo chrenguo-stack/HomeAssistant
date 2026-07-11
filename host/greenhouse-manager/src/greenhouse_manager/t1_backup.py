@@ -18,12 +18,13 @@ from typing import Any, BinaryIO, Protocol
 
 MANIFEST_NAME = "manifest.json"
 COPY_SOURCES = (
-    ("mosquitto", "/mosquitto/config", "mosquitto-config"),
-    ("mosquitto", "/mosquitto/data", "mosquitto-data"),
+    ("mosquitto", "/mosquitto/config", "mosquitto-config", True),
+    ("mosquitto", "/mosquitto/data", "mosquitto-data", True),
     (
         "greenhouse-manager",
         "/var/lib/greenhouse-manager",
         "greenhouse-manager-data",
+        False,
     ),
 )
 
@@ -122,8 +123,34 @@ def create_backup(
     }
     with tempfile.TemporaryDirectory(prefix=".gh-backup-", dir=output) as temporary:
         staging = Path(temporary)
-        for container, source, archive_name in COPY_SOURCES:
+        absent_optional_sources: list[dict[str, str]] = []
+        for container, source, archive_name, required in COPY_SOURCES:
             target = staging / archive_name
+            if not required:
+                return_code, presence = command_runner.run(
+                    (
+                        "docker",
+                        "exec",
+                        container,
+                        "sh",
+                        "-c",
+                        f"test -d {source} && echo present || echo absent",
+                    )
+                )
+                if return_code != 0 or presence.strip() not in {"present", "absent"}:
+                    raise BackupError(
+                        f"failed to inspect optional data from {container}"
+                    )
+                if presence.strip() == "absent":
+                    target.mkdir(mode=0o700)
+                    absent_optional_sources.append(
+                        {
+                            "container": container,
+                            "path": source,
+                            "reason": "not_present",
+                        }
+                    )
+                    continue
             return_code, _output = command_runner.run(
                 (
                     "docker",
@@ -160,6 +187,7 @@ def create_backup(
             "classification": "sensitive-local-rollback",
             "portable_off_host": False,
             "sources": identities,
+            "absent_optional_sources": absent_optional_sources,
             "files": records,
         }
         manifest_path = staging / MANIFEST_NAME
