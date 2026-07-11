@@ -40,3 +40,21 @@
 - 当前匿名状态未被工具改变；
 - 真实 Broker 尚未加载 Dynamic Security；
 - 报告为 `ready=true` 后才允许生成备份/恢复演练方案。
+
+## 5. Legacy anonymous shadow
+
+Mosquitto 的 `allow_anonymous true` 只决定匿名客户端能否连接；加载 Dynamic Security 后，匿名 Topic 权限必须通过 anonymous group 明确授予。迁移期临时角色允许：
+
+```text
+publishClientSend    #
+subscribePattern     #
+publishClientReceive #
+unsubscribePattern   #
+subscribePattern     $SYS/#
+publishClientReceive $SYS/#
+unsubscribePattern   $SYS/#
+```
+
+并以更高优先级显式拒绝匿名发布或订阅 `$CONTROL/#`。由于 MQTT 的 `#` 不匹配以 `$` 开头的 Topic，`$SYS/#` 必须单独列出。
+
+该宽权限角色只用于保持 legacy manager、Home Assistant 和节点在逐个迁移期间正常工作。它不得授予认证节点，也不得在关闭匿名访问后保留为可连接路径。隔离测试必须同时验证 legacy 应用 Topic 可用、`$SYS` 只读、`$CONTROL` 拒绝，以及每节点认证 ACL 不被放宽。
