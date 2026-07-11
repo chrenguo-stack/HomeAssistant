@@ -1,0 +1,37 @@
+name: M2 Dynamic Security CI
+
+on:
+  pull_request:
+    paths:
+      - "host/greenhouse-manager/**"
+      - "infra/compose/m2-dynsec/**"
+      - "protocols/pairing/**"
+      - ".github/workflows/m2-dynsec-ci.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "host/greenhouse-manager/**"
+      - "infra/compose/m2-dynsec/**"
+      - "protocols/pairing/**"
+      - ".github/workflows/m2-dynsec-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  dynsec-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate Compose
+        working-directory: infra/compose/m2-dynsec
+        env:
+          GH_DYNSEC_ADMIN_PASSWORD: compose-validation-only
+        run: docker compose config
+
+      - name: Verify Dynamic Security isolation
+        run: bash infra/compose/m2-dynsec/verify.sh
