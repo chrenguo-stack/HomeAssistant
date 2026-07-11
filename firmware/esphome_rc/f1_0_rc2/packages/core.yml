@@ -1,6 +1,8 @@
 esphome:
   name: ${device_name}
   name_add_mac_suffix: true
+  includes:
+    - soil_uart_guard.h
   project:
     name: "DIY.Greenhouse_C6"
     version: ${project_version}
@@ -20,6 +22,13 @@ esphome:
             ESP_LOGI("dli", "Restored DLI today=%.3f, yesterday=%.3f",
                      id(dli_today_ram), id(dli_yesterday));
 
+    # Release UART TX/RX as soon as normal component setup is complete so the
+    # unpowered RS485 section cannot be phantom-powered before the first read.
+    - priority: 250
+      then:
+        - script.execute: soil_power_down
+        - script.wait: soil_power_down
+
     - priority: 100
       then:
         - lambda: |-
@@ -30,7 +39,8 @@ esphome:
     # first soil-read pipeline immediately; there is no extra fixed 30 s delay.
     - priority: -100
       then:
-        - logger.log: "[boot] Local initialization complete; starting first soil read cycle."
+        - switch.turn_on: status_led_switch
+        - logger.log: "[boot] Local initialization complete; status LED ON; starting first soil read cycle."
         - script.execute: soil_read_cycle
 
 esp32:
@@ -60,11 +70,20 @@ mdns:
 
 ota:
   - platform: esphome
+    on_begin:
+      then:
+        - switch.turn_off: status_led_switch
+        - script.execute: soil_power_down
+        - script.wait: soil_power_down
+        - logger.log: "[OTA/native] Status LED OFF; RS485 UART high-Z; soil sensor power disabled."
+
   - platform: http_request
     on_begin:
       then:
-        - switch.turn_off: sensor_pwr_switch
-        - logger.log: "[OTA] Soil sensor power disabled before update."
+        - switch.turn_off: status_led_switch
+        - script.execute: soil_power_down
+        - script.wait: soil_power_down
+        - logger.log: "[OTA/http] Status LED OFF; RS485 UART high-Z; soil sensor power disabled."
 
 http_request:
   timeout: 10s
@@ -91,11 +110,6 @@ captive_portal:
 factory_reset:
   resets_required: 3
   max_delay: 10s
-
-status_led:
-  pin:
-    number: GPIO6
-    inverted: false
 
 time:
   - platform: sntp
