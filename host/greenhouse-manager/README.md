@@ -95,6 +95,10 @@ CLI 输出不包含 node_nonce、pairing_pop 或凭据。当前 `approve` 只记
 
 `dynsec_api.py` 通过官方 `$CONTROL/dynamic-security/v1` Topic API 串行执行基线、role 和 client 创建，并在失败时按 client → role 顺序尽力回滚。`infra/compose/m2-dynsec` 使用完全独立的临时 Broker 验证身份绑定、跨节点隔离、危险 Topic 拒绝和撤销。该环境不复用 T1 数据、配置或密码。
 
+## M2.2c 凭据轮换
+
+`DynsecProvisioner.rotate_password` 要求 generation 单调递增，先设置候选密码，再由调用方使用候选凭据完成连接探测；探测失败时立即恢复上一代密码。隔离集成测试同时验证成功轮换、旧密码失效，以及探测失败后的上一代恢复。密码仍只存在于测试进程内存和 Dynamic Security 配置中，不写入日志或仓库。
+
 ## 暂未包含
 
 - PoP、challenge/response 和用户扫码批准 UI；
@@ -171,3 +175,4 @@ GH_HA_DEVICE_NAME_PREFIX=温室监测节点
 - 连接状态随 canonical availability 在在线与离线之间切换；
 - manager 或 Home Assistant 重启后，Discovery 和 retained 状态能够自动恢复；
 - 相同 Discovery 配置不在每次遥测时重复发布。
+

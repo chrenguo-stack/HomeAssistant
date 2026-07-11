@@ -14,6 +14,7 @@ from greenhouse_manager.dynsec_api import (
     PahoDynsecTransport,
     baseline_commands,
     create_client_command,
+    set_client_password_command,
 )
 from greenhouse_manager.dynsec_plan import (
     build_node_provisioning_plan,
@@ -73,6 +74,75 @@ def test_rolls_back_client_and_role_after_client_failure() -> None:
 
     commands = [call[0]["command"] for call in transport.calls]
     assert commands == ["createRole", "createClient", "deleteClient", "deleteRole"]
+
+
+def test_rotates_password_only_after_verification() -> None:
+    plan, current = plan_and_credentials()
+    replacement_plan = build_node_provisioning_plan(
+        system_id=plan.system_id, node_id=plan.node_id, generation=2
+    )
+    replacement = generate_node_credentials(
+        replacement_plan, random_bytes=lambda size: bytes(reversed(range(size)))
+    )
+    transport = RecordingTransport()
+    verified: list[Any] = []
+
+    DynsecProvisioner(transport).rotate_password(
+        plan, current, replacement, verified.append
+    )
+
+    assert verified == [replacement]
+    assert transport.calls == [(set_client_password_command(plan, replacement),)]
+
+
+def test_rotation_restores_current_password_when_verification_fails() -> None:
+    plan, current = plan_and_credentials()
+    replacement_plan = build_node_provisioning_plan(
+        system_id=plan.system_id, node_id=plan.node_id, generation=2
+    )
+    replacement = generate_node_credentials(replacement_plan)
+    transport = RecordingTransport()
+
+    def reject(_credentials: Any) -> None:
+        raise RuntimeError("probe rejected")
+
+    with pytest.raises(RuntimeError, match="probe rejected"):
+        DynsecProvisioner(transport).rotate_password(plan, current, replacement, reject)
+
+    assert transport.calls == [
+        (set_client_password_command(plan, replacement),),
+        (set_client_password_command(plan, current),),
+    ]
+
+
+def test_rotation_reports_rollback_failure_without_secret() -> None:
+    plan, current = plan_and_credentials()
+    replacement_plan = build_node_provisioning_plan(
+        system_id=plan.system_id, node_id=plan.node_id, generation=2
+    )
+    replacement = generate_node_credentials(replacement_plan)
+    transport = RecordingTransport(fail_call=2)
+
+    def reject(_credentials: Any) -> None:
+        raise RuntimeError("probe rejected")
+
+    with pytest.raises(DynsecError, match="verification and rollback failed") as captured:
+        DynsecProvisioner(transport).rotate_password(plan, current, replacement, reject)
+
+    assert replacement.password not in str(captured.value)
+    assert current.password not in str(captured.value)
+
+
+def test_rotation_rejects_non_increasing_generation_before_broker_call() -> None:
+    plan, current = plan_and_credentials()
+    transport = RecordingTransport()
+
+    with pytest.raises(ValueError, match="generation must increase"):
+        DynsecProvisioner(transport).rotate_password(
+            plan, current, current, lambda _credentials: None
+        )
+
+    assert transport.calls == []
 
 
 def test_paho_transport_uses_control_topics_without_logging_payload() -> None:
