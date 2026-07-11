@@ -99,6 +99,10 @@ CLI 输出不包含 node_nonce、pairing_pop 或凭据。当前 `approve` 只记
 
 `DynsecProvisioner.rotate_password` 要求 generation 单调递增，先设置候选密码，再由调用方使用候选凭据完成连接探测；探测失败时立即恢复上一代密码。隔离集成测试同时验证成功轮换、旧密码失效，以及探测失败后的上一代恢复。密码仍只存在于测试进程内存和 Dynamic Security 配置中，不写入日志或仓库。
 
+## M2.3a 凭据生命周期账本
+
+`CredentialLifecycleStore` 在注册数据库中只保存 hardware ID、node ID、active/pending generation、状态、原因和更新时间，不保存用户名、密码或密钥。账本覆盖 active、rotating、revoked 和 recovery_required，并拒绝 generation 回退与并行轮换。它先作为事务协调和恢复依据；真实 Broker 写入仍需后续 T1 影子部署显式启用。
+
 ## 暂未包含
 
 - PoP、challenge/response 和用户扫码批准 UI；
@@ -175,4 +179,3 @@ GH_HA_DEVICE_NAME_PREFIX=温室监测节点
 - 连接状态随 canonical availability 在在线与离线之间切换；
 - manager 或 Home Assistant 重启后，Discovery 和 retained 状态能够自动恢复；
 - 相同 Discovery 配置不在每次遥测时重复发布。
-
