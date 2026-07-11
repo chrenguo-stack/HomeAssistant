@@ -8,6 +8,7 @@ import pytest
 
 from greenhouse_manager.t1_backup import create_backup
 from greenhouse_manager.t1_shadow import (
+    _wait_for_file,
     PLUGIN_CONFIG_LINE,
     PLUGIN_LINE,
     PLUGIN_PASSWORD_INIT_LINE,
@@ -15,7 +16,6 @@ from greenhouse_manager.t1_shadow import (
     legacy_shadow_ctrl_commands,
     prepare_shadow_config,
     run_shadow_candidate,
-    _wait_for_file,
 )
 
 
