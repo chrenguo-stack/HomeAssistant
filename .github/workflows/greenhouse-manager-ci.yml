@@ -4,14 +4,16 @@ on:
   pull_request:
     paths:
       - "host/greenhouse-manager/**"
-      - "protocols/mqtt/**"\n      - "protocols/pairing/**"
+      - "protocols/mqtt/**"
+      - "protocols/pairing/**"
       - ".github/workflows/greenhouse-manager-ci.yml"
   push:
     branches:
       - main
     paths:
       - "host/greenhouse-manager/**"
-      - "protocols/mqtt/**"\n      - "protocols/pairing/**"
+      - "protocols/mqtt/**"
+      - "protocols/pairing/**"
       - ".github/workflows/greenhouse-manager-ci.yml"
 
 permissions:
