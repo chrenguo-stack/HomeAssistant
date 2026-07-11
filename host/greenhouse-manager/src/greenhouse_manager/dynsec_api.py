@@ -12,6 +12,8 @@ from .dynsec_plan import NodeCredentials, NodeProvisioningPlan
 
 CONTROL_TOPIC = "$CONTROL/dynamic-security/v1"
 RESPONSE_TOPIC = "$CONTROL/dynamic-security/v1/response"
+LEGACY_ANONYMOUS_ROLE = "gh-legacy-anonymous-shadow"
+LEGACY_ANONYMOUS_GROUP = "gh-legacy-anonymous-shadow"
 
 
 class DynsecError(RuntimeError):
@@ -83,12 +85,77 @@ def set_client_password_command(
     }
 
 
+def legacy_anonymous_shadow_commands() -> tuple[dict[str, Any], ...]:
+    return (
+        {
+            "command": "createRole",
+            "rolename": LEGACY_ANONYMOUS_ROLE,
+            "textdescription": "Temporary compatibility role during authenticated migration",
+            "acls": [
+                {
+                    "acltype": "publishClientSend",
+                    "topic": "$CONTROL/#",
+                    "priority": 1000,
+                    "allow": False,
+                },
+                {
+                    "acltype": "subscribePattern",
+                    "topic": "$CONTROL/#",
+                    "priority": 1000,
+                    "allow": False,
+                },
+                *(
+                    {
+                        "acltype": acl_type,
+                        "topic": "#",
+                        "priority": 100,
+                        "allow": True,
+                    }
+                    for acl_type in (
+                        "publishClientSend",
+                        "subscribePattern",
+                        "publishClientReceive",
+                        "unsubscribePattern",
+                    )
+                ),
+                *(
+                    {
+                        "acltype": acl_type,
+                        "topic": "$SYS/#",
+                        "priority": 100,
+                        "allow": True,
+                    }
+                    for acl_type in (
+                        "subscribePattern",
+                        "publishClientReceive",
+                        "unsubscribePattern",
+                    )
+                ),
+            ],
+        },
+        {
+            "command": "createGroup",
+            "groupname": LEGACY_ANONYMOUS_GROUP,
+            "textdescription": "Temporary anonymous clients during shadow migration",
+            "roles": [{"rolename": LEGACY_ANONYMOUS_ROLE, "priority": 100}],
+        },
+        {
+            "command": "setAnonymousGroup",
+            "groupname": LEGACY_ANONYMOUS_GROUP,
+        },
+    )
+
+
 class DynsecProvisioner:
     def __init__(self, transport: DynsecTransport) -> None:
         self.transport = transport
 
     def apply_baseline(self, plan: NodeProvisioningPlan) -> None:
         self.transport.execute(baseline_commands(plan))
+
+    def apply_legacy_anonymous_shadow(self) -> None:
+        for command in legacy_anonymous_shadow_commands():
+            self.transport.execute((command,))
 
     def provision(self, plan: NodeProvisioningPlan, credentials: NodeCredentials) -> None:
         role_started = False
