@@ -50,6 +50,7 @@ class ManagerMqttService:
         self.client.on_connect = self._on_connect
         self.client.on_disconnect = self._on_disconnect
         self.client.on_message = self._on_message
+        self.client.reconnect_delay_set(min_delay=1, max_delay=15)
         self.client.enable_logger(_LOGGER)
 
         if settings.mqtt_username and settings.mqtt_password:
@@ -57,7 +58,7 @@ class ManagerMqttService:
         if settings.mqtt_tls:
             self.client.tls_set(ca_certs=settings.mqtt_ca_file)
 
-    def _publish(self, message: PublishMessage) -> None:
+    def _publish(self, message: PublishMessage) -> bool:
         info = self.client.publish(
             message.topic,
             payload=_json_bytes(message.payload),
@@ -66,6 +67,8 @@ class ManagerMqttService:
         )
         if info.rc != mqtt.MQTT_ERR_SUCCESS:
             _LOGGER.error("MQTT publish failed topic=%s rc=%s", message.topic, info.rc)
+            return False
+        return True
 
     def _publish_discovery(self, document: dict[str, Any]) -> None:
         for outgoing in self.discovery.messages_for_telemetry(document):
@@ -187,8 +190,14 @@ class ManagerMqttService:
             while True:
                 time.sleep(5)
                 for message in self.processor.stale_messages():
-                    self._publish(message)
-                    _LOGGER.info("Published unavailable state topic=%s", message.topic)
+                    if self._publish(message):
+                        _LOGGER.info("Published unavailable state topic=%s", message.topic)
+                        continue
+
+                    node_id = message.payload.get("node_id")
+                    if isinstance(node_id, str):
+                        self.processor.mark_unavailable_publish_failed(node_id)
+                    _LOGGER.warning("Deferred unavailable state topic=%s; will retry", message.topic)
         except KeyboardInterrupt:
             _LOGGER.info("Stopping greenhouse-manager")
         finally:
