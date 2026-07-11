@@ -4,14 +4,14 @@
 
 任何跨组件行为必须先在此处定义，再进入编码。
 
-## 待冻结协议
+## 协议状态
 
-1. `mqtt/gh-mqtt-v1.md`：主题、JSON 负载、QoS、Retain 和 ACL。
-2. `pairing/gh-pairing-v1.md`：一次性二维码、PoP、安全会话和长期凭据。
-3. `discovery/gh-discovery-v1.md`：mDNS、UDP 回退、重试和多主机处理。
-4. `state/gh-path-lease-v1.md`：直连/中继路径租约、去重和切换滞回。
-5. `state/gh-availability-v1.md`：节点、传输、数据新鲜度和传感器健康状态。
-6. `transport/gh-radio-frame-v1.md`：ESP-NOW 与 LoRa 紧凑帧、认证和序列规则。
+1. `mqtt/gh-mqtt-v1.md`：已冻结最小遥测、Topic、QoS、Retain 和 ACL 基线，并已由 N1/M1 实现。
+2. `pairing/gh-pairing-v1.md`：M2.0 Draft，定义一次性二维码、每机 PoP、安全会话、运行时凭据与生命周期，待设计审查后冻结。
+3. `discovery/gh-discovery-v1.md`：待冻结 mDNS、UDP 回退、重试和多主机处理；M2.0 pairing Draft 已给出最小发现依赖。
+4. `state/gh-path-lease-v1.md`：待冻结直连/中继路径租约、去重和切换滞回。
+5. `state/gh-availability-v1.md`：待将 M1 已验证行为整理为独立协议。
+6. `transport/gh-radio-frame-v1.md`：待冻结 ESP-NOW 与 LoRa 紧凑帧、认证和序列规则。
 
 ## 变更规则
 
