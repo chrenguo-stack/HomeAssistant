@@ -109,7 +109,7 @@ CLI 输出不包含 node_nonce、pairing_pop 或凭据。当前 `approve` 只记
 
 ## M2.3d T1 本地回退包
 
-`greenhouse-manager-t1-backup` 创建权限为 0600 的敏感级同机回退包，manifest 只保存镜像身份、文件路径、大小和 SHA-256；`verify` 检查权限、路径和完整性，`drill` 在 `--network none` 临时容器中验证 Mosquitto 可恢复启动，并检查 SQLite 完整性。当前格式只用于 T1 同机迁移回退，不得作为未加密离机备份。
+`greenhouse-manager-t1-backup` 创建权限为 0600 的敏感级同机回退包，manifest 保存镜像身份、文件路径、大小、SHA-256、数值 UID/GID 和权限；`verify` 检查路径、内容和文件身份完整性，`drill` 恢复原属主后在 `--network none` 临时容器中验证 Mosquitto 可启动，并检查 SQLite 完整性。当前格式只用于 T1 同机迁移回退，不得作为未加密离机备份。
 
 ## 暂未包含
 
