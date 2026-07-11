@@ -90,11 +90,8 @@ def _regular_files(root: Path) -> tuple[Path, ...]:
 
 
 def _tar_filter(info: tarfile.TarInfo) -> tarfile.TarInfo:
-    info.uid = 0
-    info.gid = 0
-    info.uname = "root"
-    info.gname = "root"
-    info.mode = 0o600
+    info.uname = ""
+    info.gname = ""
     return info
 
 
@@ -128,7 +125,13 @@ def create_backup(
         for container, source, archive_name in COPY_SOURCES:
             target = staging / archive_name
             return_code, _output = command_runner.run(
-                ("docker", "cp", f"{container}:{source}/.", str(target))
+                (
+                    "docker",
+                    "cp",
+                    "--archive",
+                    f"{container}:{source}/.",
+                    str(target),
+                )
             )
             if return_code != 0:
                 raise BackupError(f"failed to copy required data from {container}")
@@ -136,13 +139,17 @@ def create_backup(
         records: list[dict[str, Any]] = []
         for path in _regular_files(staging):
             relative = path.relative_to(staging).as_posix()
+            stat = path.stat()
             with path.open("rb") as stream:
                 checksum = _sha256_stream(stream)
             records.append(
                 {
                     "path": relative,
-                    "size": path.stat().st_size,
+                    "size": stat.st_size,
                     "sha256": checksum,
+                    "mode": stat.st_mode & 0o777,
+                    "uid": stat.st_uid,
+                    "gid": stat.st_gid,
                 }
             )
         manifest = {
@@ -235,6 +242,10 @@ def verify_backup(path: str | Path) -> dict[str, Any]:
                 raise BackupError("backup checksum verification failed")
             if by_name[name].size != record["size"]:
                 raise BackupError("backup size verification failed")
+            if by_name[name].mode & 0o777 != record["mode"]:
+                raise BackupError("backup mode verification failed")
+            if by_name[name].uid != record["uid"] or by_name[name].gid != record["gid"]:
+                raise BackupError("backup ownership verification failed")
     return manifest
 
 
@@ -249,7 +260,8 @@ def _extract_verified(path: Path, destination: Path) -> dict[str, Any]:
                 raise BackupError("backup file cannot be extracted")
             with target.open("wb") as output:
                 shutil.copyfileobj(stream, output)
-            target.chmod(0o600)
+            target.chmod(member.mode & 0o777)
+            os.chown(target, member.uid, member.gid)
     return manifest
 
 
@@ -315,6 +327,7 @@ def restore_drill(
                     (
                         "docker",
                         "cp",
+                        "--archive",
                         f"{staging / source_name}/.",
                         f"{container_id}:{target}",
                     )
