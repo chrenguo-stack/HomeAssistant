@@ -213,6 +213,75 @@ def main() -> None:
 
     first.close()
     second.close()
+
+    replacement_plan = build_node_provisioning_plan(
+        system_id="greenhouse", node_id="gh-test-node-001", generation=2
+    )
+    replacement_credentials = generate_node_credentials(replacement_plan)
+
+    def verify_replacement(credentials: Any) -> None:
+        probe = Session(
+            client_id=credentials.client_id,
+            username=credentials.username,
+            password=credentials.password,
+        )
+        probe.start()
+        admin.drain()
+        probe.publish(allowed, b"rotation-probe")
+        assert admin.wait_for(allowed)
+        probe.close()
+
+    provisioner.rotate_password(
+        first_plan,
+        first_credentials,
+        replacement_credentials,
+        verify_replacement,
+    )
+
+    old_password = Session(
+        client_id=first_credentials.client_id,
+        username=first_credentials.username,
+        password=first_credentials.password,
+    )
+    old_password.start(expect_allowed=False)
+    old_password.close()
+
+    rollback_plan = build_node_provisioning_plan(
+        system_id="greenhouse", node_id="gh-test-node-001", generation=3
+    )
+    rollback_candidate = generate_node_credentials(rollback_plan)
+
+    def reject_candidate(_credentials: Any) -> None:
+        raise RuntimeError("injected candidate verification failure")
+
+    try:
+        provisioner.rotate_password(
+            first_plan,
+            replacement_credentials,
+            rollback_candidate,
+            reject_candidate,
+        )
+    except RuntimeError as error:
+        assert str(error) == "injected candidate verification failure"
+    else:
+        raise AssertionError("failed rotation verification was not propagated")
+
+    restored = Session(
+        client_id=replacement_credentials.client_id,
+        username=replacement_credentials.username,
+        password=replacement_credentials.password,
+    )
+    restored.start()
+    restored.close()
+
+    rejected_candidate = Session(
+        client_id=rollback_candidate.client_id,
+        username=rollback_candidate.username,
+        password=rollback_candidate.password,
+    )
+    rejected_candidate.start(expect_allowed=False)
+    rejected_candidate.close()
+
     provisioner.deprovision(first_plan)
     provisioner.deprovision(second_plan)
 
