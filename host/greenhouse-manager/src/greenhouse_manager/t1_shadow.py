@@ -17,6 +17,9 @@ PLUGIN_LINE = "plugin /usr/lib/mosquitto_dynamic_security.so"
 PLUGIN_CONFIG_LINE = (
     "plugin_opt_config_file /mosquitto/data/dynamic-security.json"
 )
+PLUGIN_PASSWORD_INIT_LINE = (
+    "plugin_opt_password_init_file /mosquitto/config/dynsec-password-init"
+)
 LEGACY_ROLE = "gh-legacy-anonymous-shadow"
 LEGACY_GROUP = "gh-legacy-anonymous-shadow"
 
@@ -80,6 +83,8 @@ def prepare_shadow_config(path: Path) -> None:
         + PLUGIN_LINE
         + "\n"
         + PLUGIN_CONFIG_LINE
+        + "\n"
+        + PLUGIN_PASSWORD_INIT_LINE
         + "\n",
         encoding="utf-8",
     )
@@ -206,34 +211,11 @@ def run_shadow_candidate(
             raise ShadowError("snapshot already contains Dynamic Security state")
 
         image_id = manifest["sources"]["mosquitto"]["image_id"]
-        init_command = (
-            "docker",
-            "run",
-            "--rm",
-            "--network",
-            "none",
-            "--user",
-            "0:0",
-            "--mount",
-            _mount(data_dir, "/mosquitto/data"),
-            image_id,
-            "mosquitto_ctrl",
-            "dynsec",
-            "init",
-            "/mosquitto/data/dynamic-security.json",
-            "admin",
-        )
-        _require_success(
-            command_runner,
-            init_command,
-            "Dynamic Security candidate initialisation failed",
-            input_text=f"{admin_password}\n{admin_password}\n",
-        )
-        if not dynsec_path.is_file():
-            raise ShadowError("Dynamic Security candidate state was not created")
         data_stat = data_dir.stat()
-        os.chown(dynsec_path, data_stat.st_uid, data_stat.st_gid)
-        dynsec_path.chmod(0o600)
+        password_init_path = config_dir / "dynsec-password-init"
+        password_init_path.write_text(admin_password + "\n", encoding="utf-8")
+        os.chown(password_init_path, data_stat.st_uid, data_stat.st_gid)
+        password_init_path.chmod(0o600)
 
         create_command = (
             "docker",
@@ -274,6 +256,11 @@ def run_shadow_candidate(
             )
             if state != "running":
                 raise ShadowError("shadow candidate broker is not running")
+            if not dynsec_path.is_file():
+                raise ShadowError("Dynamic Security candidate state was not created")
+            os.chown(dynsec_path, data_stat.st_uid, data_stat.st_gid)
+            dynsec_path.chmod(0o600)
+            password_init_path.unlink(missing_ok=True)
 
             client_config = staging / "mosquitto-ctrl.conf"
             client_config.write_text(
