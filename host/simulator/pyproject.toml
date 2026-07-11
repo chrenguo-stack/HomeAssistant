@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "greenhouse-simulator"
-version = "0.0.1"
+version = "0.0.2"
 description = "MQTT node simulator for the greenhouse monitoring system"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -38,3 +38,4 @@ line-length = 110
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+

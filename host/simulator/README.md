@@ -45,3 +45,8 @@ ruff check .
 ```
 
 通常不需要单独运行本服务，使用 `infra/compose/m0` 可以同时启动 Mosquitto、manager、模拟节点和状态观察器。M0 会显式开启 pairing hello，验证 manager 只创建 pending 注册记录，同时继续验证原有遥测、availability 和 diagnostic 链路。
+
+## M2.3b 错误凭据退避模型
+
+`mqtt_backoff.py` 冻结凭据拒绝后的 1、2、4、8、15、30、60 秒上限退避和 ±20% 抖动。模型明确保持本地采集开启，且不会因认证失败静默打开配对窗口；当前仅供纯软件验证，尚未写入 2f8 固件。
+
