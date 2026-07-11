@@ -8,7 +8,6 @@ from pathlib import Path
 from greenhouse_manager.registration import RegistrationRegistry
 from greenhouse_manager.registration_cli import main
 
-NOW = datetime(2026, 7, 11, 11, 0, tzinfo=UTC)
 HARDWARE_ID = "ghw-c6-98a316a9f2f8"
 PAIRING_ID = "c83aeb0d-8f48-4a39-a34b-ea584a588475"
 
@@ -30,7 +29,7 @@ def hello() -> dict[str, object]:
 def database(tmp_path: Path) -> Path:
     path = tmp_path / "registration.sqlite3"
     with RegistrationRegistry(path) as registry:
-        registry.observe_hello(hello(), now=NOW)
+        registry.observe_hello(hello(), now=datetime.now(UTC))
     return path
 
 
