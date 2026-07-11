@@ -180,3 +180,24 @@ def test_registry_survives_process_restart(tmp_path: Path) -> None:
         "mqtt-runtime-credentials",
         "lcd-pairing-qr",
     ]
+
+
+def test_records_secret_free_audit_events(registry: RegistrationRegistry) -> None:
+    registry.observe_hello(valid_hello(), now=NOW)
+    registry.approve(HARDWARE_ID, PAIRING_ID, node_id=NODE_ID, now=NOW + timedelta(seconds=1))
+
+    events = registry.list_events(hardware_id=HARDWARE_ID)
+
+    assert [event.event for event in events] == ["operator_approved", "hello_created"]
+    assert events[0].occurred_at == NOW + timedelta(seconds=1)
+    serialized = json.dumps([event.__dict__ for event in events], default=str)
+    assert "node_nonce" not in serialized
+    assert "pairing_pop" not in serialized
+
+
+def test_records_expiry_event(registry: RegistrationRegistry) -> None:
+    registry.observe_hello(valid_hello(), now=NOW)
+
+    registry.expire_pending(now=NOW + timedelta(seconds=121))
+
+    assert registry.list_events()[0].event == "expired"
