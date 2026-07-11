@@ -43,6 +43,7 @@ class ManagerMqttService:
         self.client.on_connect = self._on_connect
         self.client.on_disconnect = self._on_disconnect
         self.client.on_message = self._on_message
+        self.client.reconnect_delay_set(min_delay=1, max_delay=15)
         self.client.enable_logger(_LOGGER)
 
         if settings.mqtt_username and settings.mqtt_password:
