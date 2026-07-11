@@ -10,6 +10,7 @@ from greenhouse_manager.t1_backup import create_backup
 from greenhouse_manager.t1_shadow import (
     PLUGIN_CONFIG_LINE,
     PLUGIN_LINE,
+    PLUGIN_PASSWORD_INIT_LINE,
     ShadowError,
     legacy_shadow_ctrl_commands,
     prepare_shadow_config,
@@ -52,22 +53,36 @@ class ShadowDocker:
             elif "mosquitto:/mosquitto/data" in command[3]:
                 (destination / "mosquitto.db").write_bytes(b"retained-state")
             return (0, "")
-        if command[:2] == ("docker", "run"):
+        if command[:2] == ("docker", "create"):
+            self.mounts = [
+                item for item in command if item.startswith("type=bind,src=")
+            ]
+            return (0, "shadow-container-id\n")
+        if command[:2] == ("docker", "start"):
+            config_mount = next(
+                item for item in self.mounts if item.endswith("dst=/mosquitto/config")
+            )
             data_mount = next(
-                item for item in command if item.endswith("dst=/mosquitto/data")
+                item for item in self.mounts if item.endswith("dst=/mosquitto/data")
+            )
+            config_directory = Path(
+                config_mount.removeprefix("type=bind,src=").removesuffix(
+                    ",dst=/mosquitto/config"
+                )
             )
             data_directory = Path(
                 data_mount.removeprefix("type=bind,src=").removesuffix(
                     ",dst=/mosquitto/data"
                 )
             )
+            self.password_init = (
+                config_directory / "dynsec-password-init"
+            ).read_text(encoding="utf-8")
             (data_directory / "dynamic-security.json").write_text(
                 "{}\n", encoding="utf-8"
             )
             return (0, "")
-        if command[:2] == ("docker", "create"):
-            return (0, "shadow-container-id\n")
-        if command[:2] in {("docker", "start"), ("docker", "rm")}:
+        if command[:2] == ("docker", "rm"):
             return (0, "")
         if command[:3] == ("docker", "cp", "--archive"):
             self.control_config = Path(command[3]).read_text(encoding="utf-8")
@@ -94,6 +109,7 @@ def test_prepares_snapshot_copy_without_disabling_anonymous(tmp_path: Path) -> N
     assert "allow_anonymous true" in updated
     assert PLUGIN_LINE in updated
     assert PLUGIN_CONFIG_LINE in updated
+    assert PLUGIN_PASSWORD_INIT_LINE in updated
 
 
 @pytest.mark.parametrize(
@@ -178,12 +194,8 @@ def test_snapshot_candidate_is_isolated_and_keeps_secret_out_of_argv(
     )
     assert password not in command_text
     assert f"-P {password}" in docker.control_config
-    assert any(
-        command[:4] == ("docker", "run", "--rm", "--network")
-        and command[4] == "none"
-        and input_text == f"{password}\n{password}\n"
-        for command, input_text in docker.calls
-    )
+    assert docker.password_init == password + "\n"
+    assert not any(command[:2] == ("docker", "run") for command, _ in docker.calls)
     assert any(
         command[:3] == ("docker", "create", "--network")
         and command[3] == "none"
