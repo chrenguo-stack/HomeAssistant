@@ -310,3 +310,8 @@ class TelemetryProcessor:
             )
 
         return tuple(messages)
+
+    def mark_unavailable_publish_failed(self, node_id: str) -> None:
+        """Allow a failed unavailable publish to be retried on the next stale scan."""
+        if self._availability.get(node_id) == "unavailable":
+            self._availability[node_id] = "online"
