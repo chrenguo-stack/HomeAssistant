@@ -13,7 +13,8 @@
 
 `greenhouse-manager-t1-backup create --output <private-directory>`
 
-- 只通过 `docker cp` 读取三个固定目录；
+- 只读取三个固定目录；Mosquitto 配置/数据必需，旧 manager 尚未启用配对时允许数据目录不存在；
+- manager 数据目录先只读探测，不存在时在 manifest 标记 `not_present`，存在但复制失败时严格阻断；
 - 不停止、重启或修改现有容器；
 - 不输出文件内容；
 - manifest 只记录镜像身份、相对路径、大小、SHA-256、数值 UID/GID 和权限；

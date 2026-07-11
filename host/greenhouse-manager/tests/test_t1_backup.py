@@ -35,6 +35,13 @@ class FakeDocker:
                     ),
                 )
             return (0, "running\n")
+        if command[:4] == (
+            "docker",
+            "exec",
+            "greenhouse-manager",
+            "sh",
+        ):
+            return (0, "absent\n")
         if command[:3] == ("docker", "cp", "--archive") and ":" in command[3]:
             destination = Path(command[4])
             destination.mkdir(parents=True)
@@ -78,6 +85,13 @@ def test_create_verify_and_isolated_restore_drill(tmp_path: Path) -> None:
     assert archive.stat().st_mode & 0o777 == 0o600
     assert manifest["classification"] == "sensitive-local-rollback"
     assert manifest["portable_off_host"] is False
+    assert manifest["absent_optional_sources"] == [
+        {
+            "container": "greenhouse-manager",
+            "path": "/var/lib/greenhouse-manager",
+            "reason": "not_present",
+        }
+    ]
     assert all(
         {"mode", "uid", "gid"} <= record.keys()
         for record in manifest["files"]
@@ -97,6 +111,30 @@ def test_rejects_world_readable_output_directory(tmp_path: Path) -> None:
 
     with pytest.raises(BackupError, match="group or other"):
         create_backup(output, runner=FakeDocker())
+
+
+def test_present_optional_source_must_copy_successfully(tmp_path: Path) -> None:
+    class PresentButBrokenDocker(FakeDocker):
+        def run(self, command: tuple[str, ...]) -> tuple[int, str]:
+            if command[:4] == (
+                "docker",
+                "exec",
+                "greenhouse-manager",
+                "sh",
+            ):
+                return (0, "present\n")
+            if (
+                command[:3] == ("docker", "cp", "--archive")
+                and "greenhouse-manager:" in command[3]
+            ):
+                return (1, "must remain redacted")
+            return super().run(command)
+
+    output = tmp_path / "private"
+    output.mkdir(mode=0o700)
+
+    with pytest.raises(BackupError, match="failed to copy required data"):
+        create_backup(output, runner=PresentButBrokenDocker())
 
 
 def test_detects_archive_tampering(tmp_path: Path) -> None:
