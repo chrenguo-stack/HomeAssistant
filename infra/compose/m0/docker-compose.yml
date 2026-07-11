@@ -23,6 +23,11 @@ services:
       GH_MQTT_PORT: "1883"
       GH_STALE_AFTER_S: "${GH_STALE_AFTER_S:-30}"
       GH_LOG_LEVEL: INFO
+      GH_PAIRING_INTAKE_ENABLED: "true"
+      GH_PAIRING_DB_PATH: /var/lib/greenhouse-manager/registration.sqlite3
+      GH_PAIRING_PENDING_TTL_S: "120"
+    volumes:
+      - manager-data:/var/lib/greenhouse-manager
     depends_on:
       mosquitto:
         condition: service_healthy
@@ -40,6 +45,9 @@ services:
       GH_SIM_INTERVAL_S: "${GH_SIM_INTERVAL_S:-5}"
       GH_SIM_DUPLICATE_EVERY: "${GH_SIM_DUPLICATE_EVERY:-5}"
       GH_SIM_INVALID_EVERY: "${GH_SIM_INVALID_EVERY:-7}"
+      GH_SIM_PAIRING_HELLO: "true"
+      GH_HARDWARE_ID: ghw-sim-000000000001
+      GH_PAIRING_EPOCH: "1"
       GH_LOG_LEVEL: INFO
     depends_on:
       mosquitto:
@@ -64,3 +72,4 @@ services:
 
 volumes:
   mosquitto-data:
+  manager-data:
