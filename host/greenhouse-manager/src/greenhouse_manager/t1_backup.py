@@ -169,23 +169,25 @@ def create_backup(
             0o600,
         )
         try:
-            with os.fdopen(file_descriptor, "wb") as raw:
-                with tarfile.open(fileobj=raw, mode="w:gz") as archive:
+            with (
+                os.fdopen(file_descriptor, "wb") as raw,
+                tarfile.open(fileobj=raw, mode="w:gz") as archive,
+            ):
+                archive.add(
+                    manifest_path,
+                    arcname=MANIFEST_NAME,
+                    recursive=False,
+                    filter=_tar_filter,
+                )
+                for path in _regular_files(staging):
+                    if path == manifest_path:
+                        continue
                     archive.add(
-                        manifest_path,
-                        arcname=MANIFEST_NAME,
+                        path,
+                        arcname=path.relative_to(staging).as_posix(),
                         recursive=False,
                         filter=_tar_filter,
                     )
-                    for path in _regular_files(staging):
-                        if path == manifest_path:
-                            continue
-                        archive.add(
-                            path,
-                            arcname=path.relative_to(staging).as_posix(),
-                            recursive=False,
-                            filter=_tar_filter,
-                        )
         except Exception:
             destination.unlink(missing_ok=True)
             raise
