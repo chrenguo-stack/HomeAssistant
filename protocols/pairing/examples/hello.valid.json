@@ -1,1 +1,11 @@
-ewogICJzY2hlbWEiOiAiZ2gucGFpci5oZWxsby8xIiwKICAicGFpcmluZ19pZCI6ICJjODNhZWIwZC04ZjQ4LTRhMzktYTM0Yi1lYTU4NGE1ODg0NzUiLAogICJwYWlyaW5nX2Vwb2NoIjogMywKICAiaGFyZHdhcmVfaWQiOiAiZ2h3LWM2LTk4YTMxNmE5ZjJmOCIsCiAgIm1vZGVsIjogImdyZWVuaG91c2Utd2lmaS1jNiIsCiAgImZ3X3ZlcnNpb24iOiAiRjEuMC1SQzItTjIuMCIsCiAgIm5vZGVfbm9uY2UiOiAiTURFeU16UTFOamM0T1dGaVkyUmxaakF4TWpNME5UWTNPRGxoWW1Oa1pXWSIsCiAgImNhcGFiaWxpdGllcyI6IFsibXF0dC1ydW50aW1lLWNyZWRlbnRpYWxzIiwgImxjZC1wYWlyaW5nLXFyIl0sCiAgInNlbnRfYXRfbXMiOiAxMjAzNDUKfQo=
+{
+  "schema": "gh.pair.hello/1",
+  "pairing_id": "c83aeb0d-8f48-4a39-a34b-ea584a588475",
+  "pairing_epoch": 3,
+  "hardware_id": "ghw-c6-98a316a9f2f8",
+  "model": "greenhouse-wifi-c6",
+  "fw_version": "F1.0-RC2-N2.0",
+  "node_nonce": "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY",
+  "capabilities": ["mqtt-runtime-credentials", "lcd-pairing-qr"],
+  "sent_at_ms": 120345
+}
