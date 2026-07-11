@@ -107,6 +107,10 @@ CLI 输出不包含 node_nonce、pairing_pop 或凭据。当前 `approve` 只记
 
 `greenhouse-manager-t1-preflight --pretty` 从 T1 宿主机读取两个容器的运行状态、Mosquitto/manager 版本、白名单安全指令和 Dynamic Security 插件可用性，输出不含秘密的 JSON gate。该命令不发布 MQTT、不读取密码文件内容、不输出环境变量、不修改配置，也不重启容器。
 
+## M2.3d T1 本地回退包
+
+`greenhouse-manager-t1-backup` 创建权限为 0600 的敏感级同机回退包，manifest 只保存镜像身份、文件路径、大小和 SHA-256；`verify` 检查权限、路径和完整性，`drill` 在 `--network none` 临时容器中验证 Mosquitto 可恢复启动，并检查 SQLite 完整性。当前格式只用于 T1 同机迁移回退，不得作为未加密离机备份。
+
 ## 暂未包含
 
 - PoP、challenge/response 和用户扫码批准 UI；
