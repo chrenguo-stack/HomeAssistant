@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from greenhouse_manager.t1_backup import create_backup
 from greenhouse_manager.t1_shadow import (
     PLUGIN_CONFIG_LINE,
     PLUGIN_LINE,
@@ -14,7 +15,6 @@ from greenhouse_manager.t1_shadow import (
     prepare_shadow_config,
     run_shadow_candidate,
 )
-from greenhouse_manager.t1_backup import create_backup
 
 
 class ShadowDocker:
