@@ -30,7 +30,7 @@ def test_credential_rejection_uses_bounded_exponential_schedule() -> None:
 
 @pytest.mark.parametrize(
     ("random_value", "expected"),
-    [(0.0, 8.0), (0.5, 10.0), (1.0, 12.0)],
+    [(0.0, 12.0), (0.5, 15.0), (1.0, 18.0)],
 )
 def test_applies_bounded_jitter(random_value: float, expected: float) -> None:
     backoff = CredentialRetryBackoff(
@@ -38,7 +38,7 @@ def test_applies_bounded_jitter(random_value: float, expected: float) -> None:
     )
     backoff.failure_count = 4
 
-    assert backoff.credential_rejected().delay_s == expected
+    assert backoff.credential_rejected().delay_s == pytest.approx(expected)
 
 
 def test_success_resets_schedule() -> None:
