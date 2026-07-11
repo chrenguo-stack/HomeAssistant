@@ -50,24 +50,34 @@ ghw-c6-98a316a9f2f8
 
 现有真实节点迁移时保留 `node_id=gh-n1-a9f2f8`，避免 Home Assistant 创建第二台设备。
 
-### 3.2 每机唯一 PoP
+### 3.2 设备动态生成的一次性 PoP
 
-每台硬件在制造/首次烧录时生成至少 128 位随机 `factory_pop`：
+不在机身或包装保留固定二维码，也不在制造环节写入不可更改的长期 PoP。
 
-- 写入设备专用 NVS；
-- 编码进机身/包装标签和配对二维码；
-- LCD 仅在未配对或明确进入重新配对模式时显示二维码；
-- manager 通过扫码获得 PoP；
-- PoP 不通过 MQTT、mDNS、UDP、日志或 Home Assistant 明文发送；
-- 禁止全设备共用一个出厂密码。
+节点在首次进入未配对状态时，使用 ESP32-C6 硬件随机数生成至少 128 位 `pairing_pop`：
 
-二维码：
+- 与当前配对 epoch 一起写入设备 NVS；
+- 只在 LCD 的配对页面显示动态二维码；
+- 用户扫码后由 UI 安全地交给 manager；
+- 配对成功后立即标记已消费并从可显示状态清除；
+- 恢复出厂、明确重新配对或用户要求“生成新二维码”时，生成全新的 pairing_pop；
+- 旧二维码和旧 pairing_pop 永久失效；
+- pairing_pop 不通过 MQTT、mDNS、UDP、日志或 Home Assistant 明文发送。
+
+为适配 128×64 LCD，二维码采用紧凑内容，不使用冗长 URL：
 
 ```text
-ghpair://v1?hid=<hardware_id>&pop=<base64url>&model=<model>
+GHP1:<hardware_id末12位>:<128-bit pairing_pop Base32>:<校验码>
 ```
 
-无摄像头时允许输入较长 Base32 恢复码。LCD 的 6 位短码只核对当前会话，不作为 PoP 或 MQTT 密码。
+LCD 上的 6 位短码由当前 pairing_pop 和 transcript 派生，只核对当前会话，不作为密钥。
+
+配对成功后二维码页面必须消失。已配对设备只有在以下明确动作后才能重新显示新二维码：
+
+1. 原 manager 下发经过认证的“进入重新配对”命令；或
+2. 用户执行现有恢复出厂序列，清除 Wi-Fi/配对状态并重新生成 pairing_pop。
+
+不保留包装二维码的后果是：若 LCD 损坏且原 manager/备份同时丢失，只能通过有线维护或重新刷写恢复；系统不得为绕过该限制而自动信任局域网设备。
 
 ### 3.3 发现与用户确认
 
@@ -110,7 +120,7 @@ gh/bootstrap/v1/node/<hardware_id>/ack
 
 新增本地 ESPHome external component：`greenhouse_pairing`，负责：
 
-- HARDWARE_ID 和 factory PoP；
+- HARDWARE_ID 和 pairing PoP；
 - manager 发现和多主机冲突；
 - 配对状态机与安全握手；
 - active/pending 两套 MQTT 凭据；
@@ -198,4 +208,4 @@ M2 将改变 manager 当前完全无状态设计：
 
 优点：用户无需理解 MQTT；每设备可独立撤销；主机恢复有边界；Wi-Fi/LoRa 网关共享模型；现有 M1 可逐步迁移。
 
-代价：节点侧需要 external component；manager 需要持久卷；配对 UI 需要配套集成；量产需要每机 PoP 写入/标签；TLS 和 Flash Encryption 增加制造及恢复复杂度。
+代价：节点侧需要 external component；manager 需要持久卷；配对 UI 需要配套集成；配对恢复依赖 LCD 或有线维护路径；TLS 和 Flash Encryption 增加制造及恢复复杂度。
