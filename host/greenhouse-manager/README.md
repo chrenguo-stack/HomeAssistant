@@ -50,16 +50,15 @@
    homeassistant/binary_sensor/<node_id>_connectivity/config
    ```
 
-   第一阶段发现实体包括：
-   - 空气温度；
-   - 空气湿度；
-   - 二氧化碳；
-   - 光照度；
-   - 固件版本；
-   - 节点标识；
-   - 连接状态。
+   当前完整实体集包括：
+   - 空气温度、空气湿度、二氧化碳、光照度；
+   - 土壤温度、土壤含水率、土壤电导率；
+   - VPD、露点温度、绝对湿度、PPFD；
+   - 今日 DLI、昨日 DLI；
+   - 电池电压、电池电量、供电来源、低电量；
+   - 固件版本、节点标识、连接状态。
 
-   设备 Discovery 使用 canonical telemetry 作为状态源，并使用 canonical availability 控制传感器可用性。连接状态单独使用 binary sensor Discovery，以便节点离线时明确显示为关闭，而不是把该实体本身标记为不可用。
+   设备 Discovery 使用 canonical telemetry 作为状态源，并使用 canonical availability 控制实体可用性。连接状态单独使用 binary sensor Discovery，以便节点离线时明确显示为关闭，而不是把该实体本身标记为不可用。
 
 恢复机制和 Discovery 均依赖 Mosquitto retained 消息，不在容器内建立数据库，因此仍保持只读根文件系统和无状态部署方式。相同 Discovery 内容不会在每个 60 秒遥测周期重复发布；只有 manager 重启、首次发现节点或设备信息变化时才重新发布。
 
@@ -70,7 +69,7 @@
 - 独立数据库持久化；
 - 命令和配置下行；
 - LoRa 网关帧解包；
-- VPD、露点、绝对湿度、PPFD、DLI、土壤和电池等完整实体集。
+- 按单项 `quality` 将实体细分为 warming、stale、fault 或 not_present 的显示策略。
 
 这些能力将在后续 M1 扩展及 M2–M4 分阶段加入。
 
@@ -130,12 +129,13 @@ GH_HA_DEVICE_NAME_PREFIX=温室监测节点
 - manager 重启后能够从 retained canonical telemetry 恢复节点最近状态；
 - 节点保持离线时，manager 重启后仍能在超时后发布 `unavailable`。
 
-## M1 第一阶段验收标准
+## M1 验收标准
 
 - 首次接收或恢复节点 telemetry 后发布 retained Device Discovery；
 - 同一节点在 Home Assistant 中只生成一个设备；
-- 空气温度、空气湿度、CO₂ 和光照度实体读取 canonical telemetry；
-- 固件版本和节点标识归入诊断实体；
+- 20 个实体归属于同一设备，不产生重复实体；
+- 所有测量实体读取 canonical telemetry；
+- 诊断实体显示固件、节点、电源和电池状态；
 - 连接状态随 canonical availability 在在线与离线之间切换；
 - manager 或 Home Assistant 重启后，Discovery 和 retained 状态能够自动恢复；
 - 相同 Discovery 配置不在每次遥测时重复发布。
