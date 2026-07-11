@@ -1,1 +1,49 @@
-ewogICIkc2NoZW1hIjogImh0dHBzOi8vanNvbi1zY2hlbWEub3JnL2RyYWZ0LzIwMjAtMTIvc2NoZW1hIiwKICAiJGlkIjogImh0dHBzOi8vaGFodWIudG9wL3NjaGVtYXMvZ2gucGFpci5oZWxsby0xLnNjaGVtYS5qc29uIiwKICAidGl0bGUiOiAiR3JlZW5ob3VzZSBwYWlyaW5nIGhlbGxvIHYxIiwKICAidHlwZSI6ICJvYmplY3QiLAogICJhZGRpdGlvbmFsUHJvcGVydGllcyI6IGZhbHNlLAogICJyZXF1aXJlZCI6IFsKICAgICJzY2hlbWEiLAogICAgInBhaXJpbmdfaWQiLAogICAgInBhaXJpbmdfZXBvY2giLAogICAgImhhcmR3YXJlX2lkIiwKICAgICJtb2RlbCIsCiAgICAiZndfdmVyc2lvbiIsCiAgICAibm9kZV9ub25jZSIsCiAgICAiY2FwYWJpbGl0aWVzIiwKICAgICJzZW50X2F0X21zIgogIF0sCiAgInByb3BlcnRpZXMiOiB7CiAgICAic2NoZW1hIjogeyJjb25zdCI6ICJnaC5wYWlyLmhlbGxvLzEifSwKICAgICJwYWlyaW5nX2lkIjogeyJ0eXBlIjogInN0cmluZyIsICJmb3JtYXQiOiAidXVpZCJ9LAogICAgInBhaXJpbmdfZXBvY2giOiB7InR5cGUiOiAiaW50ZWdlciIsICJtaW5pbXVtIjogMSwgIm1heGltdW0iOiA0Mjk0OTY3Mjk1fSwKICAgICJoYXJkd2FyZV9pZCI6IHsKICAgICAgInR5cGUiOiAic3RyaW5nIiwKICAgICAgInBhdHRlcm4iOiAiXmdody1bYS16MC05XSstWzAtOWEtZl17MTJ9JCIsCiAgICAgICJtYXhMZW5ndGgiOiA2NAogICAgfSwKICAgICJtb2RlbCI6IHsKICAgICAgInR5cGUiOiAic3RyaW5nIiwKICAgICAgInBhdHRlcm4iOiAiXlthLXowLTldW2EtejAtOV8tXXsyLDYzfSQiCiAgICB9LAogICAgImZ3X3ZlcnNpb24iOiB7InR5cGUiOiAic3RyaW5nIiwgIm1pbkxlbmd0aCI6IDEsICJtYXhMZW5ndGgiOiA2NH0sCiAgICAibm9kZV9ub25jZSI6IHsKICAgICAgInR5cGUiOiAic3RyaW5nIiwKICAgICAgInBhdHRlcm4iOiAiXltBLVphLXowLTlfLV17NDN9JCIsCiAgICAgICJkZXNjcmlwdGlvbiI6ICJFeGFjdGx5IDMyIHJhbmRvbSBieXRlcyBlbmNvZGVkIGFzIHVucGFkZGVkIGJhc2U2NHVybC4iCiAgICB9LAogICAgImNhcGFiaWxpdGllcyI6IHsKICAgICAgInR5cGUiOiAiYXJyYXkiLAogICAgICAibWluSXRlbXMiOiAxLAogICAgICAibWF4SXRlbXMiOiAzMiwKICAgICAgInVuaXF1ZUl0ZW1zIjogdHJ1ZSwKICAgICAgIml0ZW1zIjogewogICAgICAgICJ0eXBlIjogInN0cmluZyIsCiAgICAgICAgInBhdHRlcm4iOiAiXlthLXowLTldW2EtejAtOS1dezAsNjN9JCIKICAgICAgfQogICAgfSwKICAgICJzZW50X2F0X21zIjogeyJ0eXBlIjogImludGVnZXIiLCAibWluaW11bSI6IDB9CiAgfQp9Cg==
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hahub.top/schemas/gh.pair.hello-1.schema.json",
+  "title": "Greenhouse pairing hello v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "pairing_id",
+    "pairing_epoch",
+    "hardware_id",
+    "model",
+    "fw_version",
+    "node_nonce",
+    "capabilities",
+    "sent_at_ms"
+  ],
+  "properties": {
+    "schema": {"const": "gh.pair.hello/1"},
+    "pairing_id": {"type": "string", "format": "uuid"},
+    "pairing_epoch": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+    "hardware_id": {
+      "type": "string",
+      "pattern": "^ghw-[a-z0-9]+-[0-9a-f]{12}$",
+      "maxLength": 64
+    },
+    "model": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$"
+    },
+    "fw_version": {"type": "string", "minLength": 1, "maxLength": 64},
+    "node_nonce": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{43}$",
+      "description": "Exactly 32 random bytes encoded as unpadded base64url."
+    },
+    "capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"
+      }
+    },
+    "sent_at_ms": {"type": "integer", "minimum": 0}
+  }
+}
