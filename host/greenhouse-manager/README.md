@@ -103,6 +103,10 @@ CLI 输出不包含 node_nonce、pairing_pop 或凭据。当前 `approve` 只记
 
 `CredentialLifecycleStore` 在注册数据库中只保存 hardware ID、node ID、active/pending generation、状态、原因和更新时间，不保存用户名、密码或密钥。账本覆盖 active、rotating、revoked 和 recovery_required，并拒绝 generation 回退与并行轮换。它先作为事务协调和恢复依据；真实 Broker 写入仍需后续 T1 影子部署显式启用。
 
+## M2.3c T1 只读迁移预检
+
+`greenhouse-manager-t1-preflight --pretty` 从 T1 宿主机读取两个容器的运行状态、Mosquitto/manager 版本、白名单安全指令和 Dynamic Security 插件可用性，输出不含秘密的 JSON gate。该命令不发布 MQTT、不读取密码文件内容、不输出环境变量、不修改配置，也不重启容器。
+
 ## 暂未包含
 
 - PoP、challenge/response 和用户扫码批准 UI；
