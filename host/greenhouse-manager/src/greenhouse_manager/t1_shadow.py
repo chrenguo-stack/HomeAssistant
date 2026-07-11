@@ -7,6 +7,7 @@ import secrets
 import subprocess
 import sys
 import tempfile
+import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Protocol
@@ -170,6 +171,15 @@ def _prepare_snapshot_directories(config_dir: Path, data_dir: Path) -> None:
     config_dir.chmod(0o755)
 
 
+def _wait_for_file(path: Path, *, timeout_s: float = 10.0) -> bool:
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        if path.is_file():
+            return True
+        time.sleep(0.1)
+    return path.is_file()
+
+
 def run_shadow_candidate(
     archive: str | Path,
     *,
@@ -256,8 +266,22 @@ def run_shadow_candidate(
             )
             if state != "running":
                 raise ShadowError("shadow candidate broker is not running")
-            if not dynsec_path.is_file():
-                raise ShadowError("Dynamic Security candidate state was not created")
+            if not _wait_for_file(dynsec_path):
+                state = _require_success(
+                    command_runner,
+                    (
+                        "docker",
+                        "inspect",
+                        "-f",
+                        "{{.State.Status}} exit={{.State.ExitCode}}",
+                        container_id,
+                    ),
+                    "shadow candidate final state could not be inspected",
+                )
+                raise ShadowError(
+                    "Dynamic Security candidate state was not created "
+                    f"within 10 seconds ({state})"
+                )
             os.chown(dynsec_path, data_stat.st_uid, data_stat.st_gid)
             dynsec_path.chmod(0o600)
             password_init_path.unlink(missing_ok=True)
