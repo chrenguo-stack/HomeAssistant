@@ -1,6 +1,6 @@
 # gh-dynsec-profile-v1 每节点最小权限配置
 
-状态：Draft / M2.2a  
+状态：Draft / M2.2c  
 关联：ADR-0002、`gh-pairing-v1`、Issue #17
 
 ## 1. 范围
@@ -71,14 +71,21 @@ Dynamic Security 管理账号不得兼任 manager 遥测账号。真实环境的
 - 后续控制适配器应使用受保护的 MQTT 控制载荷或 stdin/secret file；
 - 生成失败不得复用部分随机值。
 
-## 8. M2.2b 隔离执行
-
-隔离 Broker 使用 `$CONTROL/dynamic-security/v1` Topic API。所有命令单飞串行；role 先于 client 创建；client 创建失败时依次尝试删除 client 和 role。集成测试必须覆盖正确 client ID、错误 client ID、自身 ingress、自身 out、跨节点、canonical state、Discovery、`$CONTROL` 和撤销后重连。
-
-## 9. M2.2a/M2.2b 验收
+## 8. M2.2a 验收
 
 - 两节点计划的身份和允许 Topic 完全隔离；
 - 默认 send/receive/subscribe 均为 deny；
 - `$CONTROL`、Discovery 和 canonical state 显式拒绝；
 - 密码至少 256 位且 repr 脱敏；
 - 本阶段没有 Broker、T1 或真实节点副作用。
+
+## 10. M2.2c 凭据轮换与回滚
+
+1. 新 generation 必须严格大于当前 generation；
+2. Broker 先写入候选密码；
+3. manager 使用候选 username、client ID 和密码执行一次独立连接探测；
+4. 探测成功后，旧密码必须无法重新连接；
+5. 探测失败时立即恢复上一代密码；
+6. 若恢复也失败，返回不含密码的明确错误并停止自动推进，禁止把未知状态报告为成功。
+
+隔离测试必须覆盖成功轮换和失败回滚。T1 影子部署前仍不向真实 Broker 写入任何账号或 ACL。
