@@ -65,11 +65,18 @@ def test_creates_pending_and_deduplicates_same_session(registry: RegistrationReg
     assert duplicate.record.last_seen_at == NOW + timedelta(seconds=10)
 
 
-def test_approval_preserves_existing_legacy_node_id(registry: RegistrationRegistry) -> None:
+def test_approved_device_requires_repair_authorization_and_preserves_node_id(
+    registry: RegistrationRegistry,
+) -> None:
     registry.observe_hello(valid_hello(), now=NOW)
     approved = registry.approve(HARDWARE_ID, PAIRING_ID, node_id=NODE_ID, now=NOW)
 
     next_pairing_id = "ca3e468d-fcdd-413d-b834-a8ac0cbe889e"
+    blocked = registry.observe_hello(
+        valid_hello(pairing_id=next_pairing_id, epoch=4),
+        now=NOW + timedelta(seconds=19),
+    )
+    registry.authorize_repair(HARDWARE_ID)
     superseded = registry.observe_hello(
         valid_hello(pairing_id=next_pairing_id, epoch=4),
         now=NOW + timedelta(seconds=20),
@@ -81,6 +88,9 @@ def test_approval_preserves_existing_legacy_node_id(registry: RegistrationRegist
     )
 
     assert approved.node_id == NODE_ID
+    assert blocked.status == "rejected"
+    assert blocked.reason == "repair_not_authorized"
+    assert blocked.record.state == RegistrationState.APPROVED
     assert superseded.status == "superseded"
     assert superseded.record.node_id == NODE_ID
     assert reapproved.node_id == NODE_ID
