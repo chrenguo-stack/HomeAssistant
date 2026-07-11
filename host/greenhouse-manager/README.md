@@ -111,6 +111,10 @@ CLI 输出不包含 node_nonce、pairing_pop 或凭据。当前 `approve` 只记
 
 `greenhouse-manager-t1-backup` 创建权限为 0600 的敏感级同机回退包，manifest 保存镜像身份、文件路径、大小、SHA-256、数值 UID/GID 和权限；`verify` 检查路径、内容和文件身份完整性，`drill` 恢复原属主后在 `--network none` 临时容器中验证 Mosquitto 可启动，并检查 SQLite 完整性。Mosquitto 配置和数据始终必需；尚未启用配对功能的旧 manager 可以没有数据目录，工具会将其标记为可选缺失，而存在但复制失败仍会阻断。当前格式只用于 T1 同机迁移回退，不得作为未加密离机备份。
 
+## M2.3e Legacy anonymous shadow
+
+`legacy_anonymous_shadow_commands` 在 Dynamic Security 隔离环境中建立临时 anonymous group/role，使现有非 `$` 应用 Topic 和只读 `$SYS/#` 在迁移期保持可用，同时显式拒绝匿名 `$CONTROL/#`。该角色只用于逐客户端迁移窗口，不能作为最终安全配置；关闭匿名访问前必须先完成 manager、Home Assistant 和节点账号切换。
+
 ## 暂未包含
 
 - PoP、challenge/response 和用户扫码批准 UI；

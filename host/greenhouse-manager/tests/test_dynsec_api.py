@@ -14,6 +14,7 @@ from greenhouse_manager.dynsec_api import (
     PahoDynsecTransport,
     baseline_commands,
     create_client_command,
+    legacy_anonymous_shadow_commands,
     set_client_password_command,
 )
 from greenhouse_manager.dynsec_plan import (
@@ -63,6 +64,41 @@ def test_client_command_binds_role_and_client_id() -> None:
     assert command["username"] == "ghn_gh-n1-a9f2f8"
     assert command["clientid"] == "gh-n1-a9f2f8"
     assert command["roles"] == [{"rolename": plan.role_name, "priority": 100}]
+
+
+def test_legacy_anonymous_shadow_preserves_apps_but_denies_control() -> None:
+    role, group, anonymous = legacy_anonymous_shadow_commands()
+
+    assert role["command"] == "createRole"
+    acl_map = {
+        (acl["acltype"], acl["topic"]): acl["allow"]
+        for acl in role["acls"]
+    }
+    assert acl_map[("publishClientSend", "#")] is True
+    assert acl_map[("subscribePattern", "#")] is True
+    assert acl_map[("publishClientReceive", "#")] is True
+    assert acl_map[("subscribePattern", "$SYS/#")] is True
+    assert acl_map[("publishClientSend", "$CONTROL/#")] is False
+    assert acl_map[("subscribePattern", "$CONTROL/#")] is False
+    assert group["roles"] == [
+        {"rolename": "gh-legacy-anonymous-shadow", "priority": 100}
+    ]
+    assert anonymous == {
+        "command": "setAnonymousGroup",
+        "groupname": "gh-legacy-anonymous-shadow",
+    }
+
+
+def test_applies_legacy_shadow_in_dependency_order() -> None:
+    transport = RecordingTransport()
+
+    DynsecProvisioner(transport).apply_legacy_anonymous_shadow()
+
+    assert [call[0]["command"] for call in transport.calls] == [
+        "createRole",
+        "createGroup",
+        "setAnonymousGroup",
+    ]
 
 
 def test_rolls_back_client_and_role_after_client_failure() -> None:
