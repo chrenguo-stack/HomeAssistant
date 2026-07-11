@@ -36,6 +36,9 @@ class Settings:
     ha_discovery_enabled: bool = True
     ha_discovery_prefix: str = "homeassistant"
     ha_device_name_prefix: str = "温室监测节点"
+    pairing_intake_enabled: bool = False
+    pairing_db_path: str = "/var/lib/greenhouse-manager/registration.sqlite3"
+    pairing_pending_ttl_s: int = 120
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -54,6 +57,11 @@ class Settings:
             ha_discovery_enabled=_env_bool("GH_HA_DISCOVERY_ENABLED", True),
             ha_discovery_prefix=os.getenv("GH_HA_DISCOVERY_PREFIX", "homeassistant"),
             ha_device_name_prefix=os.getenv("GH_HA_DEVICE_NAME_PREFIX", "温室监测节点"),
+            pairing_intake_enabled=_env_bool("GH_PAIRING_INTAKE_ENABLED", False),
+            pairing_db_path=os.getenv(
+                "GH_PAIRING_DB_PATH", "/var/lib/greenhouse-manager/registration.sqlite3"
+            ),
+            pairing_pending_ttl_s=int(os.getenv("GH_PAIRING_PENDING_TTL_S", "120")),
         )
         settings.validate()
         return settings
@@ -77,3 +85,7 @@ class Settings:
             raise ValueError("GH_HA_DISCOVERY_PREFIX must match [A-Za-z0-9_-]{1,64}")
         if not self.ha_device_name_prefix.strip():
             raise ValueError("GH_HA_DEVICE_NAME_PREFIX cannot be empty")
+        if self.pairing_intake_enabled and not self.pairing_db_path.strip():
+            raise ValueError("GH_PAIRING_DB_PATH cannot be empty when pairing intake is enabled")
+        if not 30 <= self.pairing_pending_ttl_s <= 600:
+            raise ValueError("GH_PAIRING_PENDING_TTL_S must be between 30 and 600 seconds")

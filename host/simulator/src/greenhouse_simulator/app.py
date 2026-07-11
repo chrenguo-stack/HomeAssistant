@@ -12,6 +12,7 @@ from typing import Any
 import paho.mqtt.client as mqtt
 
 from .config import Settings
+from .pairing import build_pairing_hello
 from .payload import build_telemetry
 
 _LOGGER = logging.getLogger(__name__)
@@ -19,6 +20,10 @@ _LOGGER = logging.getLogger(__name__)
 
 def _topic(system_id: str, node_id: str) -> str:
     return f"gh/v1/{system_id}/ingress/node/{node_id}/telemetry"
+
+
+def _pairing_topic(hardware_id: str) -> str:
+    return f"gh/bootstrap/v1/node/{hardware_id}/hello"
 
 
 def _payload_bytes(payload: dict[str, Any]) -> bytes:
@@ -69,6 +74,24 @@ class Simulator:
         if reason_code.is_failure:
             _LOGGER.warning("Unexpected MQTT disconnect: %s", reason_code)
 
+    def _publish_pairing_hello(self) -> None:
+        payload = build_pairing_hello(
+            hardware_id=self.settings.hardware_id,
+            pairing_epoch=self.settings.pairing_epoch,
+            sent_at_ms=int((time.monotonic() - self.started_monotonic) * 1000),
+        )
+        topic = _pairing_topic(self.settings.hardware_id)
+        info = self.client.publish(topic, _payload_bytes(payload), qos=1, retain=False)
+        info.wait_for_publish(timeout=10)
+        if not info.is_published():
+            raise RuntimeError("MQTT publish timed out for pairing hello")
+        _LOGGER.info(
+            "Published pairing hello hardware_suffix=%s pairing_prefix=%s epoch=%s",
+            self.settings.hardware_id[-6:],
+            str(payload["pairing_id"])[:8],
+            self.settings.pairing_epoch,
+        )
+
     def _publish(self, payload: dict[str, Any], *, label: str) -> None:
         topic = _topic(self.settings.system_id, self.settings.node_id)
         info = self.client.publish(topic, _payload_bytes(payload), qos=1, retain=False)
@@ -92,6 +115,8 @@ class Simulator:
                 raise RuntimeError("MQTT connection timed out")
             if self.settings.initial_delay_s:
                 time.sleep(self.settings.initial_delay_s)
+            if self.settings.pairing_hello_enabled:
+                self._publish_pairing_hello()
 
             seq = 0
             published = 0

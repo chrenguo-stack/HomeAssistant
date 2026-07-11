@@ -1,4 +1,4 @@
-# greenhouse-manager · M0/M1 MQTT 状态与 Home Assistant 发现
+# greenhouse-manager · M0/M1 状态发现与 M2 配对入口
 
 本目录是 V0.5 主机端的可运行服务。M0 负责把节点发布到 MQTT 入口 Topic 的 `gh.telemetry/1` 消息校验、去重并转换为 retained 规范化状态；M1 在此基础上生成 Home Assistant MQTT Discovery 配置。
 
@@ -60,13 +60,22 @@
 
    设备 Discovery 使用 canonical telemetry 作为状态源，并使用 canonical availability 控制实体可用性。连接状态单独使用 binary sensor Discovery，以便节点离线时明确显示为关闭，而不是把该实体本身标记为不可用。
 
-恢复机制和 Discovery 均依赖 Mosquitto retained 消息，不在容器内建立数据库，因此仍保持只读根文件系统和无状态部署方式。相同 Discovery 内容不会在每个 60 秒遥测周期重复发布；只有 manager 重启、首次发现节点或设备信息变化时才重新发布。
+遥测恢复机制和 Discovery 仍依赖 Mosquitto retained 消息。M2 配对入口默认关闭；显式启用后，manager 只订阅 `gh/bootstrap/v1/node/+/hello`，严格校验并把未知设备保存为 SQLite pending 记录，不回复 challenge、不创建账号，也不签发凭据。相同 Discovery 内容不会在每个 60 秒遥测周期重复发布；只有 manager 重启、首次发现节点或设备信息变化时才重新发布。
+
+## M2.1b 可选配对入口
+
+```text
+GH_PAIRING_INTAKE_ENABLED=false
+GH_PAIRING_DB_PATH=/var/lib/greenhouse-manager/registration.sqlite3
+GH_PAIRING_PENDING_TTL_S=120
+```
+
+默认值 `false` 保证现有 T1 行为不变。启用时必须为 `/var/lib/greenhouse-manager` 挂载持久卷。日志只记录 hardware_id 尾 6 位和 pairing_id 前 8 位，不记录完整 hello 或任何 PoP。
 
 ## 暂未包含
 
-- 注册和配对；
+- PoP、challenge/response 和用户扫码批准 UI；
 - 动态安全账号与 ACL 下发；
-- 独立数据库持久化；
 - 命令和配置下行；
 - LoRa 网关帧解包；
 - 按单项 `quality` 将实体细分为 warming、stale、fault 或 not_present 的显示策略。

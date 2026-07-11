@@ -4,6 +4,7 @@ import json
 import logging
 import time
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import paho.mqtt.client as mqtt
@@ -11,6 +12,13 @@ import paho.mqtt.client as mqtt
 from .config import Settings
 from .ha_discovery import HomeAssistantDiscovery
 from .ingest import PublishMessage, TelemetryProcessor
+from .pairing_intake import (
+    PAIRING_HELLO_SUBSCRIPTION,
+    PairingHelloProcessor,
+    redacted_hardware_id,
+    redacted_pairing_id,
+)
+from .registration import RegistrationRegistry
 from .topics import (
     canonical_telemetry_subscription,
     diagnostic_topic,
@@ -42,6 +50,14 @@ class ManagerMqttService:
             device_name_prefix=settings.ha_device_name_prefix,
             enabled=settings.ha_discovery_enabled,
         )
+        self.registration_registry: RegistrationRegistry | None = None
+        self.pairing_processor: PairingHelloProcessor | None = None
+        if settings.pairing_intake_enabled:
+            self.registration_registry = RegistrationRegistry(
+                Path(settings.pairing_db_path),
+                pending_ttl_s=settings.pairing_pending_ttl_s,
+            )
+            self.pairing_processor = PairingHelloProcessor(self.registration_registry)
         self.client = mqtt.Client(
             callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
             client_id=settings.mqtt_client_id,
@@ -105,10 +121,12 @@ class ManagerMqttService:
             _LOGGER.error("MQTT connection rejected: %s", reason_code)
             return
 
-        topics = (
+        topics = [
             ingress_subscription(self.settings.system_id),
             canonical_telemetry_subscription(self.settings.system_id),
-        )
+        ]
+        if self.pairing_processor is not None:
+            topics.append(PAIRING_HELLO_SUBSCRIPTION)
         for topic in topics:
             result, _mid = client.subscribe(topic, qos=1)
             if result != mqtt.MQTT_ERR_SUCCESS:
@@ -130,6 +148,28 @@ class ManagerMqttService:
             _LOGGER.info("MQTT disconnected")
 
     def _on_message(self, client: mqtt.Client, userdata: Any, message: mqtt.MQTTMessage) -> None:
+        if self.pairing_processor is not None and message.topic.startswith("gh/bootstrap/v1/node/"):
+            result = self.pairing_processor.process(message.topic, message.payload)
+            log_values = (
+                result.status,
+                redacted_hardware_id(result.hardware_id),
+                redacted_pairing_id(result.pairing_id),
+                result.state,
+            )
+            if result.status in {"created", "duplicate", "superseded"}:
+                _LOGGER.info(
+                    "Pairing hello status=%s hardware_suffix=%s pairing_prefix=%s state=%s",
+                    *log_values,
+                )
+            else:
+                _LOGGER.warning(
+                    "Rejected pairing hello reason=%s hardware_suffix=%s pairing_prefix=%s",
+                    result.reason,
+                    redacted_hardware_id(result.hardware_id),
+                    redacted_pairing_id(result.pairing_id),
+                )
+            return
+
         canonical_prefix = f"gh/v1/{self.settings.system_id}/state/"
         if message.topic.startswith(canonical_prefix) and message.topic.endswith("/telemetry"):
             restored = self.processor.restore_canonical(message.topic, message.payload)
@@ -177,11 +217,12 @@ class ManagerMqttService:
 
     def run(self) -> None:
         _LOGGER.info(
-            "Starting greenhouse-manager system_id=%s broker=%s:%d ha_discovery=%s",
+            "Starting greenhouse-manager system_id=%s broker=%s:%d ha_discovery=%s pairing_intake=%s",
             self.settings.system_id,
             self.settings.mqtt_host,
             self.settings.mqtt_port,
             self.settings.ha_discovery_enabled,
+            self.settings.pairing_intake_enabled,
         )
         self.client.connect(self.settings.mqtt_host, self.settings.mqtt_port, keepalive=60)
         self.client.loop_start()
@@ -189,6 +230,10 @@ class ManagerMqttService:
         try:
             while True:
                 time.sleep(5)
+                if self.pairing_processor is not None:
+                    expired = self.pairing_processor.expire_pending()
+                    if expired:
+                        _LOGGER.info("Expired pairing registrations count=%d", expired)
                 for message in self.processor.stale_messages():
                     if self._publish(message):
                         _LOGGER.info("Published unavailable state topic=%s", message.topic)
@@ -203,3 +248,5 @@ class ManagerMqttService:
         finally:
             self.client.disconnect()
             self.client.loop_stop()
+            if self.registration_registry is not None:
+                self.registration_registry.close()

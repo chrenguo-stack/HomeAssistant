@@ -29,6 +29,9 @@ gh/v1/<system_id>/ingress/node/<node_id>/telemetry
 | `GH_SIM_COUNT` | `0` | 主消息数量，0 表示持续运行 |
 | `GH_SIM_DUPLICATE_EVERY` | `0` | 每 N 条追加一次完全相同的重复包 |
 | `GH_SIM_INVALID_EVERY` | `0` | 每 N 条生成一次湿度越界的非法包 |
+| `GH_SIM_PAIRING_HELLO` | `false` | 连接后发送一次 `gh.pair.hello/1` |
+| `GH_HARDWARE_ID` | `ghw-sim-000000000001` | 模拟硬件 ID |
+| `GH_PAIRING_EPOCH` | `1` | 动态二维码/配对 epoch |
 
 ## 本地测试
 
@@ -41,4 +44,4 @@ pytest -q
 ruff check .
 ```
 
-通常不需要单独运行本服务，使用 `infra/compose/m0` 可以同时启动 Mosquitto、manager、模拟节点和状态观察器。
+通常不需要单独运行本服务，使用 `infra/compose/m0` 可以同时启动 Mosquitto、manager、模拟节点和状态观察器。M0 会显式开启 pairing hello，验证 manager 只创建 pending 注册记录，同时继续验证原有遥测、availability 和 diagnostic 链路。

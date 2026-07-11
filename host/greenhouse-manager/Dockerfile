@@ -5,7 +5,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1
 
 RUN groupadd --system greenhouse \
-    && useradd --system --gid greenhouse --create-home greenhouse
+    && useradd --system --gid greenhouse --create-home greenhouse \
+    && mkdir -p /var/lib/greenhouse-manager \
+    && chown greenhouse:greenhouse /var/lib/greenhouse-manager
 
 WORKDIR /app
 
