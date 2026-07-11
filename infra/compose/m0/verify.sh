@@ -93,4 +93,25 @@ assert record.state == RegistrationState.PENDING
 assert record.node_id is None
 PY
 
-echo "M0 vertical slice verified: telemetry, availability, diagnostics and pairing intake are correct."
+registrations="$(compose exec -T manager greenhouse-manager-registration \
+  --db /var/lib/greenhouse-manager/registration.sqlite3 list)"
+events="$(compose exec -T manager greenhouse-manager-registration \
+  --db /var/lib/greenhouse-manager/registration.sqlite3 events)"
+
+REGISTRATIONS="${registrations}" EVENTS="${events}" python3 - <<'PY'
+import json
+import os
+
+registrations = json.loads(os.environ["REGISTRATIONS"])
+events = json.loads(os.environ["EVENTS"])
+
+assert len(registrations) == 1
+assert registrations[0]["state"] == "pending"
+assert events[0]["event"] == "hello_created"
+
+serialized = json.dumps({"registrations": registrations, "events": events})
+assert "node_nonce" not in serialized
+assert "pairing_pop" not in serialized
+PY
+
+echo "M0 vertical slice verified: telemetry, availability, diagnostics, pairing intake and audit CLI are correct."
