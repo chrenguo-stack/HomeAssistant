@@ -87,8 +87,7 @@ greenhouse-manager-registration --db /var/lib/greenhouse-manager/registration.sq
 
 CLI 输出不包含 node_nonce、pairing_pop 或凭据。当前 `approve` 只记录操作员决定，并明确返回 `credential_issued=false`；它不会创建 Broker 账号或跳过后续 PoP。
 
-## 暂未包含
-
+## M2.2a Dynamic Security 计划\n\n`dynsec_plan.py` 生成每节点独立 username/client ID/role/ACL 计划和 256 位随机密码。默认 send、receive、subscribe 均为 deny；本阶段只生成内存计划，不连接 Broker、不执行 `$CONTROL`，密码的 `repr` 始终脱敏。协议见 `protocols/pairing/gh-dynsec-profile-v1.md`。\n\n## 暂未包含\n
 - PoP、challenge/response 和用户扫码批准 UI；
 - 动态安全账号与 ACL 下发；
 - 命令和配置下行；
