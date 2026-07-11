@@ -5,6 +5,7 @@ import re
 from dataclasses import dataclass
 
 _ID_RE = re.compile(r"^[A-Za-z0-9_-]{3,64}$")
+_DISCOVERY_PREFIX_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -32,6 +33,9 @@ class Settings:
     stale_after_s: int = 180
     dedup_capacity: int = 4096
     log_level: str = "INFO"
+    ha_discovery_enabled: bool = True
+    ha_discovery_prefix: str = "homeassistant"
+    ha_device_name_prefix: str = "温室监测节点"
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -47,6 +51,9 @@ class Settings:
             stale_after_s=int(os.getenv("GH_STALE_AFTER_S", "180")),
             dedup_capacity=int(os.getenv("GH_DEDUP_CAPACITY", "4096")),
             log_level=os.getenv("GH_LOG_LEVEL", "INFO").upper(),
+            ha_discovery_enabled=_env_bool("GH_HA_DISCOVERY_ENABLED", True),
+            ha_discovery_prefix=os.getenv("GH_HA_DISCOVERY_PREFIX", "homeassistant"),
+            ha_device_name_prefix=os.getenv("GH_HA_DEVICE_NAME_PREFIX", "温室监测节点"),
         )
         settings.validate()
         return settings
@@ -66,3 +73,7 @@ class Settings:
             raise ValueError("GH_MQTT_USERNAME and GH_MQTT_PASSWORD must be configured together")
         if self.mqtt_tls and not self.mqtt_ca_file:
             raise ValueError("GH_MQTT_CA_FILE is required when GH_MQTT_TLS=true")
+        if not _DISCOVERY_PREFIX_RE.fullmatch(self.ha_discovery_prefix):
+            raise ValueError("GH_HA_DISCOVERY_PREFIX must match [A-Za-z0-9_-]{1,64}")
+        if not self.ha_device_name_prefix.strip():
+            raise ValueError("GH_HA_DEVICE_NAME_PREFIX cannot be empty")

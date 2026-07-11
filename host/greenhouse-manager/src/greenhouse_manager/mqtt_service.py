@@ -9,6 +9,7 @@ from typing import Any
 import paho.mqtt.client as mqtt
 
 from .config import Settings
+from .ha_discovery import HomeAssistantDiscovery
 from .ingest import PublishMessage, TelemetryProcessor
 from .topics import (
     canonical_telemetry_subscription,
@@ -34,6 +35,12 @@ class ManagerMqttService:
             system_id=settings.system_id,
             dedup_capacity=settings.dedup_capacity,
             stale_after_s=settings.stale_after_s,
+        )
+        self.discovery = HomeAssistantDiscovery(
+            system_id=settings.system_id,
+            prefix=settings.ha_discovery_prefix,
+            device_name_prefix=settings.ha_device_name_prefix,
+            enabled=settings.ha_discovery_enabled,
         )
         self.client = mqtt.Client(
             callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
@@ -62,6 +69,15 @@ class ManagerMqttService:
             _LOGGER.error("MQTT publish failed topic=%s rc=%s", message.topic, info.rc)
             return False
         return True
+
+    def _publish_discovery(self, document: dict[str, Any]) -> None:
+        for outgoing in self.discovery.messages_for_telemetry(document):
+            self._publish(outgoing)
+            _LOGGER.info(
+                "Published Home Assistant discovery node=%s topic=%s",
+                document.get("node_id"),
+                outgoing.topic,
+            )
 
     def _publish_diagnostic(self, node_id: str, reason: str) -> None:
         self._publish(
@@ -124,6 +140,12 @@ class ManagerMqttService:
                     restored.dedup_key,
                     restored.last_seen,
                 )
+                try:
+                    document = json.loads(message.payload.decode("utf-8"))
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    document = None
+                if isinstance(document, dict):
+                    self._publish_discovery(document)
             else:
                 _LOGGER.warning(
                     "Rejected canonical telemetry recovery node=%s reason=%s",
@@ -135,8 +157,13 @@ class ManagerMqttService:
         result = self.processor.process(message.topic, message.payload)
 
         if result.status == "accepted":
+            canonical_document: dict[str, Any] | None = None
             for outgoing in result.messages:
                 self._publish(outgoing)
+                if outgoing.topic.endswith("/telemetry"):
+                    canonical_document = outgoing.payload
+            if canonical_document is not None:
+                self._publish_discovery(canonical_document)
             _LOGGER.info("Accepted telemetry node=%s key=%s", result.node_id, result.dedup_key)
             return
 
@@ -150,10 +177,11 @@ class ManagerMqttService:
 
     def run(self) -> None:
         _LOGGER.info(
-            "Starting greenhouse-manager system_id=%s broker=%s:%d",
+            "Starting greenhouse-manager system_id=%s broker=%s:%d ha_discovery=%s",
             self.settings.system_id,
             self.settings.mqtt_host,
             self.settings.mqtt_port,
+            self.settings.ha_discovery_enabled,
         )
         self.client.connect(self.settings.mqtt_host, self.settings.mqtt_port, keepalive=60)
         self.client.loop_start()
