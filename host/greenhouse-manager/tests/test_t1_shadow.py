@@ -15,6 +15,7 @@ from greenhouse_manager.t1_shadow import (
     legacy_shadow_ctrl_commands,
     prepare_shadow_config,
     run_shadow_candidate,
+    _wait_for_file,
 )
 
 
@@ -110,6 +111,13 @@ def test_prepares_snapshot_copy_without_disabling_anonymous(tmp_path: Path) -> N
     assert PLUGIN_LINE in updated
     assert PLUGIN_CONFIG_LINE in updated
     assert PLUGIN_PASSWORD_INIT_LINE in updated
+
+
+def test_file_wait_returns_immediately_for_existing_file(tmp_path: Path) -> None:
+    state = tmp_path / "dynamic-security.json"
+    state.write_text("{}\n", encoding="utf-8")
+
+    assert _wait_for_file(state, timeout_s=0.01) is True
 
 
 @pytest.mark.parametrize(
