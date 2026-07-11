@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import threading
 from collections.abc import Sequence
+from contextlib import suppress
 from typing import Any, Protocol
 
 import paho.mqtt.client as mqtt
@@ -97,10 +98,8 @@ class DynsecProvisioner:
         self.transport.execute(({"command": "deleteRole", "rolename": plan.role_name},))
 
     def _best_effort(self, commands: Sequence[dict[str, Any]]) -> None:
-        try:
+        with suppress(Exception):
             self.transport.execute(commands)
-        except Exception:
-            pass
 
 
 class PahoDynsecTransport:
