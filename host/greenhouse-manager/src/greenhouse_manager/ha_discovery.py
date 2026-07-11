@@ -31,19 +31,58 @@ def _measurement_sensor(
     name: str,
     device_class: str | None = None,
     unit: str | None = None,
+    state_class: str | None = "measurement",
+    entity_category: str | None = None,
 ) -> dict[str, Any]:
     component: dict[str, Any] = {
         "p": "sensor",
         "name": name,
         "unique_id": f"{node_id}_{key}",
-        "state_class": "measurement",
         "value_template": f"{{{{ value_json.measurements.{key} }}}}",
     }
     if device_class:
         component["device_class"] = device_class
     if unit:
         component["unit_of_measurement"] = unit
+    if state_class:
+        component["state_class"] = state_class
+    if entity_category:
+        component["entity_category"] = entity_category
     return component
+
+
+_MEASUREMENT_DEFINITIONS: dict[
+    str,
+    tuple[str, str | None, str | None, str | None, str | None],
+] = {
+    "air_temperature_c": ("空气温度", "temperature", "°C", "measurement", None),
+    "air_humidity_pct": ("空气湿度", "humidity", "%", "measurement", None),
+    "co2_ppm": ("二氧化碳", "carbon_dioxide", "ppm", "measurement", None),
+    "illuminance_lx": ("光照度", "illuminance", "lx", "measurement", None),
+    "soil_temperature_c": ("土壤温度", "temperature", "°C", "measurement", None),
+    "soil_moisture_pct": ("土壤含水率", "moisture", "%", "measurement", None),
+    "soil_ec_us_cm": ("土壤电导率", "conductivity", "µS/cm", "measurement", None),
+    "vpd_kpa": ("饱和水汽压差", "pressure", "kPa", "measurement", None),
+    "dew_point_c": ("露点温度", "temperature", "°C", "measurement", None),
+    "absolute_humidity_g_m3": (
+        "绝对湿度",
+        "absolute_humidity",
+        "g/m³",
+        "measurement",
+        None,
+    ),
+    "ppfd_umol_m2_s": (
+        "光合光量子通量密度",
+        None,
+        "µmol/(m²·s)",
+        "measurement",
+        None,
+    ),
+    "dli_today_mol_m2_d": ("今日 DLI", None, "mol/m²/d", "total_increasing", None),
+    "dli_yesterday_mol_m2_d": ("昨日 DLI", None, "mol/m²/d", None, None),
+    "battery_v": ("电池电压", "voltage", "V", "measurement", "diagnostic"),
+    "battery_pct": ("电池电量", "battery", "%", "measurement", "diagnostic"),
+}
 
 
 @dataclass(slots=True)
@@ -85,22 +124,19 @@ class HomeAssistantDiscovery:
         if not isinstance(measurements, dict):
             measurements = {}
 
-        definitions = {
-            "air_temperature_c": ("空气温度", "temperature", "°C"),
-            "air_humidity_pct": ("空气湿度", "humidity", "%"),
-            "co2_ppm": ("二氧化碳", "carbon_dioxide", "ppm"),
-            "illuminance_lx": ("光照度", "illuminance", "lx"),
-        }
         components: dict[str, dict[str, Any]] = {}
-        for key, (name, device_class, unit) in definitions.items():
+        for key, definition in _MEASUREMENT_DEFINITIONS.items():
             if key not in measurements:
                 continue
+            name, device_class, unit, state_class, entity_category = definition
             components[key] = _measurement_sensor(
                 node_id=node_id,
                 key=key,
                 name=name,
                 device_class=device_class,
                 unit=unit,
+                state_class=state_class,
+                entity_category=entity_category,
             )
 
         components["firmware_version"] = {
@@ -118,6 +154,24 @@ class HomeAssistantDiscovery:
             "entity_category": "diagnostic",
             "icon": "mdi:identifier",
             "value_template": "{{ value_json.node_id }}",
+        }
+        components["power_source"] = {
+            "p": "sensor",
+            "name": "供电来源",
+            "unique_id": f"{node_id}_power_source",
+            "entity_category": "diagnostic",
+            "icon": "mdi:power-plug-battery",
+            "value_template": "{{ value_json.power.source }}",
+        }
+        components["low_battery"] = {
+            "p": "binary_sensor",
+            "name": "低电量",
+            "unique_id": f"{node_id}_low_battery",
+            "device_class": "battery",
+            "entity_category": "diagnostic",
+            "value_template": "{{ 'ON' if value_json.power.low else 'OFF' }}",
+            "payload_on": "ON",
+            "payload_off": "OFF",
         }
 
         return {
