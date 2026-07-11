@@ -4,7 +4,7 @@ import base64
 import re
 import secrets
 import uuid
-from typing import Callable
+from collections.abc import Callable
 
 HARDWARE_ID_PATTERN = re.compile(r"^ghw-[a-z0-9]+-[0-9a-f]{12}$")
 
