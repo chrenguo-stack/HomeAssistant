@@ -1,1 +1,34 @@
-ZnJvbSBfX2Z1dHVyZV9fIGltcG9ydCBhbm5vdGF0aW9ucwoKaW1wb3J0IHV1aWQKCmltcG9ydCBweXRlc3QKCmZyb20gZ3JlZW5ob3VzZV9zaW11bGF0b3IucGFpcmluZyBpbXBvcnQgYnVpbGRfcGFpcmluZ19oZWxsbwoKCmRlZiB0ZXN0X2J1aWxkc19kZXRlcm1pbmlzdGljX3BhaXJpbmdfaGVsbG9fZm9yX21hbmFnZXJfdGVzdHMoKSAtPiBOb25lOgogICAgcGFpcmluZ19pZCA9IHV1aWQuVVVJRCgiYzgzYWViMGQtOGY0OC00YTM5LWEzNGItZWE1ODRhNTg4NDc1IikKCiAgICBoZWxsbyA9IGJ1aWxkX3BhaXJpbmdfaGVsbG8oCiAgICAgICAgaGFyZHdhcmVfaWQ9Imdody1jNi05OGEzMTZhOWYyZjgiLAogICAgICAgIHBhaXJpbmdfZXBvY2g9MywKICAgICAgICBzZW50X2F0X21zPTEyMDM0NSwKICAgICAgICByYW5kb21fYnl0ZXM9bGFtYmRhIHNpemU6IGJ5dGVzKHJhbmdlKHNpemUpKSwKICAgICAgICBuZXdfdXVpZD1sYW1iZGE6IHBhaXJpbmdfaWQsCiAgICApCgogICAgYXNzZXJ0IGhlbGxvWyJzY2hlbWEiXSA9PSAiZ2gucGFpci5oZWxsby8xIgogICAgYXNzZXJ0IGhlbGxvWyJwYWlyaW5nX2lkIl0gPT0gc3RyKHBhaXJpbmdfaWQpCiAgICBhc3NlcnQgaGVsbG9bInBhaXJpbmdfZXBvY2giXSA9PSAzCiAgICBhc3NlcnQgaGVsbG9bIm5vZGVfbm9uY2UiXSA9PSAiQUFFQ0F3UUZCZ2NJQ1FvTERBME9EeEFSRWhNVUZSWVhHQmthR3h3ZEhoOCIKICAgIGFzc2VydCAicGFpcmluZ19wb3AiIG5vdCBpbiBoZWxsbwoKCkBweXRlc3QubWFyay5wYXJhbWV0cml6ZSgiZXBvY2giLCBbMCwgLTFdKQpkZWYgdGVzdF9yZWplY3RzX2ludmFsaWRfcGFpcmluZ19lcG9jaChlcG9jaDogaW50KSAtPiBOb25lOgogICAgd2l0aCBweXRlc3QucmFpc2VzKFZhbHVlRXJyb3IsIG1hdGNoPSJwYWlyaW5nX2Vwb2NoIik6CiAgICAgICAgYnVpbGRfcGFpcmluZ19oZWxsbygKICAgICAgICAgICAgaGFyZHdhcmVfaWQ9Imdody1jNi05OGEzMTZhOWYyZjgiLAogICAgICAgICAgICBwYWlyaW5nX2Vwb2NoPWVwb2NoLAogICAgICAgICkK
+from __future__ import annotations
+
+import uuid
+
+import pytest
+
+from greenhouse_simulator.pairing import build_pairing_hello
+
+
+def test_builds_deterministic_pairing_hello_for_manager_tests() -> None:
+    pairing_id = uuid.UUID("c83aeb0d-8f48-4a39-a34b-ea584a588475")
+
+    hello = build_pairing_hello(
+        hardware_id="ghw-c6-98a316a9f2f8",
+        pairing_epoch=3,
+        sent_at_ms=120345,
+        random_bytes=lambda size: bytes(range(size)),
+        new_uuid=lambda: pairing_id,
+    )
+
+    assert hello["schema"] == "gh.pair.hello/1"
+    assert hello["pairing_id"] == str(pairing_id)
+    assert hello["pairing_epoch"] == 3
+    assert hello["node_nonce"] == "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"
+    assert "pairing_pop" not in hello
+
+
+@pytest.mark.parametrize("epoch", [0, -1])
+def test_rejects_invalid_pairing_epoch(epoch: int) -> None:
+    with pytest.raises(ValueError, match="pairing_epoch"):
+        build_pairing_hello(
+            hardware_id="ghw-c6-98a316a9f2f8",
+            pairing_epoch=epoch,
+        )
