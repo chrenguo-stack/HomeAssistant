@@ -35,15 +35,15 @@ class FakeDocker:
                     ),
                 )
             return (0, "running\n")
-        if command[:2] == ("docker", "cp") and ":" in command[2]:
-            destination = Path(command[3])
+        if command[:3] == ("docker", "cp", "--archive") and ":" in command[3]:
+            destination = Path(command[4])
             destination.mkdir(parents=True)
-            if "mosquitto:/mosquitto/config" in command[2]:
+            if "mosquitto:/mosquitto/config" in command[3]:
                 (destination / "mosquitto.conf").write_text(
                     "listener 1883\nallow_anonymous true\n",
                     encoding="utf-8",
                 )
-            elif "mosquitto:/mosquitto/data" in command[2]:
+            elif "mosquitto:/mosquitto/data" in command[3]:
                 (destination / "mosquitto.db").write_bytes(b"test-state")
             return (0, "")
         if command[:2] == ("docker", "create"):
@@ -53,7 +53,7 @@ class FakeDocker:
             ("docker", "rm"),
         }:
             return (0, "")
-        if command[:2] == ("docker", "cp"):
+        if command[:3] == ("docker", "cp", "--archive"):
             return (0, "")
         return (1, "unexpected")
 
@@ -78,6 +78,10 @@ def test_create_verify_and_isolated_restore_drill(tmp_path: Path) -> None:
     assert archive.stat().st_mode & 0o777 == 0o600
     assert manifest["classification"] == "sensitive-local-rollback"
     assert manifest["portable_off_host"] is False
+    assert all(
+        {"mode", "uid", "gid"} <= record.keys()
+        for record in manifest["files"]
+    )
     assert drill["network"] == "none"
     assert drill["broker_started"] is True
     assert drill["current_services_modified"] is False
