@@ -83,7 +83,9 @@ class RegistrationRegistry:
             raise ValueError("pending_ttl_s must be positive")
         self.pending_ttl = timedelta(seconds=pending_ttl_s)
         self._lock = threading.RLock()
-        self._connection = sqlite3.connect(str(path), isolation_level=None, check_same_thread=False)
+        self._connection = sqlite3.connect(
+            str(path), isolation_level="IMMEDIATE", check_same_thread=False
+        )
         self._connection.row_factory = sqlite3.Row
         self._validator = self._load_validator()
         self._initialize()
