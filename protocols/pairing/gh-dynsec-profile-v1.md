@@ -71,7 +71,11 @@ Dynamic Security 管理账号不得兼任 manager 遥测账号。真实环境的
 - 后续控制适配器应使用受保护的 MQTT 控制载荷或 stdin/secret file；
 - 生成失败不得复用部分随机值。
 
-## 8. M2.2a 验收
+## 8. M2.2b 隔离执行
+
+隔离 Broker 使用 `$CONTROL/dynamic-security/v1` Topic API。所有命令单飞串行；role 先于 client 创建；client 创建失败时依次尝试删除 client 和 role。集成测试必须覆盖正确 client ID、错误 client ID、自身 ingress、自身 out、跨节点、canonical state、Discovery、`$CONTROL` 和撤销后重连。
+
+## 9. M2.2a/M2.2b 验收
 
 - 两节点计划的身份和允许 Topic 完全隔离；
 - 默认 send/receive/subscribe 均为 deny；
