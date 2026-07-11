@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import queue
 import threading
@@ -9,7 +10,12 @@ from typing import Any
 
 import paho.mqtt.client as mqtt
 
-from greenhouse_manager.dynsec_api import DynsecProvisioner, PahoDynsecTransport, RESPONSE_TOPIC
+from greenhouse_manager.dynsec_api import (
+    DynsecError,
+    DynsecProvisioner,
+    PahoDynsecTransport,
+    RESPONSE_TOPIC,
+)
 from greenhouse_manager.dynsec_plan import build_node_provisioning_plan, generate_node_credentials
 
 BROKER = "broker"
@@ -139,7 +145,6 @@ def main() -> None:
     provisioner.provision(second_plan, second_credentials)
 
     assert admin.subscribe("#")
-    assert admin.subscribe("$CONTROL/#")
 
     first = Session(
         client_id=first_credentials.client_id,
@@ -177,12 +182,34 @@ def main() -> None:
         "gh/v1/greenhouse/ingress/node/gh-test-node-002/telemetry",
         "gh/v1/greenhouse/state/gh-test-node-001/telemetry",
         "homeassistant/device/gh-test-node-001/config",
-        "$CONTROL/dynamic-security/v1",
     )
     for topic in denied_topics:
         admin.drain()
         first.publish(topic)
         assert not admin.wait_for(topic, timeout=1.0), topic
+
+    canary_username = "gh-dynsec-forbidden-canary"
+    forbidden_command = json.dumps(
+        {
+            "commands": [
+                {
+                    "command": "createClient",
+                    "username": canary_username,
+                    "password": "not-a-real-secret",
+                    "clientid": "gh-dynsec-forbidden-canary",
+                }
+            ]
+        },
+        separators=(",", ":"),
+    ).encode()
+    first.publish("$CONTROL/dynamic-security/v1", forbidden_command)
+    time.sleep(0.5)
+    try:
+        transport.execute(({"command": "getClient", "username": canary_username},))
+    except DynsecError:
+        pass
+    else:
+        raise AssertionError("unauthorized Dynamic Security command created a client")
 
     first.close()
     second.close()
