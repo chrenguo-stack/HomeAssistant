@@ -4,25 +4,31 @@
 
 ## 当前职责
 
-1. 订阅：
+1. 订阅节点入口：
 
    ```text
    gh/v1/<system_id>/ingress/node/+/telemetry
    ```
 
-2. 校验：
+2. 订阅 retained canonical telemetry，用于 manager 重启后恢复节点生命周期状态：
+
+   ```text
+   gh/v1/<system_id>/state/+/telemetry
+   ```
+
+3. 校验：
    - Topic 中的 `system_id`；
    - Topic 与载荷中的 `node_id` 是否一致；
    - `gh.telemetry/1` JSON Schema；
    - 节点不得填写 manager 专属的 `received_at`。
 
-3. 去重：
+4. 去重：
 
    ```text
    node_id + boot_id + seq
    ```
 
-4. 发布 retained 状态：
+5. 发布 retained 状态：
 
    ```text
    gh/v1/<system_id>/state/<node_id>/telemetry
@@ -30,14 +36,21 @@
    gh/v1/<system_id>/state/<node_id>/diagnostic
    ```
 
-5. 超过 `GH_STALE_AFTER_S` 未收到新遥测时，将节点 availability 更新为 `unavailable`。
+6. 超过 `GH_STALE_AFTER_S` 未收到新遥测时，将节点 availability 更新为 `unavailable`。
+
+7. manager 或 T1 重启后，从 Broker 中保留的 canonical telemetry 恢复：
+   - 每个节点最近一次 `received_at`；
+   - 最近一个 `node_id + boot_id + seq` 去重键；
+   - 后续 stale 超时判定基础。
+
+该恢复机制依赖 Mosquitto retained 消息，不在容器内建立数据库，因此仍保持只读根文件系统和无状态部署方式。
 
 ## 暂未包含
 
 - 注册和配对；
 - 动态安全账号与 ACL 下发；
 - Home Assistant Discovery；
-- 数据持久化；
+- 独立数据库持久化；
 - 命令和配置下行；
 - LoRa 网关帧解包。
 
@@ -85,4 +98,6 @@ GH_MQTT_HOST
 - 非法 JSON、Schema 错误、节点 ID 不匹配被拒绝；
 - 非法包不会覆盖上一条有效 retained 状态；
 - 节点超时后 availability 变为 `unavailable`；
-- 新遥测到达后 availability 恢复为 `online`。
+- 新遥测到达后 availability 恢复为 `online`；
+- manager 重启后能够从 retained canonical telemetry 恢复节点最近状态；
+- 节点保持离线时，manager 重启后仍能在超时后发布 `unavailable`。

@@ -36,6 +36,12 @@ if ! command -v esphome >/dev/null 2>&1; then
   exit 1
 fi
 
+config_file="${RC2_CONFIG:-f1_0_rc2.yml}"
+if [[ ! -f "${config_file}" ]]; then
+  echo "ESPHome configuration not found: ${config_file}" >&2
+  exit 1
+fi
+
 action="${1:-compile}"
 if (( $# > 0 )); then
   shift
@@ -43,10 +49,10 @@ fi
 
 case "${action}" in
   config|compile|run|logs|clean)
-    exec esphome "${action}" f1_0_rc2.yml "$@"
+    exec esphome "${action}" "${config_file}" "$@"
     ;;
   *)
-    echo "Usage: bash tools/rc2.sh {config|compile|run|logs|clean} [ESPHome arguments...]" >&2
+    echo "Usage: RC2_CONFIG=<file.yml> bash tools/rc2.sh {config|compile|run|logs|clean} [ESPHome arguments...]" >&2
     exit 2
     ;;
 esac

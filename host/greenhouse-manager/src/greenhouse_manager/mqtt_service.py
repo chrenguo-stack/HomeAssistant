@@ -10,7 +10,11 @@ import paho.mqtt.client as mqtt
 
 from .config import Settings
 from .ingest import PublishMessage, TelemetryProcessor
-from .topics import diagnostic_topic, ingress_subscription
+from .topics import (
+    canonical_telemetry_subscription,
+    diagnostic_topic,
+    ingress_subscription,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -39,6 +43,7 @@ class ManagerMqttService:
         self.client.on_connect = self._on_connect
         self.client.on_disconnect = self._on_disconnect
         self.client.on_message = self._on_message
+        self.client.reconnect_delay_set(min_delay=1, max_delay=15)
         self.client.enable_logger(_LOGGER)
 
         if settings.mqtt_username and settings.mqtt_password:
@@ -46,7 +51,7 @@ class ManagerMqttService:
         if settings.mqtt_tls:
             self.client.tls_set(ca_certs=settings.mqtt_ca_file)
 
-    def _publish(self, message: PublishMessage) -> None:
+    def _publish(self, message: PublishMessage) -> bool:
         info = self.client.publish(
             message.topic,
             payload=_json_bytes(message.payload),
@@ -55,6 +60,8 @@ class ManagerMqttService:
         )
         if info.rc != mqtt.MQTT_ERR_SUCCESS:
             _LOGGER.error("MQTT publish failed topic=%s rc=%s", message.topic, info.rc)
+            return False
+        return True
 
     def _publish_diagnostic(self, node_id: str, reason: str) -> None:
         self._publish(
@@ -82,12 +89,16 @@ class ManagerMqttService:
             _LOGGER.error("MQTT connection rejected: %s", reason_code)
             return
 
-        topic = ingress_subscription(self.settings.system_id)
-        result, _mid = client.subscribe(topic, qos=1)
-        if result != mqtt.MQTT_ERR_SUCCESS:
-            _LOGGER.error("MQTT subscribe failed topic=%s rc=%s", topic, result)
-            return
-        _LOGGER.info("Subscribed to %s", topic)
+        topics = (
+            ingress_subscription(self.settings.system_id),
+            canonical_telemetry_subscription(self.settings.system_id),
+        )
+        for topic in topics:
+            result, _mid = client.subscribe(topic, qos=1)
+            if result != mqtt.MQTT_ERR_SUCCESS:
+                _LOGGER.error("MQTT subscribe failed topic=%s rc=%s", topic, result)
+                continue
+            _LOGGER.info("Subscribed to %s", topic)
 
     def _on_disconnect(
         self,
@@ -103,6 +114,24 @@ class ManagerMqttService:
             _LOGGER.info("MQTT disconnected")
 
     def _on_message(self, client: mqtt.Client, userdata: Any, message: mqtt.MQTTMessage) -> None:
+        canonical_prefix = f"gh/v1/{self.settings.system_id}/state/"
+        if message.topic.startswith(canonical_prefix) and message.topic.endswith("/telemetry"):
+            restored = self.processor.restore_canonical(message.topic, message.payload)
+            if restored.status == "restored":
+                _LOGGER.debug(
+                    "Restored canonical telemetry node=%s key=%s last_seen=%s",
+                    restored.node_id,
+                    restored.dedup_key,
+                    restored.last_seen,
+                )
+            else:
+                _LOGGER.warning(
+                    "Rejected canonical telemetry recovery node=%s reason=%s",
+                    restored.node_id,
+                    restored.reason,
+                )
+            return
+
         result = self.processor.process(message.topic, message.payload)
 
         if result.status == "accepted":
@@ -133,8 +162,14 @@ class ManagerMqttService:
             while True:
                 time.sleep(5)
                 for message in self.processor.stale_messages():
-                    self._publish(message)
-                    _LOGGER.info("Published unavailable state topic=%s", message.topic)
+                    if self._publish(message):
+                        _LOGGER.info("Published unavailable state topic=%s", message.topic)
+                        continue
+
+                    node_id = message.payload.get("node_id")
+                    if isinstance(node_id, str):
+                        self.processor.mark_unavailable_publish_failed(node_id)
+                    _LOGGER.warning("Deferred unavailable state topic=%s; will retry", message.topic)
         except KeyboardInterrupt:
             _LOGGER.info("Stopping greenhouse-manager")
         finally:
