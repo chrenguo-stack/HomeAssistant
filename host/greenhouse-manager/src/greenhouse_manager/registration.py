@@ -105,6 +105,7 @@ class RegistrationRegistry:
                     current_pairing_id TEXT NOT NULL UNIQUE,
                     pairing_epoch INTEGER NOT NULL CHECK (pairing_epoch >= 1),
                     node_id TEXT UNIQUE,
+                    repair_authorized INTEGER NOT NULL DEFAULT 0 CHECK (repair_authorized IN (0, 1)),
                     FOREIGN KEY (current_pairing_id) REFERENCES pairing_sessions(pairing_id)
                 );
 
@@ -191,6 +192,13 @@ class RegistrationRegistry:
             if current is not None and epoch <= current["pairing_epoch"]:
                 return ObserveResult("rejected", self.get(hardware_id), "generation_rollback")
 
+            if (
+                current is not None
+                and current["state"] == RegistrationState.APPROVED
+                and not current["repair_authorized"]
+            ):
+                return ObserveResult("rejected", self.get(hardware_id), "repair_not_authorized")
+
             expires_at = observed_at + self.pending_ttl
             self._connection.execute(
                 """
@@ -227,7 +235,7 @@ class RegistrationRegistry:
                 self._connection.execute(
                     """
                     UPDATE registrations
-                    SET current_pairing_id = ?, pairing_epoch = ?
+                    SET current_pairing_id = ?, pairing_epoch = ?, repair_authorized = 0
                     WHERE hardware_id = ?
                     """,
                     (pairing_id, epoch, hardware_id),
@@ -241,6 +249,18 @@ class RegistrationRegistry:
                     (hardware_id, pairing_id, epoch, node_id),
                 )
             return ObserveResult(status, self.get(hardware_id))
+
+    def authorize_repair(self, hardware_id: str) -> RegistrationRecord:
+        """Open one re-pair window after an authenticated or explicit user action."""
+        with self._lock, self._connection:
+            record = self.get(hardware_id)
+            if record.state != RegistrationState.APPROVED:
+                raise RegistrationConflict("only an approved registration can enter re-pair mode")
+            self._connection.execute(
+                "UPDATE registrations SET repair_authorized = 1 WHERE hardware_id = ?",
+                (hardware_id,),
+            )
+            return record
 
     def approve(
         self,
@@ -333,7 +353,7 @@ class RegistrationRegistry:
     def _current_row(self, hardware_id: str) -> sqlite3.Row | None:
         return self._connection.execute(
             """
-            SELECT s.*, r.current_pairing_id, r.node_id
+            SELECT s.*, r.current_pairing_id, r.node_id, r.repair_authorized
             FROM registrations AS r
             JOIN pairing_sessions AS s ON s.pairing_id = r.current_pairing_id
             WHERE r.hardware_id = ?
