@@ -72,6 +72,21 @@ GH_PAIRING_PENDING_TTL_S=120
 
 默认值 `false` 保证现有 T1 行为不变。启用时必须为 `/var/lib/greenhouse-manager` 挂载持久卷。日志只记录 hardware_id 尾 6 位和 pairing_id 前 8 位，不记录完整 hello 或任何 PoP。
 
+M2.1c 提供本机操作员 CLI：
+
+```bash
+greenhouse-manager-registration --db /var/lib/greenhouse-manager/registration.sqlite3 list
+greenhouse-manager-registration --db /var/lib/greenhouse-manager/registration.sqlite3 events
+greenhouse-manager-registration --db /var/lib/greenhouse-manager/registration.sqlite3 \
+  approve <hardware_id> <pairing_id> --node-id <node_id>
+greenhouse-manager-registration --db /var/lib/greenhouse-manager/registration.sqlite3 \
+  reject <hardware_id> <pairing_id> --reason user_rejected
+greenhouse-manager-registration --db /var/lib/greenhouse-manager/registration.sqlite3 \
+  authorize-repair <hardware_id>
+```
+
+CLI 输出不包含 node_nonce、pairing_pop 或凭据。当前 `approve` 只记录操作员决定，并明确返回 `credential_issued=false`；它不会创建 Broker 账号或跳过后续 PoP。
+
 ## 暂未包含
 
 - PoP、challenge/response 和用户扫码批准 UI；

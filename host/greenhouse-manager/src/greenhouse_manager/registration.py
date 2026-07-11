@@ -57,6 +57,16 @@ class ObserveResult:
     reason: str | None = None
 
 
+@dataclass(frozen=True)
+class RegistrationEvent:
+    event_id: int
+    hardware_id: str
+    pairing_id: str
+    event: str
+    reason: str | None
+    occurred_at: datetime
+
+
 def _utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         raise ValueError("datetime must be timezone-aware")
@@ -129,6 +139,18 @@ class RegistrationRegistry:
 
                 CREATE INDEX IF NOT EXISTS pairing_sessions_hardware_epoch
                     ON pairing_sessions(hardware_id, pairing_epoch);
+
+                CREATE TABLE IF NOT EXISTS registration_events (
+                    event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    hardware_id TEXT NOT NULL,
+                    pairing_id TEXT NOT NULL,
+                    event TEXT NOT NULL,
+                    reason TEXT,
+                    occurred_at TEXT NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS registration_events_hardware_time
+                    ON registration_events(hardware_id, occurred_at);
                 """
             )
 
@@ -251,9 +273,18 @@ class RegistrationRegistry:
                     """,
                     (hardware_id, pairing_id, epoch, node_id),
                 )
+            self._record_event(
+                hardware_id,
+                pairing_id,
+                "hello_created" if status == "created" else "hello_superseded",
+                None,
+                observed_at,
+            )
             return ObserveResult(status, self.get(hardware_id))
 
-    def authorize_repair(self, hardware_id: str) -> RegistrationRecord:
+    def authorize_repair(
+        self, hardware_id: str, *, now: datetime | None = None
+    ) -> RegistrationRecord:
         """Open one re-pair window after an authenticated or explicit user action."""
         with self._lock, self._connection:
             record = self.get(hardware_id)
@@ -262,6 +293,13 @@ class RegistrationRegistry:
             self._connection.execute(
                 "UPDATE registrations SET repair_authorized = 1 WHERE hardware_id = ?",
                 (hardware_id,),
+            )
+            self._record_event(
+                hardware_id,
+                record.pairing_id,
+                "repair_authorized",
+                None,
+                _utc(now or datetime.now(UTC)),
             )
             return record
 
@@ -294,6 +332,13 @@ class RegistrationRegistry:
             except sqlite3.IntegrityError as error:
                 raise RegistrationConflict("node_id is already assigned") from error
             self._set_session_state(pairing_id, RegistrationState.APPROVED, "operator_approved")
+            self._record_event(
+                hardware_id,
+                pairing_id,
+                "operator_approved",
+                None,
+                observed_at,
+            )
             return self.get(hardware_id)
 
     def reject(
@@ -302,17 +347,33 @@ class RegistrationRegistry:
         pairing_id: str,
         *,
         reason: str = "user_rejected",
+        now: datetime | None = None,
     ) -> RegistrationRecord:
         with self._lock, self._connection:
             record = self._require_current(hardware_id, pairing_id)
             if record.state != RegistrationState.PENDING:
                 raise RegistrationConflict(f"cannot reject registration in {record.state} state")
             self._set_session_state(pairing_id, RegistrationState.REJECTED, reason)
+            self._record_event(
+                hardware_id,
+                pairing_id,
+                "operator_rejected",
+                reason,
+                _utc(now or datetime.now(UTC)),
+            )
             return self.get(hardware_id)
 
     def expire_pending(self, *, now: datetime | None = None) -> int:
         observed_at = _utc(now or datetime.now(UTC))
         with self._lock, self._connection:
+            expiring = self._connection.execute(
+                """
+                SELECT hardware_id, pairing_id
+                FROM pairing_sessions
+                WHERE state = ? AND expires_at < ?
+                """,
+                (RegistrationState.PENDING, _timestamp(observed_at)),
+            ).fetchall()
             cursor = self._connection.execute(
                 """
                 UPDATE pairing_sessions
@@ -326,6 +387,14 @@ class RegistrationRegistry:
                     _timestamp(observed_at),
                 ),
             )
+            for row in expiring:
+                self._record_event(
+                    row["hardware_id"],
+                    row["pairing_id"],
+                    "expired",
+                    "expired",
+                    observed_at,
+                )
             return cursor.rowcount
 
     def get(self, hardware_id: str) -> RegistrationRecord:
@@ -346,6 +415,43 @@ class RegistrationRegistry:
                 """
             ).fetchall()
             return tuple(self._row_to_record(row, row["node_id"]) for row in rows)
+
+    def list_events(
+        self, *, hardware_id: str | None = None, limit: int = 100
+    ) -> tuple[RegistrationEvent, ...]:
+        if not 1 <= limit <= 1000:
+            raise ValueError("limit must be between 1 and 1000")
+        with self._lock:
+            if hardware_id is None:
+                rows = self._connection.execute(
+                    """
+                    SELECT * FROM registration_events
+                    ORDER BY event_id DESC
+                    LIMIT ?
+                    """,
+                    (limit,),
+                ).fetchall()
+            else:
+                rows = self._connection.execute(
+                    """
+                    SELECT * FROM registration_events
+                    WHERE hardware_id = ?
+                    ORDER BY event_id DESC
+                    LIMIT ?
+                    """,
+                    (hardware_id, limit),
+                ).fetchall()
+            return tuple(
+                RegistrationEvent(
+                    event_id=row["event_id"],
+                    hardware_id=row["hardware_id"],
+                    pairing_id=row["pairing_id"],
+                    event=row["event"],
+                    reason=row["reason"],
+                    occurred_at=_parse_timestamp(row["occurred_at"]),
+                )
+                for row in rows
+            )
 
     def _require_current(self, hardware_id: str, pairing_id: str) -> RegistrationRecord:
         record = self.get(hardware_id)
@@ -375,6 +481,23 @@ class RegistrationRegistry:
         self._connection.execute(
             "UPDATE pairing_sessions SET state = ?, reason = ? WHERE pairing_id = ?",
             (state, reason, pairing_id),
+        )
+
+    def _record_event(
+        self,
+        hardware_id: str,
+        pairing_id: str,
+        event: str,
+        reason: str | None,
+        occurred_at: datetime,
+    ) -> None:
+        self._connection.execute(
+            """
+            INSERT INTO registration_events (
+                hardware_id, pairing_id, event, reason, occurred_at
+            ) VALUES (?, ?, ?, ?, ?)
+            """,
+            (hardware_id, pairing_id, event, reason, _timestamp(occurred_at)),
         )
 
     @staticmethod
