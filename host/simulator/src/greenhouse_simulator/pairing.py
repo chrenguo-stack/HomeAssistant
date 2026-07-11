@@ -1,1 +1,41 @@
-ZnJvbSBfX2Z1dHVyZV9fIGltcG9ydCBhbm5vdGF0aW9ucwoKaW1wb3J0IGJhc2U2NAppbXBvcnQgcmUKaW1wb3J0IHNlY3JldHMKaW1wb3J0IHV1aWQKZnJvbSB0eXBpbmcgaW1wb3J0IENhbGxhYmxlCgpIQVJEV0FSRV9JRF9QQVRURVJOID0gcmUuY29tcGlsZShyIl5naHctW2EtejAtOV0rLVswLTlhLWZdezEyfSQiKQoKCmRlZiBidWlsZF9wYWlyaW5nX2hlbGxvKAogICAgKiwKICAgIGhhcmR3YXJlX2lkOiBzdHIsCiAgICBwYWlyaW5nX2Vwb2NoOiBpbnQsCiAgICBtb2RlbDogc3RyID0gImdyZWVuaG91c2Utd2lmaS1jNiIsCiAgICBmd192ZXJzaW9uOiBzdHIgPSAic2ltdWxhdG9yLU0yLjFhIiwKICAgIHNlbnRfYXRfbXM6IGludCA9IDAsCiAgICByYW5kb21fYnl0ZXM6IENhbGxhYmxlW1tpbnRdLCBieXRlc10gPSBzZWNyZXRzLnRva2VuX2J5dGVzLAogICAgbmV3X3V1aWQ6IENhbGxhYmxlW1tdLCB1dWlkLlVVSURdID0gdXVpZC51dWlkNCwKKSAtPiBkaWN0W3N0ciwgb2JqZWN0XToKICAgICIiIkJ1aWxkIHNpbXVsYXRvciBpbnB1dCBmb3IgdGhlIG1hbmFnZXIncyB1bnRydXN0ZWQgaGVsbG8gYm91bmRhcnkuIiIiCiAgICBpZiBIQVJEV0FSRV9JRF9QQVRURVJOLmZ1bGxtYXRjaChoYXJkd2FyZV9pZCkgaXMgTm9uZToKICAgICAgICByYWlzZSBWYWx1ZUVycm9yKCJpbnZhbGlkIGhhcmR3YXJlX2lkIikKICAgIGlmIHBhaXJpbmdfZXBvY2ggPCAxOgogICAgICAgIHJhaXNlIFZhbHVlRXJyb3IoInBhaXJpbmdfZXBvY2ggbXVzdCBiZSBwb3NpdGl2ZSIpCiAgICBpZiBzZW50X2F0X21zIDwgMDoKICAgICAgICByYWlzZSBWYWx1ZUVycm9yKCJzZW50X2F0X21zIG11c3Qgbm90IGJlIG5lZ2F0aXZlIikKCiAgICBub25jZSA9IGJhc2U2NC51cmxzYWZlX2I2NGVuY29kZShyYW5kb21fYnl0ZXMoMzIpKS5yc3RyaXAoYiI9IikuZGVjb2RlKCJhc2NpaSIpCiAgICByZXR1cm4gewogICAgICAgICJzY2hlbWEiOiAiZ2gucGFpci5oZWxsby8xIiwKICAgICAgICAicGFpcmluZ19pZCI6IHN0cihuZXdfdXVpZCgpKSwKICAgICAgICAicGFpcmluZ19lcG9jaCI6IHBhaXJpbmdfZXBvY2gsCiAgICAgICAgImhhcmR3YXJlX2lkIjogaGFyZHdhcmVfaWQsCiAgICAgICAgIm1vZGVsIjogbW9kZWwsCiAgICAgICAgImZ3X3ZlcnNpb24iOiBmd192ZXJzaW9uLAogICAgICAgICJub2RlX25vbmNlIjogbm9uY2UsCiAgICAgICAgImNhcGFiaWxpdGllcyI6IFsibXF0dC1ydW50aW1lLWNyZWRlbnRpYWxzIiwgImxjZC1wYWlyaW5nLXFyIl0sCiAgICAgICAgInNlbnRfYXRfbXMiOiBzZW50X2F0X21zLAogICAgfQo=
+from __future__ import annotations
+
+import base64
+import re
+import secrets
+import uuid
+from typing import Callable
+
+HARDWARE_ID_PATTERN = re.compile(r"^ghw-[a-z0-9]+-[0-9a-f]{12}$")
+
+
+def build_pairing_hello(
+    *,
+    hardware_id: str,
+    pairing_epoch: int,
+    model: str = "greenhouse-wifi-c6",
+    fw_version: str = "simulator-M2.1a",
+    sent_at_ms: int = 0,
+    random_bytes: Callable[[int], bytes] = secrets.token_bytes,
+    new_uuid: Callable[[], uuid.UUID] = uuid.uuid4,
+) -> dict[str, object]:
+    """Build simulator input for the manager's untrusted hello boundary."""
+    if HARDWARE_ID_PATTERN.fullmatch(hardware_id) is None:
+        raise ValueError("invalid hardware_id")
+    if pairing_epoch < 1:
+        raise ValueError("pairing_epoch must be positive")
+    if sent_at_ms < 0:
+        raise ValueError("sent_at_ms must not be negative")
+
+    nonce = base64.urlsafe_b64encode(random_bytes(32)).rstrip(b"=").decode("ascii")
+    return {
+        "schema": "gh.pair.hello/1",
+        "pairing_id": str(new_uuid()),
+        "pairing_epoch": pairing_epoch,
+        "hardware_id": hardware_id,
+        "model": model,
+        "fw_version": fw_version,
+        "node_nonce": nonce,
+        "capabilities": ["mqtt-runtime-credentials", "lcd-pairing-qr"],
+        "sent_at_ms": sent_at_ms,
+    }
