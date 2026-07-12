@@ -1,0 +1,180 @@
+name: temporary m2 reasoncode fix
+
+on:
+  push:
+    branches:
+      - agent/m2-reasoncode-rollback-audit-fix
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/m2-reasoncode-rollback-audit-fix
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Apply ReasonCode fix and tests
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          driver = Path('host/greenhouse-manager/src/greenhouse_manager/t1_broker_identity_production_broker_driver.py')
+          text = driver.read_text(encoding='utf-8')
+          old = '''        def on_connect(
+              _client: Any,
+              _userdata: Any,
+              _flags: Any,
+              reason_code: Any,
+              _properties: Any,
+          ) -> None:
+              if int(reason_code) == 0:
+                  connected.set()
+              else:
+                  failed.append(str(reason_code))
+                  connected.set()
+  '''
+          new = '''        def on_connect(
+              _client: Any,
+              _userdata: Any,
+              _flags: Any,
+              reason_code: Any,
+              _properties: Any,
+          ) -> None:
+              try:
+                  accepted = reason_code == 0
+              except Exception as error:
+                  failed.append(f"invalid MQTT CONNACK reason code: {type(error).__name__}")
+              else:
+                  if not accepted:
+                      failed.append(str(reason_code))
+              finally:
+                  connected.set()
+  '''
+          if old not in text:
+              raise SystemExit('target on_connect block not found')
+          driver.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          test = Path('host/greenhouse-manager/tests/test_t1_broker_identity_paho_reason_code.py')
+          test.write_text('''from __future__ import annotations
+
+from types import SimpleNamespace
+from typing import Any
+
+import pytest
+
+import greenhouse_manager.t1_broker_identity_production_broker_driver as driver_module
+from greenhouse_manager.t1_broker_identity_production_broker_driver import (
+    BrokerIdentityProductionBrokerDriverError,
+    ClientConfig,
+    PahoMqttSession,
+)
+
+
+class FakeReasonCode:
+    def __init__(self, value: int) -> None:
+        self.value = value
+
+    def __eq__(self, other: object) -> bool:
+        return other == self.value
+
+    def __int__(self) -> int:
+        raise TypeError("ReasonCode must not be coerced with int()")
+
+    def __str__(self) -> str:
+        return f"reason-{self.value}"
+
+
+class FakeClient:
+    reason_code = FakeReasonCode(0)
+
+    def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+        self.on_connect: Any = None
+
+    def username_pw_set(self, _username: str, _password: str) -> None:
+        pass
+
+    def connect(self, _host: str, _port: int, keepalive: int) -> None:
+        assert keepalive == 30
+
+    def loop_start(self) -> None:
+        assert self.on_connect is not None
+        self.on_connect(self, None, {}, self.reason_code, None)
+
+    def disconnect(self) -> None:
+        pass
+
+    def loop_stop(self) -> None:
+        pass
+
+
+class FakeMqtt:
+    CallbackAPIVersion = SimpleNamespace(VERSION2=object())
+    MQTTv5 = object()
+    Client = FakeClient
+
+
+def config() -> ClientConfig:
+    return ClientConfig(
+        host="127.0.0.1",
+        port=1883,
+        username="test-user",
+        password="test-password",
+        client_id="test-client",
+    )
+
+
+def test_reason_code_object_is_compared_without_integer_coercion(monkeypatch: pytest.MonkeyPatch) -> None:
+    FakeClient.reason_code = FakeReasonCode(0)
+    monkeypatch.setattr(driver_module, "_load_paho_mqtt", lambda: FakeMqtt)
+
+    client, connected = PahoMqttSession(config(), timeout_s=0.1)._connected_client()
+
+    assert isinstance(client, FakeClient)
+    assert connected.is_set()
+
+
+def test_rejected_reason_code_sets_event_and_returns_domain_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    FakeClient.reason_code = FakeReasonCode(135)
+    monkeypatch.setattr(driver_module, "_load_paho_mqtt", lambda: FakeMqtt)
+
+    with pytest.raises(BrokerIdentityProductionBrokerDriverError, match="MQTT connection was rejected"):
+        PahoMqttSession(config(), timeout_s=0.1)._connected_client()
+''', encoding='utf-8')
+
+          pyproject = Path('host/greenhouse-manager/pyproject.toml')
+          pytext = pyproject.read_text(encoding='utf-8')
+          if 'version = "0.4.41"' not in pytext:
+              raise SystemExit('unexpected manager version')
+          pyproject.write_text(pytext.replace('version = "0.4.41"', 'version = "0.4.42"', 1), encoding='utf-8')
+
+          pkg_info = Path('host/greenhouse-manager/src/greenhouse_manager.egg-info/PKG-INFO')
+          if pkg_info.exists():
+              pkg = pkg_info.read_text(encoding='utf-8')
+              pkg_info.write_text(pkg.replace('Version: 0.4.41', 'Version: 0.4.42', 1), encoding='utf-8')
+          PY
+      - name: Validate
+        run: |
+          python -m pip install -e 'host/greenhouse-manager[dev]'
+          python -m ruff check host/greenhouse-manager/src host/greenhouse-manager/tests
+          python -m pytest -q host/greenhouse-manager/tests
+      - name: Commit fix and remove temporary workflow
+        run: |
+          rm .github/workflows/tmp-m2-reasoncode-fix.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            host/greenhouse-manager/src/greenhouse_manager/t1_broker_identity_production_broker_driver.py \
+            host/greenhouse-manager/tests/test_t1_broker_identity_paho_reason_code.py \
+            host/greenhouse-manager/pyproject.toml \
+            .github/workflows/tmp-m2-reasoncode-fix.yml
+          if test -f host/greenhouse-manager/src/greenhouse_manager.egg-info/PKG-INFO; then
+            git add host/greenhouse-manager/src/greenhouse_manager.egg-info/PKG-INFO
+          fi
+          git commit -m 'fix(m2): handle paho v2 ReasonCode callbacks'
+          git push origin HEAD:agent/m2-reasoncode-rollback-audit-fix
