@@ -28,24 +28,22 @@ class FakeRunner:
 def _stage(tmp_path: Path) -> Path:
     stage = tmp_path / "stage"
     stage.mkdir(mode=0o700)
-    (stage / "stage-manifest.json").write_text("{}\n", encoding="utf-8")
-    (stage / "stage-manifest.json").chmod(0o600)
-    plan = {
-        "schema": "gh.m2.t1-auth-migration-stage-plan/1",
-        "activation_enabled": False,
-        "current_services_modified": False,
-        "active_paths_modified": False,
-        "requires_explicit_gate": True,
-        "requires_fresh_backup_immediately_before_apply": True,
-        "preserve_anonymous": True,
-        "anonymous_closure_enabled": False,
-    }
-    (stage / "activation-plan.json").write_text(
-        json.dumps(plan),
-        encoding="utf-8",
+    _write(stage / "stage-manifest.json", "{}\n")
+    _write(
+        stage / "activation-plan.json",
+        json.dumps(
+            {
+                "schema": "gh.m2.t1-auth-migration-stage-plan/1",
+                "activation_enabled": False,
+                "current_services_modified": False,
+                "active_paths_modified": False,
+                "requires_explicit_gate": True,
+                "requires_fresh_backup_immediately_before_apply": True,
+                "preserve_anonymous": True,
+                "anonymous_closure_enabled": False,
+            }
+        ),
     )
-    (stage / "activation-plan.json").chmod(0o600)
-
     files = {
         "payload/broker/dynsec-request.json": json.dumps(
             {
@@ -95,19 +93,20 @@ def _stage(tmp_path: Path) -> Path:
         ),
     }
     for relative, content in files.items():
-        path = stage / relative
-        path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        path.write_text(content, encoding="utf-8")
-        path.chmod(0o600)
+        _write(stage / relative, content)
     return stage
+
+
+def _write(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    path.write_text(content, encoding="utf-8")
+    path.chmod(0o600)
 
 
 def _stage_manifest(_path: str | Path) -> dict[str, Any]:
     return {
         "schema": "gh.m2.t1-auth-migration-stage/1",
-        "readiness_binding": {
-            "broker_config_sha256": "a" * 64,
-        },
+        "readiness_binding": {"broker_config_sha256": "a" * 64},
     }
 
 
@@ -181,11 +180,9 @@ def _prepare(
     audit: dict[str, object] | None = None,
     rehearsal: dict[str, object] | None = None,
 ) -> dict[str, object]:
-    stage = _stage(tmp_path)
-    output = tmp_path / "output"
     return prepare_broker_identity_activation_handoff(
-        stage,
-        output,
+        _stage(tmp_path),
+        tmp_path / "output",
         expected_retained_topic="gh/v1/greenhouse/state/node/telemetry",
         runner=FakeRunner(),
         now=datetime(2026, 7, 12, 7, 0, tzinfo=UTC),
@@ -200,7 +197,6 @@ def _prepare(
 
 def test_prepare_creates_private_disabled_handoff(tmp_path: Path) -> None:
     report = _prepare(tmp_path)
-
     assert report["schema"] == "gh.m2.t1-broker-identity-activation-handoff/1"
     assert report["preserve_anonymous"] is True
     assert report["apply_enabled"] is False
@@ -214,22 +210,21 @@ def test_prepare_creates_private_disabled_handoff(tmp_path: Path) -> None:
     assert plan["direct_live_apply_forbidden"] is True
     assert plan["preserve_anonymous"] is True
     assert plan["anonymous_closure_enabled"] is False
-    assert (root / "material/broker/dynsec-request.json").stat().st_mode & 0o777 == 0o600
+    material = root / "material/broker/dynsec-request.json"
+    assert material.stat().st_mode & 0o777 == 0o600
     assert "broker-secret-password" not in json.dumps(report)
     assert "homeassistant-secret-password" not in json.dumps(report)
 
 
 def test_prepare_rejects_stage_manifest_drift(tmp_path: Path) -> None:
     stage = _stage(tmp_path)
-    output = tmp_path / "output"
-
     with pytest.raises(
         BrokerIdentityActivationHandoffError,
         match="manifest fingerprint has drifted",
     ):
         prepare_broker_identity_activation_handoff(
             stage,
-            output,
+            tmp_path / "output",
             expected_retained_topic="gh/v1/greenhouse/state/node/telemetry",
             expected_stage_manifest_sha256="0" * 64,
             runner=FakeRunner(),
@@ -245,7 +240,6 @@ def test_prepare_rejects_unsafe_live_audit(tmp_path: Path) -> None:
             "retained_topic_readable": False,
         }
     )
-
     with pytest.raises(
         BrokerIdentityActivationHandoffError,
         match="live readiness is not safe",
@@ -257,7 +251,6 @@ def test_prepare_rejects_missing_anonymous_rehearsal_proof(
     tmp_path: Path,
 ) -> None:
     rehearsal = _rehearsal(legacy_anonymous_after_admin_removal=False)
-
     with pytest.raises(
         BrokerIdentityActivationHandoffError,
         match="legacy_anonymous_after_admin_removal",
@@ -267,7 +260,6 @@ def test_prepare_rejects_missing_anonymous_rehearsal_proof(
 
 def test_prepare_rejects_output_overlap(tmp_path: Path) -> None:
     stage = _stage(tmp_path)
-
     with pytest.raises(
         BrokerIdentityActivationHandoffError,
         match="must not overlap",
@@ -283,12 +275,10 @@ def test_prepare_rejects_output_overlap(tmp_path: Path) -> None:
 
 def test_verify_accepts_complete_handoff(tmp_path: Path) -> None:
     report = _prepare(tmp_path)
-
     verified = verify_broker_identity_activation_handoff(
         str(report["handoff_directory"]),
         backup_verifier=_backup_verifier,
     )
-
     assert verified["schema"] == (
         "gh.m2.t1-broker-identity-activation-handoff-verify/1"
     )
@@ -304,7 +294,6 @@ def test_verify_rejects_tampered_material(tmp_path: Path) -> None:
     target = root / "material/broker/mosquitto-plugin.conf"
     target.write_text("tampered\n", encoding="utf-8")
     target.chmod(0o600)
-
     with pytest.raises(
         BrokerIdentityActivationHandoffError,
         match="size mismatch|checksum mismatch",
