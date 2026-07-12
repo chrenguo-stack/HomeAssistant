@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 import pytest
+
 from greenhouse_manager.t1_broker_identity_activation_checks import (
     BrokerIdentityActivationCheckError,
 )
