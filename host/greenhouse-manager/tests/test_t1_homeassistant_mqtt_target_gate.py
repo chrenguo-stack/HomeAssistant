@@ -4,13 +4,13 @@ import json
 from typing import Any
 
 import pytest
+
+import greenhouse_manager.t1_homeassistant_mqtt_target_gate as gate
 from greenhouse_manager.t1_homeassistant_mqtt_target_gate import (
     BrokerCandidate,
     HomeAssistantMqttTargetGateError,
     build_homeassistant_mqtt_target_gate,
 )
-
-import greenhouse_manager.t1_homeassistant_mqtt_target_gate as gate
 
 
 class FakeRunner:
@@ -22,12 +22,23 @@ class FakeRunner:
         shared_network: bool,
         aliases: list[str] | None = None,
         probes: dict[str, tuple[bool, bool, int]] | None = None,
+        containers: list[dict[str, str]] | None = None,
     ) -> None:
         self.homeassistant_mode = homeassistant_mode
         self.broker_mode = broker_mode
         self.shared_network = shared_network
         self.aliases = aliases or []
         self.probes = probes or {}
+        self.containers = containers or [
+            {
+                "Names": "homeassistant",
+                "Image": "homeassistant/home-assistant:stable",
+            },
+            {
+                "Names": "mosquitto",
+                "Image": "eclipse-mosquitto:latest",
+            },
+        ]
         self.commands: list[tuple[str, ...]] = []
 
     def _inspect(self, name: str) -> dict[str, Any]:
@@ -56,22 +67,7 @@ class FakeRunner:
         if command == ("docker", "ps", "-a", "--format", "{{json .}}"):
             return (
                 0,
-                "\n".join(
-                    [
-                        json.dumps(
-                            {
-                                "Names": "homeassistant",
-                                "Image": "homeassistant/home-assistant:stable",
-                            }
-                        ),
-                        json.dumps(
-                            {
-                                "Names": "mosquitto",
-                                "Image": "eclipse-mosquitto:latest",
-                            }
-                        ),
-                    ]
-                ),
+                "\n".join(json.dumps(item) for item in self.containers),
             )
         if command[:2] == ("docker", "inspect"):
             return 0, json.dumps([self._inspect(command[2])])
@@ -278,6 +274,32 @@ def test_candidate_kinds_and_labels_must_be_unique(
                 broker_mode="host",
                 shared_network=False,
             ),
+        )
+
+
+def test_gate_rejects_ambiguous_broker_inventory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_prior(monkeypatch)
+    runner = FakeRunner(
+        homeassistant_mode="host",
+        broker_mode="host",
+        shared_network=False,
+        containers=[
+            {
+                "Names": "homeassistant",
+                "Image": "homeassistant/home-assistant:stable",
+            },
+            {"Names": "mosquitto", "Image": "eclipse-mosquitto:latest"},
+            {"Names": "mosquitto-old", "Image": "eclipse-mosquitto:latest"},
+        ],
+    )
+
+    with pytest.raises(HomeAssistantMqttTargetGateError, match="exactly one mosquitto"):
+        build_homeassistant_mqtt_target_gate(
+            "/private/stage",
+            expected_retained_topic="gh/v1/greenhouse/state/node/telemetry",
+            runner=runner,
         )
 
 
