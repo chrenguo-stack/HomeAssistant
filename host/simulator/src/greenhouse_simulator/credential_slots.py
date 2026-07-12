@@ -5,7 +5,7 @@ import hmac
 import json
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Final
+from typing import ClassVar
 
 
 class CredentialDeliveryError(RuntimeError):
@@ -99,7 +99,7 @@ class NodeCredentialSlots:
         repr=False,
     )
 
-    _CHECKSUM_SCHEMA: Final[str] = "gh.node.mqtt-credential-slot/1"
+    _CHECKSUM_SCHEMA: ClassVar[str] = "gh.node.mqtt-credential-slot/1"
 
     @property
     def phase(self) -> DeliveryPhase:
@@ -160,10 +160,7 @@ class NodeCredentialSlots:
         observed_client_id: str,
     ) -> bool:
         credential = self._require_pending(generation, DeliveryPhase.STAGED)
-        if not connection_accepted or not hmac.compare_digest(
-            observed_client_id,
-            credential.client_id,
-        ):
+        if not connection_accepted or observed_client_id != credential.client_id:
             self._rollback_pending("candidate_verification_failed")
             return False
         self._phase = DeliveryPhase.VERIFIED
@@ -237,6 +234,7 @@ class NodeCredentialSlots:
             if self._active_slot is not None and self._slot_valid(self._active_slot):
                 self._event("grace_resumed_after_boot", self.active_generation)
                 return
+            failed_generation = self.active_generation
             failed_slot = self._active_slot
             self._active_slot = self._rollback_slot
             self._rollback_slot = None
@@ -245,7 +243,7 @@ class NodeCredentialSlots:
             self._phase = DeliveryPhase.STABLE
             self._event(
                 "invalid_committed_slot_rolled_back_after_boot",
-                self.active_generation,
+                failed_generation,
                 "active_slot_invalid",
             )
             return
@@ -288,7 +286,9 @@ class NodeCredentialSlots:
             checksum=self._checksum(credential),
         )
 
-    def _slot_valid(self, slot: SlotName) -> bool:
+    def _slot_valid(self, slot: SlotName | None) -> bool:
+        if slot is None:
+            return False
         record = self._slots[slot]
         return record is not None and hmac.compare_digest(
             record.checksum,
