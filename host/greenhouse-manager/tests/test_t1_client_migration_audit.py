@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib.abc
 import json
 import os
 import subprocess
@@ -104,7 +103,11 @@ def _write(path: Path, payload: str, mode: int = 0o600) -> None:
     path.chmod(mode)
 
 
-def _stage(tmp_path: Path) -> tuple[Path, dict[str, Any], dict[str, object]]:
+def _stage(tmp_path: Path) -> tuple[
+    Path,
+    dict[str, Any],
+    dict[str, object],
+]:
     stage = tmp_path / "greenhouse-t1-auth-stage-test"
     stage.mkdir(mode=0o700)
     _write(
@@ -205,7 +208,11 @@ def _stage(tmp_path: Path) -> tuple[Path, dict[str, Any], dict[str, object]]:
     return stage, manifest, readiness
 
 
-def _entries(*, broker: str = "mosquitto", include_mqtt: bool = True) -> dict[str, Any]:
+def _entries(
+    *,
+    broker: str = "mosquitto",
+    include_mqtt: bool = True,
+) -> dict[str, Any]:
     entries: list[dict[str, Any]] = []
     if include_mqtt:
         entries.append(
@@ -310,7 +317,9 @@ def test_audit_reports_missing_mqtt_entry_as_blocker(
     )
 
     assert report["homeassistant"]["mqtt_config_entry"]["entry_present"] is False
-    assert "homeassistant_mqtt_entry_not_ready" in report["activation_blockers"]
+    assert "homeassistant_mqtt_entry_not_ready" in report[
+        "activation_blockers"
+    ]
 
 
 def test_audit_reports_broker_mismatch_without_exposing_host(
@@ -343,8 +352,14 @@ def test_audit_rejects_ambiguous_homeassistant_container(
     runner = FakeRunner(
         entries=_entries(),
         containers=[
-            {"Names": "homeassistant", "Image": "homeassistant/home-assistant"},
-            {"Names": "homeassistant-old", "Image": "homeassistant/home-assistant"},
+            {
+                "Names": "homeassistant",
+                "Image": "homeassistant/home-assistant",
+            },
+            {
+                "Names": "homeassistant-old",
+                "Image": "homeassistant/home-assistant",
+            },
         ],
     )
 
