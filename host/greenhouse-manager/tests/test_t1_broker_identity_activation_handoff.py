@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+
 from greenhouse_manager.t1_broker_identity_activation_handoff import (
     BrokerIdentityActivationHandoffError,
     prepare_broker_identity_activation_handoff,
