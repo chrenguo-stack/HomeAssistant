@@ -21,10 +21,11 @@
 13. `pairing/gh-t1-broker-identity-host-replica-adapters-v1.md`：M2.4g-5i Draft，定义仅在系统临时目录标记副本上运行的原子文件事务、注入式 Broker 驱动、强制回退与故障注入；不允许真实 T1 目标或 Docker 命令。
 14. `pairing/gh-t1-broker-identity-host-replica-fault-matrix-v1.md`：M2.4g-5j Draft，定义每个故障阶段独立临时副本、内存 Broker 驱动、完整回退、回退失败显式报告和模板不可变验证。
 15. `pairing/gh-t1-broker-identity-production-driver-contract-v1.md`：M2.4g-5k Draft，冻结生产 Broker driver 的最小 Docker 命令、进程内 MQTT 控制、原子文件事务和默认禁用边界；仍不安装 driver 或执行 live apply。
-16. `discovery/gh-discovery-v1.md`：待冻结 mDNS、UDP 回退、重试和多主机处理；M2.0 pairing Draft 已给出最小发现依赖。
-17. `state/gh-path-lease-v1.md`：待冻结直连/中继路径租约、去重和切换滞回。
-18. `state/gh-availability-v1.md`：待将 M1 已验证行为整理为独立协议。
-19. `transport/gh-radio-frame-v1.md`：待冻结 ESP-NOW 与 LoRa 紧凑帧、认证和序列规则。
+16. `pairing/gh-t1-broker-identity-runtime-binding-manifest-v1.md`：M2.4g-5l Draft，定义真实 T1 容器身份、Compose 与 bind-mount 路径的 mode-0600 私有绑定材料；生成过程只读运行时并与服务目录隔离。
+17. `discovery/gh-discovery-v1.md`：待冻结 mDNS、UDP 回退、重试和多主机处理；M2.0 pairing Draft 已给出最小发现依赖。
+18. `state/gh-path-lease-v1.md`：待冻结直连/中继路径租约、去重和切换滞回。
+19. `state/gh-availability-v1.md`：待将 M1 已验证行为整理为独立协议。
+20. `transport/gh-radio-frame-v1.md`：待冻结 ESP-NOW 与 LoRa 紧凑帧、认证和序列规则。
 
 ## 变更规则
 
