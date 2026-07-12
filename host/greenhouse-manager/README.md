@@ -115,6 +115,19 @@ CLI 输出不包含 node_nonce、pairing_pop 或凭据。当前 `approve` 只记
 
 `legacy_anonymous_shadow_commands` 在 Dynamic Security 隔离环境中建立临时 anonymous group/role，使现有非 `$` 应用 Topic 和只读 `$SYS/#` 在迁移期保持可用，同时显式拒绝匿名 `$CONTROL/#`。该角色只用于逐客户端迁移窗口，不能作为最终安全配置；关闭匿名访问前必须先完成 manager、Home Assistant 和节点账号切换。
 
+## M2.3f 真实快照 shadow candidate
+
+`greenhouse-manager-t1-shadow` 读取已经通过校验的 T1 本地回退包，在临时目录恢复 Mosquitto 配置、数据和数值 UID/GID，并使用备份中记录的原镜像启动 `--network none` 候选 Broker。工具只修改快照副本：加载 Dynamic Security、建立 legacy anonymous 临时角色，并验证匿名应用 Topic、真实 retained telemetry 恢复和匿名 `$CONTROL/#` 隔离。
+
+候选管理员密码随机生成，只通过 Mosquitto 2.1 的临时初始化文件和权限 0600 的临时客户端配置传递。初始化文件位于权限 0700 的一次性宿主目录中，只挂载给 `--network none` 候选容器；为兼容 Broker 降权后的插件读取，其文件模式为 0644，并在候选配置生成后立即删除。密码不进入命令行、环境变量、输出或回退包。候选容器结束后强制删除；工具不停止、重启或修改当前 `mosquitto`、`greenhouse-manager` 容器。
+
+```bash
+greenhouse-manager-t1-shadow \
+  /opt/greenhouse-m2-backups/<rollback-archive>.tar.gz \
+  --expected-retained-topic \
+  gh/v1/greenhouse/state/gh-n1-a9f2f8/telemetry
+```
+
 ## 暂未包含
 
 - PoP、challenge/response 和用户扫码批准 UI；
