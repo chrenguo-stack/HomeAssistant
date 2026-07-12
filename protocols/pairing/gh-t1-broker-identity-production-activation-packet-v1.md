@@ -27,7 +27,7 @@
 - 精确 execution confirmation；
 - 独立 mode-0700 `greenhouse-m2-production-transactions-*` 目录。
 
-所有 authorization、plan、contract、manifest 和 bundle 文件必须为 mode 0600、非符号链接，并由各自 summary 文件解析，不允许手工替换路径。
+所有 authorization、plan、contract、manifest 和 bundle 文件必须为 mode 0600、非符号链接，并由各自 summary 文件解析，不允许手工替换路径。授权 claim 前必须对 config/data 快照执行多次一致性检查，只有源目录前后 inventory 稳定且副本 payload 完全匹配时才允许继续；无法获得稳定快照时必须在未 claim 授权、未修改 Broker 的状态下失败。
 
 ## 4. 实际变更范围
 
