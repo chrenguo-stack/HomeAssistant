@@ -104,6 +104,7 @@ def legacy_shadow_ctrl_commands() -> tuple[tuple[str, ...], ...]:
             "publishClientSend",
             "$CONTROL/#",
             "deny",
+            "1000",
         ),
         (
             "addRoleACL",
@@ -111,6 +112,7 @@ def legacy_shadow_ctrl_commands() -> tuple[tuple[str, ...], ...]:
             "subscribePattern",
             "$CONTROL/#",
             "deny",
+            "1000",
         ),
     ]
     for acl_type in (
@@ -119,19 +121,28 @@ def legacy_shadow_ctrl_commands() -> tuple[tuple[str, ...], ...]:
         "publishClientReceive",
         "unsubscribePattern",
     ):
-        commands.append(("addRoleACL", LEGACY_ROLE, acl_type, "#", "allow"))
+        commands.append(
+            ("addRoleACL", LEGACY_ROLE, acl_type, "#", "allow", "100")
+        )
     for acl_type in (
         "subscribePattern",
         "publishClientReceive",
         "unsubscribePattern",
     ):
         commands.append(
-            ("addRoleACL", LEGACY_ROLE, acl_type, "$SYS/#", "allow")
+            (
+                "addRoleACL",
+                LEGACY_ROLE,
+                acl_type,
+                "$SYS/#",
+                "allow",
+                "100",
+            )
         )
     commands.extend(
         (
             ("createGroup", LEGACY_GROUP),
-            ("addGroupRole", LEGACY_GROUP, LEGACY_ROLE),
+            ("addGroupRole", LEGACY_GROUP, LEGACY_ROLE, "100"),
             ("setAnonymousGroup", LEGACY_GROUP),
         )
     )
@@ -469,7 +480,7 @@ def run_shadow_candidate(
                     control_payload,
                 )
             )
-            return_code, _output = command_runner.run(
+            return_code, clients = command_runner.run(
                 (
                     "docker",
                     "exec",
@@ -478,11 +489,12 @@ def run_shadow_candidate(
                     "-o",
                     "/tmp/gh-m2-ctrl.conf",
                     "dynsec",
-                    "getClient",
-                    canary,
+                    "listClients",
                 )
             )
-            if return_code == 0:
+            if return_code != 0:
+                raise ShadowError("candidate client inventory could not be read")
+            if canary in {line.strip() for line in clients.splitlines()}:
                 raise ShadowError("anonymous client changed candidate security state")
         finally:
             if created:
