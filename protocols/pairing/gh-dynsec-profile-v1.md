@@ -1,6 +1,6 @@
 # gh-dynsec-profile-v1 每节点与服务最小权限配置
 
-状态：Draft / M2.3i  
+状态：Draft / M2.3k  
 关联：ADR-0002、`gh-pairing-v1`、Issue #17
 
 ## 1. 范围
@@ -122,3 +122,19 @@ Dynamic Security 管理账号不得兼任 manager 遥测账号。真实环境的
 10. 测试密码不得写入仓库、测试输出或 Broker 失败日志，Compose 结束必须删除临时卷。
 
 该 gate 通过后，下一步才允许把同一四身份矩阵扩展到 `--network none` 的真实 T1 快照候选；仍不得修改真实 Broker 或关闭匿名访问。
+
+## 14. M2.3k MQTT ACL 过滤器可移植性
+
+真实 T1 快照候选首次执行发现，`homeassistant/binary_sensor/+_connectivity/config` 在目标 Mosquitto 中不会匹配 `homeassistant/binary_sensor/<object_id>_connectivity/config`。MQTT 通配符必须遵守标准层级规则：
+
+- `+` 必须独占一个完整 Topic 层级；
+- `#` 必须独占最后一个 Topic 层级；
+- Dynamic Security 的 `%c`、`%u` 替换符必须独占一个完整层级。
+
+manager 的现用二进制传感器 Discovery 权限固定为：
+
+```text
+allow publishClientSend homeassistant/binary_sensor/+/config
+```
+
+代码必须在生成 role 前拒绝任何不符合上述规则的 ACL。隔离 Broker CI 通过不能替代真实快照所记录 Mosquitto 镜像的兼容性 gate。

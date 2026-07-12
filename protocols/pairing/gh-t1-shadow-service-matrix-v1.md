@@ -1,7 +1,7 @@
 # gh-t1-shadow-service-matrix-v1 真实 T1 快照服务身份候选
 
-状态：Draft / M2.3j  
-关联：ADR-0002、`gh-dynsec-profile-v1`、Issue #17、PR #35
+状态：Draft / M2.3k  
+关联：ADR-0002、`gh-dynsec-profile-v1`、Issue #17、PR #35、PR #36、PR #37
 
 ## 1. 目标
 
@@ -65,7 +65,26 @@ python3 host/greenhouse-manager/tools/run_t1_shadow_services.py \
 12. legacy anonymous、节点、manager 和 Home Assistant 均不能创建 Dynamic Security client；
 13. 真实 retained canonical telemetry 能从快照数据库恢复。
 
-## 5. 成功报告
+所有 ACL Topic filter 必须符合目标 Mosquitto 与 MQTT 标准：`+` 独占完整层级，`#` 独占最后层级，`%c/%u` 独占完整层级。当前 connectivity Discovery 的 manager ACL 为 `homeassistant/binary_sensor/+/config`。
+
+## 5. 实机候选记录
+
+### 2026-07-12 第一次启动尝试
+
+宿主 Python 缺少 `ensurepip`，原 venv 启动包装在创建候选容器前停止。真实服务未修改。PR #37 改为标准库源码入口。
+
+### 2026-07-12 第二次启动尝试
+
+候选容器成功在 `--network none` 下运行，真实 `mosquitto` 与 `greenhouse-manager` 在执行前后均为 `running`、`restarts=0`，且无候选容器残留。矩阵在 connectivity Discovery 投递处停止：
+
+```text
+candidate allowed delivery failed:
+homeassistant/binary_sensor/<object_id>_connectivity/config
+```
+
+根因是原 ACL `homeassistant/binary_sensor/+_connectivity/config` 使用了非标准 `+` 形式。该尝试证明隔离与清理边界有效，但不计为矩阵通过；必须使用标准 ACL 修正后重新执行完整候选。
+
+## 6. 成功报告
 
 成功输出使用：
 
@@ -82,6 +101,6 @@ current_services_modified = false
 
 任一检查失败必须返回非零状态，且不得把部分通过报告为成功。
 
-## 6. 安全门
+## 7. 安全门
 
 本候选通过后，才允许开始生成真实迁移包、宿主机秘密存储方案和客户端认证改造。即使本候选通过，也不得立即关闭 `allow_anonymous true`；必须先依次迁移 manager、Home Assistant、节点和 provisioning，并完成稳定性观察与可验证回退。
