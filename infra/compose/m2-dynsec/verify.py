@@ -3,10 +3,11 @@ from __future__ import annotations
 import json
 import os
 import queue
+import secrets
 import threading
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Sequence
 
 import paho.mqtt.client as mqtt
 
@@ -17,6 +18,12 @@ from greenhouse_manager.dynsec_api import (
     RESPONSE_TOPIC,
 )
 from greenhouse_manager.dynsec_plan import build_node_provisioning_plan, generate_node_credentials
+from greenhouse_manager.service_identity_plan import (
+    ServiceCredentials,
+    ServiceIdentityPlan,
+    build_service_identity_plan,
+    generate_service_credentials,
+)
 
 BROKER = "broker"
 PORT = 1883
@@ -130,6 +137,107 @@ class Session:
         self.client.loop_stop()
 
 
+class FailAfterCreateClientTransport:
+    """Inject a post-create failure so rollback executes against a real isolated Broker."""
+
+    def __init__(self, delegate: PahoDynsecTransport) -> None:
+        self.delegate = delegate
+        self.command_names: list[str] = []
+        self.failed = False
+
+    def execute(self, commands: Sequence[dict[str, Any]]) -> tuple[dict[str, Any], ...]:
+        self.command_names.extend(command["command"] for command in commands)
+        responses = self.delegate.execute(commands)
+        if not self.failed and any(command["command"] == "createClient" for command in commands):
+            self.failed = True
+            raise DynsecError("injected post-create failure")
+        return responses
+
+
+def session_for(credentials: Any) -> Session:
+    return Session(
+        client_id=credentials.client_id,
+        username=credentials.username,
+        password=credentials.password,
+    )
+
+
+def assert_wrong_client_id_rejected(credentials: Any) -> None:
+    wrong = Session(
+        client_id=f"{credentials.client_id}-wrong",
+        username=credentials.username,
+        password=credentials.password,
+    )
+    wrong.start(expect_allowed=False)
+    wrong.close()
+
+
+def assert_publish_allowed(observer: Session, publisher: Session, topic: str) -> None:
+    observer.drain()
+    publisher.publish(topic)
+    assert observer.wait_for(topic), topic
+
+
+def assert_publish_denied(observer: Session, publisher: Session, topic: str) -> None:
+    observer.drain()
+    publisher.publish(topic)
+    assert not observer.wait_for(topic, timeout=1.0), topic
+
+
+def assert_dynsec_object_missing(
+    transport: PahoDynsecTransport,
+    *,
+    command: str,
+    key: str,
+    value: str,
+) -> None:
+    try:
+        transport.execute(({"command": command, key: value},))
+    except DynsecError:
+        return
+    raise AssertionError(f"{command} unexpectedly found rolled-back object")
+
+
+def assert_control_publish_denied(
+    transport: PahoDynsecTransport,
+    publisher: Session,
+    *,
+    canary_username: str,
+) -> None:
+    forbidden_command = json.dumps(
+        {
+            "commands": [
+                {
+                    "command": "createClient",
+                    "username": canary_username,
+                    "password": secrets.token_urlsafe(32),
+                    "clientid": canary_username,
+                }
+            ]
+        },
+        separators=(",", ":"),
+    ).encode()
+    publisher.publish("$CONTROL/dynamic-security/v1", forbidden_command)
+    time.sleep(0.5)
+    assert_dynsec_object_missing(
+        transport,
+        command="getClient",
+        key="username",
+        value=canary_username,
+    )
+
+
+def build_service_plans() -> dict[str, ServiceIdentityPlan]:
+    return {
+        service: build_service_identity_plan(
+            system_id="greenhouse",
+            service=service,  # type: ignore[arg-type]
+            generation=1,
+        )
+        for service in ("provisioning", "manager", "homeassistant")
+    }
+
+
 def main() -> None:
     admin_password = os.environ["GH_DYNSEC_ADMIN_PASSWORD"]
     admin = Session(client_id="gh-dynsec-test-admin", username="admin", password=admin_password)
@@ -138,19 +246,35 @@ def main() -> None:
     admin.message_hook = transport.on_message
     provisioner = DynsecProvisioner(transport)
 
-    first_plan = build_node_provisioning_plan(
-        system_id="greenhouse", node_id="gh-test-node-001", generation=1
+    node_plan = build_node_provisioning_plan(
+        system_id="greenhouse", node_id="gh-n1-a9f2f8", generation=1
     )
     second_plan = build_node_provisioning_plan(
         system_id="greenhouse", node_id="gh-test-node-002", generation=1
     )
-    first_credentials = generate_node_credentials(first_plan)
-    second_credentials = generate_node_credentials(second_plan)
+    service_plans = build_service_plans()
 
-    provisioner.apply_baseline(first_plan)
+    node_credentials = generate_node_credentials(node_plan)
+    second_credentials = generate_node_credentials(second_plan)
+    service_credentials: dict[str, ServiceCredentials] = {
+        service: generate_service_credentials(plan)
+        for service, plan in service_plans.items()
+    }
+
+    identities = [node_credentials, *service_credentials.values()]
+    assert len({identity.username for identity in identities}) == len(identities)
+    assert len({identity.client_id for identity in identities}) == len(identities)
+    assert service_plans["provisioning"].client_id == "gh-provisioning-greenhouse"
+    assert service_plans["manager"].client_id == "gh-manager-greenhouse"
+    assert service_plans["homeassistant"].client_id == "gh-homeassistant-greenhouse"
+    assert node_plan.client_id == "gh-n1-a9f2f8"
+
+    provisioner.apply_baseline(node_plan)
     provisioner.apply_legacy_anonymous_shadow()
-    provisioner.provision(first_plan, first_credentials)
+    provisioner.provision(node_plan, node_credentials)
     provisioner.provision(second_plan, second_credentials)
+    for service, plan in service_plans.items():
+        provisioner.provision(plan, service_credentials[service])
 
     assert admin.subscribe("#")
 
@@ -162,146 +286,168 @@ def main() -> None:
     assert not legacy.subscribe("$CONTROL/#")
 
     legacy_topic = "gh/v1/greenhouse/ingress/node/legacy-node/telemetry"
-    admin.drain()
-    legacy.publish(legacy_topic, b"legacy-shadow")
-    assert admin.wait_for(legacy_topic)
-
-    legacy_canary = "gh-dynsec-legacy-forbidden-canary"
-    legacy.publish(
-        "$CONTROL/dynamic-security/v1",
-        json.dumps(
-            {
-                "commands": [
-                    {
-                        "command": "createClient",
-                        "username": legacy_canary,
-                        "password": "not-a-real-secret",
-                        "clientid": legacy_canary,
-                    }
-                ]
-            },
-            separators=(",", ":"),
-        ).encode(),
+    assert_publish_allowed(admin, legacy, legacy_topic)
+    assert_control_publish_denied(
+        transport,
+        legacy,
+        canary_username="gh-dynsec-legacy-forbidden-canary",
     )
-    time.sleep(0.5)
-    try:
-        transport.execute(({"command": "getClient", "username": legacy_canary},))
-    except DynsecError:
-        pass
-    else:
-        raise AssertionError("legacy anonymous client changed Dynamic Security")
 
-    first = Session(
-        client_id=first_credentials.client_id,
-        username=first_credentials.username,
-        password=first_credentials.password,
-    )
-    second = Session(
-        client_id=second_credentials.client_id,
-        username=second_credentials.username,
-        password=second_credentials.password,
-    )
-    first.start()
-    second.start()
+    node = session_for(node_credentials)
+    second = session_for(second_credentials)
+    provisioning = session_for(service_credentials["provisioning"])
+    manager = session_for(service_credentials["manager"])
+    homeassistant = session_for(service_credentials["homeassistant"])
+    for session in (node, second, provisioning, manager, homeassistant):
+        session.start()
 
-    own_out = "gh/v1/greenhouse/out/node/gh-test-node-001/#"
+    for credentials in identities:
+        assert_wrong_client_id_rejected(credentials)
+
+    own_out = "gh/v1/greenhouse/out/node/gh-n1-a9f2f8/#"
     other_out = "gh/v1/greenhouse/out/node/gh-test-node-002/#"
-    assert first.subscribe(own_out)
-    assert not first.subscribe(other_out)
-    assert not first.subscribe("#")
+    assert node.subscribe(own_out)
+    assert not node.subscribe(other_out)
+    assert not node.subscribe("#")
 
-    wrong_id = Session(
-        client_id="wrong-client-id",
-        username=first_credentials.username,
-        password=first_credentials.password,
-    )
-    wrong_id.start(expect_allowed=False)
-    wrong_id.close()
+    manager_ingress = "gh/v1/greenhouse/ingress/node/+/telemetry"
+    assert manager.subscribe(manager_ingress)
+    node_ingress = "gh/v1/greenhouse/ingress/node/gh-n1-a9f2f8/telemetry"
+    manager.drain()
+    node.publish(node_ingress)
+    assert manager.wait_for(node_ingress)
 
-    allowed = "gh/v1/greenhouse/ingress/node/gh-test-node-001/telemetry"
-    admin.drain()
-    first.publish(allowed)
-    assert admin.wait_for(allowed)
-
-    denied_topics = (
+    denied_node_topics = (
         "gh/v1/greenhouse/ingress/node/gh-test-node-002/telemetry",
-        "gh/v1/greenhouse/state/gh-test-node-001/telemetry",
-        "homeassistant/device/gh-test-node-001/config",
+        "gh/v1/greenhouse/state/gh-n1-a9f2f8/telemetry",
+        "homeassistant/device/gh-n1-a9f2f8/config",
     )
-    for topic in denied_topics:
-        admin.drain()
-        first.publish(topic)
-        assert not admin.wait_for(topic, timeout=1.0), topic
+    for topic in denied_node_topics:
+        assert_publish_denied(admin, node, topic)
+    assert_control_publish_denied(
+        transport,
+        node,
+        canary_username="gh-dynsec-node-forbidden-canary",
+    )
 
-    canary_username = "gh-dynsec-forbidden-canary"
-    forbidden_command = json.dumps(
-        {
-            "commands": [
-                {
-                    "command": "createClient",
-                    "username": canary_username,
-                    "password": "not-a-real-secret",
-                    "clientid": "gh-dynsec-forbidden-canary",
-                }
-            ]
-        },
-        separators=(",", ":"),
-    ).encode()
-    first.publish("$CONTROL/dynamic-security/v1", forbidden_command)
-    time.sleep(0.5)
+    assert homeassistant.subscribe("gh/v1/greenhouse/state/#")
+    assert homeassistant.subscribe("homeassistant/#")
+    canonical_topic = "gh/v1/greenhouse/state/gh-n1-a9f2f8/telemetry"
+    homeassistant.drain()
+    manager.publish(canonical_topic)
+    assert homeassistant.wait_for(canonical_topic)
+
+    discovery_topics = (
+        "homeassistant/device/gh-n1-a9f2f8/config",
+        "homeassistant/binary_sensor/gh-n1-a9f2f8_connectivity/config",
+    )
+    for topic in discovery_topics:
+        homeassistant.drain()
+        manager.publish(topic)
+        assert homeassistant.wait_for(topic)
+
+    assert_publish_denied(admin, manager, "homeassistant/status")
+    assert_publish_denied(admin, manager, "homeassistant/sensor/rogue/config")
+    assert_publish_denied(admin, manager, node_ingress)
+    assert not manager.subscribe("$CONTROL/#")
+    assert_control_publish_denied(
+        transport,
+        manager,
+        canary_username="gh-dynsec-manager-forbidden-canary",
+    )
+
+    assert_publish_allowed(admin, homeassistant, "homeassistant/status")
+    assert_publish_denied(admin, homeassistant, canonical_topic)
+    assert_publish_denied(admin, homeassistant, node_ingress)
+    assert not homeassistant.subscribe("$CONTROL/#")
+    assert_control_publish_denied(
+        transport,
+        homeassistant,
+        canary_username="gh-dynsec-ha-forbidden-canary",
+    )
+
+    assert not provisioning.subscribe("gh/#")
+    assert not provisioning.subscribe("homeassistant/#")
+    assert_publish_denied(admin, provisioning, node_ingress)
+    assert_publish_denied(admin, provisioning, "homeassistant/status")
+    provisioning_transport = PahoDynsecTransport(provisioning.client)
+    provisioning.message_hook = provisioning_transport.on_message
+    responses = provisioning_transport.execute(({"command": "listClients"},))
+    assert responses and responses[0].get("command") == "listClients"
+
+    rollback_plan = build_node_provisioning_plan(
+        system_id="greenhouse", node_id="gh-rollback-probe", generation=1
+    )
+    rollback_credentials = generate_node_credentials(rollback_plan)
+    failing_transport = FailAfterCreateClientTransport(transport)
     try:
-        transport.execute(({"command": "getClient", "username": canary_username},))
-    except DynsecError:
-        pass
+        DynsecProvisioner(failing_transport).provision(
+            rollback_plan,
+            rollback_credentials,
+        )
+    except DynsecError as error:
+        assert str(error) == "injected post-create failure"
     else:
-        raise AssertionError("unauthorized Dynamic Security command created a client")
+        raise AssertionError("injected provisioning failure was not propagated")
+    assert failing_transport.command_names == [
+        "createRole",
+        "createClient",
+        "deleteClient",
+        "deleteRole",
+    ]
+    assert_dynsec_object_missing(
+        transport,
+        command="getClient",
+        key="username",
+        value=rollback_plan.username,
+    )
+    assert_dynsec_object_missing(
+        transport,
+        command="getRole",
+        key="rolename",
+        value=rollback_plan.role_name,
+    )
+    legacy_receive_topic = "gh/v1/greenhouse/out/node/legacy-node/rollback-probe"
+    legacy.drain()
+    admin.publish(legacy_receive_topic)
+    assert legacy.wait_for(legacy_receive_topic)
 
-    first.close()
+    node.close()
     second.close()
 
     replacement_plan = build_node_provisioning_plan(
-        system_id="greenhouse", node_id="gh-test-node-001", generation=2
+        system_id="greenhouse", node_id="gh-n1-a9f2f8", generation=2
     )
     replacement_credentials = generate_node_credentials(replacement_plan)
 
     def verify_replacement(credentials: Any) -> None:
-        probe = Session(
-            client_id=credentials.client_id,
-            username=credentials.username,
-            password=credentials.password,
-        )
+        probe = session_for(credentials)
         probe.start()
-        admin.drain()
-        probe.publish(allowed, b"rotation-probe")
-        assert admin.wait_for(allowed)
+        assert_publish_allowed(admin, probe, node_ingress)
         probe.close()
 
     provisioner.rotate_password(
-        first_plan,
-        first_credentials,
+        node_plan,
+        node_credentials,
         replacement_credentials,
         verify_replacement,
     )
 
-    old_password = Session(
-        client_id=first_credentials.client_id,
-        username=first_credentials.username,
-        password=first_credentials.password,
-    )
+    old_password = session_for(node_credentials)
     old_password.start(expect_allowed=False)
     old_password.close()
 
-    rollback_plan = build_node_provisioning_plan(
-        system_id="greenhouse", node_id="gh-test-node-001", generation=3
+    rollback_generation_plan = build_node_provisioning_plan(
+        system_id="greenhouse", node_id="gh-n1-a9f2f8", generation=3
     )
-    rollback_candidate = generate_node_credentials(rollback_plan)
+    rollback_candidate = generate_node_credentials(rollback_generation_plan)
 
     def reject_candidate(_credentials: Any) -> None:
         raise RuntimeError("injected candidate verification failure")
 
     try:
         provisioner.rotate_password(
-            first_plan,
+            node_plan,
             replacement_credentials,
             rollback_candidate,
             reject_candidate,
@@ -311,31 +457,25 @@ def main() -> None:
     else:
         raise AssertionError("failed rotation verification was not propagated")
 
-    restored = Session(
-        client_id=replacement_credentials.client_id,
-        username=replacement_credentials.username,
-        password=replacement_credentials.password,
-    )
+    restored = session_for(replacement_credentials)
     restored.start()
     restored.close()
 
-    rejected_candidate = Session(
-        client_id=rollback_candidate.client_id,
-        username=rollback_candidate.username,
-        password=rollback_candidate.password,
-    )
+    rejected_candidate = session_for(rollback_candidate)
     rejected_candidate.start(expect_allowed=False)
     rejected_candidate.close()
 
+    provisioning.close()
+    manager.close()
+    homeassistant.close()
     legacy.close()
-    provisioner.deprovision(first_plan)
+
+    for plan in service_plans.values():
+        provisioner.deprovision(plan)
+    provisioner.deprovision(node_plan)
     provisioner.deprovision(second_plan)
 
-    revoked = Session(
-        client_id=first_credentials.client_id,
-        username=first_credentials.username,
-        password=first_credentials.password,
-    )
+    revoked = session_for(replacement_credentials)
     revoked.start(expect_allowed=False)
     revoked.close()
     admin.close()
