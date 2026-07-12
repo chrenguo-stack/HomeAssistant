@@ -27,11 +27,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate Compose
+      - name: Validate isolated Compose
         working-directory: infra/compose/m2-dynsec
         env:
           GH_DYNSEC_ADMIN_PASSWORD: compose-validation-only
         run: docker compose config
 
-      - name: Verify Dynamic Security isolation
+      - name: Verify node and service identity matrix
         run: bash infra/compose/m2-dynsec/verify.sh
