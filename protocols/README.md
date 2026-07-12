@@ -13,10 +13,11 @@
 5. `pairing/gh-t1-broker-identity-activation-handoff-v1.md`：M2.4g-5a Draft，定义保持匿名兼容的 Broker 身份激活交接、精确候选演练、fresh rollback 与禁用的 live apply 边界。
 6. `pairing/gh-t1-broker-identity-preactivation-and-postaudit-v1.md`：M2.4g-5b Draft，定义真实 Broker 激活前的禁用门、指纹重绑定及激活后的只读身份/匿名兼容审计。
 7. `pairing/gh-t1-broker-identity-activation-authorization-v1.md`：M2.4g-5c Draft，定义短时、单次、全指纹绑定的操作员授权材料；授权模块自身仍禁止执行 live apply。
-8. `discovery/gh-discovery-v1.md`：待冻结 mDNS、UDP 回退、重试和多主机处理；M2.0 pairing Draft 已给出最小发现依赖。
-9. `state/gh-path-lease-v1.md`：待冻结直连/中继路径租约、去重和切换滞回。
-10. `state/gh-availability-v1.md`：待将 M1 已验证行为整理为独立协议。
-11. `transport/gh-radio-frame-v1.md`：待冻结 ESP-NOW 与 LoRa 紧凑帧、认证和序列规则。
+8. `pairing/gh-t1-broker-identity-activation-transaction-v1.md`：M2.4g-5d Draft，定义默认禁用的授权 claim、私有事务日志、强制 postactivation 与 rollback 状态机；生产 executor 尚未接入。
+9. `discovery/gh-discovery-v1.md`：待冻结 mDNS、UDP 回退、重试和多主机处理；M2.0 pairing Draft 已给出最小发现依赖。
+10. `state/gh-path-lease-v1.md`：待冻结直连/中继路径租约、去重和切换滞回。
+11. `state/gh-availability-v1.md`：待将 M1 已验证行为整理为独立协议。
+12. `transport/gh-radio-frame-v1.md`：待冻结 ESP-NOW 与 LoRa 紧凑帧、认证和序列规则。
 
 ## 变更规则
 
