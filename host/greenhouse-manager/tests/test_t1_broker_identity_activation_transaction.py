@@ -6,10 +6,10 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+
 from greenhouse_manager.t1_broker_identity_activation_authorization import (
     BrokerIdentityActivationAuthorizationError,
 )
-
 from greenhouse_manager.t1_broker_identity_activation_transaction import (
     BrokerIdentityActivationTransactionError,
     build_activation_transaction_plan,
