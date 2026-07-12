@@ -1,6 +1,6 @@
 # gh-dynsec-profile-v1 每节点最小权限配置
 
-状态：Draft / M2.2c  
+状态：Draft / M2.3g  
 关联：ADR-0002、`gh-pairing-v1`、Issue #17
 
 ## 1. 范围
@@ -89,3 +89,17 @@ Dynamic Security 管理账号不得兼任 manager 遥测账号。真实环境的
 6. 若恢复也失败，返回不含密码的明确错误并停止自动推进，禁止把未知状态报告为成功。
 
 隔离测试必须覆盖成功轮换和失败回滚。T1 影子部署前仍不向真实 Broker 写入任何账号或 ACL。
+
+## 11. M2.3g 服务身份
+
+真实迁移不得复用节点账号或初始 admin，必须建立三个独立服务身份：
+
+| 身份 | client ID | 允许范围 |
+|---|---|---|
+| provisioning | `gh-provisioning-<sid>` | Dynamic Security 请求及响应 Topic |
+| manager | `gh-manager-<sid>` | 节点 ingress、canonical state、两类现用 Discovery、配对 hello |
+| Home Assistant | `gh-homeassistant-<sid>` | 读取 Discovery 与 canonical state；发布 `homeassistant/status` |
+
+所有身份使用独立 256 位随机密码、唯一 username/client ID/role 和单调 generation。provisioning 明确拒绝 `gh/#` 与 `homeassistant/#`；manager 和 Home Assistant 明确拒绝 `$CONTROL/#`。Home Assistant 当前不得向 `gh/#` 发布，控制下行必须在后续协议冻结后单独授权。
+
+本阶段只生成确定性身份和 ACL 计划，不连接真实 Broker、不写出密码。下一 gate 将在真实快照候选 Broker 中创建这些服务身份和节点 `gh-n1-a9f2f8`，验证规定互通、跨身份越权拒绝和完整回滚。
