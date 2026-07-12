@@ -27,12 +27,22 @@ BaseBuilder = Callable[..., dict[str, object]]
 
 
 @dataclass(frozen=True, slots=True)
-class ComposeDiscovery:
-    labels_present: bool
-    consistent: bool
+class ComposeSourceObservation:
+    container: str
     project: str | None
     working_dir: Path | None
     config_files: tuple[Path, ...]
+    complete: bool
+
+
+@dataclass(frozen=True, slots=True)
+class ComposeDiscovery:
+    labels_present: bool
+    consistent: bool
+    projects: tuple[str, ...]
+    working_dir: Path | None
+    config_files: tuple[Path, ...]
+    observations: tuple[ComposeSourceObservation, ...]
     reason: str | None
 
 
@@ -88,71 +98,131 @@ def _resolve_config_files(
     return tuple(resolved)
 
 
+def _observe_compose_source(
+    runner: CommandRunner,
+    container: str,
+) -> tuple[ComposeSourceObservation, bool]:
+    labels = _inspect_labels(runner, container)
+    raw_project = labels.get(_PROJECT_LABEL, "").strip()
+    raw_working_dir = labels.get(_WORKING_DIR_LABEL, "").strip()
+    raw_config_files = labels.get(_CONFIG_FILES_LABEL, "").strip()
+    labels_present = bool(
+        raw_project or raw_working_dir or raw_config_files
+    )
+
+    working_dir = (
+        Path(raw_working_dir).expanduser().resolve()
+        if raw_working_dir
+        else None
+    )
+    config_files = (
+        _resolve_config_files(working_dir, raw_config_files)
+        if working_dir is not None and raw_config_files
+        else ()
+    )
+    observation = ComposeSourceObservation(
+        container=container,
+        project=raw_project or None,
+        working_dir=working_dir,
+        config_files=config_files,
+        complete=bool(raw_project and working_dir is not None and config_files),
+    )
+    return observation, labels_present
+
+
 def discover_live_compose(runner: CommandRunner) -> ComposeDiscovery:
-    observations: list[tuple[str, str, str]] = []
+    observations: list[ComposeSourceObservation] = []
     labels_present = False
     for container in _COMPOSE_CONTAINERS:
-        labels = _inspect_labels(runner, container)
-        values = (
-            labels.get(_PROJECT_LABEL, "").strip(),
-            labels.get(_WORKING_DIR_LABEL, "").strip(),
-            labels.get(_CONFIG_FILES_LABEL, "").strip(),
+        observation, container_labels_present = _observe_compose_source(
+            runner,
+            container,
         )
-        labels_present = labels_present or any(values)
-        observations.append(values)
+        observations.append(observation)
+        labels_present = labels_present or container_labels_present
 
+    frozen_observations = tuple(observations)
     if not labels_present:
         return ComposeDiscovery(
             labels_present=False,
             consistent=False,
-            project=None,
+            projects=(),
             working_dir=None,
             config_files=(),
+            observations=frozen_observations,
             reason="compose_labels_absent",
         )
 
-    if any(not all(values) for values in observations):
+    projects = tuple(
+        sorted(
+            {
+                observation.project
+                for observation in observations
+                if observation.project is not None
+            }
+        )
+    )
+    if any(not observation.complete for observation in observations):
         return ComposeDiscovery(
             labels_present=True,
             consistent=False,
-            project=None,
+            projects=projects,
             working_dir=None,
             config_files=(),
+            observations=frozen_observations,
             reason="compose_labels_incomplete",
         )
 
     first = observations[0]
-    if any(values != first for values in observations[1:]):
+    same_source = all(
+        observation.working_dir == first.working_dir
+        and observation.config_files == first.config_files
+        for observation in observations[1:]
+    )
+    if not same_source:
         return ComposeDiscovery(
             labels_present=True,
             consistent=False,
-            project=None,
+            projects=projects,
             working_dir=None,
             config_files=(),
-            reason="compose_labels_disagree",
-        )
-
-    project, raw_working_dir, raw_config_files = first
-    working_dir = Path(raw_working_dir).expanduser().resolve()
-    config_files = _resolve_config_files(working_dir, raw_config_files)
-    if not config_files:
-        return ComposeDiscovery(
-            labels_present=True,
-            consistent=False,
-            project=project,
-            working_dir=working_dir,
-            config_files=(),
-            reason="compose_config_files_empty",
+            observations=frozen_observations,
+            reason="compose_sources_disagree",
         )
 
     return ComposeDiscovery(
         labels_present=True,
         consistent=True,
-        project=project,
-        working_dir=working_dir,
-        config_files=config_files,
+        projects=projects,
+        working_dir=first.working_dir,
+        config_files=first.config_files,
+        observations=frozen_observations,
         reason=None,
     )
+
+
+def _observation_report(
+    observation: ComposeSourceObservation,
+) -> dict[str, object]:
+    return {
+        "project": observation.project,
+        "directory": (
+            str(observation.working_dir)
+            if observation.working_dir is not None
+            else None
+        ),
+        "files": [str(path) for path in observation.config_files],
+        "complete": observation.complete,
+    }
+
+
+def _compose_source_report(
+    discovery: ComposeDiscovery,
+) -> dict[str, dict[str, object]]:
+    return {
+        observation.container: _observation_report(observation)
+        for observation in discovery.observations
+    }
 
 
 def _apply_compose_discovery(
@@ -172,6 +242,7 @@ def _apply_compose_discovery(
         compose["requested_directory"] = requested_directory
         compose["metadata_consistent"] = fallback_present
         compose["metadata_reason"] = discovery.reason
+        compose["container_sources"] = _compose_source_report(discovery)
         gates["compose_metadata_consistent"] = fallback_present
         report["ready"] = all(bool(value) for value in gates.values())
         return
@@ -182,14 +253,11 @@ def _apply_compose_discovery(
             {
                 "source": "docker_compose_labels",
                 "requested_directory": requested_directory,
-                "project": discovery.project,
-                "directory": (
-                    str(discovery.working_dir)
-                    if discovery.working_dir is not None
-                    else None
-                ),
+                "projects": list(discovery.projects),
+                "directory": None,
                 "files": [],
                 "env": None,
+                "container_sources": _compose_source_report(discovery),
                 "metadata_consistent": False,
                 "metadata_reason": discovery.reason,
             }
@@ -213,10 +281,16 @@ def _apply_compose_discovery(
         {
             "source": "docker_compose_labels",
             "requested_directory": requested_directory,
-            "project": discovery.project,
+            "project": (
+                discovery.projects[0]
+                if len(discovery.projects) == 1
+                else None
+            ),
+            "projects": list(discovery.projects),
             "directory": str(discovery.working_dir),
             "files": [asdict(item) for item in file_observations],
             "env": asdict(env_observation),
+            "container_sources": _compose_source_report(discovery),
             "metadata_consistent": True,
             "metadata_reason": None,
         }
@@ -267,7 +341,7 @@ def main(
     parser = argparse.ArgumentParser(
         description=(
             "Read-only real T1 authenticated MQTT migration readiness audit "
-            "with live Compose label discovery."
+            "with normalized live Compose source discovery."
         )
     )
     parser.add_argument("rollback_archive")
