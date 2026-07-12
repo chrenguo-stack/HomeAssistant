@@ -23,7 +23,7 @@
 EXECUTE-M2-BROKER-ACTIVATION:<bundle前16位>:<runtime fingerprint>:<adapter contract前16位>
 ```
 
-缺少精确确认或 `execution_enabled=true` 时必须拒绝执行。
+缺少精确确认或 `execution_enabled=true` 时必须拒绝执行。此前仅针对 readiness bundle 给出的授权意向确认不能替代本执行确认；代码版本、运行时绑定或 adapter contract 变化后必须重新生成并重新确认。
 
 ## 3. 执行前顺序
 
