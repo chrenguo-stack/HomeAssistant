@@ -44,7 +44,9 @@ def _live_security(runner: Runner) -> tuple[bool, bool, str, str]:
         "live mosquitto.conf cannot be read",
     )
     lines = [
-        line.strip() for line in config.splitlines() if line.strip() and not line.lstrip().startswith("#")
+        line.strip()
+        for line in config.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
     ]
     anonymous = any(
         line.lower()
@@ -57,7 +59,8 @@ def _live_security(runner: Runner) -> tuple[bool, bool, str, str]:
         for line in lines
     )
     plugin = any(
-        line.startswith(("plugin ", "global_plugin ")) and "dynamic_security" in line for line in lines
+        line.startswith(("plugin ", "global_plugin ")) and "dynamic_security" in line
+        for line in lines
     )
     mode = require_success(
         runner,
@@ -107,8 +110,8 @@ def _temporary_client(
 ) -> tuple[int, str]:
     script = (
         "umask 077; f=/tmp/gh-m2-postcheck-$$.conf; "
-        "trap 'rm -f \"$f\"' EXIT; cat > \"$f\"; "
-        f"{program} -o \"$f\" \"$@\""
+        'trap \'rm -f "$f"\' EXIT; cat > "$f"; '
+        f'{program} -o "$f" "$@"'
     )
     return runner.run(
         ("docker", "exec", "-i", "mosquitto", "sh", "-c", script, "sh", *arguments),
@@ -120,8 +123,12 @@ def _ha_config(update: dict[str, Any], client_id: str | None = None) -> str:
     username = update.get("username")
     password = update.get("password")
     required_id = update.get("required_client_id")
-    if not all(isinstance(value, str) and value for value in (username, password, required_id)):
-        raise BrokerIdentityActivationCheckError("staged Home Assistant identity is incomplete")
+    if not all(
+        isinstance(value, str) and value for value in (username, password, required_id)
+    ):
+        raise BrokerIdentityActivationCheckError(
+            "staged Home Assistant identity is incomplete"
+        )
     selected = client_id or str(required_id)
     return f"-h 127.0.0.1\n-u {username}\n-P {password}\n-i {selected}\n-V 5\n"
 
@@ -171,7 +178,7 @@ def _list_clients(runner: Runner, config: str) -> bool:
 
 
 def _anonymous_control_denied(runner: Runner) -> bool:
-    code, _output = runner.run(
+    code, output = runner.run(
         (
             "docker",
             "exec",
@@ -193,7 +200,19 @@ def _anonymous_control_denied(runner: Runner) -> bool:
             _LIST_CLIENTS,
         )
     )
-    return code != 0
+    if code != 0:
+        return True
+    try:
+        value = json.loads(output)
+    except json.JSONDecodeError:
+        return False
+    responses = value.get("responses") if isinstance(value, dict) else None
+    return bool(
+        isinstance(responses, list)
+        and responses
+        and isinstance(responses[0], dict)
+        and responses[0].get("error")
+    )
 
 
 def audit_broker_identity_postactivation(
@@ -212,12 +231,18 @@ def audit_broker_identity_postactivation(
         root / "material/homeassistant/mqtt-update.json",
         "Home Assistant identity material",
     )
-    provisioning = (root / "material/provisioning/mosquitto-client.conf").read_text(encoding="utf-8")
-    bootstrap = (root / "material/bootstrap/admin-client.conf").read_text(encoding="utf-8")
+    provisioning = (root / "material/provisioning/mosquitto-client.conf").read_text(
+        encoding="utf-8"
+    )
+    bootstrap = (root / "material/bootstrap/admin-client.conf").read_text(
+        encoding="utf-8"
+    )
     runtime = runtime_summary(command_runner)
     anonymous, plugin, mode, post_sha = _live_security(command_runner)
     stage = manifest.get("stage")
-    baseline_sha = stage.get("broker_config_sha256") if isinstance(stage, dict) else None
+    baseline_sha = (
+        stage.get("broker_config_sha256") if isinstance(stage, dict) else None
+    )
     correct = _ha_config(update)
     wrong = _ha_config(update, f"{update['required_client_id']}-wrong")
     checks = {
@@ -226,7 +251,9 @@ def audit_broker_identity_postactivation(
         "dynamic_security_plugin_configured": plugin,
         "dynamic_security_state_present_private": mode == "600",
         "anonymous_compatibility_enabled": anonymous,
-        "anonymous_retained_state_readable": _anonymous_retained(command_runner, expected_retained_topic),
+        "anonymous_retained_state_readable": _anonymous_retained(
+            command_runner, expected_retained_topic
+        ),
         "homeassistant_identity_retained_state_readable": _identity_retained(
             command_runner, correct, expected_retained_topic
         ),
@@ -261,7 +288,9 @@ def main(
     *,
     runner: Runner | None = None,
 ) -> int:
-    parser = argparse.ArgumentParser(description="Run a read-only Broker identity postactivation audit.")
+    parser = argparse.ArgumentParser(
+        description="Run a read-only Broker identity postactivation audit."
+    )
     parser.add_argument("handoff_directory")
     parser.add_argument("--expected-retained-topic", required=True)
     args = parser.parse_args(argv)
@@ -277,7 +306,9 @@ def main(
         OSError,
         ValueError,
     ) as error:
-        print(f"T1 Broker identity postactivation audit failed: {error}", file=sys.stderr)
+        print(
+            f"T1 Broker identity postactivation audit failed: {error}", file=sys.stderr
+        )
         return 2
     json.dump(report, sys.stdout, ensure_ascii=False, separators=(",", ":"))
     sys.stdout.write("\n")
