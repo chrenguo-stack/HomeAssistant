@@ -31,8 +31,9 @@ def test_manager_identity_matches_current_runtime_topics() -> None:
     assert ("publishClientSend", "homeassistant/device/+/config") in allowed
     assert (
         "publishClientSend",
-        "homeassistant/binary_sensor/+_connectivity/config",
+        "homeassistant/binary_sensor/+/config",
     ) in allowed
+    assert not any("+_" in topic for _acl_type, topic in allowed)
     assert ("publishClientSend", "homeassistant/status") not in allowed
     assert (
         "subscribePattern",
