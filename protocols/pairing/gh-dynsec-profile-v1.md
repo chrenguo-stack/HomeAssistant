@@ -103,3 +103,9 @@ Dynamic Security 管理账号不得兼任 manager 遥测账号。真实环境的
 所有身份使用独立 256 位随机密码、唯一 username/client ID/role 和单调 generation。provisioning 明确拒绝 `gh/#` 与 `homeassistant/#`；manager 和 Home Assistant 明确拒绝 `$CONTROL/#`。Home Assistant 当前不得向 `gh/#` 发布，控制下行必须在后续协议冻结后单独授权。
 
 本阶段只生成确定性身份和 ACL 计划，不连接真实 Broker、不写出密码。下一 gate 将在真实快照候选 Broker 中创建这些服务身份和节点 `gh-n1-a9f2f8`，验证规定互通、跨身份越权拒绝和完整回滚。
+
+## 12. M2.3h 统一事务下发
+
+节点与服务身份共用同一 Dynamic Security 事务适配器：先创建 role，再创建绑定唯一 client ID 和 role 的 client；任一步失败均按 client → role 顺序尽力回滚。凭据对象的 username、client ID 和 generation 必须与计划完全一致，否则在连接 Broker 前拒绝。
+
+服务身份接入不得改变全局默认拒绝基线，也不得复用 legacy anonymous role。下一步将在隔离集成 Broker 中实际创建三类服务身份并验证 ACL，全部通过后才允许进入真实快照候选。

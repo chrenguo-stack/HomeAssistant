@@ -9,11 +9,14 @@ from typing import Any, Protocol
 import paho.mqtt.client as mqtt
 
 from .dynsec_plan import NodeCredentials, NodeProvisioningPlan
+from .service_identity_plan import ServiceCredentials, ServiceIdentityPlan
 
 CONTROL_TOPIC = "$CONTROL/dynamic-security/v1"
 RESPONSE_TOPIC = "$CONTROL/dynamic-security/v1/response"
 LEGACY_ANONYMOUS_ROLE = "gh-legacy-anonymous-shadow"
 LEGACY_ANONYMOUS_GROUP = "gh-legacy-anonymous-shadow"
+IdentityPlan = NodeProvisioningPlan | ServiceIdentityPlan
+IdentityCredentials = NodeCredentials | ServiceCredentials
 
 
 class DynsecError(RuntimeError):
@@ -24,7 +27,7 @@ class DynsecTransport(Protocol):
     def execute(self, commands: Sequence[dict[str, Any]]) -> tuple[dict[str, Any], ...]: ...
 
 
-def baseline_commands(plan: NodeProvisioningPlan) -> tuple[dict[str, Any], ...]:
+def baseline_commands(plan: IdentityPlan) -> tuple[dict[str, Any], ...]:
     defaults = plan.defaults
     return (
         {
@@ -39,11 +42,17 @@ def baseline_commands(plan: NodeProvisioningPlan) -> tuple[dict[str, Any], ...]:
     )
 
 
-def create_role_command(plan: NodeProvisioningPlan) -> dict[str, Any]:
+def _plan_description(plan: IdentityPlan) -> str:
+    if isinstance(plan, NodeProvisioningPlan):
+        return f"Greenhouse node {plan.node_id} generation {plan.generation}"
+    return f"Greenhouse {plan.service} service generation {plan.generation}"
+
+
+def create_role_command(plan: IdentityPlan) -> dict[str, Any]:
     return {
         "command": "createRole",
         "rolename": plan.role_name,
-        "textdescription": f"Greenhouse node {plan.node_id} generation {plan.generation}",
+        "textdescription": _plan_description(plan),
         "acls": [
             {
                 "acltype": acl.acl_type,
@@ -57,7 +66,7 @@ def create_role_command(plan: NodeProvisioningPlan) -> dict[str, Any]:
 
 
 def create_client_command(
-    plan: NodeProvisioningPlan, credentials: NodeCredentials
+    plan: IdentityPlan, credentials: IdentityCredentials
 ) -> dict[str, Any]:
     if credentials.username != plan.username or credentials.client_id != plan.client_id:
         raise ValueError("credentials do not match provisioning plan")
@@ -68,13 +77,13 @@ def create_client_command(
         "username": plan.username,
         "password": credentials.password,
         "clientid": plan.client_id,
-        "textdescription": f"Greenhouse node {plan.node_id} generation {plan.generation}",
+        "textdescription": _plan_description(plan),
         "roles": [{"rolename": plan.role_name, "priority": 100}],
     }
 
 
 def set_client_password_command(
-    plan: NodeProvisioningPlan, credentials: NodeCredentials
+    plan: IdentityPlan, credentials: IdentityCredentials
 ) -> dict[str, Any]:
     if credentials.username != plan.username or credentials.client_id != plan.client_id:
         raise ValueError("credentials do not match provisioning plan")
@@ -150,14 +159,16 @@ class DynsecProvisioner:
     def __init__(self, transport: DynsecTransport) -> None:
         self.transport = transport
 
-    def apply_baseline(self, plan: NodeProvisioningPlan) -> None:
+    def apply_baseline(self, plan: IdentityPlan) -> None:
         self.transport.execute(baseline_commands(plan))
 
     def apply_legacy_anonymous_shadow(self) -> None:
         for command in legacy_anonymous_shadow_commands():
             self.transport.execute((command,))
 
-    def provision(self, plan: NodeProvisioningPlan, credentials: NodeCredentials) -> None:
+    def provision(
+        self, plan: IdentityPlan, credentials: IdentityCredentials
+    ) -> None:
         role_started = False
         client_started = False
         try:
@@ -172,16 +183,16 @@ class DynsecProvisioner:
                 self._best_effort(({"command": "deleteRole", "rolename": plan.role_name},))
             raise
 
-    def deprovision(self, plan: NodeProvisioningPlan) -> None:
+    def deprovision(self, plan: IdentityPlan) -> None:
         self.transport.execute(({"command": "deleteClient", "username": plan.username},))
         self.transport.execute(({"command": "deleteRole", "rolename": plan.role_name},))
 
     def rotate_password(
         self,
-        plan: NodeProvisioningPlan,
-        current: NodeCredentials,
-        replacement: NodeCredentials,
-        verify: Callable[[NodeCredentials], None],
+        plan: IdentityPlan,
+        current: IdentityCredentials,
+        replacement: IdentityCredentials,
+        verify: Callable[[IdentityCredentials], None],
     ) -> None:
         if replacement.generation <= current.generation:
             raise ValueError("replacement generation must increase")
