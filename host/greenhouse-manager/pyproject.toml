@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "greenhouse-manager"
-version = "0.4.26"
+version = "0.4.27"
 description = "Canonical MQTT state manager for the greenhouse monitoring system"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -46,6 +46,7 @@ greenhouse-manager-t1-broker-identity-production-adapter-skeleton = "greenhouse_
 greenhouse-manager-t1-broker-identity-host-replica-plan = "greenhouse_manager.t1_broker_identity_host_replica_adapters:main"
 greenhouse-manager-t1-broker-identity-host-replica-fault-matrix = "greenhouse_manager.t1_broker_identity_host_replica_fault_matrix:main"
 greenhouse-manager-t1-broker-identity-production-driver-contract = "greenhouse_manager.t1_broker_identity_production_driver_contract:main"
+greenhouse-manager-t1-broker-identity-runtime-binding-manifest = "greenhouse_manager.t1_broker_identity_runtime_binding_manifest:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
