@@ -102,6 +102,7 @@ def test_discovers_nonstandard_compose_filename_from_live_labels(
     assert result["gates"]["compose_env_private"] is True
     assert result["compose"]["source"] == "docker_compose_labels"
     assert result["compose"]["project"] == "greenhouse"
+    assert result["compose"]["projects"] == ["greenhouse"]
     assert result["compose"]["directory"] == str(working.resolve())
     assert result["compose"]["files"][0]["path"] == str(config.resolve())
     assert result["compose"]["env"]["mode"] == "600"
@@ -142,7 +143,60 @@ def test_resolves_relative_compose_config_against_working_directory(
     assert result["compose"]["files"][0]["path"] == str(config.resolve())
 
 
-def test_disagreeing_live_compose_labels_block_readiness(
+def test_normalized_source_allows_project_name_and_path_form_differences(
+    tmp_path: Path,
+) -> None:
+    working = tmp_path / "stack"
+    working.mkdir()
+    config = working / "greenhouse-stack.yml"
+    config.write_text("services: {}\n", encoding="utf-8")
+    env = working / ".env"
+    env.write_text("LOCAL_ONLY=value\n", encoding="utf-8")
+    env.chmod(0o600)
+    mosquitto_labels = {
+        "com.docker.compose.project": "greenhouse-broker",
+        "com.docker.compose.project.working_dir": str(working),
+        "com.docker.compose.project.config_files": str(config),
+    }
+    manager_labels = {
+        "com.docker.compose.project": "greenhouse-manager",
+        "com.docker.compose.project.working_dir": str(working / "."),
+        "com.docker.compose.project.config_files": config.name,
+    }
+    runner = LabelRunner(
+        {
+            "mosquitto": mosquitto_labels,
+            "greenhouse-manager": manager_labels,
+        }
+    )
+
+    result = build_live_readiness_report(
+        tmp_path / "rollback.tar.gz",
+        tmp_path / "migration.tar.gz",
+        compose_directory=tmp_path / "unused",
+        expected_retained_topic="gh/v1/greenhouse/state/node/telemetry",
+        runner=runner,
+        base_builder=_builder_for(_base_report(tmp_path / "unused")),
+    )
+
+    assert result["ready"] is True
+    assert result["gates"]["compose_metadata_consistent"] is True
+    assert result["compose"]["project"] is None
+    assert result["compose"]["projects"] == [
+        "greenhouse-broker",
+        "greenhouse-manager",
+    ]
+    assert result["compose"]["directory"] == str(working.resolve())
+    assert result["compose"]["files"][0]["path"] == str(config.resolve())
+    assert result["compose"]["container_sources"]["mosquitto"][
+        "complete"
+    ] is True
+    assert result["compose"]["container_sources"]["greenhouse-manager"][
+        "complete"
+    ] is True
+
+
+def test_disagreeing_normalized_compose_sources_block_readiness(
     tmp_path: Path,
 ) -> None:
     first = {
@@ -172,7 +226,13 @@ def test_disagreeing_live_compose_labels_block_readiness(
 
     assert result["ready"] is False
     assert result["gates"]["compose_metadata_consistent"] is False
-    assert result["compose"]["metadata_reason"] == "compose_labels_disagree"
+    assert result["compose"]["metadata_reason"] == "compose_sources_disagree"
+    assert result["compose"]["container_sources"]["mosquitto"][
+        "directory"
+    ] == "/opt/stack-a"
+    assert result["compose"]["container_sources"]["greenhouse-manager"][
+        "directory"
+    ] == "/opt/stack-b"
 
 
 def test_falls_back_to_requested_directory_when_labels_are_absent(
