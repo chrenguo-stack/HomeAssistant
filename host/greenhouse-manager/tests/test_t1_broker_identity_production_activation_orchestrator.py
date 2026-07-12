@@ -4,7 +4,6 @@ import hashlib
 import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
 
 import pytest
 
@@ -298,8 +297,7 @@ def test_builds_secret_free_execution_request(tmp_path: Path) -> None:
     assert report["execution_enabled"] is False
     assert report["current_services_modified"] is False
     assert report["required_confirmation"] == (
-        "EXECUTE-M2-BROKER-ACTIVATION:"
-        f"{BUNDLE_SHA[:16]}:{RUNTIME_FP}:{ADAPTER_SHA[:16]}"
+        f"EXECUTE-M2-BROKER-ACTIVATION:{BUNDLE_SHA[:16]}:{RUNTIME_FP}:{ADAPTER_SHA[:16]}"
     )
     assert "bundle_bound_authorization_token" not in json.dumps(report)
 
@@ -346,17 +344,12 @@ def test_success_claims_authorization_and_commits_transaction(tmp_path: Path) ->
     assert report["preserve_anonymous"] is True
     assert report["anonymous_closure_enabled"] is False
     assert not fixture["authorization"].exists()
-    claim = fixture["authorization"].with_name(
-        f"claimed-{AUTHORIZATION_ID}.json"
-    )
+    claim = fixture["authorization"].with_name(f"claimed-{AUTHORIZATION_ID}.json")
     consumed = json.loads(claim.read_text(encoding="utf-8"))
     assert consumed["consumed"] is True
     assert consumed["transaction_id"] == "transaction_token_1234567890"
     assert adapters.calls == ["prepare", "mutation", "audit"]
-    journal = (
-        fixture["transaction_root"]
-        / "transaction-transaction_token_1234567890/journal.json"
-    )
+    journal = fixture["transaction_root"] / "transaction-transaction_token_1234567890/journal.json"
     journal_document = json.loads(journal.read_text(encoding="utf-8"))
     assert journal_document["phase"] == "committed"
     assert journal.stat().st_mode & 0o777 == 0o600
@@ -373,13 +366,8 @@ def test_mutation_failure_forces_verified_rollback(tmp_path: Path) -> None:
     ):
         _execute(fixture, adapters, confirmation=confirmation)
     assert adapters.calls == ["prepare", "mutation", "rollback"]
-    journal = (
-        fixture["transaction_root"]
-        / "transaction-transaction_token_1234567890/journal.json"
-    )
-    assert json.loads(journal.read_text(encoding="utf-8"))["phase"] == (
-        "rollback_completed"
-    )
+    journal = fixture["transaction_root"] / "transaction-transaction_token_1234567890/journal.json"
+    assert json.loads(journal.read_text(encoding="utf-8"))["phase"] == ("rollback_completed")
 
 
 def test_postactivation_failure_forces_verified_rollback(tmp_path: Path) -> None:

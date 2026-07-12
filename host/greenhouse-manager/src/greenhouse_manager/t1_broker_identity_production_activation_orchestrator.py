@@ -90,24 +90,16 @@ def _timestamp(value: datetime | None = None) -> str:
 
 
 def _read_private_json(path: Path, label: str) -> dict[str, Any]:
-    if (
-        not path.is_file()
-        or path.is_symlink()
-        or path.stat().st_mode & 0o777 != 0o600
-    ):
+    if not path.is_file() or path.is_symlink() or path.stat().st_mode & 0o777 != 0o600:
         raise BrokerIdentityProductionActivationOrchestratorError(
             f"{label} is missing, unsafe, or not mode 0600"
         )
     try:
         document = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
-        raise BrokerIdentityProductionActivationOrchestratorError(
-            f"{label} is invalid"
-        ) from error
+        raise BrokerIdentityProductionActivationOrchestratorError(f"{label} is invalid") from error
     if not isinstance(document, dict):
-        raise BrokerIdentityProductionActivationOrchestratorError(
-            f"{label} must be a JSON object"
-        )
+        raise BrokerIdentityProductionActivationOrchestratorError(f"{label} must be a JSON object")
     return document
 
 
@@ -164,14 +156,10 @@ def _verified(
     required: Mapping[str, object] | None = None,
 ) -> None:
     if result.get("verified") is not True:
-        raise BrokerIdentityProductionActivationOrchestratorError(
-            f"{label} verification is incomplete"
-        )
+        raise BrokerIdentityProductionActivationOrchestratorError(f"{label} verification is incomplete")
     for field, expected in (required or {}).items():
         if result.get(field) is not expected:
-            raise BrokerIdentityProductionActivationOrchestratorError(
-                f"{label} verification failed: {field}"
-            )
+            raise BrokerIdentityProductionActivationOrchestratorError(f"{label} verification failed: {field}")
 
 
 def _validate_bindings(
@@ -206,16 +194,10 @@ def _validate_bindings(
         raise BrokerIdentityProductionActivationOrchestratorError(
             "production executor binding does not match"
         )
-    if runtime_manifest.get("manifest_sha256") != plan.get(
-        "runtime_binding_manifest_sha256"
-    ):
-        raise BrokerIdentityProductionActivationOrchestratorError(
-            "runtime manifest binding does not match"
-        )
+    if runtime_manifest.get("manifest_sha256") != plan.get("runtime_binding_manifest_sha256"):
+        raise BrokerIdentityProductionActivationOrchestratorError("runtime manifest binding does not match")
     if adapter_contract.get("transaction_plan_sha256") != plan.get("plan_sha256"):
-        raise BrokerIdentityProductionActivationOrchestratorError(
-            "transaction plan binding does not match"
-        )
+        raise BrokerIdentityProductionActivationOrchestratorError("transaction plan binding does not match")
     authorization_sha = _sha256_document(authorization)
     if (
         plan.get("authorization_document_sha256") != authorization_sha
@@ -247,10 +229,7 @@ def _confirmation(
         raise BrokerIdentityProductionActivationOrchestratorError(
             "execution confirmation binding is incomplete"
         )
-    return (
-        "EXECUTE-M2-BROKER-ACTIVATION:"
-        f"{bundle_sha[:16]}:{runtime}:{adapter_sha[:16]}"
-    )
+    return f"EXECUTE-M2-BROKER-ACTIVATION:{bundle_sha[:16]}:{runtime}:{adapter_sha[:16]}"
 
 
 def build_production_activation_execution_request(
@@ -262,14 +241,10 @@ def build_production_activation_execution_request(
     runtime_binding_manifest_file: str | Path,
     *,
     now: datetime | None = None,
-    authorization_verifier: AuthorizationVerifier = (
-        verify_activation_readiness_authorization
-    ),
+    authorization_verifier: AuthorizationVerifier = (verify_activation_readiness_authorization),
     bundle_verifier: DocumentVerifier = verify_activation_readiness_bundle,
     plan_verifier: DocumentVerifier = verify_activation_readiness_transaction_plan,
-    adapter_contract_verifier: DocumentVerifier = (
-        verify_production_transaction_adapter_contract
-    ),
+    adapter_contract_verifier: DocumentVerifier = (verify_production_transaction_adapter_contract),
     executor_verifier: DocumentVerifier = verify_production_executor_contract,
     manifest_verifier: ManifestVerifier = verify_runtime_binding_manifest,
 ) -> dict[str, object]:
@@ -334,13 +309,8 @@ def build_production_activation_execution_request(
     )
 
     authorization_id = authorization.get("authorization_id")
-    if (
-        not isinstance(authorization_id, str)
-        or _AUTHORIZATION_ID.fullmatch(authorization_id) is None
-    ):
-        raise BrokerIdentityProductionActivationOrchestratorError(
-            "activation authorization ID is invalid"
-        )
+    if not isinstance(authorization_id, str) or _AUTHORIZATION_ID.fullmatch(authorization_id) is None:
+        raise BrokerIdentityProductionActivationOrchestratorError("activation authorization ID is invalid")
     return {
         "schema": REQUEST_SCHEMA,
         "authorization_id": authorization_id,
@@ -367,13 +337,8 @@ def build_production_activation_execution_request(
 def _claim_authorization(path: Path) -> tuple[Path, dict[str, Any]]:
     document = _read_private_json(path, "activation authorization")
     authorization_id = document.get("authorization_id")
-    if (
-        not isinstance(authorization_id, str)
-        or _AUTHORIZATION_ID.fullmatch(authorization_id) is None
-    ):
-        raise BrokerIdentityProductionActivationOrchestratorError(
-            "activation authorization ID is invalid"
-        )
+    if not isinstance(authorization_id, str) or _AUTHORIZATION_ID.fullmatch(authorization_id) is None:
+        raise BrokerIdentityProductionActivationOrchestratorError("activation authorization ID is invalid")
     claim = path.with_name(f"claimed-{authorization_id}.json")
     try:
         os.link(path, claim, follow_symlinks=False)
@@ -422,9 +387,7 @@ def _validate_mutation(report: Mapping[str, Any]) -> None:
     }
     for field, expected in required.items():
         if report.get(field) is not expected:
-            raise BrokerIdentityProductionActivationOrchestratorError(
-                f"production mutation failed: {field}"
-            )
+            raise BrokerIdentityProductionActivationOrchestratorError(f"production mutation failed: {field}")
 
 
 def _validate_postactivation(report: Mapping[str, Any]) -> None:
@@ -442,11 +405,7 @@ def _validate_postactivation(report: Mapping[str, Any]) -> None:
                 f"production postactivation audit failed: {field}"
             )
     checks = report.get("checks")
-    if (
-        not isinstance(checks, dict)
-        or not checks
-        or any(value is not True for value in checks.values())
-    ):
+    if not isinstance(checks, dict) or not checks or any(value is not True for value in checks.values()):
         raise BrokerIdentityProductionActivationOrchestratorError(
             "production postactivation checks are not all passing"
         )
@@ -463,9 +422,7 @@ def _validate_rollback(report: Mapping[str, Any]) -> None:
     }
     for field, expected in required.items():
         if report.get(field) is not expected:
-            raise BrokerIdentityProductionActivationOrchestratorError(
-                f"production rollback failed: {field}"
-            )
+            raise BrokerIdentityProductionActivationOrchestratorError(f"production rollback failed: {field}")
 
 
 def _journal(
@@ -499,14 +456,10 @@ def execute_production_activation(
     runner: Runner | None = None,
     now: datetime | None = None,
     token_factory: TokenFactory | None = None,
-    authorization_verifier: AuthorizationVerifier = (
-        verify_activation_readiness_authorization
-    ),
+    authorization_verifier: AuthorizationVerifier = (verify_activation_readiness_authorization),
     bundle_verifier: DocumentVerifier = verify_activation_readiness_bundle,
     plan_verifier: DocumentVerifier = verify_activation_readiness_transaction_plan,
-    adapter_contract_verifier: DocumentVerifier = (
-        verify_production_transaction_adapter_contract
-    ),
+    adapter_contract_verifier: DocumentVerifier = (verify_production_transaction_adapter_contract),
     executor_verifier: DocumentVerifier = verify_production_executor_contract,
     manifest_verifier: ManifestVerifier = verify_runtime_binding_manifest,
     driver_factory: DriverFactory = LiveProductionBrokerDriver,
@@ -535,9 +488,8 @@ def execute_production_activation(
         manifest_verifier=manifest_verifier,
     )
     required_confirmation = request.get("required_confirmation")
-    if (
-        not isinstance(required_confirmation, str)
-        or not hmac.compare_digest(execution_confirmation, required_confirmation)
+    if not isinstance(required_confirmation, str) or not hmac.compare_digest(
+        execution_confirmation, required_confirmation
     ):
         raise BrokerIdentityProductionActivationOrchestratorError(
             "explicit production execution confirmation is missing or does not match"
@@ -550,15 +502,11 @@ def execute_production_activation(
     executor_path = Path(executor_contract_file).expanduser().resolve()
     manifest_path = Path(runtime_binding_manifest_file).expanduser().resolve()
     handoff = Path(handoff_directory).expanduser().resolve()
-    transaction_root = _private_transaction_directory(
-        Path(transaction_directory).expanduser()
-    )
+    transaction_root = _private_transaction_directory(Path(transaction_directory).expanduser())
 
     transaction_id = token_factory() if token_factory else secrets.token_urlsafe(24)
     if not isinstance(transaction_id, str) or _TOKEN.fullmatch(transaction_id) is None:
-        raise BrokerIdentityProductionActivationOrchestratorError(
-            "production transaction ID is invalid"
-        )
+        raise BrokerIdentityProductionActivationOrchestratorError("production transaction ID is invalid")
     workspace = transaction_root / f"transaction-{transaction_id}"
     workspace.mkdir(mode=0o700)
     if workspace.stat().st_mode & 0o077:
