@@ -1,6 +1,0 @@
-jsonschema<5,>=4.23
-paho-mqtt<3,>=2.1
-
-[dev]
-pytest<9,>=8.3
-ruff<1,>=0.12
