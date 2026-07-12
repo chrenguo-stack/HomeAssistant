@@ -32,7 +32,10 @@ class HomeAssistantMqttReconfigureHandoffError(RuntimeError):
 
 
 def _json_text(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
+    return (
+        json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        + "\n"
+    )
 
 
 def _sha256_bytes(value: bytes) -> str:
@@ -54,7 +57,9 @@ def _fingerprint(value: str) -> str:
 def _private_directory(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True, mode=0o700)
     if path.is_symlink() or path.stat().st_mode & 0o077:
-        raise HomeAssistantMqttReconfigureHandoffError("directory must be private and not a symlink")
+        raise HomeAssistantMqttReconfigureHandoffError(
+            "directory must be private and not a symlink"
+        )
 
 
 def _write_private(path: Path, value: str) -> None:
@@ -95,7 +100,9 @@ def _homeassistant_name(runner: CommandRunner) -> str:
         try:
             row = json.loads(line)
         except json.JSONDecodeError as error:
-            raise HomeAssistantMqttReconfigureHandoffError("Docker inventory is invalid") from error
+            raise HomeAssistantMqttReconfigureHandoffError(
+                "Docker inventory is invalid"
+            ) from error
         if not isinstance(row, dict):
             continue
         name = str(row.get("Names", ""))
@@ -118,9 +125,13 @@ def _storage(runner: CommandRunner, name: str) -> tuple[str, dict[str, Any]]:
     try:
         value = json.loads(raw)
     except json.JSONDecodeError as error:
-        raise HomeAssistantMqttReconfigureHandoffError("config entries are invalid") from error
+        raise HomeAssistantMqttReconfigureHandoffError(
+            "config entries are invalid"
+        ) from error
     if not isinstance(value, dict):
-        raise HomeAssistantMqttReconfigureHandoffError("config entries must be an object")
+        raise HomeAssistantMqttReconfigureHandoffError(
+            "config entries must be an object"
+        )
     return raw, value
 
 
@@ -151,21 +162,38 @@ def _entry_fingerprint(entry: dict[str, Any]) -> str:
 
 
 def _runtime(runner: CommandRunner, name: str) -> dict[str, object]:
-    output = _run(runner, ("docker", "inspect", name), "Home Assistant metadata could not be read")
+    output = _run(
+        runner, ("docker", "inspect", name), "Home Assistant metadata could not be read"
+    )
     try:
         documents = json.loads(output)
     except json.JSONDecodeError as error:
-        raise HomeAssistantMqttReconfigureHandoffError("Home Assistant metadata is invalid") from error
-    if not isinstance(documents, list) or len(documents) != 1 or not isinstance(documents[0], dict):
-        raise HomeAssistantMqttReconfigureHandoffError("Home Assistant metadata is incomplete")
+        raise HomeAssistantMqttReconfigureHandoffError(
+            "Home Assistant metadata is invalid"
+        ) from error
+    if (
+        not isinstance(documents, list)
+        or len(documents) != 1
+        or not isinstance(documents[0], dict)
+    ):
+        raise HomeAssistantMqttReconfigureHandoffError(
+            "Home Assistant metadata is incomplete"
+        )
     state = documents[0].get("State")
     if not isinstance(state, dict):
-        raise HomeAssistantMqttReconfigureHandoffError("Home Assistant state is missing")
-    return {"state": state.get("Status"), "restart_count": int(documents[0].get("RestartCount", 0))}
+        raise HomeAssistantMqttReconfigureHandoffError(
+            "Home Assistant state is missing"
+        )
+    return {
+        "state": state.get("Status"),
+        "restart_count": int(documents[0].get("RestartCount", 0)),
+    }
 
 
 def _stage_values(stage: Path) -> dict[str, Any]:
-    value = _read_json(stage / "payload/homeassistant/mqtt-update.json", "staged MQTT update")
+    value = _read_json(
+        stage / "payload/homeassistant/mqtt-update.json", "staged MQTT update"
+    )
     valid = (
         value.get("schema") == "gh.m2.homeassistant-mqtt-update/1"
         and value.get("automatic_apply") is False
@@ -177,7 +205,9 @@ def _stage_values(stage: Path) -> dict[str, Any]:
         and value.get("preserve_discovery") is True
     )
     if not valid:
-        raise HomeAssistantMqttReconfigureHandoffError("staged MQTT update is incomplete or unsafe")
+        raise HomeAssistantMqttReconfigureHandoffError(
+            "staged MQTT update is incomplete or unsafe"
+        )
     return value
 
 
@@ -200,16 +230,22 @@ def _validate_gate(
         "ready_for_live_apply": False,
     }
     if any(report.get(key) != value for key, value in required.items()):
-        raise HomeAssistantMqttReconfigureHandoffError("target gate is unsafe or incomplete")
+        raise HomeAssistantMqttReconfigureHandoffError(
+            "target gate is unsafe or incomplete"
+        )
     if report.get("selected_target_kind") != expected_kind:
         raise HomeAssistantMqttReconfigureHandoffError("Broker target kind has drifted")
     if expected_target_fingerprint and not hmac.compare_digest(
         str(report.get("selected_target_fingerprint", "")), expected_target_fingerprint
     ):
-        raise HomeAssistantMqttReconfigureHandoffError("Broker target fingerprint has drifted")
+        raise HomeAssistantMqttReconfigureHandoffError(
+            "Broker target fingerprint has drifted"
+        )
     official = report.get("homeassistant_official_reconfigure")
     if not isinstance(official, dict):
-        raise HomeAssistantMqttReconfigureHandoffError("official reconfigure gate is missing")
+        raise HomeAssistantMqttReconfigureHandoffError(
+            "official reconfigure gate is missing"
+        )
     safe = (
         official.get("official_config_flow_only") is True
         and official.get("direct_storage_edit_forbidden") is True
@@ -220,14 +256,22 @@ def _validate_gate(
         and official.get("retained_baseline_readable") is True
     )
     if not safe:
-        raise HomeAssistantMqttReconfigureHandoffError("official reconfigure preconditions are unsafe")
+        raise HomeAssistantMqttReconfigureHandoffError(
+            "official reconfigure preconditions are unsafe"
+        )
     comparisons = (
-        (expected_entry_fingerprint, official.get("pre_change_entry_fingerprint"), "entry"),
+        (
+            expected_entry_fingerprint,
+            official.get("pre_change_entry_fingerprint"),
+            "entry",
+        ),
         (expected_storage_sha256, official.get("pre_change_storage_sha256"), "storage"),
     )
     for expected, actual, label in comparisons:
         if expected and not hmac.compare_digest(str(actual or ""), expected):
-            raise HomeAssistantMqttReconfigureHandoffError(f"{label} fingerprint has drifted")
+            raise HomeAssistantMqttReconfigureHandoffError(
+                f"{label} fingerprint has drifted"
+            )
     blockers = {str(item) for item in report.get("activation_blockers", [])}
     expected_blockers = {
         "broker_identity_not_activated",
@@ -235,11 +279,15 @@ def _validate_gate(
         "node_credential_delivery_path_unverified",
     }
     if blockers != expected_blockers:
-        raise HomeAssistantMqttReconfigureHandoffError("target gate has unexpected blockers")
+        raise HomeAssistantMqttReconfigureHandoffError(
+            "target gate has unexpected blockers"
+        )
     return official
 
 
-def _selected(report: dict[str, object], candidates: Sequence[BrokerCandidate]) -> BrokerCandidate:
+def _selected(
+    report: dict[str, object], candidates: Sequence[BrokerCandidate]
+) -> BrokerCandidate:
     matches = [
         candidate
         for candidate in candidates
@@ -247,13 +295,17 @@ def _selected(report: dict[str, object], candidates: Sequence[BrokerCandidate]) 
         and _fingerprint(candidate.host) == report.get("selected_target_fingerprint")
     ]
     if len(matches) != 1:
-        raise HomeAssistantMqttReconfigureHandoffError("target does not bind to one candidate")
+        raise HomeAssistantMqttReconfigureHandoffError(
+            "target does not bind to one candidate"
+        )
     return matches[0]
 
 
 def _record(path: Path, root: Path, secret: bool) -> dict[str, object]:
     if not path.is_file() or path.is_symlink() or path.stat().st_mode & 0o777 != 0o600:
-        raise HomeAssistantMqttReconfigureHandoffError("handoff file is missing or not mode 0600")
+        raise HomeAssistantMqttReconfigureHandoffError(
+            "handoff file is missing or not mode 0600"
+        )
     return {
         "path": path.relative_to(root).as_posix(),
         "size": path.stat().st_size,
@@ -309,17 +361,28 @@ def prepare_homeassistant_mqtt_reconfigure_handoff(
     entry = _mqtt_entry(storage)
     entry_fp = _entry_fingerprint(entry)
     storage_sha = _sha256_bytes(raw.encode())
-    if not hmac.compare_digest(entry_fp, str(official.get("pre_change_entry_fingerprint", ""))):
-        raise HomeAssistantMqttReconfigureHandoffError("MQTT entry changed after target audit")
-    if not hmac.compare_digest(storage_sha, str(official.get("pre_change_storage_sha256", ""))):
-        raise HomeAssistantMqttReconfigureHandoffError("config entry storage changed after target audit")
+    if not hmac.compare_digest(
+        entry_fp, str(official.get("pre_change_entry_fingerprint", ""))
+    ):
+        raise HomeAssistantMqttReconfigureHandoffError(
+            "MQTT entry changed after target audit"
+        )
+    if not hmac.compare_digest(
+        storage_sha, str(official.get("pre_change_storage_sha256", ""))
+    ):
+        raise HomeAssistantMqttReconfigureHandoffError(
+            "config entry storage changed after target audit"
+        )
 
     observed = (now or datetime.now(UTC)).astimezone(UTC)
     token = token_factory() if token_factory else secrets.token_hex(4)
     if not isinstance(token, str) or _TOKEN_RE.fullmatch(token) is None:
         raise HomeAssistantMqttReconfigureHandoffError("handoff token is invalid")
     root = output / (
-        "greenhouse-ha-mqtt-handoff-" + observed.strftime("%Y%m%dT%H%M%SZ") + "-" + token
+        "greenhouse-ha-mqtt-handoff-"
+        + observed.strftime("%Y%m%dT%H%M%SZ")
+        + "-"
+        + token
     )
     root.mkdir(mode=0o700)
     rollback_dir = root / "rollback"
@@ -328,7 +391,9 @@ def prepare_homeassistant_mqtt_reconfigure_handoff(
     backup_manifest = verify_backup(archive)
     created_at = observed.isoformat(timespec="milliseconds").replace("+00:00", "Z")
     if backup_manifest.get("created_at") != created_at:
-        raise HomeAssistantMqttReconfigureHandoffError("rollback backup is not bound to this handoff")
+        raise HomeAssistantMqttReconfigureHandoffError(
+            "rollback backup is not bound to this handoff"
+        )
 
     data = entry.get("data") if isinstance(entry.get("data"), dict) else {}
     options = entry.get("options") if isinstance(entry.get("options"), dict) else {}
@@ -397,7 +462,11 @@ def prepare_homeassistant_mqtt_reconfigure_handoff(
         "operator_action_required": True,
         "operator_action_authorized": False,
         "ready_for_operator_reconfigure": False,
-        "target": {"kind": selected.kind, "fingerprint": _fingerprint(selected.host), "port": staged["port"]},
+        "target": {
+            "kind": selected.kind,
+            "fingerprint": _fingerprint(selected.host),
+            "port": staged["port"],
+        },
         "pre_change": {"entry_fingerprint": entry_fp, "storage_sha256": storage_sha},
         "rollback": {
             "archive": archive.name,
@@ -431,9 +500,16 @@ def prepare_homeassistant_mqtt_reconfigure_handoff(
         "activation_blockers": gate["activation_blockers"],
     }
     serialized = _json_text(report)
-    for secret in (staged["username"], staged["password"], staged["required_client_id"], selected.host):
+    for secret in (
+        staged["username"],
+        staged["password"],
+        staged["required_client_id"],
+        selected.host,
+    ):
         if str(secret) in serialized:
-            raise HomeAssistantMqttReconfigureHandoffError("sanitized report contains secret material")
+            raise HomeAssistantMqttReconfigureHandoffError(
+                "sanitized report contains secret material"
+            )
     return report
 
 
@@ -452,7 +528,9 @@ def audit_homeassistant_mqtt_reconfigure_postcheck(
         or manifest.get("current_services_modified") is not False
     ):
         raise HomeAssistantMqttReconfigureHandoffError("handoff manifest is unsafe")
-    expected = _read_json(root / "homeassistant/reconfigure-values.json", "reconfigure values")
+    expected = _read_json(
+        root / "homeassistant/reconfigure-values.json", "reconfigure values"
+    )
     name = _homeassistant_name(command_runner)
     raw, storage = _storage(command_runner, name)
     entry = _mqtt_entry(storage)
@@ -460,19 +538,39 @@ def audit_homeassistant_mqtt_reconfigure_postcheck(
     options = entry.get("options") if isinstance(entry.get("options"), dict) else {}
     broker = data.get("broker", data.get("host"))
     matches = {
-        "broker": hmac.compare_digest(str(broker or ""), str(expected.get("broker", ""))),
+        "broker": hmac.compare_digest(
+            str(broker or ""), str(expected.get("broker", ""))
+        ),
         "port": data.get("port") == expected.get("port"),
-        "username": hmac.compare_digest(str(data.get("username") or ""), str(expected.get("username") or "")),
-        "password": hmac.compare_digest(str(data.get("password") or ""), str(expected.get("password") or "")),
-        "client_id": hmac.compare_digest(str(data.get("client_id") or ""), str(expected.get("client_id") or "")),
+        "username": hmac.compare_digest(
+            str(data.get("username") or ""), str(expected.get("username") or "")
+        ),
+        "password": hmac.compare_digest(
+            str(data.get("password") or ""), str(expected.get("password") or "")
+        ),
+        "client_id": hmac.compare_digest(
+            str(data.get("client_id") or ""), str(expected.get("client_id") or "")
+        ),
     }
-    pre = manifest.get("pre_change") if isinstance(manifest.get("pre_change"), dict) else {}
-    storage_changed = not hmac.compare_digest(_sha256_bytes(raw.encode()), str(pre.get("storage_sha256", "")))
+    pre = (
+        manifest.get("pre_change")
+        if isinstance(manifest.get("pre_change"), dict)
+        else {}
+    )
+    storage_changed = not hmac.compare_digest(
+        _sha256_bytes(raw.encode()), str(pre.get("storage_sha256", ""))
+    )
     entry_unchanged = _entry_fingerprint(entry) == pre.get("entry_fingerprint")
     discovery_preserved = options.get("discovery") is not False
     runtime = _runtime(command_runner, name)
     runtime_healthy = runtime["state"] == "running" and runtime["restart_count"] == 0
-    verified = all(matches.values()) and storage_changed and entry_unchanged and discovery_preserved and runtime_healthy
+    verified = (
+        all(matches.values())
+        and storage_changed
+        and entry_unchanged
+        and discovery_preserved
+        and runtime_healthy
+    )
     return {
         "schema": POSTCHECK_SCHEMA,
         "read_only": True,
@@ -501,7 +599,9 @@ def _candidate(value: str) -> BrokerCandidate:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Prepare or verify an official MQTT reconfigure handoff")
+    parser = argparse.ArgumentParser(
+        description="Prepare or verify an official MQTT reconfigure handoff"
+    )
     commands = parser.add_subparsers(dest="command", required=True)
     prepare = commands.add_parser("prepare")
     prepare.add_argument("stage_directory")
@@ -514,7 +614,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     prepare.add_argument("--candidate", action="append", type=_candidate, default=None)
     prepare.add_argument("--port", type=int, default=1883)
     prepare.add_argument("--allow-host-address-fallback", action="store_true")
-    prepare.add_argument("--compose-directory", default="/opt/HomeAssistant/infra/compose/t1")
+    prepare.add_argument(
+        "--compose-directory", default="/opt/HomeAssistant/infra/compose/t1"
+    )
     prepare.add_argument("--secret-root", default="/opt/greenhouse-secrets/mqtt")
     postcheck = commands.add_parser("postcheck")
     postcheck.add_argument("handoff_directory")
@@ -536,7 +638,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 secret_root=args.secret_root,
             )
         else:
-            report = audit_homeassistant_mqtt_reconfigure_postcheck(args.handoff_directory)
+            report = audit_homeassistant_mqtt_reconfigure_postcheck(
+                args.handoff_directory
+            )
     except (
         BackupError,
         HomeAssistantMqttReconfigureHandoffError,
@@ -544,7 +648,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         OSError,
         ValueError,
     ) as error:
-        print(f"T1 Home Assistant MQTT reconfigure handoff failed: {error}", file=sys.stderr)
+        print(
+            f"T1 Home Assistant MQTT reconfigure handoff failed: {error}",
+            file=sys.stderr,
+        )
         return 2
     json.dump(report, sys.stdout, ensure_ascii=False, separators=(",", ":"))
     sys.stdout.write("\n")
