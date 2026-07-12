@@ -421,7 +421,12 @@ def verify_production_driver_contract(
         "secret_values_in_argv": False,
     }
     for field, expected in controller_required.items():
-        if controller.get(field) is not expected:
+        actual = controller.get(field)
+        if isinstance(expected, bool):
+            matches = actual is expected
+        else:
+            matches = actual == expected
+        if not matches:
             raise BrokerIdentityProductionDriverContractError(
                 f"production driver runtime controller has drifted: {field}"
             )
