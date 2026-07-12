@@ -40,11 +40,12 @@ def test_help_is_non_mutating_and_documents_four_inputs() -> None:
 
 def test_packet_uses_authorization_request_only() -> None:
     content = _script().read_text(encoding="utf-8")
-    assert "activation_readiness_authorization.py\" \\\n  request" in content
+    assert "run_t1_broker_identity_activation_readiness_authorization.py" in content
+    assert 'request "$READINESS_BUNDLE"' in content
     assert "AUTHORIZATION_CREATED=false" in content
     assert "OPERATOR_DECISION_REQUIRED=true" in content
     assert "--confirmation" not in content
-    assert " authorization.py\" \\\n  create" not in content
+    assert 'create "$READINESS_BUNDLE"' not in content
 
 
 def test_packet_contains_no_live_mutation_command() -> None:
