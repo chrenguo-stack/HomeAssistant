@@ -67,7 +67,7 @@ class FakeSession:
         command = str(commands[0].get("command"))
         self.calls.append((f"execute:{command}", username))
         rejected = self.behavior.get("rejected_users", set())
-        if username in rejected:
+        if command == "listClients" and username in rejected:
             raise DynsecError("rejected")
         if command == "listClients":
             return ({"command": "listClients"},)
