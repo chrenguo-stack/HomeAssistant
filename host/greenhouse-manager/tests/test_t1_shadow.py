@@ -78,6 +78,9 @@ class ShadowDocker:
             self.password_init = (
                 config_directory / "dynsec-password-init"
             ).read_text(encoding="utf-8")
+            self.password_init_mode = (
+                config_directory / "dynsec-password-init"
+            ).stat().st_mode & 0o777
             (data_directory / "dynamic-security.json").write_text(
                 "{}\n", encoding="utf-8"
             )
@@ -195,6 +198,7 @@ def test_snapshot_candidate_is_isolated_and_keeps_secret_out_of_argv(
     assert password not in command_text
     assert f"-P {password}" in docker.control_config
     assert docker.password_init == password + "\n"
+    assert docker.password_init_mode == 0o644
     assert not any(command[:2] == ("docker", "run") for command, _ in docker.calls)
     assert any(
         command[:3] == ("docker", "create", "--network")
