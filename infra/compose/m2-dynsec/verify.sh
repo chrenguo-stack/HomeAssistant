@@ -27,4 +27,4 @@ compose down --volumes --remove-orphans >/dev/null 2>&1 || true
 compose up --detach --build
 compose exec -T tester python /verify.py
 
-echo "M2 Dynamic Security verified: identity binding, least privilege, isolation and revocation."
+echo "M2 Dynamic Security verified: service matrix, node isolation, rollback, rotation and legacy compatibility."
