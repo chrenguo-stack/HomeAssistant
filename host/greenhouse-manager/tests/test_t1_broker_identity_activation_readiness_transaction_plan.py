@@ -263,7 +263,11 @@ def test_rejects_authorization_bundle_binding_drift(tmp_path: Path) -> None:
 
 
 def test_rejects_plan_output_over_source_directory(tmp_path: Path) -> None:
-    authorization, bundle, _output = _fixture(tmp_path)
+    bundle_root = tmp_path / "greenhouse-m2-runtime-bindings-test"
+    source = tmp_path / "greenhouse-m2-activation-plans-source"
+    bundle = _write_private(bundle_root / "readiness.json", _bundle())
+    authorization = _write_private(source / "authorization.json", _authorization())
+
     with pytest.raises(
         BrokerIdentityActivationReadinessTransactionPlanError,
         match="must be separate from source artifacts",
@@ -271,7 +275,7 @@ def test_rejects_plan_output_over_source_directory(tmp_path: Path) -> None:
         build_activation_readiness_transaction_plan(
             authorization,
             bundle,
-            authorization.parent,
+            source,
             now=CREATED + timedelta(minutes=5),
             authorization_verifier=_authorization_verifier,
             bundle_verifier=_bundle_verifier,
