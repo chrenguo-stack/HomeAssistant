@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import re
 from dataclasses import dataclass
+from pathlib import Path
 
 _ID_RE = re.compile(r"^[A-Za-z0-9_-]{3,64}$")
 _DISCOVERY_PREFIX_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
@@ -18,6 +19,35 @@ def _env_bool(name: str, default: bool) -> bool:
     if normalized in {"0", "false", "no", "off"}:
         return False
     raise ValueError(f"{name} must be a boolean value")
+
+
+def _read_private_secret(name: str, raw_path: str) -> str:
+    path = Path(raw_path).expanduser()
+    if not path.is_absolute():
+        raise ValueError(f"{name} must be an absolute path")
+    if path.is_symlink() or not path.is_file():
+        raise ValueError(f"{name} must reference a regular non-symlink file")
+    if path.stat().st_mode & 0o077:
+        raise ValueError(f"{name} must not be accessible by group or other")
+    try:
+        value = path.read_text(encoding="utf-8").rstrip("\r\n")
+    except UnicodeError as error:
+        raise ValueError(f"{name} must contain UTF-8 text") from error
+    if not value or "\n" in value or "\r" in value or "\x00" in value:
+        raise ValueError(f"{name} must contain exactly one non-empty secret")
+    return value
+
+
+def _mqtt_password_from_env() -> str | None:
+    inline = os.getenv("GH_MQTT_PASSWORD") or None
+    password_file = os.getenv("GH_MQTT_PASSWORD_FILE") or None
+    if inline and password_file:
+        raise ValueError(
+            "GH_MQTT_PASSWORD and GH_MQTT_PASSWORD_FILE are mutually exclusive"
+        )
+    if password_file:
+        return _read_private_secret("GH_MQTT_PASSWORD_FILE", password_file)
+    return inline
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,7 +77,7 @@ class Settings:
             mqtt_host=os.getenv("GH_MQTT_HOST", "mosquitto"),
             mqtt_port=int(os.getenv("GH_MQTT_PORT", "1883")),
             mqtt_username=os.getenv("GH_MQTT_USERNAME") or None,
-            mqtt_password=os.getenv("GH_MQTT_PASSWORD") or None,
+            mqtt_password=_mqtt_password_from_env(),
             mqtt_tls=_env_bool("GH_MQTT_TLS", False),
             mqtt_ca_file=os.getenv("GH_MQTT_CA_FILE") or None,
             mqtt_client_id=os.getenv("GH_MQTT_CLIENT_ID", "greenhouse-manager"),
@@ -78,7 +108,9 @@ class Settings:
         if self.dedup_capacity < 128:
             raise ValueError("GH_DEDUP_CAPACITY must be at least 128")
         if bool(self.mqtt_username) != bool(self.mqtt_password):
-            raise ValueError("GH_MQTT_USERNAME and GH_MQTT_PASSWORD must be configured together")
+            raise ValueError(
+                "GH_MQTT_USERNAME and the configured MQTT password must be set together"
+            )
         if self.mqtt_tls and not self.mqtt_ca_file:
             raise ValueError("GH_MQTT_CA_FILE is required when GH_MQTT_TLS=true")
         if not _DISCOVERY_PREFIX_RE.fullmatch(self.ha_discovery_prefix):
@@ -86,6 +118,8 @@ class Settings:
         if not self.ha_device_name_prefix.strip():
             raise ValueError("GH_HA_DEVICE_NAME_PREFIX cannot be empty")
         if self.pairing_intake_enabled and not self.pairing_db_path.strip():
-            raise ValueError("GH_PAIRING_DB_PATH cannot be empty when pairing intake is enabled")
+            raise ValueError(
+                "GH_PAIRING_DB_PATH cannot be empty when pairing intake is enabled"
+            )
         if not 30 <= self.pairing_pending_ttl_s <= 600:
             raise ValueError("GH_PAIRING_PENDING_TTL_S must be between 30 and 600 seconds")
