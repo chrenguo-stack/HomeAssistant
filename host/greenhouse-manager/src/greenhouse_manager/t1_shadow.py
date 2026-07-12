@@ -263,8 +263,10 @@ def run_shadow_candidate(
         data_stat = data_dir.stat()
         password_init_path = config_dir / "dynsec-password-init"
         password_init_path.write_text(admin_password + "\n", encoding="utf-8")
-        os.chown(password_init_path, data_stat.st_uid, data_stat.st_gid)
-        password_init_path.chmod(0o600)
+        # Mosquitto drops privileges before the plugin reads this file. The
+        # 0700 temporary parent and isolated bind mount remain the security
+        # boundary; 0644 avoids guessing the image's runtime uid/gid.
+        password_init_path.chmod(0o644)
 
         create_command = (
             "docker",
