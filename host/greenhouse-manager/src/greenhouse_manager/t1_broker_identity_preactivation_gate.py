@@ -45,7 +45,9 @@ def _live_readiness(report: dict[str, object]) -> dict[str, Any]:
     }
     for field, expected in required.items():
         if report.get(field) != expected:
-            raise BrokerIdentityActivationCheckError(f"client migration audit failed: {field}")
+            raise BrokerIdentityActivationCheckError(
+                f"client migration audit failed: {field}"
+            )
     live = report.get("live_readiness")
     if not isinstance(live, dict) or live.get("ready") is not True:
         raise BrokerIdentityActivationCheckError("live readiness is not passing")
@@ -62,7 +64,9 @@ def _live_readiness(report: dict[str, object]) -> dict[str, Any]:
         "no_candidate_containers",
     )
     if any(gates.get(field) is not True for field in required_gates):
-        raise BrokerIdentityActivationCheckError("live Broker is not in the required preactivation state")
+        raise BrokerIdentityActivationCheckError(
+            "live Broker is not in the required preactivation state"
+        )
     return live
 
 
@@ -85,20 +89,28 @@ def _official_reconfigure(
     }
     for field, expected in required.items():
         if report.get(field) != expected:
-            raise BrokerIdentityActivationCheckError(f"Home Assistant target gate failed: {field}")
+            raise BrokerIdentityActivationCheckError(
+                f"Home Assistant target gate failed: {field}"
+            )
     if (
         report.get("selected_target_kind") != target_kind
         or report.get("selected_target_fingerprint") != target_fingerprint
     ):
-        raise BrokerIdentityActivationCheckError("Home Assistant target binding drifted")
+        raise BrokerIdentityActivationCheckError(
+            "Home Assistant target binding drifted"
+        )
     official = report.get("homeassistant_official_reconfigure")
     if not isinstance(official, dict):
-        raise BrokerIdentityActivationCheckError("Home Assistant official reconfigure details are missing")
+        raise BrokerIdentityActivationCheckError(
+            "Home Assistant official reconfigure details are missing"
+        )
     if (
         official.get("pre_change_entry_fingerprint") != entry_fingerprint
         or official.get("pre_change_storage_sha256") != storage_sha256
     ):
-        raise BrokerIdentityActivationCheckError("Home Assistant config-entry binding drifted")
+        raise BrokerIdentityActivationCheckError(
+            "Home Assistant config-entry binding drifted"
+        )
     return official
 
 
@@ -127,9 +139,9 @@ def build_broker_identity_preactivation_gate(
     stage = manifest.get("stage")
     if not isinstance(stage, dict):
         raise BrokerIdentityActivationCheckError("handoff stage binding is missing")
-    if stage.get("name") != stage_root.name or stage.get("manifest_sha256") != sha256_path(
-        stage_root / "stage-manifest.json"
-    ):
+    if stage.get("name") != stage_root.name or stage.get(
+        "manifest_sha256"
+    ) != sha256_path(stage_root / "stage-manifest.json"):
         raise BrokerIdentityActivationCheckError("migration stage binding drifted")
 
     audit = audit_builder(
@@ -143,7 +155,9 @@ def build_broker_identity_preactivation_gate(
     live = _live_readiness(audit)
     broker = live["broker"]
     live_sha = broker.get("live_config_sha256")
-    if live_sha != stage.get("broker_config_sha256") or live_sha != plan.get("live_broker_config_sha256"):
+    if live_sha != stage.get("broker_config_sha256") or live_sha != plan.get(
+        "live_broker_config_sha256"
+    ):
         raise BrokerIdentityActivationCheckError("live Broker config binding drifted")
 
     target = target_builder(
@@ -162,7 +176,9 @@ def build_broker_identity_preactivation_gate(
     )
     runtime = runtime_summary(command_runner)
     if not runtime_healthy(runtime):
-        raise BrokerIdentityActivationCheckError("required service runtime is not healthy")
+        raise BrokerIdentityActivationCheckError(
+            "required service runtime is not healthy"
+        )
     checks = {
         "handoff_verified": True,
         "stage_binding_unchanged": True,
