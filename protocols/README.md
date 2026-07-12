@@ -28,10 +28,11 @@
 20. `pairing/gh-t1-broker-identity-activation-readiness-transaction-plan-v1.md`：M2.4g-5p Draft，将有效授权与 readiness bundle 再绑定为不可执行的私有事务计划，冻结未来 claim、journal、postactivation 与 rollback 顺序。
 21. `pairing/gh-t1-broker-identity-production-transaction-adapter-contract-v1.md`：M2.4g-5q Draft，冻结生产事务 adapter 清单、阶段顺序、Docker allowlist、原子文件事务、进程内 MQTT 与强制回退合同；仍不安装 adapter 或提供 live apply。
 22. `pairing/gh-t1-broker-identity-activation-decision-packet-v1.md`：M2.4g-5r Draft，以单个只读流程刷新真实 T1 的全部易漂移绑定并输出 readiness bundle 与精确授权确认字符串；不会创建授权或修改服务。
-23. `discovery/gh-discovery-v1.md`：待冻结 mDNS、UDP 回退、重试和多主机处理；M2.0 pairing Draft 已给出最小发现依赖。
-24. `state/gh-path-lease-v1.md`：待冻结直连/中继路径租约、去重和切换滞回。
-25. `state/gh-availability-v1.md`：待将 M1 已验证行为整理为独立协议。
-26. `transport/gh-radio-frame-v1.md`：待冻结 ESP-NOW 与 LoRa 紧凑帧、认证和序列规则。
+23. `pairing/gh-t1-broker-identity-production-transaction-adapters-v1.md`：M2.4g-5s Draft，实现严格绑定的宿主机 config/data 快照、原子变更与完整回退 adapter；尚无 live CLI、授权 claim 或默认生产 driver。
+24. `discovery/gh-discovery-v1.md`：待冻结 mDNS、UDP 回退、重试和多主机处理；M2.0 pairing Draft 已给出最小发现依赖。
+25. `state/gh-path-lease-v1.md`：待冻结直连/中继路径租约、去重和切换滞回。
+26. `state/gh-availability-v1.md`：待将 M1 已验证行为整理为独立协议。
+27. `transport/gh-radio-frame-v1.md`：待冻结 ESP-NOW 与 LoRa 紧凑帧、认证和序列规则。
 
 ## 变更规则
 
