@@ -31,8 +31,7 @@ greenhouse-manager-t1-migration-rehearsal = "greenhouse_manager.t1_migration_reh
 greenhouse-manager-t1-migration-readiness = "greenhouse_manager.t1_migration_readiness_live:main"
 
 [tool.setuptools]
-package-dir = {"" = "src"
-}
+package-dir = {"" = "src"}
 include-package-data = true
 
 [tool.setuptools.packages.find]
