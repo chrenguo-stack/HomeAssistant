@@ -14,12 +14,17 @@ from greenhouse_manager.dynsec_api import (
     PahoDynsecTransport,
     baseline_commands,
     create_client_command,
+    create_role_command,
     legacy_anonymous_shadow_commands,
     set_client_password_command,
 )
 from greenhouse_manager.dynsec_plan import (
     build_node_provisioning_plan,
     generate_node_credentials,
+)
+from greenhouse_manager.service_identity_plan import (
+    build_service_identity_plan,
+    generate_service_credentials,
 )
 
 
@@ -64,6 +69,27 @@ def test_client_command_binds_role_and_client_id() -> None:
     assert command["username"] == "ghn_gh-n1-a9f2f8"
     assert command["clientid"] == "gh-n1-a9f2f8"
     assert command["roles"] == [{"rolename": plan.role_name, "priority": 100}]
+
+
+@pytest.mark.parametrize("service", ["provisioning", "manager", "homeassistant"])
+def test_service_identity_uses_same_transactional_api(service: str) -> None:
+    plan = build_service_identity_plan(
+        system_id="greenhouse",
+        service=service,  # type: ignore[arg-type]
+        generation=1,
+    )
+    credentials = generate_service_credentials(
+        plan, random_bytes=lambda size: bytes(range(size))
+    )
+
+    role = create_role_command(plan)
+    client = create_client_command(plan, credentials)
+
+    assert role["rolename"] == plan.role_name
+    assert role["acls"]
+    assert client["username"] == plan.username
+    assert client["clientid"] == plan.client_id
+    assert credentials.password not in repr(credentials)
 
 
 def test_legacy_anonymous_shadow_preserves_apps_but_denies_control() -> None:
