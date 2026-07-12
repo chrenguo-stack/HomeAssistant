@@ -5,6 +5,7 @@ from dataclasses import asdict
 import pytest
 
 from greenhouse_manager.dynsec_plan import (
+    DynsecAcl,
     build_node_provisioning_plan,
     generate_node_credentials,
 )
@@ -61,6 +62,33 @@ def test_generates_256_bit_password_without_repr_leak() -> None:
     assert credentials.password not in repr(credentials)
     assert "<redacted>" in repr(credentials)
     assert "password" not in asdict(plan)
+
+
+@pytest.mark.parametrize(
+    "topic",
+    [
+        "homeassistant/binary_sensor/+_connectivity/config",
+        "gh/#/invalid",
+        "room/%c_suffix/temperature",
+    ],
+)
+def test_rejects_nonportable_acl_topic_filters(topic: str) -> None:
+    with pytest.raises(ValueError):
+        DynsecAcl("publishClientSend", topic, True, 100)
+
+
+@pytest.mark.parametrize(
+    "topic",
+    [
+        "homeassistant/binary_sensor/+/config",
+        "gh/v1/greenhouse/#",
+        "room/%c/temperature",
+    ],
+)
+def test_accepts_standard_acl_topic_filters(topic: str) -> None:
+    acl = DynsecAcl("publishClientSend", topic, True, 100)
+
+    assert acl.topic == topic
 
 
 @pytest.mark.parametrize(
