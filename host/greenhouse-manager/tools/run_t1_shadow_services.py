@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import sys
 from pathlib import Path
 
@@ -8,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "src"
 sys.path.insert(0, str(SOURCE))
 
-from greenhouse_manager.t1_shadow_services import main  # noqa: E402
+main = importlib.import_module("greenhouse_manager.t1_shadow_services").main
 
 
 if __name__ == "__main__":
