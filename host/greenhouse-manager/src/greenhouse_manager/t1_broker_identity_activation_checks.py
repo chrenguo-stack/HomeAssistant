@@ -81,7 +81,9 @@ def container_runtime(runner: Runner, name: str) -> dict[str, object]:
             f"container inspection returned invalid JSON: {name}"
         ) from error
     if not isinstance(value, dict):
-        raise BrokerIdentityActivationCheckError(f"container inspection is invalid: {name}")
+        raise BrokerIdentityActivationCheckError(
+            f"container inspection is invalid: {name}"
+        )
     return {
         "state": str(value.get("state", "unknown")),
         "restart_count": int(value.get("restarts", -1)),
@@ -91,12 +93,16 @@ def container_runtime(runner: Runner, name: str) -> dict[str, object]:
 
 def runtime_summary(runner: Runner) -> dict[str, dict[str, object]]:
     return {
-        name: container_runtime(runner, name) for name in ("mosquitto", "greenhouse-manager", "homeassistant")
+        name: container_runtime(runner, name)
+        for name in ("mosquitto", "greenhouse-manager", "homeassistant")
     }
 
 
 def runtime_healthy(runtime: dict[str, dict[str, object]]) -> bool:
-    return all(item.get("state") == "running" and item.get("restart_count") == 0 for item in runtime.values())
+    return all(
+        item.get("state") == "running" and item.get("restart_count") == 0
+        for item in runtime.values()
+    )
 
 
 def validated_handoff(
@@ -115,7 +121,9 @@ def validated_handoff(
     }
     for field, expected in required.items():
         if verified.get(field) != expected:
-            raise BrokerIdentityActivationCheckError(f"activation handoff verification failed: {field}")
+            raise BrokerIdentityActivationCheckError(
+                f"activation handoff verification failed: {field}"
+            )
     manifest = read_json(root / "manifest.json", "activation handoff manifest")
     plan = read_json(root / "activation-plan.json", "activation handoff plan")
     if (
