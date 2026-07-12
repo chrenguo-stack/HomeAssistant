@@ -7,6 +7,23 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 _ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{3,64}$")
+_PATTERN_SUBSTITUTIONS = ("%c", "%u")
+
+
+def _validate_topic_filter(topic: str) -> None:
+    if not topic:
+        raise ValueError("ACL topic filter must not be empty")
+    levels = topic.split("/")
+    for index, level in enumerate(levels):
+        if "+" in level and level != "+":
+            raise ValueError("MQTT + wildcard must occupy an entire topic level")
+        if "#" in level and (level != "#" or index != len(levels) - 1):
+            raise ValueError("MQTT # wildcard must occupy the final topic level")
+        for substitution in _PATTERN_SUBSTITUTIONS:
+            if substitution in level and level != substitution:
+                raise ValueError(
+                    f"Dynamic Security {substitution} substitution must occupy an entire topic level"
+                )
 
 
 @dataclass(frozen=True, slots=True)
@@ -15,6 +32,9 @@ class DynsecAcl:
     topic: str
     allow: bool
     priority: int
+
+    def __post_init__(self) -> None:
+        _validate_topic_filter(self.topic)
 
 
 @dataclass(frozen=True, slots=True)
