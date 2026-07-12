@@ -138,8 +138,7 @@ def _fixture(tmp_path: Path) -> dict[str, object]:
             "-h 127.0.0.1\n-u admin\n-P bootstrap-password\n-i admin-client\n-V 5\n"
         ),
         "material/provisioning/mosquitto-client.conf": (
-            "-h 127.0.0.1\n-u provisioning\n-P provisioning-password\n"
-            "-i provisioning-client\n-V 5\n"
+            "-h 127.0.0.1\n-u provisioning\n-P provisioning-password\n-i provisioning-client\n-V 5\n"
         ),
         "material/homeassistant/mqtt-update.json": json.dumps(
             {
@@ -327,3 +326,69 @@ def test_rejects_symlink_in_live_tree(tmp_path: Path) -> None:
         match="snapshot source contains a symlink",
     ):
         _adapters(fixture).prepare()
+
+
+def test_snapshot_copy_retries_until_source_inventory_is_stable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from greenhouse_manager import (
+        t1_broker_identity_production_transaction_adapters as adapter_module,
+    )
+
+    source = tmp_path / "source"
+    source.mkdir()
+    value = source / "value.bin"
+    value.write_bytes(b"first")
+    destination = tmp_path / "snapshot"
+    original = adapter_module._record_tree
+    source_calls = 0
+
+    def changing_record(root: Path):
+        nonlocal source_calls
+        records = original(root)
+        if root == source and source_calls == 0:
+            value.write_bytes(b"second")
+        if root == source:
+            source_calls += 1
+        return records
+
+    monkeypatch.setattr(adapter_module, "_record_tree", changing_record)
+    inventory = adapter_module._copy_snapshot(source, destination)
+
+    assert source_calls >= 4
+    assert inventory == original(source)
+    assert (destination / "value.bin").read_bytes() == b"second"
+
+
+def test_snapshot_copy_fails_closed_when_source_never_stabilizes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from greenhouse_manager import (
+        t1_broker_identity_production_transaction_adapters as adapter_module,
+    )
+
+    source = tmp_path / "source"
+    source.mkdir()
+    value = source / "value.bin"
+    value.write_bytes(b"0")
+    destination = tmp_path / "snapshot"
+    original = adapter_module._record_tree
+    counter = 0
+
+    def always_changing(root: Path):
+        nonlocal counter
+        records = original(root)
+        if root == source:
+            counter += 1
+            value.write_bytes(str(counter).encode())
+        return records
+
+    monkeypatch.setattr(adapter_module, "_record_tree", always_changing)
+    with pytest.raises(
+        adapter_module.BrokerIdentityProductionTransactionAdaptersError,
+        match="stable, verified inventory",
+    ):
+        adapter_module._copy_snapshot(source, destination, max_attempts=2)
+    assert not destination.exists()
