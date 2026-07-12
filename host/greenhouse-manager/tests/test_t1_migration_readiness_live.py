@@ -62,39 +62,56 @@ def _builder_for(report: dict[str, object]):
     return build
 
 
+def _labels(
+    project: str,
+    working_dir: Path,
+    config_files: str,
+) -> dict[str, str]:
+    return {
+        "com.docker.compose.project": project,
+        "com.docker.compose.project.working_dir": str(working_dir),
+        "com.docker.compose.project.config_files": config_files,
+    }
+
+
+def _run(
+    tmp_path: Path,
+    runner: LabelRunner,
+    requested: Path | None = None,
+    report: dict[str, object] | None = None,
+) -> dict[str, object]:
+    requested_directory = requested or tmp_path / "unused"
+    return build_live_readiness_report(
+        tmp_path / "rollback.tar.gz",
+        tmp_path / "migration.tar.gz",
+        compose_directory=requested_directory,
+        expected_retained_topic="gh/v1/greenhouse/state/node/telemetry",
+        runner=runner,
+        base_builder=_builder_for(
+            report or _base_report(requested_directory)
+        ),
+    )
+
+
 def test_discovers_nonstandard_compose_filename_from_live_labels(
     tmp_path: Path,
 ) -> None:
-    requested = tmp_path / "requested"
     working = tmp_path / "live-stack"
-    requested.mkdir()
     working.mkdir()
     config = working / "greenhouse.t1.stack.yaml"
     config.write_text("services: {}\n", encoding="utf-8")
     env = working / ".env"
     env.write_text("LOCAL_ONLY=value\n", encoding="utf-8")
     env.chmod(0o600)
-    labels = {
-        "com.docker.compose.project": "greenhouse",
-        "com.docker.compose.project.working_dir": str(working),
-        "com.docker.compose.project.config_files": str(config),
-    }
+    labels = _labels("greenhouse", working, str(config))
     runner = LabelRunner(
         {
             "mosquitto": labels,
             "greenhouse-manager": labels,
         }
     )
-    report = _base_report(requested)
 
-    result = build_live_readiness_report(
-        tmp_path / "rollback.tar.gz",
-        tmp_path / "migration.tar.gz",
-        compose_directory=requested,
-        expected_retained_topic="gh/v1/greenhouse/state/node/telemetry",
-        runner=runner,
-        base_builder=_builder_for(report),
-    )
+    result = _run(tmp_path, runner)
 
     assert result["ready"] is True
     assert result["gates"]["compose_metadata_consistent"] is True
@@ -106,23 +123,156 @@ def test_discovers_nonstandard_compose_filename_from_live_labels(
     assert result["compose"]["directory"] == str(working.resolve())
     assert result["compose"]["files"][0]["path"] == str(config.resolve())
     assert result["compose"]["env"]["mode"] == "600"
+    assert len(result["compose"]["deployments"]) == 1
 
 
-def test_resolves_relative_compose_config_against_working_directory(
+def test_same_source_allows_project_and_path_form_differences(
     tmp_path: Path,
 ) -> None:
     working = tmp_path / "stack"
     working.mkdir()
-    config = working / "deployment.t1.yml"
+    config = working / "greenhouse-stack.yml"
     config.write_text("services: {}\n", encoding="utf-8")
-    env = working / ".env"
-    env.write_text("LOCAL_ONLY=value\n", encoding="utf-8")
-    env.chmod(0o600)
-    labels = {
-        "com.docker.compose.project": "greenhouse",
-        "com.docker.compose.project.working_dir": str(working),
-        "com.docker.compose.project.config_files": config.name,
+    runner = LabelRunner(
+        {
+            "mosquitto": _labels(
+                "greenhouse-broker",
+                working,
+                str(config),
+            ),
+            "greenhouse-manager": _labels(
+                "greenhouse-manager",
+                working / ".",
+                config.name,
+            ),
+        }
+    )
+
+    result = _run(tmp_path, runner)
+
+    assert result["ready"] is True
+    assert result["compose"]["project"] is None
+    assert result["compose"]["projects"] == [
+        "greenhouse-broker",
+        "greenhouse-manager",
+    ]
+    assert len(result["compose"]["deployments"]) == 1
+    assert result["compose"]["deployments"][0]["containers"] == [
+        "greenhouse-manager",
+        "mosquitto",
+    ]
+    assert result["compose"]["deployments"][0]["env"]["exists"] is False
+
+
+def test_independent_compose_projects_are_valid_inventory(
+    tmp_path: Path,
+) -> None:
+    broker = tmp_path / "ha_docker"
+    manager = tmp_path / "t1"
+    broker.mkdir()
+    manager.mkdir()
+    broker_config = broker / "docker-compose.yml"
+    manager_config = manager / "docker-compose.manager.yml"
+    broker_config.write_text("services: {}\n", encoding="utf-8")
+    manager_config.write_text("services: {}\n", encoding="utf-8")
+    manager_env = manager / ".env"
+    manager_env.write_text("LOCAL_ONLY=value\n", encoding="utf-8")
+    manager_env.chmod(0o600)
+    runner = LabelRunner(
+        {
+            "mosquitto": _labels(
+                "ha_docker",
+                broker,
+                str(broker_config),
+            ),
+            "greenhouse-manager": _labels(
+                "t1",
+                manager,
+                manager_config.name,
+            ),
+        }
+    )
+
+    result = _run(tmp_path, runner)
+
+    assert result["ready"] is True
+    assert result["gates"]["compose_metadata_consistent"] is True
+    assert result["gates"]["compose_directory_present"] is True
+    assert result["gates"]["compose_configuration_present"] is True
+    assert result["gates"]["compose_env_private"] is True
+    assert result["compose"]["projects"] == ["ha_docker", "t1"]
+    assert result["compose"]["directory"] is None
+    assert result["compose"]["files"] == []
+    assert result["compose"]["env"] is None
+    assert len(result["compose"]["deployments"]) == 2
+    deployments = {
+        item["directory"]: item
+        for item in result["compose"]["deployments"]
     }
+    assert deployments[str(broker.resolve())]["containers"] == ["mosquitto"]
+    assert deployments[str(broker.resolve())]["env"]["exists"] is False
+    assert deployments[str(manager.resolve())]["containers"] == [
+        "greenhouse-manager"
+    ]
+    assert deployments[str(manager.resolve())]["env"]["mode"] == "600"
+
+
+def test_existing_non_private_env_is_the_only_compose_failure(
+    tmp_path: Path,
+) -> None:
+    broker = tmp_path / "ha_docker"
+    manager = tmp_path / "t1"
+    broker.mkdir()
+    manager.mkdir()
+    broker_config = broker / "docker-compose.yml"
+    manager_config = manager / "docker-compose.manager.yml"
+    broker_config.write_text("services: {}\n", encoding="utf-8")
+    manager_config.write_text("services: {}\n", encoding="utf-8")
+    manager_env = manager / ".env"
+    manager_env.write_text("LOCAL_ONLY=value\n", encoding="utf-8")
+    manager_env.chmod(0o644)
+    runner = LabelRunner(
+        {
+            "mosquitto": _labels(
+                "ha_docker",
+                broker,
+                str(broker_config),
+            ),
+            "greenhouse-manager": _labels(
+                "t1",
+                manager,
+                manager_config.name,
+            ),
+        }
+    )
+
+    result = _run(tmp_path, runner)
+
+    false_gates = sorted(
+        key
+        for key, value in result["gates"].items()
+        if value is not True
+    )
+    assert result["ready"] is False
+    assert false_gates == ["compose_env_private"]
+    assert result["compose"]["metadata_consistent"] is True
+    non_private = [
+        item["env"]
+        for item in result["compose"]["deployments"]
+        if item["env"]["exists"] and item["env"]["mode"] != "600"
+    ]
+    assert len(non_private) == 1
+    assert non_private[0]["path"] == str(manager_env.resolve())
+    assert non_private[0]["mode"] == "644"
+
+
+def test_missing_config_file_blocks_configuration_gate(
+    tmp_path: Path,
+) -> None:
+    working = tmp_path / "stack"
+    working.mkdir()
+    missing = working / "missing.yml"
+    labels = _labels("greenhouse", working, missing.name)
     runner = LabelRunner(
         {
             "mosquitto": labels,
@@ -130,109 +280,32 @@ def test_resolves_relative_compose_config_against_working_directory(
         }
     )
 
-    result = build_live_readiness_report(
-        tmp_path / "rollback.tar.gz",
-        tmp_path / "migration.tar.gz",
-        compose_directory=tmp_path / "unused",
-        expected_retained_topic="gh/v1/greenhouse/state/node/telemetry",
-        runner=runner,
-        base_builder=_builder_for(_base_report(tmp_path / "unused")),
-    )
+    result = _run(tmp_path, runner)
 
-    assert result["ready"] is True
-    assert result["compose"]["files"][0]["path"] == str(config.resolve())
+    assert result["ready"] is False
+    assert result["gates"]["compose_metadata_consistent"] is True
+    assert result["gates"]["compose_directory_present"] is True
+    assert result["gates"]["compose_configuration_present"] is False
 
 
-def test_normalized_source_allows_project_name_and_path_form_differences(
-    tmp_path: Path,
-) -> None:
+def test_incomplete_labels_block_metadata_gate(tmp_path: Path) -> None:
     working = tmp_path / "stack"
     working.mkdir()
-    config = working / "greenhouse-stack.yml"
-    config.write_text("services: {}\n", encoding="utf-8")
-    env = working / ".env"
-    env.write_text("LOCAL_ONLY=value\n", encoding="utf-8")
-    env.chmod(0o600)
-    mosquitto_labels = {
-        "com.docker.compose.project": "greenhouse-broker",
-        "com.docker.compose.project.working_dir": str(working),
-        "com.docker.compose.project.config_files": str(config),
-    }
-    manager_labels = {
-        "com.docker.compose.project": "greenhouse-manager",
-        "com.docker.compose.project.working_dir": str(working / "."),
-        "com.docker.compose.project.config_files": config.name,
-    }
     runner = LabelRunner(
         {
-            "mosquitto": mosquitto_labels,
-            "greenhouse-manager": manager_labels,
+            "mosquitto": _labels("greenhouse", working, "stack.yml"),
+            "greenhouse-manager": {
+                "com.docker.compose.project": "greenhouse-manager",
+                "com.docker.compose.project.working_dir": str(working),
+            },
         }
     )
 
-    result = build_live_readiness_report(
-        tmp_path / "rollback.tar.gz",
-        tmp_path / "migration.tar.gz",
-        compose_directory=tmp_path / "unused",
-        expected_retained_topic="gh/v1/greenhouse/state/node/telemetry",
-        runner=runner,
-        base_builder=_builder_for(_base_report(tmp_path / "unused")),
-    )
-
-    assert result["ready"] is True
-    assert result["gates"]["compose_metadata_consistent"] is True
-    assert result["compose"]["project"] is None
-    assert result["compose"]["projects"] == [
-        "greenhouse-broker",
-        "greenhouse-manager",
-    ]
-    assert result["compose"]["directory"] == str(working.resolve())
-    assert result["compose"]["files"][0]["path"] == str(config.resolve())
-    assert result["compose"]["container_sources"]["mosquitto"][
-        "complete"
-    ] is True
-    assert result["compose"]["container_sources"]["greenhouse-manager"][
-        "complete"
-    ] is True
-
-
-def test_disagreeing_normalized_compose_sources_block_readiness(
-    tmp_path: Path,
-) -> None:
-    first = {
-        "com.docker.compose.project": "greenhouse",
-        "com.docker.compose.project.working_dir": "/opt/stack-a",
-        "com.docker.compose.project.config_files": "stack.yml",
-    }
-    second = {
-        **first,
-        "com.docker.compose.project.working_dir": "/opt/stack-b",
-    }
-    runner = LabelRunner(
-        {
-            "mosquitto": first,
-            "greenhouse-manager": second,
-        }
-    )
-
-    result = build_live_readiness_report(
-        tmp_path / "rollback.tar.gz",
-        tmp_path / "migration.tar.gz",
-        compose_directory=tmp_path / "requested",
-        expected_retained_topic="gh/v1/greenhouse/state/node/telemetry",
-        runner=runner,
-        base_builder=_builder_for(_base_report(tmp_path / "requested")),
-    )
+    result = _run(tmp_path, runner)
 
     assert result["ready"] is False
     assert result["gates"]["compose_metadata_consistent"] is False
-    assert result["compose"]["metadata_reason"] == "compose_sources_disagree"
-    assert result["compose"]["container_sources"]["mosquitto"][
-        "directory"
-    ] == "/opt/stack-a"
-    assert result["compose"]["container_sources"]["greenhouse-manager"][
-        "directory"
-    ] == "/opt/stack-b"
+    assert result["compose"]["metadata_reason"] == "compose_labels_incomplete"
 
 
 def test_falls_back_to_requested_directory_when_labels_are_absent(
@@ -271,13 +344,11 @@ def test_falls_back_to_requested_directory_when_labels_are_absent(
         fallback_env=fallback_env,
     )
 
-    result = build_live_readiness_report(
-        tmp_path / "rollback.tar.gz",
-        tmp_path / "migration.tar.gz",
-        compose_directory=requested,
-        expected_retained_topic="gh/v1/greenhouse/state/node/telemetry",
-        runner=runner,
-        base_builder=_builder_for(report),
+    result = _run(
+        tmp_path,
+        runner,
+        requested=requested,
+        report=report,
     )
 
     assert result["ready"] is True
