@@ -43,7 +43,41 @@ def test_shadow_service_module_imports_without_paho() -> None:
     assert completed.returncode == 0, completed.stderr
 
 
-def test_no_install_launcher_help() -> None:
+def test_migration_package_module_imports_without_paho() -> None:
+    project = Path(__file__).resolve().parents[1]
+    script = textwrap.dedent(
+        """
+        import importlib.abc
+        import sys
+
+        class BlockPaho(importlib.abc.MetaPathFinder):
+            def find_spec(self, fullname, path=None, target=None):
+                if fullname == "paho" or fullname.startswith("paho."):
+                    raise ModuleNotFoundError("blocked for no-install host test", name=fullname)
+                return None
+
+        sys.meta_path.insert(0, BlockPaho())
+
+        from greenhouse_manager.t1_migration_package import PACKAGE_SCHEMA
+
+        assert PACKAGE_SCHEMA == "gh.m2.t1-auth-migration/1"
+        """
+    )
+    environment = os.environ.copy()
+    environment["PYTHONPATH"] = str(project / "src")
+    completed = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=project,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+
+
+def test_no_install_shadow_launcher_help() -> None:
     project = Path(__file__).resolve().parents[1]
     completed = subprocess.run(
         [sys.executable, "tools/run_t1_shadow_services.py", "--help"],
@@ -55,3 +89,17 @@ def test_no_install_launcher_help() -> None:
 
     assert completed.returncode == 0, completed.stderr
     assert "expected-retained-topic" in completed.stdout
+
+
+def test_no_install_migration_package_launcher_help() -> None:
+    project = Path(__file__).resolve().parents[1]
+    completed = subprocess.run(
+        [sys.executable, "tools/run_t1_migration_package.py", "--help"],
+        cwd=project,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert "output_directory" in completed.stdout
