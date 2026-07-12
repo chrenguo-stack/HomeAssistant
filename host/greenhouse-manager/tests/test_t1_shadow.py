@@ -91,8 +91,8 @@ class ShadowDocker:
             self.control_config = Path(command[3]).read_text(encoding="utf-8")
             return (0, "")
         if command[:3] == ("docker", "exec", "shadow-container-id"):
-            if command[-2:] == ("getClient", "gh-shadow-forbidden-canary"):
-                return (1, "client not found")
+            if command[-1:] == ("listClients",):
+                return (0, "admin\ndemoclient\n")
             if command[3] == "mosquitto_sub":
                 return (0, command[-1] + "\n")
             return (0, "")
@@ -149,6 +149,7 @@ def test_legacy_policy_dependency_order_and_control_deny() -> None:
         "publishClientSend",
         "$CONTROL/#",
         "deny",
+        "1000",
     ) in commands
     assert (
         "addRoleACL",
@@ -156,6 +157,7 @@ def test_legacy_policy_dependency_order_and_control_deny() -> None:
         "subscribePattern",
         "#",
         "allow",
+        "100",
     ) in commands
     assert not any(
         command[0] == "addRoleACL"
