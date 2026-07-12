@@ -45,12 +45,8 @@ def _canonical_json(value: Any) -> str:
     )
 
 
-def _sha256_bytes(value: bytes) -> str:
-    return hashlib.sha256(value).hexdigest()
-
-
 def _sha256_text(value: str) -> str:
-    return _sha256_bytes(value.encode("utf-8"))
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
 def _sha256_path(path: Path) -> str:
@@ -122,7 +118,7 @@ def _atomic_private_write(path: Path, value: str) -> None:
         raise
 
 
-def _private_output_directory(path: Path) -> Path:
+def _output_candidate(path: Path) -> Path:
     if not path.name.startswith(_OUTPUT_PREFIX):
         raise BrokerIdentityRuntimeBindingManifestError(
             "runtime binding output directory name is not allowed"
@@ -131,8 +127,11 @@ def _private_output_directory(path: Path) -> Path:
         raise BrokerIdentityRuntimeBindingManifestError(
             "runtime binding output directory is unsafe"
         )
+    return path.resolve()
+
+
+def _ensure_private_output(path: Path) -> Path:
     path.mkdir(parents=True, exist_ok=True, mode=0o700)
-    path = path.resolve()
     if path.is_symlink() or path.stat().st_mode & 0o077:
         raise BrokerIdentityRuntimeBindingManifestError(
             "runtime binding output directory must be private"
@@ -266,8 +265,7 @@ def _runtime_identity(document: dict[str, Any]) -> dict[str, object]:
         raise BrokerIdentityRuntimeBindingManifestError(
             "live Mosquitto is not running"
         )
-    restart_count = document.get("RestartCount")
-    if restart_count != 0:
+    if document.get("RestartCount") != 0:
         raise BrokerIdentityRuntimeBindingManifestError(
             "live Mosquitto restart count is not zero"
         )
@@ -457,12 +455,16 @@ def capture_runtime_binding_manifest(
             "live host Dynamic Security state already exists"
         )
 
-    output = _private_output_directory(Path(output_directory).expanduser())
+    output_candidate = _output_candidate(Path(output_directory).expanduser())
     protected_roots = (working, config_source, data_source)
-    if any(output == root or output.is_relative_to(root) for root in protected_roots):
+    if any(
+        output_candidate == root or output_candidate.is_relative_to(root)
+        for root in protected_roots
+    ):
         raise BrokerIdentityRuntimeBindingManifestError(
             "runtime binding output directory overlaps the live deployment"
         )
+    output = _ensure_private_output(output_candidate)
 
     observed = (now or datetime.now(UTC)).astimezone(UTC)
     manifest: dict[str, object] = {
@@ -594,14 +596,13 @@ def verify_runtime_binding_manifest(
         raise BrokerIdentityRuntimeBindingManifestError(
             "runtime binding manifest path inventory is missing"
         )
-    required_paths = (
+    for field in (
         "compose_working_directory",
         "config_source",
         "data_source",
         "config_file",
         "dynamic_security_state_file",
-    )
-    for field in required_paths:
+    ):
         value = paths.get(field)
         if not isinstance(value, str) or not Path(value).is_absolute():
             raise BrokerIdentityRuntimeBindingManifestError(
