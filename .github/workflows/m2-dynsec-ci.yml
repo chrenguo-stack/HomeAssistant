@@ -34,4 +34,12 @@ jobs:
         run: docker compose config
 
       - name: Verify node and service identity matrix
-        run: bash infra/compose/m2-dynsec/verify.sh
+        run: bash infra/compose/m2-dynsec/verify.sh 2>&1 | tee /tmp/m2-dynsec-verification.log
+
+      - name: Upload redacted failure log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: m2-dynsec-failure-log
+          path: /tmp/m2-dynsec-verification.log
+          retention-days: 1
