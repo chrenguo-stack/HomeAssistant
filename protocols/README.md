@@ -31,10 +31,11 @@
 23. `pairing/gh-t1-broker-identity-production-transaction-adapters-v1.md`：M2.4g-5s Draft，实现严格绑定的宿主机 config/data 快照、原子变更与完整回退 adapter；尚无 live CLI、授权 claim 或默认生产 driver。
 24. `pairing/gh-t1-broker-identity-production-broker-driver-v1.md`：M2.4g-5t Draft，实现仅允许 inspect/restart Mosquitto 的运行时控制和进程内 paho-mqtt 身份生命周期检查；仍无 CLI、授权 claim 或 live apply。
 25. `pairing/gh-t1-broker-identity-production-activation-orchestrator-v1.md`：M2.4g-5u Draft，将短时授权、事务计划、生产 adapters 与 Broker driver 编排为原子 claim、私有 journal、强制 postactivation 和 rollback 状态机；默认禁用且无 CLI。
-26. `discovery/gh-discovery-v1.md`：待冻结 mDNS、UDP 回退、重试和多主机处理；M2.0 pairing Draft 已给出最小发现依赖。
-27. `state/gh-path-lease-v1.md`：待冻结直连/中继路径租约、去重和切换滞回。
-28. `state/gh-availability-v1.md`：待将 M1 已验证行为整理为独立协议。
-29. `transport/gh-radio-frame-v1.md`：待冻结 ESP-NOW 与 LoRa 紧凑帧、认证和序列规则。
+26. `pairing/gh-t1-broker-identity-production-activation-fault-matrix-v1.md`：M2.4g-5v Draft，覆盖快照前失败、二次验证失败、claim 冲突、授权重放、绑定漂移和 rollback 终止语义，全部使用临时材料和注入式 adapters。
+27. `discovery/gh-discovery-v1.md`：待冻结 mDNS、UDP 回退、重试和多主机处理；M2.0 pairing Draft 已给出最小发现依赖。
+28. `state/gh-path-lease-v1.md`：待冻结直连/中继路径租约、去重和切换滞回。
+29. `state/gh-availability-v1.md`：待将 M1 已验证行为整理为独立协议。
+30. `transport/gh-radio-frame-v1.md`：待冻结 ESP-NOW 与 LoRa 紧凑帧、认证和序列规则。
 
 ## 变更规则
 
