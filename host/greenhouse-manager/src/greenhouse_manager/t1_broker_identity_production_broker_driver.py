@@ -21,7 +21,6 @@ SCHEMA = "gh.m2.t1-broker-identity-production-broker-driver/1"
 _LIST_CLIENTS = ({"command": "listClients"},)
 
 ManifestVerifier = Callable[[str | Path], dict[str, object]]
-SessionFactory = Callable[[ClientConfig | None], MqttSession]
 
 
 class BrokerIdentityProductionBrokerDriverError(RuntimeError):
@@ -44,6 +43,9 @@ class MqttSession(Protocol):
     ) -> tuple[dict[str, Any], ...]: ...
 
     def retained_message(self, topic: str) -> bytes: ...
+
+
+SessionFactory = Callable[[ClientConfig | None], MqttSession]
 
 
 class PahoMqttSession:
