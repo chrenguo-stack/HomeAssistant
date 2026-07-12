@@ -1,11 +1,11 @@
-# gh-dynsec-profile-v1 每节点最小权限配置
+# gh-dynsec-profile-v1 每节点与服务最小权限配置
 
-状态：Draft / M2.3g  
+状态：Draft / M2.3i  
 关联：ADR-0002、`gh-pairing-v1`、Issue #17
 
 ## 1. 范围
 
-本阶段只冻结并生成 Mosquitto Dynamic Security 的每节点计划，不连接真实 Broker。账号创建、密码设置、启用和回滚由后续隔离集成阶段实现。
+本配置冻结 Mosquitto Dynamic Security 的每节点和服务身份计划，并在独立临时 Broker 中执行 ACL、身份绑定、失败回滚、轮换和 legacy anonymous 兼容性验证。真实 T1 Broker、运行中 manager、Home Assistant 和节点凭据不在本阶段修改范围内。
 
 ## 2. 身份
 
@@ -53,22 +53,20 @@ gh/v1/<sid>/state/#
 
 ## 6. 安全创建顺序
 
-1. 创建无密码 client，并绑定 client ID；
-2. client 此时无法连接；
-3. 创建/校验专属 role；
-4. 添加 ACL；
-5. 绑定 role；
-6. 设置高熵密码；
-7. 仅在完整验证后启用 client；
-8. 失败时删除新 client/role，不修改旧 generation。
+1. 创建专属 role 并一次性写入确定性 ACL；
+2. 创建绑定唯一 client ID、role 和高熵密码的 client；
+3. 任一步失败时按 client → role 顺序尽力回滚；
+4. 只有连接与 ACL 矩阵验证通过后，才允许把该 generation 标记为 active；
+5. 失败不得修改上一代 active identity。
 
 Dynamic Security 管理账号不得兼任 manager 遥测账号。真实环境的控制链路最终必须使用 TLS；明文 1883 只允许隔离实验。
 
 ## 7. 秘密处理
 
 - 密码不得进入 repr、日志、异常、审计事件、Home Assistant 或 Git；
-- 命令行参数不得携带密码；
-- 后续控制适配器应使用受保护的 MQTT 控制载荷或 stdin/secret file；
+- 命令行参数不得携带节点或服务密码；
+- 隔离测试凭据只存在于测试进程内存和临时 Dynamic Security 状态；
+- 后续真实迁移必须使用受保护的 secret file、stdin 或等价秘密挂载；
 - 生成失败不得复用部分随机值。
 
 ## 8. M2.2a 验收
@@ -102,10 +100,25 @@ Dynamic Security 管理账号不得兼任 manager 遥测账号。真实环境的
 
 所有身份使用独立 256 位随机密码、唯一 username/client ID/role 和单调 generation。provisioning 明确拒绝 `gh/#` 与 `homeassistant/#`；manager 和 Home Assistant 明确拒绝 `$CONTROL/#`。Home Assistant 当前不得向 `gh/#` 发布，控制下行必须在后续协议冻结后单独授权。
 
-本阶段只生成确定性身份和 ACL 计划，不连接真实 Broker、不写出密码。下一 gate 将在真实快照候选 Broker 中创建这些服务身份和节点 `gh-n1-a9f2f8`，验证规定互通、跨身份越权拒绝和完整回滚。
-
 ## 12. M2.3h 统一事务下发
 
 节点与服务身份共用同一 Dynamic Security 事务适配器：先创建 role，再创建绑定唯一 client ID 和 role 的 client；任一步失败均按 client → role 顺序尽力回滚。凭据对象的 username、client ID 和 generation 必须与计划完全一致，否则在连接 Broker 前拒绝。
 
-服务身份接入不得改变全局默认拒绝基线，也不得复用 legacy anonymous role。下一步将在隔离集成 Broker 中实际创建三类服务身份并验证 ACL，全部通过后才允许进入真实快照候选。
+服务身份接入不得改变全局默认拒绝基线，也不得复用 legacy anonymous role。
+
+## 13. M2.3i 隔离 Broker 服务身份执行矩阵
+
+独立 `infra/compose/m2-dynsec` Broker 必须实际创建 provisioning、manager、Home Assistant 和节点 `gh-n1-a9f2f8`，并执行以下 gate：
+
+1. 节点只能发布自身 ingress；manager 必须能接收，其他节点 ingress 必须拒绝；
+2. manager 可以发布 canonical state 和当前两类 Discovery；Home Assistant 必须能接收；
+3. manager 不得发布 `homeassistant/status`、任意未授权 Discovery、节点 ingress 或 `$CONTROL/#`；
+4. Home Assistant 只能发布 `homeassistant/status`，不得写 canonical state、ingress 或 `$CONTROL/#`；
+5. provisioning 必须能执行 Dynamic Security 请求并接收响应，但不得订阅或发布 `gh/#`、`homeassistant/#`；
+6. 四类 username 必须分别绑定冻结的唯一 client ID，错误 client ID 必须拒绝连接；
+7. 注入 client 已创建后的失败，必须在真实隔离 Broker 上观察到 `deleteClient` → `deleteRole`，且两个对象均消失；
+8. 回滚后 legacy anonymous 应用 Topic 发送和接收仍正常，匿名 `$CONTROL/#` 仍被拒绝；
+9. 原有节点轮换、失败恢复、撤销和跨节点隔离测试必须继续通过；
+10. 测试密码不得写入仓库、测试输出或 Broker 失败日志，Compose 结束必须删除临时卷。
+
+该 gate 通过后，下一步才允许把同一四身份矩阵扩展到 `--network none` 的真实 T1 快照候选；仍不得修改真实 Broker 或关闭匿名访问。
