@@ -26,10 +26,11 @@
 18. `pairing/gh-t1-broker-identity-activation-readiness-bundle-v1.md`：M2.4g-5n Draft，将 production preflight、运行时绑定与 Home Assistant 目标冻结为私有、不可执行、无密钥的操作员决策材料。
 19. `pairing/gh-t1-broker-identity-activation-readiness-authorization-v1.md`：M2.4g-5o Draft，定义与 readiness bundle 全指纹绑定的短时、单次操作员授权；仍不 claim 授权或启用 live apply。
 20. `pairing/gh-t1-broker-identity-activation-readiness-transaction-plan-v1.md`：M2.4g-5p Draft，将有效授权与 readiness bundle 再绑定为不可执行的私有事务计划，冻结未来 claim、journal、postactivation 与 rollback 顺序。
-21. `discovery/gh-discovery-v1.md`：待冻结 mDNS、UDP 回退、重试和多主机处理；M2.0 pairing Draft 已给出最小发现依赖。
-22. `state/gh-path-lease-v1.md`：待冻结直连/中继路径租约、去重和切换滞回。
-23. `state/gh-availability-v1.md`：待将 M1 已验证行为整理为独立协议。
-24. `transport/gh-radio-frame-v1.md`：待冻结 ESP-NOW 与 LoRa 紧凑帧、认证和序列规则。
+21. `pairing/gh-t1-broker-identity-production-transaction-adapter-contract-v1.md`：M2.4g-5q Draft，冻结生产事务 adapter 清单、阶段顺序、Docker allowlist、原子文件事务、进程内 MQTT 与强制回退合同；仍不安装 adapter 或提供 live apply。
+22. `discovery/gh-discovery-v1.md`：待冻结 mDNS、UDP 回退、重试和多主机处理；M2.0 pairing Draft 已给出最小发现依赖。
+23. `state/gh-path-lease-v1.md`：待冻结直连/中继路径租约、去重和切换滞回。
+24. `state/gh-availability-v1.md`：待将 M1 已验证行为整理为独立协议。
+25. `transport/gh-radio-frame-v1.md`：待冻结 ESP-NOW 与 LoRa 紧凑帧、认证和序列规则。
 
 ## 变更规则
 
