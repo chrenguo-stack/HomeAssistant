@@ -119,9 +119,6 @@ def _discover_container(
     exact_name: str,
     token: str,
 ) -> str:
-    exact = [str(row.get("Names", "")) for row in rows if row.get("Names") == exact_name]
-    if len(exact) == 1:
-        return exact[0]
     candidates: list[str] = []
     normalized_token = token.lower().replace("-", "")
     for row in rows:
@@ -135,7 +132,7 @@ def _discover_container(
         raise HomeAssistantMqttTargetGateError(
             f"exactly one {token} container must be discoverable"
         )
-    return unique[0]
+    return exact_name if exact_name in unique else unique[0]
 
 
 def _inspect_container(runner: CommandRunner, name: str) -> dict[str, Any]:
