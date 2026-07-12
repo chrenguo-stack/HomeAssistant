@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "greenhouse-manager"
-version = "0.4.7"
+version = "0.4.8"
 description = "Canonical MQTT state manager for the greenhouse monitoring system"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -28,7 +28,7 @@ greenhouse-manager-t1-shadow = "greenhouse_manager.t1_shadow:main"
 greenhouse-manager-t1-shadow-services = "greenhouse_manager.t1_shadow_services:main"
 greenhouse-manager-t1-migration-package = "greenhouse_manager.t1_migration_package:main"
 greenhouse-manager-t1-migration-rehearsal = "greenhouse_manager.t1_migration_rehearsal:main"
-greenhouse-manager-t1-migration-readiness = "greenhouse_manager.t1_migration_readiness:main"
+greenhouse-manager-t1-migration-readiness = "greenhouse_manager.t1_migration_readiness_live:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

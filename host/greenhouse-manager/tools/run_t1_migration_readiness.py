@@ -9,7 +9,7 @@ SOURCE = ROOT / "src"
 sys.path.insert(0, str(SOURCE))
 
 main = importlib.import_module(
-    "greenhouse_manager.t1_migration_readiness"
+    "greenhouse_manager.t1_migration_readiness_live"
 ).main
 
 
