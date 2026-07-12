@@ -38,10 +38,8 @@ class ComposeSourceObservation:
 @dataclass(frozen=True, slots=True)
 class ComposeDiscovery:
     labels_present: bool
-    consistent: bool
+    complete: bool
     projects: tuple[str, ...]
-    working_dir: Path | None
-    config_files: tuple[Path, ...]
     observations: tuple[ComposeSourceObservation, ...]
     reason: str | None
 
@@ -145,10 +143,8 @@ def discover_live_compose(runner: CommandRunner) -> ComposeDiscovery:
     if not labels_present:
         return ComposeDiscovery(
             labels_present=False,
-            consistent=False,
+            complete=False,
             projects=(),
-            working_dir=None,
-            config_files=(),
             observations=frozen_observations,
             reason="compose_labels_absent",
         )
@@ -165,37 +161,16 @@ def discover_live_compose(runner: CommandRunner) -> ComposeDiscovery:
     if any(not observation.complete for observation in observations):
         return ComposeDiscovery(
             labels_present=True,
-            consistent=False,
+            complete=False,
             projects=projects,
-            working_dir=None,
-            config_files=(),
             observations=frozen_observations,
             reason="compose_labels_incomplete",
         )
 
-    first = observations[0]
-    same_source = all(
-        observation.working_dir == first.working_dir
-        and observation.config_files == first.config_files
-        for observation in observations[1:]
-    )
-    if not same_source:
-        return ComposeDiscovery(
-            labels_present=True,
-            consistent=False,
-            projects=projects,
-            working_dir=None,
-            config_files=(),
-            observations=frozen_observations,
-            reason="compose_sources_disagree",
-        )
-
     return ComposeDiscovery(
         labels_present=True,
-        consistent=True,
+        complete=True,
         projects=projects,
-        working_dir=first.working_dir,
-        config_files=first.config_files,
         observations=frozen_observations,
         reason=None,
     )
@@ -225,6 +200,54 @@ def _compose_source_report(
     }
 
 
+def _deployment_groups(
+    discovery: ComposeDiscovery,
+) -> tuple[tuple[ComposeSourceObservation, ...], ...]:
+    grouped: dict[
+        tuple[Path, tuple[Path, ...]],
+        list[ComposeSourceObservation],
+    ] = {}
+    for observation in discovery.observations:
+        if observation.working_dir is None or not observation.config_files:
+            continue
+        key = (observation.working_dir, observation.config_files)
+        grouped.setdefault(key, []).append(observation)
+    return tuple(
+        tuple(grouped[key])
+        for key in sorted(grouped, key=lambda item: str(item[0]))
+    )
+
+
+def _deployment_report(
+    observations: tuple[ComposeSourceObservation, ...],
+) -> dict[str, object]:
+    first = observations[0]
+    if first.working_dir is None:
+        raise ReadinessError("Compose deployment has no working directory")
+    file_observations = tuple(
+        _private_file_observation(path)
+        for path in first.config_files
+    )
+    env_observation = _private_file_observation(
+        first.working_dir / ".env"
+    )
+    return {
+        "projects": sorted(
+            {
+                observation.project
+                for observation in observations
+                if observation.project is not None
+            }
+        ),
+        "containers": sorted(
+            observation.container for observation in observations
+        ),
+        "directory": str(first.working_dir),
+        "files": [asdict(item) for item in file_observations],
+        "env": asdict(env_observation),
+    }
+
+
 def _apply_compose_discovery(
     report: dict[str, object],
     discovery: ComposeDiscovery,
@@ -247,16 +270,14 @@ def _apply_compose_discovery(
         report["ready"] = all(bool(value) for value in gates.values())
         return
 
-    if not discovery.consistent or discovery.working_dir is None:
+    if not discovery.complete:
         compose.clear()
         compose.update(
             {
                 "source": "docker_compose_labels",
                 "requested_directory": requested_directory,
                 "projects": list(discovery.projects),
-                "directory": None,
-                "files": [],
-                "env": None,
+                "deployments": [],
                 "container_sources": _compose_source_report(discovery),
                 "metadata_consistent": False,
                 "metadata_reason": discovery.reason,
@@ -269,39 +290,64 @@ def _apply_compose_discovery(
         report["ready"] = False
         return
 
-    file_observations = tuple(
-        _private_file_observation(path)
-        for path in discovery.config_files
+    deployments = tuple(
+        _deployment_report(group)
+        for group in _deployment_groups(discovery)
     )
-    env_observation = _private_file_observation(
-        discovery.working_dir / ".env"
+    directory_present = bool(deployments) and all(
+        Path(str(item["directory"])).is_dir()
+        for item in deployments
     )
+    configuration_present = bool(deployments) and all(
+        isinstance(item.get("files"), list)
+        and bool(item["files"])
+        and all(
+            isinstance(file_item, dict)
+            and file_item.get("exists") is True
+            for file_item in item["files"]
+        )
+        for item in deployments
+    )
+    env_private = all(
+        isinstance(item.get("env"), dict)
+        and (
+            item["env"].get("exists") is False
+            or item["env"].get("mode") == "600"
+        )
+        for item in deployments
+    )
+
     compose.clear()
     compose.update(
         {
             "source": "docker_compose_labels",
             "requested_directory": requested_directory,
-            "project": (
-                discovery.projects[0]
-                if len(discovery.projects) == 1
-                else None
-            ),
             "projects": list(discovery.projects),
-            "directory": str(discovery.working_dir),
-            "files": [asdict(item) for item in file_observations],
-            "env": asdict(env_observation),
+            "deployments": list(deployments),
             "container_sources": _compose_source_report(discovery),
             "metadata_consistent": True,
             "metadata_reason": None,
         }
     )
-    gates["compose_directory_present"] = discovery.working_dir.is_dir()
-    gates["compose_configuration_present"] = bool(file_observations) and all(
-        item.exists for item in file_observations
-    )
-    gates["compose_env_private"] = (
-        env_observation.exists and env_observation.mode == "600"
-    )
+    if len(deployments) == 1:
+        deployment = deployments[0]
+        compose["project"] = (
+            discovery.projects[0]
+            if len(discovery.projects) == 1
+            else None
+        )
+        compose["directory"] = deployment["directory"]
+        compose["files"] = deployment["files"]
+        compose["env"] = deployment["env"]
+    else:
+        compose["project"] = None
+        compose["directory"] = None
+        compose["files"] = []
+        compose["env"] = None
+
+    gates["compose_directory_present"] = directory_present
+    gates["compose_configuration_present"] = configuration_present
+    gates["compose_env_private"] = env_private
     gates["compose_metadata_consistent"] = True
     report["ready"] = all(bool(value) for value in gates.values())
 
@@ -341,7 +387,7 @@ def main(
     parser = argparse.ArgumentParser(
         description=(
             "Read-only real T1 authenticated MQTT migration readiness audit "
-            "with normalized live Compose source discovery."
+            "with multi-project Compose source discovery."
         )
     )
     parser.add_argument("rollback_archive")
