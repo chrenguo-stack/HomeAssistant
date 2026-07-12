@@ -68,10 +68,7 @@ class BrokerIdentityActivationHandoffError(RuntimeError):
 
 
 def _json(value: Any) -> str:
-    return (
-        json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-        + "\n"
-    )
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
 
 
 def _sha(path: Path) -> str:
@@ -121,11 +118,7 @@ def _record(path: Path, root: Path, secret: bool) -> dict[str, object]:
 
 def _copy(stage: Path, root: Path, relative: str, secret: bool) -> dict[str, object]:
     source = stage / relative
-    if (
-        not source.is_file()
-        or source.is_symlink()
-        or source.stat().st_mode & 0o777 != 0o600
-    ):
+    if not source.is_file() or source.is_symlink() or source.stat().st_mode & 0o777 != 0o600:
         raise BrokerIdentityActivationHandoffError(
             f"staged activation material is missing or not private: {relative}"
         )
@@ -137,14 +130,10 @@ def _copy(stage: Path, root: Path, relative: str, secret: bool) -> dict[str, obj
     return _record(target, root, secret)
 
 
-def _require(
-    mapping: dict[str, object], required: dict[str, object], label: str
-) -> None:
+def _require(mapping: dict[str, object], required: dict[str, object], label: str) -> None:
     for key, expected in required.items():
         if mapping.get(key) != expected:
-            raise BrokerIdentityActivationHandoffError(
-                f"{label} requirement failed: {key}"
-            )
+            raise BrokerIdentityActivationHandoffError(f"{label} requirement failed: {key}")
 
 
 def _validate_stage(stage: Path) -> None:
@@ -179,8 +168,7 @@ def _validate_audit(report: dict[str, object]) -> None:
     )
     live = report.get("live_readiness")
     if not isinstance(live, dict) or any(
-        live.get(key) is not True
-        for key in ("ready", "source_binding", "retained_topic_readable")
+        live.get(key) is not True for key in ("ready", "source_binding", "retained_topic_readable")
     ):
         raise BrokerIdentityActivationHandoffError("live readiness is not safe")
 
@@ -199,9 +187,7 @@ def _validate_rehearsal(report: dict[str, object]) -> None:
     )
     for proof in _PROOFS:
         if report.get(proof) is not True:
-            raise BrokerIdentityActivationHandoffError(
-                f"stage rehearsal proof failed: {proof}"
-            )
+            raise BrokerIdentityActivationHandoffError(f"stage rehearsal proof failed: {proof}")
 
 
 def prepare_broker_identity_activation_handoff(
@@ -229,9 +215,7 @@ def prepare_broker_identity_activation_handoff(
     if not stage.is_dir() or stage.is_symlink():
         raise BrokerIdentityActivationHandoffError("migration stage is unsafe")
     if output == stage or output.is_relative_to(stage) or stage.is_relative_to(output):
-        raise BrokerIdentityActivationHandoffError(
-            "handoff output and stage must not overlap"
-        )
+        raise BrokerIdentityActivationHandoffError("handoff output and stage must not overlap")
     _private_dir(output)
 
     manifest = stage_verifier(stage)
@@ -239,9 +223,7 @@ def prepare_broker_identity_activation_handoff(
     if expected_stage_manifest_sha256 and not secrets.compare_digest(
         manifest_sha, expected_stage_manifest_sha256
     ):
-        raise BrokerIdentityActivationHandoffError(
-            "stage manifest fingerprint has drifted"
-        )
+        raise BrokerIdentityActivationHandoffError("stage manifest fingerprint has drifted")
     _validate_stage(stage)
     audit = audit_builder(
         stage,
@@ -260,13 +242,9 @@ def prepare_broker_identity_activation_handoff(
     _validate_rehearsal(rehearsal)
 
     binding = manifest.get("readiness_binding")
-    live_sha = (
-        binding.get("broker_config_sha256") if isinstance(binding, dict) else None
-    )
+    live_sha = binding.get("broker_config_sha256") if isinstance(binding, dict) else None
     if not isinstance(live_sha, str) or re.fullmatch(r"[0-9a-f]{64}", live_sha) is None:
-        raise BrokerIdentityActivationHandoffError(
-            "Broker config fingerprint is invalid"
-        )
+        raise BrokerIdentityActivationHandoffError("Broker config fingerprint is invalid")
 
     observed = (now or datetime.now(UTC)).astimezone(UTC)
     token = token_factory() if token_factory else secrets.token_hex(4)
@@ -277,24 +255,15 @@ def prepare_broker_identity_activation_handoff(
     if destination.exists():
         raise BrokerIdentityActivationHandoffError("handoff destination exists")
 
-    with tempfile.TemporaryDirectory(
-        prefix=".gh-broker-handoff-", dir=output
-    ) as temporary:
+    with tempfile.TemporaryDirectory(prefix=".gh-broker-handoff-", dir=output) as temporary:
         root = Path(temporary) / name
         root.mkdir(mode=0o700)
-        records = [
-            _copy(stage, root, relative, secret) for relative, secret in _STAGE_FILES
-        ]
+        records = [_copy(stage, root, relative, secret) for relative, secret in _STAGE_FILES]
         rollback_dir = root / "rollback"
         _private_dir(rollback_dir)
         rollback = backup_creator(rollback_dir, runner=command_runner, now=observed)
-        if (
-            rollback.parent != rollback_dir
-            or backup_verifier(rollback).get("schema") != "gh.m2.t1-backup/1"
-        ):
-            raise BrokerIdentityActivationHandoffError(
-                "fresh rollback verification failed"
-            )
+        if rollback.parent != rollback_dir or backup_verifier(rollback).get("schema") != "gh.m2.t1-backup/1":
+            raise BrokerIdentityActivationHandoffError("fresh rollback verification failed")
         rollback_record = _record(rollback, root, True)
         records.append(rollback_record)
 
@@ -402,26 +371,13 @@ def verify_broker_identity_activation_handoff(
             raise BrokerIdentityActivationHandoffError("handoff path is invalid")
         seen.add(relative)
         file_path = root / relative
-        if (
-            not file_path.is_file()
-            or file_path.is_symlink()
-            or file_path.stat().st_mode & 0o777 != 0o600
-        ):
-            raise BrokerIdentityActivationHandoffError(
-                f"handoff file is unsafe: {relative}"
-            )
-        if file_path.stat().st_size != record.get("size") or _sha(
-            file_path
-        ) != record.get("sha256"):
-            raise BrokerIdentityActivationHandoffError(
-                f"handoff file checksum mismatch: {relative}"
-            )
+        if not file_path.is_file() or file_path.is_symlink() or file_path.stat().st_mode & 0o777 != 0o600:
+            raise BrokerIdentityActivationHandoffError(f"handoff file is unsafe: {relative}")
+        if file_path.stat().st_size != record.get("size") or _sha(file_path) != record.get("sha256"):
+            raise BrokerIdentityActivationHandoffError(f"handoff file checksum mismatch: {relative}")
     rollback = manifest.get("fresh_rollback")
     relative = str(rollback.get("path", "")) if isinstance(rollback, dict) else ""
-    if (
-        relative not in seen
-        or backup_verifier(root / relative).get("schema") != "gh.m2.t1-backup/1"
-    ):
+    if relative not in seen or backup_verifier(root / relative).get("schema") != "gh.m2.t1-backup/1":
         raise BrokerIdentityActivationHandoffError("fresh rollback verification failed")
     return {
         "schema": VERIFY_SCHEMA,
@@ -433,9 +389,7 @@ def verify_broker_identity_activation_handoff(
     }
 
 
-def main(
-    argv: Sequence[str] | None = None, *, runner: CommandRunner | None = None
-) -> int:
+def main(argv: Sequence[str] | None = None, *, runner: CommandRunner | None = None) -> int:
     parser = argparse.ArgumentParser()
     commands = parser.add_subparsers(dest="command", required=True)
     prepare = commands.add_parser("prepare")
