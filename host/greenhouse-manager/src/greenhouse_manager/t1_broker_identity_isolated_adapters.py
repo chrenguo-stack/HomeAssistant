@@ -21,8 +21,8 @@ from .t1_broker_identity_activation_handoff import (
     verify_broker_identity_activation_handoff,
 )
 from .t1_broker_identity_isolated_helpers import (
-    BrokerIdentityIsolatedTransactionError,
     _CANDIDATE_NAME,
+    BrokerIdentityIsolatedTransactionError,
     _active_config_lines,
     _anonymous_control_denied,
     _anonymous_enabled,
