@@ -11,10 +11,11 @@
 3. `pairing/gh-node-credential-delivery-v1.md`：M2.4g-3 Draft，定义节点双槽写入、候选连接、claim/commit、原子切换、断电恢复和宽限期回退。
 4. `pairing/gh-t1-homeassistant-mqtt-reconfigure-handoff-v1.md`：M2.4g-4 Draft，定义官方 MQTT 重配置交接、即时回退材料、UI 操作边界和后置校验。
 5. `pairing/gh-t1-broker-identity-activation-handoff-v1.md`：M2.4g-5a Draft，定义保持匿名兼容的 Broker 身份激活交接、精确候选演练、fresh rollback 与禁用的 live apply 边界。
-6. `discovery/gh-discovery-v1.md`：待冻结 mDNS、UDP 回退、重试和多主机处理；M2.0 pairing Draft 已给出最小发现依赖。
-7. `state/gh-path-lease-v1.md`：待冻结直连/中继路径租约、去重和切换滞回。
-8. `state/gh-availability-v1.md`：待将 M1 已验证行为整理为独立协议。
-9. `transport/gh-radio-frame-v1.md`：待冻结 ESP-NOW 与 LoRa 紧凑帧、认证和序列规则。
+6. `pairing/gh-t1-broker-identity-preactivation-and-postaudit-v1.md`：M2.4g-5b Draft，定义真实 Broker 激活前的禁用门、指纹重绑定及激活后的只读身份/匿名兼容审计。
+7. `discovery/gh-discovery-v1.md`：待冻结 mDNS、UDP 回退、重试和多主机处理；M2.0 pairing Draft 已给出最小发现依赖。
+8. `state/gh-path-lease-v1.md`：待冻结直连/中继路径租约、去重和切换滞回。
+9. `state/gh-availability-v1.md`：待将 M1 已验证行为整理为独立协议。
+10. `transport/gh-radio-frame-v1.md`：待冻结 ESP-NOW 与 LoRa 紧凑帧、认证和序列规则。
 
 ## 变更规则
 
