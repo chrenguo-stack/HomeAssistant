@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import re
 import sys
 from collections.abc import Callable, Sequence
@@ -12,25 +11,18 @@ from pathlib import Path
 from typing import Any
 
 from .t1_broker_identity_activation_checks import Runner
-from .t1_broker_identity_live_mount_gate import (
-    BrokerIdentityLiveMountGateError,
-    build_live_mount_gate,
-)
+from .t1_broker_identity_live_mount_gate import build_live_mount_gate
 from .t1_broker_identity_preactivation_gate import (
-    BrokerIdentityPreactivationGateError,
     build_broker_identity_preactivation_gate,
 )
 from .t1_broker_identity_production_driver_contract import (
-    BrokerIdentityProductionDriverContractError,
     verify_production_driver_contract,
 )
 from .t1_broker_identity_production_executor_contract import (
-    BrokerIdentityProductionExecutorContractError,
     build_production_executor_contract,
     verify_production_executor_contract,
 )
 from .t1_broker_identity_runtime_binding_manifest import (
-    BrokerIdentityRuntimeBindingManifestError,
     verify_runtime_binding_manifest,
 )
 from .t1_shadow import SubprocessRunner
@@ -131,8 +123,7 @@ def _validate_manifest_age(
 ) -> None:
     if max_age_seconds < 60 or max_age_seconds > 3600:
         raise ValueError("runtime binding max age must be between 60 and 3600 seconds")
-    created = _parse_timestamp(manifest.get("created_at"))
-    age = (now - created).total_seconds()
+    age = (now - _parse_timestamp(manifest.get("created_at"))).total_seconds()
     if age < -60:
         raise BrokerIdentityProductionDriverPreflightError(
             "runtime binding creation timestamp is in the future"
@@ -408,14 +399,8 @@ def _validate_runtime_against_manifest(
         )
     for path, expected in zip(compose_files, expected_compose_identities, strict=True):
         _validate_path_record(path, expected, include_sha256=True)
-    _validate_path_record(
-        paths.get("config_source"),
-        identities.get("config_source"),
-    )
-    _validate_path_record(
-        paths.get("data_source"),
-        identities.get("data_source"),
-    )
+    _validate_path_record(paths.get("config_source"), identities.get("config_source"))
+    _validate_path_record(paths.get("data_source"), identities.get("data_source"))
     config_file = _validate_path_record(
         paths.get("config_file"),
         identities.get("config_file"),
@@ -425,12 +410,12 @@ def _validate_runtime_against_manifest(
         raise BrokerIdentityProductionDriverPreflightError(
             "live Mosquitto baseline config has drifted"
         )
-    state_file_value = paths.get("dynamic_security_state_file")
-    if not isinstance(state_file_value, str) or not Path(state_file_value).is_absolute():
+    state_file = paths.get("dynamic_security_state_file")
+    if not isinstance(state_file, str) or not Path(state_file).is_absolute():
         raise BrokerIdentityProductionDriverPreflightError(
             "runtime binding Dynamic Security path is invalid"
         )
-    if Path(state_file_value).exists():
+    if Path(state_file).exists():
         raise BrokerIdentityProductionDriverPreflightError(
             "live Dynamic Security state appeared before activation"
         )
@@ -514,8 +499,7 @@ def build_production_driver_preflight(
         now=observed,
         max_age_seconds=max_manifest_age_seconds,
     )
-    rebuilt_executor = executor_builder(handoff, stage)
-    if rebuilt_executor != executor:
+    if executor_builder(handoff, stage) != executor:
         raise BrokerIdentityProductionDriverPreflightError(
             "production executor contract no longer matches handoff and stage"
         )
@@ -540,10 +524,7 @@ def build_production_driver_preflight(
         runner=command_runner,
     )
     _validate_preactivation(preactivation)
-    _validate_runtime_against_manifest(
-        _inspect_mosquitto(command_runner),
-        manifest,
-    )
+    _validate_runtime_against_manifest(_inspect_mosquitto(command_runner), manifest)
 
     checks = {
         "driver_contract_verified": True,
@@ -684,17 +665,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             max_manifest_age_seconds=args.max_manifest_age_seconds,
         )
         verify_production_driver_preflight(report)
-    except (
-        BrokerIdentityLiveMountGateError,
-        BrokerIdentityPreactivationGateError,
-        BrokerIdentityProductionDriverContractError,
-        BrokerIdentityProductionDriverPreflightError,
-        BrokerIdentityProductionExecutorContractError,
-        BrokerIdentityRuntimeBindingManifestError,
-        OSError,
-        UnicodeError,
-        ValueError,
-    ) as error:
+    except (RuntimeError, OSError, UnicodeError, ValueError) as error:
         print(f"T1 Broker production driver preflight failed: {error}", file=sys.stderr)
         return 2
     print(json.dumps(report, ensure_ascii=False, separators=(",", ":")))
