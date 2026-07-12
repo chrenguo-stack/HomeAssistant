@@ -68,7 +68,11 @@ class FakeRunner:
                     else (0, '{"temperature":23}\n')
                 )
             if "bootstrap-secret" in input_text:
-                return (1, "not authorised") if self.bootstrap_rejected else (0, _list_response())
+                return (
+                    (1, "not authorised")
+                    if self.bootstrap_rejected
+                    else (0, _list_response())
+                )
             return 0, _list_response()
         if command[:4] == (
             "docker",
