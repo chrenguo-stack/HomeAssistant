@@ -68,9 +68,10 @@ def _live_readiness(report: dict[str, object]) -> dict[str, Any]:
             "retained_topic_readable",
             "no_candidate_containers",
         )
-        detailed_contract = all(
-            gates.get(field) is True for field in required_gates
-        )
+        if any(gates.get(field) is not True for field in required_gates):
+            raise BrokerIdentityActivationCheckError(
+                "live Broker is not in the required preactivation state"
+            )
 
     if not compact_contract and not detailed_contract:
         raise BrokerIdentityActivationCheckError(
