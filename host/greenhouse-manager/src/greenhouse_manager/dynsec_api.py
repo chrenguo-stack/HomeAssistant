@@ -6,7 +6,12 @@ from collections.abc import Callable, Sequence
 from contextlib import suppress
 from typing import Any, Protocol
 
-import paho.mqtt.client as mqtt
+try:
+    import paho.mqtt.client as mqtt
+except ModuleNotFoundError as error:
+    if error.name is None or not error.name.startswith("paho"):
+        raise
+    mqtt = None
 
 from .dynsec_plan import NodeCredentials, NodeProvisioningPlan
 from .service_identity_plan import ServiceCredentials, ServiceIdentityPlan
@@ -216,19 +221,26 @@ class DynsecProvisioner:
             self.transport.execute(commands)
 
 
+def _require_paho() -> Any:
+    if mqtt is None:
+        raise RuntimeError("paho-mqtt is required for PahoDynsecTransport")
+    return mqtt
+
+
 class PahoDynsecTransport:
     """Single-flight Dynamic Security topic API transport."""
 
-    def __init__(self, client: mqtt.Client, *, timeout_s: float = 10.0) -> None:
+    def __init__(self, client: Any, *, timeout_s: float = 10.0) -> None:
         if timeout_s <= 0:
             raise ValueError("timeout_s must be positive")
+        self._mqtt = _require_paho()
         self.client = client
         self.timeout_s = timeout_s
         self._lock = threading.Lock()
         self._response_ready = threading.Event()
         self._response: bytes | None = None
 
-    def on_message(self, _client: mqtt.Client, _userdata: Any, message: mqtt.MQTTMessage) -> None:
+    def on_message(self, _client: Any, _userdata: Any, message: Any) -> None:
         if message.topic == RESPONSE_TOPIC:
             self._response = bytes(message.payload)
             self._response_ready.set()
@@ -240,13 +252,13 @@ class PahoDynsecTransport:
             self._response = None
             self._response_ready.clear()
             result, _mid = self.client.subscribe(RESPONSE_TOPIC, qos=1)
-            if result != mqtt.MQTT_ERR_SUCCESS:
+            if result != self._mqtt.MQTT_ERR_SUCCESS:
                 raise DynsecError(f"Dynamic Security response subscribe failed rc={result}")
             payload = json.dumps(
                 {"commands": list(commands)}, separators=(",", ":"), ensure_ascii=False
             ).encode("utf-8")
             info = self.client.publish(CONTROL_TOPIC, payload=payload, qos=1, retain=False)
-            if info.rc != mqtt.MQTT_ERR_SUCCESS:
+            if info.rc != self._mqtt.MQTT_ERR_SUCCESS:
                 raise DynsecError(f"Dynamic Security command publish failed rc={info.rc}")
             if not self._response_ready.wait(self.timeout_s):
                 raise DynsecError("Dynamic Security response timed out")
