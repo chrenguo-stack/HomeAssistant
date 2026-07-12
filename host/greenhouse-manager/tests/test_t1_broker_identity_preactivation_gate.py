@@ -180,5 +180,7 @@ def test_rejects_missing_anonymous_gate(tmp_path: Path) -> None:
     ):
         _build(
             tmp_path,
-            audit_builder=lambda *_a, **_k: _audit(anonymous_access_still_enabled=False),
+            audit_builder=lambda *_a, **_k: _audit(
+                anonymous_access_still_enabled=False
+            ),
         )
