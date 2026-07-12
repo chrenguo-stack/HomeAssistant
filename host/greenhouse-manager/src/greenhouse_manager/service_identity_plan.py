@@ -63,7 +63,7 @@ def _manager_acls(system_id: str) -> tuple[DynsecAcl, ...]:
         DynsecAcl("publishClientSend", "homeassistant/device/+/config", True, 100),
         DynsecAcl(
             "publishClientSend",
-            "homeassistant/binary_sensor/+_connectivity/config",
+            "homeassistant/binary_sensor/+/config",
             True,
             100,
         ),
