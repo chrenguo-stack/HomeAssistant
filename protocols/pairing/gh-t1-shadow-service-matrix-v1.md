@@ -16,6 +16,8 @@
 
 ## 2. 执行入口
 
+已安装 greenhouse-manager 时可使用：
+
 ```bash
 greenhouse-manager-t1-shadow-services \
   /opt/greenhouse-m2-backups/<rollback-archive>.tar.gz \
@@ -23,7 +25,16 @@ greenhouse-manager-t1-shadow-services \
   gh/v1/greenhouse/state/gh-n1-a9f2f8/telemetry
 ```
 
-可通过 `--system-id` 和 `--node-id` 覆盖默认值，但本阶段正式候选固定使用 `greenhouse` 与 `gh-n1-a9f2f8`。
+T1 宿主机不需要安装 `python3-venv`、`pip` 或项目依赖。可直接从检出的仓库源码运行标准库入口：
+
+```bash
+python3 host/greenhouse-manager/tools/run_t1_shadow_services.py \
+  /opt/greenhouse-m2-backups/<rollback-archive>.tar.gz \
+  --expected-retained-topic \
+  gh/v1/greenhouse/state/gh-n1-a9f2f8/telemetry
+```
+
+源码入口使用项目内的纯标准库候选路径；只有实际运行 `PahoDynsecTransport` 的在线 manager/集成测试才需要 `paho-mqtt`。可通过 `--system-id` 和 `--node-id` 覆盖默认值，但本阶段正式候选固定使用 `greenhouse` 与 `gh-n1-a9f2f8`。
 
 ## 3. 隔离与秘密处理
 
