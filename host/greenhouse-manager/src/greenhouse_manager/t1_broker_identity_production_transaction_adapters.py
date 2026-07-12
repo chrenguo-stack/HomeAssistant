@@ -112,33 +112,21 @@ def _sha256_path(path: Path) -> str:
 
 
 def _read_private_json(path: Path, label: str) -> dict[str, Any]:
-    if (
-        not path.is_file()
-        or path.is_symlink()
-        or path.stat().st_mode & 0o777 != 0o600
-    ):
+    if not path.is_file() or path.is_symlink() or path.stat().st_mode & 0o777 != 0o600:
         raise BrokerIdentityProductionTransactionAdaptersError(
             f"{label} is missing, unsafe, or not mode 0600"
         )
     try:
         document = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
-        raise BrokerIdentityProductionTransactionAdaptersError(
-            f"{label} is invalid"
-        ) from error
+        raise BrokerIdentityProductionTransactionAdaptersError(f"{label} is invalid") from error
     if not isinstance(document, dict):
-        raise BrokerIdentityProductionTransactionAdaptersError(
-            f"{label} must be a JSON object"
-        )
+        raise BrokerIdentityProductionTransactionAdaptersError(f"{label} must be a JSON object")
     return document
 
 
 def _private_file(path: Path, label: str) -> None:
-    if (
-        not path.is_file()
-        or path.is_symlink()
-        or path.stat().st_mode & 0o777 != 0o600
-    ):
+    if not path.is_file() or path.is_symlink() or path.stat().st_mode & 0o777 != 0o600:
         raise BrokerIdentityProductionTransactionAdaptersError(
             f"{label} is missing, unsafe, or not mode 0600"
         )
@@ -146,14 +134,10 @@ def _private_file(path: Path, label: str) -> None:
 
 def _safe_relative(value: object, label: str) -> PurePosixPath:
     if not isinstance(value, str) or not value:
-        raise BrokerIdentityProductionTransactionAdaptersError(
-            f"{label} path is missing"
-        )
+        raise BrokerIdentityProductionTransactionAdaptersError(f"{label} path is missing")
     relative = PurePosixPath(value)
     if relative.is_absolute() or ".." in relative.parts:
-        raise BrokerIdentityProductionTransactionAdaptersError(
-            f"{label} path is unsafe"
-        )
+        raise BrokerIdentityProductionTransactionAdaptersError(f"{label} path is unsafe")
     return relative
 
 
@@ -174,9 +158,7 @@ def _atomic_write(
     gid: int,
 ) -> None:
     if path.exists() and path.is_symlink():
-        raise BrokerIdentityProductionTransactionAdaptersError(
-            "atomic write target cannot be a symlink"
-        )
+        raise BrokerIdentityProductionTransactionAdaptersError("atomic write target cannot be a symlink")
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary = tempfile.mkstemp(
         prefix=f".{path.name}.",
@@ -199,9 +181,7 @@ def _atomic_write(
 
 def _unlink_and_fsync(path: Path) -> None:
     if path.is_symlink():
-        raise BrokerIdentityProductionTransactionAdaptersError(
-            "unlink target cannot be a symlink"
-        )
+        raise BrokerIdentityProductionTransactionAdaptersError("unlink target cannot be a symlink")
     path.unlink(missing_ok=True)
     _fsync_directory(path.parent)
 
@@ -218,26 +198,18 @@ def _request_commands(path: Path) -> tuple[dict[str, Any], ...]:
     request = _read_private_json(path, "Dynamic Security request")
     raw = request.get("commands")
     if not isinstance(raw, list) or not raw:
-        raise BrokerIdentityProductionTransactionAdaptersError(
-            "Dynamic Security request is empty"
-        )
+        raise BrokerIdentityProductionTransactionAdaptersError("Dynamic Security request is empty")
     result: list[dict[str, Any]] = []
     for command in raw:
-        if not isinstance(command, dict) or not isinstance(
-            command.get("command"), str
-        ):
-            raise BrokerIdentityProductionTransactionAdaptersError(
-                "Dynamic Security request is invalid"
-            )
+        if not isinstance(command, dict) or not isinstance(command.get("command"), str):
+            raise BrokerIdentityProductionTransactionAdaptersError("Dynamic Security request is invalid")
         result.append(command)
     return tuple(result)
 
 
 def _record_tree(root: Path) -> dict[str, PathRecord]:
     if not root.is_dir() or root.is_symlink():
-        raise BrokerIdentityProductionTransactionAdaptersError(
-            "snapshot source directory is unsafe"
-        )
+        raise BrokerIdentityProductionTransactionAdaptersError("snapshot source directory is unsafe")
     records: dict[str, PathRecord] = {}
     root_stat = root.stat()
     records["."] = PathRecord(
@@ -249,9 +221,7 @@ def _record_tree(root: Path) -> dict[str, PathRecord]:
     )
     for path in sorted(root.rglob("*")):
         if path.is_symlink():
-            raise BrokerIdentityProductionTransactionAdaptersError(
-                "snapshot source contains a symlink"
-            )
+            raise BrokerIdentityProductionTransactionAdaptersError("snapshot source contains a symlink")
         relative = path.relative_to(root).as_posix()
         stat = path.stat()
         if path.is_dir():
@@ -277,10 +247,39 @@ def _record_tree(root: Path) -> dict[str, PathRecord]:
     return records
 
 
-def _copy_snapshot(source: Path, destination: Path) -> dict[str, PathRecord]:
-    records = _record_tree(source)
-    shutil.copytree(source, destination, copy_function=shutil.copy2)
-    return records
+def _snapshot_payload_matches(
+    expected: Mapping[str, PathRecord],
+    observed: Mapping[str, PathRecord],
+) -> bool:
+    if expected.keys() != observed.keys():
+        return False
+    return all(
+        expected[relative].kind == observed[relative].kind
+        and expected[relative].mode == observed[relative].mode
+        and expected[relative].sha256 == observed[relative].sha256
+        for relative in expected
+    )
+
+
+def _copy_snapshot(
+    source: Path,
+    destination: Path,
+    *,
+    max_attempts: int = 5,
+) -> dict[str, PathRecord]:
+    if max_attempts < 1:
+        raise ValueError("snapshot max attempts must be positive")
+    for _attempt in range(max_attempts):
+        before = _record_tree(source)
+        shutil.copytree(source, destination, copy_function=shutil.copy2)
+        after = _record_tree(source)
+        copied = _record_tree(destination)
+        if before == after and _snapshot_payload_matches(before, copied):
+            return before
+        shutil.rmtree(destination)
+    raise BrokerIdentityProductionTransactionAdaptersError(
+        "live snapshot did not reach a stable, verified inventory"
+    )
 
 
 def _inventory_document(records: Mapping[str, PathRecord]) -> dict[str, object]:
@@ -316,33 +315,21 @@ def _restore_tree(
             path.rmdir()
             _fsync_directory(path.parent)
 
-    directories = [
-        (relative, record)
-        for relative, record in records.items()
-        if record.kind == "directory"
-    ]
+    directories = [(relative, record) for relative, record in records.items() if record.kind == "directory"]
     directories.sort(key=lambda item: len(PurePosixPath(item[0]).parts))
     for relative, record in directories:
-        path = target if relative == "." else target.joinpath(
-            *PurePosixPath(relative).parts
-        )
+        path = target if relative == "." else target.joinpath(*PurePosixPath(relative).parts)
         path.mkdir(parents=True, exist_ok=True)
         os.chmod(path, record.mode)
         os.chown(path, record.uid, record.gid)
 
-    files = [
-        (relative, record)
-        for relative, record in records.items()
-        if record.kind == "file"
-    ]
+    files = [(relative, record) for relative, record in records.items() if record.kind == "file"]
     for relative, record in sorted(files):
         source = snapshot.joinpath(*PurePosixPath(relative).parts)
         destination = target.joinpath(*PurePosixPath(relative).parts)
         data = source.read_bytes()
         if record.sha256 != _sha256_bytes(data):
-            raise BrokerIdentityProductionTransactionAdaptersError(
-                "snapshot file fingerprint has drifted"
-            )
+            raise BrokerIdentityProductionTransactionAdaptersError("snapshot file fingerprint has drifted")
         _atomic_write(
             destination,
             data,
@@ -360,30 +347,20 @@ def _restore_tree(
 def _runtime_paths(manifest: Mapping[str, Any]) -> RuntimePaths:
     values = manifest.get("paths")
     if not isinstance(values, dict):
-        raise BrokerIdentityProductionTransactionAdaptersError(
-            "runtime path binding is missing"
-        )
+        raise BrokerIdentityProductionTransactionAdaptersError("runtime path binding is missing")
 
     def bound_path(name: str, *, directory: bool) -> Path:
         raw = values.get(name)
         if not isinstance(raw, str):
-            raise BrokerIdentityProductionTransactionAdaptersError(
-                f"runtime path binding is missing: {name}"
-            )
+            raise BrokerIdentityProductionTransactionAdaptersError(f"runtime path binding is missing: {name}")
         path = Path(raw).expanduser()
         if not path.is_absolute() or path.is_symlink():
-            raise BrokerIdentityProductionTransactionAdaptersError(
-                f"runtime path binding is unsafe: {name}"
-            )
+            raise BrokerIdentityProductionTransactionAdaptersError(f"runtime path binding is unsafe: {name}")
         resolved = path.resolve()
         if directory and not resolved.is_dir():
-            raise BrokerIdentityProductionTransactionAdaptersError(
-                f"runtime directory is missing: {name}"
-            )
+            raise BrokerIdentityProductionTransactionAdaptersError(f"runtime directory is missing: {name}")
         if not directory and not resolved.is_file():
-            raise BrokerIdentityProductionTransactionAdaptersError(
-                f"runtime file is missing: {name}"
-            )
+            raise BrokerIdentityProductionTransactionAdaptersError(f"runtime file is missing: {name}")
         return resolved
 
     config_source = bound_path("config_source", directory=True)
@@ -428,9 +405,7 @@ class ProductionTransactionAdapters:
         *,
         expected_retained_topic: str,
         driver: ProductionBrokerDriver,
-        adapter_contract_verifier: DocumentVerifier = (
-            verify_production_transaction_adapter_contract
-        ),
+        adapter_contract_verifier: DocumentVerifier = (verify_production_transaction_adapter_contract),
         plan_verifier: DocumentVerifier = verify_activation_readiness_transaction_plan,
         executor_verifier: DocumentVerifier = verify_production_executor_contract,
         manifest_verifier: ManifestVerifier = verify_runtime_binding_manifest,
@@ -440,9 +415,7 @@ class ProductionTransactionAdapters:
         self.adapter_contract_file = Path(adapter_contract_file).expanduser().resolve()
         self.transaction_plan_file = Path(transaction_plan_file).expanduser().resolve()
         self.executor_contract_file = Path(executor_contract_file).expanduser().resolve()
-        self.runtime_manifest_file = Path(
-            runtime_binding_manifest_file
-        ).expanduser().resolve()
+        self.runtime_manifest_file = Path(runtime_binding_manifest_file).expanduser().resolve()
         self.handoff = Path(handoff_directory).expanduser().resolve()
         self.workspace = Path(workspace_directory).expanduser().resolve()
         self.expected_retained_topic = expected_retained_topic
@@ -484,9 +457,7 @@ class ProductionTransactionAdapters:
             ("runtime manifest", manifest_result),
         ):
             if result.get("verified") is not True:
-                raise BrokerIdentityProductionTransactionAdaptersError(
-                    f"{label} verification is incomplete"
-                )
+                raise BrokerIdentityProductionTransactionAdaptersError(f"{label} verification is incomplete")
         required_pairs = (
             (adapter.get("transaction_plan_sha256"), plan.get("plan_sha256")),
             (adapter.get("contract_sha256"), executor.get("contract_sha256")),
@@ -503,9 +474,7 @@ class ProductionTransactionAdapters:
 
     def _validate_handoff(self, executor: Mapping[str, Any]) -> None:
         if not self.handoff.is_dir() or self.handoff.is_symlink():
-            raise BrokerIdentityProductionTransactionAdaptersError(
-                "activation handoff directory is unsafe"
-            )
+            raise BrokerIdentityProductionTransactionAdaptersError("activation handoff directory is unsafe")
         if executor.get("handoff") != self.handoff.name:
             raise BrokerIdentityProductionTransactionAdaptersError(
                 "activation handoff name is not bound to the executor contract"
@@ -615,11 +584,7 @@ class ProductionTransactionAdapters:
 
     def mutation_executor(self) -> dict[str, object]:
         self.prepare()
-        if (
-            self.paths is None
-            or self.config_inventory is None
-            or self.data_inventory is None
-        ):
+        if self.paths is None or self.config_inventory is None or self.data_inventory is None:
             raise BrokerIdentityProductionTransactionAdaptersError(
                 "production transaction adapters are not prepared"
             )
@@ -660,13 +625,9 @@ class ProductionTransactionAdapters:
             gid=config_dir_stat.st_gid,
         )
         self.driver.restart_mosquitto()
-        self.driver.wait_for_dynamic_security_state(
-            self.paths.dynamic_security_state_file
-        )
+        self.driver.wait_for_dynamic_security_state(self.paths.dynamic_security_state_file)
         if not self.paths.dynamic_security_state_file.is_file():
-            raise BrokerIdentityProductionTransactionAdaptersError(
-                "Dynamic Security state was not created"
-            )
+            raise BrokerIdentityProductionTransactionAdaptersError("Dynamic Security state was not created")
         data_stat = self.paths.data_source.stat()
         os.chmod(self.paths.dynamic_security_state_file, 0o600)
         os.chown(
@@ -676,15 +637,11 @@ class ProductionTransactionAdapters:
         )
         _unlink_and_fsync(password_init)
 
-        bootstrap = (
-            self.handoff / "material/bootstrap/admin-client.conf"
-        ).read_text(encoding="utf-8")
-        provisioning = (
-            self.handoff / "material/provisioning/mosquitto-client.conf"
-        ).read_text(encoding="utf-8")
-        commands = _request_commands(
-            self.handoff / "material/broker/dynsec-request.json"
+        bootstrap = (self.handoff / "material/bootstrap/admin-client.conf").read_text(encoding="utf-8")
+        provisioning = (self.handoff / "material/provisioning/mosquitto-client.conf").read_text(
+            encoding="utf-8"
         )
+        commands = _request_commands(self.handoff / "material/broker/dynsec-request.json")
         self.driver.apply_exact_request(commands, bootstrap)
         self.driver.verify_provisioning_identity(provisioning)
         self.driver.delete_bootstrap_admin(provisioning)
@@ -705,12 +662,10 @@ class ProductionTransactionAdapters:
             self.handoff / "material/homeassistant/mqtt-update.json",
             "Home Assistant MQTT update material",
         )
-        provisioning = (
-            self.handoff / "material/provisioning/mosquitto-client.conf"
-        ).read_text(encoding="utf-8")
-        bootstrap = (
-            self.handoff / "material/bootstrap/admin-client.conf"
-        ).read_text(encoding="utf-8")
+        provisioning = (self.handoff / "material/provisioning/mosquitto-client.conf").read_text(
+            encoding="utf-8"
+        )
+        bootstrap = (self.handoff / "material/bootstrap/admin-client.conf").read_text(encoding="utf-8")
         report = self.driver.postactivation_audit(
             expected_retained_topic=self.expected_retained_topic,
             homeassistant_update=update,
@@ -731,11 +686,7 @@ class ProductionTransactionAdapters:
                     f"production postactivation audit failed: {field}"
                 )
         checks = report.get("checks")
-        if (
-            not isinstance(checks, dict)
-            or not checks
-            or any(value is not True for value in checks.values())
-        ):
+        if not isinstance(checks, dict) or not checks or any(value is not True for value in checks.values()):
             raise BrokerIdentityProductionTransactionAdaptersError(
                 "production postactivation checks are not all passing"
             )
