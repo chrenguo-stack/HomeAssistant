@@ -95,7 +95,7 @@ class PahoMqttSession:
             reason_code: Any,
             _properties: Any,
         ) -> None:
-            if int(reason_code) == 0:
+            if reason_code == 0:
                 connected.set()
             else:
                 failed.append(str(reason_code))
