@@ -41,7 +41,11 @@ EXECUTE-M2-BROKER-ACTIVATION:<bundle前16位>:<runtime fingerprint>:<adapter con
 
 任一变化都必须失败。允许的 Docker 操作只有 `docker inspect`。
 
-## 5. 安全输出
+## 5. Python 依赖边界
+
+只读准备阶段只构建和验证 execution request，不建立 MQTT 会话，因此不得要求宿主机系统 Python 预装 `paho-mqtt`。生产 Broker driver 只能在真实执行阶段首次建立 MQTT 会话时加载 `paho-mqtt`；缺少该依赖时必须在任何 Broker 变更前以明确错误终止。
+
+## 6. 安全输出
 
 stdout 只允许输出：
 
@@ -53,7 +57,7 @@ stdout 只允许输出：
 
 authorization token 只能保存在 mode-0600 私有文件中，禁止写入 stdout。
 
-## 6. 当前边界
+## 7. 当前边界
 
 成功准备后仍保持：
 
