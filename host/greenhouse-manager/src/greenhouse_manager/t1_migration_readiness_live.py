@@ -7,7 +7,6 @@ from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 from .t1_migration_readiness import (
     CommandRunner,
