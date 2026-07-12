@@ -10,8 +10,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
-import paho.mqtt.client as mqtt
-
 from .dynsec_api import DynsecError, PahoDynsecTransport
 from .t1_broker_identity_activation_checks import Runner
 from .t1_broker_identity_runtime_binding_manifest import verify_runtime_binding_manifest
@@ -25,6 +23,18 @@ ManifestVerifier = Callable[[str | Path], dict[str, object]]
 
 class BrokerIdentityProductionBrokerDriverError(RuntimeError):
     pass
+
+
+def _load_paho_mqtt() -> Any:
+    try:
+        import paho.mqtt.client as mqtt
+    except ModuleNotFoundError as error:
+        if error.name is None or not error.name.startswith("paho"):
+            raise
+        raise BrokerIdentityProductionBrokerDriverError(
+            "paho-mqtt is required for live Broker activation"
+        ) from error
+    return mqtt
 
 
 @dataclass(frozen=True)
@@ -61,6 +71,7 @@ class PahoMqttSession:
         self.timeout_s = timeout_s
 
     def _connected_client(self) -> tuple[Any, threading.Event]:
+        mqtt = _load_paho_mqtt()
         config = self.config
         client_id = (
             config.client_id
@@ -128,6 +139,7 @@ class PahoMqttSession:
             client.loop_stop()
 
     def retained_message(self, topic: str) -> bytes:
+        mqtt = _load_paho_mqtt()
         if not topic.startswith("gh/"):
             raise ValueError("retained probe topic must be in the gh namespace")
         client, _connected = self._connected_client()
