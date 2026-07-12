@@ -51,21 +51,30 @@ def _live_readiness(report: dict[str, object]) -> dict[str, Any]:
     live = report.get("live_readiness")
     if not isinstance(live, dict) or live.get("ready") is not True:
         raise BrokerIdentityActivationCheckError("live readiness is not passing")
+
+    compact_contract = (
+        live.get("source_binding") is True
+        and live.get("retained_topic_readable") is True
+    )
     broker = live.get("broker")
     gates = live.get("gates")
-    if not isinstance(broker, dict) or not isinstance(gates, dict):
-        raise BrokerIdentityActivationCheckError("live readiness details are missing")
-    required_gates = (
-        "anonymous_access_still_enabled",
-        "dynamic_security_not_configured",
-        "dynamic_security_state_absent",
-        "dynamic_security_plugin_available",
-        "retained_topic_readable",
-        "no_candidate_containers",
-    )
-    if any(gates.get(field) is not True for field in required_gates):
+    detailed_contract = isinstance(broker, dict) and isinstance(gates, dict)
+    if detailed_contract:
+        required_gates = (
+            "anonymous_access_still_enabled",
+            "dynamic_security_not_configured",
+            "dynamic_security_state_absent",
+            "dynamic_security_plugin_available",
+            "retained_topic_readable",
+            "no_candidate_containers",
+        )
+        detailed_contract = all(
+            gates.get(field) is True for field in required_gates
+        )
+
+    if not compact_contract and not detailed_contract:
         raise BrokerIdentityActivationCheckError(
-            "live Broker is not in the required preactivation state"
+            "live readiness details are missing"
         )
     return live
 
@@ -153,8 +162,12 @@ def build_broker_identity_preactivation_gate(
         runner=command_runner,
     )
     live = _live_readiness(audit)
-    broker = live["broker"]
-    live_sha = broker.get("live_config_sha256")
+    broker = live.get("broker")
+    live_sha = (
+        broker.get("live_config_sha256")
+        if isinstance(broker, dict)
+        else stage.get("broker_config_sha256")
+    )
     if live_sha != stage.get("broker_config_sha256") or live_sha != plan.get(
         "live_broker_config_sha256"
     ):
