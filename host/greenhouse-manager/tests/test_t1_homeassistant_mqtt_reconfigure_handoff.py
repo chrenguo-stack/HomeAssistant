@@ -29,10 +29,7 @@ class FakeRunner:
         self.commands.append(command)
         if command == ("docker", "ps", "-a", "--format", "{{json .}}"):
             return 0, json.dumps(
-                {
-                    "Names": "homeassistant",
-                    "Image": "homeassistant/home-assistant",
-                }
+                {"Names": "homeassistant", "Image": "homeassistant/home-assistant"}
             )
         if command == (
             "docker",
@@ -44,14 +41,7 @@ class FakeRunner:
         ):
             return 0, self.raw_storage()
         if command == ("docker", "inspect", "homeassistant"):
-            return 0, json.dumps(
-                [
-                    {
-                        "State": {"Status": "running"},
-                        "RestartCount": 0,
-                    }
-                ]
-            )
+            return 0, json.dumps([{"State": {"Status": "running"}, "RestartCount": 0}])
         return 1, "unexpected command"
 
 
@@ -145,6 +135,7 @@ def _target_report(runner: FakeRunner) -> dict[str, object]:
 
 def _patch_dependencies(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
     runner: FakeRunner,
     report: dict[str, object] | None = None,
 ) -> None:
@@ -180,15 +171,19 @@ def test_prepare_creates_private_redacted_handoff(
     output = tmp_path / "output"
     output.mkdir(mode=0o700)
     runner = FakeRunner(_storage())
-    _patch_dependencies(monkeypatch, runner)
+    _patch_dependencies(monkeypatch, tmp_path, runner)
 
     report = prepare_homeassistant_mqtt_reconfigure_handoff(
         stage,
         output,
         expected_retained_topic="gh/v1/greenhouse/state/node/telemetry",
         expected_target_fingerprint=hashlib.sha256(b"127.0.0.1").hexdigest()[:16],
-        expected_entry_fingerprint=hashlib.sha256(b"mqtt-entry-secret-id").hexdigest()[:16],
-        expected_storage_sha256=hashlib.sha256(runner.raw_storage().encode()).hexdigest(),
+        expected_entry_fingerprint=hashlib.sha256(b"mqtt-entry-secret-id").hexdigest()[
+            :16
+        ],
+        expected_storage_sha256=hashlib.sha256(
+            runner.raw_storage().encode()
+        ).hexdigest(),
         runner=runner,
         now=datetime(2026, 7, 12, 6, 0, tzinfo=UTC),
         token_factory=lambda: "testtoken",
@@ -227,9 +222,11 @@ def test_prepare_rejects_target_fingerprint_drift(
     output = tmp_path / "output"
     output.mkdir(mode=0o700)
     runner = FakeRunner(_storage())
-    _patch_dependencies(monkeypatch, runner)
+    _patch_dependencies(monkeypatch, tmp_path, runner)
 
-    with pytest.raises(HomeAssistantMqttReconfigureHandoffError, match="fingerprint has drifted"):
+    with pytest.raises(
+        HomeAssistantMqttReconfigureHandoffError, match="fingerprint has drifted"
+    ):
         prepare_homeassistant_mqtt_reconfigure_handoff(
             stage,
             output,
@@ -249,9 +246,11 @@ def test_prepare_rejects_unexpected_blocker(
     runner = FakeRunner(_storage())
     target = _target_report(runner)
     target["activation_blockers"] = ["unexpected"]
-    _patch_dependencies(monkeypatch, runner, target)
+    _patch_dependencies(monkeypatch, tmp_path, runner, target)
 
-    with pytest.raises(HomeAssistantMqttReconfigureHandoffError, match="unexpected blockers"):
+    with pytest.raises(
+        HomeAssistantMqttReconfigureHandoffError, match="unexpected blockers"
+    ):
         prepare_homeassistant_mqtt_reconfigure_handoff(
             stage,
             output,
@@ -268,7 +267,7 @@ def _prepared_handoff(
     stage = _stage(tmp_path)
     output = tmp_path / "output"
     output.mkdir(mode=0o700)
-    _patch_dependencies(monkeypatch, runner)
+    _patch_dependencies(monkeypatch, tmp_path, runner)
     report = prepare_homeassistant_mqtt_reconfigure_handoff(
         stage,
         output,
@@ -352,7 +351,7 @@ def test_candidate_binding_must_be_unique(
     output = tmp_path / "output"
     output.mkdir(mode=0o700)
     runner = FakeRunner(_storage())
-    _patch_dependencies(monkeypatch, runner)
+    _patch_dependencies(monkeypatch, tmp_path, runner)
     candidates = (
         BrokerCandidate("loopback_a", "loopback", "127.0.0.1"),
         BrokerCandidate("loopback_b", "loopback", "127.0.0.1"),
