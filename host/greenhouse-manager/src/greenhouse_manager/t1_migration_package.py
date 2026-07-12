@@ -503,7 +503,8 @@ def create_migration_package(
             "Do not commit, upload, email, print, or copy it to Home Assistant storage.\n"
             "Generation does not modify any running service. apply-plan.json is disabled.\n"
             "The bootstrap admin must be removed only after the provisioning identity is verified.\n"
-            "Anonymous access must remain enabled until manager, Home Assistant and the node are authenticated.\n",
+            "Anonymous access must remain enabled until manager, Home Assistant and the node "
+            "are authenticated.\n",
             contains_secret=False,
             records=records,
         )
