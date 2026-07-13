@@ -54,7 +54,8 @@ def _write(path: Path, value: str, mode: int = 0o600) -> None:
 
 
 def _write_json(path: Path, value: dict[str, Any]) -> None:
-    _write(path, _json(value) + "\n")
+    serialized = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    _write(path, serialized + "\n")
 
 
 def _path_record(path: Path, source_path: str) -> dict[str, object]:
