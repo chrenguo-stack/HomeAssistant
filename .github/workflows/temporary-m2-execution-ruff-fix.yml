@@ -1,0 +1,40 @@
+name: Temporary M2 execution preparation Ruff fix
+
+on:
+  push:
+    branches:
+      - agent/m2-manager-execution-preparation
+    paths:
+      - "host/greenhouse-manager/**"
+      - ".github/workflows/temporary-m2-execution-ruff-fix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/m2-manager-execution-preparation
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Ruff
+        run: python -m pip install "ruff==0.12.12"
+      - name: Apply safe fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd host/greenhouse-manager
+          python -m ruff check --fix .
+          cd ../..
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add host/greenhouse-manager
+          git commit -m "style(manager): fix execution preparation lint"
+          git push origin HEAD:agent/m2-manager-execution-preparation
