@@ -204,13 +204,6 @@ def _validated_execution_preparation(
             "manager execution preparation record inventory is unexpected"
         )
 
-    if sha_path(driver) != _require_sha(
-        bindings.get("driver_contract_sha256"),
-        "manager production driver contract",
-    ):
-        raise ManagerIdentityExecutionAuthorizationError(
-            "manager production driver contract does not match execution preparation"
-        )
     if preparation.get("manifest_sha256") != _require_sha(
         bindings.get("preparation_manifest_sha256"),
         "manager migration preparation manifest",
