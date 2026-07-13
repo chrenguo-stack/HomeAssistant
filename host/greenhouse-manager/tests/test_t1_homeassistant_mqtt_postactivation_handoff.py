@@ -150,8 +150,9 @@ def _prepare(
         now=datetime(2026, 7, 13, 1, 0, tzinfo=UTC),
         token_factory=lambda: "bridge",
         broker_auditor=lambda *_args, **_kwargs: broker_report or _broker_audit(),
-        homeassistant_auditor=lambda *_args, **_kwargs: live_postcheck
-        or _ha_postcheck(),
+        homeassistant_auditor=lambda *_args, **_kwargs: (
+            live_postcheck or _ha_postcheck()
+        ),
     )
     return report, output / str(report["handoff_name"])
 
