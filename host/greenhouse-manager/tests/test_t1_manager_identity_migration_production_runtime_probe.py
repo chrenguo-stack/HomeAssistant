@@ -11,6 +11,7 @@ from greenhouse_manager.t1_manager_identity_migration_production_host_adapters i
     ManagerProductionHostTransactionAdapters,
 )
 from greenhouse_manager.t1_manager_identity_migration_production_integration import (
+    ManagerProductionIntegrationError,
     ManagerRuntimeProbeConfiguration,
     build_manager_production_adapters_factory,
     production_integration_capabilities,
@@ -359,7 +360,7 @@ def test_integration_factory_rejects_reused_host_workspace(tmp_path: Path) -> No
         probe_factory=BaselineProbe,
     )
 
-    with pytest.raises(Exception, match="already exists"):
+    with pytest.raises(ManagerProductionIntegrationError, match="already exists"):
         factory(
             driver,
             execution,
