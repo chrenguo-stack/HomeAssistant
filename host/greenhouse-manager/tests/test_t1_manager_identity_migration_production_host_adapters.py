@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import tarfile
@@ -29,8 +30,6 @@ def _write(path: Path, value: str, mode: int = 0o600) -> Path:
 
 
 def _sha(path: Path) -> str:
-    import hashlib
-
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
@@ -53,15 +52,14 @@ def _write_archive(
     rollback: dict[str, Any],
     payloads: dict[str, bytes],
 ) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    by_name = {str(item["archive_path"]): item for item in rollback["files"]}
     with tarfile.open(path, mode="w:gz") as archive:
         manifest = json.dumps(rollback, sort_keys=True).encode()
-        info = tarfile.TarInfo("rollback-manifest.json")
-        info.size = len(manifest)
-        info.mode = 0o600
-        archive.addfile(info, io.BytesIO(manifest))
-        by_name = {
-            str(item["archive_path"]): item for item in rollback["files"]
-        }
+        manifest_info = tarfile.TarInfo("rollback-manifest.json")
+        manifest_info.size = len(manifest)
+        manifest_info.mode = 0o600
+        archive.addfile(manifest_info, io.BytesIO(manifest))
         for name, payload in payloads.items():
             item = by_name[name]
             info = tarfile.TarInfo(name)
@@ -73,14 +71,15 @@ def _write_archive(
     path.chmod(0o600)
 
 
-def _fixture(tmp_path: Path) -> tuple[ManagerHostBinding, dict[str, Any], dict[str, Path]]:
+def _fixture(
+    tmp_path: Path,
+) -> tuple[ManagerHostBinding, dict[str, Any], dict[str, Path]]:
     tmp_path.chmod(0o700)
     working = tmp_path / "compose"
     working.mkdir(mode=0o700)
     config = _write(
         working / "compose.yaml",
         "services:\n  greenhouse-manager:\n    image: test\n",
-        0o600,
     )
     environment = _write(working / ".env", "SYSTEM_ID=test\n")
     secret_root = tmp_path / "secrets"
@@ -113,8 +112,16 @@ def _fixture(tmp_path: Path) -> tuple[ManagerHostBinding, dict[str, Any], dict[s
         username=USERNAME,
         client_id=CLIENT_ID,
     )
-    config_item = _rollback_item(config, "compose/config/000.yaml", "compose_config")
-    env_item = _rollback_item(environment, "compose/environment/.env", "compose_environment")
+    config_item = _rollback_item(
+        config,
+        "compose/config/000.yaml",
+        "compose_config",
+    )
+    env_item = _rollback_item(
+        environment,
+        "compose/environment/.env",
+        "compose_environment",
+    )
     rollback: dict[str, Any] = {
         "manager_only": True,
         "restart_scope": ["greenhouse-manager"],
@@ -123,9 +130,8 @@ def _fixture(tmp_path: Path) -> tuple[ManagerHostBinding, dict[str, Any], dict[s
     }
     execution = tmp_path / "execution"
     execution.mkdir(mode=0o700)
-    archive = execution / "fresh-manager-rollback.tar.gz"
     _write_archive(
-        archive,
+        execution / "fresh-manager-rollback.tar.gz",
         rollback,
         {
             "compose/config/000.yaml": config.read_bytes(),
@@ -149,8 +155,8 @@ def _fixture(tmp_path: Path) -> tuple[ManagerHostBinding, dict[str, Any], dict[s
 
 class FakeDriver:
     def __init__(self, *, audit_ok: bool = True) -> None:
-        self.calls: list[str] = []
         self.audit_ok = audit_ok
+        self.calls: list[str] = []
 
     def recreate_manager(
         self,
@@ -160,7 +166,7 @@ class FakeDriver:
         overlay_file: Path,
     ) -> None:
         assert environment_file.is_file()
-        assert password_file.read_text().strip() == PASSWORD
+        assert password_file.read_text(encoding="utf-8").strip() == PASSWORD
         assert overlay_file.is_file()
         self.calls.append("recreate")
 
@@ -212,43 +218,14 @@ class FakeDriver:
         self.calls.append("legacy")
 
 
-class FakeProbe:
+class FakeProbe(FakeDriver):
     def __init__(self) -> None:
-        self.calls: list[str] = []
-
-    def verify_authenticated_identity(self, username: str, client_id: str) -> None:
-        assert username == USERNAME
-        assert client_id == CLIENT_ID
-        self.calls.append("identity")
-
-    def verify_ingress_subscription(self) -> None:
-        self.calls.append("ingress")
-
-    def verify_canonical_publication(self) -> None:
-        self.calls.append("canonical")
-
-    def verify_availability_publication(self) -> None:
-        self.calls.append("availability")
-
-    def verify_discovery_publication(self) -> None:
-        self.calls.append("discovery")
-
-    def verify_reconnect(self) -> None:
-        self.calls.append("reconnect")
-
-    def verify_existing_entities(self) -> None:
-        self.calls.append("entities")
-
-    def postactivation_audit(self) -> dict[str, object]:
-        self.calls.append("audit")
-        return {"checks": {"all": True}}
-
-    def verify_legacy_anonymous_path(self) -> None:
-        self.calls.append("legacy")
+        super().__init__()
 
 
 class FakeRunner:
-    def __init__(self) -> None:
+    def __init__(self, *, fail_compose: bool = False) -> None:
+        self.fail_compose = fail_compose
         self.commands: list[tuple[str, ...]] = []
 
     def run(self, command: tuple[str, ...]) -> tuple[int, str]:
@@ -257,6 +234,8 @@ class FakeRunner:
             return 0, json.dumps(
                 [{"State": {"Status": "running"}, "RestartCount": 0}]
             )
+        if self.fail_compose:
+            return 1, "compose failed"
         return 0, ""
 
 
@@ -265,7 +244,12 @@ def _adapters(
     monkeypatch: pytest.MonkeyPatch,
     *,
     driver: FakeDriver | None = None,
-) -> tuple[ManagerProductionHostTransactionAdapters, ManagerHostBinding, dict[str, Path], FakeDriver]:
+) -> tuple[
+    ManagerProductionHostTransactionAdapters,
+    ManagerHostBinding,
+    dict[str, Path],
+    FakeDriver,
+]:
     binding, rollback, paths = _fixture(tmp_path)
     monkeypatch.setattr(
         module,
@@ -301,7 +285,7 @@ def test_prepare_captures_snapshot_without_live_mutation(
     assert driver.calls == []
 
 
-def test_mutation_targets_only_manager_and_rollback_restores_baseline(
+def test_manager_only_mutation_and_complete_rollback(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -416,8 +400,7 @@ def test_live_driver_uses_exact_manager_only_compose_command(tmp_path: Path) -> 
     _write(binding.auth_environment_target, "GH_MQTT_USERNAME=test\n")
     _write(binding.overlay_target, "services: {}\n")
     runner = FakeRunner()
-    probe = FakeProbe()
-    driver = LiveProductionManagerDriver(binding, probe=probe, runner=runner)
+    driver = LiveProductionManagerDriver(binding, probe=FakeProbe(), runner=runner)
 
     driver.recreate_manager(
         environment_file=binding.auth_environment_target,
@@ -427,13 +410,13 @@ def test_live_driver_uses_exact_manager_only_compose_command(tmp_path: Path) -> 
 
     compose = runner.commands[0]
     assert compose[:2] == ("docker", "compose")
-    assert compose[-6:] == (
+    assert compose[-5:] == (
         "up",
         "-d",
         "--no-deps",
         "--force-recreate",
         "greenhouse-manager",
-    )[-6:]
+    )
     assert "mosquitto" not in compose
     assert "homeassistant" not in compose
     assert str(binding.overlay_target) in compose
@@ -446,7 +429,7 @@ def test_live_driver_uses_exact_manager_only_compose_command(tmp_path: Path) -> 
     assert runner.commands[3] == ("docker", "inspect", "greenhouse-manager")
 
 
-def test_live_driver_rejects_unbound_recreate_paths(tmp_path: Path) -> None:
+def test_live_driver_rejects_unbound_paths_before_command(tmp_path: Path) -> None:
     binding, _rollback, _paths = _fixture(tmp_path)
     runner = FakeRunner()
     driver = LiveProductionManagerDriver(binding, probe=FakeProbe(), runner=runner)
@@ -462,3 +445,25 @@ def test_live_driver_rejects_unbound_recreate_paths(tmp_path: Path) -> None:
         )
 
     assert runner.commands == []
+
+
+def test_live_driver_reports_compose_failure(tmp_path: Path) -> None:
+    binding, _rollback, _paths = _fixture(tmp_path)
+    _write(binding.password_target, PASSWORD + "\n")
+    _write(binding.auth_environment_target, "GH_MQTT_USERNAME=test\n")
+    _write(binding.overlay_target, "services: {}\n")
+    runner = FakeRunner(fail_compose=True)
+    driver = LiveProductionManagerDriver(binding, probe=FakeProbe(), runner=runner)
+
+    with pytest.raises(
+        ManagerProductionHostAdaptersError,
+        match="recreate failed",
+    ):
+        driver.recreate_manager(
+            environment_file=binding.auth_environment_target,
+            password_file=binding.password_target,
+            overlay_file=binding.overlay_target,
+        )
+
+    assert len(runner.commands) == 1
+    assert runner.commands[0][-1] == "greenhouse-manager"
