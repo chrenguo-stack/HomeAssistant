@@ -46,6 +46,10 @@
 
 探针只保存布尔结果和 schema，不保存 UID/GID、镜像 ID、用户名、Client ID、密码、主机路径或命令输出。候选密码副本无论成功失败都必须删除。
 
+### 旧运行镜像兼容
+
+当当前真实 manager 镜像早于新增 `greenhouse-manager --check-config` 包装入口时，探针必须仍针对同一个已绑定的真实镜像 ID，使用该镜像内已安装的 `greenhouse_manager.config.Settings.from_env()` 固定模块入口完成等价验证。固定程序不得拼接用户名、Client ID、密码或主机路径；仍必须由 `--network none`、只读 rootfs、cap-drop 和 no-new-privileges 提供外部边界。不得因为旧镜像缺少包装 CLI 而切换到未绑定镜像、跳过配置加载或只执行文件 `test -r`。
+
 ## 全链路绑定
 
 1. 6b 将运行 UID/GID、用户来源和镜像写入私有 runtime binding。

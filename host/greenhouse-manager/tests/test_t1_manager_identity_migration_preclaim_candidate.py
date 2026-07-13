@@ -61,7 +61,10 @@ def _materials(tmp_path: Path) -> tuple[Path, Path, Path]:
         "GH_MQTT_PASSWORD_FILE=/run/secrets/gh_manager_mqtt_password\n"
         "GH_MQTT_CLIENT_ID=manager-client\n",
     )
-    password = _write(tmp_path / "material/password", "secret\n")
+    password = _write(
+        tmp_path / "material/password",
+        "candidate-credential-material-value\n",
+    )
     workspace = tmp_path / "workspace"
     workspace.mkdir(mode=0o700)
     return environment, password, workspace
@@ -95,7 +98,37 @@ def test_preclaim_probe_is_network_none_read_only_and_removes_candidate(
     assert "--read-only" in command
     assert "--cap-drop" in command
     assert "no-new-privileges" in command
-    assert command[-1] == "--check-config"
+    assert command[command.index("--entrypoint") + 1] == "python3"
+    assert command[-3:-1] == ("-I", "-c")
+    assert command[-1] == module._CHECK_CONFIG_PROGRAM
+    assert "Settings.from_env()" in command[-1]
+    assert "manager-client" not in command[-1]
+    assert "candidate-credential-material-value" not in command[-1]
+
+
+def test_preclaim_uses_installed_module_not_new_cli_wrapper(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    environment, password, workspace = _materials(tmp_path)
+    monkeypatch.setattr(
+        module,
+        "verify_bound_runtime_identity",
+        lambda *_args, **_kwargs: (os.getuid(), os.getgid()),
+    )
+    runner = FakeRunner()
+
+    run_preclaim_candidate_probe(
+        _runtime(),
+        environment,
+        password,
+        workspace,
+        runner=runner,
+    )
+
+    command = runner.commands[0]
+    assert command[command.index("--entrypoint") + 1] == "python3"
+    assert "--check-config" not in command
 
 
 def test_preclaim_probe_rejects_owner_mismatch_before_docker(
