@@ -37,10 +37,11 @@
 29. `pairing/gh-t1-homeassistant-mqtt-postactivation-handoff-v1.md`：M2.4g-6a Draft，将已提交 Broker 事务、Broker 当前只读审计、Home Assistant 官方重配置 handoff、保存 postcheck 与实时 postcheck 绑定为私有交接包；仅允许进入 manager 身份迁移准备，继续禁止 apply、节点凭据下发和匿名关闭。
 30. `pairing/gh-t1-manager-identity-migration-preparation-v1.md`：M2.4g-6b Draft，绑定 6a 交接、inactive Stage、manager 当前容器/Compose 基线与独立凭据材料，生成私有且不可执行的 manager 迁移准备包；只允许进入后续一次性授权设计。
 31. `pairing/gh-t1-manager-identity-migration-authorization-v1.md`：M2.4g-6c Draft，定义与 6b 准备包和新鲜 manager/Compose 状态全绑定的短时、单次操作员授权；授权自身不 claim、不执行、不重启服务。
-32. `discovery/gh-discovery-v1.md`：待冻结 mDNS、UDP 回退、重试和多主机处理；M2.0 pairing Draft 已给出最小发现依赖。
-33. `state/gh-path-lease-v1.md`：待冻结直连/中继路径租约、去重和切换滞回。
-34. `state/gh-availability-v1.md`：待将 M1 已验证行为整理为独立协议。
-35. `transport/gh-radio-frame-v1.md`：待冻结 ESP-NOW 与 LoRa 紧凑帧、认证和序列规则。
+32. `pairing/gh-t1-manager-identity-migration-host-replica-v1.md`：M2.4g-6d Draft，定义仅在系统临时目录标记副本和注入式 manager driver 上运行的原子凭据/Compose overlay 事务、身份/订阅/发布验证、完整回退和故障注入矩阵；不允许真实 T1 目标。
+33. `discovery/gh-discovery-v1.md`：待冻结 mDNS、UDP 回退、重试和多主机处理；M2.0 pairing Draft 已给出最小发现依赖。
+34. `state/gh-path-lease-v1.md`：待冻结直连/中继路径租约、去重和切换滞回。
+35. `state/gh-availability-v1.md`：待将 M1 已验证行为整理为独立协议。
+36. `transport/gh-radio-frame-v1.md`：待冻结 ESP-NOW 与 LoRa 紧凑帧、认证和序列规则。
 
 ## 变更规则
 
