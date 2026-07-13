@@ -587,8 +587,9 @@ def create_manager_identity_migration_authorization(
         raise ManagerIdentityMigrationAuthorizationError(
             "manager authorization path bindings are incomplete"
         )
-    output = _private_output_directory(Path(output_directory).expanduser())
-    _reject_output(output, preparation_root, protected_paths)
+    requested_output = Path(output_directory).expanduser().resolve()
+    _reject_output(requested_output, preparation_root, protected_paths)
+    output = _private_output_directory(requested_output)
     token = token_factory() if token_factory else secrets.token_urlsafe(32)
     if not isinstance(token, str) or _TOKEN.fullmatch(token) is None:
         raise ManagerIdentityMigrationAuthorizationError(
