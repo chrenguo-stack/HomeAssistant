@@ -31,6 +31,13 @@ class ManagerProductionIntegrationError(RuntimeError):
     pass
 
 
+class IntegratedStageAwareTransactionAdapters(
+    StageAwareTransactionAdapters,
+    ManagerProductionHostTransactionAdapters,
+):
+    pass
+
+
 @dataclass(frozen=True)
 class ManagerRuntimeProbeConfiguration:
     system_id: str
@@ -71,7 +78,7 @@ def build_manager_production_adapters_factory(
     now: datetime | None = None,
     binding_loader: BindingLoader = _load_binding,
     probe_factory: ProbeFactory = ManagerProductionRuntimeProbe,
-) -> Callable[..., StageAwareTransactionAdapters]:
+) -> Callable[..., IntegratedStageAwareTransactionAdapters]:
     def factory(
         driver_contract_file: str | Path,
         execution_preparation_directory: str | Path,
@@ -79,7 +86,7 @@ def build_manager_production_adapters_factory(
         workspace_directory: str | Path,
         *,
         runner: CommandRunner | None = None,
-    ) -> StageAwareTransactionAdapters:
+    ) -> IntegratedStageAwareTransactionAdapters:
         command_runner = runner or SubprocessRunner()
         driver_path = Path(driver_contract_file).expanduser().resolve()
         execution_root = Path(execution_preparation_directory).expanduser().resolve()
@@ -133,7 +140,7 @@ def build_manager_production_adapters_factory(
             driver=driver,
             now=now,
         )
-        return StageAwareTransactionAdapters(adapters, recorder)
+        return IntegratedStageAwareTransactionAdapters(adapters, recorder)
 
     return factory
 
