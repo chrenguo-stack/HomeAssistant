@@ -43,7 +43,10 @@ def _write_json(path: Path, value: dict[str, Any]) -> None:
     _write(path, _json(value) + "\n")
 
 
-def _runtime(compose_root: Path, compose_file: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+def _runtime(
+    compose_root: Path,
+    compose_file: Path,
+) -> tuple[dict[str, Any], dict[str, Any]]:
     container = {
         "container_id": "manager-container-id",
         "image_id": "sha256:manager-image-id",
@@ -88,7 +91,10 @@ class FakeRunner:
                 "Id": "manager-container-id",
                 "Image": "sha256:manager-image-id",
                 "RestartCount": 0,
-                "State": {"Status": "running", "StartedAt": self.started_at},
+                "State": {
+                    "Status": "running",
+                    "StartedAt": self.started_at,
+                },
                 "Config": {
                     "Image": "greenhouse-manager:0.4.44",
                     "Env": [
@@ -97,8 +103,12 @@ class FakeRunner:
                     ],
                     "Labels": {
                         "com.docker.compose.project": "t1",
-                        "com.docker.compose.project.working_dir": str(self.compose_root),
-                        "com.docker.compose.project.config_files": str(self.compose_file),
+                        "com.docker.compose.project.working_dir": str(
+                            self.compose_root
+                        ),
+                        "com.docker.compose.project.config_files": str(
+                            self.compose_file
+                        ),
                     },
                 },
             }
@@ -117,10 +127,14 @@ def _record(path: Path, root: Path, secret: bool) -> dict[str, object]:
 
 
 def _preparation(tmp_path: Path) -> tuple[Path, Path, FakeRunner]:
+    tmp_path.mkdir(parents=True, exist_ok=True, mode=0o700)
     compose_root = tmp_path / "active-compose"
     compose_root.mkdir(mode=0o700)
     compose_file = compose_root / "docker-compose.manager.yml"
-    _write(compose_file, "services:\n  greenhouse-manager:\n    image: manager\n")
+    _write(
+        compose_file,
+        "services:\n  greenhouse-manager:\n    image: manager\n",
+    )
     secret_root = tmp_path / "active-secrets"
     secret_root.mkdir(mode=0o700)
     root = tmp_path / "greenhouse-manager-migration-preparation-test"
@@ -205,9 +219,10 @@ def _preparation(tmp_path: Path) -> tuple[Path, Path, FakeRunner]:
         "records": records,
     }
     _write_json(root / "manifest.json", manifest)
-    return root, tmp_path / "greenhouse-m2-manager-authorizations-test", FakeRunner(
-        compose_root,
-        compose_file,
+    return (
+        root,
+        tmp_path / "greenhouse-m2-manager-authorizations-test",
+        FakeRunner(compose_root, compose_file),
     )
 
 
@@ -233,7 +248,9 @@ def test_request_is_fresh_disabled_and_redacted(tmp_path: Path) -> None:
     assert runner.commands == [("docker", "inspect", "greenhouse-manager")]
 
 
-def test_create_and_verify_short_lived_single_use_authorization(tmp_path: Path) -> None:
+def test_create_and_verify_short_lived_single_use_authorization(
+    tmp_path: Path,
+) -> None:
     preparation, output, runner = _preparation(tmp_path)
     request = build_manager_identity_migration_authorization_request(
         preparation,
@@ -282,7 +299,9 @@ def test_create_rejects_wrong_confirmation(tmp_path: Path) -> None:
         )
 
 
-def test_verify_rejects_expired_or_consumed_authorization(tmp_path: Path) -> None:
+def test_verify_rejects_expired_or_consumed_authorization(
+    tmp_path: Path,
+) -> None:
     preparation, output, runner = _preparation(tmp_path)
     request = build_manager_identity_migration_authorization_request(
         preparation,
@@ -348,9 +367,13 @@ def test_request_rejects_runtime_or_compose_drift(tmp_path: Path) -> None:
         )
 
 
-def test_request_rejects_existing_active_manager_password(tmp_path: Path) -> None:
+def test_request_rejects_existing_active_manager_password(
+    tmp_path: Path,
+) -> None:
     preparation, _output, runner = _preparation(tmp_path)
-    binding = json.loads((preparation / "manager-runtime-binding.json").read_text())
+    binding = json.loads(
+        (preparation / "manager-runtime-binding.json").read_text()
+    )
     password = Path(binding["target_password_file"])
     _write(password, PASSWORD + "\n")
 
