@@ -9,18 +9,14 @@ import re
 import secrets
 import sys
 import tempfile
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
 
 from .t1_homeassistant_mqtt_reconfigure_handoff import (
     HANDOFF_SCHEMA as CURRENT_HANDOFF_SCHEMA,
-)
-from .t1_homeassistant_mqtt_reconfigure_handoff import (
     POSTCHECK_SCHEMA as CURRENT_POSTCHECK_SCHEMA,
-)
-from .t1_homeassistant_mqtt_reconfigure_handoff import (
     audit_homeassistant_mqtt_reconfigure_postcheck,
 )
 from .t1_migration_readiness import CommandRunner, SubprocessRunner
@@ -65,9 +61,12 @@ def _fsync_dir(path: Path) -> None:
         os.close(descriptor)
 
 
-def _private_dir(path: Path, label: str, *, create: bool = False) -> None:
-    if create:
-        path.mkdir(parents=True, exist_ok=True, mode=0o700)
+def _make_private_dir(path: Path) -> None:
+    path.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(path, 0o700)
+
+
+def _require_private_dir(path: Path, label: str) -> None:
     if not path.is_dir() or path.is_symlink() or path.stat().st_mode & 0o077:
         raise HomeAssistantMqttLegacyEvidenceBridgeError(
             f"{label} is missing, public, or unsafe"
@@ -89,7 +88,7 @@ def _load(path: Path, label: str, *, private: bool = True) -> dict[str, Any]:
 
 
 def _write(path: Path, value: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    _make_private_dir(path.parent)
     descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     temporary_path = Path(temporary)
     try:
@@ -129,7 +128,7 @@ def _relative_path(value: object) -> PurePosixPath:
     if not isinstance(value, str) or not value:
         raise HomeAssistantMqttLegacyEvidenceBridgeError("legacy record path is invalid")
     relative = PurePosixPath(value)
-    if relative.is_absolute() or ".." in relative.parts or "." in relative.parts:
+    if relative.is_absolute() or "." in relative.parts or ".." in relative.parts:
         raise HomeAssistantMqttLegacyEvidenceBridgeError("legacy record path is unsafe")
     return relative
 
@@ -138,6 +137,7 @@ def _validate_records(root: Path, manifest: Mapping[str, Any]) -> set[str]:
     records = manifest.get("records")
     if not isinstance(records, list) or not records:
         raise HomeAssistantMqttLegacyEvidenceBridgeError("legacy records are missing")
+
     verified: set[str] = set()
     for record in records:
         if not isinstance(record, dict):
@@ -200,6 +200,7 @@ def _validate_legacy_manifest(
         },
         "legacy Home Assistant handoff",
     )
+
     pre_change = manifest.get("pre_change")
     if not isinstance(pre_change, dict):
         raise HomeAssistantMqttLegacyEvidenceBridgeError("legacy pre-change binding is missing")
@@ -214,6 +215,7 @@ def _validate_legacy_manifest(
         raise HomeAssistantMqttLegacyEvidenceBridgeError(
             "legacy pre-change binding is invalid"
         )
+
     target = manifest.get("target")
     if (
         not isinstance(target, dict)
@@ -222,6 +224,7 @@ def _validate_legacy_manifest(
         or not isinstance(target.get("port"), int)
     ):
         raise HomeAssistantMqttLegacyEvidenceBridgeError("legacy target is invalid")
+
     rollback = manifest.get("rollback")
     if not isinstance(rollback, dict):
         raise HomeAssistantMqttLegacyEvidenceBridgeError("legacy rollback binding is missing")
@@ -238,8 +241,9 @@ def _validate_legacy_manifest(
         raise HomeAssistantMqttLegacyEvidenceBridgeError(
             "legacy rollback safety flags are invalid"
         )
-    verified_records = _validate_records(root, manifest)
-    if "homeassistant/reconfigure-values.json" not in verified_records:
+
+    verified = _validate_records(root, manifest)
+    if "homeassistant/reconfigure-values.json" not in verified:
         raise HomeAssistantMqttLegacyEvidenceBridgeError(
             "legacy reconfigure values are not bound by records"
         )
@@ -362,18 +366,16 @@ def _validate_current_postcheck(report: Mapping[str, Any]) -> None:
 
 
 def _current_projection(report: Mapping[str, Any]) -> dict[str, Any]:
-    return {
-        field: report.get(field)
-        for field in (
-            "runtime_healthy",
-            "entry_fingerprint_unchanged",
-            "storage_changed",
-            "discovery_preserved",
-            "field_matches",
-            "reconfigure_verified",
-            "rollback_required",
-        )
-    }
+    fields = (
+        "runtime_healthy",
+        "entry_fingerprint_unchanged",
+        "storage_changed",
+        "discovery_preserved",
+        "field_matches",
+        "reconfigure_verified",
+        "rollback_required",
+    )
+    return {field: report.get(field) for field in fields}
 
 
 def _record(path: Path, root: Path, *, contains_secret: bool) -> dict[str, object]:
@@ -388,6 +390,17 @@ def _record(path: Path, root: Path, *, contains_secret: bool) -> dict[str, objec
         "mode": "0600",
         "contains_secret": contains_secret,
     }
+
+
+def _string_values(value: Any) -> Iterator[str]:
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for child in value.values():
+            yield from _string_values(child)
+    elif isinstance(value, list | tuple):
+        for child in value:
+            yield from _string_values(child)
 
 
 def prepare_homeassistant_mqtt_legacy_evidence_bridge(
@@ -409,15 +422,16 @@ def prepare_homeassistant_mqtt_legacy_evidence_bridge(
     legacy_root = Path(legacy_handoff_directory).expanduser().resolve()
     legacy_postcheck_path = Path(legacy_postcheck_file).expanduser().resolve()
     output_root = Path(output_directory).expanduser().resolve()
-    _private_dir(legacy_root, "legacy Home Assistant handoff directory")
-    _private_dir(output_root, "output directory", create=True)
+    _require_private_dir(legacy_root, "legacy Home Assistant handoff directory")
+    _make_private_dir(output_root)
+    _require_private_dir(output_root, "output directory")
 
     legacy_manifest_path, legacy_manifest = _validate_legacy_manifest(
         legacy_root,
         expected_retained_topic,
     )
-    reconfigure_values_path = legacy_root / "homeassistant/reconfigure-values.json"
-    reconfigure_values = _validate_reconfigure_values(reconfigure_values_path)
+    values_path = legacy_root / "homeassistant/reconfigure-values.json"
+    values = _validate_reconfigure_values(values_path)
     legacy_postcheck = _validate_legacy_postcheck(legacy_postcheck_path)
 
     observed = (now or datetime.now(UTC)).astimezone(UTC)
@@ -431,15 +445,15 @@ def prepare_homeassistant_mqtt_legacy_evidence_bridge(
             "legacy evidence bridge destination already exists"
         )
 
-    with tempfile.TemporaryDirectory(prefix=".gh-ha-legacy-bridge-", dir=output_root) as temporary:
-        root = Path(temporary) / name
+    with tempfile.TemporaryDirectory(prefix=".gh-ha-legacy-bridge-", dir=output_root) as tmp:
+        root = Path(tmp) / name
+        _make_private_dir(root)
         normalized = root / "homeassistant-reconfigure-handoff"
-        normalized.mkdir(parents=True, mode=0o700)
+        _make_private_dir(normalized)
         normalized_values_path = normalized / "homeassistant/reconfigure-values.json"
-        _write(normalized_values_path, reconfigure_values_path.read_bytes())
+        _write(normalized_values_path, values_path.read_bytes())
 
         pre_change = legacy_manifest["pre_change"]
-        target = legacy_manifest["target"]
         normalized_manifest = {
             "schema": CURRENT_HANDOFF_SCHEMA,
             "created_at": legacy_manifest.get("created_at"),
@@ -450,7 +464,7 @@ def prepare_homeassistant_mqtt_legacy_evidence_bridge(
             "operator_action_required": True,
             "operator_action_authorized": False,
             "ready_for_operator_reconfigure": False,
-            "target": target,
+            "target": legacy_manifest["target"],
             "pre_change": {
                 "entry_fingerprint": pre_change["entry_fingerprint"],
                 "storage_sha256": pre_change["storage_sha256"],
@@ -463,7 +477,7 @@ def prepare_homeassistant_mqtt_legacy_evidence_bridge(
                 "manifest_sha256": _sha(legacy_manifest_path),
                 "postcheck_schema": LEGACY_POSTCHECK_SCHEMA,
                 "postcheck_sha256": _sha(legacy_postcheck_path),
-                "reconfigure_values_sha256": _sha(reconfigure_values_path),
+                "reconfigure_values_sha256": _sha(values_path),
             },
         }
         normalized_manifest_path = normalized / "manifest.json"
@@ -487,14 +501,12 @@ def prepare_homeassistant_mqtt_legacy_evidence_bridge(
         runbook_path = root / "operator-runbook.txt"
         _write(
             runbook_path,
-            (
-                "Home Assistant MQTT legacy evidence bridge\n\n"
-                "Read-only compatibility material for the current postactivation handoff.\n"
-                "Use homeassistant-reconfigure-handoff as the Home Assistant handoff input.\n"
-                "Use postcheck-result.json as the supplied Home Assistant postcheck input.\n"
-                "This bridge does not authorize service changes, credential delivery, "
-                "storage edits, or anonymous closure.\n"
-            ).encode(),
+            b"Home Assistant MQTT legacy evidence bridge\n\n"
+            b"Read-only compatibility material for the current postactivation handoff.\n"
+            b"Use homeassistant-reconfigure-handoff as the Home Assistant handoff input.\n"
+            b"Use postcheck-result.json as the supplied Home Assistant postcheck input.\n"
+            b"This bridge does not authorize service changes, credential delivery, "
+            b"storage edits, or anonymous closure.\n",
         )
 
         records = [
@@ -522,7 +534,7 @@ def prepare_homeassistant_mqtt_legacy_evidence_bridge(
             "bindings": {
                 "legacy_handoff_manifest_sha256": _sha(legacy_manifest_path),
                 "legacy_postcheck_sha256": _sha(legacy_postcheck_path),
-                "legacy_reconfigure_values_sha256": _sha(reconfigure_values_path),
+                "legacy_reconfigure_values_sha256": _sha(values_path),
                 "normalized_handoff_manifest_sha256": _sha(normalized_manifest_path),
                 "normalized_postcheck_sha256": _sha(normalized_postcheck_path),
                 "expected_retained_topic_sha256": _sha_bytes(
@@ -561,19 +573,22 @@ def prepare_homeassistant_mqtt_legacy_evidence_bridge(
         "source_paths_included": False,
     }
     serialized = _json(report)
-    for forbidden in (
-        legacy_root,
-        legacy_postcheck_path,
-        output_root,
-        reconfigure_values.get("broker"),
-        reconfigure_values.get("username"),
-        reconfigure_values.get("password"),
-        reconfigure_values.get("client_id"),
+    for source_path in (legacy_root, legacy_postcheck_path, output_root):
+        if str(source_path) in serialized:
+            raise HomeAssistantMqttLegacyEvidenceBridgeError(
+                "sanitized report contains a source path"
+            )
+    reported_strings = set(_string_values(report))
+    for secret in (
+        values.get("broker"),
+        values.get("username"),
+        values.get("password"),
+        values.get("client_id"),
         legacy_postcheck.get("authorization_id"),
     ):
-        if forbidden is not None and str(forbidden) in serialized:
+        if isinstance(secret, str) and secret in reported_strings:
             raise HomeAssistantMqttLegacyEvidenceBridgeError(
-                "sanitized report contains source or secret material"
+                "sanitized report contains secret material"
             )
     return report
 
