@@ -13,7 +13,6 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from .t1_manager_identity_migration_execution_transaction_gate import (
-    ManagerIdentityExecutionTransactionGateError,
     build_manager_identity_execution_transaction_gate,
 )
 from .t1_migration_readiness import CommandRunner, SubprocessRunner
@@ -132,7 +131,7 @@ def _private_transaction_directory(path: Path) -> Path:
 
 def _must(
     document: Mapping[str, Any],
-    required: Mapping[str, object],
+    required: Mapping[str, bool],
     label: str,
 ) -> None:
     for field, expected in required.items():
@@ -275,7 +274,9 @@ def _claim_authorization(
         raise ManagerIdentityProductionOrchestratorError(
             "manager execution authorization ID binding failed"
         )
-    claim = path.with_name(f"claimed-manager-execution-authorization-{authorization_id}.json")
+    claim = path.with_name(
+        f"claimed-manager-execution-authorization-{authorization_id}.json"
+    )
     try:
         source_inode = path.stat().st_ino
         os.link(path, claim, follow_symlinks=False)
@@ -416,14 +417,17 @@ def _journal(
 ) -> None:
     document["phase"] = phase
     document["updated_at"] = _timestamp(now)
-    if details is not None:
-        document["details"] = dict(details)
-    else:
+    if details is None:
         document.pop("details", None)
+    else:
+        document["details"] = dict(details)
     _atomic_private_write(path, document)
 
 
-def _disabled_adapters_factory(*_args: object, **_kwargs: object) -> ManagerMigrationAdapters:
+def _disabled_adapters_factory(
+    *_args: object,
+    **_kwargs: object,
+) -> ManagerMigrationAdapters:
     raise ManagerIdentityProductionOrchestratorError(
         "production manager transaction adapters are not installed"
     )
