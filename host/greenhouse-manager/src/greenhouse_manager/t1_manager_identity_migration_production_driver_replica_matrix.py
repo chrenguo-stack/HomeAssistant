@@ -13,10 +13,14 @@ from typing import Any, Protocol
 
 from .t1_manager_identity_migration_host_replica_adapters import (
     FAULT_PHASES as HOST_FAULT_PHASES,
+)
+from .t1_manager_identity_migration_host_replica_adapters import (
     ManagerHostReplicaTransactionAdapters,
     ManagerIdentityHostReplicaError,
-    _tree_inventory as _host_tree_inventory,
     build_manager_host_replica_plan,
+)
+from .t1_manager_identity_migration_host_replica_adapters import (
+    _tree_inventory as _host_tree_inventory,
 )
 from .t1_manager_identity_migration_production_driver_contract import (
     ManagerIdentityProductionDriverContractError,
