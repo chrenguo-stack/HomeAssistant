@@ -17,6 +17,9 @@ from greenhouse_manager.t1_manager_identity_migration_execution_authorization im
 from greenhouse_manager.t1_manager_identity_migration_execution_preparation import (
     prepare_manager_identity_execution,
 )
+from greenhouse_manager.t1_manager_identity_migration_execution_preparation_common import (
+    ManagerIdentityExecutionPreparationError,
+)
 
 NOW = datetime(2026, 7, 13, 5, 30, tzinfo=UTC)
 
@@ -188,7 +191,7 @@ def test_wrong_confirmation_is_rejected(tmp_path: Path) -> None:
 
 def test_authorization_cannot_outlive_execution_preparation(tmp_path: Path) -> None:
     execution, driver, preparation, gate = _execution_package(tmp_path)
-    observed = NOW + timedelta(seconds=850)
+    observed = NOW + timedelta(seconds=800)
     request = _request(
         execution,
         driver,
@@ -196,7 +199,25 @@ def test_authorization_cannot_outlive_execution_preparation(tmp_path: Path) -> N
         gate,
         now=observed,
     )
-    assert request["max_authorization_ttl_seconds"] == 50
+    assert request["max_authorization_ttl_seconds"] == 100
+    output = tmp_path / "greenhouse-m2-manager-execution-authorizations.test"
+
+    with pytest.raises(
+        ManagerIdentityExecutionAuthorizationError,
+        match="outlive",
+    ):
+        create_manager_identity_execution_authorization(
+            execution,
+            driver,
+            preparation,
+            output,
+            confirmation=str(request["required_confirmation"]),
+            ttl_seconds=120,
+            runner=FakeRunner(),
+            live_gate_builder=_gate_builder(gate),
+            now=observed,
+            token_factory=lambda: "authorization_token_123456",
+        )
 
 
 def test_request_rejects_insufficient_freshness(tmp_path: Path) -> None:
@@ -218,7 +239,10 @@ def test_request_rejects_insufficient_freshness(tmp_path: Path) -> None:
 def test_request_rejects_expired_execution_preparation(tmp_path: Path) -> None:
     execution, driver, preparation, gate = _execution_package(tmp_path)
 
-    with pytest.raises(Exception, match="expired"):
+    with pytest.raises(
+        ManagerIdentityExecutionPreparationError,
+        match="expired",
+    ):
         _request(
             execution,
             driver,
