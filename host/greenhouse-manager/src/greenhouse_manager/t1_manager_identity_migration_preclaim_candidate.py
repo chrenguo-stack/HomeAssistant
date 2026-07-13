@@ -18,15 +18,21 @@ _PASSWORD_TARGET = "/run/secrets/gh_manager_mqtt_password"
 _CHECK_CONFIG_PROGRAM = """
 import json
 
+import greenhouse_manager.config as config
 from greenhouse_manager.config import Settings
 
-settings = Settings.from_env()
+password_file_capability_present = all(
+    callable(getattr(config, name, None))
+    for name in ("_mqtt_password_from_env", "_read_private_secret")
+)
+settings = Settings.from_env() if password_file_capability_present else None
 print(json.dumps({
-    "configuration_valid": True,
+    "password_file_capability_present": password_file_capability_present,
+    "configuration_valid": settings is not None,
     "mqtt_authentication_configured": bool(
-        settings.mqtt_username and settings.mqtt_password
+        settings and settings.mqtt_username and settings.mqtt_password
     ),
-    "password_file_used": True,
+    "password_file_used": settings is not None,
     "inline_password_used": False,
     "network_attempted": False,
     "secret_values_included": False,
@@ -162,7 +168,15 @@ def run_preclaim_candidate_probe(
             raise ManagerPreclaimCandidateError(
                 "manager candidate configuration probe returned invalid JSON"
             ) from error
+        if (
+            isinstance(report, dict)
+            and report.get("password_file_capability_present") is False
+        ):
+            raise ManagerPreclaimCandidateError(
+                "manager runtime image does not support password-file authentication"
+            )
         required = {
+            "password_file_capability_present": True,
             "configuration_valid": True,
             "mqtt_authentication_configured": True,
             "password_file_used": True,
@@ -187,6 +201,7 @@ def run_preclaim_candidate_probe(
         "password_mode_0600": True,
         "password_owned_by_runtime_user": True,
         "password_readable_by_runtime_user": True,
+        "password_file_capability_present": True,
         "configuration_loaded": True,
         "network_none": True,
         "read_only_rootfs": True,
@@ -215,6 +230,7 @@ def validate_preclaim_candidate_report(report: Mapping[str, Any]) -> None:
         "password_mode_0600": True,
         "password_owned_by_runtime_user": True,
         "password_readable_by_runtime_user": True,
+        "password_file_capability_present": True,
         "configuration_loaded": True,
         "network_none": True,
         "read_only_rootfs": True,
