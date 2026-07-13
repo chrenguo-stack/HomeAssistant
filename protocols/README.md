@@ -38,10 +38,18 @@
 30. `pairing/gh-t1-manager-identity-migration-preparation-v1.md`：M2.4g-6b Draft，绑定 6a 交接、inactive Stage、manager 当前容器/Compose 基线与独立凭据材料，生成私有且不可执行的 manager 迁移准备包；只允许进入后续一次性授权设计。
 31. `pairing/gh-t1-manager-identity-migration-authorization-v1.md`：M2.4g-6c Draft，定义与 6b 准备包和新鲜 manager/Compose 状态全绑定的短时、单次操作员授权；授权自身不 claim、不执行、不重启服务。
 32. `pairing/gh-t1-manager-identity-migration-host-replica-v1.md`：M2.4g-6d Draft，定义仅在系统临时目录标记副本和注入式 manager driver 上运行的原子凭据/Compose overlay 事务、身份/订阅/发布验证、完整回退和故障注入矩阵；不允许真实 T1 目标。
-33. `discovery/gh-discovery-v1.md`：待冻结 mDNS、UDP 回退、重试和多主机处理；M2.0 pairing Draft 已给出最小发现依赖。
-34. `state/gh-path-lease-v1.md`：待冻结直连/中继路径租约、去重和切换滞回。
-35. `state/gh-availability-v1.md`：待将 M1 已验证行为整理为独立协议。
-36. `transport/gh-radio-frame-v1.md`：待冻结 ESP-NOW 与 LoRa 紧凑帧、认证和序列规则。
+33. `pairing/gh-t1-manager-identity-production-transaction-adapter-contract-v1.md`：M2.4g-6e Draft，冻结 manager 密码、认证环境和 Compose overlay 原子写入、manager-only recreate、postactivation 与 rollback 的生产 adapter 契约；默认不可调用。
+34. `pairing/gh-t1-manager-identity-production-driver-contract-v1.md`：M2.4g-6f Draft，冻结 manager 生产 driver 的 14 个方法、命令 allowlist、验证、journal 与强制回退边界；driver 尚未安装。
+35. `pairing/gh-t1-manager-identity-production-driver-replica-fault-matrix-v1.md`：M2.4g-6g Draft，在系统临时副本上覆盖 manager driver 全方法、成功路径、写入前后故障和回退失败终止语义。
+36. `pairing/gh-t1-manager-identity-live-runtime-gate-v1.md`：M2.4g-6h Draft，以只读 `docker inspect greenhouse-manager` 绑定真实容器、Compose、mount、安全配置和 inactive secret target。
+37. `pairing/gh-t1-manager-identity-execution-preparation-v1.md`：M2.4g-6i Draft，捕获并验证 manager-only 新鲜回滚包，重跑 runtime gate 检测漂移；不创建授权或执行迁移。
+38. `pairing/gh-t1-manager-identity-execution-authorization-v1.md`：M2.4g-6j Draft，定义与 6i、6f、6e、runtime、live binding 和 preparation 全绑定的短时单次授权 request/create/verify 流程。
+39. `pairing/gh-t1-manager-identity-execution-transaction-gate-v1.md`：M2.4g-6k Draft，验证仍新鲜的授权与回滚包、重跑真实 runtime gate，并生成第二次精确执行确认；自身不 claim 或 apply。
+40. `pairing/gh-t1-manager-identity-production-orchestrator-v1.md`：M2.4g-6l Draft，定义 6k 绑定、第二次确认、原子授权 claim、私有 journal、manager-only mutation、postactivation 和强制 rollback 的库级生产编排器；真实 adapters 和 CLI 仍未安装。
+41. `discovery/gh-discovery-v1.md`：待冻结 mDNS、UDP 回退、重试和多主机处理；M2.0 pairing Draft 已给出最小发现依赖。
+42. `state/gh-path-lease-v1.md`：待冻结直连/中继路径租约、去重和切换滞回。
+43. `state/gh-availability-v1.md`：待将 M1 已验证行为整理为独立协议。
+44. `transport/gh-radio-frame-v1.md`：待冻结 ESP-NOW 与 LoRa 紧凑帧、认证和序列规则。
 
 ## 变更规则
 
