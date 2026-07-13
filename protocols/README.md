@@ -49,10 +49,11 @@
 41. `pairing/gh-t1-manager-identity-production-host-adapters-v1.md`：M2.4g-6m Draft，定义真实主机路径绑定、fresh rollback snapshot、三类原子写入、manager-only Compose 命令、运行时探针和完整回滚；仍无 execute CLI 或真实 apply。
 42. `pairing/gh-t1-manager-identity-production-runtime-probe-v1.md`：M2.4g-6n Draft，定义被动真实遥测、认证环境与只读 mount、稳定 MQTT socket、绑定 Docker JSON log、Discovery 身份连续性及 6l/6m integration factory；仍无 execute CLI 或真实 apply。
 43. `pairing/gh-t1-manager-identity-production-execution-packet-v1.md`：M2.4g-6o Draft，定义双 enable flag、第二次精确确认、三容器只读基线、事务内 protected-service guard 和唯一 manager production execute CLI；代码合并后仍需新的两次真实操作员确认。
-44. `discovery/gh-discovery-v1.md`：待冻结 mDNS、UDP 回退、重试和多主机处理；M2.0 pairing Draft 已给出最小发现依赖。
-45. `state/gh-path-lease-v1.md`：待冻结直连/中继路径租约、去重和切换滞回。
-46. `state/gh-availability-v1.md`：待将 M1 已验证行为整理为独立协议。
-47. `transport/gh-radio-frame-v1.md`：待冻结 ESP-NOW 与 LoRa 紧凑帧、认证和序列规则。
+44. `pairing/gh-t1-manager-identity-stdlib-mqtt-preflight-v1.md`：M2.4g-6p Draft，定义宿主机无 paho 依赖的标准库 retained reader、只读 preflight、禁止 PUBLISH 与短时材料生成前置门。
+45. `discovery/gh-discovery-v1.md`：待冻结 mDNS、UDP 回退、重试和多主机处理；M2.0 pairing Draft 已给出最小发现依赖。
+46. `state/gh-path-lease-v1.md`：待冻结直连/中继路径租约、去重和切换滞回。
+47. `state/gh-availability-v1.md`：待将 M1 已验证行为整理为独立协议。
+48. `transport/gh-radio-frame-v1.md`：待冻结 ESP-NOW 与 LoRa 紧凑帧、认证和序列规则。
 
 ## 变更规则
 
