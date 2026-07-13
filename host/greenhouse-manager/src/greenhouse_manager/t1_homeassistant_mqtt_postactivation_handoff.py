@@ -19,7 +19,11 @@ from .t1_broker_identity_postactivation_audit import (
 )
 from .t1_homeassistant_mqtt_reconfigure_handoff import (
     HANDOFF_SCHEMA as HOMEASSISTANT_HANDOFF_SCHEMA,
+)
+from .t1_homeassistant_mqtt_reconfigure_handoff import (
     POSTCHECK_SCHEMA as HOMEASSISTANT_POSTCHECK_SCHEMA,
+)
+from .t1_homeassistant_mqtt_reconfigure_handoff import (
     audit_homeassistant_mqtt_reconfigure_postcheck,
 )
 from .t1_shadow import SubprocessRunner
@@ -35,6 +39,7 @@ _BLOCKERS = (
     "node_credentials_not_delivered",
     "anonymous_closure_not_reviewed",
 )
+_POSTCHECK_MATCH_FIELDS = {"broker", "port", "username", "password", "client_id"}
 
 BrokerAuditor = Callable[..., dict[str, object]]
 HomeAssistantAuditor = Callable[..., dict[str, object]]
@@ -44,20 +49,15 @@ class HomeAssistantMqttPostactivationHandoffError(RuntimeError):
     pass
 
 
-def _canonical_json(value: Any) -> str:
-    return json.dumps(
-        value,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    )
+def _json(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
-def _sha256_bytes(value: bytes) -> str:
+def _sha_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
-def _sha256_path(path: Path) -> str:
+def _sha(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
@@ -65,15 +65,7 @@ def _sha256_path(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _private_directory(path: Path) -> None:
-    path.mkdir(parents=True, exist_ok=True, mode=0o700)
-    if path.is_symlink() or path.stat().st_mode & 0o077:
-        raise HomeAssistantMqttPostactivationHandoffError(
-            "directory must be private and not a symlink"
-        )
-
-
-def _fsync_directory(path: Path) -> None:
+def _fsync_dir(path: Path) -> None:
     descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
     try:
         os.fsync(descriptor)
@@ -81,13 +73,18 @@ def _fsync_directory(path: Path) -> None:
         os.close(descriptor)
 
 
-def _atomic_private_write(path: Path, value: str) -> None:
+def _private_dir(path: Path, label: str, *, create: bool = False) -> None:
+    if create:
+        path.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if not path.is_dir() or path.is_symlink() or path.stat().st_mode & 0o077:
+        raise HomeAssistantMqttPostactivationHandoffError(
+            f"{label} is missing, public, or unsafe"
+        )
+
+
+def _write(path: Path, value: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    descriptor, temporary = tempfile.mkstemp(
-        prefix=f".{path.name}.",
-        dir=path.parent,
-        text=True,
-    )
+    descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     temporary_path = Path(temporary)
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
@@ -96,13 +93,13 @@ def _atomic_private_write(path: Path, value: str) -> None:
             os.fsync(stream.fileno())
         os.chmod(temporary_path, 0o600)
         os.replace(temporary_path, path)
-        _fsync_directory(path.parent)
+        _fsync_dir(path.parent)
     except Exception:
         temporary_path.unlink(missing_ok=True)
         raise
 
 
-def _read_json(path: Path, label: str, *, private: bool) -> dict[str, Any]:
+def _load(path: Path, label: str, *, private: bool = True) -> dict[str, Any]:
     if not path.is_file() or path.is_symlink():
         raise HomeAssistantMqttPostactivationHandoffError(
             f"{label} is missing or unsafe"
@@ -120,10 +117,8 @@ def _read_json(path: Path, label: str, *, private: bool) -> dict[str, Any]:
     return value
 
 
-def _require(
-    document: Mapping[str, Any],
-    required: Mapping[str, object],
-    label: str,
+def _must(
+    document: Mapping[str, Any], required: Mapping[str, object], label: str
 ) -> None:
     for field, expected in required.items():
         if document.get(field) != expected:
@@ -132,22 +127,20 @@ def _require(
             )
 
 
-def _committed_journal(root: Path) -> tuple[Path, dict[str, Any]]:
-    if not root.is_dir() or root.is_symlink():
-        raise HomeAssistantMqttPostactivationHandoffError(
-            "Broker transaction directory is missing or unsafe"
-        )
-    committed: list[tuple[Path, dict[str, Any]]] = []
-    for path in sorted(root.glob("transaction-*/journal.json")):
-        document = _read_json(path, "Broker transaction journal", private=True)
-        if document.get("phase") == "committed":
-            committed.append((path, document))
+def _journal(root: Path) -> tuple[Path, dict[str, Any]]:
+    _private_dir(root, "Broker transaction directory")
+    committed = [
+        (path, document)
+        for path in sorted(root.glob("transaction-*/journal.json"))
+        if (document := _load(path, "Broker transaction journal")).get("phase")
+        == "committed"
+    ]
     if len(committed) != 1:
         raise HomeAssistantMqttPostactivationHandoffError(
             "exactly one committed Broker transaction journal is required"
         )
     path, document = committed[0]
-    _require(
+    _must(
         document,
         {
             "schema": BROKER_JOURNAL_SCHEMA,
@@ -159,64 +152,41 @@ def _committed_journal(root: Path) -> tuple[Path, dict[str, Any]]:
         },
         "Broker transaction journal",
     )
+    for label, value in (
+        ("transaction identity", document.get("transaction_id")),
+        ("authorization identity", document.get("authorization_id")),
+    ):
+        if not isinstance(value, str) or not value:
+            raise HomeAssistantMqttPostactivationHandoffError(
+                f"Broker {label} is incomplete"
+            )
+    for label, value in (
+        ("bundle", document.get("bundle_sha256")),
+        ("adapter contract", document.get("adapter_contract_sha256")),
+    ):
+        if not isinstance(value, str) or _SHA256.fullmatch(value) is None:
+            raise HomeAssistantMqttPostactivationHandoffError(
+                f"Broker transaction {label} fingerprint is invalid"
+            )
     return path, document
 
 
-def _validate_broker_handoff(root: Path) -> tuple[Path, dict[str, Any]]:
-    if not root.is_dir() or root.is_symlink() or root.stat().st_mode & 0o077:
-        raise HomeAssistantMqttPostactivationHandoffError(
-            "Broker activation handoff directory is missing, public, or unsafe"
-        )
-    path = root / "manifest.json"
-    document = _read_json(path, "Broker activation handoff manifest", private=True)
-    _require(
-        document,
-        {
-            "schema": BROKER_HANDOFF_SCHEMA,
-            "preserve_anonymous": True,
-            "anonymous_closure_enabled": False,
-            "apply_enabled": False,
-            "operator_action_authorized": False,
-            "ready_for_live_activation": False,
-            "current_services_modified": False,
-        },
-        "Broker activation handoff manifest",
-    )
-    return path, document
-
-
-def _validate_homeassistant_handoff(
+def _manifest(
     root: Path,
-    expected_retained_topic: str,
-) -> tuple[Path, dict[str, Any]]:
-    if not root.is_dir() or root.is_symlink() or root.stat().st_mode & 0o077:
-        raise HomeAssistantMqttPostactivationHandoffError(
-            "Home Assistant handoff directory is missing, public, or unsafe"
-        )
-    path = root / "manifest.json"
-    document = _read_json(path, "Home Assistant handoff manifest", private=True)
-    _require(
-        document,
-        {
-            "schema": HOMEASSISTANT_HANDOFF_SCHEMA,
-            "read_only_live_services": True,
-            "apply_enabled": False,
-            "current_services_modified": False,
-            "operator_action_required": True,
-            "operator_action_authorized": False,
-            "ready_for_operator_reconfigure": False,
-            "expected_retained_topic": expected_retained_topic,
-        },
-        "Home Assistant handoff manifest",
-    )
-    return path, document
-
-
-def _validate_homeassistant_postcheck(
-    report: Mapping[str, Any],
+    *,
     label: str,
-) -> None:
-    _require(
+    schema: str,
+    required: Mapping[str, object],
+) -> Path:
+    _private_dir(root, f"{label} directory")
+    path = root / "manifest.json"
+    document = _load(path, f"{label} manifest")
+    _must(document, {"schema": schema, **required}, f"{label} manifest")
+    return path
+
+
+def _check_ha(report: Mapping[str, Any], label: str) -> None:
+    _must(
         report,
         {
             "schema": HOMEASSISTANT_POSTCHECK_SCHEMA,
@@ -232,19 +202,19 @@ def _validate_homeassistant_postcheck(
         },
         label,
     )
-    field_matches = report.get("field_matches")
+    matches = report.get("field_matches")
     if (
-        not isinstance(field_matches, dict)
-        or set(field_matches) != {"broker", "port", "username", "password", "client_id"}
-        or any(value is not True for value in field_matches.values())
+        not isinstance(matches, dict)
+        or set(matches) != _POSTCHECK_MATCH_FIELDS
+        or any(value is not True for value in matches.values())
     ):
         raise HomeAssistantMqttPostactivationHandoffError(
             f"{label} field verification is incomplete"
         )
 
 
-def _validate_broker_audit(report: Mapping[str, Any]) -> None:
-    _require(
+def _check_broker(report: Mapping[str, Any]) -> None:
+    _must(
         report,
         {
             "schema": BROKER_AUDIT_SCHEMA,
@@ -272,16 +242,17 @@ def _validate_broker_audit(report: Mapping[str, Any]) -> None:
         )
 
 
-def _postcheck_projection(report: Mapping[str, Any]) -> dict[str, Any]:
-    return {
-        "runtime_healthy": report.get("runtime_healthy"),
-        "entry_fingerprint_unchanged": report.get("entry_fingerprint_unchanged"),
-        "storage_changed": report.get("storage_changed"),
-        "discovery_preserved": report.get("discovery_preserved"),
-        "field_matches": report.get("field_matches"),
-        "reconfigure_verified": report.get("reconfigure_verified"),
-        "rollback_required": report.get("rollback_required"),
-    }
+def _ha_projection(report: Mapping[str, Any]) -> dict[str, Any]:
+    fields = (
+        "runtime_healthy",
+        "entry_fingerprint_unchanged",
+        "storage_changed",
+        "discovery_preserved",
+        "field_matches",
+        "reconfigure_verified",
+        "rollback_required",
+    )
+    return {field: report.get(field) for field in fields}
 
 
 def _record(path: Path, root: Path) -> dict[str, object]:
@@ -291,7 +262,7 @@ def _record(path: Path, root: Path) -> dict[str, object]:
         )
     return {
         "path": path.relative_to(root).as_posix(),
-        "sha256": _sha256_path(path),
+        "sha256": _sha(path),
         "size": path.stat().st_size,
         "mode": "0600",
         "contains_secret": False,
@@ -310,68 +281,69 @@ def prepare_homeassistant_mqtt_postactivation_handoff(
     now: datetime | None = None,
     token_factory: Callable[[], str] | None = None,
     broker_auditor: BrokerAuditor = audit_broker_identity_postactivation,
-    homeassistant_auditor: HomeAssistantAuditor = (
-        audit_homeassistant_mqtt_reconfigure_postcheck
-    ),
+    homeassistant_auditor: HomeAssistantAuditor = audit_homeassistant_mqtt_reconfigure_postcheck,
 ) -> dict[str, object]:
     if not expected_retained_topic.startswith("gh/"):
         raise ValueError("expected retained topic must be in the gh namespace")
 
     transaction_root = Path(broker_transaction_directory).expanduser().resolve()
-    broker_handoff_root = (
-        Path(broker_activation_handoff_directory).expanduser().resolve()
-    )
-    homeassistant_handoff_root = (
-        Path(homeassistant_handoff_directory).expanduser().resolve()
-    )
+    broker_handoff = Path(broker_activation_handoff_directory).expanduser().resolve()
+    homeassistant_handoff = Path(homeassistant_handoff_directory).expanduser().resolve()
     postcheck_path = Path(homeassistant_postcheck_file).expanduser().resolve()
     output_root = Path(output_directory).expanduser().resolve()
-    _private_directory(output_root)
+    _private_dir(output_root, "output directory", create=True)
 
-    journal_path, journal = _committed_journal(transaction_root)
-    broker_manifest_path, _broker_manifest = _validate_broker_handoff(
-        broker_handoff_root
+    journal_path, journal = _journal(transaction_root)
+    broker_manifest_path = _manifest(
+        broker_handoff,
+        label="Broker activation handoff",
+        schema=BROKER_HANDOFF_SCHEMA,
+        required={
+            "preserve_anonymous": True,
+            "anonymous_closure_enabled": False,
+            "apply_enabled": False,
+            "operator_action_authorized": False,
+            "ready_for_live_activation": False,
+            "current_services_modified": False,
+        },
     )
-    homeassistant_manifest_path, _homeassistant_manifest = (
-        _validate_homeassistant_handoff(
-            homeassistant_handoff_root,
-            expected_retained_topic,
-        )
+    ha_manifest_path = _manifest(
+        homeassistant_handoff,
+        label="Home Assistant handoff",
+        schema=HOMEASSISTANT_HANDOFF_SCHEMA,
+        required={
+            "read_only_live_services": True,
+            "apply_enabled": False,
+            "current_services_modified": False,
+            "operator_action_required": True,
+            "operator_action_authorized": False,
+            "ready_for_operator_reconfigure": False,
+            "expected_retained_topic": expected_retained_topic,
+        },
     )
-    supplied_postcheck = _read_json(
-        postcheck_path,
-        "supplied Home Assistant postcheck",
-        private=False,
+    supplied_postcheck = _load(
+        postcheck_path, "supplied Home Assistant postcheck", private=False
     )
-    _validate_homeassistant_postcheck(
-        supplied_postcheck,
-        "supplied Home Assistant postcheck",
-    )
+    _check_ha(supplied_postcheck, "supplied Home Assistant postcheck")
 
     command_runner = runner or SubprocessRunner()
     try:
         live_postcheck = homeassistant_auditor(
-            homeassistant_handoff_root,
-            runner=command_runner,
+            homeassistant_handoff, runner=command_runner
         )
     except Exception as error:
         raise HomeAssistantMqttPostactivationHandoffError(
             "live Home Assistant postcheck could not be completed"
         ) from error
-    _validate_homeassistant_postcheck(
-        live_postcheck,
-        "live Home Assistant postcheck",
-    )
-    if _postcheck_projection(supplied_postcheck) != _postcheck_projection(
-        live_postcheck
-    ):
+    _check_ha(live_postcheck, "live Home Assistant postcheck")
+    if _ha_projection(supplied_postcheck) != _ha_projection(live_postcheck):
         raise HomeAssistantMqttPostactivationHandoffError(
             "supplied and live Home Assistant postchecks do not match"
         )
 
     try:
         broker_audit = broker_auditor(
-            broker_handoff_root,
+            broker_handoff,
             expected_retained_topic=expected_retained_topic,
             runner=command_runner,
         )
@@ -379,24 +351,7 @@ def prepare_homeassistant_mqtt_postactivation_handoff(
         raise HomeAssistantMqttPostactivationHandoffError(
             "live Broker postactivation audit could not be completed"
         ) from error
-    _validate_broker_audit(broker_audit)
-
-    transaction_id = journal.get("transaction_id")
-    authorization_id = journal.get("authorization_id")
-    if not all(
-        isinstance(value, str) and value for value in (transaction_id, authorization_id)
-    ):
-        raise HomeAssistantMqttPostactivationHandoffError(
-            "Broker transaction identity is incomplete"
-        )
-    for label, value in (
-        ("bundle", journal.get("bundle_sha256")),
-        ("adapter contract", journal.get("adapter_contract_sha256")),
-    ):
-        if not isinstance(value, str) or _SHA256.fullmatch(value) is None:
-            raise HomeAssistantMqttPostactivationHandoffError(
-                f"Broker transaction {label} fingerprint is invalid"
-            )
+    _check_broker(broker_audit)
 
     observed = (now or datetime.now(UTC)).astimezone(UTC)
     token = token_factory() if token_factory else secrets.token_hex(4)
@@ -408,90 +363,81 @@ def prepare_homeassistant_mqtt_postactivation_handoff(
         raise HomeAssistantMqttPostactivationHandoffError(
             "postactivation handoff destination already exists"
         )
-    destination.mkdir(mode=0o700)
 
-    broker_audit_path = destination / "broker-postactivation-audit.json"
-    supplied_postcheck_path = destination / "homeassistant-postcheck-supplied.json"
-    live_postcheck_path = destination / "homeassistant-postcheck-live.json"
-    runbook_path = destination / "operator-runbook.txt"
-    _atomic_private_write(
-        broker_audit_path,
-        _canonical_json(broker_audit) + "\n",
-    )
-    _atomic_private_write(
-        supplied_postcheck_path,
-        _canonical_json(supplied_postcheck) + "\n",
-    )
-    _atomic_private_write(
-        live_postcheck_path,
-        _canonical_json(live_postcheck) + "\n",
-    )
-    _atomic_private_write(
-        runbook_path,
-        "Home Assistant MQTT postactivation handoff\n\n"
-        "This handoff is read-only evidence for manager migration preparation.\n"
-        "It does not authorize manager migration, node credential delivery, service restart, "
-        "Home Assistant storage edits, or anonymous closure.\n"
-        "Create a new, state-bound manager migration gate before any live change.\n",
-    )
+    with tempfile.TemporaryDirectory(
+        prefix=".gh-ha-postactivation-", dir=output_root
+    ) as temporary:
+        root = Path(temporary) / name
+        root.mkdir(mode=0o700)
+        documents = {
+            "broker-postactivation-audit.json": _json(broker_audit) + "\n",
+            "homeassistant-postcheck-supplied.json": _json(supplied_postcheck) + "\n",
+            "homeassistant-postcheck-live.json": _json(live_postcheck) + "\n",
+            "operator-runbook.txt": (
+                "Home Assistant MQTT postactivation handoff\n\n"
+                "Read-only evidence for manager migration preparation.\n"
+                "This does not authorize service changes, storage edits, credential delivery, "
+                "or anonymous closure. Create a new state-bound manager migration gate.\n"
+            ),
+        }
+        records = []
+        for filename, content in documents.items():
+            path = root / filename
+            _write(path, content)
+            records.append(_record(path, root))
 
-    records = [
-        _record(broker_audit_path, destination),
-        _record(supplied_postcheck_path, destination),
-        _record(live_postcheck_path, destination),
-        _record(runbook_path, destination),
-    ]
-    manifest = {
-        "schema": SCHEMA,
-        "created_at": observed.isoformat(timespec="seconds").replace("+00:00", "Z"),
-        "classification": "sensitive-local-audit-handoff",
-        "read_only_live_services": True,
-        "current_services_modified": False,
-        "apply_enabled": False,
-        "operator_action_authorized": False,
-        "direct_storage_edit_forbidden": True,
-        "broker_identity_activated": True,
-        "homeassistant_authenticated": True,
-        "manager_identity_migrated": False,
-        "node_credentials_delivered": False,
-        "ready_for_manager_migration_preparation": True,
-        "ready_for_manager_migration_apply": False,
-        "preserve_anonymous": True,
-        "anonymous_closure_enabled": False,
-        "blockers": list(_BLOCKERS),
-        "bindings": {
-            "broker_transaction_journal_sha256": _sha256_path(journal_path),
-            "broker_activation_handoff_manifest_sha256": _sha256_path(
-                broker_manifest_path
-            ),
-            "homeassistant_handoff_manifest_sha256": _sha256_path(
-                homeassistant_manifest_path
-            ),
-            "homeassistant_postcheck_source_sha256": _sha256_path(postcheck_path),
-            "broker_transaction_id_fingerprint": _sha256_bytes(transaction_id.encode())[
-                :16
-            ],
-            "broker_authorization_id_fingerprint": _sha256_bytes(
-                authorization_id.encode()
-            )[:16],
-            "broker_bundle_sha256": journal["bundle_sha256"],
-            "broker_adapter_contract_sha256": journal["adapter_contract_sha256"],
-            "broker_handoff_name_fingerprint": _sha256_bytes(
-                broker_handoff_root.name.encode()
-            )[:16],
-            "homeassistant_handoff_name_fingerprint": _sha256_bytes(
-                homeassistant_handoff_root.name.encode()
-            )[:16],
-            "expected_retained_topic_sha256": _sha256_bytes(
-                expected_retained_topic.encode()
-            ),
-        },
-        "records": records,
-        "secret_values_included": False,
-        "source_paths_included": False,
-    }
-    manifest_path = destination / "manifest.json"
-    _atomic_private_write(manifest_path, _canonical_json(manifest) + "\n")
+        transaction_id = str(journal["transaction_id"])
+        authorization_id = str(journal["authorization_id"])
+        manifest = {
+            "schema": SCHEMA,
+            "created_at": observed.isoformat(timespec="seconds").replace("+00:00", "Z"),
+            "classification": "sensitive-local-audit-handoff",
+            "read_only_live_services": True,
+            "current_services_modified": False,
+            "apply_enabled": False,
+            "operator_action_authorized": False,
+            "direct_storage_edit_forbidden": True,
+            "broker_identity_activated": True,
+            "homeassistant_authenticated": True,
+            "manager_identity_migrated": False,
+            "node_credentials_delivered": False,
+            "ready_for_manager_migration_preparation": True,
+            "ready_for_manager_migration_apply": False,
+            "preserve_anonymous": True,
+            "anonymous_closure_enabled": False,
+            "blockers": list(_BLOCKERS),
+            "bindings": {
+                "broker_transaction_journal_sha256": _sha(journal_path),
+                "broker_activation_handoff_manifest_sha256": _sha(broker_manifest_path),
+                "homeassistant_handoff_manifest_sha256": _sha(ha_manifest_path),
+                "homeassistant_postcheck_source_sha256": _sha(postcheck_path),
+                "broker_transaction_id_fingerprint": _sha_bytes(
+                    transaction_id.encode()
+                )[:16],
+                "broker_authorization_id_fingerprint": _sha_bytes(
+                    authorization_id.encode()
+                )[:16],
+                "broker_bundle_sha256": journal["bundle_sha256"],
+                "broker_adapter_contract_sha256": journal["adapter_contract_sha256"],
+                "broker_handoff_name_fingerprint": _sha_bytes(
+                    broker_handoff.name.encode()
+                )[:16],
+                "homeassistant_handoff_name_fingerprint": _sha_bytes(
+                    homeassistant_handoff.name.encode()
+                )[:16],
+                "expected_retained_topic_sha256": _sha_bytes(
+                    expected_retained_topic.encode()
+                ),
+            },
+            "records": records,
+            "secret_values_included": False,
+            "source_paths_included": False,
+        }
+        manifest_path = root / "manifest.json"
+        _write(manifest_path, _json(manifest) + "\n")
+        manifest_sha = _sha(manifest_path)
+        os.replace(root, destination)
+        _fsync_dir(output_root)
 
     report = {
         "schema": SCHEMA,
@@ -510,19 +456,19 @@ def prepare_homeassistant_mqtt_postactivation_handoff(
         "preserve_anonymous": True,
         "anonymous_closure_enabled": False,
         "blockers": list(_BLOCKERS),
-        "manifest_sha256": _sha256_path(manifest_path),
+        "manifest_sha256": manifest_sha,
         "secret_values_included": False,
         "source_paths_included": False,
     }
-    serialized = _canonical_json(report)
+    serialized = _json(report)
     for forbidden in (
-        str(transaction_root),
-        str(broker_handoff_root),
-        str(homeassistant_handoff_root),
-        str(postcheck_path),
-        str(output_root),
+        transaction_root,
+        broker_handoff,
+        homeassistant_handoff,
+        postcheck_path,
+        output_root,
     ):
-        if forbidden in serialized:
+        if str(forbidden) in serialized:
             raise HomeAssistantMqttPostactivationHandoffError(
                 "sanitized report contains a source path"
             )
