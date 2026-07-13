@@ -51,6 +51,7 @@ def _runtime(
         "container_id": "manager-container-id",
         "image_id": "sha256:manager-image-id",
         "image_ref": "greenhouse-manager:0.4.44",
+        "user_spec": "999:999",
         "started_at": "2026-07-13T00:00:00Z",
         "state": "running",
         "restart_count": 0,
@@ -59,6 +60,11 @@ def _runtime(
         "mqtt_username_present": False,
         "mqtt_password_present": False,
         "mqtt_password_file_present": False,
+        "manager_runtime_uid": 999,
+        "manager_runtime_gid": 999,
+        "manager_runtime_user_source": "container+image+isolated-candidate",
+        "manager_runtime_image_id": "sha256:manager-image-id",
+        "manager_runtime_user_spec": "999:999",
     }
     compose = {
         "project": "t1",
@@ -84,36 +90,46 @@ class FakeRunner:
 
     def run(self, command: tuple[str, ...]) -> tuple[int, str]:
         self.commands.append(command)
-        if command != ("docker", "inspect", "greenhouse-manager"):
-            return 1, "unexpected command"
-        document = [
-            {
-                "Id": "manager-container-id",
-                "Image": "sha256:manager-image-id",
-                "RestartCount": 0,
-                "State": {
-                    "Status": "running",
-                    "StartedAt": self.started_at,
-                },
-                "Config": {
-                    "Image": "greenhouse-manager:0.4.44",
-                    "Env": [
-                        "GH_SYSTEM_ID=greenhouse",
-                        "GH_MQTT_CLIENT_ID=greenhouse-manager",
-                    ],
-                    "Labels": {
-                        "com.docker.compose.project": "t1",
-                        "com.docker.compose.project.working_dir": str(
-                            self.compose_root
-                        ),
-                        "com.docker.compose.project.config_files": str(
-                            self.compose_file
-                        ),
+        if command == ("docker", "inspect", "greenhouse-manager"):
+            document = [
+                {
+                    "Id": "manager-container-id",
+                    "Image": "sha256:manager-image-id",
+                    "RestartCount": 0,
+                    "State": {
+                        "Status": "running",
+                        "StartedAt": self.started_at,
                     },
-                },
-            }
-        ]
-        return 0, json.dumps(document)
+                    "Config": {
+                        "Image": "greenhouse-manager:0.4.44",
+                        "User": "999:999",
+                        "Env": [
+                            "GH_SYSTEM_ID=greenhouse",
+                            "GH_MQTT_CLIENT_ID=greenhouse-manager",
+                        ],
+                        "Labels": {
+                            "com.docker.compose.project": "t1",
+                            "com.docker.compose.project.working_dir": str(
+                                self.compose_root
+                            ),
+                            "com.docker.compose.project.config_files": str(
+                                self.compose_file
+                            ),
+                        },
+                    },
+                }
+            ]
+            return 0, json.dumps(document)
+        if command == (
+            "docker",
+            "image",
+            "inspect",
+            "sha256:manager-image-id",
+        ):
+            return 0, json.dumps([{"Config": {"User": "999:999"}}])
+        if command[:3] == ("docker", "run", "--rm"):
+            return 0, "999:999\n"
+        return 1, "unexpected command"
 
 
 def _record(path: Path, root: Path, secret: bool) -> dict[str, object]:
@@ -245,7 +261,15 @@ def test_request_is_fresh_disabled_and_redacted(tmp_path: Path) -> None:
     serialized = json.dumps(request)
     for protected in (USERNAME, CLIENT_ID, PASSWORD, str(tmp_path)):
         assert protected not in serialized
-    assert runner.commands == [("docker", "inspect", "greenhouse-manager")]
+    assert runner.commands[0] == ("docker", "inspect", "greenhouse-manager")
+    assert runner.commands[1] == (
+        "docker",
+        "image",
+        "inspect",
+        "sha256:manager-image-id",
+    )
+    assert runner.commands[2][:3] == ("docker", "run", "--rm")
+    assert len(runner.commands) == 3
 
 
 def test_create_and_verify_short_lived_single_use_authorization(
