@@ -212,3 +212,33 @@ def test_report_redacts_secret_material(tmp_path: Path) -> None:
         "gh-homeassistant-client",
     ):
         assert secret not in serialized
+
+
+class AnonymousDeniedWithZeroExitRunner(FakeRunner):
+    def run(
+        self,
+        command: tuple[str, ...],
+        *,
+        input_text: str | None = None,
+    ) -> tuple[int, str]:
+        if command[:4] == (
+            "docker",
+            "exec",
+            "mosquitto",
+            "mosquitto_rr",
+        ):
+            return 0, "Not authorized\n"
+        return super().run(command, input_text=input_text)
+
+
+def test_accepts_zero_exit_authorization_denial(tmp_path: Path) -> None:
+    report = audit_broker_identity_postactivation(
+        _handoff(tmp_path),
+        expected_retained_topic=TOPIC,
+        runner=AnonymousDeniedWithZeroExitRunner(),
+        handoff_verifier=_verified,
+    )
+
+    assert report["checks"]["anonymous_control_denied"] is True
+    assert report["activation_verified"] is True
+    assert report["rollback_required"] is False
