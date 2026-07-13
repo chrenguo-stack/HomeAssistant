@@ -202,6 +202,16 @@ def _anonymous_control_denied(runner: Runner) -> bool:
     )
     if code != 0:
         return True
+    normalized = output.casefold()
+    denial_markers = (
+        "not authorized",
+        "not authorised",
+        "permission denied",
+        "access denied",
+        "forbidden",
+    )
+    if any(marker in normalized for marker in denial_markers):
+        return True
     try:
         value = json.loads(output)
     except json.JSONDecodeError:

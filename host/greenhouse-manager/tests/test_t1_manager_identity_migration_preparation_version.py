@@ -4,8 +4,8 @@ import tomllib
 from pathlib import Path
 
 
-def test_manager_package_version_includes_ha_legacy_evidence_bridge() -> None:
+def test_manager_package_version_includes_anonymous_control_probe_fix() -> None:
     root = Path(__file__).resolve().parents[1]
     with (root / "pyproject.toml").open("rb") as stream:
         document = tomllib.load(stream)
-    assert document["project"]["version"] == "0.4.51"
+    assert document["project"]["version"] == "0.4.52"
