@@ -16,7 +16,11 @@ from typing import Any
 
 from .t1_homeassistant_mqtt_reconfigure_handoff import (
     HANDOFF_SCHEMA as CURRENT_HANDOFF_SCHEMA,
+)
+from .t1_homeassistant_mqtt_reconfigure_handoff import (
     POSTCHECK_SCHEMA as CURRENT_POSTCHECK_SCHEMA,
+)
+from .t1_homeassistant_mqtt_reconfigure_handoff import (
     audit_homeassistant_mqtt_reconfigure_postcheck,
 )
 from .t1_migration_readiness import CommandRunner, SubprocessRunner
