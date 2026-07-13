@@ -50,6 +50,12 @@
 
 当当前真实 manager 镜像早于新增 `greenhouse-manager --check-config` 包装入口时，探针必须仍针对同一个已绑定的真实镜像 ID，使用该镜像内已安装的 `greenhouse_manager.config.Settings.from_env()` 固定模块入口完成等价验证。固定程序不得拼接用户名、Client ID、密码或主机路径；仍必须由 `--network none`、只读 rootfs、cap-drop 和 no-new-privileges 提供外部边界。不得因为旧镜像缺少包装 CLI 而切换到未绑定镜像、跳过配置加载或只执行文件 `test -r`。
 
+兼容只覆盖“已支持 `GH_MQTT_PASSWORD_FILE`、但缺少新 CLI 包装入口”的镜像。固定模块探针必须先输出脱敏的密码文件能力布尔值；当绑定镜像本身不支持 `GH_MQTT_PASSWORD_FILE` 或私有文件读取时，6i 必须以明确的 unsupported-live-image 错误失败关闭，不得回退到内联 `GH_MQTT_PASSWORD`。
+
+### 不支持密码文件的实机镜像
+
+当 T1 当前精确运行镜像缺少密码文件能力时，该镜像不满足 6r 前置条件。项目必须先将 manager 升级到支持密码文件的镜像，且升级阶段仍保持未认证 manager 和 anonymous；该升级属于 T1 当前服务变更，必须由操作者单独精确授权。升级后必须从 6b 开始重新采集镜像、UID/GID 和运行绑定，重跑 6e/6f/6i/6j/6k 并生成 fresh rollback；不得重用任何升级前授权或确认。
+
 ## 全链路绑定
 
 1. 6b 将运行 UID/GID、用户来源和镜像写入私有 runtime binding。
@@ -73,6 +79,7 @@
 - secret 或父目录为 symlink/非私有；
 - image/user spec 在 6i、6k 或 6o 前漂移；
 - candidate `--check-config` 失败或报告网络尝试；
+- 绑定的当前镜像不支持 `GH_MQTT_PASSWORD_FILE`；
 - apply 后密码 owner、mount 或认证环境不匹配；
 - rollback 后仍残留 manager 认证材料。
 

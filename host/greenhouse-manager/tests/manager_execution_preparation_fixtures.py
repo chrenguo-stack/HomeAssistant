@@ -208,6 +208,7 @@ def preclaim_report(*_args: object, **_kwargs: object) -> dict[str, object]:
         "password_mode_0600": True,
         "password_owned_by_runtime_user": True,
         "password_readable_by_runtime_user": True,
+        "password_file_capability_present": True,
         "configuration_loaded": True,
         "network_none": True,
         "read_only_rootfs": True,
