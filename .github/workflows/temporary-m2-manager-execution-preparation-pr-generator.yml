@@ -82,3 +82,5 @@ jobs:
           git add host/greenhouse-manager protocols/pairing
           git commit -m "feat(m2): prepare fresh manager execution rollback"
           git push origin HEAD:agent/m2-manager-execution-preparation
+
+# trigger
