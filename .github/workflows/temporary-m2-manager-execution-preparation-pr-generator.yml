@@ -1,0 +1,83 @@
+name: Temporary M2 manager execution preparation PR generator
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/temporary-m2-manager-execution-preparation-generator.yml"
+      - ".github/workflows/temporary-m2-manager-execution-preparation-pr-generator.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Generate implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from __future__ import annotations
+
+          import base64
+          import re
+          import tarfile
+          from pathlib import Path
+
+          source = Path(
+              ".github/workflows/temporary-m2-manager-execution-preparation-generator.yml"
+          ).read_text(encoding="utf-8")
+          match = re.search(r'^\s*PAYLOAD_B64:\s*"([A-Za-z0-9+/=]+)"\s*$', source, re.M)
+          if match is None:
+              raise SystemExit("embedded payload not found")
+          archive = Path("/tmp/manager-execution-preparation-payload.tar.gz")
+          archive.write_bytes(base64.b64decode(match.group(1)))
+          with tarfile.open(archive, mode="r:gz") as payload:
+              payload.extractall(Path.cwd(), filter="data")
+
+          root = Path("host/greenhouse-manager")
+          pyproject = root / "pyproject.toml"
+          text = pyproject.read_text(encoding="utf-8")
+          if 'version = "0.4.52"' not in text:
+              raise SystemExit("version anchor missing")
+          text = text.replace('version = "0.4.52"', 'version = "0.4.53"', 1)
+          anchor = (
+              'greenhouse-manager-t1-manager-identity-live-runtime-gate = '
+              '"greenhouse_manager.t1_manager_identity_migration_live_runtime_gate:main"\n'
+          )
+          addition = (
+              anchor
+              + 'greenhouse-manager-t1-manager-identity-execution-preparation = '
+              '"greenhouse_manager.t1_manager_identity_migration_execution_preparation:main"\n'
+          )
+          if anchor not in text:
+              raise SystemExit("script anchor missing")
+          pyproject.write_text(text.replace(anchor, addition, 1), encoding="utf-8")
+
+          version_test = root / "tests/test_t1_manager_identity_migration_preparation_version.py"
+          value = version_test.read_text(encoding="utf-8")
+          value = value.replace(
+              "def test_manager_package_version_includes_anonymous_control_probe_fix() -> None:",
+              "def test_manager_package_version_includes_execution_preparation() -> None:",
+              1,
+          ).replace(
+              'assert document["project"]["version"] == "0.4.52"',
+              'assert document["project"]["version"] == "0.4.53"',
+              1,
+          )
+          version_test.write_text(value, encoding="utf-8")
+          PY
+          python -m pip install "ruff==0.12.12"
+          python -m ruff check --fix host/greenhouse-manager
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add host/greenhouse-manager protocols/pairing
+          git commit -m "feat(m2): prepare fresh manager execution rollback"
+          git push origin HEAD:${{ github.head_ref }}
