@@ -36,17 +36,28 @@ def _runtime() -> dict[str, object]:
 
 
 class FakeRunner:
-    def __init__(self, *, code: int = 0) -> None:
+    def __init__(
+        self,
+        *,
+        code: int = 0,
+        password_file_capability_present: bool = True,
+    ) -> None:
         self.code = code
+        self.password_file_capability_present = password_file_capability_present
         self.commands: list[tuple[str, ...]] = []
 
     def run(self, command: tuple[str, ...]) -> tuple[int, str]:
         self.commands.append(command)
         return self.code, json.dumps(
             {
-                "configuration_valid": True,
-                "mqtt_authentication_configured": True,
-                "password_file_used": True,
+                "password_file_capability_present": (
+                    self.password_file_capability_present
+                ),
+                "configuration_valid": self.password_file_capability_present,
+                "mqtt_authentication_configured": (
+                    self.password_file_capability_present
+                ),
+                "password_file_used": self.password_file_capability_present,
                 "inline_password_used": False,
                 "network_attempted": False,
                 "secret_values_included": False,
@@ -92,6 +103,7 @@ def test_preclaim_probe_is_network_none_read_only_and_removes_candidate(
 
     validate_preclaim_candidate_report(report)
     assert report["preclaim_candidate_probe_passed"] is True
+    assert report["password_file_capability_present"] is True
     assert list(workspace.iterdir()) == []
     command = runner.commands[0]
     assert command[:5] == ("docker", "run", "--rm", "--network", "none")
@@ -101,6 +113,8 @@ def test_preclaim_probe_is_network_none_read_only_and_removes_candidate(
     assert command[command.index("--entrypoint") + 1] == "python3"
     assert command[-3:-1] == ("-I", "-c")
     assert command[-1] == module._CHECK_CONFIG_PROGRAM
+    assert "password_file_capability_present" in command[-1]
+    assert "_mqtt_password_from_env" in command[-1]
     assert "Settings.from_env()" in command[-1]
     assert "manager-client" not in command[-1]
     assert "candidate-credential-material-value" not in command[-1]
@@ -177,4 +191,32 @@ def test_preclaim_probe_failure_removes_candidate(
             runner=FakeRunner(code=2),
         )
 
+    assert list(workspace.iterdir()) == []
+
+
+def test_preclaim_probe_rejects_live_image_without_password_file_capability(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    environment, password, workspace = _materials(tmp_path)
+    monkeypatch.setattr(
+        module,
+        "verify_bound_runtime_identity",
+        lambda *_args, **_kwargs: (os.getuid(), os.getgid()),
+    )
+    runner = FakeRunner(password_file_capability_present=False)
+
+    with pytest.raises(
+        ManagerPreclaimCandidateError,
+        match="runtime image does not support password-file authentication",
+    ):
+        run_preclaim_candidate_probe(
+            _runtime(),
+            environment,
+            password,
+            workspace,
+            runner=runner,
+        )
+
+    assert len(runner.commands) == 1
     assert list(workspace.iterdir()) == []
