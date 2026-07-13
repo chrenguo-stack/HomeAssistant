@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from manager_execution_preparation_fixtures import build_preparation
+from manager_execution_preparation_fixtures import build_preparation, preclaim_report
 
 import greenhouse_manager.t1_manager_identity_migration_execution_transaction_gate as gate_module
 from greenhouse_manager.t1_manager_identity_migration_execution_authorization import (
@@ -68,6 +68,7 @@ def _package(
         now=NOW,
         token_factory=lambda: "execution1",
         live_gate_builder=_gate_builder(gate),
+        preclaim_probe=preclaim_report,
     )
     execution = output / str(report["execution_preparation_name"])
 

@@ -40,6 +40,11 @@ from .t1_manager_identity_migration_live_runtime_gate import (
     ManagerIdentityLiveRuntimeGateError,
     build_manager_identity_live_runtime_gate,
 )
+from .t1_manager_identity_migration_preclaim_candidate import (
+    ManagerPreclaimCandidateError,
+    run_preclaim_candidate_probe,
+    validate_preclaim_candidate_report,
+)
 from .t1_manager_identity_migration_production_driver_contract import (
     ManagerIdentityProductionDriverContractError,
 )
@@ -49,6 +54,7 @@ from .t1_manager_identity_migration_production_transaction_adapter_contract impo
 from .t1_migration_readiness import CommandRunner, SubprocessRunner
 
 LiveGateBuilder = Callable[..., dict[str, object]]
+PreclaimProbe = Callable[..., dict[str, object]]
 TokenFactory = Callable[[], str]
 
 
@@ -70,6 +76,7 @@ def prepare_manager_identity_execution(
     now: datetime | None = None,
     token_factory: TokenFactory | None = None,
     live_gate_builder: LiveGateBuilder = build_manager_identity_live_runtime_gate,
+    preclaim_probe: PreclaimProbe = run_preclaim_candidate_probe,
 ) -> dict[str, object]:
     if freshness_seconds < 60 or freshness_seconds > 1800:
         raise ValueError("freshness seconds must be between 60 and 1800")
@@ -101,6 +108,16 @@ def prepare_manager_identity_execution(
         root.mkdir(mode=0o700)
         created_at = observed.isoformat(timespec="seconds").replace("+00:00", "Z")
         expires_at = expires.isoformat(timespec="seconds").replace("+00:00", "Z")
+        preclaim_report = preclaim_probe(
+            runtime,
+            preparation_root / "material/manager/manager.env",
+            preparation_root / "material/manager/password",
+            root,
+            runner=command_runner,
+        )
+        validate_preclaim_candidate_report(preclaim_report)
+        preclaim_path = root / "preclaim-candidate-probe.json"
+        write_json(preclaim_path, preclaim_report)
         rollback_path = root / "fresh-manager-rollback.tar.gz"
         rollback_manifest_path = root / "fresh-rollback-manifest.json"
         _create_rollback(
@@ -111,6 +128,7 @@ def prepare_manager_identity_execution(
             first_gate,
             preparation,
             created_at,
+            sha_path(preclaim_path),
         )
         second_gate = live_gate_builder(driver, preparation_root, runner=command_runner)
         validate_gate(second_gate)
@@ -131,6 +149,7 @@ def prepare_manager_identity_execution(
             "fresh_rollback_captured": True,
             "fresh_rollback_verified": True,
             "execution_preparation_ready": True,
+            "preclaim_candidate_probe_passed": True,
             "authorization_created": False,
             "authorization_claimed": False,
             "production_manager_driver_installed": False,
@@ -162,6 +181,7 @@ def prepare_manager_identity_execution(
             record(rollback_path, root, contains_secret=True),
             record(rollback_manifest_path, root, contains_secret=True),
             record(gate_path, root, contains_secret=False),
+            record(preclaim_path, root, contains_secret=False),
             record(plan_path, root, contains_secret=False),
             record(runbook_path, root, contains_secret=False),
         ]
@@ -174,6 +194,7 @@ def prepare_manager_identity_execution(
             "fresh_rollback_captured": True,
             "fresh_rollback_verified": True,
             "execution_preparation_ready": True,
+            "preclaim_candidate_probe_passed": True,
             "read_only_live_services": True,
             "current_services_modified": False,
             "authorization_created": False,
@@ -198,6 +219,7 @@ def prepare_manager_identity_execution(
                 "driver_contract_sha256": second_gate["driver_contract_sha256"],
                 "adapter_contract_sha256": second_gate["adapter_contract_sha256"],
                 "live_binding_sha256": second_gate["live_binding_sha256"],
+                "preclaim_candidate_probe_sha256": sha_path(preclaim_path),
                 "preparation_manifest_sha256": preparation["manifest_sha256"],
                 "preparation_record_set_sha256": preparation["record_set_sha256"],
             },
@@ -229,6 +251,7 @@ def prepare_manager_identity_execution(
         "fresh_rollback_captured": True,
         "fresh_rollback_verified": True,
         "execution_preparation_ready": True,
+        "preclaim_candidate_probe_passed": True,
         "read_only_live_services": True,
         "current_services_modified": False,
         "authorization_created": False,
@@ -279,6 +302,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     except (
         ManagerIdentityExecutionPreparationError,
         ManagerIdentityLiveRuntimeGateError,
+        ManagerPreclaimCandidateError,
         ManagerIdentityProductionDriverContractError,
         ManagerIdentityProductionTransactionAdapterContractError,
         OSError,

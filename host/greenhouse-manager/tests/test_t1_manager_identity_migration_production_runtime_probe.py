@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import os
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 import pytest
 
+import greenhouse_manager.t1_manager_identity_migration_production_runtime_probe as module
 from greenhouse_manager.t1_manager_identity_migration_production_host_adapters import (
     ManagerHostBinding,
     ManagerProductionHostTransactionAdapters,
@@ -64,6 +67,11 @@ def _binding(tmp_path: Path) -> ManagerHostBinding:
         material_overlay=_write(material / "overlay.yaml", "services: {}\n"),
         username="gh-manager-user",
         client_id="gh-manager-client",
+        manager_runtime_uid=os.getuid(),
+        manager_runtime_gid=os.getgid(),
+        manager_runtime_user_source="container+image+isolated-candidate",
+        manager_runtime_image_id="sha256:manager-image-id",
+        manager_runtime_user_spec=f"{os.getuid()}:{os.getgid()}",
     )
 
 
@@ -175,6 +183,7 @@ def _runtime_fixture(
     tcp.chmod(0o600)
     document: dict[str, Any] = {
         "Id": CONTAINER_ID,
+        "Image": "sha256:manager-image-id",
         "LogPath": str(log_path),
         "RestartCount": 0,
         "State": {
@@ -183,6 +192,7 @@ def _runtime_fixture(
             "StartedAt": STARTED_AT,
         },
         "Config": {
+            "User": f"{os.getuid()}:{os.getgid()}",
             "Env": [
                 "GH_MQTT_USERNAME=gh-manager-user",
                 "GH_MQTT_CLIENT_ID=gh-manager-client",
@@ -199,6 +209,15 @@ def _runtime_fixture(
         ],
     }
     return binding, document, proc_root, log_path
+
+
+@pytest.fixture(autouse=True)
+def _allow_sandbox_runtime_identity(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        module,
+        "verify_bound_runtime_identity",
+        lambda *_args, **_kwargs: (os.getuid(), os.getgid()),
+    )
 
 
 def _probe(
@@ -258,6 +277,18 @@ def test_runtime_probe_rejects_unstable_mqtt_session(tmp_path: Path) -> None:
         ManagerProductionRuntimeProbeError,
         match="no stable MQTT TCP session",
     ):
+        probe.verify_authenticated_identity("gh-manager-user", "gh-manager-client")
+
+
+def test_runtime_probe_rejects_password_owner_drift(tmp_path: Path) -> None:
+    probe, _reader, _runner, _log_path = _probe(tmp_path)
+    probe.binding = replace(
+        probe.binding,
+        manager_runtime_uid=os.getuid() + 1,
+        manager_runtime_user_spec=f"{os.getuid() + 1}:{os.getgid()}",
+    )
+
+    with pytest.raises(ManagerProductionRuntimeProbeError, match="password source"):
         probe.verify_authenticated_identity("gh-manager-user", "gh-manager-client")
 
 

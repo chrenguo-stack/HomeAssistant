@@ -14,6 +14,10 @@ from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from .t1_manager_runtime_secret_ownership import (
+    ManagerRuntimeSecretOwnershipError,
+    resolve_manager_runtime_identity,
+)
 from .t1_migration_readiness import CommandRunner, SubprocessRunner
 from .t1_migration_stage import MigrationStageError, verify_migration_stage
 
@@ -388,10 +392,18 @@ def _live_manager(runner: CommandRunner) -> tuple[dict[str, Any], dict[str, str]
         raise ManagerIdentityMigrationPreparationError(
             "greenhouse-manager Compose labels are incomplete"
         )
+    try:
+        ownership = resolve_manager_runtime_identity(document, runner)
+    except ManagerRuntimeSecretOwnershipError as error:
+        raise ManagerIdentityMigrationPreparationError(
+            "greenhouse-manager runtime secret ownership cannot be bound"
+        ) from error
     runtime = {
         "container_id": str(document.get("Id", "")),
         "image_id": str(document.get("Image", "")),
         "image_ref": str(config.get("Image", "")),
+        "user_spec": str(config.get("User", "")).strip()
+        or str(ownership["manager_runtime_user_spec"]),
         "started_at": str(state.get("StartedAt", "")),
         "state": "running",
         "restart_count": 0,
@@ -404,6 +416,7 @@ def _live_manager(runner: CommandRunner) -> tuple[dict[str, Any], dict[str, str]
         "mqtt_username_present": False,
         "mqtt_password_present": False,
         "mqtt_password_file_present": False,
+        **ownership,
     }
     if not all(runtime[field] for field in ("container_id", "image_id", "image_ref")):
         raise ManagerIdentityMigrationPreparationError(
@@ -675,6 +688,11 @@ def prepare_manager_identity_migration(
             "schema": "gh.m2.t1-manager-runtime-binding/1",
             "created_at": observed.isoformat(timespec="seconds").replace("+00:00", "Z"),
             "container": runtime,
+            "manager_runtime_uid": runtime["manager_runtime_uid"],
+            "manager_runtime_gid": runtime["manager_runtime_gid"],
+            "manager_runtime_user_source": runtime["manager_runtime_user_source"],
+            "manager_runtime_image_id": runtime["manager_runtime_image_id"],
+            "manager_runtime_user_spec": runtime["manager_runtime_user_spec"],
             "compose": compose,
             "target_secret_root": str(secret_root_path),
             "target_password_file": _PASSWORD_SOURCE,

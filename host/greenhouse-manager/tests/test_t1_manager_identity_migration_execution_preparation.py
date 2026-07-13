@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from manager_execution_preparation_fixtures import build_preparation
+from manager_execution_preparation_fixtures import build_preparation, preclaim_report
 
 from greenhouse_manager.t1_manager_identity_migration_execution_preparation import (
     ManagerIdentityExecutionPreparationError,
@@ -44,6 +44,7 @@ def _prepare(
         now=NOW,
         token_factory=lambda: "testing",
         live_gate_builder=gate_builder or stable_gate,
+        preclaim_probe=preclaim_report,
     )
     package = output / str(report["execution_preparation_name"])
     return report, package, preparation, driver
@@ -63,6 +64,7 @@ def test_prepares_private_verified_fresh_rollback(
     assert report["fresh_rollback_captured"] is True
     assert report["fresh_rollback_verified"] is True
     assert report["execution_preparation_ready"] is True
+    assert report["preclaim_candidate_probe_passed"] is True
     assert report["authorization_created"] is False
     assert report["execution_enabled"] is False
     assert report["apply_enabled"] is False
@@ -92,6 +94,18 @@ def test_prepares_private_verified_fresh_rollback(
     assert "rollback-manifest.json" in names
     assert "compose/config/000.yaml" in names
     assert ("compose/environment/.env" in names) is include_environment
+
+    preclaim = json.loads(
+        (package / "preclaim-candidate-probe.json").read_text(encoding="utf-8")
+    )
+    assert preclaim["network_none"] is True
+    assert preclaim["password_owned_by_runtime_user"] is True
+    rollback = json.loads(
+        (package / "fresh-rollback-manifest.json").read_text(encoding="utf-8")
+    )
+    assert rollback["manager_runtime_uid"] == 999
+    assert rollback["manager_runtime_gid"] == 999
+    assert rollback["preclaim_candidate_probe_sha256"]
 
     serialized = json.dumps(report)
     assert str(tmp_path) not in serialized
@@ -123,6 +137,7 @@ def test_rejects_live_gate_drift_during_capture(tmp_path: Path) -> None:
             now=NOW,
             token_factory=lambda: "testing",
             live_gate_builder=drifting_gate,
+            preclaim_probe=preclaim_report,
         )
 
 
@@ -149,6 +164,7 @@ def test_rejects_compose_drift_after_preparation(tmp_path: Path) -> None:
             now=NOW,
             token_factory=lambda: "testing",
             live_gate_builder=lambda *_args, **_kwargs: gate,
+            preclaim_probe=preclaim_report,
         )
 
 
@@ -175,6 +191,7 @@ def test_rejects_output_inside_compose_directory(tmp_path: Path) -> None:
             now=NOW,
             token_factory=lambda: "testing",
             live_gate_builder=lambda *_args, **_kwargs: gate,
+            preclaim_probe=preclaim_report,
         )
 
 

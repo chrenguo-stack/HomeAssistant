@@ -1,0 +1,147 @@
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+
+import pytest
+
+import greenhouse_manager.t1_manager_identity_migration_preclaim_candidate as module
+from greenhouse_manager.t1_manager_identity_migration_preclaim_candidate import (
+    ManagerPreclaimCandidateError,
+    run_preclaim_candidate_probe,
+    validate_preclaim_candidate_report,
+)
+
+
+def _write(path: Path, value: str) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    path.write_text(value, encoding="utf-8")
+    path.chmod(0o600)
+    return path
+
+
+def _runtime() -> dict[str, object]:
+    return {
+        "container": {
+            "image_id": "sha256:manager-image-id",
+            "user_spec": "999:999",
+        },
+        "manager_runtime_uid": 999,
+        "manager_runtime_gid": 999,
+        "manager_runtime_user_source": "container+image+isolated-candidate",
+        "manager_runtime_image_id": "sha256:manager-image-id",
+        "manager_runtime_user_spec": "999:999",
+    }
+
+
+class FakeRunner:
+    def __init__(self, *, code: int = 0) -> None:
+        self.code = code
+        self.commands: list[tuple[str, ...]] = []
+
+    def run(self, command: tuple[str, ...]) -> tuple[int, str]:
+        self.commands.append(command)
+        return self.code, json.dumps(
+            {
+                "configuration_valid": True,
+                "mqtt_authentication_configured": True,
+                "password_file_used": True,
+                "inline_password_used": False,
+                "network_attempted": False,
+                "secret_values_included": False,
+            }
+        )
+
+
+def _materials(tmp_path: Path) -> tuple[Path, Path, Path]:
+    environment = _write(
+        tmp_path / "material/manager.env",
+        "GH_MQTT_USERNAME=manager\n"
+        "GH_MQTT_PASSWORD_FILE=/run/secrets/gh_manager_mqtt_password\n"
+        "GH_MQTT_CLIENT_ID=manager-client\n",
+    )
+    password = _write(tmp_path / "material/password", "secret\n")
+    workspace = tmp_path / "workspace"
+    workspace.mkdir(mode=0o700)
+    return environment, password, workspace
+
+
+def test_preclaim_probe_is_network_none_read_only_and_removes_candidate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    environment, password, workspace = _materials(tmp_path)
+    monkeypatch.setattr(
+        module,
+        "verify_bound_runtime_identity",
+        lambda *_args, **_kwargs: (os.getuid(), os.getgid()),
+    )
+    runner = FakeRunner()
+
+    report = run_preclaim_candidate_probe(
+        _runtime(),
+        environment,
+        password,
+        workspace,
+        runner=runner,
+    )
+
+    validate_preclaim_candidate_report(report)
+    assert report["preclaim_candidate_probe_passed"] is True
+    assert list(workspace.iterdir()) == []
+    command = runner.commands[0]
+    assert command[:5] == ("docker", "run", "--rm", "--network", "none")
+    assert "--read-only" in command
+    assert "--cap-drop" in command
+    assert "no-new-privileges" in command
+    assert command[-1] == "--check-config"
+
+
+def test_preclaim_probe_rejects_owner_mismatch_before_docker(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    environment, password, workspace = _materials(tmp_path)
+    monkeypatch.setattr(module.os, "geteuid", lambda: 1)
+    monkeypatch.setattr(
+        module,
+        "verify_bound_runtime_identity",
+        lambda *_args, **_kwargs: (os.getuid() + 1, os.getgid() + 1),
+    )
+    runner = FakeRunner()
+
+    with pytest.raises(ManagerPreclaimCandidateError, match="ownership"):
+        run_preclaim_candidate_probe(
+            _runtime(),
+            environment,
+            password,
+            workspace,
+            runner=runner,
+        )
+
+    assert runner.commands == []
+    assert list(workspace.iterdir()) == []
+
+
+def test_preclaim_probe_failure_removes_candidate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    environment, password, workspace = _materials(tmp_path)
+    monkeypatch.setattr(
+        module,
+        "verify_bound_runtime_identity",
+        lambda *_args, **_kwargs: (os.getuid(), os.getgid()),
+    )
+
+    with pytest.raises(ManagerPreclaimCandidateError, match="configuration probe failed"):
+        run_preclaim_candidate_probe(
+            _runtime(),
+            environment,
+            password,
+            workspace,
+            runner=FakeRunner(code=2),
+        )
+
+    assert list(workspace.iterdir()) == []
