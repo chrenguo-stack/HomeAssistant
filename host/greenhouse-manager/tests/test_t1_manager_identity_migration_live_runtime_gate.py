@@ -75,7 +75,9 @@ def _record(path: Path, root: Path, secret: bool) -> dict[str, object]:
     }
 
 
-def _fixture(tmp_path: Path) -> tuple[Path, Path, "FakeRunner", Path, Path]:
+def _fixture(tmp_path: Path) -> tuple[Path, Path, FakeRunner, Path, Path]:
+    tmp_path.mkdir(parents=True, exist_ok=True, mode=0o700)
+    tmp_path.chmod(0o700)
     compose_root = tmp_path / "active-compose"
     compose_root.mkdir(mode=0o700)
     compose_file = compose_root / "docker-compose.manager.yml"
