@@ -1,0 +1,54 @@
+name: M2 manager failure diagnostic CI
+
+on:
+  pull_request:
+    paths:
+      - "host/greenhouse-manager/src/greenhouse_manager/t1_manager_identity_migration_failure_diagnostics.py"
+      - "host/greenhouse-manager/src/greenhouse_manager/t1_manager_identity_migration_production_integration.py"
+      - "host/greenhouse-manager/tests/test_t1_manager_identity_migration_failure_diagnostics.py"
+      - ".github/workflows/m2-manager-failure-diagnostic-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostic:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: host/greenhouse-manager
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: python -m pip install -q -e ".[dev]"
+      - name: Capture diagnostics
+        shell: bash
+        run: |
+          set +e
+          ruff check . > "$RUNNER_TEMP/ruff.log" 2>&1
+          printf '%s\n' "$?" > "$RUNNER_TEMP/ruff.rc"
+          pytest -q --tb=short > "$RUNNER_TEMP/pytest.log" 2>&1
+          printf '%s\n' "$?" > "$RUNNER_TEMP/pytest.rc"
+          exit 0
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: manager-failure-diagnostic-logs
+          path: |
+            ${{ runner.temp }}/ruff.log
+            ${{ runner.temp }}/ruff.rc
+            ${{ runner.temp }}/pytest.log
+            ${{ runner.temp }}/pytest.rc
+          if-no-files-found: error
+          retention-days: 1
+      - name: Enforce diagnostics
+        shell: bash
+        run: |
+          test "$(cat "$RUNNER_TEMP/ruff.rc")" = 0
+          test "$(cat "$RUNNER_TEMP/pytest.rc")" = 0

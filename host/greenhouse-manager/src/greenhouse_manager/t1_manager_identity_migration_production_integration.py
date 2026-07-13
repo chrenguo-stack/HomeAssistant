@@ -6,6 +6,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from .t1_manager_identity_migration_failure_diagnostics import (
+    StageAwareManagerDriver,
+    StageAwareTransactionAdapters,
+    TransactionStageRecorder,
+)
 from .t1_manager_identity_migration_production_host_adapters import (
     LiveProductionManagerDriver,
     ManagerHostBinding,
@@ -23,6 +28,13 @@ SCHEMA = "gh.m2.t1-manager-identity-production-integration/1"
 
 
 class ManagerProductionIntegrationError(RuntimeError):
+    pass
+
+
+class IntegratedStageAwareTransactionAdapters(
+    StageAwareTransactionAdapters,
+    ManagerProductionHostTransactionAdapters,
+):
     pass
 
 
@@ -66,7 +78,7 @@ def build_manager_production_adapters_factory(
     now: datetime | None = None,
     binding_loader: BindingLoader = _load_binding,
     probe_factory: ProbeFactory = ManagerProductionRuntimeProbe,
-) -> Callable[..., ManagerProductionHostTransactionAdapters]:
+) -> Callable[..., IntegratedStageAwareTransactionAdapters]:
     def factory(
         driver_contract_file: str | Path,
         execution_preparation_directory: str | Path,
@@ -74,12 +86,13 @@ def build_manager_production_adapters_factory(
         workspace_directory: str | Path,
         *,
         runner: CommandRunner | None = None,
-    ) -> ManagerProductionHostTransactionAdapters:
+    ) -> IntegratedStageAwareTransactionAdapters:
         command_runner = runner or SubprocessRunner()
         driver_path = Path(driver_contract_file).expanduser().resolve()
         execution_root = Path(execution_preparation_directory).expanduser().resolve()
         preparation_root = Path(preparation_directory).expanduser().resolve()
         workspace = Path(workspace_directory).expanduser().resolve()
+        recorder = TransactionStageRecorder(workspace)
         host_workspace = _private_empty_subdirectory(workspace)
         try:
             binding, _rollback, _manifest = binding_loader(
@@ -111,12 +124,15 @@ def build_manager_production_adapters_factory(
             raise ManagerProductionIntegrationError(
                 "manager runtime continuity baseline capture is incomplete"
             )
-        driver = LiveProductionManagerDriver(
-            binding,
-            probe=probe,
-            runner=command_runner,
+        driver = StageAwareManagerDriver(
+            LiveProductionManagerDriver(
+                binding,
+                probe=probe,
+                runner=command_runner,
+            ),
+            recorder,
         )
-        return ManagerProductionHostTransactionAdapters(
+        adapters = ManagerProductionHostTransactionAdapters(
             driver_path,
             execution_root,
             preparation_root,
@@ -124,6 +140,7 @@ def build_manager_production_adapters_factory(
             driver=driver,
             now=now,
         )
+        return IntegratedStageAwareTransactionAdapters(adapters, recorder)
 
     return factory
 
@@ -134,6 +151,7 @@ def production_integration_capabilities() -> dict[str, object]:
         "production_runtime_probe_implemented": True,
         "production_host_adapters_implemented": True,
         "orchestrator_integration_factory_implemented": True,
+        "failure_stage_diagnostics_implemented": True,
         "execution_entrypoint_installed": False,
         "authorization_claimed": False,
         "production_executor_available": False,
