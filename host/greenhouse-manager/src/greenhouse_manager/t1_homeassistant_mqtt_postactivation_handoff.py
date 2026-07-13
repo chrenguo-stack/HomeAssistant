@@ -104,15 +104,17 @@ def _atomic_private_write(path: Path, value: str) -> None:
 
 def _read_json(path: Path, label: str, *, private: bool) -> dict[str, Any]:
     if not path.is_file() or path.is_symlink():
-        raise HomeAssistantMqttPostactivationHandoffError(f"{label} is missing or unsafe")
-    if private and path.stat().st_mode & 0o777 != 0o600:
         raise HomeAssistantMqttPostactivationHandoffError(
-            f"{label} must use mode 0600"
+            f"{label} is missing or unsafe"
         )
+    if private and path.stat().st_mode & 0o777 != 0o600:
+        raise HomeAssistantMqttPostactivationHandoffError(f"{label} must use mode 0600")
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
-        raise HomeAssistantMqttPostactivationHandoffError(f"{label} is invalid") from error
+        raise HomeAssistantMqttPostactivationHandoffError(
+            f"{label} is invalid"
+        ) from error
     if not isinstance(value, dict):
         raise HomeAssistantMqttPostactivationHandoffError(f"{label} must be an object")
     return value
@@ -260,7 +262,11 @@ def _validate_broker_audit(report: Mapping[str, Any]) -> None:
         "Broker postactivation audit",
     )
     checks = report.get("checks")
-    if not isinstance(checks, dict) or not checks or any(value is not True for value in checks.values()):
+    if (
+        not isinstance(checks, dict)
+        or not checks
+        or any(value is not True for value in checks.values())
+    ):
         raise HomeAssistantMqttPostactivationHandoffError(
             "Broker postactivation checks are not all passing"
         )
@@ -312,8 +318,12 @@ def prepare_homeassistant_mqtt_postactivation_handoff(
         raise ValueError("expected retained topic must be in the gh namespace")
 
     transaction_root = Path(broker_transaction_directory).expanduser().resolve()
-    broker_handoff_root = Path(broker_activation_handoff_directory).expanduser().resolve()
-    homeassistant_handoff_root = Path(homeassistant_handoff_directory).expanduser().resolve()
+    broker_handoff_root = (
+        Path(broker_activation_handoff_directory).expanduser().resolve()
+    )
+    homeassistant_handoff_root = (
+        Path(homeassistant_handoff_directory).expanduser().resolve()
+    )
     postcheck_path = Path(homeassistant_postcheck_file).expanduser().resolve()
     output_root = Path(output_directory).expanduser().resolve()
     _private_directory(output_root)
@@ -373,7 +383,9 @@ def prepare_homeassistant_mqtt_postactivation_handoff(
 
     transaction_id = journal.get("transaction_id")
     authorization_id = journal.get("authorization_id")
-    if not all(isinstance(value, str) and value for value in (transaction_id, authorization_id)):
+    if not all(
+        isinstance(value, str) and value for value in (transaction_id, authorization_id)
+    ):
         raise HomeAssistantMqttPostactivationHandoffError(
             "Broker transaction identity is incomplete"
         )
@@ -456,16 +468,14 @@ def prepare_homeassistant_mqtt_postactivation_handoff(
                 homeassistant_manifest_path
             ),
             "homeassistant_postcheck_source_sha256": _sha256_path(postcheck_path),
-            "broker_transaction_id_fingerprint": _sha256_bytes(
-                transaction_id.encode()
-            )[:16],
+            "broker_transaction_id_fingerprint": _sha256_bytes(transaction_id.encode())[
+                :16
+            ],
             "broker_authorization_id_fingerprint": _sha256_bytes(
                 authorization_id.encode()
             )[:16],
             "broker_bundle_sha256": journal["bundle_sha256"],
-            "broker_adapter_contract_sha256": journal[
-                "adapter_contract_sha256"
-            ],
+            "broker_adapter_contract_sha256": journal["adapter_contract_sha256"],
             "broker_handoff_name_fingerprint": _sha256_bytes(
                 broker_handoff_root.name.encode()
             )[:16],
