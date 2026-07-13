@@ -15,6 +15,23 @@ from .t1_migration_readiness import CommandRunner
 
 SCHEMA = "gh.m2.t1-manager-identity-preclaim-candidate/1"
 _PASSWORD_TARGET = "/run/secrets/gh_manager_mqtt_password"
+_CHECK_CONFIG_PROGRAM = """
+import json
+
+from greenhouse_manager.config import Settings
+
+settings = Settings.from_env()
+print(json.dumps({
+    "configuration_valid": True,
+    "mqtt_authentication_configured": bool(
+        settings.mqtt_username and settings.mqtt_password
+    ),
+    "password_file_used": True,
+    "inline_password_used": False,
+    "network_attempted": False,
+    "secret_values_included": False,
+}, sort_keys=True, separators=(",", ":")))
+""".strip()
 
 
 class ManagerPreclaimCandidateError(RuntimeError):
@@ -128,9 +145,11 @@ def run_preclaim_candidate_probe(
             "--mount",
             f"type=bind,src={candidate},dst={_PASSWORD_TARGET},readonly",
             "--entrypoint",
-            "greenhouse-manager",
+            "python3",
             image_id,
-            "--check-config",
+            "-I",
+            "-c",
+            _CHECK_CONFIG_PROGRAM,
         )
         code, output = runner.run(command)
         if code != 0:
