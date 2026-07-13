@@ -36,7 +36,6 @@ _PREPARATION_PREFIX = "greenhouse-manager-migration-preparation-"
 _OUTPUT_PREFIX = "greenhouse-m2-manager-authorizations"
 _TOKEN = re.compile(r"^[A-Za-z0-9_-]{16,128}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
-_FINGERPRINT = re.compile(r"^[0-9a-f]{16}$")
 _EXPECTED_RECORDS = {
     "material/manager/manager.env": True,
     "material/manager/password": True,
@@ -45,6 +44,18 @@ _EXPECTED_RECORDS = {
     "transaction-plan.json": False,
     "operator-runbook.txt": False,
 }
+_BOUND_FIELDS = (
+    "preparation_manifest_sha256",
+    "manager_runtime_binding_sha256",
+    "transaction_plan_sha256",
+    "manager_env_sha256",
+    "manager_password_sha256",
+    "manager_fragment_sha256",
+    "manager_runtime_fingerprint",
+    "compose_binding_fingerprint",
+    "postactivation_manifest_sha256",
+    "migration_stage_manifest_sha256",
+)
 
 TokenFactory = Callable[[], str]
 
@@ -98,6 +109,18 @@ def _read_private_json(path: Path, label: str) -> dict[str, Any]:
     if not isinstance(document, dict):
         raise ManagerIdentityMigrationAuthorizationError(f"{label} must be an object")
     return document
+
+
+def _must(
+    document: Mapping[str, Any],
+    required: Mapping[str, object],
+    label: str,
+) -> None:
+    for field, expected in required.items():
+        if document.get(field) != expected:
+            raise ManagerIdentityMigrationAuthorizationError(
+                f"{label} verification failed: {field}"
+            )
 
 
 def _private_preparation_root(path: Path) -> Path:
@@ -166,14 +189,6 @@ def _verify_records(root: Path, manifest: Mapping[str, Any]) -> dict[str, str]:
     return observed
 
 
-def _must(document: Mapping[str, Any], required: Mapping[str, object], label: str) -> None:
-    for field, expected in required.items():
-        if document.get(field) != expected:
-            raise ManagerIdentityMigrationAuthorizationError(
-                f"{label} verification failed: {field}"
-            )
-
-
 def _current_compose(labels: Mapping[str, str]) -> dict[str, Any]:
     working_dir, files = _compose_paths(labels)
     env_path = working_dir / ".env"
@@ -196,27 +211,27 @@ def _current_compose(labels: Mapping[str, str]) -> dict[str, Any]:
     }
 
 
-def _validate_secret_target(binding: Mapping[str, Any]) -> None:
-    root_value = binding.get("target_secret_root")
-    password_value = binding.get("target_password_file")
-    if not isinstance(root_value, str) or not isinstance(password_value, str):
+def _bound_path(value: object, label: str) -> Path:
+    if not isinstance(value, str):
+        raise ManagerIdentityMigrationAuthorizationError(f"{label} is missing")
+    path = Path(value).expanduser()
+    if not path.is_absolute() or path.is_symlink():
+        raise ManagerIdentityMigrationAuthorizationError(f"{label} is unsafe")
+    return path.resolve()
+
+
+def _validate_secret_target(binding: Mapping[str, Any]) -> tuple[Path, Path]:
+    root = _bound_path(binding.get("target_secret_root"), "manager secret root")
+    password = _bound_path(
+        binding.get("target_password_file"),
+        "manager active password path",
+    )
+    if not password.is_relative_to(root):
         raise ManagerIdentityMigrationAuthorizationError(
-            "manager secret target binding is incomplete"
-        )
-    root = Path(root_value).expanduser()
-    password = Path(password_value).expanduser()
-    if (
-        not root.is_absolute()
-        or not password.is_absolute()
-        or not password.is_relative_to(root)
-        or root.is_symlink()
-        or password.is_symlink()
-    ):
-        raise ManagerIdentityMigrationAuthorizationError(
-            "manager secret target binding is unsafe"
+            "manager active password escaped the secret root"
         )
     if root.exists() and (
-        not root.is_dir() or root.stat().st_mode & 0o077
+        not root.is_dir() or root.is_symlink() or root.stat().st_mode & 0o077
     ):
         raise ManagerIdentityMigrationAuthorizationError(
             "manager secret root is not a private directory"
@@ -225,12 +240,13 @@ def _validate_secret_target(binding: Mapping[str, Any]) -> None:
         raise ManagerIdentityMigrationAuthorizationError(
             "manager active password already exists before authorization"
         )
+    return root, password
 
 
 def _fresh_runtime_check(
     runtime_binding: Mapping[str, Any],
     runner: CommandRunner,
-) -> tuple[str, str]:
+) -> tuple[str, str, tuple[Path, ...]]:
     captured_runtime = runtime_binding.get("container")
     captured_compose = runtime_binding.get("compose")
     if not isinstance(captured_runtime, dict) or not isinstance(captured_compose, dict):
@@ -252,9 +268,15 @@ def _fresh_runtime_check(
         raise ManagerIdentityMigrationAuthorizationError(
             "greenhouse-manager Compose binding drifted after preparation"
         )
-    _validate_secret_target(runtime_binding)
-    return _fingerprint(_canonical_json(current_runtime)), _fingerprint(
-        _canonical_json(current_compose)
+    secret_root, password = _validate_secret_target(runtime_binding)
+    compose_root = _bound_path(
+        current_compose.get("working_dir"),
+        "greenhouse-manager Compose working directory",
+    )
+    return (
+        _fingerprint(_canonical_json(current_runtime)),
+        _fingerprint(_canonical_json(current_compose)),
+        (compose_root, secret_root, password),
     )
 
 
@@ -265,7 +287,10 @@ def _validated_preparation(
 ) -> dict[str, Any]:
     root = _private_preparation_root(Path(preparation_directory))
     manifest_path = root / "manifest.json"
-    manifest = _read_private_json(manifest_path, "manager migration preparation manifest")
+    manifest = _read_private_json(
+        manifest_path,
+        "manager migration preparation manifest",
+    )
     _must(
         manifest,
         {
@@ -323,8 +348,9 @@ def _validated_preparation(
         },
         "manager transaction plan",
     )
+    runtime_digest = records["manager-runtime-binding.json"]
     if (
-        bindings.get("manager_runtime_binding_sha256") != records["manager-runtime-binding.json"]
+        bindings.get("manager_runtime_binding_sha256") != runtime_digest
         or bindings.get("manager_runtime_fingerprint")
         != _fingerprint(_canonical_json(runtime_binding["container"]))
         or bindings.get("compose_binding_fingerprint")
@@ -348,7 +374,10 @@ def _validated_preparation(
         raise ManagerIdentityMigrationAuthorizationError(
             "prepared manager identity fingerprint does not match"
         )
-    runtime_fp, compose_fp = _fresh_runtime_check(runtime_binding, runner)
+    runtime_fp, compose_fp, protected_paths = _fresh_runtime_check(
+        runtime_binding,
+        runner,
+    )
     if (
         runtime_fp != bindings.get("manager_runtime_fingerprint")
         or compose_fp != bindings.get("compose_binding_fingerprint")
@@ -358,9 +387,8 @@ def _validated_preparation(
         )
     return {
         "root": root,
-        "manifest": manifest,
         "manifest_sha256": _sha(manifest_path),
-        "runtime_binding_sha256": records["manager-runtime-binding.json"],
+        "manager_runtime_binding_sha256": runtime_digest,
         "transaction_plan_sha256": records["transaction-plan.json"],
         "manager_env_sha256": records["material/manager/manager.env"],
         "manager_password_sha256": records["material/manager/password"],
@@ -377,7 +405,41 @@ def _validated_preparation(
             bindings.get("migration_stage_manifest_sha256"),
             "migration stage manifest",
         ),
+        "protected_paths": protected_paths,
     }
+
+
+def _public_bindings(validated: Mapping[str, Any]) -> dict[str, object]:
+    return {
+        "preparation_manifest_sha256": validated["manifest_sha256"],
+        "manager_runtime_binding_sha256": validated[
+            "manager_runtime_binding_sha256"
+        ],
+        "transaction_plan_sha256": validated["transaction_plan_sha256"],
+        "manager_env_sha256": validated["manager_env_sha256"],
+        "manager_password_sha256": validated["manager_password_sha256"],
+        "manager_fragment_sha256": validated["manager_fragment_sha256"],
+        "manager_runtime_fingerprint": validated["manager_runtime_fingerprint"],
+        "compose_binding_fingerprint": validated["compose_binding_fingerprint"],
+        "postactivation_manifest_sha256": validated[
+            "postactivation_manifest_sha256"
+        ],
+        "migration_stage_manifest_sha256": validated[
+            "migration_stage_manifest_sha256"
+        ],
+    }
+
+
+def _request_bindings(request: Mapping[str, Any]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for field in _BOUND_FIELDS:
+        value = request.get(field)
+        if not isinstance(value, str):
+            raise ManagerIdentityMigrationAuthorizationError(
+                f"manager authorization request binding is invalid: {field}"
+            )
+        result[field] = value
+    return result
 
 
 def _confirmation(validated: Mapping[str, Any]) -> str:
@@ -389,33 +451,8 @@ def _confirmation(validated: Mapping[str, Any]) -> str:
     )
 
 
-def _request_fields(validated: Mapping[str, Any]) -> dict[str, object]:
-    return {
-        "preparation_manifest_sha256": validated["manifest_sha256"],
-        "manager_runtime_binding_sha256": validated["runtime_binding_sha256"],
-        "transaction_plan_sha256": validated["transaction_plan_sha256"],
-        "manager_env_sha256": validated["manager_env_sha256"],
-        "manager_password_sha256": validated["manager_password_sha256"],
-        "manager_fragment_sha256": validated["manager_fragment_sha256"],
-        "manager_runtime_fingerprint": validated["manager_runtime_fingerprint"],
-        "compose_binding_fingerprint": validated["compose_binding_fingerprint"],
-        "postactivation_manifest_sha256": validated["postactivation_manifest_sha256"],
-        "migration_stage_manifest_sha256": validated[
-            "migration_stage_manifest_sha256"
-        ],
-    }
-
-
-def build_manager_identity_migration_authorization_request(
-    preparation_directory: str | Path,
-    *,
-    runner: CommandRunner | None = None,
-) -> dict[str, object]:
-    validated = _validated_preparation(
-        preparation_directory,
-        runner=runner or SubprocessRunner(),
-    )
-    root = validated["root"]
+def _request_from_validated(validated: Mapping[str, Any]) -> dict[str, object]:
+    root = validated.get("root")
     if not isinstance(root, Path):
         raise ManagerIdentityMigrationAuthorizationError(
             "manager migration preparation root binding is invalid"
@@ -424,7 +461,7 @@ def build_manager_identity_migration_authorization_request(
         "schema": REQUEST_SCHEMA,
         "preparation_name": root.name,
         "required_confirmation": _confirmation(validated),
-        **_request_fields(validated),
+        **_public_bindings(validated),
         "fresh_runtime_preflight_passed": True,
         "authorization_created": False,
         "single_use": True,
@@ -439,6 +476,18 @@ def build_manager_identity_migration_authorization_request(
         "secret_values_included": False,
         "path_values_redacted": True,
     }
+
+
+def build_manager_identity_migration_authorization_request(
+    preparation_directory: str | Path,
+    *,
+    runner: CommandRunner | None = None,
+) -> dict[str, object]:
+    validated = _validated_preparation(
+        preparation_directory,
+        runner=runner or SubprocessRunner(),
+    )
+    return _request_from_validated(validated)
 
 
 def _private_output_directory(path: Path) -> Path:
@@ -457,6 +506,19 @@ def _private_output_directory(path: Path) -> Path:
             "manager authorization output directory must be private"
         )
     return resolved
+
+
+def _reject_output(
+    output: Path,
+    preparation_root: Path,
+    protected_paths: Sequence[Path],
+) -> None:
+    for protected in (preparation_root, *protected_paths):
+        resolved = protected.resolve()
+        if output == resolved or output.is_relative_to(resolved):
+            raise ManagerIdentityMigrationAuthorizationError(
+                "manager authorization output overlaps preparation or active paths"
+            )
 
 
 def _fsync_directory(path: Path) -> None:
@@ -500,29 +562,33 @@ def create_manager_identity_migration_authorization(
     if ttl_seconds < 60 or ttl_seconds > 1800:
         raise ValueError("authorization TTL must be between 60 and 1800 seconds")
     command_runner = runner or SubprocessRunner()
-    request = build_manager_identity_migration_authorization_request(
+    first = _validated_preparation(
         preparation_directory,
         runner=command_runner,
     )
+    request = _request_from_validated(first)
     required = request.get("required_confirmation")
     if not isinstance(required, str) or not hmac.compare_digest(confirmation, required):
         raise ManagerIdentityMigrationAuthorizationError(
             "explicit manager migration authorization confirmation is missing or does not match"
         )
-    preparation_root = Path(preparation_directory).expanduser().resolve()
-    output = _private_output_directory(Path(output_directory).expanduser())
-    if output == preparation_root or output.is_relative_to(preparation_root):
-        raise ManagerIdentityMigrationAuthorizationError(
-            "manager authorization output must be separate from preparation material"
-        )
-    refreshed = build_manager_identity_migration_authorization_request(
-        preparation_root,
+    second = _validated_preparation(
+        preparation_directory,
         runner=command_runner,
     )
+    refreshed = _request_from_validated(second)
     if _canonical_json(request) != _canonical_json(refreshed):
         raise ManagerIdentityMigrationAuthorizationError(
             "manager runtime state drifted during authorization creation"
         )
+    preparation_root = second.get("root")
+    protected_paths = second.get("protected_paths")
+    if not isinstance(preparation_root, Path) or not isinstance(protected_paths, tuple):
+        raise ManagerIdentityMigrationAuthorizationError(
+            "manager authorization path bindings are incomplete"
+        )
+    output = _private_output_directory(Path(output_directory).expanduser())
+    _reject_output(output, preparation_root, protected_paths)
     token = token_factory() if token_factory else secrets.token_urlsafe(32)
     if not isinstance(token, str) or _TOKEN.fullmatch(token) is None:
         raise ManagerIdentityMigrationAuthorizationError(
@@ -538,7 +604,7 @@ def create_manager_identity_migration_authorization(
         "created_at": observed.isoformat(timespec="seconds").replace("+00:00", "Z"),
         "expires_at": expires.isoformat(timespec="seconds").replace("+00:00", "Z"),
         "preparation_name": request["preparation_name"],
-        **_request_fields(request),
+        **_request_bindings(request),
         "fresh_runtime_preflight_passed": True,
         "single_use": True,
         "consumed": False,
@@ -598,15 +664,19 @@ def verify_manager_identity_migration_authorization(
     now: datetime | None = None,
 ) -> dict[str, object]:
     auth_path = Path(authorization_file).expanduser().resolve()
-    authorization = _read_private_json(auth_path, "manager migration authorization")
-    request = build_manager_identity_migration_authorization_request(
+    authorization = _read_private_json(
+        auth_path,
+        "manager migration authorization",
+    )
+    validated = _validated_preparation(
         preparation_directory,
         runner=runner or SubprocessRunner(),
     )
+    request = _request_from_validated(validated)
     required: dict[str, object] = {
         "schema": AUTHORIZATION_SCHEMA,
         "preparation_name": request["preparation_name"],
-        **_request_fields(request),
+        **_request_bindings(request),
         "fresh_runtime_preflight_passed": True,
         "single_use": True,
         "consumed": False,
@@ -621,11 +691,10 @@ def verify_manager_identity_migration_authorization(
     }
     for field, expected in required.items():
         actual = authorization.get(field)
-        valid = (
-            isinstance(actual, str)
-            and isinstance(expected, str)
-            and hmac.compare_digest(actual, expected)
-        ) if isinstance(expected, str) else actual == expected
+        if isinstance(expected, str):
+            valid = isinstance(actual, str) and hmac.compare_digest(actual, expected)
+        else:
+            valid = actual == expected
         if not valid:
             raise ManagerIdentityMigrationAuthorizationError(
                 f"manager authorization binding failed: {field}"
