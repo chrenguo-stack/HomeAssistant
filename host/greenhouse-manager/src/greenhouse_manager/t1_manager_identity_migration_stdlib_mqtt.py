@@ -6,6 +6,7 @@ import secrets
 import socket
 import sys
 from collections.abc import Callable, Sequence
+from contextlib import suppress
 from typing import Protocol
 
 SCHEMA = "gh.m2.t1-manager-identity-stdlib-mqtt-preflight/1"
@@ -183,10 +184,8 @@ class StdlibAnonymousRetainedReader:
                 "anonymous retained probe connection failed"
             ) from error
         finally:
-            try:
+            with suppress(OSError):
                 connection.sendall(_packet(0xE0))
-            except OSError:
-                pass
             connection.close()
 
 
