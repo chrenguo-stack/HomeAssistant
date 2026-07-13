@@ -6,13 +6,11 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-
 from greenhouse_manager.t1_manager_identity_migration_execution_preparation import (
     ManagerIdentityExecutionPreparationError,
     prepare_manager_identity_execution,
     verify_manager_identity_execution_preparation,
 )
-
 from manager_execution_preparation_fixtures import build_preparation
 
 NOW = datetime(2026, 7, 13, 4, 30, tzinfo=UTC)
