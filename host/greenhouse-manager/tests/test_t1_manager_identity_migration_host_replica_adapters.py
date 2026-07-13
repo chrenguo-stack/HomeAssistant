@@ -100,6 +100,7 @@ def _preparation_and_template(tmp_path: Path) -> tuple[Path, Path]:
     compose_root = manager_root / "compose"
     secret_root = manager_root / "secrets"
     compose_root.mkdir(parents=True, mode=0o700)
+    manager_root.chmod(0o700)
     secret_root.mkdir(mode=0o700)
     baseline_compose = compose_root / "docker-compose.manager.yml"
     _write(
