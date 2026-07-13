@@ -7,15 +7,15 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from .t1_manager_identity_migration_execution_preparation_capture_inventory import (
+    _metadata,
+)
 from .t1_manager_identity_migration_execution_preparation_common import (
     ROLLBACK_SCHEMA,
     ManagerIdentityExecutionPreparationError,
     canonical,
     verify_rollback_archive,
     write_json,
-)
-from .t1_manager_identity_migration_execution_preparation_capture_inventory import (
-    _metadata,
 )
 
 

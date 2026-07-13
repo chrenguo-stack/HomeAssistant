@@ -11,6 +11,11 @@ from collections.abc import Callable, Sequence
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from .t1_manager_identity_migration_execution_preparation_capture import (
+    _create_rollback,
+    _reject_overlap,
+    _source_inventory,
+)
 from .t1_manager_identity_migration_execution_preparation_common import (
     OUTPUT_PREFIX,
     PLAN_SCHEMA,
@@ -27,11 +32,6 @@ from .t1_manager_identity_migration_execution_preparation_common import (
     validate_preparation,
     write_json,
     write_private,
-)
-from .t1_manager_identity_migration_execution_preparation_capture import (
-    _create_rollback,
-    _reject_overlap,
-    _source_inventory,
 )
 from .t1_manager_identity_migration_execution_preparation_verify import (
     verify_manager_identity_execution_preparation,
@@ -152,11 +152,11 @@ def prepare_manager_identity_execution(
         write_private(
             runbook_path,
             (
-                "Manager identity execution preparation only.\n"
-                "The fresh rollback archive expires with this package.\n"
-                "No authorization, credential installation, Compose edit, container recreate, "
-                "manager migration, node credential delivery, or anonymous closure is authorized.\n"
-            ).encode(),
+                b"Manager identity execution preparation only.\n"
+                b"The fresh rollback archive expires with this package.\n"
+                b"No authorization, credential installation, Compose edit, container recreate, "
+                b"manager migration, node credential delivery, or anonymous closure is authorized.\n"
+            ),
         )
         records = [
             record(rollback_path, root, contains_secret=True),
