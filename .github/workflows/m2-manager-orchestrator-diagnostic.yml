@@ -18,29 +18,36 @@ jobs:
         working-directory: host/greenhouse-manager
     steps:
       - uses: actions/checkout@v4
+        with:
+          show-progress: false
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       - name: Install
-        run: python -m pip install -e ".[dev]"
+        run: python -m pip install -q -e ".[dev]"
       - name: Lint new files
         run: >-
           ruff check
           src/greenhouse_manager/t1_manager_identity_migration_production_orchestrator.py
           tests/test_t1_manager_identity_migration_production_orchestrator.py
-      - name: Request
-        run: pytest -q tests/test_t1_manager_identity_migration_production_orchestrator.py::test_builds_secret_free_execution_request
-      - name: Default disabled
-        run: pytest -q tests/test_t1_manager_identity_migration_production_orchestrator.py::test_execution_is_disabled_by_default
-      - name: Wrong confirmation
-        run: pytest -q tests/test_t1_manager_identity_migration_production_orchestrator.py::test_rejects_wrong_second_confirmation_before_claim
-      - name: Pre-claim failure
-        run: pytest -q tests/test_t1_manager_identity_migration_production_orchestrator.py::test_prepare_failure_leaves_authorization_unclaimed
-      - name: Success
-        run: pytest -q tests/test_t1_manager_identity_migration_production_orchestrator.py::test_success_claims_authorization_and_commits
-      - name: Post-claim rollback
-        run: pytest -q tests/test_t1_manager_identity_migration_production_orchestrator.py::test_post_claim_failure_forces_verified_rollback
-      - name: Rollback terminal
-        run: pytest -q tests/test_t1_manager_identity_migration_production_orchestrator.py::test_rollback_failure_is_terminal
-      - name: Replay rejection
-        run: pytest -q tests/test_t1_manager_identity_migration_production_orchestrator.py::test_claimed_authorization_cannot_be_replayed
+      - name: Capture full test result
+        shell: bash
+        run: |
+          set +e
+          pytest -q --tb=short > "$RUNNER_TEMP/pytest.log" 2>&1
+          rc=$?
+          printf '%s\n' "$rc" > "$RUNNER_TEMP/pytest.rc"
+          exit 0
+      - name: Upload full test result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: manager-orchestrator-pytest
+          path: |
+            ${{ runner.temp }}/pytest.log
+            ${{ runner.temp }}/pytest.rc
+          if-no-files-found: error
+          retention-days: 1
+      - name: Enforce full test result
+        shell: bash
+        run: test "$(cat "$RUNNER_TEMP/pytest.rc")" = 0
