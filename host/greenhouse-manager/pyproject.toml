@@ -88,3 +88,4 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/test_t1_migration_readiness.py" = ["SIM102"]
+"src/greenhouse_manager/t1_manager_identity_migration_production_execution_packet.py" = ["F401"]
