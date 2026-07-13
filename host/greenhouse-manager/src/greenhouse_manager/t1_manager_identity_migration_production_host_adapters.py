@@ -22,9 +22,16 @@ from .t1_manager_identity_migration_host_replica_adapters import (
     ManagerIdentityHostReplicaError,
     _validated_preparation,
 )
+from .t1_manager_identity_migration_preclaim_candidate import (
+    validate_preclaim_candidate_report,
+)
 from .t1_manager_identity_migration_production_driver_contract import (
     ManagerIdentityProductionDriverContractError,
     verify_manager_production_driver_contract,
+)
+from .t1_manager_runtime_secret_ownership import (
+    ManagerRuntimeSecretOwnershipError,
+    verify_bound_runtime_identity,
 )
 from .t1_migration_readiness import CommandRunner, SubprocessRunner
 
@@ -103,6 +110,11 @@ class ManagerHostBinding:
     material_overlay: Path
     username: str
     client_id: str
+    manager_runtime_uid: int
+    manager_runtime_gid: int
+    manager_runtime_user_source: str
+    manager_runtime_image_id: str
+    manager_runtime_user_spec: str
 
 
 @dataclass(frozen=True)
@@ -432,6 +444,22 @@ def _load_binding(
     ):
         raise ManagerProductionHostAdaptersError("manager secret root is unsafe")
 
+    container = runtime.get("container")
+    if not isinstance(container, dict):
+        raise ManagerProductionHostAdaptersError(
+            "manager runtime container ownership binding is missing"
+        )
+    try:
+        manager_runtime_uid, manager_runtime_gid = verify_bound_runtime_identity(
+            runtime,
+            image_id=container.get("image_id"),
+            user_spec=container.get("user_spec"),
+        )
+    except ManagerRuntimeSecretOwnershipError as error:
+        raise ManagerProductionHostAdaptersError(
+            "manager runtime ownership binding is invalid"
+        ) from error
+
     auth_environment_target = working_dir / _AUTH_ENV_NAME
     overlay_target = working_dir / _OVERLAY_NAME
     for target, label in (
@@ -465,9 +493,25 @@ def _load_binding(
         or rollback.get("manager_secret_root") != str(secret_root)
         or rollback.get("manager_password_target") != str(password_target)
         or rollback.get("manager_password_target_absent") is not True
+        or rollback.get("manager_runtime_uid") != manager_runtime_uid
+        or rollback.get("manager_runtime_gid") != manager_runtime_gid
+        or rollback.get("manager_runtime_user_source")
+        != runtime.get("manager_runtime_user_source")
+        or rollback.get("manager_runtime_image_id")
+        != runtime.get("manager_runtime_image_id")
     ):
         raise ManagerProductionHostAdaptersError(
             "fresh manager rollback scope or path binding is invalid"
+        )
+    preclaim_path = execution_preparation_directory / "preclaim-candidate-probe.json"
+    preclaim = _read_private_json(preclaim_path, "manager preclaim candidate probe")
+    validate_preclaim_candidate_report(preclaim)
+    bindings = execution_manifest.get("bindings")
+    if not isinstance(bindings, dict) or bindings.get(
+        "preclaim_candidate_probe_sha256"
+    ) != _sha_path(preclaim_path):
+        raise ManagerProductionHostAdaptersError(
+            "manager preclaim candidate probe binding is invalid"
         )
     for field in (
         "driver_contract_sha256",
@@ -495,6 +539,11 @@ def _load_binding(
         material_overlay=material_overlay,
         username=values["GH_MQTT_USERNAME"],
         client_id=values["GH_MQTT_CLIENT_ID"],
+        manager_runtime_uid=manager_runtime_uid,
+        manager_runtime_gid=manager_runtime_gid,
+        manager_runtime_user_source=str(runtime["manager_runtime_user_source"]),
+        manager_runtime_image_id=str(runtime["manager_runtime_image_id"]),
+        manager_runtime_user_spec=str(runtime["manager_runtime_user_spec"]),
     )
     return binding, rollback, execution_manifest
 
@@ -676,6 +725,14 @@ class LiveProductionManagerDriver:
             (overlay_file, "manager Compose overlay"),
         ):
             _private_file(path, label)
+        password_stat = password_file.stat()
+        if (
+            password_stat.st_uid != self.binding.manager_runtime_uid
+            or password_stat.st_gid != self.binding.manager_runtime_gid
+        ):
+            raise ManagerProductionHostAdaptersError(
+                "manager password ownership does not match the runtime user"
+            )
         self._run(
             self._compose_command(include_overlay=True),
             "greenhouse-manager recreate failed",
@@ -813,15 +870,14 @@ class ManagerProductionHostTransactionAdapters:
             )
         binding = self.binding
         self.mutation_started = True
-        password_stat = binding.material_password.stat()
         environment_stat = binding.material_environment.stat()
         overlay_stat = binding.material_overlay.stat()
         _atomic_write(
             binding.password_target,
             binding.material_password.read_bytes(),
             mode=0o600,
-            uid=password_stat.st_uid,
-            gid=password_stat.st_gid,
+            uid=binding.manager_runtime_uid,
+            gid=binding.manager_runtime_gid,
             boundary=binding.secret_root,
         )
         _atomic_write(

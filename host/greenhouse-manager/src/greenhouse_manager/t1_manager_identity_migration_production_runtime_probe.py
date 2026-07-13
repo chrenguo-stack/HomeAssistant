@@ -13,6 +13,10 @@ from typing import Any, Protocol
 from .t1_manager_identity_migration_production_host_adapters import (
     ManagerHostBinding,
 )
+from .t1_manager_runtime_secret_ownership import (
+    ManagerRuntimeSecretOwnershipError,
+    verify_bound_runtime_identity,
+)
 from .t1_migration_readiness import CommandRunner, SubprocessRunner
 from .topics import (
     availability_topic,
@@ -364,6 +368,22 @@ class ManagerProductionRuntimeProbe:
         assert isinstance(state, dict)
         assert isinstance(config, dict)
         values = _environment(config)
+        try:
+            verify_bound_runtime_identity(
+                {
+                    "manager_runtime_uid": self.binding.manager_runtime_uid,
+                    "manager_runtime_gid": self.binding.manager_runtime_gid,
+                    "manager_runtime_user_source": self.binding.manager_runtime_user_source,
+                    "manager_runtime_image_id": self.binding.manager_runtime_image_id,
+                    "manager_runtime_user_spec": self.binding.manager_runtime_user_spec,
+                },
+                image_id=document.get("Image"),
+                user_spec=config.get("User", ""),
+            )
+        except ManagerRuntimeSecretOwnershipError as error:
+            raise ManagerProductionRuntimeProbeError(
+                "greenhouse-manager runtime ownership binding failed"
+            ) from error
         expected_password_target = self._expected_password_target()
         if (
             values.get("GH_MQTT_USERNAME") != self.binding.username
@@ -394,7 +414,15 @@ class ManagerProductionRuntimeProbe:
         if (
             not self.binding.password_target.is_file()
             or self.binding.password_target.is_symlink()
-            or self.binding.password_target.stat().st_mode & 0o077
+        ):
+            raise ManagerProductionRuntimeProbeError(
+                "greenhouse-manager password source is missing or unsafe"
+            )
+        password_stat = self.binding.password_target.stat()
+        if (
+            password_stat.st_mode & 0o777 != 0o600
+            or password_stat.st_uid != self.binding.manager_runtime_uid
+            or password_stat.st_gid != self.binding.manager_runtime_gid
         ):
             raise ManagerProductionRuntimeProbeError(
                 "greenhouse-manager password source is missing or unsafe"

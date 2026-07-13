@@ -22,6 +22,9 @@ from .t1_manager_identity_migration_execution_preparation_verify_records import 
     verify_execution_records,
     verify_record_bindings,
 )
+from .t1_manager_identity_migration_preclaim_candidate import (
+    validate_preclaim_candidate_report,
+)
 
 
 def verify_manager_identity_execution_preparation(
@@ -46,6 +49,7 @@ def verify_manager_identity_execution_preparation(
             "fresh_rollback_captured": True,
             "fresh_rollback_verified": True,
             "execution_preparation_ready": True,
+            "preclaim_candidate_probe_passed": True,
             "read_only_live_services": True,
             "current_services_modified": False,
             "authorization_created": False,
@@ -95,6 +99,7 @@ def verify_manager_identity_execution_preparation(
         "live_binding_sha256",
         "preparation_manifest_sha256",
         "preparation_record_set_sha256",
+        "preclaim_candidate_probe_sha256",
     ):
         require_sha(bindings.get(field), field)
 
@@ -111,6 +116,7 @@ def verify_manager_identity_execution_preparation(
         "adapter_contract_sha256",
         "live_binding_sha256",
         "preparation_manifest_sha256",
+        "preclaim_candidate_probe_sha256",
     ):
         if rollback.get(field) != bindings.get(field):
             raise ManagerIdentityExecutionPreparationError(
@@ -130,6 +136,18 @@ def verify_manager_identity_execution_preparation(
                 f"live runtime gate binding failed: {field}"
             )
 
+    preclaim = read_json(
+        root / "preclaim-candidate-probe.json",
+        "preclaim candidate probe",
+    )
+    validate_preclaim_candidate_report(preclaim)
+    if bindings.get("preclaim_candidate_probe_sha256") != sha_path(
+        root / "preclaim-candidate-probe.json"
+    ):
+        raise ManagerIdentityExecutionPreparationError(
+            "preclaim candidate probe binding does not match"
+        )
+
     plan = read_json(root / "execution-plan.json", "execution plan")
     must(
         plan,
@@ -142,6 +160,7 @@ def verify_manager_identity_execution_preparation(
             "fresh_rollback_captured": True,
             "fresh_rollback_verified": True,
             "execution_preparation_ready": True,
+            "preclaim_candidate_probe_passed": True,
             "authorization_created": False,
             "authorization_claimed": False,
             "production_manager_driver_installed": False,
@@ -180,6 +199,7 @@ def verify_manager_identity_execution_preparation(
         "expires_at": manifest["expires_at"],
         "fresh_rollback_verified": True,
         "execution_preparation_ready": True,
+        "preclaim_candidate_probe_passed": True,
         "authorization_created": False,
         "execution_enabled": False,
         "apply_enabled": False,

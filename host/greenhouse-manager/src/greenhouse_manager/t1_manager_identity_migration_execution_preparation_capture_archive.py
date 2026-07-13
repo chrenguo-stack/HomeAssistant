@@ -33,6 +33,7 @@ def _create_rollback(
     gate: Mapping[str, Any],
     preparation: Mapping[str, Any],
     created_at: str,
+    preclaim_candidate_probe_sha256: str,
 ) -> dict[str, Any]:
     files = [
         {
@@ -65,10 +66,15 @@ def _create_rollback(
         "manager_secret_root": runtime["target_secret_root"],
         "manager_password_target": runtime["target_password_file"],
         "manager_password_target_absent": True,
+        "manager_runtime_uid": runtime["manager_runtime_uid"],
+        "manager_runtime_gid": runtime["manager_runtime_gid"],
+        "manager_runtime_user_source": runtime["manager_runtime_user_source"],
+        "manager_runtime_image_id": runtime["manager_runtime_image_id"],
         "driver_contract_sha256": gate["driver_contract_sha256"],
         "adapter_contract_sha256": gate["adapter_contract_sha256"],
         "runtime_binding_sha256": gate["runtime_binding_sha256"],
         "live_binding_sha256": gate["live_binding_sha256"],
+        "preclaim_candidate_probe_sha256": preclaim_candidate_probe_sha256,
         "preparation_manifest_sha256": preparation["manifest_sha256"],
         "files": files,
     }

@@ -3,7 +3,9 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import os
 import tarfile
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -111,6 +113,11 @@ def _fixture(
         material_overlay=material_overlay,
         username=USERNAME,
         client_id=CLIENT_ID,
+        manager_runtime_uid=os.getuid(),
+        manager_runtime_gid=os.getgid(),
+        manager_runtime_user_source="container+image+isolated-candidate",
+        manager_runtime_image_id="sha256:manager-image-id",
+        manager_runtime_user_spec=f"{os.getuid()}:{os.getgid()}",
     )
     config_item = _rollback_item(
         config,
@@ -167,6 +174,8 @@ class FakeDriver:
     ) -> None:
         assert environment_file.is_file()
         assert password_file.read_text(encoding="utf-8").strip() == PASSWORD
+        assert password_file.stat().st_uid == os.getuid()
+        assert password_file.stat().st_gid == os.getgid()
         assert overlay_file.is_file()
         self.calls.append("recreate")
 
@@ -300,6 +309,9 @@ def test_manager_only_mutation_and_complete_rollback(
     assert mutation["homeassistant_modified"] is False
     assert mutation["nodes_modified"] is False
     assert binding.password_target.is_file()
+    assert binding.password_target.stat().st_mode & 0o777 == 0o600
+    assert binding.password_target.stat().st_uid == os.getuid()
+    assert binding.password_target.stat().st_gid == os.getgid()
     assert binding.auth_environment_target.is_file()
     assert binding.overlay_target.is_file()
     assert driver.calls == [
@@ -324,6 +336,56 @@ def test_manager_only_mutation_and_complete_rollback(
     assert not binding.auth_environment_target.exists()
     assert not binding.overlay_target.exists()
     assert driver.calls[-3:] == ["rollback_recreate", "legacy", "entities"]
+
+
+def test_mutation_passes_bound_runtime_owner_to_atomic_password_write(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    adapters, binding, _paths, _driver = _adapters(tmp_path, monkeypatch)
+    adapters.binding = replace(
+        binding,
+        manager_runtime_uid=4242,
+        manager_runtime_gid=4343,
+        manager_runtime_user_spec="4242:4343",
+    )
+    adapters.prepared = True
+    observed: dict[str, int] = {}
+
+    def stop_after_password(*_args, **kwargs) -> None:
+        observed["uid"] = kwargs["uid"]
+        observed["gid"] = kwargs["gid"]
+        raise RuntimeError("stop after ownership capture")
+
+    monkeypatch.setattr(module, "_atomic_write", stop_after_password)
+
+    with pytest.raises(RuntimeError, match="ownership capture"):
+        adapters.mutation_executor()
+
+    assert observed == {"uid": 4242, "gid": 4343}
+
+
+def test_live_driver_rejects_password_owner_drift_before_compose(tmp_path: Path) -> None:
+    binding, _rollback, _paths = _fixture(tmp_path)
+    binding = replace(
+        binding,
+        manager_runtime_uid=os.getuid() + 1,
+        manager_runtime_user_spec=f"{os.getuid() + 1}:{os.getgid()}",
+    )
+    _write(binding.password_target, PASSWORD + "\n")
+    _write(binding.auth_environment_target, "GH_MQTT_USERNAME=test\n")
+    _write(binding.overlay_target, "services: {}\n")
+    runner = FakeRunner()
+    driver = LiveProductionManagerDriver(binding, probe=FakeProbe(), runner=runner)
+
+    with pytest.raises(ManagerProductionHostAdaptersError, match="ownership"):
+        driver.recreate_manager(
+            environment_file=binding.auth_environment_target,
+            password_file=binding.password_target,
+            overlay_file=binding.overlay_target,
+        )
+
+    assert runner.commands == []
 
 
 def test_postactivation_audit_fails_closed(

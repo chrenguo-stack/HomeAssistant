@@ -17,6 +17,11 @@ from .t1_manager_identity_migration_production_transaction_adapter_contract impo
     ManagerIdentityProductionTransactionAdapterContractError,
     build_manager_production_transaction_adapter_contract,
 )
+from .t1_manager_runtime_secret_ownership import (
+    ManagerRuntimeSecretOwnershipError,
+    resolve_manager_runtime_identity,
+    verify_bound_runtime_identity,
+)
 from .t1_migration_readiness import CommandRunner, SubprocessRunner
 
 SCHEMA = "gh.m2.t1-manager-identity-live-runtime-gate/1"
@@ -119,7 +124,10 @@ def _environment(config: Mapping[str, Any]) -> dict[str, str]:
     return values
 
 
-def _normalized_runtime(document: Mapping[str, Any]) -> tuple[dict[str, object], dict[str, str]]:
+def _normalized_runtime(
+    document: Mapping[str, Any],
+    runner: CommandRunner,
+) -> tuple[dict[str, object], dict[str, str]]:
     state = document.get("State")
     config = document.get("Config")
     if not isinstance(state, dict) or not isinstance(config, dict):
@@ -149,10 +157,18 @@ def _normalized_runtime(document: Mapping[str, Any]) -> tuple[dict[str, object],
         raise ManagerIdentityLiveRuntimeGateError(
             "greenhouse-manager Compose labels are incomplete"
         )
+    try:
+        ownership = resolve_manager_runtime_identity(document, runner)
+    except ManagerRuntimeSecretOwnershipError as error:
+        raise ManagerIdentityLiveRuntimeGateError(
+            "greenhouse-manager runtime secret ownership cannot be verified"
+        ) from error
     runtime = {
         "container_id": str(document.get("Id", "")),
         "image_id": str(document.get("Image", "")),
         "image_ref": str(config.get("Image", "")),
+        "user_spec": str(config.get("User", "")).strip()
+        or str(ownership["manager_runtime_user_spec"]),
         "started_at": str(state.get("StartedAt", "")),
         "state": "running",
         "restart_count": 0,
@@ -165,6 +181,7 @@ def _normalized_runtime(document: Mapping[str, Any]) -> tuple[dict[str, object],
         "mqtt_username_present": False,
         "mqtt_password_present": False,
         "mqtt_password_file_present": False,
+        **ownership,
     }
     if not all(runtime[field] for field in ("container_id", "image_id", "image_ref")):
         raise ManagerIdentityLiveRuntimeGateError(
@@ -390,8 +407,9 @@ def build_manager_identity_live_runtime_gate(
             "manager runtime binding SHA-256 does not match the driver contract"
         )
 
-    document = _run_inspect(runner or SubprocessRunner())
-    current_runtime, labels = _normalized_runtime(document)
+    command_runner = runner or SubprocessRunner()
+    document = _run_inspect(command_runner)
+    current_runtime, labels = _normalized_runtime(document, command_runner)
     saved_runtime = runtime_binding.get("container")
     saved_compose = runtime_binding.get("compose")
     if not isinstance(saved_runtime, dict) or not isinstance(saved_compose, dict):
@@ -402,6 +420,16 @@ def build_manager_identity_live_runtime_gate(
         raise ManagerIdentityLiveRuntimeGateError(
             "greenhouse-manager runtime identity drifted from preparation"
         )
+    try:
+        runtime_uid, runtime_gid = verify_bound_runtime_identity(
+            runtime_binding,
+            image_id=current_runtime.get("image_id"),
+            user_spec=current_runtime.get("user_spec"),
+        )
+    except ManagerRuntimeSecretOwnershipError as error:
+        raise ManagerIdentityLiveRuntimeGateError(
+            "greenhouse-manager runtime ownership binding drifted from preparation"
+        ) from error
     runtime_fingerprint = _fingerprint(_canonical_json(current_runtime))
     if driver_contract.get("manager_runtime_fingerprint") != runtime_fingerprint:
         raise ManagerIdentityLiveRuntimeGateError(
@@ -458,6 +486,7 @@ def build_manager_identity_live_runtime_gate(
         "runtime_binding_hash_verified": True,
         "manager_running_zero_restart": True,
         "manager_runtime_identity_unchanged": True,
+        "manager_runtime_uid_gid_bound": True,
         "manager_authentication_not_active": True,
         "compose_project_unchanged": True,
         "compose_files_and_environment_unchanged": True,
@@ -475,6 +504,7 @@ def build_manager_identity_live_runtime_gate(
         "image_id_fingerprint": _fingerprint(str(current_runtime["image_id"])),
         "image_ref_fingerprint": _fingerprint(str(current_runtime["image_ref"])),
         "container_id_fingerprint": _fingerprint(str(current_runtime["container_id"])),
+        "runtime_uid_gid_fingerprint": _fingerprint(f"{runtime_uid}:{runtime_gid}"),
         "compose_project_fingerprint": _fingerprint(str(current_compose["project"])),
         "compose_working_directory_fingerprint": _fingerprint(
             str(current_compose["working_dir"])

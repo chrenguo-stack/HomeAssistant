@@ -46,6 +46,7 @@ BOUND_FIELDS = (
     "fresh_rollback_archive_sha256",
     "fresh_rollback_manifest_sha256",
     "live_runtime_gate_sha256",
+    "preclaim_candidate_probe_sha256",
     "execution_plan_sha256",
     "driver_contract_sha256",
     "adapter_contract_sha256",
@@ -196,12 +197,19 @@ def _validated_execution_preparation(
         "fresh-manager-rollback.tar.gz",
         "fresh-rollback-manifest.json",
         "live-runtime-gate.json",
+        "preclaim-candidate-probe.json",
         "execution-plan.json",
         "operator-runbook.txt",
     }
     if set(records) != required_records:
         raise ManagerIdentityExecutionAuthorizationError(
             "manager execution preparation record inventory is unexpected"
+        )
+    if bindings.get("preclaim_candidate_probe_sha256") != records[
+        "preclaim-candidate-probe.json"
+    ]:
+        raise ManagerIdentityExecutionAuthorizationError(
+            "manager preclaim candidate probe binding does not match"
         )
 
     if preparation.get("manifest_sha256") != _require_sha(
@@ -285,6 +293,9 @@ def _validated_execution_preparation(
             "fresh manager rollback manifest",
         ),
         "live_runtime_gate_sha256": records["live-runtime-gate.json"],
+        "preclaim_candidate_probe_sha256": records[
+            "preclaim-candidate-probe.json"
+        ],
         "execution_plan_sha256": records["execution-plan.json"],
         "driver_contract_sha256": bindings["driver_contract_sha256"],
         "adapter_contract_sha256": bindings["adapter_contract_sha256"],

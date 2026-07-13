@@ -192,6 +192,7 @@ class FakeRunner:
                 "State": {"Status": state, "StartedAt": "2026-07-13T00:00:00Z"},
                 "Config": {
                     "Image": "greenhouse-manager:0.4.43",
+                    "User": "999:999",
                     "Env": environment,
                     "Labels": labels,
                 },
@@ -203,6 +204,10 @@ class FakeRunner:
         self.commands.append(command)
         if command == ("docker", "inspect", "greenhouse-manager"):
             return 0, json.dumps(self.document)
+        if command == ("docker", "image", "inspect", "sha256:manager-image-id"):
+            return 0, json.dumps([{"Config": {"User": "999:999"}}])
+        if command[:3] == ("docker", "run", "--rm"):
+            return 0, "999:999\n"
         return 1, "unexpected command"
 
 
@@ -270,7 +275,29 @@ def test_prepare_creates_private_redacted_disabled_package(tmp_path: Path) -> No
     assert report["node_credentials_delivered"] is False
     assert report["preserve_anonymous"] is True
     assert report["anonymous_closure_enabled"] is False
-    assert runner.commands == [("docker", "inspect", "greenhouse-manager")]
+    assert runner.commands == [
+        ("docker", "inspect", "greenhouse-manager"),
+        ("docker", "image", "inspect", "sha256:manager-image-id"),
+        (
+            "docker",
+            "run",
+            "--rm",
+            "--network",
+            "none",
+            "--read-only",
+            "--cap-drop",
+            "ALL",
+            "--security-opt",
+            "no-new-privileges",
+            "--pids-limit",
+            "32",
+            "--entrypoint",
+            "/bin/sh",
+            "sha256:manager-image-id",
+            "-c",
+            'set -eu; printf "%s:%s\\n" "$(id -u)" "$(id -g)"',
+        ),
+    ]
     assert root.stat().st_mode & 0o777 == 0o700
     assert all(
         path.stat().st_mode & 0o777 == 0o600

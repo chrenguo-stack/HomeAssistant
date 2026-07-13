@@ -322,6 +322,9 @@ def build_manager_identity_execution_transaction_gate(
         "adapter_contract_sha256": bindings["adapter_contract_sha256"],
         "runtime_binding_sha256": bindings["runtime_binding_sha256"],
         "live_binding_sha256": live_binding_sha,
+        "preclaim_candidate_probe_sha256": bindings[
+            "preclaim_candidate_probe_sha256"
+        ],
         "required_confirmation": _confirmation(
             authorization_id,
             execution_manifest_sha,

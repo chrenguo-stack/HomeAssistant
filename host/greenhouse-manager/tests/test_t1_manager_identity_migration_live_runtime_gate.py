@@ -99,6 +99,7 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path, FakeRunner, Path, Path]:
         "container_id": "manager-container-id",
         "image_id": "sha256:manager-image-id",
         "image_ref": "greenhouse-manager:n1",
+        "user_spec": "999:999",
         "started_at": "2026-07-13T00:00:00Z",
         "state": "running",
         "restart_count": 0,
@@ -107,6 +108,11 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path, FakeRunner, Path, Path]:
         "mqtt_username_present": False,
         "mqtt_password_present": False,
         "mqtt_password_file_present": False,
+        "manager_runtime_uid": 999,
+        "manager_runtime_gid": 999,
+        "manager_runtime_user_source": "container+image+isolated-candidate",
+        "manager_runtime_image_id": "sha256:manager-image-id",
+        "manager_runtime_user_spec": "999:999",
     }
     compose = {
         "project": "t1",
@@ -121,6 +127,11 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path, FakeRunner, Path, Path]:
         "compose": compose,
         "target_secret_root": str(secret_root),
         "target_password_file": str(password_target),
+        "manager_runtime_uid": 999,
+        "manager_runtime_gid": 999,
+        "manager_runtime_user_source": "container+image+isolated-candidate",
+        "manager_runtime_image_id": "sha256:manager-image-id",
+        "manager_runtime_user_spec": "999:999",
         "read_only_capture": True,
         "current_services_modified": False,
     }
@@ -239,6 +250,7 @@ class FakeRunner:
                 },
                 "Config": {
                     "Image": "greenhouse-manager:n1",
+                    "User": "999:999",
                     "Env": [
                         "GH_SYSTEM_ID=greenhouse",
                         "GH_MQTT_USERNAME=",
@@ -266,6 +278,10 @@ class FakeRunner:
         self.commands.append(command)
         if command == ("docker", "inspect", "greenhouse-manager"):
             return 0, json.dumps(self.document)
+        if command == ("docker", "image", "inspect", "sha256:manager-image-id"):
+            return 0, json.dumps([{"Config": {"User": "999:999"}}])
+        if command[:3] == ("docker", "run", "--rm"):
+            return 0, "999:999\n"
         return 1, "unexpected command"
 
 
@@ -278,7 +294,21 @@ def test_live_runtime_gate_is_read_only_bound_and_redacted(tmp_path: Path) -> No
         runner=runner,
     )
 
-    assert runner.commands == [("docker", "inspect", "greenhouse-manager")]
+    assert len(runner.commands) == 3
+    assert runner.commands[0] == ("docker", "inspect", "greenhouse-manager")
+    assert runner.commands[1] == (
+        "docker",
+        "image",
+        "inspect",
+        "sha256:manager-image-id",
+    )
+    assert runner.commands[2][:5] == (
+        "docker",
+        "run",
+        "--rm",
+        "--network",
+        "none",
+    )
     assert report["read_only"] is True
     assert report["live_runtime_gate_ready"] is True
     assert report["ready_for_fresh_rollback_preparation"] is True

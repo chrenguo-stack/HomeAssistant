@@ -23,6 +23,7 @@ EXECUTION_RECORDS = {
     "fresh-manager-rollback.tar.gz": True,
     "fresh-rollback-manifest.json": True,
     "live-runtime-gate.json": False,
+    "preclaim-candidate-probe.json": False,
     "execution-plan.json": False,
     "operator-runbook.txt": False,
 }
@@ -51,6 +52,7 @@ GATE_CHECKS = {
     "runtime_binding_hash_verified",
     "manager_running_zero_restart",
     "manager_runtime_identity_unchanged",
+    "manager_runtime_uid_gid_bound",
     "manager_authentication_not_active",
     "compose_project_unchanged",
     "compose_files_and_environment_unchanged",
@@ -66,6 +68,7 @@ GATE_CHECKS = {
 }
 REQUIRED_SEQUENCE = [
     "verify_execution_preparation_and_freshness",
+    "verify_network_none_runtime_secret_readability_and_configuration",
     "create_short_lived_single_use_authorization_bound_to_execution_preparation",
     "claim_authorization",
     "revalidate_live_runtime_gate",
