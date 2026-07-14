@@ -42,4 +42,15 @@ jobs:
         run: ruff check .
 
       - name: Test
-        run: pytest -q
+        run: |
+          set -o pipefail
+          pytest -q 2>&1 | tee pytest-output.txt
+
+      - name: Upload pytest diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: greenhouse-manager-pytest-output
+          path: host/greenhouse-manager/pytest-output.txt
+          if-no-files-found: error
+          retention-days: 1
