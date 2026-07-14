@@ -108,6 +108,11 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path, FakeRunner, Path, Path]:
         "mqtt_username_present": False,
         "mqtt_password_present": False,
         "mqtt_password_file_present": False,
+        "mqtt_authentication_environment_baseline": {
+            "GH_MQTT_USERNAME": {"present": True, "nonempty": False},
+            "GH_MQTT_PASSWORD": {"present": True, "nonempty": False},
+            "GH_MQTT_PASSWORD_FILE": {"present": False, "nonempty": False},
+        },
         "manager_runtime_uid": 999,
         "manager_runtime_gid": 999,
         "manager_runtime_user_source": "container+image+isolated-candidate",
@@ -132,6 +137,11 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path, FakeRunner, Path, Path]:
         "manager_runtime_user_source": "container+image+isolated-candidate",
         "manager_runtime_image_id": "sha256:manager-image-id",
         "manager_runtime_user_spec": "999:999",
+        "preclaim_authentication_environment_baseline": {
+            "GH_MQTT_USERNAME": {"present": True, "nonempty": False},
+            "GH_MQTT_PASSWORD": {"present": True, "nonempty": False},
+            "GH_MQTT_PASSWORD_FILE": {"present": False, "nonempty": False},
+        },
         "read_only_capture": True,
         "current_services_modified": False,
     }
@@ -330,6 +340,21 @@ def test_live_runtime_gate_is_read_only_bound_and_redacted(tmp_path: Path) -> No
     assert USERNAME not in serialized
     assert CLIENT_ID not in serialized
     assert PASSWORD not in serialized
+
+
+def test_live_runtime_gate_rejects_auth_environment_presence_drift(
+    tmp_path: Path,
+) -> None:
+    driver, preparation, runner, _compose_file, _password_target = _fixture(tmp_path)
+    environment = runner.document[0]["Config"]["Env"]
+    environment.remove("GH_MQTT_USERNAME=")
+
+    with pytest.raises(ManagerIdentityLiveRuntimeGateError, match="runtime identity drifted"):
+        build_manager_identity_live_runtime_gate(
+            driver,
+            preparation,
+            runner=runner,
+        )
 
 
 @pytest.mark.parametrize(
