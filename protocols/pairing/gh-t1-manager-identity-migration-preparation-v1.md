@@ -55,6 +55,8 @@ ready_for_production_execution=false
 ```
 
 它不得替代本轮实时 Manager/Compose 绑定，也不得豁免后续 fresh rollback。
+bridge 中绑定的 retained Topic SHA-256 必须与本轮 preparation 的精确
+`expected_retained_topic` 一致；禁止把其他节点或其他 Topic 的人工复核桥接误绑入本轮证据链。
 
 ## 4. 前置交接验证
 
