@@ -185,7 +185,10 @@ def evaluate_manager_postrollback_audit(
 
 
 def _private_directory(path: Path, label: str) -> Path:
-    resolved = path.expanduser().resolve()
+    expanded = path.expanduser()
+    if expanded.is_symlink():
+        raise ManagerPostrollbackAuditError(f"{label} is missing or unsafe")
+    resolved = expanded.resolve()
     if (
         not resolved.is_dir()
         or resolved.is_symlink()
@@ -396,10 +399,12 @@ def _created_directories_clean(
     targets: list[Path] = []
     for item in raw:
         target = Path(item).expanduser()
-        if not target.is_absolute() or target.is_symlink():
+        if not target.is_absolute():
             raise ManagerPostrollbackAuditError(
                 "created directory target baseline is unsafe"
             )
+        if target.is_symlink():
+            return False
         resolved = target.resolve(strict=False)
         if resolved != secret_root and not resolved.is_relative_to(secret_root):
             raise ManagerPostrollbackAuditError(
