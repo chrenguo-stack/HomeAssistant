@@ -4,8 +4,8 @@ import tomllib
 from pathlib import Path
 
 
-def test_manager_package_version_includes_rollback_anonymous_binding() -> None:
+def test_manager_package_version_includes_runtime_wait_and_rollback_audit() -> None:
     root = Path(__file__).resolve().parents[1]
     with (root / "pyproject.toml").open("rb") as stream:
         document = tomllib.load(stream)
-    assert document["project"]["version"] == "0.4.65"
+    assert document["project"]["version"] == "0.4.66"
