@@ -108,6 +108,11 @@ def test_prepares_private_verified_fresh_rollback(
     assert rollback["anonymous_closure_enabled"] is False
     assert rollback["manager_runtime_uid"] == 999
     assert rollback["manager_runtime_gid"] == 999
+    assert rollback["preclaim_authentication_environment_baseline"] == {
+        "GH_MQTT_USERNAME": {"present": False, "nonempty": False},
+        "GH_MQTT_PASSWORD": {"present": False, "nonempty": False},
+        "GH_MQTT_PASSWORD_FILE": {"present": False, "nonempty": False},
+    }
     assert rollback["preclaim_candidate_probe_sha256"]
 
     serialized = json.dumps(report)
