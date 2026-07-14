@@ -3,15 +3,14 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import subprocess
 import sys
 import tarfile
 import time
 from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
-
-from .t1_migration_readiness import CommandRunner, SubprocessRunner
+from typing import Any, Protocol
 
 SCHEMA = "gh.m2.t1-manager-identity-postrollback-audit/1"
 AUTHENTICATION_ENVIRONMENT_KEYS = (
