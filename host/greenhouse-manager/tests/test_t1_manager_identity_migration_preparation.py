@@ -528,3 +528,67 @@ def test_rejects_compose_or_environment_drift(tmp_path: Path) -> None:
 def test_report_manifest_hash_matches_written_manifest(tmp_path: Path) -> None:
     report, root, _runner = _prepare(tmp_path)
     assert report["manifest_sha256"] == _sha(root / "manifest.json")
+
+
+def test_prepare_binds_verified_legacy_review_bridge(tmp_path: Path) -> None:
+    postactivation, stage, output, secret_root, runner, stage_manifest = _inputs(
+        tmp_path
+    )
+    bridge = tmp_path / "greenhouse-manager-legacy-review-bridge-test"
+    bridge.mkdir(mode=0o700)
+    _write_json(bridge / "manifest.json", {"schema": "test-bridge"})
+    bridge_manifest_sha = "a" * 64
+    bridge_record_set_sha = "b" * 64
+
+    def verify_bridge(path: str | Path) -> dict[str, object]:
+        assert Path(path) == bridge
+        return {
+            "verified": True,
+            "manifest_sha256": bridge_manifest_sha,
+            "record_set_sha256": bridge_record_set_sha,
+            "operator_decision_recorded": True,
+            "legacy_baseline_gap_accepted": True,
+            "rollback_audit_passed": False,
+            "manual_recovery_required": False,
+            "manual_review_resolved": True,
+            "future_baseline_waiver_enabled": False,
+            "ready_for_fresh_evidence_chain": True,
+            "ready_for_production_execution": False,
+            "authorization_created": False,
+            "authorization_claimed": False,
+            "current_services_modified": False,
+            "manager_identity_migrated": False,
+            "node_credentials_delivered": False,
+            "preserve_anonymous": True,
+            "anonymous_closure_enabled": False,
+        }
+
+    report = prepare_manager_identity_migration(
+        postactivation,
+        stage,
+        output,
+        expected_retained_topic=TOPIC,
+        secret_root=secret_root,
+        legacy_review_bridge_directory=bridge,
+        runner=runner,
+        now=datetime(2026, 7, 13, 2, 0, tzinfo=UTC),
+        token_factory=lambda: "reviewed",
+        stage_verifier=lambda _path: stage_manifest,
+        legacy_review_verifier=verify_bridge,
+    )
+    root = output / str(report["preparation_name"])
+    manifest = json.loads((root / "manifest.json").read_text())
+    plan = json.loads((root / "transaction-plan.json").read_text())
+
+    assert report["legacy_review_bridge_bound"] is True
+    assert report["future_baseline_waiver_enabled"] is False
+    assert manifest["legacy_review_bridge_bound"] is True
+    assert manifest["future_baseline_waiver_enabled"] is False
+    assert manifest["bindings"]["legacy_review_bridge_manifest_sha256"] == (
+        bridge_manifest_sha
+    )
+    assert manifest["bindings"]["legacy_review_bridge_record_set_sha256"] == (
+        bridge_record_set_sha
+    )
+    assert plan["legacy_review_bridge_bound"] is True
+    assert plan["future_baseline_waiver_enabled"] is False
