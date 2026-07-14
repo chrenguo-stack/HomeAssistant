@@ -94,6 +94,8 @@ GH_MQTT_PASSWORD is empty
 
 环境、mount、secret owner 或日志绑定失败必须发生在 socket 验证之前；socket 失败不得覆盖更早、更具体的绑定错误。
 
+阶段诊断继续保留兼容的顶层 `failure_code`，并将上述白名单枚举写入可选的 `probe_failure_code`；不得持久化异常 message 或未列入白名单的任意属性。
+
 ## 6. Docker JSON log 绑定
 
 允许直接读取 `docker inspect` 返回的 JSON log file，但必须验证：
