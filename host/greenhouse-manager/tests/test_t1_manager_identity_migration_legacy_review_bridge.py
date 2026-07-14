@@ -174,6 +174,8 @@ def test_prepare_creates_private_bound_decision_without_waiving_future_checks(
     assert verified["future_baseline_waiver_enabled"] is False
     assert verified["ready_for_fresh_evidence_chain"] is True
     assert verified["ready_for_production_execution"] is False
+    assert verified["secret_values_included"] is False
+    assert verified["source_paths_included"] is False
 
 
 def test_bridge_verifier_rejects_tampered_decision(tmp_path: Path) -> None:
