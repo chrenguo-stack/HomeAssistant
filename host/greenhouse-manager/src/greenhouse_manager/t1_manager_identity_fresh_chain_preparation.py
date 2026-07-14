@@ -389,13 +389,21 @@ def _select(candidates: Sequence[Candidate], requested_name: str | None, code: s
 
 def _select_output_root(candidates: Sequence[Path], requested: Path | None) -> Path:
     if requested is not None:
-        root = requested.expanduser().resolve()
-        if not _private_directory(root):
+        expanded = requested.expanduser()
+        if any(path.is_symlink() for path in (expanded, *expanded.parents)):
+            _fail("output_root_invalid")
+        root = expanded.resolve()
+        if not _private_directory(root) or root not in candidates:
             _fail("output_root_invalid")
         return root
     if len(candidates) != 1:
         _fail("output_root_not_unique")
     return candidates[0]
+
+
+def _bridge_adjacent_output_roots(inventory: Inventory) -> tuple[Path, ...]:
+    workspace = inventory.bridge.path.parent.parent.resolve()
+    return tuple(root for root in inventory.output_roots if root.parent.resolve() == workspace)
 
 
 def _contains_protected_path(serialized: str, path: Path) -> bool:
@@ -404,8 +412,11 @@ def _contains_protected_path(serialized: str, path: Path) -> bool:
 
 
 def _discovery_report(binding: Mapping[str, str], inventory: Inventory) -> dict[str, object]:
+    bridge_adjacent_output_roots = _bridge_adjacent_output_roots(inventory)
     ready = (
-        len(inventory.postactivation) == 1 and len(inventory.stages) == 1 and len(inventory.output_roots) == 1
+        len(inventory.postactivation) == 1
+        and len(inventory.stages) == 1
+        and len(bridge_adjacent_output_roots) == 1
     )
     report = {
         "schema": SCHEMA,
@@ -415,6 +426,8 @@ def _discovery_report(binding: Mapping[str, str], inventory: Inventory) -> dict[
         "postactivation_candidates": [item.public() for item in inventory.postactivation],
         "migration_stage_candidates": [item.public() for item in inventory.stages],
         "output_root_candidate_count": len(inventory.output_roots),
+        "bridge_adjacent_output_root_candidate_count": len(bridge_adjacent_output_roots),
+        "output_root_selection_rule": "unique_bridge_workspace_sibling",
         "ready_for_fresh_preparation": ready,
         "ready_for_production_execution": False,
         "read_only_live_services": True,
@@ -512,9 +525,14 @@ def prepare_fresh_manager_identity_chain(
         migration_stage_name,
         "migration_stage_not_unique",
     )
+    requested_output_root = None if output_root is None else Path(output_root)
     destination_root = _select_output_root(
-        inventory.output_roots,
-        None if output_root is None else Path(output_root),
+        (
+            _bridge_adjacent_output_roots(inventory)
+            if requested_output_root is None
+            else inventory.output_roots
+        ),
+        requested_output_root,
     )
     try:
         prepared = preparation_builder(
