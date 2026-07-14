@@ -17,7 +17,7 @@ from greenhouse_manager.t1_manager_identity_migration_execution_preparation_roll
 
 def _archive(tmp_path: Path, **overrides: object) -> Path:
     manifest: dict[str, object] = {
-        "schema": "gh.m2.t1-manager-identity-execution-rollback/1",
+        "schema": "gh.m2.t1-manager-identity-fresh-rollback/1",
         "manager_only": True,
         "preserve_anonymous": True,
         "anonymous_closure_enabled": False,
