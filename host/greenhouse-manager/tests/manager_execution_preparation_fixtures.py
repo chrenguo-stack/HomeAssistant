@@ -100,6 +100,11 @@ def build_preparation(
             "mqtt_username_present": False,
             "mqtt_password_present": False,
             "mqtt_password_file_present": False,
+            "mqtt_authentication_environment_baseline": {
+                "GH_MQTT_USERNAME": {"present": False, "nonempty": False},
+                "GH_MQTT_PASSWORD": {"present": False, "nonempty": False},
+                "GH_MQTT_PASSWORD_FILE": {"present": False, "nonempty": False},
+            },
             "manager_runtime_uid": 999,
             "manager_runtime_gid": 999,
             "manager_runtime_user_source": "container+image+isolated-candidate",
@@ -119,6 +124,11 @@ def build_preparation(
         "manager_runtime_user_source": "container+image+isolated-candidate",
         "manager_runtime_image_id": "sha256:image",
         "manager_runtime_user_spec": "999:999",
+        "preclaim_authentication_environment_baseline": {
+                        "GH_MQTT_USERNAME": {"present": False, "nonempty": False},
+                        "GH_MQTT_PASSWORD": {"present": False, "nonempty": False},
+                        "GH_MQTT_PASSWORD_FILE": {"present": False, "nonempty": False},
+                    },
         "read_only_capture": True,
         "current_services_modified": False,
     }
