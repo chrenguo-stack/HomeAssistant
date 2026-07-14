@@ -14,6 +14,9 @@ from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from .t1_manager_identity_migration_postrollback_audit import (
+    redacted_authentication_environment_state,
+)
 from .t1_manager_runtime_secret_ownership import (
     ManagerRuntimeSecretOwnershipError,
     resolve_manager_runtime_identity,
@@ -370,7 +373,13 @@ def _live_manager(runner: CommandRunner) -> tuple[dict[str, Any], dict[str, str]
         key, separator, value = item.partition("=")
         if separator:
             environment[key] = value
-    if any(environment.get(key, "") for key in _MANAGER_KEYS - {"GH_MQTT_CLIENT_ID"}):
+    authentication_environment_baseline = redacted_authentication_environment_state(
+        environment
+    )
+    if any(
+        authentication_environment_baseline[key]["nonempty"]
+        for key in _MANAGER_KEYS - {"GH_MQTT_CLIENT_ID"}
+    ):
         raise ManagerIdentityMigrationPreparationError(
             "greenhouse-manager already has MQTT authentication configured"
         )
@@ -413,9 +422,18 @@ def _live_manager(runner: CommandRunner) -> tuple[dict[str, Any], dict[str, str]
             if environment.get("GH_MQTT_CLIENT_ID")
             else None
         ),
-        "mqtt_username_present": False,
-        "mqtt_password_present": False,
-        "mqtt_password_file_present": False,
+        "mqtt_username_present": authentication_environment_baseline[
+            "GH_MQTT_USERNAME"
+        ]["nonempty"],
+        "mqtt_password_present": authentication_environment_baseline[
+            "GH_MQTT_PASSWORD"
+        ]["nonempty"],
+        "mqtt_password_file_present": authentication_environment_baseline[
+            "GH_MQTT_PASSWORD_FILE"
+        ]["nonempty"],
+        "mqtt_authentication_environment_baseline": (
+            authentication_environment_baseline
+        ),
         **ownership,
     }
     if not all(runtime[field] for field in ("container_id", "image_id", "image_ref")):
@@ -693,6 +711,9 @@ def prepare_manager_identity_migration(
             "manager_runtime_user_source": runtime["manager_runtime_user_source"],
             "manager_runtime_image_id": runtime["manager_runtime_image_id"],
             "manager_runtime_user_spec": runtime["manager_runtime_user_spec"],
+            "preclaim_authentication_environment_baseline": runtime[
+                "mqtt_authentication_environment_baseline"
+            ],
             "compose": compose,
             "target_secret_root": str(secret_root_path),
             "target_password_file": _PASSWORD_SOURCE,
