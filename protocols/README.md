@@ -53,10 +53,11 @@
 45. `pairing/gh-t1-manager-identity-failure-diagnostic-v1.md`：M2.4g-6q Draft，定义主迁移与回滚的 allowlisted 子阶段、固定错误码、无异常 message 的私有诊断材料及 legacy transaction 只读兼容。
 46. `pairing/gh-t1-manager-runtime-secret-ownership-gate-v1.md`：M2.4g-6r Draft，绑定容器、镜像与隔离候选的非 root 运行 UID/GID；活动密码保持 0600 且归属运行用户，并在授权前完成 network-none 配置/可读性探针。
 47. `pairing/gh-t1-manager-identity-postrollback-audit-v1.md`：M2.4g-6t Draft，冻结回滚后只读闭环、认证变量 present/nonempty 基线、exact target 清理和缺基线不误报 manual recovery 的语义。
-48. `discovery/gh-discovery-v1.md`：待冻结 mDNS、UDP 回退、重试和多主机处理；M2.0 pairing Draft 已给出最小发现依赖。
-49. `state/gh-path-lease-v1.md`：待冻结直连/中继路径租约、去重和切换滞回。
-50. `state/gh-availability-v1.md`：待将 M1 已验证行为整理为独立协议。
-51. `transport/gh-radio-frame-v1.md`：待冻结 ESP-NOW 与 LoRa 紧凑帧、认证和序列规则。
+48. `pairing/gh-t1-manager-identity-legacy-review-bridge-v1.md`：M2.4g-6u Draft，仅在旧回滚缺失两类历史基线、全部确定性安全检查通过且操作员明确接受时记录人工复核；不伪造 audit pass、不豁免新证据链基线、不创建授权或执行生产变更。
+49. `discovery/gh-discovery-v1.md`：待冻结 mDNS、UDP 回退、重试和多主机处理；M2.0 pairing Draft 已给出最小发现依赖。
+50. `state/gh-path-lease-v1.md`：待冻结直连/中继路径租约、去重和切换滞回。
+51. `state/gh-availability-v1.md`：待将 M1 已验证行为整理为独立协议。
+52. `transport/gh-radio-frame-v1.md`：待冻结 ESP-NOW 与 LoRa 紧凑帧、认证和序列规则。
 
 ## 变更规则
 
