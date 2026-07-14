@@ -61,6 +61,8 @@ def _create_rollback(
         "restart_scope": ["greenhouse-manager"],
         "forbidden_service_changes": ["mosquitto", "homeassistant", "node"],
         "current_services_modified": False,
+        "preserve_anonymous": True,
+        "anonymous_closure_enabled": False,
         "compose_project": compose["project"],
         "compose_working_directory": compose["working_dir"],
         "manager_secret_root": runtime["target_secret_root"],

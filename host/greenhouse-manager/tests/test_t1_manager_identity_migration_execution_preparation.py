@@ -103,6 +103,9 @@ def test_prepares_private_verified_fresh_rollback(
     rollback = json.loads(
         (package / "fresh-rollback-manifest.json").read_text(encoding="utf-8")
     )
+    assert rollback["manager_only"] is True
+    assert rollback["preserve_anonymous"] is True
+    assert rollback["anonymous_closure_enabled"] is False
     assert rollback["manager_runtime_uid"] == 999
     assert rollback["manager_runtime_gid"] == 999
     assert rollback["preclaim_candidate_probe_sha256"]
