@@ -30,6 +30,49 @@ from .t1_manager_identity_migration_preclaim_candidate import (
 )
 
 
+def _validate_created_directory_targets(rollback: dict[str, object]) -> None:
+    raw_targets = rollback.get("created_directory_targets")
+    raw_root = rollback.get("manager_secret_root")
+    raw_working = rollback.get("compose_working_directory")
+    if (
+        not isinstance(raw_targets, list)
+        or any(not isinstance(item, str) for item in raw_targets)
+        or not isinstance(raw_root, str)
+        or not isinstance(raw_working, str)
+    ):
+        raise ManagerIdentityExecutionPreparationError(
+            "fresh rollback directory target binding is invalid"
+        )
+    root = Path(raw_root).expanduser()
+    working = Path(raw_working).expanduser()
+    if not root.is_absolute() or not working.is_absolute():
+        raise ManagerIdentityExecutionPreparationError(
+            "fresh rollback directory target binding is unsafe"
+        )
+    root = root.resolve(strict=False)
+    working = working.resolve(strict=False)
+    targets: list[Path] = []
+    for raw_target in raw_targets:
+        target = Path(raw_target).expanduser()
+        if not target.is_absolute() or target.is_symlink():
+            raise ManagerIdentityExecutionPreparationError(
+                "fresh rollback directory target is unsafe"
+            )
+        target = target.resolve(strict=False)
+        if (
+            target == working
+            or (target != root and not target.is_relative_to(root))
+        ):
+            raise ManagerIdentityExecutionPreparationError(
+                "fresh rollback directory target escaped its exact scope"
+            )
+        targets.append(target)
+    if len(targets) != len(set(targets)):
+        raise ManagerIdentityExecutionPreparationError(
+            "fresh rollback directory targets contain duplicates"
+        )
+
+
 def verify_manager_identity_execution_preparation(
     directory: str | Path,
     *,
@@ -116,6 +159,7 @@ def verify_manager_identity_execution_preparation(
     validate_authentication_environment_state(
         rollback.get("preclaim_authentication_environment_baseline", {})
     )
+    _validate_created_directory_targets(rollback)
     for field in (
         "runtime_binding_sha256",
         "driver_contract_sha256",
