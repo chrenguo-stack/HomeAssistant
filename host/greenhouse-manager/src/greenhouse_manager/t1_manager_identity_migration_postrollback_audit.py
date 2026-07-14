@@ -3,15 +3,14 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import subprocess
 import sys
 import tarfile
 import time
 from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
-
-from .t1_migration_readiness import CommandRunner, SubprocessRunner
+from typing import Any, Protocol
 
 SCHEMA = "gh.m2.t1-manager-identity-postrollback-audit/1"
 AUTHENTICATION_ENVIRONMENT_KEYS = (
@@ -49,6 +48,22 @@ Clock = Callable[[], float]
 
 class ManagerPostrollbackAuditError(RuntimeError):
     pass
+
+
+class CommandRunner(Protocol):
+    def run(self, command: Sequence[str]) -> tuple[int, str]: ...
+
+
+class SubprocessRunner:
+    def run(self, command: Sequence[str]) -> tuple[int, str]:
+        completed = subprocess.run(
+            tuple(command),
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        output = completed.stdout if completed.stdout else completed.stderr
+        return completed.returncode, output
 
 
 def redacted_authentication_environment_state(
