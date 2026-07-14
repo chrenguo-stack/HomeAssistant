@@ -102,3 +102,16 @@ python3 \
 
 The success report is path-redacted. The generated private directory is identified
 only by `bridge_name` and `manifest_sha256`.
+
+## Downstream verification and binding
+
+Before a replacement manager migration preparation is created, the repository must
+reverify the bridge directory, its exact three-file inventory, both record hashes,
+the redacted audit, the decision semantics, and every manifest binding. The current
+preparation must then bind the bridge manifest, record set, and directory-name
+fingerprint.
+
+That downstream binding is additive: the preparation still binds the current live
+manager runtime, Compose state, postactivation handoff, inactive Stage, retained
+topic, and manager identity material. The bridge cannot substitute for any fresh
+runtime or rollback baseline.
