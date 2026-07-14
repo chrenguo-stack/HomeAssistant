@@ -339,7 +339,7 @@ def validate_manager_identity_legacy_review_bridge(
             "legacy review bridge record inventory is incomplete"
         )
 
-    audit = validate_legacy_manager_postrollback_audit(
+    validate_legacy_manager_postrollback_audit(
         _load_private_json(audit_path, "legacy review bridge audit")
     )
     audit_sha256 = _sha(audit_path)
