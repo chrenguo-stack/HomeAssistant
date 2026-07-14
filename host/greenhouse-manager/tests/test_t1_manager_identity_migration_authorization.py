@@ -61,9 +61,9 @@ def _runtime(
         "mqtt_password_present": False,
         "mqtt_password_file_present": False,
         "mqtt_authentication_environment_baseline": {
-            "username": {"present": False, "nonempty": False},
-            "password": {"present": False, "nonempty": False},
-            "password_file": {"present": False, "nonempty": False},
+            "GH_MQTT_USERNAME": {"present": False, "nonempty": False},
+            "GH_MQTT_PASSWORD": {"present": False, "nonempty": False},
+            "GH_MQTT_PASSWORD_FILE": {"present": False, "nonempty": False},
         },
         "manager_runtime_uid": 999,
         "manager_runtime_gid": 999,
