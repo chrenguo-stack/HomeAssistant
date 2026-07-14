@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import subprocess
+import sys
 import tarfile
 from pathlib import Path
 from typing import Any, Sequence
@@ -239,3 +241,26 @@ def test_archived_manifest_drift_is_rejected(tmp_path: Path) -> None:
 
     with pytest.raises(ManagerPostrollbackAuditError, match="archive binding"):
         _audit(transaction, execution, proc_root, runner, clock)
+
+
+def test_cli_is_read_only_and_has_no_mutation_flags() -> None:
+    project = Path(__file__).resolve().parents[1]
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "tools/run_t1_manager_identity_migration_postrollback_audit.py",
+            "--help",
+        ],
+        cwd=project,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert "transaction_workspace" in completed.stdout
+    assert "execution_preparation_directory" in completed.stdout
+    assert "--expected-retained-topic" in completed.stdout
+    assert "--execute" not in completed.stdout
+    assert "--claim" not in completed.stdout
+    assert "--apply" not in completed.stdout
