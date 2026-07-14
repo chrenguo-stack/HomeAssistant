@@ -3,3 +3,53 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 .ruff_cache/
+
+# Local Python and editor environments
+.venv/
+venv/
+.idea/
+.vscode/
+.DS_Store
+
+# Runtime configuration and credentials
+.env
+.env.*
+!.env.example
+!**/.env.example
+!*.env.example
+!**/*.env.example
+secrets.yaml
+**/secrets.yaml
+credentials.json
+**/credentials.json
+
+# Home Assistant and ESPHome runtime state
+.storage/
+**/.storage/
+.esphome/
+**/.esphome/
+home-assistant_v2.db*
+*.sqlite
+*.sqlite3
+
+# Private keys, credential bundles, and local certificates
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+id_rsa
+id_ed25519
+!*.example.pem
+!**/*.example.pem
+!**/certs/README.md
+
+# Local logs, archives, and generated evidence
+*.log
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+/evidence/
+/dist/
+/build/
