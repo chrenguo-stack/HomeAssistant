@@ -214,10 +214,12 @@ M2_ROLLBACK_DIRECTORY_CLEANUP_FAILED
 
 ```bash
 ./tools/t1-deploy \
-  --host 192.168.68.126 \
+  --host 192.0.2.10 \
   --artifact dist/ghctl.py \
   --expected-sha <sha>
 ```
+
+示例中的 `192.0.2.10` 属于文档保留地址，不代表任何真实部署主机。
 
 部署自动化不得代替两次操作员生产确认，也不得自动执行未确认的生产事务。
 
