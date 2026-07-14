@@ -169,6 +169,9 @@ def test_prepare_creates_private_bound_decision_without_waiving_future_checks(
     verified = validate_manager_identity_legacy_review_bridge(root)
     assert verified["verified"] is True
     assert verified["manifest_sha256"] == report["manifest_sha256"]
+    assert verified["expected_retained_topic_sha256"] == hashlib.sha256(
+        TOPIC.encode()
+    ).hexdigest()
     assert verified["rollback_audit_passed"] is False
     assert verified["manual_review_resolved"] is True
     assert verified["future_baseline_waiver_enabled"] is False
