@@ -21,9 +21,10 @@ The tool:
 2. Verifies the running manager identity and Compose binding have not drifted.
 3. Captures the exact current manager Compose files and optional `.env` into a private rollback archive.
 4. Records that the future manager password target is still absent.
-5. Verifies archive members, modes, ownership, sizes and SHA-256 values.
-6. Re-runs the live-runtime gate and rejects any drift during capture.
-7. Creates a short-lived, non-executable preparation package.
+5. Binds the rollback manifest to `manager_only=true`, `preserve_anonymous=true`, and `anonymous_closure_enabled=false`.
+6. Verifies archive members, modes, ownership, sizes, SHA-256 values, and the anonymous-compatibility safety binding.
+7. Re-runs the live-runtime gate and rejects any drift during capture.
+8. Creates a short-lived, non-executable preparation package.
 
 The tool does not:
 
@@ -74,6 +75,14 @@ The report must include:
 - `ready_for_manager_migration_apply=false`
 - `preserve_anonymous=true`
 - `anonymous_closure_enabled=false`
+
+The same three target-scope and compatibility fields must also be present in the fresh rollback manifest:
+
+- `manager_only=true`
+- `preserve_anonymous=true`
+- `anonymous_closure_enabled=false`
+
+A missing or contradictory rollback safety field invalidates the execution preparation before authorization claim.
 
 ## CLI
 
