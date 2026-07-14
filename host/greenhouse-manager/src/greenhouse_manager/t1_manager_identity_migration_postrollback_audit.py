@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import sys
+import tarfile
 import time
 from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
@@ -216,6 +217,39 @@ def _sha256(path: Path) -> str:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def _archived_rollback_manifest(path: Path) -> dict[str, Any]:
+    try:
+        with tarfile.open(path, "r:gz") as archive:
+            members = [
+                item
+                for item in archive.getmembers()
+                if item.name == "rollback-manifest.json"
+            ]
+            if (
+                len(members) != 1
+                or not members[0].isfile()
+                or members[0].size > 1024 * 1024
+            ):
+                raise ManagerPostrollbackAuditError(
+                    "archived fresh rollback manifest is invalid"
+                )
+            stream = archive.extractfile(members[0])
+            if stream is None:
+                raise ManagerPostrollbackAuditError(
+                    "archived fresh rollback manifest is unreadable"
+                )
+            document = json.loads(stream.read().decode("utf-8"))
+    except (tarfile.TarError, UnicodeError, json.JSONDecodeError) as error:
+        raise ManagerPostrollbackAuditError(
+            "archived fresh rollback manifest is invalid"
+        ) from error
+    if not isinstance(document, dict):
+        raise ManagerPostrollbackAuditError(
+            "archived fresh rollback manifest must be an object"
+        )
+    return document
 
 
 def _inspect(runner: CommandRunner, name: str) -> dict[str, Any]:
@@ -433,6 +467,7 @@ def build_manager_postrollback_audit(
         or archive.is_symlink()
         or archive.stat().st_mode & 0o777 != 0o600
         or journal.get("fresh_rollback_archive_sha256") != _sha256(archive)
+        or rollback != _archived_rollback_manifest(archive)
     ):
         raise ManagerPostrollbackAuditError("fresh rollback archive binding is invalid")
 
