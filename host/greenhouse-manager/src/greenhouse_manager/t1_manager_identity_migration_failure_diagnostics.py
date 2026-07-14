@@ -11,6 +11,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol, TypeVar
 
+from .t1_manager_identity_migration_production_runtime_probe import (
+    ManagerRuntimeProbeFailureCode,
+)
+
 SCHEMA = "gh.m2.t1-manager-identity-failure-diagnostic/1"
 PROGRESS_SCHEMA = "gh.m2.t1-manager-identity-stage-progress/1"
 FAILURE_FILE = "failure-diagnostic.json"
@@ -18,6 +22,7 @@ ROLLBACK_FAILURE_FILE = "rollback-failure-diagnostic.json"
 PROGRESS_FILE = "stage-progress.json"
 _STAGE = re.compile(r"^[a-z][a-z0-9_]{2,63}$")
 _EXCEPTION = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,95}$")
+_PROBE_FAILURE_CODES = frozenset(code.value for code in ManagerRuntimeProbeFailureCode)
 
 FAILURE_CODES = {
     "adapter_prepare": "M2_MANAGER_ADAPTER_PREPARE_FAILED",
@@ -161,6 +166,13 @@ def _exception_name(error: Exception) -> str:
     return name
 
 
+def _probe_failure_code(error: Exception) -> str | None:
+    value = getattr(error, "failure_code", None)
+    if isinstance(value, str) and value in _PROBE_FAILURE_CODES:
+        return value
+    return None
+
+
 class TransactionStageRecorder:
     def __init__(self, workspace_directory: str | Path) -> None:
         self.workspace = _private_directory(
@@ -198,6 +210,9 @@ class TransactionStageRecorder:
             "secret_values_included": False,
             "path_values_redacted": True,
         }
+        probe_failure_code = _probe_failure_code(error)
+        if probe_failure_code is not None:
+            document["probe_failure_code"] = probe_failure_code
         _atomic_private_write(path, document)
 
     def run(self, stage: str, operation: Callable[..., T], *args: object, **kwargs: object) -> T:
