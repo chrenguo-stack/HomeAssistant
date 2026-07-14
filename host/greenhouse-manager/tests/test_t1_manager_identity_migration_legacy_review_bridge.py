@@ -15,6 +15,7 @@ from greenhouse_manager.t1_manager_identity_migration_legacy_review_bridge impor
     ManagerIdentityLegacyReviewBridgeError,
     prepare_manager_identity_legacy_review_bridge,
     validate_legacy_manager_postrollback_audit,
+    validate_manager_identity_legacy_review_bridge,
 )
 
 TOPIC = "gh/v1/greenhouse/state/gh-n1-a9f2f8/telemetry"
@@ -164,6 +165,48 @@ def test_prepare_creates_private_bound_decision_without_waiving_future_checks(
     serialized = json.dumps({"report": report, "manifest": manifest})
     assert str(tmp_path) not in serialized
     assert OPERATOR_CONFIRMATION not in serialized
+
+    verified = validate_manager_identity_legacy_review_bridge(root)
+    assert verified["verified"] is True
+    assert verified["manifest_sha256"] == report["manifest_sha256"]
+    assert verified["expected_retained_topic_sha256"] == hashlib.sha256(
+        TOPIC.encode()
+    ).hexdigest()
+    assert verified["rollback_audit_passed"] is False
+    assert verified["manual_review_resolved"] is True
+    assert verified["future_baseline_waiver_enabled"] is False
+    assert verified["ready_for_fresh_evidence_chain"] is True
+    assert verified["ready_for_production_execution"] is False
+    assert verified["secret_values_included"] is False
+    assert verified["source_paths_included"] is False
+
+
+def test_bridge_verifier_rejects_tampered_decision(tmp_path: Path) -> None:
+    _report, root = _prepare(tmp_path)
+    decision_path = root / "operator-decision.json"
+    decision = json.loads(decision_path.read_text(encoding="utf-8"))
+    decision["future_baseline_waiver_enabled"] = True
+    decision_path.write_text(json.dumps(decision), encoding="utf-8")
+    decision_path.chmod(0o600)
+
+    with pytest.raises(
+        ManagerIdentityLegacyReviewBridgeError,
+        match="record verification failed",
+    ):
+        validate_manager_identity_legacy_review_bridge(root)
+
+
+def test_bridge_verifier_rejects_unbound_extra_file(tmp_path: Path) -> None:
+    _report, root = _prepare(tmp_path)
+    extra = root / "unexpected.json"
+    extra.write_text("{}\n", encoding="utf-8")
+    extra.chmod(0o600)
+
+    with pytest.raises(
+        ManagerIdentityLegacyReviewBridgeError,
+        match="file inventory",
+    ):
+        validate_manager_identity_legacy_review_bridge(root)
 
 
 @pytest.mark.parametrize(

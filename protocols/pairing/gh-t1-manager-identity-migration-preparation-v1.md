@@ -39,8 +39,24 @@ node_credentials_delivered=false
 6. 当前 `.env` 状态；
 7. 预期 retained telemetry Topic；
 8. 规划中的 active secret root。
+9. 若本轮用于替代一次已人工复核的 legacy rollback，则必须额外输入并完整验证
+   `gh.m2.t1-manager-identity-legacy-review-bridge/1` 私有桥接目录。
 
 任何材料缺失、漂移、权限不安全或状态不一致均必须终止。
+
+legacy review bridge 只允许解除旧事务的 manual-review 阻断。新准备包必须绑定
+bridge manifest SHA-256、records 集合 SHA-256 和目录名短指纹，并继续固定：
+
+```text
+rollback_audit_passed=false
+manual_review_resolved=true
+future_baseline_waiver_enabled=false
+ready_for_production_execution=false
+```
+
+它不得替代本轮实时 Manager/Compose 绑定，也不得豁免后续 fresh rollback。
+bridge 中绑定的 retained Topic SHA-256 必须与本轮 preparation 的精确
+`expected_retained_topic` 一致；禁止把其他节点或其他 Topic 的人工复核桥接误绑入本轮证据链。
 
 ## 4. 前置交接验证
 
@@ -55,6 +71,8 @@ ready_for_manager_migration_preparation=true
 ready_for_manager_migration_apply=false
 preserve_anonymous=true
 anonymous_closure_enabled=false
+legacy_review_bridge_bound=true  # 仅 legacy rollback 替代链
+future_baseline_waiver_enabled=false
 ```
 
 其 records 必须全部使用 mode `0600`，并通过 size 与 SHA-256 校验。普通输出不得含密钥或输入路径。
