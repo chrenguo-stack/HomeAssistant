@@ -675,11 +675,14 @@ def prepare_manager_identity_migration(
             "ready_for_production_execution": False,
             "authorization_created": False,
             "authorization_claimed": False,
+            "read_only_live_services": True,
             "current_services_modified": False,
             "manager_identity_migrated": False,
             "node_credentials_delivered": False,
             "preserve_anonymous": True,
             "anonymous_closure_enabled": False,
+            "secret_values_included": False,
+            "source_paths_included": False,
         }
         for field, expected in required_review.items():
             if legacy_review.get(field) is not expected:
@@ -688,13 +691,26 @@ def prepare_manager_identity_migration(
                 )
         bridge_manifest_sha = legacy_review.get("manifest_sha256")
         bridge_record_set_sha = legacy_review.get("record_set_sha256")
+        bridge_retained_topic_sha = legacy_review.get(
+            "expected_retained_topic_sha256"
+        )
         if any(
             not isinstance(value, str)
             or re.fullmatch(r"[0-9a-f]{64}", value) is None
-            for value in (bridge_manifest_sha, bridge_record_set_sha)
+            for value in (
+                bridge_manifest_sha,
+                bridge_record_set_sha,
+                bridge_retained_topic_sha,
+            )
         ):
             raise ManagerIdentityMigrationPreparationError(
                 "legacy review bridge manifest binding is invalid"
+            )
+        if bridge_retained_topic_sha != _sha_bytes(
+            expected_retained_topic.encode("utf-8")
+        ):
+            raise ManagerIdentityMigrationPreparationError(
+                "legacy review bridge retained-topic binding has drifted"
             )
 
     postactivation_manifest_path, postactivation = _postactivation_handoff(
