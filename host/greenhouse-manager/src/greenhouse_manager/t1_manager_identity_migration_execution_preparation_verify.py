@@ -22,6 +22,9 @@ from .t1_manager_identity_migration_execution_preparation_verify_records import 
     verify_execution_records,
     verify_record_bindings,
 )
+from .t1_manager_identity_migration_postrollback_audit import (
+    validate_authentication_environment_state,
+)
 from .t1_manager_identity_migration_preclaim_candidate import (
     validate_preclaim_candidate_report,
 )
@@ -110,6 +113,9 @@ def verify_manager_identity_execution_preparation(
         raise ManagerIdentityExecutionPreparationError(
             "fresh rollback archive and manifest do not match"
         )
+    validate_authentication_environment_state(
+        rollback.get("preclaim_authentication_environment_baseline", {})
+    )
     for field in (
         "runtime_binding_sha256",
         "driver_contract_sha256",
