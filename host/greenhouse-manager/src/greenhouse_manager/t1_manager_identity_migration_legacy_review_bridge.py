@@ -23,8 +23,10 @@ from .t1_manager_identity_migration_postrollback_audit import (
 
 SCHEMA = "gh.m2.t1-manager-identity-legacy-review-bridge/1"
 DECISION_SCHEMA = "gh.m2.t1-manager-identity-legacy-review-decision/1"
+VERIFY_SCHEMA = "gh.m2.t1-manager-identity-legacy-review-bridge-verify/1"
 OPERATOR_CONFIRMATION = "ACCEPT-M2-LEGACY-ROLLBACK-EVIDENCE-GAP"
 _TOKEN = re.compile(r"^[a-z0-9_-]{4,32}$")
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 AuditBuilder = Callable[..., dict[str, object]]
 
@@ -83,6 +85,17 @@ def _require_private_file(path: Path, label: str) -> Path:
             f"{label} is missing, public, or unsafe"
         )
     return path
+
+
+def _load_private_json(path: Path, label: str) -> dict[str, Any]:
+    _require_private_file(path, label)
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise ManagerIdentityLegacyReviewBridgeError(f"{label} is invalid") from error
+    if not isinstance(document, dict):
+        raise ManagerIdentityLegacyReviewBridgeError(f"{label} must be an object")
+    return document
 
 
 def _write(path: Path, value: bytes) -> None:
@@ -211,6 +224,187 @@ def validate_legacy_manager_postrollback_audit(
             "legacy postrollback audit must be an object"
         )
     return normalized
+
+
+def validate_manager_identity_legacy_review_bridge(
+    bridge_directory: str | Path,
+) -> dict[str, object]:
+    root = Path(bridge_directory).expanduser().resolve()
+    _require_private_directory(root, "legacy review bridge directory")
+    if not root.name.startswith("greenhouse-manager-legacy-review-bridge-"):
+        raise ManagerIdentityLegacyReviewBridgeError(
+            "legacy review bridge directory name is invalid"
+        )
+    expected_files = {
+        "audit-report.json",
+        "operator-decision.json",
+        "manifest.json",
+    }
+    actual_entries = {path.name for path in root.iterdir()}
+    if actual_entries != expected_files:
+        raise ManagerIdentityLegacyReviewBridgeError(
+            "legacy review bridge file inventory is invalid"
+        )
+
+    manifest_path = root / "manifest.json"
+    audit_path = root / "audit-report.json"
+    decision_path = root / "operator-decision.json"
+    manifest = _load_private_json(manifest_path, "legacy review bridge manifest")
+    _require_fields(
+        manifest,
+        {
+            "schema": SCHEMA,
+            "classification": "private-operator-decision-record",
+            "read_only_live_services": True,
+            "current_services_modified": False,
+            "operator_decision_recorded": True,
+            "legacy_baseline_gap_accepted": True,
+            "rollback_audit_passed": False,
+            "manual_recovery_required": False,
+            "manual_review_resolved": True,
+            "future_baseline_waiver_enabled": False,
+            "ready_for_fresh_evidence_chain": True,
+            "ready_for_production_execution": False,
+            "authorization_created": False,
+            "authorization_claimed": False,
+            "manager_identity_migrated": False,
+            "node_credentials_delivered": False,
+            "preserve_anonymous": True,
+            "anonymous_closure_enabled": False,
+            "secret_values_included": False,
+            "source_paths_included": False,
+        },
+        "legacy review bridge manifest",
+    )
+
+    bindings = manifest.get("bindings")
+    binding_names = {
+        "transaction_journal_sha256",
+        "fresh_rollback_manifest_sha256",
+        "fresh_rollback_archive_sha256",
+        "legacy_audit_sha256",
+        "operator_confirmation_sha256",
+        "expected_retained_topic_sha256",
+    }
+    if not isinstance(bindings, Mapping) or set(bindings) != binding_names:
+        raise ManagerIdentityLegacyReviewBridgeError(
+            "legacy review bridge bindings are incomplete"
+        )
+    if any(
+        not isinstance(value, str) or _SHA256.fullmatch(value) is None
+        for value in bindings.values()
+    ):
+        raise ManagerIdentityLegacyReviewBridgeError(
+            "legacy review bridge binding hash is invalid"
+        )
+    confirmation_sha256 = _sha_bytes(OPERATOR_CONFIRMATION.encode())
+    if bindings["operator_confirmation_sha256"] != confirmation_sha256:
+        raise ManagerIdentityLegacyReviewBridgeError(
+            "legacy review bridge confirmation binding is invalid"
+        )
+
+    records = manifest.get("records")
+    if not isinstance(records, list) or len(records) != 2:
+        raise ManagerIdentityLegacyReviewBridgeError(
+            "legacy review bridge records are incomplete"
+        )
+    record_hashes: dict[str, str] = {}
+    for item in records:
+        if not isinstance(item, Mapping):
+            raise ManagerIdentityLegacyReviewBridgeError(
+                "legacy review bridge record is invalid"
+            )
+        name = item.get("path")
+        if name not in {"audit-report.json", "operator-decision.json"}:
+            raise ManagerIdentityLegacyReviewBridgeError(
+                "legacy review bridge record path is invalid"
+            )
+        path = _require_private_file(root / str(name), "legacy review bridge record")
+        expected_sha = item.get("sha256")
+        if (
+            item.get("mode") != "0600"
+            or item.get("contains_secret") is not False
+            or item.get("size") != path.stat().st_size
+            or not isinstance(expected_sha, str)
+            or _SHA256.fullmatch(expected_sha) is None
+            or _sha(path) != expected_sha
+            or name in record_hashes
+        ):
+            raise ManagerIdentityLegacyReviewBridgeError(
+                "legacy review bridge record verification failed"
+            )
+        record_hashes[str(name)] = expected_sha
+    if set(record_hashes) != {"audit-report.json", "operator-decision.json"}:
+        raise ManagerIdentityLegacyReviewBridgeError(
+            "legacy review bridge record inventory is incomplete"
+        )
+
+    audit = validate_legacy_manager_postrollback_audit(
+        _load_private_json(audit_path, "legacy review bridge audit")
+    )
+    audit_sha256 = _sha(audit_path)
+    if (
+        audit_sha256 != record_hashes["audit-report.json"]
+        or audit_sha256 != bindings["legacy_audit_sha256"]
+    ):
+        raise ManagerIdentityLegacyReviewBridgeError(
+            "legacy review bridge audit binding is invalid"
+        )
+
+    decision = _load_private_json(decision_path, "legacy review bridge decision")
+    _require_fields(
+        decision,
+        {
+            "schema": DECISION_SCHEMA,
+            "decision": "accept_legacy_baseline_gap_for_fresh_evidence_chain_only",
+            "operator_decision_recorded": True,
+            "operator_confirmation_sha256": confirmation_sha256,
+            "legacy_audit_sha256": audit_sha256,
+            "legacy_baseline_gap_accepted": True,
+            "rollback_audit_passed": False,
+            "manual_recovery_required": False,
+            "manual_review_resolved": True,
+            "future_baseline_waiver_enabled": False,
+            "ready_for_fresh_evidence_chain": True,
+            "ready_for_production_execution": False,
+            "authorization_created": False,
+            "authorization_claimed": False,
+            "manager_identity_migrated": False,
+            "node_credentials_delivered": False,
+            "preserve_anonymous": True,
+            "anonymous_closure_enabled": False,
+        },
+        "legacy review bridge decision",
+    )
+    if _sha(decision_path) != record_hashes["operator-decision.json"]:
+        raise ManagerIdentityLegacyReviewBridgeError(
+            "legacy review bridge decision binding is invalid"
+        )
+
+    return {
+        "schema": VERIFY_SCHEMA,
+        "verified": True,
+        "manifest_sha256": _sha(manifest_path),
+        "record_set_sha256": _sha_bytes(_json(records).encode()),
+        "operator_decision_recorded": True,
+        "legacy_baseline_gap_accepted": True,
+        "rollback_audit_passed": False,
+        "manual_recovery_required": False,
+        "manual_review_resolved": True,
+        "future_baseline_waiver_enabled": False,
+        "ready_for_fresh_evidence_chain": True,
+        "ready_for_production_execution": False,
+        "authorization_created": False,
+        "authorization_claimed": False,
+        "read_only_live_services": True,
+        "current_services_modified": False,
+        "manager_identity_migrated": False,
+        "node_credentials_delivered": False,
+        "preserve_anonymous": True,
+        "anonymous_closure_enabled": False,
+        "secret_values_included": False,
+        "source_paths_included": False,
+    }
 
 
 def _record(path: Path, root: Path) -> dict[str, object]:
