@@ -245,6 +245,42 @@ def _unlink(path: Path, *, boundary: Path) -> None:
         _fsync_directory(path.parent)
 
 
+def _missing_directory_targets(secret_root: Path, password_target: Path) -> list[str]:
+    targets: list[str] = []
+    cursor = password_target.parent
+    while cursor != secret_root.parent and not cursor.exists():
+        targets.append(str(cursor))
+        cursor = cursor.parent
+    if cursor.exists() and (cursor.is_symlink() or not cursor.is_dir()):
+        raise ManagerProductionHostAdaptersError(
+            "manager directory target ancestor is unsafe"
+        )
+    return targets
+
+
+def _remove_created_directory(path: Path, *, boundary: Path) -> None:
+    if path != boundary and not path.is_relative_to(boundary):
+        raise ManagerProductionHostAdaptersError(
+            "created directory target escaped its bound root"
+        )
+    if path.is_symlink():
+        raise ManagerProductionHostAdaptersError(
+            "created directory target cannot be a symlink"
+        )
+    if path.exists():
+        if not path.is_dir():
+            raise ManagerProductionHostAdaptersError(
+                "created directory target is not a directory"
+            )
+        try:
+            path.rmdir()
+        except OSError as error:
+            raise ManagerProductionHostAdaptersError(
+                "created directory target is not empty after rollback"
+            ) from error
+        _fsync_directory(path.parent)
+
+
 def _absolute_directory(value: object, label: str) -> Path:
     if not isinstance(value, str):
         raise ManagerProductionHostAdaptersError(f"{label} is missing")
@@ -493,6 +529,8 @@ def _load_binding(
         or rollback.get("manager_secret_root") != str(secret_root)
         or rollback.get("manager_password_target") != str(password_target)
         or rollback.get("manager_password_target_absent") is not True
+        or rollback.get("created_directory_targets")
+        != _missing_directory_targets(secret_root, password_target)
         or rollback.get("manager_runtime_uid") != manager_runtime_uid
         or rollback.get("manager_runtime_gid") != manager_runtime_gid
         or rollback.get("manager_runtime_user_source")
@@ -961,7 +999,11 @@ class ManagerProductionHostTransactionAdapters:
 
     def rollback_executor(self) -> dict[str, object]:
         self.prepare()
-        if self.binding is None or self.snapshots is None:
+        if (
+            self.binding is None
+            or self.rollback is None
+            or self.snapshots is None
+        ):
             raise ManagerProductionHostAdaptersError(
                 "manager production rollback snapshot is unavailable"
             )
@@ -978,6 +1020,18 @@ class ManagerProductionHostTransactionAdapters:
         _unlink(binding.overlay_target, boundary=binding.working_dir)
         _unlink(binding.auth_environment_target, boundary=binding.working_dir)
         _unlink(binding.password_target, boundary=binding.secret_root)
+        created_targets = self.rollback.get("created_directory_targets")
+        if not isinstance(created_targets, list) or any(
+            not isinstance(item, str) for item in created_targets
+        ):
+            raise ManagerProductionHostAdaptersError(
+                "created directory target baseline is invalid"
+            )
+        for raw_target in created_targets:
+            _remove_created_directory(
+                Path(raw_target).expanduser().resolve(strict=False),
+                boundary=binding.secret_root,
+            )
         self.driver.recreate_after_rollback()
         self.driver.verify_legacy_anonymous_path()
         self.driver.verify_existing_entities()
@@ -1007,6 +1061,7 @@ class ManagerProductionHostTransactionAdapters:
             "rollback_completed": True,
             "manager_material_restored": True,
             "compose_binding_restored": True,
+            "created_directory_targets_cleanup_complete": True,
             "greenhouse_manager_recreated": True,
             "legacy_anonymous_path_verified": True,
             "existing_entities_verified": True,
