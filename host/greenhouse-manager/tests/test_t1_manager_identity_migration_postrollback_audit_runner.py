@@ -6,6 +6,7 @@ import json
 import subprocess
 import sys
 import tarfile
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
