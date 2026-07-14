@@ -49,6 +49,14 @@ def verify_rollback_archive(path: Path) -> dict[str, Any]:
             raise ManagerIdentityExecutionPreparationError(
                 "fresh rollback archive schema is invalid"
             )
+        if (
+            manifest.get("manager_only") is not True
+            or manifest.get("preserve_anonymous") is not True
+            or manifest.get("anonymous_closure_enabled") is not False
+        ):
+            raise ManagerIdentityExecutionPreparationError(
+                "fresh rollback archive safety binding is invalid"
+            )
         files = manifest.get("files")
         if not isinstance(files, list):
             raise ManagerIdentityExecutionPreparationError(
