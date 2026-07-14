@@ -386,6 +386,9 @@ def validate_manager_identity_legacy_review_bridge(
         "verified": True,
         "manifest_sha256": _sha(manifest_path),
         "record_set_sha256": _sha_bytes(_json(records).encode()),
+        "expected_retained_topic_sha256": str(
+            bindings["expected_retained_topic_sha256"]
+        ),
         "operator_decision_recorded": True,
         "legacy_baseline_gap_accepted": True,
         "rollback_audit_passed": False,
