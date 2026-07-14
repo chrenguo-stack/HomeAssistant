@@ -14,6 +14,10 @@ from greenhouse_manager.t1_manager_identity_migration_failure_diagnostics import
     TransactionStageRecorder,
     build_failure_diagnostic,
 )
+from greenhouse_manager.t1_manager_identity_migration_production_runtime_probe import (
+    ManagerProductionRuntimeProbeError,
+    ManagerRuntimeProbeFailureCode,
+)
 
 
 def _private_workspace(tmp_path: Path) -> Path:
@@ -132,6 +136,43 @@ def test_driver_failure_records_stage_without_message_or_secret(tmp_path: Path) 
     unchanged = json.loads((workspace / FAILURE_FILE).read_text(encoding="utf-8"))
     assert unchanged == diagnostic
     assert not (workspace / ROLLBACK_FAILURE_FILE).exists()
+
+
+def test_driver_diagnostic_retains_allowlisted_probe_subfailure(
+    tmp_path: Path,
+) -> None:
+    workspace = _private_workspace(tmp_path)
+    recorder = TransactionStageRecorder(workspace)
+
+    class ProbeFailureDriver(FakeDriver):
+        def verify_authenticated_identity(
+            self,
+            username: str,
+            client_id: str,
+        ) -> None:
+            del username, client_id
+            raise ManagerProductionRuntimeProbeError(
+                "secret=must-not-persist",
+                failure_code=(
+                    ManagerRuntimeProbeFailureCode.MQTT_SOCKET_APPEARANCE_TIMED_OUT
+                ),
+            )
+
+    driver = StageAwareManagerDriver(ProbeFailureDriver(), recorder)
+
+    with pytest.raises(ManagerProductionRuntimeProbeError):
+        driver.verify_authenticated_identity("manager", "client")
+
+    diagnostic = json.loads((workspace / FAILURE_FILE).read_text(encoding="utf-8"))
+    serialized = json.dumps(diagnostic, sort_keys=True)
+
+    assert diagnostic["failure_code"] == "M2_MANAGER_IDENTITY_BINDING_FAILED"
+    assert (
+        diagnostic["probe_failure_code"]
+        == "mqtt_socket_appearance_timed_out"
+    )
+    assert diagnostic["exception_message_included"] is False
+    assert "must-not-persist" not in serialized
 
 
 def test_rollback_failure_is_separate_from_primary_failure(tmp_path: Path) -> None:

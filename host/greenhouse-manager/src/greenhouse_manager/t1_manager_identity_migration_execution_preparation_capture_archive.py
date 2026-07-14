@@ -17,6 +17,9 @@ from .t1_manager_identity_migration_execution_preparation_common import (
     verify_rollback_archive,
     write_json,
 )
+from .t1_manager_identity_migration_postrollback_audit import (
+    validate_authentication_environment_state,
+)
 
 
 def _tar_filter(info: tarfile.TarInfo) -> tarfile.TarInfo:
@@ -49,6 +52,9 @@ def _create_rollback(
         for item in inventory
     ]
     compose = runtime.get("compose")
+    preclaim_environment = validate_authentication_environment_state(
+        runtime.get("preclaim_authentication_environment_baseline", {})
+    )
     if not isinstance(compose, dict):
         raise ManagerIdentityExecutionPreparationError(
             "manager Compose binding is incomplete"
@@ -72,6 +78,7 @@ def _create_rollback(
         "manager_runtime_gid": runtime["manager_runtime_gid"],
         "manager_runtime_user_source": runtime["manager_runtime_user_source"],
         "manager_runtime_image_id": runtime["manager_runtime_image_id"],
+        "preclaim_authentication_environment_baseline": preclaim_environment,
         "driver_contract_sha256": gate["driver_contract_sha256"],
         "adapter_contract_sha256": gate["adapter_contract_sha256"],
         "runtime_binding_sha256": gate["runtime_binding_sha256"],

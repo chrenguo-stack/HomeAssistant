@@ -166,6 +166,7 @@ class FakeRunner:
         restart_count: int = 0,
         auth_username: str = "",
         auth_password_file: str = "",
+        auth_keys_empty: bool = False,
         client_id: str = "greenhouse-manager",
         labels_complete: bool = True,
     ) -> None:
@@ -180,6 +181,14 @@ class FakeRunner:
             "GH_SYSTEM_ID=greenhouse",
             f"GH_MQTT_CLIENT_ID={client_id}",
         ]
+        if auth_keys_empty:
+            environment.extend(
+                (
+                    "GH_MQTT_USERNAME=",
+                    "GH_MQTT_PASSWORD=",
+                    "GH_MQTT_PASSWORD_FILE=",
+                )
+            )
         if auth_username:
             environment.append(f"GH_MQTT_USERNAME={auth_username}")
         if auth_password_file:
@@ -306,6 +315,12 @@ def test_prepare_creates_private_redacted_disabled_package(tmp_path: Path) -> No
     )
     assert (root / "material/manager/password").read_text().strip() == PASSWORD
     manifest = json.loads((root / "manifest.json").read_text())
+    runtime = json.loads((root / "manager-runtime-binding.json").read_text())
+    assert runtime["preclaim_authentication_environment_baseline"] == {
+        "GH_MQTT_USERNAME": {"present": False, "nonempty": False},
+        "GH_MQTT_PASSWORD": {"present": False, "nonempty": False},
+        "GH_MQTT_PASSWORD_FILE": {"present": False, "nonempty": False},
+    }
     assert manifest["normal_report_contains_secrets"] is False
     assert manifest["ready_for_manager_migration_apply"] is False
     serialized = json.dumps(report)
@@ -316,6 +331,21 @@ def test_prepare_creates_private_redacted_disabled_package(tmp_path: Path) -> No
 def test_prepare_accepts_absent_compose_env_when_stage_matches(tmp_path: Path) -> None:
     report, _root, _runner = _prepare(tmp_path, env_present=False)
     assert report["prepared"] is True
+
+
+def test_prepare_distinguishes_present_empty_auth_environment(tmp_path: Path) -> None:
+    report, root, _runner = _prepare(
+        tmp_path,
+        runner_kwargs={"auth_keys_empty": True},
+    )
+
+    runtime = json.loads((root / "manager-runtime-binding.json").read_text())
+    assert report["prepared"] is True
+    assert runtime["preclaim_authentication_environment_baseline"] == {
+        "GH_MQTT_USERNAME": {"present": True, "nonempty": False},
+        "GH_MQTT_PASSWORD": {"present": True, "nonempty": False},
+        "GH_MQTT_PASSWORD_FILE": {"present": True, "nonempty": False},
+    }
 
 
 def test_rejects_postactivation_gate_drift(tmp_path: Path) -> None:

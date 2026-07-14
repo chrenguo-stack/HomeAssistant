@@ -7,6 +7,7 @@ import threading
 import time
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -30,8 +31,30 @@ _ID = re.compile(r"^[A-Za-z0-9_-]{3,64}$")
 _CONTAINER_ID = re.compile(r"^[0-9a-f]{64}$")
 
 
+class ManagerRuntimeProbeFailureCode(StrEnum):
+    RUNTIME_PROBE_FAILED = "runtime_probe_failed"
+    RUNTIME_OWNERSHIP_BINDING_FAILED = "runtime_ownership_binding_failed"
+    AUTHENTICATION_ENVIRONMENT_BINDING_FAILED = (
+        "authentication_environment_binding_failed"
+    )
+    PASSWORD_MOUNT_BINDING_FAILED = "password_mount_binding_failed"
+    PASSWORD_SOURCE_SAFETY_FAILED = "password_source_safety_failed"
+    DOCKER_LOG_BINDING_FAILED = "docker_log_binding_failed"
+    MQTT_SOCKET_APPEARANCE_TIMED_OUT = "mqtt_socket_appearance_timed_out"
+    MQTT_SOCKET_NEVER_STABILIZED = "mqtt_socket_never_stabilized"
+
+
 class ManagerProductionRuntimeProbeError(RuntimeError):
-    pass
+    def __init__(
+        self,
+        message: str,
+        *,
+        failure_code: ManagerRuntimeProbeFailureCode = (
+            ManagerRuntimeProbeFailureCode.RUNTIME_PROBE_FAILED
+        ),
+    ) -> None:
+        super().__init__(message)
+        self.failure_code = failure_code.value
 
 
 class RetainedReader(Protocol):
@@ -40,6 +63,7 @@ class RetainedReader(Protocol):
 
 ReaderFactory = Callable[[], RetainedReader]
 Sleeper = Callable[[float], None]
+Clock = Callable[[], float]
 
 
 def _load_paho_mqtt() -> Any:
@@ -242,6 +266,7 @@ class ManagerProductionRuntimeProbe:
         timeout_s: float = 35.0,
         poll_interval_s: float = 1.0,
         sleeper: Sleeper = time.sleep,
+        monotonic: Clock = time.monotonic,
     ) -> None:
         if _ID.fullmatch(system_id) is None or _ID.fullmatch(node_id) is None:
             raise ValueError("runtime probe system_id or node_id is invalid")
@@ -266,6 +291,7 @@ class ManagerProductionRuntimeProbe:
         self.timeout_s = timeout_s
         self.poll_interval_s = poll_interval_s
         self.sleeper = sleeper
+        self.monotonic = monotonic
         self.canonical_topic = canonical_telemetry_topic(system_id, node_id)
         self.availability_topic = availability_topic(system_id, node_id)
         self._baseline_discovery_signature: tuple[object, ...] | None = None
@@ -382,7 +408,10 @@ class ManagerProductionRuntimeProbe:
             )
         except ManagerRuntimeSecretOwnershipError as error:
             raise ManagerProductionRuntimeProbeError(
-                "greenhouse-manager runtime ownership binding failed"
+                "greenhouse-manager runtime ownership binding failed",
+                failure_code=(
+                    ManagerRuntimeProbeFailureCode.RUNTIME_OWNERSHIP_BINDING_FAILED
+                ),
             ) from error
         expected_password_target = self._expected_password_target()
         if (
@@ -392,12 +421,16 @@ class ManagerProductionRuntimeProbe:
             or bool(values.get("GH_MQTT_PASSWORD", ""))
         ):
             raise ManagerProductionRuntimeProbeError(
-                "greenhouse-manager authenticated environment binding failed"
+                "greenhouse-manager authenticated environment binding failed",
+                failure_code=(
+                    ManagerRuntimeProbeFailureCode.AUTHENTICATION_ENVIRONMENT_BINDING_FAILED
+                ),
             )
         mounts = document.get("Mounts")
         if not isinstance(mounts, list):
             raise ManagerProductionRuntimeProbeError(
-                "greenhouse-manager mount inventory is missing"
+                "greenhouse-manager mount inventory is missing",
+                failure_code=ManagerRuntimeProbeFailureCode.PASSWORD_MOUNT_BINDING_FAILED,
             )
         matching = [
             item
@@ -409,14 +442,16 @@ class ManagerProductionRuntimeProbe:
         ]
         if len(matching) != 1:
             raise ManagerProductionRuntimeProbeError(
-                "greenhouse-manager password mount binding failed"
+                "greenhouse-manager password mount binding failed",
+                failure_code=ManagerRuntimeProbeFailureCode.PASSWORD_MOUNT_BINDING_FAILED,
             )
         if (
             not self.binding.password_target.is_file()
             or self.binding.password_target.is_symlink()
         ):
             raise ManagerProductionRuntimeProbeError(
-                "greenhouse-manager password source is missing or unsafe"
+                "greenhouse-manager password source is missing or unsafe",
+                failure_code=ManagerRuntimeProbeFailureCode.PASSWORD_SOURCE_SAFETY_FAILED,
             )
         password_stat = self.binding.password_target.stat()
         if (
@@ -425,7 +460,8 @@ class ManagerProductionRuntimeProbe:
             or password_stat.st_gid != self.binding.manager_runtime_gid
         ):
             raise ManagerProductionRuntimeProbeError(
-                "greenhouse-manager password source is missing or unsafe"
+                "greenhouse-manager password source is missing or unsafe",
+                failure_code=ManagerRuntimeProbeFailureCode.PASSWORD_SOURCE_SAFETY_FAILED,
             )
         pid = state.get("Pid")
         if not isinstance(pid, int) or pid <= 0:
@@ -441,7 +477,8 @@ class ManagerProductionRuntimeProbe:
             or _CONTAINER_ID.fullmatch(container_id) is None
         ):
             raise ManagerProductionRuntimeProbeError(
-                "greenhouse-manager log binding is incomplete"
+                "greenhouse-manager log binding is incomplete",
+                failure_code=ManagerRuntimeProbeFailureCode.DOCKER_LOG_BINDING_FAILED,
             )
         log_path = Path(log_path_raw)
         if (
@@ -452,7 +489,8 @@ class ManagerProductionRuntimeProbe:
             or log_path.parent.name != container_id
         ):
             raise ManagerProductionRuntimeProbeError(
-                "greenhouse-manager Docker JSON log path is unsafe"
+                "greenhouse-manager Docker JSON log path is unsafe",
+                failure_code=ManagerRuntimeProbeFailureCode.DOCKER_LOG_BINDING_FAILED,
             )
         return pid, started_at, log_path
 
@@ -481,12 +519,37 @@ class ManagerProductionRuntimeProbe:
         return observed
 
     def _stable_mqtt_socket(self, pid: int) -> bool:
-        first = self._mqtt_socket_inodes(pid)
-        if not first:
-            return False
-        self.sleeper(min(self.poll_interval_s, 2.0))
-        second = self._mqtt_socket_inodes(pid)
-        return bool(first & second)
+        deadline = self.monotonic() + self.timeout_s
+        socket_appeared = False
+        while True:
+            first = self._mqtt_socket_inodes(pid)
+            socket_appeared = socket_appeared or bool(first)
+            remaining = deadline - self.monotonic()
+            if first and remaining > 0:
+                self.sleeper(min(self.poll_interval_s, 2.0, remaining))
+                second = self._mqtt_socket_inodes(pid)
+                socket_appeared = socket_appeared or bool(second)
+                if first & second:
+                    return True
+            elif not first:
+                if remaining <= 0:
+                    break
+                self.sleeper(min(self.poll_interval_s, remaining))
+            if self.monotonic() >= deadline:
+                break
+        if socket_appeared:
+            raise ManagerProductionRuntimeProbeError(
+                "greenhouse-manager MQTT TCP socket appeared but never stabilized",
+                failure_code=(
+                    ManagerRuntimeProbeFailureCode.MQTT_SOCKET_NEVER_STABILIZED
+                ),
+            )
+        raise ManagerProductionRuntimeProbeError(
+            "greenhouse-manager MQTT TCP socket appearance timed out",
+            failure_code=(
+                ManagerRuntimeProbeFailureCode.MQTT_SOCKET_APPEARANCE_TIMED_OUT
+            ),
+        )
 
     @staticmethod
     def _log_messages(log_path: Path, started_at: datetime) -> tuple[str, ...]:
@@ -533,10 +596,7 @@ class ManagerProductionRuntimeProbe:
             )
         document = self._inspect()
         pid, _started_at, _log_path = self._validate_identity_binding(document)
-        if not self._stable_mqtt_socket(pid):
-            raise ManagerProductionRuntimeProbeError(
-                "greenhouse-manager has no stable MQTT TCP session"
-            )
+        self._stable_mqtt_socket(pid)
         self._checks["manager_authenticated"] = True
 
     def verify_ingress_subscription(self) -> None:
@@ -593,10 +653,7 @@ class ManagerProductionRuntimeProbe:
         )
         document = self._inspect()
         pid, _started_at, _log_path = self._validate_identity_binding(document)
-        if not self._stable_mqtt_socket(pid):
-            raise ManagerProductionRuntimeProbeError(
-                "greenhouse-manager MQTT session did not remain stable after reconnect"
-            )
+        self._stable_mqtt_socket(pid)
         self._checks["reconnect_verified"] = True
 
     def verify_existing_entities(self) -> None:

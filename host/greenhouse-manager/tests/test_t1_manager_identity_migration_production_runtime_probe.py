@@ -22,6 +22,7 @@ from greenhouse_manager.t1_manager_identity_migration_production_integration imp
 from greenhouse_manager.t1_manager_identity_migration_production_runtime_probe import (
     ManagerProductionRuntimeProbe,
     ManagerProductionRuntimeProbeError,
+    ManagerRuntimeProbeFailureCode,
 )
 
 SYSTEM_ID = "greenhouse"
@@ -139,6 +140,28 @@ class InspectRunner:
         self.commands.append(command)
         assert command == ("docker", "inspect", "greenhouse-manager")
         return 0, json.dumps([self.document])
+
+
+class FakeClock:
+    def __init__(self) -> None:
+        self.now = 0.0
+        self.sleeps: list[float] = []
+
+    def monotonic(self) -> float:
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        self.sleeps.append(seconds)
+        self.now += seconds
+
+
+def _bounded_socket_clock(probe: ManagerProductionRuntimeProbe) -> FakeClock:
+    clock = FakeClock()
+    probe.timeout_s = 0.04
+    probe.poll_interval_s = 0.01
+    probe.monotonic = clock.monotonic
+    probe.sleeper = clock.sleep
+    return clock
 
 
 def _runtime_fixture(
@@ -269,15 +292,127 @@ def test_passive_runtime_probe_verifies_full_manager_path(tmp_path: Path) -> Non
     assert DISCOVERY_TOPIC in reader.topics
 
 
-def test_runtime_probe_rejects_unstable_mqtt_session(tmp_path: Path) -> None:
+def test_runtime_probe_waits_for_socket_to_appear_and_stabilize(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     probe, _reader, _runner, _log_path = _probe(tmp_path, include_socket=False)
-    probe.capture_baseline()
+    samples = iter((set(), set(), {"424242"}, {"424242"}))
+    monkeypatch.setattr(probe, "_mqtt_socket_inodes", lambda _pid: next(samples))
+    clock = _bounded_socket_clock(probe)
 
-    with pytest.raises(
-        ManagerProductionRuntimeProbeError,
-        match="no stable MQTT TCP session",
-    ):
+    probe.verify_authenticated_identity("gh-manager-user", "gh-manager-client")
+
+    assert clock.sleeps == [0.01, 0.01, 0.01]
+
+
+def test_runtime_probe_retries_after_socket_disappears_then_stabilizes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    probe, _reader, _runner, _log_path = _probe(tmp_path)
+    samples = iter(({"first"}, set(), {"second"}, {"second"}))
+    monkeypatch.setattr(probe, "_mqtt_socket_inodes", lambda _pid: next(samples))
+    _bounded_socket_clock(probe)
+
+    probe.verify_authenticated_identity("gh-manager-user", "gh-manager-client")
+
+
+def test_runtime_probe_times_out_when_socket_never_appears(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    probe, _reader, _runner, _log_path = _probe(tmp_path, include_socket=False)
+    monkeypatch.setattr(probe, "_mqtt_socket_inodes", lambda _pid: set())
+    _bounded_socket_clock(probe)
+
+    with pytest.raises(ManagerProductionRuntimeProbeError) as raised:
         probe.verify_authenticated_identity("gh-manager-user", "gh-manager-client")
+
+    assert raised.value.failure_code == (
+        ManagerRuntimeProbeFailureCode.MQTT_SOCKET_APPEARANCE_TIMED_OUT
+    ).value
+
+
+def test_runtime_probe_times_out_when_socket_inode_never_stabilizes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    probe, _reader, _runner, _log_path = _probe(tmp_path)
+    counter = 0
+
+    def changing_socket(_pid: int) -> set[str]:
+        nonlocal counter
+        counter += 1
+        return {str(counter)}
+
+    monkeypatch.setattr(probe, "_mqtt_socket_inodes", changing_socket)
+    _bounded_socket_clock(probe)
+
+    with pytest.raises(ManagerProductionRuntimeProbeError) as raised:
+        probe.verify_authenticated_identity("gh-manager-user", "gh-manager-client")
+
+    assert raised.value.failure_code == (
+        ManagerRuntimeProbeFailureCode.MQTT_SOCKET_NEVER_STABILIZED
+    ).value
+
+
+def test_runtime_probe_rejects_established_socket_to_wrong_port(
+    tmp_path: Path,
+) -> None:
+    probe, _reader, _runner, _log_path = _probe(tmp_path)
+    tcp = tmp_path / "proc" / "321" / "net" / "tcp"
+    tcp.write_text(
+        tcp.read_text(encoding="ascii").replace(":075B 01", ":075C 01"),
+        encoding="ascii",
+    )
+    _bounded_socket_clock(probe)
+
+    with pytest.raises(ManagerProductionRuntimeProbeError) as raised:
+        probe.verify_authenticated_identity("gh-manager-user", "gh-manager-client")
+
+    assert raised.value.failure_code == (
+        ManagerRuntimeProbeFailureCode.MQTT_SOCKET_APPEARANCE_TIMED_OUT
+    ).value
+
+
+@pytest.mark.parametrize(
+    ("mutation", "failure_code"),
+    (
+        (
+            lambda probe, runner: runner.document["Config"]["Env"].__setitem__(
+                0, "GH_MQTT_USERNAME=wrong"
+            ),
+            ManagerRuntimeProbeFailureCode.AUTHENTICATION_ENVIRONMENT_BINDING_FAILED,
+        ),
+        (
+            lambda probe, runner: runner.document["Mounts"][0].__setitem__("RW", True),
+            ManagerRuntimeProbeFailureCode.PASSWORD_MOUNT_BINDING_FAILED,
+        ),
+        (
+            lambda probe, runner: probe.binding.password_target.chmod(0o644),
+            ManagerRuntimeProbeFailureCode.PASSWORD_SOURCE_SAFETY_FAILED,
+        ),
+    ),
+)
+def test_identity_binding_failures_precede_socket_probe(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: Any,
+    failure_code: ManagerRuntimeProbeFailureCode,
+) -> None:
+    probe, _reader, runner, _log_path = _probe(tmp_path)
+    mutation(probe, runner)
+    monkeypatch.setattr(
+        probe,
+        "_mqtt_socket_inodes",
+        lambda _pid: pytest.fail("socket probe must not run"),
+    )
+
+    with pytest.raises(ManagerProductionRuntimeProbeError) as raised:
+        probe.verify_authenticated_identity("gh-manager-user", "gh-manager-client")
+
+    assert raised.value.failure_code == failure_code.value
 
 
 def test_runtime_probe_rejects_password_owner_drift(tmp_path: Path) -> None:
@@ -288,8 +423,12 @@ def test_runtime_probe_rejects_password_owner_drift(tmp_path: Path) -> None:
         manager_runtime_user_spec=f"{os.getuid() + 1}:{os.getgid()}",
     )
 
-    with pytest.raises(ManagerProductionRuntimeProbeError, match="password source"):
+    with pytest.raises(ManagerProductionRuntimeProbeError) as raised:
         probe.verify_authenticated_identity("gh-manager-user", "gh-manager-client")
+
+    assert raised.value.failure_code == (
+        ManagerRuntimeProbeFailureCode.PASSWORD_SOURCE_SAFETY_FAILED
+    ).value
 
 
 def test_runtime_probe_rejects_changed_discovery_identity(tmp_path: Path) -> None:
@@ -311,11 +450,12 @@ def test_runtime_probe_rejects_log_path_not_bound_to_container(tmp_path: Path) -
     probe, _reader, runner, log_path = _probe(tmp_path)
     runner.document["LogPath"] = str(log_path.with_name("other-json.log"))
 
-    with pytest.raises(
-        ManagerProductionRuntimeProbeError,
-        match="log path is unsafe",
-    ):
+    with pytest.raises(ManagerProductionRuntimeProbeError) as raised:
         probe.verify_authenticated_identity("gh-manager-user", "gh-manager-client")
+
+    assert raised.value.failure_code == (
+        ManagerRuntimeProbeFailureCode.DOCKER_LOG_BINDING_FAILED
+    ).value
 
 
 class BaselineProbe:
