@@ -14,6 +14,9 @@ from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from .t1_manager_identity_migration_legacy_review_bridge import (
+    validate_manager_identity_legacy_review_bridge,
+)
 from .t1_manager_identity_migration_postrollback_audit import (
     redacted_authentication_environment_state,
 )
@@ -44,6 +47,7 @@ _PASSWORD_TARGET = "/run/secrets/gh_manager_mqtt_password"
 _PASSWORD_SOURCE = "/opt/greenhouse-secrets/mqtt/manager/password"
 
 StageVerifier = Callable[[str | Path], dict[str, Any]]
+LegacyReviewVerifier = Callable[[str | Path], dict[str, object]]
 
 
 class ManagerIdentityMigrationPreparationError(RuntimeError):
@@ -636,10 +640,14 @@ def prepare_manager_identity_migration(
     *,
     expected_retained_topic: str,
     secret_root: str | Path = "/opt/greenhouse-secrets/mqtt",
+    legacy_review_bridge_directory: str | Path | None = None,
     runner: CommandRunner | None = None,
     now: datetime | None = None,
     token_factory: Callable[[], str] | None = None,
     stage_verifier: StageVerifier = verify_migration_stage,
+    legacy_review_verifier: LegacyReviewVerifier = (
+        validate_manager_identity_legacy_review_bridge
+    ),
 ) -> dict[str, object]:
     if not expected_retained_topic.startswith("gh/"):
         raise ValueError("expected retained topic must be in the gh namespace")
@@ -647,6 +655,47 @@ def prepare_manager_identity_migration(
     stage_root = Path(migration_stage_directory).expanduser().resolve()
     output_root = Path(output_directory).expanduser().resolve()
     secret_root_path = Path(secret_root).expanduser().resolve()
+    legacy_review_root = (
+        None
+        if legacy_review_bridge_directory is None
+        else Path(legacy_review_bridge_directory).expanduser().resolve()
+    )
+    legacy_review: dict[str, object] | None = None
+    if legacy_review_root is not None:
+        legacy_review = legacy_review_verifier(legacy_review_root)
+        required_review = {
+            "verified": True,
+            "operator_decision_recorded": True,
+            "legacy_baseline_gap_accepted": True,
+            "rollback_audit_passed": False,
+            "manual_recovery_required": False,
+            "manual_review_resolved": True,
+            "future_baseline_waiver_enabled": False,
+            "ready_for_fresh_evidence_chain": True,
+            "ready_for_production_execution": False,
+            "authorization_created": False,
+            "authorization_claimed": False,
+            "current_services_modified": False,
+            "manager_identity_migrated": False,
+            "node_credentials_delivered": False,
+            "preserve_anonymous": True,
+            "anonymous_closure_enabled": False,
+        }
+        for field, expected in required_review.items():
+            if legacy_review.get(field) is not expected:
+                raise ManagerIdentityMigrationPreparationError(
+                    f"legacy review bridge verification failed: {field}"
+                )
+        bridge_manifest_sha = legacy_review.get("manifest_sha256")
+        bridge_record_set_sha = legacy_review.get("record_set_sha256")
+        if any(
+            not isinstance(value, str)
+            or re.fullmatch(r"[0-9a-f]{64}", value) is None
+            for value in (bridge_manifest_sha, bridge_record_set_sha)
+        ):
+            raise ManagerIdentityMigrationPreparationError(
+                "legacy review bridge manifest binding is invalid"
+            )
 
     postactivation_manifest_path, postactivation = _postactivation_handoff(
         postactivation_root
@@ -667,10 +716,13 @@ def prepare_manager_identity_migration(
     compose = _bind_compose(stage_manifest, labels)
     compose_root = Path(str(compose["working_dir"]))
 
+    source_roots = [postactivation_root, stage_root]
+    if legacy_review_root is not None:
+        source_roots.append(legacy_review_root)
     _reject_output(
         output_root,
         active_roots=(compose_root, secret_root_path),
-        source_roots=(postactivation_root, stage_root),
+        source_roots=source_roots,
     )
     _private_directory(output_root, "output directory", create=True)
     token = token_factory() if token_factory else secrets.token_hex(4)
@@ -747,6 +799,8 @@ def prepare_manager_identity_migration(
                 "rollback_on_any_failure",
             ],
             "node_credentials_delivered": False,
+            "legacy_review_bridge_bound": legacy_review is not None,
+            "future_baseline_waiver_enabled": False,
         }
         plan_path = root / "transaction-plan.json"
         _write_private(plan_path, _json(transaction_plan) + "\n")
@@ -768,6 +822,40 @@ def prepare_manager_identity_migration(
             _record(plan_path, root, contains_secret=False),
             _record(runbook_path, root, contains_secret=False),
         ]
+        manifest_bindings = {
+            "postactivation_manifest_sha256": _sha(postactivation_manifest_path),
+            "postactivation_handoff_name_fingerprint": _fingerprint(
+                postactivation_root.name
+            ),
+            "migration_stage_manifest_sha256": _sha(stage_manifest_path),
+            "migration_stage_name_fingerprint": _fingerprint(stage_root.name),
+            "expected_retained_topic_sha256": _sha_bytes(
+                expected_retained_topic.encode("utf-8")
+            ),
+            "manager_username_fingerprint": _fingerprint(
+                values["GH_MQTT_USERNAME"]
+            ),
+            "manager_client_id_fingerprint": _fingerprint(
+                values["GH_MQTT_CLIENT_ID"]
+            ),
+            "manager_runtime_binding_sha256": _sha(runtime_path),
+            "manager_runtime_fingerprint": _fingerprint(_json(runtime)),
+            "compose_binding_fingerprint": _fingerprint(_json(compose)),
+        }
+        if legacy_review is not None and legacy_review_root is not None:
+            manifest_bindings.update(
+                {
+                    "legacy_review_bridge_manifest_sha256": str(
+                        legacy_review["manifest_sha256"]
+                    ),
+                    "legacy_review_bridge_name_fingerprint": _fingerprint(
+                        legacy_review_root.name
+                    ),
+                    "legacy_review_bridge_record_set_sha256": str(
+                        legacy_review["record_set_sha256"]
+                    ),
+                }
+            )
         manifest = {
             "schema": SCHEMA,
             "created_at": observed.isoformat(timespec="seconds").replace("+00:00", "Z"),
@@ -784,28 +872,9 @@ def prepare_manager_identity_migration(
             "ready_for_manager_migration_apply": False,
             "preserve_anonymous": True,
             "anonymous_closure_enabled": False,
-            "bindings": {
-                "postactivation_manifest_sha256": _sha(postactivation_manifest_path),
-                "postactivation_handoff_name_fingerprint": _fingerprint(
-                    postactivation_root.name
-                ),
-                "migration_stage_manifest_sha256": _sha(stage_manifest_path),
-                "migration_stage_name_fingerprint": _fingerprint(stage_root.name),
-                "expected_retained_topic_sha256": _sha_bytes(
-                    expected_retained_topic.encode("utf-8")
-                ),
-                "manager_username_fingerprint": _fingerprint(
-                    values["GH_MQTT_USERNAME"]
-                ),
-                "manager_client_id_fingerprint": _fingerprint(
-                    values["GH_MQTT_CLIENT_ID"]
-                ),
-                "manager_runtime_binding_sha256": _sha(runtime_path),
-                "manager_runtime_fingerprint": _fingerprint(
-                    _json(runtime)
-                ),
-                "compose_binding_fingerprint": _fingerprint(_json(compose)),
-            },
+            "legacy_review_bridge_bound": legacy_review is not None,
+            "future_baseline_waiver_enabled": False,
+            "bindings": manifest_bindings,
             "blockers": [
                 "manager_operator_authorization_required",
                 "manager_live_execution_not_implemented",
@@ -840,6 +909,8 @@ def prepare_manager_identity_migration(
         "ready_for_manager_migration_apply": False,
         "preserve_anonymous": True,
         "anonymous_closure_enabled": False,
+        "legacy_review_bridge_bound": legacy_review is not None,
+        "future_baseline_waiver_enabled": False,
         "blockers": [
             "manager_operator_authorization_required",
             "manager_live_execution_not_implemented",
@@ -859,6 +930,7 @@ def prepare_manager_identity_migration(
         str(output_root),
         str(compose_root),
         str(secret_root_path),
+        *((str(legacy_review_root),) if legacy_review_root is not None else ()),
     )
     if any(value and value in serialized for value in forbidden):
         raise ManagerIdentityMigrationPreparationError(
@@ -881,6 +953,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--secret-root",
         default="/opt/greenhouse-secrets/mqtt",
     )
+    parser.add_argument("--legacy-review-bridge")
     args = parser.parse_args(argv)
     try:
         report = prepare_manager_identity_migration(
@@ -889,6 +962,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.output,
             expected_retained_topic=args.expected_retained_topic,
             secret_root=args.secret_root,
+            legacy_review_bridge_directory=args.legacy_review_bridge,
         )
     except (
         ManagerIdentityMigrationPreparationError,
