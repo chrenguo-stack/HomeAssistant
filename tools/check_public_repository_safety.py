@@ -103,6 +103,26 @@ BLOCKED_SUFFIXES = (
     ".zip",
 )
 BLOCKED_COMPONENTS = {".esphome", ".storage", "evidence"}
+SENSITIVE_ENV_MARKERS = (
+    "API_KEY",
+    "PASSWORD",
+    "PASSWD",
+    "PRIVATE_KEY",
+    "PSK",
+    "SECRET",
+    "TOKEN",
+)
+SENSITIVE_YAML_KEYS = {
+    "api_key",
+    "password",
+    "passwd",
+    "private_key",
+    "psk",
+    "secret",
+    "token",
+}
+SAFE_CONFIG_PREFIXES = (b"${", b"<", b"!secret")
+SAFE_CONFIG_WORDS = {b"change_me", b"dummy", b"example", b"null", b"test", b"~"}
 
 
 def _is_example(path: PurePosixPath) -> bool:
@@ -124,6 +144,46 @@ def blocked_path_reason(raw_path: str) -> str | None:
     return None
 
 
+def _config_value_is_safe(value: bytes) -> bool:
+    normalized = value.strip().strip(b"\"'").lower()
+    return (
+        not normalized
+        or normalized.startswith(b"#")
+        or normalized.startswith(SAFE_CONFIG_PREFIXES)
+        or normalized in SAFE_CONFIG_WORDS
+    )
+
+
+def _scan_dotenv(path: str, data: bytes) -> set[Finding]:
+    findings: set[Finding] = set()
+    for line_number, line in enumerate(data.splitlines(), start=1):
+        stripped = line.strip()
+        if not stripped or stripped.startswith(b"#") or b"=" not in stripped:
+            continue
+        key_raw, value = stripped.split(b"=", 1)
+        key = key_raw.removeprefix(b"export ").decode("ascii", "ignore").upper()
+        if not key or key.endswith(("_FILE", "_PATH")):
+            continue
+        if any(
+            marker in key for marker in SENSITIVE_ENV_MARKERS
+        ) and not _config_value_is_safe(value):
+            findings.add(Finding("nonempty-sensitive-env-value", path, line_number))
+    return findings
+
+
+def _scan_yaml(path: str, data: bytes) -> set[Finding]:
+    findings: set[Finding] = set()
+    for line_number, line in enumerate(data.splitlines(), start=1):
+        stripped = line.strip()
+        if not stripped or stripped.startswith(b"#") or b":" not in stripped:
+            continue
+        key_raw, value = stripped.split(b":", 1)
+        key = key_raw.strip().strip(b"\"'").decode("ascii", "ignore").lower()
+        if key in SENSITIVE_YAML_KEYS and not _config_value_is_safe(value):
+            findings.add(Finding("nonempty-sensitive-yaml-value", path, line_number))
+    return findings
+
+
 def scan_blob(path: str, data: bytes) -> list[Finding]:
     findings: set[Finding] = set()
     if len(data) > MAX_SCANNED_BYTES:
@@ -134,6 +194,16 @@ def scan_blob(path: str, data: bytes) -> list[Finding]:
         for match in pattern.finditer(data):
             line = data.count(b"\n", 0, match.start()) + 1
             findings.add(Finding(rule, path, line))
+    pure_path = PurePosixPath(path)
+    lowered_name = pure_path.name.lower()
+    if (
+        lowered_name.startswith(".env")
+        or ".env." in lowered_name
+        or lowered_name.endswith(".env")
+    ):
+        findings.update(_scan_dotenv(path, data))
+    if pure_path.suffix.lower() in {".yaml", ".yml"}:
+        findings.update(_scan_yaml(path, data))
     return sorted(findings)
 
 

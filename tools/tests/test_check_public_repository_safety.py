@@ -67,3 +67,25 @@ class PublicRepositorySafetyTests(unittest.TestCase):
 
     def test_allows_documentation_network(self) -> None:
         self.assertEqual(MODULE.scan_blob("deployment.md", b"host=192.0.2.10\n"), [])
+
+    def test_rejects_nonempty_sensitive_config_values(self) -> None:
+        env_key = b"GH_MQTT_" + b"PASSWORD"
+        dotenv = env_key + b"=" + b"not-for-publication\n"
+        yaml = b"password" + b": " + b"not-for-publication\n"
+        self.assertEqual(
+            {item.rule for item in MODULE.scan_blob("service.env.example", dotenv)},
+            {"nonempty-sensitive-env-value"},
+        )
+        self.assertEqual(
+            {item.rule for item in MODULE.scan_blob("service.yaml", yaml)},
+            {"nonempty-sensitive-yaml-value"},
+        )
+
+    def test_allows_secret_references_and_password_file_paths(self) -> None:
+        env_key = b"GH_MQTT_" + b"PASSWORD"
+        dotenv = (
+            env_key + b"=${" + env_key + b"}\n" + env_key + b"_FILE=/run/secrets/mqtt\n"
+        )
+        yaml = b"password" + b": !secret wifi_" + b"password\n"
+        self.assertEqual(MODULE.scan_blob("service.env.example", dotenv), [])
+        self.assertEqual(MODULE.scan_blob("service.yaml", yaml), [])
