@@ -14,6 +14,10 @@ from greenhouse_manager.t1_manager_identity_migration_failure_diagnostics import
     TransactionStageRecorder,
     build_failure_diagnostic,
 )
+from greenhouse_manager.t1_manager_identity_migration_production_runtime_probe import (
+    ManagerProductionRuntimeProbeError,
+    ManagerRuntimeProbeFailureCode,
+)
 
 
 def _private_workspace(tmp_path: Path) -> Path:
