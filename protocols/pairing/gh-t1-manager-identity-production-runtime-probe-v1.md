@@ -69,12 +69,30 @@ GH_MQTT_PASSWORD is empty
 
 探针读取 `/proc/<manager-pid>/net/tcp` 和 `tcp6`，要求：
 
-- 存在连接到绑定 MQTT 端口的 `ESTABLISHED` socket；
-- 两次间隔采样中至少一个 socket inode 保持一致；
+- 在 `timeout_s` 有界窗口内等待连接到绑定 MQTT 端口的 `ESTABLISHED` socket 出现，首次采样为空不得立即失败；
+- 每次使用 `time.monotonic()` 计算剩余时间，并按 `poll_interval_s` 休眠，不得忙等或依赖固定 shell sleep；
+- socket 出现后，两次间隔采样中至少一个 socket inode 保持一致；
+- socket 出现后消失或 inode 改变时，只要尚未超时就继续轮询，直到新的会话稳定；
+- 错误远端端口、非 `ESTABLISHED` 状态或超时后才出现的 socket 不得通过；
 - `/proc` 路径必须由本次 `docker inspect` 的正整数 PID 构造；
 - 只读，不执行 namespace、shell、`docker exec` 或网络注入。
 
-认证环境、私有 password mount 和稳定 MQTT socket 三者共同作为 authenticated session 证据。
+认证环境、私有 password mount 和稳定 MQTT socket 三者共同作为 authenticated session 证据。超时仍必须 fail closed，并由既有事务执行标准回滚。
+
+### 5.1 脱敏失败枚举
+
+运行时探针异常必须携带固定 `failure_code`，普通输出只能使用下列枚举，不得复制异常自由文本、用户名、Client ID、密码或路径：
+
+- `runtime_ownership_binding_failed`
+- `authentication_environment_binding_failed`
+- `password_mount_binding_failed`
+- `password_source_safety_failed`
+- `docker_log_binding_failed`
+- `mqtt_socket_appearance_timed_out`
+- `mqtt_socket_never_stabilized`
+- `runtime_probe_failed`（未细分的保守兜底）
+
+环境、mount、secret owner 或日志绑定失败必须发生在 socket 验证之前；socket 失败不得覆盖更早、更具体的绑定错误。
 
 ## 6. Docker JSON log 绑定
 
