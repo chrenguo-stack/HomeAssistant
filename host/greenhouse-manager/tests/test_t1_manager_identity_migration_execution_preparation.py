@@ -108,6 +108,16 @@ def test_prepares_private_verified_fresh_rollback(
     assert rollback["anonymous_closure_enabled"] is False
     assert rollback["manager_runtime_uid"] == 999
     assert rollback["manager_runtime_gid"] == 999
+    directory_targets = [
+        Path(value) for value in rollback["created_directory_targets"]
+    ]
+    secret_root = Path(rollback["manager_secret_root"])
+    assert directory_targets
+    assert all(
+        target == secret_root or target.is_relative_to(secret_root)
+        for target in directory_targets
+    )
+    assert Path(rollback["compose_working_directory"]) not in directory_targets
     assert rollback["preclaim_authentication_environment_baseline"] == {
         "GH_MQTT_USERNAME": {"present": False, "nonempty": False},
         "GH_MQTT_PASSWORD": {"present": False, "nonempty": False},

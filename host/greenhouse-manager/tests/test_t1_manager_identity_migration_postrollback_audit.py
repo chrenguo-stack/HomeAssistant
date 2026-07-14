@@ -67,6 +67,22 @@ def test_missing_baseline_does_not_claim_manual_recovery() -> None:
     assert report["manual_review_required"] is True
 
 
+def test_missing_directory_baseline_requires_review_not_recovery() -> None:
+    observations = _observations()
+    observations["created_directory_targets_cleanup_complete"] = None
+
+    report = evaluate_manager_postrollback_audit(
+        preclaim_environment=_baseline(),
+        current_environment=_baseline(),
+        observations=observations,
+    )
+
+    assert report["rollback_audit_passed"] is False
+    assert report["directory_baseline_unavailable"] is True
+    assert report["manual_recovery_required"] is False
+    assert report["manual_review_required"] is True
+
+
 def test_empty_and_nonempty_environment_are_distinct() -> None:
     report = evaluate_manager_postrollback_audit(
         preclaim_environment=_baseline(present=True, nonempty=False),

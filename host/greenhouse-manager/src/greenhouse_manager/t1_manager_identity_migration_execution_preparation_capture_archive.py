@@ -28,6 +28,42 @@ def _tar_filter(info: tarfile.TarInfo) -> tarfile.TarInfo:
     return info
 
 
+def _created_directory_targets(runtime: Mapping[str, Any]) -> list[str]:
+    raw_root = runtime.get("target_secret_root")
+    raw_password = runtime.get("target_password_file")
+    if not isinstance(raw_root, str) or not isinstance(raw_password, str):
+        raise ManagerIdentityExecutionPreparationError(
+            "manager directory target binding is incomplete"
+        )
+    root = Path(raw_root).expanduser()
+    password = Path(raw_password).expanduser()
+    if (
+        not root.is_absolute()
+        or root.is_symlink()
+        or not password.is_absolute()
+        or password.is_symlink()
+    ):
+        raise ManagerIdentityExecutionPreparationError(
+            "manager directory target binding is unsafe"
+        )
+    root = root.resolve(strict=False)
+    password = password.resolve(strict=False)
+    if not password.is_relative_to(root):
+        raise ManagerIdentityExecutionPreparationError(
+            "manager password target escaped the secret root"
+        )
+    targets: list[str] = []
+    cursor = password.parent
+    while cursor != root.parent and not cursor.exists():
+        targets.append(str(cursor))
+        cursor = cursor.parent
+    if cursor.exists() and (cursor.is_symlink() or not cursor.is_dir()):
+        raise ManagerIdentityExecutionPreparationError(
+            "manager directory target ancestor is unsafe"
+        )
+    return targets
+
+
 def _create_rollback(
     archive_path: Path,
     manifest_path: Path,
@@ -74,6 +110,7 @@ def _create_rollback(
         "manager_secret_root": runtime["target_secret_root"],
         "manager_password_target": runtime["target_password_file"],
         "manager_password_target_absent": True,
+        "created_directory_targets": _created_directory_targets(runtime),
         "manager_runtime_uid": runtime["manager_runtime_uid"],
         "manager_runtime_gid": runtime["manager_runtime_gid"],
         "manager_runtime_user_source": runtime["manager_runtime_user_source"],
