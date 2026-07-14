@@ -133,6 +133,7 @@ def _fixture(
         "manager_only": True,
         "restart_scope": ["greenhouse-manager"],
         "forbidden_service_changes": ["mosquitto", "homeassistant", "node"],
+        "created_directory_targets": [str(secret_root / "manager")],
         "files": [config_item, env_item],
     }
     execution = tmp_path / "execution"
@@ -333,8 +334,11 @@ def test_manager_only_mutation_and_complete_rollback(
     assert paths["config"].read_bytes() == original_config
     assert paths["environment"].read_bytes() == original_environment
     assert not binding.password_target.exists()
+    assert not binding.password_target.parent.exists()
+    assert binding.secret_root.is_dir()
     assert not binding.auth_environment_target.exists()
     assert not binding.overlay_target.exists()
+    assert rollback["created_directory_targets_cleanup_complete"] is True
     assert driver.calls[-3:] == ["rollback_recreate", "legacy", "entities"]
 
 
