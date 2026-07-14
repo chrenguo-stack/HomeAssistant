@@ -34,7 +34,13 @@ def _directory(path: Path) -> Path:
     return path
 
 
-def _fixture(tmp_path: Path, *, duplicate_postactivation: bool = False) -> dict[str, Path]:
+def _fixture(
+    tmp_path: Path,
+    *,
+    duplicate_postactivation: bool = False,
+    extra_output_root: bool = False,
+    extra_bridge_adjacent_output_root: bool = False,
+) -> dict[str, Path]:
     search = _directory(tmp_path / "private-search")
     bridge = _directory(search / "bridges" / BRIDGE_NAME)
     _write(
@@ -57,6 +63,20 @@ def _fixture(tmp_path: Path, *, duplicate_postactivation: bool = False) -> dict[
         previous / "manifest.json",
         b'{"schema":"gh.m2.t1-manager-identity-migration-preparation/1"}\n',
     )
+    if extra_output_root:
+        archived_output = _directory(search / "archive" / "preparations")
+        archived = _directory(archived_output / "greenhouse-manager-migration-preparation-archived")
+        _write(
+            archived / "manifest.json",
+            b'{"schema":"gh.m2.t1-manager-identity-migration-preparation/1"}\n',
+        )
+    if extra_bridge_adjacent_output_root:
+        adjacent_output = _directory(search / "preparations-other")
+        adjacent = _directory(adjacent_output / "greenhouse-manager-migration-preparation-other")
+        _write(
+            adjacent / "manifest.json",
+            b'{"schema":"gh.m2.t1-manager-identity-migration-preparation/1"}\n',
+        )
     return {
         "search": search,
         "bridge": bridge,
@@ -127,6 +147,8 @@ def test_discovery_returns_only_redacted_unique_sources(tmp_path: Path) -> None:
     assert len(report["postactivation_candidates"]) == 1
     assert len(report["migration_stage_candidates"]) == 1
     assert report["output_root_candidate_count"] == 1
+    assert report["bridge_adjacent_output_root_candidate_count"] == 1
+    assert report["output_root_selection_rule"] == "unique_bridge_workspace_sibling"
     assert report["authorization_created"] is False
     assert report["current_services_modified"] is False
     assert report["preserve_anonymous"] is True
@@ -173,6 +195,30 @@ def test_duplicate_sources_are_reported_but_not_ready(tmp_path: Path) -> None:
     report = discover_fresh_chain_sources(paths["search"], **_common(paths))
 
     assert len(report["postactivation_candidates"]) == 2
+    assert report["ready_for_fresh_preparation"] is False
+
+
+def test_discovery_ignores_nonadjacent_archived_output_root_for_readiness(
+    tmp_path: Path,
+) -> None:
+    paths = _fixture(tmp_path, extra_output_root=True)
+
+    report = discover_fresh_chain_sources(paths["search"], **_common(paths))
+
+    assert report["output_root_candidate_count"] == 2
+    assert report["bridge_adjacent_output_root_candidate_count"] == 1
+    assert report["ready_for_fresh_preparation"] is True
+
+
+def test_discovery_fails_closed_for_multiple_bridge_adjacent_output_roots(
+    tmp_path: Path,
+) -> None:
+    paths = _fixture(tmp_path, extra_bridge_adjacent_output_root=True)
+
+    report = discover_fresh_chain_sources(paths["search"], **_common(paths))
+
+    assert report["output_root_candidate_count"] == 2
+    assert report["bridge_adjacent_output_root_candidate_count"] == 2
     assert report["ready_for_fresh_preparation"] is False
 
 
@@ -236,6 +282,79 @@ def test_preparation_binds_exact_sources_without_authorization(tmp_path: Path) -
     serialized = json.dumps(report)
     assert str(tmp_path) not in serialized
     assert TOPIC not in serialized
+
+
+def test_preparation_selects_unique_bridge_adjacent_output_root(tmp_path: Path) -> None:
+    paths = _fixture(tmp_path, extra_output_root=True)
+    selected: list[Path] = []
+
+    def prepare(
+        _postactivation: Path,
+        _stage: Path,
+        output: Path,
+        **_kwargs: object,
+    ) -> dict[str, object]:
+        selected.append(output)
+        return {
+            "prepared": True,
+            "preparation_name": "greenhouse-manager-migration-preparation-fresh",
+            "manifest_sha256": "b" * 64,
+            "read_only_live_services": True,
+            "current_services_modified": False,
+            "apply_enabled": False,
+            "operator_action_authorized": False,
+            "manager_identity_migrated": False,
+            "node_credentials_delivered": False,
+            "ready_for_manager_migration_authorization": True,
+            "ready_for_manager_migration_apply": False,
+            "preserve_anonymous": True,
+            "anonymous_closure_enabled": False,
+            "legacy_review_bridge_bound": True,
+            "future_baseline_waiver_enabled": False,
+            "secret_values_included": False,
+            "source_paths_included": False,
+        }
+
+    prepare_fresh_manager_identity_chain(
+        paths["search"],
+        preparation_builder=prepare,
+        **_common(paths),
+    )
+
+    assert selected == [paths["output"]]
+
+
+def test_explicit_output_root_must_be_a_verified_candidate(tmp_path: Path) -> None:
+    paths = _fixture(tmp_path)
+    unrelated = _directory(paths["search"] / "unrelated-private-directory")
+
+    with pytest.raises(
+        ManagerIdentityFreshChainPreparationError,
+        match="output_root_invalid",
+    ):
+        prepare_fresh_manager_identity_chain(
+            paths["search"],
+            output_root=unrelated,
+            preparation_builder=lambda *_args, **_kwargs: {},
+            **_common(paths),
+        )
+
+
+def test_explicit_output_root_rejects_symlink_alias(tmp_path: Path) -> None:
+    paths = _fixture(tmp_path)
+    alias = paths["search"] / "output-root-alias"
+    alias.symlink_to(paths["output"], target_is_directory=True)
+
+    with pytest.raises(
+        ManagerIdentityFreshChainPreparationError,
+        match="output_root_invalid",
+    ):
+        prepare_fresh_manager_identity_chain(
+            paths["search"],
+            output_root=alias,
+            preparation_builder=lambda *_args, **_kwargs: {},
+            **_common(paths),
+        )
 
 
 def test_preparation_requires_explicit_name_for_duplicate_source(tmp_path: Path) -> None:
