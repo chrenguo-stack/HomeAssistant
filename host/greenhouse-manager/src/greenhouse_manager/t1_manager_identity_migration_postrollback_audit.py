@@ -51,6 +51,22 @@ class ManagerPostrollbackAuditError(RuntimeError):
     pass
 
 
+class CommandRunner(Protocol):
+    def run(self, command: Sequence[str]) -> tuple[int, str]: ...
+
+
+class SubprocessRunner:
+    def run(self, command: Sequence[str]) -> tuple[int, str]:
+        completed = subprocess.run(
+            tuple(command),
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        output = completed.stdout if completed.stdout else completed.stderr
+        return completed.returncode, output
+
+
 def redacted_authentication_environment_state(
     environment: Mapping[str, str],
 ) -> dict[str, dict[str, bool]]:
