@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "greenhouse-manager"
-version = "0.4.70"
+version = "0.4.71"
 description = "Canonical MQTT state manager for the greenhouse monitoring system"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -37,6 +37,7 @@ greenhouse-manager-t1-homeassistant-mqtt-reconfigure-handoff = "greenhouse_manag
 greenhouse-manager-t1-homeassistant-mqtt-legacy-evidence-bridge = "greenhouse_manager.t1_homeassistant_mqtt_legacy_evidence_bridge:main"
 greenhouse-manager-t1-homeassistant-mqtt-postactivation-handoff = "greenhouse_manager.t1_homeassistant_mqtt_postactivation_handoff:main"
 greenhouse-manager-t1-manager-identity-migration-preparation = "greenhouse_manager.t1_manager_identity_migration_preparation:main"
+greenhouse-manager-t1-manager-identity-fresh-chain-preparation = "greenhouse_manager.t1_manager_identity_fresh_chain_preparation:main"
 greenhouse-manager-t1-manager-identity-migration-authorization = "greenhouse_manager.t1_manager_identity_migration_authorization:main"
 greenhouse-manager-t1-manager-identity-host-replica-plan = "greenhouse_manager.t1_manager_identity_migration_host_replica_adapters:main"
 greenhouse-manager-t1-manager-identity-production-transaction-adapter-contract = "greenhouse_manager.t1_manager_identity_migration_production_transaction_adapter_contract:main"
