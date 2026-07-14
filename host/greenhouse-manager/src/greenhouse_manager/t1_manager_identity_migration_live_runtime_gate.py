@@ -9,6 +9,9 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from .t1_manager_identity_migration_postrollback_audit import (
+    redacted_authentication_environment_state,
+)
 from .t1_manager_identity_migration_production_driver_contract import (
     ManagerIdentityProductionDriverContractError,
     verify_manager_production_driver_contract,
@@ -139,6 +142,9 @@ def _normalized_runtime(
             "greenhouse-manager must be running with restart count zero"
         )
     environment = _environment(config)
+    authentication_environment_baseline = redacted_authentication_environment_state(
+        environment
+    )
     labels = config.get("Labels")
     if not isinstance(labels, dict):
         raise ManagerIdentityLiveRuntimeGateError(
@@ -178,9 +184,18 @@ def _normalized_runtime(
             if environment.get("GH_MQTT_CLIENT_ID")
             else None
         ),
-        "mqtt_username_present": False,
-        "mqtt_password_present": False,
-        "mqtt_password_file_present": False,
+        "mqtt_username_present": authentication_environment_baseline[
+            "GH_MQTT_USERNAME"
+        ]["nonempty"],
+        "mqtt_password_present": authentication_environment_baseline[
+            "GH_MQTT_PASSWORD"
+        ]["nonempty"],
+        "mqtt_password_file_present": authentication_environment_baseline[
+            "GH_MQTT_PASSWORD_FILE"
+        ]["nonempty"],
+        "mqtt_authentication_environment_baseline": (
+            authentication_environment_baseline
+        ),
         **ownership,
     }
     if not all(runtime[field] for field in ("container_id", "image_id", "image_ref")):
