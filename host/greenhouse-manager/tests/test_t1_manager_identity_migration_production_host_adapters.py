@@ -342,6 +342,44 @@ def test_manager_only_mutation_and_complete_rollback(
     assert driver.calls[-3:] == ["rollback_recreate", "legacy", "entities"]
 
 
+def test_mutation_provisions_and_rolls_back_missing_secret_anchor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    adapters, binding, _paths, _driver = _adapters(tmp_path, monkeypatch)
+    adapters.prepare()
+    provisioning_anchor = tmp_path / "provisioned-secret-anchor"
+    secret_root = provisioning_anchor / "mqtt"
+    password_target = secret_root / "manager/password"
+    created_targets = [password_target.parent, secret_root, provisioning_anchor]
+    assert module._missing_directory_targets(secret_root, password_target) == [
+        str(path) for path in created_targets
+    ]
+    adapters.binding = replace(
+        binding,
+        secret_root=secret_root,
+        password_target=password_target,
+    )
+    assert adapters.rollback is not None
+    adapters.rollback = {
+        **adapters.rollback,
+        "created_directory_targets": [str(path) for path in created_targets],
+    }
+
+    mutation = adapters.mutation_executor()
+
+    assert mutation["greenhouse_manager_recreated"] is True
+    assert password_target.is_file()
+    assert all(path.is_dir() for path in created_targets)
+    assert all(path.stat().st_mode & 0o777 == 0o700 for path in created_targets)
+
+    rollback = adapters.rollback_executor()
+
+    assert rollback["rollback_completed"] is True
+    assert not provisioning_anchor.exists()
+    assert tmp_path.is_dir()
+
+
 def test_mutation_passes_bound_runtime_owner_to_atomic_password_write(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
