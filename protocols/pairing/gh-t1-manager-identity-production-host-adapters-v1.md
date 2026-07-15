@@ -25,11 +25,12 @@
 
 ## 3. 写入能力边界
 
-仅允许三类写入：
+仅允许以下四类写入：
 
 1. manager password target；
 2. Compose working directory 下的 `manager-auth.env`；
 3. Compose working directory下的 `docker-compose.manager-auth.yml`。
+4. fresh rollback 精确绑定、且仅位于 manager secret provisioning anchor 下的缺失私有目录链。
 
 写入必须采用：
 
@@ -40,8 +41,12 @@
 - 父目录 `fsync`；
 - 路径必须处于已绑定 root 内；
 - 目标或现存祖先不得为符号链接。
+- 目录 provisioning 的 trusted parent 必须预先存在且不是符号链接；新建目录必须逐级创建为
+  mode `0700`，每级执行 parent `fsync`，并由 fresh rollback 记录精确的逆序清理清单；
+- password 原子写入必须在标准 host adapter 内触发该目录 provisioning，生产包装器不得依赖
+  外置或可遗漏的目录创建步骤。
 
-不得创建、覆盖或删除上述三类目标以外的认证状态。
+不得创建、覆盖或删除上述四类目标以外的认证状态。
 
 ## 4. Docker 命令白名单
 
@@ -87,6 +92,7 @@ rollback 必须：
 
 - 原子恢复全部 Compose config 和可选 `.env`；
 - 删除 manager auth overlay、auth environment 和 password target；
+- 仅按 fresh rollback 清单由深到浅删除本事务创建的私有目录；已有目录不得删除；
 - 只重建 `greenhouse-manager`；
 - 验证旧匿名路径和原有 Home Assistant 实体；
 - 对恢复后的 mode 与 SHA-256 逐项复核；
