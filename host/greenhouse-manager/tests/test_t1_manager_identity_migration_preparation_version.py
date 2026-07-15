@@ -8,4 +8,4 @@ def test_manager_package_version_includes_fresh_chain_preparation() -> None:
     root = Path(__file__).resolve().parents[1]
     with (root / "pyproject.toml").open("rb") as stream:
         document = tomllib.load(stream)
-    assert document["project"]["version"] == "0.4.74"
+    assert document["project"]["version"] == "0.4.75"

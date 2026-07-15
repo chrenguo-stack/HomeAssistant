@@ -156,6 +156,17 @@ committed
 
 `rollback_failed` 必须包含 `terminal=true`，且不得继续执行或自动重试。
 
+`rollback_started`、`rollback_completed` 与 `rollback_failed` 必须保留首次主失败的脱敏粗粒度诊断：
+
+- `failed_phase` 只能取固定 allowlist 值，不得写入自由文本；
+- `failure_exception_class` 只能写入经过格式和长度校验的异常类名；
+- `rollback_failed` 还必须以同样规则记录 `rollback_exception_class`；
+- `rollback_completed` 必须包含 `rollback_verified=true`；
+- 不得写入异常 message、traceback、凭据、主机路径或容器标识。
+
+上述 journal 字段用于事务终态审计和 legacy fallback；6q 的独立细粒度
+`failure-diagnostic.json` 与 `rollback-failure-diagnostic.json` 仍是定位 driver 子阶段的首选证据，且不得被 journal 覆盖。
+
 ## 8. 验收矩阵
 
 进入真实 execute CLI 前必须覆盖：

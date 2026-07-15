@@ -45,6 +45,7 @@ class ManagerRuntimeProbeConfiguration:
     discovery_topic: str
     mqtt_port: int = 1883
     timeout_s: float = 35.0
+    telemetry_timeout_s: float = 90.0
     poll_interval_s: float = 1.0
 
 
@@ -117,6 +118,7 @@ def build_manager_production_adapters_factory(
             proc_root=proc_root,
             mqtt_port=configuration.mqtt_port,
             timeout_s=configuration.timeout_s,
+            telemetry_timeout_s=configuration.telemetry_timeout_s,
             poll_interval_s=configuration.poll_interval_s,
         )
         baseline = probe.capture_baseline()

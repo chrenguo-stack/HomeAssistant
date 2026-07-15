@@ -424,6 +424,26 @@ def _journal(
     _atomic_private_write(path, document)
 
 
+def _failure_details(error: Exception, *, phase: str) -> dict[str, object]:
+    allowed_phases = {
+        "authorization_claim",
+        "authorization_consume",
+        "mutation_execution",
+        "mutation_validation",
+        "postactivation_execution",
+        "postactivation_validation",
+    }
+    if phase not in allowed_phases:
+        phase = "unknown"
+    exception_class = type(error).__name__
+    if not exception_class.isidentifier() or len(exception_class) > 128:
+        exception_class = "Exception"
+    return {
+        "failed_phase": phase,
+        "failure_exception_class": exception_class,
+    }
+
+
 def _disabled_adapters_factory(
     *_args: object,
     **_kwargs: object,
@@ -575,6 +595,8 @@ def execute_manager_identity_production_migration(
     postactivation: dict[str, object] | None = None
     rollback: dict[str, object] | None = None
     failure: Exception | None = None
+    failure_phase = "authorization_claim"
+    failure_details: dict[str, object] = {}
     rollback_failure: Exception | None = None
     try:
         claim, authorization_document = _claim_authorization(
@@ -582,6 +604,7 @@ def execute_manager_identity_production_migration(
             expected_authorization_id=str(request["authorization_id"]),
         )
         claim_succeeded = True
+        failure_phase = "authorization_consume"
         _mark_consumed(
             claim,
             authorization_document,
@@ -590,30 +613,57 @@ def execute_manager_identity_production_migration(
         )
         _journal(journal_path, journal, phase="authorization_claimed", now=now)
 
+        failure_phase = "mutation_execution"
         _journal(journal_path, journal, phase="mutation_started", now=now)
         mutation = adapters.mutation_executor()
+        failure_phase = "mutation_validation"
         _validate_mutation(mutation)
         _journal(journal_path, journal, phase="mutation_completed", now=now)
 
+        failure_phase = "postactivation_execution"
         postactivation = adapters.postactivation_auditor()
+        failure_phase = "postactivation_validation"
         _validate_postactivation(postactivation)
         _journal(journal_path, journal, phase="postactivation_verified", now=now)
     except Exception as error:
         failure = error
+        failure_details = _failure_details(error, phase=failure_phase)
         if claim_succeeded:
             try:
-                _journal(journal_path, journal, phase="rollback_started", now=now)
+                _journal(
+                    journal_path,
+                    journal,
+                    phase="rollback_started",
+                    now=now,
+                    details=failure_details,
+                )
                 rollback = adapters.rollback_executor()
                 _validate_rollback(rollback)
-                _journal(journal_path, journal, phase="rollback_completed", now=now)
+                _journal(
+                    journal_path,
+                    journal,
+                    phase="rollback_completed",
+                    now=now,
+                    details={**failure_details, "rollback_verified": True},
+                )
             except Exception as error_after_rollback:
                 rollback_failure = error_after_rollback
+                rollback_exception_class = type(error_after_rollback).__name__
+                if (
+                    not rollback_exception_class.isidentifier()
+                    or len(rollback_exception_class) > 128
+                ):
+                    rollback_exception_class = "Exception"
                 _journal(
                     journal_path,
                     journal,
                     phase="rollback_failed",
                     now=now,
-                    details={"terminal": True},
+                    details={
+                        **failure_details,
+                        "rollback_exception_class": rollback_exception_class,
+                        "terminal": True,
+                    },
                 )
 
     if rollback_failure is not None:

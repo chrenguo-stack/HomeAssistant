@@ -318,9 +318,68 @@ def test_post_claim_failure_forces_verified_rollback(
         / "transaction-manager_transaction_token_123456"
         / "journal.json"
     )
-    assert json.loads(journal.read_text(encoding="utf-8"))["phase"] == (
-        "rollback_completed"
+    document = json.loads(journal.read_text(encoding="utf-8"))
+    assert document["phase"] == "rollback_completed"
+    expected_phase = (
+        "mutation_execution"
+        if failure == "mutation"
+        else "postactivation_execution"
     )
+    assert document["details"] == {
+        "failed_phase": expected_phase,
+        "failure_exception_class": "RuntimeError",
+        "rollback_verified": True,
+    }
+    serialized = json.dumps(document)
+    assert "injected mutation failure" not in serialized
+    assert "injected audit failure" not in serialized
+
+
+@pytest.mark.parametrize(
+    ("invalid_report", "expected_phase"),
+    [
+        ("mutation", "mutation_validation"),
+        ("postactivation", "postactivation_validation"),
+    ],
+)
+def test_invalid_adapter_report_records_validation_phase(
+    tmp_path: Path,
+    invalid_report: str,
+    expected_phase: str,
+) -> None:
+    fixture = _fixture(tmp_path)
+
+    class InvalidReportAdapters(FakeAdapters):
+        def mutation_executor(self) -> dict[str, object]:
+            report = super().mutation_executor()
+            if invalid_report == "mutation":
+                report["manager_material_installed"] = False
+            return report
+
+        def postactivation_auditor(self) -> dict[str, object]:
+            report = super().postactivation_auditor()
+            if invalid_report == "postactivation":
+                report["manager_authenticated"] = False
+            return report
+
+    with pytest.raises(
+        ManagerIdentityProductionOrchestratorError,
+        match="verified rollback completed",
+    ):
+        _execute(fixture, InvalidReportAdapters())
+
+    journal = (
+        fixture["transaction_root"]
+        / "transaction-manager_transaction_token_123456"
+        / "journal.json"
+    )
+    document = json.loads(journal.read_text(encoding="utf-8"))
+    assert document["phase"] == "rollback_completed"
+    assert document["details"] == {
+        "failed_phase": expected_phase,
+        "failure_exception_class": "ManagerIdentityProductionOrchestratorError",
+        "rollback_verified": True,
+    }
 
 
 def test_rollback_failure_is_terminal(tmp_path: Path) -> None:
@@ -348,7 +407,12 @@ def test_rollback_failure_is_terminal(tmp_path: Path) -> None:
     )
     document = json.loads(journal.read_text(encoding="utf-8"))
     assert document["phase"] == "rollback_failed"
-    assert document["details"] == {"terminal": True}
+    assert document["details"] == {
+        "failed_phase": "mutation_execution",
+        "failure_exception_class": "RuntimeError",
+        "rollback_exception_class": "RuntimeError",
+        "terminal": True,
+    }
 
 
 def test_claimed_authorization_cannot_be_replayed(tmp_path: Path) -> None:

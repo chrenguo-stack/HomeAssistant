@@ -264,6 +264,7 @@ def _probe(
         reader_factory=lambda: reader,
         proc_root=proc_root,
         timeout_s=0.1,
+        telemetry_timeout_s=0.1,
         poll_interval_s=0.01,
         sleeper=lambda _seconds: None,
     )
@@ -290,6 +291,51 @@ def test_passive_runtime_probe_verifies_full_manager_path(tmp_path: Path) -> Non
     assert all(audit["checks"].values())
     assert set(runner.commands) == {("docker", "inspect", "greenhouse-manager")}
     assert DISCOVERY_TOPIC in reader.topics
+
+
+def test_canonical_probe_uses_dedicated_passive_telemetry_window(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    probe, _reader, _runner, _log_path = _probe(tmp_path)
+    probe.timeout_s = 0.02
+    probe.telemetry_timeout_s = 0.04
+    clock = FakeClock()
+    probe.monotonic = clock.monotonic
+    probe.sleeper = clock.sleep
+
+    expected = f"Accepted telemetry node={NODE_ID} key=('boot', 2)"
+    monkeypatch.setattr(
+        probe,
+        "_log_messages",
+        lambda *_args: (expected,) if clock.now >= 0.03 else (),
+    )
+
+    probe.verify_canonical_publication()
+
+    assert clock.now == pytest.approx(0.03)
+
+
+def test_canonical_probe_reports_passive_telemetry_timeout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    probe, reader, _runner, _log_path = _probe(tmp_path)
+    probe.timeout_s = 0.02
+    probe.telemetry_timeout_s = 0.04
+    clock = FakeClock()
+    probe.monotonic = clock.monotonic
+    probe.sleeper = clock.sleep
+    monkeypatch.setattr(probe, "_log_messages", lambda *_args: ())
+
+    with pytest.raises(ManagerProductionRuntimeProbeError) as raised:
+        probe.verify_canonical_publication()
+
+    assert raised.value.failure_code == (
+        ManagerRuntimeProbeFailureCode.PASSIVE_TELEMETRY_TIMED_OUT
+    ).value
+    assert reader.topics == []
+    assert clock.now == pytest.approx(0.04)
 
 
 def test_runtime_probe_waits_for_socket_to_appear_and_stabilize(
