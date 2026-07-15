@@ -48,6 +48,7 @@ def main(argv: list[str] | None = None) -> int:
             enable_production_execution=args.enable_production_execution,
             mqtt_port=args.mqtt_port,
             timeout_s=args.timeout_seconds,
+            telemetry_timeout_s=args.telemetry_timeout_seconds,
             poll_interval_s=args.poll_interval_seconds,
             reader_factory=lambda: stdlib_mqtt.StdlibAnonymousRetainedReader(
                 port=args.mqtt_port,

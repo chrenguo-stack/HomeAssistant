@@ -42,6 +42,7 @@ class ManagerRuntimeProbeFailureCode(StrEnum):
     DOCKER_LOG_BINDING_FAILED = "docker_log_binding_failed"
     MQTT_SOCKET_APPEARANCE_TIMED_OUT = "mqtt_socket_appearance_timed_out"
     MQTT_SOCKET_NEVER_STABILIZED = "mqtt_socket_never_stabilized"
+    PASSIVE_TELEMETRY_TIMED_OUT = "passive_telemetry_timed_out"
 
 
 class ManagerProductionRuntimeProbeError(RuntimeError):
@@ -264,6 +265,7 @@ class ManagerProductionRuntimeProbe:
         proc_root: str | Path = "/proc",
         mqtt_port: int = 1883,
         timeout_s: float = 35.0,
+        telemetry_timeout_s: float = 90.0,
         poll_interval_s: float = 1.0,
         sleeper: Sleeper = time.sleep,
         monotonic: Clock = time.monotonic,
@@ -276,7 +278,12 @@ class ManagerProductionRuntimeProbe:
             or "#" in discovery_topic
         ):
             raise ValueError("runtime probe Discovery topic is invalid")
-        if not 1 <= mqtt_port <= 65535 or timeout_s <= 0 or poll_interval_s <= 0:
+        if (
+            not 1 <= mqtt_port <= 65535
+            or timeout_s <= 0
+            or telemetry_timeout_s < timeout_s
+            or poll_interval_s <= 0
+        ):
             raise ValueError("runtime probe timing or port is invalid")
         self.binding = binding
         self.system_id = system_id
@@ -289,6 +296,7 @@ class ManagerProductionRuntimeProbe:
         self.proc_root = Path(proc_root)
         self.mqtt_port = mqtt_port
         self.timeout_s = timeout_s
+        self.telemetry_timeout_s = telemetry_timeout_s
         self.poll_interval_s = poll_interval_s
         self.sleeper = sleeper
         self.monotonic = monotonic
@@ -576,18 +584,29 @@ class ManagerProductionRuntimeProbe:
                 messages.append(message.strip())
         return tuple(messages)
 
-    def _wait_for_log(self, expected: str) -> None:
-        deadline = time.monotonic() + self.timeout_s
+    def _wait_for_log(
+        self,
+        expected: str,
+        *,
+        timeout_s: float | None = None,
+        failure_code: ManagerRuntimeProbeFailureCode = (
+            ManagerRuntimeProbeFailureCode.RUNTIME_PROBE_FAILED
+        ),
+    ) -> None:
+        wait_timeout_s = timeout_s if timeout_s is not None else self.timeout_s
+        deadline = self.monotonic() + wait_timeout_s
         while True:
             document = self._inspect()
             _pid, started_at, log_path = self._validate_identity_binding(document)
             if any(expected in message for message in self._log_messages(log_path, started_at)):
                 return
-            if time.monotonic() >= deadline:
+            if self.monotonic() >= deadline:
                 raise ManagerProductionRuntimeProbeError(
-                    "greenhouse-manager expected runtime log evidence timed out"
+                    "greenhouse-manager expected runtime log evidence timed out",
+                    failure_code=failure_code,
                 )
-            self.sleeper(self.poll_interval_s)
+            remaining = deadline - self.monotonic()
+            self.sleeper(min(self.poll_interval_s, remaining))
 
     def verify_authenticated_identity(self, username: str, client_id: str) -> None:
         if username != self.binding.username or client_id != self.binding.client_id:
@@ -604,7 +623,13 @@ class ManagerProductionRuntimeProbe:
         self._checks["ingress_subscription_verified"] = True
 
     def verify_canonical_publication(self) -> None:
-        self._wait_for_log(f"Accepted telemetry node={self.node_id} ")
+        self._wait_for_log(
+            f"Accepted telemetry node={self.node_id} ",
+            timeout_s=self.telemetry_timeout_s,
+            failure_code=(
+                ManagerRuntimeProbeFailureCode.PASSIVE_TELEMETRY_TIMED_OUT
+            ),
+        )
         document = _read_json_payload(
             self.reader_factory().read(self.canonical_topic),
             "canonical telemetry",

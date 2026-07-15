@@ -21,6 +21,8 @@
 - manager production host binding；
 - 6m 已绑定的 manager username、Client ID、password source 和容器内 password target；
 - MQTT 端口，研发 T1 当前为 1883；
+- MQTT socket/即时启动日志等待窗口 `timeout_s`，研发 T1 当前为 35 秒；
+- 被动等待真实节点下一轮遥测的独立窗口 `telemetry_timeout_s`，研发 T1 当前为 90 秒；
 - 只读 retained reader；
 - 只允许执行 `docker inspect greenhouse-manager` 的 command runner。
 
@@ -90,6 +92,7 @@ GH_MQTT_PASSWORD is empty
 - `docker_log_binding_failed`
 - `mqtt_socket_appearance_timed_out`
 - `mqtt_socket_never_stabilized`
+- `passive_telemetry_timed_out`
 - `runtime_probe_failed`（未细分的保守兜底）
 
 环境、mount、secret owner 或日志绑定失败必须发生在 socket 验证之前；socket 失败不得覆盖更早、更具体的绑定错误。
@@ -117,6 +120,11 @@ Published Home Assistant discovery node=<node_id> topic=<exact-topic>
 ```
 
 无法在超时窗口内被动观察到真实节点下一轮遥测时必须 fail closed，不得发布合成遥测代替。
+
+socket/启动日志窗口与被动遥测窗口必须分离。研发 T1 的 N1 固件遥测周期为 60 秒，
+因此 `telemetry_timeout_s` 必须至少覆盖一个完整上报周期及调度余量，当前固定为 90 秒；
+不得沿用 35 秒 socket 窗口等待 60 秒周期遥测。所有等待必须使用同一可注入的 monotonic clock，
+并按剩余时间截断 sleep，禁止忙等。
 
 ## 7. 业务验证
 

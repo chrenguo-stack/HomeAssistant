@@ -275,6 +275,7 @@ def execute_manager_identity_production_packet(
     enable_production_execution: bool = False,
     mqtt_port: int = 1883,
     timeout_s: float = 35.0,
+    telemetry_timeout_s: float = 90.0,
     poll_interval_s: float = 1.0,
     proc_root: str | Path = "/proc",
     runner: CommandRunner | None = None,
@@ -309,6 +310,7 @@ def execute_manager_identity_production_packet(
             discovery_topic=discovery_topic,
             mqtt_port=mqtt_port,
             timeout_s=timeout_s,
+            telemetry_timeout_s=telemetry_timeout_s,
             poll_interval_s=poll_interval_s,
         ),
         reader_factory=reader_factory,
@@ -411,6 +413,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--target", required=True)
     parser.add_argument("--mqtt-port", type=int, default=1883)
     parser.add_argument("--timeout-seconds", type=float, default=35.0)
+    parser.add_argument("--telemetry-timeout-seconds", type=float, default=90.0)
     parser.add_argument("--poll-interval-seconds", type=float, default=1.0)
     parser.add_argument("--execute-manager-migration", action="store_true")
     parser.add_argument("--enable-production-execution", action="store_true")
@@ -435,6 +438,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             enable_production_execution=args.enable_production_execution,
             mqtt_port=args.mqtt_port,
             timeout_s=args.timeout_seconds,
+            telemetry_timeout_s=args.telemetry_timeout_seconds,
             poll_interval_s=args.poll_interval_seconds,
         )
     except (

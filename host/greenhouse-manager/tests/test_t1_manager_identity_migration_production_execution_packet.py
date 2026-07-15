@@ -125,6 +125,8 @@ def _execute(
     execute_enabled: bool = True,
     production_enabled: bool = True,
     confirmation: str = CONFIRMATION,
+    timeout_s: float = 35.0,
+    telemetry_timeout_s: float = 90.0,
     orchestrator: Any = None,
 ) -> dict[str, object]:
     active_orchestrator = orchestrator or (lambda *_args, **_kwargs: _transaction())
@@ -141,6 +143,8 @@ def _execute(
         target=target,
         execute_manager_migration=execute_enabled,
         enable_production_execution=production_enabled,
+        timeout_s=timeout_s,
+        telemetry_timeout_s=telemetry_timeout_s,
         runner=runner,
         orchestrator=active_orchestrator,
     )
@@ -217,6 +221,32 @@ def test_success_changes_only_manager_container_identity(tmp_path: Path) -> None
     assert "a" * 64 not in encoded
     assert "d" * 64 not in encoded
     assert "sha256:" not in encoded
+
+
+def test_packet_keeps_connection_and_passive_telemetry_timeouts_separate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = SequenceInspectRunner([_baseline(), _after()])
+    captured: dict[str, object] = {}
+
+    def fake_builder(configuration: object, **_kwargs: object) -> object:
+        captured["configuration"] = configuration
+        return object()
+
+    monkeypatch.setattr(module, "build_manager_production_adapters_factory", fake_builder)
+
+    _execute(
+        tmp_path,
+        runner,
+        timeout_s=35.0,
+        telemetry_timeout_s=90.0,
+    )
+
+    configuration = captured["configuration"]
+    assert isinstance(configuration, module.ManagerRuntimeProbeConfiguration)
+    assert configuration.timeout_s == 35.0
+    assert configuration.telemetry_timeout_s == 90.0
 
 
 def test_protected_service_drift_rejects_success(tmp_path: Path) -> None:
@@ -374,6 +404,8 @@ def test_cli_emits_path_redacted_json(
     assert captured["target"] == MANAGER
     assert captured["execute_manager_migration"] is True
     assert captured["enable_production_execution"] is True
+    assert captured["timeout_s"] == 35.0
+    assert captured["telemetry_timeout_s"] == 90.0
     assert "password" not in output.lower()
     assert "client_id" not in output.lower()
     assert "/private/" not in output
