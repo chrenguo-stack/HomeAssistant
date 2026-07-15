@@ -20,6 +20,7 @@ REPOSITORY_SHA = "f" * 64
 MANAGER_VERSION = "0.4.71"
 BRIDGE_NAME = "greenhouse-manager-legacy-review-bridge-20260714T162130Z-a874f12a"
 BRIDGE_SHA = "a" * 64
+EXECUTION_NAME = "greenhouse-manager-execution-preparation-20260714T160000Z-retired"
 
 
 def _write(path: Path, value: bytes = b"{}\n") -> None:
@@ -39,13 +40,61 @@ def _fixture(
     *,
     duplicate_postactivation: bool = False,
     extra_output_root: bool = False,
-    extra_bridge_adjacent_output_root: bool = False,
+    duplicate_bound_preparation: bool = False,
+    duplicate_rollback_pair: bool = False,
 ) -> dict[str, Path]:
     search = _directory(tmp_path / "private-search")
-    bridge = _directory(search / "bridges" / BRIDGE_NAME)
+
+    output = _directory(search / "preparations")
+    previous = _directory(output / "greenhouse-manager-migration-preparation-old")
+    preparation_document = {
+        "schema": "gh.m2.t1-manager-identity-migration-preparation/1",
+        "created_at": "2026-07-14T15:00:00Z",
+    }
+    preparation_bytes = (
+        json.dumps(preparation_document, sort_keys=True, separators=(",", ":")) + "\n"
+    ).encode()
+    _write(previous / "manifest.json", preparation_bytes)
+    preparation_sha = hashlib.sha256(preparation_bytes).hexdigest()
+
+    execution = _directory(search / "retired-executions" / EXECUTION_NAME)
+    rollback_document = {
+        "schema": "gh.m2.t1-manager-identity-fresh-rollback/1",
+        "manager_only": True,
+        "restart_scope": ["greenhouse-manager"],
+        "forbidden_service_changes": ["mosquitto", "homeassistant", "node"],
+        "current_services_modified": False,
+        "preserve_anonymous": True,
+        "anonymous_closure_enabled": False,
+        "preparation_manifest_sha256": preparation_sha,
+    }
+    rollback_bytes = (
+        json.dumps(rollback_document, sort_keys=True, separators=(",", ":")) + "\n"
+    ).encode()
+    rollback_manifest = execution / "fresh-rollback-manifest.json"
+    rollback_archive = execution / "fresh-manager-rollback.tar.gz"
+    _write(rollback_manifest, rollback_bytes)
+    _write(rollback_archive, b"test-archive\n")
+    if duplicate_rollback_pair:
+        duplicate_execution = _directory(
+            search
+            / "retired-executions-copy"
+            / "greenhouse-manager-execution-preparation-20260714T160000Z-copy"
+        )
+        _write(duplicate_execution / "fresh-rollback-manifest.json", rollback_bytes)
+        _write(duplicate_execution / "fresh-manager-rollback.tar.gz", b"test-archive\n")
+
+    bridge = _directory(search / "operator-decisions" / BRIDGE_NAME)
+    bridge_document = {
+        "created_at": "2026-07-14T17:00:00Z",
+        "bindings": {
+            "fresh_rollback_manifest_sha256": hashlib.sha256(rollback_bytes).hexdigest(),
+            "fresh_rollback_archive_sha256": hashlib.sha256(b"test-archive\n").hexdigest(),
+        },
+    }
     _write(
         bridge / "manifest.json",
-        b'{"created_at":"2026-07-14T17:00:00Z"}\n',
+        (json.dumps(bridge_document, sort_keys=True, separators=(",", ":")) + "\n").encode(),
     )
 
     postactivation = _directory(search / "handoffs" / "greenhouse-ha-postactivation-handoff-current")
@@ -57,29 +106,29 @@ def _fixture(
     stage = _directory(search / "stages" / "greenhouse-t1-auth-stage-current")
     _write(stage / "stage-manifest.json", b"stage\n")
 
-    output = _directory(search / "preparations")
-    previous = _directory(output / "greenhouse-manager-migration-preparation-old")
-    _write(
-        previous / "manifest.json",
-        b'{"schema":"gh.m2.t1-manager-identity-migration-preparation/1"}\n',
-    )
     if extra_output_root:
         archived_output = _directory(search / "archive" / "preparations")
         archived = _directory(archived_output / "greenhouse-manager-migration-preparation-archived")
         _write(
             archived / "manifest.json",
-            b'{"schema":"gh.m2.t1-manager-identity-migration-preparation/1"}\n',
+            (
+                b'{"created_at":"2026-07-13T00:00:00Z","schema":'
+                b'"gh.m2.t1-manager-identity-migration-preparation/1"}\n'
+            ),
         )
-    if extra_bridge_adjacent_output_root:
-        adjacent_output = _directory(search / "preparations-other")
-        adjacent = _directory(adjacent_output / "greenhouse-manager-migration-preparation-other")
+    if duplicate_bound_preparation:
+        duplicate_output = _directory(search / "duplicate" / "preparations")
+        duplicate = _directory(
+            duplicate_output / "greenhouse-manager-migration-preparation-duplicate"
+        )
         _write(
-            adjacent / "manifest.json",
-            b'{"schema":"gh.m2.t1-manager-identity-migration-preparation/1"}\n',
+            duplicate / "manifest.json",
+            preparation_bytes,
         )
     return {
         "search": search,
         "bridge": bridge,
+        "execution": execution,
         "postactivation": postactivation,
         "stage": stage,
         "output": output,
@@ -121,6 +170,20 @@ def _stage_validator(path: Path) -> dict[str, Any]:
     }
 
 
+def _preparation_validator(path: Path) -> dict[str, Any]:
+    manifest_path = path / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    return {
+        "manifest": manifest,
+        "manifest_path": manifest_path,
+        "manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+    }
+
+
+def _rollback_archive_validator(path: Path) -> dict[str, Any]:
+    return json.loads((path.parent / "fresh-rollback-manifest.json").read_text(encoding="utf-8"))
+
+
 def _common(paths: dict[str, Path]) -> dict[str, object]:
     return {
         "expected_repository_sha": REPOSITORY_SHA,
@@ -134,6 +197,8 @@ def _common(paths: dict[str, Path]) -> dict[str, object]:
         "bridge_validator": _bridge_validator,
         "postactivation_validator": _postactivation_validator,
         "stage_validator": _stage_validator,
+        "preparation_validator": _preparation_validator,
+        "rollback_archive_validator": _rollback_archive_validator,
     }
 
 
@@ -147,8 +212,16 @@ def test_discovery_returns_only_redacted_unique_sources(tmp_path: Path) -> None:
     assert len(report["postactivation_candidates"]) == 1
     assert len(report["migration_stage_candidates"]) == 1
     assert report["output_root_candidate_count"] == 1
-    assert report["bridge_adjacent_output_root_candidate_count"] == 1
-    assert report["output_root_selection_rule"] == "unique_bridge_workspace_sibling"
+    assert report["bridge_bound_rollback_pair_location_count"] == 1
+    assert report["bridge_bound_rollback_content_identity_count"] == 1
+    assert report["bridge_bound_rollback_archive_verified"] is True
+    assert report["bridge_bound_preparation_candidate_count"] == 1
+    assert report["bridge_bound_output_root_candidate_count"] == 1
+    assert report["output_root_selection_rule"] == (
+        "bridge_rollback_content_pair_then_embedded_preparation_manifest"
+    )
+    assert report["historical_execution_package_manifest_used_for_lineage"] is False
+    assert report["historical_authorization_or_execution_replay_allowed"] is False
     assert report["authorization_created"] is False
     assert report["current_services_modified"] is False
     assert report["preserve_anonymous"] is True
@@ -198,7 +271,7 @@ def test_duplicate_sources_are_reported_but_not_ready(tmp_path: Path) -> None:
     assert report["ready_for_fresh_preparation"] is False
 
 
-def test_discovery_ignores_nonadjacent_archived_output_root_for_readiness(
+def test_discovery_ignores_unbound_archived_output_root_for_readiness(
     tmp_path: Path,
 ) -> None:
     paths = _fixture(tmp_path, extra_output_root=True)
@@ -206,19 +279,64 @@ def test_discovery_ignores_nonadjacent_archived_output_root_for_readiness(
     report = discover_fresh_chain_sources(paths["search"], **_common(paths))
 
     assert report["output_root_candidate_count"] == 2
-    assert report["bridge_adjacent_output_root_candidate_count"] == 1
+    assert report["bridge_bound_output_root_candidate_count"] == 1
     assert report["ready_for_fresh_preparation"] is True
 
 
-def test_discovery_fails_closed_for_multiple_bridge_adjacent_output_roots(
+def test_duplicate_rollback_locations_are_one_bound_content_identity(
     tmp_path: Path,
 ) -> None:
-    paths = _fixture(tmp_path, extra_bridge_adjacent_output_root=True)
+    paths = _fixture(tmp_path, duplicate_rollback_pair=True)
+
+    report = discover_fresh_chain_sources(paths["search"], **_common(paths))
+
+    assert report["bridge_bound_rollback_pair_location_count"] == 2
+    assert report["bridge_bound_rollback_content_identity_count"] == 1
+    assert report["bridge_bound_preparation_candidate_count"] == 1
+    assert report["ready_for_fresh_preparation"] is True
+
+
+def test_discovery_is_not_ready_without_exact_bridge_bound_rollback_pair(
+    tmp_path: Path,
+) -> None:
+    paths = _fixture(tmp_path)
+    _write(paths["execution"] / "fresh-manager-rollback.tar.gz", b"tampered\n")
+
+    report = discover_fresh_chain_sources(paths["search"], **_common(paths))
+
+    assert report["bridge_bound_rollback_pair_location_count"] == 0
+    assert report["bridge_bound_rollback_archive_verified"] is False
+    assert report["bridge_bound_output_root_candidate_count"] == 0
+    assert report["ready_for_fresh_preparation"] is False
+
+
+def test_discovery_rejects_invalid_bridge_bound_rollback_archive(
+    tmp_path: Path,
+) -> None:
+    paths = _fixture(tmp_path)
+
+    def invalid_archive(_path: Path) -> dict[str, Any]:
+        raise ValueError("invalid fixture archive")
+
+    common = _common(paths)
+    common["rollback_archive_validator"] = invalid_archive
+    with pytest.raises(
+        ManagerIdentityFreshChainPreparationError,
+        match="bridge_bound_rollback_archive_invalid",
+    ):
+        discover_fresh_chain_sources(paths["search"], **common)
+
+
+def test_discovery_fails_closed_for_duplicate_bridge_bound_preparation(
+    tmp_path: Path,
+) -> None:
+    paths = _fixture(tmp_path, duplicate_bound_preparation=True)
 
     report = discover_fresh_chain_sources(paths["search"], **_common(paths))
 
     assert report["output_root_candidate_count"] == 2
-    assert report["bridge_adjacent_output_root_candidate_count"] == 2
+    assert report["bridge_bound_preparation_candidate_count"] == 2
+    assert report["bridge_bound_output_root_candidate_count"] == 2
     assert report["ready_for_fresh_preparation"] is False
 
 
@@ -284,7 +402,7 @@ def test_preparation_binds_exact_sources_without_authorization(tmp_path: Path) -
     assert TOPIC not in serialized
 
 
-def test_preparation_selects_unique_bridge_adjacent_output_root(tmp_path: Path) -> None:
+def test_preparation_selects_unique_bridge_bound_output_root(tmp_path: Path) -> None:
     paths = _fixture(tmp_path, extra_output_root=True)
     selected: list[Path] = []
 

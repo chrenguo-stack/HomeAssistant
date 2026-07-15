@@ -13,6 +13,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .t1_manager_identity_migration_execution_preparation_common import (
+    canonical,
+    validate_preparation,
+    verify_rollback_archive,
+)
 from .t1_manager_identity_migration_legacy_review_bridge import (
     validate_manager_identity_legacy_review_bridge,
 )
@@ -22,12 +27,16 @@ from .t1_manager_identity_migration_preparation import (
 )
 from .t1_migration_stage import verify_migration_stage
 
-SCHEMA = "gh.m2.t1-manager-identity-fresh-chain-preparation/1"
+SCHEMA = "gh.m2.t1-manager-identity-fresh-chain-preparation/2"
 POSTACTIVATION_PREFIX = "greenhouse-ha-postactivation-handoff-"
 STAGE_PREFIX = "greenhouse-t1-auth-stage-"
 PREPARATION_PREFIX = "greenhouse-manager-migration-preparation-"
 BRIDGE_PREFIX = "greenhouse-manager-legacy-review-bridge-"
+EXECUTION_PREFIX = "greenhouse-manager-execution-preparation-"
 PREPARATION_SCHEMA = "gh.m2.t1-manager-identity-migration-preparation/1"
+ROLLBACK_SCHEMA = "gh.m2.t1-manager-identity-fresh-rollback/1"
+ROLLBACK_MANIFEST_NAME = "fresh-rollback-manifest.json"
+ROLLBACK_ARCHIVE_NAME = "fresh-manager-rollback.tar.gz"
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _GIT_SHA = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 _VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
@@ -38,6 +47,8 @@ StageValidator = Callable[[Path], dict[str, Any]]
 BridgeValidator = Callable[[Path], dict[str, object]]
 PreparationBuilder = Callable[..., dict[str, object]]
 RepositoryBindingBuilder = Callable[..., dict[str, str]]
+PreparationValidator = Callable[[Path], dict[str, Any]]
+RollbackArchiveValidator = Callable[[Path], dict[str, Any]]
 
 
 class ManagerIdentityFreshChainPreparationError(RuntimeError):
@@ -66,7 +77,12 @@ class Inventory:
     bridge: Candidate
     postactivation: tuple[Candidate, ...]
     stages: tuple[Candidate, ...]
+    preparations: tuple[Candidate, ...]
     output_roots: tuple[Path, ...]
+    bridge_bound_preparations: tuple[Candidate, ...]
+    bridge_bound_output_roots: tuple[Path, ...]
+    bridge_bound_rollback_pair_location_count: int
+    bridge_bound_rollback_archive_verified: bool
 
 
 def _fail(code: str) -> None:
@@ -140,6 +156,7 @@ def _walk_candidate_directories(search_root: Path, bridge_name: str) -> dict[str
         "postactivation": [],
         "stage": [],
         "preparation": [],
+        "execution": [],
     }
     count = 0
     for current, raw_directories, _files in os.walk(search_root, topdown=True, followlinks=False):
@@ -158,6 +175,8 @@ def _walk_candidate_directories(search_root: Path, bridge_name: str) -> dict[str
                 category = "stage"
             elif name.startswith(PREPARATION_PREFIX):
                 category = "preparation"
+            elif name.startswith(EXECUTION_PREFIX):
+                category = "execution"
             if category is None:
                 kept.append(name)
                 continue
@@ -254,18 +273,119 @@ def _validated_stages(
     return tuple(sorted(valid, key=lambda item: item.name))
 
 
-def _output_roots(candidates: Sequence[Path]) -> tuple[Path, ...]:
-    roots: set[Path] = set()
-    for path in candidates:
-        manifest = _load_private_json(path / "manifest.json")
+def _validated_preparations(
+    candidates: Sequence[Path],
+    *,
+    validator: PreparationValidator,
+) -> tuple[Candidate, ...]:
+    valid: list[Candidate] = []
+    for root in candidates:
+        if not _private_directory(root) or not _private_directory(root.parent):
+            continue
+        try:
+            verified = validator(root)
+        except Exception:
+            continue
+        manifest = verified.get("manifest")
+        manifest_path = verified.get("manifest_path")
+        manifest_sha256 = verified.get("manifest_sha256")
         if (
-            _private_directory(path)
-            and _private_directory(path.parent)
-            and manifest is not None
-            and manifest.get("schema") == PREPARATION_SCHEMA
+            not isinstance(manifest, Mapping)
+            or manifest.get("schema") != PREPARATION_SCHEMA
+            or not isinstance(manifest_path, Path)
+            or manifest_path.resolve() != (root / "manifest.json").resolve()
+            or not _private_file(manifest_path)
+            or not isinstance(manifest_sha256, str)
+            or _SHA256.fullmatch(manifest_sha256) is None
+            or _sha(manifest_path) != manifest_sha256
         ):
-            roots.add(path.parent.resolve())
+            continue
+        valid.append(_candidate(root, manifest_path, manifest))
+    return tuple(sorted(valid, key=lambda item: item.name))
+
+
+def _output_roots(preparations: Sequence[Candidate]) -> tuple[Path, ...]:
+    roots = {candidate.path.parent.resolve() for candidate in preparations}
     return tuple(sorted(roots, key=str))
+
+
+def _bridge_rollback_hashes(bridge: Candidate) -> tuple[str, str]:
+    manifest = _load_private_json(bridge.path / "manifest.json")
+    bindings = None if manifest is None else manifest.get("bindings")
+    if not isinstance(bindings, Mapping):
+        _fail("legacy_review_bridge_rollback_bindings_invalid")
+    manifest_sha = bindings.get("fresh_rollback_manifest_sha256")
+    archive_sha = bindings.get("fresh_rollback_archive_sha256")
+    if (
+        not isinstance(manifest_sha, str)
+        or _SHA256.fullmatch(manifest_sha) is None
+        or not isinstance(archive_sha, str)
+        or _SHA256.fullmatch(archive_sha) is None
+    ):
+        _fail("legacy_review_bridge_rollback_bindings_invalid")
+    return manifest_sha, archive_sha
+
+
+def _rollback_preparation_manifest_sha(document: Mapping[str, Any]) -> str:
+    required: dict[str, object] = {
+        "schema": ROLLBACK_SCHEMA,
+        "manager_only": True,
+        "restart_scope": ["greenhouse-manager"],
+        "forbidden_service_changes": ["mosquitto", "homeassistant", "node"],
+        "current_services_modified": False,
+        "preserve_anonymous": True,
+        "anonymous_closure_enabled": False,
+    }
+    if any(document.get(field) != value for field, value in required.items()):
+        _fail("bridge_bound_rollback_contract_invalid")
+    preparation_sha = document.get("preparation_manifest_sha256")
+    if not isinstance(preparation_sha, str) or _SHA256.fullmatch(preparation_sha) is None:
+        _fail("rollback_preparation_binding_invalid")
+    return preparation_sha
+
+
+def _bridge_bound_lineage(
+    execution_candidates: Sequence[Path],
+    *,
+    bridge: Candidate,
+    preparations: Sequence[Candidate],
+    rollback_archive_validator: RollbackArchiveValidator,
+) -> tuple[int, bool, tuple[Candidate, ...], tuple[Path, ...]]:
+    expected_manifest_sha, expected_archive_sha = _bridge_rollback_hashes(bridge)
+    pairs: list[tuple[Path, Path]] = []
+    for root in execution_candidates:
+        manifest_path = root / ROLLBACK_MANIFEST_NAME
+        archive_path = root / ROLLBACK_ARCHIVE_NAME
+        if (
+            _private_directory(root)
+            and _private_file(manifest_path)
+            and _private_file(archive_path)
+            and _sha(manifest_path) == expected_manifest_sha
+            and _sha(archive_path) == expected_archive_sha
+        ):
+            pairs.append((manifest_path, archive_path))
+    if not pairs:
+        return 0, False, (), ()
+
+    manifest_path, archive_path = pairs[0]
+    rollback = _load_private_json(manifest_path)
+    if rollback is None:
+        _fail("bridge_bound_rollback_manifest_invalid")
+    preparation_sha = _rollback_preparation_manifest_sha(rollback)
+    try:
+        archived = rollback_archive_validator(archive_path)
+    except Exception as error:
+        raise ManagerIdentityFreshChainPreparationError(
+            "bridge_bound_rollback_archive_invalid"
+        ) from error
+    if canonical(rollback) != canonical(archived):
+        _fail("bridge_bound_rollback_archive_manifest_mismatch")
+
+    bound = tuple(
+        candidate for candidate in preparations if candidate.manifest_sha256 == preparation_sha
+    )
+    roots = tuple(sorted({candidate.path.parent.resolve() for candidate in bound}, key=str))
+    return len(pairs), True, bound, roots
 
 
 def validate_repository_binding(
@@ -344,6 +464,8 @@ def _inventory(
     bridge_validator: BridgeValidator,
     postactivation_validator: PostactivationValidator,
     stage_validator: StageValidator,
+    preparation_validator: PreparationValidator,
+    rollback_archive_validator: RollbackArchiveValidator,
 ) -> Inventory:
     if not bridge_name.startswith(BRIDGE_PREFIX):
         _fail("legacy_review_bridge_name_invalid")
@@ -368,11 +490,31 @@ def _inventory(
         expected_retained_topic=expected_retained_topic,
         validator=stage_validator,
     )
+    preparations = _validated_preparations(
+        paths["preparation"],
+        validator=preparation_validator,
+    )
+    (
+        rollback_pair_count,
+        rollback_archive_verified,
+        bridge_bound_preparations,
+        bridge_bound_output_roots,
+    ) = _bridge_bound_lineage(
+        paths["execution"],
+        bridge=bridge,
+        preparations=preparations,
+        rollback_archive_validator=rollback_archive_validator,
+    )
     return Inventory(
         bridge=bridge,
         postactivation=postactivation,
         stages=stages,
-        output_roots=_output_roots(paths["preparation"]),
+        preparations=preparations,
+        output_roots=_output_roots(preparations),
+        bridge_bound_preparations=bridge_bound_preparations,
+        bridge_bound_output_roots=bridge_bound_output_roots,
+        bridge_bound_rollback_pair_location_count=rollback_pair_count,
+        bridge_bound_rollback_archive_verified=rollback_archive_verified,
     )
 
 
@@ -401,22 +543,19 @@ def _select_output_root(candidates: Sequence[Path], requested: Path | None) -> P
     return candidates[0]
 
 
-def _bridge_adjacent_output_roots(inventory: Inventory) -> tuple[Path, ...]:
-    workspace = inventory.bridge.path.parent.parent.resolve()
-    return tuple(root for root in inventory.output_roots if root.parent.resolve() == workspace)
-
-
 def _contains_protected_path(serialized: str, path: Path) -> bool:
     value = str(path)
     return value != "/" and value in serialized
 
 
 def _discovery_report(binding: Mapping[str, str], inventory: Inventory) -> dict[str, object]:
-    bridge_adjacent_output_roots = _bridge_adjacent_output_roots(inventory)
     ready = (
         len(inventory.postactivation) == 1
         and len(inventory.stages) == 1
-        and len(bridge_adjacent_output_roots) == 1
+        and inventory.bridge_bound_rollback_pair_location_count >= 1
+        and inventory.bridge_bound_rollback_archive_verified
+        and len(inventory.bridge_bound_preparations) == 1
+        and len(inventory.bridge_bound_output_roots) == 1
     )
     report = {
         "schema": SCHEMA,
@@ -426,8 +565,26 @@ def _discovery_report(binding: Mapping[str, str], inventory: Inventory) -> dict[
         "postactivation_candidates": [item.public() for item in inventory.postactivation],
         "migration_stage_candidates": [item.public() for item in inventory.stages],
         "output_root_candidate_count": len(inventory.output_roots),
-        "bridge_adjacent_output_root_candidate_count": len(bridge_adjacent_output_roots),
-        "output_root_selection_rule": "unique_bridge_workspace_sibling",
+        "bridge_bound_rollback_pair_location_count": (
+            inventory.bridge_bound_rollback_pair_location_count
+        ),
+        "bridge_bound_rollback_content_identity_count": (
+            1 if inventory.bridge_bound_rollback_pair_location_count else 0
+        ),
+        "bridge_bound_rollback_archive_verified": (
+            inventory.bridge_bound_rollback_archive_verified
+        ),
+        "bridge_bound_preparation_candidate_count": len(
+            inventory.bridge_bound_preparations
+        ),
+        "bridge_bound_output_root_candidate_count": len(
+            inventory.bridge_bound_output_roots
+        ),
+        "output_root_selection_rule": (
+            "bridge_rollback_content_pair_then_embedded_preparation_manifest"
+        ),
+        "historical_execution_package_manifest_used_for_lineage": False,
+        "historical_authorization_or_execution_replay_allowed": False,
         "ready_for_fresh_preparation": ready,
         "ready_for_production_execution": False,
         "read_only_live_services": True,
@@ -457,6 +614,8 @@ def discover_fresh_chain_sources(
     bridge_validator: BridgeValidator = validate_manager_identity_legacy_review_bridge,
     postactivation_validator: PostactivationValidator = _postactivation_handoff,
     stage_validator: StageValidator = verify_migration_stage,
+    preparation_validator: PreparationValidator = validate_preparation,
+    rollback_archive_validator: RollbackArchiveValidator = verify_rollback_archive,
 ) -> dict[str, object]:
     binding = repository_binding_builder(
         expected_repository_sha=expected_repository_sha,
@@ -471,6 +630,8 @@ def discover_fresh_chain_sources(
         bridge_validator=bridge_validator,
         postactivation_validator=postactivation_validator,
         stage_validator=stage_validator,
+        preparation_validator=preparation_validator,
+        rollback_archive_validator=rollback_archive_validator,
     )
     report = _discovery_report(binding, inventory)
     serialized = _json(report)
@@ -499,6 +660,8 @@ def prepare_fresh_manager_identity_chain(
     bridge_validator: BridgeValidator = validate_manager_identity_legacy_review_bridge,
     postactivation_validator: PostactivationValidator = _postactivation_handoff,
     stage_validator: StageValidator = verify_migration_stage,
+    preparation_validator: PreparationValidator = validate_preparation,
+    rollback_archive_validator: RollbackArchiveValidator = verify_rollback_archive,
     preparation_builder: PreparationBuilder = prepare_manager_identity_migration,
 ) -> dict[str, object]:
     binding = repository_binding_builder(
@@ -514,6 +677,8 @@ def prepare_fresh_manager_identity_chain(
         bridge_validator=bridge_validator,
         postactivation_validator=postactivation_validator,
         stage_validator=stage_validator,
+        preparation_validator=preparation_validator,
+        rollback_archive_validator=rollback_archive_validator,
     )
     postactivation = _select(
         inventory.postactivation,
@@ -528,7 +693,7 @@ def prepare_fresh_manager_identity_chain(
     requested_output_root = None if output_root is None else Path(output_root)
     destination_root = _select_output_root(
         (
-            _bridge_adjacent_output_roots(inventory)
+            inventory.bridge_bound_output_roots
             if requested_output_root is None
             else inventory.output_roots
         ),
@@ -573,6 +738,11 @@ def prepare_fresh_manager_identity_chain(
         "legacy_review_bridge_manifest_sha256": inventory.bridge.manifest_sha256,
         "legacy_review_bridge_bound": True,
         "future_baseline_waiver_enabled": False,
+        "output_root_selection_rule": (
+            "bridge_rollback_content_pair_then_embedded_preparation_manifest"
+        ),
+        "historical_execution_package_manifest_used_for_lineage": False,
+        "historical_authorization_or_execution_replay_allowed": False,
         "postactivation_name_fingerprint": postactivation.name_fingerprint,
         "migration_stage_name_fingerprint": stage.name_fingerprint,
         "read_only_live_services": True,
