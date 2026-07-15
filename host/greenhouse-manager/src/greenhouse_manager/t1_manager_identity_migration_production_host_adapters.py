@@ -196,6 +196,16 @@ def _ensure_private_parent(path: Path, boundary: Path) -> None:
         raise ManagerProductionHostAdaptersError("write target parent is unsafe")
     for directory in reversed(pending):
         directory.mkdir(mode=0o700)
+        metadata = directory.stat()
+        if (
+            directory.is_symlink()
+            or not directory.is_dir()
+            or metadata.st_mode & 0o777 != 0o700
+            or (os.geteuid() == 0 and metadata.st_uid != 0)
+        ):
+            raise ManagerProductionHostAdaptersError(
+                "created write target parent is unsafe"
+            )
         _fsync_directory(directory.parent)
     for directory in (path.parent, *path.parent.parents):
         if directory == boundary.parent:
@@ -246,14 +256,32 @@ def _unlink(path: Path, *, boundary: Path) -> None:
 
 
 def _missing_directory_targets(secret_root: Path, password_target: Path) -> list[str]:
+    provisioning_anchor = secret_root.parent
+    trusted_parent = provisioning_anchor.parent
+    if not trusted_parent.is_dir() or trusted_parent.is_symlink():
+        raise ManagerProductionHostAdaptersError(
+            "manager directory provisioning trusted parent is missing or unsafe"
+        )
     targets: list[str] = []
     cursor = password_target.parent
-    while cursor != secret_root.parent and not cursor.exists():
+    while cursor != trusted_parent and not cursor.exists():
+        if cursor.is_symlink():
+            raise ManagerProductionHostAdaptersError(
+                "manager directory target ancestor is unsafe"
+            )
         targets.append(str(cursor))
         cursor = cursor.parent
     if cursor.exists() and (cursor.is_symlink() or not cursor.is_dir()):
         raise ManagerProductionHostAdaptersError(
             "manager directory target ancestor is unsafe"
+        )
+    if any(
+        Path(target) != provisioning_anchor
+        and not Path(target).is_relative_to(provisioning_anchor)
+        for target in targets
+    ):
+        raise ManagerProductionHostAdaptersError(
+            "manager directory target escaped its provisioning anchor"
         )
     return targets
 
@@ -916,7 +944,7 @@ class ManagerProductionHostTransactionAdapters:
             mode=0o600,
             uid=binding.manager_runtime_uid,
             gid=binding.manager_runtime_gid,
-            boundary=binding.secret_root,
+            boundary=binding.secret_root.parent,
         )
         _atomic_write(
             binding.auth_environment_target,
@@ -1030,7 +1058,7 @@ class ManagerProductionHostTransactionAdapters:
         for raw_target in created_targets:
             _remove_created_directory(
                 Path(raw_target).expanduser().resolve(strict=False),
-                boundary=binding.secret_root,
+                boundary=binding.secret_root.parent,
             )
         self.driver.recreate_after_rollback()
         self.driver.verify_legacy_anonymous_path()

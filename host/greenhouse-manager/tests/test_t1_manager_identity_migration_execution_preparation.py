@@ -13,12 +13,35 @@ from greenhouse_manager.t1_manager_identity_migration_execution_preparation impo
     prepare_manager_identity_execution,
     verify_manager_identity_execution_preparation,
 )
+from greenhouse_manager.t1_manager_identity_migration_execution_preparation_capture_archive import (
+    _created_directory_targets,
+)
 
 NOW = datetime(2026, 7, 13, 4, 30, tzinfo=UTC)
 
 
 class FakeRunner:
     pass
+
+
+def test_fresh_rollback_binds_missing_secret_provisioning_anchor(
+    tmp_path: Path,
+) -> None:
+    secret_root = tmp_path / "greenhouse-secrets/mqtt"
+    password_target = secret_root / "manager/password"
+
+    targets = _created_directory_targets(
+        {
+            "target_secret_root": str(secret_root),
+            "target_password_file": str(password_target),
+        }
+    )
+
+    assert targets == [
+        str(password_target.parent),
+        str(secret_root),
+        str(secret_root.parent),
+    ]
 
 
 def _prepare(
@@ -112,9 +135,10 @@ def test_prepares_private_verified_fresh_rollback(
         Path(value) for value in rollback["created_directory_targets"]
     ]
     secret_root = Path(rollback["manager_secret_root"])
+    provisioning_anchor = secret_root.parent
     assert directory_targets
     assert all(
-        target == secret_root or target.is_relative_to(secret_root)
+        target == provisioning_anchor or target.is_relative_to(provisioning_anchor)
         for target in directory_targets
     )
     assert Path(rollback["compose_working_directory"]) not in directory_targets

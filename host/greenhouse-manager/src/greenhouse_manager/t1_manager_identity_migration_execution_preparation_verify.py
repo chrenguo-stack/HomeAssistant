@@ -33,25 +33,39 @@ from .t1_manager_identity_migration_preclaim_candidate import (
 def _validate_created_directory_targets(rollback: dict[str, object]) -> None:
     raw_targets = rollback.get("created_directory_targets")
     raw_root = rollback.get("manager_secret_root")
+    raw_password = rollback.get("manager_password_target")
     raw_working = rollback.get("compose_working_directory")
     if (
         not isinstance(raw_targets, list)
         or any(not isinstance(item, str) for item in raw_targets)
         or not isinstance(raw_root, str)
+        or not isinstance(raw_password, str)
         or not isinstance(raw_working, str)
     ):
         raise ManagerIdentityExecutionPreparationError(
             "fresh rollback directory target binding is invalid"
         )
     root = Path(raw_root).expanduser()
+    password = Path(raw_password).expanduser()
     working = Path(raw_working).expanduser()
-    if not root.is_absolute() or not working.is_absolute():
+    if (
+        not root.is_absolute()
+        or not password.is_absolute()
+        or not working.is_absolute()
+    ):
         raise ManagerIdentityExecutionPreparationError(
             "fresh rollback directory target binding is unsafe"
         )
     root = root.resolve(strict=False)
+    password = password.resolve(strict=False)
     working = working.resolve(strict=False)
+    provisioning_anchor = root.parent
+    if not password.is_relative_to(root):
+        raise ManagerIdentityExecutionPreparationError(
+            "fresh rollback password target escaped its secret root"
+        )
     targets: list[Path] = []
+    expected = password.parent
     for raw_target in raw_targets:
         target = Path(raw_target).expanduser()
         if not target.is_absolute() or target.is_symlink():
@@ -61,12 +75,20 @@ def _validate_created_directory_targets(rollback: dict[str, object]) -> None:
         target = target.resolve(strict=False)
         if (
             target == working
-            or (target != root and not target.is_relative_to(root))
+            or (
+                target != provisioning_anchor
+                and not target.is_relative_to(provisioning_anchor)
+            )
         ):
             raise ManagerIdentityExecutionPreparationError(
                 "fresh rollback directory target escaped its exact scope"
             )
+        if target != expected:
+            raise ManagerIdentityExecutionPreparationError(
+                "fresh rollback directory targets are not an exact reverse cleanup chain"
+            )
         targets.append(target)
+        expected = expected.parent
     if len(targets) != len(set(targets)):
         raise ManagerIdentityExecutionPreparationError(
             "fresh rollback directory targets contain duplicates"

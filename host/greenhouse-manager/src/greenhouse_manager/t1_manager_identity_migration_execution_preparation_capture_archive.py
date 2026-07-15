@@ -52,14 +52,35 @@ def _created_directory_targets(runtime: Mapping[str, Any]) -> list[str]:
         raise ManagerIdentityExecutionPreparationError(
             "manager password target escaped the secret root"
         )
+    provisioning_anchor = root.parent
+    trusted_parent = provisioning_anchor.parent
+    if (
+        not trusted_parent.is_dir()
+        or trusted_parent.is_symlink()
+    ):
+        raise ManagerIdentityExecutionPreparationError(
+            "manager directory provisioning trusted parent is missing or unsafe"
+        )
     targets: list[str] = []
     cursor = password.parent
-    while cursor != root.parent and not cursor.exists():
+    while cursor != trusted_parent and not cursor.exists():
+        if cursor.is_symlink():
+            raise ManagerIdentityExecutionPreparationError(
+                "manager directory target ancestor is unsafe"
+            )
         targets.append(str(cursor))
         cursor = cursor.parent
     if cursor.exists() and (cursor.is_symlink() or not cursor.is_dir()):
         raise ManagerIdentityExecutionPreparationError(
             "manager directory target ancestor is unsafe"
+        )
+    if any(
+        Path(target) != provisioning_anchor
+        and not Path(target).is_relative_to(provisioning_anchor)
+        for target in targets
+    ):
+        raise ManagerIdentityExecutionPreparationError(
+            "manager directory target escaped its provisioning anchor"
         )
     return targets
 
