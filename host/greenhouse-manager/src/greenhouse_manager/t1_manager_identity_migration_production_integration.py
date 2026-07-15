@@ -18,6 +18,9 @@ from .t1_manager_identity_migration_production_host_adapters import (
     ManagerProductionHostTransactionAdapters,
     _load_binding,
 )
+from .t1_manager_identity_migration_production_retained_recovery import (
+    wrap_manager_runtime_probe,
+)
 from .t1_manager_identity_migration_production_runtime_probe import (
     ManagerProductionRuntimeProbe,
     ReaderFactory,
@@ -108,18 +111,20 @@ def build_manager_production_adapters_factory(
             raise ManagerProductionIntegrationError(
                 "manager production host binding could not be loaded"
             ) from error
-        probe = probe_factory(
-            binding,
-            system_id=configuration.system_id,
-            node_id=configuration.node_id,
-            discovery_topic=configuration.discovery_topic,
-            runner=command_runner,
-            reader_factory=reader_factory,
-            proc_root=proc_root,
-            mqtt_port=configuration.mqtt_port,
-            timeout_s=configuration.timeout_s,
-            telemetry_timeout_s=configuration.telemetry_timeout_s,
-            poll_interval_s=configuration.poll_interval_s,
+        probe = wrap_manager_runtime_probe(
+            probe_factory(
+                binding,
+                system_id=configuration.system_id,
+                node_id=configuration.node_id,
+                discovery_topic=configuration.discovery_topic,
+                runner=command_runner,
+                reader_factory=reader_factory,
+                proc_root=proc_root,
+                mqtt_port=configuration.mqtt_port,
+                timeout_s=configuration.timeout_s,
+                telemetry_timeout_s=configuration.telemetry_timeout_s,
+                poll_interval_s=configuration.poll_interval_s,
+            )
         )
         baseline = probe.capture_baseline()
         if baseline.get("baseline_captured") is not True:
