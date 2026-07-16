@@ -27,6 +27,7 @@
 - `host/`：T1 主机端服务和 Home Assistant 配套集成
 - `protocols/`：跨固件、主机和网关的冻结接口
 - `docs/`：架构、路线、ADR 和研发文档
+  - [M3 主机黄金镜像、首启个性化与自动初始化开发策略 V0.1](docs/architecture/m3-host-golden-image-firstboot-provisioning-v0.1.md)
 - `hardware/`：GPIO、PCB 和器件资料
 - `tests/`：协议、集成、硬件和现场测试
 - `infra/`：部署、备份、恢复和运维
