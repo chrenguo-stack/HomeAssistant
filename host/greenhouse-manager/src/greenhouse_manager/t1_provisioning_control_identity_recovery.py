@@ -9,9 +9,7 @@ from collections.abc import Callable, Mapping
 from typing import Any
 
 RECOVERY_SCHEMA = "gh.m2.t1-provisioning-control-identity-recovery/1"
-AUTHORIZATION_SCHEMA = (
-    "gh.m2.t1-provisioning-control-identity-recovery-authorization/1"
-)
+AUTHORIZATION_SCHEMA = "gh.m2.t1-provisioning-control-identity-recovery-authorization/1"
 
 
 class ProvisioningControlIdentityRecoveryError(RuntimeError):
