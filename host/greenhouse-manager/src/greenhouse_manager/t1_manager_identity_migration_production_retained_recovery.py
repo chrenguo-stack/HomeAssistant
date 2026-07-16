@@ -49,6 +49,7 @@ class RetainedRecoveryRuntimeProbe:
     ) -> None:
         self.inner = inner
         self.base = base
+        self._canonical_evidence_source: str | None = None
 
     def capture_baseline(self) -> dict[str, object]:
         return self.inner.capture_baseline()
@@ -60,19 +61,22 @@ class RetainedRecoveryRuntimeProbe:
         self.inner.verify_ingress_subscription()
 
     def verify_canonical_publication(self) -> None:
-        expected = (
-            f"Accepted telemetry node={self.base.node_id} ",
-            (
-                f"Published Home Assistant discovery node={self.base.node_id} "
-                f"topic={self.base.discovery_topic}"
-            ),
+        fresh_marker = f"Accepted telemetry node={self.base.node_id} "
+        recovery_marker = (
+            f"Published Home Assistant discovery node={self.base.node_id} "
+            f"topic={self.base.discovery_topic}"
         )
         deadline = self.base.monotonic() + self.base.telemetry_timeout_s
+        evidence_source: str | None = None
         while True:
             document = self.base._inspect()
             _pid, started_at, log_path = self.base._validate_identity_binding(document)
             messages = self.base._log_messages(log_path, started_at)
-            if any(any(marker in message for marker in expected) for message in messages):
+            if any(fresh_marker in message for message in messages):
+                evidence_source = "fresh_ingress"
+                break
+            if any(recovery_marker in message for message in messages):
+                evidence_source = "retained_recovery"
                 break
             if self.base.monotonic() >= deadline:
                 raise ManagerProductionRuntimeProbeError(
@@ -92,10 +96,51 @@ class RetainedRecoveryRuntimeProbe:
             raise ManagerProductionRuntimeProbeError(
                 "canonical telemetry node_id does not match"
             )
+        self._canonical_evidence_source = evidence_source
         self.base._checks["canonical_publication_verified"] = True
 
+    def _availability_document(self) -> dict[str, Any]:
+        document = _read_json_payload(
+            self.base.reader_factory().read(self.base.availability_topic),
+            "availability",
+        )
+        if document.get("node_id") != self.base.node_id:
+            raise ManagerProductionRuntimeProbeError(
+                "manager availability node_id does not match"
+            )
+        return document
+
     def verify_availability_publication(self) -> None:
-        self.inner.verify_availability_publication()
+        if self._canonical_evidence_source not in {
+            "fresh_ingress",
+            "retained_recovery",
+        }:
+            raise ManagerProductionRuntimeProbeError(
+                "canonical evidence source is unavailable"
+            )
+
+        document = self._availability_document()
+        state = document.get("state")
+        if self._canonical_evidence_source == "fresh_ingress":
+            if state != "online":
+                raise ManagerProductionRuntimeProbeError(
+                    "fresh ingress did not produce online availability"
+                )
+        elif state == "unavailable":
+            self.base._wait_for_log(
+                f"Published unavailable state topic={self.base.availability_topic}"
+            )
+            document = self._availability_document()
+            if document.get("state") != "unavailable":
+                raise ManagerProductionRuntimeProbeError(
+                    "retained recovery unavailable state did not remain bound"
+                )
+        elif state != "online":
+            raise ManagerProductionRuntimeProbeError(
+                "retained recovery availability state is invalid"
+            )
+
+        self.base._checks["availability_publication_verified"] = True
 
     def verify_discovery_publication(self) -> None:
         self.inner.verify_discovery_publication()

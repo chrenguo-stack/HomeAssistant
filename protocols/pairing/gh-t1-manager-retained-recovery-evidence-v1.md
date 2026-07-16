@@ -26,9 +26,31 @@ Either path must be followed by a read-only fetch of the exact canonical
 telemetry retained topic, whose JSON `node_id` must equal the bound node.
 Unrelated nodes or Discovery topics do not satisfy the gate.
 
-## 3. Safety properties
+## 3. Availability continuity
 
-- The probe does not publish synthetic telemetry.
+Availability is a node lifecycle state, not a manager health state. The exact
+retained availability document must always contain the bound `node_id`.
+
+- After fresh ingress evidence, the exact availability state must be `online`,
+  because accepting fresh telemetry publishes online availability in the same
+  processing transaction.
+- After retained recovery evidence, `online` is valid when the restored
+  canonical timestamp is still within the manager stale window.
+- After retained recovery evidence, `unavailable` is valid only after the
+  authenticated candidate emits the exact post-start log
+  `Published unavailable state topic=<exact availability topic>` and a second
+  read confirms the retained document remains bound to the same node and state.
+- Any other state, wrong node, wrong topic, missing log, malformed JSON, or
+  timeout fails closed.
+
+This distinction prevents an offline or stale node from blocking manager
+identity migration while still proving that the candidate restored and
+maintained the exact node lifecycle path. It does not reinterpret an offline
+node as online.
+
+## 4. Safety properties
+
+- The probe does not publish synthetic telemetry or availability.
 - The 90-second passive window remains as a bounded fallback.
 - The candidate must already have passed authenticated identity, password mount,
   stable MQTT socket, and ingress subscription checks.
@@ -39,7 +61,12 @@ Unrelated nodes or Discovery topics do not satisfy the gate.
 - Mosquitto, Home Assistant, nodes, anonymous compatibility, and node credential
   state remain outside the mutation scope.
 
-## 4. Version
+## 5. Version
 
-This evidence model is introduced in greenhouse-manager 0.4.76 following the
-verified V58 rollback and V59 read-only audit.
+The canonical recovery evidence model was introduced in greenhouse-manager
+0.4.76 following the verified V58 rollback and V59 read-only audit.
+
+The availability-continuity extension is introduced in greenhouse-manager
+0.4.77 following the verified V64 rollback and V65 read-only audit, which
+localized the next gate failure to `availability_publication` while confirming
+that canonical retained recovery had already passed.
