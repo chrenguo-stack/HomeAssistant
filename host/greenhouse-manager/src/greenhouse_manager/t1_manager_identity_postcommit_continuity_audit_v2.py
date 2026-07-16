@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Any
 
 from .t1_manager_identity_postcommit_continuity_audit import (
+    _PROTECTED_SERVICES,
+    _TARGET,
     SCHEMA,
     CommandRunner,
     ManagerPostcommitContinuityAuditError,
@@ -17,11 +19,9 @@ from .t1_manager_identity_postcommit_continuity_audit import (
     _parse_time,
     _private_directory,
     _private_json,
-    _PROTECTED_SERVICES,
     _retained,
     _snapshot,
     _stable_socket,
-    _TARGET,
     _validate_logs,
     _validate_manager_identity,
     _validate_retained,
@@ -60,7 +60,9 @@ def _execution_result(
 ) -> dict[str, Any]:
     document = _private_json(path, "manager production execution result")
     schema = document.get("schema")
-    if not isinstance(schema, str) or not schema.startswith(_EXECUTION_SCHEMA_PREFIXES):
+    if not isinstance(schema, str) or not schema.startswith(
+        _EXECUTION_SCHEMA_PREFIXES
+    ):
         raise ManagerPostcommitContinuityAuditError(
             "manager production execution result schema is invalid"
         )
@@ -77,7 +79,9 @@ def _execution_result(
         "preserve_anonymous": True,
         "anonymous_closure_enabled": False,
     }
-    if any(document.get(field) != expected for field, expected in required.items()):
+    if any(
+        document.get(field) != expected for field, expected in required.items()
+    ):
         raise ManagerPostcommitContinuityAuditError(
             "manager production execution result binding is invalid"
         )
@@ -122,7 +126,10 @@ def build_manager_identity_postcommit_continuity_audit(
 
     before_workspace_digest = _workspace_digest(workspace)
     before_execution_fingerprint = _file_fingerprint(execution_path)
-    journal = _private_json(workspace / "journal.json", "manager transaction journal")
+    journal = _private_json(
+        workspace / "journal.json",
+        "manager transaction journal",
+    )
     execution = _execution_result(execution_path, journal)
     created_at, committed_at = _validate_transaction(journal, execution)
 
@@ -159,7 +166,11 @@ def build_manager_identity_postcommit_continuity_audit(
     canonical_topic = f"gh/v1/{system_id}/state/{node_id}/telemetry"
     availability_topic = f"gh/v1/{system_id}/state/{node_id}/availability"
     canonical = _retained(command_runner, canonical_topic, timeout_s=timeout_s)
-    availability = _retained(command_runner, availability_topic, timeout_s=timeout_s)
+    availability = _retained(
+        command_runner,
+        availability_topic,
+        timeout_s=timeout_s,
+    )
     discovery = _retained(command_runner, discovery_topic, timeout_s=timeout_s)
     _validate_retained(
         canonical,
@@ -284,13 +295,25 @@ def main(argv: Sequence[str] | None = None) -> int:
             timeout_s=args.timeout_seconds,
             poll_interval_s=args.poll_interval_seconds,
         )
-    except (ManagerPostcommitContinuityAuditError, OSError, UnicodeError, ValueError):
+    except (
+        ManagerPostcommitContinuityAuditError,
+        OSError,
+        UnicodeError,
+        ValueError,
+    ):
         print(
             "T1 manager postcommit continuity audit failed safely",
             file=sys.stderr,
         )
         return 2
-    print(json.dumps(report, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
+    print(
+        json.dumps(
+            report,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
     return 0 if report["continuity_audit_passed"] else 2
 
 
