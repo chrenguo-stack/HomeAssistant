@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import pytest
 
-from greenhouse_manager import t1_provisioning_control_identity_recovery as module
+from greenhouse_manager import (
+    t1_provisioning_control_identity_recovery as module,
+)
 
 
 USERNAME = "ghs_greenhouse_provisioning"
@@ -51,7 +53,10 @@ def test_generate_recovery_password_is_urlsafe() -> None:
 
 def test_extract_isolated_encoded_password() -> None:
     assert (
-        module.extract_isolated_encoded_password(_state("new-encoded"), username=USERNAME)
+        module.extract_isolated_encoded_password(
+            _state("new-encoded"),
+            username=USERNAME,
+        )
         == "new-encoded"
     )
 
