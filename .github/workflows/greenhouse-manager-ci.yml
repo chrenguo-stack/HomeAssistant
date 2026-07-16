@@ -31,10 +31,32 @@ jobs:
         with:
           show-progress: false
 
-      - name: Diagnostic test
+      - name: Install and lint
+        run: |
+          python -m pip install -q -e '.[dev]'
+          ruff check .
+
+      - name: Test and capture log
+        id: pytest
+        continue-on-error: true
         shell: bash
         run: |
-          set -o pipefail
-          python -m pip install -q -e '.[dev]' >/dev/null
-          ruff check . >/dev/null
-          pytest -q 2>&1 | tail -n 40
+          set +e
+          pytest -q > pytest-diagnostic.log 2>&1
+          rc=$?
+          echo "$rc" > pytest-diagnostic.rc
+          exit "$rc"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: greenhouse-manager-pytest-diagnostic
+          path: |
+            host/greenhouse-manager/pytest-diagnostic.log
+            host/greenhouse-manager/pytest-diagnostic.rc
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Enforce test result
+        if: steps.pytest.outcome != 'success'
+        run: exit 1
