@@ -5,9 +5,9 @@ import copy
 import hashlib
 import json
 import secrets
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 ROTATION_SCHEMA = "gh.m2.t1-homeassistant-mqtt-credential-rotation/1"
 AUTHORIZATION_SCHEMA = "gh.m2.t1-homeassistant-mqtt-credential-rotation-authorization/1"
