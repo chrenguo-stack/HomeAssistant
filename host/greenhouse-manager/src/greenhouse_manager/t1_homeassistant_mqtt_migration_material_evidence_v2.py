@@ -7,6 +7,7 @@ import re
 import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import Any
 
 from .t1_homeassistant_mqtt_migration_material_evidence import (
     CandidateMaterial,
@@ -108,6 +109,20 @@ def _select_live_material(
             "exactly one live-authenticated Home Assistant credential binding is required"
         )
     return authenticated[0], len(unique), len(exact)
+
+
+def _contains_exact_string(value: Any, forbidden: frozenset[str]) -> bool:
+    if isinstance(value, str):
+        return value in forbidden
+    if isinstance(value, Mapping):
+        return any(
+            _contains_exact_string(key, forbidden)
+            or _contains_exact_string(item, forbidden)
+            for key, item in value.items()
+        )
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return any(_contains_exact_string(item, forbidden) for item in value)
+    return False
 
 
 def build_homeassistant_mqtt_migration_material_evidence_v2(
@@ -244,14 +259,17 @@ def build_homeassistant_mqtt_migration_material_evidence_v2(
         "container_ids_included": False,
         "image_ids_included": False,
     }
-    serialized = _canonical_json(report)
-    forbidden = (
-        selected.username,
-        selected.password,
-        selected.client_id,
-        selected.broker or "",
+    forbidden = frozenset(
+        value
+        for value in (
+            selected.username,
+            selected.password,
+            selected.client_id,
+            selected.broker or "",
+        )
+        if value
     )
-    if any(value and value in serialized for value in forbidden):
+    if _contains_exact_string(report, forbidden):
         raise HomeAssistantMigrationMaterialEvidenceError(
             "sanitized report contains credential or target material"
         )
