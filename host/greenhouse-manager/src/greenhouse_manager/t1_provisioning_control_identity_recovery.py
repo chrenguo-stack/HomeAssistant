@@ -34,18 +34,14 @@ def generate_recovery_password(
 ) -> str:
     material = random_bytes(32)
     if len(material) != 32:
-        raise ProvisioningControlIdentityRecoveryError(
-            "password generator must return exactly 32 bytes"
-        )
+        raise ProvisioningControlIdentityRecoveryError("password generator must return exactly 32 bytes")
     return base64.urlsafe_b64encode(material).rstrip(b"=").decode("ascii")
 
 
 def _clients(state: Mapping[str, Any]) -> list[dict[str, Any]]:
     clients = state.get("clients")
     if not isinstance(clients, list):
-        raise ProvisioningControlIdentityRecoveryError(
-            "Dynamic Security client inventory is missing"
-        )
+        raise ProvisioningControlIdentityRecoveryError("Dynamic Security client inventory is missing")
     return [dict(item) for item in clients if isinstance(item, Mapping)]
 
 
@@ -54,22 +50,16 @@ def _target_client(
     *,
     username: str,
 ) -> dict[str, Any]:
-    matches = [
-        client for client in _clients(state) if client.get("username") == username
-    ]
+    matches = [client for client in _clients(state) if client.get("username") == username]
     if len(matches) != 1:
-        raise ProvisioningControlIdentityRecoveryError(
-            "exactly one provisioning client is required"
-        )
+        raise ProvisioningControlIdentityRecoveryError("exactly one provisioning client is required")
     return matches[0]
 
 
 def _role_names(client: Mapping[str, Any]) -> list[str]:
     roles = client.get("roles")
     if not isinstance(roles, list):
-        raise ProvisioningControlIdentityRecoveryError(
-            "provisioning role binding is missing"
-        )
+        raise ProvisioningControlIdentityRecoveryError("provisioning role binding is missing")
     return [
         role["rolename"]
         for role in roles
@@ -86,27 +76,17 @@ def require_exact_control_identity(
 ) -> dict[str, object]:
     client = _target_client(state, username=username)
     if client.get("clientid") != client_id:
-        raise ProvisioningControlIdentityRecoveryError(
-            "provisioning client id does not match"
-        )
+        raise ProvisioningControlIdentityRecoveryError("provisioning client id does not match")
     if client.get("disabled") is True:
-        raise ProvisioningControlIdentityRecoveryError(
-            "provisioning client is disabled"
-        )
+        raise ProvisioningControlIdentityRecoveryError("provisioning client is disabled")
     role_names = _role_names(client)
     if role_names != [role_name]:
-        raise ProvisioningControlIdentityRecoveryError(
-            "provisioning role binding does not match"
-        )
+        raise ProvisioningControlIdentityRecoveryError("provisioning role binding does not match")
     encoded_password = client.get("encoded_password")
     if not isinstance(encoded_password, str) or not encoded_password:
-        raise ProvisioningControlIdentityRecoveryError(
-            "provisioning encoded password is missing"
-        )
+        raise ProvisioningControlIdentityRecoveryError("provisioning encoded password is missing")
     if any(field in client for field in ("password", "salt", "iterations")):
-        raise ProvisioningControlIdentityRecoveryError(
-            "provisioning credential representation is ambiguous"
-        )
+        raise ProvisioningControlIdentityRecoveryError("provisioning credential representation is ambiguous")
     return {
         "identity_exact": True,
         "username_fingerprint": fingerprint(username),
@@ -124,13 +104,9 @@ def extract_isolated_encoded_password(
     client = _target_client(isolated_state, username=username)
     encoded_password = client.get("encoded_password")
     if not isinstance(encoded_password, str) or not encoded_password:
-        raise ProvisioningControlIdentityRecoveryError(
-            "isolated encoded password is missing"
-        )
+        raise ProvisioningControlIdentityRecoveryError("isolated encoded password is missing")
     if any(field in client for field in ("password", "salt", "iterations")):
-        raise ProvisioningControlIdentityRecoveryError(
-            "isolated credential representation is ambiguous"
-        )
+        raise ProvisioningControlIdentityRecoveryError("isolated credential representation is ambiguous")
     return encoded_password
 
 
@@ -141,29 +117,21 @@ def build_candidate_state(
     encoded_password: str,
 ) -> dict[str, Any]:
     if not encoded_password:
-        raise ProvisioningControlIdentityRecoveryError(
-            "replacement encoded password is empty"
-        )
+        raise ProvisioningControlIdentityRecoveryError("replacement encoded password is empty")
     candidate = copy.deepcopy(dict(live_state))
     clients = candidate.get("clients")
     if not isinstance(clients, list):
-        raise ProvisioningControlIdentityRecoveryError(
-            "Dynamic Security client inventory is missing"
-        )
+        raise ProvisioningControlIdentityRecoveryError("Dynamic Security client inventory is missing")
     matches = 0
     for client in clients:
         if not isinstance(client, dict) or client.get("username") != username:
             continue
         matches += 1
         if not isinstance(client.get("encoded_password"), str):
-            raise ProvisioningControlIdentityRecoveryError(
-                "provisioning encoded password is missing"
-            )
+            raise ProvisioningControlIdentityRecoveryError("provisioning encoded password is missing")
         client["encoded_password"] = encoded_password
     if matches != 1:
-        raise ProvisioningControlIdentityRecoveryError(
-            "exactly one provisioning client is required"
-        )
+        raise ProvisioningControlIdentityRecoveryError("exactly one provisioning client is required")
     return candidate
 
 
@@ -175,9 +143,7 @@ def _normalized_without_target_credential(
     normalized = copy.deepcopy(dict(state))
     clients = normalized.get("clients")
     if not isinstance(clients, list):
-        raise ProvisioningControlIdentityRecoveryError(
-            "Dynamic Security client inventory is missing"
-        )
+        raise ProvisioningControlIdentityRecoveryError("Dynamic Security client inventory is missing")
     matches = 0
     for client in clients:
         if not isinstance(client, dict) or client.get("username") != username:
@@ -185,14 +151,10 @@ def _normalized_without_target_credential(
         matches += 1
         encoded_password = client.get("encoded_password")
         if not isinstance(encoded_password, str) or not encoded_password:
-            raise ProvisioningControlIdentityRecoveryError(
-                "provisioning encoded password is missing"
-            )
+            raise ProvisioningControlIdentityRecoveryError("provisioning encoded password is missing")
         client["encoded_password"] = "<provisioning-recovery-field>"
     if matches != 1:
-        raise ProvisioningControlIdentityRecoveryError(
-            "exactly one provisioning client is required"
-        )
+        raise ProvisioningControlIdentityRecoveryError("exactly one provisioning client is required")
     return normalized
 
 
@@ -207,13 +169,9 @@ def verify_password_only_candidate(
     before_value = before_client.get("encoded_password")
     after_value = after_client.get("encoded_password")
     if not isinstance(before_value, str) or not isinstance(after_value, str):
-        raise ProvisioningControlIdentityRecoveryError(
-            "provisioning encoded password is missing"
-        )
+        raise ProvisioningControlIdentityRecoveryError("provisioning encoded password is missing")
     if before_value == after_value:
-        raise ProvisioningControlIdentityRecoveryError(
-            "provisioning credential material did not change"
-        )
+        raise ProvisioningControlIdentityRecoveryError("provisioning credential material did not change")
     if _normalized_without_target_credential(
         before,
         username=username,
@@ -237,9 +195,7 @@ def build_authorization_record(
     operator_statement_fingerprint: str,
 ) -> dict[str, object]:
     if len(repository_sha) != 40 or not manager_source_version:
-        raise ProvisioningControlIdentityRecoveryError(
-            "recovery authorization binding is incomplete"
-        )
+        raise ProvisioningControlIdentityRecoveryError("recovery authorization binding is incomplete")
     return {
         "schema": AUTHORIZATION_SCHEMA,
         "authorized": True,
