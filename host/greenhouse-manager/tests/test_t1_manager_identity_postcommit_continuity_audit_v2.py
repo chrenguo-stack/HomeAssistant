@@ -5,7 +5,9 @@ from pathlib import Path
 
 import pytest
 
-import greenhouse_manager.t1_manager_identity_postcommit_continuity_audit_v2 as module
+from greenhouse_manager import (
+    t1_manager_identity_postcommit_continuity_audit_v2 as module,
+)
 
 SYSTEM_ID = "greenhouse"
 NODE_ID = "gh-n1-a9f2f8"
@@ -54,15 +56,36 @@ def _materials(tmp_path: Path) -> tuple[Path, Path]:
         "anonymous_closure_enabled": False,
     }
     _write_json(workspace / "journal.json", journal)
-    execution_path = _write_json(tmp_path / "external" / "execution-result.json", execution)
+    execution_path = _write_json(
+        tmp_path / "external" / "execution-result.json",
+        execution,
+    )
     return workspace, execution_path
 
 
 def _patch_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
     snapshot = {
-        "greenhouse-manager": ("manager-id", "manager-image", "2026-07-16T10:02:00Z", 0, "running"),
-        "mosquitto": ("mosquitto-id", "mosquitto-image", "2026-07-16T09:00:00Z", 0, "running"),
-        "homeassistant": ("ha-id", "ha-image", "2026-07-16T09:00:00Z", 0, "running"),
+        "greenhouse-manager": (
+            "manager-id",
+            "manager-image",
+            "2026-07-16T10:02:00Z",
+            0,
+            "running",
+        ),
+        "mosquitto": (
+            "mosquitto-id",
+            "mosquitto-image",
+            "2026-07-16T09:00:00Z",
+            0,
+            "running",
+        ),
+        "homeassistant": (
+            "ha-id",
+            "ha-image",
+            "2026-07-16T09:00:00Z",
+            0,
+            "running",
+        ),
     }
     manager = {
         "State": {
@@ -73,12 +96,33 @@ def _patch_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
     }
     monkeypatch.setattr(module, "_snapshot", lambda _runner: snapshot)
     monkeypatch.setattr(module, "_inspect", lambda _runner, _name: manager)
-    monkeypatch.setattr(module, "_validate_manager_identity", lambda *_args, **_kwargs: 123)
-    monkeypatch.setattr(module, "_stable_socket", lambda *_args, **_kwargs: True)
-    monkeypatch.setattr(module, "_validate_retained", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(module, "_validate_logs", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        module,
+        "_validate_manager_identity",
+        lambda *_args, **_kwargs: 123,
+    )
+    monkeypatch.setattr(
+        module,
+        "_stable_socket",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        module,
+        "_validate_retained",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        module,
+        "_validate_logs",
+        lambda *_args, **_kwargs: None,
+    )
 
-    def retained(_runner: object, topic: str, *, timeout_s: float) -> dict[str, object]:
+    def retained(
+        _runner: object,
+        topic: str,
+        *,
+        timeout_s: float,
+    ) -> dict[str, object]:
         assert timeout_s > 0
         if topic.endswith("/telemetry"):
             return {"node_id": NODE_ID}
