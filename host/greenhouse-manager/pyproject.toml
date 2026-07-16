@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "greenhouse-manager"
-version = "0.4.80"
+version = "0.4.81"
 description = "Canonical MQTT state manager for the greenhouse monitoring system"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -54,6 +54,7 @@ greenhouse-manager-t1-manager-identity-postcommit-continuity-audit = "greenhouse
 greenhouse-manager-t1-manager-identity-legacy-review-bridge = "greenhouse_manager.t1_manager_identity_migration_legacy_review_bridge:main"
 greenhouse-manager-t1-broker-identity-activation-handoff = "greenhouse_manager.t1_broker_identity_activation_handoff:main"
 greenhouse-manager-t1-broker-identity-preactivation-gate = "greenhouse_manager.t1_broker_identity_preactivation_gate:main"
+greenhouse-manager-t1-broker-identity-preactivation-fresh-evidence = "greenhouse_manager.t1_broker_identity_preactivation_fresh_evidence:main"
 greenhouse-manager-t1-broker-identity-postactivation-audit = "greenhouse_manager.t1_broker_identity_postactivation_audit:main"
 greenhouse-manager-t1-broker-identity-activation-authorization = "greenhouse_manager.t1_broker_identity_activation_authorization:main"
 greenhouse-manager-t1-broker-identity-activation-transaction = "greenhouse_manager.t1_broker_identity_activation_transaction:main"
