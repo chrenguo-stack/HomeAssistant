@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import pytest
-
 from greenhouse_manager import (
     t1_provisioning_control_identity_recovery as module,
 )
-
 
 USERNAME = "ghs_greenhouse_provisioning"
 CLIENT_ID = "gh-provisioning-greenhouse"
