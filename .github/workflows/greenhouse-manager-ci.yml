@@ -28,35 +28,18 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
         with:
-          show-progress: false
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: host/greenhouse-manager/pyproject.toml
 
-      - name: Install and lint
-        run: |
-          python -m pip install -q -e '.[dev]'
-          ruff check .
+      - name: Install
+        run: python -m pip install -e '.[dev]'
 
-      - name: Test and capture log
-        id: pytest
-        continue-on-error: true
-        shell: bash
-        run: |
-          set +e
-          pytest -q > pytest-diagnostic.log 2>&1
-          rc=$?
-          echo "$rc" > pytest-diagnostic.rc
-          exit "$rc"
+      - name: Lint
+        run: ruff check .
 
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: greenhouse-manager-pytest-diagnostic
-          path: |
-            host/greenhouse-manager/pytest-diagnostic.log
-            host/greenhouse-manager/pytest-diagnostic.rc
-          if-no-files-found: error
-          retention-days: 1
-
-      - name: Enforce test result
-        if: steps.pytest.outcome != 'success'
-        run: exit 1
+      - name: Test
+        run: pytest -q
