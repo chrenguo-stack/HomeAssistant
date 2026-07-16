@@ -42,4 +42,7 @@ jobs:
         run: ruff check .
 
       - name: Test
-        run: pytest -q
+        shell: bash
+        run: |
+          set -o pipefail
+          pytest -q 2>&1 | tail -n 120
