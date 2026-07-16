@@ -7,7 +7,6 @@ import re
 import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any
 
 from .t1_homeassistant_mqtt_migration_material_evidence import (
     CandidateMaterial,
@@ -17,7 +16,6 @@ from .t1_homeassistant_mqtt_migration_material_evidence import (
     _broker_config_and_state,
     _candidate_files,
     _canonical_json,
-    _fingerprint,
     _load_materials,
     _snapshot,
     _target_topology,
