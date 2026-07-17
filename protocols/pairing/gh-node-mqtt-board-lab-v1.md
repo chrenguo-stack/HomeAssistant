@@ -41,8 +41,20 @@ multicast, hostname, and globally routable values fail closed.
 
 ## Firmware contract
 
-The board target uses ESPHome `2026.4.3`, ESP32-C6, ESP-IDF, and the existing
+The board targets use ESPHome `2026.4.3`, ESP32-C6, ESP-IDF, and the existing
 `greenhouse_mqtt_auth` boot-profile adapter.
+
+Two targets have intentionally different evidence scopes:
+
+- `greenhouse_mqtt_auth_board_lab.yml` is the minimal authentication-only
+  target. It proves generic ESP32-C6 compilation and adapter behavior but does
+  not contain product LCD, environmental sensor, battery, or RS485 packages.
+- `f1_0_rc2_m2_node_auth_board_lab.yml` is the full product-PCB target. It
+  includes the repository F1.0-RC2 core, control, bus, sensor, and display
+  packages and is the only permitted target for the physical 50-case matrix.
+
+A compile of the minimal target cannot be used as evidence for local
+continuity. Neither target authorizes flashing a production node.
 
 Identity switching remains:
 
@@ -61,11 +73,11 @@ redacted desired profile state has been persisted. The hold flag is not added
 to `PersistedState`, is not restored after power loss, and must not be called
 from production YAML. A separate release action performs the pending reboot.
 
-The board target also maps an active-low GPIO9 input to anonymous rollback so
+The board targets also map an active-low GPIO9 input to anonymous rollback so
 an operator can request rollback while Wi-Fi or the Broker is unavailable.
 The button must be pressed only after boot and is not a production interface.
 
-The board heartbeat publishes only redacted state:
+The common board heartbeat publishes only redacted state:
 
 - active profile and phase;
 - MQTT connected state;
@@ -75,6 +87,11 @@ The board heartbeat publishes only redacted state:
 - generic failure class;
 - local loop count and uptime;
 - `secret_values_included=false`.
+
+The full product target additionally publishes non-secret evidence that the
+air, CO2, light, and soil entities have produced states, plus soil query and
+success counters and low-battery mode. These fields do not replace the
+operator's LCD, sensor-plausibility, RS485, and local-calculation observations.
 
 ## Failure classification
 
