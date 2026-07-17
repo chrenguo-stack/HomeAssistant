@@ -7,8 +7,6 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-import paho.mqtt.client as mqtt
-
 from .node_mqtt_board_lab_broker import (
     create_board_lab,
     destroy_board_lab,
@@ -218,7 +216,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         UnicodeError,
         json.JSONDecodeError,
         subprocess.SubprocessError,
-        mqtt.MQTTException,
+        ValueError,
+        RuntimeError,
     ) as error:
         print(f"Node MQTT board lab failed: {error}", file=sys.stderr)
         return 2
