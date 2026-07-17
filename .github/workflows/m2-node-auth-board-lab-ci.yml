@@ -58,22 +58,61 @@ jobs:
           reports="$(mktemp /tmp/gh-node-board-lab-reports-XXXXXX)"
           echo "BOARD_LAB_WORKSPACE=$workspace" >> "$GITHUB_ENV"
           echo "BOARD_LAB_REPORTS=$reports" >> "$GITHUB_ENV"
-      - name: Run isolated Broker valid invalid restore restart matrix
+      - name: Plan isolated Broker board lab
         shell: bash
         run: |
-          set -euo pipefail
-          run_report() { "$@" | tee -a "$BOARD_LAB_REPORTS"; }
-          run_report greenhouse-manager-node-mqtt-board-lab plan --workspace "$BOARD_LAB_WORKSPACE" --bind-host 127.0.0.1 --port 18883
-          run_report greenhouse-manager-node-mqtt-board-lab create --workspace "$BOARD_LAB_WORKSPACE" --bind-host 127.0.0.1 --port 18883 --confirmation M2-NONPRODUCTION-BOARD-LAB
-          run_report greenhouse-manager-node-mqtt-board-lab smoke-valid --workspace "$BOARD_LAB_WORKSPACE"
-          run_report greenhouse-manager-node-mqtt-board-lab invalidate-candidate --workspace "$BOARD_LAB_WORKSPACE"
-          run_report greenhouse-manager-node-mqtt-board-lab smoke-invalid --workspace "$BOARD_LAB_WORKSPACE"
-          run_report greenhouse-manager-node-mqtt-board-lab restore-candidate --workspace "$BOARD_LAB_WORKSPACE"
-          run_report greenhouse-manager-node-mqtt-board-lab smoke-valid --workspace "$BOARD_LAB_WORKSPACE"
-          run_report greenhouse-manager-node-mqtt-board-lab stop --workspace "$BOARD_LAB_WORKSPACE"
-          run_report greenhouse-manager-node-mqtt-board-lab start --workspace "$BOARD_LAB_WORKSPACE"
-          run_report greenhouse-manager-node-mqtt-board-lab smoke-valid --workspace "$BOARD_LAB_WORKSPACE"
-          run_report greenhouse-manager-node-mqtt-board-lab destroy --workspace "$BOARD_LAB_WORKSPACE"
+          set -o pipefail
+          greenhouse-manager-node-mqtt-board-lab plan --workspace "$BOARD_LAB_WORKSPACE" --bind-host 127.0.0.1 --port 18883 | tee -a "$BOARD_LAB_REPORTS"
+      - name: Create isolated Broker board lab
+        shell: bash
+        run: |
+          set -o pipefail
+          greenhouse-manager-node-mqtt-board-lab create --workspace "$BOARD_LAB_WORKSPACE" --bind-host 127.0.0.1 --port 18883 --confirmation M2-NONPRODUCTION-BOARD-LAB | tee -a "$BOARD_LAB_REPORTS"
+      - name: Smoke valid candidate and anonymous paths
+        shell: bash
+        run: |
+          set -o pipefail
+          greenhouse-manager-node-mqtt-board-lab smoke-valid --workspace "$BOARD_LAB_WORKSPACE" | tee -a "$BOARD_LAB_REPORTS"
+      - name: Invalidate candidate credential
+        shell: bash
+        run: |
+          set -o pipefail
+          greenhouse-manager-node-mqtt-board-lab invalidate-candidate --workspace "$BOARD_LAB_WORKSPACE" | tee -a "$BOARD_LAB_REPORTS"
+      - name: Smoke invalid candidate and anonymous continuity
+        shell: bash
+        run: |
+          set -o pipefail
+          greenhouse-manager-node-mqtt-board-lab smoke-invalid --workspace "$BOARD_LAB_WORKSPACE" | tee -a "$BOARD_LAB_REPORTS"
+      - name: Restore candidate credential
+        shell: bash
+        run: |
+          set -o pipefail
+          greenhouse-manager-node-mqtt-board-lab restore-candidate --workspace "$BOARD_LAB_WORKSPACE" | tee -a "$BOARD_LAB_REPORTS"
+      - name: Smoke restored candidate and anonymous paths
+        shell: bash
+        run: |
+          set -o pipefail
+          greenhouse-manager-node-mqtt-board-lab smoke-valid --workspace "$BOARD_LAB_WORKSPACE" | tee -a "$BOARD_LAB_REPORTS"
+      - name: Stop isolated Broker
+        shell: bash
+        run: |
+          set -o pipefail
+          greenhouse-manager-node-mqtt-board-lab stop --workspace "$BOARD_LAB_WORKSPACE" | tee -a "$BOARD_LAB_REPORTS"
+      - name: Restart isolated Broker
+        shell: bash
+        run: |
+          set -o pipefail
+          greenhouse-manager-node-mqtt-board-lab start --workspace "$BOARD_LAB_WORKSPACE" | tee -a "$BOARD_LAB_REPORTS"
+      - name: Smoke paths after Broker restart
+        shell: bash
+        run: |
+          set -o pipefail
+          greenhouse-manager-node-mqtt-board-lab smoke-valid --workspace "$BOARD_LAB_WORKSPACE" | tee -a "$BOARD_LAB_REPORTS"
+      - name: Destroy isolated Broker board lab
+        shell: bash
+        run: |
+          set -o pipefail
+          greenhouse-manager-node-mqtt-board-lab destroy --workspace "$BOARD_LAB_WORKSPACE" | tee -a "$BOARD_LAB_REPORTS"
       - name: Verify board-lab report count
         run: |
           REPORTS="$BOARD_LAB_REPORTS" python - <<'PY'
