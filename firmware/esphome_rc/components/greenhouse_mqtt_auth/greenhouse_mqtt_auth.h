@@ -65,9 +65,18 @@ class GreenhouseMqttAuth final : public Component {
 
   AuthProfile active_profile() const { return this->active_profile_; }
   AuthPhase phase() const { return this->phase_; }
+  const std::string &active_client_id() const {
+    return this->active_profile_ == AuthProfile::CANDIDATE ? this->candidate_client_id_ : this->anonymous_client_id_;
+  }
+  const char *active_profile_name() const;
+  const char *phase_name() const;
+  const char *last_failure_class() const {
+    return this->last_failure_class_ == nullptr ? "none" : this->last_failure_class_;
+  }
   uint8_t candidate_failure_count() const { return this->state_.candidate_failure_count; }
   uint8_t observation_success_count() const { return this->state_.observation_success_count; }
   bool ready_for_commit() const;
+  bool mqtt_connected() const { return this->mqtt_connected_; }
   bool candidate_secret_present() const { return !this->candidate_password_.empty(); }
   const std::string &candidate_secret_fingerprint() const {
     return this->candidate_secret_fingerprint_;
