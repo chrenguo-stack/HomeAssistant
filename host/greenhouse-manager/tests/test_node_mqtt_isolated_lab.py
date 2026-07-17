@@ -6,7 +6,6 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
 from greenhouse_manager import node_mqtt_isolated_lab as module
 
 
