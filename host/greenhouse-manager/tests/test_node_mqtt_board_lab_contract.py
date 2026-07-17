@@ -24,9 +24,10 @@ COMPONENT_HEADER = COMPONENT / "greenhouse_mqtt_auth.h"
 COMPONENT_CPP = COMPONENT / "greenhouse_mqtt_auth.cpp"
 BOARD_DIR = ROOT / "firmware/esphome_rc/board_lab/m2_node_auth"
 BOARD_YAML = BOARD_DIR / "greenhouse_mqtt_auth_board_lab.yml"
-PRODUCT_BOARD_YAML = (
-    ROOT / "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_m2_node_auth_board_lab.yml"
-)
+RC2_DIR = ROOT / "firmware/esphome_rc/f1_0_rc2"
+BASE_PRODUCT_YAML = RC2_DIR / "f1_0_rc2.yml"
+PRODUCT_BOARD_YAML = RC2_DIR / "f1_0_rc2_m2_node_auth_board_lab.yml"
+PRODUCT_SENSORS_YAML = RC2_DIR / "packages/sensors.yml"
 EXAMPLE_SECRETS = BOARD_DIR / "secrets.example.yaml"
 RUNBOOK = BOARD_DIR / "README.md"
 WORKFLOW = ROOT / ".github/workflows/m2-node-auth-board-lab-ci.yml"
@@ -42,7 +43,9 @@ def test_board_lab_files_are_present() -> None:
         COMPONENT_HEADER,
         COMPONENT_CPP,
         BOARD_YAML,
+        BASE_PRODUCT_YAML,
         PRODUCT_BOARD_YAML,
+        PRODUCT_SENSORS_YAML,
         EXAMPLE_SECRETS,
         RUNBOOK,
         WORKFLOW,
@@ -84,6 +87,8 @@ def test_product_board_target_preserves_full_rc2_local_stack() -> None:
     ):
         assert package in config
     for token in (
+        "soil_read_interval: 20s",
+        "scd30_update_interval: 11s",
         "candidate_username: ghn_lab-board",
         "candidate_client_id: lab-board",
         "anonymous_client_id: lab-board-anon",
@@ -103,6 +108,14 @@ def test_product_board_target_preserves_full_rc2_local_stack() -> None:
     assert "homeassistant/" not in config
     assert "$CONTROL/" not in config
     assert "192" + ".168." not in config
+
+
+def test_scd30_cadence_is_substitutable_without_changing_base_default() -> None:
+    base = BASE_PRODUCT_YAML.read_text(encoding="utf-8")
+    sensors = PRODUCT_SENSORS_YAML.read_text(encoding="utf-8")
+
+    assert "scd30_update_interval: 30s" in base
+    assert "update_interval: ${scd30_update_interval}" in sensors
 
 
 def test_example_secrets_are_placeholders_only() -> None:
