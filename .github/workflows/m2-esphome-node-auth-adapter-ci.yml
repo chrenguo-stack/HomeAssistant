@@ -1,0 +1,76 @@
+name: M2 ESPHome node auth adapter CI
+
+on:
+  pull_request:
+    paths:
+      - "firmware/esphome_rc/components/greenhouse_mqtt_auth/**"
+      - "firmware/esphome_rc/tests/greenhouse_mqtt_auth_compile.yml"
+      - "host/greenhouse-manager/tests/test_node_esphome_mqtt_auth_adapter_contract.py"
+      - "protocols/pairing/gh-node-esphome-mqtt-boot-profile-adapter-v1.md"
+      - ".github/workflows/m2-esphome-node-auth-adapter-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: firmware/esphome_rc/tests
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install pinned ESPHome
+        run: python -m pip install -q "esphome==2026.4.3"
+      - name: Create ephemeral non-production secrets
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import secrets
+
+          values = {
+              "ci_wifi_ssid": "ci-network",
+              "ci_wifi_password": secrets.token_urlsafe(24),
+              "mqtt_candidate_password": secrets.token_urlsafe(32),
+          }
+          Path("secrets.yaml").write_text(
+              "".join(f'{key}: "{value}"\n' for key, value in values.items()),
+              encoding="utf-8",
+          )
+          PY
+      - name: Validate configuration
+        shell: bash
+        run: |
+          set -o pipefail
+          esphome config greenhouse_mqtt_auth_compile.yml 2>&1 | tee /tmp/esphome-config.log
+      - name: Compile ESP32-C6 ESP-IDF target
+        shell: bash
+        run: |
+          set -o pipefail
+          esphome compile greenhouse_mqtt_auth_compile.yml 2>&1 | tee /tmp/esphome-compile.log
+      - name: Verify ephemeral secrets were not logged
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          values = []
+          for line in Path("secrets.yaml").read_text(encoding="utf-8").splitlines():
+              _, value = line.split(":", 1)
+              values.append(value.strip().strip('"'))
+          logs = "\n".join(
+              Path(path).read_text(encoding="utf-8", errors="replace")
+              for path in ("/tmp/esphome-config.log", "/tmp/esphome-compile.log")
+          )
+          leaked = [value for value in values if value and value in logs]
+          if leaked:
+              raise SystemExit("ephemeral secret appeared in ESPHome output")
+          PY
+      - name: Remove ephemeral secrets
+        if: always()
+        run: rm -f secrets.yaml /tmp/esphome-config.log /tmp/esphome-compile.log
