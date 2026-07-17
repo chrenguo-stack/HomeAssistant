@@ -1,8 +1,9 @@
 substitutions:
   device_name: gh-m2-board-lab
   project_version: "F1.0-RC2-N0.3-M2-BOARD-LAB"
-  soil_read_interval: 20min
+  soil_read_interval: 20s
   soil_warmup_time: 15s
+  scd30_update_interval: 11s
   battery_divider_ratio: "2.0"
   battery_calibration_factor: "1.000"
   battery_low_threshold: "3.00"
