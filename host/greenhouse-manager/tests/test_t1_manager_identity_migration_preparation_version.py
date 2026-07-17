@@ -4,8 +4,8 @@ import tomllib
 from pathlib import Path
 
 
-def test_manager_package_version_includes_provisioning_control_recovery() -> None:
+def test_manager_package_version_includes_node_mqtt_readiness_evidence() -> None:
     root = Path(__file__).resolve().parents[1]
     with (root / "pyproject.toml").open("rb") as stream:
         document = tomllib.load(stream)
-    assert document["project"]["version"] == "0.4.86"
+    assert document["project"]["version"] == "0.4.87"
