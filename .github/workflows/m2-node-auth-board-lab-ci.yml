@@ -1,0 +1,259 @@
+name: M2 node auth board lab CI
+
+on:
+  pull_request:
+    paths:
+      - "host/greenhouse-manager/src/greenhouse_manager/node_mqtt_board_lab.py"
+      - "host/greenhouse-manager/src/greenhouse_manager/schemas/node_mqtt_board_lab_observation_v1.json"
+      - "host/greenhouse-manager/tests/test_node_mqtt_board_lab.py"
+      - "host/greenhouse-manager/tests/test_node_mqtt_board_lab_contract.py"
+      - "host/greenhouse-manager/pyproject.toml"
+      - "host/greenhouse-manager/tests/test_t1_manager_identity_migration_preparation_version.py"
+      - "firmware/esphome_rc/board_lab/m2_node_auth/**"
+      - "firmware/esphome_rc/components/greenhouse_mqtt_auth/**"
+      - "protocols/pairing/gh-node-mqtt-board-lab-v1.md"
+      - ".github/workflows/m2-node-auth-board-lab-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  unit-and-contract:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install manager tools
+        run: python -m pip install -q -e "host/greenhouse-manager[dev]"
+      - name: Static and unit tests
+        run: |
+          cd host/greenhouse-manager
+          ruff check \
+            src/greenhouse_manager/node_mqtt_board_lab.py \
+            tests/test_node_mqtt_board_lab.py \
+            tests/test_node_mqtt_board_lab_contract.py
+          pytest -q \
+            tests/test_node_mqtt_board_lab.py \
+            tests/test_node_mqtt_board_lab_contract.py \
+            tests/test_t1_manager_identity_migration_preparation_version.py
+      - name: Public repository safety scan
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          paths = (
+              Path("host/greenhouse-manager/src/greenhouse_manager/node_mqtt_board_lab.py"),
+              Path("host/greenhouse-manager/src/greenhouse_manager/schemas/node_mqtt_board_lab_observation_v1.json"),
+              Path("host/greenhouse-manager/tests/test_node_mqtt_board_lab.py"),
+              Path("host/greenhouse-manager/tests/test_node_mqtt_board_lab_contract.py"),
+              Path("firmware/esphome_rc/board_lab/m2_node_auth/greenhouse_mqtt_auth_board_lab.yml"),
+              Path("firmware/esphome_rc/board_lab/m2_node_auth/secrets.example.yaml"),
+              Path("firmware/esphome_rc/board_lab/m2_node_auth/README.md"),
+              Path("protocols/pairing/gh-node-mqtt-board-lab-v1.md"),
+              Path(".github/workflows/m2-node-auth-board-lab-ci.yml"),
+          )
+          encoded = "\n".join(path.read_text(encoding="utf-8") for path in paths)
+          forbidden = (
+              "root@",
+              "/Users/",
+              "192" + ".168.",
+              "home-assistant_v2.db",
+          )
+          leaked = [value for value in forbidden if value in encoded]
+          if leaked:
+              raise SystemExit("private production marker appeared in board-lab source")
+          if "ready_for_live_apply\": true" in encoded.lower():
+              raise SystemExit("board-lab source opened the live-apply gate")
+          if "ready_for_anonymous_closure\": true" in encoded.lower():
+              raise SystemExit("board-lab source opened the anonymous-closure gate")
+          PY
+
+  isolated-broker-integration:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install manager tools
+        run: python -m pip install -q -e "host/greenhouse-manager[dev]"
+      - name: Pull pinned Mosquitto image
+        run: docker pull eclipse-mosquitto:2.0.22
+      - name: Run board-lab Broker preparation matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          workspace="$(mktemp -d /tmp/gh-node-board-lab-ci-XXXXXX)"
+          reports="/tmp/gh-node-board-lab-reports.jsonl"
+          : > "$reports"
+
+          cleanup() {
+            greenhouse-manager-node-mqtt-board-lab destroy \
+              --workspace "$workspace" >/dev/null 2>&1 || true
+            rm -rf "$workspace" "$reports"
+          }
+          trap cleanup EXIT
+
+          run_report() {
+            "$@" | tee -a "$reports"
+          }
+
+          run_report greenhouse-manager-node-mqtt-board-lab plan \
+            --workspace "$workspace" --bind-host 127.0.0.1 --port 18883
+          run_report greenhouse-manager-node-mqtt-board-lab create \
+            --workspace "$workspace" --bind-host 127.0.0.1 --port 18883 \
+            --confirmation M2-NONPRODUCTION-BOARD-LAB
+          run_report greenhouse-manager-node-mqtt-board-lab smoke-valid \
+            --workspace "$workspace"
+          run_report greenhouse-manager-node-mqtt-board-lab invalidate-candidate \
+            --workspace "$workspace"
+          run_report greenhouse-manager-node-mqtt-board-lab smoke-invalid \
+            --workspace "$workspace"
+          run_report greenhouse-manager-node-mqtt-board-lab restore-candidate \
+            --workspace "$workspace"
+          run_report greenhouse-manager-node-mqtt-board-lab smoke-valid \
+            --workspace "$workspace"
+          run_report greenhouse-manager-node-mqtt-board-lab stop \
+            --workspace "$workspace"
+          run_report greenhouse-manager-node-mqtt-board-lab start \
+            --workspace "$workspace"
+          run_report greenhouse-manager-node-mqtt-board-lab smoke-valid \
+            --workspace "$workspace"
+          run_report greenhouse-manager-node-mqtt-board-lab destroy \
+            --workspace "$workspace"
+
+          WORKSPACE="$workspace" REPORTS="$reports" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          workspace = os.environ["WORKSPACE"]
+          reports_path = Path(os.environ["REPORTS"])
+          documents = [
+              json.loads(line)
+              for line in reports_path.read_text(encoding="utf-8").splitlines()
+              if line.strip()
+          ]
+          statuses = {document["status"] for document in documents}
+          required = {
+              "node_mqtt_board_lab_plan_created",
+              "node_mqtt_board_lab_created",
+              "node_mqtt_board_lab_valid_smoke_succeeded",
+              "node_mqtt_board_lab_candidate_invalidated",
+              "node_mqtt_board_lab_invalid_smoke_succeeded",
+              "node_mqtt_board_lab_candidate_restored",
+              "node_mqtt_board_lab_stopped",
+              "node_mqtt_board_lab_started",
+              "node_mqtt_board_lab_destroyed",
+          }
+          if not required.issubset(statuses):
+              raise SystemExit("board-lab Broker status matrix is incomplete")
+          encoded = reports_path.read_text(encoding="utf-8")
+          if workspace in encoded:
+              raise SystemExit("private workspace path appeared in public report")
+          for document in documents:
+              if document.get("secret_values_included") is not False:
+                  raise SystemExit("board-lab report secret gate was not closed")
+              if document.get("production_execution_invoked") is not False:
+                  raise SystemExit("board-lab report claimed production execution")
+              if document.get("homeassistant_storage_read") is not False:
+                  raise SystemExit("board-lab report claimed Home Assistant storage access")
+              if document.get("node_credentials_delivered") is not False:
+                  raise SystemExit("board-lab report claimed node credential delivery")
+              if document.get("anonymous_closure_enabled") is not False:
+                  raise SystemExit("board-lab report enabled anonymous closure")
+              if "candidate_password" in document or "observer_password" in document:
+                  raise SystemExit("raw password field appeared in board-lab report")
+          if Path(workspace).exists():
+              raise SystemExit("board-lab workspace survived verified destroy")
+          PY
+
+          trap - EXIT
+          rm -f "$reports"
+
+  esp32-c6-board-target:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install pinned ESPHome
+        run: python -m pip install -q "esphome==2026.4.3"
+      - name: Create ephemeral board-lab secrets
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib
+          import secrets
+          from pathlib import Path
+
+          candidate = secrets.token_urlsafe(32)
+          wifi_password = secrets.token_urlsafe(24)
+          fingerprint = hashlib.sha256(candidate.encode()).hexdigest()[:16]
+          path = Path("firmware/esphome_rc/board_lab/m2_node_auth/secrets.yaml")
+          path.write_text(
+              "\n".join(
+                  (
+                      'board_lab_wifi_ssid: "ci-board-lab"',
+                      f'board_lab_wifi_password: "{wifi_password}"',
+                      'board_lab_broker_host: "192.0.2.10"',
+                      'board_lab_broker_port: 18883',
+                      f'board_lab_candidate_password: "{candidate}"',
+                      f'board_lab_candidate_secret_fingerprint: "{fingerprint}"',
+                      "",
+                  )
+              ),
+              encoding="utf-8",
+          )
+          Path("/tmp/board-lab-ephemeral-values").write_text(
+              candidate + "\n" + wifi_password + "\n",
+              encoding="utf-8",
+          )
+          PY
+      - name: Validate board configuration
+        shell: bash
+        run: |
+          set -o pipefail
+          cd firmware/esphome_rc/board_lab/m2_node_auth
+          esphome config greenhouse_mqtt_auth_board_lab.yml 2>&1 | tee /tmp/board-lab-config.log
+      - name: Compile ESP32-C6 board target
+        shell: bash
+        run: |
+          set -o pipefail
+          cd firmware/esphome_rc/board_lab/m2_node_auth
+          esphome compile greenhouse_mqtt_auth_board_lab.yml 2>&1 | tee /tmp/board-lab-compile.log
+      - name: Verify ephemeral secrets were not logged
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          values = Path("/tmp/board-lab-ephemeral-values").read_text(encoding="utf-8").splitlines()
+          logs = "\n".join(
+              Path(path).read_text(encoding="utf-8", errors="replace")
+              for path in ("/tmp/board-lab-config.log", "/tmp/board-lab-compile.log")
+          )
+          leaked = [value for value in values if value and value in logs]
+          if leaked:
+              raise SystemExit("ephemeral board-lab secret appeared in ESPHome output")
+          PY
+      - name: Remove ephemeral files
+        if: always()
+        run: |
+          rm -f \
+            firmware/esphome_rc/board_lab/m2_node_auth/secrets.yaml \
+            /tmp/board-lab-ephemeral-values \
+            /tmp/board-lab-config.log \
+            /tmp/board-lab-compile.log
