@@ -28,10 +28,12 @@ Committed board targets:
   product LCD, environmental sensors, or RS485 packages and therefore cannot
   satisfy the local-continuity cases in the physical fault matrix.
 - `../../f1_0_rc2/f1_0_rc2_m2_node_auth_board_lab.yml`: full product-PCB target.
-  It preserves the repository F1.0-RC2 sensor, LCD, battery, RS485, and local
-  control packages and adds the same non-production MQTT authentication
-  harness. This is the only target permitted for the 50-case product-board
-  runtime matrix.
+  It includes the F1.0-RC2 core, LCD, sensor, battery and RS485 packages plus
+  `packages/control_m2_board_lab.yml`, which preserves the frozen runtime
+  timing: SCD30 updates every 11 seconds; the soil sensor receives one
+  15-second warm-up after boot or low-battery recovery, remains powered, and
+  receives normal Modbus reads every 20 seconds. This is the only target
+  permitted for the 50-case product-board runtime matrix.
 - `secrets.example.yaml`: placeholder-only example.
 - `.gitignore`: prevents the local secret file, logs, matrix records, and build
   directory from being committed.
@@ -41,10 +43,9 @@ workspace. They include random non-production passwords, `secrets.yaml`, the
 Mosquitto password file, captures, and the editable matrix record set. They
 must not be copied into the repository.
 
-The full product target is a source-level derivative of the repository RC2
-baseline. It is not evidence that any currently deployed field firmware has
-been upgraded or is byte-identical. Never use a production node as the test
-board.
+The full product target is a source-level test derivative. It is not evidence
+that any currently deployed field firmware has been upgraded or is
+byte-identical. Never use a production node as the test board.
 
 ## Preparation sequence
 
@@ -119,8 +120,8 @@ esphome compile greenhouse_mqtt_auth_board_lab.yml
 ### Full product-PCB target
 
 Use this target for the physical fault matrix on a dedicated greenhouse PCB.
-The command keeps the private secret file ignored by Git and compiles the
-complete RC2 product packages plus the board-lab adapter.
+The command keeps the private secret file ignored by Git and compiles the full
+local product stack plus the non-production board-lab adapter.
 
 ```bash
 install -m 600 <private-workspace>/secrets.yaml \
@@ -137,6 +138,12 @@ stop/start operations, and LCD/sensor/RS485 observations require the operator.
 Do not perform them on the production node. Before the first flash, verify that
 the selected board is a dedicated test board and that its GPIO wiring matches
 the RC2 product target.
+
+After boot, the first soil read must follow the initial 15-second warm-up. The
+sensor power indicator must then remain on during normal operation, and the
+serial/heartbeat evidence must show subsequent query attempts on the frozen
+20-second schedule. SCD30 state updates must use the frozen 11-second schedule.
+Any cadence drift blocks the local-continuity cases.
 
 ## Observation and control
 
