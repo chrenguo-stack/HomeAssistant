@@ -153,7 +153,7 @@ jobs:
               raise SystemExit("native lifecycle report lost its backend binding")
           if any(report.get("docker_required") is not False for report in lifecycle):
               raise SystemExit("native lifecycle unexpectedly required Docker")
-          if any(report.get("image") not in (None, "native-mosquitto-2.0") for report in reports):
+          if any(report.get("image") not in (None, "native-mosquitto-2.0-2.1") for report in reports):
               raise SystemExit("unexpected Broker image identity appeared in native sequence")
           if Path(workspace).exists():
               raise SystemExit("private native board-lab workspace was not removed")
