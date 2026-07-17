@@ -75,14 +75,14 @@ def _connect_client(
         while not finished and time.monotonic() < deadline:
             time.sleep(0.05)
         return client, connected
-    except (OSError, mqtt.MQTTException):
+    except (OSError, ValueError, RuntimeError):
         return client, False
 
 
 def _close_client(client: mqtt.Client) -> None:
-    with contextlib.suppress(OSError, mqtt.MQTTException):
+    with contextlib.suppress(OSError, ValueError, RuntimeError):
         client.disconnect()
-    with contextlib.suppress(OSError, mqtt.MQTTException):
+    with contextlib.suppress(OSError, ValueError, RuntimeError):
         client.loop_stop()
 
 
