@@ -24,6 +24,9 @@ COMPONENT_HEADER = COMPONENT / "greenhouse_mqtt_auth.h"
 COMPONENT_CPP = COMPONENT / "greenhouse_mqtt_auth.cpp"
 BOARD_DIR = ROOT / "firmware/esphome_rc/board_lab/m2_node_auth"
 BOARD_YAML = BOARD_DIR / "greenhouse_mqtt_auth_board_lab.yml"
+PRODUCT_BOARD_YAML = (
+    ROOT / "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_m2_node_auth_board_lab.yml"
+)
 EXAMPLE_SECRETS = BOARD_DIR / "secrets.example.yaml"
 RUNBOOK = BOARD_DIR / "README.md"
 WORKFLOW = ROOT / ".github/workflows/m2-node-auth-board-lab-ci.yml"
@@ -39,6 +42,7 @@ def test_board_lab_files_are_present() -> None:
         COMPONENT_HEADER,
         COMPONENT_CPP,
         BOARD_YAML,
+        PRODUCT_BOARD_YAML,
         EXAMPLE_SECRETS,
         RUNBOOK,
         WORKFLOW,
@@ -66,6 +70,39 @@ def test_board_target_is_fixed_nonproduction_and_uses_secret_indirection() -> No
     assert "reboot_held_for_test()" in config
     assert "number: GPIO9" in config
     assert "request_anonymous_rollback()" in config
+
+
+def test_product_board_target_preserves_full_rc2_local_stack() -> None:
+    config = PRODUCT_BOARD_YAML.read_text(encoding="utf-8")
+
+    for package in (
+        "packages/core.yml",
+        "packages/control.yml",
+        "packages/buses.yml",
+        "packages/sensors.yml",
+        "packages/display.yml",
+    ):
+        assert package in config
+    for token in (
+        "candidate_username: ghn_lab-board",
+        "candidate_client_id: lab-board",
+        "anonymous_client_id: lab-board-anon",
+        "candidate_password: !secret board_lab_candidate_password",
+        "broker: !secret board_lab_broker_host",
+        "number: GPIO9",
+        "soil_query_count",
+        "soil_success_count",
+        "air_data_present",
+        "co2_data_present",
+        "light_data_present",
+        "soil_data_present",
+        '"secret_values_included\\":false',
+    ):
+        assert token in config
+    assert "status_led:" not in config
+    assert "homeassistant/" not in config
+    assert "$CONTROL/" not in config
+    assert "192" + ".168." not in config
 
 
 def test_example_secrets_are_placeholders_only() -> None:
@@ -147,6 +184,7 @@ def test_runbook_defers_physical_actions_to_operator() -> None:
         "physical power cycling",
         "Wi-Fi interruption",
         "LCD/sensor/RS485 observations require the operator",
+        "only target permitted for the 50-case product-board runtime matrix",
         "does not claim secure erasure",
     ):
         assert statement in runbook
@@ -176,6 +214,9 @@ def test_workflow_runs_unit_broker_compile_and_secret_checks() -> None:
     assert "restore-candidate" in workflow
     assert "esphome==2026.4.3" in workflow
     assert "greenhouse_mqtt_auth_board_lab.yml" in workflow
+    assert "f1_0_rc2_m2_node_auth_board_lab.yml" in workflow
+    assert "Compile minimal ESP32-C6 auth target" in workflow
+    assert "Compile full RC2 product board target" in workflow
     assert "ephemeral board-lab secret appeared" in workflow
     assert "private production marker appeared" in workflow
     assert "if: always()" in workflow
