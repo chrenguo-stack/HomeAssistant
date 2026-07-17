@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from greenhouse_manager import node_firmware_mqtt_capability_gate as module
 
 
