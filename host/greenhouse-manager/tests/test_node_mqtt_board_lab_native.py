@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -153,5 +154,24 @@ def test_native_destroy_requires_workspace_binding(
     report = native.destroy_native_board_lab(workspace, runner=_runner_for_version("2.0.22"))
     assert report["status"] == "node_mqtt_board_lab_native_destroyed"
     assert report["workspace_removed"] is True
-    assert report["secure_erase_claimed"] is False
+    assert report["ready_for_live_apply"] is False
+    assert report["ready_for_anonymous_closure"] is False
     assert not workspace.exists()
+
+
+def test_native_cli_and_public_contract_are_registered() -> None:
+    root = Path(__file__).resolve().parents[1]
+    with (root / "pyproject.toml").open("rb") as stream:
+        document = tomllib.load(stream)
+    assert (
+        document["project"]["scripts"]["greenhouse-manager-node-mqtt-board-lab-native"]
+        == "greenhouse_manager.node_mqtt_board_lab_native:main"
+    )
+    source = (
+        root / "src/greenhouse_manager/node_mqtt_board_lab_native_broker.py"
+    ).read_text(encoding="utf-8")
+    assert 'NATIVE_BACKEND = "native"' in source
+    assert "CONFIRMATION" in source
+    assert '"docker"' not in source
+    assert "allow_anonymous true" in source
+    assert "ready_for_live_apply" in source
