@@ -1,0 +1,43 @@
+name: M2 native lint diagnostic
+
+on:
+  pull_request:
+    paths:
+      - "host/greenhouse-manager/src/greenhouse_manager/node_mqtt_board_lab_native*.py"
+      - "host/greenhouse-manager/tests/test_node_mqtt_board_lab_native.py"
+      - "host/greenhouse-manager/pyproject.toml"
+      - ".github/workflows/m2-native-lint-diagnostic.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  lint-diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - name: Install Ruff
+        run: python -m pip install -q "ruff>=0.12,<1"
+      - name: Capture focused Ruff result
+        shell: bash
+        run: |
+          set +e
+          cd host/greenhouse-manager
+          ruff check \
+            src/greenhouse_manager/node_mqtt_board_lab_native.py \
+            src/greenhouse_manager/node_mqtt_board_lab_native_broker.py \
+            tests/test_node_mqtt_board_lab_native.py \
+            --output-format concise > /tmp/native-ruff.txt 2>&1
+          rc=$?
+          echo "RUFF_RC=$rc" >> "$GITHUB_ENV"
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: m2-native-ruff-diagnostic
+          path: /tmp/native-ruff.txt
+          retention-days: 1
+      - name: Fail on Ruff findings
+        run: test "$RUFF_RC" -eq 0
