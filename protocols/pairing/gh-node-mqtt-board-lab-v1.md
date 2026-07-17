@@ -50,8 +50,20 @@ Two targets have intentionally different evidence scopes:
   target. It proves generic ESP32-C6 compilation and adapter behavior but does
   not contain product LCD, environmental sensor, battery, or RS485 packages.
 - `f1_0_rc2_m2_node_auth_board_lab.yml` is the full product-PCB target. It
-  includes the repository F1.0-RC2 core, control, bus, sensor, and display
-  packages and is the only permitted target for the physical 50-case matrix.
+  includes the F1.0-RC2 core, bus, sensor and display packages plus the
+  board-lab-specific `control_m2_board_lab.yml`. It is the only permitted
+  target for the physical 50-case matrix.
+
+The full target must preserve the frozen product timing contract:
+
+- SCD30 updates every 11 seconds;
+- the soil sensor receives one 15-second warm-up after boot or low-battery
+  recovery;
+- the soil sensor remains powered between normal reads;
+- normal Modbus reads are requested every 20 seconds;
+- MQTT connectivity, authentication state, Wi-Fi state, and Home Assistant
+  availability never gate local sensing, LCD updates, RS485 polling, or
+  low-battery protection.
 
 A compile of the minimal target cannot be used as evidence for local
 continuity. Neither target authorizes flashing a production node.
@@ -91,7 +103,8 @@ The common board heartbeat publishes only redacted state:
 The full product target additionally publishes non-secret evidence that the
 air, CO2, light, and soil entities have produced states, plus soil query and
 success counters and low-battery mode. These fields do not replace the
-operator's LCD, sensor-plausibility, RS485, and local-calculation observations.
+operator's LCD, sensor-plausibility, RS485, local-calculation, or cadence
+observations.
 
 ## Failure classification
 
@@ -137,4 +150,4 @@ generation, production firmware deployment, or anonymous closure.
 5. seven power-loss/NVS cut points;
 6. rollback before and after commit, including Broker-unreachable rollback;
 7. ESPHome config, compile, serial, heartbeat, preferences, OTA, and crash-log secret checks;
-8. LCD, sensors, local calculations, low-power behavior, and RS485 continuity.
+8. LCD, sensors, frozen sensor cadences, local calculations, low-power behavior, and RS485 continuity.
