@@ -154,15 +154,14 @@ jobs:
         run: |
           greenhouse-manager-node-mqtt-board-lab destroy \
             --workspace "$BOARD_LAB_WORKSPACE" | tee -a "$BOARD_LAB_REPORTS"
-      - name: Verify redacted board-lab reports
+      - name: Verify board-lab status coverage
         shell: bash
         run: |
-          WORKSPACE="$BOARD_LAB_WORKSPACE" REPORTS="$BOARD_LAB_REPORTS" python - <<'PY'
+          REPORTS="$BOARD_LAB_REPORTS" python - <<'PY'
           import json
           import os
           from pathlib import Path
 
-          workspace = os.environ["WORKSPACE"]
           reports_path = Path(os.environ["REPORTS"])
           documents = [
               json.loads(line)
@@ -183,6 +182,22 @@ jobs:
           }
           if not required.issubset(statuses):
               raise SystemExit("board-lab Broker status matrix is incomplete")
+          PY
+      - name: Verify board-lab report redaction
+        shell: bash
+        run: |
+          WORKSPACE="$BOARD_LAB_WORKSPACE" REPORTS="$BOARD_LAB_REPORTS" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          workspace = os.environ["WORKSPACE"]
+          reports_path = Path(os.environ["REPORTS"])
+          documents = [
+              json.loads(line)
+              for line in reports_path.read_text(encoding="utf-8").splitlines()
+              if line.strip()
+          ]
           encoded = reports_path.read_text(encoding="utf-8")
           if workspace in encoded:
               raise SystemExit("private workspace path appeared in public report")
@@ -199,9 +214,10 @@ jobs:
                   raise SystemExit("board-lab report enabled anonymous closure")
               if "candidate_password" in document or "observer_password" in document:
                   raise SystemExit("raw password field appeared in board-lab report")
-          if Path(workspace).exists():
-              raise SystemExit("board-lab workspace survived verified destroy")
           PY
+      - name: Verify private workspace removal
+        run: |
+          test ! -e "$BOARD_LAB_WORKSPACE"
       - name: Cleanup private board-lab artifacts
         if: always()
         run: |
