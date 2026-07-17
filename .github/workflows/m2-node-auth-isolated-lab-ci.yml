@@ -1,0 +1,128 @@
+name: M2 node auth isolated lab CI
+
+on:
+  pull_request:
+    paths:
+      - "host/greenhouse-manager/src/greenhouse_manager/node_mqtt_isolated_lab.py"
+      - "host/greenhouse-manager/tests/test_node_mqtt_isolated_lab.py"
+      - "host/greenhouse-manager/pyproject.toml"
+      - "host/greenhouse-manager/tests/test_t1_manager_identity_migration_preparation_version.py"
+      - "protocols/pairing/gh-node-mqtt-isolated-lab-v1.md"
+      - ".github/workflows/m2-node-auth-isolated-lab-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-broker-matrix:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install manager tools
+        run: python -m pip install -q -e "host/greenhouse-manager[dev]"
+      - name: Unit tests
+        run: |
+          cd host/greenhouse-manager
+          ruff check .
+          pytest -q \
+            tests/test_node_mqtt_isolated_lab.py \
+            tests/test_node_esphome_mqtt_auth_adapter_contract.py \
+            tests/test_t1_manager_identity_migration_preparation_version.py
+      - name: Pull pinned Mosquitto image
+        run: docker pull eclipse-mosquitto:2.0.22
+      - name: Run isolated Broker fault matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          workspace="$(mktemp -d /tmp/gh-node-mqtt-lab-ci-XXXXXX)"
+          reports="/tmp/gh-node-mqtt-lab-reports.jsonl"
+          : > "$reports"
+
+          cleanup() {
+            greenhouse-manager-node-mqtt-isolated-lab destroy \
+              --workspace "$workspace" >/dev/null 2>&1 || true
+            rm -rf "$workspace" "$reports"
+          }
+          trap cleanup EXIT
+
+          run_report() {
+            "$@" | tee -a "$reports"
+          }
+
+          run_report greenhouse-manager-node-mqtt-isolated-lab plan \
+            --workspace "$workspace" --port 18883
+          run_report greenhouse-manager-node-mqtt-isolated-lab create \
+            --workspace "$workspace" --port 18883
+          run_report greenhouse-manager-node-mqtt-isolated-lab smoke-valid \
+            --workspace "$workspace"
+          run_report greenhouse-manager-node-mqtt-isolated-lab invalidate-candidate \
+            --workspace "$workspace"
+          run_report greenhouse-manager-node-mqtt-isolated-lab smoke-invalid \
+            --workspace "$workspace"
+          run_report greenhouse-manager-node-mqtt-isolated-lab restore-candidate \
+            --workspace "$workspace"
+          run_report greenhouse-manager-node-mqtt-isolated-lab smoke-valid \
+            --workspace "$workspace"
+          run_report greenhouse-manager-node-mqtt-isolated-lab stop \
+            --workspace "$workspace"
+          run_report greenhouse-manager-node-mqtt-isolated-lab start \
+            --workspace "$workspace"
+          run_report greenhouse-manager-node-mqtt-isolated-lab smoke-valid \
+            --workspace "$workspace"
+          run_report greenhouse-manager-node-mqtt-isolated-lab destroy \
+            --workspace "$workspace"
+
+          WORKSPACE="$workspace" REPORTS="$reports" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          workspace = os.environ["WORKSPACE"]
+          reports_path = Path(os.environ["REPORTS"])
+          documents = [
+              json.loads(line)
+              for line in reports_path.read_text(encoding="utf-8").splitlines()
+              if line.strip()
+          ]
+          statuses = {document["status"] for document in documents}
+          required = {
+              "node_mqtt_isolated_lab_plan_created",
+              "node_mqtt_isolated_lab_created",
+              "node_mqtt_isolated_lab_valid_smoke_succeeded",
+              "node_mqtt_isolated_lab_candidate_invalidated",
+              "node_mqtt_isolated_lab_invalid_smoke_succeeded",
+              "node_mqtt_isolated_lab_candidate_restored",
+              "node_mqtt_isolated_lab_stopped",
+              "node_mqtt_isolated_lab_started",
+              "node_mqtt_isolated_lab_destroyed",
+          }
+          if not required.issubset(statuses):
+              raise SystemExit("isolated lab status matrix is incomplete")
+          encoded = reports_path.read_text(encoding="utf-8")
+          if workspace in encoded:
+              raise SystemExit("isolated workspace path appeared in public report")
+          for document in documents:
+              if document.get("secret_values_included") is not False:
+                  raise SystemExit("isolated report secret gate was not closed")
+              if document.get("production_execution_invoked") is not False:
+                  raise SystemExit("isolated report claimed production execution")
+              if document.get("homeassistant_storage_read") is not False:
+                  raise SystemExit("isolated report claimed Home Assistant storage access")
+              if document.get("node_credentials_delivered") is not False:
+                  raise SystemExit("isolated report claimed node credential delivery")
+              if document.get("anonymous_closure_enabled") is not False:
+                  raise SystemExit("isolated report enabled anonymous closure")
+              if "candidate_password" in document or "observer_password" in document:
+                  raise SystemExit("raw password field appeared in isolated report")
+          if Path(workspace).exists():
+              raise SystemExit("isolated workspace survived verified destroy")
+          PY
+
+          trap - EXIT
+          rm -f "$reports"

@@ -103,11 +103,33 @@ void GreenhouseMqttAuth::loop() {
 
 float GreenhouseMqttAuth::get_setup_priority() const { return setup_priority::DATA; }
 
+const char *GreenhouseMqttAuth::active_profile_name() const {
+  return this->active_profile_ == AuthProfile::CANDIDATE ? "candidate" : "anonymous";
+}
+
+const char *GreenhouseMqttAuth::phase_name() const {
+  switch (this->phase_) {
+    case AuthPhase::LEGACY_ANONYMOUS:
+      return "legacy_anonymous";
+    case AuthPhase::CANDIDATE_STAGED:
+      return "candidate_staged";
+    case AuthPhase::CANDIDATE_CONNECTING:
+      return "candidate_connecting";
+    case AuthPhase::AUTHENTICATED_OBSERVATION:
+      return "authenticated_observation";
+    case AuthPhase::FALLBACK_ANONYMOUS:
+      return "fallback_anonymous";
+    case AuthPhase::COMMITTED:
+      return "committed";
+  }
+  return "unknown";
+}
+
 void GreenhouseMqttAuth::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Greenhouse MQTT Auth Adapter:\n"
                 "  Boot-selected profile: %s\n"
-                "  Phase: %u\n"
+                "  Phase: %s\n"
                 "  Candidate generation: %u\n"
                 "  Candidate secret present: %s\n"
                 "  Candidate secret fingerprint: %s\n"
@@ -117,11 +139,11 @@ void GreenhouseMqttAuth::dump_config() {
                 "  Committed: %s\n"
                 "  Anonymous fallback present: YES\n"
                 "  Disconnect classification: generic",
-                this->active_profile_ == AuthProfile::CANDIDATE ? "candidate" : "anonymous",
-                static_cast<unsigned>(this->phase_), this->candidate_generation_, YESNO(this->candidate_secret_present()),
-                this->candidate_secret_fingerprint_.c_str(), this->state_.candidate_failure_count,
-                this->candidate_failure_threshold_, this->state_.observation_success_count,
-                this->observation_success_threshold_, this->retry_cooldown_ms_, YESNO(this->state_.committed != 0));
+                this->active_profile_name(), this->phase_name(), this->candidate_generation_,
+                YESNO(this->candidate_secret_present()), this->candidate_secret_fingerprint_.c_str(),
+                this->state_.candidate_failure_count, this->candidate_failure_threshold_,
+                this->state_.observation_success_count, this->observation_success_threshold_, this->retry_cooldown_ms_,
+                YESNO(this->state_.committed != 0));
 }
 
 void GreenhouseMqttAuth::on_mqtt_connect_(bool session_present) {
