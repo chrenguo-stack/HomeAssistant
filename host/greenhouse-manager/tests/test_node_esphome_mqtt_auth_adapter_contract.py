@@ -7,13 +7,22 @@ COMPONENT = ROOT / "firmware/esphome_rc/components/greenhouse_mqtt_auth"
 CPP = COMPONENT / "greenhouse_mqtt_auth.cpp"
 HEADER = COMPONENT / "greenhouse_mqtt_auth.h"
 PYTHON = COMPONENT / "__init__.py"
-YAML = ROOT / "firmware/esphome_rc/tests/greenhouse_mqtt_auth_compile.yml"
+COMPILE_YAML = ROOT / "firmware/esphome_rc/tests/greenhouse_mqtt_auth_compile.yml"
+RUNTIME_YAML = ROOT / "firmware/esphome_rc/tests/greenhouse_mqtt_auth_runtime.yml"
 WORKFLOW = ROOT / ".github/workflows/m2-esphome-node-auth-adapter-ci.yml"
 CONTRACT = ROOT / "protocols/pairing/gh-node-esphome-mqtt-boot-profile-adapter-v1.md"
 
 
 def test_adapter_files_are_present() -> None:
-    for path in (CPP, HEADER, PYTHON, YAML, WORKFLOW, CONTRACT):
+    for path in (
+        CPP,
+        HEADER,
+        PYTHON,
+        COMPILE_YAML,
+        RUNTIME_YAML,
+        WORKFLOW,
+        CONTRACT,
+    ):
         assert path.is_file(), path
 
 
@@ -60,7 +69,7 @@ def test_esp_idf_disconnect_is_treated_as_generic() -> None:
 
 
 def test_compile_target_is_non_production_and_secret_indirect() -> None:
-    config = YAML.read_text(encoding="utf-8")
+    config = COMPILE_YAML.read_text(encoding="utf-8")
 
     assert "broker: 192.0.2.10" in config
     assert "candidate_password: !secret mqtt_candidate_password" in config
@@ -69,12 +78,33 @@ def test_compile_target_is_non_production_and_secret_indirect() -> None:
     assert "gh-n1-a9f2f8" not in config
 
 
-def test_workflow_pins_esphome_and_scans_logs() -> None:
+def test_runtime_harness_only_exposes_redacted_diagnostics() -> None:
+    config = RUNTIME_YAML.read_text(encoding="utf-8")
+    header = HEADER.read_text(encoding="utf-8")
+    source = CPP.read_text(encoding="utf-8")
+
+    assert "candidate_password: !secret mqtt_candidate_password" in config
+    assert "request_candidate_activation(true)" in config
+    assert "request_candidate_commit(true)" in config
+    assert "explicit true arguments are test-harness gates" in config
+    assert '"secret_values_included\\\":false' in config
+    assert "candidate_secret_fingerprint" in config
+    assert "candidate_password_" not in config
+    assert "active_client_id()" in header
+    assert "active_profile_name()" in header
+    assert "phase_name()" in header
+    assert "last_failure_class()" in header
+    assert "candidate_secret_fingerprint_.c_str()" in source
+
+
+def test_workflow_pins_esphome_and_compiles_both_targets() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
 
     assert 'esphome==2026.4.3' in workflow
-    assert "esphome config greenhouse_mqtt_auth_compile.yml" in workflow
-    assert "esphome compile greenhouse_mqtt_auth_compile.yml" in workflow
+    assert "greenhouse_mqtt_auth_compile.yml" in workflow
+    assert "greenhouse_mqtt_auth_runtime.yml" in workflow
+    assert 'esphome config "$config"' in workflow
+    assert 'esphome compile "$config"' in workflow
     assert "ephemeral secret appeared in ESPHome output" in workflow
     assert "if: always()" in workflow
 
