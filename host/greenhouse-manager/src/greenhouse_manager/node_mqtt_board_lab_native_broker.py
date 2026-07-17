@@ -43,8 +43,9 @@ from .node_mqtt_board_lab_common import (
 )
 
 NATIVE_BACKEND = "native"
-NATIVE_IMAGE = "native-mosquitto-2.0"
-NATIVE_VERSION_PATTERN = re.compile(r"mosquitto version (2\.0\.\d+)", re.IGNORECASE)
+NATIVE_IMAGE = "native-mosquitto-2.0-2.1"
+SUPPORTED_NATIVE_VERSION_FAMILIES = ("2.0", "2.1")
+NATIVE_VERSION_PATTERN = re.compile(r"mosquitto version (2\.(?:0|1)\.\d+)", re.IGNORECASE)
 PID_NAME = "mosquitto.pid"
 LOG_NAME = "mosquitto.log"
 
@@ -63,12 +64,26 @@ def _resolve_executable(value: str) -> str:
     return str(resolved)
 
 
+def _native_version_family(version: str) -> str:
+    family = ".".join(version.split(".")[:2])
+    _require(
+        family in SUPPORTED_NATIVE_VERSION_FAMILIES,
+        "native Mosquitto must be from the supported 2.0 or 2.1 release families",
+    )
+    return family
+
+
 def _native_version(mosquitto_bin: str, runner: Runner) -> str:
     result = runner((mosquitto_bin, "-h"), check=False)
     encoded = f"{result.stdout}\n{result.stderr}"
     match = NATIVE_VERSION_PATTERN.search(encoded)
-    _require(match is not None, "native Mosquitto must be from the 2.0 release family")
-    return match.group(1)
+    _require(
+        match is not None,
+        "native Mosquitto must be from the supported 2.0 or 2.1 release families",
+    )
+    version = match.group(1)
+    _native_version_family(version)
+    return version
 
 
 def _native_manifest_fields(manifest: dict[str, object]) -> tuple[str, str, str]:
@@ -78,7 +93,12 @@ def _native_manifest_fields(manifest: dict[str, object]) -> tuple[str, str, str]
     version = manifest.get("native_mosquitto_version")
     _require(isinstance(mosquitto_bin, str), "native Mosquitto path is missing")
     _require(isinstance(passwd_bin, str), "native mosquitto_passwd path is missing")
-    _require(isinstance(version, str) and NATIVE_VERSION_PATTERN.fullmatch(f"mosquitto version {version}"), "native Mosquitto version is invalid")
+    _require(
+        isinstance(version, str)
+        and NATIVE_VERSION_PATTERN.fullmatch(f"mosquitto version {version}"),
+        "native Mosquitto version is invalid",
+    )
+    _native_version_family(version)
     _require(Path(mosquitto_bin).is_file() and os.access(mosquitto_bin, os.X_OK), "native Mosquitto executable is unavailable")
     _require(Path(passwd_bin).is_file() and os.access(passwd_bin, os.X_OK), "native mosquitto_passwd executable is unavailable")
     return mosquitto_bin, passwd_bin, version
@@ -244,7 +264,7 @@ def _native_report(
             "docker_required": False,
             "native_broker": True,
             "native_mosquitto_version": version,
-            "native_version_family": "2.0",
+            "native_version_family": _native_version_family(version),
             "native_process_workspace_bound": True,
         }
     )
@@ -276,7 +296,7 @@ def plan_native_board_lab(
         "backend": NATIVE_BACKEND,
         "docker_required": False,
         "native_mosquitto_version": version,
-        "native_version_family": "2.0",
+        "native_version_family": _native_version_family(version),
         "allow_anonymous": True,
         "passwords_generated_at_create": True,
         "passwords_in_plan": False,
