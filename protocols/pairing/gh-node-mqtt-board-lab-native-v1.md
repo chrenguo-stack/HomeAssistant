@@ -14,7 +14,7 @@ The native backend must:
 
 - bind only to a literal non-global IPv4 address;
 - reject `0.0.0.0`, multicast and globally routable addresses;
-- use Mosquitto from the explicitly supported `2.0.x` or `2.1.x` release families and record the exact observed version;
+- accept only a verified native Mosquitto executable or the frozen project-private Mosquitto manifest;
 - preserve `allow_anonymous true`;
 - use only the fixed board-lab candidate, anonymous and observer identities;
 - create random non-production passwords only inside a mode-`0700` private workspace;
@@ -41,7 +41,7 @@ The native backend must not:
 |---|---|
 | Python unit and contract tests | local `gh-local fast` or GitHub CI |
 | ESPHome config and cached ESP32-C6 compile | local Mac or GitHub CI |
-| Native Mosquitto lifecycle and MQTT smoke matrix | local Mac and clean Ubuntu CI |
+| Project-private Mosquitto build and native smoke matrix | local Mac and clean Ubuntu CI |
 | Docker-pinned Mosquitto regression | GitHub CI or supported Linux Docker environment |
 | USB flash, LCD, sensors, RS485, Wi-Fi interruption and power cuts | dedicated physical ESP32-C6 test board |
 | Any production T1 or node mutation | separate M2 live gate and precise authorization |
@@ -50,7 +50,27 @@ Native Broker success does not replace Docker regression, required GitHub checks
 
 ## 4. Public CLI
 
-The entrypoint is:
+The private Mosquitto builder entrypoint is:
+
+```text
+greenhouse-manager-node-mqtt-private-mosquitto
+```
+
+Its commands are:
+
+```text
+plan
+build
+verify
+```
+
+`build` requires the exact non-production confirmation:
+
+```text
+M2-NONPRODUCTION-PRIVATE-MOSQUITTO
+```
+
+The native board-lab entrypoint is:
 
 ```text
 greenhouse-manager-node-mqtt-board-lab-native
@@ -86,17 +106,57 @@ summarize
 M2-NONPRODUCTION-BOARD-LAB
 ```
 
-## 5. Private workspace preparation
+## 5. Frozen project-private Mosquitto
 
-Use a path without whitespace. The path must not be inside the Git repository.
+The project-private build is frozen by `docs/decisions/M2-ADR-001-hybrid-development-and-private-mosquitto.md`.
 
-On macOS, the project uses the Homebrew Mosquitto package. The current Homebrew package is in the supported `2.1.x` family. Installation is an operator-local dependency change and must be completed before running the native lab; it does not start the Broker service automatically for this project workflow.
+Fixed source contract:
 
-```bash
-brew install mosquitto
+```text
+version=2.0.21
+source=https://mosquitto.org/files/source/mosquitto-2.0.21.tar.gz
+sha256=7ad5e84caeb8d2bb6ed0c04614b2a7042def961af82d87f688ba33db857b899d
+websockets=off
+clients=off
+plugins=off
+documentation=off
+tls=on
 ```
 
-The native lab starts its own workspace-bound process and must not use `brew services start mosquitto`.
+The Homebrew `mosquitto` formula and `brew services start mosquitto` are not project dependencies. Existing local CMake and OpenSSL packages may be used as build prerequisites, but the Broker binaries are built into the project-private cache outside the Git repository.
+
+A previously downloaded official source archive may be reused only after its SHA-256 matches the frozen value. Omitting `--source-archive` downloads the same official HTTPS source and verifies the same hash.
+
+```bash
+set -euo pipefail
+
+cache_root="$HOME/.cache/greenhouse-mosquitto"
+cmake_bin="$(command -v cmake)"
+openssl_root="$(brew --prefix openssl@3)"
+
+greenhouse-manager-node-mqtt-private-mosquitto plan \
+  --cache-root "$cache_root" \
+  --cmake-bin "$cmake_bin" \
+  --openssl-root "$openssl_root"
+
+greenhouse-manager-node-mqtt-private-mosquitto build \
+  --cache-root "$cache_root" \
+  --cmake-bin "$cmake_bin" \
+  --openssl-root "$openssl_root" \
+  --jobs 2 \
+  --confirmation M2-NONPRODUCTION-PRIVATE-MOSQUITTO
+
+private_manifest="$cache_root/2.0.21/darwin-x86_64/manifest.json"
+
+greenhouse-manager-node-mqtt-private-mosquitto verify \
+  --manifest "$private_manifest"
+```
+
+The private manifest binds the operating system and architecture, exact source hash, CMake recipe, final executable paths and both binary hashes. Public reports contain fingerprints and hashes but no local absolute paths.
+
+## 6. Private workspace preparation
+
+Use a path without whitespace. The path must not be inside the Git repository.
 
 ```bash
 set -euo pipefail
@@ -105,19 +165,21 @@ chmod 700 "$workspace"
 
 greenhouse-manager-node-mqtt-board-lab-native plan \
   --workspace "$workspace" \
+  --private-mosquitto-manifest "$private_manifest" \
   --bind-host <literal-non-global-lab-ip> \
   --port 18883
 
 greenhouse-manager-node-mqtt-board-lab-native create \
   --workspace "$workspace" \
+  --private-mosquitto-manifest "$private_manifest" \
   --bind-host <literal-non-global-lab-ip> \
   --port 18883 \
   --confirmation M2-NONPRODUCTION-BOARD-LAB
 ```
 
-The selected bind address must be reachable from the dedicated test board and must not be a production service address. The tool resolves the local `mosquitto` and `mosquitto_passwd` executables and rejects versions outside the explicitly supported `2.0.x` and `2.1.x` families.
+The selected bind address must be reachable from the dedicated test board and must not be a production service address. The board-lab tool verifies the private manifest before accepting its executables. An explicit executable path cannot be combined with `--private-mosquitto-manifest`.
 
-## 6. Pre-board smoke sequence
+## 7. Pre-board smoke sequence
 
 Before connecting or flashing a board, complete:
 
@@ -151,7 +213,7 @@ greenhouse-manager-node-mqtt-board-lab-native smoke-valid \
 
 Success proves only that the native non-production Broker accepts the valid candidate, rejects the invalid candidate, preserves anonymous continuity, restores credentials and survives a controlled stop/start cycle.
 
-## 7. Physical-board boundary
+## 8. Physical-board boundary
 
 Only the full product-PCB target may be used for the physical matrix:
 
@@ -175,11 +237,11 @@ The following require explicit operator actions and observations:
 
 No production board may be used.
 
-## 8. Evidence and cleanup
+## 9. Evidence and cleanup
 
 Public reports may contain fingerprints and non-secret state only. Physical observations remain in the private fault-matrix JSONL file.
 
-Cleanup:
+Cleanup of the runtime workspace:
 
 ```bash
 set -euo pipefail
@@ -188,15 +250,19 @@ greenhouse-manager-node-mqtt-board-lab-native destroy \
   --workspace "$workspace"
 ```
 
-The destroy operation validates the private workspace binding and stops only the matching native Mosquitto process. It removes the workspace but does not claim secure erasure.
+The destroy operation validates the private workspace binding and stops only the matching native Mosquitto process. It removes the runtime workspace but does not remove the verified project-private binary cache and does not claim secure erasure.
 
-## 9. Gate state after implementation
+## 10. Gate state after implementation
 
 Repository and CI completion may set:
 
 ```text
+hybrid_development_mode_frozen=true
+private_mosquitto_source_complete=true
+private_mosquitto_clean_linux_build_complete=true
 native_board_lab_source_complete=true
 native_board_lab_clean_linux_integration_complete=true
+local_mac_private_mosquitto_build_pending=true
 local_mac_native_board_lab_pending=true
 real_board_runtime_fault_matrix_pending=true
 ready_for_node_credential_generation=false
@@ -204,4 +270,4 @@ ready_for_live_apply=false
 ready_for_anonymous_closure=false
 ```
 
-The next user interruption is permitted only when source, focused tests, GitHub native integration and Docker regression are complete, and the remaining action is a dedicated test-board or local-Mac operation.
+The next user interruption is permitted only when source, focused tests, GitHub private-build integration, native integration and Docker regression are complete, and the remaining action is a dedicated test-board or local-Mac operation.

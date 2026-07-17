@@ -1,0 +1,208 @@
+name: M2 private Mosquitto CI
+
+on:
+  pull_request:
+    paths:
+      - "host/greenhouse-manager/src/greenhouse_manager/private_mosquitto_builder.py"
+      - "host/greenhouse-manager/src/greenhouse_manager/node_mqtt_private_mosquitto.py"
+      - "host/greenhouse-manager/src/greenhouse_manager/node_mqtt_board_lab_native.py"
+      - "host/greenhouse-manager/tests/test_private_mosquitto_builder.py"
+      - "host/greenhouse-manager/tests/test_node_mqtt_private_mosquitto.py"
+      - "host/greenhouse-manager/tests/test_t1_manager_identity_migration_preparation_version.py"
+      - "host/greenhouse-manager/pyproject.toml"
+      - "docs/decisions/M2-ADR-001-hybrid-development-and-private-mosquitto.md"
+      - "protocols/pairing/gh-node-mqtt-board-lab-native-v1.md"
+      - ".github/workflows/m2-private-mosquitto-ci.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  private-mosquitto:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install build and manager dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq cmake libssl-dev
+          python -m pip install -q -e "host/greenhouse-manager[dev]"
+
+      - name: Focused lint and tests
+        run: |
+          set -euo pipefail
+          cd host/greenhouse-manager
+          ruff check \
+            src/greenhouse_manager/private_mosquitto_builder.py \
+            src/greenhouse_manager/node_mqtt_private_mosquitto.py \
+            src/greenhouse_manager/node_mqtt_board_lab_native.py \
+            tests/test_private_mosquitto_builder.py \
+            tests/test_node_mqtt_private_mosquitto.py
+          pytest -q \
+            tests/test_private_mosquitto_builder.py \
+            tests/test_node_mqtt_private_mosquitto.py \
+            tests/test_node_mqtt_board_lab_native.py \
+            tests/test_t1_manager_identity_migration_preparation_version.py
+
+      - name: Initialize private build and runtime workspaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          cache_root="$(mktemp -d /tmp/gh-private-mosquitto-ci-XXXXXXX)"
+          runtime_workspace="$(mktemp -d /tmp/gh-private-mosquitto-runtime-XXXXXXX)"
+          reports="$(mktemp /tmp/gh-private-mosquitto-reports-XXXXXX)"
+          chmod 700 "$cache_root" "$runtime_workspace"
+          chmod 600 "$reports"
+          echo "PRIVATE_MOSQUITTO_CACHE_ROOT=$cache_root" >> "$GITHUB_ENV"
+          echo "PRIVATE_MOSQUITTO_RUNTIME_WORKSPACE=$runtime_workspace" >> "$GITHUB_ENV"
+          echo "PRIVATE_MOSQUITTO_REPORTS=$reports" >> "$GITHUB_ENV"
+          echo "PRIVATE_MOSQUITTO_MANIFEST=$cache_root/2.0.21/linux-x86_64/manifest.json" >> "$GITHUB_ENV"
+
+      - name: Build frozen private Mosquitto
+        shell: bash
+        run: |
+          set -euo pipefail
+          greenhouse-manager-node-mqtt-private-mosquitto plan \
+            --cache-root "$PRIVATE_MOSQUITTO_CACHE_ROOT" | tee -a "$PRIVATE_MOSQUITTO_REPORTS"
+          greenhouse-manager-node-mqtt-private-mosquitto build \
+            --cache-root "$PRIVATE_MOSQUITTO_CACHE_ROOT" \
+            --jobs 2 \
+            --confirmation M2-NONPRODUCTION-PRIVATE-MOSQUITTO | tee -a "$PRIVATE_MOSQUITTO_REPORTS"
+          greenhouse-manager-node-mqtt-private-mosquitto verify \
+            --manifest "$PRIVATE_MOSQUITTO_MANIFEST" | tee -a "$PRIVATE_MOSQUITTO_REPORTS"
+
+      - name: Verify minimal binary surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          private_bin="$(dirname "$PRIVATE_MOSQUITTO_MANIFEST")/bin"
+          test -x "$private_bin/mosquitto"
+          test -x "$private_bin/mosquitto_passwd"
+          test ! -e "$private_bin/mosquitto_pub"
+          test ! -e "$private_bin/mosquitto_sub"
+          if ldd "$private_bin/mosquitto" | grep -i websockets; then
+            echo "private Mosquitto unexpectedly links libwebsockets" >&2
+            exit 1
+          fi
+          help_output="$("$private_bin/mosquitto" -h 2>&1 || true)"
+          grep -F "mosquitto version 2.0.21" <<<"$help_output"
+
+      - name: Exercise native board lab with private manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          greenhouse-manager-node-mqtt-board-lab-native plan \
+            --workspace "$PRIVATE_MOSQUITTO_RUNTIME_WORKSPACE" \
+            --private-mosquitto-manifest "$PRIVATE_MOSQUITTO_MANIFEST" \
+            --bind-host 127.0.0.1 \
+            --port 18885 | tee -a "$PRIVATE_MOSQUITTO_REPORTS"
+          greenhouse-manager-node-mqtt-board-lab-native create \
+            --workspace "$PRIVATE_MOSQUITTO_RUNTIME_WORKSPACE" \
+            --private-mosquitto-manifest "$PRIVATE_MOSQUITTO_MANIFEST" \
+            --bind-host 127.0.0.1 \
+            --port 18885 \
+            --confirmation M2-NONPRODUCTION-BOARD-LAB | tee -a "$PRIVATE_MOSQUITTO_REPORTS"
+          greenhouse-manager-node-mqtt-board-lab-native smoke-valid \
+            --workspace "$PRIVATE_MOSQUITTO_RUNTIME_WORKSPACE" | tee -a "$PRIVATE_MOSQUITTO_REPORTS"
+          greenhouse-manager-node-mqtt-board-lab-native invalidate-candidate \
+            --workspace "$PRIVATE_MOSQUITTO_RUNTIME_WORKSPACE" | tee -a "$PRIVATE_MOSQUITTO_REPORTS"
+          greenhouse-manager-node-mqtt-board-lab-native smoke-invalid \
+            --workspace "$PRIVATE_MOSQUITTO_RUNTIME_WORKSPACE" | tee -a "$PRIVATE_MOSQUITTO_REPORTS"
+          greenhouse-manager-node-mqtt-board-lab-native restore-candidate \
+            --workspace "$PRIVATE_MOSQUITTO_RUNTIME_WORKSPACE" | tee -a "$PRIVATE_MOSQUITTO_REPORTS"
+          greenhouse-manager-node-mqtt-board-lab-native smoke-valid \
+            --workspace "$PRIVATE_MOSQUITTO_RUNTIME_WORKSPACE" | tee -a "$PRIVATE_MOSQUITTO_REPORTS"
+          greenhouse-manager-node-mqtt-board-lab-native stop \
+            --workspace "$PRIVATE_MOSQUITTO_RUNTIME_WORKSPACE" | tee -a "$PRIVATE_MOSQUITTO_REPORTS"
+          greenhouse-manager-node-mqtt-board-lab-native start \
+            --workspace "$PRIVATE_MOSQUITTO_RUNTIME_WORKSPACE" | tee -a "$PRIVATE_MOSQUITTO_REPORTS"
+          greenhouse-manager-node-mqtt-board-lab-native smoke-valid \
+            --workspace "$PRIVATE_MOSQUITTO_RUNTIME_WORKSPACE" | tee -a "$PRIVATE_MOSQUITTO_REPORTS"
+          greenhouse-manager-node-mqtt-board-lab-native destroy \
+            --workspace "$PRIVATE_MOSQUITTO_RUNTIME_WORKSPACE" | tee -a "$PRIVATE_MOSQUITTO_REPORTS"
+
+      - name: Verify redacted reports and cleanup boundary
+        env:
+          CACHE_ROOT: ${{ env.PRIVATE_MOSQUITTO_CACHE_ROOT }}
+          RUNTIME_WORKSPACE: ${{ env.PRIVATE_MOSQUITTO_RUNTIME_WORKSPACE }}
+          REPORTS: ${{ env.PRIVATE_MOSQUITTO_REPORTS }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          cache_root = os.environ["CACHE_ROOT"]
+          runtime_workspace = os.environ["RUNTIME_WORKSPACE"]
+          encoded = Path(os.environ["REPORTS"]).read_text(encoding="utf-8")
+          reports = [json.loads(line) for line in encoded.splitlines() if line.strip()]
+          if len(reports) != 14:
+              raise SystemExit(f"private Mosquitto report count is {len(reports)}, expected 14")
+          if cache_root in encoded or runtime_workspace in encoded:
+              raise SystemExit("private absolute path appeared in public reports")
+          required_false = (
+              "secret_values_included",
+              "production_endpoint_used",
+              "production_identity_used",
+              "production_execution_invoked",
+              "current_services_modified",
+              "homeassistant_storage_read",
+              "node_credentials_delivered",
+              "anonymous_closure_enabled",
+              "ready_for_live_apply",
+              "ready_for_anonymous_closure",
+              "ready_for_node_credential_generation",
+          )
+          unsafe = [
+              (report.get("status"), key)
+              for report in reports
+              for key in required_false
+              if report.get(key) is not False
+          ]
+          if unsafe:
+              raise SystemExit(f"private Mosquitto safety flag mismatch: {unsafe}")
+          statuses = {report.get("status") for report in reports}
+          required_statuses = {
+              "private_mosquitto_plan_created",
+              "private_mosquitto_built",
+              "private_mosquitto_verified",
+              "node_mqtt_board_lab_native_created",
+              "node_mqtt_board_lab_native_destroyed",
+          }
+          missing = required_statuses - statuses
+          if missing:
+              raise SystemExit(f"private Mosquitto statuses missing: {sorted(missing)}")
+          if Path(runtime_workspace).exists():
+              raise SystemExit("native runtime workspace was not removed")
+          if not Path(cache_root).is_dir():
+              raise SystemExit("verified private Mosquitto cache disappeared")
+          PY
+
+      - name: Cleanup private Mosquitto CI state
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          if [[ -n "${PRIVATE_MOSQUITTO_RUNTIME_WORKSPACE:-}" && -d "$PRIVATE_MOSQUITTO_RUNTIME_WORKSPACE" ]]; then
+            greenhouse-manager-node-mqtt-board-lab-native destroy \
+              --workspace "$PRIVATE_MOSQUITTO_RUNTIME_WORKSPACE" >/dev/null 2>&1
+          fi
+          rm -rf \
+            "${PRIVATE_MOSQUITTO_RUNTIME_WORKSPACE:-}" \
+            "${PRIVATE_MOSQUITTO_CACHE_ROOT:-}" \
+            "${PRIVATE_MOSQUITTO_REPORTS:-}"

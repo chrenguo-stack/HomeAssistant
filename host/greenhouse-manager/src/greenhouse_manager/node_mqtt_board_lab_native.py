@@ -26,6 +26,7 @@ from .node_mqtt_board_lab_native_broker import (
     start_native_board_lab,
     stop_native_board_lab,
 )
+from .private_mosquitto_builder import load_private_mosquitto_manifest
 
 
 def _add_workspace(subparser: argparse.ArgumentParser) -> None:
@@ -35,6 +36,20 @@ def _add_workspace(subparser: argparse.ArgumentParser) -> None:
 def _add_native_tools(subparser: argparse.ArgumentParser) -> None:
     subparser.add_argument("--mosquitto-bin", default="mosquitto")
     subparser.add_argument("--mosquitto-passwd-bin", default="mosquitto_passwd")
+    subparser.add_argument("--private-mosquitto-manifest", type=Path)
+
+
+def _resolve_native_tools(args: argparse.Namespace) -> tuple[str, str]:
+    if args.private_mosquitto_manifest is None:
+        return args.mosquitto_bin, args.mosquitto_passwd_bin
+    if args.mosquitto_bin != "mosquitto" or args.mosquitto_passwd_bin != "mosquitto_passwd":
+        raise NodeMqttBoardLabError(
+            "private Mosquitto manifest cannot be combined with explicit native executable paths"
+        )
+    mosquitto_bin, passwd_bin, _ = load_private_mosquitto_manifest(
+        args.private_mosquitto_manifest
+    )
+    return mosquitto_bin, passwd_bin
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -105,21 +120,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         if args.command == "plan":
+            mosquitto_bin, passwd_bin = _resolve_native_tools(args)
             report = plan_native_board_lab(
                 args.workspace,
                 bind_host=args.bind_host,
                 port=args.port,
-                mosquitto_bin=args.mosquitto_bin,
-                mosquitto_passwd_bin=args.mosquitto_passwd_bin,
+                mosquitto_bin=mosquitto_bin,
+                mosquitto_passwd_bin=passwd_bin,
             )
         elif args.command == "create":
+            mosquitto_bin, passwd_bin = _resolve_native_tools(args)
             report = create_native_board_lab(
                 args.workspace,
                 confirmation=args.confirmation,
                 bind_host=args.bind_host,
                 port=args.port,
-                mosquitto_bin=args.mosquitto_bin,
-                mosquitto_passwd_bin=args.mosquitto_passwd_bin,
+                mosquitto_bin=mosquitto_bin,
+                mosquitto_passwd_bin=passwd_bin,
                 waiter=_wait_for_port,
             )
         elif args.command == "start":
