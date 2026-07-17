@@ -6,7 +6,6 @@ import secrets
 import shutil
 import signal
 import socket
-import subprocess
 import time
 from pathlib import Path
 
@@ -266,7 +265,7 @@ def plan_native_board_lab(
     resolved = Path(workspace).expanduser().resolve()
     _require(not any(character.isspace() for character in str(resolved)), "native workspace path cannot contain whitespace")
     resolved_mosquitto = _resolve_executable(mosquitto_bin)
-    resolved_passwd = _resolve_executable(mosquitto_passwd_bin)
+    _resolve_executable(mosquitto_passwd_bin)
     version = _native_version(resolved_mosquitto, runner)
     return {
         "schema": "gh.m2.node-mqtt-board-lab-native-plan/1",
