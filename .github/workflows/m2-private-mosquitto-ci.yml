@@ -98,7 +98,8 @@ jobs:
             echo "private Mosquitto unexpectedly links libwebsockets" >&2
             exit 1
           fi
-          "$private_bin/mosquitto" -h 2>&1 | grep -F "mosquitto version 2.0.21"
+          help_output="$("$private_bin/mosquitto" -h 2>&1 || true)"
+          grep -F "mosquitto version 2.0.21" <<<"$help_output"
 
       - name: Exercise native board lab with private manifest
         shell: bash
