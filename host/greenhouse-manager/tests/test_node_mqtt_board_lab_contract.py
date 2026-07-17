@@ -1,0 +1,173 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[3]
+MODULE = ROOT / "host/greenhouse-manager/src/greenhouse_manager/node_mqtt_board_lab.py"
+SCHEMA = (
+    ROOT
+    / "host/greenhouse-manager/src/greenhouse_manager/schemas"
+    / "node_mqtt_board_lab_observation_v1.json"
+)
+TESTS = ROOT / "host/greenhouse-manager/tests/test_node_mqtt_board_lab.py"
+COMPONENT = ROOT / "firmware/esphome_rc/components/greenhouse_mqtt_auth"
+COMPONENT_HEADER = COMPONENT / "greenhouse_mqtt_auth.h"
+COMPONENT_CPP = COMPONENT / "greenhouse_mqtt_auth.cpp"
+BOARD_DIR = ROOT / "firmware/esphome_rc/board_lab/m2_node_auth"
+BOARD_YAML = BOARD_DIR / "greenhouse_mqtt_auth_board_lab.yml"
+EXAMPLE_SECRETS = BOARD_DIR / "secrets.example.yaml"
+RUNBOOK = BOARD_DIR / "README.md"
+WORKFLOW = ROOT / ".github/workflows/m2-node-auth-board-lab-ci.yml"
+CONTRACT = ROOT / "protocols/pairing/gh-node-mqtt-board-lab-v1.md"
+
+
+def test_board_lab_files_are_present() -> None:
+    for path in (
+        MODULE,
+        SCHEMA,
+        TESTS,
+        COMPONENT_HEADER,
+        COMPONENT_CPP,
+        BOARD_YAML,
+        EXAMPLE_SECRETS,
+        RUNBOOK,
+        WORKFLOW,
+        CONTRACT,
+    ):
+        assert path.is_file(), path
+
+
+def test_board_target_is_fixed_nonproduction_and_uses_secret_indirection() -> None:
+    config = BOARD_YAML.read_text(encoding="utf-8")
+
+    assert "candidate_username: ghn_lab-board" in config
+    assert "candidate_client_id: lab-board" in config
+    assert "anonymous_client_id: lab-board-anon" in config
+    assert "candidate_password: !secret board_lab_candidate_password" in config
+    assert "broker: !secret board_lab_broker_host" in config
+    assert "board_lab_candidate_password:" not in config
+    assert "gh-n1-a9f2f8" not in config
+    assert "192.168." not in config
+    assert "homeassistant/" not in config
+    assert "$CONTROL/" not in config
+    assert '"secret_values_included\\":false' in config
+    assert "set_test_reboot_hold(true)" in config
+    assert "release_held_reboot_for_test()" in config
+    assert "reboot_held_for_test()" in config
+    assert "number: GPIO9" in config
+    assert "request_anonymous_rollback()" in config
+
+
+def test_example_secrets_are_placeholders_only() -> None:
+    example = EXAMPLE_SECRETS.read_text(encoding="utf-8")
+
+    assert "REPLACE_IN_PRIVATE_WORKSPACE" in example
+    assert "REPLACE_WITH_GENERATED_NONPRODUCTION_SECRET" in example
+    assert 'board_lab_broker_host: "192.0.2.10"' in example
+    assert "192.168." not in example
+    assert "gh-n1-a9f2f8" not in example
+
+
+def test_tooling_keeps_production_gates_closed() -> None:
+    source = MODULE.read_text(encoding="utf-8")
+
+    for token in (
+        '"production_endpoint_used": False',
+        '"production_identity_used": False',
+        '"production_execution_invoked": False',
+        '"current_services_modified": False',
+        '"homeassistant_storage_read": False',
+        '"node_credentials_delivered": False',
+        '"anonymous_closure_enabled": False',
+        '"ready_for_live_apply": False',
+        '"ready_for_anonymous_closure": False',
+        '"ready_for_node_credential_generation": False',
+    ):
+        assert token in source
+    assert "M2-NONPRODUCTION-BOARD-LAB" in source
+    assert "mosquitto_passwd" in source
+    assert '"-U"' in source
+    assert "address.is_global" in source
+    assert "secure_erase_claimed" in source
+
+
+def test_reboot_hold_is_ram_only_and_outside_persisted_state() -> None:
+    header = COMPONENT_HEADER.read_text(encoding="utf-8")
+    source = COMPONENT_CPP.read_text(encoding="utf-8")
+    persisted = header.split("struct PersistedState", 1)[1].split("};", 1)[0]
+
+    assert "test_reboot_hold" not in persisted
+    assert "reboot_held_for_test" not in persisted
+    assert "set_test_reboot_hold" in header
+    assert "release_held_reboot_for_test" in header
+    assert "Board-lab reboot hold is active" in source
+    assert "Board-lab reboot hold released" in source
+    assert "this->save_state_()" in source
+    assert "this->schedule_safe_reboot_()" in source
+
+
+def test_matrix_covers_handoff_fault_groups() -> None:
+    source = MODULE.read_text(encoding="utf-8")
+
+    for case_id in (
+        "boot.first_flash_anonymous",
+        "candidate.valid_connect_and_heartbeat",
+        "invalid.threshold_selects_anonymous",
+        "network.broker_restore_candidate",
+        "power.reboot_hold_hook",
+        "power.candidate_staged_before_reboot",
+        "power.ready_uncommitted",
+        "rollback.offline_button",
+        "rollback.after_commit",
+        "logs.serial",
+        "local.lcd_continuity",
+        "local.sensors_continuity",
+        "local.rs485_continuity",
+    ):
+        assert case_id in source
+
+
+def test_runbook_defers_physical_actions_to_operator() -> None:
+    runbook = RUNBOOK.read_text(encoding="utf-8")
+
+    for statement in (
+        "production T1",
+        "production monitoring",
+        "first USB flash",
+        "physical power cycling",
+        "Wi-Fi interruption",
+        "LCD/sensor/RS485 observations require the operator",
+        "does not claim secure erasure",
+    ):
+        assert statement in runbook
+
+
+def test_workflow_runs_unit_broker_compile_and_secret_checks() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+
+    assert "test_node_mqtt_board_lab.py" in workflow
+    assert "test_node_mqtt_board_lab_contract.py" in workflow
+    assert "smoke-valid" in workflow
+    assert "smoke-invalid" in workflow
+    assert "invalidate-candidate" in workflow
+    assert "restore-candidate" in workflow
+    assert "esphome==2026.4.3" in workflow
+    assert "greenhouse_mqtt_auth_board_lab.yml" in workflow
+    assert "ephemeral board-lab secret appeared" in workflow
+    assert "private production marker appeared" in workflow
+    assert "if: always()" in workflow
+
+
+def test_contract_states_evidence_and_non_authorization_boundaries() -> None:
+    contract = CONTRACT.read_text(encoding="utf-8")
+
+    for statement in (
+        "Production node migration: prohibited",
+        "Anonymous closure: prohibited",
+        "Home Assistant `.storage` access: prohibited",
+        "generic_candidate_connection_failure",
+        "Commit is never automatic",
+        "does not claim secure erasure",
+        "does not authorize production credential",
+    ):
+        assert statement in contract
