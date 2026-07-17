@@ -3,6 +3,7 @@ substitutions:
   project_version: "F1.0-RC2-N0.3"
   soil_read_interval: 20min
   soil_warmup_time: 15s
+  scd30_update_interval: 30s
   battery_divider_ratio: "2.0"
   battery_calibration_factor: "1.000"
   battery_low_threshold: "3.00"
