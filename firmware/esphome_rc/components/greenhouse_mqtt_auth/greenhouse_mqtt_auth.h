@@ -63,6 +63,13 @@ class GreenhouseMqttAuth final : public Component {
   void record_observation_success();
   void record_observation_failure();
 
+  // Board-lab-only deterministic power-cut hook. This flag is RAM-only and is
+  // never part of PersistedState. Production YAML must not call these methods.
+  void set_test_reboot_hold(bool value) { this->test_reboot_hold_ = value; }
+  bool test_reboot_hold() const { return this->test_reboot_hold_; }
+  bool reboot_held_for_test() const { return this->reboot_held_for_test_; }
+  void release_held_reboot_for_test();
+
   AuthProfile active_profile() const { return this->active_profile_; }
   AuthPhase phase() const { return this->phase_; }
   const std::string &active_client_id() const {
@@ -122,6 +129,8 @@ class GreenhouseMqttAuth final : public Component {
   bool reboot_requested_{false};
   bool ignore_disconnect_{false};
   bool mqtt_connected_{false};
+  bool test_reboot_hold_{false};
+  bool reboot_held_for_test_{false};
   const char *last_failure_class_{nullptr};
 };
 
