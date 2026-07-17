@@ -176,6 +176,7 @@ def test_matrix_covers_handoff_fault_groups() -> None:
 
 def test_runbook_defers_physical_actions_to_operator() -> None:
     runbook = RUNBOOK.read_text(encoding="utf-8")
+    normalized = " ".join(runbook.split())
 
     for statement in (
         "production T1",
@@ -187,7 +188,7 @@ def test_runbook_defers_physical_actions_to_operator() -> None:
         "only target permitted for the 50-case product-board runtime matrix",
         "does not claim secure erasure",
     ):
-        assert statement in runbook
+        assert statement in normalized
 
 
 def test_mqtt_smoke_waits_for_suback_and_uses_public_errors() -> None:
