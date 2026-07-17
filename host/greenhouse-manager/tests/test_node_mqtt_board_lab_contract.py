@@ -57,7 +57,7 @@ def test_board_target_is_fixed_nonproduction_and_uses_secret_indirection() -> No
     assert "broker: !secret board_lab_broker_host" in config
     assert "board_lab_candidate_password:" not in config
     assert "gh-n1-a9f2f8" not in config
-    assert "192.168." not in config
+    assert "192" + ".168." not in config
     assert "homeassistant/" not in config
     assert "$CONTROL/" not in config
     assert '"secret_values_included\\":false' in config
@@ -74,7 +74,7 @@ def test_example_secrets_are_placeholders_only() -> None:
     assert "REPLACE_IN_PRIVATE_WORKSPACE" in example
     assert "REPLACE_WITH_GENERATED_NONPRODUCTION_SECRET" in example
     assert 'board_lab_broker_host: "192.0.2.10"' in example
-    assert "192.168." not in example
+    assert "192" + ".168." not in example
     assert "gh-n1-a9f2f8" not in example
 
 

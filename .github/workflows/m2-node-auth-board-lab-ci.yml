@@ -70,17 +70,17 @@ jobs:
           )
           encoded = "\n".join(path.read_text(encoding="utf-8") for path in paths)
           forbidden = (
-              "root@",
-              "/Users/",
+              "root" + "@",
+              "/" + "Users/",
               "192" + ".168.",
-              "home-assistant_v2.db",
+              "home-assistant" + "_v2.db",
           )
           leaked = [value for value in forbidden if value in encoded]
           if leaked:
               raise SystemExit("private production marker appeared in board-lab source")
-          if "ready_for_live_apply\": true" in encoded.lower():
+          if ("ready_for_live_apply" + '\": true') in encoded.lower():
               raise SystemExit("board-lab source opened the live-apply gate")
-          if "ready_for_anonymous_closure\": true" in encoded.lower():
+          if ("ready_for_anonymous_closure" + '\": true') in encoded.lower():
               raise SystemExit("board-lab source opened the anonymous-closure gate")
           PY
 
@@ -98,50 +98,66 @@ jobs:
         run: python -m pip install -q -e "host/greenhouse-manager[dev]"
       - name: Pull pinned Mosquitto image
         run: docker pull eclipse-mosquitto:2.0.22
-      - name: Run board-lab Broker preparation matrix
+      - name: Initialize private board-lab workspace
         shell: bash
         run: |
           set -euo pipefail
           workspace="$(mktemp -d /tmp/gh-node-board-lab-ci-XXXXXX)"
-          reports="/tmp/gh-node-board-lab-reports.jsonl"
+          reports="/tmp/gh-node-board-lab-reports-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.jsonl"
           : > "$reports"
-
-          cleanup() {
-            greenhouse-manager-node-mqtt-board-lab destroy \
-              --workspace "$workspace" >/dev/null 2>&1 || true
-            rm -rf "$workspace" "$reports"
-          }
-          trap cleanup EXIT
-
-          run_report() {
-            "$@" | tee -a "$reports"
-          }
-
-          run_report greenhouse-manager-node-mqtt-board-lab plan \
-            --workspace "$workspace" --bind-host 127.0.0.1 --port 18883
-          run_report greenhouse-manager-node-mqtt-board-lab create \
-            --workspace "$workspace" --bind-host 127.0.0.1 --port 18883 \
-            --confirmation M2-NONPRODUCTION-BOARD-LAB
-          run_report greenhouse-manager-node-mqtt-board-lab smoke-valid \
-            --workspace "$workspace"
-          run_report greenhouse-manager-node-mqtt-board-lab invalidate-candidate \
-            --workspace "$workspace"
-          run_report greenhouse-manager-node-mqtt-board-lab smoke-invalid \
-            --workspace "$workspace"
-          run_report greenhouse-manager-node-mqtt-board-lab restore-candidate \
-            --workspace "$workspace"
-          run_report greenhouse-manager-node-mqtt-board-lab smoke-valid \
-            --workspace "$workspace"
-          run_report greenhouse-manager-node-mqtt-board-lab stop \
-            --workspace "$workspace"
-          run_report greenhouse-manager-node-mqtt-board-lab start \
-            --workspace "$workspace"
-          run_report greenhouse-manager-node-mqtt-board-lab smoke-valid \
-            --workspace "$workspace"
-          run_report greenhouse-manager-node-mqtt-board-lab destroy \
-            --workspace "$workspace"
-
-          WORKSPACE="$workspace" REPORTS="$reports" python - <<'PY'
+          echo "BOARD_LAB_WORKSPACE=$workspace" >> "$GITHUB_ENV"
+          echo "BOARD_LAB_REPORTS=$reports" >> "$GITHUB_ENV"
+      - name: Plan non-production board lab
+        run: |
+          greenhouse-manager-node-mqtt-board-lab plan \
+            --workspace "$BOARD_LAB_WORKSPACE" --bind-host 127.0.0.1 --port 18883 \
+            | tee -a "$BOARD_LAB_REPORTS"
+      - name: Create non-production board lab
+        run: |
+          greenhouse-manager-node-mqtt-board-lab create \
+            --workspace "$BOARD_LAB_WORKSPACE" --bind-host 127.0.0.1 --port 18883 \
+            --confirmation M2-NONPRODUCTION-BOARD-LAB \
+            | tee -a "$BOARD_LAB_REPORTS"
+      - name: Smoke valid candidate and anonymous paths
+        run: |
+          greenhouse-manager-node-mqtt-board-lab smoke-valid \
+            --workspace "$BOARD_LAB_WORKSPACE" | tee -a "$BOARD_LAB_REPORTS"
+      - name: Invalidate candidate
+        run: |
+          greenhouse-manager-node-mqtt-board-lab invalidate-candidate \
+            --workspace "$BOARD_LAB_WORKSPACE" | tee -a "$BOARD_LAB_REPORTS"
+      - name: Smoke rejected candidate and anonymous continuity
+        run: |
+          greenhouse-manager-node-mqtt-board-lab smoke-invalid \
+            --workspace "$BOARD_LAB_WORKSPACE" | tee -a "$BOARD_LAB_REPORTS"
+      - name: Restore candidate
+        run: |
+          greenhouse-manager-node-mqtt-board-lab restore-candidate \
+            --workspace "$BOARD_LAB_WORKSPACE" | tee -a "$BOARD_LAB_REPORTS"
+      - name: Re-smoke restored candidate
+        run: |
+          greenhouse-manager-node-mqtt-board-lab smoke-valid \
+            --workspace "$BOARD_LAB_WORKSPACE" | tee -a "$BOARD_LAB_REPORTS"
+      - name: Stop isolated Broker
+        run: |
+          greenhouse-manager-node-mqtt-board-lab stop \
+            --workspace "$BOARD_LAB_WORKSPACE" | tee -a "$BOARD_LAB_REPORTS"
+      - name: Restart isolated Broker
+        run: |
+          greenhouse-manager-node-mqtt-board-lab start \
+            --workspace "$BOARD_LAB_WORKSPACE" | tee -a "$BOARD_LAB_REPORTS"
+      - name: Smoke after Broker restart
+        run: |
+          greenhouse-manager-node-mqtt-board-lab smoke-valid \
+            --workspace "$BOARD_LAB_WORKSPACE" | tee -a "$BOARD_LAB_REPORTS"
+      - name: Destroy private board lab
+        run: |
+          greenhouse-manager-node-mqtt-board-lab destroy \
+            --workspace "$BOARD_LAB_WORKSPACE" | tee -a "$BOARD_LAB_REPORTS"
+      - name: Verify redacted board-lab reports
+        shell: bash
+        run: |
+          WORKSPACE="$BOARD_LAB_WORKSPACE" REPORTS="$BOARD_LAB_REPORTS" python - <<'PY'
           import json
           import os
           from pathlib import Path
@@ -186,9 +202,14 @@ jobs:
           if Path(workspace).exists():
               raise SystemExit("board-lab workspace survived verified destroy")
           PY
-
-          trap - EXIT
-          rm -f "$reports"
+      - name: Cleanup private board-lab artifacts
+        if: always()
+        run: |
+          if [[ -n "${BOARD_LAB_WORKSPACE:-}" && -d "$BOARD_LAB_WORKSPACE" ]]; then
+            greenhouse-manager-node-mqtt-board-lab destroy \
+              --workspace "$BOARD_LAB_WORKSPACE" >/dev/null 2>&1 || true
+          fi
+          rm -rf "${BOARD_LAB_WORKSPACE:-}" "${BOARD_LAB_REPORTS:-}"
 
   esp32-c6-board-target:
     runs-on: ubuntu-24.04
