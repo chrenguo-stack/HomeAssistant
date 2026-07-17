@@ -3,7 +3,7 @@ name: M2 node auth board lab CI
 on:
   pull_request:
     paths:
-      - "host/greenhouse-manager/src/greenhouse_manager/node_mqtt_board_lab.py"
+      - "host/greenhouse-manager/src/greenhouse_manager/node_mqtt_board_lab*.py"
       - "host/greenhouse-manager/src/greenhouse_manager/schemas/node_mqtt_board_lab_observation_v1.json"
       - "host/greenhouse-manager/tests/test_node_mqtt_board_lab.py"
       - "host/greenhouse-manager/tests/test_node_mqtt_board_lab_contract.py"
@@ -35,6 +35,10 @@ jobs:
           cd host/greenhouse-manager
           ruff check \
             src/greenhouse_manager/node_mqtt_board_lab.py \
+            src/greenhouse_manager/node_mqtt_board_lab_common.py \
+            src/greenhouse_manager/node_mqtt_board_lab_broker.py \
+            src/greenhouse_manager/node_mqtt_board_lab_mqtt.py \
+            src/greenhouse_manager/node_mqtt_board_lab_matrix.py \
             tests/test_node_mqtt_board_lab.py \
             tests/test_node_mqtt_board_lab_contract.py
           pytest -q \
@@ -47,8 +51,14 @@ jobs:
           python - <<'PY'
           from pathlib import Path
 
-          paths = (
-              Path("host/greenhouse-manager/src/greenhouse_manager/node_mqtt_board_lab.py"),
+          manager_sources = tuple(
+              sorted(
+                  Path("host/greenhouse-manager/src/greenhouse_manager").glob(
+                      "node_mqtt_board_lab*.py"
+                  )
+              )
+          )
+          paths = manager_sources + (
               Path("host/greenhouse-manager/src/greenhouse_manager/schemas/node_mqtt_board_lab_observation_v1.json"),
               Path("host/greenhouse-manager/tests/test_node_mqtt_board_lab.py"),
               Path("host/greenhouse-manager/tests/test_node_mqtt_board_lab_contract.py"),

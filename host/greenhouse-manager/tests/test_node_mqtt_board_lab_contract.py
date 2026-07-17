@@ -4,6 +4,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 MODULE = ROOT / "host/greenhouse-manager/src/greenhouse_manager/node_mqtt_board_lab.py"
+SUPPORT_MODULES = tuple(
+    ROOT / f"host/greenhouse-manager/src/greenhouse_manager/{name}"
+    for name in (
+        "node_mqtt_board_lab_common.py",
+        "node_mqtt_board_lab_broker.py",
+        "node_mqtt_board_lab_mqtt.py",
+        "node_mqtt_board_lab_matrix.py",
+    )
+)
 SCHEMA = (
     ROOT
     / "host/greenhouse-manager/src/greenhouse_manager/schemas"
@@ -24,6 +33,7 @@ CONTRACT = ROOT / "protocols/pairing/gh-node-mqtt-board-lab-v1.md"
 def test_board_lab_files_are_present() -> None:
     for path in (
         MODULE,
+        *SUPPORT_MODULES,
         SCHEMA,
         TESTS,
         COMPONENT_HEADER,
