@@ -5,8 +5,10 @@ on:
     paths:
       - "firmware/esphome_rc/components/greenhouse_mqtt_auth/**"
       - "firmware/esphome_rc/tests/greenhouse_mqtt_auth_compile.yml"
+      - "firmware/esphome_rc/tests/greenhouse_mqtt_auth_runtime.yml"
       - "host/greenhouse-manager/tests/test_node_esphome_mqtt_auth_adapter_contract.py"
       - "protocols/pairing/gh-node-esphome-mqtt-boot-profile-adapter-v1.md"
+      - "protocols/pairing/gh-node-mqtt-isolated-lab-v1.md"
       - ".github/workflows/m2-esphome-node-auth-adapter-ci.yml"
 
 permissions:
@@ -44,16 +46,28 @@ jobs:
               encoding="utf-8",
           )
           PY
-      - name: Validate configuration
+      - name: Validate configurations
         shell: bash
         run: |
           set -o pipefail
-          esphome config greenhouse_mqtt_auth_compile.yml 2>&1 | tee /tmp/esphome-config.log
-      - name: Compile ESP32-C6 ESP-IDF target
+          for config in \
+            greenhouse_mqtt_auth_compile.yml \
+            greenhouse_mqtt_auth_runtime.yml
+          do
+            stem="${config%.yml}"
+            esphome config "$config" 2>&1 | tee "/tmp/${stem}-config.log"
+          done
+      - name: Compile ESP32-C6 ESP-IDF targets
         shell: bash
         run: |
           set -o pipefail
-          esphome compile greenhouse_mqtt_auth_compile.yml 2>&1 | tee /tmp/esphome-compile.log
+          for config in \
+            greenhouse_mqtt_auth_compile.yml \
+            greenhouse_mqtt_auth_runtime.yml
+          do
+            stem="${config%.yml}"
+            esphome compile "$config" 2>&1 | tee "/tmp/${stem}-compile.log"
+          done
       - name: Verify ephemeral secrets were not logged
         run: |
           python - <<'PY'
@@ -64,8 +78,8 @@ jobs:
               _, value = line.split(":", 1)
               values.append(value.strip().strip('"'))
           logs = "\n".join(
-              Path(path).read_text(encoding="utf-8", errors="replace")
-              for path in ("/tmp/esphome-config.log", "/tmp/esphome-compile.log")
+              path.read_text(encoding="utf-8", errors="replace")
+              for path in Path("/tmp").glob("greenhouse_mqtt_auth_*.log")
           )
           leaked = [value for value in values if value and value in logs]
           if leaked:
@@ -73,4 +87,4 @@ jobs:
           PY
       - name: Remove ephemeral secrets
         if: always()
-        run: rm -f secrets.yaml /tmp/esphome-config.log /tmp/esphome-compile.log
+        run: rm -f secrets.yaml /tmp/greenhouse_mqtt_auth_*.log
