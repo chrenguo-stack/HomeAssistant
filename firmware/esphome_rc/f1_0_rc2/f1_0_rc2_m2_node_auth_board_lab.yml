@@ -23,13 +23,14 @@ external_components:
 
 packages:
   core: !include packages/core.yml
-  control: !include packages/control.yml
+  control: !include packages/control_m2_board_lab.yml
   buses: !include packages/buses.yml
   sensors: !include packages/sensors.yml
   display: !include packages/display.yml
 
 # Dedicated non-production product-PCB target. It preserves the complete RC2
-# local sensor/LCD/RS485 packages while adding only the M2 board-lab MQTT path.
+# local sensor/LCD/RS485 stack and the frozen 20-second soil / 11-second SCD30
+# cadences while adding only the M2 board-lab MQTT path.
 wifi:
   ssid: !secret board_lab_wifi_ssid
   password: !secret board_lab_wifi_password
@@ -123,6 +124,11 @@ binary_sensor:
           id(mqtt_auth).request_anonymous_rollback();
 
 globals:
+  - id: soil_warmed_up
+    type: bool
+    restore_value: false
+    initial_value: "false"
+
   - id: board_lab_local_loop_count
     type: uint32_t
     restore_value: false
