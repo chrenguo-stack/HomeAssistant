@@ -1,0 +1,47 @@
+esphome:
+  name: greenhouse-mqtt-auth-ci
+  friendly_name: Greenhouse MQTT Auth CI
+  min_version: 2026.4.3
+
+esp32:
+  board: esp32-c6-devkitm-1
+  variant: ESP32C6
+  framework:
+    type: esp-idf
+
+logger:
+
+wifi:
+  ssid: !secret ci_wifi_ssid
+  password: !secret ci_wifi_password
+
+mqtt:
+  id: ci_mqtt
+  broker: 192.0.2.10
+  port: 1883
+  username: ""
+  password: ""
+  client_id: ci-node-anon
+  discovery: false
+  reboot_timeout: 0s
+  log_topic: null
+
+external_components:
+  - source:
+      type: local
+      path: ../components
+    components:
+      - greenhouse_mqtt_auth
+
+# Compile-only non-production profile. No production host, password or node is used.
+greenhouse_mqtt_auth:
+  mqtt_id: ci_mqtt
+  candidate_username: ghn_ci-node
+  candidate_password: !secret mqtt_candidate_password
+  candidate_client_id: ci-node
+  anonymous_client_id: ci-node-anon
+  candidate_generation: 1
+  candidate_secret_fingerprint: 0000000000000000
+  candidate_failure_threshold: 3
+  observation_success_threshold: 3
+  retry_cooldown: 300s
