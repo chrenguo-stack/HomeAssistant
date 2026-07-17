@@ -1,6 +1,6 @@
 substitutions:
   device_name: gh-m2-board-lab
-  project_version: "F1.0-RC2-N0.3-M2-BOARD-LAB"
+  project_version: "F1.0-RC2-M2-BOARD-LAB"
   soil_read_interval: 20s
   soil_warmup_time: 15s
   scd30_update_interval: 11s
@@ -148,7 +148,7 @@ interval:
           const bool soil_data_present = id(soil_moisture).has_state() &&
                                          id(soil_temperature).has_state() &&
                                          id(soil_ec).has_state();
-          char payload[1152];
+          char payload[1280];
           snprintf(
               payload,
               sizeof(payload),
@@ -158,6 +158,7 @@ interval:
               "\"candidate_secret_present\":%s,\"candidate_generation\":%u,"
               "\"candidate_secret_fingerprint\":\"%s\",\"last_failure_class\":\"%s\","
               "\"local_loop_count\":%u,\"uptime_ms\":%u,\"low_battery_mode\":%s,"
+              "\"soil_warmed_up\":%s,\"soil_cycle_active\":%s,"
               "\"soil_query_count\":%d,\"soil_success_count\":%d,"
               "\"air_data_present\":%s,\"co2_data_present\":%s,"
               "\"light_data_present\":%s,\"soil_data_present\":%s,"
@@ -177,6 +178,8 @@ interval:
               id(board_lab_local_loop_count),
               millis(),
               id(low_battery_mode) ? "true" : "false",
+              id(soil_warmed_up) ? "true" : "false",
+              id(soil_cycle_active) ? "true" : "false",
               id(soil_query_count),
               id(soil_success_count),
               air_data_present ? "true" : "false",
