@@ -210,9 +210,9 @@ def test_runbook_defers_physical_actions_to_operator() -> None:
         "production T1",
         "production monitoring",
         "first USB flash",
-        "physical power cycling",
+        "power cuts",
         "Wi-Fi interruption",
-        "LCD/sensor/RS485 observations require the operator",
+        "LCD/sensor/RS485 observations are operator actions",
         "only target permitted for the 50-case product-board runtime matrix",
         "does not claim secure erasure",
     ):
