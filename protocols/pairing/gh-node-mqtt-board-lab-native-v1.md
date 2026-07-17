@@ -14,7 +14,7 @@ The native backend must:
 
 - bind only to a literal non-global IPv4 address;
 - reject `0.0.0.0`, multicast and globally routable addresses;
-- use Mosquitto from the `2.0.x` release family and record the exact observed version;
+- use Mosquitto from the explicitly supported `2.0.x` or `2.1.x` release families and record the exact observed version;
 - preserve `allow_anonymous true`;
 - use only the fixed board-lab candidate, anonymous and observer identities;
 - create random non-production passwords only inside a mode-`0700` private workspace;
@@ -90,6 +90,14 @@ M2-NONPRODUCTION-BOARD-LAB
 
 Use a path without whitespace. The path must not be inside the Git repository.
 
+On macOS, the project uses the Homebrew Mosquitto package. The current Homebrew package is in the supported `2.1.x` family. Installation is an operator-local dependency change and must be completed before running the native lab; it does not start the Broker service automatically for this project workflow.
+
+```bash
+brew install mosquitto
+```
+
+The native lab starts its own workspace-bound process and must not use `brew services start mosquitto`.
+
 ```bash
 set -euo pipefail
 workspace="$(mktemp -d "${TMPDIR:-/tmp}/gh-m2-native-board-lab-XXXXXXX")"
@@ -107,7 +115,7 @@ greenhouse-manager-node-mqtt-board-lab-native create \
   --confirmation M2-NONPRODUCTION-BOARD-LAB
 ```
 
-The selected bind address must be reachable from the dedicated test board and must not be a production service address. The tool resolves the local `mosquitto` and `mosquitto_passwd` executables and rejects versions outside `2.0.x`.
+The selected bind address must be reachable from the dedicated test board and must not be a production service address. The tool resolves the local `mosquitto` and `mosquitto_passwd` executables and rejects versions outside the explicitly supported `2.0.x` and `2.1.x` families.
 
 ## 6. Pre-board smoke sequence
 

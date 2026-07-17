@@ -77,7 +77,7 @@ def _create(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return workspace
 
 
-def test_native_plan_requires_non_global_ipv4_and_mosquitto_2_0(tmp_path: Path) -> None:
+def test_native_plan_requires_non_global_ipv4_and_supported_mosquitto_2_x(tmp_path: Path) -> None:
     mosquitto, passwd = _tools(tmp_path)
     with pytest.raises(NodeMqttBoardLabError, match="globally routable"):
         native.plan_native_board_lab(
@@ -87,13 +87,22 @@ def test_native_plan_requires_non_global_ipv4_and_mosquitto_2_0(tmp_path: Path) 
             mosquitto_passwd_bin=str(passwd),
             runner=_runner_for_version("2.0.22"),
         )
-    with pytest.raises(NodeMqttBoardLabError, match="2.0 release family"):
+    with pytest.raises(NodeMqttBoardLabError, match="supported 2.0 or 2.1"):
         native.plan_native_board_lab(
             tmp_path / "old-version",
             mosquitto_bin=str(mosquitto),
             mosquitto_passwd_bin=str(passwd),
             runner=_runner_for_version("1.6.15"),
         )
+
+    with pytest.raises(NodeMqttBoardLabError, match="supported 2.0 or 2.1"):
+        native.plan_native_board_lab(
+            tmp_path / "future-version",
+            mosquitto_bin=str(mosquitto),
+            mosquitto_passwd_bin=str(passwd),
+            runner=_runner_for_version("2.2.0"),
+        )
+
     report = native.plan_native_board_lab(
         tmp_path / "accepted",
         bind_host="127.0.0.1",
@@ -103,8 +112,20 @@ def test_native_plan_requires_non_global_ipv4_and_mosquitto_2_0(tmp_path: Path) 
         runner=_runner_for_version("2.0.22"),
     )
     assert report["native_mosquitto_version"] == "2.0.22"
+    assert report["native_version_family"] == "2.0"
     assert report["ready_for_live_apply"] is False
     assert report["ready_for_node_credential_generation"] is False
+
+    homebrew_report = native.plan_native_board_lab(
+        tmp_path / "homebrew-current",
+        bind_host="127.0.0.1",
+        port=18885,
+        mosquitto_bin=str(mosquitto),
+        mosquitto_passwd_bin=str(passwd),
+        runner=_runner_for_version("2.1.2"),
+    )
+    assert homebrew_report["native_mosquitto_version"] == "2.1.2"
+    assert homebrew_report["native_version_family"] == "2.1"
 
 
 def test_native_create_writes_private_redacted_workspace(
