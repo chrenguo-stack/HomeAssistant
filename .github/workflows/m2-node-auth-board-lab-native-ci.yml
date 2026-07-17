@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - "host/greenhouse-manager/src/greenhouse_manager/node_mqtt_board_lab_native*.py"
-      - "host/greenhouse-manager/tests/test_node_mqtt_board_lab_native.py"
+      - "host/greenhouse-manager/tests/test_node_mqtt_board_lab_native*.py"
       - "host/greenhouse-manager/tests/test_t1_manager_identity_migration_preparation_version.py"
       - "host/greenhouse-manager/pyproject.toml"
       - "protocols/pairing/gh-node-mqtt-board-lab-native-v1.md"
@@ -146,10 +146,15 @@ jobs:
           ]
           if unsafe:
               raise SystemExit(f"native board-lab safety flag mismatch: {unsafe}")
-          if any(report.get("backend") != "native" for report in reports):
-              raise SystemExit("non-native report appeared in native board-lab sequence")
-          if any(report.get("docker_required") is not False for report in reports):
-              raise SystemExit("native board-lab unexpectedly required Docker")
+          lifecycle = [report for report in reports if "native" in str(report.get("status"))]
+          if len(lifecycle) != 7:
+              raise SystemExit(f"native lifecycle report count is {len(lifecycle)}, expected 7")
+          if any(report.get("backend") != "native" for report in lifecycle):
+              raise SystemExit("native lifecycle report lost its backend binding")
+          if any(report.get("docker_required") is not False for report in lifecycle):
+              raise SystemExit("native lifecycle unexpectedly required Docker")
+          if any(report.get("image") not in (None, "native-mosquitto-2.0") for report in reports):
+              raise SystemExit("unexpected Broker image identity appeared in native sequence")
           if Path(workspace).exists():
               raise SystemExit("private native board-lab workspace was not removed")
           PY
