@@ -1,0 +1,178 @@
+name: M2 node auth native board lab CI
+
+on:
+  pull_request:
+    paths:
+      - "host/greenhouse-manager/src/greenhouse_manager/node_mqtt_board_lab_native*.py"
+      - "host/greenhouse-manager/tests/test_node_mqtt_board_lab_native*.py"
+      - "host/greenhouse-manager/tests/test_t1_manager_identity_migration_preparation_version.py"
+      - "host/greenhouse-manager/pyproject.toml"
+      - "protocols/pairing/gh-node-mqtt-board-lab-native-v1.md"
+      - ".github/workflows/m2-node-auth-board-lab-native-ci.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  native-board-lab:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install native Mosquitto and manager tools
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq mosquitto mosquitto-clients
+          python -m pip install -q -e "host/greenhouse-manager[dev]"
+
+      - name: Focused lint and unit tests
+        run: |
+          set -euo pipefail
+          cd host/greenhouse-manager
+          ruff check \
+            src/greenhouse_manager/node_mqtt_board_lab_native.py \
+            src/greenhouse_manager/node_mqtt_board_lab_native_broker.py \
+            tests/test_node_mqtt_board_lab_native.py
+          pytest -q \
+            tests/test_node_mqtt_board_lab_native.py \
+            tests/test_t1_manager_identity_migration_preparation_version.py
+
+      - name: Initialize private native board lab
+        shell: bash
+        run: |
+          set -euo pipefail
+          workspace="$(mktemp -d /tmp/gh-node-native-board-lab-ci-XXXXXXX)"
+          reports="$(mktemp /tmp/gh-node-native-board-lab-reports-XXXXXX)"
+          echo "NATIVE_BOARD_LAB_WORKSPACE=$workspace" >> "$GITHUB_ENV"
+          echo "NATIVE_BOARD_LAB_REPORTS=$reports" >> "$GITHUB_ENV"
+
+      - name: Plan and create native board lab
+        shell: bash
+        run: |
+          set -euo pipefail
+          greenhouse-manager-node-mqtt-board-lab-native plan \
+            --workspace "$NATIVE_BOARD_LAB_WORKSPACE" \
+            --bind-host 127.0.0.1 \
+            --port 18884 | tee -a "$NATIVE_BOARD_LAB_REPORTS"
+          greenhouse-manager-node-mqtt-board-lab-native create \
+            --workspace "$NATIVE_BOARD_LAB_WORKSPACE" \
+            --bind-host 127.0.0.1 \
+            --port 18884 \
+            --confirmation M2-NONPRODUCTION-BOARD-LAB | tee -a "$NATIVE_BOARD_LAB_REPORTS"
+
+      - name: Validate candidate and anonymous paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          greenhouse-manager-node-mqtt-board-lab-native smoke-valid \
+            --workspace "$NATIVE_BOARD_LAB_WORKSPACE" | tee -a "$NATIVE_BOARD_LAB_REPORTS"
+          greenhouse-manager-node-mqtt-board-lab-native invalidate-candidate \
+            --workspace "$NATIVE_BOARD_LAB_WORKSPACE" | tee -a "$NATIVE_BOARD_LAB_REPORTS"
+          greenhouse-manager-node-mqtt-board-lab-native smoke-invalid \
+            --workspace "$NATIVE_BOARD_LAB_WORKSPACE" | tee -a "$NATIVE_BOARD_LAB_REPORTS"
+          greenhouse-manager-node-mqtt-board-lab-native restore-candidate \
+            --workspace "$NATIVE_BOARD_LAB_WORKSPACE" | tee -a "$NATIVE_BOARD_LAB_REPORTS"
+          greenhouse-manager-node-mqtt-board-lab-native smoke-valid \
+            --workspace "$NATIVE_BOARD_LAB_WORKSPACE" | tee -a "$NATIVE_BOARD_LAB_REPORTS"
+
+      - name: Validate native Broker stop and restart
+        shell: bash
+        run: |
+          set -euo pipefail
+          greenhouse-manager-node-mqtt-board-lab-native stop \
+            --workspace "$NATIVE_BOARD_LAB_WORKSPACE" | tee -a "$NATIVE_BOARD_LAB_REPORTS"
+          greenhouse-manager-node-mqtt-board-lab-native start \
+            --workspace "$NATIVE_BOARD_LAB_WORKSPACE" | tee -a "$NATIVE_BOARD_LAB_REPORTS"
+          greenhouse-manager-node-mqtt-board-lab-native smoke-valid \
+            --workspace "$NATIVE_BOARD_LAB_WORKSPACE" | tee -a "$NATIVE_BOARD_LAB_REPORTS"
+
+      - name: Destroy native board lab
+        shell: bash
+        run: |
+          set -euo pipefail
+          greenhouse-manager-node-mqtt-board-lab-native destroy \
+            --workspace "$NATIVE_BOARD_LAB_WORKSPACE" | tee -a "$NATIVE_BOARD_LAB_REPORTS"
+
+      - name: Verify public reports and cleanup state
+        env:
+          WORKSPACE: ${{ env.NATIVE_BOARD_LAB_WORKSPACE }}
+          REPORTS: ${{ env.NATIVE_BOARD_LAB_REPORTS }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          workspace = os.environ["WORKSPACE"]
+          reports_path = Path(os.environ["REPORTS"])
+          encoded = reports_path.read_text(encoding="utf-8")
+          reports = [json.loads(line) for line in encoded.splitlines() if line.strip()]
+          if len(reports) != 11:
+              raise SystemExit(f"native board-lab report count is {len(reports)}, expected 11")
+          if workspace in encoded:
+              raise SystemExit("private native workspace path appeared in public report")
+          required_false = (
+              "secret_values_included",
+              "production_endpoint_used",
+              "production_identity_used",
+              "production_execution_invoked",
+              "current_services_modified",
+              "homeassistant_storage_read",
+              "node_credentials_delivered",
+              "anonymous_closure_enabled",
+              "ready_for_live_apply",
+              "ready_for_anonymous_closure",
+              "ready_for_node_credential_generation",
+          )
+          unsafe = [
+              (report.get("status"), key)
+              for report in reports
+              for key in required_false
+              if report.get(key) is not False
+          ]
+          if unsafe:
+              raise SystemExit(f"native board-lab safety flag mismatch: {unsafe}")
+          lifecycle = [report for report in reports if "native" in str(report.get("status"))]
+          if len(lifecycle) != 7:
+              raise SystemExit(f"native lifecycle report count is {len(lifecycle)}, expected 7")
+          if any(report.get("backend") != "native" for report in lifecycle):
+              raise SystemExit("native lifecycle report lost its backend binding")
+          if any(report.get("docker_required") is not False for report in lifecycle):
+              raise SystemExit("native lifecycle unexpectedly required Docker")
+          if any(report.get("image") not in (None, "native-mosquitto-2.0") for report in reports):
+              raise SystemExit("unexpected Broker image identity appeared in native sequence")
+          if Path(workspace).exists():
+              raise SystemExit("private native board-lab workspace was not removed")
+          PY
+
+      - name: Cleanup native board-lab artifacts
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          if [[ -n "${NATIVE_BOARD_LAB_WORKSPACE:-}" && -d "$NATIVE_BOARD_LAB_WORKSPACE" ]]; then
+            greenhouse-manager-node-mqtt-board-lab-native destroy \
+              --workspace "$NATIVE_BOARD_LAB_WORKSPACE" >/dev/null 2>&1
+            if [[ -f "$NATIVE_BOARD_LAB_WORKSPACE/mosquitto.pid" ]]; then
+              pid="$(cat "$NATIVE_BOARD_LAB_WORKSPACE/mosquitto.pid" 2>/dev/null)"
+              command="$(ps -p "$pid" -o command= 2>/dev/null)"
+              case "$command" in
+                *"$NATIVE_BOARD_LAB_WORKSPACE/mosquitto.conf"*) kill "$pid" 2>/dev/null ;;
+              esac
+            fi
+          fi
+          rm -rf "${NATIVE_BOARD_LAB_WORKSPACE:-}" "${NATIVE_BOARD_LAB_REPORTS:-}"
