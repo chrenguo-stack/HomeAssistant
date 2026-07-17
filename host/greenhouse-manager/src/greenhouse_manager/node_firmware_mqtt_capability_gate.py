@@ -90,7 +90,8 @@ def firmware_capability_requirements() -> tuple[FirmwareCapabilityRequirement, .
         ),
         FirmwareCapabilityRequirement(
             "private_candidate_and_fallback_slots",
-            "Candidate and anonymous fallback connection profiles are stored separately from public configuration.",
+            "Candidate and anonymous fallback connection profiles are stored "
+            "separately from public configuration.",
             True,
             True,
         ),
@@ -108,19 +109,22 @@ def firmware_capability_requirements() -> tuple[FirmwareCapabilityRequirement, .
         ),
         FirmwareCapabilityRequirement(
             "local_operation_independent",
-            "Sensor collection, LCD, RS485, power protection, and local alarms continue during MQTT failures.",
+            "Sensor collection, LCD, RS485, power protection, and local alarms "
+            "continue during MQTT failures.",
             True,
             True,
         ),
         FirmwareCapabilityRequirement(
             "secret_redaction",
-            "Passwords are absent from serial logs, API logs, diagnostics, crash output, and public artifacts.",
+            "Passwords are absent from serial logs, API logs, diagnostics, crash "
+            "output, and public artifacts.",
             True,
             True,
         ),
         FirmwareCapabilityRequirement(
             "power_and_network_fault_recovery",
-            "Power loss, Wi-Fi loss, Broker loss, and reboot cannot strand local operation or erase fallback.",
+            "Power loss, Wi-Fi loss, Broker loss, and reboot cannot strand local "
+            "operation or erase fallback.",
             True,
             True,
         ),
