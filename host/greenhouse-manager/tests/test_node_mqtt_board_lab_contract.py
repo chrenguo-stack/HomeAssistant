@@ -152,6 +152,19 @@ def test_runbook_defers_physical_actions_to_operator() -> None:
         assert statement in runbook
 
 
+def test_mqtt_smoke_waits_for_suback_and_uses_public_errors() -> None:
+    mqtt_source = SUPPORT_MODULES[2].read_text(encoding="utf-8")
+    command_source = MODULE.read_text(encoding="utf-8")
+
+    assert "observer.on_subscribe = observer_subscribe" in mqtt_source
+    assert "subscribe_deadline" in mqtt_source
+    assert "observation_deadline" in mqtt_source
+    assert "mqtt.MQTTException" not in mqtt_source
+    assert "mqtt.MQTTException" not in command_source
+    assert "ValueError" in command_source
+    assert "RuntimeError" in command_source
+
+
 def test_workflow_runs_unit_broker_compile_and_secret_checks() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
 
