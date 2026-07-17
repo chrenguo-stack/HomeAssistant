@@ -8,11 +8,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from .node_mqtt_board_lab_broker import _wait_for_port
-from .node_mqtt_board_lab_common import (
-    CONFIRMATION,
-    NodeMqttBoardLabError,
-    _canonical_json,
-)
+from .node_mqtt_board_lab_common import NodeMqttBoardLabError, _canonical_json
 from .node_mqtt_board_lab_matrix import init_fault_matrix, summarize_fault_matrix
 from .node_mqtt_board_lab_mqtt import (
     check_serial_log,
