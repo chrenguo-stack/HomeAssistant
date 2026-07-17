@@ -48,7 +48,7 @@ jobs:
           set -euo pipefail
           docker pull eclipse-mosquitto:2.0.22 >/dev/null
           workspace="$(mktemp -d /tmp/gh-node-board-lab-ci-XXXXXXX)"
-          reports="$(mktemp /tmp/gh-node-board-lab-reports-XXXXXX.jsonl)"
+          reports="$(mktemp /tmp/gh-node-board-lab-reports-XXXXXX)"
           cleanup() {
             greenhouse-manager-node-mqtt-board-lab destroy --workspace "$workspace" >/dev/null 2>&1 || true
             rm -rf "$workspace" "$reports"
