@@ -5,6 +5,7 @@
 
 #include "esphome/components/mqtt/mqtt_client.h"
 #include "esphome/core/component.h"
+#include "esphome/core/preferences.h"
 
 namespace esphome::greenhouse_mqtt_auth {
 
@@ -22,9 +23,19 @@ enum class AuthPhase : uint8_t {
   COMMITTED = 5,
 };
 
+struct PersistedState {
+  uint32_t magic;
+  uint16_t generation;
+  uint8_t desired_profile;
+  uint8_t candidate_failure_count;
+  uint8_t observation_success_count;
+  uint8_t committed;
+  uint8_t reserved[2];
+};
+
 class GreenhouseMqttAuth final : public Component {
  public:
-  void set_mqtt_client(mqtt::MQTTClientComponent *mqtt_client);
+  void set_mqtt_client(mqtt::MQTTClientComponent *mqtt_client) { this->mqtt_client_ = mqtt_client; }
   void set_candidate_username(const std::string &value) { this->candidate_username_ = value; }
   void set_candidate_password(const std::string &value) { this->candidate_password_ = value; }
   void set_candidate_client_id(const std::string &value) { this->candidate_client_id_ = value; }
@@ -33,7 +44,7 @@ class GreenhouseMqttAuth final : public Component {
   void set_candidate_secret_fingerprint(const std::string &value) {
     this->candidate_secret_fingerprint_ = value;
   }
-  void set_auth_failure_threshold(uint8_t value) { this->auth_failure_threshold_ = value; }
+  void set_candidate_failure_threshold(uint8_t value) { this->candidate_failure_threshold_ = value; }
   void set_observation_success_threshold(uint8_t value) {
     this->observation_success_threshold_ = value;
   }
@@ -44,8 +55,8 @@ class GreenhouseMqttAuth final : public Component {
   void dump_config() override;
   float get_setup_priority() const override;
 
-  // These methods are intentionally inert until an isolated test harness calls them.
-  // Production authorization/provisioning is not implemented in this component revision.
+  // Test-harness entry points. Production authorization and provisioning are
+  // intentionally outside this component revision.
   bool request_candidate_activation(bool explicitly_authorized);
   bool request_candidate_commit(bool explicitly_authorized);
   void request_anonymous_rollback();
@@ -54,8 +65,8 @@ class GreenhouseMqttAuth final : public Component {
 
   AuthProfile active_profile() const { return this->active_profile_; }
   AuthPhase phase() const { return this->phase_; }
-  uint8_t auth_failure_count() const { return this->auth_failure_count_; }
-  uint8_t observation_success_count() const { return this->observation_success_count_; }
+  uint8_t candidate_failure_count() const { return this->state_.candidate_failure_count; }
+  uint8_t observation_success_count() const { return this->state_.observation_success_count; }
   bool ready_for_commit() const;
   bool candidate_secret_present() const { return !this->candidate_password_.empty(); }
   const std::string &candidate_secret_fingerprint() const {
@@ -65,16 +76,25 @@ class GreenhouseMqttAuth final : public Component {
   uint32_t retry_remaining_ms() const;
   bool local_operation_healthy() const { return true; }
   bool anonymous_fallback_present() const { return true; }
+  bool disconnect_reason_is_generic() const { return true; }
 
  protected:
+  static constexpr uint32_t PREFERENCE_KEY = 0x47484D51UL;
+  static constexpr uint32_t STATE_MAGIC = 0x47484D31UL;
+
+  void reset_state_();
+  bool load_state_();
+  bool save_state_();
+  bool state_valid_() const;
+  void apply_boot_profile_();
   void on_mqtt_connect_(bool session_present);
   void on_mqtt_disconnect_(mqtt::MQTTClientDisconnectReason reason);
-  void switch_to_candidate_();
-  void switch_to_anonymous_();
-  void schedule_fallback_(mqtt::MQTTClientDisconnectReason reason);
-  bool is_authentication_failure_(mqtt::MQTTClientDisconnectReason reason) const;
+  void select_anonymous_fallback_(const char *failure_class);
+  void schedule_safe_reboot_();
 
   mqtt::MQTTClientComponent *mqtt_client_{nullptr};
+  ESPPreferenceObject preference_;
+  PersistedState state_{};
 
   std::string candidate_username_;
   std::string candidate_password_;
@@ -83,19 +103,17 @@ class GreenhouseMqttAuth final : public Component {
   std::string candidate_secret_fingerprint_;
 
   uint16_t candidate_generation_{1};
-  uint8_t auth_failure_threshold_{3};
+  uint8_t candidate_failure_threshold_{3};
   uint8_t observation_success_threshold_{3};
   uint32_t retry_cooldown_ms_{300000};
 
   AuthProfile active_profile_{AuthProfile::ANONYMOUS};
   AuthPhase phase_{AuthPhase::LEGACY_ANONYMOUS};
-  uint8_t auth_failure_count_{0};
-  uint8_t observation_success_count_{0};
-  uint32_t retry_deadline_ms_{0};
-  bool pending_candidate_switch_{false};
-  bool pending_fallback_{false};
-  mqtt::MQTTClientDisconnectReason last_disconnect_reason_{
-      mqtt::MQTTClientDisconnectReason::TCP_DISCONNECTED};
+  uint32_t fallback_boot_millis_{0};
+  bool reboot_requested_{false};
+  bool ignore_disconnect_{false};
+  bool mqtt_connected_{false};
+  const char *last_failure_class_{nullptr};
 };
 
 }  // namespace esphome::greenhouse_mqtt_auth
