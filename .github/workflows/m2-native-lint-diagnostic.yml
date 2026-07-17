@@ -21,23 +21,30 @@ jobs:
           show-progress: false
       - name: Install Ruff
         run: python -m pip install -q "ruff>=0.12,<1"
-      - name: Capture focused Ruff result
+      - name: Generate focused Ruff fixes
         shell: bash
         run: |
-          set +e
+          set -euo pipefail
+          cat > /tmp/native-ruff.toml <<'EOF'
+          target-version = "py311"
+          line-length = 110
+          [lint]
+          select = ["E", "F", "I", "UP", "B", "SIM"]
+          ignore = ["E501", "SIM105"]
+          EOF
           cd host/greenhouse-manager
           ruff check \
             src/greenhouse_manager/node_mqtt_board_lab_native.py \
             src/greenhouse_manager/node_mqtt_board_lab_native_broker.py \
             tests/test_node_mqtt_board_lab_native.py \
-            --output-format concise > /tmp/native-ruff.txt 2>&1
-          rc=$?
-          echo "RUFF_RC=$rc" >> "$GITHUB_ENV"
-          exit 0
+            --config /tmp/native-ruff.toml \
+            --fix --unsafe-fixes
+          mkdir -p /tmp/m2-native-ruff-fixed/src /tmp/m2-native-ruff-fixed/tests
+          cp src/greenhouse_manager/node_mqtt_board_lab_native.py /tmp/m2-native-ruff-fixed/src/
+          cp src/greenhouse_manager/node_mqtt_board_lab_native_broker.py /tmp/m2-native-ruff-fixed/src/
+          cp tests/test_node_mqtt_board_lab_native.py /tmp/m2-native-ruff-fixed/tests/
       - uses: actions/upload-artifact@v4
         with:
-          name: m2-native-ruff-diagnostic
-          path: /tmp/native-ruff.txt
+          name: m2-native-ruff-fixed
+          path: /tmp/m2-native-ruff-fixed
           retention-days: 1
-      - name: Fail on Ruff findings
-        run: test "$RUFF_RC" -eq 0
