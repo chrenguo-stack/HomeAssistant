@@ -8,6 +8,8 @@ on:
       - "host/greenhouse-manager/tests/test_node_mqtt_board_lab*.py"
       - "host/greenhouse-manager/pyproject.toml"
       - "firmware/esphome_rc/board_lab/m2_node_auth/**"
+      - "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_m2_node_auth_board_lab.yml"
+      - "firmware/esphome_rc/f1_0_rc2/packages/**"
       - "firmware/esphome_rc/components/greenhouse_mqtt_auth/**"
       - "protocols/pairing/gh-node-mqtt-board-lab-v1.md"
       - ".github/workflows/m2-node-auth-board-lab-ci.yml"
@@ -41,9 +43,10 @@ jobs:
               Path("host/greenhouse-manager/src/greenhouse_manager"),
               Path("host/greenhouse-manager/tests"),
               Path("firmware/esphome_rc/board_lab/m2_node_auth"),
+              Path("firmware/esphome_rc/f1_0_rc2/f1_0_rc2_m2_node_auth_board_lab.yml"),
               Path("protocols/pairing"),
           )
-          paths = [path for root in roots for path in root.rglob("*") if path.is_file()]
+          paths = [path for root in roots for path in ([root] if root.is_file() else root.rglob("*")) if path.is_file()]
           encoded = "\n".join(path.read_text(encoding="utf-8", errors="replace") for path in paths)
           forbidden = ("root" + "@", "/" + "Users/", "192" + ".168.", "home-assistant" + "_v2.db")
           if any(value in encoded for value in forbidden):
@@ -156,7 +159,7 @@ jobs:
           docker ps -aq --filter 'name=gh-m2-board-lab-' | xargs -r docker rm -f
           rm -rf "${BOARD_LAB_WORKSPACE:-}" "${BOARD_LAB_REPORTS:-}"
 
-  esp32-c6-board-target:
+  esp32-c6-board-targets:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -177,7 +180,7 @@ jobs:
           candidate = secrets.token_urlsafe(32)
           wifi_password = secrets.token_urlsafe(24)
           fingerprint = hashlib.sha256(candidate.encode()).hexdigest()[:16]
-          Path("firmware/esphome_rc/board_lab/m2_node_auth/secrets.yaml").write_text("\n".join((
+          content = "\n".join((
               'board_lab_wifi_ssid: "ci-board-lab"',
               f'board_lab_wifi_password: "{wifi_password}"',
               'board_lab_broker_host: "192.0.2.10"',
@@ -185,22 +188,42 @@ jobs:
               f'board_lab_candidate_password: "{candidate}"',
               f'board_lab_candidate_secret_fingerprint: "{fingerprint}"',
               "",
-          )), encoding="utf-8")
+          ))
+          for path in (
+              Path("firmware/esphome_rc/board_lab/m2_node_auth/secrets.yaml"),
+              Path("firmware/esphome_rc/f1_0_rc2/secrets.yaml"),
+          ):
+              path.write_text(content, encoding="utf-8")
           Path("/tmp/board-lab-ephemeral-values").write_text(candidate + "\n" + wifi_password + "\n", encoding="utf-8")
           PY
-      - name: Compile ESP32-C6 board target
+      - name: Compile minimal ESP32-C6 auth target
         shell: bash
         run: |
           set -o pipefail
           cd firmware/esphome_rc/board_lab/m2_node_auth
-          esphome config greenhouse_mqtt_auth_board_lab.yml 2>&1 | tee /tmp/board-lab-config.log
-          esphome compile greenhouse_mqtt_auth_board_lab.yml 2>&1 | tee /tmp/board-lab-compile.log
+          esphome config greenhouse_mqtt_auth_board_lab.yml 2>&1 | tee /tmp/board-lab-minimal-config.log
+          esphome compile greenhouse_mqtt_auth_board_lab.yml 2>&1 | tee /tmp/board-lab-minimal-compile.log
+      - name: Compile full RC2 product board target
+        shell: bash
+        run: |
+          set -o pipefail
+          cd firmware/esphome_rc/f1_0_rc2
+          RC2_CONFIG=f1_0_rc2_m2_node_auth_board_lab.yml bash tools/rc2.sh config 2>&1 | tee /tmp/board-lab-product-config.log
+          RC2_CONFIG=f1_0_rc2_m2_node_auth_board_lab.yml bash tools/rc2.sh compile 2>&1 | tee /tmp/board-lab-product-compile.log
       - name: Verify ephemeral board-lab secret output
         run: |
           python - <<'PY'
           from pathlib import Path
           values = Path("/tmp/board-lab-ephemeral-values").read_text(encoding="utf-8").splitlines()
-          logs = "\n".join(Path(path).read_text(encoding="utf-8", errors="replace") for path in ("/tmp/board-lab-config.log", "/tmp/board-lab-compile.log"))
+          logs = "\n".join(
+              Path(path).read_text(encoding="utf-8", errors="replace")
+              for path in (
+                  "/tmp/board-lab-minimal-config.log",
+                  "/tmp/board-lab-minimal-compile.log",
+                  "/tmp/board-lab-product-config.log",
+                  "/tmp/board-lab-product-compile.log",
+              )
+          )
           if any(value and value in logs for value in values):
               raise SystemExit("ephemeral board-lab secret appeared in ESPHome output")
           PY
@@ -208,4 +231,11 @@ jobs:
         if: always()
         run: |
           docker ps -aq --filter 'name=gh-m2-board-lab-' | xargs -r docker rm -f
-          rm -f firmware/esphome_rc/board_lab/m2_node_auth/secrets.yaml /tmp/board-lab-ephemeral-values /tmp/board-lab-config.log /tmp/board-lab-compile.log
+          rm -f \
+            firmware/esphome_rc/board_lab/m2_node_auth/secrets.yaml \
+            firmware/esphome_rc/f1_0_rc2/secrets.yaml \
+            /tmp/board-lab-ephemeral-values \
+            /tmp/board-lab-minimal-config.log \
+            /tmp/board-lab-minimal-compile.log \
+            /tmp/board-lab-product-config.log \
+            /tmp/board-lab-product-compile.log
