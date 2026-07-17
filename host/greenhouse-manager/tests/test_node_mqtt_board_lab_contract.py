@@ -27,6 +27,7 @@ BOARD_YAML = BOARD_DIR / "greenhouse_mqtt_auth_board_lab.yml"
 RC2_DIR = ROOT / "firmware/esphome_rc/f1_0_rc2"
 BASE_PRODUCT_YAML = RC2_DIR / "f1_0_rc2.yml"
 PRODUCT_BOARD_YAML = RC2_DIR / "f1_0_rc2_m2_node_auth_board_lab.yml"
+PRODUCT_CONTROL_YAML = RC2_DIR / "packages/control_m2_board_lab.yml"
 PRODUCT_SENSORS_YAML = RC2_DIR / "packages/sensors.yml"
 EXAMPLE_SECRETS = BOARD_DIR / "secrets.example.yaml"
 RUNBOOK = BOARD_DIR / "README.md"
@@ -45,6 +46,7 @@ def test_board_lab_files_are_present() -> None:
         BOARD_YAML,
         BASE_PRODUCT_YAML,
         PRODUCT_BOARD_YAML,
+        PRODUCT_CONTROL_YAML,
         PRODUCT_SENSORS_YAML,
         EXAMPLE_SECRETS,
         RUNBOOK,
@@ -80,7 +82,7 @@ def test_product_board_target_preserves_full_rc2_local_stack() -> None:
 
     for package in (
         "packages/core.yml",
-        "packages/control.yml",
+        "packages/control_m2_board_lab.yml",
         "packages/buses.yml",
         "packages/sensors.yml",
         "packages/display.yml",
@@ -95,6 +97,7 @@ def test_product_board_target_preserves_full_rc2_local_stack() -> None:
         "candidate_password: !secret board_lab_candidate_password",
         "broker: !secret board_lab_broker_host",
         "number: GPIO9",
+        "soil_warmed_up",
         "soil_query_count",
         "soil_success_count",
         "air_data_present",
@@ -108,6 +111,18 @@ def test_product_board_target_preserves_full_rc2_local_stack() -> None:
     assert "homeassistant/" not in config
     assert "$CONTROL/" not in config
     assert "192" + ".168." not in config
+
+
+def test_product_board_soil_runtime_uses_one_warmup_then_20_second_reads() -> None:
+    control = PRODUCT_CONTROL_YAML.read_text(encoding="utf-8")
+
+    assert "warm up only after boot/recovery" in control
+    assert "sensor remains powered" in control
+    assert "interval: ${soil_read_interval}" in control
+    assert "delay: ${soil_warmup_time}" in control
+    assert "id(soil_warmed_up) = true" in control
+    assert "id(soil_warmed_up) = false" in control
+    assert "switch.turn_off: sensor_pwr_switch" in control
 
 
 def test_scd30_cadence_is_substitutable_without_changing_base_default() -> None:
