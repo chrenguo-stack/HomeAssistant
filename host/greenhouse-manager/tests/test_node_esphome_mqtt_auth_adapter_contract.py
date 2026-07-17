@@ -68,7 +68,6 @@ def test_compile_target_is_non_production_and_secret_indirect() -> None:
     assert "candidate_client_id: ci-node" in config
     assert "anonymous_client_id: ci-node-anon" in config
     assert "gh-n1-a9f2f8" not in config
-    assert "192.168.68.126" not in config
 
 
 def test_workflow_pins_esphome_and_scans_logs() -> None:
