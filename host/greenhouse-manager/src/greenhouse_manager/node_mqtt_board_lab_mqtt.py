@@ -99,6 +99,7 @@ def _observe_publish(
     target_topic = f"lab/state/{publisher_client_id}/heartbeat"
     observed = False
     subscribed = False
+    subscription_failed = False
     observer = mqtt.Client(
         callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
         client_id=f"lab-observer-{secrets.token_hex(3)}",
@@ -113,10 +114,26 @@ def _observe_publish(
         reason_code: mqtt.ReasonCode,
         properties: mqtt.Properties | None,
     ) -> None:
-        nonlocal subscribed
-        if not reason_code.is_failure:
-            client.subscribe("lab/state/#", qos=0)
-            subscribed = True
+        nonlocal subscription_failed
+        if reason_code.is_failure:
+            subscription_failed = True
+            return
+        result, _ = client.subscribe("lab/state/#", qos=0)
+        if result != mqtt.MQTT_ERR_SUCCESS:
+            subscription_failed = True
+
+    def observer_subscribe(
+        client: mqtt.Client,
+        userdata: object,
+        mid: int,
+        reason_code_list: list[mqtt.ReasonCode],
+        properties: mqtt.Properties | None,
+    ) -> None:
+        nonlocal subscribed, subscription_failed
+        if reason_code_list and any(reason_code.is_failure for reason_code in reason_code_list):
+            subscription_failed = True
+            return
+        subscribed = True
 
     def observer_message(
         client: mqtt.Client,
@@ -129,15 +146,16 @@ def _observe_publish(
             observed = True
 
     observer.on_connect = observer_connect
+    observer.on_subscribe = observer_subscribe
     observer.on_message = observer_message
     publisher: mqtt.Client | None = None
     try:
         observer.connect(identity.bind_host, identity.port, keepalive=10)
         observer.loop_start()
-        deadline = time.monotonic() + timeout_s
-        while not subscribed and time.monotonic() < deadline:
+        subscribe_deadline = time.monotonic() + timeout_s
+        while not subscribed and not subscription_failed and time.monotonic() < subscribe_deadline:
             time.sleep(0.05)
-        _require(subscribed, "observer could not subscribe in board lab")
+        _require(not subscription_failed and subscribed, "observer could not subscribe in board lab")
         publisher, connected = _connect_client(
             host=identity.bind_host,
             port=identity.port,
@@ -150,7 +168,8 @@ def _observe_publish(
             return False
         info = publisher.publish(target_topic, token, qos=0, retain=False)
         info.wait_for_publish(timeout=timeout_s)
-        while not observed and time.monotonic() < deadline:
+        observation_deadline = time.monotonic() + timeout_s
+        while not observed and time.monotonic() < observation_deadline:
             time.sleep(0.05)
         return observed
     finally:
@@ -397,7 +416,7 @@ def _private_yaml_secret_values(path: Path) -> list[str]:
         key, value = line.split(":", 1)
         if key.strip() not in protected_keys:
             continue
-        value = value.strip().strip("\"").strip("'")
+        value = value.strip().strip('"').strip("'")
         if value and not value.startswith("REPLACE_"):
             values.append(value)
     return values
