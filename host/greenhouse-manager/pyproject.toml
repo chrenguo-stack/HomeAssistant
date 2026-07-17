@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "greenhouse-manager"
-version = "0.4.91"
+version = "0.4.92"
 description = "Canonical MQTT state manager for the greenhouse monitoring system"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -42,6 +42,7 @@ greenhouse-manager-node-firmware-mqtt-capability-gate = "greenhouse_manager.node
 greenhouse-manager-node-mqtt-auth-fallback-model = "greenhouse_manager.node_mqtt_auth_fallback_model:main"
 greenhouse-manager-node-mqtt-isolated-lab = "greenhouse_manager.node_mqtt_isolated_lab:main"
 greenhouse-manager-node-mqtt-board-lab = "greenhouse_manager.node_mqtt_board_lab:main"
+greenhouse-manager-node-mqtt-board-lab-native = "greenhouse_manager.node_mqtt_board_lab_native:main"
 greenhouse-manager-t1-manager-identity-migration-preparation = "greenhouse_manager.t1_manager_identity_migration_preparation:main"
 greenhouse-manager-t1-manager-identity-fresh-chain-preparation = "greenhouse_manager.t1_manager_identity_fresh_chain_preparation:main"
 greenhouse-manager-t1-manager-identity-migration-authorization = "greenhouse_manager.t1_manager_identity_migration_authorization:main"
