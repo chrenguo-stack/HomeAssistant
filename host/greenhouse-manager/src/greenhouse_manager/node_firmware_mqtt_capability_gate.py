@@ -17,7 +17,7 @@ _FINGERPRINT = re.compile(r"^[0-9a-f]{16}$")
 
 
 class NodeFirmwareMqttCapabilityGateError(ValueError):
-    """Raised when synchronized node evidence is not sufficient for design."""
+    """Raised when the synchronized node evidence is not sufficient for design."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -176,9 +176,7 @@ def build_node_firmware_mqtt_capability_gate_plan(
     _require(isinstance(node_id, str), "node_id is missing")
     _require(isinstance(generation, int), "generation is missing")
     identity = build_candidate_identity(
-        system_id=system_id,
-        node_id=node_id,
-        generation=generation,
+        system_id=system_id, node_id=node_id, generation=generation
     )
 
     broker = _require_mapping(evidence.get("broker"), "broker")
@@ -261,7 +259,7 @@ def build_node_firmware_mqtt_capability_gate_plan(
         )
     evidence_manager_version = evidence.get("manager_source_version")
     _require(
-        isinstance(evidence_manager_version, str) and bool(evidence_manager_version),
+        isinstance(evidence_manager_version, str) and evidence_manager_version,
         "manager source version is missing",
     )
     if manager_source_version is not None:
@@ -330,12 +328,7 @@ def build_node_firmware_mqtt_capability_gate_plan(
 
 
 def _canonical_json(value: Mapping[str, object]) -> str:
-    return json.dumps(
-        value,
-        ensure_ascii=False,
-        separators=(",", ":"),
-        sort_keys=True,
-    )
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -349,9 +342,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         evidence = json.loads(args.evidence_json.read_text(encoding="utf-8"))
         if not isinstance(evidence, Mapping):
-            raise NodeFirmwareMqttCapabilityGateError(
-                "evidence root must be an object"
-            )
+            raise NodeFirmwareMqttCapabilityGateError("evidence root must be an object")
         report = build_node_firmware_mqtt_capability_gate_plan(
             evidence,
             repository_sha=args.repository_sha,
