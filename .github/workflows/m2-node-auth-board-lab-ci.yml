@@ -26,8 +26,8 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-      - name: Install pinned tools
-        run: python -m pip install -q -e "host/greenhouse-manager[dev]" "esphome==2026.4.3"
+      - name: Install manager tools
+        run: python -m pip install -q -e "host/greenhouse-manager[dev]"
       - name: Unit, contract, and public safety gates
         run: |
           cd host/greenhouse-manager
@@ -47,7 +47,7 @@ jobs:
         run: |
           set -euo pipefail
           docker pull eclipse-mosquitto:2.0.22 >/dev/null
-          workspace="$(mktemp -d /tmp/gh-node-board-lab-ci-XXXXXX)"
+          workspace="$(mktemp -d /tmp/gh-node-board-lab-ci-XXXXXXX)"
           reports="$(mktemp /tmp/gh-node-board-lab-reports-XXXXXX.jsonl)"
           cleanup() {
             greenhouse-manager-node-mqtt-board-lab destroy --workspace "$workspace" >/dev/null 2>&1 || true
@@ -83,6 +83,19 @@ jobs:
           PY
           trap - EXIT
           rm -f "$reports"
+
+  esp32-c6-board-target:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install pinned ESPHome
+        run: python -m pip install -q "esphome==2026.4.3"
       - name: Create ephemeral board-lab secrets
         run: |
           python - <<'PY'
