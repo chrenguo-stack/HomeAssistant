@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[3]
 COMPONENT = ROOT / "firmware/esphome_rc/components/greenhouse_mqtt_auth"
 CPP = COMPONENT / "greenhouse_mqtt_auth.cpp"
