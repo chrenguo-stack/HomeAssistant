@@ -41,7 +41,7 @@ greenhouse_mqtt_auth:
   candidate_client_id: ci-node
   anonymous_client_id: ci-node-anon
   candidate_generation: 1
-  candidate_secret_fingerprint: 0000000000000000
+  candidate_secret_fingerprint: "0000000000000000"
   candidate_failure_threshold: 3
   observation_success_threshold: 3
   retry_cooldown: 300s
