@@ -1,1 +1,172 @@
-bmFtZTogTTIgbm9kZSBhdXRoIGJvYXJkIGxhYiBDSQoKb246CiAgcHVsbF9yZXF1ZXN0OgogICAgcGF0aHM6CiAgICAgIC0gImhvc3QvZ3JlZW5ob3VzZS1tYW5hZ2VyL3NyYy9ncmVlbmhvdXNlX21hbmFnZXIvbm9kZV9tcXR0X2JvYXJkX2xhYioucHkiCiAgICAgIC0gImhvc3QvZ3JlZW5ob3VzZS1tYW5hZ2VyL3NyYy9ncmVlbmhvdXNlX21hbmFnZXIvc2NoZW1hcy9ub2RlX21xdHRfYm9hcmRfbGFiX29ic2VydmF0aW9uX3YxLmpzb24iCiAgICAgIC0gImhvc3QvZ3JlZW5ob3VzZS1tYW5hZ2VyL3Rlc3RzL3Rlc3Rfbm9kZV9tcXR0X2JvYXJkX2xhYioucHkiCiAgICAgIC0gImhvc3QvZ3JlZW5ob3VzZS1tYW5hZ2VyL3B5cHJvamVjdC50b21sIgogICAgICAtICJmaXJtd2FyZS9lc3Bob21lX3JjL2JvYXJkX2xhYi9tMl9ub2RlX2F1dGgvKioiCiAgICAgIC0gImZpcm13YXJlL2VzcGhvbWVfcmMvY29tcG9uZW50cy9ncmVlbmhvdXNlX21xdHRfYXV0aC8qKiIKICAgICAgLSAicHJvdG9jb2xzL3BhaXJpbmcvZ2gtbm9kZS1tcXR0LWJvYXJkLWxhYi12MS5tZCIKICAgICAgLSAiLmdpdGh1Yi93b3JrZmxvd3MvbTItbm9kZS1hdXRoLWJvYXJkLWxhYi1jaS55bWwiCgpwZXJtaXNzaW9uczoKICBjb250ZW50czogcmVhZAoKam9iczoKICB2YWxpZGF0ZToKICAgIHJ1bnMtb246IHVidW50dS0yNC4wNAogICAgc3RlcHM6CiAgICAgIC0gdXNlczogYWN0aW9ucy9jaGVja291dEB2NAogICAgICAgIHdpdGg6CiAgICAgICAgICBzaG93LXByb2dyZXNzOiBmYWxzZQogICAgICAtIHVzZXM6IGFjdGlvbnMvc2V0dXAtcHl0aG9uQHY1CiAgICAgICAgd2l0aDoKICAgICAgICAgIHB5dGhvbi12ZXJzaW9uOiAiMy4xMSIKICAgICAgICAgIGNhY2hlOiBwaXAKICAgICAgLSBuYW1lOiBJbnN0YWxsIG1hbmFnZXIgdG9vbHMKICAgICAgICBydW46IHB5dGhvbiAtbSBwaXAgaW5zdGFsbCAtcSAtZSAiaG9zdC9ncmVlbmhvdXNlLW1hbmFnZXJbZGV2XSIKICAgICAgLSBuYW1lOiBVbml0LCBjb250cmFjdCwgYW5kIHB1YmxpYyBzYWZldHkgZ2F0ZXMKICAgICAgICBydW46IHwKICAgICAgICAgIGNkIGhvc3QvZ3JlZW5ob3VzZS1tYW5hZ2VyCiAgICAgICAgICBydWZmIGNoZWNrIHNyYy9ncmVlbmhvdXNlX21hbmFnZXIvbm9kZV9tcXR0X2JvYXJkX2xhYioucHkgdGVzdHMvdGVzdF9ub2RlX21xdHRfYm9hcmRfbGFiKi5weQogICAgICAgICAgcHl0ZXN0IC1xIHRlc3RzL3Rlc3Rfbm9kZV9tcXR0X2JvYXJkX2xhYi5weSB0ZXN0cy90ZXN0X25vZGVfbXF0dF9ib2FyZF9sYWJfY29udHJhY3QucHkgdGVzdHMvdGVzdF90MV9tYW5hZ2VyX2lkZW50aXR5X21pZ3JhdGlvbl9wcmVwYXJhdGlvbl92ZXJzaW9uLnB5CiAgICAgICAgICBjZCAuLi8uLgogICAgICAgICAgcHl0aG9uIC0gPDwnUFknCiAgICAgICAgICBmcm9tIHBhdGhsaWIgaW1wb3J0IFBhdGgKICAgICAgICAgIHBhdGhzID0gW3BhdGggZm9yIHJvb3QgaW4gKFBhdGgoImhvc3QvZ3JlZW5ob3VzZS1tYW5hZ2VyIiksIFBhdGgoImZpcm13YXJlL2VzcGhvbWVfcmMvYm9hcmRfbGFiL20yX25vZGVfYXV0aCIpLCBQYXRoKCJwcm90b2NvbHMvcGFpcmluZyIpKSBmb3IgcGF0aCBpbiByb290LnJnbG9iKCIqIikgaWYgcGF0aC5pc19maWxlKCldCiAgICAgICAgICBlbmNvZGVkID0gIlxuIi5qb2luKHBhdGgucmVhZF90ZXh0KGVuY29kaW5nPSJ1dGYtOCIsIGVycm9ycz0icmVwbGFjZSIpIGZvciBwYXRoIGluIHBhdGhzKQogICAgICAgICAgZm9yYmlkZGVuID0gKCJyb290IiArICJAIiwgIi8iICsgIlVzZXJzLyIsICIxOTIiICsgIi4xNjguIiwgImhvbWUtYXNzaXN0YW50IiArICJfdjIuZGIiKQogICAgICAgICAgaWYgYW55KHZhbHVlIGluIGVuY29kZWQgZm9yIHZhbHVlIGluIGZvcmJpZGRlbik6CiAgICAgICAgICAgICAgcmFpc2UgU3lzdGVtRXhpdCgicHJpdmF0ZSBwcm9kdWN0aW9uIG1hcmtlciBhcHBlYXJlZCBpbiBib2FyZC1sYWIgc291cmNlIikKICAgICAgICAgIFBZCiAgICAgIC0gbmFtZTogSXNvbGF0ZWQgQnJva2VyIHZhbGlkLCBpbnZhbGlkLCByZXN0b3JlLCBhbmQgcmVzdGFydCBtYXRyaXgKICAgICAgICBzaGVsbDogYmFzaAogICAgICAgIHJ1bjogfAogICAgICAgICAgc2V0IC1ldW8gcGlwZWZhaWwKICAgICAgICAgIGRvY2tlciBwdWxsIGVjbGlwc2UtbW9zcXVpdHRvOjIuMC4yMiA+L2Rldi9udWxsCiAgICAgICAgICB3b3Jrc3BhY2U9IiQobWt0ZW1wIC1kIC90bXAvZ2gtbm9kZS1ib2FyZC1sYWItY2ktWFhYWFhYWCkiCiAgICAgICAgICByZXBvcnRzPSIkKG1rdGVtcCAvdG1wL2doLW5vZGUtYm9hcmQtbGFiLXJlcG9ydHMtWFhYWFhYKSIKICAgICAgICAgIGVjaG8gIkJPQVJEX0xBQl9XT1JLU1BBQ0U9JHdvcmtzcGFjZSIgPj4gIiRHSVRIVUJfRU5WIgogICAgICAgICAgZWNobyAiQk9BUkRfTEFCX1JFUE9SVFM9JHJlcG9ydHMiID4+ICIkR0lUSFVCX0VOViIKICAgICAgICAgIGNsZWFudXBfb25fZXJyb3IoKSB7CiAgICAgICAgICAgIGdyZWVuaG91c2UtbWFuYWdlci1ub2RlLW1xdHQtYm9hcmQtbGFiIGRlc3Ryb3kgLS13b3Jrc3BhY2UgIiR3b3Jrc3BhY2UiID4vZGV2L251bGwgMj4mMSB8fCB0cnVlCiAgICAgICAgICAgIHJtIC1yZiAiJHdvcmtzcGFjZSIgIiRyZXBvcnRzIgogICAgICAgICAgfQogICAgICAgICAgdHJhcCBjbGVhbnVwX29uX2Vycm9yIEVSUgogICAgICAgICAgcnVuX3JlcG9ydCgpIHsgIiRAIiB8IHRlZSAtYSAiJHJlcG9ydHMiOyB9CiAgICAgICAgICBydW5fcmVwb3J0IGdyZWVuaG91c2UtbWFuYWdlci1ub2RlLW1xdHQtYm9hcmQtbGFiIHBsYW4gLS13b3Jrc3BhY2UgIiR3b3Jrc3BhY2UiIC0tYmluZC1ob3N0IDEyNy4wLjAuMSAtLXBvcnQgMTg4ODMKICAgICAgICAgIHJ1bl9yZXBvcnQgZ3JlZW5ob3VzZS1tYW5hZ2VyLW5vZGUtbXF0dC1ib2FyZC1sYWIgY3JlYXRlIC0td29ya3NwYWNlICIkd29ya3NwYWNlIiAtLWJpbmQtaG9zdCAxMjcuMC4wLjEgLS1wb3J0IDE4ODgzIC0tY29uZmlybWF0aW9uIE0yLU5PTlBST0RVQ1RJT04tQk9BUkQtTEFCCiAgICAgICAgICBydW5fcmVwb3J0IGdyZWVuaG91c2UtbWFuYWdlci1ub2RlLW1xdHQtYm9hcmQtbGFiIHNtb2tlLXZhbGlkIC0td29ya3NwYWNlICIkd29ya3NwYWNlIgogICAgICAgICAgcnVuX3JlcG9ydCBncmVlbmhvdXNlLW1hbmFnZXItbm9kZS1tcXR0LWJvYXJkLWxhYiBpbnZhbGlkYXRlLWNhbmRpZGF0ZSAtLXdvcmtzcGFjZSAiJHdvcmtzcGFjZSIKICAgICAgICAgIHJ1bl9yZXBvcnQgZ3JlZW5ob3VzZS1tYW5hbmFnZXItbm9kZS1tcXR0LWJvYXJkLWxhYiBzbW9rZS1pbnZhbGlkIC0td29ya3NwYWNlICIkd29ya3NwYWNlIgogICAgICAgICAgcnVuX3JlcG9ydCBncmVlbmhvdXNlLW1hbmFnZXItbm9kZS1tcXR0LWJvYXJkLWxhYiByZXN0b3JlLWNhbmRpZGF0ZSAtLXdvcmtzcGFjZSAiJHdvcmtzcGFjZSIKICAgICAgICAgIHJ1bl9yZXBvcnQgZ3JlZW5ob3VzZS1tYW5hZ2VyLW5vZGUtbXF0dC1ib2FyZC1sYWIgc21va2UtdmFsaWQgLS13b3Jrc3BhY2UgIiR3b3Jrc3BhY2UiCiAgICAgICAgICBydW5fcmVwb3J0IGdyZWVuaG91c2UtbWFuYWdlci1ub2RlLW1xdHQtYm9hcmQtbGFiIHN0b3AgLS13b3Jrc3BhY2UgIiR3b3Jrc3BhY2UiCiAgICAgICAgICBydW5fcmVwb3J0IGdyZWVuaG91c2UtbWFuYWdlci1ub2RlLW1xdHQtYm9hcmQtbGFiIHN0YXJ0IC0td29ya3NwYWNlICIkd29ya3NwYWNlIgogICAgICAgICAgcnVuX3JlcG9ydCBncmVlbmhvdXNlLW1hbmFnZXItbm9kZS1tcXR0LWJvYXJkLWxhYiBzbW9rZS12YWxpZCAtLXdvcmtzcGFjZSAiJHdvcmtzcGFjZSIKICAgICAgICAgIHJ1bl9yZXBvcnQgZ3JlZW5ob3VzZS1tYW5hZ2VyLW5vZGUtbXF0dC1ib2FyZC1sYWIgZGVzdHJveSAtLXdvcmtzcGFjZSAiJHdvcmtzcGFjZSIKICAgICAgICAgIHRyYXAgLSBFUlIKICAgICAgLSBuYW1lOiBWZXJpZnkgYm9hcmQtbGFiIHJlcG9ydCBjb3VudAogICAgICAgIHJ1bjogfAogICAgICAgICAgUkVQT1JUUz0iJEJPQVJEX0xBQl9SRVBPUlRTIiBweXRob24gLSA8PCdQWScKICAgICAgICAgIGltcG9ydCBqc29uCiAgICAgICAgICBpbXBvcnQgb3MKICAgICAgICAgIGZyb20gcGF0aGxpYiBpbXBvcnQgUGF0aAogICAgICAgICAgZG9jdW1lbnRzID0gW2pzb24ubG9hZHMobGluZSkgZm9yIGxpbmUgaW4gUGF0aChvcy5lbnZpcm9uWyJSRVBPUlRTIl0pLnJlYWRfdGV4dChlbmNvZGluZz0idXRmLTgiKS5zcGxpdGxpbmVzKCkgaWYgbGluZS5zdHJpcCgpXQogICAgICAgICAgaWYgbGVuKGRvY3VtZW50cykgIT0gMTE6CiAgICAgICAgICAgICAgcmFpc2UgU3lzdGVtRXhpdChmImJvYXJkLWxhYiByZXBvcnQgY291bnQgaXMge2xlbihkb2N1bWVudHMpfSwgZXhwZWN0ZWQgMTEiKQogICAgICAgICAgUFkKICAgICAgLSBuYW1lOiBWZXJpZnkgYm9hcmQtbGFiIHJlcG9ydCBzYWZldHkgZmxhZ3MKICAgICAgICBydW46IHwKICAgICAgICAgIFdPUktTUEFDRT0iJEJPQVJEX0xBQl9XT1JLU1BBQ0UiIFJFUE9SVFM9IiRCT0FSRF9MQUJfUkVQT1JUUyIgcHl0aG9uIC0gPDwnUFknCiAgICAgICAgICBpbXBvcnQganNvbgogICAgICAgICAgaW1wb3J0IG9zCiAgICAgICAgICBmcm9tIHBhdGhsaWIgaW1wb3J0IFBhdGgKICAgICAgICAgIHdvcmtzcGFjZSA9IG9zLmVudmlyb25bIldPUktTUEFDRSJdCiAgICAgICAgICBlbmNvZGVkID0gUGF0aChvcy5lbnZpcm9uWyJSRVBPUlRTIl0pLnJlYWRfdGV4dChlbmNvZGluZz0idXRmLTgiKQogICAgICAgICAgZG9jdW1lbnRzID0gW2pzb24ubG9hZHMobGluZSkgZm9yIGxpbmUgaW4gZW5jb2RlZC5zcGxpdGxpbmVzKCkgaWYgbGluZS5zdHJpcCgpXQogICAgICAgICAgcmVxdWlyZWRfZmFsc2UgPSAoInNlY3JldF92YWx1ZXNfaW5jbHVkZWQiLCAicHJvZHVjdGlvbl9leGVjdXRpb25faW52b2tlZCIsICJob21lYXNzaXN0YW50X3N0b3JhZ2VfcmVhZCIsICJub2RlX2NyZWRlbnRpYWxzX2RlbGl2ZXJlZCIsICJhbm9ueW1vdXNfY2xvc3VyZV9lbmFibGVkIikKICAgICAgICAgIGlmIHdvcmtzcGFjZSBpbiBlbmNvZGVkOgogICAgICAgICAgICAgIHJhaXNlIFN5c3RlbUV4aXQoInByaXZhdGUgd29ya3NwYWNlIHBhdGggYXBwZWFyZWQgaW4gYm9hcmQtbGFiIHJlcG9ydCIpCiAgICAgICAgICB1bnNhZmUgPSBbKGl0ZW0uZ2V0KCJzdGF0dXMiKSwga2V5KSBmb3IgaXRlbSBpbiBkb2N1bWVudHMgZm9yIGtleSBpbiByZXF1aXJlZF9mYWxzZSBpZiBpdGVtLmdldChrZXkpIGlzIG5vdCBGYWxzZV0KICAgICAgICAgIGlmIHVuc2FmZToKICAgICAgICAgICAgICByYWlzZSBTeXN0ZW1FeGl0KGYiYm9hcmQtbGFiIHJlcG9ydCBzYWZldHkgZmxhZyBtaXNtYXRjaDoge3Vuc2FmZX0iKQogICAgICAgICAgUFkKICAgICAgLSBuYW1lOiBWZXJpZnkgYm9hcmQtbGFiIHByaXZhdGUgd29ya3NwYWNlIHJlbW92YWwKICAgICAgICBydW46IHRlc3QgISAtZSAiJEJPQVJEX0xBQl9XT1JLU1BBQ0UiCiAgICAgIC0gbmFtZTogQ2xlYW51cCBpc29sYXRlZCBib2FyZC1sYWIgYXJ0aWZhY3RzCiAgICAgICAgaWY6IGFsd2F5cygpCiAgICAgICAgcnVuOiB8CiAgICAgICAgICBpZiBbWyAtbiAiJHtCT0FSRF9MQUJfV09SS1NQQUNFOi19IiAmJiAtZCAiJEJPQVJEX0xBQl9XT1JLU1BBQ0UiIF1dOyB0aGVuCiAgICAgICAgICAgIGdyZWVuaG91c2UtbWFuYWdlci1ub2RlLW1xdHQtYm9hcmQtbGFiIGRlc3Ryb3kgLS13b3Jrc3BhY2UgIiRCT0FSRF9MQUJfV09SS1NQQUNFIiA+L2Rldi9udWxsIDI+JjEgfHwgdHJ1ZQogICAgICAgICAgZmkKICAgICAgICAgIHJtIC1yZiAiJHtCT0FSRF9MQUJfV09SS1NQQUNFOi19IiAiJHtCT0FSRF9MQUJfUkVQT1JUUzotfSIKCiAgZXNwMzItYzYtYm9hcmQtdGFyZ2V0OgogICAgcnVucy1vbjogdWJ1bnR1LTI0LjA0CiAgICBzdGVwczoKICAgICAgLSB1c2VzOiBhY3Rpb25zL2NoZWNrb3V0QHY0CiAgICAgICAgd2l0aDoKICAgICAgICAgIHNob3ctcHJvZ3Jlc3M6IGZhbHNlCiAgICAgIC0gdXNlczogYWN0aW9ucy9zZXR1cC1weXRob25AdjUKICAgICAgICB3aXRoOgogICAgICAgICAgcHl0aG9uLXZlcnNpb246ICIzLjExIgogICAgICAgICAgY2FjaGU6IHBpcAogICAgICAtIG5hbWU6IEluc3RhbGwgcGlubmVkIEVTUEhvbWUKICAgICAgICBydW46IHB5dGhvbiAtbSBwaXAgaW5zdGFsbCAtcSAiZXNwaG9tZT09MjAyNi40LjMiCiAgICAgIC0gbmFtZTogQ3JlYXRlIGVwaGVtZXJhbCBib2FyZC1sYWIgc2VjcmV0cwogICAgICAgIHJ1bjogfAogICAgICAgICAgcHl0aG9uIC0gPDwnUFknCiAgICAgICAgICBpbXBvcnQgaGFzaGxpYgogICAgICAgICAgaW1wb3J0IHNlY3JldHMKICAgICAgICAgIGZyb20gcGF0aGxpYiBpbXBvcnQgUGF0aAogICAgICAgICAgY2FuZGlkYXRlID0gc2VjcmV0cy50b2tlbl91cmxzYWZlKDMyKQogICAgICAgICAgd2lmaV9wYXNzd29yZCA9IHNlY3JldHMudG9rZW5fdXJsc2FmZSgyNCkKICAgICAgICAgIGZpbmdlcnByaW50ID0gaGFzaGxpYi5zaGEyNTYoY2FuZGlkYXRlLmVuY29kZSgpKS5oZXhkaWdlc3QoKVs6MTZdCiAgICAgICAgICBQYXRoKCJmaXJtd2FyZS9lc3Bob21lX3JjL2JvYXJkX2xhYi9tMl9ub2RlX2F1dGgvc2VjcmV0cy55YW1sIikud3JpdGVfdGV4dCgiXG4iLmpvaW4oKAogICAgICAgICAgICAgICdib2FyZF9sYWJfd2lmaV9zc2lkOiAiY2ktYm9hcmQtbGFiIicsCiAgICAgICAgICAgICAgZidib2FyZF9sYWJfd2lmaV9wYXNzd29yZDogInt3aWZpX3Bhc3N3b3JkfSInLAogICAgICAgICAgICAgICdib2FyZF9sYWJfYnJva2VyX2hvc3Q6ICIxOTIuMC4yLjEwIicsCiAgICAgICAgICAgICAgJ2JvYXJkX2xhYl9icm9rZXJfcG9ydDogMTg4ODMnLAogICAgICAgICAgICAgIGYnYm9hcmRfbGFiX2NhbmRpZGF0ZV9wYXNzd29yZDogIntjYW5kaWRhdGV9IicsCiAgICAgICAgICAgICAgZidib2FyZF9sYWJfY2FuZGlkYXRlX3NlY3JldF9maW5nZXJwcmludDogIntmaW5nZXJwcmludH0iJywKICAgICAgICAgICAgICAiIiwKICAgICAgICAgICkpLCBlbmNvZGluZz0idXRmLTgiKQogICAgICAgICAgUGF0aCgiL3RtcC9ib2FyZC1sYWItZXBoZW1lcmFsLXZhbHVlcyIpLndyaXRlX3RleHQoY2FuZGlkYXRlICsgIlxuIiArIHdpZmlfcGFzc3dvcmQgKyAiXG4iLCBlbmNvZGluZz0idXRmLTgiKQogICAgICAgICAgUFkKICAgICAgLSBuYW1lOiBDb21waWxlIEVTUDMyLUM2IGJvYXJkIHRhcmdldAogICAgICAgIHNoZWxsOiBiYXNoCiAgICAgICAgcnVuOiB8CiAgICAgICAgICBzZXQgLW8gcGlwZWZhaWwKICAgICAgICAgIGNkIGZpcm13YXJlL2VzcGhvbWVfcmMvYm9hcmRfbGFiL20yX25vZGVfYXV0aAogICAgICAgICAgZXNwaG9tZSBjb25maWcgZ3JlZW5ob3VzZV9tcXR0X2F1dGhfYm9hcmRfbGFiLnltbCAyPiYxIHwgdGVlIC90bXAvYm9hcmQtbGFiLWNvbmZpZy5sb2cKICAgICAgICAgIGVzcGhvbWUgY29tcGlsZSBncmVlbmhvdXNlX21xdHRfYXV0aF9ib2FyZF9sYWIueW1sIDI+JjEgfCB0ZWUgL3RtcC9ib2FyZC1sYWItY29tcGlsZS5sb2cKICAgICAgLSBuYW1lOiBWZXJpZnkgZXBoZW1lcmFsIGJvYXJkLWxhYiBzZWNyZXQgb3V0cHV0CiAgICAgICAgcnVuOiB8CiAgICAgICAgICBweXRob24gLSA8PCdQWScKICAgICAgICAgIGZyb20gcGF0aGxpYiBpbXBvcnQgUGF0aAogICAgICAgICAgdmFsdWVzID0gUGF0aCgiL3RtcC9ib2FyZC1sYWItZXBoZW1lcmFsLXZhbHVlcyIpLnJlYWRfdGV4dChlbmNvZGluZz0idXRmLTgiKS5zcGxpdGxpbmVzKCkKICAgICAgICAgIGxvZ3MgPSAiXG4iLmpvaW4oUGF0aChwYXRoKS5yZWFkX3RleHQoZW5jb2Rpbmc9InV0Zi04IiwgZXJyb3JzPSJyZXBsYWNlIikgZm9yIHBhdGggaW4gKCIvdG1wL2JvYXJkLWxhYi1jb25maWcubG9nIiwgIi90bXAvYm9hcmQtbGFiLWNvbXBpbGUubG9nIikpCiAgICAgICAgICBpZiBhbnkodmFsdWUgYW5kIHZhbHVlIGluIGxvZ3MgZm9yIHZhbHVlIGluIHZhbHVlcyk6CiAgICAgICAgICAgICAgcmFpc2UgU3lzdGVtRXhpdCgiZXBoZW1lcmFsIGJvYXJkLWxhYiBzZWNyZXQgYXBwZWFyZWQgaW4gRVNQSG9tZSBvdXRwdXQiKQogICAgICAgICAgUFkKICAgICAgLSBuYW1lOiBDbGVhbnVwIGJvYXJkLWxhYiBmaWxlcwogICAgICAgIGlmOiBhbHdheXMoKQogICAgICAgIHJ1bjogfAogICAgICAgICAgZG9ja2VyIHBzIC1hcSAtLWZpbHRlciAnbmFtZT1naC1tMi1ib2FyZC1sYWItJyB8IHhhcmdzIC1yIGRvY2tlciBybSAtZgogICAgICAgICAgcm0gLWYgZmlybXdhcmUvZXNwaG9tZV9yYy9ib2FyZF9sYWIvbTJfbm9kZV9hdXRoL3NlY3JldHMueWFtbCAvdG1wL2JvYXJkLWxhYi1lcGhlbWVyYWwtdmFsdWVzIC90bXAvYm9hcmQtbGFiLWNvbmZpZy5sb2cgL3RtcC9ib2FyZC1sYWItY29tcGlsZS5sb2cK
+name: M2 node auth board lab CI
+
+on:
+  pull_request:
+    paths:
+      - "host/greenhouse-manager/src/greenhouse_manager/node_mqtt_board_lab*.py"
+      - "host/greenhouse-manager/src/greenhouse_manager/schemas/node_mqtt_board_lab_observation_v1.json"
+      - "host/greenhouse-manager/tests/test_node_mqtt_board_lab*.py"
+      - "host/greenhouse-manager/pyproject.toml"
+      - "firmware/esphome_rc/board_lab/m2_node_auth/**"
+      - "firmware/esphome_rc/components/greenhouse_mqtt_auth/**"
+      - "protocols/pairing/gh-node-mqtt-board-lab-v1.md"
+      - ".github/workflows/m2-node-auth-board-lab-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install manager tools
+        run: python -m pip install -q -e "host/greenhouse-manager[dev]"
+      - name: Unit and contract tests
+        run: |
+          cd host/greenhouse-manager
+          ruff check src/greenhouse_manager/node_mqtt_board_lab*.py tests/test_node_mqtt_board_lab*.py
+          pytest -q tests/test_node_mqtt_board_lab.py tests/test_node_mqtt_board_lab_contract.py tests/test_t1_manager_identity_migration_preparation_version.py
+      - name: Public repository safety scan
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          roots = (
+              Path("host/greenhouse-manager/src/greenhouse_manager"),
+              Path("host/greenhouse-manager/tests"),
+              Path("firmware/esphome_rc/board_lab/m2_node_auth"),
+              Path("protocols/pairing"),
+          )
+          paths = [path for root in roots for path in root.rglob("*") if path.is_file()]
+          encoded = "\n".join(path.read_text(encoding="utf-8", errors="replace") for path in paths)
+          forbidden = ("root" + "@", "/" + "Users/", "192" + ".168.", "home-assistant" + "_v2.db")
+          if any(value in encoded for value in forbidden):
+              raise SystemExit("private production marker appeared in board-lab source")
+          PY
+      - name: Initialize isolated Broker matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull eclipse-mosquitto:2.0.22 >/dev/null
+          workspace="$(mktemp -d /tmp/gh-node-board-lab-ci-XXXXXXX)"
+          reports="$(mktemp /tmp/gh-node-board-lab-reports-XXXXXX)"
+          echo "BOARD_LAB_WORKSPACE=$workspace" >> "$GITHUB_ENV"
+          echo "BOARD_LAB_REPORTS=$reports" >> "$GITHUB_ENV"
+      - name: Run isolated Broker valid invalid restore restart matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_report() { "$@" | tee -a "$BOARD_LAB_REPORTS"; }
+          run_report greenhouse-manager-node-mqtt-board-lab plan --workspace "$BOARD_LAB_WORKSPACE" --bind-host 127.0.0.1 --port 18883
+          run_report greenhouse-manager-node-mqtt-board-lab create --workspace "$BOARD_LAB_WORKSPACE" --bind-host 127.0.0.1 --port 18883 --confirmation M2-NONPRODUCTION-BOARD-LAB
+          run_report greenhouse-manager-node-mqtt-board-lab smoke-valid --workspace "$BOARD_LAB_WORKSPACE"
+          run_report greenhouse-manager-node-mqtt-board-lab invalidate-candidate --workspace "$BOARD_LAB_WORKSPACE"
+          run_report greenhouse-manager-node-mqtt-board-lab smoke-invalid --workspace "$BOARD_LAB_WORKSPACE"
+          run_report greenhouse-manager-node-mqtt-board-lab restore-candidate --workspace "$BOARD_LAB_WORKSPACE"
+          run_report greenhouse-manager-node-mqtt-board-lab smoke-valid --workspace "$BOARD_LAB_WORKSPACE"
+          run_report greenhouse-manager-node-mqtt-board-lab stop --workspace "$BOARD_LAB_WORKSPACE"
+          run_report greenhouse-manager-node-mqtt-board-lab start --workspace "$BOARD_LAB_WORKSPACE"
+          run_report greenhouse-manager-node-mqtt-board-lab smoke-valid --workspace "$BOARD_LAB_WORKSPACE"
+          run_report greenhouse-manager-node-mqtt-board-lab destroy --workspace "$BOARD_LAB_WORKSPACE"
+      - name: Verify board-lab report count
+        run: |
+          REPORTS="$BOARD_LAB_REPORTS" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          documents = [json.loads(line) for line in Path(os.environ["REPORTS"]).read_text(encoding="utf-8").splitlines() if line.strip()]
+          if len(documents) != 11:
+              raise SystemExit(f"board-lab report count is {len(documents)}, expected 11")
+          PY
+      - name: Verify board-lab report safety flags
+        run: |
+          WORKSPACE="$BOARD_LAB_WORKSPACE" REPORTS="$BOARD_LAB_REPORTS" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          workspace = os.environ["WORKSPACE"]
+          encoded = Path(os.environ["REPORTS"]).read_text(encoding="utf-8")
+          documents = [json.loads(line) for line in encoded.splitlines() if line.strip()]
+          required_false = (
+              "secret_values_included",
+              "production_execution_invoked",
+              "homeassistant_storage_read",
+              "node_credentials_delivered",
+              "anonymous_closure_enabled",
+          )
+          if workspace in encoded:
+              raise SystemExit("private workspace path appeared in board-lab report")
+          unsafe = [(item.get("status"), key) for item in documents for key in required_false if item.get(key) is not False]
+          if unsafe:
+              raise SystemExit(f"board-lab report safety flag mismatch: {unsafe}")
+          PY
+      - name: Verify board-lab private workspace removal
+        run: test ! -e "$BOARD_LAB_WORKSPACE"
+      - name: Cleanup isolated board-lab artifacts
+        if: always()
+        run: |
+          if [[ -n "${BOARD_LAB_WORKSPACE:-}" && -d "$BOARD_LAB_WORKSPACE" ]]; then
+            greenhouse-manager-node-mqtt-board-lab destroy --workspace "$BOARD_LAB_WORKSPACE" >/dev/null 2>&1 || true
+          fi
+          docker ps -aq --filter 'name=gh-m2-board-lab-' | xargs -r docker rm -f
+          rm -rf "${BOARD_LAB_WORKSPACE:-}" "${BOARD_LAB_REPORTS:-}"
+
+  esp32-c6-board-target:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install pinned ESPHome
+        run: python -m pip install -q "esphome==2026.4.3"
+      - name: Create ephemeral board-lab secrets
+        run: |
+          python - <<'PY'
+          import hashlib
+          import secrets
+          from pathlib import Path
+          candidate = secrets.token_urlsafe(32)
+          wifi_password = secrets.token_urlsafe(24)
+          fingerprint = hashlib.sha256(candidate.encode()).hexdigest()[:16]
+          Path("firmware/esphome_rc/board_lab/m2_node_auth/secrets.yaml").write_text("\n".join((
+              'board_lab_wifi_ssid: "ci-board-lab"',
+              f'board_lab_wifi_password: "{wifi_password}"',
+              'board_lab_broker_host: "192.0.2.10"',
+              'board_lab_broker_port: 18883',
+              f'board_lab_candidate_password: "{candidate}"',
+              f'board_lab_candidate_secret_fingerprint: "{fingerprint}"',
+              "",
+          )), encoding="utf-8")
+          Path("/tmp/board-lab-ephemeral-values").write_text(candidate + "\n" + wifi_password + "\n", encoding="utf-8")
+          PY
+      - name: Compile ESP32-C6 board target
+        shell: bash
+        run: |
+          set -o pipefail
+          cd firmware/esphome_rc/board_lab/m2_node_auth
+          esphome config greenhouse_mqtt_auth_board_lab.yml 2>&1 | tee /tmp/board-lab-config.log
+          esphome compile greenhouse_mqtt_auth_board_lab.yml 2>&1 | tee /tmp/board-lab-compile.log
+      - name: Verify ephemeral board-lab secret output
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          values = Path("/tmp/board-lab-ephemeral-values").read_text(encoding="utf-8").splitlines()
+          logs = "\n".join(Path(path).read_text(encoding="utf-8", errors="replace") for path in ("/tmp/board-lab-config.log", "/tmp/board-lab-compile.log"))
+          if any(value and value in logs for value in values):
+              raise SystemExit("ephemeral board-lab secret appeared in ESPHome output")
+          PY
+      - name: Cleanup board-lab files
+        if: always()
+        run: |
+          docker ps -aq --filter 'name=gh-m2-board-lab-' | xargs -r docker rm -f
+          rm -f firmware/esphome_rc/board_lab/m2_node_auth/secrets.yaml /tmp/board-lab-ephemeral-values /tmp/board-lab-config.log /tmp/board-lab-compile.log
