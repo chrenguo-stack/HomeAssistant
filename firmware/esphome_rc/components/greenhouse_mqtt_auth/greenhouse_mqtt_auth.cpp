@@ -138,12 +138,15 @@ void GreenhouseMqttAuth::dump_config() {
                 "  Retry cooldown: %" PRIu32 " ms\n"
                 "  Committed: %s\n"
                 "  Anonymous fallback present: YES\n"
-                "  Disconnect classification: generic",
+                "  Disconnect classification: generic\n"
+                "  Board-lab reboot hold: %s\n"
+                "  Board-lab reboot currently held: %s",
                 this->active_profile_name(), this->phase_name(), this->candidate_generation_,
                 YESNO(this->candidate_secret_present()), this->candidate_secret_fingerprint_.c_str(),
                 this->state_.candidate_failure_count, this->candidate_failure_threshold_,
                 this->state_.observation_success_count, this->observation_success_threshold_, this->retry_cooldown_ms_,
-                YESNO(this->state_.committed != 0));
+                YESNO(this->state_.committed != 0), YESNO(this->test_reboot_hold_),
+                YESNO(this->reboot_held_for_test_));
 }
 
 void GreenhouseMqttAuth::on_mqtt_connect_(bool session_present) {
@@ -194,13 +197,28 @@ void GreenhouseMqttAuth::select_anonymous_fallback_(const char *failure_class) {
 
 void GreenhouseMqttAuth::schedule_safe_reboot_() {
   this->ignore_disconnect_ = true;
+  if (this->test_reboot_hold_) {
+    this->reboot_held_for_test_ = true;
+    ESP_LOGW(TAG, "Board-lab reboot hold is active after persisted profile update");
+    return;
+  }
   this->reboot_requested_ = true;
+}
+
+void GreenhouseMqttAuth::release_held_reboot_for_test() {
+  if (!this->reboot_held_for_test_)
+    return;
+  this->test_reboot_hold_ = false;
+  this->reboot_held_for_test_ = false;
+  this->reboot_requested_ = true;
+  ESP_LOGW(TAG, "Board-lab reboot hold released");
 }
 
 bool GreenhouseMqttAuth::request_candidate_activation(bool explicitly_authorized) {
   if (!explicitly_authorized || this->mqtt_client_ == nullptr || this->candidate_password_.empty())
     return false;
-  if (this->active_profile_ == AuthProfile::CANDIDATE || this->reboot_requested_)
+  if (this->active_profile_ == AuthProfile::CANDIDATE || this->reboot_requested_ ||
+      this->reboot_held_for_test_)
     return false;
   if (this->phase_ == AuthPhase::FALLBACK_ANONYMOUS && this->retry_remaining_ms() != 0)
     return false;

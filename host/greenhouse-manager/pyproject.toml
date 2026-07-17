@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "greenhouse-manager"
-version = "0.4.90"
+version = "0.4.91"
 description = "Canonical MQTT state manager for the greenhouse monitoring system"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -41,6 +41,7 @@ greenhouse-manager-t1-node-mqtt-migration-readiness-evidence = "greenhouse_manag
 greenhouse-manager-node-firmware-mqtt-capability-gate = "greenhouse_manager.node_firmware_mqtt_capability_gate:main"
 greenhouse-manager-node-mqtt-auth-fallback-model = "greenhouse_manager.node_mqtt_auth_fallback_model:main"
 greenhouse-manager-node-mqtt-isolated-lab = "greenhouse_manager.node_mqtt_isolated_lab:main"
+greenhouse-manager-node-mqtt-board-lab = "greenhouse_manager.node_mqtt_board_lab:main"
 greenhouse-manager-t1-manager-identity-migration-preparation = "greenhouse_manager.t1_manager_identity_migration_preparation:main"
 greenhouse-manager-t1-manager-identity-fresh-chain-preparation = "greenhouse_manager.t1_manager_identity_fresh_chain_preparation:main"
 greenhouse-manager-t1-manager-identity-migration-authorization = "greenhouse_manager.t1_manager_identity_migration_authorization:main"
@@ -102,3 +103,4 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 "tests/test_t1_migration_readiness.py" = ["SIM102"]
 "src/greenhouse_manager/t1_manager_identity_migration_production_execution_packet.py" = ["F401"]
 "src/greenhouse_manager/node_mqtt_isolated_lab.py" = ["E501", "SIM105", "UP022"]
+"src/greenhouse_manager/node_mqtt_board_lab.py" = ["E501", "SIM105", "UP022"]

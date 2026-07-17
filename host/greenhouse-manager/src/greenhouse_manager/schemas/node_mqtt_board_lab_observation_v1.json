@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hahub.top/schemas/gh-m2-node-mqtt-board-lab-observation-v1.json",
+  "title": "Greenhouse M2 node MQTT board-lab observation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "run_id",
+    "case_id",
+    "outcome",
+    "profile_before",
+    "profile_after",
+    "phase_after",
+    "mqtt_connected_after",
+    "candidate_failure_count",
+    "observation_success_count",
+    "ready_for_commit",
+    "local_functions",
+    "evidence_fingerprints",
+    "operator_observed",
+    "production_endpoint_used",
+    "production_identity_used",
+    "production_execution_invoked",
+    "current_services_modified",
+    "homeassistant_storage_read",
+    "node_credentials_delivered",
+    "anonymous_closure_enabled",
+    "secret_values_included",
+    "secure_erase_claimed",
+    "notes_redacted"
+  ],
+  "properties": {
+    "schema": {
+      "const": "gh.m2.node-mqtt-board-lab-observation/1"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "case_id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 96,
+      "pattern": "^[a-z0-9_.-]+$"
+    },
+    "outcome": {
+      "enum": ["pass", "fail", "blocked"]
+    },
+    "profile_before": {
+      "enum": ["anonymous", "candidate", "unknown"]
+    },
+    "profile_after": {
+      "enum": ["anonymous", "candidate", "unknown"]
+    },
+    "phase_after": {
+      "enum": [
+        "legacy_anonymous",
+        "candidate_staged",
+        "candidate_connecting",
+        "authenticated_observation",
+        "fallback_anonymous",
+        "committed",
+        "unknown"
+      ]
+    },
+    "mqtt_connected_after": {
+      "type": "boolean"
+    },
+    "candidate_failure_count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 255
+    },
+    "observation_success_count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 255
+    },
+    "ready_for_commit": {
+      "type": "boolean"
+    },
+    "local_functions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lcd",
+        "sensors",
+        "rs485",
+        "local_calculations",
+        "low_power_protection"
+      ],
+      "properties": {
+        "lcd": {"enum": ["pass", "fail", "not_checked", "not_applicable"]},
+        "sensors": {"enum": ["pass", "fail", "not_checked", "not_applicable"]},
+        "rs485": {"enum": ["pass", "fail", "not_checked", "not_applicable"]},
+        "local_calculations": {"enum": ["pass", "fail", "not_checked", "not_applicable"]},
+        "low_power_protection": {"enum": ["pass", "fail", "not_checked", "not_applicable"]}
+      }
+    },
+    "evidence_fingerprints": {
+      "type": "array",
+      "maxItems": 16,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 8,
+        "maxLength": 128,
+        "pattern": "^[A-Fa-f0-9._:-]+$"
+      }
+    },
+    "operator_observed": {"type": "boolean"},
+    "production_endpoint_used": {"const": false},
+    "production_identity_used": {"const": false},
+    "production_execution_invoked": {"const": false},
+    "current_services_modified": {"const": false},
+    "homeassistant_storage_read": {"const": false},
+    "node_credentials_delivered": {"const": false},
+    "anonymous_closure_enabled": {"const": false},
+    "secret_values_included": {"const": false},
+    "secure_erase_claimed": {"const": false},
+    "notes_redacted": {"const": true}
+  }
+}

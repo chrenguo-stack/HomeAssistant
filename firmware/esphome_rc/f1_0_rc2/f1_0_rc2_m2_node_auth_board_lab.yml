@@ -1,0 +1,194 @@
+substitutions:
+  device_name: gh-m2-board-lab
+  project_version: "F1.0-RC2-M2-BOARD-LAB"
+  soil_read_interval: 20s
+  soil_warmup_time: 15s
+  scd30_update_interval: 11s
+  battery_divider_ratio: "2.0"
+  battery_calibration_factor: "1.000"
+  battery_low_threshold: "3.00"
+  battery_recovery_threshold: "3.50"
+
+external_components:
+  - source:
+      type: local
+      path: ../15_1_2_rs485_modbus_echo_filter/my_components
+    components:
+      - echo_filtered_modbus
+  - source:
+      type: local
+      path: ../components
+    components:
+      - greenhouse_mqtt_auth
+
+packages:
+  core: !include packages/core.yml
+  control: !include packages/control_m2_board_lab.yml
+  buses: !include packages/buses.yml
+  sensors: !include packages/sensors.yml
+  display: !include packages/display.yml
+
+# Dedicated non-production product-PCB target. It preserves the complete RC2
+# local sensor/LCD/RS485 stack and the frozen 20-second soil / 11-second SCD30
+# cadences while adding only the M2 board-lab MQTT path.
+wifi:
+  ssid: !secret board_lab_wifi_ssid
+  password: !secret board_lab_wifi_password
+  reboot_timeout: 0s
+
+mqtt:
+  id: board_lab_mqtt
+  broker: !secret board_lab_broker_host
+  port: !secret board_lab_broker_port
+  username: ""
+  password: ""
+  client_id: lab-board-anon
+  discovery: false
+  reboot_timeout: 0s
+  log_topic: null
+  birth_message: null
+  will_message: null
+  shutdown_message: null
+  on_message:
+    - topic: lab/control/lab-board-anon/activate
+      payload: activate
+      then:
+        - lambda: |-
+            id(mqtt_auth).request_candidate_activation(true);
+    - topic: lab/control/lab-board/observe-success
+      payload: observe-success
+      then:
+        - lambda: |-
+            id(mqtt_auth).record_observation_success();
+    - topic: lab/control/lab-board/observe-failure
+      payload: observe-failure
+      then:
+        - lambda: |-
+            id(mqtt_auth).record_observation_failure();
+    - topic: lab/control/lab-board/commit
+      payload: commit
+      then:
+        - lambda: |-
+            id(mqtt_auth).request_candidate_commit(true);
+    - topic: lab/control/lab-board/rollback
+      payload: rollback
+      then:
+        - lambda: |-
+            id(mqtt_auth).request_anonymous_rollback();
+    - topic: lab/control/lab-board-anon/reboot-hold
+      then:
+        - lambda: |-
+            if (x == "hold") {
+              id(mqtt_auth).set_test_reboot_hold(true);
+            } else if (x == "release") {
+              id(mqtt_auth).release_held_reboot_for_test();
+            }
+    - topic: lab/control/lab-board/reboot-hold
+      then:
+        - lambda: |-
+            if (x == "hold") {
+              id(mqtt_auth).set_test_reboot_hold(true);
+            } else if (x == "release") {
+              id(mqtt_auth).release_held_reboot_for_test();
+            }
+
+greenhouse_mqtt_auth:
+  id: mqtt_auth
+  mqtt_id: board_lab_mqtt
+  candidate_username: ghn_lab-board
+  candidate_password: !secret board_lab_candidate_password
+  candidate_client_id: lab-board
+  anonymous_client_id: lab-board-anon
+  candidate_generation: 1
+  candidate_secret_fingerprint: !secret board_lab_candidate_secret_fingerprint
+  candidate_failure_threshold: 3
+  observation_success_threshold: 3
+  retry_cooldown: 300s
+
+binary_sensor:
+  - platform: gpio
+    id: board_lab_offline_rollback_button
+    internal: true
+    pin:
+      number: GPIO9
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+      ignore_strapping_warning: true
+    filters:
+      - delayed_on: 50ms
+      - delayed_off: 50ms
+    on_press:
+      - lambda: |-
+          id(mqtt_auth).request_anonymous_rollback();
+
+globals:
+  - id: soil_warmed_up
+    type: bool
+    restore_value: false
+    initial_value: "false"
+
+  - id: board_lab_local_loop_count
+    type: uint32_t
+    restore_value: false
+    initial_value: "0"
+
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          id(board_lab_local_loop_count)++;
+  - interval: 5s
+    then:
+      - lambda: |-
+          const bool air_data_present = id(air_temp).has_state() && id(air_humidity).has_state();
+          const bool co2_data_present = id(scd30_co2).has_state();
+          const bool light_data_present = id(illuminance).has_state();
+          const bool soil_data_present = id(soil_moisture).has_state() &&
+                                         id(soil_temperature).has_state() &&
+                                         id(soil_ec).has_state();
+          char payload[1280];
+          snprintf(
+              payload,
+              sizeof(payload),
+              "{\"profile\":\"%s\",\"phase\":\"%s\",\"mqtt_connected\":%s,"
+              "\"candidate_failure_count\":%u,\"observation_success_count\":%u,"
+              "\"ready_for_commit\":%s,\"anonymous_fallback_present\":%s,"
+              "\"candidate_secret_present\":%s,\"candidate_generation\":%u,"
+              "\"candidate_secret_fingerprint\":\"%s\",\"last_failure_class\":\"%s\","
+              "\"local_loop_count\":%u,\"uptime_ms\":%u,\"low_battery_mode\":%s,"
+              "\"soil_warmed_up\":%s,\"soil_cycle_active\":%s,"
+              "\"soil_query_count\":%d,\"soil_success_count\":%d,"
+              "\"air_data_present\":%s,\"co2_data_present\":%s,"
+              "\"light_data_present\":%s,\"soil_data_present\":%s,"
+              "\"test_reboot_hold\":%s,\"reboot_held_for_test\":%s,"
+              "\"local_operation_healthy\":%s,\"secret_values_included\":false}",
+              id(mqtt_auth).active_profile_name(),
+              id(mqtt_auth).phase_name(),
+              id(mqtt_auth).mqtt_connected() ? "true" : "false",
+              id(mqtt_auth).candidate_failure_count(),
+              id(mqtt_auth).observation_success_count(),
+              id(mqtt_auth).ready_for_commit() ? "true" : "false",
+              id(mqtt_auth).anonymous_fallback_present() ? "true" : "false",
+              id(mqtt_auth).candidate_secret_present() ? "true" : "false",
+              id(mqtt_auth).candidate_generation(),
+              id(mqtt_auth).candidate_secret_fingerprint().c_str(),
+              id(mqtt_auth).last_failure_class(),
+              id(board_lab_local_loop_count),
+              millis(),
+              id(low_battery_mode) ? "true" : "false",
+              id(soil_warmed_up) ? "true" : "false",
+              id(soil_cycle_active) ? "true" : "false",
+              id(soil_query_count),
+              id(soil_success_count),
+              air_data_present ? "true" : "false",
+              co2_data_present ? "true" : "false",
+              light_data_present ? "true" : "false",
+              soil_data_present ? "true" : "false",
+              id(mqtt_auth).test_reboot_hold() ? "true" : "false",
+              id(mqtt_auth).reboot_held_for_test() ? "true" : "false",
+              id(mqtt_auth).local_operation_healthy() ? "true" : "false");
+          const std::string topic =
+              "lab/state/" + id(mqtt_auth).active_client_id() + "/heartbeat";
+          id(board_lab_mqtt).publish(topic, payload, 0, false);

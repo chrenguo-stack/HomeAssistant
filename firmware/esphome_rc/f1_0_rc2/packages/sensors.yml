@@ -92,7 +92,7 @@ sensor:
   - platform: scd30
     i2c_id: bus_i2c
     address: 0x61
-    update_interval: 30s
+    update_interval: ${scd30_update_interval}
     automatic_self_calibration: true
     co2:
       name: "CO2"
