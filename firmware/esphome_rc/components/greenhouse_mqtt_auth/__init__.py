@@ -19,6 +19,7 @@ CONF_SECRET_FINGERPRINT = "candidate_secret_fingerprint"
 CONF_CANDIDATE_FAILURE_THRESHOLD = "candidate_failure_threshold"
 CONF_OBSERVATION_SUCCESS_THRESHOLD = "observation_success_threshold"
 CONF_RETRY_COOLDOWN = "retry_cooldown"
+CONF_CANDIDATE_LEASE_TIMEOUT = "candidate_lease_timeout"
 
 
 def _fingerprint(value: object) -> str:
@@ -73,6 +74,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_RETRY_COOLDOWN, default="300s"
             ): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_CANDIDATE_LEASE_TIMEOUT, default="10min"
+            ): cv.positive_time_period_milliseconds,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     _validate_profiles,
@@ -104,5 +108,10 @@ async def to_code(config: dict) -> None:
     cg.add(
         var.set_retry_cooldown_ms(
             config[CONF_RETRY_COOLDOWN].total_milliseconds
+        )
+    )
+    cg.add(
+        var.set_candidate_lease_timeout_ms(
+            config[CONF_CANDIDATE_LEASE_TIMEOUT].total_milliseconds
         )
     )

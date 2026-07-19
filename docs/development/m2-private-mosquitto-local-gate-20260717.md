@@ -49,7 +49,7 @@ The next gate requires a dedicated non-production ESP32-C6 product PCB and opera
 - USB identification and first flash of `f1_0_rc2_m2_node_auth_board_lab.yml`;
 - LCD, SCD30, SHT30, GY30/BH1750 and RS485 soil-sensor observations;
 - Wi-Fi and Broker interruption/recovery;
-- GPIO9 offline rollback after normal boot;
+- automatic uncommitted-candidate lease expiry and anonymous recovery without a physical rollback button;
 - controlled reset, power and NVS fault points;
 - completion of the private 50-case physical-board matrix.
 

@@ -92,7 +92,7 @@ MATRIX_CONTRACT_CASES = (
     "power.reboot_hold_hook",
     "power.candidate_staged_before_reboot",
     "power.ready_uncommitted",
-    "rollback.offline_button",
+    "rollback.candidate_lease_expired",
     "rollback.after_commit",
     "logs.serial",
     "local.lcd_continuity",

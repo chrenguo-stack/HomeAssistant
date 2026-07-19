@@ -13,6 +13,7 @@ def policy() -> module.Policy:
         auth_failure_threshold=3,
         observation_success_threshold=2,
         retry_cooldown_s=120,
+        candidate_lease_timeout_s=600,
     )
 
 
@@ -104,6 +105,19 @@ def test_observation_failure_rolls_back_without_erasing_candidate(
     assert state.last_failure == "continuity_or_acl_failure"
 
 
+def test_uncommitted_candidate_lease_expiry_automatically_falls_back(
+    policy: module.Policy,
+    candidate: module.Candidate,
+) -> None:
+    state = _connecting(policy, candidate)
+    state = module.transition(state, module.Event.LEASE_EXPIRED, policy=policy)
+
+    assert state.phase is module.Phase.FALLBACK_ANONYMOUS
+    assert state.profile is module.Profile.ANONYMOUS
+    assert state.candidate == candidate
+    assert state.last_failure == "candidate_lease_expired"
+
+
 def test_restart_before_commit_uses_anonymous_fallback(
     policy: module.Policy,
     candidate: module.Candidate,
@@ -177,8 +191,8 @@ def test_isolated_fault_matrix_passes_without_live_side_effects() -> None:
     report = module.run_fault_matrix()
 
     assert report["status"] == "node_mqtt_auth_fallback_fault_matrix_passed"
-    assert report["scenario_count"] == 7
-    assert report["passed_scenario_count"] == 7
+    assert report["scenario_count"] == 8
+    assert report["passed_scenario_count"] == 8
     assert report["candidate_firmware_reference_model_validated"] is True
     assert report["ready_for_candidate_firmware_build"] is True
     assert report["ready_for_real_board_capability_test"] is False

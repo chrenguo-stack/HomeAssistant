@@ -45,3 +45,4 @@ greenhouse_mqtt_auth:
   candidate_failure_threshold: 3
   observation_success_threshold: 3
   retry_cooldown: 300s
+  candidate_lease_timeout: 10min

@@ -297,13 +297,13 @@ Before the first USB flash, verify all of the following:
 - it is not a deployed or production monitoring node;
 - its GPIO, LCD, SCD30, SHT30, GY30/BH1750, RS485 soil sensor and power wiring
   match the RC2 product target;
-- GPIO9 is not held low during reset or power-up;
+- GPIO9 remains untouched; it is not a runtime test input;
 - the board and Mac are on the intended isolated/private laboratory network;
 - the project-private Broker is running and reachable;
 - no T1, production Mosquitto or production Home Assistant endpoint is used.
 
 The first USB flash, reset, power cuts, Wi-Fi interruption, Broker stop/start,
-GPIO9 operation and LCD/sensor/RS485 observations are operator actions. They
+candidate-lease observation and LCD/sensor/RS485 observations are operator actions. They
 must not be automated against an unidentified board.
 
 After boot:
@@ -364,9 +364,18 @@ The reboot-hold commands are RAM-only deterministic fault-injection hooks. They
 pause the next adapter-requested reboot only after the selected profile has
 been persisted. Releasing the hold performs the pending safe reboot.
 
-GPIO9 is an internal active-low offline rollback input. Press it only after
-normal boot. Holding GPIO9 during reset can select the chip boot mode. This test
-input must not be copied unchanged into production YAML.
+An uncommitted candidate has a 10-minute lease. If it is not committed before
+expiry, the adapter persists anonymous and safely reboots. If the board starts
+again after the first uncommitted candidate boot, it selects anonymous before
+MQTT initialization. The matrix observes these automatic paths; it does not
+request a physical rollback input.
+
+GPIO9 is reserved solely for factory/R&D or authorized-service ROM USB
+download. Do not press it during this matrix. End-user OTA recovery must never
+instruct a user to open the enclosure, touch the PCB, or press GPIO9. Automatic
+firmware-image OTA rollback remains a separate product gate until its
+bootloader, first-boot health confirmation, A/B images, and physical-board
+evidence are complete; USB ROM reflash is a service last resort.
 
 ## Serial secret check
 

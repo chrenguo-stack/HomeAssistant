@@ -94,6 +94,7 @@ greenhouse_mqtt_auth:
   candidate_failure_threshold: 3
   observation_success_threshold: 3
   retry_cooldown: 300s
+  candidate_lease_timeout: 10min
 
 status_led:
   pin:
@@ -104,21 +105,6 @@ binary_sensor:
   - platform: status
     name: Board Lab ESPHome Status
     id: board_lab_status
-  - platform: gpio
-    id: board_lab_offline_rollback_button
-    internal: true
-    pin:
-      number: GPIO9
-      mode:
-        input: true
-        pullup: true
-      inverted: true
-    filters:
-      - delayed_on: 50ms
-      - delayed_off: 50ms
-    on_press:
-      - lambda: |-
-          id(mqtt_auth).request_anonymous_rollback();
 
 sensor:
   - platform: uptime
@@ -153,6 +139,7 @@ interval:
               "\"ready_for_commit\":%s,\"anonymous_fallback_present\":%s,"
               "\"candidate_secret_present\":%s,\"candidate_generation\":%u,"
               "\"candidate_secret_fingerprint\":\"%s\",\"last_failure_class\":\"%s\","
+              "\"candidate_lease_remaining_ms\":%u,\"candidate_boot_started\":%s,"
               "\"local_loop_count\":%u,\"uptime_ms\":%u,"
               "\"test_reboot_hold\":%s,\"reboot_held_for_test\":%s,"
               "\"local_operation_healthy\":%s,\"secret_values_included\":false}",
@@ -167,6 +154,8 @@ interval:
               id(mqtt_auth).candidate_generation(),
               id(mqtt_auth).candidate_secret_fingerprint().c_str(),
               id(mqtt_auth).last_failure_class(),
+              id(mqtt_auth).candidate_lease_remaining_ms(),
+              id(mqtt_auth).candidate_boot_started() ? "true" : "false",
               id(board_lab_local_loop_count),
               millis(),
               id(mqtt_auth).test_reboot_hold() ? "true" : "false",

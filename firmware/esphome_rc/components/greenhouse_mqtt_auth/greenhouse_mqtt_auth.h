@@ -23,6 +23,15 @@ enum class AuthPhase : uint8_t {
   COMMITTED = 5,
 };
 
+enum class FallbackReason : uint8_t {
+  NONE = 0,
+  GENERIC_CANDIDATE_CONNECTION_FAILURE = 1,
+  CONTINUITY_OR_ACL_FAILURE = 2,
+  OPERATOR_ROLLBACK = 3,
+  CANDIDATE_LEASE_EXPIRED = 4,
+  UNCOMMITTED_CANDIDATE_REBOOT = 5,
+};
+
 struct PersistedState {
   uint32_t magic;
   uint16_t generation;
@@ -30,8 +39,11 @@ struct PersistedState {
   uint8_t candidate_failure_count;
   uint8_t observation_success_count;
   uint8_t committed;
-  uint8_t reserved[2];
+  uint8_t candidate_boot_started;
+  uint8_t fallback_reason;
 };
+
+static_assert(sizeof(PersistedState) == 12, "PersistedState layout must remain NVS-compatible");
 
 class GreenhouseMqttAuth final : public Component {
  public:
@@ -49,6 +61,7 @@ class GreenhouseMqttAuth final : public Component {
     this->observation_success_threshold_ = value;
   }
   void set_retry_cooldown_ms(uint32_t value) { this->retry_cooldown_ms_ = value; }
+  void set_candidate_lease_timeout_ms(uint32_t value) { this->candidate_lease_timeout_ms_ = value; }
 
   void setup() override;
   void loop() override;
@@ -90,6 +103,8 @@ class GreenhouseMqttAuth final : public Component {
   }
   uint16_t candidate_generation() const { return this->candidate_generation_; }
   uint32_t retry_remaining_ms() const;
+  uint32_t candidate_lease_remaining_ms() const;
+  bool candidate_boot_started() const { return this->state_.candidate_boot_started != 0; }
   bool local_operation_healthy() const { return true; }
   bool anonymous_fallback_present() const { return true; }
   bool disconnect_reason_is_generic() const { return true; }
@@ -102,10 +117,11 @@ class GreenhouseMqttAuth final : public Component {
   bool load_state_();
   bool save_state_();
   bool state_valid_() const;
-  void apply_boot_profile_();
+  bool apply_boot_profile_();
   void on_mqtt_connect_(bool session_present);
   void on_mqtt_disconnect_(mqtt::MQTTClientDisconnectReason reason);
-  void select_anonymous_fallback_(const char *failure_class);
+  void select_anonymous_fallback_(const char *failure_class, FallbackReason reason);
+  const char *fallback_reason_name_(FallbackReason reason) const;
   void schedule_safe_reboot_();
 
   mqtt::MQTTClientComponent *mqtt_client_{nullptr};
@@ -122,10 +138,12 @@ class GreenhouseMqttAuth final : public Component {
   uint8_t candidate_failure_threshold_{3};
   uint8_t observation_success_threshold_{3};
   uint32_t retry_cooldown_ms_{300000};
+  uint32_t candidate_lease_timeout_ms_{600000};
 
   AuthProfile active_profile_{AuthProfile::ANONYMOUS};
   AuthPhase phase_{AuthPhase::LEGACY_ANONYMOUS};
   uint32_t fallback_boot_millis_{0};
+  uint32_t candidate_lease_started_millis_{0};
   bool reboot_requested_{false};
   bool ignore_disconnect_{false};
   bool mqtt_connected_{false};

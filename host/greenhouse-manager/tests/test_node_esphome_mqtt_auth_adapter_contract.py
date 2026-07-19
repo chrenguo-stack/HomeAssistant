@@ -56,6 +56,29 @@ def test_persisted_state_contains_no_secret_material() -> None:
     assert "username" not in state.lower()
     assert "client_id" not in state.lower()
     assert "ESPPreferenceObject" in header
+    assert "sizeof(PersistedState) == 12" in header
+
+
+def test_uncommitted_candidate_has_durable_automatic_fallback() -> None:
+    source = CPP.read_text(encoding="utf-8")
+    header = HEADER.read_text(encoding="utf-8")
+    python = PYTHON.read_text(encoding="utf-8")
+    compile_config = COMPILE_YAML.read_text(encoding="utf-8")
+    runtime_config = RUNTIME_YAML.read_text(encoding="utf-8")
+
+    for token in (
+        "candidate_boot_started",
+        "candidate_lease_timeout_ms_",
+        "candidate_lease_remaining_ms",
+        "candidate_lease_expired",
+        "uncommitted_candidate_reboot",
+    ):
+        assert token in header or token in source
+    assert "CONF_CANDIDATE_LEASE_TIMEOUT" in python
+    assert 'default="10min"' in python
+    assert "candidate_lease_timeout: 10min" in compile_config
+    assert "candidate_lease_timeout: 10min" in runtime_config
+    assert "number: GPIO9" not in runtime_config
 
 
 def test_esp_idf_disconnect_is_treated_as_generic() -> None:

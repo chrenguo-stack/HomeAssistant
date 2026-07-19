@@ -19,7 +19,8 @@ void GreenhouseMqttAuth::reset_state_() {
       .candidate_failure_count = 0,
       .observation_success_count = 0,
       .committed = 0,
-      .reserved = {0, 0},
+      .candidate_boot_started = 0,
+      .fallback_reason = static_cast<uint8_t>(FallbackReason::NONE),
   };
 }
 
@@ -28,7 +29,8 @@ bool GreenhouseMqttAuth::state_valid_() const {
          this->state_.desired_profile <= static_cast<uint8_t>(AuthProfile::CANDIDATE) &&
          this->state_.candidate_failure_count <= this->candidate_failure_threshold_ &&
          this->state_.observation_success_count <= this->observation_success_threshold_ &&
-         this->state_.committed <= 1;
+         this->state_.committed <= 1 && this->state_.candidate_boot_started <= 1 &&
+         this->state_.fallback_reason <= static_cast<uint8_t>(FallbackReason::UNCOMMITTED_CANDIDATE_REBOOT);
 }
 
 bool GreenhouseMqttAuth::load_state_() {
@@ -48,26 +50,49 @@ bool GreenhouseMqttAuth::save_state_() {
   return true;
 }
 
-void GreenhouseMqttAuth::apply_boot_profile_() {
+bool GreenhouseMqttAuth::apply_boot_profile_() {
   const auto desired = static_cast<AuthProfile>(this->state_.desired_profile);
   if (desired == AuthProfile::CANDIDATE) {
-    this->mqtt_client_->set_username(this->candidate_username_);
-    this->mqtt_client_->set_password(this->candidate_password_);
-    this->mqtt_client_->set_client_id(this->candidate_client_id_);
-    this->active_profile_ = AuthProfile::CANDIDATE;
-    this->phase_ = AuthPhase::CANDIDATE_CONNECTING;
-    ESP_LOGI(TAG, "Applied candidate MQTT profile before MQTT initialization");
-    return;
+    if (this->state_.committed == 0 && this->state_.candidate_boot_started != 0) {
+      this->state_.desired_profile = static_cast<uint8_t>(AuthProfile::ANONYMOUS);
+      this->state_.observation_success_count = 0;
+      this->state_.candidate_boot_started = 0;
+      this->state_.fallback_reason = static_cast<uint8_t>(FallbackReason::UNCOMMITTED_CANDIDATE_REBOOT);
+      this->last_failure_class_ = "uncommitted_candidate_reboot";
+      if (!this->save_state_())
+        return false;
+      ESP_LOGW(TAG, "Uncommitted candidate reboot detected; selecting anonymous before MQTT initialization");
+    } else {
+      if (this->state_.committed == 0) {
+        this->state_.candidate_boot_started = 1;
+        if (!this->save_state_())
+          return false;
+        this->candidate_lease_started_millis_ = millis();
+      }
+      this->mqtt_client_->set_username(this->candidate_username_);
+      this->mqtt_client_->set_password(this->candidate_password_);
+      this->mqtt_client_->set_client_id(this->candidate_client_id_);
+      this->active_profile_ = AuthProfile::CANDIDATE;
+      this->phase_ = AuthPhase::CANDIDATE_CONNECTING;
+      ESP_LOGI(TAG, "Applied candidate MQTT profile before MQTT initialization");
+      return true;
+    }
   }
+
+  const auto fallback_reason = static_cast<FallbackReason>(this->state_.fallback_reason);
+  if (fallback_reason != FallbackReason::NONE)
+    this->last_failure_class_ = this->fallback_reason_name_(fallback_reason);
 
   this->mqtt_client_->set_username("");
   this->mqtt_client_->set_password("");
   this->mqtt_client_->set_client_id(this->anonymous_client_id_);
   this->active_profile_ = AuthProfile::ANONYMOUS;
-  this->phase_ = this->state_.candidate_failure_count > 0 ? AuthPhase::FALLBACK_ANONYMOUS
-                                                          : AuthPhase::LEGACY_ANONYMOUS;
+  this->phase_ = this->state_.candidate_failure_count > 0 || fallback_reason != FallbackReason::NONE
+                     ? AuthPhase::FALLBACK_ANONYMOUS
+                     : AuthPhase::LEGACY_ANONYMOUS;
   this->fallback_boot_millis_ = millis();
   ESP_LOGI(TAG, "Applied anonymous MQTT fallback before MQTT initialization");
+  return true;
 }
 
 void GreenhouseMqttAuth::setup() {
@@ -90,10 +115,19 @@ void GreenhouseMqttAuth::setup() {
 
   // ESPHome 2026.4.3 initializes the ESP-IDF MQTT backend only once. Credentials
   // and Client ID therefore must be selected before MQTTClientComponent::setup().
-  this->apply_boot_profile_();
+  if (!this->apply_boot_profile_()) {
+    this->mark_failed();
+    return;
+  }
 }
 
 void GreenhouseMqttAuth::loop() {
+  if (this->active_profile_ == AuthProfile::CANDIDATE && this->state_.committed == 0 &&
+      this->phase_ != AuthPhase::FALLBACK_ANONYMOUS && this->candidate_lease_remaining_ms() == 0) {
+    ESP_LOGW(TAG, "Uncommitted candidate lease expired; selecting anonymous fallback");
+    this->select_anonymous_fallback_("candidate_lease_expired", FallbackReason::CANDIDATE_LEASE_EXPIRED);
+  }
+
   if (!this->reboot_requested_)
     return;
   this->reboot_requested_ = false;
@@ -136,6 +170,9 @@ void GreenhouseMqttAuth::dump_config() {
                 "  Generic candidate failures: %u/%u\n"
                 "  Observation successes: %u/%u\n"
                 "  Retry cooldown: %" PRIu32 " ms\n"
+                "  Candidate lease timeout: %" PRIu32 " ms\n"
+                "  Candidate lease remaining: %" PRIu32 " ms\n"
+                "  Candidate boot started: %s\n"
                 "  Committed: %s\n"
                 "  Anonymous fallback present: YES\n"
                 "  Disconnect classification: generic\n"
@@ -145,7 +182,9 @@ void GreenhouseMqttAuth::dump_config() {
                 YESNO(this->candidate_secret_present()), this->candidate_secret_fingerprint_.c_str(),
                 this->state_.candidate_failure_count, this->candidate_failure_threshold_,
                 this->state_.observation_success_count, this->observation_success_threshold_, this->retry_cooldown_ms_,
-                YESNO(this->state_.committed != 0), YESNO(this->test_reboot_hold_),
+                this->candidate_lease_timeout_ms_, this->candidate_lease_remaining_ms(),
+                YESNO(this->state_.candidate_boot_started != 0), YESNO(this->state_.committed != 0),
+                YESNO(this->test_reboot_hold_),
                 YESNO(this->reboot_held_for_test_));
 }
 
@@ -155,8 +194,10 @@ void GreenhouseMqttAuth::on_mqtt_connect_(bool session_present) {
   this->last_failure_class_ = nullptr;
 
   if (this->active_profile_ == AuthProfile::ANONYMOUS) {
-    this->phase_ = this->state_.candidate_failure_count > 0 ? AuthPhase::FALLBACK_ANONYMOUS
-                                                            : AuthPhase::LEGACY_ANONYMOUS;
+    this->phase_ = this->state_.candidate_failure_count > 0 ||
+                           this->state_.fallback_reason != static_cast<uint8_t>(FallbackReason::NONE)
+                       ? AuthPhase::FALLBACK_ANONYMOUS
+                       : AuthPhase::LEGACY_ANONYMOUS;
     return;
   }
 
@@ -183,12 +224,15 @@ void GreenhouseMqttAuth::on_mqtt_disconnect_(mqtt::MQTTClientDisconnectReason re
   this->save_state_();
 
   if (this->state_.candidate_failure_count >= this->candidate_failure_threshold_)
-    this->select_anonymous_fallback_(this->last_failure_class_);
+    this->select_anonymous_fallback_(this->last_failure_class_,
+                                     FallbackReason::GENERIC_CANDIDATE_CONNECTION_FAILURE);
 }
 
-void GreenhouseMqttAuth::select_anonymous_fallback_(const char *failure_class) {
+void GreenhouseMqttAuth::select_anonymous_fallback_(const char *failure_class, FallbackReason reason) {
   this->state_.desired_profile = static_cast<uint8_t>(AuthProfile::ANONYMOUS);
   this->state_.observation_success_count = 0;
+  this->state_.candidate_boot_started = 0;
+  this->state_.fallback_reason = static_cast<uint8_t>(reason);
   this->last_failure_class_ = failure_class;
   this->phase_ = AuthPhase::FALLBACK_ANONYMOUS;
   if (this->save_state_())
@@ -225,6 +269,8 @@ bool GreenhouseMqttAuth::request_candidate_activation(bool explicitly_authorized
 
   this->state_.desired_profile = static_cast<uint8_t>(AuthProfile::CANDIDATE);
   this->state_.candidate_failure_count = 0;
+  this->state_.candidate_boot_started = 0;
+  this->state_.fallback_reason = static_cast<uint8_t>(FallbackReason::NONE);
   if (this->state_.committed == 0)
     this->state_.observation_success_count = 0;
   this->phase_ = AuthPhase::CANDIDATE_STAGED;
@@ -240,6 +286,8 @@ bool GreenhouseMqttAuth::request_candidate_commit(bool explicitly_authorized) {
     return false;
 
   this->state_.committed = 1;
+  this->state_.candidate_boot_started = 0;
+  this->state_.fallback_reason = static_cast<uint8_t>(FallbackReason::NONE);
   if (!this->save_state_())
     return false;
   this->phase_ = AuthPhase::COMMITTED;
@@ -250,6 +298,8 @@ void GreenhouseMqttAuth::request_anonymous_rollback() {
   this->state_.desired_profile = static_cast<uint8_t>(AuthProfile::ANONYMOUS);
   this->state_.observation_success_count = 0;
   this->state_.committed = 0;
+  this->state_.candidate_boot_started = 0;
+  this->state_.fallback_reason = static_cast<uint8_t>(FallbackReason::OPERATOR_ROLLBACK);
   this->last_failure_class_ = "operator_rollback";
   this->phase_ = AuthPhase::FALLBACK_ANONYMOUS;
   if (this->save_state_())
@@ -269,7 +319,7 @@ void GreenhouseMqttAuth::record_observation_success() {
 void GreenhouseMqttAuth::record_observation_failure() {
   if (this->active_profile_ != AuthProfile::CANDIDATE || this->phase_ == AuthPhase::COMMITTED)
     return;
-  this->select_anonymous_fallback_("continuity_or_acl_failure");
+  this->select_anonymous_fallback_("continuity_or_acl_failure", FallbackReason::CONTINUITY_OR_ACL_FAILURE);
 }
 
 bool GreenhouseMqttAuth::ready_for_commit() const {
@@ -283,6 +333,32 @@ uint32_t GreenhouseMqttAuth::retry_remaining_ms() const {
     return 0;
   const uint32_t elapsed = millis() - this->fallback_boot_millis_;
   return elapsed >= this->retry_cooldown_ms_ ? 0 : this->retry_cooldown_ms_ - elapsed;
+}
+
+uint32_t GreenhouseMqttAuth::candidate_lease_remaining_ms() const {
+  if (this->active_profile_ != AuthProfile::CANDIDATE || this->state_.committed != 0 ||
+      this->state_.candidate_boot_started == 0)
+    return 0;
+  const uint32_t elapsed = millis() - this->candidate_lease_started_millis_;
+  return elapsed >= this->candidate_lease_timeout_ms_ ? 0 : this->candidate_lease_timeout_ms_ - elapsed;
+}
+
+const char *GreenhouseMqttAuth::fallback_reason_name_(FallbackReason reason) const {
+  switch (reason) {
+    case FallbackReason::NONE:
+      return "none";
+    case FallbackReason::GENERIC_CANDIDATE_CONNECTION_FAILURE:
+      return "generic_candidate_connection_failure";
+    case FallbackReason::CONTINUITY_OR_ACL_FAILURE:
+      return "continuity_or_acl_failure";
+    case FallbackReason::OPERATOR_ROLLBACK:
+      return "operator_rollback";
+    case FallbackReason::CANDIDATE_LEASE_EXPIRED:
+      return "candidate_lease_expired";
+    case FallbackReason::UNCOMMITTED_CANDIDATE_REBOOT:
+      return "uncommitted_candidate_reboot";
+  }
+  return "unknown";
 }
 
 }  // namespace esphome::greenhouse_mqtt_auth

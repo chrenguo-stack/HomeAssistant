@@ -73,8 +73,11 @@ def test_board_target_is_fixed_nonproduction_and_uses_secret_indirection() -> No
     assert "set_test_reboot_hold(true)" in config
     assert "release_held_reboot_for_test()" in config
     assert "reboot_held_for_test()" in config
-    assert "number: GPIO9" in config
-    assert "request_anonymous_rollback()" in config
+    assert "candidate_lease_timeout: 10min" in config
+    assert "candidate_lease_remaining_ms" in config
+    assert "candidate_boot_started" in config
+    assert "number: GPIO9" not in config
+    assert "board_lab_offline_rollback_button" not in config
 
 
 def test_product_board_target_preserves_full_rc2_local_stack() -> None:
@@ -96,7 +99,9 @@ def test_product_board_target_preserves_full_rc2_local_stack() -> None:
         "anonymous_client_id: lab-board-anon",
         "candidate_password: !secret board_lab_candidate_password",
         "broker: !secret board_lab_broker_host",
-        "number: GPIO9",
+        "candidate_lease_timeout: 10min",
+        "candidate_lease_remaining_ms",
+        "candidate_boot_started",
         "soil_warmed_up",
         "soil_query_count",
         "soil_success_count",
@@ -108,6 +113,8 @@ def test_product_board_target_preserves_full_rc2_local_stack() -> None:
     ):
         assert token in config
     assert "status_led:" not in config
+    assert "number: GPIO9" not in config
+    assert "board_lab_offline_rollback_button" not in config
     assert "homeassistant/" not in config
     assert "$CONTROL/" not in config
     assert "192" + ".168." not in config
@@ -192,7 +199,7 @@ def test_matrix_covers_handoff_fault_groups() -> None:
         "power.reboot_hold_hook",
         "power.candidate_staged_before_reboot",
         "power.ready_uncommitted",
-        "rollback.offline_button",
+        "rollback.candidate_lease_expired",
         "rollback.after_commit",
         "logs.serial",
         "local.lcd_continuity",

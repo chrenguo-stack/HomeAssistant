@@ -85,9 +85,13 @@ redacted desired profile state has been persisted. The hold flag is not added
 to `PersistedState`, is not restored after power loss, and must not be called
 from production YAML. A separate release action performs the pending reboot.
 
-The board targets also map an active-low GPIO9 input to anonymous rollback so
-an operator can request rollback while Wi-Fi or the Broker is unavailable.
-The button must be pressed only after boot and is not a production interface.
+The board targets do not map GPIO9 or any strapping pin as a runtime input.
+An uncommitted candidate instead has a 10-minute lease and a durable first-boot
+marker. Lease expiry selects anonymous and schedules a safe reboot; any second
+boot before commit selects anonymous before MQTT initialization.
+
+GPIO9 is reserved for factory/R&D/authorized-service ROM USB download only.
+It is not an end-user control, MQTT rollback mechanism, or OTA recovery step.
 
 The common board heartbeat publishes only redacted state:
 
@@ -122,6 +126,12 @@ namespace. Candidate activation and commit require the literal board-lab
 confirmation gate. Commit is never automatic. Rollback selects anonymous,
 persists the state, and reboots. Rollback does not claim secure erasure of the
 candidate secret.
+
+Firmware-image OTA rollback is a separate product gate. Until its bootloader,
+first-boot health confirmation, A/B image behavior, and physical-board evidence
+are complete, this matrix does not claim automatic OTA image rollback. USB ROM
+reflash remains a factory/service last resort and must never be delegated to an
+end user by asking them to open the enclosure or press GPIO9.
 
 ## Evidence record contract
 

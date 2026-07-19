@@ -228,7 +228,7 @@ The following require explicit operator actions and observations:
 - board reset and power interruption;
 - Wi-Fi interruption and restoration;
 - native Broker stop and restart while the board is running;
-- GPIO9 offline rollback operation after normal boot;
+- automatic uncommitted-candidate lease expiry and pre-MQTT anonymous recovery;
 - LCD five-page continuity;
 - SCD30, SHT30, light and soil sensor plausibility;
 - RS485 soil warm-up, power continuity and 20-second query cadence;
@@ -236,6 +236,10 @@ The following require explicit operator actions and observations:
 - serial, heartbeat, OTA and crash log evidence.
 
 No production board may be used.
+
+GPIO9 is not a matrix runtime operation. It is reserved for factory/R&D or
+authorized-service ROM USB recovery and must not be presented as an end-user
+OTA recovery action.
 
 ## 9. Evidence and cleanup
 

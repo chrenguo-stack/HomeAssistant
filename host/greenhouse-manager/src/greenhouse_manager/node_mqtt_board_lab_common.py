@@ -65,7 +65,7 @@ REQUIRED_CASE_IDS = (
     "power.committed",
     "power.fallback_state_written",
     "power.rollback_state_written",
-    "rollback.offline_button",
+    "rollback.candidate_lease_expired",
     "rollback.during_observation",
     "rollback.after_commit",
     "rollback.while_broker_unreachable",

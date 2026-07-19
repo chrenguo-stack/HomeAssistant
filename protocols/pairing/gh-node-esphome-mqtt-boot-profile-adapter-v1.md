@@ -35,6 +35,7 @@ esphome/components/mqtt/mqtt_backend_esp32.cpp
 - candidate 激活必须有独立授权；
 - candidate 提交必须有另一份独立授权；
 - candidate 失败达到有界阈值后回退；
+- 未提交 candidate 只获得一次有界租约，租约到期或再次启动时自动回退；
 - 回退不得擦除 candidate；
 - 未提交状态重启后优先恢复 anonymous；
 - 已提交状态重启后以 candidate 为主，同时保留 anonymous fallback；
@@ -60,6 +61,20 @@ candidate 连接连续失败达到阈值
   -> 启动前清空 username/password
   -> 设置明确的 anonymous Client ID
   -> MQTT backend 首次初始化
+```
+
+未提交 candidate 的额外保险路径：
+
+```text
+首次 candidate 启动前持久化 candidate_boot_started=1
+  -> 10 分钟内未独立提交
+  -> 持久化 desired_profile=anonymous
+  -> 安全重启并恢复 anonymous
+
+或 candidate 未提交时发生断电、崩溃或其他再次启动
+  -> 启动前发现 candidate_boot_started=1
+  -> 直接持久化并选择 anonymous
+  -> 不再初始化 candidate MQTT 配置
 ```
 
 ## 4. 断开原因降级处理
@@ -96,6 +111,8 @@ desired_profile
 candidate_failure_count
 observation_success_count
 committed
+candidate_boot_started
+fallback_reason
 ```
 
 明确禁止保存：
@@ -187,8 +204,12 @@ candidate 连接成功后进入 `AUTHENTICATED_OBSERVATION`。外部测试 harne
 - candidate 连续通用连接失败达到 3 次；
 - 外部观察发现 continuity 或 ACL 失败；
 - 测试 harness 请求 operator rollback。
+- candidate 激活后 10 分钟仍未提交；
+- 未提交 candidate 在首次候选启动后再次启动。
 
 回退保留 candidate 配置合同和代际。operator rollback 会清除提交标志，但不会擦除 candidate secret 本身；安全擦除仍属于后续凭据生命周期实现。
+
+GPIO9 不属于此状态机，也不得映射为运行期 rollback 输入。它只保留为研发、生产或授权售后人员进入 ESP32-C6 ROM USB 下载模式的服务点；任何用户侧 OTA 故障流程都不得要求拆机、按 GPIO9 或接触 PCB。固件镜像级 OTA 自动回滚必须另行完成 bootloader rollback、首启健康确认和 A/B 实板验证，在该门完成前不得把 USB 重写描述为用户操作或把 OTA 自动回滚描述为已验证能力。
 
 ## 8. 隔离编译目标
 

@@ -40,6 +40,7 @@ class Event(StrEnum):
     OBSERVATION_FAILED = "observation_failed"
     ROLLBACK = "rollback_requested"
     COMMIT = "commit_authorized"
+    LEASE_EXPIRED = "candidate_lease_expired"
     RESTART = "restart"
 
 
@@ -48,11 +49,13 @@ class Policy:
     auth_failure_threshold: int = 3
     observation_success_threshold: int = 3
     retry_cooldown_s: int = 300
+    candidate_lease_timeout_s: int = 600
 
     def validate(self) -> None:
         _require(self.auth_failure_threshold > 0, "auth failure threshold must be positive")
         _require(self.observation_success_threshold > 0, "observation threshold must be positive")
         _require(self.retry_cooldown_s > 0, "retry cooldown must be positive")
+        _require(self.candidate_lease_timeout_s > 0, "candidate lease timeout must be positive")
 
 
 @dataclass(frozen=True, slots=True)
@@ -232,6 +235,12 @@ def transition(
             committed_generation=state.candidate.generation,
             last_failure=None,
         )
+    elif event is Event.LEASE_EXPIRED:
+        _require(
+            state.phase in {Phase.CANDIDATE_CONNECTING, Phase.AUTHENTICATED_OBSERVATION},
+            "candidate lease expiry requires an uncommitted candidate",
+        )
+        result = _fallback(state, policy, "candidate_lease_expired")
     elif event is Event.RESTART:
         if state.phase is Phase.COMMITTED:
             result = replace(
@@ -337,6 +346,18 @@ def run_fault_matrix() -> dict[str, object]:
     continuity = transition(observed, Event.OBSERVATION_FAILED, policy)
     scenarios.append(
         {"scenario": "continuity_failure_fallback", "passed": continuity.phase is Phase.FALLBACK_ANONYMOUS}
+    )
+
+    lease_expired = transition(_connecting(policy), Event.LEASE_EXPIRED, policy)
+    scenarios.append(
+        {
+            "scenario": "uncommitted_candidate_lease_fallback",
+            "passed": (
+                lease_expired.phase is Phase.FALLBACK_ANONYMOUS
+                and lease_expired.profile is Profile.ANONYMOUS
+                and lease_expired.last_failure == "candidate_lease_expired"
+            ),
+        }
     )
 
     staged = stage_candidate(initial_state(), _candidate(), policy)
