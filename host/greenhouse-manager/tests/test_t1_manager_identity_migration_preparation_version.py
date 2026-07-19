@@ -4,8 +4,8 @@ import tomllib
 from pathlib import Path
 
 
-def test_manager_package_version_includes_private_mosquitto_builder() -> None:
+def test_manager_package_version_matches_current_source_contract() -> None:
     root = Path(__file__).resolve().parents[1]
     with (root / "pyproject.toml").open("rb") as stream:
         document = tomllib.load(stream)
-    assert document["project"]["version"] == "0.4.94"
+    assert document["project"]["version"] == "0.4.95"

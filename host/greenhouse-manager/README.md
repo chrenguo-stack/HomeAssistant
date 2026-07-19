@@ -2,6 +2,26 @@
 
 本目录是 V0.5 主机端的可运行服务。M0 负责把节点发布到 MQTT 入口 Topic 的 `gh.telemetry/1` 消息校验、去重并转换为 retained 规范化状态；M1 在此基础上生成 Home Assistant MQTT Discovery 配置。
 
+## H3/N2 统一状态入口
+
+`ghctl m2 status` 读取仓库根目录的
+`project-state/current-baseline.json`，校验固定 schema、阶段顺序、M2
+实板矩阵和所有安全开关，并报告当前 Git HEAD、基线祖先关系和 tracked
+worktree 状态。该入口只读，不创建授权、不执行迁移、不接触服务或节点。
+
+```bash
+ghctl m2 status --repository ../.. --pretty
+```
+
+需要把 HEAD 和干净工作区也作为门禁时使用：
+
+```bash
+ghctl m2 status --repository ../.. --require-baseline-ancestor --require-clean --pretty
+```
+
+当前工具只有 `status` 子命令。任何未来的 prepare、authorize、execute 或
+audit 子命令必须作为独立工作包增加，不得从状态文件隐式获得生产权限。
+
 ## 当前职责
 
 1. 订阅节点入口：

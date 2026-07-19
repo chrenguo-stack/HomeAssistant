@@ -97,36 +97,44 @@ ghctl m2 rollback-status
 
 ## 5. 唯一机器可读项目状态
 
-建议建立：
+仓库已建立第一阶段机器可读状态：
 
 ```text
 project-state/
 ├── current-baseline.json
-├── stage-status.json
-├── retired-authorizations.json
-└── production-runs/
-    └── <run-id>.json
+└── README.md
 ```
+
+统一只读入口：
+
+```bash
+ghctl m2 status --repository . --pretty
+```
+
+`stage-status.json`、`retired-authorizations.json` 和 `production-runs/`
+将在对应数据确实产生并完成 schema/隐私设计时再增加，避免先建立多个需要人工同步的事实源。
 
 ### 5.1 `current-baseline.json`
 
-至少记录：
+当前至少记录：
 
 ```json
 {
-  "repository_sha": "<approved-sha>",
-  "manager_version": "<version>",
-  "manager_image_digest": "<digest>",
+  "schema": "gh.project-state.current-baseline/1",
   "active_stage": "H3",
+  "source_baseline": {
+    "repository_sha": "<approved-sha>",
+    "manager_version": "<version>"
+  },
   "last_verified_state": "anonymous_runtime_restored",
-  "last_production_run": "<run-id>",
-  "migration_completed": false
+  "next_gate": "H3_MANAGER_IDENTITY_FIELD_ACCEPTANCE"
 }
 ```
 
 ### 5.2 规则
 
 - 状态文件由仓库工具读取和校验；
+- `ghctl m2 status` 只允许读取状态和 Git 元数据，不提供生产执行能力；
 - 生产运行结束后自动生成候选更新；
 - 退役授权、确认字符串和失败执行包只记录不可逆退役状态，不记录秘密值；
 - 交接文档应尽量从机器状态和证据包生成，不再依赖人工复制大量 SHA；

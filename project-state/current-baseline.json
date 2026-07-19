@@ -1,0 +1,60 @@
+{
+  "schema": "gh.project-state.current-baseline/1",
+  "updated_at": "2026-07-19",
+  "roadmap_version": "V0.5",
+  "active_stage": "H3",
+  "source_baseline": {
+    "repository_sha": "b440652558b02f19fb33b1cdbf4cd0ebe893a285",
+    "manager_version": "0.4.94"
+  },
+  "candidate_manager_version": "0.4.95",
+  "last_verified_state": "anonymous_runtime_restored",
+  "stages": [
+    {"stage_id": "D0", "status": "completed", "acceptance": "CODE_COMPLETE"},
+    {"stage_id": "H0", "status": "in_progress", "acceptance": "LAB_VERIFIED"},
+    {"stage_id": "H1", "status": "in_progress", "acceptance": "LAB_VERIFIED"},
+    {"stage_id": "H2", "status": "completed", "acceptance": "FIELD_ACCEPTED"},
+    {"stage_id": "H3", "status": "in_progress", "acceptance": "LAB_VERIFIED"},
+    {"stage_id": "N0", "status": "completed", "acceptance": "FIELD_ACCEPTED"},
+    {"stage_id": "N1", "status": "completed", "acceptance": "FIELD_ACCEPTED"},
+    {"stage_id": "N2", "status": "in_progress", "acceptance": "LAB_VERIFIED"},
+    {"stage_id": "N3-W", "status": "not_started", "acceptance": "NOT_STARTED"},
+    {"stage_id": "N3-L", "status": "not_started", "acceptance": "NOT_STARTED"},
+    {"stage_id": "N4-L", "status": "optional_not_triggered", "acceptance": "NOT_STARTED"},
+    {"stage_id": "S1", "status": "in_progress", "acceptance": "CODE_COMPLETE"}
+  ],
+  "completed_gates": [
+    "M0_CANONICAL_STATE",
+    "M1_HOME_ASSISTANT_DISCOVERY",
+    "N0_OFFLINE_BOARD_BASELINE",
+    "N1_ANONYMOUS_MQTT_BOARD_BASELINE",
+    "M2_NODE_RUNTIME_FAULT_MATRIX_50_OF_50",
+    "M2_FINAL_READ_ONLY_AUDIT"
+  ],
+  "blocking_gates": [
+    "H3_MANAGER_IDENTITY_FIELD_ACCEPTANCE",
+    "N2_END_TO_END_SECURE_PAIRING",
+    "N2_MULTI_NODE_AND_72_HOUR_ACCEPTANCE"
+  ],
+  "m2_board_matrix": {
+    "sha256": "8dc0b30498ec4f66a1c4b1ffa3e948fd406137f9f25d233c30398a9079eb5b24",
+    "record_count": 50,
+    "passed_case_count": 50,
+    "failed_or_blocked_case_count": 0,
+    "missing_case_count": 0,
+    "duplicate_case_count": 0,
+    "unsafe_case_count": 0,
+    "real_board_runtime_fault_matrix_complete": true,
+    "final_profile": "anonymous",
+    "final_phase": "legacy_anonymous",
+    "candidate_generation": 1
+  },
+  "safety": {
+    "production_execution_enabled": false,
+    "anonymous_closure_enabled": false,
+    "node_production_credentials_delivered": false,
+    "ready_for_live_apply": false,
+    "ready_for_anonymous_closure": false
+  },
+  "next_gate": "H3_MANAGER_IDENTITY_FIELD_ACCEPTANCE"
+}

@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://greenhouse.local/schemas/project_state_v1.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "updated_at",
+    "roadmap_version",
+    "active_stage",
+    "source_baseline",
+    "candidate_manager_version",
+    "last_verified_state",
+    "stages",
+    "completed_gates",
+    "blocking_gates",
+    "m2_board_matrix",
+    "safety",
+    "next_gate"
+  ],
+  "properties": {
+    "schema": {"const": "gh.project-state.current-baseline/1"},
+    "updated_at": {"type": "string", "format": "date"},
+    "roadmap_version": {"const": "V0.5"},
+    "active_stage": {"const": "H3"},
+    "source_baseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository_sha", "manager_version"],
+      "properties": {
+        "repository_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "manager_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"}
+      }
+    },
+    "candidate_manager_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "last_verified_state": {"const": "anonymous_runtime_restored"},
+    "stages": {
+      "type": "array",
+      "minItems": 12,
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["stage_id", "status", "acceptance"],
+        "properties": {
+          "stage_id": {
+            "enum": ["D0", "H0", "H1", "H2", "H3", "N0", "N1", "N2", "N3-W", "N3-L", "N4-L", "S1"]
+          },
+          "status": {
+            "enum": ["completed", "in_progress", "not_started", "optional_not_triggered"]
+          },
+          "acceptance": {
+            "enum": ["NOT_STARTED", "CODE_COMPLETE", "LAB_VERIFIED", "FIELD_ACCEPTED"]
+          }
+        }
+      }
+    },
+    "completed_gates": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^[A-Z0-9_-]{3,80}$"}
+    },
+    "blocking_gates": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^[A-Z0-9_-]{3,80}$"}
+    },
+    "m2_board_matrix": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sha256",
+        "record_count",
+        "passed_case_count",
+        "failed_or_blocked_case_count",
+        "missing_case_count",
+        "duplicate_case_count",
+        "unsafe_case_count",
+        "real_board_runtime_fault_matrix_complete",
+        "final_profile",
+        "final_phase",
+        "candidate_generation"
+      ],
+      "properties": {
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "record_count": {"const": 50},
+        "passed_case_count": {"const": 50},
+        "failed_or_blocked_case_count": {"const": 0},
+        "missing_case_count": {"const": 0},
+        "duplicate_case_count": {"const": 0},
+        "unsafe_case_count": {"const": 0},
+        "real_board_runtime_fault_matrix_complete": {"const": true},
+        "final_profile": {"const": "anonymous"},
+        "final_phase": {"const": "legacy_anonymous"},
+        "candidate_generation": {"const": 1}
+      }
+    },
+    "safety": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "production_execution_enabled",
+        "anonymous_closure_enabled",
+        "node_production_credentials_delivered",
+        "ready_for_live_apply",
+        "ready_for_anonymous_closure"
+      ],
+      "properties": {
+        "production_execution_enabled": {"const": false},
+        "anonymous_closure_enabled": {"const": false},
+        "node_production_credentials_delivered": {"const": false},
+        "ready_for_live_apply": {"const": false},
+        "ready_for_anonymous_closure": {"const": false}
+      }
+    },
+    "next_gate": {"const": "H3_MANAGER_IDENTITY_FIELD_ACCEPTANCE"}
+  }
+}
