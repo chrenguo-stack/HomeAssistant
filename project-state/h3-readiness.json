@@ -22,6 +22,14 @@
       "required_markers": ["SCHEMA = \"gh.m2.t1-manager-identity-fresh-chain-preparation/2\"", "def prepare_fresh_manager_identity_chain("]
     },
     {
+      "capability_id": "legacy_bootstrap_preflight",
+      "readiness_level": "CODE_COMPLETE",
+      "source": "host/greenhouse-manager/src/greenhouse_manager/h3_legacy_bootstrap_preflight.py",
+      "tests": ["host/greenhouse-manager/tests/test_h3_legacy_bootstrap_preflight.py"],
+      "protocols": ["protocols/pairing/gh-h3-manager-legacy-bootstrap-preflight-v1.md"],
+      "required_markers": ["REPORT_SCHEMA = \"gh.project-state.h3-legacy-bootstrap-preflight/1\"", "def inspect_legacy_static_evidence("]
+    },
+    {
       "capability_id": "migration_authorization",
       "readiness_level": "CODE_COMPLETE",
       "source": "host/greenhouse-manager/src/greenhouse_manager/t1_manager_identity_migration_authorization.py",

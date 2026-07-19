@@ -97,8 +97,7 @@ def _verified_snapshot(
         "legacy review bridge manifest fingerprint is invalid",
     )
     _require(
-        isinstance(retained_topic_sha256, str)
-        and _SHA256.fullmatch(retained_topic_sha256) is not None,
+        isinstance(retained_topic_sha256, str) and _SHA256.fullmatch(retained_topic_sha256) is not None,
         "legacy review bridge retained topic binding is invalid",
     )
     name = candidate.name
@@ -173,14 +172,12 @@ def build_h3_field_preflight_report(
         and readiness_report.get("live_action_authorized") is False,
         "public H3 readiness gate is not ready for private evidence preflight",
     )
-    matching = [
-        item
-        for item in inventory.valid_candidates
-        if item.retained_topic_matches_expected is True
-    ]
+    matching = [item for item in inventory.valid_candidates if item.retained_topic_matches_expected is True]
     ready = expected_retained_topic_supplied and len(matching) == 1
     if ready:
         next_action = "RUN_FRESH_CHAIN_DISCOVER_ONLY"
+    elif not inventory.valid_candidates:
+        next_action = "RUN_LEGACY_BOOTSTRAP_PREFLIGHT"
     elif not expected_retained_topic_supplied:
         next_action = "SUPPLY_EXPECTED_RETAINED_TOPIC"
     else:

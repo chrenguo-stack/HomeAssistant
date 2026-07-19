@@ -28,11 +28,18 @@
 
 ## 通过语义
 
-无 Topic 时，工具只完成候选盘点：
+存在有效 bridge 但无 Topic 时，工具只完成候选盘点：
 
 ```text
 ready_for_fresh_chain_discovery=false
 next_action=SUPPLY_EXPECTED_RETAINED_TOPIC
+```
+
+若有效 bridge 数量为零，则必须先盘点 legacy transaction/rollback 静态证据：
+
+```text
+ready_for_fresh_chain_discovery=false
+next_action=RUN_LEGACY_BOOTSTRAP_PREFLIGHT
 ```
 
 只有明确 Topic 与唯一有效 bridge 的 Topic 哈希一致时：

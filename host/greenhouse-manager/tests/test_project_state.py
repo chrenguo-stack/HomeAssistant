@@ -8,6 +8,9 @@ import pytest
 
 from greenhouse_manager import project_state as module
 from greenhouse_manager.h3_field_preflight import LegacyReviewBridgeInventory
+from greenhouse_manager.h3_legacy_bootstrap_preflight import (
+    LegacyStaticEvidenceInventory,
+)
 
 REPOSITORY = Path(__file__).resolve().parents[3]
 STATE_PATH = REPOSITORY / "project-state/current-baseline.json"
@@ -79,7 +82,7 @@ def test_repository_h3_readiness_manifest_is_valid_and_fail_closed() -> None:
     assert document["gate_id"] == "H3_MANAGER_IDENTITY_FIELD_ACCEPTANCE"
     assert document["implementation_status"] == "CODE_COMPLETE"
     assert document["field_acceptance_status"] == "PENDING"
-    assert len(document["capabilities"]) == 13
+    assert len(document["capabilities"]) == 14
     assert not any(document["safety"].values())
 
 
@@ -238,10 +241,58 @@ def test_cli_h3_field_preflight_stops_before_live_access(
     assert result == 0
     report = json.loads(capsys.readouterr().out)
     assert report["ready_for_fresh_chain_discovery"] is False
-    assert report["next_action"] == "SUPPLY_EXPECTED_RETAINED_TOPIC"
+    assert report["next_action"] == "RUN_LEGACY_BOOTSTRAP_PREFLIGHT"
     assert report["production_probe_invoked"] is False
     assert report["production_execution_invoked"] is False
     assert report["authorization_generated"] is False
+    assert report["current_services_modified"] is False
+
+
+def test_cli_h3_legacy_bootstrap_preflight_stops_before_live_access(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        module,
+        "inspect_repository",
+        lambda repository, baseline_sha: _snapshot(head_sha="c" * 40),
+    )
+    monkeypatch.setattr(
+        module,
+        "inspect_legacy_static_evidence",
+        lambda search_root: LegacyStaticEvidenceInventory(
+            transaction_candidate_count=0,
+            execution_candidate_count=0,
+            valid_pairs=(),
+            rejected_pair_count=0,
+            scanned_directory_count=1,
+        ),
+    )
+
+    result = module.main(
+        [
+            "m2",
+            "legacy-bootstrap-preflight",
+            "--repository",
+            str(REPOSITORY),
+            "--state",
+            str(STATE_PATH),
+            "--manifest",
+            str(READINESS_PATH),
+            "--search-root",
+            str(tmp_path),
+        ]
+    )
+
+    assert result == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["next_action"] == "LOCATE_LEGACY_ROLLBACK_STATIC_EVIDENCE"
+    assert report["live_services_inspected"] is False
+    assert report["broker_operation_performed"] is False
+    assert report["production_probe_invoked"] is False
+    assert report["production_execution_invoked"] is False
+    assert report["operator_decision_recorded"] is False
     assert report["current_services_modified"] is False
 
 

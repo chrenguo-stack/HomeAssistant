@@ -55,11 +55,12 @@
 47. `pairing/gh-t1-manager-identity-postrollback-audit-v1.md`：M2.4g-6t Draft，冻结回滚后只读闭环、认证变量 present/nonempty 基线、exact target 清理和缺基线不误报 manual recovery 的语义。
 48. `pairing/gh-t1-manager-identity-legacy-review-bridge-v1.md`：M2.4g-6u Draft，仅在旧回滚缺失两类历史基线、全部确定性安全检查通过且操作员明确接受时记录人工复核；不伪造 audit pass、不豁免新证据链基线、不创建授权或执行生产变更。
 49. `pairing/gh-t1-manager-identity-fresh-chain-preparation-v1.md`：M2.4g-6v Draft，在精确仓库提交和 Manager 版本上重新发现并验证 legacy review bridge、postactivation handoff、inactive Stage 与私有输出根；默认输出根由 bridge 绑定的 rollback manifest/archive 内容对及其内嵌 preparation manifest SHA 唯一解析，不信任目录邻接或退役 execution manifest，显式路径也必须属于已完整验证候选；只允许生成新的 bridge-bound preparation，不创建授权或生产执行包。
-50. `pairing/gh-h3-manager-field-preflight-v1.md`：在公共 H3 readiness 与既有 fresh-chain discover-only 之间，以只读、脱敏方式验证本地私有 legacy-review bridge 候选及 exact retained Topic 哈希绑定；不访问生产运行时、不写证据、不生成授权。
-51. `discovery/gh-discovery-v1.md`：待冻结 mDNS、UDP 回退、重试和多主机处理；M2.0 pairing Draft 已给出最小发现依赖。
-52. `state/gh-path-lease-v1.md`：待冻结直连/中继路径租约、去重和切换滞回。
-53. `state/gh-availability-v1.md`：待将 M1 已验证行为整理为独立协议。
-54. `transport/gh-radio-frame-v1.md`：待冻结 ESP-NOW 与 LoRa 紧凑帧、认证和序列规则。
+50. `pairing/gh-h3-manager-field-preflight-v1.md`：在公共 H3 readiness 与既有 fresh-chain discover-only 之间，以只读、脱敏方式验证本地私有 legacy-review bridge 候选及 exact retained Topic 哈希绑定；零 bridge 时转入静态引导预检，不访问生产运行时、不写证据、不生成授权。
+51. `pairing/gh-h3-manager-legacy-bootstrap-preflight-v1.md`：仅在未发现 bridge 时，复用 postrollback 静态验证器盘点 legacy transaction/rollback 内容绑定；不检查 Docker、MQTT、`/proc` 或生产端点，不记录操作员决定。
+52. `discovery/gh-discovery-v1.md`：待冻结 mDNS、UDP 回退、重试和多主机处理；M2.0 pairing Draft 已给出最小发现依赖。
+53. `state/gh-path-lease-v1.md`：待冻结直连/中继路径租约、去重和切换滞回。
+54. `state/gh-availability-v1.md`：待将 M1 已验证行为整理为独立协议。
+55. `transport/gh-radio-frame-v1.md`：待冻结 ESP-NOW 与 LoRa 紧凑帧、认证和序列规则。
 
 ## 变更规则
 

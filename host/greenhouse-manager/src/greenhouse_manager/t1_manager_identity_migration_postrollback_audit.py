@@ -8,6 +8,7 @@ import sys
 import tarfile
 import time
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
@@ -48,6 +49,18 @@ Clock = Callable[[], float]
 
 class ManagerPostrollbackAuditError(RuntimeError):
     pass
+
+
+@dataclass(frozen=True, slots=True)
+class ManagerPostrollbackStaticArtifacts:
+    workspace: Path
+    execution: Path
+    journal: dict[str, Any]
+    rollback: dict[str, Any]
+    archive: Path
+    working_dir: Path
+    secret_root: Path
+    password_target: Path
 
 
 class CommandRunner(Protocol):
@@ -433,27 +446,11 @@ def _created_directories_clean(
     return not any(_target_exists(path) for path in targets)
 
 
-def build_manager_postrollback_audit(
+def validate_manager_postrollback_static_artifacts(
     transaction_workspace: str | Path,
     execution_preparation_directory: str | Path,
-    *,
-    expected_retained_topic: str,
-    mqtt_port: int = 1883,
-    timeout_s: float = 8.0,
-    poll_interval_s: float = 1.0,
-    proc_root: str | Path = "/proc",
-    runner: CommandRunner | None = None,
-    sleeper: Sleeper = time.sleep,
-    monotonic: Clock = time.monotonic,
-) -> dict[str, object]:
-    if (
-        not expected_retained_topic.startswith("gh/")
-        or "+" in expected_retained_topic
-        or "#" in expected_retained_topic
-    ):
-        raise ValueError("expected retained topic must be an exact gh topic")
-    if not 1 <= mqtt_port <= 65535 or timeout_s <= 0 or poll_interval_s <= 0:
-        raise ValueError("postrollback audit timing or port is invalid")
+) -> ManagerPostrollbackStaticArtifacts:
+    """Validate private rollback evidence without inspecting live services."""
     workspace = _private_directory(
         Path(transaction_workspace),
         "manager production transaction workspace",
@@ -512,6 +509,49 @@ def build_manager_postrollback_audit(
         raise ManagerPostrollbackAuditError(
             "manager password target escaped the secret root"
         )
+    return ManagerPostrollbackStaticArtifacts(
+        workspace=workspace,
+        execution=execution,
+        journal=journal,
+        rollback=rollback,
+        archive=archive,
+        working_dir=working_dir,
+        secret_root=secret_root,
+        password_target=password_target,
+    )
+
+
+def build_manager_postrollback_audit(
+    transaction_workspace: str | Path,
+    execution_preparation_directory: str | Path,
+    *,
+    expected_retained_topic: str,
+    mqtt_port: int = 1883,
+    timeout_s: float = 8.0,
+    poll_interval_s: float = 1.0,
+    proc_root: str | Path = "/proc",
+    runner: CommandRunner | None = None,
+    sleeper: Sleeper = time.sleep,
+    monotonic: Clock = time.monotonic,
+) -> dict[str, object]:
+    if (
+        not expected_retained_topic.startswith("gh/")
+        or "+" in expected_retained_topic
+        or "#" in expected_retained_topic
+    ):
+        raise ValueError("expected retained topic must be an exact gh topic")
+    if not 1 <= mqtt_port <= 65535 or timeout_s <= 0 or poll_interval_s <= 0:
+        raise ValueError("postrollback audit timing or port is invalid")
+    artifacts = validate_manager_postrollback_static_artifacts(
+        transaction_workspace,
+        execution_preparation_directory,
+    )
+    workspace = artifacts.workspace
+    journal = artifacts.journal
+    rollback = artifacts.rollback
+    working_dir = artifacts.working_dir
+    secret_root = artifacts.secret_root
+    password_target = artifacts.password_target
 
     command_runner = runner or SubprocessRunner()
     manager = _inspect(command_runner, "greenhouse-manager")

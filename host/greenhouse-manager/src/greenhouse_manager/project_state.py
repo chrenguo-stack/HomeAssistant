@@ -18,6 +18,11 @@ from .h3_field_preflight import (
     build_h3_field_preflight_report,
     inspect_legacy_review_bridges,
 )
+from .h3_legacy_bootstrap_preflight import (
+    H3LegacyBootstrapPreflightError,
+    build_h3_legacy_bootstrap_preflight_report,
+    inspect_legacy_static_evidence,
+)
 
 STATE_SCHEMA = "gh.project-state.current-baseline/1"
 REPORT_SCHEMA = "gh.project-state.status/1"
@@ -29,6 +34,7 @@ MAX_PUBLIC_ARTIFACT_BYTES = 2 * 1024 * 1024
 EXPECTED_H3_CAPABILITY_IDS = (
     "migration_preparation",
     "fresh_chain_preparation",
+    "legacy_bootstrap_preflight",
     "migration_authorization",
     "host_replica_fault_matrix",
     "production_transaction_adapter_contract",
@@ -143,9 +149,7 @@ def validate_h3_readiness(document: object) -> dict[str, Any]:
     )
     artifact_paths: list[str] = []
     for capability in capabilities:
-        artifact_paths.extend(
-            [capability["source"], *capability["tests"], *capability["protocols"]]
-        )
+        artifact_paths.extend([capability["source"], *capability["tests"], *capability["protocols"]])
     _require(
         len(artifact_paths) == len(set(artifact_paths)),
         "H3 readiness artifacts must be uniquely owned",
@@ -396,6 +400,17 @@ def _parser() -> argparse.ArgumentParser:
     field_preflight.add_argument("--require-baseline-ancestor", action="store_true")
     field_preflight.add_argument("--require-clean", action="store_true")
     field_preflight.add_argument("--pretty", action="store_true")
+    legacy_bootstrap = command.add_parser(
+        "legacy-bootstrap-preflight",
+        help="inventory legacy rollback static evidence without live access or writes",
+    )
+    legacy_bootstrap.add_argument("--repository", type=Path, default=Path.cwd())
+    legacy_bootstrap.add_argument("--state", type=Path)
+    legacy_bootstrap.add_argument("--manifest", type=Path)
+    legacy_bootstrap.add_argument("--search-root", type=Path, required=True)
+    legacy_bootstrap.add_argument("--require-baseline-ancestor", action="store_true")
+    legacy_bootstrap.add_argument("--require-clean", action="store_true")
+    legacy_bootstrap.add_argument("--pretty", action="store_true")
     return parser
 
 
@@ -415,9 +430,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         else:
             readiness_path = (
-                args.manifest.resolve()
-                if args.manifest
-                else repository / DEFAULT_H3_READINESS_RELATIVE_PATH
+                args.manifest.resolve() if args.manifest else repository / DEFAULT_H3_READINESS_RELATIVE_PATH
             )
             readiness, readiness_sha256 = load_h3_readiness(readiness_path)
             capabilities = inspect_h3_capabilities(repository, readiness)
@@ -431,7 +444,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             if args.command == "readiness":
                 report = readiness_report
-            else:
+            elif args.command == "field-preflight":
                 inventory = inspect_legacy_review_bridges(
                     args.search_root,
                     expected_retained_topic=args.expected_retained_topic,
@@ -441,6 +454,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                     inventory,
                     expected_retained_topic_supplied=args.expected_retained_topic is not None,
                 )
+            else:
+                static_inventory = inspect_legacy_static_evidence(args.search_root)
+                report = build_h3_legacy_bootstrap_preflight_report(
+                    readiness_report,
+                    static_inventory,
+                )
         if args.require_baseline_ancestor:
             _require(
                 snapshot.baseline_is_ancestor,
@@ -448,7 +467,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         if args.require_clean:
             _require(snapshot.tracked_worktree_clean, "repository has tracked worktree changes")
-    except (ProjectStateError, H3FieldPreflightError) as error:
+    except (
+        ProjectStateError,
+        H3FieldPreflightError,
+        H3LegacyBootstrapPreflightError,
+    ) as error:
         print(f"ghctl: project-state-error: {error}", file=sys.stderr)
         return 2
     indent = 2 if args.pretty else None

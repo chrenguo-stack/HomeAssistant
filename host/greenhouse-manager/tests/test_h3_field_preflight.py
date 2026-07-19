@@ -122,6 +122,23 @@ def test_missing_topic_stays_at_input_collection_gate(tmp_path: Path) -> None:
     assert report["next_action"] == "SUPPLY_EXPECTED_RETAINED_TOPIC"
 
 
+def test_missing_bridge_routes_to_legacy_bootstrap_before_topic(tmp_path: Path) -> None:
+    inventory = module.inspect_legacy_review_bridges(
+        tmp_path,
+        validator=lambda _candidate: _report(),
+    )
+
+    report = module.build_h3_field_preflight_report(
+        _readiness(),
+        inventory,
+        expected_retained_topic_supplied=False,
+    )
+
+    assert report["valid_bridge_candidate_count"] == 0
+    assert report["ready_for_fresh_chain_discovery"] is False
+    assert report["next_action"] == "RUN_LEGACY_BOOTSTRAP_PREFLIGHT"
+
+
 def test_duplicate_matching_bridges_fail_closed(tmp_path: Path) -> None:
     _bridge(tmp_path, "20260719T120000Z-safe1")
     _bridge(tmp_path, "20260719T120100Z-safe2")

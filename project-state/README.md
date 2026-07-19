@@ -25,7 +25,7 @@ preflight:
 ghctl m2 readiness --repository . --require-baseline-ancestor --require-clean --pretty
 ```
 
-The readiness command validates 13 source/test/protocol capability bindings and
+The readiness command validates 14 source/test/protocol capability bindings and
 their content fingerprints. A successful report means the offline implementation
 chain is complete; it deliberately reports `h3_field_accepted=false`,
 `ready_for_live_apply=false`, and `live_action_authorized=false`.
@@ -44,6 +44,21 @@ ghctl m2 field-preflight \
 
 Add `--expected-retained-topic` only from an operator-controlled local variable.
 The value is hashed for comparison and is never included in the report.
+
+If no bridge exists, inventory legacy transaction/rollback static evidence before
+considering any live read-only audit:
+
+```bash
+ghctl m2 legacy-bootstrap-preflight \
+  --repository . \
+  --search-root PRIVATE_EVIDENCE_ROOT \
+  --require-baseline-ancestor \
+  --require-clean \
+  --pretty
+```
+
+This command reports only content fingerprints. It does not inspect Docker, MQTT,
+`/proc`, credentials, or production endpoints.
 
 Rules:
 

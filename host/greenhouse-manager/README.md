@@ -25,7 +25,7 @@ ghctl m2 status --repository ../.. --require-baseline-ancestor --require-clean -
 ghctl m2 readiness --repository ../.. --require-baseline-ancestor --require-clean --pretty
 ```
 
-`readiness` 只检查仓库中 13 组源码、测试和协议合同的完整性与内容指纹；
+`readiness` 只检查仓库中 14 组源码、测试和协议合同的完整性与内容指纹；
 不读取私有证据、不生成授权、不连接生产环境，也不会把代码就绪误报为
 H3 现场验收完成。任何未来的 prepare、authorize、execute 或 live audit
 子命令必须作为独立工作包增加，不得从状态文件隐式获得生产权限。
@@ -44,6 +44,20 @@ ghctl m2 field-preflight \
 
 可选 `--expected-retained-topic` 只在进程内计算哈希，报告不会包含 Topic、
 私有路径或凭据。该命令不调用 Docker、MQTT、SSH 或生产服务。
+
+如果没有 bridge 候选，先盘点 legacy transaction/rollback 静态证据：
+
+```bash
+ghctl m2 legacy-bootstrap-preflight \
+  --repository ../.. \
+  --search-root PRIVATE_EVIDENCE_ROOT \
+  --require-baseline-ancestor \
+  --require-clean \
+  --pretty
+```
+
+该命令只验证私有文件、归档及内容绑定，不检查 Docker、MQTT、`/proc`、
+Home Assistant、凭据或生产系统。
 
 ## 当前职责
 
