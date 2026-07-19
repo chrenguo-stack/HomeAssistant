@@ -1,45 +1,59 @@
-name: M401A Mosquitto Relay
+name: M401A Mosquitto ARM64 Archive
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - .github/workflows/m401a-mosquitto-relay.yml
   workflow_dispatch:
 
 permissions:
   contents: write
-  packages: write
 
 jobs:
   relay-arm64-image:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    env:
+      SOURCE_IMAGE: docker://docker.io/library/eclipse-mosquitto:2
+      RELEASE_TAG: m401a-mosquitto-relay-20260720
+      ARCHIVE: eclipse-mosquitto-2-linux-arm64.tar.gz
+      CHECKSUM: eclipse-mosquitto-2-linux-arm64.tar.gz.sha256
+      METADATA: eclipse-mosquitto-2-linux-arm64.inspect.json
+
     steps:
       - name: Install skopeo
         run: |
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends skopeo
+          skopeo --version
 
-      - name: Copy official ARM64 image to GHCR and release archive
-        env:
-          GH_TOKEN: ${{ github.token }}
-          SOURCE_IMAGE: docker://docker.io/library/eclipse-mosquitto:2
-          GHCR_IMAGE: ghcr.io/chrenguo-stack/m401a-eclipse-mosquitto:2-arm64
-          RELEASE_TAG: m401a-mosquitto-relay-20260720
-          ARCHIVE: eclipse-mosquitto-2-linux-arm64.tar.gz
+      - name: Create verified ARM64 Docker archive
         run: |
           set -euo pipefail
 
-          printf '%s' "$GH_TOKEN" | skopeo login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-
-          skopeo copy \
+          skopeo inspect \
             --override-os linux \
             --override-arch arm64 \
             "$SOURCE_IMAGE" \
-            "docker://$GHCR_IMAGE"
+            > "/tmp/$METADATA"
+
+          python3 - "/tmp/$METADATA" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], "r", encoding="utf-8") as handle:
+              metadata = json.load(handle)
+
+          architecture = metadata.get("Architecture")
+          operating_system = metadata.get("Os")
+
+          print(f"SOURCE_ARCHITECTURE={architecture}")
+          print(f"SOURCE_OS={operating_system}")
+          print(f"SOURCE_DIGEST={metadata.get('Digest')}")
+
+          if architecture != "arm64":
+              raise SystemExit("source image is not arm64")
+          if operating_system != "linux":
+              raise SystemExit("source image is not linux")
+          PY
 
           skopeo copy \
             --override-os linux \
@@ -48,27 +62,74 @@ jobs:
             "docker-archive:/tmp/eclipse-mosquitto-2-linux-arm64.tar:eclipse-mosquitto:2"
 
           gzip -1 /tmp/eclipse-mosquitto-2-linux-arm64.tar
-          sha256sum "/tmp/$ARCHIVE" | tee "/tmp/$ARCHIVE.sha256"
+          gzip -t "/tmp/$ARCHIVE"
 
-          skopeo inspect \
-            --override-os linux \
-            --override-arch arm64 \
-            "docker://$GHCR_IMAGE" \
-            > /tmp/ghcr-image-inspect.json
+          sha256sum "/tmp/$ARCHIVE" \
+            | sed 's#  /tmp/#  #' \
+            | tee "/tmp/$CHECKSUM"
 
-          gh release delete "$RELEASE_TAG" --yes --cleanup-tag || true
-          gh release create "$RELEASE_TAG" \
-            "/tmp/$ARCHIVE#ARM64 Docker archive" \
-            "/tmp/$ARCHIVE.sha256#SHA-256 checksum" \
-            "/tmp/ghcr-image-inspect.json#Image inspection metadata" \
-            --target "$GITHUB_SHA" \
-            --title "M401A Mosquitto ARM64 relay" \
-            --notes "Temporary acceptance-only relay of the official eclipse-mosquitto:2 linux/arm64 image for M401A H3/N2 laboratory deployment."
+          test -s "/tmp/$ARCHIVE"
+          test -s "/tmp/$CHECKSUM"
+          test -s "/tmp/$METADATA"
 
-      - name: Verify release asset
+          echo "ARCHIVE_BYTES=$(stat -c '%s' "/tmp/$ARCHIVE")"
+          echo "ARCHIVE_SHA256=$(awk '{print $1}' "/tmp/$CHECKSUM")"
+
+      - name: Upload workflow artifact fallback
+        uses: actions/upload-artifact@v4
+        with:
+          name: m401a-mosquitto-arm64-offline-bundle
+          path: |
+            /tmp/${{ env.ARCHIVE }}
+            /tmp/${{ env.CHECKSUM }}
+            /tmp/${{ env.METADATA }}
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: m401a-mosquitto-relay-20260720
+          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          gh release view "$RELEASE_TAG" --json tagName,name,assets
+
+          gh release delete "$RELEASE_TAG" \
+            --repo "$GH_REPO" \
+            --yes \
+            --cleanup-tag \
+            || true
+
+          gh release create "$RELEASE_TAG" \
+            "/tmp/$ARCHIVE#ARM64 Docker archive" \
+            "/tmp/$CHECKSUM#SHA-256 checksum" \
+            "/tmp/$METADATA#Source image inspection metadata" \
+            --repo "$GH_REPO" \
+            --target "$GITHUB_SHA" \
+            --title "M401A Mosquitto ARM64 relay" \
+            --notes "Temporary acceptance-only offline bundle of the official eclipse-mosquitto:2 linux/arm64 image for the M401A H3/N2 laboratory deployment."
+
+      - name: Verify published release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          VERIFY_DIR="$(mktemp -d)"
+
+          gh release view "$RELEASE_TAG" \
+            --repo "$GH_REPO" \
+            --json tagName,name,assets
+
+          gh release download "$RELEASE_TAG" \
+            --repo "$GH_REPO" \
+            --dir "$VERIFY_DIR" \
+            --pattern "$ARCHIVE" \
+            --pattern "$CHECKSUM" \
+            --pattern "$METADATA"
+
+          cd "$VERIFY_DIR"
+          sha256sum -c "$CHECKSUM"
+          gzip -t "$ARCHIVE"
+
+          echo "STATUS=M401A_MOSQUITTO_ARM64_RELEASE_VERIFIED"
