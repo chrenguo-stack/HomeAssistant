@@ -10,10 +10,17 @@ from greenhouse_manager import project_state as module
 
 REPOSITORY = Path(__file__).resolve().parents[3]
 STATE_PATH = REPOSITORY / "project-state/current-baseline.json"
+READINESS_PATH = REPOSITORY / "project-state/h3-readiness.json"
 
 
 def _state() -> dict[str, object]:
     value = json.loads(STATE_PATH.read_text(encoding="utf-8"))
+    assert isinstance(value, dict)
+    return value
+
+
+def _readiness() -> dict[str, object]:
+    value = json.loads(READINESS_PATH.read_text(encoding="utf-8"))
     assert isinstance(value, dict)
     return value
 
@@ -62,6 +69,134 @@ def test_status_report_exposes_one_h3_n2_baseline_without_mutation() -> None:
     assert report["node_credentials_delivered"] is False
     assert report["anonymous_closure_enabled"] is False
     assert report["secret_values_included"] is False
+
+
+def test_repository_h3_readiness_manifest_is_valid_and_fail_closed() -> None:
+    document, readiness_sha = module.load_h3_readiness(READINESS_PATH)
+
+    assert len(readiness_sha) == 64
+    assert document["gate_id"] == "H3_MANAGER_IDENTITY_FIELD_ACCEPTANCE"
+    assert document["implementation_status"] == "CODE_COMPLETE"
+    assert document["field_acceptance_status"] == "PENDING"
+    assert len(document["capabilities"]) == 13
+    assert not any(document["safety"].values())
+
+
+def test_h3_readiness_inspects_complete_tracked_capability_chain() -> None:
+    snapshots = module.inspect_h3_capabilities(REPOSITORY, _readiness())
+
+    assert tuple(item.capability_id for item in snapshots) == module.EXPECTED_H3_CAPABILITY_IDS
+    assert all(item.artifact_count >= 3 for item in snapshots)
+    assert all(len(item.content_sha256) == 64 for item in snapshots)
+    assert {item.readiness_level for item in snapshots} == {"CODE_COMPLETE", "LAB_VERIFIED"}
+
+
+def test_h3_readiness_report_separates_implementation_from_field_acceptance() -> None:
+    capabilities = module.inspect_h3_capabilities(REPOSITORY, _readiness())
+    report = module.build_h3_readiness_report(
+        _state(),
+        _readiness(),
+        state_sha256="a" * 64,
+        readiness_sha256="b" * 64,
+        repository=_snapshot(head_sha="c" * 40),
+        capabilities=capabilities,
+    )
+
+    assert report["status"] == "gh_h3_readiness_succeeded"
+    assert report["gate_status"] == "BLOCKED_PENDING_FIELD_ACCEPTANCE"
+    assert report["implementation_ready"] is True
+    assert report["h3_field_accepted"] is False
+    assert report["ready_for_field_acceptance_preflight"] is True
+    assert report["n2_blocking_gate_ids"] == [
+        "N2_END_TO_END_SECURE_PAIRING",
+        "N2_MULTI_NODE_AND_72_HOUR_ACCEPTANCE",
+    ]
+    assert report["n2_unblocked_by_h3"] is False
+    assert report["ready_for_live_apply"] is False
+    assert report["live_action_authorized"] is False
+
+
+def test_h3_readiness_does_not_offer_field_preflight_from_dirty_repository() -> None:
+    capabilities = module.inspect_h3_capabilities(REPOSITORY, _readiness())
+    report = module.build_h3_readiness_report(
+        _state(),
+        _readiness(),
+        state_sha256="a" * 64,
+        readiness_sha256="b" * 64,
+        repository=_snapshot(tracked_worktree_clean=False),
+        capabilities=capabilities,
+    )
+
+    assert report["implementation_ready"] is True
+    assert report["ready_for_field_acceptance_preflight"] is False
+    assert report["next_action"] == "RESTORE_VERIFIED_CLEAN_REPOSITORY"
+    assert report["ready_for_live_apply"] is False
+    assert report["production_probe_invoked"] is False
+    assert report["production_execution_invoked"] is False
+    assert report["authorization_generated"] is False
+    assert report["credential_material_read"] is False
+    assert report["current_services_modified"] is False
+    assert report["node_credentials_delivered"] is False
+    assert report["anonymous_closure_enabled"] is False
+    assert report["secret_values_included"] is False
+
+
+def test_h3_readiness_rejects_capability_set_drift() -> None:
+    document = copy.deepcopy(_readiness())
+    capabilities = document["capabilities"]
+    assert isinstance(capabilities, list)
+    capabilities[0], capabilities[1] = capabilities[1], capabilities[0]
+
+    with pytest.raises(module.ProjectStateError, match="capability set or ordering"):
+        module.validate_h3_readiness(document)
+
+
+def test_h3_readiness_rejects_any_enabled_capability() -> None:
+    document = copy.deepcopy(_readiness())
+    document["safety"]["production_probe_enabled"] = True  # type: ignore[index]
+
+    with pytest.raises(module.ProjectStateError, match="schema validation failed"):
+        module.validate_h3_readiness(document)
+
+
+def test_h3_readiness_rejects_unsafe_artifact_path() -> None:
+    with pytest.raises(module.ProjectStateError, match="artifact path is unsafe"):
+        module._public_artifact(REPOSITORY, "../outside.py")
+
+
+def test_h3_readiness_rejects_missing_source_marker() -> None:
+    document = copy.deepcopy(_readiness())
+    capabilities = document["capabilities"]
+    assert isinstance(capabilities, list)
+    capabilities[0]["required_markers"] = ["marker-that-does-not-exist"]
+
+    with pytest.raises(module.ProjectStateError, match="source marker is missing"):
+        module.inspect_h3_capabilities(REPOSITORY, document)
+
+
+def test_cli_h3_readiness_is_offline_and_does_not_authorize_live_work(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    result = module.main(
+        [
+            "m2",
+            "readiness",
+            "--repository",
+            str(REPOSITORY),
+            "--state",
+            str(STATE_PATH),
+            "--manifest",
+            str(READINESS_PATH),
+        ]
+    )
+
+    assert result == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["read_only"] is True
+    assert report["implementation_ready"] is True
+    assert report["h3_field_accepted"] is False
+    assert report["ready_for_live_apply"] is False
+    assert report["live_action_authorized"] is False
 
 
 @pytest.mark.parametrize(

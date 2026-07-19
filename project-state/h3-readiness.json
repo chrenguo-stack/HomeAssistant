@@ -1,0 +1,122 @@
+{
+  "schema": "gh.project-state.current-h3-readiness/1",
+  "updated_at": "2026-07-19",
+  "gate_id": "H3_MANAGER_IDENTITY_FIELD_ACCEPTANCE",
+  "implementation_status": "CODE_COMPLETE",
+  "field_acceptance_status": "PENDING",
+  "capabilities": [
+    {
+      "capability_id": "migration_preparation",
+      "readiness_level": "CODE_COMPLETE",
+      "source": "host/greenhouse-manager/src/greenhouse_manager/t1_manager_identity_migration_preparation.py",
+      "tests": ["host/greenhouse-manager/tests/test_t1_manager_identity_migration_preparation.py"],
+      "protocols": ["protocols/pairing/gh-t1-manager-identity-migration-preparation-v1.md"],
+      "required_markers": ["SCHEMA = \"gh.m2.t1-manager-identity-migration-preparation/1\"", "def prepare_manager_identity_migration("]
+    },
+    {
+      "capability_id": "fresh_chain_preparation",
+      "readiness_level": "CODE_COMPLETE",
+      "source": "host/greenhouse-manager/src/greenhouse_manager/t1_manager_identity_fresh_chain_preparation.py",
+      "tests": ["host/greenhouse-manager/tests/test_t1_manager_identity_fresh_chain_preparation.py"],
+      "protocols": ["protocols/pairing/gh-t1-manager-identity-fresh-chain-preparation-v1.md"],
+      "required_markers": ["SCHEMA = \"gh.m2.t1-manager-identity-fresh-chain-preparation/2\"", "def prepare_fresh_manager_identity_chain("]
+    },
+    {
+      "capability_id": "migration_authorization",
+      "readiness_level": "CODE_COMPLETE",
+      "source": "host/greenhouse-manager/src/greenhouse_manager/t1_manager_identity_migration_authorization.py",
+      "tests": ["host/greenhouse-manager/tests/test_t1_manager_identity_migration_authorization.py"],
+      "protocols": ["protocols/pairing/gh-t1-manager-identity-migration-authorization-v1.md"],
+      "required_markers": ["AUTHORIZATION_SCHEMA = \"gh.m2.t1-manager-identity-migration-authorization/1\"", "def create_manager_identity_migration_authorization("]
+    },
+    {
+      "capability_id": "host_replica_fault_matrix",
+      "readiness_level": "LAB_VERIFIED",
+      "source": "host/greenhouse-manager/src/greenhouse_manager/t1_manager_identity_migration_host_replica_adapters.py",
+      "tests": ["host/greenhouse-manager/tests/test_t1_manager_identity_migration_host_replica_adapters.py"],
+      "protocols": ["protocols/pairing/gh-t1-manager-identity-migration-host-replica-v1.md"],
+      "required_markers": ["MATRIX_SCHEMA = \"gh.m2.t1-manager-identity-host-replica-fault-matrix/1\"", "def run_manager_host_replica_fault_matrix("]
+    },
+    {
+      "capability_id": "production_transaction_adapter_contract",
+      "readiness_level": "CODE_COMPLETE",
+      "source": "host/greenhouse-manager/src/greenhouse_manager/t1_manager_identity_migration_production_transaction_adapter_contract.py",
+      "tests": ["host/greenhouse-manager/tests/test_t1_manager_identity_migration_production_transaction_adapter_contract.py"],
+      "protocols": ["protocols/pairing/gh-t1-manager-identity-production-transaction-adapter-contract-v1.md"],
+      "required_markers": ["SCHEMA = \"gh.m2.t1-manager-identity-production-transaction-adapter-contract/1\"", "def build_manager_production_transaction_adapter_contract("]
+    },
+    {
+      "capability_id": "production_driver_replica_fault_matrix",
+      "readiness_level": "LAB_VERIFIED",
+      "source": "host/greenhouse-manager/src/greenhouse_manager/t1_manager_identity_migration_production_driver_replica_matrix.py",
+      "tests": ["host/greenhouse-manager/tests/test_t1_manager_identity_migration_production_driver_replica_matrix.py"],
+      "protocols": ["protocols/pairing/gh-t1-manager-identity-production-driver-replica-fault-matrix-v1.md"],
+      "required_markers": ["MATRIX_SCHEMA = \"gh.m2.t1-manager-identity-production-driver-replica-fault-matrix/1\"", "def run_manager_production_driver_replica_fault_matrix("]
+    },
+    {
+      "capability_id": "live_runtime_gate",
+      "readiness_level": "CODE_COMPLETE",
+      "source": "host/greenhouse-manager/src/greenhouse_manager/t1_manager_identity_migration_live_runtime_gate.py",
+      "tests": ["host/greenhouse-manager/tests/test_t1_manager_identity_migration_live_runtime_gate.py"],
+      "protocols": ["protocols/pairing/gh-t1-manager-identity-live-runtime-gate-v1.md"],
+      "required_markers": ["SCHEMA = \"gh.m2.t1-manager-identity-live-runtime-gate/1\"", "def build_manager_identity_live_runtime_gate("]
+    },
+    {
+      "capability_id": "execution_preparation",
+      "readiness_level": "CODE_COMPLETE",
+      "source": "host/greenhouse-manager/src/greenhouse_manager/t1_manager_identity_migration_execution_preparation.py",
+      "tests": ["host/greenhouse-manager/tests/test_t1_manager_identity_migration_execution_preparation.py"],
+      "protocols": ["protocols/pairing/gh-t1-manager-identity-execution-preparation-v1.md"],
+      "required_markers": ["def prepare_manager_identity_execution(", "verify_manager_identity_execution_preparation"]
+    },
+    {
+      "capability_id": "execution_authorization",
+      "readiness_level": "CODE_COMPLETE",
+      "source": "host/greenhouse-manager/src/greenhouse_manager/t1_manager_identity_migration_execution_authorization.py",
+      "tests": ["host/greenhouse-manager/tests/test_t1_manager_identity_migration_execution_authorization.py"],
+      "protocols": ["protocols/pairing/gh-t1-manager-identity-execution-authorization-v1.md"],
+      "required_markers": ["AUTHORIZATION_SCHEMA = \"gh.m2.t1-manager-identity-execution-authorization/1\"", "def create_manager_identity_execution_authorization("]
+    },
+    {
+      "capability_id": "execution_transaction_gate",
+      "readiness_level": "CODE_COMPLETE",
+      "source": "host/greenhouse-manager/src/greenhouse_manager/t1_manager_identity_migration_execution_transaction_gate.py",
+      "tests": ["host/greenhouse-manager/tests/test_t1_manager_identity_migration_execution_transaction_gate.py"],
+      "protocols": ["protocols/pairing/gh-t1-manager-identity-execution-transaction-gate-v1.md"],
+      "required_markers": ["SCHEMA = \"gh.m2.t1-manager-identity-execution-transaction-gate/1\"", "def build_manager_identity_execution_transaction_gate("]
+    },
+    {
+      "capability_id": "failure_diagnostics",
+      "readiness_level": "CODE_COMPLETE",
+      "source": "host/greenhouse-manager/src/greenhouse_manager/t1_manager_identity_migration_failure_diagnostics.py",
+      "tests": ["host/greenhouse-manager/tests/test_t1_manager_identity_migration_failure_diagnostics.py"],
+      "protocols": ["protocols/pairing/gh-t1-manager-identity-failure-diagnostic-v1.md"],
+      "required_markers": ["SCHEMA = \"gh.m2.t1-manager-identity-failure-diagnostic/1\"", "def build_failure_diagnostic("]
+    },
+    {
+      "capability_id": "postrollback_audit",
+      "readiness_level": "CODE_COMPLETE",
+      "source": "host/greenhouse-manager/src/greenhouse_manager/t1_manager_identity_migration_postrollback_audit.py",
+      "tests": ["host/greenhouse-manager/tests/test_t1_manager_identity_migration_postrollback_audit.py"],
+      "protocols": ["protocols/pairing/gh-t1-manager-identity-postrollback-audit-v1.md"],
+      "required_markers": ["SCHEMA = \"gh.m2.t1-manager-identity-postrollback-audit/1\"", "def build_manager_postrollback_audit("]
+    },
+    {
+      "capability_id": "postcommit_continuity_audit",
+      "readiness_level": "CODE_COMPLETE",
+      "source": "host/greenhouse-manager/src/greenhouse_manager/t1_manager_identity_postcommit_continuity_audit_v3.py",
+      "tests": ["host/greenhouse-manager/tests/test_t1_manager_identity_postcommit_continuity_audit_v3.py"],
+      "protocols": ["protocols/pairing/gh-t1-manager-identity-postcommit-continuity-audit-v1.md", "protocols/pairing/gh-t1-manager-identity-postcommit-external-result-binding-v2.md"],
+      "required_markers": ["_EXECUTION_SCHEMA_PREFIXES = (", "def build_manager_identity_postcommit_continuity_audit("]
+    }
+  ],
+  "safety": {
+    "production_probe_enabled": false,
+    "production_execution_enabled": false,
+    "authorization_generation_enabled": false,
+    "credential_material_read_enabled": false,
+    "service_mutation_enabled": false,
+    "node_credential_delivery_enabled": false,
+    "anonymous_closure_enabled": false
+  }
+}

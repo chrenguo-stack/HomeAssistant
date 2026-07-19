@@ -8,14 +8,33 @@ import sys
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from importlib.resources import files
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from jsonschema import Draft202012Validator, FormatChecker
 
 STATE_SCHEMA = "gh.project-state.current-baseline/1"
 REPORT_SCHEMA = "gh.project-state.status/1"
+H3_READINESS_SCHEMA = "gh.project-state.current-h3-readiness/1"
+H3_READINESS_REPORT_SCHEMA = "gh.project-state.h3-readiness/1"
 DEFAULT_STATE_RELATIVE_PATH = Path("project-state/current-baseline.json")
+DEFAULT_H3_READINESS_RELATIVE_PATH = Path("project-state/h3-readiness.json")
+MAX_PUBLIC_ARTIFACT_BYTES = 2 * 1024 * 1024
+EXPECTED_H3_CAPABILITY_IDS = (
+    "migration_preparation",
+    "fresh_chain_preparation",
+    "migration_authorization",
+    "host_replica_fault_matrix",
+    "production_transaction_adapter_contract",
+    "production_driver_replica_fault_matrix",
+    "live_runtime_gate",
+    "execution_preparation",
+    "execution_authorization",
+    "execution_transaction_gate",
+    "failure_diagnostics",
+    "postrollback_audit",
+    "postcommit_continuity_audit",
+)
 
 
 class ProjectStateError(ValueError):
@@ -29,6 +48,14 @@ class RepositorySnapshot:
     tracked_worktree_clean: bool
 
 
+@dataclass(frozen=True, slots=True)
+class CapabilitySnapshot:
+    capability_id: str
+    readiness_level: str
+    artifact_count: int
+    content_sha256: str
+
+
 def _require(condition: bool, message: str) -> None:
     if not condition:
         raise ProjectStateError(message)
@@ -38,6 +65,13 @@ def _schema() -> dict[str, Any]:
     path = files("greenhouse_manager").joinpath("schemas/project_state_v1.json")
     value = json.loads(path.read_text(encoding="utf-8"))
     _require(isinstance(value, dict), "project state schema is not an object")
+    return value
+
+
+def _h3_readiness_schema() -> dict[str, Any]:
+    path = files("greenhouse_manager").joinpath("schemas/h3_readiness_v1.json")
+    value = json.loads(path.read_text(encoding="utf-8"))
+    _require(isinstance(value, dict), "H3 readiness schema is not an object")
     return value
 
 
@@ -81,6 +115,53 @@ def load_project_state(path: Path) -> tuple[dict[str, Any], str]:
     return validate_project_state(document), hashlib.sha256(payload).hexdigest()
 
 
+def validate_h3_readiness(document: object) -> dict[str, Any]:
+    _require(isinstance(document, dict), "H3 readiness manifest must be an object")
+    errors = sorted(
+        Draft202012Validator(
+            _h3_readiness_schema(),
+            format_checker=FormatChecker(),
+        ).iter_errors(document),
+        key=lambda item: tuple(str(part) for part in item.absolute_path),
+    )
+    if errors:
+        location = ".".join(str(part) for part in errors[0].absolute_path) or "root"
+        raise ProjectStateError(f"H3 readiness schema validation failed at {location}")
+
+    capabilities = document["capabilities"]
+    _require(isinstance(capabilities, list), "H3 readiness capabilities must be an array")
+    capability_ids = tuple(item["capability_id"] for item in capabilities)
+    _require(
+        capability_ids == EXPECTED_H3_CAPABILITY_IDS,
+        "H3 readiness capability set or ordering is invalid",
+    )
+    artifact_paths: list[str] = []
+    for capability in capabilities:
+        artifact_paths.extend(
+            [capability["source"], *capability["tests"], *capability["protocols"]]
+        )
+    _require(
+        len(artifact_paths) == len(set(artifact_paths)),
+        "H3 readiness artifacts must be uniquely owned",
+    )
+    safety = document["safety"]
+    _require(isinstance(safety, dict), "H3 readiness safety state must be an object")
+    _require(not any(safety.values()), "all H3 readiness safety capabilities must remain false")
+    return document
+
+
+def load_h3_readiness(path: Path) -> tuple[dict[str, Any], str]:
+    try:
+        payload = path.read_bytes()
+    except OSError as error:
+        raise ProjectStateError("H3 readiness manifest is unavailable") from error
+    try:
+        document = json.loads(payload)
+    except json.JSONDecodeError as error:
+        raise ProjectStateError("H3 readiness manifest is not valid JSON") from error
+    return validate_h3_readiness(document), hashlib.sha256(payload).hexdigest()
+
+
 def _git(repository: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
     try:
         return subprocess.run(
@@ -110,6 +191,70 @@ def inspect_repository(repository: Path, baseline_sha: str) -> RepositorySnapsho
         baseline_is_ancestor=ancestor.returncode == 0,
         tracked_worktree_clean=not status.stdout.strip(),
     )
+
+
+def _public_artifact(repository: Path, relative_path: str) -> tuple[str, bytes]:
+    pure = PurePosixPath(relative_path)
+    _require(
+        not pure.is_absolute() and ".." not in pure.parts and "." not in pure.parts,
+        "H3 readiness artifact path is unsafe",
+    )
+    resolved_repository = repository.resolve()
+    resolved = (resolved_repository / Path(*pure.parts)).resolve()
+    _require(
+        resolved.is_relative_to(resolved_repository),
+        "H3 readiness artifact escapes repository",
+    )
+    _require(
+        resolved.is_file() and not resolved.is_symlink(),
+        f"H3 readiness artifact is missing or unsafe: {relative_path}",
+    )
+    tracked = _git(repository, "ls-files", "--error-unmatch", "--", relative_path)
+    _require(
+        tracked.returncode == 0,
+        f"H3 readiness artifact is not tracked: {relative_path}",
+    )
+    try:
+        payload = resolved.read_bytes()
+    except OSError as error:
+        raise ProjectStateError(f"H3 readiness artifact is unreadable: {relative_path}") from error
+    _require(
+        len(payload) <= MAX_PUBLIC_ARTIFACT_BYTES,
+        f"H3 readiness artifact is too large: {relative_path}",
+    )
+    return relative_path, payload
+
+
+def inspect_h3_capabilities(
+    repository: Path,
+    readiness: dict[str, Any],
+) -> tuple[CapabilitySnapshot, ...]:
+    validated = validate_h3_readiness(readiness)
+    snapshots: list[CapabilitySnapshot] = []
+    for capability in validated["capabilities"]:
+        paths = [capability["source"], *capability["tests"], *capability["protocols"]]
+        artifacts = [_public_artifact(repository, path) for path in paths]
+        source = artifacts[0][1].decode("utf-8")
+        for marker in capability["required_markers"]:
+            _require(
+                marker in source,
+                f"H3 readiness source marker is missing: {capability['capability_id']}",
+            )
+        digest = hashlib.sha256()
+        for relative_path, payload in artifacts:
+            digest.update(relative_path.encode("utf-8"))
+            digest.update(b"\0")
+            digest.update(payload)
+            digest.update(b"\0")
+        snapshots.append(
+            CapabilitySnapshot(
+                capability_id=capability["capability_id"],
+                readiness_level=capability["readiness_level"],
+                artifact_count=len(artifacts),
+                content_sha256=digest.hexdigest(),
+            )
+        )
+    return tuple(snapshots)
 
 
 def build_status_report(
@@ -150,6 +295,68 @@ def build_status_report(
     }
 
 
+def build_h3_readiness_report(
+    project_state: dict[str, Any],
+    readiness: dict[str, Any],
+    *,
+    state_sha256: str,
+    readiness_sha256: str,
+    repository: RepositorySnapshot,
+    capabilities: Sequence[CapabilitySnapshot],
+) -> dict[str, Any]:
+    state = validate_project_state(project_state)
+    manifest = validate_h3_readiness(readiness)
+    _require(
+        manifest["gate_id"] == state["next_gate"],
+        "H3 readiness gate does not match current project gate",
+    )
+    _require(
+        tuple(item.capability_id for item in capabilities) == EXPECTED_H3_CAPABILITY_IDS,
+        "H3 readiness capability inspection is incomplete",
+    )
+    stage = next(item for item in state["stages"] if item["stage_id"] == "H3")
+    _require(
+        stage["status"] == "in_progress" and stage["acceptance"] == "LAB_VERIFIED",
+        "H3 project stage is not at the expected pre-field state",
+    )
+    preflight_ready = repository.baseline_is_ancestor and repository.tracked_worktree_clean
+    return {
+        "schema": H3_READINESS_REPORT_SCHEMA,
+        "status": "gh_h3_readiness_succeeded",
+        "gate_id": manifest["gate_id"],
+        "gate_status": "BLOCKED_PENDING_FIELD_ACCEPTANCE",
+        "implementation_status": manifest["implementation_status"],
+        "implementation_ready": True,
+        "field_acceptance_status": manifest["field_acceptance_status"],
+        "h3_field_accepted": False,
+        "capability_count": len(capabilities),
+        "capabilities": [asdict(item) for item in capabilities],
+        "repository": asdict(repository),
+        "state_sha256": state_sha256,
+        "readiness_sha256": readiness_sha256,
+        "next_action": (
+            "H3_PRIVATE_FIELD_ACCEPTANCE_PREFLIGHT"
+            if preflight_ready
+            else "RESTORE_VERIFIED_CLEAN_REPOSITORY"
+        ),
+        "ready_for_field_acceptance_preflight": preflight_ready,
+        "n2_blocking_gate_ids": list(state["blocking_gates"][1:]),
+        "n2_unblocked_by_h3": False,
+        "ready_for_live_apply": False,
+        "live_action_authorized": False,
+        "read_only": True,
+        "production_probe_invoked": False,
+        "production_execution_invoked": False,
+        "authorization_generated": False,
+        "credential_material_read": False,
+        "current_services_modified": False,
+        "node_credentials_delivered": False,
+        "anonymous_closure_enabled": False,
+        "secret_values_included": False,
+        "safety": dict(manifest["safety"]),
+    }
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ghctl")
     product = parser.add_subparsers(dest="product", required=True)
@@ -161,6 +368,16 @@ def _parser() -> argparse.ArgumentParser:
     status.add_argument("--require-baseline-ancestor", action="store_true")
     status.add_argument("--require-clean", action="store_true")
     status.add_argument("--pretty", action="store_true")
+    readiness = command.add_parser(
+        "readiness",
+        help="audit the offline H3 implementation chain without live access",
+    )
+    readiness.add_argument("--repository", type=Path, default=Path.cwd())
+    readiness.add_argument("--state", type=Path)
+    readiness.add_argument("--manifest", type=Path)
+    readiness.add_argument("--require-baseline-ancestor", action="store_true")
+    readiness.add_argument("--require-clean", action="store_true")
+    readiness.add_argument("--pretty", action="store_true")
     return parser
 
 
@@ -172,11 +389,28 @@ def main(argv: Sequence[str] | None = None) -> int:
         document, state_sha256 = load_project_state(state_path)
         baseline_sha = document["source_baseline"]["repository_sha"]
         snapshot = inspect_repository(repository, baseline_sha)
-        report = build_status_report(
-            document,
-            state_sha256=state_sha256,
-            repository=snapshot,
-        )
+        if args.command == "status":
+            report = build_status_report(
+                document,
+                state_sha256=state_sha256,
+                repository=snapshot,
+            )
+        else:
+            readiness_path = (
+                args.manifest.resolve()
+                if args.manifest
+                else repository / DEFAULT_H3_READINESS_RELATIVE_PATH
+            )
+            readiness, readiness_sha256 = load_h3_readiness(readiness_path)
+            capabilities = inspect_h3_capabilities(repository, readiness)
+            report = build_h3_readiness_report(
+                document,
+                readiness,
+                state_sha256=state_sha256,
+                readiness_sha256=readiness_sha256,
+                repository=snapshot,
+                capabilities=capabilities,
+            )
         if args.require_baseline_ancestor:
             _require(
                 snapshot.baseline_is_ancestor,

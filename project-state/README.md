@@ -18,6 +18,18 @@ For a clean exact-baseline check:
 ghctl m2 status --repository . --require-baseline-ancestor --require-clean --pretty
 ```
 
+Audit the complete public H3 implementation chain before any private field
+preflight:
+
+```bash
+ghctl m2 readiness --repository . --require-baseline-ancestor --require-clean --pretty
+```
+
+The readiness command validates 13 source/test/protocol capability bindings and
+their content fingerprints. A successful report means the offline implementation
+chain is complete; it deliberately reports `h3_field_accepted=false`,
+`ready_for_live_apply=false`, and `live_action_authorized=false`.
+
 Rules:
 
 - never store credentials, private host paths, private addresses, authorization
@@ -28,3 +40,5 @@ Rules:
 - `ready_for_live_apply` and `ready_for_anonymous_closure` remain false until a
   separate production stage explicitly changes their evidence-backed state;
 - this state file is descriptive and cannot authorize or execute mutations.
+- `h3-readiness.json` contains only public repository paths and source markers;
+  it must never point to private evidence or credential material.

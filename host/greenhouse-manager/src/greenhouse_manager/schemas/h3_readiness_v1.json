@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://greenhouse.local/schemas/h3_readiness_v1.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "updated_at",
+    "gate_id",
+    "implementation_status",
+    "field_acceptance_status",
+    "capabilities",
+    "safety"
+  ],
+  "properties": {
+    "schema": {"const": "gh.project-state.current-h3-readiness/1"},
+    "updated_at": {"type": "string", "format": "date"},
+    "gate_id": {"const": "H3_MANAGER_IDENTITY_FIELD_ACCEPTANCE"},
+    "implementation_status": {"const": "CODE_COMPLETE"},
+    "field_acceptance_status": {"const": "PENDING"},
+    "capabilities": {
+      "type": "array",
+      "minItems": 13,
+      "maxItems": 13,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "capability_id",
+          "readiness_level",
+          "source",
+          "tests",
+          "protocols",
+          "required_markers"
+        ],
+        "properties": {
+          "capability_id": {"type": "string", "pattern": "^[a-z0-9_]{3,80}$"},
+          "readiness_level": {"enum": ["CODE_COMPLETE", "LAB_VERIFIED"]},
+          "source": {"type": "string", "pattern": "^[A-Za-z0-9_./-]+$"},
+          "tests": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {"type": "string", "pattern": "^[A-Za-z0-9_./-]+$"}
+          },
+          "protocols": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {"type": "string", "pattern": "^[A-Za-z0-9_./-]+$"}
+          },
+          "required_markers": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {"type": "string", "minLength": 4, "maxLength": 160}
+          }
+        }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "production_probe_enabled",
+        "production_execution_enabled",
+        "authorization_generation_enabled",
+        "credential_material_read_enabled",
+        "service_mutation_enabled",
+        "node_credential_delivery_enabled",
+        "anonymous_closure_enabled"
+      ],
+      "properties": {
+        "production_probe_enabled": {"const": false},
+        "production_execution_enabled": {"const": false},
+        "authorization_generation_enabled": {"const": false},
+        "credential_material_read_enabled": {"const": false},
+        "service_mutation_enabled": {"const": false},
+        "node_credential_delivery_enabled": {"const": false},
+        "anonymous_closure_enabled": {"const": false}
+      }
+    }
+  }
+}

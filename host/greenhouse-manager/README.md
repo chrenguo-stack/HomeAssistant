@@ -19,8 +19,16 @@ ghctl m2 status --repository ../.. --pretty
 ghctl m2 status --repository ../.. --require-baseline-ancestor --require-clean --pretty
 ```
 
-当前工具只有 `status` 子命令。任何未来的 prepare、authorize、execute 或
-audit 子命令必须作为独立工作包增加，不得从状态文件隐式获得生产权限。
+在进入任何私有 H3 现场预检前，使用只读实现链聚合门禁：
+
+```bash
+ghctl m2 readiness --repository ../.. --require-baseline-ancestor --require-clean --pretty
+```
+
+`readiness` 只检查仓库中 13 组源码、测试和协议合同的完整性与内容指纹；
+不读取私有证据、不生成授权、不连接生产环境，也不会把代码就绪误报为
+H3 现场验收完成。任何未来的 prepare、authorize、execute 或 live audit
+子命令必须作为独立工作包增加，不得从状态文件隐式获得生产权限。
 
 ## 当前职责
 
