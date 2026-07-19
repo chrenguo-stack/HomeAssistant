@@ -1,13 +1,74 @@
 name: M401A Mosquitto Relay
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/m401a-mosquitto-relay.yml
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+  packages: write
 
 jobs:
-  placeholder:
-    runs-on: ubuntu-latest
+  relay-arm64-image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
-      - run: echo placeholder
+      - name: Install skopeo
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends skopeo
+
+      - name: Copy official ARM64 image to GHCR and release archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_IMAGE: docker://docker.io/library/eclipse-mosquitto:2
+          GHCR_IMAGE: ghcr.io/chrenguo-stack/m401a-eclipse-mosquitto:2-arm64
+          RELEASE_TAG: m401a-mosquitto-relay-20260720
+          ARCHIVE: eclipse-mosquitto-2-linux-arm64.tar.gz
+        run: |
+          set -euo pipefail
+
+          printf '%s' "$GH_TOKEN" | skopeo login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+          skopeo copy \
+            --override-os linux \
+            --override-arch arm64 \
+            "$SOURCE_IMAGE" \
+            "docker://$GHCR_IMAGE"
+
+          skopeo copy \
+            --override-os linux \
+            --override-arch arm64 \
+            "$SOURCE_IMAGE" \
+            "docker-archive:/tmp/eclipse-mosquitto-2-linux-arm64.tar:eclipse-mosquitto:2"
+
+          gzip -1 /tmp/eclipse-mosquitto-2-linux-arm64.tar
+          sha256sum "/tmp/$ARCHIVE" | tee "/tmp/$ARCHIVE.sha256"
+
+          skopeo inspect \
+            --override-os linux \
+            --override-arch arm64 \
+            "docker://$GHCR_IMAGE" \
+            > /tmp/ghcr-image-inspect.json
+
+          gh release delete "$RELEASE_TAG" --yes --cleanup-tag || true
+          gh release create "$RELEASE_TAG" \
+            "/tmp/$ARCHIVE#ARM64 Docker archive" \
+            "/tmp/$ARCHIVE.sha256#SHA-256 checksum" \
+            "/tmp/ghcr-image-inspect.json#Image inspection metadata" \
+            --target "$GITHUB_SHA" \
+            --title "M401A Mosquitto ARM64 relay" \
+            --notes "Temporary acceptance-only relay of the official eclipse-mosquitto:2 linux/arm64 image for M401A H3/N2 laboratory deployment."
+
+      - name: Verify release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: m401a-mosquitto-relay-20260720
+        run: |
+          set -euo pipefail
+          gh release view "$RELEASE_TAG" --json tagName,name,assets
