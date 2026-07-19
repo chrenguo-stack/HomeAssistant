@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from greenhouse_manager import project_state as module
+from greenhouse_manager.h3_field_preflight import LegacyReviewBridgeInventory
 
 REPOSITORY = Path(__file__).resolve().parents[3]
 STATE_PATH = REPOSITORY / "project-state/current-baseline.json"
@@ -197,6 +198,51 @@ def test_cli_h3_readiness_is_offline_and_does_not_authorize_live_work(
     assert report["h3_field_accepted"] is False
     assert report["ready_for_live_apply"] is False
     assert report["live_action_authorized"] is False
+
+
+def test_cli_h3_field_preflight_stops_before_live_access(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        module,
+        "inspect_repository",
+        lambda repository, baseline_sha: _snapshot(head_sha="c" * 40),
+    )
+    monkeypatch.setattr(
+        module,
+        "inspect_legacy_review_bridges",
+        lambda search_root, expected_retained_topic=None: LegacyReviewBridgeInventory(
+            valid_candidates=(),
+            invalid_candidate_count=0,
+            scanned_directory_count=1,
+        ),
+    )
+
+    result = module.main(
+        [
+            "m2",
+            "field-preflight",
+            "--repository",
+            str(REPOSITORY),
+            "--state",
+            str(STATE_PATH),
+            "--manifest",
+            str(READINESS_PATH),
+            "--search-root",
+            str(tmp_path),
+        ]
+    )
+
+    assert result == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["ready_for_fresh_chain_discovery"] is False
+    assert report["next_action"] == "SUPPLY_EXPECTED_RETAINED_TOPIC"
+    assert report["production_probe_invoked"] is False
+    assert report["production_execution_invoked"] is False
+    assert report["authorization_generated"] is False
+    assert report["current_services_modified"] is False
 
 
 @pytest.mark.parametrize(

@@ -30,6 +30,21 @@ ghctl m2 readiness --repository ../.. --require-baseline-ancestor --require-clea
 H3 现场验收完成。任何未来的 prepare、authorize、execute 或 live audit
 子命令必须作为独立工作包增加，不得从状态文件隐式获得生产权限。
 
+下一步的 `field-preflight` 仅扫描操作者指定的本地私有证据根，并复用既有
+legacy-review bridge 验证器：
+
+```bash
+ghctl m2 field-preflight \
+  --repository ../.. \
+  --search-root PRIVATE_EVIDENCE_ROOT \
+  --require-baseline-ancestor \
+  --require-clean \
+  --pretty
+```
+
+可选 `--expected-retained-topic` 只在进程内计算哈希，报告不会包含 Topic、
+私有路径或凭据。该命令不调用 Docker、MQTT、SSH 或生产服务。
+
 ## 当前职责
 
 1. 订阅节点入口：

@@ -13,6 +13,12 @@ from typing import Any
 
 from jsonschema import Draft202012Validator, FormatChecker
 
+from .h3_field_preflight import (
+    H3FieldPreflightError,
+    build_h3_field_preflight_report,
+    inspect_legacy_review_bridges,
+)
+
 STATE_SCHEMA = "gh.project-state.current-baseline/1"
 REPORT_SCHEMA = "gh.project-state.status/1"
 H3_READINESS_SCHEMA = "gh.project-state.current-h3-readiness/1"
@@ -378,6 +384,18 @@ def _parser() -> argparse.ArgumentParser:
     readiness.add_argument("--require-baseline-ancestor", action="store_true")
     readiness.add_argument("--require-clean", action="store_true")
     readiness.add_argument("--pretty", action="store_true")
+    field_preflight = command.add_parser(
+        "field-preflight",
+        help="inventory private H3 bridge evidence without live access or writes",
+    )
+    field_preflight.add_argument("--repository", type=Path, default=Path.cwd())
+    field_preflight.add_argument("--state", type=Path)
+    field_preflight.add_argument("--manifest", type=Path)
+    field_preflight.add_argument("--search-root", type=Path, required=True)
+    field_preflight.add_argument("--expected-retained-topic")
+    field_preflight.add_argument("--require-baseline-ancestor", action="store_true")
+    field_preflight.add_argument("--require-clean", action="store_true")
+    field_preflight.add_argument("--pretty", action="store_true")
     return parser
 
 
@@ -403,7 +421,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             readiness, readiness_sha256 = load_h3_readiness(readiness_path)
             capabilities = inspect_h3_capabilities(repository, readiness)
-            report = build_h3_readiness_report(
+            readiness_report = build_h3_readiness_report(
                 document,
                 readiness,
                 state_sha256=state_sha256,
@@ -411,6 +429,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                 repository=snapshot,
                 capabilities=capabilities,
             )
+            if args.command == "readiness":
+                report = readiness_report
+            else:
+                inventory = inspect_legacy_review_bridges(
+                    args.search_root,
+                    expected_retained_topic=args.expected_retained_topic,
+                )
+                report = build_h3_field_preflight_report(
+                    readiness_report,
+                    inventory,
+                    expected_retained_topic_supplied=args.expected_retained_topic is not None,
+                )
         if args.require_baseline_ancestor:
             _require(
                 snapshot.baseline_is_ancestor,
@@ -418,7 +448,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         if args.require_clean:
             _require(snapshot.tracked_worktree_clean, "repository has tracked worktree changes")
-    except ProjectStateError as error:
+    except (ProjectStateError, H3FieldPreflightError) as error:
         print(f"ghctl: project-state-error: {error}", file=sys.stderr)
         return 2
     indent = 2 if args.pretty else None

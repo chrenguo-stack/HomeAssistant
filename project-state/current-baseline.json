@@ -7,7 +7,7 @@
     "repository_sha": "b440652558b02f19fb33b1cdbf4cd0ebe893a285",
     "manager_version": "0.4.94"
   },
-  "candidate_manager_version": "0.4.96",
+  "candidate_manager_version": "0.4.97",
   "last_verified_state": "anonymous_runtime_restored",
   "stages": [
     {"stage_id": "D0", "status": "completed", "acceptance": "CODE_COMPLETE"},

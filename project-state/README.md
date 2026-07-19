@@ -30,6 +30,21 @@ their content fingerprints. A successful report means the offline implementation
 chain is complete; it deliberately reports `h3_field_accepted=false`,
 `ready_for_live_apply=false`, and `live_action_authorized=false`.
 
+After readiness passes, inventory only the local private legacy-review bridge
+evidence needed by the existing fresh-chain discover-only gate:
+
+```bash
+ghctl m2 field-preflight \
+  --repository . \
+  --search-root PRIVATE_EVIDENCE_ROOT \
+  --require-baseline-ancestor \
+  --require-clean \
+  --pretty
+```
+
+Add `--expected-retained-topic` only from an operator-controlled local variable.
+The value is hashed for comparison and is never included in the report.
+
 Rules:
 
 - never store credentials, private host paths, private addresses, authorization
