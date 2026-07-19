@@ -104,7 +104,7 @@ def _validate_port(port: int) -> int:
 def _validate_workspace_for_create(workspace: Path) -> Path:
     resolved = workspace.expanduser().resolve()
     _require(resolved != Path("/"), "workspace cannot be filesystem root")
-    _require(resolved != Path("/tmp"), "workspace cannot be /tmp itself")
+    _require(resolved != Path("/tmp").resolve(), "workspace cannot be /tmp itself")
     _require(len(resolved.parts) >= 3, "workspace path is too broad")
     if resolved.exists():
         _require(resolved.is_dir(), "workspace exists and is not a directory")

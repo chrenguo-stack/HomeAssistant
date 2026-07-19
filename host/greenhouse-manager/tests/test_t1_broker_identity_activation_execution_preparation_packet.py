@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 
 
@@ -78,7 +79,7 @@ def test_packet_creates_bound_materials_but_has_no_live_execution() -> None:
 
 def test_orchestrator_cli_exposes_request_only() -> None:
     completed = subprocess.run(
-        ["python3", str(_request_cli()), "--help"],
+        [sys.executable, str(_request_cli()), "--help"],
         cwd=_request_cli().parents[1],
         capture_output=True,
         text=True,

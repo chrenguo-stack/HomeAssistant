@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 
 
@@ -81,7 +82,7 @@ def test_packet_has_explicit_double_opt_in_and_no_homeassistant_write() -> None:
 
 def test_execute_cli_requires_explicit_enable_flag() -> None:
     completed = subprocess.run(
-        ["python3", str(_execute_cli()), "--help"],
+        [sys.executable, str(_execute_cli()), "--help"],
         cwd=_execute_cli().parents[1],
         capture_output=True,
         text=True,
@@ -95,7 +96,7 @@ def test_execute_cli_requires_explicit_enable_flag() -> None:
 
 def test_execute_cli_without_arguments_cannot_run() -> None:
     completed = subprocess.run(
-        ["python3", str(_execute_cli())],
+        [sys.executable, str(_execute_cli())],
         cwd=_execute_cli().parents[1],
         capture_output=True,
         text=True,
