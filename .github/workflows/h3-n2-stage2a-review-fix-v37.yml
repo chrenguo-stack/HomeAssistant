@@ -1,0 +1,332 @@
+name: H3 N2 Stage2A Review Fix v37
+
+on:
+  push:
+    branches:
+      - ci/h3-n2-stage2a-review-fix-20260720-v37
+    paths:
+      - .github/workflows/h3-n2-stage2a-review-fix-v37.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: h3-n2-stage2a-review-fix-20260720-v37
+  cancel-in-progress: false
+
+jobs:
+  review-fix:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact Stage 2A branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/h3-n2-stage2a-pairing-service-20260720-v36
+          fetch-depth: 0
+
+      - name: Verify expected branch head
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "a87cb89612d8655398d706cfa980a97d08201fec"
+          test "$(git status --porcelain)" = ""
+
+      - name: Apply reviewed hardening and version-scope fix
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected one match, found {count}")
+              return text.replace(old, new, 1)
+
+          root = Path("host/greenhouse-manager")
+          source = root / "src/greenhouse_manager/pairing_service.py"
+          text = source.read_text(encoding="utf-8")
+          text = replace_once(
+              text,
+              "from .dynsec_plan import (\n",
+              "from .dynsec_api import DynsecRollbackError\nfrom .dynsec_plan import (\n",
+              "dynsec rollback import",
+          )
+          text = replace_once(
+              text,
+              "    Pairing secrets exist only in memory. Broker credentials are provisioned only\n"
+              "    after the persistent registration record has been explicitly approved.\n"
+              "    Transport encryption and persistent encrypted session recovery are separate\n"
+              "    Stage 2A work packages and are intentionally not claimed by this core.\n",
+              "    The manager retains only an internal mutable copy of the pairing secret and\n"
+              "    best-effort zeroes that copy after proof verification or terminal failure.\n"
+              "    Broker credentials are provisioned only after the persistent registration\n"
+              "    record has been explicitly approved. Transport encryption and encrypted\n"
+              "    session persistence are separate Stage 2B work packages and are not claimed\n"
+              "    by this core.\n",
+              "memory wording",
+          )
+          text = replace_once(
+              text,
+              "        random_bytes: Callable[[int], bytes] = secrets.token_bytes,\n"
+              "        uuid_factory: Callable[[], uuid.UUID] = uuid.uuid4,\n",
+              "        random_bytes: Callable[[int], bytes] = secrets.token_bytes,\n"
+              "        credential_random_bytes: Callable[[int], bytes] = secrets.token_bytes,\n"
+              "        uuid_factory: Callable[[], uuid.UUID] = uuid.uuid4,\n",
+              "credential random argument",
+          )
+          text = replace_once(
+              text,
+              "        self.random_bytes = random_bytes\n"
+              "        self.uuid_factory = uuid_factory\n",
+              "        self.random_bytes = random_bytes\n"
+              "        self.credential_random_bytes = credential_random_bytes\n"
+              "        self.uuid_factory = uuid_factory\n",
+              "credential random field",
+          )
+          text = replace_once(
+              text,
+              "            session.state = PairingSessionState.PROOF_VERIFIED\n"
+              "            return self._snapshot(session)\n",
+              "            session.state = PairingSessionState.PROOF_VERIFIED\n"
+              "            self._clear_secret(session)\n"
+              "            return self._snapshot(session)\n",
+              "proof secret clearing",
+          )
+          text = replace_once(
+              text,
+              "            credentials = generate_node_credentials(plan)\n"
+              "            try:\n"
+              "                self.provisioner.provision(plan, credentials)\n"
+              "            except Exception as error:\n"
+              "                raise PairingProvisioningError(\n"
+              "                    \"node identity provisioning failed\"\n"
+              "                ) from error\n",
+              "            credentials = generate_node_credentials(\n"
+              "                plan,\n"
+              "                random_bytes=self.credential_random_bytes,\n"
+              "            )\n"
+              "            try:\n"
+              "                self.provisioner.provision(plan, credentials)\n"
+              "            except DynsecRollbackError as error:\n"
+              "                raise PairingRollbackError(\n"
+              "                    \"node identity provisioning rollback failed\"\n"
+              "                ) from error\n"
+              "            except Exception as error:\n"
+              "                raise PairingProvisioningError(\n"
+              "                    \"node identity provisioning failed\"\n"
+              "                ) from error\n",
+              "provisioning error mapping",
+          )
+          source.write_text(text, encoding="utf-8")
+
+          tests = root / "tests/test_pairing_service.py"
+          text = tests.read_text(encoding="utf-8")
+          text = replace_once(
+              text,
+              "from greenhouse_manager.pairing_service import (\n"
+              "    PairingConflict,\n"
+              "    PairingExpired,\n"
+              "    PairingProofRejected,\n",
+              "from greenhouse_manager.dynsec_api import DynsecRollbackError\n"
+              "from greenhouse_manager.pairing_service import (\n"
+              "    PairingConflict,\n"
+              "    PairingExpired,\n"
+              "    PairingProofRejected,\n"
+              "    PairingProvisioningError,\n"
+              "    PairingRollbackError,\n",
+              "test imports",
+          )
+          text = replace_once(
+              text,
+              "from greenhouse_manager.registration import RegistrationState\n",
+              "from greenhouse_manager.registration import RegistrationRegistry, RegistrationState\n",
+              "registry import",
+          )
+          text = replace_once(
+              text,
+              "        random_bytes=lambda size: b\"M\" * size,\n"
+              "        uuid_factory=lambda: UUID(\"5449b33c-3e77-47ad-96ee-df7274cabfd1\"),\n",
+              "        random_bytes=lambda size: b\"M\" * size,\n"
+              "        credential_random_bytes=lambda size: b\"C\" * size,\n"
+              "        uuid_factory=lambda: UUID(\"5449b33c-3e77-47ad-96ee-df7274cabfd1\"),\n",
+              "test deterministic credentials",
+          )
+          text = replace_once(
+              text,
+              "    assert snapshot.state == PairingSessionState.PROOF_VERIFIED\n"
+              "    assert snapshot.proof_attempts == 1\n",
+              "    assert snapshot.state == PairingSessionState.PROOF_VERIFIED\n"
+              "    assert snapshot.proof_attempts == 1\n"
+              "    assert manager._sessions[offer.session_id].secret == bytearray()\n",
+              "test secret clearing",
+          )
+          text = replace_once(
+              text,
+              "    with pytest.raises(RuntimeError) as captured:\n"
+              "        manager.issue_credentials(offer.session_id, now=NOW)\n",
+              "    with pytest.raises(PairingProvisioningError) as captured:\n"
+              "        manager.issue_credentials(offer.session_id, now=NOW)\n",
+              "test provisioning exception",
+          )
+          addition = r'''
+
+
+def test_dynsec_rollback_failure_is_explicit_and_sanitized(context) -> None:
+    registry, provisioner, manager = context
+    offer, _snapshot = open_and_prove(manager)
+    registry.approve()
+
+    def fail_with_rollback(_plan, _credentials) -> None:
+        raise DynsecRollbackError(
+            "provisioning",
+            (("deleteClient", RuntimeError("secret rollback details")),),
+        )
+
+    provisioner.provision = fail_with_rollback
+
+    with pytest.raises(PairingRollbackError) as captured:
+        manager.issue_credentials(offer.session_id, now=NOW)
+
+    assert "secret rollback details" not in str(captured.value)
+    assert isinstance(captured.value.__cause__, DynsecRollbackError)
+
+
+def test_integrates_with_persistent_registration_registry(tmp_path) -> None:
+    database = tmp_path / "registration.sqlite3"
+    provisioner = Provisioner()
+    hello = {
+        "schema": "gh.pair.hello/1",
+        "pairing_id": PAIRING_ID,
+        "pairing_epoch": 1,
+        "hardware_id": HARDWARE_ID,
+        "model": "greenhouse-wifi-c6",
+        "fw_version": "F1.0-RC2-N2.0",
+        "node_nonce": NODE_NONCE,
+        "capabilities": [
+            "mqtt-runtime-credentials",
+            "lcd-pairing-qr",
+        ],
+        "sent_at_ms": 120345,
+    }
+
+    with RegistrationRegistry(
+        database,
+        pending_ttl_s=120,
+    ) as registry:
+        registry.observe_hello(hello, now=NOW)
+        manager = PairingSessionManager(
+            registry,
+            provisioner,
+            system_id="greenhouse",
+            broker_host="mqtt.greenhouse.local",
+            broker_port=8883,
+            ca_pem=(
+                "-----BEGIN CERTIFICATE-----\n"
+                "TEST\n"
+                "-----END CERTIFICATE-----"
+            ),
+            random_bytes=lambda size: b"M" * size,
+            credential_random_bytes=lambda size: b"C" * size,
+            uuid_factory=lambda: UUID(
+                "5449b33c-3e77-47ad-96ee-df7274cabfd1"
+            ),
+        )
+        offer = manager.open_session(
+            HARDWARE_ID,
+            PAIRING_ID,
+            pairing_secret=PAIRING_SECRET,
+            now=NOW,
+        )
+        proof = build_pairing_proof(
+            pairing_secret=PAIRING_SECRET,
+            offer=offer,
+            node_nonce=NODE_NONCE,
+        )
+        manager.verify_proof(
+            offer.session_id,
+            proof=proof,
+            now=NOW + timedelta(seconds=1),
+        )
+        registry.approve(
+            HARDWARE_ID,
+            PAIRING_ID,
+            node_id=NODE_ID,
+            now=NOW + timedelta(seconds=2),
+        )
+        bundle = manager.issue_credentials(
+            offer.session_id,
+            now=NOW + timedelta(seconds=3),
+        )
+
+    assert bundle.node_id == NODE_ID
+    assert bundle.credential_generation == 1
+    assert len(provisioner.provisioned) == 1
+'''
+          if "test_dynsec_rollback_failure_is_explicit_and_sanitized" in text:
+              raise SystemExit("review tests already present")
+          tests.write_text(text + addition, encoding="utf-8")
+
+          protocol = Path("protocols/pairing/gh-h3-pairing-session-v1.md")
+          text = protocol.read_text(encoding="utf-8")
+          text = replace_once(
+              text,
+              "- 当前实现的 session secret 仅驻留进程内存；",
+              "- 当前实现只在进程内保留一个可变内部副本，并在证明成功或终止时尽力覆写该副本；调用方传入的不可变字符串及 Python 运行时复制不承诺可验证擦除；",
+              "protocol memory wording",
+          )
+          protocol.write_text(text, encoding="utf-8")
+
+          pyproject = root / "pyproject.toml"
+          text = pyproject.read_text(encoding="utf-8")
+          text = replace_once(
+              text,
+              'version = "0.4.95"',
+              'version = "0.4.94"',
+              "version scope",
+          )
+          pyproject.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Install Manager development dependencies
+        working-directory: host/greenhouse-manager
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check -e '.[dev]'
+
+      - name: Validate reviewed Stage 2A tree
+        working-directory: host/greenhouse-manager
+        run: |
+          set -euo pipefail
+          python3 -m ruff check src tests
+          python3 -m pytest -q
+          python3 -m compileall -q src tests
+
+      - name: Verify exact change scope
+        run: |
+          set -euo pipefail
+          git diff --check
+          mapfile -t changed < <(git diff --name-only)
+          printf 'CHANGED=%s\n' "${changed[@]}"
+          test "${#changed[@]}" -eq 4
+          printf '%s\n' "${changed[@]}" | diff -u - <(printf '%s\n' \
+            host/greenhouse-manager/pyproject.toml \
+            host/greenhouse-manager/src/greenhouse_manager/pairing_service.py \
+            host/greenhouse-manager/tests/test_pairing_service.py \
+            protocols/pairing/gh-h3-pairing-session-v1.md)
+
+      - name: Commit reviewed fix to Stage 2A branch
+        env:
+          TARGET_BRANCH: feature/h3-n2-stage2a-pairing-service-20260720-v36
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            host/greenhouse-manager/pyproject.toml \
+            host/greenhouse-manager/src/greenhouse_manager/pairing_service.py \
+            host/greenhouse-manager/tests/test_pairing_service.py \
+            protocols/pairing/gh-h3-pairing-session-v1.md
+          git commit -m 'fix(h3): harden Stage 2A pairing review findings'
+          git push origin "HEAD:refs/heads/$TARGET_BRANCH"
+          echo "STATUS=H3_N2_STAGE2A_REVIEW_FIX_V37_PUSHED"
