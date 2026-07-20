@@ -424,6 +424,44 @@ class Stage1CDynsecTransportTests(unittest.TestCase):
             ],
         )
 
+        def make_publish_side_effect(
+            case_responses: list[dict[str, str]],
+            current_transport: PahoDynsecTransport,
+            current_client: Any,
+        ) -> Any:
+            def publish_side_effect(
+                *args: Any,
+                **kwargs: Any,
+            ) -> Any:
+                payload = json.loads(kwargs["payload"])
+                correlation = (
+                    payload["commands"][0]["correlationData"]
+                )
+                rendered = [
+                    {
+                        key: (
+                            correlation
+                            if value == "{correlation}"
+                            else value
+                        )
+                        for key, value in response.items()
+                    }
+                    for response in case_responses
+                ]
+                current_transport.on_message(
+                    current_client,
+                    None,
+                    Mock(
+                        topic=RESPONSE_TOPIC,
+                        payload=json.dumps(
+                            {"responses": rendered}
+                        ).encode(),
+                    ),
+                )
+                return Mock(rc=0)
+
+            return publish_side_effect
+
         for responses in cases:
             with self.subTest(responses=responses):
                 client = Mock()
@@ -433,38 +471,11 @@ class Stage1CDynsecTransportTests(unittest.TestCase):
                     timeout_s=0.01,
                 )
 
-                def publish_side_effect(
-                    *args: Any,
-                    **kwargs: Any,
-                ) -> Any:
-                    payload = json.loads(kwargs["payload"])
-                    correlation = (
-                        payload["commands"][0]["correlationData"]
-                    )
-                    rendered = [
-                        {
-                            key: (
-                                correlation
-                                if value == "{correlation}"
-                                else value
-                            )
-                            for key, value in response.items()
-                        }
-                        for response in responses
-                    ]
-                    transport.on_message(
-                        client,
-                        None,
-                        Mock(
-                            topic=RESPONSE_TOPIC,
-                            payload=json.dumps(
-                                {"responses": rendered}
-                            ).encode(),
-                        ),
-                    )
-                    return Mock(rc=0)
-
-                client.publish.side_effect = publish_side_effect
+                client.publish.side_effect = make_publish_side_effect(
+                    responses,
+                    transport,
+                    client,
+                )
 
                 with self.assertRaisesRegex(
                     DynsecError,
@@ -609,64 +620,69 @@ class Stage1CVerifySessionTests(unittest.TestCase):
         self.assertEqual(session.subscriptions, {})
 
     def test_suback_denial_and_timeout(self) -> None:
+        def build_client(
+            should_deny: bool,
+            current_session: Any,
+        ) -> Any:
+            class Client:
+                def subscribe(
+                    client_self,
+                    _topic: str,
+                    qos: int,
+                ) -> tuple[int, int]:
+                    mid = 51
+
+                    if should_deny:
+                        def deliver() -> None:
+                            time.sleep(0.001)
+                            current_session._on_subscribe(
+                                client_self,
+                                None,
+                                mid,
+                                [
+                                    FakeReasonCode(
+                                        failure=True,
+                                        label="Not authorized",
+                                    )
+                                ],
+                                None,
+                            )
+
+                        threading.Thread(
+                            target=deliver,
+                            daemon=True,
+                        ).start()
+                    return (0, mid)
+
+            return Client()
+
+        def make_short_wait(wait_impl: Any) -> Any:
+            def short_wait(
+                event_self: threading.Event,
+                timeout: float | None = None,
+            ) -> bool:
+                return wait_impl(event_self, 0.01)
+
+            return short_wait
+
         for denied in (True, False):
             with self.subTest(denied=denied):
                 session = self.make_session()
-
-                class Client:
-                    def subscribe(
-                        client_self,
-                        _topic: str,
-                        qos: int,
-                    ) -> tuple[int, int]:
-                        mid = 51
-
-                        if denied:
-                            def deliver() -> None:
-                                time.sleep(0.001)
-                                session._on_subscribe(
-                                    client_self,
-                                    None,
-                                    mid,
-                                    [
-                                        FakeReasonCode(
-                                            failure=True,
-                                            label="Not authorized",
-                                        )
-                                    ],
-                                    None,
-                                )
-
-                            threading.Thread(
-                                target=deliver,
-                                daemon=True,
-                            ).start()
-                        return (0, mid)
-
-                session.client = Client()
+                session.client = build_client(denied, session)
 
                 if denied:
                     self.assertFalse(session.subscribe("$CONTROL/#"))
                 else:
-                    original_wait = threading.Event.wait
-
-                    def short_wait(
-                        event_self: threading.Event,
-                        timeout: float | None = None,
-                    ) -> bool:
-                        return original_wait(event_self, 0.01)
-
                     session.subscriptions = {}
                     with unittest.mock.patch.object(
                         threading.Event,
                         "wait",
-                        short_wait,
+                        make_short_wait(threading.Event.wait),
+                    ), self.assertRaisesRegex(
+                        AssertionError,
+                        "SUBACK timed out",
                     ):
-                        with self.assertRaisesRegex(
-                            AssertionError,
-                            "SUBACK timed out",
-                        ):
-                            session.subscribe("gh/#")
+                        session.subscribe("gh/#")
 
     def test_puback_not_authorized_is_checked(self) -> None:
         session = self.make_session()
