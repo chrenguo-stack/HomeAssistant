@@ -1,0 +1,99 @@
+name: H3 N2 Stage2B2 Rate Limiter Bound v43
+
+on:
+  push:
+    branches:
+      - feature/h3-n2-stage2b2-discovery-boundary-20260720-v39
+    paths:
+      - ".github/workflows/h3-n2-stage2b2-rate-limiter-bound-v43.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    if: github.actor != 'github-actions[bot]'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/h3-n2-stage2b2-discovery-boundary-20260720-v39
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Bound rate-limiter key cardinality
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              Path("host/greenhouse-manager/src/greenhouse_manager/pairing_discovery.py"): (
+                  '''class SlidingWindowRateLimiter:\n    def __init__(\n        self,\n        *,\n        limit: int,\n        window_s: float,\n        clock: Callable[[], float] = time.monotonic,\n    ) -> None:\n        if limit < 1 or window_s <= 0:\n            raise ValueError("rate limit and window must be positive")\n        self.limit = limit\n        self.window_s = window_s\n        self._clock = clock\n        self._lock = threading.RLock()\n        self._events: defaultdict[str, deque[float]] = defaultdict(deque)\n\n    def allow(self, key: str) -> bool:\n        now = self._clock()\n        cutoff = now - self.window_s\n        with self._lock:\n            events = self._events[key]\n            while events and events[0] <= cutoff:\n                events.popleft()\n            if len(events) >= self.limit:\n                return False\n            events.append(now)\n            return True\n''',
+                  '''class SlidingWindowRateLimiter:\n    def __init__(\n        self,\n        *,\n        limit: int,\n        window_s: float,\n        max_keys: int = 1024,\n        clock: Callable[[], float] = time.monotonic,\n    ) -> None:\n        if limit < 1 or window_s <= 0 or max_keys < 1:\n            raise ValueError("rate limit, window and max_keys must be positive")\n        self.limit = limit\n        self.window_s = window_s\n        self.max_keys = max_keys\n        self._clock = clock\n        self._lock = threading.RLock()\n        self._events: defaultdict[str, deque[float]] = defaultdict(deque)\n\n    def allow(self, key: str) -> bool:\n        now = self._clock()\n        cutoff = now - self.window_s\n        with self._lock:\n            stale = [\n                existing_key\n                for existing_key, existing_events in self._events.items()\n                if not existing_events or existing_events[-1] <= cutoff\n            ]\n            for existing_key in stale:\n                del self._events[existing_key]\n            if key not in self._events and len(self._events) >= self.max_keys:\n                return False\n            events = self._events[key]\n            while events and events[0] <= cutoff:\n                events.popleft()\n            if len(events) >= self.limit:\n                return False\n            events.append(now)\n            return True\n''',
+              ),
+              Path("host/greenhouse-manager/src/greenhouse_manager/pairing_endpoint.py"): (
+                  '''class FixedWindowRateLimiter:\n    def __init__(\n        self,\n        *,\n        limit: int,\n        window_s: float,\n        clock: Callable[[], float] = time.monotonic,\n    ) -> None:\n        if limit < 1 or window_s <= 0:\n            raise ValueError("rate limit and window must be positive")\n        self.limit = limit\n        self.window_s = window_s\n        self._clock = clock\n        self._lock = threading.RLock()\n        self._events: defaultdict[str, deque[float]] = defaultdict(deque)\n\n    def allow(self, key: str) -> bool:\n        now = self._clock()\n        cutoff = now - self.window_s\n        with self._lock:\n            events = self._events[key]\n            while events and events[0] <= cutoff:\n                events.popleft()\n            if len(events) >= self.limit:\n                return False\n            events.append(now)\n            return True\n''',
+                  '''class FixedWindowRateLimiter:\n    def __init__(\n        self,\n        *,\n        limit: int,\n        window_s: float,\n        max_keys: int = 1024,\n        clock: Callable[[], float] = time.monotonic,\n    ) -> None:\n        if limit < 1 or window_s <= 0 or max_keys < 1:\n            raise ValueError("rate limit, window and max_keys must be positive")\n        self.limit = limit\n        self.window_s = window_s\n        self.max_keys = max_keys\n        self._clock = clock\n        self._lock = threading.RLock()\n        self._events: defaultdict[str, deque[float]] = defaultdict(deque)\n\n    def allow(self, key: str) -> bool:\n        now = self._clock()\n        cutoff = now - self.window_s\n        with self._lock:\n            stale = [\n                existing_key\n                for existing_key, existing_events in self._events.items()\n                if not existing_events or existing_events[-1] <= cutoff\n            ]\n            for existing_key in stale:\n                del self._events[existing_key]\n            if key not in self._events and len(self._events) >= self.max_keys:\n                return False\n            events = self._events[key]\n            while events and events[0] <= cutoff:\n                events.popleft()\n            if len(events) >= self.limit:\n                return False\n            events.append(now)\n            return True\n''',
+              ),
+          }
+          for path, (old, new) in replacements.items():
+              text = path.read_text(encoding="utf-8")
+              if text.count(old) != 1:
+                  raise SystemExit(f"unexpected limiter shape: {path}")
+              path.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          discovery_tests = Path("host/greenhouse-manager/tests/test_pairing_discovery.py")
+          text = discovery_tests.read_text(encoding="utf-8")
+          marker = '''def test_candidate_set_never_auto_selects_multiple_managers() -> None:\n'''
+          addition = '''def test_udp_rate_limiter_bounds_source_key_cardinality() -> None:\n    clock = [100.0]\n    limiter = SlidingWindowRateLimiter(\n        limit=2,\n        window_s=60,\n        max_keys=2,\n        clock=lambda: clock[0],\n    )\n    assert limiter.allow("source-a") is True\n    assert limiter.allow("source-b") is True\n    assert limiter.allow("source-c") is False\n\n    clock[0] = 161.0\n    assert limiter.allow("source-c") is True\n\n\n'''
+          if text.count(marker) != 1 or addition in text:
+              raise SystemExit("unexpected discovery limiter test insertion point")
+          discovery_tests.write_text(text.replace(marker, addition + marker, 1), encoding="utf-8")
+
+          endpoint_tests = Path("host/greenhouse-manager/tests/test_pairing_endpoint.py")
+          text = endpoint_tests.read_text(encoding="utf-8")
+          marker = '''def test_unknown_fields_are_rejected() -> None:\n'''
+          addition = '''def test_http_rate_limiter_bounds_source_key_cardinality() -> None:\n    clock = [100.0]\n    limiter = FixedWindowRateLimiter(\n        limit=2,\n        window_s=60,\n        max_keys=2,\n        clock=lambda: clock[0],\n    )\n    assert limiter.allow("source-a") is True\n    assert limiter.allow("source-b") is True\n    assert limiter.allow("source-c") is False\n\n    clock[0] = 161.0\n    assert limiter.allow("source-c") is True\n\n\n'''
+          if text.count(marker) != 1 or addition in text:
+              raise SystemExit("unexpected endpoint limiter test insertion point")
+          endpoint_tests.write_text(text.replace(marker, addition + marker, 1), encoding="utf-8")
+
+          protocol = Path("protocols/pairing/gh-h3-discovery-and-endpoint-v1.md")
+          text = protocol.read_text(encoding="utf-8")
+          marker = '- 默认每源 IP 每 60 秒最多 30 个 HTTP 请求；\n'
+          addition = '- UDP 与 HTTP 速率限制器默认最多跟踪 1024 个源地址，达到上限时拒绝新的来源；\n'
+          if text.count(marker) != 1 or addition in text:
+              raise SystemExit("unexpected resource-limit documentation insertion point")
+          protocol.write_text(text.replace(marker, marker + addition, 1), encoding="utf-8")
+          PY
+
+      - name: Validate patch
+        working-directory: host/greenhouse-manager
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m ruff check .
+          python -m pytest -q \
+            tests/test_pairing_discovery.py \
+            tests/test_pairing_endpoint.py \
+            tests/test_pairing_endpoint_secure_integration.py \
+            tests/test_pairing_network_service.py
+
+      - name: Commit limiter hardening
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            host/greenhouse-manager/src/greenhouse_manager/pairing_discovery.py \
+            host/greenhouse-manager/src/greenhouse_manager/pairing_endpoint.py \
+            host/greenhouse-manager/tests/test_pairing_discovery.py \
+            host/greenhouse-manager/tests/test_pairing_endpoint.py \
+            protocols/pairing/gh-h3-discovery-and-endpoint-v1.md
+          git commit -m "fix(h3): bound Stage 2B-2 limiter cardinality"
+          git push origin HEAD:feature/h3-n2-stage2b2-discovery-boundary-20260720-v39
