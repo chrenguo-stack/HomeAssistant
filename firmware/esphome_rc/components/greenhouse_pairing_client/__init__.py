@@ -4,7 +4,6 @@ import re
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
 
 CONF_HARDWARE_ID = "hardware_id"
 CONF_PAIRING_ID = "pairing_id"
@@ -43,6 +42,13 @@ def _pairing_secret(value: object) -> str:
     return candidate
 
 
+def _ttl_cap(value: object):
+    period = cv.positive_time_period_seconds(value)
+    if period.total_seconds > 3600:
+        raise cv.Invalid("candidate_ttl_cap must not exceed 3600 seconds")
+    return period
+
+
 greenhouse_pairing_client_ns = cg.esphome_ns.namespace(
     "greenhouse_pairing_client"
 )
@@ -61,12 +67,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_MAX_CANDIDATES, default=4): cv.int_range(
             min=1, max=16
         ),
-        cv.Optional(
-            CONF_CANDIDATE_TTL_CAP, default="120s"
-        ): cv.All(
-            cv.positive_time_period_seconds,
-            cv.Range(min=cv.TimePeriod(seconds=1), max=cv.TimePeriod(seconds=3600)),
-        ),
+        cv.Optional(CONF_CANDIDATE_TTL_CAP, default="120s"): _ttl_cap,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
