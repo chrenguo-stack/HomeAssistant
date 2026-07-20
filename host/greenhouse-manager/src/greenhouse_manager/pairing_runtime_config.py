@@ -16,11 +16,11 @@ _DNS_LABEL_RE = re.compile(
     r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$"
 )
 _LOCAL_IPV4_NETWORKS = (
-    ipaddress.ip_network("127.0.0.0/8"),
-    ipaddress.ip_network("10.0.0.0/8"),
-    ipaddress.ip_network("172.16.0.0/12"),
-    ipaddress.ip_network("192.168.0.0/16"),
-    ipaddress.ip_network("169.254.0.0/16"),
+    ipaddress.ip_network((0x7F000000, 8)),
+    ipaddress.ip_network((0x0A000000, 8)),
+    ipaddress.ip_network((0xAC100000, 12)),
+    ipaddress.ip_network((0xC0A80000, 16)),
+    ipaddress.ip_network((0xA9FE0000, 16)),
 )
 
 
