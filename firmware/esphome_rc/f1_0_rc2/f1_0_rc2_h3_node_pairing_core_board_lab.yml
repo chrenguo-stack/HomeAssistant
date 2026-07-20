@@ -1,0 +1,77 @@
+substitutions:
+  device_name: gh-h3-pairing-core-lab
+  project_version: "F1.0-RC2-H3-PAIRING-CORE-LAB"
+  soil_read_interval: 20s
+  soil_warmup_time: 15s
+  scd30_update_interval: 11s
+  battery_divider_ratio: "2.0"
+  battery_calibration_factor: "1.000"
+  battery_low_threshold: "3.00"
+  battery_recovery_threshold: "3.50"
+
+external_components:
+  - source:
+      type: local
+      path: ../15_1_2_rs485_modbus_echo_filter/my_components
+    components:
+      - echo_filtered_modbus
+  - source:
+      type: local
+      path: ../components
+    components:
+      - greenhouse_pairing_client
+
+packages:
+  core: !include packages/core.yml
+  control: !include packages/control.yml
+  buses: !include packages/buses.yml
+  sensors: !include packages/sensors.yml
+  display: !include packages/display.yml
+
+# Dedicated non-production product-PCB target. It preserves the complete RC2
+# local sensor, LCD and RS485 behavior while compiling the Stage 2C-1 node
+# pairing state core. No UDP, HTTP, mDNS browsing or credential storage is
+# enabled by this work package.
+greenhouse_pairing_client:
+  id: pairing_client
+  hardware_id: ghw-c6-product-lab
+  pairing_id: aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee
+  pairing_secret: !secret node_pairing_secret
+  max_candidates: 4
+  candidate_ttl_cap: 120s
+
+esphome:
+  on_boot:
+    - priority: -150
+      then:
+        - lambda: |-
+            id(pairing_client).start_discovery(
+              "11111111-2222-4333-8444-555555555555",
+              "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            );
+
+text_sensor:
+  - platform: template
+    name: "Pairing State Lab"
+    id: pairing_state_lab
+    internal: true
+    update_interval: 5s
+    lambda: |-
+      return {id(pairing_client).state_name()};
+
+interval:
+  - interval: 30s
+    then:
+      - lambda: |-
+          if (id(pairing_client).candidate_count() == 0) {
+            id(pairing_client).observe_candidate(
+              "manager-product-lab",
+              "greenhouse",
+              "manager-product-lab.local",
+              "http",
+              47110,
+              "/v1/pairing",
+              100,
+              120
+            );
+          }
