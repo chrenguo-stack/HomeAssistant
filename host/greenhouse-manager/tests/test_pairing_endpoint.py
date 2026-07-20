@@ -4,8 +4,9 @@ import base64
 import http.client
 import json
 import threading
+from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
-from typing import Any, Mapping
+from typing import Any
 
 from greenhouse_manager.pairing_endpoint import (
     MAX_REQUEST_BYTES,

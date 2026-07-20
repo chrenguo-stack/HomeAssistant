@@ -17,14 +17,6 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Protocol
 
 from .pairing_discovery import is_local_source
-from .pairing_service import (
-    PairingConflict as CorePairingConflict,
-    PairingError as CorePairingError,
-    PairingExpired as CorePairingExpired,
-    PairingProofRejected as CorePairingProofRejected,
-    PairingProvisioningError as CorePairingProvisioningError,
-    PairingRollbackError as CorePairingRollbackError,
-)
 from .pairing_secure_transport import (
     SecureEnvelope,
     SecureEnvelopeRejected,
@@ -37,6 +29,24 @@ from .pairing_secure_transport import (
     SecurePairingSnapshot,
     decode_base64url_32,
     encode_base64url,
+)
+from .pairing_service import (
+    PairingConflict as CorePairingConflict,
+)
+from .pairing_service import (
+    PairingError as CorePairingError,
+)
+from .pairing_service import (
+    PairingExpired as CorePairingExpired,
+)
+from .pairing_service import (
+    PairingProofRejected as CorePairingProofRejected,
+)
+from .pairing_service import (
+    PairingProvisioningError as CorePairingProvisioningError,
+)
+from .pairing_service import (
+    PairingRollbackError as CorePairingRollbackError,
 )
 
 MAX_REQUEST_BYTES = 16 * 1024
