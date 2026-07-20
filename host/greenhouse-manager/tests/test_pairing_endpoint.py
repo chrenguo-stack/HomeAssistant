@@ -12,6 +12,7 @@ from greenhouse_manager.pairing_endpoint import (
     FixedWindowRateLimiter,
     PairingEndpointApp,
     PendingOfferRegistry,
+    build_claim_proof,
     make_pairing_http_server,
 )
 from greenhouse_manager.pairing_secure_transport import (
@@ -39,6 +40,11 @@ PAIRING_SECRET = b64(bytes(range(32)))
 NODE_NONCE = b64(bytes(reversed(range(32))))
 NODE_PUBLIC_KEY = b64(bytes([0x22]) * 32)
 PROOF = b64(bytes([0x33]) * 32)
+CLAIM_PROOF = build_claim_proof(
+    pairing_secret=PAIRING_SECRET,
+    hardware_id=HARDWARE_ID,
+    pairing_id=PAIRING_ID,
+)
 
 
 class FakeCoordinator:
@@ -219,6 +225,7 @@ def claim(app: PairingEndpointApp, *, client_ip: str = LOCAL_IP) -> None:
             "schema": "gh.pair.claim/1",
             "hardware_id": HARDWARE_ID,
             "pairing_id": PAIRING_ID,
+            "claim_proof": CLAIM_PROOF,
         },
     )
     assert status == 200
@@ -235,12 +242,32 @@ def test_claim_never_returns_pairing_secret() -> None:
             "schema": "gh.pair.claim/1",
             "hardware_id": HARDWARE_ID,
             "pairing_id": PAIRING_ID,
+            "claim_proof": CLAIM_PROOF,
         },
     )
     assert status == 200
     assert document["schema"] == "gh.pair.secure-offer/1"
     assert "secret" not in json.dumps(document).lower()
     assert coordinator.open_calls == 1
+
+
+def test_invalid_claim_proof_does_not_bind_offer() -> None:
+    _coordinator, _registry, app = make_app()
+    status, document = request(
+        app,
+        method="POST",
+        path="/v1/pairing/claim",
+        document={
+            "schema": "gh.pair.claim/1",
+            "hardware_id": HARDWARE_ID,
+            "pairing_id": PAIRING_ID,
+            "claim_proof": b64(bytes([0xFF]) * 32),
+        },
+    )
+    assert status == 403
+    assert document["error"] == "proof_rejected"
+
+    claim(app)
 
 
 def test_offer_claim_is_bound_to_first_client_ip() -> None:
@@ -255,6 +282,7 @@ def test_offer_claim_is_bound_to_first_client_ip() -> None:
             "schema": "gh.pair.claim/1",
             "hardware_id": HARDWARE_ID,
             "pairing_id": PAIRING_ID,
+            "claim_proof": CLAIM_PROOF,
         },
     )
     assert status == 409
@@ -416,6 +444,7 @@ def test_unknown_fields_are_rejected() -> None:
             "schema": "gh.pair.claim/1",
             "hardware_id": HARDWARE_ID,
             "pairing_id": PAIRING_ID,
+            "claim_proof": CLAIM_PROOF,
             "pairing_secret": PAIRING_SECRET,
         },
     )
