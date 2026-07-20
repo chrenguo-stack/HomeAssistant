@@ -142,6 +142,7 @@ class PairingClientCore {
   uint32_t discovery_started_at_ms_{0};
   std::vector<CandidateObservation> candidates_;
   size_t selected_index_{static_cast<size_t>(-1)};
+  bool selection_explicit_{false};
 
   std::string session_id_;
   std::string manager_nonce_;
