@@ -1,0 +1,46 @@
+name: greenhouse-h3-pairing-lab
+
+services:
+  pairing-runtime:
+    build:
+      context: ../../../host/greenhouse-manager
+      dockerfile: Dockerfile.pairing-lab
+    command: ["--serve"]
+    environment:
+      GH_PAIRING_SERVICE_ENABLED: "false"
+      GH_PAIRING_DEPLOYMENT_MODE: "isolated-lab"
+      GH_SYSTEM_ID: "greenhouse"
+      GH_PAIRING_MANAGER_ID: "manager-lab"
+      GH_PAIRING_BIND_HOST: "0.0.0.0"
+      GH_PAIRING_HTTP_PORT: "47110"
+      GH_PAIRING_UDP_PORT: "47111"
+      GH_PAIRING_ADVERTISED_HOST: "manager-lab.local"
+      GH_PAIRING_ADVERTISED_IPV4: "127.0.0.1"
+      GH_PAIRING_MDNS_INSTANCE: "manager-lab"
+      GH_PAIRING_PATH: "/v1/pairing"
+      GH_PAIRING_DB_PATH: "/var/lib/greenhouse-manager/registration.sqlite3"
+      GH_PAIRING_BROKER_HOST: "mqtt.greenhouse.local"
+      GH_PAIRING_BROKER_PORT: "8883"
+      GH_PAIRING_BROKER_TLS_SERVER_NAME: "mqtt.greenhouse.local"
+    expose:
+      - "47110/tcp"
+      - "47111/udp"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    volumes:
+      - pairing-state:/var/lib/greenhouse-manager
+    networks:
+      - pairing-internal
+    restart: "no"
+
+volumes:
+  pairing-state:
+
+networks:
+  pairing-internal:
+    internal: true
