@@ -1,5 +1,5 @@
 esphome:
-  name: greenhouse-pairing-client-board-lab
+  name: gh-pairing-client-board-lab
   friendly_name: Greenhouse Pairing Client Board Lab
   min_version: 2026.4.3
   on_boot:
