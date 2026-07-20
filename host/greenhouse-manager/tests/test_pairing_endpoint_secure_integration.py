@@ -39,6 +39,7 @@ PAIRING_ID = "416ccfd2-5a5b-46e0-84d1-44c4067dbde0"
 HARDWARE_ID = "ghw-c6-98a316a9f2f8"
 NODE_ID = "gh-n1-a9f2f8"
 CLIENT_IP = "127.0.0.2"
+MANAGER_ID = "manager-a"
 
 
 def b64(value: bytes) -> str:
@@ -273,7 +274,10 @@ def test_endpoint_and_secure_transport_complete_real_crypto_roundtrip() -> None:
             bytes([0x11]) * 32
         ),
     )
-    registry = PendingOfferRegistry(coordinator)
+    registry = PendingOfferRegistry(
+        coordinator,
+        manager_id=MANAGER_ID,
+    )
     registry.import_scanned_pairing(
         HARDWARE_ID,
         PAIRING_ID,
@@ -284,6 +288,7 @@ def test_endpoint_and_secure_transport_complete_real_crypto_roundtrip() -> None:
 
     claim_proof = build_claim_proof(
         pairing_secret=PAIRING_SECRET,
+        manager_id=MANAGER_ID,
         hardware_id=HARDWARE_ID,
         pairing_id=PAIRING_ID,
     )
@@ -292,6 +297,7 @@ def test_endpoint_and_secure_transport_complete_real_crypto_roundtrip() -> None:
         "/v1/pairing/claim",
         {
             "schema": "gh.pair.claim/1",
+            "manager_id": MANAGER_ID,
             "hardware_id": HARDWARE_ID,
             "pairing_id": PAIRING_ID,
             "claim_proof": claim_proof,

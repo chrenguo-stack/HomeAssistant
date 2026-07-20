@@ -135,6 +135,7 @@ class _RegisteredOffer:
 def build_claim_proof(
     *,
     pairing_secret: str,
+    manager_id: str,
     hardware_id: str,
     pairing_id: str,
 ) -> str:
@@ -146,6 +147,7 @@ def build_claim_proof(
         transcript = "\n".join(
             (
                 "gh.pair.claim/1",
+                manager_id,
                 hardware_id,
                 pairing_id,
             )
@@ -160,8 +162,16 @@ def build_claim_proof(
 class PendingOfferRegistry:
     """Local-UI-only QR import boundary plus node-facing one-time claim."""
 
-    def __init__(self, coordinator: PairingCoordinatorLike) -> None:
+    def __init__(
+        self,
+        coordinator: PairingCoordinatorLike,
+        *,
+        manager_id: str,
+    ) -> None:
+        if not manager_id or not manager_id.isascii():
+            raise ValueError("manager_id must be non-empty ASCII")
         self.coordinator = coordinator
+        self.manager_id = manager_id
         self._lock = threading.RLock()
         self._by_pairing: dict[tuple[str, str], _RegisteredOffer] = {}
         self._by_session: dict[str, _RegisteredOffer] = {}
@@ -179,6 +189,7 @@ class PendingOfferRegistry:
         claim_proof = decode_base64url_32(
             build_claim_proof(
                 pairing_secret=pairing_secret,
+                manager_id=self.manager_id,
                 hardware_id=hardware_id,
                 pairing_id=pairing_id,
             ),
@@ -211,6 +222,7 @@ class PendingOfferRegistry:
         pairing_id: str,
         *,
         client_ip: str,
+        manager_id: str,
         claim_proof: str,
         now: datetime | None = None,
     ) -> SecurePairingOffer:
@@ -220,6 +232,8 @@ class PendingOfferRegistry:
                 registered = self._by_pairing[key]
             except KeyError as error:
                 raise PairingNotFound("pairing offer is unavailable") from error
+            if manager_id != self.manager_id:
+                raise SecurePairingProofRejected("claim proof rejected")
             try:
                 supplied = decode_base64url_32(
                     claim_proof,
@@ -525,22 +539,30 @@ class PairingEndpointApp:
             document = _strict_json(body)
             _require_exact_fields(
                 document,
-                {"schema", "hardware_id", "pairing_id", "claim_proof"},
+                {
+                    "schema",
+                    "manager_id",
+                    "hardware_id",
+                    "pairing_id",
+                    "claim_proof",
+                },
             )
             if document["schema"] != "gh.pair.claim/1":
                 raise PairingRequestRejected("claim schema is invalid")
+            manager_id = document["manager_id"]
             hardware_id = document["hardware_id"]
             pairing_id = document["pairing_id"]
             claim_proof = document["claim_proof"]
             if any(
                 not isinstance(value, str)
-                for value in (hardware_id, pairing_id, claim_proof)
+                for value in (manager_id, hardware_id, pairing_id, claim_proof)
             ):
                 raise PairingRequestRejected("claim values are invalid")
             offer = self.registry.claim(
                 hardware_id,
                 pairing_id,
                 client_ip=client_ip,
+                manager_id=manager_id,
                 claim_proof=claim_proof,
                 now=self.clock(),
             )

@@ -117,6 +117,7 @@ import_scanned_pairing(hardware_id, pairing_id, pairing_secret)
 
 ```text
 gh.pair.claim/1
+<manager_id>
 <hardware_id>
 <pairing_id>
 ```
@@ -139,6 +140,7 @@ Content-Type: application/json
 ```json
 {
   "schema": "gh.pair.claim/1",
+  "manager_id": "manager-a",
   "hardware_id": "ghw-c6-...",
   "pairing_id": "UUID",
   "claim_proof": "32-byte-HMAC-base64url"
@@ -148,6 +150,7 @@ Content-Type: application/json
 规则：
 
 - Manager 必须使用常量时间比较验证 `claim_proof`；
+- `claim_proof` 必须绑定节点显式选择的 `manager_id`，不得跨 Manager 重放；
 - 格式错误或证明错误返回 `403 proof_rejected`；
 - 无效 claim 不得绑定源 IP、消费 session 或增加 Stage 2B-1 proof 错误计数；
 - 有效 claim 响应为 `gh.pair.secure-offer/1`，不得包含 `PAIR_SECRET`；

@@ -31,6 +31,7 @@ SESSION_ID = "96329311-1c64-4c88-9343-04f5de69698e"
 PAIRING_ID = "416ccfd2-5a5b-46e0-84d1-44c4067dbde0"
 HARDWARE_ID = "ghw-c6-98a316a9f2f8"
 LOCAL_IP = "127.0.0.2"
+MANAGER_ID = "manager-a"
 
 
 def b64(value: bytes) -> str:
@@ -43,6 +44,7 @@ NODE_PUBLIC_KEY = b64(bytes([0x22]) * 32)
 PROOF = b64(bytes([0x33]) * 32)
 CLAIM_PROOF = build_claim_proof(
     pairing_secret=PAIRING_SECRET,
+    manager_id=MANAGER_ID,
     hardware_id=HARDWARE_ID,
     pairing_id=PAIRING_ID,
 )
@@ -171,7 +173,10 @@ def make_app(
     limiter: FixedWindowRateLimiter | None = None,
 ) -> tuple[FakeCoordinator, PendingOfferRegistry, PairingEndpointApp]:
     coordinator = FakeCoordinator()
-    registry = PendingOfferRegistry(coordinator)
+    registry = PendingOfferRegistry(
+        coordinator,
+        manager_id=MANAGER_ID,
+    )
     registry.import_scanned_pairing(
         HARDWARE_ID,
         PAIRING_ID,
@@ -224,6 +229,7 @@ def claim(app: PairingEndpointApp, *, client_ip: str = LOCAL_IP) -> None:
         client_ip=client_ip,
         document={
             "schema": "gh.pair.claim/1",
+            "manager_id": MANAGER_ID,
             "hardware_id": HARDWARE_ID,
             "pairing_id": PAIRING_ID,
             "claim_proof": CLAIM_PROOF,
@@ -241,6 +247,7 @@ def test_claim_never_returns_pairing_secret() -> None:
         path="/v1/pairing/claim",
         document={
             "schema": "gh.pair.claim/1",
+            "manager_id": MANAGER_ID,
             "hardware_id": HARDWARE_ID,
             "pairing_id": PAIRING_ID,
             "claim_proof": CLAIM_PROOF,
@@ -260,9 +267,36 @@ def test_invalid_claim_proof_does_not_bind_offer() -> None:
         path="/v1/pairing/claim",
         document={
             "schema": "gh.pair.claim/1",
+            "manager_id": MANAGER_ID,
             "hardware_id": HARDWARE_ID,
             "pairing_id": PAIRING_ID,
             "claim_proof": b64(bytes([0xFF]) * 32),
+        },
+    )
+    assert status == 403
+    assert document["error"] == "proof_rejected"
+
+    claim(app)
+
+
+def test_claim_proof_is_bound_to_selected_manager() -> None:
+    _coordinator, _registry, app = make_app()
+    other_manager_proof = build_claim_proof(
+        pairing_secret=PAIRING_SECRET,
+        manager_id="manager-b",
+        hardware_id=HARDWARE_ID,
+        pairing_id=PAIRING_ID,
+    )
+    status, document = request(
+        app,
+        method="POST",
+        path="/v1/pairing/claim",
+        document={
+            "schema": "gh.pair.claim/1",
+            "manager_id": "manager-b",
+            "hardware_id": HARDWARE_ID,
+            "pairing_id": PAIRING_ID,
+            "claim_proof": other_manager_proof,
         },
     )
     assert status == 403
@@ -281,6 +315,7 @@ def test_offer_claim_is_bound_to_first_client_ip() -> None:
         client_ip="127.0.0.3",
         document={
             "schema": "gh.pair.claim/1",
+            "manager_id": MANAGER_ID,
             "hardware_id": HARDWARE_ID,
             "pairing_id": PAIRING_ID,
             "claim_proof": CLAIM_PROOF,
@@ -459,6 +494,7 @@ def test_unknown_fields_are_rejected() -> None:
         path="/v1/pairing/claim",
         document={
             "schema": "gh.pair.claim/1",
+            "manager_id": MANAGER_ID,
             "hardware_id": HARDWARE_ID,
             "pairing_id": PAIRING_ID,
             "claim_proof": CLAIM_PROOF,
