@@ -1,0 +1,152 @@
+name: H3 N2 Stage1C Main Fast Fix v35
+
+on:
+  push:
+    branches:
+      - ci/h3-n2-stage1c-main-fastfix-20260720-v35
+    paths:
+      - .github/workflows/h3-n2-stage1c-main-fastfix-v35.yml
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: h3-n2-stage1c-main-fastfix-20260720-v35
+  cancel-in-progress: false
+
+jobs:
+  apply-reviewed-fix:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      TARGET_BRANCH: integration/h3-n2-stage1c-main-port-20260720-v28
+      CONTROL_BRANCH: ci/h3-n2-stage1c-main-fastfix-20260720-v35
+      EXPECTED_HEAD: 2757b248374412cc7c22ffb3da9c63ffd92a5ed1
+      TEST_PATH: host/greenhouse-manager/tests/test_stage1c_runtime_regressions.py
+      PATCH_PATH: control-plane/.github/stage1c/h3-n2-stage1c-b023-v35.patch
+      EXPECTED_BEFORE_SHA256: a9a68460d42f54060d3a6f1a19167bff5f529963abdd4df744af3935776ca81e
+      EXPECTED_AFTER_SHA256: be7346fbec0aae219e478e3e7d49fffb52e736ba3060be76a3068bee5eb1c435
+      PR_NUMBER: '152'
+
+    steps:
+      - name: Checkout integration target
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_BRANCH }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Checkout reviewed control payload
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CONTROL_BRANCH }}
+          path: control-plane
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: host/greenhouse-manager/pyproject.toml
+
+      - name: Verify and apply one-file patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git branch --show-current)" = "$TARGET_BRANCH"
+          printf '%s  %s\n' "$EXPECTED_BEFORE_SHA256" "$TEST_PATH" | sha256sum -c -
+          git apply --check "$PATCH_PATH"
+          git apply "$PATCH_PATH"
+          rm -rf control-plane
+          printf '%s  %s\n' "$EXPECTED_AFTER_SHA256" "$TEST_PATH" | sha256sum -c -
+          test "$(git status --short | sed -E 's/^.. //')" = "$TEST_PATH"
+          git diff --check
+          echo 'REVIEWED_PATCH_APPLICATION=PASSED'
+
+      - name: Install focused development dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -e 'host/greenhouse-manager[dev]'
+
+      - name: Run full current-main lint and focused tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd host/greenhouse-manager
+          python -m ruff check . 2>&1 | tee /tmp/ruff-v35.log
+          python -m pytest -q \
+            tests/test_dynsec_api.py \
+            tests/test_stage1c_runtime_regressions.py \
+            2>&1 | tee /tmp/pytest-v35.log
+          cd "$GITHUB_WORKSPACE"
+          export PYTHONPATH="$GITHUB_WORKSPACE/host/greenhouse-manager/src"
+          python "$TEST_PATH" 2>&1 | tee /tmp/standalone-v35.log
+          grep -q '^OK$' /tmp/standalone-v35.log
+          python -m py_compile "$TEST_PATH"
+          echo 'CURRENT_MAIN_RUFF=PASSED'
+          echo 'FOCUSED_PYTEST_33=PASSED'
+          echo 'STANDALONE_REGRESSION_14=PASSED'
+          echo 'PY_COMPILE=PASSED'
+
+      - name: Clean, commit, and fast-forward integration branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          find . -type d -name __pycache__ -prune -exec rm -rf {} +
+          find host/greenhouse-manager -type d -name '*.egg-info' -prune -exec rm -rf {} +
+          rm -rf .pytest_cache host/greenhouse-manager/.pytest_cache
+          test "$(git status --short | sed -E 's/^.. //')" = "$TEST_PATH"
+          printf '%s  %s\n' "$EXPECTED_AFTER_SHA256" "$TEST_PATH" | sha256sum -c -
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- "$TEST_PATH"
+          test "$(git diff --cached --name-only)" = "$TEST_PATH"
+          git commit -m 'test(h3): bind Stage 1C regression closures for current lint'
+          result_head="$(git rev-parse HEAD)"
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain)"
+          git push origin "HEAD:refs/heads/$TARGET_BRANCH"
+          echo "RESULT_HEAD=$result_head" | tee /tmp/result-v35.env
+          echo 'INTEGRATION_FAST_FORWARD=PASSED'
+
+      - name: Report success to draft PR
+        if: ${{ success() }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          result_head="$(cut -d= -f2 /tmp/result-v35.env)"
+          gh pr comment "$PR_NUMBER" --repo "$GH_REPO" --body "Stage 1C reviewed closure fix succeeded at \`$result_head\`: full current-main Ruff passed, 33 focused pytest cases passed, standalone 14-test regression passed, and Python compile passed. Only the new regression test file changed; runtime sources and M401A remain untouched."
+
+      - name: Report failure to draft PR
+        if: ${{ failure() }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh pr comment "$PR_NUMBER" --repo "$GH_REPO" --body "Stage 1C fast-fix v35 failed closed in workflow run \`${{ github.run_id }}\`. The integration branch was not intentionally advanced unless the push step completed. Review the run before retrying."
+
+      - name: Upload audit logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: h3-n2-stage1c-main-fastfix-v35-audit
+          path: |
+            /tmp/ruff-v35.log
+            /tmp/pytest-v35.log
+            /tmp/standalone-v35.log
+            /tmp/result-v35.env
+          if-no-files-found: ignore
+          retention-days: 30
