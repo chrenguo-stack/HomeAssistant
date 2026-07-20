@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "greenhouse-manager"
-version = "0.4.95"
+version = "0.4.94"
 description = "Canonical MQTT state manager for the greenhouse monitoring system"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -45,7 +45,7 @@ greenhouse-manager-node-mqtt-board-lab = "greenhouse_manager.node_mqtt_board_lab
 greenhouse-manager-node-mqtt-board-lab-native = "greenhouse_manager.node_mqtt_board_lab_native:main"
 greenhouse-manager-node-mqtt-private-mosquitto = "greenhouse_manager.node_mqtt_private_mosquitto:main"
 greenhouse-manager-t1-manager-identity-migration-preparation = "greenhouse_manager.t1_manager_identity_migration_preparation:main"
-greenhouse-manager-t1-manager-identity-fresh-chain-preparation = "greenhouse_manager.t1_manager_identity_fresh_chain_preparation:main"
+greenhouse-manager-t1-manager-identity-fresh-chain-preparation = "greenhouse_manager.t1_manager_identity_migration_fresh_chain_preparation:main"
 greenhouse-manager-t1-manager-identity-migration-authorization = "greenhouse_manager.t1_manager_identity_migration_authorization:main"
 greenhouse-manager-t1-manager-identity-host-replica-plan = "greenhouse_manager.t1_manager_identity_migration_host_replica_adapters:main"
 greenhouse-manager-t1-manager-identity-production-transaction-adapter-contract = "greenhouse_manager.t1_manager_identity_migration_production_transaction_adapter_contract:main"
