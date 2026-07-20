@@ -29,7 +29,7 @@ NOW = datetime(2026, 7, 20, 10, 0, tzinfo=UTC)
 SESSION_ID = "96329311-1c64-4c88-9343-04f5de69698e"
 PAIRING_ID = "416ccfd2-5a5b-46e0-84d1-44c4067dbde0"
 HARDWARE_ID = "ghw-c6-98a316a9f2f8"
-LOCAL_IP = "192.168.1.50"
+LOCAL_IP = "127.0.0.2"
 
 
 def b64(value: bytes) -> str:
@@ -277,7 +277,7 @@ def test_offer_claim_is_bound_to_first_client_ip() -> None:
         app,
         method="POST",
         path="/v1/pairing/claim",
-        client_ip="192.168.1.51",
+        client_ip="127.0.0.3",
         document={
             "schema": "gh.pair.claim/1",
             "hardware_id": HARDWARE_ID,
@@ -346,7 +346,7 @@ def test_session_route_is_hidden_from_other_client() -> None:
         app,
         method="GET",
         path=f"/v1/pairing/sessions/{SESSION_ID}/status",
-        client_ip="192.168.1.51",
+        client_ip="127.0.0.3",
         document=None,
     )
     assert status == 404
@@ -381,7 +381,7 @@ def test_endpoint_rejects_public_sources_and_non_json() -> None:
         app,
         method="POST",
         path="/v1/pairing/claim",
-        client_ip="8.8.8.8",
+        client_ip="203.0.113.10",
         document={"schema": "gh.pair.claim/1"},
     )
     assert status == 400
@@ -423,7 +423,7 @@ def test_endpoint_enforces_request_size_and_rate_limit() -> None:
     assert first.status == 200
     assert second.status == 429
 
-    other_ip = "192.168.1.51"
+    other_ip = "127.0.0.3"
     oversized = app.handle(
         method="POST",
         path="/v1/pairing/claim",
