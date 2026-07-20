@@ -35,6 +35,7 @@
 规则：
 
 - `manager_id` 表示本机 Manager 实例；
+- `host` 只能是局域网地址或以 `.local` 结尾的 mDNS 名称；
 - `system_id` 表示温室系统身份；
 - `priority` 只用于稳定展示排序，不能用于多 Manager 自动选择；
 - 同一 `manager_id` 的新观测覆盖旧观测；

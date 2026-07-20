@@ -72,7 +72,11 @@ def _valid_host(value: str) -> bool:
         )
     except ValueError:
         labels = candidate.split(".")
-        return bool(labels) and all(_DNS_LABEL.fullmatch(label) for label in labels)
+        return (
+            candidate.endswith(".local")
+            and len(labels) >= 2
+            and all(_DNS_LABEL.fullmatch(label) for label in labels)
+        )
 
 
 @dataclass(frozen=True, slots=True)

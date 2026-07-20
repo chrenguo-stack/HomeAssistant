@@ -208,6 +208,22 @@ def test_candidate_rejects_public_address_and_unsafe_path() -> None:
         )
 
 
+def test_candidate_rejects_non_local_dns_hostname() -> None:
+    with pytest.raises(ValueError, match="valid hostname or address"):
+        ManagerCandidate(
+            schema="gh.manager.candidate/1",
+            manager_id="manager-a",
+            system_id="greenhouse-a",
+            host="manager.example",
+            scheme="http",
+            port=8443,
+            pairing_path="/v1/pairing",
+            protocol=SECURE_PAIRING_PROTOCOL,
+            priority=10,
+            ttl_s=30,
+        )
+
+
 def test_mdns_definition_contains_only_public_discovery_metadata() -> None:
     definition = build_mdns_service_definition(
         candidate(),
