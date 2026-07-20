@@ -20,6 +20,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
+      PYTHONDONTWRITEBYTECODE: '1'
       TARGET_BRANCH: integration/h3-n2-stage1c-main-port-20260720-v28
       TARGET_BASE: 81f8820110c5905b98d3919dbbc0130918b0eece
       MERGE_BASE: 1cb243f2ec9942bafd04b76dcee4ea05b7ec99d5
@@ -126,7 +127,7 @@ jobs:
         run: |
           set -euo pipefail
           export PYTHONPATH="$GITHUB_WORKSPACE/host/greenhouse-manager/src"
-          python "$STAGE1C_TEST_PATH" | tee /tmp/stage1c-standalone-v29.log
+          python "$STAGE1C_TEST_PATH" 2>&1 | tee /tmp/stage1c-standalone-v29.log
           grep -q '^OK$' /tmp/stage1c-standalone-v29.log
           echo "STAGE1C_STANDALONE_REGRESSION=PASSED"
 
@@ -135,10 +136,10 @@ jobs:
         run: |
           set -euo pipefail
           cd host/greenhouse-manager
-          python -m pytest -q | tee /tmp/greenhouse-manager-pytest-v29.log
+          python -m pytest -q 2>&1 | tee /tmp/greenhouse-manager-pytest-v29.log
           echo "GREENHOUSE_MANAGER_FULL_PYTEST=PASSED"
 
-      - name: Run focused lint and compile validation
+      - name: Run focused lint, compile, and workspace cleanup
         shell: bash
         run: |
           set -euo pipefail
@@ -153,8 +154,23 @@ jobs:
             "$DYNSEC_TEST_PATH" \
             "$STAGE1C_TEST_PATH"
           git diff --check
+
+          find . -type d -name __pycache__ -prune -exec rm -rf {} +
+          find host/greenhouse-manager -type d -name '*.egg-info' -prune -exec rm -rf {} +
+          rm -rf .pytest_cache host/greenhouse-manager/.pytest_cache
+
+          mapfile -t changed_paths < <(git status --short | sed -E 's/^.. //')
+          mapfile -t expected_paths < <(printf '%s\n' \
+            "$DYNSEC_PATH" \
+            "$DYNSEC_TEST_PATH" \
+            "$STAGE1C_TEST_PATH" \
+            "$VERIFY_PATH" | sort)
+          mapfile -t actual_paths < <(printf '%s\n' "${changed_paths[@]}" | sort)
+          test "$(printf '%s\n' "${expected_paths[@]}")" = "$(printf '%s\n' "${actual_paths[@]}")"
+
           echo "FOCUSED_RUFF=PASSED"
           echo "FOCUSED_PY_COMPILE=PASSED"
+          echo "GENERATED_ARTIFACT_CLEANUP=PASSED"
 
       - name: Commit validated semantic port to integration branch
         shell: bash
@@ -198,7 +214,6 @@ jobs:
           import hashlib
           import json
           import os
-          import subprocess
           import sys
           from pathlib import Path
 
@@ -230,6 +245,7 @@ jobs:
               'greenhouse_manager_full_pytest': 'passed',
               'focused_ruff': 'passed',
               'focused_py_compile': 'passed',
+              'generated_artifact_cleanup': 'passed',
               'main_modified': False,
               'accepted_candidate_modified': False,
               'm401a_modified': False,
@@ -251,6 +267,7 @@ jobs:
             echo 'GREENHOUSE_MANAGER_FULL_PYTEST=PASSED'
             echo 'FOCUSED_RUFF=PASSED'
             echo 'FOCUSED_PY_COMPILE=PASSED'
+            echo 'GENERATED_ARTIFACT_CLEANUP=PASSED'
             echo 'MAIN_MODIFIED=false'
             echo 'ACCEPTED_CANDIDATE_MODIFIED=false'
             echo 'M401A_MODIFIED=false'
