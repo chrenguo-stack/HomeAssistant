@@ -1,0 +1,270 @@
+name: H3 N2 Stage1C Main Semantic Port v29
+
+on:
+  push:
+    branches:
+      - ci/h3-n2-stage1c-main-port-20260720-v29
+    paths:
+      - .github/workflows/h3-n2-stage1c-main-port-v29.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: h3-n2-stage1c-main-port-20260720-v29
+  cancel-in-progress: false
+
+jobs:
+  semantic-port-and-validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      TARGET_BRANCH: integration/h3-n2-stage1c-main-port-20260720-v28
+      TARGET_BASE: 81f8820110c5905b98d3919dbbc0130918b0eece
+      MERGE_BASE: 1cb243f2ec9942bafd04b76dcee4ea05b7ec99d5
+      ACCEPTED_BRANCH: fix/h3-n2-stage1b-runtime-findings-20260720-v21
+      ACCEPTED_COMMIT: 26e53e4266ef2a4a073aa5e95f470be9ca3e03d9
+      ACCEPTED_PARENT: 55dfbbeaf48b270b584d40e3cd7b24c87f10edda
+      ACCEPTED_TREE: 7e483d9936a5fb394e68fb5c4045de50cfedb779
+      DYNSEC_PATH: host/greenhouse-manager/src/greenhouse_manager/dynsec_api.py
+      VERIFY_PATH: infra/compose/m2-dynsec/verify.py
+      DYNSEC_TEST_PATH: host/greenhouse-manager/tests/test_dynsec_api.py
+      STAGE1C_TEST_PATH: host/greenhouse-manager/tests/test_stage1c_runtime_regressions.py
+      EXPECTED_BASE_DYNSEC_SHA256: 639f6682169663599a7dbbb101d57ab05c2ca687d5f65bff48a1febc5ffb0fff
+      EXPECTED_BASE_VERIFY_SHA256: 8d79d44cf78db7ca382f0b0f04ad4eca058ff986518c7a828ada6e2837976dab
+      EXPECTED_BASE_DYNSEC_TEST_SHA256: 60c84fc8a98b4316f3546a24a7437b07af88fce7e5878b9ec756c31f312f7813
+      EXPECTED_FORMAL_DYNSEC_SHA256: ccda867bdad59f651aa0fc29e62eae74ab887665d4e68cd15ba5711728ba13da
+      EXPECTED_FORMAL_VERIFY_SHA256: 41937749a0b829d2a7a34f7ce10f823f943e3ee8b019dc9a92b2d569aadbea07
+      EXPECTED_FORMAL_DYNSEC_TEST_SHA256: 7a3ca8beaea0742e22968c4cb8e14eaeea2f18cd8e98eba32deb2ff555b4f2d1
+      EXPECTED_FORMAL_STAGE1C_TEST_SHA256: a9a68460d42f54060d3a6f1a19167bff5f529963abdd4df744af3935776ca81e
+
+    steps:
+      - name: Checkout current-main integration target
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_BRANCH }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: host/greenhouse-manager/pyproject.toml
+
+      - name: Verify target, accepted candidate, and Relay isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test "$(git rev-parse HEAD)" = "$TARGET_BASE"
+          test "$(git branch --show-current)" = "$TARGET_BRANCH"
+
+          git fetch --no-tags origin \
+            "+refs/heads/$ACCEPTED_BRANCH:refs/remotes/origin/$ACCEPTED_BRANCH"
+
+          test "$(git rev-parse refs/remotes/origin/$ACCEPTED_BRANCH)" = "$ACCEPTED_COMMIT"
+          test "$(git rev-parse "$ACCEPTED_COMMIT^")" = "$ACCEPTED_PARENT"
+          test "$(git rev-parse "$ACCEPTED_COMMIT^{tree}")" = "$ACCEPTED_TREE"
+
+          mapfile -t relay_paths < <(git diff --name-only "$MERGE_BASE" "$TARGET_BASE")
+          test "${#relay_paths[@]}" -eq 1
+          test "${relay_paths[0]}" = ".github/workflows/m401a-mosquitto-relay.yml"
+
+          printf '%s  %s\n' "$EXPECTED_BASE_DYNSEC_SHA256" "$DYNSEC_PATH" | sha256sum -c -
+          printf '%s  %s\n' "$EXPECTED_BASE_VERIFY_SHA256" "$VERIFY_PATH" | sha256sum -c -
+          printf '%s  %s\n' "$EXPECTED_BASE_DYNSEC_TEST_SHA256" "$DYNSEC_TEST_PATH" | sha256sum -c -
+          test ! -e "$STAGE1C_TEST_PATH"
+
+          echo "TARGET_BASE_IDENTITY=PASSED"
+          echo "ACCEPTED_CANDIDATE_IDENTITY=PASSED"
+          echo "RELAY_CROSS_IMPACT=AUDITED_NO_OVERLAP"
+
+      - name: Semantically port the four accepted Stage1C files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for path in \
+            "$DYNSEC_PATH" \
+            "$VERIFY_PATH" \
+            "$DYNSEC_TEST_PATH" \
+            "$STAGE1C_TEST_PATH"
+          do
+            mkdir -p "$(dirname "$path")"
+            git show "$ACCEPTED_COMMIT:$path" > "$path"
+          done
+
+          printf '%s  %s\n' "$EXPECTED_FORMAL_DYNSEC_SHA256" "$DYNSEC_PATH" | sha256sum -c -
+          printf '%s  %s\n' "$EXPECTED_FORMAL_VERIFY_SHA256" "$VERIFY_PATH" | sha256sum -c -
+          printf '%s  %s\n' "$EXPECTED_FORMAL_DYNSEC_TEST_SHA256" "$DYNSEC_TEST_PATH" | sha256sum -c -
+          printf '%s  %s\n' "$EXPECTED_FORMAL_STAGE1C_TEST_SHA256" "$STAGE1C_TEST_PATH" | sha256sum -c -
+
+          mapfile -t changed_paths < <(git status --short | sed -E 's/^.. //')
+          mapfile -t expected_paths < <(printf '%s\n' \
+            "$DYNSEC_PATH" \
+            "$DYNSEC_TEST_PATH" \
+            "$STAGE1C_TEST_PATH" \
+            "$VERIFY_PATH" | sort)
+          mapfile -t actual_paths < <(printf '%s\n' "${changed_paths[@]}" | sort)
+          test "$(printf '%s\n' "${expected_paths[@]}")" = "$(printf '%s\n' "${actual_paths[@]}")"
+
+          git diff --check
+          echo "SEMANTIC_PORT_FILE_SET=PASSED"
+
+      - name: Install manager development dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -e 'host/greenhouse-manager[dev]'
+
+      - name: Run Stage1C standalone regression suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PYTHONPATH="$GITHUB_WORKSPACE/host/greenhouse-manager/src"
+          python "$STAGE1C_TEST_PATH" | tee /tmp/stage1c-standalone-v29.log
+          grep -q '^OK$' /tmp/stage1c-standalone-v29.log
+          echo "STAGE1C_STANDALONE_REGRESSION=PASSED"
+
+      - name: Run full greenhouse-manager pytest matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd host/greenhouse-manager
+          python -m pytest -q | tee /tmp/greenhouse-manager-pytest-v29.log
+          echo "GREENHOUSE_MANAGER_FULL_PYTEST=PASSED"
+
+      - name: Run focused lint and compile validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m ruff check \
+            "$DYNSEC_PATH" \
+            "$VERIFY_PATH" \
+            "$DYNSEC_TEST_PATH" \
+            "$STAGE1C_TEST_PATH"
+          python -m py_compile \
+            "$DYNSEC_PATH" \
+            "$VERIFY_PATH" \
+            "$DYNSEC_TEST_PATH" \
+            "$STAGE1C_TEST_PATH"
+          git diff --check
+          echo "FOCUSED_RUFF=PASSED"
+          echo "FOCUSED_PY_COMPILE=PASSED"
+
+      - name: Commit validated semantic port to integration branch
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- \
+            "$DYNSEC_PATH" \
+            "$VERIFY_PATH" \
+            "$DYNSEC_TEST_PATH" \
+            "$STAGE1C_TEST_PATH"
+
+          mapfile -t staged_paths < <(git diff --cached --name-only | sort)
+          mapfile -t expected_paths < <(printf '%s\n' \
+            "$DYNSEC_PATH" \
+            "$DYNSEC_TEST_PATH" \
+            "$STAGE1C_TEST_PATH" \
+            "$VERIFY_PATH" | sort)
+          test "$(printf '%s\n' "${expected_paths[@]}")" = "$(printf '%s\n' "${staged_paths[@]}")"
+
+          git commit -m 'fix(h3): port accepted Stage 1C runtime hardening onto main'
+          integration_commit="$(git rev-parse HEAD)"
+          test "$(git rev-parse HEAD^)" = "$TARGET_BASE"
+          test -z "$(git status --porcelain)"
+
+          git push origin "HEAD:refs/heads/$TARGET_BRANCH"
+          echo "INTEGRATION_COMMIT=$integration_commit" | tee /tmp/integration-commit-v29.env
+          echo "INTEGRATION_PARENT=$TARGET_BASE" >> /tmp/integration-commit-v29.env
+          echo "INTEGRATION_BRANCH=$TARGET_BRANCH" >> /tmp/integration-commit-v29.env
+          echo "INTEGRATION_PUSH=PASSED"
+
+      - name: Build integration audit bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          integration_commit="$(cut -d= -f2 /tmp/integration-commit-v29.env | head -n1)"
+
+          python - "$integration_commit" <<'PY'
+          import hashlib
+          import json
+          import os
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          integration_commit = sys.argv[1]
+          paths = {
+              os.environ['DYNSEC_PATH']: os.environ['EXPECTED_FORMAL_DYNSEC_SHA256'],
+              os.environ['VERIFY_PATH']: os.environ['EXPECTED_FORMAL_VERIFY_SHA256'],
+              os.environ['DYNSEC_TEST_PATH']: os.environ['EXPECTED_FORMAL_DYNSEC_TEST_SHA256'],
+              os.environ['STAGE1C_TEST_PATH']: os.environ['EXPECTED_FORMAL_STAGE1C_TEST_SHA256'],
+          }
+          actual = {
+              path: hashlib.sha256(Path(path).read_bytes()).hexdigest()
+              for path in paths
+          }
+          if actual != paths:
+              raise SystemExit('formal source identities changed before audit packaging')
+
+          document = {
+              'schema': 'gh.h3-n2.stage1c.main-semantic-port/1',
+              'target_branch': os.environ['TARGET_BRANCH'],
+              'target_base': os.environ['TARGET_BASE'],
+              'integration_commit': integration_commit,
+              'accepted_commit': os.environ['ACCEPTED_COMMIT'],
+              'accepted_parent': os.environ['ACCEPTED_PARENT'],
+              'accepted_tree': os.environ['ACCEPTED_TREE'],
+              'formal_files': actual,
+              'relay_cross_impact': 'audited_no_overlap',
+              'stage1c_standalone_regression': 'passed',
+              'greenhouse_manager_full_pytest': 'passed',
+              'focused_ruff': 'passed',
+              'focused_py_compile': 'passed',
+              'main_modified': False,
+              'accepted_candidate_modified': False,
+              'm401a_modified': False,
+              'ready_for_pull_request_review': True,
+          }
+          Path('/tmp/h3-n2-stage1c-main-port-v29-manifest.json').write_text(
+              json.dumps(document, indent=2, sort_keys=True) + '\n',
+              encoding='utf-8',
+          )
+          PY
+
+          {
+            cat /tmp/integration-commit-v29.env
+            echo 'TARGET_BASE_IDENTITY=PASSED'
+            echo 'ACCEPTED_CANDIDATE_IDENTITY=PASSED'
+            echo 'RELAY_CROSS_IMPACT=AUDITED_NO_OVERLAP'
+            echo 'SEMANTIC_PORT_FILE_SET=PASSED'
+            echo 'STAGE1C_STANDALONE_REGRESSION=PASSED'
+            echo 'GREENHOUSE_MANAGER_FULL_PYTEST=PASSED'
+            echo 'FOCUSED_RUFF=PASSED'
+            echo 'FOCUSED_PY_COMPILE=PASSED'
+            echo 'MAIN_MODIFIED=false'
+            echo 'ACCEPTED_CANDIDATE_MODIFIED=false'
+            echo 'M401A_MODIFIED=false'
+            echo 'STATUS=H3_N2_STAGE1C_MAIN_SEMANTIC_PORT_V29_SUCCEEDED'
+          } > /tmp/h3-n2-stage1c-main-port-v29-validation.txt
+
+      - name: Upload integration audit artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: h3-n2-stage1c-main-port-v29-audit
+          path: |
+            /tmp/h3-n2-stage1c-main-port-v29-manifest.json
+            /tmp/h3-n2-stage1c-main-port-v29-validation.txt
+            /tmp/stage1c-standalone-v29.log
+            /tmp/greenhouse-manager-pytest-v29.log
+          if-no-files-found: error
+          retention-days: 30
