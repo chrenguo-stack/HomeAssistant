@@ -82,7 +82,7 @@ def test_discovery_query_roundtrip_is_strict() -> None:
 def test_udp_response_echoes_nonce_and_request_id_without_pair_secret() -> None:
     response_payload = build_udp_discovery_response(
         encode_json_datagram(query_document()),
-        source_ip="192.168.1.50",
+        source_ip="127.0.0.2",
         candidate=candidate(),
         rate_limiter=SlidingWindowRateLimiter(limit=2, window_s=60),
     )
@@ -102,7 +102,7 @@ def test_udp_discovery_rejects_public_source_and_protocol_mismatch() -> None:
     with pytest.raises(DiscoveryRejected, match="outside the local network"):
         build_udp_discovery_response(
             payload,
-            source_ip="8.8.8.8",
+            source_ip="203.0.113.10",
             candidate=candidate(),
             rate_limiter=limiter,
         )
@@ -112,7 +112,7 @@ def test_udp_discovery_rejects_public_source_and_protocol_mismatch() -> None:
     with pytest.raises(DiscoveryRejected, match="no supported pairing protocol"):
         build_udp_discovery_response(
             encode_json_datagram(invalid),
-            source_ip="10.0.0.5",
+            source_ip="127.0.0.5",
             candidate=candidate(),
             rate_limiter=limiter,
         )
@@ -123,14 +123,14 @@ def test_udp_discovery_enforces_rate_limit() -> None:
     payload = encode_json_datagram(query_document())
     build_udp_discovery_response(
         payload,
-        source_ip="192.168.1.50",
+        source_ip="127.0.0.2",
         candidate=candidate(),
         rate_limiter=limiter,
     )
     with pytest.raises(DiscoveryRateLimited):
         build_udp_discovery_response(
             payload,
-            source_ip="192.168.1.50",
+            source_ip="127.0.0.2",
             candidate=candidate(),
             rate_limiter=limiter,
         )
@@ -161,11 +161,11 @@ def test_mdns_definition_contains_only_public_discovery_metadata() -> None:
     definition = build_mdns_service_definition(
         candidate(),
         instance_name="greenhouse-manager-a",
-        addresses=["192.168.1.20"],
+        addresses=["127.0.0.1"],
     )
     assert definition.service_type == "_greenhouse._tcp.local."
     assert definition.name == "greenhouse-manager-a._greenhouse._tcp.local."
-    assert definition.addresses == (socket.inet_aton("192.168.1.20"),)
+    assert definition.addresses == (socket.inet_aton("127.0.0.1"),)
     assert definition.properties["manager_id"] == "manager-a"
     assert definition.properties["scheme"] == "http"
     assert "secret" not in json.dumps(definition.properties).lower()
@@ -196,7 +196,7 @@ def test_mdns_advertiser_registers_and_unregisters_once() -> None:
     definition = build_mdns_service_definition(
         candidate(),
         instance_name="greenhouse-manager-a",
-        addresses=["192.168.1.20"],
+        addresses=["127.0.0.1"],
     )
     fake = FakeZeroconf()
     advertiser = MdnsAdvertiser(
