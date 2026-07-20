@@ -1,5 +1,7 @@
 #pragma once
 
+#include <algorithm>
+#include <cinttypes>
 #include <cstddef>
 #include <cstdint>
 #include <string>
