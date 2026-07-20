@@ -1,0 +1,341 @@
+name: H3 N2 Stage1C Main Fast Fix v34
+
+on:
+  push:
+    branches:
+      - ci/h3-n2-stage1c-main-fastfix-20260720-v34
+    paths:
+      - .github/workflows/h3-n2-stage1c-main-fastfix-v34.yml
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: h3-n2-stage1c-main-fastfix-20260720-v34
+  cancel-in-progress: false
+
+jobs:
+  patch-lint-and-focused-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      TARGET_BRANCH: integration/h3-n2-stage1c-main-port-20260720-v28
+      EXPECTED_HEAD: 2757b248374412cc7c22ffb3da9c63ffd92a5ed1
+      TEST_PATH: host/greenhouse-manager/tests/test_stage1c_runtime_regressions.py
+      EXPECTED_BEFORE_SHA256: a9a68460d42f54060d3a6f1a19167bff5f529963abdd4df744af3935776ca81e
+      EXPECTED_AFTER_SHA256: be7346fbec0aae219e478e3e7d49fffb52e736ba3060be76a3068bee5eb1c435
+      PR_NUMBER: '152'
+
+    steps:
+      - name: Checkout integration branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_BRANCH }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: host/greenhouse-manager/pyproject.toml
+
+      - name: Verify exact input
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git branch --show-current)" = "$TARGET_BRANCH"
+          test -z "$(git status --porcelain)"
+          printf '%s  %s\n' "$EXPECTED_BEFORE_SHA256" "$TEST_PATH" | sha256sum -c -
+
+      - name: Apply reviewed closure-binding patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/stage1c-b023-v34.patch <<'PATCH'
+          --- a/host/greenhouse-manager/tests/test_stage1c_runtime_regressions.py
+          +++ b/host/greenhouse-manager/tests/test_stage1c_runtime_regressions.py
+          @@ -424,6 +424,44 @@
+                       ],
+                   )
+           
+          +        def make_publish_side_effect(
+          +            case_responses: list[dict[str, str]],
+          +            current_transport: PahoDynsecTransport,
+          +            current_client: Any,
+          +        ) -> Any:
+          +            def publish_side_effect(
+          +                *args: Any,
+          +                **kwargs: Any,
+          +            ) -> Any:
+          +                payload = json.loads(kwargs["payload"])
+          +                correlation = (
+          +                    payload["commands"][0]["correlationData"]
+          +                )
+          +                rendered = [
+          +                    {
+          +                        key: (
+          +                            correlation
+          +                            if value == "{correlation}"
+          +                            else value
+          +                        )
+          +                        for key, value in response.items()
+          +                    }
+          +                    for response in case_responses
+          +                ]
+          +                current_transport.on_message(
+          +                    current_client,
+          +                    None,
+          +                    Mock(
+          +                        topic=RESPONSE_TOPIC,
+          +                        payload=json.dumps(
+          +                            {"responses": rendered}
+          +                        ).encode(),
+          +                    ),
+          +                )
+          +                return Mock(rc=0)
+          +
+          +            return publish_side_effect
+          +
+                   for responses in cases:
+                       with self.subTest(responses=responses):
+                           client = Mock()
+          @@ -433,38 +471,11 @@
+                               timeout_s=0.01,
+                           )
+           
+          -                def publish_side_effect(
+          -                    *args: Any,
+          -                    **kwargs: Any,
+          -                ) -> Any:
+          -                    payload = json.loads(kwargs["payload"])
+          -                    correlation = (
+          -                        payload["commands"][0]["correlationData"]
+          -                    )
+          -                    rendered = [
+          -                        {
+          -                            key: (
+          -                                correlation
+          -                                if value == "{correlation}"
+          -                                else value
+          -                            )
+          -                            for key, value in response.items()
+          -                        }
+          -                        for response in responses
+          -                    ]
+          -                    transport.on_message(
+          -                        client,
+          -                        None,
+          -                        Mock(
+          -                            topic=RESPONSE_TOPIC,
+          -                            payload=json.dumps(
+          -                                {"responses": rendered}
+          -                            ).encode(),
+          -                        ),
+          -                    )
+          -                    return Mock(rc=0)
+          -
+          -                client.publish.side_effect = publish_side_effect
+          +                client.publish.side_effect = make_publish_side_effect(
+          +                    responses,
+          +                    transport,
+          +                    client,
+          +                )
+           
+                           with self.assertRaisesRegex(
+                               DynsecError,
+          @@ -609,64 +620,69 @@
+                   self.assertEqual(session.subscriptions, {})
+           
+               def test_suback_denial_and_timeout(self) -> None:
+          +        def build_client(
+          +            should_deny: bool,
+          +            current_session: Any,
+          +        ) -> Any:
+          +            class Client:
+          +                def subscribe(
+          +                    client_self,
+          +                    _topic: str,
+          +                    qos: int,
+          +                ) -> tuple[int, int]:
+          +                    mid = 51
+          +
+          +                    if should_deny:
+          +                        def deliver() -> None:
+          +                            time.sleep(0.001)
+          +                            current_session._on_subscribe(
+          +                                client_self,
+          +                                None,
+          +                                mid,
+          +                                [
+          +                                    FakeReasonCode(
+          +                                        failure=True,
+          +                                        label="Not authorized",
+          +                                    )
+          +                                ],
+          +                                None,
+          +                            )
+          +
+          +                        threading.Thread(
+          +                            target=deliver,
+          +                            daemon=True,
+          +                        ).start()
+          +                    return (0, mid)
+          +
+          +            return Client()
+          +
+          +        def make_short_wait(wait_impl: Any) -> Any:
+          +            def short_wait(
+          +                event_self: threading.Event,
+          +                timeout: float | None = None,
+          +            ) -> bool:
+          +                return wait_impl(event_self, 0.01)
+          +
+          +            return short_wait
+          +
+                   for denied in (True, False):
+                       with self.subTest(denied=denied):
+                           session = self.make_session()
+          -
+          -                class Client:
+          -                    def subscribe(
+          -                        client_self,
+          -                        _topic: str,
+          -                        qos: int,
+          -                    ) -> tuple[int, int]:
+          -                        mid = 51
+          -
+          -                        if denied:
+          -                            def deliver() -> None:
+          -                                time.sleep(0.001)
+          -                                session._on_subscribe(
+          -                                    client_self,
+          -                                    None,
+          -                                    mid,
+          -                                    [
+          -                                        FakeReasonCode(
+          -                                            failure=True,
+          -                                            label="Not authorized",
+          -                                        )
+          -                                    ],
+          -                                    None,
+          -                                )
+          -
+          -                            threading.Thread(
+          -                                target=deliver,
+          -                                daemon=True,
+          -                            ).start()
+          -                        return (0, mid)
+          -
+          -                session.client = Client()
+          +                session.client = build_client(denied, session)
+           
+                           if denied:
+                               self.assertFalse(session.subscribe("$CONTROL/#"))
+                           else:
+          -                    original_wait = threading.Event.wait
+          -
+          -                    def short_wait(
+          -                        event_self: threading.Event,
+          -                        timeout: float | None = None,
+          -                    ) -> bool:
+          -                        return original_wait(event_self, 0.01)
+          -
+                               session.subscriptions = {}
+                               with unittest.mock.patch.object(
+                                   threading.Event,
+                                   "wait",
+          -                        short_wait,
+          +                        make_short_wait(threading.Event.wait),
+          +                    ), self.assertRaisesRegex(
+          +                        AssertionError,
+          +                        "SUBACK timed out",
+                               ):
+          -                        with self.assertRaisesRegex(
+          -                            AssertionError,
+          -                            "SUBACK timed out",
+          -                        ):
+          -                            session.subscribe("gh/#")
+          +                        session.subscribe("gh/#")
+           
+               def test_puback_not_authorized_is_checked(self) -> None:
+                   session = self.make_session()
+          PATCH
+
+          sed -i 's/^          //' /tmp/stage1c-b023-v34.patch
+          git apply --check /tmp/stage1c-b023-v34.patch
+          git apply /tmp/stage1c-b023-v34.patch
+          printf '%s  %s\n' "$EXPECTED_AFTER_SHA256" "$TEST_PATH" | sha256sum -c -
+          test "$(git status --short | sed -E 's/^.. //')" = "$TEST_PATH"
+          git diff --check
+
+      - name: Install focused development dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -e 'host/greenhouse-manager[dev]'
+
+      - name: Run lint and focused regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd host/greenhouse-manager
+          python -m ruff check . 2>&1 | tee /tmp/ruff-v34.log
+          python -m pytest -q \
+            tests/test_dynsec_api.py \
+            tests/test_stage1c_runtime_regressions.py \
+            2>&1 | tee /tmp/pytest-v34.log
+          cd "$GITHUB_WORKSPACE"
+          export PYTHONPATH="$GITHUB_WORKSPACE/host/greenhouse-manager/src"
+          python "$TEST_PATH" 2>&1 | tee /tmp/standalone-v34.log
+          grep -q '^OK$' /tmp/standalone-v34.log
+          python -m py_compile "$TEST_PATH"
+
+      - name: Clean and commit one-file fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          find . -type d -name __pycache__ -prune -exec rm -rf {} +
+          find host/greenhouse-manager -type d -name '*.egg-info' -prune -exec rm -rf {} +
+          rm -rf .pytest_cache host/greenhouse-manager/.pytest_cache
+          test "$(git status --short | sed -E 's/^.. //')" = "$TEST_PATH"
+          printf '%s  %s\n' "$EXPECTED_AFTER_SHA256" "$TEST_PATH" | sha256sum -c -
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- "$TEST_PATH"
+          test "$(git diff --cached --name-only)" = "$TEST_PATH"
+          git commit -m 'test(h3): bind Stage 1C regression closures for current lint'
+          result_head="$(git rev-parse HEAD)"
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_HEAD"
+          git push origin "HEAD:refs/heads/$TARGET_BRANCH"
+          echo "RESULT_HEAD=$result_head" | tee /tmp/result-v34.env
+
+      - name: Comment on draft PR
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          result_head="$(cut -d= -f2 /tmp/result-v34.env)"
+          gh pr comment "$PR_NUMBER" --repo "$GH_REPO" --body "Stage 1C B023 closure fix pushed as \`$result_head\`. Full current-main Ruff, 33 focused tests, standalone 14-test regression, and Python compile all passed. Runtime source files and M401A were not modified."
+          echo 'STATUS=H3_N2_STAGE1C_MAIN_FASTFIX_V34_SUCCEEDED'
+
+      - name: Upload audit logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: h3-n2-stage1c-main-fastfix-v34-audit
+          path: |
+            /tmp/ruff-v34.log
+            /tmp/pytest-v34.log
+            /tmp/standalone-v34.log
+            /tmp/result-v34.env
+          if-no-files-found: error
+          retention-days: 30
