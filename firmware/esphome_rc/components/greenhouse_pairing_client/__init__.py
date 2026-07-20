@@ -4,6 +4,7 @@ import re
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome.const import CONF_ID
 
 CONF_HARDWARE_ID = "hardware_id"
 CONF_PAIRING_ID = "pairing_id"
