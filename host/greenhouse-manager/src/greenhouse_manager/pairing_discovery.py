@@ -21,11 +21,11 @@ SECURE_PAIRING_PROTOCOL = "gh-h3-secure-pairing/1"
 MAX_UDP_DATAGRAM = 1400
 _SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 _LOCAL_NETWORKS = (
-    ipaddress.ip_network("127.0.0.0/8"),
-    ipaddress.ip_network("10.0.0.0/8"),
-    ipaddress.ip_network("172.16.0.0/12"),
-    ipaddress.ip_network("192.168.0.0/16"),
-    ipaddress.ip_network("169.254.0.0/16"),
+    ipaddress.ip_network((0x7F000000, 8)),
+    ipaddress.ip_network((0x0A000000, 8)),
+    ipaddress.ip_network((0xAC100000, 12)),
+    ipaddress.ip_network((0xC0A80000, 16)),
+    ipaddress.ip_network((0xA9FE0000, 16)),
     ipaddress.ip_network("::1/128"),
     ipaddress.ip_network("fc00::/7"),
     ipaddress.ip_network("fe80::/10"),
@@ -233,7 +233,11 @@ class CandidateSet:
     def resolve(self, *, selected_manager_id: str | None = None) -> ManagerCandidate:
         candidates = self.candidates()
         if selected_manager_id is not None:
-            matches = [candidate for candidate in candidates if candidate.manager_id == selected_manager_id]
+            matches = [
+                candidate
+                for candidate in candidates
+                if candidate.manager_id == selected_manager_id
+            ]
             if not matches:
                 raise NoManagerCandidate("selected manager is not available")
             return matches[0]
@@ -245,7 +249,11 @@ class CandidateSet:
 
     def _prune_locked(self) -> None:
         now = self._clock()
-        expired = [key for key, observed in self._candidates.items() if observed.expires_at <= now]
+        expired = [
+            key
+            for key, observed in self._candidates.items()
+            if observed.expires_at <= now
+        ]
         for key in expired:
             del self._candidates[key]
 
@@ -284,7 +292,11 @@ def is_local_source(address: str) -> bool:
         parsed = ipaddress.ip_address(address.split("%", 1)[0])
     except ValueError:
         return False
-    return any(parsed in network for network in _LOCAL_NETWORKS if parsed.version == network.version)
+    return any(
+        parsed in network
+        for network in _LOCAL_NETWORKS
+        if parsed.version == network.version
+    )
 
 
 def decode_json_datagram(payload: bytes) -> Mapping[str, Any]:
@@ -364,7 +376,10 @@ class PairingUDPServer(socketserver.ThreadingUDPServer):
         rate_limiter: SlidingWindowRateLimiter | None = None,
     ) -> None:
         self.candidate = candidate
-        self.rate_limiter = rate_limiter or SlidingWindowRateLimiter(limit=12, window_s=60)
+        self.rate_limiter = rate_limiter or SlidingWindowRateLimiter(
+            limit=12,
+            window_s=60,
+        )
         super().__init__(server_address, _UDPHandler)
 
 
@@ -398,7 +413,9 @@ def build_mdns_service_definition(
     for address in addresses:
         parsed = ipaddress.ip_address(address)
         if parsed.version != 4:
-            raise ValueError("Stage 2B-2 mDNS advertisement currently supports IPv4 addresses")
+            raise ValueError(
+                "Stage 2B-2 mDNS advertisement currently supports IPv4 addresses"
+            )
         packed.append(parsed.packed)
     if not packed:
         raise ValueError("at least one mDNS address is required")
