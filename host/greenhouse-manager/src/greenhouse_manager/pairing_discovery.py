@@ -60,6 +60,7 @@ class ManagerCandidate:
     manager_id: str
     system_id: str
     host: str
+    scheme: str
     port: int
     pairing_path: str
     protocol: str
@@ -77,6 +78,8 @@ class ManagerCandidate:
                 raise ValueError(f"{field_name} is invalid")
         if not self.host or any(character.isspace() for character in self.host):
             raise ValueError("host must be a non-empty hostname or address")
+        if self.scheme not in {"http", "https"}:
+            raise ValueError("scheme must be http or https")
         if not 1 <= self.port <= 65535:
             raise ValueError("port must be between 1 and 65535")
         if not self.pairing_path.startswith("/") or "?" in self.pairing_path:
@@ -98,6 +101,7 @@ class ManagerCandidate:
             "manager_id",
             "system_id",
             "host",
+            "scheme",
             "port",
             "pairing_path",
             "protocol",
@@ -409,6 +413,7 @@ def build_mdns_service_definition(
             "schema": candidate.schema,
             "manager_id": candidate.manager_id,
             "system_id": candidate.system_id,
+            "scheme": candidate.scheme,
             "pairing_path": candidate.pairing_path,
             "protocol": candidate.protocol,
             "priority": str(candidate.priority),
