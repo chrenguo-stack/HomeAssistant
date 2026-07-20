@@ -146,6 +146,42 @@ jobs:
           if missing:
               raise SystemExit(f"pairing core compile markers missing: {missing}")
           PY
+      - name: Build redacted failure diagnostic
+        if: failure()
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          values_path = Path("/tmp/stage2c1-ephemeral-values")
+          values = values_path.read_text(encoding="utf-8").splitlines() if values_path.exists() else []
+          sections = []
+          for source in (
+              "/tmp/stage2c1-minimal-config.log",
+              "/tmp/stage2c1-minimal-compile.log",
+              "/tmp/stage2c1-product-config.log",
+              "/tmp/stage2c1-product-compile.log",
+          ):
+              path = Path(source)
+              if not path.exists():
+                  continue
+              text = path.read_text(encoding="utf-8", errors="replace")
+              for value in values:
+                  if value:
+                      text = text.replace(value, "<REDACTED_EPHEMERAL_VALUE>")
+              sections.append(f"===== {path.name} =====\n{text}")
+          Path("/tmp/stage2c1-redacted-failure.log").write_text(
+              "\n".join(sections) or "No compile log was created.\n",
+              encoding="utf-8",
+          )
+          PY
+      - name: Upload redacted failure diagnostic
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage2c1-redacted-failure-v46
+          path: /tmp/stage2c1-redacted-failure.log
+          if-no-files-found: error
+          retention-days: 7
       - name: Cleanup Stage 2C-1 files
         if: always()
         run: |
@@ -153,6 +189,7 @@ jobs:
             firmware/esphome_rc/board_lab/h3_node_pairing_core/secrets.yaml \
             firmware/esphome_rc/f1_0_rc2/secrets.yaml \
             /tmp/stage2c1-ephemeral-values \
+            /tmp/stage2c1-redacted-failure.log \
             /tmp/stage2c1-minimal-config.log \
             /tmp/stage2c1-minimal-compile.log \
             /tmp/stage2c1-product-config.log \
