@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import re
 import socket
@@ -33,6 +35,8 @@ from .pairing_secure_transport import (
     SecurePairingProofRejected,
     SecurePairingRollbackError,
     SecurePairingSnapshot,
+    decode_base64url_32,
+    encode_base64url,
 )
 
 MAX_REQUEST_BYTES = 16 * 1024
@@ -114,7 +118,33 @@ class PairingHTTPResponse:
 @dataclass(slots=True)
 class _RegisteredOffer:
     offer: SecurePairingOffer
+    claim_proof: bytearray
     claimed_by: str | None = None
+
+
+def build_claim_proof(
+    *,
+    pairing_secret: str,
+    hardware_id: str,
+    pairing_id: str,
+) -> str:
+    secret = decode_base64url_32(
+        pairing_secret,
+        field_name="pairing_secret",
+    )
+    try:
+        transcript = "\n".join(
+            (
+                "gh.pair.claim/1",
+                hardware_id,
+                pairing_id,
+            )
+        ).encode("ascii")
+    except UnicodeEncodeError as error:
+        raise ValueError("claim identifiers must be ASCII") from error
+    return encode_base64url(
+        hmac.new(secret, transcript, hashlib.sha256).digest()
+    )
 
 
 class PendingOfferRegistry:
@@ -136,13 +166,24 @@ class PendingOfferRegistry:
     ) -> SecurePairingOffer:
         """Called only by the trusted local UI after the user scans the node QR."""
 
+        claim_proof = decode_base64url_32(
+            build_claim_proof(
+                pairing_secret=pairing_secret,
+                hardware_id=hardware_id,
+                pairing_id=pairing_id,
+            ),
+            field_name="claim_proof",
+        )
         offer = self.coordinator.open_session(
             hardware_id,
             pairing_id,
             pairing_secret=pairing_secret,
             now=now,
         )
-        registered = _RegisteredOffer(offer=offer)
+        registered = _RegisteredOffer(
+            offer=offer,
+            claim_proof=bytearray(claim_proof),
+        )
         key = (hardware_id, pairing_id)
         with self._lock:
             if key in self._by_pairing or offer.session_id in self._by_session:
@@ -160,6 +201,7 @@ class PendingOfferRegistry:
         pairing_id: str,
         *,
         client_ip: str,
+        claim_proof: str,
         now: datetime | None = None,
     ) -> SecurePairingOffer:
         key = (hardware_id, pairing_id)
@@ -168,8 +210,24 @@ class PendingOfferRegistry:
                 registered = self._by_pairing[key]
             except KeyError as error:
                 raise PairingNotFound("pairing offer is unavailable") from error
-            snapshot = self.coordinator.status(registered.offer.session_id, now=now)
+            try:
+                supplied = decode_base64url_32(
+                    claim_proof,
+                    field_name="claim_proof",
+                )
+            except ValueError as error:
+                raise SecurePairingProofRejected("claim proof rejected") from error
+            if not hmac.compare_digest(
+                supplied,
+                bytes(registered.claim_proof),
+            ):
+                raise SecurePairingProofRejected("claim proof rejected")
+            snapshot = self.coordinator.status(
+                registered.offer.session_id,
+                now=now,
+            )
             if snapshot.state.value in {"failed", "expired", "consumed"}:
+                self.release_terminal(registered.offer.session_id)
                 raise PairingNotFound("pairing offer is unavailable")
             if registered.claimed_by is None:
                 registered.claimed_by = client_ip
@@ -196,6 +254,9 @@ class PendingOfferRegistry:
                 (registered.offer.hardware_id, registered.offer.pairing_id),
                 None,
             )
+            for index in range(len(registered.claim_proof)):
+                registered.claim_proof[index] = 0
+            registered.claim_proof.clear()
 
 
 class FixedWindowRateLimiter:
@@ -443,18 +504,23 @@ class PairingEndpointApp:
             document = _strict_json(body)
             _require_exact_fields(
                 document,
-                {"schema", "hardware_id", "pairing_id"},
+                {"schema", "hardware_id", "pairing_id", "claim_proof"},
             )
             if document["schema"] != "gh.pair.claim/1":
                 raise PairingRequestRejected("claim schema is invalid")
             hardware_id = document["hardware_id"]
             pairing_id = document["pairing_id"]
-            if not isinstance(hardware_id, str) or not isinstance(pairing_id, str):
-                raise PairingRequestRejected("claim identifiers are invalid")
+            claim_proof = document["claim_proof"]
+            if any(
+                not isinstance(value, str)
+                for value in (hardware_id, pairing_id, claim_proof)
+            ):
+                raise PairingRequestRejected("claim values are invalid")
             offer = self.registry.claim(
                 hardware_id,
                 pairing_id,
                 client_ip=client_ip,
+                claim_proof=claim_proof,
                 now=self.clock(),
             )
             return _json_response(
