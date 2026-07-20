@@ -1,6 +1,10 @@
 name: H3 N2 Stage2B2 Ruff Diagnostic v40
 
 on:
+  pull_request:
+    paths:
+      - "host/greenhouse-manager/**"
+      - ".github/workflows/h3-n2-stage2b2-ruff-diagnostic-v40.yml"
   push:
     branches:
       - feature/h3-n2-stage2b2-discovery-boundary-20260720-v39
