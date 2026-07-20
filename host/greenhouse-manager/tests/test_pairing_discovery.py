@@ -157,6 +157,57 @@ def test_candidate_set_never_auto_selects_multiple_managers() -> None:
         candidates.resolve()
 
 
+def test_conflicting_same_manager_id_requires_explicit_resolution() -> None:
+    candidates = CandidateSet()
+    first = candidate("manager-a", system_id="greenhouse-a")
+    second = ManagerCandidate(
+        schema=first.schema,
+        manager_id=first.manager_id,
+        system_id=first.system_id,
+        host="greenhouse-alt.local",
+        scheme=first.scheme,
+        port=first.port,
+        pairing_path=first.pairing_path,
+        protocol=first.protocol,
+        priority=first.priority,
+        ttl_s=first.ttl_s,
+    )
+    candidates.observe(first)
+    candidates.observe(second)
+
+    with pytest.raises(MultipleManagerCandidates):
+        candidates.resolve(selected_manager_id="manager-a")
+
+
+def test_candidate_rejects_public_address_and_unsafe_path() -> None:
+    with pytest.raises(ValueError, match="valid hostname or address"):
+        ManagerCandidate(
+            schema="gh.manager.candidate/1",
+            manager_id="manager-a",
+            system_id="greenhouse-a",
+            host="203.0.113.10",
+            scheme="http",
+            port=8443,
+            pairing_path="/v1/pairing",
+            protocol=SECURE_PAIRING_PROTOCOL,
+            priority=10,
+            ttl_s=30,
+        )
+    with pytest.raises(ValueError, match="safe absolute path"):
+        ManagerCandidate(
+            schema="gh.manager.candidate/1",
+            manager_id="manager-a",
+            system_id="greenhouse-a",
+            host="greenhouse.local",
+            scheme="http",
+            port=8443,
+            pairing_path="//other-host/path",
+            protocol=SECURE_PAIRING_PROTOCOL,
+            priority=10,
+            ttl_s=30,
+        )
+
+
 def test_mdns_definition_contains_only_public_discovery_metadata() -> None:
     definition = build_mdns_service_definition(
         candidate(),
