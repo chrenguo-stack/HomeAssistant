@@ -1,0 +1,274 @@
+name: H3 N2 Stage1C ARM64 Candidate v25
+
+on:
+  push:
+    branches:
+      - ci/h3-n2-stage1c-arm64-candidate-26e53e4266ef-v25
+    paths:
+      - .github/workflows/h3-n2-stage1c-arm64-candidate-v25.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: h3-n2-stage1c-arm64-candidate-26e53e4266ef-v25
+  cancel-in-progress: false
+
+jobs:
+  build-arm64-candidate:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    env:
+      CANDIDATE_COMMIT: 26e53e4266ef2a4a073aa5e95f470be9ca3e03d9
+      CANDIDATE_SHORT: 26e53e4266ef
+      CANDIDATE_PARENT: 55dfbbeaf48b270b584d40e3cd7b24c87f10edda
+      CANDIDATE_TREE: 7e483d9936a5fb394e68fb5c4045de50cfedb779
+      IMAGE_TAG: greenhouse-h3-n2-stage1c-tester:26e53e4266ef
+      ARTIFACT_NAME: h3-n2-stage1c-arm64-deployment-26e53e4266ef-v25
+
+    steps:
+      - name: Checkout immutable candidate
+        uses: actions/checkout@v4
+        with:
+          ref: 26e53e4266ef2a4a073aa5e95f470be9ca3e03d9
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Verify candidate identity and source hashes
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_COMMIT"
+          test "$(git rev-parse HEAD^)" = "$CANDIDATE_PARENT"
+          test "$(git rev-parse HEAD^{tree})" = "$CANDIDATE_TREE"
+
+          echo "ccda867bdad59f651aa0fc29e62eae74ab887665d4e68cd15ba5711728ba13da  host/greenhouse-manager/src/greenhouse_manager/dynsec_api.py" | sha256sum -c -
+          echo "41937749a0b829d2a7a34f7ce10f823f943e3ee8b019dc9a92b2d569aadbea07  infra/compose/m2-dynsec/verify.py" | sha256sum -c -
+          echo "7a3ca8beaea0742e22968c4cb8e14eaeea2f18cd8e98eba32deb2ff555b4f2d1  host/greenhouse-manager/tests/test_dynsec_api.py" | sha256sum -c -
+          echo "a9a68460d42f54060d3a6f1a19167bff5f529963abdd4df744af3935776ca81e  host/greenhouse-manager/tests/test_stage1c_runtime_regressions.py" | sha256sum -c -
+
+      - name: Run source regression tests
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m venv /tmp/stage1c-venv
+          /tmp/stage1c-venv/bin/python -m pip install --upgrade pip
+          /tmp/stage1c-venv/bin/python -m pip install -e 'host/greenhouse-manager[dev]'
+
+          PYTHONPATH=host/greenhouse-manager/src \
+            /tmp/stage1c-venv/bin/python \
+            host/greenhouse-manager/tests/test_stage1c_runtime_regressions.py \
+            2>&1 | tee /tmp/stage1c-stdlib-tests.log
+
+          grep -q '^Ran 14 tests ' /tmp/stage1c-stdlib-tests.log
+          grep -qx 'OK' /tmp/stage1c-stdlib-tests.log
+
+          (
+            cd host/greenhouse-manager
+            /tmp/stage1c-venv/bin/python -m pytest \
+              tests/test_dynsec_api.py \
+              tests/test_stage1c_runtime_regressions.py \
+              -q
+          ) 2>&1 | tee /tmp/stage1c-pytest.log
+
+      - name: Build native ARM64 tester image
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cat >/tmp/Dockerfile.stage1c-v25 <<'EOF'
+          FROM python:3.11-slim
+
+          ENV PYTHONDONTWRITEBYTECODE=1 \
+              PYTHONUNBUFFERED=1 \
+              PIP_NO_CACHE_DIR=1
+
+          ARG CANDIDATE_COMMIT
+          ARG CANDIDATE_PARENT
+          ARG CANDIDATE_TREE
+
+          LABEL org.opencontainers.image.title="Greenhouse H3/N2 Stage 1C tester" \
+                org.opencontainers.image.revision="${CANDIDATE_COMMIT}" \
+                gh.h3n2.stage1c.candidate="${CANDIDATE_COMMIT}" \
+                gh.h3n2.stage1c.parent="${CANDIDATE_PARENT}" \
+                gh.h3n2.stage1c.tree="${CANDIDATE_TREE}" \
+                gh.runtime_overlay_required="false" \
+                gh.built_on_m401a="false"
+
+          RUN groupadd --system greenhouse \
+              && useradd --system --gid greenhouse --create-home greenhouse
+
+          WORKDIR /app
+          COPY host/greenhouse-manager/pyproject.toml host/greenhouse-manager/README.md ./
+          COPY host/greenhouse-manager/src ./src
+          RUN python -m pip install --upgrade pip \
+              && python -m pip install .
+
+          RUN mkdir -p /opt/gh-verify
+          COPY infra/compose/m2-dynsec/verify.py /opt/gh-verify/verify.py
+          RUN chown -R greenhouse:greenhouse /opt/gh-verify /app
+
+          USER greenhouse
+          ENTRYPOINT ["python", "/opt/gh-verify/verify.py"]
+          EOF
+
+          docker build \
+            --pull \
+            --build-arg "CANDIDATE_COMMIT=$CANDIDATE_COMMIT" \
+            --build-arg "CANDIDATE_PARENT=$CANDIDATE_PARENT" \
+            --build-arg "CANDIDATE_TREE=$CANDIDATE_TREE" \
+            --tag "$IMAGE_TAG" \
+            --file /tmp/Dockerfile.stage1c-v25 \
+            .
+
+          test "$(docker image inspect --format '{{.Architecture}}' "$IMAGE_TAG")" = "arm64"
+          test "$(docker image inspect --format '{{.Os}}' "$IMAGE_TAG")" = "linux"
+          test "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$IMAGE_TAG")" = "$CANDIDATE_COMMIT"
+          test "$(docker image inspect --format '{{index .Config.Labels "gh.runtime_overlay_required"}}' "$IMAGE_TAG")" = "false"
+          test "$(docker image inspect --format '{{index .Config.Labels "gh.built_on_m401a"}}' "$IMAGE_TAG")" = "false"
+
+      - name: Verify image-contained source without mounts
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          docker run --rm \
+            --network none \
+            --read-only \
+            --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --entrypoint python \
+            "$IMAGE_TAG" \
+            -c 'import hashlib,inspect,greenhouse_manager.dynsec_api as d; print("DYNSEC="+hashlib.sha256(open(inspect.getfile(d),"rb").read()).hexdigest()); print("VERIFY="+hashlib.sha256(open("/opt/gh-verify/verify.py","rb").read()).hexdigest())' \
+            | tee /tmp/stage1c-image-identities.log
+
+          grep -qx 'DYNSEC=ccda867bdad59f651aa0fc29e62eae74ab887665d4e68cd15ba5711728ba13da' /tmp/stage1c-image-identities.log
+          grep -qx 'VERIFY=41937749a0b829d2a7a34f7ce10f823f943e3ee8b019dc9a92b2d569aadbea07' /tmp/stage1c-image-identities.log
+
+      - name: Package immutable deployment artifact
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          OUT="$RUNNER_TEMP/$ARTIFACT_NAME"
+          mkdir -p "$OUT"
+
+          SOURCE_ARCHIVE="$OUT/h3-n2-stage1c-ci-source-${CANDIDATE_SHORT}.tar.gz"
+          IMAGE_TAR="$OUT/h3-n2-stage1c-tester-image-${CANDIDATE_SHORT}.tar"
+          MANIFEST="$OUT/h3-n2-stage1c-ci-manifest-${CANDIDATE_SHORT}.json"
+          VALIDATION="$OUT/h3-n2-stage1c-ci-validation-${CANDIDATE_SHORT}.txt"
+          PACKAGE="$RUNNER_TEMP/${ARTIFACT_NAME}.tar.gz"
+
+          git archive \
+            --format=tar.gz \
+            --prefix="HomeAssistant-h3-n2-stage1c-${CANDIDATE_COMMIT}/" \
+            --output "$SOURCE_ARCHIVE" \
+            "$CANDIDATE_COMMIT"
+
+          docker save --output "$IMAGE_TAR" "$IMAGE_TAG"
+
+          SOURCE_SHA="$(sha256sum "$SOURCE_ARCHIVE" | awk '{print $1}')"
+          IMAGE_TAR_SHA="$(sha256sum "$IMAGE_TAR" | awk '{print $1}')"
+          IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$IMAGE_TAG")"
+          BASE_DIGEST="$(docker image inspect --format '{{index .RepoDigests 0}}' python:3.11-slim 2>/dev/null || true)"
+
+          printf '%s  %s\n' "$SOURCE_SHA" "$(basename "$SOURCE_ARCHIVE")" >"$SOURCE_ARCHIVE.sha256"
+          printf '%s  %s\n' "$IMAGE_TAR_SHA" "$(basename "$IMAGE_TAR")" >"$IMAGE_TAR.sha256"
+
+          cat >"$VALIDATION" <<EOF
+          SCHEMA=gh.h3-n2.stage1c.ci-validation/1
+          WORKFLOW_COMMIT=${GITHUB_SHA}
+          RUNNER_ARCH=${RUNNER_ARCH}
+          CANDIDATE_COMMIT=${CANDIDATE_COMMIT}
+          CANDIDATE_PARENT=${CANDIDATE_PARENT}
+          CANDIDATE_TREE=${CANDIDATE_TREE}
+          SOURCE_REGRESSION_STDLIB=PASSED
+          SOURCE_REGRESSION_PYTEST=PASSED
+          IMAGE_ARCHITECTURE=arm64
+          IMAGE_OS=linux
+          IMAGE_ID=${IMAGE_ID}
+          IMAGE_SOURCE_IDENTITIES=PASSED
+          IMAGE_BUILT_ON_M401A=false
+          RUNTIME_OVERLAY_REQUIRED=false
+          EOF
+
+          python3 - "$MANIFEST" "$SOURCE_SHA" "$IMAGE_TAR_SHA" "$IMAGE_ID" "$BASE_DIGEST" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          output, source_sha, image_tar_sha, image_id, base_digest = sys.argv[1:]
+          candidate = os.environ["CANDIDATE_COMMIT"]
+          short = os.environ["CANDIDATE_SHORT"]
+          document = {
+              "schema": "gh.h3-n2.stage1c.arm64-deployment/1",
+              "workflow": {
+                  "name": "H3 N2 Stage1C ARM64 Candidate v25",
+                  "commit": os.environ["GITHUB_SHA"],
+                  "run_id": os.environ["GITHUB_RUN_ID"],
+                  "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+                  "runner_arch": os.environ["RUNNER_ARCH"],
+                  "runner_os": os.environ["RUNNER_OS"],
+              },
+              "candidate": {
+                  "commit": candidate,
+                  "parent": os.environ["CANDIDATE_PARENT"],
+                  "tree": os.environ["CANDIDATE_TREE"],
+              },
+              "source_archive": {
+                  "filename": f"h3-n2-stage1c-ci-source-{short}.tar.gz",
+                  "sha256": source_sha,
+              },
+              "tester_image": {
+                  "tag": os.environ["IMAGE_TAG"],
+                  "id": image_id,
+                  "filename": f"h3-n2-stage1c-tester-image-{short}.tar",
+                  "sha256": image_tar_sha,
+                  "architecture": "arm64",
+                  "os": "linux",
+                  "base_digest": base_digest,
+                  "built_on_m401a": False,
+                  "runtime_overlay_required": False,
+                  "verify_runtime_mounts_required": False,
+              },
+              "formal_files": {
+                  "host/greenhouse-manager/src/greenhouse_manager/dynsec_api.py": "ccda867bdad59f651aa0fc29e62eae74ab887665d4e68cd15ba5711728ba13da",
+                  "infra/compose/m2-dynsec/verify.py": "41937749a0b829d2a7a34f7ce10f823f943e3ee8b019dc9a92b2d569aadbea07",
+                  "host/greenhouse-manager/tests/test_dynsec_api.py": "7a3ca8beaea0742e22968c4cb8e14eaeea2f18cd8e98eba32deb2ff555b4f2d1",
+                  "host/greenhouse-manager/tests/test_stage1c_runtime_regressions.py": "a9a68460d42f54060d3a6f1a19167bff5f529963abdd4df744af3935776ca81e",
+              },
+              "validation": {
+                  "stdlib_regression": "passed",
+                  "pytest": "passed",
+                  "image_source_identities": "passed",
+              },
+              "ready_for_m401a_no_overlay_validation": True,
+          }
+          Path(output).write_text(
+              json.dumps(document, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+          tar -C "$RUNNER_TEMP" -czf "$PACKAGE" "$ARTIFACT_NAME"
+          PACKAGE_SHA="$(sha256sum "$PACKAGE" | awk '{print $1}')"
+          printf '%s  %s\n' "$PACKAGE_SHA" "$(basename "$PACKAGE")" >"$PACKAGE.sha256"
+
+          mkdir -p "$GITHUB_WORKSPACE/artifact"
+          cp "$PACKAGE" "$PACKAGE.sha256" "$GITHUB_WORKSPACE/artifact/"
+
+          {
+            echo "candidate_commit=$CANDIDATE_COMMIT"
+            echo "source_archive_sha256=$SOURCE_SHA"
+            echo "image_tar_sha256=$IMAGE_TAR_SHA"
+            echo "image_id=$IMAGE_ID"
+            echo "deployment_package_sha256=$PACKAGE_SHA"
+          } >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Upload deployment artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: h3-n2-stage1c-arm64-deployment-26e53e4266ef-v25
+          path: artifact/*
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
