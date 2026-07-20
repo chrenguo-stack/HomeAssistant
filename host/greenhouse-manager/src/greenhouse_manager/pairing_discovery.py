@@ -20,6 +20,9 @@ DISCOVERY_RESPONSE_SCHEMA = "gh.discovery.response/1"
 SECURE_PAIRING_PROTOCOL = "gh-h3-secure-pairing/1"
 MAX_UDP_DATAGRAM = 1400
 _SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
+_PROTOCOL_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$")
+_DNS_LABEL = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$")
+_PAIRING_PATH = re.compile(r"^/[A-Za-z0-9._~!$&'()*+,;=:@%/-]{1,255}$")
 _LOCAL_NETWORKS = (
     ipaddress.ip_network((0x7F000000, 8)),
     ipaddress.ip_network((0x0A000000, 8)),
@@ -54,6 +57,24 @@ class MultipleManagerCandidates(DiscoveryError):
         self.candidates = tuple(candidates)
 
 
+def _valid_host(value: str) -> bool:
+    if not isinstance(value, str) or not value or any(
+        character.isspace() for character in value
+    ):
+        return False
+    candidate = value[:-1] if value.endswith(".") else value
+    try:
+        parsed = ipaddress.ip_address(candidate)
+        return any(
+            parsed in network
+            for network in _LOCAL_NETWORKS
+            if parsed.version == network.version
+        )
+    except ValueError:
+        labels = candidate.split(".")
+        return bool(labels) and all(_DNS_LABEL.fullmatch(label) for label in labels)
+
+
 @dataclass(frozen=True, slots=True)
 class ManagerCandidate:
     schema: str
@@ -76,14 +97,17 @@ class ManagerCandidate:
         ):
             if _SAFE_ID.fullmatch(value) is None:
                 raise ValueError(f"{field_name} is invalid")
-        if not self.host or any(character.isspace() for character in self.host):
-            raise ValueError("host must be a non-empty hostname or address")
+        if not _valid_host(self.host):
+            raise ValueError("host must be a valid hostname or address")
         if self.scheme not in {"http", "https"}:
             raise ValueError("scheme must be http or https")
         if not 1 <= self.port <= 65535:
             raise ValueError("port must be between 1 and 65535")
-        if not self.pairing_path.startswith("/") or "?" in self.pairing_path:
-            raise ValueError("pairing_path must be an absolute path")
+        if (
+            _PAIRING_PATH.fullmatch(self.pairing_path) is None
+            or self.pairing_path.startswith("//")
+        ):
+            raise ValueError("pairing_path must be a safe absolute path")
         if self.protocol != SECURE_PAIRING_PROTOCOL:
             raise ValueError("unsupported pairing protocol")
         if not 0 <= self.priority <= 65535:
@@ -127,6 +151,8 @@ class DiscoveryQuery:
     def __post_init__(self) -> None:
         if self.schema != DISCOVERY_QUERY_SCHEMA:
             raise ValueError("discovery query schema is invalid")
+        if not isinstance(self.request_id, str):
+            raise ValueError("request_id must be a UUID")
         try:
             uuid.UUID(self.request_id)
         except ValueError as error:
@@ -136,7 +162,7 @@ class DiscoveryQuery:
             raise ValueError("hardware_id is invalid")
         if not self.protocols or len(self.protocols) > 8:
             raise ValueError("protocols must contain between 1 and 8 values")
-        if any(_SAFE_ID.fullmatch(value) is None for value in self.protocols):
+        if any(_PROTOCOL_ID.fullmatch(value) is None for value in self.protocols):
             raise ValueError("protocol value is invalid")
 
     def to_document(self) -> dict[str, Any]:
@@ -207,7 +233,10 @@ class CandidateSet:
     def __init__(self, *, clock: Callable[[], float] = time.monotonic) -> None:
         self._clock = clock
         self._lock = threading.RLock()
-        self._candidates: dict[str, _ObservedCandidate] = {}
+        self._candidates: dict[
+            tuple[str, str, str, str, int],
+            _ObservedCandidate,
+        ] = {}
 
     def observe(self, candidate: ManagerCandidate, *, ttl_s: int | None = None) -> None:
         observed_ttl = ttl_s if ttl_s is not None else candidate.ttl_s
@@ -215,7 +244,14 @@ class CandidateSet:
             raise ValueError("observed ttl must be between 1 and 3600")
         with self._lock:
             self._prune_locked()
-            self._candidates[candidate.manager_id] = _ObservedCandidate(
+            key = (
+                candidate.manager_id,
+                candidate.system_id,
+                candidate.host,
+                candidate.scheme,
+                candidate.port,
+            )
+            self._candidates[key] = _ObservedCandidate(
                 candidate=candidate,
                 expires_at=self._clock() + observed_ttl,
             )
@@ -240,6 +276,8 @@ class CandidateSet:
             ]
             if not matches:
                 raise NoManagerCandidate("selected manager is not available")
+            if len(matches) > 1:
+                raise MultipleManagerCandidates(matches)
             return matches[0]
         if not candidates:
             raise NoManagerCandidate("no manager candidate is available")
@@ -364,9 +402,8 @@ class _UDPHandler(socketserver.BaseRequestHandler):
         transport.sendto(response, self.client_address)
 
 
-class PairingUDPServer(socketserver.ThreadingUDPServer):
+class PairingUDPServer(socketserver.UDPServer):
     allow_reuse_address = True
-    daemon_threads = True
 
     def __init__(
         self,
@@ -407,8 +444,8 @@ def build_mdns_service_definition(
     instance_name: str,
     addresses: Sequence[str],
 ) -> MdnsServiceDefinition:
-    if not instance_name or "." in instance_name:
-        raise ValueError("instance_name must be a single DNS label")
+    if _DNS_LABEL.fullmatch(instance_name) is None:
+        raise ValueError("instance_name must be a valid DNS label")
     packed: list[bytes] = []
     for address in addresses:
         parsed = ipaddress.ip_address(address)
@@ -416,6 +453,8 @@ def build_mdns_service_definition(
             raise ValueError(
                 "Stage 2B-2 mDNS advertisement currently supports IPv4 addresses"
             )
+        if not is_local_source(address):
+            raise ValueError("mDNS advertisement address must be local")
         packed.append(parsed.packed)
     if not packed:
         raise ValueError("at least one mDNS address is required")
@@ -449,7 +488,11 @@ class MdnsAdvertiser:
         zeroconf_factory: Callable[[], ZeroconfLike] | None = None,
         service_info_factory: Callable[..., Any] | None = None,
     ) -> None:
-        if zeroconf_factory is None or service_info_factory is None:
+        if (zeroconf_factory is None) != (service_info_factory is None):
+            raise ValueError(
+                "zeroconf_factory and service_info_factory must be provided together"
+            )
+        if zeroconf_factory is None and service_info_factory is None:
             try:
                 from zeroconf import ServiceInfo, Zeroconf
             except ImportError as error:
