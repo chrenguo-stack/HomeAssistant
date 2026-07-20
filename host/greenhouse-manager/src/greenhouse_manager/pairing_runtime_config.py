@@ -3,9 +3,9 @@ from __future__ import annotations
 import ipaddress
 import os
 import re
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Mapping
 
 FROZEN_PAIRING_HTTP_PORT = 47110
 FROZEN_PAIRING_UDP_PORT = 47111
