@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+import queue
+import secrets
 import threading
+import time
 from collections.abc import Callable, Sequence
-from contextlib import suppress
 from typing import Any, Protocol
 
 try:
@@ -26,6 +28,32 @@ IdentityCredentials = NodeCredentials | ServiceCredentials
 
 class DynsecError(RuntimeError):
     pass
+
+
+class DynsecRollbackError(DynsecError):
+    """Reports a primary failure plus one or more failed cleanup commands.
+
+    Error messages intentionally contain only operation and exception-class
+    metadata so broker responses and credentials are not echoed.
+    """
+
+    def __init__(
+        self,
+        operation: str,
+        rollback_failures: Sequence[tuple[str, BaseException]],
+    ) -> None:
+        self.operation = operation
+        self.rollback_failures = tuple(
+            (command, type(error).__name__)
+            for command, error in rollback_failures
+        )
+        failed_commands = ",".join(
+            command
+            for command, _error_type in self.rollback_failures
+        )
+        super().__init__(
+            f"{operation} failed and rollback failed: {failed_commands}"
+        )
 
 
 class DynsecTransport(Protocol):
@@ -181,11 +209,32 @@ class DynsecProvisioner:
             self.transport.execute((create_role_command(plan),))
             client_started = True
             self.transport.execute((create_client_command(plan, credentials),))
-        except Exception:
+        except Exception as provisioning_error:
+            rollback_failures: list[tuple[str, BaseException]] = []
+            rollback_commands: list[dict[str, Any]] = []
+
             if client_started:
-                self._best_effort(({"command": "deleteClient", "username": plan.username},))
+                rollback_commands.append(
+                    {"command": "deleteClient", "username": plan.username}
+                )
             if role_started:
-                self._best_effort(({"command": "deleteRole", "rolename": plan.role_name},))
+                rollback_commands.append(
+                    {"command": "deleteRole", "rolename": plan.role_name}
+                )
+
+            for command in rollback_commands:
+                try:
+                    self.transport.execute((command,))
+                except Exception as rollback_error:
+                    rollback_failures.append(
+                        (str(command["command"]), rollback_error)
+                    )
+
+            if rollback_failures:
+                raise DynsecRollbackError(
+                    "provisioning",
+                    rollback_failures,
+                ) from provisioning_error
             raise
 
     def deprovision(self, plan: IdentityPlan) -> None:
@@ -207,18 +256,15 @@ class DynsecProvisioner:
         self.transport.execute((replacement_command,))
         try:
             verify(replacement)
-        except Exception:
+        except Exception as verification_error:
             try:
                 self.transport.execute((rollback_command,))
             except Exception as rollback_error:
-                raise DynsecError(
-                    "credential rotation verification and rollback failed"
-                ) from rollback_error
+                raise DynsecRollbackError(
+                    "credential rotation verification",
+                    (("setClientPassword", rollback_error),),
+                ) from verification_error
             raise
-
-    def _best_effort(self, commands: Sequence[dict[str, Any]]) -> None:
-        with suppress(Exception):
-            self.transport.execute(commands)
 
 
 def _require_paho() -> Any:
@@ -237,32 +283,155 @@ class PahoDynsecTransport:
         self.client = client
         self.timeout_s = timeout_s
         self._lock = threading.Lock()
-        self._response_ready = threading.Event()
-        self._response: bytes | None = None
+        self._responses: queue.Queue[bytes] = queue.Queue()
+        self.ignored_response_count = 0
 
     def on_message(self, _client: Any, _userdata: Any, message: Any) -> None:
         if message.topic == RESPONSE_TOPIC:
-            self._response = bytes(message.payload)
-            self._response_ready.set()
+            self._responses.put(bytes(message.payload))
 
     def execute(self, commands: Sequence[dict[str, Any]]) -> tuple[dict[str, Any], ...]:
         if not commands:
             raise ValueError("at least one command is required")
+
         with self._lock:
-            self._response = None
-            self._response_ready.clear()
-            result, _mid = self.client.subscribe(RESPONSE_TOPIC, qos=1)
+            while True:
+                try:
+                    self._responses.get_nowait()
+                except queue.Empty:
+                    break
+
+            correlation_data = secrets.token_urlsafe(24)
+            correlated_commands: list[dict[str, Any]] = []
+
+            for command in commands:
+                if "correlationData" in command:
+                    raise ValueError(
+                        "caller supplied correlationData is not allowed"
+                    )
+
+                correlated_command = dict(command)
+                correlated_command["correlationData"] = correlation_data
+                correlated_commands.append(correlated_command)
+
+            expected_commands = tuple(
+                command["command"]
+                for command in correlated_commands
+            )
+
+            result, _mid = self.client.subscribe(
+                RESPONSE_TOPIC,
+                qos=1,
+            )
+
             if result != self._mqtt.MQTT_ERR_SUCCESS:
-                raise DynsecError(f"Dynamic Security response subscribe failed rc={result}")
+                raise DynsecError(
+                    "Dynamic Security response subscribe failed "
+                    f"rc={result}"
+                )
+
             payload = json.dumps(
-                {"commands": list(commands)}, separators=(",", ":"), ensure_ascii=False
+                {"commands": correlated_commands},
+                separators=(",", ":"),
+                ensure_ascii=False,
             ).encode("utf-8")
-            info = self.client.publish(CONTROL_TOPIC, payload=payload, qos=1, retain=False)
+
+            info = self.client.publish(
+                CONTROL_TOPIC,
+                payload=payload,
+                qos=1,
+                retain=False,
+            )
+
             if info.rc != self._mqtt.MQTT_ERR_SUCCESS:
-                raise DynsecError(f"Dynamic Security command publish failed rc={info.rc}")
-            if not self._response_ready.wait(self.timeout_s):
-                raise DynsecError("Dynamic Security response timed out")
-            return self._decode_response(self._response or b"")
+                raise DynsecError(
+                    "Dynamic Security command publish failed "
+                    f"rc={info.rc}"
+                )
+
+            deadline = time.monotonic() + self.timeout_s
+            ignored_this_call = 0
+
+            while True:
+                remaining = deadline - time.monotonic()
+
+                if remaining <= 0:
+                    raise DynsecError(
+                        "Dynamic Security correlated response timed out "
+                        f"ignored={ignored_this_call}"
+                    )
+
+                try:
+                    raw_response = self._responses.get(
+                        timeout=remaining,
+                    )
+                except queue.Empty as exc:
+                    raise DynsecError(
+                        "Dynamic Security correlated response timed out "
+                        f"ignored={ignored_this_call}"
+                    ) from exc
+
+                try:
+                    document = json.loads(
+                        raw_response.decode("utf-8")
+                    )
+                except (
+                    UnicodeDecodeError,
+                    json.JSONDecodeError,
+                ) as exc:
+                    raise DynsecError(
+                        "Dynamic Security returned invalid JSON"
+                    ) from exc
+
+                responses = (
+                    document.get("responses")
+                    if isinstance(document, dict)
+                    else None
+                )
+
+                if not isinstance(responses, list):
+                    raise DynsecError(
+                        "Dynamic Security response is missing responses"
+                    )
+
+                if not all(
+                    isinstance(response, dict)
+                    for response in responses
+                ):
+                    raise DynsecError(
+                        "Dynamic Security returned an invalid "
+                        "response entry"
+                    )
+
+                response_commands = tuple(
+                    response.get("command")
+                    for response in responses
+                )
+                response_correlations = tuple(
+                    response.get("correlationData")
+                    for response in responses
+                )
+
+                matched = (
+                    len(responses) == len(correlated_commands)
+                    and response_commands == expected_commands
+                    and all(
+                        value == correlation_data
+                        for value in response_correlations
+                    )
+                )
+
+                if not matched:
+                    ignored_this_call += 1
+                    self.ignored_response_count += 1
+                    print(
+                        "DYNSEC_UNCORRELATED_RESPONSE_IGNORED="
+                        f"{self.ignored_response_count}",
+                        flush=True,
+                    )
+                    continue
+
+                return self._decode_response(raw_response)
 
     @staticmethod
     def _decode_response(payload: bytes) -> tuple[dict[str, Any], ...]:

@@ -28,11 +28,27 @@ from greenhouse_manager.service_identity_plan import (
 BROKER = "broker"
 PORT = 1883
 
+_VERIFY_STAGE = "module-init"
+_CLEANUP_CONTEXT: VerificationCleanup | None = None
+
+
+def set_verify_stage(stage: str) -> None:
+    global _VERIFY_STAGE
+    _VERIFY_STAGE = stage
+    print(f"VERIFY_STAGE={stage}", flush=True)
+
 
 @dataclass
 class SubscriptionResult:
     event: threading.Event
     allowed: bool | None = None
+
+
+@dataclass
+class PublishResult:
+    event: threading.Event
+    allowed: bool | None = None
+    reason: str | None = None
 
 
 class Session:
@@ -47,6 +63,13 @@ class Session:
         self.connection_allowed: bool | None = None
         self.messages: queue.Queue[tuple[str, bytes]] = queue.Queue()
         self.subscriptions: dict[int, SubscriptionResult] = {}
+        self.subscription_lock = threading.Lock()
+        self.publishes: dict[int, PublishResult] = {}
+        self.publish_lock = threading.Lock()
+        self.disconnected = threading.Event()
+        self.disconnect_reason: str | None = None
+        self.unexpected_disconnect = False
+        self._closing = False
         self.message_hook: Any = None
         self.client = mqtt.Client(
             callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
@@ -58,6 +81,10 @@ class Session:
         self.client.on_connect = self._on_connect
         self.client.on_message = self._on_message
         self.client.on_subscribe = self._on_subscribe
+        self.client.on_publish = self._on_publish
+        self.client.on_disconnect = self._on_disconnect
+        if _CLEANUP_CONTEXT is not None:
+            _CLEANUP_CONTEXT.register_session(self)
 
     def _on_connect(
         self,
@@ -86,10 +113,44 @@ class Session:
         reason_codes: list[mqtt.ReasonCode],
         _properties: mqtt.Properties | None,
     ) -> None:
-        result = self.subscriptions.get(mid)
-        if result is not None:
-            result.allowed = bool(reason_codes) and all(not code.is_failure for code in reason_codes)
-            result.event.set()
+        with self.subscription_lock:
+            result = self.subscriptions.get(mid)
+            if result is not None:
+                result.allowed = bool(reason_codes) and all(
+                    not code.is_failure
+                    for code in reason_codes
+                )
+                result.event.set()
+
+    def _on_publish(
+        self,
+        _client: mqtt.Client,
+        _userdata: Any,
+        mid: int,
+        reason_code: mqtt.ReasonCode,
+        _properties: mqtt.Properties | None,
+    ) -> None:
+        with self.publish_lock:
+            result = self.publishes.get(mid)
+            if result is not None:
+                result.allowed = not reason_code.is_failure
+                result.reason = str(reason_code)
+                result.event.set()
+
+    def _on_disconnect(
+        self,
+        _client: mqtt.Client,
+        _userdata: Any,
+        _disconnect_flags: mqtt.DisconnectFlags,
+        reason_code: mqtt.ReasonCode,
+        _properties: mqtt.Properties | None,
+    ) -> None:
+        self.disconnect_reason = str(reason_code)
+        self.unexpected_disconnect = (
+            not self._closing
+            and bool(reason_code.is_failure)
+        )
+        self.disconnected.set()
 
     def start(self, *, expect_allowed: bool = True) -> None:
         self.client.connect(BROKER, PORT, keepalive=30)
@@ -99,20 +160,53 @@ class Session:
         assert self.connection_allowed is expect_allowed
 
     def subscribe(self, topic: str) -> bool:
-        result_code, mid = self.client.subscribe(topic, qos=1)
-        assert result_code == mqtt.MQTT_ERR_SUCCESS
-        result = SubscriptionResult(threading.Event())
-        self.subscriptions[mid] = result
+        with self.subscription_lock:
+            result_code, mid = self.client.subscribe(topic, qos=1)
+            assert result_code == mqtt.MQTT_ERR_SUCCESS
+            result = SubscriptionResult(threading.Event())
+            self.subscriptions[mid] = result
+
         if not result.event.wait(5):
             raise AssertionError(f"SUBACK timed out for {topic}")
+
+        with self.subscription_lock:
+            self.subscriptions.pop(mid, None)
         return bool(result.allowed)
 
-    def publish(self, topic: str, payload: bytes = b"test") -> None:
-        info = self.client.publish(topic, payload=payload, qos=1, retain=False)
-        try:
-            info.wait_for_publish(timeout=5)
-        except RuntimeError:
-            pass
+    def publish(
+        self,
+        topic: str,
+        payload: bytes = b"test",
+        *,
+        expect_allowed: bool = True,
+    ) -> bool:
+        with self.publish_lock:
+            info = self.client.publish(
+                topic,
+                payload=payload,
+                qos=1,
+                retain=False,
+            )
+            if info.rc != mqtt.MQTT_ERR_SUCCESS:
+                raise AssertionError(
+                    f"publish call failed for {topic}: rc={info.rc}"
+                )
+            result = PublishResult(threading.Event())
+            self.publishes[info.mid] = result
+
+        if not result.event.wait(5):
+            raise AssertionError(f"PUBACK timed out for {topic}")
+
+        with self.publish_lock:
+            self.publishes.pop(info.mid, None)
+
+        if result.allowed is not expect_allowed:
+            expected = "allowed" if expect_allowed else "denied"
+            raise AssertionError(
+                f"PUBACK result for {topic} was not {expected}: "
+                f"{result.reason}"
+            )
+        return bool(result.allowed)
 
     def wait_for(self, topic: str, *, timeout: float = 3.0) -> bool:
         deadline = time.monotonic() + timeout
@@ -133,8 +227,99 @@ class Session:
                 return
 
     def close(self) -> None:
-        self.client.disconnect()
-        self.client.loop_stop()
+        if self._closing:
+            return
+        self._closing = True
+        try:
+            self.client.disconnect()
+        finally:
+            self.client.loop_stop()
+            if _CLEANUP_CONTEXT is not None:
+                _CLEANUP_CONTEXT.unregister_session(self)
+
+
+class VerificationCleanup:
+    def __init__(self) -> None:
+        self.sessions: list[Session] = []
+        self.provisioned_plans: list[Any] = []
+        self.provisioner: DynsecProvisioner | None = None
+        self.admin_session: Session | None = None
+
+    def register_session(self, session: Session) -> None:
+        if session not in self.sessions:
+            self.sessions.append(session)
+
+    def unregister_session(self, session: Session) -> None:
+        if session in self.sessions:
+            self.sessions.remove(session)
+
+    def track_plan(self, plan: Any) -> None:
+        if plan not in self.provisioned_plans:
+            self.provisioned_plans.append(plan)
+
+    def deprovision_and_untrack(self, plan: Any) -> None:
+        if self.provisioner is None:
+            raise AssertionError("cleanup provisioner is unavailable")
+        self.provisioner.deprovision(plan)
+        if plan in self.provisioned_plans:
+            self.provisioned_plans.remove(plan)
+
+    def cleanup(self) -> None:
+        failures: list[str] = []
+
+        for session in tuple(reversed(self.sessions)):
+            if session is self.admin_session:
+                continue
+            try:
+                session.close()
+            except Exception as error:
+                failures.append(
+                    f"session:{type(error).__name__}"
+                )
+
+        if self.provisioner is not None:
+            for plan in tuple(reversed(self.provisioned_plans)):
+                try:
+                    self.provisioner.deprovision(plan)
+                    self.provisioned_plans.remove(plan)
+                except Exception as error:
+                    failures.append(
+                        "deprovision:"
+                        f"{getattr(plan, 'role_name', 'unknown')}:"
+                        f"{type(error).__name__}"
+                    )
+
+        if self.admin_session is not None:
+            try:
+                self.admin_session.close()
+            except Exception as error:
+                failures.append(
+                    f"admin-session:{type(error).__name__}"
+                )
+
+        if failures:
+            print(
+                "VERIFY_CLEANUP_FAILURES="
+                + ",".join(failures),
+                flush=True,
+            )
+        else:
+            print("VERIFY_CLEANUP=PASSED", flush=True)
+
+
+def require_cleanup_context() -> VerificationCleanup:
+    if _CLEANUP_CONTEXT is None:
+        raise AssertionError("verification cleanup context is unavailable")
+    return _CLEANUP_CONTEXT
+
+
+def provision_and_track(
+    provisioner: DynsecProvisioner,
+    plan: Any,
+    credentials: Any,
+) -> None:
+    provisioner.provision(plan, credentials)
+    require_cleanup_context().track_plan(plan)
 
 
 class FailAfterCreateClientTransport:
@@ -180,7 +365,7 @@ def assert_publish_allowed(observer: Session, publisher: Session, topic: str) ->
 
 def assert_publish_denied(observer: Session, publisher: Session, topic: str) -> None:
     observer.drain()
-    publisher.publish(topic)
+    publisher.publish(topic, expect_allowed=False)
     assert not observer.wait_for(topic, timeout=1.0), topic
 
 
@@ -217,13 +402,39 @@ def assert_control_publish_denied(
         },
         separators=(",", ":"),
     ).encode()
-    publisher.publish("$CONTROL/dynamic-security/v1", forbidden_command)
+    publisher.publish(
+        "$CONTROL/dynamic-security/v1",
+        forbidden_command,
+        expect_allowed=False,
+    )
     time.sleep(0.5)
     assert_dynsec_object_missing(
         transport,
         command="getClient",
         key="username",
         value=canary_username,
+    )
+
+
+LEGACY_POST_ROLLBACK_TOPIC = (
+    "gh/v1/greenhouse/state/legacy-node/rollback-probe"
+)
+
+
+def assert_legacy_post_rollback_delivery(
+    legacy: Session,
+    manager: Session,
+) -> None:
+    legacy.drain()
+    print(
+        "LEGACY_POST_ROLLBACK_PROBE_PUBLISHER=manager",
+        flush=True,
+    )
+    manager.publish(LEGACY_POST_ROLLBACK_TOPIC)
+    assert legacy.wait_for(LEGACY_POST_ROLLBACK_TOPIC)
+    print(
+        "LEGACY_POST_ROLLBACK_DELIVERY=PASSED",
+        flush=True,
     )
 
 
@@ -238,13 +449,16 @@ def build_service_plans() -> dict[str, ServiceIdentityPlan]:
     }
 
 
-def main() -> None:
+def _run_verification() -> None:
     admin_password = os.environ["GH_DYNSEC_ADMIN_PASSWORD"]
     admin = Session(client_id="gh-dynsec-test-admin", username="admin", password=admin_password)
     admin.start()
+    cleanup = require_cleanup_context()
+    cleanup.admin_session = admin
     transport = PahoDynsecTransport(admin.client)
     admin.message_hook = transport.on_message
     provisioner = DynsecProvisioner(transport)
+    cleanup.provisioner = provisioner
 
     node_plan = build_node_provisioning_plan(
         system_id="greenhouse", node_id="gh-n1-a9f2f8", generation=1
@@ -269,13 +483,27 @@ def main() -> None:
     assert service_plans["homeassistant"].client_id == "gh-homeassistant-greenhouse"
     assert node_plan.client_id == "gh-n1-a9f2f8"
 
+    set_verify_stage("apply-baseline-and-provision")
     provisioner.apply_baseline(node_plan)
     provisioner.apply_legacy_anonymous_shadow()
-    provisioner.provision(node_plan, node_credentials)
-    provisioner.provision(second_plan, second_credentials)
+    provision_and_track(
+        provisioner,
+        node_plan,
+        node_credentials,
+    )
+    provision_and_track(
+        provisioner,
+        second_plan,
+        second_credentials,
+    )
     for service, plan in service_plans.items():
-        provisioner.provision(plan, service_credentials[service])
+        provision_and_track(
+            provisioner,
+            plan,
+            service_credentials[service],
+        )
 
+    set_verify_stage("admin-and-legacy-acl")
     assert admin.subscribe("#")
 
     legacy = Session(client_id="gh-legacy-anonymous-test")
@@ -293,6 +521,7 @@ def main() -> None:
         canary_username="gh-dynsec-legacy-forbidden-canary",
     )
 
+    set_verify_stage("service-and-node-acl")
     node = session_for(node_credentials)
     second = session_for(second_credentials)
     provisioning = session_for(service_credentials["provisioning"])
@@ -375,6 +604,7 @@ def main() -> None:
     responses = provisioning_transport.execute(({"command": "listClients"},))
     assert responses and responses[0].get("command") == "listClients"
 
+    set_verify_stage("provisioning-rollback")
     rollback_plan = build_node_provisioning_plan(
         system_id="greenhouse", node_id="gh-rollback-probe", generation=1
     )
@@ -407,14 +637,15 @@ def main() -> None:
         key="rolename",
         value=rollback_plan.role_name,
     )
-    legacy_receive_topic = "gh/v1/greenhouse/out/node/legacy-node/rollback-probe"
-    legacy.drain()
-    admin.publish(legacy_receive_topic)
-    assert legacy.wait_for(legacy_receive_topic)
+    assert_legacy_post_rollback_delivery(
+        legacy,
+        manager,
+    )
 
     node.close()
     second.close()
 
+    set_verify_stage("password-rotation")
     replacement_plan = build_node_provisioning_plan(
         system_id="greenhouse", node_id="gh-n1-a9f2f8", generation=2
     )
@@ -470,15 +701,49 @@ def main() -> None:
     homeassistant.close()
     legacy.close()
 
+    set_verify_stage("final-deprovision")
     for plan in service_plans.values():
-        provisioner.deprovision(plan)
-    provisioner.deprovision(node_plan)
-    provisioner.deprovision(second_plan)
+        cleanup.deprovision_and_untrack(plan)
+    cleanup.deprovision_and_untrack(node_plan)
+    cleanup.deprovision_and_untrack(second_plan)
 
     revoked = session_for(replacement_credentials)
     revoked.start(expect_allowed=False)
     revoked.close()
     admin.close()
+    set_verify_stage("completed")
+
+
+def main() -> None:
+    global _CLEANUP_CONTEXT
+    cleanup = VerificationCleanup()
+    _CLEANUP_CONTEXT = cleanup
+    try:
+        set_verify_stage("starting")
+        _run_verification()
+    except Exception:
+        print(
+            f"VERIFY_FAILED_STAGE={_VERIFY_STAGE}",
+            flush=True,
+        )
+        active_states = [
+            (
+                f"connected={session.connection_allowed};"
+                f"unexpected_disconnect="
+                f"{session.unexpected_disconnect};"
+                f"disconnect_reason={session.disconnect_reason}"
+            )
+            for session in cleanup.sessions
+        ]
+        print(
+            "VERIFY_ACTIVE_SESSION_STATES="
+            + "|".join(active_states),
+            flush=True,
+        )
+        raise
+    finally:
+        cleanup.cleanup()
+        _CLEANUP_CONTEXT = None
 
 
 if __name__ == "__main__":

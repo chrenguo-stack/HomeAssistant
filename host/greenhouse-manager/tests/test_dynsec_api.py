@@ -11,6 +11,7 @@ from greenhouse_manager.dynsec_api import (
     RESPONSE_TOPIC,
     DynsecError,
     DynsecProvisioner,
+    DynsecRollbackError,
     PahoDynsecTransport,
     baseline_commands,
     create_client_command,
@@ -138,6 +139,40 @@ def test_rolls_back_client_and_role_after_client_failure() -> None:
     assert commands == ["createRole", "createClient", "deleteClient", "deleteRole"]
 
 
+
+def test_reports_provisioning_and_rollback_failure_without_secrets() -> None:
+    plan, credentials = plan_and_credentials()
+
+    class RollbackFailingTransport(RecordingTransport):
+        def execute(
+            self,
+            commands: tuple[dict[str, Any], ...],
+        ) -> tuple[dict[str, Any], ...]:
+            self.calls.append(commands)
+            command = commands[0]["command"]
+            if command == "createClient":
+                raise DynsecError("primary secret details")
+            if command == "deleteClient":
+                raise DynsecError("rollback client secret details")
+            return tuple(
+                {"command": item["command"]}
+                for item in commands
+            )
+
+    transport = RollbackFailingTransport()
+
+    with pytest.raises(DynsecRollbackError) as captured:
+        DynsecProvisioner(transport).provision(plan, credentials)
+
+    assert captured.value.operation == "provisioning"
+    assert captured.value.rollback_failures == (
+        ("deleteClient", "DynsecError"),
+    )
+    assert "primary secret details" not in str(captured.value)
+    assert "rollback client secret details" not in str(captured.value)
+    assert isinstance(captured.value.__cause__, DynsecError)
+
+
 def test_rotates_password_only_after_verification() -> None:
     plan, current = plan_and_credentials()
     replacement_plan = build_node_provisioning_plan(
@@ -188,11 +223,21 @@ def test_rotation_reports_rollback_failure_without_secret() -> None:
     def reject(_credentials: Any) -> None:
         raise RuntimeError("probe rejected")
 
-    with pytest.raises(DynsecError, match="verification and rollback failed") as captured:
-        DynsecProvisioner(transport).rotate_password(plan, current, replacement, reject)
+    with pytest.raises(DynsecRollbackError) as captured:
+        DynsecProvisioner(transport).rotate_password(
+            plan,
+            current,
+            replacement,
+            reject,
+        )
 
+    assert captured.value.operation == "credential rotation verification"
+    assert captured.value.rollback_failures == (
+        ("setClientPassword", "DynsecError"),
+    )
     assert replacement.password not in str(captured.value)
     assert current.password not in str(captured.value)
+    assert isinstance(captured.value.__cause__, RuntimeError)
 
 
 def test_rotation_rejects_non_increasing_generation_before_broker_call() -> None:
@@ -207,23 +252,153 @@ def test_rotation_rejects_non_increasing_generation_before_broker_call() -> None
     assert transport.calls == []
 
 
-def test_paho_transport_uses_control_topics_without_logging_payload() -> None:
+def test_paho_transport_correlates_and_ignores_unrelated_response() -> None:
+    client = Mock()
+    client.subscribe.return_value = (0, 1)
+    transport = PahoDynsecTransport(client, timeout_s=0.1)
+
+    def publish_side_effect(*args: Any, **kwargs: Any) -> Any:
+        published = json.loads(kwargs["payload"])
+        correlation = published["commands"][0]["correlationData"]
+
+        unrelated = Mock(
+            topic=RESPONSE_TOPIC,
+            payload=json.dumps(
+                {
+                    "responses": [
+                        {
+                            "command": "listClients",
+                            "correlationData": "healthcheck",
+                        }
+                    ]
+                }
+            ).encode(),
+        )
+        matched = Mock(
+            topic=RESPONSE_TOPIC,
+            payload=json.dumps(
+                {
+                    "responses": [
+                        {
+                            "command": "listClients",
+                            "correlationData": correlation,
+                        }
+                    ]
+                }
+            ).encode(),
+        )
+        transport.on_message(client, None, unrelated)
+        transport.on_message(client, None, matched)
+        return Mock(rc=0)
+
+    client.publish.side_effect = publish_side_effect
+
+    result = transport.execute(({"command": "listClients"},))
+
+    assert result[0]["command"] == "listClients"
+    assert transport.ignored_response_count == 1
+    client.subscribe.assert_called_once_with(RESPONSE_TOPIC, qos=1)
+    assert client.publish.call_args.args[0] == CONTROL_TOPIC
+    published = json.loads(client.publish.call_args.kwargs["payload"])
+    correlation = published["commands"][0].pop("correlationData")
+    assert isinstance(correlation, str) and correlation
+    assert published == {"commands": [{"command": "listClients"}]}
+
+
+@pytest.mark.parametrize(
+    ("responses", "expected_ignored"),
+    [
+        (
+            [
+                {
+                    "command": "getClient",
+                    "correlationData": "{correlation}",
+                }
+            ],
+            1,
+        ),
+        (
+            [
+                {
+                    "command": "listClients",
+                    "correlationData": "{correlation}",
+                },
+                {
+                    "command": "listClients",
+                    "correlationData": "{correlation}",
+                },
+            ],
+            1,
+        ),
+        (
+            [
+                {
+                    "command": "listClients",
+                    "correlationData": "wrong",
+                }
+            ],
+            1,
+        ),
+    ],
+)
+def test_paho_transport_rejects_mismatched_response_contract(
+    responses: list[dict[str, Any]],
+    expected_ignored: int,
+) -> None:
+    client = Mock()
+    client.subscribe.return_value = (0, 1)
+    transport = PahoDynsecTransport(client, timeout_s=0.01)
+
+    def publish_side_effect(*args: Any, **kwargs: Any) -> Any:
+        published = json.loads(kwargs["payload"])
+        correlation = published["commands"][0]["correlationData"]
+        rendered = [
+            {
+                key: (
+                    correlation
+                    if value == "{correlation}"
+                    else value
+                )
+                for key, value in response.items()
+            }
+            for response in responses
+        ]
+        message = Mock(
+            topic=RESPONSE_TOPIC,
+            payload=json.dumps({"responses": rendered}).encode(),
+        )
+        transport.on_message(client, None, message)
+        return Mock(rc=0)
+
+    client.publish.side_effect = publish_side_effect
+
+    with pytest.raises(
+        DynsecError,
+        match=rf"correlated response timed out ignored={expected_ignored}",
+    ):
+        transport.execute(({"command": "listClients"},))
+
+
+def test_paho_transport_rejects_caller_correlation_data() -> None:
     client = Mock()
     client.subscribe.return_value = (0, 1)
     client.publish.return_value = Mock(rc=0)
     transport = PahoDynsecTransport(client, timeout_s=0.1)
-    response = Mock(topic=RESPONSE_TOPIC, payload=b'{"responses":[{"command":"listClients"}]}')
-    client.publish.side_effect = lambda *args, **kwargs: (
-        transport.on_message(client, None, response) or Mock(rc=0)
-    )
 
-    result = transport.execute(({"command": "listClients"},))
+    with pytest.raises(
+        ValueError,
+        match="caller supplied correlationData",
+    ):
+        transport.execute(
+            (
+                {
+                    "command": "listClients",
+                    "correlationData": "caller-owned",
+                },
+            )
+        )
 
-    assert result == ({"command": "listClients"},)
-    client.subscribe.assert_called_once_with(RESPONSE_TOPIC, qos=1)
-    assert client.publish.call_args.args[0] == CONTROL_TOPIC
-    published = json.loads(client.publish.call_args.kwargs["payload"])
-    assert published == {"commands": [{"command": "listClients"}]}
+    client.publish.assert_not_called()
 
 
 def test_rejects_error_without_echoing_broker_message() -> None:
