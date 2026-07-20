@@ -1,0 +1,79 @@
+name: H3 N2 Stage2B3 Pairing Runtime CI
+
+on:
+  pull_request:
+    paths:
+      - "host/greenhouse-manager/**"
+      - "infra/compose/h3-pairing-lab/**"
+      - "protocols/pairing/**"
+      - ".github/workflows/h3-n2-stage2b3-pairing-runtime-ci.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "host/greenhouse-manager/**"
+      - "infra/compose/h3-pairing-lab/**"
+      - "protocols/pairing/**"
+      - ".github/workflows/h3-n2-stage2b3-pairing-runtime-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-runtime:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate isolated Compose contract
+        run: |
+          set -euo pipefail
+          compose=infra/compose/h3-pairing-lab/compose.yaml
+          docker compose -f "$compose" config --quiet
+          docker compose -f "$compose" config --format json > /tmp/pairing-compose.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          document = json.loads(Path('/tmp/pairing-compose.json').read_text())
+          service = document['services']['pairing-runtime']
+          assert not service.get('ports')
+          assert service['environment']['GH_PAIRING_SERVICE_ENABLED'] == 'false'
+          assert service['environment']['GH_PAIRING_DEPLOYMENT_MODE'] == 'isolated-lab'
+          assert service['read_only'] is True
+          assert service['cap_drop'] == ['ALL']
+          assert 'no-new-privileges:true' in service['security_opt']
+          network_name = next(iter(service['networks']))
+          assert document['networks'][network_name]['internal'] is True
+          PY
+
+      - name: Build dedicated pairing image
+        run: |
+          docker compose \
+            -f infra/compose/h3-pairing-lab/compose.yaml \
+            build pairing-runtime
+
+      - name: Verify disabled default opens no runtime listeners
+        run: |
+          set -euo pipefail
+          compose=infra/compose/h3-pairing-lab/compose.yaml
+          output="$(docker compose -f "$compose" run --rm --no-deps pairing-runtime --check-config)"
+          REPORT="$output" python - <<'PY'
+          import json
+          import os
+
+          report = json.loads(os.environ['REPORT'])
+          assert report['configuration_valid'] is True
+          assert report['pairing_service_enabled'] is False
+          assert report['network_attempted'] is False
+          assert report['listener_count'] == 0
+          assert report['listeners'] == []
+          assert report['secret_values_included'] is False
+          PY
+
+      - name: Cleanup isolated runtime
+        if: always()
+        run: |
+          docker compose \
+            -f infra/compose/h3-pairing-lab/compose.yaml \
+            down --volumes --remove-orphans
