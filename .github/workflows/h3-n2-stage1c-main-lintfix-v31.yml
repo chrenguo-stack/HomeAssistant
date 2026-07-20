@@ -1,0 +1,188 @@
+name: H3 N2 Stage1C Main Lint Fix v31
+
+on:
+  push:
+    branches:
+      - ci/h3-n2-stage1c-main-lintfix-20260720-v31
+    paths:
+      - .github/workflows/h3-n2-stage1c-main-lintfix-v31.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: h3-n2-stage1c-main-lintfix-20260720-v31
+  cancel-in-progress: false
+
+jobs:
+  lint-fix-and-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      TARGET_BRANCH: integration/h3-n2-stage1c-main-port-20260720-v28
+      EXPECTED_HEAD: 2757b248374412cc7c22ffb3da9c63ffd92a5ed1
+      PR_NUMBER: '152'
+      DYNSEC_PATH: host/greenhouse-manager/src/greenhouse_manager/dynsec_api.py
+      DYNSEC_TEST_PATH: host/greenhouse-manager/tests/test_dynsec_api.py
+      STAGE1C_TEST_PATH: host/greenhouse-manager/tests/test_stage1c_runtime_regressions.py
+      VERIFY_PATH: infra/compose/m2-dynsec/verify.py
+
+    steps:
+      - name: Checkout integration branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_BRANCH }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: host/greenhouse-manager/pyproject.toml
+
+      - name: Verify integration head and file scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git branch --show-current)" = "$TARGET_BRANCH"
+          test -z "$(git status --porcelain)"
+          echo "INTEGRATION_HEAD_VERIFIED=$EXPECTED_HEAD"
+
+      - name: Install development dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -e 'host/greenhouse-manager[dev]'
+
+      - name: Apply Ruff safe fixes to manager tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd host/greenhouse-manager
+          python -m ruff check . --fix --show-fixes 2>&1 | tee /tmp/ruff-fix-v31.log || true
+          cd "$GITHUB_WORKSPACE"
+
+          find . -type d -name __pycache__ -prune -exec rm -rf {} +
+          find host/greenhouse-manager -type d -name '*.egg-info' -prune -exec rm -rf {} +
+          rm -rf .pytest_cache host/greenhouse-manager/.pytest_cache
+
+          mapfile -t changed < <(git status --short | sed -E 's/^.. //' | sort)
+          for path in "${changed[@]}"; do
+            case "$path" in
+              "$DYNSEC_PATH"|"$DYNSEC_TEST_PATH"|"$STAGE1C_TEST_PATH") ;;
+              *) echo "unexpected Ruff-modified path: $path" >&2; exit 2 ;;
+            esac
+          done
+          printf 'RUFF_SAFE_FIX_CHANGED_PATHS=%s\n' "${#changed[@]}"
+          git diff --check
+
+      - name: Validate Ruff after safe fixes
+        id: lint
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set +e
+          cd host/greenhouse-manager
+          python -m ruff check . 2>&1 | tee /tmp/ruff-remaining-v31.log
+          rc=${PIPESTATUS[0]}
+          cd "$GITHUB_WORKSPACE"
+          set -e
+
+          if [ "$rc" -ne 0 ]; then
+            {
+              echo 'Stage 1C integration lint still requires manual correction.'
+              echo
+              echo '```text'
+              cat /tmp/ruff-remaining-v31.log
+              echo '```'
+            } > /tmp/pr-comment-v31.md
+            gh pr comment "$PR_NUMBER" --repo "$GH_REPO" --body-file /tmp/pr-comment-v31.md
+            exit "$rc"
+          fi
+          echo 'RUFF_AFTER_SAFE_FIX=PASSED'
+
+      - name: Run full manager pytest matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd host/greenhouse-manager
+          python -m pytest -q 2>&1 | tee /tmp/pytest-v31.log
+          echo 'GREENHOUSE_MANAGER_FULL_PYTEST=PASSED'
+
+      - name: Run standalone Stage1C regression and compile checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PYTHONPATH="$GITHUB_WORKSPACE/host/greenhouse-manager/src"
+          python "$STAGE1C_TEST_PATH" 2>&1 | tee /tmp/stage1c-v31.log
+          grep -q '^OK$' /tmp/stage1c-v31.log
+          python -m py_compile \
+            "$DYNSEC_PATH" \
+            "$VERIFY_PATH" \
+            "$DYNSEC_TEST_PATH" \
+            "$STAGE1C_TEST_PATH"
+
+          find . -type d -name __pycache__ -prune -exec rm -rf {} +
+          find host/greenhouse-manager -type d -name '*.egg-info' -prune -exec rm -rf {} +
+          rm -rf .pytest_cache host/greenhouse-manager/.pytest_cache
+          git diff --check
+          echo 'STAGE1C_STANDALONE_REGRESSION=PASSED'
+          echo 'PY_COMPILE=PASSED'
+
+      - name: Commit lint-only integration adjustments
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t changed < <(git status --short | sed -E 's/^.. //' | sort)
+          if [ "${#changed[@]}" -eq 0 ]; then
+            echo 'NO_LINT_FIX_COMMIT_REQUIRED=true'
+            echo "RESULT_HEAD=$(git rev-parse HEAD)" > /tmp/result-v31.env
+            exit 0
+          fi
+
+          for path in "${changed[@]}"; do
+            case "$path" in
+              "$DYNSEC_PATH"|"$DYNSEC_TEST_PATH"|"$STAGE1C_TEST_PATH") ;;
+              *) echo "unexpected final changed path: $path" >&2; exit 2 ;;
+            esac
+          done
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- "${changed[@]}"
+          git commit -m 'style(h3): satisfy current main lint for Stage 1C port'
+          result_head="$(git rev-parse HEAD)"
+          git push origin "HEAD:refs/heads/$TARGET_BRANCH"
+          echo "RESULT_HEAD=$result_head" > /tmp/result-v31.env
+          echo 'LINT_FIX_PUSH=PASSED'
+
+      - name: Post validation summary to pull request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          result_head="$(cut -d= -f2 /tmp/result-v31.env)"
+          {
+            echo 'Stage 1C current-main lint and test validation completed.'
+            echo
+            echo "- Result head: \`$result_head\`"
+            echo '- Ruff safe-fix pass: passed'
+            echo '- Ruff final pass: passed'
+            echo '- Full greenhouse-manager pytest: passed'
+            echo '- Standalone Stage 1C regression: passed'
+            echo '- Python compile: passed'
+            echo '- M401A modified: no'
+          } > /tmp/pr-success-v31.md
+          gh pr comment "$PR_NUMBER" --repo "$GH_REPO" --body-file /tmp/pr-success-v31.md
+          echo 'STATUS=H3_N2_STAGE1C_MAIN_LINTFIX_V31_SUCCEEDED'
