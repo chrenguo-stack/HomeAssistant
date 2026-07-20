@@ -205,21 +205,22 @@ def assemble_pairing_runtime(
             manager_id=settings.manager_id,
         )
         endpoint_app = PairingEndpointApp(pending)
+        http_server = make_pairing_http_server(
+            (settings.bind_host, settings.http_port),
+            app=endpoint_app,
+        )
+        actual_http_port = int(http_server.server_address[1])
         candidate = ManagerCandidate(
             schema="gh.manager.candidate/1",
             manager_id=settings.manager_id,
             system_id=settings.system_id,
             host=settings.advertised_host,
             scheme="http",
-            port=settings.http_port,
+            port=actual_http_port,
             pairing_path=settings.pairing_path,
             protocol=SECURE_PAIRING_PROTOCOL,
             priority=settings.priority,
             ttl_s=settings.candidate_ttl_s,
-        )
-        http_server = make_pairing_http_server(
-            (settings.bind_host, settings.http_port),
-            app=endpoint_app,
         )
         udp_server = PairingUDPServer(
             (settings.bind_host, settings.udp_port),
