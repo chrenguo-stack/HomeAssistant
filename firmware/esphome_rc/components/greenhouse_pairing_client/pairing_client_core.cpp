@@ -61,8 +61,7 @@ bool is_local_ipv4(uint32_t address) {
 }
 
 uint32_t ttl_to_ms(uint16_t ttl_s, uint16_t cap_s) {
-  const uint32_t effective = std::min<uint32_t>(ttl_s, cap_s);
-  return effective * 1000U;
+  return std::min<uint32_t>(ttl_s, cap_s) * 1000U;
 }
 
 }  // namespace
@@ -83,7 +82,8 @@ bool PairingClientCore::configure(const std::string &hardware_id, const std::str
   return true;
 }
 
-bool PairingClientCore::start_discovery(const std::string &request_id, const std::string &nonce, uint32_t now_ms) {
+bool PairingClientCore::start_discovery(const std::string &request_id, const std::string &nonce,
+                                        uint32_t now_ms) {
   if (this->state_ == PairingClientState::COMMITTED || !valid_request_id(request_id) ||
       !valid_base64url_32(nonce) || this->hardware_id_.empty() || this->pairing_id_.empty()) {
     this->set_error_(PairingClientError::INVALID_DISCOVERY_CONTEXT);
@@ -94,6 +94,7 @@ bool PairingClientCore::start_discovery(const std::string &request_id, const std
   this->discovery_started_at_ms_ = now_ms;
   this->candidates_.clear();
   this->selected_index_ = INVALID_INDEX;
+  this->selection_explicit_ = false;
   this->session_id_.clear();
   this->manager_nonce_.clear();
   this->manager_public_key_.clear();
@@ -106,8 +107,10 @@ bool PairingClientCore::start_discovery(const std::string &request_id, const std
 
 bool PairingClientCore::observe_candidate(const std::string &request_id, const std::string &nonce,
                                           const ManagerCandidate &candidate, uint32_t now_ms) {
-  if (this->state_ != PairingClientState::DISCOVERING && this->state_ != PairingClientState::CANDIDATE_READY &&
-      this->state_ != PairingClientState::SELECTION_REQUIRED && this->state_ != PairingClientState::CLAIM_READY) {
+  if (this->state_ != PairingClientState::DISCOVERING &&
+      this->state_ != PairingClientState::CANDIDATE_READY &&
+      this->state_ != PairingClientState::SELECTION_REQUIRED &&
+      this->state_ != PairingClientState::CLAIM_READY) {
     this->set_error_(PairingClientError::INVALID_STATE_TRANSITION);
     return false;
   }
@@ -134,7 +137,10 @@ bool PairingClientCore::observe_candidate(const std::string &request_id, const s
     this->set_error_(PairingClientError::CANDIDATE_CAPACITY_REACHED);
     return false;
   }
+
   this->candidates_.push_back(CandidateObservation{.candidate = candidate, .observed_at_ms = now_ms});
+  if (this->candidates_.size() > 1 && !this->selection_explicit_)
+    this->selected_index_ = INVALID_INDEX;
   this->resolve_selection_state_();
   this->set_error_(PairingClientError::NONE);
   return true;
@@ -144,26 +150,31 @@ void PairingClientCore::prune_candidates(uint32_t now_ms) {
   if (this->state_ == PairingClientState::CLAIM_SENT ||
       this->state_ == PairingClientState::SECURE_OFFER_RECEIVED ||
       this->state_ == PairingClientState::CHANNEL_ESTABLISHED ||
-      this->state_ == PairingClientState::CREDENTIALS_STAGED || this->state_ == PairingClientState::COMMITTED)
+      this->state_ == PairingClientState::CREDENTIALS_STAGED ||
+      this->state_ == PairingClientState::COMMITTED)
     return;
 
   ManagerCandidate selected;
-  const bool had_selection = this->selected_index_valid_();
-  if (had_selection)
+  const bool preserve_explicit = this->selection_explicit_ && this->selected_index_valid_();
+  if (preserve_explicit)
     selected = this->candidates_[this->selected_index_].candidate;
 
   this->candidates_.erase(
-      std::remove_if(this->candidates_.begin(), this->candidates_.end(), [this, now_ms](const auto &observation) {
-        const uint32_t elapsed = now_ms - observation.observed_at_ms;
-        return elapsed >= ttl_to_ms(observation.candidate.ttl_s, this->candidate_ttl_cap_s_);
-      }),
+      std::remove_if(this->candidates_.begin(), this->candidates_.end(),
+                     [this, now_ms](const CandidateObservation &observation) {
+                       const uint32_t elapsed = now_ms - observation.observed_at_ms;
+                       return elapsed >=
+                              ttl_to_ms(observation.candidate.ttl_s, this->candidate_ttl_cap_s_);
+                     }),
       this->candidates_.end());
 
   this->selected_index_ = INVALID_INDEX;
-  if (had_selection) {
+  this->selection_explicit_ = false;
+  if (preserve_explicit) {
     for (size_t index = 0; index < this->candidates_.size(); index++) {
       if (same_candidate(this->candidates_[index].candidate, selected)) {
         this->selected_index_ = index;
+        this->selection_explicit_ = true;
         break;
       }
     }
@@ -172,7 +183,8 @@ void PairingClientCore::prune_candidates(uint32_t now_ms) {
 }
 
 bool PairingClientCore::select_candidate(size_t index) {
-  if (this->state_ != PairingClientState::SELECTION_REQUIRED && this->state_ != PairingClientState::CANDIDATE_READY &&
+  if (this->state_ != PairingClientState::SELECTION_REQUIRED &&
+      this->state_ != PairingClientState::CANDIDATE_READY &&
       this->state_ != PairingClientState::CLAIM_READY) {
     this->set_error_(PairingClientError::INVALID_STATE_TRANSITION);
     return false;
@@ -182,6 +194,7 @@ bool PairingClientCore::select_candidate(size_t index) {
     return false;
   }
   this->selected_index_ = index;
+  this->selection_explicit_ = this->candidates_.size() > 1;
   this->set_error_(PairingClientError::NONE);
   this->set_state_(PairingClientState::CLAIM_READY);
   return true;
@@ -189,8 +202,9 @@ bool PairingClientCore::select_candidate(size_t index) {
 
 bool PairingClientCore::mark_claim_sent() {
   if (this->state_ != PairingClientState::CLAIM_READY || !this->selected_index_valid_()) {
-    this->set_error_(this->candidates_.size() > 1 ? PairingClientError::CANDIDATE_SELECTION_REQUIRED
-                                                 : PairingClientError::INVALID_STATE_TRANSITION);
+    this->set_error_(this->candidates_.size() > 1
+                         ? PairingClientError::CANDIDATE_SELECTION_REQUIRED
+                         : PairingClientError::INVALID_STATE_TRANSITION);
     return false;
   }
   this->set_error_(PairingClientError::NONE);
@@ -198,11 +212,13 @@ bool PairingClientCore::mark_claim_sent() {
   return true;
 }
 
-bool PairingClientCore::accept_secure_offer(const std::string &session_id, const std::string &manager_nonce,
+bool PairingClientCore::accept_secure_offer(const std::string &session_id,
+                                            const std::string &manager_nonce,
                                             const std::string &manager_public_key,
                                             const std::string &cipher_suite) {
   if (this->state_ != PairingClientState::CLAIM_SENT || !valid_request_id(session_id) ||
-      !valid_base64url_32(manager_nonce) || !valid_base64url_32(manager_public_key) || cipher_suite != CIPHER_SUITE) {
+      !valid_base64url_32(manager_nonce) || !valid_base64url_32(manager_public_key) ||
+      cipher_suite != CIPHER_SUITE) {
     this->set_error_(PairingClientError::SECURE_OFFER_REJECTED);
     return false;
   }
@@ -224,7 +240,8 @@ bool PairingClientCore::mark_channel_established() {
   return true;
 }
 
-bool PairingClientCore::stage_credentials(const std::string &node_id, uint32_t credential_generation) {
+bool PairingClientCore::stage_credentials(const std::string &node_id,
+                                          uint32_t credential_generation) {
   if (this->state_ != PairingClientState::CHANNEL_ESTABLISHED || !valid_identifier(node_id) ||
       credential_generation == 0) {
     this->set_error_(PairingClientError::CREDENTIALS_REJECTED);
@@ -250,7 +267,8 @@ bool PairingClientCore::commit_credentials() {
 
 void PairingClientCore::fail(PairingClientError error, bool recoverable) {
   this->set_error_(error == PairingClientError::NONE ? PairingClientError::TRANSPORT_FAILED : error);
-  this->set_state_(recoverable ? PairingClientState::RECOVERABLE_FAILURE : PairingClientState::TERMINAL_FAILURE);
+  this->set_state_(recoverable ? PairingClientState::RECOVERABLE_FAILURE
+                               : PairingClientState::TERMINAL_FAILURE);
 }
 
 void PairingClientCore::reset_unbound() {
@@ -259,6 +277,7 @@ void PairingClientCore::reset_unbound() {
   this->discovery_started_at_ms_ = 0;
   this->candidates_.clear();
   this->selected_index_ = INVALID_INDEX;
+  this->selection_explicit_ = false;
   this->session_id_.clear();
   this->manager_nonce_.clear();
   this->manager_public_key_.clear();
@@ -284,7 +303,8 @@ PairingClientSnapshot PairingClientCore::snapshot() const {
 }
 
 const ManagerCandidate *PairingClientCore::selected_candidate() const {
-  return this->selected_index_valid_() ? &this->candidates_[this->selected_index_].candidate : nullptr;
+  return this->selected_index_valid_() ? &this->candidates_[this->selected_index_].candidate
+                                       : nullptr;
 }
 
 const char *PairingClientCore::state_name() const {
@@ -348,12 +368,14 @@ const char *PairingClientCore::error_name() const {
 }
 
 bool PairingClientCore::valid_candidate(const ManagerCandidate &candidate) {
-  if (candidate.schema != MANAGER_CANDIDATE_SCHEMA || !valid_identifier(candidate.manager_id) ||
-      !valid_identifier(candidate.system_id) || !valid_local_host(candidate.host) ||
+  if (candidate.schema != MANAGER_CANDIDATE_SCHEMA ||
+      !valid_identifier(candidate.manager_id) || !valid_identifier(candidate.system_id) ||
+      !valid_local_host(candidate.host) ||
       (candidate.scheme != "http" && candidate.scheme != "https") || candidate.port == 0 ||
       candidate.pairing_path.empty() || candidate.pairing_path.front() != '/' ||
       candidate.pairing_path.size() > 256 || candidate.pairing_path.rfind("//", 0) == 0 ||
-      candidate.protocol != SECURE_PAIRING_PROTOCOL || candidate.ttl_s < 1 || candidate.ttl_s > 3600)
+      candidate.protocol != SECURE_PAIRING_PROTOCOL || candidate.ttl_s < 1 ||
+      candidate.ttl_s > 3600)
     return false;
   return std::all_of(candidate.pairing_path.begin(), candidate.pairing_path.end(), [](char value) {
     const auto byte = static_cast<unsigned char>(value);
@@ -363,15 +385,15 @@ bool PairingClientCore::valid_candidate(const ManagerCandidate &candidate) {
 
 bool PairingClientCore::valid_identifier(const std::string &value) {
   return !value.empty() && value.size() <= 128 &&
-         std::all_of(value.begin(), value.end(), [](char character) { return is_ascii_safe_identifier_char(character); });
+         std::all_of(value.begin(), value.end(),
+                     [](char character) { return is_ascii_safe_identifier_char(character); });
 }
 
 bool PairingClientCore::valid_request_id(const std::string &value) {
   if (value.size() != 36)
     return false;
-  static constexpr size_t HYPHENS[] = {8, 13, 18, 23};
   for (size_t index = 0; index < value.size(); index++) {
-    const bool hyphen = std::find(std::begin(HYPHENS), std::end(HYPHENS), index) != std::end(HYPHENS);
+    const bool hyphen = index == 8 || index == 13 || index == 18 || index == 23;
     if (hyphen ? value[index] != '-' : !is_hex(value[index]))
       return false;
   }
@@ -379,7 +401,8 @@ bool PairingClientCore::valid_request_id(const std::string &value) {
 }
 
 bool PairingClientCore::valid_base64url_32(const std::string &value) {
-  return value.size() == 43 && std::all_of(value.begin(), value.end(), [](char character) {
+  return value.size() == 43 &&
+         std::all_of(value.begin(), value.end(), [](char character) {
            const auto byte = static_cast<unsigned char>(character);
            return std::isalnum(byte) != 0 || character == '-' || character == '_';
          });
@@ -387,21 +410,26 @@ bool PairingClientCore::valid_base64url_32(const std::string &value) {
 
 bool PairingClientCore::valid_local_host(const std::string &value) {
   if (value.empty() || value.size() > 253 ||
-      std::any_of(value.begin(), value.end(), [](char character) { return std::isspace(static_cast<unsigned char>(character)); }))
+      std::any_of(value.begin(), value.end(), [](char character) {
+        return std::isspace(static_cast<unsigned char>(character)) != 0;
+      }))
     return false;
   std::string normalized = value;
   if (!normalized.empty() && normalized.back() == '.')
     normalized.pop_back();
+
   uint32_t address = 0;
   if (parse_ipv4(normalized, &address))
     return is_local_ipv4(address);
   if (!ends_with(normalized, ".local") || normalized.size() < 7)
     return false;
+
   size_t start = 0;
   while (start < normalized.size()) {
     const size_t stop = normalized.find('.', start);
     const size_t end = stop == std::string::npos ? normalized.size() : stop;
-    if (end == start || end - start > 63 || normalized[start] == '-' || normalized[end - 1] == '-')
+    if (end == start || end - start > 63 || normalized[start] == '-' ||
+        normalized[end - 1] == '-')
       return false;
     for (size_t index = start; index < end; index++) {
       const auto byte = static_cast<unsigned char>(normalized[index]);
@@ -413,18 +441,21 @@ bool PairingClientCore::valid_local_host(const std::string &value) {
   return true;
 }
 
-bool PairingClientCore::same_candidate(const ManagerCandidate &left, const ManagerCandidate &right) {
-  return left.manager_id == right.manager_id && left.system_id == right.system_id && left.host == right.host &&
-         left.scheme == right.scheme && left.port == right.port && left.pairing_path == right.pairing_path &&
-         left.protocol == right.protocol;
+bool PairingClientCore::same_candidate(const ManagerCandidate &left,
+                                       const ManagerCandidate &right) {
+  return left.manager_id == right.manager_id && left.system_id == right.system_id &&
+         left.host == right.host && left.scheme == right.scheme && left.port == right.port &&
+         left.pairing_path == right.pairing_path && left.protocol == right.protocol;
 }
 
 std::string PairingClientCore::build_claim_transcript(const std::string &manager_id,
                                                       const std::string &hardware_id,
                                                       const std::string &pairing_id) {
-  if (!valid_identifier(manager_id) || !valid_identifier(hardware_id) || !valid_request_id(pairing_id))
+  if (!valid_identifier(manager_id) || !valid_identifier(hardware_id) ||
+      !valid_request_id(pairing_id))
     return {};
-  return std::string(CLAIM_SCHEMA) + "\n" + manager_id + "\n" + hardware_id + "\n" + pairing_id;
+  return std::string(CLAIM_SCHEMA) + "\n" + manager_id + "\n" + hardware_id + "\n" +
+         pairing_id;
 }
 
 void PairingClientCore::set_state_(PairingClientState state) { this->state_ = state; }
@@ -434,24 +465,28 @@ void PairingClientCore::set_error_(PairingClientError error) { this->error_ = er
 void PairingClientCore::resolve_selection_state_() {
   if (this->candidates_.empty()) {
     this->selected_index_ = INVALID_INDEX;
+    this->selection_explicit_ = false;
     this->set_state_(PairingClientState::DISCOVERING);
     return;
   }
   if (this->candidates_.size() == 1) {
     this->selected_index_ = 0;
+    this->selection_explicit_ = false;
     this->set_state_(PairingClientState::CLAIM_READY);
     return;
   }
-  if (this->selected_index_valid_()) {
+  if (this->selection_explicit_ && this->selected_index_valid_()) {
     this->set_state_(PairingClientState::CLAIM_READY);
     return;
   }
   this->selected_index_ = INVALID_INDEX;
+  this->selection_explicit_ = false;
   this->set_state_(PairingClientState::SELECTION_REQUIRED);
 }
 
 bool PairingClientCore::selected_index_valid_() const {
-  return this->selected_index_ != INVALID_INDEX && this->selected_index_ < this->candidates_.size();
+  return this->selected_index_ != INVALID_INDEX &&
+         this->selected_index_ < this->candidates_.size();
 }
 
 }  // namespace esphome::greenhouse_pairing_client
