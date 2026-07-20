@@ -1,0 +1,95 @@
+esphome:
+  name: gh-pairing-client-board-lab
+  friendly_name: Greenhouse Pairing Client Board Lab
+  min_version: 2026.4.3
+  on_boot:
+    - priority: -100
+      then:
+        - lambda: |-
+            id(pairing_client).start_discovery(
+              "11111111-2222-4333-8444-555555555555",
+              "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            );
+
+esp32:
+  board: esp32-c6-devkitm-1
+  variant: ESP32C6
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+wifi:
+  ssid: !secret node_pairing_wifi_ssid
+  password: !secret node_pairing_wifi_password
+  reboot_timeout: 0s
+
+external_components:
+  - source:
+      type: local
+      path: ../../components
+    components:
+      - greenhouse_pairing_client
+
+greenhouse_pairing_client:
+  id: pairing_client
+  hardware_id: ghw-c6-board-lab
+  pairing_id: aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee
+  pairing_secret: !secret node_pairing_secret
+  max_candidates: 4
+  candidate_ttl_cap: 120s
+
+status_led:
+  pin:
+    number: GPIO6
+    inverted: false
+
+text_sensor:
+  - platform: template
+    name: Pairing State
+    id: pairing_state
+    update_interval: 2s
+    lambda: |-
+      return {id(pairing_client).state_name()};
+  - platform: template
+    name: Pairing Error
+    id: pairing_error
+    update_interval: 2s
+    lambda: |-
+      return {id(pairing_client).error_name()};
+
+sensor:
+  - platform: template
+    name: Pairing Candidate Count
+    id: pairing_candidate_count
+    accuracy_decimals: 0
+    update_interval: 2s
+    lambda: |-
+      return static_cast<float>(id(pairing_client).candidate_count());
+
+binary_sensor:
+  - platform: template
+    name: Pairing Selection Required
+    id: pairing_selection_required
+    lambda: |-
+      return id(pairing_client).selection_required();
+
+interval:
+  # Compile-time protocol harness only. No network listener or HTTP client is
+  # enabled in Stage 2C-1, and this non-production candidate is RAM-only.
+  - interval: 30s
+    then:
+      - lambda: |-
+          if (id(pairing_client).candidate_count() == 0) {
+            id(pairing_client).observe_candidate(
+              "manager-board-lab",
+              "greenhouse",
+              "manager-board-lab.local",
+              "http",
+              47110,
+              "/v1/pairing",
+              100,
+              120
+            );
+          }
