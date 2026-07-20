@@ -1,0 +1,180 @@
+name: H3 N2 Stage2B2 Manager Bound Claim v44
+
+on:
+  push:
+    branches:
+      - feature/h3-n2-stage2b2-discovery-boundary-20260720-v39
+    paths:
+      - ".github/workflows/h3-n2-stage2b2-manager-bound-claim-v44.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    if: github.actor != 'github-actions[bot]'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/h3-n2-stage2b2-discovery-boundary-20260720-v39
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Bind claim proof to selected Manager identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          source = Path("host/greenhouse-manager/src/greenhouse_manager/pairing_endpoint.py")
+          text = source.read_text(encoding="utf-8")
+          replacements = (
+              (
+                  '''def build_claim_proof(\n    *,\n    pairing_secret: str,\n    hardware_id: str,\n    pairing_id: str,\n) -> str:\n''',
+                  '''def build_claim_proof(\n    *,\n    pairing_secret: str,\n    manager_id: str,\n    hardware_id: str,\n    pairing_id: str,\n) -> str:\n''',
+              ),
+              (
+                  '''                "gh.pair.claim/1",\n                hardware_id,\n''',
+                  '''                "gh.pair.claim/1",\n                manager_id,\n                hardware_id,\n''',
+              ),
+              (
+                  '''    def __init__(self, coordinator: PairingCoordinatorLike) -> None:\n        self.coordinator = coordinator\n''',
+                  '''    def __init__(\n        self,\n        coordinator: PairingCoordinatorLike,\n        *,\n        manager_id: str,\n    ) -> None:\n        if not manager_id or not manager_id.isascii():\n            raise ValueError("manager_id must be non-empty ASCII")\n        self.coordinator = coordinator\n        self.manager_id = manager_id\n''',
+              ),
+              (
+                  '''                pairing_secret=pairing_secret,\n                hardware_id=hardware_id,\n''',
+                  '''                pairing_secret=pairing_secret,\n                manager_id=self.manager_id,\n                hardware_id=hardware_id,\n''',
+              ),
+              (
+                  '''        client_ip: str,\n        claim_proof: str,\n''',
+                  '''        client_ip: str,\n        manager_id: str,\n        claim_proof: str,\n''',
+              ),
+              (
+                  '''            try:\n                supplied = decode_base64url_32(\n''',
+                  '''            if manager_id != self.manager_id:\n                raise SecurePairingProofRejected("claim proof rejected")\n            try:\n                supplied = decode_base64url_32(\n''',
+              ),
+              (
+                  '''                {"schema", "hardware_id", "pairing_id", "claim_proof"},\n''',
+                  '''                {\n                    "schema",\n                    "manager_id",\n                    "hardware_id",\n                    "pairing_id",\n                    "claim_proof",\n                },\n''',
+              ),
+              (
+                  '''            hardware_id = document["hardware_id"]\n            pairing_id = document["pairing_id"]\n            claim_proof = document["claim_proof"]\n''',
+                  '''            manager_id = document["manager_id"]\n            hardware_id = document["hardware_id"]\n            pairing_id = document["pairing_id"]\n            claim_proof = document["claim_proof"]\n''',
+              ),
+              (
+                  '''                for value in (hardware_id, pairing_id, claim_proof)\n''',
+                  '''                for value in (manager_id, hardware_id, pairing_id, claim_proof)\n''',
+              ),
+              (
+                  '''                client_ip=client_ip,\n                claim_proof=claim_proof,\n''',
+                  '''                client_ip=client_ip,\n                manager_id=manager_id,\n                claim_proof=claim_proof,\n''',
+              ),
+          )
+          for old, new in replacements:
+              if text.count(old) != 1:
+                  raise SystemExit(f"unexpected endpoint claim shape: {old[:50]!r}")
+              text = text.replace(old, new, 1)
+          source.write_text(text, encoding="utf-8")
+
+          tests = Path("host/greenhouse-manager/tests/test_pairing_endpoint.py")
+          text = tests.read_text(encoding="utf-8")
+          text = text.replace(
+              'LOCAL_IP = "127.0.0.2"\n',
+              'LOCAL_IP = "127.0.0.2"\nMANAGER_ID = "manager-a"\n',
+              1,
+          )
+          text = text.replace(
+              '''    pairing_secret=PAIRING_SECRET,\n    hardware_id=HARDWARE_ID,\n''',
+              '''    pairing_secret=PAIRING_SECRET,\n    manager_id=MANAGER_ID,\n    hardware_id=HARDWARE_ID,\n''',
+              1,
+          )
+          text = text.replace(
+              '''    registry = PendingOfferRegistry(coordinator)\n''',
+              '''    registry = PendingOfferRegistry(\n        coordinator,\n        manager_id=MANAGER_ID,\n    )\n''',
+              1,
+          )
+          claim_marker = '''            "schema": "gh.pair.claim/1",\n            "hardware_id": HARDWARE_ID,\n'''
+          claim_replacement = '''            "schema": "gh.pair.claim/1",\n            "manager_id": MANAGER_ID,\n            "hardware_id": HARDWARE_ID,\n'''
+          if text.count(claim_marker) < 4:
+              raise SystemExit("unexpected number of endpoint claim documents")
+          text = text.replace(claim_marker, claim_replacement)
+          marker = '''def test_offer_claim_is_bound_to_first_client_ip() -> None:\n'''
+          addition = '''def test_claim_proof_is_bound_to_selected_manager() -> None:\n    _coordinator, _registry, app = make_app()\n    other_manager_proof = build_claim_proof(\n        pairing_secret=PAIRING_SECRET,\n        manager_id="manager-b",\n        hardware_id=HARDWARE_ID,\n        pairing_id=PAIRING_ID,\n    )\n    status, document = request(\n        app,\n        method="POST",\n        path="/v1/pairing/claim",\n        document={\n            "schema": "gh.pair.claim/1",\n            "manager_id": "manager-b",\n            "hardware_id": HARDWARE_ID,\n            "pairing_id": PAIRING_ID,\n            "claim_proof": other_manager_proof,\n        },\n    )\n    assert status == 403\n    assert document["error"] == "proof_rejected"\n\n    claim(app)\n\n\n'''
+          if text.count(marker) != 1 or addition in text:
+              raise SystemExit("unexpected manager-bound claim test insertion point")
+          tests.write_text(text.replace(marker, addition + marker, 1), encoding="utf-8")
+
+          integration = Path(
+              "host/greenhouse-manager/tests/test_pairing_endpoint_secure_integration.py"
+          )
+          text = integration.read_text(encoding="utf-8")
+          text = text.replace(
+              'CLIENT_IP = "127.0.0.2"\n',
+              'CLIENT_IP = "127.0.0.2"\nMANAGER_ID = "manager-a"\n',
+              1,
+          )
+          text = text.replace(
+              '''    registry = PendingOfferRegistry(coordinator)\n''',
+              '''    registry = PendingOfferRegistry(\n        coordinator,\n        manager_id=MANAGER_ID,\n    )\n''',
+              1,
+          )
+          text = text.replace(
+              '''        pairing_secret=PAIRING_SECRET,\n        hardware_id=HARDWARE_ID,\n''',
+              '''        pairing_secret=PAIRING_SECRET,\n        manager_id=MANAGER_ID,\n        hardware_id=HARDWARE_ID,\n''',
+              1,
+          )
+          text = text.replace(
+              '''            "schema": "gh.pair.claim/1",\n            "hardware_id": HARDWARE_ID,\n''',
+              '''            "schema": "gh.pair.claim/1",\n            "manager_id": MANAGER_ID,\n            "hardware_id": HARDWARE_ID,\n''',
+              1,
+          )
+          integration.write_text(text, encoding="utf-8")
+
+          protocol = Path("protocols/pairing/gh-h3-discovery-and-endpoint-v1.md")
+          text = protocol.read_text(encoding="utf-8")
+          text = text.replace(
+              '''gh.pair.claim/1\n<hardware_id>\n<pairing_id>\n''',
+              '''gh.pair.claim/1\n<manager_id>\n<hardware_id>\n<pairing_id>\n''',
+              1,
+          )
+          text = text.replace(
+              '''  "schema": "gh.pair.claim/1",\n  "hardware_id": "ghw-c6-...",\n''',
+              '''  "schema": "gh.pair.claim/1",\n  "manager_id": "manager-a",\n  "hardware_id": "ghw-c6-...",\n''',
+              1,
+          )
+          marker = '- Manager 必须使用常量时间比较验证 `claim_proof`；\n'
+          addition = '- `claim_proof` 必须绑定节点显式选择的 `manager_id`，不得跨 Manager 重放；\n'
+          if text.count(marker) != 1 or addition in text:
+              raise SystemExit("unexpected manager-bound protocol insertion point")
+          protocol.write_text(text.replace(marker, marker + addition, 1), encoding="utf-8")
+          PY
+
+      - name: Validate patch
+        working-directory: host/greenhouse-manager
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m ruff check .
+          python -m pytest -q \
+            tests/test_pairing_discovery.py \
+            tests/test_pairing_endpoint.py \
+            tests/test_pairing_endpoint_secure_integration.py \
+            tests/test_pairing_network_service.py
+
+      - name: Commit manager-bound claim proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            host/greenhouse-manager/src/greenhouse_manager/pairing_endpoint.py \
+            host/greenhouse-manager/tests/test_pairing_endpoint.py \
+            host/greenhouse-manager/tests/test_pairing_endpoint_secure_integration.py \
+            protocols/pairing/gh-h3-discovery-and-endpoint-v1.md
+          git commit -m "fix(h3): bind claim proof to selected Manager"
+          git push origin HEAD:feature/h3-n2-stage2b2-discovery-boundary-20260720-v39
