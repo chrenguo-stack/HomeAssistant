@@ -197,6 +197,7 @@ Content-Type: application/json
 - body 最大 16384 字节；
 - socket 读取超时 5 秒；
 - 默认每源 IP 每 60 秒最多 30 个 HTTP 请求；
+- UDP 与 HTTP 速率限制器默认最多跟踪 1024 个源地址，达到上限时拒绝新的来源；
 - 默认最多 16 个并发处理线程，饱和时返回 503；
 - 只允许 GET/POST；
 - 响应设置 `Cache-Control: no-store`、`X-Content-Type-Options: nosniff` 和 `Connection: close`；

@@ -306,12 +306,14 @@ class SlidingWindowRateLimiter:
         *,
         limit: int,
         window_s: float,
+        max_keys: int = 1024,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
-        if limit < 1 or window_s <= 0:
-            raise ValueError("rate limit and window must be positive")
+        if limit < 1 or window_s <= 0 or max_keys < 1:
+            raise ValueError("rate limit, window and max_keys must be positive")
         self.limit = limit
         self.window_s = window_s
+        self.max_keys = max_keys
         self._clock = clock
         self._lock = threading.RLock()
         self._events: defaultdict[str, deque[float]] = defaultdict(deque)
@@ -320,6 +322,15 @@ class SlidingWindowRateLimiter:
         now = self._clock()
         cutoff = now - self.window_s
         with self._lock:
+            stale = [
+                existing_key
+                for existing_key, existing_events in self._events.items()
+                if not existing_events or existing_events[-1] <= cutoff
+            ]
+            for existing_key in stale:
+                del self._events[existing_key]
+            if key not in self._events and len(self._events) >= self.max_keys:
+                return False
             events = self._events[key]
             while events and events[0] <= cutoff:
                 events.popleft()

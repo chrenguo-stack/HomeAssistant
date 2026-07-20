@@ -136,6 +136,22 @@ def test_udp_discovery_enforces_rate_limit() -> None:
         )
 
 
+def test_udp_rate_limiter_bounds_source_key_cardinality() -> None:
+    clock = [100.0]
+    limiter = SlidingWindowRateLimiter(
+        limit=2,
+        window_s=60,
+        max_keys=2,
+        clock=lambda: clock[0],
+    )
+    assert limiter.allow("source-a") is True
+    assert limiter.allow("source-b") is True
+    assert limiter.allow("source-c") is False
+
+    clock[0] = 161.0
+    assert limiter.allow("source-c") is True
+
+
 def test_candidate_set_never_auto_selects_multiple_managers() -> None:
     clock = [100.0]
     candidates = CandidateSet(clock=lambda: clock[0])

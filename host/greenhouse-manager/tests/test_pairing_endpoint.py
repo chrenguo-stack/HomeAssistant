@@ -435,6 +435,22 @@ def test_endpoint_enforces_request_size_and_rate_limit() -> None:
     assert oversized.status == 413
 
 
+def test_http_rate_limiter_bounds_source_key_cardinality() -> None:
+    clock = [100.0]
+    limiter = FixedWindowRateLimiter(
+        limit=2,
+        window_s=60,
+        max_keys=2,
+        clock=lambda: clock[0],
+    )
+    assert limiter.allow("source-a") is True
+    assert limiter.allow("source-b") is True
+    assert limiter.allow("source-c") is False
+
+    clock[0] = 161.0
+    assert limiter.allow("source-c") is True
+
+
 def test_unknown_fields_are_rejected() -> None:
     _coordinator, _registry, app = make_app()
     status, document = request(
