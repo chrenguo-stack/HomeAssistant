@@ -50,6 +50,7 @@ def candidate(
         manager_id=manager_id,
         system_id=system_id,
         host="greenhouse.local",
+        scheme="http",
         port=8443,
         pairing_path="/v1/pairing",
         protocol=SECURE_PAIRING_PROTOCOL,
@@ -166,6 +167,7 @@ def test_mdns_definition_contains_only_public_discovery_metadata() -> None:
     assert definition.name == "greenhouse-manager-a._greenhouse._tcp.local."
     assert definition.addresses == (socket.inet_aton("192.168.1.20"),)
     assert definition.properties["manager_id"] == "manager-a"
+    assert definition.properties["scheme"] == "http"
     assert "secret" not in json.dumps(definition.properties).lower()
 
 
