@@ -126,25 +126,39 @@ jobs:
           from pathlib import Path
 
           values = Path("/tmp/stage2c1-ephemeral-values").read_text(encoding="utf-8").splitlines()
+          log_paths = (
+              "/tmp/stage2c1-minimal-config.log",
+              "/tmp/stage2c1-minimal-compile.log",
+              "/tmp/stage2c1-product-config.log",
+              "/tmp/stage2c1-product-compile.log",
+          )
           logs = "\n".join(
               Path(path).read_text(encoding="utf-8", errors="replace")
-              for path in (
-                  "/tmp/stage2c1-minimal-config.log",
-                  "/tmp/stage2c1-minimal-compile.log",
-                  "/tmp/stage2c1-product-config.log",
-                  "/tmp/stage2c1-product-compile.log",
-              )
+              for path in log_paths
           )
           if any(value and value in logs for value in values):
               raise SystemExit("ephemeral Stage 2C-1 value appeared in ESPHome output")
-          required = (
+
+          compile_evidence = (
+              "greenhouse_pairing_client.cpp.o",
+              "pairing_client_core.cpp.o",
+              "INFO Successfully compiled program.",
+          )
+          missing_compile = [value for value in compile_evidence if logs.count(value) < 2]
+          if missing_compile:
+              raise SystemExit(f"pairing component compile evidence missing: {missing_compile}")
+
+          wrapper = Path(
+              "firmware/esphome_rc/components/greenhouse_pairing_client/greenhouse_pairing_client.cpp"
+          ).read_text(encoding="utf-8")
+          required_source = (
               "Greenhouse Pairing Client Core",
               "Network transport enabled: NO",
               "Secret values included: NO",
           )
-          missing = [value for value in required if value not in logs]
-          if missing:
-              raise SystemExit(f"pairing core compile markers missing: {missing}")
+          missing_source = [value for value in required_source if value not in wrapper]
+          if missing_source:
+              raise SystemExit(f"redacted pairing status markers missing: {missing_source}")
           PY
       - name: Build redacted failure diagnostic
         if: failure()
