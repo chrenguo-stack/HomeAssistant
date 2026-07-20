@@ -27,6 +27,7 @@ pairing = [
 
 [project.scripts]
 greenhouse-manager = "greenhouse_manager.app:main"
+greenhouse-manager-pairing-lab = "greenhouse_manager.pairing_lab_cli:main"
 greenhouse-manager-registration = "greenhouse_manager.registration_cli:main"
 greenhouse-manager-t1-preflight = "greenhouse_manager.t1_preflight:main"
 greenhouse-manager-t1-backup = "greenhouse_manager.t1_backup:main"
