@@ -13,6 +13,11 @@ namespace esphome::greenhouse_pairing_client {
 
 static constexpr size_t PERSISTENCE_MAX_BLOB_BYTES = 16384;
 
+enum class PersistenceOpenMode : uint8_t {
+  READ_ONLY = 0,
+  READ_WRITE = 1,
+};
+
 enum class PersistenceReadResult : uint8_t {
   OK = 0,
   NOT_FOUND = 1,
@@ -42,8 +47,9 @@ class EspIdfNvsPersistenceBackend final : public PairingPersistenceBackend {
   EspIdfNvsPersistenceBackend &operator=(
       const EspIdfNvsPersistenceBackend &) = delete;
 
-  bool open();
+  bool open(PersistenceOpenMode mode = PersistenceOpenMode::READ_WRITE);
   bool opened() const { return this->opened_; }
+  bool writable() const { return this->opened_ && this->writable_; }
 
   PersistenceReadResult read_blob(const char *key,
                                   std::vector<uint8_t> *value) override;
@@ -57,6 +63,7 @@ class EspIdfNvsPersistenceBackend final : public PairingPersistenceBackend {
   std::string namespace_name_;
   nvs_handle_t handle_{0};
   bool opened_{false};
+  bool writable_{false};
 };
 #endif
 
