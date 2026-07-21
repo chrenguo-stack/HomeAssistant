@@ -158,7 +158,7 @@ def main() -> int:
         "f1_0_rc2_h3_node_pairing_persistence_board_lab_20260721_v49.yml"
     )
     core = Path("firmware/esphome_rc/f1_0_rc2/packages/core.yml")
-    production = Path("firmware/esphome_rc/f1_0_rc2/f1_0_rc2.yaml")
+    production = Path("firmware/esphome_rc/f1_0_rc2/f1_0_rc2.yml")
     for target in (minimal, product):
         require(target.is_file(), f"missing_compile_target:{target}")
         text = target.read_text(encoding="utf-8")
@@ -185,6 +185,7 @@ def main() -> int:
     core_text = core.read_text(encoding="utf-8")
     require("wifi:" in core_text, "rc2_core_wifi_missing")
     require("mdns:" in core_text, "rc2_core_managed_mdns_missing")
+    require(production.is_file(), f"production_entry_missing:{production}")
     require(
         "greenhouse_pairing_persistence_lab" not in production.read_text(
             encoding="utf-8"
