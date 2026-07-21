@@ -19,12 +19,13 @@ The following operations still require separate one-shot, generation-bound autho
 2. `ACTIVATE_PROFILE`;
 3. `CLEANUP_TEST_STATE`.
 
+Each operation requires a separate later one-shot approval.
 Each operation must bind the exact active generation, exact candidate generation, operation name, test run identifier, firmware commit, configuration digest, Broker configuration digest, and a unique authorization-record digest.
 
 ## Development base
 
 - Stage 2D-7 accepted head: `ab04d31032403869379d976cd9f250fb3f144f7d`
-- Stage 2D-8 branch: to be created separately; Stage 2D-7 remains unchanged.
+- Stage 2D-8 branch: `feature/h3-n2-stage2d8-isolated-device-driver-20260721-v56`; Stage 2D-7 remains unchanged.
 
 ## Live execution prerequisites
 
