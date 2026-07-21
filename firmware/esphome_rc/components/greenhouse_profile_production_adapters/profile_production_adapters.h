@@ -12,6 +12,7 @@
 #include "../greenhouse_pairing_client/pairing_profile_lifecycle_integration.h"
 
 #ifdef USE_ESP32
+#include "esp_random.h"
 #include "mqtt_client.h"
 #endif
 
