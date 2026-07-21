@@ -125,6 +125,9 @@ jobs:
               "Production MQTT mutation: NO",
               "NVS_READONLY",
               "PersistenceOpenMode::READ_ONLY",
+              "namespace_missing",
+              "ESP_ERR_NVS_NOT_FOUND",
+              "Missing read-only namespace: EMPTY",
               "stage2d1 persistent store fault matrix passed",
           )
           missing = [value for value in required if value not in encoded]
@@ -142,6 +145,10 @@ jobs:
           )
           if committed < 0 or marker < 0 or committed >= marker:
               raise SystemExit("active marker is not written after committed candidate")
+
+          lab_python = (lab / "__init__.py").read_text(encoding="utf-8")
+          if 'include_builtin_idf_component("mdns")' in lab_python:
+              raise SystemExit("managed mDNS was incorrectly treated as a built-in IDF component")
 
           lab_cpp = (lab / "greenhouse_pairing_persistence_lab.cpp").read_text(
               encoding="utf-8"
@@ -164,20 +171,35 @@ jobs:
           ):
               raise SystemExit("manual persistence recovery probe is not read-only")
 
-          for target in (
-              Path("firmware/esphome_rc/board_lab/h3_node_pairing_persistence/greenhouse_pairing_persistence_board_lab_20260721_v49.yml"),
-              Path("firmware/esphome_rc/f1_0_rc2/f1_0_rc2_h3_node_pairing_persistence_board_lab_20260721_v49.yml"),
-          ):
+          minimal = Path(
+              "firmware/esphome_rc/board_lab/h3_node_pairing_persistence/greenhouse_pairing_persistence_board_lab_20260721_v49.yml"
+          )
+          product = Path(
+              "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_h3_node_pairing_persistence_board_lab_20260721_v49.yml"
+          )
+          core = Path("firmware/esphome_rc/f1_0_rc2/packages/core.yml")
+          for target in (minimal, product):
               text = target.read_text(encoding="utf-8")
               if "on_boot:" in text:
                   raise SystemExit(f"Stage 2D-1 target has an automatic boot action: {target}")
               if "recover_for_lab();" not in text:
                   raise SystemExit(f"manual read-only recovery trigger missing: {target}")
-              for dependency in ("mdns", "nvs_flash", "esp_hw_support"):
+              for dependency in ("nvs_flash", "esp_hw_support"):
                   if "include_builtin_idf_components:" not in text or f"- {dependency}" not in text:
                       raise SystemExit(
                           f"explicit IDF dependency {dependency} missing: {target}"
                       )
+
+          minimal_text = minimal.read_text(encoding="utf-8")
+          if (
+              "wifi:" not in minimal_text
+              or "enable_on_boot: false" not in minimal_text
+              or "mdns:" not in minimal_text
+          ):
+              raise SystemExit("minimal target does not configure disabled Wi-Fi and managed mDNS")
+          core_text = core.read_text(encoding="utf-8")
+          if "wifi:" not in core_text or "mdns:" not in core_text:
+              raise SystemExit("RC2 core package does not provide Wi-Fi and managed mDNS")
           PY
 
   esp32-c6-compile:
@@ -194,6 +216,30 @@ jobs:
           cache: pip
       - name: Install pinned ESPHome
         run: python -m pip install -q "esphome==2026.4.3"
+      - name: Create ephemeral disabled Wi-Fi secrets
+        run: |
+          python - <<'PY'
+          import secrets
+          from pathlib import Path
+
+          ssid = "ci-stage2d1-" + secrets.token_hex(4)
+          password = secrets.token_urlsafe(24)
+          target = Path(
+              "firmware/esphome_rc/board_lab/h3_node_pairing_persistence/secrets.yaml"
+          )
+          target.write_text(
+              "\n".join((
+                  f'node_pairing_wifi_ssid: "{ssid}"',
+                  f'node_pairing_wifi_password: "{password}"',
+                  "",
+              )),
+              encoding="utf-8",
+          )
+          Path("/tmp/stage2d1-ephemeral-values-v49").write_text(
+              ssid + "\n" + password + "\n",
+              encoding="utf-8",
+          )
+          PY
       - name: Compile minimal ESP32-C6 persistence target
         shell: bash
         run: |
@@ -208,11 +254,14 @@ jobs:
           cd firmware/esphome_rc/f1_0_rc2
           RC2_CONFIG=f1_0_rc2_h3_node_pairing_persistence_board_lab_20260721_v49.yml bash tools/rc2.sh config 2>&1 | tee /tmp/stage2d1-product-config-v49.log
           RC2_CONFIG=f1_0_rc2_h3_node_pairing_persistence_board_lab_20260721_v49.yml bash tools/rc2.sh compile 2>&1 | tee /tmp/stage2d1-product-compile-v49.log
-      - name: Verify compile evidence
+      - name: Verify compile evidence and secret redaction
         run: |
           python - <<'PY'
           from pathlib import Path
 
+          values = Path("/tmp/stage2d1-ephemeral-values-v49").read_text(
+              encoding="utf-8"
+          ).splitlines()
           logs = "\n".join(
               Path(path).read_text(encoding="utf-8", errors="replace")
               for path in (
@@ -222,6 +271,8 @@ jobs:
                   "/tmp/stage2d1-product-compile-v49.log",
               )
           )
+          if any(value and value in logs for value in values):
+              raise SystemExit("ephemeral Stage 2D-1 Wi-Fi value appeared in ESPHome output")
           evidence = (
               "pairing_persistence_backend.cpp.o",
               "pairing_persistence_crypto.cpp.o",
@@ -240,6 +291,12 @@ jobs:
           python - <<'PY'
           from pathlib import Path
 
+          values_path = Path("/tmp/stage2d1-ephemeral-values-v49")
+          values = (
+              values_path.read_text(encoding="utf-8").splitlines()
+              if values_path.exists()
+              else []
+          )
           sections = []
           for source in (
               "/tmp/stage2d1-minimal-config-v49.log",
@@ -251,6 +308,9 @@ jobs:
               if not path.exists():
                   continue
               text = path.read_text(encoding="utf-8", errors="replace")
+              for value in values:
+                  if value:
+                      text = text.replace(value, "<REDACTED_EPHEMERAL_VALUE>")
               sections.append(f"===== {path.name} =====\n{text}")
           Path("/tmp/stage2d1-redacted-failure-v49.log").write_text(
               "\n".join(sections) or "No compile log was created.\n",
@@ -269,6 +329,8 @@ jobs:
         if: always()
         run: |
           rm -f \
+            firmware/esphome_rc/board_lab/h3_node_pairing_persistence/secrets.yaml \
+            /tmp/stage2d1-ephemeral-values-v49 \
             /tmp/stage2d1-redacted-failure-v49.log \
             /tmp/stage2d1-minimal-config-v49.log \
             /tmp/stage2d1-minimal-compile-v49.log \
