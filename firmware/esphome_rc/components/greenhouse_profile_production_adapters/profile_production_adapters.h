@@ -172,6 +172,34 @@ class ProductionPersistenceAdapter {
 
 #ifdef USE_ESP32
 
+class BoundEspMqttClientConfig final : public esp_mqtt_client_config_t {
+ public:
+  explicit BoundEspMqttClientConfig(
+      const CandidateMqttProfile *profile = nullptr)
+      : profile_(profile) {
+    this->reset_();
+  }
+
+  BoundEspMqttClientConfig &operator=(
+      const BoundEspMqttClientConfig &) {
+    this->reset_();
+    return *this;
+  }
+
+ protected:
+  void reset_() {
+    static_cast<esp_mqtt_client_config_t &>(*this) = {};
+    this->network.disable_auto_reconnect = true;
+    this->broker.verification.common_name =
+        this->profile_ != nullptr &&
+                !this->profile_->broker_tls_server_name.empty()
+            ? this->profile_->broker_tls_server_name.c_str()
+            : nullptr;
+  }
+
+  const CandidateMqttProfile *profile_{nullptr};
+};
+
 class EspIdfActivationNonceSource final : public ActivationNonceSource {
  public:
   bool next_nonce_hex(std::string *nonce_hex) override;
@@ -179,7 +207,7 @@ class EspIdfActivationNonceSource final : public ActivationNonceSource {
 
 class EspIdfProductionMqttSession final : public ProductionMqttSession {
  public:
-  EspIdfProductionMqttSession() = default;
+  EspIdfProductionMqttSession() : config_(&this->profile_) {}
   ~EspIdfProductionMqttSession() override;
 
   EspIdfProductionMqttSession(const EspIdfProductionMqttSession &) = delete;
@@ -209,7 +237,7 @@ class EspIdfProductionMqttSession final : public ProductionMqttSession {
 
   CandidateMqttProfile profile_{};
   CandidateMqttProbeExchange exchange_{};
-  esp_mqtt_client_config_t config_{};
+  BoundEspMqttClientConfig config_;
   esp_mqtt_client_handle_t client_{nullptr};
   int subscribe_message_id_{-1};
   int publish_message_id_{-1};
