@@ -1,5 +1,5 @@
 substitutions:
-  device_name: gh-h3-isolated-accept-v55
+  device_name: gh-h3-iso-accept-v55
   project_version: "F1.0-RC2-H3-ISOLATED-ACCEPTANCE-LAB-V55"
   soil_read_interval: 20s
   soil_warmup_time: 15s
