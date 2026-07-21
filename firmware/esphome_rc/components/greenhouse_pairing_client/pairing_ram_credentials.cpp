@@ -19,6 +19,41 @@ void secure_clear(std::string *value) {
 
 }  // namespace
 
+RamCredentialBundle::~RamCredentialBundle() { this->clear(); }
+
+RamCredentialBundle::RamCredentialBundle(RamCredentialBundle &&other) {
+  this->move_from_(&other);
+}
+
+RamCredentialBundle &RamCredentialBundle::operator=(RamCredentialBundle &&other) {
+  if (this == &other)
+    return *this;
+  this->clear();
+  this->move_from_(&other);
+  return *this;
+}
+
+void RamCredentialBundle::move_from_(RamCredentialBundle *other) {
+  if (other == nullptr || other == this)
+    return;
+
+  // Copy each live value, then actively wipe the source. Using the default
+  // std::string move can leave short-string bytes behind in the moved-from
+  // object's inline storage, which is not acceptable for RAM-only credentials.
+  this->schema = other->schema;
+  this->system_id = other->system_id;
+  this->node_id = other->node_id;
+  this->broker_host = other->broker_host;
+  this->broker_port = other->broker_port;
+  this->broker_tls_server_name = other->broker_tls_server_name;
+  this->ca_pem = other->ca_pem;
+  this->mqtt_username = other->mqtt_username;
+  this->mqtt_client_id = other->mqtt_client_id;
+  this->credential_generation = other->credential_generation;
+  this->mqtt_password = other->mqtt_password;
+  other->clear();
+}
+
 bool RamCredentialBundle::valid() const {
   return this->schema == CREDENTIALS_CONTENT_TYPE &&
          PairingClientCore::valid_identifier(this->system_id) &&
