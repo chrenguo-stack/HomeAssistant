@@ -23,8 +23,8 @@ bool PairingAsyncWorker::start(PairingAsyncDelegate *delegate,
                                uint32_t stack_size_bytes, uint8_t priority) {
 #ifdef USE_ESP32
   if (delegate == nullptr || this->task_ != nullptr || this->command_queue_ != nullptr ||
-      this->snapshot_queue_ != nullptr || stack_size_bytes < 4096 || stack_size_bytes > 24576 ||
-      priority == 0 || priority > 5)
+      this->snapshot_queue_ != nullptr || this->running_.load() ||
+      stack_size_bytes < 4096 || stack_size_bytes > 24576 || priority == 0 || priority > 5)
     return false;
 
   this->command_queue_ = xQueueCreate(1, sizeof(Command));
@@ -38,10 +38,15 @@ bool PairingAsyncWorker::start(PairingAsyncDelegate *delegate,
     this->snapshot_queue_ = nullptr;
     return false;
   }
+
   this->delegate_ = delegate;
+  this->active_.store(false);
+  this->cancel_requested_.store(false);
+  this->running_.store(true);
   const BaseType_t created =
       xTaskCreate(task_entry_, "gh_pairing_worker", stack_size_bytes, this, priority, &this->task_);
   if (created != pdPASS) {
+    this->running_.store(false);
     vQueueDelete(this->command_queue_);
     vQueueDelete(this->snapshot_queue_);
     this->command_queue_ = nullptr;
@@ -61,11 +66,20 @@ bool PairingAsyncWorker::start(PairingAsyncDelegate *delegate,
 
 bool PairingAsyncWorker::request(uint32_t operation_id) {
 #ifdef USE_ESP32
-  if (operation_id == 0 || this->task_ == nullptr || this->command_queue_ == nullptr ||
-      this->active_.load())
+  if (operation_id == 0 || !this->running_.load() || this->task_ == nullptr ||
+      this->command_queue_ == nullptr)
     return false;
+
+  bool expected = false;
+  if (!this->active_.compare_exchange_strong(expected, true))
+    return false;
+  this->cancel_requested_.store(false);
   const Command command{.type = CommandType::RUN, .operation_id = operation_id};
-  return xQueueSend(this->command_queue_, &command, 0) == pdTRUE;
+  if (xQueueSend(this->command_queue_, &command, 0) != pdTRUE) {
+    this->active_.store(false);
+    return false;
+  }
+  return true;
 #else
   (void) operation_id;
   return false;
@@ -104,18 +118,22 @@ bool PairingAsyncWorker::stop(uint32_t wait_ms) {
     this->command_queue_ = nullptr;
     this->snapshot_queue_ = nullptr;
     this->delegate_ = nullptr;
+    this->running_.store(false);
+    this->active_.store(false);
+    this->cancel_requested_.store(false);
     return true;
   }
+
   this->cancel_requested_.store(true);
   const Command stop{.type = CommandType::STOP, .operation_id = 0};
   if (this->command_queue_ != nullptr)
-    xQueueSend(this->command_queue_, &stop, 0);
+    xQueueOverwrite(this->command_queue_, &stop);
 
   const TickType_t started = xTaskGetTickCount();
   const TickType_t budget = pdMS_TO_TICKS(wait_ms);
-  while (this->task_ != nullptr && xTaskGetTickCount() - started < budget)
+  while (this->running_.load() && xTaskGetTickCount() - started < budget)
     vTaskDelay(pdMS_TO_TICKS(10));
-  if (this->task_ != nullptr)
+  if (this->running_.load())
     return false;
 
   if (this->command_queue_ != nullptr)
@@ -125,6 +143,9 @@ bool PairingAsyncWorker::stop(uint32_t wait_ms) {
   this->command_queue_ = nullptr;
   this->snapshot_queue_ = nullptr;
   this->delegate_ = nullptr;
+  this->task_ = nullptr;
+  this->active_.store(false);
+  this->cancel_requested_.store(false);
   return true;
 #else
   (void) wait_ms;
@@ -154,8 +175,10 @@ void PairingAsyncWorker::publish_snapshot_() {
 #ifdef USE_ESP32
 void PairingAsyncWorker::task_entry_(void *argument) {
   auto *worker = static_cast<PairingAsyncWorker *>(argument);
-  if (worker != nullptr)
+  if (worker != nullptr) {
     worker->task_loop_();
+    worker->running_.store(false);
+  }
   vTaskDelete(nullptr);
 }
 
@@ -165,14 +188,15 @@ void PairingAsyncWorker::task_loop_() {
   while (xQueueReceive(this->command_queue_, &command, portMAX_DELAY) == pdTRUE) {
     if (command.type == CommandType::STOP)
       break;
-    if (command.type != CommandType::RUN || this->delegate_ == nullptr)
+    if (command.type != CommandType::RUN || this->delegate_ == nullptr) {
+      this->active_.store(false);
       continue;
+    }
 
-    this->cancel_requested_.store(false);
-    this->active_.store(true);
     const PairingClientSnapshot initial = this->delegate_->async_client_snapshot();
     if (!this->contract_.queue(command.operation_id, initial)) {
       this->active_.store(false);
+      this->cancel_requested_.store(false);
       continue;
     }
     this->publish_snapshot_();
@@ -187,10 +211,10 @@ void PairingAsyncWorker::task_loop_() {
       this->contract_.finish(PairingAsyncOutcome::INVALID_TRANSITION, final_snapshot);
     this->publish_snapshot_();
     this->active_.store(false);
+    this->cancel_requested_.store(false);
   }
   this->active_.store(false);
   this->cancel_requested_.store(false);
-  this->task_ = nullptr;
 }
 #endif
 
