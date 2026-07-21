@@ -30,6 +30,13 @@ _UUID = re.compile(
     r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
 )
 _BASE64URL_32 = re.compile(r"^[A-Za-z0-9_-]{43}$")
+_LOCAL_UDP_NETWORKS = (
+    ipaddress.IPv4Network("10.0.0.0/8"),
+    ipaddress.IPv4Network("172.16.0.0/12"),
+    ipaddress.IPv4Network("192.168.0.0/16"),
+    ipaddress.IPv4Network("127.0.0.0/8"),
+    ipaddress.IPv4Network("169.254.0.0/16"),
+)
 
 
 def _safe_id(value: object) -> str:
@@ -76,14 +83,12 @@ def _udp_target(value: object) -> str:
         address = ipaddress.IPv4Address(candidate)
     except ipaddress.AddressValueError as error:
         raise cv.Invalid("udp_target must be an IPv4 address") from error
-    if not (
-        address.is_private
-        or address.is_link_local
-        or address.is_loopback
-        or address.is_unspecified
-        or str(address) == "255.255.255.255"
+    if str(address) != "255.255.255.255" and not any(
+        address in network for network in _LOCAL_UDP_NETWORKS
     ):
-        raise cv.Invalid("udp_target must stay on the local network")
+        raise cv.Invalid(
+            "udp_target must be limited broadcast, loopback, RFC1918, or link-local"
+        )
     return str(address)
 
 
