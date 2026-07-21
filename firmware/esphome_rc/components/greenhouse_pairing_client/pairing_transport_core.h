@@ -7,6 +7,7 @@
 namespace esphome::greenhouse_pairing_client {
 
 static constexpr size_t UDP_DISCOVERY_MAX_DATAGRAM = 1400;
+static constexpr size_t UDP_DISCOVERY_MAX_RESPONSES_PER_ATTEMPT = 32;
 static constexpr size_t HTTP_RESPONSE_MAX_BYTES = 16 * 1024;
 static constexpr uint32_t HTTP_TIMEOUT_MAX_MS = 5000;
 static constexpr uint8_t UDP_DISCOVERY_MAX_ATTEMPTS = 5;
@@ -32,6 +33,8 @@ class PairingTransportCore {
   static bool validate_limits(const PairingTransportLimits &limits);
   static uint32_t retry_delay_ms(const PairingTransportLimits &limits, uint8_t attempt_index);
   static bool validate_udp_datagram_size(size_t payload_size);
+  static bool validate_udp_target(const std::string &target);
+  static bool validate_pairing_path(const std::string &pairing_path);
   static bool validate_http_response(const HttpResponseMetadata &metadata);
   static bool parse_uint16(const std::string &value, uint16_t *output);
   static bool parse_uint32(const std::string &value, uint32_t *output);
