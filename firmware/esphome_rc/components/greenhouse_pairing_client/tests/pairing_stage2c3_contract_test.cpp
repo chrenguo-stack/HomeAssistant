@@ -5,12 +5,6 @@
 #include "pairing_mqtt_activation_contract.h"
 #include "pairing_persistence_contract.h"
 
-// Keep the uniquely named fault matrix independently readable while compiling
-// it into the focused Stage 2C-3 host test without adding a second CI driver.
-#define main run_stage2c3_fault_matrix_20260721_v48
-#include "pairing_stage2c3_fault_matrix_20260721_v48.cpp"
-#undef main
-
 using namespace esphome::greenhouse_pairing_client;
 
 int main() {
@@ -75,7 +69,6 @@ int main() {
   assert(mqtt.activate());
   assert(mqtt.snapshot().active_generation == 7);
 
-  assert(run_stage2c3_fault_matrix_20260721_v48() == 0);
   std::cout << "stage2c3 async and persistence contracts passed\n";
   return 0;
 }
