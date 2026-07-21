@@ -8,6 +8,11 @@ esp32:
   variant: ESP32C6
   framework:
     type: esp-idf
+    advanced:
+      include_builtin_idf_components:
+        - mdns
+        - nvs_flash
+        - esp_hw_support
     sdkconfig_options:
       CONFIG_MBEDTLS_CHACHA20_C: y
       CONFIG_MBEDTLS_POLY1305_C: y
