@@ -29,8 +29,9 @@ active
 - 状态仅为 PREPARED 或 COMMITTED；
 - generation 非零；
 - 明文长度非零且不超过 12288 bytes；
-- 包含明文 SHA-256；
+- 包含使用独立 digest key 计算的 HMAC-SHA256 payload digest；
 - 使用 96 位随机 nonce；
+- 记录根密钥必须域分离派生 encryption key 与 digest key；
 - 使用 ChaCha20-Poly1305；
 - header 全部作为 AEAD AAD；
 - 解密后重新计算并常量时间比较摘要；
@@ -85,20 +86,25 @@ candidate COMMITTED write
 
 ## 7. 密钥
 
-生产实现必须使用设备唯一、不可由固件读取的根密钥派生记录密钥。ESP32-C6 路线冻结为 HMAC upstream eFuse key。仓库不得包含根密钥或不可逆 eFuse 写入动作。
+生产实现必须使用设备唯一、不可由固件读取的根密钥派生记录根密钥。ESP32-C6 路线冻结为 HMAC upstream eFuse key。记录根密钥必须分别使用 `gh-persist-encryption-v1` 和 `gh-persist-digest-v1` 域派生两个子密钥。仓库不得包含根密钥或不可逆 eFuse 写入动作。
 
 ## 8. 清零
 
 以下数据在完成或失败路径均必须主动清零：
 
-- 派生记录密钥；
+- 派生记录根密钥；
+- encryption key 和 digest key；
 - 明文凭据编码；
 - 解密输出临时缓冲区；
 - 摘要临时缓冲区；
 - nonce 临时缓冲区；
 - 被覆盖的旧 `RamCredentialBundle` 字符串。
 
-## 9. 范围限制
+## 9. 防回滚限制
+
+本合同不提供完整旧 NVS 快照的密码学防重放。若攻击者恢复一份 slot、marker、generation 和认证标签均内部自洽的旧快照，当前存储内 generation 规则无法识别。生产防回滚需要后续使用受保护的单调计数器、可信版本锚点，或与 Secure Boot/Flash Encryption 制造策略共同冻结。
+
+## 10. 范围限制
 
 本合同不代表：
 
