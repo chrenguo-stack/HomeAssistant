@@ -1,0 +1,65 @@
+substitutions:
+  device_name: gh-h3-life-lab
+  project_version: "F1.0-RC2-H3-PROFILE-LIFECYCLE-LAB"
+  soil_read_interval: 20s
+  soil_warmup_time: 15s
+  scd30_update_interval: 11s
+  battery_divider_ratio: "2.0"
+  battery_calibration_factor: "1.000"
+  battery_low_threshold: "3.00"
+  battery_recovery_threshold: "3.50"
+
+esp32:
+  framework:
+    advanced:
+      include_builtin_idf_components:
+        - nvs_flash
+        - esp_hw_support
+    sdkconfig_options:
+      CONFIG_MBEDTLS_PSA_CRYPTO_C: y
+      CONFIG_MBEDTLS_ECP_DP_CURVE25519_ENABLED: y
+      CONFIG_MBEDTLS_CHACHA20_C: y
+      CONFIG_MBEDTLS_POLY1305_C: y
+      CONFIG_MBEDTLS_CHACHAPOLY_C: y
+
+external_components:
+  - source:
+      type: local
+      path: ../15_1_2_rs485_modbus_echo_filter/my_components
+    components:
+      - echo_filtered_modbus
+  - source:
+      type: local
+      path: ../components
+    components:
+      - greenhouse_pairing_client
+      - greenhouse_profile_lifecycle_lab
+
+packages:
+  core: !include packages/core.yml
+  control: !include packages/control.yml
+  buses: !include packages/buses.yml
+  sensors: !include packages/sensors.yml
+  display: !include packages/display.yml
+
+# Dedicated non-production product-PCB compile target. It contains no concrete
+# MQTT runtime adapter, no NVS backend instance, and no lifecycle trigger.
+greenhouse_profile_lifecycle_lab:
+  id: profile_lifecycle_stage2d4
+
+text_sensor:
+  - platform: template
+    name: "Profile Lifecycle Phase Stage 2D-4 Lab"
+    id: profile_lifecycle_phase_stage2d4
+    internal: true
+    update_interval: 5s
+    lambda: |-
+      return {id(profile_lifecycle_stage2d4).phase_name()};
+
+binary_sensor:
+  - platform: template
+    name: "Profile Lifecycle Reboot Required Stage 2D-4 Lab"
+    id: profile_lifecycle_reboot_stage2d4
+    internal: true
+    lambda: |-
+      return id(profile_lifecycle_stage2d4).reboot_required();
