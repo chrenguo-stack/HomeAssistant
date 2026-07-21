@@ -510,6 +510,10 @@ void test_storage_error_quiesces_and_requires_reboot() {
   assert(!rig.controller.recover_startup());
   assert(rig.controller.snapshot().phase ==
          ProfileLifecycleControllerPhase::REBOOT_REQUIRED);
+  assert(rig.controller.snapshot().startup_disposition ==
+         StartupRecoveryDisposition::FAULT_REBOOT_REQUIRED);
+  assert(rig.controller.snapshot().persistence_status ==
+         PersistentRecoveryStatus::STORAGE_ERROR);
   assert(rig.controller.snapshot().reboot_required);
   assert(!rig.controller.snapshot().active_runtime_live);
   assert(!rig.controller.snapshot().candidate_runtime_live);
