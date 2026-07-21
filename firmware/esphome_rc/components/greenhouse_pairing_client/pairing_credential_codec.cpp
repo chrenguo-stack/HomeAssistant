@@ -9,7 +9,6 @@
 #include "secure_pairing_channel.h"
 
 namespace esphome::greenhouse_pairing_client {
-
 namespace {
 
 constexpr std::array<uint8_t, 4> PAYLOAD_MAGIC = {'G', 'H', 'C', '1'};
@@ -29,8 +28,8 @@ void put_u32(std::vector<uint8_t> *output, uint32_t value) {
 
 bool take_u16(const std::vector<uint8_t> &input, size_t *offset,
               uint16_t *value) {
-  if (offset == nullptr || value == nullptr ||
-      *offset > input.size() || input.size() - *offset < 2)
+  if (offset == nullptr || value == nullptr || *offset > input.size() ||
+      input.size() - *offset < 2)
     return false;
   *value = static_cast<uint16_t>(
       (static_cast<uint16_t>(input[*offset]) << 8) |
@@ -41,8 +40,8 @@ bool take_u16(const std::vector<uint8_t> &input, size_t *offset,
 
 bool take_u32(const std::vector<uint8_t> &input, size_t *offset,
               uint32_t *value) {
-  if (offset == nullptr || value == nullptr ||
-      *offset > input.size() || input.size() - *offset < 4)
+  if (offset == nullptr || value == nullptr || *offset > input.size() ||
+      input.size() - *offset < 4)
     return false;
   *value = (static_cast<uint32_t>(input[*offset]) << 24) |
            (static_cast<uint32_t>(input[*offset + 1]) << 16) |
@@ -79,14 +78,12 @@ bool validate_values(const std::array<std::string, FIELD_COUNT> &fields,
   return fields[0] == CREDENTIALS_CONTENT_TYPE &&
          PairingClientCore::valid_identifier(fields[1]) &&
          PairingClientCore::valid_identifier(fields[2]) &&
-         PairingClientCore::valid_local_host(fields[3]) &&
-         broker_port != 0 &&
+         PairingClientCore::valid_local_host(fields[3]) && broker_port != 0 &&
          PairingClientCore::valid_local_host(fields[4]) &&
          !fields[5].empty() && fields[5].size() <= 8192 &&
          PairingClientCore::valid_identifier(fields[6]) &&
-         PairingClientCore::valid_identifier(fields[7]) &&
-         generation != 0 && !fields[8].empty() &&
-         fields[8].size() <= 512;
+         PairingClientCore::valid_identifier(fields[7]) && generation != 0 &&
+         !fields[8].empty() && fields[8].size() <= 512;
 }
 
 void wipe_string(std::string *value) {
@@ -104,16 +101,25 @@ void wipe_fields(std::array<std::string, FIELD_COUNT> *fields) {
     wipe_string(&field);
 }
 
+void wipe_vector(std::vector<uint8_t> *value) {
+  if (value == nullptr)
+    return;
+  std::fill(value->begin(), value->end(), 0);
+  value->clear();
+  value->shrink_to_fit();
+}
+
 }  // namespace
 
 bool PairingCredentialCodec::encode(const RamCredentialBundle &bundle,
                                     std::vector<uint8_t> *output) {
-  if (output == nullptr || !bundle.valid())
+  if (output == nullptr)
     return false;
-  std::fill(output->begin(), output->end(), 0);
-  output->clear();
-  output->reserve(64 + bundle.ca_pem.size() + bundle.mqtt_password.size());
+  wipe_vector(output);
+  if (!bundle.valid())
+    return false;
 
+  output->reserve(64 + bundle.ca_pem.size() + bundle.mqtt_password.size());
   output->insert(output->end(), PAYLOAD_MAGIC.begin(), PAYLOAD_MAGIC.end());
   put_u16(output, PERSISTED_CREDENTIAL_PAYLOAD_VERSION);
   put_u16(output, FIELD_COUNT);
@@ -121,26 +127,21 @@ bool PairingCredentialCodec::encode(const RamCredentialBundle &bundle,
   put_u16(output, bundle.broker_port);
 
   const std::array<const std::string *, FIELD_COUNT> fields = {
-      &bundle.schema,
-      &bundle.system_id,
-      &bundle.node_id,
-      &bundle.broker_host,
+      &bundle.schema,       &bundle.system_id,
+      &bundle.node_id,      &bundle.broker_host,
       &bundle.broker_tls_server_name,
-      &bundle.ca_pem,
-      &bundle.mqtt_username,
+      &bundle.ca_pem,       &bundle.mqtt_username,
       &bundle.mqtt_client_id,
       &bundle.mqtt_password,
   };
   for (const std::string *field : fields) {
     if (field == nullptr || !put_string(output, *field)) {
-      std::fill(output->begin(), output->end(), 0);
-      output->clear();
+      wipe_vector(output);
       return false;
     }
   }
   if (output->size() > PERSISTED_CREDENTIAL_MAX_BYTES) {
-    std::fill(output->begin(), output->end(), 0);
-    output->clear();
+    wipe_vector(output);
     return false;
   }
   return true;
@@ -148,10 +149,11 @@ bool PairingCredentialCodec::encode(const RamCredentialBundle &bundle,
 
 bool PairingCredentialCodec::decode(const std::vector<uint8_t> &input,
                                     RamCredentialBundle *output) {
-  if (output == nullptr || input.size() < 32 ||
-      input.size() > PERSISTED_CREDENTIAL_MAX_BYTES ||
-      !std::equal(PAYLOAD_MAGIC.begin(), PAYLOAD_MAGIC.end(),
-                  input.begin()))
+  if (output == nullptr)
+    return false;
+  output->clear();
+  if (input.size() < 32 || input.size() > PERSISTED_CREDENTIAL_MAX_BYTES ||
+      !std::equal(PAYLOAD_MAGIC.begin(), PAYLOAD_MAGIC.end(), input.begin()))
     return false;
 
   size_t offset = PAYLOAD_MAGIC.size();
@@ -164,9 +166,8 @@ bool PairingCredentialCodec::decode(const std::vector<uint8_t> &input,
       !take_u32(input, &offset, &generation) ||
       !take_u16(input, &offset, &broker_port) ||
       version != PERSISTED_CREDENTIAL_PAYLOAD_VERSION ||
-      field_count != FIELD_COUNT) {
+      field_count != FIELD_COUNT)
     return false;
-  }
 
   std::array<std::string, FIELD_COUNT> fields;
   const std::array<size_t, FIELD_COUNT> maximums = {
@@ -185,7 +186,6 @@ bool PairingCredentialCodec::decode(const std::vector<uint8_t> &input,
     return false;
   }
 
-  output->clear();
   output->schema = fields[0];
   output->system_id = fields[1];
   output->node_id = fields[2];
@@ -198,7 +198,11 @@ bool PairingCredentialCodec::decode(const std::vector<uint8_t> &input,
   output->credential_generation = generation;
   output->mqtt_password = fields[8];
   wipe_fields(&fields);
-  return output->valid();
+  if (!output->valid()) {
+    output->clear();
+    return false;
+  }
+  return true;
 }
 
 }  // namespace esphome::greenhouse_pairing_client
