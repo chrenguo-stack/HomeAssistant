@@ -1,0 +1,49 @@
+esphome:
+  name: gh-2d8-driver-v56
+  friendly_name: Greenhouse Stage 2D-8 Isolated Driver Compile Lab
+  min_version: 2026.4.3
+
+esp32:
+  board: esp32-c6-devkitm-1
+  variant: ESP32C6
+  framework:
+    type: esp-idf
+    advanced:
+      include_builtin_idf_components:
+        - mqtt
+        - nvs_flash
+        - esp_hw_support
+    sdkconfig_options:
+      CONFIG_MBEDTLS_PSA_CRYPTO_C: y
+      CONFIG_MBEDTLS_ECP_DP_CURVE25519_ENABLED: y
+      CONFIG_MBEDTLS_CHACHA20_C: y
+      CONFIG_MBEDTLS_POLY1305_C: y
+      CONFIG_MBEDTLS_CHACHAPOLY_C: y
+      CONFIG_MBEDTLS_HARDWARE_MPI: n
+
+logger:
+  level: DEBUG
+
+# Compile-only target. Wi-Fi is disabled at boot and the component creates no
+# object. It cannot open NVS, connect MQTT, load a test key, grant a write or
+# expose an operator command.
+wifi:
+  ssid: !secret node_pairing_wifi_ssid
+  password: !secret node_pairing_wifi_password
+  enable_on_boot: false
+  reboot_timeout: 0s
+
+mdns:
+
+external_components:
+  - source:
+      type: local
+      path: ../../components
+    components:
+      - greenhouse_pairing_client
+      - greenhouse_profile_production_adapters
+      - greenhouse_profile_lifecycle_controller
+      - greenhouse_profile_isolated_acceptance
+      - greenhouse_profile_isolated_device_driver
+
+greenhouse_profile_isolated_device_driver:
