@@ -1,0 +1,52 @@
+esphome:
+  name: gh-life-lab
+  friendly_name: Greenhouse Profile Lifecycle Integration Lab
+  min_version: 2026.4.3
+
+esp32:
+  board: esp32-c6-devkitm-1
+  variant: ESP32C6
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+# The shared pairing component compiles discovery and persistence sources. Wi-Fi
+# remains disabled and no concrete MQTT, NVS, or activation runtime is configured.
+wifi:
+  ssid: !secret node_pairing_wifi_ssid
+  password: !secret node_pairing_wifi_password
+  enable_on_boot: false
+  reboot_timeout: 0s
+
+mdns:
+
+external_components:
+  - source:
+      type: local
+      path: ../../components
+    components:
+      - greenhouse_pairing_client
+      - greenhouse_profile_lifecycle_lab
+
+# Compile-only assembly. It exposes no action, button, switch, or automation.
+greenhouse_profile_lifecycle_lab:
+  id: profile_lifecycle_stage2d4
+
+text_sensor:
+  - platform: template
+    name: Profile Lifecycle Phase Stage 2D-4 Lab
+    id: profile_lifecycle_phase_stage2d4
+    internal: true
+    update_interval: 5s
+    lambda: |-
+      return {id(profile_lifecycle_stage2d4).phase_name()};
+
+binary_sensor:
+  - platform: template
+    name: Profile Lifecycle Reboot Required Stage 2D-4 Lab
+    id: profile_lifecycle_reboot_stage2d4
+    internal: true
+    lambda: |-
+      return id(profile_lifecycle_stage2d4).reboot_required();
