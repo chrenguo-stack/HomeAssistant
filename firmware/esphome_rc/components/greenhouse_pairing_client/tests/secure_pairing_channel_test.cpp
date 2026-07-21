@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <iostream>
 #include <string>
+#include <vector>
 
 using namespace esphome::greenhouse_pairing_client;
 
@@ -67,6 +68,19 @@ SecureEnvelopeDocument credentials_envelope() {
 }  // namespace
 
 int main() {
+  std::vector<uint8_t> decoded{1, 2, 3};
+  assert(!SecurePairingChannel::decode_base64url("A", &decoded));
+  assert(decoded.empty());
+
+  auto low_order_offer = offer();
+  low_order_offer.manager_public_key =
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+  SecurePairingChannel rejected;
+  assert(!rejected.establish_for_test(low_order_offer, stage2c2_vectors::pairing_secret,
+                                      bytes32(stage2c2_vectors::node_private_key_hex),
+                                      b64_32(stage2c2_vectors::node_nonce)));
+  assert(!rejected.snapshot().established);
+
   SecurePairingChannel channel;
   assert(channel.establish_for_test(offer(), stage2c2_vectors::pairing_secret,
                                     bytes32(stage2c2_vectors::node_private_key_hex),
@@ -79,13 +93,16 @@ int main() {
 
   auto wrong_direction = credentials_envelope();
   wrong_direction.direction = NODE_TO_MANAGER_DIRECTION;
-  std::string plaintext;
+  std::string plaintext = "stale-secret";
   assert(!channel.decrypt(wrong_direction, CREDENTIALS_CONTENT_TYPE, &plaintext));
+  assert(plaintext.empty());
   assert(channel.snapshot().receive_sequence == 0);
 
   auto tampered = credentials_envelope();
   tampered.ciphertext.back() = tampered.ciphertext.back() == 'A' ? 'B' : 'A';
+  plaintext = "stale-secret";
   assert(!channel.decrypt(tampered, CREDENTIALS_CONTENT_TYPE, &plaintext));
+  assert(plaintext.empty());
   assert(channel.snapshot().receive_sequence == 0);
 
   auto credentials = credentials_envelope();
@@ -93,6 +110,7 @@ int main() {
   assert(plaintext == stage2c2_vectors::credentials_plaintext);
   assert(channel.snapshot().receive_sequence == 1);
   assert(!channel.decrypt(credentials, CREDENTIALS_CONTENT_TYPE, &plaintext));
+  assert(plaintext.empty());
   assert(channel.snapshot().receive_sequence == 1);
 
   SecureEnvelopeDocument ack;
