@@ -1,0 +1,89 @@
+#include "pairing_persistence_backend.h"
+
+#include <algorithm>
+
+#ifdef USE_ESP32
+#include "esp_err.h"
+#include "nvs.h"
+#endif
+
+namespace esphome::greenhouse_pairing_client {
+
+#ifdef USE_ESP32
+EspIdfNvsPersistenceBackend::EspIdfNvsPersistenceBackend(
+    const std::string &partition_label, const std::string &namespace_name)
+    : partition_label_(partition_label), namespace_name_(namespace_name) {}
+
+EspIdfNvsPersistenceBackend::~EspIdfNvsPersistenceBackend() {
+  if (this->opened_)
+    nvs_close(this->handle_);
+  this->handle_ = 0;
+  this->opened_ = false;
+}
+
+bool EspIdfNvsPersistenceBackend::open() {
+  if (this->opened_ || this->namespace_name_.empty() ||
+      this->namespace_name_.size() > 15 ||
+      this->partition_label_.size() > 15)
+    return false;
+
+  esp_err_t status = ESP_FAIL;
+  if (this->partition_label_.empty() || this->partition_label_ == "nvs") {
+    status = nvs_open(this->namespace_name_.c_str(), NVS_READWRITE,
+                      &this->handle_);
+  } else {
+    status = nvs_open_from_partition(this->partition_label_.c_str(),
+                                     this->namespace_name_.c_str(),
+                                     NVS_READWRITE, &this->handle_);
+  }
+  this->opened_ = status == ESP_OK;
+  if (!this->opened_)
+    this->handle_ = 0;
+  return this->opened_;
+}
+
+PersistenceReadResult EspIdfNvsPersistenceBackend::read_blob(
+    const char *key, std::vector<uint8_t> *value) {
+  if (!this->opened_ || key == nullptr || value == nullptr)
+    return PersistenceReadResult::ERROR;
+  std::fill(value->begin(), value->end(), 0);
+  value->clear();
+
+  size_t length = 0;
+  esp_err_t status = nvs_get_blob(this->handle_, key, nullptr, &length);
+  if (status == ESP_ERR_NVS_NOT_FOUND)
+    return PersistenceReadResult::NOT_FOUND;
+  if (status != ESP_OK || length == 0 || length > PERSISTENCE_MAX_BLOB_BYTES)
+    return PersistenceReadResult::ERROR;
+
+  value->assign(length, 0);
+  status = nvs_get_blob(this->handle_, key, value->data(), &length);
+  if (status != ESP_OK || length != value->size()) {
+    std::fill(value->begin(), value->end(), 0);
+    value->clear();
+    return PersistenceReadResult::ERROR;
+  }
+  return PersistenceReadResult::OK;
+}
+
+bool EspIdfNvsPersistenceBackend::write_blob(const char *key,
+                                             const uint8_t *value,
+                                             size_t length) {
+  return this->opened_ && key != nullptr && value != nullptr && length > 0 &&
+         length <= PERSISTENCE_MAX_BLOB_BYTES &&
+         nvs_set_blob(this->handle_, key, value, length) == ESP_OK;
+}
+
+bool EspIdfNvsPersistenceBackend::erase_key(const char *key) {
+  if (!this->opened_ || key == nullptr)
+    return false;
+  const esp_err_t status = nvs_erase_key(this->handle_, key);
+  return status == ESP_OK || status == ESP_ERR_NVS_NOT_FOUND;
+}
+
+bool EspIdfNvsPersistenceBackend::commit() {
+  return this->opened_ && nvs_commit(this->handle_) == ESP_OK;
+}
+#endif
+
+}  // namespace esphome::greenhouse_pairing_client
