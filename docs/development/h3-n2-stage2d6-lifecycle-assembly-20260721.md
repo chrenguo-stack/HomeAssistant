@@ -83,9 +83,10 @@ progress.
 `activate()` accepts a `ProfileLifecycleMutationAuthorizer` for the exact
 `active_generation` and `candidate_generation`.
 
-Denied authorization keeps the controller in `VERIFIED`; no runtime switch or
-persistent write occurs. Authorization is evaluated again for each activation
-attempt and is not cached across transactions.
+Denied authorization is recorded as `MUTATION_NOT_AUTHORIZED` and keeps the
+controller in `VERIFIED`; no runtime switch or persistent write occurs.
+Authorization is evaluated again for each activation attempt and is not cached
+across transactions.
 
 ## Activation closure
 
