@@ -228,7 +228,7 @@ RamCredentialBundle make_credentials(uint32_t generation) {
   bundle.schema = "gh.pair.credentials/1";
   bundle.system_id = "greenhouse";
   bundle.node_id = "node-" + std::to_string(generation);
-  bundle.broker_host = "broker.example.test";
+  bundle.broker_host = "broker.local";
   bundle.broker_port = 8883;
   bundle.broker_tls_server_name = bundle.broker_host;
   bundle.ca_pem =
