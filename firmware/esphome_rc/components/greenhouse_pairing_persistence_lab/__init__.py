@@ -42,10 +42,9 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: dict) -> None:
-    # greenhouse_pairing_client is compiled as one ESPHome external component,
-    # so its shared transport sources still require mDNS even though this lab
-    # never starts discovery or networking.
-    include_builtin_idf_component("mdns")
+    # ESPHome 2026.4.3 supplies mDNS as a managed espressif/mdns component.
+    # The lab YAML therefore declares `mdns:` explicitly instead of treating it
+    # as a built-in IDF component. NVS and HMAC support remain built-in.
     include_builtin_idf_component("nvs_flash")
     include_builtin_idf_component("esp_hw_support")
 
