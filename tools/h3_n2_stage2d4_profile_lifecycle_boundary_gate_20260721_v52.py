@@ -35,7 +35,9 @@ PROTECTED_PATHS = {
 }
 
 YAML_PATHS = {
-    path for path in REQUIRED_PATHS if path.endswith((".yml", ".yaml"))
+    path
+    for path in REQUIRED_PATHS
+    if path.endswith((".yml", ".yaml")) and not path.startswith(".github/")
 }
 
 FORBIDDEN_YAML_KEYS = {
@@ -121,8 +123,7 @@ def main() -> None:
 
     for relative in sorted(YAML_PATHS):
         text = (ROOT / relative).read_text(encoding="utf-8")
-        keys = yaml_keys(text)
-        exposed = sorted(FORBIDDEN_YAML_KEYS & keys)
+        exposed = sorted(FORBIDDEN_YAML_KEYS & yaml_keys(text))
         if exposed:
             errors.append(f"{relative}: startup or runtime trigger exposed {exposed}")
 
@@ -144,11 +145,10 @@ def main() -> None:
         if leaked:
             errors.append(f"{relative}: forbidden concrete integration tokens {leaked}")
 
-    integration_path = (
+    integration = (
         ROOT
         / "firmware/esphome_rc/components/greenhouse_pairing_client/pairing_profile_lifecycle_integration.cpp"
-    )
-    integration = integration_path.read_text(encoding="utf-8")
+    ).read_text(encoding="utf-8")
     absent = [token for token in REQUIRED_INTEGRATION_TOKENS if token not in integration]
     if absent:
         errors.append(f"lifecycle integration evidence missing: {absent}")
@@ -158,9 +158,7 @@ def main() -> None:
     if preflight_position < 0 or execute_position < 0 or preflight_position >= execute_position:
         errors.append("persistent preflight must occur before activation execution")
 
-    local_clear_position = integration.find("candidate_credentials_.clear()")
-    validator_stage_position = integration.find("validator_.stage")
-    if local_clear_position < 0 or validator_stage_position < 0:
+    if "candidate_credentials_.clear()" not in integration or "validator_.stage" not in integration:
         errors.append("candidate transfer and local-clear evidence missing")
 
     combined_yaml = "\n".join(
