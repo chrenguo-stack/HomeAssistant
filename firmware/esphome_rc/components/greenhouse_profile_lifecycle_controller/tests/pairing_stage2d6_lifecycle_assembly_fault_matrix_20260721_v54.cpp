@@ -217,7 +217,15 @@ class MemoryBackend final : public PairingPersistenceBackend {
   bool write_blob(const char *key, const uint8_t *value,
                   size_t length) override {
     write_calls++;
-    if (fail_writes || key == nullptr || value == nullptr || length == 0)
+    if (key == nullptr || value == nullptr || length == 0)
+      return false;
+    if (!fail_write_key_.empty() && fail_write_key_ == key) {
+      fail_write_key_.clear();
+      if (reads_fail_after_write_failure_)
+        fail_reads = true;
+      return false;
+    }
+    if (fail_writes)
       return false;
     pending_[key] =
         Pending{false, std::vector<uint8_t>(value, value + length)};
@@ -246,6 +254,12 @@ class MemoryBackend final : public PairingPersistenceBackend {
     return true;
   }
 
+  void fail_next_write_to(const std::string &key,
+                          bool fail_following_reads = false) {
+    fail_write_key_ = key;
+    reads_fail_after_write_failure_ = fail_following_reads;
+  }
+
   bool fail_reads{false};
   bool fail_writes{false};
   bool fail_commits{false};
@@ -257,6 +271,8 @@ class MemoryBackend final : public PairingPersistenceBackend {
  private:
   std::map<std::string, std::vector<uint8_t>> durable_;
   std::map<std::string, Pending> pending_;
+  std::string fail_write_key_{};
+  bool reads_fail_after_write_failure_{false};
 };
 
 std::array<uint8_t, 32> make_key() {
@@ -333,6 +349,16 @@ void verify_probe(ControllerRig *rig) {
   assert(rig->controller.snapshot().phase ==
          ProfileLifecycleControllerPhase::VERIFIED);
   assert(!rig->probe_transport.live());
+}
+
+void prepare_verified_rotation(ControllerRig *rig) {
+  assert(rig != nullptr);
+  rig->prepare(1);
+  rig->commit_prepared();
+  rig->prepare(2);
+  assert(rig->controller.recover_startup());
+  assert(rig->controller.start_recovered_active());
+  verify_probe(rig);
 }
 
 void test_empty_startup_is_read_only() {
@@ -437,12 +463,7 @@ void test_rotation_validation_failure_preserves_active() {
 
 void test_rotation_activation_failure_rolls_back() {
   ControllerRig rig;
-  rig.prepare(1);
-  rig.commit_prepared();
-  rig.prepare(2);
-  assert(rig.controller.recover_startup());
-  assert(rig.controller.start_recovered_active());
-  verify_probe(&rig);
+  prepare_verified_rotation(&rig);
 
   rig.activation_session.start_ok = false;
   FixedMutationAuthorizer authorizer;
@@ -457,6 +478,43 @@ void test_rotation_activation_failure_rolls_back() {
   assert(recovery.status == PersistentRecoveryStatus::ACTIVE_WITH_PREPARED);
   assert(recovery.active_generation == 1);
   assert(recovery.candidate_generation == 2);
+}
+
+void test_active_marker_write_rejection_rolls_back() {
+  ControllerRig rig;
+  prepare_verified_rotation(&rig);
+  rig.backend.fail_next_write_to("active");
+
+  FixedMutationAuthorizer authorizer;
+  authorizer.allow = true;
+  assert(!rig.controller.activate(&authorizer));
+  assert(rig.controller.snapshot().phase ==
+         ProfileLifecycleControllerPhase::ROLLED_BACK);
+  assert(rig.controller.snapshot().active_runtime_live);
+  assert(!rig.controller.snapshot().candidate_runtime_live);
+  assert(!rig.controller.snapshot().persistence_committed);
+  const PersistentRecoverySnapshot recovery = rig.recover();
+  assert(recovery.status ==
+         PersistentRecoveryStatus::ACTIVE_WITH_COMMITTED_ORPHAN);
+  assert(recovery.active_generation == 1);
+  assert(recovery.candidate_generation == 2);
+}
+
+void test_indeterminate_marker_write_requires_reboot() {
+  ControllerRig rig;
+  prepare_verified_rotation(&rig);
+  rig.backend.fail_next_write_to("active", true);
+
+  FixedMutationAuthorizer authorizer;
+  authorizer.allow = true;
+  assert(!rig.controller.activate(&authorizer));
+  assert(rig.controller.snapshot().phase ==
+         ProfileLifecycleControllerPhase::REBOOT_REQUIRED);
+  assert(rig.controller.snapshot().reboot_required);
+  assert(!rig.controller.snapshot().active_runtime_live);
+  assert(!rig.controller.snapshot().candidate_runtime_live);
+  assert(!rig.controller.snapshot().probe_client_live);
+  assert(!rig.controller.reset_transaction());
 }
 
 void test_two_rotations_reuse_promoted_active() {
@@ -527,6 +585,8 @@ int main() {
   test_first_enrollment_authorization_gate();
   test_rotation_validation_failure_preserves_active();
   test_rotation_activation_failure_rolls_back();
+  test_active_marker_write_rejection_rolls_back();
+  test_indeterminate_marker_write_requires_reboot();
   test_two_rotations_reuse_promoted_active();
   test_stale_committed_slot_requires_maintenance_without_cleanup();
   test_storage_error_quiesces_and_requires_reboot();
