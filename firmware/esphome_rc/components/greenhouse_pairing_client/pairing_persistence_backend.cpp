@@ -20,6 +20,7 @@ EspIdfNvsPersistenceBackend::~EspIdfNvsPersistenceBackend() {
   this->handle_ = 0;
   this->opened_ = false;
   this->writable_ = false;
+  this->namespace_missing_ = false;
 }
 
 bool EspIdfNvsPersistenceBackend::open(PersistenceOpenMode mode) {
@@ -28,6 +29,7 @@ bool EspIdfNvsPersistenceBackend::open(PersistenceOpenMode mode) {
       this->partition_label_.size() > 15)
     return false;
 
+  this->namespace_missing_ = false;
   const nvs_open_mode_t open_mode =
       mode == PersistenceOpenMode::READ_ONLY ? NVS_READONLY : NVS_READWRITE;
   esp_err_t status = ESP_FAIL;
@@ -41,6 +43,9 @@ bool EspIdfNvsPersistenceBackend::open(PersistenceOpenMode mode) {
   }
   this->opened_ = status == ESP_OK;
   this->writable_ = this->opened_ && mode == PersistenceOpenMode::READ_WRITE;
+  this->namespace_missing_ =
+      !this->opened_ && mode == PersistenceOpenMode::READ_ONLY &&
+      status == ESP_ERR_NVS_NOT_FOUND;
   if (!this->opened_) {
     this->handle_ = 0;
     this->writable_ = false;
