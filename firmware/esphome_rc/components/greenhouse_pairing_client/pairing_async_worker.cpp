@@ -178,7 +178,7 @@ void PairingAsyncWorker::task_loop_() {
     this->publish_snapshot_();
 
     PairingAsyncOutcome outcome = this->delegate_->execute_async_pairing(&context);
-    if (this->cancel_requested_.load())
+    if (this->cancel_requested_.load() && outcome != PairingAsyncOutcome::SUCCESS)
       outcome = PairingAsyncOutcome::CANCELLED;
     const PairingClientSnapshot final_snapshot = this->delegate_->async_client_snapshot();
     if (outcome == PairingAsyncOutcome::CANCELLED)
