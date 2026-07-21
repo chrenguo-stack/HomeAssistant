@@ -48,6 +48,8 @@ mqtt_probe_failed
 - `active` 从请求成功入队开始，覆盖 queued 与 executing；
 - 请求入队使用原子 compare-and-exchange，关闭 queue-to-task 状态竞争；
 - worker 活跃时不得并发 prune、候选选择或 reset；
+- worker 活跃时，公开状态读取只能访问主循环持有的固定快照，不得读取 worker 正在修改的客户端对象；
+- worker 活跃时，网络结果只能暴露脱敏的 `in_progress` 状态；
 - 队列满或 worker 活跃时，新请求失败关闭；
 - STOP 必须能覆盖一个尚未消费的 RUN 命令；
 - task 生命周期和 operation 生命周期必须使用独立状态；
