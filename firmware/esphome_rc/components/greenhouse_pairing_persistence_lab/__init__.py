@@ -42,6 +42,10 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: dict) -> None:
+    # greenhouse_pairing_client is compiled as one ESPHome external component,
+    # so its shared transport sources still require mDNS even though this lab
+    # never starts discovery or networking.
+    include_builtin_idf_component("mdns")
     include_builtin_idf_component("nvs_flash")
     include_builtin_idf_component("esp_hw_support")
 
