@@ -58,22 +58,30 @@ std::string SecurePairingChannel::json_escape(const std::string &value) {
 
 bool SecurePairingChannel::encode_base64url(const uint8_t *data, size_t length,
                                             std::string *output) {
-  if (data == nullptr || output == nullptr)
+  if (output == nullptr)
     return false;
+  zeroize_(output->data(), output->size());
+  output->clear();
+  if (data == nullptr)
+    return false;
+
+  std::vector<unsigned char> encoded(4 * ((length + 2) / 3) + 1, 0);
 #ifdef USE_ESP32
-  std::vector<unsigned char> encoded(4 * ((length + 2) / 3) + 1, 0);
   size_t written = 0;
-  if (mbedtls_base64_encode(encoded.data(), encoded.size(), &written, data, length) != 0)
-    return false;
-  std::string value(reinterpret_cast<const char *>(encoded.data()), written);
+  const bool success =
+      mbedtls_base64_encode(encoded.data(), encoded.size(), &written, data, length) == 0;
 #else
-  std::vector<unsigned char> encoded(4 * ((length + 2) / 3) + 1, 0);
-  const int written = EVP_EncodeBlock(encoded.data(), data, static_cast<int>(length));
-  if (written < 0)
-    return false;
-  std::string value(reinterpret_cast<const char *>(encoded.data()),
-                    static_cast<size_t>(written));
+  const int encoded_length = EVP_EncodeBlock(encoded.data(), data, static_cast<int>(length));
+  const bool success = encoded_length >= 0;
+  const size_t written = success ? static_cast<size_t>(encoded_length) : 0;
 #endif
+  if (!success) {
+    zeroize_(encoded.data(), encoded.size());
+    return false;
+  }
+
+  std::string value(reinterpret_cast<const char *>(encoded.data()), written);
+  zeroize_(encoded.data(), encoded.size());
   while (!value.empty() && value.back() == '=')
     value.pop_back();
   for (char &character : value) {
@@ -82,19 +90,26 @@ bool SecurePairingChannel::encode_base64url(const uint8_t *data, size_t length,
     else if (character == '/')
       character = '_';
   }
-  *output = std::move(value);
+  *output = value;
+  zeroize_(value.data(), value.size());
+  value.clear();
   return true;
 }
 
 bool SecurePairingChannel::decode_base64url(const std::string &value,
                                             std::vector<uint8_t> *output) {
-  if (output == nullptr || value.empty())
+  if (output == nullptr)
+    return false;
+  zeroize_(output->data(), output->size());
+  output->clear();
+  if (value.empty() || value.size() % 4 == 1)
     return false;
   for (const char character : value) {
     if (!(std::isalnum(static_cast<unsigned char>(character)) || character == '-' ||
           character == '_'))
       return false;
   }
+
   std::string normalized = value;
   for (char &character : normalized) {
     if (character == '-')
@@ -107,28 +122,41 @@ bool SecurePairingChannel::decode_base64url(const std::string &value,
   std::vector<uint8_t> decoded((normalized.size() / 4) * 3 + 1, 0);
 #ifdef USE_ESP32
   size_t written = 0;
-  if (mbedtls_base64_decode(decoded.data(), decoded.size(), &written,
+  const bool success =
+      mbedtls_base64_decode(decoded.data(), decoded.size(), &written,
                             reinterpret_cast<const unsigned char *>(normalized.data()),
-                            normalized.size()) != 0)
-    return false;
+                            normalized.size()) == 0;
 #else
-  const int written = EVP_DecodeBlock(decoded.data(),
-                                      reinterpret_cast<const unsigned char *>(normalized.data()),
-                                      static_cast<int>(normalized.size()));
-  if (written < 0)
-    return false;
-  size_t adjusted = static_cast<size_t>(written);
-  if (!normalized.empty() && normalized.back() == '=')
-    adjusted--;
-  if (normalized.size() > 1 && normalized[normalized.size() - 2] == '=')
-    adjusted--;
-  const size_t written_size = adjusted;
+  const int decoded_length =
+      EVP_DecodeBlock(decoded.data(),
+                      reinterpret_cast<const unsigned char *>(normalized.data()),
+                      static_cast<int>(normalized.size()));
+  bool success = decoded_length >= 0;
+  size_t written = success ? static_cast<size_t>(decoded_length) : 0;
+  if (success && !normalized.empty() && normalized.back() == '=')
+    written--;
+  if (success && normalized.size() > 1 && normalized[normalized.size() - 2] == '=')
+    written--;
 #endif
-#ifdef USE_ESP32
+  zeroize_(normalized.data(), normalized.size());
+  normalized.clear();
+  if (!success) {
+    zeroize_(decoded.data(), decoded.size());
+    return false;
+  }
   decoded.resize(written);
-#else
-  decoded.resize(written_size);
-#endif
+
+  std::string canonical;
+  const bool canonical_valid = encode_base64url(decoded.data(), decoded.size(), &canonical) &&
+                               canonical == value;
+  zeroize_(canonical.data(), canonical.size());
+  canonical.clear();
+  if (!canonical_valid) {
+    zeroize_(decoded.data(), decoded.size());
+    decoded.clear();
+    return false;
+  }
+
   *output = std::move(decoded);
   return true;
 }
@@ -138,8 +166,10 @@ bool SecurePairingChannel::decode_base64url_32(const std::string &value,
   if (output == nullptr || !PairingClientCore::valid_base64url_32(value))
     return false;
   std::vector<uint8_t> decoded;
-  if (!decode_base64url(value, &decoded) || decoded.size() != output->size())
+  if (!decode_base64url(value, &decoded) || decoded.size() != output->size()) {
+    zeroize_(decoded.data(), decoded.size());
     return false;
+  }
   std::copy(decoded.begin(), decoded.end(), output->begin());
   zeroize_(decoded.data(), decoded.size());
   return true;
