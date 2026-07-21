@@ -486,16 +486,14 @@ void ProductionProfileLifecycleController::refresh_runtime_snapshot_() {
 void ProductionProfileLifecycleController::refresh_lifecycle_snapshot_() {
   const ProfileLifecycleSnapshot &lifecycle = this->lifecycle_.snapshot();
   this->snapshot_.lifecycle_phase = lifecycle.phase;
-  if (lifecycle.active_generation != 0 ||
-      lifecycle.phase != ProfileLifecyclePhase::IDLE)
+  if (lifecycle.phase != ProfileLifecyclePhase::IDLE) {
     this->snapshot_.active_generation = lifecycle.active_generation;
-  if (lifecycle.candidate_generation != 0 ||
-      lifecycle.phase != ProfileLifecyclePhase::ACTIVATED)
     this->snapshot_.candidate_generation = lifecycle.candidate_generation;
-  this->snapshot_.persistence_status = lifecycle.persistence_status;
-  this->snapshot_.persistence_committed = lifecycle.persistence_committed;
-  this->snapshot_.reboot_required =
-      this->snapshot_.reboot_required || lifecycle.reboot_required;
+    this->snapshot_.persistence_status = lifecycle.persistence_status;
+    this->snapshot_.persistence_committed = lifecycle.persistence_committed;
+    this->snapshot_.reboot_required =
+        this->snapshot_.reboot_required || lifecycle.reboot_required;
+  }
   this->refresh_runtime_snapshot_();
 }
 
