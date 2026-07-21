@@ -1,0 +1,254 @@
+name: H3 N2 Stage2C2 Node Secure Transport CI
+
+on:
+  pull_request:
+    paths:
+      - "firmware/esphome_rc/components/greenhouse_pairing_client/**"
+      - "firmware/esphome_rc/board_lab/h3_node_pairing_secure_transport/**"
+      - "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_h3_node_pairing_secure_transport_board_lab.yml"
+      - "firmware/esphome_rc/f1_0_rc2/packages/**"
+      - "host/greenhouse-manager/src/greenhouse_manager/pairing_*.py"
+      - "host/greenhouse-manager/tests/stage2c2_cross_language_vectors_20260721_v47.py"
+      - "host/greenhouse-manager/tests/test_stage2c2_node_manager_e2e_20260721_v47.py"
+      - "protocols/pairing/gh-h3-stage2c2-cross-language-vectors-v1.json"
+      - "protocols/pairing/gh-h3-node-secure-transport-v1.md"
+      - "docs/development/h3-n2-stage2c2-node-secure-transport-20260721.md"
+      - ".github/workflows/h3-n2-stage2c2-node-secure-transport-ci.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "firmware/esphome_rc/components/greenhouse_pairing_client/**"
+      - "firmware/esphome_rc/board_lab/h3_node_pairing_secure_transport/**"
+      - "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_h3_node_pairing_secure_transport_board_lab.yml"
+      - "host/greenhouse-manager/tests/stage2c2_cross_language_vectors_20260721_v47.py"
+      - "host/greenhouse-manager/tests/test_stage2c2_node_manager_e2e_20260721_v47.py"
+      - "protocols/pairing/gh-h3-stage2c2-cross-language-vectors-v1.json"
+      - ".github/workflows/h3-n2-stage2c2-node-secure-transport-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  host-contract-and-e2e:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install Manager development dependencies
+        run: python -m pip install -q -e "host/greenhouse-manager[dev]"
+      - name: Verify Manager-generated cross-language vectors
+        run: |
+          set -euo pipefail
+          python host/greenhouse-manager/tests/stage2c2_cross_language_vectors_20260721_v47.py \
+            --header /tmp/stage2c2_vectors_generated.h
+      - name: Compile host C++ transport tests and node peer
+        run: |
+          set -euo pipefail
+          component=firmware/esphome_rc/components/greenhouse_pairing_client
+          common=(
+            -std=gnu++20 -Wall -Wextra -Wpedantic -Werror
+            -I "$component" -I /tmp
+            "$component/pairing_client_core.cpp"
+            "$component/pairing_transport_core.cpp"
+            "$component/secure_pairing_channel.cpp"
+            "$component/secure_pairing_channel_encoding.cpp"
+            "$component/secure_pairing_channel_crypto.cpp"
+            "$component/pairing_ram_credentials.cpp"
+          )
+          g++ "${common[@]}" \
+            "$component/tests/pairing_transport_core_test.cpp" \
+            -lcrypto -o /tmp/stage2c2-transport-core-test
+          g++ "${common[@]}" \
+            "$component/tests/pairing_ram_credentials_test.cpp" \
+            -lcrypto -o /tmp/stage2c2-ram-credentials-test
+          g++ "${common[@]}" \
+            "$component/tests/secure_pairing_channel_test.cpp" \
+            -lcrypto -o /tmp/stage2c2-secure-channel-test
+          g++ "${common[@]}" \
+            "$component/pairing_network_transport.cpp" \
+            "$component/tests/stage2c2_node_e2e_peer_20260721_v47.cpp" \
+            -lcrypto -o /tmp/stage2c2-node-peer-v47
+      - name: Run host C++ contract tests
+        run: |
+          set -euo pipefail
+          /tmp/stage2c2-transport-core-test
+          /tmp/stage2c2-ram-credentials-test
+          /tmp/stage2c2-secure-channel-test
+      - name: Run actual Manager endpoint to C++ node simulated closure
+        env:
+          STAGE2C2_NODE_PEER: /tmp/stage2c2-node-peer-v47
+        run: |
+          cd host/greenhouse-manager
+          pytest -q tests/test_stage2c2_node_manager_e2e_20260721_v47.py
+      - name: Verify RAM-only and production boundaries
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          component = Path("firmware/esphome_rc/components/greenhouse_pairing_client")
+          encoded = "\n".join(
+              path.read_text(encoding="utf-8", errors="replace")
+              for path in component.rglob("*")
+              if path.is_file()
+          )
+          forbidden = (
+              "nvs_set_",
+              "nvs_commit",
+              "preferences->save",
+              "set_username(",
+              "set_password(",
+              "greenhouse_mqtt_auth",
+              "docker compose",
+              "/opt/greenhouse-h3-n2-acceptance",
+          )
+          present = [value for value in forbidden if value in encoded]
+          if present:
+              raise SystemExit(f"Stage 2C-2 boundary violation: {present}")
+          required = (
+              "mdns_query_ptr",
+              "esp_http_client_perform",
+              "psa_raw_key_agreement",
+              "mbedtls_chachapoly",
+              "Credential persistence: RAM ONLY",
+              "Formal MQTT profile switch: NO",
+          )
+          missing = [value for value in required if value not in encoded]
+          if missing:
+              raise SystemExit(f"Stage 2C-2 source evidence missing: {missing}")
+          PY
+
+  esp32-c6-compile:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install pinned ESPHome
+        run: python -m pip install -q "esphome==2026.4.3"
+      - name: Create ephemeral Stage 2C-2 secrets
+        run: |
+          python - <<'PY'
+          import secrets
+          from pathlib import Path
+
+          pairing_secret = secrets.token_urlsafe(32)
+          wifi_password = secrets.token_urlsafe(24)
+          minimal = "\n".join((
+              'node_pairing_wifi_ssid: "ci-stage2c2"',
+              f'node_pairing_wifi_password: "{wifi_password}"',
+              f'node_pairing_secret: "{pairing_secret}"',
+              "",
+          ))
+          full = f'node_pairing_secret: "{pairing_secret}"\n'
+          Path("firmware/esphome_rc/board_lab/h3_node_pairing_secure_transport/secrets.yaml").write_text(
+              minimal, encoding="utf-8"
+          )
+          Path("firmware/esphome_rc/f1_0_rc2/secrets.yaml").write_text(
+              full, encoding="utf-8"
+          )
+          Path("/tmp/stage2c2-ephemeral-values").write_text(
+              pairing_secret + "\n" + wifi_password + "\n", encoding="utf-8"
+          )
+          PY
+      - name: Compile minimal ESP32-C6 secure transport target
+        shell: bash
+        run: |
+          set -o pipefail
+          cd firmware/esphome_rc/board_lab/h3_node_pairing_secure_transport
+          esphome config greenhouse_pairing_secure_transport_board_lab.yml 2>&1 | tee /tmp/stage2c2-minimal-config.log
+          esphome compile greenhouse_pairing_secure_transport_board_lab.yml 2>&1 | tee /tmp/stage2c2-minimal-compile.log
+      - name: Compile full RC2 product-board secure transport target
+        shell: bash
+        run: |
+          set -o pipefail
+          cd firmware/esphome_rc/f1_0_rc2
+          RC2_CONFIG=f1_0_rc2_h3_node_pairing_secure_transport_board_lab.yml bash tools/rc2.sh config 2>&1 | tee /tmp/stage2c2-product-config.log
+          RC2_CONFIG=f1_0_rc2_h3_node_pairing_secure_transport_board_lab.yml bash tools/rc2.sh compile 2>&1 | tee /tmp/stage2c2-product-compile.log
+      - name: Verify compile evidence and secret redaction
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          values = Path("/tmp/stage2c2-ephemeral-values").read_text(encoding="utf-8").splitlines()
+          logs = "\n".join(
+              Path(path).read_text(encoding="utf-8", errors="replace")
+              for path in (
+                  "/tmp/stage2c2-minimal-config.log",
+                  "/tmp/stage2c2-minimal-compile.log",
+                  "/tmp/stage2c2-product-config.log",
+                  "/tmp/stage2c2-product-compile.log",
+              )
+          )
+          if any(value and value in logs for value in values):
+              raise SystemExit("ephemeral Stage 2C-2 value appeared in ESPHome output")
+          evidence = (
+              "greenhouse_pairing_client.cpp.o",
+              "pairing_client_core.cpp.o",
+              "pairing_transport_core.cpp.o",
+              "secure_pairing_channel.cpp.o",
+              "pairing_ram_credentials.cpp.o",
+              "pairing_network_transport.cpp.o",
+              "INFO Successfully compiled program.",
+          )
+          missing = [item for item in evidence if logs.count(item) < 2]
+          if missing:
+              raise SystemExit(f"Stage 2C-2 compile evidence missing: {missing}")
+          PY
+      - name: Build redacted failure diagnostic
+        if: failure()
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          values_path = Path("/tmp/stage2c2-ephemeral-values")
+          values = values_path.read_text(encoding="utf-8").splitlines() if values_path.exists() else []
+          sections = []
+          for source in (
+              "/tmp/stage2c2-minimal-config.log",
+              "/tmp/stage2c2-minimal-compile.log",
+              "/tmp/stage2c2-product-config.log",
+              "/tmp/stage2c2-product-compile.log",
+          ):
+              path = Path(source)
+              if not path.exists():
+                  continue
+              text = path.read_text(encoding="utf-8", errors="replace")
+              for value in values:
+                  if value:
+                      text = text.replace(value, "<REDACTED_EPHEMERAL_VALUE>")
+              sections.append(f"===== {path.name} =====\n{text}")
+          Path("/tmp/stage2c2-redacted-failure-v47.log").write_text(
+              "\n".join(sections) or "No compile log was created.\n",
+              encoding="utf-8",
+          )
+          PY
+      - name: Upload redacted failure diagnostic
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage2c2-redacted-failure-v47
+          path: /tmp/stage2c2-redacted-failure-v47.log
+          if-no-files-found: error
+          retention-days: 7
+      - name: Cleanup Stage 2C-2 files
+        if: always()
+        run: |
+          rm -f \
+            firmware/esphome_rc/board_lab/h3_node_pairing_secure_transport/secrets.yaml \
+            firmware/esphome_rc/f1_0_rc2/secrets.yaml \
+            /tmp/stage2c2-ephemeral-values \
+            /tmp/stage2c2-redacted-failure-v47.log \
+            /tmp/stage2c2-minimal-config.log \
+            /tmp/stage2c2-minimal-compile.log \
+            /tmp/stage2c2-product-config.log \
+            /tmp/stage2c2-product-compile.log

@@ -1,11 +1,13 @@
 esphome:
-  name: gh-pairing-client-board-lab
-  friendly_name: Greenhouse Pairing Client Board Lab
+  name: gh-pairing-secure-transport-lab
+  friendly_name: Greenhouse Pairing Secure Transport Lab
   min_version: 2026.4.3
   on_boot:
     - priority: -100
       then:
         - lambda: |-
+            // Stage 2C-2 compile target only: create an in-memory discovery
+            // context but do not contact any real Manager or Broker.
             id(pairing_client).start_discovery(
               "11111111-2222-4333-8444-555555555555",
               "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
@@ -40,12 +42,21 @@ external_components:
 
 greenhouse_pairing_client:
   id: pairing_client
-  hardware_id: ghw-c6-board-lab
+  hardware_id: ghw-c6-stage2c2-lab
   pairing_id: aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee
   pairing_secret: !secret node_pairing_secret
   max_candidates: 4
   candidate_ttl_cap: 120s
-  network_enabled: false
+  network_enabled: true
+  mdns_enabled: true
+  udp_enabled: true
+  udp_target: 255.255.255.255
+  udp_port: 47111
+  udp_attempts: 3
+  udp_initial_backoff: 250ms
+  mdns_timeout: 1000ms
+  http_timeout: 5000ms
+  response_max_bytes: 16384
 
 status_led:
   pin:
@@ -60,43 +71,15 @@ text_sensor:
     lambda: |-
       return {id(pairing_client).state_name()};
   - platform: template
-    name: Pairing Error
-    id: pairing_error
+    name: Pairing Network Result
+    id: pairing_network_result
     update_interval: 2s
     lambda: |-
-      return {id(pairing_client).error_name()};
-
-sensor:
-  - platform: template
-    name: Pairing Candidate Count
-    id: pairing_candidate_count
-    accuracy_decimals: 0
-    update_interval: 2s
-    lambda: |-
-      return static_cast<float>(id(pairing_client).candidate_count());
+      return {id(pairing_client).network_result_name()};
 
 binary_sensor:
   - platform: template
-    name: Pairing Selection Required
-    id: pairing_selection_required
+    name: RAM Credentials Present
+    id: ram_credentials_present
     lambda: |-
-      return id(pairing_client).selection_required();
-
-interval:
-  # Stage 2C-1 remains transport-independent at runtime. The Stage 2C-2
-  # source files are compiled for compatibility, but network_enabled is false.
-  - interval: 30s
-    then:
-      - lambda: |-
-          if (id(pairing_client).candidate_count() == 0) {
-            id(pairing_client).observe_candidate(
-              "manager-board-lab",
-              "greenhouse",
-              "manager-board-lab.local",
-              "http",
-              47110,
-              "/v1/pairing",
-              100,
-              120
-            );
-          }
+      return id(pairing_client).ram_credentials_present();
