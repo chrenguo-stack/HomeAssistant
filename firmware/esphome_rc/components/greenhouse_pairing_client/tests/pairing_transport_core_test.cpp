@@ -17,6 +17,12 @@ int main() {
   assert(PairingTransportCore::validate_udp_datagram_size(1400));
   assert(!PairingTransportCore::validate_udp_datagram_size(0));
   assert(!PairingTransportCore::validate_udp_datagram_size(1401));
+  assert(PairingTransportCore::validate_udp_target("255.255.255.255"));
+  assert(PairingTransportCore::validate_udp_target("192.168.1.20"));
+  assert(PairingTransportCore::validate_udp_target("169.254.10.20"));
+  assert(!PairingTransportCore::validate_udp_target("0.0.0.0"));
+  assert(!PairingTransportCore::validate_udp_target("8.8.8.8"));
+  assert(!PairingTransportCore::validate_udp_target("manager.local"));
 
   assert(PairingTransportCore::validate_http_response(
       {.status_code = 200, .content_type = "application/json", .body_size = 16384,
@@ -35,6 +41,13 @@ int main() {
   assert(PairingTransportCore::parse_uint32("3600", &large) && large == 3600);
   assert(!PairingTransportCore::parse_uint32("3x", &large));
 
+  assert(PairingTransportCore::validate_pairing_path("/v1/pairing"));
+  assert(PairingTransportCore::validate_pairing_path("/v1/pairing/"));
+  assert(!PairingTransportCore::validate_pairing_path("/v1//pairing"));
+  assert(!PairingTransportCore::validate_pairing_path("/v1/../pairing"));
+  assert(!PairingTransportCore::validate_pairing_path("/v1/pairing?next=/claim"));
+  assert(!PairingTransportCore::validate_pairing_path("/v1/%2e%2e/pairing"));
+
   const std::string base = PairingTransportCore::build_base_url(
       "http", "manager.local", 47110, "/v1/pairing/");
   assert(base == "http://manager.local:47110/v1/pairing");
@@ -43,6 +56,9 @@ int main() {
          "http://manager.local:47110/v1/pairing/sessions/11111111-2222-4333-8444-555555555555/credentials");
   assert(PairingTransportCore::build_base_url("ftp", "manager.local", 47110,
                                                "/v1/pairing")
+             .empty());
+  assert(PairingTransportCore::build_base_url("http", "manager.local", 47110,
+                                               "/v1/../pairing")
              .empty());
 
   std::cout << "stage2c2 transport core tests passed\n";
