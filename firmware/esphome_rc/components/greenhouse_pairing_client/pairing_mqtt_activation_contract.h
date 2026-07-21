@@ -31,7 +31,7 @@ class MqttActivationContract {
   bool record_probe(bool authenticated, bool subscribe_ready,
                     bool telemetry_round_trip);
   bool activate();
-  void rollback();
+  bool rollback();
 
   const MqttActivationSnapshot &snapshot() const { return this->snapshot_; }
   static const char *phase_name(MqttActivationPhase phase);
