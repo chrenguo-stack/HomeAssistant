@@ -6,6 +6,14 @@
 namespace esphome::greenhouse_pairing_client {
 
 struct RamCredentialBundle {
+  RamCredentialBundle() = default;
+  ~RamCredentialBundle();
+
+  RamCredentialBundle(const RamCredentialBundle &) = delete;
+  RamCredentialBundle &operator=(const RamCredentialBundle &) = delete;
+  RamCredentialBundle(RamCredentialBundle &&other);
+  RamCredentialBundle &operator=(RamCredentialBundle &&other);
+
   std::string schema;
   std::string system_id;
   std::string node_id;
@@ -22,6 +30,9 @@ struct RamCredentialBundle {
   bool present() const;
   std::string delivery_ack_json() const;
   void clear();
+
+ protected:
+  void move_from_(RamCredentialBundle *other);
 };
 
 }  // namespace esphome::greenhouse_pairing_client
