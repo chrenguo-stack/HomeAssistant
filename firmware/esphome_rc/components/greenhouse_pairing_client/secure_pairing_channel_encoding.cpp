@@ -163,7 +163,10 @@ bool SecurePairingChannel::decode_base64url(const std::string &value,
 
 bool SecurePairingChannel::decode_base64url_32(const std::string &value,
                                                std::array<uint8_t, 32> *output) {
-  if (output == nullptr || !PairingClientCore::valid_base64url_32(value))
+  if (output == nullptr)
+    return false;
+  zeroize_(output->data(), output->size());
+  if (!PairingClientCore::valid_base64url_32(value))
     return false;
   std::vector<uint8_t> decoded;
   if (!decode_base64url(value, &decoded) || decoded.size() != output->size()) {
