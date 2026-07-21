@@ -69,7 +69,9 @@ bool PairingAsyncContract::finish(PairingAsyncOutcome outcome,
 
 void PairingAsyncContract::reset(const PairingClientSnapshot &client) {
   const uint32_t operation_id = this->snapshot_.operation_id;
-  const uint32_t version = this->snapshot_.state_version + 1;
+  const uint32_t version = this->snapshot_.state_version == UINT32_MAX
+                               ? UINT32_MAX
+                               : this->snapshot_.state_version + 1;
   this->snapshot_ = {};
   this->snapshot_.operation_id = operation_id;
   this->snapshot_.state_version = version;
