@@ -7,7 +7,7 @@ namespace esphome::greenhouse_pairing_client {
 
 namespace {
 
-void secure_clear(std::string *value) {
+[[maybe_unused]] void secure_clear(std::string *value) {
   if (value == nullptr)
     return;
   std::fill(value->begin(), value->end(), '\0');
