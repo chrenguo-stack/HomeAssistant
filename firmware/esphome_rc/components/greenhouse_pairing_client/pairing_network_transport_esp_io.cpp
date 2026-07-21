@@ -242,10 +242,6 @@ bool PairingNetworkTransport::post_json_(const std::string &url, const std::stri
   const int status_code = esp_http_client_get_status_code(client);
   if (status_code >= 300 && status_code <= 399)
     collector.redirect = true;
-  char *content_type = nullptr;
-  if (collector.content_type.empty() && esp_http_client_get_content_type(client, &content_type) == ESP_OK &&
-      content_type != nullptr)
-    collector.content_type = content_type;
   esp_http_client_cleanup(client);
 
   HttpResponseMetadata metadata{
