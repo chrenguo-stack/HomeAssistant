@@ -58,9 +58,25 @@ float GreenhousePairingAsyncLab::get_setup_priority() const {
 bool GreenhousePairingAsyncLab::request_pairing() {
   if (this->is_failed() || this->next_operation_id_ == UINT32_MAX)
     return false;
+
   const uint32_t operation_id = this->next_operation_id_;
+  const PairingClientSnapshot initial = this->async_client_snapshot();
   if (!this->worker_.request(operation_id))
     return false;
+
+  this->async_snapshot_.operation_id = operation_id;
+  if (this->async_snapshot_.state_version != UINT32_MAX)
+    this->async_snapshot_.state_version++;
+  this->async_snapshot_.phase = PairingAsyncPhase::QUEUED;
+  this->async_snapshot_.outcome = PairingAsyncOutcome::NONE;
+  this->async_snapshot_.client_state = initial.state;
+  this->async_snapshot_.client_error = initial.error;
+  this->async_snapshot_.candidate_count = initial.candidate_count;
+  this->async_snapshot_.credential_generation = initial.credential_generation;
+  this->async_snapshot_.active = true;
+  this->async_snapshot_.cancel_requested = false;
+  this->async_snapshot_.selection_required = initial.selection_required;
+  this->async_snapshot_.credentials_staged = initial.credentials_staged;
   this->next_operation_id_++;
   return true;
 }
@@ -77,6 +93,20 @@ bool GreenhousePairingAsyncLab::select_candidate(size_t index) {
 void GreenhousePairingAsyncLab::reset_unbound() {
   if (!this->worker_.active())
     this->client_.reset_unbound();
+}
+
+const char *GreenhousePairingAsyncLab::state_name() const {
+  return this->worker_.active() ? state_to_name_(this->async_snapshot_.client_state)
+                                : this->client_.state_name();
+}
+
+const char *GreenhousePairingAsyncLab::error_name() const {
+  return this->worker_.active() ? error_to_name_(this->async_snapshot_.client_error)
+                                : this->client_.error_name();
+}
+
+const char *GreenhousePairingAsyncLab::network_result_name() const {
+  return this->worker_.active() ? "in_progress" : this->client_.network_result_name();
 }
 
 const char *GreenhousePairingAsyncLab::async_phase_name() const {
@@ -150,6 +180,42 @@ PairingClientSnapshot GreenhousePairingAsyncLab::async_client_snapshot() const {
   snapshot.committed = snapshot.state == PairingClientState::COMMITTED;
   snapshot.credential_generation = this->client_.credential_generation();
   return snapshot;
+}
+
+const char *GreenhousePairingAsyncLab::state_to_name_(PairingClientState value) {
+  switch (value) {
+    case PairingClientState::UNBOUND: return "unbound";
+    case PairingClientState::DISCOVERING: return "discovering";
+    case PairingClientState::CANDIDATE_READY: return "candidate_ready";
+    case PairingClientState::SELECTION_REQUIRED: return "selection_required";
+    case PairingClientState::CLAIM_READY: return "claim_ready";
+    case PairingClientState::CLAIM_SENT: return "claim_sent";
+    case PairingClientState::SECURE_OFFER_RECEIVED: return "secure_offer_received";
+    case PairingClientState::CHANNEL_ESTABLISHED: return "channel_established";
+    case PairingClientState::CREDENTIALS_STAGED: return "credentials_staged";
+    case PairingClientState::COMMITTED: return "committed";
+    case PairingClientState::RECOVERABLE_FAILURE: return "recoverable_failure";
+    case PairingClientState::TERMINAL_FAILURE: return "terminal_failure";
+  }
+  return "terminal_failure";
+}
+
+const char *GreenhousePairingAsyncLab::error_to_name_(PairingClientError value) {
+  switch (value) {
+    case PairingClientError::NONE: return "none";
+    case PairingClientError::INVALID_CONFIGURATION: return "invalid_configuration";
+    case PairingClientError::INVALID_DISCOVERY_CONTEXT: return "invalid_discovery_context";
+    case PairingClientError::INVALID_CANDIDATE: return "invalid_candidate";
+    case PairingClientError::CANDIDATE_CAPACITY_REACHED: return "candidate_capacity_reached";
+    case PairingClientError::CANDIDATE_SELECTION_REQUIRED: return "candidate_selection_required";
+    case PairingClientError::CANDIDATE_NOT_AVAILABLE: return "candidate_not_available";
+    case PairingClientError::INVALID_STATE_TRANSITION: return "invalid_state_transition";
+    case PairingClientError::SECURE_OFFER_REJECTED: return "secure_offer_rejected";
+    case PairingClientError::CREDENTIALS_REJECTED: return "credentials_rejected";
+    case PairingClientError::STORAGE_FAILED: return "storage_failed";
+    case PairingClientError::TRANSPORT_FAILED: return "transport_failed";
+  }
+  return "transport_failed";
 }
 
 PairingClientState GreenhousePairingAsyncLab::state_from_name_(const char *value) {
