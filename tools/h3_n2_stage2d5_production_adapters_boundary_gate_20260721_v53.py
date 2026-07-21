@@ -56,6 +56,8 @@ REQUIRED_SOURCE_TOKENS = (
     "esp_mqtt_client_init",
     "MQTT_TRANSPORT_OVER_SSL",
     "broker.verification.certificate",
+    "broker.verification.common_name",
+    "network.disable_auto_reconnect",
     "credentials.authentication.password",
     "EfuseHmacPersistenceKeyProvider",
     "allow_read_write_",
