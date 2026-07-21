@@ -42,6 +42,8 @@ Stage 2C-3 使用独立的 `greenhouse_pairing_async_lab` 组件包装 Stage 2C-
 - 内部客户端只在 worker task 中执行发现与安全闭环；
 - worker 活跃时不从 ESPHome `loop()` 调用内部客户端；
 - 主循环只接收固定结构的脱敏快照；
+- worker 活跃期间，状态、错误、候选数量、凭据存在状态和 generation 的公开读取只访问主循环持有的快照，不并发读取 worker 正在修改的内部客户端；
+- worker 活跃期间，网络结果只返回脱敏状态 `in_progress`；
 - `discovering` phase 仅在内部客户端已进入 DISCOVERING 状态后发布；
 - 配对不会在开机时自动发起；
 - 实验按钮仅为后续隔离实板验收准备，默认不触发。
