@@ -161,7 +161,10 @@ def main() -> int:
     for target in (minimal, product):
         require(target.is_file(), f"missing_compile_target:{target}")
         text = target.read_text(encoding="utf-8")
-        require("on_boot:" not in text, f"automatic_boot_action:{target}")
+        has_on_boot_action = any(
+            line.lstrip().startswith("on_boot:") for line in text.splitlines()
+        )
+        require(not has_on_boot_action, f"automatic_boot_action:{target}")
         require("recover_for_lab();" in text, f"manual_probe_missing:{target}")
         for dependency in ("nvs_flash", "esp_hw_support"):
             require(
