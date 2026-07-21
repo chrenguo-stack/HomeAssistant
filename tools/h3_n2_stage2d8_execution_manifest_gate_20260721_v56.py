@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Validate and redact an H3/N2 Stage 2D-8 execution manifest.
 
-The default mode accepts only the LOCKED gate. It performs no device, network,
-Broker, firmware, serial, NVS, or filesystem mutation other than an optional
-normalized redacted output file selected by the caller.
+Default invocation accepts only LOCKED. The program performs no device,
+network, Broker, firmware, serial, NVS, or external-service operation. The only
+optional write is the caller-selected redacted JSON output file.
 """
 
 from __future__ import annotations
@@ -64,37 +64,42 @@ def require(condition: bool, message: str) -> None:
         raise ManifestError(message)
 
 
-def exact_keys(value: dict[str, Any], expected: set[str], label: str) -> None:
-    actual = set(value)
-    require(actual == expected, f"{label} keys mismatch: {sorted(actual ^ expected)}")
-
-
-def require_mapping(value: Any, label: str) -> dict[str, Any]:
+def mapping(value: Any, label: str) -> dict[str, Any]:
     require(isinstance(value, dict), f"{label} must be an object")
     return value
 
 
-def require_string(value: Any, label: str) -> str:
+def exact_keys(value: dict[str, Any], expected: set[str], label: str) -> None:
+    difference = set(value) ^ expected
+    require(not difference, f"{label} keys mismatch: {sorted(difference)}")
+
+
+def string(value: Any, label: str) -> str:
     require(isinstance(value, str), f"{label} must be a string")
     require("<" not in value and ">" not in value, f"{label} contains a placeholder")
+    require("\n" not in value and "\r" not in value, f"{label} contains control data")
     return value
 
 
-def require_hex(value: Any, length: int, label: str) -> str:
-    text = require_string(value, label)
+def hex_value(value: Any, length: int, label: str) -> str:
+    text = string(value, label)
     pattern = HEX40 if length == 40 else HEX64
     require(pattern.fullmatch(text) is not None, f"{label} must be {length} lowercase hex")
     return text
 
 
-def require_absolute_path(value: Any, label: str) -> str:
-    text = require_string(value, label)
+def absolute_path(value: Any, label: str) -> str:
+    text = string(value, label)
     require(os.path.isabs(text), f"{label} must be absolute")
-    require("\n" not in text and "\r" not in text, f"{label} contains control data")
     return text
 
 
-def walk_keys(value: Any, prefix: str = "") -> None:
+def nonnegative_integer(value: Any, label: str) -> int:
+    require(isinstance(value, int) and value >= 0, f"{label} must be a nonnegative integer")
+    return value
+
+
+def walk_forbidden(value: Any, prefix: str = "") -> None:
     if isinstance(value, dict):
         for key, child in value.items():
             lowered = str(key).lower()
@@ -102,10 +107,10 @@ def walk_keys(value: Any, prefix: str = "") -> None:
                 not any(fragment in lowered for fragment in FORBIDDEN_FIELD_FRAGMENTS),
                 f"forbidden secret-bearing field: {prefix}{key}",
             )
-            walk_keys(child, f"{prefix}{key}.")
+            walk_forbidden(child, f"{prefix}{key}.")
     elif isinstance(value, list):
         for index, child in enumerate(value):
-            walk_keys(child, f"{prefix}{index}.")
+            walk_forbidden(child, f"{prefix}{index}.")
     elif isinstance(value, str):
         lowered = value.lower()
         require(
@@ -114,17 +119,17 @@ def walk_keys(value: Any, prefix: str = "") -> None:
         )
 
 
-def validate_image(value: Any, label: str) -> dict[str, str]:
-    image = require_mapping(value, label)
-    exact_keys(image, {"path", "sha256"}, label)
+def image(value: Any, label: str) -> dict[str, str]:
+    result = mapping(value, label)
+    exact_keys(result, {"path", "sha256"}, label)
     return {
-        "path": require_absolute_path(image["path"], f"{label}.path"),
-        "sha256": require_hex(image["sha256"], 64, f"{label}.sha256"),
+        "path": absolute_path(result["path"], f"{label}.path"),
+        "sha256": hex_value(result["sha256"], 64, f"{label}.sha256"),
     }
 
 
 def validate_manifest(document: Any, allow_live_gate: bool) -> dict[str, Any]:
-    manifest = require_mapping(document, "manifest")
+    manifest = mapping(document, "manifest")
     exact_keys(
         manifest,
         {
@@ -145,54 +150,46 @@ def validate_manifest(document: Any, allow_live_gate: bool) -> dict[str, Any]:
         },
         "manifest",
     )
-    walk_keys(manifest)
-
+    walk_forbidden(manifest)
     require(manifest["schema"] == SCHEMA, "manifest schema mismatch")
-    gate = require_string(manifest["gate"], "gate")
+
+    gate = string(manifest["gate"], "gate")
     require(gate in GATES, "unsupported execution gate")
     if not allow_live_gate:
         require(gate == "LOCKED", "live-capable gate requires --allow-live-gate")
 
-    source_commit = require_hex(manifest["source_commit"], 40, "source_commit")
-    test_firmware = validate_image(manifest["test_firmware"], "test_firmware")
-    rollback_firmware = validate_image(
-        manifest["rollback_firmware"], "rollback_firmware"
-    )
+    source_commit = hex_value(manifest["source_commit"], 40, "source_commit")
+    test_firmware = image(manifest["test_firmware"], "test_firmware")
+    rollback_firmware = image(manifest["rollback_firmware"], "rollback_firmware")
     require(
         test_firmware["sha256"] != rollback_firmware["sha256"],
         "test and rollback firmware digests must differ",
     )
 
-    board = require_mapping(manifest["board"], "board")
+    board = mapping(manifest["board"], "board")
     exact_keys(board, {"identifier", "serial_path"}, "board")
-    board_identifier = require_string(board["identifier"], "board.identifier")
+    board_identifier = string(board["identifier"], "board.identifier")
     require(TEST_IDENTIFIER.fullmatch(board_identifier) is not None, "invalid test board identifier")
-    serial_path = require_absolute_path(board["serial_path"], "board.serial_path")
+    serial_path = absolute_path(board["serial_path"], "board.serial_path")
 
-    partition = require_mapping(manifest["partition_table"], "partition_table")
+    partition = mapping(manifest["partition_table"], "partition_table")
     exact_keys(
         partition,
         {"path", "sha256", "test_partition_label", "test_namespace"},
         "partition_table",
     )
-    partition_path = require_absolute_path(partition["path"], "partition_table.path")
-    partition_digest = require_hex(
-        partition["sha256"], 64, "partition_table.sha256"
-    )
-    partition_label = require_string(
+    partition_path = absolute_path(partition["path"], "partition_table.path")
+    partition_digest = hex_value(partition["sha256"], 64, "partition_table.sha256")
+    partition_label = string(
         partition["test_partition_label"], "partition_table.test_partition_label"
     )
-    namespace = require_string(
-        partition["test_namespace"], "partition_table.test_namespace"
-    )
+    namespace = string(partition["test_namespace"], "partition_table.test_namespace")
     require(STORAGE_NAME.fullmatch(partition_label) is not None, "invalid test partition label")
     require(STORAGE_NAME.fullmatch(namespace) is not None, "invalid test namespace")
     require(partition_label != namespace, "partition label and namespace must differ")
 
-    wifi_digest = require_hex(
-        manifest["wifi_profile_digest"], 64, "wifi_profile_digest"
-    )
-    broker = require_mapping(manifest["broker"], "broker")
+    wifi_digest = hex_value(manifest["wifi_profile_digest"], 64, "wifi_profile_digest")
+    broker = mapping(manifest["broker"], "broker")
     exact_keys(
         broker,
         {
@@ -204,37 +201,32 @@ def validate_manifest(document: Any, allow_live_gate: bool) -> dict[str, Any]:
         "broker",
     )
     broker_digests = {
-        key: require_hex(value, 64, f"broker.{key}")
-        for key, value in broker.items()
+        key: hex_value(value, 64, f"broker.{key}") for key, value in broker.items()
     }
     require(len(set(broker_digests.values())) == 4, "Broker digests must be distinct")
 
-    identifiers = require_mapping(manifest["identifiers"], "identifiers")
+    identifiers = mapping(manifest["identifiers"], "identifiers")
     exact_keys(
         identifiers,
         {"test_run_id", "system_id", "node_id", "client_id", "topic_root"},
         "identifiers",
     )
     for key in ("test_run_id", "system_id", "node_id", "client_id"):
-        text = require_string(identifiers[key], f"identifiers.{key}")
+        text = string(identifiers[key], f"identifiers.{key}")
         require(TEST_IDENTIFIER.fullmatch(text) is not None, f"invalid identifiers.{key}")
     run_id = identifiers["test_run_id"]
-    topic_root = require_string(identifiers["topic_root"], "identifiers.topic_root")
+    topic_root = string(identifiers["topic_root"], "identifiers.topic_root")
     require(topic_root.startswith("gh-test/"), "topic root must begin gh-test/")
     require(run_id in topic_root, "topic root must contain exact test run id")
     require("#" not in topic_root and "+" not in topic_root, "topic root cannot contain wildcards")
     require(len(set(identifiers.values())) == 5, "test identifiers must be unique")
 
-    evidence_directory = require_absolute_path(
-        manifest["evidence_directory"], "evidence_directory"
-    )
-    recovery_digest = require_hex(
-        manifest["recovery_procedure_digest"],
-        64,
-        "recovery_procedure_digest",
+    evidence_directory = absolute_path(manifest["evidence_directory"], "evidence_directory")
+    recovery_digest = hex_value(
+        manifest["recovery_procedure_digest"], 64, "recovery_procedure_digest"
     )
 
-    observed = require_mapping(manifest["observed_state"], "observed_state")
+    observed = mapping(manifest["observed_state"], "observed_state")
     exact_keys(
         observed,
         {
@@ -247,9 +239,7 @@ def validate_manifest(document: Any, allow_live_gate: bool) -> dict[str, Any]:
         "observed_state",
     )
     require(isinstance(observed["available"], bool), "observed_state.available must be boolean")
-    status = require_string(
-        observed["persistence_status"], "observed_state.persistence_status"
-    )
+    status = string(observed["persistence_status"], "observed_state.persistence_status")
     require(
         status
         in {
@@ -265,51 +255,72 @@ def validate_manifest(document: Any, allow_live_gate: bool) -> dict[str, Any]:
         },
         "unsupported persistence status",
     )
-    for key in ("active_generation", "candidate_generation", "persistent_write_count"):
-        require(
-            isinstance(observed[key], int) and observed[key] >= 0,
-            f"observed_state.{key} must be a nonnegative integer",
-        )
+    observed_active = nonnegative_integer(
+        observed["active_generation"], "observed_state.active_generation"
+    )
+    observed_candidate = nonnegative_integer(
+        observed["candidate_generation"], "observed_state.candidate_generation"
+    )
+    nonnegative_integer(
+        observed["persistent_write_count"], "observed_state.persistent_write_count"
+    )
 
-    authorization = require_mapping(manifest["authorization"], "authorization")
+    authorization = mapping(manifest["authorization"], "authorization")
     exact_keys(
         authorization,
         {"operation", "active_generation", "candidate_generation", "record_digest"},
         "authorization",
     )
-    operation = require_string(authorization["operation"], "authorization.operation")
+    operation = string(authorization["operation"], "authorization.operation")
     require(operation in WRITE_GATES | {"NONE"}, "unsupported authorization operation")
-    for key in ("active_generation", "candidate_generation"):
-        require(
-            isinstance(authorization[key], int) and authorization[key] >= 0,
-            f"authorization.{key} must be a nonnegative integer",
-        )
+    authorized_active = nonnegative_integer(
+        authorization["active_generation"], "authorization.active_generation"
+    )
+    authorized_candidate = nonnegative_integer(
+        authorization["candidate_generation"], "authorization.candidate_generation"
+    )
     record_digest = authorization["record_digest"]
     require(isinstance(record_digest, str), "authorization.record_digest must be a string")
 
     if gate in {"LOCKED", "FLASH_ONLY", "READ_ONLY"}:
         require(operation == "NONE", "non-write gate cannot contain write authorization")
         require(
-            authorization["active_generation"] == 0
-            and authorization["candidate_generation"] == 0
-            and record_digest == "",
+            authorized_active == 0 and authorized_candidate == 0 and record_digest == "",
             "non-write gate authorization must be empty",
         )
     else:
         require(gate == operation, "gate and authorization operation must match")
         require(observed["available"], "write gate requires observed read-only state")
-        require_hex(record_digest, 64, "authorization.record_digest")
-        require(
-            authorization["active_generation"] == observed["active_generation"]
-            and authorization["candidate_generation"]
-            == observed["candidate_generation"],
-            "authorization generations must match observed state",
-        )
-        if gate in {"PREPARE_CANDIDATE", "ACTIVATE_PROFILE"}:
+        hex_value(record_digest, 64, "authorization.record_digest")
+
+        if gate == "PREPARE_CANDIDATE":
             require(
-                observed["candidate_generation"] > observed["active_generation"],
-                "candidate generation must exceed active generation",
+                observed_candidate == 0
+                and status in {"empty", "active"},
+                "PREPARE requires an observed state without a persistent candidate",
             )
+            require(
+                authorized_active == observed_active,
+                "PREPARE active generation must match observed state",
+            )
+            require(
+                authorized_candidate > observed_active,
+                "PREPARE candidate generation must exceed observed active generation",
+            )
+        else:
+            require(
+                authorized_active == observed_active
+                and authorized_candidate == observed_candidate,
+                "authorization generations must match observed state",
+            )
+            if gate == "ACTIVATE_PROFILE":
+                require(
+                    status in {"no_active_prepared", "active_with_prepared"}
+                    and observed_candidate > observed_active,
+                    "ACTIVATE requires an observed PREPARED candidate",
+                )
+            if gate == "CLEANUP_TEST_STATE":
+                require(status != "unknown", "CLEANUP requires an observed persistence state")
 
     if gate == "LOCKED":
         require(not observed["available"], "LOCKED manifest cannot claim board observation")
@@ -348,8 +359,8 @@ def validate_manifest(document: Any, allow_live_gate: bool) -> dict[str, Any]:
         "observed_state": observed,
         "authorization": {
             "operation": operation,
-            "active_generation": authorization["active_generation"],
-            "candidate_generation": authorization["candidate_generation"],
+            "active_generation": authorized_active,
+            "candidate_generation": authorized_candidate,
             "record_digest_bound": bool(record_digest),
         },
     }
