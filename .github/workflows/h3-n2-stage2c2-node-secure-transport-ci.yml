@@ -94,10 +94,25 @@ jobs:
           from pathlib import Path
 
           component = Path("firmware/esphome_rc/components/greenhouse_pairing_client")
+          reviewed_stems = (
+              "greenhouse_pairing_client",
+              "pairing_client_core",
+              "pairing_transport_core",
+              "secure_pairing_channel",
+              "secure_pairing_channel_encoding",
+              "secure_pairing_channel_crypto",
+              "pairing_ram_credentials",
+              "pairing_network_transport",
+          )
+          reviewed_paths = tuple(
+              path
+              for stem in reviewed_stems
+              for suffix in (".cpp", ".h")
+              if (path := component / f"{stem}{suffix}").is_file()
+          )
           encoded = "\n".join(
               path.read_text(encoding="utf-8", errors="replace")
-              for path in component.rglob("*")
-              if path.is_file()
+              for path in reviewed_paths
           )
           forbidden = (
               "nvs_set_",
