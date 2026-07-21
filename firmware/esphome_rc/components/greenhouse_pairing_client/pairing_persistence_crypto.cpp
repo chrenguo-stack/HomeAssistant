@@ -57,6 +57,27 @@ bool valid_state(CredentialRecordState state) {
          state == CredentialRecordState::COMMITTED;
 }
 
+void clear_bytes(std::vector<uint8_t> *value) {
+  if (value == nullptr)
+    return;
+  PairingPersistenceCrypto::zeroize(value->data(), value->size());
+  value->clear();
+  value->shrink_to_fit();
+}
+
+void clear_metadata(PersistenceEnvelopeMetadata *metadata) {
+  if (metadata == nullptr)
+    return;
+  PairingPersistenceCrypto::zeroize(metadata->digest.data(),
+                                    metadata->digest.size());
+  *metadata = {};
+}
+
+void clear_key(std::array<uint8_t, 32> *key) {
+  if (key != nullptr)
+    PairingPersistenceCrypto::zeroize(key->data(), key->size());
+}
+
 }  // namespace
 
 FixedPersistenceKeyProvider::FixedPersistenceKeyProvider(
@@ -69,7 +90,10 @@ FixedPersistenceKeyProvider::~FixedPersistenceKeyProvider() {
 
 bool FixedPersistenceKeyProvider::derive_key(
     CredentialSlot slot, uint32_t generation, std::array<uint8_t, 32> *key) {
-  if (key == nullptr || !valid_slot(slot) || generation == 0)
+  if (key == nullptr)
+    return false;
+  clear_key(key);
+  if (!valid_slot(slot) || generation == 0)
     return false;
   *key = this->key_;
   return true;
@@ -78,8 +102,10 @@ bool FixedPersistenceKeyProvider::derive_key(
 #ifdef USE_ESP32
 bool EfuseHmacPersistenceKeyProvider::derive_key(
     CredentialSlot slot, uint32_t generation, std::array<uint8_t, 32> *key) {
-  if (key == nullptr || !valid_slot(slot) || generation == 0 ||
-      this->key_id_ > 5)
+  if (key == nullptr)
+    return false;
+  clear_key(key);
+  if (!valid_slot(slot) || generation == 0 || this->key_id_ > 5)
     return false;
 
   std::array<uint8_t, 24> context{};
@@ -98,7 +124,7 @@ bool EfuseHmacPersistenceKeyProvider::derive_key(
       context.size(), key->data());
   PairingPersistenceCrypto::zeroize(context.data(), context.size());
   if (status != ESP_OK) {
-    PairingPersistenceCrypto::zeroize(key->data(), key->size());
+    clear_key(key);
     return false;
   }
   return true;
@@ -108,14 +134,13 @@ bool EfuseHmacPersistenceKeyProvider::derive_key(
 bool PairingPersistenceCrypto::seal(
     CredentialSlot slot, CredentialRecordState state, uint32_t generation,
     const std::vector<uint8_t> &plaintext, std::vector<uint8_t> *envelope) {
-  if (this->key_provider_ == nullptr || envelope == nullptr ||
-      !valid_slot(slot) || !valid_state(state) || generation == 0 ||
-      plaintext.empty() ||
+  if (envelope == nullptr)
+    return false;
+  clear_bytes(envelope);
+  if (this->key_provider_ == nullptr || !valid_slot(slot) ||
+      !valid_state(state) || generation == 0 || plaintext.empty() ||
       plaintext.size() > PERSISTENCE_MAX_PLAINTEXT_BYTES)
     return false;
-
-  std::fill(envelope->begin(), envelope->end(), 0);
-  envelope->clear();
 
   std::array<uint8_t, 32> record_key{};
   std::array<uint8_t, 32> encryption_key{};
@@ -152,7 +177,7 @@ bool PairingPersistenceCrypto::seal(
     zeroize(digest_key.data(), digest_key.size());
     zeroize(nonce.data(), nonce.size());
     zeroize(digest.data(), digest.size());
-    zeroize(header.data(), header.size());
+    clear_bytes(&header);
     return false;
   }
 
@@ -172,20 +197,20 @@ bool PairingPersistenceCrypto::seal(
   zeroize(digest_key.data(), digest_key.size());
   zeroize(nonce.data(), nonce.size());
   zeroize(digest.data(), digest.size());
-  zeroize(header.data(), header.size());
-  zeroize(ciphertext.data(), ciphertext.size());
-  if (!success) {
-    zeroize(envelope->data(), envelope->size());
-    envelope->clear();
-  }
+  clear_bytes(&header);
+  clear_bytes(&ciphertext);
+  if (!success)
+    clear_bytes(envelope);
   return success;
 }
 
 bool PairingPersistenceCrypto::inspect(
     const std::vector<uint8_t> &envelope,
     PersistenceEnvelopeMetadata *metadata) {
-  if (metadata == nullptr ||
-      envelope.size() < HEADER_BYTES + PERSISTENCE_TAG_BYTES ||
+  if (metadata == nullptr)
+    return false;
+  clear_metadata(metadata);
+  if (envelope.size() < HEADER_BYTES + PERSISTENCE_TAG_BYTES ||
       !std::equal(ENVELOPE_MAGIC.begin(), ENVELOPE_MAGIC.end(),
                   envelope.begin()) ||
       read_u16(envelope.data() + 4) !=
@@ -204,9 +229,12 @@ bool PairingPersistenceCrypto::inspect(
       parsed.generation == 0 || parsed.plaintext_size == 0 ||
       parsed.plaintext_size > PERSISTENCE_MAX_PLAINTEXT_BYTES ||
       envelope.size() !=
-          HEADER_BYTES + parsed.plaintext_size + PERSISTENCE_TAG_BYTES)
+          HEADER_BYTES + parsed.plaintext_size + PERSISTENCE_TAG_BYTES) {
+    zeroize(parsed.digest.data(), parsed.digest.size());
     return false;
+  }
   *metadata = parsed;
+  zeroize(parsed.digest.data(), parsed.digest.size());
   return true;
 }
 
@@ -214,11 +242,13 @@ bool PairingPersistenceCrypto::open(
     const std::vector<uint8_t> &envelope,
     PersistenceEnvelopeMetadata *metadata,
     std::vector<uint8_t> *plaintext) {
+  if (metadata != nullptr)
+    clear_metadata(metadata);
+  if (plaintext != nullptr)
+    clear_bytes(plaintext);
   if (this->key_provider_ == nullptr || metadata == nullptr ||
       plaintext == nullptr)
     return false;
-  std::fill(plaintext->begin(), plaintext->end(), 0);
-  plaintext->clear();
 
   PersistenceEnvelopeMetadata parsed{};
   if (!inspect(envelope, &parsed))
@@ -237,6 +267,7 @@ bool PairingPersistenceCrypto::open(
     zeroize(encryption_key.data(), encryption_key.size());
     zeroize(digest_key.data(), digest_key.size());
     zeroize(nonce.data(), nonce.size());
+    zeroize(parsed.digest.data(), parsed.digest.size());
     return false;
   }
 
@@ -258,11 +289,12 @@ bool PairingPersistenceCrypto::open(
   zeroize(nonce.data(), nonce.size());
   zeroize(digest.data(), digest.size());
   if (!success) {
-    zeroize(plaintext->data(), plaintext->size());
-    plaintext->clear();
+    clear_bytes(plaintext);
+    zeroize(parsed.digest.data(), parsed.digest.size());
     return false;
   }
   *metadata = parsed;
+  zeroize(parsed.digest.data(), parsed.digest.size());
   return true;
 }
 
@@ -280,27 +312,38 @@ bool PairingPersistenceCrypto::random_bytes_(uint8_t *output, size_t length) {
 bool PairingPersistenceCrypto::hmac_sha256_(
     const uint8_t *key, size_t key_length, const uint8_t *data,
     size_t data_length, std::array<uint8_t, 32> *digest) {
+  if (digest == nullptr)
+    return false;
+  clear_key(digest);
   if (key == nullptr || key_length == 0 || data == nullptr ||
-      data_length == 0 || digest == nullptr)
+      data_length == 0)
     return false;
 #ifdef USE_ESP32
   const mbedtls_md_info_t *info =
       mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
-  return info != nullptr &&
-         mbedtls_md_hmac(info, key, key_length, data, data_length,
-                         digest->data()) == 0;
+  const bool success =
+      info != nullptr &&
+      mbedtls_md_hmac(info, key, key_length, data, data_length,
+                      digest->data()) == 0;
 #else
   unsigned int written = 0;
-  return HMAC(EVP_sha256(), key, static_cast<int>(key_length), data,
-              data_length, digest->data(), &written) != nullptr &&
-         written == digest->size();
+  const bool success =
+      HMAC(EVP_sha256(), key, static_cast<int>(key_length), data,
+           data_length, digest->data(), &written) != nullptr &&
+      written == digest->size();
 #endif
+  if (!success)
+    clear_key(digest);
+  return success;
 }
 
 bool PairingPersistenceCrypto::derive_subkey_(
     const std::array<uint8_t, 32> &record_key, const char *label,
     std::array<uint8_t, 32> *subkey) {
-  if (label == nullptr || subkey == nullptr)
+  if (subkey == nullptr)
+    return false;
+  clear_key(subkey);
+  if (label == nullptr)
     return false;
   const size_t label_length = std::strlen(label);
   return label_length > 0 &&
@@ -314,7 +357,10 @@ bool PairingPersistenceCrypto::aead_encrypt_(
     const std::array<uint8_t, 12> &nonce, const uint8_t *aad,
     size_t aad_length, const std::vector<uint8_t> &plaintext,
     std::vector<uint8_t> *ciphertext) {
-  if (aad == nullptr || plaintext.empty() || ciphertext == nullptr)
+  if (ciphertext == nullptr)
+    return false;
+  clear_bytes(ciphertext);
+  if (aad == nullptr || plaintext.empty())
     return false;
   ciphertext->assign(plaintext.size() + PERSISTENCE_TAG_BYTES, 0);
 #ifdef USE_ESP32
@@ -328,16 +374,14 @@ bool PairingPersistenceCrypto::aead_encrypt_(
         ciphertext->data() + plaintext.size());
   mbedtls_chachapoly_free(&context);
   if (result != 0) {
-    zeroize(ciphertext->data(), ciphertext->size());
-    ciphertext->clear();
+    clear_bytes(ciphertext);
     return false;
   }
   return true;
 #else
   EVP_CIPHER_CTX *context = EVP_CIPHER_CTX_new();
   if (context == nullptr) {
-    zeroize(ciphertext->data(), ciphertext->size());
-    ciphertext->clear();
+    clear_bytes(ciphertext);
     return false;
   }
   int written = 0;
@@ -367,8 +411,7 @@ bool PairingPersistenceCrypto::aead_encrypt_(
                   ciphertext->data() + plaintext.size()) == 1;
   EVP_CIPHER_CTX_free(context);
   if (!success || static_cast<size_t>(total) != plaintext.size()) {
-    zeroize(ciphertext->data(), ciphertext->size());
-    ciphertext->clear();
+    clear_bytes(ciphertext);
     return false;
   }
   return true;
@@ -380,7 +423,10 @@ bool PairingPersistenceCrypto::aead_decrypt_(
     const std::array<uint8_t, 12> &nonce, const uint8_t *aad,
     size_t aad_length, const uint8_t *ciphertext,
     size_t ciphertext_length, std::vector<uint8_t> *plaintext) {
-  if (aad == nullptr || ciphertext == nullptr || plaintext == nullptr ||
+  if (plaintext == nullptr)
+    return false;
+  clear_bytes(plaintext);
+  if (aad == nullptr || ciphertext == nullptr ||
       ciphertext_length <= PERSISTENCE_TAG_BYTES)
     return false;
   const size_t body_length = ciphertext_length - PERSISTENCE_TAG_BYTES;
@@ -395,16 +441,14 @@ bool PairingPersistenceCrypto::aead_decrypt_(
         ciphertext + body_length, ciphertext, plaintext->data());
   mbedtls_chachapoly_free(&context);
   if (result != 0) {
-    zeroize(plaintext->data(), plaintext->size());
-    plaintext->clear();
+    clear_bytes(plaintext);
     return false;
   }
   return true;
 #else
   EVP_CIPHER_CTX *context = EVP_CIPHER_CTX_new();
   if (context == nullptr) {
-    zeroize(plaintext->data(), plaintext->size());
-    plaintext->clear();
+    clear_bytes(plaintext);
     return false;
   }
   int written = 0;
@@ -433,8 +477,7 @@ bool PairingPersistenceCrypto::aead_decrypt_(
     total += written;
   EVP_CIPHER_CTX_free(context);
   if (!success || static_cast<size_t>(total) != body_length) {
-    zeroize(plaintext->data(), plaintext->size());
-    plaintext->clear();
+    clear_bytes(plaintext);
     return false;
   }
   return true;
