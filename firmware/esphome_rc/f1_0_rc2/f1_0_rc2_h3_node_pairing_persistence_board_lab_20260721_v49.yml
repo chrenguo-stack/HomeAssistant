@@ -11,6 +11,11 @@ substitutions:
 
 esp32:
   framework:
+    advanced:
+      include_builtin_idf_components:
+        - mdns
+        - nvs_flash
+        - esp_hw_support
     sdkconfig_options:
       CONFIG_MBEDTLS_PSA_CRYPTO_C: y
       CONFIG_MBEDTLS_ECP_DP_CURVE25519_ENABLED: y
