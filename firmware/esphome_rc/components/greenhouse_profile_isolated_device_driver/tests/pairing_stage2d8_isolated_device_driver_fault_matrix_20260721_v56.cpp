@@ -152,6 +152,7 @@ class FakePersistencePort final : public IsolatedDevicePersistencePort {
       return false;
     candidate_generation = candidate.credential_generation;
     write_count++;
+    candidate_marker_committed = false;
     recovery_status = active_generation == 0 ? "no_active_prepared"
                                              : "active_with_prepared";
     *snapshot = make_snapshot();
@@ -166,24 +167,23 @@ class FakePersistencePort final : public IsolatedDevicePersistencePort {
       return false;
     write_count += commit_write_increments;
     if (!commit_ok) {
-      if (marker_committed_on_failure) {
+      candidate_marker_committed = marker_committed_on_failure;
+      if (candidate_marker_committed) {
         active_generation = candidate_generation;
         candidate_generation = 0;
         recovery_status = "active";
       }
       *snapshot = make_snapshot();
-      snapshot->marker_committed = marker_committed_on_failure;
       snapshot->marker_last_observed = false;
       return false;
     }
     active_generation = candidate_generation;
     candidate_generation = 0;
     recovery_status = "active";
+    candidate_marker_committed = true;
     RamCredentialBundle value = make_bundle(active_generation);
     clone_bundle(value, new_active);
     *snapshot = make_snapshot();
-    snapshot->marker_committed = true;
-    snapshot->marker_last_observed = marker_last;
     return true;
   }
 
@@ -195,6 +195,7 @@ class FakePersistencePort final : public IsolatedDevicePersistencePort {
     active_generation = 0;
     candidate_generation = 0;
     recovery_status = "empty";
+    candidate_marker_committed = false;
     write_count++;
     *snapshot = make_snapshot();
     snapshot->cleanup_confirmed = true;
@@ -210,8 +211,8 @@ class FakePersistencePort final : public IsolatedDevicePersistencePort {
     snapshot.recovery_status = recovery_status;
     snapshot.active_generation = active_generation;
     snapshot.candidate_generation = candidate_generation;
-    snapshot.marker_committed = active_generation != 0;
-    snapshot.marker_last_observed = marker_last && active_generation != 0;
+    snapshot.marker_committed = candidate_marker_committed;
+    snapshot.marker_last_observed = marker_last && candidate_marker_committed;
     snapshot.persistent_write_count = write_count;
     return snapshot;
   }
@@ -223,6 +224,7 @@ class FakePersistencePort final : public IsolatedDevicePersistencePort {
   bool cleanup_ok{true};
   bool marker_last{true};
   bool marker_committed_on_failure{false};
+  bool candidate_marker_committed{false};
   bool drift_write_count_on_inspect{false};
   bool configured{false};
   uint32_t active_generation{1};
