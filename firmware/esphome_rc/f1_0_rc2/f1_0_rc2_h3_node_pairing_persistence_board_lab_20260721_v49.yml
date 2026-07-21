@@ -1,5 +1,5 @@
 substitutions:
-  device_name: gh-h3-pairing-persistence-lab
+  device_name: gh-h3-persist-lab
   project_version: "F1.0-RC2-H3-PAIRING-PERSISTENCE-LAB"
   soil_read_interval: 20s
   soil_warmup_time: 15s
