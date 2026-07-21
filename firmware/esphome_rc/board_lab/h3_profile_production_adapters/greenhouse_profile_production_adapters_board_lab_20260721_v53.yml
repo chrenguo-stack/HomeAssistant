@@ -1,0 +1,43 @@
+esphome:
+  name: gh-prod-adapt-lab
+  friendly_name: Greenhouse Production Profile Adapters Compile Lab
+  min_version: 2026.4.3
+
+esp32:
+  board: esp32-c6-devkitm-1
+  variant: ESP32C6
+  framework:
+    type: esp-idf
+    advanced:
+      include_builtin_idf_components:
+        - mqtt
+        - nvs_flash
+        - esp_hw_support
+    sdkconfig_options:
+      CONFIG_MBEDTLS_CHACHA20_C: y
+      CONFIG_MBEDTLS_POLY1305_C: y
+      CONFIG_MBEDTLS_CHACHAPOLY_C: y
+      CONFIG_MBEDTLS_HARDWARE_MPI: n
+
+logger:
+  level: DEBUG
+
+# Compile-only target. Wi-Fi stays disabled and the adapter component has no
+# component instance, setup hook, lifecycle action, Broker address, or NVS open.
+wifi:
+  ssid: !secret node_pairing_wifi_ssid
+  password: !secret node_pairing_wifi_password
+  enable_on_boot: false
+  reboot_timeout: 0s
+
+mdns:
+
+external_components:
+  - source:
+      type: local
+      path: ../../components
+    components:
+      - greenhouse_pairing_client
+      - greenhouse_profile_production_adapters
+
+greenhouse_profile_production_adapters:
