@@ -10,7 +10,6 @@ esp32:
     type: esp-idf
     advanced:
       include_builtin_idf_components:
-        - mdns
         - nvs_flash
         - esp_hw_support
     sdkconfig_options:
@@ -20,6 +19,17 @@ esp32:
 
 logger:
   level: DEBUG
+
+# The shared pairing client compiles mDNS transport sources. ESPHome 2026.4.3
+# supplies mDNS as a managed component, so a disabled-at-boot Wi-Fi platform and
+# explicit mdns component are present only to satisfy the compile dependency.
+wifi:
+  ssid: !secret node_pairing_wifi_ssid
+  password: !secret node_pairing_wifi_password
+  enable_on_boot: false
+  reboot_timeout: 0s
+
+mdns:
 
 external_components:
   - source:
