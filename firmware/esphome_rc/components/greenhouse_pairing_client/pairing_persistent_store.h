@@ -79,11 +79,10 @@ class PairingPersistentStore {
   bool write_marker_(CredentialSlot slot, uint32_t generation);
   bool verify_marker_(CredentialSlot slot, uint32_t generation);
   bool erase_slot_(CredentialSlot slot);
-  static std::vector<uint8_t> encode_marker_(CredentialSlot slot,
-                                              uint32_t generation);
-  static bool decode_marker_(const std::vector<uint8_t> &blob,
-                             ActiveMarker *marker);
-  static uint32_t crc32_(const uint8_t *data, size_t length);
+  std::vector<uint8_t> encode_marker_(CredentialSlot slot,
+                                      uint32_t generation);
+  bool decode_marker_(const std::vector<uint8_t> &blob,
+                      ActiveMarker *marker);
   static void wipe_vector_(std::vector<uint8_t> *value);
 
   PairingPersistenceBackend *backend_{nullptr};
