@@ -26,6 +26,7 @@ on:
       - "firmware/esphome_rc/components/greenhouse_pairing_persistence_lab/**"
       - "firmware/esphome_rc/board_lab/h3_node_pairing_persistence/**"
       - "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_h3_node_pairing_persistence_board_lab_20260721_v49.yml"
+      - "firmware/esphome_rc/f1_0_rc2/packages/**"
       - "protocols/pairing/gh-h3-node-persistent-credentials-v1.md"
       - "docs/development/h3-n2-stage2d1-nvs-persistence-20260721.md"
       - ".github/workflows/h3-n2-stage2d1-nvs-persistence-ci.yml"
@@ -110,6 +111,9 @@ jobs:
               "nvs_commit",
               "esp_hmac_calculate",
               "mbedtls_chachapoly",
+              "mbedtls_md_hmac",
+              "gh-persist-encryption-v1",
+              "gh-persist-digest-v1",
               "slot_a",
               "slot_b",
               "active",
@@ -169,6 +173,11 @@ jobs:
                   raise SystemExit(f"Stage 2D-1 target has an automatic boot action: {target}")
               if "recover_for_lab();" not in text:
                   raise SystemExit(f"manual read-only recovery trigger missing: {target}")
+              for dependency in ("mdns", "nvs_flash", "esp_hw_support"):
+                  if "include_builtin_idf_components:" not in text or f"- {dependency}" not in text:
+                      raise SystemExit(
+                          f"explicit IDF dependency {dependency} missing: {target}"
+                      )
           PY
 
   esp32-c6-compile:
