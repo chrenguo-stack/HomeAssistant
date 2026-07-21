@@ -14,6 +14,7 @@ on:
       - "firmware/esphome_rc/f1_0_rc2/packages/**"
       - "protocols/pairing/gh-h3-node-persistent-credentials-v1.md"
       - "docs/development/h3-n2-stage2d1-nvs-persistence-20260721.md"
+      - "tools/h3_n2_stage2d1_boundary_gate_20260721_v49.py"
       - ".github/workflows/h3-n2-stage2d1-nvs-persistence-ci.yml"
   push:
     branches: [main]
@@ -29,6 +30,7 @@ on:
       - "firmware/esphome_rc/f1_0_rc2/packages/**"
       - "protocols/pairing/gh-h3-node-persistent-credentials-v1.md"
       - "docs/development/h3-n2-stage2d1-nvs-persistence-20260721.md"
+      - "tools/h3_n2_stage2d1_boundary_gate_20260721_v49.py"
       - ".github/workflows/h3-n2-stage2d1-nvs-persistence-ci.yml"
 
 concurrency:
@@ -68,139 +70,21 @@ jobs:
       - name: Run Stage 2D-1 persistent store fault matrix
         run: /tmp/stage2d1-persistent-store-fault-matrix-v49
       - name: Verify Stage 2D-1 source and production boundaries
+        run: python tools/h3_n2_stage2d1_boundary_gate_20260721_v49.py
+      - name: Upload Stage 2D-1 boundary diagnostic
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage2d1-boundary-diagnostic-v49
+          path: /tmp/stage2d1-boundary-diagnostic-v49.txt
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Cleanup host files
+        if: always()
         run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          component = Path("firmware/esphome_rc/components/greenhouse_pairing_client")
-          lab = Path("firmware/esphome_rc/components/greenhouse_pairing_persistence_lab")
-          sources = [
-              component / "pairing_persistence_backend.h",
-              component / "pairing_persistence_backend.cpp",
-              component / "pairing_persistence_crypto.h",
-              component / "pairing_persistence_crypto.cpp",
-              component / "pairing_credential_codec.h",
-              component / "pairing_credential_codec.cpp",
-              component / "pairing_persistent_store.h",
-              component / "pairing_persistent_store.cpp",
-              component / "tests/pairing_stage2d1_persistent_store_fault_matrix_20260721_v49.cpp",
-              *[path for path in lab.rglob("*") if path.is_file()],
-          ]
-          encoded = "\n".join(
-              path.read_text(encoding="utf-8", errors="replace")
-              for path in sources
-          )
-
-          forbidden = (
-              "nvs_flash_erase",
-              "nvs_erase_all",
-              "nvs_erase_partition",
-              "esp_efuse_write",
-              "esp_efuse_batch_write",
-              "set_username(",
-              "set_password(",
-              "greenhouse_mqtt_auth",
-              "/opt/greenhouse-h3-n2-acceptance",
-          )
-          present = [value for value in forbidden if value in encoded]
-          if present:
-              raise SystemExit(f"Stage 2D-1 boundary violation: {present}")
-
-          required = (
-              "nvs_set_blob",
-              "nvs_commit",
-              "esp_hmac_calculate",
-              "mbedtls_chachapoly",
-              "mbedtls_md_hmac",
-              "gh-persist-encryption-v1",
-              "gh-persist-digest-v1",
-              "slot_a",
-              "slot_b",
-              "active",
-              "ACTIVE_WITH_COMMITTED_ORPHAN",
-              "ACTIVE_WITH_INVALID_INACTIVE",
-              "NO_ACTIVE_COMMITTED_ORPHAN",
-              "Automatic NVS access at boot: NO",
-              "NVS writes at boot: NO",
-              "Production MQTT mutation: NO",
-              "NVS_READONLY",
-              "PersistenceOpenMode::READ_ONLY",
-              "namespace_missing",
-              "ESP_ERR_NVS_NOT_FOUND",
-              "Missing read-only namespace: EMPTY",
-              "stage2d1 persistent store fault matrix passed",
-          )
-          missing = [value for value in required if value not in encoded]
-          if missing:
-              raise SystemExit(f"Stage 2D-1 source evidence missing: {missing}")
-
-          store = (component / "pairing_persistent_store.cpp").read_text(
-              encoding="utf-8"
-          )
-          committed = store.find(
-              "CredentialRecordState::COMMITTED, candidate"
-          )
-          marker = store.find(
-              "write_marker_(recovery.candidate_slot"
-          )
-          if committed < 0 or marker < 0 or committed >= marker:
-              raise SystemExit("active marker is not written after committed candidate")
-
-          lab_python = (lab / "__init__.py").read_text(encoding="utf-8")
-          if 'include_builtin_idf_component("mdns")' in lab_python:
-              raise SystemExit("managed mDNS was incorrectly treated as a built-in IDF component")
-
-          lab_cpp = (lab / "greenhouse_pairing_persistence_lab.cpp").read_text(
-              encoding="utf-8"
-          )
-          setup = lab_cpp.split(
-              "void GreenhousePairingPersistenceLab::setup()", 1
-          )[1].split(
-              "void GreenhousePairingPersistenceLab::dump_config()", 1
-          )[0]
-          if "->open" in setup or "recover_for_lab()" in setup:
-              raise SystemExit("Stage 2D-1 lab accesses NVS automatically at boot")
-          recovery_probe = lab_cpp.split(
-              "bool GreenhousePairingPersistenceLab::recover_for_lab()", 1
-          )[1].split(
-              "const char *GreenhousePairingPersistenceLab::recovery_status_name()", 1
-          )[0]
-          if (
-              "PersistenceOpenMode::READ_ONLY" not in recovery_probe
-              or "PersistenceOpenMode::READ_WRITE" in recovery_probe
-          ):
-              raise SystemExit("manual persistence recovery probe is not read-only")
-
-          minimal = Path(
-              "firmware/esphome_rc/board_lab/h3_node_pairing_persistence/greenhouse_pairing_persistence_board_lab_20260721_v49.yml"
-          )
-          product = Path(
-              "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_h3_node_pairing_persistence_board_lab_20260721_v49.yml"
-          )
-          core = Path("firmware/esphome_rc/f1_0_rc2/packages/core.yml")
-          for target in (minimal, product):
-              text = target.read_text(encoding="utf-8")
-              if "on_boot:" in text:
-                  raise SystemExit(f"Stage 2D-1 target has an automatic boot action: {target}")
-              if "recover_for_lab();" not in text:
-                  raise SystemExit(f"manual read-only recovery trigger missing: {target}")
-              for dependency in ("nvs_flash", "esp_hw_support"):
-                  if "include_builtin_idf_components:" not in text or f"- {dependency}" not in text:
-                      raise SystemExit(
-                          f"explicit IDF dependency {dependency} missing: {target}"
-                      )
-
-          minimal_text = minimal.read_text(encoding="utf-8")
-          if (
-              "wifi:" not in minimal_text
-              or "enable_on_boot: false" not in minimal_text
-              or "mdns:" not in minimal_text
-          ):
-              raise SystemExit("minimal target does not configure disabled Wi-Fi and managed mDNS")
-          core_text = core.read_text(encoding="utf-8")
-          if "wifi:" not in core_text or "mdns:" not in core_text:
-              raise SystemExit("RC2 core package does not provide Wi-Fi and managed mDNS")
-          PY
+          rm -f \
+            /tmp/stage2d1-persistent-store-fault-matrix-v49 \
+            /tmp/stage2d1-boundary-diagnostic-v49.txt
 
   esp32-c6-compile:
     needs: host-fault-matrix
