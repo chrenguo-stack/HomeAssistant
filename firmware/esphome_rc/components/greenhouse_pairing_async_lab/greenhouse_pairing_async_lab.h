@@ -51,20 +51,31 @@ class GreenhousePairingAsyncLab final : public Component, protected PairingAsync
   bool select_candidate(size_t index);
   void reset_unbound();
 
-  const char *state_name() const { return this->client_.state_name(); }
-  const char *error_name() const { return this->client_.error_name(); }
-  const char *network_result_name() const { return this->client_.network_result_name(); }
+  const char *state_name() const;
+  const char *error_name() const;
+  const char *network_result_name() const;
   const char *async_phase_name() const;
   const char *async_outcome_name() const;
   bool async_active() const { return this->worker_.active(); }
-  bool selection_required() const { return this->client_.selection_required(); }
-  bool ram_credentials_present() const { return this->client_.ram_credentials_present(); }
-  uint32_t credential_generation() const { return this->client_.credential_generation(); }
+  bool selection_required() const {
+    return this->worker_.active() ? this->async_snapshot_.selection_required
+                                  : this->client_.selection_required();
+  }
+  bool ram_credentials_present() const {
+    return this->worker_.active() ? this->async_snapshot_.credentials_staged
+                                  : this->client_.ram_credentials_present();
+  }
+  uint32_t credential_generation() const {
+    return this->worker_.active() ? this->async_snapshot_.credential_generation
+                                  : this->client_.credential_generation();
+  }
 
  protected:
   PairingAsyncOutcome execute_async_pairing(PairingAsyncExecutionContext *context) override;
   PairingClientSnapshot async_client_snapshot() const override;
 
+  static const char *state_to_name_(PairingClientState value);
+  static const char *error_to_name_(PairingClientError value);
   static PairingClientState state_from_name_(const char *value);
   static PairingClientError error_from_name_(const char *value);
 
