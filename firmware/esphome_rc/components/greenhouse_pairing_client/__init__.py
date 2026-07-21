@@ -111,7 +111,7 @@ GreenhousePairingClient = greenhouse_pairing_client_ns.class_(
     "GreenhousePairingClient", cg.Component
 )
 
-CONFIG_SCHEMA = cv.All(
+_INSTANCE_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(GreenhousePairingClient),
@@ -152,11 +152,23 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def CONFIG_SCHEMA(value: object) -> dict:
+    # Stage 2C-3 may auto-load this component only to compile its shared C++
+    # transport library. Explicit non-empty instances retain the full strict
+    # Stage 2C-1/2 schema and code generation path.
+    if value is None or value == {}:
+        return {}
+    return _INSTANCE_SCHEMA(value)
+
+
 async def to_code(config: dict) -> None:
     # ESPHome 2026.2+ excludes unused IDF components by default. The external
     # component directly uses esp_http_client.h, so re-enable that built-in
-    # component for both the Stage 2C-1 compatibility targets and Stage 2C-2.
+    # component for Stage 2C-1/2 instances and the Stage 2C-3 library load.
     include_builtin_idf_component("esp_http_client")
+
+    if not config:
+        return
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
