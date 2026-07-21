@@ -1,0 +1,85 @@
+substitutions:
+  device_name: gh-h3-pairing-persistence-lab
+  project_version: "F1.0-RC2-H3-PAIRING-PERSISTENCE-LAB"
+  soil_read_interval: 20s
+  soil_warmup_time: 15s
+  scd30_update_interval: 11s
+  battery_divider_ratio: "2.0"
+  battery_calibration_factor: "1.000"
+  battery_low_threshold: "3.00"
+  battery_recovery_threshold: "3.50"
+
+esp32:
+  framework:
+    sdkconfig_options:
+      CONFIG_MBEDTLS_PSA_CRYPTO_C: y
+      CONFIG_MBEDTLS_ECP_DP_CURVE25519_ENABLED: y
+      CONFIG_MBEDTLS_CHACHA20_C: y
+      CONFIG_MBEDTLS_POLY1305_C: y
+      CONFIG_MBEDTLS_CHACHAPOLY_C: y
+
+external_components:
+  - source:
+      type: local
+      path: ../15_1_2_rs485_modbus_echo_filter/my_components
+    components:
+      - echo_filtered_modbus
+  - source:
+      type: local
+      path: ../components
+    components:
+      - greenhouse_pairing_client
+      - greenhouse_pairing_persistence_lab
+
+packages:
+  core: !include packages/core.yml
+  control: !include packages/control.yml
+  buses: !include packages/buses.yml
+  sensors: !include packages/sensors.yml
+  display: !include packages/display.yml
+
+# Dedicated non-production product-PCB compile target for Stage 2D-1.
+# NVS recovery and mutation are never invoked at boot.
+greenhouse_pairing_persistence_lab:
+  id: pairing_persistence_stage2d1
+  partition_label: nvs
+  namespace_name: gh_pair_v1
+  hmac_key_id: 0
+
+button:
+  - platform: template
+    name: "Persistence Read Only Recovery Probe Stage 2D-1 Lab"
+    id: persistence_recovery_probe_stage2d1
+    internal: true
+    on_press:
+      - lambda: |-
+          id(pairing_persistence_stage2d1).recover_for_lab();
+
+text_sensor:
+  - platform: template
+    name: "Persistence Recovery Status Stage 2D-1 Lab"
+    id: persistence_recovery_status_stage2d1
+    internal: true
+    update_interval: 5s
+    lambda: |-
+      return {id(pairing_persistence_stage2d1).recovery_status_name()};
+
+sensor:
+  - platform: template
+    name: "Persistence Active Generation Stage 2D-1 Lab"
+    id: persistence_active_generation_stage2d1
+    internal: true
+    update_interval: 5s
+    accuracy_decimals: 0
+    lambda: |-
+      return static_cast<float>(
+          id(pairing_persistence_stage2d1).active_generation());
+  - platform: template
+    name: "Persistence Candidate Generation Stage 2D-1 Lab"
+    id: persistence_candidate_generation_stage2d1
+    internal: true
+    update_interval: 5s
+    accuracy_decimals: 0
+    lambda: |-
+      return static_cast<float>(
+          id(pairing_persistence_stage2d1).candidate_generation());
