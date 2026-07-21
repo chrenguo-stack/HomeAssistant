@@ -37,13 +37,16 @@ class CredentialPersistenceContract {
   bool prepare(uint32_t candidate_generation, const std::string &payload_digest);
   bool mark_profile_verified();
   bool commit();
-  void rollback();
+  bool rollback();
 
   const CredentialJournalSnapshot &snapshot() const { return this->snapshot_; }
   const CredentialSlotRecord &candidate_record() const { return this->candidate_record_; }
 
+  static bool valid_slot(CredentialSlot slot);
   static bool valid_digest(const std::string &value);
   static bool valid_record(const CredentialSlotRecord &record);
+  static bool record_matches_slot(const CredentialSlotRecord &record,
+                                  CredentialSlot physical_slot);
   static bool recover(const CredentialSlotRecord &slot_a,
                       const CredentialSlotRecord &slot_b,
                       CredentialSlot marker_slot, uint32_t marker_generation,
@@ -51,6 +54,9 @@ class CredentialPersistenceContract {
 
  protected:
   static CredentialSlot opposite_(CredentialSlot slot);
+  static bool capture_prepared_(const CredentialSlotRecord &record,
+                                uint32_t active_generation,
+                                CredentialJournalSnapshot *output);
 
   CredentialJournalSnapshot snapshot_{};
   CredentialSlotRecord candidate_record_{};
