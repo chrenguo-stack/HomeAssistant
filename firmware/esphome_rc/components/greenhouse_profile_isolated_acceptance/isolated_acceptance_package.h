@@ -118,19 +118,6 @@ struct IsolatedAcceptanceDriverSnapshot {
   std::string rollback_result{"not_applicable"};
 };
 
-static constexpr size_t ISOLATED_ACCEPTANCE_MAX_TRANSITIONS = 32;
-
-struct IsolatedAcceptanceTransitionEvidence {
-  uint32_t sequence{0};
-  IsolatedAcceptancePhase from_phase{IsolatedAcceptancePhase::COLD};
-  IsolatedAcceptancePhase to_phase{IsolatedAcceptancePhase::COLD};
-  IsolatedAcceptanceCommand command{IsolatedAcceptanceCommand::NONE};
-  IsolatedAcceptanceFailure failure{IsolatedAcceptanceFailure::NONE};
-  uint32_t active_generation{0};
-  uint32_t candidate_generation{0};
-  bool authorization_consumed{false};
-};
-
 class IsolatedAcceptanceDriver {
  public:
   virtual ~IsolatedAcceptanceDriver() = default;
@@ -225,11 +212,6 @@ struct IsolatedAcceptancePackageSnapshot {
   bool cleanup_confirmed{false};
   bool reboot_required{false};
   uint32_t transition_count{0};
-  std::array<IsolatedAcceptanceTransitionEvidence,
-             ISOLATED_ACCEPTANCE_MAX_TRANSITIONS>
-      transitions{};
-  size_t transition_record_count{0};
-  bool transition_history_truncated{false};
   IsolatedAcceptanceDriverSnapshot driver{};
 };
 
@@ -273,10 +255,6 @@ class IsolatedAcceptancePackage {
   bool evidence_metadata_available_() const;
   void transition_(IsolatedAcceptancePhase phase,
                    IsolatedAcceptanceCommand command);
-  void record_transition_(IsolatedAcceptancePhase from_phase,
-                          IsolatedAcceptancePhase to_phase,
-                          IsolatedAcceptanceCommand command,
-                          IsolatedAcceptanceFailure failure);
   void refresh_driver_snapshot_(
       const IsolatedAcceptanceDriverSnapshot &driver_snapshot);
   std::string evidence_json_() const;
