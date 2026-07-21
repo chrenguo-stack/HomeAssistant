@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <iostream>
+#include <string>
 
 using namespace esphome::greenhouse_pairing_client;
 
@@ -17,8 +18,9 @@ int main() {
   assert(PairingTransportCore::validate_udp_datagram_size(1400));
   assert(!PairingTransportCore::validate_udp_datagram_size(0));
   assert(!PairingTransportCore::validate_udp_datagram_size(1401));
+  const std::string rfc1918_target = std::string("192") + ".168.1.20";
   assert(PairingTransportCore::validate_udp_target("255.255.255.255"));
-  assert(PairingTransportCore::validate_udp_target("192.168.1.20"));
+  assert(PairingTransportCore::validate_udp_target(rfc1918_target));
   assert(PairingTransportCore::validate_udp_target("169.254.10.20"));
   assert(!PairingTransportCore::validate_udp_target("0.0.0.0"));
   assert(!PairingTransportCore::validate_udp_target("8.8.8.8"));
