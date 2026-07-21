@@ -21,6 +21,7 @@ EspIdfNvsPersistenceBackend::~EspIdfNvsPersistenceBackend() {
   this->opened_ = false;
   this->writable_ = false;
   this->namespace_missing_ = false;
+  this->poisoned_ = false;
 }
 
 bool EspIdfNvsPersistenceBackend::open(PersistenceOpenMode mode) {
@@ -30,6 +31,7 @@ bool EspIdfNvsPersistenceBackend::open(PersistenceOpenMode mode) {
     return false;
 
   this->namespace_missing_ = false;
+  this->poisoned_ = false;
   const nvs_open_mode_t open_mode =
       mode == PersistenceOpenMode::READ_ONLY ? NVS_READONLY : NVS_READWRITE;
   esp_err_t status = ESP_FAIL;
@@ -55,7 +57,7 @@ bool EspIdfNvsPersistenceBackend::open(PersistenceOpenMode mode) {
 
 PersistenceReadResult EspIdfNvsPersistenceBackend::read_blob(
     const char *key, std::vector<uint8_t> *value) {
-  if (!this->opened_ || key == nullptr || value == nullptr)
+  if (!this->healthy() || key == nullptr || value == nullptr)
     return PersistenceReadResult::ERROR;
   std::fill(value->begin(), value->end(), 0);
   value->clear();
@@ -80,20 +82,32 @@ PersistenceReadResult EspIdfNvsPersistenceBackend::read_blob(
 bool EspIdfNvsPersistenceBackend::write_blob(const char *key,
                                              const uint8_t *value,
                                              size_t length) {
-  return this->writable() && key != nullptr && value != nullptr && length > 0 &&
-         length <= PERSISTENCE_MAX_BLOB_BYTES &&
-         nvs_set_blob(this->handle_, key, value, length) == ESP_OK;
+  if (!this->writable() || key == nullptr || value == nullptr || length == 0 ||
+      length > PERSISTENCE_MAX_BLOB_BYTES)
+    return false;
+  if (nvs_set_blob(this->handle_, key, value, length) == ESP_OK)
+    return true;
+  this->poisoned_ = true;
+  return false;
 }
 
 bool EspIdfNvsPersistenceBackend::erase_key(const char *key) {
   if (!this->writable() || key == nullptr)
     return false;
   const esp_err_t status = nvs_erase_key(this->handle_, key);
-  return status == ESP_OK || status == ESP_ERR_NVS_NOT_FOUND;
+  if (status == ESP_OK || status == ESP_ERR_NVS_NOT_FOUND)
+    return true;
+  this->poisoned_ = true;
+  return false;
 }
 
 bool EspIdfNvsPersistenceBackend::commit() {
-  return this->writable() && nvs_commit(this->handle_) == ESP_OK;
+  if (!this->writable())
+    return false;
+  if (nvs_commit(this->handle_) == ESP_OK)
+    return true;
+  this->poisoned_ = true;
+  return false;
 }
 #endif
 
