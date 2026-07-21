@@ -30,6 +30,48 @@ bool PairingTransportCore::validate_udp_datagram_size(size_t payload_size) {
   return payload_size > 0 && payload_size <= UDP_DISCOVERY_MAX_DATAGRAM;
 }
 
+bool PairingTransportCore::validate_udp_target(const std::string &target) {
+  if (target == "255.255.255.255")
+    return true;
+  if (target.empty() ||
+      !std::all_of(target.begin(), target.end(), [](char character) {
+        return std::isdigit(static_cast<unsigned char>(character)) != 0 || character == '.';
+      }))
+    return false;
+  return PairingClientCore::valid_local_host(target);
+}
+
+bool PairingTransportCore::validate_pairing_path(const std::string &pairing_path) {
+  if (pairing_path.empty() || pairing_path.front() != '/' || pairing_path.size() > 256 ||
+      pairing_path.rfind("//", 0) == 0)
+    return false;
+
+  std::string normalized = pairing_path;
+  while (normalized.size() > 1 && normalized.back() == '/')
+    normalized.pop_back();
+  if (normalized.find("//") != std::string::npos)
+    return false;
+
+  size_t start = 1;
+  while (start <= normalized.size()) {
+    const size_t stop = normalized.find('/', start);
+    const size_t end = stop == std::string::npos ? normalized.size() : stop;
+    const std::string segment = normalized.substr(start, end - start);
+    if (segment.empty() || segment == "." || segment == "..")
+      return false;
+    for (const char character : segment) {
+      const auto byte = static_cast<unsigned char>(character);
+      if (std::isalnum(byte) == 0 && character != '-' && character != '_' && character != '.' &&
+          character != '~')
+        return false;
+    }
+    if (stop == std::string::npos)
+      break;
+    start = stop + 1;
+  }
+  return true;
+}
+
 bool PairingTransportCore::validate_http_response(const HttpResponseMetadata &metadata) {
   return metadata.status_code == 200 && metadata.content_type == "application/json" &&
          metadata.body_size <= HTTP_RESPONSE_MAX_BYTES && !metadata.redirect_observed;
@@ -64,9 +106,8 @@ std::string PairingTransportCore::build_base_url(const std::string &scheme,
                                                  const std::string &host, uint16_t port,
                                                  const std::string &pairing_path) {
   if ((scheme != "http" && scheme != "https") ||
-      !PairingClientCore::valid_local_host(host) || port == 0 || pairing_path.empty() ||
-      pairing_path.front() != '/' || pairing_path.size() > 256 ||
-      pairing_path.rfind("//", 0) == 0)
+      !PairingClientCore::valid_local_host(host) || port == 0 ||
+      !validate_pairing_path(pairing_path))
     return {};
   std::string normalized = pairing_path;
   while (normalized.size() > 1 && normalized.back() == '/')
