@@ -23,6 +23,14 @@ namespace esphome::greenhouse_pairing_client {
 
 namespace {
 
+void secure_clear(std::string *value) {
+  if (value == nullptr)
+    return;
+  std::fill(value->begin(), value->end(), '\0');
+  value->clear();
+  value->shrink_to_fit();
+}
+
 const char *txt_value(const mdns_result_t *result, const char *key) {
   if (result == nullptr || key == nullptr)
     return nullptr;
@@ -86,6 +94,13 @@ esp_err_t http_event(esp_http_client_event_t *event) {
                      });
     } else if (strcasecmp(event->header_key, "Location") == 0) {
       collector->redirect = true;
+    } else if (strcasecmp(event->header_key, "Content-Length") == 0) {
+      uint32_t content_length = 0;
+      if (!PairingTransportCore::parse_uint32(event->header_value, &content_length) ||
+          content_length > collector->maximum) {
+        collector->overflow = true;
+        return ESP_FAIL;
+      }
     }
   } else if (event->event_id == HTTP_EVENT_ON_DATA && event->data != nullptr &&
              event->data_len > 0) {
@@ -104,8 +119,7 @@ esp_err_t http_event(esp_http_client_event_t *event) {
 bool PairingNetworkTransport::browse_mdns_(PairingClientCore *core, uint32_t now_ms) {
   mdns_result_t *results = nullptr;
   const esp_err_t status = mdns_query_ptr("_greenhouse", "_tcp",
-                                          this->options_.limits.mdns_timeout_ms,
-                                          this->options_.limits.response_max_bytes > 0 ? 16 : 0,
+                                          this->options_.limits.mdns_timeout_ms, 16,
                                           &results);
   if (status != ESP_OK || results == nullptr) {
     if (results != nullptr)
@@ -120,9 +134,11 @@ bool PairingNetworkTransport::browse_mdns_(PairingClientCore *core, uint32_t now
     uint16_t ttl_s = 0;
     const char *priority_text = txt_value(result, "priority");
     const char *ttl_text = txt_value(result, "ttl_s");
-    if (priority_text == nullptr || ttl_text == nullptr ||
+    const char *pairing_path = txt_value(result, "pairing_path");
+    if (priority_text == nullptr || ttl_text == nullptr || pairing_path == nullptr ||
         !PairingTransportCore::parse_uint16(priority_text, &priority) ||
-        !PairingTransportCore::parse_uint16(ttl_text, &ttl_s))
+        !PairingTransportCore::parse_uint16(ttl_text, &ttl_s) ||
+        !PairingTransportCore::validate_pairing_path(pairing_path))
       continue;
     ManagerCandidate candidate{
         .schema = txt_value(result, "schema"),
@@ -131,7 +147,7 @@ bool PairingNetworkTransport::browse_mdns_(PairingClientCore *core, uint32_t now
         .host = std::string(result->hostname) + ".local",
         .scheme = txt_value(result, "scheme"),
         .port = result->port,
-        .pairing_path = txt_value(result, "pairing_path"),
+        .pairing_path = pairing_path,
         .protocol = txt_value(result, "protocol"),
         .priority = priority,
         .ttl_s = ttl_s,
@@ -146,6 +162,8 @@ bool PairingNetworkTransport::browse_mdns_(PairingClientCore *core, uint32_t now
 bool PairingNetworkTransport::discover_udp_(PairingClientCore *core,
                                              const std::string &query_json,
                                              uint32_t now_ms) {
+  if (!PairingTransportCore::validate_udp_target(this->options_.udp_target))
+    return false;
   sockaddr_in target{};
   target.sin_family = AF_INET;
   target.sin_port = htons(this->options_.limits.udp_port);
@@ -160,8 +178,9 @@ bool PairingNetworkTransport::discover_udp_(PairingClientCore *core,
       .tv_sec = 0,
       .tv_usec = 250000,
   };
-  bool configured = setsockopt(descriptor, SOL_SOCKET, SO_BROADCAST, &enabled, sizeof(enabled)) == 0 &&
-                    setsockopt(descriptor, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) == 0;
+  const bool configured =
+      setsockopt(descriptor, SOL_SOCKET, SO_BROADCAST, &enabled, sizeof(enabled)) == 0 &&
+      setsockopt(descriptor, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) == 0;
   if (!configured) {
     close(descriptor);
     return false;
@@ -175,7 +194,9 @@ bool PairingNetworkTransport::discover_udp_(PairingClientCore *core,
     if (sent != static_cast<ssize_t>(query_json.size()))
       continue;
 
-    while (true) {
+    size_t responses = 0;
+    while (responses < UDP_DISCOVERY_MAX_RESPONSES_PER_ATTEMPT) {
+      responses++;
       sockaddr_in source{};
       socklen_t source_length = sizeof(source);
       const ssize_t received = recvfrom(descriptor, buffer.data(), UDP_DISCOVERY_MAX_DATAGRAM, 0,
@@ -202,15 +223,22 @@ bool PairingNetworkTransport::discover_udp_(PairingClientCore *core,
         vTaskDelay(pdMS_TO_TICKS(delay));
     }
   }
+  std::fill(buffer.begin(), buffer.end(), '\0');
   close(descriptor);
   return observed;
 }
 
 bool PairingNetworkTransport::post_json_(const std::string &url, const std::string &body,
                                          HttpResponse *response) {
-  if (response == nullptr || url.empty() || body.empty() ||
-      body.size() > HTTP_RESPONSE_MAX_BYTES)
+  if (response == nullptr)
     return false;
+  secure_clear(&response->body);
+  secure_clear(&response->content_type);
+  response->status_code = 0;
+  response->redirect_observed = false;
+  if (url.empty() || body.empty() || body.size() > HTTP_RESPONSE_MAX_BYTES)
+    return false;
+
   HttpCollector collector{
       .body = {},
       .content_type = {},
@@ -237,14 +265,15 @@ bool PairingNetworkTransport::post_json_(const std::string &url, const std::stri
                  esp_http_client_set_header(client, "Accept", "application/json") == ESP_OK &&
                  esp_http_client_set_header(client, "Cache-Control", "no-store") == ESP_OK &&
                  esp_http_client_set_header(client, "Connection", "close") == ESP_OK &&
-                 esp_http_client_set_post_field(client, body.data(), body.size()) == ESP_OK &&
+                 esp_http_client_set_post_field(client, body.data(),
+                                                static_cast<int>(body.size())) == ESP_OK &&
                  esp_http_client_perform(client) == ESP_OK;
   const int status_code = esp_http_client_get_status_code(client);
   if (status_code >= 300 && status_code <= 399)
     collector.redirect = true;
   esp_http_client_cleanup(client);
 
-  HttpResponseMetadata metadata{
+  const HttpResponseMetadata metadata{
       .status_code = status_code,
       .content_type = collector.content_type,
       .body_size = collector.body.size(),
@@ -253,14 +282,15 @@ bool PairingNetworkTransport::post_json_(const std::string &url, const std::stri
   success = success && !collector.overflow &&
             collector.body.size() <= this->options_.limits.response_max_bytes &&
             PairingTransportCore::validate_http_response(metadata);
-  if (!success)
+  if (!success) {
+    secure_clear(&collector.body);
+    secure_clear(&collector.content_type);
     return false;
-  *response = HttpResponse{
-      .status_code = status_code,
-      .content_type = std::move(collector.content_type),
-      .body = std::move(collector.body),
-      .redirect_observed = collector.redirect,
-  };
+  }
+  response->status_code = status_code;
+  response->content_type = std::move(collector.content_type);
+  response->body = std::move(collector.body);
+  response->redirect_observed = collector.redirect;
   return true;
 }
 
