@@ -75,6 +75,7 @@ REQUIRED_SOURCE_TOKENS = (
     "NO_ACTIVE_COMMITTED_ORPHAN",
     "quiesce_for_reboot",
     "transaction_busy",
+    "lifecycle.phase != ProfileLifecyclePhase::IDLE",
 )
 
 REQUIRED_TEST_TOKENS = (
