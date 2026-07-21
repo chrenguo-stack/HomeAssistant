@@ -20,10 +20,12 @@ on:
       - "firmware/esphome_rc/components/greenhouse_pairing_client/pairing_async_*"
       - "firmware/esphome_rc/components/greenhouse_pairing_client/pairing_persistence_*"
       - "firmware/esphome_rc/components/greenhouse_pairing_client/pairing_mqtt_activation_*"
+      - "firmware/esphome_rc/components/greenhouse_pairing_client/tests/pairing_stage2c3_*"
       - "firmware/esphome_rc/components/greenhouse_pairing_async_lab/**"
       - "firmware/esphome_rc/board_lab/h3_node_pairing_async/**"
       - "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_h3_node_pairing_async_board_lab.yml"
       - "protocols/pairing/gh-h3-node-async-persistence-contract-v1.md"
+      - "docs/development/h3-n2-stage2c3-async-persistence-contract-20260721.md"
       - ".github/workflows/h3-n2-stage2c3-async-persistence-ci.yml"
 
 concurrency:
@@ -45,14 +47,21 @@ jobs:
         run: |
           set -euo pipefail
           component=firmware/esphome_rc/components/greenhouse_pairing_client
-          g++ -std=gnu++20 -Wall -Wextra -Wpedantic -Werror \
-            -I "$component" \
-            "$component/pairing_async_contract.cpp" \
-            "$component/pairing_persistence_contract.cpp" \
-            "$component/pairing_mqtt_activation_contract.cpp" \
+          common=(
+            -std=gnu++20 -Wall -Wextra -Wpedantic -Werror
+            -I "$component"
+            "$component/pairing_async_contract.cpp"
+            "$component/pairing_persistence_contract.cpp"
+            "$component/pairing_mqtt_activation_contract.cpp"
+          )
+          g++ "${common[@]}" \
             "$component/tests/pairing_stage2c3_contract_test.cpp" \
             -o /tmp/stage2c3-contract-test
+          g++ "${common[@]}" \
+            "$component/tests/pairing_stage2c3_fault_matrix_20260721_v48.cpp" \
+            -o /tmp/stage2c3-fault-matrix-v48
           /tmp/stage2c3-contract-test
+          /tmp/stage2c3-fault-matrix-v48
           g++ -std=gnu++20 -Wall -Wextra -Wpedantic -Werror \
             -I "$component" \
             -c "$component/pairing_async_worker.cpp" \
@@ -72,6 +81,7 @@ jobs:
               Path("firmware/esphome_rc/components/greenhouse_pairing_client/pairing_persistence_contract.cpp"),
               Path("firmware/esphome_rc/components/greenhouse_pairing_client/pairing_mqtt_activation_contract.h"),
               Path("firmware/esphome_rc/components/greenhouse_pairing_client/pairing_mqtt_activation_contract.cpp"),
+              Path("firmware/esphome_rc/components/greenhouse_pairing_client/tests/pairing_stage2c3_fault_matrix_20260721_v48.cpp"),
           )
           files = []
           for root in roots:
@@ -98,12 +108,15 @@ jobs:
           required = (
               "xTaskCreate",
               "xQueueCreate(1",
+              "xQueueOverwrite",
+              "compare_exchange_strong",
               "PairingAsyncSnapshot",
               "CredentialPersistenceContract",
               "MqttActivationContract",
               "CONTRACT MODEL ONLY",
               "Automatic pairing at boot: NO",
               "Production persistence or MQTT mutation: NO",
+              "stage2c3 fault matrix passed",
           )
           missing = [value for value in required if value not in encoded]
           if missing:
