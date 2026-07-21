@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <string>
 
-#include "esp_mqtt_client.h"
+#include "mqtt_client.h"
 #include "esphome/core/component.h"
 #include "esphome/components/greenhouse_pairing_client/pairing_candidate_mqtt_validator.h"
 #include "esphome/components/greenhouse_pairing_client/pairing_ram_credentials.h"
