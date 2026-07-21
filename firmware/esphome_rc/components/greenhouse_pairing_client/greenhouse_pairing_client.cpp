@@ -1,25 +1,52 @@
 #include "greenhouse_pairing_client.h"
 
+#include <algorithm>
 #include <array>
 #include <cstdio>
 
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
-#include "mbedtls/base64.h"
 #include "mbedtls/md.h"
+
+#ifdef USE_ESP32
+#include "esp_random.h"
+#endif
 
 namespace esphome::greenhouse_pairing_client {
 
+namespace {
+
+void secure_clear(std::string *value) {
+  if (value == nullptr)
+    return;
+  std::fill(value->begin(), value->end(), '\0');
+  value->clear();
+  value->shrink_to_fit();
+}
+
+}  // namespace
+
 static const char *const TAG = "greenhouse_pairing_client";
+
+GreenhousePairingClient::~GreenhousePairingClient() {
+  this->network_.clear();
+  this->ram_credentials_.clear();
+  this->clear_pairing_secret_();
+}
 
 void GreenhousePairingClient::setup() {
   if (!PairingClientCore::valid_base64url_32(this->pairing_secret_) ||
       !this->core_.configure(this->hardware_id_, this->pairing_id_, this->max_candidates_,
-                            this->candidate_ttl_cap_s_)) {
+                            this->candidate_ttl_cap_s_) ||
+      (this->network_options_.enabled &&
+       (!PairingTransportCore::validate_limits(this->network_options_.limits) ||
+        (this->network_options_.udp_enabled &&
+         !PairingTransportCore::validate_udp_target(this->network_options_.udp_target))))) {
     ESP_LOGE(TAG, "Pairing client configuration rejected");
     this->mark_failed();
     return;
   }
+  this->network_.set_options(this->network_options_);
   this->last_prune_ms_ = millis();
 }
 
@@ -36,7 +63,7 @@ void GreenhousePairingClient::loop() {
 void GreenhousePairingClient::dump_config() {
   const auto snapshot = this->core_.snapshot();
   ESP_LOGCONFIG(TAG,
-                "Greenhouse Pairing Client Core:\n"
+                "Greenhouse Pairing Client:\n"
                 "  Hardware identity configured: %s\n"
                 "  Pairing ID configured: %s\n"
                 "  Pairing secret present: %s\n"
@@ -46,26 +73,43 @@ void GreenhousePairingClient::dump_config() {
                 "  Explicit selection required: %s\n"
                 "  Candidate selected: %s\n"
                 "  Credential generation: %" PRIu32 "\n"
-                "  Network transport enabled: NO\n"
+                "  Network transport enabled: %s\n"
+                "  mDNS browse enabled: %s\n"
+                "  UDP fallback enabled: %s\n"
+                "  Secure channel: X25519/HKDF-SHA256/ChaCha20-Poly1305\n"
+                "  Credential persistence: RAM ONLY\n"
+                "  Formal MQTT profile switch: NO\n"
+                "  Production RC2 YAML modified: NO\n"
                 "  Secret values included: NO",
                 YESNO(!this->hardware_id_.empty()), YESNO(!this->pairing_id_.empty()),
                 YESNO(!this->pairing_secret_.empty()), this->core_.state_name(), this->core_.error_name(),
                 static_cast<unsigned>(snapshot.candidate_count), YESNO(snapshot.selection_required),
-                YESNO(snapshot.candidate_selected), snapshot.credential_generation);
+                YESNO(snapshot.candidate_selected), snapshot.credential_generation,
+                YESNO(this->network_options_.enabled), YESNO(this->network_options_.mdns_enabled),
+                YESNO(this->network_options_.udp_enabled));
 }
 
 float GreenhousePairingClient::get_setup_priority() const { return setup_priority::DATA; }
 
-bool GreenhousePairingClient::start_discovery(const std::string &request_id, const std::string &nonce) {
+bool GreenhousePairingClient::start_discovery(const std::string &request_id,
+                                              const std::string &nonce) {
   if (this->is_failed())
     return false;
   return this->core_.start_discovery(request_id, nonce, millis());
 }
 
-bool GreenhousePairingClient::observe_candidate(const std::string &manager_id, const std::string &system_id,
-                                                const std::string &host, const std::string &scheme,
-                                                uint16_t port, const std::string &pairing_path,
-                                                uint16_t priority, uint16_t ttl_s) {
+bool GreenhousePairingClient::start_random_discovery() {
+  std::string request_id;
+  std::string nonce;
+  return random_discovery_context_(&request_id, &nonce) && this->start_discovery(request_id, nonce);
+}
+
+bool GreenhousePairingClient::observe_candidate(const std::string &manager_id,
+                                                 const std::string &system_id,
+                                                 const std::string &host,
+                                                 const std::string &scheme, uint16_t port,
+                                                 const std::string &pairing_path,
+                                                 uint16_t priority, uint16_t ttl_s) {
   if (this->is_failed())
     return false;
   const ManagerCandidate candidate{
@@ -80,18 +124,66 @@ bool GreenhousePairingClient::observe_candidate(const std::string &manager_id, c
       .priority = priority,
       .ttl_s = ttl_s,
   };
-  return this->core_.observe_candidate(this->core_.request_id(), this->core_.nonce(), candidate, millis());
+  return PairingTransportCore::validate_pairing_path(pairing_path) &&
+         this->core_.observe_candidate(this->core_.request_id(), this->core_.nonce(), candidate,
+                                       millis());
 }
 
-bool GreenhousePairingClient::select_candidate(size_t index) { return this->core_.select_candidate(index); }
+bool GreenhousePairingClient::discover_network() {
+  if (this->is_failed() || !this->network_options_.enabled)
+    return false;
+  const std::string query = this->build_discovery_request_json();
+  if (query.empty())
+    return false;
+  const PairingNetworkResult result = this->network_.discover(&this->core_, query, millis());
+  return result == PairingNetworkResult::SUCCESS ||
+         result == PairingNetworkResult::SELECTION_REQUIRED;
+}
+
+bool GreenhousePairingClient::complete_network_pairing() {
+  if (this->is_failed() || !this->network_options_.enabled ||
+      this->core_.snapshot().state != PairingClientState::CLAIM_READY)
+    return false;
+  std::string claim = this->build_claim_request_json();
+  if (claim.empty())
+    return false;
+  RamCredentialBundle staged;
+  const PairingNetworkResult result =
+      this->network_.complete_pairing(&this->core_, &this->pairing_secret_, claim, &staged);
+  secure_clear(&claim);
+  if (result != PairingNetworkResult::SUCCESS) {
+    staged.clear();
+    return false;
+  }
+  this->ram_credentials_.clear();
+  this->ram_credentials_ = std::move(staged);
+  this->clear_pairing_secret_();
+  return true;
+}
+
+bool GreenhousePairingClient::run_network_pairing_once() {
+  if (this->core_.snapshot().state == PairingClientState::UNBOUND &&
+      !this->start_random_discovery())
+    return false;
+  if (this->core_.snapshot().state == PairingClientState::DISCOVERING &&
+      !this->discover_network())
+    return false;
+  if (this->selection_required())
+    return false;
+  return this->complete_network_pairing();
+}
+
+bool GreenhousePairingClient::select_candidate(size_t index) {
+  return this->core_.select_candidate(index);
+}
 
 bool GreenhousePairingClient::mark_claim_sent() { return this->core_.mark_claim_sent(); }
 
-bool GreenhousePairingClient::accept_secure_offer_for_test(const std::string &session_id,
-                                                           const std::string &manager_nonce,
-                                                           const std::string &manager_public_key,
-                                                           const std::string &cipher_suite) {
-  return this->core_.accept_secure_offer(session_id, manager_nonce, manager_public_key, cipher_suite);
+bool GreenhousePairingClient::accept_secure_offer_for_test(
+    const std::string &session_id, const std::string &manager_nonce,
+    const std::string &manager_public_key, const std::string &cipher_suite) {
+  return this->core_.accept_secure_offer(session_id, manager_nonce, manager_public_key,
+                                         cipher_suite);
 }
 
 bool GreenhousePairingClient::mark_channel_established_for_test() {
@@ -110,17 +202,23 @@ bool GreenhousePairingClient::commit_credentials_for_test() {
   return true;
 }
 
-void GreenhousePairingClient::reset_unbound() { this->core_.reset_unbound(); }
+void GreenhousePairingClient::reset_unbound() {
+  this->network_.clear();
+  this->ram_credentials_.clear();
+  this->core_.reset_unbound();
+}
 
 std::string GreenhousePairingClient::build_discovery_request_json() const {
   const auto snapshot = this->core_.snapshot();
-  if (snapshot.state != PairingClientState::DISCOVERING && snapshot.state != PairingClientState::CLAIM_READY &&
+  if (snapshot.state != PairingClientState::DISCOVERING &&
+      snapshot.state != PairingClientState::CLAIM_READY &&
       snapshot.state != PairingClientState::SELECTION_REQUIRED)
     return {};
   return std::string("{\"hardware_id\":\"") + json_escape_(this->core_.hardware_id()) +
          "\",\"nonce\":\"" + json_escape_(this->core_.nonce()) +
          "\",\"protocols\":[\"" + SECURE_PAIRING_PROTOCOL + "\"],\"request_id\":\"" +
-         json_escape_(this->core_.request_id()) + "\",\"schema\":\"" + DISCOVERY_QUERY_SCHEMA + "\"}";
+         json_escape_(this->core_.request_id()) + "\",\"schema\":\"" +
+         DISCOVERY_QUERY_SCHEMA + "\"}";
 }
 
 std::string GreenhousePairingClient::build_claim_request_json() const {
@@ -130,50 +228,17 @@ std::string GreenhousePairingClient::build_claim_request_json() const {
   std::string proof;
   if (!this->claim_proof_(&proof))
     return {};
-  return std::string("{\"claim_proof\":\"") + json_escape_(proof) + "\",\"hardware_id\":\"" +
-         json_escape_(this->core_.hardware_id()) + "\",\"manager_id\":\"" +
-         json_escape_(candidate->manager_id) + "\",\"pairing_id\":\"" +
-         json_escape_(this->core_.pairing_id()) + "\",\"schema\":\"" + CLAIM_SCHEMA + "\"}";
+  std::string request = std::string("{\"claim_proof\":\"") + json_escape_(proof) +
+                        "\",\"hardware_id\":\"" + json_escape_(this->core_.hardware_id()) +
+                        "\",\"manager_id\":\"" + json_escape_(candidate->manager_id) +
+                        "\",\"pairing_id\":\"" + json_escape_(this->core_.pairing_id()) +
+                        "\",\"schema\":\"" + CLAIM_SCHEMA + "\"}";
+  secure_clear(&proof);
+  return request;
 }
 
 std::string GreenhousePairingClient::json_escape_(const std::string &value) {
-  std::string escaped;
-  escaped.reserve(value.size() + 8);
-  for (const auto character : value) {
-    const auto byte = static_cast<unsigned char>(character);
-    switch (character) {
-      case '\\':
-        escaped += "\\\\";
-        break;
-      case '"':
-        escaped += "\\\"";
-        break;
-      case '\b':
-        escaped += "\\b";
-        break;
-      case '\f':
-        escaped += "\\f";
-        break;
-      case '\n':
-        escaped += "\\n";
-        break;
-      case '\r':
-        escaped += "\\r";
-        break;
-      case '\t':
-        escaped += "\\t";
-        break;
-      default:
-        if (byte < 0x20U) {
-          char encoded[7];
-          snprintf(encoded, sizeof(encoded), "\\u%04x", byte);
-          escaped += encoded;
-        } else {
-          escaped += character;
-        }
-    }
-  }
-  return escaped;
+  return SecurePairingChannel::json_escape(value);
 }
 
 bool GreenhousePairingClient::claim_proof_(std::string *output) const {
@@ -203,47 +268,53 @@ bool GreenhousePairingClient::claim_proof_(std::string *output) const {
   return success;
 }
 
-bool GreenhousePairingClient::decode_pairing_secret_(const std::string &value, uint8_t output[32]) {
-  if (output == nullptr || !PairingClientCore::valid_base64url_32(value))
+bool GreenhousePairingClient::decode_pairing_secret_(const std::string &value,
+                                                     uint8_t output[32]) {
+  if (output == nullptr)
     return false;
-  std::string normalized = value;
-  for (auto &character : normalized) {
-    if (character == '-')
-      character = '+';
-    else if (character == '_')
-      character = '/';
-  }
-  normalized.push_back('=');
-  size_t written = 0;
-  return mbedtls_base64_decode(output, 32, &written,
-                               reinterpret_cast<const unsigned char *>(normalized.data()), normalized.size()) == 0 &&
-         written == 32;
+  std::array<uint8_t, 32> decoded{};
+  const bool success = SecurePairingChannel::decode_base64url_32(value, &decoded);
+  if (success)
+    std::copy(decoded.begin(), decoded.end(), output);
+  std::fill(decoded.begin(), decoded.end(), 0);
+  return success;
 }
 
-bool GreenhousePairingClient::encode_base64url_(const uint8_t *data, size_t length, std::string *output) {
-  if (data == nullptr || output == nullptr)
-    return false;
-  std::array<unsigned char, 96> encoded{};
-  size_t written = 0;
-  if (mbedtls_base64_encode(encoded.data(), encoded.size(), &written, data, length) != 0)
-    return false;
-  std::string value(reinterpret_cast<const char *>(encoded.data()), written);
-  while (!value.empty() && value.back() == '=')
-    value.pop_back();
-  for (auto &character : value) {
-    if (character == '+')
-      character = '-';
-    else if (character == '/')
-      character = '_';
-  }
-  *output = value;
-  return true;
+bool GreenhousePairingClient::encode_base64url_(const uint8_t *data, size_t length,
+                                                std::string *output) {
+  return SecurePairingChannel::encode_base64url(data, length, output);
 }
 
-void GreenhousePairingClient::clear_pairing_secret_() {
-  std::fill(this->pairing_secret_.begin(), this->pairing_secret_.end(), '\0');
-  this->pairing_secret_.clear();
-  this->pairing_secret_.shrink_to_fit();
+bool GreenhousePairingClient::random_discovery_context_(std::string *request_id,
+                                                        std::string *nonce) {
+  if (request_id == nullptr || nonce == nullptr)
+    return false;
+#ifdef USE_ESP32
+  std::array<uint8_t, 16> uuid{};
+  std::array<uint8_t, 32> nonce_bytes{};
+  esp_fill_random(uuid.data(), uuid.size());
+  esp_fill_random(nonce_bytes.data(), nonce_bytes.size());
+  uuid[6] = static_cast<uint8_t>((uuid[6] & 0x0FU) | 0x40U);
+  uuid[8] = static_cast<uint8_t>((uuid[8] & 0x3FU) | 0x80U);
+  char text[37]{};
+  const int written = snprintf(
+      text, sizeof(text),
+      "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+      uuid[0], uuid[1], uuid[2], uuid[3], uuid[4], uuid[5], uuid[6], uuid[7], uuid[8],
+      uuid[9], uuid[10], uuid[11], uuid[12], uuid[13], uuid[14], uuid[15]);
+  const bool success = written == 36 &&
+                       encode_base64url_(nonce_bytes.data(), nonce_bytes.size(), nonce);
+  if (success)
+    *request_id = text;
+  std::fill(uuid.begin(), uuid.end(), 0);
+  std::fill(nonce_bytes.begin(), nonce_bytes.end(), 0);
+  std::fill(std::begin(text), std::end(text), '\0');
+  return success;
+#else
+  return false;
+#endif
 }
+
+void GreenhousePairingClient::clear_pairing_secret_() { secure_clear(&this->pairing_secret_); }
 
 }  // namespace esphome::greenhouse_pairing_client

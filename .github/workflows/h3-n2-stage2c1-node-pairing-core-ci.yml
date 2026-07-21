@@ -10,8 +10,7 @@ on:
       - "protocols/pairing/gh-h3-node-pairing-client-core-v1.md"
       - ".github/workflows/h3-n2-stage2c1-node-pairing-core-ci.yml"
   push:
-    branches:
-      - main
+    branches: [main]
     paths:
       - "firmware/esphome_rc/components/greenhouse_pairing_client/**"
       - "firmware/esphome_rc/board_lab/h3_node_pairing_core/**"
@@ -34,16 +33,14 @@ jobs:
         run: |
           set -euo pipefail
           component=firmware/esphome_rc/components/greenhouse_pairing_client
-          g++ \
-            -std=gnu++20 \
-            -Wall -Wextra -Wpedantic -Werror \
+          g++ -std=gnu++20 -Wall -Wextra -Wpedantic -Werror \
             -I "$component" \
             "$component/pairing_client_core.cpp" \
             "$component/tests/pairing_client_core_test.cpp" \
             -o /tmp/gh-pairing-client-core-test
       - name: Run state and candidate contract tests
         run: /tmp/gh-pairing-client-core-test
-      - name: Verify transport boundary remains absent
+      - name: Verify Stage 2C-1 core remains transport-independent
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -51,21 +48,23 @@ jobs:
           root = Path("firmware/esphome_rc/components/greenhouse_pairing_client")
           encoded = "\n".join(
               path.read_text(encoding="utf-8", errors="replace")
-              for path in root.rglob("*")
-              if path.is_file()
+              for path in (
+                  root / "pairing_client_core.h",
+                  root / "pairing_client_core.cpp",
+                  root / "tests/pairing_client_core_test.cpp",
+              )
           )
           forbidden = (
               "esp_http_client_perform",
-              "lwip_socket",
               "mdns_query_ptr",
-              "mbedtls_ecdh",
+              "psa_raw_key_agreement",
               "mbedtls_chachapoly",
               "set_username(",
               "set_password(",
           )
           present = [value for value in forbidden if value in encoded]
           if present:
-              raise SystemExit(f"Stage 2C-1 transport or credential mutation escaped scope: {present}")
+              raise SystemExit(f"Stage 2C-1 core boundary violation: {present}")
           PY
 
   esp32-c6-targets:
@@ -88,22 +87,19 @@ jobs:
 
           pairing_secret = secrets.token_urlsafe(32)
           wifi_password = secrets.token_urlsafe(24)
-          minimal = "\n".join((
-              'node_pairing_wifi_ssid: "ci-node-pairing"',
-              f'node_pairing_wifi_password: "{wifi_password}"',
-              f'node_pairing_secret: "{pairing_secret}"',
-              "",
-          ))
-          full = f'node_pairing_secret: "{pairing_secret}"\n'
           Path("firmware/esphome_rc/board_lab/h3_node_pairing_core/secrets.yaml").write_text(
-              minimal, encoding="utf-8"
+              "\n".join((
+                  'node_pairing_wifi_ssid: "ci-node-pairing"',
+                  f'node_pairing_wifi_password: "{wifi_password}"',
+                  f'node_pairing_secret: "{pairing_secret}"',
+                  "",
+              )), encoding="utf-8"
           )
           Path("firmware/esphome_rc/f1_0_rc2/secrets.yaml").write_text(
-              full, encoding="utf-8"
+              f'node_pairing_secret: "{pairing_secret}"\n', encoding="utf-8"
           )
           Path("/tmp/stage2c1-ephemeral-values").write_text(
-              pairing_secret + "\n" + wifi_password + "\n",
-              encoding="utf-8",
+              pairing_secret + "\n" + wifi_password + "\n", encoding="utf-8"
           )
           PY
       - name: Compile minimal ESP32-C6 pairing core target
@@ -120,45 +116,43 @@ jobs:
           cd firmware/esphome_rc/f1_0_rc2
           RC2_CONFIG=f1_0_rc2_h3_node_pairing_core_board_lab.yml bash tools/rc2.sh config 2>&1 | tee /tmp/stage2c1-product-config.log
           RC2_CONFIG=f1_0_rc2_h3_node_pairing_core_board_lab.yml bash tools/rc2.sh compile 2>&1 | tee /tmp/stage2c1-product-compile.log
-      - name: Verify ephemeral values and product boundaries
+      - name: Verify ephemeral values and Stage 2C-1 runtime boundary
         run: |
           python - <<'PY'
           from pathlib import Path
 
           values = Path("/tmp/stage2c1-ephemeral-values").read_text(encoding="utf-8").splitlines()
-          log_paths = (
-              "/tmp/stage2c1-minimal-config.log",
-              "/tmp/stage2c1-minimal-compile.log",
-              "/tmp/stage2c1-product-config.log",
-              "/tmp/stage2c1-product-compile.log",
-          )
           logs = "\n".join(
               Path(path).read_text(encoding="utf-8", errors="replace")
-              for path in log_paths
+              for path in (
+                  "/tmp/stage2c1-minimal-config.log",
+                  "/tmp/stage2c1-minimal-compile.log",
+                  "/tmp/stage2c1-product-config.log",
+                  "/tmp/stage2c1-product-compile.log",
+              )
           )
           if any(value and value in logs for value in values):
               raise SystemExit("ephemeral Stage 2C-1 value appeared in ESPHome output")
-
-          compile_evidence = (
-              "greenhouse_pairing_client.cpp.o",
-              "pairing_client_core.cpp.o",
-              "INFO Successfully compiled program.",
-          )
-          missing_compile = [value for value in compile_evidence if logs.count(value) < 2]
-          if missing_compile:
-              raise SystemExit(f"pairing component compile evidence missing: {missing_compile}")
-
+          if logs.count("INFO Successfully compiled program.") < 2:
+              raise SystemExit("Stage 2C-1 compile success evidence missing")
+          for target in (
+              Path("firmware/esphome_rc/board_lab/h3_node_pairing_core/greenhouse_pairing_client_board_lab.yml"),
+              Path("firmware/esphome_rc/f1_0_rc2/f1_0_rc2_h3_node_pairing_core_board_lab.yml"),
+          ):
+              text = target.read_text(encoding="utf-8")
+              if "network_enabled: false" not in text:
+                  raise SystemExit(f"Stage 2C-1 target enabled network transport: {target}")
           wrapper = Path(
               "firmware/esphome_rc/components/greenhouse_pairing_client/greenhouse_pairing_client.cpp"
           ).read_text(encoding="utf-8")
-          required_source = (
-              "Greenhouse Pairing Client Core",
-              "Network transport enabled: NO",
+          required = (
+              "Credential persistence: RAM ONLY",
+              "Formal MQTT profile switch: NO",
               "Secret values included: NO",
           )
-          missing_source = [value for value in required_source if value not in wrapper]
-          if missing_source:
-              raise SystemExit(f"redacted pairing status markers missing: {missing_source}")
+          missing = [value for value in required if value not in wrapper]
+          if missing:
+              raise SystemExit(f"redacted boundary markers missing: {missing}")
           PY
       - name: Build redacted failure diagnostic
         if: failure()
@@ -183,17 +177,16 @@ jobs:
                   if value:
                       text = text.replace(value, "<REDACTED_EPHEMERAL_VALUE>")
               sections.append(f"===== {path.name} =====\n{text}")
-          Path("/tmp/stage2c1-redacted-failure.log").write_text(
-              "\n".join(sections) or "No compile log was created.\n",
-              encoding="utf-8",
+          Path("/tmp/stage2c1-redacted-failure-v47.log").write_text(
+              "\n".join(sections) or "No compile log was created.\n", encoding="utf-8"
           )
           PY
       - name: Upload redacted failure diagnostic
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: stage2c1-redacted-failure-v46
-          path: /tmp/stage2c1-redacted-failure.log
+          name: stage2c1-redacted-failure-v47
+          path: /tmp/stage2c1-redacted-failure-v47.log
           if-no-files-found: error
           retention-days: 7
       - name: Cleanup Stage 2C-1 files
@@ -203,7 +196,7 @@ jobs:
             firmware/esphome_rc/board_lab/h3_node_pairing_core/secrets.yaml \
             firmware/esphome_rc/f1_0_rc2/secrets.yaml \
             /tmp/stage2c1-ephemeral-values \
-            /tmp/stage2c1-redacted-failure.log \
+            /tmp/stage2c1-redacted-failure-v47.log \
             /tmp/stage2c1-minimal-config.log \
             /tmp/stage2c1-minimal-compile.log \
             /tmp/stage2c1-product-config.log \

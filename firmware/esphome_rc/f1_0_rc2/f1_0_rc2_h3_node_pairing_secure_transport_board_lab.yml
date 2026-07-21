@@ -1,6 +1,6 @@
 substitutions:
-  device_name: gh-h3-pairing-core-lab
-  project_version: "F1.0-RC2-H3-PAIRING-CORE-LAB"
+  device_name: gh-h3-pairing-secure-lab
+  project_version: "F1.0-RC2-H3-PAIRING-SECURE-LAB"
   soil_read_interval: 20s
   soil_warmup_time: 15s
   scd30_update_interval: 11s
@@ -37,18 +37,27 @@ packages:
   sensors: !include packages/sensors.yml
   display: !include packages/display.yml
 
-# Dedicated non-production product-PCB target. It preserves the complete RC2
-# local sensor, LCD and RS485 behavior while running only the Stage 2C-1
-# transport-independent harness. Stage 2C-2 sources compile for compatibility,
-# but network_enabled remains false and no credentials are persisted.
+# Dedicated non-production product-PCB compile target. It preserves all RC2
+# local sensors, LCD and RS485 behavior while compiling Stage 2C-2 discovery,
+# bounded HTTP and secure-channel code. No pairing operation is auto-started,
+# credentials remain RAM-only, and formal MQTT settings are untouched.
 greenhouse_pairing_client:
   id: pairing_client
-  hardware_id: ghw-c6-product-lab
+  hardware_id: ghw-c6-product-stage2c2-lab
   pairing_id: aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee
   pairing_secret: !secret node_pairing_secret
   max_candidates: 4
   candidate_ttl_cap: 120s
-  network_enabled: false
+  network_enabled: true
+  mdns_enabled: true
+  udp_enabled: true
+  udp_target: 255.255.255.255
+  udp_port: 47111
+  udp_attempts: 3
+  udp_initial_backoff: 250ms
+  mdns_timeout: 1000ms
+  http_timeout: 5000ms
+  response_max_bytes: 16384
 
 esphome:
   on_boot:
@@ -62,26 +71,16 @@ esphome:
 
 text_sensor:
   - platform: template
-    name: "Pairing State Lab"
-    id: pairing_state_lab
+    name: "Pairing Secure State Lab"
+    id: pairing_secure_state_lab
     internal: true
     update_interval: 5s
     lambda: |-
       return {id(pairing_client).state_name()};
-
-interval:
-  - interval: 30s
-    then:
-      - lambda: |-
-          if (id(pairing_client).candidate_count() == 0) {
-            id(pairing_client).observe_candidate(
-              "manager-product-lab",
-              "greenhouse",
-              "manager-product-lab.local",
-              "http",
-              47110,
-              "/v1/pairing",
-              100,
-              120
-            );
-          }
+  - platform: template
+    name: "Pairing Network Result Lab"
+    id: pairing_network_result_lab
+    internal: true
+    update_interval: 5s
+    lambda: |-
+      return {id(pairing_client).network_result_name()};
