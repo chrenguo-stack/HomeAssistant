@@ -19,26 +19,32 @@ EspIdfNvsPersistenceBackend::~EspIdfNvsPersistenceBackend() {
     nvs_close(this->handle_);
   this->handle_ = 0;
   this->opened_ = false;
+  this->writable_ = false;
 }
 
-bool EspIdfNvsPersistenceBackend::open() {
+bool EspIdfNvsPersistenceBackend::open(PersistenceOpenMode mode) {
   if (this->opened_ || this->namespace_name_.empty() ||
       this->namespace_name_.size() > 15 ||
       this->partition_label_.size() > 15)
     return false;
 
+  const nvs_open_mode_t open_mode =
+      mode == PersistenceOpenMode::READ_ONLY ? NVS_READONLY : NVS_READWRITE;
   esp_err_t status = ESP_FAIL;
   if (this->partition_label_.empty() || this->partition_label_ == "nvs") {
-    status = nvs_open(this->namespace_name_.c_str(), NVS_READWRITE,
+    status = nvs_open(this->namespace_name_.c_str(), open_mode,
                       &this->handle_);
   } else {
     status = nvs_open_from_partition(this->partition_label_.c_str(),
                                      this->namespace_name_.c_str(),
-                                     NVS_READWRITE, &this->handle_);
+                                     open_mode, &this->handle_);
   }
   this->opened_ = status == ESP_OK;
-  if (!this->opened_)
+  this->writable_ = this->opened_ && mode == PersistenceOpenMode::READ_WRITE;
+  if (!this->opened_) {
     this->handle_ = 0;
+    this->writable_ = false;
+  }
   return this->opened_;
 }
 
@@ -69,20 +75,20 @@ PersistenceReadResult EspIdfNvsPersistenceBackend::read_blob(
 bool EspIdfNvsPersistenceBackend::write_blob(const char *key,
                                              const uint8_t *value,
                                              size_t length) {
-  return this->opened_ && key != nullptr && value != nullptr && length > 0 &&
+  return this->writable() && key != nullptr && value != nullptr && length > 0 &&
          length <= PERSISTENCE_MAX_BLOB_BYTES &&
          nvs_set_blob(this->handle_, key, value, length) == ESP_OK;
 }
 
 bool EspIdfNvsPersistenceBackend::erase_key(const char *key) {
-  if (!this->opened_ || key == nullptr)
+  if (!this->writable() || key == nullptr)
     return false;
   const esp_err_t status = nvs_erase_key(this->handle_, key);
   return status == ESP_OK || status == ESP_ERR_NVS_NOT_FOUND;
 }
 
 bool EspIdfNvsPersistenceBackend::commit() {
-  return this->opened_ && nvs_commit(this->handle_) == ESP_OK;
+  return this->writable() && nvs_commit(this->handle_) == ESP_OK;
 }
 #endif
 
