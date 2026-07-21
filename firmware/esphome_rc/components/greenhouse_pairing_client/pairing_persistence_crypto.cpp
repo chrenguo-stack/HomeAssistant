@@ -12,6 +12,7 @@
 #include "mbedtls/md.h"
 #else
 #include <openssl/evp.h>
+#include <openssl/hmac.h>
 #include <openssl/rand.h>
 #endif
 
@@ -116,13 +117,20 @@ bool PairingPersistenceCrypto::seal(
   std::fill(envelope->begin(), envelope->end(), 0);
   envelope->clear();
 
-  std::array<uint8_t, 32> key{};
+  std::array<uint8_t, 32> record_key{};
+  std::array<uint8_t, 32> encryption_key{};
+  std::array<uint8_t, 32> digest_key{};
   std::array<uint8_t, 12> nonce{};
   std::array<uint8_t, 32> digest{};
-  if (!this->key_provider_->derive_key(slot, generation, &key) ||
+  if (!this->key_provider_->derive_key(slot, generation, &record_key) ||
+      !derive_subkey_(record_key, "gh-persist-encryption-v1", &encryption_key) ||
+      !derive_subkey_(record_key, "gh-persist-digest-v1", &digest_key) ||
       !random_bytes_(nonce.data(), nonce.size()) ||
-      !sha256_(plaintext.data(), plaintext.size(), &digest)) {
-    zeroize(key.data(), key.size());
+      !hmac_sha256_(digest_key.data(), digest_key.size(), plaintext.data(),
+                    plaintext.size(), &digest)) {
+    zeroize(record_key.data(), record_key.size());
+    zeroize(encryption_key.data(), encryption_key.size());
+    zeroize(digest_key.data(), digest_key.size());
     zeroize(nonce.data(), nonce.size());
     zeroize(digest.data(), digest.size());
     return false;
@@ -139,7 +147,9 @@ bool PairingPersistenceCrypto::seal(
   header.insert(header.end(), digest.begin(), digest.end());
   header.insert(header.end(), nonce.begin(), nonce.end());
   if (header.size() != HEADER_BYTES) {
-    zeroize(key.data(), key.size());
+    zeroize(record_key.data(), record_key.size());
+    zeroize(encryption_key.data(), encryption_key.size());
+    zeroize(digest_key.data(), digest_key.size());
     zeroize(nonce.data(), nonce.size());
     zeroize(digest.data(), digest.size());
     zeroize(header.data(), header.size());
@@ -148,8 +158,8 @@ bool PairingPersistenceCrypto::seal(
 
   std::vector<uint8_t> ciphertext;
   const bool success =
-      aead_encrypt_(key, nonce, header.data(), header.size(), plaintext,
-                    &ciphertext) &&
+      aead_encrypt_(encryption_key, nonce, header.data(), header.size(),
+                    plaintext, &ciphertext) &&
       ciphertext.size() == plaintext.size() + PERSISTENCE_TAG_BYTES;
   if (success) {
     envelope->reserve(header.size() + ciphertext.size());
@@ -157,7 +167,9 @@ bool PairingPersistenceCrypto::seal(
     envelope->insert(envelope->end(), ciphertext.begin(), ciphertext.end());
   }
 
-  zeroize(key.data(), key.size());
+  zeroize(record_key.data(), record_key.size());
+  zeroize(encryption_key.data(), encryption_key.size());
+  zeroize(digest_key.data(), digest_key.size());
   zeroize(nonce.data(), nonce.size());
   zeroize(digest.data(), digest.size());
   zeroize(header.data(), header.size());
@@ -212,10 +224,18 @@ bool PairingPersistenceCrypto::open(
   if (!inspect(envelope, &parsed))
     return false;
 
-  std::array<uint8_t, 32> key{};
+  std::array<uint8_t, 32> record_key{};
+  std::array<uint8_t, 32> encryption_key{};
+  std::array<uint8_t, 32> digest_key{};
   std::array<uint8_t, 12> nonce{};
   std::copy_n(envelope.data() + 48, nonce.size(), nonce.begin());
-  if (!this->key_provider_->derive_key(parsed.slot, parsed.generation, &key)) {
+  if (!this->key_provider_->derive_key(parsed.slot, parsed.generation,
+                                       &record_key) ||
+      !derive_subkey_(record_key, "gh-persist-encryption-v1", &encryption_key) ||
+      !derive_subkey_(record_key, "gh-persist-digest-v1", &digest_key)) {
+    zeroize(record_key.data(), record_key.size());
+    zeroize(encryption_key.data(), encryption_key.size());
+    zeroize(digest_key.data(), digest_key.size());
     zeroize(nonce.data(), nonce.size());
     return false;
   }
@@ -223,15 +243,18 @@ bool PairingPersistenceCrypto::open(
   const uint8_t *ciphertext = envelope.data() + HEADER_BYTES;
   const size_t ciphertext_length = envelope.size() - HEADER_BYTES;
   bool success = aead_decrypt_(
-      key, nonce, envelope.data(), HEADER_BYTES, ciphertext,
+      encryption_key, nonce, envelope.data(), HEADER_BYTES, ciphertext,
       ciphertext_length, plaintext);
   std::array<uint8_t, 32> digest{};
   if (success)
-    success = sha256_(plaintext->data(), plaintext->size(), &digest) &&
+    success = hmac_sha256_(digest_key.data(), digest_key.size(),
+                           plaintext->data(), plaintext->size(), &digest) &&
               constant_time_equal_(digest.data(), parsed.digest.data(),
                                    digest.size());
 
-  zeroize(key.data(), key.size());
+  zeroize(record_key.data(), record_key.size());
+  zeroize(encryption_key.data(), encryption_key.size());
+  zeroize(digest_key.data(), digest_key.size());
   zeroize(nonce.data(), nonce.size());
   zeroize(digest.data(), digest.size());
   if (!success) {
@@ -254,21 +277,36 @@ bool PairingPersistenceCrypto::random_bytes_(uint8_t *output, size_t length) {
 #endif
 }
 
-bool PairingPersistenceCrypto::sha256_(
-    const uint8_t *data, size_t length, std::array<uint8_t, 32> *digest) {
-  if (data == nullptr || length == 0 || digest == nullptr)
+bool PairingPersistenceCrypto::hmac_sha256_(
+    const uint8_t *key, size_t key_length, const uint8_t *data,
+    size_t data_length, std::array<uint8_t, 32> *digest) {
+  if (key == nullptr || key_length == 0 || data == nullptr ||
+      data_length == 0 || digest == nullptr)
     return false;
 #ifdef USE_ESP32
   const mbedtls_md_info_t *info =
       mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
   return info != nullptr &&
-         mbedtls_md(info, data, length, digest->data()) == 0;
+         mbedtls_md_hmac(info, key, key_length, data, data_length,
+                         digest->data()) == 0;
 #else
   unsigned int written = 0;
-  return EVP_Digest(data, length, digest->data(), &written, EVP_sha256(),
-                    nullptr) == 1 &&
+  return HMAC(EVP_sha256(), key, static_cast<int>(key_length), data,
+              data_length, digest->data(), &written) != nullptr &&
          written == digest->size();
 #endif
+}
+
+bool PairingPersistenceCrypto::derive_subkey_(
+    const std::array<uint8_t, 32> &record_key, const char *label,
+    std::array<uint8_t, 32> *subkey) {
+  if (label == nullptr || subkey == nullptr)
+    return false;
+  const size_t label_length = std::strlen(label);
+  return label_length > 0 &&
+         hmac_sha256_(record_key.data(), record_key.size(),
+                      reinterpret_cast<const uint8_t *>(label), label_length,
+                      subkey);
 }
 
 bool PairingPersistenceCrypto::aead_encrypt_(
