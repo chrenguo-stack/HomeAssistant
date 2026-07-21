@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <array>
 #include <cctype>
 #include <cstdint>
@@ -11,13 +12,36 @@
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
 
-#include "pairing_ram_credentials.h"
 #include "pairing_network_transport.h"
+#include "pairing_ram_credentials.h"
 #include "secure_pairing_channel.h"
 
 using namespace esphome::greenhouse_pairing_client;
 
 namespace {
+
+void secure_clear(std::string *value) {
+  if (value == nullptr)
+    return;
+  std::fill(value->begin(), value->end(), '\0');
+  value->clear();
+  value->shrink_to_fit();
+}
+
+void secure_clear(std::optional<std::string> *value) {
+  if (value == nullptr || !value->has_value())
+    return;
+  secure_clear(&value->value());
+  value->reset();
+}
+
+void secure_clear(std::vector<std::string> *values) {
+  if (values == nullptr)
+    return;
+  for (std::string &value : *values)
+    secure_clear(&value);
+  values->clear();
+}
 
 std::vector<std::string> split_tabs(const std::string &line) {
   std::vector<std::string> fields;
@@ -132,24 +156,33 @@ bool parse_credentials(const std::string &json, RamCredentialBundle *output) {
   auto mqtt_client_id = json_string(json, "mqtt_client_id");
   auto generation = json_uint32(json, "credential_generation");
   auto mqtt_password = json_string(json, "mqtt_password");
-  if (!schema || !system_id || !node_id || !broker_host || !broker_port ||
-      *broker_port > UINT16_MAX || !broker_tls_server_name || !ca_pem || !mqtt_username ||
-      !mqtt_client_id || !generation || !mqtt_password)
-    return false;
-  RamCredentialBundle candidate{
-      .schema = *schema,
-      .system_id = *system_id,
-      .node_id = *node_id,
-      .broker_host = *broker_host,
-      .broker_port = static_cast<uint16_t>(*broker_port),
-      .broker_tls_server_name = *broker_tls_server_name,
-      .ca_pem = *ca_pem,
-      .mqtt_username = *mqtt_username,
-      .mqtt_client_id = *mqtt_client_id,
-      .credential_generation = *generation,
-      .mqtt_password = *mqtt_password,
-  };
-  if (!candidate.valid()) {
+  const bool fields_valid = schema && system_id && node_id && broker_host && broker_port &&
+                            *broker_port <= UINT16_MAX && broker_tls_server_name && ca_pem &&
+                            mqtt_username && mqtt_client_id && generation && mqtt_password;
+  RamCredentialBundle candidate;
+  if (fields_valid) {
+    candidate.schema = *schema;
+    candidate.system_id = *system_id;
+    candidate.node_id = *node_id;
+    candidate.broker_host = *broker_host;
+    candidate.broker_port = static_cast<uint16_t>(*broker_port);
+    candidate.broker_tls_server_name = *broker_tls_server_name;
+    candidate.ca_pem = *ca_pem;
+    candidate.mqtt_username = *mqtt_username;
+    candidate.mqtt_client_id = *mqtt_client_id;
+    candidate.credential_generation = *generation;
+    candidate.mqtt_password = *mqtt_password;
+  }
+  secure_clear(&schema);
+  secure_clear(&system_id);
+  secure_clear(&node_id);
+  secure_clear(&broker_host);
+  secure_clear(&broker_tls_server_name);
+  secure_clear(&ca_pem);
+  secure_clear(&mqtt_username);
+  secure_clear(&mqtt_client_id);
+  secure_clear(&mqtt_password);
+  if (!fields_valid || !candidate.valid()) {
     candidate.clear();
     return false;
   }
@@ -189,22 +222,30 @@ int main() {
 
   std::string line;
   while (std::getline(std::cin, line)) {
-    const auto fields = split_tabs(line);
-    if (fields.empty())
+    auto fields = split_tabs(line);
+    if (fields.empty()) {
+      secure_clear(&line);
       return 2;
+    }
     if (fields[0] == "INIT" && fields.size() == 5) {
-      const std::string &manager_id = fields[1];
+      const std::string manager_id = fields[1];
       hardware_id = fields[2];
       pairing_id = fields[3];
       pairing_secret = fields[4];
-      const std::string proof = claim_proof(pairing_secret, manager_id, hardware_id, pairing_id);
-      if (proof.empty())
+      std::string proof = claim_proof(pairing_secret, manager_id, hardware_id, pairing_id);
+      if (proof.empty()) {
+        secure_clear(&fields);
+        secure_clear(&line);
         return 3;
+      }
       std::cout << "CLAIM\t{\"claim_proof\":\"" << proof
                 << "\",\"hardware_id\":\"" << hardware_id
                 << "\",\"manager_id\":\"" << manager_id
                 << "\",\"pairing_id\":\"" << pairing_id
                 << "\",\"schema\":\"gh.pair.claim/1\"}" << std::endl;
+      secure_clear(&proof);
+      secure_clear(&fields);
+      secure_clear(&line);
       continue;
     }
     if (fields[0] == "OFFER" && fields.size() == 10) {
@@ -220,11 +261,17 @@ int main() {
           .max_proof_attempts = static_cast<uint8_t>(std::stoul(fields[9])),
       };
       if (offer.hardware_id != hardware_id || offer.pairing_id != pairing_id ||
-          !channel.establish(offer, pairing_secret))
+          !channel.establish(offer, pairing_secret)) {
+        secure_clear(&fields);
+        secure_clear(&line);
         return 4;
-      std::fill(pairing_secret.begin(), pairing_secret.end(), '\0');
-      pairing_secret.clear();
-      std::cout << "ESTABLISH\t" << channel.build_establish_request_json() << std::endl;
+      }
+      secure_clear(&pairing_secret);
+      std::string establish = channel.build_establish_request_json();
+      std::cout << "ESTABLISH\t" << establish << std::endl;
+      secure_clear(&establish);
+      secure_clear(&fields);
+      secure_clear(&line);
       continue;
     }
     if (fields[0] == "CREDENTIALS" && fields.size() == 8) {
@@ -239,28 +286,52 @@ int main() {
       };
       std::string plaintext;
       if (!channel.decrypt(envelope, CREDENTIALS_CONTENT_TYPE, &plaintext) ||
-          !parse_credentials(plaintext, &credentials))
+          !parse_credentials(plaintext, &credentials)) {
+        secure_clear(&plaintext);
+        secure_clear(&fields);
+        secure_clear(&line);
         return 5;
-      std::fill(plaintext.begin(), plaintext.end(), '\0');
-      plaintext.clear();
+      }
+      secure_clear(&plaintext);
       SecureEnvelopeDocument ack;
-      if (!channel.encrypt(credentials.delivery_ack_json(), ACK_CONTENT_TYPE, &ack))
+      std::string ack_plaintext = credentials.delivery_ack_json();
+      const bool encrypted = channel.encrypt(ack_plaintext, ACK_CONTENT_TYPE, &ack);
+      secure_clear(&ack_plaintext);
+      if (!encrypted) {
+        secure_clear(&fields);
+        secure_clear(&line);
         return 6;
-      std::cout << "ACK\t" << PairingNetworkTransport::envelope_json(ack) << std::endl;
+      }
+      std::string ack_document = PairingNetworkTransport::envelope_json(ack);
+      std::cout << "ACK\t" << ack_document << std::endl;
+      secure_clear(&ack_document);
+      secure_clear(&fields);
+      secure_clear(&line);
       continue;
     }
     if (fields[0] == "COMMIT" && fields.size() == 3) {
       const uint32_t generation = static_cast<uint32_t>(std::stoul(fields[2]));
       if (!credentials.valid() || credentials.node_id != fields[1] ||
-          credentials.credential_generation != generation || !pairing_secret.empty())
+          credentials.credential_generation != generation || !pairing_secret.empty()) {
+        secure_clear(&fields);
+        secure_clear(&line);
         return 7;
+      }
       std::cout << "COMMITTED\t" << credentials.node_id << "\t"
                 << credentials.credential_generation << "\tRAM_ONLY" << std::endl;
       credentials.clear();
       channel.clear();
+      secure_clear(&fields);
+      secure_clear(&line);
       continue;
     }
+    secure_clear(&fields);
+    secure_clear(&line);
     return 8;
   }
+  secure_clear(&line);
+  secure_clear(&pairing_secret);
+  credentials.clear();
+  channel.clear();
   return 0;
 }
