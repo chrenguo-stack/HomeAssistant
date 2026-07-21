@@ -24,6 +24,8 @@ on:
       - "host/greenhouse-manager/tests/stage2c2_cross_language_vectors_20260721_v47.py"
       - "host/greenhouse-manager/tests/test_stage2c2_node_manager_e2e_20260721_v47.py"
       - "protocols/pairing/gh-h3-stage2c2-cross-language-vectors-v1.json"
+      - "protocols/pairing/gh-h3-node-secure-transport-v1.md"
+      - "docs/development/h3-n2-stage2c2-node-secure-transport-20260721.md"
       - ".github/workflows/h3-n2-stage2c2-node-secure-transport-ci.yml"
 
 permissions:
@@ -86,7 +88,7 @@ jobs:
         run: |
           cd host/greenhouse-manager
           pytest -q tests/test_stage2c2_node_manager_e2e_20260721_v47.py
-      - name: Verify RAM-only and production boundaries
+      - name: Verify reviewed RAM-only and production boundaries
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -110,17 +112,42 @@ jobs:
           present = [value for value in forbidden if value in encoded]
           if present:
               raise SystemExit(f"Stage 2C-2 boundary violation: {present}")
+
           required = (
               "mdns_query_ptr",
               "esp_http_client_perform",
               "psa_raw_key_agreement",
               "mbedtls_chachapoly",
+              "UDP_DISCOVERY_MAX_RESPONSES_PER_ATTEMPT",
+              "cJSON_ParseWithLengthOpts",
+              "RamCredentialBundle::~RamCredentialBundle",
+              "shared_nonzero",
               "Credential persistence: RAM ONLY",
               "Formal MQTT profile switch: NO",
           )
           missing = [value for value in required if value not in encoded]
           if missing:
-              raise SystemExit(f"Stage 2C-2 source evidence missing: {missing}")
+              raise SystemExit(f"Stage 2C-2 reviewed source evidence missing: {missing}")
+
+          development_doc = Path(
+              "docs/development/h3-n2-stage2c2-node-secure-transport-20260721.md"
+          ).read_text(encoding="utf-8")
+          protocol_doc = Path(
+              "protocols/pairing/gh-h3-node-secure-transport-v1.md"
+          ).read_text(encoding="utf-8")
+          scheduling_evidence = (
+              "同步、有界的实验实现",
+              "独立 FreeRTOS worker/task",
+          )
+          missing_docs = [
+              value
+              for value in scheduling_evidence
+              if value not in development_doc and value not in protocol_doc
+          ]
+          if missing_docs:
+              raise SystemExit(
+                  f"Stage 2C-2 scheduling boundary evidence missing: {missing_docs}"
+              )
           PY
 
   esp32-c6-compile:
