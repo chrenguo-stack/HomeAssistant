@@ -55,7 +55,9 @@ Fail-closed states:
 - live active runtime whose generation differs from persistent authority.
 
 Fail-closed startup quiesces all controller-owned MQTT sessions and requires
-reboot recovery. It does not attempt automatic cleanup.
+reboot recovery. It does not attempt automatic cleanup. Recovery failures retain
+the exact persistence status and are classified as
+`FAULT_REBOOT_REQUIRED` before the lifecycle integration has been configured.
 
 ## Explicit active start
 
@@ -114,10 +116,12 @@ The host matrix uses only an in-memory backend and fake MQTT sessions. It covers
 - rotation requiring the current active session first;
 - candidate authentication failure preserving active authority;
 - activation candidate start failure and rollback;
+- active-marker write rejection with old-active restoration and committed-orphan recovery;
+- active-marker write rejection followed by unreadable authority, requiring quiesced reboot recovery;
 - marker-last commit plus session-role promotion;
 - two consecutive controller transactions using the promoted active session;
 - stale committed-slot classification without automatic cleanup;
-- storage error quiescence and non-resettable reboot closure;
+- storage error status preservation, fault classification, quiescence, and non-resettable reboot closure;
 - duplicate validation and recovery calls during a busy transaction.
 
 The matrix records backend write/commit counts to prove read-only recovery and
