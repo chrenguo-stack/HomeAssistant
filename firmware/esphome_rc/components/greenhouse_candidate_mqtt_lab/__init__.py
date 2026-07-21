@@ -11,6 +11,13 @@ DEPENDENCIES = ["esp32"]
 CONF_PROBE_TIMEOUT = "probe_timeout"
 
 
+def _probe_timeout(value: object):
+    period = cv.positive_time_period_milliseconds(value)
+    if not 1000 <= period.total_milliseconds <= 60000:
+        raise cv.Invalid("probe_timeout must be between 1000ms and 60000ms")
+    return period
+
+
 greenhouse_candidate_mqtt_lab_ns = cg.esphome_ns.namespace(
     "greenhouse_candidate_mqtt_lab"
 )
@@ -21,10 +28,7 @@ GreenhouseCandidateMqttLab = greenhouse_candidate_mqtt_lab_ns.class_(
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(GreenhouseCandidateMqttLab),
-        cv.Optional(CONF_PROBE_TIMEOUT, default="15s"): cv.All(
-            cv.positive_time_period_milliseconds,
-            cv.Range(min=cv.TimePeriod(milliseconds=1000), max=cv.TimePeriod(seconds=60)),
-        ),
+        cv.Optional(CONF_PROBE_TIMEOUT, default="15s"): _probe_timeout,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
