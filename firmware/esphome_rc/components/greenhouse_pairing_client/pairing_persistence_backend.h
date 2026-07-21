@@ -50,6 +50,7 @@ class EspIdfNvsPersistenceBackend final : public PairingPersistenceBackend {
   bool open(PersistenceOpenMode mode = PersistenceOpenMode::READ_WRITE);
   bool opened() const { return this->opened_; }
   bool writable() const { return this->opened_ && this->writable_; }
+  bool namespace_missing() const { return this->namespace_missing_; }
 
   PersistenceReadResult read_blob(const char *key,
                                   std::vector<uint8_t> *value) override;
@@ -64,6 +65,7 @@ class EspIdfNvsPersistenceBackend final : public PairingPersistenceBackend {
   nvs_handle_t handle_{0};
   bool opened_{false};
   bool writable_{false};
+  bool namespace_missing_{false};
 };
 #endif
 
