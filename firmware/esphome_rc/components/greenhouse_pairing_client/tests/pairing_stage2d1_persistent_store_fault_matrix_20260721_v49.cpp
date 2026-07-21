@@ -122,6 +122,39 @@ int main() {
     root_key[i] = static_cast<uint8_t>(i + 1);
   FixedPersistenceKeyProvider key_provider(root_key);
   PairingPersistenceCrypto crypto(&key_provider);
+
+  // The envelope binds slot, state and generation and cannot be opened with a
+  // different device root key.
+  {
+    const std::vector<uint8_t> plaintext = {'c', 'r', 'e', 'd'};
+    std::vector<uint8_t> envelope;
+    assert(crypto.seal(CredentialSlot::A, CredentialRecordState::PREPARED,
+                       1, plaintext, &envelope));
+    PersistenceEnvelopeMetadata metadata{};
+    std::vector<uint8_t> recovered;
+    assert(crypto.open(envelope, &metadata, &recovered));
+    assert(recovered == plaintext);
+    assert(metadata.slot == CredentialSlot::A);
+    assert(metadata.generation == 1);
+
+    auto slot_tampered = envelope;
+    slot_tampered[6] = static_cast<uint8_t>(CredentialSlot::B);
+    assert(!crypto.open(slot_tampered, &metadata, &recovered));
+    assert(recovered.empty());
+
+    auto generation_tampered = envelope;
+    generation_tampered[11] ^= 0x01;
+    assert(!crypto.open(generation_tampered, &metadata, &recovered));
+    assert(recovered.empty());
+
+    std::array<uint8_t, 32> other_root{};
+    other_root.fill(0xa5);
+    FixedPersistenceKeyProvider other_provider(other_root);
+    PairingPersistenceCrypto other_crypto(&other_provider);
+    assert(!other_crypto.open(envelope, &metadata, &recovered));
+    assert(recovered.empty());
+  }
+
   MemoryBackend backend;
   PairingPersistentStore store(&backend, &crypto);
 
