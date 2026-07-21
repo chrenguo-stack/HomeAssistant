@@ -48,7 +48,7 @@ class PairingAsyncWorker {
   bool request(uint32_t operation_id);
   bool cancel();
   bool poll(PairingAsyncSnapshot *snapshot);
-  bool stop(uint32_t wait_ms = 45000);
+  bool stop(uint32_t wait_ms = 120000);
 
   // active() covers both a queued request and an executing request. This closes
   // the queue-to-task handoff window against main-loop selection/reset changes.
