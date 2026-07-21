@@ -1,6 +1,7 @@
 #include "secure_pairing_channel.h"
 #include "stage2c2_vectors_generated.h"
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cstdint>
@@ -71,6 +72,12 @@ int main() {
   std::vector<uint8_t> decoded{1, 2, 3};
   assert(!SecurePairingChannel::decode_base64url("A", &decoded));
   assert(decoded.empty());
+
+  std::array<uint8_t, 32> fixed_decoded{};
+  fixed_decoded.fill(0xA5);
+  assert(!SecurePairingChannel::decode_base64url_32("invalid", &fixed_decoded));
+  assert(std::all_of(fixed_decoded.begin(), fixed_decoded.end(),
+                     [](uint8_t value) { return value == 0; }));
 
   auto low_order_offer = offer();
   low_order_offer.manager_public_key =
