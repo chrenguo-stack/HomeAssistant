@@ -33,8 +33,8 @@ external_components:
       - greenhouse_pairing_client
       - greenhouse_candidate_mqtt_lab
 
-# Non-production compile target. No credentials or Broker address are supplied,
-# and no YAML action invokes begin_for_lab().
+# Non-production compile target. No credentials, Broker address, or YAML probe
+# trigger are supplied.
 greenhouse_candidate_mqtt_lab:
   id: candidate_mqtt_validator_stage2d2
   probe_timeout: 15s
