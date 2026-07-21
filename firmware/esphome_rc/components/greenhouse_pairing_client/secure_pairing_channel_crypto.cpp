@@ -59,9 +59,9 @@ bool SecurePairingChannel::x25519_(const std::array<uint8_t, 32> &private_key,
     status = psa_raw_key_agreement(PSA_ALG_ECDH, key_id, peer_public_key.data(),
                                    peer_public_key.size(), shared_secret->data(),
                                    shared_secret->size(), &shared_length);
-  psa_destroy_key(key_id);
-  return status == PSA_SUCCESS && public_length == public_key->size() &&
-         shared_length == shared_secret->size();
+  const psa_status_t destroy_status = psa_destroy_key(key_id);
+  return status == PSA_SUCCESS && destroy_status == PSA_SUCCESS &&
+         public_length == public_key->size() && shared_length == shared_secret->size();
 #else
   EVP_PKEY *private_pkey = EVP_PKEY_new_raw_private_key(EVP_PKEY_X25519, nullptr,
                                                         private_key.data(), private_key.size());
@@ -126,25 +126,29 @@ bool SecurePairingChannel::hkdf_sha256_64_(
   std::array<uint8_t, 32> prk{};
   std::array<uint8_t, 32> first{};
   std::array<uint8_t, 32> second{};
+  std::vector<uint8_t> first_input;
+  std::vector<uint8_t> second_input;
+
   bool success = hmac_sha256_(salt.data(), salt.size(), shared_secret.data(),
                               shared_secret.size(), &prk);
   if (success) {
-    std::vector<uint8_t> input = info;
-    input.push_back(1);
-    success = hmac_sha256_(prk.data(), prk.size(), input.data(), input.size(), &first);
+    first_input = info;
+    first_input.push_back(1);
+    success = hmac_sha256_(prk.data(), prk.size(), first_input.data(), first_input.size(), &first);
   }
   if (success) {
-    std::vector<uint8_t> input;
-    input.reserve(first.size() + info.size() + 1);
-    input.insert(input.end(), first.begin(), first.end());
-    input.insert(input.end(), info.begin(), info.end());
-    input.push_back(2);
-    success = hmac_sha256_(prk.data(), prk.size(), input.data(), input.size(), &second);
+    second_input.reserve(first.size() + info.size() + 1);
+    second_input.insert(second_input.end(), first.begin(), first.end());
+    second_input.insert(second_input.end(), info.begin(), info.end());
+    second_input.push_back(2);
+    success = hmac_sha256_(prk.data(), prk.size(), second_input.data(), second_input.size(), &second);
   }
   if (success) {
     std::copy(first.begin(), first.end(), material->begin());
     std::copy(second.begin(), second.end(), material->begin() + 32);
   }
+  zeroize_(first_input.data(), first_input.size());
+  zeroize_(second_input.data(), second_input.size());
   zeroize_(prk.data(), prk.size());
   zeroize_(first.data(), first.size());
   zeroize_(second.data(), second.size());
@@ -178,8 +182,11 @@ bool SecurePairingChannel::aead_encrypt_(const std::array<uint8_t, 32> &key,
   return true;
 #else
   EVP_CIPHER_CTX *context = EVP_CIPHER_CTX_new();
-  if (context == nullptr)
+  if (context == nullptr) {
+    zeroize_(ciphertext->data(), ciphertext->size());
+    ciphertext->clear();
     return false;
+  }
   int output_length = 0;
   int total = 0;
   bool success = EVP_EncryptInit_ex(context, EVP_chacha20_poly1305(), nullptr, nullptr, nullptr) == 1 &&
@@ -235,8 +242,10 @@ bool SecurePairingChannel::aead_decrypt_(const std::array<uint8_t, 32> &key,
   }
 #else
   EVP_CIPHER_CTX *context = EVP_CIPHER_CTX_new();
-  if (context == nullptr)
+  if (context == nullptr) {
+    zeroize_(output.data(), output.size());
     return false;
+  }
   int output_length = 0;
   int total = 0;
   bool success = EVP_DecryptInit_ex(context, EVP_chacha20_poly1305(), nullptr, nullptr, nullptr) == 1 &&
