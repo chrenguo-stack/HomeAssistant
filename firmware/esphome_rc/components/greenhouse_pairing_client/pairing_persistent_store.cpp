@@ -4,7 +4,6 @@
 #include <array>
 
 namespace esphome::greenhouse_pairing_client {
-
 namespace {
 
 constexpr const char *SLOT_A_KEY = "slot_a";
@@ -12,7 +11,7 @@ constexpr const char *SLOT_B_KEY = "slot_b";
 constexpr const char *ACTIVE_KEY = "active";
 constexpr std::array<uint8_t, 4> MARKER_MAGIC = {'G', 'H', 'M', '1'};
 constexpr uint16_t MARKER_VERSION = 1;
-constexpr size_t MARKER_BYTES = 16;
+constexpr size_t MARKER_PLAINTEXT_BYTES = 12;
 
 void put_u16(std::vector<uint8_t> *output, uint16_t value) {
   output->push_back(static_cast<uint8_t>((value >> 8) & 0xffU));
@@ -80,6 +79,16 @@ bool PairingPersistentStore::recover(
   if (candidate_credentials != nullptr)
     candidate_credentials->clear();
 
+  const auto set_conflict = [&]() -> bool {
+    *snapshot = {};
+    snapshot->status = PersistentRecoveryStatus::CONFLICT;
+    if (active_credentials != nullptr)
+      active_credentials->clear();
+    if (candidate_credentials != nullptr)
+      candidate_credentials->clear();
+    return true;
+  };
+
   bool marker_present = false;
   ActiveMarker marker{};
   if (!this->read_marker_(&marker_present, &marker)) {
@@ -112,10 +121,9 @@ bool PairingPersistentStore::recover(
       snapshot->status = PersistentRecoveryStatus::EMPTY;
       return true;
     }
-    if (present_count != 1) {
-      snapshot->status = PersistentRecoveryStatus::CONFLICT;
-      return true;
-    }
+    if (present_count != 1)
+      return set_conflict();
+
     const LoadedRecord &record =
         result_a == RecordLoadResult::VALID ? slot_a : slot_b;
     snapshot->candidate_slot = record.metadata.slot;
@@ -146,10 +154,8 @@ bool PairingPersistentStore::recover(
   if (marked_result != RecordLoadResult::VALID ||
       marked.metadata.slot != marker.slot ||
       marked.metadata.state != CredentialRecordState::COMMITTED ||
-      marked.metadata.generation != marker.generation) {
-    snapshot->status = PersistentRecoveryStatus::CONFLICT;
-    return true;
-  }
+      marked.metadata.generation != marker.generation)
+    return set_conflict();
 
   snapshot->active_slot = marker.slot;
   snapshot->active_generation = marker.generation;
@@ -167,16 +173,12 @@ bool PairingPersistentStore::recover(
     return true;
   }
   if (other.metadata.generation == marker.generation ||
-      other.metadata.slot == marker.slot) {
-    snapshot->status = PersistentRecoveryStatus::CONFLICT;
-    return true;
-  }
+      other.metadata.slot == marker.slot)
+    return set_conflict();
 
   if (other.metadata.state == CredentialRecordState::PREPARED) {
-    if (other.metadata.generation <= marker.generation) {
-      snapshot->status = PersistentRecoveryStatus::CONFLICT;
-      return true;
-    }
+    if (other.metadata.generation <= marker.generation)
+      return set_conflict();
     snapshot->status = PersistentRecoveryStatus::ACTIVE_WITH_PREPARED;
     snapshot->candidate_slot = other.metadata.slot;
     snapshot->candidate_generation = other.metadata.generation;
@@ -185,10 +187,8 @@ bool PairingPersistentStore::recover(
     return true;
   }
 
-  if (other.metadata.state != CredentialRecordState::COMMITTED) {
-    snapshot->status = PersistentRecoveryStatus::CONFLICT;
-    return true;
-  }
+  if (other.metadata.state != CredentialRecordState::COMMITTED)
+    return set_conflict();
   if (other.metadata.generation < marker.generation) {
     snapshot->status = PersistentRecoveryStatus::ACTIVE;
     snapshot->stale_committed_slot_present = true;
@@ -365,14 +365,13 @@ bool PairingPersistentStore::write_record_(
 
   std::vector<uint8_t> plaintext;
   std::vector<uint8_t> envelope;
-  bool success = PairingCredentialCodec::encode(credentials, &plaintext) &&
-                 this->crypto_->seal(
-                     slot, state, credentials.credential_generation,
-                     plaintext, &envelope) &&
-                 this->backend_->write_blob(slot_key_(slot),
-                                            envelope.data(),
-                                            envelope.size()) &&
-                 this->backend_->commit();
+  const bool success =
+      PairingCredentialCodec::encode(credentials, &plaintext) &&
+      this->crypto_->seal(slot, state, credentials.credential_generation,
+                          plaintext, &envelope) &&
+      this->backend_->write_blob(slot_key_(slot), envelope.data(),
+                                 envelope.size()) &&
+      this->backend_->commit();
   wipe_vector_(&plaintext);
   wipe_vector_(&envelope);
   return success;
@@ -381,10 +380,9 @@ bool PairingPersistentStore::write_record_(
 bool PairingPersistentStore::verify_record_(
     CredentialSlot slot, CredentialRecordState state, uint32_t generation) {
   LoadedRecord record;
-  return this->load_record_(slot, &record) ==
-             RecordLoadResult::VALID &&
-         record.present &&
-         record.metadata.slot == slot && record.metadata.state == state &&
+  return this->load_record_(slot, &record) == RecordLoadResult::VALID &&
+         record.present && record.metadata.slot == slot &&
+         record.metadata.state == state &&
          record.metadata.generation == generation &&
          record.credentials.credential_generation == generation &&
          record.credentials.valid();
@@ -403,7 +401,7 @@ bool PairingPersistentStore::read_marker_(bool *present,
     return true;
   if (read != PersistenceReadResult::OK)
     return false;
-  const bool decoded = decode_marker_(blob, marker);
+  const bool decoded = this->decode_marker_(blob, marker);
   wipe_vector_(&blob);
   if (!decoded)
     return false;
@@ -413,7 +411,7 @@ bool PairingPersistentStore::read_marker_(bool *present,
 
 bool PairingPersistentStore::write_marker_(CredentialSlot slot,
                                             uint32_t generation) {
-  std::vector<uint8_t> blob = encode_marker_(slot, generation);
+  std::vector<uint8_t> blob = this->encode_marker_(slot, generation);
   if (blob.empty())
     return false;
   const bool success =
@@ -445,50 +443,59 @@ bool PairingPersistentStore::erase_slot_(CredentialSlot slot) {
 
 std::vector<uint8_t> PairingPersistentStore::encode_marker_(
     CredentialSlot slot, uint32_t generation) {
-  if (!valid_slot(slot) || generation == 0)
+  if (!valid_slot(slot) || generation == 0 || this->crypto_ == nullptr)
     return {};
-  std::vector<uint8_t> marker;
-  marker.reserve(MARKER_BYTES);
-  marker.insert(marker.end(), MARKER_MAGIC.begin(), MARKER_MAGIC.end());
-  put_u16(&marker, MARKER_VERSION);
-  marker.push_back(static_cast<uint8_t>(slot));
-  marker.push_back(0);
-  put_u32(&marker, generation);
-  put_u32(&marker, crc32_(marker.data(), marker.size()));
-  if (marker.size() != MARKER_BYTES)
+
+  std::vector<uint8_t> plaintext;
+  plaintext.reserve(MARKER_PLAINTEXT_BYTES);
+  plaintext.insert(plaintext.end(), MARKER_MAGIC.begin(), MARKER_MAGIC.end());
+  put_u16(&plaintext, MARKER_VERSION);
+  plaintext.push_back(static_cast<uint8_t>(slot));
+  plaintext.push_back(0);
+  put_u32(&plaintext, generation);
+  if (plaintext.size() != MARKER_PLAINTEXT_BYTES) {
+    wipe_vector_(&plaintext);
     return {};
-  return marker;
+  }
+
+  std::vector<uint8_t> envelope;
+  const bool sealed = this->crypto_->seal(
+      slot, CredentialRecordState::COMMITTED, generation, plaintext,
+      &envelope);
+  wipe_vector_(&plaintext);
+  if (!sealed) {
+    wipe_vector_(&envelope);
+    return {};
+  }
+  return envelope;
 }
 
 bool PairingPersistentStore::decode_marker_(
     const std::vector<uint8_t> &blob, ActiveMarker *marker) {
-  if (marker == nullptr || blob.size() != MARKER_BYTES ||
-      !std::equal(MARKER_MAGIC.begin(), MARKER_MAGIC.end(),
-                  blob.begin()) ||
-      read_u16(blob.data() + 4) != MARKER_VERSION || blob[7] != 0)
+  if (marker == nullptr || this->crypto_ == nullptr)
     return false;
-  const CredentialSlot slot = static_cast<CredentialSlot>(blob[6]);
-  const uint32_t generation = read_u32(blob.data() + 8);
-  const uint32_t expected_crc = read_u32(blob.data() + 12);
-  if (!valid_slot(slot) || generation == 0 ||
-      expected_crc != crc32_(blob.data(), 12))
-    return false;
-  marker->slot = slot;
-  marker->generation = generation;
-  return true;
-}
+  *marker = {};
 
-uint32_t PairingPersistentStore::crc32_(const uint8_t *data,
-                                         size_t length) {
-  if (data == nullptr)
-    return 0;
-  uint32_t crc = 0xffffffffU;
-  for (size_t index = 0; index < length; index++) {
-    crc ^= data[index];
-    for (uint8_t bit = 0; bit < 8; bit++)
-      crc = (crc >> 1) ^ (0xedb88320U & (0U - (crc & 1U)));
+  PersistenceEnvelopeMetadata metadata{};
+  std::vector<uint8_t> plaintext;
+  const bool opened = this->crypto_->open(blob, &metadata, &plaintext);
+  const bool valid =
+      opened && valid_slot(metadata.slot) &&
+      metadata.state == CredentialRecordState::COMMITTED &&
+      metadata.generation != 0 &&
+      plaintext.size() == MARKER_PLAINTEXT_BYTES &&
+      std::equal(MARKER_MAGIC.begin(), MARKER_MAGIC.end(),
+                 plaintext.begin()) &&
+      read_u16(plaintext.data() + 4) == MARKER_VERSION &&
+      plaintext[6] == static_cast<uint8_t>(metadata.slot) &&
+      plaintext[7] == 0 &&
+      read_u32(plaintext.data() + 8) == metadata.generation;
+  if (valid) {
+    marker->slot = metadata.slot;
+    marker->generation = metadata.generation;
   }
-  return ~crc;
+  wipe_vector_(&plaintext);
+  return valid;
 }
 
 void PairingPersistentStore::wipe_vector_(std::vector<uint8_t> *value) {
