@@ -33,8 +33,9 @@ PROTECTED_PATHS = {
     "firmware/esphome_rc/components/greenhouse_pairing_client/pairing_profile_lifecycle_integration.cpp",
 }
 
-YAML_PATHS = {
-    path for path in REQUIRED_PATHS if path.endswith((".yml", ".yaml"))
+COMPILE_YAML_PATHS = {
+    "firmware/esphome_rc/board_lab/h3_profile_production_adapters/greenhouse_profile_production_adapters_board_lab_20260721_v53.yml",
+    "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_h3_profile_production_adapters_board_lab_20260721_v53.yml",
 }
 
 FORBIDDEN_YAML_KEYS = {
@@ -122,7 +123,7 @@ def main() -> None:
     if protected:
         errors.append(f"protected production paths changed: {protected}")
 
-    for relative in sorted(YAML_PATHS):
+    for relative in sorted(COMPILE_YAML_PATHS):
         text = (ROOT / relative).read_text(encoding="utf-8")
         keys = yaml_keys(text)
         exposed = sorted(FORBIDDEN_YAML_KEYS & keys)
