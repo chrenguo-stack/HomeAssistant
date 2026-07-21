@@ -23,8 +23,6 @@ namespace esphome::greenhouse_pairing_client {
 
 namespace {
 
-constexpr size_t CHACHA_TAG_SIZE = 16;
-
 bool constant_time_equal(const uint8_t *left, const uint8_t *right, size_t length) {
   if (left == nullptr || right == nullptr)
     return false;
@@ -97,6 +95,16 @@ bool SecurePairingChannel::establish_impl_(
   if (!success)
     goto cleanup;
 
+  {
+    uint8_t shared_nonzero = 0;
+    for (const uint8_t value : shared_secret)
+      shared_nonzero |= value;
+    if (shared_nonzero == 0) {
+      success = false;
+      goto cleanup;
+    }
+  }
+
   success = encode_base64url(node_nonce.data(), node_nonce.size(), &this->node_nonce_) &&
             encode_base64url(node_public_key.data(), node_public_key.size(),
                              &this->node_public_key_);
@@ -155,7 +163,12 @@ cleanup:
 bool SecurePairingChannel::decrypt(const SecureEnvelopeDocument &envelope,
                                    const std::string &expected_content_type,
                                    std::string *plaintext) {
-  if (!this->established_ || plaintext == nullptr ||
+  if (plaintext == nullptr)
+    return false;
+  zeroize_(plaintext->data(), plaintext->size());
+  plaintext->clear();
+
+  if (!this->established_ || this->receive_sequence_ == std::numeric_limits<uint64_t>::max() ||
       !validate_envelope_shape(envelope) || envelope.session_id != this->session_id_ ||
       envelope.direction != MANAGER_TO_NODE_DIRECTION ||
       envelope.content_type != expected_content_type ||
@@ -183,7 +196,10 @@ bool SecurePairingChannel::decrypt(const SecureEnvelopeDocument &envelope,
 bool SecurePairingChannel::encrypt(const std::string &plaintext,
                                    const std::string &content_type,
                                    SecureEnvelopeDocument *envelope) {
-  if (!this->established_ || envelope == nullptr || content_type.empty() ||
+  if (envelope == nullptr)
+    return false;
+  *envelope = SecureEnvelopeDocument{};
+  if (!this->established_ || content_type.empty() ||
       this->send_sequence_ == std::numeric_limits<uint64_t>::max())
     return false;
   bool nonce_valid = false;
@@ -240,6 +256,7 @@ void SecurePairingChannel::clear() {
   std::fill(this->node_nonce_.begin(), this->node_nonce_.end(), '\0');
   std::fill(this->node_public_key_.begin(), this->node_public_key_.end(), '\0');
   std::fill(this->secure_proof_.begin(), this->secure_proof_.end(), '\0');
+  std::fill(this->session_id_.begin(), this->session_id_.end(), '\0');
   this->node_nonce_.clear();
   this->node_public_key_.clear();
   this->secure_proof_.clear();
