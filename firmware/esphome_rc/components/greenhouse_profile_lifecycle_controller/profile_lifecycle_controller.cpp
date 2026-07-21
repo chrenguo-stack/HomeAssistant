@@ -74,6 +74,8 @@ bool ProductionProfileLifecycleController::recover_startup() {
   RamCredentialBundle candidate;
   if (!this->store_->recover(&recovery, &active, &candidate)) {
     this->snapshot_.persistence_status = recovery.status;
+    this->snapshot_.startup_disposition =
+        StartupRecoveryDisposition::FAULT_REBOOT_REQUIRED;
     active.clear();
     candidate.clear();
     return this->fail_(ProfileLifecycleControllerFailure::RECOVERY_FAILED, true,
@@ -84,6 +86,8 @@ bool ProductionProfileLifecycleController::recover_startup() {
   this->snapshot_.active_generation = recovery.active_generation;
   this->snapshot_.candidate_generation = recovery.candidate_generation;
   if (!this->classify_recovery_(recovery, active, candidate)) {
+    this->snapshot_.startup_disposition =
+        StartupRecoveryDisposition::FAULT_REBOOT_REQUIRED;
     active.clear();
     candidate.clear();
     return this->fail_(ProfileLifecycleControllerFailure::RECOVERY_CONFLICT,
