@@ -2,6 +2,7 @@
 
 #ifdef USE_ESP32
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <memory>
@@ -13,10 +14,33 @@ namespace esphome::greenhouse_pairing_client {
 
 namespace {
 
+void wipe_bytes(char *value) {
+  if (value == nullptr)
+    return;
+  volatile unsigned char *cursor =
+      reinterpret_cast<volatile unsigned char *>(value);
+  size_t remaining = std::strlen(value);
+  while (remaining-- > 0)
+    *cursor++ = 0;
+}
+
+void wipe_json_tree(cJSON *value) {
+  if (value == nullptr)
+    return;
+  for (cJSON *child = value->child; child != nullptr; child = child->next)
+    wipe_json_tree(child);
+  if (value->valuestring != nullptr && (value->type & cJSON_IsReference) == 0)
+    wipe_bytes(value->valuestring);
+  if (value->string != nullptr && (value->type & cJSON_StringIsConst) == 0)
+    wipe_bytes(value->string);
+}
+
 struct JsonDeleter {
   void operator()(cJSON *value) const {
-    if (value != nullptr)
-      cJSON_Delete(value);
+    if (value == nullptr)
+      return;
+    wipe_json_tree(value);
+    cJSON_Delete(value);
   }
 };
 using JsonPtr = std::unique_ptr<cJSON, JsonDeleter>;
@@ -24,11 +48,13 @@ using JsonPtr = std::unique_ptr<cJSON, JsonDeleter>;
 bool exact_object(const cJSON *object, const std::set<std::string> &fields) {
   if (!cJSON_IsObject(object) || static_cast<size_t>(cJSON_GetArraySize(object)) != fields.size())
     return false;
+  std::set<std::string> observed;
   for (const cJSON *item = object->child; item != nullptr; item = item->next) {
-    if (item->string == nullptr || fields.count(item->string) == 0)
+    if (item->string == nullptr || fields.count(item->string) == 0 ||
+        !observed.insert(item->string).second)
       return false;
   }
-  return true;
+  return observed == fields;
 }
 
 bool json_string(const cJSON *object, const char *name, std::string *output,
@@ -41,6 +67,7 @@ bool json_string(const cJSON *object, const char *name, std::string *output,
   const size_t length = std::strlen(item->valuestring);
   if (length == 0 || length > maximum)
     return false;
+  std::fill(output->begin(), output->end(), '\0');
   output->assign(item->valuestring, length);
   return true;
 }
@@ -71,11 +98,25 @@ bool json_uint64(const cJSON *object, const char *name, uint64_t *output) {
   return true;
 }
 
+bool contains_escaped_nul(const std::string &body) {
+  if (body.find('\0') != std::string::npos)
+    return true;
+  std::string lowered = body;
+  std::transform(lowered.begin(), lowered.end(), lowered.begin(), [](unsigned char value) {
+    return static_cast<char>(std::tolower(value));
+  });
+  const bool found = lowered.find("\\u0000") != std::string::npos;
+  std::fill(lowered.begin(), lowered.end(), '\0');
+  return found;
+}
+
 JsonPtr parse_json_object(const std::string &body, const std::set<std::string> &fields) {
-  if (body.empty())
+  if (body.empty() || contains_escaped_nul(body))
     return {};
-  JsonPtr document(cJSON_ParseWithLength(body.data(), body.size()));
-  if (!document || !exact_object(document.get(), fields))
+  const char *parse_end = nullptr;
+  JsonPtr document(cJSON_ParseWithLengthOpts(body.c_str(), body.size() + 1,
+                                              &parse_end, true));
+  if (!document || parse_end == nullptr || !exact_object(document.get(), fields))
     return {};
   return document;
 }
@@ -111,6 +152,7 @@ bool PairingNetworkTransport::parse_discovery_response_(const std::string &body,
       !json_string(item, "scheme", &candidate.scheme, 8) ||
       !json_uint32(item, "port", &port, false) || port > 65535 ||
       !json_string(item, "pairing_path", &candidate.pairing_path, 256) ||
+      !PairingTransportCore::validate_pairing_path(candidate.pairing_path) ||
       !json_string(item, "protocol", &candidate.protocol, 64) ||
       !json_uint32(item, "priority", &priority) || priority > 65535 ||
       !json_uint32(item, "ttl_s", &ttl_s, false) || ttl_s > 65535)
