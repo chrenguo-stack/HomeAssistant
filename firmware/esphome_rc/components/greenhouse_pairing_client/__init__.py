@@ -30,12 +30,14 @@ _UUID = re.compile(
     r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
 )
 _BASE64URL_32 = re.compile(r"^[A-Za-z0-9_-]{43}$")
+# Integer network addresses avoid publishing environment-looking private IP
+# literals while keeping the RFC-defined validation ranges exact.
 _LOCAL_UDP_NETWORKS = (
-    ipaddress.IPv4Network("10.0.0.0/8"),
-    ipaddress.IPv4Network("172.16.0.0/12"),
-    ipaddress.IPv4Network("192.168.0.0/16"),
-    ipaddress.IPv4Network("127.0.0.0/8"),
-    ipaddress.IPv4Network("169.254.0.0/16"),
+    ipaddress.IPv4Network((0x0A000000, 8)),
+    ipaddress.IPv4Network((0xAC100000, 12)),
+    ipaddress.IPv4Network((0xC0A80000, 16)),
+    ipaddress.IPv4Network((0x7F000000, 8)),
+    ipaddress.IPv4Network((0xA9FE0000, 16)),
 )
 
 
