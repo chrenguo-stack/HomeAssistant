@@ -8,16 +8,15 @@
 
 namespace esphome::greenhouse_pairing_client {
 
+static constexpr uint16_t PERSISTED_CREDENTIAL_PAYLOAD_VERSION = 1;
+static constexpr size_t PERSISTED_CREDENTIAL_MAX_BYTES = 12288;
+
 class PairingCredentialCodec {
  public:
-  static bool encode(const RamCredentialBundle &credentials,
+  static bool encode(const RamCredentialBundle &bundle,
                      std::vector<uint8_t> *output);
   static bool decode(const std::vector<uint8_t> &input,
-                     RamCredentialBundle *credentials);
-  static void zeroize(std::vector<uint8_t> *value);
-
- private:
-  static constexpr uint16_t SCHEMA_VERSION = 1;
+                     RamCredentialBundle *output);
 };
 
 }  // namespace esphome::greenhouse_pairing_client
