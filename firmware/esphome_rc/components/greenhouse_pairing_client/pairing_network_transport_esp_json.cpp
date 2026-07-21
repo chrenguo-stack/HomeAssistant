@@ -101,13 +101,13 @@ bool json_uint64(const cJSON *object, const char *name, uint64_t *output) {
 bool contains_escaped_nul(const std::string &body) {
   if (body.find('\0') != std::string::npos)
     return true;
-  std::string lowered = body;
-  std::transform(lowered.begin(), lowered.end(), lowered.begin(), [](unsigned char value) {
-    return static_cast<char>(std::tolower(value));
-  });
-  const bool found = lowered.find("\\u0000") != std::string::npos;
-  std::fill(lowered.begin(), lowered.end(), '\0');
-  return found;
+  for (size_t index = 0; index + 5 < body.size(); index++) {
+    if (body[index] == '\\' && (body[index + 1] == 'u' || body[index + 1] == 'U') &&
+        body[index + 2] == '0' && body[index + 3] == '0' &&
+        body[index + 4] == '0' && body[index + 5] == '0')
+      return true;
+  }
+  return false;
 }
 
 JsonPtr parse_json_object(const std::string &body, const std::set<std::string> &fields) {
