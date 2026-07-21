@@ -5,11 +5,11 @@
 #include <memory>
 #include <string>
 
-#include "pairing_candidate_mqtt_validator.h"
-#include "pairing_persistence_backend.h"
-#include "pairing_persistence_crypto.h"
-#include "pairing_persistent_store.h"
-#include "pairing_profile_lifecycle_integration.h"
+#include "../greenhouse_pairing_client/pairing_candidate_mqtt_validator.h"
+#include "../greenhouse_pairing_client/pairing_persistence_backend.h"
+#include "../greenhouse_pairing_client/pairing_persistence_crypto.h"
+#include "../greenhouse_pairing_client/pairing_persistent_store.h"
+#include "../greenhouse_pairing_client/pairing_profile_lifecycle_integration.h"
 
 #ifdef USE_ESP32
 #include "mqtt_client.h"
