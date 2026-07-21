@@ -53,7 +53,7 @@ FORBIDDEN_SOURCE_TOKENS = (
     "restart_mqtt",
 )
 
-FORBIDDEN_YAML_TOKENS = (
+FORBIDDEN_YAML_KEYS = (
     "on_boot:",
     "button:",
     "switch:",
@@ -113,7 +113,8 @@ def main() -> None:
     ]
     for relative in sorted(yaml_paths):
         text = (ROOT / relative).read_text(encoding="utf-8")
-        exposed = [token for token in FORBIDDEN_YAML_TOKENS if token in text]
+        stripped_lines = {line.strip() for line in text.splitlines()}
+        exposed = [key for key in FORBIDDEN_YAML_KEYS if key in stripped_lines]
         if exposed:
             errors.append(f"{relative}: startup or user trigger exposed {exposed}")
 
@@ -124,15 +125,24 @@ def main() -> None:
     if "enable_on_boot: false" not in minimal_yaml:
         errors.append("minimal target must keep Wi-Fi disabled at boot")
 
-    coordinator = (
+    coordinator_cpp = (
         ROOT
         / "firmware/esphome_rc/components/greenhouse_pairing_client/pairing_profile_activation_coordinator.cpp"
     ).read_text(encoding="utf-8")
-    absent = [token for token in REQUIRED_COORDINATOR_TOKENS if token not in coordinator]
+    coordinator_header = (
+        ROOT
+        / "firmware/esphome_rc/components/greenhouse_pairing_client/pairing_profile_activation_coordinator.h"
+    ).read_text(encoding="utf-8")
+    coordinator_evidence = coordinator_header + "\n" + coordinator_cpp
+    absent = [
+        token
+        for token in REQUIRED_COORDINATOR_TOKENS
+        if token not in coordinator_evidence
+    ]
     if absent:
         errors.append(f"activation coordinator evidence missing: {absent}")
-    confirm_position = coordinator.find("confirm_candidate_round_trip")
-    commit_position = coordinator.find("commit_verified_candidate")
+    confirm_position = coordinator_cpp.find("confirm_candidate_round_trip")
+    commit_position = coordinator_cpp.find("commit_verified_candidate")
     if confirm_position < 0 or commit_position < 0 or confirm_position >= commit_position:
         errors.append("persistence commit must occur after candidate round-trip confirmation")
 
