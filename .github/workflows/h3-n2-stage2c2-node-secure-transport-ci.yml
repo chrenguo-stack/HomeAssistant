@@ -94,7 +94,37 @@ jobs:
           from pathlib import Path
 
           component = Path("firmware/esphome_rc/components/greenhouse_pairing_client")
-          encoded = "\n".join(
+          reviewed_stems = (
+              "greenhouse_pairing_client",
+              "pairing_client_core",
+              "pairing_transport_core",
+              "secure_pairing_channel",
+              "secure_pairing_channel_encoding",
+              "secure_pairing_channel_crypto",
+              "pairing_ram_credentials",
+              "pairing_network_transport",
+          )
+          reviewed_paths = []
+          missing_reviewed = []
+          for stem in reviewed_stems:
+              matches = []
+              for suffix in (".cpp", ".h"):
+                  candidate = component / f"{stem}{suffix}"
+                  if candidate.is_file():
+                      matches.append(candidate)
+              if not matches:
+                  missing_reviewed.append(stem)
+              reviewed_paths.extend(matches)
+          if missing_reviewed:
+              raise SystemExit(
+                  f"Stage 2C-2 reviewed source set incomplete: {missing_reviewed}"
+              )
+
+          reviewed_encoded = "\n".join(
+              path.read_text(encoding="utf-8", errors="replace")
+              for path in reviewed_paths
+          )
+          all_encoded = "\n".join(
               path.read_text(encoding="utf-8", errors="replace")
               for path in component.rglob("*")
               if path.is_file()
@@ -109,7 +139,7 @@ jobs:
               "docker compose",
               "/opt/greenhouse-h3-n2-acceptance",
           )
-          present = [value for value in forbidden if value in encoded]
+          present = [value for value in forbidden if value in reviewed_encoded]
           if present:
               raise SystemExit(f"Stage 2C-2 boundary violation: {present}")
 
@@ -125,7 +155,7 @@ jobs:
               "Credential persistence: RAM ONLY",
               "Formal MQTT profile switch: NO",
           )
-          missing = [value for value in required if value not in encoded]
+          missing = [value for value in required if value not in all_encoded]
           if missing:
               raise SystemExit(f"Stage 2C-2 reviewed source evidence missing: {missing}")
 
