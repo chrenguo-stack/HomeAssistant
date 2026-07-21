@@ -77,8 +77,12 @@ class PairingPersistenceCrypto {
 
  private:
   static bool random_bytes_(uint8_t *output, size_t length);
-  static bool sha256_(const uint8_t *data, size_t length,
-                      std::array<uint8_t, 32> *digest);
+  static bool hmac_sha256_(const uint8_t *key, size_t key_length,
+                           const uint8_t *data, size_t data_length,
+                           std::array<uint8_t, 32> *digest);
+  static bool derive_subkey_(const std::array<uint8_t, 32> &record_key,
+                             const char *label,
+                             std::array<uint8_t, 32> *subkey);
   static bool aead_encrypt_(const std::array<uint8_t, 32> &key,
                             const std::array<uint8_t, 12> &nonce,
                             const uint8_t *aad, size_t aad_length,
