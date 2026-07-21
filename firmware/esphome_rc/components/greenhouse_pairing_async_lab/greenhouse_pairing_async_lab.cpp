@@ -95,16 +95,25 @@ PairingAsyncOutcome GreenhousePairingAsyncLab::execute_async_pairing(
     return PairingAsyncOutcome::CANCELLED;
 
   PairingClientSnapshot snapshot = this->async_client_snapshot();
+  bool discovery_phase_published = false;
   if (snapshot.state == PairingClientState::UNBOUND) {
-    if (!context->publish(PairingAsyncPhase::DISCOVERING, snapshot) ||
-        !this->client_.start_random_discovery())
+    if (!this->client_.start_random_discovery())
       return PairingAsyncOutcome::DISCOVERY_FAILED;
     snapshot = this->async_client_snapshot();
+    if (!context->publish(PairingAsyncPhase::DISCOVERING, snapshot))
+      return PairingAsyncOutcome::INVALID_TRANSITION;
+    discovery_phase_published = true;
   }
 
   if (snapshot.state == PairingClientState::DISCOVERING) {
-    if (!context->publish(PairingAsyncPhase::DISCOVERING, snapshot) ||
-        !this->client_.discover_network())
+    if (!discovery_phase_published &&
+        !context->publish(PairingAsyncPhase::DISCOVERING, snapshot))
+      return PairingAsyncOutcome::INVALID_TRANSITION;
+    if (context->cancellation_requested()) {
+      this->client_.reset_unbound();
+      return PairingAsyncOutcome::CANCELLED;
+    }
+    if (!this->client_.discover_network())
       return context->cancellation_requested() ? PairingAsyncOutcome::CANCELLED
                                                : PairingAsyncOutcome::DISCOVERY_FAILED;
     if (context->cancellation_requested()) {
