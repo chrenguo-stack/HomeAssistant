@@ -30,6 +30,7 @@ void GreenhousePairingPersistenceLab::dump_config() {
                 "  Automatic NVS access at boot: NO\n"
                 "  NVS writes at boot: NO\n"
                 "  Manual recovery probe: READ ONLY\n"
+                "  Missing read-only namespace: EMPTY\n"
                 "  HMAC key provisioning before write tests: REQUIRED\n"
                 "  Production MQTT mutation: NO\n"
                 "  Production RC2 integration: NO",
@@ -48,6 +49,13 @@ bool GreenhousePairingPersistenceLab::recover_for_lab() {
     return false;
   if (!this->backend_->opened() &&
       !this->backend_->open(PersistenceOpenMode::READ_ONLY)) {
+    if (this->backend_->namespace_missing()) {
+      this->snapshot_ = {};
+      this->snapshot_.status = PersistentRecoveryStatus::EMPTY;
+      ESP_LOGI(TAG,
+               "Stage 2D-1 read-only recovery: namespace absent; status=empty");
+      return true;
+    }
     ESP_LOGE(TAG, "Stage 2D-1 read-only NVS open failed");
     return false;
   }
