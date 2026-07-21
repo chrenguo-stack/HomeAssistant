@@ -13,7 +13,6 @@ esp32:
   framework:
     advanced:
       include_builtin_idf_components:
-        - mdns
         - nvs_flash
         - esp_hw_support
     sdkconfig_options:
@@ -44,6 +43,7 @@ packages:
   display: !include packages/display.yml
 
 # Dedicated non-production product-PCB compile target for Stage 2D-1.
+# The core package supplies Wi-Fi and the managed ESPHome mDNS component.
 # NVS recovery and mutation are never invoked at boot.
 greenhouse_pairing_persistence_lab:
   id: pairing_persistence_stage2d1
