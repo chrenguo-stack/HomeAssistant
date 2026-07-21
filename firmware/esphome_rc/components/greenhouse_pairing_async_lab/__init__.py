@@ -8,12 +8,14 @@ import esphome.config_validation as cv
 from esphome.components.esp32 import include_builtin_idf_component
 from esphome.const import CONF_ID
 
+AUTO_LOAD = ["greenhouse_pairing_client"]
+DEPENDENCIES = ["wifi"]
+
 CONF_HARDWARE_ID = "hardware_id"
 CONF_PAIRING_ID = "pairing_id"
 CONF_PAIRING_SECRET = "pairing_secret"
 CONF_MAX_CANDIDATES = "max_candidates"
 CONF_CANDIDATE_TTL_CAP = "candidate_ttl_cap"
-CONF_NETWORK_ENABLED = "network_enabled"
 CONF_MDNS_ENABLED = "mdns_enabled"
 CONF_UDP_ENABLED = "udp_enabled"
 CONF_UDP_TARGET = "udp_target"
@@ -23,6 +25,8 @@ CONF_UDP_INITIAL_BACKOFF = "udp_initial_backoff"
 CONF_MDNS_TIMEOUT = "mdns_timeout"
 CONF_HTTP_TIMEOUT = "http_timeout"
 CONF_RESPONSE_MAX_BYTES = "response_max_bytes"
+CONF_WORKER_STACK_SIZE = "worker_stack_size"
+CONF_WORKER_PRIORITY = "worker_priority"
 
 _SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 _UUID = re.compile(
@@ -30,8 +34,6 @@ _UUID = re.compile(
     r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
 )
 _BASE64URL_32 = re.compile(r"^[A-Za-z0-9_-]{43}$")
-# Integer network addresses avoid publishing environment-looking private IP
-# literals while keeping the RFC-defined validation ranges exact.
 _LOCAL_UDP_NETWORKS = (
     ipaddress.IPv4Network((0x0A000000, 8)),
     ipaddress.IPv4Network((0xAC100000, 12)),
@@ -94,37 +96,30 @@ def _udp_target(value: object) -> str:
     return str(address)
 
 
-def _validate_network(config: dict) -> dict:
-    if config[CONF_NETWORK_ENABLED] and not (
-        config[CONF_MDNS_ENABLED] or config[CONF_UDP_ENABLED]
-    ):
-        raise cv.Invalid(
-            "network_enabled requires mdns_enabled or udp_enabled"
-        )
+def _validate(config: dict) -> dict:
+    if not (config[CONF_MDNS_ENABLED] or config[CONF_UDP_ENABLED]):
+        raise cv.Invalid("mdns_enabled or udp_enabled must remain enabled")
     return config
 
 
-greenhouse_pairing_client_ns = cg.esphome_ns.namespace(
-    "greenhouse_pairing_client"
+greenhouse_pairing_async_lab_ns = cg.esphome_ns.namespace(
+    "greenhouse_pairing_async_lab"
 )
-GreenhousePairingClient = greenhouse_pairing_client_ns.class_(
-    "GreenhousePairingClient", cg.Component
+GreenhousePairingAsyncLab = greenhouse_pairing_async_lab_ns.class_(
+    "GreenhousePairingAsyncLab", cg.Component
 )
 
-_INSTANCE_SCHEMA = cv.All(
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(GreenhousePairingClient),
+            cv.GenerateID(): cv.declare_id(GreenhousePairingAsyncLab),
             cv.Required(CONF_HARDWARE_ID): _safe_id,
             cv.Required(CONF_PAIRING_ID): _uuid,
-            # ESPHome masks keys containing "secret" in rendered config output.
-            # Stage 2C-2 only references non-production !secret values.
             cv.Required(CONF_PAIRING_SECRET): _pairing_secret,
             cv.Optional(CONF_MAX_CANDIDATES, default=4): cv.int_range(
                 min=1, max=16
             ),
             cv.Optional(CONF_CANDIDATE_TTL_CAP, default="120s"): _ttl_cap,
-            cv.Optional(CONF_NETWORK_ENABLED, default=False): cv.boolean,
             cv.Optional(CONF_MDNS_ENABLED, default=True): cv.boolean,
             cv.Optional(CONF_UDP_ENABLED, default=True): cv.boolean,
             cv.Optional(
@@ -146,29 +141,20 @@ _INSTANCE_SCHEMA = cv.All(
             cv.Optional(CONF_RESPONSE_MAX_BYTES, default=16384): cv.int_range(
                 min=1024, max=16384
             ),
+            cv.Optional(CONF_WORKER_STACK_SIZE, default=8192): cv.int_range(
+                min=4096, max=24576
+            ),
+            cv.Optional(CONF_WORKER_PRIORITY, default=1): cv.int_range(
+                min=1, max=5
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    _validate_network,
+    _validate,
 )
 
 
-def CONFIG_SCHEMA(value: object) -> dict:
-    # Stage 2C-3 may auto-load this component only to compile its shared C++
-    # transport library. Explicit non-empty instances retain the full strict
-    # Stage 2C-1/2 schema and code generation path.
-    if value is None or value == {}:
-        return {}
-    return _INSTANCE_SCHEMA(value)
-
-
 async def to_code(config: dict) -> None:
-    # ESPHome 2026.2+ excludes unused IDF components by default. The external
-    # component directly uses esp_http_client.h, so re-enable that built-in
-    # component for Stage 2C-1/2 instances and the Stage 2C-3 library load.
     include_builtin_idf_component("esp_http_client")
-
-    if not config:
-        return
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -181,7 +167,6 @@ async def to_code(config: dict) -> None:
             config[CONF_CANDIDATE_TTL_CAP].total_seconds
         )
     )
-    cg.add(var.set_network_enabled(config[CONF_NETWORK_ENABLED]))
     cg.add(var.set_mdns_enabled(config[CONF_MDNS_ENABLED]))
     cg.add(var.set_udp_enabled(config[CONF_UDP_ENABLED]))
     cg.add(var.set_udp_target(config[CONF_UDP_TARGET]))
@@ -192,10 +177,8 @@ async def to_code(config: dict) -> None:
             config[CONF_UDP_INITIAL_BACKOFF].total_milliseconds
         )
     )
-    cg.add(
-        var.set_mdns_timeout_ms(config[CONF_MDNS_TIMEOUT].total_milliseconds)
-    )
-    cg.add(
-        var.set_http_timeout_ms(config[CONF_HTTP_TIMEOUT].total_milliseconds)
-    )
+    cg.add(var.set_mdns_timeout_ms(config[CONF_MDNS_TIMEOUT].total_milliseconds))
+    cg.add(var.set_http_timeout_ms(config[CONF_HTTP_TIMEOUT].total_milliseconds))
     cg.add(var.set_response_max_bytes(config[CONF_RESPONSE_MAX_BYTES]))
+    cg.add(var.set_worker_stack_size(config[CONF_WORKER_STACK_SIZE]))
+    cg.add(var.set_worker_priority(config[CONF_WORKER_PRIORITY]))
