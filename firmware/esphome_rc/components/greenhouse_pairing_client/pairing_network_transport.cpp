@@ -5,6 +5,18 @@
 
 namespace esphome::greenhouse_pairing_client {
 
+namespace {
+
+void secure_clear(std::string *value) {
+  if (value == nullptr)
+    return;
+  std::fill(value->begin(), value->end(), '\0');
+  value->clear();
+  value->shrink_to_fit();
+}
+
+}  // namespace
+
 PairingNetworkTransport::~PairingNetworkTransport() { this->clear(); }
 
 PairingNetworkResult PairingNetworkTransport::discover(PairingClientCore *core,
@@ -14,6 +26,8 @@ PairingNetworkResult PairingNetworkTransport::discover(PairingClientCore *core,
     return this->set_result_(PairingNetworkResult::DISABLED);
   if (core == nullptr || !PairingTransportCore::validate_limits(this->options_.limits) ||
       (!this->options_.mdns_enabled && !this->options_.udp_enabled) ||
+      (this->options_.udp_enabled &&
+       !PairingTransportCore::validate_udp_target(this->options_.udp_target)) ||
       !PairingTransportCore::validate_udp_datagram_size(query_json.size()))
     return this->set_result_(PairingNetworkResult::INVALID_CONFIGURATION);
 #ifdef USE_ESP32
@@ -37,6 +51,9 @@ PairingNetworkResult PairingNetworkTransport::discover(PairingClientCore *core,
 PairingNetworkResult PairingNetworkTransport::complete_pairing(
     PairingClientCore *core, std::string *pairing_secret, const std::string &claim_json,
     RamCredentialBundle *credentials) {
+  this->channel_.clear();
+  if (credentials != nullptr)
+    credentials->clear();
   if (!this->options_.enabled)
     return this->set_result_(PairingNetworkResult::DISABLED);
   if (core == nullptr || pairing_secret == nullptr || pairing_secret->empty() ||
@@ -54,8 +71,6 @@ PairingNetworkResult PairingNetworkTransport::complete_pairing(
     return this->set_result_(PairingNetworkResult::UNSUPPORTED_SCHEME);
 
 #ifdef USE_ESP32
-  credentials->clear();
-  this->channel_.clear();
   const std::string base_url = PairingTransportCore::build_base_url(
       candidate->scheme, candidate->host, candidate->port, candidate->pairing_path);
   if (base_url.empty())
@@ -79,19 +94,23 @@ PairingNetworkResult PairingNetworkTransport::complete_pairing(
     core->fail(PairingClientError::SECURE_OFFER_REJECTED, false);
     return this->set_result_(PairingNetworkResult::CHANNEL_FAILED);
   }
-  std::fill(pairing_secret->begin(), pairing_secret->end(), '\0');
-  pairing_secret->clear();
-  pairing_secret->shrink_to_fit();
   const std::string establish_url =
       PairingTransportCore::build_session_url(base_url, offer.session_id, "establish");
-  if (establish_url.empty() ||
-      !this->post_json_(establish_url, this->channel_.build_establish_request_json(), &response) ||
+  std::string establish_request = this->channel_.build_establish_request_json();
+  const bool establish_posted = !establish_url.empty() && !establish_request.empty() &&
+                                this->post_json_(establish_url, establish_request, &response);
+  secure_clear(&establish_request);
+  if (!establish_posted ||
       !this->parse_secure_status_(response.body, offer.session_id, "channel_established") ||
       !core->mark_channel_established()) {
     this->channel_.clear();
     core->fail(PairingClientError::TRANSPORT_FAILED, false);
     return this->set_result_(PairingNetworkResult::CHANNEL_FAILED);
   }
+  // Retain the QR bootstrap secret until the Manager confirms channel
+  // establishment. A lost establish response must not destroy the only local
+  // recovery material before the caller can reset or abort the session.
+  secure_clear(pairing_secret);
 
   const std::string credentials_url =
       PairingTransportCore::build_session_url(base_url, offer.session_id, "credentials");
@@ -109,22 +128,26 @@ PairingNetworkResult PairingNetworkTransport::complete_pairing(
       !this->channel_.decrypt(encrypted_credentials, CREDENTIALS_CONTENT_TYPE, &plaintext) ||
       !this->parse_credentials_(plaintext, &staged) || !staged.valid() ||
       !core->stage_credentials(staged.node_id, staged.credential_generation)) {
-    std::fill(plaintext.begin(), plaintext.end(), '\0');
+    secure_clear(&plaintext);
     staged.clear();
     this->channel_.clear();
     core->fail(PairingClientError::CREDENTIALS_REJECTED, false);
     return this->set_result_(PairingNetworkResult::CREDENTIALS_FAILED);
   }
-  std::fill(plaintext.begin(), plaintext.end(), '\0');
-  plaintext.clear();
+  secure_clear(&plaintext);
 
   SecureEnvelopeDocument ack;
-  const std::string ack_plaintext = staged.delivery_ack_json();
+  std::string ack_plaintext = staged.delivery_ack_json();
   const std::string ack_url =
       PairingTransportCore::build_session_url(base_url, offer.session_id, "ack");
-  if (ack_url.empty() || ack_plaintext.empty() ||
-      !this->channel_.encrypt(ack_plaintext, ACK_CONTENT_TYPE, &ack) ||
-      !this->post_json_(ack_url, envelope_json(ack), &response) ||
+  const bool ack_encrypted = !ack_url.empty() && !ack_plaintext.empty() &&
+                             this->channel_.encrypt(ack_plaintext, ACK_CONTENT_TYPE, &ack);
+  secure_clear(&ack_plaintext);
+  std::string ack_document = ack_encrypted ? envelope_json(ack) : std::string{};
+  const bool ack_posted = ack_encrypted && !ack_document.empty() &&
+                          this->post_json_(ack_url, ack_document, &response);
+  secure_clear(&ack_document);
+  if (!ack_posted ||
       !this->parse_secure_status_(response.body, offer.session_id, "consumed",
                                   staged.credential_generation) ||
       !core->commit_credentials()) {
