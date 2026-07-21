@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import traceback
 from pathlib import Path
 
 DIAGNOSTIC = Path("/tmp/stage2d1-boundary-diagnostic-v49.txt")
@@ -200,4 +201,11 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except SystemExit:
+        raise
+    except Exception:  # pragma: no cover - diagnostic safety net
+        detail = "STAGE2D1_BOUNDARY_EXCEPTION=\n" + traceback.format_exc()
+        DIAGNOSTIC.write_text(detail, encoding="utf-8")
+        raise SystemExit(detail.rstrip())
