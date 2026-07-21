@@ -5,6 +5,7 @@ import re
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome.components.esp32 import include_builtin_idf_component
 from esphome.const import CONF_ID
 
 CONF_HARDWARE_ID = "hardware_id"
@@ -75,7 +76,13 @@ def _udp_target(value: object) -> str:
         address = ipaddress.IPv4Address(candidate)
     except ipaddress.AddressValueError as error:
         raise cv.Invalid("udp_target must be an IPv4 address") from error
-    if not (address.is_private or address.is_link_local or address.is_loopback or address.is_unspecified or str(address) == "255.255.255.255"):
+    if not (
+        address.is_private
+        or address.is_link_local
+        or address.is_loopback
+        or address.is_unspecified
+        or str(address) == "255.255.255.255"
+    ):
         raise cv.Invalid("udp_target must stay on the local network")
     return str(address)
 
@@ -139,6 +146,11 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: dict) -> None:
+    # ESPHome 2026.2+ excludes unused IDF components by default. The external
+    # component directly uses esp_http_client.h, so re-enable that built-in
+    # component for both the Stage 2C-1 compatibility targets and Stage 2C-2.
+    include_builtin_idf_component("esp_http_client")
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     cg.add(var.set_hardware_id(config[CONF_HARDWARE_ID]))
