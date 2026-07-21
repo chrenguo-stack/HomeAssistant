@@ -15,7 +15,7 @@ namespace esphome::greenhouse_pairing_client {
 
 class GreenhousePairingClient final : public Component {
  public:
-  ~GreenhousePairingClient() override;
+  ~GreenhousePairingClient();
 
   void set_hardware_id(const std::string &value) { this->hardware_id_ = value; }
   void set_pairing_id(const std::string &value) { this->pairing_id_ = value; }
