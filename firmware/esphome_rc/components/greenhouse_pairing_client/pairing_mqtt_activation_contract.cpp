@@ -47,7 +47,9 @@ bool MqttActivationContract::record_probe(bool authenticated,
 }
 
 bool MqttActivationContract::activate() {
-  if (this->snapshot_.phase != MqttActivationPhase::VERIFIED)
+  if (this->snapshot_.phase != MqttActivationPhase::VERIFIED ||
+      this->snapshot_.candidate_generation == 0 ||
+      this->snapshot_.candidate_generation <= this->snapshot_.active_generation)
     return false;
   this->snapshot_.active_generation = this->snapshot_.candidate_generation;
   this->snapshot_.candidate_generation = 0;
@@ -55,12 +57,18 @@ bool MqttActivationContract::activate() {
   return true;
 }
 
-void MqttActivationContract::rollback() {
+bool MqttActivationContract::rollback() {
+  if (this->snapshot_.phase != MqttActivationPhase::CANDIDATE_STAGED &&
+      this->snapshot_.phase != MqttActivationPhase::PROBING &&
+      this->snapshot_.phase != MqttActivationPhase::VERIFIED &&
+      this->snapshot_.phase != MqttActivationPhase::FAILED)
+    return false;
   this->snapshot_.candidate_generation = 0;
   this->snapshot_.authenticated = false;
   this->snapshot_.subscribe_ready = false;
   this->snapshot_.telemetry_round_trip = false;
   this->snapshot_.phase = MqttActivationPhase::ROLLED_BACK;
+  return true;
 }
 
 const char *MqttActivationContract::phase_name(MqttActivationPhase phase) {
