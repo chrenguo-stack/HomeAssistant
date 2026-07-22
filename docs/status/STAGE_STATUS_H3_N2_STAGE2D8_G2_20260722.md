@@ -1,9 +1,9 @@
 # H3/N2 Stage 2D-8 G2 专用测试板实板验收状态
 
-- **状态文件版本：** V2.3
+- **状态文件版本：** V2.4
 - **更新日期：** 2026-07-22
 - **权威性：** 本文件是本活动阶段唯一权威 `STAGE_STATUS`
-- **阶段状态：** `attempt3_passed_pending_private_detail_closure`
+- **阶段状态：** `physical_acceptance_passed_evidence_closed`
 - **当前结论：** `passed`
 - **执行门：** `CLOSED_CONSUMED_NO_REPLAY`
 
@@ -45,55 +45,100 @@ D2_ATTEMPT1_REPLAY_PERMITTED=false
 D2_ATTEMPT2_STATUS=attempted_inconclusive_retired
 D2_ATTEMPT2_FAILURE_STAGE=authorization
 D2_ATTEMPT2_AUTHORIZATION_CONSUMED=false
+D2_ATTEMPT2_USB_PREFLIGHT_REACHED=false
 D2_ATTEMPT2_DESTRUCTIVE_BOUNDARY_ENTERED=false
+D2_ATTEMPT2_PRIVATE_ARCHIVE_SHA256=fd8e97db174de759a964e276ff7cb1d534fa64a2f6e2d48dd385eb6e57a7fb0a
 D2_ATTEMPT2_REPLAY_PERMITTED=false
 ```
 
-尝试 1、2 均在板卡访问和破坏性边界前 fail closed。
+尝试 1、2 均在板卡访问和破坏性边界前 fail closed，未擦除、写入、校验、回读或执行 recovery。
 
-## 4. D2 尝试 3 实板结果
+## 4. D2 尝试 3 实板验收
 
 ```text
 D2_ATTEMPT3_REQUEST_ID=D2-H3N2-STAGE2D8-G2-V64-20260722-03
-D2_ATTEMPT3_RESULT=passed
-D2_ATTEMPT3_AUTHORIZATION_CONSUMED=true
+D2_ATTEMPT3_STATUS=consumed_passed_retired
 D2_ATTEMPT3_REPLAY_PERMITTED=false
 D2_ATTEMPT3_EXECUTION_PACKAGE_SHA256=569186c27436b37dd82b2fd4dd8d911653f81e5d1070cf1df831df2a0841d02e
-D2_ATTEMPT3_EXECUTION_SCRIPT_SHA256=f40911b27bdd7105f1e1b636c538d1cf18719cbc42f8a1a80edd73346659430d
-D2_ATTEMPT3_LAUNCHER_SHA256=42cdd0a02f2e13f8da026753cefdb91ac7d217ce6e119715a0dcc626f64fc558
 D2_ATTEMPT3_AUTHORIZATION_BINDING_SHA256=7c5b154cae8199f07426464422b7b0be2048e47cbefd25fb2660436ecc393f66
 D2_ATTEMPT3_PRIVATE_ARCHIVE_SHA256=a29db874961f9baa34137837fdbd31f1018d4fd8b7f01a2b5922bf512790a6fb
+D2_ATTEMPT3_PRIVATE_SUMMARY_SHA256=82986306ea898b7bcb88df9ce69ad3c2377ad15a42abe53ad9f72921d687097a
+D2_ATTEMPT3_SERIAL_LOG_SHA256=a6189a4e0667ea169b8b452f3f1422576b0ef4a6997314d9ef635d99e195c3b2
+D2_ATTEMPT3_PREFLIGHT_LOG_SHA256=279386765a0ed944f79cb851654536bb170a436f3547916dda19fb6e05a181bd
+D2_ATTEMPT3_DESTRUCTIVE_LOG_SHA256=baa5631e2704ec0cef8c3720e8397c45b8715542273dcfa7122c2f2a4354d1ca
+```
+
+### 4.1 预检和 Flash
+
+```text
+PREFLIGHT_STATUS=passed
+HOST_ENVIRONMENT_PRESENT=true
+USB_PREFLIGHT_PRESENT=true
+FLASH_ID_PRESENT=true
+AUTHORIZATION_CONSUMED=true
 DESTRUCTIVE_BOUNDARY_ENTERED=true
-PHYSICAL_ERASE_PERFORMED=true
-G2_FLASH_PERFORMED=true
-VERIFY_FLASH_PERFORMED=true
-PREBOOT_READBACK_PERFORMED=true
+ERASE_SUCCESS=true
+WRITE_SUCCESS=true
+VERIFY_FLASH_SUCCESS=true
+```
+
+### 4.2 分区不变性
+
+```text
+PREBOOT_READBACK_SHA256=1f7016fe98cf69ca879a72069e63869863d1a4c8580ba0c8931aef133de3c928
 PREBOOT_MATCHES_SEED=true
-G2_SERIAL_CAPTURE_PASSED=true
-POSTBOOT_READBACK_PERFORMED=true
+POSTBOOT_READBACK_SHA256=1f7016fe98cf69ca879a72069e63869863d1a4c8580ba0c8931aef133de3c928
 POSTBOOT_MATCHES_SEED=true
 POSTBOOT_MATCHES_PREBOOT=true
+```
+
+### 4.3 串口冻结标志
+
+```text
+SERIAL_BOUNDARY_MATCH=true
+SERIAL_SNAPSHOT_MATCH=true
+SERIAL_PROBE_PASS=true
+SERIAL_PROBE_FAIL_ABSENT=true
+SERIAL_PARTITION_INIT_ERROR_ABSENT=true
+SERIAL_BOUNDARY_COUNT=1
+SERIAL_SNAPSHOT_COUNT=1
+SERIAL_PROBE_PASS_COUNT=1
+SERIAL_PROBE_FAIL_COUNT=0
+```
+
+冻结串口证据确认：`key_loaded=false`、`wifi=false`、`mqtt=false`、`write_authorization=false`、`partition_readonly=true`、`read_only=true`、`persistence=empty`、全部 generation=0、`writes=0`、全部 MQTT session=false、`reboot_required=false`。
+
+### 4.4 启动观察
+
+用户未按物理 RESET。U9 私有串口证据确认：
+
+```text
+RESET_REASON=USB_UART_HPSYS
+BOOT_MODE=SPI_FAST_FLASH_BOOT
+PHYSICAL_RESET_PRESSED=false
+```
+
+串口采集阶段发生了 USB UART 高性能系统自动复位。精确 boundary、snapshot、probe=pass 及启动前后分区不变性均通过，因此不影响验收结论。
+
+### 4.5 保护边界
+
+```text
 RECOVERY_PERFORMED=false
 RECOVERY_COUNT=0
 EFUSE_COMMAND_ATTEMPTED=false
 NETWORK_OPERATION_ATTEMPTED=false
+WIFI_CONNECTED=false
+MQTT_CONNECTED=false
+BROKER_STARTED=false
+TEST_KEY_LOADED=false
+WRITABLE_NVS_OPENED=false
+PREPARE_CANDIDATE_EXECUTED=false
+ACTIVATE_PROFILE_EXECUTED=false
+CLEANUP_TEST_STATE_EXECUTED=false
 PRODUCTION_ENVIRONMENT_MODIFIED=false
 ```
 
-runner 只有在目标、环境、Artifact、USB、芯片与 Flash 身份预检通过，erase/write/verify 成功，preboot 与 seed 一致，冻结串口 boundary/snapshot/probe 标志全部通过，且 postboot 与 seed、preboot 均一致时才返回 `PASS`。
-
-## 5. 未按物理 RESET 的说明
-
-```text
-SERIAL_CAPTURE_PROMPT_PRINTED=true
-PHYSICAL_RESET_PRESSED=false
-BOOT_AND_FROZEN_MARKERS_OBSERVED=true
-ACCEPTANCE_IMPACT=none
-```
-
-用户未按 RESET，流程仍立即捕获了完整冻结启动标志。当前判定为串口打开时 DTR/RTS 或 USB-Serial/JTAG 状态切换导致的自动启动/复位行为。该触发机制不改变验收目标：G2 已实际启动，串口证据通过，postboot 只读分区仍逐字节保持不变。U9 仅从私有归档读取 reset-line 和完整结构化摘要，以关闭该细节；禁止再次连接或运行测试板。
-
-## 6. S0—S8 状态
+## 5. S0—S8 状态
 
 | 阶段 | 状态 | 说明 |
 |---|---|---|
@@ -101,14 +146,14 @@ ACCEPTANCE_IMPACT=none
 | S1 范围与验收设计 | `passed` | 验收项、停止条件、证据分层已冻结 |
 | S2 非实板证据准备 | `passed` | manifest、索引和证据模板已建立 |
 | S3 本地 Preflight | `passed` | U1、U7、U8 均闭环 |
-| S4 GitHub CI | `passed` | Draft PR #172 继续保持 Draft |
+| S4 GitHub CI | `passed` | Draft PR #172 公共安全门通过 |
 | S5 候选冻结 | `passed` | 仅引用不可变 V64，不重建候选 |
 | S6A 隔离验证 | `passed` | 编译、review、授权和 ZIP 自检通过 |
-| S6B 实板验收 | `passed_pending_private_detail_closure` | 尝试 3 实板 PASS；等待 U9 只读细节索引 |
-| S7 归档/发布 | `not_run` | 禁止 Ready、合并和发布 |
-| S8 阶段关闭 | `pending_u9` | 等待私有摘要和 reset-line 脱敏闭环 |
+| S6B 实板验收 | `passed` | 擦除、写入、校验、回读、串口及不变性通过 |
+| S7 证据归档 | `passed` | 私有证据 SHA 和脱敏 L1 已闭环 |
+| S8 阶段关闭 | `passed` | 执行门关闭；PR 保持 Draft |
 
-## 7. 决策门
+## 6. 决策门
 
 ```text
 D1_SCOPE_DECISION=resolved
@@ -116,26 +161,18 @@ D2_ATTEMPT1=retired_no_replay
 D2_ATTEMPT2=retired_no_replay
 D2_ATTEMPT3=consumed_passed_no_replay
 D3_RISK_WAIVER=not_required
-D4_READY_MERGE_RELEASE=prohibited
+D4_READY_MERGE_RELEASE=not_requested_and_prohibited
 ```
 
-## 8. 当前结论
+## 7. 最终结论
 
 ```text
-STAGE_STATUS=attempt3_passed_pending_private_detail_closure
+STAGE_STATUS=physical_acceptance_passed_evidence_closed
 FINAL_RESULT=passed
 EXECUTION_GATE=CLOSED_CONSUMED_NO_REPLAY
-D2_ATTEMPT3_AUTHORIZATION_CONSUMED=true
-D2_ATTEMPT3_REPLAY_PERMITTED=false
-PHYSICAL_ERASE_PERFORMED=true
-G2_FLASH_PERFORMED=true
-VERIFY_FLASH_PERFORMED=true
-PREBOOT_MATCHES_SEED=true
-SERIAL_FROZEN_MARKERS_PASSED=true
-POSTBOOT_MATCHES_SEED=true
-POSTBOOT_MATCHES_PREBOOT=true
-RECOVERY_PERFORMED=false
-EFUSE_COMMAND_ATTEMPTED=false
-NETWORK_OPERATION_ATTEMPTED=false
+PHYSICAL_ACCEPTANCE=passed
+EVIDENCE_CLOSURE=passed
+PR_172_STATE=open_draft
+READY_MERGE_RELEASE_AUTHORIZED=false
 PRODUCTION_ENVIRONMENT_MODIFIED=false
 ```
