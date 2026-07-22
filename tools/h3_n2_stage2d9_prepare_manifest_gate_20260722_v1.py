@@ -10,6 +10,8 @@ import re
 SCHEMA = "gh.h3.n2.stage2d9-g3-prepare-execution-manifest/1"
 ALLOWED_GATES = {"LOCKED", "FLASH_ONLY", "READ_ONLY", "PREPARE_CANDIDATE"}
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+STAGE2D9_PARTITION = "gh2d8_p2d9"
+STAGE2D9_NAMESPACE = "gh2d8_s2d9"
 
 
 class GateError(RuntimeError):
@@ -93,10 +95,10 @@ def validate(manifest: dict[str, object], expected_gate: str | None = None) -> s
             raise GateError("PREPARE gate requires authorization id")
         if not SHA256_RE.fullmatch(str(manifest.get("candidate_digest_sha256"))):
             raise GateError("PREPARE gate requires candidate digest")
-        if manifest.get("allowed_nvs_partition") != "gh2d9_nvs":
-            raise GateError("writable partition must be gh2d9_nvs")
-        if manifest.get("allowed_nvs_namespace") != "gh2d9_state":
-            raise GateError("writable namespace must be gh2d9_state")
+        if manifest.get("allowed_nvs_partition") != STAGE2D9_PARTITION:
+            raise GateError(f"writable partition must be {STAGE2D9_PARTITION}")
+        if manifest.get("allowed_nvs_namespace") != STAGE2D9_NAMESPACE:
+            raise GateError(f"writable namespace must be {STAGE2D9_NAMESPACE}")
 
     return str(gate)
 
