@@ -1,0 +1,52 @@
+{
+  "schema": "gh.h3.n2.stage2d8-execution-manifest/1",
+  "gate": "LOCKED",
+  "source_commit": "<40_LOWERCASE_HEX>",
+  "test_firmware": {
+    "path": "<ABSOLUTE_LOCAL_TEST_IMAGE_PATH>",
+    "sha256": "<64_LOWERCASE_HEX>"
+  },
+  "rollback_firmware": {
+    "path": "<ABSOLUTE_LOCAL_ROLLBACK_IMAGE_PATH>",
+    "sha256": "<64_LOWERCASE_HEX>"
+  },
+  "board": {
+    "identifier": "gh-test-<UNIQUE_BOARD_ID>",
+    "serial_path": "<ABSOLUTE_SERIAL_DEVICE_PATH>"
+  },
+  "partition_table": {
+    "path": "<ABSOLUTE_LOCAL_PARTITION_TABLE_PATH>",
+    "sha256": "<64_LOWERCASE_HEX>",
+    "test_partition_label": "gh2d8_<UNIQUE>",
+    "test_namespace": "gh2d8_<UNIQUE>"
+  },
+  "wifi_profile_digest": "<64_LOWERCASE_HEX>",
+  "broker": {
+    "configuration_digest": "<64_LOWERCASE_HEX>",
+    "ca_digest": "<64_LOWERCASE_HEX>",
+    "acl_digest": "<64_LOWERCASE_HEX>",
+    "server_certificate_digest": "<64_LOWERCASE_HEX>"
+  },
+  "identifiers": {
+    "test_run_id": "gh-test-<UNIQUE_RUN_ID>",
+    "system_id": "gh-test-<UNIQUE_SYSTEM_ID>",
+    "node_id": "gh-test-<UNIQUE_NODE_ID>",
+    "client_id": "gh-test-<UNIQUE_CLIENT_ID>",
+    "topic_root": "gh-test/<UNIQUE_RUN_ID>/node"
+  },
+  "evidence_directory": "<ABSOLUTE_PRIVATE_EVIDENCE_DIRECTORY>",
+  "recovery_procedure_digest": "<64_LOWERCASE_HEX>",
+  "observed_state": {
+    "available": false,
+    "persistence_status": "unknown",
+    "active_generation": 0,
+    "candidate_generation": 0,
+    "persistent_write_count": 0
+  },
+  "authorization": {
+    "operation": "NONE",
+    "active_generation": 0,
+    "candidate_generation": 0,
+    "record_digest": ""
+  }
+}

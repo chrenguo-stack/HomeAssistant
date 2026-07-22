@@ -1,0 +1,27 @@
+esphome:
+  name: gh-2d8-recovery-v60
+  friendly_name: Greenhouse Stage 2D-8 Locked Recovery
+  min_version: 2026.4.3
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          ESP_LOGI("gh_stage2d8_recovery", "stage2d8_recovery=locked");
+          ESP_LOGI("gh_stage2d8_recovery", "wifi=false mqtt=false nvs_test_open=false");
+
+esp32:
+  board: esp32-c6-devkitm-1
+  variant: ESP32C6
+  flash_size: 8MB
+  partitions: stage2d8_g2_partitions_20260722_v60.csv
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      CONFIG_APP_REPRODUCIBLE_BUILD: y
+
+logger:
+  level: INFO
+  hardware_uart: USB_SERIAL_JTAG
+
+# Recovery image intentionally contains no external Stage2D8 component and no
+# Wi-Fi, API, OTA, MQTT, web server, key, credential, command or NVS action.
