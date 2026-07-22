@@ -48,14 +48,16 @@ PREPARE_CANDIDATE
 
 ## 4. 持久化事务
 
-测试分区暂定：
+测试分区冻结为：
 
 ```text
-partition=gh2d9_nvs
+partition=gh2d8_p2d9
 offset=0x400000
 size=0x10000
-namespace=gh2d9_state
+namespace=gh2d8_s2d9
 ```
+
+名称继续采用冻结隔离驱动接受的 `gh2d8_` 前缀，但分区和 namespace 均与 Stage 2D-8 G2 的 `gh2d8_nvs/gh2d8_state` 不同。这样无需修改已验收的 Stage 2D-8 驱动源码，同时保持 Stage 2D-9 存储物理隔离。
 
 该分区只服务 Stage 2D-9 专用测试板，不得复用生产 NVS。允许的事务顺序：
 
