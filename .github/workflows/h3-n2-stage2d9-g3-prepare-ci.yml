@@ -4,17 +4,18 @@ on:
   pull_request:
     paths:
       - ".github/workflows/h3-n2-stage2d9-g3-prepare-ci.yml"
-      - "tools/h3_n2_stage2d9_prepare_*"
+      - "tools/h3_n2_stage2d9_*"
       - "tests/h3_n2_stage2d9_prepare/**"
       - "protocols/pairing/gh-h3-node-stage2d9-g3-prepare-v1.md"
-      - "docs/development/温室环境监测系统_H3N2_Stage2D9_G3_PREPARE_CANDIDATE开发计划_V1.0_20260722.md"
+      - "docs/development/*Stage2D9*"
+      - "docs/development/*Stage2D9*"
       - "docs/status/STAGE_STATUS_H3_N2_STAGE2D9_G3_20260722.md"
-      - "docs/acceptance/h3-n2-stage2d9-g3-public-manifest-v1.json"
+      - "docs/acceptance/h3-n2-stage2d9-g3-*.json"
   push:
     branches: [main]
     paths:
       - ".github/workflows/h3-n2-stage2d9-g3-prepare-ci.yml"
-      - "tools/h3_n2_stage2d9_prepare_*"
+      - "tools/h3_n2_stage2d9_*"
       - "tests/h3_n2_stage2d9_prepare/**"
 
 concurrency:
@@ -27,7 +28,7 @@ permissions:
 jobs:
   host-model-and-gate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 8
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
@@ -42,6 +43,11 @@ jobs:
             tools/h3_n2_stage2d9_prepare_model_20260722_v1.py \
             tools/h3_n2_stage2d9_prepare_manifest_gate_20260722_v1.py \
             tools/h3_n2_stage2d9_prepare_command_protocol_20260722_v1.py \
+            tools/h3_n2_stage2d9_esphome_reproducible_compile_20260722_v67.py \
+            tools/h3_n2_stage2d9_g3_boundary_gate_20260722_v67.py \
+            tools/h3_n2_stage2d9_g3_reproducibility_gate_20260722_v67.py \
+            tools/h3_n2_stage2d9_g3_artifact_packager_20260722_v67.py \
+            tools/h3_n2_stage2d9_g3_u1_artifact_verify_20260722_v1.py \
             tests/h3_n2_stage2d9_prepare/test_stage2d9_prepare_model_20260722_v1.py \
             tests/h3_n2_stage2d9_prepare/test_stage2d9_prepare_command_protocol_20260722_v1.py
       - name: Run host fault matrices
@@ -64,11 +70,16 @@ jobs:
           public = json.loads(Path(
               "docs/acceptance/h3-n2-stage2d9-g3-public-manifest-v1.json"
           ).read_text(encoding="utf-8"))
+          acceptance = json.loads(Path(
+              "docs/acceptance/h3-n2-stage2d9-g3-acceptance-template-v1.json"
+          ).read_text(encoding="utf-8"))
           template = json.loads(Path(
               "tests/h3_n2_stage2d9_prepare/"
               "stage2d9_prepare_manifest_template_20260722_v1.json"
           ).read_text(encoding="utf-8"))
           assert public["execution_gate"] == "LOCKED"
+          assert acceptance["stage_disposition"]["execution_gate"] == "LOCKED"
+          assert acceptance["stage_disposition"]["ready_merge_release_authorized"] is False
           assert template["gate"] == "LOCKED"
           assert template["execution_authorized"] is False
           assert template["writable_test_nvs_authorized"] is False
@@ -92,5 +103,9 @@ jobs:
         run: |
           if git ls-files | grep -E '(^|/)(private-summary|authorization).*\.json$|\.tar\.gz$|g2-serial\.log$'; then
             echo "Private runtime evidence path detected" >&2
+            exit 1
+          fi
+          if git grep -IlE 'unlock_token_hex[[:space:]]*[:=][[:space:]]*[0-9a-f]{64}|persistence_key_hex[[:space:]]*[:=][[:space:]]*[0-9a-f]{64}' -- ':!tests/**'; then
+            echo "Private Stage2D9 key material detected" >&2
             exit 1
           fi
