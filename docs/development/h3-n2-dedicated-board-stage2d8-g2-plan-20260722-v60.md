@@ -33,7 +33,7 @@ The G2 image creates one dedicated probe component. At startup it:
 7. requires all MQTT session roles to remain false;
 8. closes the persistence handle, destroys volatile key state and stops.
 
-It has no Wi-Fi, API, OTA, MQTT, web server, credential, key, write authorization or operator command surface.
+It has no Wi-Fi, API, OTA, mDNS runtime, MQTT, web server, credential, key, write authorization or operator command surface. The shared source directory's unused discovery adapter is linked only against the pinned ESP-IDF mDNS library and does not instantiate ESPHome network or mDNS components.
 
 ### Locked recovery image
 
@@ -61,7 +61,7 @@ CI compiles with ESPHome 2026.4.3 and packages, for both G2 and recovery:
 - SHA-256 inventory;
 - a redacted artifact manifest with `gate=LOCKED`.
 
-The driver/probe source binding is `0ab4159860c984e0998f365437810de84b45bbc2`. The final build commit and all binary digests are supplied by CI and must be copied into the private execution manifest before any live command is approved.
+The driver/probe source binding is `941becd5b670496fbea9e26f47d9d02ed0633526`. The final build commit and all binary digests are supplied by CI and must be copied into the private execution manifest before any live command is approved.
 
 ## Future G2 authorization boundary
 
