@@ -96,20 +96,18 @@ jobs:
           esphome compile greenhouse_stage2d8_locked_recovery_20260722_v60.yml \
             2>&1 | tee /tmp/stage2d8-recovery-compile-v63.log
 
-      - name: Install hash-pinned NVS generator into pinned IDF environment
+      - name: Install hash-pinned NVS generator into pinned host environment
         run: |
           set -euo pipefail
           exec > >(tee /tmp/stage2d8-nvsgen-install-v63.log) 2>&1
-          IDF_PYTHON="$HOME/.platformio/penv/.espidf-5.5.4/bin/python"
           REQUIREMENTS=tools/h3_n2_stage2d8_nvsgen_requirements_20260722_v63.txt
-          test -x "$IDF_PYTHON"
           test -f "$REQUIREMENTS"
-          "$IDF_PYTHON" -m pip install \
+          python -m pip install \
             --disable-pip-version-check \
             --no-deps \
             --require-hashes \
             --requirement "$REQUIREMENTS"
-          "$IDF_PYTHON" - <<'PY' > /tmp/stage2d8-nvsgen-runtime-v63.json
+          python - <<'PY' > /tmp/stage2d8-nvsgen-runtime-v63.json
           import importlib.metadata
           import json
           import platform
@@ -124,7 +122,7 @@ jobs:
               "python_version": platform.python_version(),
           }, indent=2, sort_keys=True))
           PY
-          "$IDF_PYTHON" -m esp_idf_nvs_partition_gen --help >/dev/null
+          python -m esp_idf_nvs_partition_gen --help >/dev/null
           cat /tmp/stage2d8-nvsgen-runtime-v63.json
 
       - name: Generate deterministic preseeded NVS image twice
@@ -132,9 +130,8 @@ jobs:
           set -euo pipefail
           exec > >(tee /tmp/stage2d8-g2-seed-v63.log) 2>&1
           ROOT=firmware/esphome_rc/board_lab/h3_profile_isolated_device_g2_probe
-          IDF_PYTHON="$HOME/.platformio/penv/.espidf-5.5.4/bin/python"
           for suffix in a b; do
-            "$IDF_PYTHON" -m esp_idf_nvs_partition_gen generate \
+            python -m esp_idf_nvs_partition_gen generate \
               "$ROOT/stage2d8_g2_nvs_seed_20260722_v61.csv" \
               "/tmp/stage2d8-g2-nvs-seed-v63-${suffix}.bin" \
               0x10000
