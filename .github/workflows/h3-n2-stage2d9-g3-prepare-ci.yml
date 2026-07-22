@@ -72,8 +72,11 @@ jobs:
           acceptance = json.loads(Path(
               "docs/acceptance/h3-n2-stage2d9-g3-acceptance-template-v1.json"
           ).read_text(encoding="utf-8"))
-          request = json.loads(Path(
+          attempt1 = json.loads(Path(
               "docs/acceptance/h3-n2-stage2d9-g3-d2-attempt1-authorization-request-v1.json"
+          ).read_text(encoding="utf-8"))
+          attempt2 = json.loads(Path(
+              "docs/acceptance/h3-n2-stage2d9-g3-d2-attempt2-authorization-request-v1.json"
           ).read_text(encoding="utf-8"))
           index = json.loads(Path(
               "docs/acceptance/h3-n2-stage2d9-g3-d2-authorization-request-index-v1.json"
@@ -92,14 +95,26 @@ jobs:
           assert public["d2_review"]["replay_permitted"] is False
           assert acceptance["stage_disposition"]["execution_gate"] == "LOCKED"
           assert acceptance["stage_disposition"]["ready_merge_release_authorized"] is False
-          assert request["execution_gate"] == "LOCKED"
-          assert request["execution_authorized"] is False
-          assert request["status"] == "pending_operator_authorization"
-          assert request["one_shot"] is True
-          assert request["replay_permitted"] is False
+          assert attempt1["status"] == "retired_before_authorization"
+          assert attempt1["execution_authorized"] is False
+          assert attempt1["authorization_issued"] is False
+          assert attempt1["replay_permitted"] is False
+          assert attempt2["execution_gate"] == "LOCKED"
+          assert attempt2["execution_authorized"] is False
+          assert attempt2["authorization_issued"] is False
+          assert attempt2["status"] == "pending_operator_authorization"
+          assert attempt2["one_shot"] is True
+          assert attempt2["replay_permitted"] is False
+          assert attempt2["authorization_validity_after_issue"] == "exactly 2 hours"
+          hardened = attempt2["hardened_authorization_binding"]
+          assert all(hardened.values())
           assert index["execution_gate"] == "LOCKED"
+          assert index["active_request_id"] == attempt2["authorization_request_id"]
+          assert attempt1["authorization_request_id"] in index["retired_request_ids"]
           assert index["requests"][0]["execution_authorized"] is False
           assert index["requests"][0]["replay_permitted"] is False
+          assert index["requests"][1]["execution_authorized"] is False
+          assert index["requests"][1]["replay_permitted"] is False
           assert template["gate"] == "LOCKED"
           assert template["execution_authorized"] is False
           assert template["writable_test_nvs_authorized"] is False
