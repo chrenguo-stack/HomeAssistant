@@ -1,0 +1,59 @@
+substitutions:
+  device_name: gh-h3-2d9-g3-v65
+  project_version: "F1.0-RC2-H3-STAGE2D9-G3-LAB-V65"
+  soil_read_interval: 20s
+  soil_warmup_time: 15s
+  scd30_update_interval: 11s
+  battery_divider_ratio: "2.0"
+  battery_calibration_factor: "1.000"
+  battery_low_threshold: "3.00"
+  battery_recovery_threshold: "3.50"
+
+esp32:
+  framework:
+    advanced:
+      include_builtin_idf_components:
+        - mqtt
+        - nvs_flash
+        - esp_hw_support
+    sdkconfig_options:
+      CONFIG_MBEDTLS_PSA_CRYPTO_C: y
+      CONFIG_MBEDTLS_ECP_DP_CURVE25519_ENABLED: y
+      CONFIG_MBEDTLS_CHACHA20_C: y
+      CONFIG_MBEDTLS_POLY1305_C: y
+      CONFIG_MBEDTLS_CHACHAPOLY_C: y
+      CONFIG_MBEDTLS_HARDWARE_MPI: n
+
+external_components:
+  - source:
+      type: local
+      path: ../15_1_2_rs485_modbus_echo_filter/my_components
+    components:
+      - echo_filtered_modbus
+  - source:
+      type: local
+      path: ../components
+    components:
+      - greenhouse_pairing_client
+      - greenhouse_profile_production_adapters
+      - greenhouse_profile_lifecycle_controller
+      - greenhouse_profile_isolated_acceptance
+      - greenhouse_profile_isolated_device_driver
+      - greenhouse_profile_isolated_device_g3_prepare
+
+packages:
+  core: !include packages/core.yml
+  control: !include packages/control.yml
+  buses: !include packages/buses.yml
+  sensors: !include packages/sensors.yml
+  display: !include packages/display.yml
+
+# Product-PCB compatibility compile only. This overlay is not a flashable Stage
+# 2D-9 image because the production partition table does not provide gh2d8_p2d9.
+# It exists only to compile the G3 harness with the complete F1.0-RC2 package
+# graph. It must never be used for an OTA, production build or physical run.
+greenhouse_profile_isolated_device_g3_prepare:
+  id: stage2d9_g3_product_compile
+  partition_label: gh2d8_p2d9
+  namespace_name: gh2d8_s2d9
+  build_binding: 2a5272546f25b1b29cf1d6682cf1fc14f1c1be83
