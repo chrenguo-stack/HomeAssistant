@@ -1,11 +1,11 @@
 # H3/N2 Stage 2D-8 G2 专用测试板实板验收状态
 
-- **状态文件版本：** V2.0
+- **状态文件版本：** V2.1
 - **更新日期：** 2026-07-22
 - **权威性：** 本文件是本活动阶段唯一权威 `STAGE_STATUS`
-- **阶段状态：** `authorized_awaiting_d2_attempt2_one_shot_execution`
+- **阶段状态：** `prepared_waiting_d2_attempt3_authorization`
 - **当前结论：** `inconclusive`
-- **执行门：** `OPEN_EXACT_ONE_SHOT_UNTIL_EXPIRY`
+- **执行门：** `LOCKED`
 
 ## 1. 冻结基线
 
@@ -28,22 +28,17 @@ EVIDENCE_PR=172
 PRODUCTION_ENVIRONMENT_MODIFIED=false
 ```
 
-PR `#166`、`#167`、`#168` 的冻结分支未修改。本阶段继续只维护上述唯一证据分支；Git 仅保存脱敏 L1 摘要、manifest、状态和索引。
+PR `#166`、`#167`、`#168` 的冻结分支未修改。本阶段只维护上述证据分支；Git 仅保存脱敏 L1 摘要、manifest、状态和索引。
 
 ## 2. 禁止事项
 
-继续禁止：修改或重建冻结候选；重放 D2 尝试 1；`PREPARE_CANDIDATE`、`ACTIVATE_PROFILE`、`CLEANUP_TEST_STATE`；测试密钥、可写 NVS、Wi-Fi、MQTT、Broker、Home Assistant、API、OTA、mDNS；任何 eFuse 读取或写入；启用 Secure Boot 或 Flash Encryption；M401A、T1、Mosquitto、greenhouse-manager 和生产环境操作；Ready、合并或发布。
+继续禁止：修改或重建冻结候选；重放 D2 尝试 1 或尝试 2；`PREPARE_CANDIDATE`、`ACTIVATE_PROFILE`、`CLEANUP_TEST_STATE`；测试密钥、可写 NVS、Wi-Fi、MQTT、Broker、Home Assistant、API、OTA、mDNS；任何 eFuse 读取或写入；启用 Secure Boot 或 Flash Encryption；M401A、T1、Mosquitto、greenhouse-manager 和生产环境操作；Ready、合并或发布。
 
 ## 3. 已完成准备
 
 ```text
 U1_ARTIFACT_VERIFICATION=passed
 U1_CONTROLLED_PRIVATE_OUTPUT_SHA256=6930cb6e52ada91f92ccf487c35319856abffd2e2d8ee17fe43641bbb9ce619e
-D2_ATTEMPT1=attempted_inconclusive_retired
-D2_ATTEMPT1_REPLAY_PERMITTED=false
-D2_ATTEMPT1_FAILURE_STAGE=local_esptool_version_preflight
-D2_ATTEMPT1_DESTRUCTIVE_BOUNDARY_ENTERED=false
-D2_ATTEMPT1_PRIVATE_ARCHIVE_SHA256=366ac51f1c754431d6ec1d7bffc1e76b9b8df948b02af79603953599bc37c460
 U7_ROOT_CAUSE=original development venv had no esptool
 U8_DEDICATED_ENVIRONMENT=passed
 U8_ESPTOOL_VERSION=5.3.1
@@ -53,41 +48,69 @@ U8_ENVIRONMENT_MARKER_SHA256=320ecd5f88b4207be39ee8660117f553c80ddf22d9ded9f33f1
 U8_ENVIRONMENT_DISTRIBUTIONS_SHA256=bdd8912af8a954f84a1794769c759a60b7165a6bef085854d6731b3f3db59ac2
 ```
 
-尝试 1 在主机工具预检处 fail closed，未到达 USB、芯片、Flash 或破坏性边界；当前没有板卡、固件或 Artifact 失败证据。
+## 4. D2 尝试记录
 
-## 4. D2 尝试 2 精确单次授权
+### 4.1 尝试 1
 
-用户已授权新的、不可重放的尝试 2：
+```text
+D2_ATTEMPT1_REQUEST_ID=D2-H3N2-STAGE2D8-G2-V64-20260722-01
+D2_ATTEMPT1_STATUS=attempted_inconclusive_retired
+D2_ATTEMPT1_FAILURE_STAGE=local_esptool_version_preflight
+D2_ATTEMPT1_DESTRUCTIVE_BOUNDARY_ENTERED=false
+D2_ATTEMPT1_RECOVERY_PERFORMED=false
+D2_ATTEMPT1_PRIVATE_ARCHIVE_SHA256=366ac51f1c754431d6ec1d7bffc1e76b9b8df948b02af79603953599bc37c460
+D2_ATTEMPT1_REPLAY_PERMITTED=false
+```
+
+### 4.2 尝试 2
 
 ```text
 D2_ATTEMPT2_REQUEST_ID=D2-H3N2-STAGE2D8-G2-V64-20260722-02
-D2_ATTEMPT2_AUTHORIZATION_STATUS=authorized_not_consumed
-D2_ATTEMPT2_ISSUED_AT=2026-07-22T12:12:12Z
-D2_ATTEMPT2_EXPIRES_AT=2026-07-22T14:12:12Z
-D2_ATTEMPT2_ONE_SHOT=true
+D2_ATTEMPT2_STATUS=attempted_inconclusive_retired
+D2_ATTEMPT2_FAILURE_STAGE=authorization
+D2_ATTEMPT2_FAILURE_CAUSE=authorization JSON absent from instructed Downloads-root path
+D2_ATTEMPT2_AUTHORIZATION_CONSUMED=false
+D2_ATTEMPT2_HOST_ENVIRONMENT_PREFLIGHT_REACHED=false
+D2_ATTEMPT2_USB_PREFLIGHT_REACHED=false
+D2_ATTEMPT2_FLASH_ID_REACHED=false
+D2_ATTEMPT2_DESTRUCTIVE_BOUNDARY_ENTERED=false
+D2_ATTEMPT2_PHYSICAL_ERASE_PERFORMED=false
+D2_ATTEMPT2_G2_FLASH_PERFORMED=false
+D2_ATTEMPT2_VERIFY_FLASH_PERFORMED=false
+D2_ATTEMPT2_PREBOOT_READBACK_PERFORMED=false
+D2_ATTEMPT2_G2_BOOTED=false
+D2_ATTEMPT2_POSTBOOT_READBACK_PERFORMED=false
+D2_ATTEMPT2_RECOVERY_PERFORMED=false
+D2_ATTEMPT2_RECOVERY_COUNT=0
+D2_ATTEMPT2_EFUSE_COMMAND_ATTEMPTED=false
+D2_ATTEMPT2_NETWORK_OPERATION_ATTEMPTED=false
+D2_ATTEMPT2_PRODUCTION_ENVIRONMENT_MODIFIED=false
+D2_ATTEMPT2_PRIVATE_ARCHIVE_SHA256=fd8e97db174de759a964e276ff7cb1d534fa64a2f6e2d48dd385eb6e57a7fb0a
 D2_ATTEMPT2_REPLAY_PERMITTED=false
-D2_ATTEMPT2_ALLOWED_RECOVERY_COUNT=1
-D2_ATTEMPT2_REVIEW_PACKAGE_SHA256=939bf62e87aa05e8adbc6b5c20882ce8f7430a124226ab9b76e69cb7039b1ebb
-D2_ATTEMPT2_EXECUTION_SCRIPT_SHA256=903a39ee896cbeee273a398f4db1441d0c71b3e8afa84b07c6690b3f992cf47a
-D2_ATTEMPT2_COMMAND_GROUP_SHA256=c1417d7d16a37521f0fc57d0161e61fdaf4645a281c9ac30010b8aef7b2e1731
-D2_ATTEMPT2_STOP_CONDITIONS_SHA256=31b48f3238856b6eb406d102821cc49a5729fcd0c6f4bff67bb0d560ed4fa246
-D2_ATTEMPT2_ENVIRONMENT_MARKER_SHA256=320ecd5f88b4207be39ee8660117f553c80ddf22d9ded9f33f1b147df89cb3a1
-D2_ATTEMPT2_ENVIRONMENT_DISTRIBUTIONS_SHA256=bdd8912af8a954f84a1794769c759a60b7165a6bef085854d6731b3f3db59ac2
-D2_ATTEMPT2_OPERATOR_AUTHORIZATION_TEXT_SHA256=78cd9a114e404136f6ab6272ef850b1b1f7319591e3dd76fd35f177e0addd9c9
-D2_ATTEMPT2_AUTHORIZATION_BINDING_SHA256=39837533b51eea26e95f5c6205677e4c6460229691e16c9aec1551ab305611ca
-D2_ATTEMPT2_AUTHORIZATION_FILE_SHA256=bd1ff473aef7b09e90a9fe09d39467e3cfb5f45b9ea86ad960dc55c6d1b85255
-D2_ATTEMPT2_EXECUTION_PACKAGE_SHA256=a54e6bdd534ab0b2c4f4fca9e6ccfe1175108b0683c1f21324c80c30ea81f207
-D2_ATTEMPT2_PRIVATE_TARGET_BOUND=true
-D2_ATTEMPT2_PRIVATE_SERIAL_BOUND=true
-D2_ATTEMPT2_PRIVATE_BINDINGS_REDACTED_IN_GIT=true
-D2_ATTEMPT2_PY_COMPILE=passed
-D2_ATTEMPT2_REVIEW_MODE=passed
-D2_ATTEMPT2_AUTHORIZATION_SELF_CHECK=passed
 ```
 
-授权 JSON、私有板卡身份、私有串口和完整私有证据不进入 Git。授权到期、文件变化、绑定变化、已消费或尝试重放时必须 fail closed。
+尝试 2 的已授权 ZIP 内确实包含授权 JSON，但用户运行时没有把全部解压文件移动到 Downloads 根目录。Python runner 在 `authorization` 阶段 fail closed。虽然授权未消费且未触碰实板，为避免“一次执行”语义产生歧义，尝试 2 在治理层面退役，禁止补放文件后重跑。
 
-## 5. S0—S8 状态
+## 5. D2 尝试 3 审核包
+
+尝试 3 改为自包含目录：用户不再移动单个文件，只运行解压目录内的 launcher；launcher 通过自身目录解析 runner、授权、Artifact、命令组和停止条件，并在 runner 启动前检查文件存在性和固定哈希。
+
+```text
+D2_ATTEMPT3_REQUEST_ID=D2-H3N2-STAGE2D8-G2-V64-20260722-03
+D2_ATTEMPT3_AUTHORIZATION_STATUS=pending
+D2_ATTEMPT3_REVIEW_PACKAGE_SHA256=e23c8a05d4fc58c5c1101ea1a01d2b8fd8860fa1c0246e5da1920229c5ae3ab6
+D2_ATTEMPT3_EXECUTION_SCRIPT_SHA256=f40911b27bdd7105f1e1b636c538d1cf18719cbc42f8a1a80edd73346659430d
+D2_ATTEMPT3_LAUNCHER_SHA256=42cdd0a02f2e13f8da026753cefdb91ac7d217ce6e119715a0dcc626f64fc558
+D2_ATTEMPT3_COMMAND_GROUP_SHA256=20b257c1dac4baabcda75a64a5ccc87c0116447e5a435dfb7c125aefe8b20c9c
+D2_ATTEMPT3_STOP_CONDITIONS_SHA256=8bda28d1e1b404b882d6f886c32ac5a027b1d5fb6b211b3ade8d3ced8be433d3
+D2_ATTEMPT3_ENVIRONMENT_MARKER_SHA256=320ecd5f88b4207be39ee8660117f553c80ddf22d9ded9f33f1b147df89cb3a1
+D2_ATTEMPT3_ENVIRONMENT_DISTRIBUTIONS_SHA256=bdd8912af8a954f84a1794769c759a60b7165a6bef085854d6731b3f3db59ac2
+D2_ATTEMPT3_PY_COMPILE=passed
+D2_ATTEMPT3_REVIEW_MODE=passed
+D2_ATTEMPT3_EXECUTION_AUTHORIZED=false
+```
+
+## 6. S0—S8 状态
 
 | 阶段 | 状态 | 说明 |
 |---|---|---|
@@ -97,35 +120,31 @@ D2_ATTEMPT2_AUTHORIZATION_SELF_CHECK=passed
 | S3 本地 Preflight | `passed` | U1、U7、U8 均闭环 |
 | S4 GitHub CI | `passed` | Draft PR #172 继续保持 Draft |
 | S5 候选冻结 | `passed` | 仅引用不可变 V64，不重建候选 |
-| S6A 隔离验证 | `passed` | review mode、脚本编译、授权自检和工具环境通过 |
-| S6B 实板验收 | `authorized_waiting_attempt2_execution` | 尝试 2 已授权，尚未执行实板批量包 |
+| S6A 隔离验证 | `passed` | 尝试 3 脚本编译、review mode 和自包含 launcher 设计通过 |
+| S6B 实板验收 | `waiting_d2_attempt3_authorization` | 尝试 1、2 均在破坏性边界前退役；等待新的精确授权 |
 | S7 归档/发布 | `not_run` | 禁止 Ready、合并和发布 |
-| S8 阶段关闭 | `not_run` | 等待尝试 2 实板结果和证据闭环 |
+| S8 阶段关闭 | `not_run` | 等待尝试 3 实板结果和证据闭环 |
 
-## 6. 决策门
+## 7. 决策门
 
 ```text
 D1_SCOPE_DECISION=resolved
 D2_ATTEMPT1=retired_no_replay
-D2_ATTEMPT2=authorized_not_consumed
+D2_ATTEMPT2=retired_no_replay
+D2_ATTEMPT3=pending_exact_authorization
 D3_RISK_WAIVER=not_required
 D4_READY_MERGE_RELEASE=prohibited
 ```
 
-## 7. 执行范围
-
-尝试 2 只允许一次完成：目标和环境预检、全片擦除、V64 G2 写入、verify-flash、preboot 64 KiB 回读、串口证据启动、postboot 64 KiB 回读和私有证据归档。串口采集提示出现后，只允许按一次物理 RESET，不按 BOOT。仅在进入破坏性边界后发生冻结失败时，最多自动执行一次 locked recovery。
-
 ## 8. 当前结论
 
 ```text
-STAGE_STATUS=authorized_awaiting_d2_attempt2_one_shot_execution
+STAGE_STATUS=prepared_waiting_d2_attempt3_authorization
 FINAL_RESULT=inconclusive
-EXECUTION_GATE=OPEN_EXACT_ONE_SHOT_UNTIL_EXPIRY
+EXECUTION_GATE=LOCKED
 D2_ATTEMPT1_REPLAY_PERMITTED=false
-D2_ATTEMPT2_AUTHORIZATION_RECEIVED=true
-D2_ATTEMPT2_AUTHORIZATION_CONSUMED=false
-D2_ATTEMPT2_PHYSICAL_EXECUTION_STARTED=false
+D2_ATTEMPT2_REPLAY_PERMITTED=false
+D2_ATTEMPT3_AUTHORIZATION_RECEIVED=false
 PHYSICAL_ERASE_PERFORMED=false
 G2_FLASH_PERFORMED=false
 VERIFY_FLASH_PERFORMED=false
