@@ -1,11 +1,11 @@
 {
-  "schema": "gh.h3.n2.stage2d9-g3-public-manifest/2",
+  "schema": "gh.h3.n2.stage2d9-g3-public-manifest/3",
   "stage": "H3/N2 Stage 2D-9 G3",
-  "status": "immutable_v67_frozen_waiting_u1",
+  "status": "u1_passed_d2_review_pending",
   "base_main_sha": "2a5272546f25b1b29cf1d6682cf1fc14f1c1be83",
   "branch": "feature/h3-n2-stage2d9-g3-prepare-candidate-20260722-v1",
   "draft_pr": 174,
-  "execution_gate": "LOCKED",
+  "execution_gate": "LOCKED_D2_OPERATOR_DECISION_REQUIRED",
   "allowed_action": "PREPARE_CANDIDATE",
   "implementation_source_commit": "dda4dc25f201242cb566f1498a26200529e35227",
   "executor_source_binding": "70780dd1e826e07e32e12c66268c5dc564863420",
@@ -16,7 +16,8 @@
     "candidate_generation_after": 1,
     "candidate_state_after": "PREPARED",
     "automatic_reboot": true,
-    "read_only_verify_after_reboot": true
+    "read_only_verify_after_reboot": true,
+    "candidate_digest_match_required": true
   },
   "artifact": {
     "generation": "V67",
@@ -67,6 +68,16 @@
       "deterministic_seed": "passed",
       "package_verification": "passed"
     },
+    "u1_host_artifact_verification": {
+      "status": "passed",
+      "timestamp_utc": "2026-07-22T16:05:24Z",
+      "package_sha256": "f190536281e7efeeabe62121106c341f2d5e83f3d73830c4b3605548171e4659",
+      "script_sha256": "6a93006e2b9bcec91c8501ec90d37647940875cae41ce99539739427bd7a3de3",
+      "canonical_output_sha256": "ff52e4e21db04f3d9de93d651c3da3290b0c23af0da024c9fd54529d3f1ecdf8",
+      "board_accessed": false,
+      "flash_operation_attempted": false,
+      "network_operation_attempted": false
+    },
     "public_repository_safety_ci": {
       "run_id": 29934769289,
       "status": "passed"
@@ -79,6 +90,22 @@
       "greenhouse_manager": "passed",
       "stage2b3": "passed"
     }
+  },
+  "d2_review": {
+    "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V67-20260722-01",
+    "status": "pending_operator_authorization",
+    "review_package_sha256": "a3b174e0d9f97d5e8c4c73c4c8f428735becd091deae251ab933cae7c8d964a9",
+    "operator_authorization_text_sha256": "5badbd8812c11d10f99e966558cd5a8b02042d13ea24089b693e66948c02ba16",
+    "execution_script_sha256": "6c742fd2bc09eb3222d6a6579d535786ff8258e3af9bba19a6ec7fd5c354ede2",
+    "launcher_sha256": "3007a971652aff2b66bed63cefb1907000c3b08bacdebc4a88cbaef42226cb23",
+    "command_group_sha256": "288019f2bb20e1ae96eef7d4d0cac73d802523d95349a6f0ccaab8f93c3140dd",
+    "stop_conditions_sha256": "c29a35aee05f415fdc9f36d0f1cc0f783e9cc4f14fecf4ca97c9db047000583b",
+    "private_execution_material_sha256": "deb4e490a87d0ddcee6ebac068788a7205c0360faed62629328e381a29f2eb71",
+    "prepare_command_sha256": "b6c930c1a5190e5e243e1b834673e36b674441145b1ce04cc1891f7287106ffe",
+    "verify_command_sha256": "0e6c9d3061f769749fae23d0ea36aac86f3e1dc9bfa2b580d793e8072afced01",
+    "one_shot": true,
+    "replay_permitted": false,
+    "execution_authorized": false
   },
   "boundaries": {
     "device_operation_authorized": false,
@@ -105,10 +132,10 @@
     "p3_g3_harness_and_executor": true,
     "p4_compile_only_targets": true,
     "p5_immutable_artifact": true,
-    "p6_evidence_and_execution_protocol": true
+    "p6_evidence_and_execution_protocol": true,
+    "p7_user_host_u1_artifact_verification": true
   },
   "pending": {
-    "p7_user_host_u1_artifact_verification": true,
     "p8_operator_d2_review_and_physical_prepare": true,
     "p9_evidence_closure": true
   },
@@ -121,5 +148,5 @@
     "candidate_secret_values_included": false,
     "private_logs_included": false
   },
-  "next_gate": "U1 host-only Artifact verification before any D2 review"
+  "next_gate": "exact operator D2 authorization for request D2-H3N2-STAGE2D9-G3-V67-20260722-01"
 }
