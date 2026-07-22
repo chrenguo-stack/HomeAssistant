@@ -1,6 +1,6 @@
 # 温室环境监测系统 H3/N2 Stage 2D-9 G3 PREPARE_CANDIDATE 开发计划
 
-**版本：** V1.0  
+**版本：** V1.1  
 **日期：** 2026-07-22  
 **起始基线：** `main=2a5272546f25b1b29cf1d6682cf1fc14f1c1be83`  
 **开发分支：** `feature/h3-n2-stage2d9-g3-prepare-candidate-20260722-v1`  
@@ -29,7 +29,9 @@ Stage 2D-9 在已经通过的 Stage 2D-8 G2 只读验收之上，只增加一次
 
 ## 3. Host 模型验收矩阵
 
-当前 P1/P2 覆盖：正常 EMPTY -> PREPARED；volatile key 未加载；错误 action；generation 绑定错误；candidate slot 非空；授权非一次性、允许重放或已经消费；candidate profile 写后、PREPARED commit 前断电；PREPARED commit 后、结果回传前断电；MQTT session 非空；ACTIVATE/CLEANUP 授权意外出现；manifest 默认锁定；manifest 拒绝 ACTIVATE/CLEANUP；PREPARE manifest 只允许 `gh2d9_nvs/gh2d9_state`。
+当前 P1/P2 覆盖：正常 EMPTY -> PREPARED；volatile key 未加载；错误 action；generation 绑定错误；candidate slot 非空；授权非一次性、允许重放或已经消费；candidate profile 写后、PREPARED commit 前断电；PREPARED commit 后、结果回传前断电；MQTT session 非空；ACTIVATE/CLEANUP 授权意外出现；manifest 默认锁定；manifest 拒绝 ACTIVATE/CLEANUP；PREPARE manifest 只允许 `gh2d8_p2d9/gh2d8_s2d9`。
+
+该命名继续使用冻结 Stage 2D-8 隔离驱动所接受的 `gh2d8_` 前缀，但不复用 G2 的 `gh2d8_nvs/gh2d8_state`，因此可以在不修改已验收驱动源码的前提下建立独立 Stage 2D-9 存储边界。
 
 ## 4. 固件设计约束
 
@@ -57,9 +59,9 @@ efuse=false
 
 ```text
 P0=complete
-P1=in_progress
-P2=in_progress
-P3=not_started
+P1=complete
+P2=complete
+P3=in_progress
 P4=not_started
 P5=not_started
 P6=not_started
