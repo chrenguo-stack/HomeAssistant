@@ -1,0 +1,100 @@
+{
+  "schema": "gh.h3.n2.stage2d9-g3-d2-attempt1-authorization-request/1",
+  "stage": "H3/N2 Stage 2D-9 G3",
+  "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V67-20260722-01",
+  "status": "pending_operator_authorization",
+  "execution_authorized": false,
+  "execution_gate": "LOCKED",
+  "one_shot": true,
+  "replay_permitted": false,
+  "authorization_validity_after_issue": "2 hours",
+  "review_package_sha256": "a3b174e0d9f97d5e8c4c73c4c8f428735becd091deae251ab933cae7c8d964a9",
+  "operator_authorization_text_sha256": "5badbd8812c11d10f99e966558cd5a8b02042d13ea24089b693e66948c02ba16",
+  "source_sha": "dda4dc25f201242cb566f1498a26200529e35227",
+  "artifact": {
+    "zip_sha256": "4f9b53908576ffb20ce2653418279dbd45817528a6168b24565447f760ad5dce",
+    "g3_merged_sha256": "ae109c3e3982adf7c916529d309be57912ff7310b05afa42d431d578ea4745ca",
+    "recovery_merged_sha256": "54fb10601a0fbf448948d3f7d687281b33e85220c64bcdcabfae896dd3d98a1a",
+    "seed_sha256": "0ea36f26c5048f69b223884a13613fbd645b58c2ce42eafc6f9d9cd55bb089af",
+    "partition_sha256": "b3964cbbd811d5fa5866638585fa410b53fc74e70a8f92491f43fce0b7a70268",
+    "manifest_sha256": "e12d7ab4cb457bbd4da0dee2c7b919d90b9546528073505c32e950315894e8c4",
+    "unlock_digest_sha256": "d43c61f08a89a78ea3656083602fbe30983bd555023f64b8f005a62602b28065"
+  },
+  "reviewed_files": {
+    "execution_script_sha256": "6c742fd2bc09eb3222d6a6579d535786ff8258e3af9bba19a6ec7fd5c354ede2",
+    "launcher_sha256": "3007a971652aff2b66bed63cefb1907000c3b08bacdebc4a88cbaef42226cb23",
+    "command_group_sha256": "288019f2bb20e1ae96eef7d4d0cac73d802523d95349a6f0ccaab8f93c3140dd",
+    "stop_conditions_sha256": "c29a35aee05f415fdc9f36d0f1cc0f783e9cc4f14fecf4ca97c9db047000583b"
+  },
+  "private_command_binding": {
+    "private_execution_material_sha256": "deb4e490a87d0ddcee6ebac068788a7205c0360faed62629328e381a29f2eb71",
+    "prepare_command_sha256": "b6c930c1a5190e5e243e1b834673e36b674441145b1ce04cc1891f7287106ffe",
+    "verify_command_sha256": "0e6c9d3061f769749fae23d0ea36aac86f3e1dc9bfa2b580d793e8072afced01",
+    "private_execution_material_in_public_git": false,
+    "command_plaintext_in_public_git": false
+  },
+  "required_transition": {
+    "active_generation_before": 0,
+    "active_generation_after": 0,
+    "candidate_generation_before": 0,
+    "candidate_generation_after": 1,
+    "candidate_state_before": "EMPTY",
+    "candidate_state_after": "PREPARED",
+    "automatic_reboot": true,
+    "read_only_verify_after_reboot": true,
+    "candidate_digest_match_required": true
+  },
+  "allowed_operations": {
+    "host_and_artifact_binding_verification": true,
+    "usb_vid_pid_preflight": true,
+    "flash_id_preflight": true,
+    "read_only_previous_g2_partition_continuity_check": true,
+    "erase_flash_count": 1,
+    "write_g3_count": 1,
+    "verify_flash_count": 1,
+    "prepare_command_count": 1,
+    "verify_command_count": 1,
+    "private_partition_readback": true,
+    "locked_recovery_max_count_after_destructive_failure": 1
+  },
+  "prohibited_operations": {
+    "stage2d8_d2_replay": true,
+    "second_stage2d9_prepare_attempt": true,
+    "activate_profile": true,
+    "cleanup_test_state": true,
+    "wifi": true,
+    "mqtt": true,
+    "broker": true,
+    "efuse": true,
+    "secure_boot_change": true,
+    "flash_encryption_change": true,
+    "m401a": true,
+    "t1": true,
+    "home_assistant": true,
+    "mosquitto": true,
+    "greenhouse_manager": true,
+    "ready_merge_release": true
+  },
+  "recovery_policy": {
+    "allowed_recovery_count": 1,
+    "recovery_only_after_destructive_boundary": true,
+    "recovery_image": "locked recovery",
+    "restore_deterministic_seed": true,
+    "stop_after_recovery_attempt": true,
+    "g3_retry_after_recovery": false
+  },
+  "pr_policy": {
+    "draft_pr": 174,
+    "must_remain_draft": true,
+    "ready_merge_release_authorized": false
+  },
+  "privacy": {
+    "private_serial_path_included": false,
+    "private_board_identifier_included": false,
+    "unlock_preimage_included": false,
+    "persistence_key_included": false,
+    "authorization_digest_included": false,
+    "candidate_secret_values_included": false,
+    "raw_private_log_included": false
+  }
+}
