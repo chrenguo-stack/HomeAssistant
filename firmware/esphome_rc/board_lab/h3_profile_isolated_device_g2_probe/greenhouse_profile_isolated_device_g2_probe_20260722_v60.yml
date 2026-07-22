@@ -41,11 +41,12 @@ external_components:
       - greenhouse_profile_isolated_device_g2_probe
 
 # Dedicated-board G2 image. It performs exactly one automatic read-only inspect
-# of an isolated, initially absent namespace. It contains no Wi-Fi, API, OTA,
-# mDNS runtime, web server, MQTT configuration, test key, credentials, write
-# grant or command surface. The build binding fixes the reviewed G2 source.
+# of an isolated, initially absent namespace inside a preseeded, partition-table-
+# enforced read-only NVS partition. It contains no Wi-Fi, API, OTA, mDNS runtime,
+# web server, MQTT configuration, test key, credential, write grant or command
+# surface. The build binding fixes the reviewed G2 source.
 greenhouse_profile_isolated_device_g2_probe:
   id: stage2d8_g2_probe
   partition_label: gh2d8_nvs
   namespace_name: gh2d8_state
-  build_binding: 941becd5b670496fbea9e26f47d9d02ed0633526
+  build_binding: 510566f7047a779b319daa87fb64cf64f292c224
