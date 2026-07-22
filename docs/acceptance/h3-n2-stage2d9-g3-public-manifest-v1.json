@@ -1,14 +1,12 @@
 {
-  "schema": "gh.h3.n2.stage2d9-g3-public-manifest/4",
+  "schema": "gh.h3.n2.stage2d9-g3-public-manifest/5",
   "stage": "H3/N2 Stage 2D-9 G3",
-  "status": "u1_passed_hardened_d2_attempt2_review_pending",
+  "status": "v67_d2_chain_closed_rebuilding_v68",
   "base_main_sha": "2a5272546f25b1b29cf1d6682cf1fc14f1c1be83",
   "branch": "feature/h3-n2-stage2d9-g3-prepare-candidate-20260722-v1",
   "draft_pr": 174,
-  "execution_gate": "LOCKED_D2_OPERATOR_DECISION_REQUIRED",
+  "execution_gate": "CLOSED_NEW_ARTIFACT_CHAIN_REQUIRED",
   "allowed_action": "PREPARE_CANDIDATE",
-  "implementation_source_commit": "dda4dc25f201242cb566f1498a26200529e35227",
-  "executor_source_binding": "70780dd1e826e07e32e12c66268c5dc564863420",
   "expected_transition": {
     "active_generation_before": 0,
     "active_generation_after": 0,
@@ -19,7 +17,19 @@
     "read_only_verify_after_reboot": true,
     "candidate_digest_match_required": true
   },
-  "artifact": {
+  "storage_boundary": {
+    "partition": "gh2d8_p2d9",
+    "namespace": "gh2d8_s2d9",
+    "offset": "0x400000",
+    "size": "0x10000",
+    "writable_capable": true,
+    "seed_namespace": "gh2d8_seed",
+    "target_namespace_absent_from_seed": true
+  },
+  "v67_artifact": {
+    "status": "frozen_but_execution_chain_retired",
+    "implementation_source_commit": "dda4dc25f201242cb566f1498a26200529e35227",
+    "executor_source_binding": "70780dd1e826e07e32e12c66268c5dc564863420",
     "generation": "V67",
     "name": "stage2d9-g3-immutable-locked-v67",
     "workflow_run_id": 29934767596,
@@ -30,95 +40,59 @@
     "seed_sha256": "0ea36f26c5048f69b223884a13613fbd645b58c2ce42eafc6f9d9cd55bb089af",
     "partition_binary_sha256": "b3964cbbd811d5fa5866638585fa410b53fc74e70a8f92491f43fce0b7a70268",
     "manifest_sha256": "e12d7ab4cb457bbd4da0dee2c7b919d90b9546528073505c32e950315894e8c4",
-    "reproducibility_report_sha256": "e320a51e88ea5fb8791986f5d855f6742c5b444b226405853d7ecf1a2da81166",
-    "source_boundary_report_sha256": "821be27f9b8cca95f77d4a14918de17239587aa3af312eebc27e16506530f5e3",
     "unlock_digest_sha256": "d43c61f08a89a78ea3656083602fbe30983bd555023f64b8f005a62602b28065",
-    "unlock_preimage_in_artifact": false,
-    "clean_build_count": 2,
+    "u1_status": "passed",
     "byte_identical": true,
-    "gate": "LOCKED"
+    "gate": "LOCKED",
+    "execution_reuse_permitted": false
   },
-  "storage_boundary": {
-    "partition": "gh2d8_p2d9",
-    "namespace": "gh2d8_s2d9",
-    "offset": "0x400000",
-    "size": "0x10000",
-    "writable_capable": true,
-    "seed_namespace": "gh2d8_seed",
-    "target_namespace_absent_from_seed": true
+  "v67_d2_chain": {
+    "active_request_id": null,
+    "attempts": [
+      {
+        "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V67-20260722-01",
+        "status": "retired_before_authorization",
+        "authorization_issued": false,
+        "execution_performed": false,
+        "board_accessed": false,
+        "replay_permitted": false
+      },
+      {
+        "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V67-20260723-02",
+        "status": "operator_authorized_but_issuance_failed_closed_retired",
+        "operator_authorization_text_sha256_match": true,
+        "authorization_issued": false,
+        "authorization_file_generated": false,
+        "execution_package_generated": false,
+        "execution_performed": false,
+        "board_accessed": false,
+        "destructive_boundary_entered": false,
+        "replay_permitted": false,
+        "failure_reason": "exact V67 private unlock preimage was unavailable at issuance time"
+      }
+    ]
+  },
+  "v68_rebuild": {
+    "status": "artifact_ci_pending",
+    "execution_config": "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3_prepare/greenhouse_profile_isolated_device_g3_execution_20260723_v68.yml",
+    "artifact_workflow": ".github/workflows/h3-n2-stage2d9-g3-v68-artifact-ci.yml",
+    "unlock_digest_sha256": "c6cfae354edbd426f9990fb65b4c865e711a0c2b6c1fba1d2e7faf132ebc2208",
+    "private_custody_material_present": true,
+    "private_custody_file_sha256": "a462997381fdd0842b2a7c1ab5697fd45e62ae0789100437c6fb702cfa16cfdc",
+    "private_custody_material_in_git": false,
+    "private_custody_material_in_artifact": false,
+    "new_u1_required": true,
+    "new_d2_required": true,
+    "execution_authorized": false
   },
   "validation": {
     "host_transaction_and_command_fault_cases": 21,
-    "host_model_and_gate_ci": {
-      "run_id": 29934769455,
-      "status": "passed"
-    },
-    "compile_ci": {
-      "run_id": 29934767547,
-      "locked_dedicated_target": "passed",
-      "disabled_executor_dedicated_target": "passed",
-      "full_product_board_compatibility_target": "passed",
-      "frozen_and_production_paths_unchanged": "passed"
-    },
-    "artifact_ci": {
-      "run_id": 29934767596,
-      "status": "passed",
-      "source_boundary": "passed",
-      "two_clean_builds": "passed",
-      "deterministic_seed": "passed",
-      "package_verification": "passed"
-    },
-    "u1_host_artifact_verification": {
-      "status": "passed",
-      "timestamp_utc": "2026-07-22T16:05:24Z",
-      "package_sha256": "f190536281e7efeeabe62121106c341f2d5e83f3d73830c4b3605548171e4659",
-      "script_sha256": "6a93006e2b9bcec91c8501ec90d37647940875cae41ce99539739427bd7a3de3",
-      "canonical_output_sha256": "ff52e4e21db04f3d9de93d651c3da3290b0c23af0da024c9fd54529d3f1ecdf8",
-      "board_accessed": false,
-      "serial_access_attempted": false,
-      "flash_operation_attempted": false,
-      "network_operation_attempted": false
-    },
-    "d2_attempt2_host_binding_tests": {
-      "valid_authorization_case": "passed",
-      "wrong_review_package_sha": "rejected",
-      "wrong_operator_authorization_text_sha": "rejected",
-      "wrong_authorization_duration": "rejected"
-    },
-    "public_repository_safety_ci": {
-      "run_id": 29937970430,
-      "status": "passed"
-    }
-  },
-  "retired_d2_requests": [
-    {
-      "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V67-20260722-01",
-      "status": "retired_before_authorization",
-      "authorization_issued": false,
-      "execution_authorized": false,
-      "execution_performed": false,
-      "replay_permitted": false,
-      "review_package_sha256": "a3b174e0d9f97d5e8c4c73c4c8f428735becd091deae251ab933cae7c8d964a9"
-    }
-  ],
-  "d2_review": {
-    "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V67-20260723-02",
-    "status": "pending_operator_authorization",
-    "review_package_sha256": "65f475dad073c365c2c03ee2bebfaf38777fac0993f96f90ebb394e78354c575",
-    "operator_authorization_text_sha256": "d2b08e1f90a0b16d888bf874e4bea963a4b190b9f78264e0ba152d9a12a4aa40",
-    "execution_script_sha256": "b39301d0b9c25a5713e841a3215a72bd6c3f708d2c53259f8bdc6f2078b56797",
-    "launcher_sha256": "5144dad8af38d59ee8fcafed823b9c26fe0cc351f8cfe00af56b40a6ca17b78f",
-    "command_group_sha256": "88d93f71ec0202ced301e41ed8dd7be9acf37ca7572d270668e96131b7e247c7",
-    "stop_conditions_sha256": "0cb915bcf9e8c6efa08d0682b602ae85e98be0769490bd05dc6699ff2ef935dd",
-    "private_execution_material_sha256": "1deec812809107a44e2a3d79e3e7cb2d4f461f2d2c547e66940151e40ea7c96c",
-    "prepare_command_sha256": "2c41332ebdd09a1dbabb10068ef29bbb3d0dee3901d0ee7f317e3a48e1a920f8",
-    "verify_command_sha256": "93da815761ee3faba5065645c57b734bbf3c6ab8a79dc3bf2c45beb23d3b52e1",
-    "authorization_validity": "exactly 2 hours after issue",
-    "actual_review_package_sha_required_at_execution": true,
-    "actual_operator_text_sha_required_at_execution": true,
-    "one_shot": true,
-    "replay_permitted": false,
-    "execution_authorized": false
+    "v67_host_model_and_gate_ci": "passed",
+    "v67_compile_ci": "passed",
+    "v67_artifact_ci": "passed",
+    "v67_u1": "passed",
+    "v68_public_repository_safety_ci": "passed",
+    "v68_artifact_ci": "pending"
   },
   "boundaries": {
     "device_operation_authorized": false,
@@ -137,21 +111,7 @@
     "production_environment_operation_authorized": false,
     "ready_merge_release_authorized": false,
     "stage2d8_d2_replay_authorized": false,
-    "stage2d9_attempt1_replay_authorized": false
-  },
-  "completed": {
-    "p0_scope_protocol": true,
-    "p1_host_transaction_model": true,
-    "p2_manifest_and_command_gates": true,
-    "p3_g3_harness_and_executor": true,
-    "p4_compile_only_targets": true,
-    "p5_immutable_artifact": true,
-    "p6_evidence_and_execution_protocol": true,
-    "p7_user_host_u1_artifact_verification": true
-  },
-  "pending": {
-    "p8_operator_d2_review_and_physical_prepare": true,
-    "p9_evidence_closure": true
+    "stage2d9_v67_replay_authorized": false
   },
   "privacy": {
     "unlock_preimage_included": false,
@@ -162,5 +122,5 @@
     "candidate_secret_values_included": false,
     "private_logs_included": false
   },
-  "next_gate": "exact operator D2 authorization for request D2-H3N2-STAGE2D9-G3-V67-20260723-02"
+  "next_gate": "V68 immutable Artifact CI success followed by a new host-only U1 verification; no D2 request exists"
 }
