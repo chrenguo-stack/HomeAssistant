@@ -44,7 +44,9 @@ def partition_entry(
     )
 
 
-def partition_image(*, readonly: bool = True, test_offset: int = 0x400000, extra: bool = False) -> bytes:
+def partition_image(
+    *, readonly: bool = True, test_offset: int = 0x400000, extra: bool = False
+) -> bytes:
     entries = [
         partition_entry("nvs", 0x01, 0x02, 0x9000, 0x6000, 0),
         partition_entry("phy_init", 0x01, 0x01, 0xF000, 0x1000, 0),
@@ -59,7 +61,9 @@ def partition_image(*, readonly: bool = True, test_offset: int = 0x400000, extra
         ),
     ]
     if extra:
-        entries.append(partition_entry("unexpected", 0x01, 0x02, 0x410000, 0x1000, 0))
+        entries.append(
+            partition_entry("unexpected", 0x01, 0x02, 0x410000, 0x1000, 0)
+        )
     return b"".join(entries) + b"\xff" * 32
 
 
@@ -132,8 +136,9 @@ def main() -> int:
         )
 
         valid_seed = root / "valid-seed.bin"
+        valid_prefix = b"gh2d8_seed\0format_version\0"
         valid_seed.write_bytes(
-            b"gh2d8_seed\0format_version\0" + b"\xff" * (0x10000 - 28)
+            valid_prefix + b"\xff" * (0x10000 - len(valid_prefix))
         )
         results.append(
             expect_pass(
@@ -161,8 +166,10 @@ def main() -> int:
         )
 
         target_namespace_leak = root / "target-namespace-leak.bin"
-        prefix = b"gh2d8_seed\0gh2d8_state\0"
-        target_namespace_leak.write_bytes(prefix + b"\xff" * (0x10000 - len(prefix)))
+        target_prefix = b"gh2d8_seed\0gh2d8_state\0"
+        target_namespace_leak.write_bytes(
+            target_prefix + b"\xff" * (0x10000 - len(target_prefix))
+        )
         results.append(
             expect_reject(
                 "N04_TARGET_NAMESPACE_PRECREATED",
@@ -179,7 +186,9 @@ def main() -> int:
     }
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    output.write_text(
+        json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     print(json.dumps(report, sort_keys=True))
     return 0
 
