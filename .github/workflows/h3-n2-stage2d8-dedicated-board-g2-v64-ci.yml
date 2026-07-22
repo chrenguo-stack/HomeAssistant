@@ -181,12 +181,30 @@ jobs:
       - name: Prove V64 workflow is verification-only
         run: |
           set -euo pipefail
-          WORKFLOW=.github/workflows/h3-n2-stage2d8-dedicated-board-g2-v64-ci.yml
-          if grep -Eq 'esphome[[:space:]]+compile|artifact_packager.*--output|name:[[:space:]]+stage2d8-g2-immutable-locked-v64' "$WORKFLOW"; then
-            echo 'frozen V64 workflow contains a rebuild or replacement path' >&2
-            exit 1
-          fi
-          grep -F 'verify-frozen-v64-reference' "$WORKFLOW"
+          python - <<'PY'
+          from pathlib import Path
+
+          text = Path(
+              '.github/workflows/h3-n2-stage2d8-dedicated-board-g2-v64-ci.yml'
+          ).read_text(encoding='utf-8')
+          forbidden = (
+              'esphome' + ' compile',
+              'artifact_' + 'packager' + ' --output',
+              'upload-' + 'artifact@v4',
+          )
+          present = [item for item in forbidden if item in text]
+          if present:
+              raise SystemExit(f'frozen V64 rebuild path present: {present}')
+          required = (
+              'verify-frozen-v64-reference',
+              'Verify frozen Artifact and physical-evidence closure',
+              'FROZEN=6cf37c29311601f4f83238cc8401c81ea7b9a1f0',
+          )
+          missing = [item for item in required if item not in text]
+          if missing:
+              raise SystemExit(f'V64 verification marker missing: {missing}')
+          print('stage2d8_g2_v64_verification_only=pass')
+          PY
 
       - name: Cleanup verification files
         if: always()
