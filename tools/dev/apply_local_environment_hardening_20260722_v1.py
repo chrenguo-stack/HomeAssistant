@@ -48,6 +48,11 @@ def resolve_default(value: str) -> Path:
     return Path(value).expanduser().resolve()
 
 
+def is_explicit_safe_example(path: Path) -> bool:
+    name = path.name.lower()
+    return name == ".env.example" or name.endswith(".example.pem")
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -85,15 +90,33 @@ def sensitive_local_paths(repo: Path) -> list[Path]:
     paths: set[Path] = set()
     for pattern in patterns:
         for path in repo.rglob(pattern):
-            if path.is_file() and not any(part in ignored_parts for part in path.parts):
-                paths.add(path)
+            if not path.is_file() or any(part in ignored_parts for part in path.parts):
+                continue
+            if is_explicit_safe_example(path):
+                continue
+            paths.add(path)
     return sorted(paths)
 
 
+def git_hooks_directory(repo: Path) -> Path:
+    completed = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "--git-path", "hooks"],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    if completed.returncode != 0:
+        raise RuntimeError(completed.stderr.strip() or "unable to resolve Git hooks directory")
+    value = Path(completed.stdout.strip())
+    if not value.is_absolute():
+        value = repo / value
+    return value.resolve()
+
+
 def install_hook(repo: Path, template: Path) -> tuple[Path, Path | None]:
-    hooks_dir = repo / ".git" / "hooks"
-    if not hooks_dir.is_dir():
-        raise RuntimeError("repository does not use a standard .git/hooks directory")
+    hooks_dir = git_hooks_directory(repo)
+    hooks_dir.mkdir(parents=True, exist_ok=True)
     target = hooks_dir / "pre-commit"
     backup: Path | None = None
     template_hash = sha256_file(template)
@@ -109,6 +132,17 @@ def install_hook(repo: Path, template: Path) -> tuple[Path, Path | None]:
     shutil.copy2(template, target)
     target.chmod(0o700)
     return target, backup
+
+
+def git_worktree_valid(repo: Path) -> bool:
+    completed = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "--is-inside-work-tree"],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+    )
+    return completed.returncode == 0 and completed.stdout.strip() == "true"
 
 
 def run_doctor(
@@ -142,13 +176,29 @@ def run_doctor(
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--apply", action="store_true", help="Perform the printed local mutations. Without this flag the tool is dry-run only.")
+    parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="Perform the printed local mutations. Without this flag the tool is dry-run only.",
+    )
     parser.add_argument("--repo", type=Path, help="Repository path override.")
     parser.add_argument("--venv", type=Path, help="Virtual environment path override.")
     parser.add_argument("--evidence-dir", type=Path, help="External evidence directory override.")
-    parser.add_argument("--install-pre-commit-hook", action="store_true", help="Install the repository-local secret guard, backing up an existing hook first.")
-    parser.add_argument("--restrict-sensitive-files", action="store_true", help="Set local sensitive files found in the repository to mode 0600.")
-    parser.add_argument("--skip-post-audit", action="store_true", help="Do not run the read-only doctor after applying changes.")
+    parser.add_argument(
+        "--install-pre-commit-hook",
+        action="store_true",
+        help="Install the repository-local secret guard, backing up an existing hook first.",
+    )
+    parser.add_argument(
+        "--restrict-sensitive-files",
+        action="store_true",
+        help="Set local sensitive files found in the repository to mode 0600.",
+    )
+    parser.add_argument(
+        "--skip-post-audit",
+        action="store_true",
+        help="Do not run the read-only doctor after applying changes.",
+    )
     return parser
 
 
@@ -173,13 +223,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     actions = [
         PlannedAction("evidence.ensure", f"Create or restrict {evidence} to mode 0700."),
         PlannedAction("config.ensure", f"Create or restrict {CONFIG_DIRECTORY} to mode 0700."),
-        PlannedAction("config.write", f"Write non-secret local path configuration to {CONFIG_PATH} with mode 0600."),
+        PlannedAction(
+            "config.write",
+            f"Write non-secret local path configuration to {CONFIG_PATH} with mode 0600.",
+        ),
     ]
     if args.install_pre_commit_hook:
         actions.append(
             PlannedAction(
                 "hook.install",
-                f"Install {hook_template.name} as {repo / '.git/hooks/pre-commit'}; back up a different existing hook.",
+                "Install the versioned local guard as the repository pre-commit hook; "
+                "back up a different existing hook.",
             )
         )
     sensitive_paths = sensitive_local_paths(repo) if repo.exists() else []
@@ -207,8 +261,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not repo.is_dir():
         print(f"FAIL repository.missing: {repo}", file=sys.stderr)
         return 2
-    if not (repo / ".git").exists():
-        print("FAIL repository.git: standard .git directory not found", file=sys.stderr)
+    if not git_worktree_valid(repo):
+        print("FAIL repository.git: configured repository is not a Git worktree", file=sys.stderr)
         return 2
     if not (venv / "bin" / "python").is_file():
         print(f"FAIL virtual_environment.python: {venv / 'bin/python'}", file=sys.stderr)
@@ -229,7 +283,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         "policy_sha256": sha256_file(policy_path),
         "secret_values_included": False,
     }
-    atomic_write_private(CONFIG_PATH, json.dumps(configuration, ensure_ascii=False, indent=2) + "\n")
+    atomic_write_private(
+        CONFIG_PATH,
+        json.dumps(configuration, ensure_ascii=False, indent=2) + "\n",
+    )
 
     if args.restrict_sensitive_files:
         for path in sensitive_paths:
@@ -245,8 +302,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         if backup:
             print(f"BACKUP={backup}")
 
-    print(f"APPLIED evidence.ensure path={evidence} mode={oct(stat.S_IMODE(evidence.stat().st_mode))}")
-    print(f"APPLIED config.write path={CONFIG_PATH} mode={oct(stat.S_IMODE(CONFIG_PATH.stat().st_mode))}")
+    print(
+        f"APPLIED evidence.ensure path={evidence} "
+        f"mode={oct(stat.S_IMODE(evidence.stat().st_mode))}"
+    )
+    print(
+        f"APPLIED config.write path={CONFIG_PATH} "
+        f"mode={oct(stat.S_IMODE(CONFIG_PATH.stat().st_mode))}"
+    )
 
     if args.skip_post_audit:
         print("RESULT=hardening_applied_post_audit_skipped")
