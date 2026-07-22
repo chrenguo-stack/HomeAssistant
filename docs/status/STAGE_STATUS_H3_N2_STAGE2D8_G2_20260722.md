@@ -1,11 +1,11 @@
 # H3/N2 Stage 2D-8 G2 专用测试板实板验收状态
 
-- **状态文件版本：** V1.8
+- **状态文件版本：** V1.9
 - **更新日期：** 2026-07-22
 - **权威性：** 本文件是本活动阶段唯一权威 `STAGE_STATUS`
-- **阶段状态：** `d2_attempt1_host_tool_diagnostic`
+- **阶段状态：** `prepared_waiting_d2_attempt2_authorization`
 - **当前结论：** `inconclusive`
-- **执行门：** `LOCKED_NO_REPLAY`
+- **执行门：** `LOCKED`
 
 ## 1. S0 基线
 
@@ -24,13 +24,13 @@ EVIDENCE_PR=172
 PRODUCTION_ENVIRONMENT_MODIFIED=false
 ```
 
-PR `#166`、`#167`、`#168` 的冻结分支未修改。本阶段继续只维护上述一条证据分支；Git 只保存脱敏 L1 摘要、manifest、状态和 Artifact 索引。
+PR `#166`、`#167`、`#168` 的冻结分支未修改。本阶段继续只维护上述唯一证据分支；Git 只保存脱敏 L1 摘要、manifest、状态和索引。
 
 ## 2. 范围与禁止事项
 
-本阶段目标仍为：对已绑定专用板完成一次精确授权的目标预检、全片擦除、V64 G2 写入、verify-flash、preboot 64 KiB 回读、一次启动与串口采集、postboot 64 KiB 回读和私有证据闭环。
+目标仍为：在精确、不可重放的 D2 授权下，对已绑定专用板完成目标预检、全片擦除、V64 G2 写入、verify-flash、preboot 64 KiB 回读、一次串口证据启动、postboot 64 KiB 回读和私有证据闭环。
 
-继续禁止：修改或重建冻结候选；`PREPARE_CANDIDATE`、`ACTIVATE_PROFILE`、`CLEANUP_TEST_STATE`；测试密钥、可写 NVS、Wi-Fi、MQTT、Broker、Home Assistant、API、OTA、mDNS；任何 eFuse 读写；启用 Secure Boot 或 Flash Encryption；M401A、T1、Mosquitto、greenhouse-manager 和生产环境操作；Ready、合并或发布。
+继续禁止：修改或重建冻结候选；`PREPARE_CANDIDATE`、`ACTIVATE_PROFILE`、`CLEANUP_TEST_STATE`；测试密钥、可写 NVS、Wi-Fi、MQTT、Broker、Home Assistant、API、OTA、mDNS；任何 eFuse 读取或写入；启用 Secure Boot 或 Flash Encryption；M401A、T1、Mosquitto、greenhouse-manager 和生产环境操作；Ready、合并或发布。
 
 ## 3. 冻结 Artifact 身份
 
@@ -44,7 +44,7 @@ ARTIFACT_MANIFEST_SHA256=bd0b138710c178cc6d166e2eb8ab2e5b419bf167a5ad19c0aaebc99
 REPRODUCIBILITY_REPORT_SHA256=325580af692416f3e16c29bee7f14135ce4eaa04026c6441f4e8b794033a3bd1
 ```
 
-Artifact manifest 继续保持 `gate=LOCKED`，内部执行授权均为 `false`。外部 D2 授权不修改 Artifact。
+Artifact manifest 继续保持 `gate=LOCKED`，其内部所有执行授权均为 `false`。外部 D2 不修改 Artifact。
 
 ## 4. U1 本机 Artifact 校验
 
@@ -67,35 +67,16 @@ FLASH_OPERATION_ATTEMPTED=false
 NETWORK_OPERATION_ATTEMPTED=false
 ```
 
-## 5. D2 尝试 1
-
-### 5.1 授权绑定
+## 5. D2 尝试 1：已退役
 
 ```text
-D2_AUTHORIZATION_REQUEST_ID=D2-H3N2-STAGE2D8-G2-V64-20260722-01
-D2_ONE_SHOT=true
-D2_REPLAY_PERMITTED=false
-D2_ALLOWED_RECOVERY_COUNT=1
-D2_REVIEW_PACKAGE_SHA256=e2bb1271194c5d73219419b3b86dc274ff0f23d183148cdc35e839e252a06d34
-D2_EXECUTION_SCRIPT_SHA256=ce5d1018ef0161b02148e8a4f74fdf1873c528b0ad23827b6ef9c6e85054b8ce
-D2_COMMAND_GROUP_SHA256=6c2f4407334c936537824437be7b3e350a50547308e1a1e708d532403aac4685
-D2_STOP_CONDITIONS_SHA256=8ece74c8065375184b93a533d11f9d6568304472f06ff8b2f46658abbde6962b
-D2_AUTHORIZATION_BINDING_SHA256=ebf6efd2419e8373842571a2eeae58eaa2bdb5ba0c0b90585a7e44a806d759d5
-D2_EXECUTION_PACKAGE_SHA256=441634f9e029c55db202845857acbad4f7c6f35be053df82bab3d31ffbd5aa13
-```
-
-### 5.2 执行与私有摘要
-
-```text
-D2_ATTEMPT_TIMESTAMP_UTC=2026-07-22T09:44:26Z
-D2_ATTEMPT_RESULT=inconclusive
+D2_ATTEMPT1_REQUEST_ID=D2-H3N2-STAGE2D8-G2-V64-20260722-01
+D2_ATTEMPT1_RESULT=inconclusive
+D2_ATTEMPT1_GOVERNANCE_STATUS=attempted_inconclusive_retired
+D2_ATTEMPT1_REPLAY_PERMITTED=false
 FAILURE_CLASS=RuntimeError
 FAILURE_MESSAGE_REDACTED=command failed: version
 FAILURE_STAGE=local_esptool_version_preflight
-AUTHORIZATION_CONSUMED=unknown
-PREFLIGHT_STATUS=not_reached
-USB_PREFLIGHT_PRESENT=false
-FLASH_ID_PRESENT=false
 DESTRUCTIVE_BOUNDARY_ENTERED=false
 PHYSICAL_ERASE_PERFORMED=false
 G2_FLASH_PERFORMED=false
@@ -111,72 +92,131 @@ PRODUCTION_ENVIRONMENT_MODIFIED=false
 PRIVATE_EVIDENCE_ARCHIVE_SHA256=366ac51f1c754431d6ec1d7bffc1e76b9b8df948b02af79603953599bc37c460
 ```
 
-失败发生在本机 `esptool` 版本命令检查，早于 USB 端口、芯片、Flash 和破坏性操作。当前没有观察到板卡、固件、Artifact 或 Flash 失败。
+尝试 1 在本机工具检查处 fail closed。当前没有板卡、固件、Artifact 或 Flash 失败证据。原授权文件、执行包和命令组永久禁止重放。
 
-原 D2 授权治理状态为 `attempted_inconclusive_retired`，无论本机 consumed marker 是否存在，均禁止再次运行原授权文件、原执行包或原命令组。后续实板执行必须使用新的请求 ID、新脚本文件名、新命令组哈希和新 D2 授权。
+## 6. U7 根因诊断
 
-## 6. S0—S8 状态
+```text
+U7_RESULT=passed
+U7_SCRIPT_VERSION=V3
+PYTHON_VERSION=3.11.9
+DISTRIBUTION_ESPTOOL_VERSION=not_installed
+DISTRIBUTION_PYSERIAL_VERSION=not_installed
+DISTRIBUTION_CLICK_VERSION=not_installed
+ESPTOOL_IMPORT=false
+ESPTOOL_IMPORT_EXCEPTION_CLASS=ModuleNotFoundError
+MODULE_VERSION_COMMAND_RETURN_CODE=1
+MODULE_HELP_COMMAND_RETURN_CODE=1
+ESPTOOL_CONSOLE_PRESENT=false
+ORIGINAL_D2_REPLAYED=false
+BOARD_ACCESSED=false
+SERIAL_ACCESS_ATTEMPTED=false
+FLASH_OPERATION_ATTEMPTED=false
+NETWORK_OPERATION_ATTEMPTED=false
+```
+
+根因确认：尝试 1 所绑定的原开发虚拟环境没有安装 esptool、pyserial 或 click。
+
+## 7. U8 独立 esptool 环境
+
+```text
+U8_RESULT=passed
+U8_BATCH_PACKAGE_ID=U8_STAGE2D8_G2_ESPTOOL_ENVIRONMENT_PREPARE_V2
+U8_SCRIPT_SHA256=d311c5705fc03152aa6def8d16ce3a13aba1f5e94cee8a0a112a1361ce2cc08e
+BASE_PYTHON_VERSION=3.11.9
+DOWNLOADED_ESPTOOL_SDIST_SHA256=125781f36e6a2d08c484524a45f340694675368b5eeead9d0cb21b2034a91d98
+DOWNLOADED_ESPTOOL_SDIST_SHA256_MATCH=true
+INSTALLED_ESPTOOL_VERSION=5.3.1
+INSTALLED_PYSERIAL_VERSION=3.5
+INSTALLED_CLICK_VERSION=8.4.2
+TARGET_MARKER_SHA256=320ecd5f88b4207be39ee8660117f553c80ddf22d9ded9f33f1b147df89cb3a1
+ENVIRONMENT_DISTRIBUTION_COUNT=19
+ENVIRONMENT_ALL_DISTRIBUTIONS_SHA256=bdd8912af8a954f84a1794769c759a60b7165a6bef085854d6731b3f3db59ac2
+MODULE_VERSION_COMMAND_RETURN_CODE=0
+CONSOLE_VERSION_COMMAND_RETURN_CODE=0
+HOST_PYPI_HTTPS_NETWORK_ATTEMPTED=true
+BOARD_ACCESSED=false
+SERIAL_ACCESS_ATTEMPTED=false
+FLASH_OPERATION_ATTEMPTED=false
+EFUSE_COMMAND_ATTEMPTED=false
+PRODUCTION_ENVIRONMENT_MODIFIED=false
+```
+
+U8 只修改用户本机独立虚拟环境，不连接测试板，不访问串口，不操作 Flash、eFuse 或生产环境。
+
+## 8. D2 尝试 2 审核包
+
+```text
+D2_ATTEMPT2_REQUEST_ID=D2-H3N2-STAGE2D8-G2-V64-20260722-02
+D2_ATTEMPT2_AUTHORIZATION_STATUS=pending
+D2_ATTEMPT2_REVIEW_PACKAGE_SHA256=939bf62e87aa05e8adbc6b5c20882ce8f7430a124226ab9b76e69cb7039b1ebb
+D2_ATTEMPT2_EXECUTION_SCRIPT_SHA256=903a39ee896cbeee273a398f4db1441d0c71b3e8afa84b07c6690b3f992cf47a
+D2_ATTEMPT2_COMMAND_GROUP_SHA256=c1417d7d16a37521f0fc57d0161e61fdaf4645a281c9ac30010b8aef7b2e1731
+D2_ATTEMPT2_STOP_CONDITIONS_SHA256=31b48f3238856b6eb406d102821cc49a5729fcd0c6f4bff67bb0d560ed4fa246
+D2_ATTEMPT2_ENVIRONMENT_MARKER_SHA256=320ecd5f88b4207be39ee8660117f553c80ddf22d9ded9f33f1b147df89cb3a1
+D2_ATTEMPT2_ENVIRONMENT_DISTRIBUTIONS_SHA256=bdd8912af8a954f84a1794769c759a60b7165a6bef085854d6731b3f3db59ac2
+D2_ATTEMPT2_PRIVATE_TARGET_BOUND=true
+D2_ATTEMPT2_PRIVATE_SERIAL_BOUND=true
+D2_ATTEMPT2_PRIVATE_BINDINGS_REDACTED_IN_GIT=true
+D2_ATTEMPT2_REVIEW_MODE_PY_COMPILE=passed
+D2_ATTEMPT2_REVIEW_MODE_RESULT=passed
+D2_ATTEMPT2_EXECUTION_GATE=LOCKED
+```
+
+尝试 2 改用 U8 独立环境，通过 marker 与完整发行版指纹冻结工具链；使用新的脚本文件名、命令组和停止条件；运行时不调用 eFuse，目标私有身份与既有 G1 安全证明保持受控私有绑定。
+
+## 9. S0—S8 状态
 
 | 阶段 | 状态 | 说明 |
 |---|---|---|
-| S0 基线确认 | `passed` | 冻结 source、V64、分支和禁止事项已确认 |
+| S0 基线确认 | `passed` | 冻结 source、V64、证据分支和禁止事项已确认 |
 | S1 范围与验收设计 | `passed` | 验收项、停止条件、证据分层已冻结 |
-| S2 非实板证据准备 | `passed` | manifest、Artifact 索引和证据模板已建立 |
-| S3 本地 Preflight | `passed` | U1 Artifact 校验通过 |
-| S4 GitHub CI | `passed` | Draft PR #172 公共安全门通过 |
+| S2 非实板证据准备 | `passed` | manifest、索引和证据模板已建立 |
+| S3 本地 Preflight | `passed` | U1、U7、U8 均闭环 |
+| S4 GitHub CI | `passed` | Draft PR #172 继续保持 Draft；公共安全门持续执行 |
 | S5 候选冻结 | `passed` | 仅引用不可变 V64，不重建候选 |
-| S6A 隔离验证 | `passed` | host fault matrix、边界门和可复现性通过 |
-| S6B 实板验收 | `inconclusive_host_tool_preflight` | 尝试 1 在本机工具版本检查处 fail closed |
+| S6A 隔离验证 | `passed` | host fault matrix、边界门、可复现性和尝试 2 review mode 通过 |
+| S6B 实板验收 | `wait_attempt2_authorization` | 尝试 1 已退役；尝试 2 审核包就绪，尚未授权或执行 |
 | S7 归档/发布 | `not_run` | 禁止 Ready、合并和发布 |
-| S8 阶段关闭 | `not_run` | 等待工具环境诊断、修复和新 D2 |
+| S8 阶段关闭 | `not_run` | 等待尝试 2 D2 与实板证据闭环 |
 
-## 7. 决策门
+## 10. 决策门
 
 ```text
 D1_SCOPE_DECISION=resolved
-D2_PHYSICAL_EXECUTION_AUTHORIZATION=attempt1_retired_waiting_environment_diagnostic
+D2_ATTEMPT1=retired_no_replay
+D2_ATTEMPT2=pending_exact_authorization
 D3_RISK_WAIVER=not_required
 D4_READY_MERGE_RELEASE=prohibited
 ```
 
-当前不请求 D3。U7 仅读取本机 Python/esptool 环境，不连接测试板、不访问串口、不执行 Flash、网络或生产环境操作。
-
-## 8. 助手开发队列
+## 11. 助手开发队列
 
 | ID | 状态 | 内容 |
 |---|---|---|
-| A1 | `done` | 冻结源码、PR #168 与 V64 身份核对 |
-| A2 | `done` | Artifact 独立复核和 U1 闭环 |
-| A3 | `done` | 权威状态、manifest、索引和证据模板 |
-| A4 | `done` | Draft PR #172 与公共安全门 |
-| A5 | `done` | D2 尝试 1 的私有摘要根因范围闭环 |
-| A6 | `in_progress` | 设计不依赖 CLI `version` 子命令的修正版执行链和可诊断错误输出 |
-| A7 | `blocked_on_u7` | 等待本机 esptool 发行版、模块路径和 CLI 输出后冻结修正方案 |
-| A8 | `blocked_on_new_d2` | 修正通过后生成新的不可重放 D2 审核包 |
+| A1-A5 | `done` | 冻结基线、U1、尝试 1 证据与根因闭环 |
+| A6 | `done` | 修正版执行链、可诊断失败阶段和完整 recovery 逻辑 |
+| A7 | `done` | U7/U8 环境诊断与独立 esptool 环境冻结 |
+| A8 | `done` | 尝试 2 审核包、脚本、命令组和停止条件 |
+| A9 | `blocked_on_d2_attempt2` | 收到精确授权后签发新的不可重放授权 JSON 与自包含执行包 |
+| A10 | `blocked_on_physical_result` | 实板结果后形成最终 L1 结论 |
 
-## 9. 用户操作队列
-
-### U7：本机 Python/esptool 只读环境诊断
+## 12. 用户操作队列
 
 ```text
-TASK_ID=U7_STAGE2D8_G2_ESPTOOL_ENVIRONMENT_DIAGNOSTIC
-STATUS=ready
-RISK_CLASS=A
-BOARD_ACCESS_REQUIRED=false
-SERIAL_ACCESS_ALLOWED=false
-FLASH_OPERATION_ALLOWED=false
-NETWORK_OPERATION_ALLOWED=false
-AUTHORIZATION_REQUIRED=false
-SCRIPT_NAME=stage2d8_g2_esptool_environment_diagnostic_20260722_v2.py
-SCRIPT_SHA256=086460c282470e59a5c1f941cb8a8fdeec082750ded48c1ccc23b4fd0c4a3f21
-EXPECTED_RETURN=complete redacted diagnostic output
+TASK_ID=D2_ATTEMPT2_REVIEW_AND_AUTHORIZATION
+STATUS=ready_for_review
+RISK_CLASS=D
+BOARD_OPERATION_AUTHORIZED=false
+AUTHORIZATION_REQUIRED=true
+EXPECTED_RETURN=exact authorization text bound to attempt-2 review package SHA-256
 ```
 
-禁止重放 D2 尝试 1。U7 完成前不签发新的 D2。
+当前不要连接或操作测试板，不要运行任何尝试 1 文件，也不要运行尝试 2 的 `--execute`。
 
-## 10. 实板验收标准保持不变
+## 13. 实板验收标准保持不变
 
-- 冻结哈希、目标身份和 Flash 型号容量匹配；
+- 冻结哈希、私有目标身份、芯片和 Flash 型号容量匹配；
 - erase/write/verify/preboot readback 成功；
 - preboot 64 KiB 与 seed 逐字节一致；
 - 串口包含冻结 boundary、snapshot 和 `stage2d8_g2_probe=pass`，且无失败标志；
@@ -184,18 +224,22 @@ EXPECTED_RETURN=complete redacted diagnostic output
 - 全部 MQTT session=false，`reboot_required=false`；
 - postboot 64 KiB 与 seed、preboot 逐字节一致；
 - recovery 未执行，或仅在许可失败条件下准确执行一次；
-- eFuse、网络、生产环境操作均未发生；
+- eFuse、网络和生产环境操作均未发生；
 - 证据完整、脱敏、可追溯。
 
-## 11. 当前结论
+## 14. 当前结论
 
 ```text
-STAGE_STATUS=d2_attempt1_host_tool_diagnostic
+STAGE_STATUS=prepared_waiting_d2_attempt2_authorization
 FINAL_RESULT=inconclusive
 U1_HOST_ARTIFACT_VERIFICATION=passed
 D2_ATTEMPT1_STATUS=attempted_inconclusive_retired
 D2_ATTEMPT1_REPLAY_PERMITTED=false
-FAILURE_STAGE=local_esptool_version_preflight
+U7_ROOT_CAUSE_CONFIRMED=true
+U8_DEDICATED_ESPTOOL_ENVIRONMENT=passed
+D2_ATTEMPT2_REVIEW_PACKAGE=prepared
+D2_ATTEMPT2_AUTHORIZATION_RECEIVED=false
+D2_ATTEMPT2_PHYSICAL_EXECUTION_STARTED=false
 DESTRUCTIVE_BOUNDARY_ENTERED=false
 PHYSICAL_ERASE_PERFORMED=false
 G2_FLASH_PERFORMED=false
@@ -204,7 +248,5 @@ PREBOOT_READBACK_PERFORMED=false
 G2_BOOTED=false
 POSTBOOT_READBACK_PERFORMED=false
 RECOVERY_PERFORMED=false
-PRIVATE_EVIDENCE_ARCHIVED=true
-L1_PHYSICAL_ATTEMPT_EVIDENCE_COMMITTED=true
 PRODUCTION_ENVIRONMENT_MODIFIED=false
 ```
