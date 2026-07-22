@@ -36,19 +36,21 @@ jobs:
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
-          import yaml
 
           root = Path("firmware/esphome_rc")
           dedicated = root / "board_lab/h3_profile_isolated_device_g3_prepare/greenhouse_profile_isolated_device_g3_prepare_20260722_v65.yml"
           partitions = root / "board_lab/h3_profile_isolated_device_g3_prepare/stage2d9_g3_partitions_20260722_v65.csv"
           component = root / "components/greenhouse_profile_isolated_device_g3_prepare"
 
-          config = yaml.safe_load(dedicated.read_text(encoding="utf-8"))
-          for prohibited in ("wifi", "api", "ota", "captive_portal", "web_server"):
-              if prohibited in config:
+          dedicated_text = dedicated.read_text(encoding="utf-8")
+          top_level = {
+              line.split(":", 1)[0]
+              for line in dedicated_text.splitlines()
+              if line and not line[0].isspace() and not line.startswith("#") and ":" in line
+          }
+          for prohibited in ("wifi", "api", "ota", "captive_portal", "web_server", "mqtt"):
+              if prohibited in top_level:
                   raise SystemExit(f"dedicated G3 target contains {prohibited}")
-          if "mqtt" in config:
-              raise SystemExit("dedicated G3 target contains an MQTT runtime component")
 
           table = partitions.read_text(encoding="utf-8")
           row = next(line for line in table.splitlines() if line.strip().startswith("gh2d8_p2d9"))
