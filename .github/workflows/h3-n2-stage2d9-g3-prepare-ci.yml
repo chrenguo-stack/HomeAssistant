@@ -1,0 +1,93 @@
+name: H3 N2 Stage2D9 G3 PREPARE CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9-g3-prepare-ci.yml"
+      - "tools/h3_n2_stage2d9_prepare_*"
+      - "tests/h3_n2_stage2d9_prepare/**"
+      - "protocols/pairing/gh-h3-node-stage2d9-g3-prepare-v1.md"
+      - "docs/development/温室环境监测系统_H3N2_Stage2D9_G3_PREPARE_CANDIDATE开发计划_V1.0_20260722.md"
+      - "docs/status/STAGE_STATUS_H3_N2_STAGE2D9_G3_20260722.md"
+      - "docs/acceptance/h3-n2-stage2d9-g3-public-manifest-v1.json"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/h3-n2-stage2d9-g3-prepare-ci.yml"
+      - "tools/h3_n2_stage2d9_prepare_*"
+      - "tests/h3_n2_stage2d9_prepare/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  host-model-and-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile Stage 2D-9 Python files
+        run: |
+          python -m py_compile \
+            tools/h3_n2_stage2d9_prepare_model_20260722_v1.py \
+            tools/h3_n2_stage2d9_prepare_manifest_gate_20260722_v1.py \
+            tests/h3_n2_stage2d9_prepare/test_stage2d9_prepare_model_20260722_v1.py
+      - name: Run host fault matrix
+        run: |
+          python -m unittest discover \
+            -s tests/h3_n2_stage2d9_prepare \
+            -p 'test_stage2d9_prepare_model_20260722_v1.py' \
+            -v
+      - name: Verify default manifest remains locked
+        run: |
+          python tools/h3_n2_stage2d9_prepare_manifest_gate_20260722_v1.py \
+            --manifest tests/h3_n2_stage2d9_prepare/stage2d9_prepare_manifest_template_20260722_v1.json \
+            --expect-gate LOCKED
+      - name: Verify public records are parseable and execution locked
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          public = json.loads(Path(
+              "docs/acceptance/h3-n2-stage2d9-g3-public-manifest-v1.json"
+          ).read_text(encoding="utf-8"))
+          template = json.loads(Path(
+              "tests/h3_n2_stage2d9_prepare/"
+              "stage2d9_prepare_manifest_template_20260722_v1.json"
+          ).read_text(encoding="utf-8"))
+          assert public["execution_gate"] == "LOCKED"
+          assert template["gate"] == "LOCKED"
+          assert template["execution_authorized"] is False
+          assert template["writable_test_nvs_authorized"] is False
+          assert template["activate_profile_authorized"] is False
+          assert template["cleanup_test_state_authorized"] is False
+          assert template["network_operation_authorized"] is False
+          assert template["efuse_operation_authorized"] is False
+          assert template["production_environment_operation_authorized"] is False
+          PY
+      - name: Reject unauthorized production path modifications
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git diff --name-only "$BASE_SHA"...HEAD > /tmp/stage2d9-paths.txt
+          if grep -E '(^|/)f1_0_rc2\.yml$|^firmware/esphome_rc/packages/' /tmp/stage2d9-paths.txt; then
+            echo "Stage 2D-9 changed a protected production firmware path" >&2
+            exit 1
+          fi
+      - name: Verify no private runtime evidence is committed
+        run: |
+          if git ls-files | grep -E '(^|/)(private-summary|authorization).*\.json$|\.tar\.gz$|g2-serial\.log$'; then
+            echo "Private runtime evidence path detected" >&2
+            exit 1
+          fi
