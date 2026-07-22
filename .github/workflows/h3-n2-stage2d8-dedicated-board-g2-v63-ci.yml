@@ -53,6 +53,31 @@ jobs:
             --output /tmp/stage2d8-g2-source-boundary-v63.json \
             2>&1 | tee /tmp/stage2d8-g2-boundary-v63.log
 
+      - name: Run Stage2D8 driver host fault matrix
+        run: |
+          set -euo pipefail
+          pairing=firmware/esphome_rc/components/greenhouse_pairing_client
+          package=firmware/esphome_rc/components/greenhouse_profile_isolated_acceptance
+          driver=firmware/esphome_rc/components/greenhouse_profile_isolated_device_driver
+          g++ -std=gnu++20 -Wall -Wextra -Wpedantic -Werror \
+            -I "$pairing" \
+            -I "$package" \
+            -I "$driver" \
+            "$pairing/pairing_client_core.cpp" \
+            "$pairing/secure_pairing_channel.cpp" \
+            "$pairing/secure_pairing_channel_encoding.cpp" \
+            "$pairing/secure_pairing_channel_crypto.cpp" \
+            "$pairing/pairing_ram_credentials.cpp" \
+            "$package/isolated_acceptance_package.cpp" \
+            "$driver/isolated_device_driver.cpp" \
+            "$driver/tests/pairing_stage2d8_isolated_device_driver_fault_matrix_20260721_v56.cpp" \
+            -lcrypto \
+            -o /tmp/stage2d8-driver-host-fault-matrix-v63
+          /tmp/stage2d8-driver-host-fault-matrix-v63 \
+            | tee /tmp/stage2d8-driver-host-fault-matrix-v63.log
+          grep -Fx 'stage2d8_isolated_device_driver_fault_matrix=pass' \
+            /tmp/stage2d8-driver-host-fault-matrix-v63.log
+
       - name: Compile G2 read-only image
         working-directory: firmware/esphome_rc/board_lab/h3_profile_isolated_device_g2_probe
         run: |
@@ -125,7 +150,7 @@ jobs:
           fi
           sha256sum /tmp/stage2d8-g2-nvs-seed-v63-a.bin
 
-      - name: Run host fault matrix
+      - name: Run host artifact fault matrix
         run: |
           set -euo pipefail
           python tools/h3_n2_stage2d8_g2_host_fault_matrix_20260722_v63.py \
@@ -191,6 +216,7 @@ jobs:
           for source in \
             /tmp/stage2d8-g2-boundary-v63.log \
             /tmp/stage2d8-g2-source-boundary-v63.json \
+            /tmp/stage2d8-driver-host-fault-matrix-v63.log \
             /tmp/stage2d8-g2-config-v63.log \
             /tmp/stage2d8-g2-compile-v63.log \
             /tmp/stage2d8-recovery-config-v63.log \
