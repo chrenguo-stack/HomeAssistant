@@ -1,97 +1,130 @@
 # H3/N2 Stage 2D-9 G3 PREPARE_CANDIDATE 状态
 
-- **状态版本：** V1.1
+- **状态版本：** V1.2
 - **更新日期：** 2026-07-22
 - **起始基线：** `2a5272546f25b1b29cf1d6682cf1fc14f1c1be83`
 - **开发分支：** `feature/h3-n2-stage2d9-g3-prepare-candidate-20260722-v1`
 - **Draft PR：** `#174`
-- **阶段状态：** `g3_executor_and_immutable_artifact_development`
+- **阶段状态：** `immutable_v67_frozen_waiting_u1`
 - **执行门：** `LOCKED`
 
-## 当前完成
+## 1. 固定事务
 
 ```text
-SCOPE_PROTOCOL_FROZEN=true
-HOST_TRANSACTION_MODEL_IMPLEMENTED=true
-HOST_COMMAND_PROTOCOL_IMPLEMENTED=true
-HOST_FAULT_MATRIX_CASES=21
-HOST_MODEL_AND_GATE_CI=passed
-LOCKED_MANIFEST_TEMPLATE_IMPLEMENTED=true
-MANIFEST_GATE_IMPLEMENTED=true
-LOCKED_G3_HARNESS_IMPLEMENTED=true
-TOKEN_GATED_PREPARE_EXECUTOR_IMPLEMENTED=true
-DEDICATED_WRITABLE_TEST_PARTITION_DEFINED=true
-LOCKED_RECOVERY_TARGET_IMPLEMENTED=true
-REPRODUCIBLE_BUILD_WRAPPER_IMPLEMENTED=true
-ARTIFACT_BOUNDARY_GATE_IMPLEMENTED=true
-ARTIFACT_PACKAGER_IMPLEMENTED=true
-PRIVATE_UNLOCK_PREIMAGE_IN_GIT=false
-DEVICE_OPERATION_AUTHORIZED=false
-D2_AUTHORIZATION_PRESENT=false
-```
-
-## 固定事务
-
-```text
+ALLOWED_ACTION=PREPARE_CANDIDATE
 ACTIVE_GENERATION_BEFORE=0
 ACTIVE_GENERATION_AFTER=0
 CANDIDATE_GENERATION_BEFORE=0
 CANDIDATE_GENERATION_AFTER=1
 CANDIDATE_STATE_AFTER=PREPARED
+AUTOMATIC_REBOOT=true
+READ_ONLY_VERIFY_AFTER_REBOOT=true
+```
+
+## 2. 固定存储边界
+
+```text
 PARTITION=gh2d8_p2d9
 PARTITION_OFFSET=0x400000
 PARTITION_SIZE=0x10000
+PARTITION_WRITABLE_CAPABLE=true
 NAMESPACE=gh2d8_s2d9
+SEED_NAMESPACE=gh2d8_seed
+TARGET_NAMESPACE_ABSENT_FROM_SEED=true
 ```
 
-## 计划状态
-
-| 项目 | 状态 |
-|---|---|
-| P0 范围和协议 | `complete` |
-| P1 Host 事务模型 | `passed_ci` |
-| P2 Manifest 和命令 gate | `passed_ci` |
-| P3 G3 固件 harness/executor | `implemented_compile_validation_in_progress` |
-| P4 专用板与产品板 compile-only | `validation_in_progress` |
-| P5 可重复 V67 Artifact | `workflow_implemented_validation_in_progress` |
-| P6 证据和一次性执行包 | `not_started` |
-| P7 用户主机 Artifact 只读验证 | `not_started` |
-| P8 实板 PREPARE | `not_authorized` |
-| P9 证据闭环 | `not_started` |
-
-## Artifact 安全边界
+## 3. P0—P6 完成情况
 
 ```text
+P0_SCOPE_AND_PROTOCOL=complete
+P1_HOST_TRANSACTION_MODEL=passed_ci
+P2_MANIFEST_AND_COMMAND_GATES=passed_ci
+P3_G3_LOCKED_HARNESS_AND_TOKEN_GATED_EXECUTOR=passed_compile
+P4_DEDICATED_AND_PRODUCT_BOARD_COMPILE_ONLY=passed
+P5_REPRODUCIBLE_IMMUTABLE_V67_ARTIFACT=passed_frozen
+P6_EVIDENCE_AND_ONE_SHOT_EXECUTION_PROTOCOL=complete
+P7_USER_HOST_U1_ARTIFACT_VERIFICATION=pending
+P8_OPERATOR_D2_AND_PHYSICAL_PREPARE=not_authorized
+P9_EVIDENCE_CLOSURE=not_started
+```
+
+Host 事务模型与私有命令协议共 21 个故障/边界用例通过。专用 locked harness、命令面关闭的 executor、完整产品板兼容 overlay 均 compile-only 通过。正式 `f1_0_rc2.yml`、产品 packages、冻结 Stage 2D-8 驱动和 V64 路径未修改。
+
+## 4. 冻结 V67 Artifact
+
+```text
+IMPLEMENTATION_SOURCE_COMMIT=dda4dc25f201242cb566f1498a26200529e35227
+EXECUTOR_SOURCE_BINDING=70780dd1e826e07e32e12c66268c5dc564863420
 ARTIFACT_GENERATION=V67
+ARTIFACT_NAME=stage2d9-g3-immutable-locked-v67
+ARTIFACT_WORKFLOW_RUN_ID=29934767596
+ARTIFACT_ID=8535952286
+ARTIFACT_ZIP_SHA256=4f9b53908576ffb20ce2653418279dbd45817528a6168b24565447f760ad5dce
+G3_MERGED_SHA256=ae109c3e3982adf7c916529d309be57912ff7310b05afa42d431d578ea4745ca
+LOCKED_RECOVERY_MERGED_SHA256=54fb10601a0fbf448948d3f7d687281b33e85220c64bcdcabfae896dd3d98a1a
+NVS_SEED_SHA256=0ea36f26c5048f69b223884a13613fbd645b58c2ce42eafc6f9d9cd55bb089af
+PARTITION_BINARY_SHA256=b3964cbbd811d5fa5866638585fa410b53fc74e70a8f92491f43fce0b7a70268
+MANIFEST_SHA256=e12d7ab4cb457bbd4da0dee2c7b919d90b9546528073505c32e950315894e8c4
+REPRODUCIBILITY_REPORT_SHA256=e320a51e88ea5fb8791986f5d855f6742c5b444b226405853d7ecf1a2da81166
+SOURCE_BOUNDARY_REPORT_SHA256=821be27f9b8cca95f77d4a14918de17239587aa3af312eebc27e16506530f5e3
+UNLOCK_DIGEST_SHA256=d43c61f08a89a78ea3656083602fbe30983bd555023f64b8f005a62602b28065
+```
+
+```text
+CLEAN_BUILD_COUNT=2
+BYTE_IDENTICAL=true
 ARTIFACT_GATE=LOCKED
-UNLOCK_DIGEST_PUBLIC=true
-UNLOCK_PREIMAGE_PUBLIC=false
+UNLOCK_PREIMAGE_IN_ARTIFACT=false
+UNLOCK_PREIMAGE_IN_GIT=false
+```
+
+Artifact ZIP 和全部成员已在受控环境中独立复核，`SHA256SUMS` 全部通过。G3 与 locked recovery 使用同一分区表和同一确定性 seed。
+
+## 5. CI 结果
+
+```text
+HOST_MODEL_AND_GATE_CI_RUN=29934769455
+HOST_MODEL_AND_GATE_CI=passed
+COMPILE_CI_RUN=29934767547
+LOCKED_DEDICATED_COMPILE=passed
+DISABLED_EXECUTOR_DEDICATED_COMPILE=passed
+PRODUCT_BOARD_COMPATIBILITY_COMPILE=passed
+ARTIFACT_CI_RUN=29934767596
+ARTIFACT_CI=passed
+PUBLIC_REPOSITORY_SAFETY_CI_RUN=29934769289
+PUBLIC_REPOSITORY_SAFETY_CI=passed
+F1_0_RC2_CI=passed
+N1_CI=passed
+M0_CI=passed
+M2_CI=passed
+GREENHOUSE_MANAGER_CI=passed
+STAGE2B3_CI=passed
+```
+
+## 6. Artifact 与执行安全边界
+
+```text
 FLASH_AUTHORIZED=false
+WRITABLE_TEST_NVS_AUTHORIZED=false
 PREPARE_AUTHORIZED=false
 VERIFY_AUTHORIZED=false
-ACTIVATE_AUTHORIZED=false
-CLEANUP_AUTHORIZED=false
-NETWORK_AUTHORIZED=false
-EFUSE_AUTHORIZED=false
-PRODUCTION_AUTHORIZED=false
-```
-
-V67 源码只包含私有 one-time unlock preimage 的 SHA-256，不包含 preimage、持久化密钥、授权 JSON、candidate 命令或任何实际凭据。公共 compile-only executor 使用全零 digest，命令面关闭。
-
-## 固定禁止项
-
-```text
 ACTIVATE_PROFILE_AUTHORIZED=false
 CLEANUP_TEST_STATE_AUTHORIZED=false
 WIFI_AUTHORIZED=false
 MQTT_AUTHORIZED=false
 BROKER_AUTHORIZED=false
 EFUSE_OPERATION_AUTHORIZED=false
+SECURE_BOOT_CHANGE_AUTHORIZED=false
+FLASH_ENCRYPTION_CHANGE_AUTHORIZED=false
 PRODUCTION_ENVIRONMENT_OPERATION_AUTHORIZED=false
 READY_MERGE_RELEASE_AUTHORIZED=false
 STAGE2D8_D2_REPLAY_AUTHORIZED=false
 ```
 
-## 下一步
+V67 只包含私有 one-time unlock preimage 的 SHA-256；preimage、持久化密钥、授权 JSON、candidate 私密命令和实际秘密值均不在 Git 或 Artifact 中。没有新的 D2，当前不得连接测试板、执行 Flash、打开 writable NVS 或发送 PREPARE/VERIFY 命令。
 
-完成 G3 executor 的专用板、产品板 compile-only 和 V67 双 clean build 可重复性验证；验证通过后冻结 Artifact、补齐 P6 私有/公共证据格式和一次性执行包，再进入新的精确 D2 审核。在 D2 前不连接测试板，不执行 Flash 或 writable NVS。
+## 7. 下一步
+
+生成并执行 P7 U1 本地主机 Artifact 只读校验包。U1 只校验 ZIP、成员哈希、manifest、存储边界、可重复性、执行默认关闭和私密材料排除，不访问测试板、串口、Flash、eFuse、网络或生产环境。
+
+U1 通过后，才生成新的 D2 审核包并提交精确授权请求；在获得 D2 前不进行任何实板操作。
