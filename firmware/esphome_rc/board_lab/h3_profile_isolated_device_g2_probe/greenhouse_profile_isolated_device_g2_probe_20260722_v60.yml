@@ -1,0 +1,45 @@
+esphome:
+  name: gh-2d8-g2-v60
+  friendly_name: Greenhouse Stage 2D-8 G2 Read-Only Probe
+  min_version: 2026.4.3
+
+esp32:
+  board: esp32-c6-devkitm-1
+  variant: ESP32C6
+  flash_size: 8MB
+  partitions: stage2d8_g2_partitions_20260722_v60.csv
+  framework:
+    type: esp-idf
+    advanced:
+      include_builtin_idf_components:
+        - mqtt
+        - nvs_flash
+        - esp_hw_support
+    sdkconfig_options:
+      CONFIG_MBEDTLS_PSA_CRYPTO_C: y
+      CONFIG_MBEDTLS_ECP_DP_CURVE25519_ENABLED: y
+      CONFIG_MBEDTLS_CHACHA20_C: y
+      CONFIG_MBEDTLS_POLY1305_C: y
+      CONFIG_MBEDTLS_CHACHAPOLY_C: y
+      CONFIG_MBEDTLS_HARDWARE_MPI: n
+
+logger:
+  level: DEBUG
+  hardware_uart: USB_SERIAL_JTAG
+
+external_components:
+  - source:
+      type: local
+      path: ../../components
+    components:
+      - greenhouse_profile_isolated_device_g2_probe
+
+# Dedicated-board G2 image. It performs exactly one automatic read-only inspect
+# of an isolated, initially absent namespace. It contains no Wi-Fi, API, OTA,
+# web server, MQTT configuration, test key, credentials, write grant or command
+# surface. The build binding fixes the reviewed G2 probe source commit.
+greenhouse_profile_isolated_device_g2_probe:
+  id: stage2d8_g2_probe
+  partition_label: gh2d8_nvs
+  namespace_name: gh2d8_state
+  build_binding: 0ab4159860c984e0998f365437810de84b45bbc2
