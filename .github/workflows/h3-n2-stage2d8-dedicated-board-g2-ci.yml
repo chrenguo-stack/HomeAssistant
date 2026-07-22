@@ -25,6 +25,7 @@ jobs:
         with:
           fetch-depth: 0
           show-progress: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - uses: actions/setup-python@v5
         with:
@@ -57,6 +58,8 @@ jobs:
               found = [token for token in forbidden_blocks if token in text]
               if found:
                   raise SystemExit(f'{name} contains forbidden runtime block(s): {found}')
+              if 'CONFIG_APP_REPRODUCIBLE_BUILD: y' not in text:
+                  raise SystemExit(f'{name} reproducible-build option missing')
 
           required_g2 = (
               'hardware_uart: USB_SERIAL_JTAG',
@@ -112,9 +115,10 @@ jobs:
 
       - name: Assemble immutable G2 and recovery packages
         env:
-          SOURCE_COMMIT: ${{ github.sha }}
+          SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
           python - <<'PY'
           import hashlib
           import json
@@ -185,6 +189,7 @@ jobs:
               'build_tools': {
                   'esphome': '2026.4.3',
                   'esptool': '5.3.1',
+                  'reproducible_build': True,
               },
               'target': {
                   'chip': 'ESP32-C6',
@@ -224,6 +229,8 @@ jobs:
           PY
 
       - name: Verify packaged images and redaction
+        env:
+          SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           exec > >(tee /tmp/stage2d8-g2-verify-v60.log) 2>&1
@@ -234,6 +241,8 @@ jobs:
           grep -F '"gate": "LOCKED"' "$OUT/stage2d8-g2-artifact-manifest-v60.json"
           grep -F '"flash_authorized": false' "$OUT/stage2d8-g2-artifact-manifest-v60.json"
           grep -F '"persistent_write_authorized": false' "$OUT/stage2d8-g2-artifact-manifest-v60.json"
+          grep -F "\"source_commit\": \"$SOURCE_COMMIT\"" \
+            "$OUT/stage2d8-g2-artifact-manifest-v60.json"
           if grep -aERi '98:a3:16|usbmodem' "$OUT"; then
             echo 'private board identifier detected in artifact' >&2
             exit 1
