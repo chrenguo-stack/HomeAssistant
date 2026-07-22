@@ -1,0 +1,255 @@
+name: H3 N2 Stage2D9 G3 V67 Artifact CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9-g3-v67-artifact-ci.yml"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3_prepare/**"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3_executor/**"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3_prepare/**"
+      - "tools/h3_n2_stage2d9_*_20260722_v67.py"
+      - "tools/h3_n2_stage2d9_nvsgen_requirements_20260722_v67.txt"
+      - "protocols/pairing/gh-h3-node-stage2d9-g3-prepare-v1.md"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-locked-artifacts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 80
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          show-progress: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install pinned build tools
+        run: |
+          set -euo pipefail
+          python -m pip install -q "esphome==2026.4.3"
+          python -m venv /tmp/stage2d9-esptool-v67
+          /tmp/stage2d9-esptool-v67/bin/python -m pip install -q --upgrade pip
+          /tmp/stage2d9-esptool-v67/bin/python -m pip install -q "esptool==5.3.1"
+          esphome version
+          /tmp/stage2d9-esptool-v67/bin/python -m esptool version
+
+      - name: Verify Stage 2D-9 immutable source boundary
+        env:
+          SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          python tools/h3_n2_stage2d9_g3_boundary_gate_20260722_v67.py \
+            --repo-root . \
+            --execution-config firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3_prepare/greenhouse_profile_isolated_device_g3_execution_20260722_v67.yml \
+            --source-commit "$SOURCE_COMMIT" \
+            --output /tmp/stage2d9-g3-source-boundary-v67.json \
+            2>&1 | tee /tmp/stage2d9-g3-boundary-v67.log
+
+      - name: Run Stage 2D-9 host models and command fault matrix
+        run: |
+          set -euo pipefail
+          python -m unittest discover \
+            -s tests/h3_n2_stage2d9_prepare \
+            -p 'test_stage2d9_prepare_*_20260722_v1.py' \
+            -v 2>&1 | tee /tmp/stage2d9-host-fault-matrix-v67.log
+
+      - name: Compile clean build A with fixed time
+        working-directory: firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3_prepare
+        run: |
+          set -euo pipefail
+          exec > >(tee /tmp/stage2d9-clean-build-a-v67.log) 2>&1
+          WRAPPER="$GITHUB_WORKSPACE/tools/h3_n2_stage2d9_esphome_reproducible_compile_20260722_v67.py"
+          rm -rf .esphome/build/gh-2d9-g3-v67 .esphome/build/gh-2d9-recovery-v65
+          python "$WRAPPER" config greenhouse_profile_isolated_device_g3_execution_20260722_v67.yml
+          python "$WRAPPER" compile greenhouse_profile_isolated_device_g3_execution_20260722_v67.yml
+          python "$WRAPPER" config greenhouse_stage2d9_locked_recovery_20260722_v65.yml
+          python "$WRAPPER" compile greenhouse_stage2d9_locked_recovery_20260722_v65.yml
+          python - <<'PY'
+          from pathlib import Path
+          import shutil
+
+          root = Path('.esphome/build')
+          out = Path('/tmp/stage2d9-clean-build-a')
+          for role, build_name in (('g3', 'gh-2d9-g3-v67'), ('recovery', 'gh-2d9-recovery-v65')):
+              role_out = out / role
+              role_out.mkdir(parents=True, exist_ok=False)
+              build_root = root / build_name
+              for filename in ('bootloader.bin', 'partitions.bin', 'firmware.bin'):
+                  candidates = sorted(build_root.rglob(filename))
+                  if filename == 'firmware.bin':
+                      candidates = [path for path in candidates if 'bootloader' not in path.parts]
+                  if not candidates:
+                      raise SystemExit(f'missing {role}/{filename}')
+                  shutil.copy2(candidates[0], role_out / filename)
+          PY
+
+      - name: Compile clean build B with fixed time
+        working-directory: firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3_prepare
+        run: |
+          set -euo pipefail
+          exec > >(tee /tmp/stage2d9-clean-build-b-v67.log) 2>&1
+          WRAPPER="$GITHUB_WORKSPACE/tools/h3_n2_stage2d9_esphome_reproducible_compile_20260722_v67.py"
+          rm -rf .esphome/build/gh-2d9-g3-v67 .esphome/build/gh-2d9-recovery-v65
+          python "$WRAPPER" config greenhouse_profile_isolated_device_g3_execution_20260722_v67.yml
+          python "$WRAPPER" compile greenhouse_profile_isolated_device_g3_execution_20260722_v67.yml
+          python "$WRAPPER" config greenhouse_stage2d9_locked_recovery_20260722_v65.yml
+          python "$WRAPPER" compile greenhouse_stage2d9_locked_recovery_20260722_v65.yml
+          python - <<'PY'
+          from pathlib import Path
+          import shutil
+
+          root = Path('.esphome/build')
+          out = Path('/tmp/stage2d9-clean-build-b')
+          for role, build_name in (('g3', 'gh-2d9-g3-v67'), ('recovery', 'gh-2d9-recovery-v65')):
+              role_out = out / role
+              role_out.mkdir(parents=True, exist_ok=False)
+              build_root = root / build_name
+              for filename in ('bootloader.bin', 'partitions.bin', 'firmware.bin'):
+                  candidates = sorted(build_root.rglob(filename))
+                  if filename == 'firmware.bin':
+                      candidates = [path for path in candidates if 'bootloader' not in path.parts]
+                  if not candidates:
+                      raise SystemExit(f'missing {role}/{filename}')
+                  shutil.copy2(candidates[0], role_out / filename)
+          PY
+
+      - name: Prove clean-build reproducibility
+        run: |
+          set -euo pipefail
+          python tools/h3_n2_stage2d9_g3_reproducibility_gate_20260722_v67.py \
+            --first-root /tmp/stage2d9-clean-build-a \
+            --second-root /tmp/stage2d9-clean-build-b \
+            --output /tmp/stage2d9-g3-reproducibility-v67.json \
+            2>&1 | tee /tmp/stage2d9-g3-reproducibility-v67.log
+
+      - name: Install hash-pinned NVS generator
+        run: |
+          set -euo pipefail
+          exec > >(tee /tmp/stage2d9-nvsgen-install-v67.log) 2>&1
+          python -m pip install \
+            --disable-pip-version-check \
+            --no-deps \
+            --require-hashes \
+            --requirement tools/h3_n2_stage2d9_nvsgen_requirements_20260722_v67.txt
+          python - <<'PY' > /tmp/stage2d9-nvsgen-runtime-v67.json
+          import importlib.metadata
+          import json
+          import platform
+
+          generator = importlib.metadata.version('esp-idf-nvs-partition-gen')
+          cryptography = importlib.metadata.version('cryptography')
+          assert generator == '0.2.0', generator
+          print(json.dumps({
+              'generator_version': generator,
+              'wheel_sha256': '7e128c81441fa406fe55b95f29a7d901098bcffc8cc464f993fdbecd074eb9a3',
+              'cryptography_version': cryptography,
+              'python_version': platform.python_version(),
+          }, indent=2, sort_keys=True))
+          PY
+          python -m esp_idf_nvs_partition_gen --help >/dev/null
+
+      - name: Generate deterministic Stage 2D-9 seed twice
+        run: |
+          set -euo pipefail
+          exec > >(tee /tmp/stage2d9-g3-seed-v67.log) 2>&1
+          ROOT=firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3_prepare
+          for suffix in a b; do
+            python -m esp_idf_nvs_partition_gen generate \
+              "$ROOT/stage2d9_g3_nvs_seed_20260722_v65.csv" \
+              "/tmp/stage2d9-g3-nvs-seed-v67-${suffix}.bin" \
+              0x10000
+          done
+          test "$(stat -c %s /tmp/stage2d9-g3-nvs-seed-v67-a.bin)" = 65536
+          cmp /tmp/stage2d9-g3-nvs-seed-v67-a.bin /tmp/stage2d9-g3-nvs-seed-v67-b.bin
+          strings /tmp/stage2d9-g3-nvs-seed-v67-a.bin | grep -F 'gh2d8_seed'
+          if strings /tmp/stage2d9-g3-nvs-seed-v67-a.bin | grep -F 'gh2d8_s2d9'; then
+            echo 'target namespace unexpectedly present in seed image' >&2
+            exit 1
+          fi
+          sha256sum /tmp/stage2d9-g3-nvs-seed-v67-a.bin
+
+      - name: Assemble immutable G3 and recovery packages
+        env:
+          SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          exec > >(tee /tmp/stage2d9-g3-package-v67.log) 2>&1
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+          python tools/h3_n2_stage2d9_g3_artifact_packager_20260722_v67.py \
+            --repo-root . \
+            --output /tmp/stage2d9-g3-immutable-v67 \
+            --source-commit "$SOURCE_COMMIT" \
+            --esptool-python /tmp/stage2d9-esptool-v67/bin/python \
+            --seed-image /tmp/stage2d9-g3-nvs-seed-v67-a.bin \
+            --boundary-report /tmp/stage2d9-g3-source-boundary-v67.json \
+            --reproducibility-report /tmp/stage2d9-g3-reproducibility-v67.json \
+            --nvsgen-runtime-report /tmp/stage2d9-nvsgen-runtime-v67.json \
+            --nvsgen-requirements tools/h3_n2_stage2d9_nvsgen_requirements_20260722_v67.txt
+
+      - name: Verify packaged images and locked manifest
+        env:
+          SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          exec > >(tee /tmp/stage2d9-g3-verify-v67.log) 2>&1
+          OUT=/tmp/stage2d9-g3-immutable-v67
+          MANIFEST="$OUT/stage2d9-g3-artifact-manifest-v67.json"
+          grep -F '"gate": "LOCKED"' "$MANIFEST"
+          grep -F '"source_commit": "'"$SOURCE_COMMIT"'"' "$MANIFEST"
+          grep -F '"byte_identical": true' "$MANIFEST"
+          grep -F '"writable_capable": true' "$MANIFEST"
+          grep -F '"unlock_preimage_in_artifact": false' "$MANIFEST"
+          grep -F '"flash_authorized": false' "$MANIFEST"
+          grep -F '"prepare_authorized": false' "$MANIFEST"
+          grep -F '"activate_authorized": false' "$MANIFEST"
+          grep -F '"cleanup_authorized": false' "$MANIFEST"
+          test "$(stat -c %s "$OUT/g3/gh2d9_nvs_seed.bin")" = 65536
+          cmp "$OUT/g3/gh2d9_nvs_seed.bin" "$OUT/recovery/gh2d9_nvs_seed.bin"
+          if grep -aERi 'usbmodem|/Users/|unlock_token_hex|persistence_key_hex|GH2D9_PREPARE_V1 ' "$OUT"; then
+            echo 'private execution material detected in Artifact' >&2
+            exit 1
+          fi
+          (cd "$OUT" && sha256sum --check SHA256SUMS)
+
+      - name: Upload immutable locked Artifact package
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9-g3-immutable-locked-v67
+          path: /tmp/stage2d9-g3-immutable-v67
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Build failure diagnostic
+        if: failure()
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/stage2d9-g3-diagnostic-v67
+          for source in /tmp/stage2d9-*-v67.log /tmp/stage2d9-*-v67.json; do
+            if [ -f "$source" ]; then cp "$source" /tmp/stage2d9-g3-diagnostic-v67/; fi
+          done
+          if [ -d /tmp/stage2d9-g3-immutable-v67 ]; then
+            find /tmp/stage2d9-g3-immutable-v67 -maxdepth 2 -type f -printf '%P %s bytes\n' | sort \
+              > /tmp/stage2d9-g3-diagnostic-v67/package-inventory.txt
+          fi
+
+      - name: Upload failure diagnostic
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9-g3-diagnostic-v67
+          path: /tmp/stage2d9-g3-diagnostic-v67
+          if-no-files-found: error
+          retention-days: 7
