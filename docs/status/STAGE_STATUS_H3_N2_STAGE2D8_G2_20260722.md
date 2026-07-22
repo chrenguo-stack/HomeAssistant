@@ -1,11 +1,11 @@
 # H3/N2 Stage 2D-8 G2 专用测试板实板验收状态
 
-- **状态文件版本：** V1.6
+- **状态文件版本：** V1.7
 - **更新日期：** 2026-07-22
 - **权威性：** 本文件是本活动阶段唯一权威 `STAGE_STATUS`
-- **阶段状态：** `authorized_awaiting_one_shot_execution`
-- **结论状态：** `not_run`
-- **执行门：** `OPEN_EXACT_ONE_SHOT_UNTIL_EXPIRY`
+- **阶段状态：** `d2_attempt_inconclusive_waiting_private_summary`
+- **当前结论：** `inconclusive`
+- **执行门：** `LOCKED_NO_REPLAY`
 
 ## 1. S0 基线
 
@@ -25,11 +25,11 @@ EVIDENCE_PR=172
 PUBLIC_SAFETY_STATUS=passed
 ```
 
-PR `#166`、`#167`、`#168` 的冻结分支不得修改。本证据分支只允许保存脱敏状态、manifest、L1 证据摘要和 Artifact 索引。
+PR `#166`、`#167`、`#168` 的冻结分支未修改。本证据分支只保存脱敏状态、manifest、L1 证据摘要和 Artifact 索引。
 
 ## 2. 范围与禁止事项
 
-本阶段只执行一次已精确授权的专用板目标预检、全片擦除、V64 G2 写入、verify-flash、preboot 64 KiB 回读、一次启动与串口采集、postboot 64 KiB 回读和私有证据收集。仅在进入破坏性边界后发生规定失败时，最多执行一次 locked recovery。
+本阶段只允许在精确 D2 授权下，对已绑定专用板执行一次目标预检、全片擦除、V64 G2 写入、verify-flash、preboot 64 KiB 回读、一次启动与串口采集、postboot 64 KiB 回读和私有证据收集。仅在进入破坏性边界后发生规定失败时，最多执行一次 locked recovery。
 
 继续禁止：修改或重建冻结候选；`PREPARE_CANDIDATE`、`ACTIVATE_PROFILE`、`CLEANUP_TEST_STATE`；测试密钥、可写 NVS、Wi-Fi、MQTT、Broker、Home Assistant、API、OTA、mDNS；任何 eFuse 读写；启用 Secure Boot 或 Flash Encryption；M401A、T1、Mosquitto、greenhouse-manager 和生产环境操作；Ready、合并或发布。
 
@@ -45,7 +45,7 @@ ARTIFACT_MANIFEST_SHA256=bd0b138710c178cc6d166e2eb8ab2e5b419bf167a5ad19c0aaebc99
 REPRODUCIBILITY_REPORT_SHA256=325580af692416f3e16c29bee7f14135ce4eaa04026c6441f4e8b794033a3bd1
 ```
 
-Artifact manifest 继续保持 `gate=LOCKED` 且其内部所有执行授权为 `false`。本次实板执行权限来自独立、外部、不可重放的 D2 精确单次授权，不修改 Artifact。
+Artifact manifest 继续保持 `gate=LOCKED` 且内部所有执行授权为 `false`。实板权限来自独立的外部 D2 精确单次授权，不修改 Artifact。
 
 ## 4. U1 本机 Artifact 校验闭环
 
@@ -69,14 +69,11 @@ FLASH_OPERATION_ATTEMPTED=false
 NETWORK_OPERATION_ATTEMPTED=false
 ```
 
-## 5. D2 精确单次授权
-
-用户已明确授权：
+## 5. D2 精确单次授权与执行尝试
 
 ```text
 D2_AUTHORIZATION_REQUEST_ID=D2-H3N2-STAGE2D8-G2-V64-20260722-01
 D2_AUTHORIZATION_RECEIVED=true
-D2_AUTHORIZATION_STATUS=authorized_not_consumed
 D2_ISSUED_AT=2026-07-22T09:36:29Z
 D2_EXPIRES_AT=2026-07-22T11:36:29Z
 D2_ONE_SHOT=true
@@ -86,14 +83,34 @@ D2_REVIEW_PACKAGE_SHA256=e2bb1271194c5d73219419b3b86dc274ff0f23d183148cdc35e839e
 D2_EXECUTION_SCRIPT_SHA256=ce5d1018ef0161b02148e8a4f74fdf1873c528b0ad23827b6ef9c6e85054b8ce
 D2_COMMAND_GROUP_SHA256=6c2f4407334c936537824437be7b3e350a50547308e1a1e708d532403aac4685
 D2_STOP_CONDITIONS_SHA256=8ece74c8065375184b93a533d11f9d6568304472f06ff8b2f46658abbde6962b
-D2_OPERATOR_AUTHORIZATION_TEXT_SHA256=6107c24fb242fbfdd1116005ce59ca5e7c32f8526790f28428bbf1840799f462
 D2_AUTHORIZATION_BINDING_SHA256=ebf6efd2419e8373842571a2eeae58eaa2bdb5ba0c0b90585a7e44a806d759d5
 D2_AUTHORIZATION_FILE_SHA256=a35fe5ce8b021049f41b6f9062667473549ebc9e70e9450018f3fd9c4e4be50f
 D2_EXECUTION_PACKAGE_SHA256=441634f9e029c55db202845857acbad4f7c6f35be053df82bab3d31ffbd5aa13
-D2_PRIVATE_BINDING_REDACTED_IN_GIT=true
 ```
 
-授权 JSON、私有板卡指纹、私有串口和 G1 私有安全快照不进入 Git。授权到期、绑定不匹配、文件被修改、已消费或尝试重放时必须 fail closed。
+用户执行批量包后返回：
+
+```text
+D2_ATTEMPT_TIMESTAMP_UTC=2026-07-22T09:44:26Z
+D2_ATTEMPT_RESULT=inconclusive
+DESTRUCTIVE_BOUNDARY_ENTERED=false
+PHYSICAL_ERASE_PERFORMED=false
+G2_FLASH_PERFORMED=false
+VERIFY_FLASH_PERFORMED=false
+PREBOOT_READBACK_PERFORMED=false
+G2_BOOTED=false
+POSTBOOT_READBACK_PERFORMED=false
+RECOVERY_PERFORMED=false
+RECOVERY_COUNT=0
+EFUSE_COMMAND_ATTEMPTED=false
+NETWORK_OPERATION_ATTEMPTED=false
+PRODUCTION_ENVIRONMENT_MODIFIED=false
+PRIVATE_EVIDENCE_ARCHIVE_SHA256=366ac51f1c754431d6ec1d7bffc1e76b9b8df948b02af79603953599bc37c460
+```
+
+该尝试在破坏性边界前关闭，未擦除、未写入、未 verify-flash、未回读、未启动 G2、未执行 recovery。当前摘要未包含 `failure_class` 与 `failure_message`，因此根因尚未闭环。
+
+为遵守不可重放原则，该 D2 授权从治理层面标记为 `attempted_inconclusive_retired`；无论本机 consumed marker 是否建立，均禁止再次运行原授权文件或原批量命令。完成私有摘要诊断后，如仍需实板执行，必须重新生成新的 D2 请求 ID、授权文件和一次性执行包。
 
 ## 6. S0—S8 状态
 
@@ -106,18 +123,20 @@ D2_PRIVATE_BINDING_REDACTED_IN_GIT=true
 | S4 GitHub CI | `passed` | Draft PR #172 公共仓库安全门通过 |
 | S5 候选冻结 | `passed` | 仅引用 PR #168 的不可变 V64，不重建候选 |
 | S6A 隔离验证 | `passed` | host fault matrix、边界门和可复现性通过 |
-| S6B 实板验收 | `authorized_waiting_execution` | D2 已签发，等待用户一次执行完整批量包 |
+| S6B 实板验收 | `inconclusive_pre_destructive` | D2 尝试在破坏性边界前 fail closed；等待私有摘要诊断 |
 | S7 归档/发布 | `not_run` | 禁止 Ready、合并和发布 |
-| S8 阶段关闭 | `not_run` | 等待实板执行结果和证据闭环 |
+| S8 阶段关闭 | `not_run` | 阶段保持打开，等待根因和后续 D2 决策 |
 
 ## 7. 决策门
 
 ```text
 D1_SCOPE_DECISION=resolved
-D2_PHYSICAL_EXECUTION_AUTHORIZATION=authorized_not_consumed
+D2_PHYSICAL_EXECUTION_AUTHORIZATION=attempted_inconclusive_retired
 D3_RISK_WAIVER=not_required
 D4_READY_MERGE_RELEASE=prohibited
 ```
+
+当前不请求 D3。根因诊断仅读取本机私有证据归档，不连接测试板，不触发 Flash、网络或生产环境操作。
 
 ## 8. 助手开发队列
 
@@ -127,23 +146,28 @@ D4_READY_MERGE_RELEASE=prohibited
 | A2 | `done` | Artifact 独立复核 |
 | A3 | `done` | 权威状态、manifest、索引和证据模板 |
 | A4 | `done` | Draft PR #172 与公共安全门 |
-| A5 | `done` | U1 审核、D2 审核包、精确授权 JSON 和自包含批量包 |
-| A6 | `blocked_on_user_batch` | 等待一次实板批量执行结果后形成 L1 结论 |
+| A5 | `done` | U1、D2 审核包、精确授权和一次性批量包 |
+| A6 | `done` | 记录首轮 D2 尝试为破坏性边界前 `inconclusive` |
+| A7 | `blocked_on_private_summary` | 等待脱敏 `failure_class`、`failure_message` 和授权消费状态后修复执行链 |
 
 ## 9. 用户操作队列
 
+### U6：只读提取私有摘要诊断字段
+
 ```text
-TASK_ID=U5_STAGE2D8_G2_ONE_SHOT_PHYSICAL_ACCEPTANCE
-STATUS=ready_authorized
-RISK_CLASS=D
-CAN_RUN_IN_PARALLEL=false
-AUTHORIZATION_REQUIRED=true
-AUTHORIZATION_RECEIVED=true
-AUTHORIZATION_EXPIRES_AT=2026-07-22T11:36:29Z
-EXPECTED_RETURN=complete terminal summary + private evidence archive SHA-256
+TASK_ID=U6_STAGE2D8_G2_PRIVATE_SUMMARY_REDACTED_DIAGNOSTIC
+STATUS=ready
+RISK_CLASS=A
+BOARD_ACCESS_REQUIRED=false
+FLASH_OPERATION_ALLOWED=false
+NETWORK_OPERATION_ALLOWED=false
+AUTHORIZATION_REQUIRED=false
+EXPECTED_RETURN=redacted diagnostic fields only
 ```
 
-## 10. 实板验收必须同时成立
+禁止重放原 D2 授权或再次运行原批量包。
+
+## 10. 实板验收仍需同时成立
 
 - 冻结哈希、目标身份和 Flash 型号容量匹配；
 - erase/write/verify/preboot readback 成功；
@@ -159,12 +183,14 @@ EXPECTED_RETURN=complete terminal summary + private evidence archive SHA-256
 ## 11. 当前结论
 
 ```text
-STAGE_STATUS=authorized_awaiting_one_shot_execution
-FINAL_RESULT=not_run
+STAGE_STATUS=d2_attempt_inconclusive_waiting_private_summary
+FINAL_RESULT=inconclusive
 U1_HOST_ARTIFACT_VERIFICATION=passed
 D2_AUTHORIZATION_RECEIVED=true
-D2_AUTHORIZATION_CONSUMED=false
-PHYSICAL_EXECUTION_STARTED=false
+D2_AUTHORIZATION_STATUS=attempted_inconclusive_retired
+D2_REPLAY_PERMITTED=false
+PHYSICAL_EXECUTION_STARTED=true
+DESTRUCTIVE_BOUNDARY_ENTERED=false
 PHYSICAL_ERASE_PERFORMED=false
 G2_FLASH_PERFORMED=false
 VERIFY_FLASH_PERFORMED=false
@@ -172,6 +198,8 @@ PREBOOT_READBACK_PERFORMED=false
 G2_BOOTED=false
 POSTBOOT_READBACK_PERFORMED=false
 RECOVERY_PERFORMED=false
-L1_PHYSICAL_EVIDENCE_COMMITTED=false
+PRIVATE_EVIDENCE_ARCHIVED=true
+PRIVATE_EVIDENCE_ARCHIVE_SHA256=366ac51f1c754431d6ec1d7bffc1e76b9b8df948b02af79603953599bc37c460
+L1_PHYSICAL_ATTEMPT_EVIDENCE_COMMITTED=true
 PRODUCTION_ENVIRONMENT_MODIFIED=false
 ```
