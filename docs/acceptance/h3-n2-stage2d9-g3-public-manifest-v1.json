@@ -1,7 +1,7 @@
 {
-  "schema": "gh.h3.n2.stage2d9-g3-public-manifest/3",
+  "schema": "gh.h3.n2.stage2d9-g3-public-manifest/4",
   "stage": "H3/N2 Stage 2D-9 G3",
-  "status": "u1_passed_d2_review_pending",
+  "status": "u1_passed_hardened_d2_attempt2_review_pending",
   "base_main_sha": "2a5272546f25b1b29cf1d6682cf1fc14f1c1be83",
   "branch": "feature/h3-n2-stage2d9-g3-prepare-candidate-20260722-v1",
   "draft_pr": 174,
@@ -75,34 +75,47 @@
       "script_sha256": "6a93006e2b9bcec91c8501ec90d37647940875cae41ce99539739427bd7a3de3",
       "canonical_output_sha256": "ff52e4e21db04f3d9de93d651c3da3290b0c23af0da024c9fd54529d3f1ecdf8",
       "board_accessed": false,
+      "serial_access_attempted": false,
       "flash_operation_attempted": false,
       "network_operation_attempted": false
     },
-    "public_repository_safety_ci": {
-      "run_id": 29934769289,
-      "status": "passed"
+    "d2_attempt2_host_binding_tests": {
+      "valid_authorization_case": "passed",
+      "wrong_review_package_sha": "rejected",
+      "wrong_operator_authorization_text_sha": "rejected",
+      "wrong_authorization_duration": "rejected"
     },
-    "existing_repository_ci": {
-      "f1_0_rc2": "passed",
-      "n1": "passed",
-      "m0": "passed",
-      "m2": "passed",
-      "greenhouse_manager": "passed",
-      "stage2b3": "passed"
+    "public_repository_safety_ci": {
+      "run_id": 29937970430,
+      "status": "passed"
     }
   },
+  "retired_d2_requests": [
+    {
+      "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V67-20260722-01",
+      "status": "retired_before_authorization",
+      "authorization_issued": false,
+      "execution_authorized": false,
+      "execution_performed": false,
+      "replay_permitted": false,
+      "review_package_sha256": "a3b174e0d9f97d5e8c4c73c4c8f428735becd091deae251ab933cae7c8d964a9"
+    }
+  ],
   "d2_review": {
-    "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V67-20260722-01",
+    "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V67-20260723-02",
     "status": "pending_operator_authorization",
-    "review_package_sha256": "a3b174e0d9f97d5e8c4c73c4c8f428735becd091deae251ab933cae7c8d964a9",
-    "operator_authorization_text_sha256": "5badbd8812c11d10f99e966558cd5a8b02042d13ea24089b693e66948c02ba16",
-    "execution_script_sha256": "6c742fd2bc09eb3222d6a6579d535786ff8258e3af9bba19a6ec7fd5c354ede2",
-    "launcher_sha256": "3007a971652aff2b66bed63cefb1907000c3b08bacdebc4a88cbaef42226cb23",
-    "command_group_sha256": "288019f2bb20e1ae96eef7d4d0cac73d802523d95349a6f0ccaab8f93c3140dd",
-    "stop_conditions_sha256": "c29a35aee05f415fdc9f36d0f1cc0f783e9cc4f14fecf4ca97c9db047000583b",
-    "private_execution_material_sha256": "deb4e490a87d0ddcee6ebac068788a7205c0360faed62629328e381a29f2eb71",
-    "prepare_command_sha256": "b6c930c1a5190e5e243e1b834673e36b674441145b1ce04cc1891f7287106ffe",
-    "verify_command_sha256": "0e6c9d3061f769749fae23d0ea36aac86f3e1dc9bfa2b580d793e8072afced01",
+    "review_package_sha256": "65f475dad073c365c2c03ee2bebfaf38777fac0993f96f90ebb394e78354c575",
+    "operator_authorization_text_sha256": "d2b08e1f90a0b16d888bf874e4bea963a4b190b9f78264e0ba152d9a12a4aa40",
+    "execution_script_sha256": "b39301d0b9c25a5713e841a3215a72bd6c3f708d2c53259f8bdc6f2078b56797",
+    "launcher_sha256": "5144dad8af38d59ee8fcafed823b9c26fe0cc351f8cfe00af56b40a6ca17b78f",
+    "command_group_sha256": "88d93f71ec0202ced301e41ed8dd7be9acf37ca7572d270668e96131b7e247c7",
+    "stop_conditions_sha256": "0cb915bcf9e8c6efa08d0682b602ae85e98be0769490bd05dc6699ff2ef935dd",
+    "private_execution_material_sha256": "1deec812809107a44e2a3d79e3e7cb2d4f461f2d2c547e66940151e40ea7c96c",
+    "prepare_command_sha256": "2c41332ebdd09a1dbabb10068ef29bbb3d0dee3901d0ee7f317e3a48e1a920f8",
+    "verify_command_sha256": "93da815761ee3faba5065645c57b734bbf3c6ab8a79dc3bf2c45beb23d3b52e1",
+    "authorization_validity": "exactly 2 hours after issue",
+    "actual_review_package_sha_required_at_execution": true,
+    "actual_operator_text_sha_required_at_execution": true,
     "one_shot": true,
     "replay_permitted": false,
     "execution_authorized": false
@@ -123,7 +136,8 @@
     "flash_encryption_change_authorized": false,
     "production_environment_operation_authorized": false,
     "ready_merge_release_authorized": false,
-    "stage2d8_d2_replay_authorized": false
+    "stage2d8_d2_replay_authorized": false,
+    "stage2d9_attempt1_replay_authorized": false
   },
   "completed": {
     "p0_scope_protocol": true,
@@ -148,5 +162,5 @@
     "candidate_secret_values_included": false,
     "private_logs_included": false
   },
-  "next_gate": "exact operator D2 authorization for request D2-H3N2-STAGE2D9-G3-V67-20260722-01"
+  "next_gate": "exact operator D2 authorization for request D2-H3N2-STAGE2D9-G3-V67-20260723-02"
 }
