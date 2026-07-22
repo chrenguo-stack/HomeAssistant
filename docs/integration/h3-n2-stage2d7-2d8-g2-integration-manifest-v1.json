@@ -1,13 +1,15 @@
 {
-  "schema": "gh.h3.n2.stage2d7-2d8-g2-integration-manifest/1",
-  "status": "draft_ci_validation_pending",
+  "schema": "gh.h3.n2.stage2d7-2d8-g2-integration-manifest/2",
+  "status": "draft_ci_validation_passed_awaiting_d4",
   "repository": "chrenguo-stack/HomeAssistant",
   "integration_branch": "integration/h3-n2-stage2d8-g2-closure-20260722-v1",
+  "integration_pr": 173,
   "target_branch": "main",
   "main_at_integration_start": "dd06eb06c762791999e4cb3bd22c2dac17aa3fd0",
   "frozen_evidence_head": "04562e50147e200fe408c66dee001f25ea1af0b9",
   "integration_merge_commit": "8fa431704e6b506d0bb94d927d65697d1606fee2",
   "union_tree_sha": "32cbd4401b20cf3b48e8c5e8f6bfe570dfc9defc",
+  "validation_head": "7b2770e8611893bda8edebbd0164754625cbe18e",
   "frozen_source_sha": "6cf37c29311601f4f83238cc8401c81ea7b9a1f0",
   "frozen_artifact": {
     "generation": "V64",
@@ -25,19 +27,47 @@
     "current_main_only_path_count": 10,
     "stage2d7_to_stage2d8_path_count": 61,
     "overlapping_path_count": 0,
-    "current_main_is_parent": true,
-    "frozen_evidence_head_is_parent": true,
+    "current_main_is_ancestor": true,
+    "frozen_evidence_head_is_ancestor": true,
     "frozen_branches_modified": false
   },
   "validation": {
     "structural_union_check": "passed",
-    "public_repository_safety_ci": "pending",
-    "stage2d7_host_fault_matrix": "pending",
-    "stage2d8_driver_fault_matrix": "pending",
-    "dedicated_compile_only": "pending",
-    "product_board_compile_only": "pending",
-    "production_paths_unchanged": "pending",
-    "artifact_and_evidence_consistency": "pending"
+    "integration_gate_ci": "passed",
+    "public_repository_safety_ci": "passed",
+    "stage2d7_host_fault_matrix": "passed",
+    "stage2d7_frozen_boundary_gate": "passed",
+    "stage2d7_dedicated_compile_only": "passed",
+    "stage2d7_product_board_compile_only": "passed",
+    "stage2d8_driver_fault_matrix": "passed",
+    "stage2d8_manifest_and_default_denial": "passed",
+    "stage2d8_frozen_boundary_gate": "passed",
+    "stage2d8_dedicated_compile_only": "passed",
+    "stage2d8_product_board_compile_only": "passed",
+    "v64_verification_only_gate": "passed",
+    "artifact_and_evidence_consistency": "passed",
+    "f1_0_rc2_ci": "passed",
+    "n1_firmware_ci": "passed",
+    "m0_vertical_slice_ci": "passed",
+    "m2_dynamic_security_ci": "passed",
+    "greenhouse_manager_ci": "passed",
+    "stage2b3_pairing_runtime_ci": "passed",
+    "production_paths_unchanged": "passed",
+    "local_environment_tooling": "passed_in_merged_pr_170_and_preserved_byte_identical"
+  },
+  "validation_run_ids": {
+    "integration_gate": 29925293068,
+    "public_repository_safety": 29925292752,
+    "stage2d7": 29925292704,
+    "stage2d8_driver": 29925292855,
+    "v64_reference": 29925294462,
+    "f1_0_rc2": 29925294627,
+    "n1": 29925292989,
+    "m0": 29925294580,
+    "m2": 29925294434,
+    "greenhouse_manager": 29925293027,
+    "stage2b3": 29925297052,
+    "local_environment_tooling_parent": 29902898891
   },
   "boundaries": {
     "device_operation": false,
@@ -46,5 +76,13 @@
     "production_environment_operation": false,
     "ready_merge_release_authorized": false
   },
-  "next_gate": "D4 after complete Draft PR CI validation"
+  "d4": {
+    "status": "prepared_waiting_operator_decision",
+    "proposed_ready": true,
+    "proposed_merge_method": "squash",
+    "proposed_target": "main",
+    "release_included": false,
+    "authorization_received": false
+  },
+  "next_gate": "D4 exact operator authorization after final record commit CI confirms success"
 }
