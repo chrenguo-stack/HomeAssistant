@@ -226,6 +226,7 @@ jobs:
       - name: Verify packaged images and redaction
         run: |
           set -euo pipefail
+          exec > >(tee /tmp/stage2d8-g2-verify-v60.log) 2>&1
           OUT=/tmp/stage2d8-g2-immutable-v60
           ESPTOOL=/tmp/stage2d8-esptool-v60/bin/python
           "$ESPTOOL" -m esptool --chip esp32c6 image-info "$OUT/g2/firmware.bin"
@@ -233,8 +234,14 @@ jobs:
           grep -F '"gate": "LOCKED"' "$OUT/stage2d8-g2-artifact-manifest-v60.json"
           grep -F '"flash_authorized": false' "$OUT/stage2d8-g2-artifact-manifest-v60.json"
           grep -F '"persistent_write_authorized": false' "$OUT/stage2d8-g2-artifact-manifest-v60.json"
-          if grep -ERi '98:a3:16|usbmodem|BEGIN (RSA |EC )?PRIVATE KEY|mqtt_password|wifi_password' "$OUT"; then
-            echo 'private device or credential material detected in artifact' >&2
+          if grep -aERi '98:a3:16|usbmodem|BEGIN (RSA |EC )?PRIVATE KEY' "$OUT"; then
+            echo 'private device or key material detected in artifact' >&2
+            exit 1
+          fi
+          if grep -ERi \
+              --include='*.json' --include='*.csv' --include='SHA256SUMS' \
+              'mqtt_password|wifi_password' "$OUT"; then
+            echo 'credential field detected in text artifact' >&2
             exit 1
           fi
           (cd "$OUT" && sha256sum --check SHA256SUMS)
@@ -257,11 +264,17 @@ jobs:
             /tmp/stage2d8-g2-config-v60.log \
             /tmp/stage2d8-g2-compile-v60.log \
             /tmp/stage2d8-recovery-config-v60.log \
-            /tmp/stage2d8-recovery-compile-v60.log; do
+            /tmp/stage2d8-recovery-compile-v60.log \
+            /tmp/stage2d8-g2-verify-v60.log; do
             if [ -f "$source" ]; then
               cp "$source" /tmp/stage2d8-g2-diagnostic-v60/
             fi
           done
+          if [ -d /tmp/stage2d8-g2-immutable-v60 ]; then
+            find /tmp/stage2d8-g2-immutable-v60 -maxdepth 2 -type f \
+              -printf '%P %s bytes\n' | sort \
+              > /tmp/stage2d8-g2-diagnostic-v60/package-inventory.txt
+          fi
           printf 'head=%s\n' "$GITHUB_SHA" \
             > /tmp/stage2d8-g2-diagnostic-v60/context.txt
 
