@@ -1,8 +1,8 @@
 {
-  "schema": "gh.h3.n2.stage2d8-g2-physical-acceptance-evidence/4",
+  "schema": "gh.h3.n2.stage2d8-g2-physical-acceptance-evidence/5",
   "stage": "H3/N2 Stage 2D-8 G2",
   "result": "inconclusive",
-  "stage_status": "d2_attempt_inconclusive_waiting_private_summary",
+  "stage_status": "d2_attempt1_host_tool_diagnostic",
   "source_sha": "6cf37c29311601f4f83238cc8401c81ea7b9a1f0",
   "artifact_zip_sha256": "662d9d4d850eea603d5defafb2b3c84a8bc07fae3a4b51229479b2a0a71e8ea9",
   "g2_merged_sha256": "a3ff73ddc11115849e160637cd63e2f44c699e595c5c6aa43575f9d7626ed47d",
@@ -20,11 +20,9 @@
     "status": "passed",
     "controlled_private_evidence_sha256": "6930cb6e52ada91f92ccf487c35319856abffd2e2d8ee17fe43641bbb9ce619e"
   },
-  "d2_authorization": {
+  "d2_attempt_1_authorization": {
     "status": "attempted_inconclusive_retired",
     "authorization_request_id": "D2-H3N2-STAGE2D8-G2-V64-20260722-01",
-    "received_at": "2026-07-22T09:36:29Z",
-    "expires_at": "2026-07-22T11:36:29Z",
     "one_shot": true,
     "replay_permitted": false,
     "private_target_bound": true,
@@ -37,29 +35,27 @@
     "stop_conditions_bound": true,
     "single_recovery_scope_bound": true,
     "authorization_expiry_bound": true,
-    "operator_authorization_text_sha256": "6107c24fb242fbfdd1116005ce59ca5e7c32f8526790f28428bbf1840799f462",
     "authorization_binding_sha256": "ebf6efd2419e8373842571a2eeae58eaa2bdb5ba0c0b90585a7e44a806d759d5",
-    "controlled_private_authorization_sha256": "a35fe5ce8b021049f41b6f9062667473549ebc9e70e9450018f3fd9c4e4be50f",
     "execution_package_sha256": "441634f9e029c55db202845857acbad4f7c6f35be053df82bab3d31ffbd5aa13",
-    "authorization_consumed_marker_status": "unknown_waiting_private_summary",
+    "authorization_consumed_marker_status": "unknown",
     "governance_replay_status": "prohibited"
   },
-  "physical_preflight": {
-    "status": "inconclusive_before_destructive_boundary",
-    "failure_class": null,
-    "failure_message": null,
+  "physical_preflight_attempt_1": {
+    "status": "inconclusive_host_tool_version_preflight",
+    "failure_class": "RuntimeError",
+    "failure_message_redacted": "command failed: version",
+    "failure_stage": "local_esptool_version_preflight",
+    "usb_preflight_present": false,
+    "flash_id_present": false,
     "chip_match": null,
     "revision_match": null,
     "private_board_identity_match": null,
     "flash_manufacturer_match": null,
     "flash_device_match": null,
     "flash_size_match": null,
-    "secure_boot_disabled_from_frozen_g1": null,
-    "flash_encryption_disabled_from_frozen_g1": null,
-    "efuse_operation_attempted": false,
-    "controlled_private_preflight_sha256": null
+    "efuse_operation_attempted": false
   },
-  "physical_execution": {
+  "physical_execution_attempt_1": {
     "status": "not_entered",
     "attempt_timestamp_utc": "2026-07-22T09:44:26Z",
     "destructive_boundary_entered": false,
@@ -75,6 +71,29 @@
     "recovery_performed": false,
     "recovery_count": 0,
     "controlled_private_execution_archive_sha256": "366ac51f1c754431d6ec1d7bffc1e76b9b8df948b02af79603953599bc37c460"
+  },
+  "u7_host_tool_environment_diagnostic": {
+    "status": "ready",
+    "python_executable_match": null,
+    "python_version": null,
+    "esptool_distribution_present": null,
+    "esptool_distribution_version": null,
+    "esptool_module_path_redacted": null,
+    "module_version_command_return_code": null,
+    "module_version_command_output_redacted": null,
+    "console_version_command_return_code": null,
+    "console_version_command_output_redacted": null,
+    "board_accessed": false,
+    "serial_access_attempted": false,
+    "flash_operation_attempted": false,
+    "network_operation_attempted": false
+  },
+  "future_physical_execution": {
+    "status": "blocked_on_u7_and_new_d2",
+    "new_authorization_request_id_required": true,
+    "new_script_filename_required": true,
+    "new_command_group_digest_required": true,
+    "new_stop_conditions_digest_required": true
   },
   "serial_l1": {
     "boundary_key_loaded_false": null,
@@ -116,7 +135,7 @@
   "traceability": {
     "private_evidence_location": "controlled-private-storage",
     "u1_private_evidence_sha256": "6930cb6e52ada91f92ccf487c35319856abffd2e2d8ee17fe43641bbb9ce619e",
-    "d2_attempt_private_archive_sha256": "366ac51f1c754431d6ec1d7bffc1e76b9b8df948b02af79603953599bc37c460",
+    "d2_attempt1_private_archive_sha256": "366ac51f1c754431d6ec1d7bffc1e76b9b8df948b02af79603953599bc37c460",
     "private_evidence_index_sha256": null,
     "l1_summary_commit_sha": null,
     "draft_pr_number": 172,
