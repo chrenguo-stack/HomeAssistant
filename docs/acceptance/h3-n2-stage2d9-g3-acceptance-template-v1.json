@@ -1,0 +1,94 @@
+{
+  "schema": "gh.h3.n2.stage2d9-g3-physical-acceptance/1",
+  "stage": "H3/N2 Stage 2D-9 G3",
+  "result": null,
+  "source_commit": null,
+  "artifact_zip_sha256": null,
+  "g3_merged_sha256": null,
+  "recovery_merged_sha256": null,
+  "seed_sha256": null,
+  "unlock_digest_sha256": null,
+  "authorization": {
+    "request_id": null,
+    "one_shot": true,
+    "replay_permitted": false,
+    "consumed": null,
+    "active_generation": 0,
+    "candidate_generation": 1,
+    "action": "PREPARE_CANDIDATE"
+  },
+  "preflight": {
+    "host_environment_match": null,
+    "artifact_match": null,
+    "private_board_binding_match": null,
+    "usb_candidate_set_match": null,
+    "chip_match": null,
+    "revision_match": null,
+    "flash_match": null,
+    "seed_readback_match": null,
+    "efuse_operation_attempted": false
+  },
+  "physical_execution": {
+    "destructive_boundary_entered": null,
+    "erase_success": null,
+    "write_success": null,
+    "verify_flash_success": null,
+    "preboot_seed_match": null,
+    "prepare_command_sent": null,
+    "prepare_pass_marker": null,
+    "automatic_reboot_observed": null,
+    "verify_command_sent": null,
+    "verify_pass_marker": null,
+    "postboot_partition_changed_from_seed": null,
+    "recovery_performed": false,
+    "recovery_count": 0
+  },
+  "expected_state": {
+    "active_generation": 0,
+    "active_profile_unchanged": true,
+    "candidate_generation": 1,
+    "candidate_state": "PREPARED",
+    "candidate_digest_match": true,
+    "prepare_authorization_consumed": true,
+    "active_session": false,
+    "candidate_session": false,
+    "probe_session": false,
+    "activate_authorization_present": false,
+    "cleanup_authorization_present": false,
+    "mqtt_operation_attempted": false
+  },
+  "protected_boundaries": {
+    "activate_profile_executed": false,
+    "cleanup_test_state_executed": false,
+    "wifi_connected": false,
+    "mqtt_connected": false,
+    "broker_started": false,
+    "efuse_read_or_write": false,
+    "secure_boot_changed": false,
+    "flash_encryption_changed": false,
+    "production_environment_modified": false
+  },
+  "private_evidence": {
+    "archive_sha256": null,
+    "summary_json_sha256": null,
+    "serial_log_sha256": null,
+    "preflight_log_sha256": null,
+    "destructive_log_sha256": null,
+    "preboot_binary_sha256": null,
+    "postboot_binary_sha256": null
+  },
+  "privacy": {
+    "unlock_preimage_in_git": false,
+    "persistence_key_in_git": false,
+    "authorization_json_in_git": false,
+    "raw_board_identifier_in_git": false,
+    "private_serial_path_in_git": false,
+    "raw_logs_in_git": false,
+    "candidate_secret_values_in_git": false
+  },
+  "stage_disposition": {
+    "execution_gate": "LOCKED",
+    "draft_pr_required": true,
+    "ready_merge_release_authorized": false
+  }
+}
