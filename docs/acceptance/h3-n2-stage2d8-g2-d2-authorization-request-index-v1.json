@@ -1,0 +1,58 @@
+{
+  "schema": "gh.h3.n2.stage2d8-g2-d2-authorization-request-index/1",
+  "stage": "H3/N2 Stage 2D-8 G2",
+  "authorization_request_id": "D2-H3N2-STAGE2D8-G2-V64-20260722-01",
+  "status": "pending_operator_decision",
+  "execution_gate": "LOCKED",
+  "u1_status": "passed",
+  "source_sha": "6cf37c29311601f4f83238cc8401c81ea7b9a1f0",
+  "artifact_zip_sha256": "662d9d4d850eea603d5defafb2b3c84a8bc07fae3a4b51229479b2a0a71e8ea9",
+  "g2_merged_sha256": "a3ff73ddc11115849e160637cd63e2f44c699e595c5c6aa43575f9d7626ed47d",
+  "recovery_merged_sha256": "5f6ca3024d35dea9b48679a3882a55a20ec2bc67137d6dd58cbf19c2474994ed",
+  "review_package_sha256": "e2bb1271194c5d73219419b3b86dc274ff0f23d183148cdc35e839e252a06d34",
+  "execution_script_sha256": "ce5d1018ef0161b02148e8a4f74fdf1873c528b0ad23827b6ef9c6e85054b8ce",
+  "command_group_sha256": "6c2f4407334c936537824437be7b3e350a50547308e1a1e708d532403aac4685",
+  "stop_conditions_sha256": "8ece74c8065375184b93a533d11f9d6568304472f06ff8b2f46658abbde6962b",
+  "private_binding": {
+    "board_fingerprint_redacted": true,
+    "serial_path_redacted": true,
+    "g1_security_snapshot_redacted": true,
+    "held_in_controlled_private_package": true
+  },
+  "authorization_policy": {
+    "one_shot": true,
+    "replay_permitted": false,
+    "authorization_json_required": true,
+    "validity_after_issue": "2 hours",
+    "allowed_recovery_count": 1,
+    "recovery_only_after_destructive_boundary_failure": true
+  },
+  "allowed_scope": [
+    "target_preflight",
+    "erase_flash_once",
+    "write_frozen_g2_once",
+    "verify_flash",
+    "preboot_test_partition_readback",
+    "single_g2_boot_and_serial_capture",
+    "postboot_test_partition_readback",
+    "private_evidence_collection",
+    "single_locked_recovery_on_defined_failure"
+  ],
+  "prohibited_scope": [
+    "efuse_read_or_write",
+    "secure_boot_enable",
+    "flash_encryption_enable",
+    "wifi",
+    "mqtt",
+    "broker",
+    "test_key",
+    "writable_nvs",
+    "prepare_candidate",
+    "activate_profile",
+    "cleanup_test_state",
+    "production_environment"
+  ],
+  "d2_received": false,
+  "physical_execution_authorized": false,
+  "production_environment_modified": false
+}
