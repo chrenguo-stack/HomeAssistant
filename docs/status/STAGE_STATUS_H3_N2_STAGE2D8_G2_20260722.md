@@ -1,6 +1,6 @@
 # H3/N2 Stage 2D-8 G2 专用测试板实板验收状态
 
-- **状态文件版本：** V1.4
+- **状态文件版本：** V1.5
 - **更新日期：** 2026-07-22
 - **权威性：** 本文件是本活动阶段唯一权威 `STAGE_STATUS`
 - **阶段状态：** `prepared_waiting_d2_authorization`
@@ -130,7 +130,18 @@ D3_RISK_WAIVER=not_required
 D4_READY_MERGE_RELEASE=prohibited
 ```
 
-D2 必须绑定受控私有目标指纹、私有串口、source SHA、ZIP/G2/recovery SHA、完整命令组、停止条件、一次 recovery 范围、有效期和不可重放标志。D2 未收到前，擦除、写入、verify-flash、Flash 回读和运行实板继续禁止。
+D2 审核包已经生成，但执行门仍为 `LOCKED`：
+
+```text
+D2_AUTHORIZATION_REQUEST_ID=D2-H3N2-STAGE2D8-G2-V64-20260722-01
+D2_REVIEW_PACKAGE_SHA256=e2bb1271194c5d73219419b3b86dc274ff0f23d183148cdc35e839e252a06d34
+D2_EXECUTION_SCRIPT_SHA256=ce5d1018ef0161b02148e8a4f74fdf1873c528b0ad23827b6ef9c6e85054b8ce
+D2_COMMAND_GROUP_SHA256=6c2f4407334c936537824437be7b3e350a50547308e1a1e708d532403aac4685
+D2_STOP_CONDITIONS_SHA256=8ece74c8065375184b93a533d11f9d6568304472f06ff8b2f46658abbde6962b
+D2_AUTHORIZATION_JSON_ISSUED=false
+```
+
+D2 必须绑定受控私有目标指纹、私有串口、source SHA、ZIP/G2/recovery SHA、上述完整命令组、停止条件、一次 recovery 范围、2 小时有效期和不可重放标志。D2 未收到前，擦除、写入、verify-flash、Flash 回读和运行实板继续禁止。
 
 ## 7. 助手开发队列
 
@@ -140,7 +151,7 @@ D2 必须绑定受控私有目标指纹、私有串口、source SHA、ZIP/G2/rec
 | A2 | `done` | 独立下载并校验 ZIP、18 项 `SHA256SUMS`、manifest 与可复现性证据 |
 | A3 | `done` | 建立单一权威状态文件、脱敏 Artifact 索引和结构化证据模板 |
 | A4 | `done` | Draft PR #172 已建立并保持 Draft；公共仓库安全门通过 |
-| A5 | `ready_at_d2` | U1 已审核通过；准备 D2 精确单次授权与完整批量执行包 |
+| A5 | `done` | U1 已审核通过；D2 精确单次授权审核包与锁定执行脚本已生成 |
 | A6 | `blocked` | 等待实板批量包结果后形成 L1 结论和阶段关闭材料 |
 
 ## 8. 用户操作队列
