@@ -1,11 +1,11 @@
 # H3/N2 Stage 2D-9 G3 PREPARE_CANDIDATE 状态
 
-- **状态版本：** V1.3
-- **更新日期：** 2026-07-22
+- **状态版本：** V1.4
+- **更新日期：** 2026-07-23
 - **起始基线：** `2a5272546f25b1b29cf1d6682cf1fc14f1c1be83`
 - **开发分支：** `feature/h3-n2-stage2d9-g3-prepare-candidate-20260722-v1`
 - **Draft PR：** `#174`
-- **阶段状态：** `u1_passed_waiting_exact_d2_operator_decision`
+- **阶段状态：** `u1_passed_waiting_hardened_d2_attempt2_operator_decision`
 - **执行门：** `LOCKED_D2_OPERATOR_DECISION_REQUIRED`
 
 ## 1. 固定事务
@@ -49,7 +49,7 @@ P8_OPERATOR_D2_AND_PHYSICAL_PREPARE=pending_operator_decision
 P9_EVIDENCE_CLOSURE=not_started
 ```
 
-Host 事务模型与私有命令协议共 21 个故障/边界用例通过。专用 locked harness、命令面关闭的 executor、完整产品板兼容 overlay 均 compile-only 通过。正式 `f1_0_rc2.yml`、产品 packages、冻结 Stage 2D-8 驱动和 V64 路径未修改。
+正式 `f1_0_rc2.yml`、产品 packages、冻结 Stage 2D-8 驱动和 V64 路径未修改。
 
 ## 4. 冻结 V67 Artifact
 
@@ -66,14 +66,10 @@ LOCKED_RECOVERY_MERGED_SHA256=54fb10601a0fbf448948d3f7d687281b33e85220c64bcdcabf
 NVS_SEED_SHA256=0ea36f26c5048f69b223884a13613fbd645b58c2ce42eafc6f9d9cd55bb089af
 PARTITION_BINARY_SHA256=b3964cbbd811d5fa5866638585fa410b53fc74e70a8f92491f43fce0b7a70268
 MANIFEST_SHA256=e12d7ab4cb457bbd4da0dee2c7b919d90b9546528073505c32e950315894e8c4
-REPRODUCIBILITY_REPORT_SHA256=e320a51e88ea5fb8791986f5d855f6742c5b444b226405853d7ecf1a2da81166
-SOURCE_BOUNDARY_REPORT_SHA256=821be27f9b8cca95f77d4a14918de17239587aa3af312eebc27e16506530f5e3
 UNLOCK_DIGEST_SHA256=d43c61f08a89a78ea3656083602fbe30983bd555023f64b8f005a62602b28065
 CLEAN_BUILD_COUNT=2
 BYTE_IDENTICAL=true
 ARTIFACT_GATE=LOCKED
-UNLOCK_PREIMAGE_IN_ARTIFACT=false
-UNLOCK_PREIMAGE_IN_GIT=false
 ```
 
 ## 5. U1 本地主机验证
@@ -93,46 +89,59 @@ NETWORK_OPERATION_ATTEMPTED=false
 PRODUCTION_ENVIRONMENT_MODIFIED=false
 ```
 
-U1 已独立确认 Artifact ZIP、全部绑定哈希、manifest、两次 clean build 字节一致、默认执行关闭和私有执行材料缺失。U1 没有形成任何实板授权。
-
-## 6. D2 尝试 1 审核绑定
+## 6. D2 尝试 1 退役
 
 ```text
 AUTHORIZATION_REQUEST_ID=D2-H3N2-STAGE2D9-G3-V67-20260722-01
+STATUS=retired_before_authorization
+AUTHORIZATION_ISSUED=false
+EXECUTION_PACKAGE_GENERATED=false
+EXECUTION_PERFORMED=false
+REPLAY_PERMITTED=false
+SUPERSEDED_BY=D2-H3N2-STAGE2D9-G3-V67-20260723-02
+```
+
+授权前审计发现尝试 1 runner 尚未强制核对实际审核包 SHA、实际操作员授权文本 SHA，以及授权期限必须恰为两小时。该请求未授权、未执行、未连接测试板，旧审核包和旧私有命令材料永久禁止使用。
+
+## 7. 当前 D2 尝试 2
+
+```text
+AUTHORIZATION_REQUEST_ID=D2-H3N2-STAGE2D9-G3-V67-20260723-02
 D2_STATUS=pending_operator_authorization
-REVIEW_PACKAGE_SHA256=a3b174e0d9f97d5e8c4c73c4c8f428735becd091deae251ab933cae7c8d964a9
-OPERATOR_AUTHORIZATION_TEXT_SHA256=5badbd8812c11d10f99e966558cd5a8b02042d13ea24089b693e66948c02ba16
-EXECUTION_SCRIPT_SHA256=6c742fd2bc09eb3222d6a6579d535786ff8258e3af9bba19a6ec7fd5c354ede2
-LAUNCHER_SHA256=3007a971652aff2b66bed63cefb1907000c3b08bacdebc4a88cbaef42226cb23
-COMMAND_GROUP_SHA256=288019f2bb20e1ae96eef7d4d0cac73d802523d95349a6f0ccaab8f93c3140dd
-STOP_CONDITIONS_SHA256=c29a35aee05f415fdc9f36d0f1cc0f783e9cc4f14fecf4ca97c9db047000583b
-PRIVATE_EXECUTION_MATERIAL_SHA256=deb4e490a87d0ddcee6ebac068788a7205c0360faed62629328e381a29f2eb71
-PREPARE_COMMAND_SHA256=b6c930c1a5190e5e243e1b834673e36b674441145b1ce04cc1891f7287106ffe
-VERIFY_COMMAND_SHA256=0e6c9d3061f769749fae23d0ea36aac86f3e1dc9bfa2b580d793e8072afced01
+REVIEW_PACKAGE_SHA256=65f475dad073c365c2c03ee2bebfaf38777fac0993f96f90ebb394e78354c575
+OPERATOR_AUTHORIZATION_TEXT_SHA256=d2b08e1f90a0b16d888bf874e4bea963a4b190b9f78264e0ba152d9a12a4aa40
+EXECUTION_SCRIPT_SHA256=b39301d0b9c25a5713e841a3215a72bd6c3f708d2c53259f8bdc6f2078b56797
+LAUNCHER_SHA256=5144dad8af38d59ee8fcafed823b9c26fe0cc351f8cfe00af56b40a6ca17b78f
+COMMAND_GROUP_SHA256=88d93f71ec0202ced301e41ed8dd7be9acf37ca7572d270668e96131b7e247c7
+STOP_CONDITIONS_SHA256=0cb915bcf9e8c6efa08d0682b602ae85e98be0769490bd05dc6699ff2ef935dd
+PRIVATE_EXECUTION_MATERIAL_SHA256=1deec812809107a44e2a3d79e3e7cb2d4f461f2d2c547e66940151e40ea7c96c
+PREPARE_COMMAND_SHA256=2c41332ebdd09a1dbabb10068ef29bbb3d0dee3901d0ee7f317e3a48e1a920f8
+VERIFY_COMMAND_SHA256=93da815761ee3faba5065645c57b734bbf3c6ab8a79dc3bf2c45beb23d3b52e1
 ONE_SHOT=true
 REPLAY_PERMITTED=false
-AUTHORIZATION_VALIDITY_AFTER_ISSUE=2_hours
+AUTHORIZATION_VALIDITY_AFTER_ISSUE=exactly_2_hours
 ALLOWED_RECOVERY_COUNT=1
 ```
 
-审核包不包含 V67 Artifact、授权 JSON、unlock preimage、持久化密钥、authorization digest、candidate 明文或实际串口命令，因此不能执行实板操作。获得精确 D2 后才生成自包含的已授权执行包。
+新增 fail-closed 绑定：执行器必须直接读取并核对实际审核包字节 SHA、实际操作员授权文本 SHA，以及授权签发时间到到期时间必须严格等于两小时。有效授权、错误审核包 SHA、错误授权文本 SHA和错误期限四项 host 测试均按预期通过或拒绝。
 
-## 7. D2 允许范围
+审核包不包含 V67 Artifact、授权 JSON、操作员授权文本、unlock preimage、持久化密钥或实际命令，因此不能执行实板操作。
 
-授权后只允许：
+## 8. 授权后唯一允许范围
 
-1. 校验既有专用 esptool 环境、V67 Artifact 和专用测试板 USB/Flash 身份；
-2. 只读确认当前测试分区仍为已通过的 Stage 2D-8 G2 seed；
+1. 校验专用 esptool 环境、V67 Artifact 和测试板 USB/Flash 身份；
+2. 只读确认测试分区仍为已通过的 Stage 2D-8 G2 seed；
 3. 单次擦除、写入、校验 V67 G3；
-4. 单次发送 `PREPARE_CANDIDATE` 命令；
+4. 单次发送 `PREPARE_CANDIDATE`；
 5. 自动重启后单次执行只读 VERIFY；
-6. 私有回读并确认 PREPARED 状态已改变分区；
-7. 仅在进入破坏性边界后失败时最多执行一次 locked recovery，之后终止。
+6. 私有回读并确认 PREPARED 状态改变分区；
+7. 仅在进入破坏性边界后失败时最多执行一次 locked recovery，随后终止且不得重试 G3。
 
-## 8. 固定禁止项
+## 9. 固定禁止项
 
 ```text
 STAGE2D8_D2_REPLAY_AUTHORIZED=false
+STAGE2D9_ATTEMPT1_REPLAY_AUTHORIZED=false
 SECOND_STAGE2D9_PREPARE_AUTHORIZED=false
 ACTIVATE_PROFILE_AUTHORIZED=false
 CLEANUP_TEST_STATE_AUTHORIZED=false
@@ -146,6 +155,6 @@ PRODUCTION_ENVIRONMENT_OPERATION_AUTHORIZED=false
 READY_MERGE_RELEASE_AUTHORIZED=false
 ```
 
-## 9. 当前门状态
+## 10. 当前门状态
 
-没有操作员精确 D2 授权时：不得连接测试板，不得执行 USB/Flash 预检，不得擦除或写入，不得发送 PREPARE/VERIFY，不得生成可执行授权 JSON。Draft PR #174 必须保持 Draft，不得 Ready、合并或发布。
+没有操作员精确 D2 尝试 2 授权时：不得连接测试板，不得执行 USB/Flash 预检，不得擦除或写入，不得发送 PREPARE/VERIFY，不得生成可执行授权 JSON。Draft PR #174 必须保持 Draft，不得 Ready、合并或发布。
