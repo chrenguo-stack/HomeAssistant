@@ -39,6 +39,7 @@ jobs:
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
+          import re
 
           root = Path("firmware/esphome_rc")
           board = root / "board_lab/h3_profile_isolated_device_g3_prepare"
@@ -63,7 +64,8 @@ jobs:
 
           executor_text = executor_yml.read_text(encoding="utf-8")
           zero_digest = "0" * 64
-          if f"unlock_digest: {zero_digest}" not in executor_text:
+          digest_match = re.search(r'^\s+unlock_digest:\s*["\']?([0-9a-f]{64})["\']?\s*$', executor_text, re.M)
+          if digest_match is None or digest_match.group(1) != zero_digest:
               raise SystemExit("public executor target does not disable command surface")
 
           table = partitions.read_text(encoding="utf-8")
