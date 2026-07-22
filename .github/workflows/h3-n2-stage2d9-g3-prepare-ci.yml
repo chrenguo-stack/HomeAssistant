@@ -47,6 +47,10 @@ jobs:
             tools/h3_n2_stage2d9_g3_reproducibility_gate_20260722_v67.py \
             tools/h3_n2_stage2d9_g3_artifact_packager_20260722_v67.py \
             tools/h3_n2_stage2d9_g3_u1_artifact_verify_20260722_v1.py \
+            tools/h3_n2_stage2d9_esphome_reproducible_compile_20260723_v68.py \
+            tools/h3_n2_stage2d9_g3_boundary_gate_20260723_v68.py \
+            tools/h3_n2_stage2d9_g3_reproducibility_gate_20260723_v68.py \
+            tools/h3_n2_stage2d9_g3_artifact_packager_20260723_v68.py \
             tests/h3_n2_stage2d9_prepare/test_stage2d9_prepare_model_20260722_v1.py \
             tests/h3_n2_stage2d9_prepare/test_stage2d9_prepare_command_protocol_20260722_v1.py
       - name: Run host fault matrices
@@ -60,7 +64,7 @@ jobs:
           python tools/h3_n2_stage2d9_prepare_manifest_gate_20260722_v1.py \
             --manifest tests/h3_n2_stage2d9_prepare/stage2d9_prepare_manifest_template_20260722_v1.json \
             --expect-gate LOCKED
-      - name: Verify public records are parseable and execution locked
+      - name: Verify public records and closed execution gate
         run: |
           python - <<'PY'
           import json
@@ -85,36 +89,43 @@ jobs:
               "tests/h3_n2_stage2d9_prepare/"
               "stage2d9_prepare_manifest_template_20260722_v1.json"
           ).read_text(encoding="utf-8"))
-          assert public["execution_gate"].startswith("LOCKED")
-          assert public["boundaries"]["device_operation_authorized"] is False
-          assert public["boundaries"]["flash_authorized"] is False
-          assert public["boundaries"]["writable_test_nvs_authorized"] is False
-          assert public["boundaries"]["prepare_authorized"] is False
-          assert public["boundaries"]["verify_authorized"] is False
-          assert public["d2_review"]["execution_authorized"] is False
-          assert public["d2_review"]["replay_permitted"] is False
+
+          assert public["execution_gate"] == "CLOSED_NEW_ARTIFACT_CHAIN_REQUIRED"
+          assert public["status"] == "v67_d2_chain_closed_rebuilding_v68"
+          for key, value in public["boundaries"].items():
+              assert value is False, (key, value)
+          assert public["v67_d2_chain"]["active_request_id"] is None
+          assert all(item["replay_permitted"] is False for item in public["v67_d2_chain"]["attempts"])
+          assert public["v68_rebuild"]["execution_authorized"] is False
+          assert public["v68_rebuild"]["private_custody_material_present"] is True
+          assert public["v68_rebuild"]["private_custody_material_in_git"] is False
+          assert public["v68_rebuild"]["private_custody_material_in_artifact"] is False
+          assert public["v68_rebuild"]["new_u1_required"] is True
+          assert public["v68_rebuild"]["new_d2_required"] is True
+
           assert acceptance["stage_disposition"]["execution_gate"] == "LOCKED"
           assert acceptance["stage_disposition"]["ready_merge_release_authorized"] is False
           assert attempt1["status"] == "retired_before_authorization"
-          assert attempt1["execution_authorized"] is False
           assert attempt1["authorization_issued"] is False
+          assert attempt1["execution_authorized"] is False
           assert attempt1["replay_permitted"] is False
-          assert attempt2["execution_gate"] == "LOCKED"
-          assert attempt2["execution_authorized"] is False
+          assert attempt2["status"] == "operator_authorized_but_issuance_failed_closed_retired"
+          assert attempt2["operator_authorization_text_sha256_match"] is True
           assert attempt2["authorization_issued"] is False
-          assert attempt2["status"] == "pending_operator_authorization"
-          assert attempt2["one_shot"] is True
+          assert attempt2["authorization_file_generated"] is False
+          assert attempt2["execution_package_generated"] is False
+          assert attempt2["execution_performed"] is False
+          assert attempt2["board_accessed"] is False
+          assert attempt2["destructive_boundary_entered"] is False
           assert attempt2["replay_permitted"] is False
-          assert attempt2["authorization_validity_after_issue"] == "exactly 2 hours"
-          hardened = attempt2["hardened_authorization_binding"]
-          assert all(hardened.values())
-          assert index["execution_gate"] == "LOCKED"
-          assert index["active_request_id"] == attempt2["authorization_request_id"]
-          assert attempt1["authorization_request_id"] in index["retired_request_ids"]
-          assert index["requests"][0]["execution_authorized"] is False
-          assert index["requests"][0]["replay_permitted"] is False
-          assert index["requests"][1]["execution_authorized"] is False
-          assert index["requests"][1]["replay_permitted"] is False
+
+          assert index["execution_gate"] == "CLOSED_NEW_ARTIFACT_CHAIN_REQUIRED"
+          assert index["active_request_id"] is None
+          assert len(index["retired_request_ids"]) == 2
+          assert index["new_artifact_and_new_u1_required"] is True
+          assert index["new_operator_d2_required"] is True
+          assert all(item["replay_permitted"] is False for item in index["requests"])
+
           assert template["gate"] == "LOCKED"
           assert template["execution_authorized"] is False
           assert template["writable_test_nvs_authorized"] is False
