@@ -1,0 +1,20 @@
+{
+  "schema": "gh.h3.n2.stage2d9-g3-d2-authorization-request-index/1",
+  "stage": "H3/N2 Stage 2D-9 G3",
+  "active_request_id": "D2-H3N2-STAGE2D9-G3-V67-20260722-01",
+  "execution_gate": "LOCKED",
+  "requests": [
+    {
+      "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V67-20260722-01",
+      "status": "pending_operator_authorization",
+      "request_record": "docs/acceptance/h3-n2-stage2d9-g3-d2-attempt1-authorization-request-v1.json",
+      "review_package_sha256": "a3b174e0d9f97d5e8c4c73c4c8f428735becd091deae251ab933cae7c8d964a9",
+      "one_shot": true,
+      "replay_permitted": false,
+      "execution_authorized": false
+    }
+  ],
+  "retired_request_ids": [],
+  "stage2d8_authorization_replay_permitted": false,
+  "ready_merge_release_authorized": false
+}
