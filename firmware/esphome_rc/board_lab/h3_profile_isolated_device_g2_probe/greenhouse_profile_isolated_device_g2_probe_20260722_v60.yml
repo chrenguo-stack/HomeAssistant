@@ -27,11 +27,6 @@ logger:
   level: DEBUG
   hardware_uart: USB_SERIAL_JTAG
 
-# Required only to link the shared pairing-client source directory. With no
-# Wi-Fi component in this image, no network interface exists and mDNS cannot
-# advertise or transmit.
-mdns:
-
 external_components:
   - source:
       type: local
@@ -46,10 +41,10 @@ external_components:
 
 # Dedicated-board G2 image. It performs exactly one automatic read-only inspect
 # of an isolated, initially absent namespace. It contains no Wi-Fi, API, OTA,
-# web server, MQTT configuration, test key, credentials, write grant or command
-# surface. The build binding fixes the reviewed G2 probe source commit.
+# mDNS runtime, web server, MQTT configuration, test key, credentials, write
+# grant or command surface. The build binding fixes the reviewed G2 source.
 greenhouse_profile_isolated_device_g2_probe:
   id: stage2d8_g2_probe
   partition_label: gh2d8_nvs
   namespace_name: gh2d8_state
-  build_binding: 0ab4159860c984e0998f365437810de84b45bbc2
+  build_binding: 941becd5b670496fbea9e26f47d9d02ed0633526
