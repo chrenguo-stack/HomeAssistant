@@ -1,0 +1,14 @@
+{
+  "schema": "gh.h3.n2.stage2d7-2d8-g2-integration-checklist/1",
+  "branch": "integration/h3-n2-stage2d8-g2-closure-20260722-v1",
+  "draft_required": true,
+  "checks": {
+    "source_union": "passed",
+    "frozen_branch_immutability": "passed",
+    "frozen_artifact_not_rebuilt": "passed",
+    "private_evidence_excluded": "passed",
+    "ci": "pending",
+    "production_paths_unchanged": "pending",
+    "d4_authorization": "not_requested"
+  }
+}
