@@ -9,6 +9,12 @@
 #include "../greenhouse_profile_isolated_device_driver/isolated_device_esp32_ports.h"
 #include "../greenhouse_profile_isolated_device_g3_prepare/stage2d9_g3_locked_prepare_harness.h"
 
+// ESP-IDF 5.x uses the Mbed TLS 3.x name without the historical `_ret`
+// suffix. Keep the executor implementation source-compatible with both names.
+#ifndef mbedtls_sha256_ret
+#define mbedtls_sha256_ret mbedtls_sha256
+#endif
+
 namespace esphome::greenhouse_pairing_client {
 
 struct Stage2D9CommandEnvelope {
