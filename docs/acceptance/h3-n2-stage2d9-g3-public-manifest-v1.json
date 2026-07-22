@@ -1,11 +1,12 @@
 {
-  "schema": "gh.h3.n2.stage2d9-g3-public-manifest/5",
+  "schema": "gh.h3.n2.stage2d9-g3-public-manifest/6",
   "stage": "H3/N2 Stage 2D-9 G3",
-  "status": "v67_d2_chain_closed_rebuilding_v68",
+  "status": "v68_artifact_frozen_waiting_user_host_u1",
   "base_main_sha": "2a5272546f25b1b29cf1d6682cf1fc14f1c1be83",
   "branch": "feature/h3-n2-stage2d9-g3-prepare-candidate-20260722-v1",
   "draft_pr": 174,
-  "execution_gate": "CLOSED_NEW_ARTIFACT_CHAIN_REQUIRED",
+  "execution_gate": "LOCKED_V68_U1_REQUIRED",
+  "active_d2_request_id": null,
   "allowed_action": "PREPARE_CANDIDATE",
   "expected_transition": {
     "active_generation_before": 0,
@@ -26,73 +27,79 @@
     "seed_namespace": "gh2d8_seed",
     "target_namespace_absent_from_seed": true
   },
-  "v67_artifact": {
-    "status": "frozen_but_execution_chain_retired",
-    "implementation_source_commit": "dda4dc25f201242cb566f1498a26200529e35227",
+  "v67_disposition": {
+    "artifact_frozen": true,
+    "u1_passed": true,
+    "execution_chain_retired": true,
+    "execution_reuse_permitted": false,
+    "d2_attempt1_replay_permitted": false,
+    "d2_attempt2_replay_permitted": false,
+    "attempt2_operator_authorization_received": true,
+    "attempt2_authorization_issued": false,
+    "attempt2_execution_package_generated": false,
+    "attempt2_board_accessed": false,
+    "attempt2_destructive_boundary_entered": false
+  },
+  "v68_artifact": {
+    "status": "frozen_waiting_user_host_u1",
+    "source_commit": "608282bf86fcf8c1d13494437e01f1899d3c494a",
     "executor_source_binding": "70780dd1e826e07e32e12c66268c5dc564863420",
-    "generation": "V67",
-    "name": "stage2d9-g3-immutable-locked-v67",
-    "workflow_run_id": 29934767596,
-    "artifact_id": 8535952286,
-    "zip_sha256": "4f9b53908576ffb20ce2653418279dbd45817528a6168b24565447f760ad5dce",
-    "g3_merged_sha256": "ae109c3e3982adf7c916529d309be57912ff7310b05afa42d431d578ea4745ca",
+    "workflow_run_id": 29966262910,
+    "artifact_id": 8548132415,
+    "name": "stage2d9-g3-immutable-locked-v68",
+    "zip_sha256": "3a90f2b1369dafbc5fb0fa20255ab9dc978a335b74d415aa2f51054a3e198c3b",
+    "manifest_sha256": "99b7297f3cb2b54d231ecdda4e0543ddad33bb9562d6a7036f2b995a6ac9b80b",
+    "g3_merged_sha256": "094d37b01e9ddce1bba26216ffcbb1bae56a3ecbbf075b3e9e3ec57042214ca4",
     "recovery_merged_sha256": "54fb10601a0fbf448948d3f7d687281b33e85220c64bcdcabfae896dd3d98a1a",
     "seed_sha256": "0ea36f26c5048f69b223884a13613fbd645b58c2ce42eafc6f9d9cd55bb089af",
     "partition_binary_sha256": "b3964cbbd811d5fa5866638585fa410b53fc74e70a8f92491f43fce0b7a70268",
-    "manifest_sha256": "e12d7ab4cb457bbd4da0dee2c7b919d90b9546528073505c32e950315894e8c4",
-    "unlock_digest_sha256": "d43c61f08a89a78ea3656083602fbe30983bd555023f64b8f005a62602b28065",
-    "u1_status": "passed",
+    "reproducibility_report_sha256": "d0c5c9fe4e543183634ac787ea8252b86ba89cc793a0fcab0e5b5439312a4c92",
+    "source_boundary_report_sha256": "ffacb544202f7d0c6dd2d29a2ae855299dadd1b7433dc2beebdfbb3e40d9117d",
+    "unlock_digest_sha256": "c6cfae354edbd426f9990fb65b4c865e711a0c2b6c1fba1d2e7faf132ebc2208",
+    "clean_build_count": 2,
     "byte_identical": true,
     "gate": "LOCKED",
-    "execution_reuse_permitted": false
-  },
-  "v67_d2_chain": {
-    "active_request_id": null,
-    "attempts": [
-      {
-        "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V67-20260722-01",
-        "status": "retired_before_authorization",
-        "authorization_issued": false,
-        "execution_performed": false,
-        "board_accessed": false,
-        "replay_permitted": false
-      },
-      {
-        "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V67-20260723-02",
-        "status": "operator_authorized_but_issuance_failed_closed_retired",
-        "operator_authorization_text_sha256_match": true,
-        "authorization_issued": false,
-        "authorization_file_generated": false,
-        "execution_package_generated": false,
-        "execution_performed": false,
-        "board_accessed": false,
-        "destructive_boundary_entered": false,
-        "replay_permitted": false,
-        "failure_reason": "exact V67 private unlock preimage was unavailable at issuance time"
-      }
-    ]
-  },
-  "v68_rebuild": {
-    "status": "artifact_ci_pending",
-    "execution_config": "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3_prepare/greenhouse_profile_isolated_device_g3_execution_20260723_v68.yml",
-    "artifact_workflow": ".github/workflows/h3-n2-stage2d9-g3-v68-artifact-ci.yml",
-    "unlock_digest_sha256": "c6cfae354edbd426f9990fb65b4c865e711a0c2b6c1fba1d2e7faf132ebc2208",
-    "private_custody_material_present": true,
-    "private_custody_file_sha256": "a462997381fdd0842b2a7c1ab5697fd45e62ae0789100437c6fb702cfa16cfdc",
-    "private_custody_material_in_git": false,
+    "unlock_preimage_in_artifact": false,
     "private_custody_material_in_artifact": false,
-    "new_u1_required": true,
-    "new_d2_required": true,
     "execution_authorized": false
+  },
+  "v68_private_custody": {
+    "required_before_d2": true,
+    "material_present": true,
+    "file_sha256": "a462997381fdd0842b2a7c1ab5697fd45e62ae0789100437c6fb702cfa16cfdc",
+    "unlock_digest_match_verified": true,
+    "material_in_git": false,
+    "material_in_artifact": false,
+    "operator_installation_status": "pending_user_host_u1",
+    "execution_authorized": false
+  },
+  "v68_u1": {
+    "status": "pending_user_host_execution",
+    "batch_package_id": "U1_STAGE2D9_G3_V68_ARTIFACT_AND_CUSTODY_VERIFY_V2",
+    "package_sha256": "4fc3e589e7bd3174a8a44eed0b3aab90a6bfe030a0b07edffb96adaebc24e14a",
+    "launcher_sha256": "8319f460212fff1f5c7350f6070ff9219867099e793d90ffd7693f491887d54e",
+    "script_sha256": "2091e44001526eb31c01072b0420b33b1b28c05cdaa4db018d27e203633f302c",
+    "binding_sha256": "2ba8b8028b771bcd65d88912cad115c9c2b348e19b401b1fef9848bcc85e6ca2",
+    "isolated_self_test": "passed",
+    "board_accessed": false,
+    "serial_access_attempted": false,
+    "flash_operation_attempted": false,
+    "network_operation_attempted": false,
+    "authorization_file_present": false,
+    "execution_package_present": false
   },
   "validation": {
     "host_transaction_and_command_fault_cases": 21,
-    "v67_host_model_and_gate_ci": "passed",
-    "v67_compile_ci": "passed",
-    "v67_artifact_ci": "passed",
-    "v67_u1": "passed",
-    "v68_public_repository_safety_ci": "passed",
-    "v68_artifact_ci": "pending"
+    "v68_source_boundary": "passed",
+    "v68_python_compile": "passed",
+    "v68_clean_build_a": "passed",
+    "v68_clean_build_b": "passed",
+    "v68_reproducibility": "passed",
+    "v68_deterministic_seed": "passed",
+    "v68_artifact_packaging": "passed",
+    "v68_member_hashes": "passed",
+    "v68_private_material_exclusion": "passed",
+    "public_repository_safety": "passed"
   },
   "boundaries": {
     "device_operation_authorized": false,
@@ -122,5 +129,5 @@
     "candidate_secret_values_included": false,
     "private_logs_included": false
   },
-  "next_gate": "V68 immutable Artifact CI success followed by a new host-only U1 verification; no D2 request exists"
+  "next_gate": "user-host U1 must pass and preserve the exact V68 custody file; only then may a new D2 review package be created"
 }
