@@ -4,7 +4,7 @@ import re
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components.esp32 import include_builtin_idf_component
+from esphome.components.esp32 import add_idf_component, include_builtin_idf_component
 from esphome.const import CONF_ID
 
 CONF_PARTITION_LABEL = "partition_label"
@@ -70,6 +70,11 @@ async def to_code(config: dict) -> None:
     include_builtin_idf_component("nvs_flash")
     include_builtin_idf_component("mqtt")
     include_builtin_idf_component("esp_hw_support")
+
+    # The shared pairing-client source contains an unused mDNS discovery adapter
+    # and therefore needs the IDF header/library at link time. Add only the IDF
+    # dependency: do not instantiate ESPHome's mDNS or network components.
+    add_idf_component(name="espressif/mdns", ref="1.11.0")
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
