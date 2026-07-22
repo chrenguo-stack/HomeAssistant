@@ -1,0 +1,12 @@
+{
+  "schema": "gh.h3.n2.integration-source-lock/1",
+  "main_parent_sha": "dd06eb06c762791999e4cb3bd22c2dac17aa3fd0",
+  "frozen_evidence_parent_sha": "04562e50147e200fe408c66dee001f25ea1af0b9",
+  "integration_merge_commit_sha": "8fa431704e6b506d0bb94d927d65697d1606fee2",
+  "frozen_stage2d8_source_sha": "6cf37c29311601f4f83238cc8401c81ea7b9a1f0",
+  "frozen_v64_zip_sha256": "662d9d4d850eea603d5defafb2b3c84a8bc07fae3a4b51229479b2a0a71e8ea9",
+  "frozen_branches_modified": false,
+  "frozen_artifact_rebuilt": false,
+  "execution_authorized": false,
+  "ready_merge_release_authorized": false
+}
