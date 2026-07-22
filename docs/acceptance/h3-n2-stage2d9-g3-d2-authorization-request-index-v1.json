@@ -1,35 +1,41 @@
 {
-  "schema": "gh.h3.n2.stage2d9-g3-d2-authorization-request-index/2",
+  "schema": "gh.h3.n2.stage2d9-g3-d2-authorization-request-index/3",
   "stage": "H3/N2 Stage 2D-9 G3",
-  "active_request_id": "D2-H3N2-STAGE2D9-G3-V67-20260723-02",
-  "execution_gate": "LOCKED",
+  "active_request_id": null,
+  "execution_gate": "CLOSED_NEW_ARTIFACT_CHAIN_REQUIRED",
   "requests": [
     {
       "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V67-20260722-01",
       "status": "retired_before_authorization",
       "request_record": "docs/acceptance/h3-n2-stage2d9-g3-d2-attempt1-authorization-request-v1.json",
       "review_package_sha256": "a3b174e0d9f97d5e8c4c73c4c8f428735becd091deae251ab933cae7c8d964a9",
-      "one_shot": true,
-      "replay_permitted": false,
-      "execution_authorized": false,
-      "authorization_issued": false
+      "authorization_issued": false,
+      "execution_performed": false,
+      "replay_permitted": false
     },
     {
       "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V67-20260723-02",
-      "status": "pending_operator_authorization",
+      "status": "operator_authorized_but_issuance_failed_closed_retired",
       "request_record": "docs/acceptance/h3-n2-stage2d9-g3-d2-attempt2-authorization-request-v1.json",
       "review_package_sha256": "65f475dad073c365c2c03ee2bebfaf38777fac0993f96f90ebb394e78354c575",
       "operator_authorization_text_sha256": "d2b08e1f90a0b16d888bf874e4bea963a4b190b9f78264e0ba152d9a12a4aa40",
-      "one_shot": true,
-      "replay_permitted": false,
-      "execution_authorized": false,
-      "authorization_issued": false
+      "operator_authorization_received": true,
+      "authorization_issued": false,
+      "execution_package_generated": false,
+      "execution_performed": false,
+      "board_accessed": false,
+      "destructive_boundary_entered": false,
+      "replay_permitted": false
     }
   ],
   "retired_request_ids": [
-    "D2-H3N2-STAGE2D9-G3-V67-20260722-01"
+    "D2-H3N2-STAGE2D9-G3-V67-20260722-01",
+    "D2-H3N2-STAGE2D9-G3-V67-20260723-02"
   ],
   "stage2d8_authorization_replay_permitted": false,
   "stage2d9_attempt1_replay_permitted": false,
+  "stage2d9_attempt2_replay_permitted": false,
+  "new_artifact_and_new_u1_required": true,
+  "new_operator_d2_required": true,
   "ready_merge_release_authorized": false
 }
