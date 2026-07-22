@@ -1,6 +1,6 @@
 # H3/N2 Stage 2D-8 G2 专用测试板实板验收状态
 
-- **状态文件版本：** V1.0
+- **状态文件版本：** V1.1
 - **更新日期：** 2026-07-22
 - **权威性：** 本文件是本活动阶段唯一权威 `STAGE_STATUS`
 - **结论状态：** `not_run`
@@ -21,6 +21,9 @@ EXECUTION_GATE=LOCKED
 PRODUCTION_ENVIRONMENT_MODIFIED=false
 FROZEN_SOURCE_MODIFIED=false
 CANDIDATE_REBUILT=false
+EVIDENCE_PR=172
+EVIDENCE_PR_HEAD=7dad1f57edeea2467ac7c6e29c7c442d020af20d
+PUBLIC_SAFETY_RUN=29904978754
 ```
 
 PR `#166`、`#167`、`#168` 的冻结分支不得修改。本证据分支从准确的冻结源码提交创建，只允许保存脱敏状态、manifest、证据模板和 Artifact 索引。
@@ -70,7 +73,7 @@ Artifact manifest 固定为 `gate=LOCKED`，所有执行授权均为 `false`；V
 | S1 范围与验收设计 | `passed` | 验收项、停止条件、双队列和证据分层已冻结 |
 | S2 非实板证据准备 | `passed` | 脱敏 manifest、Artifact 索引和证据模板已建立 |
 | S3 本地 Preflight | `running` | 助手侧 Artifact 独立复核通过；等待用户 U1 本机第 4 节完整结果 |
-| S4 GitHub CI | `not_run` | 本证据分支仅文档/manifest；PR 建立后检查公共安全 CI |
+| S4 GitHub CI | `passed` | Draft PR #172 已建立；Public repository safety CI run `29904978754` 通过 |
 | S5 候选冻结 | `passed` | 继承且只引用 PR #168 的不可变 V64，不重新生成候选 |
 | S6A 隔离验证 | `passed` | V64 CI 的 host fault matrix、边界门和可复现性已通过 |
 | S6B 实板验收 | `not_run` | U1 与 D2 均未闭环，禁止实板操作 |
@@ -95,7 +98,7 @@ D4_READY_MERGE_RELEASE=prohibited
 | A1 | `done` | 核对冻结源码提交、PR #168 与 V64 Artifact 身份 |
 | A2 | `done` | 独立下载并校验 ZIP、18 项 `SHA256SUMS`、manifest 与可复现性证据 |
 | A3 | `done` | 建立单一权威状态文件、脱敏 Artifact 索引和结构化证据模板 |
-| A4 | `running` | 建立 Draft 证据 PR 并检查本分支 CI/安全门 |
+| A4 | `done` | Draft PR #172 已建立并保持 Draft；公共仓库安全门通过 |
 | A5 | `blocked` | 等待 U1 后审核 D2；等待批量执行结果后形成结论 |
 
 ## 7. 用户操作队列
