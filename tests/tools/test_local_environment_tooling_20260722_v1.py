@@ -115,10 +115,24 @@ class LocalEnvironmentToolingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             repo = Path(temporary)
             subprocess.run(["git", "init", "-q", str(repo)], check=True)
-            subprocess.run(["git", "-C", str(repo), "config", "user.email", "test@example.invalid"], check=True)
-            subprocess.run(["git", "-C", str(repo), "config", "user.name", "Test"], check=True)
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(repo),
+                    "config",
+                    "user.email",
+                    "test@example.invalid",
+                ],
+                check=True,
+            )
+            subprocess.run(
+                ["git", "-C", str(repo), "config", "user.name", "Test"],
+                check=True,
+            )
             target = repo / "notes.txt"
-            target.write_text("-----BEGIN PRIVATE KEY-----\nnot-a-real-key\n", encoding="utf-8")
+            marker = "-----BEGIN " + "PRIVATE KEY-----\nnot-a-real-key\n"
+            target.write_text(marker, encoding="utf-8")
             subprocess.run(["git", "-C", str(repo), "add", "notes.txt"], check=True)
             completed = subprocess.run(
                 [sys.executable, str(HOOK_PATH)],
