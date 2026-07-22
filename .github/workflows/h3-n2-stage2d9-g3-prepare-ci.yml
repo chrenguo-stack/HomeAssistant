@@ -51,6 +51,7 @@ jobs:
             tools/h3_n2_stage2d9_g3_boundary_gate_20260723_v68.py \
             tools/h3_n2_stage2d9_g3_reproducibility_gate_20260723_v68.py \
             tools/h3_n2_stage2d9_g3_artifact_packager_20260723_v68.py \
+            tools/h3_n2_stage2d9_g3_u1_artifact_verify_20260723_v2.py \
             tests/h3_n2_stage2d9_prepare/test_stage2d9_prepare_model_20260722_v1.py \
             tests/h3_n2_stage2d9_prepare/test_stage2d9_prepare_command_protocol_20260722_v1.py
       - name: Run host fault matrices
@@ -64,7 +65,7 @@ jobs:
           python tools/h3_n2_stage2d9_prepare_manifest_gate_20260722_v1.py \
             --manifest tests/h3_n2_stage2d9_prepare/stage2d9_prepare_manifest_template_20260722_v1.json \
             --expect-gate LOCKED
-      - name: Verify public records and closed execution gate
+      - name: Verify frozen V68 records and U1-only gate
         run: |
           python - <<'PY'
           import json
@@ -72,6 +73,9 @@ jobs:
 
           public = json.loads(Path(
               "docs/acceptance/h3-n2-stage2d9-g3-public-manifest-v1.json"
+          ).read_text(encoding="utf-8"))
+          artifact = json.loads(Path(
+              "docs/acceptance/h3-n2-stage2d9-g3-v68-artifact-l1-summary-v1.json"
           ).read_text(encoding="utf-8"))
           acceptance = json.loads(Path(
               "docs/acceptance/h3-n2-stage2d9-g3-acceptance-template-v1.json"
@@ -90,18 +94,40 @@ jobs:
               "stage2d9_prepare_manifest_template_20260722_v1.json"
           ).read_text(encoding="utf-8"))
 
-          assert public["execution_gate"] == "CLOSED_NEW_ARTIFACT_CHAIN_REQUIRED"
-          assert public["status"] == "v67_d2_chain_closed_rebuilding_v68"
+          assert public["execution_gate"] == "LOCKED_V68_U1_REQUIRED"
+          assert public["status"] == "v68_artifact_frozen_waiting_user_host_u1"
+          assert public["active_d2_request_id"] is None
           for key, value in public["boundaries"].items():
               assert value is False, (key, value)
-          assert public["v67_d2_chain"]["active_request_id"] is None
-          assert all(item["replay_permitted"] is False for item in public["v67_d2_chain"]["attempts"])
-          assert public["v68_rebuild"]["execution_authorized"] is False
-          assert public["v68_rebuild"]["private_custody_material_present"] is True
-          assert public["v68_rebuild"]["private_custody_material_in_git"] is False
-          assert public["v68_rebuild"]["private_custody_material_in_artifact"] is False
-          assert public["v68_rebuild"]["new_u1_required"] is True
-          assert public["v68_rebuild"]["new_d2_required"] is True
+          v68 = public["v68_artifact"]
+          assert v68["source_commit"] == "608282bf86fcf8c1d13494437e01f1899d3c494a"
+          assert v68["zip_sha256"] == "3a90f2b1369dafbc5fb0fa20255ab9dc978a335b74d415aa2f51054a3e198c3b"
+          assert v68["gate"] == "LOCKED"
+          assert v68["byte_identical"] is True
+          assert v68["clean_build_count"] == 2
+          assert v68["execution_authorized"] is False
+          custody = public["v68_private_custody"]
+          assert custody["required_before_d2"] is True
+          assert custody["material_present"] is True
+          assert custody["unlock_digest_match_verified"] is True
+          assert custody["material_in_git"] is False
+          assert custody["material_in_artifact"] is False
+          assert custody["execution_authorized"] is False
+          u1 = public["v68_u1"]
+          assert u1["status"] == "pending_user_host_execution"
+          assert u1["isolated_self_test"] == "passed"
+          assert u1["authorization_file_present"] is False
+          assert u1["execution_package_present"] is False
+
+          assert artifact["status"] == "frozen_waiting_user_host_u1"
+          assert artifact["artifact"]["gate"] == "LOCKED"
+          assert artifact["artifact"]["byte_identical"] is True
+          assert artifact["private_custody"]["unlock_digest_match_verified"] is True
+          assert artifact["private_custody"]["execution_authorized"] is False
+          assert artifact["u1_package"]["isolated_self_test"] == "passed"
+          assert artifact["u1_package"]["user_host_result"] == "pending"
+          assert artifact["protected_boundaries"]["authorization_issued"] is False
+          assert artifact["protected_boundaries"]["execution_authorized"] is False
 
           assert acceptance["stage_disposition"]["execution_gate"] == "LOCKED"
           assert acceptance["stage_disposition"]["ready_merge_release_authorized"] is False
@@ -110,7 +136,6 @@ jobs:
           assert attempt1["execution_authorized"] is False
           assert attempt1["replay_permitted"] is False
           assert attempt2["status"] == "operator_authorized_but_issuance_failed_closed_retired"
-          assert attempt2["operator_authorization_text_sha256_match"] is True
           assert attempt2["authorization_issued"] is False
           assert attempt2["authorization_file_generated"] is False
           assert attempt2["execution_package_generated"] is False
@@ -118,11 +143,8 @@ jobs:
           assert attempt2["board_accessed"] is False
           assert attempt2["destructive_boundary_entered"] is False
           assert attempt2["replay_permitted"] is False
-
-          assert index["execution_gate"] == "CLOSED_NEW_ARTIFACT_CHAIN_REQUIRED"
           assert index["active_request_id"] is None
           assert len(index["retired_request_ids"]) == 2
-          assert index["new_artifact_and_new_u1_required"] is True
           assert index["new_operator_d2_required"] is True
           assert all(item["replay_permitted"] is False for item in index["requests"])
 
