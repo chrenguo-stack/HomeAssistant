@@ -1,51 +1,125 @@
 {
-  "schema": "gh.h3.n2.stage2d9-g3-public-manifest/1",
+  "schema": "gh.h3.n2.stage2d9-g3-public-manifest/2",
   "stage": "H3/N2 Stage 2D-9 G3",
-  "status": "host_model_and_manifest_gate_development",
+  "status": "immutable_v67_frozen_waiting_u1",
   "base_main_sha": "2a5272546f25b1b29cf1d6682cf1fc14f1c1be83",
   "branch": "feature/h3-n2-stage2d9-g3-prepare-candidate-20260722-v1",
+  "draft_pr": 174,
   "execution_gate": "LOCKED",
   "allowed_action": "PREPARE_CANDIDATE",
+  "implementation_source_commit": "dda4dc25f201242cb566f1498a26200529e35227",
+  "executor_source_binding": "70780dd1e826e07e32e12c66268c5dc564863420",
   "expected_transition": {
     "active_generation_before": 0,
     "active_generation_after": 0,
     "candidate_generation_before": 0,
     "candidate_generation_after": 1,
-    "candidate_state_after": "PREPARED"
+    "candidate_state_after": "PREPARED",
+    "automatic_reboot": true,
+    "read_only_verify_after_reboot": true
+  },
+  "artifact": {
+    "generation": "V67",
+    "name": "stage2d9-g3-immutable-locked-v67",
+    "workflow_run_id": 29934767596,
+    "artifact_id": 8535952286,
+    "zip_sha256": "4f9b53908576ffb20ce2653418279dbd45817528a6168b24565447f760ad5dce",
+    "g3_merged_sha256": "ae109c3e3982adf7c916529d309be57912ff7310b05afa42d431d578ea4745ca",
+    "recovery_merged_sha256": "54fb10601a0fbf448948d3f7d687281b33e85220c64bcdcabfae896dd3d98a1a",
+    "seed_sha256": "0ea36f26c5048f69b223884a13613fbd645b58c2ce42eafc6f9d9cd55bb089af",
+    "partition_binary_sha256": "b3964cbbd811d5fa5866638585fa410b53fc74e70a8f92491f43fce0b7a70268",
+    "manifest_sha256": "e12d7ab4cb457bbd4da0dee2c7b919d90b9546528073505c32e950315894e8c4",
+    "reproducibility_report_sha256": "e320a51e88ea5fb8791986f5d855f6742c5b444b226405853d7ecf1a2da81166",
+    "source_boundary_report_sha256": "821be27f9b8cca95f77d4a14918de17239587aa3af312eebc27e16506530f5e3",
+    "unlock_digest_sha256": "d43c61f08a89a78ea3656083602fbe30983bd555023f64b8f005a62602b28065",
+    "unlock_preimage_in_artifact": false,
+    "clean_build_count": 2,
+    "byte_identical": true,
+    "gate": "LOCKED"
+  },
+  "storage_boundary": {
+    "partition": "gh2d8_p2d9",
+    "namespace": "gh2d8_s2d9",
+    "offset": "0x400000",
+    "size": "0x10000",
+    "writable_capable": true,
+    "seed_namespace": "gh2d8_seed",
+    "target_namespace_absent_from_seed": true
+  },
+  "validation": {
+    "host_transaction_and_command_fault_cases": 21,
+    "host_model_and_gate_ci": {
+      "run_id": 29934769455,
+      "status": "passed"
+    },
+    "compile_ci": {
+      "run_id": 29934767547,
+      "locked_dedicated_target": "passed",
+      "disabled_executor_dedicated_target": "passed",
+      "full_product_board_compatibility_target": "passed",
+      "frozen_and_production_paths_unchanged": "passed"
+    },
+    "artifact_ci": {
+      "run_id": 29934767596,
+      "status": "passed",
+      "source_boundary": "passed",
+      "two_clean_builds": "passed",
+      "deterministic_seed": "passed",
+      "package_verification": "passed"
+    },
+    "public_repository_safety_ci": {
+      "run_id": 29934769289,
+      "status": "passed"
+    },
+    "existing_repository_ci": {
+      "f1_0_rc2": "passed",
+      "n1": "passed",
+      "m0": "passed",
+      "m2": "passed",
+      "greenhouse_manager": "passed",
+      "stage2b3": "passed"
+    }
   },
   "boundaries": {
     "device_operation_authorized": false,
+    "flash_authorized": false,
     "writable_test_nvs_authorized": false,
+    "prepare_authorized": false,
+    "verify_authorized": false,
     "activate_profile_authorized": false,
     "cleanup_test_state_authorized": false,
     "wifi_authorized": false,
     "mqtt_authorized": false,
     "broker_authorized": false,
     "efuse_operation_authorized": false,
+    "secure_boot_change_authorized": false,
+    "flash_encryption_change_authorized": false,
     "production_environment_operation_authorized": false,
-    "ready_merge_release_authorized": false
+    "ready_merge_release_authorized": false,
+    "stage2d8_d2_replay_authorized": false
   },
   "completed": {
-    "scope_protocol": true,
-    "host_transaction_model": true,
-    "host_fault_matrix": true,
-    "locked_manifest_template": true,
-    "manifest_gate": true
+    "p0_scope_protocol": true,
+    "p1_host_transaction_model": true,
+    "p2_manifest_and_command_gates": true,
+    "p3_g3_harness_and_executor": true,
+    "p4_compile_only_targets": true,
+    "p5_immutable_artifact": true,
+    "p6_evidence_and_execution_protocol": true
   },
   "pending": {
-    "g3_firmware_harness": true,
-    "dedicated_board_compile_only": true,
-    "product_board_compile_only": true,
-    "immutable_artifact": true,
-    "operator_d2_review": true,
-    "physical_prepare_execution": true,
-    "evidence_closure": true
+    "p7_user_host_u1_artifact_verification": true,
+    "p8_operator_d2_review_and_physical_prepare": true,
+    "p9_evidence_closure": true
   },
   "privacy": {
+    "unlock_preimage_included": false,
+    "persistence_key_included": false,
     "raw_board_identifier_included": false,
     "private_serial_path_included": false,
     "authorization_json_included": false,
     "candidate_secret_values_included": false,
     "private_logs_included": false
-  }
+  },
+  "next_gate": "U1 host-only Artifact verification before any D2 review"
 }
