@@ -32,6 +32,11 @@ external_components:
       type: local
       path: ../../components
     components:
+      - greenhouse_pairing_client
+      - greenhouse_profile_production_adapters
+      - greenhouse_profile_lifecycle_controller
+      - greenhouse_profile_isolated_acceptance
+      - greenhouse_profile_isolated_device_driver
       - greenhouse_profile_isolated_device_g2_probe
 
 # Dedicated-board G2 image. It performs exactly one automatic read-only inspect
