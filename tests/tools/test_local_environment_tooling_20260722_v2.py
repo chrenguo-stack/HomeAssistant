@@ -54,7 +54,7 @@ class LocalEnvironmentDoctorV2Tests(unittest.TestCase):
             mock.patch.object(
                 DOCTOR_V2.shutil,
                 "which",
-                return_value="/home/test/.local/bin/esphome",
+                return_value="/tmp/account/.local/bin/esphome",
             ),
             mock.patch.object(
                 DOCTOR_V2.BASE,
@@ -65,7 +65,7 @@ class LocalEnvironmentDoctorV2Tests(unittest.TestCase):
                 DOCTOR_V2.Path,
                 "resolve",
                 return_value=Path(
-                    "/home/test/.local/pipx/venvs/esphome/bin/esphome"
+                    "/tmp/account/.local/pipx/venvs/esphome/bin/esphome"
                 ),
             ),
         ):
