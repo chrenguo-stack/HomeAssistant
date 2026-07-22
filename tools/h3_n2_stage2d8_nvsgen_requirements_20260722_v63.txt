@@ -1,0 +1,1 @@
+esp-idf-nvs-partition-gen==0.2.0 --hash=sha256:7e128c81441fa406fe55b95f29a7d901098bcffc8cc464f993fdbecd074eb9a3
