@@ -1,0 +1,56 @@
+esphome:
+  name: gh-2d9-g3-v68
+  friendly_name: Greenhouse Stage 2D-9 G3 V68 Immutable PREPARE Executor
+  min_version: 2026.4.3
+
+esp32:
+  board: esp32-c6-devkitm-1
+  variant: ESP32C6
+  flash_size: 8MB
+  partitions: stage2d9_g3_partitions_20260722_v65.csv
+  framework:
+    type: esp-idf
+    advanced:
+      include_builtin_idf_components:
+        - mqtt
+        - nvs_flash
+        - esp_hw_support
+    sdkconfig_options:
+      CONFIG_APP_REPRODUCIBLE_BUILD: y
+      CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG: y
+      CONFIG_ESP_CONSOLE_SECONDARY_NONE: y
+      CONFIG_MBEDTLS_PSA_CRYPTO_C: y
+      CONFIG_MBEDTLS_ECP_DP_CURVE25519_ENABLED: y
+      CONFIG_MBEDTLS_CHACHA20_C: y
+      CONFIG_MBEDTLS_POLY1305_C: y
+      CONFIG_MBEDTLS_CHACHAPOLY_C: y
+      CONFIG_MBEDTLS_HARDWARE_MPI: n
+
+logger:
+  level: DEBUG
+  hardware_uart: USB_SERIAL_JTAG
+
+external_components:
+  - source:
+      type: local
+      path: ../../components
+    components:
+      - greenhouse_pairing_client
+      - greenhouse_profile_production_adapters
+      - greenhouse_profile_lifecycle_controller
+      - greenhouse_profile_isolated_acceptance
+      - greenhouse_profile_isolated_device_driver
+      - greenhouse_profile_isolated_device_g3_prepare
+      - greenhouse_profile_isolated_device_g3_executor
+
+# V68 replaces the retired V67 authorization chain with a new SHA-256 unlock
+# digest. The private preimage is absent from Git and from the Artifact, but is
+# retained separately under durable operator custody before any D2 request.
+# Flash/PREPARE remain unauthorized by the Artifact manifest until a new exact
+# D2 decision is issued after V68 U1 verification.
+greenhouse_profile_isolated_device_g3_executor:
+  id: stage2d9_g3_executor
+  partition_label: gh2d8_p2d9
+  namespace_name: gh2d8_s2d9
+  build_binding: 70780dd1e826e07e32e12c66268c5dc564863420
+  unlock_digest: c6cfae354edbd426f9990fb65b4c865e711a0c2b6c1fba1d2e7faf132ebc2208
