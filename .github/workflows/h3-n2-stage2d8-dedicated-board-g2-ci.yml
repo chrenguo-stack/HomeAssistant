@@ -247,3 +247,29 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
+
+      - name: Build G2 compile failure diagnostic
+        if: failure()
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/stage2d8-g2-diagnostic-v60
+          for source in \
+            /tmp/stage2d8-g2-config-v60.log \
+            /tmp/stage2d8-g2-compile-v60.log \
+            /tmp/stage2d8-recovery-config-v60.log \
+            /tmp/stage2d8-recovery-compile-v60.log; do
+            if [ -f "$source" ]; then
+              cp "$source" /tmp/stage2d8-g2-diagnostic-v60/
+            fi
+          done
+          printf 'head=%s\n' "$GITHUB_SHA" \
+            > /tmp/stage2d8-g2-diagnostic-v60/context.txt
+
+      - name: Upload G2 compile failure diagnostic
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage2d8-g2-compile-diagnostic-v60
+          path: /tmp/stage2d8-g2-diagnostic-v60
+          if-no-files-found: error
+          retention-days: 7
