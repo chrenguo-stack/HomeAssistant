@@ -57,7 +57,7 @@ def partition_image(
             0x02,
             test_offset,
             0x10000,
-            0x1 if readonly else 0,
+            0x2 if readonly else 0,
         ),
     ]
     if extra:
