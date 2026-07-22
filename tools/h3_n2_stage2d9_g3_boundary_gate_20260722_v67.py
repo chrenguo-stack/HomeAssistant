@@ -40,7 +40,10 @@ def top_level_keys(text: str) -> set[str]:
 def scalar(text: str, key: str) -> str:
     matches = re.findall(rf"^\s+{re.escape(key)}:\s*([^#\s]+)\s*$", text, re.M)
     require(len(matches) == 1, f"expected one {key} scalar")
-    return matches[0]
+    value = matches[0]
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+        value = value[1:-1]
+    return value
 
 
 def main() -> int:
