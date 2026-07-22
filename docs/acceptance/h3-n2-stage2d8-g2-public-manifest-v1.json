@@ -1,7 +1,7 @@
 {
-  "schema": "gh.h3.n2.stage2d8-g2-physical-acceptance-public-manifest/4",
+  "schema": "gh.h3.n2.stage2d8-g2-physical-acceptance-public-manifest/5",
   "stage": "H3/N2 Stage 2D-8 G2",
-  "status": "d2_attempt_inconclusive_waiting_private_summary",
+  "status": "d2_attempt1_host_tool_diagnostic",
   "execution_gate": "LOCKED_NO_REPLAY",
   "repository": "chrenguo-stack/HomeAssistant",
   "source_sha": "6cf37c29311601f4f83238cc8401c81ea7b9a1f0",
@@ -37,25 +37,25 @@
     "private_serial_path_redacted": true,
     "private_binding_status": "held_in_controlled_private_evidence"
   },
-  "authorization": {
+  "authorization_attempt_1": {
     "request_id": "D2-H3N2-STAGE2D8-G2-V64-20260722-01",
-    "d2_received": true,
     "status": "attempted_inconclusive_retired",
-    "issued_at": "2026-07-22T09:36:29Z",
-    "expires_at": "2026-07-22T11:36:29Z",
     "one_shot": true,
     "replay_permitted": false,
     "authorization_binding_sha256": "ebf6efd2419e8373842571a2eeae58eaa2bdb5ba0c0b90585a7e44a806d759d5",
-    "authorization_file_sha256": "a35fe5ce8b021049f41b6f9062667473549ebc9e70e9450018f3fd9c4e4be50f",
-    "execution_package_sha256": "441634f9e029c55db202845857acbad4f7c6f35be053df82bab3d31ffbd5aa13",
-    "private_authorization_json_in_git": false,
-    "allowed_recovery_count": 1,
-    "recovery_only_on_defined_failure": true
+    "execution_package_sha256": "441634f9e029c55db202845857acbad4f7c6f35be053df82bab3d31ffbd5aa13"
   },
   "attempt_1": {
     "timestamp_utc": "2026-07-22T09:44:26Z",
     "result": "inconclusive",
-    "failure_detail_status": "waiting_private_summary",
+    "failure_detail_status": "redacted_private_summary_received",
+    "failure_class": "RuntimeError",
+    "failure_message_redacted": "command failed: version",
+    "failure_stage": "local_esptool_version_preflight",
+    "authorization_consumed_status": "unknown",
+    "preflight_status": "not_reached",
+    "usb_preflight_present": false,
+    "flash_id_present": false,
     "destructive_boundary_entered": false,
     "erase_performed": false,
     "write_performed": false,
@@ -70,7 +70,16 @@
     "production_environment_modified": false,
     "private_evidence_archive_sha256": "366ac51f1c754431d6ec1d7bffc1e76b9b8df948b02af79603953599bc37c460"
   },
+  "next_action": {
+    "task_id": "U7_STAGE2D8_G2_ESPTOOL_ENVIRONMENT_DIAGNOSTIC",
+    "board_access_required": false,
+    "serial_access_allowed": false,
+    "flash_operation_allowed": false,
+    "network_operation_allowed": false,
+    "new_d2_required_after_fix": true
+  },
   "prohibited": {
+    "replay_retired_d2": true,
     "prepare_candidate": true,
     "activate_profile": true,
     "cleanup_test_state": true,
@@ -91,13 +100,6 @@
     "preboot_readback_matches_seed": "not_run",
     "serial_frozen_success_markers": "not_run",
     "serial_failure_markers_absent": "not_run",
-    "key_loaded_false": "not_run",
-    "wifi_false": "not_run",
-    "mqtt_false": "not_run",
-    "writes_zero": "not_run",
-    "all_mqtt_sessions_false": "not_run",
-    "reboot_required_false": "not_run",
-    "probe_pass": "not_run",
     "postboot_matches_seed": "not_run",
     "postboot_matches_preboot": "not_run",
     "production_environment_modified": false,
