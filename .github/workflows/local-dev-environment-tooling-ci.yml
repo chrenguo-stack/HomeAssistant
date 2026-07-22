@@ -5,9 +5,11 @@ on:
     paths:
       - "tools/dev/local_environment_policy_20260722_v1.json"
       - "tools/dev/local_environment_doctor_20260722_v1.py"
+      - "tools/dev/local_environment_doctor_20260722_v2.py"
       - "tools/dev/apply_local_environment_hardening_20260722_v1.py"
       - "tools/dev/hooks/pre_commit_local_environment_guard_20260722_v1.py"
       - "tests/tools/test_local_environment_tooling_20260722_v1.py"
+      - "tests/tools/test_local_environment_tooling_20260722_v2.py"
       - "docs/development/本地开发环境核查与加固指南_V1.0_20260722.md"
       - ".github/workflows/local-dev-environment-tooling-ci.yml"
   push:
@@ -15,9 +17,11 @@ on:
     paths:
       - "tools/dev/local_environment_policy_20260722_v1.json"
       - "tools/dev/local_environment_doctor_20260722_v1.py"
+      - "tools/dev/local_environment_doctor_20260722_v2.py"
       - "tools/dev/apply_local_environment_hardening_20260722_v1.py"
       - "tools/dev/hooks/pre_commit_local_environment_guard_20260722_v1.py"
       - "tests/tools/test_local_environment_tooling_20260722_v1.py"
+      - "tests/tools/test_local_environment_tooling_20260722_v2.py"
       - "docs/development/本地开发环境核查与加固指南_V1.0_20260722.md"
       - ".github/workflows/local-dev-environment-tooling-ci.yml"
 
@@ -46,25 +50,30 @@ jobs:
         run: |
           python -m py_compile \
             tools/dev/local_environment_doctor_20260722_v1.py \
+            tools/dev/local_environment_doctor_20260722_v2.py \
             tools/dev/apply_local_environment_hardening_20260722_v1.py \
             tools/dev/hooks/pre_commit_local_environment_guard_20260722_v1.py \
-            tests/tools/test_local_environment_tooling_20260722_v1.py
+            tests/tools/test_local_environment_tooling_20260722_v1.py \
+            tests/tools/test_local_environment_tooling_20260722_v2.py
       - name: Run Ruff
         run: |
           ruff check \
             tools/dev/local_environment_doctor_20260722_v1.py \
+            tools/dev/local_environment_doctor_20260722_v2.py \
             tools/dev/apply_local_environment_hardening_20260722_v1.py \
             tools/dev/hooks/pre_commit_local_environment_guard_20260722_v1.py \
-            tests/tools/test_local_environment_tooling_20260722_v1.py
+            tests/tools/test_local_environment_tooling_20260722_v1.py \
+            tests/tools/test_local_environment_tooling_20260722_v2.py
       - name: Run tooling regression tests
         run: |
           python -m unittest discover \
             -s tests/tools \
-            -p 'test_local_environment_tooling_20260722_v1.py' \
+            -p 'test_local_environment_tooling_20260722_v*.py' \
             -v
       - name: Exercise non-mutating entry points
         run: |
           python tools/dev/local_environment_doctor_20260722_v1.py --help >/dev/null
+          python tools/dev/local_environment_doctor_20260722_v2.py --help >/dev/null
           python tools/dev/apply_local_environment_hardening_20260722_v1.py \
             --repo "$GITHUB_WORKSPACE" \
             --venv /tmp/nonexistent-greenhouse-venv \
