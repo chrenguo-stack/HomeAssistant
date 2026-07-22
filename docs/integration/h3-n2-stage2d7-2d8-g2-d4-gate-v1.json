@@ -1,0 +1,14 @@
+{
+  "schema": "gh.h3.n2.stage2d7-2d8-g2-d4-gate/1",
+  "status": "not_requested",
+  "draft_pr_required": true,
+  "ready_authorized": false,
+  "merge_authorized": false,
+  "release_authorized": false,
+  "required_before_d4": [
+    "all integration CI completed successfully",
+    "source and evidence consistency passed",
+    "production paths unchanged passed",
+    "public repository safety passed"
+  ]
+}
