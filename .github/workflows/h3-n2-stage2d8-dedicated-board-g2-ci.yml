@@ -52,7 +52,7 @@ jobs:
           recovery = (root / 'greenhouse_stage2d8_locked_recovery_20260722_v60.yml').read_text()
           partitions = (root / 'stage2d8_g2_partitions_20260722_v60.csv').read_text()
 
-          forbidden_blocks = ('wifi:', 'api:', 'ota:', 'mqtt:', 'web_server:', 'captive_portal:')
+          forbidden_blocks = ('wifi:', 'api:', 'ota:', 'mqtt:', 'mdns:', 'web_server:', 'captive_portal:')
           for name, text in (('g2', g2), ('recovery', recovery)):
               found = [token for token in forbidden_blocks if token in text]
               if found:
@@ -62,7 +62,7 @@ jobs:
               'hardware_uart: USB_SERIAL_JTAG',
               'partition_label: gh2d8_nvs',
               'namespace_name: gh2d8_state',
-              'build_binding: 0ab4159860c984e0998f365437810de84b45bbc2',
+              'build_binding: 941becd5b670496fbea9e26f47d9d02ed0633526',
           )
           missing = [token for token in required_g2 if token not in g2]
           if missing:
@@ -181,7 +181,7 @@ jobs:
               'schema': 'gh.h3.n2.stage2d8-g2-artifact-manifest/1',
               'gate': 'LOCKED',
               'source_commit': os.environ['SOURCE_COMMIT'],
-              'driver_source_binding': '0ab4159860c984e0998f365437810de84b45bbc2',
+              'driver_source_binding': '941becd5b670496fbea9e26f47d9d02ed0633526',
               'build_tools': {
                   'esphome': '2026.4.3',
                   'esptool': '5.3.1',
