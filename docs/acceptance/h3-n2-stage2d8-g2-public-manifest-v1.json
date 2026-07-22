@@ -1,17 +1,13 @@
 {
-  "schema": "gh.h3.n2.stage2d8-g2-physical-acceptance-public-manifest/2",
+  "schema": "gh.h3.n2.stage2d8-g2-physical-acceptance-public-manifest/3",
   "stage": "H3/N2 Stage 2D-8 G2",
-  "status": "prepared_waiting_d2_authorization",
-  "execution_gate": "LOCKED",
+  "status": "authorized_awaiting_one_shot_execution",
+  "execution_gate": "OPEN_EXACT_ONE_SHOT_UNTIL_EXPIRY",
   "repository": "chrenguo-stack/HomeAssistant",
   "source_sha": "6cf37c29311601f4f83238cc8401c81ea7b9a1f0",
   "evidence_branch": "evidence/h3-n2-stage2d8-g2-physical-acceptance-20260722-v1",
   "evidence_pr": 172,
-  "frozen_source_prs": [
-    166,
-    167,
-    168
-  ],
+  "frozen_source_prs": [166, 167, 168],
   "artifact": {
     "generation": "V64",
     "name": "stage2d8-g2-immutable-locked-v64",
@@ -50,11 +46,17 @@
     "private_binding_status": "held_in_controlled_private_evidence"
   },
   "authorization": {
-    "d2_received": false,
-    "status": "pending",
+    "request_id": "D2-H3N2-STAGE2D8-G2-V64-20260722-01",
+    "d2_received": true,
+    "status": "authorized_not_consumed",
+    "issued_at": "2026-07-22T09:36:29Z",
+    "expires_at": "2026-07-22T11:36:29Z",
     "one_shot": true,
     "replay_permitted": false,
-    "private_package_version": "V1.0",
+    "authorization_binding_sha256": "ebf6efd2419e8373842571a2eeae58eaa2bdb5ba0c0b90585a7e44a806d759d5",
+    "authorization_file_sha256": "a35fe5ce8b021049f41b6f9062667473549ebc9e70e9450018f3fd9c4e4be50f",
+    "execution_package_sha256": "441634f9e029c55db202845857acbad4f7c6f35be053df82bab3d31ffbd5aa13",
+    "private_authorization_json_in_git": false,
     "allowed_recovery_count": 1,
     "recovery_only_on_defined_failure": true
   },
