@@ -27,6 +27,11 @@ logger:
   level: DEBUG
   hardware_uart: USB_SERIAL_JTAG
 
+# Required only to link the shared pairing-client source directory. With no
+# Wi-Fi component in this image, no network interface exists and mDNS cannot
+# advertise or transmit.
+mdns:
+
 external_components:
   - source:
       type: local
