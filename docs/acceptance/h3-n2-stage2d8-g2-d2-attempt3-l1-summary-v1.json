@@ -1,5 +1,5 @@
 {
-  "schema": "gh.h3.n2.stage2d8-g2-d2-attempt3-l1-summary/1",
+  "schema": "gh.h3.n2.stage2d8-g2-d2-attempt3-l1-summary/2",
   "stage": "H3/N2 Stage 2D-8 G2",
   "authorization_request_id": "D2-H3N2-STAGE2D8-G2-V64-20260722-03",
   "attempt_timestamp_utc": "2026-07-22T12:52:53Z",
@@ -12,18 +12,27 @@
   "execution_script_sha256": "f40911b27bdd7105f1e1b636c538d1cf18719cbc42f8a1a80edd73346659430d",
   "launcher_sha256": "42cdd0a02f2e13f8da026753cefdb91ac7d217ce6e119715a0dcc626f64fc558",
   "authorization_binding_sha256": "7c5b154cae8199f07426464422b7b0be2048e47cbefd25fb2660436ecc393f66",
-  "private_evidence_archive_sha256": "a29db874961f9baa34137837fdbd31f1018d4fd8b7f01a2b5922bf512790a6fb",
+  "private_evidence": {
+    "archive_sha256": "a29db874961f9baa34137837fdbd31f1018d4fd8b7f01a2b5922bf512790a6fb",
+    "summary_json_sha256": "82986306ea898b7bcb88df9ce69ad3c2377ad15a42abe53ad9f72921d687097a",
+    "serial_log_sha256": "a6189a4e0667ea169b8b452f3f1422576b0ef4a6997314d9ef635d99e195c3b2",
+    "serial_log_size": 3380,
+    "destructive_log_sha256": "baa5631e2704ec0cef8c3720e8397c45b8715542273dcfa7122c2f2a4354d1ca",
+    "preflight_log_sha256": "279386765a0ed944f79cb851654536bb170a436f3547916dda19fb6e05a181bd"
+  },
   "execution": {
     "authorization_consumed": true,
-    "destructive_boundary_entered": true,
     "preflight_passed": true,
+    "host_environment_present": true,
+    "usb_preflight_present": true,
+    "flash_id_present": true,
+    "destructive_boundary_entered": true,
     "erase_success": true,
     "write_success": true,
     "verify_flash_success": true,
-    "preboot_readback_performed": true,
+    "preboot_readback_sha256": "1f7016fe98cf69ca879a72069e63869863d1a4c8580ba0c8931aef133de3c928",
     "preboot_matches_seed": true,
-    "serial_capture_success": true,
-    "postboot_readback_performed": true,
+    "postboot_readback_sha256": "1f7016fe98cf69ca879a72069e63869863d1a4c8580ba0c8931aef133de3c928",
     "postboot_matches_seed": true,
     "postboot_matches_preboot": true,
     "recovery_performed": false,
@@ -35,6 +44,10 @@
     "probe_pass_present": true,
     "probe_fail_absent": true,
     "partition_init_error_absent": true,
+    "boundary_count": 1,
+    "snapshot_count": 1,
+    "probe_pass_count": 1,
+    "probe_fail_count": 0,
     "key_loaded_false": true,
     "wifi_false": true,
     "mqtt_false": true,
@@ -53,9 +66,11 @@
   "boot_observation": {
     "serial_capture_prompt_printed": true,
     "physical_reset_pressed": false,
+    "reset_reason": "USB_UART_HPSYS",
+    "boot_mode": "SPI_FAST_FLASH_BOOT",
     "boot_and_frozen_markers_observed_without_manual_reset": true,
-    "cause_status": "automatic reset or USB-serial state transition inferred; private serial reset-line review pending",
-    "acceptance_impact": "none; required boot evidence and persistence invariance checks passed"
+    "cause_status": "automatic USB UART high-performance-system reset observed in private serial log",
+    "acceptance_impact": "none; exact boot markers and preboot/postboot persistence invariance passed"
   },
   "protected_boundaries": {
     "efuse_command_attempted": false,
@@ -74,6 +89,13 @@
     "status": "consumed_passed_retired",
     "replay_permitted": false
   },
+  "stage_disposition": {
+    "physical_acceptance": "passed",
+    "evidence_closure": "passed",
+    "execution_gate": "CLOSED_CONSUMED_NO_REPLAY",
+    "draft_pr_must_remain_draft": true,
+    "ready_merge_release_authorized": false
+  },
   "privacy": {
     "raw_board_identifier_included": false,
     "private_serial_path_included": false,
@@ -82,5 +104,5 @@
     "private_authorization_json_included": false,
     "secret_values_included": false
   },
-  "next_action": "perform U9 read-only private archive detail extraction and close evidence index; do not reconnect or rerun the board"
+  "next_action": "stage evidence closed; keep PR 172 Draft and do not Ready, merge, release, reconnect, rerun, or replay"
 }
