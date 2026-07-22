@@ -1,0 +1,180 @@
+name: H3 N2 Stage2D7 Isolated Acceptance CI
+
+on:
+  pull_request:
+    paths:
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_acceptance/**"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_acceptance/**"
+      - "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_h3_profile_isolated_acceptance_board_lab_20260721_v55.yml"
+      - "protocols/pairing/gh-h3-node-isolated-acceptance-v1.md"
+      - "docs/development/h3-n2-stage2d7-isolated-acceptance-20260721.md"
+      - "tools/h3_n2_stage2d7_isolated_acceptance_boundary_gate_20260721_v55.py"
+      - ".github/workflows/h3-n2-stage2d7-isolated-acceptance-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_acceptance/**"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_acceptance/**"
+      - "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_h3_profile_isolated_acceptance_board_lab_20260721_v55.yml"
+      - "protocols/pairing/gh-h3-node-isolated-acceptance-v1.md"
+      - "docs/development/h3-n2-stage2d7-isolated-acceptance-20260721.md"
+      - "tools/h3_n2_stage2d7_isolated_acceptance_boundary_gate_20260721_v55.py"
+      - ".github/workflows/h3-n2-stage2d7-isolated-acceptance-ci.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  host-fault-matrix:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Compile and run Stage 2D-7 host fault matrix
+        run: |
+          set -euo pipefail
+          pairing=firmware/esphome_rc/components/greenhouse_pairing_client
+          controller=firmware/esphome_rc/components/greenhouse_profile_lifecycle_controller
+          package=firmware/esphome_rc/components/greenhouse_profile_isolated_acceptance
+          g++ -std=gnu++20 -Wall -Wextra -Wpedantic -Werror \
+            -I "$pairing" -I "$controller" -I "$package" \
+            "$package/isolated_acceptance_package.cpp" \
+            "$package/tests/pairing_stage2d7_isolated_acceptance_fault_matrix_20260721_v55.cpp" \
+            -o /tmp/stage2d7-isolated-acceptance-fault-matrix-v55
+          /tmp/stage2d7-isolated-acceptance-fault-matrix-v55 \
+            | tee /tmp/stage2d7-isolated-acceptance-host-v55.log
+          grep -Fx 'stage2d7_isolated_acceptance_fault_matrix=pass' \
+            /tmp/stage2d7-isolated-acceptance-host-v55.log
+          if grep -Eqi 'isolated-broker|secret-password|BEGIN CERTIFICATE|authorization.*4444' \
+              /tmp/stage2d7-isolated-acceptance-host-v55.log; then
+            echo 'credential-like host output detected' >&2
+            exit 1
+          fi
+
+      - name: Verify integrated Stage 2D-7 implementation equals frozen head
+        run: |
+          set -euo pipefail
+          FROZEN=ab04d31032403869379d976cd9f250fb3f144f7d
+          git diff --exit-code "$FROZEN" -- \
+            docs/development/h3-n2-stage2d7-isolated-acceptance-20260721.md \
+            firmware/esphome_rc/board_lab/h3_profile_isolated_acceptance \
+            firmware/esphome_rc/components/greenhouse_profile_isolated_acceptance \
+            firmware/esphome_rc/f1_0_rc2/f1_0_rc2_h3_profile_isolated_acceptance_board_lab_20260721_v55.yml \
+            protocols/pairing/gh-h3-node-isolated-acceptance-v1.md \
+            tools/h3_n2_stage2d7_isolated_acceptance_boundary_gate_20260721_v55.py
+
+      - name: Verify production paths remain unchanged
+        run: |
+          set -euo pipefail
+          git diff --exit-code \
+            b8cc4f68d29393cdf9da7d00fdfeef28ee147c7b -- \
+            firmware/esphome_rc/f1_0_rc2/f1_0_rc2.yml \
+            firmware/esphome_rc/f1_0_rc2/packages \
+            firmware/esphome_rc/components/greenhouse_profile_lifecycle_controller \
+            firmware/esphome_rc/board_lab/h3_profile_lifecycle_controller \
+            firmware/esphome_rc/f1_0_rc2/f1_0_rc2_h3_profile_lifecycle_controller_board_lab_20260721_v54.yml
+
+      - name: Run frozen Stage 2D-7 boundary gate in isolated worktree
+        run: |
+          set -euo pipefail
+          FROZEN=ab04d31032403869379d976cd9f250fb3f144f7d
+          ROOT=/tmp/stage2d7-frozen-boundary-v55
+          rm -rf "$ROOT"
+          git worktree add --detach "$ROOT" "$FROZEN"
+          (
+            cd "$ROOT"
+            python tools/h3_n2_stage2d7_isolated_acceptance_boundary_gate_20260721_v55.py
+          )
+          git worktree remove --force "$ROOT"
+
+      - name: Cleanup host files
+        if: always()
+        run: |
+          rm -rf /tmp/stage2d7-frozen-boundary-v55
+          rm -f \
+            /tmp/stage2d7-isolated-acceptance-fault-matrix-v55 \
+            /tmp/stage2d7-isolated-acceptance-host-v55.log \
+            /tmp/stage2d7-isolated-acceptance-boundary-v55.txt
+
+  esp32-c6-compile:
+    needs: host-fault-matrix
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install pinned ESPHome
+        run: python -m pip install -q "esphome==2026.4.3"
+      - name: Create ephemeral disabled Wi-Fi secrets
+        run: |
+          python - <<'PY'
+          import secrets
+          from pathlib import Path
+          ssid = "ci-stage2d7-" + secrets.token_hex(4)
+          password = secrets.token_urlsafe(24)
+          Path("firmware/esphome_rc/board_lab/h3_profile_isolated_acceptance/secrets.yaml").write_text(
+              f'node_pairing_wifi_ssid: "{ssid}"\nnode_pairing_wifi_password: "{password}"\n',
+              encoding="utf-8",
+          )
+          Path("/tmp/stage2d7-ephemeral-values-v55").write_text(
+              ssid + "\n" + password + "\n", encoding="utf-8"
+          )
+          PY
+      - name: Compile dedicated offline ESP32-C6 acceptance target
+        run: |
+          set -o pipefail
+          cd firmware/esphome_rc/board_lab/h3_profile_isolated_acceptance
+          esphome config greenhouse_profile_isolated_acceptance_board_lab_20260721_v55.yml \
+            2>&1 | tee /tmp/stage2d7-minimal-config-v55.log
+          esphome compile greenhouse_profile_isolated_acceptance_board_lab_20260721_v55.yml \
+            2>&1 | tee /tmp/stage2d7-minimal-compile-v55.log
+      - name: Compile full RC2 product-board compatibility target
+        run: |
+          set -o pipefail
+          cd firmware/esphome_rc/f1_0_rc2
+          RC2_CONFIG=f1_0_rc2_h3_profile_isolated_acceptance_board_lab_20260721_v55.yml \
+            bash tools/rc2.sh config 2>&1 | tee /tmp/stage2d7-product-config-v55.log
+          RC2_CONFIG=f1_0_rc2_h3_profile_isolated_acceptance_board_lab_20260721_v55.yml \
+            bash tools/rc2.sh compile 2>&1 | tee /tmp/stage2d7-product-compile-v55.log
+      - name: Verify compile evidence and secret redaction
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          values = Path('/tmp/stage2d7-ephemeral-values-v55').read_text(encoding='utf-8').splitlines()
+          logs = '\n'.join(
+              Path(path).read_text(encoding='utf-8', errors='replace')
+              for path in (
+                  '/tmp/stage2d7-minimal-config-v55.log',
+                  '/tmp/stage2d7-minimal-compile-v55.log',
+                  '/tmp/stage2d7-product-config-v55.log',
+                  '/tmp/stage2d7-product-compile-v55.log',
+              )
+          )
+          if any(value and value in logs for value in values):
+              raise SystemExit('ephemeral Stage 2D-7 Wi-Fi value appeared in output')
+          if logs.count('INFO Successfully compiled program.') < 2:
+              raise SystemExit('Stage 2D-7 compile success evidence missing')
+          PY
+      - name: Cleanup Stage 2D-7 files
+        if: always()
+        run: |
+          rm -f \
+            firmware/esphome_rc/board_lab/h3_profile_isolated_acceptance/secrets.yaml \
+            /tmp/stage2d7-ephemeral-values-v55 \
+            /tmp/stage2d7-minimal-config-v55.log \
+            /tmp/stage2d7-minimal-compile-v55.log \
+            /tmp/stage2d7-product-config-v55.log \
+            /tmp/stage2d7-product-compile-v55.log

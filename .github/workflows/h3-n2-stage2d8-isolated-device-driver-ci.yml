@@ -1,0 +1,244 @@
+name: H3 N2 Stage2D8 Isolated Device Driver CI
+
+on:
+  pull_request:
+    paths:
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_driver/**"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_driver/**"
+      - "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_h3_profile_isolated_device_driver_board_lab_20260721_v56.yml"
+      - "protocols/pairing/gh-h3-node-isolated-device-driver-v1.md"
+      - "docs/development/h3-n2-stage2d8-*.md"
+      - "tests/h3_n2_stage2d8_isolated_broker/**"
+      - "tools/h3_n2_stage2d8_*_20260721_v56.py"
+      - ".github/workflows/h3-n2-stage2d8-isolated-device-driver-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_driver/**"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_driver/**"
+      - "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_h3_profile_isolated_device_driver_board_lab_20260721_v56.yml"
+      - "protocols/pairing/gh-h3-node-isolated-device-driver-v1.md"
+      - "docs/development/h3-n2-stage2d8-*.md"
+      - "tests/h3_n2_stage2d8_isolated_broker/**"
+      - "tools/h3_n2_stage2d8_*_20260721_v56.py"
+      - ".github/workflows/h3-n2-stage2d8-isolated-device-driver-ci.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  host-fault-matrix:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Compile and run Stage 2D-8 driver fault matrix
+        run: |
+          set -euo pipefail
+          pairing=firmware/esphome_rc/components/greenhouse_pairing_client
+          package=firmware/esphome_rc/components/greenhouse_profile_isolated_acceptance
+          driver=firmware/esphome_rc/components/greenhouse_profile_isolated_device_driver
+          g++ -std=gnu++20 -Wall -Wextra -Wpedantic -Werror \
+            -I "$pairing" -I "$package" -I "$driver" \
+            "$pairing/pairing_client_core.cpp" \
+            "$pairing/secure_pairing_channel.cpp" \
+            "$pairing/secure_pairing_channel_encoding.cpp" \
+            "$pairing/secure_pairing_channel_crypto.cpp" \
+            "$pairing/pairing_ram_credentials.cpp" \
+            "$package/isolated_acceptance_package.cpp" \
+            "$driver/isolated_device_driver.cpp" \
+            "$driver/tests/pairing_stage2d8_isolated_device_driver_fault_matrix_20260721_v56.cpp" \
+            -lcrypto \
+            -o /tmp/stage2d8-isolated-device-driver-fault-matrix-v56
+          /tmp/stage2d8-isolated-device-driver-fault-matrix-v56 \
+            | tee /tmp/stage2d8-isolated-device-driver-host-v56.log
+          grep -Fx 'stage2d8_isolated_device_driver_fault_matrix=pass' \
+            /tmp/stage2d8-isolated-device-driver-host-v56.log
+          if grep -Eqi 'broker\.test|test-only-password|BEGIN CERTIFICATE|authorization.*4444' \
+              /tmp/stage2d8-isolated-device-driver-host-v56.log; then
+            echo 'credential-like host output detected' >&2
+            exit 1
+          fi
+
+      - name: Validate locked execution manifest and default denial
+        run: |
+          set -euo pipefail
+          cat > /tmp/stage2d8-locked-manifest-v56.json <<'JSON'
+          {
+            "schema":"gh.h3.n2.stage2d8-execution-manifest/1",
+            "gate":"LOCKED",
+            "source_commit":"1111111111111111111111111111111111111111",
+            "test_firmware":{"path":"/tmp/stage2d8-test.bin","sha256":"2222222222222222222222222222222222222222222222222222222222222222"},
+            "rollback_firmware":{"path":"/tmp/stage2d8-rollback.bin","sha256":"3333333333333333333333333333333333333333333333333333333333333333"},
+            "board":{"identifier":"gh-test-board-ci-v56","serial_path":"/dev/ttySTAGE2D8CI"},
+            "partition_table":{"path":"/tmp/stage2d8-partitions.csv","sha256":"4444444444444444444444444444444444444444444444444444444444444444","test_partition_label":"gh2d8_ci","test_namespace":"gh2d8_state"},
+            "wifi_profile_digest":"5555555555555555555555555555555555555555555555555555555555555555",
+            "broker":{"configuration_digest":"6666666666666666666666666666666666666666666666666666666666666666","ca_digest":"7777777777777777777777777777777777777777777777777777777777777777","acl_digest":"8888888888888888888888888888888888888888888888888888888888888888","server_certificate_digest":"9999999999999999999999999999999999999999999999999999999999999999"},
+            "identifiers":{"test_run_id":"gh-test-run-ci-v56","system_id":"gh-test-system-ci-v56","node_id":"gh-test-node-ci-v56","client_id":"gh-test-client-ci-v56","topic_root":"gh-test/gh-test-run-ci-v56/node"},
+            "evidence_directory":"/tmp/stage2d8-evidence-v56",
+            "recovery_procedure_digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "observed_state":{"available":false,"persistence_status":"unknown","active_generation":0,"candidate_generation":0,"persistent_write_count":0},
+            "authorization":{"operation":"NONE","active_generation":0,"candidate_generation":0,"record_digest":""}
+          }
+          JSON
+          python tools/h3_n2_stage2d8_execution_manifest_gate_20260721_v56.py \
+            --manifest /tmp/stage2d8-locked-manifest-v56.json \
+            --output /tmp/stage2d8-locked-manifest-redacted-v56.json \
+            | tee /tmp/stage2d8-manifest-gate-v56.log
+          grep -Fx 'stage2d8_execution_manifest_gate=pass' \
+            /tmp/stage2d8-manifest-gate-v56.log
+          if grep -Eq '/dev/|/tmp/stage2d8-(test|rollback|partitions)' \
+              /tmp/stage2d8-locked-manifest-redacted-v56.json; then
+            echo 'local path leaked into normalized manifest' >&2
+            exit 1
+          fi
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path('/tmp/stage2d8-locked-manifest-v56.json').read_text())
+          data['gate'] = 'READ_ONLY'
+          Path('/tmp/stage2d8-readonly-manifest-v56.json').write_text(json.dumps(data))
+          PY
+          if python tools/h3_n2_stage2d8_execution_manifest_gate_20260721_v56.py \
+              --manifest /tmp/stage2d8-readonly-manifest-v56.json; then
+            echo 'READ_ONLY accepted without --allow-live-gate' >&2
+            exit 1
+          fi
+
+      - name: Verify integrated Stage 2D-8 implementation equals frozen source
+        run: |
+          set -euo pipefail
+          FROZEN=693f7115ba295790fa5dd79f2d1da97930caf60f
+          git diff --exit-code "$FROZEN" -- \
+            docs/development/h3-n2-stage2d8-isolated-device-driver-20260721.md \
+            docs/development/h3-n2-stage2d8-live-authorization-record-20260721.md \
+            firmware/esphome_rc/board_lab/h3_profile_isolated_device_driver \
+            firmware/esphome_rc/components/greenhouse_profile_isolated_device_driver \
+            firmware/esphome_rc/f1_0_rc2/f1_0_rc2_h3_profile_isolated_device_driver_board_lab_20260721_v56.yml \
+            protocols/pairing/gh-h3-node-isolated-device-driver-v1.md \
+            tests/h3_n2_stage2d8_isolated_broker \
+            tools/h3_n2_stage2d8_execution_manifest_gate_20260721_v56.py \
+            tools/h3_n2_stage2d8_isolated_device_driver_boundary_gate_20260721_v56.py
+
+      - name: Verify Stage 2D-7 and production paths remain unchanged
+        run: |
+          set -euo pipefail
+          git diff --exit-code \
+            ab04d31032403869379d976cd9f250fb3f144f7d -- \
+            firmware/esphome_rc/f1_0_rc2/f1_0_rc2.yml \
+            firmware/esphome_rc/f1_0_rc2/packages \
+            firmware/esphome_rc/components/greenhouse_profile_lifecycle_controller \
+            firmware/esphome_rc/components/greenhouse_profile_isolated_acceptance \
+            firmware/esphome_rc/board_lab/h3_profile_lifecycle_controller \
+            firmware/esphome_rc/board_lab/h3_profile_isolated_acceptance \
+            protocols/pairing/gh-h3-node-profile-lifecycle-controller-v1.md \
+            protocols/pairing/gh-h3-node-isolated-acceptance-v1.md
+
+      - name: Run frozen Stage 2D-8 boundary gate in isolated worktree
+        run: |
+          set -euo pipefail
+          FROZEN=693f7115ba295790fa5dd79f2d1da97930caf60f
+          ROOT=/tmp/stage2d8-frozen-boundary-v56
+          rm -rf "$ROOT"
+          git worktree add --detach "$ROOT" "$FROZEN"
+          (
+            cd "$ROOT"
+            python tools/h3_n2_stage2d8_isolated_device_driver_boundary_gate_20260721_v56.py
+          )
+          git worktree remove --force "$ROOT"
+
+      - name: Cleanup host files
+        if: always()
+        run: |
+          rm -rf /tmp/stage2d8-frozen-boundary-v56
+          rm -f \
+            /tmp/stage2d8-isolated-device-driver-fault-matrix-v56 \
+            /tmp/stage2d8-isolated-device-driver-host-v56.log \
+            /tmp/stage2d8-isolated-device-driver-boundary-v56.txt \
+            /tmp/stage2d8-locked-manifest-v56.json \
+            /tmp/stage2d8-readonly-manifest-v56.json \
+            /tmp/stage2d8-locked-manifest-redacted-v56.json \
+            /tmp/stage2d8-manifest-gate-v56.log
+
+  esp32-c6-compile:
+    needs: host-fault-matrix
+    runs-on: ubuntu-24.04
+    timeout-minutes: 44
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install pinned ESPHome
+        run: python -m pip install -q "esphome==2026.4.3"
+      - name: Create ephemeral disabled Wi-Fi secrets
+        run: |
+          python - <<'PY'
+          import secrets
+          from pathlib import Path
+          ssid = 'ci-stage2d8-' + secrets.token_hex(4)
+          password = secrets.token_urlsafe(24)
+          Path('firmware/esphome_rc/board_lab/h3_profile_isolated_device_driver/secrets.yaml').write_text(
+              f'node_pairing_wifi_ssid: "{ssid}"\nnode_pairing_wifi_password: "{password}"\n',
+              encoding='utf-8',
+          )
+          Path('/tmp/stage2d8-ephemeral-values-v56').write_text(
+              ssid + '\n' + password + '\n', encoding='utf-8'
+          )
+          PY
+      - name: Compile dedicated offline ESP32-C6 driver target
+        run: |
+          set -o pipefail
+          cd firmware/esphome_rc/board_lab/h3_profile_isolated_device_driver
+          esphome config greenhouse_profile_isolated_device_driver_board_lab_20260721_v56.yml \
+            2>&1 | tee /tmp/stage2d8-minimal-config-v56.log
+          esphome compile greenhouse_profile_isolated_device_driver_board_lab_20260721_v56.yml \
+            2>&1 | tee /tmp/stage2d8-minimal-compile-v56.log
+      - name: Compile full RC2 product-board compatibility target
+        run: |
+          set -o pipefail
+          cd firmware/esphome_rc/f1_0_rc2
+          RC2_CONFIG=f1_0_rc2_h3_profile_isolated_device_driver_board_lab_20260721_v56.yml \
+            bash tools/rc2.sh config 2>&1 | tee /tmp/stage2d8-product-config-v56.log
+          RC2_CONFIG=f1_0_rc2_h3_profile_isolated_device_driver_board_lab_20260721_v56.yml \
+            bash tools/rc2.sh compile 2>&1 | tee /tmp/stage2d8-product-compile-v56.log
+      - name: Verify compile evidence and secret redaction
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          values = Path('/tmp/stage2d8-ephemeral-values-v56').read_text(encoding='utf-8').splitlines()
+          logs = '\n'.join(
+              Path(path).read_text(encoding='utf-8', errors='replace')
+              for path in (
+                  '/tmp/stage2d8-minimal-config-v56.log',
+                  '/tmp/stage2d8-minimal-compile-v56.log',
+                  '/tmp/stage2d8-product-config-v56.log',
+                  '/tmp/stage2d8-product-compile-v56.log',
+              )
+          )
+          if any(value and value in logs for value in values):
+              raise SystemExit('ephemeral Stage 2D-8 Wi-Fi value appeared in output')
+          if logs.count('INFO Successfully compiled program.') < 2:
+              raise SystemExit('Stage 2D-8 compile success evidence missing')
+          PY
+      - name: Cleanup Stage 2D-8 files
+        if: always()
+        run: |
+          rm -f \
+            firmware/esphome_rc/board_lab/h3_profile_isolated_device_driver/secrets.yaml \
+            /tmp/stage2d8-ephemeral-values-v56 \
+            /tmp/stage2d8-minimal-config-v56.log \
+            /tmp/stage2d8-minimal-compile-v56.log \
+            /tmp/stage2d8-product-config-v56.log \
+            /tmp/stage2d8-product-compile-v56.log

@@ -1,0 +1,216 @@
+name: H3 N2 Stage2D8 Dedicated Board G2 V64 CI
+
+on:
+  pull_request:
+    paths:
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g2_probe/**"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_driver/**"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g2_probe/**"
+      - "docs/development/h3-n2-dedicated-board-stage2d8-*.md"
+      - "docs/acceptance/h3-n2-stage2d8-g2-*"
+      - "docs/status/STAGE_STATUS_H3_N2_STAGE2D8_G2_20260722.md"
+      - "tools/h3_n2_stage2d8_*_20260722_v64.py"
+      - "tools/h3_n2_stage2d8_nvsgen_requirements_20260722_v64.txt"
+      - ".github/workflows/h3-n2-stage2d8-dedicated-board-g2-v64-ci.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify-frozen-v64-reference:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          show-progress: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Verify integrated G2 implementation equals frozen source
+        run: |
+          set -euo pipefail
+          FROZEN=6cf37c29311601f4f83238cc8401c81ea7b9a1f0
+          git diff --exit-code "$FROZEN" -- \
+            docs/development/h3-n2-dedicated-board-stage2d8-g2-plan-20260722-v64.md \
+            firmware/esphome_rc/board_lab/h3_profile_isolated_device_g2_probe \
+            firmware/esphome_rc/components/greenhouse_profile_isolated_device_g2_probe \
+            firmware/esphome_rc/components/greenhouse_profile_isolated_device_driver \
+            tools/h3_n2_stage2d8_esphome_reproducible_compile_20260722_v64.py \
+            tools/h3_n2_stage2d8_g2_artifact_packager_20260722_v64.py \
+            tools/h3_n2_stage2d8_g2_boundary_gate_20260722_v64.py \
+            tools/h3_n2_stage2d8_g2_host_fault_matrix_20260722_v64.py \
+            tools/h3_n2_stage2d8_g2_reproducibility_gate_20260722_v64.py \
+            tools/h3_n2_stage2d8_nvsgen_requirements_20260722_v64.txt
+
+      - name: Run frozen G2 source boundary in isolated worktree
+        run: |
+          set -euo pipefail
+          FROZEN=6cf37c29311601f4f83238cc8401c81ea7b9a1f0
+          ROOT=/tmp/stage2d8-g2-frozen-v64
+          rm -rf "$ROOT"
+          git worktree add --detach "$ROOT" "$FROZEN"
+          (
+            cd "$ROOT"
+            python tools/h3_n2_stage2d8_g2_boundary_gate_20260722_v64.py \
+              --repo-root . \
+              --output /tmp/stage2d8-g2-frozen-boundary-v64.json
+          )
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(
+              Path('/tmp/stage2d8-g2-frozen-boundary-v64.json').read_text(
+                  encoding='utf-8'
+              )
+          )
+          assert report['status'] == 'pass'
+          assert report['gate'] == 'LOCKED'
+          assert report['partition_readonly_flag_word'] == '0x00000002'
+          assert report['no_key_empty_namespace_path_verified'] is True
+          PY
+          git worktree remove --force "$ROOT"
+
+      - name: Run integrated Stage2D8 driver host fault matrix
+        run: |
+          set -euo pipefail
+          pairing=firmware/esphome_rc/components/greenhouse_pairing_client
+          package=firmware/esphome_rc/components/greenhouse_profile_isolated_acceptance
+          driver=firmware/esphome_rc/components/greenhouse_profile_isolated_device_driver
+          g++ -std=gnu++20 -Wall -Wextra -Wpedantic -Werror \
+            -I "$pairing" -I "$package" -I "$driver" \
+            "$pairing/pairing_client_core.cpp" \
+            "$pairing/secure_pairing_channel.cpp" \
+            "$pairing/secure_pairing_channel_encoding.cpp" \
+            "$pairing/secure_pairing_channel_crypto.cpp" \
+            "$pairing/pairing_ram_credentials.cpp" \
+            "$package/isolated_acceptance_package.cpp" \
+            "$driver/isolated_device_driver.cpp" \
+            "$driver/tests/pairing_stage2d8_isolated_device_driver_fault_matrix_20260721_v56.cpp" \
+            -lcrypto \
+            -o /tmp/stage2d8-driver-host-fault-matrix-v64
+          /tmp/stage2d8-driver-host-fault-matrix-v64 \
+            | tee /tmp/stage2d8-driver-host-fault-matrix-v64.log
+          grep -Fx 'stage2d8_isolated_device_driver_fault_matrix=pass' \
+            /tmp/stage2d8-driver-host-fault-matrix-v64.log
+
+      - name: Verify frozen Artifact and physical-evidence closure
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+
+          expected = {
+              'zip': '662d9d4d850eea603d5defafb2b3c84a8bc07fae3a4b51229479b2a0a71e8ea9',
+              'g2': 'a3ff73ddc11115849e160637cd63e2f44c699e595c5c6aa43575f9d7626ed47d',
+              'recovery': '5f6ca3024d35dea9b48679a3882a55a20ec2bc67137d6dd58cbf19c2474994ed',
+              'seed': '1f7016fe98cf69ca879a72069e63869863d1a4c8580ba0c8931aef133de3c928',
+              'private_archive': 'a29db874961f9baa34137837fdbd31f1018d4fd8b7f01a2b5922bf512790a6fb',
+          }
+
+          manifest = json.loads(
+              Path('docs/acceptance/h3-n2-stage2d8-g2-public-manifest-v1.json').read_text(
+                  encoding='utf-8'
+              )
+          )
+          evidence = json.loads(
+              Path('docs/acceptance/h3-n2-stage2d8-g2-acceptance-template-v1.json').read_text(
+                  encoding='utf-8'
+              )
+          )
+          attempt = json.loads(
+              Path('docs/acceptance/h3-n2-stage2d8-g2-d2-attempt3-l1-summary-v1.json').read_text(
+                  encoding='utf-8'
+              )
+          )
+
+          assert manifest['status'] == 'physical_acceptance_passed_evidence_closed'
+          assert manifest['execution_gate'] == 'CLOSED_CONSUMED_NO_REPLAY'
+          assert manifest['artifact']['zip_sha256'] == expected['zip']
+          assert manifest['artifact']['g2_merged_sha256'] == expected['g2']
+          assert manifest['artifact']['recovery_merged_sha256'] == expected['recovery']
+          assert manifest['artifact']['nvs_seed_sha256'] == expected['seed']
+          assert manifest['attempt_3']['result'] == 'passed'
+          assert manifest['attempt_3']['authorization_consumed'] is True
+          assert manifest['attempt_3']['replay_permitted'] is False
+          assert manifest['attempt_3']['private_evidence']['archive_sha256'] == expected['private_archive']
+          assert manifest['attempt_3']['preboot_matches_seed'] is True
+          assert manifest['attempt_3']['postboot_matches_seed'] is True
+          assert manifest['attempt_3']['postboot_matches_preboot'] is True
+          assert manifest['attempt_3']['recovery_performed'] is False
+          assert manifest['attempt_3']['efuse_command_attempted'] is False
+          assert manifest['attempt_3']['network_operation_attempted'] is False
+          assert manifest['attempt_3']['production_environment_modified'] is False
+
+          assert evidence['result'] == 'passed'
+          assert evidence['stage_status'] == 'physical_acceptance_passed_evidence_closed'
+          assert evidence['physical_execution_attempt_3']['status'] == 'passed'
+          assert evidence['physical_execution_attempt_3']['preboot_matches_seed'] is True
+          assert evidence['physical_execution_attempt_3']['postboot_matches_preboot'] is True
+          assert evidence['protected_boundaries']['efuse_read_or_write'] is False
+          assert evidence['protected_boundaries']['production_environment_modified'] is False
+
+          assert attempt['result'] == 'passed'
+          assert attempt['authorization_disposition']['status'] == 'consumed_passed_retired'
+          assert attempt['stage_disposition']['evidence_closure'] == 'passed'
+
+          public_text = '\n'.join(
+              path.read_text(encoding='utf-8', errors='replace')
+              for root in (Path('docs/acceptance'), Path('docs/status'))
+              for path in root.rglob('*')
+              if path.is_file()
+          )
+          forbidden = (
+              r'/dev/cu\.',
+              r'/Users/[^\s/]+',
+              r'\b(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}\b',
+              r'BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY',
+          )
+          for pattern in forbidden:
+              if re.search(pattern, public_text):
+                  raise SystemExit(f'private marker present: {pattern}')
+          PY
+
+      - name: Prove V64 workflow is verification-only
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          text = Path(
+              '.github/workflows/h3-n2-stage2d8-dedicated-board-g2-v64-ci.yml'
+          ).read_text(encoding='utf-8')
+          forbidden = (
+              'esphome' + ' compile',
+              'artifact_' + 'packager' + ' --output',
+              'upload-' + 'artifact@v4',
+          )
+          present = [item for item in forbidden if item in text]
+          if present:
+              raise SystemExit(f'frozen V64 rebuild path present: {present}')
+          required = (
+              'verify-frozen-v64-reference',
+              'Verify frozen Artifact and physical-evidence closure',
+              'FROZEN=6cf37c29311601f4f83238cc8401c81ea7b9a1f0',
+          )
+          missing = [item for item in required if item not in text]
+          if missing:
+              raise SystemExit(f'V64 verification marker missing: {missing}')
+          print('stage2d8_g2_v64_verification_only=pass')
+          PY
+
+      - name: Cleanup verification files
+        if: always()
+        run: |
+          rm -rf /tmp/stage2d8-g2-frozen-v64
+          rm -f \
+            /tmp/stage2d8-g2-frozen-boundary-v64.json \
+            /tmp/stage2d8-driver-host-fault-matrix-v64 \
+            /tmp/stage2d8-driver-host-fault-matrix-v64.log

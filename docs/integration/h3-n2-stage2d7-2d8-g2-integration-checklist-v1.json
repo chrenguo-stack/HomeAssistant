@@ -1,0 +1,23 @@
+{
+  "schema": "gh.h3.n2.stage2d7-2d8-g2-integration-checklist/2",
+  "branch": "integration/h3-n2-stage2d8-g2-closure-20260722-v1",
+  "pull_request": 173,
+  "validation_head": "7b2770e8611893bda8edebbd0164754625cbe18e",
+  "draft_required": true,
+  "checks": {
+    "source_union": "passed",
+    "frozen_branch_immutability": "passed",
+    "frozen_artifact_not_rebuilt": "passed",
+    "private_evidence_excluded": "passed",
+    "integration_ci": "passed",
+    "stage2d7_host_and_compile": "passed",
+    "stage2d8_driver_host_and_compile": "passed",
+    "v64_reference_and_evidence": "passed",
+    "full_repository_ci": "passed",
+    "local_environment_tooling": "passed_in_parent_and_preserved",
+    "production_paths_unchanged": "passed",
+    "ready_merge_release_authorized": false,
+    "d4_authorization": "prepared_not_received"
+  },
+  "final_record_commit_ci_required": true
+}
