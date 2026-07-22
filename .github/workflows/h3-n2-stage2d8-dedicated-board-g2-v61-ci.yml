@@ -130,17 +130,17 @@ jobs:
       - name: Generate deterministic preseeded NVS image
         run: |
           set -euo pipefail
+          exec > >(tee /tmp/stage2d8-g2-seed-v61.log) 2>&1
           ROOT=firmware/esphome_rc/board_lab/h3_profile_isolated_device_g2_probe
-          GENERATOR_DIR="$HOME/.platformio/packages/framework-espidf/components/nvs_flash/nvs_partition_generator"
-          test -d "$GENERATOR_DIR"
-          PYTHONPATH="$GENERATOR_DIR${PYTHONPATH:+:$PYTHONPATH}" \
-            python -m esp_idf_nvs_partition_gen generate \
-              "$ROOT/stage2d8_g2_nvs_seed_20260722_v61.csv" \
-              /tmp/stage2d8-g2-nvs-seed-v61.bin \
-              0x10000
+          IDF_PYTHON="$HOME/.platformio/penv/.espidf-5.5.4/bin/python"
+          test -x "$IDF_PYTHON"
+          "$IDF_PYTHON" -m esp_idf_nvs_partition_gen generate \
+            "$ROOT/stage2d8_g2_nvs_seed_20260722_v61.csv" \
+            /tmp/stage2d8-g2-nvs-seed-v61.bin \
+            0x10000
           test "$(stat -c %s /tmp/stage2d8-g2-nvs-seed-v61.bin)" = 65536
-          strings /tmp/stage2d8-g2-nvs-seed-v61.bin | grep -Fx 'gh2d8_seed'
-          if strings /tmp/stage2d8-g2-nvs-seed-v61.bin | grep -Fx 'gh2d8_state'; then
+          strings /tmp/stage2d8-g2-nvs-seed-v61.bin | grep -F 'gh2d8_seed'
+          if strings /tmp/stage2d8-g2-nvs-seed-v61.bin | grep -F 'gh2d8_state'; then
             echo 'target namespace unexpectedly present in seed image' >&2
             exit 1
           fi
@@ -325,6 +325,7 @@ jobs:
             /tmp/stage2d8-g2-compile-v61.log \
             /tmp/stage2d8-recovery-config-v61.log \
             /tmp/stage2d8-recovery-compile-v61.log \
+            /tmp/stage2d8-g2-seed-v61.log \
             /tmp/stage2d8-g2-verify-v61.log \
             /tmp/stage2d8-partitions-v61.txt; do
             if [ -f "$source" ]; then
