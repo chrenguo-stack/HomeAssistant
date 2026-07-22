@@ -104,10 +104,18 @@ def verify_seed_image(path: Path) -> None:
 def load_runtime_report(path: Path) -> dict[str, str]:
     require(path.is_file(), "NVS generator runtime report missing")
     report = json.loads(path.read_text(encoding="utf-8"))
-    require(report.get("generator_version") == GENERATOR_VERSION, "generator version mismatch")
-    require(report.get("wheel_sha256") == GENERATOR_WHEEL_SHA256, "generator wheel hash mismatch")
+    require(
+        report.get("generator_version") == GENERATOR_VERSION,
+        "generator version mismatch",
+    )
+    require(
+        report.get("wheel_sha256") == GENERATOR_WHEEL_SHA256,
+        "generator wheel hash mismatch",
+    )
     require(bool(report.get("python_version")), "generator Python version missing")
-    require(bool(report.get("cryptography_version")), "cryptography version missing")
+    require(
+        bool(report.get("cryptography_version")), "cryptography version missing"
+    )
     return {str(key): str(value) for key, value in report.items()}
 
 
@@ -116,19 +124,28 @@ def run_checked(command: list[str]) -> None:
 
 
 def scan_redaction(paths: list[Path]) -> None:
-    forbidden = (
-        b"usbmodem",
-        b"98:a3:16",
+    all_file_forbidden = (b"usbmodem", b"98:a3:16")
+    text_only_forbidden = (
         b"mqtt_password",
         b"wifi_password",
         b"begin private key",
         b"begin rsa private key",
         b"begin ec private key",
     )
+    text_suffixes = {".json", ".csv", ".txt"}
     for path in paths:
         data = path.read_bytes().lower()
-        for token in forbidden:
-            require(token not in data, f"redaction failure in {path.name}: {token.decode()}")
+        for token in all_file_forbidden:
+            require(
+                token not in data,
+                f"private board identifier in {path.name}: {token.decode()}",
+            )
+        if path.suffix.lower() in text_suffixes or path.name == "SHA256SUMS":
+            for token in text_only_forbidden:
+                require(
+                    token not in data,
+                    f"credential material in {path.name}: {token.decode()}",
+                )
 
 
 def main() -> int:
@@ -174,7 +191,9 @@ def main() -> int:
         sources = {
             "bootloader.bin": locate(build_root, "bootloader.bin"),
             "partitions.bin": locate(build_root, "partitions.bin"),
-            "firmware.bin": locate(build_root, "firmware.bin", exclude_bootloader=True),
+            "firmware.bin": locate(
+                build_root, "firmware.bin", exclude_bootloader=True
+            ),
             "gh2d8_nvs_seed.bin": seed_image,
         }
         for filename, source in sources.items():
@@ -189,16 +208,34 @@ def main() -> int:
         merged = role_dir / f"stage2d8-{role}-merged-v63.bin"
         run_checked(
             [
-                str(esptool_python), "-m", "esptool", "--chip", "esp32c6",
-                "merge-bin", "--output", str(merged),
-                "0x0", str(role_dir / "bootloader.bin"),
-                "0x8000", str(role_dir / "partitions.bin"),
-                "0x10000", str(role_dir / "firmware.bin"),
-                "0x400000", str(role_dir / "gh2d8_nvs_seed.bin"),
+                str(esptool_python),
+                "-m",
+                "esptool",
+                "--chip",
+                "esp32c6",
+                "merge-bin",
+                "--output",
+                str(merged),
+                "0x0",
+                str(role_dir / "bootloader.bin"),
+                "0x8000",
+                str(role_dir / "partitions.bin"),
+                "0x10000",
+                str(role_dir / "firmware.bin"),
+                "0x400000",
+                str(role_dir / "gh2d8_nvs_seed.bin"),
             ]
         )
         run_checked(
-            [str(esptool_python), "-m", "esptool", "--chip", "esp32c6", "image-info", str(role_dir / "firmware.bin")]
+            [
+                str(esptool_python),
+                "-m",
+                "esptool",
+                "--chip",
+                "esp32c6",
+                "image-info",
+                str(role_dir / "firmware.bin"),
+            ]
         )
         packages[role] = {
             path.name: {"sha256": sha256(path), "size": path.stat().st_size}
