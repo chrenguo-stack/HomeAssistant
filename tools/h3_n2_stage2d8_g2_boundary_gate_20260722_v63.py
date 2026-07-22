@@ -172,6 +172,7 @@ def main() -> int:
     for token in (
         "verify_seed_image",
         "verify_partition_table",
+        "READONLY_FLAG = 0x2",
         '"gate": "LOCKED"',
         '"flash_authorized": False',
         '"persistent_write_authorized": False',
@@ -184,6 +185,7 @@ def main() -> int:
         "P03_TEST_PARTITION_OFFSET_DRIFT",
         "N02_SEED_SIZE_MISMATCH",
         "N04_TARGET_NAMESPACE_PRECREATED",
+        "0x2 if readonly else 0",
         '"case_count": len(results)',
     ):
         require(token in fault, f"V63 fault matrix case missing: {token}")
@@ -199,11 +201,12 @@ def main() -> int:
         require(token in workflow, f"V63 workflow contract missing: {token}")
 
     report = {
-        "schema": "gh.h3.n2.stage2d8-g2-source-boundary/3",
+        "schema": "gh.h3.n2.stage2d8-g2-source-boundary/4",
         "status": "pass",
         "gate": "LOCKED",
         "driver_source_binding": SOURCE_BINDING,
         "no_key_empty_namespace_path_verified": True,
+        "partition_readonly_flag_word": "0x00000002",
         "nvs_generator": {
             "package": "esp-idf-nvs-partition-gen",
             "version": "0.2.0",
