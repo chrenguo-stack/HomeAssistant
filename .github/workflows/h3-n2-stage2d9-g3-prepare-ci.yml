@@ -41,12 +41,14 @@ jobs:
           python -m py_compile \
             tools/h3_n2_stage2d9_prepare_model_20260722_v1.py \
             tools/h3_n2_stage2d9_prepare_manifest_gate_20260722_v1.py \
-            tests/h3_n2_stage2d9_prepare/test_stage2d9_prepare_model_20260722_v1.py
-      - name: Run host fault matrix
+            tools/h3_n2_stage2d9_prepare_command_protocol_20260722_v1.py \
+            tests/h3_n2_stage2d9_prepare/test_stage2d9_prepare_model_20260722_v1.py \
+            tests/h3_n2_stage2d9_prepare/test_stage2d9_prepare_command_protocol_20260722_v1.py
+      - name: Run host fault matrices
         run: |
           python -m unittest discover \
             -s tests/h3_n2_stage2d9_prepare \
-            -p 'test_stage2d9_prepare_model_20260722_v1.py' \
+            -p 'test_stage2d9_prepare_*_20260722_v1.py' \
             -v
       - name: Verify default manifest remains locked
         run: |
