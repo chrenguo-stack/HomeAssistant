@@ -95,6 +95,11 @@ jobs:
             | tee /tmp/stage2d8-manifest-gate-v56.log
           grep -Fx 'stage2d8_execution_manifest_gate=pass' \
             /tmp/stage2d8-manifest-gate-v56.log
+          if grep -Eq '/dev/|/tmp/stage2d8-(test|rollback|partitions)' \
+              /tmp/stage2d8-locked-manifest-redacted-v56.json; then
+            echo 'local path leaked into normalized manifest' >&2
+            exit 1
+          fi
           python - <<'PY'
           import json
           from pathlib import Path
@@ -104,14 +109,14 @@ jobs:
           PY
           if python tools/h3_n2_stage2d8_execution_manifest_gate_20260721_v56.py \
               --manifest /tmp/stage2d8-readonly-manifest-v56.json; then
-            echo 'READ_ONLY gate was accepted without --allow-live-gate' >&2
+            echo 'READ_ONLY accepted without --allow-live-gate' >&2
             exit 1
           fi
 
-      - name: Verify integrated Stage 2D-8 implementation equals frozen head
+      - name: Verify integrated Stage 2D-8 implementation equals frozen source
         run: |
           set -euo pipefail
-          FROZEN=464770c16eb78ed58bf304c84e2be797c7c86e29
+          FROZEN=693f7115ba295790fa5dd79f2d1da97930caf60f
           git diff --exit-code "$FROZEN" -- \
             docs/development/h3-n2-stage2d8-isolated-device-driver-20260721.md \
             docs/development/h3-n2-stage2d8-live-authorization-record-20260721.md \
@@ -140,7 +145,7 @@ jobs:
       - name: Run frozen Stage 2D-8 boundary gate in isolated worktree
         run: |
           set -euo pipefail
-          FROZEN=464770c16eb78ed58bf304c84e2be797c7c86e29
+          FROZEN=693f7115ba295790fa5dd79f2d1da97930caf60f
           ROOT=/tmp/stage2d8-frozen-boundary-v56
           rm -rf "$ROOT"
           git worktree add --detach "$ROOT" "$FROZEN"
