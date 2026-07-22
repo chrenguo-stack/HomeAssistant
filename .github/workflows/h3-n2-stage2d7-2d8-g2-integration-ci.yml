@@ -65,7 +65,7 @@ jobs:
           assert lock['ready_merge_release_authorized'] is False
           PY
 
-      - name: Verify production firmware and packages unchanged from current-main parent
+      - name: Verify production and inherited local tooling paths unchanged
         run: |
           set -euo pipefail
           MAIN_PARENT=dd06eb06c762791999e4cb3bd22c2dac17aa3fd0
@@ -74,7 +74,12 @@ jobs:
             firmware/esphome_rc/f1_0_rc2/packages \
             firmware/esphome_rc/components/greenhouse_pairing_client \
             firmware/esphome_rc/components/greenhouse_profile_lifecycle_controller \
-            firmware/esphome_rc/board_lab/h3_profile_lifecycle_controller
+            firmware/esphome_rc/board_lab/h3_profile_lifecycle_controller \
+            .github/workflows/local-dev-environment-tooling-ci.yml \
+            tools/dev \
+            tests/tools/test_local_environment_tooling_20260722_v1.py \
+            tests/tools/test_local_environment_tooling_20260722_v2.py \
+            docs/development/本地开发环境核查与加固指南_V1.0_20260722.md
 
       - name: Verify frozen implementation and evidence paths remain byte-identical
         run: |
@@ -132,18 +137,28 @@ jobs:
           public = data[paths[3]]
           evidence = data[paths[4]]
 
+          assert integration['status'] == 'draft_ci_validation_passed_awaiting_d4'
           assert integration['frozen_artifact']['rebuilt'] is False
           assert integration['physical_acceptance']['status'] == 'passed_evidence_closed'
           assert integration['physical_acceptance']['execution_gate'] == 'CLOSED_CONSUMED_NO_REPLAY'
+          assert all(value == 'passed' or value.startswith('passed_')
+                     for value in integration['validation'].values())
           assert integration['boundaries']['device_operation'] is False
           assert integration['boundaries']['ready_merge_release_authorized'] is False
+          assert integration['d4']['status'] == 'prepared_waiting_operator_decision'
+          assert integration['d4']['authorization_received'] is False
+
           assert checklist['draft_required'] is True
-          assert checklist['checks']['d4_authorization'] == 'not_requested'
-          assert d4['status'] == 'not_requested'
-          assert d4['draft_pr_required'] is True
-          assert d4['ready_authorized'] is False
-          assert d4['merge_authorized'] is False
-          assert d4['release_authorized'] is False
+          assert checklist['checks']['d4_authorization'] == 'prepared_not_received'
+          assert checklist['checks']['ready_merge_release_authorized'] is False
+
+          assert d4['status'] == 'prepared_waiting_operator_decision'
+          assert d4['draft_pr_required_until_authorized'] is True
+          assert d4['authorization']['received'] is False
+          assert d4['authorization']['ready_authorized'] is False
+          assert d4['authorization']['merge_authorized'] is False
+          assert d4['authorization']['release_authorized'] is False
+
           assert public['acceptance']['final_result'] == 'passed'
           assert public['pr_disposition']['ready_merge_release_authorized'] is False
           assert evidence['result'] == 'passed'
