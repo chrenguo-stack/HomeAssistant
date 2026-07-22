@@ -1,8 +1,8 @@
 {
-  "schema": "gh.h3.n2.stage2d8-g2-d2-attempt3-authorization-l1/1",
+  "schema": "gh.h3.n2.stage2d8-g2-d2-attempt3-authorization-l1/2",
   "stage": "H3/N2 Stage 2D-8 G2",
   "authorization_request_id": "D2-H3N2-STAGE2D8-G2-V64-20260722-03",
-  "status": "authorized_not_consumed",
+  "status": "consumed_passed_retired",
   "issued_at": "2026-07-22T12:36:47Z",
   "expires_at": "2026-07-22T14:36:47Z",
   "one_shot": true,
@@ -19,18 +19,15 @@
   "authorization_file_sha256": "c099ac351d30e33bb2c06fb7c1bcfcf61dbbb8ace61b51bda94b067b675312cc",
   "environment_marker_sha256": "320ecd5f88b4207be39ee8660117f553c80ddf22d9ded9f33f1b147df89cb3a1",
   "environment_distributions_sha256": "bdd8912af8a954f84a1794769c759a60b7165a6bef085854d6731b3f3db59ac2",
-  "top_level_directory": "Stage2D8_G2_D2_Attempt3_Authorized_V1",
-  "package_self_check": {
-    "python_compile": "passed",
-    "review_mode": "passed",
-    "authorization_binding": "passed",
-    "zip_member_and_hash_check": "passed"
-  },
+  "execution_result": "passed",
+  "authorization_consumed": true,
+  "destructive_boundary_entered": true,
+  "private_evidence_archive_sha256": "a29db874961f9baa34137837fdbd31f1018d4fd8b7f01a2b5922bf512790a6fb",
+  "recovery_performed": false,
+  "efuse_command_attempted": false,
+  "network_operation_attempted": false,
+  "production_environment_modified": false,
   "retired_attempts_replay_permitted": false,
   "private_target_values_in_git": false,
-  "private_authorization_json_in_git": false,
-  "physical_execution_started": false,
-  "authorization_consumed": false,
-  "destructive_boundary_entered": false,
-  "production_environment_modified": false
+  "private_authorization_json_in_git": false
 }
