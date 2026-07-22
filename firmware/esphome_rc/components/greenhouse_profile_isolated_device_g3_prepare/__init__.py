@@ -37,6 +37,16 @@ def _build_binding(value: object) -> str:
     return candidate
 
 
+def _complete_or_autoload(config: dict) -> dict:
+    keys = (CONF_PARTITION_LABEL, CONF_NAMESPACE_NAME, CONF_BUILD_BINDING)
+    present = [key in config for key in keys]
+    if any(present) and not all(present):
+        raise cv.Invalid(
+            "partition_label, namespace_name and build_binding must be provided together"
+        )
+    return config
+
+
 AUTO_LOAD = [
     "greenhouse_profile_isolated_device_driver",
     "greenhouse_profile_isolated_acceptance",
@@ -49,28 +59,29 @@ Stage2D9G3LockedPrepareHarness = stage2d9_ns.class_(
     "Stage2D9G3LockedPrepareHarness", cg.Component
 )
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(Stage2D9G3LockedPrepareHarness),
-        cv.Required(CONF_PARTITION_LABEL): _exact_partition,
-        cv.Required(CONF_NAMESPACE_NAME): _exact_namespace,
-        cv.Required(CONF_BUILD_BINDING): _build_binding,
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(Stage2D9G3LockedPrepareHarness),
+            cv.Optional(CONF_PARTITION_LABEL): _exact_partition,
+            cv.Optional(CONF_NAMESPACE_NAME): _exact_namespace,
+            cv.Optional(CONF_BUILD_BINDING): _build_binding,
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    _complete_or_autoload,
+)
 
 
 async def to_code(config: dict) -> None:
-    # The public P3/P4 harness exposes no command transport and performs only an
-    # automatic read-only inspection. The test partition is writable-capable for
-    # a future exact D2 execution, but this image never loads a key, arms PREPARE,
-    # calls prepare_candidate(), starts MQTT, activates, or cleans state.
+    # AUTO_LOAD from the token-gated executor links this component's shared
+    # null-MQTT/evidence translation unit without instantiating the locked
+    # harness. Explicit locked-harness configurations provide all three fields.
+    if CONF_PARTITION_LABEL not in config:
+        return
+
     include_builtin_idf_component("nvs_flash")
     include_builtin_idf_component("mqtt")
     include_builtin_idf_component("esp_hw_support")
-
-    # The inherited Stage2D8 physical-port translation unit contains dormant MQTT
-    # adapters and a shared mDNS include. Link dependencies only; do not create a
-    # network component or any MQTT session object in this harness.
     add_idf_component(name="espressif/mdns", ref="1.11.0")
 
     var = cg.new_Pvariable(config[CONF_ID])
