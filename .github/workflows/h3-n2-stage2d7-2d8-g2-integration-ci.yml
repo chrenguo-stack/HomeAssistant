@@ -1,0 +1,165 @@
+name: H3 N2 Stage2D7-2D8 G2 Integration CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d7-2d8-g2-integration-ci.yml"
+      - ".github/workflows/h3-n2-stage2d7-isolated-acceptance-ci.yml"
+      - ".github/workflows/h3-n2-stage2d8-isolated-device-driver-ci.yml"
+      - ".github/workflows/h3-n2-stage2d8-dedicated-board-g2-v64-ci.yml"
+      - "docs/integration/**"
+      - "docs/acceptance/h3-n2-stage2d8-g2-*"
+      - "docs/status/STAGE_STATUS_H3_N2_STAGE2D8_G2_20260722.md"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_acceptance/**"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_driver/**"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g2_probe/**"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_acceptance/**"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_driver/**"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g2_probe/**"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/h3-n2-stage2d7-2d8-g2-integration-ci.yml"
+      - "docs/integration/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  integration-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Verify integration ancestry and source lock
+        run: |
+          set -euo pipefail
+          MAIN_PARENT=dd06eb06c762791999e4cb3bd22c2dac17aa3fd0
+          EVIDENCE_PARENT=04562e50147e200fe408c66dee001f25ea1af0b9
+          UNION_COMMIT=8fa431704e6b506d0bb94d927d65697d1606fee2
+          git merge-base --is-ancestor "$MAIN_PARENT" HEAD
+          git merge-base --is-ancestor "$EVIDENCE_PARENT" HEAD
+          git merge-base --is-ancestor "$UNION_COMMIT" HEAD
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          lock = json.loads(
+              Path('docs/integration/.integration-source-lock-v1.json').read_text(
+                  encoding='utf-8'
+              )
+          )
+          assert lock['main_parent_sha'] == 'dd06eb06c762791999e4cb3bd22c2dac17aa3fd0'
+          assert lock['frozen_evidence_parent_sha'] == '04562e50147e200fe408c66dee001f25ea1af0b9'
+          assert lock['integration_merge_commit_sha'] == '8fa431704e6b506d0bb94d927d65697d1606fee2'
+          assert lock['frozen_branches_modified'] is False
+          assert lock['frozen_artifact_rebuilt'] is False
+          assert lock['execution_authorized'] is False
+          assert lock['ready_merge_release_authorized'] is False
+          PY
+
+      - name: Verify production firmware and packages unchanged from current-main parent
+        run: |
+          set -euo pipefail
+          MAIN_PARENT=dd06eb06c762791999e4cb3bd22c2dac17aa3fd0
+          git diff --exit-code "$MAIN_PARENT" -- \
+            firmware/esphome_rc/f1_0_rc2/f1_0_rc2.yml \
+            firmware/esphome_rc/f1_0_rc2/packages \
+            firmware/esphome_rc/components/greenhouse_pairing_client \
+            firmware/esphome_rc/components/greenhouse_profile_lifecycle_controller \
+            firmware/esphome_rc/board_lab/h3_profile_lifecycle_controller
+
+      - name: Verify frozen implementation and evidence paths remain byte-identical
+        run: |
+          set -euo pipefail
+          FROZEN=04562e50147e200fe408c66dee001f25ea1af0b9
+          git diff --exit-code "$FROZEN" -- \
+            docs/acceptance \
+            docs/status/STAGE_STATUS_H3_N2_STAGE2D8_G2_20260722.md \
+            docs/development/h3-n2-stage2d7-isolated-acceptance-20260721.md \
+            docs/development/h3-n2-stage2d8-isolated-device-driver-20260721.md \
+            docs/development/h3-n2-stage2d8-live-authorization-record-20260721.md \
+            docs/development/h3-n2-dedicated-board-stage2d8-g2-plan-20260722-v64.md \
+            firmware/esphome_rc/board_lab/h3_profile_isolated_acceptance \
+            firmware/esphome_rc/board_lab/h3_profile_isolated_device_driver \
+            firmware/esphome_rc/board_lab/h3_profile_isolated_device_g2_probe \
+            firmware/esphome_rc/components/greenhouse_profile_isolated_acceptance \
+            firmware/esphome_rc/components/greenhouse_profile_isolated_device_driver \
+            firmware/esphome_rc/components/greenhouse_profile_isolated_device_g2_probe \
+            firmware/esphome_rc/f1_0_rc2/f1_0_rc2_h3_profile_isolated_acceptance_board_lab_20260721_v55.yml \
+            firmware/esphome_rc/f1_0_rc2/f1_0_rc2_h3_profile_isolated_device_driver_board_lab_20260721_v56.yml \
+            protocols/pairing/gh-h3-node-isolated-acceptance-v1.md \
+            protocols/pairing/gh-h3-node-isolated-device-driver-v1.md \
+            tests/h3_n2_stage2d8_isolated_broker \
+            tools/h3_n2_stage2d7_isolated_acceptance_boundary_gate_20260721_v55.py \
+            tools/h3_n2_stage2d8_execution_manifest_gate_20260721_v56.py \
+            tools/h3_n2_stage2d8_isolated_device_driver_boundary_gate_20260721_v56.py \
+            tools/h3_n2_stage2d8_esphome_reproducible_compile_20260722_v64.py \
+            tools/h3_n2_stage2d8_g2_artifact_packager_20260722_v64.py \
+            tools/h3_n2_stage2d8_g2_boundary_gate_20260722_v64.py \
+            tools/h3_n2_stage2d8_g2_host_fault_matrix_20260722_v64.py \
+            tools/h3_n2_stage2d8_g2_reproducibility_gate_20260722_v64.py \
+            tools/h3_n2_stage2d8_nvsgen_requirements_20260722_v64.txt
+
+      - name: Validate integration manifests and D4 lock
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          paths = (
+              'docs/integration/h3-n2-stage2d7-2d8-g2-integration-manifest-v1.json',
+              'docs/integration/h3-n2-stage2d7-2d8-g2-integration-checklist-v1.json',
+              'docs/integration/h3-n2-stage2d7-2d8-g2-d4-gate-v1.json',
+              'docs/acceptance/h3-n2-stage2d8-g2-public-manifest-v1.json',
+              'docs/acceptance/h3-n2-stage2d8-g2-acceptance-template-v1.json',
+          )
+          data = {
+              path: json.loads(Path(path).read_text(encoding='utf-8'))
+              for path in paths
+          }
+          integration = data[paths[0]]
+          checklist = data[paths[1]]
+          d4 = data[paths[2]]
+          public = data[paths[3]]
+          evidence = data[paths[4]]
+
+          assert integration['frozen_artifact']['rebuilt'] is False
+          assert integration['physical_acceptance']['status'] == 'passed_evidence_closed'
+          assert integration['physical_acceptance']['execution_gate'] == 'CLOSED_CONSUMED_NO_REPLAY'
+          assert integration['boundaries']['device_operation'] is False
+          assert integration['boundaries']['ready_merge_release_authorized'] is False
+          assert checklist['draft_required'] is True
+          assert checklist['checks']['d4_authorization'] == 'not_requested'
+          assert d4['status'] == 'not_requested'
+          assert d4['draft_pr_required'] is True
+          assert d4['ready_authorized'] is False
+          assert d4['merge_authorized'] is False
+          assert d4['release_authorized'] is False
+          assert public['acceptance']['final_result'] == 'passed'
+          assert public['pr_disposition']['ready_merge_release_authorized'] is False
+          assert evidence['result'] == 'passed'
+          assert evidence['traceability']['ready_merge_release_authorized'] is False
+          print('stage2d7_2d8_g2_integration_gate=pass')
+          PY
+
+      - name: Verify no private evidence or execution package entered Git
+        run: |
+          set -euo pipefail
+          if git ls-files | grep -E '(private-summary|physical-acceptance-attempt|authorization_.*\.json$|\.tar\.gz$|\.bin$)'; then
+            echo 'private evidence or binary package tracked in Git' >&2
+            exit 1
+          fi
+          if git grep -I -n -E '/dev/cu\.|/Users/[^/[:space:]]+|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY' -- \
+              docs/acceptance docs/status docs/integration; then
+            echo 'private marker present in public integration records' >&2
+            exit 1
+          fi
