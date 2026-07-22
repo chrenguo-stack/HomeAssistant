@@ -32,6 +32,7 @@ class Stage2D8G2ReadOnlyProbe final : public Component {
 
  protected:
   void emit_snapshot_() const;
+  void close_partition_();
   void fail_closed_(const char *reason);
 
   std::string partition_label_{};
@@ -45,6 +46,8 @@ class Stage2D8G2ReadOnlyProbe final : public Component {
   Stage2D8SerialEvidenceSink evidence_sink_{};
   IsolatedAcceptancePackage package_{};
 
+  bool partition_verified_readonly_{false};
+  bool partition_initialized_{false};
   bool configured_{false};
   bool inspection_attempted_{false};
   bool inspection_passed_{false};
