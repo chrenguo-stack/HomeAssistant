@@ -46,7 +46,9 @@ external_components:
 # V68 replaces the retired V67 authorization chain with a new SHA-256 unlock
 # digest. The private preimage is absent from Git and from the Artifact, but is
 # retained separately under durable operator custody before any D2 request.
-# Flash/PREPARE remain unauthorized by the Artifact manifest until a new exact
+# The host-only verifier h3_n2_stage2d9_g3_u1_artifact_verify_20260723_v2.py
+# validates both Artifact exclusion and custody-to-digest binding without
+# printing the preimage. Flash/PREPARE remain unauthorized until a new exact
 # D2 decision is issued after V68 U1 verification.
 greenhouse_profile_isolated_device_g3_executor:
   id: stage2d9_g3_executor
