@@ -8,7 +8,6 @@ on:
       - "tests/h3_n2_stage2d9_prepare/**"
       - "protocols/pairing/gh-h3-node-stage2d9-g3-prepare-v1.md"
       - "docs/development/*Stage2D9*"
-      - "docs/development/*Stage2D9*"
       - "docs/status/STAGE_STATUS_H3_N2_STAGE2D9_G3_20260722.md"
       - "docs/acceptance/h3-n2-stage2d9-g3-*.json"
   push:
@@ -73,13 +72,34 @@ jobs:
           acceptance = json.loads(Path(
               "docs/acceptance/h3-n2-stage2d9-g3-acceptance-template-v1.json"
           ).read_text(encoding="utf-8"))
+          request = json.loads(Path(
+              "docs/acceptance/h3-n2-stage2d9-g3-d2-attempt1-authorization-request-v1.json"
+          ).read_text(encoding="utf-8"))
+          index = json.loads(Path(
+              "docs/acceptance/h3-n2-stage2d9-g3-d2-authorization-request-index-v1.json"
+          ).read_text(encoding="utf-8"))
           template = json.loads(Path(
               "tests/h3_n2_stage2d9_prepare/"
               "stage2d9_prepare_manifest_template_20260722_v1.json"
           ).read_text(encoding="utf-8"))
-          assert public["execution_gate"] == "LOCKED"
+          assert public["execution_gate"].startswith("LOCKED")
+          assert public["boundaries"]["device_operation_authorized"] is False
+          assert public["boundaries"]["flash_authorized"] is False
+          assert public["boundaries"]["writable_test_nvs_authorized"] is False
+          assert public["boundaries"]["prepare_authorized"] is False
+          assert public["boundaries"]["verify_authorized"] is False
+          assert public["d2_review"]["execution_authorized"] is False
+          assert public["d2_review"]["replay_permitted"] is False
           assert acceptance["stage_disposition"]["execution_gate"] == "LOCKED"
           assert acceptance["stage_disposition"]["ready_merge_release_authorized"] is False
+          assert request["execution_gate"] == "LOCKED"
+          assert request["execution_authorized"] is False
+          assert request["status"] == "pending_operator_authorization"
+          assert request["one_shot"] is True
+          assert request["replay_permitted"] is False
+          assert index["execution_gate"] == "LOCKED"
+          assert index["requests"][0]["execution_authorized"] is False
+          assert index["requests"][0]["replay_permitted"] is False
           assert template["gate"] == "LOCKED"
           assert template["execution_authorized"] is False
           assert template["writable_test_nvs_authorized"] is False
