@@ -157,8 +157,8 @@ class ManifestGateTest(unittest.TestCase):
                 "source_sha": "1" * 64,
                 "artifact_sha256": "2" * 64,
                 "candidate_digest_sha256": "3" * 64,
-                "allowed_nvs_partition": "gh2d9_nvs",
-                "allowed_nvs_namespace": "gh2d9_state",
+                "allowed_nvs_partition": "gh2d8_p2d9",
+                "allowed_nvs_namespace": "gh2d8_s2d9",
             }
         )
         manifest["prepare_authorization"]["authorization_id"] = "D2-EXAMPLE"
