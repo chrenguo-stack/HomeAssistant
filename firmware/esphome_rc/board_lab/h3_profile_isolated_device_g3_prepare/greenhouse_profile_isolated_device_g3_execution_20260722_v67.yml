@@ -52,5 +52,5 @@ greenhouse_profile_isolated_device_g3_executor:
   id: stage2d9_g3_executor
   partition_label: gh2d8_p2d9
   namespace_name: gh2d8_s2d9
-  build_binding: 4304042da80f9e47dfefbbb943424b038e37bfc1
+  build_binding: 70780dd1e826e07e32e12c66268c5dc564863420
   unlock_digest: d43c61f08a89a78ea3656083602fbe30983bd555023f64b8f005a62602b28065
