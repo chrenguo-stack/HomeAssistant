@@ -16,6 +16,8 @@ esp32:
   partitions: stage2d8_g2_partitions_20260722_v60.csv
   framework:
     type: esp-idf
+    sdkconfig_options:
+      CONFIG_APP_REPRODUCIBLE_BUILD: y
 
 logger:
   level: INFO
