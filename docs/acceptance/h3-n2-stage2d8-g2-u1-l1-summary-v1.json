@@ -1,0 +1,41 @@
+{
+  "schema": "gh.h3.n2.stage2d8-g2-u1-l1-summary/1",
+  "stage": "H3/N2 Stage 2D-8 G2",
+  "batch_package_id": "U1_STAGE2D8_G2_V64_HOST_ARTIFACT_VERIFY_V1",
+  "result": "passed",
+  "source_sha": "6cf37c29311601f4f83238cc8401c81ea7b9a1f0",
+  "artifact_zip_sha256": "662d9d4d850eea603d5defafb2b3c84a8bc07fae3a4b51229479b2a0a71e8ea9",
+  "controlled_private_output_sha256": "6930cb6e52ada91f92ccf487c35319856abffd2e2d8ee17fe43641bbb9ce619e",
+  "private_log_timestamp_utc": "2026-07-22T09:16:10Z",
+  "checks": {
+    "board_accessed": false,
+    "flash_operation_attempted": false,
+    "network_operation_attempted": false,
+    "zip_sha256_match": true,
+    "zip_member_count": 19,
+    "zip_member_set_match": true,
+    "sha256sums_checked": 18,
+    "sha256sums_all_match": true,
+    "manifest_schema_match": true,
+    "manifest_source_sha_match": true,
+    "manifest_gate_locked": true,
+    "manifest_target_match": true,
+    "all_execution_authorizations_false": true,
+    "clean_builds_byte_identical": true,
+    "reproducibility_status": "pass",
+    "test_partition_offset": "0x400000",
+    "test_partition_size": "0x10000",
+    "test_partition_readonly": true,
+    "nvs_seed_size": 65536,
+    "final_pass_marker": true
+  },
+  "privacy": {
+    "raw_local_paths_included": false,
+    "raw_board_identifiers_included": false,
+    "full_log_in_git": false,
+    "secret_values_included": false
+  },
+  "next_gate": "D2_PHYSICAL_EXECUTION_AUTHORIZATION",
+  "physical_execution_authorized": false,
+  "production_environment_modified": false
+}
