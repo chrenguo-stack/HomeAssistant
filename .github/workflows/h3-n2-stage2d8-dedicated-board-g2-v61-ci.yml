@@ -1,0 +1,349 @@
+name: H3 N2 Stage2D8 Dedicated Board G2 V61 CI
+
+on:
+  pull_request:
+    paths:
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g2_probe/**"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g2_probe/**"
+      - "docs/development/h3-n2-dedicated-board-stage2d8-*.md"
+      - ".github/workflows/h3-n2-stage2d8-dedicated-board-g2-v61-ci.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-locked-artifacts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          show-progress: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install pinned build tools in isolated environments
+        run: |
+          set -euo pipefail
+          python -m pip install -q "esphome==2026.4.3"
+          python -m venv /tmp/stage2d8-esptool-v61
+          /tmp/stage2d8-esptool-v61/bin/python -m pip install -q --upgrade pip
+          /tmp/stage2d8-esptool-v61/bin/python -m pip install -q "esptool==5.3.1"
+          esphome version
+          /tmp/stage2d8-esptool-v61/bin/python -m esptool version
+
+      - name: Verify G2 source boundary
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          root = Path('firmware/esphome_rc/board_lab/h3_profile_isolated_device_g2_probe')
+          g2 = (root / 'greenhouse_profile_isolated_device_g2_probe_20260722_v60.yml').read_text()
+          recovery = (root / 'greenhouse_stage2d8_locked_recovery_20260722_v60.yml').read_text()
+          partitions = (root / 'stage2d8_g2_partitions_20260722_v60.csv').read_text()
+          seed = (root / 'stage2d8_g2_nvs_seed_20260722_v61.csv').read_text()
+
+          forbidden_blocks = (
+              'wifi:', 'api:', 'ota:', 'mqtt:', 'mdns:', 'web_server:',
+              'captive_portal:'
+          )
+          for name, text in (('g2', g2), ('recovery', recovery)):
+              found = [token for token in forbidden_blocks if token in text]
+              if found:
+                  raise SystemExit(f'{name} contains forbidden runtime block(s): {found}')
+              if 'CONFIG_APP_REPRODUCIBLE_BUILD: y' not in text:
+                  raise SystemExit(f'{name} reproducible-build option missing')
+
+          required_g2 = (
+              'hardware_uart: USB_SERIAL_JTAG',
+              'partition_label: gh2d8_nvs',
+              'namespace_name: gh2d8_state',
+              'build_binding: 510566f7047a779b319daa87fb64cf64f292c224',
+          )
+          missing = [token for token in required_g2 if token not in g2]
+          if missing:
+              raise SystemExit(f'G2 binding missing: {missing}')
+
+          required_partition_rows = (
+              'factory,     app,  factory, 0x10000,  0x3F0000,',
+              'gh2d8_nvs,  data, nvs,     0x400000, 0x10000,   readonly',
+          )
+          missing = [token for token in required_partition_rows if token not in partitions]
+          if missing:
+              raise SystemExit(f'partition layout mismatch: {missing}')
+
+          if 'gh2d8_seed,namespace,,' not in seed:
+              raise SystemExit('seed namespace missing')
+          if 'gh2d8_state' in seed:
+              raise SystemExit('target namespace must remain absent from seed')
+
+          probe_cpp = Path(
+              'firmware/esphome_rc/components/'
+              'greenhouse_profile_isolated_device_g2_probe/'
+              'stage2d8_g2_read_only_probe.cpp'
+          ).read_text()
+          required_contract = (
+              'nvs_flash_init_partition',
+              'nvs_flash_deinit_partition',
+              'partition->readonly',
+              'STAGE2D8_TEST_PARTITION_ADDRESS = 0x400000',
+              'STAGE2D8_TEST_PARTITION_SIZE = 0x10000',
+              'package_.inspect_read_only()',
+              'persistent_write_count == 0',
+              'persistence_status == "empty"',
+              'stage2d8_g2_probe=pass',
+          )
+          missing = [token for token in required_contract if token not in probe_cpp]
+          if missing:
+              raise SystemExit(f'G2 read-only contract missing: {missing}')
+          PY
+
+      - name: Compile G2 read-only image
+        working-directory: firmware/esphome_rc/board_lab/h3_profile_isolated_device_g2_probe
+        run: |
+          set -o pipefail
+          esphome config greenhouse_profile_isolated_device_g2_probe_20260722_v60.yml \
+            2>&1 | tee /tmp/stage2d8-g2-config-v61.log
+          esphome compile greenhouse_profile_isolated_device_g2_probe_20260722_v60.yml \
+            2>&1 | tee /tmp/stage2d8-g2-compile-v61.log
+
+      - name: Compile locked recovery image
+        working-directory: firmware/esphome_rc/board_lab/h3_profile_isolated_device_g2_probe
+        run: |
+          set -o pipefail
+          esphome config greenhouse_stage2d8_locked_recovery_20260722_v60.yml \
+            2>&1 | tee /tmp/stage2d8-recovery-config-v61.log
+          esphome compile greenhouse_stage2d8_locked_recovery_20260722_v60.yml \
+            2>&1 | tee /tmp/stage2d8-recovery-compile-v61.log
+
+      - name: Generate deterministic preseeded NVS image
+        run: |
+          set -euo pipefail
+          ROOT=firmware/esphome_rc/board_lab/h3_profile_isolated_device_g2_probe
+          GENERATOR_DIR="$HOME/.platformio/packages/framework-espidf/components/nvs_flash/nvs_partition_generator"
+          test -d "$GENERATOR_DIR"
+          PYTHONPATH="$GENERATOR_DIR${PYTHONPATH:+:$PYTHONPATH}" \
+            python -m esp_idf_nvs_partition_gen generate \
+              "$ROOT/stage2d8_g2_nvs_seed_20260722_v61.csv" \
+              /tmp/stage2d8-g2-nvs-seed-v61.bin \
+              0x10000
+          test "$(stat -c %s /tmp/stage2d8-g2-nvs-seed-v61.bin)" = 65536
+          strings /tmp/stage2d8-g2-nvs-seed-v61.bin | grep -Fx 'gh2d8_seed'
+          if strings /tmp/stage2d8-g2-nvs-seed-v61.bin | grep -Fx 'gh2d8_state'; then
+            echo 'target namespace unexpectedly present in seed image' >&2
+            exit 1
+          fi
+
+      - name: Assemble immutable G2 and recovery packages
+        env:
+          SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import shutil
+          import subprocess
+          from pathlib import Path
+
+          root = Path('firmware/esphome_rc/board_lab/h3_profile_isolated_device_g2_probe')
+          out = Path('/tmp/stage2d8-g2-immutable-v61')
+          out.mkdir(parents=True, exist_ok=False)
+          esptool_python = '/tmp/stage2d8-esptool-v61/bin/python'
+          seed_image = Path('/tmp/stage2d8-g2-nvs-seed-v61.bin')
+
+          def sha256(path: Path) -> str:
+              digest = hashlib.sha256()
+              with path.open('rb') as handle:
+                  for chunk in iter(lambda: handle.read(1024 * 1024), b''):
+                      digest.update(chunk)
+              return digest.hexdigest()
+
+          def locate(build_name: str, filename: str, exclude_bootloader: bool = False) -> Path:
+              build_root = root / '.esphome' / 'build' / build_name
+              candidates = sorted(build_root.rglob(filename))
+              if exclude_bootloader:
+                  candidates = [p for p in candidates if 'bootloader' not in p.parts]
+              if not candidates:
+                  raise SystemExit(f'missing {filename} for {build_name}')
+              return candidates[0]
+
+          packages = {}
+          for role, build_name in (
+              ('g2', 'gh-2d8-g2-v60'),
+              ('recovery', 'gh-2d8-recovery-v60'),
+          ):
+              role_dir = out / role
+              role_dir.mkdir()
+              sources = {
+                  'bootloader.bin': locate(build_name, 'bootloader.bin'),
+                  'partitions.bin': locate(build_name, 'partitions.bin'),
+                  'firmware.bin': locate(build_name, 'firmware.bin', exclude_bootloader=True),
+                  'gh2d8_nvs_seed.bin': seed_image,
+              }
+              for filename, source in sources.items():
+                  shutil.copy2(source, role_dir / filename)
+
+              merged = role_dir / f'stage2d8-{role}-full-8mb-v61.bin'
+              subprocess.run(
+                  [
+                      esptool_python, '-m', 'esptool', '--chip', 'esp32c6',
+                      'merge-bin', '--output', str(merged),
+                      '0x0', str(role_dir / 'bootloader.bin'),
+                      '0x8000', str(role_dir / 'partitions.bin'),
+                      '0x10000', str(role_dir / 'firmware.bin'),
+                      '0x400000', str(role_dir / 'gh2d8_nvs_seed.bin'),
+                  ],
+                  check=True,
+              )
+              packages[role] = {
+                  path.name: {'sha256': sha256(path), 'size': path.stat().st_size}
+                  for path in sorted(role_dir.iterdir())
+              }
+
+          partition_csv = root / 'stage2d8_g2_partitions_20260722_v60.csv'
+          seed_csv = root / 'stage2d8_g2_nvs_seed_20260722_v61.csv'
+          shutil.copy2(partition_csv, out / partition_csv.name)
+          shutil.copy2(seed_csv, out / seed_csv.name)
+          manifest = {
+              'schema': 'gh.h3.n2.stage2d8-g2-artifact-manifest/2',
+              'gate': 'LOCKED',
+              'source_commit': os.environ['SOURCE_COMMIT'],
+              'driver_source_binding': '510566f7047a779b319daa87fb64cf64f292c224',
+              'build_tools': {
+                  'esphome': '2026.4.3',
+                  'esptool': '5.3.1',
+                  'esp_idf_nvs_partition_gen': 'bundled-with-framework-espidf',
+                  'reproducible_build': True,
+              },
+              'target': {
+                  'chip': 'ESP32-C6',
+                  'module': 'ESP32-C6-WROOM-1-N8',
+                  'flash_size': 8388608,
+                  'transport': 'USB_SERIAL_JTAG',
+              },
+              'partition_table': {
+                  'csv': partition_csv.name,
+                  'csv_sha256': sha256(partition_csv),
+                  'binary_offset': '0x8000',
+                  'factory_app_offset': '0x10000',
+                  'test_partition_label': 'gh2d8_nvs',
+                  'test_partition_offset': '0x400000',
+                  'test_partition_size': '0x10000',
+                  'test_partition_readonly': True,
+                  'target_namespace': 'gh2d8_state',
+                  'seed_namespace': 'gh2d8_seed',
+                  'seed_csv': seed_csv.name,
+                  'seed_csv_sha256': sha256(seed_csv),
+                  'seed_image_sha256': sha256(seed_image),
+              },
+              'packages': packages,
+              'execution': {
+                  'flash_authorized': False,
+                  'read_only_probe_authorized': False,
+                  'test_partition_pre_post_readback_authorized': False,
+                  'persistent_write_authorized': False,
+                  'wifi_authorized': False,
+                  'mqtt_authorized': False,
+              },
+          }
+          manifest_path = out / 'stage2d8-g2-artifact-manifest-v61.json'
+          manifest_path.write_text(
+              json.dumps(manifest, indent=2, sort_keys=True) + '\n', encoding='utf-8'
+          )
+
+          lines = []
+          for path in sorted(out.rglob('*')):
+              if path.is_file():
+                  lines.append(f'{sha256(path)}  {path.relative_to(out)}')
+          (out / 'SHA256SUMS').write_text('\n'.join(lines) + '\n', encoding='utf-8')
+          PY
+
+      - name: Verify packaged images, partition flags and redaction
+        env:
+          SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          exec > >(tee /tmp/stage2d8-g2-verify-v61.log) 2>&1
+          OUT=/tmp/stage2d8-g2-immutable-v61
+          ESPTOOL=/tmp/stage2d8-esptool-v61/bin/python
+          PARTGEN="$HOME/.platformio/packages/framework-espidf/components/partition_table/gen_esp32part.py"
+          test -f "$PARTGEN"
+          "$ESPTOOL" -m esptool --chip esp32c6 image-info "$OUT/g2/firmware.bin"
+          "$ESPTOOL" -m esptool --chip esp32c6 image-info "$OUT/recovery/firmware.bin"
+          python "$PARTGEN" "$OUT/g2/partitions.bin" | tee /tmp/stage2d8-partitions-v61.txt
+          grep -E '^gh2d8_nvs,[[:space:]]*data,[[:space:]]*nvs,[[:space:]]*0x400000,[[:space:]]*64K,[[:space:]]*readonly$' \
+            /tmp/stage2d8-partitions-v61.txt
+          grep -F '"gate": "LOCKED"' "$OUT/stage2d8-g2-artifact-manifest-v61.json"
+          grep -F '"source_commit": "'"$SOURCE_COMMIT"'"' "$OUT/stage2d8-g2-artifact-manifest-v61.json"
+          grep -F '"test_partition_readonly": true' "$OUT/stage2d8-g2-artifact-manifest-v61.json"
+          grep -F '"flash_authorized": false' "$OUT/stage2d8-g2-artifact-manifest-v61.json"
+          grep -F '"persistent_write_authorized": false' "$OUT/stage2d8-g2-artifact-manifest-v61.json"
+          test "$(stat -c %s "$OUT/g2/gh2d8_nvs_seed.bin")" = 65536
+          cmp "$OUT/g2/gh2d8_nvs_seed.bin" "$OUT/recovery/gh2d8_nvs_seed.bin"
+          if grep -aERi '98:a3:16|usbmodem' "$OUT"; then
+            echo 'private board identifier detected in artifact' >&2
+            exit 1
+          fi
+          if grep -ERi \
+              --include='*.json' --include='*.csv' --include='SHA256SUMS' \
+              'BEGIN (RSA |EC )?PRIVATE KEY|mqtt_password|wifi_password' "$OUT"; then
+            echo 'credential or key material detected in text artifact' >&2
+            exit 1
+          fi
+          (cd "$OUT" && sha256sum --check SHA256SUMS)
+
+      - name: Upload immutable locked artifact package
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage2d8-g2-immutable-locked-v61
+          path: /tmp/stage2d8-g2-immutable-v61
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Build G2 failure diagnostic
+        if: failure()
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/stage2d8-g2-diagnostic-v61
+          for source in \
+            /tmp/stage2d8-g2-config-v61.log \
+            /tmp/stage2d8-g2-compile-v61.log \
+            /tmp/stage2d8-recovery-config-v61.log \
+            /tmp/stage2d8-recovery-compile-v61.log \
+            /tmp/stage2d8-g2-verify-v61.log \
+            /tmp/stage2d8-partitions-v61.txt; do
+            if [ -f "$source" ]; then
+              cp "$source" /tmp/stage2d8-g2-diagnostic-v61/
+            fi
+          done
+          if [ -d /tmp/stage2d8-g2-immutable-v61 ]; then
+            find /tmp/stage2d8-g2-immutable-v61 -maxdepth 2 -type f \
+              -printf '%P %s bytes\n' | sort \
+              > /tmp/stage2d8-g2-diagnostic-v61/package-inventory.txt
+          fi
+          printf 'head=%s\n' "$GITHUB_SHA" \
+            > /tmp/stage2d8-g2-diagnostic-v61/context.txt
+
+      - name: Upload G2 failure diagnostic
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage2d8-g2-diagnostic-v61
+          path: /tmp/stage2d8-g2-diagnostic-v61
+          if-no-files-found: error
+          retention-days: 7
