@@ -1,0 +1,55 @@
+esphome:
+  name: gh-2d9-g3-exec-v66
+  friendly_name: Greenhouse Stage 2D-9 G3 Token-Gated Executor Compile
+  min_version: 2026.4.3
+
+esp32:
+  board: esp32-c6-devkitm-1
+  variant: ESP32C6
+  flash_size: 8MB
+  partitions: stage2d9_g3_partitions_20260722_v65.csv
+  framework:
+    type: esp-idf
+    advanced:
+      include_builtin_idf_components:
+        - mqtt
+        - nvs_flash
+        - esp_hw_support
+    sdkconfig_options:
+      CONFIG_APP_REPRODUCIBLE_BUILD: y
+      CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG: y
+      CONFIG_ESP_CONSOLE_SECONDARY_NONE: y
+      CONFIG_MBEDTLS_PSA_CRYPTO_C: y
+      CONFIG_MBEDTLS_ECP_DP_CURVE25519_ENABLED: y
+      CONFIG_MBEDTLS_CHACHA20_C: y
+      CONFIG_MBEDTLS_POLY1305_C: y
+      CONFIG_MBEDTLS_CHACHAPOLY_C: y
+      CONFIG_MBEDTLS_HARDWARE_MPI: n
+
+logger:
+  level: DEBUG
+  hardware_uart: USB_SERIAL_JTAG
+
+external_components:
+  - source:
+      type: local
+      path: ../../components
+    components:
+      - greenhouse_pairing_client
+      - greenhouse_profile_production_adapters
+      - greenhouse_profile_lifecycle_controller
+      - greenhouse_profile_isolated_acceptance
+      - greenhouse_profile_isolated_device_driver
+      - greenhouse_profile_isolated_device_g3_prepare
+      - greenhouse_profile_isolated_device_g3_executor
+
+# Compile-only public executor target. An all-zero unlock digest disables the
+# command surface, so this image can only enter the locked read-only path. The
+# future immutable execution artifact will replace this digest with the SHA-256
+# of a private one-time preimage; the preimage itself must never enter Git.
+greenhouse_profile_isolated_device_g3_executor:
+  id: stage2d9_g3_executor_compile
+  partition_label: gh2d8_p2d9
+  namespace_name: gh2d8_s2d9
+  build_binding: 2a5272546f25b1b29cf1d6682cf1fc14f1c1be83
+  unlock_digest: 0000000000000000000000000000000000000000000000000000000000000000
