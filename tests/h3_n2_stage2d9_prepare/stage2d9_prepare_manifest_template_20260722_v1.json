@@ -11,8 +11,8 @@
   "expected_candidate_generation_after": 1,
   "expected_candidate_state_after": "PREPARED",
   "writable_test_nvs_authorized": false,
-  "allowed_nvs_partition": "gh2d9_nvs",
-  "allowed_nvs_namespace": "gh2d9_state",
+  "allowed_nvs_partition": "gh2d8_p2d9",
+  "allowed_nvs_namespace": "gh2d8_s2d9",
   "prepare_authorization": {
     "authorization_id": null,
     "action": "PREPARE_CANDIDATE",
