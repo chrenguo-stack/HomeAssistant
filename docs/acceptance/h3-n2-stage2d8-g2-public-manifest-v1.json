@@ -1,12 +1,17 @@
 {
-  "schema": "gh.h3.n2.stage2d8-g2-physical-acceptance-public-manifest/1",
+  "schema": "gh.h3.n2.stage2d8-g2-physical-acceptance-public-manifest/2",
   "stage": "H3/N2 Stage 2D-8 G2",
-  "status": "not_run",
+  "status": "prepared_waiting_d2_authorization",
   "execution_gate": "LOCKED",
   "repository": "chrenguo-stack/HomeAssistant",
   "source_sha": "6cf37c29311601f4f83238cc8401c81ea7b9a1f0",
   "evidence_branch": "evidence/h3-n2-stage2d8-g2-physical-acceptance-20260722-v1",
-  "frozen_source_prs": [166, 167, 168],
+  "evidence_pr": 172,
+  "frozen_source_prs": [
+    166,
+    167,
+    168
+  ],
   "artifact": {
     "generation": "V64",
     "name": "stage2d8-g2-immutable-locked-v64",
@@ -20,7 +25,19 @@
     "manifest_sha256": "bd0b138710c178cc6d166e2eb8ab2e5b419bf167a5ad19c0aaebc9940c6e2561",
     "reproducibility_report_sha256": "325580af692416f3e16c29bee7f14135ce4eaa04026c6441f4e8b794033a3bd1",
     "assistant_independent_zip_verification": "passed",
-    "user_host_verification": "not_run"
+    "user_host_verification": "passed"
+  },
+  "u1": {
+    "batch_package_id": "U1_STAGE2D8_G2_V64_HOST_ARTIFACT_VERIFY_V1",
+    "status": "passed",
+    "private_log_timestamp_utc": "2026-07-22T09:16:10Z",
+    "controlled_private_output_sha256": "6930cb6e52ada91f92ccf487c35319856abffd2e2d8ee17fe43641bbb9ce619e",
+    "board_accessed": false,
+    "flash_operation_attempted": false,
+    "network_operation_attempted": false,
+    "zip_member_count": 19,
+    "sha256sums_checked": 18,
+    "raw_local_paths_in_git": false
   },
   "target": {
     "type": "dedicated spare custom PCB",
@@ -34,6 +51,7 @@
   },
   "authorization": {
     "d2_received": false,
+    "status": "pending",
     "one_shot": true,
     "replay_permitted": false,
     "private_package_version": "V1.0",
