@@ -1,8 +1,8 @@
 {
-  "schema": "gh.h3.n2.stage2d8-g2-physical-acceptance-public-manifest/3",
+  "schema": "gh.h3.n2.stage2d8-g2-physical-acceptance-public-manifest/4",
   "stage": "H3/N2 Stage 2D-8 G2",
-  "status": "authorized_awaiting_one_shot_execution",
-  "execution_gate": "OPEN_EXACT_ONE_SHOT_UNTIL_EXPIRY",
+  "status": "d2_attempt_inconclusive_waiting_private_summary",
+  "execution_gate": "LOCKED_NO_REPLAY",
   "repository": "chrenguo-stack/HomeAssistant",
   "source_sha": "6cf37c29311601f4f83238cc8401c81ea7b9a1f0",
   "evidence_branch": "evidence/h3-n2-stage2d8-g2-physical-acceptance-20260722-v1",
@@ -24,16 +24,8 @@
     "user_host_verification": "passed"
   },
   "u1": {
-    "batch_package_id": "U1_STAGE2D8_G2_V64_HOST_ARTIFACT_VERIFY_V1",
     "status": "passed",
-    "private_log_timestamp_utc": "2026-07-22T09:16:10Z",
-    "controlled_private_output_sha256": "6930cb6e52ada91f92ccf487c35319856abffd2e2d8ee17fe43641bbb9ce619e",
-    "board_accessed": false,
-    "flash_operation_attempted": false,
-    "network_operation_attempted": false,
-    "zip_member_count": 19,
-    "sha256sums_checked": 18,
-    "raw_local_paths_in_git": false
+    "controlled_private_output_sha256": "6930cb6e52ada91f92ccf487c35319856abffd2e2d8ee17fe43641bbb9ce619e"
   },
   "target": {
     "type": "dedicated spare custom PCB",
@@ -48,7 +40,7 @@
   "authorization": {
     "request_id": "D2-H3N2-STAGE2D8-G2-V64-20260722-01",
     "d2_received": true,
-    "status": "authorized_not_consumed",
+    "status": "attempted_inconclusive_retired",
     "issued_at": "2026-07-22T09:36:29Z",
     "expires_at": "2026-07-22T11:36:29Z",
     "one_shot": true,
@@ -59,6 +51,24 @@
     "private_authorization_json_in_git": false,
     "allowed_recovery_count": 1,
     "recovery_only_on_defined_failure": true
+  },
+  "attempt_1": {
+    "timestamp_utc": "2026-07-22T09:44:26Z",
+    "result": "inconclusive",
+    "failure_detail_status": "waiting_private_summary",
+    "destructive_boundary_entered": false,
+    "erase_performed": false,
+    "write_performed": false,
+    "verify_flash_performed": false,
+    "preboot_readback_performed": false,
+    "g2_booted": false,
+    "postboot_readback_performed": false,
+    "recovery_performed": false,
+    "recovery_count": 0,
+    "efuse_command_attempted": false,
+    "network_operation_attempted": false,
+    "production_environment_modified": false,
+    "private_evidence_archive_sha256": "366ac51f1c754431d6ec1d7bffc1e76b9b8df948b02af79603953599bc37c460"
   },
   "prohibited": {
     "prepare_candidate": true,
@@ -91,6 +101,6 @@
     "postboot_matches_seed": "not_run",
     "postboot_matches_preboot": "not_run",
     "production_environment_modified": false,
-    "final_result": "not_run"
+    "final_result": "inconclusive"
   }
 }
