@@ -1,8 +1,9 @@
 # H3/N2 Stage 2D-8 G2 专用测试板实板验收状态
 
-- **状态文件版本：** V1.3
+- **状态文件版本：** V1.4
 - **更新日期：** 2026-07-22
 - **权威性：** 本文件是本活动阶段唯一权威 `STAGE_STATUS`
+- **阶段状态：** `prepared_waiting_d2_authorization`
 - **结论状态：** `not_run`
 - **执行门：** `LOCKED`
 
@@ -25,7 +26,7 @@ EVIDENCE_PR=172
 PUBLIC_SAFETY_STATUS=passed
 ```
 
-PR `#166`、`#167`、`#168` 的冻结分支不得修改。本证据分支从准确的冻结源码提交创建，只允许保存脱敏状态、manifest、证据模板和 Artifact 索引。
+PR `#166`、`#167`、`#168` 的冻结分支不得修改。本证据分支从准确的冻结源码提交创建，只允许保存脱敏状态、manifest、L1 证据摘要和 Artifact 索引。
 
 ## 2. 范围
 
@@ -64,22 +65,63 @@ REPRODUCIBILITY_REPORT_SHA256=325580af692416f3e16c29bee7f14135ce4eaa04026c6441f4
 
 Artifact manifest 固定为 `gate=LOCKED`，所有执行授权均为 `false`；V64 两次 clean build 的 bootloader、partition 和 application 均逐字节一致。
 
-## 4. S0—S8 状态
+## 4. U1 本机 Artifact 校验闭环
+
+用户于受控本机执行批量包 `U1_STAGE2D8_G2_V64_HOST_ARTIFACT_VERIFY_V1`，完整结果满足：
+
+```text
+BOARD_ACCESSED=false
+FLASH_OPERATION_ATTEMPTED=false
+NETWORK_OPERATION_ATTEMPTED=false
+ZIP_SHA256_MATCH=true
+ZIP_MEMBER_COUNT=19
+ZIP_MEMBER_SET_MATCH=true
+SHA256SUMS_CHECKED=18
+SHA256SUMS_ALL_MATCH=true
+MANIFEST_SCHEMA_MATCH=true
+MANIFEST_SOURCE_SHA_MATCH=true
+MANIFEST_GATE_LOCKED=true
+MANIFEST_TARGET_MATCH=true
+MANIFEST_FLASH_AUTHORIZED=false
+MANIFEST_MQTT_AUTHORIZED=false
+MANIFEST_PERSISTENT_WRITE_AUTHORIZED=false
+MANIFEST_READ_ONLY_PROBE_AUTHORIZED=false
+MANIFEST_TEST_PARTITION_PRE_POST_READBACK_AUTHORIZED=false
+MANIFEST_WIFI_AUTHORIZED=false
+CLEAN_BUILDS_BYTE_IDENTICAL=true
+REPRODUCIBILITY_STATUS=pass
+TEST_PARTITION_OFFSET=0x400000
+TEST_PARTITION_SIZE=0x10000
+TEST_PARTITION_READONLY=true
+NVS_SEED_SIZE=65536
+STAGE2D8_G2_V64_HOST_ARTIFACT_VERIFICATION=PASS
+```
+
+```text
+U1_RESULT=passed
+U1_PRIVATE_LOG_TIMESTAMP_UTC=2026-07-22T09:16:10Z
+U1_CONTROLLED_PRIVATE_OUTPUT_SHA256=6930cb6e52ada91f92ccf487c35319856abffd2e2d8ee17fe43641bbb9ce619e
+U1_RAW_LOCAL_PATHS_IN_GIT=false
+```
+
+该摘要只保存结论与哈希；完整输出和本机路径保留在受控私有证据中。
+
+## 5. S0—S8 状态
 
 | 阶段 | 状态 | 说明 |
 |---|---|---|
 | S0 基线确认 | `passed` | 冻结 source SHA、V64 Artifact、分支和禁止事项已确认 |
 | S1 范围与验收设计 | `passed` | 验收项、停止条件、双队列和证据分层已冻结 |
 | S2 非实板证据准备 | `passed` | 脱敏 manifest、Artifact 索引和证据模板已建立 |
-| S3 本地 Preflight | `running` | 助手侧 Artifact 独立复核通过；等待用户执行独立 U1 本机 Artifact 校验包 |
-| S4 GitHub CI | `passed` | Draft PR #172 已建立；当前证据分支公共仓库安全门通过 |
+| S3 本地 Preflight | `passed` | 助手独立复核与用户 U1 本机完整校验均通过 |
+| S4 GitHub CI | `passed` | Draft PR #172 已建立；证据分支公共仓库安全门通过 |
 | S5 候选冻结 | `passed` | 继承且只引用 PR #168 的不可变 V64，不重新生成候选 |
 | S6A 隔离验证 | `passed` | V64 CI 的 host fault matrix、边界门和可复现性已通过 |
-| S6B 实板验收 | `not_run` | U1 与 D2 均未闭环，禁止实板操作 |
+| S6B 实板验收 | `wait_authorization` | U1 已通过；等待 D2 精确单次授权，尚未触碰实板 |
 | S7 归档/发布 | `not_run` | 禁止 Ready、合并和发布 |
 | S8 阶段关闭 | `not_run` | 等待实板结论和证据闭环 |
 
-## 5. 决策门
+## 6. 决策门
 
 ```text
 D1_SCOPE_DECISION=resolved
@@ -88,9 +130,9 @@ D3_RISK_WAIVER=not_required
 D4_READY_MERGE_RELEASE=prohibited
 ```
 
-在 U1 完整通过前不得请求或接受 D2。U1 通过后另行生成受控私有 D2 精确单次执行授权包；该授权包必须绑定私有目标指纹、私有串口、source SHA、ZIP/G2 SHA、完整命令组、停止条件和一次 recovery 范围，不得重放。
+D2 必须绑定受控私有目标指纹、私有串口、source SHA、ZIP/G2/recovery SHA、完整命令组、停止条件、一次 recovery 范围、有效期和不可重放标志。D2 未收到前，擦除、写入、verify-flash、Flash 回读和运行实板继续禁止。
 
-## 6. 助手开发队列
+## 7. 助手开发队列
 
 | ID | 状态 | 内容 |
 |---|---|---|
@@ -98,24 +140,22 @@ D4_READY_MERGE_RELEASE=prohibited
 | A2 | `done` | 独立下载并校验 ZIP、18 项 `SHA256SUMS`、manifest 与可复现性证据 |
 | A3 | `done` | 建立单一权威状态文件、脱敏 Artifact 索引和结构化证据模板 |
 | A4 | `done` | Draft PR #172 已建立并保持 Draft；公共仓库安全门通过 |
-| A5 | `blocked` | 等待 U1 后审核 D2；等待批量执行结果后形成结论 |
+| A5 | `ready_at_d2` | U1 已审核通过；准备 D2 精确单次授权与完整批量执行包 |
+| A6 | `blocked` | 等待实板批量包结果后形成 L1 结论和阶段关闭材料 |
 
-## 7. 用户操作队列
+## 8. 用户操作队列
 
 ### U1：V64 本机 Artifact 校验
 
 ```text
 TASK_ID=U1_STAGE2D8_G2_V64_HOST_ARTIFACT_VERIFY
-STATUS=ready
+STATUS=done
+RESULT=passed
 RISK_CLASS=A
 CAN_RUN_IN_PARALLEL=true
-DEPENDS_ON=docs/acceptance/温室环境监测系统_H3N2_Stage2D8_G2_U1本机Artifact校验包_V1.0_20260722.md + V64 ZIP + U1 verification script
-ESTIMATED_DURATION=3-8 minutes
 AUTHORIZATION_REQUIRED=false
-EXPECTED_RETURN=complete terminal output including final PASS marker; no secrets
+CONTROLLED_PRIVATE_OUTPUT_SHA256=6930cb6e52ada91f92ccf487c35319856abffd2e2d8ee17fe43641bbb9ce619e
 ```
-
-用户应完整执行独立 U1 本机 Artifact 校验包，不得只返回最后一行。任一命令失败时 U1=`failed`，D2 保持 `pending`。U1 不连接测试板，也不包含任何擦除、烧录、verify-flash、回读或启动操作。
 
 ### U5：精确授权后的完整实板批量包
 
@@ -130,7 +170,7 @@ AUTHORIZATION_REQUIRED=true
 EXPECTED_RETURN=complete machine-readable summary plus controlled private evidence archive
 ```
 
-## 8. 实板验收必须同时成立
+## 9. 实板验收必须同时成立
 
 - 冻结哈希全部匹配；
 - 私有目标身份、安全状态、Flash 型号与容量匹配；
@@ -145,11 +185,12 @@ EXPECTED_RETURN=complete machine-readable summary plus controlled private eviden
 - 生产环境保持未修改；
 - 证据完整、脱敏、可追溯。
 
-## 9. 当前结论
+## 10. 当前结论
 
 ```text
+STAGE_STATUS=prepared_waiting_d2_authorization
 FINAL_RESULT=not_run
-U1_HOST_ARTIFACT_VERIFICATION=not_run
+U1_HOST_ARTIFACT_VERIFICATION=passed
 D2_AUTHORIZATION_RECEIVED=false
 PHYSICAL_ERASE_PERFORMED=false
 G2_FLASH_PERFORMED=false
@@ -158,7 +199,8 @@ PREBOOT_READBACK_PERFORMED=false
 G2_BOOTED=false
 POSTBOOT_READBACK_PERFORMED=false
 RECOVERY_PERFORMED=false
-PRIVATE_EVIDENCE_ARCHIVED=false
-L1_EVIDENCE_COMMITTED=false
+PRIVATE_EVIDENCE_ARCHIVED=true
+L1_U1_EVIDENCE_COMMITTED=true
+L1_PHYSICAL_EVIDENCE_COMMITTED=false
 PRODUCTION_ENVIRONMENT_MODIFIED=false
 ```
