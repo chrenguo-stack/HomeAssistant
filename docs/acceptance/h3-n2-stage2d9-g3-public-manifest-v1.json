@@ -1,0 +1,51 @@
+{
+  "schema": "gh.h3.n2.stage2d9-g3-public-manifest/1",
+  "stage": "H3/N2 Stage 2D-9 G3",
+  "status": "host_model_and_manifest_gate_development",
+  "base_main_sha": "2a5272546f25b1b29cf1d6682cf1fc14f1c1be83",
+  "branch": "feature/h3-n2-stage2d9-g3-prepare-candidate-20260722-v1",
+  "execution_gate": "LOCKED",
+  "allowed_action": "PREPARE_CANDIDATE",
+  "expected_transition": {
+    "active_generation_before": 0,
+    "active_generation_after": 0,
+    "candidate_generation_before": 0,
+    "candidate_generation_after": 1,
+    "candidate_state_after": "PREPARED"
+  },
+  "boundaries": {
+    "device_operation_authorized": false,
+    "writable_test_nvs_authorized": false,
+    "activate_profile_authorized": false,
+    "cleanup_test_state_authorized": false,
+    "wifi_authorized": false,
+    "mqtt_authorized": false,
+    "broker_authorized": false,
+    "efuse_operation_authorized": false,
+    "production_environment_operation_authorized": false,
+    "ready_merge_release_authorized": false
+  },
+  "completed": {
+    "scope_protocol": true,
+    "host_transaction_model": true,
+    "host_fault_matrix": true,
+    "locked_manifest_template": true,
+    "manifest_gate": true
+  },
+  "pending": {
+    "g3_firmware_harness": true,
+    "dedicated_board_compile_only": true,
+    "product_board_compile_only": true,
+    "immutable_artifact": true,
+    "operator_d2_review": true,
+    "physical_prepare_execution": true,
+    "evidence_closure": true
+  },
+  "privacy": {
+    "raw_board_identifier_included": false,
+    "private_serial_path_included": false,
+    "authorization_json_included": false,
+    "candidate_secret_values_included": false,
+    "private_logs_included": false
+  }
+}
