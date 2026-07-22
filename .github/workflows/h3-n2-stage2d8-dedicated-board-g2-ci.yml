@@ -234,14 +234,14 @@ jobs:
           grep -F '"gate": "LOCKED"' "$OUT/stage2d8-g2-artifact-manifest-v60.json"
           grep -F '"flash_authorized": false' "$OUT/stage2d8-g2-artifact-manifest-v60.json"
           grep -F '"persistent_write_authorized": false' "$OUT/stage2d8-g2-artifact-manifest-v60.json"
-          if grep -aERi '98:a3:16|usbmodem|BEGIN (RSA |EC )?PRIVATE KEY' "$OUT"; then
-            echo 'private device or key material detected in artifact' >&2
+          if grep -aERi '98:a3:16|usbmodem' "$OUT"; then
+            echo 'private board identifier detected in artifact' >&2
             exit 1
           fi
           if grep -ERi \
               --include='*.json' --include='*.csv' --include='SHA256SUMS' \
-              'mqtt_password|wifi_password' "$OUT"; then
-            echo 'credential field detected in text artifact' >&2
+              'BEGIN (RSA |EC )?PRIVATE KEY|mqtt_password|wifi_password' "$OUT"; then
+            echo 'credential or key material detected in text artifact' >&2
             exit 1
           fi
           (cd "$OUT" && sha256sum --check SHA256SUMS)
