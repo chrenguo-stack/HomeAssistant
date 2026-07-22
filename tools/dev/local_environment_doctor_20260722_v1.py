@@ -12,7 +12,6 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import datetime as dt
-import importlib.metadata
 import json
 import os
 import platform
@@ -27,7 +26,7 @@ from typing import Any, Iterable, Sequence
 
 SCRIPT_SCHEMA = "gh.dev.local-environment-doctor/1"
 DEFAULT_POLICY_NAME = "local_environment_policy_20260722_v1.json"
-STATUS_ORDER = {"PASS": 0, "INFO": 1, "WARN": 2, "FAIL": 3}
+DISPLAY_ORDER = {"FAIL": 0, "WARN": 1, "INFO": 2, "PASS": 3}
 
 
 @dataclasses.dataclass(frozen=True)
@@ -41,13 +40,14 @@ class CheckResult:
         return dataclasses.asdict(self)
 
 
-def run_command(
+def run_text(
     command: Sequence[str],
     *,
     cwd: Path | None = None,
     timeout: int = 12,
+    limit: int = 12000,
 ) -> tuple[int, str]:
-    """Run a bounded command and return merged, trimmed output."""
+    """Run a bounded command and return merged, trimmed text output."""
 
     try:
         completed = subprocess.run(
@@ -63,7 +63,30 @@ def run_command(
     except (OSError, subprocess.TimeoutExpired) as exc:
         return 127, f"{type(exc).__name__}: {exc}"
     output = completed.stdout.replace("\x00", "").strip()
-    return completed.returncode, output[:12000]
+    return completed.returncode, output[:limit]
+
+
+def run_bytes(
+    command: Sequence[str],
+    *,
+    cwd: Path | None = None,
+    timeout: int = 20,
+) -> tuple[int, bytes]:
+    """Run a bounded command without truncating binary output."""
+
+    try:
+        completed = subprocess.run(
+            list(command),
+            cwd=str(cwd) if cwd else None,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout,
+            env=os.environ.copy(),
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return 127, b""
+    return completed.returncode, completed.stdout
 
 
 def parse_version(value: str) -> tuple[int, ...]:
@@ -73,19 +96,17 @@ def parse_version(value: str) -> tuple[int, ...]:
     return tuple(int(part) for part in match.group(1).split("."))
 
 
-def path_mode(path: Path) -> str:
-    try:
-        return oct(stat.S_IMODE(path.stat().st_mode))
-    except OSError:
-        return "unknown"
-
-
 def is_within(child: Path, parent: Path) -> bool:
     try:
         child.resolve().relative_to(parent.resolve())
         return True
     except (OSError, ValueError):
         return False
+
+
+def is_explicit_safe_example(path: Path) -> bool:
+    name = path.name.lower()
+    return name == ".env.example" or name.endswith(".example.pem")
 
 
 def read_json(path: Path) -> dict[str, Any]:
@@ -143,12 +164,7 @@ def check_host(policy: dict[str, Any], results: list[CheckResult], repo: Path) -
     free_gib = round(usage.free / (1024**3), 2)
     minimum = float(host_policy["minimum_free_disk_gib"])
     recommended = float(host_policy["recommended_free_disk_gib"])
-    if free_gib < minimum:
-        status = "FAIL"
-    elif free_gib < recommended:
-        status = "WARN"
-    else:
-        status = "PASS"
+    status = "FAIL" if free_gib < minimum else "WARN" if free_gib < recommended else "PASS"
     add(
         results,
         status,
@@ -182,23 +198,16 @@ def check_commands(policy: dict[str, Any], results: list[CheckResult]) -> None:
 
 
 def package_version(python: Path, package: str) -> tuple[int, str]:
-    code = (
-        "import importlib.metadata as m; "
-        f"print(m.version({package!r}))"
-    )
-    return run_command([str(python), "-c", code])
+    code = "import importlib.metadata as m; " f"print(m.version({package!r}))"
+    return run_text([str(python), "-c", code])
 
 
-def check_python(
-    policy: dict[str, Any],
-    results: list[CheckResult],
-    venv: Path,
-) -> None:
+def check_python(policy: dict[str, Any], results: list[CheckResult], venv: Path) -> None:
     python_policy = policy["tooling"]["python"]
     minimum = parse_version(python_policy["minimum"])
     maximum = parse_version(python_policy["maximum_exclusive"])
     current = sys.version_info[:3]
-    current_ok = current >= minimum and current < maximum
+    current_ok = minimum <= current < maximum
     add(
         results,
         "PASS" if current_ok else "WARN",
@@ -219,9 +228,9 @@ def check_python(
         )
         return
 
-    rc, version_output = run_command([str(venv_python), "--version"])
+    rc, version_output = run_text([str(venv_python), "--version"])
     version = parse_version(version_output)
-    venv_ok = rc == 0 and version >= minimum and version < maximum
+    venv_ok = rc == 0 and minimum <= version < maximum
     add(
         results,
         "PASS" if venv_ok else "FAIL",
@@ -242,7 +251,6 @@ def check_python(
                 f"Python package {package!r} is not available in the configured virtual environment.",
             )
             continue
-
         if package == "esphome":
             ok = output == str(expected["esphome"])
             expected_text = str(expected["esphome"])
@@ -262,8 +270,8 @@ def check_python(
         )
 
 
-def git_output(repo: Path, *arguments: str) -> tuple[int, str]:
-    return run_command(["git", "-C", str(repo), *arguments])
+def git_text(repo: Path, *arguments: str, limit: int = 12000) -> tuple[int, str]:
+    return run_text(["git", "-C", str(repo), *arguments], limit=limit)
 
 
 def forbidden_tracked_paths(
@@ -275,8 +283,11 @@ def forbidden_tracked_paths(
     fragments = tuple(security["forbidden_tracked_path_fragments"])
     forbidden: list[str] = []
     for raw in tracked:
+        path = Path(raw)
+        if is_explicit_safe_example(path):
+            continue
         normalized = "/" + raw.strip().replace("\\", "/")
-        basename = Path(raw).name
+        basename = path.name
         if basename in names or basename.endswith(suffixes):
             forbidden.append(raw)
         elif any(fragment in normalized for fragment in fragments):
@@ -289,13 +300,13 @@ def check_git(policy: dict[str, Any], results: list[CheckResult], repo: Path) ->
         add(results, "FAIL", "git.repo.exists", "Configured repository path is missing.", path=str(repo))
         return
 
-    rc, inside = git_output(repo, "rev-parse", "--is-inside-work-tree")
+    rc, inside = git_text(repo, "rev-parse", "--is-inside-work-tree")
     if rc != 0 or inside != "true":
         add(results, "FAIL", "git.repo.valid", "Configured path is not a Git worktree.", path=str(repo))
         return
     add(results, "PASS", "git.repo.valid", "Configured path is a Git worktree.", path=str(repo))
 
-    rc, root = git_output(repo, "rev-parse", "--show-toplevel")
+    rc, root = git_text(repo, "rev-parse", "--show-toplevel")
     canonical_repo = Path(root).resolve() if rc == 0 and root else repo.resolve()
     add(
         results,
@@ -307,11 +318,11 @@ def check_git(policy: dict[str, Any], results: list[CheckResult], repo: Path) ->
         git_root=str(canonical_repo),
     )
 
-    _, branch = git_output(repo, "branch", "--show-current")
-    _, head = git_output(repo, "rev-parse", "HEAD")
+    _, branch = git_text(repo, "branch", "--show-current")
+    _, head = git_text(repo, "rev-parse", "HEAD")
     add(results, "INFO", "git.identity", "Current Git identity captured.", branch=branch or "DETACHED", head=head)
 
-    _, status_output = git_output(repo, "status", "--porcelain=v1", "--untracked-files=all")
+    _, status_output = git_text(repo, "status", "--porcelain=v1", "--untracked-files=all", limit=200000)
     dirty_lines = [line for line in status_output.splitlines() if line.strip()]
     add(
         results,
@@ -331,7 +342,7 @@ def check_git(policy: dict[str, Any], results: list[CheckResult], repo: Path) ->
         else f"Current branch {branch or 'DETACHED'!r} is not a protected development target.",
     )
 
-    rc, origin = git_output(repo, "remote", "get-url", "origin")
+    rc, origin = git_text(repo, "remote", "get-url", "origin")
     allowed = set(policy["git"]["allowed_origin_urls"])
     origin_ok = rc == 0 and origin in allowed
     add(
@@ -342,8 +353,8 @@ def check_git(policy: dict[str, Any], results: list[CheckResult], repo: Path) ->
         allowed=sorted(allowed),
     )
 
-    rc, tracked_output = git_output(repo, "ls-files", "-z")
-    tracked = tracked_output.split("\x00") if rc == 0 else []
+    rc, tracked_bytes = run_bytes(["git", "-C", str(repo), "ls-files", "-z"])
+    tracked = [item.decode("utf-8", errors="surrogateescape") for item in tracked_bytes.split(b"\x00") if item] if rc == 0 else []
     forbidden = forbidden_tracked_paths(tracked, policy["security"])
     add(
         results,
@@ -355,7 +366,16 @@ def check_git(policy: dict[str, Any], results: list[CheckResult], repo: Path) ->
         paths=forbidden[:50],
     )
 
-    rc, staged = git_output(repo, "diff", "--cached", "--no-ext-diff", "--unified=0", "--", ".")
+    rc, staged = git_text(
+        repo,
+        "diff",
+        "--cached",
+        "--no-ext-diff",
+        "--unified=0",
+        "--",
+        ".",
+        limit=2 * 1024 * 1024,
+    )
     markers = policy["security"]["private_key_markers"]
     found_markers = [marker for marker in markers if marker in staged] if rc == 0 else []
     add(
@@ -370,18 +390,17 @@ def check_git(policy: dict[str, Any], results: list[CheckResult], repo: Path) ->
 
 
 def sensitive_local_paths(repo: Path) -> list[Path]:
-    candidates: list[Path] = []
     patterns = (".env", ".env.*", "secrets.yaml", "credentials.json", "*.key", "*.pem", "*.p12", "*.pfx")
-    for pattern in patterns:
-        candidates.extend(repo.rglob(pattern))
     ignored_parts = {".git", ".esphome", "build", "dist", ".venv", "venv"}
-    return sorted(
-        {
-            path
-            for path in candidates
-            if path.is_file() and not any(part in ignored_parts for part in path.parts)
-        }
-    )
+    candidates: set[Path] = set()
+    for pattern in patterns:
+        for path in repo.rglob(pattern):
+            if not path.is_file() or any(part in ignored_parts for part in path.parts):
+                continue
+            if is_explicit_safe_example(path):
+                continue
+            candidates.add(path)
+    return sorted(candidates)
 
 
 def check_local_permissions(results: list[CheckResult], repo: Path) -> None:
@@ -457,7 +476,7 @@ def check_evidence_directory(results: list[CheckResult], repo: Path, evidence: P
 
 def check_optional_runtime(results: list[CheckResult], network_checks: bool) -> None:
     if shutil.which("docker"):
-        rc, output = run_command(["docker", "version", "--format", "{{.Client.Version}}"], timeout=8)
+        rc, output = run_text(["docker", "version", "--format", "{{.Client.Version}}"], timeout=8)
         add(
             results,
             "PASS" if rc == 0 else "WARN",
@@ -465,7 +484,7 @@ def check_optional_runtime(results: list[CheckResult], network_checks: bool) -> 
             f"Docker client version is {output}." if rc == 0 else "Docker client exists but version query failed.",
         )
     if shutil.which("gh"):
-        rc, output = run_command(["gh", "--version"], timeout=8)
+        rc, output = run_text(["gh", "--version"], timeout=8)
         first_line = output.splitlines()[0] if output else "unknown"
         add(
             results,
@@ -474,7 +493,7 @@ def check_optional_runtime(results: list[CheckResult], network_checks: bool) -> 
             f"GitHub CLI reports {first_line}.",
         )
         if network_checks:
-            auth_rc, _ = run_command(["gh", "auth", "status"], timeout=12)
+            auth_rc, _ = run_text(["gh", "auth", "status"], timeout=12)
             add(
                 results,
                 "PASS" if auth_rc == 0 else "WARN",
@@ -483,12 +502,10 @@ def check_optional_runtime(results: list[CheckResult], network_checks: bool) -> 
                 if auth_rc == 0
                 else "GitHub CLI authentication check did not pass.",
             )
-    else:
-        add(results, "INFO", "optional.network_checks", "Network-facing checks were not attempted because gh is unavailable.")
 
 
 def summarize(results: list[CheckResult]) -> dict[str, int]:
-    return {status: sum(item.status == status for item in results) for status in STATUS_ORDER}
+    return {status: sum(item.status == status for item in results) for status in ("PASS", "INFO", "WARN", "FAIL")}
 
 
 def write_report(path: Path, report: dict[str, Any]) -> None:
@@ -533,7 +550,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     check_evidence_directory(results, repo, evidence)
     check_optional_runtime(results, args.network_checks)
 
-    ordered = sorted(results, key=lambda item: (STATUS_ORDER[item.status], item.code))
+    ordered = sorted(results, key=lambda item: (DISPLAY_ORDER[item.status], item.code))
     summary = summarize(ordered)
     report = {
         "schema": SCRIPT_SCHEMA,
