@@ -7,7 +7,7 @@ stage=H3/N2 Stage 2D-9R G3R
 purpose=replace non-TLS-usable V69 PREPARED input
 pr=176
 pr_state=DRAFT
-execution_gate=LOCKED_COMMAND_MATERIAL_AND_IMMUTABLE_ARTIFACT_PREPARATION_ONLY
+execution_gate=LOCKED_PRIVATE_COMMAND_MATERIAL_U1_REVIEW_ONLY
 ```
 
 ## Approved D1
@@ -33,14 +33,26 @@ Implemented and verified:
 - F1.0-RC2 product-PCB compatibility compile-only target;
 - public/private boundary and deterministic fault matrices;
 - test-partition recovery contract and immutable-build contract;
-- offline private-PKI generator source, complete host-toolchain binding and custody gate.
+- offline private-PKI generator source, complete host-toolchain binding and custody gate;
+- offline private command-material generator, custody gate and deterministic fault matrix.
 
-Frozen reviewed generator source:
+Frozen reviewed private PKI generator source:
 
 ```text
 generator=tools/h3_n2_stage2d9r_private_pki_generator_20260723_v1.py
 generator_sha256=a9be0c96fd58882b3778886515076f6aae5940c0ac195fc629ed1ebe708265d0
 generator_source_sha=94f116ec99a7ba8b1da250f93b323f260c7ff5a6
+default_mode=read_only_toolchain_probe
+```
+
+Frozen reviewed private command-material source:
+
+```text
+generator=tools/h3_n2_stage2d9r_private_command_material_generator_20260724_v1.py
+generator_sha256=60628bf274fdcca05e8644b30510f6abde2129a57e3e49ca5a12db30d7129563
+gate=tools/h3_n2_stage2d9r_private_command_material_gate_20260724_v1.py
+gate_sha256=512fb70c14d3ad983055fde4e85cb3814445df3ad7b5555695cc6c54575b4a6e
+implementation_binding=3d3b67cac008adf30e90a51e891d0dd53b36df69
 default_mode=read_only_toolchain_probe
 ```
 
@@ -140,9 +152,37 @@ Public export closure record:
 
 `docs/acceptance/h3-n2-stage2d9r-public-pki-export-l1-v1.json`
 
+## Private command-material toolchain probe
+
+```text
+probe_result=PASS_READ_ONLY
+probe_artifact_id=8571761445
+probe_artifact_zip_sha256=914379b7640cf60591211d709f16197d6bff40ed7ab942bfb51468e59fa4407a
+probe_artifact_source_sha=0e7faaaed40433e4b7e0b985f4684b3d126f6948
+implementation_binding=3d3b67cac008adf30e90a51e891d0dd53b36df69
+generator_sha256=60628bf274fdcca05e8644b30510f6abde2129a57e3e49ca5a12db30d7129563
+python_executable_sha256=4e28e811a89aeac6eed668ae641c7f85f5831e42e8dc6cd9a85a3bcc032ec46a
+custody_root_selection_rule=HOME_LOCAL_STATE_STAGE2D9R_PRIVATE_COMMAND_MATERIAL_V1
+custody_root_digest_sha256=ef5f79be168fff686cabcc91fdc4109918d75d3311da1209dd8d0e381804006e
+custody_root_exists=false
+private_paths_included=false
+secret_values_included=false
+board_operation=false
+network_operation=false
+broker_started=false
+```
+
+The pasted terminal capture contained repeated shell-prompt text only after the prefix of the final informational `stage` field. Every authorization-relevant field was complete before that point, the launcher returned successfully under `set -euo pipefail`, and the trailing stage field is not used as an authorization binding. No probe rerun is required.
+
+Probe closure record:
+
+`docs/acceptance/h3-n2-stage2d9r-private-command-material-toolchain-probe-l1-v1.json`
+
 ## Current prohibitions
 
 ```text
+private_command_material_generation=false
+private_command_material_U1_granted=false
 U1_replay=false
 private_PKI_regeneration=false
 board_operation=false
@@ -174,11 +214,11 @@ deployment=false
 
 ## Remaining work before D2
 
-1. Complete CI validation of the committed public-only PKI material and freeze the exact implementation-binding source checkpoint.
-2. Develop and review a separate one-shot private command-material generator for one unlock token and its public SHA-256 digest; do not generate it without a new exact U1.
-3. Bind the nonzero unlock digest, exact CA PEM digest and implementation binding into the final immutable firmware source.
+1. Freeze the exact post-probe source checkpoint and require all bound CI to complete successfully.
+2. Prepare an independent exact U1 review package for one offline 32-byte unlock token generation; do not generate without the user's exact authorization.
+3. After U1 passes, commit only the redacted public command-material descriptor and bind its nonzero unlock digest, exact CA PEM digest and implementation binding into final immutable firmware source.
 4. Generate the immutable Stage 2D-9R firmware and locked recovery Artifact twice; require byte-identical outputs and exact manifest bindings.
 5. Perform host-only Artifact verification and private-custody binding verification.
 6. Prepare a separate exact D2 review package for deterministic baseline recovery, one new PREPARE and one read-only VERIFY.
 
-The next operator decision will be a narrow one-shot U1 for private command material only. It will not authorize Broker startup, network access, board access, Flash/NVS operations, PREPARE or VERIFY.
+The next operator decision is a narrow one-shot U1 for private command material only. It does not authorize Broker startup, network access, board access, Flash/NVS operations, PREPARE or VERIFY.
