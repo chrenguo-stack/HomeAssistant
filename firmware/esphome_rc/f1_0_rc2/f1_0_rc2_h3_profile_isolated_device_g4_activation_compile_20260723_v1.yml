@@ -37,6 +37,8 @@ external_components:
       path: ../components
     components:
       - greenhouse_pairing_client
+      - greenhouse_profile_production_adapters
+      - greenhouse_profile_lifecycle_controller
       - greenhouse_profile_isolated_acceptance
       - greenhouse_profile_isolated_device_driver
       - greenhouse_profile_isolated_device_g4_activation
