@@ -94,10 +94,13 @@ class Stage2D9RPrivatePkiCustodyGateTest(unittest.TestCase):
         self.assert_invalid(data, "hostname_valid must be false while locked")
 
     def test_frozen_descriptor_requires_absolute_private_root(self) -> None:
-        for value in ("relative/private", "/private/../shared", "<ABSOLUTE_PATH>"):
+        for value in ("relative/private", "/private/../shared"):
             data = self.frozen()
             data["custody_root"] = value
             self.assert_invalid(data, "custody_root must be an absolute private path")
+        data = self.frozen()
+        data["custody_root"] = "<ABSOLUTE_PATH>"
+        self.assert_invalid(data, "frozen descriptor has placeholders")
 
     def test_frozen_descriptor_requires_authorization_consumption(self) -> None:
         for key, value, message in (
