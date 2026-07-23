@@ -1,14 +1,12 @@
 {
-  "schema": "gh.h3.n2.stage2d9-g3-d2-authorization-request-index/5",
+  "schema": "gh.h3.n2.stage2d9-g3-d2-authorization-request-index/6",
   "stage": "H3/N2 Stage 2D-9 G3",
-  "active_request_id": "D2-H3N2-STAGE2D9-G3-V68-20260723-01",
-  "execution_gate": "OPEN_EXACT_ONE_SHOT_UNTIL_EXPIRY",
+  "active_request_id": null,
+  "execution_gate": "CLOSED_CONSUMED_FAILED_NO_REPLAY",
   "requests": [
     {
       "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V67-20260722-01",
       "status": "retired_before_authorization",
-      "request_record": "docs/acceptance/h3-n2-stage2d9-g3-d2-attempt1-authorization-request-v1.json",
-      "review_package_sha256": "a3b174e0d9f97d5e8c4c73c4c8f428735becd091deae251ab933cae7c8d964a9",
       "authorization_issued": false,
       "execution_performed": false,
       "replay_permitted": false
@@ -16,9 +14,6 @@
     {
       "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V67-20260723-02",
       "status": "operator_authorized_but_issuance_failed_closed_retired",
-      "request_record": "docs/acceptance/h3-n2-stage2d9-g3-d2-attempt2-authorization-request-v1.json",
-      "review_package_sha256": "65f475dad073c365c2c03ee2bebfaf38777fac0993f96f90ebb394e78354c575",
-      "operator_authorization_text_sha256": "d2b08e1f90a0b16d888bf874e4bea963a4b190b9f78264e0ba152d9a12a4aa40",
       "operator_authorization_received": true,
       "authorization_issued": false,
       "execution_package_generated": false,
@@ -29,34 +24,36 @@
     },
     {
       "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V68-20260723-01",
-      "status": "authorized_awaiting_one_shot_execution",
+      "status": "consumed_failed_recovery_performed_retired",
       "request_record": "docs/acceptance/h3-n2-stage2d9-g3-v68-d2-attempt1-authorization-request-v1.json",
-      "review_package_sha256": "498a56273e14e916b74148892002b139504f3a3864163e3d217278744f3e758d",
-      "operator_authorization_text_sha256": "4a8b496a3acd5e8b708895fd2a5901474548f3d9bc7c44cfd2059d947afff722",
-      "authorization_binding_sha256": "63317420a612c2db4a033a66e517bd9d85489ce135e70371b1216e1cb6204cf9",
-      "authorization_file_sha256": "0845ab17aa5160765efe085bbd1b0a469c8b0e6425aae377cc5381fa15e6debc",
-      "execution_package_sha256": "f66bd80eabe72060199d39bf323c45bb79b1d2c5404f4ea24d7e648ae1be42d2",
-      "issued_at": "2026-07-23T00:31:08Z",
-      "expires_at": "2026-07-23T02:31:08Z",
-      "u1_passed": true,
-      "private_custody_installed": true,
+      "failure_record": "docs/acceptance/h3-n2-stage2d9-g3-v68-d2-attempt1-failure-l1-v1.json",
       "authorization_issued": true,
       "execution_package_generated": true,
-      "execution_performed": false,
-      "authorization_consumed": false,
-      "one_shot": true,
+      "execution_performed": true,
+      "authorization_consumed": true,
+      "destructive_boundary_entered": true,
+      "failure_stage": "prepare_serial",
+      "prepare_command_send_attempt_observed": true,
+      "prepare_succeeded": false,
+      "verify_command_sent": false,
+      "verify_succeeded": false,
+      "recovery_performed": true,
+      "recovery_count": 1,
+      "private_evidence_archive_sha256": "c2a0686e7a52774531c53a674e889f50c8bdef37ee7ea67903dd24c989059321",
+      "private_detail_status": "pending_read_only_extraction",
       "replay_permitted": false
     }
   ],
   "retired_request_ids": [
     "D2-H3N2-STAGE2D9-G3-V67-20260722-01",
-    "D2-H3N2-STAGE2D9-G3-V67-20260723-02"
+    "D2-H3N2-STAGE2D9-G3-V67-20260723-02",
+    "D2-H3N2-STAGE2D9-G3-V68-20260723-01"
   ],
   "stage2d8_authorization_replay_permitted": false,
   "stage2d9_v67_authorization_replay_permitted": false,
-  "v68_artifact_frozen": true,
-  "v68_u1_passed": true,
-  "v68_private_custody_installed": true,
-  "new_operator_d2_required": false,
+  "stage2d9_v68_attempt1_replay_permitted": false,
+  "g3_retry_permitted": false,
+  "new_operator_d2_required_for_any_future_device_action": true,
+  "new_source_and_artifact_chain_decision_pending": true,
   "ready_merge_release_authorized": false
 }
