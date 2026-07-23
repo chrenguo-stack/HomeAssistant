@@ -1,0 +1,62 @@
+name: H3 N2 Stage2D9R Generator Materialize Diagnostic 20260723 9D1C75
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-generator-materialize-diagnostic-20260723-9d1c75.yml"
+      - ".github/materialize/stage2d9r-generator-20260723-31b7f4/**"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose-materialization:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1
+          fetch-depth: 0
+          show-progress: false
+      - name: Verify staged fragments
+        run: |
+          set -euo pipefail
+          root=.github/materialize/stage2d9r-generator-20260723-31b7f4
+          test -f "$root/TRIGGER"
+          test "$(find "$root" -maxdepth 1 -name 'generator.b64.part*' -type f | wc -l | tr -d ' ')" = 3
+          test "$(find "$root" -maxdepth 1 -name 'test.b64.part*' -type f | wc -l | tr -d ' ')" = 1
+          echo STAGED_FRAGMENT_SET=PASS
+      - name: Decode and verify exact source hashes
+        run: |
+          set -euo pipefail
+          root=.github/materialize/stage2d9r-generator-20260723-31b7f4
+          mkdir -p /tmp/stage2d9r-generator-diagnostic
+          cat "$root"/generator.b64.part* | tr -d '\n' | base64 -d | gzip -d > /tmp/stage2d9r-generator-diagnostic/generator.py
+          cat "$root"/test.b64.part* | tr -d '\n' | base64 -d | gzip -d > /tmp/stage2d9r-generator-diagnostic/test.py
+          echo 'a9be0c96fd58882b3778886515076f6aae5940c0ac195fc629ed1ebe708265d0  /tmp/stage2d9r-generator-diagnostic/generator.py' | sha256sum -c -
+          echo '5d442e29c53a3b507399f1ac102d027208c9e0d077e53633e3fa07fa21dce6c6  /tmp/stage2d9r-generator-diagnostic/test.py' | sha256sum -c -
+          echo DECODED_SOURCE_BINDING=PASS
+      - name: Install decoded files in workspace and run contract matrix
+        run: |
+          set -euo pipefail
+          cp /tmp/stage2d9r-generator-diagnostic/generator.py tools/h3_n2_stage2d9r_private_pki_generator_20260723_v1.py
+          cp /tmp/stage2d9r-generator-diagnostic/test.py tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_pki_generator_20260723_v1.py
+          python -m py_compile \
+            tools/h3_n2_stage2d9r_private_pki_generator_20260723_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_pki_generator_20260723_v1.py
+          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_pki_generator_20260723_v1.py -v
+          echo GENERATOR_CONTRACT_MATRIX=PASS
+      - name: Verify cleanup mutation set without committing
+        run: |
+          set -euo pipefail
+          rm -rf .github/materialize/stage2d9r-generator-20260723-31b7f4
+          rm -f .github/workflows/h3-n2-stage2d9r-generator-source-materialize-once-20260723-8f2c1a.yml
+          rm -f .github/workflows/h3-n2-stage2d9r-generator-materialize-triggered-once-20260723-31b7f4.yml
+          rm -f .github/workflows/h3-n2-stage2d9r-generator-materialize-pr-once-20260723-6a4e92.yml
+          git add -A
+          test -n "$(git diff --cached --name-only)"
+          echo MATERIALIZATION_MUTATION_SET=PASS
+      - name: Cleanup diagnostic files
+        if: always()
+        run: rm -rf /tmp/stage2d9r-generator-diagnostic
