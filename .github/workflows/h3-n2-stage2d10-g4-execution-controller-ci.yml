@@ -7,6 +7,7 @@ on:
       - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation/stage2d10_g4_execution_controller.*"
       - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation/stage2d10_g4_command_codec.*"
       - "tests/h3_n2_stage2d10_activate/stage2d10_g4_execution_controller_fault_matrix_20260723_v1.cpp"
+      - "tests/h3_n2_stage2d10_activate/stage2d10_g4_execution_controller_fault_matrix_runner_20260723_v2.cpp"
   push:
     branches:
       - main
@@ -16,6 +17,7 @@ on:
       - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation/stage2d10_g4_execution_controller.*"
       - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation/stage2d10_g4_command_codec.*"
       - "tests/h3_n2_stage2d10_activate/stage2d10_g4_execution_controller_fault_matrix_20260723_v1.cpp"
+      - "tests/h3_n2_stage2d10_activate/stage2d10_g4_execution_controller_fault_matrix_runner_20260723_v2.cpp"
 
 permissions:
   contents: read
@@ -36,7 +38,7 @@ jobs:
           driver=firmware/esphome_rc/components/greenhouse_profile_isolated_device_driver
           g4=firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation
           tests=tests/h3_n2_stage2d10_activate
-          test=$tests/stage2d10_g4_execution_controller_fault_matrix_20260723_v1.cpp
+          test=$tests/stage2d10_g4_execution_controller_fault_matrix_runner_20260723_v2.cpp
           g++ -std=gnu++20 -Wall -Wextra -Wpedantic -Werror \
             -I "$pairing" -I "$package" -I "$driver" -I "$g4" -I "$tests" \
             "$pairing/pairing_client_core.cpp" \
@@ -50,11 +52,11 @@ jobs:
             "$g4/stage2d10_g4_command_codec.cpp" \
             "$g4/stage2d10_g4_execution_controller.cpp" \
             "$test" -lcrypto \
-            -o /tmp/stage2d10-g4-execution-controller-v1
-          /tmp/stage2d10-g4-execution-controller-v1 \
-            | tee /tmp/stage2d10-g4-execution-controller-v1.log
+            -o /tmp/stage2d10-g4-execution-controller-v2
+          /tmp/stage2d10-g4-execution-controller-v2 \
+            | tee /tmp/stage2d10-g4-execution-controller-v2.log
           grep -Fx 'stage2d10_g4_execution_controller_fault_matrix=pass' \
-            /tmp/stage2d10-g4-execution-controller-v1.log
+            /tmp/stage2d10-g4-execution-controller-v2.log
       - name: Verify execution boundary and redaction
         run: |
           set -euo pipefail
@@ -111,7 +113,7 @@ jobs:
           PY
           if grep -Eqi \
               'stage2d10-private-password|gh-stage2d10-test|BEGIN CERTIFICATE|aaaaaaaaaaaaaaaa' \
-              /tmp/stage2d10-g4-execution-controller-v1.log; then
+              /tmp/stage2d10-g4-execution-controller-v2.log; then
             echo 'private execution material leaked to output' >&2
             exit 1
           fi
@@ -119,5 +121,5 @@ jobs:
         if: always()
         run: |
           rm -f \
-            /tmp/stage2d10-g4-execution-controller-v1 \
-            /tmp/stage2d10-g4-execution-controller-v1.log
+            /tmp/stage2d10-g4-execution-controller-v2 \
+            /tmp/stage2d10-g4-execution-controller-v2.log
