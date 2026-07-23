@@ -1,0 +1,62 @@
+name: H3 N2 Stage2D9R G3R Compile Diagnostic CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-g3r-compile-diagnostic-ci.yml"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor/**"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/**"
+  push:
+    branches:
+      - feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-g3r-compile-diagnostic-ci.yml"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor/**"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/**"
+
+permissions:
+  contents: read
+
+jobs:
+  concise-compile-diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install pinned ESPHome
+        run: python -m pip install -q "esphome==2026.4.3"
+      - name: Compile with concise failure output
+        run: |
+          set -euo pipefail
+          target=firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare
+          config=greenhouse_profile_isolated_device_g3r_executor_compile_20260723_v1.yml
+          cd "$target"
+          if ! esphome compile "$config" \
+              > /tmp/stage2d9r-g3r-compile-diagnostic-v1.log 2>&1; then
+            echo 'STAGE2D9R_G3R_COMPILE=FAIL'
+            grep -E 'fatal error:|error:|undefined reference|collect2:|FAILED:' \
+              /tmp/stage2d9r-g3r-compile-diagnostic-v1.log \
+              | tail -n 160 || tail -n 160 /tmp/stage2d9r-g3r-compile-diagnostic-v1.log
+            exit 1
+          fi
+          grep -F 'INFO Successfully compiled program.' \
+            /tmp/stage2d9r-g3r-compile-diagnostic-v1.log
+          echo 'STAGE2D9R_G3R_COMPILE=PASS'
+      - name: Upload compile diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-g3r-compile-diagnostic-v1
+          path: /tmp/stage2d9r-g3r-compile-diagnostic-v1.log
+          if-no-files-found: warn
+          retention-days: 1
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/.esphome
+          rm -f /tmp/stage2d9r-g3r-compile-diagnostic-v1.log
