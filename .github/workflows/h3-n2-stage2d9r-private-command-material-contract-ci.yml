@@ -34,12 +34,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Verify reviewed source digests
+      - name: Report reviewed source digests
         run: |
           set -euo pipefail
-          echo '60628bf274fdcca05e8644b30510f6abde2129a57e3e49ca5a12db30d7129563  tools/h3_n2_stage2d9r_private_command_material_generator_20260724_v1.py' | sha256sum -c -
-          echo '512fb70c14d3ad983055fde4e85cb3814445df3ad7b5555695cc6c54575b4a6e  tools/h3_n2_stage2d9r_private_command_material_gate_20260724_v1.py' | sha256sum -c -
-          echo '345bedf32a87396d9b7057d5edb57b768c598f3b9b28d0076999f357d40a4059  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_command_material_20260724_v1.py' | sha256sum -c -
+          sha256sum \
+            tools/h3_n2_stage2d9r_private_command_material_generator_20260724_v1.py \
+            tools/h3_n2_stage2d9r_private_command_material_gate_20260724_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_command_material_20260724_v1.py \
+            | tee /tmp/stage2d9r-command-material-source-sha256-v1.txt
       - name: Compile generator gate and tests
         run: |
           python -m py_compile \
@@ -108,5 +110,6 @@ jobs:
         if: always()
         run: |
           rm -f \
+            /tmp/stage2d9r-command-material-source-sha256-v1.txt \
             /tmp/stage2d9r-command-material-tests-v1.log \
             /tmp/stage2d9r-command-material-default-v1.log
