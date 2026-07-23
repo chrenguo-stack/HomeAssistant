@@ -27,12 +27,16 @@ class Stage2D9RPrivatePkiCustodyGateTest(unittest.TestCase):
         data["state"] = custody.FROZEN
         data["source_sha"] = "1" * 40
         data["generator_sha256"] = "2" * 64
-        data["openssl_executable_sha256"] = "3" * 64
+        data["python_executable_sha256"] = "3" * 64
+        data["python_version"] = "3.11.9 (main, test)"
+        data["openssl_executable_sha256"] = "4" * 64
         data["openssl_version"] = "OpenSSL 3.0.13"
+        data["mosquitto_passwd_executable_sha256"] = "5" * 64
+        data["mosquitto_passwd_version"] = "mosquitto_passwd version 2.0.18"
         data["custody_root"] = "/private/var/greenhouse-stage2d9r/private-pki-v1"
-        data["package_sha256"] = "4" * 64
-        data["public_descriptor_sha256"] = "5" * 64
-        data["candidate_digest_sha256"] = "6" * 64
+        data["package_sha256"] = "6" * 64
+        data["public_descriptor_sha256"] = "7" * 64
+        data["candidate_digest_sha256"] = "8" * 64
         data["authorization"] = {
             "authorization_id": "U1-H3N2-STAGE2D9R-PKI-20260723-01",
             "operation": "GENERATE_PRIVATE_TEST_PKI",
@@ -40,9 +44,9 @@ class Stage2D9RPrivatePkiCustodyGateTest(unittest.TestCase):
             "replay_permitted": False,
             "authorized": True,
             "consumed": True,
-            "record_sha256": "7" * 64,
+            "record_sha256": "9" * 64,
         }
-        for index, name in enumerate(custody.MATERIALS, start=8):
+        for index, name in enumerate(custody.MATERIALS, start=10):
             data["materials"][name]["sha256"] = f"{index:x}"[-1] * 64
         for key in custody.PROOFS:
             data["offline_proofs"][key] = True
@@ -94,7 +98,13 @@ class Stage2D9RPrivatePkiCustodyGateTest(unittest.TestCase):
         self.assert_invalid(data, "hostname_valid must be false while locked")
 
     def test_frozen_descriptor_requires_absolute_private_root(self) -> None:
-        for value in ("relative/private", "/private/../shared"):
+        for value in (
+            "relative/private",
+            "/private/../shared",
+            "/tmp/stage2d9r-private",
+            "/private/tmp/stage2d9r-private",
+            "/Users/Shared/stage2d9r-private",
+        ):
             data = self.frozen()
             data["custody_root"] = value
             self.assert_invalid(data, "custody_root must be an absolute private path")
@@ -112,6 +122,19 @@ class Stage2D9RPrivatePkiCustodyGateTest(unittest.TestCase):
             data = self.frozen()
             data["authorization"][key] = value
             self.assert_invalid(data, message)
+
+    def test_frozen_descriptor_requires_complete_toolchain_binding(self) -> None:
+        for key in custody.TOOLCHAIN_HASHES:
+            data = self.frozen()
+            data[key] = "bad"
+            self.assert_invalid(data, f"{key} invalid")
+        for key in custody.TOOLCHAIN_VERSIONS:
+            data = self.frozen()
+            data[key] = ""
+            self.assert_invalid(data, f"{key} invalid")
+            data = self.frozen()
+            data[key] = "line-one\nline-two"
+            self.assert_invalid(data, f"{key} invalid")
 
     def test_frozen_descriptor_requires_all_hashes_and_proofs(self) -> None:
         data = self.frozen()
