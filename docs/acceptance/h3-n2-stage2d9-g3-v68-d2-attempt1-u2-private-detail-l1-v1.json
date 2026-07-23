@@ -1,5 +1,5 @@
 {
-  "schema": "gh.h3.n2.stage2d9-g3-v68-d2-attempt1-u2-private-detail-l1/1",
+  "schema": "gh.h3.n2.stage2d9-g3-v68-d2-attempt1-u2-private-detail-l1/2",
   "stage": "H3/N2 Stage 2D-9 G3",
   "artifact_generation": "V68",
   "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V68-20260723-01",
@@ -41,7 +41,7 @@
     "verify_serial_log_present": false,
     "postprepare_partition_binary_present": false,
     "candidate_prepared_state_proven": false,
-    "exact_firmware_failure_subreason_available": false
+    "device_side_failure_line_preserved": false
   },
   "locked_recovery": {
     "performed": true,
@@ -66,18 +66,28 @@
     "boot_mode": "SPI_FAST_FLASH_BOOT",
     "final_board_state": "locked_recovery_seed_restored"
   },
-  "source_diagnosis": {
+  "root_cause": {
+    "status": "confirmed_by_frozen_source_and_actual_cpp_host_test",
+    "name": "candidate_host_contract_mismatch",
+    "frozen_executor_broker_host": "stage2d9.invalid",
+    "frozen_executor_tls_server_name": "stage2d9.invalid",
+    "outer_candidate_accepts_nonempty_host": true,
+    "credential_bundle_requires_local_host": true,
+    "dot_invalid_accepted_by_credential_bundle": false,
+    "dot_local_accepted_by_credential_bundle": true,
+    "rejection_location": "IsolatedDeviceDriver::prepare_candidate bundle.valid",
+    "driver_failure": "invalid_configuration",
+    "package_failure": "prepare_failed",
+    "executor_failure": "command_execution",
+    "workflow_run_id": 29972838732,
     "mqtt_in_prepare_call_path": false,
-    "null_mqtt_port_as_prepare_failure_cause": "disproved_by_source_trace",
+    "null_mqtt_port_as_prepare_failure_cause": "disproved"
+  },
+  "observability": {
     "runner_serial_log_persistence_defect": "confirmed",
-    "runner_defect_detail": "the PREPARE serial log was written only after normal capture completion; the fail marker raised before that write, so the exact device-side failure line was not retained",
-    "firmware_failure_locus": "bounded_but_unresolved",
-    "bounded_failure_loci": [
-      "test configuration validation or loading",
-      "mirrored authorization grant or consumption",
-      "persistence open, write, recover, or verification",
-      "executor postcondition verification"
-    ]
+    "runner_defect_detail": "the PREPARE serial log was written only after normal capture completion; the fail marker raised before that write",
+    "caused_prepare_failure": false,
+    "reduced_failure_evidence_precision": true
   },
   "protected_boundaries": {
     "authorization_replayed": false,
@@ -101,6 +111,7 @@
     "private_evidence_closure": "passed",
     "physical_prepare_acceptance": "failed",
     "recovery_verification": "passed",
+    "root_cause_diagnosis": "passed",
     "execution_gate": "CLOSED_CONSUMED_FAILED_RECOVERY_VERIFIED_NO_REPLAY",
     "device_reconnect_authorized": false,
     "v68_retry_authorized": false,
