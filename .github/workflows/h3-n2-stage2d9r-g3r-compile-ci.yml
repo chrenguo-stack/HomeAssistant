@@ -1,0 +1,142 @@
+name: H3 N2 Stage2D9R G3R Compile CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-g3r-compile-ci.yml"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor/**"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/**"
+      - "tools/h3_n2_stage2d9r_prepare_command_protocol_20260723_v1.py"
+  push:
+    branches:
+      - feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-g3r-compile-ci.yml"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor/**"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/**"
+      - "tools/h3_n2_stage2d9r_prepare_command_protocol_20260723_v1.py"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  source-boundary:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          show-progress: false
+      - name: Verify Stage2D9R locked source boundary
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path('firmware/esphome_rc')
+          component = root / 'components/greenhouse_profile_isolated_device_g3r_executor'
+          yml = root / 'board_lab/h3_profile_isolated_device_g3r_tls_prepare/greenhouse_profile_isolated_device_g3r_executor_compile_20260723_v1.yml'
+          cpp = (component / 'stage2d9r_g3r_prepare_executor_20260723_v1.cpp').read_text(encoding='utf-8')
+          header = (component / 'stage2d9r_g3r_prepare_executor_20260723_v1.h').read_text(encoding='utf-8')
+          config = yml.read_text(encoding='utf-8')
+
+          top_level = {
+              line.split(':', 1)[0]
+              for line in config.splitlines()
+              if line and not line[0].isspace() and not line.startswith('#') and ':' in line
+          }
+          for prohibited in ('wifi', 'api', 'ota', 'captive_portal', 'web_server', 'mqtt'):
+              if prohibited in top_level:
+                  raise SystemExit(f'compile target contains top-level {prohibited}')
+
+          zero64 = '0' * 64
+          for field in ('unlock_digest', 'ca_pem_sha256'):
+              match = re.search(rf'^\s+{field}:\s*["\']?([0-9a-f]{{64}})["\']?\s*$', config, re.M)
+              if match is None or match.group(1) != zero64:
+                  raise SystemExit(f'compile target does not lock {field}')
+
+          for required in (
+              'GH2D9R_PREPARE_V1',
+              'GH2D9R_VERIFY_V1',
+              'stage2d9r.local',
+              'mbedtls_x509_crt_parse',
+              'MBEDTLS_X509_KU_KEY_CERT_SIGN',
+              'ca_pem_sha256_',
+              'authorization_binder_.grant',
+              'package_.prepare_candidate',
+              'candidate_digest_match=true',
+              'ca_pem_valid=true',
+              'mqtt=false',
+          ):
+              if required not in cpp + header:
+                  raise SystemExit(f'executor safety binding missing {required}')
+
+          for prohibited in (
+              'stage2d9-test-ca',
+              'package_.activate(',
+              'package_.cleanup_test_state(',
+              'driver_.activate(',
+              'driver_.cleanup_test_state(',
+          ):
+              if prohibited in cpp + header:
+                  raise SystemExit(f'Stage2D9R source exposes prohibited value/call {prohibited}')
+          PY
+      - name: Verify historical and production paths are unchanged
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          git diff --exit-code "$BASE_SHA"...HEAD -- \
+            firmware/esphome_rc/f1_0_rc2/f1_0_rc2.yml \
+            firmware/esphome_rc/f1_0_rc2/packages \
+            firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3_executor_v69 \
+            firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3_prepare
+
+  esp32-c6-compile:
+    needs: source-boundary
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install pinned ESPHome
+        run: python -m pip install -q "esphome==2026.4.3"
+      - name: Validate locked Stage2D9R target
+        run: |
+          set -o pipefail
+          cd firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare
+          esphome config greenhouse_profile_isolated_device_g3r_executor_compile_20260723_v1.yml \
+            2>&1 | tee /tmp/stage2d9r-g3r-config-v1.log
+      - name: Compile locked Stage2D9R target
+        run: |
+          set -o pipefail
+          cd firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare
+          esphome compile greenhouse_profile_isolated_device_g3r_executor_compile_20260723_v1.yml \
+            2>&1 | tee /tmp/stage2d9r-g3r-compile-v1.log
+      - name: Verify compile result and redaction
+        run: |
+          set -euo pipefail
+          grep -F 'INFO Successfully compiled program.' /tmp/stage2d9r-g3r-compile-v1.log
+          if grep -Eqi \
+              'BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|BEGIN CERTIFICATE|mqtt_password|GH2D9R_PREPARE_V1 [^" ]|GH2D9R_VERIFY_V1 [^" ]' \
+              /tmp/stage2d9r-g3r-config-v1.log /tmp/stage2d9r-g3r-compile-v1.log; then
+            echo 'private or executable command material detected in compile output' >&2
+            exit 1
+          fi
+      - name: Cleanup generated files
+        if: always()
+        run: |
+          rm -rf firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/.esphome
+          rm -f /tmp/stage2d9r-g3r-config-v1.log /tmp/stage2d9r-g3r-compile-v1.log
