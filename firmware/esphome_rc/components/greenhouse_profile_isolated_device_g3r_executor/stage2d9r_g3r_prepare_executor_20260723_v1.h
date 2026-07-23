@@ -3,6 +3,7 @@
 #include <array>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include "esphome/core/component.h"
 #include "../greenhouse_profile_isolated_device_driver/isolated_device_driver.h"
