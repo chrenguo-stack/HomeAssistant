@@ -1,12 +1,12 @@
 # H3/N2 Stage 2D-9 G3 PREPARE_CANDIDATE 状态
 
-- **状态版本：** V1.9
+- **状态版本：** V2.0
 - **更新日期：** 2026-07-23
 - **起始基线：** `2a5272546f25b1b29cf1d6682cf1fc14f1c1be83`
 - **开发分支：** `feature/h3-n2-stage2d9-g3-prepare-candidate-20260722-v1`
 - **Draft PR：** `#174`
-- **阶段状态：** `v68_physical_prepare_failed_recovery_performed_pending_private_detail`
-- **执行门：** `CLOSED_CONSUMED_FAILED_NO_REPLAY`
+- **阶段状态：** `v68_physical_prepare_failed_recovery_verified_evidence_closed_source_diagnostic`
+- **执行门：** `CLOSED_CONSUMED_FAILED_RECOVERY_VERIFIED_NO_REPLAY`
 - **当前 D2 请求：** 无
 
 ## 1. 固定目标
@@ -32,55 +32,81 @@ V68_RECOVERY_MERGED_SHA256=54fb10601a0fbf448948d3f7d687281b33e85220c64bcdcabfae8
 V68_SEED_SHA256=0ea36f26c5048f69b223884a13613fbd645b58c2ce42eafc6f9d9cd55bb089af
 V68_BYTE_IDENTICAL=true
 V68_ARTIFACT_GATE=LOCKED
-V68_U1=passed
-PRIVATE_CUSTODY_INSTALLED=true
-PRIVATE_CUSTODY_PRESERVED=true
+V68_EXECUTION_REUSE_PERMITTED=false
 ```
 
 ## 3. D2 V68 尝试 1
 
 ```text
 AUTHORIZATION_REQUEST_ID=D2-H3N2-STAGE2D9-G3-V68-20260723-01
-D2_STATUS=consumed_failed_recovery_performed_retired
-AUTHORIZATION_BINDING_SHA256=63317420a612c2db4a033a66e517bd9d85489ce135e70371b1216e1cb6204cf9
-EXECUTION_PACKAGE_SHA256=f66bd80eabe72060199d39bf323c45bb79b1d2c5404f4ea24d7e648ae1be42d2
+D2_STATUS=consumed_failed_recovery_verified_retired
 AUTHORIZATION_CONSUMED=true
 EXECUTION_PERFORMED=true
 DESTRUCTIVE_BOUNDARY_ENTERED=true
-FINAL_RESULT=failed
+FINAL_RESULT=failed_recovery_verified
 FAILURE_STAGE=prepare_serial
+FAILURE_CLASS=RuntimeError
+FAILURE_MESSAGE_REDACTED=G3 executor emitted fail marker before PREPARE
+PREFLIGHT_STATUS=passed
+ERASE_SUCCESS=true
+WRITE_SUCCESS=true
+VERIFY_FLASH_SUCCESS=true
+PREVIOUS_G2_SEED_MATCH=true
+PREPREPARE_READBACK_SHA256=0ea36f26c5048f69b223884a13613fbd645b58c2ce42eafc6f9d9cd55bb089af
 PREPARE_COMMAND_SEND_ATTEMPT_OBSERVED=true
 PREPARE_COMMAND_SENT_SUMMARY=false
 PREPARE_SUCCEEDED=false
 VERIFY_COMMAND_SENT=false
 VERIFY_SUCCEEDED=false
-RECOVERY_PERFORMED=true
-RECOVERY_COUNT=1
-PRIVATE_EVIDENCE_ARCHIVE_SHA256=c2a0686e7a52774531c53a674e889f50c8bdef37ee7ea67903dd24c989059321
-PRIVATE_DETAIL_STATUS=pending_read_only_extraction
 REPLAY_PERMITTED=false
 G3_RETRY_PERMITTED=false
 ```
 
-终端在 PREPARE 阶段打印了 `PREPARE_COMMAND_SENT_ONCE=true`，但 top-level summary 仍为 false。原因是串口捕获函数在已经发起一次写入后发生异常，未能正常返回验收结果，因此顶层字段保留 fail-closed 默认值。该标志只能证明发送尝试发生，不能证明命令被设备接受、持久化事务完成或 candidate 进入 PREPARED。
+一次 host 串口写入尝试已发生，但没有证据证明设备接受 PREPARE、完成持久化事务或进入 PREPARED。顶层 `prepare_command_sent=false` 是捕获函数异常后保留的 fail-closed 默认值。
 
-## 4. 保护边界
+## 4. U2 与 locked recovery
 
 ```text
-SECOND_PREPARE_EXECUTED=false
-VERIFY_COMMAND_SENT=false
-ACTIVATE_PROFILE_EXECUTED=false
-CLEANUP_TEST_STATE_EXECUTED=false
-EFUSE_COMMAND_ATTEMPTED=false
-NETWORK_OPERATION_ATTEMPTED=false
-PRODUCTION_ENVIRONMENT_MODIFIED=false
-STAGE2D8_D2_REPLAYED=false
-STAGE2D9_V67_D2_REPLAYED=false
+U2_RESULT=passed
+U2_SCRIPT_SHA256=4976f43f23ca7be39d80e31c5e4d6aa1a4b29674e8e8024aaeb67968405145c8
+PRIVATE_EVIDENCE_ARCHIVE_SHA256=c2a0686e7a52774531c53a674e889f50c8bdef37ee7ea67903dd24c989059321
+SUMMARY_JSON_SHA256=3fd63b52710d3763059dc5fa204767ba2bb5c3cd01028657a3de2fcd8bae8f1f
+PREPARE_SERIAL_LOG_PRESENT=false
+VERIFY_SERIAL_LOG_PRESENT=false
+RECOVERY_PERFORMED=true
+RECOVERY_COUNT=1
+RECOVERY_ERASE_SUCCESS=true
+RECOVERY_WRITE_SUCCESS=true
+RECOVERY_VERIFY_SUCCESS=true
+RECOVERY_SEED_RESTORED=true
+RECOVERY_BOOT_SUCCESS=true
+RECOVERY_LOCKED_MARKER_PRESENT=true
+RECOVERY_SERIAL_LOG_SHA256=eb92a2dbfc1a43b2d0917286b91b0904c4a9b4fefb212f00334152362cc8aca0
+RECOVERY_ESPTOOL_LOG_SHA256=945c47aa9419e9928f1d9ae2cdc7b759a33ca7921024e00a8f2a8e224fe2014f
+RECOVERY_PARTITION_SHA256=0ea36f26c5048f69b223884a13613fbd645b58c2ce42eafc6f9d9cd55bb089af
+RECOVERY_PARTITION_MATCHES_PREPREPARE=true
+RECOVERY_PARTITION_EQUALS_SEED=true
+FINAL_BOARD_STATE=locked_recovery_seed_restored
 ```
 
-进入破坏性边界后，runner 已按授权执行唯一一次 locked recovery。当前只允许读取既有私有归档以核对精确失败原因、恢复擦写校验、seed 恢复和 locked recovery 串口标志；不得重新连接测试板确认，也不得再次运行 launcher。
+测试板当前无需连接。现有证据已经证明 recovery 后分区与 PREPARE 前分区及冻结 seed 完全一致，且 locked recovery 固件启动成功。
 
-## 5. 当前阶段
+## 5. 源码诊断
+
+```text
+MQTT_IN_PREPARE_CALL_PATH=false
+NULL_MQTT_PREPARE_FAILURE_HYPOTHESIS=disproved
+RUNNER_SERIAL_LOG_PERSISTENCE_DEFECT=confirmed
+EXACT_FIRMWARE_FAILURE_SUBREASON=unavailable_due_missing_prepare_serial_log
+FIRMWARE_FAILURE_LOCUS=bounded_but_unresolved
+NEW_SOURCE_AND_ARTIFACT_REQUIRED=true
+```
+
+冻结源码表明，MQTT 仅在 PREPARE 之后的 validation 阶段启动，因此不能解释本次 PREPARE 前 fail marker。已确认的 runner 缺陷是：异常发生时未在 `finally` 中保存 PREPARE 串口缓冲，导致设备侧细分 failure 信息丢失。
+
+剩余固件故障范围限定在配置加载、镜像授权、持久化写入/恢复验证或 executor 后置条件之一；现有证据不足以唯一确定，不作猜测。
+
+## 6. 当前阶段
 
 ```text
 P0_SCOPE_AND_PROTOCOL=complete
@@ -88,19 +114,24 @@ P1_HOST_TRANSACTION_MODEL=passed_ci
 P2_MANIFEST_AND_COMMAND_GATES=passed_ci
 P3_G3_HARNESS_AND_EXECUTOR=passed_compile
 P4_COMPILE_ONLY_TARGETS=passed
-P5_V68_ARTIFACT=passed_frozen
+P5_V68_ARTIFACT=passed_frozen_execution_retired
 P6_EVIDENCE_PROTOCOL=complete
 P7_V68_USER_HOST_U1=passed
 P8_V68_D2=failed_retired
-P9_PRIVATE_FAILURE_AND_RECOVERY_EVIDENCE=pending_read_only_extraction
+P9_PRIVATE_FAILURE_AND_RECOVERY_EVIDENCE=passed_closed
+P10_HOST_SOURCE_DIAGNOSIS_AND_CORRECTION=in_progress
 ```
 
-## 6. 固定禁止项
+## 7. 新源码链要求
+
+后续唯一命名修正版必须先完成：异常路径串口日志原子持久化、细分脱敏 failure 标志、真实 package/driver/persistence PREPARE host 测试、后置条件逐项断言及失败取证测试。完成 CI 后才允许构建新的不可变 Artifact；新的 U1 通过后才允许提出新的 D2。
+
+## 8. 固定禁止项
 
 ```text
 DEVICE_RECONNECT_AUTHORIZED=false
 D2_REPLAY_AUTHORIZED=false
-G3_RETRY_AUTHORIZED=false
+V68_G3_RETRY_AUTHORIZED=false
 SECOND_PREPARE_AUTHORIZED=false
 ACTIVATE_PROFILE_AUTHORIZED=false
 CLEANUP_TEST_STATE_AUTHORIZED=false
@@ -114,4 +145,4 @@ PRODUCTION_ENVIRONMENT_OPERATION_AUTHORIZED=false
 READY_MERGE_RELEASE_AUTHORIZED=false
 ```
 
-下一门槛仅为读取 SHA 已冻结的私有证据归档。完成故障与 recovery 证据闭环后，才决定是否需要新的源码修正、唯一命名 Artifact 和全新 D2。Draft PR #174 继续保持 Draft。
+Draft PR #174 继续保持 Draft。当前工作仅限 host 源码诊断和唯一命名修正，不需要用户或测试板操作。
