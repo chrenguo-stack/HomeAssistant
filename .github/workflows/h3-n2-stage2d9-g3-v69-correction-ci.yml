@@ -1,0 +1,208 @@
+name: H3 N2 Stage2D9 G3 V69 Correction CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9-g3-v69-correction-ci.yml"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3_executor_v69/**"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3_prepare/greenhouse_profile_isolated_device_g3_executor_v69_compile_20260723_v69.yml"
+      - "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_h3_profile_isolated_device_g3_executor_v69_board_lab_20260723_v69.yml"
+      - "tools/h3_n2_stage2d9_v68_root_cause_gate_20260723_v1.py"
+      - "tools/h3_n2_stage2d9_v69_*_20260723_v1.py"
+      - "tests/h3_n2_stage2d9_prepare/*v68*root_cause*"
+      - "tests/h3_n2_stage2d9_prepare/*v69*"
+      - "docs/development/H3N2_Stage2D9_V68_PREPARE失败源码诊断_V1.0_20260723.md"
+      - "docs/acceptance/h3-n2-stage2d9-g3-v68-root-cause-l1-v1.json"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  host-correction:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compile correction Python sources
+        run: |
+          set -euo pipefail
+          python -m py_compile \
+            tools/h3_n2_stage2d9_v68_root_cause_gate_20260723_v1.py \
+            tools/h3_n2_stage2d9_v69_source_gate_20260723_v1.py \
+            tools/h3_n2_stage2d9_v69_serial_capture_model_20260723_v1.py \
+            tests/h3_n2_stage2d9_prepare/test_stage2d9_v69_serial_capture_model_20260723_v1.py
+
+      - name: Verify V68 frozen sources remain unchanged
+        run: |
+          set -euo pipefail
+          git diff --exit-code 608282bf86fcf8c1d13494437e01f1899d3c494a...HEAD -- \
+            firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3_executor \
+            firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3_prepare/greenhouse_profile_isolated_device_g3_execution_20260723_v68.yml \
+            tools/h3_n2_stage2d9_esphome_reproducible_compile_20260723_v68.py \
+            tools/h3_n2_stage2d9_g3_boundary_gate_20260723_v68.py \
+            tools/h3_n2_stage2d9_g3_reproducibility_gate_20260723_v68.py \
+            tools/h3_n2_stage2d9_g3_artifact_packager_20260723_v68.py \
+            .github/workflows/h3-n2-stage2d9-g3-v68-artifact-ci.yml
+
+      - name: Prove frozen V68 root cause
+        run: |
+          set -euo pipefail
+          python tools/h3_n2_stage2d9_v68_root_cause_gate_20260723_v1.py \
+            --repo-root . \
+            --output /tmp/stage2d9-v68-root-cause-v1.json
+          grep -F '"root_cause": "candidate_host_contract_mismatch"' \
+            /tmp/stage2d9-v68-root-cause-v1.json
+
+      - name: Verify V69 source boundary
+        run: |
+          set -euo pipefail
+          python tools/h3_n2_stage2d9_v69_source_gate_20260723_v1.py \
+            --repo-root . \
+            --output /tmp/stage2d9-v69-source-boundary-v1.json
+          grep -F '"root_cause_fix": "valid_local_placeholder_host"' \
+            /tmp/stage2d9-v69-source-boundary-v1.json
+          grep -F '"command_surface_enabled": false' \
+            /tmp/stage2d9-v69-source-boundary-v1.json
+          grep -F '"device_operation_authorized": false' \
+            /tmp/stage2d9-v69-source-boundary-v1.json
+
+      - name: Run serial evidence persistence matrix
+        run: |
+          set -euo pipefail
+          python -m unittest \
+            tests.h3_n2_stage2d9_prepare.test_stage2d9_v69_serial_capture_model_20260723_v1 \
+            -v
+
+      - name: Compile and run frozen V68 credential contract proof
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -Wall -Wextra -Werror -I. \
+            tests/h3_n2_stage2d9_prepare/stage2d9_v68_host_contract_root_cause_20260723_v1.cpp \
+            firmware/esphome_rc/components/greenhouse_pairing_client/pairing_client_core.cpp \
+            firmware/esphome_rc/components/greenhouse_pairing_client/pairing_ram_credentials.cpp \
+            -o /tmp/stage2d9-v68-root-cause-test
+          /tmp/stage2d9-v68-root-cause-test | tee /tmp/stage2d9-v68-root-cause-test.log
+          grep -F 'STAGE2D9_V68_ROOT_CAUSE_TEST=PASS' \
+            /tmp/stage2d9-v68-root-cause-test.log
+
+      - name: Compile and run actual package-driver PREPARE chain
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -Wall -Wextra -Werror -I. \
+            tests/h3_n2_stage2d9_prepare/stage2d9_v69_actual_prepare_chain_20260723_v1.cpp \
+            firmware/esphome_rc/components/greenhouse_pairing_client/pairing_client_core.cpp \
+            firmware/esphome_rc/components/greenhouse_pairing_client/pairing_ram_credentials.cpp \
+            firmware/esphome_rc/components/greenhouse_profile_isolated_acceptance/isolated_acceptance_package.cpp \
+            firmware/esphome_rc/components/greenhouse_profile_isolated_device_driver/isolated_device_driver.cpp \
+            -o /tmp/stage2d9-v69-actual-prepare-chain
+          /tmp/stage2d9-v69-actual-prepare-chain | tee /tmp/stage2d9-v69-actual-prepare-chain.log
+          grep -F 'STAGE2D9_V69_ACTUAL_PREPARE_INVALID_HOST_REJECTED=true' \
+            /tmp/stage2d9-v69-actual-prepare-chain.log
+          grep -F 'STAGE2D9_V69_ACTUAL_PREPARE_LOCAL_HOST_PASSED=true' \
+            /tmp/stage2d9-v69-actual-prepare-chain.log
+          grep -F 'STAGE2D9_V69_ACTUAL_PREPARE_MQTT_UNTOUCHED=true' \
+            /tmp/stage2d9-v69-actual-prepare-chain.log
+          grep -F 'STAGE2D9_V69_ACTUAL_PREPARE_CHAIN=PASS' \
+            /tmp/stage2d9-v69-actual-prepare-chain.log
+
+      - name: Verify no production or private paths were introduced
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          git diff --exit-code "$BASE_SHA"...HEAD -- \
+            firmware/esphome_rc/f1_0_rc2/f1_0_rc2.yml \
+            firmware/esphome_rc/f1_0_rc2/packages \
+            firmware/esphome_rc/components/greenhouse_profile_isolated_device_driver \
+            firmware/esphome_rc/components/greenhouse_profile_isolated_device_g2_probe \
+            firmware/esphome_rc/board_lab/h3_profile_isolated_device_g2_probe
+          if git grep -IlE 'unlock_token_hex[[:space:]]*[:=][[:space:]]*[0-9a-f]{64}|persistence_key_hex[[:space:]]*[:=][[:space:]]*[0-9a-f]{64}' -- ':!tests/**'; then
+            echo "private Stage2D9 material detected" >&2
+            exit 1
+          fi
+
+  compile-only:
+    needs: host-correction
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install pinned ESPHome
+        run: python -m pip install -q "esphome==2026.4.3"
+
+      - name: Compile dedicated corrected executor with locked command surface
+        run: |
+          set -o pipefail
+          cd firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3_prepare
+          esphome config greenhouse_profile_isolated_device_g3_executor_v69_compile_20260723_v69.yml \
+            2>&1 | tee /tmp/stage2d9-v69-dedicated-config.log
+          esphome compile greenhouse_profile_isolated_device_g3_executor_v69_compile_20260723_v69.yml \
+            2>&1 | tee /tmp/stage2d9-v69-dedicated-compile.log
+
+      - name: Compile full product-board compatibility target
+        run: |
+          set -o pipefail
+          cd firmware/esphome_rc/f1_0_rc2
+          RC2_CONFIG=f1_0_rc2_h3_profile_isolated_device_g3_executor_v69_board_lab_20260723_v69.yml \
+            bash tools/rc2.sh config 2>&1 | tee /tmp/stage2d9-v69-product-config.log
+          RC2_CONFIG=f1_0_rc2_h3_profile_isolated_device_g3_executor_v69_board_lab_20260723_v69.yml \
+            bash tools/rc2.sh compile 2>&1 | tee /tmp/stage2d9-v69-product-compile.log
+
+      - name: Verify compile-only results and execution closure
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          logs = "\n".join(
+              Path(path).read_text(encoding="utf-8", errors="replace")
+              for path in (
+                  "/tmp/stage2d9-v69-dedicated-config.log",
+                  "/tmp/stage2d9-v69-dedicated-compile.log",
+                  "/tmp/stage2d9-v69-product-config.log",
+                  "/tmp/stage2d9-v69-product-compile.log",
+              )
+          )
+          if logs.count("INFO Successfully compiled program.") < 2:
+              raise SystemExit("both V69 compile-only targets did not complete")
+          for prohibited in (
+              "BEGIN PRIVATE KEY",
+              "BEGIN CERTIFICATE",
+              "unlock_token_hex",
+              "persistence_key_hex",
+              "authorization_id=D2-",
+              "GH2D9_PREPARE_V2 ",
+              "GH2D9_VERIFY_V2 ",
+          ):
+              if prohibited in logs:
+                  raise SystemExit(f"private or executable material in compile output: {prohibited}")
+          PY
+
+      - name: Cleanup generated files
+        if: always()
+        run: |
+          rm -rf \
+            firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3_prepare/.esphome \
+            firmware/esphome_rc/f1_0_rc2/.esphome
