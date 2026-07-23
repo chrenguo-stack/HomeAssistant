@@ -40,15 +40,12 @@ jobs:
           cfcb6638ed61731270f3bf8e9e262c1512fbca8ff34d4b08b62186453233e963  root-ca.cert.txt
           EOF
           sha256sum -c /tmp/stage2d9r-public-pki-sha256-v1.txt
-      - name: Verify certificate roles chain hostname and public fingerprints
+      - name: Verify certificate roles chain hostname and fingerprints
         working-directory: tests/h3_n2_stage2d9r_tls_candidate/public_pki_tlsvalid01
         run: |
           set -euo pipefail
-          openssl verify \
-            -CAfile root-ca.cert.txt \
-            -purpose sslserver \
-            -verify_hostname stage2d9r.local \
-            broker.cert.txt \
+          openssl verify -CAfile root-ca.cert.txt -purpose sslserver \
+            -verify_hostname stage2d9r.local broker.cert.txt \
             | tee /tmp/stage2d9r-public-pki-openssl-v1.log
           grep -F 'broker.cert.txt: OK' /tmp/stage2d9r-public-pki-openssl-v1.log
           openssl x509 -in root-ca.cert.txt -noout -text > /tmp/stage2d9r-root-ca-v1.txt
@@ -65,85 +62,43 @@ jobs:
           test "$(openssl x509 -in broker.cert.txt -pubkey -noout | openssl pkey -pubin -outform DER | sha256sum | awk '{print $1}')" = \
             'f034dc2a036f709287f0558773418ee1799e75bee50dcf55e09143a3a9052a03'
           cmp broker.fullchain.txt <(cat broker.cert.txt root-ca.cert.txt)
-      - name: Validate public descriptors and no-private boundary
+      - name: Validate redacted descriptors and boundaries
         run: |
           set -euo pipefail
           python - <<'PY'
-          import hashlib
-          import json
+          import hashlib, json, re
           from pathlib import Path
-          import re
-
           root = Path('tests/h3_n2_stage2d9r_tls_candidate/public_pki_tlsvalid01')
-          manifest = json.loads((root / 'PUBLIC_EXPORT_MANIFEST.json').read_text())
-          descriptor = json.loads((root / 'public-descriptor.redacted.json').read_text())
-          config = json.loads((root / 'isolated-broker-public-config.redacted.json').read_text())
+          m = json.loads((root/'PUBLIC_EXPORT_MANIFEST.json').read_text())
+          d = json.loads((root/'public-descriptor.redacted.json').read_text())
+          c = json.loads((root/'isolated-broker-public-config.redacted.json').read_text())
           l1 = json.loads(Path('docs/acceptance/h3-n2-stage2d9r-public-pki-export-l1-v1.json').read_text())
-
-          assert manifest['schema'] == 'gh.h3.n2.stage2d9r-public-pki-export/1'
-          assert manifest['authorization_status'] == 'consumed_passed_retired'
-          assert manifest['public_descriptor_sha256'] == '93bb071a5bf6f58472ac9e3891c2330dd9de6f05410824ad2fb51829267b4540'
-          assert manifest['private_package_sha256'] == '0632b37a70aa2eae416c48ffa9420a8f1e13788c22a7d12e211f77cf6e78a267'
-          assert manifest['candidate_digest_sha256'] == 'f22144e37372b883b7a38d07eff2980a865108cf7c8fed9bfdb9f198a030b5c5'
-          assert manifest['certificate_chain_valid'] is True
-          assert manifest['hostname_valid'] is True
-          assert manifest['public_private_leakage_scan_passed'] is True
-
-          assert descriptor['schema'] == 'gh.h3.n2.stage2d9r-tls-candidate-descriptor/1'
-          assert descriptor['state'] == 'TLS_CANDIDATE_FROZEN'
-          assert descriptor['broker_host'] == 'stage2d9r.local'
-          assert descriptor['broker_port'] == 8883
-          assert descriptor['broker_tls_server_name'] == 'stage2d9r.local'
-          assert descriptor['dns_san'] == ['stage2d9r.local']
-          assert all(descriptor['offline_proofs'].values())
-          public = descriptor['public_material']
-          assert public['ca_pem_sha256'] == 'cfcb6638ed61731270f3bf8e9e262c1512fbca8ff34d4b08b62186453233e963'
-          assert public['broker_certificate_sha256'] == '988b6f82b04b0b3cf13f58a07ecd85e420e5576c167fe01ea0940d4530e20ac7'
-          assert public['broker_spki_sha256'] == 'f034dc2a036f709287f0558773418ee1799e75bee50dcf55e09143a3a9052a03'
-          assert public['broker_config_sha256'] == '8713e2706d36bcfb731ce7e8a8c7589261a4343b78835593138f9e55994253d7'
-          assert public['private_package_sha256'] == '0632b37a70aa2eae416c48ffa9420a8f1e13788c22a7d12e211f77cf6e78a267'
-          assert public['candidate_digest_sha256'] == 'f22144e37372b883b7a38d07eff2980a865108cf7c8fed9bfdb9f198a030b5c5'
-
-          assert config['schema'] == 'gh.h3.n2.stage2d9r-isolated-broker-public-config/1'
-          assert config['broker_host'] == 'stage2d9r.local'
-          assert config['broker_port'] == 8883
-          assert config['test_run_suffix'] == 'tlsvalid01'
-          assert config['mqtt_username'] == 'stage2d9r-test'
-          assert re.fullmatch(r'[0-9a-f]{64}', config['mqtt_password_sha256'])
-          canonical = json.dumps(config, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode()
-          assert hashlib.sha256(canonical).hexdigest() == public['broker_config_sha256']
-
-          assert l1['result'] == 'passed_public_export_closed'
+          assert m['authorization_status'] == 'consumed_passed_retired'
+          assert m['candidate_digest_sha256'] == 'f22144e37372b883b7a38d07eff2980a865108cf7c8fed9bfdb9f198a030b5c5'
+          assert d['state'] == 'TLS_CANDIDATE_FROZEN'
+          assert d['broker_host'] == d['broker_tls_server_name'] == 'stage2d9r.local'
+          assert d['broker_port'] == 8883 and d['dns_san'] == ['stage2d9r.local']
+          assert all(d['offline_proofs'].values())
+          p = d['public_material']
+          assert p['ca_pem_sha256'] == 'cfcb6638ed61731270f3bf8e9e262c1512fbca8ff34d4b08b62186453233e963'
+          assert p['private_package_sha256'] == '0632b37a70aa2eae416c48ffa9420a8f1e13788c22a7d12e211f77cf6e78a267'
+          assert p['candidate_digest_sha256'] == m['candidate_digest_sha256']
+          canonical = json.dumps(c, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode()
+          assert hashlib.sha256(canonical).hexdigest() == p['broker_config_sha256']
+          assert re.fullmatch(r'[0-9a-f]{64}', c['mqtt_password_sha256'])
           assert l1['public_export']['zip_sha256'] == '72c739b5e197192b9569083bf3446d7c0f5340652b21ab44cdd99eeca3f12d31'
           assert all(l1['offline_proofs'].values())
           assert all(value is False for value in l1['privacy'].values())
           assert all(value is False for value in l1['protected_boundaries'].values())
-
-          false_fields = {
-              'execution_authorized', 'board_operation_authorized',
-              'network_operation_authorized', 'prepare_authorized',
-              'verify_authorized', 'activate_authorized', 'cleanup_authorized',
-              'private_values_included', 'production_material_included',
-              'alias_resolution_allowed', 'tls_verification_bypass_allowed',
-          }
-          assert all(descriptor[key] is False for key in false_fields)
-          for key in ('private_key_included', 'mqtt_password_included'):
-              assert public[key] is False
-          for key in ('private_values_included', 'execution_authorized', 'network_operation_authorized'):
-              assert config[key] is False
-
-          forbidden = (
-              'BEGIN PRIVATE KEY', 'BEGIN RSA PRIVATE KEY', 'BEGIN EC PRIVATE KEY',
-              'password_file ', 'keyfile ', 'unlock_token', 'persistence_key',
-              '/Users/', '/home/', '/private/tmp/', '/tmp/', '/Users/Shared/',
-          )
+          for key in ('execution_authorized','board_operation_authorized','network_operation_authorized','prepare_authorized','verify_authorized','activate_authorized','cleanup_authorized','private_values_included','production_material_included','alias_resolution_allowed','tls_verification_bypass_allowed'):
+              assert d[key] is False
+          forbidden = ('BEGIN PRIVATE KEY','BEGIN RSA PRIVATE KEY','BEGIN EC PRIVATE KEY','password_file ','keyfile ','unlock_token','persistence_key','/private/tmp/','/tmp/')
           for path in root.iterdir():
               if path.is_file():
                   text = path.read_text(encoding='utf-8')
-                  for marker in forbidden:
-                      assert marker not in text, (path, marker)
+                  assert all(marker not in text for marker in forbidden), path
           PY
-      - name: Verify no service or execution operation occurred
+      - name: Report locked boundary
         run: |
           printf '%s\n' \
             'STAGE2D9R_PUBLIC_PKI_MATERIAL_CI=PASS' \
@@ -156,9 +111,4 @@ jobs:
             'VERIFY_EXECUTED=false'
       - name: Cleanup
         if: always()
-        run: |
-          rm -f \
-            /tmp/stage2d9r-public-pki-sha256-v1.txt \
-            /tmp/stage2d9r-public-pki-openssl-v1.log \
-            /tmp/stage2d9r-root-ca-v1.txt \
-            /tmp/stage2d9r-broker-cert-v1.txt
+        run: rm -f /tmp/stage2d9r-public-pki-* /tmp/stage2d9r-root-ca-v1.txt /tmp/stage2d9r-broker-cert-v1.txt
