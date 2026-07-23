@@ -86,9 +86,10 @@ jobs:
           package=firmware/esphome_rc/components/greenhouse_profile_isolated_acceptance
           driver=firmware/esphome_rc/components/greenhouse_profile_isolated_device_driver
           g4=firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation
+          tests=tests/h3_n2_stage2d10_activate
           g++ -std=gnu++20 -Wall -Wextra -Wpedantic -Werror \
             -Wno-unused-function \
-            -I "$pairing" -I "$package" -I "$driver" -I "$g4" \
+            -I "$pairing" -I "$package" -I "$driver" -I "$g4" -I "$tests" \
             "$pairing/pairing_client_core.cpp" \
             "$pairing/secure_pairing_channel.cpp" \
             "$pairing/secure_pairing_channel_encoding.cpp" \
