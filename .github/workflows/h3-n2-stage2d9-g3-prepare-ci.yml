@@ -1,0 +1,227 @@
+name: H3 N2 Stage2D9 G3 PREPARE CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9-g3-prepare-ci.yml"
+      - "tools/h3_n2_stage2d9_*"
+      - "tests/h3_n2_stage2d9_prepare/**"
+      - "protocols/pairing/gh-h3-node-stage2d9-g3-prepare-v1.md"
+      - "docs/development/*Stage2D9*"
+      - "docs/status/STAGE_STATUS_H3_N2_STAGE2D9_G3_20260722.md"
+      - "docs/acceptance/h3-n2-stage2d9-g3-*.json"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/h3-n2-stage2d9-g3-prepare-ci.yml"
+      - "tools/h3_n2_stage2d9_*"
+      - "tests/h3_n2_stage2d9_prepare/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  host-model-and-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile Stage 2D-9 Python files
+        run: |
+          python -m py_compile \
+            tools/h3_n2_stage2d9_prepare_model_20260722_v1.py \
+            tools/h3_n2_stage2d9_prepare_manifest_gate_20260722_v1.py \
+            tools/h3_n2_stage2d9_prepare_command_protocol_20260722_v1.py \
+            tools/h3_n2_stage2d9_v68_root_cause_gate_20260723_v1.py \
+            tools/h3_n2_stage2d9_v69_source_gate_20260723_v1.py \
+            tools/h3_n2_stage2d9_v69_serial_capture_model_20260723_v1.py \
+            tools/h3_n2_stage2d9_esphome_reproducible_compile_20260723_v69.py \
+            tools/h3_n2_stage2d9_g3_boundary_gate_20260723_v69.py \
+            tools/h3_n2_stage2d9_g3_reproducibility_gate_20260723_v69.py \
+            tools/h3_n2_stage2d9_g3_artifact_packager_20260723_v69.py \
+            tests/h3_n2_stage2d9_prepare/test_stage2d9_prepare_model_20260722_v1.py \
+            tests/h3_n2_stage2d9_prepare/test_stage2d9_prepare_command_protocol_20260722_v1.py \
+            tests/h3_n2_stage2d9_prepare/test_stage2d9_v69_serial_capture_model_20260723_v1.py
+      - name: Run host fault matrices
+        run: |
+          python -m unittest discover \
+            -s tests/h3_n2_stage2d9_prepare \
+            -p 'test_stage2d9_*_202607*_v1.py' \
+            -v
+      - name: Verify default manifest remains locked
+        run: |
+          python tools/h3_n2_stage2d9_prepare_manifest_gate_20260722_v1.py \
+            --manifest tests/h3_n2_stage2d9_prepare/stage2d9_prepare_manifest_template_20260722_v1.json \
+            --expect-gate LOCKED
+      - name: Prove V68 root cause and V69 correction contract
+        run: |
+          python tools/h3_n2_stage2d9_v68_root_cause_gate_20260723_v1.py \
+            --repo-root . --output /tmp/stage2d9-v68-root-cause.json
+          python tools/h3_n2_stage2d9_v69_source_gate_20260723_v1.py \
+            --repo-root . --output /tmp/stage2d9-v69-source-gate.json
+          grep -F '"root_cause": "candidate_host_contract_mismatch"' \
+            /tmp/stage2d9-v68-root-cause.json
+          grep -F '"root_cause_fix": "valid_local_placeholder_host"' \
+            /tmp/stage2d9-v69-source-gate.json
+          grep -F '"device_operation_authorized": false' \
+            /tmp/stage2d9-v69-source-gate.json
+      - name: Compile and run actual credential host-contract test
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror -I. \
+            tests/h3_n2_stage2d9_prepare/stage2d9_v68_host_contract_root_cause_20260723_v1.cpp \
+            firmware/esphome_rc/components/greenhouse_pairing_client/pairing_client_core.cpp \
+            firmware/esphome_rc/components/greenhouse_pairing_client/pairing_ram_credentials.cpp \
+            -o /tmp/stage2d9-v68-root-cause-test
+          /tmp/stage2d9-v68-root-cause-test | tee /tmp/stage2d9-v68-root-cause-test.log
+          grep -F 'STAGE2D9_V68_ROOT_CAUSE_TEST=PASS' \
+            /tmp/stage2d9-v68-root-cause-test.log
+      - name: Verify V69 physical acceptance and D4 gate
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          def load(path):
+              return json.loads(Path(path).read_text(encoding="utf-8"))
+
+          public = load("docs/acceptance/h3-n2-stage2d9-g3-public-manifest-v1.json")
+          acceptance = load("docs/acceptance/h3-n2-stage2d9-g3-acceptance-template-v1.json")
+          artifact = load("docs/acceptance/h3-n2-stage2d9-g3-v69-artifact-l1-summary-v1.json")
+          custody = load("docs/acceptance/h3-n2-stage2d9-g3-v69-private-custody-l1-v1.json")
+          u1 = load("docs/acceptance/h3-n2-stage2d9-g3-v69-u1-l1-summary-v1.json")
+          d2_attempt1 = load("docs/acceptance/h3-n2-stage2d9-g3-v69-d2-attempt1-authorization-request-v1.json")
+          d2_attempt2 = load("docs/acceptance/h3-n2-stage2d9-g3-v69-d2-attempt2-physical-acceptance-l1-v1.json")
+          index = load("docs/acceptance/h3-n2-stage2d9-g3-d2-authorization-request-index-v1.json")
+          template = load("tests/h3_n2_stage2d9_prepare/stage2d9_prepare_manifest_template_20260722_v1.json")
+
+          request1 = "D2-H3N2-STAGE2D9-G3-V69-20260723-01"
+          request2 = "D2-H3N2-STAGE2D9-G3-V69-20260723-02"
+          review1 = "5e7b13dc3e804698f216542b17f4d481a9f8a05285c5c3e6a4475ef1e44e379e"
+          review2 = "b358fcbe8b9e428d7ed5ab061537338928471705e0829022c2c5892a612573b0"
+          archive = "c863b504da6b48e9b8861efa853e2757b19679ab6c6d9ac42550cd0bb218b366"
+          gate = "CLOSED_V69_ACCEPTANCE_PASSED_D4_REQUIRED"
+
+          assert public["status"] == "v69_physical_acceptance_passed_private_evidence_closed"
+          assert public["execution_gate"] == gate
+          assert public["active_d2_request_id"] is None
+          assert public["v68_evidence"]["recovery_seed_restored"] is True
+          assert public["v68_root_cause"]["name"] == "candidate_host_contract_mismatch"
+          assert public["v69_correction"]["status"] == "passed_frozen"
+          assert public["v69_artifact"]["zip_sha256"] == "21aa3383a26b66109408576040245dd60c17eb780b65de9847381b73cfb1506b"
+          assert public["v69_artifact"]["gate"] == "LOCKED"
+          assert public["v69_artifact"]["execution_authorized"] is False
+          assert public["v69_u1"]["status"] == "passed"
+          assert public["v69_d2_attempt1"]["status"] == "operator_authorized_but_issuance_failed_closed_retired"
+          assert public["v69_d2_attempt1"]["authorization_consumed"] is False
+          assert public["v69_d2_attempt2"]["status"] == "consumed_passed_retired"
+          assert public["v69_d2_attempt2"]["review_package_sha256"] == review2
+          assert public["v69_d2_attempt2"]["authorization_consumed"] is True
+          assert public["v69_verified_state"]["candidate_state"] == "PREPARED"
+          assert public["v69_verified_state"]["candidate_digest_match"] is True
+          assert public["v69_verified_state"]["active_unchanged"] is True
+          assert public["v69_verified_state"]["mqtt_operation_attempted"] is False
+          assert public["v69_private_evidence"]["archive_sha256"] == archive
+          assert public["v69_private_evidence"]["l1_extraction"] == "passed"
+          assert all(value is False for value in public["protected_boundaries"].values())
+
+          assert artifact["status"] == "frozen_u1_passed_d2_review_prepared"
+          assert artifact["u1"]["user_host_result"] == "passed"
+          assert artifact["d2_review"]["review_package_sha256"] == review1
+          assert artifact["d2_review"]["authorization_issued"] is False
+
+          assert custody["operator_installation_status"] == "passed"
+          assert custody["private_custody_preserved"] is True
+          assert custody["execution_authorized"] is False
+
+          assert u1["status"] == "passed"
+          assert u1["private_custody"]["installed"] is True
+          assert u1["private_custody"]["preserved"] is True
+
+          assert d2_attempt1["authorization_request_id"] == request1
+          assert d2_attempt1["status"] == "operator_authorized_but_issuance_failed_closed_retired"
+          assert d2_attempt1["review_package"]["sha256"] == review1
+          assert d2_attempt1["authorization_consumed"] is False
+          assert d2_attempt1["destructive_boundary_entered"] is False
+          assert d2_attempt1["replay_permitted"] is False
+
+          assert d2_attempt2["authorization_request_id"] == request2
+          assert d2_attempt2["result"] == "passed"
+          assert d2_attempt2["authorization"]["review_package_sha256"] == review2
+          assert d2_attempt2["authorization"]["consumed"] is True
+          assert d2_attempt2["authorization"]["replay_permitted"] is False
+          assert d2_attempt2["execution"]["prepare_command_sent_once"] is True
+          assert d2_attempt2["execution"]["prepare_succeeded"] is True
+          assert d2_attempt2["execution"]["verify_command_sent_once"] is True
+          assert d2_attempt2["execution"]["verify_succeeded"] is True
+          assert d2_attempt2["execution"]["recovery_performed"] is False
+          assert d2_attempt2["verified_state"]["active_generation"] == 0
+          assert d2_attempt2["verified_state"]["candidate_generation"] == 1
+          assert d2_attempt2["verified_state"]["candidate_state"] == "PREPARED"
+          assert d2_attempt2["verified_state"]["candidate_digest_match"] is True
+          assert d2_attempt2["verified_state"]["active_unchanged"] is True
+          assert d2_attempt2["private_evidence"]["archive_sha256"] == archive
+          assert d2_attempt2["private_evidence"]["l1_extraction"] == "passed"
+          assert all(value is False for value in d2_attempt2["protected_boundaries"].values())
+          assert d2_attempt2["disposition"]["ready_merge_release_authorized"] is False
+
+          assert index["active_request_id"] is None
+          assert index["execution_gate"] == gate
+          assert index["stage2d9_v69_attempt1_replay_permitted"] is False
+          assert index["stage2d9_v69_attempt2_replay_permitted"] is False
+          assert index["v69_physical_acceptance"] == "passed"
+          assert index["v69_private_evidence_closure"] == "passed"
+          assert index["device_reconnect_permitted"] is False
+          assert index["independent_d4_required"] is True
+          assert index["ready_merge_release_authorized"] is False
+
+          assert acceptance["v68"]["recovery_seed_restored"] is True
+          assert acceptance["v69"]["status"] == "physical_acceptance_passed_private_evidence_closed"
+          assert acceptance["v69_u1"]["status"] == "passed"
+          assert acceptance["v69_d2_attempt1"]["status"] == "operator_authorized_but_issuance_failed_closed_retired"
+          assert acceptance["v69_d2_attempt2"]["status"] == "consumed_passed_retired"
+          assert acceptance["verified_state"]["candidate_state"] == "PREPARED"
+          assert acceptance["verified_state"]["candidate_digest_match"] is True
+          assert acceptance["verified_state"]["active_unchanged"] is True
+          assert acceptance["stage_disposition"]["execution_gate"] == gate
+          assert acceptance["stage_disposition"]["device_reconnect_authorized"] is False
+          assert acceptance["stage_disposition"]["ready_merge_release_authorized"] is False
+
+          assert template["gate"] == "LOCKED"
+          assert template["execution_authorized"] is False
+          assert template["writable_test_nvs_authorized"] is False
+          assert template["activate_profile_authorized"] is False
+          assert template["cleanup_test_state_authorized"] is False
+          assert template["network_operation_authorized"] is False
+          assert template["efuse_operation_authorized"] is False
+          assert template["production_environment_operation_authorized"] is False
+          PY
+      - name: Reject unauthorized production path modifications
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git diff --name-only "$BASE_SHA"...HEAD > /tmp/stage2d9-paths.txt
+          if grep -E '(^|/)f1_0_rc2\.yml$|^firmware/esphome_rc/packages/' /tmp/stage2d9-paths.txt; then
+            echo "Stage 2D-9 changed a protected production firmware path" >&2
+            exit 1
+          fi
+      - name: Verify no private runtime evidence is committed
+        run: |
+          if git ls-files | grep -E '(^|/)(private-summary|authorization).*\.json$|\.tar\.gz$|g2-serial\.log$'; then
+            echo "Private runtime evidence path detected" >&2
+            exit 1
+          fi
+          if git grep -IlE 'unlock_token_hex[[:space:]]*[:=][[:space:]]*[0-9a-f]{64}|persistence_key_hex[[:space:]]*[:=][[:space:]]*[0-9a-f]{64}' -- ':!tests/**'; then
+            echo "Private Stage2D9 key material detected" >&2
+            exit 1
+          fi

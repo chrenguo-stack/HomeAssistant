@@ -1,0 +1,65 @@
+{
+  "schema": "gh.h3.n2.stage2d9-g3-u1-l1-summary/1",
+  "stage": "H3/N2 Stage 2D-9 G3",
+  "result": "passed",
+  "timestamp_utc": "2026-07-22T16:05:24Z",
+  "batch_package_id": "U1_STAGE2D9_G3_V67_ARTIFACT_VERIFY_V1",
+  "source_sha": "dda4dc25f201242cb566f1498a26200529e35227",
+  "artifact": {
+    "zip_sha256": "4f9b53908576ffb20ce2653418279dbd45817528a6168b24565447f760ad5dce",
+    "manifest_sha256": "e12d7ab4cb457bbd4da0dee2c7b919d90b9546528073505c32e950315894e8c4",
+    "g3_merged_sha256": "ae109c3e3982adf7c916529d309be57912ff7310b05afa42d431d578ea4745ca",
+    "recovery_merged_sha256": "54fb10601a0fbf448948d3f7d687281b33e85220c64bcdcabfae896dd3d98a1a",
+    "seed_sha256": "0ea36f26c5048f69b223884a13613fbd645b58c2ce42eafc6f9d9cd55bb089af",
+    "unlock_digest_sha256": "d43c61f08a89a78ea3656083602fbe30983bd555023f64b8f005a62602b28065",
+    "gate": "LOCKED",
+    "clean_build_count": 2,
+    "byte_identical": true,
+    "private_execution_material_present": false
+  },
+  "u1_package": {
+    "package_sha256": "f190536281e7efeeabe62121106c341f2d5e83f3d73830c4b3605548171e4659",
+    "launcher_sha256": "4b70e011a7710becc4c45aed519109800ae42b51b64b2d1c955520cd493ce5ae",
+    "script_sha256": "6a93006e2b9bcec91c8501ec90d37647940875cae41ce99539739427bd7a3de3",
+    "canonical_output_sha256": "ff52e4e21db04f3d9de93d651c3da3290b0c23af0da024c9fd54529d3f1ecdf8"
+  },
+  "verification": {
+    "package_sha256_match": true,
+    "launcher_sha256_match": true,
+    "script_sha256_match": true,
+    "artifact_zip_sha256_match": true,
+    "manifest_binding_match": true,
+    "source_binding_match": true,
+    "g3_binding_match": true,
+    "recovery_binding_match": true,
+    "seed_binding_match": true,
+    "unlock_digest_binding_match": true,
+    "artifact_gate_locked": true,
+    "private_execution_material_absent": true
+  },
+  "protected_boundaries": {
+    "board_accessed": false,
+    "serial_access_attempted": false,
+    "flash_operation_attempted": false,
+    "efuse_command_attempted": false,
+    "network_operation_attempted": false,
+    "production_environment_modified": false,
+    "flash_authorized": false,
+    "prepare_authorized": false,
+    "verify_authorized": false,
+    "activate_authorized": false,
+    "cleanup_authorized": false
+  },
+  "privacy": {
+    "raw_local_path_included": false,
+    "private_log_included": false,
+    "private_board_identifier_included": false,
+    "authorization_json_included": false,
+    "secret_values_included": false
+  },
+  "disposition": {
+    "p7_user_host_u1": "passed",
+    "execution_gate": "LOCKED_D2_REVIEW_REQUIRED",
+    "next_action": "submit exact Stage2D9 D2 attempt-1 review package; no board connection or execution before authorization"
+  }
+}

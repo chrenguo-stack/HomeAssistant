@@ -1,0 +1,199 @@
+name: H3 N2 Stage2D9 G3 Compile CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9-g3-compile-ci.yml"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3_prepare/**"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3_executor/**"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3_prepare/**"
+      - "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_h3_profile_isolated_device_g3_prepare_board_lab_20260722_v65.yml"
+      - "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_h3_profile_isolated_device_g3_executor_board_lab_20260722_v66.yml"
+      - "protocols/pairing/gh-h3-node-stage2d9-g3-prepare-v1.md"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/h3-n2-stage2d9-g3-compile-ci.yml"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3_prepare/**"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3_executor/**"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3_prepare/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  source-boundary:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          show-progress: false
+      - name: Verify locked G3 source boundary
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path("firmware/esphome_rc")
+          board = root / "board_lab/h3_profile_isolated_device_g3_prepare"
+          locked_yml = board / "greenhouse_profile_isolated_device_g3_prepare_20260722_v65.yml"
+          executor_yml = board / "greenhouse_profile_isolated_device_g3_executor_20260722_v66.yml"
+          partitions = board / "stage2d9_g3_partitions_20260722_v65.csv"
+          locked_component = root / "components/greenhouse_profile_isolated_device_g3_prepare"
+          executor_component = root / "components/greenhouse_profile_isolated_device_g3_executor"
+
+          def top_level_keys(path: Path) -> set[str]:
+              return {
+                  line.split(":", 1)[0]
+                  for line in path.read_text(encoding="utf-8").splitlines()
+                  if line and not line[0].isspace() and not line.startswith("#") and ":" in line
+              }
+
+          for yml in (locked_yml, executor_yml):
+              keys = top_level_keys(yml)
+              for prohibited in ("wifi", "api", "ota", "captive_portal", "web_server", "mqtt"):
+                  if prohibited in keys:
+                      raise SystemExit(f"{yml.name} contains {prohibited}")
+
+          executor_text = executor_yml.read_text(encoding="utf-8")
+          zero_digest = "0" * 64
+          digest_match = re.search(r'^\s+unlock_digest:\s*["\']?([0-9a-f]{64})["\']?\s*$', executor_text, re.M)
+          if digest_match is None or digest_match.group(1) != zero_digest:
+              raise SystemExit("public executor target does not disable command surface")
+
+          table = partitions.read_text(encoding="utf-8")
+          row = next(line for line in table.splitlines() if line.strip().startswith("gh2d8_p2d9"))
+          fields = [item.strip() for item in row.split(",")]
+          if fields[:5] != ["gh2d8_p2d9", "data", "nvs", "0x400000", "0x10000"]:
+              raise SystemExit("Stage2D9 partition boundary mismatch")
+          if any("readonly" in item.lower() for item in fields[5:]):
+              raise SystemExit("Stage2D9 PREPARE partition is unexpectedly read-only")
+
+          locked_cpp = (locked_component / "stage2d9_g3_locked_prepare_harness.cpp").read_text(encoding="utf-8")
+          for prohibited in (
+              ".prepare_candidate(",
+              ".load_test_configuration(",
+              ".grant_write_authorization(",
+              ".arm_write_authorization(",
+              ".begin_validation(",
+              ".activate(",
+              ".cleanup_test_state(",
+          ):
+              if prohibited in locked_cpp:
+                  raise SystemExit(f"locked G3 harness exposes {prohibited}")
+
+          executor_cpp = (executor_component / "stage2d9_g3_prepare_executor.cpp").read_text(encoding="utf-8")
+          for required in (
+              "command_surface_enabled_",
+              "constant_equal_",
+              "command_replay",
+              "GH2D9_PREPARE_V1",
+              "GH2D9_VERIFY_V1",
+              "authorization_binder_.grant",
+              "package_.prepare_candidate",
+              "candidate_digest_match=true",
+              "mqtt=false",
+          ):
+              if required not in executor_cpp:
+                  raise SystemExit(f"executor safety binding missing {required}")
+          for prohibited in (
+              "package_.activate(",
+              "package_.cleanup_test_state(",
+              "driver_.activate(",
+              "driver_.cleanup_test_state(",
+          ):
+              if prohibited in executor_cpp:
+                  raise SystemExit(f"Stage2D9 executor exposes prohibited call {prohibited}")
+          PY
+      - name: Verify frozen and production paths are unchanged
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          git diff --exit-code "$BASE_SHA"...HEAD -- \
+            firmware/esphome_rc/f1_0_rc2/f1_0_rc2.yml \
+            firmware/esphome_rc/f1_0_rc2/packages \
+            firmware/esphome_rc/components/greenhouse_profile_isolated_device_driver \
+            firmware/esphome_rc/components/greenhouse_profile_isolated_device_g2_probe \
+            firmware/esphome_rc/board_lab/h3_profile_isolated_device_g2_probe
+
+  esp32-c6-compile:
+    needs: source-boundary
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install pinned ESPHome
+        run: python -m pip install -q "esphome==2026.4.3"
+      - name: Compile dedicated Stage 2D-9 locked harness
+        run: |
+          set -o pipefail
+          cd firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3_prepare
+          esphome config greenhouse_profile_isolated_device_g3_prepare_20260722_v65.yml \
+            2>&1 | tee /tmp/stage2d9-g3-locked-config-v65.log
+          esphome compile greenhouse_profile_isolated_device_g3_prepare_20260722_v65.yml \
+            2>&1 | tee /tmp/stage2d9-g3-locked-compile-v65.log
+      - name: Compile dedicated Stage 2D-9 executor with disabled command surface
+        run: |
+          set -o pipefail
+          cd firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3_prepare
+          esphome config greenhouse_profile_isolated_device_g3_executor_20260722_v66.yml \
+            2>&1 | tee /tmp/stage2d9-g3-executor-config-v66.log
+          esphome compile greenhouse_profile_isolated_device_g3_executor_20260722_v66.yml \
+            2>&1 | tee /tmp/stage2d9-g3-executor-compile-v66.log
+      - name: Compile full RC2 product-board executor compatibility target
+        run: |
+          set -o pipefail
+          cd firmware/esphome_rc/f1_0_rc2
+          RC2_CONFIG=f1_0_rc2_h3_profile_isolated_device_g3_executor_board_lab_20260722_v66.yml \
+            bash tools/rc2.sh config 2>&1 | tee /tmp/stage2d9-g3-product-config-v66.log
+          RC2_CONFIG=f1_0_rc2_h3_profile_isolated_device_g3_executor_board_lab_20260722_v66.yml \
+            bash tools/rc2.sh compile 2>&1 | tee /tmp/stage2d9-g3-product-compile-v66.log
+      - name: Verify compile results and no runtime secrets
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          paths = (
+              "/tmp/stage2d9-g3-locked-config-v65.log",
+              "/tmp/stage2d9-g3-locked-compile-v65.log",
+              "/tmp/stage2d9-g3-executor-config-v66.log",
+              "/tmp/stage2d9-g3-executor-compile-v66.log",
+              "/tmp/stage2d9-g3-product-config-v66.log",
+              "/tmp/stage2d9-g3-product-compile-v66.log",
+          )
+          logs = "\n".join(Path(path).read_text(encoding="utf-8", errors="replace") for path in paths)
+          if logs.count("INFO Successfully compiled program.") < 3:
+              raise SystemExit("all Stage2D9 compile targets did not complete")
+          for prohibited in (
+              "BEGIN PRIVATE KEY",
+              "BEGIN CERTIFICATE",
+              "mqtt_password",
+              "authorization_id=D2-",
+              "GH2D9_PREPARE_V1 ",
+              "GH2D9_VERIFY_V1 ",
+          ):
+              if prohibited in logs:
+                  raise SystemExit(f"credential-like compile output detected: {prohibited}")
+          PY
+      - name: Cleanup generated files
+        if: always()
+        run: |
+          rm -rf \
+            firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3_prepare/.esphome \
+            firmware/esphome_rc/f1_0_rc2/.esphome
+          rm -f /tmp/stage2d9-g3-*-v65.log /tmp/stage2d9-g3-*-v66.log

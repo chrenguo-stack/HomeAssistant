@@ -1,0 +1,122 @@
+{
+  "schema": "gh.h3.n2.stage2d9-g3-v69-d2-attempt2-physical-acceptance-l1/1",
+  "stage": "H3/N2 Stage 2D-9 G3",
+  "artifact_generation": "V69",
+  "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V69-20260723-02",
+  "result": "passed",
+  "attempt_timestamp_utc": "2026-07-23T07:45:06Z",
+  "source_sha": "30a15e39164bed4a5b96c50aa5e2e2e6f238c43b",
+  "implementation_source_binding": "f39c3c4c621717a61e0b3cef8b4ec88e59ac13aa",
+  "artifact": {
+    "workflow_run_id": 29974998633,
+    "artifact_id": 8551229663,
+    "artifact_zip_sha256": "21aa3383a26b66109408576040245dd60c17eb780b65de9847381b73cfb1506b",
+    "manifest_sha256": "6719413fc42b43be8dd939d5a7c9333bb04c6f9d143987a89a50d9c89b95c254",
+    "g3_merged_sha256": "8d99398277ac57680b23791afec67640c5d8e050f474e929cea7724b88b85dbc",
+    "recovery_merged_sha256": "244f33a9087e41ce8ce2d2b021b9f532336a9774b6ce4c118c28eac955135103",
+    "seed_sha256": "0ea36f26c5048f69b223884a13613fbd645b58c2ce42eafc6f9d9cd55bb089af",
+    "partition_sha256": "b3964cbbd811d5fa5866638585fa410b53fc74e70a8f92491f43fce0b7a70268"
+  },
+  "authorization": {
+    "review_package_sha256": "b358fcbe8b9e428d7ed5ab061537338928471705e0829022c2c5892a612573b0",
+    "execution_package_sha256": "33eda8fc28bf5d661000bb7dadaa12c9604a598a66e3073dace550fe0b2fc31b",
+    "authorization_json_sha256": "2d3683972b48f4b2701119495668eac6a4f0ddc8b2dcf13d02f247faa315082c",
+    "authorization_binding_sha256": "f43f4339b96226ee9c8932a97dad96238fe5da8a5b5650a0eb98f07a53a65ab5",
+    "operator_authorization_text_sha256": "fb27e0dd6e265934cbe2fc277aadfb6ce09277dbbace87fe08e1d3043371beae",
+    "issued": true,
+    "consumed": true,
+    "one_shot": true,
+    "replay_permitted": false,
+    "status": "consumed_passed_retired"
+  },
+  "private_bindings": {
+    "private_custody_file_sha256": "cfb8164056945869bf9f9e6e340f9e3280ea6d32e3db723df448e4c8a5f4ee5c",
+    "private_material_preparation_package_sha256": "196b86930e20b17ca3c023096205f543ffe6e92b2ef7e0c99c1fa6e93fc2e7c5",
+    "private_material_public_summary_sha256": "e5a95062cfa120855393a1c7836ea021531af6f7c151528038ddf9c9c51339bd",
+    "private_execution_material_sha256": "dac20c4282b1e99d4905ffc06d49f16061e225545540f76005b4e49483604d8a",
+    "prepare_command_sha256": "1418c78964f828b8e1a04316267c1b4a20ffa15ddc708324a8c369a226e396fc",
+    "verify_command_sha256": "8bc29d7fab94f3fae3f05b7e04b631b290eb8f9ff1eb3e14b875d9ee124a1d79",
+    "unlock_digest_sha256": "66ce4bd205e8c76159ad839e6f1115e990f18eab2e149427b243e9c5bd541e9e"
+  },
+  "execution": {
+    "preflight_status": "passed",
+    "destructive_boundary_entered": true,
+    "previous_v68_recovery_seed_match": true,
+    "erase_success": true,
+    "write_success": true,
+    "verify_flash_success": true,
+    "automatic_hard_reset_used": true,
+    "manual_reset_or_boot_used": false,
+    "prepare_command_sent_once": true,
+    "prepare_succeeded": true,
+    "firmware_automatic_restart_observed": true,
+    "verify_command_sent_once": true,
+    "verify_succeeded": true,
+    "persistent_write_count": 1,
+    "preprepare_matches_seed": true,
+    "postprepare_differs_seed": true,
+    "postprepare_differs_preprepare": true,
+    "recovery_performed": false,
+    "recovery_count": 0
+  },
+  "verified_state": {
+    "active_generation": 0,
+    "candidate_generation": 1,
+    "candidate_state": "PREPARED",
+    "candidate_digest_match": true,
+    "active_unchanged": true,
+    "final_board_state": "candidate_prepared_active_unchanged"
+  },
+  "private_evidence": {
+    "archive_sha256": "c863b504da6b48e9b8861efa853e2757b19679ab6c6d9ac42550cd0bb218b366",
+    "archive_mode": "0600",
+    "authorization_consumed_marker_sha256": "40f6ff90f8858c69c73243ce98aca1f82a43608c2befbb78667da7fb4014361c",
+    "private_summary_sha256": "5afcc02ac4096ef075ab852b8d8c9973a0c432623e7c60f9261e48de9cb6856b",
+    "prepare_serial_log_sha256": "c78cb9a81d0042a381f16d8f48ae83034bf2190d8d72d3bc5da045d2c303b946",
+    "verify_serial_log_sha256": "25789b23eb52b8199504b0b5c2fa0e4e9952b80e5ed3406926a33cc647a88368",
+    "l1_extraction": "passed"
+  },
+  "pre_destructive_fail_closed_events": {
+    "authorization_attempt1_issuance_failed_closed": true,
+    "attempt2_private_path_auto_locator_failed_closed": true,
+    "attempt2_usb_identity_absent_failed_closed": true,
+    "attempt2_duplicate_private_material_ambiguity_failed_closed": true,
+    "authorization_consumed_before_successful_run": false,
+    "destructive_boundary_entered_before_successful_run": false
+  },
+  "protected_boundaries": {
+    "second_prepare_executed": false,
+    "second_verify_executed": false,
+    "activate_profile_executed": false,
+    "cleanup_test_state_executed": false,
+    "mqtt_operation_attempted": false,
+    "network_operation_attempted": false,
+    "efuse_command_attempted": false,
+    "secure_boot_changed": false,
+    "flash_encryption_changed": false,
+    "production_environment_modified": false,
+    "stage2d8_d2_replayed": false,
+    "stage2d9_v67_d2_replayed": false,
+    "stage2d9_v68_d2_replayed": false,
+    "stage2d9_v69_attempt1_replayed": false
+  },
+  "privacy": {
+    "authorization_json_included": false,
+    "private_command_included": false,
+    "private_path_included": false,
+    "private_serial_path_included": false,
+    "raw_board_identifier_included": false,
+    "raw_private_log_included": false,
+    "secret_values_included": false
+  },
+  "disposition": {
+    "execution_gate": "CLOSED_CONSUMED_PASSED_NO_REPLAY",
+    "physical_acceptance": "passed",
+    "private_evidence_closure": "passed",
+    "authorization_retired": true,
+    "future_device_action_authorized": false,
+    "draft_pr_must_remain_draft": true,
+    "ready_merge_release_authorized": false,
+    "next_action": "complete public evidence and CI closure, then obtain an independent D4 decision before Ready or squash merge"
+  }
+}

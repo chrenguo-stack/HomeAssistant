@@ -1,0 +1,7 @@
+# H3/N2 Stage 2D-9 dedicated-board G3 partition table
+# ESP32-C6-WROOM-1-N8, 8 MB SPI flash
+# Name,         Type, SubType, Offset,   Size,      Flags
+nvs,            data, nvs,     0x9000,   0x6000,
+phy_init,       data, phy,     0xF000,   0x1000,
+factory,        app,  factory, 0x10000,  0x3F0000,
+gh2d8_p2d9,    data, nvs,     0x400000, 0x10000,
