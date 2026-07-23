@@ -1,11 +1,11 @@
 # H3/N2 Stage 2D-10 G4 ACTIVATE_PROFILE 状态
 
-- **状态版本：** V1.1
+- **状态版本：** V1.2
 - **更新日期：** 2026-07-23
 - **基线：** `main=25a21b38d470992b09c64820d46f56b39917f0dc`
 - **开发分支：** `feature/h3-n2-stage2d10-g4-activate-profile-20260723-v1`
 - **Draft PR：** `#175`
-- **阶段状态：** `portable_coordinator_implemented_ci_pending`
+- **阶段状态：** `portable_coordinator_implemented_host_ci_armed`
 - **执行门：** `LOCKED_SOURCE_AND_COMPILE_ONLY`
 
 ## 1. 已接受输入
@@ -55,7 +55,8 @@ MARKER_LAST_POSTCONDITION=implemented
 SESSION_PROMOTION_POSTCONDITION=implemented
 POST_REBOOT_READ_ONLY_VERIFY=implemented
 CLEANUP_ENTRYPOINT_PRESENT=false
-HOST_FAULT_MATRIX=committed_ci_pending
+HOST_FAULT_MATRIX=committed
+HOST_CI=armed
 ```
 
 ## 4. 当前进度
@@ -63,9 +64,9 @@ HOST_FAULT_MATRIX=committed_ci_pending
 ```text
 S0_BASELINE=complete
 S1_SCOPE_AND_ACCEPTANCE=complete
-S2_PORTABLE_COORDINATOR=implemented_ci_pending
-S3_PREFLIGHT_AND_BOUNDARY=ci_gate_committed_pending
-S4_COMPILE_ONLY_AND_CI=host_ci_pending_compile_only_not_started
+S2_PORTABLE_COORDINATOR=implemented_host_ci_armed
+S3_PREFLIGHT_AND_BOUNDARY=ci_gate_committed
+S4_COMPILE_ONLY_AND_CI=host_ci_armed_compile_only_not_started
 S5_EXECUTOR_AND_ISOLATED_BROKER=not_started
 S6_IMMUTABLE_CANDIDATE=not_started
 S7_USER_HOST_READ_ONLY=not_started
