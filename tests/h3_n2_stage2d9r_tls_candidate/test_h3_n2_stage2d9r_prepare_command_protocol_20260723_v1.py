@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+import sys
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -10,6 +11,7 @@ TOOL = ROOT / "tools" / "h3_n2_stage2d9r_prepare_command_protocol_20260723_v1.py
 spec = importlib.util.spec_from_file_location("stage2d9r_command", TOOL)
 assert spec is not None and spec.loader is not None
 protocol = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = protocol
 spec.loader.exec_module(protocol)
 
 VALID_CA_PEM = (
@@ -34,7 +36,10 @@ class Stage2D9RPrepareCommandProtocolTest(unittest.TestCase):
         expected = protocol.build_candidate(SUFFIX, AUTH, VALID_CA_PEM)
         self.assertEqual(parsed.run_suffix, SUFFIX)
         self.assertEqual(parsed.ca_pem, VALID_CA_PEM)
-        self.assertEqual(parsed.ca_pem_sha256, protocol.sha256_hex(VALID_CA_PEM.encode("ascii")))
+        self.assertEqual(
+            parsed.ca_pem_sha256,
+            protocol.sha256_hex(VALID_CA_PEM.encode("ascii")),
+        )
         self.assertEqual(parsed.candidate_digest, protocol.candidate_digest(expected))
 
     def test_verify_round_trip_without_ca_replay(self) -> None:
@@ -82,7 +87,9 @@ class Stage2D9RPrepareCommandProtocolTest(unittest.TestCase):
     def test_ca_length_is_bounded(self) -> None:
         for ca in (
             "-----BEGIN CERTIFICATE-----\nQQ==\n-----END CERTIFICATE-----\n",
-            "-----BEGIN CERTIFICATE-----\n" + ("A" * 64 + "\n") * 80 + "-----END CERTIFICATE-----\n",
+            "-----BEGIN CERTIFICATE-----\n"
+            + ("A" * 64 + "\n") * 80
+            + "-----END CERTIFICATE-----\n",
         ):
             with self.assertRaisesRegex(protocol.CommandError, "CA PEM length invalid"):
                 protocol.render_prepare(SUFFIX, UNLOCK, KEY, AUTH, ca)
@@ -92,9 +99,13 @@ class Stage2D9RPrepareCommandProtocolTest(unittest.TestCase):
             protocol.build_candidate(SUFFIX, AUTH, VALID_CA_PEM)
         )
         verify = protocol.render_verify(SUFFIX, UNLOCK, KEY, digest)
-        with self.assertRaisesRegex(protocol.CommandError, "PREPARE command shape invalid"):
+        with self.assertRaisesRegex(
+            protocol.CommandError, "PREPARE command shape invalid"
+        ):
             protocol.parse_prepare(verify, UNLOCK_DIGEST)
-        with self.assertRaisesRegex(protocol.CommandError, "VERIFY command shape invalid"):
+        with self.assertRaisesRegex(
+            protocol.CommandError, "VERIFY command shape invalid"
+        ):
             protocol.parse_verify(self.prepare(), UNLOCK_DIGEST)
 
     def test_zero_secrets_are_rejected(self) -> None:
