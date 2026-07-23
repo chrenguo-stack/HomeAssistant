@@ -1,0 +1,23 @@
+{
+  "schema": "gh.h3.n2.stage2d9-g3-v69-private-custody-l1/1",
+  "stage": "H3/N2 Stage 2D-9 G3",
+  "artifact_generation": "V69",
+  "status": "present_before_artifact_and_d2",
+  "unlock_digest_sha256": "66ce4bd205e8c76159ad839e6f1115e990f18eab2e149427b243e9c5bd541e9e",
+  "private_custody_file_sha256": "cfb8164056945869bf9f9e6e340f9e3280ea6d32e3db723df448e4c8a5f4ee5c",
+  "unlock_digest_match_verified": true,
+  "file_mode": "0600",
+  "material_in_git": false,
+  "material_in_artifact": false,
+  "execution_authorized": false,
+  "device_operation_authorized": false,
+  "artifact_workflow_run_id": 29974849406,
+  "artifact_status": "building",
+  "new_u1_required": true,
+  "new_d2_required": true,
+  "privacy": {
+    "unlock_preimage_included": false,
+    "secret_values_included": false,
+    "private_path_included": false
+  }
+}
