@@ -59,6 +59,12 @@ jobs:
               root / "stage2d10_g4_private_execution_descriptor_20260723_v1.json.template"
           ).read_text(encoding="utf-8")
 
+          broker_directives = "\n".join(
+              line.strip()
+              for line in broker.splitlines()
+              if line.strip() and not line.lstrip().startswith("#")
+          )
+
           for required in (
               "allow_anonymous false",
               "persistence false",
@@ -70,7 +76,7 @@ jobs:
               "<ABSOLUTE_PRIVATE_SERVER_CERT_FILE>",
               "<ABSOLUTE_PRIVATE_SERVER_KEY_FILE>",
           ):
-              assert required in broker, required
+              assert required in broker_directives, required
 
           for prohibited in (
               "allow_anonymous true",
@@ -80,7 +86,7 @@ jobs:
               "bridge ",
               "connection_messages false",
           ):
-              assert prohibited not in broker, prohibited
+              assert prohibited not in broker_directives, prohibited
 
           assert "user <TEST_USERNAME>" in acl
           assert "topic readwrite gh-test/<TEST_RUN_ID>/#" in acl
