@@ -1,0 +1,83 @@
+{
+  "schema": "gh.h3.n2.stage2d9-g3-v69-d2-attempt1-authorization-request/1",
+  "stage": "H3/N2 Stage 2D-9 G3",
+  "artifact_generation": "V69",
+  "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V69-20260723-01",
+  "status": "pending_operator_decision",
+  "execution_gate": "LOCKED_D2_OPERATOR_DECISION_REQUIRED",
+  "authorization_issued": false,
+  "execution_package_generated": false,
+  "execution_performed": false,
+  "replay_permitted": false,
+  "source_commit": "30a15e39164bed4a5b96c50aa5e2e2e6f238c43b",
+  "implementation_source_binding": "f39c3c4c621717a61e0b3cef8b4ec88e59ac13aa",
+  "artifact_zip_sha256": "21aa3383a26b66109408576040245dd60c17eb780b65de9847381b73cfb1506b",
+  "manifest_sha256": "6719413fc42b43be8dd939d5a7c9333bb04c6f9d143987a89a50d9c89b95c254",
+  "g3_merged_sha256": "8d99398277ac57680b23791afec67640c5d8e050f474e929cea7724b88b85dbc",
+  "recovery_merged_sha256": "244f33a9087e41ce8ce2d2b021b9f532336a9774b6ce4c118c28eac955135103",
+  "seed_sha256": "0ea36f26c5048f69b223884a13613fbd645b58c2ce42eafc6f9d9cd55bb089af",
+  "partition_sha256": "b3964cbbd811d5fa5866638585fa410b53fc74e70a8f92491f43fce0b7a70268",
+  "unlock_digest_sha256": "66ce4bd205e8c76159ad839e6f1115e990f18eab2e149427b243e9c5bd541e9e",
+  "private_custody_file_sha256": "cfb8164056945869bf9f9e6e340f9e3280ea6d32e3db723df448e4c8a5f4ee5c",
+  "review_package": {
+    "sha256": "5e7b13dc3e804698f216542b17f4d481a9f8a05285c5c3e6a4475ef1e44e379e",
+    "size": 19501,
+    "execution_script_sha256": "a24eae615513151437ea1e341259b9cb0ace18a5c8d471788fd22391d9d5083a",
+    "launcher_sha256": "870dfa36eee48b397963cc6cab329b52a0a50940052da4672f2d46e499e07163",
+    "command_group_sha256": "714d6548d15c1fc5c4b8ce11559606e08cd8db36a41bb9e34096adabdf54e9ed",
+    "stop_conditions_sha256": "d4b93890f952ee37ab95b1abfa45f20681a71cec73c405e1720228e3434f79da",
+    "review_self_test": "passed",
+    "board_accessed": false,
+    "serial_access_attempted": false,
+    "flash_operation_attempted": false,
+    "network_operation_attempted": false,
+    "production_environment_modified": false
+  },
+  "private_bindings": {
+    "private_execution_material_sha256": "1f0924aa6148c66abf94930c51c71fc3a79f4baf75919a821f19dbca5f28292f",
+    "prepare_command_sha256": "baaecb7ea5ec3297e338739daa16ca6e92f1a1bab0f87622ddf7af967c7c7bd6",
+    "verify_command_sha256": "3b02cd815b819aeadd3b6357921c5e9d0bcd4a7f7e9ca194dbd83c13fbfcc06e",
+    "secret_values_included": false,
+    "private_paths_included": false,
+    "raw_board_identifier_included": false
+  },
+  "u1": {
+    "status": "passed",
+    "timestamp_utc": "2026-07-23T03:28:26Z",
+    "package_sha256": "8dfd73abf0f3dc1d526658ce9987a71b9d3fd0ab291eacbc08a851928d365782",
+    "private_custody_installed": true,
+    "private_custody_preserved": true
+  },
+  "scope": {
+    "allowed_after_separate_authorization": [
+      "exact host and binding preflight",
+      "read-only V68 locked-recovery seed continuity check",
+      "one V69 erase, write and Flash verification",
+      "one automatic hard reset",
+      "one GH2D9_PREPARE_V2 command",
+      "one GH2D9_VERIFY_V2 read-only command after automatic restart",
+      "private pre/post partition readback",
+      "at most one locked recovery after destructive failure"
+    ],
+    "prohibited": [
+      "any Stage2D8, V67 or V68 authorization replay",
+      "second PREPARE or VERIFY",
+      "manual RESET or BOOT action",
+      "ACTIVATE_PROFILE",
+      "CLEANUP_TEST_STATE",
+      "Wi-Fi, MQTT or Broker access",
+      "eFuse, Secure Boot or Flash Encryption operation",
+      "M401A, T1, Home Assistant, Mosquitto or greenhouse-manager operation",
+      "Ready, merge or release"
+    ]
+  },
+  "authorization_policy": {
+    "one_shot": true,
+    "replay_permitted": false,
+    "validity_after_issue_seconds": 7200,
+    "allowed_recovery_count": 1,
+    "manual_button_action_authorized": false
+  },
+  "operator_decision_required": true,
+  "device_reconnect_authorized": false
+}
