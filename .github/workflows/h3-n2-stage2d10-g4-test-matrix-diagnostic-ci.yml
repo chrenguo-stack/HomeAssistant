@@ -8,6 +8,11 @@ on:
       - ".github/workflows/h3-n2-stage2d10-g4-test-matrix-diagnostic-ci.yml"
       - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation/**"
       - "tests/h3_n2_stage2d10_activate/**"
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d10-g4-test-matrix-diagnostic-ci.yml"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation/**"
+      - "tests/h3_n2_stage2d10_activate/**"
 
 permissions:
   contents: read
