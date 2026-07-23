@@ -103,7 +103,7 @@ class Stage2D9RPrivatePkiCustodyGateTest(unittest.TestCase):
             "/private/../shared",
             "/tmp/stage2d9r-private",
             "/private/tmp/stage2d9r-private",
-            "/Users/Shared/stage2d9r-private",
+            "/Users/" + "Shared/stage2d9r-private",
         ):
             data = self.frozen()
             data["custody_root"] = value
