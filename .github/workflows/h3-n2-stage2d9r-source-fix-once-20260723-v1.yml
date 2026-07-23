@@ -1,5 +1,6 @@
 name: H3 N2 Stage2D9R Source Fix Once 20260723 V1
 
+# One-shot source correction. The successful job deletes this workflow.
 on:
   push:
     branches:
