@@ -1,8 +1,8 @@
 {
-  "schema": "gh.h3.n2.stage2d9-g3-v69-private-custody-l1/2",
+  "schema": "gh.h3.n2.stage2d9-g3-v69-private-custody-l1/3",
   "stage": "H3/N2 Stage 2D-9 G3",
   "artifact_generation": "V69",
-  "status": "artifact_frozen_waiting_user_host_u1_installation",
+  "status": "installed_and_verified_by_user_host_u1",
   "unlock_digest_sha256": "66ce4bd205e8c76159ad839e6f1115e990f18eab2e149427b243e9c5bd541e9e",
   "private_custody_file_sha256": "cfb8164056945869bf9f9e6e340f9e3280ea6d32e3db723df448e4c8a5f4ee5c",
   "unlock_digest_match_verified": true,
@@ -17,14 +17,20 @@
   "artifact_zip_sha256": "21aa3383a26b66109408576040245dd60c17eb780b65de9847381b73cfb1506b",
   "artifact_status": "passed_frozen",
   "u1_package_sha256": "8dfd73abf0f3dc1d526658ce9987a71b9d3fd0ab291eacbc08a851928d365782",
+  "u1_script_sha256": "7b5a5cf443ec5f491a411391be27c6bf4ef383280ef2094ecad923d3475b07d5",
   "u1_isolated_self_test": "passed",
-  "operator_installation_status": "pending_user_host_u1",
-  "new_u1_required": true,
+  "u1_user_host_result": "passed",
+  "u1_user_host_timestamp_utc": "2026-07-23T03:28:26Z",
+  "operator_installation_status": "passed",
+  "private_custody_preserved": true,
+  "new_u1_required": false,
   "new_d2_required": true,
-  "d2_request_present": false,
+  "d2_request_id": "D2-H3N2-STAGE2D9-G3-V69-20260723-01",
+  "d2_request_status": "pending_operator_decision",
   "privacy": {
     "unlock_preimage_included": false,
     "secret_values_included": false,
-    "private_path_included": false
+    "private_path_included": false,
+    "raw_log_included": false
   }
 }
