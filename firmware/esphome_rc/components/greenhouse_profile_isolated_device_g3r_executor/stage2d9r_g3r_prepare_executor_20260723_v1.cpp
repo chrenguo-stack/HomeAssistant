@@ -167,9 +167,11 @@ bool Stage2D9RG3RPrepareExecutorV1::validate_ca_pem_(
   const int parsed =
       mbedtls_x509_crt_parse(&certificate, terminated.data(), terminated.size());
   std::fill(terminated.begin(), terminated.end(), 0);
-  const bool valid = parsed == 0 && certificate.raw.len > 0 &&
-                     certificate.next == nullptr && certificate.ca_istrue != 0 &&
-                     (certificate.key_usage & MBEDTLS_X509_KU_KEY_CERT_SIGN) != 0;
+  const bool valid =
+      parsed == 0 && certificate.raw.len > 0 && certificate.next == nullptr &&
+      mbedtls_x509_crt_get_ca_istrue(&certificate) == 1 &&
+      mbedtls_x509_crt_check_key_usage(
+          &certificate, MBEDTLS_X509_KU_KEY_CERT_SIGN) == 0;
   mbedtls_x509_crt_free(&certificate);
   return valid;
 }
@@ -527,16 +529,14 @@ bool Stage2D9RG3RPrepareExecutorV1::execute_prepare_(
     config.clear();
     return this->fail_step_("prepare_config_invalid");
   }
+  if (!this->package_.load_test_configuration(std::move(config))) {
+    config.clear();
+    return this->fail_step_("prepare_config_load");
+  }
   if (!this->authorization_binder_.grant(
           IsolatedAcceptanceWriteOperation::PREPARE_CANDIDATE, 0, 1,
           envelope->authorization_digest)) {
-    config.clear();
     return this->fail_step_("prepare_authorization_grant");
-  }
-  if (!this->package_.load_test_configuration(std::move(config))) {
-    config.clear();
-    this->authorization_binder_.clear();
-    return this->fail_step_("prepare_config_load");
   }
 
   const bool prepared = this->package_.prepare_candidate();
@@ -690,6 +690,10 @@ void Stage2D9RG3RPrepareExecutorV1::wipe_runtime_() {
   this->mqtt_.quiesce();
   this->persistence_.quiesce();
   this->test_key_provider_.destroy();
+  (void) this->package_.configure(
+      &this->driver_, &this->test_key_provider_, &this->evidence_sink_);
+  (void) this->authorization_binder_.configure(
+      &this->package_, &this->driver_);
   secure_clear(&this->input_buffer_);
 }
 
