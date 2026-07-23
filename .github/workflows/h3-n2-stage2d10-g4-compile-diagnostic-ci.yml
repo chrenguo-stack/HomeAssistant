@@ -1,6 +1,11 @@
 name: H3 N2 Stage2D10 G4 Compile Diagnostic CI
 
 on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d10-g4-compile-diagnostic-ci.yml"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation/**"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g4_activation/**"
   push:
     branches:
       - feature/h3-n2-stage2d10-g4-activate-profile-20260723-v1
