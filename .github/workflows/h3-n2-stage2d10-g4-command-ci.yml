@@ -7,6 +7,7 @@ on:
       - "tools/h3_n2_stage2d10_g4_command_protocol_20260723_v1.py"
       - "tests/h3_n2_stage2d10_activate/test_stage2d10_g4_command_protocol_20260723_v1.py"
       - "tests/h3_n2_stage2d10_activate/stage2d10_g4_command_codec_fault_matrix_20260723_v1.cpp"
+      - "tests/h3_n2_stage2d10_activate/stage2d10_g4_command_codec_fault_matrix_runner_20260723_v2.cpp"
       - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation/stage2d10_g4_command_codec.*"
   push:
     branches:
@@ -17,6 +18,7 @@ on:
       - "tools/h3_n2_stage2d10_g4_command_protocol_20260723_v1.py"
       - "tests/h3_n2_stage2d10_activate/test_stage2d10_g4_command_protocol_20260723_v1.py"
       - "tests/h3_n2_stage2d10_activate/stage2d10_g4_command_codec_fault_matrix_20260723_v1.cpp"
+      - "tests/h3_n2_stage2d10_activate/stage2d10_g4_command_codec_fault_matrix_runner_20260723_v2.cpp"
       - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation/stage2d10_g4_command_codec.*"
 
 permissions:
@@ -42,25 +44,26 @@ jobs:
         run: |
           set -euo pipefail
           python tests/h3_n2_stage2d10_activate/test_stage2d10_g4_command_protocol_20260723_v1.py \
-            -v 2>&1 | tee /tmp/stage2d10-g4-command-python-v1.log
-          grep -F 'Ran 9 tests' /tmp/stage2d10-g4-command-python-v1.log
-          grep -F 'OK' /tmp/stage2d10-g4-command-python-v1.log
+            -v 2>&1 | tee /tmp/stage2d10-g4-command-python-v2.log
+          grep -F 'Ran 9 tests' /tmp/stage2d10-g4-command-python-v2.log
+          grep -F 'OK' /tmp/stage2d10-g4-command-python-v2.log
       - name: Compile and run C++ command codec fault matrix
         run: |
           set -euo pipefail
           pairing=firmware/esphome_rc/components/greenhouse_pairing_client
           g4=firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation
-          test=tests/h3_n2_stage2d10_activate/stage2d10_g4_command_codec_fault_matrix_20260723_v1.cpp
+          tests=tests/h3_n2_stage2d10_activate
+          test=$tests/stage2d10_g4_command_codec_fault_matrix_runner_20260723_v2.cpp
           g++ -std=gnu++20 -Wall -Wextra -Wpedantic -Werror \
-            -I "$pairing" -I "$g4" \
+            -I "$pairing" -I "$g4" -I "$tests" \
             "$pairing/secure_pairing_channel_encoding.cpp" \
             "$g4/stage2d10_g4_command_codec.cpp" \
             "$test" -lcrypto \
-            -o /tmp/stage2d10-g4-command-codec-v1
-          /tmp/stage2d10-g4-command-codec-v1 \
-            | tee /tmp/stage2d10-g4-command-cpp-v1.log
+            -o /tmp/stage2d10-g4-command-codec-v2
+          /tmp/stage2d10-g4-command-codec-v2 \
+            | tee /tmp/stage2d10-g4-command-cpp-v2.log
           grep -Fx 'stage2d10_g4_command_codec_fault_matrix=pass' \
-            /tmp/stage2d10-g4-command-cpp-v1.log
+            /tmp/stage2d10-g4-command-cpp-v2.log
       - name: Verify parsers expose no PREPARE or CLEANUP command
         run: |
           set -euo pipefail
@@ -98,12 +101,12 @@ jobs:
         run: |
           set -euo pipefail
           cat \
-            /tmp/stage2d10-g4-command-python-v1.log \
-            /tmp/stage2d10-g4-command-cpp-v1.log \
-            > /tmp/stage2d10-g4-command-combined-v1.log
+            /tmp/stage2d10-g4-command-python-v2.log \
+            /tmp/stage2d10-g4-command-cpp-v2.log \
+            > /tmp/stage2d10-g4-command-combined-v2.log
           if grep -Eqi \
               'stage2d10-private-password|1111111111111111|2222222222222222|BEGIN CERTIFICATE|gh-stage2d10-test' \
-              /tmp/stage2d10-g4-command-combined-v1.log; then
+              /tmp/stage2d10-g4-command-combined-v2.log; then
             echo 'private command material leaked to test output' >&2
             exit 1
           fi
@@ -111,7 +114,7 @@ jobs:
         if: always()
         run: |
           rm -f \
-            /tmp/stage2d10-g4-command-python-v1.log \
-            /tmp/stage2d10-g4-command-cpp-v1.log \
-            /tmp/stage2d10-g4-command-combined-v1.log \
-            /tmp/stage2d10-g4-command-codec-v1
+            /tmp/stage2d10-g4-command-python-v2.log \
+            /tmp/stage2d10-g4-command-cpp-v2.log \
+            /tmp/stage2d10-g4-command-combined-v2.log \
+            /tmp/stage2d10-g4-command-codec-v2
