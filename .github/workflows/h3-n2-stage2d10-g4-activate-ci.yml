@@ -46,6 +46,26 @@ jobs:
           fetch-depth: 0
           show-progress: false
 
+      - name: Compile Stage 2D-10 Python gates
+        run: |
+          python -m py_compile \
+            tools/h3_n2_stage2d10_g4_manifest_gate_20260723_v1.py
+
+      - name: Verify default G4 manifest remains locked
+        run: |
+          python tools/h3_n2_stage2d10_g4_manifest_gate_20260723_v1.py \
+            --manifest tests/h3_n2_stage2d10_activate/stage2d10_g4_execution_manifest_template_20260723_v1.json \
+            --expect-gate LOCKED \
+            | tee /tmp/stage2d10-g4-manifest-v1.log
+          grep -Fx 'STAGE2D10_G4_MANIFEST_GATE=PASS' \
+            /tmp/stage2d10-g4-manifest-v1.log
+          grep -Fx 'EXECUTION_AUTHORIZED=false' \
+            /tmp/stage2d10-g4-manifest-v1.log
+          grep -Fx 'PREPARE_CANDIDATE_AUTHORIZED=false' \
+            /tmp/stage2d10-g4-manifest-v1.log
+          grep -Fx 'CLEANUP_TEST_STATE_AUTHORIZED=false' \
+            /tmp/stage2d10-g4-manifest-v1.log
+
       - name: Compile and run Stage 2D-10 G4 fault matrix
         run: |
           set -euo pipefail
@@ -53,7 +73,7 @@ jobs:
           package=firmware/esphome_rc/components/greenhouse_profile_isolated_acceptance
           driver=firmware/esphome_rc/components/greenhouse_profile_isolated_device_driver
           g4=firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation
-          test=tests/h3_n2_stage2d10_activate/stage2d10_g4_activation_fault_matrix_20260723_v1.cpp
+          test=tests/h3_n2_stage2d10_activate/stage2d10_g4_activation_fault_matrix_runner_20260723_v2.cpp
           g++ -std=gnu++20 -Wall -Wextra -Wpedantic -Werror \
             -I "$pairing" -I "$package" -I "$driver" -I "$g4" \
             "$pairing/pairing_client_core.cpp" \
@@ -66,13 +86,13 @@ jobs:
             "$g4/stage2d10_g4_activation_coordinator.cpp" \
             "$test" \
             -lcrypto \
-            -o /tmp/stage2d10-g4-activation-fault-matrix-v1
-          /tmp/stage2d10-g4-activation-fault-matrix-v1 \
-            | tee /tmp/stage2d10-g4-host-v1.log
+            -o /tmp/stage2d10-g4-activation-fault-matrix-v2
+          /tmp/stage2d10-g4-activation-fault-matrix-v2 \
+            | tee /tmp/stage2d10-g4-host-v2.log
           grep -Fx 'stage2d10_g4_activation_fault_matrix=pass' \
-            /tmp/stage2d10-g4-host-v1.log
+            /tmp/stage2d10-g4-host-v2.log
           if grep -Eqi 'broker\.stage2d10|stage2d10-test-password|BEGIN CERTIFICATE|aaaaaaaaaaaaaaaa' \
-              /tmp/stage2d10-g4-host-v1.log; then
+              /tmp/stage2d10-g4-host-v2.log; then
             echo 'credential-like host output detected' >&2
             exit 1
           fi
@@ -96,6 +116,10 @@ jobs:
           test = Path(
               "tests/h3_n2_stage2d10_activate/"
               "stage2d10_g4_activation_fault_matrix_20260723_v1.cpp"
+          ).read_text(encoding="utf-8")
+          runner = Path(
+              "tests/h3_n2_stage2d10_activate/"
+              "stage2d10_g4_activation_fault_matrix_runner_20260723_v2.cpp"
           ).read_text(encoding="utf-8")
           protocol = Path(
               "protocols/pairing/gh-h3-node-stage2d10-g4-activate-v1.md"
@@ -138,12 +162,20 @@ jobs:
               "test_clear_commit_failure_rolls_back_prepared",
               "test_marker_ambiguity_and_marker_last_failure_are_terminal",
               "test_success_and_authorization_non_replay",
-              "test_post_reboot_read_only_verification",
               "persistence.prepare_calls == 0",
               "persistence.cleanup_calls == 0",
           )
           for token in required_tests:
               assert token in test, token
+
+          required_runner = (
+              "test_post_reboot_read_only_verification_fresh_process",
+              "activation.coordinator.quiesce_for_reboot()",
+              "activation.persistence.write_count = 0",
+              "activation.persistence.marker_committed = false",
+          )
+          for token in required_runner:
+              assert token in runner, token
 
           assert "CLEANUP_TEST_STATE is outside this stage" in protocol
           assert "Physical execution requires a new immutable G4 candidate" in protocol
@@ -155,14 +187,14 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
-          git diff --name-only "$BASE_SHA"...HEAD > /tmp/stage2d10-paths-v1.txt
+          git diff --name-only "$BASE_SHA"...HEAD > /tmp/stage2d10-paths-v2.txt
           if grep -E '(^|/)f1_0_rc2\.yml$|^firmware/esphome_rc/f1_0_rc2/packages/' \
-              /tmp/stage2d10-paths-v1.txt; then
+              /tmp/stage2d10-paths-v2.txt; then
             echo 'Stage 2D-10 changed a protected production firmware path' >&2
             exit 1
           fi
           if grep -E '^host/|^deploy/|^infra/|M401A|T1' \
-              /tmp/stage2d10-paths-v1.txt; then
+              /tmp/stage2d10-paths-v2.txt; then
             echo 'Stage 2D-10 changed a protected host or production path' >&2
             exit 1
           fi
@@ -188,6 +220,7 @@ jobs:
         if: always()
         run: |
           rm -f \
-            /tmp/stage2d10-g4-activation-fault-matrix-v1 \
-            /tmp/stage2d10-g4-host-v1.log \
-            /tmp/stage2d10-paths-v1.txt
+            /tmp/stage2d10-g4-activation-fault-matrix-v2 \
+            /tmp/stage2d10-g4-host-v2.log \
+            /tmp/stage2d10-g4-manifest-v1.log \
+            /tmp/stage2d10-paths-v2.txt
