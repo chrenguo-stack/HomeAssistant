@@ -19,6 +19,18 @@ HEX64 = re.compile(r"^[0-9a-f]{64}$")
 SUFFIX = re.compile(r"^[a-z0-9]{8,24}$")
 PLACEHOLDER = re.compile(r"<[^>]+>")
 
+TOOLCHAIN_HASHES = (
+    "generator_sha256",
+    "python_executable_sha256",
+    "openssl_executable_sha256",
+    "mosquitto_passwd_executable_sha256",
+)
+TOOLCHAIN_VERSIONS = (
+    "python_version",
+    "openssl_version",
+    "mosquitto_passwd_version",
+)
+
 MATERIALS = {
     "root_ca_private_key": "root-ca.key.pem",
     "root_ca_certificate": "root-ca.cert.pem",
@@ -81,7 +93,26 @@ def has_placeholder(value: object) -> bool:
 def absolute_private_path(value: object) -> bool:
     text = str(value)
     path = PurePosixPath(text)
-    return path.is_absolute() and PLACEHOLDER.search(text) is None and ".." not in path.parts
+    if not path.is_absolute() or PLACEHOLDER.search(text) is not None or ".." in path.parts:
+        return False
+    for shared in (PurePosixPath("/tmp"), PurePosixPath("/private/tmp"), PurePosixPath("/Users/Shared")):
+        try:
+            path.relative_to(shared)
+        except ValueError:
+            continue
+        return False
+    return True
+
+
+def bounded_version(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and bool(value.strip())
+        and len(value) <= 240
+        and "\n" not in value
+        and "\r" not in value
+        and PLACEHOLDER.search(value) is None
+    )
 
 
 def validate(data: dict[str, Any], expected_state: str | None = None) -> str:
@@ -97,27 +128,34 @@ def validate(data: dict[str, Any], expected_state: str | None = None) -> str:
     require(data.get("broker_tls_server_name") == HOST, "TLS server name mismatch")
     require(data.get("dns_san") == [HOST], "DNS SAN mismatch")
     suffix = data.get("test_run_suffix")
-    require(isinstance(suffix, str) and SUFFIX.fullmatch(suffix) is not None,
-            "test_run_suffix invalid")
+    require(
+        isinstance(suffix, str) and SUFFIX.fullmatch(suffix) is not None,
+        "test_run_suffix invalid",
+    )
     require(data.get("custody_root_mode") == "0700", "custody root mode mismatch")
     for key in FALSE_FLAGS:
         require(data.get(key) is False, f"{key} must be false")
-    require(data.get("private_values_included") is False,
-            "descriptor must not include private values")
+    require(
+        data.get("private_values_included") is False,
+        "descriptor must not include private values",
+    )
 
     authorization = object_at(data, "authorization")
-    require(authorization.get("operation") == "GENERATE_PRIVATE_TEST_PKI",
-            "authorization operation mismatch")
+    require(
+        authorization.get("operation") == "GENERATE_PRIVATE_TEST_PKI",
+        "authorization operation mismatch",
+    )
     require(authorization.get("one_shot") is True, "authorization must be one-shot")
-    require(authorization.get("replay_permitted") is False,
-            "authorization replay must be false")
+    require(
+        authorization.get("replay_permitted") is False,
+        "authorization replay must be false",
+    )
 
     materials = object_at(data, "materials")
     require(set(materials) == set(MATERIALS), "material set mismatch")
     for name, relative_path in MATERIALS.items():
         item = object_at(materials, name)
-        require(item.get("relative_path") == relative_path,
-                f"{name} relative path mismatch")
+        require(item.get("relative_path") == relative_path, f"{name} relative path mismatch")
         require(item.get("mode") == "0600", f"{name} mode mismatch")
 
     proofs = object_at(data, "offline_proofs")
@@ -125,49 +163,69 @@ def validate(data: dict[str, Any], expected_state: str | None = None) -> str:
 
     if state == LOCKED:
         require(has_placeholder(data), "locked template must retain placeholders")
-        require(authorization.get("authorization_id") is None,
-                "locked template authorization id must be null")
-        require(authorization.get("authorized") is False,
-                "locked template must not be authorized")
-        require(authorization.get("consumed") is False,
-                "locked template must not be consumed")
-        require(authorization.get("record_sha256") is None,
-                "locked template authorization digest must be null")
+        require(
+            authorization.get("authorization_id") is None,
+            "locked template authorization id must be null",
+        )
+        require(
+            authorization.get("authorized") is False,
+            "locked template must not be authorized",
+        )
+        require(
+            authorization.get("consumed") is False,
+            "locked template must not be consumed",
+        )
+        require(
+            authorization.get("record_sha256") is None,
+            "locked template authorization digest must be null",
+        )
         for key in PROOFS:
             require(proofs.get(key) is False, f"{key} must be false while locked")
         return LOCKED
 
     require(not has_placeholder(data), "frozen descriptor has placeholders")
-    require(HEX40.fullmatch(str(data.get("source_sha"))) is not None,
-            "source_sha invalid")
+    require(
+        HEX40.fullmatch(str(data.get("source_sha"))) is not None,
+        "source_sha invalid",
+    )
     for key in (
-        "generator_sha256",
-        "openssl_executable_sha256",
+        *TOOLCHAIN_HASHES,
         "package_sha256",
         "public_descriptor_sha256",
         "candidate_digest_sha256",
     ):
         require(HEX64.fullmatch(str(data.get(key))) is not None, f"{key} invalid")
-    require(isinstance(data.get("openssl_version"), str) and
-            bool(str(data.get("openssl_version")).strip()),
-            "openssl_version invalid")
-    require(absolute_private_path(data.get("custody_root")),
-            "custody_root must be an absolute private path")
+    for key in TOOLCHAIN_VERSIONS:
+        require(bounded_version(data.get(key)), f"{key} invalid")
+    require(
+        absolute_private_path(data.get("custody_root")),
+        "custody_root must be an absolute private path",
+    )
 
-    require(isinstance(authorization.get("authorization_id"), str) and
-            str(authorization.get("authorization_id")).startswith("U1-"),
-            "authorization id invalid")
-    require(authorization.get("authorized") is True,
-            "frozen PKI must record generation authorization")
-    require(authorization.get("consumed") is True,
-            "frozen PKI must record consumed authorization")
-    require(HEX64.fullmatch(str(authorization.get("record_sha256"))) is not None,
-            "authorization record digest invalid")
+    require(
+        isinstance(authorization.get("authorization_id"), str)
+        and str(authorization.get("authorization_id")).startswith("U1-"),
+        "authorization id invalid",
+    )
+    require(
+        authorization.get("authorized") is True,
+        "frozen PKI must record generation authorization",
+    )
+    require(
+        authorization.get("consumed") is True,
+        "frozen PKI must record consumed authorization",
+    )
+    require(
+        HEX64.fullmatch(str(authorization.get("record_sha256"))) is not None,
+        "authorization record digest invalid",
+    )
 
     for name in MATERIALS:
         item = object_at(materials, name)
-        require(HEX64.fullmatch(str(item.get("sha256"))) is not None,
-                f"{name} sha256 invalid")
+        require(
+            HEX64.fullmatch(str(item.get("sha256"))) is not None,
+            f"{name} sha256 invalid",
+        )
     for key in PROOFS:
         require(proofs.get(key) is True, f"{key} must be true when frozen")
     return FROZEN
