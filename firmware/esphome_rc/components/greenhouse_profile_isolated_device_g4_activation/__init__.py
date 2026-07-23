@@ -33,6 +33,8 @@ def _execution_gate(value: object) -> str:
 
 AUTO_LOAD = [
     "greenhouse_pairing_client",
+    "greenhouse_profile_production_adapters",
+    "greenhouse_profile_lifecycle_controller",
     "greenhouse_profile_isolated_acceptance",
     "greenhouse_profile_isolated_device_driver",
 ]
