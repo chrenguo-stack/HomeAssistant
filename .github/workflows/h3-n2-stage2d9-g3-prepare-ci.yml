@@ -52,6 +52,7 @@ jobs:
             tools/h3_n2_stage2d9_g3_reproducibility_gate_20260723_v68.py \
             tools/h3_n2_stage2d9_g3_artifact_packager_20260723_v68.py \
             tools/h3_n2_stage2d9_g3_u1_artifact_verify_20260723_v2.py \
+            tools/h3_n2_stage2d9_v68_root_cause_gate_20260723_v1.py \
             tests/h3_n2_stage2d9_prepare/test_stage2d9_prepare_model_20260722_v1.py \
             tests/h3_n2_stage2d9_prepare/test_stage2d9_prepare_command_protocol_20260722_v1.py
       - name: Run host fault matrices
@@ -65,7 +66,30 @@ jobs:
           python tools/h3_n2_stage2d9_prepare_manifest_gate_20260722_v1.py \
             --manifest tests/h3_n2_stage2d9_prepare/stage2d9_prepare_manifest_template_20260722_v1.json \
             --expect-gate LOCKED
-      - name: Verify consumed failed V68 attempt and read-only evidence gate
+      - name: Prove V68 source root cause
+        run: |
+          python tools/h3_n2_stage2d9_v68_root_cause_gate_20260723_v1.py \
+            --repo-root . \
+            --output /tmp/stage2d9-v68-root-cause.json
+          grep -F '"root_cause": "candidate_host_contract_mismatch"' \
+            /tmp/stage2d9-v68-root-cause.json
+          grep -F '"mqtt_in_prepare_call_path": false' \
+            /tmp/stage2d9-v68-root-cause.json
+      - name: Compile and run actual credential host-contract test
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror -I. \
+            tests/h3_n2_stage2d9_prepare/stage2d9_v68_host_contract_root_cause_20260723_v1.cpp \
+            firmware/esphome_rc/components/greenhouse_pairing_client/pairing_client_core.cpp \
+            firmware/esphome_rc/components/greenhouse_pairing_client/pairing_ram_credentials.cpp \
+            -o /tmp/stage2d9-v68-root-cause-test
+          /tmp/stage2d9-v68-root-cause-test | tee /tmp/stage2d9-v68-root-cause-test.log
+          grep -F 'STAGE2D9_V68_INVALID_HOST_REJECTED=true' \
+            /tmp/stage2d9-v68-root-cause-test.log
+          grep -F 'STAGE2D9_V69_LOCAL_HOST_ACCEPTED=true' \
+            /tmp/stage2d9-v68-root-cause-test.log
+          grep -F 'STAGE2D9_V68_ROOT_CAUSE_TEST=PASS' \
+            /tmp/stage2d9-v68-root-cause-test.log
+      - name: Verify failed V68 attempt, recovery closure and closed gate
         run: |
           python - <<'PY'
           import json
@@ -77,60 +101,60 @@ jobs:
           public = load("docs/acceptance/h3-n2-stage2d9-g3-public-manifest-v1.json")
           request = load("docs/acceptance/h3-n2-stage2d9-g3-v68-d2-attempt1-authorization-request-v1.json")
           failure = load("docs/acceptance/h3-n2-stage2d9-g3-v68-d2-attempt1-failure-l1-v1.json")
+          u2 = load("docs/acceptance/h3-n2-stage2d9-g3-v68-d2-attempt1-u2-private-detail-l1-v1.json")
           acceptance = load("docs/acceptance/h3-n2-stage2d9-g3-acceptance-template-v1.json")
           index = load("docs/acceptance/h3-n2-stage2d9-g3-d2-authorization-request-index-v1.json")
           template = load("tests/h3_n2_stage2d9_prepare/stage2d9_prepare_manifest_template_20260722_v1.json")
 
+          gate = "CLOSED_CONSUMED_FAILED_RECOVERY_VERIFIED_NO_REPLAY"
           request_id = "D2-H3N2-STAGE2D9-G3-V68-20260723-01"
-          archive_sha = "c2a0686e7a52774531c53a674e889f50c8bdef37ee7ea67903dd24c989059321"
+          seed = "0ea36f26c5048f69b223884a13613fbd645b58c2ce42eafc6f9d9cd55bb089af"
 
-          assert public["status"] == "v68_physical_prepare_failed_recovery_performed_pending_private_detail"
-          assert public["execution_gate"] == "CLOSED_CONSUMED_FAILED_NO_REPLAY"
+          assert public["status"] == "v68_physical_prepare_failed_recovery_verified_evidence_closed_source_diagnostic"
+          assert public["execution_gate"] == gate
           assert public["active_d2_request_id"] is None
           assert public["v68_d2_attempt1"]["authorization_request_id"] == request_id
-          assert public["v68_d2_attempt1"]["authorization_consumed"] is True
-          assert public["v68_d2_attempt1"]["destructive_boundary_entered"] is True
-          assert public["v68_d2_attempt1"]["failure_stage"] == "prepare_serial"
-          assert public["v68_d2_attempt1"]["prepare_command_send_attempt_observed"] is True
+          assert public["v68_d2_attempt1"]["erase_success"] is True
+          assert public["v68_d2_attempt1"]["write_success"] is True
+          assert public["v68_d2_attempt1"]["verify_flash_success"] is True
           assert public["v68_d2_attempt1"]["prepare_succeeded"] is False
           assert public["v68_d2_attempt1"]["verify_command_sent"] is False
-          assert public["v68_d2_attempt1"]["recovery_performed"] is True
-          assert public["v68_d2_attempt1"]["recovery_count"] == 1
-          assert public["v68_d2_attempt1"]["private_evidence_archive_sha256"] == archive_sha
-          assert public["v68_d2_attempt1"]["replay_permitted"] is False
-          assert public["v68_d2_attempt1"]["g3_retry_permitted"] is False
+          assert public["v68_d2_attempt1"]["recovery_seed_restored"] is True
+          assert public["v68_d2_attempt1"]["recovery_locked_marker_present"] is True
+          assert public["v68_d2_attempt1"]["final_board_state"] == "locked_recovery_seed_restored"
+          assert public["source_diagnosis"]["mqtt_in_prepare_call_path"] is False
+          assert public["source_diagnosis"]["runner_serial_log_persistence_defect"] == "confirmed"
           assert all(value is False for value in public["protected_boundaries"].values())
 
-          assert request["status"] == "consumed_failed_recovery_performed_retired"
-          assert request["execution_gate"] == "CLOSED_CONSUMED_FAILED_NO_REPLAY"
-          assert request["execution_authorized"] is False
-          assert request["execution_performed"] is True
-          assert request["authorization_consumed"] is True
+          assert request["status"] == "consumed_failed_recovery_verified_retired"
+          assert request["execution_gate"] == gate
+          assert request["execution_result"]["private_detail_status"] == "verified"
+          assert request["execution_result"]["recovery_seed_restored"] is True
+          assert request["execution_result"]["final_board_state"] == "locked_recovery_seed_restored"
           assert request["replay_permitted"] is False
-          assert request["execution_result"]["failure_stage"] == "prepare_serial"
-          assert request["execution_result"]["recovery_count"] == 1
-          assert request["execution_result"]["private_detail_status"] == "pending_read_only_extraction"
 
-          assert failure["result"] == "failed"
-          assert failure["failure_stage"] == "prepare_serial"
-          assert failure["authorization"]["consumed"] is True
-          assert failure["execution"]["recovery_performed"] is True
-          assert failure["execution"]["recovery_count"] == 1
-          assert failure["disposition"]["execution_gate"] == "CLOSED_CONSUMED_FAILED_NO_REPLAY"
-          assert failure["disposition"]["physical_retry_authorized"] is False
+          assert failure["result"] == "failed_recovery_verified"
+          assert failure["execution"]["recovery_detail_status"] == "verified"
+          assert failure["recovery"]["recovery_partition_equals_seed"] is True
+          assert failure["interpretation"]["runner_serial_log_persistence_defect"] == "confirmed"
+          assert failure["disposition"]["execution_gate"] == gate
+
+          assert u2["u2_result"] == "passed"
+          assert u2["locked_recovery"]["recovery_partition_sha256"] == seed
+          assert u2["locked_recovery"]["final_board_state"] == "locked_recovery_seed_restored"
+          assert u2["source_diagnosis"]["mqtt_in_prepare_call_path"] is False
+          assert u2["disposition"]["execution_gate"] == gate
 
           assert index["active_request_id"] is None
-          assert index["execution_gate"] == "CLOSED_CONSUMED_FAILED_NO_REPLAY"
+          assert index["execution_gate"] == gate
           assert len(index["retired_request_ids"]) == 3
-          assert index["stage2d9_v68_attempt1_replay_permitted"] is False
           assert index["g3_retry_permitted"] is False
+          assert index["device_reconnect_permitted"] is False
 
-          assert acceptance["result"] == "failed_pending_private_detail"
-          assert acceptance["authorization"]["consumed"] is True
-          assert acceptance["physical_execution"]["failure_stage"] == "prepare_serial"
-          assert acceptance["physical_execution"]["recovery_count"] == 1
-          assert acceptance["private_evidence"]["archive_sha256"] == archive_sha
-          assert acceptance["stage_disposition"]["execution_gate"] == "CLOSED_CONSUMED_FAILED_NO_REPLAY"
+          assert acceptance["result"] == "failed_recovery_verified"
+          assert acceptance["physical_execution"]["recovery_seed_restored"] is True
+          assert acceptance["source_diagnosis"]["mqtt_in_prepare_call_path"] is False
+          assert acceptance["stage_disposition"]["execution_gate"] == gate
           assert acceptance["stage_disposition"]["g3_retry_authorized"] is False
           assert acceptance["stage_disposition"]["device_reconnect_authorized"] is False
           assert acceptance["stage_disposition"]["ready_merge_release_authorized"] is False
