@@ -1,9 +1,9 @@
 {
-  "schema": "gh.h3.n2.stage2d9-g3-v68-d2-attempt1-failure-l1/2",
+  "schema": "gh.h3.n2.stage2d9-g3-v68-d2-attempt1-failure-l1/3",
   "stage": "H3/N2 Stage 2D-9 G3",
   "artifact_generation": "V68",
   "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V68-20260723-01",
-  "result": "failed_recovery_verified",
+  "result": "failed_recovery_verified_root_cause_confirmed",
   "failure_stage": "prepare_serial",
   "failure_class": "RuntimeError",
   "failure_message_redacted": "G3 executor emitted fail marker before PREPARE",
@@ -67,16 +67,27 @@
     "prepare_serial_log_present": false,
     "verify_serial_log_present": false
   },
-  "interpretation": {
-    "prepare_command_sent_once_stdout": true,
-    "final_prepare_command_sent_false_reason": "the capture function raised before returning its acceptance result, so the top-level summary field was not updated even though a serial write attempt had already been emitted",
-    "prepare_transaction_accepted": false,
-    "candidate_prepared_state_proven": false,
-    "exact_firmware_failure_subreason": "unavailable_because_prepare_serial_log_was_not_persisted",
+  "root_cause": {
+    "status": "confirmed",
+    "name": "candidate_host_contract_mismatch",
+    "frozen_executor_broker_host": "stage2d9.invalid",
+    "frozen_executor_tls_server_name": "stage2d9.invalid",
+    "outer_candidate_configuration_accepts_value": true,
+    "credential_bundle_accepts_value": false,
+    "rejection_location": "IsolatedDeviceDriver::prepare_candidate bundle.valid",
+    "driver_failure": "invalid_configuration",
+    "package_failure": "prepare_failed",
+    "executor_failure": "command_execution",
+    "actual_cpp_host_contract_test": "passed",
+    "source_gate_workflow_run_id": 29972838732,
+    "mqtt_in_prepare_call_path": false,
+    "null_mqtt_port_as_prepare_failure_cause": "disproved"
+  },
+  "observability": {
     "runner_serial_log_persistence_defect": "confirmed",
-    "mqtt_prepare_cause_hypothesis": "disproved_by_frozen_source_trace",
-    "firmware_failure_locus": "bounded_but_unresolved",
-    "g3_retry_permitted": false
+    "caused_prepare_failure": false,
+    "reduced_failure_evidence_precision": true,
+    "final_prepare_command_sent_false_reason": "the capture function raised before returning its acceptance result, so the top-level summary field was not updated even though a serial write attempt had already been emitted"
   },
   "protected_boundaries": {
     "second_prepare_executed": false,
@@ -101,8 +112,9 @@
     "attempt_retired": true,
     "physical_retry_authorized": false,
     "private_evidence_closure": "passed",
+    "root_cause_diagnosis": "passed",
     "new_source_and_artifact_required": true,
-    "next_action": "perform host-only source diagnosis and create a unique corrected source chain with failure-observability tests before any future Artifact, U1, or D2",
+    "next_action": "create and validate a unique V69 source chain using a valid local placeholder host and corrected failure observability before any Artifact, U1, or D2",
     "draft_pr_must_remain_draft": true,
     "ready_merge_release_authorized": false
   }
