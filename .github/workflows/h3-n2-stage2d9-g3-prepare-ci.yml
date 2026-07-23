@@ -85,7 +85,7 @@ jobs:
           /tmp/stage2d9-v68-root-cause-test | tee /tmp/stage2d9-v68-root-cause-test.log
           grep -F 'STAGE2D9_V68_ROOT_CAUSE_TEST=PASS' \
             /tmp/stage2d9-v68-root-cause-test.log
-      - name: Verify V68 closure and frozen V69 U1-only gate
+      - name: Verify V69 U1 pass and D2 operator-decision gate
         run: |
           python - <<'PY'
           import json
@@ -98,61 +98,59 @@ jobs:
           acceptance = load("docs/acceptance/h3-n2-stage2d9-g3-acceptance-template-v1.json")
           artifact = load("docs/acceptance/h3-n2-stage2d9-g3-v69-artifact-l1-summary-v1.json")
           custody = load("docs/acceptance/h3-n2-stage2d9-g3-v69-private-custody-l1-v1.json")
-          root = load("docs/acceptance/h3-n2-stage2d9-g3-v68-root-cause-l1-v1.json")
-          request = load("docs/acceptance/h3-n2-stage2d9-g3-v68-d2-attempt1-authorization-request-v1.json")
+          u1 = load("docs/acceptance/h3-n2-stage2d9-g3-v69-u1-l1-summary-v1.json")
+          d2 = load("docs/acceptance/h3-n2-stage2d9-g3-v69-d2-attempt1-authorization-request-v1.json")
           index = load("docs/acceptance/h3-n2-stage2d9-g3-d2-authorization-request-index-v1.json")
           template = load("tests/h3_n2_stage2d9_prepare/stage2d9_prepare_manifest_template_20260722_v1.json")
 
-          assert public["status"] == "v69_artifact_frozen_waiting_user_host_u1"
-          assert public["execution_gate"] == "LOCKED_V69_U1_REQUIRED"
-          assert public["active_d2_request_id"] is None
+          request_id = "D2-H3N2-STAGE2D9-G3-V69-20260723-01"
+          review_sha = "5e7b13dc3e804698f216542b17f4d481a9f8a05285c5c3e6a4475ef1e44e379e"
+          gate = "LOCKED_D2_OPERATOR_DECISION_REQUIRED"
+
+          assert public["status"] == "v69_u1_passed_d2_review_pending_operator_decision"
+          assert public["execution_gate"] == gate
+          assert public["active_d2_request_id"] == request_id
           assert public["v68_evidence"]["recovery_seed_restored"] is True
           assert public["v68_root_cause"]["name"] == "candidate_host_contract_mismatch"
           assert public["v69_correction"]["status"] == "passed_frozen"
-          assert public["v69_correction"]["actual_package_driver_prepare_test"] == "passed"
-          assert public["v69_correction"]["atomic_serial_evidence_matrix"] == "passed"
-          assert public["v69_artifact"]["source_commit"] == "30a15e39164bed4a5b96c50aa5e2e2e6f238c43b"
           assert public["v69_artifact"]["zip_sha256"] == "21aa3383a26b66109408576040245dd60c17eb780b65de9847381b73cfb1506b"
           assert public["v69_artifact"]["gate"] == "LOCKED"
-          assert public["v69_artifact"]["byte_identical"] is True
           assert public["v69_artifact"]["execution_authorized"] is False
-          assert public["v69_u1"]["status"] == "pending_user_host_execution"
-          assert public["v69_u1"]["isolated_self_test"] == "passed"
-          assert public["v69_u1"]["authorization_file_present"] is False
-          assert public["v69_u1"]["execution_package_present"] is False
-          assert public["v69_u1"]["d2_request_present"] is False
+          assert public["v69_u1"]["status"] == "passed"
+          assert public["v69_u1"]["private_custody_installed"] is True
+          assert public["v69_d2_attempt1"]["review_package_sha256"] == review_sha
+          assert public["v69_d2_attempt1"]["authorization_issued"] is False
           assert all(value is False for value in public["protected_boundaries"].values())
 
-          assert artifact["status"] == "frozen_waiting_user_host_u1"
-          assert artifact["artifact"]["member_checksums_verified"] is True
-          assert artifact["artifact"]["private_material_exclusion_verified"] is True
-          assert artifact["u1_package"]["isolated_self_test"] == "passed"
-          assert artifact["u1_package"]["user_host_result"] == "pending"
-          assert artifact["protected_boundaries"]["execution_authorized"] is False
+          assert artifact["status"] == "frozen_u1_passed_d2_review_prepared"
+          assert artifact["u1"]["user_host_result"] == "passed"
+          assert artifact["d2_review"]["review_package_sha256"] == review_sha
+          assert artifact["d2_review"]["authorization_issued"] is False
 
-          assert custody["artifact_status"] == "passed_frozen"
-          assert custody["operator_installation_status"] == "pending_user_host_u1"
+          assert custody["operator_installation_status"] == "passed"
+          assert custody["private_custody_preserved"] is True
           assert custody["execution_authorized"] is False
-          assert custody["d2_request_present"] is False
 
-          assert root["status"] == "confirmed"
-          assert root["correction_status"] == "v69_artifact_frozen_waiting_user_host_u1"
-          assert root["v69_correction"]["artifact_gate"] == "LOCKED"
-          assert root["v69_correction"]["execution_authorized"] is False
+          assert u1["status"] == "passed"
+          assert u1["private_custody"]["installed"] is True
+          assert u1["private_custody"]["preserved"] is True
 
-          assert request["status"] == "consumed_failed_recovery_verified_retired"
-          assert request["replay_permitted"] is False
-          assert index["active_request_id"] is None
-          assert index["g3_retry_permitted"] is False
+          assert d2["authorization_request_id"] == request_id
+          assert d2["status"] == "pending_operator_decision"
+          assert d2["review_package"]["sha256"] == review_sha
+          assert d2["authorization_issued"] is False
+          assert d2["device_reconnect_authorized"] is False
+
+          assert index["active_request_id"] == request_id
+          assert index["execution_gate"] == gate
+          assert index["v69_attempt1_authorization_issued"] is False
           assert index["device_reconnect_permitted"] is False
 
           assert acceptance["v68"]["recovery_seed_restored"] is True
-          assert acceptance["root_cause"]["name"] == "candidate_host_contract_mismatch"
-          assert acceptance["v69"]["status"] == "artifact_frozen_waiting_user_host_u1"
-          assert acceptance["v69"]["artifact_gate"] == "LOCKED"
-          assert acceptance["v69_u1"]["status"] == "pending_user_host_execution"
-          assert acceptance["stage_disposition"]["execution_gate"] == "LOCKED_V69_U1_REQUIRED"
-          assert acceptance["stage_disposition"]["active_d2_request_id"] is None
+          assert acceptance["v69"]["status"] == "artifact_frozen_u1_passed_d2_review_prepared"
+          assert acceptance["v69_u1"]["status"] == "passed"
+          assert acceptance["v69_d2_attempt1"]["status"] == "pending_operator_decision"
+          assert acceptance["stage_disposition"]["execution_gate"] == gate
           assert acceptance["stage_disposition"]["device_reconnect_authorized"] is False
           assert acceptance["stage_disposition"]["ready_merge_release_authorized"] is False
 
