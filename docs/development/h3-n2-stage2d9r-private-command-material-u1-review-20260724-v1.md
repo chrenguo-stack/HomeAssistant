@@ -31,9 +31,34 @@ default_mode=read_only_toolchain_probe
 execute_mode=explicit_--execute_only
 custody_root_selection_rule=HOME_LOCAL_STATE_STAGE2D9R_PRIVATE_COMMAND_MATERIAL_V1
 test_run_suffix=tlsvalid01
+implementation_binding=3d3b67cac008adf30e90a51e891d0dd53b36df69
 ```
 
-## 3. 授权后的唯一允许操作
+## 3. 主机只读探测闭环
+
+```text
+probe_result=PASS_READ_ONLY
+probe_artifact_id=8571761445
+probe_artifact_source_sha=0e7faaaed40433e4b7e0b985f4684b3d126f6948
+probe_artifact_zip_sha256=914379b7640cf60591211d709f16197d6bff40ed7ab942bfb51468e59fa4407a
+python_executable_sha256=4e28e811a89aeac6eed668ae641c7f85f5831e42e8dc6cd9a85a3bcc032ec46a
+python_version=3.11.9 (v3.11.9:de54cf5be3, Apr 2 2024, 07:12:50) [Clang 13.0.0 (clang-1300.0.29.30)]
+custody_root_digest_sha256=ef5f79be168fff686cabcc91fdc4109918d75d3311da1209dd8d0e381804006e
+custody_root_exists=false
+private_paths_included=false
+secret_values_included=false
+board_operation=false
+network_operation=false
+broker_started=false
+```
+
+终端粘贴内容只在最后一个说明性 `stage` 字段的前缀之后混入了重复 shell prompt。所有授权绑定字段均在此之前完整输出，启动脚本在 `set -euo pipefail` 下正常返回，且 `stage` 字段不作为授权安全绑定，因此不要求重放只读探测。
+
+公开闭环记录：
+
+`docs/acceptance/h3-n2-stage2d9r-private-command-material-toolchain-probe-l1-v1.json`
+
+## 4. 授权后的唯一允许操作
 
 一次有效 U1 最多允许：
 
@@ -46,7 +71,7 @@ test_run_suffix=tlsvalid01
 7. 校验目录与文件权限、摘要绑定和公私密边界；
 8. 将授权 marker 最终置为 `CONSUMED` 并停止。
 
-## 4. 明确禁止
+## 5. 明确禁止
 
 该 U1 不授权：
 
@@ -73,14 +98,14 @@ greenhouse-manager
 Ready / merge / release / tag / deployment
 ```
 
-## 5. 精确绑定要求
+## 6. 精确绑定要求
 
 最终 U1 必须绑定：
 
 - PR #176 仍为 open、Draft、未合并；
 - `main` 的精确 SHA；
 - 最终 PR/source SHA；
-- 精确 implementation binding SHA；
+- 精确 `implementation_binding=3d3b67cac008adf30e90a51e891d0dd53b36df69`；
 - generator、gate 和 contract test SHA-256；
 - Mac 上 Python executable SHA-256 与版本；
 - 私密保管根目录选择规则及其路径摘要；
@@ -88,6 +113,7 @@ Ready / merge / release / tag / deployment
 - `test_run_suffix=tlsvalid01`；
 - `ca_pem_sha256=cfcb6638ed61731270f3bf8e9e262c1512fbca8ff34d4b08b62186453233e963`；
 - `candidate_digest_sha256=f22144e37372b883b7a38d07eff2980a865108cf7c8fed9bfdb9f198a030b5c5`；
+- 当前 HEAD 所有绑定 CI 均为 `completed/success`；
 - 有效期不超过两小时；
 - 一次性、禁止重放、禁止自动重试；
 - 规范化授权记录 SHA-256；
@@ -95,7 +121,7 @@ Ready / merge / release / tag / deployment
 
 任何绑定变化、授权过期、保管目录已存在、marker 已存在或生成失败，都必须停止并退休该授权。
 
-## 6. 成功输出
+## 7. 成功输出
 
 成功结果只允许公开：
 
@@ -119,7 +145,7 @@ verify_executed=false
 
 原始 unlock token、私密路径、授权记录和 consumed marker 内容不得进入公开输出或 Git。
 
-## 7. 后续关系
+## 8. 后续关系
 
 该 U1 只解决最终固件的非零 unlock digest 绑定。U1 完成后仍需：
 
