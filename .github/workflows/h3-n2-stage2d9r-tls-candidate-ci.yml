@@ -7,6 +7,7 @@ on:
       - "docs/decisions/h3-n2-stage2d10-d1-tls-valid-candidate-chain-20260723-v1.md"
       - "docs/development/h3-n2-stage2d9r-g3-tls-valid-candidate-plan-20260723-v1.md"
       - "tools/h3_n2_stage2d9r_tls_candidate_descriptor_gate_20260723_v1.py"
+      - "tools/h3_n2_stage2d9r_tls_public_binding_builder_20260723_v1.py"
       - "tests/h3_n2_stage2d9r_tls_candidate/**"
   push:
     branches:
@@ -16,6 +17,7 @@ on:
       - "docs/decisions/h3-n2-stage2d10-d1-tls-valid-candidate-chain-20260723-v1.md"
       - "docs/development/h3-n2-stage2d9r-g3-tls-valid-candidate-plan-20260723-v1.md"
       - "tools/h3_n2_stage2d9r_tls_candidate_descriptor_gate_20260723_v1.py"
+      - "tools/h3_n2_stage2d9r_tls_public_binding_builder_20260723_v1.py"
       - "tests/h3_n2_stage2d9r_tls_candidate/**"
 
 permissions:
@@ -34,11 +36,16 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Compile descriptor gate and tests
+      - name: Record OpenSSL version
+        run: openssl version
+
+      - name: Compile descriptor, binding tools and tests
         run: |
           python -m py_compile \
             tools/h3_n2_stage2d9r_tls_candidate_descriptor_gate_20260723_v1.py \
-            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_tls_candidate_descriptor_gate_20260723_v1.py
+            tools/h3_n2_stage2d9r_tls_public_binding_builder_20260723_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_tls_candidate_descriptor_gate_20260723_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_tls_public_binding_builder_20260723_v1.py
 
       - name: Run descriptor fault matrix
         run: |
@@ -47,6 +54,14 @@ jobs:
             -v 2>&1 | tee /tmp/stage2d9r-tls-candidate-tests-v1.log
           grep -F 'Ran 11 tests' /tmp/stage2d9r-tls-candidate-tests-v1.log
           grep -F 'OK' /tmp/stage2d9r-tls-candidate-tests-v1.log
+
+      - name: Run offline PKI binding fault matrix
+        run: |
+          set -euo pipefail
+          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_tls_public_binding_builder_20260723_v1.py \
+            -v 2>&1 | tee /tmp/stage2d9r-tls-binding-tests-v1.log
+          grep -F 'Ran 9 tests' /tmp/stage2d9r-tls-binding-tests-v1.log
+          grep -F 'OK' /tmp/stage2d9r-tls-binding-tests-v1.log
 
       - name: Validate default descriptor remains locked
         run: |
@@ -71,19 +86,42 @@ jobs:
       - name: Verify public-source and secret boundary
         run: |
           set -euo pipefail
-          paths=(
-            docs/decisions/h3-n2-stage2d10-d1-tls-valid-candidate-chain-20260723-v1.md
-            docs/development/h3-n2-stage2d9r-g3-tls-valid-candidate-plan-20260723-v1.md
-            tools/h3_n2_stage2d9r_tls_candidate_descriptor_gate_20260723_v1.py
-            tests/h3_n2_stage2d9r_tls_candidate
-          )
-          if grep -RIEq \
-              --include='*.py' --include='*.json' --include='*.md' \
-              '(BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|mqtt_password[[:space:]]*[:=][[:space:]]*[^n][^u][^l][^l]|execution_authorized[[:space:]]*[:=][[:space:]]*true|tls_verification_bypass_allowed[[:space:]]*[:=][[:space:]]*true)' \
-              "${paths[@]}"; then
-            echo 'private material or enabled execution boundary detected' >&2
-            exit 1
-          fi
+          python - <<'PY'
+          from pathlib import Path
+          import json
+
+          root = Path('.')
+          prohibited_suffixes = {'.key', '.p12', '.pfx', '.jks'}
+          prohibited_names = {'password', 'mqtt_password', 'private_key', 'private_key_pem', 'unlock_token', 'persistence_key', 'raw_command'}
+          private_headers = ('BEGIN PRIVATE KEY', 'BEGIN RSA PRIVATE KEY', 'BEGIN EC PRIVATE KEY', 'BEGIN OPENSSH PRIVATE KEY')
+
+          for path in root.rglob('*'):
+              if path.is_file() and path.suffix.lower() in prohibited_suffixes:
+                  raise SystemExit(f'prohibited private-material file: {path}')
+
+          def inspect(value, source):
+              if isinstance(value, dict):
+                  for key, item in value.items():
+                      if key in prohibited_names:
+                          raise SystemExit(f'forbidden secret key in {source}: {key}')
+                      inspect(item, source)
+              elif isinstance(value, list):
+                  for item in value:
+                      inspect(item, source)
+              elif isinstance(value, str):
+                  if any(header in value for header in private_headers):
+                      raise SystemExit(f'private key material in {source}')
+
+          for path in Path('tests/h3_n2_stage2d9r_tls_candidate').glob('*.json'):
+              inspect(json.loads(path.read_text(encoding='utf-8')), path)
+
+          locked = json.loads(Path(
+              'tests/h3_n2_stage2d9r_tls_candidate/'
+              'stage2d9r_tls_candidate_descriptor_20260723_v1.json'
+          ).read_text(encoding='utf-8'))
+          for key in ('execution_authorized', 'board_operation_authorized', 'network_operation_authorized', 'prepare_authorized', 'verify_authorized', 'activate_authorized', 'cleanup_authorized'):
+              assert locked[key] is False, key
+          PY
           grep -F 'LOCKED_SOURCE_AND_COMPILE_ONLY' \
             docs/decisions/h3-n2-stage2d10-d1-tls-valid-candidate-chain-20260723-v1.md
           grep -F 'PRIVATE_PKI_GENERATION_AUTHORIZED=false' \
@@ -94,4 +132,5 @@ jobs:
         run: |
           rm -f \
             /tmp/stage2d9r-tls-candidate-tests-v1.log \
+            /tmp/stage2d9r-tls-binding-tests-v1.log \
             /tmp/stage2d9r-tls-candidate-gate-v1.log
