@@ -4,6 +4,7 @@ import base64
 import hashlib
 import importlib.util
 from pathlib import Path
+import sys
 import unittest
 
 MODULE_PATH = (
@@ -13,6 +14,7 @@ MODULE_PATH = (
 SPEC = importlib.util.spec_from_file_location("stage2d10_g4_command", MODULE_PATH)
 assert SPEC is not None and SPEC.loader is not None
 MODULE = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
 
 ACTIVATE = MODULE.ACTIVATE_SCHEMA
