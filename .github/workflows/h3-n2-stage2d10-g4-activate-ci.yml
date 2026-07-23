@@ -14,12 +14,20 @@ on:
       - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g4_activation/**"
       - "firmware/esphome_rc/f1_0_rc2/*stage2d10*"
   push:
-    branches: [main]
+    branches:
+      - main
+      - feature/h3-n2-stage2d10-g4-activate-profile-20260723-v1
     paths:
       - ".github/workflows/h3-n2-stage2d10-g4-activate-ci.yml"
       - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation/**"
       - "tests/h3_n2_stage2d10_activate/**"
       - "tools/h3_n2_stage2d10_*"
+      - "protocols/pairing/gh-h3-node-stage2d10-g4-activate-v1.md"
+      - "docs/development/*Stage2D10*"
+      - "docs/status/STAGE_STATUS_H3_N2_STAGE2D10_G4_20260723.md"
+      - "docs/acceptance/h3-n2-stage2d10-*.json"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g4_activation/**"
+      - "firmware/esphome_rc/f1_0_rc2/*stage2d10*"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
