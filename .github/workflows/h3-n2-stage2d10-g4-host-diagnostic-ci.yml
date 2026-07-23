@@ -33,7 +33,7 @@ jobs:
           package=firmware/esphome_rc/components/greenhouse_profile_isolated_acceptance
           driver=firmware/esphome_rc/components/greenhouse_profile_isolated_device_driver
           g4=firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation
-          test=tests/h3_n2_stage2d10_activate/stage2d10_g4_activation_fault_matrix_20260723_v1.cpp
+          test=tests/h3_n2_stage2d10_activate/stage2d10_g4_activation_fault_matrix_runner_20260723_v2.cpp
           if ! g++ -std=gnu++20 -Wall -Wextra -Wpedantic -Werror \
             -I "$pairing" -I "$package" -I "$driver" -I "$g4" \
             "$pairing/pairing_client_core.cpp" \
@@ -45,32 +45,32 @@ jobs:
             "$driver/isolated_device_driver.cpp" \
             "$g4/stage2d10_g4_activation_coordinator.cpp" \
             "$test" -lcrypto \
-            -o /tmp/stage2d10-g4-host-diagnostic-v1 \
-            > /tmp/stage2d10-g4-compile-v1.log 2>&1; then
+            -o /tmp/stage2d10-g4-host-diagnostic-v2 \
+            > /tmp/stage2d10-g4-compile-v2.log 2>&1; then
             echo 'STAGE2D10_G4_HOST_COMPILE=FAIL'
             grep -E '(^|: )(fatal error|error:|undefined reference|collect2:)' \
-              /tmp/stage2d10-g4-compile-v1.log | tail -n 80 || \
-              tail -n 80 /tmp/stage2d10-g4-compile-v1.log
+              /tmp/stage2d10-g4-compile-v2.log | tail -n 80 || \
+              tail -n 80 /tmp/stage2d10-g4-compile-v2.log
             exit 1
           fi
           echo 'STAGE2D10_G4_HOST_COMPILE=PASS'
       - name: Run with concise failure output
         run: |
           set -euo pipefail
-          if ! /tmp/stage2d10-g4-host-diagnostic-v1 \
-            > /tmp/stage2d10-g4-run-v1.log 2>&1; then
+          if ! /tmp/stage2d10-g4-host-diagnostic-v2 \
+            > /tmp/stage2d10-g4-run-v2.log 2>&1; then
             echo 'STAGE2D10_G4_HOST_RUN=FAIL'
-            tail -n 80 /tmp/stage2d10-g4-run-v1.log
+            tail -n 80 /tmp/stage2d10-g4-run-v2.log
             exit 1
           fi
-          cat /tmp/stage2d10-g4-run-v1.log
+          cat /tmp/stage2d10-g4-run-v2.log
           grep -Fx 'stage2d10_g4_activation_fault_matrix=pass' \
-            /tmp/stage2d10-g4-run-v1.log
+            /tmp/stage2d10-g4-run-v2.log
           echo 'STAGE2D10_G4_HOST_RUN=PASS'
       - name: Cleanup
         if: always()
         run: |
           rm -f \
-            /tmp/stage2d10-g4-host-diagnostic-v1 \
-            /tmp/stage2d10-g4-compile-v1.log \
-            /tmp/stage2d10-g4-run-v1.log
+            /tmp/stage2d10-g4-host-diagnostic-v2 \
+            /tmp/stage2d10-g4-compile-v2.log \
+            /tmp/stage2d10-g4-run-v2.log
