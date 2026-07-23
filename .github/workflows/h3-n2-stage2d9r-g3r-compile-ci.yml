@@ -24,121 +24,6 @@ permissions:
   contents: read
 
 jobs:
-  source-correction-once:
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-    permissions:
-      contents: write
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1
-          fetch-depth: 0
-          show-progress: false
-      - name: Apply exact source corrections when still required
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path(
-              'firmware/esphome_rc/components/'
-              'greenhouse_profile_isolated_device_g3r_executor/'
-              'stage2d9r_g3r_prepare_executor_20260723_v1.cpp'
-          )
-          text = path.read_text(encoding='utf-8')
-          old_ca = '''  const bool valid = parsed == 0 && certificate.raw.len > 0 &&
-                       certificate.next == nullptr && certificate.ca_istrue != 0 &&
-                       (certificate.key_usage & MBEDTLS_X509_KU_KEY_CERT_SIGN) != 0;'''
-          new_ca = '''  const bool valid =
-      parsed == 0 && certificate.raw.len > 0 && certificate.next == nullptr &&
-      mbedtls_x509_crt_get_ca_istrue(&certificate) == 1 &&
-      mbedtls_x509_crt_check_key_usage(
-          &certificate, MBEDTLS_X509_KU_KEY_CERT_SIGN) == 0;'''
-          old_order = '''  if (!this->authorization_binder_.grant(
-          IsolatedAcceptanceWriteOperation::PREPARE_CANDIDATE, 0, 1,
-          envelope->authorization_digest)) {
-    config.clear();
-    return this->fail_step_("prepare_authorization_grant");
-  }
-  if (!this->package_.load_test_configuration(std::move(config))) {
-    config.clear();
-    this->authorization_binder_.clear();
-    return this->fail_step_("prepare_config_load");
-  }
-'''
-          new_order = '''  if (!this->package_.load_test_configuration(std::move(config))) {
-    config.clear();
-    return this->fail_step_("prepare_config_load");
-  }
-  if (!this->authorization_binder_.grant(
-          IsolatedAcceptanceWriteOperation::PREPARE_CANDIDATE, 0, 1,
-          envelope->authorization_digest)) {
-    return this->fail_step_("prepare_authorization_grant");
-  }
-'''
-          old_wipe = '''  this->mqtt_.quiesce();
-  this->persistence_.quiesce();
-  this->test_key_provider_.destroy();
-  secure_clear(&this->input_buffer_);
-'''
-          new_wipe = '''  this->mqtt_.quiesce();
-  this->persistence_.quiesce();
-  this->test_key_provider_.destroy();
-  (void) this->package_.configure(
-      &this->driver_, &this->test_key_provider_, &this->evidence_sink_);
-  (void) this->authorization_binder_.configure(
-      &this->package_, &this->driver_);
-  secure_clear(&this->input_buffer_);
-'''
-
-          if old_ca not in text:
-              if 'mbedtls_x509_crt_get_ca_istrue(&certificate) == 1' in text:
-                  Path('/tmp/stage2d9r-source-fix-noop').write_text('already fixed\n')
-                  raise SystemExit(0)
-              raise SystemExit('opaque X.509 replacement target missing')
-          for old, new, label in (
-              (old_ca, new_ca, 'X.509'),
-              (old_order, new_order, 'PREPARE order'),
-              (old_wipe, new_wipe, 'sensitive wipe'),
-          ):
-              if text.count(old) != 1:
-                  raise SystemExit(f'{label} replacement target count mismatch')
-              text = text.replace(old, new)
-          path.write_text(text, encoding='utf-8')
-          one_shot = Path('.github/workflows/h3-n2-stage2d9r-source-fix-once-20260723-v1.yml')
-          if one_shot.exists():
-              one_shot.unlink()
-          PY
-
-          if test -f /tmp/stage2d9r-source-fix-noop; then
-            echo 'STAGE2D9R_SOURCE_CORRECTION=ALREADY_APPLIED'
-            exit 0
-          fi
-
-          python - <<'PY'
-          from pathlib import Path
-          text = Path(
-              'firmware/esphome_rc/components/'
-              'greenhouse_profile_isolated_device_g3r_executor/'
-              'stage2d9r_g3r_prepare_executor_20260723_v1.cpp'
-          ).read_text(encoding='utf-8')
-          assert 'certificate.ca_istrue' not in text
-          assert 'certificate.key_usage' not in text
-          load = text.index('package_.load_test_configuration(std::move(config))')
-          grant = text.index('authorization_binder_.grant(', load)
-          prepare = text.index('package_.prepare_candidate()', grant)
-          assert load < grant < prepare
-          assert text.count('(void) this->package_.configure(') == 1
-          PY
-
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
-          git commit -m 'fix(n2): correct Stage2D9R TLS validation and PREPARE ordering'
-          git push origin HEAD:feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1
-
   source-boundary:
     runs-on: ubuntu-24.04
     timeout-minutes: 8
@@ -181,6 +66,8 @@ jobs:
               'GH2D9R_VERIFY_V1',
               'stage2d9r.local',
               'mbedtls_x509_crt_parse',
+              'mbedtls_x509_crt_get_ca_istrue',
+              'mbedtls_x509_crt_check_key_usage',
               'MBEDTLS_X509_KU_KEY_CERT_SIGN',
               'ca_pem_sha256_',
               'authorization_binder_.grant',
@@ -194,6 +81,8 @@ jobs:
 
           for prohibited in (
               'stage2d9-test-ca',
+              'certificate.ca_istrue',
+              'certificate.key_usage',
               'package_.activate(',
               'package_.cleanup_test_state(',
               'driver_.activate(',
@@ -201,6 +90,14 @@ jobs:
           ):
               if prohibited in cpp + header:
                   raise SystemExit(f'Stage2D9R source exposes prohibited value/call {prohibited}')
+
+          load = cpp.index('package_.load_test_configuration(std::move(config))')
+          grant = cpp.index('authorization_binder_.grant(', load)
+          prepare = cpp.index('package_.prepare_candidate()', grant)
+          if not load < grant < prepare:
+              raise SystemExit('PREPARE configuration/authorization/transaction order is invalid')
+          if cpp.count('(void) this->package_.configure(') != 1:
+              raise SystemExit('sensitive package reset binding is not exact')
           PY
       - name: Verify historical and production paths are unchanged
         if: github.event_name == 'pull_request'
@@ -233,20 +130,20 @@ jobs:
           set -o pipefail
           cd firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare
           esphome config greenhouse_profile_isolated_device_g3r_executor_compile_20260723_v1.yml \
-            2>&1 | tee /tmp/stage2d9r-g3r-config-v1.log
+            2>&1 | tee /tmp/stage2d9r-g3r-config-v2.log
       - name: Compile locked Stage2D9R target
         run: |
           set -o pipefail
           cd firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare
           esphome compile greenhouse_profile_isolated_device_g3r_executor_compile_20260723_v1.yml \
-            2>&1 | tee /tmp/stage2d9r-g3r-compile-v1.log
+            2>&1 | tee /tmp/stage2d9r-g3r-compile-v2.log
       - name: Verify compile result and redaction
         run: |
           set -euo pipefail
-          grep -F 'INFO Successfully compiled program.' /tmp/stage2d9r-g3r-compile-v1.log
+          grep -F 'INFO Successfully compiled program.' /tmp/stage2d9r-g3r-compile-v2.log
           if grep -Eqi \
               'BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|BEGIN CERTIFICATE|mqtt_password|GH2D9R_PREPARE_V1 [^" ]|GH2D9R_VERIFY_V1 [^" ]' \
-              /tmp/stage2d9r-g3r-config-v1.log /tmp/stage2d9r-g3r-compile-v1.log; then
+              /tmp/stage2d9r-g3r-config-v2.log /tmp/stage2d9r-g3r-compile-v2.log; then
             echo 'private or executable command material detected in compile output' >&2
             exit 1
           fi
@@ -254,4 +151,4 @@ jobs:
         if: always()
         run: |
           rm -rf firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/.esphome
-          rm -f /tmp/stage2d9r-g3r-config-v1.log /tmp/stage2d9r-g3r-compile-v1.log
+          rm -f /tmp/stage2d9r-g3r-config-v2.log /tmp/stage2d9r-g3r-compile-v2.log
