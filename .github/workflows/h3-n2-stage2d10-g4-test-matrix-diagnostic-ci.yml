@@ -39,7 +39,7 @@ jobs:
           - test_marker_ambiguity_and_marker_last_failure_are_terminal
           - test_active_recovery_mismatch_and_promotion_failure_are_terminal
           - test_success_and_authorization_non_replay
-          - test_post_reboot_read_only_verification
+          - test_post_reboot_read_only_verification_fresh_process
     name: diagnose-${{ matrix.test_name }}
     steps:
       - uses: actions/checkout@v4
@@ -59,7 +59,7 @@ jobs:
           test_name = os.environ["TEST_NAME"]
           source_path = Path(
               "tests/h3_n2_stage2d10_activate/"
-              "stage2d10_g4_activation_fault_matrix_20260723_v1.cpp"
+              "stage2d10_g4_activation_fault_matrix_runner_20260723_v2.cpp"
           )
           source = source_path.read_text(encoding="utf-8")
           replacement = (
@@ -78,7 +78,7 @@ jobs:
           )
           if count != 1:
               raise SystemExit("main replacement failed")
-          Path("/tmp/stage2d10-g4-isolated-test-v1.cpp").write_text(
+          Path("/tmp/stage2d10-g4-isolated-test-v2.cpp").write_text(
               updated, encoding="utf-8"
           )
           PY
@@ -97,12 +97,12 @@ jobs:
             "$package/isolated_acceptance_package.cpp" \
             "$driver/isolated_device_driver.cpp" \
             "$g4/stage2d10_g4_activation_coordinator.cpp" \
-            /tmp/stage2d10-g4-isolated-test-v1.cpp \
-            -lcrypto -o /tmp/stage2d10-g4-isolated-test-v1
+            /tmp/stage2d10-g4-isolated-test-v2.cpp \
+            -lcrypto -o /tmp/stage2d10-g4-isolated-test-v2
       - name: Run isolated test
         env:
           TEST_NAME: ${{ matrix.test_name }}
         run: |
           set -euo pipefail
-          /tmp/stage2d10-g4-isolated-test-v1
+          /tmp/stage2d10-g4-isolated-test-v2
           echo "STAGE2D10_G4_ISOLATED_TEST=${TEST_NAME}:PASS"
