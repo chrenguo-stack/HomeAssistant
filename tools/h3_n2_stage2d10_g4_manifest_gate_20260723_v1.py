@@ -9,6 +9,7 @@ import re
 
 SCHEMA = "gh.h3.n2.stage2d10-g4-activate-execution-manifest/1"
 ALLOWED_GATES = {"LOCKED", "READ_ONLY", "ACTIVATE_PROFILE"}
+COMMIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 PARTITION = "gh2d8_p2d9"
 NAMESPACE = "gh2d8_s2d9"
@@ -28,6 +29,12 @@ def require_true(data: dict[str, object], *keys: str) -> None:
     for key in keys:
         if data.get(key) is not True:
             raise GateError(f"{key} must be true")
+
+
+def require_optional_commit_sha(data: dict[str, object], key: str) -> None:
+    value = data.get(key)
+    if value is not None and COMMIT_SHA_RE.fullmatch(str(value)) is None:
+        raise GateError(f"{key} must be lowercase 40-hex commit SHA or null")
 
 
 def require_optional_sha256(data: dict[str, object], *keys: str) -> None:
@@ -74,9 +81,9 @@ def validate(manifest: dict[str, object], expected_gate: str | None = None) -> s
         if manifest.get(key) != expected:
             raise GateError(f"{key} mismatch")
 
+    require_optional_commit_sha(manifest, "source_sha")
     require_optional_sha256(
         manifest,
-        "source_sha",
         "artifact_sha256",
         "candidate_digest_sha256",
     )
@@ -126,7 +133,9 @@ def validate(manifest: dict[str, object], expected_gate: str | None = None) -> s
         )
         if not isinstance(authorization_id, str) or not authorization_id:
             raise GateError("ACTIVATE gate requires authorization id")
-        for key in ("source_sha", "artifact_sha256", "candidate_digest_sha256"):
+        if COMMIT_SHA_RE.fullmatch(str(manifest.get("source_sha"))) is None:
+            raise GateError("ACTIVATE gate requires source_sha")
+        for key in ("artifact_sha256", "candidate_digest_sha256"):
             if SHA256_RE.fullmatch(str(manifest.get(key))) is None:
                 raise GateError(f"ACTIVATE gate requires {key}")
 
