@@ -27,7 +27,7 @@ permissions:
 jobs:
   host-model-and-gate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
         with:
@@ -53,13 +53,16 @@ jobs:
             tools/h3_n2_stage2d9_g3_artifact_packager_20260723_v68.py \
             tools/h3_n2_stage2d9_g3_u1_artifact_verify_20260723_v2.py \
             tools/h3_n2_stage2d9_v68_root_cause_gate_20260723_v1.py \
+            tools/h3_n2_stage2d9_v69_source_gate_20260723_v1.py \
+            tools/h3_n2_stage2d9_v69_serial_capture_model_20260723_v1.py \
             tests/h3_n2_stage2d9_prepare/test_stage2d9_prepare_model_20260722_v1.py \
-            tests/h3_n2_stage2d9_prepare/test_stage2d9_prepare_command_protocol_20260722_v1.py
+            tests/h3_n2_stage2d9_prepare/test_stage2d9_prepare_command_protocol_20260722_v1.py \
+            tests/h3_n2_stage2d9_prepare/test_stage2d9_v69_serial_capture_model_20260723_v1.py
       - name: Run host fault matrices
         run: |
           python -m unittest discover \
             -s tests/h3_n2_stage2d9_prepare \
-            -p 'test_stage2d9_prepare_*_20260722_v1.py' \
+            -p 'test_stage2d9_*_202607*_v1.py' \
             -v
       - name: Verify default manifest remains locked
         run: |
@@ -89,7 +92,7 @@ jobs:
             /tmp/stage2d9-v68-root-cause-test.log
           grep -F 'STAGE2D9_V68_ROOT_CAUSE_TEST=PASS' \
             /tmp/stage2d9-v68-root-cause-test.log
-      - name: Verify failed V68 attempt, recovery closure and closed gate
+      - name: Verify recovery closure, root cause and V69 host-only gate
         run: |
           python - <<'PY'
           import json
@@ -102,6 +105,7 @@ jobs:
           request = load("docs/acceptance/h3-n2-stage2d9-g3-v68-d2-attempt1-authorization-request-v1.json")
           failure = load("docs/acceptance/h3-n2-stage2d9-g3-v68-d2-attempt1-failure-l1-v1.json")
           u2 = load("docs/acceptance/h3-n2-stage2d9-g3-v68-d2-attempt1-u2-private-detail-l1-v1.json")
+          root = load("docs/acceptance/h3-n2-stage2d9-g3-v68-root-cause-l1-v1.json")
           acceptance = load("docs/acceptance/h3-n2-stage2d9-g3-acceptance-template-v1.json")
           index = load("docs/acceptance/h3-n2-stage2d9-g3-d2-authorization-request-index-v1.json")
           template = load("tests/h3_n2_stage2d9_prepare/stage2d9_prepare_manifest_template_20260722_v1.json")
@@ -110,40 +114,44 @@ jobs:
           request_id = "D2-H3N2-STAGE2D9-G3-V68-20260723-01"
           seed = "0ea36f26c5048f69b223884a13613fbd645b58c2ce42eafc6f9d9cd55bb089af"
 
-          assert public["status"] == "v68_physical_prepare_failed_recovery_verified_evidence_closed_source_diagnostic"
+          assert public["status"] == "v68_failed_recovery_verified_root_cause_confirmed_v69_host_correction"
           assert public["execution_gate"] == gate
           assert public["active_d2_request_id"] is None
           assert public["v68_d2_attempt1"]["authorization_request_id"] == request_id
-          assert public["v68_d2_attempt1"]["erase_success"] is True
-          assert public["v68_d2_attempt1"]["write_success"] is True
-          assert public["v68_d2_attempt1"]["verify_flash_success"] is True
-          assert public["v68_d2_attempt1"]["prepare_succeeded"] is False
-          assert public["v68_d2_attempt1"]["verify_command_sent"] is False
           assert public["v68_d2_attempt1"]["recovery_seed_restored"] is True
-          assert public["v68_d2_attempt1"]["recovery_locked_marker_present"] is True
           assert public["v68_d2_attempt1"]["final_board_state"] == "locked_recovery_seed_restored"
-          assert public["source_diagnosis"]["mqtt_in_prepare_call_path"] is False
-          assert public["source_diagnosis"]["runner_serial_log_persistence_defect"] == "confirmed"
+          assert public["v68_root_cause"]["status"] == "confirmed_by_frozen_source_and_actual_cpp_host_test"
+          assert public["v68_root_cause"]["name"] == "candidate_host_contract_mismatch"
+          assert public["v68_root_cause"]["mqtt_in_prepare_call_path"] is False
+          assert public["observability_defect"]["caused_v68_prepare_failure"] is False
+          assert public["v69_correction"]["candidate_host"] == "stage2d9.local"
+          assert public["v69_correction"]["command_surface_enabled"] is False
+          assert public["v69_correction"]["artifact_generated"] is False
+          assert public["v69_correction"]["d2_request_generated"] is False
           assert all(value is False for value in public["protected_boundaries"].values())
 
           assert request["status"] == "consumed_failed_recovery_verified_retired"
           assert request["execution_gate"] == gate
-          assert request["execution_result"]["private_detail_status"] == "verified"
           assert request["execution_result"]["recovery_seed_restored"] is True
-          assert request["execution_result"]["final_board_state"] == "locked_recovery_seed_restored"
           assert request["replay_permitted"] is False
 
-          assert failure["result"] == "failed_recovery_verified"
-          assert failure["execution"]["recovery_detail_status"] == "verified"
+          assert failure["result"] == "failed_recovery_verified_root_cause_confirmed"
           assert failure["recovery"]["recovery_partition_equals_seed"] is True
-          assert failure["interpretation"]["runner_serial_log_persistence_defect"] == "confirmed"
+          assert failure["root_cause"]["name"] == "candidate_host_contract_mismatch"
+          assert failure["root_cause"]["actual_cpp_host_contract_test"] == "passed"
+          assert failure["observability"]["caused_prepare_failure"] is False
           assert failure["disposition"]["execution_gate"] == gate
 
           assert u2["u2_result"] == "passed"
           assert u2["locked_recovery"]["recovery_partition_sha256"] == seed
-          assert u2["locked_recovery"]["final_board_state"] == "locked_recovery_seed_restored"
-          assert u2["source_diagnosis"]["mqtt_in_prepare_call_path"] is False
+          assert u2["root_cause"]["name"] == "candidate_host_contract_mismatch"
+          assert u2["root_cause"]["dot_local_accepted_by_credential_bundle"] is True
           assert u2["disposition"]["execution_gate"] == gate
+
+          assert root["status"] == "confirmed"
+          assert root["root_cause"] == "candidate_host_contract_mismatch"
+          assert root["host_proof"]["actual_cpp_host_contract_test"] == "passed"
+          assert root["protected_boundaries"]["board_accessed_for_root_cause"] is False
 
           assert index["active_request_id"] is None
           assert index["execution_gate"] == gate
@@ -151,9 +159,10 @@ jobs:
           assert index["g3_retry_permitted"] is False
           assert index["device_reconnect_permitted"] is False
 
-          assert acceptance["result"] == "failed_recovery_verified"
+          assert acceptance["result"] == "failed_recovery_verified_root_cause_confirmed"
           assert acceptance["physical_execution"]["recovery_seed_restored"] is True
-          assert acceptance["source_diagnosis"]["mqtt_in_prepare_call_path"] is False
+          assert acceptance["root_cause"]["name"] == "candidate_host_contract_mismatch"
+          assert acceptance["v69_correction"]["command_surface_enabled"] is False
           assert acceptance["stage_disposition"]["execution_gate"] == gate
           assert acceptance["stage_disposition"]["g3_retry_authorized"] is False
           assert acceptance["stage_disposition"]["device_reconnect_authorized"] is False
