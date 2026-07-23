@@ -1,0 +1,17 @@
+{
+  "schema": "gh.h3.n2.stage2d9r-isolated-broker-public-config/1",
+  "broker_host": "stage2d9r.local",
+  "broker_port": 8883,
+  "broker_tls_server_name": "stage2d9r.local",
+  "dns_san": [
+    "stage2d9r.local"
+  ],
+  "credential_generation": 1,
+  "mqtt_username": "stage2d9r-test",
+  "mqtt_client_id": "gh-stage2d9r-candidate-client",
+  "test_topic_root": "gh-test/stage2d9r-candidate/node",
+  "mqtt_password_sha256": "7777777777777777777777777777777777777777777777777777777777777777",
+  "private_values_included": false,
+  "execution_authorized": false,
+  "network_operation_authorized": false
+}
