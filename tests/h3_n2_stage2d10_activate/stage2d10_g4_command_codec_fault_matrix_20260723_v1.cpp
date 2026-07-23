@@ -217,7 +217,7 @@ void test_wifi_base64_length_and_digest_binding() {
 
 void test_verify_mode_exact() {
   CommandFixture fixture;
-  for (const std::string &mode : {"WRITE", "read_only", "READONLY"}) {
+  for (const std::string mode : {"WRITE", "read_only", "READONLY"}) {
     std::string raw = fixture.verify();
     raw.replace(raw.rfind("READ_ONLY"), 9, mode);
     Stage2D10G4CommandEnvelope envelope;
