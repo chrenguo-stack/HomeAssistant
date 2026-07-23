@@ -1,11 +1,11 @@
 {
-  "schema": "gh.h3.n2.stage2d9-g3-public-manifest/9",
+  "schema": "gh.h3.n2.stage2d9-g3-public-manifest/10",
   "stage": "H3/N2 Stage 2D-9 G3",
-  "status": "v68_physical_prepare_failed_recovery_performed_pending_private_detail",
+  "status": "v68_physical_prepare_failed_recovery_verified_evidence_closed_source_diagnostic",
   "base_main_sha": "2a5272546f25b1b29cf1d6682cf1fc14f1c1be83",
   "branch": "feature/h3-n2-stage2d9-g3-prepare-candidate-20260722-v1",
   "draft_pr": 174,
-  "execution_gate": "CLOSED_CONSUMED_FAILED_NO_REPLAY",
+  "execution_gate": "CLOSED_CONSUMED_FAILED_RECOVERY_VERIFIED_NO_REPLAY",
   "active_d2_request_id": null,
   "allowed_action": "PREPARE_CANDIDATE",
   "expected_transition": {
@@ -16,7 +16,8 @@
     "candidate_state_after": "PREPARED",
     "automatic_reboot": true,
     "read_only_verify_after_reboot": true,
-    "candidate_digest_match_required": true
+    "candidate_digest_match_required": true,
+    "proven": false
   },
   "storage_boundary": {
     "partition": "gh2d8_p2d9",
@@ -34,7 +35,7 @@
     "d2_attempt2_replay_permitted": false
   },
   "v68_artifact": {
-    "status": "passed_frozen",
+    "status": "passed_frozen_execution_chain_retired",
     "source_commit": "608282bf86fcf8c1d13494437e01f1899d3c494a",
     "workflow_run_id": 29966262910,
     "artifact_id": 8548132415,
@@ -48,7 +49,8 @@
     "unlock_digest_sha256": "c6cfae354edbd426f9990fb65b4c865e711a0c2b6c1fba1d2e7faf132ebc2208",
     "clean_build_count": 2,
     "byte_identical": true,
-    "gate": "LOCKED"
+    "gate": "LOCKED",
+    "execution_reuse_permitted": false
   },
   "v68_u1": {
     "status": "passed",
@@ -61,16 +63,20 @@
   },
   "v68_d2_attempt1": {
     "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V68-20260723-01",
-    "status": "consumed_failed_recovery_performed_retired",
-    "issued_at": "2026-07-23T00:31:08Z",
-    "expires_at": "2026-07-23T02:31:08Z",
-    "authorization_binding_sha256": "63317420a612c2db4a033a66e517bd9d85489ce135e70371b1216e1cb6204cf9",
-    "execution_package_sha256": "f66bd80eabe72060199d39bf323c45bb79b1d2c5404f4ea24d7e648ae1be42d2",
+    "status": "consumed_failed_recovery_verified_retired",
     "authorization_consumed": true,
     "execution_performed": true,
     "destructive_boundary_entered": true,
-    "result": "failed",
+    "result": "failed_recovery_verified",
     "failure_stage": "prepare_serial",
+    "failure_class": "RuntimeError",
+    "failure_message_redacted": "G3 executor emitted fail marker before PREPARE",
+    "preflight_status": "passed",
+    "erase_success": true,
+    "write_success": true,
+    "verify_flash_success": true,
+    "previous_g2_seed_match": true,
+    "preprepare_readback_sha256": "0ea36f26c5048f69b223884a13613fbd645b58c2ce42eafc6f9d9cd55bb089af",
     "prepare_command_send_attempt_observed": true,
     "prepare_command_sent_summary": false,
     "prepare_succeeded": false,
@@ -78,19 +84,44 @@
     "verify_succeeded": false,
     "recovery_performed": true,
     "recovery_count": 1,
+    "recovery_erase_success": true,
+    "recovery_write_success": true,
+    "recovery_verify_success": true,
+    "recovery_seed_restored": true,
+    "recovery_boot_success": true,
+    "recovery_locked_marker_present": true,
+    "final_board_state": "locked_recovery_seed_restored",
     "private_evidence_archive_sha256": "c2a0686e7a52774531c53a674e889f50c8bdef37ee7ea67903dd24c989059321",
-    "private_detail_status": "pending_read_only_extraction",
+    "private_detail_status": "verified",
     "replay_permitted": false,
     "g3_retry_permitted": false
   },
-  "known_interpretation": {
-    "prepare_command_sent_once_stdout": true,
-    "top_level_prepare_command_sent_false": true,
-    "reason": "the PREPARE capture function emitted the send-attempt marker but raised before returning its acceptance result, leaving the top-level summary field at its fail-closed default",
-    "prepare_state_proven": false,
-    "verify_state_proven": false
+  "u2_private_detail": {
+    "status": "passed",
+    "timestamp_utc": "2026-07-23T01:22:34Z",
+    "script_sha256": "4976f43f23ca7be39d80e31c5e4d6aa1a4b29674e8e8024aaeb67968405145c8",
+    "summary_json_sha256": "3fd63b52710d3763059dc5fa204767ba2bb5c3cd01028657a3de2fcd8bae8f1f",
+    "preflight_log_sha256": "c082b6d2dd2fdbea305ac907cab72da983dab4f4e9d60aa049b1f3f2c6264cbf",
+    "destructive_log_sha256": "35c328fdfdbef2574ce2a35028397e18a7e3bbaf1e108795e50bb633c1864b26",
+    "recovery_esptool_log_sha256": "945c47aa9419e9928f1d9ae2cdc7b759a33ca7921024e00a8f2a8e224fe2014f",
+    "recovery_serial_log_sha256": "eb92a2dbfc1a43b2d0917286b91b0904c4a9b4fefb212f00334152362cc8aca0",
+    "recovery_partition_sha256": "0ea36f26c5048f69b223884a13613fbd645b58c2ce42eafc6f9d9cd55bb089af",
+    "prepare_serial_log_present": false,
+    "verify_serial_log_present": false,
+    "private_evidence_closure": "passed"
+  },
+  "source_diagnosis": {
+    "status": "bounded_but_not_final",
+    "mqtt_in_prepare_call_path": false,
+    "null_mqtt_port_as_prepare_failure_cause": "disproved",
+    "runner_serial_log_persistence_defect": "confirmed",
+    "exact_firmware_failure_subreason": "unavailable_due_missing_prepare_serial_log",
+    "new_source_and_artifact_required": true,
+    "physical_execution_required_for_current_diagnosis": false
   },
   "protected_boundaries": {
+    "device_reconnect_authorized": false,
+    "v68_retry_authorized": false,
     "second_prepare_executed": false,
     "activate_profile_executed": false,
     "cleanup_test_state_executed": false,
@@ -110,7 +141,9 @@
     "authorized_package_member_hashes": "passed",
     "physical_prepare": "failed",
     "locked_recovery_invoked_once": true,
-    "private_failure_detail": "pending"
+    "locked_recovery_verified": true,
+    "private_failure_detail": "passed",
+    "evidence_closure": "passed"
   },
   "privacy": {
     "unlock_preimage_included": false,
@@ -121,5 +154,5 @@
     "candidate_secret_values_included": false,
     "private_logs_included": false
   },
-  "next_gate": "read-only extraction of the existing private archive; no board reconnection, no authorization replay, and no G3 retry"
+  "next_gate": "host-only root-cause reproduction and unique corrected source chain; no board reconnect, no V68 replay, no new D2 before a new immutable Artifact and U1"
 }
