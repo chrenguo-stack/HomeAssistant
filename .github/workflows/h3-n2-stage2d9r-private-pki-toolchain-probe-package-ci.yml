@@ -139,12 +139,12 @@ jobs:
             exit 1
           fi
           python -m py_compile "$root"/tools/*.py
-          rm -rf "$root/tools/__pycache__"
-          test "$(find "$root" -type f | wc -l | tr -d ' ')" = 6
           python "$root"/tools/h3_n2_stage2d9r_private_pki_generator_20260723_v1.py --help \
             > /tmp/stage2d9r-private-pki-probe-help-v1.log
           grep -F -- '--probe-toolchain' /tmp/stage2d9r-private-pki-probe-help-v1.log
           grep -F -- '--execute' /tmp/stage2d9r-private-pki-probe-help-v1.log
+          rm -rf "$root/tools/__pycache__"
+          test "$(find "$root" -type f | wc -l | tr -d ' ')" = 6
 
       - uses: actions/upload-artifact@v4
         with:
