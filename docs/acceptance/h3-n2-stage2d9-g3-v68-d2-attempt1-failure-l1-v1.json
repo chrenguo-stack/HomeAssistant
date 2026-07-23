@@ -1,0 +1,66 @@
+{
+  "schema": "gh.h3.n2.stage2d9-g3-v68-d2-attempt1-failure-l1/1",
+  "stage": "H3/N2 Stage 2D-9 G3",
+  "artifact_generation": "V68",
+  "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V68-20260723-01",
+  "result": "failed",
+  "failure_stage": "prepare_serial",
+  "attempt_timestamp_utc": "2026-07-23T00:40:49Z",
+  "source_sha": "608282bf86fcf8c1d13494437e01f1899d3c494a",
+  "artifact_zip_sha256": "3a90f2b1369dafbc5fb0fa20255ab9dc978a335b74d415aa2f51054a3e198c3b",
+  "g3_merged_sha256": "094d37b01e9ddce1bba26216ffcbb1bae56a3ecbbf075b3e9e3ec57042214ca4",
+  "recovery_merged_sha256": "54fb10601a0fbf448948d3f7d687281b33e85220c64bcdcabfae896dd3d98a1a",
+  "execution_package_sha256": "f66bd80eabe72060199d39bf323c45bb79b1d2c5404f4ea24d7e648ae1be42d2",
+  "private_evidence_archive_sha256": "c2a0686e7a52774531c53a674e889f50c8bdef37ee7ea67903dd24c989059321",
+  "authorization": {
+    "issued": true,
+    "consumed": true,
+    "one_shot": true,
+    "replay_permitted": false,
+    "status": "consumed_failed_retired"
+  },
+  "execution": {
+    "destructive_boundary_entered": true,
+    "prepare_command_send_attempt_observed": true,
+    "prepare_command_sent_summary": false,
+    "prepare_succeeded": false,
+    "verify_command_sent": false,
+    "verify_succeeded": false,
+    "recovery_performed": true,
+    "recovery_count": 1,
+    "recovery_detail_status": "pending_private_archive_read_only_extraction"
+  },
+  "interpretation": {
+    "prepare_command_sent_once_stdout": true,
+    "final_prepare_command_sent_false_reason": "the capture function raised before returning its acceptance result, so the top-level summary field was not updated even though a serial write attempt had already been emitted",
+    "prepare_transaction_accepted": false,
+    "candidate_prepared_state_proven": false,
+    "g3_retry_permitted": false
+  },
+  "protected_boundaries": {
+    "second_prepare_executed": false,
+    "activate_profile_executed": false,
+    "cleanup_test_state_executed": false,
+    "efuse_command_attempted": false,
+    "network_operation_attempted": false,
+    "production_environment_modified": false,
+    "stage2d8_d2_replayed": false,
+    "stage2d9_v67_d2_replayed": false
+  },
+  "privacy": {
+    "authorization_json_included": false,
+    "private_command_included": false,
+    "private_serial_path_included": false,
+    "raw_board_identifier_included": false,
+    "raw_private_log_included": false,
+    "secret_values_included": false
+  },
+  "disposition": {
+    "execution_gate": "CLOSED_CONSUMED_FAILED_NO_REPLAY",
+    "attempt_retired": true,
+    "physical_retry_authorized": false,
+    "next_action": "read the existing private archive only, verify exact failure and locked recovery outcome, then determine whether a new source/Artifact chain is required",
+    "draft_pr_must_remain_draft": true,
+    "ready_merge_release_authorized": false
+  }
+}
