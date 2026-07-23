@@ -1,8 +1,8 @@
 {
-  "schema": "gh.h3.n2.stage2d9-g3-d2-authorization-request-index/3",
+  "schema": "gh.h3.n2.stage2d9-g3-d2-authorization-request-index/4",
   "stage": "H3/N2 Stage 2D-9 G3",
-  "active_request_id": null,
-  "execution_gate": "CLOSED_NEW_ARTIFACT_CHAIN_REQUIRED",
+  "active_request_id": "D2-H3N2-STAGE2D9-G3-V68-20260723-01",
+  "execution_gate": "LOCKED_D2_OPERATOR_DECISION_REQUIRED",
   "requests": [
     {
       "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V67-20260722-01",
@@ -26,6 +26,19 @@
       "board_accessed": false,
       "destructive_boundary_entered": false,
       "replay_permitted": false
+    },
+    {
+      "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V68-20260723-01",
+      "status": "pending_operator_authorization",
+      "request_record": "docs/acceptance/h3-n2-stage2d9-g3-v68-d2-attempt1-authorization-request-v1.json",
+      "review_package_sha256": "498a56273e14e916b74148892002b139504f3a3864163e3d217278744f3e758d",
+      "operator_authorization_text_sha256": "4a8b496a3acd5e8b708895fd2a5901474548f3d9bc7c44cfd2059d947afff722",
+      "u1_passed": true,
+      "private_custody_installed": true,
+      "authorization_issued": false,
+      "execution_package_generated": false,
+      "execution_performed": false,
+      "replay_permitted": false
     }
   ],
   "retired_request_ids": [
@@ -33,9 +46,10 @@
     "D2-H3N2-STAGE2D9-G3-V67-20260723-02"
   ],
   "stage2d8_authorization_replay_permitted": false,
-  "stage2d9_attempt1_replay_permitted": false,
-  "stage2d9_attempt2_replay_permitted": false,
-  "new_artifact_and_new_u1_required": true,
+  "stage2d9_v67_authorization_replay_permitted": false,
+  "v68_artifact_frozen": true,
+  "v68_u1_passed": true,
+  "v68_private_custody_installed": true,
   "new_operator_d2_required": true,
   "ready_merge_release_authorized": false
 }
