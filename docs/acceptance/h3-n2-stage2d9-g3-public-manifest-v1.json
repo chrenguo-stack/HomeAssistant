@@ -1,12 +1,12 @@
 {
-  "schema": "gh.h3.n2.stage2d9-g3-public-manifest/6",
+  "schema": "gh.h3.n2.stage2d9-g3-public-manifest/7",
   "stage": "H3/N2 Stage 2D-9 G3",
-  "status": "v68_artifact_frozen_waiting_user_host_u1",
+  "status": "v68_u1_passed_waiting_exact_d2_operator_decision",
   "base_main_sha": "2a5272546f25b1b29cf1d6682cf1fc14f1c1be83",
   "branch": "feature/h3-n2-stage2d9-g3-prepare-candidate-20260722-v1",
   "draft_pr": 174,
-  "execution_gate": "LOCKED_V68_U1_REQUIRED",
-  "active_d2_request_id": null,
+  "execution_gate": "LOCKED_D2_OPERATOR_DECISION_REQUIRED",
+  "active_d2_request_id": "D2-H3N2-STAGE2D9-G3-V68-20260723-01",
   "allowed_action": "PREPARE_CANDIDATE",
   "expected_transition": {
     "active_generation_before": 0,
@@ -41,7 +41,7 @@
     "attempt2_destructive_boundary_entered": false
   },
   "v68_artifact": {
-    "status": "frozen_waiting_user_host_u1",
+    "status": "passed_frozen",
     "source_commit": "608282bf86fcf8c1d13494437e01f1899d3c494a",
     "executor_source_binding": "70780dd1e826e07e32e12c66268c5dc564863420",
     "workflow_run_id": 29966262910,
@@ -70,23 +70,45 @@
     "unlock_digest_match_verified": true,
     "material_in_git": false,
     "material_in_artifact": false,
-    "operator_installation_status": "pending_user_host_u1",
+    "operator_installation_status": "installed_and_preserved",
     "execution_authorized": false
   },
   "v68_u1": {
-    "status": "pending_user_host_execution",
+    "status": "passed",
+    "timestamp_utc": "2026-07-22T23:51:46Z",
     "batch_package_id": "U1_STAGE2D9_G3_V68_ARTIFACT_AND_CUSTODY_VERIFY_V2",
     "package_sha256": "4fc3e589e7bd3174a8a44eed0b3aab90a6bfe030a0b07edffb96adaebc24e14a",
     "launcher_sha256": "8319f460212fff1f5c7350f6070ff9219867099e793d90ffd7693f491887d54e",
     "script_sha256": "2091e44001526eb31c01072b0420b33b1b28c05cdaa4db018d27e203633f302c",
     "binding_sha256": "2ba8b8028b771bcd65d88912cad115c9c2b348e19b401b1fef9848bcc85e6ca2",
-    "isolated_self_test": "passed",
+    "canonical_output_sha256": "171d44e41665c41585e556a0918ac1a670d80bf248d5cbf1b6147fd8ea6fb8b2",
+    "private_custody_installed": true,
+    "private_custody_preserved": true,
     "board_accessed": false,
     "serial_access_attempted": false,
     "flash_operation_attempted": false,
     "network_operation_attempted": false,
-    "authorization_file_present": false,
-    "execution_package_present": false
+    "authorization_file_generated": false,
+    "execution_package_generated": false
+  },
+  "d2_review": {
+    "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V68-20260723-01",
+    "status": "pending_operator_authorization",
+    "review_package_sha256": "498a56273e14e916b74148892002b139504f3a3864163e3d217278744f3e758d",
+    "operator_authorization_text_sha256": "4a8b496a3acd5e8b708895fd2a5901474548f3d9bc7c44cfd2059d947afff722",
+    "execution_script_sha256": "9981d82b047d8fc7d77f6e04ef68c280d8728309c7d7994681f439a3445d2b9d",
+    "launcher_sha256": "0397d77957852953e7807542bb5111593c155df8f2a9915c40180f27098c6652",
+    "command_group_sha256": "de7d91955e1c3ef70bc0a6f78023d93195e590bfed5249cc9c7a5ac27cb639d5",
+    "stop_conditions_sha256": "5feb9f36a2cd34d466533b9d63650c48df66a3739bd5217b7ba15b7dfad9b198",
+    "private_execution_material_sha256": "0b3de67e7ee944fa630a4edc7886d1cdc9fce130090a45cc4fcebff237303be6",
+    "prepare_command_sha256": "b1554a975c3f9b4823dc5fbf3c508c15b94564b3457ac31fc341e1c307857f88",
+    "verify_command_sha256": "8098070a7eddbbea4e8f984dca435c9ede9c26bb5415aa44bed491d7fa97d275",
+    "private_custody_file_sha256": "a462997381fdd0842b2a7c1ab5697fd45e62ae0789100437c6fb702cfa16cfdc",
+    "review_self_test": "passed",
+    "authorization_validity": "exactly 2 hours after issue",
+    "one_shot": true,
+    "replay_permitted": false,
+    "execution_authorized": false
   },
   "validation": {
     "host_transaction_and_command_fault_cases": 21,
@@ -99,6 +121,8 @@
     "v68_artifact_packaging": "passed",
     "v68_member_hashes": "passed",
     "v68_private_material_exclusion": "passed",
+    "v68_user_host_u1": "passed",
+    "d2_review_self_test": "passed",
     "public_repository_safety": "passed"
   },
   "boundaries": {
@@ -129,5 +153,5 @@
     "candidate_secret_values_included": false,
     "private_logs_included": false
   },
-  "next_gate": "user-host U1 must pass and preserve the exact V68 custody file; only then may a new D2 review package be created"
+  "next_gate": "exact operator D2 authorization for D2-H3N2-STAGE2D9-G3-V68-20260723-01"
 }
