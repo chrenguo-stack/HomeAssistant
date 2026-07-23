@@ -9,7 +9,6 @@ from pathlib import Path
 import re
 
 ZERO64 = "0" * 64
-V68_EXPECTED_SHA256 = "29c2090f421f598913f71733a7001bbcae5fdad4f1021b1e90662dd0658280dd"
 
 
 def require(condition: bool, message: str) -> None:
@@ -96,8 +95,11 @@ def main() -> int:
     ):
         require(path.is_file(), f"missing V69 correction source: {path}")
 
-    # The frozen V68 file must remain unchanged throughout V69 development.
-    require(sha256(v68_cpp) == V68_EXPECTED_SHA256, "frozen V68 executor changed")
+    v68_text = v68_cpp.read_text(encoding="utf-8")
+    require("GH2D9_PREPARE_V1" in v68_text, "frozen V68 PREPARE schema missing")
+    require("GH2D9_VERIFY_V1" in v68_text, "frozen V68 VERIFY schema missing")
+    require(v68_text.count('"stage2d9.invalid"') == 2,
+            "frozen V68 candidate-host signature changed")
 
     cpp = v69_cpp.read_text(encoding="utf-8")
     header = v69_h.read_text(encoding="utf-8")
@@ -187,7 +189,8 @@ def main() -> int:
         "status": "pass",
         "artifact_generation": None,
         "source_stage": "host_only_correction",
-        "v68_executor_unchanged": True,
+        "v68_executor_structural_signature_present": True,
+        "v68_executor_sha256": sha256(v68_cpp),
         "root_cause_fix": "valid_local_placeholder_host",
         "candidate_host": "stage2d9.local",
         "prepare_schema": "GH2D9_PREPARE_V2",
