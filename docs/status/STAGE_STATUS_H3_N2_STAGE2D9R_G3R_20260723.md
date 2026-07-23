@@ -7,7 +7,7 @@ stage=H3/N2 Stage 2D-9R G3R
 purpose=replace non-TLS-usable V69 PREPARED input
 pr=176
 pr_state=DRAFT
-execution_gate=LOCKED_SOURCE_AND_COMPILE_ONLY
+execution_gate=LOCKED_U1_REVIEW_PENDING
 ```
 
 ## Approved D1
@@ -78,7 +78,7 @@ Authorization is claimed before private material generation. The generator does 
 
 ## Evidence obtained
 
-At the current source checkpoint:
+At the source and host checkpoint:
 
 ```text
 dedicated_locked_compile=PASS
@@ -92,9 +92,34 @@ recovery_contract_matrix=PASS
 immutable_build_contract_matrix=PASS
 generator_source_materialization=PASS
 generator_contract_matrix=PASS_local_and_CI_bound
+host_toolchain_probe=PASS
 ```
 
-All workflows for the final current PR head must be green again before the source checkpoint is frozen and before any host probe package is issued.
+Read-only host probe binding:
+
+```text
+probe_artifact_id=8567934795
+probe_artifact_zip_sha256=76584fb7d80e28860f3c35fadd2fe3738932ec9e6258bcffdde39672e18b4d4e
+probe_artifact_source_sha=c899829e89d87ce29c50e869b2970f8132d0e67f
+python_executable_sha256=4e28e811a89aeac6eed668ae641c7f85f5831e42e8dc6cd9a85a3bcc032ec46a
+openssl_executable_sha256=04ad05ce2e7eaf92116dac99a984cc0e589040a103589f93a9fe452832766973
+openssl_version=OpenSSL 3.5.0 8 Apr 2025
+mosquitto_passwd_executable_sha256=d6fdc23fa4bb09198bf74925207aa2b69b1455970e31fefc6157dfe4be2b07ee
+custody_root_selection_rule=HOME_LOCAL_STATE_STAGE2D9R_PRIVATE_PKI_V1
+custody_root_digest_sha256=4cd43ee4b2df177bd99c32d3904dbe1e1df890aa14c6b6714a6b4f7ae4024868
+custody_root_exists=false
+secret_values_included=false
+private_paths_included=false
+board_operation=false
+network_operation=false
+broker_started=false
+```
+
+Public L1 record:
+
+`docs/acceptance/h3-n2-stage2d9r-private-pki-toolchain-probe-u1-l1-v1.json`
+
+All workflows for the final current PR head must be green again before the exact U1 review binding is issued.
 
 ## Current prohibitions
 
@@ -120,7 +145,7 @@ Flash_Encryption=false
 M401A=false
 T1=false
 Home_Assistant=false
-Mosquitto=false
+Mosquitto_Broker_start=false
 greenhouse_manager=false
 production=false
 Ready=false
@@ -131,10 +156,10 @@ deployment=false
 
 ## Remaining work before U1
 
-1. Obtain a fully green CI set for the final source head.
+1. Obtain a fully green CI set for the final source head containing this public probe record.
 2. Freeze the final PR/source SHA and exact custody template/gate digests.
-3. Prepare and run one host-only read-only toolchain probe; it must generate no secret and write no custody material.
-4. Review the Python/OpenSSL/`mosquitto_passwd` executable digests, versions and selected custody-root digest.
-5. Build the exact U1 review record and request explicit operator authorization.
+3. Build a review-only U1 request package binding the observed host toolchain and custody-root digest.
+4. Obtain explicit operator authorization.
+5. Only after authorization, issue the one-shot authorization record and run the offline generator once.
 
 The next operator decision is not a board D2. It is a narrowly scoped one-shot approval to generate and install a test-only private PKI/custody package. Physical baseline recovery and PREPARE remain a later independent exact D2 after private/public bindings and the immutable Artifact are frozen.
