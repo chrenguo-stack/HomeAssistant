@@ -2,6 +2,9 @@ name: H3 N2 Stage2D9R Source Fix Once 20260723 V1
 
 # One-shot source correction. The successful job deletes this workflow.
 on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-source-fix-once-20260723-v1.yml"
   push:
     branches:
       - feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1
@@ -13,7 +16,7 @@ permissions:
 
 jobs:
   apply-source-fix:
-    if: github.ref == 'refs/heads/feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1'
+    if: github.event.pull_request.head.repo.full_name == github.repository || github.ref == 'refs/heads/feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
