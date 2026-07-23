@@ -42,19 +42,13 @@ jobs:
             tools/h3_n2_stage2d9_prepare_model_20260722_v1.py \
             tools/h3_n2_stage2d9_prepare_manifest_gate_20260722_v1.py \
             tools/h3_n2_stage2d9_prepare_command_protocol_20260722_v1.py \
-            tools/h3_n2_stage2d9_esphome_reproducible_compile_20260722_v67.py \
-            tools/h3_n2_stage2d9_g3_boundary_gate_20260722_v67.py \
-            tools/h3_n2_stage2d9_g3_reproducibility_gate_20260722_v67.py \
-            tools/h3_n2_stage2d9_g3_artifact_packager_20260722_v67.py \
-            tools/h3_n2_stage2d9_g3_u1_artifact_verify_20260722_v1.py \
-            tools/h3_n2_stage2d9_esphome_reproducible_compile_20260723_v68.py \
-            tools/h3_n2_stage2d9_g3_boundary_gate_20260723_v68.py \
-            tools/h3_n2_stage2d9_g3_reproducibility_gate_20260723_v68.py \
-            tools/h3_n2_stage2d9_g3_artifact_packager_20260723_v68.py \
-            tools/h3_n2_stage2d9_g3_u1_artifact_verify_20260723_v2.py \
             tools/h3_n2_stage2d9_v68_root_cause_gate_20260723_v1.py \
             tools/h3_n2_stage2d9_v69_source_gate_20260723_v1.py \
             tools/h3_n2_stage2d9_v69_serial_capture_model_20260723_v1.py \
+            tools/h3_n2_stage2d9_esphome_reproducible_compile_20260723_v69.py \
+            tools/h3_n2_stage2d9_g3_boundary_gate_20260723_v69.py \
+            tools/h3_n2_stage2d9_g3_reproducibility_gate_20260723_v69.py \
+            tools/h3_n2_stage2d9_g3_artifact_packager_20260723_v69.py \
             tests/h3_n2_stage2d9_prepare/test_stage2d9_prepare_model_20260722_v1.py \
             tests/h3_n2_stage2d9_prepare/test_stage2d9_prepare_command_protocol_20260722_v1.py \
             tests/h3_n2_stage2d9_prepare/test_stage2d9_v69_serial_capture_model_20260723_v1.py
@@ -69,15 +63,18 @@ jobs:
           python tools/h3_n2_stage2d9_prepare_manifest_gate_20260722_v1.py \
             --manifest tests/h3_n2_stage2d9_prepare/stage2d9_prepare_manifest_template_20260722_v1.json \
             --expect-gate LOCKED
-      - name: Prove V68 source root cause
+      - name: Prove V68 root cause and V69 correction contract
         run: |
           python tools/h3_n2_stage2d9_v68_root_cause_gate_20260723_v1.py \
-            --repo-root . \
-            --output /tmp/stage2d9-v68-root-cause.json
+            --repo-root . --output /tmp/stage2d9-v68-root-cause.json
+          python tools/h3_n2_stage2d9_v69_source_gate_20260723_v1.py \
+            --repo-root . --output /tmp/stage2d9-v69-source-gate.json
           grep -F '"root_cause": "candidate_host_contract_mismatch"' \
             /tmp/stage2d9-v68-root-cause.json
-          grep -F '"mqtt_in_prepare_call_path": false' \
-            /tmp/stage2d9-v68-root-cause.json
+          grep -F '"root_cause_fix": "valid_local_placeholder_host"' \
+            /tmp/stage2d9-v69-source-gate.json
+          grep -F '"device_operation_authorized": false' \
+            /tmp/stage2d9-v69-source-gate.json
       - name: Compile and run actual credential host-contract test
         run: |
           g++ -std=c++17 -Wall -Wextra -Werror -I. \
@@ -86,13 +83,9 @@ jobs:
             firmware/esphome_rc/components/greenhouse_pairing_client/pairing_ram_credentials.cpp \
             -o /tmp/stage2d9-v68-root-cause-test
           /tmp/stage2d9-v68-root-cause-test | tee /tmp/stage2d9-v68-root-cause-test.log
-          grep -F 'STAGE2D9_V68_INVALID_HOST_REJECTED=true' \
-            /tmp/stage2d9-v68-root-cause-test.log
-          grep -F 'STAGE2D9_V69_LOCAL_HOST_ACCEPTED=true' \
-            /tmp/stage2d9-v68-root-cause-test.log
           grep -F 'STAGE2D9_V68_ROOT_CAUSE_TEST=PASS' \
             /tmp/stage2d9-v68-root-cause-test.log
-      - name: Verify recovery closure, root cause and V69 host-only gate
+      - name: Verify V68 closure and frozen V69 U1-only gate
         run: |
           python - <<'PY'
           import json
@@ -102,69 +95,64 @@ jobs:
               return json.loads(Path(path).read_text(encoding="utf-8"))
 
           public = load("docs/acceptance/h3-n2-stage2d9-g3-public-manifest-v1.json")
-          request = load("docs/acceptance/h3-n2-stage2d9-g3-v68-d2-attempt1-authorization-request-v1.json")
-          failure = load("docs/acceptance/h3-n2-stage2d9-g3-v68-d2-attempt1-failure-l1-v1.json")
-          u2 = load("docs/acceptance/h3-n2-stage2d9-g3-v68-d2-attempt1-u2-private-detail-l1-v1.json")
-          root = load("docs/acceptance/h3-n2-stage2d9-g3-v68-root-cause-l1-v1.json")
           acceptance = load("docs/acceptance/h3-n2-stage2d9-g3-acceptance-template-v1.json")
+          artifact = load("docs/acceptance/h3-n2-stage2d9-g3-v69-artifact-l1-summary-v1.json")
+          custody = load("docs/acceptance/h3-n2-stage2d9-g3-v69-private-custody-l1-v1.json")
+          root = load("docs/acceptance/h3-n2-stage2d9-g3-v68-root-cause-l1-v1.json")
+          request = load("docs/acceptance/h3-n2-stage2d9-g3-v68-d2-attempt1-authorization-request-v1.json")
           index = load("docs/acceptance/h3-n2-stage2d9-g3-d2-authorization-request-index-v1.json")
           template = load("tests/h3_n2_stage2d9_prepare/stage2d9_prepare_manifest_template_20260722_v1.json")
 
-          gate = "CLOSED_CONSUMED_FAILED_RECOVERY_VERIFIED_NO_REPLAY"
-          request_id = "D2-H3N2-STAGE2D9-G3-V68-20260723-01"
-          seed = "0ea36f26c5048f69b223884a13613fbd645b58c2ce42eafc6f9d9cd55bb089af"
-
-          assert public["status"] == "v68_failed_recovery_verified_root_cause_confirmed_v69_host_correction"
-          assert public["execution_gate"] == gate
+          assert public["status"] == "v69_artifact_frozen_waiting_user_host_u1"
+          assert public["execution_gate"] == "LOCKED_V69_U1_REQUIRED"
           assert public["active_d2_request_id"] is None
-          assert public["v68_d2_attempt1"]["authorization_request_id"] == request_id
-          assert public["v68_d2_attempt1"]["recovery_seed_restored"] is True
-          assert public["v68_d2_attempt1"]["final_board_state"] == "locked_recovery_seed_restored"
-          assert public["v68_root_cause"]["status"] == "confirmed_by_frozen_source_and_actual_cpp_host_test"
+          assert public["v68_evidence"]["recovery_seed_restored"] is True
           assert public["v68_root_cause"]["name"] == "candidate_host_contract_mismatch"
-          assert public["v68_root_cause"]["mqtt_in_prepare_call_path"] is False
-          assert public["observability_defect"]["caused_v68_prepare_failure"] is False
-          assert public["v69_correction"]["candidate_host"] == "stage2d9.local"
-          assert public["v69_correction"]["command_surface_enabled"] is False
-          assert public["v69_correction"]["artifact_generated"] is False
-          assert public["v69_correction"]["d2_request_generated"] is False
+          assert public["v69_correction"]["status"] == "passed_frozen"
+          assert public["v69_correction"]["actual_package_driver_prepare_test"] == "passed"
+          assert public["v69_correction"]["atomic_serial_evidence_matrix"] == "passed"
+          assert public["v69_artifact"]["source_commit"] == "30a15e39164bed4a5b96c50aa5e2e2e6f238c43b"
+          assert public["v69_artifact"]["zip_sha256"] == "21aa3383a26b66109408576040245dd60c17eb780b65de9847381b73cfb1506b"
+          assert public["v69_artifact"]["gate"] == "LOCKED"
+          assert public["v69_artifact"]["byte_identical"] is True
+          assert public["v69_artifact"]["execution_authorized"] is False
+          assert public["v69_u1"]["status"] == "pending_user_host_execution"
+          assert public["v69_u1"]["isolated_self_test"] == "passed"
+          assert public["v69_u1"]["authorization_file_present"] is False
+          assert public["v69_u1"]["execution_package_present"] is False
+          assert public["v69_u1"]["d2_request_present"] is False
           assert all(value is False for value in public["protected_boundaries"].values())
 
-          assert request["status"] == "consumed_failed_recovery_verified_retired"
-          assert request["execution_gate"] == gate
-          assert request["execution_result"]["recovery_seed_restored"] is True
-          assert request["replay_permitted"] is False
+          assert artifact["status"] == "frozen_waiting_user_host_u1"
+          assert artifact["artifact"]["member_checksums_verified"] is True
+          assert artifact["artifact"]["private_material_exclusion_verified"] is True
+          assert artifact["u1_package"]["isolated_self_test"] == "passed"
+          assert artifact["u1_package"]["user_host_result"] == "pending"
+          assert artifact["protected_boundaries"]["execution_authorized"] is False
 
-          assert failure["result"] == "failed_recovery_verified_root_cause_confirmed"
-          assert failure["recovery"]["recovery_partition_equals_seed"] is True
-          assert failure["root_cause"]["name"] == "candidate_host_contract_mismatch"
-          assert failure["root_cause"]["actual_cpp_host_contract_test"] == "passed"
-          assert failure["observability"]["caused_prepare_failure"] is False
-          assert failure["disposition"]["execution_gate"] == gate
-
-          assert u2["u2_result"] == "passed"
-          assert u2["locked_recovery"]["recovery_partition_sha256"] == seed
-          assert u2["root_cause"]["name"] == "candidate_host_contract_mismatch"
-          assert u2["root_cause"]["dot_local_accepted_by_credential_bundle"] is True
-          assert u2["disposition"]["execution_gate"] == gate
+          assert custody["artifact_status"] == "passed_frozen"
+          assert custody["operator_installation_status"] == "pending_user_host_u1"
+          assert custody["execution_authorized"] is False
+          assert custody["d2_request_present"] is False
 
           assert root["status"] == "confirmed"
-          assert root["root_cause"] == "candidate_host_contract_mismatch"
-          assert root["host_proof"]["actual_cpp_host_contract_test"] == "passed"
-          assert root["protected_boundaries"]["board_accessed_for_root_cause"] is False
+          assert root["correction_status"] == "v69_artifact_frozen_waiting_user_host_u1"
+          assert root["v69_correction"]["artifact_gate"] == "LOCKED"
+          assert root["v69_correction"]["execution_authorized"] is False
 
+          assert request["status"] == "consumed_failed_recovery_verified_retired"
+          assert request["replay_permitted"] is False
           assert index["active_request_id"] is None
-          assert index["execution_gate"] == gate
-          assert len(index["retired_request_ids"]) == 3
           assert index["g3_retry_permitted"] is False
           assert index["device_reconnect_permitted"] is False
 
-          assert acceptance["result"] == "failed_recovery_verified_root_cause_confirmed"
-          assert acceptance["physical_execution"]["recovery_seed_restored"] is True
+          assert acceptance["v68"]["recovery_seed_restored"] is True
           assert acceptance["root_cause"]["name"] == "candidate_host_contract_mismatch"
-          assert acceptance["v69_correction"]["command_surface_enabled"] is False
-          assert acceptance["stage_disposition"]["execution_gate"] == gate
-          assert acceptance["stage_disposition"]["g3_retry_authorized"] is False
+          assert acceptance["v69"]["status"] == "artifact_frozen_waiting_user_host_u1"
+          assert acceptance["v69"]["artifact_gate"] == "LOCKED"
+          assert acceptance["v69_u1"]["status"] == "pending_user_host_execution"
+          assert acceptance["stage_disposition"]["execution_gate"] == "LOCKED_V69_U1_REQUIRED"
+          assert acceptance["stage_disposition"]["active_d2_request_id"] is None
           assert acceptance["stage_disposition"]["device_reconnect_authorized"] is False
           assert acceptance["stage_disposition"]["ready_merge_release_authorized"] is False
 
