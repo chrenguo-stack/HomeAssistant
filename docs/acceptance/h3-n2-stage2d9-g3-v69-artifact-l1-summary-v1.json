@@ -1,8 +1,8 @@
 {
-  "schema": "gh.h3.n2.stage2d9-g3-v69-artifact-l1-summary/1",
+  "schema": "gh.h3.n2.stage2d9-g3-v69-artifact-l1-summary/2",
   "stage": "H3/N2 Stage 2D-9 G3",
   "artifact_generation": "V69",
-  "status": "frozen_waiting_user_host_u1",
+  "status": "frozen_u1_passed_d2_review_prepared",
   "source_commit": "30a15e39164bed4a5b96c50aa5e2e2e6f238c43b",
   "implementation_source_binding": "f39c3c4c621717a61e0b3cef8b4ec88e59ac13aa",
   "workflow": {
@@ -43,9 +43,10 @@
     "unlock_digest_match_verified": true,
     "material_in_git": false,
     "material_in_artifact": false,
+    "operator_installation_status": "passed_user_host_u1",
     "execution_authorized": false
   },
-  "u1_package": {
+  "u1": {
     "batch_package_id": "U1_STAGE2D9_G3_V69_ARTIFACT_AND_CUSTODY_VERIFY_V3",
     "package_sha256": "8dfd73abf0f3dc1d526658ce9987a71b9d3fd0ab291eacbc08a851928d365782",
     "package_size": 813466,
@@ -53,10 +54,28 @@
     "script_sha256": "7b5a5cf443ec5f491a411391be27c6bf4ef383280ef2094ecad923d3475b07d5",
     "binding_sha256": "d14a741d0cb4be880c8a8b91ee8a5b9571c0b52b2a7c76194598762068610851",
     "isolated_self_test": "passed",
-    "user_host_result": "pending",
+    "user_host_result": "passed",
+    "user_host_timestamp_utc": "2026-07-23T03:28:26Z",
+    "private_custody_installed": true,
+    "private_custody_preserved": true,
     "authorization_file_present": false,
-    "execution_package_present": false,
-    "d2_request_present": false
+    "execution_package_present": false
+  },
+  "d2_review": {
+    "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V69-20260723-01",
+    "status": "pending_operator_decision",
+    "review_package_sha256": "5e7b13dc3e804698f216542b17f4d481a9f8a05285c5c3e6a4475ef1e44e379e",
+    "review_package_size": 19501,
+    "execution_script_sha256": "a24eae615513151437ea1e341259b9cb0ace18a5c8d471788fd22391d9d5083a",
+    "launcher_sha256": "870dfa36eee48b397963cc6cab329b52a0a50940052da4672f2d46e499e07163",
+    "command_group_sha256": "714d6548d15c1fc5c4b8ce11559606e08cd8db36a41bb9e34096adabdf54e9ed",
+    "stop_conditions_sha256": "d4b93890f952ee37ab95b1abfa45f20681a71cec73c405e1720228e3434f79da",
+    "private_execution_material_sha256": "1f0924aa6148c66abf94930c51c71fc3a79f4baf75919a821f19dbca5f28292f",
+    "prepare_command_sha256": "baaecb7ea5ec3297e338739daa16ca6e92f1a1bab0f87622ddf7af967c7c7bd6",
+    "verify_command_sha256": "3b02cd815b819aeadd3b6357921c5e9d0bcd4a7f7e9ca194dbd83c13fbfcc06e",
+    "review_self_test": "passed",
+    "authorization_issued": false,
+    "execution_package_generated": false
   },
   "protected_boundaries": {
     "board_accessed": false,
@@ -66,12 +85,13 @@
     "network_operation_attempted": false,
     "production_environment_modified": false,
     "authorization_issued": false,
-    "execution_authorized": false
+    "execution_authorized": false,
+    "device_reconnect_authorized": false
   },
   "retired_material": {
     "v67_d2_material_reusable": false,
     "v68_d2_material_reusable": false,
     "v68_artifact_execution_reusable": false
   },
-  "next_gate": "user-host U1 must verify the frozen V69 Artifact and install the exact V69 custody file before any new D2 review package"
+  "next_gate": "operator D2 decision for the exact V69 review package; no board connection or execution before authorization issuance"
 }
