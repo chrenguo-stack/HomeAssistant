@@ -87,6 +87,7 @@ jobs:
           driver=firmware/esphome_rc/components/greenhouse_profile_isolated_device_driver
           g4=firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation
           g++ -std=gnu++20 -Wall -Wextra -Wpedantic -Werror \
+            -Wno-unused-function \
             -I "$pairing" -I "$package" -I "$driver" -I "$g4" \
             "$pairing/pairing_client_core.cpp" \
             "$pairing/secure_pairing_channel.cpp" \
