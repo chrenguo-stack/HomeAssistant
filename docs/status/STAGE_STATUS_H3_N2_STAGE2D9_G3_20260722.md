@@ -1,80 +1,44 @@
 # H3/N2 Stage 2D-9 G3 PREPARE_CANDIDATE 状态
 
-- **状态版本：** V2.0
+- **状态版本：** V2.1
 - **更新日期：** 2026-07-23
 - **起始基线：** `2a5272546f25b1b29cf1d6682cf1fc14f1c1be83`
 - **开发分支：** `feature/h3-n2-stage2d9-g3-prepare-candidate-20260722-v1`
 - **Draft PR：** `#174`
-- **阶段状态：** `v68_physical_prepare_failed_recovery_verified_evidence_closed_source_diagnostic`
+- **阶段状态：** `v68_failed_recovery_verified_root_cause_confirmed_v69_host_correction`
 - **执行门：** `CLOSED_CONSUMED_FAILED_RECOVERY_VERIFIED_NO_REPLAY`
 - **当前 D2 请求：** 无
 
-## 1. 固定目标
-
-```text
-ALLOWED_ACTION=PREPARE_CANDIDATE
-ACTIVE_GENERATION=0 -> 0
-CANDIDATE_GENERATION=0 -> 1
-CANDIDATE_STATE=EMPTY -> PREPARED
-PARTITION=gh2d8_p2d9
-PARTITION_OFFSET=0x400000
-PARTITION_SIZE=0x10000
-NAMESPACE=gh2d8_s2d9
-```
-
-## 2. 冻结 V68
+## 1. V68 实板结果
 
 ```text
 V68_SOURCE_COMMIT=608282bf86fcf8c1d13494437e01f1899d3c494a
 V68_ARTIFACT_ZIP_SHA256=3a90f2b1369dafbc5fb0fa20255ab9dc978a335b74d415aa2f51054a3e198c3b
-V68_G3_MERGED_SHA256=094d37b01e9ddce1bba26216ffcbb1bae56a3ecbbf075b3e9e3ec57042214ca4
-V68_RECOVERY_MERGED_SHA256=54fb10601a0fbf448948d3f7d687281b33e85220c64bcdcabfae896dd3d98a1a
-V68_SEED_SHA256=0ea36f26c5048f69b223884a13613fbd645b58c2ce42eafc6f9d9cd55bb089af
-V68_BYTE_IDENTICAL=true
-V68_ARTIFACT_GATE=LOCKED
-V68_EXECUTION_REUSE_PERMITTED=false
-```
-
-## 3. D2 V68 尝试 1
-
-```text
 AUTHORIZATION_REQUEST_ID=D2-H3N2-STAGE2D9-G3-V68-20260723-01
-D2_STATUS=consumed_failed_recovery_verified_retired
 AUTHORIZATION_CONSUMED=true
-EXECUTION_PERFORMED=true
-DESTRUCTIVE_BOUNDARY_ENTERED=true
-FINAL_RESULT=failed_recovery_verified
-FAILURE_STAGE=prepare_serial
-FAILURE_CLASS=RuntimeError
-FAILURE_MESSAGE_REDACTED=G3 executor emitted fail marker before PREPARE
 PREFLIGHT_STATUS=passed
 ERASE_SUCCESS=true
 WRITE_SUCCESS=true
 VERIFY_FLASH_SUCCESS=true
 PREVIOUS_G2_SEED_MATCH=true
-PREPREPARE_READBACK_SHA256=0ea36f26c5048f69b223884a13613fbd645b58c2ce42eafc6f9d9cd55bb089af
 PREPARE_COMMAND_SEND_ATTEMPT_OBSERVED=true
-PREPARE_COMMAND_SENT_SUMMARY=false
 PREPARE_SUCCEEDED=false
 VERIFY_COMMAND_SENT=false
-VERIFY_SUCCEEDED=false
+RECOVERY_PERFORMED=true
+RECOVERY_COUNT=1
+FINAL_RESULT=failed_recovery_verified
 REPLAY_PERMITTED=false
-G3_RETRY_PERMITTED=false
+V68_G3_RETRY_PERMITTED=false
 ```
 
-一次 host 串口写入尝试已发生，但没有证据证明设备接受 PREPARE、完成持久化事务或进入 PREPARED。顶层 `prepare_command_sent=false` 是捕获函数异常后保留的 fail-closed 默认值。
-
-## 4. U2 与 locked recovery
+## 2. U2 与 recovery 闭环
 
 ```text
 U2_RESULT=passed
-U2_SCRIPT_SHA256=4976f43f23ca7be39d80e31c5e4d6aa1a4b29674e8e8024aaeb67968405145c8
 PRIVATE_EVIDENCE_ARCHIVE_SHA256=c2a0686e7a52774531c53a674e889f50c8bdef37ee7ea67903dd24c989059321
 SUMMARY_JSON_SHA256=3fd63b52710d3763059dc5fa204767ba2bb5c3cd01028657a3de2fcd8bae8f1f
 PREPARE_SERIAL_LOG_PRESENT=false
 VERIFY_SERIAL_LOG_PRESENT=false
-RECOVERY_PERFORMED=true
-RECOVERY_COUNT=1
 RECOVERY_ERASE_SUCCESS=true
 RECOVERY_WRITE_SUCCESS=true
 RECOVERY_VERIFY_SUCCESS=true
@@ -82,29 +46,67 @@ RECOVERY_SEED_RESTORED=true
 RECOVERY_BOOT_SUCCESS=true
 RECOVERY_LOCKED_MARKER_PRESENT=true
 RECOVERY_SERIAL_LOG_SHA256=eb92a2dbfc1a43b2d0917286b91b0904c4a9b4fefb212f00334152362cc8aca0
-RECOVERY_ESPTOOL_LOG_SHA256=945c47aa9419e9928f1d9ae2cdc7b759a33ca7921024e00a8f2a8e224fe2014f
 RECOVERY_PARTITION_SHA256=0ea36f26c5048f69b223884a13613fbd645b58c2ce42eafc6f9d9cd55bb089af
 RECOVERY_PARTITION_MATCHES_PREPREPARE=true
 RECOVERY_PARTITION_EQUALS_SEED=true
 FINAL_BOARD_STATE=locked_recovery_seed_restored
 ```
 
-测试板当前无需连接。现有证据已经证明 recovery 后分区与 PREPARE 前分区及冻结 seed 完全一致，且 locked recovery 固件启动成功。
+测试板无需再次连接。现有证据已经证明 recovery 后测试分区与 PREPARE 前分区及冻结 seed 字节完全一致，locked recovery 固件启动成功。
 
-## 5. 源码诊断
+## 3. 已确认根因
 
 ```text
+ROOT_CAUSE_STATUS=confirmed_by_frozen_source_and_actual_cpp_host_test
+ROOT_CAUSE=candidate_host_contract_mismatch
+V68_BROKER_HOST=stage2d9.invalid
+V68_TLS_SERVER_NAME=stage2d9.invalid
+OUTER_CANDIDATE_ACCEPTS_NONEMPTY_HOST=true
+CREDENTIAL_BUNDLE_REQUIRES_LOCAL_HOST=true
+DOT_INVALID_ACCEPTED=false
+DOT_LOCAL_ACCEPTED=true
+REJECTION_LOCATION=IsolatedDeviceDriver::prepare_candidate_bundle.valid
+DRIVER_FAILURE=invalid_configuration
+PACKAGE_FAILURE=prepare_failed
+EXECUTOR_FAILURE=command_execution
 MQTT_IN_PREPARE_CALL_PATH=false
-NULL_MQTT_PREPARE_FAILURE_HYPOTHESIS=disproved
-RUNNER_SERIAL_LOG_PERSISTENCE_DEFECT=confirmed
-EXACT_FIRMWARE_FAILURE_SUBREASON=unavailable_due_missing_prepare_serial_log
-FIRMWARE_FAILURE_LOCUS=bounded_but_unresolved
-NEW_SOURCE_AND_ARTIFACT_REQUIRED=true
+NULL_MQTT_HYPOTHESIS=disproved
+ROOT_CAUSE_HOST_PROOF_RUN_ID=29972838732
 ```
 
-冻结源码表明，MQTT 仅在 PREPARE 之后的 validation 阶段启动，因此不能解释本次 PREPARE 前 fail marker。已确认的 runner 缺陷是：异常发生时未在 `finally` 中保存 PREPARE 串口缓冲，导致设备侧细分 failure 信息丢失。
+V68 外层测试配置只要求候选主机非空，因此 `stage2d9.invalid` 可被加载；转换后的正式凭据对象只接受受支持的局域网 IPv4 或 `.local` 名称。`bundle.valid()` 在持久化写入前拒绝该值，形成确定性 PREPARE 失败。
 
-剩余固件故障范围限定在配置加载、镜像授权、持久化写入/恢复验证或 executor 后置条件之一；现有证据不足以唯一确定，不作猜测。
+## 4. 独立取证缺陷
+
+```text
+RUNNER_SERIAL_LOG_PERSISTENCE_DEFECT=confirmed
+CAUSED_PREPARE_FAILURE=false
+REDUCED_FAILURE_EVIDENCE_PRECISION=true
+```
+
+V68 runner 在 fail marker 触发异常后没有先保存 PREPARE 串口缓冲。该问题不是固件失败根因，但导致设备侧完整失败行没有进入私有归档。
+
+## 5. V69 host-only 修正链
+
+```text
+V69_STATUS=host_only_ci_in_progress
+V69_IMPLEMENTATION_SOURCE_COMMIT=f39c3c4c621717a61e0b3cef8b4ec88e59ac13aa
+V69_COMPONENT=greenhouse_profile_isolated_device_g3_executor_v69
+V69_CANDIDATE_HOST=stage2d9.local
+V69_PREPARE_SCHEMA=GH2D9_PREPARE_V2
+V69_VERIFY_SCHEMA=GH2D9_VERIFY_V2
+V69_STAGE_SPECIFIC_FAILURE_MARKERS=true
+V69_ACTUAL_PACKAGE_DRIVER_PREPARE_TEST=true
+V69_ATOMIC_SERIAL_EVIDENCE_MODEL=true
+V69_DEDICATED_COMPILE_TARGET=true
+V69_PRODUCT_BOARD_COMPILE_TARGET=true
+V69_COMMAND_SURFACE_ENABLED=false
+V69_ARTIFACT_GENERATED=false
+V69_PRIVATE_EXECUTION_MATERIAL_GENERATED=false
+V69_D2_REQUEST_GENERATED=false
+```
+
+V69 采用独立组件路径和 V2 私有命令 schema，不修改或复用冻结 V68 executor。compile-only 配置使用全零 unlock digest，不能执行 PREPARE 或 VERIFY。
 
 ## 6. 当前阶段
 
@@ -113,20 +115,18 @@ P0_SCOPE_AND_PROTOCOL=complete
 P1_HOST_TRANSACTION_MODEL=passed_ci
 P2_MANIFEST_AND_COMMAND_GATES=passed_ci
 P3_G3_HARNESS_AND_EXECUTOR=passed_compile
-P4_COMPILE_ONLY_TARGETS=passed
+P4_COMPILE_ONLY_TARGETS=passed_for_v68
 P5_V68_ARTIFACT=passed_frozen_execution_retired
 P6_EVIDENCE_PROTOCOL=complete
 P7_V68_USER_HOST_U1=passed
 P8_V68_D2=failed_retired
-P9_PRIVATE_FAILURE_AND_RECOVERY_EVIDENCE=passed_closed
-P10_HOST_SOURCE_DIAGNOSIS_AND_CORRECTION=in_progress
+P9_PRIVATE_FAILURE_RECOVERY_AND_ROOT_CAUSE=passed_closed
+P10_V69_HOST_SOURCE_CORRECTION=in_progress
+P11_V69_IMMUTABLE_ARTIFACT=not_authorized
+P12_V69_U1_AND_D2=not_started
 ```
 
-## 7. 新源码链要求
-
-后续唯一命名修正版必须先完成：异常路径串口日志原子持久化、细分脱敏 failure 标志、真实 package/driver/persistence PREPARE host 测试、后置条件逐项断言及失败取证测试。完成 CI 后才允许构建新的不可变 Artifact；新的 U1 通过后才允许提出新的 D2。
-
-## 8. 固定禁止项
+## 7. 固定禁止项
 
 ```text
 DEVICE_RECONNECT_AUTHORIZED=false
@@ -142,7 +142,10 @@ EFUSE_OPERATION_AUTHORIZED=false
 SECURE_BOOT_CHANGE_AUTHORIZED=false
 FLASH_ENCRYPTION_CHANGE_AUTHORIZED=false
 PRODUCTION_ENVIRONMENT_OPERATION_AUTHORIZED=false
+V69_ARTIFACT_BUILD_AUTHORIZED=false
+V69_PRIVATE_MATERIAL_GENERATION_AUTHORIZED=false
+NEW_D2_REQUEST_AUTHORIZED=false
 READY_MERGE_RELEASE_AUTHORIZED=false
 ```
 
-Draft PR #174 继续保持 Draft。当前工作仅限 host 源码诊断和唯一命名修正，不需要用户或测试板操作。
+当前仅允许 host 源码、测试和 compile-only 修正。V69 修正 CI 全部通过后，才评估是否进入新的不可变 Artifact 构建；在此之前不需要用户或测试板操作。Draft PR #174 保持 Draft。
