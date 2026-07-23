@@ -1,0 +1,121 @@
+name: H3 N2 Stage2D9R Source Fix Once 20260723 V1
+
+on:
+  push:
+    branches:
+      - feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-source-fix-once-20260723-v1.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply-source-fix:
+    if: github.ref == 'refs/heads/feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1
+          fetch-depth: 0
+          show-progress: false
+      - name: Apply exact source corrections and retire this workflow
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path(
+              'firmware/esphome_rc/components/'
+              'greenhouse_profile_isolated_device_g3r_executor/'
+              'stage2d9r_g3r_prepare_executor_20260723_v1.cpp'
+          )
+          text = path.read_text(encoding='utf-8')
+
+          old_ca = '''  const bool valid = parsed == 0 && certificate.raw.len > 0 &&
+                       certificate.next == nullptr && certificate.ca_istrue != 0 &&
+                       (certificate.key_usage & MBEDTLS_X509_KU_KEY_CERT_SIGN) != 0;'''
+          new_ca = '''  const bool valid =
+      parsed == 0 && certificate.raw.len > 0 && certificate.next == nullptr &&
+      mbedtls_x509_crt_get_ca_istrue(&certificate) == 1 &&
+      mbedtls_x509_crt_check_key_usage(
+          &certificate, MBEDTLS_X509_KU_KEY_CERT_SIGN) == 0;'''
+          if text.count(old_ca) != 1:
+              raise SystemExit('opaque X.509 replacement target count mismatch')
+          text = text.replace(old_ca, new_ca)
+
+          old_order = '''  if (!this->authorization_binder_.grant(
+          IsolatedAcceptanceWriteOperation::PREPARE_CANDIDATE, 0, 1,
+          envelope->authorization_digest)) {
+    config.clear();
+    return this->fail_step_("prepare_authorization_grant");
+  }
+  if (!this->package_.load_test_configuration(std::move(config))) {
+    config.clear();
+    this->authorization_binder_.clear();
+    return this->fail_step_("prepare_config_load");
+  }
+'''
+          new_order = '''  if (!this->package_.load_test_configuration(std::move(config))) {
+    config.clear();
+    return this->fail_step_("prepare_config_load");
+  }
+  if (!this->authorization_binder_.grant(
+          IsolatedAcceptanceWriteOperation::PREPARE_CANDIDATE, 0, 1,
+          envelope->authorization_digest)) {
+    return this->fail_step_("prepare_authorization_grant");
+  }
+'''
+          if text.count(old_order) != 1:
+              raise SystemExit('PREPARE phase-order replacement target count mismatch')
+          text = text.replace(old_order, new_order)
+
+          old_wipe = '''  this->mqtt_.quiesce();
+  this->persistence_.quiesce();
+  this->test_key_provider_.destroy();
+  secure_clear(&this->input_buffer_);
+'''
+          new_wipe = '''  this->mqtt_.quiesce();
+  this->persistence_.quiesce();
+  this->test_key_provider_.destroy();
+  (void) this->package_.configure(
+      &this->driver_, &this->test_key_provider_, &this->evidence_sink_);
+  (void) this->authorization_binder_.configure(
+      &this->package_, &this->driver_);
+  secure_clear(&this->input_buffer_);
+'''
+          if text.count(old_wipe) != 1:
+              raise SystemExit('sensitive-runtime wipe replacement target count mismatch')
+          text = text.replace(old_wipe, new_wipe)
+
+          path.write_text(text, encoding='utf-8')
+          Path('.github/workflows/h3-n2-stage2d9r-source-fix-once-20260723-v1.yml').unlink()
+          PY
+
+          python - <<'PY'
+          from pathlib import Path
+          text = Path(
+              'firmware/esphome_rc/components/'
+              'greenhouse_profile_isolated_device_g3r_executor/'
+              'stage2d9r_g3r_prepare_executor_20260723_v1.cpp'
+          ).read_text(encoding='utf-8')
+          assert 'certificate.ca_istrue' not in text
+          assert 'certificate.key_usage' not in text
+          assert 'mbedtls_x509_crt_get_ca_istrue(&certificate) == 1' in text
+          assert 'mbedtls_x509_crt_check_key_usage(' in text
+          load = text.index('package_.load_test_configuration(std::move(config))')
+          grant = text.index('authorization_binder_.grant(', load)
+          prepare = text.index('package_.prepare_candidate()', grant)
+          assert load < grant < prepare
+          assert text.count('(void) this->package_.configure(') == 1
+          PY
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor/stage2d9r_g3r_prepare_executor_20260723_v1.cpp \
+            .github/workflows/h3-n2-stage2d9r-source-fix-once-20260723-v1.yml
+          git commit -m 'fix(n2): correct Stage2D9R TLS validation and PREPARE ordering'
+          git push origin HEAD:feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1
