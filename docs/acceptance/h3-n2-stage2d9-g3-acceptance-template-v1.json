@@ -1,23 +1,12 @@
 {
-  "schema": "gh.h3.n2.stage2d9-g3-physical-acceptance/7",
+  "schema": "gh.h3.n2.stage2d9-g3-physical-acceptance/8",
   "stage": "H3/N2 Stage 2D-9 G3",
   "latest_physical_artifact_generation": "V68",
   "latest_physical_result": "failed_recovery_verified_root_cause_confirmed",
   "v68": {
-    "source_commit": "608282bf86fcf8c1d13494437e01f1899d3c494a",
-    "artifact_zip_sha256": "3a90f2b1369dafbc5fb0fa20255ab9dc978a335b74d415aa2f51054a3e198c3b",
     "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V68-20260723-01",
     "authorization_status": "consumed_failed_recovery_verified_retired",
     "authorization_replay_permitted": false,
-    "preflight_status": "passed",
-    "erase_success": true,
-    "write_success": true,
-    "verify_flash_success": true,
-    "preprepare_seed_match": true,
-    "prepare_transaction_proven": false,
-    "verify_command_sent": false,
-    "recovery_performed": true,
-    "recovery_count": 1,
     "recovery_seed_restored": true,
     "recovery_boot_success": true,
     "recovery_locked_marker": true,
@@ -29,25 +18,13 @@
     "status": "confirmed_by_frozen_source_and_actual_cpp_host_test",
     "name": "candidate_host_contract_mismatch",
     "frozen_executor_host": "stage2d9.invalid",
-    "credential_contract": "supported local IPv4 or dot-local hostname",
-    "dot_invalid_accepted": false,
-    "dot_local_accepted": true,
-    "rejection_location": "IsolatedDeviceDriver::prepare_candidate bundle.valid",
-    "driver_failure": "invalid_configuration",
-    "mqtt_in_prepare_call_path": false,
-    "host_proof_workflow_run_id": 29972838732
-  },
-  "observability": {
-    "v68_runner_serial_log_persistence_defect": "confirmed",
-    "caused_v68_prepare_failure": false,
-    "v69_atomic_serial_evidence_matrix": "passed",
-    "v69_distinct_host_write_device_acceptance_transaction_fields": true
+    "corrected_host": "stage2d9.local",
+    "mqtt_in_prepare_call_path": false
   },
   "v69": {
-    "status": "artifact_frozen_waiting_user_host_u1",
+    "status": "artifact_frozen_u1_passed_d2_review_prepared",
     "source_commit": "30a15e39164bed4a5b96c50aa5e2e2e6f238c43b",
     "implementation_source_binding": "f39c3c4c621717a61e0b3cef8b4ec88e59ac13aa",
-    "host_and_compile_workflow_run_id": 29974235928,
     "artifact_workflow_run_id": 29974998633,
     "artifact_id": 8551229663,
     "artifact_zip_sha256": "21aa3383a26b66109408576040245dd60c17eb780b65de9847381b73cfb1506b",
@@ -56,17 +33,12 @@
     "recovery_merged_sha256": "244f33a9087e41ce8ce2d2b021b9f532336a9774b6ce4c118c28eac955135103",
     "seed_sha256": "0ea36f26c5048f69b223884a13613fbd645b58c2ce42eafc6f9d9cd55bb089af",
     "unlock_digest_sha256": "66ce4bd205e8c76159ad839e6f1115e990f18eab2e149427b243e9c5bd541e9e",
-    "root_cause_fix": "valid_local_placeholder_host",
     "candidate_host": "stage2d9.local",
     "prepare_schema": "GH2D9_PREPARE_V2",
     "verify_schema": "GH2D9_VERIFY_V2",
-    "actual_prepare_chain_test": "passed",
-    "dedicated_compile_only": "passed",
-    "product_board_compile_only": "passed",
     "clean_build_count": 2,
     "byte_identical": true,
     "member_checksums_verified": true,
-    "private_material_exclusion_verified": true,
     "artifact_gate": "LOCKED",
     "execution_authorized": false,
     "physical_execution_started": false
@@ -74,26 +46,28 @@
   "v69_private_custody": {
     "file_sha256": "cfb8164056945869bf9f9e6e340f9e3280ea6d32e3db723df448e4c8a5f4ee5c",
     "unlock_digest_match_verified": true,
-    "material_in_git": false,
-    "material_in_artifact": false,
-    "operator_installation_status": "pending_user_host_u1",
+    "operator_installation_status": "passed_user_host_u1",
     "execution_authorized": false
   },
   "v69_u1": {
-    "status": "pending_user_host_execution",
+    "status": "passed",
+    "timestamp_utc": "2026-07-23T03:28:26Z",
     "batch_package_id": "U1_STAGE2D9_G3_V69_ARTIFACT_AND_CUSTODY_VERIFY_V3",
     "package_sha256": "8dfd73abf0f3dc1d526658ce9987a71b9d3fd0ab291eacbc08a851928d365782",
-    "launcher_sha256": "48b753a40c9644e57a329b8f96bdf3ce5db911f4e5dda87447896301fe3ffac1",
-    "script_sha256": "7b5a5cf443ec5f491a411391be27c6bf4ef383280ef2094ecad923d3475b07d5",
-    "binding_sha256": "d14a741d0cb4be880c8a8b91ee8a5b9571c0b52b2a7c76194598762068610851",
-    "isolated_self_test": "passed",
-    "authorization_file_present": false,
-    "execution_package_present": false,
-    "d2_request_present": false
+    "private_custody_installed": true,
+    "private_custody_preserved": true
+  },
+  "v69_d2_attempt1": {
+    "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V69-20260723-01",
+    "status": "pending_operator_decision",
+    "review_package_sha256": "5e7b13dc3e804698f216542b17f4d481a9f8a05285c5c3e6a4475ef1e44e379e",
+    "review_self_test": "passed",
+    "authorization_issued": false,
+    "execution_package_generated": false,
+    "device_reconnect_authorized": false
   },
   "protected_boundaries": {
     "device_reconnect_authorized": false,
-    "v68_retry_authorized": false,
     "v69_device_operation_authorized": false,
     "v69_flash_authorized": false,
     "v69_prepare_authorized": false,
@@ -116,17 +90,17 @@
     "secret_values_in_git": false
   },
   "stage_disposition": {
-    "execution_gate": "LOCKED_V69_U1_REQUIRED",
-    "v68_physical_prepare_acceptance": "failed",
+    "execution_gate": "LOCKED_D2_OPERATOR_DECISION_REQUIRED",
     "v68_recovery_verification": "passed",
     "v68_root_cause_diagnosis": "passed",
     "v69_source_correction": "passed",
     "v69_artifact": "passed_frozen",
-    "v69_user_host_u1": "pending",
-    "active_d2_request_id": null,
+    "v69_user_host_u1": "passed",
+    "active_d2_request_id": "D2-H3N2-STAGE2D9-G3-V69-20260723-01",
+    "operator_decision": "pending",
     "device_reconnect_authorized": false,
     "draft_pr_required": true,
     "ready_merge_release_authorized": false,
-    "next_action": "run host-only V69 U1; no board connection or D2 before U1 passes"
+    "next_action": "obtain a separate exact D2 operator decision before generating an authorization or execution package"
   }
 }
