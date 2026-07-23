@@ -1,8 +1,8 @@
 {
-  "schema": "gh.h3.n2.stage2d9-g3-v68-root-cause-l1/1",
+  "schema": "gh.h3.n2.stage2d9-g3-v68-root-cause-l1/2",
   "stage": "H3/N2 Stage 2D-9 G3",
   "artifact_generation": "V68",
-  "status": "confirmed",
+  "status": "confirmed_correction_in_progress",
   "root_cause": "candidate_host_contract_mismatch",
   "frozen_source_commit": "608282bf86fcf8c1d13494437e01f1899d3c494a",
   "frozen_executor_values": {
@@ -33,24 +33,31 @@
   "independent_observability_defect": {
     "runner_serial_log_persistence_defect": "confirmed",
     "caused_physical_prepare_failure": false,
-    "reduced_failure_evidence_precision": true,
-    "required_fix": "persist serial capture atomically in finally and separate host write attempt from device acceptance"
+    "reduced_failure_evidence_precision": true
   },
-  "required_correction": {
-    "unique_source_chain": true,
-    "use_valid_local_placeholder_host": true,
-    "stage_specific_failure_markers": true,
-    "actual_prepare_chain_host_tests": true,
-    "new_immutable_artifact": true,
-    "new_u1": true,
-    "new_d2": true
+  "v69_correction": {
+    "status": "host_only_ci_in_progress",
+    "implementation_source_commit": "f39c3c4c621717a61e0b3cef8b4ec88e59ac13aa",
+    "unique_component": "greenhouse_profile_isolated_device_g3_executor_v69",
+    "candidate_host": "stage2d9.local",
+    "prepare_schema": "GH2D9_PREPARE_V2",
+    "verify_schema": "GH2D9_VERIFY_V2",
+    "actual_package_driver_prepare_test_present": true,
+    "atomic_serial_evidence_test_present": true,
+    "stage_specific_failure_markers_present": true,
+    "command_surface_enabled": false,
+    "artifact_generated": false,
+    "private_material_generated": false,
+    "d2_request_generated": false
   },
   "protected_boundaries": {
-    "board_accessed_for_root_cause": false,
-    "serial_access_attempted_for_root_cause": false,
-    "flash_operation_attempted_for_root_cause": false,
-    "network_operation_attempted_for_root_cause": false,
+    "board_accessed_for_root_cause_or_correction": false,
+    "serial_access_attempted_for_root_cause_or_correction": false,
+    "flash_operation_attempted_for_root_cause_or_correction": false,
+    "network_operation_attempted_for_root_cause_or_correction": false,
     "production_environment_modified": false,
-    "v68_replay_authorized": false
-  }
+    "v68_replay_authorized": false,
+    "v69_device_operation_authorized": false
+  },
+  "next_gate": "V69 host and compile-only correction CI must pass before any new immutable Artifact or private execution chain"
 }
