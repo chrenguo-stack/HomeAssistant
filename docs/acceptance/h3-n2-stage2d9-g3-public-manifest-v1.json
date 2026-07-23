@@ -1,11 +1,11 @@
 {
-  "schema": "gh.h3.n2.stage2d9-g3-public-manifest/7",
+  "schema": "gh.h3.n2.stage2d9-g3-public-manifest/8",
   "stage": "H3/N2 Stage 2D-9 G3",
-  "status": "v68_u1_passed_waiting_exact_d2_operator_decision",
+  "status": "v68_d2_authorized_awaiting_one_shot_execution",
   "base_main_sha": "2a5272546f25b1b29cf1d6682cf1fc14f1c1be83",
   "branch": "feature/h3-n2-stage2d9-g3-prepare-candidate-20260722-v1",
   "draft_pr": 174,
-  "execution_gate": "LOCKED_D2_OPERATOR_DECISION_REQUIRED",
+  "execution_gate": "OPEN_EXACT_ONE_SHOT_UNTIL_EXPIRY",
   "active_d2_request_id": "D2-H3N2-STAGE2D9-G3-V68-20260723-01",
   "allowed_action": "PREPARE_CANDIDATE",
   "expected_transition": {
@@ -60,8 +60,7 @@
     "byte_identical": true,
     "gate": "LOCKED",
     "unlock_preimage_in_artifact": false,
-    "private_custody_material_in_artifact": false,
-    "execution_authorized": false
+    "private_custody_material_in_artifact": false
   },
   "v68_private_custody": {
     "required_before_d2": true,
@@ -70,8 +69,7 @@
     "unlock_digest_match_verified": true,
     "material_in_git": false,
     "material_in_artifact": false,
-    "operator_installation_status": "installed_and_preserved",
-    "execution_authorized": false
+    "operator_installation_status": "installed_and_preserved"
   },
   "v68_u1": {
     "status": "passed",
@@ -87,15 +85,22 @@
     "board_accessed": false,
     "serial_access_attempted": false,
     "flash_operation_attempted": false,
-    "network_operation_attempted": false,
-    "authorization_file_generated": false,
-    "execution_package_generated": false
+    "network_operation_attempted": false
   },
-  "d2_review": {
+  "d2_authorization": {
     "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V68-20260723-01",
-    "status": "pending_operator_authorization",
+    "status": "issued_awaiting_one_shot_execution",
+    "issued_at": "2026-07-23T00:31:08Z",
+    "expires_at": "2026-07-23T02:31:08Z",
+    "validity_seconds": 7200,
+    "one_shot": true,
+    "replay_permitted": false,
+    "authorization_consumed": false,
     "review_package_sha256": "498a56273e14e916b74148892002b139504f3a3864163e3d217278744f3e758d",
     "operator_authorization_text_sha256": "4a8b496a3acd5e8b708895fd2a5901474548f3d9bc7c44cfd2059d947afff722",
+    "authorization_binding_sha256": "63317420a612c2db4a033a66e517bd9d85489ce135e70371b1216e1cb6204cf9",
+    "authorization_file_sha256": "0845ab17aa5160765efe085bbd1b0a469c8b0e6425aae377cc5381fa15e6debc",
+    "execution_package_sha256": "f66bd80eabe72060199d39bf323c45bb79b1d2c5404f4ea24d7e648ae1be42d2",
     "execution_script_sha256": "9981d82b047d8fc7d77f6e04ef68c280d8728309c7d7994681f439a3445d2b9d",
     "launcher_sha256": "0397d77957852953e7807542bb5111593c155df8f2a9915c40180f27098c6652",
     "command_group_sha256": "de7d91955e1c3ef70bc0a6f78023d93195e590bfed5249cc9c7a5ac27cb639d5",
@@ -103,12 +108,33 @@
     "private_execution_material_sha256": "0b3de67e7ee944fa630a4edc7886d1cdc9fce130090a45cc4fcebff237303be6",
     "prepare_command_sha256": "b1554a975c3f9b4823dc5fbf3c508c15b94564b3457ac31fc341e1c307857f88",
     "verify_command_sha256": "8098070a7eddbbea4e8f984dca435c9ede9c26bb5415aa44bed491d7fa97d275",
-    "private_custody_file_sha256": "a462997381fdd0842b2a7c1ab5697fd45e62ae0789100437c6fb702cfa16cfdc",
-    "review_self_test": "passed",
-    "authorization_validity": "exactly 2 hours after issue",
-    "one_shot": true,
-    "replay_permitted": false,
-    "execution_authorized": false
+    "review_mode": "passed",
+    "authorization_self_check": "passed",
+    "zip_member_and_hash_check": "passed",
+    "execution_performed": false
+  },
+  "authorization_scope": {
+    "device_preflight_authorized": true,
+    "single_erase_authorized": true,
+    "single_v68_write_authorized": true,
+    "single_flash_verify_authorized": true,
+    "single_prepare_authorized": true,
+    "single_read_only_verify_authorized": true,
+    "private_partition_readback_authorized": true,
+    "locked_recovery_max_count": 1,
+    "second_prepare_authorized": false,
+    "activate_profile_authorized": false,
+    "cleanup_test_state_authorized": false,
+    "wifi_authorized": false,
+    "mqtt_authorized": false,
+    "broker_authorized": false,
+    "efuse_operation_authorized": false,
+    "secure_boot_change_authorized": false,
+    "flash_encryption_change_authorized": false,
+    "production_environment_operation_authorized": false,
+    "ready_merge_release_authorized": false,
+    "stage2d8_d2_replay_authorized": false,
+    "stage2d9_v67_replay_authorized": false
   },
   "validation": {
     "host_transaction_and_command_fault_cases": 21,
@@ -123,26 +149,9 @@
     "v68_private_material_exclusion": "passed",
     "v68_user_host_u1": "passed",
     "d2_review_self_test": "passed",
+    "d2_authorization_self_check": "passed",
+    "authorized_package_member_hashes": "passed",
     "public_repository_safety": "passed"
-  },
-  "boundaries": {
-    "device_operation_authorized": false,
-    "flash_authorized": false,
-    "writable_test_nvs_authorized": false,
-    "prepare_authorized": false,
-    "verify_authorized": false,
-    "activate_profile_authorized": false,
-    "cleanup_test_state_authorized": false,
-    "wifi_authorized": false,
-    "mqtt_authorized": false,
-    "broker_authorized": false,
-    "efuse_operation_authorized": false,
-    "secure_boot_change_authorized": false,
-    "flash_encryption_change_authorized": false,
-    "production_environment_operation_authorized": false,
-    "ready_merge_release_authorized": false,
-    "stage2d8_d2_replay_authorized": false,
-    "stage2d9_v67_replay_authorized": false
   },
   "privacy": {
     "unlock_preimage_included": false,
@@ -150,8 +159,9 @@
     "raw_board_identifier_included": false,
     "private_serial_path_included": false,
     "authorization_json_included": false,
+    "operator_authorization_text_included": false,
     "candidate_secret_values_included": false,
     "private_logs_included": false
   },
-  "next_gate": "exact operator D2 authorization for D2-H3N2-STAGE2D9-G3-V68-20260723-01"
+  "next_gate": "execute the exact authorized one-shot package before expiry; do not replay or retry"
 }
