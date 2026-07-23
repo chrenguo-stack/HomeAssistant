@@ -1,0 +1,45 @@
+{
+  "schema": "gh.h3.n2.stage2d9r-tls-candidate-descriptor/1",
+  "stage": "H3/N2 Stage 2D-9R G3R",
+  "state": "LOCKED_DESIGN",
+  "broker_host": "stage2d9r.local",
+  "broker_port": 8883,
+  "broker_tls_server_name": "stage2d9r.local",
+  "dns_san": [
+    "stage2d9r.local"
+  ],
+  "candidate_generation": 1,
+  "credential_generation": 1,
+  "candidate_canonicalization": "gh.h3.n2.isolated-candidate-profile/1+sha256-v1",
+  "execution_authorized": false,
+  "board_operation_authorized": false,
+  "network_operation_authorized": false,
+  "prepare_authorized": false,
+  "verify_authorized": false,
+  "activate_authorized": false,
+  "cleanup_authorized": false,
+  "private_values_included": false,
+  "production_material_included": false,
+  "alias_resolution_allowed": false,
+  "tls_verification_bypass_allowed": false,
+  "public_material": {
+    "ca_pem_sha256": null,
+    "ca_certificate_sha256": null,
+    "broker_certificate_sha256": null,
+    "broker_spki_sha256": null,
+    "broker_config_sha256": null,
+    "private_package_sha256": null,
+    "candidate_digest_sha256": null,
+    "certificate_not_before": null,
+    "certificate_not_after": null,
+    "private_key_included": false,
+    "mqtt_password_included": false
+  },
+  "offline_proofs": {
+    "ca_pem_parseable": false,
+    "ca_role_valid": false,
+    "broker_leaf_role_valid": false,
+    "broker_leaf_chain_valid": false,
+    "broker_hostname_match": false
+  }
+}
