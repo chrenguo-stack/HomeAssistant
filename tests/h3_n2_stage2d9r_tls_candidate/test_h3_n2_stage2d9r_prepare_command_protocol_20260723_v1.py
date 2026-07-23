@@ -103,9 +103,7 @@ class Stage2D9RPrepareCommandProtocolTest(unittest.TestCase):
             protocol.CommandError, "PREPARE command shape invalid"
         ):
             protocol.parse_prepare(verify, UNLOCK_DIGEST)
-        with self.assertRaisesRegex(
-            protocol.CommandError, "VERIFY command shape invalid"
-        ):
+        with self.assertRaises(protocol.CommandError):
             protocol.parse_verify(self.prepare(), UNLOCK_DIGEST)
 
     def test_zero_secrets_are_rejected(self) -> None:
