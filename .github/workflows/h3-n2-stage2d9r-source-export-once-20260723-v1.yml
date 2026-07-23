@@ -1,0 +1,40 @@
+name: H3 N2 Stage2D9R Source Export Once 20260723 V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-source-export-once-20260723-v1.yml"
+  push:
+    branches:
+      - feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-source-export-once-20260723-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  export-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - name: Verify and export exact source
+        run: |
+          set -euo pipefail
+          source=firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor/stage2d9r_g3r_prepare_executor_20260723_v1.cpp
+          test -s "$source"
+          sha256sum "$source" | tee /tmp/stage2d9r-source-export-v1.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-source-export-once-v1
+          path: |
+            firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor/stage2d9r_g3r_prepare_executor_20260723_v1.cpp
+            /tmp/stage2d9r-source-export-v1.sha256
+          if-no-files-found: error
+          retention-days: 1
+      - name: Cleanup
+        if: always()
+        run: rm -f /tmp/stage2d9r-source-export-v1.sha256
