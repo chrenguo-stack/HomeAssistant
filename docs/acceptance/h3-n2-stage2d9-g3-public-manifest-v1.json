@@ -1,12 +1,12 @@
 {
-  "schema": "gh.h3.n2.stage2d9-g3-public-manifest/13",
+  "schema": "gh.h3.n2.stage2d9-g3-public-manifest/14",
   "stage": "H3/N2 Stage 2D-9 G3",
-  "status": "v69_u1_passed_d2_review_pending_operator_decision",
+  "status": "v69_physical_acceptance_passed_private_evidence_closed",
   "branch": "feature/h3-n2-stage2d9-g3-prepare-candidate-20260722-v1",
   "draft_pr": 174,
-  "execution_gate": "LOCKED_D2_OPERATOR_DECISION_REQUIRED",
-  "active_d2_request_id": "D2-H3N2-STAGE2D9-G3-V69-20260723-01",
-  "allowed_action": "PREPARE_CANDIDATE",
+  "execution_gate": "CLOSED_V69_ACCEPTANCE_PASSED_D4_REQUIRED",
+  "active_d2_request_id": null,
+  "allowed_action": "none_physical_acceptance_complete",
   "v68_evidence": {
     "result": "failed_recovery_verified_root_cause_confirmed",
     "authorization_consumed": true,
@@ -67,25 +67,45 @@
     "launcher_sha256": "48b753a40c9644e57a329b8f96bdf3ce5db911f4e5dda87447896301fe3ffac1",
     "script_sha256": "7b5a5cf443ec5f491a411391be27c6bf4ef383280ef2094ecad923d3475b07d5",
     "private_custody_installed": true,
-    "private_custody_preserved": true,
-    "authorization_file_present": false,
-    "execution_package_present": false
+    "private_custody_preserved": true
   },
   "v69_d2_attempt1": {
-    "status": "pending_operator_decision",
+    "status": "operator_authorized_but_issuance_failed_closed_retired",
     "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V69-20260723-01",
     "review_package_sha256": "5e7b13dc3e804698f216542b17f4d481a9f8a05285c5c3e6a4475ef1e44e379e",
-    "execution_script_sha256": "a24eae615513151437ea1e341259b9cb0ace18a5c8d471788fd22391d9d5083a",
-    "launcher_sha256": "870dfa36eee48b397963cc6cab329b52a0a50940052da4672f2d46e499e07163",
-    "command_group_sha256": "714d6548d15c1fc5c4b8ce11559606e08cd8db36a41bb9e34096adabdf54e9ed",
-    "stop_conditions_sha256": "d4b93890f952ee37ab95b1abfa45f20681a71cec73c405e1720228e3434f79da",
-    "private_execution_material_sha256": "1f0924aa6148c66abf94930c51c71fc3a79f4baf75919a821f19dbca5f28292f",
-    "prepare_command_sha256": "baaecb7ea5ec3297e338739daa16ca6e92f1a1bab0f87622ddf7af967c7c7bd6",
-    "verify_command_sha256": "3b02cd815b819aeadd3b6357921c5e9d0bcd4a7f7e9ca194dbd83c13fbfcc06e",
-    "review_self_test": "passed",
-    "authorization_issued": false,
-    "execution_package_generated": false,
-    "device_reconnect_authorized": false
+    "authorization_consumed": false,
+    "destructive_boundary_entered": false,
+    "replay_permitted": false
+  },
+  "v69_d2_attempt2": {
+    "status": "consumed_passed_retired",
+    "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V69-20260723-02",
+    "review_package_sha256": "b358fcbe8b9e428d7ed5ab061537338928471705e0829022c2c5892a612573b0",
+    "execution_package_sha256": "33eda8fc28bf5d661000bb7dadaa12c9604a598a66e3073dace550fe0b2fc31b",
+    "authorization_binding_sha256": "f43f4339b96226ee9c8932a97dad96238fe5da8a5b5650a0eb98f07a53a65ab5",
+    "authorization_consumed": true,
+    "physical_acceptance": "passed",
+    "private_evidence_closure": "passed",
+    "replay_permitted": false
+  },
+  "v69_verified_state": {
+    "active_generation": 0,
+    "candidate_generation": 1,
+    "candidate_state": "PREPARED",
+    "candidate_digest_match": true,
+    "active_unchanged": true,
+    "persistent_write_count": 1,
+    "mqtt_operation_attempted": false,
+    "recovery_performed": false,
+    "final_board_state": "candidate_prepared_active_unchanged"
+  },
+  "v69_private_evidence": {
+    "archive_sha256": "c863b504da6b48e9b8861efa853e2757b19679ab6c6d9ac42550cd0bb218b366",
+    "authorization_consumed_marker_sha256": "40f6ff90f8858c69c73243ce98aca1f82a43608c2befbb78667da7fb4014361c",
+    "private_summary_sha256": "5afcc02ac4096ef075ab852b8d8c9973a0c432623e7c60f9261e48de9cb6856b",
+    "prepare_serial_log_sha256": "c78cb9a81d0042a381f16d8f48ae83034bf2190d8d72d3bc5da045d2c303b946",
+    "verify_serial_log_sha256": "25789b23eb52b8199504b0b5c2fa0e4e9952b80e5ed3406926a33cc647a88368",
+    "l1_extraction": "passed"
   },
   "protected_boundaries": {
     "device_reconnect_authorized": false,
@@ -93,6 +113,8 @@
     "v69_flash_authorized": false,
     "v69_prepare_authorized": false,
     "v69_verify_authorized": false,
+    "second_prepare_authorized": false,
+    "second_verify_authorized": false,
     "activate_profile_authorized": false,
     "cleanup_test_state_authorized": false,
     "wifi_authorized": false,
@@ -111,5 +133,5 @@
     "candidate_secret_values_included": false,
     "private_logs_included": false
   },
-  "next_gate": "operator decision for exact V69 D2 attempt 1; no board connection before authorization issuance"
+  "next_gate": "latest HEAD CI closure followed by an independent D4 decision before Ready or squash merge"
 }
