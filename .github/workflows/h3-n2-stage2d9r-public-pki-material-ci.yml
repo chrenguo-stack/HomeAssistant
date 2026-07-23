@@ -33,11 +33,11 @@ jobs:
           set -euo pipefail
           cat > /tmp/stage2d9r-public-pki-sha256-v1.txt <<'EOF'
           3beec95f5b1f66f8f252a0459ca5f402ca5159d853708856955984dcb230ab55  PUBLIC_EXPORT_MANIFEST.json
-          57ea55a007810ce86dd8723d1eabb73047814481e02dfa37b9ce965fac657fe1  broker.cert.pem
-          8d567a5db699a7a3f7d7ba7904d917cacebcfd9268f44af699a384afe763afda  broker.fullchain.pem
+          57ea55a007810ce86dd8723d1eabb73047814481e02dfa37b9ce965fac657fe1  broker.cert.txt
+          8d567a5db699a7a3f7d7ba7904d917cacebcfd9268f44af699a384afe763afda  broker.fullchain.txt
           01c10996c8dc8c7de9a8284284cecbd6ca25f03089297896984bd09e1fad7cf0  isolated-broker-public-config.redacted.json
           93bb071a5bf6f58472ac9e3891c2330dd9de6f05410824ad2fb51829267b4540  public-descriptor.redacted.json
-          cfcb6638ed61731270f3bf8e9e262c1512fbca8ff34d4b08b62186453233e963  root-ca.cert.pem
+          cfcb6638ed61731270f3bf8e9e262c1512fbca8ff34d4b08b62186453233e963  root-ca.cert.txt
           EOF
           sha256sum -c /tmp/stage2d9r-public-pki-sha256-v1.txt
       - name: Verify certificate roles chain hostname and public fingerprints
@@ -45,26 +45,26 @@ jobs:
         run: |
           set -euo pipefail
           openssl verify \
-            -CAfile root-ca.cert.pem \
+            -CAfile root-ca.cert.txt \
             -purpose sslserver \
             -verify_hostname stage2d9r.local \
-            broker.cert.pem \
+            broker.cert.txt \
             | tee /tmp/stage2d9r-public-pki-openssl-v1.log
-          grep -F 'broker.cert.pem: OK' /tmp/stage2d9r-public-pki-openssl-v1.log
-          openssl x509 -in root-ca.cert.pem -noout -text > /tmp/stage2d9r-root-ca-v1.txt
-          openssl x509 -in broker.cert.pem -noout -text > /tmp/stage2d9r-broker-cert-v1.txt
+          grep -F 'broker.cert.txt: OK' /tmp/stage2d9r-public-pki-openssl-v1.log
+          openssl x509 -in root-ca.cert.txt -noout -text > /tmp/stage2d9r-root-ca-v1.txt
+          openssl x509 -in broker.cert.txt -noout -text > /tmp/stage2d9r-broker-cert-v1.txt
           grep -F 'CA:TRUE' /tmp/stage2d9r-root-ca-v1.txt
           grep -F 'Certificate Sign' /tmp/stage2d9r-root-ca-v1.txt
           grep -F 'CA:FALSE' /tmp/stage2d9r-broker-cert-v1.txt
           grep -F 'TLS Web Server Authentication' /tmp/stage2d9r-broker-cert-v1.txt
           grep -F 'DNS:stage2d9r.local' /tmp/stage2d9r-broker-cert-v1.txt
-          test "$(openssl x509 -in root-ca.cert.pem -outform DER | sha256sum | awk '{print $1}')" = \
+          test "$(openssl x509 -in root-ca.cert.txt -outform DER | sha256sum | awk '{print $1}')" = \
             '4b44f00b00dccc7151ff750cfa8c586ead2296cc2f424a904847b079b92886b6'
-          test "$(openssl x509 -in broker.cert.pem -outform DER | sha256sum | awk '{print $1}')" = \
+          test "$(openssl x509 -in broker.cert.txt -outform DER | sha256sum | awk '{print $1}')" = \
             '988b6f82b04b0b3cf13f58a07ecd85e420e5576c167fe01ea0940d4530e20ac7'
-          test "$(openssl x509 -in broker.cert.pem -pubkey -noout | openssl pkey -pubin -outform DER | sha256sum | awk '{print $1}')" = \
+          test "$(openssl x509 -in broker.cert.txt -pubkey -noout | openssl pkey -pubin -outform DER | sha256sum | awk '{print $1}')" = \
             'f034dc2a036f709287f0558773418ee1799e75bee50dcf55e09143a3a9052a03'
-          cmp broker.fullchain.pem <(cat broker.cert.pem root-ca.cert.pem)
+          cmp broker.fullchain.txt <(cat broker.cert.txt root-ca.cert.txt)
       - name: Validate public descriptors and no-private boundary
         run: |
           set -euo pipefail
