@@ -7,7 +7,7 @@ stage=H3/N2 Stage 2D-9R G3R
 purpose=replace non-TLS-usable V69 PREPARED input
 pr=176
 pr_state=DRAFT
-execution_gate=LOCKED_PUBLIC_EXPORT_AND_ARTIFACT_PREPARATION_ONLY
+execution_gate=LOCKED_COMMAND_MATERIAL_AND_IMMUTABLE_ARTIFACT_PREPARATION_ONLY
 ```
 
 ## Approved D1
@@ -106,9 +106,39 @@ private_modes_valid=true
 public_private_leakage_scan_passed=true
 ```
 
-Public closure record:
+Private generation closure record:
 
 `docs/acceptance/h3-n2-stage2d9r-private-pki-u1-generation-l1-v1.json`
+
+## Public PKI export closure
+
+```text
+public_export_result=PASS
+public_export_zip_sha256=72c739b5e197192b9569083bf3446d7c0f5340652b21ab44cdd99eeca3f12d31
+public_export_mode=0600
+public_descriptor_sha256=93bb071a5bf6f58472ac9e3891c2330dd9de6f05410824ad2fb51829267b4540
+ca_pem_sha256=cfcb6638ed61731270f3bf8e9e262c1512fbca8ff34d4b08b62186453233e963
+broker_certificate_sha256=988b6f82b04b0b3cf13f58a07ecd85e420e5576c167fe01ea0940d4530e20ac7
+broker_spki_sha256=f034dc2a036f709287f0558773418ee1799e75bee50dcf55e09143a3a9052a03
+candidate_digest_sha256=f22144e37372b883b7a38d07eff2980a865108cf7c8fed9bfdb9f198a030b5c5
+certificate_chain_valid=true
+hostname_valid=true
+public_private_leakage_scan_passed=true
+private_paths_included=false
+private_keys_included=false
+raw_mqtt_password_included=false
+authorization_record_included=false
+consumed_marker_included=false
+private_descriptor_included=false
+```
+
+Committed public-only material:
+
+`tests/h3_n2_stage2d9r_tls_candidate/public_pki_tlsvalid01/`
+
+Public export closure record:
+
+`docs/acceptance/h3-n2-stage2d9r-public-pki-export-l1-v1.json`
 
 ## Current prohibitions
 
@@ -144,11 +174,11 @@ deployment=false
 
 ## Remaining work before D2
 
-1. Export only the public CA certificate, Broker certificate/full chain, redacted public configuration and public descriptor from private custody.
-2. Independently validate that export against the frozen U1 hashes and reject any private key, password, authorization record, private path or raw command leakage.
-3. Commit the validated public-only descriptor set and freeze a new exact source checkpoint.
+1. Complete CI validation of the committed public-only PKI material and freeze the exact implementation-binding source checkpoint.
+2. Develop and review a separate one-shot private command-material generator for one unlock token and its public SHA-256 digest; do not generate it without a new exact U1.
+3. Bind the nonzero unlock digest, exact CA PEM digest and implementation binding into the final immutable firmware source.
 4. Generate the immutable Stage 2D-9R firmware and locked recovery Artifact twice; require byte-identical outputs and exact manifest bindings.
 5. Perform host-only Artifact verification and private-custody binding verification.
 6. Prepare a separate exact D2 review package for deterministic baseline recovery, one new PREPARE and one read-only VERIFY.
 
-The next operator action is a host-only public export. It does not authorize Broker startup, network access or any board operation.
+The next operator decision will be a narrow one-shot U1 for private command material only. It will not authorize Broker startup, network access, board access, Flash/NVS operations, PREPARE or VERIFY.
