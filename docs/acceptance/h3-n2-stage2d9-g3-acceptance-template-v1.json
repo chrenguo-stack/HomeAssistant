@@ -1,15 +1,17 @@
 {
-  "schema": "gh.h3.n2.stage2d9-g3-physical-acceptance/1",
+  "schema": "gh.h3.n2.stage2d9-g3-physical-acceptance/2",
   "stage": "H3/N2 Stage 2D-9 G3",
+  "artifact_generation": "V68",
   "result": null,
-  "source_commit": null,
-  "artifact_zip_sha256": null,
-  "g3_merged_sha256": null,
-  "recovery_merged_sha256": null,
-  "seed_sha256": null,
-  "unlock_digest_sha256": null,
+  "source_commit": "608282bf86fcf8c1d13494437e01f1899d3c494a",
+  "artifact_zip_sha256": "3a90f2b1369dafbc5fb0fa20255ab9dc978a335b74d415aa2f51054a3e198c3b",
+  "g3_merged_sha256": "094d37b01e9ddce1bba26216ffcbb1bae56a3ecbbf075b3e9e3ec57042214ca4",
+  "recovery_merged_sha256": "54fb10601a0fbf448948d3f7d687281b33e85220c64bcdcabfae896dd3d98a1a",
+  "seed_sha256": "0ea36f26c5048f69b223884a13613fbd645b58c2ce42eafc6f9d9cd55bb089af",
+  "unlock_digest_sha256": "c6cfae354edbd426f9990fb65b4c865e711a0c2b6c1fba1d2e7faf132ebc2208",
+  "private_custody_file_sha256": "a462997381fdd0842b2a7c1ab5697fd45e62ae0789100437c6fb702cfa16cfdc",
   "authorization": {
-    "request_id": null,
+    "request_id": "D2-H3N2-STAGE2D9-G3-V68-20260723-01",
     "one_shot": true,
     "replay_permitted": false,
     "consumed": null,
@@ -20,6 +22,10 @@
   "preflight": {
     "host_environment_match": null,
     "artifact_match": null,
+    "u1_passed": true,
+    "private_custody_file_match": null,
+    "private_custody_unlock_digest_match": null,
+    "private_execution_material_match": null,
     "private_board_binding_match": null,
     "usb_candidate_set_match": null,
     "chip_match": null,
@@ -58,6 +64,7 @@
     "mqtt_operation_attempted": false
   },
   "protected_boundaries": {
+    "second_prepare_executed": false,
     "activate_profile_executed": false,
     "cleanup_test_state_executed": false,
     "wifi_connected": false,
@@ -66,7 +73,9 @@
     "efuse_read_or_write": false,
     "secure_boot_changed": false,
     "flash_encryption_changed": false,
-    "production_environment_modified": false
+    "production_environment_modified": false,
+    "stage2d8_d2_replayed": false,
+    "stage2d9_v67_d2_replayed": false
   },
   "private_evidence": {
     "archive_sha256": null,
@@ -87,7 +96,7 @@
     "candidate_secret_values_in_git": false
   },
   "stage_disposition": {
-    "execution_gate": "LOCKED",
+    "execution_gate": "LOCKED_D2_OPERATOR_DECISION_REQUIRED",
     "draft_pr_required": true,
     "ready_merge_release_authorized": false
   }
