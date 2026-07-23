@@ -1,15 +1,18 @@
 {
-  "schema": "gh.h3.n2.stage2d9-g3-v68-d2-attempt1-failure-l1/1",
+  "schema": "gh.h3.n2.stage2d9-g3-v68-d2-attempt1-failure-l1/2",
   "stage": "H3/N2 Stage 2D-9 G3",
   "artifact_generation": "V68",
   "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V68-20260723-01",
-  "result": "failed",
+  "result": "failed_recovery_verified",
   "failure_stage": "prepare_serial",
+  "failure_class": "RuntimeError",
+  "failure_message_redacted": "G3 executor emitted fail marker before PREPARE",
   "attempt_timestamp_utc": "2026-07-23T00:40:49Z",
   "source_sha": "608282bf86fcf8c1d13494437e01f1899d3c494a",
   "artifact_zip_sha256": "3a90f2b1369dafbc5fb0fa20255ab9dc978a335b74d415aa2f51054a3e198c3b",
   "g3_merged_sha256": "094d37b01e9ddce1bba26216ffcbb1bae56a3ecbbf075b3e9e3ec57042214ca4",
   "recovery_merged_sha256": "54fb10601a0fbf448948d3f7d687281b33e85220c64bcdcabfae896dd3d98a1a",
+  "seed_sha256": "0ea36f26c5048f69b223884a13613fbd645b58c2ce42eafc6f9d9cd55bb089af",
   "execution_package_sha256": "f66bd80eabe72060199d39bf323c45bb79b1d2c5404f4ea24d7e648ae1be42d2",
   "private_evidence_archive_sha256": "c2a0686e7a52774531c53a674e889f50c8bdef37ee7ea67903dd24c989059321",
   "authorization": {
@@ -17,24 +20,62 @@
     "consumed": true,
     "one_shot": true,
     "replay_permitted": false,
-    "status": "consumed_failed_retired"
+    "status": "consumed_failed_recovery_verified_retired"
   },
   "execution": {
+    "preflight_status": "passed",
     "destructive_boundary_entered": true,
+    "erase_success": true,
+    "write_success": true,
+    "verify_flash_success": true,
+    "previous_g2_seed_match": true,
+    "preprepare_readback_sha256": "0ea36f26c5048f69b223884a13613fbd645b58c2ce42eafc6f9d9cd55bb089af",
+    "preprepare_matches_seed": true,
     "prepare_command_send_attempt_observed": true,
     "prepare_command_sent_summary": false,
     "prepare_succeeded": false,
     "verify_command_sent": false,
     "verify_succeeded": false,
+    "postprepare_partition_readback_present": false,
     "recovery_performed": true,
     "recovery_count": 1,
-    "recovery_detail_status": "pending_private_archive_read_only_extraction"
+    "recovery_detail_status": "verified"
+  },
+  "recovery": {
+    "erase_success": true,
+    "write_success": true,
+    "verify_success": true,
+    "seed_restored": true,
+    "boot_success": true,
+    "locked_marker_present": true,
+    "recovery_serial_log_sha256": "eb92a2dbfc1a43b2d0917286b91b0904c4a9b4fefb212f00334152362cc8aca0",
+    "recovery_esptool_log_sha256": "945c47aa9419e9928f1d9ae2cdc7b759a33ca7921024e00a8f2a8e224fe2014f",
+    "recovery_partition_sha256": "0ea36f26c5048f69b223884a13613fbd645b58c2ce42eafc6f9d9cd55bb089af",
+    "recovery_partition_matches_preprepare": true,
+    "recovery_partition_equals_seed": true,
+    "recovery_locked_marker_count": 1,
+    "recovery_mqtt_true_count": 0,
+    "final_board_state": "locked_recovery_seed_restored"
+  },
+  "private_evidence": {
+    "u2_script_sha256": "4976f43f23ca7be39d80e31c5e4d6aa1a4b29674e8e8024aaeb67968405145c8",
+    "u2_result": "passed",
+    "summary_json_sha256": "3fd63b52710d3763059dc5fa204767ba2bb5c3cd01028657a3de2fcd8bae8f1f",
+    "preflight_log_sha256": "c082b6d2dd2fdbea305ac907cab72da983dab4f4e9d60aa049b1f3f2c6264cbf",
+    "destructive_log_sha256": "35c328fdfdbef2574ce2a35028397e18a7e3bbaf1e108795e50bb633c1864b26",
+    "preprepare_binary_sha256": "0ea36f26c5048f69b223884a13613fbd645b58c2ce42eafc6f9d9cd55bb089af",
+    "prepare_serial_log_present": false,
+    "verify_serial_log_present": false
   },
   "interpretation": {
     "prepare_command_sent_once_stdout": true,
     "final_prepare_command_sent_false_reason": "the capture function raised before returning its acceptance result, so the top-level summary field was not updated even though a serial write attempt had already been emitted",
     "prepare_transaction_accepted": false,
     "candidate_prepared_state_proven": false,
+    "exact_firmware_failure_subreason": "unavailable_because_prepare_serial_log_was_not_persisted",
+    "runner_serial_log_persistence_defect": "confirmed",
+    "mqtt_prepare_cause_hypothesis": "disproved_by_frozen_source_trace",
+    "firmware_failure_locus": "bounded_but_unresolved",
     "g3_retry_permitted": false
   },
   "protected_boundaries": {
@@ -56,10 +97,12 @@
     "secret_values_included": false
   },
   "disposition": {
-    "execution_gate": "CLOSED_CONSUMED_FAILED_NO_REPLAY",
+    "execution_gate": "CLOSED_CONSUMED_FAILED_RECOVERY_VERIFIED_NO_REPLAY",
     "attempt_retired": true,
     "physical_retry_authorized": false,
-    "next_action": "read the existing private archive only, verify exact failure and locked recovery outcome, then determine whether a new source/Artifact chain is required",
+    "private_evidence_closure": "passed",
+    "new_source_and_artifact_required": true,
+    "next_action": "perform host-only source diagnosis and create a unique corrected source chain with failure-observability tests before any future Artifact, U1, or D2",
     "draft_pr_must_remain_draft": true,
     "ready_merge_release_authorized": false
   }
