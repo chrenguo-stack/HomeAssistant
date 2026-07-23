@@ -97,7 +97,7 @@ jobs:
           set -euo pipefail
           python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_pki_custody_gate_20260723_v1.py \
             -v 2>&1 | tee /tmp/stage2d9r-private-custody-tests-v1.log
-          grep -F 'Ran 11 tests' /tmp/stage2d9r-private-custody-tests-v1.log
+          grep -F 'Ran 12 tests' /tmp/stage2d9r-private-custody-tests-v1.log
           grep -F 'OK' /tmp/stage2d9r-private-custody-tests-v1.log
           python tools/h3_n2_stage2d9r_private_pki_custody_gate_20260723_v1.py \
             --descriptor tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_private_pki_custody_descriptor_20260723_v1.json.template \
