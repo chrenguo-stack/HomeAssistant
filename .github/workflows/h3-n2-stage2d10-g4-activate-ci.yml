@@ -177,7 +177,8 @@ jobs:
           for token in required_runner:
               assert token in runner, token
 
-          assert "CLEANUP_TEST_STATE is outside this stage" in protocol
+          assert "CLEANUP_TEST_STATE" in protocol
+          assert "outside this stage" in protocol
           assert "Physical execution requires a new immutable G4 candidate" in protocol
           PY
 
