@@ -1,0 +1,111 @@
+{
+  "schema": "gh.h3.n2.stage2d9-g3-v68-d2-attempt1-u2-private-detail-l1/1",
+  "stage": "H3/N2 Stage 2D-9 G3",
+  "artifact_generation": "V68",
+  "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V68-20260723-01",
+  "u2_result": "passed",
+  "u2_timestamp_utc": "2026-07-23T01:22:34Z",
+  "u2_script_sha256": "4976f43f23ca7be39d80e31c5e4d6aa1a4b29674e8e8024aaeb67968405145c8",
+  "private_archive_sha256": "c2a0686e7a52774531c53a674e889f50c8bdef37ee7ea67903dd24c989059321",
+  "private_summary": {
+    "schema": "gh.h3.n2.stage2d9-g3-v68-private-execution-attempt1/1",
+    "summary_json_sha256": "3fd63b52710d3763059dc5fa204767ba2bb5c3cd01028657a3de2fcd8bae8f1f",
+    "result": "failed",
+    "current_stage": "locked_recovery",
+    "failure_stage": "prepare_serial",
+    "failure_class": "RuntimeError",
+    "failure_message_redacted": "G3 executor emitted fail marker before PREPARE",
+    "authorization_consumed": true,
+    "destructive_boundary_entered": true
+  },
+  "preflight_and_flash": {
+    "preflight_status": "passed",
+    "erase_success": true,
+    "write_success": true,
+    "verify_flash_success": true,
+    "previous_g2_seed_match": true,
+    "preprepare_readback_sha256": "0ea36f26c5048f69b223884a13613fbd645b58c2ce42eafc6f9d9cd55bb089af",
+    "preprepare_matches_seed": true,
+    "preprepare_binary_sha256": "0ea36f26c5048f69b223884a13613fbd645b58c2ce42eafc6f9d9cd55bb089af",
+    "preprepare_binary_size": 65536,
+    "preflight_log_sha256": "c082b6d2dd2fdbea305ac907cab72da983dab4f4e9d60aa049b1f3f2c6264cbf",
+    "destructive_log_sha256": "35c328fdfdbef2574ce2a35028397e18a7e3bbaf1e108795e50bb633c1864b26"
+  },
+  "prepare_and_verify": {
+    "host_serial_write_attempt_observed": true,
+    "summary_prepare_command_sent": false,
+    "prepare_succeeded": false,
+    "verify_command_sent": false,
+    "verify_succeeded": false,
+    "prepare_serial_log_present": false,
+    "verify_serial_log_present": false,
+    "postprepare_partition_binary_present": false,
+    "candidate_prepared_state_proven": false,
+    "exact_firmware_failure_subreason_available": false
+  },
+  "locked_recovery": {
+    "performed": true,
+    "count": 1,
+    "erase_success": true,
+    "write_success": true,
+    "verify_success": true,
+    "seed_restored": true,
+    "boot_success": true,
+    "locked_marker_present": true,
+    "error_class": null,
+    "recovery_esptool_log_sha256": "945c47aa9419e9928f1d9ae2cdc7b759a33ca7921024e00a8f2a8e224fe2014f",
+    "recovery_serial_log_sha256": "eb92a2dbfc1a43b2d0917286b91b0904c4a9b4fefb212f00334152362cc8aca0",
+    "recovery_serial_log_size": 2115,
+    "recovery_partition_sha256": "0ea36f26c5048f69b223884a13613fbd645b58c2ce42eafc6f9d9cd55bb089af",
+    "recovery_partition_size": 65536,
+    "recovery_partition_matches_preprepare": true,
+    "recovery_partition_equals_seed": true,
+    "recovery_locked_marker_count": 1,
+    "recovery_mqtt_true_count": 0,
+    "reset_reason": "USB_UART_HPSYS",
+    "boot_mode": "SPI_FAST_FLASH_BOOT",
+    "final_board_state": "locked_recovery_seed_restored"
+  },
+  "source_diagnosis": {
+    "mqtt_in_prepare_call_path": false,
+    "null_mqtt_port_as_prepare_failure_cause": "disproved_by_source_trace",
+    "runner_serial_log_persistence_defect": "confirmed",
+    "runner_defect_detail": "the PREPARE serial log was written only after normal capture completion; the fail marker raised before that write, so the exact device-side failure line was not retained",
+    "firmware_failure_locus": "bounded_but_unresolved",
+    "bounded_failure_loci": [
+      "test configuration validation or loading",
+      "mirrored authorization grant or consumption",
+      "persistence open, write, recover, or verification",
+      "executor postcondition verification"
+    ]
+  },
+  "protected_boundaries": {
+    "authorization_replayed": false,
+    "g3_retry_attempted": false,
+    "second_prepare_executed": false,
+    "activate_profile_executed": false,
+    "cleanup_test_state_executed": false,
+    "efuse_command_attempted": false,
+    "network_operation_attempted": false,
+    "production_environment_modified": false
+  },
+  "privacy": {
+    "raw_serial_log_included": false,
+    "private_serial_path_included": false,
+    "raw_board_identifier_included": false,
+    "authorization_json_included": false,
+    "private_command_included": false,
+    "secret_values_included": false
+  },
+  "disposition": {
+    "private_evidence_closure": "passed",
+    "physical_prepare_acceptance": "failed",
+    "recovery_verification": "passed",
+    "execution_gate": "CLOSED_CONSUMED_FAILED_RECOVERY_VERIFIED_NO_REPLAY",
+    "device_reconnect_authorized": false,
+    "v68_retry_authorized": false,
+    "new_source_and_artifact_required_for_future_physical_execution": true,
+    "draft_pr_must_remain_draft": true,
+    "ready_merge_release_authorized": false
+  }
+}
