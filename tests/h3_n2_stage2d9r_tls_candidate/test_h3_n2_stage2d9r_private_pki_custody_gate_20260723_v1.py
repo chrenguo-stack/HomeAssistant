@@ -29,7 +29,7 @@ class Stage2D9RPrivatePkiCustodyGateTest(unittest.TestCase):
         data["generator_sha256"] = "2" * 64
         data["openssl_executable_sha256"] = "3" * 64
         data["openssl_version"] = "OpenSSL 3.0.13"
-        data["custody_root"] = "/Users/example/.local/state/greenhouse-stage2d9r/private-pki-v1"
+        data["custody_root"] = "/private/var/greenhouse-stage2d9r/private-pki-v1"
         data["package_sha256"] = "4" * 64
         data["public_descriptor_sha256"] = "5" * 64
         data["candidate_digest_sha256"] = "6" * 64
