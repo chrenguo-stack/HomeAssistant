@@ -34,21 +34,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Materialize reviewed source digest probe
+      - name: Verify frozen reviewed source digests
         run: |
           set -euo pipefail
-          sha256sum \
-            tools/h3_n2_stage2d9r_private_command_material_generator_20260724_v1.py \
-            tools/h3_n2_stage2d9r_private_command_material_gate_20260724_v1.py \
-            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_command_material_20260724_v1.py \
-            > stage2d9r-command-material-source-digests-v1.txt
-      - name: Upload reviewed source digest probe
-        uses: actions/upload-artifact@v4
-        with:
-          name: stage2d9r-command-material-source-digests-v1
-          path: stage2d9r-command-material-source-digests-v1.txt
-          if-no-files-found: error
-          retention-days: 7
+          echo '60628bf274fdcca05e8644b30510f6abde2129a57e3e49ca5a12db30d7129563  tools/h3_n2_stage2d9r_private_command_material_generator_20260724_v1.py' | sha256sum -c -
+          echo '512fb70c14d3ad983055fde4e85cb3814445df3ad7b5555695cc6c54575b4a6e  tools/h3_n2_stage2d9r_private_command_material_gate_20260724_v1.py' | sha256sum -c -
+          echo '5a7ed752b8e9e54f0f8c9e5f00f63360fa2a441ca38073dd67028506b57e6462  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_command_material_20260724_v1.py' | sha256sum -c -
       - name: Compile generator gate and tests
         run: |
           python -m py_compile \
@@ -110,8 +101,4 @@ jobs:
             'VERIFY_AUTHORIZED=false'
       - name: Cleanup
         if: always()
-        run: |
-          rm -f \
-            stage2d9r-command-material-source-digests-v1.txt \
-            /tmp/stage2d9r-command-material-tests-v1.log \
-            /tmp/stage2d9r-command-material-default-v1.log
+        run: rm -f /tmp/stage2d9r-command-material-*.log
