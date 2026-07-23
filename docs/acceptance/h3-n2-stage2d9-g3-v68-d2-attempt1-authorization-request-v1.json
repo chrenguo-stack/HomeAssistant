@@ -1,17 +1,24 @@
 {
-  "schema": "gh.h3.n2.stage2d9-g3-v68-d2-attempt1-authorization-request/1",
+  "schema": "gh.h3.n2.stage2d9-g3-v68-d2-attempt1-authorization-request/2",
   "stage": "H3/N2 Stage 2D-9 G3",
   "artifact_generation": "V68",
   "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V68-20260723-01",
-  "status": "pending_operator_authorization",
-  "execution_gate": "LOCKED",
-  "execution_authorized": false,
-  "authorization_issued": false,
-  "authorization_file_generated": false,
-  "execution_package_generated": false,
+  "status": "authorized_awaiting_one_shot_execution",
+  "execution_gate": "OPEN_EXACT_ONE_SHOT_UNTIL_EXPIRY",
+  "execution_authorized": true,
+  "authorization_issued": true,
+  "authorization_file_generated": true,
+  "execution_package_generated": true,
+  "execution_performed": false,
+  "authorization_consumed": false,
   "one_shot": true,
   "replay_permitted": false,
-  "authorization_validity_after_issue": "exactly 2 hours",
+  "issued_at": "2026-07-23T00:31:08Z",
+  "expires_at": "2026-07-23T02:31:08Z",
+  "authorization_validity_seconds": 7200,
+  "authorization_binding_sha256": "63317420a612c2db4a033a66e517bd9d85489ce135e70371b1216e1cb6204cf9",
+  "authorization_file_sha256": "0845ab17aa5160765efe085bbd1b0a469c8b0e6425aae377cc5381fa15e6debc",
+  "execution_package_sha256": "f66bd80eabe72060199d39bf323c45bb79b1d2c5404f4ea24d7e648ae1be42d2",
   "source_sha": "608282bf86fcf8c1d13494437e01f1899d3c494a",
   "artifact": {
     "zip_sha256": "3a90f2b1369dafbc5fb0fa20255ab9dc978a335b74d415aa2f51054a3e198c3b",
@@ -41,8 +48,7 @@
     "unlock_digest_match_verified": true,
     "material_in_review_package": false,
     "material_in_git": false,
-    "material_in_artifact": false,
-    "execution_authorized": false
+    "material_in_artifact": false
   },
   "review": {
     "package_sha256": "498a56273e14e916b74148892002b139504f3a3864163e3d217278744f3e758d",
@@ -56,11 +62,15 @@
     "private_execution_material_sha256": "0b3de67e7ee944fa630a4edc7886d1cdc9fce130090a45cc4fcebff237303be6",
     "prepare_command_sha256": "b1554a975c3f9b4823dc5fbf3c508c15b94564b3457ac31fc341e1c307857f88",
     "verify_command_sha256": "8098070a7eddbbea4e8f984dca435c9ede9c26bb5415aa44bed491d7fa97d275",
-    "review_self_test": "passed",
-    "artifact_in_review_package": false,
-    "private_execution_material_in_review_package": false,
-    "authorization_json_in_review_package": false,
-    "operator_authorization_text_in_review_package": false
+    "review_self_test": "passed"
+  },
+  "authorized_package_validation": {
+    "review_mode": "passed",
+    "authorization_self_check": "passed",
+    "zip_member_and_hash_check": "passed",
+    "authorization_json_in_public_git": false,
+    "private_execution_material_in_public_git": false,
+    "operator_authorization_text_in_public_git": false
   },
   "required_transition": {
     "active_generation_before": 0,
@@ -73,7 +83,7 @@
     "read_only_verify_after_reboot": true,
     "candidate_digest_match_required": true
   },
-  "allowed_operations_after_exact_authorization": {
+  "allowed_operations": {
     "host_artifact_u1_custody_binding_verification": true,
     "usb_vid_pid_preflight": true,
     "flash_id_preflight": true,
@@ -105,15 +115,11 @@
     "greenhouse_manager": true,
     "ready_merge_release": true
   },
-  "pr_policy": {
-    "draft_pr": 174,
-    "must_remain_draft": true,
-    "ready_merge_release_authorized": false
-  },
   "privacy": {
     "unlock_preimage_included": false,
     "persistence_key_included": false,
-    "authorization_digest_included": false,
+    "authorization_json_included": false,
+    "operator_authorization_text_included": false,
     "candidate_secret_values_included": false,
     "private_serial_path_included": false,
     "raw_board_identifier_included": false,
