@@ -1,8 +1,8 @@
 {
-  "schema": "gh.h3.n2.stage2d9-g3-d2-authorization-request-index/6",
+  "schema": "gh.h3.n2.stage2d9-g3-d2-authorization-request-index/7",
   "stage": "H3/N2 Stage 2D-9 G3",
   "active_request_id": null,
-  "execution_gate": "CLOSED_CONSUMED_FAILED_NO_REPLAY",
+  "execution_gate": "CLOSED_CONSUMED_FAILED_RECOVERY_VERIFIED_NO_REPLAY",
   "requests": [
     {
       "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V67-20260722-01",
@@ -24,23 +24,29 @@
     },
     {
       "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V68-20260723-01",
-      "status": "consumed_failed_recovery_performed_retired",
+      "status": "consumed_failed_recovery_verified_retired",
       "request_record": "docs/acceptance/h3-n2-stage2d9-g3-v68-d2-attempt1-authorization-request-v1.json",
       "failure_record": "docs/acceptance/h3-n2-stage2d9-g3-v68-d2-attempt1-failure-l1-v1.json",
+      "u2_record": "docs/acceptance/h3-n2-stage2d9-g3-v68-d2-attempt1-u2-private-detail-l1-v1.json",
       "authorization_issued": true,
       "execution_package_generated": true,
       "execution_performed": true,
       "authorization_consumed": true,
       "destructive_boundary_entered": true,
       "failure_stage": "prepare_serial",
+      "failure_message_redacted": "G3 executor emitted fail marker before PREPARE",
       "prepare_command_send_attempt_observed": true,
       "prepare_succeeded": false,
       "verify_command_sent": false,
       "verify_succeeded": false,
       "recovery_performed": true,
       "recovery_count": 1,
+      "recovery_verified": true,
+      "recovery_seed_restored": true,
+      "recovery_locked_marker_present": true,
+      "final_board_state": "locked_recovery_seed_restored",
       "private_evidence_archive_sha256": "c2a0686e7a52774531c53a674e889f50c8bdef37ee7ea67903dd24c989059321",
-      "private_detail_status": "pending_read_only_extraction",
+      "private_detail_status": "verified",
       "replay_permitted": false
     }
   ],
@@ -53,7 +59,9 @@
   "stage2d9_v67_authorization_replay_permitted": false,
   "stage2d9_v68_attempt1_replay_permitted": false,
   "g3_retry_permitted": false,
+  "device_reconnect_permitted": false,
+  "private_evidence_closure": "passed",
+  "new_source_and_artifact_chain_required": true,
   "new_operator_d2_required_for_any_future_device_action": true,
-  "new_source_and_artifact_chain_decision_pending": true,
   "ready_merge_release_authorized": false
 }
