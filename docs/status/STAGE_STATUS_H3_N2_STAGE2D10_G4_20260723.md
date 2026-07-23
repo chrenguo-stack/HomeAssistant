@@ -1,10 +1,11 @@
 # H3/N2 Stage 2D-10 G4 ACTIVATE_PROFILE 状态
 
-- **状态版本：** V1.0
+- **状态版本：** V1.1
 - **更新日期：** 2026-07-23
 - **基线：** `main=25a21b38d470992b09c64820d46f56b39917f0dc`
 - **开发分支：** `feature/h3-n2-stage2d10-g4-activate-profile-20260723-v1`
-- **阶段状态：** `scope_frozen_implementation_started`
+- **Draft PR：** `#175`
+- **阶段状态：** `portable_coordinator_implemented_ci_pending`
 - **执行门：** `LOCKED_SOURCE_AND_COMPILE_ONLY`
 
 ## 1. 已接受输入
@@ -39,14 +40,32 @@ AUTOMATIC_RESTART_AND_READ_ONLY_VERIFY_REQUIRED=true
 CLEANUP_INCLUDED=false
 ```
 
-## 3. 当前进度
+## 3. 已实现源码与 host 模型
+
+```text
+RECOVERED_PREPARED_ADOPTION=implemented
+RECOVERED_PREPARED_ADOPTION_WRITES=0
+RECOVERED_PREPARED_ADOPTION_MQTT_START=false
+FIELD_BY_FIELD_CANDIDATE_BINDING=implemented
+INDEPENDENT_VALIDATION=implemented
+DUAL_ACTIVATION_AUTHORIZATION=implemented
+PRECOMMIT_ROLLBACK=implemented
+AUTHORITY_AMBIGUITY_REBOOT_CLOSURE=implemented
+MARKER_LAST_POSTCONDITION=implemented
+SESSION_PROMOTION_POSTCONDITION=implemented
+POST_REBOOT_READ_ONLY_VERIFY=implemented
+CLEANUP_ENTRYPOINT_PRESENT=false
+HOST_FAULT_MATRIX=committed_ci_pending
+```
+
+## 4. 当前进度
 
 ```text
 S0_BASELINE=complete
 S1_SCOPE_AND_ACCEPTANCE=complete
-S2_PORTABLE_COORDINATOR=in_progress
-S3_PREFLIGHT_AND_BOUNDARY=not_started
-S4_COMPILE_ONLY_AND_CI=not_started
+S2_PORTABLE_COORDINATOR=implemented_ci_pending
+S3_PREFLIGHT_AND_BOUNDARY=ci_gate_committed_pending
+S4_COMPILE_ONLY_AND_CI=host_ci_pending_compile_only_not_started
 S5_EXECUTOR_AND_ISOLATED_BROKER=not_started
 S6_IMMUTABLE_CANDIDATE=not_started
 S7_USER_HOST_READ_ONLY=not_started
@@ -54,7 +73,7 @@ S8_PHYSICAL_ACTIVATION=not_authorized
 D4_READY_AND_MERGE=not_authorized
 ```
 
-## 4. 当前禁止项
+## 5. 当前禁止项
 
 ```text
 REAL_BROKER_CONNECTION=false
@@ -76,10 +95,10 @@ CLEANUP_TEST_STATE=false
 READY_MERGE_RELEASE=false
 ```
 
-## 5. 队列
+## 6. 队列
 
 ```text
-ASSISTANT_QUEUE=portable recovered-PREPARED coordinator, host fault matrix, locked manifest, compile-only, CI
+ASSISTANT_QUEUE=resolve host CI, add locked manifest and unified preflight, then add compile-only targets
 USER_OPERATION_QUEUE=empty
 USER_DECISIONS_PENDING=none
 ```
