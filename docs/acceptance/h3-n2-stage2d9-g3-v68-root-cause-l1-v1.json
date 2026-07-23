@@ -1,8 +1,9 @@
 {
-  "schema": "gh.h3.n2.stage2d9-g3-v68-root-cause-l1/2",
+  "schema": "gh.h3.n2.stage2d9-g3-v68-root-cause-l1/3",
   "stage": "H3/N2 Stage 2D-9 G3",
   "artifact_generation": "V68",
-  "status": "confirmed_correction_in_progress",
+  "status": "confirmed",
+  "correction_status": "host_only_ci_in_progress",
   "root_cause": "candidate_host_contract_mismatch",
   "frozen_source_commit": "608282bf86fcf8c1d13494437e01f1899d3c494a",
   "frozen_executor_values": {
@@ -51,6 +52,10 @@
     "d2_request_generated": false
   },
   "protected_boundaries": {
+    "board_accessed_for_root_cause": false,
+    "serial_access_attempted_for_root_cause": false,
+    "flash_operation_attempted_for_root_cause": false,
+    "network_operation_attempted_for_root_cause": false,
     "board_accessed_for_root_cause_or_correction": false,
     "serial_access_attempted_for_root_cause_or_correction": false,
     "flash_operation_attempted_for_root_cause_or_correction": false,
