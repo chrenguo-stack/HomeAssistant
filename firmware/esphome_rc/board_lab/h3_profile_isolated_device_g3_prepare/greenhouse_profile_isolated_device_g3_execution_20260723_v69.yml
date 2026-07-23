@@ -48,6 +48,9 @@ external_components:
 # absent from Git and the Artifact, but is retained separately under exact
 # custody before any future D2 request. This source target does not itself
 # authorize Flash, PREPARE, VERIFY or any device operation.
+# Final Artifact source-set marker: V69 host correction and both compile-only
+# targets passed in workflow 29974235928; no further source mutation is allowed
+# while the immutable Artifact build is running.
 greenhouse_profile_isolated_device_g3_executor_v69:
   id: stage2d9_g3_executor_v69
   partition_label: gh2d8_p2d9
