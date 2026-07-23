@@ -1,0 +1,57 @@
+substitutions:
+  device_name: gh-h3-2d10-g4-lab
+  project_version: "F1.0-RC2-H3-STAGE2D10-G4-LAB"
+  soil_read_interval: 20s
+  soil_warmup_time: 15s
+  scd30_update_interval: 11s
+  battery_divider_ratio: "2.0"
+  battery_calibration_factor: "1.000"
+  battery_low_threshold: "3.00"
+  battery_recovery_threshold: "3.50"
+
+esp32:
+  framework:
+    advanced:
+      include_builtin_idf_components:
+        - mqtt
+        - nvs_flash
+        - esp_hw_support
+    sdkconfig_options:
+      CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG: y
+      CONFIG_ESP_CONSOLE_SECONDARY_NONE: y
+      CONFIG_MBEDTLS_PSA_CRYPTO_C: y
+      CONFIG_MBEDTLS_ECP_DP_CURVE25519_ENABLED: y
+      CONFIG_MBEDTLS_CHACHA20_C: y
+      CONFIG_MBEDTLS_POLY1305_C: y
+      CONFIG_MBEDTLS_CHACHAPOLY_C: y
+      CONFIG_MBEDTLS_HARDWARE_MPI: n
+
+external_components:
+  - source:
+      type: local
+      path: ../15_1_2_rs485_modbus_echo_filter/my_components
+    components:
+      - echo_filtered_modbus
+  - source:
+      type: local
+      path: ../components
+    components:
+      - greenhouse_pairing_client
+      - greenhouse_profile_isolated_acceptance
+      - greenhouse_profile_isolated_device_driver
+      - greenhouse_profile_isolated_device_g4_activation
+
+packages:
+  core: !include packages/core.yml
+  control: !include packages/control.yml
+  buses: !include packages/buses.yml
+  sensors: !include packages/sensors.yml
+  display: !include packages/display.yml
+
+# Product-PCB compatibility compile only. The production partition table does
+# not expose gh2d8_p2d9 and execution_gate remains LOCKED. This overlay must
+# never be flashed, run, used for OTA or released.
+greenhouse_profile_isolated_device_g4_activation:
+  partition_label: gh2d8_p2d9
+  namespace_name: gh2d8_s2d9
+  execution_gate: LOCKED
