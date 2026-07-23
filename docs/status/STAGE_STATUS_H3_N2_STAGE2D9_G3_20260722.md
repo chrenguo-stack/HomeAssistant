@@ -1,13 +1,13 @@
 # H3/N2 Stage 2D-9 G3 PREPARE_CANDIDATE 状态
 
-- **状态版本：** V1.6
+- **状态版本：** V1.7
 - **更新日期：** 2026-07-23
 - **起始基线：** `2a5272546f25b1b29cf1d6682cf1fc14f1c1be83`
 - **开发分支：** `feature/h3-n2-stage2d9-g3-prepare-candidate-20260722-v1`
 - **Draft PR：** `#174`
-- **阶段状态：** `v68_artifact_frozen_waiting_user_host_u1`
-- **执行门：** `LOCKED_V68_U1_REQUIRED`
-- **当前 D2 请求：** 无
+- **阶段状态：** `v68_u1_passed_waiting_exact_d2_operator_decision`
+- **执行门：** `LOCKED_D2_OPERATOR_DECISION_REQUIRED`
+- **当前 D2 请求：** `D2-H3N2-STAGE2D9-G3-V68-20260723-01`
 
 ## 1. 固定目标
 
@@ -39,7 +39,7 @@ V67_ATTEMPT2_BOARD_ACCESSED=false
 V67_ATTEMPT2_DESTRUCTIVE_BOUNDARY_ENTERED=false
 ```
 
-D2 尝试 2 在签发前发现 V67 原始 unlock preimage 已无法取得，因此在授权文件生成前 fail-closed。V67 授权文本、审核包、脚本和私密材料哈希均永久退役。
+V67 的两个 D2 请求均永久退役，不得以旧授权文本、旧审核包、旧脚本或旧私密材料继续执行。
 
 ## 3. 冻结 V68 Artifact
 
@@ -62,40 +62,64 @@ V68_BYTE_IDENTICAL=true
 V68_ARTIFACT_GATE=LOCKED
 ```
 
-V68 的源码边界、Python 编译、21 项 host 矩阵、两次 clean build、字节一致性、确定性 seed、Artifact 打包、全部成员哈希和私密材料排除均通过。
-
-## 4. 私密托管
+## 4. V68 U1 与私密托管
 
 ```text
-PRIVATE_CUSTODY_REQUIRED_BEFORE_D2=true
-PRIVATE_CUSTODY_MATERIAL_PRESENT=true
-PRIVATE_CUSTODY_FILE_SHA256=a462997381fdd0842b2a7c1ab5697fd45e62ae0789100437c6fb702cfa16cfdc
-PRIVATE_CUSTODY_UNLOCK_DIGEST_MATCH=true
-PRIVATE_CUSTODY_IN_GIT=false
-PRIVATE_CUSTODY_IN_ARTIFACT=false
-PRIVATE_CUSTODY_EXECUTION_AUTHORIZED=false
-OPERATOR_INSTALLATION_STATUS=pending_user_host_u1
-```
-
-私密材料只用于未来新 D2 链的精确绑定，本身不包含授权，不得公开或上传 GitHub。
-
-## 5. V68 U1 包
-
-```text
-U1_BATCH_PACKAGE_ID=U1_STAGE2D9_G3_V68_ARTIFACT_AND_CUSTODY_VERIFY_V2
+U1_RESULT=passed
+U1_TIMESTAMP_UTC=2026-07-22T23:51:46Z
 U1_PACKAGE_SHA256=4fc3e589e7bd3174a8a44eed0b3aab90a6bfe030a0b07edffb96adaebc24e14a
 U1_LAUNCHER_SHA256=8319f460212fff1f5c7350f6070ff9219867099e793d90ffd7693f491887d54e
 U1_SCRIPT_SHA256=2091e44001526eb31c01072b0420b33b1b28c05cdaa4db018d27e203633f302c
-U1_BINDING_SHA256=2ba8b8028b771bcd65d88912cad115c9c2b348e19b401b1fef9848bcc85e6ca2
-U1_ISOLATED_SELF_TEST=passed
-U1_USER_HOST_RESULT=pending
-AUTHORIZATION_FILE_PRESENT=false
-EXECUTION_PACKAGE_PRESENT=false
+U1_CANONICAL_OUTPUT_SHA256=171d44e41665c41585e556a0918ac1a670d80bf248d5cbf1b6147fd8ea6fb8b2
+PRIVATE_CUSTODY_FILE_SHA256=a462997381fdd0842b2a7c1ab5697fd45e62ae0789100437c6fb702cfa16cfdc
+PRIVATE_CUSTODY_INSTALLED=true
+PRIVATE_CUSTODY_PRESERVED=true
+PRIVATE_CUSTODY_UNLOCK_DIGEST_MATCH=true
+PRIVATE_CUSTODY_EXECUTION_AUTHORIZED=false
+BOARD_ACCESSED=false
+SERIAL_ACCESS_ATTEMPTED=false
+FLASH_OPERATION_ATTEMPTED=false
+NETWORK_OPERATION_ATTEMPTED=false
+AUTHORIZATION_FILE_GENERATED=false
+EXECUTION_PACKAGE_GENERATED=false
 ```
 
-U1 会校验 Artifact、私密托管文件和 unlock digest 的一致性，并把私密托管文件安装到用户本机受限目录。U1 不访问测试板、串口、Flash、eFuse、网络或生产环境。
+## 5. 当前 V68 D2 审核门
 
-## 6. 当前阶段
+```text
+AUTHORIZATION_REQUEST_ID=D2-H3N2-STAGE2D9-G3-V68-20260723-01
+D2_STATUS=pending_operator_authorization
+REVIEW_PACKAGE_SHA256=498a56273e14e916b74148892002b139504f3a3864163e3d217278744f3e758d
+OPERATOR_AUTHORIZATION_TEXT_SHA256=4a8b496a3acd5e8b708895fd2a5901474548f3d9bc7c44cfd2059d947afff722
+EXECUTION_SCRIPT_SHA256=9981d82b047d8fc7d77f6e04ef68c280d8728309c7d7994681f439a3445d2b9d
+LAUNCHER_SHA256=0397d77957852953e7807542bb5111593c155df8f2a9915c40180f27098c6652
+COMMAND_GROUP_SHA256=de7d91955e1c3ef70bc0a6f78023d93195e590bfed5249cc9c7a5ac27cb639d5
+STOP_CONDITIONS_SHA256=5feb9f36a2cd34d466533b9d63650c48df66a3739bd5217b7ba15b7dfad9b198
+PRIVATE_EXECUTION_MATERIAL_SHA256=0b3de67e7ee944fa630a4edc7886d1cdc9fce130090a45cc4fcebff237303be6
+PREPARE_COMMAND_SHA256=b1554a975c3f9b4823dc5fbf3c508c15b94564b3457ac31fc341e1c307857f88
+VERIFY_COMMAND_SHA256=8098070a7eddbbea4e8f984dca435c9ede9c26bb5415aa44bed491d7fa97d275
+REVIEW_SELF_TEST=passed
+ONE_SHOT=true
+REPLAY_PERMITTED=false
+AUTHORIZATION_VALIDITY_AFTER_ISSUE=exactly_2_hours
+ALLOWED_RECOVERY_COUNT=1
+```
+
+审核包不包含 Artifact、私密托管原像、私有执行材料、授权 JSON 或操作员授权文本，不能执行实板操作。
+
+## 6. 授权后唯一允许范围
+
+1. 核对 V68 Artifact、U1、私密托管、专用 esptool 环境和测试板 USB/Flash 身份；
+2. 只读确认测试分区仍为 Stage 2D-8 G2 seed；
+3. 单次擦除、写入并校验 V68 G3；
+4. PREPARE 提示出现后仅按一次 RESET，不按 BOOT；
+5. 单次发送冻结 PREPARE 命令；
+6. 自动重启后 VERIFY 提示出现时仅再按一次 RESET，不按 BOOT；
+7. 单次发送冻结只读 VERIFY 命令；
+8. 核对 candidate generation=1、PREPARED、digest 匹配、active 不变且 MQTT=false；
+9. 进入破坏性边界后发生规定失败时最多一次 locked recovery，之后终止且不重试 G3。
+
+## 7. 当前阶段
 
 ```text
 P0_SCOPE_AND_PROTOCOL=complete
@@ -105,12 +129,12 @@ P3_G3_HARNESS_AND_EXECUTOR=passed_compile
 P4_COMPILE_ONLY_TARGETS=passed
 P5_V68_ARTIFACT=passed_frozen
 P6_EVIDENCE_PROTOCOL=complete
-P7_V68_USER_HOST_U1=pending
-P8_NEW_D2=not_requested
+P7_V68_USER_HOST_U1=passed
+P8_V68_D2=pending_operator_decision
 P9_EVIDENCE_CLOSURE=not_started
 ```
 
-## 7. 固定禁止项
+## 8. 固定禁止项
 
 ```text
 DEVICE_OPERATION_AUTHORIZED=false
@@ -132,4 +156,4 @@ STAGE2D9_V67_REPLAY_AUTHORIZED=false
 READY_MERGE_RELEASE_AUTHORIZED=false
 ```
 
-下一门槛仅为用户本机 V68 U1。U1 通过并确认私密托管已保存后，才允许生成新的 D2 审核包；届时必须使用新的请求 ID 和新的精确授权。Draft PR #174 继续保持 Draft。
+当前仅等待精确 D2 决策。未收到逐字匹配的新授权前，不得连接测试板、签发授权文件或生成执行包。Draft PR #174 继续保持 Draft。
