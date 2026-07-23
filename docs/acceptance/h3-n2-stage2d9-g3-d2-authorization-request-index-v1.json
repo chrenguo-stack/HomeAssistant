@@ -1,8 +1,8 @@
 {
-  "schema": "gh.h3.n2.stage2d9-g3-d2-authorization-request-index/4",
+  "schema": "gh.h3.n2.stage2d9-g3-d2-authorization-request-index/5",
   "stage": "H3/N2 Stage 2D-9 G3",
   "active_request_id": "D2-H3N2-STAGE2D9-G3-V68-20260723-01",
-  "execution_gate": "LOCKED_D2_OPERATOR_DECISION_REQUIRED",
+  "execution_gate": "OPEN_EXACT_ONE_SHOT_UNTIL_EXPIRY",
   "requests": [
     {
       "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V67-20260722-01",
@@ -29,15 +29,22 @@
     },
     {
       "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V68-20260723-01",
-      "status": "pending_operator_authorization",
+      "status": "authorized_awaiting_one_shot_execution",
       "request_record": "docs/acceptance/h3-n2-stage2d9-g3-v68-d2-attempt1-authorization-request-v1.json",
       "review_package_sha256": "498a56273e14e916b74148892002b139504f3a3864163e3d217278744f3e758d",
       "operator_authorization_text_sha256": "4a8b496a3acd5e8b708895fd2a5901474548f3d9bc7c44cfd2059d947afff722",
+      "authorization_binding_sha256": "63317420a612c2db4a033a66e517bd9d85489ce135e70371b1216e1cb6204cf9",
+      "authorization_file_sha256": "0845ab17aa5160765efe085bbd1b0a469c8b0e6425aae377cc5381fa15e6debc",
+      "execution_package_sha256": "f66bd80eabe72060199d39bf323c45bb79b1d2c5404f4ea24d7e648ae1be42d2",
+      "issued_at": "2026-07-23T00:31:08Z",
+      "expires_at": "2026-07-23T02:31:08Z",
       "u1_passed": true,
       "private_custody_installed": true,
-      "authorization_issued": false,
-      "execution_package_generated": false,
+      "authorization_issued": true,
+      "execution_package_generated": true,
       "execution_performed": false,
+      "authorization_consumed": false,
+      "one_shot": true,
       "replay_permitted": false
     }
   ],
@@ -50,6 +57,6 @@
   "v68_artifact_frozen": true,
   "v68_u1_passed": true,
   "v68_private_custody_installed": true,
-  "new_operator_d2_required": true,
+  "new_operator_d2_required": false,
   "ready_merge_release_authorized": false
 }
