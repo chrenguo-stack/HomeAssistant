@@ -1,0 +1,60 @@
+{
+  "schema": "gh.h3.n2.stage2d9r-public-pki-export-l1/1",
+  "stage": "H3/N2 Stage 2D-9R G3R",
+  "result": "passed_public_export_closed",
+  "source_sha": "94f116ec99a7ba8b1da250f93b323f260c7ff5a6",
+  "authorization_id": "U1-H3N2-STAGE2D9R-PRIVATE-PKI-20260723-01",
+  "authorization_status": "consumed_passed_retired",
+  "export_tool": {
+    "package_sha256": "189ba1bf32654f2e86480b5f0fdcdcef2757462c0f310f28720b196b161e8367",
+    "script_sha256": "043fdc8f4f931e1095d66457cefc7541954bc3568863ec3bbdfa6033b350421b",
+    "launcher_sha256": "ee92e8407338dc2936abb768465b490e3b8b7ace06e1d61f035464e5aad898e0"
+  },
+  "public_export": {
+    "zip_sha256": "72c739b5e197192b9569083bf3446d7c0f5340652b21ab44cdd99eeca3f12d31",
+    "mode": "0600",
+    "public_descriptor_sha256": "93bb071a5bf6f58472ac9e3891c2330dd9de6f05410824ad2fb51829267b4540",
+    "ca_pem_sha256": "cfcb6638ed61731270f3bf8e9e262c1512fbca8ff34d4b08b62186453233e963",
+    "broker_certificate_sha256": "988b6f82b04b0b3cf13f58a07ecd85e420e5576c167fe01ea0940d4530e20ac7",
+    "broker_spki_sha256": "f034dc2a036f709287f0558773418ee1799e75bee50dcf55e09143a3a9052a03",
+    "candidate_digest_sha256": "f22144e37372b883b7a38d07eff2980a865108cf7c8fed9bfdb9f198a030b5c5",
+    "private_package_sha256": "0632b37a70aa2eae416c48ffa9420a8f1e13788c22a7d12e211f77cf6e78a267"
+  },
+  "offline_proofs": {
+    "certificate_chain_valid": true,
+    "hostname_valid": true,
+    "public_private_leakage_scan_passed": true,
+    "public_export_hash_match": true,
+    "public_file_hashes_match": true,
+    "full_chain_composition_valid": true
+  },
+  "privacy": {
+    "private_paths_included": false,
+    "private_keys_included": false,
+    "raw_mqtt_password_included": false,
+    "authorization_record_included": false,
+    "consumed_marker_included": false,
+    "private_descriptor_included": false
+  },
+  "protected_boundaries": {
+    "board_operation": false,
+    "serial_operation": false,
+    "flash_operation": false,
+    "physical_nvs_operation": false,
+    "network_operation": false,
+    "broker_started": false,
+    "prepare_executed": false,
+    "verify_executed": false,
+    "activate_executed": false,
+    "cleanup_executed": false,
+    "production_operation": false
+  },
+  "disposition": {
+    "public_material_committed_for_source_validation": true,
+    "private_custody_remains_local_only": true,
+    "u1_replay_authorized": false,
+    "board_action_authorized": false,
+    "immutable_artifact_execution_authorized": false,
+    "next_action": "validate committed public PKI and freeze the implementation binding before a separate one-shot private command-material authorization"
+  }
+}
