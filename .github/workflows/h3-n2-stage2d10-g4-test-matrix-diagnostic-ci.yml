@@ -71,7 +71,7 @@ jobs:
           )
           updated, count = re.subn(
               r"int main\(\) \{.*?\n\}",
-              replacement,
+              lambda _match: replacement,
               source,
               count=1,
               flags=re.DOTALL,
