@@ -1,0 +1,159 @@
+name: H3 N2 Stage2D9R Private PKI Toolchain Probe Package CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-private-pki-toolchain-probe-package-ci.yml"
+      - "tools/h3_n2_stage2d9r_private_pki_generator_20260723_v1.py"
+      - "tools/h3_n2_stage2d9r_prepare_command_protocol_20260723_v1.py"
+      - "tools/h3_n2_stage2d9r_tls_public_binding_builder_20260723_v1.py"
+      - "docs/development/h3-n2-stage2d9r-private-pki-u1-review-20260723-v1.md"
+  push:
+    branches:
+      - feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-private-pki-toolchain-probe-package-ci.yml"
+      - "tools/h3_n2_stage2d9r_private_pki_generator_20260723_v1.py"
+      - "tools/h3_n2_stage2d9r_prepare_command_protocol_20260723_v1.py"
+      - "tools/h3_n2_stage2d9r_tls_public_binding_builder_20260723_v1.py"
+      - "docs/development/h3-n2-stage2d9r-private-pki-u1-review-20260723-v1.md"
+
+permissions:
+  contents: read
+
+jobs:
+  build-review-only-probe-package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      HEAD_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - name: Build exact review-only host probe package
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-private-pki-toolchain-probe-review-v1
+          rm -rf "$root"
+          mkdir -p "$root/tools"
+          cp tools/h3_n2_stage2d9r_private_pki_generator_20260723_v1.py "$root/tools/"
+          cp tools/h3_n2_stage2d9r_prepare_command_protocol_20260723_v1.py "$root/tools/"
+          cp tools/h3_n2_stage2d9r_tls_public_binding_builder_20260723_v1.py "$root/tools/"
+
+          cat > "$root/run_stage2d9r_private_pki_toolchain_probe_20260723_v1.sh" <<'SH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          ROOT="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)"
+          cd "$ROOT"
+
+          python_bin="${GH_STAGE2D9R_PROBE_PYTHON:-python3}"
+          args=(--probe-toolchain)
+          if [[ -n "${GH_STAGE2D9R_PROBE_OPENSSL:-}" ]]; then
+            args+=(--openssl "$GH_STAGE2D9R_PROBE_OPENSSL")
+          fi
+          if [[ -n "${GH_STAGE2D9R_PROBE_MOSQUITTO_PASSWD:-}" ]]; then
+            args+=(--mosquitto-passwd "$GH_STAGE2D9R_PROBE_MOSQUITTO_PASSWD")
+          fi
+
+          "$python_bin" tools/h3_n2_stage2d9r_private_pki_generator_20260723_v1.py "${args[@]}"
+          SH
+          chmod 0755 "$root/run_stage2d9r_private_pki_toolchain_probe_20260723_v1.sh"
+
+          python - "$root" "$HEAD_SOURCE_SHA" <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+          import sys
+
+          root = Path(sys.argv[1])
+          source_sha = sys.argv[2]
+          names = (
+              'tools/h3_n2_stage2d9r_private_pki_generator_20260723_v1.py',
+              'tools/h3_n2_stage2d9r_prepare_command_protocol_20260723_v1.py',
+              'tools/h3_n2_stage2d9r_tls_public_binding_builder_20260723_v1.py',
+              'run_stage2d9r_private_pki_toolchain_probe_20260723_v1.sh',
+          )
+          files = {
+              name: hashlib.sha256((root / name).read_bytes()).hexdigest()
+              for name in names
+          }
+          assert files['tools/h3_n2_stage2d9r_private_pki_generator_20260723_v1.py'] == (
+              'a9be0c96fd58882b3778886515076f6aae5940c0ac195fc629ed1ebe708265d0'
+          )
+          manifest = {
+              'schema': 'gh.h3.n2.stage2d9r-private-pki-toolchain-probe-package/1',
+              'stage': 'H3/N2 Stage 2D-9R G3R',
+              'source_sha': source_sha,
+              'mode': 'READ_ONLY_TOOLCHAIN_PROBE',
+              'files': files,
+              'private_pki_generation_authorized': False,
+              'private_material_included': False,
+              'authorization_record_included': False,
+              'board_operation_authorized': False,
+              'network_operation_authorized': False,
+              'broker_start_authorized': False,
+              'prepare_authorized': False,
+              'verify_authorized': False,
+              'activate_authorized': False,
+              'cleanup_authorized': False,
+          }
+          (root / 'PROBE_PACKAGE_MANIFEST.json').write_text(
+              json.dumps(manifest, indent=2, sort_keys=True) + '\n',
+              encoding='utf-8',
+          )
+          PY
+
+          cat > "$root/README.txt" <<'TXT'
+          Stage 2D-9R private PKI host toolchain probe — REVIEW ONLY
+
+          This package performs a host-only toolchain probe. It does not generate a CA,
+          private key, MQTT password, Broker runtime, firmware command or board operation.
+
+          Run:
+            ./run_stage2d9r_private_pki_toolchain_probe_20260723_v1.sh
+
+          Optional exact executable selection:
+            GH_STAGE2D9R_PROBE_PYTHON=/absolute/python \
+            GH_STAGE2D9R_PROBE_OPENSSL=/absolute/openssl \
+            GH_STAGE2D9R_PROBE_MOSQUITTO_PASSWD=/absolute/mosquitto_passwd \
+            ./run_stage2d9r_private_pki_toolchain_probe_20260723_v1.sh
+
+          Return the complete terminal output for review. Do not use --execute and do not
+          create an authorization record at this checkpoint.
+          TXT
+
+      - name: Verify package contains no execution authorization or private material
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-private-pki-toolchain-probe-review-v1
+          test "$(find "$root" -type f | wc -l | tr -d ' ')" = 6
+          if find "$root" -type f \( -name '*.key' -o -name '*.pem' -o -name '*.p12' -o -name '*.pfx' -o -name 'mosquitto.password' \) | grep -q .; then
+            echo 'private material path found in review package' >&2
+            exit 1
+          fi
+          if grep -R -E \
+            '-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----|"authorized"[[:space:]]*:[[:space:]]*true|--execute' \
+            "$root" --exclude='h3_n2_stage2d9r_private_pki_generator_20260723_v1.py' --exclude='README.txt'; then
+            echo 'execution authorization or private material found in review package' >&2
+            exit 1
+          fi
+          python -m py_compile "$root"/tools/*.py
+          python "$root"/tools/h3_n2_stage2d9r_private_pki_generator_20260723_v1.py --help \
+            > /tmp/stage2d9r-private-pki-probe-help-v1.log
+          grep -F -- '--probe-toolchain' /tmp/stage2d9r-private-pki-probe-help-v1.log
+          grep -F -- '--execute' /tmp/stage2d9r-private-pki-probe-help-v1.log
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-private-pki-toolchain-probe-review-v1
+          path: /tmp/stage2d9r-private-pki-toolchain-probe-review-v1
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 9
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf /tmp/stage2d9r-private-pki-toolchain-probe-review-v1
+          rm -f /tmp/stage2d9r-private-pki-probe-help-v1.log
