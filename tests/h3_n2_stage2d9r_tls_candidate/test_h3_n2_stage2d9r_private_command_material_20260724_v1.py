@@ -143,7 +143,7 @@ class CommandMaterialTests(unittest.TestCase):
             "source_sha": "1"*40, "implementation_binding": "2"*40,
             "generator_sha256": "3"*64, "python_executable_sha256": "4"*64,
             "public_descriptor_sha256": "5"*64, "test_run_suffix": "tlsvalid01",
-            "custody_root": "/Users/example/private", "custody_root_mode": "0700",
+            "custody_root": "/var/lib/stage2d9r/private", "custody_root_mode": "0700",
             "unlock_token": {"relative_path": "unlock-token.hex", "mode": "0600", "file_sha256": "6"*64, "unlock_digest_sha256": "0"*64},
             "authorization": {"authorization_id": "U1-H3N2-STAGE2D9R-COMMAND-MATERIAL-X", "operation": "GENERATE_PRIVATE_COMMAND_MATERIAL", "authorized": True, "consumed": True, "one_shot": True, "replay_permitted": False, "record_sha256": "7"*64},
         }
