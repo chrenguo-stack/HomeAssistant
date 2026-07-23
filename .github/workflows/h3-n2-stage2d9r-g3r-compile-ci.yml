@@ -184,25 +184,27 @@ jobs:
           cache: pip
       - name: Install pinned ESPHome
         run: python -m pip install -q "esphome==2026.4.3"
-      - name: Validate locked product compatibility target
+      - name: Validate locked product compatibility target with RC2 asset staging
         run: |
           set -o pipefail
           cd firmware/esphome_rc/f1_0_rc2
-          esphome config f1_0_rc2_h3_profile_isolated_device_g3r_tls_prepare_compile_20260723_v1.yml \
-            2>&1 | tee /tmp/stage2d9r-g3r-product-config-v1.log
-      - name: Compile locked product compatibility target
+          RC2_CONFIG=f1_0_rc2_h3_profile_isolated_device_g3r_tls_prepare_compile_20260723_v1.yml \
+            bash tools/rc2.sh config \
+            2>&1 | tee /tmp/stage2d9r-g3r-product-config-v2.log
+      - name: Compile locked product compatibility target with RC2 asset staging
         run: |
           set -o pipefail
           cd firmware/esphome_rc/f1_0_rc2
-          esphome compile f1_0_rc2_h3_profile_isolated_device_g3r_tls_prepare_compile_20260723_v1.yml \
-            2>&1 | tee /tmp/stage2d9r-g3r-product-compile-v1.log
+          RC2_CONFIG=f1_0_rc2_h3_profile_isolated_device_g3r_tls_prepare_compile_20260723_v1.yml \
+            bash tools/rc2.sh compile \
+            2>&1 | tee /tmp/stage2d9r-g3r-product-compile-v2.log
       - name: Verify product compile result and redaction
         run: |
           set -euo pipefail
-          grep -F 'INFO Successfully compiled program.' /tmp/stage2d9r-g3r-product-compile-v1.log
+          grep -F 'INFO Successfully compiled program.' /tmp/stage2d9r-g3r-product-compile-v2.log
           if grep -Eqi \
               'BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|BEGIN CERTIFICATE|mqtt_password|GH2D9R_PREPARE_V1 [^" ]|GH2D9R_VERIFY_V1 [^" ]' \
-              /tmp/stage2d9r-g3r-product-config-v1.log /tmp/stage2d9r-g3r-product-compile-v1.log; then
+              /tmp/stage2d9r-g3r-product-config-v2.log /tmp/stage2d9r-g3r-product-compile-v2.log; then
             echo 'private or executable command material detected in product compile output' >&2
             exit 1
           fi
@@ -211,5 +213,5 @@ jobs:
         run: |
           rm -rf firmware/esphome_rc/f1_0_rc2/.esphome
           rm -f \
-            /tmp/stage2d9r-g3r-product-config-v1.log \
-            /tmp/stage2d9r-g3r-product-compile-v1.log
+            /tmp/stage2d9r-g3r-product-config-v2.log \
+            /tmp/stage2d9r-g3r-product-compile-v2.log
