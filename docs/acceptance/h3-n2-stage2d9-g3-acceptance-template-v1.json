@@ -1,5 +1,5 @@
 {
-  "schema": "gh.h3.n2.stage2d9-g3-physical-acceptance/2",
+  "schema": "gh.h3.n2.stage2d9-g3-physical-acceptance/3",
   "stage": "H3/N2 Stage 2D-9 G3",
   "artifact_generation": "V68",
   "result": null,
@@ -12,12 +12,19 @@
   "private_custody_file_sha256": "a462997381fdd0842b2a7c1ab5697fd45e62ae0789100437c6fb702cfa16cfdc",
   "authorization": {
     "request_id": "D2-H3N2-STAGE2D9-G3-V68-20260723-01",
+    "status": "issued_awaiting_one_shot_execution",
+    "issued_at": "2026-07-23T00:31:08Z",
+    "expires_at": "2026-07-23T02:31:08Z",
+    "binding_sha256": "63317420a612c2db4a033a66e517bd9d85489ce135e70371b1216e1cb6204cf9",
+    "file_sha256": "0845ab17aa5160765efe085bbd1b0a469c8b0e6425aae377cc5381fa15e6debc",
+    "execution_package_sha256": "f66bd80eabe72060199d39bf323c45bb79b1d2c5404f4ea24d7e648ae1be42d2",
     "one_shot": true,
     "replay_permitted": false,
-    "consumed": null,
+    "consumed": false,
     "active_generation": 0,
     "candidate_generation": 1,
-    "action": "PREPARE_CANDIDATE"
+    "action": "PREPARE_CANDIDATE",
+    "allowed_recovery_count": 1
   },
   "preflight": {
     "host_environment_match": null,
@@ -90,13 +97,14 @@
     "unlock_preimage_in_git": false,
     "persistence_key_in_git": false,
     "authorization_json_in_git": false,
+    "operator_authorization_text_in_git": false,
     "raw_board_identifier_in_git": false,
     "private_serial_path_in_git": false,
     "raw_logs_in_git": false,
     "candidate_secret_values_in_git": false
   },
   "stage_disposition": {
-    "execution_gate": "LOCKED_D2_OPERATOR_DECISION_REQUIRED",
+    "execution_gate": "OPEN_EXACT_ONE_SHOT_UNTIL_EXPIRY",
     "draft_pr_required": true,
     "ready_merge_release_authorized": false
   }
