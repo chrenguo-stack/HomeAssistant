@@ -65,7 +65,7 @@ jobs:
           python tools/h3_n2_stage2d9_prepare_manifest_gate_20260722_v1.py \
             --manifest tests/h3_n2_stage2d9_prepare/stage2d9_prepare_manifest_template_20260722_v1.json \
             --expect-gate LOCKED
-      - name: Verify passed V68 U1 and exact D2 decision gate
+      - name: Verify issued V68 one-shot authorization gate
         run: |
           python - <<'PY'
           import json
@@ -85,51 +85,85 @@ jobs:
           template = load("tests/h3_n2_stage2d9_prepare/stage2d9_prepare_manifest_template_20260722_v1.json")
 
           request_id = "D2-H3N2-STAGE2D9-G3-V68-20260723-01"
-          assert public["status"] == "v68_u1_passed_waiting_exact_d2_operator_decision"
-          assert public["execution_gate"] == "LOCKED_D2_OPERATOR_DECISION_REQUIRED"
+          package_sha = "f66bd80eabe72060199d39bf323c45bb79b1d2c5404f4ea24d7e648ae1be42d2"
+          auth_binding = "63317420a612c2db4a033a66e517bd9d85489ce135e70371b1216e1cb6204cf9"
+          auth_file_sha = "0845ab17aa5160765efe085bbd1b0a469c8b0e6425aae377cc5381fa15e6debc"
+
+          assert public["status"] == "v68_d2_authorized_awaiting_one_shot_execution"
+          assert public["execution_gate"] == "OPEN_EXACT_ONE_SHOT_UNTIL_EXPIRY"
           assert public["active_d2_request_id"] == request_id
-          assert all(value is False for value in public["boundaries"].values())
           assert public["v68_artifact"]["status"] == "passed_frozen"
           assert public["v68_artifact"]["gate"] == "LOCKED"
-          assert public["v68_artifact"]["execution_authorized"] is False
           assert public["v68_u1"]["status"] == "passed"
           assert public["v68_u1"]["private_custody_installed"] is True
           assert public["v68_u1"]["private_custody_preserved"] is True
           assert public["v68_private_custody"]["operator_installation_status"] == "installed_and_preserved"
-          assert public["d2_review"]["authorization_request_id"] == request_id
-          assert public["d2_review"]["status"] == "pending_operator_authorization"
-          assert public["d2_review"]["review_self_test"] == "passed"
-          assert public["d2_review"]["execution_authorized"] is False
-          assert public["d2_review"]["replay_permitted"] is False
+          authorization = public["d2_authorization"]
+          assert authorization["authorization_request_id"] == request_id
+          assert authorization["status"] == "issued_awaiting_one_shot_execution"
+          assert authorization["validity_seconds"] == 7200
+          assert authorization["one_shot"] is True
+          assert authorization["replay_permitted"] is False
+          assert authorization["authorization_consumed"] is False
+          assert authorization["authorization_binding_sha256"] == auth_binding
+          assert authorization["authorization_file_sha256"] == auth_file_sha
+          assert authorization["execution_package_sha256"] == package_sha
+          assert authorization["review_mode"] == "passed"
+          assert authorization["authorization_self_check"] == "passed"
+          assert authorization["zip_member_and_hash_check"] == "passed"
+          scope = public["authorization_scope"]
+          assert scope["device_preflight_authorized"] is True
+          assert scope["single_erase_authorized"] is True
+          assert scope["single_v68_write_authorized"] is True
+          assert scope["single_flash_verify_authorized"] is True
+          assert scope["single_prepare_authorized"] is True
+          assert scope["single_read_only_verify_authorized"] is True
+          assert scope["locked_recovery_max_count"] == 1
+          for key in (
+              "second_prepare_authorized", "activate_profile_authorized",
+              "cleanup_test_state_authorized", "wifi_authorized",
+              "mqtt_authorized", "broker_authorized",
+              "efuse_operation_authorized", "secure_boot_change_authorized",
+              "flash_encryption_change_authorized",
+              "production_environment_operation_authorized",
+              "ready_merge_release_authorized",
+              "stage2d8_d2_replay_authorized",
+              "stage2d9_v67_replay_authorized",
+          ):
+              assert scope[key] is False, key
 
-          assert artifact["status"] == "frozen_waiting_user_host_u1"
           assert artifact["artifact"]["gate"] == "LOCKED"
-          assert artifact["protected_boundaries"]["authorization_issued"] is False
           assert u1["status"] == "passed"
           assert u1["private_custody"]["installed"] is True
           assert u1["private_custody"]["preserved"] is True
-          assert u1["private_custody"]["execution_authorized"] is False
           assert all(value is False for value in u1["protected_boundaries"].values())
 
           assert request["authorization_request_id"] == request_id
-          assert request["status"] == "pending_operator_authorization"
-          assert request["execution_authorized"] is False
-          assert request["authorization_issued"] is False
-          assert request["authorization_file_generated"] is False
-          assert request["execution_package_generated"] is False
+          assert request["status"] == "authorized_awaiting_one_shot_execution"
+          assert request["execution_authorized"] is True
+          assert request["authorization_issued"] is True
+          assert request["authorization_file_generated"] is True
+          assert request["execution_package_generated"] is True
+          assert request["execution_performed"] is False
+          assert request["authorization_consumed"] is False
+          assert request["authorization_validity_seconds"] == 7200
+          assert request["authorization_binding_sha256"] == auth_binding
+          assert request["authorization_file_sha256"] == auth_file_sha
+          assert request["execution_package_sha256"] == package_sha
           assert request["one_shot"] is True
           assert request["replay_permitted"] is False
-          assert request["review"]["review_self_test"] == "passed"
-          assert request["review"]["artifact_in_review_package"] is False
-          assert request["review"]["private_execution_material_in_review_package"] is False
-          assert request["review"]["authorization_json_in_review_package"] is False
-          assert request["private_custody"]["unlock_digest_match_verified"] is True
-          assert request["private_custody"]["execution_authorized"] is False
+          assert request["authorized_package_validation"]["review_mode"] == "passed"
+          assert request["authorized_package_validation"]["authorization_self_check"] == "passed"
+          assert request["authorized_package_validation"]["zip_member_and_hash_check"] == "passed"
 
           assert index["active_request_id"] == request_id
-          assert index["execution_gate"] == "LOCKED_D2_OPERATOR_DECISION_REQUIRED"
+          assert index["execution_gate"] == "OPEN_EXACT_ONE_SHOT_UNTIL_EXPIRY"
           assert len(index["retired_request_ids"]) == 2
-          assert index["requests"][-1]["status"] == "pending_operator_authorization"
+          assert index["requests"][-1]["status"] == "authorized_awaiting_one_shot_execution"
+          assert index["requests"][-1]["authorization_issued"] is True
+          assert index["requests"][-1]["execution_package_generated"] is True
+          assert index["requests"][-1]["execution_performed"] is False
+          assert index["requests"][-1]["authorization_consumed"] is False
           assert all(item["replay_permitted"] is False for item in index["requests"])
           assert attempt1["status"] == "retired_before_authorization"
           assert attempt2["status"] == "operator_authorized_but_issuance_failed_closed_retired"
@@ -137,7 +171,12 @@ jobs:
           assert attempt2["execution_performed"] is False
 
           assert acceptance["artifact_generation"] == "V68"
-          assert acceptance["stage_disposition"]["execution_gate"] == "LOCKED_D2_OPERATOR_DECISION_REQUIRED"
+          assert acceptance["authorization"]["status"] == "issued_awaiting_one_shot_execution"
+          assert acceptance["authorization"]["binding_sha256"] == auth_binding
+          assert acceptance["authorization"]["file_sha256"] == auth_file_sha
+          assert acceptance["authorization"]["execution_package_sha256"] == package_sha
+          assert acceptance["authorization"]["consumed"] is False
+          assert acceptance["stage_disposition"]["execution_gate"] == "OPEN_EXACT_ONE_SHOT_UNTIL_EXPIRY"
           assert acceptance["stage_disposition"]["ready_merge_release_authorized"] is False
           assert template["gate"] == "LOCKED"
           assert template["execution_authorized"] is False
