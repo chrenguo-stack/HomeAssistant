@@ -1,0 +1,185 @@
+name: H3 N2 Stage2D10 G4 ACTIVATE CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d10-g4-activate-ci.yml"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation/**"
+      - "tests/h3_n2_stage2d10_activate/**"
+      - "tools/h3_n2_stage2d10_*"
+      - "protocols/pairing/gh-h3-node-stage2d10-g4-activate-v1.md"
+      - "docs/development/*Stage2D10*"
+      - "docs/status/STAGE_STATUS_H3_N2_STAGE2D10_G4_20260723.md"
+      - "docs/acceptance/h3-n2-stage2d10-*.json"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g4_activation/**"
+      - "firmware/esphome_rc/f1_0_rc2/*stage2d10*"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/h3-n2-stage2d10-g4-activate-ci.yml"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation/**"
+      - "tests/h3_n2_stage2d10_activate/**"
+      - "tools/h3_n2_stage2d10_*"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  host-model-and-boundary:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Compile and run Stage 2D-10 G4 fault matrix
+        run: |
+          set -euo pipefail
+          pairing=firmware/esphome_rc/components/greenhouse_pairing_client
+          package=firmware/esphome_rc/components/greenhouse_profile_isolated_acceptance
+          driver=firmware/esphome_rc/components/greenhouse_profile_isolated_device_driver
+          g4=firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation
+          test=tests/h3_n2_stage2d10_activate/stage2d10_g4_activation_fault_matrix_20260723_v1.cpp
+          g++ -std=gnu++20 -Wall -Wextra -Wpedantic -Werror \
+            -I "$pairing" -I "$package" -I "$driver" -I "$g4" \
+            "$pairing/pairing_client_core.cpp" \
+            "$pairing/secure_pairing_channel.cpp" \
+            "$pairing/secure_pairing_channel_encoding.cpp" \
+            "$pairing/secure_pairing_channel_crypto.cpp" \
+            "$pairing/pairing_ram_credentials.cpp" \
+            "$package/isolated_acceptance_package.cpp" \
+            "$driver/isolated_device_driver.cpp" \
+            "$g4/stage2d10_g4_activation_coordinator.cpp" \
+            "$test" \
+            -lcrypto \
+            -o /tmp/stage2d10-g4-activation-fault-matrix-v1
+          /tmp/stage2d10-g4-activation-fault-matrix-v1 \
+            | tee /tmp/stage2d10-g4-host-v1.log
+          grep -Fx 'stage2d10_g4_activation_fault_matrix=pass' \
+            /tmp/stage2d10-g4-host-v1.log
+          if grep -Eqi 'broker\.stage2d10|stage2d10-test-password|BEGIN CERTIFICATE|aaaaaaaaaaaaaaaa' \
+              /tmp/stage2d10-g4-host-v1.log; then
+            echo 'credential-like host output detected' >&2
+            exit 1
+          fi
+
+      - name: Verify recovered-PREPARED and marker-last source contract
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          header = Path(
+              "firmware/esphome_rc/components/"
+              "greenhouse_profile_isolated_device_g4_activation/"
+              "stage2d10_g4_activation_coordinator.h"
+          ).read_text(encoding="utf-8")
+          source = Path(
+              "firmware/esphome_rc/components/"
+              "greenhouse_profile_isolated_device_g4_activation/"
+              "stage2d10_g4_activation_coordinator.cpp"
+          ).read_text(encoding="utf-8")
+          test = Path(
+              "tests/h3_n2_stage2d10_activate/"
+              "stage2d10_g4_activation_fault_matrix_20260723_v1.cpp"
+          ).read_text(encoding="utf-8")
+          protocol = Path(
+              "protocols/pairing/gh-h3-node-stage2d10-g4-activate-v1.md"
+          ).read_text(encoding="utf-8")
+
+          required_header = (
+              "recover_prepared_read_only",
+              "grant_activation_authorization",
+              "verify_active_read_only",
+              "VERIFIED_AFTER_REBOOT",
+              "AUTHORITY_AMBIGUOUS",
+              "MARKER_LAST_NOT_PROVEN",
+          )
+          for token in required_header:
+              assert token in header, token
+
+          required_source = (
+              'recovery_status == "no_active_prepared"',
+              'recovery_status == "active"',
+              "COMMIT_PREPARED_PROFILE",
+              "ACTIVATE_PROFILE",
+              "marker_last_observed",
+              "promote_candidate",
+              "rollback_activation",
+              "expected_active_generation == 0",
+              "expected_candidate_generation == 1",
+          )
+          for token in required_source:
+              assert token in source, token
+
+          assert "prepare_candidate(" not in source
+          assert "cleanup_test_namespace(" not in source
+          assert "cleanup_test_state(" not in source
+          assert "homeassistant" not in source.lower()
+          assert "gh/v1/" not in source
+
+          required_tests = (
+              "test_recover_prepared_is_read_only_and_network_silent",
+              "test_one_layer_consumption_is_terminal",
+              "test_clear_commit_failure_rolls_back_prepared",
+              "test_marker_ambiguity_and_marker_last_failure_are_terminal",
+              "test_success_and_authorization_non_replay",
+              "test_post_reboot_read_only_verification",
+              "persistence.prepare_calls == 0",
+              "persistence.cleanup_calls == 0",
+          )
+          for token in required_tests:
+              assert token in test, token
+
+          assert "CLEANUP_TEST_STATE is outside this stage" in protocol
+          assert "Physical execution requires a new immutable G4 candidate" in protocol
+          PY
+
+      - name: Reject production, device, Broker and cleanup paths
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          git diff --name-only "$BASE_SHA"...HEAD > /tmp/stage2d10-paths-v1.txt
+          if grep -E '(^|/)f1_0_rc2\.yml$|^firmware/esphome_rc/f1_0_rc2/packages/' \
+              /tmp/stage2d10-paths-v1.txt; then
+            echo 'Stage 2D-10 changed a protected production firmware path' >&2
+            exit 1
+          fi
+          if grep -E '^host/|^deploy/|^infra/|M401A|T1' \
+              /tmp/stage2d10-paths-v1.txt; then
+            echo 'Stage 2D-10 changed a protected host or production path' >&2
+            exit 1
+          fi
+          if git diff "$BASE_SHA"...HEAD -- \
+              'firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation/**' \
+              'tests/h3_n2_stage2d10_activate/**' \
+              | grep -E '^\+.*(esp_efuse|nvs_erase_all|ACTIVATE_PROFILE.*AUTO|CLEANUP_TEST_STATE.*authorize|homeassistant/#|gh/v1/)'; then
+            echo 'unauthorized Stage 2D-10 execution or production token detected' >&2
+            exit 1
+          fi
+
+      - name: Verify stage remains LOCKED and Draft-only
+        run: |
+          set -euo pipefail
+          grep -Fx -- '- **执行门：** `LOCKED_SOURCE_AND_COMPILE_ONLY`' \
+            docs/status/STAGE_STATUS_H3_N2_STAGE2D10_G4_20260723.md
+          grep -Fx 'S8_PHYSICAL_ACTIVATION=not_authorized' \
+            docs/status/STAGE_STATUS_H3_N2_STAGE2D10_G4_20260723.md
+          grep -Fx 'D4_READY_AND_MERGE=not_authorized' \
+            docs/status/STAGE_STATUS_H3_N2_STAGE2D10_G4_20260723.md
+
+      - name: Cleanup host files
+        if: always()
+        run: |
+          rm -f \
+            /tmp/stage2d10-g4-activation-fault-matrix-v1 \
+            /tmp/stage2d10-g4-host-v1.log \
+            /tmp/stage2d10-paths-v1.txt
