@@ -85,7 +85,7 @@ jobs:
           /tmp/stage2d9-v68-root-cause-test | tee /tmp/stage2d9-v68-root-cause-test.log
           grep -F 'STAGE2D9_V68_ROOT_CAUSE_TEST=PASS' \
             /tmp/stage2d9-v68-root-cause-test.log
-      - name: Verify V69 U1 pass and D2 operator-decision gate
+      - name: Verify V69 physical acceptance and D4 gate
         run: |
           python - <<'PY'
           import json
@@ -99,17 +99,21 @@ jobs:
           artifact = load("docs/acceptance/h3-n2-stage2d9-g3-v69-artifact-l1-summary-v1.json")
           custody = load("docs/acceptance/h3-n2-stage2d9-g3-v69-private-custody-l1-v1.json")
           u1 = load("docs/acceptance/h3-n2-stage2d9-g3-v69-u1-l1-summary-v1.json")
-          d2 = load("docs/acceptance/h3-n2-stage2d9-g3-v69-d2-attempt1-authorization-request-v1.json")
+          d2_attempt1 = load("docs/acceptance/h3-n2-stage2d9-g3-v69-d2-attempt1-authorization-request-v1.json")
+          d2_attempt2 = load("docs/acceptance/h3-n2-stage2d9-g3-v69-d2-attempt2-physical-acceptance-l1-v1.json")
           index = load("docs/acceptance/h3-n2-stage2d9-g3-d2-authorization-request-index-v1.json")
           template = load("tests/h3_n2_stage2d9_prepare/stage2d9_prepare_manifest_template_20260722_v1.json")
 
-          request_id = "D2-H3N2-STAGE2D9-G3-V69-20260723-01"
-          review_sha = "5e7b13dc3e804698f216542b17f4d481a9f8a05285c5c3e6a4475ef1e44e379e"
-          gate = "LOCKED_D2_OPERATOR_DECISION_REQUIRED"
+          request1 = "D2-H3N2-STAGE2D9-G3-V69-20260723-01"
+          request2 = "D2-H3N2-STAGE2D9-G3-V69-20260723-02"
+          review1 = "5e7b13dc3e804698f216542b17f4d481a9f8a05285c5c3e6a4475ef1e44e379e"
+          review2 = "b358fcbe8b9e428d7ed5ab061537338928471705e0829022c2c5892a612573b0"
+          archive = "c863b504da6b48e9b8861efa853e2757b19679ab6c6d9ac42550cd0bb218b366"
+          gate = "CLOSED_V69_ACCEPTANCE_PASSED_D4_REQUIRED"
 
-          assert public["status"] == "v69_u1_passed_d2_review_pending_operator_decision"
+          assert public["status"] == "v69_physical_acceptance_passed_private_evidence_closed"
           assert public["execution_gate"] == gate
-          assert public["active_d2_request_id"] == request_id
+          assert public["active_d2_request_id"] is None
           assert public["v68_evidence"]["recovery_seed_restored"] is True
           assert public["v68_root_cause"]["name"] == "candidate_host_contract_mismatch"
           assert public["v69_correction"]["status"] == "passed_frozen"
@@ -117,14 +121,22 @@ jobs:
           assert public["v69_artifact"]["gate"] == "LOCKED"
           assert public["v69_artifact"]["execution_authorized"] is False
           assert public["v69_u1"]["status"] == "passed"
-          assert public["v69_u1"]["private_custody_installed"] is True
-          assert public["v69_d2_attempt1"]["review_package_sha256"] == review_sha
-          assert public["v69_d2_attempt1"]["authorization_issued"] is False
+          assert public["v69_d2_attempt1"]["status"] == "operator_authorized_but_issuance_failed_closed_retired"
+          assert public["v69_d2_attempt1"]["authorization_consumed"] is False
+          assert public["v69_d2_attempt2"]["status"] == "consumed_passed_retired"
+          assert public["v69_d2_attempt2"]["review_package_sha256"] == review2
+          assert public["v69_d2_attempt2"]["authorization_consumed"] is True
+          assert public["v69_verified_state"]["candidate_state"] == "PREPARED"
+          assert public["v69_verified_state"]["candidate_digest_match"] is True
+          assert public["v69_verified_state"]["active_unchanged"] is True
+          assert public["v69_verified_state"]["mqtt_operation_attempted"] is False
+          assert public["v69_private_evidence"]["archive_sha256"] == archive
+          assert public["v69_private_evidence"]["l1_extraction"] == "passed"
           assert all(value is False for value in public["protected_boundaries"].values())
 
           assert artifact["status"] == "frozen_u1_passed_d2_review_prepared"
           assert artifact["u1"]["user_host_result"] == "passed"
-          assert artifact["d2_review"]["review_package_sha256"] == review_sha
+          assert artifact["d2_review"]["review_package_sha256"] == review1
           assert artifact["d2_review"]["authorization_issued"] is False
 
           assert custody["operator_installation_status"] == "passed"
@@ -135,21 +147,51 @@ jobs:
           assert u1["private_custody"]["installed"] is True
           assert u1["private_custody"]["preserved"] is True
 
-          assert d2["authorization_request_id"] == request_id
-          assert d2["status"] == "pending_operator_decision"
-          assert d2["review_package"]["sha256"] == review_sha
-          assert d2["authorization_issued"] is False
-          assert d2["device_reconnect_authorized"] is False
+          assert d2_attempt1["authorization_request_id"] == request1
+          assert d2_attempt1["status"] == "operator_authorized_but_issuance_failed_closed_retired"
+          assert d2_attempt1["review_package"]["sha256"] == review1
+          assert d2_attempt1["authorization_consumed"] is False
+          assert d2_attempt1["destructive_boundary_entered"] is False
+          assert d2_attempt1["replay_permitted"] is False
 
-          assert index["active_request_id"] == request_id
+          assert d2_attempt2["authorization_request_id"] == request2
+          assert d2_attempt2["result"] == "passed"
+          assert d2_attempt2["authorization"]["review_package_sha256"] == review2
+          assert d2_attempt2["authorization"]["consumed"] is True
+          assert d2_attempt2["authorization"]["replay_permitted"] is False
+          assert d2_attempt2["execution"]["prepare_command_sent_once"] is True
+          assert d2_attempt2["execution"]["prepare_succeeded"] is True
+          assert d2_attempt2["execution"]["verify_command_sent_once"] is True
+          assert d2_attempt2["execution"]["verify_succeeded"] is True
+          assert d2_attempt2["execution"]["recovery_performed"] is False
+          assert d2_attempt2["verified_state"]["active_generation"] == 0
+          assert d2_attempt2["verified_state"]["candidate_generation"] == 1
+          assert d2_attempt2["verified_state"]["candidate_state"] == "PREPARED"
+          assert d2_attempt2["verified_state"]["candidate_digest_match"] is True
+          assert d2_attempt2["verified_state"]["active_unchanged"] is True
+          assert d2_attempt2["private_evidence"]["archive_sha256"] == archive
+          assert d2_attempt2["private_evidence"]["l1_extraction"] == "passed"
+          assert all(value is False for value in d2_attempt2["protected_boundaries"].values())
+          assert d2_attempt2["disposition"]["ready_merge_release_authorized"] is False
+
+          assert index["active_request_id"] is None
           assert index["execution_gate"] == gate
-          assert index["v69_attempt1_authorization_issued"] is False
+          assert index["stage2d9_v69_attempt1_replay_permitted"] is False
+          assert index["stage2d9_v69_attempt2_replay_permitted"] is False
+          assert index["v69_physical_acceptance"] == "passed"
+          assert index["v69_private_evidence_closure"] == "passed"
           assert index["device_reconnect_permitted"] is False
+          assert index["independent_d4_required"] is True
+          assert index["ready_merge_release_authorized"] is False
 
           assert acceptance["v68"]["recovery_seed_restored"] is True
-          assert acceptance["v69"]["status"] == "artifact_frozen_u1_passed_d2_review_prepared"
+          assert acceptance["v69"]["status"] == "physical_acceptance_passed_private_evidence_closed"
           assert acceptance["v69_u1"]["status"] == "passed"
-          assert acceptance["v69_d2_attempt1"]["status"] == "pending_operator_decision"
+          assert acceptance["v69_d2_attempt1"]["status"] == "operator_authorized_but_issuance_failed_closed_retired"
+          assert acceptance["v69_d2_attempt2"]["status"] == "consumed_passed_retired"
+          assert acceptance["verified_state"]["candidate_state"] == "PREPARED"
+          assert acceptance["verified_state"]["candidate_digest_match"] is True
+          assert acceptance["verified_state"]["active_unchanged"] is True
           assert acceptance["stage_disposition"]["execution_gate"] == gate
           assert acceptance["stage_disposition"]["device_reconnect_authorized"] is False
           assert acceptance["stage_disposition"]["ready_merge_release_authorized"] is False
