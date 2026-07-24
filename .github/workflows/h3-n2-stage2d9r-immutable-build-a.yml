@@ -9,6 +9,7 @@ on:
       - ".github/workflows/h3-n2-stage2d9r-immutable-build-b.yml"
       - ".github/workflows/h3-n2-stage2d9r-immutable-build-reusable.yml"
       - ".github/workflows/h3-n2-stage2d9r-immutable-build-freeze.yml"
+      - ".github/workflows/h3-n2-stage2d9r-immutable-build-observer-ci.yml"
       - "tools/h3_n2_stage2d9r_immutable_build_packager_20260724_v1.py"
       - "tools/h3_n2_stage2d9r_immutable_build_freeze_20260724_v1.py"
       - "tools/h3_n2_stage2d9r_immutable_build_manifest_gate_20260723_v1.py"
