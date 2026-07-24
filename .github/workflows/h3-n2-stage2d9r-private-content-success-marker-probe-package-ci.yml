@@ -54,15 +54,17 @@ jobs:
           994c3f633213ed64e436fff8411eb5258d2a18569a2c3875f74f830cb5e88cb0  tools/h3_n2_stage2d9r_private_content_success_marker_probe_20260725_v1.py
           f22b386facdef641a354d97d1bb0f0576a3d8b952c94d3a462a0664d0187fea3  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_content_success_marker_probe_20260725_v1.py
           SUMS
-          PYTHONDONTWRITEBYTECODE=1 python -m py_compile \
+          export PYTHONPYCACHEPREFIX=/tmp/stage2d9r-success-marker-pycache
+          python -m py_compile \
             tools/h3_n2_stage2d9r_private_content_success_marker_probe_20260725_v1.py
-          PYTHONDONTWRITEBYTECODE=1 python \
+          python \
             tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_content_success_marker_probe_20260725_v1.py \
             -v 2>&1 | tee /tmp/success-marker-contract.log
           grep -F 'Ran 4 tests' /tmp/success-marker-contract.log
           grep -F 'OK' /tmp/success-marker-contract.log
           test -z "$(find . -type d -name __pycache__ -print -quit)"
           test -z "$(find . -type f \( -name '*.pyc' -o -name '*.pyo' \) -print -quit)"
+          rm -rf "$PYTHONPYCACHEPREFIX"
 
       - name: Assemble read-only U1-04 success marker probe
         run: |
@@ -104,7 +106,7 @@ jobs:
           mkdir -m 0700 "$empty"
           (cd "$root" && sha256sum -c SHA256SUMS)
           set +e
-          output="$(python "$root/tools/h3_n2_stage2d9r_private_content_success_marker_probe_20260725_v1.py" --home "$empty" 2>&1)"
+          output="$(PYTHONDONTWRITEBYTECODE=1 python "$root/tools/h3_n2_stage2d9r_private_content_success_marker_probe_20260725_v1.py" --home "$empty" 2>&1)"
           rc=$?
           set -e
           printf '%s\n' "$output"
@@ -152,4 +154,4 @@ jobs:
 
       - name: Cleanup
         if: always()
-        run: rm -rf /tmp/stage2d9r-private-content-u1-04-success-marker-probe-v1 /tmp/stage2d9r-private-content-u1-04-empty-home /tmp/success-marker-contract.log
+        run: rm -rf /tmp/stage2d9r-private-content-u1-04-success-marker-probe-v1 /tmp/stage2d9r-private-content-u1-04-empty-home /tmp/stage2d9r-success-marker-pycache /tmp/success-marker-contract.log
