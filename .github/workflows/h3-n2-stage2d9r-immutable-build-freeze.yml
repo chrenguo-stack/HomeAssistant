@@ -36,7 +36,7 @@ jobs:
       - name: Verify freeze tools
         run: |
           set -euo pipefail
-          echo '7fc62c634c1728b8fe2f201f64980abac9a8b4b9e18629dcdfaa79a6983a2c02  tools/h3_n2_stage2d9r_immutable_build_packager_20260724_v1.py' | sha256sum -c -
+          echo 'd27122cf9cdc79f5dea2e9d9c40b64cbb29e675440b329fe846fa9a9e5bbaff4  tools/h3_n2_stage2d9r_immutable_build_packager_20260724_v1.py' | sha256sum -c -
           echo '76e2bdc5eafcaf327a49a500da5cd042508716fc704acf390ccf85a577f84a02  tools/h3_n2_stage2d9r_immutable_build_freeze_20260724_v1.py' | sha256sum -c -
           python -m py_compile \
             tools/h3_n2_stage2d9r_immutable_build_freeze_20260724_v1.py \
