@@ -1,0 +1,70 @@
+name: H3 N2 Stage2D9R Immutable Source Digests CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-immutable-source-digests-ci.yml"
+      - ".github/workflows/h3-n2-stage2d9r-immutable-build-reusable.yml"
+      - "tools/h3_n2_stage2d9r_immutable_build_packager_20260724_v1.py"
+      - "tools/h3_n2_stage2d9r_immutable_build_freeze_20260724_v1.py"
+
+permissions:
+  contents: read
+
+jobs:
+  source-digests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - name: Capture exact public source digests
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/stage2d9r-immutable-source-digests
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          paths = [
+              Path('tools/h3_n2_stage2d9r_immutable_build_packager_20260724_v1.py'),
+              Path('tools/h3_n2_stage2d9r_immutable_build_freeze_20260724_v1.py'),
+              Path('.github/workflows/h3-n2-stage2d9r-immutable-build-reusable.yml'),
+              Path('.github/workflows/h3-n2-stage2d9r-immutable-build-a.yml'),
+              Path('.github/workflows/h3-n2-stage2d9r-immutable-build-b.yml'),
+              Path('.github/workflows/h3-n2-stage2d9r-immutable-build-freeze.yml'),
+              Path('.github/workflows/h3-n2-stage2d9r-immutable-build-observer-ci.yml'),
+          ]
+          digests = {
+              str(path): hashlib.sha256(path.read_bytes()).hexdigest()
+              for path in paths
+          }
+          result = {
+              'schema': 'gh.h3.n2.stage2d9r-immutable-source-digests/1',
+              'stage': 'H3/N2 Stage 2D-9R G3R',
+              'head_sha': '${{ github.event.pull_request.head.sha }}',
+              'digests': digests,
+              'private_values_included': False,
+              'private_paths_included': False,
+              'execution_authorized': False,
+              'board_operation_authorized': False,
+              'network_operation_authorized': False,
+          }
+          output = Path('/tmp/stage2d9r-immutable-source-digests/source-digests.json')
+          output.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
+          output.chmod(0o600)
+          for path, digest in sorted(digests.items()):
+              print(f'{digest}  {path}')
+          print('EXECUTION_AUTHORIZED=false')
+          print('BOARD_OPERATION_AUTHORIZED=false')
+          print('NETWORK_OPERATION_AUTHORIZED=false')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-immutable-source-digests-v1
+          path: /tmp/stage2d9r-immutable-source-digests
+          if-no-files-found: error
+          retention-days: 2
+          compression-level: 0
