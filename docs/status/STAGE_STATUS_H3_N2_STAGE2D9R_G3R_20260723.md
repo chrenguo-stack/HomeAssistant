@@ -7,7 +7,7 @@ stage=H3/N2 Stage 2D-9R G3R
 purpose=replace non-TLS-usable V69 PREPARED input
 pr=176
 pr_state=DRAFT
-execution_gate=LOCKED_PRIVATE_COMMAND_MATERIAL_U1_REVIEW_ONLY
+execution_gate=LOCKED_FINAL_SOURCE_AND_IMMUTABLE_BUILD_PREPARATION
 ```
 
 ## Approved D1
@@ -34,7 +34,10 @@ Implemented and verified:
 - public/private boundary and deterministic fault matrices;
 - test-partition recovery contract and immutable-build contract;
 - offline private-PKI generator source, complete host-toolchain binding and custody gate;
-- offline private command-material generator, custody gate and deterministic fault matrix.
+- offline private command-material generator, custody gate and deterministic fault matrix;
+- U1-02 private command material generation and public-only export closure;
+- final immutable firmware source with non-zero public unlock and CA bindings;
+- canonical final build binding contract.
 
 Frozen reviewed private PKI generator source:
 
@@ -152,19 +155,20 @@ Public export closure record:
 
 `docs/acceptance/h3-n2-stage2d9r-public-pki-export-l1-v1.json`
 
-## Private command-material toolchain probe
+## Private command-material closure
 
 ```text
-probe_result=PASS_READ_ONLY
-probe_artifact_id=8571761445
-probe_artifact_zip_sha256=914379b7640cf60591211d709f16197d6bff40ed7ab942bfb51468e59fa4407a
-probe_artifact_source_sha=0e7faaaed40433e4b7e0b985f4684b3d126f6948
-implementation_binding=3d3b67cac008adf30e90a51e891d0dd53b36df69
-generator_sha256=60628bf274fdcca05e8644b30510f6abde2129a57e3e49ca5a12db30d7129563
-python_executable_sha256=4e28e811a89aeac6eed668ae641c7f85f5831e42e8dc6cd9a85a3bcc032ec46a
-custody_root_selection_rule=HOME_LOCAL_STATE_STAGE2D9R_PRIVATE_COMMAND_MATERIAL_V1
-custody_root_digest_sha256=ef5f79be168fff686cabcc91fdc4109918d75d3311da1209dd8d0e381804006e
-custody_root_exists=false
+u1_01_status=consumed_failed_retired
+u1_01_failure_stage=WRAPPER_PRECHECK
+u1_01_replay_permitted=false
+u1_02_status=consumed_passed_retired
+u1_02_replay_permitted=false
+automatic_retry_permitted=false
+unlock_digest_sha256=3650d44f8761f21dc1931fbd9b6ba6a1d9da92ffa469b3d4f98ee5411a6809e3
+private_command_material_package_sha256=cc9086c20781007655c498b78ff1ce7af3316db0c02edbae2440d177d7fdfbb5
+private_descriptor_sha256=cda5b1604200045fec0db45e46f9c441e1bde10f2e5a57f8c98ee2d14b5f9a75
+public_descriptor_sha256=91c10168174438fc30b3dce087a6b75e24375b87b4262bafddb5b2822ee16d23
+authorization_consumed_marker_sha256=1fc51b7338adc56b00b38795173b805b7408e7aafa4e0315e7553dc5898779a9
 private_paths_included=false
 secret_values_included=false
 board_operation=false
@@ -172,11 +176,31 @@ network_operation=false
 broker_started=false
 ```
 
-The pasted terminal capture contained repeated shell-prompt text only after the prefix of the final informational `stage` field. Every authorization-relevant field was complete before that point, the launcher returned successfully under `set -euo pipefail`, and the trailing stage field is not used as an authorization binding. No probe rerun is required.
+Committed public descriptor:
 
-Probe closure record:
+`tests/h3_n2_stage2d9r_tls_candidate/public_command_material_tlsvalid01/public-command-material-descriptor.redacted.json`
 
-`docs/acceptance/h3-n2-stage2d9r-private-command-material-toolchain-probe-l1-v1.json`
+Public command-material closure record:
+
+`docs/acceptance/h3-n2-stage2d9r-private-command-material-u1-generation-l1-v1.json`
+
+## Final immutable source binding
+
+```text
+source_checkpoint_sha=5b2fe7070d5cc282d3028f441678a7f807a1f08f
+build_binding_algorithm=sha256-canonical-json-first-160-bits-v1
+build_binding=b39f20c55b865ec87eb650d620fd1a82b930c1ad
+build_binding_sha256_full=b39f20c55b865ec87eb650d620fd1a82b930c1ad3f6e8c7b16b8c4dcaaf419ab
+unlock_digest_sha256=3650d44f8761f21dc1931fbd9b6ba6a1d9da92ffa469b3d4f98ee5411a6809e3
+ca_pem_sha256=cfcb6638ed61731270f3bf8e9e262c1512fbca8ff34d4b08b62186453233e963
+candidate_digest_sha256=f22144e37372b883b7a38d07eff2980a865108cf7c8fed9bfdb9f198a030b5c5
+partition_table_sha256=5afa0f77d5d815f00b14afbcc3b974037c5ba10c9bdcdcffa196b55e403b5cd8
+```
+
+Final source files:
+
+- `tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_final_build_binding_20260724_v1.json`
+- `firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/greenhouse_profile_isolated_device_g3r_immutable_20260724_v1.yml`
 
 ## Current prohibitions
 
@@ -214,11 +238,11 @@ deployment=false
 
 ## Remaining work before D2
 
-1. Freeze the exact post-probe source checkpoint and require all bound CI to complete successfully.
-2. Prepare an independent exact U1 review package for one offline 32-byte unlock token generation; do not generate without the user's exact authorization.
-3. After U1 passes, commit only the redacted public command-material descriptor and bind its nonzero unlock digest, exact CA PEM digest and implementation binding into final immutable firmware source.
-4. Generate the immutable Stage 2D-9R firmware and locked recovery Artifact twice; require byte-identical outputs and exact manifest bindings.
+1. Require all CI on the final immutable source checkpoint to complete successfully.
+2. Generate the immutable Stage 2D-9R firmware twice from independent clean CI runs and require byte-identical bootloader, partition table, application and merged images.
+3. Freeze the exact immutable firmware Artifact, manifest and source/run bindings.
+4. Generate and freeze the locked test-partition recovery Artifact without executing it.
 5. Perform host-only Artifact verification and private-custody binding verification.
 6. Prepare a separate exact D2 review package for deterministic baseline recovery, one new PREPARE and one read-only VERIFY.
 
-The next operator decision is a narrow one-shot U1 for private command material only. It does not authorize Broker startup, network access, board access, Flash/NVS operations, PREPARE or VERIFY.
+No physical action is authorized. The next operator decision remains the future exact D2 after immutable Artifact and recovery evidence are complete.
