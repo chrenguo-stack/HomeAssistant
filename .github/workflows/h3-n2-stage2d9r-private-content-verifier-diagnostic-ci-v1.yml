@@ -1,0 +1,44 @@
+name: H3 N2 Stage2D9R Private Content Verifier Diagnostic CI V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-private-content-verifier-diagnostic-ci-v1.yml"
+      - "tools/h3_n2_stage2d9r_private_content_binding_probe_20260724_v3.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_content_binding_probe_20260724_v4.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Capture stdlib contract test output
+        shell: bash
+        run: |
+          set +e
+          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_content_binding_probe_20260724_v4.py > verifier-diagnostic.log 2>&1
+          rc=$?
+          set -e
+          printf '%s\n' "$rc" > verifier-diagnostic.rc
+          cat verifier-diagnostic.log
+          echo "VERIFIER_DIAGNOSTIC_RC=$rc"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-private-content-verifier-diagnostic-v1
+          path: |
+            verifier-diagnostic.log
+            verifier-diagnostic.rc
+          if-no-files-found: error
+          retention-days: 2
