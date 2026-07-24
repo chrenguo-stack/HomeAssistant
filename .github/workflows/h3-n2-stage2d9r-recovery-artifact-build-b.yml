@@ -10,6 +10,7 @@ on:
       - ".github/workflows/h3-n2-stage2d9r-recovery-artifact-build-reusable.yml"
       - ".github/workflows/h3-n2-stage2d9r-recovery-artifact-freeze.yml"
       - ".github/workflows/h3-n2-stage2d9r-recovery-artifact-contract-ci.yml"
+      - ".github/workflows/h3-n2-stage2d9r-recovery-artifact-observer-ci.yml"
       - "tools/h3_n2_stage2d9r_recovery_artifact_packager_20260724_v1.py"
       - "tools/h3_n2_stage2d9r_recovery_artifact_freeze_20260724_v1.py"
       - "tools/h3_n2_stage2d9r_recovery_artifact_manifest_gate_20260724_v1.py"
