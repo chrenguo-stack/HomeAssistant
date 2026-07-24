@@ -1,0 +1,31 @@
+name: H3 N2 Stage2D9R Locked Recovery Build B
+
+on:
+  push:
+    branches:
+      - feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-recovery-artifact-build-a.yml"
+      - ".github/workflows/h3-n2-stage2d9r-recovery-artifact-build-b.yml"
+      - ".github/workflows/h3-n2-stage2d9r-recovery-artifact-build-reusable.yml"
+      - ".github/workflows/h3-n2-stage2d9r-recovery-artifact-freeze.yml"
+      - ".github/workflows/h3-n2-stage2d9r-recovery-artifact-contract-ci.yml"
+      - "tools/h3_n2_stage2d9r_recovery_artifact_packager_20260724_v1.py"
+      - "tools/h3_n2_stage2d9r_recovery_artifact_freeze_20260724_v1.py"
+      - "tools/h3_n2_stage2d9r_recovery_artifact_manifest_gate_20260724_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_recovery_artifact_pipeline_20260724_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_immutable_build_manifest_20260724_v1.json"
+      - "tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_test_partition_recovery_manifest_20260723_v1.json.template"
+      - "docs/development/h3-n2-stage2d9r-test-partition-recovery-contract-20260723-v1.md"
+      - "tools/h3_n2_stage2d9r_test_partition_recovery_gate_20260723_v1.py"
+      - "docs/development/h3-n2-stage2d9r-locked-recovery-artifact-contract-20260724-v1.md"
+
+permissions:
+  contents: read
+
+jobs:
+  build-b:
+    uses: ./.github/workflows/h3-n2-stage2d9r-recovery-artifact-build-reusable.yml
+    with:
+      lane: b
+      artifact_name: stage2d9r-g3r-recovery-repro-v1
