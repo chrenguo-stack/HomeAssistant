@@ -39,7 +39,7 @@ jobs:
         run: |
           set -euo pipefail
           echo '4f100cdfe2586a96485c68bafe8c8e5a11210798cca64a2a4c333258f9953d56  tools/h3_n2_stage2d9r_recovery_artifact_packager_20260724_v1.py' | sha256sum -c -
-          echo '0552dc606a4ab251e7e1c08f41fc34029cc6152d7eb20ab7aa2091dc9f1e5455  tools/h3_n2_stage2d9r_recovery_artifact_freeze_20260724_v1.py' | sha256sum -c -
+          echo '9fc0b6669df6abca72f044b84f3d9a0f9614311b2ef58a832cb5232e4233132d  tools/h3_n2_stage2d9r_recovery_artifact_freeze_20260724_v1.py' | sha256sum -c -
           echo 'a2dc5dda67224475940f15361568b62adf3360bdeda61f370ff1cd2c65de5779  tools/h3_n2_stage2d9r_recovery_artifact_manifest_gate_20260724_v1.py' | sha256sum -c -
           echo 'ebf8246875aa610aa17e31113fe24df2812c2f8c015e81abdb4af0c103868e17  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_recovery_artifact_pipeline_20260724_v1.py' | sha256sum -c -
           python -m py_compile \
