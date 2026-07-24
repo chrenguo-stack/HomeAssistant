@@ -4,7 +4,7 @@ import importlib.util, os
 from pathlib import Path
 import tempfile, unittest
 
-ROOT=Path(__file__).resolve().parents[1]
+ROOT=Path(__file__).resolve().parents[2]
 SCRIPT=ROOT/"tools/h3_n2_stage2d9r_host_artifact_custody_probe_20260724_v1.py"
 spec=importlib.util.spec_from_file_location("host_probe",SCRIPT)
 assert spec and spec.loader
