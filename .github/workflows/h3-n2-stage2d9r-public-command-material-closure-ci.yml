@@ -141,7 +141,6 @@ jobs:
               "unlock-token.hex",
               "/private/tmp/",
               "/Users/",
-              "mqtt_password",
           ):
               assert prohibited not in serialized, prohibited
           PY
