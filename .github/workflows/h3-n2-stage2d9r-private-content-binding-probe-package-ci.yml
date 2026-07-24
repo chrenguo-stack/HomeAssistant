@@ -4,7 +4,6 @@ on:
   pull_request:
     paths:
       - ".github/workflows/h3-n2-stage2d9r-private-content-binding-probe-package-ci.yml"
-      - ".github/workflows/h3-n2-stage2d9r-private-content-binding-review-only-v2.yml"
       - "tools/h3_n2_stage2d9r_private_content_binding_probe_20260724_v1.py"
       - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_content_binding_probe_20260724_v1.py"
       - "docs/development/h3-n2-stage2d9r-private-content-binding-u1-review-20260724-v1.md"
@@ -16,11 +15,10 @@ on:
       - feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1
     paths:
       - ".github/workflows/h3-n2-stage2d9r-private-content-binding-probe-package-ci.yml"
-      - ".github/workflows/h3-n2-stage2d9r-private-content-binding-review-only-v2.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -35,6 +33,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
           show-progress: false
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -61,86 +60,221 @@ jobs:
           142258d307645c85d67fb7bbee7cd480aa276de75d1dd2609b2d7d8e53892074  docs/acceptance/h3-n2-stage2d9r-host-artifact-custody-preauth-probe-l1-v2.json
           SUMS
           python -m py_compile tools/h3_n2_stage2d9r_private_content_binding_probe_20260724_v1.py
-          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_content_binding_probe_20260724_v1.py -v 2>&1 | tee /tmp/v2-tests.log
-          grep -F 'Ran 9 tests' /tmp/v2-tests.log
-          grep -F 'OK' /tmp/v2-tests.log
+          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_content_binding_probe_20260724_v1.py -v 2>&1 | tee /tmp/v3-tests.log
+          grep -F 'Ran 9 tests' /tmp/v3-tests.log
+          grep -F 'OK' /tmp/v3-tests.log
           python - <<'PY'
           import json
           from pathlib import Path
-          i=json.loads(Path("docs/acceptance/h3-n2-stage2d9r-immutable-build-observer-l1-v1.json").read_text())
-          r=json.loads(Path("docs/acceptance/h3-n2-stage2d9r-locked-recovery-artifact-observer-l1-v1.json").read_text())
-          assert (i["result"],i["reproducible"],i["canonical_artifact_id"],i["source_sha"]) == ("passed_read_only",True,8585140964,"c9e8447c24b0f09f3eac3f56791f2346e8aa5d61")
-          assert (i["artifact_sha256"],i["application_sha256"],i["merged_image_sha256"]) == ("5dbe763fe411728533018dd324075f5287ee3542f8351113d54ec80a7042f1d3","7651a6476cd48dda6aa5e400695e126b91141c95fca5b74d879f65f2058d1630","ea6af469ad7ae103d40a551f482fc18d1f2afc9ed75933481f1802f0a7b2916f")
-          assert (r["result"],r["reproducible"],r["canonical_artifact_id"],r["source_sha"]) == ("passed_read_only",True,8589561310,"f312f8580d9f4312f4dd1429b2d7755e1c550636")
-          assert (r["payload_tar_sha256"],r["manifest_sha256"],r["erased_image_sha256"]) == ("c1ed8e5f00b17cbe5bab30aec75d2e8637986b9c19b2389b761bebf3fc0b8d8b","fe82c458533953df4c86966d047d1f66b59da15e5299b3953135702236d68690","71189f7fb6aed638640078fba3a35fda6c39c8962e74dcc75935aac948da9063")
-          for d in (i,r):
-              for k,v in d.items():
-                  if k.endswith("_authorized"):
-                      assert v is False,k
+
+          immutable = json.loads(
+              Path("docs/acceptance/h3-n2-stage2d9r-immutable-build-observer-l1-v1.json").read_text()
+          )
+          recovery = json.loads(
+              Path(
+                  "docs/acceptance/h3-n2-stage2d9r-locked-recovery-artifact-observer-l1-v1.json"
+              ).read_text()
+          )
+          assert (
+              immutable["result"],
+              immutable["reproducible"],
+              immutable["canonical_artifact_id"],
+              immutable["source_sha"],
+          ) == (
+              "passed_read_only",
+              True,
+              8585140964,
+              "c9e8447c24b0f09f3eac3f56791f2346e8aa5d61",
+          )
+          assert (
+              immutable["artifact_sha256"],
+              immutable["application_sha256"],
+              immutable["merged_image_sha256"],
+          ) == (
+              "5dbe763fe411728533018dd324075f5287ee3542f8351113d54ec80a7042f1d3",
+              "7651a6476cd48dda6aa5e400695e126b91141c95fca5b74d879f65f2058d1630",
+              "ea6af469ad7ae103d40a551f482fc18d1f2afc9ed75933481f1802f0a7b2916f",
+          )
+          assert (
+              recovery["result"],
+              recovery["reproducible"],
+              recovery["canonical_artifact_id"],
+              recovery["source_sha"],
+          ) == (
+              "passed_read_only",
+              True,
+              8589561310,
+              "f312f8580d9f4312f4dd1429b2d7755e1c550636",
+          )
+          assert (
+              recovery["payload_tar_sha256"],
+              recovery["manifest_sha256"],
+              recovery["erased_image_sha256"],
+          ) == (
+              "c1ed8e5f00b17cbe5bab30aec75d2e8637986b9c19b2389b761bebf3fc0b8d8b",
+              "fe82c458533953df4c86966d047d1f66b59da15e5299b3953135702236d68690",
+              "71189f7fb6aed638640078fba3a35fda6c39c8962e74dcc75935aac948da9063",
+          )
+          for descriptor in (immutable, recovery):
+              for key, value in descriptor.items():
+                  if key.endswith("_authorized"):
+                      assert value is False, key
           PY
 
-      - name: Assemble V2 review-only artifact
+      - name: Assemble V3 review-only artifact
         id: bind
         env:
           SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          root=/tmp/stage2d9r-private-content-binding-preauth-review-v2
+          root=/tmp/stage2d9r-private-content-binding-preauth-review-v3
           mkdir -p "$root"/{tools,tests,review,acceptance}
           cp tools/h3_n2_stage2d9r_private_content_binding_probe_20260724_v1.py "$root/tools/"
           cp tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_content_binding_probe_20260724_v1.py "$root/tests/"
           cp docs/development/h3-n2-stage2d9r-private-content-binding-u1-review-20260724-v1.md "$root/review/REFERENCE_SCOPE_V1.md"
           cp docs/acceptance/h3-n2-stage2d9r-*.json "$root/acceptance/"
           ROOT="$root" python - <<'PY'
-          import hashlib,json,os
+          import hashlib
+          import json
+          import os
           from pathlib import Path
-          r=Path(os.environ["ROOT"]); source=os.environ["SOURCE_SHA"]
-          command="One future exact U1 may authorize one offline, one-shot, read-only private-content binding verification. It may read existing private material only inside the reviewed verifier process and output only booleans and already-public SHA-256 bindings. No secret output, network, Broker, board, serial, Flash/NVS, PREPARE, VERIFY, ACTIVATE, CLEANUP, production, Ready, merge, release, tag or deployment action is permitted.\n"
-          stop="# Fail-closed stop conditions\n\nStop before claim if any PR, main, HEAD, CI, package, toolchain, custody, descriptor, marker, candidate, immutable Artifact or recovery Artifact binding differs. The authorization must be one-shot, no longer than two hours, non-replayable and non-retryable. Success and failure both permanently consume it.\n"
-          readme="# Stage 2D-9R private-content binding preauthorization review V2\n\nReview-only package. It includes no authorization record and no authorized execution launcher. The launcher performs only checksum and metadata/toolchain probing; it does not read private content.\n"
-          (r/"COMMAND_GROUP_REVIEW_ONLY.txt").write_text(command)
-          (r/"STOP_CONDITIONS.md").write_text(stop)
-          (r/"README.md").write_text(readme)
-          sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
-          b={
-            "schema":"gh.h3.n2.stage2d9r-private-content-binding-review-package/2",
-            "stage":"H3/N2 Stage 2D-9R G3R",
-            "state":"PENDING_EXACT_U1_TOOLCHAIN_PROBE_V2",
-            "authorization_request_id":"U1-H3N2-STAGE2D9R-PRIVATE-CONTENT-BINDING-20260724-02",
-            "repository":"chrenguo-stack/HomeAssistant","pull_request":176,
-            "main_sha":"a3a72d75480362999e70e180f33459198b3951b5",
-            "source_sha":source,
-            "head_branch":"feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1",
-            "probe_sha256":"b4b7d41aaf802122250f4f9499e79c99eba85187af339f60e556a18a03694001",
-            "contract_test_sha256":"ae5494fe15149b71b34adfc3b02ecbaf82d3a40e3dcf1282ad1da2bb8ea51416",
-            "command_group_sha256":sha(r/"COMMAND_GROUP_REVIEW_ONLY.txt"),
-            "stop_conditions_sha256":sha(r/"STOP_CONDITIONS.md"),
-            "python_executable_sha256_required":"4e28e811a89aeac6eed668ae641c7f85f5831e42e8dc6cd9a85a3bcc032ec46a",
-            "python_version_required":"3.11.9",
-            "openssl_executable_sha256_required":"04ad05ce2e7eaf92116dac99a984cc0e589040a103589f93a9fe452832766973",
-            "openssl_version_required":"OpenSSL 3.5.0 8 Apr 2025",
-            "command_custody":{"root_digest_sha256":"ef5f79be168fff686cabcc91fdc4109918d75d3311da1209dd8d0e381804006e","private_descriptor_sha256":"cda5b1604200045fec0db45e46f9c441e1bde10f2e5a57f8c98ee2d14b5f9a75","public_descriptor_sha256":"91c10168174438fc30b3dce087a6b75e24375b87b4262bafddb5b2822ee16d23","package_sha256":"cc9086c20781007655c498b78ff1ce7af3316db0c02edbae2440d177d7fdfbb5","unlock_digest_sha256":"3650d44f8761f21dc1931fbd9b6ba6a1d9da92ffa469b3d4f98ee5411a6809e3","u1_01_marker_sha256":"7461c0396a7be9fc99d1e880fdfc386054f003b4a64f9e758e6b826f93769314","u1_02_marker_sha256":"1fc51b7338adc56b00b38795173b805b7408e7aafa4e0315e7553dc5898779a9"},
-            "pki_custody":{"root_digest_sha256":"4cd43ee4b2df177bd99c32d3904dbe1e1df890aa14c6b6714a6b4f7ae4024868","private_descriptor_sha256":"59814b825cd2df4ac7f0e3eb137798af4efdbbed4da9d627fe8ad98144be8687","public_descriptor_sha256":"93bb071a5bf6f58472ac9e3891c2330dd9de6f05410824ad2fb51829267b4540","package_sha256":"0632b37a70aa2eae416c48ffa9420a8f1e13788c22a7d12e211f77cf6e78a267","ca_pem_sha256":"cfcb6638ed61731270f3bf8e9e262c1512fbca8ff34d4b08b62186453233e963","candidate_digest_sha256":"f22144e37372b883b7a38d07eff2980a865108cf7c8fed9bfdb9f198a030b5c5","marker_sha256":"fbe03088de17b8db4d8b048e1985d571ca9f54d3add9b9fc3fce1735c9bec261"},
-            "immutable_artifact":{"artifact_id":8585140964,"run_id":30062650179,"github_digest_sha256":"ecc28451499e0d2d934c7e298037ed5ee156c887bf72a9b258101c4aef7e2808","payload_sha256":"5dbe763fe411728533018dd324075f5287ee3542f8351113d54ec80a7042f1d3","application_sha256":"7651a6476cd48dda6aa5e400695e126b91141c95fca5b74d879f65f2058d1630","merged_sha256":"ea6af469ad7ae103d40a551f482fc18d1f2afc9ed75933481f1802f0a7b2916f","source_sha":"c9e8447c24b0f09f3eac3f56791f2346e8aa5d61","expired":False},
-            "recovery_artifact":{"artifact_id":8589561310,"run_id":30075191850,"github_digest_sha256":"f1654002f894ec136f4b52248a6b0e26ed9dedc7460e8205ec9f852b161d4a6a","payload_sha256":"c1ed8e5f00b17cbe5bab30aec75d2e8637986b9c19b2389b761bebf3fc0b8d8b","manifest_sha256":"fe82c458533953df4c86966d047d1f66b59da15e5299b3953135702236d68690","erased_sha256":"71189f7fb6aed638640078fba3a35fda6c39c8962e74dcc75935aac948da9063","source_sha":"f312f8580d9f4312f4dd1429b2d7755e1c550636","expired":False}
+
+          root = Path(os.environ["ROOT"])
+          source = os.environ["SOURCE_SHA"]
+          command = (
+              "One future exact U1 may authorize one offline, one-shot, read-only "
+              "private-content binding verification. It may read existing private "
+              "material only inside the reviewed verifier process and output only "
+              "booleans and already-public SHA-256 bindings. No secret output, network, "
+              "Broker, board, serial, Flash/NVS, PREPARE, VERIFY, ACTIVATE, CLEANUP, "
+              "production, Ready, merge, release, tag or deployment action is permitted.\n"
+          )
+          stop = (
+              "# Fail-closed stop conditions\n\n"
+              "Stop before claim if any PR, main, HEAD, CI, package, toolchain, custody, "
+              "descriptor, marker, candidate, immutable Artifact or recovery Artifact "
+              "binding differs. The authorization must be one-shot, no longer than two "
+              "hours, non-replayable and non-retryable. Success and failure both "
+              "permanently consume it.\n"
+          )
+          readme = (
+              "# Stage 2D-9R private-content binding preauthorization review V3\n\n"
+              "Review-only package replacing the failed V2 package. It includes no "
+              "authorization record and no authorized execution launcher. The launcher "
+              "performs only checksum and metadata/toolchain probing; it does not read "
+              "private content. The package continues to use review-package schema /1 "
+              "because the frozen verifier contract is unchanged.\n"
+          )
+          (root / "COMMAND_GROUP_REVIEW_ONLY.txt").write_text(command)
+          (root / "STOP_CONDITIONS.md").write_text(stop)
+          (root / "README.md").write_text(readme)
+          sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+          binding = {
+              "schema": "gh.h3.n2.stage2d9r-private-content-binding-review-package/1",
+              "stage": "H3/N2 Stage 2D-9R G3R",
+              "state": "PENDING_EXACT_U1_TOOLCHAIN_PROBE_V3",
+              "authorization_request_id": "U1-H3N2-STAGE2D9R-PRIVATE-CONTENT-BINDING-20260724-03",
+              "repository": "chrenguo-stack/HomeAssistant",
+              "pull_request": 176,
+              "main_sha": "a3a72d75480362999e70e180f33459198b3951b5",
+              "source_sha": source,
+              "head_branch": "feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1",
+              "probe_sha256": "b4b7d41aaf802122250f4f9499e79c99eba85187af339f60e556a18a03694001",
+              "contract_test_sha256": "ae5494fe15149b71b34adfc3b02ecbaf82d3a40e3dcf1282ad1da2bb8ea51416",
+              "command_group_sha256": sha(root / "COMMAND_GROUP_REVIEW_ONLY.txt"),
+              "stop_conditions_sha256": sha(root / "STOP_CONDITIONS.md"),
+              "python_executable_sha256_required": "4e28e811a89aeac6eed668ae641c7f85f5831e42e8dc6cd9a85a3bcc032ec46a",
+              "python_version_required": "3.11.9",
+              "openssl_executable_sha256_required": "04ad05ce2e7eaf92116dac99a984cc0e589040a103589f93a9fe452832766973",
+              "openssl_version_required": "OpenSSL 3.5.0 8 Apr 2025",
+              "command_custody": {
+                  "root_digest_sha256": "ef5f79be168fff686cabcc91fdc4109918d75d3311da1209dd8d0e381804006e",
+                  "private_descriptor_sha256": "cda5b1604200045fec0db45e46f9c441e1bde10f2e5a57f8c98ee2d14b5f9a75",
+                  "public_descriptor_sha256": "91c10168174438fc30b3dce087a6b75e24375b87b4262bafddb5b2822ee16d23",
+                  "package_sha256": "cc9086c20781007655c498b78ff1ce7af3316db0c02edbae2440d177d7fdfbb5",
+                  "unlock_digest_sha256": "3650d44f8761f21dc1931fbd9b6ba6a1d9da92ffa469b3d4f98ee5411a6809e3",
+                  "u1_01_marker_sha256": "7461c0396a7be9fc99d1e880fdfc386054f003b4a64f9e758e6b826f93769314",
+                  "u1_02_marker_sha256": "1fc51b7338adc56b00b38795173b805b7408e7aafa4e0315e7553dc5898779a9",
+              },
+              "pki_custody": {
+                  "root_digest_sha256": "4cd43ee4b2df177bd99c32d3904dbe1e1df890aa14c6b6714a6b4f7ae4024868",
+                  "private_descriptor_sha256": "59814b825cd2df4ac7f0e3eb137798af4efdbbed4da9d627fe8ad98144be8687",
+                  "public_descriptor_sha256": "93bb071a5bf6f58472ac9e3891c2330dd9de6f05410824ad2fb51829267b4540",
+                  "package_sha256": "0632b37a70aa2eae416c48ffa9420a8f1e13788c22a7d12e211f77cf6e78a267",
+                  "ca_pem_sha256": "cfcb6638ed61731270f3bf8e9e262c1512fbca8ff34d4b08b62186453233e963",
+                  "candidate_digest_sha256": "f22144e37372b883b7a38d07eff2980a865108cf7c8fed9bfdb9f198a030b5c5",
+                  "marker_sha256": "fbe03088de17b8db4d8b048e1985d571ca9f54d3add9b9fc3fce1735c9bec261",
+              },
+              "immutable_artifact": {
+                  "artifact_id": 8585140964,
+                  "run_id": 30062650179,
+                  "github_digest_sha256": "ecc28451499e0d2d934c7e298037ed5ee156c887bf72a9b258101c4aef7e2808",
+                  "payload_sha256": "5dbe763fe411728533018dd324075f5287ee3542f8351113d54ec80a7042f1d3",
+                  "application_sha256": "7651a6476cd48dda6aa5e400695e126b91141c95fca5b74d879f65f2058d1630",
+                  "merged_sha256": "ea6af469ad7ae103d40a551f482fc18d1f2afc9ed75933481f1802f0a7b2916f",
+                  "source_sha": "c9e8447c24b0f09f3eac3f56791f2346e8aa5d61",
+                  "expired": false,
+              },
+              "recovery_artifact": {
+                  "artifact_id": 8589561310,
+                  "run_id": 30075191850,
+                  "github_digest_sha256": "f1654002f894ec136f4b52248a6b0e26ed9dedc7460e8205ec9f852b161d4a6a",
+                  "payload_sha256": "c1ed8e5f00b17cbe5bab30aec75d2e8637986b9c19b2389b761bebf3fc0b8d8b",
+                  "manifest_sha256": "fe82c458533953df4c86966d047d1f66b59da15e5299b3953135702236d68690",
+                  "erased_sha256": "71189f7fb6aed638640078fba3a35fda6c39c8962e74dcc75935aac948da9063",
+                  "source_sha": "f312f8580d9f4312f4dd1429b2d7755e1c550636",
+                  "expired": false,
+              },
           }
-          for k in ("authorization_record_included","authorized_execution_launcher_included","private_content_read_authorized","private_paths_included","secret_values_included","network_operation","broker_started","board_operation","serial_operation","flash_operation","physical_nvs_operation","prepare_executed","verify_executed","activate_executed","cleanup_executed","production_operation","ready_authorized","merge_authorized","release_authorized","tag_authorized","deployment_authorized"): b[k]=False
-          canonical=lambda x:json.dumps(x,sort_keys=True,separators=(",",":")).encode()
-          b["review_binding_sha256"]=hashlib.sha256(canonical(b)).hexdigest()
-          (r/"PROBE_PACKAGE_BINDING.json").write_text(json.dumps(b,indent=2,sort_keys=True)+"\n")
-          with Path(os.environ["GITHUB_OUTPUT"]).open("a") as o:
-              for k in ("review_binding_sha256","command_group_sha256","stop_conditions_sha256"): o.write(f"{k}={b[k]}\n")
+          for key in (
+              "authorization_record_included",
+              "authorized_execution_launcher_included",
+              "private_content_read_authorized",
+              "private_paths_included",
+              "secret_values_included",
+              "network_operation",
+              "broker_started",
+              "board_operation",
+              "serial_operation",
+              "flash_operation",
+              "physical_nvs_operation",
+              "prepare_executed",
+              "verify_executed",
+              "activate_executed",
+              "cleanup_executed",
+              "production_operation",
+              "ready_authorized",
+              "merge_authorized",
+              "release_authorized",
+              "tag_authorized",
+              "deployment_authorized",
+          ):
+              binding[key] = False
+          canonical = lambda value: json.dumps(
+              value, sort_keys=True, separators=(",", ":")
+          ).encode()
+          binding["review_binding_sha256"] = hashlib.sha256(canonical(binding)).hexdigest()
+          (root / "PROBE_PACKAGE_BINDING.json").write_text(
+              json.dumps(binding, indent=2, sort_keys=True) + "\n"
+          )
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
+              for key in (
+                  "review_binding_sha256",
+                  "command_group_sha256",
+                  "stop_conditions_sha256",
+              ):
+                  output.write(f"{key}={binding[key]}\n")
           PY
-          cat > "$root/run_stage2d9r_private_content_binding_toolchain_probe_20260724_v2_9f6c2d41.sh" <<'SH'
+          cat > "$root/run_stage2d9r_private_content_binding_toolchain_probe_20260724_v3_6a4d7e93.sh" <<'SH'
           #!/usr/bin/env bash
           set -euo pipefail; umask 077
           ROOT="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)"; cd "$ROOT"
           shasum -a 256 -c SHA256SUMS
-          echo PRIVATE_CONTENT_BINDING_TOOLCHAIN_PROBE_V2_BEGIN
+          echo PRIVATE_CONTENT_BINDING_TOOLCHAIN_PROBE_V3_BEGIN
           set +e
           "$(command -v python3)" "$ROOT/tools/h3_n2_stage2d9r_private_content_binding_probe_20260724_v1.py" --package-root "$ROOT" --probe-toolchain
           rc=$?; set -e
-          echo PRIVATE_CONTENT_BINDING_TOOLCHAIN_PROBE_V2_END
+          echo PRIVATE_CONTENT_BINDING_TOOLCHAIN_PROBE_V3_END
           exit "$rc"
           SH
           chmod 0700 "$root"/run_*.sh
@@ -148,30 +282,87 @@ jobs:
           (cd "$root" && find . -type f ! -name SHA256SUMS -print0 | LC_ALL=C sort -z | xargs -0 shasum -a 256 | sed 's#  \./#  #' > SHA256SUMS)
           chmod 0600 "$root/SHA256SUMS"
 
-      - name: Verify V2 artifact boundary
+      - name: Smoke-test packaged launcher argument boundary
         run: |
           set -euo pipefail
-          root=/tmp/stage2d9r-private-content-binding-preauth-review-v2
+          root=/tmp/stage2d9r-private-content-binding-preauth-review-v3
+          empty_home=/tmp/stage2d9r-private-content-binding-empty-home-v3
+          mkdir -m 0700 "$empty_home"
+          set +e
+          output="$(python "$root/tools/h3_n2_stage2d9r_private_content_binding_probe_20260724_v1.py" --package-root "$root" --probe-toolchain --home "$empty_home" 2>&1)"
+          rc=$?
+          set -e
+          printf '%s\n' "$output"
+          test "$rc" -eq 2
+          grep -F 'FAILURE_STAGE=READ_ONLY_TOOLCHAIN_PREAUTH_PROBE' <<<"$output"
+          grep -F 'FAILURE_CODE=PYTHON_DIGEST_CHANGED' <<<"$output"
+          if grep -Fq 'PACKAGE_BINDING_SCHEMA_MISMATCH' <<<"$output"; then
+            echo 'packaged verifier rejected its own schema' >&2
+            exit 1
+          fi
+
+      - name: Verify V3 artifact boundary
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-private-content-binding-preauth-review-v3
           (cd "$root" && sha256sum -c SHA256SUMS)
           test ! -e "$root/authorization-record.json"
           test ! -e "$root/run-authorized-execution.sh"
           ROOT="$root" python - <<'PY'
-          import hashlib,json,os
+          import hashlib
+          import json
+          import os
           from pathlib import Path
-          r=Path(os.environ["ROOT"]); b=json.loads((r/"PROBE_PACKAGE_BINDING.json").read_text())
-          observed=b.pop("review_binding_sha256")
-          assert hashlib.sha256(json.dumps(b,sort_keys=True,separators=(",",":")).encode()).hexdigest()==observed
-          assert b["authorization_request_id"]=="U1-H3N2-STAGE2D9R-PRIVATE-CONTENT-BINDING-20260724-02"
-          for k,v in b.items():
-              if k.endswith("_authorized") or k in {"authorization_record_included","authorized_execution_launcher_included","private_content_read_authorized","private_paths_included","secret_values_included","network_operation","broker_started","board_operation","serial_operation","flash_operation","physical_nvs_operation","prepare_executed","verify_executed","activate_executed","cleanup_executed","production_operation"}: assert v is False,k
-          text="\n".join(p.read_text(errors="replace") for p in r.rglob("*") if p.is_file())
-          for x in ("BEGIN PRIVATE KEY","BEGIN RSA PRIVATE KEY","BEGIN EC PRIVATE KEY","/Users/","/private/tmp/"): assert x not in text,x
+
+          root = Path(os.environ["ROOT"])
+          binding = json.loads((root / "PROBE_PACKAGE_BINDING.json").read_text())
+          observed = binding.pop("review_binding_sha256")
+          canonical = json.dumps(
+              binding, sort_keys=True, separators=(",", ":")
+          ).encode()
+          assert hashlib.sha256(canonical).hexdigest() == observed
+          assert binding["schema"] == "gh.h3.n2.stage2d9r-private-content-binding-review-package/1"
+          assert binding["state"] == "PENDING_EXACT_U1_TOOLCHAIN_PROBE_V3"
+          assert binding["authorization_request_id"] == "U1-H3N2-STAGE2D9R-PRIVATE-CONTENT-BINDING-20260724-03"
+          for key, value in binding.items():
+              if key.endswith("_authorized") or key in {
+                  "authorization_record_included",
+                  "authorized_execution_launcher_included",
+                  "private_content_read_authorized",
+                  "private_paths_included",
+                  "secret_values_included",
+                  "network_operation",
+                  "broker_started",
+                  "board_operation",
+                  "serial_operation",
+                  "flash_operation",
+                  "physical_nvs_operation",
+                  "prepare_executed",
+                  "verify_executed",
+                  "activate_executed",
+                  "cleanup_executed",
+                  "production_operation",
+              }:
+                  assert value is False, key
+          text = "\n".join(
+              path.read_text(errors="replace")
+              for path in root.rglob("*")
+              if path.is_file()
+          )
+          for prohibited in (
+              "BEGIN PRIVATE KEY",
+              "BEGIN RSA PRIVATE KEY",
+              "BEGIN EC PRIVATE KEY",
+              "/Users/",
+              "/private/tmp/",
+          ):
+              assert prohibited not in text, prohibited
           PY
 
       - uses: actions/upload-artifact@v4
         with:
-          name: stage2d9r-private-content-binding-preauth-review-v2
-          path: /tmp/stage2d9r-private-content-binding-preauth-review-v2
+          name: stage2d9r-private-content-binding-preauth-review-v3
+          path: /tmp/stage2d9r-private-content-binding-preauth-review-v3
           if-no-files-found: error
           retention-days: 5
           compression-level: 0
@@ -184,14 +375,17 @@ jobs:
           STOP: ${{ steps.bind.outputs.stop_conditions_sha256 }}
         run: |
           printf '%s\n' \
-            'STAGE2D9R_PRIVATE_CONTENT_BINDING_PREAUTH_REVIEW_V2=PASS' \
-            'AUTHORIZATION_REQUEST_ID=U1-H3N2-STAGE2D9R-PRIVATE-CONTENT-BINDING-20260724-02' \
+            'STAGE2D9R_PRIVATE_CONTENT_BINDING_PREAUTH_REVIEW_V3=PASS' \
+            'V2_REQUEST_INVALIDATED_BEFORE_AUTHORIZATION=true' \
+            'AUTHORIZATION_REQUEST_ID=U1-H3N2-STAGE2D9R-PRIVATE-CONTENT-BINDING-20260724-03' \
             "SOURCE_SHA=$SOURCE_SHA" \
             'MAIN_SHA=a3a72d75480362999e70e180f33459198b3951b5' \
             "REVIEW_BINDING_SHA256=$REVIEW" \
             "COMMAND_GROUP_SHA256=$COMMAND" \
             "STOP_CONDITIONS_SHA256=$STOP" \
             'EXACT_U1_GRANTED=false' \
+            'AUTHORIZATION_RECORD_CREATED=false' \
+            'CONSUMED_MARKER_CREATED=false' \
             'PRIVATE_CONTENT_READ=false' \
             'NETWORK_OPERATION=false' \
             'BROKER_STARTED=false' \
@@ -203,4 +397,4 @@ jobs:
 
       - name: Cleanup
         if: always()
-        run: rm -rf /tmp/stage2d9r-private-content-binding-preauth-review-v2 /tmp/v2-tests.log
+        run: rm -rf /tmp/stage2d9r-private-content-binding-preauth-review-v3 /tmp/stage2d9r-private-content-binding-empty-home-v3 /tmp/v3-tests.log
