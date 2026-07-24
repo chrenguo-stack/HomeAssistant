@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -89,9 +90,11 @@ class TelemetryProcessor:
             schema or self._load_packaged_schema(),
             format_checker=FormatChecker(),
         )
+        self._lock = threading.RLock()
         self._seen: OrderedDict[tuple[str, str, int], None] = OrderedDict()
         self._last_seen: dict[str, datetime] = {}
         self._availability: dict[str, str] = {}
+        self._max_seq: dict[tuple[str, str], int] = {}
 
     @staticmethod
     def _load_packaged_schema() -> dict[str, Any]:
@@ -111,6 +114,16 @@ class TelemetryProcessor:
         payload: bytes | str,
         *,
         received_at: datetime | None = None,
+    ) -> ProcessResult:
+        with self._lock:
+            return self._process_locked(topic, payload, received_at=received_at)
+
+    def _process_locked(
+        self,
+        topic: str,
+        payload: bytes | str,
+        *,
+        received_at: datetime | None,
     ) -> ProcessResult:
         now = received_at or _utc_now()
 
@@ -178,7 +191,18 @@ class TelemetryProcessor:
                 dedup_key=dedup_key,
             )
 
+        sequence_key = (node_id, dedup_key[1])
+        max_seq = self._max_seq.get(sequence_key)
+        if max_seq is not None and dedup_key[2] <= max_seq:
+            return ProcessResult(
+                status="rejected",
+                node_id=node_id,
+                reason="out-of-order or replayed seq for node_id + boot_id",
+                dedup_key=dedup_key,
+            )
+
         self._remember_dedup_key(dedup_key)
+        self._max_seq[sequence_key] = dedup_key[2]
 
         canonical = dict(document)
         canonical["received_at"] = _rfc3339(now)
@@ -211,6 +235,10 @@ class TelemetryProcessor:
 
     def restore_canonical(self, topic: str, payload: bytes | str) -> RestoreResult:
         """Restore in-memory lifecycle state from retained canonical telemetry."""
+        with self._lock:
+            return self._restore_canonical_locked(topic, payload)
+
+    def _restore_canonical_locked(self, topic: str, payload: bytes | str) -> RestoreResult:
         try:
             parsed_topic = parse_canonical_telemetry_topic(topic)
         except ValueError as exc:
@@ -272,6 +300,10 @@ class TelemetryProcessor:
 
         dedup_key = (node_id, str(document["boot_id"]), int(document["seq"]))
         self._remember_dedup_key(dedup_key)
+        sequence_key = (node_id, dedup_key[1])
+        current_max_seq = self._max_seq.get(sequence_key)
+        if current_max_seq is None or dedup_key[2] > current_max_seq:
+            self._max_seq[sequence_key] = dedup_key[2]
 
         current_last_seen = self._last_seen.get(node_id)
         if current_last_seen is None or last_seen > current_last_seen:
@@ -286,32 +318,34 @@ class TelemetryProcessor:
         )
 
     def stale_messages(self, *, now: datetime | None = None) -> tuple[PublishMessage, ...]:
-        current = now or _utc_now()
-        messages: list[PublishMessage] = []
+        with self._lock:
+            current = now or _utc_now()
+            messages: list[PublishMessage] = []
 
-        for node_id, last_seen in self._last_seen.items():
-            if current - last_seen <= self.stale_after:
-                continue
-            if self._availability.get(node_id) == "unavailable":
-                continue
+            for node_id, last_seen in self._last_seen.items():
+                if current - last_seen <= self.stale_after:
+                    continue
+                if self._availability.get(node_id) == "unavailable":
+                    continue
 
-            self._availability[node_id] = "unavailable"
-            messages.append(
-                PublishMessage(
-                    topic=availability_topic(self.system_id, node_id),
-                    payload={
-                        "schema": "gh.availability/1",
-                        "node_id": node_id,
-                        "state": "unavailable",
-                        "last_seen": _rfc3339(last_seen),
-                        "evaluated_at": _rfc3339(current),
-                    },
+                self._availability[node_id] = "unavailable"
+                messages.append(
+                    PublishMessage(
+                        topic=availability_topic(self.system_id, node_id),
+                        payload={
+                            "schema": "gh.availability/1",
+                            "node_id": node_id,
+                            "state": "unavailable",
+                            "last_seen": _rfc3339(last_seen),
+                            "evaluated_at": _rfc3339(current),
+                        },
+                    )
                 )
-            )
 
-        return tuple(messages)
+            return tuple(messages)
 
     def mark_unavailable_publish_failed(self, node_id: str) -> None:
         """Allow a failed unavailable publish to be retried on the next stale scan."""
-        if self._availability.get(node_id) == "unavailable":
-            self._availability[node_id] = "online"
+        with self._lock:
+            if self._availability.get(node_id) == "unavailable":
+                self._availability[node_id] = "online"
