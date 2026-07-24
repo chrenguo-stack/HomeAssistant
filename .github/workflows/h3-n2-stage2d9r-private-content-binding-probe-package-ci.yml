@@ -1,0 +1,124 @@
+name: H3 N2 Stage2D9R Private Content Binding Probe Package CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-private-content-binding-probe-package-ci.yml"
+      - "tools/h3_n2_stage2d9r_private_content_binding_probe_20260724_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_content_binding_probe_20260724_v1.py"
+      - "docs/development/h3-n2-stage2d9r-private-content-binding-u1-review-20260724-v1.md"
+      - "docs/acceptance/h3-n2-stage2d9r-host-artifact-custody-preauth-probe-l1-v2.json"
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Verify sources and contracts
+        run: |
+          set -euo pipefail
+          sha256sum -c <<'SUMS'
+          b4b7d41aaf802122250f4f9499e79c99eba85187af339f60e556a18a03694001  tools/h3_n2_stage2d9r_private_content_binding_probe_20260724_v1.py
+          ae5494fe15149b71b34adfc3b02ecbaf82d3a40e3dcf1282ad1da2bb8ea51416  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_content_binding_probe_20260724_v1.py
+          f9bdb1943976c898a06938df420530699e54072e772a50d9f6065d4e5bc73bd9  docs/development/h3-n2-stage2d9r-private-content-binding-u1-review-20260724-v1.md
+          142258d307645c85d67fb7bbee7cd480aa276de75d1dd2609b2d7d8e53892074  docs/acceptance/h3-n2-stage2d9r-host-artifact-custody-preauth-probe-l1-v2.json
+          SUMS
+          python -m py_compile tools/h3_n2_stage2d9r_private_content_binding_probe_20260724_v1.py tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_content_binding_probe_20260724_v1.py
+          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_content_binding_probe_20260724_v1.py -v 2>&1 | tee /tmp/private-content-tests.log
+          grep -F 'Ran 9 tests' /tmp/private-content-tests.log
+          grep -F 'OK' /tmp/private-content-tests.log
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          c=json.loads(Path('docs/acceptance/h3-n2-stage2d9r-host-artifact-custody-preauth-probe-l1-v2.json').read_text())
+          assert c['schema']=='gh.h3.n2.stage2d9r-host-artifact-custody-preauth-probe-l1/2'
+          assert c['result']=='passed_read_only_preauthorization'
+          assert c['source_sha']=='856c78091f6adcb93eec9c8383f00e900721fb2a'
+          assert c['probe_package']=={'artifact_expired':False,'artifact_id':8591197357,'artifact_zip_sha256':'379c0ef0828163775c0f1b0a6734a4bd83263fa9b9a30f6486ada67704e6a061','run_id':30079484626}
+          assert c['command_custody']['token_content_read'] is False
+          assert c['pki_custody']['private_key_content_read'] is False
+          assert c['pki_custody']['password_database_content_read'] is False
+          assert c['disposition']['d2_authorized'] is False
+          assert not any(c['protected_boundaries'].values())
+          text=Path('tools/h3_n2_stage2d9r_private_content_binding_probe_20260724_v1.py').read_text()
+          for x in ('import socket','import serial','esptool','mosquitto_sub','mosquitto_pub','subprocess.Popen'):
+              assert x not in text,x
+          PY
+      - name: Assemble review-only package
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-private-content-binding-preauth-review-v1
+          mkdir -p "$root"/{tools,tests,review,acceptance}
+          cp tools/h3_n2_stage2d9r_private_content_binding_probe_20260724_v1.py "$root/tools/"
+          cp tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_content_binding_probe_20260724_v1.py "$root/tests/"
+          cp docs/development/h3-n2-stage2d9r-private-content-binding-u1-review-20260724-v1.md "$root/review/"
+          cp docs/acceptance/h3-n2-stage2d9r-host-artifact-custody-preauth-probe-l1-v2.json "$root/acceptance/"
+          ROOT="$root" python - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          r=Path(os.environ['ROOT'])
+          command='''A future exact U1 may authorize one offline, one-shot, read-only private-content binding verification. It may read existing private material only inside the verifier process, compute digests, derive public keys, verify certificate/key, chain, hostname, hashed-password format and authorization-record bindings. It must not print, copy, export, replace, generate or delete any private value. It may write only its own one-shot consumed marker. No network, Broker, board, serial, Flash/NVS, PREPARE, VERIFY, ACTIVATE, cleanup or production action is permitted.\n'''
+          stop='''# Fail-closed stop conditions\n\nStop before claim if any PR, main, HEAD, CI, package, probe, test, review, toolchain, custody, descriptor, consumed marker, public candidate, immutable Artifact or recovery Artifact binding differs. Stop if the new marker exists or authorization is missing, expired, replay-enabled, retry-enabled or longer than two hours. After claim, success or failure permanently consumes authorization. Never output raw token, private keys, password database, private paths, raw MQTT password or authorization record.\n'''
+          readme='''# Stage 2D-9R private-content binding preauthorization review V1\n\nThe launcher performs only a metadata/toolchain preauthorization probe. It does not read raw token, private-key bodies or password database. The embedded deep verifier requires a separate exact one-shot authorization. No authorization record or authorized execution launcher is included.\n'''
+          (r/'COMMAND_GROUP_REVIEW_ONLY.txt').write_text(command)
+          (r/'STOP_CONDITIONS.md').write_text(stop)
+          (r/'README.md').write_text(readme)
+          sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+          b={'schema':'gh.h3.n2.stage2d9r-private-content-binding-review-package/1','stage':'H3/N2 Stage 2D-9R G3R','state':'PENDING_EXACT_U1_TOOLCHAIN_PROBE','authorization_request_id':'U1-H3N2-STAGE2D9R-PRIVATE-CONTENT-BINDING-20260724-01','repository':'chrenguo-stack/HomeAssistant','pull_request':176,'base_sha':'25a21b38d470992b09c64820d46f56b39917f0dc','head_branch':'feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1','source_sha':os.environ['SOURCE_SHA'],'probe_sha256':'b4b7d41aaf802122250f4f9499e79c99eba85187af339f60e556a18a03694001','contract_test_sha256':'ae5494fe15149b71b34adfc3b02ecbaf82d3a40e3dcf1282ad1da2bb8ea51416','review_document_sha256':'f9bdb1943976c898a06938df420530699e54072e772a50d9f6065d4e5bc73bd9','v2_preauthorization_closure_sha256':'142258d307645c85d67fb7bbee7cd480aa276de75d1dd2609b2d7d8e53892074','command_group_sha256':sha(r/'COMMAND_GROUP_REVIEW_ONLY.txt'),'stop_conditions_sha256':sha(r/'STOP_CONDITIONS.md'),'python_executable_sha256_required':'4e28e811a89aeac6eed668ae641c7f85f5831e42e8dc6cd9a85a3bcc032ec46a','python_version_required':'3.11.9','command_root_digest_sha256':'ef5f79be168fff686cabcc91fdc4109918d75d3311da1209dd8d0e381804006e','pki_root_digest_sha256':'4cd43ee4b2df177bd99c32d3904dbe1e1df890aa14c6b6714a6b4f7ae4024868','immutable_payload_sha256':'5dbe763fe411728533018dd324075f5287ee3542f8351113d54ec80a7042f1d3','recovery_payload_sha256':'c1ed8e5f00b17cbe5bab30aec75d2e8637986b9c19b2389b761bebf3fc0b8d8b','ca_pem_sha256':'cfcb6638ed61731270f3bf8e9e262c1512fbca8ff34d4b08b62186453233e963','candidate_digest_sha256':'f22144e37372b883b7a38d07eff2980a865108cf7c8fed9bfdb9f198a030b5c5','unlock_digest_sha256':'3650d44f8761f21dc1931fbd9b6ba6a1d9da92ffa469b3d4f98ee5411a6809e3'}
+          for k in ('authorization_record_included','authorized_execution_launcher_included','private_content_read_authorized','private_paths_included','secret_values_included','network_operation','broker_started','board_operation','serial_operation','flash_operation','physical_nvs_operation','prepare_executed','verify_executed','activate_executed','cleanup_executed','production_operation','ready_authorized','merge_authorized','release_authorized','deployment_authorized'):b[k]=False
+          (r/'PROBE_PACKAGE_BINDING.json').write_text(json.dumps(b,indent=2,sort_keys=True)+'\n')
+          PY
+          cat > "$root/run_stage2d9r_private_content_binding_toolchain_probe_20260724_74c1e8a2.sh" <<'SH'
+          #!/usr/bin/env bash
+          set -euo pipefail; umask 077
+          ROOT="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)"; cd "$ROOT"
+          shasum -a 256 -c SHA256SUMS
+          echo PRIVATE_CONTENT_BINDING_TOOLCHAIN_PROBE_BEGIN
+          set +e
+          "$(command -v python3)" "$ROOT/tools/h3_n2_stage2d9r_private_content_binding_probe_20260724_v1.py" --package-root "$ROOT" --probe-toolchain
+          rc=$?; set -e
+          echo PRIVATE_CONTENT_BINDING_TOOLCHAIN_PROBE_END
+          exit "$rc"
+          SH
+          chmod 0700 "$root"/run_*.sh
+          find "$root" -type f ! -name 'run_*.sh' -exec chmod 0600 {} +
+          (cd "$root" && find . -type f ! -name SHA256SUMS -print0 | LC_ALL=C sort -z | xargs -0 shasum -a 256 | sed 's#  \./#  #' > SHA256SUMS)
+          chmod 0600 "$root/SHA256SUMS"
+      - name: Verify review-only package
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-private-content-binding-preauth-review-v1
+          (cd "$root" && sha256sum -c SHA256SUMS)
+          test ! -e "$root/authorization-record.json"
+          test ! -e "$root/run-authorized-execution.sh"
+          ROOT="$root" python - <<'PY'
+          import json,os
+          from pathlib import Path
+          b=json.loads((Path(os.environ['ROOT'])/'PROBE_PACKAGE_BINDING.json').read_text())
+          for k in ('authorization_record_included','authorized_execution_launcher_included','private_content_read_authorized','private_paths_included','secret_values_included','network_operation','broker_started','board_operation','serial_operation','flash_operation','physical_nvs_operation','prepare_executed','verify_executed','activate_executed','cleanup_executed','production_operation','ready_authorized','merge_authorized','release_authorized','deployment_authorized'):assert b[k] is False,k
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-private-content-binding-preauth-review-v1
+          path: /tmp/stage2d9r-private-content-binding-preauth-review-v1
+          if-no-files-found: error
+          retention-days: 5
+          compression-level: 0
+      - name: Report boundary
+        run: |
+          printf '%s\n' 'STAGE2D9R_PRIVATE_CONTENT_BINDING_PREAUTH_REVIEW=PASS' 'AUTHORIZATION_REQUEST_ID=U1-H3N2-STAGE2D9R-PRIVATE-CONTENT-BINDING-20260724-01' 'AUTHORIZATION_RECORD_INCLUDED=false' 'AUTHORIZED_EXECUTION_LAUNCHER_INCLUDED=false' 'PRIVATE_CONTENT_READ_AUTHORIZED=false' 'NETWORK_OPERATION=false' 'BROKER_STARTED=false' 'BOARD_OPERATION=false' 'SERIAL_OPERATION=false' 'FLASH_OPERATION=false' 'PREPARE_EXECUTED=false' 'VERIFY_EXECUTED=false'
+      - name: Cleanup
+        if: always()
+        run: rm -rf /tmp/stage2d9r-private-content-binding-preauth-review-v1 /tmp/private-content-tests.log
