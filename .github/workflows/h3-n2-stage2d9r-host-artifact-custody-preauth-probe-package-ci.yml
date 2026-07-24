@@ -1,0 +1,247 @@
+name: H3 N2 Stage2D9R Host Artifact Custody Preauth Probe Package CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-host-artifact-custody-preauth-probe-package-ci.yml"
+      - "tools/h3_n2_stage2d9r_host_artifact_custody_probe_20260724_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_host_artifact_custody_probe_20260724_v1.py"
+      - "docs/development/h3-n2-stage2d9r-host-artifact-custody-preauth-probe-contract-20260724-v1.md"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build-read-only-preauth-probe-package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Verify exact reviewed probe sources
+        run: |
+          set -euo pipefail
+          echo '27bff456d8eb40392aeebd7118c973effe2512d411f2cf58b83331bb29504374  tools/h3_n2_stage2d9r_host_artifact_custody_probe_20260724_v1.py' | sha256sum -c -
+          echo '35fb6189ae4590e99b06fd556398ab241505a2be6c3df204eb57618b7fb0ff43  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_host_artifact_custody_probe_20260724_v1.py' | sha256sum -c -
+          python -m py_compile \
+            tools/h3_n2_stage2d9r_host_artifact_custody_probe_20260724_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_host_artifact_custody_probe_20260724_v1.py
+      - name: Run metadata-only private-custody contract tests
+        run: |
+          set -euo pipefail
+          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_host_artifact_custody_probe_20260724_v1.py \
+            -v 2>&1 | tee /tmp/stage2d9r-host-probe-tests.log
+          grep -F 'Ran 5 tests' /tmp/stage2d9r-host-probe-tests.log
+          grep -F 'OK' /tmp/stage2d9r-host-probe-tests.log
+      - name: Verify fixed public Artifact metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for spec in \
+            '8585140964:30062650179:stage2d9r-g3r-immutable-locked-v1:c9e8447c24b0f09f3eac3f56791f2346e8aa5d61' \
+            '8589568443:30075191767:stage2d9r-g3r-recovery-freeze-evidence-v1:f312f8580d9f4312f4dd1429b2d7755e1c550636'; do
+            IFS=: read -r artifact_id run_id expected_name source_sha <<< "$spec"
+            data="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id")"
+            test "$(jq -r .name <<< "$data")" = "$expected_name"
+            test "$(jq -r .expired <<< "$data")" = false
+            test "$(jq -r .workflow_run.id <<< "$data")" = "$run_id"
+            test "$(jq -r .workflow_run.head_sha <<< "$data")" = "$source_sha"
+          done
+      - name: Download exact public Artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-g3r-host-artifact-custody-preauth-probe-review-v1
+          mkdir -p \
+            "$root/public-artifacts/immutable" \
+            "$root/public-artifacts/recovery" \
+            "$root/tools" \
+            "$root/tests" \
+            "$root/review"
+          gh run download 30062650179 \
+            --repo "$GITHUB_REPOSITORY" \
+            --name stage2d9r-g3r-immutable-locked-v1 \
+            --dir "$root/public-artifacts/immutable"
+          gh run download 30075191767 \
+            --repo "$GITHUB_REPOSITORY" \
+            --name stage2d9r-g3r-recovery-freeze-evidence-v1 \
+            --dir "$root/public-artifacts/recovery"
+      - name: Assemble read-only preauthorization package
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-g3r-host-artifact-custody-preauth-probe-review-v1
+          cp tools/h3_n2_stage2d9r_host_artifact_custody_probe_20260724_v1.py \
+            "$root/tools/"
+          cp tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_host_artifact_custody_probe_20260724_v1.py \
+            "$root/tests/"
+          cp docs/development/h3-n2-stage2d9r-host-artifact-custody-preauth-probe-contract-20260724-v1.md \
+            "$root/review/"
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path('/tmp/stage2d9r-g3r-host-artifact-custody-preauth-probe-review-v1')
+          contract = root / 'review/h3-n2-stage2d9r-host-artifact-custody-preauth-probe-contract-20260724-v1.md'
+          binding = {
+              'schema': 'gh.h3.n2.stage2d9r-host-artifact-custody-preauth-probe-package/1',
+              'stage': 'H3/N2 Stage 2D-9R G3R',
+              'state': 'READ_ONLY_PREAUTH_REVIEW_PACKAGE',
+              'source_sha': os.environ['SOURCE_SHA'],
+              'probe_sha256': '27bff456d8eb40392aeebd7118c973effe2512d411f2cf58b83331bb29504374',
+              'contract_test_sha256': '35fb6189ae4590e99b06fd556398ab241505a2be6c3df204eb57618b7fb0ff43',
+              'contract_sha256': hashlib.sha256(contract.read_bytes()).hexdigest(),
+              'python_executable_sha256_required': '4e28e811a89aeac6eed668ae641c7f85f5831e42e8dc6cd9a85a3bcc032ec46a',
+              'python_version_required': '3.11.9',
+              'immutable_artifact': {
+                  'artifact_id': 8585140964,
+                  'run_id': 30062650179,
+                  'source_sha': 'c9e8447c24b0f09f3eac3f56791f2346e8aa5d61',
+                  'payload_sha256': '5dbe763fe411728533018dd324075f5287ee3542f8351113d54ec80a7042f1d3',
+              },
+              'recovery_artifact': {
+                  'artifact_id': 8589568443,
+                  'run_id': 30075191767,
+                  'source_sha': 'f312f8580d9f4312f4dd1429b2d7755e1c550636',
+                  'payload_tar_sha256': 'c1ed8e5f00b17cbe5bab30aec75d2e8637986b9c19b2389b761bebf3fc0b8d8b',
+                  'manifest_sha256': 'fe82c458533953df4c86966d047d1f66b59da15e5299b3953135702236d68690',
+              },
+              'private_custody_mode': 'METADATA_AND_SAFE_DESCRIPTOR_READ_ONLY',
+              'private_material_content_binding_authorized': False,
+              'raw_unlock_token_read': False,
+              'private_key_content_read': False,
+              'password_content_read': False,
+              'private_paths_included': False,
+              'secret_values_included': False,
+              'network_operation': False,
+              'broker_started': False,
+              'board_operation': False,
+              'serial_operation': False,
+              'flash_operation': False,
+              'physical_nvs_operation': False,
+              'prepare_executed': False,
+              'verify_executed': False,
+              'activate_executed': False,
+              'cleanup_executed': False,
+              'production_operation': False,
+              'ready_authorized': False,
+              'merge_authorized': False,
+              'release_authorized': False,
+              'deployment_authorized': False,
+          }
+          (root / 'PROBE_PACKAGE_BINDING.json').write_text(
+              json.dumps(binding, indent=2, sort_keys=True) + '\n',
+              encoding='utf-8',
+          )
+          PY
+          cat > "$root/run_stage2d9r_host_artifact_custody_preauth_probe_20260724_8c7a51d4.sh" <<'SH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          umask 077
+          ROOT="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)"
+          cd "$ROOT"
+          shasum -a 256 -c SHA256SUMS
+          printf '%s\n' 'HOST_ARTIFACT_CUSTODY_PREAUTH_PROBE_BEGIN'
+          set +e
+          "$(command -v python3)" \
+            "$ROOT/tools/h3_n2_stage2d9r_host_artifact_custody_probe_20260724_v1.py" \
+            --package-root "$ROOT"
+          rc=$?
+          set -e
+          printf '%s\n' 'HOST_ARTIFACT_CUSTODY_PREAUTH_PROBE_END'
+          exit "$rc"
+          SH
+          chmod 0700 "$root/run_stage2d9r_host_artifact_custody_preauth_probe_20260724_8c7a51d4.sh"
+          cat > "$root/README.md" <<'MD'
+          # Stage 2D-9R host Artifact and custody preauthorization probe
+
+          This package performs complete offline validation of the frozen public
+          immutable-firmware and recovery Artifacts. On the authorized Mac it also
+          checks private-custody roots, safe descriptors, consumed markers and secret
+          file metadata.
+
+          It does not read the raw unlock token, private-key content or Mosquitto
+          password database content. It prints no private paths or secret values.
+          It performs no network, Broker, board, serial, Flash/NVS or firmware command.
+
+          A separate exact authorization is required before deeper private-content
+          binding may be performed.
+          MD
+          chmod 0600 "$root/README.md" "$root/PROBE_PACKAGE_BINDING.json"
+          find "$root/public-artifacts" "$root/tools" "$root/tests" "$root/review" \
+            -type f -exec chmod 0600 {} +
+          (
+            cd "$root"
+            find . -type f ! -name SHA256SUMS -print0 \
+              | LC_ALL=C sort -z \
+              | xargs -0 shasum -a 256 \
+              | sed 's#  \./#  #' > SHA256SUMS
+          )
+          chmod 0600 "$root/SHA256SUMS"
+      - name: Run package against public Artifacts only
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-g3r-host-artifact-custody-preauth-probe-review-v1
+          (
+            cd "$root"
+            sha256sum -c SHA256SUMS
+          )
+          python "$root/tools/h3_n2_stage2d9r_host_artifact_custody_probe_20260724_v1.py" \
+            --package-root "$root" \
+            --public-artifacts-only \
+            | tee /tmp/stage2d9r-host-probe-public-only.log
+          grep -Fx 'HOST_ARTIFACT_CUSTODY_PREAUTH_PROBE=PASS' \
+            /tmp/stage2d9r-host-probe-public-only.log
+          grep -F '"result": "PASS_PUBLIC_ARTIFACTS_ONLY"' \
+            /tmp/stage2d9r-host-probe-public-only.log
+          grep -F '"private_content_read": false' \
+            /tmp/stage2d9r-host-probe-public-only.log
+          grep -F '"network_operation": false' \
+            /tmp/stage2d9r-host-probe-public-only.log
+          grep -F '"board_operation": false' \
+            /tmp/stage2d9r-host-probe-public-only.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-g3r-host-artifact-custody-preauth-probe-review-v1
+          path: /tmp/stage2d9r-g3r-host-artifact-custody-preauth-probe-review-v1
+          if-no-files-found: error
+          retention-days: 5
+          compression-level: 0
+      - name: Report read-only package boundary
+        run: |
+          printf '%s\n' \
+            'STAGE2D9R_HOST_ARTIFACT_CUSTODY_PREAUTH_PACKAGE=PASS' \
+            'PUBLIC_ARTIFACT_VERIFICATION=PASS' \
+            'PRIVATE_CUSTODY_MODE=METADATA_AND_SAFE_DESCRIPTOR_READ_ONLY' \
+            'PRIVATE_MATERIAL_CONTENT_BINDING_AUTHORIZED=false' \
+            'RAW_UNLOCK_TOKEN_READ=false' \
+            'PRIVATE_KEY_CONTENT_READ=false' \
+            'PASSWORD_CONTENT_READ=false' \
+            'PRIVATE_PATHS_INCLUDED=false' \
+            'SECRET_VALUES_INCLUDED=false' \
+            'NETWORK_OPERATION=false' \
+            'BROKER_STARTED=false' \
+            'BOARD_OPERATION=false' \
+            'SERIAL_OPERATION=false' \
+            'FLASH_OPERATION=false' \
+            'PHYSICAL_NVS_OPERATION=false' \
+            'PREPARE_EXECUTED=false' \
+            'VERIFY_EXECUTED=false'
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf /tmp/stage2d9r-g3r-host-artifact-custody-preauth-probe-review-v1
+          rm -f \
+            /tmp/stage2d9r-host-probe-tests.log \
+            /tmp/stage2d9r-host-probe-public-only.log
