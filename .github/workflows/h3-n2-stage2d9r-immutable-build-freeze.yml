@@ -1,0 +1,193 @@
+name: H3 N2 Stage2D9R Immutable Build Freeze
+
+on:
+  push:
+    branches:
+      - feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-immutable-build-a.yml"
+      - ".github/workflows/h3-n2-stage2d9r-immutable-build-b.yml"
+      - ".github/workflows/h3-n2-stage2d9r-immutable-build-reusable.yml"
+      - ".github/workflows/h3-n2-stage2d9r-immutable-build-freeze.yml"
+      - "tools/h3_n2_stage2d9r_immutable_build_packager_20260724_v1.py"
+      - "tools/h3_n2_stage2d9r_immutable_build_freeze_20260724_v1.py"
+      - "tools/h3_n2_stage2d9r_immutable_build_manifest_gate_20260723_v1.py"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor/**"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/greenhouse_profile_isolated_device_g3r_immutable_20260724_v1.yml"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3_prepare/stage2d9_g3_partitions_20260722_v65.csv"
+      - "tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_final_build_binding_20260724_v1.json"
+      - "tests/h3_n2_stage2d9r_tls_candidate/public_command_material_tlsvalid01/public-command-material-descriptor.redacted.json"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  freeze:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 58
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Verify freeze tools
+        run: |
+          set -euo pipefail
+          echo '7fc62c634c1728b8fe2f201f64980abac9a8b4b9e18629dcdfaa79a6983a2c02  tools/h3_n2_stage2d9r_immutable_build_packager_20260724_v1.py' | sha256sum -c -
+          echo '76e2bdc5eafcaf327a49a500da5cd042508716fc704acf390ccf85a577f84a02  tools/h3_n2_stage2d9r_immutable_build_freeze_20260724_v1.py' | sha256sum -c -
+          python -m py_compile \
+            tools/h3_n2_stage2d9r_immutable_build_freeze_20260724_v1.py \
+            tools/h3_n2_stage2d9r_immutable_build_manifest_gate_20260723_v1.py
+      - name: Wait for two independent successful clean builds
+        id: runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          latest_run() {
+            local workflow="$1"
+            gh api --method GET \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/runs" \
+              -f head_sha="$GITHUB_SHA" \
+              -f event=push \
+              -f per_page=20 \
+              --jq '[.workflow_runs[] | select(.head_sha == "'"$GITHUB_SHA"'")] | sort_by(.id) | last | [.id, .status, (.conclusion // "")] | @tsv'
+          }
+
+          a=""
+          b=""
+          for attempt in $(seq 1 150); do
+            a="$(latest_run h3-n2-stage2d9r-immutable-build-a.yml || true)"
+            b="$(latest_run h3-n2-stage2d9r-immutable-build-b.yml || true)"
+
+            a_id="$(printf '%s' "$a" | cut -f1)"
+            a_status="$(printf '%s' "$a" | cut -f2)"
+            a_conclusion="$(printf '%s' "$a" | cut -f3)"
+            b_id="$(printf '%s' "$b" | cut -f1)"
+            b_status="$(printf '%s' "$b" | cut -f2)"
+            b_conclusion="$(printf '%s' "$b" | cut -f3)"
+
+            if [ "$a_status" = completed ] && [ "$a_conclusion" != success ]; then
+              echo "clean build A failed: $a" >&2
+              exit 1
+            fi
+            if [ "$b_status" = completed ] && [ "$b_conclusion" != success ]; then
+              echo "clean build B failed: $b" >&2
+              exit 1
+            fi
+            if [ "$a_status" = completed ] && [ "$a_conclusion" = success ] &&
+               [ "$b_status" = completed ] && [ "$b_conclusion" = success ]; then
+              test -n "$a_id"
+              test -n "$b_id"
+              test "$a_id" != "$b_id"
+              echo "run_a=$a_id" >> "$GITHUB_OUTPUT"
+              echo "run_b=$b_id" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 20
+          done
+          echo 'timed out waiting for two clean build runs' >&2
+          exit 1
+      - name: Download both immutable build artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_A: ${{ steps.runs.outputs.run_a }}
+          RUN_B: ${{ steps.runs.outputs.run_b }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/stage2d9r-build-a /tmp/stage2d9r-build-b
+          gh run download "$RUN_A" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name stage2d9r-g3r-immutable-locked-v1 \
+            --dir /tmp/stage2d9r-build-a
+          gh run download "$RUN_B" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name stage2d9r-g3r-immutable-repro-v1 \
+            --dir /tmp/stage2d9r-build-b
+      - name: Resolve canonical artifact id
+        id: artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_A: ${{ steps.runs.outputs.run_a }}
+        run: |
+          set -euo pipefail
+          ids="$(gh api \
+            "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_A/artifacts" \
+            --jq '[.artifacts[] | select(.name == "stage2d9r-g3r-immutable-locked-v1") | .id] | @tsv')"
+          test -n "$ids"
+          test "$(printf '%s' "$ids" | wc -w | tr -d ' ')" = "1"
+          echo "artifact_a_id=$ids" >> "$GITHUB_OUTPUT"
+      - name: Compare builds and freeze immutable manifest
+        env:
+          RUN_A: ${{ steps.runs.outputs.run_a }}
+          RUN_B: ${{ steps.runs.outputs.run_b }}
+          ARTIFACT_A_ID: ${{ steps.artifact.outputs.artifact_a_id }}
+        run: |
+          set -euo pipefail
+          python tools/h3_n2_stage2d9r_immutable_build_freeze_20260724_v1.py \
+            --build-a /tmp/stage2d9r-build-a \
+            --build-b /tmp/stage2d9r-build-b \
+            --run-a "$RUN_A" \
+            --run-b "$RUN_B" \
+            --artifact-a-id "$ARTIFACT_A_ID" \
+            --source-sha "$GITHUB_SHA" \
+            --output-dir /tmp/stage2d9r-immutable-freeze-evidence \
+            | tee /tmp/stage2d9r-immutable-freeze.log
+      - name: Validate frozen manifest contract
+        run: |
+          set -euo pipefail
+          manifest=/tmp/stage2d9r-immutable-freeze-evidence/stage2d9r_immutable_build_manifest_20260724_v1.json
+          python tools/h3_n2_stage2d9r_immutable_build_manifest_gate_20260723_v1.py \
+            --manifest "$manifest" \
+            --expect-state BUILD_FROZEN \
+            | tee /tmp/stage2d9r-immutable-manifest-gate.log
+          grep -Fx 'STAGE2D9R_IMMUTABLE_BUILD_GATE=PASS' /tmp/stage2d9r-immutable-manifest-gate.log
+          grep -Fx 'STATE=BUILD_FROZEN' /tmp/stage2d9r-immutable-manifest-gate.log
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          path = Path('/tmp/stage2d9r-immutable-freeze-evidence/stage2d9r_immutable_build_manifest_20260724_v1.json')
+          manifest = json.loads(path.read_text(encoding='utf-8'))
+          observed = manifest['artifact']['manifest_sha256']
+          copy = json.loads(json.dumps(manifest))
+          copy['artifact'].pop('manifest_sha256')
+          calculated = hashlib.sha256(json.dumps(
+              copy, sort_keys=True, separators=(',', ':'), ensure_ascii=False
+          ).encode()).hexdigest()
+          assert observed == calculated
+          assert manifest['compile_run_ids'][0] != manifest['compile_run_ids'][1]
+          assert manifest['reproducibility'] == {
+              'clean_build_count': 2,
+              'all_firmware_hashes_identical': True,
+              'all_manifest_hashes_identical': True,
+          }
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-g3r-immutable-freeze-evidence-v1
+          path: /tmp/stage2d9r-immutable-freeze-evidence
+          if-no-files-found: error
+          retention-days: 5
+          compression-level: 0
+      - name: Report immutable freeze boundary
+        run: |
+          grep -Fx 'STAGE2D9R_IMMUTABLE_BUILD_FREEZE=PASS' /tmp/stage2d9r-immutable-freeze.log
+          grep -Fx 'REPRODUCIBLE=true' /tmp/stage2d9r-immutable-freeze.log
+          grep -Fx 'PRIVATE_VALUES_INCLUDED=false' /tmp/stage2d9r-immutable-freeze.log
+          grep -Fx 'EXECUTION_AUTHORIZED=false' /tmp/stage2d9r-immutable-freeze.log
+          grep -Fx 'BOARD_OPERATION_AUTHORIZED=false' /tmp/stage2d9r-immutable-freeze.log
+          grep -Fx 'NETWORK_OPERATION_AUTHORIZED=false' /tmp/stage2d9r-immutable-freeze.log
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf \
+            /tmp/stage2d9r-build-a \
+            /tmp/stage2d9r-build-b \
+            /tmp/stage2d9r-immutable-freeze-evidence
+          rm -f /tmp/stage2d9r-immutable-*.log
