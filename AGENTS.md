@@ -10,3 +10,6 @@ The local task-splitting rules define the verified Mac development environment a
 System instructions, security boundaries, explicit user decisions, production authorization requirements, and repository safety rules take precedence.
 
 These workflow documents do not authorize production mutations, credential generation, anonymous MQTT closure, T1 writes, or reuse of consumed or expired production authorization.
+
+对于任何新建模块、重构已有模块、或清理孤立代码的工作，读取并遵循：
+- `docs/development/module-lifecycle-rules.md`
