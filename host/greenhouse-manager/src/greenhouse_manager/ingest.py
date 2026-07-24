@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -89,6 +90,7 @@ class TelemetryProcessor:
             schema or self._load_packaged_schema(),
             format_checker=FormatChecker(),
         )
+        self._lock = threading.RLock()
         self._seen: OrderedDict[tuple[str, str, int], None] = OrderedDict()
         self._last_seen: dict[str, datetime] = {}
         self._availability: dict[str, str] = {}
@@ -111,6 +113,16 @@ class TelemetryProcessor:
         payload: bytes | str,
         *,
         received_at: datetime | None = None,
+    ) -> ProcessResult:
+        with self._lock:
+            return self._process_locked(topic, payload, received_at=received_at)
+
+    def _process_locked(
+        self,
+        topic: str,
+        payload: bytes | str,
+        *,
+        received_at: datetime | None,
     ) -> ProcessResult:
         now = received_at or _utc_now()
 
@@ -211,6 +223,10 @@ class TelemetryProcessor:
 
     def restore_canonical(self, topic: str, payload: bytes | str) -> RestoreResult:
         """Restore in-memory lifecycle state from retained canonical telemetry."""
+        with self._lock:
+            return self._restore_canonical_locked(topic, payload)
+
+    def _restore_canonical_locked(self, topic: str, payload: bytes | str) -> RestoreResult:
         try:
             parsed_topic = parse_canonical_telemetry_topic(topic)
         except ValueError as exc:
@@ -286,32 +302,34 @@ class TelemetryProcessor:
         )
 
     def stale_messages(self, *, now: datetime | None = None) -> tuple[PublishMessage, ...]:
-        current = now or _utc_now()
-        messages: list[PublishMessage] = []
+        with self._lock:
+            current = now or _utc_now()
+            messages: list[PublishMessage] = []
 
-        for node_id, last_seen in self._last_seen.items():
-            if current - last_seen <= self.stale_after:
-                continue
-            if self._availability.get(node_id) == "unavailable":
-                continue
+            for node_id, last_seen in self._last_seen.items():
+                if current - last_seen <= self.stale_after:
+                    continue
+                if self._availability.get(node_id) == "unavailable":
+                    continue
 
-            self._availability[node_id] = "unavailable"
-            messages.append(
-                PublishMessage(
-                    topic=availability_topic(self.system_id, node_id),
-                    payload={
-                        "schema": "gh.availability/1",
-                        "node_id": node_id,
-                        "state": "unavailable",
-                        "last_seen": _rfc3339(last_seen),
-                        "evaluated_at": _rfc3339(current),
-                    },
+                self._availability[node_id] = "unavailable"
+                messages.append(
+                    PublishMessage(
+                        topic=availability_topic(self.system_id, node_id),
+                        payload={
+                            "schema": "gh.availability/1",
+                            "node_id": node_id,
+                            "state": "unavailable",
+                            "last_seen": _rfc3339(last_seen),
+                            "evaluated_at": _rfc3339(current),
+                        },
+                    )
                 )
-            )
 
-        return tuple(messages)
+            return tuple(messages)
 
     def mark_unavailable_publish_failed(self, node_id: str) -> None:
         """Allow a failed unavailable publish to be retried on the next stale scan."""
-        if self._availability.get(node_id) == "unavailable":
-            self._availability[node_id] = "online"
+        with self._lock:
+            if self._availability.get(node_id) == "unavailable":
+                self._availability[node_id] = "online"

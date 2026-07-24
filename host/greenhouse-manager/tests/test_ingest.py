@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
+from threading import Barrier
 
 from greenhouse_manager.ingest import TelemetryProcessor
 
@@ -189,3 +191,43 @@ def test_retries_unavailable_after_publish_failure() -> None:
     assert len(retry) == 1
     assert retry[0].topic == first[0].topic
     assert retry[0].payload["state"] == "unavailable"
+
+
+def test_process_and_stale_scans_are_thread_safe_and_keep_latest_last_seen() -> None:
+    processor = TelemetryProcessor(system_id="dev", stale_after_s=180)
+    node_ids = tuple(f"node_{index:04d}" for index in range(32))
+    rounds = 32
+    start = Barrier(2)
+
+    def write_telemetry() -> None:
+        start.wait()
+        for sequence in range(rounds):
+            observed_at = NOW + timedelta(seconds=sequence)
+            for node_id in node_ids:
+                payload = valid_payload()
+                payload["node_id"] = node_id
+                payload["seq"] = 1000 + sequence
+                topic = f"gh/v1/dev/ingress/node/{node_id}/telemetry"
+                result = processor.process(topic, json.dumps(payload), received_at=observed_at)
+                assert result.status == "accepted"
+
+    def scan_for_stale_nodes() -> None:
+        start.wait()
+        for offset in range(rounds * len(node_ids) * 2):
+            current = NOW + timedelta(seconds=offset % rounds)
+            assert processor.stale_messages(now=current) == ()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        writer = executor.submit(write_telemetry)
+        scanner = executor.submit(scan_for_stale_nodes)
+        writer.result()
+        scanner.result()
+
+    latest = NOW + timedelta(seconds=rounds - 1)
+    assert processor.stale_messages(now=latest + timedelta(seconds=180)) == ()
+
+    stale = processor.stale_messages(now=latest + timedelta(seconds=181))
+    assert {message.payload["node_id"] for message in stale} == set(node_ids)
+    assert {message.payload["last_seen"] for message in stale} == {
+        latest.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    }
