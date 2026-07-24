@@ -40,11 +40,53 @@ jobs:
           echo '5afa0f77d5d815f00b14afbcc3b974037c5ba10c9bdcdcffa196b55e403b5cd8  firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3_prepare/stage2d9_g3_partitions_20260722_v65.csv' | sha256sum -c -
       - name: Install pinned ESPHome
         run: python -m pip install -q "esphome==2026.4.3"
-      - name: Capture deterministic Python environment
-        id: environment
+      - name: Bind ESPHome build clock to SOURCE_DATE_EPOCH
+        id: reproducible_time
         run: |
           set -euo pipefail
-          python -m pip freeze --all | LC_ALL=C sort > /tmp/stage2d9r-python-environment.txt
+          python - <<'PY' | tee /tmp/stage2d9r-esphome-time-patch.txt
+          import hashlib
+          import os
+          from pathlib import Path
+          import esphome.writer
+
+          path = Path(esphome.writer.__file__).resolve(strict=True)
+          text = path.read_text(encoding='utf-8')
+          old = (
+              '    build_time = int(time.time())\n'
+              '    build_time_str = time.strftime("%Y-%m-%d %H:%M:%S %z", time.localtime(build_time))\n'
+          )
+          new = (
+              '    source_date_epoch = os.environ.get("SOURCE_DATE_EPOCH")\n'
+              '    build_time = int(source_date_epoch) if source_date_epoch is not None else int(time.time())\n'
+              '    build_time_str = time.strftime("%Y-%m-%d %H:%M:%S %z", time.localtime(build_time))\n'
+          )
+          if text.count(old) != 1:
+              raise RuntimeError('ESPHome writer build-time source is not the reviewed 2026.4.3 form')
+          patched = text.replace(old, new)
+          path.write_text(patched, encoding='utf-8')
+          observed = hashlib.sha256(path.read_bytes()).hexdigest()
+          epoch = os.environ.get('SOURCE_DATE_EPOCH')
+          if epoch != '1784851200':
+              raise RuntimeError('SOURCE_DATE_EPOCH binding changed')
+          print(f'writer_path={path}')
+          print(f'esphome_writer_sha256={observed}')
+          print(f'source_date_epoch={epoch}')
+          PY
+          writer_hash="$(sed -n 's/^esphome_writer_sha256=//p' /tmp/stage2d9r-esphome-time-patch.txt)"
+          test "${#writer_hash}" = 64
+          echo "esphome_writer_sha256=$writer_hash" >> "$GITHUB_OUTPUT"
+      - name: Capture deterministic Python environment
+        id: environment
+        env:
+          ESPHOME_WRITER_SHA256: ${{ steps.reproducible_time.outputs.esphome_writer_sha256 }}
+        run: |
+          set -euo pipefail
+          {
+            python -m pip freeze --all
+            echo "esphome-writer-patched-sha256==$ESPHOME_WRITER_SHA256"
+            echo "source-date-epoch==$SOURCE_DATE_EPOCH"
+          } | LC_ALL=C sort > /tmp/stage2d9r-python-environment.txt
           digest="$(sha256sum /tmp/stage2d9r-python-environment.txt | awk '{print $1}')"
           workflow_digest="$(sha256sum .github/workflows/h3-n2-stage2d9r-immutable-build-reusable.yml | awk '{print $1}')"
           echo "python_environment_sha256=$digest" >> "$GITHUB_OUTPUT"
@@ -63,6 +105,12 @@ jobs:
           esphome compile greenhouse_profile_isolated_device_g3r_immutable_20260724_v1.yml \
             2>&1 | tee /tmp/stage2d9r-immutable-${{ inputs.lane }}-compile.log
           grep -F 'INFO Successfully compiled program.' /tmp/stage2d9r-immutable-${{ inputs.lane }}-compile.log
+      - name: Verify deterministic build timestamp
+        run: |
+          set -euo pipefail
+          app='firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/.esphome/build/gh-2d9r-g3r-i1/.pioenvs/gh-2d9r-g3r-i1/firmware.bin'
+          test -f "$app"
+          strings "$app" | grep -Fx '2026-07-24 00:00:00 +0000'
       - name: Package deterministic public-only firmware payload
         env:
           BUILD_LANE: ${{ inputs.lane }}
@@ -113,6 +161,7 @@ jobs:
           printf '%s\n' \
             'STAGE2D9R_IMMUTABLE_BUILD_UPLOAD=PASS' \
             'LANE=${{ inputs.lane }}' \
+            'SOURCE_DATE_EPOCH=1784851200' \
             'EXECUTION_AUTHORIZED=false' \
             'BOARD_OPERATION_AUTHORIZED=false' \
             'NETWORK_OPERATION_AUTHORIZED=false' \
@@ -127,4 +176,7 @@ jobs:
           rm -rf \
             firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/.esphome \
             /tmp/stage2d9r-immutable-build-${{ inputs.lane }}
-          rm -f /tmp/stage2d9r-immutable-${{ inputs.lane }}-*.log /tmp/stage2d9r-python-environment.txt
+          rm -f \
+            /tmp/stage2d9r-immutable-${{ inputs.lane }}-*.log \
+            /tmp/stage2d9r-python-environment.txt \
+            /tmp/stage2d9r-esphome-time-patch.txt
