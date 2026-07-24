@@ -1,0 +1,4 @@
+# Stage 2D-10 G4 template only. The rendered ACL contains exactly one private
+# test identity and one isolated topic root.
+user <TEST_USERNAME>
+topic readwrite gh-test/<TEST_RUN_ID>/#

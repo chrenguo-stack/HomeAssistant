@@ -1,0 +1,109 @@
+name: H3 N2 Stage2D10 G4 Test Matrix Diagnostic CI
+
+on:
+  push:
+    branches:
+      - feature/h3-n2-stage2d10-g4-activate-profile-20260723-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d10-g4-test-matrix-diagnostic-ci.yml"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation/**"
+      - "tests/h3_n2_stage2d10_activate/**"
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d10-g4-test-matrix-diagnostic-ci.yml"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation/**"
+      - "tests/h3_n2_stage2d10_activate/**"
+
+permissions:
+  contents: read
+
+jobs:
+  isolate-host-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        test_name:
+          - test_config_and_default_off_boundary
+          - test_recover_prepared_is_read_only_and_network_silent
+          - test_recover_requires_key
+          - test_recover_rejects_wrong_state_and_generation
+          - test_recover_rejects_candidate_mismatch_and_write_drift
+          - test_validation_success_and_failure
+          - test_activation_requires_fresh_authorization
+          - test_stale_package_authorization_is_rejected
+          - test_one_layer_consumption_is_terminal
+          - test_activation_start_failure_rolls_back_prepared
+          - test_clear_commit_failure_rolls_back_prepared
+          - test_marker_ambiguity_and_marker_last_failure_are_terminal
+          - test_active_recovery_mismatch_and_promotion_failure_are_terminal
+          - test_success_and_authorization_non_replay
+          - test_post_reboot_read_only_verification_fresh_process
+    name: diagnose-${{ matrix.test_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          show-progress: false
+      - name: Build isolated test
+        env:
+          TEST_NAME: ${{ matrix.test_name }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          import re
+
+          test_name = os.environ["TEST_NAME"]
+          source_path = Path(
+              "tests/h3_n2_stage2d10_activate/"
+              "stage2d10_g4_activation_fault_matrix_runner_20260723_v2.cpp"
+          )
+          source = source_path.read_text(encoding="utf-8")
+          replacement = (
+              "int main() {\n"
+              f"  {test_name}();\n"
+              f'  std::cout << "{test_name}=pass\\n";\n'
+              "  return 0;\n"
+              "}\n"
+          )
+          updated, count = re.subn(
+              r"int main\(\) \{.*?\n\}",
+              lambda _match: replacement,
+              source,
+              count=1,
+              flags=re.DOTALL,
+          )
+          if count != 1:
+              raise SystemExit("main replacement failed")
+          Path("/tmp/stage2d10-g4-isolated-test-v2.cpp").write_text(
+              updated, encoding="utf-8"
+          )
+          PY
+          pairing=firmware/esphome_rc/components/greenhouse_pairing_client
+          package=firmware/esphome_rc/components/greenhouse_profile_isolated_acceptance
+          driver=firmware/esphome_rc/components/greenhouse_profile_isolated_device_driver
+          g4=firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation
+          tests=tests/h3_n2_stage2d10_activate
+          g++ -std=gnu++20 -Wall -Wextra -Wpedantic -Werror \
+            -Wno-unused-function \
+            -I "$pairing" -I "$package" -I "$driver" -I "$g4" -I "$tests" \
+            "$pairing/pairing_client_core.cpp" \
+            "$pairing/secure_pairing_channel.cpp" \
+            "$pairing/secure_pairing_channel_encoding.cpp" \
+            "$pairing/secure_pairing_channel_crypto.cpp" \
+            "$pairing/pairing_ram_credentials.cpp" \
+            "$package/isolated_acceptance_package.cpp" \
+            "$driver/isolated_device_driver.cpp" \
+            "$g4/stage2d10_g4_activation_coordinator.cpp" \
+            /tmp/stage2d10-g4-isolated-test-v2.cpp \
+            -lcrypto -o /tmp/stage2d10-g4-isolated-test-v2
+      - name: Run isolated test
+        env:
+          TEST_NAME: ${{ matrix.test_name }}
+        run: |
+          set -euo pipefail
+          /tmp/stage2d10-g4-isolated-test-v2
+          echo "STAGE2D10_G4_ISOLATED_TEST=${TEST_NAME}:PASS"
