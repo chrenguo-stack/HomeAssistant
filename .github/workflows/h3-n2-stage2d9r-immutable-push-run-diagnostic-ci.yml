@@ -1,0 +1,104 @@
+name: H3 N2 Stage2D9R Immutable Push Run Diagnostic CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-immutable-push-run-diagnostic-ci.yml"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  immutable-push-run-diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - name: Capture exact push workflow states
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: 3ef5df85e2ebc5bae6c8eb75028ee2f8e4f5dcea
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/stage2d9r-immutable-push-diagnostic
+          python - <<'PY'
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+
+          workflows = {
+              'build_a': 'h3-n2-stage2d9r-immutable-build-a.yml',
+              'build_b': 'h3-n2-stage2d9r-immutable-build-b.yml',
+              'freeze': 'h3-n2-stage2d9r-immutable-build-freeze.yml',
+          }
+          target = os.environ['TARGET_SHA']
+          result = {
+              'schema': 'gh.h3.n2.stage2d9r-immutable-push-run-diagnostic/1',
+              'stage': 'H3/N2 Stage 2D-9R G3R',
+              'target_sha': target,
+              'runs': {},
+              'private_values_included': False,
+              'private_paths_included': False,
+              'execution_authorized': False,
+              'board_operation_authorized': False,
+              'network_operation_authorized': False,
+          }
+          for key, workflow in workflows.items():
+              cp = subprocess.run(
+                  [
+                      'gh', 'api', '--method', 'GET',
+                      f'repos/{os.environ["GITHUB_REPOSITORY"]}/actions/workflows/{workflow}/runs',
+                      '-f', f'head_sha={target}',
+                      '-f', 'event=push',
+                      '-f', 'per_page=20',
+                  ],
+                  text=True,
+                  capture_output=True,
+                  check=True,
+              )
+              data = json.loads(cp.stdout)
+              runs = sorted(
+                  (run for run in data['workflow_runs'] if run['head_sha'] == target),
+                  key=lambda run: run['id'],
+              )
+              if not runs:
+                  result['runs'][key] = {'present': False}
+                  continue
+              run = runs[-1]
+              result['runs'][key] = {
+                  'present': True,
+                  'id': run['id'],
+                  'status': run['status'],
+                  'conclusion': run.get('conclusion'),
+                  'event': run['event'],
+                  'head_sha': run['head_sha'],
+                  'run_number': run['run_number'],
+                  'html_url': run['html_url'],
+              }
+              if run['status'] == 'completed' and run.get('conclusion') != 'success':
+                  log = subprocess.run(
+                      ['gh', 'run', 'view', str(run['id']), '--repo', os.environ['GITHUB_REPOSITORY'], '--log-failed'],
+                      text=True,
+                      capture_output=True,
+                      check=False,
+                  )
+                  (Path('/tmp/stage2d9r-immutable-push-diagnostic') / f'{key}-failed.log').write_text(
+                      log.stdout + '\nSTDERR\n' + log.stderr,
+                      encoding='utf-8',
+                  )
+          output = Path('/tmp/stage2d9r-immutable-push-diagnostic/push-runs.json')
+          output.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          output.chmod(0o600)
+          print(json.dumps(result, sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-immutable-push-run-diagnostic-v1
+          path: /tmp/stage2d9r-immutable-push-diagnostic
+          if-no-files-found: error
+          retention-days: 2
+          compression-level: 0

@@ -1,0 +1,128 @@
+name: H3 N2 Stage2D9R Private Command Material Probe Package CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-private-command-material-probe-package-ci.yml"
+      - "tools/h3_n2_stage2d9r_private_command_material_generator_20260724_v1.py"
+      - "tools/h3_n2_stage2d9r_private_command_material_gate_20260724_v1.py"
+      - "docs/development/h3-n2-stage2d9r-private-command-material-u1-review-20260724-v1.md"
+  push:
+    branches:
+      - feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-private-command-material-probe-package-ci.yml"
+      - "tools/h3_n2_stage2d9r_private_command_material_generator_20260724_v1.py"
+      - "tools/h3_n2_stage2d9r_private_command_material_gate_20260724_v1.py"
+      - "docs/development/h3-n2-stage2d9r-private-command-material-u1-review-20260724-v1.md"
+
+permissions:
+  contents: read
+
+jobs:
+  build-read-only-probe-package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Verify frozen source checkpoint
+        run: |
+          set -euo pipefail
+          echo '60628bf274fdcca05e8644b30510f6abde2129a57e3e49ca5a12db30d7129563  tools/h3_n2_stage2d9r_private_command_material_generator_20260724_v1.py' | sha256sum -c -
+          echo '512fb70c14d3ad983055fde4e85cb3814445df3ad7b5555695cc6c54575b4a6e  tools/h3_n2_stage2d9r_private_command_material_gate_20260724_v1.py' | sha256sum -c -
+      - name: Build read-only probe review package
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          umask 077
+          ROOT='stage2d9r-private-command-material-toolchain-probe-review-v1'
+          LAUNCHER='run_stage2d9r_command_material_toolchain_probe_20260724_6e18c2af.sh'
+          rm -rf "$ROOT"
+          mkdir -p "$ROOT/tools"
+          cp tools/h3_n2_stage2d9r_private_command_material_generator_20260724_v1.py "$ROOT/tools/"
+          cp tools/h3_n2_stage2d9r_private_command_material_gate_20260724_v1.py "$ROOT/tools/"
+          cat > "$ROOT/$LAUNCHER" <<'SH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          umask 077
+          ROOT="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)"
+          GEN="$ROOT/tools/h3_n2_stage2d9r_private_command_material_generator_20260724_v1.py"
+          GATE="$ROOT/tools/h3_n2_stage2d9r_private_command_material_gate_20260724_v1.py"
+          PYTHON="$(command -v python3)"
+          test -x "$PYTHON"
+          test "$(shasum -a 256 "$GEN" | awk '{print $1}')" = '60628bf274fdcca05e8644b30510f6abde2129a57e3e49ca5a12db30d7129563'
+          test "$(shasum -a 256 "$GATE" | awk '{print $1}')" = '512fb70c14d3ad983055fde4e85cb3814445df3ad7b5555695cc6c54575b4a6e'
+          echo 'IMPLEMENTATION_BINDING=3d3b67cac008adf30e90a51e891d0dd53b36df69'
+          "$PYTHON" "$GEN" --probe-toolchain
+          SH
+          chmod 700 "$ROOT/$LAUNCHER"
+          cat > "$ROOT/README.md" <<'EOF'
+          # Stage 2D-9R private command-material read-only probe
+
+          This package performs a read-only Python executable and private-custody-root probe.
+          It does not generate an unlock token, create a custody directory, claim an authorization,
+          start a Broker, open a network socket, access a board, or issue a firmware command.
+
+          Do not add `--execute`. Run only the supplied launcher once for the read-only probe.
+          EOF
+          python - "$ROOT" "$PR_HEAD_SHA" <<'PY'
+          import json, sys
+          from pathlib import Path
+          root = Path(sys.argv[1])
+          data = {
+              'schema': 'gh.h3.n2.stage2d9r-private-command-material-probe-package/1',
+              'stage': 'H3/N2 Stage 2D-9R G3R',
+              'artifact_source_sha': sys.argv[2],
+              'implementation_binding': '3d3b67cac008adf30e90a51e891d0dd53b36df69',
+              'generator_sha256': '60628bf274fdcca05e8644b30510f6abde2129a57e3e49ca5a12db30d7129563',
+              'gate_sha256': '512fb70c14d3ad983055fde4e85cb3814445df3ad7b5555695cc6c54575b4a6e',
+              'custody_root_selection_rule': 'HOME_LOCAL_STATE_STAGE2D9R_PRIVATE_COMMAND_MATERIAL_V1',
+              'test_run_suffix': 'tlsvalid01',
+              'read_only': True,
+              'private_generation_authorized': False,
+              'board_operation_authorized': False,
+              'network_operation_authorized': False,
+              'broker_operation_authorized': False,
+              'prepare_authorized': False,
+              'verify_authorized': False,
+          }
+          (root/'PROBE_PACKAGE_BINDING.json').write_text(json.dumps(data, indent=2, sort_keys=True)+'\n')
+          PY
+          (
+            cd "$ROOT"
+            sha256sum README.md PROBE_PACKAGE_BINDING.json "$LAUNCHER" tools/*.py > SHA256SUMS
+          )
+      - name: Verify package remains read-only
+        run: |
+          set -euo pipefail
+          ROOT='stage2d9r-private-command-material-toolchain-probe-review-v1'
+          LAUNCHER='run_stage2d9r_command_material_toolchain_probe_20260724_6e18c2af.sh'
+          test -x "$ROOT/$LAUNCHER"
+          ! grep -F -- '--execute' "$ROOT/$LAUNCHER"
+          ! grep -F 'secrets.token_hex' "$ROOT/$LAUNCHER"
+          ! grep -F 'mosquitto' "$ROOT/$LAUNCHER"
+          python "$ROOT/tools/h3_n2_stage2d9r_private_command_material_generator_20260724_v1.py" \
+            --probe-toolchain \
+            | tee /tmp/stage2d9r-command-material-probe-v1.log
+          grep -F '"secret_values_included": false' /tmp/stage2d9r-command-material-probe-v1.log
+          grep -F '"board_operation": false' /tmp/stage2d9r-command-material-probe-v1.log
+          grep -F '"network_operation": false' /tmp/stage2d9r-command-material-probe-v1.log
+          grep -F '"broker_started": false' /tmp/stage2d9r-command-material-probe-v1.log
+      - name: Upload read-only probe review package
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-private-command-material-toolchain-probe-review-v1
+          path: stage2d9r-private-command-material-toolchain-probe-review-v1
+          if-no-files-found: error
+          retention-days: 30
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf stage2d9r-private-command-material-toolchain-probe-review-v1
+          rm -f /tmp/stage2d9r-command-material-probe-v1.log

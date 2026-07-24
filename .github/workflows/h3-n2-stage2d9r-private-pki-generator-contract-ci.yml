@@ -1,0 +1,159 @@
+name: H3 N2 Stage2D9R Private PKI Generator Contract CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-private-pki-generator-contract-ci.yml"
+      - "tools/h3_n2_stage2d9r_private_pki_generator_20260723_v1.py"
+      - "tools/h3_n2_stage2d9r_private_pki_custody_gate_20260723_v1.py"
+      - "tools/h3_n2_stage2d9r_prepare_command_protocol_20260723_v1.py"
+      - "tools/h3_n2_stage2d9r_tls_public_binding_builder_20260723_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_pki_generator_20260723_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_private_pki_custody_descriptor_20260723_v1.json.template"
+      - "docs/development/h3-n2-stage2d9r-private-pki-policy-20260723-v1.md"
+      - "docs/development/h3-n2-stage2d9r-private-pki-u1-review-20260723-v1.md"
+      - "docs/acceptance/h3-n2-stage2d9r-private-pki-u1-generation-l1-v1.json"
+      - "docs/status/STAGE_STATUS_H3_N2_STAGE2D9R_G3R_20260723.md"
+  push:
+    branches:
+      - feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-private-pki-generator-contract-ci.yml"
+      - "tools/h3_n2_stage2d9r_private_pki_generator_20260723_v1.py"
+      - "tools/h3_n2_stage2d9r_private_pki_custody_gate_20260723_v1.py"
+      - "tools/h3_n2_stage2d9r_prepare_command_protocol_20260723_v1.py"
+      - "tools/h3_n2_stage2d9r_tls_public_binding_builder_20260723_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_pki_generator_20260723_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_private_pki_custody_descriptor_20260723_v1.json.template"
+      - "docs/development/h3-n2-stage2d9r-private-pki-policy-20260723-v1.md"
+      - "docs/development/h3-n2-stage2d9r-private-pki-u1-review-20260723-v1.md"
+      - "docs/acceptance/h3-n2-stage2d9r-private-pki-u1-generation-l1-v1.json"
+      - "docs/status/STAGE_STATUS_H3_N2_STAGE2D9R_G3R_20260723.md"
+
+permissions:
+  contents: read
+
+jobs:
+  offline-generator-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Verify frozen reviewed source digests
+        run: |
+          set -euo pipefail
+          echo 'a9be0c96fd58882b3778886515076f6aae5940c0ac195fc629ed1ebe708265d0  tools/h3_n2_stage2d9r_private_pki_generator_20260723_v1.py' | sha256sum -c -
+          echo '6063bdba137f703b967bbc6324bafeda73e990978cdeba1968cc3d4fd08fba6d  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_pki_generator_20260723_v1.py' | sha256sum -c -
+      - name: Compile generator and bound source contracts
+        run: |
+          python -m py_compile \
+            tools/h3_n2_stage2d9r_private_pki_generator_20260723_v1.py \
+            tools/h3_n2_stage2d9r_private_pki_custody_gate_20260723_v1.py \
+            tools/h3_n2_stage2d9r_prepare_command_protocol_20260723_v1.py \
+            tools/h3_n2_stage2d9r_tls_public_binding_builder_20260723_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_pki_generator_20260723_v1.py
+      - name: Run deterministic generator contract matrix
+        run: |
+          set -euo pipefail
+          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_pki_generator_20260723_v1.py \
+            -v 2>&1 | tee /tmp/stage2d9r-private-pki-generator-contract-v1.log
+          grep -F 'Ran 12 tests' /tmp/stage2d9r-private-pki-generator-contract-v1.log
+          grep -F 'OK' /tmp/stage2d9r-private-pki-generator-contract-v1.log
+      - name: Verify U1 generation public closure
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          p = Path('docs/acceptance/h3-n2-stage2d9r-private-pki-u1-generation-l1-v1.json')
+          data = json.loads(p.read_text(encoding='utf-8'))
+          assert data['schema'] == 'gh.h3.n2.stage2d9r-private-pki-u1-generation-l1/1'
+          assert data['authorization_id'] == 'U1-H3N2-STAGE2D9R-PRIVATE-PKI-20260723-01'
+          assert data['result'] == 'passed_consumed_retired'
+          assert data['source_sha'] == '94f116ec99a7ba8b1da250f93b323f260c7ff5a6'
+          auth = data['authorization']
+          assert auth['authorized_execution_package_sha256'] == 'd2646f6bdec22e55b3a1456043f7a63601d58bd5503a609713417e5ac4cc0f87'
+          assert auth['authorization_record_sha256'] == '1764d202e294d4e3125d7f641f2a0068768f38104dfb6273bddfb3789268f770'
+          assert auth['authorization_binding_sha256'] == '546645b4d21bfd7882f22284200582d64abb3a71466f5fcb8e11d43ac8896ad6'
+          assert auth['consumed'] is True
+          assert auth['replay_permitted'] is False
+          assert auth['automatic_retry_permitted'] is False
+          bindings = data['generated_public_bindings']
+          assert bindings['private_package_sha256'] == '0632b37a70aa2eae416c48ffa9420a8f1e13788c22a7d12e211f77cf6e78a267'
+          assert bindings['public_descriptor_sha256'] == '93bb071a5bf6f58472ac9e3891c2330dd9de6f05410824ad2fb51829267b4540'
+          assert bindings['ca_pem_sha256'] == 'cfcb6638ed61731270f3bf8e9e262c1512fbca8ff34d4b08b62186453233e963'
+          assert bindings['candidate_digest_sha256'] == 'f22144e37372b883b7a38d07eff2980a865108cf7c8fed9bfdb9f198a030b5c5'
+          assert all(data['offline_proofs'].values())
+          assert all(value is False for value in data['protected_boundaries'].values())
+          assert all(value is False for value in data['privacy'].values())
+          assert data['disposition']['u1_authorization_retired'] is True
+          assert data['disposition']['future_u1_replay_authorized'] is False
+          assert data['disposition']['future_board_action_authorized'] is False
+          PY
+      - name: Verify fail-closed execution and isolation boundary
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('tools/h3_n2_stage2d9r_private_pki_generator_20260723_v1.py')
+          text = path.read_text(encoding='utf-8')
+          for required in (
+              'generation requires explicit --execute',
+              'authorization record required',
+              'authorization already claimed or consumed',
+              'custody root selection rule mismatch',
+              'listener 8883 127.0.0.1',
+              'allow_anonymous false',
+              'persistence false',
+              'BROKER_STARTED=false',
+              'NETWORK_OPERATION=false',
+              'BOARD_OPERATION=false',
+              'private_paths_included',
+              'secret_values_included',
+          ):
+              if required not in text:
+                  raise SystemExit(f'generator safety binding missing: {required}')
+
+          for prohibited in (
+              'import socket',
+              'from socket import',
+              'requests.',
+              'urllib.request',
+              'esptool',
+              'serial.Serial',
+              'subprocess.Popen(["mosquitto"',
+              'systemctl',
+              'docker ',
+              'homeassistant',
+              'greenhouse-manager',
+              'CLEANUP_TEST_STATE',
+              'ACTIVATE_PROFILE ',
+          ):
+              if prohibited in text:
+                  raise SystemExit(f'generator exposes prohibited operation: {prohibited}')
+          PY
+      - name: Verify default invocation cannot generate
+        run: |
+          set +e
+          python tools/h3_n2_stage2d9r_private_pki_generator_20260723_v1.py \
+            > /tmp/stage2d9r-private-pki-generator-default-v1.log 2>&1
+          rc=$?
+          set -e
+          test "$rc" -ne 0
+          grep -Fx 'STAGE2D9R_PRIVATE_PKI_GENERATION=FAIL' /tmp/stage2d9r-private-pki-generator-default-v1.log
+          grep -Fx 'SECRET_VALUES_INCLUDED=false' /tmp/stage2d9r-private-pki-generator-default-v1.log
+          grep -Fx 'BOARD_OPERATION=false' /tmp/stage2d9r-private-pki-generator-default-v1.log
+          grep -Fx 'NETWORK_OPERATION=false' /tmp/stage2d9r-private-pki-generator-default-v1.log
+          grep -Fx 'BROKER_STARTED=false' /tmp/stage2d9r-private-pki-generator-default-v1.log
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -f \
+            /tmp/stage2d9r-private-pki-generator-contract-v1.log \
+            /tmp/stage2d9r-private-pki-generator-default-v1.log

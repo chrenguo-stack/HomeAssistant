@@ -1,0 +1,214 @@
+name: H3 N2 Stage2D9R Immutable Build Closure CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-immutable-build-closure-ci.yml"
+      - "tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_immutable_build_manifest_20260724_v1.json"
+      - "docs/acceptance/h3-n2-stage2d9r-immutable-build-observer-l1-v1.json"
+      - "tools/h3_n2_stage2d9r_immutable_build_manifest_gate_20260723_v1.py"
+  push:
+    branches:
+      - feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-immutable-build-closure-ci.yml"
+      - "tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_immutable_build_manifest_20260724_v1.json"
+      - "docs/acceptance/h3-n2-stage2d9r-immutable-build-observer-l1-v1.json"
+      - "tools/h3_n2_stage2d9r_immutable_build_manifest_gate_20260723_v1.py"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  immutable-build-closure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Verify committed immutable closure digests
+        run: |
+          set -euo pipefail
+          echo '1de4afeb3d29d5112c5b987eec99d15b13639e96c176b6a08c28e6763d514aeb  tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_immutable_build_manifest_20260724_v1.json' | sha256sum -c -
+          echo 'd2026ec904f6ccf63a20b75d97acadabddf63cba50f6e5f615132defd6c60dfc  docs/acceptance/h3-n2-stage2d9r-immutable-build-observer-l1-v1.json' | sha256sum -c -
+      - name: Validate immutable manifest and observer binding
+        run: |
+          set -euo pipefail
+          manifest=tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_immutable_build_manifest_20260724_v1.json
+          observer=docs/acceptance/h3-n2-stage2d9r-immutable-build-observer-l1-v1.json
+          python tools/h3_n2_stage2d9r_immutable_build_manifest_gate_20260723_v1.py \
+            --manifest "$manifest" \
+            --expect-state BUILD_FROZEN \
+            | tee /tmp/stage2d9r-immutable-build-closure-gate.log
+          grep -Fx 'STAGE2D9R_IMMUTABLE_BUILD_GATE=PASS' /tmp/stage2d9r-immutable-build-closure-gate.log
+          grep -Fx 'STATE=BUILD_FROZEN' /tmp/stage2d9r-immutable-build-closure-gate.log
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          manifest_path = Path(
+              'tests/h3_n2_stage2d9r_tls_candidate/'
+              'stage2d9r_immutable_build_manifest_20260724_v1.json'
+          )
+          observer_path = Path(
+              'docs/acceptance/'
+              'h3-n2-stage2d9r-immutable-build-observer-l1-v1.json'
+          )
+          manifest_bytes = manifest_path.read_bytes()
+          observer_bytes = observer_path.read_bytes()
+          manifest = json.loads(manifest_bytes)
+          observer = json.loads(observer_bytes)
+
+          assert hashlib.sha256(manifest_bytes).hexdigest() == '1de4afeb3d29d5112c5b987eec99d15b13639e96c176b6a08c28e6763d514aeb'
+          assert hashlib.sha256(observer_bytes).hexdigest() == 'd2026ec904f6ccf63a20b75d97acadabddf63cba50f6e5f615132defd6c60dfc'
+          assert manifest['schema'] == 'gh.h3.n2.stage2d9r-immutable-build-manifest/1'
+          assert manifest['stage'] == 'H3/N2 Stage 2D-9R G3R'
+          assert manifest['state'] == 'BUILD_FROZEN'
+          assert manifest['source_sha'] == 'c9e8447c24b0f09f3eac3f56791f2346e8aa5d61'
+          assert manifest['build_binding'] == 'b39f20c55b865ec87eb650d620fd1a82b930c1ad'
+          assert manifest['compile_run_ids'] == [30062650179, 30062650177]
+          assert manifest['compile_workflow_sha256'] == 'ce2c0974588ac6563df0407d4dc36d7e932e29e1bfa01ea00642af8b666ca3e0'
+          assert manifest['python_environment_sha256'] == 'cd745682b9e14fe8f96c7477f3ee1ee217ae9d4a138f5c84cb3eaaea175ddea6'
+          assert manifest['reproducibility'] == {
+              'clean_build_count': 2,
+              'all_firmware_hashes_identical': True,
+              'all_manifest_hashes_identical': True,
+          }
+
+          artifact = manifest['artifact']
+          assert artifact == {
+              'artifact_id': 8585140964,
+              'artifact_name': 'stage2d9r-g3r-immutable-locked-v1',
+              'artifact_sha256': '5dbe763fe411728533018dd324075f5287ee3542f8351113d54ec80a7042f1d3',
+              'expired': False,
+              'manifest_digest_algorithm': 'sha256-canonical-json-without-artifact.manifest_sha256-v1',
+              'manifest_sha256': '76d382c491e7c8c73ffff6925ee76b29f9e44d17a15983900e79832b9a5054f7',
+          }
+          copy = json.loads(json.dumps(manifest))
+          copy['artifact'].pop('manifest_sha256')
+          calculated = hashlib.sha256(json.dumps(
+              copy, sort_keys=True, separators=(',', ':'), ensure_ascii=False
+          ).encode()).hexdigest()
+          assert calculated == artifact['manifest_sha256']
+
+          assert manifest['candidate_bindings'] == {
+              'broker_host': 'stage2d9r.local',
+              'broker_tls_server_name': 'stage2d9r.local',
+              'ca_pem_sha256': 'cfcb6638ed61731270f3bf8e9e262c1512fbca8ff34d4b08b62186453233e963',
+              'candidate_digest_sha256': 'f22144e37372b883b7a38d07eff2980a865108cf7c8fed9bfdb9f198a030b5c5',
+              'unlock_digest_sha256': '3650d44f8761f21dc1931fbd9b6ba6a1d9da92ffa469b3d4f98ee5411a6809e3',
+          }
+          assert manifest['partition'] == {
+              'address': 4194304,
+              'label': 'gh2d8_p2d9',
+              'size_bytes': 65536,
+              'table_sha256': '5afa0f77d5d815f00b14afbcc3b974037c5ba10c9bdcdcffa196b55e403b5cd8',
+          }
+          assert manifest['firmware'] == {
+              'application_sha256': '7651a6476cd48dda6aa5e400695e126b91141c95fca5b74d879f65f2058d1630',
+              'bootloader_sha256': '330c91761398f5f38ede9a41458ada73573c9e53c8b562087219fa36823bf9dc',
+              'flash_offsets': {'application': 65536, 'bootloader': 0, 'partition_table': 32768},
+              'merged_image_sha256': 'ea6af469ad7ae103d40a551f482fc18d1f2afc9ed75933481f1802f0a7b2916f',
+              'merged_image_size': 574032,
+              'partition_table_bin_sha256': 'b3964cbbd811d5fa5866638585fa410b53fc74e70a8f92491f43fce0b7a70268',
+          }
+
+          assert observer['schema'] == 'gh.h3.n2.stage2d9r-immutable-build-observer-l1/1'
+          assert observer['result'] == 'passed_read_only'
+          assert observer['source_sha'] == manifest['source_sha']
+          assert observer['build_a_run_id'] == manifest['compile_run_ids'][0]
+          assert observer['build_b_run_id'] == manifest['compile_run_ids'][1]
+          assert observer['freeze_run_id'] == 30062650088
+          assert observer['canonical_artifact_id'] == artifact['artifact_id']
+          assert observer['repro_artifact_id'] == 8585137349
+          assert observer['artifact_sha256'] == artifact['artifact_sha256']
+          assert observer['manifest_sha256'] == artifact['manifest_sha256']
+          assert observer['manifest_file_sha256'] == hashlib.sha256(manifest_bytes).hexdigest()
+          assert observer['application_sha256'] == manifest['firmware']['application_sha256']
+          assert observer['merged_image_sha256'] == manifest['firmware']['merged_image_sha256']
+          assert observer['reproducible'] is True
+
+          false_keys = (
+              'private_values_included', 'private_paths_included',
+              'execution_authorized', 'board_operation_authorized',
+              'serial_operation_authorized', 'flash_operation_authorized',
+              'physical_nvs_operation_authorized', 'network_operation_authorized',
+              'broker_operation_authorized', 'prepare_authorized',
+              'verify_authorized', 'activate_authorized', 'cleanup_authorized',
+              'production_operation_authorized', 'ready_authorized',
+              'merge_authorized', 'release_authorized',
+          )
+          for data in (manifest, observer):
+              for key in false_keys:
+                  assert data[key] is False, key
+
+          serialized = manifest_bytes.decode() + observer_bytes.decode()
+          for prohibited in (
+              'BEGIN PRIVATE KEY', 'BEGIN RSA PRIVATE KEY',
+              'BEGIN EC PRIVATE KEY', 'unlock-token.hex',
+              '/private/tmp/', '/Users/',
+          ):
+              assert prohibited not in serialized, prohibited
+          PY
+      - name: Verify referenced GitHub artifacts remain exact and available
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/stage2d9r-immutable-closure-a /tmp/stage2d9r-immutable-closure-b
+          for spec in \
+            '8585140964:stage2d9r-g3r-immutable-locked-v1:30062650179:c9e8447c24b0f09f3eac3f56791f2346e8aa5d61' \
+            '8585137349:stage2d9r-g3r-immutable-repro-v1:30062650177:c9e8447c24b0f09f3eac3f56791f2346e8aa5d61'; do
+            IFS=: read -r artifact_id expected_name expected_run expected_sha <<< "$spec"
+            data="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id")"
+            test "$(jq -r .name <<< "$data")" = "$expected_name"
+            test "$(jq -r .expired <<< "$data")" = false
+            test "$(jq -r .workflow_run.id <<< "$data")" = "$expected_run"
+            test "$(jq -r .workflow_run.head_sha <<< "$data")" = "$expected_sha"
+          done
+          gh run download 30062650179 \
+            --repo "$GITHUB_REPOSITORY" \
+            --name stage2d9r-g3r-immutable-locked-v1 \
+            --dir /tmp/stage2d9r-immutable-closure-a
+          gh run download 30062650177 \
+            --repo "$GITHUB_REPOSITORY" \
+            --name stage2d9r-g3r-immutable-repro-v1 \
+            --dir /tmp/stage2d9r-immutable-closure-b
+          tar_a="$(find /tmp/stage2d9r-immutable-closure-a -type f -name stage2d9r-g3r-immutable-payload-v1.tar -print -quit)"
+          tar_b="$(find /tmp/stage2d9r-immutable-closure-b -type f -name stage2d9r-g3r-immutable-payload-v1.tar -print -quit)"
+          test -n "$tar_a"
+          test -n "$tar_b"
+          test "$(sha256sum "$tar_a" | awk '{print $1}')" = '5dbe763fe411728533018dd324075f5287ee3542f8351113d54ec80a7042f1d3'
+          test "$(sha256sum "$tar_b" | awk '{print $1}')" = '5dbe763fe411728533018dd324075f5287ee3542f8351113d54ec80a7042f1d3'
+          cmp -s "$tar_a" "$tar_b"
+      - name: Report locked immutable closure
+        run: |
+          printf '%s\n' \
+            'STAGE2D9R_IMMUTABLE_BUILD_CLOSURE=PASS' \
+            'SOURCE_SHA=c9e8447c24b0f09f3eac3f56791f2346e8aa5d61' \
+            'CANONICAL_ARTIFACT_ID=8585140964' \
+            'ARTIFACT_SHA256=5dbe763fe411728533018dd324075f5287ee3542f8351113d54ec80a7042f1d3' \
+            'MANIFEST_SHA256=76d382c491e7c8c73ffff6925ee76b29f9e44d17a15983900e79832b9a5054f7' \
+            'APPLICATION_SHA256=7651a6476cd48dda6aa5e400695e126b91141c95fca5b74d879f65f2058d1630' \
+            'MERGED_IMAGE_SHA256=ea6af469ad7ae103d40a551f482fc18d1f2afc9ed75933481f1802f0a7b2916f' \
+            'REPRODUCIBLE=true' \
+            'PRIVATE_VALUES_INCLUDED=false' \
+            'EXECUTION_AUTHORIZED=false' \
+            'BOARD_OPERATION_AUTHORIZED=false' \
+            'NETWORK_OPERATION_AUTHORIZED=false' \
+            'PREPARE_AUTHORIZED=false' \
+            'VERIFY_AUTHORIZED=false' \
+            'READY_AUTHORIZED=false' \
+            'MERGE_AUTHORIZED=false' \
+            'RELEASE_AUTHORIZED=false'
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf /tmp/stage2d9r-immutable-closure-a /tmp/stage2d9r-immutable-closure-b
+          rm -f /tmp/stage2d9r-immutable-build-closure-gate.log

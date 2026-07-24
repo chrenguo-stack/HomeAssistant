@@ -1,0 +1,56 @@
+{
+  "schema": "gh.h3.n2.stage2d9r-private-command-material-toolchain-probe-l1/1",
+  "stage": "H3/N2 Stage 2D-9R G3R",
+  "result": "passed_read_only_with_terminal_tail_noise",
+  "probe_package": {
+    "artifact_id": 8571761445,
+    "artifact_source_sha": "0e7faaaed40433e4b7e0b985f4684b3d126f6948",
+    "artifact_zip_sha256": "914379b7640cf60591211d709f16197d6bff40ed7ab942bfb51468e59fa4407a",
+    "implementation_binding": "3d3b67cac008adf30e90a51e891d0dd53b36df69"
+  },
+  "package_integrity": {
+    "readme_verified": true,
+    "probe_package_binding_verified": true,
+    "launcher_verified": true,
+    "gate_verified": true,
+    "generator_verified": true
+  },
+  "toolchain": {
+    "generator_sha256": "60628bf274fdcca05e8644b30510f6abde2129a57e3e49ca5a12db30d7129563",
+    "gate_sha256": "512fb70c14d3ad983055fde4e85cb3814445df3ad7b5555695cc6c54575b4a6e",
+    "python_executable_sha256": "4e28e811a89aeac6eed668ae641c7f85f5831e42e8dc6cd9a85a3bcc032ec46a",
+    "python_version": "3.11.9 (v3.11.9:de54cf5be3, Apr 2 2024, 07:12:50) [Clang 13.0.0 (clang-1300.0.29.30)]"
+  },
+  "custody": {
+    "root_selection_rule": "HOME_LOCAL_STATE_STAGE2D9R_PRIVATE_COMMAND_MATERIAL_V1",
+    "root_digest_sha256": "ef5f79be168fff686cabcc91fdc4109918d75d3311da1209dd8d0e381804006e",
+    "root_exists": false
+  },
+  "capture_integrity": {
+    "bound_fields_complete": true,
+    "trailing_stage_field_used_as_security_binding": false,
+    "terminal_prompt_text_interleaved_after_stage_prefix": true,
+    "rerun_required": false,
+    "reason": "The shell returned successfully under set -euo pipefail and every authorization-relevant field was complete before the visually contaminated trailing informational stage field."
+  },
+  "privacy": {
+    "private_paths_included": false,
+    "secret_values_included": false
+  },
+  "protected_boundaries": {
+    "private_generation": false,
+    "authorization_claimed": false,
+    "authorization_consumed": false,
+    "custody_root_created": false,
+    "board_operation": false,
+    "serial_operation": false,
+    "network_operation": false,
+    "broker_started": false,
+    "prepare_executed": false,
+    "verify_executed": false,
+    "activate_executed": false,
+    "cleanup_executed": false,
+    "production_operation": false
+  },
+  "next_gate": "independent_exact_U1_authorization_for_one_offline_command_material_generation"
+}

@@ -1,0 +1,213 @@
+name: H3 N2 Stage2D9R Immutable Build Observer CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-immutable-build-observer-ci.yml"
+      - ".github/workflows/h3-n2-stage2d9r-immutable-build-closure-ci.yml"
+      - "tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_immutable_build_manifest_20260724_v1.json"
+      - "docs/acceptance/h3-n2-stage2d9r-immutable-build-observer-l1-v1.json"
+      - "tools/h3_n2_stage2d9r_immutable_build_manifest_gate_20260723_v1.py"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  observe-immutable-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Read committed immutable closure binding
+        id: binding
+        run: |
+          set -euo pipefail
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+
+          manifest = json.loads(Path(
+              'tests/h3_n2_stage2d9r_tls_candidate/'
+              'stage2d9r_immutable_build_manifest_20260724_v1.json'
+          ).read_text(encoding='utf-8'))
+          observer = json.loads(Path(
+              'docs/acceptance/'
+              'h3-n2-stage2d9r-immutable-build-observer-l1-v1.json'
+          ).read_text(encoding='utf-8'))
+          assert manifest['state'] == 'BUILD_FROZEN'
+          assert observer['result'] == 'passed_read_only'
+          assert observer['source_sha'] == manifest['source_sha']
+          assert observer['build_a_run_id'] == manifest['compile_run_ids'][0]
+          assert observer['build_b_run_id'] == manifest['compile_run_ids'][1]
+          assert observer['canonical_artifact_id'] == manifest['artifact']['artifact_id']
+          print(f"source_sha={manifest['source_sha']}")
+          print(f"run_a={observer['build_a_run_id']}")
+          print(f"run_b={observer['build_b_run_id']}")
+          print(f"run_freeze={observer['freeze_run_id']}")
+          print(f"artifact_a={observer['canonical_artifact_id']}")
+          print(f"artifact_b={observer['repro_artifact_id']}")
+          PY
+      - name: Download frozen public evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FREEZE_RUN: ${{ steps.binding.outputs.run_freeze }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/stage2d9r-immutable-observer
+          gh run download "$FREEZE_RUN" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name stage2d9r-g3r-immutable-freeze-evidence-v1 \
+            --dir /tmp/stage2d9r-immutable-observer
+          root=/tmp/stage2d9r-immutable-observer
+          test -f "$root/SHA256SUMS"
+          (
+            cd "$root"
+            sha256sum -c SHA256SUMS
+          )
+      - name: Verify exact source artifact metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ steps.binding.outputs.source_sha }}
+          RUN_A: ${{ steps.binding.outputs.run_a }}
+          RUN_B: ${{ steps.binding.outputs.run_b }}
+          FREEZE_RUN: ${{ steps.binding.outputs.run_freeze }}
+          ARTIFACT_A: ${{ steps.binding.outputs.artifact_a }}
+          ARTIFACT_B: ${{ steps.binding.outputs.artifact_b }}
+        run: |
+          set -euo pipefail
+          for spec in \
+            "$ARTIFACT_A:stage2d9r-g3r-immutable-locked-v1:$RUN_A" \
+            "$ARTIFACT_B:stage2d9r-g3r-immutable-repro-v1:$RUN_B"; do
+            IFS=: read -r artifact_id expected_name expected_run <<< "$spec"
+            data="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id")"
+            test "$(jq -r .name <<< "$data")" = "$expected_name"
+            test "$(jq -r .expired <<< "$data")" = false
+            test "$(jq -r .workflow_run.id <<< "$data")" = "$expected_run"
+            test "$(jq -r .workflow_run.head_sha <<< "$data")" = "$SOURCE_SHA"
+          done
+          freeze_ids="$(gh api \
+            "repos/$GITHUB_REPOSITORY/actions/runs/$FREEZE_RUN/artifacts" \
+            --jq '[.artifacts[] | select(.name == "stage2d9r-g3r-immutable-freeze-evidence-v1") | .id] | @tsv')"
+          test -n "$freeze_ids"
+          test "$(printf '%s' "$freeze_ids" | wc -w | tr -d ' ')" = "1"
+          freeze_data="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$freeze_ids")"
+          test "$(jq -r .expired <<< "$freeze_data")" = false
+          test "$(jq -r .workflow_run.id <<< "$freeze_data")" = "$FREEZE_RUN"
+          test "$(jq -r .workflow_run.head_sha <<< "$freeze_data")" = "$SOURCE_SHA"
+      - name: Independently validate manifest and observer closure
+        env:
+          SOURCE_SHA: ${{ steps.binding.outputs.source_sha }}
+          RUN_A: ${{ steps.binding.outputs.run_a }}
+          RUN_B: ${{ steps.binding.outputs.run_b }}
+          FREEZE_RUN: ${{ steps.binding.outputs.run_freeze }}
+          ARTIFACT_A: ${{ steps.binding.outputs.artifact_a }}
+          ARTIFACT_B: ${{ steps.binding.outputs.artifact_b }}
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-immutable-observer
+          manifest="$root/stage2d9r_immutable_build_manifest_20260724_v1.json"
+          committed_manifest=tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_immutable_build_manifest_20260724_v1.json
+          cmp -s "$manifest" "$committed_manifest"
+          python tools/h3_n2_stage2d9r_immutable_build_manifest_gate_20260723_v1.py \
+            --manifest "$manifest" \
+            --expect-state BUILD_FROZEN \
+            | tee /tmp/stage2d9r-immutable-observer-gate.log
+          grep -Fx 'STAGE2D9R_IMMUTABLE_BUILD_GATE=PASS' /tmp/stage2d9r-immutable-observer-gate.log
+          grep -Fx 'STATE=BUILD_FROZEN' /tmp/stage2d9r-immutable-observer-gate.log
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path('/tmp/stage2d9r-immutable-observer')
+          manifest_path = root / 'stage2d9r_immutable_build_manifest_20260724_v1.json'
+          committed_observer_path = Path(
+              'docs/acceptance/h3-n2-stage2d9r-immutable-build-observer-l1-v1.json'
+          )
+          manifest_bytes = manifest_path.read_bytes()
+          observer_bytes = committed_observer_path.read_bytes()
+          manifest = json.loads(manifest_bytes)
+          observer = json.loads(observer_bytes)
+
+          source_sha = os.environ['SOURCE_SHA']
+          run_a = int(os.environ['RUN_A'])
+          run_b = int(os.environ['RUN_B'])
+          freeze_run = int(os.environ['FREEZE_RUN'])
+          artifact_a = int(os.environ['ARTIFACT_A'])
+          artifact_b = int(os.environ['ARTIFACT_B'])
+
+          assert hashlib.sha256(observer_bytes).hexdigest() == 'd2026ec904f6ccf63a20b75d97acadabddf63cba50f6e5f615132defd6c60dfc'
+          assert observer['schema'] == 'gh.h3.n2.stage2d9r-immutable-build-observer-l1/1'
+          assert observer['stage'] == 'H3/N2 Stage 2D-9R G3R'
+          assert observer['result'] == 'passed_read_only'
+          assert manifest['source_sha'] == source_sha
+          assert manifest['compile_run_ids'] == [run_a, run_b]
+          assert manifest['artifact']['artifact_id'] == artifact_a
+          assert artifact_a != artifact_b
+          assert observer['source_sha'] == source_sha
+          assert observer['build_a_run_id'] == run_a
+          assert observer['build_b_run_id'] == run_b
+          assert observer['freeze_run_id'] == freeze_run
+          assert observer['canonical_artifact_id'] == artifact_a
+          assert observer['repro_artifact_id'] == artifact_b
+          assert observer['artifact_sha256'] == manifest['artifact']['artifact_sha256']
+          assert observer['manifest_sha256'] == manifest['artifact']['manifest_sha256']
+          assert observer['manifest_file_sha256'] == hashlib.sha256(manifest_bytes).hexdigest()
+          assert observer['application_sha256'] == manifest['firmware']['application_sha256']
+          assert observer['merged_image_sha256'] == manifest['firmware']['merged_image_sha256']
+          assert observer['reproducible'] is True
+          assert manifest['artifact']['artifact_sha256'] == '5dbe763fe411728533018dd324075f5287ee3542f8351113d54ec80a7042f1d3'
+          assert manifest['artifact']['manifest_sha256'] == '76d382c491e7c8c73ffff6925ee76b29f9e44d17a15983900e79832b9a5054f7'
+          assert hashlib.sha256(manifest_bytes).hexdigest() == '1de4afeb3d29d5112c5b987eec99d15b13639e96c176b6a08c28e6763d514aeb'
+          assert manifest['firmware']['application_sha256'] == '7651a6476cd48dda6aa5e400695e126b91141c95fca5b74d879f65f2058d1630'
+          assert manifest['firmware']['merged_image_sha256'] == 'ea6af469ad7ae103d40a551f482fc18d1f2afc9ed75933481f1802f0a7b2916f'
+          assert manifest['reproducibility'] == {
+              'clean_build_count': 2,
+              'all_firmware_hashes_identical': True,
+              'all_manifest_hashes_identical': True,
+          }
+          false_keys = (
+              'private_values_included', 'private_paths_included',
+              'execution_authorized', 'board_operation_authorized',
+              'serial_operation_authorized', 'flash_operation_authorized',
+              'physical_nvs_operation_authorized', 'network_operation_authorized',
+              'broker_operation_authorized', 'prepare_authorized',
+              'verify_authorized', 'activate_authorized', 'cleanup_authorized',
+              'production_operation_authorized', 'ready_authorized',
+              'merge_authorized', 'release_authorized',
+          )
+          for data in (manifest, observer):
+              for key in false_keys:
+                  assert data[key] is False, key
+          PY
+      - name: Report locked observer boundary
+        run: |
+          printf '%s\n' \
+            'STAGE2D9R_IMMUTABLE_BUILD_OBSERVER_CI=PASS' \
+            'ARTIFACT_SHA256=5dbe763fe411728533018dd324075f5287ee3542f8351113d54ec80a7042f1d3' \
+            'MANIFEST_SHA256=76d382c491e7c8c73ffff6925ee76b29f9e44d17a15983900e79832b9a5054f7' \
+            'APPLICATION_SHA256=7651a6476cd48dda6aa5e400695e126b91141c95fca5b74d879f65f2058d1630' \
+            'MERGED_IMAGE_SHA256=ea6af469ad7ae103d40a551f482fc18d1f2afc9ed75933481f1802f0a7b2916f' \
+            'REPRODUCIBLE=true' \
+            'PRIVATE_VALUES_INCLUDED=false' \
+            'PRIVATE_PATHS_INCLUDED=false' \
+            'EXECUTION_AUTHORIZED=false' \
+            'BOARD_OPERATION_AUTHORIZED=false' \
+            'NETWORK_OPERATION_AUTHORIZED=false' \
+            'PREPARE_AUTHORIZED=false' \
+            'VERIFY_AUTHORIZED=false' \
+            'READY_AUTHORIZED=false' \
+            'MERGE_AUTHORIZED=false' \
+            'RELEASE_AUTHORIZED=false'
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf /tmp/stage2d9r-immutable-observer
+          rm -f /tmp/stage2d9r-immutable-observer-gate.log

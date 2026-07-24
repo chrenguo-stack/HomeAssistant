@@ -1,0 +1,97 @@
+{
+  "schema": "gh.h3.n2.stage2d9r-private-pki-custody-descriptor/1",
+  "stage": "H3/N2 Stage 2D-9R G3R",
+  "state": "LOCKED_TEMPLATE",
+  "source_sha": "<SOURCE_SHA40>",
+  "generator_sha256": "<GENERATOR_SHA256>",
+  "python_executable_sha256": "<PYTHON_EXECUTABLE_SHA256>",
+  "python_version": "<PYTHON_VERSION>",
+  "openssl_executable_sha256": "<OPENSSL_EXECUTABLE_SHA256>",
+  "openssl_version": "<OPENSSL_VERSION>",
+  "mosquitto_passwd_executable_sha256": "<MOSQUITTO_PASSWD_EXECUTABLE_SHA256>",
+  "mosquitto_passwd_version": "<MOSQUITTO_PASSWD_VERSION>",
+  "test_run_suffix": "tlsvalid01",
+  "broker_host": "stage2d9r.local",
+  "broker_port": 8883,
+  "broker_tls_server_name": "stage2d9r.local",
+  "dns_san": [
+    "stage2d9r.local"
+  ],
+  "custody_root": "<ABSOLUTE_PRIVATE_CUSTODY_ROOT>",
+  "custody_root_mode": "0700",
+  "package_sha256": "<PRIVATE_PACKAGE_SHA256>",
+  "public_descriptor_sha256": "<PUBLIC_DESCRIPTOR_SHA256>",
+  "candidate_digest_sha256": "<CANDIDATE_DIGEST_SHA256>",
+  "authorization": {
+    "authorization_id": null,
+    "operation": "GENERATE_PRIVATE_TEST_PKI",
+    "one_shot": true,
+    "replay_permitted": false,
+    "authorized": false,
+    "consumed": false,
+    "record_sha256": null
+  },
+  "materials": {
+    "root_ca_private_key": {
+      "relative_path": "root-ca.key.pem",
+      "mode": "0600",
+      "sha256": "<ROOT_CA_PRIVATE_KEY_SHA256>"
+    },
+    "root_ca_certificate": {
+      "relative_path": "root-ca.cert.pem",
+      "mode": "0600",
+      "sha256": "<ROOT_CA_CERTIFICATE_SHA256>"
+    },
+    "broker_private_key": {
+      "relative_path": "broker.key.pem",
+      "mode": "0600",
+      "sha256": "<BROKER_PRIVATE_KEY_SHA256>"
+    },
+    "broker_certificate": {
+      "relative_path": "broker.cert.pem",
+      "mode": "0600",
+      "sha256": "<BROKER_CERTIFICATE_SHA256>"
+    },
+    "broker_full_chain": {
+      "relative_path": "broker.fullchain.pem",
+      "mode": "0600",
+      "sha256": "<BROKER_FULL_CHAIN_SHA256>"
+    },
+    "mosquitto_password_file": {
+      "relative_path": "mosquitto.password",
+      "mode": "0600",
+      "sha256": "<MOSQUITTO_PASSWORD_FILE_SHA256>"
+    },
+    "isolated_broker_configuration": {
+      "relative_path": "mosquitto.stage2d9r.conf",
+      "mode": "0600",
+      "sha256": "<BROKER_CONFIGURATION_SHA256>"
+    },
+    "isolated_broker_acl": {
+      "relative_path": "mosquitto.stage2d9r.acl",
+      "mode": "0600",
+      "sha256": "<BROKER_ACL_SHA256>"
+    }
+  },
+  "offline_proofs": {
+    "root_ca_role_valid": false,
+    "broker_leaf_role_valid": false,
+    "certificate_chain_valid": false,
+    "hostname_valid": false,
+    "private_modes_valid": false,
+    "public_private_leakage_scan_passed": false
+  },
+  "private_values_included": false,
+  "raw_private_keys_in_descriptor": false,
+  "raw_mqtt_password_in_descriptor": false,
+  "board_operation_authorized": false,
+  "network_operation_authorized": false,
+  "broker_start_authorized": false,
+  "flash_operation_authorized": false,
+  "physical_nvs_operation_authorized": false,
+  "prepare_authorized": false,
+  "verify_authorized": false,
+  "activate_authorized": false,
+  "cleanup_authorized": false,
+  "production_operation_authorized": false
+}

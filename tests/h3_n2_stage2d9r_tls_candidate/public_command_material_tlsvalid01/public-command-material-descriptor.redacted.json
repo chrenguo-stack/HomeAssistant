@@ -1,0 +1,32 @@
+{
+  "activate_authorized": false,
+  "authorization_id": "U1-H3N2-STAGE2D9R-COMMAND-MATERIAL-20260724-02",
+  "authorization_record_sha256": "fb11a086dcfb58ea483aae4d5c09f13c5740a5d619c4e967013a5da8e70fd44e",
+  "board_operation_authorized": false,
+  "broker_operation_authorized": false,
+  "cleanup_authorized": false,
+  "execution_authorized": false,
+  "execution_binding_sha256": "283b6bf20bbeda03181a719ffd638f3a4b3a40e86c047aff9f4280df29763327",
+  "frozen_candidate_binding": {
+    "broker_identity": "stage2d9r.local:8883",
+    "ca_pem_sha256": "cfcb6638ed61731270f3bf8e9e262c1512fbca8ff34d4b08b62186453233e963",
+    "candidate_digest_sha256": "f22144e37372b883b7a38d07eff2980a865108cf7c8fed9bfdb9f198a030b5c5",
+    "review_binding_sha256": "aa2c28c7ca6f3eff1aa61a5827c58102527a0548c683798d670b53daf2ea65d9",
+    "review_package_sha256": "3d7a1055d68d161f7f9bb6c3077ee2bf010cfad45a97bb437c3e11bc19df5b2c"
+  },
+  "implementation_binding": "3d3b67cac008adf30e90a51e891d0dd53b36df69",
+  "network_operation_authorized": false,
+  "prepare_authorized": false,
+  "private_material_package_sha256": "38a73b78ac0a9a6164107182f1b8cb7d129fdd22fddde7b223364216e6c20455",
+  "private_paths_included": false,
+  "private_values_included": false,
+  "production_operation_authorized": false,
+  "raw_unlock_token_included": false,
+  "schema": "gh.h3.n2.stage2d9r-public-command-material-descriptor/1",
+  "source_sha": "9dd8ca9e0b3139bfd187eb7a1dfa38485a9eb2fd",
+  "stage": "H3/N2 Stage 2D-9R G3R",
+  "state": "COMMAND_MATERIAL_FROZEN",
+  "test_run_suffix": "tlsvalid01",
+  "unlock_digest_sha256": "3650d44f8761f21dc1931fbd9b6ba6a1d9da92ffa469b3d4f98ee5411a6809e3",
+  "verify_authorized": false
+}
