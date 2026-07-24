@@ -1,0 +1,187 @@
+name: H3 N2 Stage2D9R Locked Recovery Artifact Freeze
+
+on:
+  push:
+    branches:
+      - feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-recovery-artifact-build-a.yml"
+      - ".github/workflows/h3-n2-stage2d9r-recovery-artifact-build-b.yml"
+      - ".github/workflows/h3-n2-stage2d9r-recovery-artifact-build-reusable.yml"
+      - ".github/workflows/h3-n2-stage2d9r-recovery-artifact-freeze.yml"
+      - ".github/workflows/h3-n2-stage2d9r-recovery-artifact-contract-ci.yml"
+      - "tools/h3_n2_stage2d9r_recovery_artifact_packager_20260724_v1.py"
+      - "tools/h3_n2_stage2d9r_recovery_artifact_freeze_20260724_v1.py"
+      - "tools/h3_n2_stage2d9r_recovery_artifact_manifest_gate_20260724_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_recovery_artifact_pipeline_20260724_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_immutable_build_manifest_20260724_v1.json"
+      - "tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_test_partition_recovery_manifest_20260723_v1.json.template"
+      - "docs/development/h3-n2-stage2d9r-test-partition-recovery-contract-20260723-v1.md"
+      - "tools/h3_n2_stage2d9r_test_partition_recovery_gate_20260723_v1.py"
+      - "docs/development/h3-n2-stage2d9r-locked-recovery-artifact-contract-20260724-v1.md"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  freeze-locked-recovery:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 48
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Verify reviewed recovery freeze sources
+        run: |
+          set -euo pipefail
+          echo '4f100cdfe2586a96485c68bafe8c8e5a11210798cca64a2a4c333258f9953d56  tools/h3_n2_stage2d9r_recovery_artifact_packager_20260724_v1.py' | sha256sum -c -
+          echo '0552dc606a4ab251e7e1c08f41fc34029cc6152d7eb20ab7aa2091dc9f1e5455  tools/h3_n2_stage2d9r_recovery_artifact_freeze_20260724_v1.py' | sha256sum -c -
+          echo 'a2dc5dda67224475940f15361568b62adf3360bdeda61f370ff1cd2c65de5779  tools/h3_n2_stage2d9r_recovery_artifact_manifest_gate_20260724_v1.py' | sha256sum -c -
+          echo 'ebf8246875aa610aa17e31113fe24df2812c2f8c015e81abdb4af0c103868e17  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_recovery_artifact_pipeline_20260724_v1.py' | sha256sum -c -
+          python -m py_compile \
+            tools/h3_n2_stage2d9r_recovery_artifact_freeze_20260724_v1.py \
+            tools/h3_n2_stage2d9r_recovery_artifact_manifest_gate_20260724_v1.py
+      - name: Wait for two independent locked recovery builds
+        id: runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          latest_run() {
+            local workflow="$1"
+            gh api --method GET \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/runs" \
+              -f head_sha="$GITHUB_SHA" \
+              -f event=push \
+              -f per_page=20 \
+              --jq '[.workflow_runs[] | select(.head_sha == "'"$GITHUB_SHA"'")] | sort_by(.id) | last | [.id, .status, (.conclusion // "")] | @tsv'
+          }
+          for attempt in $(seq 1 120); do
+            a="$(latest_run h3-n2-stage2d9r-recovery-artifact-build-a.yml || true)"
+            b="$(latest_run h3-n2-stage2d9r-recovery-artifact-build-b.yml || true)"
+            a_id="$(printf '%s' "$a" | cut -f1)"
+            a_status="$(printf '%s' "$a" | cut -f2)"
+            a_conclusion="$(printf '%s' "$a" | cut -f3)"
+            b_id="$(printf '%s' "$b" | cut -f1)"
+            b_status="$(printf '%s' "$b" | cut -f2)"
+            b_conclusion="$(printf '%s' "$b" | cut -f3)"
+            if [ "$a_status" = completed ] && [ "$a_conclusion" != success ]; then
+              echo "locked recovery build A failed: $a" >&2
+              exit 1
+            fi
+            if [ "$b_status" = completed ] && [ "$b_conclusion" != success ]; then
+              echo "locked recovery build B failed: $b" >&2
+              exit 1
+            fi
+            if [ "$a_status" = completed ] && [ "$a_conclusion" = success ] &&
+               [ "$b_status" = completed ] && [ "$b_conclusion" = success ]; then
+              test -n "$a_id"
+              test -n "$b_id"
+              test "$a_id" != "$b_id"
+              echo "run_a=$a_id" >> "$GITHUB_OUTPUT"
+              echo "run_b=$b_id" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 20
+          done
+          echo 'timed out waiting for two locked recovery builds' >&2
+          exit 1
+      - name: Download both locked recovery artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_A: ${{ steps.runs.outputs.run_a }}
+          RUN_B: ${{ steps.runs.outputs.run_b }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/stage2d9r-recovery-a /tmp/stage2d9r-recovery-b
+          gh run download "$RUN_A" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name stage2d9r-g3r-recovery-locked-v1 \
+            --dir /tmp/stage2d9r-recovery-a
+          gh run download "$RUN_B" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name stage2d9r-g3r-recovery-repro-v1 \
+            --dir /tmp/stage2d9r-recovery-b
+      - name: Resolve exact recovery artifact ids
+        id: artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_A: ${{ steps.runs.outputs.run_a }}
+          RUN_B: ${{ steps.runs.outputs.run_b }}
+        run: |
+          set -euo pipefail
+          artifact_a="$(gh api \
+            "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_A/artifacts" \
+            --jq '[.artifacts[] | select(.name == "stage2d9r-g3r-recovery-locked-v1") | .id] | @tsv')"
+          artifact_b="$(gh api \
+            "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_B/artifacts" \
+            --jq '[.artifacts[] | select(.name == "stage2d9r-g3r-recovery-repro-v1") | .id] | @tsv')"
+          test -n "$artifact_a"
+          test -n "$artifact_b"
+          test "$(printf '%s' "$artifact_a" | wc -w | tr -d ' ')" = 1
+          test "$(printf '%s' "$artifact_b" | wc -w | tr -d ' ')" = 1
+          test "$artifact_a" != "$artifact_b"
+          echo "artifact_a=$artifact_a" >> "$GITHUB_OUTPUT"
+          echo "artifact_b=$artifact_b" >> "$GITHUB_OUTPUT"
+      - name: Compare and freeze locked recovery Artifact
+        env:
+          RUN_A: ${{ steps.runs.outputs.run_a }}
+          RUN_B: ${{ steps.runs.outputs.run_b }}
+          ARTIFACT_A: ${{ steps.artifacts.outputs.artifact_a }}
+          ARTIFACT_B: ${{ steps.artifacts.outputs.artifact_b }}
+        run: |
+          set -euo pipefail
+          python tools/h3_n2_stage2d9r_recovery_artifact_freeze_20260724_v1.py \
+            --build-a /tmp/stage2d9r-recovery-a \
+            --build-b /tmp/stage2d9r-recovery-b \
+            --run-a "$RUN_A" \
+            --run-b "$RUN_B" \
+            --artifact-a-id "$ARTIFACT_A" \
+            --artifact-b-id "$ARTIFACT_B" \
+            --source-sha "$GITHUB_SHA" \
+            --output-dir /tmp/stage2d9r-recovery-freeze \
+            | tee /tmp/stage2d9r-recovery-freeze.log
+      - name: Validate frozen recovery manifest
+        run: |
+          set -euo pipefail
+          manifest=/tmp/stage2d9r-recovery-freeze/stage2d9r_recovery_artifact_manifest_20260724_v1.json
+          python tools/h3_n2_stage2d9r_recovery_artifact_manifest_gate_20260724_v1.py \
+            --manifest "$manifest" \
+            | tee /tmp/stage2d9r-recovery-artifact-gate.log
+          grep -Fx 'STAGE2D9R_RECOVERY_ARTIFACT_GATE=PASS' /tmp/stage2d9r-recovery-artifact-gate.log
+          grep -Fx 'STATE=RECOVERY_ARTIFACT_FROZEN' /tmp/stage2d9r-recovery-artifact-gate.log
+          grep -Fx 'REPRODUCIBLE=true' /tmp/stage2d9r-recovery-artifact-gate.log
+          grep -Fx 'RECOVERY_AUTHORIZED=false' /tmp/stage2d9r-recovery-artifact-gate.log
+          (
+            cd /tmp/stage2d9r-recovery-freeze
+            sha256sum -c SHA256SUMS
+          )
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-g3r-recovery-freeze-evidence-v1
+          path: /tmp/stage2d9r-recovery-freeze
+          if-no-files-found: error
+          retention-days: 5
+          compression-level: 0
+      - name: Report frozen recovery boundary
+        run: |
+          grep -Fx 'STAGE2D9R_LOCKED_RECOVERY_FREEZE=PASS' /tmp/stage2d9r-recovery-freeze.log
+          grep -Fx 'REPRODUCIBLE=true' /tmp/stage2d9r-recovery-freeze.log
+          grep -Fx 'RECOVERY_AUTHORIZED=false' /tmp/stage2d9r-recovery-freeze.log
+          grep -Fx 'EXECUTION_AUTHORIZED=false' /tmp/stage2d9r-recovery-freeze.log
+          grep -Fx 'BOARD_OPERATION_AUTHORIZED=false' /tmp/stage2d9r-recovery-freeze.log
+          grep -Fx 'NETWORK_OPERATION_AUTHORIZED=false' /tmp/stage2d9r-recovery-freeze.log
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf \
+            /tmp/stage2d9r-recovery-a \
+            /tmp/stage2d9r-recovery-b \
+            /tmp/stage2d9r-recovery-freeze
+          rm -f \
+            /tmp/stage2d9r-recovery-freeze.log \
+            /tmp/stage2d9r-recovery-artifact-gate.log
