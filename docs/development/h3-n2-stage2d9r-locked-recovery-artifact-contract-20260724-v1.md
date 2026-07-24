@@ -69,5 +69,5 @@ authorization flag to be `false`.
 
 The locked recovery Artifact is not a D2 package. A future exact D2 may reference
 its frozen hashes, but must separately bind the real board identity, serial path,
-current V69 partition digest, toolchain and one-shot authorization. No such values
-or permission are created by this pipeline.
+current V69 partition digest, toolchain and one-shot authorization.
+No such values or permission are created by this pipeline.
