@@ -231,3 +231,89 @@ def test_process_and_stale_scans_are_thread_safe_and_keep_latest_last_seen() -> 
     assert {message.payload["last_seen"] for message in stale} == {
         latest.isoformat(timespec="milliseconds").replace("+00:00", "Z")
     }
+
+
+def test_accepts_strictly_increasing_sequence_for_same_boot() -> None:
+    processor = TelemetryProcessor(system_id="dev")
+    first_payload = valid_payload()
+    first_payload["seq"] = 42
+    next_payload = valid_payload()
+    next_payload["seq"] = 43
+
+    first = processor.process(TOPIC, json.dumps(first_payload), received_at=NOW)
+    second = processor.process(
+        TOPIC,
+        json.dumps(next_payload),
+        received_at=NOW + timedelta(seconds=1),
+    )
+
+    assert first.status == "accepted"
+    assert second.status == "accepted"
+
+
+def test_rejects_out_of_order_or_replayed_sequence() -> None:
+    processor = TelemetryProcessor(system_id="dev")
+    current_payload = valid_payload()
+    current_payload["seq"] = 42
+    older_payload = valid_payload()
+    older_payload["seq"] = 41
+
+    accepted = processor.process(TOPIC, json.dumps(current_payload), received_at=NOW)
+    rejected = processor.process(
+        TOPIC,
+        json.dumps(older_payload),
+        received_at=NOW + timedelta(seconds=1),
+    )
+
+    assert accepted.status == "accepted"
+    assert rejected.status == "rejected"
+    assert rejected.reason == "out-of-order or replayed seq for node_id + boot_id"
+    assert rejected.messages == ()
+    assert rejected.dedup_key == (NODE_ID, "boot_01J2A6Q9T8W4", 41)
+
+
+def test_accepts_sequence_reset_after_boot_id_changes() -> None:
+    processor = TelemetryProcessor(system_id="dev")
+    previous_boot = valid_payload()
+    previous_boot["seq"] = 42
+    new_boot = valid_payload()
+    new_boot["boot_id"] = "boot_01J2A6Q9T8W5"
+    new_boot["seq"] = 1
+
+    first = processor.process(TOPIC, json.dumps(previous_boot), received_at=NOW)
+    restarted = processor.process(
+        TOPIC,
+        json.dumps(new_boot),
+        received_at=NOW + timedelta(seconds=1),
+    )
+
+    assert first.status == "accepted"
+    assert restarted.status == "accepted"
+    assert restarted.dedup_key == (NODE_ID, "boot_01J2A6Q9T8W5", 1)
+
+
+def test_restore_seeds_max_sequence_and_rejects_older_ingress() -> None:
+    processor = TelemetryProcessor(system_id="dev")
+    retained = canonical_payload()
+    retained["seq"] = 42
+    older_payload = valid_payload()
+    older_payload["seq"] = 41
+    newer_payload = valid_payload()
+    newer_payload["seq"] = 43
+
+    restored = processor.restore_canonical(CANONICAL_TOPIC, json.dumps(retained))
+    rejected = processor.process(
+        TOPIC,
+        json.dumps(older_payload),
+        received_at=NOW + timedelta(seconds=1),
+    )
+    accepted = processor.process(
+        TOPIC,
+        json.dumps(newer_payload),
+        received_at=NOW + timedelta(seconds=2),
+    )
+
+    assert restored.status == "restored"
+    assert rejected.status == "rejected"
+    assert rejected.reason == "out-of-order or replayed seq for node_id + boot_id"
+    assert accepted.status == "accepted"

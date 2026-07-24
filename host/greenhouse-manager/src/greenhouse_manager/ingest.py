@@ -94,6 +94,7 @@ class TelemetryProcessor:
         self._seen: OrderedDict[tuple[str, str, int], None] = OrderedDict()
         self._last_seen: dict[str, datetime] = {}
         self._availability: dict[str, str] = {}
+        self._max_seq: dict[tuple[str, str], int] = {}
 
     @staticmethod
     def _load_packaged_schema() -> dict[str, Any]:
@@ -190,7 +191,18 @@ class TelemetryProcessor:
                 dedup_key=dedup_key,
             )
 
+        sequence_key = (node_id, dedup_key[1])
+        max_seq = self._max_seq.get(sequence_key)
+        if max_seq is not None and dedup_key[2] <= max_seq:
+            return ProcessResult(
+                status="rejected",
+                node_id=node_id,
+                reason="out-of-order or replayed seq for node_id + boot_id",
+                dedup_key=dedup_key,
+            )
+
         self._remember_dedup_key(dedup_key)
+        self._max_seq[sequence_key] = dedup_key[2]
 
         canonical = dict(document)
         canonical["received_at"] = _rfc3339(now)
@@ -288,6 +300,10 @@ class TelemetryProcessor:
 
         dedup_key = (node_id, str(document["boot_id"]), int(document["seq"]))
         self._remember_dedup_key(dedup_key)
+        sequence_key = (node_id, dedup_key[1])
+        current_max_seq = self._max_seq.get(sequence_key)
+        if current_max_seq is None or dedup_key[2] > current_max_seq:
+            self._max_seq[sequence_key] = dedup_key[2]
 
         current_last_seen = self._last_seen.get(node_id)
         if current_last_seen is None or last_seen > current_last_seen:
