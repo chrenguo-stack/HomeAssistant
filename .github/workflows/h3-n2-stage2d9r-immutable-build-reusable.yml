@@ -33,7 +33,7 @@ jobs:
       - name: Verify immutable build source inputs
         run: |
           set -euo pipefail
-          echo '7fc62c634c1728b8fe2f201f64980abac9a8b4b9e18629dcdfaa79a6983a2c02  tools/h3_n2_stage2d9r_immutable_build_packager_20260724_v1.py' | sha256sum -c -
+          echo 'd27122cf9cdc79f5dea2e9d9c40b64cbb29e675440b329fe846fa9a9e5bbaff4  tools/h3_n2_stage2d9r_immutable_build_packager_20260724_v1.py' | sha256sum -c -
           echo 'ff5d93654b87075fd9764ad0aceb00c5cf9e94136162b1e5dbe4b78f18989f99  tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_final_build_binding_20260724_v1.json' | sha256sum -c -
           echo 'a6c9868e2a82e2feccbaaf9c5d331e2d7eb9306ffa555cd5594173830286c037  firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/greenhouse_profile_isolated_device_g3r_immutable_20260724_v1.yml' | sha256sum -c -
           echo '91c10168174438fc30b3dce087a6b75e24375b87b4262bafddb5b2822ee16d23  tests/h3_n2_stage2d9r_tls_candidate/public_command_material_tlsvalid01/public-command-material-descriptor.redacted.json' | sha256sum -c -
