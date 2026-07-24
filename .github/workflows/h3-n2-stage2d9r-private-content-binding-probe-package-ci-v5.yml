@@ -53,6 +53,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p .artifacts
           python tools/h3_n2_stage2d9r_private_content_review_packager_20260724_v1.py \
             --repository-root . \
             --output .artifacts/stage2d9r-private-content-binding-preauth-review-v5 \
