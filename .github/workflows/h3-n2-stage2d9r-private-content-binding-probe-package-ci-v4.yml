@@ -6,7 +6,7 @@ on:
       - ".github/workflows/h3-n2-stage2d9r-private-content-binding-probe-package-ci-v4.yml"
       - "tools/h3_n2_stage2d9r_private_content_binding_probe_20260724_v1.py"
       - "tools/h3_n2_stage2d9r_private_content_binding_probe_20260724_v3.py"
-      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_content_binding_probe_20260724_v3.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_content_binding_probe_20260724_v4.py"
       - "docs/acceptance/h3-n2-stage2d9r-private-content-u1-03-failure-l1-v1.json"
       - "docs/development/h3-n2-stage2d9r-private-content-binding-u1-review-20260724-v2.md"
       - "tests/h3_n2_stage2d9r_tls_candidate/public_pki_tlsvalid01/**"
@@ -49,8 +49,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m pytest -q \
-            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_content_binding_probe_20260724_v3.py
+          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_content_binding_probe_20260724_v4.py
           python - <<'PY'
           import json
           from pathlib import Path
@@ -78,7 +77,7 @@ jobs:
           mkdir -p "$root/tools" "$root/tests" "$root/review" "$root/acceptance" "$root/public"
           cp tools/h3_n2_stage2d9r_private_content_binding_probe_20260724_v1.py "$root/tools/"
           cp tools/h3_n2_stage2d9r_private_content_binding_probe_20260724_v3.py "$root/tools/"
-          cp tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_content_binding_probe_20260724_v3.py "$root/tests/"
+          cp tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_content_binding_probe_20260724_v4.py "$root/tests/"
           cp docs/development/h3-n2-stage2d9r-private-content-binding-u1-review-20260724-v2.md "$root/review/"
           cp docs/acceptance/h3-n2-stage2d9r-private-content-u1-03-failure-l1-v1.json "$root/acceptance/"
           cp tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_tls_candidate_descriptor_20260723_v1.json "$root/public/"
@@ -135,7 +134,7 @@ jobs:
               "head_branch": "feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1",
               "probe_sha256": sha(root / "tools/h3_n2_stage2d9r_private_content_binding_probe_20260724_v3.py"),
               "base_probe_sha256": sha(root / "tools/h3_n2_stage2d9r_private_content_binding_probe_20260724_v1.py"),
-              "contract_test_sha256": sha(root / "tests/test_h3_n2_stage2d9r_private_content_binding_probe_20260724_v3.py"),
+              "contract_test_sha256": sha(root / "tests/test_h3_n2_stage2d9r_private_content_binding_probe_20260724_v4.py"),
               "command_group_sha256": sha(root / "COMMAND_GROUP_REVIEW_ONLY.txt"),
               "stop_conditions_sha256": sha(root / "STOP_CONDITIONS.md"),
               "u1_03_failed_marker_sha256": marker_sha,
