@@ -28,7 +28,7 @@ jobs:
         run: |
           set -euo pipefail
           echo '17a1e2e291554ec674dcee7ce50c541372e6dbd958249a42ffd8549889fced08  tools/h3_n2_stage2d9r_host_artifact_custody_probe_20260724_v2.py' | sha256sum -c -
-          echo '0f6967b529c0faa7f1b120b045d481f80bae8cb1da2a4fded0085c35d0d85e5d  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_host_artifact_custody_probe_20260724_v2.py' | sha256sum -c -
+          echo 'fd1179aeffa1b8db6d57c4476a383ff6d4242057549be77d5aff5bd8b2b4773a  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_host_artifact_custody_probe_20260724_v2.py' | sha256sum -c -
           echo 'bd77b48f627713f639980f9b6e681720c73e4e56373d1b37897a7850d5f58e9a  docs/development/h3-n2-stage2d9r-host-artifact-custody-preauth-probe-contract-20260724-v2.md' | sha256sum -c -
           python -m py_compile \
             tools/h3_n2_stage2d9r_host_artifact_custody_probe_20260724_v2.py \
@@ -98,7 +98,7 @@ jobs:
               'state': 'READ_ONLY_PREAUTH_REVIEW_PACKAGE_V2',
               'source_sha': os.environ['SOURCE_SHA'],
               'probe_sha256': '17a1e2e291554ec674dcee7ce50c541372e6dbd958249a42ffd8549889fced08',
-              'contract_test_sha256': '0f6967b529c0faa7f1b120b045d481f80bae8cb1da2a4fded0085c35d0d85e5d',
+              'contract_test_sha256': 'fd1179aeffa1b8db6d57c4476a383ff6d4242057549be77d5aff5bd8b2b4773a',
               'contract_sha256': hashlib.sha256(contract.read_bytes()).hexdigest(),
               'python_executable_sha256_required': '4e28e811a89aeac6eed668ae641c7f85f5831e42e8dc6cd9a85a3bcc032ec46a',
               'python_version_required': '3.11.9',
