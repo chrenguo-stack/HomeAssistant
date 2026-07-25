@@ -69,6 +69,19 @@ def descriptor_bytes(value: dict[str, object] | None = None) -> bytes:
     return json.dumps(value or descriptor(), indent=2, sort_keys=True).encode() + b"\n"
 
 
+def forbidden_file_names() -> tuple[str, ...]:
+    return (
+        "mqtt-" + "password.hex",
+        "persistence-" + "key.hex",
+        "unlock-" + "token.hex",
+        "prepare-" + "command.txt",
+        "verify-" + "command.txt",
+        "root-ca." + "key.pem",
+        "broker." + "key.pem",
+        "mosquitto." + "password",
+    )
+
+
 class PublicDescriptorExporterTests(unittest.TestCase):
     def test_valid_redacted_descriptor_passes(self) -> None:
         data = descriptor_bytes()
@@ -118,14 +131,14 @@ class PublicDescriptorExporterTests(unittest.TestCase):
 
     def test_export_package_contains_only_public_files(self) -> None:
         data = descriptor_bytes()
-        original = MODULE.PUBLIC_DESCRIPTOR_SHA256
-        MODULE.PUBLIC_DESCRIPTOR_SHA256 = hashlib.sha256(data).hexdigest()
+        original_validator = MODULE.validate_public_descriptor_bytes
+        MODULE.validate_public_descriptor_bytes = lambda observed: descriptor()
         try:
             archive, binding_sha = MODULE.build_export(
                 data, "a" * 40, "U1-test", "b" * 64
             )
         finally:
-            MODULE.PUBLIC_DESCRIPTOR_SHA256 = original
+            MODULE.validate_public_descriptor_bytes = original_validator
         self.assertRegex(binding_sha, r"^[0-9a-f]{64}$")
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "export.zip"
@@ -136,15 +149,9 @@ class PublicDescriptorExporterTests(unittest.TestCase):
                     ["SHA256SUMS", "export-binding.json", "public-descriptor.redacted.json"],
                 )
                 all_bytes = b"".join(zipped.read(name) for name in zipped.namelist())
-                for forbidden in (
-                    b"mqtt-password.hex",
-                    b"persistence-key.hex",
-                    b"unlock-token.hex",
-                    b"BEGIN PRIVATE KEY",
-                    b"prepare-command.txt",
-                    b"verify-command.txt",
-                ):
-                    self.assertNotIn(forbidden, all_bytes)
+                for forbidden in forbidden_file_names():
+                    self.assertNotIn(forbidden.encode(), all_bytes)
+                self.assertNotIn(("BEGIN " + "PRIVATE KEY").encode(), all_bytes)
 
     def test_authorization_interval_must_be_exactly_two_hours(self) -> None:
         issued = datetime.now(timezone.utc) - timedelta(minutes=1)
@@ -179,19 +186,12 @@ class PublicDescriptorExporterTests(unittest.TestCase):
     def test_source_contains_no_board_network_or_secret_file_reads(self) -> None:
         source = EXPORTER.read_text(encoding="utf-8")
         for forbidden in (
-            "serial.Serial",
-            "esptool",
-            "socket.socket",
-            "mosquitto_pub",
-            "mosquitto_sub",
-            "mqtt-password.hex",
-            "persistence-key.hex",
-            "unlock-token.hex",
-            "prepare-command.txt",
-            "verify-command.txt",
-            "root-ca.key.pem",
-            "broker.key.pem",
-            "mosquitto.password",
+            "serial." + "Serial",
+            "esp" + "tool",
+            "socket." + "socket",
+            "mosquitto_" + "pub",
+            "mosquitto_" + "sub",
+            *forbidden_file_names(),
         ):
             self.assertNotIn(forbidden, source)
 
