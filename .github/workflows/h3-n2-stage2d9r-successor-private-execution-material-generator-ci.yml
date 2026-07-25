@@ -49,7 +49,7 @@ jobs:
           set -euo pipefail
           test "$HEAD_BRANCH" = fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
-          git fetch --no-tags --depth=32 origin "$HEAD_BRANCH"
+          git fetch --no-tags --depth=96 origin "$HEAD_BRANCH"
           git merge-base --is-ancestor cf841f3e5a8cf04c5df9875c499b91ad4e4289cb HEAD
           test -f tools/h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py
           test -f tools/h3_n2_stage2d9r_private_execution_material_successor_generator_20260725_v1.py
