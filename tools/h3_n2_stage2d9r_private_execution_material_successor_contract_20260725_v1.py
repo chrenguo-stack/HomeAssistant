@@ -23,10 +23,6 @@ HOST = "stage2d9r.local"
 PORT = 8883
 MQTT_USERNAME = "stage2d9r-test"
 CREDENTIAL_SCHEMA = "gh.pair.credentials/1"
-CA_PEM_SHA256 = "cfcb6638ed61731270f3bf8e9e262c1512fbca8ff34d4b08b62186453233e963"
-BROKER_CERTIFICATE_DER_SHA256 = "988b6f82b04b0b3cf13f58a07ecd85e420e5576c167fe01ea0940d4530e20ac7"
-BROKER_SPKI_SHA256 = "f034dc2a036f709287f0558773418ee1799e75bee50dcf55e09143a3a9052a03"
-UNLOCK_DIGEST_SHA256 = "3650d44f8761f21dc1931fbd9b6ba6a1d9da92ffa469b3d4f98ee5411a6809e3"
 
 REQUIRED_PRIVATE_FILES = (
     "mqtt-password.hex",
@@ -126,7 +122,6 @@ def render_commands(
     require(SUFFIX.fullmatch(RUN_SUFFIX) is not None, "RUN_SUFFIX_INVALID")
     ca_bytes = ca_pem.encode("ascii")
     ca_digest = sha256_bytes(ca_bytes)
-    require(ca_digest == CA_PEM_SHA256, "CA_PEM_DIGEST_MISMATCH")
     digest = candidate_digest(password, ca_pem)
     encoded_ca = base64.urlsafe_b64encode(ca_bytes).decode("ascii").rstrip("=")
     prepare = " ".join(
@@ -175,7 +170,11 @@ def private_material_digest(materials: Mapping[str, Mapping[str, str]]) -> str:
 def build_public_descriptor(
     source_sha: str,
     mqtt_password_sha256: str,
+    unlock_digest_sha256: str,
     persistence_key_file_sha256: str,
+    ca_pem_sha256: str,
+    broker_certificate_der_sha256: str,
+    broker_spki_sha256: str,
     candidate_digest_sha256: str,
     prepare_command_sha256: str,
     verify_command_sha256: str,
@@ -183,7 +182,11 @@ def build_public_descriptor(
 ) -> dict[str, object]:
     for value in (
         mqtt_password_sha256,
+        unlock_digest_sha256,
         persistence_key_file_sha256,
+        ca_pem_sha256,
+        broker_certificate_der_sha256,
+        broker_spki_sha256,
         candidate_digest_sha256,
         prepare_command_sha256,
         verify_command_sha256,
@@ -202,11 +205,11 @@ def build_public_descriptor(
         "broker_tls_server_name": HOST,
         "mqtt_username": MQTT_USERNAME,
         "mqtt_password_sha256": mqtt_password_sha256,
-        "unlock_digest_sha256": UNLOCK_DIGEST_SHA256,
+        "unlock_digest_sha256": unlock_digest_sha256,
         "persistence_key_file_sha256": persistence_key_file_sha256,
-        "ca_pem_sha256": CA_PEM_SHA256,
-        "broker_certificate_der_sha256": BROKER_CERTIFICATE_DER_SHA256,
-        "broker_spki_sha256": BROKER_SPKI_SHA256,
+        "ca_pem_sha256": ca_pem_sha256,
+        "broker_certificate_der_sha256": broker_certificate_der_sha256,
+        "broker_spki_sha256": broker_spki_sha256,
         "candidate_digest_sha256": candidate_digest_sha256,
         "prepare_command_sha256": prepare_command_sha256,
         "verify_command_sha256": verify_command_sha256,
