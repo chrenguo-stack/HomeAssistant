@@ -1,0 +1,273 @@
+name: H3 N2 Stage2D9R Successor Public Descriptor Export U1 Review Package CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-successor-public-descriptor-export-u1-review-package-ci.yml"
+      - "tools/h3_n2_stage2d9r_successor_public_descriptor_exporter_20260725_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_public_descriptor_exporter_20260725_v1.py"
+      - "docs/acceptance/h3-n2-stage2d9r-successor-private-execution-material-u1-01-success-l1-v1.json"
+  push:
+    branches:
+      - fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-successor-public-descriptor-export-u1-review-package-ci.yml"
+      - "tools/h3_n2_stage2d9r_successor_public_descriptor_exporter_20260725_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_public_descriptor_exporter_20260725_v1.py"
+      - "docs/acceptance/h3-n2-stage2d9r-successor-private-execution-material-u1-01-success-l1-v1.json"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  review-package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Verify branch and consumed predecessor
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+        run: |
+          set -euo pipefail
+          test "$HEAD_BRANCH" = fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          git fetch --no-tags --depth=48 origin "$HEAD_BRANCH"
+          git merge-base --is-ancestor 0cd9eeb5fd567d47a29bddee83159ac9570aa3dd HEAD
+          grep -F '"marker_sha256": "428231f9e0e6a26c39701427b3e32531e18d08b54e341736b1189a78a06848a5"' \
+            docs/acceptance/h3-n2-stage2d9r-successor-private-execution-material-u1-01-success-l1-v1.json
+          grep -F '"success_marker_probe_completed": true' \
+            docs/acceptance/h3-n2-stage2d9r-successor-private-execution-material-u1-01-success-l1-v1.json
+          test "$(git status --porcelain)" = ""
+
+      - name: Run exporter source-only tests
+        run: |
+          set -euo pipefail
+          export PYTHONPYCACHEPREFIX=/tmp/stage2d9r-public-export-pycache
+          python -m py_compile \
+            tools/h3_n2_stage2d9r_successor_public_descriptor_exporter_20260725_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_public_descriptor_exporter_20260725_v1.py
+          python \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_public_descriptor_exporter_20260725_v1.py \
+            -v 2>&1 | tee /tmp/stage2d9r-public-export-tests.log
+          grep -F 'Ran 8 tests' /tmp/stage2d9r-public-export-tests.log
+          grep -F 'OK' /tmp/stage2d9r-public-export-tests.log
+          rm -rf "$PYTHONPYCACHEPREFIX"
+
+      - name: Verify explicit execution and redaction boundaries
+        run: |
+          set -euo pipefail
+          exporter=tools/h3_n2_stage2d9r_successor_public_descriptor_exporter_20260725_v1.py
+          grep -F 'EXPORT_REQUIRES_EXPLICIT_EXECUTE' "$exporter"
+          grep -F 'AUTH_ALREADY_CLAIMED_OR_CONSUMED' "$exporter"
+          grep -F 'CONSUMED_FAILED' "$exporter"
+          grep -F 'PUBLIC_DESCRIPTOR_FORBIDDEN_KEY_PRESENT' "$exporter"
+          ! grep -R -I -n -E 'BEGIN (RSA |EC )?PRIVATE KEY|/Users/|/private/tmp/|mqtt-password\.hex|persistence-key\.hex|unlock-token\.hex|prepare-command\.txt|verify-command\.txt|root-ca\.key\.pem|broker\.key\.pem|mosquitto\.password' \
+            "$exporter" \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_public_descriptor_exporter_20260725_v1.py
+          test -z "$(find . -type d -name __pycache__ -print -quit)"
+          test -z "$(find . -type f \( -name '*.pyc' -o -name '*.pyo' \) -print -quit)"
+
+      - name: Assemble review-only package
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-successor-public-descriptor-export-u1-review-v1
+          mkdir -p "$root/tools" "$root/tests"
+          cp tools/h3_n2_stage2d9r_successor_public_descriptor_exporter_20260725_v1.py "$root/tools/"
+          cp tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_public_descriptor_exporter_20260725_v1.py "$root/tests/"
+          cp docs/acceptance/h3-n2-stage2d9r-successor-private-execution-material-u1-01-success-l1-v1.json "$root/"
+
+          SOURCE_SHA="$SOURCE_SHA" ROOT="$root" python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ['ROOT'])
+          source_sha = os.environ['SOURCE_SHA']
+          exporter = root / 'tools/h3_n2_stage2d9r_successor_public_descriptor_exporter_20260725_v1.py'
+          tests = root / 'tests/test_h3_n2_stage2d9r_successor_public_descriptor_exporter_20260725_v1.py'
+          acceptance = root / 'h3-n2-stage2d9r-successor-private-execution-material-u1-01-success-l1-v1.json'
+
+          def digest(path: Path) -> str:
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+
+          binding = {
+              'schema': 'gh.h3.n2.stage2d9r-successor-public-descriptor-export-u1-review/1',
+              'stage': 'H3/N2 Stage 2D-9R G3R successor',
+              'state': 'PENDING_EXACT_PUBLIC_DESCRIPTOR_EXPORT_U1_REVIEW',
+              'u1_request_id': 'U1-H3N2-STAGE2D9R-PUBLIC-DESCRIPTOR-EXPORT-20260725-01',
+              'repository': 'chrenguo-stack/HomeAssistant',
+              'pull_request': 180,
+              'pull_request_required_state': 'open,draft,unmerged,mergeable',
+              'base_pull_request': 176,
+              'base_source_sha': 'cf841f3e5a8cf04c5df9875c499b91ad4e4289cb',
+              'main_sha': 'a3a72d75480362999e70e180f33459198b3951b5',
+              'source_sha': source_sha,
+              'authorized_generation_source_sha': '0cd9eeb5fd567d47a29bddee83159ac9570aa3dd',
+              'generation_authorization_id': 'U1-H3N2-STAGE2D9R-PRIVATE-EXECUTION-MATERIAL-20260725-01',
+              'generation_marker_sha256': '428231f9e0e6a26c39701427b3e32531e18d08b54e341736b1189a78a06848a5',
+              'public_descriptor_sha256': '7021279f141f00cbf7e64fe8a20e89dd8b8ef3b9c4c7625ec28b79f6d65db2b6',
+              'candidate_digest_sha256': 'a0ff758217a1769c1876336c131cb85e64dcb2369758c649f36798cd8083aaf2',
+              'exporter_sha256': digest(exporter),
+              'exporter_test_sha256': digest(tests),
+              'acceptance_sha256': digest(acceptance),
+              'output_selection_rule': 'HOME_DOWNLOADS_STAGE2D9R_SUCCESSOR_PUBLIC_DESCRIPTOR_EXPORT_U1_01',
+              'authorization_record_included': False,
+              'authorized_execution_launcher_included': False,
+              'public_descriptor_included': False,
+              'private_content_included': False,
+              'private_paths_included': False,
+              'secret_values_included': False,
+              'board_operation': False,
+              'serial_operation': False,
+              'flash_operation': False,
+              'physical_nvs_operation': False,
+              'network_operation': False,
+              'broker_started': False,
+              'prepare_executed': False,
+              'verify_executed': False,
+              'activate_executed': False,
+              'cleanup_executed': False,
+              'production_operation': False,
+              'one_shot_required': True,
+              'replay_permitted': False,
+              'automatic_retry_permitted': False,
+          }
+          canonical = json.dumps(binding, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode()
+          binding['review_binding_sha256'] = hashlib.sha256(canonical).hexdigest()
+          (root / 'review-binding.json').write_text(
+              json.dumps(binding, indent=2, sort_keys=True) + '\n', encoding='utf-8'
+          )
+          PY
+
+          cat > "$root/README.md" <<'EOF'
+          # Stage 2D-9R successor public descriptor export — U1 review package
+
+          This package is review-only. The launcher verifies package integrity
+          and performs a read-only state probe. The probe reads the already
+          public consumed-marker metadata, checks that the fixed Downloads export
+          target is absent, and reports exporter/Python digests. It does not read
+          the redacted descriptor content, export a file, claim or consume U1,
+          read any secret, access a board/serial/Flash/NVS, use a network, start a
+          Broker, or execute PREPARE/VERIFY/ACTIVATE/CLEANUP.
+          EOF
+
+          cat > "$root/run_stage2d9r_successor_public_descriptor_export_u1_review_probe_20260725_v1.sh" <<'SH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          umask 077
+          ROOT="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)"
+          cd "$ROOT"
+          shasum -a 256 -c SHA256SUMS
+          output="$(python3 "$ROOT/tools/h3_n2_stage2d9r_successor_public_descriptor_exporter_20260725_v1.py" --probe-state)"
+          printf '%s\n' 'STAGE2D9R_SUCCESSOR_PUBLIC_DESCRIPTOR_EXPORT_U1_REVIEW_PROBE_V1_BEGIN'
+          printf '%s\n' "$output"
+          OUTPUT="$output" REVIEW_BINDING="$ROOT/review-binding.json" python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          lines = [line for line in os.environ['OUTPUT'].splitlines() if line.strip()]
+          assert lines[0] == 'STAGE2D9R_SUCCESSOR_PUBLIC_DESCRIPTOR_EXPORT_PROBE=PASS'
+          value = json.loads(lines[-1])
+          binding = json.loads(Path(os.environ['REVIEW_BINDING']).read_text(encoding='utf-8'))
+          assert value['schema'] == 'gh.h3.n2.stage2d9r-successor-public-descriptor-export-probe/1'
+          assert value['exporter_sha256'] == binding['exporter_sha256']
+          assert value['generation_marker_exists'] is True
+          assert value['generation_marker_sha256'] == binding['generation_marker_sha256']
+          assert value['expected_public_descriptor_sha256'] == binding['public_descriptor_sha256']
+          assert value['output_target_exists'] is False
+          for key in (
+              'private_descriptor_content_read', 'secret_values_included',
+              'private_paths_included', 'authorization_claimed',
+              'authorization_consumed', 'board_operation', 'serial_operation',
+              'flash_operation', 'physical_nvs_operation', 'network_operation',
+              'broker_started', 'prepare_executed', 'verify_executed',
+          ):
+              assert value[key] is False, key
+          print('PUBLIC_DESCRIPTOR_EXPORT_REVIEW_BINDING=PASS')
+          print('u1_request_id=' + binding['u1_request_id'])
+          print('source_sha=' + binding['source_sha'])
+          print('review_binding_sha256=' + binding['review_binding_sha256'])
+          print('exporter_sha256=' + value['exporter_sha256'])
+          print('python_executable_sha256=' + value['python_executable_sha256'])
+          print('generation_marker_sha256=' + value['generation_marker_sha256'])
+          print('public_descriptor_sha256=' + value['expected_public_descriptor_sha256'])
+          print('output_target_digest_sha256=' + value['output_target_digest_sha256'])
+          print('output_target_exists=false')
+          print('authorization_record_included=false')
+          print('public_descriptor_included=false')
+          print('private_content_included=false')
+          print('board_operation=false')
+          print('network_operation=false')
+          PY
+          printf '%s\n' 'STAGE2D9R_SUCCESSOR_PUBLIC_DESCRIPTOR_EXPORT_U1_REVIEW_PROBE_V1_END'
+          SH
+          chmod 0700 "$root"/run_*.sh
+          find "$root" -type f ! -name 'run_*.sh' -exec chmod 0600 {} +
+          (cd "$root" && find . -type f ! -name SHA256SUMS -print0 | LC_ALL=C sort -z | xargs -0 shasum -a 256 | sed 's#  \./#  #' > SHA256SUMS)
+          chmod 0600 "$root/SHA256SUMS"
+
+      - name: Verify review-only package boundary
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-successor-public-descriptor-export-u1-review-v1
+          (cd "$root" && sha256sum -c SHA256SUMS)
+          test ! -e "$root/authorization-record.json"
+          test ! -e "$root/authorized-execution-launcher.sh"
+          test ! -e "$root/public-descriptor.redacted.json"
+          test -z "$(find "$root" -type d -name __pycache__ -print -quit)"
+          test -z "$(find "$root" -type f \( -name '*.pyc' -o -name '*.pyo' \) -print -quit)"
+          ! grep -R -I -n -E 'BEGIN (RSA |EC )?PRIVATE KEY|/Users/|/private/tmp/|mqtt-password\.hex|persistence-key\.hex|unlock-token\.hex|prepare-command\.txt|verify-command\.txt|root-ca\.key\.pem|broker\.key\.pem|mosquitto\.password' "$root"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-successor-public-descriptor-export-u1-review-v1
+          path: /tmp/stage2d9r-successor-public-descriptor-export-u1-review-v1
+          if-no-files-found: error
+          retention-days: 5
+          compression-level: 9
+
+      - name: Report safe review boundary
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          printf '%s\n' \
+            'STAGE2D9R_SUCCESSOR_PUBLIC_DESCRIPTOR_EXPORT_U1_REVIEW_PACKAGE=PASS' \
+            "SOURCE_SHA=$SOURCE_SHA" \
+            'U1_REQUEST_ID=U1-H3N2-STAGE2D9R-PUBLIC-DESCRIPTOR-EXPORT-20260725-01' \
+            'GENERATION_MARKER_SHA256=428231f9e0e6a26c39701427b3e32531e18d08b54e341736b1189a78a06848a5' \
+            'PUBLIC_DESCRIPTOR_SHA256=7021279f141f00cbf7e64fe8a20e89dd8b8ef3b9c4c7625ec28b79f6d65db2b6' \
+            'AUTHORIZATION_CREATED=false' \
+            'AUTHORIZATION_CLAIMED=false' \
+            'AUTHORIZATION_CONSUMED=false' \
+            'PUBLIC_DESCRIPTOR_EXPORTED=false' \
+            'PRIVATE_CONTENT_READ=false' \
+            'BOARD_OPERATION=false' \
+            'SERIAL_OPERATION=false' \
+            'FLASH_OPERATION=false' \
+            'PHYSICAL_NVS_OPERATION=false' \
+            'NETWORK_OPERATION=false' \
+            'BROKER_STARTED=false' \
+            'PREPARE_EXECUTED=false' \
+            'VERIFY_EXECUTED=false'
+
+      - name: Cleanup
+        if: always()
+        run: rm -rf /tmp/stage2d9r-successor-public-descriptor-export-u1-review-v1 /tmp/stage2d9r-public-export-pycache /tmp/stage2d9r-public-export-tests.log
