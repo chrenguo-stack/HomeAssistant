@@ -15,6 +15,7 @@
   "authorization_record_sha256": "3c55e5f01071cfebf4f2cb98ab643da09582f1cc94496e4b061d29a6f88e8e73",
   "generation_authorization_id": "U1-H3N2-STAGE2D9R-PRIVATE-EXECUTION-MATERIAL-20260725-01",
   "generation_marker_sha256": "428231f9e0e6a26c39701427b3e32531e18d08b54e341736b1189a78a06848a5",
+  "export_marker_sha256": "a0c6ded9e371764a702b64fad58bd990b27808bae4467015116f9b189c8deceb",
   "run_suffix": "tlsvalid02",
   "status": "CONSUMED",
   "failure_code": null,
@@ -28,6 +29,33 @@
     "export_binding_sha256": "acb161544e2fb3a381f0d93691f2fecddad31780dc19e2eca39bc4ab0424556c",
     "public_descriptor_sha256": "7021279f141f00cbf7e64fe8a20e89dd8b8ef3b9c4c7625ec28b79f6d65db2b6",
     "candidate_digest_sha256": "a0ff758217a1769c1876336c131cb85e64dcb2369758c649f36798cd8083aaf2"
+  },
+  "closure_probe": {
+    "schema": "gh.h3.n2.stage2d9r-successor-public-descriptor-export-closure-probe/1",
+    "status": "PASS",
+    "marker_sha256": "a0c6ded9e371764a702b64fad58bd990b27808bae4467015116f9b189c8deceb",
+    "export_zip_sha256": "77fcded756d3914964138909ca2b51c2a20c60be76eed758049ef6c84ce4d8d1",
+    "export_binding_sha256": "acb161544e2fb3a381f0d93691f2fecddad31780dc19e2eca39bc4ab0424556c",
+    "export_modified": false,
+    "marker_modified": false,
+    "private_content_read": false
+  },
+  "uploaded_export_validation": {
+    "archive_sha256_match": true,
+    "deterministic_rebuild_match": true,
+    "exact_file_inventory": [
+      "SHA256SUMS",
+      "export-binding.json",
+      "public-descriptor.redacted.json"
+    ],
+    "internal_sha256sums_valid": true,
+    "all_archive_file_modes": "0600",
+    "archive_timestamp": "1980-01-01T00:00:00",
+    "public_descriptor_schema_valid": true,
+    "export_binding_schema_valid": true,
+    "private_content_included": false,
+    "private_paths_included": false,
+    "secret_values_included": false
   },
   "redaction_boundary": {
     "private_content_included": false,
@@ -59,10 +87,14 @@
   "disposition": {
     "export_u1_01_retired": true,
     "export_u1_01_replay_authorized": false,
-    "export_closure_probe_required": true,
-    "public_export_upload_required": true,
+    "export_closure_probe_completed": true,
+    "public_export_upload_validated": true,
+    "public_descriptor_repository_freeze_permitted": true,
+    "public_certificate_material_present": false,
+    "immutable_firmware_build_ready": false,
+    "public_pki_export_requires_separate_exact_u1": true,
     "d2_authorized": false,
     "physical_execution_authorized": false,
-    "next_gate": "READ_ONLY_EXPORT_CLOSURE_PROBE_AND_PUBLIC_ZIP_UPLOAD"
+    "next_gate": "PUBLIC_PKI_EXPORT_U1"
   }
 }
