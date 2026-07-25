@@ -71,27 +71,27 @@ jobs:
           import json
           from pathlib import Path
           path = Path('docs/acceptance/h3-n2-stage2d9r-successor-private-execution-material-u1-01-success-l1-v1.json')
-          value = json.loads(path.read_text(encoding='utf-8'))
-          assert value['schema'] == 'gh.h3.n2.stage2d9r-successor-private-execution-material-u1-success-l1/1'
-          assert value['authorization_id'] == 'U1-H3N2-STAGE2D9R-PRIVATE-EXECUTION-MATERIAL-20260725-01'
-          assert value['authorized_source_sha'] == '0cd9eeb5fd567d47a29bddee83159ac9570aa3dd'
-          assert value['result'] == 'consumed_passed_retired'
-          assert value['status'] == 'CONSUMED'
-          assert value['failure_code'] is None
-          assert value['one_shot'] is True
-          assert value['replay_permitted'] is False
-          assert value['automatic_retry_permitted'] is False
-          result = value['generation_result']
+          record = json.loads(path.read_text(encoding='utf-8'))
+          assert record['schema'] == 'gh.h3.n2.stage2d9r-successor-private-execution-material-u1-success-l1/1'
+          assert record['authorization_id'] == 'U1-H3N2-STAGE2D9R-PRIVATE-EXECUTION-MATERIAL-20260725-01'
+          assert record['authorized_source_sha'] == '0cd9eeb5fd567d47a29bddee83159ac9570aa3dd'
+          assert record['result'] == 'consumed_passed_retired'
+          assert record['status'] == 'CONSUMED'
+          assert record['failure_code'] is None
+          assert record['one_shot'] is True
+          assert record['replay_permitted'] is False
+          assert record['automatic_retry_permitted'] is False
+          result = record['generation_result']
           assert result['status'] == 'PASS'
           assert result['private_package_sha256'] == '7b585fc53b9201fd2c6161e544ac062d4223f509bfc86a10052d97907e4f55bb'
           assert result['public_descriptor_sha256'] == '7021279f141f00cbf7e64fe8a20e89dd8b8ef3b9c4c7625ec28b79f6d65db2b6'
           assert result['candidate_digest_sha256'] == 'a0ff758217a1769c1876336c131cb85e64dcb2369758c649f36798cd8083aaf2'
-          for value in value['redaction_boundary'].values():
-              assert value is False
-          for key, flag in value['protected_boundaries'].items():
+          for flag in record['redaction_boundary'].values():
+              assert flag is False
+          for key, flag in record['protected_boundaries'].items():
               assert flag is False, key
-          assert value['disposition']['u1_01_retired'] is True
-          assert value['disposition']['u1_01_replay_authorized'] is False
+          assert record['disposition']['u1_01_retired'] is True
+          assert record['disposition']['u1_01_replay_authorized'] is False
           PY
 
       - name: Re-run immutable source-only contracts
