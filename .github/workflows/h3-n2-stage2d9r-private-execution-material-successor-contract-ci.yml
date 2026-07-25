@@ -1,0 +1,130 @@
+name: H3 N2 Stage2D9R Private Execution Material Successor Contract CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-private-execution-material-successor-contract-ci.yml"
+      - "tools/h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py"
+      - "docs/acceptance/h3-n2-stage2d9r-d2-01-preclaim-invalidation-l1-v1.json"
+      - "docs/development/h3-n2-stage2d9r-private-execution-material-successor-plan-20260725-v1.md"
+  push:
+    branches:
+      - fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-private-execution-material-successor-contract-ci.yml"
+      - "tools/h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py"
+      - "docs/acceptance/h3-n2-stage2d9r-d2-01-preclaim-invalidation-l1-v1.json"
+      - "docs/development/h3-n2-stage2d9r-private-execution-material-successor-plan-20260725-v1.md"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Verify frozen predecessor and successor scope
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+        run: |
+          set -euo pipefail
+          test "$HEAD_BRANCH" = fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          git merge-base --is-ancestor cf841f3e5a8cf04c5df9875c499b91ad4e4289cb HEAD
+          test "$(git status --porcelain)" = ""
+
+      - name: Verify source and tests
+        run: |
+          set -euo pipefail
+          sha256sum -c <<'SUMS'
+          b3615f0f90bbb98449c00c28099cabda6951c6b4726866d1be4702d4e54f058b  tools/h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py
+          9e4683811ca1cea99100c572bb0da374b6fa395216e58f1a7e0aa104ec322f56  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py
+          SUMS
+          export PYTHONPYCACHEPREFIX=/tmp/stage2d9r-successor-contract-pycache
+          python -m py_compile \
+            tools/h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py
+          python \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py \
+            -v 2>&1 | tee /tmp/stage2d9r-successor-contract-tests.log
+          grep -F 'Ran 8 tests' /tmp/stage2d9r-successor-contract-tests.log
+          grep -F 'OK' /tmp/stage2d9r-successor-contract-tests.log
+          rm -rf "$PYTHONPYCACHEPREFIX"
+
+      - name: Verify fail-closed inventory and redaction boundary
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import importlib.util
+          import json
+          from pathlib import Path
+          path = Path('tools/h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py')
+          spec = importlib.util.spec_from_file_location('contract', path)
+          assert spec and spec.loader
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          assert 'mqtt-password.hex' in module.REQUIRED_PRIVATE_FILES
+          assert 'persistence-key.hex' in module.REQUIRED_PRIVATE_FILES
+          descriptor = module.build_public_descriptor(
+              '1' * 40, '2' * 64, '3' * 64, '4' * 64,
+              '5' * 64, '6' * 64, '7' * 64,
+          )
+          for key, value in descriptor.items():
+              if key.endswith('_authorized'):
+                  assert value is False, key
+          encoded = json.dumps(descriptor, sort_keys=True)
+          assert 'mqtt-password.hex' not in encoded
+          assert 'persistence-key.hex' not in encoded
+          assert '/Users/' not in encoded
+          assert '/private/tmp/' not in encoded
+          PY
+          ! grep -R -I -n -E 'BEGIN (RSA |EC )?PRIVATE KEY|/Users/|/private/tmp/|raw_mqtt_password|unlock-token\.hex:[0-9a-f]' \
+            tools/h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py \
+            docs/acceptance/h3-n2-stage2d9r-d2-01-preclaim-invalidation-l1-v1.json \
+            docs/development/h3-n2-stage2d9r-private-execution-material-successor-plan-20260725-v1.md
+          test -z "$(find . -type d -name __pycache__ -print -quit)"
+          test -z "$(find . -type f \( -name '*.pyc' -o -name '*.pyo' \) -print -quit)"
+
+      - name: Report safe source-only boundary
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          printf '%s\n' \
+            'STAGE2D9R_SUCCESSOR_EXECUTION_MATERIAL_CONTRACT=PASS' \
+            "SOURCE_SHA=$SOURCE_SHA" \
+            'PREDECESSOR_SOURCE_SHA=cf841f3e5a8cf04c5df9875c499b91ad4e4289cb' \
+            'D2_01_STATUS=invalidated_before_claim' \
+            'AUTHORIZATION_CLAIMED=false' \
+            'AUTHORIZATION_CONSUMED=false' \
+            'PASSWORD_PREIMAGE_REQUIRED=true' \
+            'PERSISTENCE_KEY_REQUIRED=true' \
+            'BOARD_OPERATION=false' \
+            'SERIAL_OPERATION=false' \
+            'FLASH_OPERATION=false' \
+            'PHYSICAL_NVS_OPERATION=false' \
+            'NETWORK_OPERATION=false' \
+            'BROKER_STARTED=false' \
+            'PREPARE_EXECUTED=false' \
+            'VERIFY_EXECUTED=false'
+
+      - name: Cleanup
+        if: always()
+        run: rm -rf /tmp/stage2d9r-successor-contract-pycache /tmp/stage2d9r-successor-contract-tests.log
