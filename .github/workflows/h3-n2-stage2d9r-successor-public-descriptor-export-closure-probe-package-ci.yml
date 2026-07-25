@@ -1,0 +1,203 @@
+name: H3 N2 Stage2D9R Successor Public Descriptor Export Closure Probe Package CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-successor-public-descriptor-export-closure-probe-package-ci.yml"
+      - "tools/h3_n2_stage2d9r_successor_public_descriptor_export_closure_probe_20260725_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_public_descriptor_export_closure_probe_20260725_v1.py"
+      - "docs/acceptance/h3-n2-stage2d9r-successor-public-descriptor-export-u1-01-success-l1-v1.json"
+  push:
+    branches:
+      - fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-successor-public-descriptor-export-closure-probe-package-ci.yml"
+      - "tools/h3_n2_stage2d9r_successor_public_descriptor_export_closure_probe_20260725_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_public_descriptor_export_closure_probe_20260725_v1.py"
+      - "docs/acceptance/h3-n2-stage2d9r-successor-public-descriptor-export-u1-01-success-l1-v1.json"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  export-closure-probe-package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Verify branch and authorized predecessor
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+        run: |
+          set -euo pipefail
+          test "$HEAD_BRANCH" = fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          git fetch --no-tags --depth=64 origin "$HEAD_BRANCH"
+          git merge-base --is-ancestor 950fdc26a0b876ffcdf9c2e7c21716cb49b1843d HEAD
+          test "$(git status --porcelain)" = ""
+
+      - name: Run read-only closure probe tests
+        run: |
+          set -euo pipefail
+          export PYTHONPYCACHEPREFIX=/tmp/stage2d9r-public-export-closure-pycache
+          python -m py_compile \
+            tools/h3_n2_stage2d9r_successor_public_descriptor_export_closure_probe_20260725_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_public_descriptor_export_closure_probe_20260725_v1.py
+          python \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_public_descriptor_export_closure_probe_20260725_v1.py \
+            -v 2>&1 | tee /tmp/stage2d9r-public-export-closure-tests.log
+          grep -F 'Ran 6 tests' /tmp/stage2d9r-public-export-closure-tests.log
+          grep -F 'OK' /tmp/stage2d9r-public-export-closure-tests.log
+          rm -rf "$PYTHONPYCACHEPREFIX"
+
+      - name: Verify explicit read-only and redaction boundary
+        run: |
+          set -euo pipefail
+          ! grep -R -I -n -E 'serial\.Serial|esptool|socket\.socket|subprocess|mosquitto_(pub|sub)|BEGIN (RSA |EC )?PRIVATE KEY' \
+            tools/h3_n2_stage2d9r_successor_public_descriptor_export_closure_probe_20260725_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_public_descriptor_export_closure_probe_20260725_v1.py
+          test -z "$(find . -type d -name __pycache__ -print -quit)"
+          test -z "$(find . -type f \( -name '*.pyc' -o -name '*.pyo' \) -print -quit)"
+
+      - name: Assemble read-only closure package
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-successor-public-descriptor-export-closure-probe-v1
+          mkdir -p "$root/tools"
+          cp tools/h3_n2_stage2d9r_successor_public_descriptor_export_closure_probe_20260725_v1.py "$root/tools/"
+          cp docs/acceptance/h3-n2-stage2d9r-successor-public-descriptor-export-u1-01-success-l1-v1.json "$root/"
+
+          SOURCE_SHA="$SOURCE_SHA" ROOT="$root" python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          root = Path(os.environ['ROOT'])
+          probe = root / 'tools/h3_n2_stage2d9r_successor_public_descriptor_export_closure_probe_20260725_v1.py'
+          acceptance = root / 'h3-n2-stage2d9r-successor-public-descriptor-export-u1-01-success-l1-v1.json'
+          digest = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+          binding = {
+              'schema': 'gh.h3.n2.stage2d9r-successor-public-descriptor-export-closure-probe-package/1',
+              'stage': 'H3/N2 Stage 2D-9R G3R successor',
+              'state': 'READ_ONLY_EXPORT_CLOSURE_PROBE',
+              'authorization_id': 'U1-H3N2-STAGE2D9R-PUBLIC-DESCRIPTOR-EXPORT-20260725-01',
+              'authorized_source_sha': '950fdc26a0b876ffcdf9c2e7c21716cb49b1843d',
+              'package_source_sha': os.environ['SOURCE_SHA'],
+              'authorization_record_sha256': '3c55e5f01071cfebf4f2cb98ab643da09582f1cc94496e4b061d29a6f88e8e73',
+              'export_zip_sha256': '77fcded756d3914964138909ca2b51c2a20c60be76eed758049ef6c84ce4d8d1',
+              'export_binding_sha256': 'acb161544e2fb3a381f0d93691f2fecddad31780dc19e2eca39bc4ab0424556c',
+              'public_descriptor_sha256': '7021279f141f00cbf7e64fe8a20e89dd8b8ef3b9c4c7625ec28b79f6d65db2b6',
+              'probe_sha256': digest(probe),
+              'acceptance_sha256': digest(acceptance),
+              'authorization_record_included': False,
+              'private_content_included': False,
+              'private_paths_included': False,
+              'secret_values_included': False,
+              'authorization_claimed': False,
+              'authorization_consumed_by_probe': False,
+              'marker_modified': False,
+              'export_modified': False,
+              'board_operation': False,
+              'serial_operation': False,
+              'flash_operation': False,
+              'physical_nvs_operation': False,
+              'network_operation': False,
+              'broker_started': False,
+              'prepare_executed': False,
+              'verify_executed': False,
+              'activate_executed': False,
+              'cleanup_executed': False,
+              'production_operation': False,
+          }
+          canonical = json.dumps(binding, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode()
+          binding['package_binding_sha256'] = hashlib.sha256(canonical).hexdigest()
+          (root / 'package-binding.json').write_text(json.dumps(binding, indent=2, sort_keys=True) + '\n')
+          PY
+
+          cat > "$root/README.md" <<'EOF'
+          # Stage 2D-9R successor public descriptor export closure probe
+
+          This package reads only the consumed export marker and the public
+          export ZIP. It verifies exact hashes, ZIP inventory, SHA256SUMS,
+          redaction boundaries and file modes. It does not read successor private
+          custody material, modify either file, claim or consume authorization,
+          access a board or serial port, write Flash/NVS, use a network, start a
+          Broker, or execute PREPARE/VERIFY/ACTIVATE/CLEANUP.
+          EOF
+
+          cat > "$root/run_stage2d9r_successor_public_descriptor_export_closure_probe_20260725_v1_77fcded7.sh" <<'SH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          umask 077
+          ROOT="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)"
+          cd "$ROOT"
+          shasum -a 256 -c SHA256SUMS
+          printf '%s\n' 'STAGE2D9R_SUCCESSOR_PUBLIC_DESCRIPTOR_EXPORT_CLOSURE_PROBE_V1_BEGIN'
+          python3 "$ROOT/tools/h3_n2_stage2d9r_successor_public_descriptor_export_closure_probe_20260725_v1.py"
+          printf '%s\n' 'STAGE2D9R_SUCCESSOR_PUBLIC_DESCRIPTOR_EXPORT_CLOSURE_PROBE_V1_END'
+          SH
+          chmod 0700 "$root"/run_*.sh
+          find "$root" -type f ! -name 'run_*.sh' -exec chmod 0600 {} +
+          (cd "$root" && find . -type f ! -name SHA256SUMS -print0 | LC_ALL=C sort -z | xargs -0 shasum -a 256 | sed 's#  \./#  #' > SHA256SUMS)
+          chmod 0600 "$root/SHA256SUMS"
+
+      - name: Verify assembled package
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-successor-public-descriptor-export-closure-probe-v1
+          (cd "$root" && sha256sum -c SHA256SUMS)
+          test ! -e "$root/authorization-record.json"
+          test ! -e "$root/public-descriptor.redacted.json"
+          test ! -e "$root/Stage2D9R_G3R_Successor_Public_Descriptor_Export_U1_01_20260725.zip"
+          test -z "$(find "$root" -type d -name __pycache__ -print -quit)"
+          test -z "$(find "$root" -type f \( -name '*.pyc' -o -name '*.pyo' \) -print -quit)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-successor-public-descriptor-export-closure-probe-v1
+          path: /tmp/stage2d9r-successor-public-descriptor-export-closure-probe-v1
+          if-no-files-found: error
+          retention-days: 5
+          compression-level: 9
+
+      - name: Report safe boundary
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          printf '%s\n' \
+            'STAGE2D9R_SUCCESSOR_PUBLIC_DESCRIPTOR_EXPORT_CLOSURE_PROBE_PACKAGE=PASS' \
+            "SOURCE_SHA=$SOURCE_SHA" \
+            'AUTHORIZED_SOURCE_SHA=950fdc26a0b876ffcdf9c2e7c21716cb49b1843d' \
+            'EXPORT_ZIP_SHA256=77fcded756d3914964138909ca2b51c2a20c60be76eed758049ef6c84ce4d8d1' \
+            'EXPORT_BINDING_SHA256=acb161544e2fb3a381f0d93691f2fecddad31780dc19e2eca39bc4ab0424556c' \
+            'PUBLIC_DESCRIPTOR_SHA256=7021279f141f00cbf7e64fe8a20e89dd8b8ef3b9c4c7625ec28b79f6d65db2b6' \
+            'MARKER_MODIFIED=false' \
+            'EXPORT_MODIFIED=false' \
+            'PRIVATE_CONTENT_READ=false' \
+            'BOARD_OPERATION=false' \
+            'SERIAL_OPERATION=false' \
+            'FLASH_OPERATION=false' \
+            'PHYSICAL_NVS_OPERATION=false' \
+            'NETWORK_OPERATION=false' \
+            'BROKER_STARTED=false' \
+            'PREPARE_EXECUTED=false' \
+            'VERIFY_EXECUTED=false'
+
+      - name: Cleanup
+        if: always()
+        run: rm -rf /tmp/stage2d9r-successor-public-descriptor-export-closure-probe-v1 /tmp/stage2d9r-public-export-closure-pycache /tmp/stage2d9r-public-export-closure-tests.log
