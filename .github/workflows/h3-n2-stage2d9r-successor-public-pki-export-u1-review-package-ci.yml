@@ -1,0 +1,251 @@
+name: H3 N2 Stage2D9R Successor Public PKI Export U1 Review Package CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-successor-public-pki-export-u1-review-package-ci.yml"
+      - "tools/h3_n2_stage2d9r_successor_public_pki_exporter_20260725_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_public_pki_exporter_20260725_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/public_successor_tlsvalid02/**"
+      - "docs/acceptance/h3-n2-stage2d9r-successor-public-descriptor-export-u1-01-success-l1-v1.json"
+  push:
+    branches:
+      - fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-successor-public-pki-export-u1-review-package-ci.yml"
+      - "tools/h3_n2_stage2d9r_successor_public_pki_exporter_20260725_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_public_pki_exporter_20260725_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/public_successor_tlsvalid02/**"
+      - "docs/acceptance/h3-n2-stage2d9r-successor-public-descriptor-export-u1-01-success-l1-v1.json"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  review-package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Verify branch and completed public descriptor export
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+        run: |
+          set -euo pipefail
+          test "$HEAD_BRANCH" = fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          git fetch --no-tags --depth=64 origin "$HEAD_BRANCH"
+          git merge-base --is-ancestor 6710f573f625e5b5d7925068948152fef2625c8f HEAD
+          test "$(git status --porcelain)" = ""
+
+      - name: Verify frozen public descriptor import
+        run: |
+          set -euo pipefail
+          sha256sum -c <<'SUMS'
+          7021279f141f00cbf7e64fe8a20e89dd8b8ef3b9c4c7625ec28b79f6d65db2b6  tests/h3_n2_stage2d9r_tls_candidate/public_successor_tlsvalid02/public-descriptor.redacted.json
+          acb161544e2fb3a381f0d93691f2fecddad31780dc19e2eca39bc4ab0424556c  tests/h3_n2_stage2d9r_tls_candidate/public_successor_tlsvalid02/export-binding.json
+          SUMS
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path('tests/h3_n2_stage2d9r_tls_candidate/public_successor_tlsvalid02')
+          descriptor = json.loads((root / 'public-descriptor.redacted.json').read_text())
+          binding = json.loads((root / 'export-binding.json').read_text())
+          assert descriptor['schema'] == 'gh.h3.n2.stage2d9r-private-execution-material-successor-public/1'
+          assert descriptor['run_suffix'] == 'tlsvalid02'
+          assert descriptor['candidate_digest_sha256'] == 'a0ff758217a1769c1876336c131cb85e64dcb2369758c649f36798cd8083aaf2'
+          assert descriptor['ca_pem_sha256'] == '9d98b4aa1d87604e8c37aaa50892bf4cd47b8b8a0479acdabe78d41d39b36096'
+          assert binding['state'] == 'PUBLIC_DESCRIPTOR_EXPORTED'
+          assert binding['public_descriptor_sha256'] == '7021279f141f00cbf7e64fe8a20e89dd8b8ef3b9c4c7625ec28b79f6d65db2b6'
+          for value in descriptor.values():
+              pass
+          for key, value in descriptor.items():
+              if key.endswith('_authorized'):
+                  assert value is False, key
+          assert descriptor['private_values_included'] is False
+          assert descriptor['private_paths_included'] is False
+          assert descriptor['secret_values_included'] is False
+          for key in ('private_content_included', 'private_paths_included', 'secret_values_included'):
+              assert binding[key] is False, key
+          PY
+
+      - name: Run public PKI exporter source-only tests
+        run: |
+          set -euo pipefail
+          export PYTHONPYCACHEPREFIX=/tmp/stage2d9r-successor-public-pki-pycache
+          python -m py_compile \
+            tools/h3_n2_stage2d9r_successor_public_pki_exporter_20260725_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_public_pki_exporter_20260725_v1.py
+          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_public_pki_exporter_20260725_v1.py -v \
+            2>&1 | tee /tmp/stage2d9r-successor-public-pki-tests.log
+          grep -F 'Ran 5 tests' /tmp/stage2d9r-successor-public-pki-tests.log
+          grep -F 'OK' /tmp/stage2d9r-successor-public-pki-tests.log
+          rm -rf "$PYTHONPYCACHEPREFIX"
+
+      - name: Verify explicit safety boundary
+        run: |
+          set -euo pipefail
+          ! grep -n -E 'socket\.socket|serial\.Serial|esptool|mosquitto_(pub|sub)|mqtt-password\.hex|persistence-key\.hex|unlock-token\.hex|root-ca\.key\.pem|broker\.key\.pem|mosquitto\.password|prepare-command\.txt|verify-command\.txt|private-custody-descriptor\.json' \
+            tools/h3_n2_stage2d9r_successor_public_pki_exporter_20260725_v1.py
+          test -z "$(find . -type d -name __pycache__ -print -quit)"
+          test -z "$(find . -type f \( -name '*.pyc' -o -name '*.pyo' \) -print -quit)"
+
+      - name: Assemble review-only package
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-successor-public-pki-export-u1-review-v1
+          mkdir -p "$root/tools" "$root/tests" "$root/public-successor-tlsvalid02"
+          cp tools/h3_n2_stage2d9r_successor_public_pki_exporter_20260725_v1.py "$root/tools/"
+          cp tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_public_pki_exporter_20260725_v1.py "$root/tests/"
+          cp tests/h3_n2_stage2d9r_tls_candidate/public_successor_tlsvalid02/public-descriptor.redacted.json "$root/public-successor-tlsvalid02/"
+          cp tests/h3_n2_stage2d9r_tls_candidate/public_successor_tlsvalid02/export-binding.json "$root/public-successor-tlsvalid02/"
+          cp docs/acceptance/h3-n2-stage2d9r-successor-public-descriptor-export-u1-01-success-l1-v1.json "$root/"
+
+          SOURCE_SHA="$SOURCE_SHA" ROOT="$root" python - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          root=Path(os.environ['ROOT'])
+          def h(path): return hashlib.sha256(path.read_bytes()).hexdigest()
+          binding={
+            'schema':'gh.h3.n2.stage2d9r-successor-public-pki-export-u1-review/1',
+            'stage':'H3/N2 Stage 2D-9R G3R successor',
+            'u1_request_id':'U1-H3N2-STAGE2D9R-PUBLIC-PKI-EXPORT-20260725-01',
+            'source_sha':os.environ['SOURCE_SHA'],
+            'authorized_generation_source_sha':'0cd9eeb5fd567d47a29bddee83159ac9570aa3dd',
+            'generation_marker_sha256':'428231f9e0e6a26c39701427b3e32531e18d08b54e341736b1189a78a06848a5',
+            'descriptor_export_marker_sha256':'a0c6ded9e371764a702b64fad58bd990b27808bae4467015116f9b189c8deceb',
+            'descriptor_export_zip_sha256':'77fcded756d3914964138909ca2b51c2a20c60be76eed758049ef6c84ce4d8d1',
+            'public_descriptor_sha256':'7021279f141f00cbf7e64fe8a20e89dd8b8ef3b9c4c7625ec28b79f6d65db2b6',
+            'candidate_digest_sha256':'a0ff758217a1769c1876336c131cb85e64dcb2369758c649f36798cd8083aaf2',
+            'ca_pem_sha256':'9d98b4aa1d87604e8c37aaa50892bf4cd47b8b8a0479acdabe78d41d39b36096',
+            'broker_certificate_der_sha256':'4ca8731424c87ba61336f4bc4fb743137ed83c127ed1a214198b65e5b33b40f9',
+            'broker_spki_sha256':'0ae2d32c2ddfb7b4b63c9ee4049291d9725a42a55721b0e78d53fcf5c9e1f72e',
+            'exporter_sha256':h(root/'tools/h3_n2_stage2d9r_successor_public_pki_exporter_20260725_v1.py'),
+            'authorization_record_included':False,
+            'public_certificate_content_included':False,
+            'private_content_included':False,
+            'private_paths_included':False,
+            'secret_values_included':False,
+            'authorization_claimed':False,
+            'authorization_consumed':False,
+            'board_operation':False,
+            'serial_operation':False,
+            'flash_operation':False,
+            'physical_nvs_operation':False,
+            'network_operation':False,
+            'broker_started':False,
+            'prepare_executed':False,
+            'verify_executed':False,
+          }
+          canonical=json.dumps(binding,sort_keys=True,separators=(',',':')).encode()
+          binding['review_binding_sha256']=hashlib.sha256(canonical).hexdigest()
+          (root/'review-binding.json').write_text(json.dumps(binding,indent=2,sort_keys=True)+'\n')
+          PY
+
+          cat > "$root/run_stage2d9r_successor_public_pki_export_u1_review_probe_20260725_v1.sh" <<'SH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          umask 077
+          ROOT="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)"
+          cd "$ROOT"
+          shasum -a 256 -c SHA256SUMS
+          printf '%s\n' 'STAGE2D9R_SUCCESSOR_PUBLIC_PKI_EXPORT_U1_REVIEW_PROBE_V1_BEGIN'
+          python3 "$ROOT/tools/h3_n2_stage2d9r_successor_public_pki_exporter_20260725_v1.py" | tee /tmp/stage2d9r-successor-public-pki-review-probe.log
+          ROOT="$ROOT" python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          root=Path(os.environ['ROOT'])
+          binding=json.loads((root/'review-binding.json').read_text())
+          lines=Path('/tmp/stage2d9r-successor-public-pki-review-probe.log').read_text().splitlines()
+          assert lines[0]=='STAGE2D9R_SUCCESSOR_PUBLIC_PKI_EXPORT_PROBE=PASS'
+          value=json.loads(lines[1])
+          assert value['generation_marker_sha256']==binding['generation_marker_sha256']
+          assert value['descriptor_export_marker_sha256']==binding['descriptor_export_marker_sha256']
+          assert value['exporter_sha256']==binding['exporter_sha256']
+          for key in ('public_root_exists','root_ca_exists','broker_certificate_exists','broker_fullchain_exists','public_descriptor_exists'):
+              assert value[key] is True, key
+          assert value['output_target_exists'] is False
+          assert value['public_content_read'] is False
+          assert value['private_content_read'] is False
+          assert value['private_paths_included'] is False
+          assert value['secret_values_included'] is False
+          assert value['authorization_claimed'] is False
+          assert value['authorization_consumed'] is False
+          print('PUBLIC_PKI_EXPORT_REVIEW_BINDING=PASS')
+          for key in ('u1_request_id','source_sha','review_binding_sha256','exporter_sha256'):
+              print(f'{key}={binding[key]}')
+          for key in ('python_executable_sha256','openssl_executable_sha256','output_target_digest_sha256'):
+              print(f'{key}={value[key]}')
+          print('output_target_exists=false')
+          print('authorization_record_included=false')
+          print('public_certificate_content_included=false')
+          print('private_content_included=false')
+          print('board_operation=false')
+          print('network_operation=false')
+          PY
+          rm -f /tmp/stage2d9r-successor-public-pki-review-probe.log
+          printf '%s\n' 'STAGE2D9R_SUCCESSOR_PUBLIC_PKI_EXPORT_U1_REVIEW_PROBE_V1_END'
+          SH
+          chmod 0700 "$root"/run_*.sh
+          find "$root" -type f ! -name 'run_*.sh' -exec chmod 0600 {} +
+          (cd "$root" && find . -type f ! -name SHA256SUMS -print0 | LC_ALL=C sort -z | xargs -0 shasum -a 256 | sed 's#  \./#  #' > SHA256SUMS)
+          chmod 0600 "$root/SHA256SUMS"
+
+      - name: Verify review-only package boundary
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-successor-public-pki-export-u1-review-v1
+          (cd "$root" && sha256sum -c SHA256SUMS)
+          test ! -e "$root/authorization-record.json"
+          test ! -e "$root/root-ca.cert.pem"
+          test ! -e "$root/broker.cert.pem"
+          test ! -e "$root/broker.fullchain.pem"
+          ! grep -R -I -n -E 'BEGIN (RSA |EC )?PRIVATE KEY|mqtt-password\.hex|persistence-key\.hex|unlock-token\.hex|mosquitto\.password|prepare-command\.txt|verify-command\.txt|/Users/|/private/tmp/' "$root"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-successor-public-pki-export-u1-review-v1
+          path: /tmp/stage2d9r-successor-public-pki-export-u1-review-v1
+          if-no-files-found: error
+          retention-days: 5
+          compression-level: 9
+
+      - name: Report safe review boundary
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          printf '%s\n' \
+            'STAGE2D9R_SUCCESSOR_PUBLIC_PKI_EXPORT_U1_REVIEW_PACKAGE=PASS' \
+            "SOURCE_SHA=$SOURCE_SHA" \
+            'U1_REQUEST_ID=U1-H3N2-STAGE2D9R-PUBLIC-PKI-EXPORT-20260725-01' \
+            'PUBLIC_DESCRIPTOR_SHA256=7021279f141f00cbf7e64fe8a20e89dd8b8ef3b9c4c7625ec28b79f6d65db2b6' \
+            'PUBLIC_CERTIFICATE_CONTENT_INCLUDED=false' \
+            'AUTHORIZATION_RECORD_INCLUDED=false' \
+            'PRIVATE_CONTENT_INCLUDED=false' \
+            'BOARD_OPERATION=false' \
+            'SERIAL_OPERATION=false' \
+            'FLASH_OPERATION=false' \
+            'PHYSICAL_NVS_OPERATION=false' \
+            'NETWORK_OPERATION=false' \
+            'BROKER_STARTED=false' \
+            'PREPARE_EXECUTED=false' \
+            'VERIFY_EXECUTED=false'
+
+      - name: Cleanup
+        if: always()
+        run: rm -rf /tmp/stage2d9r-successor-public-pki-export-u1-review-v1 /tmp/stage2d9r-successor-public-pki-pycache /tmp/stage2d9r-successor-public-pki-tests.log /tmp/stage2d9r-successor-public-pki-review-probe.log
