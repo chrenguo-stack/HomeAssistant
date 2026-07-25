@@ -1,0 +1,281 @@
+name: H3 N2 Stage2D9R Successor Private Execution Material U1 Review Package CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-successor-private-execution-material-u1-review-package-ci.yml"
+      - "tools/h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py"
+      - "tools/h3_n2_stage2d9r_private_execution_material_successor_generator_20260725_v1.py"
+      - "tools/h3_n2_stage2d9r_prepare_command_protocol_20260723_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_execution_material_successor_generator_20260725_v1.py"
+      - "docs/acceptance/h3-n2-stage2d9r-d2-01-preclaim-invalidation-l1-v1.json"
+      - "docs/development/h3-n2-stage2d9r-private-execution-material-successor-plan-20260725-v1.md"
+  push:
+    branches:
+      - fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-successor-private-execution-material-u1-review-package-ci.yml"
+      - "tools/h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py"
+      - "tools/h3_n2_stage2d9r_private_execution_material_successor_generator_20260725_v1.py"
+      - "tools/h3_n2_stage2d9r_prepare_command_protocol_20260723_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_execution_material_successor_generator_20260725_v1.py"
+      - "docs/acceptance/h3-n2-stage2d9r-d2-01-preclaim-invalidation-l1-v1.json"
+      - "docs/development/h3-n2-stage2d9r-private-execution-material-successor-plan-20260725-v1.md"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  review-package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Fail closed on branch and predecessor drift
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+        run: |
+          set -euo pipefail
+          test "$HEAD_BRANCH" = fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          git fetch --no-tags --depth=32 origin "$HEAD_BRANCH"
+          git merge-base --is-ancestor cf841f3e5a8cf04c5df9875c499b91ad4e4289cb HEAD
+          test "$(git status --porcelain)" = ""
+
+      - name: Re-run source-only contracts
+        run: |
+          set -euo pipefail
+          export PYTHONPYCACHEPREFIX=/tmp/stage2d9r-successor-u1-review-pycache
+          python \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py \
+            -v 2>&1 | tee /tmp/stage2d9r-successor-u1-contract.log
+          python \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_execution_material_successor_generator_20260725_v1.py \
+            -v 2>&1 | tee /tmp/stage2d9r-successor-u1-generator.log
+          grep -F 'Ran 8 tests' /tmp/stage2d9r-successor-u1-contract.log
+          grep -F 'Ran 9 tests' /tmp/stage2d9r-successor-u1-generator.log
+          grep -F 'OK' /tmp/stage2d9r-successor-u1-contract.log
+          grep -F 'OK' /tmp/stage2d9r-successor-u1-generator.log
+          rm -rf "$PYTHONPYCACHEPREFIX"
+
+      - name: Assemble review-only package
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-successor-private-execution-material-u1-review-v1
+          mkdir -p "$root/tools" "$root/tests"
+          cp tools/h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py "$root/tools/"
+          cp tools/h3_n2_stage2d9r_private_execution_material_successor_generator_20260725_v1.py "$root/tools/"
+          cp tools/h3_n2_stage2d9r_prepare_command_protocol_20260723_v1.py "$root/tools/"
+          cp tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py "$root/tests/"
+          cp tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_execution_material_successor_generator_20260725_v1.py "$root/tests/"
+          cp docs/acceptance/h3-n2-stage2d9r-d2-01-preclaim-invalidation-l1-v1.json "$root/"
+          cp docs/development/h3-n2-stage2d9r-private-execution-material-successor-plan-20260725-v1.md "$root/"
+
+          SOURCE_SHA="$SOURCE_SHA" ROOT="$root" python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ['ROOT'])
+          source_sha = os.environ['SOURCE_SHA']
+
+          def digest(path: Path) -> str:
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+
+          binding = {
+              'schema': 'gh.h3.n2.stage2d9r-successor-private-execution-material-u1-review/1',
+              'stage': 'H3/N2 Stage 2D-9R G3R successor',
+              'state': 'PENDING_EXACT_U1_REVIEW',
+              'u1_request_id': 'U1-H3N2-STAGE2D9R-PRIVATE-EXECUTION-MATERIAL-20260725-01',
+              'repository': 'chrenguo-stack/HomeAssistant',
+              'pull_request': 180,
+              'pull_request_required_state': 'open,draft,unmerged,mergeable',
+              'base_pull_request': 176,
+              'base_source_sha': 'cf841f3e5a8cf04c5df9875c499b91ad4e4289cb',
+              'main_sha': 'a3a72d75480362999e70e180f33459198b3951b5',
+              'source_sha': source_sha,
+              'run_suffix': 'tlsvalid02',
+              'custody_root_selection_rule': 'HOME_LOCAL_STATE_STAGE2D9R_PRIVATE_EXECUTION_MATERIAL_TLSVALID02',
+              'generator_sha256': digest(root / 'tools/h3_n2_stage2d9r_private_execution_material_successor_generator_20260725_v1.py'),
+              'contract_sha256': digest(root / 'tools/h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py'),
+              'protocol_sha256': digest(root / 'tools/h3_n2_stage2d9r_prepare_command_protocol_20260723_v1.py'),
+              'contract_test_sha256': digest(root / 'tests/test_h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py'),
+              'generator_test_sha256': digest(root / 'tests/test_h3_n2_stage2d9r_private_execution_material_successor_generator_20260725_v1.py'),
+              'd2_01_invalidation_sha256': digest(root / 'h3-n2-stage2d9r-d2-01-preclaim-invalidation-l1-v1.json'),
+              'successor_plan_sha256': digest(root / 'h3-n2-stage2d9r-private-execution-material-successor-plan-20260725-v1.md'),
+              'authorization_record_included': False,
+              'authorized_execution_launcher_included': False,
+              'private_content_included': False,
+              'private_paths_included': False,
+              'secret_values_included': False,
+              'board_operation': False,
+              'serial_operation': False,
+              'flash_operation': False,
+              'physical_nvs_operation': False,
+              'network_operation': False,
+              'broker_started': False,
+              'prepare_executed': False,
+              'verify_executed': False,
+              'activate_executed': False,
+              'cleanup_executed': False,
+              'production_operation': False,
+              'one_shot_required': True,
+              'replay_permitted': False,
+              'automatic_retry_permitted': False,
+          }
+          canonical = json.dumps(binding, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode()
+          binding['review_binding_sha256'] = hashlib.sha256(canonical).hexdigest()
+          (root / 'review-binding.json').write_text(
+              json.dumps(binding, indent=2, sort_keys=True) + '\n', encoding='utf-8'
+          )
+          PY
+
+          cat > "$root/README.md" <<'EOF'
+          # Stage 2D-9R successor private execution material — U1 review package
+
+          This package is review-only. It contains the frozen source contract,
+          one-shot generator source, protocol parser, offline tests, D2-01
+          preclaim invalidation evidence, successor plan, review binding and a
+          read-only local toolchain probe launcher.
+
+          It contains no authorization record, no private material and no
+          authorized generation launcher. Running the included launcher only
+          verifies package integrity and probes local Python, OpenSSL,
+          mosquitto_passwd and the unused successor custody-root state. It does
+          not generate secrets, claim or consume U1, access a board or serial
+          port, write Flash/NVS, start a Broker, or execute PREPARE/VERIFY.
+          EOF
+
+          cat > "$root/run_stage2d9r_successor_private_execution_material_toolchain_probe_20260725_v1.sh" <<'SH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          umask 077
+          ROOT="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)"
+          cd "$ROOT"
+          shasum -a 256 -c SHA256SUMS
+          export PYTHONPATH="$ROOT/tools"
+          output="$(python3 "$ROOT/tools/h3_n2_stage2d9r_private_execution_material_successor_generator_20260725_v1.py" --probe-toolchain)"
+          printf '%s\n' 'STAGE2D9R_SUCCESSOR_PRIVATE_EXECUTION_MATERIAL_U1_REVIEW_PROBE_V1_BEGIN'
+          printf '%s\n' "$output"
+          OUTPUT="$output" REVIEW_BINDING="$ROOT/review-binding.json" python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          lines = [line for line in os.environ['OUTPUT'].splitlines() if line.strip()]
+          assert lines[0] == 'STAGE2D9R_SUCCESSOR_PRIVATE_EXECUTION_MATERIAL_TOOLCHAIN_PROBE=PASS'
+          value = json.loads(lines[-1])
+          binding = json.loads(Path(os.environ['REVIEW_BINDING']).read_text(encoding='utf-8'))
+          assert value['schema'] == 'gh.h3.n2.stage2d9r-private-execution-material-successor-toolchain-probe/1'
+          assert value['stage'] == binding['stage']
+          assert value['run_suffix'] == binding['run_suffix']
+          assert value['generator_sha256'] == binding['generator_sha256']
+          assert value['contract_sha256'] == binding['contract_sha256']
+          assert value['protocol_sha256'] == binding['protocol_sha256']
+          assert value['custody_root_selection_rule'] == binding['custody_root_selection_rule']
+          assert value['custody_root_exists'] is False
+          for key in (
+              'private_paths_included', 'secret_values_included',
+              'authorization_claimed', 'authorization_consumed',
+              'board_operation', 'serial_operation', 'flash_operation',
+              'physical_nvs_operation', 'network_operation', 'broker_started',
+              'prepare_executed', 'verify_executed',
+          ):
+              assert value[key] is False, key
+          print('U1_REVIEW_TOOLCHAIN_BINDING=PASS')
+          print('u1_request_id=' + binding['u1_request_id'])
+          print('source_sha=' + binding['source_sha'])
+          print('review_binding_sha256=' + binding['review_binding_sha256'])
+          print('authorization_record_included=false')
+          print('private_content_included=false')
+          print('board_operation=false')
+          print('network_operation=false')
+          print('prepare_executed=false')
+          print('verify_executed=false')
+          PY
+          printf '%s\n' 'STAGE2D9R_SUCCESSOR_PRIVATE_EXECUTION_MATERIAL_U1_REVIEW_PROBE_V1_END'
+          SH
+          chmod 0700 "$root"/run_*.sh
+          find "$root" -type f ! -name 'run_*.sh' -exec chmod 0600 {} +
+          (cd "$root" && find . -type f ! -name SHA256SUMS -print0 | LC_ALL=C sort -z | xargs -0 shasum -a 256 | sed 's#  \./#  #' > SHA256SUMS)
+          chmod 0600 "$root/SHA256SUMS"
+
+      - name: Verify review-only package boundary
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-successor-private-execution-material-u1-review-v1
+          (cd "$root" && sha256sum -c SHA256SUMS)
+          test ! -e "$root/authorization-record.json"
+          test ! -e "$root/authorized-execution-launcher.sh"
+          test -z "$(find "$root" -type d -name __pycache__ -print -quit)"
+          test -z "$(find "$root" -type f \( -name '*.pyc' -o -name '*.pyo' \) -print -quit)"
+          ! grep -R -I -n -E 'BEGIN (RSA |EC )?PRIVATE KEY|/Users/|/private/tmp/|mqtt-password\.hex[[:space:]]+[0-9a-f]{64}' "$root"
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          path = Path('/tmp/stage2d9r-successor-private-execution-material-u1-review-v1/review-binding.json')
+          value = json.loads(path.read_text(encoding='utf-8'))
+          observed = value.pop('review_binding_sha256')
+          canonical = json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode()
+          assert hashlib.sha256(canonical).hexdigest() == observed
+          assert value['authorization_record_included'] is False
+          assert value['authorized_execution_launcher_included'] is False
+          assert value['private_content_included'] is False
+          assert value['network_operation'] is False
+          assert value['board_operation'] is False
+          assert value['prepare_executed'] is False
+          assert value['verify_executed'] is False
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-successor-private-execution-material-u1-review-v1
+          path: /tmp/stage2d9r-successor-private-execution-material-u1-review-v1
+          if-no-files-found: error
+          retention-days: 5
+          compression-level: 0
+
+      - name: Report public review binding
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-successor-private-execution-material-u1-review-v1
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          value = json.loads(Path('/tmp/stage2d9r-successor-private-execution-material-u1-review-v1/review-binding.json').read_text())
+          print('STAGE2D9R_SUCCESSOR_U1_REVIEW_PACKAGE=PASS')
+          print('u1_request_id=' + value['u1_request_id'])
+          print('source_sha=' + value['source_sha'])
+          print('review_binding_sha256=' + value['review_binding_sha256'])
+          print('authorization_record_included=false')
+          print('private_content_included=false')
+          print('board_operation=false')
+          print('network_operation=false')
+          print('prepare_executed=false')
+          print('verify_executed=false')
+          PY
+
+      - name: Cleanup
+        if: always()
+        run: rm -rf /tmp/stage2d9r-successor-private-execution-material-u1-review-v1 /tmp/stage2d9r-successor-u1-review-pycache /tmp/stage2d9r-successor-u1-contract.log /tmp/stage2d9r-successor-u1-generator.log
