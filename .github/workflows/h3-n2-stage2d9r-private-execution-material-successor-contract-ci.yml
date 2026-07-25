@@ -55,8 +55,8 @@ jobs:
         run: |
           set -euo pipefail
           sha256sum -c <<'SUMS'
-          b3615f0f90bbb98449c00c28099cabda6951c6b4726866d1be4702d4e54f058b  tools/h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py
-          9e4683811ca1cea99100c572bb0da374b6fa395216e58f1a7e0aa104ec322f56  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py
+          95c33d9d1cbb051e23621264a51c1b77bf674c0d403e2e813d1936ab9f9dbfb0  tools/h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py
+          1daf18361839fe1f80dc262f357f22b65fa77ec02551f98ffed7c4dd5c99d30f  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py
           SUMS
           export PYTHONPYCACHEPREFIX=/tmp/stage2d9r-successor-contract-pycache
           python -m py_compile \
@@ -84,8 +84,17 @@ jobs:
           assert 'mqtt-password.hex' in module.REQUIRED_PRIVATE_FILES
           assert 'persistence-key.hex' in module.REQUIRED_PRIVATE_FILES
           descriptor = module.build_public_descriptor(
-              '1' * 40, '2' * 64, '3' * 64, '4' * 64,
-              '5' * 64, '6' * 64, '7' * 64,
+              '1' * 40,
+              '2' * 64,
+              '3' * 64,
+              '4' * 64,
+              '5' * 64,
+              '6' * 64,
+              '7' * 64,
+              '8' * 64,
+              '9' * 64,
+              'a' * 64,
+              'b' * 64,
           )
           for key, value in descriptor.items():
               if key.endswith('_authorized'):
@@ -117,6 +126,8 @@ jobs:
             'AUTHORIZATION_CONSUMED=false' \
             'PASSWORD_PREIMAGE_REQUIRED=true' \
             'PERSISTENCE_KEY_REQUIRED=true' \
+            'SUCCESSOR_PKI_REQUIRED=true' \
+            'SUCCESSOR_UNLOCK_REQUIRED=true' \
             'BOARD_OPERATION=false' \
             'SERIAL_OPERATION=false' \
             'FLASH_OPERATION=false' \
