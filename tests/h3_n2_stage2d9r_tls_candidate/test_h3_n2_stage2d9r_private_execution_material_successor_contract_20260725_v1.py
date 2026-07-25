@@ -79,7 +79,7 @@ class SuccessorExecutionMaterialContractTests(unittest.TestCase):
         with self.assertRaisesRegex(MODULE.ContractError, "PRIVATE_RELATIVE_PATH_MISMATCH"):
             MODULE.private_material_digest(materials)
 
-    def test_public_descriptor_contains_only_digests_and_false_authorizations(self) -> None:
+    def test_public_descriptor_uses_successor_digests_and_false_authorizations(self) -> None:
         descriptor = MODULE.build_public_descriptor(
             "1" * 40,
             "2" * 64,
@@ -88,10 +88,18 @@ class SuccessorExecutionMaterialContractTests(unittest.TestCase):
             "5" * 64,
             "6" * 64,
             "7" * 64,
+            "8" * 64,
+            "9" * 64,
+            "a" * 64,
+            "b" * 64,
         )
         encoded = json.dumps(descriptor, sort_keys=True)
         self.assertNotIn("mqtt-password.hex", encoded)
         self.assertNotIn("persistence-key.hex", encoded)
+        self.assertEqual(descriptor["unlock_digest_sha256"], "3" * 64)
+        self.assertEqual(descriptor["ca_pem_sha256"], "5" * 64)
+        self.assertEqual(descriptor["broker_certificate_der_sha256"], "6" * 64)
+        self.assertEqual(descriptor["broker_spki_sha256"], "7" * 64)
         self.assertFalse(descriptor["execution_authorized"])
         self.assertFalse(descriptor["board_operation_authorized"])
         self.assertFalse(descriptor["network_operation_authorized"])
