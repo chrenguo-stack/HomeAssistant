@@ -40,7 +40,7 @@ jobs:
             tee /tmp/c07-node-retirement-verification.log
 
       - name: Upload redacted failure log
-        if: failure()
+        if: ${{ failure() || cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: c07-node-retirement-failure-log

@@ -36,7 +36,11 @@ chmod 700 "$ha_config" "$ha_config/.storage"
 chmod 600 "$ha_config/.storage/core.config_entries"
 
 docker compose -f "$compose_file" config --quiet
+docker compose -f "$compose_file" build tester
 docker compose -f "$compose_file" up \
-  --build \
-  --abort-on-container-exit \
-  --exit-code-from tester
+  --detach \
+  --wait \
+  --wait-timeout 180 \
+  broker \
+  homeassistant
+docker compose -f "$compose_file" run --rm --no-deps tester
