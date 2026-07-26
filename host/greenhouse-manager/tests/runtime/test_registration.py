@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -17,6 +18,7 @@ NOW = datetime(2026, 7, 11, 10, 0, tzinfo=UTC)
 HARDWARE_ID = "ghw-c6-98a316a9f2f8"
 PAIRING_ID = "c83aeb0d-8f48-4a39-a34b-ea584a588475"
 NODE_ID = "gh-n1-a9f2f8"
+LOGICAL_LOCATION_ID = "greenhouse-bed-01"
 
 
 def valid_hello(*, pairing_id: str = PAIRING_ID, epoch: int = 3) -> dict[str, object]:
@@ -182,6 +184,26 @@ def test_registry_survives_process_restart(tmp_path: Path) -> None:
     ]
 
 
+def test_logical_location_survives_process_restart(tmp_path: Path) -> None:
+    database = tmp_path / "registration.sqlite3"
+    with RegistrationRegistry(database) as first:
+        first.observe_hello(valid_hello(), now=NOW)
+        first.approve(
+            HARDWARE_ID,
+            PAIRING_ID,
+            node_id=NODE_ID,
+            logical_location_id=LOGICAL_LOCATION_ID,
+            now=NOW,
+        )
+
+    with RegistrationRegistry(database) as restored:
+        record = restored.get(HARDWARE_ID)
+        events = restored.list_events(hardware_id=HARDWARE_ID)
+
+    assert record.logical_location_id == LOGICAL_LOCATION_ID
+    assert events[0].logical_location_id == LOGICAL_LOCATION_ID
+
+
 def test_records_secret_free_audit_events(registry: RegistrationRegistry) -> None:
     registry.observe_hello(valid_hello(), now=NOW)
     registry.approve(HARDWARE_ID, PAIRING_ID, node_id=NODE_ID, now=NOW + timedelta(seconds=1))
@@ -207,7 +229,13 @@ def test_retirement_is_durable_auditable_and_releases_current_node_id(
     registry: RegistrationRegistry,
 ) -> None:
     registry.observe_hello(valid_hello(), now=NOW)
-    registry.approve(HARDWARE_ID, PAIRING_ID, node_id=NODE_ID, now=NOW)
+    registry.approve(
+        HARDWARE_ID,
+        PAIRING_ID,
+        node_id=NODE_ID,
+        logical_location_id=LOGICAL_LOCATION_ID,
+        now=NOW,
+    )
 
     job = registry.retire(
         HARDWARE_ID,
@@ -222,16 +250,20 @@ def test_retirement_is_durable_auditable_and_releases_current_node_id(
     assert record.node_id is None
     assert record.retired_at == NOW + timedelta(seconds=2)
     assert job.node_id == NODE_ID
+    assert job.logical_location_id == LOGICAL_LOCATION_ID
     assert job.runtime_cleanup_complete is False
     assert job.credentials_revoked is False
     assert registry.is_node_id_ingress_allowed(NODE_ID) is False
     assert events[0].event == "operator_retired"
     assert events[0].node_id == NODE_ID
-    assert registry.retire(
-        HARDWARE_ID,
-        system_id="greenhouse",
-        now=NOW + timedelta(seconds=3),
-    ).retirement_id == job.retirement_id
+    assert (
+        registry.retire(
+            HARDWARE_ID,
+            system_id="greenhouse",
+            now=NOW + timedelta(seconds=3),
+        ).retirement_id
+        == job.retirement_id
+    )
 
 
 def test_retired_hardware_cannot_pair_again(
@@ -252,11 +284,17 @@ def test_retired_hardware_cannot_pair_again(
     assert result.record.state is RegistrationState.RETIRED
 
 
-def test_node_id_reuse_requires_cleanup_revocation_and_explicit_private_binding(
+def test_node_id_reuse_requires_same_location_private_binding_and_closed_anonymous_path(
     registry: RegistrationRegistry,
 ) -> None:
     registry.observe_hello(valid_hello(), now=NOW)
-    registry.approve(HARDWARE_ID, PAIRING_ID, node_id=NODE_ID, now=NOW)
+    registry.approve(
+        HARDWARE_ID,
+        PAIRING_ID,
+        node_id=NODE_ID,
+        logical_location_id=LOGICAL_LOCATION_ID,
+        now=NOW,
+    )
     job = registry.retire(HARDWARE_ID, system_id="greenhouse", now=NOW)
 
     second_hardware = "ghw-c6-112233445566"
@@ -270,6 +308,7 @@ def test_node_id_reuse_requires_cleanup_revocation_and_explicit_private_binding(
             second_hardware,
             second_pairing,
             node_id=NODE_ID,
+            logical_location_id=LOGICAL_LOCATION_ID,
             now=NOW,
         )
 
@@ -288,6 +327,28 @@ def test_node_id_reuse_requires_cleanup_revocation_and_explicit_private_binding(
             second_hardware,
             second_pairing,
             node_id=NODE_ID,
+            logical_location_id=LOGICAL_LOCATION_ID,
+            now=NOW,
+        )
+    with pytest.raises(RegistrationConflict, match="same logical location"):
+        registry.approve(
+            second_hardware,
+            second_pairing,
+            node_id=NODE_ID,
+            logical_location_id="greenhouse-bed-02",
+            reuse_retired_node_id=True,
+            private_identity_bound=True,
+            anonymous_compatibility_enabled=False,
+            now=NOW,
+        )
+    with pytest.raises(RegistrationConflict, match="anonymous compatibility"):
+        registry.approve(
+            second_hardware,
+            second_pairing,
+            node_id=NODE_ID,
+            logical_location_id=LOGICAL_LOCATION_ID,
+            reuse_retired_node_id=True,
+            private_identity_bound=True,
             now=NOW,
         )
     with pytest.raises(RegistrationConflict, match="private identity"):
@@ -295,7 +356,9 @@ def test_node_id_reuse_requires_cleanup_revocation_and_explicit_private_binding(
             second_hardware,
             second_pairing,
             node_id=NODE_ID,
+            logical_location_id=LOGICAL_LOCATION_ID,
             reuse_retired_node_id=True,
+            anonymous_compatibility_enabled=False,
             now=NOW,
         )
 
@@ -303,12 +366,50 @@ def test_node_id_reuse_requires_cleanup_revocation_and_explicit_private_binding(
         second_hardware,
         second_pairing,
         node_id=NODE_ID,
+        logical_location_id=LOGICAL_LOCATION_ID,
         reuse_retired_node_id=True,
         private_identity_bound=True,
+        anonymous_compatibility_enabled=False,
         now=NOW,
     )
     assert approved.node_id == NODE_ID
+    assert approved.logical_location_id == LOGICAL_LOCATION_ID
     assert registry.is_node_id_ingress_allowed(NODE_ID) is True
+    reuse_event = registry.list_events(hardware_id=second_hardware)[0]
+    assert reuse_event.event == "node_id_reuse_approved"
+    assert reuse_event.node_id == NODE_ID
+    assert reuse_event.logical_location_id == LOGICAL_LOCATION_ID
+    assert reuse_event.reason == f"replaced_hardware_id={HARDWARE_ID}"
+
+
+def test_legacy_registry_schema_adds_location_columns_fail_closed(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "registration.sqlite3"
+    with RegistrationRegistry(database):
+        pass
+    with sqlite3.connect(database) as connection:
+        for table in (
+            "registrations",
+            "registration_events",
+            "registration_node_history",
+            "node_id_leases",
+            "retirement_outbox",
+        ):
+            connection.execute(f"ALTER TABLE {table} DROP COLUMN logical_location_id")
+
+    with RegistrationRegistry(database) as restored:
+        for table in (
+            "registrations",
+            "registration_events",
+            "registration_node_history",
+            "node_id_leases",
+            "retirement_outbox",
+        ):
+            columns = {
+                row["name"] for row in restored._connection.execute(f"PRAGMA table_info({table})").fetchall()
+            }
+            assert "logical_location_id" in columns
 
 
 def test_repair_cannot_change_node_id_without_retirement(

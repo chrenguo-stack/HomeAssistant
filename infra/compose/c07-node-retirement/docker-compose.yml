@@ -1,0 +1,68 @@
+services:
+  dynsec-init:
+    image: eclipse-mosquitto:2.0.22
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        printf '%s\n%s\n' "$${GH_DYNSEC_ADMIN_PASSWORD}" "$${GH_DYNSEC_ADMIN_PASSWORD}" |
+          mosquitto_ctrl dynsec init /mosquitto/data/dynamic-security.json admin
+        chown 1883:1883 /mosquitto/data/dynamic-security.json
+        chmod 600 /mosquitto/data/dynamic-security.json
+    environment:
+      GH_DYNSEC_ADMIN_PASSWORD: "${GH_DYNSEC_ADMIN_PASSWORD:?set by verify.sh}"
+    volumes:
+      - dynsec-data:/mosquitto/data
+
+  broker:
+    image: eclipse-mosquitto:2.0.22
+    environment:
+      MOSQUITTO_DYNSEC_PASSWORD: "${GH_DYNSEC_ADMIN_PASSWORD:?set by verify.sh}"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - dynsec-data:/mosquitto/data
+    depends_on:
+      dynsec-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          mosquitto_ctrl -h 127.0.0.1 -u admin -P "$${MOSQUITTO_DYNSEC_PASSWORD}"
+          dynsec listClients >/dev/null 2>&1
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:2026.7.1
+    volumes:
+      - "${C07_HA_CONFIG:?set by verify.sh}:/config"
+    depends_on:
+      broker:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "test -s /config/c07-probe-state.json"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+      start_period: 15s
+
+  tester:
+    build:
+      context: ../../../host/greenhouse-manager
+    entrypoint: ["python", "/verify.py"]
+    environment:
+      GH_DYNSEC_ADMIN_PASSWORD: "${GH_DYNSEC_ADMIN_PASSWORD:?set by verify.sh}"
+    volumes:
+      - ./verify.py:/verify.py:ro
+      - "${C07_HA_CONFIG:?set by verify.sh}:/ha-config:ro"
+    depends_on:
+      broker:
+        condition: service_healthy
+      homeassistant:
+        condition: service_healthy
+
+volumes:
+  dynsec-data:

@@ -12,6 +12,7 @@ from greenhouse_manager.runtime.registration import RegistrationRegistry
 HARDWARE_ID = "ghw-c6-98a316a9f2f8"
 PAIRING_ID = "c83aeb0d-8f48-4a39-a34b-ea584a588475"
 NODE_ID = "gh-n1-a9f2f8"
+LOGICAL_LOCATION_ID = "greenhouse-bed-01"
 
 
 class FakeRevoker:
@@ -41,7 +42,13 @@ def database(tmp_path: Path) -> Path:
     now = datetime.now(UTC)
     with RegistrationRegistry(path) as registry:
         registry.observe_hello(hello(), now=now)
-        registry.approve(HARDWARE_ID, PAIRING_ID, node_id=NODE_ID, now=now)
+        registry.approve(
+            HARDWARE_ID,
+            PAIRING_ID,
+            node_id=NODE_ID,
+            logical_location_id=LOGICAL_LOCATION_ID,
+            now=now,
+        )
     with CredentialLifecycleStore(path) as lifecycle:
         lifecycle.activate(
             hardware_id=HARDWARE_ID,
@@ -83,6 +90,7 @@ def test_retire_command_queues_durable_cleanup(tmp_path: Path) -> None:
     assert code == 0
     assert error == ""
     assert document["node_id"] == NODE_ID
+    assert document["logical_location_id"] == LOGICAL_LOCATION_ID
     assert document["runtime_cleanup_complete"] is False
     assert document["credentials_revoked"] is False
 

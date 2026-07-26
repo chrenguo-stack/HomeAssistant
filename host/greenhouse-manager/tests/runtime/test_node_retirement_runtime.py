@@ -16,6 +16,7 @@ from greenhouse_manager.runtime.registration import (
 HARDWARE_ID = "ghw-c6-98a316a9f2f8"
 PAIRING_ID = "c83aeb0d-8f48-4a39-a34b-ea584a588475"
 NODE_ID = "gh-n1-a9f2f8"
+LOGICAL_LOCATION_ID = "greenhouse-bed-01"
 NOW = datetime(2026, 7, 26, 8, 0, tzinfo=UTC)
 
 
@@ -58,7 +59,13 @@ def retired_database(tmp_path: Path) -> tuple[Path, int]:
     database = tmp_path / "registration.sqlite3"
     with RegistrationRegistry(database) as registry:
         registry.observe_hello(hello(), now=NOW)
-        registry.approve(HARDWARE_ID, PAIRING_ID, node_id=NODE_ID, now=NOW)
+        registry.approve(
+            HARDWARE_ID,
+            PAIRING_ID,
+            node_id=NODE_ID,
+            logical_location_id=LOGICAL_LOCATION_ID,
+            now=NOW,
+        )
         job = registry.retire(HARDWARE_ID, system_id="greenhouse", now=NOW)
     return database, job.retirement_id
 
@@ -116,9 +123,7 @@ def test_retained_canonical_state_cannot_resurrect_retired_node(
     tmp_path: Path,
 ) -> None:
     database, _retirement_id = retired_database(tmp_path)
-    service = ManagerMqttService(
-        Settings(system_id="greenhouse", pairing_db_path=str(database))
-    )
+    service = ManagerMqttService(Settings(system_id="greenhouse", pairing_db_path=str(database)))
     canonical = telemetry()
     canonical["received_at"] = "2026-07-26T08:00:00.000Z"
     message = Mock(

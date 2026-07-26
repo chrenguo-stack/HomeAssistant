@@ -78,14 +78,19 @@ M2.1c 提供本机操作员 CLI：
 greenhouse-manager-registration --db /var/lib/greenhouse-manager/registration.sqlite3 list
 greenhouse-manager-registration --db /var/lib/greenhouse-manager/registration.sqlite3 events
 greenhouse-manager-registration --db /var/lib/greenhouse-manager/registration.sqlite3 \
-  approve <hardware_id> <pairing_id> --node-id <node_id>
+  approve <hardware_id> <pairing_id> --node-id <node_id> \
+  --logical-location-id <logical_location_id>
 greenhouse-manager-registration --db /var/lib/greenhouse-manager/registration.sqlite3 \
   reject <hardware_id> <pairing_id> --reason user_rejected
 greenhouse-manager-registration --db /var/lib/greenhouse-manager/registration.sqlite3 \
   authorize-repair <hardware_id>
 ```
 
-CLI 输出不包含 node_nonce、pairing_pop 或凭据。当前 `approve` 只记录操作员决定，并明确返回 `credential_issued=false`；它不会创建 Broker 账号或跳过后续 PoP。
+CLI 输出不包含 node_nonce、pairing_pop 或凭据。当前 `approve`
+只记录操作员决定，并明确返回 `credential_issued=false`；它不会创建
+Broker 账号或跳过后续 PoP。`logical_location_id` 是稳定的逻辑监测位置，
+用于主板更换时验证 NODE_ID 只能在同一位置复用；匿名兼容开启期间 CLI
+始终拒绝跨硬件复用。
 
 ## M2.2a Dynamic Security 计划
 
