@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from greenhouse_manager.t1_manager_identity_migration_execution_preparation_constants import (
+from greenhouse_manager.ops.t1_manager_identity_migration_execution_preparation_constants import (
     GATE_CHECKS,
 )
 

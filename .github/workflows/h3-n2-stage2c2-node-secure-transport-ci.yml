@@ -7,9 +7,9 @@ on:
       - "firmware/esphome_rc/board_lab/h3_node_pairing_secure_transport/**"
       - "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_h3_node_pairing_secure_transport_board_lab.yml"
       - "firmware/esphome_rc/f1_0_rc2/packages/**"
-      - "host/greenhouse-manager/src/greenhouse_manager/pairing_*.py"
+      - "host/greenhouse-manager/src/greenhouse_manager/runtime/pairing_*.py"
       - "host/greenhouse-manager/tests/stage2c2_cross_language_vectors_20260721_v47.py"
-      - "host/greenhouse-manager/tests/test_stage2c2_node_manager_e2e_20260721_v47.py"
+      - "host/greenhouse-manager/tests/runtime/test_stage2c2_node_manager_e2e_20260721_v47.py"
       - "protocols/pairing/gh-h3-stage2c2-cross-language-vectors-v1.json"
       - "protocols/pairing/gh-h3-node-secure-transport-v1.md"
       - "docs/development/h3-n2-stage2c2-node-secure-transport-20260721.md"
@@ -22,7 +22,7 @@ on:
       - "firmware/esphome_rc/board_lab/h3_node_pairing_secure_transport/**"
       - "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_h3_node_pairing_secure_transport_board_lab.yml"
       - "host/greenhouse-manager/tests/stage2c2_cross_language_vectors_20260721_v47.py"
-      - "host/greenhouse-manager/tests/test_stage2c2_node_manager_e2e_20260721_v47.py"
+      - "host/greenhouse-manager/tests/runtime/test_stage2c2_node_manager_e2e_20260721_v47.py"
       - "protocols/pairing/gh-h3-stage2c2-cross-language-vectors-v1.json"
       - "protocols/pairing/gh-h3-node-secure-transport-v1.md"
       - "docs/development/h3-n2-stage2c2-node-secure-transport-20260721.md"
@@ -87,7 +87,7 @@ jobs:
           STAGE2C2_NODE_PEER: /tmp/stage2c2-node-peer-v47
         run: |
           cd host/greenhouse-manager
-          pytest -q tests/test_stage2c2_node_manager_e2e_20260721_v47.py
+          pytest -q tests/runtime/test_stage2c2_node_manager_e2e_20260721_v47.py
       - name: Verify reviewed RAM-only and production boundaries
         run: |
           python - <<'PY'

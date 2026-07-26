@@ -80,7 +80,7 @@ assert "schema validation failed" in diagnostic["message"]
 PY
 
 compose exec -T manager python - <<'PY'
-from greenhouse_manager.registration import RegistrationRegistry, RegistrationState
+from greenhouse_manager.runtime.registration import RegistrationRegistry, RegistrationState
 
 with RegistrationRegistry("/var/lib/greenhouse-manager/registration.sqlite3") as registry:
     records = registry.list_current()

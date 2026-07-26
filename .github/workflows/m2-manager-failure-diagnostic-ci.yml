@@ -3,9 +3,9 @@ name: M2 manager failure diagnostic CI
 on:
   pull_request:
     paths:
-      - "host/greenhouse-manager/src/greenhouse_manager/t1_manager_identity_migration_failure_diagnostics.py"
-      - "host/greenhouse-manager/src/greenhouse_manager/t1_manager_identity_migration_production_integration.py"
-      - "host/greenhouse-manager/tests/test_t1_manager_identity_migration_failure_diagnostics.py"
+      - "host/greenhouse-manager/src/greenhouse_manager/ops/t1_manager_identity_migration_failure_diagnostics.py"
+      - "host/greenhouse-manager/src/greenhouse_manager/ops/t1_manager_identity_migration_production_integration.py"
+      - "host/greenhouse-manager/tests/ops/test_t1_manager_identity_migration_failure_diagnostics.py"
       - ".github/workflows/m2-manager-failure-diagnostic-ci.yml"
 
 permissions:

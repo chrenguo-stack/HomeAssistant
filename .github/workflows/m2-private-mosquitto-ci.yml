@@ -3,12 +3,12 @@ name: M2 private Mosquitto CI
 on:
   pull_request:
     paths:
-      - "host/greenhouse-manager/src/greenhouse_manager/private_mosquitto_builder.py"
-      - "host/greenhouse-manager/src/greenhouse_manager/node_mqtt_private_mosquitto.py"
-      - "host/greenhouse-manager/src/greenhouse_manager/node_mqtt_board_lab_native.py"
-      - "host/greenhouse-manager/tests/test_private_mosquitto_builder.py"
-      - "host/greenhouse-manager/tests/test_node_mqtt_private_mosquitto.py"
-      - "host/greenhouse-manager/tests/test_t1_manager_identity_migration_preparation_version.py"
+      - "host/greenhouse-manager/src/greenhouse_manager/ops/private_mosquitto_builder.py"
+      - "host/greenhouse-manager/src/greenhouse_manager/ops/node_mqtt_private_mosquitto.py"
+      - "host/greenhouse-manager/src/greenhouse_manager/ops/node_mqtt_board_lab_native.py"
+      - "host/greenhouse-manager/tests/ops/test_private_mosquitto_builder.py"
+      - "host/greenhouse-manager/tests/ops/test_node_mqtt_private_mosquitto.py"
+      - "host/greenhouse-manager/tests/ops/test_t1_manager_identity_migration_preparation_version.py"
       - "host/greenhouse-manager/pyproject.toml"
       - "docs/decisions/M2-ADR-001-hybrid-development-and-private-mosquitto.md"
       - "protocols/pairing/gh-node-mqtt-board-lab-native-v1.md"
@@ -47,16 +47,16 @@ jobs:
           set -euo pipefail
           cd host/greenhouse-manager
           ruff check \
-            src/greenhouse_manager/private_mosquitto_builder.py \
-            src/greenhouse_manager/node_mqtt_private_mosquitto.py \
-            src/greenhouse_manager/node_mqtt_board_lab_native.py \
-            tests/test_private_mosquitto_builder.py \
-            tests/test_node_mqtt_private_mosquitto.py
+            src/greenhouse_manager/ops/private_mosquitto_builder.py \
+            src/greenhouse_manager/ops/node_mqtt_private_mosquitto.py \
+            src/greenhouse_manager/ops/node_mqtt_board_lab_native.py \
+            tests/ops/test_private_mosquitto_builder.py \
+            tests/ops/test_node_mqtt_private_mosquitto.py
           pytest -q \
-            tests/test_private_mosquitto_builder.py \
-            tests/test_node_mqtt_private_mosquitto.py \
-            tests/test_node_mqtt_board_lab_native.py \
-            tests/test_t1_manager_identity_migration_preparation_version.py
+            tests/ops/test_private_mosquitto_builder.py \
+            tests/ops/test_node_mqtt_private_mosquitto.py \
+            tests/ops/test_node_mqtt_board_lab_native.py \
+            tests/ops/test_t1_manager_identity_migration_preparation_version.py
 
       - name: Initialize private build and runtime workspaces
         shell: bash

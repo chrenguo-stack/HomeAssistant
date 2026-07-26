@@ -11,7 +11,7 @@ from pathlib import Path
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 
-from greenhouse_manager.pairing_secure_transport import (
+from greenhouse_manager.runtime.pairing_secure_transport import (
     MANAGER_TO_NODE,
     NODE_TO_MANAGER,
     SecureChannel,

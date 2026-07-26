@@ -11,22 +11,22 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 packet = import_module(
-    "greenhouse_manager.t1_manager_identity_migration_production_execution_packet"
+    "greenhouse_manager.ops.t1_manager_identity_migration_production_execution_packet"
 )
 host_adapters = import_module(
-    "greenhouse_manager.t1_manager_identity_migration_production_host_adapters"
+    "greenhouse_manager.ops.t1_manager_identity_migration_production_host_adapters"
 )
 integration = import_module(
-    "greenhouse_manager.t1_manager_identity_migration_production_integration"
+    "greenhouse_manager.ops.t1_manager_identity_migration_production_integration"
 )
 orchestrator = import_module(
-    "greenhouse_manager.t1_manager_identity_migration_production_orchestrator"
+    "greenhouse_manager.ops.t1_manager_identity_migration_production_orchestrator"
 )
 runtime_probe = import_module(
-    "greenhouse_manager.t1_manager_identity_migration_production_runtime_probe"
+    "greenhouse_manager.ops.t1_manager_identity_migration_production_runtime_probe"
 )
 stdlib_mqtt = import_module(
-    "greenhouse_manager.t1_manager_identity_migration_stdlib_mqtt"
+    "greenhouse_manager.ops.t1_manager_identity_migration_stdlib_mqtt"
 )
 
 

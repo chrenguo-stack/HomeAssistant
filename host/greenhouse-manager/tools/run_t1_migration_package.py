@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "src"
 sys.path.insert(0, str(SOURCE))
 
-main = importlib.import_module("greenhouse_manager.t1_migration_package").main
+main = importlib.import_module("greenhouse_manager.ops.t1_migration_package").main
 
 
 if __name__ == "__main__":

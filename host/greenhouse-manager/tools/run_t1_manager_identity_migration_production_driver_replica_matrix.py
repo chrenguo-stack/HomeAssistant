@@ -9,7 +9,7 @@ SOURCE = ROOT / "src"
 sys.path.insert(0, str(SOURCE))
 
 main = importlib.import_module(
-    "greenhouse_manager.t1_manager_identity_migration_production_driver_replica_matrix"
+    "greenhouse_manager.ops.t1_manager_identity_migration_production_driver_replica_matrix"
 ).main
 
 

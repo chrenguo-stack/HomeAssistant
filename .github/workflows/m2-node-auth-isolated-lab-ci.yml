@@ -3,10 +3,10 @@ name: M2 node auth isolated lab CI
 on:
   pull_request:
     paths:
-      - "host/greenhouse-manager/src/greenhouse_manager/node_mqtt_isolated_lab.py"
-      - "host/greenhouse-manager/tests/test_node_mqtt_isolated_lab.py"
+      - "host/greenhouse-manager/src/greenhouse_manager/ops/node_mqtt_isolated_lab.py"
+      - "host/greenhouse-manager/tests/ops/test_node_mqtt_isolated_lab.py"
       - "host/greenhouse-manager/pyproject.toml"
-      - "host/greenhouse-manager/tests/test_t1_manager_identity_migration_preparation_version.py"
+      - "host/greenhouse-manager/tests/ops/test_t1_manager_identity_migration_preparation_version.py"
       - "protocols/pairing/gh-node-mqtt-isolated-lab-v1.md"
       - ".github/workflows/m2-node-auth-isolated-lab-ci.yml"
 
@@ -31,9 +31,9 @@ jobs:
           cd host/greenhouse-manager
           ruff check .
           pytest -q \
-            tests/test_node_mqtt_isolated_lab.py \
+            tests/ops/test_node_mqtt_isolated_lab.py \
             tests/test_node_esphome_mqtt_auth_adapter_contract.py \
-            tests/test_t1_manager_identity_migration_preparation_version.py
+            tests/ops/test_t1_manager_identity_migration_preparation_version.py
       - name: Pull pinned Mosquitto image
         run: docker pull eclipse-mosquitto:2.0.22
       - name: Run isolated Broker fault matrix

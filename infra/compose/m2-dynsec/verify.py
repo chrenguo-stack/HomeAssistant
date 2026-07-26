@@ -11,14 +11,14 @@ from typing import Any, Sequence
 
 import paho.mqtt.client as mqtt
 
-from greenhouse_manager.dynsec_api import (
+from greenhouse_manager.runtime.dynsec_api import (
     DynsecError,
     DynsecProvisioner,
     PahoDynsecTransport,
     RESPONSE_TOPIC,
 )
-from greenhouse_manager.dynsec_plan import build_node_provisioning_plan, generate_node_credentials
-from greenhouse_manager.service_identity_plan import (
+from greenhouse_manager.runtime.dynsec_plan import build_node_provisioning_plan, generate_node_credentials
+from greenhouse_manager.runtime.service_identity_plan import (
     ServiceCredentials,
     ServiceIdentityPlan,
     build_service_identity_plan,

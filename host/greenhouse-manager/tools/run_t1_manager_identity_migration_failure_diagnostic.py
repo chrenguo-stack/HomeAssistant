@@ -9,7 +9,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-MODULE = "greenhouse_manager.t1_manager_identity_migration_failure_diagnostics"
+MODULE = "greenhouse_manager.ops.t1_manager_identity_migration_failure_diagnostics"
 main = import_module(MODULE).main
 
 
