@@ -1,0 +1,56 @@
+esphome:
+  name: gh-2d9r-g3r-s1
+  friendly_name: Greenhouse Stage 2D-9R G3R Successor Immutable TLS Candidate
+  min_version: 2026.4.3
+
+esp32:
+  board: esp32-c6-devkitm-1
+  variant: ESP32C6
+  flash_size: 8MB
+  partitions: ../h3_profile_isolated_device_g3_prepare/stage2d9_g3_partitions_20260722_v65.csv
+  framework:
+    type: esp-idf
+    advanced:
+      include_builtin_idf_components:
+        - mqtt
+        - nvs_flash
+        - esp_hw_support
+    sdkconfig_options:
+      CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG: y
+      CONFIG_ESP_CONSOLE_SECONDARY_NONE: y
+      CONFIG_MBEDTLS_PSA_CRYPTO_C: y
+      CONFIG_MBEDTLS_ECP_DP_CURVE25519_ENABLED: y
+      CONFIG_MBEDTLS_CHACHA20_C: y
+      CONFIG_MBEDTLS_POLY1305_C: y
+      CONFIG_MBEDTLS_CHACHAPOLY_C: y
+      CONFIG_MBEDTLS_HARDWARE_MPI: n
+      CONFIG_MBEDTLS_X509_CRT_PARSE_C: y
+
+logger:
+  level: DEBUG
+  hardware_uart: USB_SERIAL_JTAG
+
+external_components:
+  - source:
+      type: local
+      path: ../../components
+    components:
+      - greenhouse_pairing_client
+      - greenhouse_profile_production_adapters
+      - greenhouse_profile_lifecycle_controller
+      - greenhouse_profile_isolated_acceptance
+      - greenhouse_profile_isolated_device_driver
+      - greenhouse_profile_isolated_device_g3_prepare
+      - greenhouse_profile_isolated_device_g3r_executor
+
+# Successor final immutable compile source. It embeds only public SHA-256 bindings.
+# It contains no MQTT password, persistence key, unlock preimage, PKI private key
+# or executable PREPARE/VERIFY command. Compilation does not authorize Flash,
+# physical NVS, serial, network, Broker, PREPARE, VERIFY, Ready, merge or release.
+greenhouse_profile_isolated_device_g3r_executor:
+  id: stage2d9r_g3r_successor_immutable_executor
+  partition_label: gh2d8_p2d9
+  namespace_name: gh2d8_s2d9
+  build_binding: "742f663333837366a42da92b984a3b05c643f571"
+  unlock_digest: "727db669e17634b6d66fc1d8bd4f4d9e4e4e196401806c9b56c7eed6b8a7d9e9"
+  ca_pem_sha256: "9d98b4aa1d87604e8c37aaa50892bf4cd47b8b8a0479acdabe78d41d39b36096"
