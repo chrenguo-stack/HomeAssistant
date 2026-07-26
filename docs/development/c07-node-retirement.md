@@ -33,4 +33,10 @@
 停留在 outbox 中，NODE_ID 保持不可复用。Manager 会幂等重试 retained
 tombstone 和内存清理。
 
+## 验证边界
+
+自动化测试覆盖退役事务、审计历史、NODE_ID 租约状态机、凭据撤销失败恢复、
+Dynamic Security 幂等清理、五个 retained tombstone、内存状态清理，以及
+Manager 重启时阻止退役节点由旧 retained canonical telemetry 重新出现。
+
 该合同自 `greenhouse-manager` 0.4.95 起实现。
