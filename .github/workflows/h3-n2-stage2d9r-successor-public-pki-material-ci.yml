@@ -1,0 +1,250 @@
+name: H3 N2 Stage2D9R Successor Public PKI Material CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-successor-public-pki-material-ci.yml"
+      - "tests/h3_n2_stage2d9r_tls_candidate/public_pki_tlsvalid02/**"
+      - "tests/h3_n2_stage2d9r_tls_candidate/public_successor_tlsvalid02/public-descriptor.redacted.json"
+      - "docs/acceptance/h3-n2-stage2d9r-successor-public-pki-upload-validation-l1-v1.json"
+      - "docs/acceptance/h3-n2-stage2d9r-successor-public-pki-export-u1-01-success-l1-v1.json"
+  push:
+    branches:
+      - fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-successor-public-pki-material-ci.yml"
+      - "tests/h3_n2_stage2d9r_tls_candidate/public_pki_tlsvalid02/**"
+      - "tests/h3_n2_stage2d9r_tls_candidate/public_successor_tlsvalid02/public-descriptor.redacted.json"
+      - "docs/acceptance/h3-n2-stage2d9r-successor-public-pki-upload-validation-l1-v1.json"
+      - "docs/acceptance/h3-n2-stage2d9r-successor-public-pki-export-u1-01-success-l1-v1.json"
+
+permissions:
+  contents: read
+
+jobs:
+  successor-public-pki-material:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          show-progress: false
+
+      - name: Verify exact public repository payload
+        working-directory: tests/h3_n2_stage2d9r_tls_candidate/public_pki_tlsvalid02
+        run: |
+          set -euo pipefail
+          cat > /tmp/stage2d9r-successor-public-pki-sha256-v1.txt <<'EOF'
+          6fa6745918d399ced2d31a2c363bdc7ee40c5273fec28ca72d75a11137714719  SHA256SUMS
+          d862dfe123f8d9ce755bb65e556cc064404b4d37f6b760295c94129ae1815384  broker.cert.pem
+          0ad309c0048530287330b7edd8dd99da3f6816015355169b878116314863ff9a  broker.fullchain.pem
+          7021279f141f00cbf7e64fe8a20e89dd8b8ef3b9c4c7625ec28b79f6d65db2b6  public-descriptor.redacted.json
+          0a38ef9648008cbd7a3966e5e558bb8a9b672f255fa6e390800508cd93555734  public-pki-export-binding.json
+          9d98b4aa1d87604e8c37aaa50892bf4cd47b8b8a0479acdabe78d41d39b36096  root-ca.cert.pem
+          EOF
+          sha256sum -c /tmp/stage2d9r-successor-public-pki-sha256-v1.txt
+          sha256sum -c SHA256SUMS
+          test "$(find . -maxdepth 1 -type f | wc -l | tr -d ' ')" = 6
+          test -z "$(find . -mindepth 1 -maxdepth 1 -type d -print -quit)"
+
+      - name: Verify certificate chain roles hostname and fingerprints
+        working-directory: tests/h3_n2_stage2d9r_tls_candidate/public_pki_tlsvalid02
+        run: |
+          set -euo pipefail
+          openssl verify -CAfile root-ca.cert.pem -purpose sslserver \
+            -verify_hostname stage2d9r.local broker.cert.pem \
+            | tee /tmp/stage2d9r-successor-public-pki-openssl-v1.log
+          grep -F 'broker.cert.pem: OK' /tmp/stage2d9r-successor-public-pki-openssl-v1.log
+
+          openssl x509 -in root-ca.cert.pem -noout -text > /tmp/stage2d9r-successor-root-ca-v1.txt
+          openssl x509 -in broker.cert.pem -noout -text > /tmp/stage2d9r-successor-broker-cert-v1.txt
+          grep -F 'CA:TRUE' /tmp/stage2d9r-successor-root-ca-v1.txt
+          grep -F 'Certificate Sign' /tmp/stage2d9r-successor-root-ca-v1.txt
+          grep -F 'CA:FALSE' /tmp/stage2d9r-successor-broker-cert-v1.txt
+          grep -F 'TLS Web Server Authentication' /tmp/stage2d9r-successor-broker-cert-v1.txt
+          grep -F 'DNS:stage2d9r.local' /tmp/stage2d9r-successor-broker-cert-v1.txt
+
+          test "$(openssl x509 -in root-ca.cert.pem -outform DER | sha256sum | awk '{print $1}')" = \
+            '0b1592a0ee6d46206b3fcb81de4661d0d32bb1acac2da78c43d8a2e7a54c2f05'
+          test "$(openssl x509 -in broker.cert.pem -outform DER | sha256sum | awk '{print $1}')" = \
+            '4ca8731424c87ba61336f4bc4fb743137ed83c127ed1a214198b65e5b33b40f9'
+          test "$(openssl x509 -in broker.cert.pem -pubkey -noout | openssl pkey -pubin -outform DER | sha256sum | awk '{print $1}')" = \
+            '0ae2d32c2ddfb7b4b63c9ee4049291d9725a42a55721b0e78d53fcf5c9e1f72e'
+          cmp broker.fullchain.pem <(cat broker.cert.pem root-ca.cert.pem)
+
+      - name: Validate uploaded-export binding and frozen boundaries
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+
+          root = Path("tests/h3_n2_stage2d9r_tls_candidate/public_pki_tlsvalid02")
+          descriptor_source = Path(
+              "tests/h3_n2_stage2d9r_tls_candidate/public_successor_tlsvalid02/"
+              "public-descriptor.redacted.json"
+          )
+          acceptance_path = Path(
+              "docs/acceptance/"
+              "h3-n2-stage2d9r-successor-public-pki-upload-validation-l1-v1.json"
+          )
+          success_path = Path(
+              "docs/acceptance/"
+              "h3-n2-stage2d9r-successor-public-pki-export-u1-01-success-l1-v1.json"
+          )
+
+          expected_inventory = {
+              "SHA256SUMS",
+              "broker.cert.pem",
+              "broker.fullchain.pem",
+              "public-descriptor.redacted.json",
+              "public-pki-export-binding.json",
+              "root-ca.cert.pem",
+          }
+          assert {p.name for p in root.iterdir() if p.is_file()} == expected_inventory
+          assert not any(p.is_dir() for p in root.iterdir())
+
+          d = json.loads((root / "public-descriptor.redacted.json").read_text())
+          b = json.loads((root / "public-pki-export-binding.json").read_text())
+          a = json.loads(acceptance_path.read_text())
+          s = json.loads(success_path.read_text())
+
+          assert (root / "public-descriptor.redacted.json").read_bytes() == descriptor_source.read_bytes()
+          assert d["schema"] == "gh.h3.n2.stage2d9r-private-execution-material-successor-public/1"
+          assert d["state"] == "SUCCESSOR_EXECUTION_MATERIAL_FROZEN"
+          assert d["run_suffix"] == "tlsvalid02"
+          assert d["broker_host"] == d["broker_tls_server_name"] == "stage2d9r.local"
+          assert d["broker_port"] == 8883
+          assert d["candidate_digest_sha256"] == "a0ff758217a1769c1876336c131cb85e64dcb2369758c649f36798cd8083aaf2"
+          assert d["ca_pem_sha256"] == "9d98b4aa1d87604e8c37aaa50892bf4cd47b8b8a0479acdabe78d41d39b36096"
+          assert d["broker_certificate_der_sha256"] == "4ca8731424c87ba61336f4bc4fb743137ed83c127ed1a214198b65e5b33b40f9"
+          assert d["broker_spki_sha256"] == "0ae2d32c2ddfb7b4b63c9ee4049291d9725a42a55721b0e78d53fcf5c9e1f72e"
+
+          for key in (
+              "execution_authorized",
+              "board_operation_authorized",
+              "serial_operation_authorized",
+              "flash_operation_authorized",
+              "physical_nvs_operation_authorized",
+              "network_operation_authorized",
+              "broker_start_authorized",
+              "prepare_authorized",
+              "verify_authorized",
+              "activate_authorized",
+              "cleanup_authorized",
+              "production_operation_authorized",
+              "private_values_included",
+              "private_paths_included",
+              "secret_values_included",
+          ):
+              assert d[key] is False, key
+
+          assert b["schema"] == "gh.h3.n2.stage2d9r-successor-public-pki-export/1"
+          assert b["state"] == "PUBLIC_PKI_EXPORTED"
+          assert b["authorization_id"] == "U1-H3N2-STAGE2D9R-PUBLIC-PKI-EXPORT-20260725-01"
+          assert b["authorization_record_sha256"] == "8b2fb72bc61a14d8618a03fd5c3c029253d3b05232de2fae06517fdf38c7c839"
+          assert b["exporter_source_sha"] == "d6a2304ef1b9b229ed515f2fdc00e0146888b7d7"
+          assert b["public_descriptor_sha256"] == "7021279f141f00cbf7e64fe8a20e89dd8b8ef3b9c4c7625ec28b79f6d65db2b6"
+          assert b["certificate_chain_valid"] is True
+          assert b["broker_hostname_match"] is True
+
+          for key in (
+              "authorization_record_included",
+              "private_content_included",
+              "private_paths_included",
+              "secret_values_included",
+              "board_operation",
+              "serial_operation",
+              "flash_operation",
+              "physical_nvs_operation",
+              "network_operation",
+              "broker_started",
+              "prepare_executed",
+              "verify_executed",
+              "activate_executed",
+              "cleanup_executed",
+              "production_operation",
+          ):
+              assert b[key] is False, key
+
+          assert s["result"] == "consumed_passed_retired"
+          assert s["status"] == "CONSUMED"
+          assert s["replay_permitted"] is False
+          assert s["automatic_retry_permitted"] is False
+          assert s["export_result"]["export_zip_sha256"] == "c54f134bc9f135881a74462aecfc561ce89739724cdfeca41ae54dbc735dec6b"
+
+          assert a["state"] == "PUBLIC_PKI_UPLOAD_VALIDATED_AND_REPOSITORY_FROZEN"
+          assert a["uploaded_archive"]["sha256"] == "c54f134bc9f135881a74462aecfc561ce89739724cdfeca41ae54dbc735dec6b"
+          assert a["uploaded_archive"]["size_bytes"] == 6390
+          assert a["uploaded_archive"]["modified_or_repacked"] is False
+          assert set(a["archive_validation"]["exact_file_inventory"]) == expected_inventory
+          assert a["archive_validation"]["entry_count"] == 6
+          assert a["archive_validation"]["all_file_modes"] == "0600"
+          assert a["archive_validation"]["all_timestamps"] == "1980-01-01T00:00:00"
+          assert a["archive_validation"]["internal_sha256sums_valid"] is True
+          assert a["repository_freeze"]["exact_archive_payload_files_committed"] is True
+          assert a["repository_freeze"]["public_material_only"] is True
+          assert a["repository_freeze"]["private_material_committed"] is False
+          assert a["disposition"]["upload_validation_completed"] is True
+          assert a["disposition"]["public_certificate_repository_freeze_completed"] is True
+          assert a["disposition"]["final_source_lock_ready"] is True
+          assert a["disposition"]["immutable_firmware_build_ready"] is False
+          assert a["disposition"]["next_gate"] == "FINAL_SOURCE_LOCK"
+          assert all(value is False for value in a["redaction_boundary"].values())
+          assert all(value is False for value in a["protected_boundaries"].values())
+
+          forbidden = (
+              "BEGIN PRIVATE KEY",
+              "BEGIN RSA PRIVATE KEY",
+              "BEGIN EC PRIVATE KEY",
+              "mqtt-password.hex",
+              "persistence-key.hex",
+              "unlock-token.hex",
+              "root-ca.key.pem",
+              "broker.key.pem",
+              "mosquitto.password",
+              "prepare-command.txt",
+              "verify-command.txt",
+              "/Users/",
+              "/private/tmp/",
+          )
+          for path in root.iterdir():
+              if path.is_file():
+                  text = path.read_text(encoding="utf-8")
+                  assert all(marker not in text for marker in forbidden), path
+
+          for value in (
+              a["uploaded_archive"]["sha256"],
+              a["public_material_digests"]["root_ca_pem_sha256"],
+              a["public_material_digests"]["broker_pem_sha256"],
+              a["public_material_digests"]["public_descriptor_sha256"],
+              a["public_material_digests"]["public_pki_export_binding_sha256"],
+          ):
+              assert re.fullmatch(r"[0-9a-f]{64}", value)
+          PY
+
+      - name: Report frozen public boundary
+        run: |
+          printf '%s\n' \
+            'STAGE2D9R_SUCCESSOR_PUBLIC_PKI_MATERIAL_CI=PASS' \
+            'UPLOAD_ARCHIVE_SHA256=c54f134bc9f135881a74462aecfc561ce89739724cdfeca41ae54dbc735dec6b' \
+            'PUBLIC_DESCRIPTOR_SHA256=7021279f141f00cbf7e64fe8a20e89dd8b8ef3b9c4c7625ec28b79f6d65db2b6' \
+            'CANDIDATE_DIGEST_SHA256=a0ff758217a1769c1876336c131cb85e64dcb2369758c649f36798cd8083aaf2' \
+            'PUBLIC_CERTIFICATE_REPOSITORY_FREEZE_COMPLETED=true' \
+            'FINAL_SOURCE_LOCK_READY=true' \
+            'PRIVATE_CONTENT_INCLUDED=false' \
+            'BOARD_OPERATION=false' \
+            'SERIAL_OPERATION=false' \
+            'FLASH_OPERATION=false' \
+            'PHYSICAL_NVS_OPERATION=false' \
+            'NETWORK_OPERATION=false' \
+            'BROKER_STARTED=false' \
+            'PREPARE_EXECUTED=false' \
+            'VERIFY_EXECUTED=false'
+
+      - name: Cleanup
+        if: always()
+        run: rm -f /tmp/stage2d9r-successor-public-pki-* /tmp/stage2d9r-successor-root-ca-v1.txt /tmp/stage2d9r-successor-broker-cert-v1.txt
