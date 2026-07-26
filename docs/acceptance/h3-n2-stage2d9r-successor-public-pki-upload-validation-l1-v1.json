@@ -62,15 +62,16 @@
     "verify_executed": false
   },
   "public_material_digests": {
+    "archive_sha256sums_sha256": "6fa6745918d399ced2d31a2c363bdc7ee40c5273fec28ca72d75a11137714719",
     "broker_der_sha256": "4ca8731424c87ba61336f4bc4fb743137ed83c127ed1a214198b65e5b33b40f9",
     "broker_fullchain_sha256": "0ad309c0048530287330b7edd8dd99da3f6816015355169b878116314863ff9a",
     "broker_pem_sha256": "d862dfe123f8d9ce755bb65e556cc064404b4d37f6b760295c94129ae1815384",
     "broker_spki_sha256": "0ae2d32c2ddfb7b4b63c9ee4049291d9725a42a55721b0e78d53fcf5c9e1f72e",
     "public_descriptor_sha256": "7021279f141f00cbf7e64fe8a20e89dd8b8ef3b9c4c7625ec28b79f6d65db2b6",
     "public_pki_export_binding_sha256": "0a38ef9648008cbd7a3966e5e558bb8a9b672f255fa6e390800508cd93555734",
+    "repository_sha256sums_sha256": "884a56b031846900ee914241c10a4af34b27129ce895f6606a2cae5e5ff23443",
     "root_ca_der_sha256": "0b1592a0ee6d46206b3fcb81de4661d0d32bb1acac2da78c43d8a2e7a54c2f05",
-    "root_ca_pem_sha256": "9d98b4aa1d87604e8c37aaa50892bf4cd47b8b8a0479acdabe78d41d39b36096",
-    "sha256sums_sha256": "6fa6745918d399ced2d31a2c363bdc7ee40c5273fec28ca72d75a11137714719"
+    "root_ca_pem_sha256": "9d98b4aa1d87604e8c37aaa50892bf4cd47b8b8a0479acdabe78d41d39b36096"
   },
   "pull_request": 180,
   "redaction_boundary": {
@@ -88,12 +89,27 @@
   },
   "repository": "chrenguo-stack/HomeAssistant",
   "repository_freeze": {
+    "archive_filename_mapping": {
+      "broker.cert.pem": "broker.cert.txt",
+      "broker.fullchain.pem": "broker.fullchain.txt",
+      "root-ca.cert.pem": "root-ca.cert.txt"
+    },
     "authorization_record_committed": false,
     "consumed_marker_committed": false,
     "directory": "tests/h3_n2_stage2d9r_tls_candidate/public_pki_tlsvalid02",
-    "exact_archive_payload_files_committed": true,
+    "exact_archive_payload_files_committed": false,
+    "exact_public_file_bytes_committed": true,
     "private_material_committed": false,
-    "public_material_only": true
+    "public_material_only": true,
+    "repository_file_inventory": [
+      "SHA256SUMS",
+      "broker.cert.txt",
+      "broker.fullchain.txt",
+      "public-descriptor.redacted.json",
+      "public-pki-export-binding.json",
+      "root-ca.cert.txt"
+    ],
+    "repository_filename_policy": "PUBLIC_CERTIFICATES_STORED_AS_TXT_TO_SATISFY_PUBLIC_REPOSITORY_SAFETY"
   },
   "schema": "gh.h3.n2.stage2d9r-successor-public-pki-upload-validation-l1/1",
   "stage": "H3/N2 Stage 2D-9R G3R successor",
