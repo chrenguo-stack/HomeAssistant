@@ -3,9 +3,9 @@ name: M2 node auth native board lab CI
 on:
   pull_request:
     paths:
-      - "host/greenhouse-manager/src/greenhouse_manager/node_mqtt_board_lab_native*.py"
-      - "host/greenhouse-manager/tests/test_node_mqtt_board_lab_native*.py"
-      - "host/greenhouse-manager/tests/test_t1_manager_identity_migration_preparation_version.py"
+      - "host/greenhouse-manager/src/greenhouse_manager/ops/node_mqtt_board_lab_native*.py"
+      - "host/greenhouse-manager/tests/ops/test_node_mqtt_board_lab_native*.py"
+      - "host/greenhouse-manager/tests/ops/test_t1_manager_identity_migration_preparation_version.py"
       - "host/greenhouse-manager/pyproject.toml"
       - "protocols/pairing/gh-node-mqtt-board-lab-native-v1.md"
       - ".github/workflows/m2-node-auth-board-lab-native-ci.yml"
@@ -43,12 +43,12 @@ jobs:
           set -euo pipefail
           cd host/greenhouse-manager
           ruff check \
-            src/greenhouse_manager/node_mqtt_board_lab_native.py \
-            src/greenhouse_manager/node_mqtt_board_lab_native_broker.py \
-            tests/test_node_mqtt_board_lab_native.py
+            src/greenhouse_manager/ops/node_mqtt_board_lab_native.py \
+            src/greenhouse_manager/ops/node_mqtt_board_lab_native_broker.py \
+            tests/ops/test_node_mqtt_board_lab_native.py
           pytest -q \
-            tests/test_node_mqtt_board_lab_native.py \
-            tests/test_t1_manager_identity_migration_preparation_version.py
+            tests/ops/test_node_mqtt_board_lab_native.py \
+            tests/ops/test_t1_manager_identity_migration_preparation_version.py
 
       - name: Initialize private native board lab
         shell: bash

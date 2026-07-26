@@ -5,7 +5,7 @@ import json
 import sys
 from collections.abc import Sequence
 
-from greenhouse_manager.t1_broker_identity_production_activation_orchestrator import (
+from greenhouse_manager.ops.t1_broker_identity_production_activation_orchestrator import (
     BrokerIdentityProductionActivationOrchestratorError,
     build_production_activation_execution_request,
 )

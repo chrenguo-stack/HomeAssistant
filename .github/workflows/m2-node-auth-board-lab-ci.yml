@@ -3,9 +3,9 @@ name: M2 node auth board lab CI
 on:
   pull_request:
     paths:
-      - "host/greenhouse-manager/src/greenhouse_manager/node_mqtt_board_lab*.py"
+      - "host/greenhouse-manager/src/greenhouse_manager/ops/node_mqtt_board_lab*.py"
       - "host/greenhouse-manager/src/greenhouse_manager/schemas/node_mqtt_board_lab_observation_v1.json"
-      - "host/greenhouse-manager/tests/test_node_mqtt_board_lab*.py"
+      - "host/greenhouse-manager/tests/ops/test_node_mqtt_board_lab*.py"
       - "host/greenhouse-manager/pyproject.toml"
       - "firmware/esphome_rc/board_lab/m2_node_auth/**"
       - "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_m2_node_auth_board_lab.yml"
@@ -33,8 +33,8 @@ jobs:
       - name: Unit and contract tests
         run: |
           cd host/greenhouse-manager
-          ruff check src/greenhouse_manager/node_mqtt_board_lab*.py tests/test_node_mqtt_board_lab*.py
-          pytest -q tests/test_node_mqtt_board_lab.py tests/test_node_mqtt_board_lab_contract.py tests/test_t1_manager_identity_migration_preparation_version.py
+          ruff check src/greenhouse_manager/ops/node_mqtt_board_lab*.py tests/ops/test_node_mqtt_board_lab*.py
+          pytest -q tests/ops/test_node_mqtt_board_lab.py tests/ops/test_node_mqtt_board_lab_contract.py tests/ops/test_t1_manager_identity_migration_preparation_version.py
       - name: Public repository safety scan
         run: |
           python - <<'PY'

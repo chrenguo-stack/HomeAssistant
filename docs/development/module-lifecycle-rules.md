@@ -36,6 +36,12 @@
 - 一次性的运维操作记录、生产授权记录、迁移执行日志等，一律放入
   `docs/handoffs/` 或 `docs/status/`，不得放在 `protocols/` 下。
 
+## greenhouse_manager 子包依赖方向约束
+
+- `ops/` 和 `bootstrap/` 可以 import `runtime/` 中的核心逻辑。
+- `runtime/` 不得 import `ops/` 或 `bootstrap/` 中的任何模块；该方向是
+  必须持续由代码审查和测试维护的架构边界。
+
 ## 定期健康检查
 
 - 每完成一个里程碑，或每月一次，运行一次模块可达性分析

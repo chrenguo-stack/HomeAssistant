@@ -9,7 +9,7 @@ SOURCE = ROOT / "src"
 sys.path.insert(0, str(SOURCE))
 
 main = importlib.import_module(
-    "greenhouse_manager.t1_broker_identity_activation_readiness_transaction_plan"
+    "greenhouse_manager.ops.t1_broker_identity_activation_readiness_transaction_plan"
 ).main
 
 
