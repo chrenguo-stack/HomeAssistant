@@ -237,9 +237,54 @@ class DynsecProvisioner:
                 ) from provisioning_error
             raise
 
+    @staticmethod
+    def _listed_names(
+        response: dict[str, Any],
+        *,
+        collection: str,
+        aliases: tuple[str, ...],
+    ) -> set[str]:
+        data = response.get("data")
+        values = data.get(collection) if isinstance(data, dict) else None
+        if not isinstance(values, list):
+            raise DynsecError(f"Dynamic Security {collection} listing is missing")
+        names: set[str] = set()
+        for value in values:
+            if isinstance(value, str):
+                names.add(value)
+                continue
+            if not isinstance(value, dict):
+                raise DynsecError(f"Dynamic Security {collection} listing is invalid")
+            name = next(
+                (
+                    value.get(alias)
+                    for alias in aliases
+                    if isinstance(value.get(alias), str)
+                ),
+                None,
+            )
+            if name is None:
+                raise DynsecError(f"Dynamic Security {collection} entry is invalid")
+            names.add(name)
+        return names
+
     def deprovision(self, plan: IdentityPlan) -> None:
-        self.transport.execute(({"command": "deleteClient", "username": plan.username},))
-        self.transport.execute(({"command": "deleteRole", "rolename": plan.role_name},))
+        client_response = self.transport.execute(({"command": "listClients"},))[0]
+        role_response = self.transport.execute(({"command": "listRoles"},))[0]
+        clients = self._listed_names(
+            client_response,
+            collection="clients",
+            aliases=("username", "name"),
+        )
+        roles = self._listed_names(
+            role_response,
+            collection="roles",
+            aliases=("rolename", "name"),
+        )
+        if plan.username in clients:
+            self.transport.execute(({"command": "deleteClient", "username": plan.username},))
+        if plan.role_name in roles:
+            self.transport.execute(({"command": "deleteRole", "rolename": plan.role_name},))
 
     def rotate_password(
         self,

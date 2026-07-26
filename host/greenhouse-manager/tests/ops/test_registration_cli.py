@@ -88,3 +88,45 @@ def test_missing_database_fails_without_creating_it(tmp_path: Path) -> None:
     assert document is None
     assert "does not exist" in error
     assert not path.exists()
+
+
+def test_reuse_flags_are_forwarded_to_registration_policy(
+    tmp_path: Path,
+) -> None:
+    path = database(tmp_path)
+    run_cli(
+        path,
+        "approve",
+        HARDWARE_ID,
+        PAIRING_ID,
+        "--node-id",
+        "gh-n1-a9f2f8",
+    )
+    with RegistrationRegistry(path) as registry:
+        job = registry.retire(
+            HARDWARE_ID,
+            system_id="greenhouse",
+            now=datetime.now(UTC),
+        )
+        registry.mark_credentials_revoked(job.retirement_id, evidence="test")
+        registry.mark_runtime_cleanup_complete(job.retirement_id)
+        second = hello()
+        second["hardware_id"] = "ghw-c6-112233445566"
+        second["pairing_id"] = "d5bcf708-88a0-4974-8ca9-597482974e94"
+        second["pairing_epoch"] = 1
+        registry.observe_hello(second, now=datetime.now(UTC))
+
+    code, document, error = run_cli(
+        path,
+        "approve",
+        "ghw-c6-112233445566",
+        "d5bcf708-88a0-4974-8ca9-597482974e94",
+        "--node-id",
+        "gh-n1-a9f2f8",
+        "--reuse-retired-node-id",
+        "--private-identity-bound",
+    )
+
+    assert code == 0
+    assert error == ""
+    assert document["registration"]["node_id"] == "gh-n1-a9f2f8"

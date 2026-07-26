@@ -156,3 +156,21 @@ def test_discovery_can_be_disabled() -> None:
     discovery = HomeAssistantDiscovery(system_id="greenhouse", enabled=False)
 
     assert discovery.messages_for_telemetry(canonical_telemetry()) == ()
+
+
+def test_retirement_tombstones_both_discovery_topics_and_clears_cache() -> None:
+    discovery = HomeAssistantDiscovery(system_id="greenhouse")
+    document = canonical_telemetry()
+    discovery.messages_for_telemetry(document)
+
+    messages = discovery.retirement_messages(NODE_ID)
+    discovery.clear_node_cache(NODE_ID)
+    republished = discovery.messages_for_telemetry(document)
+
+    assert [message.topic for message in messages] == [
+        f"homeassistant/device/{NODE_ID}/config",
+        f"homeassistant/binary_sensor/{NODE_ID}_connectivity/config",
+    ]
+    assert all(message.payload == b"" for message in messages)
+    assert all(message.retain for message in messages)
+    assert len(republished) == 2

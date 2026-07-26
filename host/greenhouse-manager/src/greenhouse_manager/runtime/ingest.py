@@ -12,6 +12,7 @@ from jsonschema import Draft202012Validator, FormatChecker
 from .topics import (
     availability_topic,
     canonical_telemetry_topic,
+    diagnostic_topic,
     parse_canonical_telemetry_topic,
     parse_node_telemetry_topic,
 )
@@ -20,10 +21,13 @@ ProcessStatus = Literal["accepted", "duplicate", "rejected"]
 RestoreStatus = Literal["restored", "rejected"]
 
 
+PublishPayload = dict[str, Any] | bytes | str
+
+
 @dataclass(frozen=True, slots=True)
 class PublishMessage:
     topic: str
-    payload: dict[str, Any]
+    payload: PublishPayload
     qos: int = 1
     retain: bool = True
 
@@ -310,6 +314,29 @@ class TelemetryProcessor:
             )
 
         return tuple(messages)
+
+    def retirement_messages(self, node_id: str) -> tuple[PublishMessage, ...]:
+        return (
+            PublishMessage(
+                topic=canonical_telemetry_topic(self.system_id, node_id),
+                payload=b"",
+            ),
+            PublishMessage(
+                topic=availability_topic(self.system_id, node_id),
+                payload=b"",
+            ),
+            PublishMessage(
+                topic=diagnostic_topic(self.system_id, node_id),
+                payload=b"",
+            ),
+        )
+
+    def clear_node_state(self, node_id: str) -> None:
+        self._last_seen.pop(node_id, None)
+        self._availability.pop(node_id, None)
+        for key in tuple(self._seen):
+            if key[0] == node_id:
+                del self._seen[key]
 
     def mark_unavailable_publish_failed(self, node_id: str) -> None:
         """Allow a failed unavailable publish to be retried on the next stale scan."""

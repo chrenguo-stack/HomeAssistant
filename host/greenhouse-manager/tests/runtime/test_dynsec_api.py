@@ -409,3 +409,75 @@ def test_rejects_error_without_echoing_broker_message() -> None:
 
     assert "createClient" in str(captured.value)
     assert "secret details" not in str(captured.value)
+
+
+class InventoryTransport:
+    def __init__(self, *, clients: list[object], roles: list[object]) -> None:
+        self.clients = clients
+        self.roles = roles
+        self.calls: list[str] = []
+
+    def execute(self, commands: tuple[dict[str, Any], ...]) -> tuple[dict[str, Any], ...]:
+        command = commands[0]
+        name = str(command["command"])
+        self.calls.append(name)
+        if name == "listClients":
+            return ({"command": name, "data": {"clients": list(self.clients)}},)
+        if name == "listRoles":
+            return ({"command": name, "data": {"roles": list(self.roles)}},)
+        if name == "deleteClient":
+            self.clients = [
+                value
+                for value in self.clients
+                if value != command["username"]
+                and not (
+                    isinstance(value, dict)
+                    and value.get("username") == command["username"]
+                )
+            ]
+            return ({"command": name},)
+        if name == "deleteRole":
+            self.roles = [
+                value
+                for value in self.roles
+                if value != command["rolename"]
+                and not (
+                    isinstance(value, dict)
+                    and value.get("rolename") == command["rolename"]
+                )
+            ]
+            return ({"command": name},)
+        raise AssertionError(name)
+
+
+def test_deprovision_is_idempotent_after_partial_cleanup() -> None:
+    plan, _credentials = plan_and_credentials()
+    transport = InventoryTransport(
+        clients=[],
+        roles=[{"rolename": plan.role_name}],
+    )
+    provisioner = DynsecProvisioner(transport)
+
+    provisioner.deprovision(plan)
+    provisioner.deprovision(plan)
+
+    assert transport.calls == [
+        "listClients",
+        "listRoles",
+        "deleteRole",
+        "listClients",
+        "listRoles",
+    ]
+
+
+def test_deprovision_accepts_string_inventory_entries() -> None:
+    plan, _credentials = plan_and_credentials()
+    transport = InventoryTransport(
+        clients=[plan.username],
+        roles=[plan.role_name],
+    )
+
+    DynsecProvisioner(transport).deprovision(plan)
+
+    assert transport.clients == []
+    assert transport.roles == []

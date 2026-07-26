@@ -201,3 +201,132 @@ def test_records_expiry_event(registry: RegistrationRegistry) -> None:
     registry.expire_pending(now=NOW + timedelta(seconds=121))
 
     assert registry.list_events()[0].event == "expired"
+
+
+def test_retirement_is_durable_auditable_and_releases_current_node_id(
+    registry: RegistrationRegistry,
+) -> None:
+    registry.observe_hello(valid_hello(), now=NOW)
+    registry.approve(HARDWARE_ID, PAIRING_ID, node_id=NODE_ID, now=NOW)
+
+    job = registry.retire(
+        HARDWARE_ID,
+        system_id="greenhouse",
+        reason="hardware_replaced",
+        now=NOW + timedelta(seconds=2),
+    )
+    record = registry.get(HARDWARE_ID)
+    events = registry.list_events(hardware_id=HARDWARE_ID)
+
+    assert record.state is RegistrationState.RETIRED
+    assert record.node_id is None
+    assert record.retired_at == NOW + timedelta(seconds=2)
+    assert job.node_id == NODE_ID
+    assert job.runtime_cleanup_complete is False
+    assert job.credentials_revoked is False
+    assert registry.is_node_id_ingress_allowed(NODE_ID) is False
+    assert events[0].event == "operator_retired"
+    assert events[0].node_id == NODE_ID
+    assert registry.retire(
+        HARDWARE_ID,
+        system_id="greenhouse",
+        now=NOW + timedelta(seconds=3),
+    ).retirement_id == job.retirement_id
+
+
+def test_retired_hardware_cannot_pair_again(
+    registry: RegistrationRegistry,
+) -> None:
+    registry.observe_hello(valid_hello(), now=NOW)
+    registry.approve(HARDWARE_ID, PAIRING_ID, node_id=NODE_ID, now=NOW)
+    registry.retire(HARDWARE_ID, system_id="greenhouse", now=NOW)
+
+    next_pairing = "ca3e468d-fcdd-413d-b834-a8ac0cbe889e"
+    result = registry.observe_hello(
+        valid_hello(pairing_id=next_pairing, epoch=4),
+        now=NOW + timedelta(seconds=1),
+    )
+
+    assert result.status == "rejected"
+    assert result.reason == "hardware_retired"
+    assert result.record.state is RegistrationState.RETIRED
+
+
+def test_node_id_reuse_requires_cleanup_revocation_and_explicit_private_binding(
+    registry: RegistrationRegistry,
+) -> None:
+    registry.observe_hello(valid_hello(), now=NOW)
+    registry.approve(HARDWARE_ID, PAIRING_ID, node_id=NODE_ID, now=NOW)
+    job = registry.retire(HARDWARE_ID, system_id="greenhouse", now=NOW)
+
+    second_hardware = "ghw-c6-112233445566"
+    second_pairing = "d5bcf708-88a0-4974-8ca9-597482974e94"
+    second = valid_hello(pairing_id=second_pairing, epoch=1)
+    second["hardware_id"] = second_hardware
+    registry.observe_hello(second, now=NOW)
+
+    with pytest.raises(RegistrationConflict, match="cleanup is incomplete"):
+        registry.approve(
+            second_hardware,
+            second_pairing,
+            node_id=NODE_ID,
+            now=NOW,
+        )
+
+    with pytest.raises(RegistrationConflict, match="credentials must be revoked"):
+        registry.mark_runtime_cleanup_complete(job.retirement_id, now=NOW)
+    registry.mark_credentials_revoked(
+        job.retirement_id,
+        evidence="test_revocation",
+        now=NOW,
+    )
+    completed = registry.mark_runtime_cleanup_complete(job.retirement_id, now=NOW)
+    assert completed.state.value == "completed"
+
+    with pytest.raises(RegistrationConflict, match="explicit"):
+        registry.approve(
+            second_hardware,
+            second_pairing,
+            node_id=NODE_ID,
+            now=NOW,
+        )
+    with pytest.raises(RegistrationConflict, match="private identity"):
+        registry.approve(
+            second_hardware,
+            second_pairing,
+            node_id=NODE_ID,
+            reuse_retired_node_id=True,
+            now=NOW,
+        )
+
+    approved = registry.approve(
+        second_hardware,
+        second_pairing,
+        node_id=NODE_ID,
+        reuse_retired_node_id=True,
+        private_identity_bound=True,
+        now=NOW,
+    )
+    assert approved.node_id == NODE_ID
+    assert registry.is_node_id_ingress_allowed(NODE_ID) is True
+
+
+def test_repair_cannot_change_node_id_without_retirement(
+    registry: RegistrationRegistry,
+) -> None:
+    registry.observe_hello(valid_hello(), now=NOW)
+    registry.approve(HARDWARE_ID, PAIRING_ID, node_id=NODE_ID, now=NOW)
+    registry.authorize_repair(HARDWARE_ID, now=NOW)
+    next_pairing_id = "ca3e468d-fcdd-413d-b834-a8ac0cbe889e"
+    registry.observe_hello(
+        valid_hello(pairing_id=next_pairing_id, epoch=4),
+        now=NOW + timedelta(seconds=1),
+    )
+
+    with pytest.raises(RegistrationConflict, match="requires retiring"):
+        registry.approve(
+            HARDWARE_ID,
+            next_pairing_id,
+            node_id="gh-n1-replacement",
+            now=NOW + timedelta(seconds=2),
+        )

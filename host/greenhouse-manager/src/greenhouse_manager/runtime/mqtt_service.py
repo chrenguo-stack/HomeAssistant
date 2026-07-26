@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -23,13 +24,24 @@ from .topics import (
     canonical_telemetry_subscription,
     diagnostic_topic,
     ingress_subscription,
+    parse_canonical_telemetry_topic,
+    parse_node_telemetry_topic,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def _json_bytes(payload: dict[str, Any]) -> bytes:
-    return json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
+def _payload_bytes(payload: dict[str, Any] | bytes | str) -> bytes:
+    if isinstance(payload, bytes):
+        return payload
+    if isinstance(payload, str):
+        return payload.encode("utf-8")
+    return json.dumps(
+        payload,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
 
 
 def _now_text() -> str:
@@ -39,6 +51,7 @@ def _now_text() -> str:
 class ManagerMqttService:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
+        self._lifecycle_lock = threading.RLock()
         self.processor = TelemetryProcessor(
             system_id=settings.system_id,
             dedup_capacity=settings.dedup_capacity,
@@ -52,11 +65,14 @@ class ManagerMqttService:
         )
         self.registration_registry: RegistrationRegistry | None = None
         self.pairing_processor: PairingHelloProcessor | None = None
-        if settings.pairing_intake_enabled:
+        registration_path = Path(settings.pairing_db_path)
+        if settings.pairing_intake_enabled or registration_path.exists():
             self.registration_registry = RegistrationRegistry(
-                Path(settings.pairing_db_path),
+                registration_path,
                 pending_ttl_s=settings.pairing_pending_ttl_s,
             )
+        if settings.pairing_intake_enabled:
+            assert self.registration_registry is not None
             self.pairing_processor = PairingHelloProcessor(self.registration_registry)
         self.client = mqtt.Client(
             callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
@@ -74,25 +90,86 @@ class ManagerMqttService:
         if settings.mqtt_tls:
             self.client.tls_set(ca_certs=settings.mqtt_ca_file)
 
-    def _publish(self, message: PublishMessage) -> bool:
+    def _publish(
+        self,
+        message: PublishMessage,
+        *,
+        wait_for_ack: bool = False,
+    ) -> bool:
         info = self.client.publish(
             message.topic,
-            payload=_json_bytes(message.payload),
+            payload=_payload_bytes(message.payload),
             qos=message.qos,
             retain=message.retain,
         )
         if info.rc != mqtt.MQTT_ERR_SUCCESS:
             _LOGGER.error("MQTT publish failed topic=%s rc=%s", message.topic, info.rc)
             return False
+        if wait_for_ack:
+            try:
+                info.wait_for_publish(timeout=10)
+            except (RuntimeError, ValueError) as error:
+                _LOGGER.error(
+                    "MQTT publish acknowledgement failed topic=%s error=%s",
+                    message.topic,
+                    type(error).__name__,
+                )
+                return False
+            is_published = getattr(info, "is_published", None)
+            if callable(is_published) and not is_published():
+                _LOGGER.error(
+                    "MQTT publish acknowledgement timed out topic=%s",
+                    message.topic,
+                )
+                return False
         return True
 
     def _publish_discovery(self, document: dict[str, Any]) -> None:
-        for outgoing in self.discovery.messages_for_telemetry(document):
+        with self._lifecycle_lock:
+            messages = self.discovery.messages_for_telemetry(document)
+        for outgoing in messages:
             self._publish(outgoing)
             _LOGGER.info(
                 "Published Home Assistant discovery node=%s topic=%s",
                 document.get("node_id"),
                 outgoing.topic,
+            )
+
+    def _process_retirement_jobs(self) -> None:
+        if self.registration_registry is None:
+            return
+        for job in self.registration_registry.list_retirement_jobs(
+            ready_for_runtime_cleanup_only=True
+        ):
+            with self._lifecycle_lock:
+                messages = (
+                    *self.discovery.retirement_messages(job.node_id),
+                    *self.processor.retirement_messages(job.node_id),
+                )
+            if not all(
+                self._publish(message, wait_for_ack=True) for message in messages
+            ):
+                self.registration_registry.record_retirement_failure(
+                    job.retirement_id,
+                    "mqtt_tombstone_publish_failed",
+                )
+                _LOGGER.warning(
+                    "Deferred node retirement cleanup retirement_id=%d node=%s",
+                    job.retirement_id,
+                    job.node_id,
+                )
+                continue
+            with self._lifecycle_lock:
+                self.processor.clear_node_state(job.node_id)
+                self.discovery.clear_node_cache(job.node_id)
+            completed = self.registration_registry.mark_runtime_cleanup_complete(
+                job.retirement_id
+            )
+            _LOGGER.info(
+                "Completed runtime retirement cleanup retirement_id=%d node=%s state=%s",
+                completed.retirement_id,
+                completed.node_id,
+                completed.state,
             )
 
     def _publish_diagnostic(self, node_id: str, reason: str) -> None:
@@ -172,7 +249,33 @@ class ManagerMqttService:
 
         canonical_prefix = f"gh/v1/{self.settings.system_id}/state/"
         if message.topic.startswith(canonical_prefix) and message.topic.endswith("/telemetry"):
-            restored = self.processor.restore_canonical(message.topic, message.payload)
+            try:
+                canonical = parse_canonical_telemetry_topic(message.topic)
+            except ValueError:
+                canonical = None
+            if not message.payload:
+                if canonical is not None:
+                    with self._lifecycle_lock:
+                        self.processor.clear_node_state(canonical.node_id)
+                        self.discovery.clear_node_cache(canonical.node_id)
+                return
+            if (
+                canonical is not None
+                and self.registration_registry is not None
+                and not self.registration_registry.is_node_id_ingress_allowed(
+                    canonical.node_id
+                )
+            ):
+                with self._lifecycle_lock:
+                    self.processor.clear_node_state(canonical.node_id)
+                    self.discovery.clear_node_cache(canonical.node_id)
+                _LOGGER.warning(
+                    "Ignored retained canonical state for retired or unassigned node=%s",
+                    canonical.node_id,
+                )
+                return
+            with self._lifecycle_lock:
+                restored = self.processor.restore_canonical(message.topic, message.payload)
             if restored.status == "restored":
                 _LOGGER.debug(
                     "Restored canonical telemetry node=%s key=%s last_seen=%s",
@@ -194,7 +297,25 @@ class ManagerMqttService:
                 )
             return
 
-        result = self.processor.process(message.topic, message.payload)
+        if self.registration_registry is not None:
+            try:
+                ingress = parse_node_telemetry_topic(message.topic)
+            except ValueError:
+                ingress = None
+            if (
+                ingress is not None
+                and not self.registration_registry.is_node_id_ingress_allowed(
+                    ingress.node_id
+                )
+            ):
+                _LOGGER.warning(
+                    "Rejected telemetry for retired or unassigned node=%s",
+                    ingress.node_id,
+                )
+                return
+
+        with self._lifecycle_lock:
+            result = self.processor.process(message.topic, message.payload)
 
         if result.status == "accepted":
             canonical_document: dict[str, Any] | None = None
@@ -234,14 +355,18 @@ class ManagerMqttService:
                     expired = self.pairing_processor.expire_pending()
                     if expired:
                         _LOGGER.info("Expired pairing registrations count=%d", expired)
-                for message in self.processor.stale_messages():
+                self._process_retirement_jobs()
+                with self._lifecycle_lock:
+                    stale_messages = self.processor.stale_messages()
+                for message in stale_messages:
                     if self._publish(message):
                         _LOGGER.info("Published unavailable state topic=%s", message.topic)
                         continue
 
                     node_id = message.payload.get("node_id")
                     if isinstance(node_id, str):
-                        self.processor.mark_unavailable_publish_failed(node_id)
+                        with self._lifecycle_lock:
+                            self.processor.mark_unavailable_publish_failed(node_id)
                     _LOGGER.warning("Deferred unavailable state topic=%s; will retry", message.topic)
         except KeyboardInterrupt:
             _LOGGER.info("Stopping greenhouse-manager")

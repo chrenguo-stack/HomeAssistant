@@ -22,7 +22,8 @@ class CredentialLifecycleConflict(RuntimeError):
 @dataclass(frozen=True, slots=True)
 class CredentialLifecycle:
     hardware_id: str
-    node_id: str
+    node_id: str | None
+    last_node_id: str
     active_generation: int
     pending_generation: int | None
     state: CredentialState
@@ -53,11 +54,33 @@ class CredentialLifecycleStore:
 
     def _initialize(self) -> None:
         with self._lock, self._connection:
+            existing = self._connection.execute(
+                """
+                SELECT sql
+                FROM sqlite_master
+                WHERE type = 'table' AND name = 'credential_lifecycle'
+                """
+            ).fetchone()
+            if existing is not None:
+                columns = {
+                    row["name"]: row
+                    for row in self._connection.execute(
+                        "PRAGMA table_info(credential_lifecycle)"
+                    ).fetchall()
+                }
+                if "last_node_id" not in columns or bool(columns["node_id"]["notnull"]):
+                    self._connection.execute(
+                        """
+                        ALTER TABLE credential_lifecycle
+                        RENAME TO credential_lifecycle_legacy
+                        """
+                    )
             self._connection.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS credential_lifecycle (
                     hardware_id TEXT PRIMARY KEY,
-                    node_id TEXT NOT NULL UNIQUE,
+                    node_id TEXT UNIQUE,
+                    last_node_id TEXT NOT NULL,
                     active_generation INTEGER NOT NULL CHECK (active_generation >= 1),
                     pending_generation INTEGER,
                     state TEXT NOT NULL CHECK (
@@ -68,10 +91,31 @@ class CredentialLifecycleStore:
                     CHECK (
                         pending_generation IS NULL
                         OR pending_generation > active_generation
-                    )
+                    ),
+                    CHECK (state = 'revoked' OR node_id IS NOT NULL)
                 );
                 """
             )
+            legacy = self._connection.execute(
+                """
+                SELECT 1
+                FROM sqlite_master
+                WHERE type = 'table' AND name = 'credential_lifecycle_legacy'
+                """
+            ).fetchone()
+            if legacy is not None:
+                self._connection.execute(
+                    """
+                    INSERT INTO credential_lifecycle (
+                        hardware_id, node_id, last_node_id, active_generation,
+                        pending_generation, state, reason, updated_at
+                    )
+                    SELECT hardware_id, node_id, node_id, active_generation,
+                           pending_generation, state, reason, updated_at
+                    FROM credential_lifecycle_legacy
+                    """
+                )
+                self._connection.execute("DROP TABLE credential_lifecycle_legacy")
 
     def close(self) -> None:
         with self._lock:
@@ -102,12 +146,13 @@ class CredentialLifecycleStore:
                 self._connection.execute(
                     """
                     INSERT INTO credential_lifecycle (
-                        hardware_id, node_id, active_generation, pending_generation,
-                        state, reason, updated_at
-                    ) VALUES (?, ?, ?, NULL, ?, NULL, ?)
+                        hardware_id, node_id, last_node_id, active_generation,
+                        pending_generation, state, reason, updated_at
+                    ) VALUES (?, ?, ?, ?, NULL, ?, NULL, ?)
                     """,
                     (
                         hardware_id,
+                        node_id,
                         node_id,
                         generation,
                         CredentialState.ACTIVE,
@@ -205,12 +250,21 @@ class CredentialLifecycleStore:
         reason: str = "operator_revoked",
         now: datetime | None = None,
     ) -> CredentialLifecycle:
-        return self._terminal_transition(
-            hardware_id,
-            state=CredentialState.REVOKED,
-            reason=reason,
-            now=now,
-        )
+        if not reason:
+            raise ValueError("reason must not be empty")
+        updated_at = now or datetime.now(UTC)
+        with self._lock, self._connection:
+            self.get(hardware_id)
+            self._connection.execute(
+                """
+                UPDATE credential_lifecycle
+                SET node_id = NULL, pending_generation = NULL, state = ?,
+                    reason = ?, updated_at = ?
+                WHERE hardware_id = ?
+                """,
+                (CredentialState.REVOKED, reason, _timestamp(updated_at), hardware_id),
+            )
+            return self.get(hardware_id)
 
     def require_recovery(
         self,
@@ -257,6 +311,7 @@ class CredentialLifecycleStore:
             return CredentialLifecycle(
                 hardware_id=row["hardware_id"],
                 node_id=row["node_id"],
+                last_node_id=row["last_node_id"],
                 active_generation=row["active_generation"],
                 pending_generation=row["pending_generation"],
                 state=CredentialState(row["state"]),

@@ -34,6 +34,16 @@ def _parser() -> argparse.ArgumentParser:
     approve.add_argument("hardware_id")
     approve.add_argument("pairing_id")
     approve.add_argument("--node-id", required=True)
+    approve.add_argument(
+        "--reuse-retired-node-id",
+        action="store_true",
+        help="explicitly reuse a node_id released by a retired hardware_id",
+    )
+    approve.add_argument(
+        "--private-identity-bound",
+        action="store_true",
+        help="confirm the replacement hardware has an enforceable private identity",
+    )
 
     reject = subparsers.add_parser("reject", help="reject a pending registration")
     reject.add_argument("hardware_id")
@@ -65,6 +75,7 @@ def _record_document(record: RegistrationRecord) -> dict[str, Any]:
         "last_seen_at": _time(record.last_seen_at),
         "expires_at": _time(record.expires_at),
         "node_id": record.node_id,
+        "retired_at": _time(record.retired_at) if record.retired_at else None,
         "reason": record.reason,
     }
 
@@ -102,7 +113,11 @@ def main(
                 _write(output, documents)
             elif args.command == "approve":
                 record = registry.approve(
-                    args.hardware_id, args.pairing_id, node_id=args.node_id
+                    args.hardware_id,
+                    args.pairing_id,
+                    node_id=args.node_id,
+                    reuse_retired_node_id=args.reuse_retired_node_id,
+                    private_identity_bound=args.private_identity_bound,
                 )
                 _write(
                     output,
