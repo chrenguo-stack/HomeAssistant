@@ -1,0 +1,48 @@
+name: C-07 node retirement CI
+
+on:
+  pull_request:
+    paths:
+      - "host/greenhouse-manager/**"
+      - "infra/compose/c07-node-retirement/**"
+      - "docs/development/c07-node-retirement.md"
+      - ".github/workflows/c07-node-retirement-ci.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "host/greenhouse-manager/**"
+      - "infra/compose/c07-node-retirement/**"
+      - "docs/development/c07-node-retirement.md"
+      - ".github/workflows/c07-node-retirement-ci.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-retirement:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+
+      - name: Verify real Mosquitto and Home Assistant retirement lifecycle
+        run: |
+          set -o pipefail
+          bash infra/compose/c07-node-retirement/verify.sh 2>&1 |
+            tee /tmp/c07-node-retirement-verification.log
+
+      - name: Upload redacted failure log
+        if: ${{ failure() || cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: c07-node-retirement-failure-log
+          path: /tmp/c07-node-retirement-verification.log
+          retention-days: 3

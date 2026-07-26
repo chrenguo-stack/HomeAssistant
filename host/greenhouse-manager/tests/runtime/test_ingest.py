@@ -189,3 +189,21 @@ def test_retries_unavailable_after_publish_failure() -> None:
     assert len(retry) == 1
     assert retry[0].topic == first[0].topic
     assert retry[0].payload["state"] == "unavailable"
+
+
+def test_retirement_clears_lifecycle_and_dedup_state() -> None:
+    processor = TelemetryProcessor(system_id="dev", stale_after_s=180)
+    payload = json.dumps(valid_payload())
+    processor.process(TOPIC, payload, received_at=NOW)
+
+    tombstones = processor.retirement_messages(NODE_ID)
+    processor.clear_node_state(NODE_ID)
+    replay = processor.process(
+        TOPIC,
+        payload,
+        received_at=NOW + timedelta(seconds=1),
+    )
+
+    assert [message.payload for message in tombstones] == [b"", b"", b""]
+    assert replay.status == "accepted"
+    assert processor.stale_messages(now=NOW + timedelta(seconds=181)) == ()

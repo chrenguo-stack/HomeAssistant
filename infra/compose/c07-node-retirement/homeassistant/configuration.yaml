@@ -1,0 +1,11 @@
+homeassistant:
+  name: C-07 Retirement Lab
+  time_zone: UTC
+
+logger:
+  default: warning
+  logs:
+    custom_components.c07_retirement_probe: info
+    homeassistant.components.mqtt: info
+
+c07_retirement_probe:

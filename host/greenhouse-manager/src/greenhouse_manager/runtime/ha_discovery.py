@@ -207,6 +207,29 @@ class HomeAssistantDiscovery:
             "qos": 1,
         }
 
+    def retirement_messages(self, node_id: str) -> tuple[PublishMessage, ...]:
+        return (
+            PublishMessage(
+                topic=self._device_discovery_topic(node_id),
+                payload=b"",
+                qos=1,
+                retain=True,
+            ),
+            PublishMessage(
+                topic=self._connectivity_discovery_topic(node_id),
+                payload=b"",
+                qos=1,
+                retain=True,
+            ),
+        )
+
+    def clear_node_cache(self, node_id: str) -> None:
+        self._published_hashes.pop(self._device_discovery_topic(node_id), None)
+        self._published_hashes.pop(
+            self._connectivity_discovery_topic(node_id),
+            None,
+        )
+
     def messages_for_telemetry(self, document: dict[str, Any]) -> tuple[PublishMessage, ...]:
         if not self.enabled:
             return ()

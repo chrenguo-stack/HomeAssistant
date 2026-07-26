@@ -34,15 +34,31 @@ def _parser() -> argparse.ArgumentParser:
     approve.add_argument("hardware_id")
     approve.add_argument("pairing_id")
     approve.add_argument("--node-id", required=True)
+    approve.add_argument(
+        "--logical-location-id",
+        required=True,
+        help="stable logical monitoring location bound to this node_id",
+    )
+    approve.add_argument(
+        "--reuse-retired-node-id",
+        action="store_true",
+        help="explicitly reuse a node_id released by a retired hardware_id",
+    )
+    approve.add_argument(
+        "--private-identity-bound",
+        action="store_true",
+        help=(
+            "confirm the replacement hardware has an enforceable private identity; "
+            "this cannot override the anonymous-compatibility reuse prohibition"
+        ),
+    )
 
     reject = subparsers.add_parser("reject", help="reject a pending registration")
     reject.add_argument("hardware_id")
     reject.add_argument("pairing_id")
     reject.add_argument("--reason", default="user_rejected")
 
-    repair = subparsers.add_parser(
-        "authorize-repair", help="open one explicit re-pair window"
-    )
+    repair = subparsers.add_parser("authorize-repair", help="open one explicit re-pair window")
     repair.add_argument("hardware_id")
 
     subparsers.add_parser("expire", help="expire overdue pending registrations")
@@ -65,6 +81,8 @@ def _record_document(record: RegistrationRecord) -> dict[str, Any]:
         "last_seen_at": _time(record.last_seen_at),
         "expires_at": _time(record.expires_at),
         "node_id": record.node_id,
+        "logical_location_id": record.logical_location_id,
+        "retired_at": _time(record.retired_at) if record.retired_at else None,
         "reason": record.reason,
     }
 
@@ -102,7 +120,13 @@ def main(
                 _write(output, documents)
             elif args.command == "approve":
                 record = registry.approve(
-                    args.hardware_id, args.pairing_id, node_id=args.node_id
+                    args.hardware_id,
+                    args.pairing_id,
+                    node_id=args.node_id,
+                    logical_location_id=args.logical_location_id,
+                    reuse_retired_node_id=args.reuse_retired_node_id,
+                    private_identity_bound=args.private_identity_bound,
+                    anonymous_compatibility_enabled=True,
                 )
                 _write(
                     output,
@@ -113,9 +137,7 @@ def main(
                     },
                 )
             elif args.command == "reject":
-                record = registry.reject(
-                    args.hardware_id, args.pairing_id, reason=args.reason
-                )
+                record = registry.reject(args.hardware_id, args.pairing_id, reason=args.reason)
                 _write(output, {"result": "rejected", "registration": _record_document(record)})
             elif args.command == "authorize-repair":
                 record = registry.authorize_repair(args.hardware_id)

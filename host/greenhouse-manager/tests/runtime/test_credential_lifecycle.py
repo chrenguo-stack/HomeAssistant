@@ -96,3 +96,28 @@ def test_revoke_and_recovery_clear_pending_generation(tmp_path: Path) -> None:
     assert revoked.pending_generation is None
     assert recovery.state is CredentialState.RECOVERY_REQUIRED
     assert recovery.reason == "backup_integrity_failed"
+
+
+def test_revoke_releases_unique_node_id_for_replacement_hardware(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "registration.sqlite3"
+    replacement_hardware = "ghw-c6-112233445566"
+    with CredentialLifecycleStore(database) as store:
+        store.activate(
+            hardware_id=HARDWARE_ID,
+            node_id=NODE_ID,
+            generation=1,
+            now=NOW,
+        )
+        revoked = store.revoke(HARDWARE_ID, now=NOW)
+        replacement = store.activate(
+            hardware_id=replacement_hardware,
+            node_id=NODE_ID,
+            generation=1,
+            now=NOW,
+        )
+
+    assert revoked.node_id is None
+    assert revoked.last_node_id == NODE_ID
+    assert replacement.node_id == NODE_ID

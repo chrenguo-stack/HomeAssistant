@@ -10,6 +10,7 @@ from greenhouse_manager.runtime.registration import RegistrationRegistry
 
 HARDWARE_ID = "ghw-c6-98a316a9f2f8"
 PAIRING_ID = "c83aeb0d-8f48-4a39-a34b-ea584a588475"
+LOGICAL_LOCATION_ID = "greenhouse-bed-01"
 
 
 def hello() -> dict[str, object]:
@@ -55,7 +56,14 @@ def test_approve_is_explicitly_not_credential_issuance(tmp_path: Path) -> None:
     path = database(tmp_path)
 
     code, document, error = run_cli(
-        path, "approve", HARDWARE_ID, PAIRING_ID, "--node-id", "gh-n1-a9f2f8"
+        path,
+        "approve",
+        HARDWARE_ID,
+        PAIRING_ID,
+        "--node-id",
+        "gh-n1-a9f2f8",
+        "--logical-location-id",
+        LOGICAL_LOCATION_ID,
     )
 
     assert code == 0
@@ -63,6 +71,7 @@ def test_approve_is_explicitly_not_credential_issuance(tmp_path: Path) -> None:
     assert document["result"] == "operator_approved"
     assert document["credential_issued"] is False
     assert document["registration"]["node_id"] == "gh-n1-a9f2f8"
+    assert document["registration"]["logical_location_id"] == LOGICAL_LOCATION_ID
 
 
 def test_lists_secret_free_audit_events(tmp_path: Path) -> None:
@@ -88,3 +97,49 @@ def test_missing_database_fails_without_creating_it(tmp_path: Path) -> None:
     assert document is None
     assert "does not exist" in error
     assert not path.exists()
+
+
+def test_reuse_flags_are_forwarded_to_registration_policy(
+    tmp_path: Path,
+) -> None:
+    path = database(tmp_path)
+    run_cli(
+        path,
+        "approve",
+        HARDWARE_ID,
+        PAIRING_ID,
+        "--node-id",
+        "gh-n1-a9f2f8",
+        "--logical-location-id",
+        LOGICAL_LOCATION_ID,
+    )
+    with RegistrationRegistry(path) as registry:
+        job = registry.retire(
+            HARDWARE_ID,
+            system_id="greenhouse",
+            now=datetime.now(UTC),
+        )
+        registry.mark_credentials_revoked(job.retirement_id, evidence="test")
+        registry.mark_runtime_cleanup_complete(job.retirement_id)
+        second = hello()
+        second["hardware_id"] = "ghw-c6-112233445566"
+        second["pairing_id"] = "d5bcf708-88a0-4974-8ca9-597482974e94"
+        second["pairing_epoch"] = 1
+        registry.observe_hello(second, now=datetime.now(UTC))
+
+    code, document, error = run_cli(
+        path,
+        "approve",
+        "ghw-c6-112233445566",
+        "d5bcf708-88a0-4974-8ca9-597482974e94",
+        "--node-id",
+        "gh-n1-a9f2f8",
+        "--logical-location-id",
+        LOGICAL_LOCATION_ID,
+        "--reuse-retired-node-id",
+        "--private-identity-bound",
+    )
+
+    assert code == 3
+    assert document is None
+    assert "anonymous compatibility must be disabled" in error
