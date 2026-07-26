@@ -1,0 +1,58 @@
+name: C07 EOF cleanup
+
+on:
+  push:
+    branches:
+      - feature/c07-node-retirement
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/c07-node-retirement
+          fetch-depth: 0
+
+      - name: Normalize final newlines
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          paths = (
+              Path("host/greenhouse-manager/tests/ops/test_node_retirement_cli.py"),
+              Path("host/greenhouse-manager/tests/runtime/test_dynsec_api.py"),
+              Path("host/greenhouse-manager/tests/runtime/test_registration.py"),
+          )
+          for path in paths:
+              text = path.read_text(encoding="utf-8")
+              path.write_text(text.rstrip() + "\n", encoding="utf-8")
+          PY
+          git diff --check
+
+      - name: Validate manager
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -q -e 'host/greenhouse-manager[dev]'
+          cd host/greenhouse-manager
+          python -m ruff check .
+          python -m pytest -q
+
+      - name: Commit cleanup and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git rm .github/workflows/c07-eof-cleanup.yml
+          git add -A
+          git diff --cached --check
+          git commit -m "chore(c07): normalize final test newlines"
+          git push origin HEAD:feature/c07-node-retirement
