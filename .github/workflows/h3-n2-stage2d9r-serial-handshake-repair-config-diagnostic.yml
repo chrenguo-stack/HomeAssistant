@@ -1,4 +1,4 @@
-name: H3 N2 Stage2D9R Serial Repair Config Diagnostic
+name: H3 N2 Stage2D9R Serial Repair Compile Diagnostic
 
 on:
   pull_request:
@@ -11,9 +11,9 @@ permissions:
   contents: read
 
 jobs:
-  config-diagnostic:
+  compile-diagnostic:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -34,16 +34,30 @@ jobs:
           rc=$?
           printf '%s\n' "$rc" > /tmp/stage2d9r-serial-repair-config-diagnostic.rc
           exit "$rc"
+      - name: Capture ESPHome compile result
+        id: compile
+        if: steps.config.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set +e
+          cd firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare
+          esphome compile greenhouse_profile_isolated_device_g3r_serial_handshake_repair_20260727_v2.yml \
+            > /tmp/stage2d9r-serial-repair-compile-diagnostic.log 2>&1
+          rc=$?
+          printf '%s\n' "$rc" > /tmp/stage2d9r-serial-repair-compile-diagnostic.rc
+          exit "$rc"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: stage2d9r-serial-repair-config-diagnostic
+          name: stage2d9r-serial-repair-compile-diagnostic
           path: |
             /tmp/stage2d9r-serial-repair-config-diagnostic.log
             /tmp/stage2d9r-serial-repair-config-diagnostic.rc
+            /tmp/stage2d9r-serial-repair-compile-diagnostic.log
+            /tmp/stage2d9r-serial-repair-compile-diagnostic.rc
           if-no-files-found: error
           retention-days: 1
           compression-level: 0
       - name: Preserve diagnostic failure
-        if: steps.config.outcome != 'success'
+        if: steps.config.outcome != 'success' || steps.compile.outcome != 'success'
         run: exit 1
