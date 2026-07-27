@@ -1,0 +1,100 @@
+name: H3 N2 Stage2D9R Successor D2 Source Bootstrap
+
+on:
+  push:
+    branches:
+      - fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
+    paths:
+      - ".github/bootstrap/stage2d9r-d2-source.part-*"
+      - ".github/workflows/h3-n2-stage2d9r-successor-d2-source-bootstrap.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stage2d9r-successor-d2-source-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  extract-verify-commit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          show-progress: false
+
+      - name: Recheck frozen public repository boundary
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REF_NAME}" = "fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1"
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          test "$(git status --porcelain)" = ""
+          api="https://api.github.com/repos/chrenguo-stack/HomeAssistant"
+          auth=(-H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json")
+          curl -fsS "${auth[@]}" "${api}/git/ref/heads/main" > /tmp/main.json
+          test "$(jq -r '.object.sha' /tmp/main.json)" = "43aa37b0cc343efdd2024f369517e55c5b6461f1"
+          curl -fsS "${auth[@]}" "${api}/pulls/180" > /tmp/pr180.json
+          test "$(jq -r '.state' /tmp/pr180.json)" = open
+          test "$(jq -r '.draft' /tmp/pr180.json)" = true
+          test "$(jq -r '.merged_at' /tmp/pr180.json)" = null
+          test "$(jq -r '.mergeable' /tmp/pr180.json)" = true
+          test "$(jq -r '.head.sha' /tmp/pr180.json)" = "${GITHUB_SHA}"
+          test "$(jq -r '.base.sha' /tmp/pr180.json)" = "cf841f3e5a8cf04c5df9875c499b91ad4e4289cb"
+          curl -fsS "${auth[@]}" "${api}/pulls/176" > /tmp/pr176.json
+          test "$(jq -r '.state' /tmp/pr176.json)" = open
+          test "$(jq -r '.draft' /tmp/pr176.json)" = true
+          test "$(jq -r '.merged_at' /tmp/pr176.json)" = null
+          test "$(jq -r '.head.sha' /tmp/pr176.json)" = "cf841f3e5a8cf04c5df9875c499b91ad4e4289cb"
+
+      - name: Reconstruct and validate public source archive
+        run: |
+          set -euo pipefail
+          cat .github/bootstrap/stage2d9r-d2-source.part-* | base64 --decode > /tmp/stage2d9r-d2-source.tar.gz
+          echo "e90b5d4de5966278c9aa2febdc4525105adc21751ebc8d9cc89d65a124c5e61e  /tmp/stage2d9r-d2-source.tar.gz" | sha256sum -c -
+          tar -tzf /tmp/stage2d9r-d2-source.tar.gz | LC_ALL=C sort > /tmp/archive-paths.txt
+          cat > /tmp/expected-paths.txt <<'EOF'
+          .github/workflows/h3-n2-stage2d9r-successor-d2-review-ci-v1.yml
+          tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_d2_contract_20260727_v1.py
+          tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_d2_readonly_preflight_20260727_v1.py
+          tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_d2_review_packager_20260727_v1.py
+          tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_u1_public_closure_20260727_v1.py
+          tools/h3_n2_stage2d9r_successor_d2_contract_20260727_v1.py
+          tools/h3_n2_stage2d9r_successor_d2_readonly_preflight_20260727_v1.py
+          tools/h3_n2_stage2d9r_successor_d2_review_packager_20260727_v1.py
+          EOF
+          sed -i 's/^          //' /tmp/expected-paths.txt
+          LC_ALL=C sort -o /tmp/expected-paths.txt /tmp/expected-paths.txt
+          diff -u /tmp/expected-paths.txt /tmp/archive-paths.txt
+          ! grep -Eq '(^/|(^|/)\.\.(/|$))' /tmp/archive-paths.txt
+          tar -xzf /tmp/stage2d9r-d2-source.tar.gz
+          rm -rf .github/bootstrap
+          rm -f .github/workflows/h3-n2-stage2d9r-successor-d2-source-bootstrap.yml
+
+      - name: Verify extracted source before commit
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            tools/h3_n2_stage2d9r_successor_u1_public_closure_20260727_v1.py \
+            tools/h3_n2_stage2d9r_successor_d2_contract_20260727_v1.py \
+            tools/h3_n2_stage2d9r_successor_d2_review_packager_20260727_v1.py \
+            tools/h3_n2_stage2d9r_successor_d2_readonly_preflight_20260727_v1.py
+          python3 -m pytest -q \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_u1_public_closure_20260727_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_d2_contract_20260727_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_d2_review_packager_20260727_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_d2_readonly_preflight_20260727_v1.py
+          find tools tests -type d -name __pycache__ -prune -exec rm -rf {} +
+          test "$(git status --porcelain | wc -l)" -ge 8
+
+      - name: Commit reviewed public source set
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat(n2): materialize successor D2 review source set"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

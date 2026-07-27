@@ -1,0 +1,41 @@
+{
+  "authorization_id": "U1-H3N2-STAGE2D9R-SUCCESSOR-PRIVATE-CONTENT-BINDING-20260727-01",
+  "authorization_state": {
+    "authorization_claimed": false,
+    "authorization_consumed": false,
+    "authorization_marker_created": false,
+    "authorization_record_publicly_frozen": false,
+    "authorization_record_sha256": null,
+    "automatic_retry_permitted": false,
+    "replay_permitted": false
+  },
+  "disposition": "INVALIDATED_BEFORE_CLAIM",
+  "disposition_flags": {
+    "automatic_retry_permitted": false,
+    "execution_package_replay_permitted": false,
+    "requires_new_independent_authorization": true
+  },
+  "failure_code": "PYTHON_EXECUTABLE_BINDING_MISMATCH_BEFORE_CLAIM",
+  "failure_stage": "BOUND_TOOLCHAIN_RESOLUTION",
+  "incorrect_launcher_python_sha256": "fe38fea56d944c3b7e9df10617b1fa5432d7b75cc346d7eacb607d083ea11711",
+  "protected_boundaries": {
+    "activate_executed": false,
+    "board_operation": false,
+    "broker_started": false,
+    "cleanup_executed": false,
+    "flash_operation": false,
+    "network_operation": false,
+    "physical_nvs_operation": false,
+    "prepare_executed": false,
+    "private_material_content_read": false,
+    "production_operation": false,
+    "serial_operation": false,
+    "verify_executed": false
+  },
+  "requested_bound_python_sha256": "4e28e811a89aeac6eed668ae641c7f85f5831e42e8dc6cd9a85a3bcc032ec46a",
+  "review_artifact_archive_sha256": "b49a9e12531e071f713d27e3cc3f660e482e401e9f308a8f189ce51f2e602f3e",
+  "review_artifact_id": 8639706190,
+  "review_binding_sha256": "2f80e7e0f98b44f7ee323eb7cffffb19eac1994b689eb03a92d867dd9ceb67ad",
+  "schema": "gh.h3.n2.stage2d9r-successor-private-content-binding-u1-invalidation-l1/1",
+  "stage": "H3/N2 Stage 2D-9R G3R successor"
+}
