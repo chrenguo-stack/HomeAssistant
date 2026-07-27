@@ -20,7 +20,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  extract-verify-commit:
+  extract-verify-stage-blobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -63,7 +63,7 @@ jobs:
           cat .github/bootstrap/stage2d9r-d2-source.part-* | base64 --decode > /tmp/stage2d9r-d2-source.tar.gz
           echo "e90b5d4de5966278c9aa2febdc4525105adc21751ebc8d9cc89d65a124c5e61e  /tmp/stage2d9r-d2-source.tar.gz" | sha256sum -c -
           tar -tzf /tmp/stage2d9r-d2-source.tar.gz | LC_ALL=C sort > /tmp/archive-paths.txt
-          cat > /tmp/expected-paths.txt <<'EOF'
+          cat > /tmp/expected-paths.txt <<'PATHS'
           .github/workflows/h3-n2-stage2d9r-successor-d2-review-ci-v1.yml
           tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_d2_contract_20260727_v1.py
           tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_d2_readonly_preflight_20260727_v1.py
@@ -72,16 +72,14 @@ jobs:
           tools/h3_n2_stage2d9r_successor_d2_contract_20260727_v1.py
           tools/h3_n2_stage2d9r_successor_d2_readonly_preflight_20260727_v1.py
           tools/h3_n2_stage2d9r_successor_d2_review_packager_20260727_v1.py
-          EOF
+          PATHS
           sed -i 's/^          //' /tmp/expected-paths.txt
           LC_ALL=C sort -o /tmp/expected-paths.txt /tmp/expected-paths.txt
           diff -u /tmp/expected-paths.txt /tmp/archive-paths.txt
           ! grep -Eq '(^/|(^|/)\.\.(/|$))' /tmp/archive-paths.txt
           tar -xzf /tmp/stage2d9r-d2-source.tar.gz
-          rm -rf .github/bootstrap
-          rm -f .github/workflows/h3-n2-stage2d9r-successor-d2-source-bootstrap.yml
 
-      - name: Verify extracted source before commit
+      - name: Verify exact reviewed public source bytes
         run: |
           set -euo pipefail
           python3 -m py_compile \
@@ -89,7 +87,7 @@ jobs:
             tools/h3_n2_stage2d9r_successor_d2_contract_20260727_v1.py \
             tools/h3_n2_stage2d9r_successor_d2_review_packager_20260727_v1.py \
             tools/h3_n2_stage2d9r_successor_d2_readonly_preflight_20260727_v1.py
-          cat <<'EOF' | sha256sum -c -
+          cat <<'HASHES' | sha256sum -c -
           cf6808cb9747e020bf26633c9b57743f1095494d22596cd462c0f3d5d33e3736  tools/h3_n2_stage2d9r_successor_d2_contract_20260727_v1.py
           c2b7dc679bd59fdc72bcb98049b2a43f91cbe9fda7ba3797ef0eb6cebd642b43  tools/h3_n2_stage2d9r_successor_d2_readonly_preflight_20260727_v1.py
           5c0af9f6f69928374b62c3491c6dec4089c0f9c28bba4a87ec3e40b117afb41e  tools/h3_n2_stage2d9r_successor_d2_review_packager_20260727_v1.py
@@ -98,17 +96,36 @@ jobs:
           85fc34feb5d6b1a2de415e5c09daf0fe6b9738a0237372ff2ea6c7a45649f385  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_d2_review_packager_20260727_v1.py
           a81a050fed63a4cf2837de85373513b13476338210cecc52c712135b45b3d84a  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_u1_public_closure_20260727_v1.py
           bc88baf91d67344c624b7b54a413bd5c7ec6e776bc5bedf9c9d57f8e7d97f445  .github/workflows/h3-n2-stage2d9r-successor-d2-review-ci-v1.yml
-          EOF
-          find tools tests -type d -name __pycache__ -prune -exec rm -rf {} +
-          test "$(git status --porcelain | wc -l)" -ge 8
+          HASHES
 
-      - name: Commit reviewed public source set
+      - name: Stage reviewed source as unattached Git blobs
         env:
-          HEAD_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "feat(n2): materialize successor D2 review source set"
-          git push origin "HEAD:${HEAD_BRANCH}"
+          api="https://api.github.com/repos/chrenguo-stack/HomeAssistant"
+          auth=(-H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json")
+          printf '{}\n' > /tmp/staged-blobs.json
+          while IFS= read -r path; do
+            jq -n --arg content "$(base64 -w0 "${path}")" '{content:$content,encoding:"base64"}' > /tmp/blob-request.json
+            curl -fsS -X POST "${auth[@]}" -H "Content-Type: application/json" \
+              "${api}/git/blobs" --data-binary @/tmp/blob-request.json > /tmp/blob-response.json
+            sha="$(jq -er '.sha | select(test("^[0-9a-f]{40}$"))' /tmp/blob-response.json)"
+            jq --arg path "${path}" --arg sha "${sha}" '. + {($path):$sha}' \
+              /tmp/staged-blobs.json > /tmp/staged-blobs.next.json
+            mv /tmp/staged-blobs.next.json /tmp/staged-blobs.json
+          done < /tmp/expected-paths.txt
+          jq -S . /tmp/staged-blobs.json > /tmp/stage2d9r-successor-d2-staged-blobs-v1.json
+          sha256sum /tmp/stage2d9r-successor-d2-staged-blobs-v1.json > /tmp/stage2d9r-successor-d2-staged-blobs-v1.sha256
+          cat /tmp/stage2d9r-successor-d2-staged-blobs-v1.json
+          cat /tmp/stage2d9r-successor-d2-staged-blobs-v1.sha256
+
+      - name: Upload staged blob manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-successor-d2-staged-blobs-v1
+          path: |
+            /tmp/stage2d9r-successor-d2-staged-blobs-v1.json
+            /tmp/stage2d9r-successor-d2-staged-blobs-v1.sha256
+          retention-days: 5
+          if-no-files-found: error
