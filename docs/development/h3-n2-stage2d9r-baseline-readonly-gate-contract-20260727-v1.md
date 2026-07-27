@@ -3,8 +3,9 @@
 ## 1. 决策依据
 
 决策 `D1-H3N2-STAGE2D9R-G3R-BASELINE-READONLY-GATE-20260727-01`
-仅批准仓库侧开发、测试和公开 Review Artifact 冻结。当前阶段不得连接测试板，
-不得枚举 USB/串口，不得执行任何 `esptool`、Flash、NVS、网络或 Broker 操作。
+批准仓库侧开发、测试和公开 Artifact 冻结。独立物理门
+`D2-H3N2-STAGE2D9R-G3R-BASELINE-READONLY-20260727-01`
+已经获得一次性授权并以 `CONSUMED_PASS` 结束；该授权已经消费，不得重放或自动重试。
 
 ## 2. 需要解决的两个缺口
 
@@ -30,15 +31,16 @@ U1-02 的原始 authorization/result 文件已退休，但 mode-0600 consumed ma
 - `serial_identity_sha256`；
 - `baseline_state_sha256`。
 
-现有私密主机没有可复用的冻结基线，因此新增独立的未来物理门：
+现有私密主机原先没有可复用的冻结基线，因此新增独立物理门：
 
 `D2-H3N2-STAGE2D9R-G3R-BASELINE-READONLY-20260727-01`
 
-该物理门不在本次 D1 中获得执行授权。
+该物理门已经完成并消费，其公开接受记录只保存摘要和保护边界，不包含原始串口路径、
+芯片输出、Flash 输出或分区内容。
 
-## 3. 未来物理门允许的唯一操作
+## 3. 物理门允许的唯一操作
 
-获得单独、当前有效、最长 7200 秒的一次性授权后，执行器才允许：
+获得单独、当前有效、最长 7200 秒的一次性授权后，执行器只允许：
 
 1. 枚举并选择恰好一个 Espressif USB 串口候选；
 2. `esptool chip_id`；
@@ -79,7 +81,7 @@ U1-02 的原始 authorization/result 文件已退休，但 mode-0600 consumed ma
 
 ## 6. Review Artifact
 
-本阶段 Artifact 只能包含：
+Review Artifact 只包含：
 
 - D1 决策记录；
 - 本合同；
@@ -90,11 +92,11 @@ U1-02 的原始 authorization/result 文件已退休，但 mode-0600 consumed ma
 - 非授权完整性探针。
 
 Artifact 不得包含 authorization record、物理执行 launcher、私密路径、秘密值或
-板卡身份。Artifact 中所有物理和生产授权字段必须为 `false`。
+板卡原始身份。Artifact 中所有物理和生产授权字段必须为 `false`。
 
 ## 7. D2 V3 接入
 
-未来只读基线执行成功后，V3 D2 preflight：
+只读基线执行成功后，V3 D2 preflight：
 
 - 使用 consumed marker 验证 U1-02，不重建原始文件；
 - 校验只读基线结果为 mode-0600、`CONSUMED_PASS`、不可重放；
@@ -102,3 +104,21 @@ Artifact 不得包含 authorization record、物理执行 launcher、私密路�
 - 继续执行冻结的 V2 repository、Artifact、recovery、execution 检查；
 - 生成 `authorized=false` 的精确 D2 请求草案；
 - V3 preflight 自身不访问板卡、串口、Flash、NVS、网络或 Broker。
+
+## 8. 已消费基线结果
+
+公开接受记录：
+
+`docs/acceptance/h3-n2-stage2d9r-baseline-readonly-d2-acceptance-20260727-v1.json`
+
+冻结摘要：
+
+- authorization record：`9c0dcab46d772f8506ef24039e2ccbaeb6cdeccf53cac011486ae0270f6e2842`；
+- result：`83de8568ddfe73fc98c1408c1347a9817b03c4a9adb4ef091990d9b3b39ceab9`；
+- board identity：`2607b7df80b8b636548a8d9d97c0a6b4e4ead57e9a2cc6fcb7f93643617242f8`；
+- serial identity：`b6dba7ee0db02feba166935ae8ec2bbd946dbf66926e5421cfa1c1c8b8a4f2c3`；
+- baseline state：`15ad524c4328fd93c99a10e1e0955080e5dedeb8df371832c4d437538dc8944a`；
+- test partition：`a8438e656e6b3327506a988136884113c8df8ed012373b851ea2c6da681e8b7b`，65536 字节。
+
+结果状态为 `CONSUMED_PASS`，且所有擦除、写入、NVS、网络、Broker、PREPARE、
+VERIFY、ACTIVATE 和 CLEANUP 字段均为 `false`。测试板不得因该授权再次连接或重跑。
