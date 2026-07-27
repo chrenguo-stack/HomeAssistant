@@ -29,7 +29,7 @@ struct Stage2D9RCommandEnvelopeV1 {
   void clear();
 };
 
-class Stage2D9RG3RPrepareExecutorV1 final : public Component {
+class Stage2D9RG3RPrepareExecutorV1 : public Component {
  public:
   void set_partition_label(const std::string &value) {
     this->partition_label_ = value;
@@ -128,6 +128,24 @@ class Stage2D9RG3RPrepareExecutorV1 final : public Component {
   bool prepare_succeeded_{false};
   bool verify_succeeded_{false};
   bool terminal_{false};
+};
+
+// V2 preserves the V1 command and persistence contract. It changes only the
+// serial readiness handshake: while a command is pending, the ready marker is
+// repeated once per second so a host that opens the console after boot cannot
+// permanently miss a one-shot setup log line.
+class Stage2D9RG3RPrepareExecutorV2 final
+    : public Stage2D9RG3RPrepareExecutorV1 {
+ public:
+  void setup() override;
+  void loop() override;
+  void dump_config() override;
+
+ protected:
+  void emit_repeated_ready_marker_();
+
+  static constexpr int64_t READY_REPEAT_INTERVAL_US = 1000000;
+  int64_t last_ready_emit_us_{0};
 };
 
 }  // namespace esphome::greenhouse_pairing_client
