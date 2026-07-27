@@ -1,0 +1,279 @@
+name: H3 N2 Stage2D9R Successor Host Artifact Custody Preauth Probe Package CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-successor-host-artifact-custody-preauth-probe-package-ci.yml"
+      - "tools/h3_n2_stage2d9r_successor_host_artifact_custody_probe_20260727_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_host_artifact_custody_probe_20260727_v1.py"
+      - "docs/development/h3-n2-stage2d9r-successor-host-artifact-custody-preauth-probe-contract-20260727-v1.md"
+      - "docs/acceptance/h3-n2-stage2d9r-successor-private-execution-material-u1-01-success-l1-v1.json"
+      - "docs/acceptance/h3-n2-stage2d9r-successor-immutable-build-l1-v1.json"
+  push:
+    branches:
+      - fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-successor-host-artifact-custody-preauth-probe-package-ci.yml"
+      - "tools/h3_n2_stage2d9r_successor_host_artifact_custody_probe_20260727_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_host_artifact_custody_probe_20260727_v1.py"
+      - "docs/development/h3-n2-stage2d9r-successor-host-artifact-custody-preauth-probe-contract-20260727-v1.md"
+      - "docs/acceptance/h3-n2-stage2d9r-successor-private-execution-material-u1-01-success-l1-v1.json"
+      - "docs/acceptance/h3-n2-stage2d9r-successor-immutable-build-l1-v1.json"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build-read-only-preauth-package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Verify frozen branch ancestry and current main
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          EXPECTED_MAIN_SHA: 43aa37b0cc343efdd2024f369517e55c5b6461f1
+        run: |
+          set -euo pipefail
+          test "$HEAD_BRANCH" = fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          git fetch --no-tags --depth=1 origin main
+          test "$(git rev-parse FETCH_HEAD)" = "$EXPECTED_MAIN_SHA"
+          git fetch --no-tags --depth=128 origin "$HEAD_BRANCH"
+          git merge-base --is-ancestor ac1d2a7a92323988c9cd946a3e018e4f1ba9463b HEAD
+          test "$(git status --porcelain)" = ""
+
+      - name: Run metadata-only probe tests
+        run: |
+          set -euo pipefail
+          export PYTHONPYCACHEPREFIX=/tmp/stage2d9r-successor-host-probe-pycache
+          python -m py_compile \
+            tools/h3_n2_stage2d9r_successor_host_artifact_custody_probe_20260727_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_host_artifact_custody_probe_20260727_v1.py
+          python \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_host_artifact_custody_probe_20260727_v1.py \
+            -v 2>&1 | tee /tmp/stage2d9r-successor-host-probe-tests.log
+          grep -F 'Ran 9 tests' /tmp/stage2d9r-successor-host-probe-tests.log
+          grep -F 'OK' /tmp/stage2d9r-successor-host-probe-tests.log
+          rm -rf "$PYTHONPYCACHEPREFIX"
+
+      - name: Verify fixed canonical Artifact metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          data="$(gh api repos/$GITHUB_REPOSITORY/actions/artifacts/8638796771)"
+          test "$(jq -r .name <<<"$data")" = stage2d9r-g3r-successor-immutable-locked-v1
+          test "$(jq -r .expired <<<"$data")" = false
+          test "$(jq -r .workflow_run.id <<<"$data")" = 30226719405
+          test "$(jq -r .workflow_run.head_sha <<<"$data")" = ac1d2a7a92323988c9cd946a3e018e4f1ba9463b
+          test "$(jq -r .digest <<<"$data")" = sha256:b8c7e937ff325d121aeff8414618e88b8a229cca00bc27e439c587f830851dc8
+
+      - name: Download exact canonical immutable Artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-successor-host-artifact-custody-preauth-review-v1
+          mkdir -p "$root/public-artifacts/immutable" "$root/tools" "$root/tests" "$root/review"
+          gh run download 30226719405 \
+            --repo "$GITHUB_REPOSITORY" \
+            --name stage2d9r-g3r-successor-immutable-locked-v1 \
+            --dir "$root/public-artifacts/immutable"
+          find "$root/public-artifacts" -type f -exec chmod 0600 {} +
+
+      - name: Validate public Artifact before packaging
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-successor-host-artifact-custody-preauth-review-v1
+          python tools/h3_n2_stage2d9r_successor_host_artifact_custody_probe_20260727_v1.py \
+            --package-root "$root" --public-artifacts-only \
+            | tee /tmp/stage2d9r-successor-host-probe-public-only.log
+          grep -Fx 'STAGE2D9R_SUCCESSOR_HOST_ARTIFACT_CUSTODY_PREAUTH_PROBE=PASS' \
+            /tmp/stage2d9r-successor-host-probe-public-only.log
+          grep -F '"result": "PASS_PUBLIC_ARTIFACTS_ONLY"' \
+            /tmp/stage2d9r-successor-host-probe-public-only.log
+          grep -F '"private_material_content_read": false' \
+            /tmp/stage2d9r-successor-host-probe-public-only.log
+          grep -F '"board_operation": false' \
+            /tmp/stage2d9r-successor-host-probe-public-only.log
+          grep -F '"network_operation": false' \
+            /tmp/stage2d9r-successor-host-probe-public-only.log
+
+      - name: Assemble read-only preauthorization package
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-successor-host-artifact-custody-preauth-review-v1
+          cp tools/h3_n2_stage2d9r_successor_host_artifact_custody_probe_20260727_v1.py "$root/tools/"
+          cp tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_host_artifact_custody_probe_20260727_v1.py "$root/tests/"
+          cp docs/development/h3-n2-stage2d9r-successor-host-artifact-custody-preauth-probe-contract-20260727-v1.md "$root/review/"
+          cp docs/acceptance/h3-n2-stage2d9r-successor-private-execution-material-u1-01-success-l1-v1.json "$root/review/"
+          cp docs/acceptance/h3-n2-stage2d9r-successor-immutable-build-l1-v1.json "$root/review/"
+
+          SOURCE_SHA="$SOURCE_SHA" ROOT="$root" python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ['ROOT'])
+          def digest(path: Path) -> str:
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+          probe = root / 'tools/h3_n2_stage2d9r_successor_host_artifact_custody_probe_20260727_v1.py'
+          tests = root / 'tests/test_h3_n2_stage2d9r_successor_host_artifact_custody_probe_20260727_v1.py'
+          contract = root / 'review/h3-n2-stage2d9r-successor-host-artifact-custody-preauth-probe-contract-20260727-v1.md'
+          binding = {
+              'schema': 'gh.h3.n2.stage2d9r-successor-host-artifact-custody-preauth-probe-package/1',
+              'stage': 'H3/N2 Stage 2D-9R G3R successor',
+              'state': 'READ_ONLY_PREAUTH_REVIEW_PACKAGE',
+              'source_sha': os.environ['SOURCE_SHA'],
+              'main_sha': '43aa37b0cc343efdd2024f369517e55c5b6461f1',
+              'probe_sha256': digest(probe),
+              'test_sha256': digest(tests),
+              'contract_sha256': digest(contract),
+              'python_executable_sha256_required': '4e28e811a89aeac6eed668ae641c7f85f5831e42e8dc6cd9a85a3bcc032ec46a',
+              'python_version_required': '3.11.9',
+              'canonical_artifact': {
+                  'artifact_id': 8638796771,
+                  'run_id': 30226719405,
+                  'source_sha': 'ac1d2a7a92323988c9cd946a3e018e4f1ba9463b',
+                  'github_digest_sha256': 'b8c7e937ff325d121aeff8414618e88b8a229cca00bc27e439c587f830851dc8',
+                  'payload_tar_sha256': '14e882f550ca92d14cf6776e518eb083b7344683b5534487bd28e95d93b29747',
+                  'build_binding': '742f663333837366a42da92b984a3b05c643f571',
+              },
+              'successor_private_custody': {
+                  'selection_rule': 'HOME_LOCAL_STATE_STAGE2D9R_PRIVATE_EXECUTION_MATERIAL_TLSVALID02',
+                  'generation_authorization_id': 'U1-H3N2-STAGE2D9R-PRIVATE-EXECUTION-MATERIAL-20260725-01',
+                  'generation_marker_sha256': '428231f9e0e6a26c39701427b3e32531e18d08b54e341736b1189a78a06848a5',
+                  'authorization_record_sha256': '99d5f8cf5a0a12d921497ce04b7dc95161fc77ee79e79ddf50d6cb2535473817',
+                  'private_package_sha256': '7b585fc53b9201fd2c6161e544ac062d4223f509bfc86a10052d97907e4f55bb',
+                  'public_descriptor_sha256': '7021279f141f00cbf7e64fe8a20e89dd8b8ef3b9c4c7625ec28b79f6d65db2b6',
+              },
+              'private_material_content_binding': 'DEFERRED_REQUIRES_SEPARATE_EXACT_U1',
+              'authorization_created': False,
+              'authorization_claimed': False,
+              'authorization_consumed_by_probe': False,
+              'private_material_content_read': False,
+              'private_paths_included': False,
+              'secret_values_included': False,
+              'network_operation': False,
+              'broker_started': False,
+              'board_operation': False,
+              'serial_operation': False,
+              'flash_operation': False,
+              'physical_nvs_operation': False,
+              'prepare_executed': False,
+              'verify_executed': False,
+              'activate_executed': False,
+              'cleanup_executed': False,
+              'production_operation': False,
+              'ready_authorized': False,
+              'merge_authorized': False,
+              'release_authorized': False,
+          }
+          canonical = json.dumps(binding, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode()
+          binding['package_binding_sha256'] = hashlib.sha256(canonical).hexdigest()
+          (root / 'PROBE_PACKAGE_BINDING.json').write_text(
+              json.dumps(binding, indent=2, sort_keys=True) + '\n', encoding='utf-8'
+          )
+          PY
+
+          cat > "$root/run_stage2d9r_successor_host_artifact_custody_preauth_probe_20260727_v1.sh" <<'SH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          umask 077
+          ROOT="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)"
+          cd "$ROOT"
+          shasum -a 256 -c SHA256SUMS
+          printf '%s\n' 'STAGE2D9R_SUCCESSOR_HOST_ARTIFACT_CUSTODY_PREAUTH_PROBE_V1_BEGIN'
+          "$(command -v python3)" \
+            "$ROOT/tools/h3_n2_stage2d9r_successor_host_artifact_custody_probe_20260727_v1.py" \
+            --package-root "$ROOT"
+          printf '%s\n' 'STAGE2D9R_SUCCESSOR_HOST_ARTIFACT_CUSTODY_PREAUTH_PROBE_V1_END'
+          SH
+
+          cat > "$root/README.md" <<'MD'
+          # Stage 2D-9R G3R successor host Artifact and custody preauthorization probe
+
+          This package performs a read-only validation of the frozen public immutable
+          Artifact and local successor custody metadata. It reads only the private
+          descriptor metadata, redacted public descriptor, consumed-marker metadata,
+          and private-file stat metadata. It does not read any secret material file,
+          create or consume an authorization, access a board, serial port, Flash/NVS,
+          network or Broker, or execute PREPARE/VERIFY/ACTIVATE/CLEANUP.
+          MD
+
+          chmod 0700 "$root"/run_*.sh
+          find "$root" -type f ! -name 'run_*.sh' -exec chmod 0600 {} +
+          (cd "$root" && find . -type f ! -name SHA256SUMS -print0 \
+            | LC_ALL=C sort -z | xargs -0 shasum -a 256 \
+            | sed 's#  \./#  #' > SHA256SUMS)
+          chmod 0600 "$root/SHA256SUMS"
+
+      - name: Verify package boundary
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-successor-host-artifact-custody-preauth-review-v1
+          (cd "$root" && sha256sum -c SHA256SUMS)
+          test ! -e "$root/authorization-record.json"
+          test ! -e "$root/authorized-execution-launcher.sh"
+          test -z "$(find "$root" -type d -name __pycache__ -print -quit)"
+          test -z "$(find "$root" -type f \( -name '*.pyc' -o -name '*.pyo' \) -print -quit)"
+          ! grep -R -I -n -E 'BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|/Users/|/private/tmp/' "$root"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-g3r-successor-host-artifact-custody-preauth-probe-review-v1
+          path: /tmp/stage2d9r-successor-host-artifact-custody-preauth-review-v1
+          if-no-files-found: error
+          retention-days: 5
+          compression-level: 0
+
+      - name: Report read-only preauthorization boundary
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          printf '%s\n' \
+            'STAGE2D9R_SUCCESSOR_HOST_ARTIFACT_CUSTODY_PREAUTH_PACKAGE=PASS' \
+            "SOURCE_SHA=$SOURCE_SHA" \
+            'CANONICAL_ARTIFACT_ID=8638796771' \
+            'PAYLOAD_TAR_SHA256=14e882f550ca92d14cf6776e518eb083b7344683b5534487bd28e95d93b29747' \
+            'BUILD_BINDING=742f663333837366a42da92b984a3b05c643f571' \
+            'PRIVATE_MATERIAL_CONTENT_BINDING=DEFERRED_REQUIRES_SEPARATE_EXACT_U1' \
+            'AUTHORIZATION_CREATED=false' \
+            'AUTHORIZATION_CLAIMED=false' \
+            'AUTHORIZATION_CONSUMED_BY_PROBE=false' \
+            'PRIVATE_MATERIAL_CONTENT_READ=false' \
+            'PRIVATE_PATHS_INCLUDED=false' \
+            'SECRET_VALUES_INCLUDED=false' \
+            'BOARD_OPERATION=false' \
+            'SERIAL_OPERATION=false' \
+            'FLASH_OPERATION=false' \
+            'PHYSICAL_NVS_OPERATION=false' \
+            'NETWORK_OPERATION=false' \
+            'BROKER_STARTED=false' \
+            'PREPARE_EXECUTED=false' \
+            'VERIFY_EXECUTED=false'
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf /tmp/stage2d9r-successor-host-artifact-custody-preauth-review-v1 \
+            /tmp/stage2d9r-successor-host-probe-pycache
+          rm -f /tmp/stage2d9r-successor-host-probe-*.log
