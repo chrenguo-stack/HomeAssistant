@@ -9,16 +9,23 @@ VERIFY 的执行计数均为 0。旧授权、旧执行包和旧私密材料不�
 
 ## 2. 固件侧修复
 
-V2 执行器保留 V1 的命令格式、分区、NVS、候选摘要、授权绑定和失败关闭
-语义。唯一运行时变化是：
+冻结的 V1 executor 源文件保持不变，继续作为唯一命令解析器、授权门、NVS
+写入路径和 command replay 门。新增独立的只读 companion：
 
-- 当状态为等待 PREPARE 时，每 1000 ms 重复输出一次 PREPARE ready 标记；
-- 当状态为等待 VERIFY 时，每 1000 ms 重复输出一次 VERIFY ready 标记；
-- 命令被接受、进入终态或失败关闭后立即停止重复；
-- 重复标记不包含密钥、口令、命令正文、私密路径或串口路径。
+`greenhouse_profile_isolated_device_g3r_ready_repeater`
 
-该机制把 ready 从一次性启动事件改为等待状态的幂等可观察投影，不增加第二次
-命令机会，也不放宽 command replay 门。
+companion 在 V1 executor 完成启动边界之后，只读检查固定测试分区的几何信息和
+目标 namespace 是否存在：
+
+- namespace 不存在时，按 1000 ms 周期重复 PREPARE ready 标记；
+- namespace 已存在时，按 1000 ms 周期重复 VERIFY ready 标记；
+- 重复投影限定在每次启动后的 180000 ms 窗口；
+- companion 不读取命令、不写串口、不解析授权、不加载密钥、不写 NVS；
+- 标记不包含密钥、口令、命令正文、私密路径或串口路径。
+
+该机制把 ready 从一次性启动事件改为有界、幂等的可观察状态投影。它不增加第二次
+命令机会；即使重复标记仍在输出，命令接受、重放拒绝和终态均继续由冻结 V1
+executor 独占处理。
 
 ## 3. 主机侧修复
 
@@ -47,10 +54,11 @@ V2 执行器保留 V1 的命令格式、分区、NVS、候选摘要、授权绑�
 
 ## 5. 证据脱敏
 
-超时 transcript 保留启动日志、ready/pass/fail 标记和公开摘要，但任何包含
-`GH2D9R_PREPARE_V1` 或 `GH2D9R_VERIFY_V1` 的命令行必须替换为只含 schema 和
-`[REDACTED_COMMAND_MATERIAL]` 的记录。公开 Artifact 不得包含原始命令、私钥、
-MQTT 密码、unlock preimage、persistence key、串口路径或用户目录路径。
+超时 transcript 保留启动日志、ready/pass/fail 标记和公开摘要，但任何以
+`GH2D9R_PREPARE_V1` 或 `GH2D9R_VERIFY_V1` 开头的可执行命令行必须替换为只含
+schema 和 `[REDACTED_COMMAND_MATERIAL]` 的记录。包含
+`expected_schema=GH2D9R_*` 的公开诊断行不得被误删。公开 Artifact 不得包含原始
+命令、私钥、MQTT 密码、unlock preimage、persistence key、串口路径或用户目录路径。
 
 ## 6. 新构建边界
 
