@@ -100,6 +100,7 @@ jobs:
           .github/workflows/h3-n2-stage2d9r-successor-d2-review-ci-v1.yml
           .github/workflows/h3-n2-stage2d9r-successor-private-execution-material-u1-review-package-ci.yml
           .github/workflows/h3-n2-stage2d9r-successor-public-pki-export-success-probe-package-ci.yml
+          .github/workflows/h3-n2-stage2d9r-successor-public-pki-export-u1-review-package-ci.yml
           .github/workflows/h3-n2-stage2d9r-successor-recovery-artifact-freeze-ci-v1.yml
           docs/acceptance/h3-n2-stage2d9r-successor-d2-execution-package-l1-v1.json
           docs/acceptance/h3-n2-stage2d9r-successor-locked-recovery-artifact-l1-v1.json
