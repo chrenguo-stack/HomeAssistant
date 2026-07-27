@@ -14,15 +14,20 @@ ROOT = Path(__file__).resolve().parents[2]
 MODULE_PATH = ROOT / "tools/h3_n2_stage2d9r_serial_handshake_repair_20260727_v1.py"
 COMPONENT = (
     ROOT
-    / "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor_v2"
+    / "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_ready_repeater"
 )
-CPP_PATH = COMPONENT / "stage2d9r_g3r_prepare_executor_20260727_v2.cpp"
-HEADER_PATH = COMPONENT / "stage2d9r_g3r_prepare_executor_20260727_v2.h"
+CPP_PATH = COMPONENT / "stage2d9r_g3r_ready_repeater_20260727_v1.cpp"
+HEADER_PATH = COMPONENT / "stage2d9r_g3r_ready_repeater_20260727_v1.h"
 INIT_PATH = COMPONENT / "__init__.py"
 FROZEN_V1_HEADER = (
     ROOT
     / "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor"
     / "stage2d9r_g3r_prepare_executor_20260723_v1.h"
+)
+REPAIR_CONFIG = (
+    ROOT
+    / "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare"
+    / "greenhouse_profile_isolated_device_g3r_serial_handshake_repair_20260727_v2.yml"
 )
 
 
@@ -111,13 +116,18 @@ class HandshakeRepairTests(unittest.TestCase):
         cpp = CPP_PATH.read_text(encoding="utf-8")
         header = HEADER_PATH.read_text(encoding="utf-8")
         init = INIT_PATH.read_text(encoding="utf-8")
-        self.assertIn("READY_REPEAT_INTERVAL_US = 1000000", header)
+        config = REPAIR_CONFIG.read_text(encoding="utf-8")
+        self.assertIn("repeat_interval_ms_{1000}", header)
+        self.assertIn("repeat_window_ms_{180000}", header)
         self.assertIn("stage2d9r_command_ready=PREPARE", cpp)
         self.assertIn("stage2d9r_command_ready=VERIFY", cpp)
-        self.assertIn("stage2d9r_ready_repeat=true interval_ms=1000", cpp)
-        self.assertIn("Stage2D9RG3RPrepareExecutorV2", init)
-        self.assertIn("Stage2D9RG3RPrepareExecutorV2Core", header)
+        self.assertIn("stage2d9r_ready_repeat=true", cpp)
+        self.assertIn("Stage2D9RG3RReadyRepeaterV1", init)
+        self.assertIn("greenhouse_profile_isolated_device_g3r_executor:", config)
+        self.assertIn("greenhouse_profile_isolated_device_g3r_ready_repeater:", config)
         self.assertIn("final : public Component", FROZEN_V1_HEADER.read_text())
+        self.assertNotIn("write_flash", cpp)
+        self.assertNotIn("nvs_set_", cpp)
 
     def test_serial_capture_is_open_before_broker_start(self):
         factory = FakeSerialFactory()
