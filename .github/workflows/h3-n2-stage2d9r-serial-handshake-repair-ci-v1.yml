@@ -6,7 +6,7 @@ on:
       - ".github/workflows/h3-n2-stage2d9r-serial-handshake-repair-ci-v1.yml"
       - "docs/decisions/h3-n2-stage2d9r-g3r-serial-handshake-repair-d1-20260727-v1.json"
       - "docs/development/h3-n2-stage2d9r-g3r-serial-handshake-repair-contract-20260727-v1.md"
-      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor/**"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor_v2/**"
       - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/greenhouse_profile_isolated_device_g3r_serial_handshake_repair_20260727_v2.yml"
       - "tools/h3_n2_stage2d9r_serial_handshake_repair_20260727_v1.py"
       - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_serial_handshake_repair_20260727_v1.py"
@@ -26,6 +26,7 @@ env:
   EXPECTED_HEAD_BRANCH: fix/h3-n2-stage2d9r-g3r-serial-handshake-repair-20260727-v1
   EXPECTED_MAIN_SHA: 43aa37b0cc343efdd2024f369517e55c5b6461f1
   REPAIR_CONFIG: firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/greenhouse_profile_isolated_device_g3r_serial_handshake_repair_20260727_v2.yml
+  REPAIR_COMPONENT: firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor_v2
 
 jobs:
   source-host-review:
@@ -100,16 +101,19 @@ jobs:
           PY
           test -z "$(git status --porcelain)"
 
-      - name: Verify old consumed D2 and frozen execution inputs are unchanged
+      - name: Verify frozen V1 and consumed D2 inputs are unchanged
         run: |
           set -euo pipefail
           git diff --exit-code "$EXPECTED_BASE_SHA"...HEAD -- \
             tools/h3_n2_stage2d9r_successor_d2_execute_20260727_v1.py \
             tools/h3_n2_stage2d9r_successor_d2_execution_packager_20260727_v2.py \
-            firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor/stage2d9r_g3r_prepare_executor_20260723_v1.cpp \
+            firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor \
             firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/greenhouse_profile_isolated_device_g3r_immutable_20260724_v1.yml \
+            firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/greenhouse_profile_isolated_device_g3r_successor_immutable_20260727_v1.yml \
             tests/h3_n2_stage2d9r_tls_candidate/public_pki_tlsvalid01 \
-            tests/h3_n2_stage2d9r_tls_candidate/public_command_material_tlsvalid01
+            tests/h3_n2_stage2d9r_tls_candidate/public_pki_tlsvalid02 \
+            tests/h3_n2_stage2d9r_tls_candidate/public_command_material_tlsvalid01 \
+            tests/h3_n2_stage2d9r_tls_candidate/public_successor_tlsvalid02
 
       - name: Run source and host repair tests
         run: |
@@ -139,9 +143,9 @@ jobs:
           from pathlib import Path
           import json
 
-          component = Path('firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor')
+          component = Path('firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor_v2')
           cpp = (component / 'stage2d9r_g3r_prepare_executor_20260727_v2.cpp').read_text()
-          header = (component / 'stage2d9r_g3r_prepare_executor_20260723_v1.h').read_text()
+          header = (component / 'stage2d9r_g3r_prepare_executor_20260727_v2.h').read_text()
           init = (component / '__init__.py').read_text()
           host = Path('tools/h3_n2_stage2d9r_serial_handshake_repair_20260727_v1.py').read_text()
           decision = json.loads(Path('docs/decisions/h3-n2-stage2d9r-g3r-serial-handshake-repair-d1-20260727-v1.json').read_text())
@@ -150,7 +154,9 @@ jobs:
           assert cpp.count('stage2d9r_command_ready=VERIFY') == 1
           assert cpp.count('stage2d9r_ready_repeat=true interval_ms=1000') == 2
           assert 'READY_REPEAT_INTERVAL_US = 1000000' in header
+          assert 'Stage2D9RG3RPrepareExecutorV2Core' in header
           assert 'Stage2D9RG3RPrepareExecutorV2' in init
+          assert '../greenhouse_profile_isolated_device_g3r_executor/stage2d9r_g3r_prepare_executor_20260723_v1.cpp' in cpp
           for code in (
               'PREPARE_READY_MARKER_TIMEOUT',
               'PREPARE_RESULT_TIMEOUT',
@@ -209,9 +215,6 @@ jobs:
 
           build_root="$(dirname "$REPAIR_CONFIG")/.esphome/build"
           image="$(find "$build_root" -type f -name 'firmware.factory.bin' -print -quit)"
-          if [ -z "$image" ]; then
-            image="$(find "$build_root" -type f -name 'firmware.bin' -print -quit)"
-          fi
           test -n "$image"
           test -s "$image"
 
@@ -224,9 +227,9 @@ jobs:
           cp tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_serial_handshake_repair_20260727_v1.py "$root/"
           cp docs/decisions/h3-n2-stage2d9r-g3r-serial-handshake-repair-d1-20260727-v1.json "$root/"
           cp docs/development/h3-n2-stage2d9r-g3r-serial-handshake-repair-contract-20260727-v1.md "$root/"
-          cp firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor/__init__.py "$root/component-init.py"
-          cp firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor/stage2d9r_g3r_prepare_executor_20260723_v1.h "$root/"
-          cp firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor/stage2d9r_g3r_prepare_executor_20260727_v2.cpp "$root/"
+          cp "$REPAIR_COMPONENT/__init__.py" "$root/component-v2-init.py"
+          cp "$REPAIR_COMPONENT/stage2d9r_g3r_prepare_executor_20260727_v2.h" "$root/"
+          cp "$REPAIR_COMPONENT/stage2d9r_g3r_prepare_executor_20260727_v2.cpp" "$root/"
           chmod 600 "$root"/*
 
           ROOT="$root" SOURCE_SHA="$SOURCE_SHA" python - <<'PY'
@@ -249,6 +252,7 @@ jobs:
               'ready_repeat_interval_ms': 1000,
               'serial_capture_before_broker': True,
               'timeout_transcript_redacted': True,
+              'frozen_v1_source_modified': False,
               'authorization_record_included': False,
               'authorized_execution_launcher_included': False,
               'private_content_included': False,
