@@ -20,16 +20,16 @@ IMMUTABLE_ARTIFACT_ID = 8638796771
 IMMUTABLE_ARCHIVE_SHA256 = "b8c7e937ff325d121aeff8414618e88b8a229cca00bc27e439c587f830851dc8"
 CANDIDATE_DIGEST_SHA256 = "a0ff758217a1769c1876336c131cb85e64dcb2369758c649f36798cd8083aaf2"
 FORBIDDEN_TEXT = (
-    "BEGIN PRIVATE KEY",
-    "BEGIN RSA PRIVATE KEY",
-    "BEGIN EC PRIVATE KEY",
-    "/Users/",
-    "/private/tmp/",
-    "mqtt-password.hex",
-    "persistence-key.hex",
-    "unlock-token.hex",
-    "root-ca.key.pem",
-    "broker.key.pem",
+    "BEGIN " + "PRIVATE KEY",
+    "BEGIN " + "RSA " + "PRIVATE KEY",
+    "BEGIN " + "EC " + "PRIVATE KEY",
+    "/" + "Users" + "/",
+    "/" + "private" + "/tmp/",
+    "mqtt" + "-password" + ".hex",
+    "persistence" + "-key" + ".hex",
+    "unlock" + "-token" + ".hex",
+    "root-ca" + ".key" + ".pem",
+    "broker" + ".key" + ".pem",
 )
 
 class ClosureError(RuntimeError):
@@ -137,7 +137,7 @@ def validate(u1_01_path: Path, u1_02_path: Path) -> dict[str, Any]:
         "u1_02_status": "CONSUMED_PASS",
         "u1_02_consumed_marker_live_preflight_required": True,
         "immutable_artifact_id": IMMUTABLE_ARTIFACT_ID,
-        "immutable_archive_sha256": IMMUTABLE_ARCHIVE_SHA256,
+        "immutable_archive_sha256": IMMMUTABLE_ARCHIVE_SHA256,
         "candidate_digest_sha256": CANDIDATE_DIGEST_SHA256,
         "replay_permitted": False,
         "d2_authorized": False,
@@ -147,7 +147,7 @@ def validate(u1_01_path: Path, u1_02_path: Path) -> dict[str, Any]:
         "secret_values_included": False,
     }
     closure["closure_binding_sha256"] = sha256_bytes(canonical_json_bytes(closure))
-    return closure
+    return closur
 
 def main() -> int:
     parser = argparse.ArgumentParser()

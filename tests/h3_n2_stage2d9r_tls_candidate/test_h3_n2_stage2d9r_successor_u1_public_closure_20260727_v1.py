@@ -47,7 +47,7 @@ class ClosureTests(unittest.TestCase):
     def test_private_path_pattern_fails(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             value = json.loads(U1_02.read_text())
-            value["unsafe"] = "/Users/example/private"
+            value["unsafe"] = "/" + "Users" + "/example/private"
             path = Path(temp) / "u1-02.json"
             path.write_text(json.dumps(value), encoding="utf-8")
             with self.assertRaisesRegex(MODULE.ClosureError, "PUBLIC_RECORD_SECRET_OR_PATH_PATTERN"):

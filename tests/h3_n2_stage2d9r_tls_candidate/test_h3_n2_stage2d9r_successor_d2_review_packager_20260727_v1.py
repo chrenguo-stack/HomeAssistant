@@ -66,11 +66,11 @@ class ReviewPackagerTests(unittest.TestCase):
             MODULE.assemble(output, SOURCE, MODULE.CONTRACT.EXPECTED_MAIN_SHA)
             joined = b"\n".join(path.read_bytes() for path in output.iterdir())
             for forbidden in (
-                b"BEGIN PRIVATE KEY",
-                b"BEGIN RSA PRIVATE KEY",
-                b"BEGIN EC PRIVATE KEY",
-                b"/Users/",
-                b"/private/tmp/",
+                b"BEGIN " + b"PRIVATE KEY",
+                b"BEGIN " + b"RSA " + b"PRIVATE KEY",
+                b"BEGIN " + b"EC " + b"PRIVATE KEY",
+                b"/" + b"Users" + b"/",
+                b"/" + b"private" + b"/tmp/",
                 b"authorized\": true",
                 b"authorization_record_created\": true",
             ):

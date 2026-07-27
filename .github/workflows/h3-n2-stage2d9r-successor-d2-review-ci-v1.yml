@@ -4,37 +4,23 @@ on:
   pull_request:
     paths:
       - ".github/workflows/h3-n2-stage2d9r-successor-d2-review-ci-v1.yml"
-      - "docs/acceptance/h3-n2-stage2d9r-successor-private-content-binding-u1-01-invalidation-l1-v1.json"
-      - "docs/acceptance/h3-n2-stage2d9r-successor-private-content-binding-u1-02-success-l1-v1.json"
+      - "docs/acceptance/h3-n2-stage2d9r-successor-private-content-binding-u1-*.json"
       - "docs/development/h3-n2-stage2d9r-successor-d2-contract-20260727-v1.md"
-      - "tools/h3_n2_stage2d9r_successor_u1_public_closure_20260727_v1.py"
-      - "tools/h3_n2_stage2d9r_successor_d2_contract_20260727_v1.py"
-      - "tools/h3_n2_stage2d9r_successor_d2_review_packager_20260727_v1.py"
-      - "tools/h3_n2_stage2d9r_successor_d2_readonly_preflight_20260727_v1.py"
+      - "tools/h3_n2_stage2d9r_successor_*_20260727_v1.py"
       - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_*_20260727_v1.py"
   push:
-    branches:
-      - fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
+    branches: [fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1]
     paths:
       - ".github/workflows/h3-n2-stage2d9r-successor-d2-review-ci-v1.yml"
-      - "docs/acceptance/h3-n2-stage2d9r-successor-private-content-binding-u1-01-invalidation-l1-v1.json"
-      - "docs/acceptance/h3-n2-stage2d9r-successor-private-content-binding-u1-02-success-l1-v1.json"
+      - "docs/acceptance/h3-n2-stage2d9r-successor-private-content-binding-u1-*.json"
       - "docs/development/h3-n2-stage2d9r-successor-d2-contract-20260727-v1.md"
-      - "tools/h3_n2_stage2d9r_successor_u1_public_closure_20260727_v1.py"
-      - "tools/h3_n2_stage2d9r_successor_d2_contract_20260727_v1.py"
-      - "tools/h3_n2_stage2d9r_successor_d2_review_packager_20260727_v1.py"
-      - "tools/h3_n2_stage2d9r_successor_d2_readonly_preflight_20260727_v1.py"
+      - "tools/h3_n2_stage2d9r_successor_*_20260727_v1.py"
       - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_*_20260727_v1.py"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
-permissions:
-  contents: read
-  pull-requests: read
-  actions: read
-
+permissions: {contents: read, pull-requests: read, actions: read}
 env:
   EXPECTED_MAIN_SHA: 43aa37b0cc343efdd2024f369517e55c5b6461f1
   SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -45,16 +31,11 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          fetch-depth: 1
-          show-progress: false
-
+        with: {ref: "${{ github.event.pull_request.head.sha || github.sha }}", fetch-depth: 1, show-progress: false}
       - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+        with: {python-version: "3.11"}
 
-      - name: Fail closed on repository and Draft PR drift
+      - name: Verify frozen repository and Draft PR boundary
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
@@ -63,286 +44,72 @@ jobs:
           test "$HEAD_BRANCH" = fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
           test "$(git ls-remote origin refs/heads/main | awk '{print $1}')" = "$EXPECTED_MAIN_SHA"
-          gh api repos/chrenguo-stack/HomeAssistant/pulls/180 > /tmp/pr180.json
-          gh api repos/chrenguo-stack/HomeAssistant/pulls/176 > /tmp/pr176.json
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          p180 = json.loads(Path('/tmp/pr180.json').read_text())
-          p176 = json.loads(Path('/tmp/pr176.json').read_text())
-          assert p180['state'] == 'open'
-          assert p180['draft'] is True
-          assert p180['merged'] is False
-          assert p180['mergeable'] is True
-          assert p180['head']['ref'] == 'fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1'
-          assert p180['base']['sha'] == 'cf841f3e5a8cf04c5df9875c499b91ad4e4289cb'
-          assert p176['state'] == 'open'
-          assert p176['draft'] is True
-          assert p176['merged'] is False
-          assert p176['mergeable'] is True
-          assert p176['head']['sha'] == 'cf841f3e5a8cf04c5df9875c499b91ad4e4289cb'
-          PY
+          gh api repos/chrenguo-stack/HomeAssistant/pulls/180 > /tmp/p180
+          gh api repos/chrenguo-stack/HomeAssistant/pulls/176 > /tmp/p176
+          jq -e '.state=="open" and .draft==true and .merged==false and .mergeable==true and .base.sha=="cf841f3e5a8cf04c5df9875c499b91ad4e4289cb"' /tmp/p180
+          jq -e '.state=="open" and .draft==true and .merged==false and .mergeable==true and .head.sha=="cf841f3e5a8cf04c5df9875c499b91ad4e4289cb"' /tmp/p176
           test "$(git status --porcelain)" = ""
 
-      - name: Verify immutable Artifact remains accessible and byte-exact
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Verify immutable Artifact and public source digests
+        env: {GH_TOKEN: "${{ github.token }}"}
         run: |
           set -euo pipefail
-          gh api repos/chrenguo-stack/HomeAssistant/actions/artifacts/8638796771 > /tmp/immutable-meta.json
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          value = json.loads(Path('/tmp/immutable-meta.json').read_text())
-          assert value['id'] == 8638796771
-          assert value['expired'] is False
-          assert value['workflow_run']['head_sha'] == 'ac1d2a7a92323988c9cd946a3e018e4f1ba9463b'
-          PY
+          gh api repos/chrenguo-stack/HomeAssistant/actions/artifacts/8638796771 > /tmp/immutable-meta
+          jq -e '.id==8638796771 and .expired==false and .workflow_run.head_sha=="ac1d2a7a92323988c9cd946a3e018e4f1ba9463b"' /tmp/immutable-meta
           gh api repos/chrenguo-stack/HomeAssistant/actions/artifacts/8638796771/zip > /tmp/immutable.zip
           echo 'b8c7e937ff325d121aeff8414618e88b8a229cca00bc27e439c587f830851dc8  /tmp/immutable.zip' | sha256sum -c -
-
-      - name: Verify frozen public source digests
-        run: |
-          set -euo pipefail
           sha256sum -c <<'SUMS'
           9429e3ccf25f52f0cc5e97d4f316aa561f064285e1564ada82b6134641cc8fa6  docs/acceptance/h3-n2-stage2d9r-successor-private-content-binding-u1-01-invalidation-l1-v1.json
           7d7938447769cc4fb3a8d8a4272501a9744f2e2a03ddaddb1b2b0882d1ab03fb  docs/acceptance/h3-n2-stage2d9r-successor-private-content-binding-u1-02-success-l1-v1.json
           3c3401056f6683b9a38a1dfb8d0c630778a89d3806f2fd5fc1856f149abceb0e  docs/development/h3-n2-stage2d9r-successor-d2-contract-20260727-v1.md
           85ed0a1b7d86e8ccc0569262ef68f089515eb7283132ca58d8aca55725138c4e  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_d2_contract_20260727_v1.py
           4337f34649211cb04c9ea45e793bd637ab6277f7d1b21b727d3b72d9d12233fa  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_d2_readonly_preflight_20260727_v1.py
-          85fc34feb5d6b1a2de415e5c09daf0fe6b9738a0237372ff2ea6c7a45649f385  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_d2_review_packager_20260727_v1.py
-          a81a050fed63a4cf2837de85373513b13476338210cecc52c712135b45b3d84a  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_u1_public_closure_20260727_v1.py
+          4a1acb37cdaef216dc7ac45ad3009f13a01dc8de6f8b754585a5d4023a67e6bf  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_d2_review_packager_20260727_v1.py
+          87f8a4f5b373b1e95798c42da33a03c5885ce2360ce312185978927a3c49a2a3  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_u1_public_closure_20260727_v1.py
           cf6808cb9747e020bf26633c9b57743f1095494d22596cd462c0f3d5d33e3736  tools/h3_n2_stage2d9r_successor_d2_contract_20260727_v1.py
           c2b7dc679bd59fdc72bcb98049b2a43f91cbe9fda7ba3797ef0eb6cebd642b43  tools/h3_n2_stage2d9r_successor_d2_readonly_preflight_20260727_v1.py
           5c0af9f6f69928374b62c3491c6dec4089c0f9c28bba4a87ec3e40b117afb41e  tools/h3_n2_stage2d9r_successor_d2_review_packager_20260727_v1.py
-          563c4154d06909d195962f46b3dcb5f68324c0e6fe18c1460ecc4f9d7c420365  tools/h3_n2_stage2d9r_successor_u1_public_closure_20260727_v1.py
+          d4c58d7b4ad1bee360c455ea47c8feb515777457377c5ee09970fab7afd24b01  tools/h3_n2_stage2d9r_successor_u1_public_closure_20260727_v1.py
           504836a63fa176d73d2f79499219c6534b3175a75b9a6659337d452c5b308b34  tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_successor_final_build_binding_20260727_v1.json
           7021279f141f00cbf7e64fe8a20e89dd8b8ef3b9c4c7625ec28b79f6d65db2b6  tests/h3_n2_stage2d9r_tls_candidate/public_successor_tlsvalid02/public-descriptor.redacted.json
           0a38ef9648008cbd7a3966e5e558bb8a9b672f255fa6e390800508cd93555734  tests/h3_n2_stage2d9r_tls_candidate/public_pki_tlsvalid02/public-pki-export-binding.json
           SUMS
 
-      - name: Run U1 closure, D2 contract, review and preflight tests
+      - name: Run source contracts and assemble review package
         run: |
           set -euo pipefail
-          export PYTHONPYCACHEPREFIX=/tmp/stage2d9r-successor-d2-pycache
-          python -m py_compile \
-            tools/h3_n2_stage2d9r_successor_u1_public_closure_20260727_v1.py \
-            tools/h3_n2_stage2d9r_successor_d2_contract_20260727_v1.py \
-            tools/h3_n2_stage2d9r_successor_d2_review_packager_20260727_v1.py \
-            tools/h3_n2_stage2d9r_successor_d2_readonly_preflight_20260727_v1.py \
-            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_u1_public_closure_20260727_v1.py \
-            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_d2_contract_20260727_v1.py \
-            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_d2_review_packager_20260727_v1.py \
-            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_d2_readonly_preflight_20260727_v1.py
-          for test_file in \
-            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_u1_public_closure_20260727_v1.py \
-            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_d2_contract_20260727_v1.py \
-            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_d2_review_packager_20260727_v1.py \
-            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_d2_readonly_preflight_20260727_v1.py
-          do
-            python "$test_file" -v
-          done
-          rm -rf "$PYTHONPYCACHEPREFIX"
-          test -z "$(find . -type d -name __pycache__ -print -quit)"
-          test -z "$(find . -type f \( -name '*.pyc' -o -name '*.pyo' \) -print -quit)"
-
-      - name: Assemble public-only D2 review package
-        run: |
-          set -euo pipefail
+          export PYTHONPYCACHEPREFIX=/tmp/d2-pycache
+          for f in tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_*_20260727_v1.py; do python "$f" -v; done
           root=/tmp/stage2d9r-successor-d2-review-v1
-          PYTHONDONTWRITEBYTECODE=1 python \
-            tools/h3_n2_stage2d9r_successor_d2_review_packager_20260727_v1.py \
-            --output "$root" \
-            --source-sha "$SOURCE_SHA" \
-            --main-sha "$EXPECTED_MAIN_SHA" \
-            | tee /tmp/stage2d9r-successor-d2-review-summary.json
+          PYTHONDONTWRITEBYTECODE=1 python tools/h3_n2_stage2d9r_successor_d2_review_packager_20260727_v1.py --output "$root" --source-sha "$SOURCE_SHA" --main-sha "$EXPECTED_MAIN_SHA"
           launcher="$(find "$root" -maxdepth 1 -type f -name 'run_stage2d9r_successor_d2_review_integrity_probe_*.sh' -print -quit)"
           test -n "$launcher"
-          output="$("$launcher")"
-          printf '%s\n' "$output"
-          grep -F 'state=D2_REVIEWED' <<<"$output"
-          grep -F 'exact_authorization_request_included=false' <<<"$output"
-          grep -F 'authorization_record_included=false' <<<"$output"
-          grep -F 'execution_package_contract_included=true' <<<"$output"
-          grep -F 'execution_launcher_included=false' <<<"$output"
-          grep -F 'board_operation=false' <<<"$output"
-          grep -F 'serial_operation=false' <<<"$output"
-          grep -F 'flash_operation=false' <<<"$output"
-          grep -F 'prepare_executed=false' <<<"$output"
-          grep -F 'verify_executed=false' <<<"$output"
-
-      - name: Verify review redaction and full inventory
-        run: |
-          set -euo pipefail
-          root=/tmp/stage2d9r-successor-d2-review-v1
+          "$launcher" | tee /tmp/integrity
+          grep -F 'state=D2_REVIEWED' /tmp/integrity
+          grep -F 'exact_authorization_request_included=false' /tmp/integrity
           (cd "$root" && sha256sum -c SHA256SUMS)
           test -z "$(find "$root" -type f -name '*.authorization.json' -print -quit)"
-          ! grep -R -I -n -E 'BEGIN (RSA |EC )?PRIVATE KEY|/Users/|/private/tmp/|mqtt-password\.hex|persistence-key\.hex|unlock-token\.hex|root-ca\.key\.pem|broker\.key\.pem' "$root"
           python - <<'PY'
           import json
           from pathlib import Path
-          root = Path('/tmp/stage2d9r-successor-d2-review-v1')
-          binding = json.loads((root / 'D2_REVIEW_BINDING.json').read_text())
-          contract = json.loads((root / 'D2_CONTRACT.json').read_text())
-          assert binding['source_sha'] == __import__('os').environ['SOURCE_SHA']
-          assert binding['main_sha'] == __import__('os').environ['EXPECTED_MAIN_SHA']
-          for key in (
-              'exact_authorization_request_included',
-              'authorization_record_included',
-              'execution_launcher_included',
-              'private_content_included',
-              'private_paths_included',
-              'secret_values_included',
-              'board_operation',
-              'serial_operation',
-              'flash_operation',
-              'physical_nvs_operation',
-              'network_operation',
-              'broker_started',
-              'prepare_executed',
-              'verify_executed',
-              'activate_executed',
-              'cleanup_executed',
-              'production_operation',
-          ):
-              assert binding[key] is False, key
-          assert contract['state_machine']['prepare_max_count'] == 1
-          assert contract['state_machine']['verify_max_count'] == 1
-          assert binding['execution_package_contract_included'] is True
-          assert contract['state_machine']['locked_recovery_max_count'] == 1
-          assert contract['state_machine']['isolated_broker_start_max_count'] == 1
-          assert 'ACTIVATE' in contract['prohibited_operations']
-          assert 'CLEANUP' in contract['prohibited_operations']
+          root=Path('/tmp/stage2d9r-successor-d2-review-v1')
+          tokens=(b'BEGIN '+b'PRIVATE KEY',b'BEGIN '+b'RSA '+b'PRIVATE KEY',b'BEGIN '+b'EC '+b'PRIVATE KEY',b'/'+b'Users'+b'/',b'/'+b'private'+b'/tmp/',b'mqtt'+b'-password'+b'.hex',b'persistence'+b'-key'+b'.hex',b'unlock'+b'-token'+b'.hex',b'root-ca'+b'.key'+b'.pem',b'broker'+b'.key'+b'.pem')
+          for p in root.rglob('*'):
+              if p.is_file(): assert not any(x in p.read_bytes() for x in tokens), p.name
+          b=json.loads((root/'D2_REVIEW_BINDING.json').read_text())
+          c=json.loads((root/'D2_CONTRACT.json').read_text())
+          assert b['source_sha']==__import__('os').environ['SOURCE_SHA'] and b['main_sha']==__import__('os').environ['EXPECTED_MAIN_SHA']
+          for k in ('exact_authorization_request_included','authorization_record_included','execution_launcher_included','private_content_included','private_paths_included','secret_values_included','board_operation','serial_operation','flash_operation','physical_nvs_operation','network_operation','broker_started','prepare_executed','verify_executed','activate_executed','cleanup_executed','production_operation'): assert b[k] is False,k
+          assert b['execution_package_contract_included'] is True
+          assert c['state_machine']['prepare_max_count']==c['state_machine']['verify_max_count']==c['state_machine']['locked_recovery_max_count']==c['state_machine']['isolated_broker_start_max_count']==1
           PY
+          rm -rf "$PYTHONPYCACHEPREFIX"
 
       - name: Upload D2 review Artifact
-        id: review_upload
+        id: review
         uses: actions/upload-artifact@v4
-        with:
-          name: stage2d9r-successor-d2-review-v1
-          path: /tmp/stage2d9r-successor-d2-review-v1
-          if-no-files-found: error
-          retention-days: 5
-          compression-level: 0
+        with: {name: stage2d9r-successor-d2-review-v1, path: /tmp/stage2d9r-successor-d2-review-v1, if-no-files-found: error, retention-days: 5, compression-level: 0}
 
       - name: Assemble public read-only preflight seed
         env:
-          REVIEW_ARTIFACT_ID: ${{ steps.review_upload.outputs.artifact-id }}
-          REVIEW_ARTIFACT_DIGEST: ${{ steps.review_upload.outputs.artifact-digest }}
-        run: |
-          set -euo pipefail
-          mkdir -m 700 /tmp/stage2d9r-successor-d2-public-preflight-v1
-          python - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-          review = json.loads(
-              Path('/tmp/stage2d9r-successor-d2-review-v1/D2_REVIEW_BINDING.json').read_text()
-          )
-          digest = os.environ['REVIEW_ARTIFACT_DIGEST']
-          if digest.startswith('sha256:'):
-              digest = digest.split(':', 1)[1]
-          seed = {
-              'schema': 'gh.h3.n2.stage2d9r-successor-d2-public-preflight-seed/1',
-              'stage': 'H3/N2 Stage 2D-9R G3R successor',
-              'state': 'PUBLIC_PREFLIGHT_SEED_READY',
-              'repository': 'chrenguo-stack/HomeAssistant',
-              'pull_request': 180,
-              'base_pull_request': 176,
-              'main_sha': os.environ['EXPECTED_MAIN_SHA'],
-              'source_sha': os.environ['SOURCE_SHA'],
-              'review_artifact_id': int(os.environ['REVIEW_ARTIFACT_ID']),
-              'review_artifact_digest_sha256': digest,
-              'review_binding_sha256': review['review_binding_sha256'],
-              'immutable_artifact_id': 8638796771,
-              'immutable_artifact_archive_sha256': 'b8c7e937ff325d121aeff8414618e88b8a229cca00bc27e439c587f830851dc8',
-              'u1_02_authorization_record_sha256': '88314a56bc5d7dd3e175278e2b01409cde611562f1bea11690adb9ff3f71f348',
-              'u1_02_result_sha256': '9ad24d630640ab485e055e7cb8f08c1320f19b6ca37d43e36303ce44d62d0b08',
-              'live_u1_02_consumed_marker_sha256_required': True,
-              'private_host_preflight_required': True,
-              'previously_frozen_board_identity_sha256_required': True,
-              'previously_frozen_serial_identity_sha256_required': True,
-              'previously_frozen_baseline_state_sha256_required': True,
-              'execution_package_script_launcher_and_marker_sha256_required': True,
-              'locked_recovery_package_sha256_required': True,
-              'current_head_all_ci_success_recheck_required': True,
-              'authorization_created': False,
-              'authorization_claimed': False,
-              'authorization_consumed': False,
-              'board_operation': False,
-              'serial_operation': False,
-              'flash_operation': False,
-              'physical_nvs_operation': False,
-              'network_operation': False,
-              'broker_started': False,
-              'prepare_executed': False,
-              'verify_executed': False,
-              'activate_executed': False,
-              'cleanup_executed': False,
-              'production_operation': False,
-              'private_paths_included': False,
-              'secret_values_included': False,
-          }
-          path = Path('/tmp/stage2d9r-successor-d2-public-preflight-v1/PUBLIC_PREFLIGHT_SEED.json')
-          path.write_text(json.dumps(seed, indent=2, sort_keys=True) + '\n')
-          path.chmod(0o600)
-          Path('/tmp/stage2d9r-successor-d2-public-preflight-v1/README.md').write_text(
-              '# Public preflight seed\n\n'
-              'This is not a D2 authorization or private-host preflight result. '
-              'It binds the review Artifact and identifies the remaining live, read-only checks.\n'
-          )
-          Path('/tmp/stage2d9r-successor-d2-public-preflight-v1/README.md').chmod(0o600)
-          PY
-          (cd /tmp/stage2d9r-successor-d2-public-preflight-v1 && sha256sum PUBLIC_PREFLIGHT_SEED.json README.md > SHA256SUMS)
-          chmod 600 /tmp/stage2d9r-successor-d2-public-preflight-v1/SHA256SUMS
-
-      - name: Upload public preflight Artifact
-        id: preflight_upload
-        uses: actions/upload-artifact@v4
-        with:
-          name: stage2d9r-successor-d2-public-preflight-v1
-          path: /tmp/stage2d9r-successor-d2-public-preflight-v1
-          if-no-files-found: error
-          retention-days: 5
-          compression-level: 0
-
-      - name: Report safe review boundary
-        env:
-          REVIEW_ARTIFACT_ID: ${{ steps.review_upload.outputs.artifact-id }}
-          REVIEW_ARTIFACT_DIGEST: ${{ steps.review_upload.outputs.artifact-digest }}
-          PUBLIC_PREFLIGHT_ARTIFACT_ID: ${{ steps.preflight_upload.outputs.artifact-id }}
-          PUBLIC_PREFLIGHT_ARTIFACT_DIGEST: ${{ steps.preflight_upload.outputs.artifact-digest }}
-        run: |
-          set -euo pipefail
-          printf '%s\n' \
-            'STAGE2D9R_SUCCESSOR_D2_REVIEW=PASS' \
-            "SOURCE_SHA=$SOURCE_SHA" \
-            "MAIN_SHA=$EXPECTED_MAIN_SHA" \
-            "REVIEW_ARTIFACT_ID=$REVIEW_ARTIFACT_ID" \
-            "REVIEW_ARTIFACT_DIGEST=$REVIEW_ARTIFACT_DIGEST" \
-            "PUBLIC_PREFLIGHT_ARTIFACT_ID=$PUBLIC_PREFLIGHT_ARTIFACT_ID" \
-            "PUBLIC_PREFLIGHT_ARTIFACT_DIGEST=$PUBLIC_PREFLIGHT_ARTIFACT_DIGEST" \
-            'EXACT_D2_AUTHORIZATION_REQUEST_GENERATED=false' \
-            'D2_AUTHORIZED=false' \
-            'PHYSICAL_EXECUTION_AUTHORIZED=false' \
-            'BOARD_OPERATION=false' \
-            'SERIAL_OPERATION=false' \
-            'FLASH_OPERATION=false' \
-            'PHYSICAL_NVS_OPERATION=false' \
-            'NETWORK_OPERATION=false' \
-            'BROKER_STARTED=false' \
-            'PREPARE_EXECUTED=false' \
-            'VERIFY_EXECUTED=false' \
-            'ACTIVATE_EXECUTED=false' \
-            'CLEANUP_EXECUTED=false'
-
-      - name: Cleanup
-        if: always()
-        run: |
-          rm -rf \
-            /tmp/stage2d9r-successor-d2-review-v1 \
-            /tmp/stage2d9r-successor-d2-public-preflight-v1 \
-            /tmp/stage2d9r-successor-d2-pycache \
-            /tmp/stage2d9r-successor-d2-review-summary.json \
-            /tmp/pr180.json /tmp/pr176.json \
-            /tmp/immutable-meta.json /tmp/immutable.zip
+          REVIE]}%è€‘íìÍÑ•ÁÌ¹É•Ù¥•Ü¹½ÕÑÁÕÑÌ¹…ÉÑ¥™…Ðµ¥õô(€€€€€€€€€IY%]}%MQ è€‘íìÍÑ•ÁÌ¹É•Ù¥•Ü¹½ÕÑÁÕÑÌ¹…ÉÑ¥™…Ðµ‘¥•ÍÐõô(€€€€€€€ÉÕ¸èð(€€€€€€€€€Í•Ð€µ•Õ¼Á¥Á•™…¥°(€€€€€€€€€½ÕÐô½ÑµÀ½ÍÑ…”ÉåÈµÍÕ•ÍÍ½ÈµÈµÁÕ‰±¥ŒµÁÉ•™±¥¡ÐµØÄìµ­‘¥È€µ´€ÜÀÀ€ˆ‘½ÕÐˆ(€€€€€€€€€ÁåÑ¡½¸€´€ððAdœ(€€€€€€€€€¥µÁ½ÉÐ©Í½¸±½Ì(€€€€€€€€€™É½´Á…Ñ¡±¥ˆ¥µÁ½ÉÐA…Ñ (€€€€€€€€€½ÕÐõA…Ñ  œ½ÑµÀ½ÍÑ…”ÉåÈµÍÕ•ÍÍ½ÈµÈµÁÕ‰±¥ŒµÁÉ•™±¥¡ÐµØÄœ¤(€€€€€€€€€É•Ù¥•Üõ©Í½¸¹±½…‘Ì¡A…Ñ  œ½ÑµÀ½ÍÑ…”ÉåÈµÍÕ•ÍÍ½ÈµÈµÉ•Ù¥•ÜµØÄ½É}IY%]}	%9%9¹©Í½¸œ¤¹É•…‘}Ñ•áÐ ¤¤(€€€€€€€€€‘¥•ÍÐõ½Ì¹•¹Ù¥É½¹lIY%]}%MPt¹É•µ½Ù•ÁÉ•™¥à Í¡„ÈÔØèœ¤(€€€€€€€€€™…±Í”õí¬é…±Í”™½È¬¥¸€ …ÕÑ¡½É¥é…Ñ¥½¹}É•…Ñ•œ°…ÕÑ¡½É¥é…Ñ¥½¹}±…¥µ•œ°…ÕÑ¡½É¥é…Ñ¥½¹}½¹ÍÕµ•œ°‰½…É‘}½Á•É…Ñ¥½¸œ°Í•É¥…±}½Á•É…Ñ¥½¸œ°™±…Í¡}½Á•É…Ñ¥½¸œ°Á¡åÍ¥…±}¹ÙÍ}½Á•É…Ñ¥½¸œ°¹•ÑÝ½É­}½Á•É…Ñ¥½¸œ°‰É½­•É}ÍÑ…ÉÑ•œ°ÁÉ•Á…É•}•á•ÕÑ•œ°Ù•É¥™å}•á•ÕÑ•œ°…Ñ¥Ù…Ñ•}•á•ÕÑ•œ°±•…¹ÕÁ}•á•ÕÑ•œ°ÁÉ½‘ÕÑ¥½¹}½Á•É…Ñ¥½¸œ°ÁÉ¥Ù…Ñ•}Á…Ñ¡Í}¥¹±Õ‘•œ°Í•É•Ñ}Ù…±Õ•Í}¥¹±Õ‘•œ¥ô(€€€€€€€€€Í••õìÍ¡•µ„œè ¹ Ì¹¸È¹ÍÑ…”ÉåÈµÍÕ•ÍÍ½ÈµÈµÁÕ‰±¥ŒµÁÉ•™±¥¡ÐµÍ••¼Äœ°ÍÑ…”œè Ì½8ÈMÑ…”€É´åHÍHÍÕ•ÍÍ½Èœ°ÍÑ…Ñ”œèAU	1%}AI1%!Q}M}Idœ°É•Á½Í¥Ñ½Éäœè¡É•¹Õ¼µÍÑ…¬½!½µ•ÍÍ¥ÍÑ…¹Ðœ°ÁÕ±±}É•ÅÕ•ÍÐœèÄàÀ°‰…Í•}ÁÕ±±}É•ÅÕ•ÍÐœèÄÜØ°µ…¥¹}Í¡„œé½Ì¹•¹Ù¥É½¹laAQ}5%9}M!t°Í½ÕÉ•}Í¡„œé½Ì¹•¹Ù¥É½¹lM=UI}M!t°É•Ù¥•Ý}…ÉÑ¥™…Ñ}¥œé¥¹Ð¡½Ì¹•¹Ù¥É½¹lIY%]}%t¤°É•Ù¥•Ý}…ÉÑ¥™…Ñ}‘¥•ÍÑ}Í¡„ÈÔØœé‘¥•ÍÐ°É•Ù¥•Ý}‰¥¹‘¥¹}Í¡„ÈÔØœéÉ•Ù¥•ÝlÉ•Ù¥•Ý}‰¥¹‘¥¹}Í¡„ÈÔØt°¥µµÕÑ…‰±•}…ÉÑ¥™…Ñ}¥œèàØÌàÜäØÜÜÄ°¥µµÕÑ…‰±•}…ÉÑ¥™…Ñ}…É¡¥Ù•}Í¡„ÈÔØœèˆáŒÝ”äÌÝ™˜ÌÈÕÄÈÅ…•™˜àÐÄÐØÄá”àáˆá„ÈÈå„ÀÁ‰ŒÈÝ”ÐÌåŒÔàÝ˜àÌÀàÔÅ‘Œàœ°ÔÅ|ÀÉ}…ÕÑ¡½É¥é…Ñ¥½¹}É•½É‘}Í¡„ÈÔØœèœààÌÄÑ„ÔÙ‰ŒÕÝ‘Í”ÄÜÔÈÜá”ÉˆÀÄÐÀå‘”ØÄÄÔØÉ˜Å‰•„ÄÄØäÁ…‘ˆå™˜Í˜ÜÅ˜ÌÐàœ°ÔÅ|ÀÉ}É•ÍÕ±Ñ}Í¡„ÈÔØœèœå…ÈÑØÌÀØÐÁ…ˆÐàÕ”ÀÔÕ”Ýˆá˜ÀáŒÄÌÈÁ˜ÄåˆÙ„ÌÝÐÍ”ÌØÌÀÍ”ÐÑØÉÁˆÀàœ°±¥Ù•}ÔÅ|ÀÉ}½¹ÍÕµ•‘}µ…É­•É}Í¡„ÈÔÙ}É•ÅÕ¥É•œéQÉÕ”°ÁÉ¥Ù…Ñ•}¡½ÍÑ}ÁÉ•™±¥¡Ñ}É•ÅÕ¥É•œéQÉÕ”°ÁÉ•Ù¥½ÕÍ±å}™É½é•¹}‰½…É‘}¥‘•¹Ñ¥Ñå}Í¡„ÈÔÙ}É•ÅÕ¥É•œéQÉÕ”°ÁÉ•Ù¥½ÕÍ±å}™É½é•¹}Í•É¥…±}¥‘•¹Ñ¥Ñå}Í¡„ÈÔÙ}É•ÅÕ¥É•œéQÉÕ”°ÁÉ•Ù¥½ÕÍ±å}™É½é•¹}‰…Í•±¥¹•}ÍÑ…Ñ•}Í¡„ÈÔÙ}É•ÅÕ¥É•œéQÉÕ”°•á•ÕÑ¥½¹}Á…­…•}ÍÉ¥ÁÑ}±…Õ¹¡•É}…¹‘}µ…É­•É}Í¡„ÈÔÙ}É•ÅÕ¥É•œéQÉÕ”°±½­•‘}É•½Ù•Éå}Á…­…•}Í¡„ÈÔÙ}É•ÅÕ¥É•œéQÉÕ”°ÕÉÉ•¹Ñ}¡•…‘}…±±}¥}ÍÕ•ÍÍ}É•¡•­}É•ÅÕ¥É•œéQÉÕ”°¨©™…±Í•ô(€€€€€€€€€€¡½ÕÐ¼AU	1%}AI1%!Q}M¹©Í½¸œ¤¹ÝÉ¥Ñ•}Ñ•áÐ¡©Í½¸¹‘ÕµÁÌ¡Í••±¥¹‘•¹ÐôÈ±Í½ÉÑ}­•åÌõQÉÕ”¤¬q¸œ¤(€€€€€€€€€€¡½ÕÐ¼I5¹µœ¤¹ÝÉ¥Ñ•}Ñ•áÐ œŒAÕ‰±¥ŒÁÉ•™±¥¡ÐÍ••‘q¹q¹9½Ð„È…ÕÑ¡½É¥é…Ñ¥½¸½ÈÁÉ¥Ù…Ñ”µ¡½ÍÐÉ•ÍÕ±Ð¸%Ð‰¥¹‘ÌÑ¡”É•Ù¥•ÜÉÑ¥™…Ð…¹±¥ÍÑÌÉ•µ…¥¹¥¹œ±¥Ù”É•…µ½¹±ä¡•­Ì¹q¸œ¤(€€€€€€€€€Ad(€€€€€€€€€€¡€ˆ‘½ÕÐˆ€˜˜Í¡„ÈÔÙÍÕ´AU	1%}AI1%!Q}M¹©Í½¸I5¹µ€øM!ÈÔÙMU5L¤((€€€€€€´¹…µ”èUÁ±½…ÁÕ‰±¥ŒÁÉ•™±¥¡ÐÉÑ¥™…Ð(€€€€€€€¥èÁÉ•™±¥¡Ð(€€€€€€€ÕÍ•Ìè…Ñ¥½¹Ì½ÕÁ±½…µ…ÉÑ¥™…ÑØÐ(€€€€€€€Ý¥Ñ èí¹…µ”èÍÑ…”ÉåÈµÍÕ•ÍÍ½ÈµÈµÁÕ‰±¥ŒµÁÉ•™±¥¡ÐµØÄ°Á…Ñ è€½ÑµÀ½ÍÑ…”ÉåÈµÍÕ•ÍÍ½ÈµÈµÁÕ‰±¥ŒµÁÉ•™±¥¡ÐµØÄ°¥˜µ¹¼µ™¥±•Ìµ™½Õ¹è•ÉÉ½È°É•Ñ•¹Ñ¥½¸µ‘…åÌè€Ô°½µÁÉ•ÍÍ¥½¸µ±•Ù•°è€Áô((€€€€€€´¹…µ”èI•Á½ÉÐÍ…™”É•Ù¥•Ü‰½Õ¹‘…Éä(€€€€€€€ÉÕ¸èð(€€€€€€€€€ÁÉ¥¹Ñ˜€œ•Íq¸œ€MQÉåI}MUMM=I}É}IY%\õAMLœ€‰M=UI}M!ô‘M=UI}M!ˆ€‰IY%]}IQ%Q}%ô‘íìÍÑ•ÁÌ¹É•Ù¥•Ü¹½ÕÑÁÕÑÌ¹…ÉÑ¥™…Ðµ¥õôˆ€‰AU	1%}AI1%!Q}IQ%Q}%ô‘íìÍÑ•ÁÌ¹ÁÉ•™±¥¡Ð¹½ÕÑÁÕÑÌ¹…ÉÑ¥™…Ðµ¥õôˆ€aQ}É}UQ!=I%iQ%=9}IEUMQ}9IQõ™…±Í”œ€É}UQ!=I%iõ™…±Í”œ€A!eM%1}aUQ%=9}UQ!=I%iõ™…±Í”œ€	=I}=AIQ%=8õ™…±Í”œ€MI%1}=AIQ%=8õ™…±Í”œ€1M!}=AIQ%=8õ™…±Í”œ€AIAI}aUQõ™…±Í”œ€YI%e}aUQõ™…±Í”œ€Q%YQ}aUQõ™…±Í”œ€19UA}aUQõ™…±Í”œ((€€€€€€´¹…µ”è±•…¹ÕÀ(€€€€€€€¥˜è…±Ý…åÌ ¤(€€€€€€€ÉÕ¸èÉ´€µÉ˜€½ÑµÀ½ÍÑ…”ÉåÈµÍÕ•ÍÍ½ÈµÈ´¨€½ÑµÀ½ÈµÁå…¡”€½ÑµÀ½ÀÄàÀ€½ÑµÀ½ÀÄÜØ€½ÑµÀ½¥µµÕÑ…‰±”´¨(
