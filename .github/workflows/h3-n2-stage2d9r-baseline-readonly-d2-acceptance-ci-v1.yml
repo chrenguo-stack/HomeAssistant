@@ -6,6 +6,7 @@ on:
     paths:
       - ".github/workflows/h3-n2-stage2d9r-baseline-readonly-d2-acceptance-ci-v1.yml"
       - "docs/acceptance/h3-n2-stage2d9r-baseline-readonly-d2-acceptance-20260727-v1.json"
+      - "docs/development/h3-n2-stage2d9r-baseline-readonly-gate-contract-20260727-v1.md"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
