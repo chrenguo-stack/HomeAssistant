@@ -43,7 +43,7 @@ jobs:
           set -euo pipefail
           test "$HEAD_BRANCH" = fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
-          git fetch --no-tags --depth=64 origin "$HEAD_BRANCH"
+          git fetch --no-tags --depth=256 origin "$HEAD_BRANCH"
           git merge-base --is-ancestor d6a2304ef1b9b229ed515f2fdc00e0146888b7d7 HEAD
           test "$(git status --porcelain)" = ""
 
