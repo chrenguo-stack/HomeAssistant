@@ -27,19 +27,37 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 58
     env:
-      SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+      REVIEW_SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+      IMMUTABLE_SOURCE_SHA: ac1d2a7a92323988c9cd946a3e018e4f1ba9463b
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
           show-progress: false
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Verify successor freeze inputs
+      - name: Verify successor freeze inputs and canonical source equivalence
         run: |
           set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$REVIEW_SOURCE_SHA"
+          git merge-base --is-ancestor "$IMMUTABLE_SOURCE_SHA" HEAD
+          test -z "$(git diff --name-only "$IMMUTABLE_SOURCE_SHA" HEAD -- \
+            .github/workflows/h3-n2-stage2d9r-successor-immutable-build-a.yml \
+            .github/workflows/h3-n2-stage2d9r-successor-immutable-build-b.yml \
+            .github/workflows/h3-n2-stage2d9r-successor-immutable-build-reusable.yml \
+            tools/h3_n2_stage2d9r_successor_immutable_build_packager_20260727_v1.py \
+            tools/h3_n2_stage2d9r_successor_immutable_build_freeze_20260727_v1.py \
+            tools/h3_n2_stage2d9r_successor_immutable_build_manifest_gate_20260727_v1.py \
+            firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor \
+            firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/greenhouse_profile_isolated_device_g3r_successor_immutable_20260727_v1.yml \
+            firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3_prepare/stage2d9_g3_partitions_20260722_v65.csv \
+            tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_successor_final_build_binding_20260727_v1.json \
+            tests/h3_n2_stage2d9r_tls_candidate/public_successor_tlsvalid02/public-descriptor.redacted.json \
+            tests/h3_n2_stage2d9r_tls_candidate/public_pki_tlsvalid02 \
+            docs/acceptance/h3-n2-stage2d9r-successor-final-source-lock-l1-v1.json)"
           sha256sum -c <<'SUMS'
           f18e1c51939316410963694246e73aec21da5886e73ad18f2449a5e922346d30  tools/h3_n2_stage2d9r_successor_immutable_build_packager_20260727_v1.py
           8d53e5d10c5a560398569d1b389f73ad60eb937757eca5b728ef9640f571e210  tools/h3_n2_stage2d9r_successor_immutable_build_freeze_20260727_v1.py
@@ -52,43 +70,31 @@ jobs:
           python -m py_compile \
             tools/h3_n2_stage2d9r_successor_immutable_build_freeze_20260727_v1.py \
             tools/h3_n2_stage2d9r_successor_immutable_build_manifest_gate_20260727_v1.py
+          test "$(git status --porcelain)" = ""
 
-      - name: Wait for two independent successful clean builds
+      - name: Resolve two independent successful canonical builds
         id: runs
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          latest_run() {
+          latest_successful_run() {
             gh api -X GET \
               "repos/$GITHUB_REPOSITORY/actions/workflows/$1/runs" \
-              -f head_sha="$SOURCE_SHA" -f event=push -f per_page=20 \
-              --jq '[.workflow_runs[] | select(.head_sha == "'"$SOURCE_SHA"'")] | sort_by(.id) | last | [.id,.status,(.conclusion // "")] | @tsv'
+              -f head_sha="$IMMUTABLE_SOURCE_SHA" -f event=push -f status=completed -f per_page=20 \
+              --jq '[.workflow_runs[] | select(.head_sha == "'"$IMMUTABLE_SOURCE_SHA"'" and .conclusion == "success")] | sort_by(.id) | last | [.id,.status,.conclusion] | @tsv'
           }
-          for attempt in $(seq 1 150); do
-            a="$(latest_run h3-n2-stage2d9r-successor-immutable-build-a.yml || true)"
-            b="$(latest_run h3-n2-stage2d9r-successor-immutable-build-b.yml || true)"
-            IFS=$'\t' read -r a_id a_status a_conclusion <<<"$a"
-            IFS=$'\t' read -r b_id b_status b_conclusion <<<"$b"
-            if [ "$a_status" = completed ] && [ "$a_conclusion" != success ]; then
-              echo "build A failed: $a" >&2; exit 1
-            fi
-            if [ "$b_status" = completed ] && [ "$b_conclusion" != success ]; then
-              echo "build B failed: $b" >&2; exit 1
-            fi
-            if [ "$a_status" = completed ] && [ "$a_conclusion" = success ] &&
-               [ "$b_status" = completed ] && [ "$b_conclusion" = success ]; then
-              test -n "$a_id"; test -n "$b_id"; test "$a_id" != "$b_id"
-              echo "run_a=$a_id" >> "$GITHUB_OUTPUT"
-              echo "run_b=$b_id" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            sleep 20
-          done
-          echo 'timed out waiting for successor clean builds' >&2
-          exit 1
+          a="$(latest_successful_run h3-n2-stage2d9r-successor-immutable-build-a.yml)"
+          b="$(latest_successful_run h3-n2-stage2d9r-successor-immutable-build-b.yml)"
+          IFS=$'\t' read -r a_id a_status a_conclusion <<<"$a"
+          IFS=$'\t' read -r b_id b_status b_conclusion <<<"$b"
+          test -n "$a_id"; test -n "$b_id"; test "$a_id" != "$b_id"
+          test "$a_status" = completed; test "$b_status" = completed
+          test "$a_conclusion" = success; test "$b_conclusion" = success
+          echo "run_a=$a_id" >> "$GITHUB_OUTPUT"
+          echo "run_b=$b_id" >> "$GITHUB_OUTPUT"
 
-      - name: Download both build artifacts
+      - name: Download both canonical build artifacts
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_A: ${{ steps.runs.outputs.run_a }}
@@ -112,10 +118,10 @@ jobs:
           set -euo pipefail
           id="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_A/artifacts" \
             --jq '[.artifacts[] | select(.name == "stage2d9r-g3r-successor-immutable-locked-v1") | .id] | if length == 1 then .[0] else error("artifact count mismatch") end')"
-          test "$id" -gt 0
+          test "$id" = 8638796771
           echo "artifact_a_id=$id" >> "$GITHUB_OUTPUT"
 
-      - name: Compare builds and freeze manifest
+      - name: Compare canonical builds and freeze manifest
         env:
           RUN_A: ${{ steps.runs.outputs.run_a }}
           RUN_B: ${{ steps.runs.outputs.run_b }}
@@ -127,7 +133,7 @@ jobs:
             --build-b /tmp/stage2d9r-successor-build-b \
             --run-a "$RUN_A" --run-b "$RUN_B" \
             --artifact-a-id "$ARTIFACT_A_ID" \
-            --source-sha "$SOURCE_SHA" \
+            --source-sha "$IMMUTABLE_SOURCE_SHA" \
             --output-dir /tmp/stage2d9r-successor-immutable-freeze-evidence \
             | tee /tmp/stage2d9r-successor-immutable-freeze.log
 
@@ -159,6 +165,9 @@ jobs:
         run: |
           printf '%s\n' \
             'STAGE2D9R_SUCCESSOR_IMMUTABLE_FREEZE_WORKFLOW=PASS' \
+            "REVIEW_SOURCE_SHA=$REVIEW_SOURCE_SHA" \
+            "IMMUTABLE_SOURCE_SHA=$IMMUTABLE_SOURCE_SHA" \
+            'CANONICAL_ARTIFACT_ID=8638796771' \
             'REPRODUCIBLE=true' \
             'PRIVATE_VALUES_INCLUDED=false' \
             'EXECUTION_AUTHORIZED=false' \
