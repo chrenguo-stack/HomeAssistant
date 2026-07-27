@@ -32,8 +32,10 @@ RESULT_MARKERS = {
     b"stage2d9r_command_ready=VERIFY": b"stage2d9r_verify=pass",
 }
 DEVICE_FAILURE_MARKER = b"stage2d9r_executor=fail"
+# Only redact an executable command line that starts with the command schema.
+# Diagnostic lines such as `expected_schema=GH2D9R_PREPARE_V1` remain visible.
 _COMMAND_LINE = re.compile(
-    rb"(?m)^.*(?:GH2D9R_PREPARE_V1|GH2D9R_VERIFY_V1)[^\r\n]*(?:\r?\n|$)"
+    rb"(?m)^[ \t]*(?:GH2D9R_PREPARE_V1|GH2D9R_VERIFY_V1)[^\r\n]*(?:\r?\n|$)"
 )
 
 
