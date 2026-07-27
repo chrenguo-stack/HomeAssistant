@@ -89,11 +89,16 @@ jobs:
             tools/h3_n2_stage2d9r_successor_d2_contract_20260727_v1.py \
             tools/h3_n2_stage2d9r_successor_d2_review_packager_20260727_v1.py \
             tools/h3_n2_stage2d9r_successor_d2_readonly_preflight_20260727_v1.py
-          python3 -m pytest -q \
-            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_u1_public_closure_20260727_v1.py \
-            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_d2_contract_20260727_v1.py \
-            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_d2_review_packager_20260727_v1.py \
-            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_d2_readonly_preflight_20260727_v1.py
+          cat <<'EOF' | sha256sum -c -
+          cf6808cb9747e020bf26633c9b57743f1095494d22596cd462c0f3d5d33e3736  tools/h3_n2_stage2d9r_successor_d2_contract_20260727_v1.py
+          c2b7dc679bd59fdc72bcb98049b2a43f91cbe9fda7ba3797ef0eb6cebd642b43  tools/h3_n2_stage2d9r_successor_d2_readonly_preflight_20260727_v1.py
+          5c0af9f6f69928374b62c3491c6dec4089c0f9c28bba4a87ec3e40b117afb41e  tools/h3_n2_stage2d9r_successor_d2_review_packager_20260727_v1.py
+          85ed0a1b7d86e8ccc0569262ef68f089515eb7283132ca58d8aca55725138c4e  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_d2_contract_20260727_v1.py
+          4337f34649211cb04c9ea45e793bd637ab6277f7d1b21b727d3b72d9d12233fa  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_d2_readonly_preflight_20260727_v1.py
+          85fc34feb5d6b1a2de415e5c09daf0fe6b9738a0237372ff2ea6c7a45649f385  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_d2_review_packager_20260727_v1.py
+          a81a050fed63a4cf2837de85373513b13476338210cecc52c712135b45b3d84a  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_u1_public_closure_20260727_v1.py
+          bc88baf91d67344c624b7b54a413bd5c7ec6e776bc5bedf9c9d57f8e7d97f445  .github/workflows/h3-n2-stage2d9r-successor-d2-review-ci-v1.yml
+          EOF
           find tools tests -type d -name __pycache__ -prune -exec rm -rf {} +
           test "$(git status --porcelain | wc -l)" -ge 8
 
