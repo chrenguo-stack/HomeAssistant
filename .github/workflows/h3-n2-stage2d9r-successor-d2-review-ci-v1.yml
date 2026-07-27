@@ -61,7 +61,7 @@ jobs:
           jq -e '.state=="open" and .draft==true and .merged==false and .mergeable==true and .head.sha=="cf841f3e5a8cf04c5df9875c499b91ad4e4289cb"' /tmp/p176
           test "$(git status --porcelain)" = ""
 
-      - name: Verify immutable Artifact and public source digests
+      - name: Verify immutable Artifact and reviewed source ancestry
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -70,22 +70,24 @@ jobs:
           jq -e '.id==8638796771 and .expired==false and .workflow_run.head_sha=="ac1d2a7a92323988c9cd946a3e018e4f1ba9463b"' /tmp/immutable-meta
           gh api repos/chrenguo-stack/HomeAssistant/actions/artifacts/8638796771/zip > /tmp/immutable.zip
           echo 'b8c7e937ff325d121aeff8414618e88b8a229cca00bc27e439c587f830851dc8  /tmp/immutable.zip' | sha256sum -c -
-          sha256sum -c <<'SUMS'
-          9429e3ccf25f52f0cc5e97d4f316aa561f064285e1564ada82b6134641cc8fa6  docs/acceptance/h3-n2-stage2d9r-successor-private-content-binding-u1-01-invalidation-l1-v1.json
-          7d7938447769cc4fb3a8d8a4272501a9744f2e2a03ddaddb1b2b0882d1ab03fb  docs/acceptance/h3-n2-stage2d9r-successor-private-content-binding-u1-02-success-l1-v1.json
-          3c3401056f6683b9a38a1dfb8d0c630778a89d3806f2fd5fc1856f149abceb0e  docs/development/h3-n2-stage2d9r-successor-d2-contract-20260727-v1.md
-          85ed0a1b7d86e8ccc0569262ef68f089515eb7283132ca58d8aca55725138c4e  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_d2_contract_20260727_v1.py
-          4337f34649211cb04c9ea45e793bd637ab6277f7d1b21b727d3b72d9d12233fa  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_d2_readonly_preflight_20260727_v1.py
-          4a1acb37cdaef216dc7ac45ad3009f13a01dc8de6f8b754585a5d4023a67e6bf  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_d2_review_packager_20260727_v1.py
-          87f8a4f5b373b1e95798c42da33a03c5885ce2360ce312185978927a3c49a2a3  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_u1_public_closure_20260727_v1.py
-          cf6808cb9747e020bf26633c9b57743f1095494d22596cd462c0f3d5d33e3736  tools/h3_n2_stage2d9r_successor_d2_contract_20260727_v1.py
-          c2b7dc679bd59fdc72bcb98049b2a43f91cbe9fda7ba3797ef0eb6cebd642b43  tools/h3_n2_stage2d9r_successor_d2_readonly_preflight_20260727_v1.py
-          5c0af9f6f69928374b62c3491c6dec4089c0f9c28bba4a87ec3e40b117afb41e  tools/h3_n2_stage2d9r_successor_d2_review_packager_20260727_v1.py
-          d4c58d7b4ad1bee360c455ea47c8feb515777457377c5ee09970fab7afd24b01  tools/h3_n2_stage2d9r_successor_u1_public_closure_20260727_v1.py
-          504836a63fa176d73d2f79499219c6534b3175a75b9a6659337d452c5b308b34  tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_successor_final_build_binding_20260727_v1.json
-          7021279f141f00cbf7e64fe8a20e89dd8b8ef3b9c4c7625ec28b79f6d65db2b6  tests/h3_n2_stage2d9r_tls_candidate/public_successor_tlsvalid02/public-descriptor.redacted.json
-          0a38ef9648008cbd7a3966e5e558bb8a9b672f255fa6e390800508cd93555734  tests/h3_n2_stage2d9r_tls_candidate/public_pki_tlsvalid02/public-pki-export-binding.json
-          SUMS
+          git fetch --no-tags --depth=16 origin fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
+          git merge-base --is-ancestor 9da017e057d52aa302e68e20c2e63c1fa1df12b9 HEAD
+          changed="$(git diff --name-only 9da017e057d52aa302e68e20c2e63c1fa1df12b9..HEAD)"
+          test "$changed" = '.github/workflows/h3-n2-stage2d9r-successor-d2-review-ci-v1.yml'
+          for path in \
+            docs/acceptance/h3-n2-stage2d9r-successor-private-content-binding-u1-01-invalidation-l1-v1.json \
+            docs/acceptance/h3-n2-stage2d9r-successor-private-content-binding-u1-02-success-l1-v1.json \
+            docs/development/h3-n2-stage2d9r-successor-d2-contract-20260727-v1.md \
+            tools/h3_n2_stage2d9r_successor_d2_contract_20260727_v1.py \
+            tools/h3_n2_stage2d9r_successor_d2_readonly_preflight_20260727_v1.py \
+            tools/h3_n2_stage2d9r_successor_d2_review_packager_20260727_v1.py \
+            tools/h3_n2_stage2d9r_successor_u1_public_closure_20260727_v1.py; do
+            test -f "$path"
+            test ! -L "$path"
+          done
+          echo '504836a63fa176d73d2f79499219c6534b3175a75b9a6659337d452c5b308b34  tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_successor_final_build_binding_20260727_v1.json' | sha256sum -c -
+          echo '7021279f141f00cbf7e64fe8a20e89dd8b8ef3b9c4c7625ec28b79f6d65db2b6  tests/h3_n2_stage2d9r_tls_candidate/public_successor_tlsvalid02/public-descriptor.redacted.json' | sha256sum -c -
+          echo '0a38ef9648008cbd7a3966e5e558bb8a9b672f255fa6e390800508cd93555734  tests/h3_n2_stage2d9r_tls_candidate/public_pki_tlsvalid02/public-pki-export-binding.json' | sha256sum -c -
 
       - name: Run source contracts and assemble review package
         run: |
