@@ -1,0 +1,314 @@
+name: H3 N2 Stage2D9R Serial Handshake Repair CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-serial-handshake-repair-ci-v1.yml"
+      - "docs/decisions/h3-n2-stage2d9r-g3r-serial-handshake-repair-d1-20260727-v1.json"
+      - "docs/development/h3-n2-stage2d9r-g3r-serial-handshake-repair-contract-20260727-v1.md"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor/**"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/greenhouse_profile_isolated_device_g3r_serial_handshake_repair_20260727_v2.yml"
+      - "tools/h3_n2_stage2d9r_serial_handshake_repair_20260727_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_serial_handshake_repair_20260727_v1.py"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+
+env:
+  EXPECTED_BASE_BRANCH: fix/h3-n2-stage2d9r-d2-v3-final-preflight-host-readonly-20260727-v1
+  EXPECTED_BASE_SHA: abd28fc25c2d814b7becd9488915735bc26ac297
+  EXPECTED_HEAD_BRANCH: fix/h3-n2-stage2d9r-g3r-serial-handshake-repair-20260727-v1
+  EXPECTED_MAIN_SHA: 43aa37b0cc343efdd2024f369517e55c5b6461f1
+  REPAIR_CONFIG: firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/greenhouse_profile_isolated_device_g3r_serial_handshake_repair_20260727_v2.yml
+
+jobs:
+  source-host-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Fail closed on layered PR and repository drift
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EVENT_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          EVENT_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_BASE_SHA" = "$EXPECTED_BASE_SHA"
+          test "$EVENT_BASE_REF" = "$EXPECTED_BASE_BRANCH"
+          test "$EVENT_HEAD_REF" = "$EXPECTED_HEAD_BRANCH"
+          test "$(git rev-parse HEAD)" = "$EVENT_HEAD_SHA"
+          test "$(git ls-remote origin refs/heads/main | awk '{print $1}')" = "$EXPECTED_MAIN_SHA"
+
+          gh api "repos/chrenguo-stack/HomeAssistant/pulls/$PR_NUMBER" > /tmp/current-pr.json
+          gh api repos/chrenguo-stack/HomeAssistant/pulls/184 > /tmp/pr-184.json
+          gh api repos/chrenguo-stack/HomeAssistant/pulls/183 > /tmp/pr-183.json
+          gh api repos/chrenguo-stack/HomeAssistant/pulls/180 > /tmp/pr-180.json
+          gh api repos/chrenguo-stack/HomeAssistant/pulls/176 > /tmp/pr-176.json
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          expected = {
+              'current-pr': {
+                  'head': '${{ github.event.pull_request.head.sha }}',
+                  'base': 'abd28fc25c2d814b7becd9488915735bc26ac297',
+              },
+              'pr-184': {
+                  'head': 'abd28fc25c2d814b7becd9488915735bc26ac297',
+                  'base': '4a5b7a5290f04500050783124f9711268dba0afd',
+              },
+              'pr-183': {
+                  'head': '4a5b7a5290f04500050783124f9711268dba0afd',
+                  'base': 'b2c481d5c824bd6606d914f5828ba6a1662000b1',
+              },
+              'pr-180': {
+                  'head': 'b2c481d5c824bd6606d914f5828ba6a1662000b1',
+                  'base': 'cf841f3e5a8cf04c5df9875c499b91ad4e4289cb',
+              },
+              'pr-176': {
+                  'head': 'cf841f3e5a8cf04c5df9875c499b91ad4e4289cb',
+              },
+          }
+          for name, binding in expected.items():
+              value = json.loads(Path(f'/tmp/{name}.json').read_text())
+              assert value['state'] == 'open', name
+              assert value['draft'] is True, name
+              assert value['merged'] is False, name
+              assert value['head']['sha'] == binding['head'], name
+              if 'base' in binding:
+                  assert value['base']['sha'] == binding['base'], name
+          PY
+          test -z "$(git status --porcelain)"
+
+      - name: Verify old consumed D2 and frozen execution inputs are unchanged
+        run: |
+          set -euo pipefail
+          git diff --exit-code "$EXPECTED_BASE_SHA"...HEAD -- \
+            tools/h3_n2_stage2d9r_successor_d2_execute_20260727_v1.py \
+            tools/h3_n2_stage2d9r_successor_d2_execution_packager_20260727_v2.py \
+            firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor/stage2d9r_g3r_prepare_executor_20260723_v1.cpp \
+            firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/greenhouse_profile_isolated_device_g3r_immutable_20260724_v1.yml \
+            tests/h3_n2_stage2d9r_tls_candidate/public_pki_tlsvalid01 \
+            tests/h3_n2_stage2d9r_tls_candidate/public_command_material_tlsvalid01
+
+      - name: Run source and host repair tests
+        run: |
+          set -euo pipefail
+          export PYTHONPYCACHEPREFIX=/tmp/stage2d9r-serial-repair-pycache
+          python -m py_compile tools/h3_n2_stage2d9r_serial_handshake_repair_20260727_v1.py
+          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_serial_handshake_repair_20260727_v1.py -v \
+            2>&1 | tee /tmp/stage2d9r-serial-repair-tests.log
+          grep -F 'Ran 6 tests' /tmp/stage2d9r-serial-repair-tests.log
+          grep -F 'OK' /tmp/stage2d9r-serial-repair-tests.log
+          output="$(python tools/h3_n2_stage2d9r_serial_handshake_repair_20260727_v1.py)"
+          printf '%s\n' "$output"
+          grep -F 'SOURCE_ONLY_REQUIRES_NEW_EXACT_D2_PACKAGE' <<<"$output"
+          grep -F '"board_operation": false' <<<"$output"
+          grep -F '"serial_operation": false' <<<"$output"
+          grep -F '"flash_operation": false' <<<"$output"
+          grep -F '"network_operation": false' <<<"$output"
+          grep -F '"broker_started": false' <<<"$output"
+          grep -F '"prepare_executed": false' <<<"$output"
+          grep -F '"verify_executed": false' <<<"$output"
+          rm -rf "$PYTHONPYCACHEPREFIX"
+
+      - name: Verify exact repaired source boundary
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import json
+
+          component = Path('firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor')
+          cpp = (component / 'stage2d9r_g3r_prepare_executor_20260727_v2.cpp').read_text()
+          header = (component / 'stage2d9r_g3r_prepare_executor_20260723_v1.h').read_text()
+          init = (component / '__init__.py').read_text()
+          host = Path('tools/h3_n2_stage2d9r_serial_handshake_repair_20260727_v1.py').read_text()
+          decision = json.loads(Path('docs/decisions/h3-n2-stage2d9r-g3r-serial-handshake-repair-d1-20260727-v1.json').read_text())
+
+          assert cpp.count('stage2d9r_command_ready=PREPARE') == 1
+          assert cpp.count('stage2d9r_command_ready=VERIFY') == 1
+          assert cpp.count('stage2d9r_ready_repeat=true interval_ms=1000') == 2
+          assert 'READY_REPEAT_INTERVAL_US = 1000000' in header
+          assert 'Stage2D9RG3RPrepareExecutorV2' in init
+          for code in (
+              'PREPARE_READY_MARKER_TIMEOUT',
+              'PREPARE_RESULT_TIMEOUT',
+              'VERIFY_READY_MARKER_TIMEOUT',
+              'VERIFY_RESULT_TIMEOUT',
+          ):
+              assert code in host
+          assert host.index('self._open_session(replace=True)') < host.index(
+              'return self._start_broker(mosquitto_path, private_root, log_path)'
+          )
+          assert 'SOURCE_ONLY_REQUIRES_NEW_EXACT_D2_PACKAGE' in host
+          assert decision['status'] == 'ACCEPTED'
+          assert decision['trigger']['terminal_state'] == 'LOCKED_RECOVERY_COMPLETED'
+          assert decision['decision']['old_private_material_reusable'] is False
+          assert decision['replay_permitted'] is False
+          PY
+
+  compile-freeze-review-artifact:
+    needs: source-host-review
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          show-progress: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install pinned ESPHome
+        run: python -m pip install -q "esphome==2026.4.3"
+
+      - name: Validate repaired ESP32-C6 target
+        run: |
+          set -o pipefail
+          cd "$(dirname "$REPAIR_CONFIG")"
+          esphome config "$(basename "$REPAIR_CONFIG")" \
+            2>&1 | tee /tmp/stage2d9r-serial-repair-config.log
+
+      - name: Compile repaired ESP32-C6 target
+        run: |
+          set -o pipefail
+          cd "$(dirname "$REPAIR_CONFIG")"
+          esphome compile "$(basename "$REPAIR_CONFIG")" \
+            2>&1 | tee /tmp/stage2d9r-serial-repair-compile.log
+
+      - name: Assemble public compile-review Artifact
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          grep -F 'INFO Successfully compiled program.' /tmp/stage2d9r-serial-repair-compile.log
+
+          build_root="$(dirname "$REPAIR_CONFIG")/.esphome/build"
+          image="$(find "$build_root" -type f -name 'firmware.factory.bin' -print -quit)"
+          if [ -z "$image" ]; then
+            image="$(find "$build_root" -type f -name 'firmware.bin' -print -quit)"
+          fi
+          test -n "$image"
+          test -s "$image"
+
+          root=/tmp/stage2d9r-g3r-serial-handshake-repair-review-v1
+          rm -rf "$root"
+          mkdir -m 700 "$root"
+          cp "$image" "$root/merged-image.bin"
+          cp "$REPAIR_CONFIG" "$root/"
+          cp tools/h3_n2_stage2d9r_serial_handshake_repair_20260727_v1.py "$root/"
+          cp tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_serial_handshake_repair_20260727_v1.py "$root/"
+          cp docs/decisions/h3-n2-stage2d9r-g3r-serial-handshake-repair-d1-20260727-v1.json "$root/"
+          cp docs/development/h3-n2-stage2d9r-g3r-serial-handshake-repair-contract-20260727-v1.md "$root/"
+          cp firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor/__init__.py "$root/component-init.py"
+          cp firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor/stage2d9r_g3r_prepare_executor_20260723_v1.h "$root/"
+          cp firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor/stage2d9r_g3r_prepare_executor_20260727_v2.cpp "$root/"
+          chmod 600 "$root"/*
+
+          ROOT="$root" SOURCE_SHA="$SOURCE_SHA" python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+          import os
+
+          root = Path(os.environ['ROOT'])
+          image = root / 'merged-image.bin'
+          value = {
+              'schema': 'gh.h3.n2.stage2d9r-g3r-serial-handshake-repair-review/1',
+              'state': 'SOURCE_COMPILE_REVIEW_FROZEN_UNAUTHORIZED',
+              'decision_id': 'D1-H3N2-STAGE2D9R-G3R-SERIAL-HANDSHAKE-REPAIR-20260727-01',
+              'source_sha': os.environ['SOURCE_SHA'],
+              'base_sha': 'abd28fc25c2d814b7becd9488915735bc26ac297',
+              'main_sha': '43aa37b0cc343efdd2024f369517e55c5b6461f1',
+              'build_binding': '0a2c96b7615d9f222cf72fcf899b6caf3a7c875f',
+              'merged_image_sha256': hashlib.sha256(image.read_bytes()).hexdigest(),
+              'ready_repeat_interval_ms': 1000,
+              'serial_capture_before_broker': True,
+              'timeout_transcript_redacted': True,
+              'authorization_record_included': False,
+              'authorized_execution_launcher_included': False,
+              'private_content_included': False,
+              'secret_values_included': False,
+              'private_paths_included': False,
+              'board_operation': False,
+              'serial_operation': False,
+              'flash_operation': False,
+              'physical_nvs_operation': False,
+              'network_operation': False,
+              'broker_started': False,
+              'prepare_executed': False,
+              'verify_executed': False,
+              'activate_executed': False,
+              'cleanup_executed': False,
+              'replay_permitted': False,
+              'automatic_retry_permitted': False,
+          }
+          canonical = json.dumps(value, sort_keys=True, separators=(',', ':')).encode()
+          value['review_binding_sha256'] = hashlib.sha256(canonical).hexdigest()
+          (root / 'REVIEW_BINDING.json').write_text(
+              json.dumps(value, indent=2, sort_keys=True) + '\n'
+          )
+          (root / 'REVIEW_BINDING.json').chmod(0o600)
+          PY
+
+          (cd "$root" && find . -maxdepth 1 -type f ! -name SHA256SUMS -print0 \
+            | sort -z | xargs -0 sha256sum) > "$root/SHA256SUMS"
+          chmod 600 "$root/SHA256SUMS"
+          (cd "$root" && sha256sum -c SHA256SUMS)
+
+          ! grep -R -I -n -E \
+            'BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|/Users/|/private/tmp/|raw_mqtt_password|unlock-token\.hex|persistence-key\.hex' \
+            "$root"
+          test -z "$(find "$root" -type f -name '*.authorization.json' -print -quit)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-g3r-serial-handshake-repair-review-v1
+          path: /tmp/stage2d9r-g3r-serial-handshake-repair-review-v1
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+      - name: Report non-authorizing freeze boundary
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          value = json.loads(Path('/tmp/stage2d9r-g3r-serial-handshake-repair-review-v1/REVIEW_BINDING.json').read_text())
+          for key in ('state', 'source_sha', 'merged_image_sha256', 'review_binding_sha256'):
+              print(f'{key}={value[key]}')
+          print('d2_authorized=false')
+          print('physical_execution_authorized=false')
+          print('old_d2_replay_permitted=false')
+          PY
+
+      - name: Cleanup generated build files
+        if: always()
+        run: |
+          rm -rf "$(dirname "$REPAIR_CONFIG")/.esphome"
+          rm -f /tmp/stage2d9r-serial-repair-config.log /tmp/stage2d9r-serial-repair-compile.log
