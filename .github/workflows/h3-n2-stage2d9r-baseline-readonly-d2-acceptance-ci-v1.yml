@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/h3-n2-stage2d9r-baseline-readonly-d2-acceptance-ci-v1.yml"
-      - "docs/acceptance/h3-n2-stage2d9r-successor-baseline-readonly-d2-acceptance-20260727-v1.json"
+      - "docs/acceptance/h3-n2-stage2d9r-baseline-readonly-d2-acceptance-20260727-v1.json"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
@@ -20,7 +20,7 @@ env:
   EXPECTED_BASE_BRANCH: fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
   EXPECTED_HEAD_BRANCH: fix/h3-n2-stage2d9r-baseline-readonly-gate-20260727-v1
   SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
-  ACCEPTANCE_PATH: docs/acceptance/h3-n2-stage2d9r-successor-baseline-readonly-d2-acceptance-20260727-v1.json
+  ACCEPTANCE_PATH: docs/acceptance/h3-n2-stage2d9r-baseline-readonly-d2-acceptance-20260727-v1.json
 
 jobs:
   validate-and-freeze:
