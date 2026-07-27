@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/h3-n2-stage2d9r-serial-handshake-repair-config-diagnostic.yml"
-      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor_v2/**"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_ready_repeater/**"
       - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/greenhouse_profile_isolated_device_g3r_serial_handshake_repair_20260727_v2.yml"
 
 permissions:
@@ -24,7 +24,6 @@ jobs:
           python-version: "3.11"
       - run: python -m pip install -q "esphome==2026.4.3"
       - name: Capture ESPHome config result
-        id: config
         continue-on-error: true
         run: |
           set +e
@@ -35,8 +34,6 @@ jobs:
           printf '%s\n' "$rc" > /tmp/stage2d9r-serial-repair-config-diagnostic.rc
           exit "$rc"
       - name: Capture ESPHome compile result
-        id: compile
-        if: steps.config.outcome == 'success'
         continue-on-error: true
         run: |
           set +e
@@ -58,6 +55,9 @@ jobs:
           if-no-files-found: error
           retention-days: 1
           compression-level: 0
-      - name: Preserve diagnostic failure
-        if: steps.config.outcome != 'success' || steps.compile.outcome != 'success'
-        run: exit 1
+      - name: Preserve diagnostic result
+        if: always()
+        run: |
+          set -euo pipefail
+          test "$(cat /tmp/stage2d9r-serial-repair-config-diagnostic.rc)" = 0
+          test "$(cat /tmp/stage2d9r-serial-repair-compile-diagnostic.rc)" = 0
