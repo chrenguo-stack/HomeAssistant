@@ -42,13 +42,14 @@ external_components:
       - greenhouse_profile_isolated_device_driver
       - greenhouse_profile_isolated_device_g3_prepare
       - greenhouse_profile_isolated_device_g3r_executor
+      - greenhouse_profile_isolated_device_g3r_executor_v2
 
 # Source/compile-only repair candidate. The new build binding deliberately
 # invalidates all earlier private command and authorization material. This file
 # embeds no unlock preimage, persistence key, MQTT password, private key or
 # executable command and does not authorize board, serial, Flash, NVS, Broker,
 # PREPARE, VERIFY, ACTIVATE or CLEANUP operations.
-greenhouse_profile_isolated_device_g3r_executor:
+greenhouse_profile_isolated_device_g3r_executor_v2:
   id: stage2d9r_g3r_serial_handshake_repair_executor
   partition_label: gh2d8_p2d9
   namespace_name: gh2d8_s2d9
