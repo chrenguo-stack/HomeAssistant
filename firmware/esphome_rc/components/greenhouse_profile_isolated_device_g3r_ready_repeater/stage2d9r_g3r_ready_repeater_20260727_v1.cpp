@@ -1,5 +1,7 @@
 #include "stage2d9r_g3r_ready_repeater_20260727_v1.h"
 
+#include <cinttypes>
+
 #include "esp_partition.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
