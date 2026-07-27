@@ -1,0 +1,210 @@
+name: H3 N2 Stage2D9R Baseline Readonly D2 Acceptance CI
+# Layered baseline acceptance only; the legacy PR #180 D2 review chain remains frozen.
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-baseline-readonly-d2-acceptance-ci-v1.yml"
+      - "docs/acceptance/h3-n2-stage2d9r-baseline-readonly-d2-acceptance-20260727-v1.json"
+      - "docs/development/h3-n2-stage2d9r-baseline-readonly-gate-contract-20260727-v1.md"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  EXPECTED_MAIN_SHA: 43aa37b0cc343efdd2024f369517e55c5b6461f1
+  EXPECTED_BASE_SHA: b2c481d5c824bd6606d914f5828ba6a1662000b1
+  EXPECTED_BASE_BRANCH: fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
+  EXPECTED_HEAD_BRANCH: fix/h3-n2-stage2d9r-baseline-readonly-gate-20260727-v1
+  SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+  ACCEPTANCE_PATH: docs/acceptance/h3-n2-stage2d9r-baseline-readonly-d2-acceptance-20260727-v1.json
+
+jobs:
+  validate-and-freeze:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 64
+          show-progress: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Verify layered Draft PR boundary
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          test "${{ github.event.pull_request.head.ref }}" = "$EXPECTED_HEAD_BRANCH"
+          test "${{ github.event.pull_request.base.ref }}" = "$EXPECTED_BASE_BRANCH"
+          test "${{ github.event.pull_request.base.sha }}" = "$EXPECTED_BASE_SHA"
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          git merge-base --is-ancestor "$EXPECTED_BASE_SHA" HEAD
+          test "$(git ls-remote origin refs/heads/main | awk '{print $1}')" = "$EXPECTED_MAIN_SHA"
+          gh api "repos/chrenguo-stack/HomeAssistant/pulls/$PR_NUMBER" > /tmp/current-pr
+          jq -e '.state=="open" and .draft==true and .merged==false and .mergeable==true and .base.sha=="b2c481d5c824bd6606d914f5828ba6a1662000b1" and .head.sha==env.SOURCE_SHA' /tmp/current-pr
+          gh api repos/chrenguo-stack/HomeAssistant/pulls/180 > /tmp/p180
+          jq -e '.state=="open" and .draft==true and .merged==false and .mergeable==true and .head.sha=="b2c481d5c824bd6606d914f5828ba6a1662000b1"' /tmp/p180
+          gh api repos/chrenguo-stack/HomeAssistant/pulls/176 > /tmp/p176
+          jq -e '.state=="open" and .draft==true and .merged==false and .mergeable==true and .head.sha=="cf841f3e5a8cf04c5df9875c499b91ad4e4289cb"' /tmp/p176
+          test -z "$(git status --porcelain)"
+
+      - name: Validate consumed baseline acceptance record
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ["ACCEPTANCE_PATH"])
+          value = json.loads(path.read_text(encoding="utf-8"))
+          expected = {
+              "schema": "gh.h3.n2.stage2d9r-successor-baseline-readonly-d2-acceptance/1",
+              "authorization_id": "D2-H3N2-STAGE2D9R-G3R-BASELINE-READONLY-20260727-01",
+              "authorization_record_sha256": "9c0dcab46d772f8506ef24039e2ccbaeb6cdeccf53cac011486ae0270f6e2842",
+              "status": "CONSUMED_PASS",
+              "result_sha256": "83de8568ddfe73fc98c1408c1347a9817b03c4a9adb4ef091990d9b3b39ceab9",
+              "board_identity_sha256": "2607b7df80b8b636548a8d9d97c0a6b4e4ead57e9a2cc6fcb7f93643617242f8",
+              "serial_identity_sha256": "b6dba7ee0db02feba166935ae8ec2bbd946dbf66926e5421cfa1c1c8b8a4f2c3",
+              "baseline_state_sha256": "15ad524c4328fd93c99a10e1e0955080e5dedeb8df371832c4d437538dc8944a",
+              "test_partition_sha256": "a8438e656e6b3327506a988136884113c8df8ed012373b851ea2c6da681e8b7b",
+              "test_partition_size": 65536,
+              "operator_terminal_summary_sha256": "95fc13dd1fc23b5b88f291ce9d812682e9066f442589720dfd99dd080a5bf7c4",
+              "host_preflight_result_sha256": "a4aa79ca1ec49bf5a102628bf19664a6496dc3a220ceb13daae2cf0555a1cbc9",
+              "execution_zip_sha256": "f5b7120df1f505b551c4168bbe7d3662895d9e68e10d08a7d7067b62289ccbd8",
+          }
+          for key, expected_value in expected.items():
+              assert value.get(key) == expected_value, key
+
+          for key in (
+              "authorization_created",
+              "authorization_claimed",
+              "authorization_consumed",
+              "one_shot",
+          ):
+              assert value.get(key) is True, key
+          for key in (
+              "replay_permitted",
+              "automatic_retry_permitted",
+              "board_write_operation",
+              "flash_erase_operation",
+              "flash_write_operation",
+              "flash_verify_operation",
+              "physical_nvs_operation",
+              "network_operation",
+              "broker_started",
+              "prepare_executed",
+              "verify_executed",
+              "activate_executed",
+              "cleanup_executed",
+              "secret_values_included",
+              "private_paths_included",
+              "raw_serial_path_included",
+              "raw_chip_output_included",
+              "raw_flash_output_included",
+              "raw_partition_content_included",
+          ):
+              assert value.get(key) is False, key
+
+          observed = value.pop("acceptance_record_sha256")
+          canonical = json.dumps(
+              value,
+              sort_keys=True,
+              separators=(",", ":"),
+              ensure_ascii=False,
+          ).encode("utf-8")
+          assert hashlib.sha256(canonical).hexdigest() == observed
+          assert observed == "a8f10caa6ba674e03b60ff2eb75aaa6c86011db590e3c51a58a587ece6978de9"
+          print("STAGE2D9R_BASELINE_READONLY_D2_ACCEPTANCE=PASS")
+          print("authorization_consumed=true")
+          print("replay_permitted=false")
+          print("board_write_operation=false")
+          print("network_operation=false")
+          PY
+
+      - name: Assemble public consumed-result acceptance Artifact
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-baseline-readonly-d2-acceptance-v1
+          mkdir -m 700 "$root"
+          mkdir -p "$root/docs/acceptance" "$root/docs/decisions" "$root/docs/development" "$root/tools" "$root/tests/h3_n2_stage2d9r_tls_candidate"
+          cp "$ACCEPTANCE_PATH" "$root/$ACCEPTANCE_PATH"
+          cp docs/decisions/h3-n2-stage2d9r-baseline-readonly-gate-d1-20260727-v1.json "$root/docs/decisions/"
+          cp docs/development/h3-n2-stage2d9r-baseline-readonly-gate-contract-20260727-v1.md "$root/docs/development/"
+          cp tools/h3_n2_stage2d9r_d2_readonly_preflight_v3_20260727.py "$root/tools/"
+          cp tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_d2_readonly_preflight_v3_20260727.py "$root/tests/h3_n2_stage2d9r_tls_candidate/"
+          SOURCE_SHA="$SOURCE_SHA" python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path("/tmp/stage2d9r-baseline-readonly-d2-acceptance-v1")
+          binding = {
+              "schema": "gh.h3.n2.stage2d9r-successor-baseline-readonly-d2-acceptance-binding/1",
+              "stage": "H3/N2 Stage 2D-9R G3R successor",
+              "authorization_id": "D2-H3N2-STAGE2D9R-G3R-BASELINE-READONLY-20260727-01",
+              "source_sha": os.environ["SOURCE_SHA"],
+              "base_sha": "b2c481d5c824bd6606d914f5828ba6a1662000b1",
+              "main_sha": "43aa37b0cc343efdd2024f369517e55c5b6461f1",
+              "acceptance_record_sha256": "a8f10caa6ba674e03b60ff2eb75aaa6c86011db590e3c51a58a587ece6978de9",
+              "baseline_result_sha256": "83de8568ddfe73fc98c1408c1347a9817b03c4a9adb4ef091990d9b3b39ceab9",
+              "status": "CONSUMED_PASS",
+              "authorization_consumed": True,
+              "replay_permitted": False,
+              "automatic_retry_permitted": False,
+              "authorization_record_included": False,
+              "execution_launcher_included": False,
+              "raw_board_identity_included": False,
+              "raw_serial_path_included": False,
+              "raw_partition_content_included": False,
+              "secret_values_included": False,
+              "private_paths_included": False,
+              "board_operation_in_ci": False,
+              "serial_operation_in_ci": False,
+              "flash_operation_in_ci": False,
+              "network_operation_in_ci": False,
+              "final_d2_authorized": False,
+          }
+          canonical = json.dumps(binding, sort_keys=True, separators=(",", ":")).encode()
+          binding["binding_sha256"] = hashlib.sha256(canonical).hexdigest()
+          (root / "BASELINE_READONLY_D2_ACCEPTANCE_BINDING.json").write_text(
+              json.dumps(binding, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          find "$root" -type f -exec chmod 600 {} +
+          (
+            cd "$root"
+            find . -type f ! -name SHA256SUMS -print0 \
+              | sort -z \
+              | xargs -0 sha256sum \
+              | sed 's#  \./#  #' > SHA256SUMS
+            sha256sum -c SHA256SUMS
+          )
+          test -z "$(find "$root" -type f -name '*.authorization.json' -print -quit)"
+          test -z "$(find "$root" -type f -iname '*private*key*' -print -quit)"
+          test -z "$(find "$root" -type f -name '*.bin' -print -quit)"
+          test -z "$(find "$root" -type f -name '*.pem' -print -quit)"
+          test -z "$(find "$root" -type f -name '*.crt' -print -quit)"
+
+      - name: Upload consumed-result acceptance Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-successor-baseline-readonly-d2-acceptance-v1
+          path: /tmp/stage2d9r-baseline-readonly-d2-acceptance-v1
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 9

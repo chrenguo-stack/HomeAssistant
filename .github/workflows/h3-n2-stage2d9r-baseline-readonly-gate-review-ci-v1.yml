@@ -1,0 +1,127 @@
+name: H3 N2 Stage2D9R Baseline Readonly Gate Review CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-baseline-readonly-gate-review-ci-v1.yml"
+      - "docs/decisions/h3-n2-stage2d9r-baseline-readonly-gate-d1-20260727-v1.json"
+      - "docs/development/h3-n2-stage2d9r-baseline-readonly-gate-contract-20260727-v1.md"
+      - "tools/h3_n2_stage2d9r_consumed_marker_evidence_20260727_v1.py"
+      - "tools/h3_n2_stage2d9r_baseline_readonly_gate_20260727_v1.py"
+      - "tools/h3_n2_stage2d9r_baseline_readonly_gate_packager_20260727_v1.py"
+      - "tools/h3_n2_stage2d9r_d2_readonly_preflight_v3_20260727.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_consumed_marker_evidence_20260727_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_baseline_readonly_gate_20260727_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_d2_readonly_preflight_v3_20260727.py"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  EXPECTED_MAIN_SHA: 43aa37b0cc343efdd2024f369517e55c5b6461f1
+  EXPECTED_BASE_SHA: b2c481d5c824bd6606d914f5828ba6a1662000b1
+  EXPECTED_BASE_BRANCH: fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
+  EXPECTED_HEAD_BRANCH: fix/h3-n2-stage2d9r-baseline-readonly-gate-20260727-v1
+  SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+
+jobs:
+  review-and-freeze:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 32
+          show-progress: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Verify layered Draft PR boundary
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          test "${{ github.event.pull_request.head.ref }}" = "$EXPECTED_HEAD_BRANCH"
+          test "${{ github.event.pull_request.base.ref }}" = "$EXPECTED_BASE_BRANCH"
+          test "${{ github.event.pull_request.base.sha }}" = "$EXPECTED_BASE_SHA"
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          git merge-base --is-ancestor "$EXPECTED_BASE_SHA" HEAD
+          test "$(git ls-remote origin refs/heads/main | awk '{print $1}')" = "$EXPECTED_MAIN_SHA"
+          gh api "repos/chrenguo-stack/HomeAssistant/pulls/$PR_NUMBER" > /tmp/current-pr
+          jq -e '.state=="open" and .draft==true and .merged==false and .mergeable==true and .base.sha=="b2c481d5c824bd6606d914f5828ba6a1662000b1" and .head.sha==env.SOURCE_SHA' /tmp/current-pr
+          gh api repos/chrenguo-stack/HomeAssistant/pulls/180 > /tmp/p180
+          jq -e '.state=="open" and .draft==true and .merged==false and .mergeable==true and .head.sha=="b2c481d5c824bd6606d914f5828ba6a1662000b1"' /tmp/p180
+          test -z "$(git status --porcelain)"
+
+      - name: Run marker, baseline and V3 host tests
+        run: |
+          set -euo pipefail
+          export PYTHONPYCACHEPREFIX=/tmp/stage2d9r-baseline-pycache
+          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_consumed_marker_evidence_20260727_v1.py -v
+          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_baseline_readonly_gate_20260727_v1.py -v
+          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_d2_readonly_preflight_v3_20260727.py -v
+
+      - name: Verify no physical operation occurred in CI
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+
+          path = Path("tools/h3_n2_stage2d9r_baseline_readonly_gate_20260727_v1.py")
+          tree = ast.parse(path.read_text())
+          allowed = {"chip_id", "flash_id", "read_flash"}
+          literals = {
+              node.value for node in ast.walk(tree)
+              if isinstance(node, ast.Constant) and isinstance(node.value, str)
+          }
+          assert allowed <= literals
+          source = path.read_text()
+          assert "socket." not in source
+          assert "paho" not in source
+          assert "mosquitto_sub" not in source
+          assert "mosquitto_pub" not in source
+          decision = Path(
+              "docs/decisions/h3-n2-stage2d9r-baseline-readonly-gate-d1-20260727-v1.json"
+          ).read_text()
+          assert '"physical_execution_authorized": false' in decision
+          print("STAGE2D9R_BASELINE_READONLY_STATIC_BOUNDARY=PASS")
+          print("board_operation=false")
+          print("serial_operation=false")
+          print("flash_operation=false")
+          print("network_operation=false")
+          PY
+
+      - name: Assemble non-authorizing review Artifact
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-baseline-readonly-gate-review-v1
+          python tools/h3_n2_stage2d9r_baseline_readonly_gate_packager_20260727_v1.py \
+            --output "$root" \
+            --source-sha "$SOURCE_SHA" \
+            --base-sha "$EXPECTED_BASE_SHA" \
+            --main-sha "$EXPECTED_MAIN_SHA"
+          "$root/run_stage2d9r_baseline_readonly_gate_review_integrity_probe_20260727_v1.sh"
+          test -z "$(find "$root" -type f -name '*.authorization.json' -print -quit)"
+          test -z "$(find "$root" -type f -iname '*private*key*' -print -quit)"
+          test -z "$(find "$root" -type f -name '*.bin' -print -quit)"
+          test -z "$(find "$root" -type f -name '*.pem' -print -quit)"
+          test -z "$(find "$root" -type f -name '*.crt' -print -quit)"
+
+      - name: Upload baseline-readonly review Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-successor-baseline-readonly-gate-review-v1
+          path: /tmp/stage2d9r-baseline-readonly-gate-review-v1
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 9
