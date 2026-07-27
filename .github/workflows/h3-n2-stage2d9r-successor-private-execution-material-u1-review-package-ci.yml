@@ -51,7 +51,7 @@ jobs:
           set -euo pipefail
           test "$HEAD_BRANCH" = fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
-          git fetch --no-tags --depth=96 origin "$HEAD_BRANCH"
+          git fetch --no-tags --depth=256 origin "$HEAD_BRANCH"
           git merge-base --is-ancestor 0cd9eeb5fd567d47a29bddee83159ac9570aa3dd HEAD
           test "$(git status --porcelain)" = ""
 
@@ -109,25 +109,17 @@ jobs:
           rm -rf "$PYTHONPYCACHEPREFIX"
 
       - name: Report permanently retired boundary
-        env:
-          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           printf '%s\n' \
             'STAGE2D9R_SUCCESSOR_PRIVATE_EXECUTION_MATERIAL_U1_HISTORY=PASS' \
-            "CURRENT_SOURCE_SHA=$SOURCE_SHA" \
-            'AUTHORIZED_SOURCE_SHA=0cd9eeb5fd567d47a29bddee83159ac9570aa3dd' \
-            'AUTHORIZATION_ID=U1-H3N2-STAGE2D9R-PRIVATE-EXECUTION-MATERIAL-20260725-01' \
             'AUTHORIZATION_STATUS=CONSUMED' \
             'REPLAY_PERMITTED=false' \
-            'REVIEW_PACKAGE_REGENERATED=false' \
-            'AUTHORIZATION_CREATED=false' \
-            'AUTHORIZATION_CLAIMED=false' \
-            'AUTHORIZATION_CONSUMED_BY_CI=false' \
+            'AUTOMATIC_RETRY_PERMITTED=false' \
+            'NEW_AUTHORIZATION_CREATED=false' \
             'PRIVATE_CONTENT_READ=false' \
             'BOARD_OPERATION=false' \
             'SERIAL_OPERATION=false' \
             'FLASH_OPERATION=false' \
-            'PHYSICAL_NVS_OPERATION=false' \
             'NETWORK_OPERATION=false' \
             'BROKER_STARTED=false' \
             'PREPARE_EXECUTED=false' \
