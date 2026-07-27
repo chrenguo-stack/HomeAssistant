@@ -17,9 +17,14 @@
     "locked_recovery_succeeded": true
   },
   "decision": {
+    "frozen_v1_executor_modified": false,
+    "firmware_ready_projection_component": "greenhouse_profile_isolated_device_g3r_ready_repeater",
     "firmware_ready_marker_repeat_interval_ms": 1000,
+    "firmware_ready_marker_repeat_window_ms": 180000,
     "firmware_repeat_prepare_ready": true,
     "firmware_repeat_verify_ready": true,
+    "firmware_repeater_command_parser": false,
+    "firmware_repeater_nvs_write_path": false,
     "host_serial_capture_before_broker": true,
     "timeout_transcript_retained": true,
     "timeout_transcript_redacted": true,
