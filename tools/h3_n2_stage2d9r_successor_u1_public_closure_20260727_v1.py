@@ -32,23 +32,29 @@ FORBIDDEN_TEXT = (
     "broker" + ".key" + ".pem",
 )
 
+
 class ClosureError(RuntimeError):
     pass
+
 
 def require(condition: bool, code: str) -> None:
     if not condition:
         raise ClosureError(code)
+
 
 def canonical_json_bytes(value: object) -> bytes:
     return json.dumps(
         value, sort_keys=True, separators=(",", ":"), ensure_ascii=False
     ).encode("utf-8")
 
+
 def sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
+
 def sha256_file(path: Path) -> str:
     return sha256_bytes(path.read_bytes())
+
 
 def load_json(path: Path) -> dict[str, Any]:
     require(path.is_file() and not path.is_symlink(), "PUBLIC_RECORD_INVALID")
@@ -60,6 +66,7 @@ def load_json(path: Path) -> dict[str, Any]:
     require(isinstance(value, dict), "PUBLIC_RECORD_NOT_OBJECT")
     return value
 
+
 def false_boundaries(value: dict[str, Any], *, allow_private_read_key: bool = False) -> None:
     protected = value.get("protected_boundaries")
     require(isinstance(protected, dict), "PROTECTED_BOUNDARIES_MISSING")
@@ -68,6 +75,7 @@ def false_boundaries(value: dict[str, Any], *, allow_private_read_key: bool = Fa
             require(observed is False, "PRIVATE_CONTENT_READ_EXPANDED")
         else:
             require(observed is False, f"BOUNDARY_EXPANDED_{key.upper()}")
+
 
 def validate(u1_01_path: Path, u1_02_path: Path) -> dict[str, Any]:
     first = load_json(u1_01_path)
@@ -137,7 +145,7 @@ def validate(u1_01_path: Path, u1_02_path: Path) -> dict[str, Any]:
         "u1_02_status": "CONSUMED_PASS",
         "u1_02_consumed_marker_live_preflight_required": True,
         "immutable_artifact_id": IMMUTABLE_ARTIFACT_ID,
-        "immutable_archive_sha256": IMMMUTABLE_ARCHIVE_SHA256,
+        "immutable_archive_sha256": IMMUTABLE_ARCHIVE_SHA256,
         "candidate_digest_sha256": CANDIDATE_DIGEST_SHA256,
         "replay_permitted": False,
         "d2_authorized": False,
@@ -147,7 +155,8 @@ def validate(u1_01_path: Path, u1_02_path: Path) -> dict[str, Any]:
         "secret_values_included": False,
     }
     closure["closure_binding_sha256"] = sha256_bytes(canonical_json_bytes(closure))
-    return closur
+    return closure
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()
@@ -166,6 +175,7 @@ def main() -> int:
         return 2
     print(json.dumps({"status": "PASS", **result}, sort_keys=True))
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())
