@@ -78,3 +78,10 @@ review/compile Artifact。
 禁止：连接板卡、USB/串口枚举、esptool、Flash/NVS、主机网络、Broker、
 PREPARE、VERIFY、ACTIVATE、CLEANUP、旧 D2 重放、Ready、merge、release、tag
 和 deployment。
+
+## 8. 冻结前验证要求
+
+最终 HEAD 必须同时通过：分层 PR/冻结 SHA 检查、冻结 V1 未修改检查、6 项主机
+测试、ESPHome 2026.4.3 配置验证、ESP32-C6 完整编译和公开仓库安全检查。临时
+编译诊断工作流只用于定位开发期错误，确认正式编译门通过后必须从最终差异中删除。
+最终公开 Artifact 必须绑定最终 HEAD，而不是任何临时诊断 HEAD。
