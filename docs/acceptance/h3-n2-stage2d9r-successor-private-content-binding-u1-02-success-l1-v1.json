@@ -1,0 +1,80 @@
+{
+  "authorization_id": "U1-H3N2-STAGE2D9R-SUCCESSOR-PRIVATE-CONTENT-BINDING-20260727-02",
+  "authorization_record_sha256": "88314a56bc5d7dd3e175278e2b01409cde611562f1bea11690adb9ff3f71f348",
+  "authorization_state": {
+    "authorization_consumed": true,
+    "automatic_retry_permitted": false,
+    "consumed_marker_sha256": null,
+    "consumed_marker_sha256_publicly_frozen": false,
+    "consumed_marker_status": "CONSUMED",
+    "live_read_only_preflight_required": true,
+    "one_shot": true,
+    "replay_permitted": false
+  },
+  "deep_binding_status": "PASS",
+  "disposition": {
+    "d2_authorized": false,
+    "execution_package_replay_permitted": false,
+    "next_gate": "SUCCESSOR_D2_SOURCE_REVIEW_AND_READ_ONLY_PREFLIGHT",
+    "physical_execution_authorized": false,
+    "replay_permitted": false
+  },
+  "execution_package_binding_sha256": "db7f1176dbd4bbd71d22d43ca40c450982843984bb1b85c1827da8999100eb72",
+  "execution_package_sha256": "1a6a820ed5afffca45d389e4cbf70ebd0bd521e79edda00e3aa0529e0b9f645c",
+  "execution_result": "PASS",
+  "expires_at": "2026-07-27T05:14:53Z",
+  "immutable_artifact": {
+    "application_sha256": "a75e440c90aa5f050ac55086d1f1c614f113a7b66bd31ffc748fee95b9d26e1b",
+    "archive_sha256": "b8c7e937ff325d121aeff8414618e88b8a229cca00bc27e439c587f830851dc8",
+    "build_binding": "742f663333837366a42da92b984a3b05c643f571",
+    "id": 8638796771,
+    "merged_image_sha256": "925ae87831a259d5a477fba9dde009b4d6a218e43735638521d4a10a38fe95bf",
+    "payload_tar_sha256": "14e882f550ca92d14cf6776e518eb083b7344683b5534487bd28e95d93b29747",
+    "source_sha": "ac1d2a7a92323988c9cd946a3e018e4f1ba9463b"
+  },
+  "issued_at": "2026-07-27T03:14:53Z",
+  "protected_boundaries": {
+    "activate_executed": false,
+    "board_operation": false,
+    "broker_started": false,
+    "cleanup_executed": false,
+    "flash_operation": false,
+    "network_operation": false,
+    "physical_nvs_operation": false,
+    "prepare_executed": false,
+    "private_paths_included": false,
+    "production_operation": false,
+    "secret_values_included": false,
+    "serial_operation": false,
+    "verify_executed": false
+  },
+  "public_bindings": {
+    "broker_certificate_der_sha256": "4ca8731424c87ba61336f4bc4fb743137ed83c127ed1a214198b65e5b33b40f9",
+    "broker_spki_sha256": "0ae2d32c2ddfb7b4b63c9ee4049291d9725a42a55721b0e78d53fcf5c9e1f72e",
+    "ca_pem_sha256": "9d98b4aa1d87604e8c37aaa50892bf4cd47b8b8a0479acdabe78d41d39b36096",
+    "candidate_digest_sha256": "a0ff758217a1769c1876336c131cb85e64dcb2369758c649f36798cd8083aaf2",
+    "custody_root_digest_sha256": "b608f7fbb669ffeb1ae20699a0c556feb41bebd6813cbc07fc98f5845e00879d",
+    "custody_root_selection_rule": "HOME_LOCAL_STATE_STAGE2D9R_PRIVATE_EXECUTION_MATERIAL_TLSVALID02",
+    "mqtt_password_sha256": "4fa67359f2ab36950652c28c88f5eff3f83a8c1c598d83100bf9871a23e33b9c",
+    "openssl_executable_sha256": "04ad05ce2e7eaf92116dac99a984cc0e589040a103589f93a9fe452832766973",
+    "persistence_key_file_sha256": "661a5cf28173d481ddb8bc4e239fb5aced6e67ec574a79c774f238dbb4d0b882",
+    "prepare_command_sha256": "294df853b85fd86ae31ae05dc68b44fa3deac0cbffdbb8c24f62ca8175ef641f",
+    "private_descriptor_sha256": "49236148741cccac301bbe45c900912e472e72ab8da8cb894645fb3916852fc8",
+    "private_package_sha256": "7b585fc53b9201fd2c6161e544ac062d4223f509bfc86a10052d97907e4f55bb",
+    "public_descriptor_sha256": "7021279f141f00cbf7e64fe8a20e89dd8b8ef3b9c4c7625ec28b79f6d65db2b6",
+    "python_executable_sha256": "4e28e811a89aeac6eed668ae641c7f85f5831e42e8dc6cd9a85a3bcc032ec46a",
+    "unlock_digest_sha256": "727db669e17634b6d66fc1d8bd4f4d9e4e4e196401806c9b56c7eed6b8a7d9e9",
+    "verify_command_sha256": "53965a7dc1ec4265cc21eee11a03a22e0bc20ff6c8e3ffa56f42b4043da8c347"
+  },
+  "result_sha256": "9ad24d630640ab485e055e7cb8f08c1320f19b6ca37d43e36303ce44d62d0b08",
+  "review_artifact": {
+    "archive_sha256": "b49a9e12531e071f713d27e3cc3f660e482e401e9f308a8f189ce51f2e602f3e",
+    "id": 8639706190,
+    "name": "stage2d9r-successor-private-content-binding-u1-review-v1",
+    "review_binding_sha256": "2f80e7e0f98b44f7ee323eb7cffffb19eac1994b689eb03a92d867dd9ceb67ad",
+    "source_sha": "3730a6d8c149d14fbb566edcab264a614c7bc5fe"
+  },
+  "schema": "gh.h3.n2.stage2d9r-successor-private-content-binding-u1-success-l1/1",
+  "stage": "H3/N2 Stage 2D-9R G3R successor",
+  "status": "CONSUMED_PASS"
+}

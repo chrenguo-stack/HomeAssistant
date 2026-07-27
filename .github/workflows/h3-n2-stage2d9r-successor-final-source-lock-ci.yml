@@ -1,0 +1,245 @@
+name: H3 N2 Stage2D9R Successor Final Source Lock CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-successor-final-source-lock-ci.yml"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor/**"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/greenhouse_profile_isolated_device_g3r_successor_immutable_20260727_v1.yml"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3_prepare/stage2d9_g3_partitions_20260722_v65.csv"
+      - "tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_successor_final_build_binding_20260727_v1.json"
+      - "tests/h3_n2_stage2d9r_tls_candidate/public_successor_tlsvalid02/public-descriptor.redacted.json"
+      - "tests/h3_n2_stage2d9r_tls_candidate/public_pki_tlsvalid02/**"
+      - "docs/acceptance/h3-n2-stage2d9r-successor-public-pki-upload-validation-l1-v1.json"
+  push:
+    branches:
+      - fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-successor-final-source-lock-ci.yml"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor/**"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/greenhouse_profile_isolated_device_g3r_successor_immutable_20260727_v1.yml"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3_prepare/stage2d9_g3_partitions_20260722_v65.csv"
+      - "tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_successor_final_build_binding_20260727_v1.json"
+      - "tests/h3_n2_stage2d9r_tls_candidate/public_successor_tlsvalid02/public-descriptor.redacted.json"
+      - "tests/h3_n2_stage2d9r_tls_candidate/public_pki_tlsvalid02/**"
+      - "docs/acceptance/h3-n2-stage2d9r-successor-public-pki-upload-validation-l1-v1.json"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  successor-final-source-lock:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Verify frozen checkpoint ancestry
+        env:
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$HEAD_BRANCH" = fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          git fetch --no-tags --depth=128 origin "$HEAD_BRANCH"
+          git merge-base --is-ancestor 7ee14e6f0186bc4baa4ae78a91c017d0713d13d8 HEAD
+          test "$(git status --porcelain)" = ""
+
+      - name: Verify exact public source bindings
+        run: |
+          set -euo pipefail
+          echo '504836a63fa176d73d2f79499219c6534b3175a75b9a6659337d452c5b308b34  tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_successor_final_build_binding_20260727_v1.json' | sha256sum -c -
+          echo 'a7917c92f09a74a45c827cb7a47edec27cfb050dec074680c36bae39efaad85f  firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/greenhouse_profile_isolated_device_g3r_successor_immutable_20260727_v1.yml' | sha256sum -c -
+          echo '7021279f141f00cbf7e64fe8a20e89dd8b8ef3b9c4c7625ec28b79f6d65db2b6  tests/h3_n2_stage2d9r_tls_candidate/public_successor_tlsvalid02/public-descriptor.redacted.json' | sha256sum -c -
+          echo '0a38ef9648008cbd7a3966e5e558bb8a9b672f255fa6e390800508cd93555734  tests/h3_n2_stage2d9r_tls_candidate/public_pki_tlsvalid02/public-pki-export-binding.json' | sha256sum -c -
+          echo '9d98b4aa1d87604e8c37aaa50892bf4cd47b8b8a0479acdabe78d41d39b36096  tests/h3_n2_stage2d9r_tls_candidate/public_pki_tlsvalid02/root-ca.cert.txt' | sha256sum -c -
+          echo 'd862dfe123f8d9ce755bb65e556cc064404b4d37f6b760295c94129ae1815384  tests/h3_n2_stage2d9r_tls_candidate/public_pki_tlsvalid02/broker.cert.txt' | sha256sum -c -
+          echo '0ad309c0048530287330b7edd8dd99da3f6816015355169b878116314863ff9a  tests/h3_n2_stage2d9r_tls_candidate/public_pki_tlsvalid02/broker.fullchain.txt' | sha256sum -c -
+          echo '5afa0f77d5d815f00b14afbcc3b974037c5ba10c9bdcdcffa196b55e403b5cd8  firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3_prepare/stage2d9_g3_partitions_20260722_v65.csv' | sha256sum -c -
+
+      - name: Validate canonical successor build binding and locked target
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import re
+          from pathlib import Path
+
+          binding_path = Path(
+              "tests/h3_n2_stage2d9r_tls_candidate/"
+              "stage2d9r_successor_final_build_binding_20260727_v1.json"
+          )
+          descriptor_path = Path(
+              "tests/h3_n2_stage2d9r_tls_candidate/"
+              "public_successor_tlsvalid02/public-descriptor.redacted.json"
+          )
+          export_binding_path = Path(
+              "tests/h3_n2_stage2d9r_tls_candidate/"
+              "public_pki_tlsvalid02/public-pki-export-binding.json"
+          )
+          acceptance_path = Path(
+              "docs/acceptance/"
+              "h3-n2-stage2d9r-successor-public-pki-upload-validation-l1-v1.json"
+          )
+          target_path = Path(
+              "firmware/esphome_rc/board_lab/"
+              "h3_profile_isolated_device_g3r_tls_prepare/"
+              "greenhouse_profile_isolated_device_g3r_successor_immutable_20260727_v1.yml"
+          )
+
+          data = json.loads(binding_path.read_text())
+          descriptor = json.loads(descriptor_path.read_text())
+          export_binding = json.loads(export_binding_path.read_text())
+          acceptance = json.loads(acceptance_path.read_text())
+          target = target_path.read_text()
+          payload = data["payload"]
+          canonical = json.dumps(
+              payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+          ).encode()
+          full = hashlib.sha256(canonical).hexdigest()
+
+          assert data["schema"] == "gh.h3.n2.stage2d9r-successor-final-build-binding/1"
+          assert data["stage"] == "H3/N2 Stage 2D-9R G3R successor"
+          assert data["state"] == "FINAL_SOURCE_BOUND"
+          assert data["build_binding_sha256_full"] == full
+          assert data["build_binding"] == full[:40]
+          assert data["build_binding"] == "742f663333837366a42da92b984a3b05c643f571"
+
+          assert payload["schema"] == "gh.h3.n2.stage2d9r-successor-final-build-binding-payload/1"
+          assert payload["source_checkpoint_sha"] == "7ee14e6f0186bc4baa4ae78a91c017d0713d13d8"
+          assert payload["public_descriptor_sha256"] == hashlib.sha256(descriptor_path.read_bytes()).hexdigest()
+          assert payload["public_pki_export_binding_sha256"] == hashlib.sha256(export_binding_path.read_bytes()).hexdigest()
+          assert payload["public_pki_upload_archive_sha256"] == acceptance["uploaded_archive"]["sha256"]
+          assert payload["private_package_sha256"] == descriptor["private_package_sha256"]
+          assert payload["prepare_command_sha256"] == descriptor["prepare_command_sha256"]
+          assert payload["verify_command_sha256"] == descriptor["verify_command_sha256"]
+          assert payload["persistence_key_file_sha256"] == descriptor["persistence_key_file_sha256"]
+          assert payload["unlock_digest_sha256"] == descriptor["unlock_digest_sha256"]
+          assert payload["ca_pem_sha256"] == descriptor["ca_pem_sha256"]
+          assert payload["candidate_digest_sha256"] == descriptor["candidate_digest_sha256"]
+          assert payload["broker_certificate_der_sha256"] == descriptor["broker_certificate_der_sha256"]
+          assert payload["broker_spki_sha256"] == descriptor["broker_spki_sha256"]
+          assert payload["broker_host"] == descriptor["broker_host"] == "stage2d9r.local"
+          assert payload["broker_tls_server_name"] == descriptor["broker_tls_server_name"] == "stage2d9r.local"
+          assert payload["partition_table_sha256"] == "5afa0f77d5d815f00b14afbcc3b974037c5ba10c9bdcdcffa196b55e403b5cd8"
+          assert payload["implementation_binding"] == "3d3b67cac008adf30e90a51e891d0dd53b36df69"
+
+          expected = {
+              "build_binding": "742f663333837366a42da92b984a3b05c643f571",
+              "unlock_digest": "727db669e17634b6d66fc1d8bd4f4d9e4e4e196401806c9b56c7eed6b8a7d9e9",
+              "ca_pem_sha256": "9d98b4aa1d87604e8c37aaa50892bf4cd47b8b8a0479acdabe78d41d39b36096",
+          }
+          for field, value in expected.items():
+              match = re.search(
+                  rf'^\s+{field}:\s*["\']?([0-9a-f]+)["\']?\s*$',
+                  target,
+                  re.M,
+              )
+              assert match is not None and match.group(1) == value, field
+
+          top_level = {
+              line.split(":", 1)[0]
+              for line in target.splitlines()
+              if line and not line[0].isspace() and not line.startswith("#") and ":" in line
+          }
+          for prohibited in ("wifi", "api", "ota", "captive_portal", "web_server", "mqtt"):
+              assert prohibited not in top_level, prohibited
+          assert "0" * 64 not in target
+          assert "0" * 40 not in target
+
+          for key in (
+              "private_values_included", "private_paths_included",
+              "raw_mqtt_password_included", "raw_persistence_key_included",
+              "raw_private_keys_included", "raw_unlock_token_included",
+              "secret_values_included", "execution_authorized",
+              "board_operation_authorized", "serial_operation_authorized",
+              "flash_operation_authorized", "physical_nvs_operation_authorized",
+              "network_operation_authorized", "broker_operation_authorized",
+              "prepare_authorized", "verify_authorized", "activate_authorized",
+              "cleanup_authorized", "production_operation_authorized",
+              "ready_authorized", "merge_authorized", "release_authorized",
+          ):
+              assert data[key] is False, key
+
+          serialized = (
+              binding_path.read_text() + target + descriptor_path.read_text()
+              + export_binding_path.read_text() + acceptance_path.read_text()
+          )
+          for prohibited in (
+              "BEGIN PRIVATE KEY", "BEGIN RSA PRIVATE KEY", "BEGIN EC PRIVATE KEY",
+              "/private/tmp/", "/Users/",
+          ):
+              assert prohibited not in serialized, prohibited
+          PY
+
+      - name: Install pinned ESPHome
+        run: python -m pip install -q "esphome==2026.4.3"
+
+      - name: Validate successor final immutable compile source
+        run: |
+          set -o pipefail
+          cd firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare
+          esphome config greenhouse_profile_isolated_device_g3r_successor_immutable_20260727_v1.yml \
+            2>&1 | tee /tmp/stage2d9r-successor-final-source-config-v1.log
+
+      - name: Compile successor final immutable source
+        run: |
+          set -o pipefail
+          cd firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare
+          esphome compile greenhouse_profile_isolated_device_g3r_successor_immutable_20260727_v1.yml \
+            2>&1 | tee /tmp/stage2d9r-successor-final-source-compile-v1.log
+
+      - name: Verify compile result and public-only binary bindings
+        run: |
+          set -euo pipefail
+          grep -F 'INFO Successfully compiled program.' /tmp/stage2d9r-successor-final-source-compile-v1.log
+          BUILD_ROOT='firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/.esphome/build/gh-2d9r-g3r-s1'
+          test -f "$BUILD_ROOT/.pioenvs/gh-2d9r-g3r-s1/firmware.bin"
+          strings "$BUILD_ROOT/.pioenvs/gh-2d9r-g3r-s1/firmware.bin" > /tmp/stage2d9r-successor-final-source-strings-v1.txt
+          grep -F '742f663333837366a42da92b984a3b05c643f571' /tmp/stage2d9r-successor-final-source-strings-v1.txt
+          grep -F '727db669e17634b6d66fc1d8bd4f4d9e4e4e196401806c9b56c7eed6b8a7d9e9' /tmp/stage2d9r-successor-final-source-strings-v1.txt
+          grep -F '9d98b4aa1d87604e8c37aaa50892bf4cd47b8b8a0479acdabe78d41d39b36096' /tmp/stage2d9r-successor-final-source-strings-v1.txt
+          if grep -Eqi \
+            'BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|GH2D9R_PREPARE_V1 [^" ]|GH2D9R_VERIFY_V1 [^" ]' \
+            /tmp/stage2d9r-successor-final-source-config-v1.log \
+            /tmp/stage2d9r-successor-final-source-compile-v1.log; then
+            echo 'private or executable command material detected' >&2
+            exit 1
+          fi
+
+      - name: Report locked successor source
+        run: |
+          printf '%s\n' \
+            'STAGE2D9R_SUCCESSOR_FINAL_SOURCE_LOCK=PASS' \
+            'BUILD_BINDING=742f663333837366a42da92b984a3b05c643f571' \
+            'UNLOCK_DIGEST_SHA256=727db669e17634b6d66fc1d8bd4f4d9e4e4e196401806c9b56c7eed6b8a7d9e9' \
+            'CA_PEM_SHA256=9d98b4aa1d87604e8c37aaa50892bf4cd47b8b8a0479acdabe78d41d39b36096' \
+            'CANDIDATE_DIGEST_SHA256=a0ff758217a1769c1876336c131cb85e64dcb2369758c649f36798cd8083aaf2' \
+            'EXECUTION_AUTHORIZED=false' \
+            'BOARD_OPERATION_AUTHORIZED=false' \
+            'NETWORK_OPERATION_AUTHORIZED=false' \
+            'PREPARE_AUTHORIZED=false' \
+            'VERIFY_AUTHORIZED=false' \
+            'READY_AUTHORIZED=false' \
+            'MERGE_AUTHORIZED=false' \
+            'RELEASE_AUTHORIZED=false'
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/.esphome
+          rm -f /tmp/stage2d9r-successor-final-source-*.log /tmp/stage2d9r-successor-final-source-strings-v1.txt

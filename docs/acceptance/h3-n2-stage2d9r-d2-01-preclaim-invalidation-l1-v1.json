@@ -1,0 +1,63 @@
+{
+  "schema": "gh.h3.n2.stage2d9r-d2-preclaim-invalidation-l1/1",
+  "stage": "H3/N2 Stage 2D-9R G3R",
+  "d2_request_id": "D2-H3N2-STAGE2D9R-G3R-20260725-01",
+  "status": "invalidated_before_claim",
+  "failure_code": "PRIVATE_MQTT_PASSWORD_PREIMAGE_NOT_RETAINED",
+  "repository": "chrenguo-stack/HomeAssistant",
+  "pull_request": 176,
+  "authorized_source_sha": "cf841f3e5a8cf04c5df9875c499b91ad4e4289cb",
+  "authorized_main_sha": "a3a72d75480362999e70e180f33459198b3951b5",
+  "review_artifact_id": 8603122377,
+  "review_artifact_github_digest_sha256": "3b2e92fc0240a35332d4170bc7692cda10d886b7d248e55d6ba28be3429f4fc5",
+  "review_binding_sha256": "f9c3ef95705a7c19c86df57be536eec48cce1a274b452ef6c120308fc0d74bbd",
+  "candidate_digest_sha256": "f22144e37372b883b7a38d07eff2980a865108cf7c8fed9bfdb9f198a030b5c5",
+  "pki_private_package_sha256": "0632b37a70aa2eae416c48ffa9420a8f1e13788c22a7d12e211f77cf6e78a267",
+  "command_private_package_sha256": "cc9086c20781007655c498b78ff1ce7af3316db0c02edbae2440d177d7fdfbb5",
+  "public_mqtt_password_sha256": "2cad4f6eddc6cce6eb1b1ced62a07f9a8f5ac73232de44664b403f5090145c2f",
+  "preclaim_findings": {
+    "mosquitto_password_database_retained": true,
+    "raw_mqtt_password_preimage_retained": false,
+    "candidate_digest_retained": true,
+    "candidate_digest_reconstructable_from_retained_private_material": false,
+    "exact_prepare_command_reconstructable": false,
+    "substitution_or_password_reset_permitted": false
+  },
+  "authorization_state": {
+    "authorization_record_created": false,
+    "authorization_claimed": false,
+    "authorization_marker_created": false,
+    "authorization_consumed": false,
+    "replay_permitted": false,
+    "automatic_retry_permitted": false
+  },
+  "protected_boundaries": {
+    "private_content_read_for_d2": false,
+    "board_operation": false,
+    "serial_operation": false,
+    "flash_operation": false,
+    "physical_nvs_operation": false,
+    "network_operation": false,
+    "broker_started": false,
+    "prepare_executed": false,
+    "verify_executed": false,
+    "activate_executed": false,
+    "cleanup_executed": false,
+    "production_operation": false
+  },
+  "required_successor_work": {
+    "retain_raw_mqtt_password_as_private_mode_0600_material": true,
+    "retain_persistence_key_as_private_mode_0600_material": true,
+    "bind_password_preimage_to_password_database_and_candidate_digest": true,
+    "generate_new_private_material_under_separate_u1": true,
+    "freeze_new_public_candidate_and_build_binding": true,
+    "rebuild_and_refreeze_immutable_artifact": true,
+    "generate_new_d2_review_and_exact_authorization": true
+  },
+  "disposition": {
+    "d2_01_executable": false,
+    "d2_01_retired_without_consumption": true,
+    "old_artifact_or_command_replay_permitted": false,
+    "next_gate": "SUCCESSOR_PRIVATE_EXECUTION_MATERIAL_SOURCE_AND_CI"
+  }
+}

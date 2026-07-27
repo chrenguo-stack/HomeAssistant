@@ -1,0 +1,102 @@
+name: H3 N2 Stage2D9R Successor Private Content Binding U1 Review Package CI
+on:
+  pull_request:
+    paths:
+      - .github/workflows/h3-n2-stage2d9r-successor-private-content-binding-u1-review-package-ci.yml
+      - tools/h3_n2_stage2d9r_successor_private_content_binding_common_20260727_v1.py
+      - tools/h3_n2_stage2d9r_successor_private_content_binding_deep_20260727_v1.py
+      - tools/h3_n2_stage2d9r_successor_private_content_binding_verifier_20260727_v1.py
+      - tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_private_content_binding_verifier_20260727_v1.py
+      - docs/acceptance/h3-n2-stage2d9r-successor-host-artifact-custody-preauth-probe-l1-v1.json
+  push:
+    branches: [fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1]
+    paths:
+      - .github/workflows/h3-n2-stage2d9r-successor-private-content-binding-u1-review-package-ci.yml
+      - tools/h3_n2_stage2d9r_successor_private_content_binding_common_20260727_v1.py
+      - tools/h3_n2_stage2d9r_successor_private_content_binding_deep_20260727_v1.py
+      - tools/h3_n2_stage2d9r_successor_private_content_binding_verifier_20260727_v1.py
+      - tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_private_content_binding_verifier_20260727_v1.py
+      - docs/acceptance/h3-n2-stage2d9r-successor-host-artifact-custody-preauth-probe-l1-v1.json
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+permissions: {contents: read}
+jobs:
+  review-package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: "${{ github.event.pull_request.head.sha || github.sha }}", fetch-depth: 1, show-progress: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - name: Verify frozen state and reviewed source
+        env: {SOURCE_SHA: "${{ github.event.pull_request.head.sha || github.sha }}", HEAD_BRANCH: "${{ github.event.pull_request.head.ref || github.ref_name }}"}
+        run: |
+          set -euo pipefail
+          test "$HEAD_BRANCH" = fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          git fetch --no-tags --depth=160 origin "$HEAD_BRANCH" main
+          git merge-base --is-ancestor cf841f3e5a8cf04c5df9875c499b91ad4e4289cb HEAD
+          test "$(git rev-parse origin/main)" = 43aa37b0cc343efdd2024f369517e55c5b6461f1
+          sha256sum -c <<'SUMS'
+          3f341a0edfc7368dccc0d44e645edc4a51f16aaa40a054b5721311df30befb75  tools/h3_n2_stage2d9r_successor_private_content_binding_common_20260727_v1.py
+          ccaf2a68311e5272b04bb6d57acdcdc94bfa2592f82d0968b3bd8a0fdeb99918  tools/h3_n2_stage2d9r_successor_private_content_binding_deep_20260727_v1.py
+          f1b890ad8a356df69dc83e894e7b72d97d7e607e846f8660722449e4b8854eb4  tools/h3_n2_stage2d9r_successor_private_content_binding_verifier_20260727_v1.py
+          04385a505fa8d8dd4d58107e9d83294779d9d94c7b610a89870ee9b0921d6167  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_private_content_binding_verifier_20260727_v1.py
+          95c33d9d1cbb051e23621264a51c1b77bf674c0d403e2e813d1936ab9f9dbfb0  tools/h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py
+          2520c292151b240827083272673df82441fd68b4e022ab0320311866d2bd4f18  tools/h3_n2_stage2d9r_prepare_command_protocol_20260723_v1.py
+          5d99b3172c6350c9fef8b9f9238a888a5c41fff3fb60430aafc286e20464ad4e  docs/acceptance/h3-n2-stage2d9r-successor-host-artifact-custody-preauth-probe-l1-v1.json
+          SUMS
+          export PYTHONPYCACHEPREFIX=/tmp/s2d9r-private-binding-pycache
+          python -m py_compile tools/h3_n2_stage2d9r_successor_private_content_binding_*_20260727_v1.py tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_private_content_binding_verifier_20260727_v1.py
+          PYTHONPATH=tools python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_private_content_binding_verifier_20260727_v1.py -v 2>&1 | tee /tmp/s2d9r-private-binding-tests.log
+          grep -F 'Ran 8 tests' /tmp/s2d9r-private-binding-tests.log
+          grep -F 'OK' /tmp/s2d9r-private-binding-tests.log
+          ! grep -E -n '(^|[^A-Za-z])(socket|requests|urllib|paho|serial|esptool)([^A-Za-z]|$)' tools/h3_n2_stage2d9r_successor_private_content_binding_*_20260727_v1.py
+          ! grep -R -I -n -E 'BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|[0-9a-f]{64}:[0-9a-f]{64}|/Users/|/private/tmp/' tools/h3_n2_stage2d9r_successor_private_content_binding_*_20260727_v1.py tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_private_content_binding_verifier_20260727_v1.py docs/acceptance/h3-n2-stage2d9r-successor-host-artifact-custody-preauth-probe-l1-v1.json
+          test "$(git status --porcelain)" = ""
+      - name: Assemble review-only package
+        env: {SOURCE_SHA: "${{ github.event.pull_request.head.sha || github.sha }}"}
+        run: |
+          set -euo pipefail
+          R=/tmp/stage2d9r-successor-private-content-binding-u1-review-v1
+          mkdir -p "$R/tools" "$R/tests" "$R/review"
+          cp tools/h3_n2_stage2d9r_successor_private_content_binding_*_20260727_v1.py "$R/tools/"
+          cp tools/h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py tools/h3_n2_stage2d9r_prepare_command_protocol_20260723_v1.py "$R/tools/"
+          cp tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_private_content_binding_verifier_20260727_v1.py "$R/tests/"
+          cp docs/acceptance/h3-n2-stage2d9r-successor-host-artifact-custody-preauth-probe-l1-v1.json "$R/review/"
+          SOURCE_SHA="$SOURCE_SHA" R="$R" python - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          r=Path(os.environ['R']);d=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+          b={'schema':'gh.h3.n2.stage2d9r-successor-private-content-binding-u1-review/1','stage':'H3/N2 Stage 2D-9R G3R successor','state':'PENDING_EXACT_SUCCESSOR_PRIVATE_CONTENT_BINDING_U1_REVIEW','u1_request_id':'U1-H3N2-STAGE2D9R-SUCCESSOR-PRIVATE-CONTENT-BINDING-20260727-01','repository':'chrenguo-stack/HomeAssistant','pull_request':180,'pull_request_required_state':'open,draft,unmerged,mergeable','base_pull_request':176,'base_source_sha':'cf841f3e5a8cf04c5df9875c499b91ad4e4289cb','main_sha':'43aa37b0cc343efdd2024f369517e55c5b6461f1','source_sha':os.environ['SOURCE_SHA'],'preauth_result':'PASS_READ_ONLY_PREAUTH','preauth_probe_source_sha':'307895e4d6cd71205ab9d800e02df2f898a4e087','preauth_artifact_id':8638999760,'preauth_artifact_digest_sha256':'f4d2679e82bf29ecf3a4762075c3e0e5f410c87fc7377d5ee60b9e171bceedb5','immutable_artifact_id':8638796771,'immutable_artifact_source_sha':'ac1d2a7a92323988c9cd946a3e018e4f1ba9463b','immutable_payload_tar_sha256':'14e882f550ca92d14cf6776e518eb083b7344683b5534487bd28e95d93b29747','immutable_application_sha256':'a75e440c90aa5f050ac55086d1f1c614f113a7b66bd31ffc748fee95b9d26e1b','immutable_merged_image_sha256':'925ae87831a259d5a477fba9dde009b4d6a218e43735638521d4a10a38fe95bf','immutable_build_binding':'742f663333837366a42da92b984a3b05c643f571','generation_authorization_id':'U1-H3N2-STAGE2D9R-PRIVATE-EXECUTION-MATERIAL-20260725-01','generation_record_sha256':'99d5f8cf5a0a12d921497ce04b7dc95161fc77ee79e79ddf50d6cb2535473817','generation_marker_sha256':'428231f9e0e6a26c39701427b3e32531e18d08b54e341736b1189a78a06848a5','private_descriptor_sha256':'49236148741cccac301bbe45c900912e472e72ab8da8cb894645fb3916852fc8','public_descriptor_sha256':'7021279f141f00cbf7e64fe8a20e89dd8b8ef3b9c4c7625ec28b79f6d65db2b6','private_package_sha256':'7b585fc53b9201fd2c6161e544ac062d4223f509bfc86a10052d97907e4f55bb','candidate_digest_sha256':'a0ff758217a1769c1876336c131cb85e64dcb2369758c649f36798cd8083aaf2','verifier_sha256':d(r/'tools/h3_n2_stage2d9r_successor_private_content_binding_verifier_20260727_v1.py'),'common_sha256':d(r/'tools/h3_n2_stage2d9r_successor_private_content_binding_common_20260727_v1.py'),'deep_verifier_sha256':d(r/'tools/h3_n2_stage2d9r_successor_private_content_binding_deep_20260727_v1.py'),'contract_sha256':d(r/'tools/h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py'),'protocol_sha256':d(r/'tools/h3_n2_stage2d9r_prepare_command_protocol_20260723_v1.py'),'python_executable_sha256_required':'4e28e811a89aeac6eed668ae641c7f85f5831e42e8dc6cd9a85a3bcc032ec46a','openssl_executable_sha256_required':'04ad05ce2e7eaf92116dac99a984cc0e589040a103589f93a9fe452832766973','custody_root_selection_rule':'HOME_LOCAL_STATE_STAGE2D9R_PRIVATE_EXECUTION_MATERIAL_TLSVALID02','authorization_record_included':False,'authorized_execution_launcher_included':False,'private_material_content_included':False,'private_paths_included':False,'secret_values_included':False,'authorization_created':False,'authorization_claimed':False,'authorization_consumed':False,'board_operation':False,'serial_operation':False,'flash_operation':False,'physical_nvs_operation':False,'network_operation':False,'broker_started':False,'prepare_executed':False,'verify_executed':False,'activate_executed':False,'cleanup_executed':False,'production_operation':False,'ready_merge_release_tag_deployment_authorized':False,'one_shot_required':True,'authorization_validity_seconds':7200,'replay_permitted':False,'automatic_retry_permitted':False}
+          b['review_binding_sha256']=hashlib.sha256(json.dumps(b,sort_keys=True,separators=(',',':')).encode()).hexdigest();(r/'review-binding.json').write_text(json.dumps(b,indent=2,sort_keys=True)+'\n')
+          PY
+          cat > "$R/run_stage2d9r_successor_private_content_binding_u1_review_probe_20260727_v1.sh" <<'SH'
+          #!/usr/bin/env bash
+          set -euo pipefail;umask 077;R="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)";cd "$R";shasum -a 256 -c SHA256SUMS
+          O="$(python3 "$R/tools/h3_n2_stage2d9r_successor_private_content_binding_verifier_20260727_v1.py" --review-binding "$R/review-binding.json" --probe-state)"
+          printf '%s\n' STAGE2D9R_SUCCESSOR_PRIVATE_CONTENT_BINDING_U1_REVIEW_PROBE_V1_BEGIN "$O"
+          O="$O" B="$R/review-binding.json" python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          l=[x for x in os.environ['O'].splitlines() if x];assert l[0]=='STAGE2D9R_SUCCESSOR_PRIVATE_CONTENT_BINDING_PROBE=PASS';v=json.loads(l[-1]);b=json.loads(Path(os.environ['B']).read_text());assert v['result']=='PASS_METADATA_ONLY' and v['u1_request_id']==b['u1_request_id'] and v['target_marker_exists'] is False
+          for k in ('private_material_content_read','authorization_created','authorization_claimed','authorization_consumed','private_paths_included','secret_values_included','board_operation','serial_operation','flash_operation','physical_nvs_operation','network_operation','broker_started','prepare_executed','verify_executed','activate_executed','cleanup_executed','production_operation'):assert v[k] is False,k
+          for k in ('u1_request_id','main_sha','source_sha','review_binding_sha256','verifier_sha256','common_sha256','deep_verifier_sha256','contract_sha256','protocol_sha256'):print(k+'='+str(b[k]))
+          for k in ('python_executable_sha256','openssl_executable_sha256','custody_root_digest_sha256','private_descriptor_sha256','public_descriptor_sha256','private_package_sha256','generation_marker_sha256','generation_record_sha256'):print(k+'='+str(v[k]))
+          print('immutable_artifact_id='+str(b['immutable_artifact_id']));print('immutable_payload_tar_sha256='+b['immutable_payload_tar_sha256']);print('target_marker_exists=false');print('private_material_content_read=false');print('authorization_created=false');print('authorization_claimed=false');print('authorization_consumed=false');print('board_operation=false');print('network_operation=false')
+          PY
+          printf '%s\n' STAGE2D9R_SUCCESSOR_PRIVATE_CONTENT_BINDING_U1_REVIEW_PROBE_V1_END
+          SH
+          chmod 0700 "$R"/run_*.sh;find "$R" -type f ! -name 'run_*.sh' -exec chmod 0600 {} +
+          (cd "$R";find . -type f ! -name SHA256SUMS -print0|LC_ALL=C sort -z|xargs -0 shasum -a 256|sed 's#  \./#  #' > SHA256SUMS);chmod 0600 "$R/SHA256SUMS"
+      - name: Verify and upload review-only package
+        run: |
+          set -euo pipefail;R=/tmp/stage2d9r-successor-private-content-binding-u1-review-v1;(cd "$R" && sha256sum -c SHA256SUMS);test ! -e "$R/authorization-record.json";test ! -e "$R/authorized-execution-launcher.sh";test -z "$(find "$R" -type d -name __pycache__ -print -quit)";! grep -R -I -n -E 'BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|[0-9a-f]{64}:[0-9a-f]{64}|/Users/|/private/tmp/' "$R"
+      - uses: actions/upload-artifact@v4
+        with: {name: stage2d9r-successor-private-content-binding-u1-review-v1, path: /tmp/stage2d9r-successor-private-content-binding-u1-review-v1, if-no-files-found: error, retention-days: 5, compression-level: 9}
+      - name: Report boundary
+        run: printf '%s\n' STAGE2D9R_SUCCESSOR_PRIVATE_CONTENT_BINDING_U1_REVIEW_PACKAGE=PASS U1_REQUEST_ID=U1-H3N2-STAGE2D9R-SUCCESSOR-PRIVATE-CONTENT-BINDING-20260727-01 AUTHORIZATION_CREATED=false AUTHORIZATION_CLAIMED=false AUTHORIZATION_CONSUMED=false PRIVATE_MATERIAL_CONTENT_READ=false BOARD_OPERATION=false NETWORK_OPERATION=false PREPARE_EXECUTED=false VERIFY_EXECUTED=false
+      - if: always()
+        run: rm -rf /tmp/stage2d9r-successor-private-content-binding-u1-review-v1 /tmp/s2d9r-private-binding-pycache;rm -f /tmp/s2d9r-private-binding-tests.log

@@ -1,0 +1,337 @@
+name: H3 N2 Stage2D9R Successor D2 Review CI V2
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-successor-d2-review-ci-v1.yml"
+      - ".github/workflows/h3-n2-stage2d9r-successor-private-execution-material-u1-review-package-ci.yml"
+      - ".github/workflows/h3-n2-stage2d9r-successor-public-pki-export-success-probe-package-ci.yml"
+      - ".github/workflows/h3-n2-stage2d9r-successor-recovery-artifact-freeze-ci-v1.yml"
+      - ".github/workflows/h3-n2-stage2d9r-successor-d2-execution-package-freeze-ci-v1.yml"
+      - "docs/acceptance/h3-n2-stage2d9r-successor-*.json"
+      - "docs/development/h3-n2-stage2d9r-successor-d2-*.md"
+      - "tools/h3_n2_stage2d9r_successor_*_20260727_v*.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_successor_test_partition_recovery_manifest_20260727_v1.json.template"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_*_20260727_v*.py"
+  push:
+    branches:
+      - fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-successor-d2-review-ci-v1.yml"
+      - ".github/workflows/h3-n2-stage2d9r-successor-private-execution-material-u1-review-package-ci.yml"
+      - ".github/workflows/h3-n2-stage2d9r-successor-public-pki-export-success-probe-package-ci.yml"
+      - ".github/workflows/h3-n2-stage2d9r-successor-recovery-artifact-freeze-ci-v1.yml"
+      - ".github/workflows/h3-n2-stage2d9r-successor-d2-execution-package-freeze-ci-v1.yml"
+      - "docs/acceptance/h3-n2-stage2d9r-successor-*.json"
+      - "docs/development/h3-n2-stage2d9r-successor-d2-*.md"
+      - "tools/h3_n2_stage2d9r_successor_*_20260727_v*.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_successor_test_partition_recovery_manifest_20260727_v1.json.template"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_*_20260727_v*.py"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+
+env:
+  EXPECTED_MAIN_SHA: 43aa37b0cc343efdd2024f369517e55c5b6461f1
+  SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  successor-d2-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Verify frozen repository and Draft PR boundary
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+        run: |
+          set -euo pipefail
+          test "$HEAD_BRANCH" = fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test "$(git ls-remote origin refs/heads/main | awk '{print $1}')" = "$EXPECTED_MAIN_SHA"
+          gh api repos/chrenguo-stack/HomeAssistant/pulls/180 > /tmp/p180
+          gh api repos/chrenguo-stack/HomeAssistant/pulls/176 > /tmp/p176
+          jq -e '.state=="open" and .draft==true and .merged==false and .mergeable==true and .base.sha=="cf841f3e5a8cf04c5df9875c499b91ad4e4289cb"' /tmp/p180
+          jq -e '.state=="open" and .draft==true and .merged==false and .mergeable==true and .head.sha=="cf841f3e5a8cf04c5df9875c499b91ad4e4289cb"' /tmp/p176
+          test "$(git status --porcelain)" = ""
+
+      - name: Verify immutable, recovery and execution Artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api repos/chrenguo-stack/HomeAssistant/actions/artifacts/8638796771 > /tmp/immutable-meta
+          jq -e '.id==8638796771 and .expired==false and .workflow_run.head_sha=="ac1d2a7a92323988c9cd946a3e018e4f1ba9463b"' /tmp/immutable-meta
+          gh api repos/chrenguo-stack/HomeAssistant/actions/artifacts/8638796771/zip > /tmp/immutable.zip
+          echo 'b8c7e937ff325d121aeff8414618e88b8a229cca00bc27e439c587f830851dc8  /tmp/immutable.zip' | sha256sum -c -
+
+          gh api repos/chrenguo-stack/HomeAssistant/actions/artifacts/8644594652 > /tmp/recovery-meta
+          jq -e '.id==8644594652 and .expired==false and .workflow_run.head_sha=="f26ceafcfddec9abc1f8b023451ebe0747f2442b"' /tmp/recovery-meta
+          gh api repos/chrenguo-stack/HomeAssistant/actions/artifacts/8644594652/zip > /tmp/recovery.zip
+          echo '3274a9329f46f420b65037efdf3cb9e453121ec7f74573430fb2afc8a7de882e  /tmp/recovery.zip' | sha256sum -c -
+
+          gh api repos/chrenguo-stack/HomeAssistant/actions/artifacts/8644968239 > /tmp/execution-meta
+          jq -e '.id==8644968239 and .expired==false and .workflow_run.head_sha=="623f2cddf7ed121952eb8644abe681aa11b5677b"' /tmp/execution-meta
+          gh api repos/chrenguo-stack/HomeAssistant/actions/artifacts/8644968239/zip > /tmp/execution.zip
+          echo 'd15928b1930b39871f16a67b768718466ffcd4ed2f4ad0eaefbc424c9a1ca33f  /tmp/execution.zip' | sha256sum -c -
+
+      - name: Verify reviewed source ancestry and exact change set
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=256 origin fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
+          git merge-base --is-ancestor 9da017e057d52aa302e68e20c2e63c1fa1df12b9 HEAD
+          cat > /tmp/expected-changed.unsorted <<'EOF'
+          .github/workflows/h3-n2-stage2d9r-successor-d2-execution-package-freeze-ci-v1.yml
+          .github/workflows/h3-n2-stage2d9r-successor-d2-review-ci-v1.yml
+          .github/workflows/h3-n2-stage2d9r-successor-private-execution-material-u1-review-package-ci.yml
+          .github/workflows/h3-n2-stage2d9r-successor-public-pki-export-success-probe-package-ci.yml
+          .github/workflows/h3-n2-stage2d9r-successor-public-pki-export-u1-review-package-ci.yml
+          .github/workflows/h3-n2-stage2d9r-successor-recovery-artifact-freeze-ci-v1.yml
+          docs/acceptance/h3-n2-stage2d9r-successor-d2-execution-package-l1-v1.json
+          docs/acceptance/h3-n2-stage2d9r-successor-locked-recovery-artifact-l1-v1.json
+          docs/development/h3-n2-stage2d9r-successor-d2-execution-package-contract-20260727-v1.md
+          tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_successor_test_partition_recovery_manifest_20260727_v1.json.template
+          tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_d2_execution_package_20260727_v1.py
+          tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_d2_readonly_preflight_20260727_v2.py
+          tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_d2_review_packager_20260727_v2.py
+          tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_recovery_artifact_pipeline_20260727_v1.py
+          tools/h3_n2_stage2d9r_successor_d2_execute_20260727_v1.py
+          tools/h3_n2_stage2d9r_successor_d2_execution_freeze_20260727_v1.py
+          tools/h3_n2_stage2d9r_successor_d2_execution_packager_20260727_v1.py
+          tools/h3_n2_stage2d9r_successor_d2_execution_packager_20260727_v2.py
+          tools/h3_n2_stage2d9r_successor_d2_readonly_preflight_20260727_v2.py
+          tools/h3_n2_stage2d9r_successor_d2_review_packager_20260727_v2.py
+          tools/h3_n2_stage2d9r_successor_recovery_artifact_freeze_20260727_v1.py
+          tools/h3_n2_stage2d9r_successor_recovery_artifact_packager_20260727_v1.py
+          tools/h3_n2_stage2d9r_successor_u1_public_closure_20260727_v1.py
+          EOF
+          sed 's/^          //' /tmp/expected-changed.unsorted | LC_ALL=C sort > /tmp/expected-changed
+          git diff --name-only 9da017e057d52aa302e68e20c2e63c1fa1df12b9..HEAD | LC_ALL=C sort > /tmp/actual-changed
+          diff -u /tmp/expected-changed /tmp/actual-changed
+          test "$(git status --porcelain)" = ""
+
+      - name: Verify exact acceptance records
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          recovery = json.loads(Path('docs/acceptance/h3-n2-stage2d9r-successor-locked-recovery-artifact-l1-v1.json').read_text())
+          execution = json.loads(Path('docs/acceptance/h3-n2-stage2d9r-successor-d2-execution-package-l1-v1.json').read_text())
+          assert recovery['canonical_artifact']['id'] == 8644594652
+          assert recovery['canonical_artifact']['github_digest_sha256'] == '3274a9329f46f420b65037efdf3cb9e453121ec7f74573430fb2afc8a7de882e'
+          assert recovery['canonical_artifact']['payload_tar_sha256'] == '50c4ff6569401b3c1cb20570ed149b0a5978fdc202c2aa33dff1b6ea1fe58d2e'
+          assert execution['canonical_artifact']['id'] == 8644968239
+          assert execution['canonical_artifact']['github_digest_sha256'] == 'd15928b1930b39871f16a67b768718466ffcd4ed2f4ad0eaefbc424c9a1ca33f'
+          assert execution['execution_bindings']['execution_package_sha256'] == 'd01aeb81b3c23b38061f17e3e32f807b0ceffd79c87cd79d9d47e24f42446112'
+          assert execution['execution_bindings']['execution_script_sha256'] == '1fa9428e940f65e98716f20a5ae78904c96db53e94bdfb0ee5da845894c6d3aa'
+          assert execution['execution_bindings']['execution_launcher_sha256'] == 'e084a1173d061bb414801bf9cf189c5a11db0590df9a562cd35551fef287cdd3'
+          assert execution['execution_bindings']['execution_marker_name_sha256'] == '034e7357d0e7cea177c20cc4ea257a72a9a1a9eb02318cef47f5d43ee32f5987'
+          assert all(value is False for value in recovery['protected_boundaries'].values())
+          assert all(value is False for value in execution['protected_boundaries'].values())
+          PY
+
+      - name: Run source contracts and assemble V2 review package
+        run: |
+          set -euo pipefail
+          export PYTHONPYCACHEPREFIX=/tmp/d2-pycache
+          for f in tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_*_20260727_v*.py; do
+            python "$f" -v
+          done
+          root=/tmp/stage2d9r-successor-d2-review-v2
+          PYTHONDONTWRITEBYTECODE=1 python tools/h3_n2_stage2d9r_successor_d2_review_packager_20260727_v2.py \
+            --output "$root" \
+            --source-sha "$SOURCE_SHA" \
+            --main-sha "$EXPECTED_MAIN_SHA"
+          launcher="$(find "$root" -maxdepth 1 -type f -name 'run_stage2d9r_successor_d2_review_integrity_probe_*.sh' -print -quit)"
+          test -n "$launcher"
+          "$launcher" | tee /tmp/integrity
+          grep -F 'state=D2_REVIEWED' /tmp/integrity
+          grep -F 'exact_authorization_request_included=false' /tmp/integrity
+          (cd "$root" && sha256sum -c SHA256SUMS)
+          test -z "$(find "$root" -type f -name '*.authorization.json' -print -quit)"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          root = Path('/tmp/stage2d9r-successor-d2-review-v2')
+          binding = json.loads((root / 'D2_REVIEW_BINDING.json').read_text())
+          artifact = json.loads((root / 'FROZEN_RECOVERY_AND_EXECUTION_BINDING.json').read_text())
+          assert binding['source_sha'] == os.environ['SOURCE_SHA']
+          assert binding['main_sha'] == os.environ['EXPECTED_MAIN_SHA']
+          assert binding['frozen_locked_recovery_bound'] is True
+          assert binding['frozen_execution_package_bound'] is True
+          assert binding['arbitrary_recovery_or_execution_digest_accepted'] is False
+          assert binding['execution_package_sha256'] == 'd01aeb81b3c23b38061f17e3e32f807b0ceffd79c87cd79d9d47e24f42446112'
+          assert binding['locked_recovery_package_sha256'] == '50c4ff6569401b3c1cb20570ed149b0a5978fdc202c2aa33dff1b6ea1fe58d2e'
+          assert artifact['execution_package']['artifact_id'] == 8644968239
+          assert artifact['locked_recovery']['artifact_id'] == 8644594652
+          for key in (
+              'exact_authorization_request_included', 'authorization_record_included',
+              'execution_launcher_included', 'private_content_included',
+              'private_paths_included', 'secret_values_included', 'board_operation',
+              'serial_operation', 'flash_operation', 'physical_nvs_operation',
+              'network_operation', 'broker_started', 'prepare_executed',
+              'verify_executed', 'activate_executed', 'cleanup_executed',
+              'production_operation',
+          ):
+              assert binding[key] is False, key
+          joined = b'\n'.join(path.read_bytes() for path in root.rglob('*') if path.is_file())
+          for token in (
+              b'BEGIN PRIVATE KEY', b'BEGIN RSA PRIVATE KEY', b'BEGIN EC PRIVATE KEY',
+              b'/Users/', b'/private/tmp/', b'"authorized": true',
+          ):
+              assert token not in joined, token
+          PY
+          rm -rf "$PYTHONPYCACHEPREFIX"
+
+      - name: Upload D2 review Artifact
+        id: review
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-successor-d2-review-v2
+          path: /tmp/stage2d9r-successor-d2-review-v2
+          if-no-files-found: error
+          retention-days: 5
+          compression-level: 0
+
+      - name: Assemble exact public preflight seed
+        env:
+          REVIEW_ID: ${{ steps.review.outputs.artifact-id }}
+          REVIEW_DIGEST: ${{ steps.review.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          out=/tmp/stage2d9r-successor-d2-public-preflight-v2
+          mkdir -m 700 "$out"
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          review_root = Path('/tmp/stage2d9r-successor-d2-review-v2')
+          out = Path('/tmp/stage2d9r-successor-d2-public-preflight-v2')
+          review = json.loads((review_root / 'D2_REVIEW_BINDING.json').read_text())
+          preflight_tool = Path('tools/h3_n2_stage2d9r_successor_d2_readonly_preflight_20260727_v2.py')
+          seed = {
+              'schema': 'gh.h3.n2.stage2d9r-successor-d2-public-preflight-seed/2',
+              'stage': 'H3/N2 Stage 2D-9R G3R successor',
+              'state': 'PUBLIC_PREFLIGHT_SEED_READY_EXACT_ARTIFACTS',
+              'repository': 'chrenguo-stack/HomeAssistant',
+              'pull_request': 180,
+              'base_pull_request': 176,
+              'main_sha': os.environ['EXPECTED_MAIN_SHA'],
+              'source_sha': os.environ['SOURCE_SHA'],
+              'review_artifact_id': int(os.environ['REVIEW_ID']),
+              'review_artifact_digest_sha256': os.environ['REVIEW_DIGEST'].removeprefix('sha256:'),
+              'review_binding_sha256': review['review_binding_sha256'],
+              'readonly_preflight_v2_sha256': hashlib.sha256(preflight_tool.read_bytes()).hexdigest(),
+              'immutable_artifact_id': 8638796771,
+              'immutable_artifact_archive_sha256': 'b8c7e937ff325d121aeff8414618e88b8a229cca00bc27e439c587f830851dc8',
+              'locked_recovery_artifact_id': 8644594652,
+              'locked_recovery_artifact_digest_sha256': '3274a9329f46f420b65037efdf3cb9e453121ec7f74573430fb2afc8a7de882e',
+              'locked_recovery_package_sha256': '50c4ff6569401b3c1cb20570ed149b0a5978fdc202c2aa33dff1b6ea1fe58d2e',
+              'execution_artifact_id': 8644968239,
+              'execution_artifact_digest_sha256': 'd15928b1930b39871f16a67b768718466ffcd4ed2f4ad0eaefbc424c9a1ca33f',
+              'execution_package_sha256': 'd01aeb81b3c23b38061f17e3e32f807b0ceffd79c87cd79d9d47e24f42446112',
+              'execution_script_sha256': '1fa9428e940f65e98716f20a5ae78904c96db53e94bdfb0ee5da845894c6d3aa',
+              'execution_launcher_sha256': 'e084a1173d061bb414801bf9cf189c5a11db0590df9a562cd35551fef287cdd3',
+              'execution_marker_name_sha256': '034e7357d0e7cea177c20cc4ea257a72a9a1a9eb02318cef47f5d43ee32f5987',
+              'u1_02_authorization_record_sha256': '88314a56bc5d7dd3e175278e2b01409cde611562f1bea11690adb9ff3f71f348',
+              'u1_02_result_sha256': '9ad24d630640ab485e055e7cb8f08c1320f19b6ca37d43e36303ce44d62d0b08',
+              'live_u1_02_consumed_marker_sha256_required': True,
+              'private_host_preflight_required': True,
+              'previously_frozen_board_identity_sha256_required': True,
+              'previously_frozen_serial_identity_sha256_required': True,
+              'previously_frozen_baseline_state_sha256_required': True,
+              'current_head_all_ci_success_recheck_required': True,
+              'arbitrary_recovery_or_execution_digest_accepted': False,
+              'exact_d2_authorization_request_generated': False,
+              'authorization_created': False,
+              'authorization_claimed': False,
+              'authorization_consumed': False,
+              'board_operation': False,
+              'serial_operation': False,
+              'flash_operation': False,
+              'physical_nvs_operation': False,
+              'network_operation': False,
+              'broker_started': False,
+              'prepare_executed': False,
+              'verify_executed': False,
+              'activate_executed': False,
+              'cleanup_executed': False,
+              'production_operation': False,
+              'private_paths_included': False,
+              'secret_values_included': False,
+          }
+          (out / 'PUBLIC_PREFLIGHT_SEED.json').write_text(
+              json.dumps(seed, indent=2, sort_keys=True) + '\n', encoding='utf-8'
+          )
+          (out / 'README.md').write_text(
+              '# Public read-only D2 preflight seed V2\n\n'
+              'This Artifact is not an authorization. It binds the reviewed source, '
+              'exact immutable/recovery/execution Artifacts and the V2 read-only '
+              'preflight implementation.\n', encoding='utf-8'
+          )
+          PY
+          (cd "$out" && sha256sum PUBLIC_PREFLIGHT_SEED.json README.md > SHA256SUMS)
+          chmod 0600 "$out"/*
+
+      - name: Upload public preflight Artifact
+        id: preflight
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-successor-d2-public-preflight-v2
+          path: /tmp/stage2d9r-successor-d2-public-preflight-v2
+          if-no-files-found: error
+          retention-days: 5
+          compression-level: 0
+
+      - name: Report safe V2 review boundary
+        run: |
+          printf '%s\n' \
+            'STAGE2D9R_SUCCESSOR_D2_REVIEW_V2=PASS' \
+            "SOURCE_SHA=$SOURCE_SHA" \
+            "REVIEW_ARTIFACT_ID=${{ steps.review.outputs.artifact-id }}" \
+            "REVIEW_ARTIFACT_DIGEST=${{ steps.review.outputs.artifact-digest }}" \
+            "PUBLIC_PREFLIGHT_ARTIFACT_ID=${{ steps.preflight.outputs.artifact-id }}" \
+            "PUBLIC_PREFLIGHT_ARTIFACT_DIGEST=${{ steps.preflight.outputs.artifact-digest }}" \
+            'EXACT_RECOVERY_ARTIFACT_BOUND=true' \
+            'EXACT_EXECUTION_ARTIFACT_BOUND=true' \
+            'ARBITRARY_DIGESTS_ACCEPTED=false' \
+            'EXACT_D2_AUTHORIZATION_REQUEST_GENERATED=false' \
+            'D2_AUTHORIZED=false' \
+            'PHYSICAL_EXECUTION_AUTHORIZED=false' \
+            'BOARD_OPERATION=false' \
+            'SERIAL_OPERATION=false' \
+            'FLASH_OPERATION=false' \
+            'BROKER_STARTED=false' \
+            'PREPARE_EXECUTED=false' \
+            'VERIFY_EXECUTED=false'
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf \
+            /tmp/stage2d9r-successor-d2-review-v2 \
+            /tmp/stage2d9r-successor-d2-public-preflight-v2 \
+            /tmp/d2-pycache /tmp/p180 /tmp/p176 \
+            /tmp/immutable-meta /tmp/immutable.zip \
+            /tmp/recovery-meta /tmp/recovery.zip \
+            /tmp/execution-meta /tmp/execution.zip \
+            /tmp/integrity /tmp/expected-changed /tmp/expected-changed.unsorted \
+            /tmp/actual-changed

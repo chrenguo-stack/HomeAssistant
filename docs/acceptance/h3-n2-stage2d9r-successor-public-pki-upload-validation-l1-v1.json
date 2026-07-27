@@ -1,0 +1,124 @@
+{
+  "archive_validation": {
+    "all_file_modes": "0600",
+    "all_timestamps": "1980-01-01T00:00:00",
+    "duplicate_names_present": false,
+    "entry_count": 6,
+    "exact_file_inventory": [
+      "SHA256SUMS",
+      "broker.cert.pem",
+      "broker.fullchain.pem",
+      "public-descriptor.redacted.json",
+      "public-pki-export-binding.json",
+      "root-ca.cert.pem"
+    ],
+    "internal_sha256sums_valid": true,
+    "unexpected_directories_present": false
+  },
+  "authorization_id": "U1-H3N2-STAGE2D9R-PUBLIC-PKI-EXPORT-20260725-01",
+  "authorization_record_sha256": "8b2fb72bc61a14d8618a03fd5c3c029253d3b05232de2fae06517fdf38c7c839",
+  "base_pull_request": 176,
+  "base_source_sha": "cf841f3e5a8cf04c5df9875c499b91ad4e4289cb",
+  "certificate_validation": {
+    "chain_valid": true,
+    "fullchain_exact_leaf_then_root": true,
+    "hostname": "stage2d9r.local",
+    "hostname_match": true,
+    "server_purpose_valid": true
+  },
+  "consumed_marker_sha256": "447c03b8f7de793c2e904d2fc35c34301366d7b3072faf5ff1940de7cc57b23c",
+  "descriptor_binding": {
+    "broker_host": "stage2d9r.local",
+    "broker_port": 8883,
+    "candidate_digest_sha256": "a0ff758217a1769c1876336c131cb85e64dcb2369758c649f36798cd8083aaf2",
+    "private_package_sha256": "7b585fc53b9201fd2c6161e544ac062d4223f509bfc86a10052d97907e4f55bb",
+    "run_suffix": "tlsvalid02",
+    "schema": "gh.h3.n2.stage2d9r-private-execution-material-successor-public/1",
+    "state": "SUCCESSOR_EXECUTION_MATERIAL_FROZEN"
+  },
+  "disposition": {
+    "d2_authorized": false,
+    "final_source_lock_ready": true,
+    "immutable_firmware_build_ready": false,
+    "next_gate": "FINAL_SOURCE_LOCK",
+    "physical_execution_authorized": false,
+    "public_certificate_repository_freeze_completed": true,
+    "upload_validation_completed": true
+  },
+  "input_source_sha": "3debf199e835ddad24f5da009dc71ffafe87a275",
+  "main_sha": "43aa37b0cc343efdd2024f369517e55c5b6461f1",
+  "protected_boundaries": {
+    "activate_executed": false,
+    "board_operation": false,
+    "broker_started": false,
+    "cleanup_executed": false,
+    "flash_operation": false,
+    "network_operation": false,
+    "physical_nvs_operation": false,
+    "prepare_executed": false,
+    "production_operation": false,
+    "ready_merge_release_authorized": false,
+    "serial_operation": false,
+    "verify_executed": false
+  },
+  "public_material_digests": {
+    "archive_sha256sums_sha256": "6fa6745918d399ced2d31a2c363bdc7ee40c5273fec28ca72d75a11137714719",
+    "broker_der_sha256": "4ca8731424c87ba61336f4bc4fb743137ed83c127ed1a214198b65e5b33b40f9",
+    "broker_fullchain_sha256": "0ad309c0048530287330b7edd8dd99da3f6816015355169b878116314863ff9a",
+    "broker_pem_sha256": "d862dfe123f8d9ce755bb65e556cc064404b4d37f6b760295c94129ae1815384",
+    "broker_spki_sha256": "0ae2d32c2ddfb7b4b63c9ee4049291d9725a42a55721b0e78d53fcf5c9e1f72e",
+    "public_descriptor_sha256": "7021279f141f00cbf7e64fe8a20e89dd8b8ef3b9c4c7625ec28b79f6d65db2b6",
+    "public_pki_export_binding_sha256": "0a38ef9648008cbd7a3966e5e558bb8a9b672f255fa6e390800508cd93555734",
+    "repository_sha256sums_sha256": "884a56b031846900ee914241c10a4af34b27129ce895f6606a2cae5e5ff23443",
+    "root_ca_der_sha256": "0b1592a0ee6d46206b3fcb81de4661d0d32bb1acac2da78c43d8a2e7a54c2f05",
+    "root_ca_pem_sha256": "9d98b4aa1d87604e8c37aaa50892bf4cd47b8b8a0479acdabe78d41d39b36096"
+  },
+  "pull_request": 180,
+  "redaction_boundary": {
+    "authorization_record_included": false,
+    "password_database_content_included": false,
+    "prepare_command_content_included": false,
+    "private_content_included": false,
+    "private_paths_included": false,
+    "raw_mqtt_password_included": false,
+    "raw_persistence_key_included": false,
+    "raw_private_keys_included": false,
+    "raw_unlock_token_included": false,
+    "secret_values_included": false,
+    "verify_command_content_included": false
+  },
+  "repository": "chrenguo-stack/HomeAssistant",
+  "repository_freeze": {
+    "archive_filename_mapping": {
+      "broker.cert.pem": "broker.cert.txt",
+      "broker.fullchain.pem": "broker.fullchain.txt",
+      "root-ca.cert.pem": "root-ca.cert.txt"
+    },
+    "authorization_record_committed": false,
+    "consumed_marker_committed": false,
+    "directory": "tests/h3_n2_stage2d9r_tls_candidate/public_pki_tlsvalid02",
+    "exact_archive_payload_files_committed": false,
+    "exact_public_file_bytes_committed": true,
+    "private_material_committed": false,
+    "public_material_only": true,
+    "repository_file_inventory": [
+      "SHA256SUMS",
+      "broker.cert.txt",
+      "broker.fullchain.txt",
+      "public-descriptor.redacted.json",
+      "public-pki-export-binding.json",
+      "root-ca.cert.txt"
+    ],
+    "repository_filename_policy": "PUBLIC_CERTIFICATES_STORED_AS_TXT_TO_SATISFY_PUBLIC_REPOSITORY_SAFETY"
+  },
+  "schema": "gh.h3.n2.stage2d9r-successor-public-pki-upload-validation-l1/1",
+  "stage": "H3/N2 Stage 2D-9R G3R successor",
+  "state": "PUBLIC_PKI_UPLOAD_VALIDATED_AND_REPOSITORY_FROZEN",
+  "uploaded_archive": {
+    "filename": "Stage2D9R_G3R_Successor_Public_PKI_Export_U1_01_20260725.zip",
+    "modified_or_repacked": false,
+    "sha256": "c54f134bc9f135881a74462aecfc561ce89739724cdfeca41ae54dbc735dec6b",
+    "size_bytes": 6390,
+    "source": "operator_supplied_original_fixed_output"
+  }
+}

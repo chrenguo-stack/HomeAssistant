@@ -1,0 +1,90 @@
+{
+  "schema": "gh.h3.n2.stage2d9r-successor-locked-recovery-artifact-acceptance-l1/1",
+  "stage": "H3/N2 Stage 2D-9R G3R successor",
+  "state": "SUCCESSOR_RECOVERY_ARTIFACT_REPRODUCIBLE_AND_FROZEN",
+  "repository": "chrenguo-stack/HomeAssistant",
+  "pull_request": 180,
+  "base_pull_request": 176,
+  "main_sha": "43aa37b0cc343efdd2024f369517e55c5b6461f1",
+  "source_sha": "f26ceafcfddec9abc1f8b023451ebe0747f2442b",
+  "workflow_run_id": 30244847576,
+  "canonical_artifact": {
+    "id": 8644594652,
+    "name": "stage2d9r-g3r-successor-recovery-freeze-v1",
+    "expired": false,
+    "github_digest_sha256": "3274a9329f46f420b65037efdf3cb9e453121ec7f74573430fb2afc8a7de882e",
+    "payload_tar_sha256": "50c4ff6569401b3c1cb20570ed149b0a5978fdc202c2aa33dff1b6ea1fe58d2e",
+    "descriptor_sha256": "912e7e2ec4f10cb81836e5a50df1dd5745eae2ba057bd51b1929671fb5872beb",
+    "freeze_manifest_file_sha256": "dc01dda5c6103e8c21ada3e7ae1e59ae9dceee39a18a0ba7fb33237e16c67c37"
+  },
+  "independent_builds": {
+    "clean_build_count": 2,
+    "payloads_byte_identical": true,
+    "build_a_artifact_id": 8644588935,
+    "build_a_github_digest_sha256": "c5656ab9cc1720a61a70ec4f81b97675ae6190a3fd345def78a1bb8cc955affd",
+    "build_b_artifact_id": 8644589769,
+    "build_b_github_digest_sha256": "79e831da62bfb87372f235ce564674f20d674f2bc020d6c2712aebf9be39dac2"
+  },
+  "recovery_partition": {
+    "label": "gh2d8_p2d9",
+    "namespace": "gh2d8_s2d9",
+    "address": 4194304,
+    "size_bytes": 65536,
+    "erased_byte": 255,
+    "erased_image_sha256": "71189f7fb6aed638640078fba3a35fda6c39c8962e74dcc75935aac948da9063",
+    "partition_table_sha256": "5afa0f77d5d815f00b14afbcc3b974037c5ba10c9bdcdcffa196b55e403b5cd8",
+    "partition_table_bin_sha256": "b3964cbbd811d5fa5866638585fa410b53fc74e70a8f92491f43fce0b7a70268"
+  },
+  "immutable_firmware_binding": {
+    "artifact_id": 8638796771,
+    "artifact_archive_sha256": "b8c7e937ff325d121aeff8414618e88b8a229cca00bc27e439c587f830851dc8",
+    "payload_tar_sha256": "14e882f550ca92d14cf6776e518eb083b7344683b5534487bd28e95d93b29747",
+    "application_sha256": "a75e440c90aa5f050ac55086d1f1c614f113a7b66bd31ffc748fee95b9d26e1b",
+    "merged_image_sha256": "925ae87831a259d5a477fba9dde009b4d6a218e43735638521d4a10a38fe95bf",
+    "build_binding": "742f663333837366a42da92b984a3b05c643f571"
+  },
+  "candidate_bindings": {
+    "unlock_digest_sha256": "727db669e17634b6d66fc1d8bd4f4d9e4e4e196401806c9b56c7eed6b8a7d9e9",
+    "ca_pem_sha256": "9d98b4aa1d87604e8c37aaa50892bf4cd47b8b8a0479acdabe78d41d39b36096",
+    "candidate_digest_sha256": "a0ff758217a1769c1876336c131cb85e64dcb2369758c649f36798cd8083aaf2",
+    "broker_certificate_der_sha256": "4ca8731424c87ba61336f4bc4fb743137ed83c127ed1a214198b65e5b33b40f9",
+    "broker_spki_sha256": "0ae2d32c2ddfb7b4b63c9ee4049291d9725a42a55721b0e78d53fcf5c9e1f72e"
+  },
+  "protected_boundaries": {
+    "private_values_included": false,
+    "private_paths_included": false,
+    "secret_values_included": false,
+    "authorization_created": false,
+    "authorization_claimed": false,
+    "authorization_consumed": false,
+    "execution_authorized": false,
+    "recovery_authorized": false,
+    "board_operation_authorized": false,
+    "serial_operation_authorized": false,
+    "flash_operation_authorized": false,
+    "physical_nvs_operation_authorized": false,
+    "network_operation_authorized": false,
+    "broker_operation_authorized": false,
+    "firmware_flash_authorized": false,
+    "prepare_authorized": false,
+    "verify_authorized": false,
+    "activate_authorized": false,
+    "cleanup_authorized": false,
+    "efuse_operation_authorized": false,
+    "secure_boot_change_authorized": false,
+    "flash_encryption_change_authorized": false,
+    "production_operation_authorized": false,
+    "ready_authorized": false,
+    "merge_authorized": false,
+    "release_authorized": false,
+    "tag_authorized": false,
+    "deployment_authorized": false
+  },
+  "disposition": {
+    "recovery_artifact_accepted": true,
+    "canonical_artifact_frozen": true,
+    "d2_authorized": false,
+    "physical_execution_authorized": false,
+    "next_gate": "SUCCESSOR_D2_EXECUTION_PACKAGE_SOURCE_AND_ARTIFACT_FREEZE"
+  }
+}

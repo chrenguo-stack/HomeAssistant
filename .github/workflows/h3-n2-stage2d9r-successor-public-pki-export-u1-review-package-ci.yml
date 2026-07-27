@@ -1,0 +1,135 @@
+name: H3 N2 Stage2D9R Successor Public PKI Export Retired Closure CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-successor-public-pki-export-u1-review-package-ci.yml"
+      - "docs/acceptance/h3-n2-stage2d9r-successor-public-pki-export-u1-01-success-l1-v1.json"
+      - "docs/acceptance/h3-n2-stage2d9r-successor-public-pki-upload-validation-l1-v1.json"
+      - "docs/acceptance/h3-n2-stage2d9r-successor-final-source-lock-l1-v1.json"
+      - "tests/h3_n2_stage2d9r_tls_candidate/public_pki_tlsvalid02/**"
+  push:
+    branches:
+      - fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-successor-public-pki-export-u1-review-package-ci.yml"
+      - "docs/acceptance/h3-n2-stage2d9r-successor-public-pki-export-u1-01-success-l1-v1.json"
+      - "docs/acceptance/h3-n2-stage2d9r-successor-public-pki-upload-validation-l1-v1.json"
+      - "docs/acceptance/h3-n2-stage2d9r-successor-final-source-lock-l1-v1.json"
+      - "tests/h3_n2_stage2d9r_tls_candidate/public_pki_tlsvalid02/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  retired-closure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          show-progress: false
+
+      - name: Verify branch, current main, and frozen ancestry
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+        run: |
+          set -euo pipefail
+          test "$HEAD_BRANCH" = fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test "$(git ls-remote origin refs/heads/main | awk '{print $1}')" = 43aa37b0cc343efdd2024f369517e55c5b6461f1
+          gh api "repos/chrenguo-stack/HomeAssistant/compare/d6a2304ef1b9b229ed515f2fdc00e0146888b7d7...$SOURCE_SHA" > /tmp/ancestry.json
+          jq -e '.status=="ahead" or .status=="identical"' /tmp/ancestry.json
+          jq -e '.merge_base_commit.sha=="d6a2304ef1b9b229ed515f2fdc00e0146888b7d7"' /tmp/ancestry.json
+          test "$(git status --porcelain)" = ""
+
+      - name: Verify consumed export, upload validation, and source lock
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('docs/acceptance')
+          export = json.loads((root / 'h3-n2-stage2d9r-successor-public-pki-export-u1-01-success-l1-v1.json').read_text())
+          upload = json.loads((root / 'h3-n2-stage2d9r-successor-public-pki-upload-validation-l1-v1.json').read_text())
+          lock = json.loads((root / 'h3-n2-stage2d9r-successor-final-source-lock-l1-v1.json').read_text())
+
+          assert export['schema'] == 'gh.h3.n2.stage2d9r-successor-public-pki-export-u1-success-l1/1'
+          assert export['authorization_id'] == 'U1-H3N2-STAGE2D9R-PUBLIC-PKI-EXPORT-20260725-01'
+          assert export['result'] == 'consumed_passed_retired'
+          assert export['status'] == 'CONSUMED'
+          assert export['one_shot'] is True
+          assert export['replay_permitted'] is False
+          assert export['automatic_retry_permitted'] is False
+          assert export['export_result']['status'] == 'PASS'
+          assert export['export_result']['export_zip_sha256'] == 'c54f134bc9f135881a74462aecfc561ce89739724cdfeca41ae54dbc735dec6b'
+          assert export['export_result']['export_binding_sha256'] == '0a38ef9648008cbd7a3966e5e558bb8a9b672f255fa6e390800508cd93555734'
+          assert export['closure_probe']['status'] == 'PASS'
+          assert export['disposition']['public_pki_export_u1_01_retired'] is True
+          assert export['disposition']['public_pki_export_u1_01_replay_authorized'] is False
+
+          assert upload['schema'] == 'gh.h3.n2.stage2d9r-successor-public-pki-upload-validation-l1/1'
+          assert upload['state'] == 'PUBLIC_PKI_UPLOAD_VALIDATED_AND_REPOSITORY_FROZEN'
+          assert upload['uploaded_archive']['sha256'] == export['export_result']['export_zip_sha256']
+          assert upload['uploaded_archive']['modified_or_repacked'] is False
+          assert upload['archive_validation']['entry_count'] == 6
+          assert upload['archive_validation']['internal_sha256sums_valid'] is True
+          assert upload['certificate_validation']['chain_valid'] is True
+          assert upload['certificate_validation']['hostname_match'] is True
+          assert upload['disposition']['upload_validation_completed'] is True
+          assert upload['disposition']['public_certificate_repository_freeze_completed'] is True
+
+          assert lock['schema'] == 'gh.h3.n2.stage2d9r-successor-final-source-lock-l1/1'
+          assert lock['state'] == 'FINAL_SOURCE_LOCKED'
+          assert lock['build_binding'] == '742f663333837366a42da92b984a3b05c643f571'
+          assert lock['public_pki_upload_archive_sha256'] == export['export_result']['export_zip_sha256']
+          assert lock['candidate_digest_sha256'] == 'a0ff758217a1769c1876336c131cb85e64dcb2369758c649f36798cd8083aaf2'
+          assert lock['compile_validation']['compile_success'] is True
+
+          for section in (export['redaction_boundary'], export['protected_boundaries'], upload['redaction_boundary'], upload['protected_boundaries'], lock['protected_boundaries']):
+              for key, value in section.items():
+                  if key.endswith(('included', 'operation', 'executed', 'authorized')) or key in {
+                      'private_content_included', 'private_paths_included', 'secret_values_included',
+                      'board_operation', 'serial_operation', 'flash_operation', 'physical_nvs_operation',
+                      'network_operation', 'broker_started', 'prepare_executed', 'verify_executed',
+                      'activate_executed', 'cleanup_executed', 'production_operation',
+                      'ready_merge_release_authorized',
+                  }:
+                      assert value is False, key
+          PY
+          test -z "$(find . -type d -name __pycache__ -print -quit)"
+          test -z "$(find . -type f \( -name '*.pyc' -o -name '*.pyo' \) -print -quit)"
+
+      - name: Report retired one-shot boundary
+        run: |
+          printf '%s\n' \
+            'STAGE2D9R_SUCCESSOR_PUBLIC_PKI_EXPORT_RETIRED_CLOSURE=PASS' \
+            'AUTHORIZATION_STATUS=CONSUMED' \
+            'REPLAY_PERMITTED=false' \
+            'UPLOAD_VALIDATED=true' \
+            'PUBLIC_REPOSITORY_FROZEN=true' \
+            'FINAL_SOURCE_LOCKED=true' \
+            'AUTHORIZATION_CREATED=false' \
+            'AUTHORIZATION_CLAIMED=false' \
+            'PRIVATE_CONTENT_READ=false' \
+            'BOARD_OPERATION=false' \
+            'SERIAL_OPERATION=false' \
+            'FLASH_OPERATION=false' \
+            'PHYSICAL_NVS_OPERATION=false' \
+            'NETWORK_OPERATION=false' \
+            'BROKER_STARTED=false' \
+            'PREPARE_EXECUTED=false' \
+            'VERIFY_EXECUTED=false'
+
+      - name: Cleanup
+        if: always()
+        run: rm -f /tmp/ancestry.json

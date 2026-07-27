@@ -1,0 +1,106 @@
+{
+  "base_pull_request": 176,
+  "base_source_sha": "cf841f3e5a8cf04c5df9875c499b91ad4e4289cb",
+  "build_binding": "742f663333837366a42da92b984a3b05c643f571",
+  "build_binding_sha256_full": "742f663333837366a42da92b984a3b05c643f571fcdd50c7036bbbac585101bc",
+  "candidate_bindings": {
+    "broker_certificate_der_sha256": "4ca8731424c87ba61336f4bc4fb743137ed83c127ed1a214198b65e5b33b40f9",
+    "broker_spki_sha256": "0ae2d32c2ddfb7b4b63c9ee4049291d9725a42a55721b0e78d53fcf5c9e1f72e",
+    "ca_pem_sha256": "9d98b4aa1d87604e8c37aaa50892bf4cd47b8b8a0479acdabe78d41d39b36096",
+    "candidate_digest_sha256": "a0ff758217a1769c1876336c131cb85e64dcb2369758c649f36798cd8083aaf2",
+    "unlock_digest_sha256": "727db669e17634b6d66fc1d8bd4f4d9e4e4e196401806c9b56c7eed6b8a7d9e9"
+  },
+  "canonical_artifact": {
+    "artifact_id": 8638796771,
+    "expired": false,
+    "github_digest_sha256": "b8c7e937ff325d121aeff8414618e88b8a229cca00bc27e439c587f830851dc8",
+    "head_sha": "ac1d2a7a92323988c9cd946a3e018e4f1ba9463b",
+    "name": "stage2d9r-g3r-successor-immutable-locked-v1",
+    "payload_tar_sha256": "14e882f550ca92d14cf6776e518eb083b7344683b5534487bd28e95d93b29747"
+  },
+  "compile": {
+    "all_firmware_hashes_identical": true,
+    "all_manifest_hashes_identical": true,
+    "all_payload_bytes_identical": true,
+    "compile_workflow_sha256": "52f403404ae1069f3245c6c20a71118c58ce7dc3446a24ea17e296c2c0f86647",
+    "esphome_version": "2026.4.3",
+    "python_environment_sha256": "2c0ae1bd80f3df921d2ad92889d390299881960dc1536c8b559a3a07e72d81b1",
+    "run_ids": [
+      30226719405,
+      30226719438
+    ],
+    "source_date_epoch": 1785110400,
+    "two_independent_runs": true
+  },
+  "disposition": {
+    "canonical_artifact_frozen": true,
+    "d2_authorized": false,
+    "immutable_build_accepted": true,
+    "next_gate": "HOST_ARTIFACT_PRIVATE_CUSTODY_PREAUTH_PROBE",
+    "physical_execution_authorized": false,
+    "reproducibility_confirmed": true
+  },
+  "firmware": {
+    "application_sha256": "a75e440c90aa5f050ac55086d1f1c614f113a7b66bd31ffc748fee95b9d26e1b",
+    "bootloader_sha256": "c7cd7c7f49e4a5bb3dc510d64b40eb92ff5b252ee81f3c0ed36eab02b17a5439",
+    "merged_image_sha256": "925ae87831a259d5a477fba9dde009b4d6a218e43735638521d4a10a38fe95bf",
+    "merged_image_size": 574032,
+    "partition_table_bin_sha256": "b3964cbbd811d5fa5866638585fa410b53fc74e70a8f92491f43fce0b7a70268",
+    "payload_tar_sha256": "14e882f550ca92d14cf6776e518eb083b7344683b5534487bd28e95d93b29747"
+  },
+  "freeze_evidence": {
+    "artifact_id": 8638801574,
+    "expired": false,
+    "github_digest_sha256": "641aac8443dfc229506de613a21e17ecbc55875c59ff92519689354d9bc3017c",
+    "internal_sha256sums_valid": true,
+    "manifest_canonical_sha256": "06a1b76bca317bebad9cc8f3e6900312bbc8a21f74ee84f4b1705a133d61fabc",
+    "manifest_file_sha256": "310d55997353f3f9d2545241fe24ccc3be42c60fa9e128f2644d5212ff6f5f8d",
+    "name": "stage2d9r-g3r-successor-immutable-freeze-evidence-v1",
+    "workflow_run_id": 30226721050,
+    "zip_sha256": "641aac8443dfc229506de613a21e17ecbc55875c59ff92519689354d9bc3017c"
+  },
+  "independent_validation": {
+    "build_record_differences_limited_to_lane_artifact_and_run_id": true,
+    "exact_freeze_inventory": true,
+    "forbidden_private_markers_present": false,
+    "freeze_file_modes_0600": true,
+    "manifest_digest_valid": true,
+    "payload_internal_sha256sums_valid": true,
+    "payload_tar_metadata_deterministic": true
+  },
+  "main_sha": "43aa37b0cc343efdd2024f369517e55c5b6461f1",
+  "protected_boundaries": {
+    "activate_authorized": false,
+    "board_operation_authorized": false,
+    "broker_operation_authorized": false,
+    "cleanup_authorized": false,
+    "execution_authorized": false,
+    "flash_operation_authorized": false,
+    "merge_authorized": false,
+    "network_operation_authorized": false,
+    "physical_nvs_operation_authorized": false,
+    "prepare_authorized": false,
+    "private_paths_included": false,
+    "private_values_included": false,
+    "production_operation_authorized": false,
+    "ready_authorized": false,
+    "release_authorized": false,
+    "secret_values_included": false,
+    "serial_operation_authorized": false,
+    "verify_authorized": false
+  },
+  "pull_request": 180,
+  "repository": "chrenguo-stack/HomeAssistant",
+  "repro_artifact": {
+    "artifact_id": 8638799431,
+    "expired": false,
+    "github_digest_sha256": "3e154dcb27c86bc2ddbc0bcca840122b9432075eb98eb7bca573100f040fb9da",
+    "head_sha": "ac1d2a7a92323988c9cd946a3e018e4f1ba9463b",
+    "name": "stage2d9r-g3r-successor-immutable-repro-v1",
+    "payload_tar_sha256": "14e882f550ca92d14cf6776e518eb083b7344683b5534487bd28e95d93b29747"
+  },
+  "schema": "gh.h3.n2.stage2d9r-successor-immutable-build-acceptance-l1/1",
+  "source_sha": "ac1d2a7a92323988c9cd946a3e018e4f1ba9463b",
+  "stage": "H3/N2 Stage 2D-9R G3R successor",
+  "state": "IMMUTABLE_BUILD_REPRODUCIBLE_AND_FROZEN"
+}

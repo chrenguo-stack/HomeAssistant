@@ -1,0 +1,181 @@
+name: H3 N2 Stage2D9R Successor Recovery Artifact Freeze CI V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-successor-recovery-artifact-freeze-ci-v1.yml"
+      - "tools/h3_n2_stage2d9r_successor_recovery_artifact_*_20260727_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_recovery_artifact_pipeline_20260727_v1.py"
+      - "docs/acceptance/h3-n2-stage2d9r-successor-immutable-build-l1-v1.json"
+      - "docs/development/h3-n2-stage2d9r-test-partition-recovery-contract-20260723-v1.md"
+      - "tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_successor_test_partition_recovery_manifest_20260727_v1.json.template"
+      - "tools/h3_n2_stage2d9r_test_partition_recovery_gate_20260723_v1.py"
+  push:
+    branches:
+      - fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-successor-recovery-artifact-freeze-ci-v1.yml"
+      - "tools/h3_n2_stage2d9r_successor_recovery_artifact_*_20260727_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_recovery_artifact_pipeline_20260727_v1.py"
+      - "docs/acceptance/h3-n2-stage2d9r-successor-immutable-build-l1-v1.json"
+      - "docs/development/h3-n2-stage2d9r-test-partition-recovery-contract-20260723-v1.md"
+      - "tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_successor_test_partition_recovery_manifest_20260727_v1.json.template"
+      - "tools/h3_n2_stage2d9r_test_partition_recovery_gate_20260723_v1.py"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  source-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run source-only recovery pipeline tests
+        run: |
+          set -euo pipefail
+          export PYTHONPYCACHEPREFIX=/tmp/stage2d9r-successor-recovery-pycache
+          python -m py_compile \
+            tools/h3_n2_stage2d9r_successor_recovery_artifact_packager_20260727_v1.py \
+            tools/h3_n2_stage2d9r_successor_recovery_artifact_freeze_20260727_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_recovery_artifact_pipeline_20260727_v1.py
+          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_recovery_artifact_pipeline_20260727_v1.py -v
+          rm -rf "$PYTHONPYCACHEPREFIX"
+
+  build:
+    needs: source-tests
+    strategy:
+      fail-fast: true
+      matrix:
+        lane: [a, b]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Build independent deterministic recovery payload
+        env:
+          LANE: ${{ matrix.lane }}
+        run: |
+          set -euo pipefail
+          case "$LANE" in
+            a) lane_number=1 ;;
+            b) lane_number=2 ;;
+            *) exit 2 ;;
+          esac
+          build_instance_id=$((GITHUB_RUN_ID * 10 + lane_number))
+          out="/tmp/stage2d9r-successor-recovery-build-${LANE}-v1"
+          python tools/h3_n2_stage2d9r_successor_recovery_artifact_packager_20260727_v1.py \
+            --immutable-acceptance docs/acceptance/h3-n2-stage2d9r-successor-immutable-build-l1-v1.json \
+            --recovery-template tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_successor_test_partition_recovery_manifest_20260727_v1.json.template \
+            --recovery-contract docs/development/h3-n2-stage2d9r-test-partition-recovery-contract-20260723-v1.md \
+            --recovery-gate tools/h3_n2_stage2d9r_test_partition_recovery_gate_20260723_v1.py \
+            --output-dir "$out" \
+            --source-sha "$SOURCE_SHA" \
+            --lane "$LANE" \
+            --artifact-name "stage2d9r-g3r-successor-recovery-build-${LANE}-v1" \
+            --run-id "$build_instance_id"
+          test -f "$out/stage2d9r-g3r-successor-recovery-payload-v1.tar"
+          grep -F "$SOURCE_SHA" "$out/build-record.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-g3r-successor-recovery-build-${{ matrix.lane }}-v1
+          path: /tmp/stage2d9r-successor-recovery-build-${{ matrix.lane }}-v1
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+  freeze:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/download-artifact@v4
+        with:
+          name: stage2d9r-g3r-successor-recovery-build-a-v1
+          path: /tmp/build-a
+      - uses: actions/download-artifact@v4
+        with:
+          name: stage2d9r-g3r-successor-recovery-build-b-v1
+          path: /tmp/build-b
+      - name: Compare independent builds and freeze canonical package
+        run: |
+          set -euo pipefail
+          out=/tmp/stage2d9r-g3r-successor-recovery-freeze-v1
+          python tools/h3_n2_stage2d9r_successor_recovery_artifact_freeze_20260727_v1.py \
+            --build-a /tmp/build-a \
+            --build-b /tmp/build-b \
+            --output-dir "$out" \
+            --source-sha "$SOURCE_SHA"
+          (cd "$out" && sha256sum -c SHA256SUMS)
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path('/tmp/stage2d9r-g3r-successor-recovery-freeze-v1')
+          value = json.loads((root / 'freeze-manifest.json').read_text())
+          assert value['state'] == 'SUCCESSOR_RECOVERY_ARTIFACT_REPRODUCIBLE_AND_FROZEN'
+          assert value['clean_build_count'] == 2
+          assert value['payloads_byte_identical'] is True
+          for key in (
+              'private_values_included', 'private_paths_included',
+              'secret_values_included', 'authorization_created',
+              'execution_authorized', 'recovery_authorized',
+              'board_operation_authorized', 'serial_operation_authorized',
+              'flash_operation_authorized', 'physical_nvs_operation_authorized',
+              'network_operation_authorized', 'broker_operation_authorized',
+              'prepare_authorized', 'verify_authorized', 'activate_authorized',
+              'cleanup_authorized', 'production_operation_authorized',
+          ):
+              assert value[key] is False, key
+          PY
+      - name: Upload frozen successor recovery Artifact
+        id: recovery
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-g3r-successor-recovery-freeze-v1
+          path: /tmp/stage2d9r-g3r-successor-recovery-freeze-v1
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+      - name: Report safe recovery freeze boundary
+        run: |
+          printf '%s\n' \
+            'STAGE2D9R_SUCCESSOR_RECOVERY_FREEZE=PASS' \
+            "SOURCE_SHA=$SOURCE_SHA" \
+            "RECOVERY_ARTIFACT_ID=${{ steps.recovery.outputs.artifact-id }}" \
+            "RECOVERY_ARTIFACT_DIGEST=${{ steps.recovery.outputs.artifact-digest }}" \
+            'D2_AUTHORIZED=false' \
+            'RECOVERY_AUTHORIZED=false' \
+            'BOARD_OPERATION=false' \
+            'SERIAL_OPERATION=false' \
+            'FLASH_OPERATION=false' \
+            'PREPARE_EXECUTED=false' \
+            'VERIFY_EXECUTED=false'

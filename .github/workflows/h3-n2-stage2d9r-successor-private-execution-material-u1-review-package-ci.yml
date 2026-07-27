@@ -1,0 +1,130 @@
+name: H3 N2 Stage2D9R Successor Private Execution Material U1 Review Package CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-successor-private-execution-material-u1-review-package-ci.yml"
+      - "tools/h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py"
+      - "tools/h3_n2_stage2d9r_private_execution_material_successor_generator_20260725_v1.py"
+      - "tools/h3_n2_stage2d9r_prepare_command_protocol_20260723_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_execution_material_successor_generator_20260725_v1.py"
+      - "docs/acceptance/h3-n2-stage2d9r-successor-private-execution-material-u1-01-success-l1-v1.json"
+  push:
+    branches:
+      - fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-successor-private-execution-material-u1-review-package-ci.yml"
+      - "tools/h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py"
+      - "tools/h3_n2_stage2d9r_private_execution_material_successor_generator_20260725_v1.py"
+      - "tools/h3_n2_stage2d9r_prepare_command_protocol_20260723_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_execution_material_successor_generator_20260725_v1.py"
+      - "docs/acceptance/h3-n2-stage2d9r-successor-private-execution-material-u1-01-success-l1-v1.json"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  consumed-u1-history:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Verify branch and frozen authorized source ancestry
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+        run: |
+          set -euo pipefail
+          test "$HEAD_BRANCH" = fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          git fetch --no-tags --depth=256 origin "$HEAD_BRANCH"
+          git merge-base --is-ancestor 0cd9eeb5fd567d47a29bddee83159ac9570aa3dd HEAD
+          test "$(git status --porcelain)" = ""
+
+      - name: Verify frozen toolchain sources
+        run: |
+          set -euo pipefail
+          sha256sum -c <<'SUMS'
+          38f7609030fcbeb33b2000bc3db0af3179dac0ed993484f2b22d0990f7720abd  tools/h3_n2_stage2d9r_private_execution_material_successor_generator_20260725_v1.py
+          95c33d9d1cbb051e23621264a51c1b77bf674c0d403e2e813d1936ab9f9dbfb0  tools/h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py
+          2520c292151b240827083272673df82441fd68b4e022ab0320311866d2bd4f18  tools/h3_n2_stage2d9r_prepare_command_protocol_20260723_v1.py
+          SUMS
+
+      - name: Verify consumed success record
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path('docs/acceptance/h3-n2-stage2d9r-successor-private-execution-material-u1-01-success-l1-v1.json')
+          record = json.loads(path.read_text(encoding='utf-8'))
+          assert record['schema'] == 'gh.h3.n2.stage2d9r-successor-private-execution-material-u1-success-l1/1'
+          assert record['authorization_id'] == 'U1-H3N2-STAGE2D9R-PRIVATE-EXECUTION-MATERIAL-20260725-01'
+          assert record['authorized_source_sha'] == '0cd9eeb5fd567d47a29bddee83159ac9570aa3dd'
+          assert record['result'] == 'consumed_passed_retired'
+          assert record['status'] == 'CONSUMED'
+          assert record['failure_code'] is None
+          assert record['one_shot'] is True
+          assert record['replay_permitted'] is False
+          assert record['automatic_retry_permitted'] is False
+          result = record['generation_result']
+          assert result['status'] == 'PASS'
+          assert result['private_package_sha256'] == '7b585fc53b9201fd2c6161e544ac062d4223f509bfc86a10052d97907e4f55bb'
+          assert result['public_descriptor_sha256'] == '7021279f141f00cbf7e64fe8a20e89dd8b8ef3b9c4c7625ec28b79f6d65db2b6'
+          assert result['candidate_digest_sha256'] == 'a0ff758217a1769c1876336c131cb85e64dcb2369758c649f36798cd8083aaf2'
+          for flag in record['redaction_boundary'].values():
+              assert flag is False
+          for key, flag in record['protected_boundaries'].items():
+              assert flag is False, key
+          assert record['disposition']['u1_01_retired'] is True
+          assert record['disposition']['u1_01_replay_authorized'] is False
+          PY
+
+      - name: Re-run immutable source-only contracts
+        run: |
+          set -euo pipefail
+          export PYTHONPYCACHEPREFIX=/tmp/stage2d9r-successor-u1-history-pycache
+          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_execution_material_successor_contract_20260725_v1.py -v \
+            2>&1 | tee /tmp/stage2d9r-successor-u1-history-contract.log
+          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_execution_material_successor_generator_20260725_v1.py -v \
+            2>&1 | tee /tmp/stage2d9r-successor-u1-history-generator.log
+          grep -F 'Ran 8 tests' /tmp/stage2d9r-successor-u1-history-contract.log
+          grep -F 'Ran 9 tests' /tmp/stage2d9r-successor-u1-history-generator.log
+          grep -F 'OK' /tmp/stage2d9r-successor-u1-history-contract.log
+          grep -F 'OK' /tmp/stage2d9r-successor-u1-history-generator.log
+          rm -rf "$PYTHONPYCACHEPREFIX"
+
+      - name: Report permanently retired boundary
+        run: |
+          printf '%s\n' \
+            'STAGE2D9R_SUCCESSOR_PRIVATE_EXECUTION_MATERIAL_U1_HISTORY=PASS' \
+            'AUTHORIZATION_STATUS=CONSUMED' \
+            'REPLAY_PERMITTED=false' \
+            'AUTOMATIC_RETRY_PERMITTED=false' \
+            'NEW_AUTHORIZATION_CREATED=false' \
+            'PRIVATE_CONTENT_READ=false' \
+            'BOARD_OPERATION=false' \
+            'SERIAL_OPERATION=false' \
+            'FLASH_OPERATION=false' \
+            'NETWORK_OPERATION=false' \
+            'BROKER_STARTED=false' \
+            'PREPARE_EXECUTED=false' \
+            'VERIFY_EXECUTED=false'
+
+      - name: Cleanup
+        if: always()
+        run: rm -rf /tmp/stage2d9r-successor-u1-history-pycache /tmp/stage2d9r-successor-u1-history-contract.log /tmp/stage2d9r-successor-u1-history-generator.log

@@ -1,0 +1,187 @@
+name: H3 N2 Stage2D9R Successor Immutable Build Freeze
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-successor-immutable-build-a.yml"
+      - ".github/workflows/h3-n2-stage2d9r-successor-immutable-build-b.yml"
+      - ".github/workflows/h3-n2-stage2d9r-successor-immutable-build-reusable.yml"
+      - ".github/workflows/h3-n2-stage2d9r-successor-immutable-build-freeze.yml"
+      - "tools/h3_n2_stage2d9r_successor_immutable_build_packager_20260727_v1.py"
+      - "tools/h3_n2_stage2d9r_successor_immutable_build_freeze_20260727_v1.py"
+      - "tools/h3_n2_stage2d9r_successor_immutable_build_manifest_gate_20260727_v1.py"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor/**"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/greenhouse_profile_isolated_device_g3r_successor_immutable_20260727_v1.yml"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3_prepare/stage2d9_g3_partitions_20260722_v65.csv"
+      - "tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_successor_final_build_binding_20260727_v1.json"
+      - "tests/h3_n2_stage2d9r_tls_candidate/public_successor_tlsvalid02/public-descriptor.redacted.json"
+      - "tests/h3_n2_stage2d9r_tls_candidate/public_pki_tlsvalid02/**"
+      - "docs/acceptance/h3-n2-stage2d9r-successor-final-source-lock-l1-v1.json"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  freeze:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 58
+    env:
+      REVIEW_SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+      IMMUTABLE_SOURCE_SHA: ac1d2a7a92323988c9cd946a3e018e4f1ba9463b
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Verify successor freeze inputs and canonical source equivalence
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$REVIEW_SOURCE_SHA"
+          git merge-base --is-ancestor "$IMMUTABLE_SOURCE_SHA" HEAD
+          test -z "$(git diff --name-only "$IMMUTABLE_SOURCE_SHA" HEAD -- \
+            .github/workflows/h3-n2-stage2d9r-successor-immutable-build-a.yml \
+            .github/workflows/h3-n2-stage2d9r-successor-immutable-build-b.yml \
+            .github/workflows/h3-n2-stage2d9r-successor-immutable-build-reusable.yml \
+            tools/h3_n2_stage2d9r_successor_immutable_build_packager_20260727_v1.py \
+            tools/h3_n2_stage2d9r_successor_immutable_build_freeze_20260727_v1.py \
+            tools/h3_n2_stage2d9r_successor_immutable_build_manifest_gate_20260727_v1.py \
+            firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor \
+            firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/greenhouse_profile_isolated_device_g3r_successor_immutable_20260727_v1.yml \
+            firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3_prepare/stage2d9_g3_partitions_20260722_v65.csv \
+            tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_successor_final_build_binding_20260727_v1.json \
+            tests/h3_n2_stage2d9r_tls_candidate/public_successor_tlsvalid02/public-descriptor.redacted.json \
+            tests/h3_n2_stage2d9r_tls_candidate/public_pki_tlsvalid02 \
+            docs/acceptance/h3-n2-stage2d9r-successor-final-source-lock-l1-v1.json)"
+          sha256sum -c <<'SUMS'
+          f18e1c51939316410963694246e73aec21da5886e73ad18f2449a5e922346d30  tools/h3_n2_stage2d9r_successor_immutable_build_packager_20260727_v1.py
+          8d53e5d10c5a560398569d1b389f73ad60eb937757eca5b728ef9640f571e210  tools/h3_n2_stage2d9r_successor_immutable_build_freeze_20260727_v1.py
+          4fddcb8367d1a9ad90ac352fb37cf99380fe4389d233df28894bd96962f1263d  tools/h3_n2_stage2d9r_successor_immutable_build_manifest_gate_20260727_v1.py
+          52f403404ae1069f3245c6c20a71118c58ce7dc3446a24ea17e296c2c0f86647  .github/workflows/h3-n2-stage2d9r-successor-immutable-build-reusable.yml
+          504836a63fa176d73d2f79499219c6534b3175a75b9a6659337d452c5b308b34  tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_successor_final_build_binding_20260727_v1.json
+          a7917c92f09a74a45c827cb7a47edec27cfb050dec074680c36bae39efaad85f  firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/greenhouse_profile_isolated_device_g3r_successor_immutable_20260727_v1.yml
+          0105210833023e1a181079d5c2feab1239f1433e09a4e512768872b21f55b6b4  docs/acceptance/h3-n2-stage2d9r-successor-final-source-lock-l1-v1.json
+          SUMS
+          python -m py_compile \
+            tools/h3_n2_stage2d9r_successor_immutable_build_freeze_20260727_v1.py \
+            tools/h3_n2_stage2d9r_successor_immutable_build_manifest_gate_20260727_v1.py
+          test "$(git status --porcelain)" = ""
+
+      - name: Resolve two independent successful canonical builds
+        id: runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          latest_successful_run() {
+            gh api -X GET \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/$1/runs" \
+              -f head_sha="$IMMUTABLE_SOURCE_SHA" -f event=push -f status=completed -f per_page=20 \
+              --jq '[.workflow_runs[] | select(.head_sha == "'"$IMMUTABLE_SOURCE_SHA"'" and .conclusion == "success")] | sort_by(.id) | last | [.id,.status,.conclusion] | @tsv'
+          }
+          a="$(latest_successful_run h3-n2-stage2d9r-successor-immutable-build-a.yml)"
+          b="$(latest_successful_run h3-n2-stage2d9r-successor-immutable-build-b.yml)"
+          IFS=$'\t' read -r a_id a_status a_conclusion <<<"$a"
+          IFS=$'\t' read -r b_id b_status b_conclusion <<<"$b"
+          test -n "$a_id"; test -n "$b_id"; test "$a_id" != "$b_id"
+          test "$a_status" = completed; test "$b_status" = completed
+          test "$a_conclusion" = success; test "$b_conclusion" = success
+          echo "run_a=$a_id" >> "$GITHUB_OUTPUT"
+          echo "run_b=$b_id" >> "$GITHUB_OUTPUT"
+
+      - name: Download both canonical build artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_A: ${{ steps.runs.outputs.run_a }}
+          RUN_B: ${{ steps.runs.outputs.run_b }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/stage2d9r-successor-build-a /tmp/stage2d9r-successor-build-b
+          gh run download "$RUN_A" --repo "$GITHUB_REPOSITORY" \
+            --name stage2d9r-g3r-successor-immutable-locked-v1 \
+            --dir /tmp/stage2d9r-successor-build-a
+          gh run download "$RUN_B" --repo "$GITHUB_REPOSITORY" \
+            --name stage2d9r-g3r-successor-immutable-repro-v1 \
+            --dir /tmp/stage2d9r-successor-build-b
+
+      - name: Resolve canonical artifact id
+        id: artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_A: ${{ steps.runs.outputs.run_a }}
+        run: |
+          set -euo pipefail
+          id="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_A/artifacts" \
+            --jq '[.artifacts[] | select(.name == "stage2d9r-g3r-successor-immutable-locked-v1") | .id] | if length == 1 then .[0] else error("artifact count mismatch") end')"
+          test "$id" = 8638796771
+          echo "artifact_a_id=$id" >> "$GITHUB_OUTPUT"
+
+      - name: Compare canonical builds and freeze manifest
+        env:
+          RUN_A: ${{ steps.runs.outputs.run_a }}
+          RUN_B: ${{ steps.runs.outputs.run_b }}
+          ARTIFACT_A_ID: ${{ steps.artifact.outputs.artifact_a_id }}
+        run: |
+          set -euo pipefail
+          python tools/h3_n2_stage2d9r_successor_immutable_build_freeze_20260727_v1.py \
+            --build-a /tmp/stage2d9r-successor-build-a \
+            --build-b /tmp/stage2d9r-successor-build-b \
+            --run-a "$RUN_A" --run-b "$RUN_B" \
+            --artifact-a-id "$ARTIFACT_A_ID" \
+            --source-sha "$IMMUTABLE_SOURCE_SHA" \
+            --output-dir /tmp/stage2d9r-successor-immutable-freeze-evidence \
+            | tee /tmp/stage2d9r-successor-immutable-freeze.log
+
+      - name: Validate frozen manifest and privacy boundary
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-successor-immutable-freeze-evidence
+          manifest="$root/stage2d9r_successor_immutable_build_manifest_20260727_v1.json"
+          (cd "$root" && sha256sum -c SHA256SUMS)
+          python tools/h3_n2_stage2d9r_successor_immutable_build_manifest_gate_20260727_v1.py \
+            --manifest "$manifest" | tee /tmp/stage2d9r-successor-immutable-gate.log
+          grep -Fx 'STAGE2D9R_SUCCESSOR_IMMUTABLE_BUILD_GATE=PASS' /tmp/stage2d9r-successor-immutable-gate.log
+          grep -Fx 'STAGE2D9R_SUCCESSOR_IMMUTABLE_BUILD_FREEZE=PASS' /tmp/stage2d9r-successor-immutable-freeze.log
+          grep -Fx 'REPRODUCIBLE=true' /tmp/stage2d9r-successor-immutable-freeze.log
+          grep -Fx 'PRIVATE_VALUES_INCLUDED=false' /tmp/stage2d9r-successor-immutable-freeze.log
+          grep -Fx 'EXECUTION_AUTHORIZED=false' /tmp/stage2d9r-successor-immutable-freeze.log
+          test "$(stat -c '%a' "$manifest")" = 600
+          ! grep -R -I -n -E 'BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|/Users/|/private/tmp/' "$root"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-g3r-successor-immutable-freeze-evidence-v1
+          path: /tmp/stage2d9r-successor-immutable-freeze-evidence
+          if-no-files-found: error
+          retention-days: 5
+          compression-level: 0
+
+      - name: Report successor immutable freeze boundary
+        run: |
+          printf '%s\n' \
+            'STAGE2D9R_SUCCESSOR_IMMUTABLE_FREEZE_WORKFLOW=PASS' \
+            "REVIEW_SOURCE_SHA=$REVIEW_SOURCE_SHA" \
+            "IMMUTABLE_SOURCE_SHA=$IMMUTABLE_SOURCE_SHA" \
+            'CANONICAL_ARTIFACT_ID=8638796771' \
+            'REPRODUCIBLE=true' \
+            'PRIVATE_VALUES_INCLUDED=false' \
+            'EXECUTION_AUTHORIZED=false' \
+            'BOARD_OPERATION_AUTHORIZED=false' \
+            'NETWORK_OPERATION_AUTHORIZED=false' \
+            'PREPARE_AUTHORIZED=false' \
+            'VERIFY_AUTHORIZED=false' \
+            'READY_AUTHORIZED=false' \
+            'MERGE_AUTHORIZED=false' \
+            'RELEASE_AUTHORIZED=false'
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf /tmp/stage2d9r-successor-build-a /tmp/stage2d9r-successor-build-b \
+            /tmp/stage2d9r-successor-immutable-freeze-evidence
+          rm -f /tmp/stage2d9r-successor-immutable-*.log

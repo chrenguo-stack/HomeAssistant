@@ -1,0 +1,196 @@
+name: H3 N2 Stage2D9R Successor Private Execution Material Success Marker Probe Package CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-successor-private-execution-material-success-marker-probe-package-ci.yml"
+      - "tools/h3_n2_stage2d9r_successor_private_execution_material_success_marker_probe_20260725_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_private_execution_material_success_marker_probe_20260725_v1.py"
+      - "docs/acceptance/h3-n2-stage2d9r-successor-private-execution-material-u1-01-success-l1-v1.json"
+  push:
+    branches:
+      - fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-successor-private-execution-material-success-marker-probe-package-ci.yml"
+      - "tools/h3_n2_stage2d9r_successor_private_execution_material_success_marker_probe_20260725_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_private_execution_material_success_marker_probe_20260725_v1.py"
+      - "docs/acceptance/h3-n2-stage2d9r-successor-private-execution-material-u1-01-success-l1-v1.json"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  success-marker-probe-package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Verify branch and frozen U1 predecessor
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+        run: |
+          set -euo pipefail
+          test "$HEAD_BRANCH" = fix/h3-n2-stage2d9r-g3r-private-execution-material-20260725-v1
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          git fetch --no-tags --depth=128 origin "$HEAD_BRANCH"
+          git merge-base --is-ancestor 0cd9eeb5fd567d47a29bddee83159ac9570aa3dd HEAD
+          test "$(git status --porcelain)" = ""
+
+      - name: Run read-only marker probe tests
+        run: |
+          set -euo pipefail
+          export PYTHONPYCACHEPREFIX=/tmp/stage2d9r-successor-success-marker-pycache
+          python -m py_compile \
+            tools/h3_n2_stage2d9r_successor_private_execution_material_success_marker_probe_20260725_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_private_execution_material_success_marker_probe_20260725_v1.py
+          python \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_successor_private_execution_material_success_marker_probe_20260725_v1.py \
+            -v 2>&1 | tee /tmp/stage2d9r-successor-success-marker-tests.log
+          grep -F 'Ran 6 tests' /tmp/stage2d9r-successor-success-marker-tests.log
+          grep -F 'OK' /tmp/stage2d9r-successor-success-marker-tests.log
+          rm -rf "$PYTHONPYCACHEPREFIX"
+
+      - name: Assemble read-only package
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-successor-private-execution-material-success-marker-probe-v1
+          mkdir -p "$root/tools"
+          cp tools/h3_n2_stage2d9r_successor_private_execution_material_success_marker_probe_20260725_v1.py "$root/tools/"
+          cp docs/acceptance/h3-n2-stage2d9r-successor-private-execution-material-u1-01-success-l1-v1.json "$root/"
+
+          SOURCE_SHA="$SOURCE_SHA" ROOT="$root" python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ['ROOT'])
+          source_sha = os.environ['SOURCE_SHA']
+          probe = root / 'tools/h3_n2_stage2d9r_successor_private_execution_material_success_marker_probe_20260725_v1.py'
+          acceptance = root / 'h3-n2-stage2d9r-successor-private-execution-material-u1-01-success-l1-v1.json'
+
+          def digest(path: Path) -> str:
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+
+          binding = {
+              'schema': 'gh.h3.n2.stage2d9r-successor-private-execution-material-success-marker-probe-package/1',
+              'stage': 'H3/N2 Stage 2D-9R G3R successor',
+              'state': 'READ_ONLY_SUCCESS_MARKER_PROBE',
+              'authorization_id': 'U1-H3N2-STAGE2D9R-PRIVATE-EXECUTION-MATERIAL-20260725-01',
+              'authorized_source_sha': '0cd9eeb5fd567d47a29bddee83159ac9570aa3dd',
+              'package_source_sha': source_sha,
+              'authorization_record_sha256': '99d5f8cf5a0a12d921497ce04b7dc95161fc77ee79e79ddf50d6cb2535473817',
+              'public_descriptor_sha256': '7021279f141f00cbf7e64fe8a20e89dd8b8ef3b9c4c7625ec28b79f6d65db2b6',
+              'probe_sha256': digest(probe),
+              'acceptance_sha256': digest(acceptance),
+              'authorization_record_included': False,
+              'private_content_included': False,
+              'private_paths_included': False,
+              'secret_values_included': False,
+              'authorization_claimed': False,
+              'authorization_consumed_by_probe': False,
+              'marker_modified': False,
+              'board_operation': False,
+              'serial_operation': False,
+              'flash_operation': False,
+              'physical_nvs_operation': False,
+              'network_operation': False,
+              'broker_started': False,
+              'prepare_executed': False,
+              'verify_executed': False,
+              'activate_executed': False,
+              'cleanup_executed': False,
+              'production_operation': False,
+          }
+          canonical = json.dumps(binding, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode()
+          binding['package_binding_sha256'] = hashlib.sha256(canonical).hexdigest()
+          (root / 'package-binding.json').write_text(
+              json.dumps(binding, indent=2, sort_keys=True) + '\n', encoding='utf-8'
+          )
+          PY
+
+          cat > "$root/README.md" <<'EOF'
+          # Stage 2D-9R successor U1 success marker read-only probe
+
+          This package reads only the one-shot U1 consumed-marker metadata and
+          verifies its frozen authorization-record and public-descriptor digests.
+          It does not read successor private execution material, print private
+          paths, modify the marker, claim or consume an authorization, access a
+          board or serial port, write Flash/NVS, use a network, start a Broker,
+          or execute PREPARE/VERIFY/ACTIVATE/CLEANUP.
+          EOF
+
+          cat > "$root/run_stage2d9r_successor_private_execution_material_success_marker_probe_20260725_v1_7021279f.sh" <<'SH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          umask 077
+          ROOT="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)"
+          cd "$ROOT"
+          shasum -a 256 -c SHA256SUMS
+          printf '%s\n' 'STAGE2D9R_SUCCESSOR_PRIVATE_EXECUTION_MATERIAL_SUCCESS_MARKER_PROBE_V1_BEGIN'
+          python3 "$ROOT/tools/h3_n2_stage2d9r_successor_private_execution_material_success_marker_probe_20260725_v1.py"
+          printf '%s\n' 'STAGE2D9R_SUCCESSOR_PRIVATE_EXECUTION_MATERIAL_SUCCESS_MARKER_PROBE_V1_END'
+          SH
+          chmod 0700 "$root"/run_*.sh
+          find "$root" -type f ! -name 'run_*.sh' -exec chmod 0600 {} +
+          (cd "$root" && find . -type f ! -name SHA256SUMS -print0 | LC_ALL=C sort -z | xargs -0 shasum -a 256 | sed 's#  \./#  #' > SHA256SUMS)
+          chmod 0600 "$root/SHA256SUMS"
+
+      - name: Verify package boundary
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-successor-private-execution-material-success-marker-probe-v1
+          (cd "$root" && sha256sum -c SHA256SUMS)
+          test ! -e "$root/authorization-record.json"
+          test -z "$(find "$root" -type d -name __pycache__ -print -quit)"
+          test -z "$(find "$root" -type f \( -name '*.pyc' -o -name '*.pyo' \) -print -quit)"
+          ! grep -R -I -n -E 'BEGIN (RSA |EC )?PRIVATE KEY|/Users/|/private/tmp/|mqtt-password\.hex|persistence-key\.hex|unlock-token\.hex|prepare-command\.txt|verify-command\.txt' "$root"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-successor-private-execution-material-success-marker-probe-v1
+          path: /tmp/stage2d9r-successor-private-execution-material-success-marker-probe-v1
+          if-no-files-found: error
+          retention-days: 5
+          compression-level: 9
+
+      - name: Report safe boundary
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          printf '%s\n' \
+            'STAGE2D9R_SUCCESSOR_PRIVATE_EXECUTION_MATERIAL_SUCCESS_MARKER_PROBE_PACKAGE=PASS' \
+            "SOURCE_SHA=$SOURCE_SHA" \
+            'AUTHORIZED_SOURCE_SHA=0cd9eeb5fd567d47a29bddee83159ac9570aa3dd' \
+            'AUTHORIZATION_ID=U1-H3N2-STAGE2D9R-PRIVATE-EXECUTION-MATERIAL-20260725-01' \
+            'AUTHORIZATION_RECORD_SHA256=99d5f8cf5a0a12d921497ce04b7dc95161fc77ee79e79ddf50d6cb2535473817' \
+            'PUBLIC_DESCRIPTOR_SHA256=7021279f141f00cbf7e64fe8a20e89dd8b8ef3b9c4c7625ec28b79f6d65db2b6' \
+            'MARKER_MODIFIED=false' \
+            'PRIVATE_CONTENT_READ=false' \
+            'BOARD_OPERATION=false' \
+            'SERIAL_OPERATION=false' \
+            'FLASH_OPERATION=false' \
+            'PHYSICAL_NVS_OPERATION=false' \
+            'NETWORK_OPERATION=false' \
+            'BROKER_STARTED=false' \
+            'PREPARE_EXECUTED=false' \
+            'VERIFY_EXECUTED=false'
+
+      - name: Cleanup
+        if: always()
+        run: rm -rf /tmp/stage2d9r-successor-private-execution-material-success-marker-probe-v1 /tmp/stage2d9r-successor-success-marker-pycache /tmp/stage2d9r-successor-success-marker-tests.log
