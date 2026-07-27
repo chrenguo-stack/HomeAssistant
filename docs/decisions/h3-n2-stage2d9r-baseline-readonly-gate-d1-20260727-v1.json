@@ -1,0 +1,59 @@
+{
+  "approved_scope": [
+    "REPOSITORY_SIDE_DEVELOPMENT",
+    "SOURCE_AND_HOST_TESTS",
+    "PUBLIC_REVIEW_ARTIFACT_FREEZE",
+    "MARKER_ONLY_CONSUMED_EVIDENCE_VALIDATION",
+    "FUTURE_EXACT_ONE_SHOT_READ_ONLY_BASELINE_GATE_DEVELOPMENT"
+  ],
+  "authorization_claimed": false,
+  "authorization_created": false,
+  "board_operation": false,
+  "decision_id": "D1-H3N2-STAGE2D9R-G3R-BASELINE-READONLY-GATE-20260727-01",
+  "flash_operation": false,
+  "future_physical_gate": {
+    "allowed_operations": [
+      "ENUMERATE_ONE_ESPRESSIF_USB_SERIAL_CANDIDATE",
+      "READ_CHIP_ID",
+      "READ_FLASH_ID",
+      "READ_TEST_PARTITION_0X400000_0X10000"
+    ],
+    "authorization_id": "D2-H3N2-STAGE2D9R-G3R-BASELINE-READONLY-20260727-01",
+    "authorization_required": true,
+    "automatic_retry_permitted": false,
+    "currently_authorized": false,
+    "one_shot": true,
+    "replay_permitted": false
+  },
+  "network_operation": false,
+  "operator_approval_text": "批准 D1-H3N2-STAGE2D9R-G3R-BASELINE-READONLY-GATE-20260727-01：修复 marker-only consumed evidence 验证，并增加独立的一次性只读板卡基线采集门；本次批准仅允许仓库侧开发、测试和 Artifact 冻结，不允许连接板卡或执行任何物理操作。",
+  "operator_approval_text_sha256": "4e3f67bbba614c106010c4de2b4c990371e2e4ecf32d3e59bea8a9eadb1932c4",
+  "physical_execution_authorized": false,
+  "physical_nvs_operation": false,
+  "prohibited_current_operations": [
+    "BOARD_CONNECTION",
+    "USB_OR_SERIAL_ENUMERATION",
+    "CHIP_ID",
+    "FLASH_ID",
+    "READ_FLASH",
+    "ERASE_FLASH",
+    "WRITE_FLASH",
+    "VERIFY_FLASH",
+    "PHYSICAL_NVS",
+    "NETWORK",
+    "BROKER",
+    "PREPARE",
+    "VERIFY",
+    "ACTIVATE",
+    "CLEANUP",
+    "PRODUCTION_OPERATION",
+    "READY",
+    "MERGE",
+    "RELEASE",
+    "DEPLOYMENT"
+  ],
+  "schema": "gh.h3.n2.stage2d9r-baseline-readonly-gate-d1-decision/1",
+  "serial_operation": false,
+  "stage": "H3/N2 Stage 2D-9R G3R successor",
+  "status": "APPROVED"
+}
