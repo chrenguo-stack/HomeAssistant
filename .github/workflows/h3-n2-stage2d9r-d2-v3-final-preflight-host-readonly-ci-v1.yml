@@ -1,0 +1,320 @@
+name: H3 N2 Stage2D9R D2 V3 Final Host Readonly Preflight CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-d2-v3-final-preflight-host-readonly-ci-v1.yml"
+      - "docs/decisions/h3-n2-stage2d9r-d2-v3-final-preflight-host-readonly-20260727-v1.json"
+      - "tools/h3_n2_stage2d9r_d2_v3_final_preflight_host_packager_20260727_v1.py"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+
+env:
+  EXPECTED_MAIN_SHA: 43aa37b0cc343efdd2024f369517e55c5b6461f1
+  EXPECTED_BASE_SHA: 4a5b7a5290f04500050783124f9711268dba0afd
+  EXPECTED_BASE_BRANCH: fix/h3-n2-stage2d9r-baseline-readonly-gate-20260727-v1
+  EXPECTED_HEAD_BRANCH: fix/h3-n2-stage2d9r-d2-v3-final-preflight-host-readonly-20260727-v1
+  PR180_SHA: b2c481d5c824bd6606d914f5828ba6a1662000b1
+  PR176_SHA: cf841f3e5a8cf04c5df9875c499b91ad4e4289cb
+  SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+
+jobs:
+  validate-and-freeze:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Verify layered Draft PR and frozen repository boundary
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          test "${{ github.event.pull_request.head.ref }}" = "$EXPECTED_HEAD_BRANCH"
+          test "${{ github.event.pull_request.base.ref }}" = "$EXPECTED_BASE_BRANCH"
+          test "${{ github.event.pull_request.base.sha }}" = "$EXPECTED_BASE_SHA"
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          git merge-base --is-ancestor "$EXPECTED_BASE_SHA" HEAD
+          test "$(git ls-remote origin refs/heads/main | awk '{print $1}')" = "$EXPECTED_MAIN_SHA"
+
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > /tmp/current-pr.json
+          gh api "repos/$GITHUB_REPOSITORY/pulls/183" > /tmp/pr183.json
+          gh api "repos/$GITHUB_REPOSITORY/pulls/180" > /tmp/pr180.json
+          gh api "repos/$GITHUB_REPOSITORY/pulls/176" > /tmp/pr176.json
+
+          jq -e '.state=="open" and .draft==true and .merged==false and .mergeable==true and .base.sha==env.EXPECTED_BASE_SHA and .head.sha==env.SOURCE_SHA' /tmp/current-pr.json
+          jq -e '.state=="open" and .draft==true and .merged==false and .mergeable==true and .head.sha==env.EXPECTED_BASE_SHA and .base.sha==env.PR180_SHA' /tmp/pr183.json
+          jq -e '.state=="open" and .draft==true and .merged==false and .mergeable==true and .head.sha==env.PR180_SHA and .base.sha==env.PR176_SHA' /tmp/pr180.json
+          jq -e '.state=="open" and .draft==true and .merged==false and .mergeable==true and .head.sha==env.PR176_SHA' /tmp/pr176.json
+
+          cat > /tmp/expected-changed <<'EOF'
+          .github/workflows/h3-n2-stage2d9r-d2-v3-final-preflight-host-readonly-ci-v1.yml
+          docs/decisions/h3-n2-stage2d9r-d2-v3-final-preflight-host-readonly-20260727-v1.json
+          tools/h3_n2_stage2d9r_d2_v3_final_preflight_host_packager_20260727_v1.py
+          EOF
+          LC_ALL=C sort -o /tmp/expected-changed /tmp/expected-changed
+          git diff --name-only "$EXPECTED_BASE_SHA"..HEAD | LC_ALL=C sort > /tmp/actual-changed
+          diff -u /tmp/expected-changed /tmp/actual-changed
+          test -z "$(git status --porcelain)"
+
+      - name: Recheck frozen current-head CI and Artifact states
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$EXPECTED_BASE_SHA&event=pull_request&per_page=100" > /tmp/pr183-runs.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          value = json.loads(Path('/tmp/pr183-runs.json').read_text())
+          runs = {run['name']: run for run in value['workflow_runs']}
+          expected = (
+              'H3 N2 Stage2D9R Baseline Readonly D2 Acceptance CI',
+              'H3 N2 Stage2D9R Baseline Readonly Gate Review CI',
+              'H3 N2 Stage2D9R TLS Candidate CI',
+              'Public repository safety CI',
+          )
+          for name in expected:
+              run = runs[name]
+              assert run['status'] == 'completed', name
+              assert run['conclusion'] == 'success', name
+          PY
+
+          for id in 8652416395 8652416812 8645580706 8645581131 8645578982 8644594652 8644968239; do
+            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id" > "/tmp/artifact-$id.json"
+          done
+
+          jq -e '.id==8652416395 and .expired==false and .digest=="sha256:cab3cc8cc2060176684e1a7b25fb45122d34c5d983e12298bea189e20725ef32" and .workflow_run.head_sha==env.EXPECTED_BASE_SHA' /tmp/artifact-8652416395.json
+          jq -e '.id==8652416812 and .expired==false and .digest=="sha256:ea2580b3298738b2f86ae2b8046a0f84fbbd3a9147072f3721d0fb04373bd00d" and .workflow_run.head_sha==env.EXPECTED_BASE_SHA' /tmp/artifact-8652416812.json
+          jq -e '.id==8645580706 and .expired==false and .digest=="sha256:26bb34863a33fcf0b02d6f36ffa39ad1f1daa2ae6137eae6e4f063ab2752d88d" and .workflow_run.head_sha==env.PR180_SHA' /tmp/artifact-8645580706.json
+          jq -e '.id==8645581131 and .expired==false and .digest=="sha256:ba0ad72df54893a16e9ce9dbd558eb7b6140ad1ddaff5ebf31f5632dabaeb965" and .workflow_run.head_sha==env.PR180_SHA' /tmp/artifact-8645581131.json
+          jq -e '.id==8645578982 and .expired==false and .digest=="sha256:81d5418bc6ede45ecf6208e2155839b0361685bec50df46556de9319d47e02bb" and .workflow_run.head_sha==env.PR180_SHA' /tmp/artifact-8645578982.json
+          jq -e '.id==8644594652 and .expired==false and .digest=="sha256:3274a9329f46f420b65037efdf3cb9e453121ec7f74573430fb2afc8a7de882e" and .workflow_run.head_sha=="f26ceafcfddec9abc1f8b023451ebe0747f2442b"' /tmp/artifact-8644594652.json
+          jq -e '.id==8644968239 and .expired==false and .digest=="sha256:d15928b1930b39871f16a67b768718466ffcd4ed2f4ad0eaefbc424c9a1ca33f" and .workflow_run.head_sha=="623f2cddf7ed121952eb8644abe681aa11b5677b"' /tmp/artifact-8644968239.json
+
+      - name: Download and verify exact public input Artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/v3-inputs/{d2-review,public-preflight,host-probe,baseline-acceptance}
+
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/8645580706/zip" > /tmp/d2-review.zip
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/8645581131/zip" > /tmp/public-preflight.zip
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/8645578982/zip" > /tmp/host-probe.zip
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/8652416395/zip" > /tmp/baseline-acceptance.zip
+
+          echo '26bb34863a33fcf0b02d6f36ffa39ad1f1daa2ae6137eae6e4f063ab2752d88d  /tmp/d2-review.zip' | sha256sum -c -
+          echo 'ba0ad72df54893a16e9ce9dbd558eb7b6140ad1ddaff5ebf31f5632dabaeb965  /tmp/public-preflight.zip' | sha256sum -c -
+          echo '81d5418bc6ede45ecf6208e2155839b0361685bec50df46556de9319d47e02bb  /tmp/host-probe.zip' | sha256sum -c -
+          echo 'cab3cc8cc2060176684e1a7b25fb45122d34c5d983e12298bea189e20725ef32  /tmp/baseline-acceptance.zip' | sha256sum -c -
+
+          unzip -q /tmp/d2-review.zip -d /tmp/v3-inputs/d2-review
+          unzip -q /tmp/public-preflight.zip -d /tmp/v3-inputs/public-preflight
+          unzip -q /tmp/host-probe.zip -d /tmp/v3-inputs/host-probe
+          unzip -q /tmp/baseline-acceptance.zip -d /tmp/v3-inputs/baseline-acceptance
+
+          (cd /tmp/v3-inputs/d2-review && sha256sum -c SHA256SUMS)
+          (cd /tmp/v3-inputs/public-preflight && sha256sum -c SHA256SUMS)
+          (cd /tmp/v3-inputs/host-probe && sha256sum -c SHA256SUMS)
+          (cd /tmp/v3-inputs/baseline-acceptance && sha256sum -c SHA256SUMS)
+
+      - name: Assemble exact frozen state inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -m 700 /tmp/v3-state
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$PR180_SHA&event=pull_request&per_page=100" > /tmp/pr180-runs.json
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          def artifact(path):
+              return json.loads(Path(path).read_text())
+
+          pr180 = json.loads(Path('/tmp/pr180.json').read_text())
+          pr176 = json.loads(Path('/tmp/pr176.json').read_text())
+          runs = json.loads(Path('/tmp/pr180-runs.json').read_text())['workflow_runs']
+          successful = [r for r in runs if r['status'] == 'completed' and r['conclusion'] == 'success']
+          assert len(successful) == len(runs) and len(runs) > 0
+
+          repository_state = {
+              'schema': 'gh.h3.n2.stage2d9r-successor-d2-repository-state/1',
+              'repository': 'chrenguo-stack/HomeAssistant',
+              'main_sha': os.environ['EXPECTED_MAIN_SHA'],
+              'pull_request_180': {
+                  'head_sha': pr180['head']['sha'],
+                  'base_sha': pr180['base']['sha'],
+                  'state': pr180['state'],
+                  'draft': pr180['draft'],
+                  'merged': pr180['merged'],
+                  'mergeable': pr180['mergeable'],
+              },
+              'pull_request_176': {
+                  'head_sha': pr176['head']['sha'],
+                  'base_sha': pr176['base']['sha'],
+                  'state': pr176['state'],
+                  'draft': pr176['draft'],
+                  'merged': pr176['merged'],
+                  'mergeable': pr176['mergeable'],
+              },
+              'current_head_ci': {
+                  'total': len(runs),
+                  'completed_success': len(successful),
+                  'pending': 0,
+                  'failed': 0,
+              },
+          }
+
+          states = {
+              'repository-state.json': repository_state,
+              'review-artifact-state.json': {
+                  'schema': 'gh.h3.n2.stage2d9r-successor-d2-review-artifact-state/1',
+                  'id': 8645580706,
+                  'digest_sha256': '26bb34863a33fcf0b02d6f36ffa39ad1f1daa2ae6137eae6e4f063ab2752d88d',
+                  'source_sha': os.environ['PR180_SHA'],
+                  'expired': False,
+                  'accessible': True,
+              },
+              'public-preflight-artifact-state.json': {
+                  'schema': 'gh.h3.n2.stage2d9r-successor-d2-public-preflight-artifact-state/1',
+                  'id': 8645581131,
+                  'digest_sha256': 'ba0ad72df54893a16e9ce9dbd558eb7b6140ad1ddaff5ebf31f5632dabaeb965',
+                  'source_sha': os.environ['PR180_SHA'],
+                  'expired': False,
+                  'accessible': True,
+              },
+              'recovery-artifact-state.json': {
+                  'schema': 'gh.h3.n2.stage2d9r-successor-locked-recovery-artifact-state/1',
+                  'id': 8644594652,
+                  'digest_sha256': '3274a9329f46f420b65037efdf3cb9e453121ec7f74573430fb2afc8a7de882e',
+                  'source_sha': 'f26ceafcfddec9abc1f8b023451ebe0747f2442b',
+                  'expired': False,
+                  'accessible': True,
+              },
+              'execution-artifact-state.json': {
+                  'schema': 'gh.h3.n2.stage2d9r-successor-d2-execution-artifact-state/1',
+                  'id': 8644968239,
+                  'digest_sha256': 'd15928b1930b39871f16a67b768718466ffcd4ed2f4ad0eaefbc424c9a1ca33f',
+                  'source_sha': '623f2cddf7ed121952eb8644abe681aa11b5677b',
+                  'expired': False,
+                  'accessible': True,
+              },
+          }
+          root = Path('/tmp/v3-state')
+          for name, value in states.items():
+              path = root / name
+              path.write_text(json.dumps(value, indent=2, sort_keys=True) + '\n')
+              path.chmod(0o600)
+          PY
+
+      - name: Run source tests and assemble host-only final preflight package
+        run: |
+          set -euo pipefail
+          export PYTHONPYCACHEPREFIX=/tmp/stage2d9r-d2-v3-final-preflight-pycache
+          python -m py_compile \
+            tools/h3_n2_stage2d9r_d2_v3_final_preflight_host_packager_20260727_v1.py \
+            tools/h3_n2_stage2d9r_d2_readonly_preflight_v3_20260727.py \
+            tools/h3_n2_stage2d9r_consumed_marker_evidence_20260727_v1.py
+          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_d2_readonly_preflight_v3_20260727.py -v
+
+          root=/tmp/stage2d9r-successor-d2-v3-final-preflight-host-readonly-v1
+          python tools/h3_n2_stage2d9r_d2_v3_final_preflight_host_packager_20260727_v1.py \
+            --output "$root" \
+            --source-sha "$SOURCE_SHA" \
+            --d2-review /tmp/v3-inputs/d2-review \
+            --public-preflight /tmp/v3-inputs/public-preflight \
+            --host-probe-package /tmp/v3-inputs/host-probe \
+            --baseline-acceptance-artifact /tmp/v3-inputs/baseline-acceptance \
+            --repository-state /tmp/v3-state/repository-state.json \
+            --review-artifact-state /tmp/v3-state/review-artifact-state.json \
+            --public-preflight-artifact-state /tmp/v3-state/public-preflight-artifact-state.json \
+            --recovery-artifact-state /tmp/v3-state/recovery-artifact-state.json \
+            --execution-artifact-state /tmp/v3-state/execution-artifact-state.json
+
+          (cd "$root" && sha256sum -c SHA256SUMS)
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path('/tmp/stage2d9r-successor-d2-v3-final-preflight-host-readonly-v1')
+          binding = json.loads((root / 'D2_V3_FINAL_PREFLIGHT_PACKAGE_BINDING.json').read_text())
+          assert binding['state'] == 'HOST_ONLY_FINAL_PREFLIGHT_PACKAGE_FROZEN'
+          assert binding['exact_request_authorized'] is False
+          for key in (
+              'authorization_record_included', 'authorization_created',
+              'authorization_claimed', 'authorization_consumed', 'board_operation',
+              'serial_operation', 'flash_operation', 'physical_nvs_operation',
+              'operator_host_network_operation', 'broker_started', 'prepare_executed',
+              'verify_executed', 'activate_executed', 'cleanup_executed',
+              'production_operation', 'ready_authorized', 'merge_authorized',
+              'release_authorized', 'tag_authorized', 'deployment_authorized',
+          ):
+              assert binding[key] is False, key
+          launcher = (root / 'run_stage2d9r_successor_d2_v3_final_preflight_host_readonly_20260727_v1.py').read_text()
+          for token in ('esptool', 'serial.tools', 'socket.', 'requests.', 'urllib.', 'mosquitto_pub', 'mosquitto_sub', 'gh api', 'curl '):
+              assert token not in launcher, token
+          assert 'D2_V3_FINAL_PREFLIGHT_PASS_UNAUTHORIZED_REQUEST_DRAFT' in launcher
+          print('STAGE2D9R_D2_V3_FINAL_HOST_READONLY_STATIC_BOUNDARY=PASS')
+          PY
+          test -z "$(find "$root" -type f -name '*.authorization.json' -print -quit)"
+          test -z "$(find "$root" -type f -name '*.bin' -print -quit)"
+          test -z "$(find "$root" -type f -name '*.pem' -print -quit)"
+          rm -rf "$PYTHONPYCACHEPREFIX"
+
+      - name: Upload D2 V3 final host-only preflight Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-successor-d2-v3-final-preflight-host-readonly-v1
+          path: /tmp/stage2d9r-successor-d2-v3-final-preflight-host-readonly-v1
+          if-no-files-found: error
+          retention-days: 5
+          compression-level: 9
+
+      - name: Report non-authorizing host-only boundary
+        run: |
+          printf '%s\n' \
+            'STAGE2D9R_D2_V3_FINAL_HOST_READONLY_PACKAGE=PASS' \
+            "SOURCE_SHA=$SOURCE_SHA" \
+            'EXACT_REQUEST_DRAFT_GENERATED=true' \
+            'EXACT_REQUEST_AUTHORIZED=false' \
+            'AUTHORIZATION_CREATED=false' \
+            'AUTHORIZATION_CLAIMED=false' \
+            'BOARD_OPERATION=false' \
+            'SERIAL_OPERATION=false' \
+            'FLASH_OPERATION=false' \
+            'PHYSICAL_NVS_OPERATION=false' \
+            'OPERATOR_HOST_NETWORK_OPERATION=false' \
+            'BROKER_STARTED=false' \
+            'PREPARE_EXECUTED=false' \
+            'VERIFY_EXECUTED=false' \
+            'ACTIVATE_EXECUTED=false' \
+            'CLEANUP_EXECUTED=false'
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf \
+            /tmp/stage2d9r-successor-d2-v3-final-preflight-host-readonly-v1 \
+            /tmp/v3-inputs /tmp/v3-state \
+            /tmp/stage2d9r-d2-v3-final-preflight-pycache
+          rm -f /tmp/*.zip /tmp/*.json /tmp/expected-changed /tmp/actual-changed
