@@ -42,17 +42,23 @@ external_components:
       - greenhouse_profile_isolated_device_driver
       - greenhouse_profile_isolated_device_g3_prepare
       - greenhouse_profile_isolated_device_g3r_executor
-      - greenhouse_profile_isolated_device_g3r_executor_v2
+      - greenhouse_profile_isolated_device_g3r_ready_repeater
 
-# Source/compile-only repair candidate. The new build binding deliberately
-# invalidates all earlier private command and authorization material. This file
-# embeds no unlock preimage, persistence key, MQTT password, private key or
-# executable command and does not authorize board, serial, Flash, NVS, Broker,
-# PREPARE, VERIFY, ACTIVATE or CLEANUP operations.
-greenhouse_profile_isolated_device_g3r_executor_v2:
+# The frozen V1 executor remains the sole command parser and NVS writer. A new
+# read-only companion repeats only the observable PREPARE/VERIFY readiness state.
+# The new build binding invalidates all earlier private commands, candidate
+# digests, authorizations and immutable execution packages.
+greenhouse_profile_isolated_device_g3r_executor:
   id: stage2d9r_g3r_serial_handshake_repair_executor
   partition_label: gh2d8_p2d9
   namespace_name: gh2d8_s2d9
   build_binding: "0a2c96b7615d9f222cf72fcf899b6caf3a7c875f"
   unlock_digest: "3650d44f8761f21dc1931fbd9b6ba6a1d9da92ffa469b3d4f98ee5411a6809e3"
   ca_pem_sha256: "cfcb6638ed61731270f3bf8e9e262c1512fbca8ff34d4b08b62186453233e963"
+
+greenhouse_profile_isolated_device_g3r_ready_repeater:
+  id: stage2d9r_g3r_ready_repeater
+  partition_label: gh2d8_p2d9
+  namespace_name: gh2d8_s2d9
+  repeat_interval_ms: 1000
+  repeat_window_ms: 180000
