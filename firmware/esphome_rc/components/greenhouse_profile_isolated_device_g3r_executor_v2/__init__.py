@@ -42,7 +42,6 @@ def _hex(value: object, pattern: re.Pattern[str], field: str) -> str:
 
 
 AUTO_LOAD = [
-    "greenhouse_profile_isolated_device_g3r_executor",
     "greenhouse_profile_isolated_device_g3_prepare",
     "greenhouse_profile_isolated_device_driver",
     "greenhouse_profile_isolated_acceptance",
