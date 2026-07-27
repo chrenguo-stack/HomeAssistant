@@ -1,3 +1,6 @@
+// Include the frozen declaration first so its #pragma once suppresses the
+// declaration include inside the reused implementation below.
+#include "../greenhouse_profile_isolated_device_g3r_executor/stage2d9r_g3r_prepare_executor_20260723_v1.h"
 #include "stage2d9r_g3r_prepare_executor_20260727_v2.h"
 
 // Compile an exact copy of the frozen V1 implementation under V2Core symbols.
