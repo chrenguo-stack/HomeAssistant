@@ -37,7 +37,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 2
+          fetch-depth: 32
           show-progress: false
 
       - uses: actions/setup-python@v5
@@ -47,17 +47,17 @@ jobs:
       - name: Verify layered Draft PR boundary
         env:
           GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
           test "${{ github.event.pull_request.head.ref }}" = "$EXPECTED_HEAD_BRANCH"
           test "${{ github.event.pull_request.base.ref }}" = "$EXPECTED_BASE_BRANCH"
           test "${{ github.event.pull_request.base.sha }}" = "$EXPECTED_BASE_SHA"
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
-          test "$(git rev-parse HEAD^)" = "$EXPECTED_BASE_SHA" || \
-            git merge-base --is-ancestor "$EXPECTED_BASE_SHA" HEAD
+          git merge-base --is-ancestor "$EXPECTED_BASE_SHA" HEAD
           test "$(git ls-remote origin refs/heads/main | awk '{print $1}')" = "$EXPECTED_MAIN_SHA"
-          jq -e '.state=="open" and .draft==true and .merged==false and .mergeable==true' \
-            "$GITHUB_EVENT_PATH"
+          gh api "repos/chrenguo-stack/HomeAssistant/pulls/$PR_NUMBER" > /tmp/current-pr
+          jq -e '.state=="open" and .draft==true and .merged==false and .mergeable==true and .base.sha=="b2c481d5c824bd6606d914f5828ba6a1662000b1" and .head.sha==env.SOURCE_SHA' /tmp/current-pr
           gh api repos/chrenguo-stack/HomeAssistant/pulls/180 > /tmp/p180
           jq -e '.state=="open" and .draft==true and .merged==false and .mergeable==true and .head.sha=="b2c481d5c824bd6606d914f5828ba6a1662000b1"' /tmp/p180
           test -z "$(git status --porcelain)"
