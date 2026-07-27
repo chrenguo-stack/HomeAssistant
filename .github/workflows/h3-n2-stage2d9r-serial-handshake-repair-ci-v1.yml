@@ -6,7 +6,7 @@ on:
       - ".github/workflows/h3-n2-stage2d9r-serial-handshake-repair-ci-v1.yml"
       - "docs/decisions/h3-n2-stage2d9r-g3r-serial-handshake-repair-d1-20260727-v1.json"
       - "docs/development/h3-n2-stage2d9r-g3r-serial-handshake-repair-contract-20260727-v1.md"
-      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor_v2/**"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_ready_repeater/**"
       - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/greenhouse_profile_isolated_device_g3r_serial_handshake_repair_20260727_v2.yml"
       - "tools/h3_n2_stage2d9r_serial_handshake_repair_20260727_v1.py"
       - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_serial_handshake_repair_20260727_v1.py"
@@ -26,7 +26,7 @@ env:
   EXPECTED_HEAD_BRANCH: fix/h3-n2-stage2d9r-g3r-serial-handshake-repair-20260727-v1
   EXPECTED_MAIN_SHA: 43aa37b0cc343efdd2024f369517e55c5b6461f1
   REPAIR_CONFIG: firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/greenhouse_profile_isolated_device_g3r_serial_handshake_repair_20260727_v2.yml
-  REPAIR_COMPONENT: firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor_v2
+  REPAIR_COMPONENT: firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_ready_repeater
 
 jobs:
   source-host-review:
@@ -143,20 +143,24 @@ jobs:
           from pathlib import Path
           import json
 
-          component = Path('firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor_v2')
-          cpp = (component / 'stage2d9r_g3r_prepare_executor_20260727_v2.cpp').read_text()
-          header = (component / 'stage2d9r_g3r_prepare_executor_20260727_v2.h').read_text()
+          component = Path('firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_ready_repeater')
+          cpp = (component / 'stage2d9r_g3r_ready_repeater_20260727_v1.cpp').read_text()
+          header = (component / 'stage2d9r_g3r_ready_repeater_20260727_v1.h').read_text()
           init = (component / '__init__.py').read_text()
+          config = Path('firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/greenhouse_profile_isolated_device_g3r_serial_handshake_repair_20260727_v2.yml').read_text()
           host = Path('tools/h3_n2_stage2d9r_serial_handshake_repair_20260727_v1.py').read_text()
           decision = json.loads(Path('docs/decisions/h3-n2-stage2d9r-g3r-serial-handshake-repair-d1-20260727-v1.json').read_text())
 
           assert cpp.count('stage2d9r_command_ready=PREPARE') == 1
           assert cpp.count('stage2d9r_command_ready=VERIFY') == 1
-          assert cpp.count('stage2d9r_ready_repeat=true interval_ms=1000') == 2
-          assert 'READY_REPEAT_INTERVAL_US = 1000000' in header
-          assert 'Stage2D9RG3RPrepareExecutorV2Core' in header
-          assert 'Stage2D9RG3RPrepareExecutorV2' in init
-          assert '../greenhouse_profile_isolated_device_g3r_executor/stage2d9r_g3r_prepare_executor_20260723_v1.cpp' in cpp
+          assert cpp.count('stage2d9r_ready_repeat=true') == 2
+          assert 'repeat_interval_ms_{1000}' in header
+          assert 'repeat_window_ms_{180000}' in header
+          assert 'Stage2D9RG3RReadyRepeaterV1' in init
+          assert 'greenhouse_profile_isolated_device_g3r_executor:' in config
+          assert 'greenhouse_profile_isolated_device_g3r_ready_repeater:' in config
+          assert 'write_flash' not in cpp
+          assert 'nvs_set_' not in cpp
           for code in (
               'PREPARE_READY_MARKER_TIMEOUT',
               'PREPARE_RESULT_TIMEOUT',
@@ -170,6 +174,8 @@ jobs:
           assert 'SOURCE_ONLY_REQUIRES_NEW_EXACT_D2_PACKAGE' in host
           assert decision['status'] == 'ACCEPTED'
           assert decision['trigger']['terminal_state'] == 'LOCKED_RECOVERY_COMPLETED'
+          assert decision['decision']['frozen_v1_executor_modified'] is False
+          assert decision['decision']['firmware_repeater_nvs_write_path'] is False
           assert decision['decision']['old_private_material_reusable'] is False
           assert decision['replay_permitted'] is False
           PY
@@ -227,9 +233,9 @@ jobs:
           cp tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_serial_handshake_repair_20260727_v1.py "$root/"
           cp docs/decisions/h3-n2-stage2d9r-g3r-serial-handshake-repair-d1-20260727-v1.json "$root/"
           cp docs/development/h3-n2-stage2d9r-g3r-serial-handshake-repair-contract-20260727-v1.md "$root/"
-          cp "$REPAIR_COMPONENT/__init__.py" "$root/component-v2-init.py"
-          cp "$REPAIR_COMPONENT/stage2d9r_g3r_prepare_executor_20260727_v2.h" "$root/"
-          cp "$REPAIR_COMPONENT/stage2d9r_g3r_prepare_executor_20260727_v2.cpp" "$root/"
+          cp "$REPAIR_COMPONENT/__init__.py" "$root/ready-repeater-init.py"
+          cp "$REPAIR_COMPONENT/stage2d9r_g3r_ready_repeater_20260727_v1.h" "$root/"
+          cp "$REPAIR_COMPONENT/stage2d9r_g3r_ready_repeater_20260727_v1.cpp" "$root/"
           chmod 600 "$root"/*
 
           ROOT="$root" SOURCE_SHA="$SOURCE_SHA" python - <<'PY'
@@ -249,10 +255,14 @@ jobs:
               'main_sha': '43aa37b0cc343efdd2024f369517e55c5b6461f1',
               'build_binding': '0a2c96b7615d9f222cf72fcf899b6caf3a7c875f',
               'merged_image_sha256': hashlib.sha256(image.read_bytes()).hexdigest(),
+              'ready_projection_component': 'greenhouse_profile_isolated_device_g3r_ready_repeater',
               'ready_repeat_interval_ms': 1000,
+              'ready_repeat_window_ms': 180000,
               'serial_capture_before_broker': True,
               'timeout_transcript_redacted': True,
               'frozen_v1_source_modified': False,
+              'ready_repeater_command_parser': False,
+              'ready_repeater_nvs_write_path': False,
               'authorization_record_included': False,
               'authorized_execution_launcher_included': False,
               'private_content_included': False,
