@@ -1,0 +1,237 @@
+name: H3 N2 Stage2D9R G3R Execution Closure Binding Review CI V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-g3r-execution-closure-binding-review-ci-v1.yml"
+      - "docs/decisions/h3-n2-stage2d9r-g3r-execution-closure-binding-20260728-v1.json"
+      - "docs/development/h3-n2-stage2d9r-g3r-execution-closure-binding-contract-20260728-v1.md"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_execution_closure_binding_20260728_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_execution_closure_binding_contract_20260728_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_execution_closure_bound_final_physical_d2_wrapper_20260728_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_execution_closure_binding_packager_20260728_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_execution_closure_binding_probe_20260728_v1.py"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+
+env:
+  BASE_BRANCH: fix/h3-n2-stage2d9r-g3r-main-drift-successor-rebind-20260728-v1
+  BASE_SHA: b69371b13b6af139b4607a2150f25f440bb251c7
+  UPSTREAM_ARTIFACT_ID: "8688476229"
+  UPSTREAM_ARTIFACT_SHA256: 89e25e287c33de0d88c714c748329c5d4cdbe12f83343fdd18eff8debf351a04
+  TEST_FILE: tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_execution_closure_binding_20260728_v1.py
+  CONTRACT: tools/h3_n2_stage2d9r_g3r_execution_closure_binding_contract_20260728_v1.py
+  WRAPPER: tools/h3_n2_stage2d9r_g3r_execution_closure_bound_final_physical_d2_wrapper_20260728_v1.py
+  PACKAGER: tools/h3_n2_stage2d9r_g3r_execution_closure_binding_packager_20260728_v1.py
+  PROBE: tools/h3_n2_stage2d9r_g3r_execution_closure_binding_probe_20260728_v1.py
+  PYTHONHASHSEED: "0"
+  TZ: UTC
+  LC_ALL: C.UTF-8
+  LANG: C.UTF-8
+
+jobs:
+  source-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fail closed on exact base PR and upstream Artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_BASE_REF" = "$BASE_BRANCH"
+          test "$EVENT_BASE_SHA" = "$BASE_SHA"
+          gh api "repos/$GITHUB_REPOSITORY/pulls/194" > /tmp/pr-194.json
+          python - <<'PY'
+          import json
+          value = json.load(open('/tmp/pr-194.json'))
+          assert value['state'] == 'open'
+          assert value['draft'] is True
+          assert value['merged'] is False
+          assert value['head']['sha'] == 'b69371b13b6af139b4607a2150f25f440bb251c7'
+          assert value['base']['sha'] == 'bdfcda55ff248838f0d703abf6d2414f3f73eff7'
+          PY
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$UPSTREAM_ARTIFACT_ID" > /tmp/artifact.json
+          python - <<'PY'
+          import json, os
+          value = json.load(open('/tmp/artifact.json'))
+          assert value['id'] == int(os.environ['UPSTREAM_ARTIFACT_ID'])
+          assert value['expired'] is False
+          assert value['digest'] == 'sha256:' + os.environ['UPSTREAM_ARTIFACT_SHA256']
+          assert value['workflow_run']['head_sha'] == os.environ['BASE_SHA']
+          PY
+
+      - name: Record repository HEAD as audit-only evidence
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin refs/heads/main:refs/remotes/origin/main
+          CURRENT_MAIN="$(git rev-parse refs/remotes/origin/main)"
+          test "${#CURRENT_MAIN}" = 40
+          printf 'repository_head_sha=%s\nrepository_head_role=AUDIT_ONLY\nrepository_head_enforced=false\n' \
+            "$CURRENT_MAIN" | tee /tmp/repository-head-audit.txt
+
+      - name: Require exact eight-file successor inventory
+        run: |
+          set -euo pipefail
+          git diff --name-only "$BASE_SHA"...HEAD | sort > /tmp/actual
+          cat > /tmp/expected <<'EOF'
+          .github/workflows/h3-n2-stage2d9r-g3r-execution-closure-binding-review-ci-v1.yml
+          docs/decisions/h3-n2-stage2d9r-g3r-execution-closure-binding-20260728-v1.json
+          docs/development/h3-n2-stage2d9r-g3r-execution-closure-binding-contract-20260728-v1.md
+          tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_execution_closure_binding_20260728_v1.py
+          tools/h3_n2_stage2d9r_g3r_execution_closure_binding_contract_20260728_v1.py
+          tools/h3_n2_stage2d9r_g3r_execution_closure_binding_packager_20260728_v1.py
+          tools/h3_n2_stage2d9r_g3r_execution_closure_binding_probe_20260728_v1.py
+          tools/h3_n2_stage2d9r_g3r_execution_closure_bound_final_physical_d2_wrapper_20260728_v1.py
+          EOF
+          sort -o /tmp/expected /tmp/expected
+          diff -u /tmp/expected /tmp/actual
+
+      - name: Compile and run source-only validation
+        run: |
+          set -euo pipefail
+          export PYTHONPYCACHEPREFIX=/tmp/stage2d9r-execution-closure-pycache
+          python -m py_compile "$CONTRACT" "$WRAPPER" "$PACKAGER" "$PROBE" "$TEST_FILE"
+          python "$CONTRACT" --source-sha "${{ github.event.pull_request.head.sha }}" > /tmp/source-contract.json
+          python "$TEST_FILE" -v 2>&1 | tee /tmp/source-tests.log
+          grep -F 'Ran 11 tests' /tmp/source-tests.log
+          grep -F 'OK' /tmp/source-tests.log
+          python - <<'PY'
+          import json
+          value = json.load(open('/tmp/source-contract.json'))
+          assert value['state'] == 'EXECUTION_CLOSURE_BINDING_SOURCE_FROZEN_UNAUTHORIZED'
+          assert value['base_pr'] == 194
+          assert value['base_head_sha'] == 'b69371b13b6af139b4607a2150f25f440bb251c7'
+          assert value['repository_head_role'] == 'AUDIT_ONLY'
+          assert value['repository_head_enforced'] is False
+          assert value['execution_closure_role'] == 'BLOCKING'
+          assert value['previous_request_state'] == 'SUPERSEDED_BY_EXECUTION_CLOSURE_POLICY_BEFORE_AUTHORIZATION'
+          assert value['authorized'] is False
+          PY
+          ! grep -F 'list_ports.comports' "$PROBE"
+          ! grep -F 'serial.Serial' "$PROBE"
+          ! grep -F 'subprocess.run' "$PROBE"
+          ! grep -F 'import socket' "$PROBE"
+          rm -rf "$PYTHONPYCACHEPREFIX"
+
+  package-build:
+    needs: source-review
+    strategy:
+      fail-fast: true
+      matrix:
+        lane: [a, b]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download exact upstream main-drift rebind Artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/artifacts/$UPSTREAM_ARTIFACT_ID/zip" \
+            --output /tmp/upstream.zip
+          echo "$UPSTREAM_ARTIFACT_SHA256  /tmp/upstream.zip" | sha256sum -c -
+
+      - name: Run real-Artifact tests and deterministic package lane
+        env:
+          LANE: ${{ matrix.lane }}
+          STAGE2D9R_EXECUTION_CLOSURE_UPSTREAM_ARTIFACT_ZIP: /tmp/upstream.zip
+        run: |
+          set -euo pipefail
+          python "$TEST_FILE" -v 2>&1 | tee "/tmp/tests-$LANE.log"
+          grep -F 'Ran 11 tests' "/tmp/tests-$LANE.log"
+          grep -F 'OK' "/tmp/tests-$LANE.log"
+          git fetch --no-tags origin refs/heads/main:refs/remotes/origin/main
+          CURRENT_MAIN="$(git rev-parse refs/remotes/origin/main)"
+          python "$PACKAGER" \
+            --repository-root "$GITHUB_WORKSPACE" \
+            --upstream-artifact-zip /tmp/upstream.zip \
+            --output-root "/tmp/package-$LANE" \
+            --source-sha "${{ github.event.pull_request.head.sha }}" \
+            --repository-head-sha "$CURRENT_MAIN" \
+            > "/tmp/package-result-$LANE.json"
+          python - <<'PY'
+          import json, os
+          lane = os.environ['LANE']
+          value = json.load(open(f'/tmp/package-result-{lane}.json'))
+          assert value['status'] == 'PASS'
+          assert value['repository_head_role'] == 'AUDIT_ONLY'
+          assert value['repository_head_enforced'] is False
+          assert len(value['execution_closure_sha256']) == 64
+          assert value['authorized'] is False
+          assert value['board_operation'] is False
+          assert value['network_operation'] is False
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: execution-closure-binding-lane-${{ matrix.lane }}
+          path: /tmp/package-${{ matrix.lane }}
+          include-hidden-files: true
+          retention-days: 1
+          if-no-files-found: error
+
+  package-compare-and-publish:
+    needs: package-build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: execution-closure-binding-lane-a
+          path: /tmp/lane-a
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: execution-closure-binding-lane-b
+          path: /tmp/lane-b
+
+      - name: Require byte-identical two-lane package trees
+        run: |
+          set -euo pipefail
+          diff -qr /tmp/lane-a /tmp/lane-b
+          test -f /tmp/lane-a/stage2d9r-g3r-execution-closure-binding-review-v1.tar
+          sha256sum /tmp/lane-a/stage2d9r-g3r-execution-closure-binding-review-v1.tar
+          test -f /tmp/lane-a/execution-closure-bound-final-physical-d2-execution-package/EXECUTION_CLOSURE_MANIFEST.json
+          test -f /tmp/lane-a/execution-closure-bound-final-physical-d2-execution-package/stage2d9r-g3r-repaired-immutable-payload-v1.tar
+          test -f /tmp/lane-a/execution-closure-bound-final-physical-d2-execution-package/stage2d9r-g3r-repaired-locked-recovery-payload-v1.tar
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-g3r-execution-closure-binding-review-v1
+          path: /tmp/lane-a
+          include-hidden-files: true
+          retention-days: 7
+          if-no-files-found: error
