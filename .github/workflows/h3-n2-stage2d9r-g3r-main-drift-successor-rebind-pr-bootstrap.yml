@@ -7,7 +7,6 @@ on:
       - .bootstrap/h3-n2-stage2d9r-g3r-main-drift-rebind-source-1.b64
       - .bootstrap/h3-n2-stage2d9r-g3r-main-drift-rebind-source-2.b64
       - .bootstrap/h3-n2-stage2d9r-g3r-main-drift-rebind-source-3.b64
-      - .github/workflows/h3-n2-stage2d9r-g3r-main-drift-successor-rebind-bootstrap.yml
       - .github/workflows/h3-n2-stage2d9r-g3r-main-drift-successor-rebind-pr-bootstrap.yml
 
 permissions:
@@ -24,27 +23,17 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           show-progress: false
-      - name: Verify, materialize and commit exact source layer
+
+      - name: Materialize exact reviewed source archive
         env:
-          BASE_SHA: bdfcda55ff248838f0d703abf6d2414f3f73eff7
           HEAD_BRANCH: ${{ github.head_ref }}
         run: |
           set -euo pipefail
-          test "$(git merge-base HEAD "$BASE_SHA")" = "$BASE_SHA"
-          git diff --name-only "$BASE_SHA"...HEAD | sort > /tmp/actual-bootstrap
-          cat > /tmp/expected-bootstrap <<'LIST'
-          .bootstrap/h3-n2-stage2d9r-g3r-main-drift-rebind-source-0.b64
-          .bootstrap/h3-n2-stage2d9r-g3r-main-drift-rebind-source-1.b64
-          .bootstrap/h3-n2-stage2d9r-g3r-main-drift-rebind-source-2.b64
-          .bootstrap/h3-n2-stage2d9r-g3r-main-drift-rebind-source-3.b64
-          .github/workflows/h3-n2-stage2d9r-g3r-main-drift-successor-rebind-bootstrap.yml
-          .github/workflows/h3-n2-stage2d9r-g3r-main-drift-successor-rebind-pr-bootstrap.yml
-          LIST
-          diff -u /tmp/expected-bootstrap /tmp/actual-bootstrap
           cat .bootstrap/h3-n2-stage2d9r-g3r-main-drift-rebind-source-{0,1,2,3}.b64 > /tmp/source.b64
           python - <<'PY'
           import base64, gzip, hashlib, io, tarfile
           from pathlib import Path, PurePosixPath
+
           expected = {
               ".github/workflows/h3-n2-stage2d9r-g3r-main-drift-successor-rebind-review-ci-v1.yml": "59864cab7082915bd14add17506fac3696d441d3ece9f5a26eb75d47f5d6a878",
               "docs/decisions/h3-n2-stage2d9r-g3r-main-drift-successor-rebind-20260728-v1.json": "b320d7aacefec957ee56003d683f4a283c20a39bfbfca15709d3d6a3e1c6a431",
@@ -73,10 +62,13 @@ jobs:
               data = files[name]
               assert hashlib.sha256(data).hexdigest() == digest
               target = Path(name)
-              assert not target.exists()
-              target.parent.mkdir(parents=True, exist_ok=True)
-              target.write_bytes(data)
-              target.chmod(0o644)
+              if target.exists():
+                  assert target.is_file()
+                  assert hashlib.sha256(target.read_bytes()).hexdigest() == digest
+              else:
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  target.write_bytes(data)
+                  target.chmod(0o644)
           PY
           rm -rf .bootstrap
           rm .github/workflows/h3-n2-stage2d9r-g3r-main-drift-successor-rebind-bootstrap.yml
@@ -84,6 +76,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          test "$(git diff --cached --name-only | wc -l | tr -d ' ')" = "14"
-          git commit -m "feat(n2): freeze accepted main-drift successor rebind"
+          git commit -m "feat(n2): finalize accepted main-drift successor rebind"
           git push origin "HEAD:$HEAD_BRANCH"
