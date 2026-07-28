@@ -4,7 +4,6 @@ from __future__ import annotations
 import base64
 from datetime import datetime, timedelta, timezone
 import hashlib
-import importlib.util
 import json
 from pathlib import Path
 import subprocess
@@ -211,8 +210,8 @@ class RepairedPrivateMaterialTests(unittest.TestCase):
             with self.assertRaisesRegex(generator.GenerationError, "AUTH_MAIN_SHA_MISMATCH"):
                 generator.validate_authorization(record, source_sha, toolchain, home, now)
 
-    def test_private_root_must_be_unique_outside_repository(self) -> None:
-        with tempfile.TemporaryDirectory() as temp:
+    def test_private_root_must_be_unique_outside_shared_temp(self) -> None:
+        with tempfile.TemporaryDirectory(dir=ROOT) as temp:
             home = Path(temp)
             root = generator.default_custody_root(home)
             generator.validate_private_root(root, home, None)
