@@ -1,0 +1,23 @@
+{
+  "artifact_id": 8676054992,
+  "artifact_name": "stage2d9r-g3r-repaired-immutable-recovery-freeze-v1",
+  "artifact_sha256": "10accce23149434b173658a878dc72617787e51f755c4ca7c12c9c4dde898a32",
+  "board_operation": false,
+  "broker_started": false,
+  "decision": "REJECT_AND_REBUILD_WITH_NONEMPTY_OPENSSL_ENVIRONMENT_EVIDENCE",
+  "execution_authorized": false,
+  "failure_code": "OPENSSL_ENVIRONMENT_EVIDENCE_EMPTY",
+  "flash_operation": false,
+  "network_operation": false,
+  "observed_openssl_environment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "prepare_executed": false,
+  "private_paths_included": false,
+  "private_values_included": false,
+  "replay_permitted": false,
+  "schema": "gh.h3.n2.stage2d9r-g3r-repaired-immutable-recovery-rejection-l1/1",
+  "secret_values_included": false,
+  "serial_operation": false,
+  "source_sha": "44440e16883674e65b83ae9ba046d9b416135954",
+  "state": "REJECTED_BEFORE_BASELINE_GATE",
+  "verify_executed": false
+}
