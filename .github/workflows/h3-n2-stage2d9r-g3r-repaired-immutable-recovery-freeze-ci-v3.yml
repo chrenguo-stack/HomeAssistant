@@ -1,0 +1,343 @@
+name: H3 N2 Stage2D9R G3R Repaired Immutable Recovery Freeze CI V3
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-g3r-repaired-immutable-recovery-freeze-ci-v3.yml"
+      - "tools/h3_n2_stage2d9r_g3r_repaired_immutable_build_lane_20260728_v2.sh"
+      - "docs/acceptance/h3-n2-stage2d9r-g3r-repaired-immutable-recovery-v1-rejection-l1-v1.json"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  EXPECTED_BASE_BRANCH: fix/h3-n2-stage2d9r-g3r-repaired-u1-host-preflight-20260728-v1
+  EXPECTED_BASE_SHA: 922374a46b5ad6198623ab177efc5c313d4edff4
+  EXPECTED_MAIN_SHA: c16da1a2d4d8300198b0603359eea349a034e2ea
+  SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+  PUBLIC_DIR: tests/h3_n2_stage2d9r_tls_candidate/public_repaired_tlsvalid03
+  BINDING_FILE: tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_g3r_repaired_immutable_build_binding_20260728_v1.json
+  PIPELINE: tools/h3_n2_stage2d9r_g3r_repaired_immutable_recovery_pipeline_20260728_v1.py
+  HOST_CONTROLLER: tools/h3_n2_stage2d9r_serial_handshake_repair_20260727_v1.py
+  BUILD_HELPER: tools/h3_n2_stage2d9r_g3r_repaired_immutable_build_lane_20260728_v2.sh
+  WORKFLOW_FILE: .github/workflows/h3-n2-stage2d9r-g3r-repaired-immutable-recovery-freeze-ci-v3.yml
+  EMPTY_SHA256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+
+jobs:
+  source-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Fail closed on frozen repository drift
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EVENT_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_BASE_SHA" = "$EXPECTED_BASE_SHA"
+          test "$EVENT_BASE_REF" = "$EXPECTED_BASE_BRANCH"
+          test "$(git rev-parse HEAD)" = "$EVENT_HEAD_SHA"
+          test "$(git ls-remote origin refs/heads/main | awk '{print $1}')" = "$EXPECTED_MAIN_SHA"
+          for number in 187 186 185 184 183 180 176; do
+            gh api "repos/$GITHUB_REPOSITORY/pulls/$number" > "/tmp/pr-$number.json"
+          done
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          expected = {
+              187: ("922374a46b5ad6198623ab177efc5c313d4edff4", "2ed70e3292e5b6522ac3a5bc279c94535cd7b784"),
+              186: ("2ed70e3292e5b6522ac3a5bc279c94535cd7b784", "662bd9027595a7dcfaaaedb977691b13b3fec74b"),
+              185: ("662bd9027595a7dcfaaaedb977691b13b3fec74b", "abd28fc25c2d814b7becd9488915735bc26ac297"),
+              184: ("abd28fc25c2d814b7becd9488915735bc26ac297", "4a5b7a5290f04500050783124f9711268dba0afd"),
+              183: ("4a5b7a5290f04500050783124f9711268dba0afd", "b2c481d5c824bd6606d914f5828ba6a1662000b1"),
+              180: ("b2c481d5c824bd6606d914f5828ba6a1662000b1", "cf841f3e5a8cf04c5df9875c499b91ad4e4289cb"),
+              176: ("cf841f3e5a8cf04c5df9875c499b91ad4e4289cb", None),
+          }
+          for number, (head, base) in expected.items():
+              value = json.loads(Path(f"/tmp/pr-{number}.json").read_text())
+              assert value["state"] == "open", number
+              assert value["draft"] is True, number
+              assert value["merged"] is False, number
+              assert value["head"]["sha"] == head, number
+              if base is not None:
+                  assert value["base"]["sha"] == base, number
+          PY
+
+      - name: Validate V1 rejection and unchanged execution sources
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          value = json.loads(Path(
+              "docs/acceptance/h3-n2-stage2d9r-g3r-repaired-immutable-recovery-v1-rejection-l1-v1.json"
+          ).read_text())
+          assert value["state"] == "REJECTED_BEFORE_BASELINE_GATE"
+          assert value["failure_code"] == "OPENSSL_ENVIRONMENT_EVIDENCE_EMPTY"
+          assert value["artifact_id"] == 8676054992
+          assert value["execution_authorized"] is False
+          PY
+          git diff --exit-code "$EXPECTED_BASE_SHA"...HEAD -- \
+            tools/h3_n2_stage2d9r_g3r_repaired_private_material_generator_20260728_v1.py \
+            tools/h3_n2_stage2d9r_g3r_repaired_private_material_contract_20260728_v1.py \
+            tools/h3_n2_stage2d9r_g3r_repaired_successor_chain_contract_20260728_v1.py \
+            tools/h3_n2_stage2d9r_prepare_command_protocol_20260723_v1.py \
+            tools/h3_n2_stage2d9r_serial_handshake_repair_20260727_v1.py \
+            firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor \
+            firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_ready_repeater
+
+      - name: Validate public inputs and host model
+        run: |
+          set -euo pipefail
+          export PYTHONPYCACHEPREFIX=/tmp/stage2d9r-repaired-v3-pycache
+          python -m py_compile "$PIPELINE" \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_repaired_immutable_recovery_20260728_v1.py
+          bash -n "$BUILD_HELPER"
+          python "$PIPELINE" validate-public \
+            --public-dir "$PUBLIC_DIR" \
+            --binding "$BINDING_FILE"
+          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_repaired_immutable_recovery_20260728_v1.py -v \
+            2>&1 | tee /tmp/stage2d9r-repaired-v3-tests.log
+          grep -F 'Ran 6 tests' /tmp/stage2d9r-repaired-v3-tests.log
+          grep -F 'OK' /tmp/stage2d9r-repaired-v3-tests.log
+          rm -rf "$PYTHONPYCACHEPREFIX"
+
+  immutable-build:
+    needs: source-review
+    strategy:
+      fail-fast: true
+      matrix:
+        lane: [a, b]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 58
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install pinned ESPHome
+        run: python -m pip install -q "esphome==2026.4.3"
+      - name: Run independent corrected immutable lane
+        env:
+          LANE: ${{ matrix.lane }}
+        run: |
+          set -euo pipefail
+          out="/tmp/stage2d9r-repaired-immutable-v3-$LANE"
+          chmod 700 "$BUILD_HELPER"
+          "$BUILD_HELPER" "$LANE" "$SOURCE_SHA" "$out" "$WORKFLOW_FILE" \
+            | tee "/tmp/stage2d9r-repaired-lane-v3-$LANE.log"
+          grep -Fx 'STAGE2D9R_REPAIRED_IMMUTABLE_BUILD_LANE_V2=PASS' \
+            "/tmp/stage2d9r-repaired-lane-v3-$LANE.log"
+          grep -Fx 'OPENSSL_ENVIRONMENT_NONEMPTY=true' \
+            "/tmp/stage2d9r-repaired-lane-v3-$LANE.log"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-g3r-repaired-immutable-build-${{ matrix.lane }}-v3
+          path: /tmp/stage2d9r-repaired-immutable-v3-${{ matrix.lane }}
+          if-no-files-found: error
+          retention-days: 5
+          compression-level: 0
+
+  immutable-freeze:
+    needs: immutable-build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/download-artifact@v4
+        with:
+          name: stage2d9r-g3r-repaired-immutable-build-a-v3
+          path: /tmp/immutable-a
+      - uses: actions/download-artifact@v4
+        with:
+          name: stage2d9r-g3r-repaired-immutable-build-b-v3
+          path: /tmp/immutable-b
+      - name: Freeze corrected immutable lanes
+        run: |
+          set -euo pipefail
+          out=/tmp/stage2d9r-repaired-immutable-freeze-v3
+          python "$PIPELINE" freeze-immutable \
+            --build-a /tmp/immutable-a \
+            --build-b /tmp/immutable-b \
+            --output-dir "$out" \
+            --source-sha "$SOURCE_SHA" \
+            | tee /tmp/stage2d9r-repaired-immutable-freeze-v3.log
+          (cd "$out" && sha256sum -c SHA256SUMS)
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          value = json.loads(Path(
+              "/tmp/stage2d9r-repaired-immutable-freeze-v3/immutable-freeze-manifest.json"
+          ).read_text())
+          assert value["payloads_byte_identical"] is True
+          assert value["openssl_environment_sha256"] != os.environ["EMPTY_SHA256"]
+          assert value["execution_authorized"] is False
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-g3r-repaired-immutable-freeze-v3
+          path: /tmp/stage2d9r-repaired-immutable-freeze-v3
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+  recovery-build:
+    needs: immutable-freeze
+    strategy:
+      fail-fast: true
+      matrix:
+        lane: [a, b]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/download-artifact@v4
+        with:
+          name: stage2d9r-g3r-repaired-immutable-freeze-v3
+          path: /tmp/immutable-freeze
+      - name: Build independent locked recovery lane
+        env:
+          LANE: ${{ matrix.lane }}
+        run: |
+          set -euo pipefail
+          out="/tmp/stage2d9r-repaired-recovery-v3-$LANE"
+          python "$PIPELINE" build-recovery \
+            --immutable-freeze /tmp/immutable-freeze \
+            --output-dir "$out" \
+            --lane "$LANE" \
+            --source-sha "$SOURCE_SHA" \
+            --public-dir "$PUBLIC_DIR" \
+            --binding "$BINDING_FILE"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-g3r-repaired-locked-recovery-build-${{ matrix.lane }}-v3
+          path: /tmp/stage2d9r-repaired-recovery-v3-${{ matrix.lane }}
+          if-no-files-found: error
+          retention-days: 5
+          compression-level: 0
+
+  final-freeze:
+    needs: recovery-build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/download-artifact@v4
+        with:
+          name: stage2d9r-g3r-repaired-immutable-freeze-v3
+          path: /tmp/immutable-freeze
+      - uses: actions/download-artifact@v4
+        with:
+          name: stage2d9r-g3r-repaired-locked-recovery-build-a-v3
+          path: /tmp/recovery-a
+      - uses: actions/download-artifact@v4
+        with:
+          name: stage2d9r-g3r-repaired-locked-recovery-build-b-v3
+          path: /tmp/recovery-b
+      - name: Freeze corrected final binding
+        run: |
+          set -euo pipefail
+          out=/tmp/stage2d9r-repaired-immutable-recovery-freeze-v3
+          python "$PIPELINE" freeze-recovery \
+            --build-a /tmp/recovery-a \
+            --build-b /tmp/recovery-b \
+            --immutable-freeze /tmp/immutable-freeze \
+            --output-dir "$out" \
+            --source-sha "$SOURCE_SHA" \
+            --public-dir "$PUBLIC_DIR" \
+            --binding "$BINDING_FILE" \
+            --host-controller "$HOST_CONTROLLER" \
+            | tee /tmp/stage2d9r-repaired-final-freeze-v3.log
+          (cd "$out" && sha256sum -c SHA256SUMS)
+          grep -Fx 'NEXT_GATE=BASELINE_READONLY_GATE' /tmp/stage2d9r-repaired-final-freeze-v3.log
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          root = Path("/tmp/stage2d9r-repaired-immutable-recovery-freeze-v3")
+          manifest = json.loads((root / "immutable-recovery-freeze-manifest.json").read_text())
+          binding = json.loads((root / "final-execution-binding.json").read_text())
+          assert binding["payload"]["bindings"]["openssl_environment_sha256"] != os.environ["EMPTY_SHA256"]
+          assert manifest["immutable_builds_byte_identical"] is True
+          assert manifest["recovery_payloads_byte_identical"] is True
+          assert manifest["execution_authorized"] is False
+          assert manifest["next_gate"] == "BASELINE_READONLY_GATE"
+          PY
+          ! grep -R -I -n -E \
+            'BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|GH2D9R_PREPARE_V1 tlsvalid03|GH2D9R_VERIFY_V1 tlsvalid03|/Users/|/private/tmp/' \
+            "$out"
+      - name: Upload corrected final Artifact
+        id: artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-g3r-repaired-immutable-recovery-freeze-v3
+          path: /tmp/stage2d9r-repaired-immutable-recovery-freeze-v3
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+      - name: Report corrected locked boundary
+        run: |
+          printf '%s\n' \
+            'STAGE2D9R_REPAIRED_IMMUTABLE_RECOVERY_WORKFLOW_V3=PASS' \
+            "SOURCE_SHA=$SOURCE_SHA" \
+            "ARTIFACT_ID=${{ steps.artifact.outputs.artifact-id }}" \
+            "ARTIFACT_DIGEST=${{ steps.artifact.outputs.artifact-digest }}" \
+            'OPENSSL_ENVIRONMENT_NONEMPTY=true' \
+            'V1_ARTIFACT_REJECTED=true' \
+            'NEXT_GATE=BASELINE_READONLY_GATE' \
+            'D2_AUTHORIZED=false' \
+            'RECOVERY_AUTHORIZED=false' \
+            'BOARD_OPERATION=false' \
+            'USB_ENUMERATION=false' \
+            'SERIAL_OPERATION=false' \
+            'ESPTOOL_OPERATION=false' \
+            'FLASH_OPERATION=false' \
+            'PHYSICAL_NVS_OPERATION=false' \
+            'NETWORK_OPERATION=false' \
+            'BROKER_STARTED=false' \
+            'PREPARE_EXECUTED=false' \
+            'VERIFY_EXECUTED=false' \
+            'ACTIVATE_EXECUTED=false' \
+            'CLEANUP_EXECUTED=false' \
+            'READY=false' \
+            'MERGE=false' \
+            'RELEASE=false' \
+            'TAG=false' \
+            'DEPLOYMENT=false'
