@@ -1,0 +1,230 @@
+name: H3 N2 Stage2D9R G3R Baseline Mismatch Evidence Repair Review CI V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-g3r-baseline-mismatch-evidence-repair-review-ci-v1.yml"
+      - "docs/decisions/h3-n2-stage2d9r-g3r-baseline-mismatch-evidence-repair-20260728-v1.json"
+      - "docs/development/h3-n2-stage2d9r-g3r-baseline-mismatch-evidence-repair-contract-20260728-v1.md"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_baseline_mismatch_evidence_repair_20260728_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_baseline_mismatch_evidence_repair_contract_20260728_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_baseline_mismatch_evidence_capture_20260728_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_baseline_evidence_diagnostic_probe_20260728_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_baseline_mismatch_evidence_repair_packager_20260728_v1.py"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+
+env:
+  BASE_BRANCH: fix/h3-n2-stage2d9r-g3r-execution-closure-binding-20260728-v1
+  BASE_SHA: 1fd6bc19246481835c1e836f5daaefcaf6c97836
+  UPSTREAM_ARTIFACT_ID: "8691052910"
+  UPSTREAM_ARTIFACT_SHA256: 75d62dd96f98fdfb48d4fdcc296ce4a93fb8d7f798ab9a30c3e3b4391aad0bed
+  CONTRACT: tools/h3_n2_stage2d9r_g3r_baseline_mismatch_evidence_repair_contract_20260728_v1.py
+  CAPTURE: tools/h3_n2_stage2d9r_g3r_baseline_mismatch_evidence_capture_20260728_v1.py
+  PROBE: tools/h3_n2_stage2d9r_g3r_baseline_evidence_diagnostic_probe_20260728_v1.py
+  PACKAGER: tools/h3_n2_stage2d9r_g3r_baseline_mismatch_evidence_repair_packager_20260728_v1.py
+  TEST_FILE: tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_baseline_mismatch_evidence_repair_20260728_v1.py
+  PYTHONHASHSEED: "0"
+  TZ: UTC
+  LC_ALL: C.UTF-8
+  LANG: C.UTF-8
+
+jobs:
+  source-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fail closed on exact PR 195 base and Artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_BASE_REF" = "$BASE_BRANCH"
+          test "$EVENT_BASE_SHA" = "$BASE_SHA"
+          gh api "repos/$GITHUB_REPOSITORY/pulls/195" > /tmp/pr-195.json
+          python - <<'PY'
+          import json
+          value = json.load(open('/tmp/pr-195.json'))
+          assert value['state'] == 'open'
+          assert value['draft'] is True
+          assert value['merged'] is False
+          assert value['head']['sha'] == '1fd6bc19246481835c1e836f5daaefcaf6c97836'
+          assert value['base']['sha'] == 'b69371b13b6af139b4607a2150f25f440bb251c7'
+          PY
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$UPSTREAM_ARTIFACT_ID" > /tmp/artifact.json
+          python - <<'PY'
+          import json, os
+          value = json.load(open('/tmp/artifact.json'))
+          assert value['id'] == int(os.environ['UPSTREAM_ARTIFACT_ID'])
+          assert value['expired'] is False
+          assert value['digest'] == 'sha256:' + os.environ['UPSTREAM_ARTIFACT_SHA256']
+          assert value['workflow_run']['head_sha'] == os.environ['BASE_SHA']
+          PY
+
+      - name: Require exact eight-file successor inventory
+        run: |
+          set -euo pipefail
+          git diff --name-only "$BASE_SHA"...HEAD | sort > /tmp/actual
+          cat > /tmp/expected <<'EOF_FILES'
+          .github/workflows/h3-n2-stage2d9r-g3r-baseline-mismatch-evidence-repair-review-ci-v1.yml
+          docs/decisions/h3-n2-stage2d9r-g3r-baseline-mismatch-evidence-repair-20260728-v1.json
+          docs/development/h3-n2-stage2d9r-g3r-baseline-mismatch-evidence-repair-contract-20260728-v1.md
+          tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_baseline_mismatch_evidence_repair_20260728_v1.py
+          tools/h3_n2_stage2d9r_g3r_baseline_evidence_diagnostic_probe_20260728_v1.py
+          tools/h3_n2_stage2d9r_g3r_baseline_mismatch_evidence_capture_20260728_v1.py
+          tools/h3_n2_stage2d9r_g3r_baseline_mismatch_evidence_repair_contract_20260728_v1.py
+          tools/h3_n2_stage2d9r_g3r_baseline_mismatch_evidence_repair_packager_20260728_v1.py
+          EOF_FILES
+          sort -o /tmp/expected /tmp/expected
+          diff -u /tmp/expected /tmp/actual
+
+      - name: Compile and run focused source tests
+        run: |
+          set -euo pipefail
+          export PYTHONPYCACHEPREFIX=/tmp/stage2d9r-baseline-repair-pycache
+          python -m py_compile "$CONTRACT" "$CAPTURE" "$PROBE" "$PACKAGER" "$TEST_FILE"
+          python "$CONTRACT" --source-sha "${{ github.event.pull_request.head.sha }}" > /tmp/source-contract.json
+          python "$TEST_FILE" -v 2>&1 | tee /tmp/source-tests.log
+          grep -F 'Ran 10 tests' /tmp/source-tests.log
+          grep -F 'OK' /tmp/source-tests.log
+          python - <<'PY'
+          import json
+          value = json.load(open('/tmp/source-contract.json'))
+          assert value['state'] == 'BASELINE_MISMATCH_EVIDENCE_REPAIR_SOURCE_FROZEN_UNAUTHORIZED'
+          assert value['base_pr'] == 195
+          assert value['predecessor_state'] == 'CONSUMED_FAILED'
+          assert value['predecessor_failure_code'] == 'BASELINE_STATE_MISMATCH'
+          assert value['invalidated_request_state'] == 'INVALIDATED_BY_PREDECESSOR_TERMINAL_STATE_DRIFT_BEFORE_PHYSICAL_AUTHORIZATION'
+          assert value['future_physical_request_created'] is False
+          assert value['authorized'] is False
+          assert value['board_operation'] is False
+          PY
+          ! grep -F 'serial.Serial(' "$PROBE"
+          ! grep -F '"write_flash"' "$PROBE"
+          ! grep -F '"erase_flash"' "$PROBE"
+          ! grep -F '"erase_region"' "$PROBE"
+          ! grep -F 'import socket' "$PROBE"
+          ! grep -F 'GH2D9R_PREPARE' "$PROBE"
+          ! grep -F 'GH2D9R_VERIFY' "$PROBE"
+          rm -rf "$PYTHONPYCACHEPREFIX"
+
+  package-build:
+    needs: source-review
+    strategy:
+      fail-fast: true
+      matrix:
+        lane: [a, b]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download exact PR 195 review Artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/artifacts/$UPSTREAM_ARTIFACT_ID/zip" \
+            --output /tmp/upstream.zip
+          echo "$UPSTREAM_ARTIFACT_SHA256  /tmp/upstream.zip" | sha256sum -c -
+
+      - name: Test exact Artifact and build deterministic lane
+        env:
+          LANE: ${{ matrix.lane }}
+          STAGE2D9R_BASELINE_REPAIR_UPSTREAM_ARTIFACT_ZIP: /tmp/upstream.zip
+        run: |
+          set -euo pipefail
+          python "$TEST_FILE" -v 2>&1 | tee "/tmp/tests-$LANE.log"
+          grep -F 'Ran 10 tests' "/tmp/tests-$LANE.log"
+          grep -F 'OK' "/tmp/tests-$LANE.log"
+          git fetch --no-tags origin refs/heads/main:refs/remotes/origin/main
+          CURRENT_MAIN="$(git rev-parse refs/remotes/origin/main)"
+          python "$PACKAGER" \
+            --repository-root "$GITHUB_WORKSPACE" \
+            --upstream-artifact-zip /tmp/upstream.zip \
+            --output-root "/tmp/package-$LANE" \
+            --source-sha "${{ github.event.pull_request.head.sha }}" \
+            --repository-head-sha "$CURRENT_MAIN" \
+            > "/tmp/package-result-$LANE.json"
+          python - <<'PY'
+          import json, os
+          lane = os.environ['LANE']
+          value = json.load(open(f'/tmp/package-result-{lane}.json'))
+          assert value['status'] == 'PASS'
+          assert value['predecessor_terminal_result_sha256'] == '008bff95619c4779f3ddca35492fae140ac067f9fd1f5443758c19534f254668'
+          assert value['invalidated_request_binding_sha256'] == '1058abf2c944ac5303c688b2b220ad208f22a920a984e44424b5ce5ab238d292'
+          assert value['future_physical_request_created'] is False
+          assert value['authorized'] is False
+          assert value['board_operation'] is False
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: baseline-mismatch-evidence-repair-lane-${{ matrix.lane }}
+          path: /tmp/package-${{ matrix.lane }}
+          include-hidden-files: true
+          retention-days: 1
+          if-no-files-found: error
+
+  package-compare-and-publish:
+    needs: package-build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: baseline-mismatch-evidence-repair-lane-a
+          path: /tmp/lane-a
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: baseline-mismatch-evidence-repair-lane-b
+          path: /tmp/lane-b
+
+      - name: Require byte-identical lanes and publish
+        run: |
+          set -euo pipefail
+          diff -qr /tmp/lane-a /tmp/lane-b
+          test -f /tmp/lane-a/stage2d9r-g3r-baseline-mismatch-evidence-repair-review-v1.tar
+          test -f /tmp/lane-a/PREDECESSOR_03_CONSUMED_FAILED_DISPOSITION.json
+          test -f /tmp/lane-a/INVALIDATED_PHYSICAL_D2_REQUEST_04.json
+          test -f /tmp/lane-a/BASELINE_DIAGNOSTIC_REQUEST_DRAFT.json
+          sha256sum /tmp/lane-a/stage2d9r-g3r-baseline-mismatch-evidence-repair-review-v1.tar
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-g3r-baseline-mismatch-evidence-repair-review-v1
+          path: /tmp/lane-a
+          include-hidden-files: true
+          retention-days: 7
+          if-no-files-found: error
