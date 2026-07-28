@@ -1,0 +1,234 @@
+name: H3 N2 Stage2D9R G3R Baseline Aggregate Digest Correction Review CI V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-g3r-baseline-aggregate-digest-correction-review-ci-v1.yml"
+      - "docs/decisions/h3-n2-stage2d9r-g3r-baseline-aggregate-digest-correction-20260729-v1.json"
+      - "docs/development/h3-n2-stage2d9r-g3r-baseline-aggregate-digest-correction-contract-20260729-v1.md"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_baseline_aggregate_digest_correction_20260729_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_baseline_aggregate_digest_correction_contract_20260729_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_baseline_aggregate_digest_correction_capture_20260729_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_corrected_execution_closure_builder_20260729_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_baseline_aggregate_digest_correction_packager_20260729_v1.py"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+
+env:
+  BASE_BRANCH: fix/h3-n2-stage2d9r-g3r-usb-identity-evidence-repair-20260728-v1
+  BASE_SHA: 0468e831e61f859ca5e1654785c67dd323e92e64
+  UPSTREAM_ARTIFACT_ID: "8696182269"
+  UPSTREAM_ARTIFACT_SHA256: ce87a0d2f421970cd5c8f53a16f0b85e70d3cdbe294afb18263f4276768d87b5
+  CONTRACT: tools/h3_n2_stage2d9r_g3r_baseline_aggregate_digest_correction_contract_20260729_v1.py
+  CAPTURE: tools/h3_n2_stage2d9r_g3r_baseline_aggregate_digest_correction_capture_20260729_v1.py
+  BUILDER: tools/h3_n2_stage2d9r_g3r_corrected_execution_closure_builder_20260729_v1.py
+  PACKAGER: tools/h3_n2_stage2d9r_g3r_baseline_aggregate_digest_correction_packager_20260729_v1.py
+  TEST_FILE: tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_baseline_aggregate_digest_correction_20260729_v1.py
+  PYTHONHASHSEED: "0"
+  TZ: UTC
+  LC_ALL: C.UTF-8
+  LANG: C.UTF-8
+
+jobs:
+  source-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fail closed on exact PR 197 base and Artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_BASE_REF" = "$BASE_BRANCH"
+          test "$EVENT_BASE_SHA" = "$BASE_SHA"
+          gh api "repos/$GITHUB_REPOSITORY/pulls/197" > /tmp/pr-197.json
+          python - <<'PY'
+          import json
+          value = json.load(open('/tmp/pr-197.json'))
+          assert value['state'] == 'open'
+          assert value['draft'] is True
+          assert value['merged'] is False
+          assert value['head']['sha'] == '0468e831e61f859ca5e1654785c67dd323e92e64'
+          assert value['base']['sha'] == '3b44bc48cdee79efcb77500c855362b1690d8877'
+          PY
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$UPSTREAM_ARTIFACT_ID" > /tmp/artifact.json
+          python - <<'PY'
+          import json, os
+          value = json.load(open('/tmp/artifact.json'))
+          assert value['id'] == int(os.environ['UPSTREAM_ARTIFACT_ID'])
+          assert value['expired'] is False
+          assert value['digest'] == 'sha256:' + os.environ['UPSTREAM_ARTIFACT_SHA256']
+          assert value['workflow_run']['head_sha'] == os.environ['BASE_SHA']
+          PY
+
+      - name: Require exact eight-file successor inventory
+        run: |
+          set -euo pipefail
+          git diff --name-only "$BASE_SHA"...HEAD | sort > /tmp/actual
+          cat > /tmp/expected <<'EOF_FILES'
+          .github/workflows/h3-n2-stage2d9r-g3r-baseline-aggregate-digest-correction-review-ci-v1.yml
+          docs/decisions/h3-n2-stage2d9r-g3r-baseline-aggregate-digest-correction-20260729-v1.json
+          docs/development/h3-n2-stage2d9r-g3r-baseline-aggregate-digest-correction-contract-20260729-v1.md
+          tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_baseline_aggregate_digest_correction_20260729_v1.py
+          tools/h3_n2_stage2d9r_g3r_baseline_aggregate_digest_correction_capture_20260729_v1.py
+          tools/h3_n2_stage2d9r_g3r_baseline_aggregate_digest_correction_contract_20260729_v1.py
+          tools/h3_n2_stage2d9r_g3r_baseline_aggregate_digest_correction_packager_20260729_v1.py
+          tools/h3_n2_stage2d9r_g3r_corrected_execution_closure_builder_20260729_v1.py
+          EOF_FILES
+          sort -o /tmp/expected /tmp/expected
+          diff -u /tmp/expected /tmp/actual
+
+      - name: Compile and run focused source tests
+        run: |
+          set -euo pipefail
+          export PYTHONPYCACHEPREFIX=/tmp/stage2d9r-aggregate-correction-pycache
+          python -m py_compile "$CONTRACT" "$CAPTURE" "$BUILDER" "$PACKAGER" "$TEST_FILE"
+          python "$CONTRACT" --source-sha "${{ github.event.pull_request.head.sha }}" > /tmp/source-contract.json
+          python "$TEST_FILE" -v 2>&1 | tee /tmp/source-tests.log
+          grep -F 'Ran 13 tests' /tmp/source-tests.log
+          grep -F 'OK' /tmp/source-tests.log
+          python - <<'PY'
+          import json
+          value = json.load(open('/tmp/source-contract.json'))
+          assert value['state'] == 'BASELINE_AGGREGATE_DIGEST_CORRECTION_SOURCE_FROZEN_UNAUTHORIZED'
+          assert value['base_pr'] == 197
+          assert value['b2_state'] == 'CONSUMED_PASS'
+          assert value['invalid_legacy_baseline_sha256'] == '0735d98c7b4e2a698b42d39bdded1dd04f97b9441270e8bc03be347d369c8793'
+          assert value['corrected_legacy_baseline_sha256'] == '776517efcac0c6cf03cabe0572b773dedc89e9bb2793ccb0d9f9585ea6fa601f'
+          assert value['physical_request_created'] is False
+          assert value['physical_request_authorized'] is False
+          PY
+          ! grep -F 'serial.Serial(' "$CONTRACT" "$CAPTURE" "$BUILDER" "$PACKAGER"
+          ! grep -F '"write_flash"' "$CONTRACT" "$CAPTURE" "$BUILDER" "$PACKAGER"
+          ! grep -F '"erase_flash"' "$CONTRACT" "$CAPTURE" "$BUILDER" "$PACKAGER"
+          ! grep -F '"erase_region"' "$CONTRACT" "$CAPTURE" "$BUILDER" "$PACKAGER"
+          ! grep -F 'import socket' "$CONTRACT" "$CAPTURE" "$BUILDER" "$PACKAGER"
+          ! grep -F 'GH2D9R_PREPARE' "$CONTRACT" "$CAPTURE" "$BUILDER" "$PACKAGER"
+          ! grep -F 'GH2D9R_VERIFY' "$CONTRACT" "$CAPTURE" "$BUILDER" "$PACKAGER"
+          ! find . -name 'PHYSICAL_D2_REQUEST_05.json' -print -quit | grep .
+
+  package-build:
+    needs: source-review
+    strategy:
+      fail-fast: true
+      matrix:
+        lane: [a, b]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download exact PR 197 review Artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$UPSTREAM_ARTIFACT_ID/zip" > /tmp/upstream.zip
+          echo "$UPSTREAM_ARTIFACT_SHA256  /tmp/upstream.zip" | sha256sum -c -
+
+      - name: Test exact Artifact and build deterministic lane
+        run: |
+          set -euo pipefail
+          export PYTHONPYCACHEPREFIX=/tmp/stage2d9r-aggregate-correction-pycache-${{ matrix.lane }}
+          export STAGE2D9R_AGGREGATE_CORRECTION_UPSTREAM_ARTIFACT_ZIP=/tmp/upstream.zip
+          python "$TEST_FILE" -v 2>&1 | tee /tmp/tests.log
+          grep -F 'Ran 13 tests' /tmp/tests.log
+          grep -F 'OK' /tmp/tests.log
+          python "$PACKAGER" --repository-root . --upstream-artifact-zip /tmp/upstream.zip --output-root /tmp/review-package --source-sha "${{ github.event.pull_request.head.sha }}" --repository-head-sha 64c6b093c3ba6a8476c9392c8d106394b2542fb5 > /tmp/package-result.json
+          python - <<'PY'
+          import json
+          value = json.load(open('/tmp/package-result.json'))
+          assert value['status'] == 'PASS'
+          assert value['corrected_legacy_baseline_sha256'] == '776517efcac0c6cf03cabe0572b773dedc89e9bb2793ccb0d9f9585ea6fa601f'
+          assert value['physical_request_created'] is False
+          assert value['physical_request_authorized'] is False
+          assert value['authorized'] is False
+          PY
+          cd /tmp/review-package
+          sha256sum -c SHA256SUMS
+          test ! -e PHYSICAL_D2_REQUEST_05.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: baseline-aggregate-digest-correction-lane-${{ matrix.lane }}
+          path: /tmp/review-package
+          include-hidden-files: true
+          retention-days: 1
+          if-no-files-found: error
+
+  package-compare-and-publish:
+    needs: package-build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: baseline-aggregate-digest-correction-lane-a
+          path: /tmp/a
+      - uses: actions/download-artifact@v4
+        with:
+          name: baseline-aggregate-digest-correction-lane-b
+          path: /tmp/b
+
+      - name: Require byte-identical lanes and publish
+        run: |
+          set -euo pipefail
+          diff -r /tmp/a /tmp/b
+          cd /tmp/a
+          sha256sum -c SHA256SUMS
+          test -f BASELINE_AGGREGATE_DIGEST_CORRECTION_REVIEW.json
+          test -f B2_CONSUMED_PASS_DISPOSITION.json
+          test -f INVALID_LEGACY_BASELINE_DIGEST_DISPOSITION.json
+          test -f CORRECTED_BASELINE_ACCEPTANCE_CANDIDATE.json
+          test -f CHIP_MAC_CANDIDATE_EVIDENCE_POLICY.json
+          test -f CORRECTED_BASELINE_EXECUTION_CLOSURE_DRAFT.json
+          test -f H5_CORRECTED_BASELINE_CLOSURE_REQUEST_DRAFT.json
+          test -f .github/workflows/h3-n2-stage2d9r-g3r-baseline-aggregate-digest-correction-review-ci-v1.yml
+          test ! -e PHYSICAL_D2_REQUEST_05.json
+          python - <<'PY'
+          import json
+          review = json.load(open('BASELINE_AGGREGATE_DIGEST_CORRECTION_REVIEW.json'))
+          invalid = json.load(open('INVALID_LEGACY_BASELINE_DIGEST_DISPOSITION.json'))
+          corrected = json.load(open('CORRECTED_BASELINE_ACCEPTANCE_CANDIDATE.json'))
+          request = json.load(open('H5_CORRECTED_BASELINE_CLOSURE_REQUEST_DRAFT.json'))
+          assert review['b2_state'] == 'CONSUMED_PASS'
+          assert invalid['state'] == 'INVALID_DERIVED_AGGREGATE_DIGEST_PERMANENTLY_REJECTED'
+          assert corrected['corrected_legacy_baseline_sha256'] == '776517efcac0c6cf03cabe0572b773dedc89e9bb2793ccb0d9f9585ea6fa601f'
+          assert request['authorized'] is False
+          assert request['physical_request_created'] is False
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-g3r-baseline-aggregate-digest-correction-review-v1
+          path: /tmp/a
+          include-hidden-files: true
+          retention-days: 7
+          if-no-files-found: error
