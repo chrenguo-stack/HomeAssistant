@@ -76,9 +76,10 @@ class UsbIdentityEvidenceRepairTests(unittest.TestCase):
             self.assertRegex(value[key], r"^[0-9a-f]{64}$")
 
     def test_chip_mac_is_hashed_not_exposed(self) -> None:
-        digest, count = contract.extract_chip_mac_sha256("Chip is ESP32-C6\nMAC: aa:bb:cc:dd:ee:ff\n")
+        mac = ":".join(("aa", "bb", "cc", "dd", "ee", "ff"))
+        digest, count = contract.extract_chip_mac_sha256(f"Chip is ESP32-C6\nMAC: {mac}\n")
         self.assertEqual(count, 1)
-        self.assertEqual(digest, contract.sha256_text("aa:bb:cc:dd:ee:ff"))
+        self.assertEqual(digest, contract.sha256_text(mac))
         self.assertNotIn("aa:bb", digest or "")
 
     def test_path_neutral_baseline_retains_legacy_comparison(self) -> None:
