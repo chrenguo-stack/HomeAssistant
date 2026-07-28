@@ -17,8 +17,10 @@
 - **Wi-Fi 版**：ESP32-C6 板载天线，Wi-Fi 直连优先；弱覆盖区域使用 ESP-NOW 单跳子节点到中继节点。
 - **LoRa 版**：ESP32-C6 + EWM22M-400T22S；子节点通过 LoRa 到网关节点，网关通过 Wi-Fi 接入主机。
 - **本地优先**：没有 Home Assistant、Wi-Fi 或 MQTT 时，节点仍持续采集传感器并通过 LCD 显示。
-- **统一上层模型**：greenhouse-manager 是规范状态和 MQTT Discovery 的唯一发布者。
-- **统一身份**：HARDWARE_ID 标识具体硬件，NODE_ID 标识可迁移的逻辑设备。
+- **统一上层模型**：greenhouse-manager 是 canonical state 和 MQTT Discovery 的唯一发布者。
+- **身份不复用**：HARDWARE_ID 标识具体硬件，NODE_ID 标识一次获批的节点归属和 Home Assistant 设备身份；更换硬件或退役后重新配对必须分配全新 NODE_ID，旧 NODE_ID 永久封存。
+- **可靠生命周期**：节点退役由操作员显式发起，通过持久化 outbox 完成凭据撤销、状态清理和 Discovery 删除；部分失败或 Manager 重启后必须能够安全恢复。
+- **实时与历史隔离**：canonical state 只表示当前可信状态；历史补发使用独立通道，不参与实时序列比较，也不得覆盖当前状态。
 - **安全接入**：节点通过一次性配对获得系统 CA、MQTT 凭据和最小权限 ACL。
 
 ## 仓库导航
@@ -40,4 +42,7 @@
 4. 所有协议变更先更新 `protocols/` 和 ADR，再修改代码。
 5. `main` 始终保持可构建或仅包含明确标注的骨架代码。
 
-当前文档基线：**V0.5 双产品线与接口冻结版**。
+当前后继架构基线：**V0.6 双产品线、身份不复用与可靠生命周期后继版**。  
+V0.5 双产品线与接口冻结版作为前序历史基线保持不变。
+
+架构基线不代表对应能力已经完成开发或验收。实时进度以 `docs/status/`、`docs/acceptance/` 和 `docs/handoffs/` 中的记录与证据为准。
