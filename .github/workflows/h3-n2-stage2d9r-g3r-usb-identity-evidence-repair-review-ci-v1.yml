@@ -1,0 +1,242 @@
+name: H3 N2 Stage2D9R G3R USB Identity Evidence Repair Review CI V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-g3r-usb-identity-evidence-repair-review-ci-v1.yml"
+      - "docs/decisions/h3-n2-stage2d9r-g3r-usb-identity-evidence-repair-20260728-v1.json"
+      - "docs/development/h3-n2-stage2d9r-g3r-usb-identity-evidence-repair-contract-20260728-v1.md"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_usb_identity_evidence_repair_20260728_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_usb_identity_evidence_repair_contract_20260728_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_usb_identity_evidence_capture_20260728_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_usb_and_baseline_diagnostic_probe_20260728_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_usb_identity_evidence_repair_packager_20260728_v1.py"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+
+env:
+  BASE_BRANCH: fix/h3-n2-stage2d9r-g3r-baseline-mismatch-evidence-repair-20260728-v1
+  BASE_SHA: 3b44bc48cdee79efcb77500c855362b1690d8877
+  UPSTREAM_ARTIFACT_ID: "8694673276"
+  UPSTREAM_ARTIFACT_SHA256: 15ff1968b1fabdf6cfd967830db35d2f690cf785586486ed69a92ad6b8403782
+  CONTRACT: tools/h3_n2_stage2d9r_g3r_usb_identity_evidence_repair_contract_20260728_v1.py
+  CAPTURE: tools/h3_n2_stage2d9r_g3r_usb_identity_evidence_capture_20260728_v1.py
+  PROBE: tools/h3_n2_stage2d9r_g3r_usb_and_baseline_diagnostic_probe_20260728_v1.py
+  PACKAGER: tools/h3_n2_stage2d9r_g3r_usb_identity_evidence_repair_packager_20260728_v1.py
+  TEST_FILE: tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_usb_identity_evidence_repair_20260728_v1.py
+  PYTHONHASHSEED: "0"
+  TZ: UTC
+  LC_ALL: C.UTF-8
+  LANG: C.UTF-8
+
+jobs:
+  source-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fail closed on exact PR 196 base and Artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_BASE_REF" = "$BASE_BRANCH"
+          test "$EVENT_BASE_SHA" = "$BASE_SHA"
+          gh api "repos/$GITHUB_REPOSITORY/pulls/196" > /tmp/pr-196.json
+          python - <<'PY'
+          import json
+          value = json.load(open('/tmp/pr-196.json'))
+          assert value['state'] == 'open'
+          assert value['draft'] is True
+          assert value['merged'] is False
+          assert value['head']['sha'] == '3b44bc48cdee79efcb77500c855362b1690d8877'
+          assert value['base']['sha'] == '1fd6bc19246481835c1e836f5daaefcaf6c97836'
+          PY
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$UPSTREAM_ARTIFACT_ID" > /tmp/artifact.json
+          python - <<'PY'
+          import json, os
+          value = json.load(open('/tmp/artifact.json'))
+          assert value['id'] == int(os.environ['UPSTREAM_ARTIFACT_ID'])
+          assert value['expired'] is False
+          assert value['digest'] == 'sha256:' + os.environ['UPSTREAM_ARTIFACT_SHA256']
+          assert value['workflow_run']['head_sha'] == os.environ['BASE_SHA']
+          PY
+
+      - name: Require exact eight-file successor inventory
+        run: |
+          set -euo pipefail
+          git diff --name-only "$BASE_SHA"...HEAD | sort > /tmp/actual
+          cat > /tmp/expected <<'EOF_FILES'
+          .github/workflows/h3-n2-stage2d9r-g3r-usb-identity-evidence-repair-review-ci-v1.yml
+          docs/decisions/h3-n2-stage2d9r-g3r-usb-identity-evidence-repair-20260728-v1.json
+          docs/development/h3-n2-stage2d9r-g3r-usb-identity-evidence-repair-contract-20260728-v1.md
+          tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_usb_identity_evidence_repair_20260728_v1.py
+          tools/h3_n2_stage2d9r_g3r_usb_and_baseline_diagnostic_probe_20260728_v1.py
+          tools/h3_n2_stage2d9r_g3r_usb_identity_evidence_capture_20260728_v1.py
+          tools/h3_n2_stage2d9r_g3r_usb_identity_evidence_repair_contract_20260728_v1.py
+          tools/h3_n2_stage2d9r_g3r_usb_identity_evidence_repair_packager_20260728_v1.py
+          EOF_FILES
+          sort -o /tmp/expected /tmp/expected
+          diff -u /tmp/expected /tmp/actual
+
+      - name: Compile and run focused source tests
+        run: |
+          set -euo pipefail
+          export PYTHONPYCACHEPREFIX=/tmp/stage2d9r-usb-repair-pycache
+          python -m py_compile "$CONTRACT" "$CAPTURE" "$PROBE" "$PACKAGER" "$TEST_FILE"
+          python "$CONTRACT" --source-sha "${{ github.event.pull_request.head.sha }}" > /tmp/source-contract.json
+          python "$TEST_FILE" -v 2>&1 | tee /tmp/source-tests.log
+          grep -F 'Ran 11 tests' /tmp/source-tests.log
+          grep -F 'OK' /tmp/source-tests.log
+          python - <<'PY'
+          import json
+          value = json.load(open('/tmp/source-contract.json'))
+          assert value['state'] == 'USB_IDENTITY_EVIDENCE_REPAIR_SOURCE_FROZEN_UNAUTHORIZED'
+          assert value['base_pr'] == 196
+          assert value['b1_state'] == 'CONSUMED_FAILED'
+          assert value['b1_failure_code'] == 'BOARD_IDENTITY_MISMATCH'
+          assert value['operator_reported_usb_port_changed'] is True
+          assert value['transport_location_role'] == 'AUDIT_ONLY'
+          assert value['future_physical_request_created'] is False
+          assert value['authorized'] is False
+          PY
+          ! grep -F 'BOARD_IDENTITY_MISMATCH' "$PROBE"
+          ! grep -F 'SERIAL_IDENTITY_MISMATCH' "$PROBE"
+          ! grep -F 'serial.Serial(' "$PROBE"
+          ! grep -F '"write_flash"' "$PROBE"
+          ! grep -F '"erase_flash"' "$PROBE"
+          ! grep -F '"erase_region"' "$PROBE"
+          ! grep -F 'import socket' "$PROBE"
+          ! grep -F 'GH2D9R_PREPARE' "$PROBE"
+          ! grep -F 'GH2D9R_VERIFY' "$PROBE"
+
+  package-build:
+    needs: source-review
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      matrix:
+        lane: [a, b]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download exact PR 196 review Artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api -H 'Accept: application/vnd.github+json' \
+            "repos/$GITHUB_REPOSITORY/actions/artifacts/$UPSTREAM_ARTIFACT_ID/zip" \
+            > /tmp/upstream.zip
+          echo "$UPSTREAM_ARTIFACT_SHA256  /tmp/upstream.zip" | sha256sum -c -
+
+      - name: Test exact Artifact and build deterministic lane
+        run: |
+          set -euo pipefail
+          export PYTHONPYCACHEPREFIX=/tmp/stage2d9r-usb-repair-pycache-${{ matrix.lane }}
+          export STAGE2D9R_USB_REPAIR_UPSTREAM_ARTIFACT_ZIP=/tmp/upstream.zip
+          python "$TEST_FILE" -v 2>&1 | tee /tmp/tests.log
+          grep -F 'Ran 11 tests' /tmp/tests.log
+          grep -F 'OK' /tmp/tests.log
+          python "$PACKAGER" \
+            --repository-root . \
+            --upstream-artifact-zip /tmp/upstream.zip \
+            --output-root /tmp/review-package \
+            --source-sha "${{ github.event.pull_request.head.sha }}" \
+            --repository-head-sha 64c6b093c3ba6a8476c9392c8d106394b2542fb5 \
+            > /tmp/package-result.json
+          python - <<'PY'
+          import json
+          value = json.load(open('/tmp/package-result.json'))
+          assert value['status'] == 'PASS'
+          assert value['future_physical_request_created'] is False
+          assert value['authorized'] is False
+          assert value['board_operation'] is False
+          PY
+          (cd /tmp/review-package && sha256sum -c SHA256SUMS)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: usb-identity-evidence-repair-lane-${{ matrix.lane }}
+          path: /tmp/review-package
+          include-hidden-files: true
+          retention-days: 1
+          if-no-files-found: error
+
+  package-compare-and-publish:
+    needs: package-build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: usb-identity-evidence-repair-lane-a
+          path: /tmp/a
+      - uses: actions/download-artifact@v4
+        with:
+          name: usb-identity-evidence-repair-lane-b
+          path: /tmp/b
+
+      - name: Require byte-identical lanes and publish
+        run: |
+          set -euo pipefail
+          diff -r /tmp/a /tmp/b
+          (cd /tmp/a && sha256sum -c SHA256SUMS)
+          (cd /tmp/b && sha256sum -c SHA256SUMS)
+          test -f /tmp/a/.github/workflows/h3-n2-stage2d9r-g3r-usb-identity-evidence-repair-review-ci-v1.yml
+          test "$(find /tmp/a -type f | wc -l | tr -d ' ')" -ge 10
+          test -f /tmp/a/USB_IDENTITY_EVIDENCE_REPAIR_REVIEW.json
+          test -f /tmp/a/B1_CONSUMED_FAILED_DISPOSITION.json
+          test -f /tmp/a/OPERATOR_USB_PORT_CHANGE_REPORT.json
+          test -f /tmp/a/B2_USB_BASELINE_DIAGNOSTIC_REQUEST_DRAFT.json
+          python - <<'PY'
+          import json
+          binding = json.load(open('/tmp/a/USB_IDENTITY_EVIDENCE_REPAIR_REVIEW.json'))
+          b1 = json.load(open('/tmp/a/B1_CONSUMED_FAILED_DISPOSITION.json'))
+          report = json.load(open('/tmp/a/OPERATOR_USB_PORT_CHANGE_REPORT.json'))
+          request = json.load(open('/tmp/a/B2_USB_BASELINE_DIAGNOSTIC_REQUEST_DRAFT.json'))
+          assert binding['b1_failure_code'] == 'BOARD_IDENTITY_MISMATCH'
+          assert binding['transport_location_role'] == 'AUDIT_ONLY'
+          assert b1['status'] == 'CONSUMED_FAILED'
+          assert b1['replay_permitted'] is False
+          assert report['reported_usb_port_changed'] is True
+          assert report['cryptographically_proves_same_hardware'] is False
+          assert request['legacy_board_identity_is_blocking'] is False
+          assert request['legacy_serial_identity_is_blocking'] is False
+          assert request['future_physical_request_created'] is False
+          assert request['authorized'] is False
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-g3r-usb-identity-evidence-repair-review-v1
+          path: /tmp/a
+          include-hidden-files: true
+          retention-days: 7
+          if-no-files-found: error
