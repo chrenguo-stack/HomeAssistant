@@ -86,24 +86,35 @@ jobs:
               names = [member.name for member in members]
               assert len(names) == len(set(names))
               assert set(names) == set(expected)
+              deferred_workflow = ".github/workflows/h3-n2-stage2d9r-g3r-payload-handoff-host-final-preflight-review-ci-v1.yml"
+              observed_blobs: dict[str, str] = {}
               for member in members:
                   pure = PurePosixPath(member.name)
                   assert member.isfile()
                   assert not pure.is_absolute() and ".." not in pure.parts
                   handle = archive.extractfile(member)
                   assert handle is not None
+                  data = handle.read()
+                  observed_blobs[member.name] = hashlib.sha1(
+                      f"blob {len(data)}\0".encode("ascii") + data
+                  ).hexdigest()
+                  if member.name == deferred_workflow:
+                      continue
                   target = Path(member.name)
                   assert not target.exists()
                   target.parent.mkdir(parents=True, exist_ok=True)
-                  target.write_bytes(handle.read())
+                  target.write_bytes(data)
                   target.chmod(0o644)
 
+          assert observed_blobs == expected
           for name, blob_sha in expected.items():
+              if name.startswith(".github/workflows/"):
+                  continue
               observed = subprocess.check_output(["git", "hash-object", name], text=True).strip()
               assert observed == blob_sha, (name, observed, blob_sha)
           PY
 
-      - name: Commit exact eight-file source layer
+      - name: Commit exact seven non-workflow source files
         env:
           HEAD_BRANCH: ${{ github.head_ref }}
         run: |
@@ -111,7 +122,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add \
-            .github/workflows/h3-n2-stage2d9r-g3r-payload-handoff-host-final-preflight-review-ci-v1.yml \
             docs/decisions/h3-n2-stage2d9r-g3r-payload-handoff-host-final-preflight-20260728-v1.json \
             docs/development/h3-n2-stage2d9r-g3r-payload-handoff-host-final-preflight-contract-20260728-v1.md \
             tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_payload_handoff_host_final_preflight_20260728_v1.py \
@@ -119,6 +129,6 @@ jobs:
             tools/h3_n2_stage2d9r_g3r_payload_handoff_host_final_preflight_contract_20260728_v1.py \
             tools/h3_n2_stage2d9r_g3r_payload_handoff_host_final_preflight_packager_20260728_v1.py \
             tools/h3_n2_stage2d9r_g3r_payload_handoff_host_final_preflight_probe_20260728_v1.py
-          test "$(git diff --cached --name-only | wc -l | tr -d ' ')" = 8
-          git commit -m "feat(n2): freeze payload-handoff host final preflight"
+          test "$(git diff --cached --name-only | wc -l | tr -d ' ')" = 7
+          git commit -m "feat(n2): add payload-handoff host final preflight sources"
           git push origin "HEAD:$HEAD_BRANCH"
