@@ -1,0 +1,13 @@
+{
+  "authorization_id": "D2-H3N2-STAGE2D9R-G3R-REPAIRED-BASELINE-READONLY-20260728-01",
+  "authorization_record_sha256": "c4628c403ea1fd7cb03820fa491021875dc1232da8f41a1dd6b632ee93226c73",
+  "automatic_retry_permitted": false,
+  "consumed_marker_file_sha256": "339d473e2ff9b40d551d98f1cd5742c6ea34861d57773734217531ab1b54a14a",
+  "one_shot": true,
+  "private_paths_included": false,
+  "replay_permitted": false,
+  "schema": "gh.h3.n2.stage2d9r-g3r-repaired-baseline-readonly-consumed-public/1",
+  "secret_values_included": false,
+  "status": "CONSUMED_PASS",
+  "terminal_result_sha256": "f3522e98d5c0c8fdf4f5fa2b8486e6c782c7262ae4321e9525471bc0f12cacf4"
+}
