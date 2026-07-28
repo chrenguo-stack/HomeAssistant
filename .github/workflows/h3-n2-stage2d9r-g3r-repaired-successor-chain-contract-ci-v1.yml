@@ -1,0 +1,107 @@
+name: H3 N2 Stage2D9R G3R Repaired Successor Contract CI
+
+on:
+  pull_request:
+    paths:
+      - "docs/decisions/h3-n2-stage2d9r-g3r-repaired-successor-chain-d1-20260728-v1.json"
+      - "docs/development/h3-n2-stage2d9r-g3r-repaired-successor-chain-contract-20260728-v1.md"
+      - "tools/h3_n2_stage2d9r_g3r_repaired_successor_chain_contract_20260728_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_repaired_successor_chain_contract_20260728_v1.py"
+      - ".github/workflows/h3-n2-stage2d9r-g3r-repaired-successor-chain-contract-ci-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile source and test
+        run: |
+          set -euo pipefail
+          python -m py_compile \
+            tools/h3_n2_stage2d9r_g3r_repaired_successor_chain_contract_20260728_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_repaired_successor_chain_contract_20260728_v1.py
+
+      - name: Run contract tests
+        run: |
+          set -euo pipefail
+          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_repaired_successor_chain_contract_20260728_v1.py
+
+      - name: Validate inert source output
+        run: |
+          set -euo pipefail
+          python tools/h3_n2_stage2d9r_g3r_repaired_successor_chain_contract_20260728_v1.py \
+            --source-sha "${GITHUB_SHA}" > /tmp/repaired-successor-contract.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          value = json.loads(Path('/tmp/repaired-successor-contract.json').read_text())
+          assert value['state'] == 'SOURCE_CONTRACT_ACCEPTED_NO_EXECUTION_AUTHORITY'
+          assert value['decision_id'] == 'D1-H3N2-STAGE2D9R-G3R-REPAIRED-SUCCESSOR-CHAIN-20260728-01'
+          assert value['base_head_sha'] == '662bd9027595a7dcfaaaedb977691b13b3fec74b'
+          assert value['current_main_sha'] == 'c16da1a2d4d8300198b0603359eea349a034e2ea'
+          assert value['run_suffix'] == 'tlsvalid03'
+          forbidden_true = {
+              'authorization_created', 'authorization_claimed', 'authorization_consumed',
+              'secret_generation', 'private_material_created', 'board_operation',
+              'usb_enumeration', 'serial_enumeration', 'serial_open',
+              'esptool_invoked', 'flash_operation', 'physical_nvs_operation',
+              'network_operation', 'broker_started', 'prepare_executed',
+              'verify_executed', 'activate_executed', 'cleanup_executed',
+              'ready_authorized', 'merge_authorized', 'release_authorized',
+              'tag_authorized', 'deployment_authorized', 'replay_permitted',
+              'automatic_retry_permitted', 'private_values_included',
+              'private_paths_included', 'secret_values_included',
+          }
+          for key in forbidden_true:
+              assert value[key] is False, key
+          PY
+
+      - name: Validate source-only import boundary
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+
+          path = Path('tools/h3_n2_stage2d9r_g3r_repaired_successor_chain_contract_20260728_v1.py')
+          tree = ast.parse(path.read_text(encoding='utf-8'))
+          imported = set()
+          for node in ast.walk(tree):
+              if isinstance(node, ast.Import):
+                  imported.update(alias.name.split('.')[0] for alias in node.names)
+              elif isinstance(node, ast.ImportFrom) and node.module:
+                  imported.add(node.module.split('.')[0])
+          assert imported <= {'__future__', 'argparse', 'hashlib', 'json', 're', 'typing'}, imported
+          PY
+
+      - name: Validate D1 record
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path('docs/decisions/h3-n2-stage2d9r-g3r-repaired-successor-chain-d1-20260728-v1.json')
+          value = json.loads(path.read_text(encoding='utf-8'))
+          assert value['status'] == 'ACCEPTED'
+          assert value['layering']['base_head_sha'] == '662bd9027595a7dcfaaaedb977691b13b3fec74b'
+          assert value['accepted_repository_drift']['current_main_sha'] == 'c16da1a2d4d8300198b0603359eea349a034e2ea'
+          assert value['retired_execution']['terminal_status'] == 'CONSUMED_FAILED'
+          assert value['retired_execution']['terminal_state'] == 'LOCKED_RECOVERY_COMPLETED'
+          assert value['decision']['new_run_suffix'] == 'tlsvalid03'
+          assert value['secret_values_included'] is False
+          assert value['private_paths_included'] is False
+          PY
