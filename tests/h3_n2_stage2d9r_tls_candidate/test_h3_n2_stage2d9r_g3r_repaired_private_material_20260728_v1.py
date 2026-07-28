@@ -17,6 +17,7 @@ sys.path.insert(0, str(TOOLS))
 
 import h3_n2_stage2d9r_g3r_repaired_private_material_contract_20260728_v1 as contract
 import h3_n2_stage2d9r_g3r_repaired_private_material_generator_20260728_v1 as generator
+import h3_n2_stage2d9r_g3r_repaired_private_material_u1_review_packager_20260728_v1 as packager
 import h3_n2_stage2d9r_g3r_repaired_successor_chain_contract_20260728_v1 as chain
 
 GENERATOR = TOOLS / "h3_n2_stage2d9r_g3r_repaired_private_material_generator_20260728_v1.py"
@@ -219,6 +220,38 @@ class RepairedPrivateMaterialTests(unittest.TestCase):
             root.mkdir()
             with self.assertRaisesRegex(generator.GenerationError, "ALREADY_EXISTS"):
                 generator.validate_private_root(root, home, None)
+
+    def test_review_packager_is_inert_and_deterministic(self) -> None:
+        inert = packager.inert_status()
+        self.assertEqual(inert["status"], "SOURCE_ONLY_BUILD_REQUIRES_EXPLICIT_OUTPUT")
+        self.assertFalse(inert["authorized"])
+        self.assertFalse(inert["secret_generation"])
+        with tempfile.TemporaryDirectory() as temp:
+            output_a = Path(temp) / "review-a"
+            output_b = Path(temp) / "review-b"
+            result_a = packager.build_package(ROOT, output_a, "a" * 40)
+            result_b = packager.build_package(ROOT, output_b, "a" * 40)
+            archive_a = output_a / result_a["archive_name"]
+            archive_b = output_b / result_b["archive_name"]
+            self.assertEqual(archive_a.read_bytes(), archive_b.read_bytes())
+            self.assertEqual(result_a["archive_sha256"], result_b["archive_sha256"])
+            binding = json.loads((output_a / "REVIEW_BINDING.json").read_text())
+            request = json.loads((output_a / "U1_REQUEST_DRAFT.json").read_text())
+            self.assertEqual(binding["source_sha"], "a" * 40)
+            self.assertEqual(binding["run_suffix"], "tlsvalid03")
+            self.assertIn(
+                "tools/h3_n2_stage2d9r_serial_handshake_repair_20260727_v1.py",
+                binding["source_inventory"],
+            )
+            self.assertFalse(request["authorized"])
+            self.assertIsNone(request["issued_at"])
+            self.assertIsNone(request["expires_at"])
+            self.assertFalse(result_a["secret_values_included"])
+
+    def test_review_packager_rejects_repair_base_as_final_source(self) -> None:
+        inventory = {name: digest(name) for name in packager.SOURCE_FILES}
+        with self.assertRaisesRegex(packager.PackageError, "MUST_EXTEND_REPAIR_BASE"):
+            packager.build_binding(chain.BASE_HEAD_SHA, inventory)
 
 
 if __name__ == "__main__":
