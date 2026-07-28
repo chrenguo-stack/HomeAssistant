@@ -1,0 +1,47 @@
+{
+  "schema": "gh.h3.n2.stage2d9r-g3r-execution-closure-binding-decision/1",
+  "decision_id": "D1-H3N2-STAGE2D9R-G3R-EXECUTION-CLOSURE-BINDING-20260728-01",
+  "status": "ACCEPTED_SOURCE_ONLY",
+  "accepted_at": "2026-07-28",
+  "base_pr": 194,
+  "base_head_sha": "b69371b13b6af139b4607a2150f25f440bb251c7",
+  "decision": {
+    "repository_head_role": "AUDIT_ONLY",
+    "repository_head_enforced": false,
+    "execution_closure_role": "BLOCKING",
+    "execution_closure_policy_version": 1,
+    "execution_closure_contents": [
+      "physical execution wrapper and launcher",
+      "all runtime Python and shell dependencies in the execution package",
+      "immutable firmware payload and partition data",
+      "locked recovery payload and recovery plan",
+      "execution package bindings and exact toolchain digests"
+    ],
+    "non_execution_repository_drift": "recorded but not authorization-blocking when the exact execution closure and execution package remain unchanged"
+  },
+  "evidence_preservation": {
+    "pr_194_unchanged": true,
+    "upstream_artifact_id": 8688476229,
+    "upstream_artifact_sha256": "89e25e287c33de0d88c714c748329c5d4cdbe12f83343fdd18eff8debf351a04",
+    "previous_host_authorization_id": "H3-H3N2-STAGE2D9R-G3R-MAIN-DRIFT-SUCCESSOR-REBIND-20260728-01",
+    "previous_host_authorization_created": false,
+    "previous_request_id": "D2-H3N2-STAGE2D9R-G3R-PAYLOAD-HANDOFF-REPAIRED-PHYSICAL-20260728-03",
+    "previous_request_state": "SUPERSEDED_BY_EXECUTION_CLOSURE_POLICY_BEFORE_AUTHORIZATION",
+    "previous_request_reuse_permitted": false,
+    "immutable_payload_bytes_changed": false,
+    "recovery_payload_bytes_changed": false
+  },
+  "future_gates": {
+    "host_only_authorization_id": "H4-H3N2-STAGE2D9R-G3R-EXECUTION-CLOSURE-BINDING-20260728-01",
+    "physical_request_id": "D2-H3N2-STAGE2D9R-G3R-PAYLOAD-HANDOFF-REPAIRED-PHYSICAL-20260728-04",
+    "physical_authorization_created": false,
+    "physical_execution_authorized": false
+  },
+  "prohibited": [
+    "reinterpreting or reusing the previous physical request",
+    "replaying consumed or superseded authorizations",
+    "omitting execution package, payload, wrapper, launcher or toolchain digests",
+    "board, USB, serial, esptool, Flash, NVS, Broker, PREPARE or VERIFY operations in this source-only layer",
+    "merge, release, tag or deployment without a separate decision"
+  ]
+}
