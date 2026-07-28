@@ -1,0 +1,175 @@
+name: H3 N2 Stage2D9R G3R Physical Payload Handoff Repair CI V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-g3r-physical-payload-handoff-repair-ci-v1.yml"
+      - "docs/decisions/h3-n2-stage2d9r-g3r-physical-payload-handoff-repair-20260728-v1.json"
+      - "docs/development/h3-n2-stage2d9r-g3r-physical-payload-handoff-repair-contract-20260728-v1.md"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_physical_payload_handoff_repair_20260728_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_physical_payload_handoff_repair_packager_20260728_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_physical_payload_handoff_repair_wrapper_20260728_v1.py"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+permissions: {contents: read, pull-requests: read, actions: read}
+
+env:
+  BASE_BRANCH: fix/h3-n2-stage2d9r-g3r-repaired-host-final-preflight-20260728-v1
+  BASE_SHA: 45c80baf43ccc3f917ae5964ee92a202a74cc2ba
+  MAIN_SHA: 0229002cc5037f83bc77426f439bdb9e6d63318c
+  IMM_ID: "8676269782"
+  IMM_SHA: 83eb3cd85e04835eb412dfe9288c3f3445c0b5aefa23dec21532a8500e8fe5b8
+  HOST_ID: "8678117016"
+  HOST_SHA: a11d5d30a868094381737ff66434e40556de5a6b69b4e785b6110e6e37b9df01
+  TEST: tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_physical_payload_handoff_repair_20260728_v1.py
+  PACKAGER: tools/h3_n2_stage2d9r_g3r_physical_payload_handoff_repair_packager_20260728_v1.py
+  ARCHIVE: stage2d9r-g3r-physical-payload-handoff-repair-review-v1.tar
+  PYTHONHASHSEED: "0"
+
+jobs:
+  source-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: "${{ github.event.pull_request.head.sha }}", fetch-depth: 0, show-progress: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - name: Fail closed on exact frozen chain and Artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_BASE_REF" = "$BASE_BRANCH"
+          test "$EVENT_BASE_SHA" = "$BASE_SHA"
+          git fetch --no-tags origin refs/heads/main:refs/remotes/origin/main
+          test "$(git rev-parse refs/remotes/origin/main)" = "$MAIN_SHA"
+          for n in 189 188 187 186 185 184 183 180 176; do gh api "repos/$GITHUB_REPOSITORY/pulls/$n" > "/tmp/pr-$n"; done
+          python - <<'PY'
+          import json
+          expected={
+            189:("45c80baf43ccc3f917ae5964ee92a202a74cc2ba","8a6fdd7c74341448d275a4412e36b303d7c95e85"),
+            188:("8a6fdd7c74341448d275a4412e36b303d7c95e85","922374a46b5ad6198623ab177efc5c313d4edff4"),
+            187:("922374a46b5ad6198623ab177efc5c313d4edff4","2ed70e3292e5b6522ac3a5bc279c94535cd7b784"),
+            186:("2ed70e3292e5b6522ac3a5bc279c94535cd7b784","662bd9027595a7dcfaaaedb977691b13b3fec74b"),
+            185:("662bd9027595a7dcfaaaedb977691b13b3fec74b","abd28fc25c2d814b7becd9488915735bc26ac297"),
+            184:("abd28fc25c2d814b7becd9488915735bc26ac297","4a5b7a5290f04500050783124f9711268dba0afd"),
+            183:("4a5b7a5290f04500050783124f9711268dba0afd","b2c481d5c824bd6606d914f5828ba6a1662000b1"),
+            180:("b2c481d5c824bd6606d914f5828ba6a1662000b1","cf841f3e5a8cf04c5df9875c499b91ad4e4289cb"),
+            176:("cf841f3e5a8cf04c5df9875c499b91ad4e4289cb",None)}
+          for n,(head,base) in expected.items():
+            v=json.load(open(f"/tmp/pr-{n}")); assert v["state"]=="open" and v["draft"] and not v["merged"] and v["head"]["sha"]==head
+            if base: assert v["base"]["sha"]==base
+          PY
+          for spec in "$IMM_ID:$IMM_SHA:8a6fdd7c74341448d275a4412e36b303d7c95e85" "$HOST_ID:$HOST_SHA:$BASE_SHA"; do
+            IFS=: read -r id digest head <<< "$spec"; gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id" > /tmp/art
+            ID="$id" DIGEST="$digest" HEAD="$head" python - <<'PY'
+          import json,os
+          v=json.load(open("/tmp/art")); assert v["id"]==int(os.environ["ID"]) and not v["expired"]
+          assert v["digest"]=="sha256:"+os.environ["DIGEST"] and v["workflow_run"]["head_sha"]==os.environ["HEAD"]
+          PY
+          done
+      - name: Require exact six-file successor inventory
+        run: |
+          git diff --name-only "$BASE_SHA"...HEAD | sort > /tmp/actual
+          cat > /tmp/expected <<'EOF'
+          .github/workflows/h3-n2-stage2d9r-g3r-physical-payload-handoff-repair-ci-v1.yml
+          docs/decisions/h3-n2-stage2d9r-g3r-physical-payload-handoff-repair-20260728-v1.json
+          docs/development/h3-n2-stage2d9r-g3r-physical-payload-handoff-repair-contract-20260728-v1.md
+          tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_physical_payload_handoff_repair_20260728_v1.py
+          tools/h3_n2_stage2d9r_g3r_physical_payload_handoff_repair_packager_20260728_v1.py
+          tools/h3_n2_stage2d9r_g3r_physical_payload_handoff_repair_wrapper_20260728_v1.py
+          EOF
+          diff -u /tmp/expected /tmp/actual
+      - name: Compile and run source-only tests
+        run: |
+          set -euo pipefail
+          python -m py_compile "$PACKAGER" tools/h3_n2_stage2d9r_g3r_physical_payload_handoff_repair_wrapper_20260728_v1.py "$TEST"
+          python "$TEST" -v 2>&1 | tee /tmp/tests
+          grep -F 'Ran 7 tests' /tmp/tests
+          grep -F 'OK' /tmp/tests
+
+  package-build:
+    needs: source-review
+    strategy: {matrix: {lane: [a, b]}}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: "${{ github.event.pull_request.head.sha }}", show-progress: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - name: Download exact immutable Artifact and build
+        env: {GH_TOKEN: "${{ github.token }}", STAGE2D9R_REPAIRED_IMMUTABLE_ZIP: /tmp/immutable.zip}
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error -H "Authorization: Bearer $GH_TOKEN" -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/artifacts/$IMM_ID/zip" -o /tmp/immutable.zip
+          echo "$IMM_SHA  /tmp/immutable.zip" | sha256sum -c -
+          python "$TEST" -v 2>&1 | tee /tmp/tests
+          grep -F 'Ran 7 tests' /tmp/tests
+          out="/tmp/handoff-${{ matrix.lane }}"
+          python "$PACKAGER" --repository-root "$GITHUB_WORKSPACE" --immutable-artifact-zip /tmp/immutable.zip \
+            --output-root "$out" --source-sha "${{ github.event.pull_request.head.sha }}" > /tmp/result
+          python - <<'PY'
+          import json
+          v=json.load(open("/tmp/result")); assert v["status"]=="PASS"
+          for k in "authorized authorization_created authorization_claimed authorization_consumed board_operation usb_enumeration serial_operation esptool_operation flash_operation physical_nvs_operation network_operation broker_started prepare_executed verify_executed activate_executed cleanup_executed".split(): assert v[k] is False,k
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-g3r-physical-payload-handoff-repair-build-${{ matrix.lane }}-v1
+          path: /tmp/handoff-${{ matrix.lane }}
+          if-no-files-found: error
+          retention-days: 5
+          compression-level: 0
+
+  freeze:
+    needs: package-build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {name: stage2d9r-g3r-physical-payload-handoff-repair-build-a-v1, path: /tmp/a}
+      - uses: actions/download-artifact@v4
+        with: {name: stage2d9r-g3r-physical-payload-handoff-repair-build-b-v1, path: /tmp/b}
+      - name: Freeze byte-identical unauthorized package
+        run: |
+          set -euo pipefail
+          diff -qr /tmp/a /tmp/b
+          cmp "/tmp/a/$ARCHIVE" "/tmp/b/$ARCHIVE"
+          (cd /tmp/a && sha256sum -c SHA256SUMS)
+          python - <<'PY'
+          import json
+          v=json.load(open("/tmp/a/PAYLOAD_HANDOFF_REPAIR_REVIEW_BINDING.json"))
+          assert v["base_pr"]==189 and v["base_head_sha"]=="45c80baf43ccc3f917ae5964ee92a202a74cc2ba"
+          assert v["old_physical_d2_status"]=="CONSUMED_FAILED" and not v["old_physical_d2_replay_permitted"]
+          assert not v["immutable_payload_content_changed"] and not v["recovery_payload_content_changed"]
+          assert v["payload_handoff_contract"]=="ORIGINAL_TAR_AND_EMPTY_EXTRACTION_ROOTS_SEPARATE"
+          for k in "authorized authorization_created authorization_claimed authorization_consumed board_operation usb_enumeration serial_operation esptool_operation flash_operation physical_nvs_operation network_operation broker_started prepare_executed verify_executed activate_executed cleanup_executed production_operation ready merge release tag deployment".split(): assert v[k] is False,k
+          PY
+          ! grep -R -F 'BEGIN PRIVATE KEY' /tmp/a
+          ! grep -R -F '/Users/' /tmp/a
+      - name: Upload canonical repair review Artifact
+        id: artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-g3r-physical-payload-handoff-repair-review-v1
+          path: /tmp/a
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+      - name: Report boundary
+        run: |
+          printf '%s\n' 'STAGE2D9R_G3R_PHYSICAL_PAYLOAD_HANDOFF_REPAIR=PASS' \
+            "SOURCE_SHA=${{ github.event.pull_request.head.sha }}" \
+            "ARTIFACT_ID=${{ steps.artifact.outputs.artifact-id }}" \
+            "ARTIFACT_DIGEST=${{ steps.artifact.outputs.artifact-digest }}" \
+            'NEXT_GATE=NEW_HOST_ONLY_FINAL_PREFLIGHT_REVIEW_AND_EXACT_AUTHORIZATION' \
+            'PHYSICAL_AUTHORIZATION_CREATED=false' 'BOARD_OPERATION=false' 'SERIAL_OPERATION=false' \
+            'ESPTOOL_OPERATION=false' 'FLASH_OPERATION=false' 'BROKER_STARTED=false' \
+            'PREPARE_EXECUTED=false' 'VERIFY_EXECUTED=false'
