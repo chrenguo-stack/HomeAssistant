@@ -34,7 +34,8 @@ jobs:
         run: |
           set -euo pipefail
           test "${{ github.event.pull_request.head.repo.full_name }}" = "$GITHUB_REPOSITORY"
-          test "$(git rev-parse HEAD^)" = "$EXPECTED_BASE_SHA" || test "$(git rev-parse HEAD)" = "$EXPECTED_BASE_SHA"
+          test "$(git merge-base HEAD "$EXPECTED_BASE_SHA")" = "$EXPECTED_BASE_SHA"
+          test "$(git diff --name-only "$EXPECTED_BASE_SHA"...HEAD)" = ".github/workflows/h3-n2-stage2d9r-g3r-host-final-preflight-source-bootstrap.yml"
           gh api --paginate "repos/$GITHUB_REPOSITORY/issues/192/comments" > /tmp/comments.json
           python - <<'PY'
           from __future__ import annotations
