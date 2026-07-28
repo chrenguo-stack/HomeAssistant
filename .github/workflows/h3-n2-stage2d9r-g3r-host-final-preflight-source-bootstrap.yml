@@ -1,0 +1,124 @@
+name: H3 N2 Stage2D9R Host Final Preflight Source Bootstrap
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-g3r-host-final-preflight-source-bootstrap.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: read
+  pull-requests: read
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact same-repository pull request branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Reconstruct exact public source archive from issue 192
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_ARCHIVE_SHA256: c561b42462a9d1058f73e6bce99f53b83a6685a2693b904de6af4b75ad368231
+          EXPECTED_BASE_SHA: 261f24dc7e01fe9eaaf0a607a2868cd4411286bf
+        run: |
+          set -euo pipefail
+          test "${{ github.event.pull_request.head.repo.full_name }}" = "$GITHUB_REPOSITORY"
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_BASE_SHA" || test "$(git rev-parse HEAD)" = "$EXPECTED_BASE_SHA"
+          gh api --paginate "repos/$GITHUB_REPOSITORY/issues/192/comments" > /tmp/comments.json
+          python - <<'PY'
+          from __future__ import annotations
+
+          import base64
+          import gzip
+          import hashlib
+          import io
+          import json
+          import os
+          from pathlib import Path, PurePosixPath
+          import subprocess
+          import tarfile
+
+          expected = {
+              ".github/workflows/h3-n2-stage2d9r-g3r-payload-handoff-host-final-preflight-review-ci-v1.yml": "626e14a7b9768ce7337e9de3c088a7dbb61ab7e9",
+              "docs/decisions/h3-n2-stage2d9r-g3r-payload-handoff-host-final-preflight-20260728-v1.json": "f2d57a958ea94ab64a8e675de7c876d846331cde",
+              "docs/development/h3-n2-stage2d9r-g3r-payload-handoff-host-final-preflight-contract-20260728-v1.md": "74629b726325c321048a6920258bca8814673704",
+              "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_payload_handoff_host_final_preflight_20260728_v1.py": "d0d33ffb2dcc65e64b4626b4e009beff660e45bd",
+              "tools/h3_n2_stage2d9r_g3r_payload_handoff_final_physical_d2_wrapper_20260728_v1.py": "159ef1151fb70d2f051691fa810fd595ddfec511",
+              "tools/h3_n2_stage2d9r_g3r_payload_handoff_host_final_preflight_contract_20260728_v1.py": "7a6fbc2bf5a9293a6b1353601079eebb0e3f5dd7",
+              "tools/h3_n2_stage2d9r_g3r_payload_handoff_host_final_preflight_packager_20260728_v1.py": "e5cdc4f08e79e1b6548ff96ae70ba7aaf2ed1b03",
+              "tools/h3_n2_stage2d9r_g3r_payload_handoff_host_final_preflight_probe_20260728_v1.py": "fdc755782a42e3ba7cfcdb25812f3e0a0650fd90",
+          }
+          comments = json.loads(Path("/tmp/comments.json").read_text(encoding="utf-8"))
+          chunks: dict[int, str] = {}
+          for comment in comments:
+              try:
+                  value = json.loads(comment["body"])
+              except (KeyError, TypeError, json.JSONDecodeError):
+                  continue
+              if value.get("schema") != "gh.stage2d9r-source-bootstrap-chunk/1":
+                  continue
+              assert value.get("total") == 4
+              index = value.get("index")
+              data = value.get("data")
+              assert isinstance(index, int) and 1 <= index <= 4
+              assert isinstance(data, str) and data
+              assert index not in chunks
+              chunks[index] = data
+          assert set(chunks) == {1, 2, 3, 4}
+          raw = base64.b64decode("".join(chunks[i] for i in range(1, 5)), validate=True)
+          assert hashlib.sha256(raw).hexdigest() == os.environ["EXPECTED_ARCHIVE_SHA256"]
+
+          with gzip.GzipFile(fileobj=io.BytesIO(raw), mode="rb") as gz:
+              tar_bytes = gz.read()
+          with tarfile.open(fileobj=io.BytesIO(tar_bytes), mode="r:") as archive:
+              members = archive.getmembers()
+              names = [member.name for member in members]
+              assert len(names) == len(set(names))
+              assert set(names) == set(expected)
+              for member in members:
+                  pure = PurePosixPath(member.name)
+                  assert member.isfile()
+                  assert not pure.is_absolute() and ".." not in pure.parts
+                  handle = archive.extractfile(member)
+                  assert handle is not None
+                  target = Path(member.name)
+                  assert not target.exists()
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  target.write_bytes(handle.read())
+                  target.chmod(0o644)
+
+          for name, blob_sha in expected.items():
+              observed = subprocess.check_output(["git", "hash-object", name], text=True).strip()
+              assert observed == blob_sha, (name, observed, blob_sha)
+          PY
+
+      - name: Commit exact eight-file source layer
+        env:
+          HEAD_BRANCH: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            .github/workflows/h3-n2-stage2d9r-g3r-payload-handoff-host-final-preflight-review-ci-v1.yml \
+            docs/decisions/h3-n2-stage2d9r-g3r-payload-handoff-host-final-preflight-20260728-v1.json \
+            docs/development/h3-n2-stage2d9r-g3r-payload-handoff-host-final-preflight-contract-20260728-v1.md \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_payload_handoff_host_final_preflight_20260728_v1.py \
+            tools/h3_n2_stage2d9r_g3r_payload_handoff_final_physical_d2_wrapper_20260728_v1.py \
+            tools/h3_n2_stage2d9r_g3r_payload_handoff_host_final_preflight_contract_20260728_v1.py \
+            tools/h3_n2_stage2d9r_g3r_payload_handoff_host_final_preflight_packager_20260728_v1.py \
+            tools/h3_n2_stage2d9r_g3r_payload_handoff_host_final_preflight_probe_20260728_v1.py
+          test "$(git diff --cached --name-only | wc -l | tr -d ' ')" = 8
+          git commit -m "feat(n2): freeze payload-handoff host final preflight"
+          git push origin "HEAD:$HEAD_BRANCH"
