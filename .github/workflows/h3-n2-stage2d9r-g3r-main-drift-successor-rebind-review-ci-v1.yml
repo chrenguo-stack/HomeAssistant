@@ -1,0 +1,253 @@
+name: H3 N2 Stage2D9R G3R Main Drift Successor Rebind Review CI V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-g3r-main-drift-successor-rebind-review-ci-v1.yml"
+      - "docs/decisions/h3-n2-stage2d9r-g3r-main-drift-successor-rebind-20260728-v1.json"
+      - "docs/development/h3-n2-stage2d9r-g3r-main-drift-successor-rebind-contract-20260728-v1.md"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_main_drift_successor_rebind_20260728_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_main_drift_successor_rebind_contract_20260728_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_main_drift_rebound_final_physical_d2_wrapper_20260728_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_main_drift_successor_rebind_packager_20260728_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_main_drift_successor_rebind_probe_20260728_v1.py"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+
+env:
+  BASE_BRANCH: fix/h3-n2-stage2d9r-g3r-payload-handoff-host-final-preflight-20260728-v1
+  BASE_SHA: bdfcda55ff248838f0d703abf6d2414f3f73eff7
+  OLD_MAIN_SHA: 0229002cc5037f83bc77426f439bdb9e6d63318c
+  NEW_MAIN_SHA: 64c6b093c3ba6a8476c9392c8d106394b2542fb5
+  UPSTREAM_ARTIFACT_ID: "8684033408"
+  UPSTREAM_ARTIFACT_SHA256: 1bdc1ec73946642b692e723c8b174fd082abf324274c9613350562d17854cd0b
+  REPAIR_ARTIFACT_ID: "8682468219"
+  REPAIR_ARTIFACT_SHA256: 418827f2d0f931ee459c1b2204c8396dd71b98d5731dd7c072fb9abaf3d2caa4
+  TEST_FILE: tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_main_drift_successor_rebind_20260728_v1.py
+  CONTRACT: tools/h3_n2_stage2d9r_g3r_main_drift_successor_rebind_contract_20260728_v1.py
+  WRAPPER: tools/h3_n2_stage2d9r_g3r_main_drift_rebound_final_physical_d2_wrapper_20260728_v1.py
+  PACKAGER: tools/h3_n2_stage2d9r_g3r_main_drift_successor_rebind_packager_20260728_v1.py
+  PROBE: tools/h3_n2_stage2d9r_g3r_main_drift_successor_rebind_probe_20260728_v1.py
+  PYTHONHASHSEED: "0"
+  TZ: UTC
+  LC_ALL: C.UTF-8
+  LANG: C.UTF-8
+
+jobs:
+  source-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fail closed on exact base, accepted main drift, PR chain and Artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_BASE_REF" = "$BASE_BRANCH"
+          test "$EVENT_BASE_SHA" = "$BASE_SHA"
+          git fetch --no-tags origin refs/heads/main:refs/remotes/origin/main
+          test "$(git rev-parse refs/remotes/origin/main)" = "$NEW_MAIN_SHA"
+          test "$(git rev-list --count "$OLD_MAIN_SHA..$NEW_MAIN_SHA")" = "1"
+          git diff --name-only "$OLD_MAIN_SHA" "$NEW_MAIN_SHA" | sort > /tmp/main-drift-files
+          printf 'README.md\n' > /tmp/main-drift-expected
+          diff -u /tmp/main-drift-expected /tmp/main-drift-files
+
+          for n in 193 190 189 188 187 186 185 184 183 180 176; do
+            gh api "repos/$GITHUB_REPOSITORY/pulls/$n" > "/tmp/pr-$n.json"
+          done
+          python - <<'PY'
+          import json
+          expected = {
+              193: ("bdfcda55ff248838f0d703abf6d2414f3f73eff7", "261f24dc7e01fe9eaaf0a607a2868cd4411286bf"),
+              190: ("261f24dc7e01fe9eaaf0a607a2868cd4411286bf", "45c80baf43ccc3f917ae5964ee92a202a74cc2ba"),
+              189: ("45c80baf43ccc3f917ae5964ee92a202a74cc2ba", "8a6fdd7c74341448d275a4412e36b303d7c95e85"),
+              188: ("8a6fdd7c74341448d275a4412e36b303d7c95e85", "922374a46b5ad6198623ab177efc5c313d4edff4"),
+              187: ("922374a46b5ad6198623ab177efc5c313d4edff4", "2ed70e3292e5b6522ac3a5bc279c94535cd7b784"),
+              186: ("2ed70e3292e5b6522ac3a5bc279c94535cd7b784", "662bd9027595a7dcfaaaedb977691b13b3fec74b"),
+              185: ("662bd9027595a7dcfaaaedb977691b13b3fec74b", "abd28fc25c2d814b7becd9488915735bc26ac297"),
+              184: ("abd28fc25c2d814b7becd9488915735bc26ac297", "4a5b7a5290f04500050783124f9711268dba0afd"),
+              183: ("4a5b7a5290f04500050783124f9711268dba0afd", "b2c481d5c824bd6606d914f5828ba6a1662000b1"),
+              180: ("b2c481d5c824bd6606d914f5828ba6a1662000b1", "cf841f3e5a8cf04c5df9875c499b91ad4e4289cb"),
+              176: ("cf841f3e5a8cf04c5df9875c499b91ad4e4289cb", None),
+          }
+          for number, (head, base) in expected.items():
+              value = json.load(open(f"/tmp/pr-{number}.json"))
+              assert value["state"] == "open", number
+              assert value["draft"] is True, number
+              assert value["merged"] is False, number
+              assert value["head"]["sha"] == head, number
+              if base is not None:
+                  assert value["base"]["sha"] == base, number
+          PY
+
+          for spec in \
+            "$UPSTREAM_ARTIFACT_ID:$UPSTREAM_ARTIFACT_SHA256:$BASE_SHA" \
+            "$REPAIR_ARTIFACT_ID:$REPAIR_ARTIFACT_SHA256:261f24dc7e01fe9eaaf0a607a2868cd4411286bf"; do
+            IFS=: read -r id digest head <<< "$spec"
+            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id" > /tmp/artifact.json
+            ID="$id" DIGEST="$digest" HEAD_SHA="$head" python - <<'PY'
+          import json, os
+          value = json.load(open("/tmp/artifact.json"))
+          assert value["id"] == int(os.environ["ID"])
+          assert value["expired"] is False
+          assert value["digest"] == "sha256:" + os.environ["DIGEST"]
+          assert value["workflow_run"]["head_sha"] == os.environ["HEAD_SHA"]
+          PY
+          done
+
+      - name: Require exact eight-file successor inventory
+        run: |
+          set -euo pipefail
+          git diff --name-only "$BASE_SHA"...HEAD | sort > /tmp/actual
+          cat > /tmp/expected <<'EOF'
+          .github/workflows/h3-n2-stage2d9r-g3r-main-drift-successor-rebind-review-ci-v1.yml
+          docs/decisions/h3-n2-stage2d9r-g3r-main-drift-successor-rebind-20260728-v1.json
+          docs/development/h3-n2-stage2d9r-g3r-main-drift-successor-rebind-contract-20260728-v1.md
+          tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_main_drift_successor_rebind_20260728_v1.py
+          tools/h3_n2_stage2d9r_g3r_main_drift_rebound_final_physical_d2_wrapper_20260728_v1.py
+          tools/h3_n2_stage2d9r_g3r_main_drift_successor_rebind_contract_20260728_v1.py
+          tools/h3_n2_stage2d9r_g3r_main_drift_successor_rebind_packager_20260728_v1.py
+          tools/h3_n2_stage2d9r_g3r_main_drift_successor_rebind_probe_20260728_v1.py
+          EOF
+          diff -u /tmp/expected /tmp/actual
+
+      - name: Compile and run source-only validation
+        run: |
+          set -euo pipefail
+          export PYTHONPYCACHEPREFIX=/tmp/stage2d9r-main-drift-rebind-pycache
+          python -m py_compile "$CONTRACT" "$WRAPPER" "$PACKAGER" "$PROBE" "$TEST_FILE"
+          python "$CONTRACT" --source-sha "${{ github.event.pull_request.head.sha }}" > /tmp/source-contract.json
+          python "$TEST_FILE" -v 2>&1 | tee /tmp/source-tests.log
+          grep -F 'Ran 9 tests' /tmp/source-tests.log
+          grep -F 'OK' /tmp/source-tests.log
+          python - <<'PY'
+          import json
+          value = json.load(open("/tmp/source-contract.json"))
+          assert value["state"] == "MAIN_DRIFT_SUCCESSOR_REBIND_SOURCE_FROZEN_UNAUTHORIZED"
+          assert value["base_pr"] == 193
+          assert value["base_head_sha"] == "bdfcda55ff248838f0d703abf6d2414f3f73eff7"
+          assert value["previous_accepted_main_sha"] == "0229002cc5037f83bc77426f439bdb9e6d63318c"
+          assert value["accepted_current_main_sha"] == "64c6b093c3ba6a8476c9392c8d106394b2542fb5"
+          assert value["old_request_state"] == "STALE_MAIN_DRIFT_BEFORE_AUTHORIZATION"
+          assert value["h2_status"] == "CONSUMED_PASS"
+          assert value["authorized"] is False
+          PY
+          ! grep -F 'list_ports.comports' "$PROBE"
+          ! grep -F 'serial.Serial' "$PROBE"
+          ! grep -F 'subprocess.run' "$PROBE"
+          ! grep -F 'import socket' "$PROBE"
+          rm -rf "$PYTHONPYCACHEPREFIX"
+
+  package-build:
+    needs: source-review
+    strategy:
+      fail-fast: true
+      matrix:
+        lane: [a, b]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          show-progress: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download exact upstream host-final-preflight Artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/artifacts/$UPSTREAM_ARTIFACT_ID/zip" \
+            --output /tmp/upstream.zip
+          echo "$UPSTREAM_ARTIFACT_SHA256  /tmp/upstream.zip" | sha256sum -c -
+
+      - name: Run real-Artifact tests and deterministic package lane
+        env:
+          LANE: ${{ matrix.lane }}
+          STAGE2D9R_MAIN_DRIFT_UPSTREAM_ARTIFACT_ZIP: /tmp/upstream.zip
+        run: |
+          set -euo pipefail
+          python "$TEST_FILE" -v 2>&1 | tee "/tmp/tests-$LANE.log"
+          grep -F 'Ran 9 tests' "/tmp/tests-$LANE.log"
+          grep -F 'OK' "/tmp/tests-$LANE.log"
+          python "$PACKAGER" \
+            --repository-root "$GITHUB_WORKSPACE" \
+            --upstream-artifact-zip /tmp/upstream.zip \
+            --output-root "/tmp/package-$LANE" \
+            --source-sha "${{ github.event.pull_request.head.sha }}" \
+            > "/tmp/package-result-$LANE.json"
+          python - <<'PY'
+          import json, os
+          lane = os.environ["LANE"]
+          value = json.load(open(f"/tmp/package-result-{lane}.json"))
+          assert value["status"] == "PASS"
+          assert value["authorized"] is False
+          assert value["board_operation"] is False
+          assert value["network_operation"] is False
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: main-drift-rebind-lane-${{ matrix.lane }}
+          path: /tmp/package-${{ matrix.lane }}
+          include-hidden-files: true
+          retention-days: 1
+          if-no-files-found: error
+
+  package-compare-and-publish:
+    needs: package-build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: main-drift-rebind-lane-a
+          path: /tmp/lane-a
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: main-drift-rebind-lane-b
+          path: /tmp/lane-b
+
+      - name: Require byte-identical two-lane package trees
+        run: |
+          set -euo pipefail
+          diff -qr /tmp/lane-a /tmp/lane-b
+          test -f /tmp/lane-a/stage2d9r-g3r-main-drift-successor-rebind-review-v1.tar
+          sha256sum /tmp/lane-a/stage2d9r-g3r-main-drift-successor-rebind-review-v1.tar
+          test -f /tmp/lane-a/main-drift-rebound-final-physical-d2-execution-package/stage2d9r-g3r-repaired-immutable-payload-v1.tar
+          test -f /tmp/lane-a/main-drift-rebound-final-physical-d2-execution-package/stage2d9r-g3r-repaired-locked-recovery-payload-v1.tar
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-g3r-main-drift-successor-rebind-review-v1
+          path: /tmp/lane-a
+          include-hidden-files: true
+          retention-days: 7
+          if-no-files-found: error
