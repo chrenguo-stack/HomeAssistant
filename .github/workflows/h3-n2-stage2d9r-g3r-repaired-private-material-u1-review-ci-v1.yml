@@ -1,0 +1,112 @@
+name: H3 N2 Stage2D9R G3R Repaired Private Material U1 Review CI
+
+on:
+  pull_request:
+    paths:
+      - "docs/decisions/h3-n2-stage2d9r-g3r-repaired-successor-chain-d1-20260728-v1.json"
+      - "docs/development/h3-n2-stage2d9r-g3r-repaired-successor-chain-contract-20260728-v1.md"
+      - "tools/h3_n2_stage2d9r_g3r_repaired_successor_chain_contract_20260728_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_repaired_private_material_contract_20260728_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_repaired_private_material_generator_20260728_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_repaired_private_material_u1_review_packager_20260728_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_repaired_private_material_20260728_v1.py"
+      - ".github/workflows/h3-n2-stage2d9r-g3r-repaired-private-material-u1-review-ci-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  review-package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact pull request head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile review sources
+        run: |
+          set -euo pipefail
+          python -m py_compile \
+            tools/h3_n2_stage2d9r_g3r_repaired_successor_chain_contract_20260728_v1.py \
+            tools/h3_n2_stage2d9r_g3r_repaired_private_material_contract_20260728_v1.py \
+            tools/h3_n2_stage2d9r_g3r_repaired_private_material_generator_20260728_v1.py \
+            tools/h3_n2_stage2d9r_g3r_repaired_private_material_u1_review_packager_20260728_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_repaired_private_material_20260728_v1.py
+
+      - name: Run source and packager tests
+        run: |
+          set -euo pipefail
+          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_repaired_private_material_20260728_v1.py
+
+      - name: Build deterministic unauthorized review package
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          OUT="${RUNNER_TEMP}/stage2d9r-g3r-repaired-private-material-u1-review-v1"
+          python tools/h3_n2_stage2d9r_g3r_repaired_private_material_u1_review_packager_20260728_v1.py \
+            --build \
+            --repository-root "${GITHUB_WORKSPACE}" \
+            --output-root "${OUT}" \
+            --source-sha "${HEAD_SHA}" \
+            > "${RUNNER_TEMP}/review-package-result.json"
+          cat "${RUNNER_TEMP}/review-package-result.json"
+
+      - name: Independently verify review package
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import tarfile
+
+          root = Path(os.environ['RUNNER_TEMP']) / 'stage2d9r-g3r-repaired-private-material-u1-review-v1'
+          result = json.loads((Path(os.environ['RUNNER_TEMP']) / 'review-package-result.json').read_text())
+          binding = json.loads((root / 'REVIEW_BINDING.json').read_text())
+          request = json.loads((root / 'U1_REQUEST_DRAFT.json').read_text())
+          assert result['status'] == 'PASS'
+          assert result['authorized'] is False
+          assert binding['state'] == 'SOURCE_REVIEW_FROZEN_UNAUTHORIZED'
+          assert binding['source_sha'] == os.environ['HEAD_SHA']
+          assert binding['current_main_sha'] == 'c16da1a2d4d8300198b0603359eea349a034e2ea'
+          assert binding['base_head_sha'] == '662bd9027595a7dcfaaaedb977691b13b3fec74b'
+          assert binding['run_suffix'] == 'tlsvalid03'
+          assert request['authorized'] is False
+          assert request['issued_at'] is None
+          assert request['expires_at'] is None
+          sums = {}
+          for line in (root / 'SHA256SUMS').read_text().splitlines():
+              digest, name = line.split('  ', 1)
+              sums[name] = digest
+              assert hashlib.sha256((root / name).read_bytes()).hexdigest() == digest
+          archive = root / result['archive_name']
+          assert hashlib.sha256(archive.read_bytes()).hexdigest() == result['archive_sha256']
+          with tarfile.open(archive, 'r') as handle:
+              names = sorted(handle.getnames())
+          assert names == sorted([*sums, 'SHA256SUMS'])
+          for value in (binding, request, result):
+              assert value['private_values_included'] is False
+              assert value['private_paths_included'] is False
+              assert value['secret_values_included'] is False
+          PY
+
+      - name: Upload frozen public review Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-g3r-repaired-private-material-u1-review-v1
+          path: ${{ runner.temp }}/stage2d9r-g3r-repaired-private-material-u1-review-v1
+          if-no-files-found: error
+          retention-days: 7
