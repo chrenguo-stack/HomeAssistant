@@ -22,6 +22,11 @@ def build(
     immutable_files = validate_immutable_zip(immutable_zip)
 
     for relative in SOURCE_FILES:
+        # actions/upload-artifact excludes hidden paths unless explicitly enabled.
+        # The workflow itself is already frozen at the repository/PR boundary;
+        # keep the portable public package inventory free of hidden directories.
+        if relative.startswith(".github/"):
+            continue
         copy_public(repository_root / relative, output_root / relative)
     write_file(output_root / BASELINE_ARCHIVE_NAME, baseline_archive, 0o600)
     copy_public(immutable_zip, output_root / IMMUTABLE_ZIP_NAME)
