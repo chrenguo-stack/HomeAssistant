@@ -1,0 +1,57 @@
+{
+  "actual_predecessor": {
+    "authorization_record_sha256": "e99382018c416e7fb87c99c7815ee1d366b2880a14fa36285637978d3b3e9e9b",
+    "d2_request_id": "D2-H3N2-STAGE2D9R-G3R-PAYLOAD-HANDOFF-REPAIRED-PHYSICAL-20260728-03",
+    "failure_code": "BASELINE_STATE_MISMATCH",
+    "flash_operation_occurred": false,
+    "prepare_count": 0,
+    "recovery_attempted": false,
+    "replay_permitted": false,
+    "request_binding_sha256": "7e92211923ff4f37229a1e608393cbd1f9d3367cfcbaf82b203319277499cee1",
+    "status": "CONSUMED_FAILED",
+    "terminal_result_sha256": "008bff95619c4779f3ddca35492fae140ac067f9fd1f5443758c19534f254668",
+    "verify_count": 0
+  },
+  "authorized_operations": {
+    "ci": true,
+    "draft_pr": true,
+    "public_review_artifact": true,
+    "source_changes": true,
+    "tests": true
+  },
+  "base_head_sha": "1fd6bc19246481835c1e836f5daaefcaf6c97836",
+  "base_pr": 195,
+  "decision_id": "D1-H3N2-STAGE2D9R-G3R-BASELINE-MISMATCH-EVIDENCE-REPAIR-20260728-01",
+  "evidence_repair": {
+    "baseline_evidence_policy_version": 2,
+    "destructive_operation_before_baseline_acceptance": false,
+    "raw_esptool_output_included": false,
+    "record_observed_baseline_sha256_on_mismatch": true,
+    "record_observed_component_hashes_before_digest_comparison": true
+  },
+  "future_gate": {
+    "authorization_id": "B1-H3N2-STAGE2D9R-G3R-BASELINE-EVIDENCE-DIAGNOSTIC-READONLY-20260728-01",
+    "operation": "READONLY_CAPTURE_BASELINE_EVIDENCE_V2",
+    "physical_request_created": false,
+    "physical_request_id_reserved": "D2-H3N2-STAGE2D9R-G3R-PAYLOAD-HANDOFF-REPAIRED-PHYSICAL-20260728-05"
+  },
+  "invalidated_request": {
+    "d2_request_id": "D2-H3N2-STAGE2D9R-G3R-PAYLOAD-HANDOFF-REPAIRED-PHYSICAL-20260728-04",
+    "physical_authorization_created": false,
+    "request_binding_sha256": "1058abf2c944ac5303c688b2b220ad208f22a920a984e44424b5ce5ab238d292",
+    "reuse_permitted": false,
+    "state": "INVALIDATED_BY_PREDECESSOR_TERMINAL_STATE_DRIFT_BEFORE_PHYSICAL_AUTHORIZATION"
+  },
+  "prohibited_operations": {
+    "board_connection": true,
+    "esptool": true,
+    "flash_nvs": true,
+    "merge_release_tag_deployment": true,
+    "network_broker": true,
+    "prepare_verify": true,
+    "usb_serial": true
+  },
+  "schema": "gh.h3.n2.stage2d9r-g3r-baseline-mismatch-evidence-repair-decision/1",
+  "stage": "H3/N2 Stage 2D-9R G3R baseline mismatch evidence repair",
+  "status": "ACCEPTED"
+}
