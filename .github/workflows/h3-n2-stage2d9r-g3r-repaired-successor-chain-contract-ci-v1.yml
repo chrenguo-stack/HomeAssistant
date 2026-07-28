@@ -6,7 +6,10 @@ on:
       - "docs/decisions/h3-n2-stage2d9r-g3r-repaired-successor-chain-d1-20260728-v1.json"
       - "docs/development/h3-n2-stage2d9r-g3r-repaired-successor-chain-contract-20260728-v1.md"
       - "tools/h3_n2_stage2d9r_g3r_repaired_successor_chain_contract_20260728_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_repaired_private_material_contract_20260728_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_repaired_private_material_generator_20260728_v1.py"
       - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_repaired_successor_chain_contract_20260728_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_repaired_private_material_20260728_v1.py"
       - ".github/workflows/h3-n2-stage2d9r-g3r-repaired-successor-chain-contract-ci-v1.yml"
   workflow_dispatch:
 
@@ -26,58 +29,71 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Compile source and test
+      - name: Compile source and tests
         run: |
           set -euo pipefail
           python -m py_compile \
             tools/h3_n2_stage2d9r_g3r_repaired_successor_chain_contract_20260728_v1.py \
-            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_repaired_successor_chain_contract_20260728_v1.py
+            tools/h3_n2_stage2d9r_g3r_repaired_private_material_contract_20260728_v1.py \
+            tools/h3_n2_stage2d9r_g3r_repaired_private_material_generator_20260728_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_repaired_successor_chain_contract_20260728_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_repaired_private_material_20260728_v1.py
 
-      - name: Run contract tests
+      - name: Run source contract tests
         run: |
           set -euo pipefail
           python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_repaired_successor_chain_contract_20260728_v1.py
 
-      - name: Validate inert source output
+      - name: Run private material source tests
+        run: |
+          set -euo pipefail
+          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_repaired_private_material_20260728_v1.py
+
+      - name: Validate inert source outputs
         run: |
           set -euo pipefail
           python tools/h3_n2_stage2d9r_g3r_repaired_successor_chain_contract_20260728_v1.py \
             --source-sha "${GITHUB_SHA}" > /tmp/repaired-successor-contract.json
+          python tools/h3_n2_stage2d9r_g3r_repaired_private_material_contract_20260728_v1.py \
+            > /tmp/repaired-private-contract.json
+          python tools/h3_n2_stage2d9r_g3r_repaired_private_material_generator_20260728_v1.py \
+            > /tmp/repaired-private-generator.json
           python - <<'PY'
           import json
           from pathlib import Path
 
-          value = json.loads(Path('/tmp/repaired-successor-contract.json').read_text())
-          assert value['state'] == 'SOURCE_CONTRACT_ACCEPTED_NO_EXECUTION_AUTHORITY'
-          assert value['decision_id'] == 'D1-H3N2-STAGE2D9R-G3R-REPAIRED-SUCCESSOR-CHAIN-20260728-01'
-          assert value['base_head_sha'] == '662bd9027595a7dcfaaaedb977691b13b3fec74b'
-          assert value['current_main_sha'] == 'c16da1a2d4d8300198b0603359eea349a034e2ea'
-          assert value['run_suffix'] == 'tlsvalid03'
-          forbidden_true = {
-              'authorization_created', 'authorization_claimed', 'authorization_consumed',
-              'secret_generation', 'private_material_created', 'board_operation',
-              'usb_enumeration', 'serial_enumeration', 'serial_open',
-              'esptool_invoked', 'flash_operation', 'physical_nvs_operation',
-              'network_operation', 'broker_started', 'prepare_executed',
-              'verify_executed', 'activate_executed', 'cleanup_executed',
-              'ready_authorized', 'merge_authorized', 'release_authorized',
-              'tag_authorized', 'deployment_authorized', 'replay_permitted',
-              'automatic_retry_permitted', 'private_values_included',
-              'private_paths_included', 'secret_values_included',
-          }
-          for key in forbidden_true:
-              assert value[key] is False, key
+          source = json.loads(Path('/tmp/repaired-successor-contract.json').read_text())
+          private_contract = json.loads(Path('/tmp/repaired-private-contract.json').read_text())
+          generator = json.loads(Path('/tmp/repaired-private-generator.json').read_text())
+          assert source['state'] == 'SOURCE_CONTRACT_ACCEPTED_NO_EXECUTION_AUTHORITY'
+          assert source['decision_id'] == 'D1-H3N2-STAGE2D9R-G3R-REPAIRED-SUCCESSOR-CHAIN-20260728-01'
+          assert source['base_head_sha'] == '662bd9027595a7dcfaaaedb977691b13b3fec74b'
+          assert source['current_main_sha'] == 'c16da1a2d4d8300198b0603359eea349a034e2ea'
+          assert source['run_suffix'] == 'tlsvalid03'
+          assert private_contract['state'] == 'SOURCE_ONLY_REQUIRES_NEW_EXACT_U1'
+          assert generator['status'] == 'SOURCE_ONLY_REQUIRES_NEW_EXACT_U1'
+          for value in (source, private_contract, generator):
+              for key in (
+                  'authorization_created', 'authorization_claimed',
+                  'authorization_consumed', 'secret_generation',
+                  'private_material_created', 'board_operation',
+                  'serial_operation', 'flash_operation',
+                  'physical_nvs_operation', 'network_operation',
+                  'broker_started', 'prepare_executed', 'verify_executed',
+                  'private_paths_included', 'secret_values_included',
+              ):
+                  assert value[key] is False, (value.get('schema'), key)
           PY
 
-      - name: Validate source-only import boundary
+      - name: Validate source import boundaries
         run: |
           set -euo pipefail
           python - <<'PY'
           import ast
           from pathlib import Path
 
-          path = Path('tools/h3_n2_stage2d9r_g3r_repaired_successor_chain_contract_20260728_v1.py')
-          tree = ast.parse(path.read_text(encoding='utf-8'))
+          source_contract = Path('tools/h3_n2_stage2d9r_g3r_repaired_successor_chain_contract_20260728_v1.py')
+          tree = ast.parse(source_contract.read_text(encoding='utf-8'))
           imported = set()
           for node in ast.walk(tree):
               if isinstance(node, ast.Import):
@@ -85,6 +101,20 @@ jobs:
               elif isinstance(node, ast.ImportFrom) and node.module:
                   imported.add(node.module.split('.')[0])
           assert imported <= {'__future__', 'argparse', 'hashlib', 'json', 're', 'typing'}, imported
+
+          for name in (
+              'tools/h3_n2_stage2d9r_g3r_repaired_private_material_contract_20260728_v1.py',
+              'tools/h3_n2_stage2d9r_g3r_repaired_private_material_generator_20260728_v1.py',
+          ):
+              tree = ast.parse(Path(name).read_text(encoding='utf-8'))
+              imported = set()
+              for node in ast.walk(tree):
+                  if isinstance(node, ast.Import):
+                      imported.update(alias.name.split('.')[0] for alias in node.names)
+                  elif isinstance(node, ast.ImportFrom) and node.module:
+                      imported.add(node.module.split('.')[0])
+              forbidden = {'socket', 'serial', 'esptool', 'paho', 'requests', 'urllib', 'http'}
+              assert not (imported & forbidden), (name, imported & forbidden)
           PY
 
       - name: Validate D1 record
