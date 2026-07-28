@@ -1,0 +1,98 @@
+name: H3 N2 Stage2D9R G3R Repaired U1 Host Preauth Review CI
+
+on:
+  pull_request:
+    paths:
+      - "docs/decisions/h3-n2-stage2d9r-g3r-repaired-u1-host-preauth-scope-20260728-v1.json"
+      - "docs/development/h3-n2-stage2d9r-g3r-repaired-u1-host-preauth-contract-20260728-v1.md"
+      - "tools/h3_n2_stage2d9r_g3r_repaired_u1_host_preauth_probe_20260728_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_repaired_u1_host_preauth_review_packager_20260728_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_repaired_u1_host_preauth_20260728_v1.py"
+      - ".github/workflows/h3-n2-stage2d9r-g3r-repaired-u1-host-preauth-review-ci-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  review-package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact pull request head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile source and tests
+        run: |
+          set -euo pipefail
+          python -m py_compile \
+            tools/h3_n2_stage2d9r_g3r_repaired_u1_host_preauth_probe_20260728_v1.py \
+            tools/h3_n2_stage2d9r_g3r_repaired_u1_host_preauth_review_packager_20260728_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_repaired_u1_host_preauth_20260728_v1.py
+
+      - name: Run source and host-model tests
+        run: |
+          set -euo pipefail
+          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_repaired_u1_host_preauth_20260728_v1.py
+
+      - name: Build deterministic unauthorized host-preflight package
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          OUT_A="${RUNNER_TEMP}/stage2d9r-g3r-repaired-u1-host-preauth-review-v1-a"
+          OUT_B="${RUNNER_TEMP}/stage2d9r-g3r-repaired-u1-host-preauth-review-v1-b"
+          python tools/h3_n2_stage2d9r_g3r_repaired_u1_host_preauth_review_packager_20260728_v1.py \
+            --build --repository-root "${GITHUB_WORKSPACE}" --output-root "${OUT_A}" \
+            --source-sha "${HEAD_SHA}" > "${RUNNER_TEMP}/package-a.json"
+          python tools/h3_n2_stage2d9r_g3r_repaired_u1_host_preauth_review_packager_20260728_v1.py \
+            --build --repository-root "${GITHUB_WORKSPACE}" --output-root "${OUT_B}" \
+            --source-sha "${HEAD_SHA}" > "${RUNNER_TEMP}/package-b.json"
+          cmp \
+            "${OUT_A}/stage2d9r-g3r-repaired-u1-host-preauth-review-v1.tar" \
+            "${OUT_B}/stage2d9r-g3r-repaired-u1-host-preauth-review-v1.tar"
+          cat "${RUNNER_TEMP}/package-a.json"
+
+      - name: Independently verify package and inert boundary
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          import sys
+
+          root = Path(os.environ['RUNNER_TEMP']) / 'stage2d9r-g3r-repaired-u1-host-preauth-review-v1-a'
+          sys.path.insert(0, str(Path.cwd() / 'tools'))
+          import h3_n2_stage2d9r_g3r_repaired_u1_host_preauth_probe_20260728_v1 as probe
+
+          binding, request, archive_sha = probe.validate_package(root)
+          assert binding['host_preflight_source_sha'] == os.environ['HEAD_SHA']
+          assert binding['upstream_source_sha'] == '2ed70e3292e5b6522ac3a5bc279c94535cd7b784'
+          assert binding['upstream_artifact_id'] == 8672973249
+          assert binding['upstream_artifact_sha256'] == 'c493c4464935ecbf2f71952ebadfcbab28c9f9d1cf5203afb4350fc95bb31b50'
+          assert request['authorized'] is False
+          assert request['issued_at'] is None
+          assert request['expires_at'] is None
+          assert len(archive_sha) == 64
+          inert = probe.inert_status()
+          assert inert['host_probe_executed'] is False
+          assert inert['authorized'] is False
+          PY
+
+      - name: Upload frozen public host-preflight review Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-g3r-repaired-u1-host-preauth-review-v1
+          path: ${{ runner.temp }}/stage2d9r-g3r-repaired-u1-host-preauth-review-v1-a
+          if-no-files-found: error
+          retention-days: 7
