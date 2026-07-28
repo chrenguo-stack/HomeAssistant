@@ -1,0 +1,438 @@
+name: H3 N2 Stage2D9R G3R Repaired Host Final Preflight Review CI V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-g3r-repaired-host-final-preflight-review-ci-v1.yml"
+      - "docs/decisions/h3-n2-stage2d9r-g3r-repaired-main-zero-net-correction-acceptance-20260728-v1.json"
+      - "docs/development/h3-n2-stage2d9r-g3r-repaired-host-final-preflight-contract-20260728-v1.md"
+      - "tests/h3_n2_stage2d9r_tls_candidate/public_repaired_baseline_readonly/**"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_repaired_host_final_preflight_20260728_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_repaired_host_final_preflight_contract_20260728_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_repaired_host_final_preflight_packager_20260728_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_repaired_host_final_preflight_probe_20260728_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_repaired_physical_d2_wrapper_20260728_v1.py"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+
+env:
+  EXPECTED_BASE_BRANCH: fix/h3-n2-stage2d9r-g3r-repaired-immutable-recovery-freeze-20260728-v1
+  EXPECTED_BASE_SHA: 8a6fdd7c74341448d275a4412e36b303d7c95e85
+  BASELINE_ORIGINAL_MAIN_SHA: c16da1a2d4d8300198b0603359eea349a034e2ea
+  ACCEPTED_CURRENT_MAIN_SHA: 0229002cc5037f83bc77426f439bdb9e6d63318c
+  ACCIDENTAL_COMMIT_SHA: 61f8db5696c726137952b98825040c4f3a8efd5c
+  CORRECTION_COMMIT_SHA: 0229002cc5037f83bc77426f439bdb9e6d63318c
+  IMMUTABLE_ARTIFACT_ID: "8676269782"
+  IMMUTABLE_ARTIFACT_SHA256: 83eb3cd85e04835eb412dfe9288c3f3445c0b5aefa23dec21532a8500e8fe5b8
+  IMMUTABLE_ARTIFACT_HEAD_SHA: 8a6fdd7c74341448d275a4412e36b303d7c95e85
+  PIPELINE: tools/h3_n2_stage2d9r_g3r_repaired_host_final_preflight_packager_20260728_v1.py
+  CONTRACT: tools/h3_n2_stage2d9r_g3r_repaired_host_final_preflight_contract_20260728_v1.py
+  TEST_FILE: tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_repaired_host_final_preflight_20260728_v1.py
+  REVIEW_ARCHIVE: stage2d9r-g3r-repaired-host-final-preflight-review-v1.tar
+  TZ: UTC
+  LC_ALL: C.UTF-8
+  LANG: C.UTF-8
+  PYTHONHASHSEED: "0"
+
+jobs:
+  source-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact pull request head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fail closed on exact PR, main, audit and Artifact boundaries
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_BASE_REF" = "$EXPECTED_BASE_BRANCH"
+          test "$EVENT_BASE_SHA" = "$EXPECTED_BASE_SHA"
+          test "$(git rev-parse HEAD)" = "$EVENT_HEAD_SHA"
+
+          git fetch --no-tags origin refs/heads/main:refs/remotes/origin/main
+          test "$(git rev-parse refs/remotes/origin/main)" = "$ACCEPTED_CURRENT_MAIN_SHA"
+          test "$(git rev-parse "$ACCIDENTAL_COMMIT_SHA^")" = "$BASELINE_ORIGINAL_MAIN_SHA"
+          test "$(git rev-parse "$CORRECTION_COMMIT_SHA^")" = "$ACCIDENTAL_COMMIT_SHA"
+          git diff --exit-code "$BASELINE_ORIGINAL_MAIN_SHA" "$ACCEPTED_CURRENT_MAIN_SHA"
+          test "$(git show --format= --name-status "$ACCIDENTAL_COMMIT_SHA")" = "$(printf 'A\tdummy')"
+          test "$(git show --format= --name-status "$CORRECTION_COMMIT_SHA")" = "$(printf 'D\tdummy')"
+          test "$(git show "$ACCIDENTAL_COMMIT_SHA:dummy")" = "x"
+          ! git cat-file -e "$CORRECTION_COMMIT_SHA:dummy"
+
+          for number in 188 187 186 185 184 183 180 176; do
+            gh api "repos/$GITHUB_REPOSITORY/pulls/$number" > "/tmp/pr-$number.json"
+          done
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          expected = {
+              188: ("8a6fdd7c74341448d275a4412e36b303d7c95e85", "922374a46b5ad6198623ab177efc5c313d4edff4"),
+              187: ("922374a46b5ad6198623ab177efc5c313d4edff4", "2ed70e3292e5b6522ac3a5bc279c94535cd7b784"),
+              186: ("2ed70e3292e5b6522ac3a5bc279c94535cd7b784", "662bd9027595a7dcfaaaedb977691b13b3fec74b"),
+              185: ("662bd9027595a7dcfaaaedb977691b13b3fec74b", "abd28fc25c2d814b7becd9488915735bc26ac297"),
+              184: ("abd28fc25c2d814b7becd9488915735bc26ac297", "4a5b7a5290f04500050783124f9711268dba0afd"),
+              183: ("4a5b7a5290f04500050783124f9711268dba0afd", "b2c481d5c824bd6606d914f5828ba6a1662000b1"),
+              180: ("b2c481d5c824bd6606d914f5828ba6a1662000b1", "cf841f3e5a8cf04c5df9875c499b91ad4e4289cb"),
+              176: ("cf841f3e5a8cf04c5df9875c499b91ad4e4289cb", None),
+          }
+          for number, (head, base) in expected.items():
+              value = json.loads(Path(f"/tmp/pr-{number}.json").read_text())
+              assert value["state"] == "open", number
+              assert value["draft"] is True, number
+              assert value["merged"] is False, number
+              assert value["head"]["sha"] == head, number
+              if base is not None:
+                  assert value["base"]["sha"] == base, number
+          PY
+
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$IMMUTABLE_ARTIFACT_ID" \
+            > /tmp/immutable-artifact.json
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          value = json.loads(Path("/tmp/immutable-artifact.json").read_text())
+          assert value["id"] == int(os.environ["IMMUTABLE_ARTIFACT_ID"])
+          assert value["expired"] is False
+          assert value["digest"] == "sha256:" + os.environ["IMMUTABLE_ARTIFACT_SHA256"]
+          assert value["workflow_run"]["head_sha"] == os.environ["IMMUTABLE_ARTIFACT_HEAD_SHA"]
+          PY
+
+      - name: Protect all frozen upstream execution sources
+        run: |
+          set -euo pipefail
+          git diff --exit-code "$EXPECTED_BASE_SHA"...HEAD -- \
+            tools/h3_n2_stage2d9r_g3r_repaired_private_material_generator_20260728_v1.py \
+            tools/h3_n2_stage2d9r_g3r_repaired_private_material_contract_20260728_v1.py \
+            tools/h3_n2_stage2d9r_g3r_repaired_successor_chain_contract_20260728_v1.py \
+            tools/h3_n2_stage2d9r_prepare_command_protocol_20260723_v1.py \
+            tools/h3_n2_stage2d9r_serial_handshake_repair_20260727_v1.py \
+            tools/h3_n2_stage2d9r_successor_d2_execute_20260727_v1.py \
+            firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor \
+            firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_ready_repeater
+
+      - name: Compile and run source-only validation
+        run: |
+          set -euo pipefail
+          export PYTHONPYCACHEPREFIX=/tmp/stage2d9r-repaired-host-final-pycache
+          python -m py_compile \
+            "$CONTRACT" \
+            "$PIPELINE" \
+            tools/h3_n2_stage2d9r_g3r_repaired_host_final_preflight_probe_20260728_v1.py \
+            tools/h3_n2_stage2d9r_g3r_repaired_physical_d2_wrapper_20260728_v1.py \
+            "$TEST_FILE"
+          python "$CONTRACT" --source-sha "${{ github.event.pull_request.head.sha }}" \
+            > /tmp/source-contract.json
+          python "$TEST_FILE" -v 2>&1 | tee /tmp/source-tests.log
+          grep -F 'Ran 6 tests' /tmp/source-tests.log
+          grep -F 'OK' /tmp/source-tests.log
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          value = json.loads(Path("/tmp/source-contract.json").read_text())
+          assert value["state"] == "HOST_FINAL_PREFLIGHT_SOURCE_FROZEN_UNAUTHORIZED"
+          assert value["baseline_original_main_sha"] == "c16da1a2d4d8300198b0603359eea349a034e2ea"
+          assert value["accepted_current_main_sha"] == "0229002cc5037f83bc77426f439bdb9e6d63318c"
+          assert value["main_tree_zero_net_change"] is True
+          for key, observed in value.items():
+              if key.endswith("_authorized") or key in (
+                  "authorized", "board_operation", "usb_enumeration",
+                  "serial_operation", "esptool_operation", "flash_operation",
+                  "physical_nvs_operation", "network_operation",
+                  "broker_started", "prepare_executed", "verify_executed",
+                  "activate_executed", "cleanup_executed", "ready", "merge",
+                  "release", "tag", "deployment",
+              ):
+                  assert observed is False, key
+          PY
+          rm -rf "$PYTHONPYCACHEPREFIX"
+
+      - name: Static host-only and recovery boundaries
+        run: |
+          set -euo pipefail
+          probe=tools/h3_n2_stage2d9r_g3r_repaired_host_final_preflight_probe_20260728_v1.py
+          wrapper=tools/h3_n2_stage2d9r_g3r_repaired_physical_d2_wrapper_20260728_v1.py
+          ! grep -F 'list_ports.comports' "$probe"
+          ! grep -F 'serial.Serial' "$probe"
+          ! grep -F 'esptool.main' "$probe"
+          ! grep -F 'subprocess.Popen' "$probe"
+          ! grep -F 'import socket' "$probe"
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+          tree = ast.parse(Path(
+              "tools/h3_n2_stage2d9r_g3r_repaired_physical_d2_wrapper_20260728_v1.py"
+          ).read_text())
+          fn = next(
+              node for node in tree.body
+              if isinstance(node, ast.FunctionDef) and node.name == "locked_recovery"
+          )
+          strings = [
+              node.value for node in ast.walk(fn)
+              if isinstance(node, ast.Constant) and isinstance(node.value, str)
+          ]
+          assert strings.count("read_flash") == 2
+          assert strings.count("erase_region") == 1
+          assert "write_flash" not in strings
+          assert "erase_flash" not in strings
+          PY
+
+  package-build:
+    needs: source-review
+    strategy:
+      fail-fast: true
+      matrix:
+        lane: [a, b]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          show-progress: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download exact canonical immutable/recovery Artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/artifacts/$IMMUTABLE_ARTIFACT_ID/zip" \
+            --output /tmp/stage2d9r-immutable.zip
+          echo "$IMMUTABLE_ARTIFACT_SHA256  /tmp/stage2d9r-immutable.zip" | sha256sum -c -
+
+      - name: Run real-Artifact source tests and deterministic package lane
+        env:
+          LANE: ${{ matrix.lane }}
+          STAGE2D9R_REPAIRED_IMMUTABLE_ZIP: /tmp/stage2d9r-immutable.zip
+        run: |
+          set -euo pipefail
+          python "$TEST_FILE" -v 2>&1 | tee "/tmp/tests-$LANE.log"
+          grep -F 'Ran 6 tests' "/tmp/tests-$LANE.log"
+          grep -F 'OK' "/tmp/tests-$LANE.log"
+
+          out="/tmp/stage2d9r-repaired-host-final-preflight-$LANE"
+          python "$PIPELINE" \
+            --repository-root "$GITHUB_WORKSPACE" \
+            --immutable-artifact-zip /tmp/stage2d9r-immutable.zip \
+            --output-root "$out" \
+            --source-sha "${{ github.event.pull_request.head.sha }}" \
+            > "/tmp/package-$LANE.json"
+          cat "/tmp/package-$LANE.json"
+          OUT="$out" RESULT="/tmp/package-$LANE.json" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          result = json.loads(Path(os.environ["RESULT"]).read_text())
+          root = Path(os.environ["OUT"])
+          assert result["status"] == "PASS"
+          assert len(result["archive_sha256"]) == 64
+          assert (root / result["archive_name"]).is_file()
+          for key in (
+              "authorized", "authorization_created", "authorization_claimed",
+              "authorization_consumed", "board_operation", "usb_enumeration",
+              "serial_operation", "esptool_operation", "flash_operation",
+              "physical_nvs_operation", "network_operation", "broker_started",
+              "prepare_executed", "verify_executed", "private_values_included",
+              "private_paths_included", "secret_values_included",
+          ):
+              assert result[key] is False, key
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-g3r-repaired-host-final-preflight-build-${{ matrix.lane }}-v1
+          path: /tmp/stage2d9r-repaired-host-final-preflight-${{ matrix.lane }}
+          if-no-files-found: error
+          retention-days: 5
+          compression-level: 0
+
+  freeze:
+    needs: package-build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          show-progress: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: stage2d9r-g3r-repaired-host-final-preflight-build-a-v1
+          path: /tmp/package-a
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: stage2d9r-g3r-repaired-host-final-preflight-build-b-v1
+          path: /tmp/package-b
+
+      - name: Require two byte-identical independent public packages
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path, PurePosixPath
+          import tarfile
+
+          a = Path("/tmp/package-a")
+          b = Path("/tmp/package-b")
+
+          def inventory(root):
+              return {
+                  str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
+                  for path in root.rglob("*") if path.is_file()
+              }
+
+          ia = inventory(a)
+          ib = inventory(b)
+          assert ia == ib
+          assert (a / "stage2d9r-g3r-repaired-host-final-preflight-review-v1.tar").read_bytes() == (
+              b / "stage2d9r-g3r-repaired-host-final-preflight-review-v1.tar"
+          ).read_bytes()
+
+          binding = json.loads((a / "HOST_FINAL_PREFLIGHT_REVIEW_BINDING.json").read_text())
+          request = json.loads((a / "PHYSICAL_D2_REQUEST_DRAFT.json").read_text())
+          execution = json.loads((
+              a / "physical-d2-execution-package/EXECUTION_PACKAGE_BINDING.json"
+          ).read_text())
+          assert binding["state"] == "HOST_FINAL_PREFLIGHT_SOURCE_FROZEN_UNAUTHORIZED"
+          assert binding["baseline_original_main_sha"] == "c16da1a2d4d8300198b0603359eea349a034e2ea"
+          assert binding["accepted_current_main_sha"] == "0229002cc5037f83bc77426f439bdb9e6d63318c"
+          assert request["host_preflight_result_sha256"] is None
+          assert request["authorized"] is False
+          assert request["locked_recovery_authorized"] is False
+          assert request["host_final_preflight_source_sha"] == request["source_sha"]
+          assert request["immutable_source_sha"] == "8a6fdd7c74341448d275a4412e36b303d7c95e85"
+          assert request["execution_script_sha256"] == request["execution_wrapper_sha256"]
+          assert execution["locked_recovery_operation_sequence"] == [
+              "READ_TEST_PARTITION",
+              "ERASE_TEST_PARTITION_REGION",
+              "READ_TEST_PARTITION",
+          ]
+          assert execution["whole_chip_recovery_erase_permitted"] is False
+          assert execution["recovery_write_flash_permitted"] is False
+          for value in (binding, request, execution):
+              for key, observed in value.items():
+                  if key.endswith("_authorized") or key in (
+                      "authorized", "authorization_created", "authorization_claimed",
+                      "authorization_consumed", "board_operation", "usb_enumeration",
+                      "serial_operation", "esptool_operation", "flash_operation",
+                      "physical_nvs_operation", "network_operation", "broker_started",
+                      "prepare_executed", "verify_executed", "activate_executed",
+                      "cleanup_executed", "ready", "merge", "release", "tag",
+                      "deployment",
+                  ):
+                      assert observed is False, (value.get("schema"), key)
+
+          archive_path = a / "stage2d9r-g3r-repaired-host-final-preflight-review-v1.tar"
+          with tarfile.open(archive_path, "r") as archive:
+              names = []
+              for member in archive.getmembers():
+                  pure = PurePosixPath(member.name)
+                  assert member.isfile()
+                  assert member.name not in names
+                  assert not pure.is_absolute() and ".." not in pure.parts
+                  assert member.mode == 0o644
+                  assert member.uid == 0 and member.gid == 0
+                  assert member.uname == "" and member.gname == ""
+                  assert member.mtime == 0
+                  names.append(member.name)
+          assert len(names) > 20
+          PY
+          (cd /tmp/package-a && sha256sum -c SHA256SUMS)
+
+      - name: Reject private values, commands and paths
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          root = Path("/tmp/package-a")
+          forbidden = (
+              b"BEGIN PRIVATE KEY",
+              b"BEGIN RSA PRIVATE KEY",
+              b"BEGIN EC PRIVATE KEY",
+              b"GH2D9R_PREPARE_V1 tlsvalid03 ",
+              b"GH2D9R_VERIFY_V1 tlsvalid03 ",
+              b"/Users/",
+              b"/private/tmp/",
+          )
+          for path in root.rglob("*"):
+              if not path.is_file():
+                  continue
+              data = path.read_bytes()
+              for token in forbidden:
+                  assert token not in data, (path, token)
+          PY
+
+      - name: Upload canonical host-final-preflight review Artifact
+        id: artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-g3r-repaired-host-final-preflight-review-v1
+          path: /tmp/package-a
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+      - name: Report frozen unauthorized boundary
+        run: |
+          archive_sha="$(sha256sum "/tmp/package-a/$REVIEW_ARCHIVE" | awk '{print $1}')"
+          binding_sha="$(python -c 'import json; print(json.load(open("/tmp/package-a/HOST_FINAL_PREFLIGHT_REVIEW_BINDING.json"))["review_binding_sha256"])')"
+          execution_sha="$(python -c 'import json; print(json.load(open("/tmp/package-a/HOST_FINAL_PREFLIGHT_REVIEW_BINDING.json"))["execution_package_sha256"])')"
+          printf '%s\n' \
+            'STAGE2D9R_REPAIRED_HOST_FINAL_PREFLIGHT_REVIEW=PASS' \
+            "SOURCE_SHA=${{ github.event.pull_request.head.sha }}" \
+            "ARTIFACT_ID=${{ steps.artifact.outputs.artifact-id }}" \
+            "ARTIFACT_DIGEST=${{ steps.artifact.outputs.artifact-digest }}" \
+            "REVIEW_ARCHIVE_SHA256=$archive_sha" \
+            "REVIEW_BINDING_SHA256=$binding_sha" \
+            "EXECUTION_PACKAGE_SHA256=$execution_sha" \
+            'NEXT_GATE=HOST_ONLY_FINAL_PREFLIGHT_EXACT_AUTHORIZATION' \
+            'HOST_PREFLIGHT_EXECUTED=false' \
+            'PHYSICAL_D2_AUTHORIZED=false' \
+            'BOARD_OPERATION=false' \
+            'USB_ENUMERATION=false' \
+            'SERIAL_OPERATION=false' \
+            'ESPTOOL_OPERATION=false' \
+            'FLASH_OPERATION=false' \
+            'PHYSICAL_NVS_OPERATION=false' \
+            'NETWORK_OPERATION=false' \
+            'BROKER_STARTED=false' \
+            'PREPARE_EXECUTED=false' \
+            'VERIFY_EXECUTED=false' \
+            'ACTIVATE_EXECUTED=false' \
+            'CLEANUP_EXECUTED=false' \
+            'READY=false' \
+            'MERGE=false' \
+            'RELEASE=false' \
+            'TAG=false' \
+            'DEPLOYMENT=false'
