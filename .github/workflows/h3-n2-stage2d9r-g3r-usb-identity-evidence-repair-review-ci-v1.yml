@@ -179,11 +179,13 @@ jobs:
           assert value['authorized'] is False
           assert value['board_operation'] is False
           PY
+          (cd /tmp/review-package && sha256sum -c SHA256SUMS)
 
       - uses: actions/upload-artifact@v4
         with:
           name: usb-identity-evidence-repair-lane-${{ matrix.lane }}
           path: /tmp/review-package
+          include-hidden-files: true
           retention-days: 1
           if-no-files-found: error
 
@@ -205,6 +207,9 @@ jobs:
         run: |
           set -euo pipefail
           diff -r /tmp/a /tmp/b
+          (cd /tmp/a && sha256sum -c SHA256SUMS)
+          (cd /tmp/b && sha256sum -c SHA256SUMS)
+          test -f /tmp/a/.github/workflows/h3-n2-stage2d9r-g3r-usb-identity-evidence-repair-review-ci-v1.yml
           test "$(find /tmp/a -type f | wc -l | tr -d ' ')" -ge 10
           test -f /tmp/a/USB_IDENTITY_EVIDENCE_REPAIR_REVIEW.json
           test -f /tmp/a/B1_CONSUMED_FAILED_DISPOSITION.json
@@ -232,5 +237,6 @@ jobs:
         with:
           name: stage2d9r-g3r-usb-identity-evidence-repair-review-v1
           path: /tmp/a
+          include-hidden-files: true
           retention-days: 7
           if-no-files-found: error
