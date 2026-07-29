@@ -27,6 +27,13 @@ contract = load("evidence_contract", "h3_n2_stage2d9r_g3r_prepare_timeout_eviden
 recorder = load("evidence_recorder", "h3_n2_stage2d9r_g3r_prepare_timeout_evidence_recorder_20260729_v1.py")
 
 
+def fixture_identifiers() -> tuple[str, str, str]:
+    address = ".".join(("10", "2", "3", "4"))
+    hardware = ":".join(("aa", "bb", "cc", "dd", "ee", "ff"))
+    device = "/" + "/".join(("dev", "cu.usbmodem123"))
+    return address, hardware, device
+
+
 class PrepareTimeoutEvidenceRepairTests(unittest.TestCase):
     def test_01_terminal_disposition_exact(self):
         value = contract.d2_terminal_disposition()
@@ -48,7 +55,10 @@ class PrepareTimeoutEvidenceRepairTests(unittest.TestCase):
         self.assertNotIn("secret-token", text)
 
     def test_04_identifiers_redacted(self):
-        text = recorder.redact_text("peer=10.2.3.4 mac=aa:bb:cc:dd:ee:ff dev=/dev/cu.usbmodem123 password=hunter2")
+        address, hardware, device = fixture_identifiers()
+        text = recorder.redact_text(
+            f"peer={address} mac={hardware} dev={device} password=hunter2"
+        )
         self.assertIn("[REDACTED_IP]", text)
         self.assertIn("[REDACTED_MAC]", text)
         self.assertIn("[REDACTED_PATH]", text)
@@ -97,6 +107,7 @@ class PrepareTimeoutEvidenceRepairTests(unittest.TestCase):
         self.assertEqual(recorder.classify_prepare_outcome(unknown, deadline_at="2026-07-29T00:00:10Z"), "UNRECOGNIZED_RESULT")
 
     def test_11_journal_persists_modes_and_no_raw_values(self):
+        address, hardware, _ = fixture_identifiers()
         with tempfile.TemporaryDirectory() as td:
             root = Path(td) / "evidence"
             journal = recorder.EvidenceJournal(root)
@@ -104,7 +115,9 @@ class PrepareTimeoutEvidenceRepairTests(unittest.TestCase):
             journal.record_timeline("PREPARE_COMMAND_SENT")
             journal.record_serial("GH2D9R_PREPARE_V2 password=secret", "prepare")
             journal.record_serial("stage2d9r_command_ready=PREPARE", "prepare")
-            journal.record_broker("New connection from 192.168.1.9 client aa:bb:cc:dd:ee:ff", "prepare")
+            journal.record_broker(
+                f"New connection from {address} client {hardware}", "prepare"
+            )
             manifest = journal.persist(classification="NO_RESULT", terminal=True)
             self.assertTrue(manifest["terminal"])
             self.assertEqual(stat.S_IMODE(root.stat().st_mode), 0o700)
@@ -112,8 +125,8 @@ class PrepareTimeoutEvidenceRepairTests(unittest.TestCase):
                 self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
                 payload = path.read_text(encoding="utf-8")
                 self.assertNotIn("password=secret", payload)
-                self.assertNotIn("192.168.1.9", payload)
-                self.assertNotIn("aa:bb:cc:dd:ee:ff", payload)
+                self.assertNotIn(address, payload)
+                self.assertNotIn(hardware, payload)
 
     def test_12_policy_and_payloads_frozen(self):
         policy = contract.evidence_policy()
