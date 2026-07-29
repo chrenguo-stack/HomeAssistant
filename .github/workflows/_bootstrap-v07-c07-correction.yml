@@ -80,6 +80,10 @@ jobs:
           readme = Path("README.md")
           readme.write_text(readme.read_text(encoding="utf-8").replace("。  \n", "。\n"), encoding="utf-8")
           PY
+      - name: Exclude workflow files from Actions-authored commit
+        run: |
+          git checkout HEAD -- .github/workflows/_bootstrap-v07-c07-correction.yml
+          rm -f .github/workflows/project-roadmap-v07-c07-identity-ci.yml
       - name: Compile changed Python
         run: python -m compileall -q host/greenhouse-manager/src host/greenhouse-manager/tests infra/compose/c07-node-retirement/verify.py
       - name: Install greenhouse-manager
@@ -88,11 +92,12 @@ jobs:
         run: pytest -q host/greenhouse-manager/tests/runtime/test_registration.py host/greenhouse-manager/tests/runtime/test_credential_lifecycle.py host/greenhouse-manager/tests/runtime/test_node_retirement_runtime.py host/greenhouse-manager/tests/ops/test_registration_cli.py host/greenhouse-manager/tests/ops/test_node_retirement_cli.py
       - name: Ruff
         run: ruff check host/greenhouse-manager/src host/greenhouse-manager/tests infra/compose/c07-node-retirement/verify.py
-      - name: Verify bootstrap files removed
+      - name: Verify bootstrap cleanup boundary
         run: |
           test ! -e tools/_bootstrap_apply_v07_c07_correction.py
           test ! -e tools/_bootstrap_v07_parts
-          test ! -e .github/workflows/_bootstrap-v07-c07-correction.yml
+          test -e .github/workflows/_bootstrap-v07-c07-correction.yml
+          test ! -e .github/workflows/project-roadmap-v07-c07-identity-ci.yml
       - name: Commit approved correction
         run: |
           git config user.name github-actions[bot]
