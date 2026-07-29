@@ -174,23 +174,41 @@ def verify_sums(root: Path, sums_name: str = ROOT_SUMS_FILE) -> dict[str, str]:
 def load_json(path: Path, code: str) -> dict[str, Any]:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeYXÛÙQ\œ›Ü‹œÛÛ‹’”ÓÓ‘XÛÙQ\œ›ÜŠH\È^Î‚ˆ˜Z\ÙHÛÛ˜XÝ\œ›ÜŠÛÙJHœ›ÛH^Âˆ™\]Z\™J\Ú[œÝ[˜ÙJ˜[YKXÝ
-KÛÙJBˆ™]\›ˆ˜[YB‚‚™Yˆ˜[Y]WÙ^XÝ][Û—ÛÝ™\›^JXÚØYÙWÜ›ÛÝˆ]
-HOˆXÝÜÝ‹[žWN‚ˆ™\šYžWÜÝ[\ÊXÚØYÙWÜ›ÛÝ
-Bˆ\Ý™X[WÜÝ[\ÈH™\šYžWÜÝ[\ÊXÚØYÙWÜ›ÛÝTÕ‘PSWÔÕST×Ñ’SJBˆ™\]Z\™J“ÓÕÔÕST×Ñ’SH›Ý[ˆ\Ý™X[WÜÝ[\Ë•TÕ‘PSWÔÕST×ÔÑS—Ô‘Q‘T‘SÑHŠBˆ\Ý™X[WÙ[šY\ÈHÞÈ›˜[YHŽˆ˜[YKœÚLMˆŽˆ\Ý™X[WÜÝ[\ÖÛ˜[YW_H›Üˆ˜[YH[ˆÛÜY
-\Ý™X[WÜÝ[\ÊWBˆ\Ý™X[WÙ[šY\Ë˜\[™
-È›˜[YHŽˆ“ÓÕÔÕST×Ñ’SKœÚLMˆŽˆÚLM—Ùš[JXÚØYÙWÜ›ÛÝÈTÕ‘PSWÔÕST×Ñ’SJ_JBˆ\Ý™X[WÙ[šY\ËœÛÜ
-Ù^O[[X™H][Nˆ][VÈ›˜[YH—JBˆ™\]Z\™JØ[›ÛšXØ[ÚœÛÛ—ÜÚLMŠÂˆœØÚ[XHŽˆ™ÚšË›Œ‹œÝYÙL™\‹\ÝXØÙ\ÜÛÜ‹Y‹Y^XÝ][Û‹\XÚØYÙK\Ù]ÌH‹ˆ™š[\ÈŽˆ\Ý™X[WÙ[šY\ËˆJHOHTÕ‘PSWÑVPÕUSÓ—ÔPÒÐQÑWÔÒLM‹•TÕ‘PSWÑVPÕUSÓ—ÔPÒÐQÑWÑQÑTÕÓRTÓPUÒŠBˆš[™[™ÈHØYÚœÛÛŠXÚØYÙWÜ›ÛÝÈÕ‘T“VWÐ’S‘S‘×Ñ’SK“Õ‘T“VWÐ’S‘S‘×ÒS•SQŠBˆX[šY™\ÝHØYÚœÛÛŠXÚØYÙWÜ›ÛÝÈÕ‘T“VWÓPS’Q‘TÕÑ’SK“Õ‘T“VWÓPS’Q‘TÕÒS•SQŠBˆØœÙ\™YÛÝ™\›^WÜÚHHX[šY™\ÝœÜ
-™^XÝ][Û—ÛÝ™\›^WÜÚLMˆ‹›Û™JBˆ™\]Z\™JØœÙ\™YÛÝ™\›^WÜÚHOHØ[›ÛšXØ[ÚœÛÛ—ÜÚLMŠX[šY™\Ý
-K“Õ‘T“VWÓPS’Q‘TÕÑQÑTÕÓRTÓPUÒŠBˆX[šY™\ÝÈ™^XÝ][Û—ÛÝ™\›^WÜÚLMˆ—HHØœÙ\™YÛÝ™\›^WÜÚBˆ™\]Z\™Jš[™[™Ë™Ù]
-œØÚ[XHŠHOHÕ‘T“VWÐ’S‘S‘×ÔÐÒSPKÕ‘T“VWÐ’S‘S‘×ÔÐÒSPWÓRTÓPUÒŠBˆ™\]Z\™Jš[™[™Ë™Ù]
-œ\ÚXØ[Ü™\]Y\ÝÚYŠHOH‘TUQTÕÌ—ÒQ“Õ‘T“VWÐ’S‘S‘×Ô‘TUQTÕÒQÓRTÓPUÒŠBˆ™\]Z\™Jš[™[™Ë™Ù]
-˜ÛÜœ™XÝYØ˜\Ù[[™WÜÚLMˆŠHOHÓÔ”‘PÕQÐTÑSS‘WÔÒLM‹“Õ‘T“VWÐ’S‘S‘×ÐTÑSS‘WÓRTÓPUÒŠBˆ™\]Z\™Jš[™[™Ë™Ù]
-š[˜[YØ˜\Ù[[™WÜÚLMˆŠHOHS•SQÐTÑSS‘WÔÒLM‹“Õ‘T“VWÐ’S‘S‘×ÒS•SQÐTÑSS‘WÓRTÓPUÒŠBˆ™\]Z\™Jš[™[™Ë™Ù]
-œ™YXÙ\ÜÛÜ—ÌWÜÝ]HŠHOH‘TUQTÕÌWÒS•SQÔÕUK“Õ‘T“VWÐ’S‘S‘×Ô‘QPÑTÔÓÔ—ÌWÓRTÓPUÒŠBˆ™\]Z\™JX[šY™\Ý™Ù]
-™^XÝ][Û—ÛÝ™\›^WÜ›ÛHŠHOH“ÐÒÒS‘×ÐÓÔ”‘PÕQÐTÑSS‘H‹“Õ‘T“VWÔ“ÓWÓRTÓPUÒŠBˆ™\]Z\™JX[šY™\Ý™Ù]
-\Ý™X[WÙ^XÝ][Û—ÜXÚØYÙWÜÚLMˆŠHOHTÕ‘PSWÑVPÕUSÓ—ÔPÒÐQÑWÔÒLM‹“Õ‘T“VWÕTÕ‘PSWÔPÒÐQÑWÓRTÓPUÒŠBˆ›Üˆ[žH[ˆX[šY™\Ý™Ù]
-™š[\È‹×JN‚ˆ™\]Z\™J\Ú[œÝ[˜ÙJ[žKXÝ
-K“Õ‘T“VWÑ’SWÑS•–WÒS•SQŠBˆ˜[YHH[žK™Ù]
-›˜[YHŠBˆ^XÝYH[žK™Ù]
-œÚLMˆŠBˆ™\]Z\™J\Ú[œÝ[˜ÙJ˜[YKÝŠH[™\Ú[œÝ[˜ÙJ^XÝYÝŠK“Õ‘T“VWÑ’SWÑS•–WÒS•SQŠBˆ™\]Z\™JÚLM—Ùš[JXÚØYÙWÜ›ÛÝÈ˜[YJHOH^XÝY“Õ‘T“VWÑ’SWÔÒLM—ÓRTÓPUÒŠBˆ™]\›ˆÈ˜š[™[™ÈŽˆš[™[™Ë›X[šY™\ÝŽˆX[šY™\ÝB‚‚
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ContractError(code) from exc
+    require(isinstance(value, dict), code)
+    return value
+
+
+def validate_execution_overlay(package_root: Path) -> dict[str, Any]:
+    verify_sums(package_root)
+    upstream_sums = verify_sums(package_root, UPSTREAM_SUMS_FILE)
+    require(ROOT_SUMS_FILE not in upstream_sums, "UPSTREAM_SUMS_SELF_REFERENCE")
+    upstream_entries = [{"name": name, "sha256": upstream_sums[name]} for name in sorted(upstream_sums)]
+    upstream_entries.append({"name": ROOT_SUMS_FILE, "sha256": sha256_file(package_root / UPSTREAM_SUMS_FILE)})
+    upstream_entries.sort(key=lambda item: item["name"])
+    require(canonical_json_sha256({
+        "schema": "gh.h3.n2.stage2d9r-successor-d2-execution-package-set/1",
+        "files": upstream_entries,
+    }) == UPSTREAM_EXECUTION_PACKAGE_SHA256, "UPSTREAM_EXECUTION_PACKAGE_DIGEST_MISMATCH")
+    binding = load_json(package_root / OVERLAY_BINDING_FILE, "OVERLAY_BINDING_INVALID")
+    manifest = load_json(package_root / OVERLAY_MANIFEST_FILE, "OVERLAY_MANIFEST_INVALID")
+    observed_overlay_sha = manifest.pop("execution_overlay_sha256", None)
+    require(observed_overlay_sha == canonical_json_sha256(manifest), "OVERLAY_MANIFEST_DIGEST_MISMATCH")
+    manifest["execution_overlay_sha256"] = observed_overlay_sha
+    require(binding.get("schema") == OVERLAY_BINDING_SCHEMA, "OVERLAY_BINDING_SCHEMA_MISMATCH")
+    require(binding.get("physical_request_id") == REQUEST_06_ID, "OVERLAY_BINDING_REQUEST_ID_MISMATCH")
+    require(binding.get("corrected_baseline_sha256") == CORRECTED_BASELINE_SHA256, "OVERLAY_BINDING_BASELINE_MISMATCH")
+    require(binding.get("invalid_baseline_sha256") == INVALID_BASELINE_SHA256, "OVERLAY_BINDING_INVALID_BASELINE_MISMATCH")
+    require(binding.get("predecessor_05_state") == REQUEST_05_INVALID_STATE, "OVERLAY_BINDING_PREDECESSOR_05_MISMATCH")
+    require(manifest.get("execution_overlay_role") == "BLOCKING_CORRECTED_BASELINE", "OVERLAY_ROLE_MISMATCH")
+    require(manifest.get("upstream_execution_package_sha256") == UPSTREAM_EXECUTION_PACKAGE_SHA256, "OVERLAY_UPSTREAM_PACKAGE_MISMATCH")
+    for entry in manifest.get("files", []):
+        require(isinstance(entry, dict), "OVERLAY_FILE_ENTRY_INVALID")
+        name = entry.get("name")
+        expected = entry.get("sha256")
+        require(isinstance(name, str) and isinstance(expected, str), "OVERLAY_FILE_ENTRY_INVALID")
+        require(sha256_file(package_root / name) == expected, "OVERLAY_FILE_SHA256_MISMATCH")
+    return {"binding": binding, "manifest": manifest}
+
+
