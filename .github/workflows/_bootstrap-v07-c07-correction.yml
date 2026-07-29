@@ -1,0 +1,53 @@
+name: Bootstrap V0.7 C-07 correction
+
+on:
+  push:
+    branches:
+      - fix/project-roadmap-v07-c07-identity-semantics-20260730-v1
+    paths:
+      - tools/_bootstrap_v07_parts/**
+      - .github/workflows/_bootstrap-v07-c07-correction.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: fix/project-roadmap-v07-c07-identity-semantics-20260730-v1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Assemble approved correction
+        run: |
+          cat tools/_bootstrap_v07_parts/part* > tools/_bootstrap_apply_v07_c07_correction.py
+          test "$(sha256sum tools/_bootstrap_apply_v07_c07_correction.py | cut -d' ' -f1)" = "62f13bd26fb599e1148866974e379770bbd944062f779795a53ab486248fdd4e"
+          rm -rf tools/_bootstrap_v07_parts
+      - name: Apply approved correction
+        run: python tools/_bootstrap_apply_v07_c07_correction.py
+      - name: Compile changed Python
+        run: python -m compileall -q host/greenhouse-manager/src host/greenhouse-manager/tests infra/compose/c07-node-retirement/verify.py
+      - name: Install greenhouse-manager
+        run: python -m pip install -e 'host/greenhouse-manager[dev]'
+      - name: Run focused tests
+        run: pytest -q host/greenhouse-manager/tests/runtime/test_registration.py host/greenhouse-manager/tests/runtime/test_credential_lifecycle.py host/greenhouse-manager/tests/runtime/test_node_retirement_runtime.py host/greenhouse-manager/tests/ops/test_registration_cli.py host/greenhouse-manager/tests/ops/test_node_retirement_cli.py
+      - name: Ruff
+        run: ruff check host/greenhouse-manager/src host/greenhouse-manager/tests infra/compose/c07-node-retirement/verify.py
+      - name: Verify bootstrap files removed
+        run: |
+          test ! -e tools/_bootstrap_apply_v07_c07_correction.py
+          test ! -e tools/_bootstrap_v07_parts
+          test ! -e .github/workflows/_bootstrap-v07-c07-correction.yml
+      - name: Commit approved correction
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git diff --cached --check
+          git commit -m "fix(c07): align roadmap V0.7 identity lifecycle"
+          git push origin HEAD:fix/project-roadmap-v07-c07-identity-semantics-20260730-v1
