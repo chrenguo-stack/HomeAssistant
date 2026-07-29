@@ -1,0 +1,175 @@
+name: H3 N2 Stage2D9R G3R D2-10 Forensic Executor Repair CI V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-g3r-d2-10-forensic-executor-repair-review-ci-v1.yml"
+      - "docs/decisions/h3-n2-stage2d9r-g3r-d2-10-forensic-terminal-closure-executor-repair-20260729-v1.json"
+      - "docs/development/h3-n2-stage2d9r-g3r-d2-10-forensic-terminal-closure-executor-repair-contract-20260729-v1.md"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_10_forensic_terminal_closure_executor_repair_20260729_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_10_forensic_terminal_closure_executor_repair_shell_20260729_v1.sh"
+      - "tools/h3_n2_stage2d9r_g3r_d2_10_forensic_executor_repair_packager_20260729_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_d2_10_forensic_terminal_closure_20260729_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_d2_10_forensic_terminal_closure_contract_20260729_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_executor_terminalization_repair_20260729_v1.py"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BASE_PR: "205"
+      BASE_HEAD_SHA: "0ca39a8a284fca70fc69474aadb13ca85492b10d"
+      BASE_BRANCH: "fix/h3-n2-stage2d9r-g3r-watchdog-repaired-payload-execution-binding-20260729-v1"
+      LOAD_BEARING_ARTIFACT_ID: "8718562956"
+      LOAD_BEARING_ARTIFACT_DIGEST: "sha256:218b2138640dc3d5a21d3a0a6f455b9708de11eac7ca4b6908c167776a36c479"
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact stacked base and source-only inventory
+        env:
+          EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EVENT_BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_BASE_SHA" = "$BASE_HEAD_SHA"
+          test "$EVENT_BASE_REF" = "$BASE_BRANCH"
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          import subprocess
+
+          expected = {
+              ".github/workflows/h3-n2-stage2d9r-g3r-d2-10-forensic-executor-repair-review-ci-v1.yml",
+              "docs/decisions/h3-n2-stage2d9r-g3r-d2-10-forensic-terminal-closure-executor-repair-20260729-v1.json",
+              "docs/development/h3-n2-stage2d9r-g3r-d2-10-forensic-terminal-closure-executor-repair-contract-20260729-v1.md",
+              "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_10_forensic_terminal_closure_executor_repair_20260729_v1.py",
+              "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_10_forensic_terminal_closure_executor_repair_shell_20260729_v1.sh",
+              "tools/h3_n2_stage2d9r_g3r_d2_10_forensic_executor_repair_packager_20260729_v1.py",
+              "tools/h3_n2_stage2d9r_g3r_d2_10_forensic_terminal_closure_20260729_v1.py",
+              "tools/h3_n2_stage2d9r_g3r_d2_10_forensic_terminal_closure_contract_20260729_v1.py",
+              "tools/h3_n2_stage2d9r_g3r_executor_terminalization_repair_20260729_v1.py",
+          }
+          base = os.environ["BASE_HEAD_SHA"]
+          head = os.environ["PR_HEAD_SHA"]
+          subprocess.run(["git", "merge-base", "--is-ancestor", base, head], check=True)
+          observed = set(
+              subprocess.check_output(
+                  ["git", "diff", "--name-only", f"{base}...{head}"], text=True
+              ).splitlines()
+          )
+          if observed != expected:
+              raise SystemExit(
+                  "SOURCE_INVENTORY_MISMATCH\n"
+                  f"missing={sorted(expected - observed)}\n"
+                  f"extra={sorted(observed - expected)}"
+              )
+          for name in expected:
+              if not Path(name).is_file():
+                  raise SystemExit("SOURCE_FILE_MISSING:" + name)
+          PY
+
+      - name: Verify PR 205 and load-bearing Artifact remain exact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/pulls/${BASE_PR}" \
+            -o /tmp/base-pr.json
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${LOAD_BEARING_ARTIFACT_ID}" \
+            -o /tmp/base-artifact.json
+          python3 - <<'PY'
+          import json
+          import os
+
+          pr = json.load(open("/tmp/base-pr.json", encoding="utf-8"))
+          assert pr["state"] == "open"
+          assert pr["draft"] is True
+          assert pr["merged"] is False
+          assert pr["head"]["sha"] == os.environ["BASE_HEAD_SHA"]
+          artifact = json.load(open("/tmp/base-artifact.json", encoding="utf-8"))
+          assert artifact["id"] == int(os.environ["LOAD_BEARING_ARTIFACT_ID"])
+          assert artifact["expired"] is False
+          assert artifact["digest"] == os.environ["LOAD_BEARING_ARTIFACT_DIGEST"]
+          assert artifact["workflow_run"]["head_sha"] == os.environ["BASE_HEAD_SHA"]
+          PY
+
+      - name: Compile and run focused contracts
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            tools/h3_n2_stage2d9r_g3r_d2_10_forensic_terminal_closure_contract_20260729_v1.py \
+            tools/h3_n2_stage2d9r_g3r_d2_10_forensic_terminal_closure_20260729_v1.py \
+            tools/h3_n2_stage2d9r_g3r_executor_terminalization_repair_20260729_v1.py \
+            tools/h3_n2_stage2d9r_g3r_d2_10_forensic_executor_repair_packager_20260729_v1.py
+          PYTHONPATH="$GITHUB_WORKSPACE/tools:$GITHUB_WORKSPACE" python3 -m unittest \
+            tests.h3_n2_stage2d9r_tls_candidate.test_h3_n2_stage2d9r_g3r_d2_10_forensic_terminal_closure_executor_repair_20260729_v1
+          sh tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_10_forensic_terminal_closure_executor_repair_shell_20260729_v1.sh
+
+      - name: Build two byte-identical source-only review lanes
+        run: |
+          set -euo pipefail
+          for lane in 1 2
+          do
+            python3 tools/h3_n2_stage2d9r_g3r_d2_10_forensic_executor_repair_packager_20260729_v1.py \
+              --source-root "$GITHUB_WORKSPACE" \
+              --source-sha "$PR_HEAD_SHA" \
+              --output "/tmp/review-lane-${lane}"
+          done
+          diff -qr /tmp/review-lane-1 /tmp/review-lane-2
+          cd /tmp/review-lane-1
+          sha256sum -c SHA256SUMS
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          review = json.load(
+              open("D2_10_FORENSIC_EXECUTOR_REPAIR_REVIEW.json", encoding="utf-8")
+          )
+          assert review["d2_status"] == "CONSUMED_FAILED"
+          assert review["forensic_closure_authorization_created"] is False
+          assert review["forensic_closure_applied"] is False
+          assert review["physical_request_created"] is False
+          assert review["physical_authorization_created"] is False
+          assert review["board_operation"] is False
+          assert review["network_operation"] is False
+          assert review["prepare_count"] == 1
+          assert review["verify_count"] == 0
+          prohibited = {
+              path.name.lower()
+              for path in Path(".").rglob("*")
+              if path.is_file()
+              and (
+                  "authorization-record" in path.name.lower()
+                  or "closure-authorization" in path.name.lower()
+                  or "physical-d2-request" in path.name.lower()
+              )
+          }
+          assert not prohibited, prohibited
+          PY
+
+      - name: Upload deterministic public review
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-g3r-d2-10-forensic-executor-repair-review-v1
+          path: /tmp/review-lane-1
+          if-no-files-found: error
+          retention-days: 7
