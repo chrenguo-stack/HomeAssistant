@@ -17,7 +17,7 @@ SOURCE_STATE = "SOURCE_ONLY_TASK_WATCHDOG_PARSER"
 
 TRIGGER_RE = re.compile(r"Task watchdog got triggered", re.I)
 TASK_RE = re.compile(r"(?:^|:)\s*-\s+([A-Za-z0-9_.-]+)\s+\(CPU\s+(\d+)\)\s*$", re.I)
-ABORT_RE = re.compile(r"(?:^|:)\s*Aborting\.\s*$", re.I)
+ABORT_RE = re.compile(r"\bAborting\.", re.I)
 REGISTER_RE = re.compile(r"Print CPU\s+(\d+)\s+\(current core\)\s+registers", re.I)
 MEPC_RE = re.compile(r"\bMEPC\s*[:=]\s*(0x[0-9a-fA-F]+)", re.I)
 RA_RE = re.compile(r"(?:^|\s)RA\s*[:=]\s*(0x[0-9a-fA-F]+)", re.I)
