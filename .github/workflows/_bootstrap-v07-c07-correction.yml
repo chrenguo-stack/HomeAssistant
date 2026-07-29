@@ -34,6 +34,35 @@ jobs:
         run: |
           cat tools/_bootstrap_v07_parts/part* > tools/_bootstrap_apply_v07_c07_correction.py
           test "$(sha256sum tools/_bootstrap_apply_v07_c07_correction.py | cut -d' ' -f1)" = "62f13bd26fb599e1148866974e379770bbd944062f779795a53ab486248fdd4e"
+          python - <<'PY'
+          import ast
+          import base64
+          import gzip
+          import hashlib
+          import re
+          from pathlib import Path
+
+          path = Path("tools/_bootstrap_apply_v07_c07_correction.py")
+          wrapper = path.read_text(encoding="utf-8")
+          match = re.search(r"b64decode\(\n('.*')\n\)\)", wrapper, re.DOTALL)
+          if match is None:
+              raise SystemExit("bootstrap payload missing")
+          source = gzip.decompress(base64.b64decode(ast.literal_eval(match.group(1)))).decode("utf-8")
+          old = '''    path = "host/greenhouse-manager/pyproject.toml"
+              text = replace_once(text, 'version = "0.4.96"', 'version = "0.4.97"', label="version bump")
+          '''.replace("              text", "    text")
+          new = '''    path = "host/greenhouse-manager/pyproject.toml"
+              text = read(path)
+              text = replace_once(text, 'version = "0.4.96"', 'version = "0.4.97"', label="version bump")
+          '''.replace("              text", "    text")
+          if source.count(old) != 1:
+              raise SystemExit("version patch anchor mismatch")
+          source = source.replace(old, new, 1)
+          digest = hashlib.sha256(source.encode("utf-8")).hexdigest()
+          if digest != "b16b347e02ae969a89ccb0b35f3444dc3d05dc8502921ed4f76a12c8dcfbf4c9":
+              raise SystemExit(f"fixed source digest mismatch: {digest}")
+          path.write_text(source, encoding="utf-8")
+          PY
           rm -rf tools/_bootstrap_v07_parts
       - name: Apply approved correction
         run: python tools/_bootstrap_apply_v07_c07_correction.py
