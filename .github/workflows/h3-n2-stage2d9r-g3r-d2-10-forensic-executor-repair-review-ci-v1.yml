@@ -172,4 +172,5 @@ jobs:
           name: stage2d9r-g3r-d2-10-forensic-executor-repair-review-v1
           path: /tmp/review-lane-1
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 7
