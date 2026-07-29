@@ -1,0 +1,27 @@
+{
+  "decision_id": "D1-H3N2-STAGE2D9R-G3R-PREPARE-RESULT-TIMEOUT-EVIDENCE-REPAIR-20260729-01",
+  "state": "ACCEPTED_SOURCE_ONLY",
+  "base_pr": 199,
+  "base_head_sha": "79542efe3b3465d3381a797862e2f5362cc3cfe8",
+  "d2_request_id": "D2-H3N2-STAGE2D9R-G3R-PAYLOAD-HANDOFF-REPAIRED-PHYSICAL-20260729-06",
+  "d2_status": "CONSUMED_FAILED",
+  "d2_terminal_state": "LOCKED_RECOVERY_COMPLETED",
+  "d2_failure_code": "PREPARE_RESULT_TIMEOUT",
+  "d2_terminal_result_sha256": "251090684c368eba59ef7b5c7ec5c158beba1905159bca864669e52ec946ba49",
+  "repair_scope": [
+    "persist redacted serial evidence on every terminal path",
+    "persist redacted broker evidence on every terminal path",
+    "persist ordered PREPARE timeline before recovery and temporary cleanup",
+    "classify NO_RESULT, SERIAL_RESET, BROKER_DISCONNECT, LATE_RESULT and UNRECOGNIZED_RESULT"
+  ],
+  "raw_private_values_permitted": false,
+  "new_physical_request_created": false,
+  "physical_authorization_created": false,
+  "immutable_payload_changed": false,
+  "recovery_payload_changed": false,
+  "ready_authorized": false,
+  "merge_authorized": false,
+  "release_authorized": false,
+  "tag_authorized": false,
+  "deployment_authorized": false
+}

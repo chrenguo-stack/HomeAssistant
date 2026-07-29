@@ -1,0 +1,227 @@
+name: H3 N2 Stage2D9R G3R Prepare Timeout Evidence Repair Review CI V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-g3r-prepare-timeout-evidence-repair-review-ci-v1.yml"
+      - "docs/decisions/h3-n2-stage2d9r-g3r-prepare-timeout-evidence-repair-20260729-v1.json"
+      - "docs/development/h3-n2-stage2d9r-g3r-prepare-timeout-evidence-repair-contract-20260729-v1.md"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_prepare_timeout_evidence_repair_20260729_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_prepare_timeout_evidence_repair_shell_20260729_v1.sh"
+      - "tools/h3_n2_stage2d9r_g3r_prepare_timeout_evidence_repair_contract_20260729_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_prepare_timeout_evidence_recorder_20260729_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_prepare_timeout_evidence_overlay_20260729_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_prepare_timeout_evidence_repair_packager_20260729_v1.py"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+
+env:
+  BASE_BRANCH: fix/h3-n2-stage2d9r-g3r-physical-execution-overlay-binding-repair-20260729-v1
+  BASE_SHA: 79542efe3b3465d3381a797862e2f5362cc3cfe8
+  UPSTREAM_ARTIFACT_ID: "8709137550"
+  UPSTREAM_ARTIFACT_SHA256: 60627828577a771a251b8ee00f96016e9c4f984c9532f455d406ec1135c84e8b
+  CONTRACT: tools/h3_n2_stage2d9r_g3r_prepare_timeout_evidence_repair_contract_20260729_v1.py
+  RECORDER: tools/h3_n2_stage2d9r_g3r_prepare_timeout_evidence_recorder_20260729_v1.py
+  OVERLAY: tools/h3_n2_stage2d9r_g3r_prepare_timeout_evidence_overlay_20260729_v1.py
+  PACKAGER: tools/h3_n2_stage2d9r_g3r_prepare_timeout_evidence_repair_packager_20260729_v1.py
+  TEST_FILE: tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_prepare_timeout_evidence_repair_20260729_v1.py
+  SHELL_TEST: tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_prepare_timeout_evidence_repair_shell_20260729_v1.sh
+  PYTHONHASHSEED: "0"
+  TZ: UTC
+  LC_ALL: C.UTF-8
+  LANG: C.UTF-8
+
+jobs:
+  source-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fail closed on exact PR 199 base and Artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_BASE_REF" = "$BASE_BRANCH"
+          test "$EVENT_BASE_SHA" = "$BASE_SHA"
+          gh api "repos/$GITHUB_REPOSITORY/pulls/199" > /tmp/pr-199.json
+          python - <<'PY'
+          import json
+          value=json.load(open('/tmp/pr-199.json'))
+          assert value['state']=='open'
+          assert value['draft'] is True
+          assert value['merged'] is False
+          assert value['head']['sha']=='79542efe3b3465d3381a797862e2f5362cc3cfe8'
+          assert value['base']['sha']=='0ff1bfdf8be3b71304189897d4c0cc5b6fffcfd4'
+          PY
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$UPSTREAM_ARTIFACT_ID" > /tmp/artifact.json
+          python - <<'PY'
+          import json,os
+          value=json.load(open('/tmp/artifact.json'))
+          assert value['id']==int(os.environ['UPSTREAM_ARTIFACT_ID'])
+          assert value['expired'] is False
+          assert value['digest']=='sha256:'+os.environ['UPSTREAM_ARTIFACT_SHA256']
+          assert value['workflow_run']['head_sha']==os.environ['BASE_SHA']
+          PY
+
+      - name: Require exact nine-file successor inventory
+        run: |
+          set -euo pipefail
+          git diff --name-only "$BASE_SHA"...HEAD | sort > /tmp/actual
+          cat > /tmp/expected <<'EOF_FILES'
+          .github/workflows/h3-n2-stage2d9r-g3r-prepare-timeout-evidence-repair-review-ci-v1.yml
+          docs/decisions/h3-n2-stage2d9r-g3r-prepare-timeout-evidence-repair-20260729-v1.json
+          docs/development/h3-n2-stage2d9r-g3r-prepare-timeout-evidence-repair-contract-20260729-v1.md
+          tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_prepare_timeout_evidence_repair_20260729_v1.py
+          tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_prepare_timeout_evidence_repair_shell_20260729_v1.sh
+          tools/h3_n2_stage2d9r_g3r_prepare_timeout_evidence_overlay_20260729_v1.py
+          tools/h3_n2_stage2d9r_g3r_prepare_timeout_evidence_recorder_20260729_v1.py
+          tools/h3_n2_stage2d9r_g3r_prepare_timeout_evidence_repair_contract_20260729_v1.py
+          tools/h3_n2_stage2d9r_g3r_prepare_timeout_evidence_repair_packager_20260729_v1.py
+          EOF_FILES
+          sort -o /tmp/expected /tmp/expected
+          diff -u /tmp/expected /tmp/actual
+
+      - name: Compile, test, and verify source-only boundary
+        run: |
+          set -euo pipefail
+          python -m py_compile "$CONTRACT" "$RECORDER" "$OVERLAY" "$PACKAGER" "$TEST_FILE"
+          python "$CONTRACT" --source-sha "${{ github.event.pull_request.head.sha }}" > /tmp/source-contract.json
+          python - <<'PY'
+          import json
+          v=json.load(open('/tmp/source-contract.json'))
+          assert v['state']=='PREPARE_TIMEOUT_EVIDENCE_REPAIR_SOURCE_FROZEN_UNAUTHORIZED'
+          assert v['base_pr']==199
+          assert v['d2_06_status']=='CONSUMED_FAILED'
+          assert v['d2_06_terminal_state']=='LOCKED_RECOVERY_COMPLETED'
+          assert v['d2_06_failure_code']=='PREPARE_RESULT_TIMEOUT'
+          assert v['new_physical_request_created'] is False
+          assert v['authorization_created'] is False
+          PY
+          python "$TEST_FILE" -v 2>&1 | tee /tmp/tests.log
+          grep -F 'Ran 12 tests' /tmp/tests.log
+          grep -F 'OK' /tmp/tests.log
+          bash "$SHELL_TEST"
+          ! find . -iname '*physical*d2*request*07*.json' -print -quit | grep .
+          ! find . -iname '*authorization*07*.json' -print -quit | grep .
+          ! grep -R -F 'serial.Serial(' "$CONTRACT" "$RECORDER" "$OVERLAY" "$PACKAGER"
+          ! grep -R -F 'subprocess.' "$CONTRACT" "$RECORDER" "$OVERLAY" "$PACKAGER"
+
+  package-build:
+    needs: source-review
+    strategy:
+      fail-fast: true
+      matrix:
+        lane: [a, b]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download exact PR 199 review Artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$UPSTREAM_ARTIFACT_ID/zip" > /tmp/upstream.zip
+          echo "$UPSTREAM_ARTIFACT_SHA256  /tmp/upstream.zip" | sha256sum -c -
+
+      - name: Build deterministic evidence-repair review package
+        run: |
+          set -euo pipefail
+          python "$PACKAGER" --repository-root . --upstream-artifact-zip /tmp/upstream.zip --output-root /tmp/review-package --source-sha "${{ github.event.pull_request.head.sha }}" --repository-head-sha 64c6b093c3ba6a8476c9392c8d106394b2542fb5 > /tmp/package-result.json
+          python - <<'PY'
+          import json
+          v=json.load(open('/tmp/package-result.json'))
+          assert v['status']=='PASS'
+          assert v['d2_06_status']=='CONSUMED_FAILED'
+          assert v['d2_06_failure_code']=='PREPARE_RESULT_TIMEOUT'
+          assert v['new_physical_request_created'] is False
+          assert v['physical_authorization_created'] is False
+          PY
+          cd /tmp/review-package
+          sha256sum -c SHA256SUMS
+          test -f D2_06_TERMINAL_DISPOSITION.json
+          test -f PREPARE_TIMEOUT_EVIDENCE_RETENTION_POLICY.json
+          test -f PREPARE_TIMEOUT_EVIDENCE_REPAIR_REVIEW.json
+          test ! -e PHYSICAL_D2_REQUEST_07.json
+          test ! -e physical-d2-authorization-07.json
+          test "$(sha256sum UPSTREAM_PR199_REVIEW_ARTIFACT.zip | cut -d' ' -f1)" = "$UPSTREAM_ARTIFACT_SHA256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prepare-timeout-evidence-repair-lane-${{ matrix.lane }}
+          path: /tmp/review-package
+          include-hidden-files: true
+          retention-days: 1
+          if-no-files-found: error
+
+  package-compare-and-publish:
+    needs: package-build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: prepare-timeout-evidence-repair-lane-a
+          path: /tmp/a
+      - uses: actions/download-artifact@v4
+        with:
+          name: prepare-timeout-evidence-repair-lane-b
+          path: /tmp/b
+
+      - name: Require byte-identical lanes and publish
+        run: |
+          set -euo pipefail
+          diff -r /tmp/a /tmp/b
+          cd /tmp/a
+          sha256sum -c SHA256SUMS
+          python - <<'PY'
+          import json
+          d=json.load(open('D2_06_TERMINAL_DISPOSITION.json'))
+          p=json.load(open('PREPARE_TIMEOUT_EVIDENCE_RETENTION_POLICY.json'))
+          r=json.load(open('PREPARE_TIMEOUT_EVIDENCE_REPAIR_REVIEW.json'))
+          assert d['status']=='CONSUMED_FAILED'
+          assert d['terminal_state']=='LOCKED_RECOVERY_COMPLETED'
+          assert d['failure_code']=='PREPARE_RESULT_TIMEOUT'
+          assert d['replay_permitted'] is False
+          assert p['persist_before_recovery'] is True
+          assert p['new_physical_request_created'] is False
+          assert r['new_physical_request_created'] is False
+          assert r['immutable_payload_changed'] is False
+          assert r['recovery_payload_changed'] is False
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-g3r-prepare-timeout-evidence-repair-review-v1
+          path: /tmp/a
+          include-hidden-files: true
+          retention-days: 7
+          if-no-files-found: error
