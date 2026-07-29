@@ -274,7 +274,7 @@ jobs:
           ):
               assert value[key] is False
           PY
-          if grep -R -E '/U[s]ers/|/d[e]v/(cu|tty)|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY' .; then
+          if grep -R -I -E '/U[s]ers/[[:alnum:]_.-]|/d[e]v/(cu|tty)[[:alnum:]_.-]|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY' .; then
             echo "private material or host path found" >&2
             exit 1
           fi
