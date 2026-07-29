@@ -32,6 +32,7 @@ jobs:
       PR204_ARTIFACT_SHA256: "71ee1c2bfe951e1e4db833ad4efb96e436ba6c6a0729d52caf641b2294f2d456"
       PR204_HEAD: "8d76634adb171c6492e51a5ebd855bcd52bcf073"
       PR204_BRANCH: "fix/h3-n2-stage2d9r-g3r-prepare-looptask-watchdog-firmware-repair-20260729-v1"
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       PYTHONDONTWRITEBYTECODE: "1"
     steps:
       - uses: actions/checkout@v4
@@ -63,9 +64,14 @@ jobs:
               "tools/run_stage2d9r_g3r_watchdog_repaired_payload_physical_d2_20260729_v1.sh",
           }
           base = os.environ["PR204_HEAD"]
+          head = os.environ["PR_HEAD_SHA"]
+          subprocess.run(
+              ["git", "merge-base", "--is-ancestor", base, head],
+              check=True,
+          )
           observed = set(
               subprocess.check_output(
-                  ["git", "diff", "--name-only", f"{base}...HEAD"],
+                  ["git", "diff", "--name-only", f"{base}...{head}"],
                   text=True,
               ).splitlines()
           )
@@ -145,7 +151,7 @@ jobs:
               --source-root "$GITHUB_WORKSPACE" \
               --upstream-artifact /tmp/pr203.zip \
               --watchdog-artifact /tmp/pr204.zip \
-              --source-sha "$GITHUB_SHA" \
+              --source-sha "$PR_HEAD_SHA" \
               --output "/tmp/review-lane-${lane}"
           done
           diff -qr /tmp/review-lane-1 /tmp/review-lane-2
