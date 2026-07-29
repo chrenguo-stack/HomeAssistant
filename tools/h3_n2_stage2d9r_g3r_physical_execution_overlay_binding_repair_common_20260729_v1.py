@@ -1,0 +1,115 @@
+#!/usr/bin/env python3
+"""Contract for the corrected-baseline physical execution overlay."""
+from __future__ import annotations
+
+import hashlib
+import json
+from datetime import datetime, timezone
+from pathlib import Path, PurePosixPath
+import re
+from typing import Any, Mapping
+
+STAGE = "H3/N2 Stage 2D-9R G3R corrected-baseline physical overlay successor"
+DECISION_ID = "D1-H3N2-STAGE2D9R-G3R-PHYSICAL-EXECUTION-OVERLAY-BINDING-REPAIR-20260729-01"
+BASE_PR = 198
+BASE_BRANCH = "fix/h3-n2-stage2d9r-g3r-baseline-aggregate-digest-correction-20260729-v1"
+BASE_HEAD_SHA = "0ff1bfdf8be3b71304189897d4c0cc5b6fffcfd4"
+UPSTREAM_ARTIFACT_ID = 8707393096
+UPSTREAM_ARTIFACT_SHA256 = "53ae3b7d39ade0879388ca5ab8f3acba00a8d6065d3db93ede9be41c195e1b81"
+UPSTREAM_REVIEW_BINDING_SHA256 = "d1fa61da7bbc433a3a52032b59bbc3c0b9a350779f49277c1b844c303d253605"
+UPSTREAM_INNER_TAR_SHA256 = "de192fe956bbc34c4b4b66794c26b0d83d8b756ecf70080c951da6161bd33329"
+NESTED_PR197_ZIP_SHA256 = "ce87a0d2f421970cd5c8f53a16f0b85e70d3cdbe294afb18263f4276768d87b5"
+NESTED_PR196_ZIP_SHA256 = "15ff1968b1fabdf6cfd967830db35d2f690cf785586486ed69a92ad6b8403782"
+NESTED_H4_ZIP_SHA256 = "75d62dd96f98fdfb48d4fdcc296ce4a93fb8d7f798ab9a30c3e3b4391aad0bed"
+UPSTREAM_EXECUTION_PACKAGE_SHA256 = "f3349fbd5a09509c20c66b525e50811150168c5375ef4b7a3518f30523829292"
+UPSTREAM_EXECUTION_CLOSURE_SHA256 = "d74b1b1995d35d76075b52c68f2e61f7ec67306a1615c01bfdcbaa6679d44275"
+UPSTREAM_EXECUTION_WRAPPER_SHA256 = "3a7bf7ac67b04441847d1e56069976700751dfafd1a650be2406335dd677f3d5"
+UPSTREAM_EXECUTION_LAUNCHER_SHA256 = "1f1008b51c7e426b69ff2097e718361941a1ed5701ee64bca0a3859a7b287be2"
+
+H5_AUTHORIZATION_ID = "H5-H3N2-STAGE2D9R-G3R-CORRECTED-BASELINE-EXECUTION-CLOSURE-20260729-01"
+H5_AUTHORIZATION_RECORD_SHA256 = "abea9078f1e3ef69f10817db81d476b2e4af92cc4a4a0bfe8d2296c351d2830c"
+H5_RESULT_SHA256 = "2fc6b4ea5675ded61770717f51b66dd5491906cf56a6f893fe12c73e5da37ba1"
+H5_RESULT_FILE_SHA256 = "83ade01b92fcef9b4a93c1b78aa60e9c36754cbbec44045bc6a66f70069a8eb1"
+H5_MARKER_FILE_SHA256 = "21c606a8736d2907b70d7b44b797140d37487d7ff0a46b2a0a9772940892f9b9"
+REQUEST_05_ID = "D2-H3N2-STAGE2D9R-G3R-PAYLOAD-HANDOFF-REPAIRED-PHYSICAL-20260728-05"
+REQUEST_05_BINDING_SHA256 = "913812fceae10fca43db9639b7adb1763ca1bc577d437ab79ca8c4984eed98af"
+REQUEST_05_FILE_SHA256 = "b6ab7cef9c4305dc88e66bd7a61ba4f489ddfde07d846ea365367bc7fb8e5ad4"
+REQUEST_05_INVALID_STATE = "INVALIDATED_BEFORE_PHYSICAL_AUTHORIZATION_BY_EXECUTION_BINDING_INCOMPATIBILITY"
+REQUEST_06_ID = "D2-H3N2-STAGE2D9R-G3R-PAYLOAD-HANDOFF-REPAIRED-PHYSICAL-20260729-06"
+
+PREDECESSOR_03_ID = "D2-H3N2-STAGE2D9R-G3R-PAYLOAD-HANDOFF-REPAIRED-PHYSICAL-20260728-03"
+PREDECESSOR_04_ID = "D2-H3N2-STAGE2D9R-G3R-PAYLOAD-HANDOFF-REPAIRED-PHYSICAL-20260728-04"
+PREDECESSOR_03_STATE = "CONSUMED_FAILED"
+PREDECESSOR_03_FAILURE = "BASELINE_STATE_MISMATCH"
+PREDECESSOR_04_STATE = "INVALIDATED_BY_PREDECESSOR_TERMINAL_STATE_DRIFT_BEFORE_PHYSICAL_AUTHORIZATION"
+
+CORRECTED_BASELINE_SHA256 = "776517efcac0c6cf03cabe0572b773dedc89e9bb2793ccb0d9f9585ea6fa601f"
+CORRECTED_PATH_NEUTRAL_BASELINE_SHA256 = "bec8a0da70a76c4f7d29fd738b9f2e1a398843884e1a9d7a09befe25f5c01683"
+INVALID_BASELINE_SHA256 = "0735d98c7b4e2a698b42d39bdded1dd04f97b9441270e8bc03be347d369c8793"
+BOARD_IDENTITY_SHA256 = "2607b7df80b8b636548a8d9d97c0a6b4e4ead57e9a2cc6fcb7f93643617242f8"
+SERIAL_IDENTITY_SHA256 = "b6dba7ee0db02feba166935ae8ec2bbd946dbf66926e5421cfa1c1c8b8a4f2c3"
+CHIP_ID_OUTPUT_SHA256 = "ebc8ed3ce6923e1a86a7ff8dbb01e830955cd7aef5e5927963a0bd3adacbb0b7"
+FLASH_ID_OUTPUT_SHA256 = "738b4537462780c847d34baa744a5f17034a05a7e65d0bbd300be5eb5e4d801e"
+TEST_PARTITION_SHA256 = "71189f7fb6aed638640078fba3a35fda6c39c8962e74dcc75935aac948da9063"
+TEST_PARTITION_SIZE = 0x10000
+
+IMMUTABLE_ARTIFACT_ID = 8676269782
+IMMUTABLE_ARCHIVE_SHA256 = "83eb3cd85e04835eb412dfe9288c3f3445c0b5aefa23dec21532a8500e8fe5b8"
+IMMUTABLE_PAYLOAD_TAR_SHA256 = "3a3e96c267fd53723e7cbe6cbce959a90d2bf3f08adedcf97255395f91adc4ea"
+IMMUTABLE_MERGED_SHA256 = "67dc276c7ef69a1528d511c4043ec3eb58489eefb6864442f03e405f24611cb3"
+RECOVERY_PAYLOAD_TAR_SHA256 = "08cff687947c2f9b9cbd2df09f16b14b95beeacf2de5683055d6572fafd6cf8f"
+RECOVERY_DESCRIPTOR_SHA256 = "660b5419b65b2a417989ca8808bc434a4f83703fa90a72b4f306360879abbbd0"
+PRIVATE_PACKAGE_SHA256 = "d2749c4a173876282275e476a577a7e4a27440429b31592c379bdedd1d3bfa0f"
+PREPARE_COMMAND_SHA256 = "022577c2ee88c57ab45533f53a5630f7eb94e142985533cdc1a8166de0d3317f"
+VERIFY_COMMAND_SHA256 = "9d5aad5eb2eedd6ba8460df80af3653dc68c8e24cd12a6bcd69e5460436050d7"
+CANDIDATE_DIGEST_SHA256 = "73b58ea30e4355d90afa4a9bc9331968537d6318db046f562212c5b836670b15"
+CA_PEM_SHA256 = "e9abe88df80f21311ea9ea4977b78f531380a37564490c1108fabeae8cc5bc5a"
+BUILD_BINDING = "4051f5d541898cef742f35aeec757e7fc479f383"
+
+AUTH_SCHEMA = "gh.h3.n2.stage2d9r-g3r-corrected-baseline-overlay-physical-d2-authorization/1"
+RESULT_SCHEMA = "gh.h3.n2.stage2d9r-g3r-corrected-baseline-overlay-physical-d2-result/1"
+MARKER_SCHEMA = "gh.h3.n2.stage2d9r-g3r-corrected-baseline-overlay-physical-d2-marker/1"
+PRE_RESULT_SCHEMA = "gh.h3.n2.stage2d9r-g3r-corrected-baseline-overlay-physical-d2-preclaim-result/1"
+PRE_MARKER_SCHEMA = "gh.h3.n2.stage2d9r-g3r-corrected-baseline-overlay-physical-d2-preclaim-marker/1"
+REQUEST_SCHEMA = "gh.h3.n2.stage2d9r-g3r-corrected-baseline-overlay-bound-physical-d2-request/1"
+OVERLAY_BINDING_SCHEMA = "gh.h3.n2.stage2d9r-g3r-physical-execution-overlay-binding/1"
+OVERLAY_MANIFEST_SCHEMA = "gh.h3.n2.stage2d9r-g3r-physical-execution-overlay-manifest/1"
+REVIEW_SCHEMA = "gh.h3.n2.stage2d9r-g3r-physical-execution-overlay-binding-repair-review/1"
+
+OVERLAY_CONTRACT_FILE = "h3_n2_stage2d9r_g3r_physical_execution_overlay_binding_repair_contract_20260729_v1.py"
+OVERLAY_HELPER_FILE = "h3_n2_stage2d9r_g3r_physical_execution_overlay_binding_repair_common_20260729_v1.py"
+OVERLAY_WRAPPER_FILE = "h3_n2_stage2d9r_g3r_corrected_baseline_physical_d2_overlay_wrapper_20260729_v1.py"
+OVERLAY_LAUNCHER_FILE = "run_stage2d9r_g3r_corrected_baseline_physical_d2_overlay_20260729_v1.sh"
+OVERLAY_BINDING_FILE = "EXECUTION_OVERLAY_BINDING.json"
+OVERLAY_MANIFEST_FILE = "EXECUTION_OVERLAY_MANIFEST.json"
+UPSTREAM_SUMS_FILE = "UPSTREAM_EXECUTION_PACKAGE_SHA256SUMS"
+ROOT_SUMS_FILE = "SHA256SUMS"
+PHYSICAL_REQUEST_FILE = "PHYSICAL_D2_REQUEST_06.json"
+HEX40 = re.compile(r"^[0-9a-f]{40}$")
+HEX64 = re.compile(r"^[0-9a-f]{64}$")
+
+FALSE_BOUNDARY = {
+    "authorized": False,
+    "authorization_created": False,
+    "authorization_claimed": False,
+    "authorization_consumed": False,
+    "board_operation": False,
+    "usb_enumeration": False,
+    "serial_operation": False,
+    "esptool_operation": False,
+    "flash_operation": False,
+    "physical_nvs_operation": False,
+    "network_operation": False,
+    "broker_started": False,
+    "prepare_executed": False,
+    "verify_executed": False,
+    "activate_executed": False,
+    "cleanup_executed": False,
+    "ready": False,
+    "merge": False,
+    "release": False,
+    "tag": False,
+    "deployment": False,
+}
+
+

@@ -1,0 +1,231 @@
+name: H3 N2 Stage2D9R G3R Physical Execution Overlay Binding Repair Review CI V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-g3r-physical-execution-overlay-binding-repair-review-ci-v1.yml"
+      - "docs/decisions/h3-n2-stage2d9r-g3r-physical-execution-overlay-binding-repair-20260729-v1.json"
+      - "docs/development/h3-n2-stage2d9r-g3r-physical-execution-overlay-binding-repair-contract-20260729-v1.md"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_physical_execution_overlay_binding_repair_20260729_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_physical_execution_overlay_shell_20260729_v1.sh"
+      - "tools/h3_n2_stage2d9r_g3r_physical_execution_overlay_binding_repair_contract_20260729_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_corrected_baseline_physical_d2_overlay_wrapper_20260729_v1.py"
+      - "tools/run_stage2d9r_g3r_corrected_baseline_physical_d2_overlay_20260729_v1.sh"
+      - "tools/h3_n2_stage2d9r_g3r_physical_execution_overlay_binding_repair_packager_20260729_v1.py"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+
+env:
+  BASE_BRANCH: fix/h3-n2-stage2d9r-g3r-baseline-aggregate-digest-correction-20260729-v1
+  BASE_SHA: 0ff1bfdf8be3b71304189897d4c0cc5b6fffcfd4
+  UPSTREAM_ARTIFACT_ID: "8707393096"
+  UPSTREAM_ARTIFACT_SHA256: 53ae3b7d39ade0879388ca5ab8f3acba00a8d6065d3db93ede9be41c195e1b81
+  CONTRACT: tools/h3_n2_stage2d9r_g3r_physical_execution_overlay_binding_repair_contract_20260729_v1.py
+  WRAPPER: tools/h3_n2_stage2d9r_g3r_corrected_baseline_physical_d2_overlay_wrapper_20260729_v1.py
+  LAUNCHER: tools/run_stage2d9r_g3r_corrected_baseline_physical_d2_overlay_20260729_v1.sh
+  PACKAGER: tools/h3_n2_stage2d9r_g3r_physical_execution_overlay_binding_repair_packager_20260729_v1.py
+  TEST_FILE: tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_physical_execution_overlay_binding_repair_20260729_v1.py
+  SHELL_TEST: tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_physical_execution_overlay_shell_20260729_v1.sh
+  PYTHONHASHSEED: "0"
+  TZ: UTC
+  LC_ALL: C.UTF-8
+  LANG: C.UTF-8
+
+jobs:
+  source-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fail closed on exact PR 198 base and Artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_BASE_REF" = "$BASE_BRANCH"
+          test "$EVENT_BASE_SHA" = "$BASE_SHA"
+          gh api "repos/$GITHUB_REPOSITORY/pulls/198" > /tmp/pr-198.json
+          python - <<'PY'
+          import json
+          value=json.load(open('/tmp/pr-198.json'))
+          assert value['state']=='open'
+          assert value['draft'] is True
+          assert value['merged'] is False
+          assert value['head']['sha']=='0ff1bfdf8be3b71304189897d4c0cc5b6fffcfd4'
+          assert value['base']['sha']=='0468e831e61f859ca5e1654785c67dd323e92e64'
+          PY
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$UPSTREAM_ARTIFACT_ID" > /tmp/artifact.json
+          python - <<'PY'
+          import json,os
+          value=json.load(open('/tmp/artifact.json'))
+          assert value['id']==int(os.environ['UPSTREAM_ARTIFACT_ID'])
+          assert value['expired'] is False
+          assert value['digest']=='sha256:'+os.environ['UPSTREAM_ARTIFACT_SHA256']
+          assert value['workflow_run']['head_sha']==os.environ['BASE_SHA']
+          PY
+
+      - name: Require exact twelve-file successor inventory
+        run: |
+          set -euo pipefail
+          git diff --name-only "$BASE_SHA"...HEAD | sort > /tmp/actual
+          cat > /tmp/expected <<'EOF_FILES'
+          .github/workflows/h3-n2-stage2d9r-g3r-physical-execution-overlay-binding-repair-review-ci-v1.yml
+          docs/decisions/h3-n2-stage2d9r-g3r-physical-execution-overlay-binding-repair-20260729-v1.json
+          docs/development/h3-n2-stage2d9r-g3r-physical-execution-overlay-binding-repair-contract-20260729-v1.md
+          tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_physical_execution_overlay_binding_repair_20260729_v1.py
+          tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_physical_execution_overlay_shell_20260729_v1.sh
+          tools/h3_n2_stage2d9r_g3r_corrected_baseline_physical_d2_overlay_wrapper_20260729_v1.py
+          tools/h3_n2_stage2d9r_g3r_physical_execution_overlay_binding_repair_common_20260729_v1.py
+          tools/h3_n2_stage2d9r_g3r_physical_execution_overlay_binding_repair_base_20260729_v1.py
+          tools/h3_n2_stage2d9r_g3r_physical_execution_overlay_binding_repair_contract_20260729_v1.py
+          tools/h3_n2_stage2d9r_g3r_physical_execution_overlay_binding_repair_packager_support_20260729_v1.py
+          tools/h3_n2_stage2d9r_g3r_physical_execution_overlay_binding_repair_packager_20260729_v1.py
+          tools/run_stage2d9r_g3r_corrected_baseline_physical_d2_overlay_20260729_v1.sh
+          EOF_FILES
+          sort -o /tmp/expected /tmp/expected
+          diff -u /tmp/expected /tmp/actual
+
+      - name: Compile source and verify source-only boundary
+        run: |
+          set -euo pipefail
+          python -m py_compile "$CONTRACT" "$WRAPPER" "$PACKAGER" "$TEST_FILE"
+          python "$CONTRACT" --source-sha "${{ github.event.pull_request.head.sha }}" > /tmp/source-contract.json
+          python - <<'PY'
+          import json
+          v=json.load(open('/tmp/source-contract.json'))
+          assert v['state']=='PHYSICAL_EXECUTION_OVERLAY_BINDING_REPAIR_SOURCE_FROZEN_UNAUTHORIZED'
+          assert v['base_pr']==198
+          assert v['request_05_state']=='INVALIDATED_BEFORE_PHYSICAL_AUTHORIZATION_BY_EXECUTION_BINDING_INCOMPATIBILITY'
+          assert v['future_physical_request_id'].endswith('-06')
+          assert v['physical_request_created'] is False
+          assert v['physical_request_authorized'] is False
+          PY
+          ! find . -iname '*authorization*06*.json' -print -quit | grep .
+          ! grep -F 'serial.Serial(' "$CONTRACT" "$PACKAGER"
+          ! grep -F 'subprocess.run' "$CONTRACT" "$PACKAGER"
+
+  package-build:
+    needs: source-review
+    strategy:
+      fail-fast: true
+      matrix:
+        lane: [a, b]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          show-progress: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download exact PR 198 review Artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api -H 'Accept: application/vnd.github+json' "repos/$GITHUB_REPOSITORY/actions/artifacts/$UPSTREAM_ARTIFACT_ID/zip" > /tmp/upstream.zip
+          echo "$UPSTREAM_ARTIFACT_SHA256  /tmp/upstream.zip" | sha256sum -c -
+
+      - name: Build exact package and run Python plus shell integration
+        run: |
+          set -euo pipefail
+          export STAGE2D9R_OVERLAY_UPSTREAM_ARTIFACT_ZIP=/tmp/upstream.zip
+          python "$TEST_FILE" -v 2>&1 | tee /tmp/tests.log
+          grep -F 'Ran 12 tests' /tmp/tests.log
+          grep -F 'OK' /tmp/tests.log
+          python "$PACKAGER" --repository-root . --upstream-artifact-zip /tmp/upstream.zip --output-root /tmp/review-package --source-sha "${{ github.event.pull_request.head.sha }}" --repository-head-sha 64c6b093c3ba6a8476c9392c8d106394b2542fb5 > /tmp/package-result.json
+          python - <<'PY'
+          import json
+          v=json.load(open('/tmp/package-result.json'))
+          assert v['status']=='PASS'
+          assert v['request_05_state']=='INVALIDATED_BEFORE_PHYSICAL_AUTHORIZATION_BY_EXECUTION_BINDING_INCOMPATIBILITY'
+          assert v['request_06_created'] is True
+          assert v['request_06_authorized'] is False
+          assert v['execution_package_sha256']!='f3349fbd5a09509c20c66b525e50811150168c5375ef4b7a3518f30523829292'
+          PY
+          cd /tmp/review-package
+          sha256sum -c SHA256SUMS
+          test -f PHYSICAL_D2_REQUEST_06.json
+          test ! -e physical-d2-authorization-06.json
+          test "$(sha256sum corrected-baseline-physical-d2-execution-package/stage2d9r-g3r-repaired-immutable-payload-v1.tar | cut -d' ' -f1)" = 3a3e96c267fd53723e7cbe6cbce959a90d2bf3f08adedcf97255395f91adc4ea
+          test "$(sha256sum corrected-baseline-physical-d2-execution-package/stage2d9r-g3r-repaired-locked-recovery-payload-v1.tar | cut -d' ' -f1)" = 08cff687947c2f9b9cbd2df09f16b14b95beeacf2de5683055d6572fafd6cf8f
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: physical-execution-overlay-repair-lane-${{ matrix.lane }}
+          path: /tmp/review-package
+          include-hidden-files: true
+          retention-days: 1
+          if-no-files-found: error
+
+  package-compare-and-publish:
+    needs: package-build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: physical-execution-overlay-repair-lane-a
+          path: /tmp/a
+      - uses: actions/download-artifact@v4
+        with:
+          name: physical-execution-overlay-repair-lane-b
+          path: /tmp/b
+
+      - name: Require byte-identical lanes and publish
+        run: |
+          set -euo pipefail
+          diff -r /tmp/a /tmp/b
+          cd /tmp/a
+          sha256sum -c SHA256SUMS
+          test -f PHYSICAL_EXECUTION_OVERLAY_BINDING_REPAIR_REVIEW.json
+          test -f INVALIDATED_PHYSICAL_D2_REQUEST_05.json
+          test -f PHYSICAL_D2_REQUEST_06.json
+          test -f corrected-baseline-physical-d2-execution-package/EXECUTION_OVERLAY_MANIFEST.json
+          test -f corrected-baseline-physical-d2-execution-package/EXECUTION_OVERLAY_BINDING.json
+          test -f .github/workflows/h3-n2-stage2d9r-g3r-physical-execution-overlay-binding-repair-review-ci-v1.yml
+          test ! -e physical-d2-authorization-06.json
+          python - <<'PY'
+          import json
+          review=json.load(open('PHYSICAL_EXECUTION_OVERLAY_BINDING_REPAIR_REVIEW.json'))
+          invalid=json.load(open('INVALIDATED_PHYSICAL_D2_REQUEST_05.json'))
+          request=json.load(open('PHYSICAL_D2_REQUEST_06.json'))
+          assert invalid['state']=='INVALIDATED_BEFORE_PHYSICAL_AUTHORIZATION_BY_EXECUTION_BINDING_INCOMPATIBILITY'
+          assert request['d2_request_id'].endswith('-06')
+          assert request['authorized'] is False
+          assert request['physical_request_authorized'] is False
+          assert request['baseline_state_sha256']=='776517efcac0c6cf03cabe0572b773dedc89e9bb2793ccb0d9f9585ea6fa601f'
+          assert review['immutable_payload_changed'] is False
+          assert review['recovery_payload_changed'] is False
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-g3r-physical-execution-overlay-binding-repair-review-v1
+          path: /tmp/a
+          include-hidden-files: true
+          retention-days: 7
+          if-no-files-found: error
