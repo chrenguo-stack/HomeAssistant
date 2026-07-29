@@ -1,0 +1,289 @@
+name: H3 N2 Stage2D9R G3R D2-11 paced transport execution binding
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-g3r-d2-11-prepare-transport-pacing-execution-binding-ci-v1.yml"
+      - "docs/decisions/h3-n2-stage2d9r-g3r-d2-11-prepare-transport-pacing-execution-binding-20260729-v1.json"
+      - "docs/development/h3-n2-stage2d9r-g3r-d2-11-prepare-transport-pacing-execution-binding-contract-20260729-v1.md"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_11_prepare_transport_pacing_execution_binding_20260729_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_11_prepare_transport_pacing_execution_binding_shell_20260729_v1.sh"
+      - "tools/h3_n2_stage2d9r_g3r_d2_11_prepare_transport_pacing_execution_binding_contract_20260729_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_d2_11_prepare_transport_pacing_execution_binding_packager_20260729_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_d2_11_prepare_transport_pacing_physical_d2_wrapper_20260729_v1.py"
+      - "tools/run_stage2d9r_g3r_d2_11_prepare_transport_pacing_physical_d2_20260729_v1.sh"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PR205_ARTIFACT_ID: "8718562956"
+      PR205_ARTIFACT_SHA256: "218b2138640dc3d5a21d3a0a6f455b9708de11eac7ca4b6908c167776a36c479"
+      PR206_ARTIFACT_ID: "8722654153"
+      PR206_ARTIFACT_SHA256: "c014fa369917bceb293f1234c96c007feffd67e0732c3bc8ea1591c0004a9614"
+      PR207_ARTIFACT_ID: "8724360014"
+      PR207_ARTIFACT_SHA256: "ece2de20f8e79f396f7aca180ac55d95e4ada1262ba595080df2d90709f778c0"
+      PR207_HEAD: "8be62eb76626a5f65f3635a02fe4ec06b0ca80c2"
+      PR207_BRANCH: "fix/h3-n2-stage2d9r-g3r-d2-10-prepare-transport-pacing-repair-20260729-v1"
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Verify exact head, stacked base and inventory
+        env:
+          EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EVENT_BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$PR_HEAD_SHA"
+          test "$EVENT_BASE_SHA" = "$PR207_HEAD"
+          test "$EVENT_BASE_REF" = "$PR207_BRANCH"
+          git merge-base --is-ancestor "$PR207_HEAD" "$PR_HEAD_SHA"
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          import subprocess
+
+          expected = {
+              ".github/workflows/h3-n2-stage2d9r-g3r-d2-11-prepare-transport-pacing-execution-binding-ci-v1.yml",
+              "docs/decisions/h3-n2-stage2d9r-g3r-d2-11-prepare-transport-pacing-execution-binding-20260729-v1.json",
+              "docs/development/h3-n2-stage2d9r-g3r-d2-11-prepare-transport-pacing-execution-binding-contract-20260729-v1.md",
+              "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_11_prepare_transport_pacing_execution_binding_20260729_v1.py",
+              "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_11_prepare_transport_pacing_execution_binding_shell_20260729_v1.sh",
+              "tools/h3_n2_stage2d9r_g3r_d2_11_prepare_transport_pacing_execution_binding_contract_20260729_v1.py",
+              "tools/h3_n2_stage2d9r_g3r_d2_11_prepare_transport_pacing_execution_binding_packager_20260729_v1.py",
+              "tools/h3_n2_stage2d9r_g3r_d2_11_prepare_transport_pacing_physical_d2_wrapper_20260729_v1.py",
+              "tools/run_stage2d9r_g3r_d2_11_prepare_transport_pacing_physical_d2_20260729_v1.sh",
+          }
+          base = os.environ["PR207_HEAD"]
+          head = os.environ["PR_HEAD_SHA"]
+          observed = set(
+              subprocess.check_output(
+                  ["git", "diff", "--name-only", f"{base}...{head}"],
+                  text=True,
+              ).splitlines()
+          )
+          if observed != expected:
+              raise SystemExit(
+                  "SOURCE_INVENTORY_MISMATCH\n"
+                  f"missing={sorted(expected - observed)}\n"
+                  f"extra={sorted(observed - expected)}"
+              )
+          for path in expected:
+              if not Path(path).is_file():
+                  raise SystemExit(f"SOURCE_FILE_MISSING:{path}")
+          PY
+
+      - name: Verify predecessor Drafts remain exact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for number in 205 206 207
+          do
+            curl --fail --silent --show-error \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/pulls/${number}" \
+              -o "/tmp/pr-${number}.json"
+          done
+          python3 - <<'PY'
+          import json
+
+          expected = {
+              205: "0ca39a8a284fca70fc69474aadb13ca85492b10d",
+              206: "ebaa3a95fe32e6715568836f9ca28b58bfdd2e31",
+              207: "8be62eb76626a5f65f3635a02fe4ec06b0ca80c2",
+          }
+          for number, sha in expected.items():
+              value = json.load(open(f"/tmp/pr-{number}.json", encoding="utf-8"))
+              assert value["state"] == "open"
+              assert value["draft"] is True
+              assert value["merged"] is False
+              assert value["head"]["sha"] == sha
+          PY
+
+      - name: Download exact load-bearing Artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for spec in \
+            "$PR205_ARTIFACT_ID:/tmp/pr205.zip:$PR205_ARTIFACT_SHA256" \
+            "$PR206_ARTIFACT_ID:/tmp/pr206.zip:$PR206_ARTIFACT_SHA256" \
+            "$PR207_ARTIFACT_ID:/tmp/pr207.zip:$PR207_ARTIFACT_SHA256"
+          do
+            id=${spec%%:*}
+            rest=${spec#*:}
+            target=${rest%%:*}
+            expected=${rest##*:}
+            curl --fail --location --silent --show-error \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${id}/zip" \
+              -o "$target"
+            test "$(sha256sum "$target" | awk '{print $1}')" = "$expected"
+          done
+
+      - name: Compile and run focused tests
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            tools/h3_n2_stage2d9r_g3r_d2_11_prepare_transport_pacing_execution_binding_contract_20260729_v1.py \
+            tools/h3_n2_stage2d9r_g3r_d2_11_prepare_transport_pacing_execution_binding_packager_20260729_v1.py \
+            tools/h3_n2_stage2d9r_g3r_d2_11_prepare_transport_pacing_physical_d2_wrapper_20260729_v1.py
+          python3 -m unittest \
+            tests.h3_n2_stage2d9r_tls_candidate.test_h3_n2_stage2d9r_g3r_d2_11_prepare_transport_pacing_execution_binding_20260729_v1
+          sh \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_11_prepare_transport_pacing_execution_binding_shell_20260729_v1.sh
+
+      - name: Build two byte-identical review lanes
+        run: |
+          set -euo pipefail
+          for lane in 1 2
+          do
+            python3 \
+              tools/h3_n2_stage2d9r_g3r_d2_11_prepare_transport_pacing_execution_binding_packager_20260729_v1.py \
+              --source-root "$GITHUB_WORKSPACE" \
+              --pr205-artifact /tmp/pr205.zip \
+              --pr206-artifact /tmp/pr206.zip \
+              --pr207-artifact /tmp/pr207.zip \
+              --source-sha "$PR_HEAD_SHA" \
+              --output "/tmp/d2-11-review-${lane}"
+          done
+          diff -qr /tmp/d2-11-review-1 /tmp/d2-11-review-2
+          cd /tmp/d2-11-review-1
+          sha256sum -c SHA256SUMS
+          test -f \
+            source/.github/workflows/h3-n2-stage2d9r-g3r-d2-11-prepare-transport-pacing-execution-binding-ci-v1.yml
+          test -z "$(find . -type f -iname '*authorization*.json' -print -quit)"
+          python3 - <<'PY'
+          import json
+
+          request = json.load(open("PHYSICAL_D2_REQUEST_11.json", encoding="utf-8"))
+          assert request["authorized"] is False
+          assert request["authorization_created"] is False
+          assert request["authorization_claimed"] is False
+          assert request["authorization_consumed"] is False
+          assert request["predecessor_locked_recovery_outcome"] == "UNKNOWN"
+          assert request["predecessor_replay_permitted"] is False
+          assert request["predecessor_request_reuse_permitted"] is False
+          assert request["predecessor_authorization_reuse_permitted"] is False
+          assert request["predecessor_execution_package_reuse_permitted"] is False
+          assert request["predecessor_execution_closure_reuse_permitted"] is False
+          assert request["repository_head_role"] == "AUDIT_ONLY"
+          assert request["execution_closure_role"] == "BLOCKING"
+          assert request["paced_chunk_bytes"] == 64
+          assert request["inter_chunk_delay_ms"] == 100
+          assert request["result_timeout_extension_used"] is False
+          assert request["command_retry_added"] is False
+          PY
+          PYTHONPATH="$GITHUB_WORKSPACE/tools" python3 - <<'PY'
+          from datetime import datetime, timezone, timedelta
+          import json
+          from pathlib import Path
+          import h3_n2_stage2d9r_g3r_d2_11_prepare_transport_pacing_execution_binding_contract_20260729_v1 as c
+
+          root = Path("/tmp/d2-11-review-1")
+          package = root / "d2-11-prepare-transport-pacing-physical-d2-execution-package"
+          request = json.loads((root / "PHYSICAL_D2_REQUEST_11.json").read_text())
+          now = datetime(2026, 7, 29, 13, 0, tzinfo=timezone.utc)
+          value = {
+              "schema": c.AUTH_SCHEMA,
+              "decision_id": c.DECISION_ID,
+              "d2_request_id": c.D2_REQUEST_ID,
+              "source_sha": request["source_sha"],
+              "request_binding_sha256": request["request_binding_sha256"],
+              "execution_closure_sha256": request["execution_closure_sha256"],
+              "execution_package_sha256": request["execution_package_sha256"],
+              "execution_wrapper_sha256": request["execution_wrapper_sha256"],
+              "execution_launcher_sha256": request["execution_launcher_sha256"],
+              "execution_contract_sha256": request["execution_contract_sha256"],
+              "terminalization_repair_sha256": c.TERMINALIZATION_REPAIR_SHA256,
+              "pacing_repair_sha256": c.PACING_REPAIR_SHA256,
+              "paced_chunk_bytes": 64,
+              "inter_chunk_delay_ms": 100,
+              "predecessor_request_id": c.D2_10_ID,
+              "predecessor_terminal_result_sha256": c.D2_10_TERMINAL_RESULT_SHA256,
+              "predecessor_terminal_marker_sha256": c.D2_10_TERMINAL_MARKER_SHA256,
+              "predecessor_locked_recovery_outcome": "UNKNOWN",
+              "predecessor_replay_permitted": False,
+              "repository_head_role": "AUDIT_ONLY",
+              "repository_head_enforced": False,
+              "authorized": True,
+              "authorization_created": True,
+              "authorization_claimed": False,
+              "authorization_consumed": False,
+              "one_shot": True,
+              "prepare_max_count": 1,
+              "verify_max_count": 1,
+              "locked_recovery_authorized": True,
+              "locked_recovery_max_count": 1,
+              "locked_recovery_scope": "TEST_PARTITION_ONLY",
+              "replay_permitted": False,
+              "automatic_retry_permitted": False,
+              "activate_authorized": False,
+              "cleanup_authorized": False,
+              "production_operation_authorized": False,
+              "issued_at": now.isoformat().replace("+00:00", "Z"),
+              "expires_at": (now + timedelta(minutes=30)).isoformat().replace("+00:00", "Z"),
+          }
+          for key in (
+              "board_identity_sha256", "serial_identity_sha256",
+              "baseline_state_sha256", "private_package_sha256",
+              "prepare_command_sha256", "verify_command_sha256",
+              "python_executable_sha256", "esptool_executable_sha256",
+              "openssl_executable_sha256", "mosquitto_executable_sha256",
+          ):
+              value[key] = "a" * 64
+          value["authorization_record_sha256"] = c.canonical_sha256(value)
+          c.validate_authorization_contract(value, request, package, now=now)
+          Path("/tmp/d2-11-synthetic-auth.json").write_text(
+              json.dumps(value, sort_keys=True, indent=2) + "\n"
+          )
+          PY
+          PYTHONPATH="$GITHUB_WORKSPACE/tools" python3 \
+            "$GITHUB_WORKSPACE/tools/h3_n2_stage2d9r_g3r_d2_11_prepare_transport_pacing_physical_d2_wrapper_20260729_v1.py" \
+            contract-check \
+            --package-root d2-11-prepare-transport-pacing-physical-d2-execution-package \
+            --physical-request PHYSICAL_D2_REQUEST_11.json \
+            --authorization-record /tmp/d2-11-synthetic-auth.json \
+            --result-output /tmp/d2-11-contract-check.json \
+            --now 2026-07-29T13:00:00Z
+          python3 - <<'PY'
+          import json
+          value = json.load(open("/tmp/d2-11-contract-check.json", encoding="utf-8"))
+          assert value["status"] == "PASS"
+          for key in (
+              "authorization_claimed", "authorization_consumed",
+              "board_operation", "usb_enumeration", "serial_operation",
+              "esptool_operation", "flash_operation", "network_operation",
+          ):
+              assert value[key] is False
+          PY
+          if grep -R -E '/U[s]ers/|/d[e]v/(cu|tty)|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY' .; then
+            echo "private material or host path found" >&2
+            exit 1
+          fi
+
+      - name: Upload deterministic public review
+        uses: actions/upload-artifact@v4
+        with:
+          name: d2-11-prepare-transport-pacing-execution-binding-review-v1
+          path: /tmp/d2-11-review-1
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
