@@ -29,7 +29,11 @@ struct Stage2D9RCommandEnvelopeV1 {
   void clear();
 };
 
-class Stage2D9RG3RPrepareExecutorV1 final : public Component {
+// This class is intentionally extensible for source-only safety repairs. The
+// original implementation remains byte-for-byte represented by the sealed old
+// immutable payload; successors may override the console scheduling boundary
+// without editing or replaying that payload.
+class Stage2D9RG3RPrepareExecutorV1 : public Component {
  public:
   void set_partition_label(const std::string &value) {
     this->partition_label_ = value;
