@@ -50,13 +50,15 @@ AUTO_LOAD = [
 DEPENDENCIES = ["esp32", "logger"]
 
 stage2d9r_ns = cg.esphome_ns.namespace("greenhouse_pairing_client")
-Stage2D9RG3RPrepareExecutorV1 = stage2d9r_ns.class_(
-    "Stage2D9RG3RPrepareExecutorV1", cg.Component
+Stage2D9RG3RPrepareLoopTaskWatchdogRepairV1 = stage2d9r_ns.class_(
+    "Stage2D9RG3RPrepareLoopTaskWatchdogRepairV1", cg.Component
 )
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(): cv.declare_id(Stage2D9RG3RPrepareExecutorV1),
+        cv.GenerateID(): cv.declare_id(
+            Stage2D9RG3RPrepareLoopTaskWatchdogRepairV1
+        ),
         cv.Required(CONF_PARTITION_LABEL): _partition,
         cv.Required(CONF_NAMESPACE_NAME): _namespace,
         cv.Required(CONF_BUILD_BINDING): lambda value: _hex(

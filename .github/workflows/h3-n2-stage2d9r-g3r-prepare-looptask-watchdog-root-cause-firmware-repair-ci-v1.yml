@@ -1,0 +1,432 @@
+name: H3 N2 Stage2D9R G3R PREPARE loopTask Watchdog Root Cause Firmware Repair CI V1
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/h3-n2-stage2d9r-g3r-prepare-looptask-watchdog-root-cause-firmware-repair-ci-v1.yml'
+      - 'docs/decisions/h3-n2-stage2d9r-g3r-prepare-looptask-watchdog-root-cause-firmware-repair-20260729-v1.json'
+      - 'docs/development/h3-n2-stage2d9r-g3r-prepare-looptask-watchdog-root-cause-firmware-repair-contract-20260729-v1.md'
+      - 'firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/greenhouse_profile_isolated_device_g3r_watchdog_repaired_20260729_v1.yml'
+      - 'firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor/__init__.py'
+      - 'firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor/stage2d9r_g3r_prepare_executor_20260723_v1.h'
+      - 'firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor/stage2d9r_g3r_prepare_looptask_watchdog_repair_20260729_v1.h'
+      - 'firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor/stage2d9r_g3r_prepare_looptask_watchdog_repair_20260729_v1.cpp'
+      - 'tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_prepare_looptask_watchdog_repair_20260729_v1.py'
+      - 'tools/h3_n2_stage2d9r_g3r_prepare_looptask_watchdog_repair_contract_20260729_v1.py'
+      - 'tools/h3_n2_stage2d9r_g3r_prepare_looptask_watchdog_repair_build_lane_20260729_v1.sh'
+      - 'tools/h3_n2_stage2d9r_g3r_prepare_looptask_watchdog_repair_packager_20260729_v1.py'
+      - 'tools/h3_n2_stage2d9r_g3r_task_watchdog_parser_20260729_v1.py'
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+
+env:
+  BASE_PR: '203'
+  BASE_SHA: 9f6d39ad48de15c21550cdb17fec6abe794896e0
+  BASE_ARTIFACT_ID: '8713021622'
+  BASE_ARTIFACT_SHA256: ac4794f11c5195ce4a3bfbcefdb026453c0b94291c79692d43ca2bd2e06e34e4
+  OLD_SOURCE_SHA: 8a6fdd7c74341448d275a4412e36b303d7c95e85
+  OLD_APPLICATION_SHA256: 383463b5a3f4481cf41f8f185c7649a80fd62baf1a6836a69ac3c5047b75950d
+  OLD_IMMUTABLE_TAR_SHA256: 3a3e96c267fd53723e7cbe6cbce959a90d2bf3f08adedcf97255395f91adc4ea
+  OLD_RECOVERY_TAR_SHA256: 08cff687947c2f9b9cbd2df09f16b14b95beeacf2de5683055d6572fafd6cf8f
+  SOURCE_DATE_EPOCH: '1785196800'
+  PIPELINE: tools/h3_n2_stage2d9r_g3r_repaired_immutable_recovery_pipeline_20260728_v1.py
+  PUBLIC_DIR: tests/h3_n2_stage2d9r_tls_candidate/public_repaired_tlsvalid03
+  BINDING_FILE: tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_g3r_repaired_immutable_build_binding_20260728_v1.json
+  HOST_CONTROLLER: tools/h3_n2_stage2d9r_serial_handshake_repair_20260727_v1.py
+  BUILD_HELPER: tools/h3_n2_stage2d9r_g3r_prepare_looptask_watchdog_repair_build_lane_20260729_v1.sh
+  WORKFLOW_FILE: .github/workflows/h3-n2-stage2d9r-g3r-prepare-looptask-watchdog-root-cause-firmware-repair-ci-v1.yml
+  ARTIFACT_NAME: stage2d9r-g3r-prepare-looptask-watchdog-root-cause-firmware-repair-review-v1
+  PYTHONHASHSEED: '0'
+  TZ: UTC
+  LC_ALL: C.UTF-8
+  LANG: C.UTF-8
+
+jobs:
+  source-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Fail closed on exact PR 203 and frozen Artifact
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import json, os, urllib.request
+          headers = {
+              'Authorization': 'Bearer ' + os.environ['GITHUB_TOKEN'],
+              'Accept': 'application/vnd.github+json',
+          }
+          def get(url):
+              request = urllib.request.Request(url, headers=headers)
+              with urllib.request.urlopen(request) as response:
+                  return json.load(response)
+          pr = get('https://api.github.com/repos/chrenguo-stack/HomeAssistant/pulls/' + os.environ['BASE_PR'])
+          assert pr['state'] == 'open' and pr['draft'] is True and pr['merged'] is False
+          assert pr['head']['sha'] == os.environ['BASE_SHA']
+          artifact = get('https://api.github.com/repos/chrenguo-stack/HomeAssistant/actions/artifacts/' + os.environ['BASE_ARTIFACT_ID'])
+          assert artifact['expired'] is False
+          assert artifact['digest'] == 'sha256:' + os.environ['BASE_ARTIFACT_SHA256']
+          assert artifact['workflow_run']['head_sha'] == os.environ['BASE_SHA']
+          PY
+
+      - name: Enforce exact source-only repair inventory
+        run: |
+          set -euo pipefail
+          git diff --name-only "$BASE_SHA" HEAD | sort > /tmp/actual
+          cat > /tmp/expected <<'EOF'
+          .github/workflows/h3-n2-stage2d9r-g3r-prepare-looptask-watchdog-root-cause-firmware-repair-ci-v1.yml
+          docs/decisions/h3-n2-stage2d9r-g3r-prepare-looptask-watchdog-root-cause-firmware-repair-20260729-v1.json
+          docs/development/h3-n2-stage2d9r-g3r-prepare-looptask-watchdog-root-cause-firmware-repair-contract-20260729-v1.md
+          firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/greenhouse_profile_isolated_device_g3r_watchdog_repaired_20260729_v1.yml
+          firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor/__init__.py
+          firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor/stage2d9r_g3r_prepare_executor_20260723_v1.h
+          firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor/stage2d9r_g3r_prepare_looptask_watchdog_repair_20260729_v1.cpp
+          firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor/stage2d9r_g3r_prepare_looptask_watchdog_repair_20260729_v1.h
+          tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_prepare_looptask_watchdog_repair_20260729_v1.py
+          tools/h3_n2_stage2d9r_g3r_prepare_looptask_watchdog_repair_build_lane_20260729_v1.sh
+          tools/h3_n2_stage2d9r_g3r_prepare_looptask_watchdog_repair_contract_20260729_v1.py
+          tools/h3_n2_stage2d9r_g3r_prepare_looptask_watchdog_repair_packager_20260729_v1.py
+          tools/h3_n2_stage2d9r_g3r_task_watchdog_parser_20260729_v1.py
+          EOF
+          sort -o /tmp/expected /tmp/expected
+          diff -u /tmp/expected /tmp/actual
+          test "$(git diff --diff-filter=DR --name-only "$BASE_SHA" HEAD | wc -l | tr -d ' ')" = 0
+
+      - name: Validate source contract and parser
+        run: |
+          set -euo pipefail
+          python -m py_compile \
+            tools/h3_n2_stage2d9r_g3r_prepare_looptask_watchdog_repair_contract_20260729_v1.py \
+            tools/h3_n2_stage2d9r_g3r_prepare_looptask_watchdog_repair_packager_20260729_v1.py \
+            tools/h3_n2_stage2d9r_g3r_task_watchdog_parser_20260729_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_prepare_looptask_watchdog_repair_20260729_v1.py
+          bash -n "$BUILD_HELPER"
+          python -m unittest \
+            tests.h3_n2_stage2d9r_tls_candidate.test_h3_n2_stage2d9r_g3r_prepare_looptask_watchdog_repair_20260729_v1 -v
+          ! grep -R -E 'esp_task_wdt_(reset|delete|deinit)|CONFIG_ESP_TASK_WDT_TIMEOUT_S|CONFIG_ESP_TASK_WDT_EN' \
+            firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor/stage2d9r_g3r_prepare_looptask_watchdog_repair_20260729_v1.*
+
+  old-immutable-symbolication:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Rebuild exact old candidate with retained ELF and map
+        run: |
+          set -euo pipefail
+          python -m pip install -q 'esphome==2026.4.3'
+          git checkout --detach "$OLD_SOURCE_SHA"
+          test "$(git rev-parse HEAD)" = "$OLD_SOURCE_SHA"
+          python - <<'PY'
+          import hashlib, os
+          from pathlib import Path
+          import esphome.writer
+          path = Path(esphome.writer.__file__).resolve(strict=True)
+          text = path.read_text(encoding='utf-8')
+          old = (
+              '    build_time = int(time.time())\n'
+              '    build_time_str = time.strftime("%Y-%m-%d %H:%M:%S %z", time.localtime(build_time))\n'
+          )
+          new = (
+              '    source_date_epoch = os.environ.get("SOURCE_DATE_EPOCH")\n'
+              '    build_time = int(source_date_epoch) if source_date_epoch is not None else int(time.time())\n'
+              '    build_time_str = time.strftime("%Y-%m-%d %H:%M:%S %z", time.localtime(build_time))\n'
+          )
+          if text.count(old) != 1:
+              raise RuntimeError('unexpected ESPHome 2026.4.3 writer source')
+          path.write_text(text.replace(old, new), encoding='utf-8')
+          print(hashlib.sha256(path.read_bytes()).hexdigest())
+          PY
+          target="$GITHUB_WORKSPACE/firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare"
+          config=greenhouse_profile_isolated_device_g3r_repaired_immutable_20260728_v1.yml
+          (cd "$target" && esphome config "$config" && esphome compile "$config")
+          build="$target/.esphome/build/gh-2d9r-g3r-r3/.pioenvs/gh-2d9r-g3r-r3"
+          app="$build/firmware.bin"
+          elf="$build/firmware.elf"
+          map="$build/firmware.map"
+          test -f "$app" && test -f "$elf" && test -f "$map"
+          echo "$OLD_APPLICATION_SHA256  $app" | sha256sum -c -
+          mkdir -p /tmp/stage2d9r-old-symbolication
+          tool_root="$HOME/.platformio/packages/toolchain-riscv32-esp/bin"
+          addr2line="$tool_root/riscv32-esp-elf-addr2line"
+          nm="$tool_root/riscv32-esp-elf-nm"
+          "$addr2line" -a -f -C -i -e "$elf" 0x4080211c 0x4080210a 0x4001975a \
+            | sed "s#$GITHUB_WORKSPACE/#<old-repository>/#g" \
+            > /tmp/stage2d9r-old-symbolication/addr2line.txt
+          "$nm" -n -C "$elf" | awk '$1 >= "40802080" && $1 <= "40802180" {print}' \
+            > /tmp/stage2d9r-old-symbolication/nearby-symbols.txt
+          APP="$app" ELF="$elf" MAP="$map" python - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          def digest(path):
+              h = hashlib.sha256()
+              with Path(path).open('rb') as handle:
+                  for chunk in iter(lambda: handle.read(1024 * 1024), b''):
+                      h.update(chunk)
+              return h.hexdigest()
+          value = {
+              'schema': 'gh.h3.n2.stage2d9r-g3r-old-immutable-symbolication/1',
+              'old_source_sha': os.environ['OLD_SOURCE_SHA'],
+              'old_application_sha256': digest(os.environ['APP']),
+              'old_elf_sha256': digest(os.environ['ELF']),
+              'old_map_sha256': digest(os.environ['MAP']),
+              'addresses': ['0x4080211c', '0x4080210a', '0x4001975a'],
+              'addr2line': Path('/tmp/stage2d9r-old-symbolication/addr2line.txt').read_text().splitlines(),
+              'nearby_symbols': Path('/tmp/stage2d9r-old-symbolication/nearby-symbols.txt').read_text().splitlines(),
+              'source_paths_normalized': True,
+              'board_operation': False,
+              'physical_authorization_created': False,
+          }
+          Path('/tmp/stage2d9r-old-symbolication/symbolication.json').write_text(
+              json.dumps(value, sort_keys=True, indent=2) + '\n', encoding='utf-8'
+          )
+          PY
+          cp "$elf" /tmp/stage2d9r-old-symbolication/firmware.elf
+          cp "$map" /tmp/stage2d9r-old-symbolication/firmware.map
+          (cd /tmp/stage2d9r-old-symbolication && sha256sum addr2line.txt firmware.elf firmware.map nearby-symbols.txt symbolication.json > SHA256SUMS)
+          grep -F 'esp_cpu_wait_for_intr' /tmp/stage2d9r-old-symbolication/addr2line.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-g3r-old-immutable-symbolication-v1
+          path: /tmp/stage2d9r-old-symbolication/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
+  repaired-build:
+    needs: [source-review, old-immutable-symbolication]
+    strategy:
+      fail-fast: true
+      matrix:
+        lane: [a, b]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          name: stage2d9r-g3r-old-immutable-symbolication-v1
+          path: /tmp/old-symbolication
+      - name: Build independent repaired immutable lane
+        env:
+          OLD_SYMBOLICATION_ROOT: /tmp/old-symbolication
+        run: |
+          set -euo pipefail
+          python -m pip install -q 'esphome==2026.4.3'
+          out="/tmp/stage2d9r-watchdog-build-${{ matrix.lane }}"
+          chmod 700 "$BUILD_HELPER"
+          "$BUILD_HELPER" "${{ matrix.lane }}" "${{ github.event.pull_request.head.sha }}" "$out" "$WORKFLOW_FILE" \
+            | tee "/tmp/stage2d9r-watchdog-build-${{ matrix.lane }}.log"
+          grep -Fx 'STAGE2D9R_G3R_LOOPTASK_WATCHDOG_REPAIR_BUILD_LANE=PASS' \
+            "/tmp/stage2d9r-watchdog-build-${{ matrix.lane }}.log"
+          REPAIRED_BUILD_ROOT="$out" REPAIRED_SOURCE_SHA="${{ github.event.pull_request.head.sha }}" \
+            python -m unittest \
+              tests.h3_n2_stage2d9r_tls_candidate.test_h3_n2_stage2d9r_g3r_prepare_looptask_watchdog_repair_20260729_v1 -v
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-g3r-watchdog-repaired-build-${{ matrix.lane }}-v1
+          path: /tmp/stage2d9r-watchdog-build-${{ matrix.lane }}/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 5
+          compression-level: 0
+
+  immutable-freeze:
+    needs: repaired-build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          name: stage2d9r-g3r-watchdog-repaired-build-a-v1
+          path: /tmp/build-a
+      - uses: actions/download-artifact@v4
+        with:
+          name: stage2d9r-g3r-watchdog-repaired-build-b-v1
+          path: /tmp/build-b
+      - name: Freeze byte-identical new immutable and debug artifacts
+        run: |
+          set -euo pipefail
+          cmp /tmp/build-a/stage2d9r-g3r-repaired-immutable-payload-v1.tar \
+              /tmp/build-b/stage2d9r-g3r-repaired-immutable-payload-v1.tar
+          cmp /tmp/build-a/firmware.elf /tmp/build-b/firmware.elf
+          cmp /tmp/build-a/firmware.map /tmp/build-b/firmware.map
+          python "$PIPELINE" freeze-immutable \
+            --build-a /tmp/build-a \
+            --build-b /tmp/build-b \
+            --output-dir /tmp/immutable-freeze \
+            --source-sha "${{ github.event.pull_request.head.sha }}"
+          new_immutable="$(sha256sum /tmp/immutable-freeze/stage2d9r-g3r-repaired-immutable-payload-v1.tar | awk '{print $1}')"
+          test "$new_immutable" != "$OLD_IMMUTABLE_TAR_SHA256"
+          mkdir -p /tmp/new-debug
+          cp /tmp/build-a/firmware.elf /tmp/new-debug/
+          cp /tmp/build-a/firmware.map /tmp/new-debug/
+          cp /tmp/build-a/DEBUG_SHA256SUMS /tmp/new-debug/
+          cp /tmp/build-a/loop-task-watchdog-repair-build-evidence.json /tmp/new-debug/
+          cp /tmp/build-a/build-record.json /tmp/new-debug/
+          cp /tmp/build-a/stage2d9r-g3r-repaired-immutable-payload-v1.tar /tmp/new-debug/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-g3r-watchdog-repaired-immutable-freeze-v1
+          path: /tmp/immutable-freeze/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-g3r-watchdog-repaired-debug-v1
+          path: /tmp/new-debug/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+  recovery-build:
+    needs: immutable-freeze
+    strategy:
+      fail-fast: true
+      matrix:
+        lane: [a, b]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          name: stage2d9r-g3r-watchdog-repaired-immutable-freeze-v1
+          path: /tmp/immutable-freeze
+      - name: Build independent repaired recovery lane
+        run: |
+          python "$PIPELINE" build-recovery \
+            --immutable-freeze /tmp/immutable-freeze \
+            --output-dir "/tmp/recovery-${{ matrix.lane }}" \
+            --lane "${{ matrix.lane }}" \
+            --source-sha "${{ github.event.pull_request.head.sha }}" \
+            --public-dir "$PUBLIC_DIR" \
+            --binding "$BINDING_FILE"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-g3r-watchdog-repaired-recovery-${{ matrix.lane }}-v1
+          path: /tmp/recovery-${{ matrix.lane }}/
+          if-no-files-found: error
+          retention-days: 5
+          compression-level: 0
+
+  final-freeze-and-review:
+    needs: [old-immutable-symbolication, recovery-build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          name: stage2d9r-g3r-old-immutable-symbolication-v1
+          path: /tmp/old-symbolication
+      - uses: actions/download-artifact@v4
+        with:
+          name: stage2d9r-g3r-watchdog-repaired-immutable-freeze-v1
+          path: /tmp/immutable-freeze
+      - uses: actions/download-artifact@v4
+        with:
+          name: stage2d9r-g3r-watchdog-repaired-debug-v1
+          path: /tmp/new-debug
+      - uses: actions/download-artifact@v4
+        with:
+          name: stage2d9r-g3r-watchdog-repaired-recovery-a-v1
+          path: /tmp/recovery-a
+      - uses: actions/download-artifact@v4
+        with:
+          name: stage2d9r-g3r-watchdog-repaired-recovery-b-v1
+          path: /tmp/recovery-b
+      - name: Freeze final successor and build deterministic review
+        run: |
+          set -euo pipefail
+          cmp /tmp/recovery-a/stage2d9r-g3r-repaired-locked-recovery-payload-v1.tar \
+              /tmp/recovery-b/stage2d9r-g3r-repaired-locked-recovery-payload-v1.tar
+          python "$PIPELINE" freeze-recovery \
+            --build-a /tmp/recovery-a \
+            --build-b /tmp/recovery-b \
+            --immutable-freeze /tmp/immutable-freeze \
+            --output-dir /tmp/final-freeze \
+            --source-sha "${{ github.event.pull_request.head.sha }}" \
+            --public-dir "$PUBLIC_DIR" \
+            --binding "$BINDING_FILE" \
+            --host-controller "$HOST_CONTROLLER"
+          new_recovery="$(sha256sum /tmp/final-freeze/stage2d9r-g3r-repaired-locked-recovery-payload-v1.tar | awk '{print $1}')"
+          test "$new_recovery" != "$OLD_RECOVERY_TAR_SHA256"
+          OLD_SYMBOLICATION_ROOT=/tmp/old-symbolication REPAIRED_BUILD_ROOT=/tmp/new-debug \
+            REPAIRED_SOURCE_SHA="${{ github.event.pull_request.head.sha }}" \
+            python -m unittest \
+              tests.h3_n2_stage2d9r_tls_candidate.test_h3_n2_stage2d9r_g3r_prepare_looptask_watchdog_repair_20260729_v1 -v
+          python tools/h3_n2_stage2d9r_g3r_prepare_looptask_watchdog_repair_packager_20260729_v1.py \
+            --source-root "$PWD" \
+            --source-sha "${{ github.event.pull_request.head.sha }}" \
+            --old-symbolication-root /tmp/old-symbolication \
+            --final-freeze-root /tmp/final-freeze \
+            --new-debug-root /tmp/new-debug \
+            --output /tmp/review-a
+          python tools/h3_n2_stage2d9r_g3r_prepare_looptask_watchdog_repair_packager_20260729_v1.py \
+            --source-root "$PWD" \
+            --source-sha "${{ github.event.pull_request.head.sha }}" \
+            --old-symbolication-root /tmp/old-symbolication \
+            --final-freeze-root /tmp/final-freeze \
+            --new-debug-root /tmp/new-debug \
+            --output /tmp/review-b
+          diff -r /tmp/review-a /tmp/review-b
+          (cd /tmp/review-a && sha256sum -c SHA256SUMS)
+          ! find /tmp/review-a -type f \( -iname '*physical*d2*request*' -o -iname '*authorization*10*' \) | grep -q .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: /tmp/review-a/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
