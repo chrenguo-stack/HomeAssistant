@@ -1,0 +1,69 @@
+name: H3 N2 Stage2D9R G3R D2-10 PREPARE timeout root cause repair
+
+on:
+  pull_request:
+    paths:
+      - "tools/h3_n2_stage2d9r_g3r_prepare_transport_pacing_repair_20260729_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_d2_10_prepare_timeout_root_cause_*.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/*d2_10_prepare_transport_pacing_repair*"
+      - "docs/decisions/*d2-10-prepare-timeout-root-cause-successor-repair*"
+      - "docs/development/*d2-10-prepare-timeout-root-cause-successor-repair*"
+      - ".github/workflows/h3-n2-stage2d9r-g3r-d2-10-prepare-timeout-root-cause-repair-ci-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile source
+        run: |
+          python3 -m py_compile \
+            tools/h3_n2_stage2d9r_g3r_prepare_transport_pacing_repair_20260729_v1.py \
+            tools/h3_n2_stage2d9r_g3r_d2_10_prepare_timeout_root_cause_contract_20260729_v1.py \
+            tools/h3_n2_stage2d9r_g3r_d2_10_prepare_timeout_root_cause_packager_20260729_v1.py
+      - name: Run focused tests
+        run: |
+          python3 -m unittest \
+            tests.h3_n2_stage2d9r_tls_candidate.test_h3_n2_stage2d9r_g3r_d2_10_prepare_transport_pacing_repair_20260729_v1
+          bash \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_10_prepare_transport_pacing_repair_shell_20260729_v1.sh
+      - name: Validate root-cause contract
+        run: |
+          python3 \
+            tools/h3_n2_stage2d9r_g3r_d2_10_prepare_timeout_root_cause_contract_20260729_v1.py \
+            --repo-root . \
+            --result-output /tmp/d2-10-root-cause-contract.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          value = json.loads(Path("/tmp/d2-10-root-cause-contract.json").read_text())
+          assert value["status"] == "PASS"
+          assert value["board_operation"] is False
+          assert value["serial_operation"] is False
+          PY
+      - name: Build deterministic review artifact
+        run: |
+          python3 \
+            tools/h3_n2_stage2d9r_g3r_d2_10_prepare_timeout_root_cause_packager_20260729_v1.py \
+            --repo-root . \
+            --output-root /tmp/d2-10-root-cause-review \
+            --source-sha "$GITHUB_SHA"
+          cd /tmp/d2-10-root-cause-review
+          sha256sum -c SHA256SUMS
+          tar -tf stage2d9r-g3r-d2-10-prepare-timeout-root-cause-repair-review-v1.tar \
+            | sort > /tmp/review-members.txt
+          grep -Fx \
+            "source/.github/workflows/h3-n2-stage2d9r-g3r-d2-10-prepare-timeout-root-cause-repair-ci-v1.yml" \
+            /tmp/review-members.txt
+      - name: Upload public review
+        uses: actions/upload-artifact@v4
+        with:
+          name: d2-10-prepare-timeout-root-cause-repair-review-v1
+          path: /tmp/d2-10-root-cause-review
+          include-hidden-files: true
+          if-no-files-found: error
