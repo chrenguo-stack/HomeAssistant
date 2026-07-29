@@ -85,7 +85,11 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install -q 'esphome==2026.4.3'
-          git worktree add --detach /tmp/stage2d9r-old "$OLD_SOURCE_SHA"
+
+          # Build at the same checkout path shape used by the frozen lane. A separate
+          # worktree changes compiler path material and therefore the application bytes.
+          git checkout --detach "$OLD_SOURCE_SHA"
+          test "$(git rev-parse HEAD)" = "$OLD_SOURCE_SHA"
 
           python - <<'PY'
           import hashlib
@@ -110,7 +114,7 @@ jobs:
           print('PATCHED_WRITER_SHA256=' + hashlib.sha256(path.read_bytes()).hexdigest())
           PY
 
-          target=/tmp/stage2d9r-old/firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare
+          target="$GITHUB_WORKSPACE/firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare"
           config=greenhouse_profile_isolated_device_g3r_repaired_immutable_20260728_v1.yml
           (
             cd "$target"
@@ -125,7 +129,9 @@ jobs:
           test -f "$app"
           test -f "$elf"
           test -f "$map"
-          echo "$OLD_APPLICATION_SHA256  $app" | sha256sum -c -
+          observed_application_sha256="$(sha256sum "$app" | awk '{print $1}')"
+          echo "OBSERVED_OLD_APPLICATION_SHA256=$observed_application_sha256"
+          test "$observed_application_sha256" = "$OLD_APPLICATION_SHA256"
           strings "$app" | grep -Fx '2026-07-28 00:00:00 +0000'
 
           mkdir -p /tmp/stage2d9r-old-symbolication
@@ -137,7 +143,7 @@ jobs:
 
           "$addr2line" -a -f -C -i -e "$elf" \
             0x4080211c 0x4080210a 0x4001975a \
-            | sed 's#/tmp/stage2d9r-old/#<old-repository>/#g' \
+            | sed "s#$GITHUB_WORKSPACE/#<old-repository>/#g" \
             > /tmp/stage2d9r-old-symbolication/addr2line.txt
           "$nm" -n -C "$elf" \
             | awk '$1 >= "40802080" && $1 <= "40802180" {print}' \
