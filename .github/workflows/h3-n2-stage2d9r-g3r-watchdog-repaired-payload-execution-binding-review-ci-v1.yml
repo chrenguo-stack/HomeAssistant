@@ -1,0 +1,176 @@
+name: H3 N2 Stage2D9R G3R Watchdog Repaired Payload Execution Binding CI V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-g3r-watchdog-repaired-payload-execution-binding-review-ci-v1.yml"
+      - "docs/decisions/h3-n2-stage2d9r-g3r-watchdog-repaired-payload-execution-binding-20260729-v1.json"
+      - "docs/development/h3-n2-stage2d9r-g3r-watchdog-repaired-payload-execution-binding-contract-20260729-v1.md"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_watchdog_repaired_payload_execution_binding_20260729_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_watchdog_repaired_payload_execution_binding_shell_20260729_v1.sh"
+      - "tools/h3_n2_stage2d9r_g3r_watchdog_repaired_payload_execution_binding_contract_20260729_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_watchdog_repaired_payload_execution_binding_packager_20260729_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_watchdog_repaired_payload_physical_d2_wrapper_20260729_v1.py"
+      - "tools/run_stage2d9r_g3r_watchdog_repaired_payload_physical_d2_20260729_v1.sh"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PR203_ARTIFACT_ID: "8713021622"
+      PR203_ARTIFACT_SHA256: "ac4794f11c5195ce4a3bfbcefdb026453c0b94291c79692d43ca2bd2e06e34e4"
+      PR204_ARTIFACT_ID: "8716016864"
+      PR204_ARTIFACT_SHA256: "71ee1c2bfe951e1e4db833ad4efb96e436ba6c6a0729d52caf641b2294f2d456"
+      PR204_HEAD: "8d76634adb171c6492e51a5ebd855bcd52bcf073"
+      PR204_BRANCH: "fix/h3-n2-stage2d9r-g3r-prepare-looptask-watchdog-firmware-repair-20260729-v1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact stacked base and source-only inventory
+        env:
+          EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EVENT_BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_BASE_SHA" = "$PR204_HEAD"
+          test "$EVENT_BASE_REF" = "$PR204_BRANCH"
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          import subprocess
+
+          expected = {
+              ".github/workflows/h3-n2-stage2d9r-g3r-watchdog-repaired-payload-execution-binding-review-ci-v1.yml",
+              "docs/decisions/h3-n2-stage2d9r-g3r-watchdog-repaired-payload-execution-binding-20260729-v1.json",
+              "docs/development/h3-n2-stage2d9r-g3r-watchdog-repaired-payload-execution-binding-contract-20260729-v1.md",
+              "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_watchdog_repaired_payload_execution_binding_20260729_v1.py",
+              "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_watchdog_repaired_payload_execution_binding_shell_20260729_v1.sh",
+              "tools/h3_n2_stage2d9r_g3r_watchdog_repaired_payload_execution_binding_contract_20260729_v1.py",
+              "tools/h3_n2_stage2d9r_g3r_watchdog_repaired_payload_execution_binding_packager_20260729_v1.py",
+              "tools/h3_n2_stage2d9r_g3r_watchdog_repaired_payload_physical_d2_wrapper_20260729_v1.py",
+              "tools/run_stage2d9r_g3r_watchdog_repaired_payload_physical_d2_20260729_v1.sh",
+          }
+          base = os.environ["PR204_HEAD"]
+          observed = set(
+              subprocess.check_output(
+                  ["git", "diff", "--name-only", f"{base}...HEAD"],
+                  text=True,
+              ).splitlines()
+          )
+          if observed != expected:
+              raise SystemExit(
+                  "SOURCE_INVENTORY_MISMATCH\n"
+                  f"missing={sorted(expected - observed)}\n"
+                  f"extra={sorted(observed - expected)}"
+              )
+          for path in expected:
+              if not Path(path).is_file():
+                  raise SystemExit(f"SOURCE_FILE_MISSING:{path}")
+          PY
+
+      - name: Verify PR204 remains exact Draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/pulls/204" \
+            -o /tmp/pr204.json
+          python3 - <<'PY'
+          import json
+          import os
+
+          value = json.load(open("/tmp/pr204.json", encoding="utf-8"))
+          assert value["state"] == "open"
+          assert value["draft"] is True
+          assert value["merged"] is False
+          assert value["head"]["sha"] == os.environ["PR204_HEAD"]
+          PY
+
+      - name: Download exact upstream Artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for spec in \
+            "$PR203_ARTIFACT_ID:/tmp/pr203.zip:$PR203_ARTIFACT_SHA256" \
+            "$PR204_ARTIFACT_ID:/tmp/pr204.zip:$PR204_ARTIFACT_SHA256"
+          do
+            id=${spec%%:*}
+            rest=${spec#*:}
+            target=${rest%%:*}
+            expected=${rest##*:}
+            curl --fail --location --silent --show-error \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${id}/zip" \
+              -o "$target"
+            test "$(sha256sum "$target" | awk '{print $1}')" = "$expected"
+          done
+
+      - name: Compile and run focused contracts
+        env:
+          PR203_REVIEW_ARTIFACT: /tmp/pr203.zip
+          PR204_WATCHDOG_REVIEW_ARTIFACT: /tmp/pr204.zip
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            tools/h3_n2_stage2d9r_g3r_watchdog_repaired_payload_execution_binding_contract_20260729_v1.py \
+            tools/h3_n2_stage2d9r_g3r_watchdog_repaired_payload_execution_binding_packager_20260729_v1.py \
+            tools/h3_n2_stage2d9r_g3r_watchdog_repaired_payload_physical_d2_wrapper_20260729_v1.py
+          python3 -m unittest \
+            tests.h3_n2_stage2d9r_tls_candidate.test_h3_n2_stage2d9r_g3r_watchdog_repaired_payload_execution_binding_20260729_v1
+          sh tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_watchdog_repaired_payload_execution_binding_shell_20260729_v1.sh
+
+      - name: Build two byte-identical review lanes
+        run: |
+          set -euo pipefail
+          for lane in 1 2
+          do
+            python3 tools/h3_n2_stage2d9r_g3r_watchdog_repaired_payload_execution_binding_packager_20260729_v1.py \
+              --source-root "$GITHUB_WORKSPACE" \
+              --upstream-artifact /tmp/pr203.zip \
+              --watchdog-artifact /tmp/pr204.zip \
+              --source-sha "$GITHUB_SHA" \
+              --output "/tmp/review-lane-${lane}"
+          done
+          diff -qr /tmp/review-lane-1 /tmp/review-lane-2
+          cd /tmp/review-lane-1
+          sha256sum -c SHA256SUMS
+          test ! -e PHYSICAL_D2_AUTHORIZATION_10.json
+          test ! -e AUTHORIZATION_RECORD.json
+          python3 - <<'PY'
+          import json
+
+          request = json.load(open("PHYSICAL_D2_REQUEST_10.json", encoding="utf-8"))
+          assert request["authorized"] is False
+          assert request["authorization_created"] is False
+          assert request["authorization_claimed"] is False
+          assert request["authorization_consumed"] is False
+          assert request["predecessor_replay_permitted"] is False
+          assert request["repository_head_role"] == "AUDIT_ONLY"
+          assert request["repository_head_enforced"] is False
+          assert request["execution_closure_role"] == "BLOCKING"
+          PY
+
+      - name: Upload deterministic public review
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-g3r-watchdog-repaired-payload-execution-binding-review-v1
+          path: /tmp/review-lane-1
+          if-no-files-found: error
+          retention-days: 7
