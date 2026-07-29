@@ -16,8 +16,8 @@ SCHEMA = "gh.h3.n2.stage2d9r-g3r-task-watchdog-signature/1"
 SOURCE_STATE = "SOURCE_ONLY_TASK_WATCHDOG_PARSER"
 
 TRIGGER_RE = re.compile(r"Task watchdog got triggered", re.I)
-TASK_RE = re.compile(r"^\s*-\s+([A-Za-z0-9_.-]+)\s+\(CPU\s+(\d+)\)\s*$", re.I)
-ABORT_RE = re.compile(r"^\s*Aborting\.\s*$", re.I)
+TASK_RE = re.compile(r"(?:^|:)\s*-\s+([A-Za-z0-9_.-]+)\s+\(CPU\s+(\d+)\)\s*$", re.I)
+ABORT_RE = re.compile(r"(?:^|:)\s*Aborting\.\s*$", re.I)
 REGISTER_RE = re.compile(r"Print CPU\s+(\d+)\s+\(current core\)\s+registers", re.I)
 MEPC_RE = re.compile(r"\bMEPC\s*[:=]\s*(0x[0-9a-fA-F]+)", re.I)
 RA_RE = re.compile(r"(?:^|\s)RA\s*[:=]\s*(0x[0-9a-fA-F]+)", re.I)
@@ -39,20 +39,22 @@ def _first(pattern: re.Pattern[str], text: str) -> str | None:
 def parse_task_watchdog_cycle(lines: Sequence[str]) -> dict[str, object]:
     text = "\n".join(lines)
     triggered = TRIGGER_RE.search(text) is not None
-    task_match = next((TASK_RE.match(line) for line in lines if TASK_RE.match(line)), None)
+    task_match = next((TASK_RE.search(line) for line in lines if TASK_RE.search(line)), None)
     register_match = REGISTER_RE.search(text)
+    abort_observed = ABORT_RE.search(text) is not None
+    reboot_observed = REBOOT_RE.search(text) is not None
     normalized: dict[str, object] = {
         "classification": "TASK_WATCHDOG" if triggered else "NOT_TASK_WATCHDOG",
         "triggered": triggered,
         "starved_task": task_match.group(1) if task_match else None,
         "starved_task_cpu": int(task_match.group(2)) if task_match else None,
-        "abort_observed": ABORT_RE.search(text) is not None,
+        "abort_observed": abort_observed,
         "register_dump_cpu": int(register_match.group(1)) if register_match else None,
         "mepc": _first(MEPC_RE, text),
         "ra": _first(RA_RE, text),
         "saved_pc": _first(SAVED_PC_RE, text),
-        "reboot_observed": REBOOT_RE.search(text) is not None,
-        "cycle_complete": bool(triggered and task_match and ABORT_RE.search(text) and REBOOT_RE.search(text)),
+        "reboot_observed": reboot_observed,
+        "cycle_complete": bool(triggered and task_match and abort_observed and reboot_observed),
     }
     return {
         "schema": SCHEMA,
