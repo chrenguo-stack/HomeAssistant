@@ -1,0 +1,164 @@
+name: H3 N2 Stage2D9R G3R Prepare Panic Timeline Reset Signature Repair Review CI V1
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/h3-n2-stage2d9r-g3r-prepare-panic-timeline-reset-signature-repair-review-ci-v1.yml'
+      - 'docs/decisions/h3-n2-stage2d9r-g3r-prepare-panic-timeline-reset-signature-repair-20260729-v1.json'
+      - 'docs/development/h3-n2-stage2d9r-g3r-prepare-panic-timeline-reset-signature-repair-contract-20260729-v1.md'
+      - 'tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_prepare_panic_timeline_reset_signature_20260729_v1.py'
+      - 'tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_prepare_panic_timeline_reset_signature_shell_20260729_v1.sh'
+      - 'tools/h3_n2_stage2d9r_g3r_prepare_panic_timeline_reset_signature_contract_20260729_v1.py'
+      - 'tools/h3_n2_stage2d9r_g3r_prepare_panic_timeline_recorder_20260729_v1.py'
+      - 'tools/h3_n2_stage2d9r_g3r_prepare_panic_timeline_reset_signature_physical_d2_wrapper_20260729_v1.py'
+      - 'tools/run_stage2d9r_g3r_prepare_panic_timeline_reset_signature_physical_d2_20260729_v1.sh'
+      - 'tools/h3_n2_stage2d9r_g3r_prepare_panic_timeline_reset_signature_packager_20260729_v1.py'
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+
+env:
+  BASE_SHA: 62555ff9b196277bf30993b92e5b7868f62dfb64
+  BASE_BRANCH: fix/h3-n2-stage2d9r-g3r-prepare-evidence-controller-constant-binding-repair-20260729-v1
+  UPSTREAM_ARTIFACT_ID: '8711435727'
+  UPSTREAM_ARTIFACT_SHA256: 4e83c011d3aba7499f85422c61079dbcd31d343c6c4863854ce6e2e07b2593a8
+  ARTIFACT_NAME: stage2d9r-g3r-prepare-panic-timeline-reset-signature-repair-review-v1
+  PYTHONHASHSEED: '0'
+  TZ: UTC
+  LC_ALL: C.UTF-8
+  LANG: C.UTF-8
+
+jobs:
+  source-review:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Fail closed on exact PR 202 base and Artifact
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import json, os, urllib.request
+          headers = {"Authorization": "Bearer " + os.environ["GITHUB_TOKEN"], "Accept": "application/vnd.github+json"}
+          def get(url):
+              request = urllib.request.Request(url, headers=headers)
+              with urllib.request.urlopen(request) as response:
+                  return json.load(response)
+          pr = get("https://api.github.com/repos/chrenguo-stack/HomeAssistant/pulls/202")
+          assert pr["state"] == "open" and not pr["merged"] and pr["draft"]
+          assert pr["head"]["sha"] == os.environ["BASE_SHA"]
+          artifact = get("https://api.github.com/repos/chrenguo-stack/HomeAssistant/actions/artifacts/" + os.environ["UPSTREAM_ARTIFACT_ID"])
+          assert not artifact["expired"]
+          assert artifact["digest"] == "sha256:" + os.environ["UPSTREAM_ARTIFACT_SHA256"]
+          assert artifact["workflow_run"]["head_sha"] == os.environ["BASE_SHA"]
+          PY
+      - name: Require exact ten-file successor inventory
+        run: |
+          git diff --name-only "$BASE_SHA" HEAD | sort > /tmp/actual
+          cat > /tmp/expected <<'EOF'
+          .github/workflows/h3-n2-stage2d9r-g3r-prepare-panic-timeline-reset-signature-repair-review-ci-v1.yml
+          docs/decisions/h3-n2-stage2d9r-g3r-prepare-panic-timeline-reset-signature-repair-20260729-v1.json
+          docs/development/h3-n2-stage2d9r-g3r-prepare-panic-timeline-reset-signature-repair-contract-20260729-v1.md
+          tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_prepare_panic_timeline_reset_signature_20260729_v1.py
+          tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_prepare_panic_timeline_reset_signature_shell_20260729_v1.sh
+          tools/h3_n2_stage2d9r_g3r_prepare_panic_timeline_recorder_20260729_v1.py
+          tools/h3_n2_stage2d9r_g3r_prepare_panic_timeline_reset_signature_contract_20260729_v1.py
+          tools/h3_n2_stage2d9r_g3r_prepare_panic_timeline_reset_signature_packager_20260729_v1.py
+          tools/h3_n2_stage2d9r_g3r_prepare_panic_timeline_reset_signature_physical_d2_wrapper_20260729_v1.py
+          tools/run_stage2d9r_g3r_prepare_panic_timeline_reset_signature_physical_d2_20260729_v1.sh
+          EOF
+          sort -o /tmp/expected /tmp/expected
+          diff -u /tmp/expected /tmp/actual
+          test "$(git diff --diff-filter=MDR --name-only "$BASE_SHA" HEAD | wc -l | tr -d ' ')" = 0
+      - name: Compile and run realtime panic timeline integration tests
+        run: |
+          python -m py_compile \
+            tools/h3_n2_stage2d9r_g3r_prepare_panic_timeline_reset_signature_contract_20260729_v1.py \
+            tools/h3_n2_stage2d9r_g3r_prepare_panic_timeline_recorder_20260729_v1.py \
+            tools/h3_n2_stage2d9r_g3r_prepare_panic_timeline_reset_signature_packager_20260729_v1.py \
+            tools/h3_n2_stage2d9r_g3r_prepare_panic_timeline_reset_signature_physical_d2_wrapper_20260729_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_prepare_panic_timeline_reset_signature_20260729_v1.py
+          python -m unittest \
+            tests.h3_n2_stage2d9r_tls_candidate.test_h3_n2_stage2d9r_g3r_prepare_panic_timeline_reset_signature_20260729_v1 -v
+          sh tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_prepare_panic_timeline_reset_signature_shell_20260729_v1.sh
+
+  package-build:
+    needs: source-review
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        lane: [a, b]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Download exact PR 202 review Artifact
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          curl --fail --silent --show-error --location \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/chrenguo-stack/HomeAssistant/actions/artifacts/$UPSTREAM_ARTIFACT_ID/zip" \
+            -o /tmp/pr202-review.zip
+          echo "$UPSTREAM_ARTIFACT_SHA256  /tmp/pr202-review.zip" | sha256sum -c -
+      - name: Build deterministic repair package and run package tests
+        env:
+          PR202_REVIEW_ARTIFACT: /tmp/pr202-review.zip
+        run: |
+          python -m unittest \
+            tests.h3_n2_stage2d9r_tls_candidate.test_h3_n2_stage2d9r_g3r_prepare_panic_timeline_reset_signature_20260729_v1 -v
+          sh tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_prepare_panic_timeline_reset_signature_shell_20260729_v1.sh
+          mkdir -p "/tmp/review-${{ matrix.lane }}"
+          python tools/h3_n2_stage2d9r_g3r_prepare_panic_timeline_reset_signature_packager_20260729_v1.py \
+            --source-root "$PWD" \
+            --upstream-artifact /tmp/pr202-review.zip \
+            --source-sha "${{ github.event.pull_request.head.sha }}" \
+            --output "/tmp/review-${{ matrix.lane }}"
+          (cd "/tmp/review-${{ matrix.lane }}" && sha256sum -c SHA256SUMS)
+          ! find "/tmp/review-${{ matrix.lane }}" -type f \( -iname '*authorization*09*' -o -iname '*physical-d2-authorization*' \) | grep -q .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: panic-timeline-repair-lane-${{ matrix.lane }}
+          path: /tmp/review-${{ matrix.lane }}/
+          include-hidden-files: true
+          retention-days: 1
+          if-no-files-found: error
+
+  package-compare-and-publish:
+    needs: package-build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: panic-timeline-repair-lane-a
+          path: /tmp/lane-a
+      - uses: actions/download-artifact@v4
+        with:
+          name: panic-timeline-repair-lane-b
+          path: /tmp/lane-b
+      - name: Require byte-identical lanes and publish
+        run: |
+          diff -r /tmp/lane-a /tmp/lane-b
+          (cd /tmp/lane-a && sha256sum -c SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: /tmp/lane-a/
+          include-hidden-files: true
+          retention-days: 7
+          if-no-files-found: error
