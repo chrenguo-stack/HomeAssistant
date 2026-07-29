@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from io import StringIO
 from pathlib import Path
 
-from greenhouse_manager.ops.registration_cli import main
+from greenhouse_manager.ops.registration_cli import _parser, main
 from greenhouse_manager.runtime.registration import RegistrationRegistry
 
 HARDWARE_ID = "ghw-c6-98a316a9f2f8"
@@ -99,47 +99,7 @@ def test_missing_database_fails_without_creating_it(tmp_path: Path) -> None:
     assert not path.exists()
 
 
-def test_reuse_flags_are_forwarded_to_registration_policy(
-    tmp_path: Path,
-) -> None:
-    path = database(tmp_path)
-    run_cli(
-        path,
-        "approve",
-        HARDWARE_ID,
-        PAIRING_ID,
-        "--node-id",
-        "gh-n1-a9f2f8",
-        "--logical-location-id",
-        LOGICAL_LOCATION_ID,
-    )
-    with RegistrationRegistry(path) as registry:
-        job = registry.retire(
-            HARDWARE_ID,
-            system_id="greenhouse",
-            now=datetime.now(UTC),
-        )
-        registry.mark_credentials_revoked(job.retirement_id, evidence="test")
-        registry.mark_runtime_cleanup_complete(job.retirement_id)
-        second = hello()
-        second["hardware_id"] = "ghw-c6-112233445566"
-        second["pairing_id"] = "d5bcf708-88a0-4974-8ca9-597482974e94"
-        second["pairing_epoch"] = 1
-        registry.observe_hello(second, now=datetime.now(UTC))
-
-    code, document, error = run_cli(
-        path,
-        "approve",
-        "ghw-c6-112233445566",
-        "d5bcf708-88a0-4974-8ca9-597482974e94",
-        "--node-id",
-        "gh-n1-a9f2f8",
-        "--logical-location-id",
-        LOGICAL_LOCATION_ID,
-        "--reuse-retired-node-id",
-        "--private-identity-bound",
-    )
-
-    assert code == 3
-    assert document is None
-    assert "anonymous compatibility must be disabled" in error
+def test_cli_does_not_expose_node_id_reuse_flags() -> None:
+    help_text = _parser().format_help()
+    assert "--reuse-retired-node-id" not in help_text
+    assert "--private-identity-bound" not in help_text

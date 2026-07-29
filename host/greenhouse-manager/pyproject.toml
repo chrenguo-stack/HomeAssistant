@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "greenhouse-manager"
-version = "0.4.96"
+version = "0.4.97"
 description = "Canonical MQTT state manager for the greenhouse monitoring system"
 readme = "README.md"
 requires-python = ">=3.11"

@@ -4,6 +4,12 @@
 - 日期：2026-07-11
 - 关联：Issue #17、`gh-mqtt-v1`
 
+> 2026-07-30 架构更新：ADR-0003 和技术路线 V0.7 替代本文件中 NODE_ID
+> “可迁移”和主板更换复用原 NODE_ID 的条款。同一未退役归属内的网络重配、
+> 凭据轮换和主机恢复仍可保留 NODE_ID；显式退役、硬件更换或 retired
+> HARDWARE_ID 重新配对后必须使用全新 NODE_ID。其余 PoP、安全配对、双槽、
+> Dynamic Security、TLS 和恢复边界继续有效。
+
 ## 1. 背景
 
 N0.3、N1/M0 和 M1 已完成。当前真实节点通过匿名 MQTT 向 T1 发布遥测，`greenhouse-manager` 负责 canonical state、availability 和 Home Assistant Discovery。该方案只适用于受控局域网实验：
@@ -38,7 +44,7 @@ N0.3、N1/M0 和 M1 已完成。当前真实节点通过匿名 MQTT 向 T1 发�
 | 标识 | 生成方 | 是否可变 | 用途 |
 |---|---|---:|---|
 | `hardware_id` | 制造/首次烧录 | 否 | 标识具体硬件 |
-| `node_id` | manager | 可迁移、默认稳定 | 业务 Topic 和 HA 设备身份 |
+| `node_id` | manager/操作员审批 | 当前归属内稳定；退役后永久封存 | 业务 Topic 和 HA 设备身份 |
 | `system_id` | greenhouse-init | 从备份恢复 | 隔离不同温室系统 |
 | `manager_id` | greenhouse-init | 主机实例级 | 多主机冲突和配对归属 |
 
@@ -48,7 +54,7 @@ N0.3、N1/M0 和 M1 已完成。当前真实节点通过匿名 MQTT 向 T1 发�
 ghw-c6-98a316a9f2f8
 ```
 
-现有真实节点迁移时保留 `node_id=gh-n1-a9f2f8`，避免 Home Assistant 创建第二台设备。
+现有真实节点从匿名实验身份迁入正式凭据时，可以在同一 HARDWARE_ID、同一未退役归属内保留 `node_id=gh-n1-a9f2f8`，避免 Home Assistant 创建第二台设备；该一次性认证迁移不授权 NODE_ID 跨硬件复用。
 
 ### 3.2 设备动态生成的一次性 PoP
 
