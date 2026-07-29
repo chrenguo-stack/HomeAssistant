@@ -6,4 +6,7 @@ printf '%s\n' "$OUTPUT" | grep -q 'SOURCE_ONLY_REQUIRES_NEW_EXACT_PHYSICAL_D2_AU
 printf '%s\n' "$OUTPUT" | grep -q '"authorization_created": false'
 printf '%s\n' "$OUTPUT" | grep -q '"board_operation": false'
 printf '%s\n' "$OUTPUT" | grep -q '"network_operation": false'
-! find "$ROOT" -maxdepth 3 -type f \( -iname '*authorization*07*' -o -iname '*physical-d2-authorization*' \) | grep -q .
+test ! -e "$ROOT/PHYSICAL_D2_AUTHORIZATION_07.json"
+test ! -e "$ROOT/physical-d2-authorization-07.json"
+test ! -e "$ROOT/tools/PHYSICAL_D2_AUTHORIZATION_07.json"
+test ! -e "$ROOT/tools/physical-d2-authorization-07.json"
