@@ -77,6 +77,8 @@ jobs:
           if old not in text:
               raise SystemExit("NODE_ID conflict wording anchor missing")
           path.write_text(text.replace(old, new), encoding="utf-8")
+          readme = Path("README.md")
+          readme.write_text(readme.read_text(encoding="utf-8").replace("。  \n", "。\n"), encoding="utf-8")
           PY
       - name: Compile changed Python
         run: python -m compileall -q host/greenhouse-manager/src host/greenhouse-manager/tests infra/compose/c07-node-retirement/verify.py
