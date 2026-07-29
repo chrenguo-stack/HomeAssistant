@@ -66,6 +66,18 @@ jobs:
           rm -rf tools/_bootstrap_v07_parts
       - name: Apply approved correction
         run: python tools/_bootstrap_apply_v07_c07_correction.py
+      - name: Preserve compatible NODE_ID conflict wording
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("host/greenhouse-manager/src/greenhouse_manager/runtime/registration.py")
+          text = path.read_text(encoding="utf-8")
+          old = "node_id has already been used and is permanently reserved"
+          new = "node_id is already assigned or has been used and is permanently reserved"
+          if old not in text:
+              raise SystemExit("NODE_ID conflict wording anchor missing")
+          path.write_text(text.replace(old, new), encoding="utf-8")
+          PY
       - name: Compile changed Python
         run: python -m compileall -q host/greenhouse-manager/src host/greenhouse-manager/tests infra/compose/c07-node-retirement/verify.py
       - name: Install greenhouse-manager
