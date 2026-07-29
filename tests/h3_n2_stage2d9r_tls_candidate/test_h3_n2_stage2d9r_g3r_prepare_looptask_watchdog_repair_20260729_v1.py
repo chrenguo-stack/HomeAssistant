@@ -7,7 +7,6 @@ import os
 from pathlib import Path
 import subprocess
 import sys
-import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -49,7 +48,8 @@ class LoopTaskWatchdogRepairTests(unittest.TestCase):
     def test_02_old_executor_has_blocking_read_risk(self):
         source = EXECUTOR_CPP.read_text(encoding="utf-8")
         self.assertIn("::read(STDIN_FILENO", source)
-        self.assertIn("errno == EAGAIN", source)
+        self.assertIn("EAGAIN", source)
+        self.assertIn("EWOULDBLOCK", source)
         self.assertNotIn("F_SETFL", source)
         self.assertNotIn("O_NONBLOCK", source)
 
