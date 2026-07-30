@@ -1,5 +1,5 @@
 {
-  "acceptance_binding_sha256": "f7ea94e289233ae9b6249b7727597aadd995c2d3effa6836d1478eb2a295e8d0",
+  "acceptance_binding_sha256": "a46c7551456f104d552fc62d349d072030ac35ed5f647862ac7f030d110356f5",
   "activate_executed": false,
   "authorization_claimed": false,
   "authorization_consumed": false,
@@ -10,7 +10,7 @@
   "board_operation_started": false,
   "broker_started": false,
   "cleanup_executed": false,
-  "decision_binding_sha256": "67e44ff43dc87bc1d6eb3daababf4604cf31a0bc8e02d55d062c9dab3b570ae9",
+  "decision_binding_sha256": "dc719450ed192486aef6bad080b6904dee10a7af9aef6cc2c2f528bad6326c23",
   "decision_id": "D1-H3N2-STAGE2D9R-G3R-D2-17-G07-PHYSICAL-EXECUTION-20260731-01",
   "deployment": false,
   "esptool_operation_started": false,
