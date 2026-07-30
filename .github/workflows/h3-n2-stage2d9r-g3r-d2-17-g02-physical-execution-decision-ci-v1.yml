@@ -152,4 +152,5 @@ jobs:
           name: d2-17-g02-physical-execution-decision-review-v1
           path: /tmp/d2-17-g02-physical-decision-review
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 7
