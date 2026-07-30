@@ -45,7 +45,7 @@ jobs:
               raise SystemExit(f"INVENTORY_MISMATCH missing={sorted(expected-observed)} extra={sorted(observed-expected)}")
           PY
       - name: Run host-only forensic tests
-        run: tools/run_h3_n2_stage2d9r_g3r_d2_17_g07_consumed_typeerror_forensic_ci_20260731_v1.sh
+        run: /bin/sh tools/run_h3_n2_stage2d9r_g3r_d2_17_g07_consumed_typeerror_forensic_ci_20260731_v1.sh
       - name: Build review artifact
         run: |
           set -euo pipefail
