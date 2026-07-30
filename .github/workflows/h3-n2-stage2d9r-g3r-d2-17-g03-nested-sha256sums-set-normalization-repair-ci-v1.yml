@@ -60,8 +60,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${{GITHUB_REPOSITORY}}/pulls/221" -o /tmp/pr221.json
-          curl --fail --silent --show-error -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${{GITHUB_REPOSITORY}}/actions/artifacts/${{LOAD_ARTIFACT_ID}}" -o /tmp/artifact.json
+          curl --fail --silent --show-error -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$GITHUB_REPOSITORY/pulls/221" -o /tmp/pr221.json
+          curl --fail --silent --show-error -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/artifacts/$LOAD_ARTIFACT_ID" -o /tmp/artifact.json
           python3 -B - <<'PY'
           import json, os
           pr=json.load(open("/tmp/pr221.json"))
