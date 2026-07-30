@@ -1,0 +1,173 @@
+    for line in decision_sums.read_text(encoding="utf-8").splitlines():
+        digest, name = line.split("  ", 1)
+        expected[name] = digest
+    observed = {p.relative_to(decision_root).as_posix() for p in decision_root.rglob("*") if p.is_file() and not p.is_symlink() and p != decision_sums}
+    require(set(expected) == observed, "PHYSICAL_DECISION_SHA256SUMS_COVERAGE_MISMATCH")
+    for name, digest in expected.items():
+        require(sha256_file(decision_root / name) == digest, "PHYSICAL_DECISION_MEMBER_DIGEST_MISMATCH:" + name)
+    artifact = decision_root / "D2_17_G04_ACCEPTANCE_ARTIFACT_8762446382.zip"
+    require(artifact.is_file() and sha256_file(artifact) == ACCEPTANCE_ARTIFACT_SHA256, "ACCEPTANCE_ARTIFACT_DIGEST_DRIFT")
+    targets = resolved_targets()
+    physical_root = runtime_root / "D2_17_G04_PHYSICAL_EXECUTION_20260730_01"
+    terminal_path = physical_root / "D2_17_G04_PHYSICAL_DECISION_TERMINAL.json"
+    result_path = physical_root / "D2_17_G04_PHYSICAL_RESULT.json"
+    decision_marker = Path.home() / ".local/state/greenhouse-stage2d9r/d2-17-g04-physical-decisions" / (DECISION_ID + ".json")
+    auth_state_root = Path.home() / ".local/state/greenhouse-stage2d9r/d2-authorizations"
+    auth_marker = auth_state_root / AUTH_MARKER_NAME
+    require(not physical_root.exists(), "PHYSICAL_RUNTIME_ROOT_ALREADY_EXISTS")
+    require(not decision_marker.exists(), "PHYSICAL_DECISION_ALREADY_USED")
+    require(not auth_marker.exists(), "AUTHORIZATION_ALREADY_CLAIMED_OR_CONSUMED")
+    physical_root.mkdir(parents=True, mode=0o700)
+    os.chmod(physical_root, 0o700)
+    board_started = False
+    usb_started = False
+    serial_started = False
+    esptool_started = False
+    nvs_started = False
+    try:
+        auth, _identity = validate_host_only_evidence(package_root, runtime_root, targets)
+        execution_root = (package_root / EXECUTION_REL).resolve(strict=True)
+        sys.path.insert(0, str(execution_root))
+        import h3_n2_stage2d9r_g3r_d2_17_execution_identity_frozen_physical_d2_wrapper_20260730_v1 as wrapper
+        wrapper.bind_complete_chain()
+        core = wrapper._bound_d2_11().core
+        preclaim_work = physical_root / "preclaim-baseline"
+        preclaim_work.mkdir(mode=0o700)
+        board_started = True
+        usb_started = True
+        serial_started = True
+        selected = core.select_serial(auth)
+        esptool_started = True
+        nvs_started = True
+        baseline = core.baseline(selected, targets["esptool"], preclaim_work, auth)
+        require(canonical_sha256(baseline) == BASELINE_STATE_SHA256, "PRECLAIM_BASELINE_STATE_DRIFT")
+        marker_value = {
+            "schema": "gh.h3.n2.stage2d9r-g3r-d2-17-g04-physical-decision-marker/1",
+            "status": "PHYSICAL_DECISION_CLAIMED_BOARD_BASELINE_VERIFIED",
+            "decision_id": DECISION_ID,
+            "d2_request_id": D2_REQUEST_ID,
+            "pr223_head": PR223_HEAD,
+            "acceptance_artifact_id": ACCEPTANCE_ARTIFACT_ID,
+            "acceptance_artifact_sha256": ACCEPTANCE_ARTIFACT_SHA256,
+            "acceptance_binding_sha256": ACCEPTANCE_BINDING_SHA256,
+            "decision_required_binding_sha256": DECISION_REQUIRED_BINDING_SHA256,
+            "authorization_record_sha256": AUTHORIZATION_RECORD_SHA256,
+            "execution_identity_sha256": EXECUTION_IDENTITY_SHA256,
+            "board_identity_sha256": BOARD_IDENTITY_SHA256,
+            "serial_identity_sha256": SERIAL_IDENTITY_SHA256,
+            "baseline_state_sha256": BASELINE_STATE_SHA256,
+            "authorization_claimed": False,
+            "authorization_consumed": False,
+            "claimed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "one_shot": True,
+            "replay_permitted": False,
+            "automatic_retry_permitted": False,
+        }
+        marker_value["marker_sha256"] = canonical_sha256(marker_value)
+        exclusive_json(decision_marker, marker_value)
+        auth_state_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+        os.chmod(auth_state_root, 0o700)
+        roots = {}
+        for name in ("immutable-root", "recovery-root", "prepare-evidence", "delivery-evidence", "terminalization-evidence"):
+            path = physical_root / name
+            path.mkdir(mode=0o700)
+            roots[name] = path
+        execution_env = execution_environment(execution_root, targets["python"])
+        request_path = package_root / REQUEST_REL
+        command = [
+            str(execution_root / OUTER_NAME), "execute",
+            "--package-root", str(execution_root),
+            "--physical-request", str(request_path),
+            "--authorization-record", str(runtime_root / "D2_17_AUTHORIZATION.json"),
+            "--immutable-root", str(roots["immutable-root"]),
+            "--recovery-root", str(roots["recovery-root"]),
+            "--home", str(Path.home()),
+            "--state-root", str(auth_state_root),
+            "--result-output", str(result_path),
+            "--prepare-evidence-root", str(roots["prepare-evidence"]),
+            "--delivery-evidence-root", str(roots["delivery-evidence"]),
+            "--terminalization-evidence-root", str(roots["terminalization-evidence"]),
+            "--openssl", str(targets["openssl"]),
+            "--esptool", str(targets["esptool"]),
+            "--mosquitto", str(targets["mosquitto"]),
+        ]
+        stdout_path = physical_root / "physical.stdout"
+        stderr_path = physical_root / "physical.stderr"
+        with stdout_path.open("wb") as stdout, stderr_path.open("wb") as stderr:
+            os.chmod(stdout_path, 0o600)
+            os.chmod(stderr_path, 0o600)
+            completed = subprocess.run(command, env=execution_env, stdin=subprocess.DEVNULL, stdout=stdout, stderr=stderr, check=False)
+        result = load_json(result_path, "PHYSICAL_RESULT_MISSING_OR_INVALID") if result_path.exists() else {}
+        marker = load_json(auth_marker, "AUTHORIZATION_MARKER_MISSING_OR_INVALID") if auth_marker.exists() else {}
+        consumed = marker.get("status") in {"CONSUMED_PASS", "CONSUMED_FAILED"}
+        passed = completed.returncode == 0 and result.get("status") == "CONSUMED_PASS" and marker.get("status") == "CONSUMED_PASS"
+        terminal: dict[str, Any] = {
+            "schema": "gh.h3.n2.stage2d9r-g3r-d2-17-g04-physical-decision-terminal/1",
+            "status": "PASS" if passed else "FAIL",
+            "terminal_state": "D2_17_G04_PHYSICAL_EXECUTION_CONSUMED_PASS" if passed else str(result.get("terminal_state") or marker.get("status") or "PHYSICAL_EXECUTION_FAILED"),
+            "failure_code": None if passed else str(result.get("failure_code") or "PHYSICAL_EXECUTION_FAILED"),
+            "decision_id": DECISION_ID,
+            "d2_request_id": D2_REQUEST_ID,
+            "authorization_claimed": bool(auth_marker.exists()),
+            "authorization_consumed": consumed,
+            "authorization_record_sha256": AUTHORIZATION_RECORD_SHA256,
+            "execution_identity_sha256": EXECUTION_IDENTITY_SHA256,
+            "physical_result_sha256": sha256_file(result_path) if result_path.exists() else None,
+            "authorization_marker_sha256": sha256_file(auth_marker) if auth_marker.exists() else None,
+            "replay_permitted": False,
+            "automatic_retry_permitted": False,
+            "board_operation": True,
+            "usb_enumeration": True,
+            "serial_operation": True,
+            "esptool_operation": True,
+            "flash_operation": bool(result.get("flash_sha256")),
+            "physical_nvs_operation": True,
+            "broker_started": bool(result.get("broker_log_sha256")),
+            "prepare_executed": int(result.get("prepare_count", 0)) > 0,
+            "verify_executed": int(result.get("verify_count", 0)) > 0,
+            "recovery_executed": bool(result.get("recovery_attempted")),
+            "recovery_succeeded": bool(result.get("recovery_succeeded")),
+            "activate_executed": False,
+            "cleanup_executed": False,
+            "ready": False,
+            "merge": False,
+            "release": False,
+            "tag": False,
+            "deployment": False,
+        }
+        terminal["terminal_record_sha256"] = canonical_sha256(terminal)
+        exclusive_json(terminal_path, terminal)
+        marker_value.update({
+            "status": "CONSUMED_PASS" if passed else "CONSUMED_FAILED",
+            "authorization_claimed": bool(auth_marker.exists()),
+            "authorization_consumed": consumed,
+            "terminal_record_sha256": terminal["terminal_record_sha256"],
+            "completed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        })
+        replace_json(decision_marker, marker_value)
+        print(json.dumps(terminal, sort_keys=True))
+        print("PHYSICAL_RUNTIME_ROOT=" + str(physical_root))
+        print("PHYSICAL_TERMINAL_FILE=" + str(terminal_path))
+        print("PHYSICAL_RESULT_FILE=" + str(result_path))
+        print("AUTHORIZATION_MARKER_FILE=" + str(auth_marker))
+        return 0 if passed else 2
+    except Exception as exc:
+        code = exc.args[0] if isinstance(exc, DecisionError) and exc.args else type(exc).__name__
+        terminal = safe_failure(
+            str(code),
+            board_operation=board_started,
+            usb_enumeration=usb_started,
+            serial_operation=serial_started,
+            esptool_operation=esptool_started,
+            physical_nvs_operation=nvs_started,
+        )
+        if not terminal_path.exists():
+            exclusive_json(terminal_path, terminal)
+        print(json.dumps(terminal, sort_keys=True))
+        print("PHYSICAL_RUNTIME_ROOT=" + str(physical_root))
+        print("PHYSICAL_TERMINAL_FILE=" + str(terminal_path))
+        print("PHYSICAL_RESULT_FILE=" + str(result_path))
+        print("AUTHORIZATION_MARKER_FILE=" + str(auth_marker))
+        return 2
+
+
