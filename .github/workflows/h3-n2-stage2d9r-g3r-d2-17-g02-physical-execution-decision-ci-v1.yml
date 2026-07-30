@@ -8,6 +8,10 @@ on:
       - "docs/decisions/h3-n2-stage2d9r-g3r-d2-17-g02-physical-execution-20260730-v1.json"
       - "docs/development/h3-n2-stage2d9r-g3r-d2-17-g02-physical-execution-decision-contract-20260730-v1.md"
       - "tools/h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_driver_20260730_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_driver_20260730_v1.part4.pyfrag"
+      - "tools/h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_driver_20260730_v1.part3.pyfrag"
+      - "tools/h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_driver_20260730_v1.part2.pyfrag"
+      - "tools/h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_driver_20260730_v1.part1.pyfrag"
       - "tools/run_h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_20260730_v1.sh"
       - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_20260730_v1.py"
 
@@ -55,6 +59,10 @@ jobs:
             "docs/decisions/h3-n2-stage2d9r-g3r-d2-17-g02-physical-execution-20260730-v1.json",
             "docs/development/h3-n2-stage2d9r-g3r-d2-17-g02-physical-execution-decision-contract-20260730-v1.md",
             "tools/h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_driver_20260730_v1.py",
+            "tools/h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_driver_20260730_v1.part4.pyfrag",
+            "tools/h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_driver_20260730_v1.part3.pyfrag",
+            "tools/h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_driver_20260730_v1.part2.pyfrag",
+            "tools/h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_driver_20260730_v1.part1.pyfrag",
             "tools/run_h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_20260730_v1.sh",
             "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_20260730_v1.py",
           }
@@ -100,7 +108,7 @@ jobs:
           python3 -B -m unittest tests.h3_n2_stage2d9r_tls_candidate.test_h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_20260730_v1
           test ! -d tools/__pycache__
           test -z "$(find . -type f \( -name '*.pyc' -o -name '*.pyo' \) -print -quit)"
-          ! grep -R '/Users/' tools/h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_driver_20260730_v1.py
+          ! grep -R '/Users/' tools/h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_driver_20260730_v1.py tools/h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_driver_20260730_v1.part*.pyfrag
 
       - name: Build exact-head review artifact
         run: |
@@ -113,6 +121,10 @@ jobs:
             docs/decisions/h3-n2-stage2d9r-g3r-d2-17-g02-physical-execution-20260730-v1.json \
             docs/development/h3-n2-stage2d9r-g3r-d2-17-g02-physical-execution-decision-contract-20260730-v1.md \
             tools/h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_driver_20260730_v1.py \
+            tools/h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_driver_20260730_v1.part4.pyfrag \
+            tools/h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_driver_20260730_v1.part3.pyfrag \
+            tools/h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_driver_20260730_v1.part2.pyfrag \
+            tools/h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_driver_20260730_v1.part1.pyfrag \
             tools/run_h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_20260730_v1.sh \
             tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_20260730_v1.py \
             --target-directory "$OUT/source"
