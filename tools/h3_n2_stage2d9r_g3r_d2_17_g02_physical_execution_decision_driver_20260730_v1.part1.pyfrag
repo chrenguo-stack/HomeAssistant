@@ -1,0 +1,181 @@
+#!/usr/bin/env python3
+"""One-shot D2-17 G02 physical-execution decision driver.
+
+The driver preserves the frozen D2-17 execution package. It supplies the inherited
+launcher environment and required evidence-root arguments, verifies all G02
+host-only evidence, performs board/serial/baseline checks before the inherited
+authorization claim, and then invokes the frozen canonical outer exactly once.
+"""
+from __future__ import annotations
+
+import argparse
+from datetime import datetime, timezone
+import hashlib
+import json
+import os
+from pathlib import Path
+import shutil
+import stat
+import subprocess
+import sys
+import tempfile
+from typing import Any
+
+DECISION_ID = "D1-H3N2-STAGE2D9R-G3R-D2-17-G02-PHYSICAL-EXECUTION-20260730-01"
+D2_REQUEST_ID = "D2-H3N2-STAGE2D9R-G3R-EXECUTION-IDENTITY-FROZEN-PREFLIGHT-STABILIZED-PHYSICAL-20260730-17"
+PACKAGE_NAME = "D2_17_PRIVATE_PACKAGE_20260730T172818CST_G02_HEAD11052BEA"
+PR219_HEAD = "342b4057cccdfa6883591312ce7464d274d90504"
+ACCEPTANCE_ARTIFACT_ID = 8754825029
+ACCEPTANCE_ARTIFACT_SHA256 = "3b4ee518209104301bfdd9b12c6ee4b52005c23d9eed79245cd231772a9b3051"
+ACCEPTANCE_BINDING_SHA256 = "51562fedfdabc7d83e686628eaafa59bc1c7d8eb632942d9c30c290900dc9742"
+DECISION_REQUIRED_BINDING_SHA256 = "222a8b0fb8a4b554841cdf93776a403e76572a5cbd6f8012d330fafbdbecb722"
+PRIVATE_DELIVERY_BINDING_SHA256 = "41e89566ddd2925410fcdf41f14941532f00fd2b379c681e348b2cd227e55f0d"
+G02_ROOT_MANIFEST_SHA256 = "208e99557eba8dc553804ad2247935517a23ddf51608a55d6366da0fc8110978"
+AUTHORIZATION_FILE_SHA256 = "9df91befccb0796fd2b4d9e851df027e69016d00f860e9799c57ff43871c48a5"
+AUTHORIZATION_RECORD_SHA256 = "691bc6bd5da9a56c1aab180d4cffcc438d4d9ad60f9d934691495a228a8cccb7"
+EXECUTION_IDENTITY_SHA256 = "9e234234aed566752ab8feb771e4cb84c3946d83857ee13d3d211d6c7e11f00c"
+STATIC_CHECK_FILE_SHA256 = "a42a75efe3436c7d9928c7efac67cc21edee93fa2a7bdd90f714f810e79f6aec"
+IDEMPOTENCY_FILE_SHA256 = "8a1b8588c0648f26063139a5eb3bcbeb5275aaca8e70d2cdee5b29bcf92a9f7b"
+SENTINEL_FILE_SHA256 = "8991644cf66d81311ffe70f4dbe702047ae7f3ce64c7ebfe5c164dfc6f894050"
+TERMINAL_FILE_SHA256 = "3d5b5cac537c281d7a54bd3fe316153ce435d2983fd56183b2147bf921f487e5"
+AUTHORIZATION_EXPIRES_AT = "2026-07-30T11:30:30.854640Z"
+BOARD_IDENTITY_SHA256 = "2607b7df80b8b636548a8d9d97c0a6b4e4ead57e9a2cc6fcb7f93643617242f8"
+SERIAL_IDENTITY_SHA256 = "b6dba7ee0db02feba166935ae8ec2bbd946dbf66926e5421cfa1c1c8b8a4f2c3"
+BASELINE_STATE_SHA256 = "776517efcac0c6cf03cabe0572b773dedc89e9bb2793ccb0d9f9585ea6fa601f"
+TARGETS = {
+    "python": ("/Library/Frameworks/Python.framework/Versions/3.11/bin/python3.11", "4e28e811a89aeac6eed668ae641c7f85f5831e42e8dc6cd9a85a3bcc032ec46a"),
+    "openssl": ("/usr/local/Cellar/openssl@3/3.5.0/bin/openssl", "04ad05ce2e7eaf92116dac99a984cc0e589040a103589f93a9fe452832766973"),
+    "esptool": ("~/Library/Python/3.11/bin/esptool", "ab727aa71b9bbf794aab424eca706cb4b340be491ab28ba8fe17ef6d7962c267"),
+    "mosquitto": ("/opt/local/sbin/mosquitto", "4d53cf9654852472c9839e178848987603e16abd41622d197440945307227763"),
+}
+EXECUTION_REL = Path("public-review/d2-17-execution-identity-frozen-physical-d2-execution-package")
+REQUEST_REL = Path("public-review/PHYSICAL_D2_REQUEST_17.json")
+OUTER_NAME = "run_d2_17_canonical_delivery_outer_20260730_v1.sh"
+AUTH_MARKER_NAME = hashlib.sha256(D2_REQUEST_ID.encode("utf-8")).hexdigest() + ".json"
+
+class DecisionError(RuntimeError):
+    pass
+
+
+def require(condition: bool, code: str) -> None:
+    if not condition:
+        raise DecisionError(code)
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def canonical_sha256(value: object) -> str:
+    return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")).hexdigest()
+
+
+def mode(path: Path) -> str:
+    return format(stat.S_IMODE(path.stat().st_mode), "04o")
+
+
+def exclusive_json(path: Path, value: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(path.parent, 0o700)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    fd = os.open(path, flags, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", closefd=False) as handle:
+            json.dump(value, handle, sort_keys=True, indent=2)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+    finally:
+        os.close(fd)
+
+
+def replace_json(path: Path, value: object) -> None:
+    tmp = path.with_name(path.name + ".tmp")
+    if tmp.exists():
+        tmp.unlink()
+    exclusive_json(tmp, value)
+    os.replace(tmp, path)
+
+
+def load_json(path: Path, code: str) -> dict[str, Any]:
+    require(path.is_file() and not path.is_symlink(), code)
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise DecisionError(code) from exc
+    require(isinstance(value, dict), code)
+    return value
+
+
+def verify_root_sums(root: Path) -> None:
+    sums = root / "SHA256SUMS"
+    require(sums.is_file() and not sums.is_symlink(), "G02_ROOT_SHA256SUMS_MISSING")
+    require(sha256_file(sums) == G02_ROOT_MANIFEST_SHA256, "G02_ROOT_SHA256SUMS_DIGEST_DRIFT")
+    expected: dict[str, str] = {}
+    for raw in sums.read_text(encoding="utf-8").splitlines():
+        digest, name = raw.split("  ", 1)
+        rel = Path(name)
+        require(name not in expected and not rel.is_absolute() and ".." not in rel.parts, "G02_ROOT_SHA256SUMS_INVALID")
+        expected[name] = digest
+    observed = {
+        path.relative_to(root).as_posix()
+        for path in root.rglob("*")
+        if path.is_file() and not path.is_symlink() and path != sums
+    }
+    require(set(expected) == observed, "G02_ROOT_SHA256SUMS_COVERAGE_DRIFT")
+    for name, digest in expected.items():
+        require(sha256_file(root / name) == digest, "G02_MEMBER_DIGEST_DRIFT:" + name)
+    require(not any(path.is_symlink() for path in root.rglob("*")), "G02_SYMLINK_FORBIDDEN")
+
+
+def resolved_targets() -> dict[str, Path]:
+    result: dict[str, Path] = {}
+    for name, (raw, expected) in TARGETS.items():
+        path = Path(raw).expanduser().resolve(strict=True)
+        require(path.is_file() and not path.is_symlink() and os.access(path, os.X_OK), "TARGET_TOOL_INVALID:" + name)
+        require(sha256_file(path) == expected, "TARGET_TOOL_DIGEST_DRIFT:" + name)
+        result[name] = path
+    return result
+
+
+def execution_environment(execution_root: Path, python_path: Path) -> dict[str, str]:
+    root = execution_root.resolve(strict=True).as_posix()
+    env = dict(os.environ)
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    env["GH_D2_17_DELIVERY_PROFILE"] = "private-package"
+    env["GH_D2_13_LAUNCHER_PACKAGE_ROOT"] = root
+    env["GH_D2_14_LAUNCHER_PACKAGE_ROOT"] = root
+    env["GH_D2_15_LAUNCHER_PACKAGE_ROOT"] = root
+    env["GH_D2_16_LAUNCHER_PACKAGE_ROOT"] = root
+    env["PATH"] = str(python_path.parent) + os.pathsep + env.get("PATH", "")
+    return env
+
+
+def validate_host_only_evidence(package_root: Path, runtime_root: Path, targets: dict[str, Path]) -> tuple[dict[str, Any], dict[str, Any]]:
+    verify_root_sums(package_root)
+    terminal_path = runtime_root / "D2_17_TARGET_MAC_STATIC_CHECK_TERMINAL.json"
+    auth_path = runtime_root / "D2_17_AUTHORIZATION.json"
+    identity_path = runtime_root / "D2_17_EXECUTION_IDENTITY.json"
+    static_path = runtime_root / "D2_17_TARGET_MAC_STATIC_CHECK.json"
+    idempotency_path = runtime_root / "D2_17_BIND_INSTALL_IDEMPOTENCY.json"
+    sentinel_path = runtime_root / "D2_17_HARDWARE_SENTINEL_SELF_CHECK.json"
+    for path, digest, code in (
+        (terminal_path, TERMINAL_FILE_SHA256, "TERMINAL_FILE_DIGEST_DRIFT"),
+        (auth_path, AUTHORIZATION_FILE_SHA256, "AUTHORIZATION_FILE_DIGEST_DRIFT"),
+        (static_path, STATIC_CHECK_FILE_SHA256, "STATIC_CHECK_FILE_DIGEST_DRIFT"),
+        (idempotency_path, IDEMPOTENCY_FILE_SHA256, "IDEMPOTENCY_FILE_DIGEST_DRIFT"),
+        (sentinel_path, SENTINEL_FILE_SHA256, "SENTINEL_FILE_DIGEST_DRIFT"),
+    ):
+        require(path.is_file() and not path.is_symlink() and sha256_file(path) == digest, code)
+    terminal = load_json(terminal_path, "TERMINAL_RECORD_INVALID")
+    require(terminal.get("status") == "PASS", "TERMINAL_STATUS_NOT_PASS")
+    require(terminal.get("terminal_state") == "TARGET_MAC_STATIC_CHECK_PASSED_AUTHORIZATION_UNCLAIMED_UNCONSUMED", "TERMINAL_STATE_DRIFT")
+    require(terminal.get("authorization_created") is True and terminal.get("authorization_claimed") is False and terminal.get("authorization_consumed") is False, "TERMINAL_AUTHORIZATION_STATE_DRIFT")
+    require(terminal.get("physical_decision_created") is False, "TERMINAL_PHYSICAL_DECISION_ALREADY_CREATED")
+    require(terminal.get("authorization_record_sha256") == AUTHORIZATION_RECORD_SHA256, "TERMINAL_AUTHORIZATION_BINDING_DRIFT")
