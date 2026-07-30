@@ -133,3 +133,4 @@ jobs:
           path: /tmp/d2-14-extraction-ownership-review-1
           if-no-files-found: error
           retention-days: 7
+          include-hidden-files: true
