@@ -1,0 +1,20 @@
+{
+  "authorization_claimed": false,
+  "authorization_consumed": false,
+  "authorization_expires_at": "2026-07-30T18:19:45.410516Z",
+  "authorization_record_sha256": "37fa9803c4ce96083f2b58d4b973c8373326c179d609645f35af1ec72076a601",
+  "base_head_sha": "662406f97a023c4edc71d6bc17841828d0cc7c36",
+  "base_pr": 227,
+  "decision_id": "D1-H3N2-STAGE2D9R-G3R-D2-17-G07-TARGET-MAC-STATIC-CHECK-ACCEPTANCE-20260731-01",
+  "deployment": false,
+  "g07_acceptance_binding_sha256": "0f2e281c6ed0669ebc6629aefdaeab7e5382b84d17372b75cf2ab434eaac643e",
+  "merge": false,
+  "next_gate": "D1-H3N2-STAGE2D9R-G3R-D2-17-G07-PHYSICAL-EXECUTION-20260731-01",
+  "physical_execution_authorized": false,
+  "physical_pending_binding_sha256": "597edc89d0cda2dfa4effb0345560d974953b209dc4084728bea4e704f3f6691",
+  "ready": false,
+  "release": false,
+  "schema": "gh.h3.n2.stage2d9r-g3r-d2-17-g07-physical-execution-pending-decision/1",
+  "state": "PHYSICAL_EXECUTION_PENDING_EXPLICIT_AUTHORIZATION",
+  "tag": false
+}
