@@ -1,0 +1,99 @@
+def validate_terminal_record_semantics(terminal: dict[str, Any], expected_digest: str) -> None:
+    require(terminal.get("terminal_record_sha256") == expected_digest, "TERMINAL_RECORD_DIGEST_BINDING_DRIFT")
+    value = dict(terminal)
+    value.pop("terminal_record_sha256", None)
+    require(canonical_sha256(value) == expected_digest, "TERMINAL_RECORD_SEMANTIC_DIGEST_DRIFT")
+
+
+def self_test(execution_root: Path) -> int:
+    execution_root = execution_root.expanduser().resolve(strict=True)
+    with tempfile.TemporaryDirectory(prefix="d2-17 g04 physical-decision self-test ") as temporary:
+        root = Path(temporary)
+        os.chmod(root, 0o700)
+        paths = {}
+        for name in ("immutable", "recovery", "state", "prepare", "delivery", "terminal"):
+            path = root / name
+            path.mkdir(mode=0o700)
+            paths[name] = path
+        env = execution_environment(execution_root, Path(sys.executable).resolve(strict=True))
+        required_env = {
+            "GH_D2_13_LAUNCHER_PACKAGE_ROOT",
+            "GH_D2_14_LAUNCHER_PACKAGE_ROOT",
+            "GH_D2_15_LAUNCHER_PACKAGE_ROOT",
+            "GH_D2_16_LAUNCHER_PACKAGE_ROOT",
+        }
+        require(all(env.get(name) == str(execution_root) for name in required_env), "INHERITED_LAUNCHER_ENV_NOT_PROPAGATED")
+        request = execution_root.parent / "PHYSICAL_D2_REQUEST_17.json"
+        command = [
+            str(execution_root / OUTER_NAME), "execute",
+            "--package-root", str(execution_root),
+            "--physical-request", str(request),
+            "--authorization-record", str(root / "missing-authorization.json"),
+            "--immutable-root", str(paths["immutable"]),
+            "--recovery-root", str(paths["recovery"]),
+            "--home", str(root),
+            "--state-root", str(paths["state"]),
+            "--result-output", str(root / "result.json"),
+            "--prepare-evidence-root", str(paths["prepare"]),
+            "--delivery-evidence-root", str(paths["delivery"]),
+            "--terminalization-evidence-root", str(paths["terminal"]),
+            "--openssl", "/bin/true",
+            "--esptool", "/bin/true",
+            "--mosquitto", "/bin/true",
+        ]
+        completed = subprocess.run(command, env=env, text=True, capture_output=True, check=False)
+        combined = completed.stdout + completed.stderr
+        require(completed.returncode == 2, "SELF_TEST_EXPECTED_PRECLAIM_FAILURE")
+        require("LAUNCHER_PACKAGE_ROOT_MISMATCH" not in combined, "SELF_TEST_LAUNCHER_ENV_REPAIR_FAILED")
+        require("the following arguments are required" not in combined, "SELF_TEST_PHYSICAL_ARGUMENT_HANDOFF_FAILED")
+        result = load_json(root / "result.json", "SELF_TEST_RESULT_MISSING")
+        require(result.get("authorization_claimed") is False and result.get("authorization_consumed") is False, "SELF_TEST_AUTHORIZATION_BOUNDARY_VIOLATED")
+        require(result.get("board_operation") is False and result.get("usb_enumeration") is False, "SELF_TEST_PHYSICAL_BOUNDARY_VIOLATED")
+        semantic_sample = {"alpha": 1, "beta": {"value": True}}
+        semantic_digest = canonical_sha256(semantic_sample)
+        pretty = dict(semantic_sample)
+        pretty["terminal_record_sha256"] = semantic_digest
+        validate_terminal_record_semantics(json.loads(json.dumps(pretty, indent=4)), semantic_digest)
+        tampered = dict(pretty)
+        tampered["alpha"] = 2
+        try:
+            validate_terminal_record_semantics(tampered, semantic_digest)
+        except DecisionError:
+            pass
+        else:
+            raise DecisionError("SELF_TEST_TERMINAL_SEMANTIC_TAMPER_NOT_REJECTED")
+        value = {
+            "schema": "gh.h3.n2.stage2d9r-g3r-d2-17-g04-physical-decision-driver-self-test/1",
+            "status": "PASS",
+            "inherited_launcher_environment_propagated": True,
+            "required_physical_arguments_supplied": True,
+            "failure_advanced_beyond_launcher_and_argparse": True,
+            "authorization_claimed": False,
+            "authorization_consumed": False,
+            "board_operation": False,
+            "usb_enumeration": False,
+            "terminal_semantic_digest_validation": True,
+            "terminal_formatting_independent": True,
+            "terminal_semantic_tamper_rejected": True,
+        }
+        print(json.dumps(value, sort_keys=True))
+        return 0
+
+
+def parser() -> argparse.ArgumentParser:
+    value = argparse.ArgumentParser()
+    value.add_argument("--self-test-execution-root", type=Path)
+    value.add_argument("--decision-root", type=Path)
+    return value
+
+
+def main() -> int:
+    args = parser().parse_args()
+    if args.self_test_execution_root is not None:
+        return self_test(args.self_test_execution_root)
+    require(args.decision_root is not None, "PHYSICAL_DECISION_ROOT_REQUIRED")
+    return run_physical(args.decision_root)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
