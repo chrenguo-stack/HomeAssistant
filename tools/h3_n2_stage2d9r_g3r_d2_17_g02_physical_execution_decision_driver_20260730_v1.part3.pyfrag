@@ -1,0 +1,162 @@
+        request_path = package_root / REQUEST_REL
+        command = [
+            str(execution_root / OUTER_NAME), "execute",
+            "--package-root", str(execution_root),
+            "--physical-request", str(request_path),
+            "--authorization-record", str(runtime_root / "D2_17_AUTHORIZATION.json"),
+            "--immutable-root", str(roots["immutable-root"]),
+            "--recovery-root", str(roots["recovery-root"]),
+            "--home", str(Path.home()),
+            "--state-root", str(auth_state_root),
+            "--result-output", str(result_path),
+            "--prepare-evidence-root", str(roots["prepare-evidence"]),
+            "--delivery-evidence-root", str(roots["delivery-evidence"]),
+            "--terminalization-evidence-root", str(roots["terminalization-evidence"]),
+            "--openssl", str(targets["openssl"]),
+            "--esptool", str(targets["esptool"]),
+            "--mosquitto", str(targets["mosquitto"]),
+        ]
+        stdout_path = physical_root / "physical.stdout"
+        stderr_path = physical_root / "physical.stderr"
+        with stdout_path.open("wb") as stdout, stderr_path.open("wb") as stderr:
+            os.chmod(stdout_path, 0o600)
+            os.chmod(stderr_path, 0o600)
+            completed = subprocess.run(command, env=execution_env, stdin=subprocess.DEVNULL, stdout=stdout, stderr=stderr, check=False)
+        result = load_json(result_path, "PHYSICAL_RESULT_MISSING_OR_INVALID") if result_path.exists() else {}
+        marker = load_json(auth_marker, "AUTHORIZATION_MARKER_MISSING_OR_INVALID") if auth_marker.exists() else {}
+        consumed = marker.get("status") in {"CONSUMED_PASS", "CONSUMED_FAILED"}
+        passed = completed.returncode == 0 and result.get("status") == "CONSUMED_PASS" and marker.get("status") == "CONSUMED_PASS"
+        terminal: dict[str, Any] = {
+            "schema": "gh.h3.n2.stage2d9r-g3r-d2-17-g02-physical-decision-terminal/1",
+            "status": "PASS" if passed else "FAIL",
+            "terminal_state": "D2_17_G02_PHYSICAL_EXECUTION_CONSUMED_PASS" if passed else str(result.get("terminal_state") or marker.get("status") or "PHYSICAL_EXECUTION_FAILED"),
+            "failure_code": None if passed else str(result.get("failure_code") or "PHYSICAL_EXECUTION_FAILED"),
+            "decision_id": DECISION_ID,
+            "d2_request_id": D2_REQUEST_ID,
+            "authorization_claimed": bool(auth_marker.exists()),
+            "authorization_consumed": consumed,
+            "authorization_record_sha256": AUTHORIZATION_RECORD_SHA256,
+            "execution_identity_sha256": EXECUTION_IDENTITY_SHA256,
+            "physical_result_sha256": sha256_file(result_path) if result_path.exists() else None,
+            "authorization_marker_sha256": sha256_file(auth_marker) if auth_marker.exists() else None,
+            "replay_permitted": False,
+            "automatic_retry_permitted": False,
+            "board_operation": True,
+            "usb_enumeration": True,
+            "serial_operation": True,
+            "esptool_operation": True,
+            "flash_operation": bool(result.get("flash_sha256")),
+            "physical_nvs_operation": True,
+            "broker_started": bool(result.get("broker_log_sha256")),
+            "prepare_executed": int(result.get("prepare_count", 0)) > 0,
+            "verify_executed": int(result.get("verify_count", 0)) > 0,
+            "recovery_executed": bool(result.get("recovery_attempted")),
+            "recovery_succeeded": bool(result.get("recovery_succeeded")),
+            "activate_executed": False,
+            "cleanup_executed": False,
+            "ready": False,
+            "merge": False,
+            "release": False,
+            "tag": False,
+            "deployment": False,
+        }
+        terminal["terminal_record_sha256"] = canonical_sha256(terminal)
+        exclusive_json(terminal_path, terminal)
+        marker_value.update({
+            "status": "CONSUMED_PASS" if passed else "CONSUMED_FAILED",
+            "authorization_claimed": bool(auth_marker.exists()),
+            "authorization_consumed": consumed,
+            "terminal_record_sha256": terminal["terminal_record_sha256"],
+            "completed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        })
+        replace_json(decision_marker, marker_value)
+        print(json.dumps(terminal, sort_keys=True))
+        print("PHYSICAL_RUNTIME_ROOT=" + str(physical_root))
+        print("PHYSICAL_TERMINAL_FILE=" + str(terminal_path))
+        print("PHYSICAL_RESULT_FILE=" + str(result_path))
+        print("AUTHORIZATION_MARKER_FILE=" + str(auth_marker))
+        return 0 if passed else 2
+    except Exception as exc:
+        code = exc.args[0] if isinstance(exc, DecisionError) and exc.args else type(exc).__name__
+        terminal = safe_failure(str(code), preclaim_board_operation=preclaim_board_reached)
+        if not terminal_path.exists():
+            exclusive_json(terminal_path, terminal)
+        print(json.dumps(terminal, sort_keys=True))
+        print("PHYSICAL_RUNTIME_ROOT=" + str(physical_root))
+        print("PHYSICAL_TERMINAL_FILE=" + str(terminal_path))
+        print("PHYSICAL_RESULT_FILE=" + str(result_path))
+        print("AUTHORIZATION_MARKER_FILE=" + str(auth_marker))
+        return 2
+
+
+def self_test(execution_root: Path) -> int:
+    execution_root = execution_root.expanduser().resolve(strict=True)
+    with tempfile.TemporaryDirectory(prefix="d2-17 g02 physical-decision self-test ") as temporary:
+        root = Path(temporary)
+        os.chmod(root, 0o700)
+        paths = {}
+        for name in ("immutable", "recovery", "state", "prepare", "delivery", "terminal"):
+            path = root / name
+            path.mkdir(mode=0o700)
+            paths[name] = path
+        env = execution_environment(execution_root, Path(sys.executable).resolve(strict=True))
+        required_env = {
+            "GH_D2_13_LAUNCHER_PACKAGE_ROOT",
+            "GH_D2_14_LAUNCHER_PACKAGE_ROOT",
+            "GH_D2_15_LAUNCHER_PACKAGE_ROOT",
+            "GH_D2_16_LAUNCHER_PACKAGE_ROOT",
+        }
+        require(all(env.get(name) == str(execution_root) for name in required_env), "INHERITED_LAUNCHER_ENV_NOT_PROPAGATED")
+        request = execution_root.parent / "PHYSICAL_D2_REQUEST_17.json"
+        command = [
+            str(execution_root / OUTER_NAME), "execute",
+            "--package-root", str(execution_root),
+            "--physical-request", str(request),
+            "--authorization-record", str(root / "missing-authorization.json"),
+            "--immutable-root", str(paths["immutable"]),
+            "--recovery-root", str(paths["recovery"]),
+            "--home", str(root),
+            "--state-root", str(paths["state"]),
+            "--result-output", str(root / "result.json"),
+            "--prepare-evidence-root", str(paths["prepare"]),
+            "--delivery-evidence-root", str(paths["delivery"]),
+            "--terminalization-evidence-root", str(paths["terminal"]),
+            "--openssl", "/bin/true",
+            "--esptool", "/bin/true",
+            "--mosquitto", "/bin/true",
+        ]
+        completed = subprocess.run(command, env=env, text=True, capture_output=True, check=False)
+        combined = completed.stdout + completed.stderr
+        require(completed.returncode == 2, "SELF_TEST_EXPECTED_PRECLAIM_FAILURE")
+        require("LAUNCHER_PACKAGE_ROOT_MISMATCH" not in combined, "SELF_TEST_LAUNCHER_ENV_REPAIR_FAILED")
+        require("the following arguments are required" not in combined, "SELF_TEST_PHYSICAL_ARGUMENT_HANDOFF_FAILED")
+        result = load_json(root / "result.json", "SELF_TEST_RESULT_MISSING")
+        require(result.get("authorization_claimed") is False and result.get("authorization_consumed") is False, "SELF_TEST_AUTHORIZATION_BOUNDARY_VIOLATED")
+        require(result.get("board_operation") is False and result.get("usb_enumeration") is False, "SELF_TEST_PHYSICAL_BOUNDARY_VIOLATED")
+        value = {
+            "schema": "gh.h3.n2.stage2d9r-g3r-d2-17-g02-physical-decision-driver-self-test/1",
+            "status": "PASS",
+            "inherited_launcher_environment_propagated": True,
+            "required_physical_arguments_supplied": True,
+            "failure_advanced_beyond_launcher_and_argparse": True,
+            "authorization_claimed": False,
+            "authorization_consumed": False,
+            "board_operation": False,
+            "usb_enumeration": False,
+        }
+        print(json.dumps(value, sort_keys=True))
+        return 0
+
+
+def parser() -> argparse.ArgumentParser:
+    value = argparse.ArgumentParser()
+    value.add_argument("--self-test-execution-root", type=Path)
+    value.add_argument("--decision-root", type=Path)
+    return value
+
+
+def main() -> int:
+    args = parser().parse_args()
+    if args.self_test_execution_root is not None:
+        return self_test(args.self_test_execution_root)
+    require(args.decision_root is not None, "PHYSICAL_DECISION_ROOT_REQUIRED")
