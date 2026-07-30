@@ -3,7 +3,7 @@
 ## 边界
 
 本合同落实已经批准的 `D1-H3N2-STAGE2D9R-G3R-D2-17-G02-PHYSICAL-EXECUTION-20260730-01`。
-它不修改 G02 私有包、冻结 execution identity、授权记录或执行包。物理决策驱动器只负责补齐继承链运行时上下文，并调用冻结的 canonical outer。
+它不修改 G02 私有包、冻结 execution identity、授权记录或执行包。物理决策驱动器只负责补齐继承链运行时上下文，并调用冻结的 canonical outer。驱动源按摘要绑定的分片交付，加载器会在执行前验证每个分片及重组后源码摘要。
 
 ## 执行前强制验证
 
