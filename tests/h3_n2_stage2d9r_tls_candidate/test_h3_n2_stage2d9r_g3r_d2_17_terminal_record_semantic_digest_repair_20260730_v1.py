@@ -80,6 +80,22 @@ class TerminalRecordSemanticDigestRepairTests(unittest.TestCase):
             with self.assertRaisesRegex(contract.TerminalRecordContractError, "TERMINAL_RECORD_DIGEST_BINDING_DRIFT"):
                 contract.verify_terminal_record(path, expected_record_sha256=expected, required_fields={})
 
+    def test_public_failure_and_decision_bindings(self) -> None:
+        cases = (
+            (
+                Path("docs/acceptance/h3-n2-stage2d9r-g3r-d2-17-g02-physical-preclaim-terminal-digest-failure-20260730-v1.json"),
+                "disposition_binding_sha256",
+            ),
+            (
+                Path("docs/decisions/h3-n2-stage2d9r-g3r-d2-17-terminal-record-semantic-digest-repair-20260730-v1.json"),
+                "decision_binding_sha256",
+            ),
+        )
+        for path, field in cases:
+            value = json.loads(path.read_text(encoding="utf-8"))
+            expected = value.pop(field)
+            self.assertEqual(contract.canonical_sha256(value), expected)
+
 
 if __name__ == "__main__":
     unittest.main()
