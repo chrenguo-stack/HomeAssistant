@@ -41,12 +41,14 @@ old_wrapper.bind_predecessor()
 d2_11=old_wrapper.predecessor.predecessor.upstream
 d2_11.install()
 """
+        inherited_pythonpath = os.environ.get("PYTHONPATH")
+        pythonpath = str(TOOLS) if not inherited_pythonpath else str(TOOLS) + os.pathsep + inherited_pythonpath
         run = subprocess.run(
             [sys.executable, "-B", "-c", script],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONPATH": pythonpath},
             check=False,
         )
         self.assertEqual(run.returncode, 1)
