@@ -1,0 +1,126 @@
+name: H3 N2 Stage2D9R G3R D2-17 G02 target Mac static-check acceptance
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-g3r-d2-17-g02-target-mac-static-check-acceptance-ci-v1.yml"
+      - "docs/acceptance/h3-n2-stage2d9r-g3r-d2-17-g02-target-mac-static-check-passed-20260730-v1.json"
+      - "docs/decisions/h3-n2-stage2d9r-g3r-d2-17-g02-physical-execution-decision-required-20260730-v1.json"
+      - "docs/development/h3-n2-stage2d9r-g3r-d2-17-g02-target-mac-static-check-acceptance-contract-20260730-v1.md"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g02_target_mac_static_check_acceptance_20260730_v1.py"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BASE_HEAD: "11052beaa640905cfcb4f63cb1b23c625d9613d5"
+      BASE_BRANCH: "fix/h3-n2-stage2d9r-g3r-d2-17-private-sha256-coverage-repair-20260730-v1"
+      MAIN_SHA: "64c6b093c3ba6a8476c9392c8d106394b2542fb5"
+      EXECUTION_ARTIFACT_ID: "8752919376"
+      EXECUTION_ARTIFACT_SHA256: "b5e003ad806b7cb924b388fa4be155046cf03799b89ff0253d759a533f37d121"
+      REPAIR_ARTIFACT_ID: "8754306550"
+      REPAIR_ARTIFACT_SHA256: "02e2f1aeb59d89e5da43605aa3f72b8911d545a4cc968a9e8236a40fab6e06c0"
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Verify exact stacked base and add-only inventory
+        env:
+          EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EVENT_BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$PR_HEAD_SHA"
+          test "$EVENT_BASE_SHA" = "$BASE_HEAD"
+          test "$EVENT_BASE_REF" = "$BASE_BRANCH"
+          git merge-base --is-ancestor "$BASE_HEAD" "$PR_HEAD_SHA"
+          python3 -B - <<'PY'
+          import os, subprocess
+          from pathlib import Path
+          expected = {
+            ".github/workflows/h3-n2-stage2d9r-g3r-d2-17-g02-target-mac-static-check-acceptance-ci-v1.yml",
+            "docs/acceptance/h3-n2-stage2d9r-g3r-d2-17-g02-target-mac-static-check-passed-20260730-v1.json",
+            "docs/decisions/h3-n2-stage2d9r-g3r-d2-17-g02-physical-execution-decision-required-20260730-v1.json",
+            "docs/development/h3-n2-stage2d9r-g3r-d2-17-g02-target-mac-static-check-acceptance-contract-20260730-v1.md",
+            "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g02_target_mac_static_check_acceptance_20260730_v1.py",
+          }
+          observed = set(subprocess.check_output(
+              ["git", "diff", "--name-only", f"{os.environ['BASE_HEAD']}...{os.environ['PR_HEAD_SHA']}"],
+              text=True,
+          ).splitlines())
+          if observed != expected:
+              raise SystemExit(f"SOURCE_INVENTORY_MISMATCH missing={sorted(expected-observed)} extra={sorted(observed-expected)}")
+          for name in expected:
+              if not Path(name).is_file():
+                  raise SystemExit(f"SOURCE_FILE_MISSING:{name}")
+          PY
+
+      - name: Verify main, PR 218 and both load-bearing Artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${GITHUB_REPOSITORY}/pulls/218" -o /tmp/pr218.json
+          curl --fail --silent --show-error -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${GITHUB_REPOSITORY}/commits/main" -o /tmp/main.json
+          curl --fail --silent --show-error -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${EXECUTION_ARTIFACT_ID}" -o /tmp/execution-artifact.json
+          curl --fail --silent --show-error -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${REPAIR_ARTIFACT_ID}" -o /tmp/repair-artifact.json
+          python3 -B - <<'PY'
+          import json, os
+          pr = json.load(open('/tmp/pr218.json'))
+          assert pr['state'] == 'open' and pr['draft'] is True and pr['merged'] is False and pr['head']['sha'] == os.environ['BASE_HEAD']
+          main = json.load(open('/tmp/main.json'))
+          assert main['sha'] == os.environ['MAIN_SHA']
+          execution = json.load(open('/tmp/execution-artifact.json'))
+          assert execution['id'] == int(os.environ['EXECUTION_ARTIFACT_ID']) and execution['expired'] is False
+          assert execution['digest'] == 'sha256:' + os.environ['EXECUTION_ARTIFACT_SHA256']
+          repair = json.load(open('/tmp/repair-artifact.json'))
+          assert repair['id'] == int(os.environ['REPAIR_ARTIFACT_ID']) and repair['expired'] is False
+          assert repair['workflow_run']['head_sha'] == os.environ['BASE_HEAD']
+          assert repair['digest'] == 'sha256:' + os.environ['REPAIR_ARTIFACT_SHA256']
+          PY
+
+      - name: Validate secret-free acceptance and closed physical gate
+        run: |
+          set -euo pipefail
+          python3 -B -m unittest tests.h3_n2_stage2d9r_tls_candidate.test_h3_n2_stage2d9r_g3r_d2_17_g02_target_mac_static_check_acceptance_20260730_v1
+          ! grep -R --line-number --fixed-strings '/Users/' docs/acceptance/h3-n2-stage2d9r-g3r-d2-17-g02-target-mac-static-check-passed-20260730-v1.json docs/decisions/h3-n2-stage2d9r-g3r-d2-17-g02-physical-execution-decision-required-20260730-v1.json
+          ! find . -type l -print -quit | grep -q .
+          ! find . \( -type d -name __pycache__ -o -type f -name '*.pyc' \) -print -quit | grep -q .
+
+      - name: Build exact-head acceptance Artifact
+        run: |
+          set -euo pipefail
+          OUT=/tmp/d2-17-g02-target-mac-static-check-acceptance
+          mkdir -p "$OUT/source"
+          cp --parents \
+            .github/workflows/h3-n2-stage2d9r-g3r-d2-17-g02-target-mac-static-check-acceptance-ci-v1.yml \
+            docs/acceptance/h3-n2-stage2d9r-g3r-d2-17-g02-target-mac-static-check-passed-20260730-v1.json \
+            docs/decisions/h3-n2-stage2d9r-g3r-d2-17-g02-physical-execution-decision-required-20260730-v1.json \
+            docs/development/h3-n2-stage2d9r-g3r-d2-17-g02-target-mac-static-check-acceptance-contract-20260730-v1.md \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g02_target_mac_static_check_acceptance_20260730_v1.py \
+            --target-directory "$OUT/source"
+          printf '%s\n' "$PR_HEAD_SHA" > "$OUT/SOURCE_SHA"
+          (cd "$OUT" && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
+          (cd "$OUT" && sha256sum -c SHA256SUMS)
+
+      - name: Upload exact-head acceptance Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: d2-17-g02-target-mac-static-check-acceptance-review-v1
+          path: /tmp/d2-17-g02-target-mac-static-check-acceptance
+          if-no-files-found: error
+          retention-days: 7
+          include-hidden-files: true
