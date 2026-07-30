@@ -68,7 +68,15 @@ jobs:
           curl --fail --location --silent --show-error -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${EXECUTION_ARTIFACT_ID}/zip" -o /tmp/execution.zip
           mkdir /tmp/execution-artifact
           unzip -q /tmp/execution.zip -d /tmp/execution-artifact
-          test -d /tmp/execution-artifact/d2-17-execution-identity-frozen-physical-d2-execution-package
+          EXECUTION_ROOT=/tmp/execution-artifact/d2-17-execution-identity-frozen-physical-d2-execution-package
+          test -d "$EXECUTION_ROOT"
+          # upload-artifact/download-artifact does not preserve POSIX modes. Restore the
+          # frozen 0600 modes only in this disposable /tmp CI fixture; content is unchanged.
+          chmod 0600 \
+            "$EXECUTION_ROOT/run_d2_17_canonical_delivery_outer_20260730_v1.sh" \
+            "$EXECUTION_ROOT/run_stage2d9r_g3r_d2_17_execution_identity_frozen_physical_d2_20260730_v1.sh"
+          test "$(stat -c '%a' "$EXECUTION_ROOT/run_d2_17_canonical_delivery_outer_20260730_v1.sh")" = 600
+          test "$(stat -c '%a' "$EXECUTION_ROOT/run_stage2d9r_g3r_d2_17_execution_identity_frozen_physical_d2_20260730_v1.sh")" = 600
       - name: Run real two-hop host-only tests
         env:
           D2_17_G07_EXECUTION_ROOT: /tmp/execution-artifact/d2-17-execution-identity-frozen-physical-d2-execution-package
