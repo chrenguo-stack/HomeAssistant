@@ -16,8 +16,15 @@
   "board_identity_sha256": "2607b7df80b8b636548a8d9d97c0a6b4e4ead57e9a2cc6fcb7f93643617242f8",
   "cleanup_authorized": false,
   "d2_request_id": "D2-H3N2-STAGE2D9R-G3R-EXECUTION-IDENTITY-FROZEN-PREFLIGHT-STABILIZED-PHYSICAL-20260730-17",
-  "decision_binding_sha256": "c80d8f0d25d458d00c9a63bbbd89e9dd95fa7ccb9177172e3611745d44ddf0b0",
-  "decision_driver_sha256": "b2eed827390fe918a0b4a40c0ca040cec5a5d1976e43aca5eccd3220f882b594",
+  "decision_binding_sha256": "c267df6faaa0f8d870ed3905551da60b34beb837fa2818880339b77be922f51b",
+  "decision_driver_assembled_sha256": "b2eed827390fe918a0b4a40c0ca040cec5a5d1976e43aca5eccd3220f882b594",
+  "decision_driver_part_sha256": {
+    "h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_driver_20260730_v1.part1.pyfrag": "e398b17c45069ba0f0fccc8452103308074573e5e3e6a3eb6e46852ab8f90b96",
+    "h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_driver_20260730_v1.part2.pyfrag": "7e0277e4a3f5e1442772a0a008d85b35e8ac1a6236aaf0daf33421248fd37b81",
+    "h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_driver_20260730_v1.part3.pyfrag": "a34cf7cf17c7becad01c6a61c0e783dd7ecd5ab00e69ddff9df3c3ff6197f7a4",
+    "h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_driver_20260730_v1.part4.pyfrag": "5bf86976c851805875e46fda3a95c876ca0179fd8fccb2a0f6cb194d9582367f"
+  },
+  "decision_driver_sha256": "89d7431f6bcbea048b9ccc0b8a52479d686ccc84db66daa0c3e4e6db7434ed99",
   "decision_id": "D1-H3N2-STAGE2D9R-G3R-D2-17-G02-PHYSICAL-EXECUTION-20260730-01",
   "decision_launcher_sha256": "651d0c2bf738716f790ff4e8ab9da8fb766bfee3b1b318eecb0d4abca89c97e1",
   "decision_required_binding_sha256": "222a8b0fb8a4b554841cdf93776a403e76572a5cbd6f8012d330fafbdbecb722",
