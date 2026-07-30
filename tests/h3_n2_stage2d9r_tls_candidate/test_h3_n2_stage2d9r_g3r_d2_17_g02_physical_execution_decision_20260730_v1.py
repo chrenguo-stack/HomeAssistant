@@ -15,6 +15,7 @@ DRIVER = ROOT / "tools/h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision
 SHELL = ROOT / "tools/run_h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_20260730_v1.sh"
 DECISION = ROOT / "docs/decisions/h3-n2-stage2d9r-g3r-d2-17-g02-physical-execution-20260730-v1.json"
 ACCEPTANCE = ROOT / "docs/acceptance/h3-n2-stage2d9r-g3r-d2-17-g02-physical-execution-authorized-pending-20260730-v1.json"
+PARTS = [ROOT / "tools" / name for name in ['h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_driver_20260730_v1.part1.pyfrag', 'h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_driver_20260730_v1.part2.pyfrag', 'h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_driver_20260730_v1.part3.pyfrag', 'h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_driver_20260730_v1.part4.pyfrag']]
 
 
 def canonical_sha256(value: object) -> str:
@@ -42,9 +43,16 @@ class PhysicalDecisionTest(unittest.TestCase):
     def test_driver_and_launcher_hashes_bound(self) -> None:
         decision = json.loads(DECISION.read_text())
         self.assertEqual(hashlib.sha256(DRIVER.read_bytes()).hexdigest(), decision["decision_driver_sha256"])
+        assembled = b""
+        for part in PARTS:
+            digest = hashlib.sha256(part.read_bytes()).hexdigest()
+            self.assertEqual(digest, decision["decision_driver_part_sha256"][part.name])
+            assembled += part.read_bytes()
+        self.assertEqual(hashlib.sha256(assembled).hexdigest(), decision["decision_driver_assembled_sha256"])
         self.assertEqual(hashlib.sha256(SHELL.read_bytes()).hexdigest(), decision["decision_launcher_sha256"])
-        self.assertNotIn("/Users/", DRIVER.read_text())
-        self.assertNotIn("chenrenguo", DRIVER.read_text().lower())
+        public_text = DRIVER.read_text() + "".join(part.read_text() for part in PARTS)
+        self.assertNotIn("/Users/", public_text)
+        self.assertNotIn("chenrenguo", public_text.lower())
 
     def test_environment_propagation(self) -> None:
         value = module()
