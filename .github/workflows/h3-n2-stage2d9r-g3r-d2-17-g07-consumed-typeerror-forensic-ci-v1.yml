@@ -15,15 +15,22 @@ jobs:
   review:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      BASE_HEAD: "813595aa9bfe2867473923c787daaf6a86afaa82"
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      PYTHONDONTWRITEBYTECODE: "1"
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
       - name: Verify exact base ancestry and add-only inventory
         run: |
           set -euo pipefail
-          git fetch origin 813595aa9bfe2867473923c787daaf6a86afaa82
-          git merge-base --is-ancestor 813595aa9bfe2867473923c787daaf6a86afaa82 HEAD
+          test "$(git rev-parse HEAD)" = "$PR_HEAD_SHA"
+          git merge-base --is-ancestor "$BASE_HEAD" "$PR_HEAD_SHA"
           python3 -B - <<'PY'
-          import subprocess
+          import os, subprocess
           expected = {
             ".github/workflows/h3-n2-stage2d9r-g3r-d2-17-g07-consumed-typeerror-forensic-ci-v1.yml",
             "docs/acceptance/h3-n2-stage2d9r-g3r-d2-17-g07-consumed-typeerror-failure-disposition-20260731-v1.json",
@@ -33,7 +40,7 @@ jobs:
             "tools/run_h3_n2_stage2d9r_g3r_d2_17_g07_consumed_typeerror_forensic_ci_20260731_v1.sh",
             "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g07_consumed_typeerror_forensic_20260731_v1.py",
           }
-          observed=set(subprocess.check_output(["git","diff","--name-only","813595aa9bfe2867473923c787daaf6a86afaa82...HEAD"],text=True).splitlines())
+          observed=set(subprocess.check_output(["git","diff","--name-only",f"{os.environ['BASE_HEAD']}...{os.environ['PR_HEAD_SHA']}"],text=True).splitlines())
           if observed != expected:
               raise SystemExit(f"INVENTORY_MISMATCH missing={sorted(expected-observed)} extra={sorted(observed-expected)}")
           PY
@@ -53,7 +60,7 @@ jobs:
             tools/run_h3_n2_stage2d9r_g3r_d2_17_g07_consumed_typeerror_forensic_ci_20260731_v1.sh \
             tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g07_consumed_typeerror_forensic_20260731_v1.py \
             --target-directory "$OUT/source"
-          git rev-parse HEAD > "$OUT/SOURCE_SHA"
+          printf '%s\n' "$PR_HEAD_SHA" > "$OUT/SOURCE_SHA"
           (cd "$OUT" && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
           (cd "$OUT" && sha256sum -c SHA256SUMS)
       - uses: actions/upload-artifact@v4
