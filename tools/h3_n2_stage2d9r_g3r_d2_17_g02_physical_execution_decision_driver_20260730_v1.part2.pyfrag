@@ -1,0 +1,157 @@
+    require(terminal.get("execution_identity_sha256") == EXECUTION_IDENTITY_SHA256, "TERMINAL_IDENTITY_BINDING_DRIFT")
+    auth = load_json(auth_path, "AUTHORIZATION_RECORD_INVALID")
+    identity = load_json(identity_path, "EXECUTION_IDENTITY_INVALID")
+    require(auth.get("authorization_record_sha256") == AUTHORIZATION_RECORD_SHA256, "AUTHORIZATION_RECORD_BINDING_DRIFT")
+    require(identity.get("execution_identity_sha256") == EXECUTION_IDENTITY_SHA256, "EXECUTION_IDENTITY_BINDING_DRIFT")
+    require(auth.get("board_identity_sha256") == BOARD_IDENTITY_SHA256, "BOARD_IDENTITY_BINDING_DRIFT")
+    require(auth.get("serial_identity_sha256") == SERIAL_IDENTITY_SHA256, "SERIAL_IDENTITY_BINDING_DRIFT")
+    require(auth.get("baseline_state_sha256") == BASELINE_STATE_SHA256, "BASELINE_STATE_BINDING_DRIFT")
+    require(auth.get("authorization_claimed") is False and auth.get("authorization_consumed") is False, "AUTHORIZATION_ALREADY_USED")
+    expires = datetime.fromisoformat(str(auth.get("expires_at")).replace("Z", "+00:00")).astimezone(timezone.utc)
+    require(expires.isoformat().replace("+00:00", "Z") == AUTHORIZATION_EXPIRES_AT, "AUTHORIZATION_EXPIRY_DRIFT")
+    require(datetime.now(timezone.utc) <= expires, "AUTHORIZATION_EXPIRED")
+    execution_root = (package_root / EXECUTION_REL).resolve(strict=True)
+    request_path = (package_root / REQUEST_REL).resolve(strict=True)
+    sys.path.insert(0, str(execution_root))
+    import h3_n2_stage2d9r_g3r_d2_17_execution_identity_frozen_physical_d2_wrapper_20260730_v1 as wrapper
+    import h3_n2_stage2d9r_g3r_d2_17_execution_identity_freeze_contract_20260730_v1 as contract
+    os.environ.update(execution_environment(execution_root, targets["python"]))
+    os.environ["GH_D2_17_OUTER_PACKAGE_ROOT"] = str(execution_root)
+    os.environ["GH_D2_17_LAUNCHER_PACKAGE_ROOT"] = str(execution_root)
+    wrapper.bind_complete_chain()
+    core = wrapper._bound_d2_11().core
+    request = contract.load_json(request_path, "PHYSICAL_REQUEST_INVALID")
+    contract.validate_physical_request(request, execution_root)
+    contract.validate_execution_identity(
+        identity,
+        execution_root,
+        request=request,
+        controller_path=Path(core.__file__),
+        python_path=targets["python"],
+        openssl_path=targets["openssl"],
+        esptool_path=targets["esptool"],
+        mosquitto_path=targets["mosquitto"],
+    )
+    contract.validate_authorization_contract(auth, request, identity, now=datetime.now(timezone.utc))
+    core.validate_private_metadata(Path.home())
+    core.validate_authorization(
+        auth_path,
+        package_root=execution_root,
+        python_path=targets["python"],
+        openssl_path=targets["openssl"],
+        esptool_path=targets["esptool"],
+        mosquitto_path=targets["mosquitto"],
+    )
+    return auth, identity
+
+
+def safe_failure(code: str, *, preclaim_board_operation: bool = False) -> dict[str, Any]:
+    value: dict[str, Any] = {
+        "schema": "gh.h3.n2.stage2d9r-g3r-d2-17-g02-physical-decision-terminal/1",
+        "status": "BLOCKED_BEFORE_INHERITED_CLAIM",
+        "terminal_state": "PHYSICAL_DECISION_PRECLAIM_BLOCKED_UNCLAIMED_UNCONSUMED",
+        "failure_code": code,
+        "decision_id": DECISION_ID,
+        "d2_request_id": D2_REQUEST_ID,
+        "authorization_claimed": False,
+        "authorization_consumed": False,
+        "replay_permitted": False,
+        "automatic_retry_permitted": False,
+        "board_operation": preclaim_board_operation,
+        "usb_enumeration": preclaim_board_operation,
+        "serial_operation": preclaim_board_operation,
+        "esptool_operation": preclaim_board_operation,
+        "flash_operation": False,
+        "physical_nvs_operation": preclaim_board_operation,
+        "broker_started": False,
+        "prepare_executed": False,
+        "verify_executed": False,
+        "recovery_executed": False,
+        "activate_executed": False,
+        "cleanup_executed": False,
+        "ready": False,
+        "merge": False,
+        "release": False,
+        "tag": False,
+        "deployment": False,
+    }
+    value["terminal_record_sha256"] = canonical_sha256(value)
+    return value
+
+
+def run_physical(decision_root: Path) -> int:
+    require(sys.platform == "darwin", "TARGET_HOST_NOT_DARWIN")
+    package_root = (Path.home() / "Downloads/ActiveTestRuns" / PACKAGE_NAME).resolve(strict=True)
+    runtime_root = package_root.parent / (PACKAGE_NAME + "_runtime")
+    require(runtime_root.is_dir() and not runtime_root.is_symlink(), "G02_RUNTIME_ROOT_INVALID")
+    decision_root = decision_root.resolve(strict=True)
+    decision_sums = decision_root / "SHA256SUMS"
+    require(decision_sums.is_file() and not decision_sums.is_symlink(), "PHYSICAL_DECISION_SHA256SUMS_MISSING")
+    expected = {}
+    for line in decision_sums.read_text(encoding="utf-8").splitlines():
+        digest, name = line.split("  ", 1)
+        expected[name] = digest
+    observed = {p.relative_to(decision_root).as_posix() for p in decision_root.rglob("*") if p.is_file() and not p.is_symlink() and p != decision_sums}
+    require(set(expected) == observed, "PHYSICAL_DECISION_SHA256SUMS_COVERAGE_MISMATCH")
+    for name, digest in expected.items():
+        require(sha256_file(decision_root / name) == digest, "PHYSICAL_DECISION_MEMBER_DIGEST_MISMATCH:" + name)
+    artifact = decision_root / "D2_17_G02_ACCEPTANCE_ARTIFACT_8754825029.zip"
+    require(artifact.is_file() and sha256_file(artifact) == ACCEPTANCE_ARTIFACT_SHA256, "ACCEPTANCE_ARTIFACT_DIGEST_DRIFT")
+    targets = resolved_targets()
+    physical_root = runtime_root / "D2_17_G02_PHYSICAL_EXECUTION_20260730_01"
+    terminal_path = physical_root / "D2_17_G02_PHYSICAL_DECISION_TERMINAL.json"
+    result_path = physical_root / "D2_17_G02_PHYSICAL_RESULT.json"
+    decision_marker = Path.home() / ".local/state/greenhouse-stage2d9r/d2-17-g02-physical-decisions" / (DECISION_ID + ".json")
+    auth_state_root = Path.home() / ".local/state/greenhouse-stage2d9r/d2-authorizations"
+    auth_marker = auth_state_root / AUTH_MARKER_NAME
+    require(not physical_root.exists(), "PHYSICAL_RUNTIME_ROOT_ALREADY_EXISTS")
+    require(not decision_marker.exists(), "PHYSICAL_DECISION_ALREADY_USED")
+    require(not auth_marker.exists(), "AUTHORIZATION_ALREADY_CLAIMED_OR_CONSUMED")
+    physical_root.mkdir(parents=True, mode=0o700)
+    os.chmod(physical_root, 0o700)
+    preclaim_board_reached = False
+    try:
+        auth, _identity = validate_host_only_evidence(package_root, runtime_root, targets)
+        execution_root = (package_root / EXECUTION_REL).resolve(strict=True)
+        sys.path.insert(0, str(execution_root))
+        import h3_n2_stage2d9r_g3r_d2_17_execution_identity_frozen_physical_d2_wrapper_20260730_v1 as wrapper
+        wrapper.bind_complete_chain()
+        core = wrapper._bound_d2_11().core
+        preclaim_work = physical_root / "preclaim-baseline"
+        preclaim_work.mkdir(mode=0o700)
+        preclaim_board_reached = True
+        selected = core.select_serial(auth)
+        baseline = core.baseline(selected, targets["esptool"], preclaim_work, auth)
+        require(canonical_sha256(baseline) == BASELINE_STATE_SHA256, "PRECLAIM_BASELINE_STATE_DRIFT")
+        marker_value = {
+            "schema": "gh.h3.n2.stage2d9r-g3r-d2-17-g02-physical-decision-marker/1",
+            "status": "PHYSICAL_DECISION_CLAIMED_BOARD_BASELINE_VERIFIED",
+            "decision_id": DECISION_ID,
+            "d2_request_id": D2_REQUEST_ID,
+            "pr219_head": PR219_HEAD,
+            "acceptance_artifact_id": ACCEPTANCE_ARTIFACT_ID,
+            "acceptance_artifact_sha256": ACCEPTANCE_ARTIFACT_SHA256,
+            "acceptance_binding_sha256": ACCEPTANCE_BINDING_SHA256,
+            "decision_required_binding_sha256": DECISION_REQUIRED_BINDING_SHA256,
+            "authorization_record_sha256": AUTHORIZATION_RECORD_SHA256,
+            "execution_identity_sha256": EXECUTION_IDENTITY_SHA256,
+            "board_identity_sha256": BOARD_IDENTITY_SHA256,
+            "serial_identity_sha256": SERIAL_IDENTITY_SHA256,
+            "baseline_state_sha256": BASELINE_STATE_SHA256,
+            "authorization_claimed": False,
+            "authorization_consumed": False,
+            "claimed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "one_shot": True,
+            "replay_permitted": False,
+            "automatic_retry_permitted": False,
+        }
+        marker_value["marker_sha256"] = canonical_sha256(marker_value)
+        exclusive_json(decision_marker, marker_value)
+        auth_state_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+        os.chmod(auth_state_root, 0o700)
+        roots = {}
+        for name in ("immutable-root", "recovery-root", "prepare-evidence", "delivery-evidence", "terminalization-evidence"):
+            path = physical_root / name
+            path.mkdir(mode=0o700)
+            roots[name] = path
+        execution_env = execution_environment(execution_root, targets["python"])
