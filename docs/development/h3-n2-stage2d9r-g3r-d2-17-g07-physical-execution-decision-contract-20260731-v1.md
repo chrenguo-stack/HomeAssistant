@@ -8,4 +8,6 @@ Before inherited claim, the driver validates the decision-package root manifest,
 
 Both frozen shell hops remain content-bound at mode `0600`. The driver independently verifies the canonical outer and inner launcher, rebuilds the outer environment contract, and invokes the verified inner launcher through `/bin/sh`; it does not chmod or mutate the payload.
 
+After the driver writes or updates the separate physical-decision marker, the no-argument entry point runs a content-bound finalizer that removes the old `marker_sha256`, recomputes the canonical JSON digest over the terminal marker fields, and atomically replaces only that decision marker. It does not modify the inherited authorization marker, authorization record, runtime payload or board state. The driver's original exit code is preserved.
+
 Any drift closes the run. Replay, automatic retry, ACTIVATE, CLEANUP, Ready, merge, release, tag and deployment are forbidden.
