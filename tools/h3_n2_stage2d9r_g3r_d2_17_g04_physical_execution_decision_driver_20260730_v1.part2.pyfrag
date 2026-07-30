@@ -1,0 +1,137 @@
+def execution_environment(execution_root: Path, python_path: Path) -> dict[str, str]:
+    root = execution_root.resolve(strict=True).as_posix()
+    env = dict(os.environ)
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    env["GH_D2_17_DELIVERY_PROFILE"] = "private-package"
+    env["GH_D2_13_LAUNCHER_PACKAGE_ROOT"] = root
+    env["GH_D2_14_LAUNCHER_PACKAGE_ROOT"] = root
+    env["GH_D2_15_LAUNCHER_PACKAGE_ROOT"] = root
+    env["GH_D2_16_LAUNCHER_PACKAGE_ROOT"] = root
+    env["PATH"] = str(python_path.parent) + os.pathsep + env.get("PATH", "")
+    return env
+
+
+def validate_host_only_evidence(package_root: Path, runtime_root: Path, targets: dict[str, Path]) -> tuple[dict[str, Any], dict[str, Any]]:
+    verify_root_sums(package_root)
+    terminal_path = runtime_root / "D2_17_TARGET_MAC_STATIC_CHECK_TERMINAL.json"
+    auth_path = runtime_root / "D2_17_AUTHORIZATION.json"
+    identity_path = runtime_root / "D2_17_EXECUTION_IDENTITY.json"
+    static_path = runtime_root / "D2_17_TARGET_MAC_STATIC_CHECK.json"
+    idempotency_path = runtime_root / "D2_17_BIND_INSTALL_IDEMPOTENCY.json"
+    sentinel_path = runtime_root / "D2_17_HARDWARE_SENTINEL_SELF_CHECK.json"
+    for path, digest, code in (
+        (auth_path, AUTHORIZATION_FILE_SHA256, "AUTHORIZATION_FILE_DIGEST_DRIFT"),
+        (static_path, STATIC_CHECK_FILE_SHA256, "STATIC_CHECK_FILE_DIGEST_DRIFT"),
+        (idempotency_path, IDEMPOTENCY_FILE_SHA256, "IDEMPOTENCY_FILE_DIGEST_DRIFT"),
+        (sentinel_path, SENTINEL_FILE_SHA256, "SENTINEL_FILE_DIGEST_DRIFT"),
+    ):
+        require(path.is_file() and not path.is_symlink() and sha256_file(path) == digest, code)
+    terminal = load_json(terminal_path, "TERMINAL_RECORD_INVALID")
+    validate_terminal_record_semantics(terminal, TERMINAL_RECORD_SHA256)
+    require(terminal.get("terminal_record_digest_semantics") == "CANONICAL_JSON_WITH_TERMINAL_RECORD_SHA256_REMOVED", "TERMINAL_RECORD_DIGEST_SEMANTICS_DRIFT")
+    require(terminal.get("status") == "PASS", "TERMINAL_STATUS_NOT_PASS")
+    require(terminal.get("terminal_state") == "TARGET_MAC_STATIC_CHECK_PASSED_AUTHORIZATION_UNCLAIMED_UNCONSUMED", "TERMINAL_STATE_DRIFT")
+    require(terminal.get("authorization_created") is True and terminal.get("authorization_claimed") is False and terminal.get("authorization_consumed") is False, "TERMINAL_AUTHORIZATION_STATE_DRIFT")
+    require(terminal.get("physical_decision_created") is False, "TERMINAL_PHYSICAL_DECISION_ALREADY_CREATED")
+    require(terminal.get("authorization_record_sha256") == AUTHORIZATION_RECORD_SHA256, "TERMINAL_AUTHORIZATION_BINDING_DRIFT")
+    require(terminal.get("execution_identity_sha256") == EXECUTION_IDENTITY_SHA256, "TERMINAL_IDENTITY_BINDING_DRIFT")
+    require(terminal.get("package_generation") == "G04", "TERMINAL_PACKAGE_GENERATION_DRIFT")
+    require(terminal.get("private_delivery_binding_sha256") == PRIVATE_DELIVERY_BINDING_SHA256, "TERMINAL_PRIVATE_DELIVERY_BINDING_DRIFT")
+    require(terminal.get("private_source_sha") == PR223_HEAD, "TERMINAL_PRIVATE_SOURCE_SHA_DRIFT")
+    auth = load_json(auth_path, "AUTHORIZATION_RECORD_INVALID")
+    identity = load_json(identity_path, "EXECUTION_IDENTITY_INVALID")
+    require(auth.get("authorization_record_sha256") == AUTHORIZATION_RECORD_SHA256, "AUTHORIZATION_RECORD_BINDING_DRIFT")
+    require(identity.get("execution_identity_sha256") == EXECUTION_IDENTITY_SHA256, "EXECUTION_IDENTITY_BINDING_DRIFT")
+    require(auth.get("board_identity_sha256") == BOARD_IDENTITY_SHA256, "BOARD_IDENTITY_BINDING_DRIFT")
+    require(auth.get("serial_identity_sha256") == SERIAL_IDENTITY_SHA256, "SERIAL_IDENTITY_BINDING_DRIFT")
+    require(auth.get("baseline_state_sha256") == BASELINE_STATE_SHA256, "BASELINE_STATE_BINDING_DRIFT")
+    require(auth.get("authorization_claimed") is False and auth.get("authorization_consumed") is False, "AUTHORIZATION_ALREADY_USED")
+    expires = datetime.fromisoformat(str(auth.get("expires_at")).replace("Z", "+00:00")).astimezone(timezone.utc)
+    require(expires.isoformat().replace("+00:00", "Z") == AUTHORIZATION_EXPIRES_AT, "AUTHORIZATION_EXPIRY_DRIFT")
+    require(datetime.now(timezone.utc) <= expires, "AUTHORIZATION_EXPIRED")
+    execution_root = (package_root / EXECUTION_REL).resolve(strict=True)
+    request_path = (package_root / REQUEST_REL).resolve(strict=True)
+    sys.path.insert(0, str(execution_root))
+    import h3_n2_stage2d9r_g3r_d2_17_execution_identity_frozen_physical_d2_wrapper_20260730_v1 as wrapper
+    import h3_n2_stage2d9r_g3r_d2_17_execution_identity_freeze_contract_20260730_v1 as contract
+    os.environ.update(execution_environment(execution_root, targets["python"]))
+    os.environ["GH_D2_17_OUTER_PACKAGE_ROOT"] = str(execution_root)
+    os.environ["GH_D2_17_LAUNCHER_PACKAGE_ROOT"] = str(execution_root)
+    wrapper.bind_complete_chain()
+    core = wrapper._bound_d2_11().core
+    request = contract.load_json(request_path, "PHYSICAL_REQUEST_INVALID")
+    contract.validate_physical_request(request, execution_root)
+    contract.validate_execution_identity(
+        identity,
+        execution_root,
+        request=request,
+        controller_path=Path(core.__file__),
+        python_path=targets["python"],
+        openssl_path=targets["openssl"],
+        esptool_path=targets["esptool"],
+        mosquitto_path=targets["mosquitto"],
+    )
+    contract.validate_authorization_contract(auth, request, identity, now=datetime.now(timezone.utc))
+    core.validate_private_metadata(Path.home())
+    core.validate_authorization(
+        auth_path,
+        package_root=execution_root,
+        python_path=targets["python"],
+        openssl_path=targets["openssl"],
+        esptool_path=targets["esptool"],
+        mosquitto_path=targets["mosquitto"],
+    )
+    return auth, identity
+
+
+def safe_failure(
+    code: str,
+    *,
+    board_operation: bool = False,
+    usb_enumeration: bool = False,
+    serial_operation: bool = False,
+    esptool_operation: bool = False,
+    physical_nvs_operation: bool = False,
+) -> dict[str, Any]:
+    value: dict[str, Any] = {
+        "schema": "gh.h3.n2.stage2d9r-g3r-d2-17-g04-physical-decision-terminal/1",
+        "status": "BLOCKED_BEFORE_INHERITED_CLAIM",
+        "terminal_state": "PHYSICAL_DECISION_PRECLAIM_BLOCKED_UNCLAIMED_UNCONSUMED",
+        "failure_code": code,
+        "decision_id": DECISION_ID,
+        "d2_request_id": D2_REQUEST_ID,
+        "authorization_claimed": False,
+        "authorization_consumed": False,
+        "replay_permitted": False,
+        "automatic_retry_permitted": False,
+        "board_operation": board_operation,
+        "usb_enumeration": usb_enumeration,
+        "serial_operation": serial_operation,
+        "esptool_operation": esptool_operation,
+        "flash_operation": False,
+        "physical_nvs_operation": physical_nvs_operation,
+        "broker_started": False,
+        "prepare_executed": False,
+        "verify_executed": False,
+        "recovery_executed": False,
+        "activate_executed": False,
+        "cleanup_executed": False,
+        "ready": False,
+        "merge": False,
+        "release": False,
+        "tag": False,
+        "deployment": False,
+    }
+    value["terminal_record_sha256"] = canonical_sha256(value)
+    return value
+
+
+def run_physical(decision_root: Path) -> int:
+    require(sys.platform == "darwin", "TARGET_HOST_NOT_DARWIN")
+    package_root = (Path.home() / "Downloads/ActiveTestRuns" / PACKAGE_NAME).resolve(strict=True)
+    runtime_root = package_root.parent / (PACKAGE_NAME + "_runtime")
+    require(runtime_root.is_dir() and not runtime_root.is_symlink(), "G04_RUNTIME_ROOT_INVALID")
+    decision_root = decision_root.resolve(strict=True)
+    decision_sums = decision_root / "SHA256SUMS"
+    require(decision_sums.is_file() and not decision_sums.is_symlink(), "PHYSICAL_DECISION_SHA256SUMS_MISSING")
+    expected = {}
