@@ -1,0 +1,143 @@
+name: H3 N2 Stage2D9R G3R D2-17 G02 physical execution decision
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-g3r-d2-17-g02-physical-execution-decision-ci-v1.yml"
+      - "docs/acceptance/h3-n2-stage2d9r-g3r-d2-17-g02-physical-execution-authorized-pending-20260730-v1.json"
+      - "docs/decisions/h3-n2-stage2d9r-g3r-d2-17-g02-physical-execution-20260730-v1.json"
+      - "docs/development/h3-n2-stage2d9r-g3r-d2-17-g02-physical-execution-decision-contract-20260730-v1.md"
+      - "tools/h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_driver_20260730_v1.py"
+      - "tools/run_h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_20260730_v1.sh"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_20260730_v1.py"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      BASE_HEAD: "342b4057cccdfa6883591312ce7464d274d90504"
+      BASE_BRANCH: "docs/h3-n2-stage2d9r-g3r-d2-17-g02-target-mac-static-check-acceptance-20260730-v1"
+      ACCEPTANCE_ARTIFACT_ID: "8754825029"
+      ACCEPTANCE_ARTIFACT_SHA256: "3b4ee518209104301bfdd9b12c6ee4b52005c23d9eed79245cd231772a9b3051"
+      EXECUTION_ARTIFACT_ID: "8752919376"
+      EXECUTION_ARTIFACT_SHA256: "b5e003ad806b7cb924b388fa4be155046cf03799b89ff0253d759a533f37d121"
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Verify exact stacked base and add-only inventory
+        env:
+          EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EVENT_BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$PR_HEAD_SHA"
+          test "$EVENT_BASE_SHA" = "$BASE_HEAD"
+          test "$EVENT_BASE_REF" = "$BASE_BRANCH"
+          python3 -B - <<'PY'
+          import os, subprocess
+          expected={
+            ".github/workflows/h3-n2-stage2d9r-g3r-d2-17-g02-physical-execution-decision-ci-v1.yml",
+            "docs/acceptance/h3-n2-stage2d9r-g3r-d2-17-g02-physical-execution-authorized-pending-20260730-v1.json",
+            "docs/decisions/h3-n2-stage2d9r-g3r-d2-17-g02-physical-execution-20260730-v1.json",
+            "docs/development/h3-n2-stage2d9r-g3r-d2-17-g02-physical-execution-decision-contract-20260730-v1.md",
+            "tools/h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_driver_20260730_v1.py",
+            "tools/run_h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_20260730_v1.sh",
+            "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_20260730_v1.py",
+          }
+          observed=set(subprocess.check_output(["git","diff","--name-only",f"{os.environ['BASE_HEAD']}...{os.environ['PR_HEAD_SHA']}"],text=True).splitlines())
+          if observed != expected:
+              raise SystemExit(f"SOURCE_INVENTORY_MISMATCH missing={sorted(expected-observed)} extra={sorted(observed-expected)}")
+          PY
+
+      - name: Verify PR 219 and load-bearing artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${GITHUB_REPOSITORY}/pulls/219" -o /tmp/pr219.json
+          for id in "$ACCEPTANCE_ARTIFACT_ID" "$EXECUTION_ARTIFACT_ID"; do
+            curl --fail --silent --show-error -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${id}" -o "/tmp/artifact-${id}.json"
+          done
+          python3 -B - <<'PY'
+          import json,os
+          pr=json.load(open('/tmp/pr219.json'))
+          assert pr['state']=='open' and pr['draft'] is True and pr['merged'] is False and pr['head']['sha']==os.environ['BASE_HEAD']
+          for key in ('ACCEPTANCE','EXECUTION'):
+              aid=os.environ[f'{key}_ARTIFACT_ID']; expected=os.environ[f'{key}_ARTIFACT_SHA256']
+              value=json.load(open(f'/tmp/artifact-{aid}.json'))
+              assert value['expired'] is False and value['digest']=='sha256:'+expected
+          PY
+
+      - name: Download frozen D2-17 execution artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${EXECUTION_ARTIFACT_ID}/zip" -o /tmp/d2-17-execution.zip
+          echo "${EXECUTION_ARTIFACT_SHA256}  /tmp/d2-17-execution.zip" | sha256sum -c -
+          mkdir /tmp/d2-17-execution
+          unzip -q /tmp/d2-17-execution.zip -d /tmp/d2-17-execution
+
+      - name: Run unit and real-shell host-only tests
+        env:
+          D2_17_G02_EXECUTION_ROOT: /tmp/d2-17-execution/d2-17-execution-identity-frozen-physical-d2-execution-package
+        run: |
+          set -euo pipefail
+          python3 -B -m unittest tests.h3_n2_stage2d9r_tls_candidate.test_h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_20260730_v1
+          test ! -d tools/__pycache__
+          test -z "$(find . -type f \( -name '*.pyc' -o -name '*.pyo' \) -print -quit)"
+          ! grep -R '/Users/' tools/h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_driver_20260730_v1.py
+
+      - name: Build exact-head review artifact
+        run: |
+          set -euo pipefail
+          OUT=/tmp/d2-17-g02-physical-decision-review
+          mkdir -p "$OUT/source"
+          cp --parents \
+            .github/workflows/h3-n2-stage2d9r-g3r-d2-17-g02-physical-execution-decision-ci-v1.yml \
+            docs/acceptance/h3-n2-stage2d9r-g3r-d2-17-g02-physical-execution-authorized-pending-20260730-v1.json \
+            docs/decisions/h3-n2-stage2d9r-g3r-d2-17-g02-physical-execution-20260730-v1.json \
+            docs/development/h3-n2-stage2d9r-g3r-d2-17-g02-physical-execution-decision-contract-20260730-v1.md \
+            tools/h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_driver_20260730_v1.py \
+            tools/run_h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_20260730_v1.sh \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g02_physical_execution_decision_20260730_v1.py \
+            --target-directory "$OUT/source"
+          python3 -B - "$OUT" "$PR_HEAD_SHA" <<'PY'
+          from pathlib import Path
+          import hashlib,json,sys
+          out=Path(sys.argv[1]); head=sys.argv[2]
+          files=[]
+          for path in sorted((out/'source').rglob('*')):
+              if path.is_file():
+                  files.append({'path':path.relative_to(out).as_posix(),'sha256':hashlib.sha256(path.read_bytes()).hexdigest()})
+          value={'schema':'gh.h3.n2.stage2d9r-g3r-d2-17-g02-physical-execution-decision-review/1','status':'PASS','source_sha':head,'decision_id':'D1-H3N2-STAGE2D9R-G3R-D2-17-G02-PHYSICAL-EXECUTION-20260730-01','files':files,'authorization_claimed':False,'authorization_consumed':False,'board_operation':False,'usb_enumeration':False,'flash_operation':False,'ready':False,'merge':False,'release':False,'tag':False,'deployment':False}
+          value['review_binding_sha256']=hashlib.sha256(json.dumps(value,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+          (out/'D2_17_G02_PHYSICAL_EXECUTION_DECISION_REVIEW.json').write_text(json.dumps(value,sort_keys=True,indent=2)+'\n')
+          sums=[]
+          for path in sorted(out.rglob('*')):
+              if path.is_file() and path.name!='SHA256SUMS':
+                  sums.append(hashlib.sha256(path.read_bytes()).hexdigest()+'  '+path.relative_to(out).as_posix())
+          (out/'SHA256SUMS').write_text('\n'.join(sums)+'\n')
+          PY
+
+      - name: Upload exact-head review artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: d2-17-g02-physical-execution-decision-review-v1
+          path: /tmp/d2-17-g02-physical-decision-review
+          if-no-files-found: error
+          retention-days: 7
