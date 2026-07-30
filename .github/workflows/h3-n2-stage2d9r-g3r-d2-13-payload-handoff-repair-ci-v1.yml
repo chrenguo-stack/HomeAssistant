@@ -1,0 +1,160 @@
+name: H3 N2 Stage2D9R G3R D2-13 payload handoff repair
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-g3r-d2-13-payload-handoff-repair-ci-v1.yml"
+      - "docs/decisions/h3-n2-stage2d9r-g3r-d2-13-payload-handoff-repair-20260730-v1.json"
+      - "docs/development/h3-n2-stage2d9r-g3r-d2-13-payload-handoff-repair-contract-20260730-v1.md"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_13_payload_handoff_repair_execution_binding_20260730_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_13_payload_handoff_repair_execution_binding_shell_20260730_v1.sh"
+      - "tools/h3_n2_stage2d9r_g3r_d2_13_payload_handoff_repair_execution_binding_contract_20260730_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_d2_13_payload_handoff_repair_execution_binding_packager_20260730_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_d2_13_payload_handoff_repaired_physical_d2_wrapper_20260730_v1.py"
+      - "tools/run_stage2d9r_g3r_d2_13_payload_handoff_repaired_physical_d2_20260730_v1.sh"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PR210_HEAD: "ad64fcca8ddeeb06bec2d3c379fc3c2c6b669af2"
+      PR210_BRANCH: "fix/h3-n2-stage2d9r-g3r-d2-12-python-bytecode-repaired-successor-execution-binding-20260729-v1"
+      PR210_ARTIFACT_ID: "8730061354"
+      PR210_ARTIFACT_SHA256: "b2b70234e6c66e99e8811b38b7e50992d741d3e34b868aaca5ce8ddbfd08bca8"
+      MAIN_SHA: "64c6b093c3ba6a8476c9392c8d106394b2542fb5"
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Verify exact stacked base and add-only inventory
+        env:
+          EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EVENT_BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$PR_HEAD_SHA"
+          test "$EVENT_BASE_SHA" = "$PR210_HEAD"
+          test "$EVENT_BASE_REF" = "$PR210_BRANCH"
+          git merge-base --is-ancestor "$PR210_HEAD" "$PR_HEAD_SHA"
+          python3 -B - <<'PY'
+          import os, subprocess
+          from pathlib import Path
+          expected = {
+              ".github/workflows/h3-n2-stage2d9r-g3r-d2-13-payload-handoff-repair-ci-v1.yml",
+              "docs/decisions/h3-n2-stage2d9r-g3r-d2-13-payload-handoff-repair-20260730-v1.json",
+              "docs/development/h3-n2-stage2d9r-g3r-d2-13-payload-handoff-repair-contract-20260730-v1.md",
+              "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_13_payload_handoff_repair_execution_binding_20260730_v1.py",
+              "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_13_payload_handoff_repair_execution_binding_shell_20260730_v1.sh",
+              "tools/h3_n2_stage2d9r_g3r_d2_13_payload_handoff_repair_execution_binding_contract_20260730_v1.py",
+              "tools/h3_n2_stage2d9r_g3r_d2_13_payload_handoff_repair_execution_binding_packager_20260730_v1.py",
+              "tools/h3_n2_stage2d9r_g3r_d2_13_payload_handoff_repaired_physical_d2_wrapper_20260730_v1.py",
+              "tools/run_stage2d9r_g3r_d2_13_payload_handoff_repaired_physical_d2_20260730_v1.sh",
+          }
+          observed = set(subprocess.check_output([
+              "git", "diff", "--name-only", f"{os.environ['PR210_HEAD']}...{os.environ['PR_HEAD_SHA']}"
+          ], text=True).splitlines())
+          if observed != expected:
+              raise SystemExit(f"SOURCE_INVENTORY_MISMATCH missing={sorted(expected-observed)} extra={sorted(observed-expected)}")
+          for name in expected:
+              assert Path(name).is_file(), name
+          PY
+
+      - name: Verify PR 210, main and Artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/pulls/210" -o /tmp/pr210.json
+          curl --fail --silent --show-error -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/commits/main" -o /tmp/main.json
+          curl --fail --silent --show-error -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${PR210_ARTIFACT_ID}" -o /tmp/artifact.json
+          python3 -B - <<'PY'
+          import json, os
+          pr=json.load(open('/tmp/pr210.json',encoding='utf-8'))
+          assert pr['state']=='open' and pr['draft'] is True and pr['merged'] is False
+          assert pr['head']['sha']==os.environ['PR210_HEAD']
+          assert json.load(open('/tmp/main.json',encoding='utf-8'))['sha']==os.environ['MAIN_SHA']
+          artifact=json.load(open('/tmp/artifact.json',encoding='utf-8'))
+          assert artifact['id']==int(os.environ['PR210_ARTIFACT_ID'])
+          assert artifact['expired'] is False
+          assert artifact['workflow_run']['head_sha']==os.environ['PR210_HEAD']
+          assert artifact['digest']=='sha256:'+os.environ['PR210_ARTIFACT_SHA256']
+          PY
+          curl --fail --location --silent --show-error -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${PR210_ARTIFACT_ID}/zip" -o /tmp/pr210.zip
+          test "$(sha256sum /tmp/pr210.zip | awk '{print $1}')" = "$PR210_ARTIFACT_SHA256"
+
+      - name: Compile and run focused tests
+        run: |
+          set -euo pipefail
+          python3 -B - <<'PY'
+          import json
+          from pathlib import Path
+          json.load(open('docs/decisions/h3-n2-stage2d9r-g3r-d2-13-payload-handoff-repair-20260730-v1.json',encoding='utf-8'))
+          for path in (
+              'tools/h3_n2_stage2d9r_g3r_d2_13_payload_handoff_repair_execution_binding_contract_20260730_v1.py',
+              'tools/h3_n2_stage2d9r_g3r_d2_13_payload_handoff_repair_execution_binding_packager_20260730_v1.py',
+              'tools/h3_n2_stage2d9r_g3r_d2_13_payload_handoff_repaired_physical_d2_wrapper_20260730_v1.py',
+              'tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_13_payload_handoff_repair_execution_binding_20260730_v1.py',
+          ):
+              compile(Path(path).read_text(encoding='utf-8'), path, 'exec')
+          PY
+          python3 -B -m unittest tests.h3_n2_stage2d9r_tls_candidate.test_h3_n2_stage2d9r_g3r_d2_13_payload_handoff_repair_execution_binding_20260730_v1
+          PR210_ARTIFACT_ZIP=/tmp/pr210.zip SOURCE_SHA="$PR_HEAD_SHA" \
+            sh tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_13_payload_handoff_repair_execution_binding_shell_20260730_v1.sh
+
+      - name: Build deterministic review and enforce public safety
+        run: |
+          set -euo pipefail
+          for lane in 1 2; do
+            python3 -B tools/h3_n2_stage2d9r_g3r_d2_13_payload_handoff_repair_execution_binding_packager_20260730_v1.py \
+              --source-root "$GITHUB_WORKSPACE" --pr210-artifact /tmp/pr210.zip --source-sha "$PR_HEAD_SHA" \
+              --output "/tmp/d2-13-payload-handoff-review-${lane}"
+          done
+          diff -qr /tmp/d2-13-payload-handoff-review-1 /tmp/d2-13-payload-handoff-review-2
+          cd /tmp/d2-13-payload-handoff-review-1
+          sha256sum -c SHA256SUMS
+          test -f PHYSICAL_D2_REQUEST_13.json
+          test -f D2_12_PAYLOAD_HANDOFF_FAILURE_DISPOSITION.json
+          test -z "$(find . -type f -iname '*authorization*.json' -print -quit)"
+          test -z "$(find . -type l -print -quit)"
+          test -z "$(find . \( -type d -name __pycache__ -o -type f -name '*.pyc' \) -print -quit)"
+          python3 -B - <<'PY'
+          import json, os
+          review=json.load(open('D2_13_PAYLOAD_HANDOFF_REPAIR_EXECUTION_BINDING_REVIEW.json',encoding='utf-8'))
+          request=json.load(open('PHYSICAL_D2_REQUEST_13.json',encoding='utf-8'))
+          disposition=json.load(open('D2_12_PAYLOAD_HANDOFF_FAILURE_DISPOSITION.json',encoding='utf-8'))
+          assert review['source_sha']==os.environ['PR_HEAD_SHA']
+          assert review['predecessor_status']=='CONSUMED_FAILED_OR_STOPPED'
+          assert review['predecessor_authorization_claimed'] is False
+          assert review['predecessor_authorization_consumed'] is False
+          assert review['payload_arguments_injected_before_upstream_parser'] is True
+          assert review['macos_path_normalization_required'] is True
+          assert request['authorized'] is False and request['authorization_created'] is False
+          assert disposition['replay_permitted'] is False and disposition['private_paths_included'] is False
+          assert len(review['source_files'])==9
+          PY
+          tar -tf stage2d9r-g3r-d2-13-payload-handoff-repair-execution-binding-review-v1.tar >/tmp/tar-list
+          test -s /tmp/tar-list
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: d2-13-payload-handoff-repair-execution-binding-review-v1
+          path: /tmp/d2-13-payload-handoff-review-1
+          if-no-files-found: error
+          retention-days: 7
