@@ -1,0 +1,36 @@
+name: D2-14 temporary artifact hidden-files fix
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/d2-14-artifact-hidden-files-fix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: Preserve hidden workflow in review Artifact
+        run: |
+          set -euo pipefail
+          python3 -B - <<'PY'
+          from pathlib import Path
+          path = Path(".github/workflows/h3-n2-stage2d9r-g3r-d2-14-payload-extraction-ownership-repair-ci-v1.yml")
+          source = path.read_text(encoding="utf-8")
+          old = "          retention-days: 7\n"
+          new = "          retention-days: 7\n          include-hidden-files: true\n"
+          if source.count(old) != 1 or "include-hidden-files: true" in source:
+              raise SystemExit("ARTIFACT_UPLOAD_PATCH_TARGET_MISMATCH")
+          path.write_text(source.replace(old, new), encoding="utf-8")
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add .github/workflows/h3-n2-stage2d9r-g3r-d2-14-payload-extraction-ownership-repair-ci-v1.yml
+          git commit -m "ci(n2): preserve hidden D2-14 review sources"
+          git push origin "HEAD:${GITHUB_HEAD_REF}"
