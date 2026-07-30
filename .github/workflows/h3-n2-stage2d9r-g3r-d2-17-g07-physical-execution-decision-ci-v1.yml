@@ -8,6 +8,7 @@ on:
       - "docs/development/h3-n2-stage2d9r-g3r-d2-17-g07-physical-execution-decision-contract-20260731-v1.md"
       - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g07_physical_execution_decision_20260731_v1.py"
       - "tools/h3_n2_stage2d9r_g3r_d2_17_g07_physical_execution_decision_driver_20260731_v1.py"
+      - "tools/h3_n2_stage2d9r_g3r_d2_17_g07_physical_decision_marker_finalizer_20260731_v1.py"
       - "tools/run_h3_n2_stage2d9r_g3r_d2_17_g07_physical_execution_decision_20260731_v1.sh"
 permissions:
   contents: read
@@ -44,7 +45,7 @@ jobs:
           git merge-base --is-ancestor "$BASE_HEAD" "$PR_HEAD_SHA"
           python3 -B - <<'PY'
           import os,subprocess
-          expected=set(['.github/workflows/h3-n2-stage2d9r-g3r-d2-17-g07-physical-execution-decision-ci-v1.yml', 'docs/acceptance/h3-n2-stage2d9r-g3r-d2-17-g07-physical-execution-authorized-pending-20260731-v1.json', 'docs/decisions/h3-n2-stage2d9r-g3r-d2-17-g07-physical-execution-20260731-v1.json', 'docs/development/h3-n2-stage2d9r-g3r-d2-17-g07-physical-execution-decision-contract-20260731-v1.md', 'tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g07_physical_execution_decision_20260731_v1.py', 'tools/h3_n2_stage2d9r_g3r_d2_17_g07_physical_execution_decision_driver_20260731_v1.py', 'tools/run_h3_n2_stage2d9r_g3r_d2_17_g07_physical_execution_decision_20260731_v1.sh'])
+          expected=set(['.github/workflows/h3-n2-stage2d9r-g3r-d2-17-g07-physical-execution-decision-ci-v1.yml', 'docs/acceptance/h3-n2-stage2d9r-g3r-d2-17-g07-physical-execution-authorized-pending-20260731-v1.json', 'docs/decisions/h3-n2-stage2d9r-g3r-d2-17-g07-physical-execution-20260731-v1.json', 'docs/development/h3-n2-stage2d9r-g3r-d2-17-g07-physical-execution-decision-contract-20260731-v1.md', 'tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g07_physical_execution_decision_20260731_v1.py', 'tools/h3_n2_stage2d9r_g3r_d2_17_g07_physical_execution_decision_driver_20260731_v1.py', 'tools/h3_n2_stage2d9r_g3r_d2_17_g07_physical_decision_marker_finalizer_20260731_v1.py', 'tools/run_h3_n2_stage2d9r_g3r_d2_17_g07_physical_execution_decision_20260731_v1.sh'])
           observed=set(subprocess.check_output(["git","diff","--name-only",f"{os.environ['BASE_HEAD']}...{os.environ['PR_HEAD_SHA']}"],text=True).splitlines())
           if observed!=expected: raise SystemExit(f"SOURCE_INVENTORY_MISMATCH missing={sorted(expected-observed)} extra={sorted(observed-expected)}")
           PY
@@ -84,7 +85,7 @@ jobs:
           set -euo pipefail
           python3 -B -m unittest tests.h3_n2_stage2d9r_tls_candidate.test_h3_n2_stage2d9r_g3r_d2_17_g07_physical_execution_decision_20260731_v1
           test -z "$(find . -type f \( -name '*.pyc' -o -name '*.pyo' \) -print -quit)"
-          ! grep -R --line-number --fixed-strings '/Users/' docs/acceptance/h3-n2-stage2d9r-g3r-d2-17-g07-physical-execution-authorized-pending-20260731-v1.json docs/decisions/h3-n2-stage2d9r-g3r-d2-17-g07-physical-execution-20260731-v1.json docs/development/h3-n2-stage2d9r-g3r-d2-17-g07-physical-execution-decision-contract-20260731-v1.md tools/h3_n2_stage2d9r_g3r_d2_17_g07_physical_execution_decision_driver_20260731_v1.py
+          ! grep -R --line-number --fixed-strings '/Users/' docs/acceptance/h3-n2-stage2d9r-g3r-d2-17-g07-physical-execution-authorized-pending-20260731-v1.json docs/decisions/h3-n2-stage2d9r-g3r-d2-17-g07-physical-execution-20260731-v1.json docs/development/h3-n2-stage2d9r-g3r-d2-17-g07-physical-execution-decision-contract-20260731-v1.md tools/h3_n2_stage2d9r_g3r_d2_17_g07_physical_execution_decision_driver_20260731_v1.py tools/h3_n2_stage2d9r_g3r_d2_17_g07_physical_decision_marker_finalizer_20260731_v1.py
       - name: Build exact-head review Artifact
         run: |
           set -euo pipefail
@@ -97,6 +98,7 @@ jobs:
             docs/development/h3-n2-stage2d9r-g3r-d2-17-g07-physical-execution-decision-contract-20260731-v1.md \
             tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g07_physical_execution_decision_20260731_v1.py \
             tools/h3_n2_stage2d9r_g3r_d2_17_g07_physical_execution_decision_driver_20260731_v1.py \
+            tools/h3_n2_stage2d9r_g3r_d2_17_g07_physical_decision_marker_finalizer_20260731_v1.py \
             tools/run_h3_n2_stage2d9r_g3r_d2_17_g07_physical_execution_decision_20260731_v1.sh \
             --target-directory "$OUT/source"
           printf '%s\n' "$PR_HEAD_SHA" > "$OUT/SOURCE_SHA"
