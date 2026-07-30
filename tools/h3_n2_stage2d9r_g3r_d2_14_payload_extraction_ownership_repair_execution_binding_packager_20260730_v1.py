@@ -34,6 +34,7 @@ PUBLIC_SOURCE_FILES = (
     "docs/development/h3-n2-stage2d9r-g3r-d2-14-payload-extraction-ownership-repair-contract-20260730-v1.md",
     "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_14_payload_extraction_ownership_repair_execution_binding_20260730_v1.py",
     "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_14_payload_extraction_ownership_repair_execution_binding_shell_20260730_v1.sh",
+    "tools/h3_n2_stage2d9r_g3r_d2_14_payload_extraction_ownership_repair_execution_binding_packager_20260730_v1.py",
     *SOURCE_FILES,
 )
 
