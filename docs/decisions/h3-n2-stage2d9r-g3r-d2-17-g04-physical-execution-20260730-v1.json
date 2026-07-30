@@ -18,8 +18,15 @@
   "board_identity_sha256": "2607b7df80b8b636548a8d9d97c0a6b4e4ead57e9a2cc6fcb7f93643617242f8",
   "cleanup_authorized": false,
   "d2_request_id": "D2-H3N2-STAGE2D9R-G3R-EXECUTION-IDENTITY-FROZEN-PREFLIGHT-STABILIZED-PHYSICAL-20260730-17",
-  "decision_binding_sha256": "34b8ddc54711506f758c9e51f6a121deb35733a3a5b2ebaae3015b99effeb2dc",
-  "decision_driver_sha256": "9209e225186a2ef7356f8d18e602060b8e10e94f8fe03be929aa152f4ab9b7e7",
+  "decision_binding_sha256": "819c1a1febc5233b7689524a84934c8f736d6998a1cc6b8fd435894e1309856c",
+  "decision_driver_assembled_sha256": "3a5d7b636f4283d45793097a008f1b0adfded27158277fcaa1026262f10661ff",
+  "decision_driver_part_sha256": {
+    "h3_n2_stage2d9r_g3r_d2_17_g04_physical_execution_decision_driver_20260730_v1.part1.pyfrag": "ffa88625d02164545ad3d241a40a40f2ed380d84f45c989ee2734685105fdc43",
+    "h3_n2_stage2d9r_g3r_d2_17_g04_physical_execution_decision_driver_20260730_v1.part2.pyfrag": "a4d863986eec3422b74a3cc1dbc97b0ec74e1374096bfcb456cb9badea41d0b9",
+    "h3_n2_stage2d9r_g3r_d2_17_g04_physical_execution_decision_driver_20260730_v1.part3.pyfrag": "10f675122cd5f5c863b3ff5ebe331176eb7c667230e9463ccc6ea50d8cdb7b2d",
+    "h3_n2_stage2d9r_g3r_d2_17_g04_physical_execution_decision_driver_20260730_v1.part4.pyfrag": "2c95430563541138bbf325e4d31963e18854712c96359f502a454321822b9a04"
+  },
+  "decision_driver_sha256": "5528d7f517e6f339ac094e939f78ed82d37a0d61ee611c0603d6f0e11c4f61ed",
   "decision_id": "D1-H3N2-STAGE2D9R-G3R-D2-17-G04-PHYSICAL-EXECUTION-20260730-01",
   "decision_launcher_sha256": "cb31a5995d520ae20fbc7b3d8b1b3cec677253a7ffd5ddc35ea7460cf3221822",
   "decision_required_binding_sha256": "019ed640f005ab784a26aa7d4930d0d5f5f1f6cfc4095758f0433fd1ee89b967",
