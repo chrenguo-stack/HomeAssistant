@@ -1,1 +1,0 @@
-Temporary bootstrap trigger. This file will be removed after the reviewed D2-14 source files are materialized.
