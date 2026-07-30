@@ -1,0 +1,23 @@
+{
+  "authorization_claimed": false,
+  "authorization_consumed": false,
+  "authorization_created": false,
+  "base_head_sha": "2acda017ba287c36718fda1031d55acf4101697d",
+  "base_pr": 224,
+  "cross_field_substitution_forbidden": true,
+  "decision_binding_sha256": "d989ad4ced5d9aee5e0a8396bcb6d1229e5d3e974ebbb590d035e250930dbb5e",
+  "decision_id": "D1-H3N2-STAGE2D9R-G3R-D2-17-G04-PRIVATE-SOURCE-DUAL-BINDING-REPAIR-20260730-01",
+  "failure_disposition_binding_sha256": "e3d08da72f8ebab41aded95fe215ef030e99151bf9fbaee1af7c7b722525f6fb",
+  "g04_retired_no_retry": true,
+  "next_decision_id": "D1-H3N2-STAGE2D9R-G3R-D2-17-G05-PRIVATE-PACKAGE-AND-TARGET-MAC-STATIC-CHECK-AUTHORIZATION-CREATION-20260730-01",
+  "physical_decision_source_expected_sha": "2acda017ba287c36718fda1031d55acf4101697d",
+  "physical_operation": false,
+  "private_material_created": false,
+  "public_acceptance_source_expected_sha": "e58b934c7e00125bf7d7c5a75f6ee338dd5dbdd7",
+  "ready_merge_release_tag_deployment_authorized": false,
+  "repair_scope": "PUBLIC_HOST_ONLY_ADD_ONLY",
+  "root_cause": "G04 physical driver compared terminal.private_source_sha with the later public acceptance HEAD instead of the G04 private-package build source.",
+  "schema": "gh.decision.h3-n2-stage2d9r-g3r-d2-17-g04-private-source-dual-binding-repair/1",
+  "source_fields_are_distinct": true,
+  "terminal_private_source_expected_sha": "0691b3c85cf3ee018cd07cf038138cbf4dcd1f34"
+}
