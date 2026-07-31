@@ -1,0 +1,33 @@
+{
+  "accepted_marker_states": [
+    "CLAIMED",
+    "CONSUMED_PASS",
+    "CONSUMED_FAILED"
+  ],
+  "activate_executed": false,
+  "authorization_created": false,
+  "automatic_retry_permitted": false,
+  "board_operation": false,
+  "broker_started": false,
+  "cleanup_executed": false,
+  "esptool_operation": false,
+  "flash_operation": false,
+  "g14_runtime_mutation_permitted": false,
+  "g16_pending_binding_sha256": "6f772b70af1137c08480eeb1ae7af994f203a6fd2e4c665393aad22d02e73d54",
+  "network_operation": false,
+  "next_decision_id": "D1-H3N2-STAGE2D9R-G3R-D2-17-G16-PRIVATE-FORENSIC-EXPORT-AND-TARGET-MAC-HOST-ONLY-CHECK-AUTHORIZATION-CREATION-20260731-01",
+  "physical_nvs_operation": false,
+  "predecessor_disposition_binding_sha256": "7bd04cf01416ce3a886c873a1a6054b2ab426f19edac38dfc88a9879e4cdd124",
+  "predecessor_generation": "G15",
+  "prepare_executed": false,
+  "private_package_created": false,
+  "recovery_executed": false,
+  "repair": "VERIFY_EXACT_G14_MARKER_DIGEST_AND_EXPORT_ALLOWLISTED_MARKER_STATE_WITHOUT_REQUIRING_CONSUMED_FAILED",
+  "replay_permitted": false,
+  "schema": "gh.h3.n2.stage2d9r-g3r-d2-17-g16-private-forensic-export-authorization-pending/1",
+  "serial_operation": false,
+  "source_base_head_sha": "bde1cefc88d1960515fff35bb8e263f967b15b80",
+  "status": "PENDING_EXACT_AUTHORIZATION",
+  "usb_enumeration": false,
+  "verify_executed": false
+}
