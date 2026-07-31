@@ -1,0 +1,69 @@
+name: H3 N2 Stage2D9R G3R D2-17 G12 physical execution decision
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-g3r-d2-17-g12-physical-execution-decision-ci-v1.yml"
+      - "docs/acceptance/h3-n2-stage2d9r-g3r-d2-17-g12-physical-execution-authorized-pending-20260731-v1.json"
+      - "docs/decisions/h3-n2-stage2d9r-g3r-d2-17-g12-physical-execution-decision-20260731-v1.json"
+      - "docs/development/h3-n2-stage2d9r-g3r-d2-17-g12-physical-execution-decision-contract-20260731-v1.md"
+      - "tools/h3_n2_stage2d9r_g3r_d2_17_g12_physical_*_20260731_v1.py"
+      - "tools/run_h3_n2_stage2d9r_g3r_d2_17_g12_physical_execution_decision_20260731_v1.sh"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g12_physical_execution_decision_20260731_v1.*"
+permissions:
+  contents: read
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BASE_HEAD: "0dcf8dd52c7c7bdadef6f81e581bed91a8ab6d6d"
+      BASE_BRANCH: "docs/h3-n2-stage2d9r-g3r-d2-17-g12-static-check-acceptance-20260731-v1"
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: Verify exact stacked base and add-only inventory
+        env:
+          EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EVENT_BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$PR_HEAD_SHA"
+          test "$EVENT_BASE_SHA" = "$BASE_HEAD"
+          test "$EVENT_BASE_REF" = "$BASE_BRANCH"
+          git merge-base --is-ancestor "$BASE_HEAD" "$PR_HEAD_SHA"
+          python3 -B - <<'PY2'
+          import os,subprocess
+          expected={'docs/acceptance/h3-n2-stage2d9r-g3r-d2-17-g12-physical-execution-authorized-pending-20260731-v1.json', 'docs/decisions/h3-n2-stage2d9r-g3r-d2-17-g12-physical-execution-decision-20260731-v1.json', 'tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g12_physical_execution_decision_20260731_v1.py', 'tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g12_physical_execution_decision_20260731_v1.sh', 'tools/h3_n2_stage2d9r_g3r_d2_17_g12_physical_execution_decision_driver_20260731_v1.py', 'tools/run_h3_n2_stage2d9r_g3r_d2_17_g12_physical_execution_decision_20260731_v1.sh', 'docs/development/h3-n2-stage2d9r-g3r-d2-17-g12-physical-execution-decision-contract-20260731-v1.md', 'tools/h3_n2_stage2d9r_g3r_d2_17_g12_physical_runtime_adapter_entry_20260731_v1.py', '.github/workflows/h3-n2-stage2d9r-g3r-d2-17-g12-physical-execution-decision-ci-v1.yml', 'tools/h3_n2_stage2d9r_g3r_d2_17_g12_physical_decision_marker_finalizer_20260731_v1.py'}
+          observed=set(subprocess.check_output(["git","diff","--name-only",f"{os.environ['BASE_HEAD']}...{os.environ['PR_HEAD_SHA']}"],text=True).splitlines())
+          if observed!=expected:raise SystemExit(f"SOURCE_INVENTORY_MISMATCH missing={sorted(expected-observed)} extra={sorted(observed-expected)}")
+          status=subprocess.check_output(["git","diff","--name-status",f"{os.environ['BASE_HEADg]}...{os.environ['PR_HEAD_SHA']}"],text=True).splitlines()
+          if any(not line.startswith("A\t") for line in status):raise SystemExit("NON_ADD_ONLY_CHANGE")
+          PY2
+      - name: Run public decision regression
+        run: |
+          set -euo pipefail
+          /bin/sh tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g12_physical_execution_decision_20260731_v1.sh
+          python3 -m py_compile tools/h3_n2_stage2d9r_g3r_d2_17_g12_physical_execution_decision_driver_20260731_v1.py tools/h3_n2_stage2d9r_g3r_d2_17_g12_physical_runtime_adapter_entry_20260731_v1.py tools/h3_n2_stage2d9r_g3r_d2_17_g12_physical_decision_marker_finalizer_20260731_v1.py
+          ! grep -R --line-number --fixed-strings '/Users/' docs/acceptance/h3-n2-stage2d9r-g3r-d2-17-g12-physical-execution-authorized-pending-20260731-v1.json docs/decisions/h3-n2-stage2d9r-g3r-d2-17-g12-physical-execution-decision-20260731-v1.json docs/development/h3-n2-stage2d9r-g3r-d2-17-g12-physical-execution-decision-contract-20260731-v1.md tools/h3_n2_stage2d9r_g3r_d2_17_g12_physical_execution_decision_driver_20260731_v1.py tools/h3_n2_stage2d9r_g3r_d2_17_g12_physical_runtime_adapter_entry_20260731_v1.py tools/h3_n2_stage2d9r_g3r_d2_17_g12_physical_decision_marker_finalizer_20260731_v1.py
+      - name: Build exact-head review Artifact
+        run: |
+          set -euo pipefail
+          OUT=/tmp/d2-17-g12-physical-execution-decision-review
+          mkdir -p "$OUT/source"
+          git diff --name-only "$BASE_HEAD...$PR_HEAD_SHA" | while IFS= read -r item; do mkdir -p "$OUT/source/$(dirname "$item")"; cp "$item" "$OUT/source/$item"; done
+          printf '%s
+' "$PR_HEAD_SHA" > "$OUT/SOURCE_SHA"
+          (cd "$OUT" && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
+          (cd "$OUT" && sha256sum -c SHA256SUMS)
+      - name: Upload exact-head review Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: d2-17-g12-physical-execution-decision-review-v1
+          path: /tmp/d2-17-g12-physical-execution-decision-review
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7

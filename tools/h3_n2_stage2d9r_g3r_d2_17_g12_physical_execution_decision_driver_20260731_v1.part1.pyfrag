@@ -1,0 +1,41 @@
+#!/usr/bin/env python3
+"""One-shot D2-17 G12 physical-execution decision driver."""
+from __future__ import annotations
+import argparse, hashlib, importlib, json, os, stat, subprocess, sys, tempfile, zipfile
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+DECISION_ID='D1-H3N2-STAGE2D9R-G3R-D2-17-G12-PHYSICAL-EXECUTION-20260731-01'
+D2_REQUEST_ID='D2-H3N2-STAGE2D9R-G3R-EXECUTION-IDENTITY-FROZEN-PREFLIGHT-STABILIZED-PHYSICAL-20260730-17'
+BASE_PR=246; BASE_HEAD='0dcf8dd52c7c7bdadef6f81e581bed91a8ab6d6d'
+AUTHORIZATION_EXPIRES_AT='2026-07-31T11:44:35.654243Z'
+AUTHORIZATION_FILE_SHA256='0303c7df85e016397fe5fbabc34410ed478b2c40f7461e3fc4452208e464270d'; AUTHORIZATION_RECORD_SHA256='f670b5f5b637445a09975de1f9e0d23c3eda0d6c8910ec50a4e64a440b8a8963'
+EXECUTION_IDENTITY_SHA256='9e234234aed566752ab8feb771e4cb84c3946d83857ee13d3d211d6c7e11f00c'; CONFIGURED_VALIDATOR_CHECK_SHA256='7fbf5116f42271382649f1d0e32fb96e41c006b5ae14ddb1ffd6ab8ffd9b4920'
+STATIC_TERMINAL_RECORD_SHA256='432ef9cbe74bb1c688ed7a88192c230b8c0e04ff2361dfe543282245ff9345fa'; STATIC_EXPORT_SUMMARY_SHA256='560d559d5e9694333297a6716fd6d84fc06d2fd3e89bd4e101066a70e3a646d5'
+PRIVATE_DELIVERY_BINDING_SHA256='df9f78d95ba2391cfecb65377b25dd32803122c4d3a6fdca65bebc0c1674cf49'; ACCEPTANCE_BINDING_SHA256='f7bcfce8d3c10f337076fbaba916526fde54f152fda3876e321ab304bdcc37ff'; PHYSICAL_PENDING_BINDING_SHA256='b7b1d4b71e815b28a2bb7468715abcdd5b9977962890f207a36c723122a3c64f'
+ACCEPTANCE_ARTIFACT_ID=8789506567; ACCEPTANCE_ARTIFACT_SHA256='08ac77fc19afea5740c691e3378358686b0b6b3f830fbbb604b06f49b1e23798'
+G11_DISPOSITION_BINDING_SHA256='101f96fc0c09f71ccf022e931fcaf07b0e962b09fdd8b76f86008e75e28c4bb9'; G11_FORENSIC_ACCEPTANCE_BINDING_SHA256='74e96be6894ab6c744cbb4b74c3111d21ba0624b9b3f8f4a538951a16f6a0fe7'; G12_REPAIR_LINEAGE_BINDING_SHA256='741fb6de67f9dd0722835827e249c49d0498d1b2b1966c118efd1f183c54e8a6'
+OUTER_REPAIR_BINDING_SHA256='c5bdee9fb5f14120087dc8377a46e959c4030a2b73dc1f753f3326d157172720'; MARKER_REPAIR_BINDING_SHA256='67a59fcfb78a6ad4805ec26239921a80d874a70ed128d9bc155c619aa7c4681e'
+BOARD_IDENTITY_SHA256='2607b7df80b8b636548a8d9d97c0a6b4e4ead57e9a2cc6fcb7f93643617242f8'; SERIAL_IDENTITY_SHA256='b6dba7ee0db02feba166935ae8ec2bbd946dbf66926e5421cfa1c1c8b8a4f2c3'; BASELINE_STATE_SHA256='776517efcac0c6cf03cabe0572b773dedc89e9bb2793ccb0d9f9585ea6fa601f'
+ENTRY_NAME="h3_n2_stage2d9r_g3r_d2_17_g12_physical_runtime_adapter_entry_20260731_v1.py"
+ENTRY_SHA256='7bd9e322ccf62f412d2c0db56c2ee4618f693a094bc781b70409949328dc0c83'
+FINALIZER_NAME="h3_n2_stage2d9r_g3r_d2_17_g12_physical_decision_marker_finalizer_20260731_v1.py"
+FINALIZER_SHA256='d75aea80505ee3bd341a1d0c15038c5f3693da17f8ab0775b5e8b10497b55493'
+WRAPPER="h3_n2_stage2d9r_g3r_d2_17_execution_identity_frozen_physical_d2_wrapper_20260730_v1"
+CONTRACT="h3_n2_stage2d9r_g3r_d2_17_execution_identity_freeze_contract_20260730_v1"
+IDENTITY_ADAPTER_NAME="h3_n2_stage2d9r_g3r_d2_17_g07_preclaim_identity_adapter_repair_20260731_v1.py"
+OUTER_REPAIR_NAME="h3_n2_stage2d9r_g3r_d2_17_g09_outer_preclaim_evidence_root_repair_20260731_v1.py"
+MARKER_REPAIR_NAME="h3_n2_stage2d9r_g3r_d2_17_g10_marker_name_digest_compatibility_repair_20260731_v1.py"
+G12_REPAIR_NAME="h3_n2_stage2d9r_g3r_d2_17_g12_preclaim_baseline_directory_and_error_code_repair_20260731_v1.py"
+AUTH_MARKER_NAME=hashlib.sha256(D2_REQUEST_ID.encode()).hexdigest()+".json"
+TARGETS={"python":("/Library/Frameworks/Python.framework/Versions/3.11/bin/python3.11","4e28e811a89aeac6eed668ae641c7f85f5831e42e8dc6cd9a85a3bcc032ec46a"),"openssl":("/usr/local/Cellar/openssl@3/3.5.0/bin/openssl","04ad05ce2e7eaf92116dac99a984cc0e589040a103589f93a9fe452832766973"),"esptool":("~/Library/Python/3.11/bin/esptool","ab727aa71b9bbf794aab424eca706cb4b340be491ab28ba8fe17ef6d7962c267"),"mosquitto":("/opt/local/sbin/mosquitto","4d53cf9654852472c9839e178848987603e16abd41622d197440945307227763")}
+
+class DecisionError(RuntimeError): pass
+def require(ok:bool,code:str)->None:
+    if not ok: raise DecisionError(code)
+def sha(path:Path)->str:
+    h=hashlib.sha256()
+    with path.open("rb") as f:
+        for b in iter(lambda:f.read(1024*1024),b""): h.update(b)
+    return h.hexdigest()
