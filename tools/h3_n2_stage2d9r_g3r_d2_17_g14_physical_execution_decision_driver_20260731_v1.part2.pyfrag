@@ -1,0 +1,25 @@
+G14_REPAIR_NAME="h3_n2_stage2d9r_g3r_d2_17_g14_execution_package_mode_normalized_view_repair_20260731_v1.py"
+AUTH_MARKER_NAME=hashlib.sha256(D2_REQUEST_ID.encode()).hexdigest()+".json"
+TARGETS={"python":("/Library/Frameworks/Python.framework/Versions/3.11/bin/python3.11","4e28e811a89aeac6eed668ae641c7f85f5831e42e8dc6cd9a85a3bcc032ec46a"),"openssl":("/usr/local/Cellar/openssl@3/3.5.0/bin/openssl","04ad05ce2e7eaf92116dac99a984cc0e589040a103589f93a9fe452832766973"),"esptool":("~/Library/Python/3.11/bin/esptool","ab727aa71b9bbf794aab424eca706cb4b340be491ab28ba8fe17ef6d7962c267"),"mosquitto":("/opt/local/sbin/mosquitto","4d53cf9654852472c9839e178848987603e16abd41622d197440945307227763")}
+
+class DecisionError(RuntimeError):pass
+def require(ok:bool,code:str)->None:
+ if not ok:raise DecisionError(code)
+def sha(path:Path)->str:
+ h=hashlib.sha256()
+ with path.open("rb") as f:
+  for b in iter(lambda:f.read(1024*1024),b""):h.update(b)
+ return h.hexdigest()
+def canonical(value:object)->str:return hashlib.sha256(json.dumps(value,sort_keys=True,separators=(",",":"),ensure_ascii=False).encode()).hexdigest()
+def load_json(path:Path,code:str)->dict[str,Any]:
+ require(path.is_file() and not path.is_symlink(),code)
+ try:value=json.loads(path.read_text(encoding="utf-8"))
+ except Exception as exc:raise DecisionError(code) from exc
+ require(isinstance(value,dict),code);return value
+def verify_binding(value:dict[str,Any],field:str,expected:str,code:str)->None:
+ require(value.get(field)==expected,code+"_EXPECTED_DRIFT");core=dict(value);core.pop(field,None);require(canonical(core)==expected,code+"_SEMANTIC_DRIFT")
+def exclusive_json(path:Path,value:object)->None:
+ path.parent.mkdir(parents=True,exist_ok=True,mode=0o700);os.chmod(path.parent,0o700);flags=os.O_WRONLY|os.O_CREAT|os.O_EXCL
+ if hasattr(os,"O_NOFOLLOW"):flags|=os.O_NOFOLLOW
+ fd=os.open(path,flags,0o600)
+ try:
