@@ -19,7 +19,7 @@
   "merge": false,
   "next_gate": "D1-H3N2-STAGE2D9R-G3R-D2-17-G09-PRIVATE-PACKAGE-AND-TARGET-MAC-STATIC-CHECK-AUTHORIZATION-CREATION-20260731-01",
   "next_package_generation": "G09",
-  "pending_binding_sha256": "abc99085817be35138d7ab0b121831f85a88a4d869e8d81a2365b373b822bc9a",
+  "pending_binding_sha256": "e504021fb44ae1dd3973582cb23b0b59c4d23339c3064fc7cf1c7e28756367c7",
   "physical_nvs_operation": false,
   "prepare_executed": false,
   "ready": false,
