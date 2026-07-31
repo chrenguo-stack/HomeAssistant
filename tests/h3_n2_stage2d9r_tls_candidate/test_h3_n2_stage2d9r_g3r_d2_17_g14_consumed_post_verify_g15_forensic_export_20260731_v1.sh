@@ -1,0 +1,3 @@
+#!/bin/sh
+set -eu
+PYTHONDONTWRITEBYTECODE=1 python3 -B tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g14_consumed_post_verify_g15_forensic_export_20260731_v1.py
