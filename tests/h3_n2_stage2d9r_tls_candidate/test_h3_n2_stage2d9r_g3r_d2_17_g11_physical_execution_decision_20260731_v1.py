@@ -10,7 +10,9 @@ def main():
  d=load("docs/decisions/h3-n2-stage2d9r-g3r-d2-17-g11-physical-execution-decision-20260731-v1.json");x=dict(d);b=x.pop("decision_binding_sha256");assert canonical(x)==b=='13afe6dcd3e1a8e76768dfc4e54a4405f2363def719fc538e95816adcc59d6a3'
  a=load("docs/acceptance/h3-n2-stage2d9r-g3r-d2-17-g11-physical-execution-authorized-pending-20260731-v1.json");x=dict(a);b=x.pop("authorized_pending_binding_sha256");assert canonical(x)==b=='5fe50a9f721d11658d2b2469c4c43629c8038c65498c59a0ebcc6960f6604346'
  assert d["runtime_entry_sha256"]==sha("tools/h3_n2_stage2d9r_g3r_d2_17_g11_physical_runtime_adapter_entry_20260731_v1.py")
- assert d["decision_driver_sha256"]==sha("tools/h3_n2_stage2d9r_g3r_d2_17_g11_physical_execution_decision_driver_20260731_v1.py")
+ parts=[ROOT/f"tools/h3_n2_stage2d9r_g3r_d2_17_g11_physical_execution_decision_driver_20260731_v1.part{i}.pyfrag" for i in range(1,7)]
+ assert hashlib.sha256(b"".join(p.read_bytes() for p in parts)).hexdigest()==d["decision_driver_sha256"]
+ assert sha("tools/h3_n2_stage2d9r_g3r_d2_17_g11_physical_execution_decision_driver_20260731_v1.py")=="4ba39083ff902c302cdd36acb07ca3ef06c6594532043857562a3be5d2e683c4"
  assert d["decision_launcher_sha256"]==sha("tools/run_h3_n2_stage2d9r_g3r_d2_17_g11_physical_execution_decision_20260731_v1.sh")
  assert d["decision_marker_finalizer_sha256"]==sha("tools/h3_n2_stage2d9r_g3r_d2_17_g11_physical_decision_marker_finalizer_20260731_v1.py")
  assert a["authorization_claimed"] is False and a["authorization_consumed"] is False
