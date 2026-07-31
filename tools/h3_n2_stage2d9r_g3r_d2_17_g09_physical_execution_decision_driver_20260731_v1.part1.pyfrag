@@ -1,0 +1,44 @@
+#!/usr/bin/env python3
+"""One-shot D2-17 G09 physical execution decision driver."""
+from __future__ import annotations
+import argparse, hashlib, json, os, stat, subprocess, sys, tempfile, zipfile
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+DECISION_ID='D1-H3N2-STAGE2D9R-G3R-D2-17-G09-PHYSICAL-EXECUTION-20260731-01'; D2_REQUEST_ID='D2-H3N2-STAGE2D9R-G3R-EXECUTION-IDENTITY-FROZEN-PREFLIGHT-STABILIZED-PHYSICAL-20260730-17'
+PACKAGE_NAME='D2_17_PRIVATE_PACKAGE_20260731T102300CST_G09_HEADBC7E3053'
+PRIVATE_SOURCE_SHA='bc7e30535dc569a3b82be17f531c39bd9c4dfabf'; ACCEPTANCE_SOURCE_SHA='878ccc2c43371b932b5fa973c9c2d62ad998254a'
+ACCEPTANCE_ARTIFACT_ID=8781374430; ACCEPTANCE_ARTIFACT_SHA256='fc9325deb74bbac1cedcfcf9f4b2f91d7f2b9cba7094f7b47e0e221560cbf263'
+ACCEPTANCE_BINDING_SHA256='e8eda357a8dd6a25855808344ca0ebf44c9932e382c0ec5a308ab29634e6b264'; DECISION_REQUIRED_BINDING_SHA256='03bd4217a0cd8426a78ba79619f3e9bd7e9cb4092082d1e7ae7bd7b6e1cdee15'
+PRIVATE_DELIVERY_BINDING_SHA256='47d9ed8e27cf3df6794de6148a94dbdf0b6724c7bf9104864a6763dcb42ba19c'; ROOT_MANIFEST_SHA256='7543a8089fead090691a8281af87799d085b69f1ca280228cfa522d9797af2e2'
+AUTHORIZATION_FILE_SHA256='f2c7bc598650d8a25f66f9ec6330220b0b4c5ffc367930fce58be10f89f7cc08'; AUTHORIZATION_RECORD_SHA256='ea4be3dcc96d9b0b2b73ce709b26fe5d29aee9ccc091f5df29c0475e30d63224'
+EXECUTION_IDENTITY_SHA256='9e234234aed566752ab8feb771e4cb84c3946d83857ee13d3d211d6c7e11f00c'; STATIC_CHECK_FILE_SHA256='a42a75efe3436c7d9928c7efac67cc21edee93fa2a7bdd90f714f810e79f6aec'
+IDEMPOTENCY_FILE_SHA256='8a1b8588c0648f26063139a5eb3bcbeb5275aaca8e70d2cdee5b29bcf92a9f7b'; SENTINEL_FILE_SHA256='8991644cf66d81311ffe70f4dbe702047ae7f3ce64c7ebfe5c164dfc6f894050'
+CONFIGURED_VALIDATOR_FILE_SHA256='9b3546ee138c2a0def6796cd5cfa1d30c459873c663ad8bf04c8b961dd8e742f'; CONFIGURED_VALIDATOR_CHECK_SHA256='0bcc30695853b0ee912a0305de6e9fc748f9d4d466ad136c11cd2c6fe4b1c8b7'
+TERMINAL_RECORD_SHA256='14643799387e280f4af7dd0e4b657abe8602548b98f4b5ee2f53fcc7ad7428c0'; AUTHORIZATION_EXPIRES_AT='2026-07-31T04:31:11.211315Z'
+G08_EXPIRED_DISPOSITION_BINDING_SHA256='ad6dcc2ab884a358ae07d90ed157b27f5943757c85898a5440cf06f5b2c12795'; G09_REAUTHORIZATION_PENDING_BINDING_SHA256='e504021fb44ae1dd3973582cb23b0b59c4d23339c3064fc7cf1c7e28756367c7'
+BOARD_IDENTITY_SHA256='2607b7df80b8b636548a8d9d97c0a6b4e4ead57e9a2cc6fcb7f93643617242f8'; SERIAL_IDENTITY_SHA256='b6dba7ee0db02feba166935ae8ec2bbd946dbf66926e5421cfa1c1c8b8a4f2c3'; BASELINE_STATE_SHA256='776517efcac0c6cf03cabe0572b773dedc89e9bb2793ccb0d9f9585ea6fa601f'
+ADAPTER_SHA256='4b421d626e313a26c4815ef502b6aa76105a8685414ed2be3b4062a0387ef5ff'; RUNTIME_ENTRY_SHA256='0a03523bf7ae7922a7299fb2d658e028ce57567eb301d81ce5687dee5006541c'
+EXECUTION_REL=Path('public-review/d2-17-execution-identity-frozen-physical-d2-execution-package')
+REQUEST_REL=Path('public-review/PHYSICAL_D2_REQUEST_17.json')
+ADAPTER_NAME='h3_n2_stage2d9r_g3r_d2_17_g07_preclaim_identity_adapter_repair_20260731_v1.py'
+RUNTIME_ENTRY_NAME='h3_n2_stage2d9r_g3r_d2_17_g09_physical_runtime_identity_adapter_entry_20260731_v1.py'
+AUTH_MARKER_NAME=hashlib.sha256(D2_REQUEST_ID.encode()).hexdigest()+'.json'
+LEGACY_G07_AUTH_MARKER_SHA256='c9250960ee5418739cda4d670f01d215229386b7c44edde6c4738337658a359a'
+TARGETS={'python':('/Library/Frameworks/Python.framework/Versions/3.11/bin/python3.11','4e28e811a89aeac6eed668ae641c7f85f5831e42e8dc6cd9a85a3bcc032ec46a'),'openssl':('/usr/local/Cellar/openssl@3/3.5.0/bin/openssl','04ad05ce2e7eaf92116dac99a984cc0e589040a103589f93a9fe452832766973'),'esptool':('~/Library/Python/3.11/bin/esptool','ab727aa71b9bbf794aab424eca706cb4b340be491ab28ba8fe17ef6d7962c267'),'mosquitto':('/opt/local/sbin/mosquitto','4d53cf9654852472c9839e178848987603e16abd41622d197440945307227763')}
+
+class DecisionError(RuntimeError): pass
+def require(ok:bool,code:str)->None:
+    if not ok: raise DecisionError(code)
+def sha(path:Path)->str:
+    h=hashlib.sha256()
+    with path.open('rb') as f:
+        for b in iter(lambda:f.read(1024*1024),b''): h.update(b)
+    return h.hexdigest()
+def canonical(value:object)->str: return hashlib.sha256(json.dumps(value,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode()).hexdigest()
+def mode(path:Path)->str: return format(stat.S_IMODE(path.stat().st_mode),'04o')
+def load_json(path:Path,code:str)->dict[str,Any]:
+    require(path.is_file() and not path.is_symlink(),code)
+    try: value=json.loads(path.read_text(encoding='utf-8'))
+    except Exception as exc: raise DecisionError(code) from exc
