@@ -1,0 +1,9 @@
+# D2-17 G09 physical-execution decision contract
+
+`D1-H3N2-STAGE2D9R-G3R-D2-17-G09-PHYSICAL-EXECUTION-20260731-01` authorizes exactly one inherited claim, one consume and one frozen D2-17 physical execution using the existing G09 authorization.
+
+The decision binds private source `bc7e30535dc569a3b82be17f531c39bd9c4dfabf`, acceptance source `878ccc2c43371b932b5fa973c9c2d62ad998254a`, acceptance Artifact `8781374430`, authorization record `ea4be3dcc96d9b0b2b73ce709b26fe5d29aee9ccc091f5df29c0475e30d63224`, configured-validator evidence `0bcc30695853b0ee912a0305de6e9fc748f9d4d466ad136c11cd2c6fe4b1c8b7`, runtime identity adapter `4b421d626e313a26c4815ef502b6aa76105a8685414ed2be3b4062a0387ef5ff`, G08 expired-unexecuted disposition `ad6dcc2ab884a358ae07d90ed157b27f5943757c85898a5440cf06f5b2c12795`, G09 reauthorization lineage `e504021fb44ae1dd3973582cb23b0b59c4d23339c3064fc7cf1c7e28756367c7`, and expiry `2026-07-31T04:31:11.211315Z`.
+
+Before inherited claim, the driver verifies all public/private manifests, target tools, authorization state and expiry, execution identity, configured runtime validator evidence, and the authorized board/serial/NVS baseline. It also verifies the frozen G07 consumed marker by digest and leaves it unchanged. The frozen executor is not modified. G09 claim/consume state is written to a generation-local state root inside the immutable G09 physical runtime, so the retained G07 consumed marker with the same D2 request marker name can coexist without collision. A content-bound runtime entry imports the frozen chain, installs the verified identity adapter in the same Python process, and then invokes the inherited `execute` command.
+
+Any drift fails closed. Replay, automatic retry, ACTIVATE, CLEANUP, Ready, merge, release, tag and deployment are forbidden.
