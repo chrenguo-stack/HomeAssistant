@@ -1,0 +1,41 @@
+    require(isinstance(value,dict),code); return value
+def exclusive_json(path:Path,value:object)->None:
+    path.parent.mkdir(parents=True,exist_ok=True,mode=0o700); os.chmod(path.parent,0o700)
+    flags=os.O_WRONLY|os.O_CREAT|os.O_EXCL
+    if hasattr(os,'O_NOFOLLOW'): flags|=os.O_NOFOLLOW
+    fd=os.open(path,flags,0o600)
+    try:
+        with os.fdopen(fd,'w',encoding='utf-8',closefd=False) as f:
+            json.dump(value,f,sort_keys=True,indent=2); f.write('\n'); f.flush(); os.fsync(f.fileno())
+    finally: os.close(fd)
+def replace_json(path:Path,value:object)->None:
+    tmp=path.with_name(path.name+'.tmp'); require(not tmp.exists(),'ATOMIC_TMP_EXISTS'); exclusive_json(tmp,value); os.replace(tmp,path)
+def verify_sums(root:Path,expected_manifest:str|None,prefix:str)->None:
+    root=root.resolve(strict=True); require(root.is_dir() and not root.is_symlink(),prefix+'_ROOT_INVALID')
+    sums=root/'SHA256SUMS'; require(sums.is_file() and not sums.is_symlink(),prefix+'_SHA256SUMS_MISSING')
+    if expected_manifest: require(sha(sums)==expected_manifest,prefix+'_SHA256SUMS_DIGEST_DRIFT')
+    expected={}
+    for line in sums.read_text(encoding='utf-8').splitlines():
+        digest,name=line.split('  ',1); rel=Path(name); require(name not in expected and not rel.is_absolute() and '..' not in rel.parts,prefix+'_SHA256SUMS_INVALID'); expected[name]=digest
+    observed={p.relative_to(root).as_posix() for p in root.rglob('*') if p.is_file() and not p.is_symlink() and p!=sums}
+    require(set(expected)==observed,prefix+'_SHA256SUMS_COVERAGE_DRIFT')
+    for name,digest in expected.items(): require(sha(root/name)==digest,prefix+'_MEMBER_DIGEST_DRIFT:'+name)
+    require(not any(p.is_symlink() for p in root.rglob('*')),prefix+'_SYMLINK_FORBIDDEN')
+def validate_terminal(v:dict[str,Any])->None:
+    require(v.get('terminal_record_sha256')==TERMINAL_RECORD_SHA256,'TERMINAL_RECORD_DIGEST_BINDING_DRIFT'); c=dict(v); c.pop('terminal_record_sha256',None); require(canonical(c)==TERMINAL_RECORD_SHA256,'TERMINAL_RECORD_SEMANTIC_DIGEST_DRIFT')
+    required={'status':'PASS','terminal_state':'TARGET_MAC_STATIC_CHECK_PASSED_AUTHORIZATION_UNCLAIMED_UNCONSUMED','package_generation':'G09','private_source_sha':PRIVATE_SOURCE_SHA,'private_delivery_binding_sha256':PRIVATE_DELIVERY_BINDING_SHA256,'authorization_record_sha256':AUTHORIZATION_RECORD_SHA256,'execution_identity_sha256':EXECUTION_IDENTITY_SHA256,'runtime_identity_adapter_sha256':ADAPTER_SHA256,'configured_runtime_validator_check_sha256':CONFIGURED_VALIDATOR_CHECK_SHA256,'configured_core_validate_authorization_executed':True,'identity_adapter_installed':True,'authorization_created':True,'authorization_claimed':False,'authorization_consumed':False,'physical_decision_created':False,'g08_expired_disposition_binding_sha256':G08_EXPIRED_DISPOSITION_BINDING_SHA256,'g09_reauthorization_pending_binding_sha256':G09_REAUTHORIZATION_PENDING_BINDING_SHA256}
+    for k,e in required.items(): require(v.get(k)==e,'TERMINAL_FIELD_DRIFT:'+k)
+    for k in ('board_operation','usb_enumeration','serial_operation','esptool_operation','flash_operation','physical_nvs_operation','network_operation','broker_started','prepare_executed','verify_executed','recovery_executed'): require(v.get(k) is False,'TERMINAL_PHYSICAL_FLAG_DRIFT:'+k)
+def validate_acceptance(path:Path)->None:
+    require(path.is_file() and not path.is_symlink() and sha(path)==ACCEPTANCE_ARTIFACT_SHA256,'ACCEPTANCE_ARTIFACT_DIGEST_DRIFT')
+    try:
+        with zipfile.ZipFile(path) as z:
+            require(z.read('SOURCE_SHA').decode().strip()==ACCEPTANCE_SOURCE_SHA,'ACCEPTANCE_ARTIFACT_SOURCE_SHA_DRIFT')
+            names=[n for n in z.namelist() if n.endswith('h3-n2-stage2d9r-g3r-d2-17-g09-target-mac-static-check-pass-20260731-v1.json')]; require(len(names)==1,'ACCEPTANCE_ARTIFACT_RECORD_MISSING'); v=json.loads(z.read(names[0]).decode())
+    except DecisionError: raise
+    except Exception as exc: raise DecisionError('ACCEPTANCE_ARTIFACT_INVALID') from exc
+    required={'acceptance_binding_sha256':ACCEPTANCE_BINDING_SHA256,'private_source_sha':PRIVATE_SOURCE_SHA,'authorization_record_sha256':AUTHORIZATION_RECORD_SHA256,'terminal_record_sha256':TERMINAL_RECORD_SHA256,'configured_runtime_validator_check_sha256':CONFIGURED_VALIDATOR_CHECK_SHA256,'authorization_claimed':False,'authorization_consumed':False}
+    for k,e in required.items(): require(v.get(k)==e,'ACCEPTANCE_FIELD_DRIFT:'+k)
+def resolve_targets()->dict[str,Path]:
+    out={}
+    for name,(raw,digest) in TARGETS.items():
