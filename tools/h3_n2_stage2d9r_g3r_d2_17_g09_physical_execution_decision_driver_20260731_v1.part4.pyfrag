@@ -1,0 +1,18 @@
+    request=contract.load_json(request_path,'PHYSICAL_REQUEST_INVALID'); contract.validate_physical_request(request,execution); core=d2_11.configure_core(); contract.validate_execution_identity(identity,execution,request=request,controller_path=Path(core.__file__),python_path=targets['python'],openssl_path=targets['openssl'],esptool_path=targets['esptool'],mosquitto_path=targets['mosquitto']); contract.validate_authorization_contract(auth,request,identity,now=datetime.now(timezone.utc)); core.validate_private_metadata(Path.home()); core.validate_authorization(auth_path,package_root=execution,python_path=targets['python'],openssl_path=targets['openssl'],esptool_path=targets['esptool'],mosquitto_path=targets['mosquitto'],now=datetime.now(timezone.utc))
+    return auth,identity,execution,d2_11
+
+def failure(code:str,flags:dict[str,bool])->dict[str,Any]:
+    v={'schema':'gh.h3.n2.stage2d9r-g3r-d2-17-g09-physical-decision-terminal/1','status':'BLOCKED_BEFORE_INHERITED_CLAIM','terminal_state':'PHYSICAL_DECISION_PRECLAIM_BLOCKED_UNCLAIMED_UNCONSUMED','failure_code':code,'decision_id':DECISION_ID,'d2_request_id':D2_REQUEST_ID,'authorization_claimed':False,'authorization_consumed':False,'replay_permitted':False,'automatic_retry_permitted':False,'board_operation':flags['board'],'usb_enumeration':flags['usb'],'serial_operation':flags['serial'],'esptool_operation':flags['esptool'],'flash_operation':False,'physical_nvs_operation':flags['nvs'],'network_operation':False,'broker_started':False,'prepare_executed':False,'verify_executed':False,'recovery_executed':False,'activate_executed':False,'cleanup_executed':False,'ready':False,'merge':False,'release':False,'tag':False,'deployment':False}
+    v['terminal_record_sha256']=canonical(v); return v
+
+def run(decision_root:Path)->int:
+    require(sys.platform=='darwin','TARGET_HOST_NOT_DARWIN'); package=(Path.home()/'Downloads/ActiveTestRuns'/PACKAGE_NAME).resolve(strict=True); runtime=package.parent/(PACKAGE_NAME+'_runtime'); require(runtime.is_dir() and not runtime.is_symlink(),'G09_RUNTIME_ROOT_INVALID')
+    decision_root=decision_root.resolve(strict=True); verify_sums(decision_root,None,'PHYSICAL_DECISION'); validate_acceptance(decision_root/'D2_17_G09_ACCEPTANCE_ARTIFACT_8781374430.zip'); targets=resolve_targets()
+    physical=runtime/'D2_17_G09_PHYSICAL_EXECUTION_20260731_01'; terminal_path=physical/'D2_17_G09_PHYSICAL_DECISION_TERMINAL.json'; result_path=physical/'D2_17_G09_PHYSICAL_RESULT.json'; decision_marker=Path.home()/'.local/state/greenhouse-stage2d9r/d2-17-g09-physical-decisions'/(DECISION_ID+'.json')
+    legacy_auth_marker,auth_state,auth_marker=authorization_state_paths(Path.home(),physical)
+    require(legacy_auth_marker.is_file() and not legacy_auth_marker.is_symlink(),'G07_LEGACY_AUTHORIZATION_MARKER_MISSING')
+    require(sha(legacy_auth_marker)==LEGACY_G07_AUTH_MARKER_SHA256,'G07_LEGACY_AUTHORIZATION_MARKER_DRIFT')
+    require(not physical.exists(),'PHYSICAL_RUNTIME_ROOT_ALREADY_EXISTS'); require(not decision_marker.exists(),'PHYSICAL_DECISION_ALREADY_USED'); require(not auth_marker.exists(),'G09_AUTHORIZATION_ALREADY_CLAIMED_OR_CONSUMED'); physical.mkdir(parents=True,mode=0o700); os.chmod(physical,0o700)
+    flags={'board':False,'usb':False,'serial':False,'esptool':False,'nvs':False}
+    try:
+        auth,identity,execution,d2_11=validate_host(package,runtime,decision_root,targets); core=d2_11.configure_core(); work=physical/'preclaim-baseline'; work.mkdir(mode=0o700); flags.update(board=True,usb=True,serial=True); selected=core.select_serial(auth); flags.update(esptool=True,nvs=True); baseline=core.baseline(selected,targets['esptool'],work,auth); require(canonical(baseline)==BASELINE_STATE_SHA256,'PRECLAIM_BASELINE_STATE_DRIFT')
