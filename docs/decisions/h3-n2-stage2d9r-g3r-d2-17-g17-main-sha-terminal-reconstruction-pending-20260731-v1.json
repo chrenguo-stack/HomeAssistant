@@ -3,7 +3,7 @@
   "state": "SOURCE_ONLY_AWAITING_EXACT_HOST_ONLY_CLOSURE_AUTHORIZATION",
   "predecessor_generation": "G16",
   "predecessor_status": "PASS",
-  "g16_acceptance_binding_sha256": "e84e3b87635c4ba6d05133ba9c45f438217a51e1762a4debeb6e93933c5db916",
+  "g16_acceptance_binding_sha256": "9be11c054d84fb7db1a0a23eddc3f5735d5d660c6e1d2b1263634629938c0714",
   "g14_terminal_record_sha256": "45b1aa3438257be87170e68c4308af697f5d6bde468248318fded4fd2e3c97c1",
   "g14_inner_terminal_result_sha256": "73ca46c31ee7a43dfdcc196d8834292cd96decbf26a1828f0cf4437e1ce00d92",
   "g14_inner_marker_status": "CONSUMED_PASS",
@@ -34,5 +34,6 @@
   "deployment_authorized": false,
   "replay_permitted": false,
   "automatic_retry_permitted": false,
-  "pending_binding_sha256": "e3dd5ab575683001f881386c2b6552c954b78805ea1bfbe21cf21e3ea5dfcf52"
+  "pending_binding_scope": "FROZEN_G16_ACCEPTANCE_AND_G14_EXECUTION_EVIDENCE_SUBSET_V1",
+  "pending_binding_sha256": "903e5547c551c8fffdfe62dfce3b33ea2406bd16df16cbcb3d04867e88074317"
 }
