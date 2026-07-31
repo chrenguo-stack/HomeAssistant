@@ -38,6 +38,7 @@ def main() -> int:
     expect_failure(module.verify_acceptance, changed, "ACCEPTANCE_BINDING_DRIFT")
 
     rebound = copy.deepcopy(acceptance)
+    rebound["authorization_claimed"] = True
     rebound["acceptance_binding_sha256"] = module.canonical_sha256(
         {key: value for key, value in rebound.items() if key != "acceptance_binding_sha256"}
     )
