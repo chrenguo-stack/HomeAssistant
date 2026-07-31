@@ -1,0 +1,25 @@
+ for name,(raw,digest) in TARGETS.items():
+  p=Path(raw).expanduser().resolve(strict=True);require(p.is_file() and not p.is_symlink() and os.access(p,os.X_OK),"TARGET_TOOL_INVALID:"+name);require(sha(p)==digest,"TARGET_TOOL_DIGEST_DRIFT:"+name);out[name]=p
+ return out
+def find_static_runtime()->Path:
+ base=Path.home()/"Downloads/ActiveTestRuns";matches=[p for p in base.glob("D2_17_G13_TARGET_MAC_STATIC_CHECK_*_HEAD89B8A4BF") if p.is_dir() and not p.is_symlink()]
+ require(len(matches)==1,"G13_STATIC_RUNTIME_NOT_UNIQUE");return matches[0].resolve(strict=True)
+def execution_env(root:Path,python:Path)->dict[str,str]:
+ v=dict(os.environ);r=str(root.resolve(strict=True));v.update({"PYTHONDONTWRITEBYTECODE":"1","GH_D2_17_DELIVERY_PROFILE":"private-package","GH_D2_17_OUTER_PACKAGE_ROOT":r,"GH_D2_17_LAUNCHER_PACKAGE_ROOT":r,"GH_D2_13_LAUNCHER_PACKAGE_ROOT":r,"GH_D2_14_LAUNCHER_PACKAGE_ROOT":r,"GH_D2_15_LAUNCHER_PACKAGE_ROOT":r,"GH_D2_16_LAUNCHER_PACKAGE_ROOT":r,"PATH":str(python.parent)+os.pathsep+v.get("PATH","")});return v
+
+def validate_static_runtime(runtime:Path,targets:dict[str,Path])->dict[str,Any]:
+ terminal=load_json(runtime/"G13_TARGET_MAC_STATIC_CHECK_TERMINAL.json","STATIC_TERMINAL_INVALID");verify_binding(terminal,"terminal_record_sha256",STATIC_TERMINAL_RECORD_SHA256,"STATIC_TERMINAL")
+ summary=load_json(runtime/"G13_TARGET_MAC_STATIC_CHECK_RESULT.json","STATIC_SUMMARY_INVALID");verify_binding(summary,"export_summary_sha256",STATIC_EXPORT_SUMMARY_SHA256,"STATIC_SUMMARY")
+ identity=load_json(runtime/"G13_EXECUTION_IDENTITY.json","EXECUTION_IDENTITY_INVALID");verify_binding(identity,"execution_identity_sha256",EXECUTION_IDENTITY_SHA256,"EXECUTION_IDENTITY")
+ auth_path=runtime/"G13_AUTHORIZATION.json";require(sha(auth_path)==AUTHORIZATION_FILE_SHA256,"AUTHORIZATION_FILE_DIGEST_DRIFT");auth=load_json(auth_path,"AUTHORIZATION_INVALID");verify_binding(auth,"authorization_record_sha256",AUTHORIZATION_RECORD_SHA256,"AUTHORIZATION")
+ configured=load_json(runtime/"G13_CONFIGURED_RUNTIME_STATIC_CHECK.json","CONFIGURED_EVIDENCE_INVALID");verify_binding(configured,"configured_runtime_check_sha256",CONFIGURED_VALIDATOR_CHECK_SHA256,"CONFIGURED_EVIDENCE")
+ common={"status":"PASS","authorization_claimed":False,"authorization_consumed":False,"physical_decision_created":False}
+ for value,prefix in ((terminal,"STATIC_TERMINAL"),(summary,"STATIC_SUMMARY")):
+  for k,e in common.items():require(value.get(k)==e,prefix+"_FIELD_DRIFT:"+k)
+ require(terminal.get("terminal_state")=="TARGET_MAC_STATIC_CHECK_PASSED_AUTHORIZATION_UNCLAIMED_UNCONSUMED","STATIC_TERMINAL_STATE_DRIFT")
+ require(summary.get("package_generation")=="G13" and summary.get("source_pr")==248 and summary.get("source_head_sha")=="89b8a4bf84d6cb236e775055d3427e21dde138e6","STATIC_SOURCE_DRIFT")
+ require(summary.get("private_delivery_binding_sha256")==PRIVATE_DELIVERY_BINDING_SHA256,"PRIVATE_DELIVERY_BINDING_DRIFT")
+ require(summary.get("g12_disposition_binding_sha256")==G12_DISPOSITION_BINDING_SHA256 and summary.get("main_zero_net_drift_binding_sha256")==MAIN_ZERO_NET_DRIFT_BINDING_SHA256 and summary.get("g13_pending_binding_sha256")==G13_REPAIR_LINEAGE_BINDING_SHA256,"SUCCESSOR_LINEAGE_DRIFT")
+ for key in ("g13_baseline_compatibility_adapter_installed","g13_bypasses_g12_incompatible_wrapper","g13_missing_directory_validated","g13_existing_empty_real_0700_directory_validated","g13_negative_directory_cases_validated","g13_claim_state_derivation_validated"):require(summary.get(key) is True,"G13_REPAIR_STATIC_VALIDATION_DRIFT:"+key)
+ require(summary.get("all_physical_operation_flags_false") is True and summary.get("hardware_sentinels_all_zero") is True,"STATIC_PHYSICAL_BOUNDARY_DRIFT")
+ require(auth.get("board_identity_sha256")==BOARD_IDENTITY_SHA256 and auth.get("serial_identity_sha256")==SERIAL_IDENTITY_SHA256 and auth.get("baseline_state_sha256")==BASELINE_STATE_SHA256,"AUTHORIZED_PHYSICAL_IDENTITY_DRIFT")
