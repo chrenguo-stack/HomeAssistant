@@ -11,8 +11,8 @@ ADAPTER=ROOT/'tools/h3_n2_stage2d9r_g3r_d2_17_g07_preclaim_identity_adapter_repa
 def canon(v):
  import hashlib; return hashlib.sha256(json.dumps(v,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode()).hexdigest()
 def main():
- d=json.loads(DEC.read_text()); b=d.pop('decision_binding_sha256'); assert b=='fbf5119c858135a89c3c446c6a97ab692b65c1a51d79593d91d0c7be584b8449'==canon(d)
- p=json.loads(PENDING.read_text()); a=p.pop('authorized_pending_binding_sha256'); assert a=='50fbf12bdc8c6154deb3b6f205c603f85512910410d14f79e877f797bd636639'==canon(p)
+ d=json.loads(DEC.read_text()); b=d.pop('decision_binding_sha256'); assert b=='df328a39ad5e3d0e13c15bdb52d07f2c442a7978a59378ec56f43b476de380f5'==canon(d)
+ p=json.loads(PENDING.read_text()); a=p.pop('authorized_pending_binding_sha256'); assert a=='8ec3df1620eb53a794114822fd14b23d35c21b6f571454069f3f8f47acf684dd'==canon(p)
  assert p['authorization_claimed'] is False and p['authorization_consumed'] is False
  assert d['authorization_state_namespace']=='G09_PHYSICAL_RUNTIME_LOCAL' and d['authorization_state_isolated_from_g07'] is True
  assert p['authorization_state_namespace']=='G09_PHYSICAL_RUNTIME_LOCAL' and p['authorization_state_isolated_from_g07'] is True
