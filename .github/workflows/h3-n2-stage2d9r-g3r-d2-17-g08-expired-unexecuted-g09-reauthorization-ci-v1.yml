@@ -14,8 +14,6 @@ on:
 permissions:
   contents: read
 
-timeout-minutes: 10
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -23,6 +21,7 @@ concurrency:
 jobs:
   review:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     env:
       BASE_HEAD: "3abffa37397d05d1e8cf3b801c2c1f3b766269be"
       BASE_BRANCH: "docs/h3-n2-stage2d9r-g3r-d2-17-g08-physical-execution-decision-20260731-v1"
