@@ -17,16 +17,20 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    env:
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Verify exact add-only stacked boundary
         shell: bash
         run: |
           set -euo pipefail
           BASE='e19ea381e3c2931c9cf9e7c5792826e3b86826dc'
+          test "$(git rev-parse HEAD)" = "$PR_HEAD_SHA"
           git cat-file -e "$BASE^{commit}"
           test "$(git merge-base "$BASE" HEAD)" = "$BASE"
           test "$(git diff --diff-filter=DMRTUXB --name-only "$BASE" HEAD | wc -l | tr -d ' ')" = 0
@@ -78,7 +82,7 @@ jobs:
             mkdir -p "$ROOT/source/$(dirname "$file")"
             cp "$file" "$ROOT/source/$file"
           done
-          printf '%s\n' "$GITHUB_SHA" > "$ROOT/SOURCE_SHA"
+          printf '%s\n' "$PR_HEAD_SHA" > "$ROOT/SOURCE_SHA"
           (
             cd "$ROOT"
             find source -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
@@ -87,7 +91,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: d2-17-g16-pass-g17-main-sha-terminal-reconstruction-review-v1
+          name: d2-17-g16-pass-g17-main-sha-terminal-reconstruction-review-v2
           path: ${{ runner.temp }}/g17-review
           include-hidden-files: true
           if-no-files-found: error
