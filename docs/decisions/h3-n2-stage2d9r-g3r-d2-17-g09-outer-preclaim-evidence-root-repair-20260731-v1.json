@@ -1,6 +1,5 @@
 {
   "add_only": true,
-  "automatic_retry_permitted": false,
   "base_head_sha": "7d4b7eb4782f8d9789aa922d03df4d149b65d9e9",
   "base_pr": 236,
   "board_operation": false,
