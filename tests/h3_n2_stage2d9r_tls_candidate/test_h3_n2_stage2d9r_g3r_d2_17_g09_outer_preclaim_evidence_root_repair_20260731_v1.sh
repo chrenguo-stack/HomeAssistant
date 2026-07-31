@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+export PYTHONDONTWRITEBYTECODE=1
+python3 -B tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g09_outer_preclaim_evidence_root_repair_20260731_v1.py
