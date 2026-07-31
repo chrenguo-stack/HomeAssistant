@@ -1,0 +1,30 @@
+    for line in sums.read_text(encoding="utf-8").splitlines():
+        digest,name=line.split("  ",1);rel=Path(name);require(name not in expected and not rel.is_absolute() and ".." not in rel.parts,prefix+"_SUMS_INVALID");expected[name]=digest
+    observed={p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file() and not p.is_symlink() and p!=sums}
+    require(set(expected)==observed,prefix+"_SUMS_COVERAGE_DRIFT")
+    for name,digest in expected.items():require(sha(root/name)==digest,prefix+"_MEMBER_DIGEST_DRIFT:"+name)
+    require(not any(p.is_symlink() for p in root.rglob("*")),prefix+"_SYMLINK_FORBIDDEN")
+def verify_artifact_zip(path:Path,expected_sha:str,source_sha:str,record_suffix:str,required:dict[str,Any],prefix:str)->dict[str,Any]:
+    require(path.is_file() and not path.is_symlink() and sha(path)==expected_sha,prefix+"_ARCHIVE_DIGEST_DRIFT")
+    try:
+        with zipfile.ZipFile(path) as z:
+            require(z.read("SOURCE_SHA").decode().strip()==source_sha,prefix+"_SOURCE_SHA_DRIFT")
+            names=[n for n in z.namelist() if n.endswith(record_suffix)];require(len(names)==1,prefix+"_RECORD_MISSING");value=json.loads(z.read(names[0]).decode())
+    except DecisionError:raise
+    except Exception as exc:raise DecisionError(prefix+"_ARCHIVE_INVALID") from exc
+    for k,e in required.items():require(value.get(k)==e,prefix+"_FIELD_DRIFT:"+k)
+    return value
+def resolve_targets()->dict[str,Path]:
+    out={}
+    for name,(raw,digest) in TARGETS.items():
+        p=Path(raw).expanduser().resolve(strict=True);require(p.is_file() and not p.is_symlink() and os.access(p,os.X_OK),"TARGET_TOOL_INVALID:"+name);require(sha(p)==digest,"TARGET_TOOL_DIGEST_DRIFT:"+name);out[name]=p
+    return out
+def find_static_runtime()->Path:
+    base=Path.home()/"Downloads/ActiveTestRuns";matches=[p for p in base.glob("D2_17_G11_TARGET_MAC_STATIC_CHECK_*_HEADB82C6C49") if p.is_dir() and not p.is_symlink()]
+    require(len(matches)==1,"G11_STATIC_RUNTIME_NOT_UNIQUE");return matches[0].resolve(strict=True)
+def execution_env(root:Path,python:Path)->dict[str,str]:
+    v=dict(os.environ);r=str(root.resolve(strict=True));v.update({"PYTHONDONTWRITEBYTECODE":"1","GH_D2_17_DELIVERY_PROFILE":"private-package","GH_D2_17_OUTER_PACKAGE_ROOT":r,"GH_D2_17_LAUNCHER_PACKAGE_ROOT":r,"GH_D2_13_LAUNCHER_PACKAGE_ROOT":r,"GH_D2_14_LAUNCHER_PACKAGE_ROOT":r,"GH_D2_15_LAUNCHER_PACKAGE_ROOT":r,"GH_D2_16_LAUNCHER_PACKAGE_ROOT":r,"PATH":str(python.parent)+os.pathsep+v.get("PATH","")});return v
+
+def validate_static_runtime(runtime:Path,targets:dict[str,Path])->dict[str,Any]:
+    terminal=load_json(runtime/"D2_17_G11_TARGET_MAC_STATIC_CHECK_TERMINAL.json","STATIC_TERMINAL_INVALID");verify_binding(terminal,"terminal_record_sha256",STATIC_TERMINAL_RECORD_SHA256,"STATIC_TERMINAL")
+    summary=load_json(runtime/"D2_17_G11_PUBLIC_STATIC_CHECK_EXPORT_SUMMARY.json","STATIC_SUMMARY_INVALID");verify_binding(summary,"export_summary_sha256",STATIC_EXPORT_SUMMARY_SHA256,"STATIC_SUMMARY")
