@@ -3,21 +3,9 @@ on:
   pull_request:
     paths:
       - ".github/workflows/h3-n2-stage2d9r-g3r-d2-17-g09-physical-execution-decision-ci-v1.yml"
-      - "docs/decisions/h3-n2-stage2d9r-g3r-d2-17-g09-physical-execution-decision-20260731-v1.json"
-      - "docs/acceptance/h3-n2-stage2d9r-g3r-d2-17-g09-physical-execution-authorized-pending-20260731-v1.json"
-      - "docs/development/h3-n2-stage2d9r-g3r-d2-17-g09-physical-execution-decision-contract-20260731-v1.md"
-      - "tools/h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_driver_20260731_v1.py"
-      - "tools/h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_driver_20260731_v1.part1.pyfrag"
-      - "tools/h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_driver_20260731_v1.part2.pyfrag"
-      - "tools/h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_driver_20260731_v1.part3.pyfrag"
-      - "tools/h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_driver_20260731_v1.part4.pyfrag"
-      - "tools/h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_driver_20260731_v1.part5.pyfrag"
-      - "tools/h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_driver_20260731_v1.part6.pyfrag"
-      - "tools/h3_n2_stage2d9r_g3r_d2_17_g09_physical_runtime_identity_adapter_entry_20260731_v1.py"
-      - "tools/h3_n2_stage2d9r_g3r_d2_17_g09_physical_decision_marker_finalizer_20260731_v1.py"
-      - "tools/run_h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_20260731_v1.sh"
-      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_20260731_v1.py"
-      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_20260731_v1.sh"
+      - "docs/**/h3-n2-stage2d9r-g3r-d2-17-g09-physical-execution-*"
+      - "tools/*g09_physical*"
+      - "tests/h3_n2_stage2d9r_tls_candidate/*g09_physical_execution_decision*"
 permissions:
   contents: read
   actions: read
@@ -50,18 +38,34 @@ jobs:
           test "$EVENT_BASE_SHA" = "$BASE_HEAD"
           test "$EVENT_BASE_REF" = "$BASE_BRANCH"
           git merge-base --is-ancestor "$BASE_HEAD" "$PR_HEAD_SHA"
-          python3 -B - <<'PYI'
-          import os,subprocess
-          expected=['.github/workflows/h3-n2-stage2d9r-g3r-d2-17-g09-physical-execution-decision-ci-v1.yml', 'docs/decisions/h3-n2-stage2d9r-g3r-d2-17-g09-physical-execution-decision-20260731-v1.json', 'docs/acceptance/h3-n2-stage2d9r-g3r-d2-17-g09-physical-execution-authorized-pending-20260731-v1.json', 'docs/development/h3-n2-stage2d9r-g3r-d2-17-g09-physical-execution-decision-contract-20260731-v1.md', 'tools/h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_driver_20260731_v1.py', 'tools/h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_driver_20260731_v1.part1.pyfrag', 'tools/h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_driver_20260731_v1.part2.pyfrag', 'tools/h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_driver_20260731_v1.part3.pyfrag', 'tools/h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_driver_20260731_v1.part4.pyfrag', 'tools/h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_driver_20260731_v1.part5.pyfrag', 'tools/h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_driver_20260731_v1.part6.pyfrag', 'tools/h3_n2_stage2d9r_g3r_d2_17_g09_physical_runtime_identity_adapter_entry_20260731_v1.py', 'tools/h3_n2_stage2d9r_g3r_d2_17_g09_physical_decision_marker_finalizer_20260731_v1.py', 'tools/run_h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_20260731_v1.sh', 'tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_20260731_v1.py', 'tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_20260731_v1.sh']
-          observed=subprocess.check_output(['git','diff','--name-only',f"{os.environ['BASE_HEAD']}...{os.environ['PR_HEAD_SHA']}"],text=True).splitlines()
-          if set(observed)!=set(expected): raise SystemExit(f"INVENTORY_MISMATCH missing={sorted(set(expected)-set(observed))} extra={sorted(set(observed)-set(expected))}")
-          PYI
+          python3 -B - <<'PY'
+          import os, subprocess
+          expected = {
+            '.github/workflows/h3-n2-stage2d9r-g3r-d2-17-g09-physical-execution-decision-ci-v1.yml',
+            'docs/decisions/h3-n2-stage2d9r-g3r-d2-17-g09-physical-execution-decision-20260731-v1.json',
+            'docs/acceptance/h3-n2-stage2d9r-g3r-d2-17-g09-physical-execution-authorized-pending-20260731-v1.json',
+            'docs/development/h3-n2-stage2d9r-g3r-d2-17-g09-physical-execution-decision-contract-20260731-v1.md',
+            'tools/h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_driver_20260731_v1.py',
+            *{f'tools/h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_driver_20260731_v1.part{i}.pyfrag' for i in range(1,7)},
+            'tools/h3_n2_stage2d9r_g3r_d2_17_g09_physical_runtime_identity_adapter_entry_20260731_v1.py',
+            'tools/h3_n2_stage2d9r_g3r_d2_17_g09_physical_decision_marker_finalizer_20260731_v1.py',
+            'tools/run_h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_20260731_v1.sh',
+            'tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_20260731_v1.py',
+            'tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_20260731_v1.sh',
+          }
+          observed=set(subprocess.check_output(['git','diff','--name-only',f"{os.environ['BASE_HEAD']}...{os.environ['PR_HEAD_SHA']}"],text=True).splitlines())
+          if observed != expected:
+              raise SystemExit(f'INVENTORY_MISMATCH missing={sorted(expected-observed)} extra={sorted(observed-expected)}')
+          PY
       - name: Download exact frozen execution Artifact
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          curl --fail --location --silent --show-error -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${{ GITHUB_REPOSITORY }}/actions/artifacts/${{ EXECUTION_ARTIFACT_ID }}/zip" -o /tmp/execution.zip
+          curl --fail --location --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/artifacts/$EXECUTION_ARTIFACT_ID/zip" \
+            -o /tmp/execution.zip
           test "$(sha256sum /tmp/execution.zip | awk '{print $1}')" = "$EXECUTION_ARTIFACT_SHA256"
           mkdir /tmp/execution && unzip -q /tmp/execution.zip -d /tmp/execution
       - name: Run identity-adapted host-only execution regression
@@ -75,8 +79,8 @@ jobs:
           set -euo pipefail
           OUT=/tmp/d2-17-g09-physical-execution-decision-review
           mkdir -p "$OUT/source"
-          cp --parents docs/decisions/h3-n2-stage2d9r-g3r-d2-17-g09-physical-execution-decision-20260731-v1.json docs/acceptance/h3-n2-stage2d9r-g3r-d2-17-g09-physical-execution-authorized-pending-20260731-v1.json docs/development/h3-n2-stage2d9r-g3r-d2-17-g09-physical-execution-decision-contract-20260731-v1.md tools/h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_driver_20260731_v1.py tools/h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_driver_20260731_v1.part1.pyfrag tools/h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_driver_20260731_v1.part2.pyfrag tools/h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_driver_20260731_v1.part3.pyfrag tools/h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_driver_20260731_v1.part4.pyfrag tools/h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_driver_20260731_v1.part5.pyfrag tools/h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_driver_20260731_v1.part6.pyfrag tools/h3_n2_stage2d9r_g3r_d2_17_g09_physical_runtime_identity_adapter_entry_20260731_v1.py tools/h3_n2_stage2d9r_g3r_d2_17_g09_physical_decision_marker_finalizer_20260731_v1.py tools/run_h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_20260731_v1.sh tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_20260731_v1.py tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g09_physical_execution_decision_20260731_v1.sh --target-directory "$OUT/source"
-          cp --parents .github/workflows/h3-n2-stage2d9r-g3r-d2-17-g09-physical-execution-decision-ci-v1.yml --target-directory "$OUT/source"
+          mapfile -t FILES < <(git diff --name-only "$BASE_HEAD...$PR_HEAD_SHA")
+          cp --parents "${FILES[@]}" --target-directory "$OUT/source"
           printf '%s\n' "$PR_HEAD_SHA" > "$OUT/SOURCE_SHA"
           (cd "$OUT" && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
           (cd "$OUT" && sha256sum -c SHA256SUMS)
@@ -88,4 +92,3 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 7
-# exact-head registration trigger
