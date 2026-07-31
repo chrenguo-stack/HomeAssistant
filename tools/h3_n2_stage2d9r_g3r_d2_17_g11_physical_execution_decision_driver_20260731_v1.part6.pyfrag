@@ -1,0 +1,30 @@
+        print(json.dumps(terminal,sort_keys=True));return 2
+
+def self_test(execution:Path,request:Path,identity_adapter:Path,marker_adapter:Path,entry:Path)->int:
+    execution=execution.expanduser().resolve(strict=True);request=request.expanduser().resolve(strict=True);identity_adapter=identity_adapter.expanduser().resolve(strict=True);marker_adapter=marker_adapter.expanduser().resolve(strict=True);entry=entry.expanduser().resolve(strict=True)
+    require(sha(entry)==ENTRY_SHA256,"SELF_TEST_ENTRY_DIGEST_DRIFT")
+    sys.path.insert(0,str(execution));sys.path.insert(0,str(identity_adapter.parent));sys.path.insert(0,str(marker_adapter.parent));os.environ.update(execution_env(execution,Path(sys.executable).resolve(strict=True)))
+    wrapper=importlib.import_module(WRAPPER);contract=importlib.import_module(CONTRACT);identity_mod=importlib.import_module(IDENTITY_ADAPTER_NAME[:-3]);marker_mod=importlib.import_module(MARKER_REPAIR_NAME[:-3]);req=contract.load_json(request,"PHYSICAL_REQUEST_INVALID");req=contract.validate_physical_request(req,execution);wrapper.bind_complete_chain();d2_11=wrapper._bound_d2_11();d2_11._BOUND_PHYSICAL_REQUEST=req
+    identity={"execution_identity_sha256":EXECUTION_IDENTITY_SHA256};identity_mod.install_runtime_identity_adapter(d2_11,contract,identity);marker_mod.install_runtime_marker_digest_adapter(d2_11,D2_REQUEST_ID)
+    with tempfile.TemporaryDirectory(prefix="d2-17-g11-physical-entry-") as td:
+        base=Path(td);roots={}
+        for name in ("prepare","delivery","terminal"):roots[name]=base/name;roots[name].mkdir()
+        d2_11._EVIDENCE_ROOT=roots["prepare"];d2_11._DELIVERY_EVIDENCE_ROOT=roots["delivery"];d2_11._TERMINALIZATION_EVIDENCE_ROOT=roots["terminal"]
+        class FakeCore:
+            @staticmethod
+            def sha256_bytes(payload:bytes)->str:return hashlib.sha256(payload).hexdigest()
+        fake=FakeCore();marker_mod.patch_core_marker_digest(fake,D2_REQUEST_ID);marker_name=fake.sha256_bytes(D2_REQUEST_ID.encode())+".json";require(fake.sha256_bytes(marker_name.encode())==hashlib.sha256(D2_REQUEST_ID.encode()).hexdigest(),"SELF_TEST_MARKER_COMPATIBILITY_FAILED")
+        identity_path=base/"identity.json";identity_path.write_text(json.dumps(identity),encoding="utf-8");(base/"serial.py").write_text("class Serial:\n    pass\n",encoding="utf-8")
+        result=base/"result.json";paths={}
+        for name in ("immutable","recovery","state"):paths[name]=base/name;paths[name].mkdir()
+        args=["execute","--package-root",str(execution),"--physical-request",str(request),"--authorization-record",str(base/"missing.json"),"--immutable-root",str(paths["immutable"]),"--recovery-root",str(paths["recovery"]),"--home",str(base),"--state-root",str(paths["state"]),"--result-output",str(result),"--prepare-evidence-root",str(roots["prepare"]),"--delivery-evidence-root",str(roots["delivery"]),"--terminalization-evidence-root",str(roots["terminal"]),"--openssl","/bin/true","--esptool","/bin/true","--mosquitto","/bin/true"]
+        env=execution_env(execution,Path(sys.executable).resolve(strict=True));env["PYTHONPATH"]=str(base)+os.pathsep+env.get("PYTHONPATH","")
+        completed=subprocess.run([sys.executable,"-B",str(entry),"--execution-root",str(execution),"--physical-request",str(request),"--identity-path",str(identity_path),"--identity-adapter-path",str(identity_adapter),"--marker-adapter-path",str(marker_adapter),"--prepare-evidence-root",str(roots["prepare"]),"--delivery-evidence-root",str(roots["delivery"]),"--terminalization-evidence-root",str(roots["terminal"]),"--",*args],env=env,text=True,capture_output=True,check=False)
+        require(completed.returncode==2,"SELF_TEST_EXPECTED_PRECLAIM_FAILURE");require("TypeError" not in completed.stdout+completed.stderr,"SELF_TEST_TYPEERROR_RECURRED");value=load_json(result,"SELF_TEST_RESULT_MISSING");require(value.get("authorization_claimed") is False,"SELF_TEST_AUTHORIZATION_CLAIMED");require(all(value.get(k) is False for k in ("board_operation","usb_enumeration","serial_operation","esptool_operation","flash_operation","physical_nvs_operation")),"SELF_TEST_PHYSICAL_BOUNDARY_VIOLATED")
+    print(json.dumps({"status":"PASS","identity_adapter_installed":True,"marker_digest_adapter_installed":True,"marker_digest_compatibility_verified":True,"type_error_recurred":False,"authorization_claimed":False,"all_physical_operation_flags_false":True},sort_keys=True));return 0
+
+def main()->int:
+    p=argparse.ArgumentParser();p.add_argument("--decision-root",type=Path);p.add_argument("--self-test-execution-root",type=Path);p.add_argument("--self-test-request",type=Path);p.add_argument("--self-test-identity-adapter",type=Path);p.add_argument("--self-test-marker-adapter",type=Path);p.add_argument("--self-test-entry",type=Path);a=p.parse_args()
+    if a.self_test_execution_root is not None:return self_test(a.self_test_execution_root,a.self_test_request,a.self_test_identity_adapter,a.self_test_marker_adapter,a.self_test_entry)
+    require(a.decision_root is not None,"PHYSICAL_DECISION_ROOT_REQUIRED");return run(a.decision_root)
+if __name__=="__main__":raise SystemExit(main())
