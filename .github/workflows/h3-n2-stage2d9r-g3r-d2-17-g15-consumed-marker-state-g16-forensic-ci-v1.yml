@@ -1,0 +1,60 @@
+name: H3 N2 Stage2D9R G3R D2-17 G15 consumed marker-state G16 forensic repair
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-g3r-d2-17-g15-consumed-marker-state-g16-forensic-ci-v1.yml"
+      - "docs/acceptance/h3-n2-stage2d9r-g3r-d2-17-g15-consumed-marker-state-drift-disposition-20260731-v1.json"
+      - "docs/decisions/h3-n2-stage2d9r-g3r-d2-17-g16-private-forensic-export-authorization-pending-20260731-v1.json"
+      - "docs/development/h3-n2-stage2d9r-g3r-d2-17-g15-consumed-marker-state-g16-forensic-repair-contract-20260731-v1.md"
+      - "tools/h3_n2_stage2d9r_g3r_d2_17_g16_marker_state_tolerant_forensic_export_20260731_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g15_consumed_marker_state_g16_forensic_repair_20260731_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g15_consumed_marker_state_g16_forensic_repair_20260731_v1.sh"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Run G16 contract tests
+        run: |
+          set -euo pipefail
+          chmod +x tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g15_consumed_marker_state_g16_forensic_repair_20260731_v1.sh
+          tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g15_consumed_marker_state_g16_forensic_repair_20260731_v1.sh
+      - name: Verify add-only exact stack
+        env:
+          BASE_SHA: bde1cefc88d1960515fff35bb8e263f967b15b80
+        run: |
+          set -euo pipefail
+          test "$(git merge-base "$BASE_SHA" HEAD)" = "$BASE_SHA"
+          test -z "$(git diff --name-only --diff-filter=MD "$BASE_SHA"...HEAD)"
+          test "$(git diff --numstat "$BASE_SHA"...HEAD | awk '{d += $2} END {print d+0}')" = "0"
+      - name: Build review artifact
+        run: |
+          set -euo pipefail
+          ROOT="d2-17-g15-consumed-marker-state-g16-forensic-repair-review-v1"
+          mkdir -p "$ROOT/source"
+          printf '%s\n' "${{ github.event.pull_request.head.sha }}" > "$ROOT/SOURCE_SHA"
+          for path in \
+            docs/acceptance/h3-n2-stage2d9r-g3r-d2-17-g15-consumed-marker-state-drift-disposition-20260731-v1.json \
+            docs/decisions/h3-n2-stage2d9r-g3r-d2-17-g16-private-forensic-export-authorization-pending-20260731-v1.json \
+            docs/development/h3-n2-stage2d9r-g3r-d2-17-g15-consumed-marker-state-g16-forensic-repair-contract-20260731-v1.md \
+            tools/h3_n2_stage2d9r_g3r_d2_17_g16_marker_state_tolerant_forensic_export_20260731_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g15_consumed_marker_state_g16_forensic_repair_20260731_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g15_consumed_marker_state_g16_forensic_repair_20260731_v1.sh \
+            .github/workflows/h3-n2-stage2d9r-g3r-d2-17-g15-consumed-marker-state-g16-forensic-ci-v1.yml
+          do
+            mkdir -p "$ROOT/source/$(dirname "$path")"
+            cp "$path" "$ROOT/source/$path"
+          done
+          (cd "$ROOT" && find source -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: d2-17-g15-consumed-marker-state-g16-forensic-repair-review-v1
+          path: d2-17-g15-consumed-marker-state-g16-forensic-repair-review-v1
+          retention-days: 7
