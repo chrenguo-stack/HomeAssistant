@@ -1,0 +1,24 @@
+  with os.fdopen(fd,"w",encoding="utf-8",closefd=False) as f:json.dump(value,f,sort_keys=True,indent=2);f.write("\n");f.flush();os.fsync(f.fileno())
+ finally:os.close(fd)
+def replace_json(path:Path,value:object)->None:
+ tmp=path.with_name(path.name+".tmp");require(not tmp.exists(),"ATOMIC_TMP_EXISTS");exclusive_json(tmp,value);os.replace(tmp,path)
+def verify_sums(root:Path,prefix:str)->None:
+ root=root.resolve(strict=True);require(root.is_dir() and not root.is_symlink(),prefix+"_ROOT_INVALID");sums=root/"SHA256SUMS";require(sums.is_file() and not sums.is_symlink(),prefix+"_SUMS_MISSING")
+ expected={}
+ for line in sums.read_text(encoding="utf-8").splitlines():
+  parts=line.split("  ",1);require(len(parts)==2,prefix+"_SUMS_INVALID");digest,name=parts;rel=Path(name);require(name not in expected and not rel.is_absolute() and ".." not in rel.parts,prefix+"_SUMS_INVALID");expected[name]=digest
+ observed={p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file() and not p.is_symlink() and p!=sums}
+ require(set(expected)==observed,prefix+"_SUMS_COVERAGE_DRIFT")
+ for name,digest in expected.items():require(sha(root/name)==digest,prefix+"_MEMBER_DIGEST_DRIFT:"+name)
+ require(not any(p.is_symlink() for p in root.rglob("*")),prefix+"_SYMLINK_FORBIDDEN")
+def verify_artifact_zip(path:Path,expected_sha:str,source_sha:str,record_suffix:str,required:dict[str,Any],prefix:str)->dict[str,Any]:
+ require(path.is_file() and not path.is_symlink() and sha(path)==expected_sha,prefix+"_ARCHIVE_DIGEST_DRIFT")
+ try:
+  with zipfile.ZipFile(path) as z:
+   require(z.read("SOURCE_SHA").decode().strip()==source_sha,prefix+"_SOURCE_SHA_DRIFT");names=[n for n in z.namelist() if n.endswith(record_suffix)];require(len(names)==1,prefix+"_RECORD_MISSING");value=json.loads(z.read(names[0]).decode())
+ except DecisionError:raise
+ except Exception as exc:raise DecisionError(prefix+"_ARCHIVE_INVALID") from exc
+ for k,e in required.items():require(value.get(k)==e,prefix+"_FIELD_DRIFT:"+k)
+ return value
+def resolve_targets()->dict[str,Path]:
+ out={}
