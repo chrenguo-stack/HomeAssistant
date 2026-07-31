@@ -1,0 +1,94 @@
+name: H3 N2 Stage2D9R G3R D2-17 G16 pass G17 terminal reconstruction
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/h3-n2-stage2d9r-g3r-d2-17-g16-pass-g17-main-sha-terminal-reconstruction-ci-v1.yml'
+      - 'docs/acceptance/h3-n2-stage2d9r-g3r-d2-17-g16-forensic-pass-main-sha-root-cause-20260731-v1.json'
+      - 'docs/decisions/h3-n2-stage2d9r-g3r-d2-17-g17-main-sha-terminal-reconstruction-pending-20260731-v1.json'
+      - 'docs/development/h3-n2-stage2d9r-g3r-d2-17-g16-pass-g17-main-sha-terminal-reconstruction-contract-20260731-v1.md'
+      - 'tools/h3_n2_stage2d9r_g3r_d2_17_g17_main_sha_terminal_reconstruction_20260731_v1.py'
+      - 'tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g16_pass_g17_main_sha_terminal_reconstruction_20260731_v1.py'
+      - 'tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g16_pass_g17_main_sha_terminal_reconstruction_20260731_v1.sh'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact add-only stacked boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='e19ea381e3c2931c9cf9e7c5792826e3b86826dc'
+          git cat-file -e "$BASE^{commit}"
+          test "$(git merge-base "$BASE" HEAD)" = "$BASE"
+          test "$(git diff --diff-filter=DMRTUXB --name-only "$BASE" HEAD | wc -l | tr -d ' ')" = 0
+          test "$(git diff --diff-filter=A --name-only "$BASE" HEAD | wc -l | tr -d ' ')" = 7
+
+      - name: Run G17 contract tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          sh tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g16_pass_g17_main_sha_terminal_reconstruction_20260731_v1.sh
+          python3 -B -m py_compile \
+            tools/h3_n2_stage2d9r_g3r_d2_17_g17_main_sha_terminal_reconstruction_20260731_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g16_pass_g17_main_sha_terminal_reconstruction_20260731_v1.py
+          find . -type d -name __pycache__ -prune -exec rm -rf {} +
+
+      - name: Verify public safety boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILES=(
+            .github/workflows/h3-n2-stage2d9r-g3r-d2-17-g16-pass-g17-main-sha-terminal-reconstruction-ci-v1.yml
+            docs/acceptance/h3-n2-stage2d9r-g3r-d2-17-g16-forensic-pass-main-sha-root-cause-20260731-v1.json
+            docs/decisions/h3-n2-stage2d9r-g3r-d2-17-g17-main-sha-terminal-reconstruction-pending-20260731-v1.json
+            docs/development/h3-n2-stage2d9r-g3r-d2-17-g16-pass-g17-main-sha-terminal-reconstruction-contract-20260731-v1.md
+            tools/h3_n2_stage2d9r_g3r_d2_17_g17_main_sha_terminal_reconstruction_20260731_v1.py
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g16_pass_g17_main_sha_terminal_reconstruction_20260731_v1.py
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g16_pass_g17_main_sha_terminal_reconstruction_20260731_v1.sh
+          )
+          ! grep -En '(BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|password[[:space:]]*[:=]|token[[:space:]]*[:=]|/Users/|/dev/cu\.|/dev/tty)' "${FILES[@]}"
+          ! grep -En '(subprocess|import serial|import socket|esptool\.main|mosquitto_sub|mosquitto_pub)' \
+            tools/h3_n2_stage2d9r_g3r_d2_17_g17_main_sha_terminal_reconstruction_20260731_v1.py
+
+      - name: Assemble load-bearing review artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/g17-review"
+          mkdir -p "$ROOT/source"
+          FILES=(
+            .github/workflows/h3-n2-stage2d9r-g3r-d2-17-g16-pass-g17-main-sha-terminal-reconstruction-ci-v1.yml
+            docs/acceptance/h3-n2-stage2d9r-g3r-d2-17-g16-forensic-pass-main-sha-root-cause-20260731-v1.json
+            docs/decisions/h3-n2-stage2d9r-g3r-d2-17-g17-main-sha-terminal-reconstruction-pending-20260731-v1.json
+            docs/development/h3-n2-stage2d9r-g3r-d2-17-g16-pass-g17-main-sha-terminal-reconstruction-contract-20260731-v1.md
+            tools/h3_n2_stage2d9r_g3r_d2_17_g17_main_sha_terminal_reconstruction_20260731_v1.py
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g16_pass_g17_main_sha_terminal_reconstruction_20260731_v1.py
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g16_pass_g17_main_sha_terminal_reconstruction_20260731_v1.sh
+          )
+          for file in "${FILES[@]}"; do
+            mkdir -p "$ROOT/source/$(dirname "$file")"
+            cp "$file" "$ROOT/source/$file"
+          done
+          printf '%s\n' "$GITHUB_SHA" > "$ROOT/SOURCE_SHA"
+          (
+            cd "$ROOT"
+            find source -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
+          )
+          test "$(wc -l < "$ROOT/SHA256SUMS" | tr -d ' ')" = 7
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: d2-17-g16-pass-g17-main-sha-terminal-reconstruction-review-v1
+          path: ${{ runner.temp }}/g17-review
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
