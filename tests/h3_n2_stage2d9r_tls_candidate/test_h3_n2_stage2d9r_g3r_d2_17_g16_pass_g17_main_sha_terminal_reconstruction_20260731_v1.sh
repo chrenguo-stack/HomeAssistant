@@ -1,0 +1,3 @@
+#!/bin/sh
+set -eu
+python3 -B tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g16_pass_g17_main_sha_terminal_reconstruction_20260731_v1.py
