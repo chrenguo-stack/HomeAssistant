@@ -32,5 +32,6 @@
   "all_physical_operation_flags_false": true,
   "replay_permitted": false,
   "automatic_retry_permitted": false,
-  "acceptance_binding_sha256": "e84e3b87635c4ba6d05133ba9c45f438217a51e1762a4debeb6e93933c5db916"
+  "acceptance_binding_scope": "FROZEN_LOAD_BEARING_FORENSIC_FACT_SUBSET_V1",
+  "acceptance_binding_sha256": "9be11c054d84fb7db1a0a23eddc3f5735d5d660c6e1d2b1263634629938c0714"
 }
