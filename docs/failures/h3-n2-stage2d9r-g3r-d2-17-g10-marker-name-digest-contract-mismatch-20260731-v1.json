@@ -1,0 +1,22 @@
+{
+  "all_physical_operation_flags_false": true,
+  "authorization_claimed": false,
+  "authorization_consumed": false,
+  "authorization_marker_digest_sha256": "43083b71551db802ba388b1e4c30830be7f6bfea9d2f3dfefe34691ff31f4db8",
+  "d2_request_id": "D2-H3N2-STAGE2D9R-G3R-EXECUTION-IDENTITY-FROZEN-PREFLIGHT-STABILIZED-PHYSICAL-20260730-17",
+  "decision_id": "D1-H3N2-STAGE2D9R-G3R-D2-17-G10-MARKER-NAME-DIGEST-COMPATIBILITY-REPAIR-20260731-01",
+  "derived_marker_name": "43083b71551db802ba388b1e4c30830be7f6bfea9d2f3dfefe34691ff31f4db8.json",
+  "execution_artifact_id": 8752919376,
+  "execution_artifact_sha256": "b5e003ad806b7cb924b388fa4be155046cf03799b89ff0253d759a533f37d121",
+  "failure_binding_sha256": "bbf6860944bdd1c733699629edf4f67a6164b17084bf97f0cc200c21424b419c",
+  "failure_code": "EXECUTION_MARKER_NAME_MISMATCH",
+  "failure_stage": "INHERITED_EXECUTE_AFTER_AUTHORIZATION_VALIDATION_BEFORE_CLAIM",
+  "g09_material_accessed": false,
+  "g10_private_material_created": false,
+  "inherited_marker_name_digest_sha256": "adb9442343367827502c6c34c03f739dad38f8e169d4a8ff0d8dd64c88fafdbd",
+  "replay_permitted": false,
+  "schema": "gh.h3.n2.stage2d9r-g3r-d2-17-g10-marker-name-digest-contract-mismatch/1",
+  "source_head_sha": "af2bbb24611e7893cd74681203e79aea3f415a3b",
+  "source_pr": 237,
+  "state": "PUBLIC_HOST_ONLY_G10_PREPARATION_BLOCKER_REPRODUCED"
+}
