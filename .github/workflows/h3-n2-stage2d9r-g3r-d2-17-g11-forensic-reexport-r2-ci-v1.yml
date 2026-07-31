@@ -1,0 +1,79 @@
+name: H3 N2 Stage2D9R G3R D2-17 G11 forensic re-export R2
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-g3r-d2-17-g11-forensic-reexport-r2-ci-v1.yml"
+      - "docs/acceptance/h3-n2-stage2d9r-g3r-d2-17-g11-first-forensic-output-lost-disposition-20260731-v1.json"
+      - "docs/decisions/h3-n2-stage2d9r-g3r-d2-17-g11-read-only-preclaim-forensic-reexport-r2-authorization-20260731-v1.json"
+      - "docs/development/h3-n2-stage2d9r-g3r-d2-17-g11-read-only-preclaim-forensic-reexport-r2-contract-20260731-v1.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BASE_HEAD: "38a7817b2cd76dfe754e18bfc23f8595c9a5d2fd"
+      BASE_BRANCH: "docs/h3-n2-stage2d9r-g3r-d2-17-g11-preclaim-blocked-forensic-pending-20260731-v1"
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: Verify exact base, inventory and bindings
+        env:
+          EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EVENT_BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$PR_HEAD_SHA"
+          test "$EVENT_BASE_SHA" = "$BASE_HEAD"
+          test "$EVENT_BASE_REF" = "$BASE_BRANCH"
+          git merge-base --is-ancestor "$BASE_HEAD" "$PR_HEAD_SHA"
+          test -z "$(git diff --diff-filter=DMRT --name-only "$BASE_HEAD...$PR_HEAD_SHA")"
+          test "$(git diff --name-only "$BASE_HEAD...$PR_HEAD_SHA" | wc -l | tr -d ' ')" = "4"
+          python3 -B - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          def canonical(v): return hashlib.sha256(json.dumps(v,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode()).hexdigest()
+          d=json.loads(Path('docs/acceptance/h3-n2-stage2d9r-g3r-d2-17-g11-first-forensic-output-lost-disposition-20260731-v1.json').read_text())
+          x=dict(d); b=x.pop('disposition_binding_sha256'); assert canonical(x)==b=='6570684c6470e9614f241b61946e41a21c341d209edef0d7a9fd5dda7cec2060'
+          a=json.loads(Path('docs/decisions/h3-n2-stage2d9r-g3r-d2-17-g11-read-only-preclaim-forensic-reexport-r2-authorization-20260731-v1.json').read_text())
+          x=dict(a); b=x.pop('authorization_binding_sha256'); assert canonical(x)==b=='66d316f7736cf8466144421a8721606b4adcda4bbdb57c9da2572f762d4e07d9'
+          assert d['first_package_replay_permitted'] is False and d['g11_physical_runtime_mutated'] is False
+          for k in ('board_operation_authorized','usb_enumeration_authorized','serial_operation_authorized','esptool_operation_authorized','physical_nvs_operation_authorized','flash_operation_authorized','network_operation_authorized','broker_start_authorized','prepare_authorized','verify_authorized','recovery_authorized','runtime_mutation_authorized'):
+              assert a[k] is False
+          assert a['result_file_write_authorized'] is True and a['run_max_count']==1
+          PY
+          ! grep -R --line-number --fixed-strings '/Users/' docs/acceptance docs/decisions docs/development
+      - name: Build exact-head review Artifact
+        run: |
+          set -euo pipefail
+          OUT=/tmp/d2-17-g11-forensic-reexport-r2-review
+          mkdir -p "$OUT/source"
+          cp --parents \
+            .github/workflows/h3-n2-stage2d9r-g3r-d2-17-g11-forensic-reexport-r2-ci-v1.yml \
+            docs/acceptance/h3-n2-stage2d9r-g3r-d2-17-g11-first-forensic-output-lost-disposition-20260731-v1.json \
+            docs/decisions/h3-n2-stage2d9r-g3r-d2-17-g11-read-only-preclaim-forensic-reexport-r2-authorization-20260731-v1.json \
+            docs/development/h3-n2-stage2d9r-g3r-d2-17-g11-read-only-preclaim-forensic-reexport-r2-contract-20260731-v1.md \
+            --target-directory "$OUT/source"
+          printf '%s\n' "$PR_HEAD_SHA" > "$OUT/SOURCE_SHA"
+          (cd "$OUT" && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
+          (cd "$OUT" && sha256sum -c SHA256SUMS)
+      - name: Upload exact-head review Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: d2-17-g11-forensic-reexport-r2-review-v1
+          path: /tmp/d2-17-g11-forensic-reexport-r2-review
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
