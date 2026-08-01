@@ -40,7 +40,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sh tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g17_fail_g18_semantic_digest_repair_20260801_v1.sh
+          bash tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g17_fail_g18_semantic_digest_repair_20260801_v1.sh
           python3 -B -m py_compile \
             tools/h3_n2_stage2d9r_g3r_d2_17_g18_semantic_terminal_file_verification_20260801_v1.py \
             tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_g3r_d2_17_g17_fail_g18_semantic_digest_repair_20260801_v1.py
