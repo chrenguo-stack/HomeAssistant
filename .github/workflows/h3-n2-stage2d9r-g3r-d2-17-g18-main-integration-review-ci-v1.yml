@@ -1,0 +1,46 @@
+name: H3 N2 D2-17 G18 Main Integration Review V1
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/h3-n2-stage2d9r-g3r-d2-17-g18-main-integration-review-ci-v1.yml'
+      - 'docs/acceptance/h3-n2-stage2d9r-g3r-d2-17-g18-main-integration-inventory-20260801-v1.json'
+      - 'docs/acceptance/h3-n2-stage2d9r-g3r-d2-17-g18-target-mac-host-only-closure-pass-20260801-v1.json'
+      - 'docs/decisions/h3-n2-stage2d9r-g3r-d2-17-final-closure-20260801-v1.json'
+      - 'docs/development/h3-n2-stage2d9r-g3r-d2-17-g18-main-integration-strategy-20260801-v1.md'
+      - 'docs/development/h3-n2-stage2d9r-g3r-d2-17-g18-pass-final-closure-contract-20260801-v1.md'
+      - 'tools/h3_n2_stage2d9r_g3r_d2_17_g18_main_integration_review_20260801_v1.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate consolidated main integration
+        run: |
+          set -euo pipefail
+          python3 tools/h3_n2_stage2d9r_g3r_d2_17_g18_main_integration_review_20260801_v1.py \
+            --artifact-dir "$RUNNER_TEMP/d2-17-g18-main-integration-review-v1"
+
+      - name: Upload load-bearing review Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: d2-17-g18-main-integration-consolidated-review-v1
+          path: ${{ runner.temp }}/d2-17-g18-main-integration-review-v1
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 7
