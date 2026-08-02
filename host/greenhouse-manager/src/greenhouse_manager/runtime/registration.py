@@ -76,7 +76,7 @@ class RegistrationEvent:
 class NodeIdLeaseState(StrEnum):
     ACTIVE = "active"
     RETIRING = "retiring"
-    REUSABLE = "reusable"
+    RETIRED = "retired"
 
 
 class RetirementState(StrEnum):
@@ -214,7 +214,7 @@ class RegistrationRegistry:
                     node_id TEXT PRIMARY KEY,
                     hardware_id TEXT NOT NULL,
                     logical_location_id TEXT,
-                    state TEXT NOT NULL CHECK (state IN ('active', 'retiring', 'reusable')),
+                    state TEXT NOT NULL CHECK (state IN ('active', 'retiring', 'retired')),
                     retirement_id INTEGER,
                     updated_at TEXT NOT NULL
                 );
@@ -246,6 +246,7 @@ class RegistrationRegistry:
                     ON retirement_outbox(runtime_cleanup_complete, retirement_id);
                 """
             )
+            self._migrate_node_id_leases_v07()
             self._ensure_column("registrations", "logical_location_id", "TEXT")
             self._ensure_column("registrations", "retired_at", "TEXT")
             self._ensure_column("registrations", "retirement_reason", "TEXT")
@@ -255,6 +256,46 @@ class RegistrationRegistry:
             self._ensure_column("node_id_leases", "logical_location_id", "TEXT")
             self._ensure_column("retirement_outbox", "logical_location_id", "TEXT")
             self._bootstrap_node_assignments()
+
+    def _migrate_node_id_leases_v07(self) -> None:
+        leftover = self._connection.execute(
+            """
+            SELECT 1 FROM sqlite_master
+            WHERE type = 'table' AND name = 'node_id_leases_v06'
+            """
+        ).fetchone()
+        if leftover is not None:
+            raise RegistrationConflict("incomplete node_id lease migration requires recovery")
+        table = self._connection.execute(
+            """
+            SELECT sql FROM sqlite_master
+            WHERE type = 'table' AND name = 'node_id_leases'
+            """
+        ).fetchone()
+        if table is None or "reusable" not in str(table["sql"]).lower():
+            return
+        self._connection.executescript(
+            """
+            ALTER TABLE node_id_leases RENAME TO node_id_leases_v06;
+            CREATE TABLE node_id_leases (
+                node_id TEXT PRIMARY KEY,
+                hardware_id TEXT NOT NULL,
+                logical_location_id TEXT,
+                state TEXT NOT NULL CHECK (state IN ('active', 'retiring', 'retired')),
+                retirement_id INTEGER,
+                updated_at TEXT NOT NULL
+            );
+            INSERT INTO node_id_leases (
+                node_id, hardware_id, logical_location_id, state,
+                retirement_id, updated_at
+            )
+            SELECT node_id, hardware_id, logical_location_id,
+                   CASE WHEN state = 'reusable' THEN 'retired' ELSE state END,
+                   retirement_id, updated_at
+            FROM node_id_leases_v06;
+            DROP TABLE node_id_leases_v06;
+            """
+        )
 
     def _ensure_column(self, table: str, column: str, definition: str) -> None:
         columns = {row["name"] for row in self._connection.execute(f"PRAGMA table_info({table})").fetchall()}
@@ -344,9 +385,27 @@ class RegistrationRegistry:
         with self._lock, self._connection:
             replay = self._session_row(pairing_id)
             current = self._current_row(hardware_id)
+            was_retired = current is not None and current["retired_at"] is not None
 
-            if current is not None and current["retired_at"] is not None:
-                return ObserveResult("rejected", self.get(hardware_id), "hardware_retired")
+            if was_retired:
+                latest_retirement = self._connection.execute(
+                    """
+                    SELECT * FROM retirement_outbox
+                    WHERE hardware_id = ?
+                    ORDER BY retirement_id DESC
+                    LIMIT 1
+                    """,
+                    (hardware_id,),
+                ).fetchone()
+                if (
+                    latest_retirement is None
+                    or latest_retirement["state"] != RetirementState.COMPLETED
+                ):
+                    return ObserveResult(
+                        "rejected",
+                        self.get(hardware_id),
+                        "hardware_retirement_incomplete",
+                    )
 
             if replay is not None:
                 if replay["hardware_id"] != hardware_id or replay["pairing_epoch"] != epoch:
@@ -378,6 +437,7 @@ class RegistrationRegistry:
 
             if (
                 current is not None
+                and not was_retired
                 and current["state"] == RegistrationState.APPROVED
                 and not current["repair_authorized"]
             ):
@@ -409,21 +469,33 @@ class RegistrationRegistry:
             status = "created"
             node_id = None
             if current is not None:
-                status = "superseded"
-                node_id = current["node_id"]
+                status = "repaired_after_retirement" if was_retired else "superseded"
+                node_id = None if was_retired else current["node_id"]
                 previous = self._session_row(current["current_pairing_id"])
                 if previous is not None and previous["state"] == RegistrationState.PENDING:
                     self._set_session_state(
                         current["current_pairing_id"], RegistrationState.REJECTED, "superseded"
                     )
-                self._connection.execute(
-                    """
-                    UPDATE registrations
-                    SET current_pairing_id = ?, pairing_epoch = ?, repair_authorized = 0
-                    WHERE hardware_id = ?
-                    """,
-                    (pairing_id, epoch, hardware_id),
-                )
+                if was_retired:
+                    self._connection.execute(
+                        """
+                        UPDATE registrations
+                        SET current_pairing_id = ?, pairing_epoch = ?, node_id = NULL,
+                            logical_location_id = NULL, repair_authorized = 0,
+                            retired_at = NULL, retirement_reason = NULL
+                        WHERE hardware_id = ?
+                        """,
+                        (pairing_id, epoch, hardware_id),
+                    )
+                else:
+                    self._connection.execute(
+                        """
+                        UPDATE registrations
+                        SET current_pairing_id = ?, pairing_epoch = ?, repair_authorized = 0
+                        WHERE hardware_id = ?
+                        """,
+                        (pairing_id, epoch, hardware_id),
+                    )
             else:
                 self._connection.execute(
                     """
@@ -435,7 +507,13 @@ class RegistrationRegistry:
             self._record_event(
                 hardware_id,
                 pairing_id,
-                "hello_created" if status == "created" else "hello_superseded",
+                (
+                    "hello_created"
+                    if status == "created"
+                    else "hello_repaired_after_retirement"
+                    if status == "repaired_after_retirement"
+                    else "hello_superseded"
+                ),
                 None,
                 observed_at,
             )
@@ -467,9 +545,6 @@ class RegistrationRegistry:
         *,
         node_id: str | None = None,
         logical_location_id: str | None = None,
-        reuse_retired_node_id: bool = False,
-        private_identity_bound: bool = False,
-        anonymous_compatibility_enabled: bool = True,
         now: datetime | None = None,
     ) -> RegistrationRecord:
         observed_at = _utc(now or datetime.now(UTC))
@@ -501,13 +576,10 @@ class RegistrationRegistry:
                 raise RegistrationConflict(
                     "logical_location_id change requires retiring the existing hardware"
                 )
-            reused_from_hardware_id = self._validate_node_id_claim(
+            self._validate_node_id_claim(
                 hardware_id,
                 assigned_node_id,
                 logical_location_id=assigned_logical_location_id,
-                reuse_retired_node_id=reuse_retired_node_id,
-                private_identity_bound=private_identity_bound,
-                anonymous_compatibility_enabled=anonymous_compatibility_enabled,
             )
             try:
                 self._connection.execute(
@@ -540,16 +612,6 @@ class RegistrationRegistry:
                 node_id=assigned_node_id,
                 logical_location_id=assigned_logical_location_id,
             )
-            if reused_from_hardware_id is not None:
-                self._record_event(
-                    hardware_id,
-                    pairing_id,
-                    "node_id_reuse_approved",
-                    f"replaced_hardware_id={reused_from_hardware_id}",
-                    observed_at,
-                    node_id=assigned_node_id,
-                    logical_location_id=assigned_logical_location_id,
-                )
             self._open_assignment_history(
                 hardware_id,
                 assigned_node_id,
@@ -930,7 +992,7 @@ class RegistrationRegistry:
                 SET state = ?, updated_at = ?
                 WHERE retirement_id = ?
                 """,
-                (NodeIdLeaseState.REUSABLE, _timestamp(occurred_at), retirement_id),
+                (NodeIdLeaseState.RETIRED, _timestamp(occurred_at), retirement_id),
             )
             self._record_event(
                 row["hardware_id"],
@@ -948,50 +1010,55 @@ class RegistrationRegistry:
         node_id: str,
         *,
         logical_location_id: str | None,
-        reuse_retired_node_id: bool,
-        private_identity_bound: bool,
-        anonymous_compatibility_enabled: bool,
-    ) -> str | None:
+    ) -> None:
         lease = self._connection.execute(
             "SELECT * FROM node_id_leases WHERE node_id = ?",
             (node_id,),
         ).fetchone()
-        if lease is None:
-            return None
-        state = NodeIdLeaseState(lease["state"])
-        owner = str(lease["hardware_id"])
-        lease_logical_location_id = lease["logical_location_id"]
-        if state is NodeIdLeaseState.ACTIVE:
-            if owner != hardware_id:
-                raise RegistrationConflict("node_id is already assigned")
-            if (
-                lease_logical_location_id is not None
-                and logical_location_id is not None
-                and lease_logical_location_id != logical_location_id
-            ):
-                raise RegistrationConflict(
-                    "logical_location_id change requires retiring the existing hardware"
-                )
-            return None
-        if state is NodeIdLeaseState.RETIRING:
-            raise RegistrationConflict("node_id retirement cleanup is incomplete")
-        if owner != hardware_id and not reuse_retired_node_id:
-            raise RegistrationConflict("explicit retired node_id reuse approval is required")
-        if owner != hardware_id and lease_logical_location_id is None:
+        if lease is not None:
+            state = NodeIdLeaseState(lease["state"])
+            owner = str(lease["hardware_id"])
+            if state is NodeIdLeaseState.ACTIVE and owner == hardware_id:
+                lease_location = lease["logical_location_id"]
+                if (
+                    lease_location is not None
+                    and logical_location_id is not None
+                    and lease_location != logical_location_id
+                ):
+                    raise RegistrationConflict(
+                        "logical_location_id change requires retiring the existing hardware"
+                    )
+                return
+            if state is NodeIdLeaseState.RETIRING:
+                raise RegistrationConflict("node_id retirement cleanup is incomplete")
             raise RegistrationConflict(
-                "retired node_id has no logical location evidence and cannot be reused"
+                "node_id is already assigned or has been used and is permanently reserved"
             )
-        if owner != hardware_id and logical_location_id is None:
-            raise RegistrationConflict("logical_location_id is required to reuse a retired node_id")
-        if owner != hardware_id and lease_logical_location_id != logical_location_id:
-            raise RegistrationConflict("retired node_id may only be reused for the same logical location")
-        if owner != hardware_id and anonymous_compatibility_enabled:
-            raise RegistrationConflict(
-                "anonymous compatibility must be disabled before reusing a retired node_id"
-            )
-        if owner != hardware_id and not private_identity_bound:
-            raise RegistrationConflict("private identity binding is required to reuse a retired node_id")
-        return owner if owner != hardware_id else None
+
+        history = self._connection.execute(
+            """
+            SELECT hardware_id, released_at
+            FROM registration_node_history
+            WHERE node_id = ?
+            ORDER BY history_id DESC
+            LIMIT 1
+            """,
+            (node_id,),
+        ).fetchone()
+        if history is None:
+            return
+        current = self._current_row(hardware_id)
+        if (
+            history["hardware_id"] == hardware_id
+            and history["released_at"] is None
+            and current is not None
+            and current["node_id"] == node_id
+            and current["retired_at"] is None
+        ):
+            return
+        raise RegistrationConflict(
+            "node_id is already assigned or has been used and is permanently reserved"
+        )
 
     def _activate_node_id_lease(
         self,
@@ -1000,26 +1067,41 @@ class RegistrationRegistry:
         logical_location_id: str | None,
         occurred_at: datetime,
     ) -> None:
+        lease = self._connection.execute(
+            "SELECT * FROM node_id_leases WHERE node_id = ?",
+            (node_id,),
+        ).fetchone()
+        if lease is None:
+            self._connection.execute(
+                """
+                INSERT INTO node_id_leases (
+                    node_id, hardware_id, logical_location_id, state,
+                    retirement_id, updated_at
+                ) VALUES (?, ?, ?, ?, NULL, ?)
+                """,
+                (
+                    node_id,
+                    hardware_id,
+                    logical_location_id,
+                    NodeIdLeaseState.ACTIVE,
+                    _timestamp(occurred_at),
+                ),
+            )
+            return
+        if (
+            NodeIdLeaseState(lease["state"]) is not NodeIdLeaseState.ACTIVE
+            or lease["hardware_id"] != hardware_id
+        ):
+            raise RegistrationConflict(
+                "node_id is already assigned or has been used and is permanently reserved"
+            )
         self._connection.execute(
             """
-            INSERT INTO node_id_leases (
-                node_id, hardware_id, logical_location_id, state,
-                retirement_id, updated_at
-            ) VALUES (?, ?, ?, ?, NULL, ?)
-            ON CONFLICT(node_id) DO UPDATE SET
-                hardware_id = excluded.hardware_id,
-                logical_location_id = excluded.logical_location_id,
-                state = excluded.state,
-                retirement_id = NULL,
-                updated_at = excluded.updated_at
+            UPDATE node_id_leases
+            SET logical_location_id = ?, updated_at = ?
+            WHERE node_id = ?
             """,
-            (
-                node_id,
-                hardware_id,
-                logical_location_id,
-                NodeIdLeaseState.ACTIVE,
-                _timestamp(occurred_at),
-            ),
+            (logical_location_id, _timestamp(occurred_at), node_id),
         )
 
     def _open_assignment_history(

@@ -1,0 +1,54 @@
+name: Project roadmap V0.7 and C-07 identity semantics
+
+on:
+  pull_request:
+    paths:
+      - "README.md"
+      - "docs/adr/**"
+      - "docs/roadmap/**"
+      - "docs/development/c07-node-retirement.md"
+      - "host/greenhouse-manager/**"
+      - "infra/compose/c07-node-retirement/**"
+      - ".github/workflows/project-roadmap-v07-c07-identity-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  focused-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install greenhouse-manager
+        run: python -m pip install -e 'host/greenhouse-manager[dev]'
+      - name: Run identity lifecycle tests
+        run: pytest -q host/greenhouse-manager/tests/runtime/test_registration.py host/greenhouse-manager/tests/runtime/test_credential_lifecycle.py host/greenhouse-manager/tests/runtime/test_node_retirement_runtime.py host/greenhouse-manager/tests/ops/test_registration_cli.py host/greenhouse-manager/tests/ops/test_node_retirement_cli.py
+      - name: Ruff
+        run: ruff check host/greenhouse-manager/src host/greenhouse-manager/tests
+      - name: Governance contract
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          required = {
+              "README.md": ["V0.7", "无专用 LoRa 中继器", "旧 NODE_ID 永久封存"],
+              "docs/roadmap/README.md": ["greenhouse-technology-roadmap-v0.7.md"],
+              "docs/adr/0003-node-identity-and-durable-retirement.md": ["永久封存", "严格递增 pairing_epoch"],
+              "docs/development/c07-node-retirement.md": ["active -> retiring -> retired"],
+          }
+          for path, tokens in required.items():
+              text = Path(path).read_text(encoding="utf-8")
+              for token in tokens:
+                  assert token in text, (path, token)
+
+          runtime = Path("host/greenhouse-manager/src/greenhouse_manager/runtime/registration.py").read_text(encoding="utf-8")
+          cli = Path("host/greenhouse-manager/src/greenhouse_manager/ops/registration_cli.py").read_text(encoding="utf-8")
+          assert 'REUSABLE = "reusable"' not in runtime
+          assert "reuse_retired_node_id" not in runtime
+          assert "--reuse-retired-node-id" not in cli
+          assert "--private-identity-bound" not in cli
+          PY

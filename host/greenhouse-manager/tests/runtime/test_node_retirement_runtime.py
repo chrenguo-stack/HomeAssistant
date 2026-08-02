@@ -112,7 +112,7 @@ def test_manager_retries_durable_cleanup_after_credential_revocation(
 
     completed = service.registration_registry.get_retirement_job(retirement_id)
     assert completed.state is RetirementState.COMPLETED
-    assert service.registration_registry.node_id_lease_state(NODE_ID) is NodeIdLeaseState.REUSABLE
+    assert service.registration_registry.node_id_lease_state(NODE_ID) is NodeIdLeaseState.RETIRED
     assert service.processor.stale_messages(now=NOW) == ()
     service.registration_registry.close()
 

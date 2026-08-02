@@ -356,7 +356,7 @@ def publish_until_discovery(node: Session) -> None:
     raise AssertionError("manager did not publish retained Home Assistant discovery")
 
 
-def assert_anonymous_reuse_is_blocked() -> None:
+def assert_retired_node_id_is_permanently_reserved() -> None:
     with RegistrationRegistry(DATABASE) as registry:
         registry.observe_hello(
             hello(
@@ -371,15 +371,13 @@ def assert_anonymous_reuse_is_blocked() -> None:
                 REPLACEMENT_PAIRING_ID,
                 node_id=NODE_ID,
                 logical_location_id=LOGICAL_LOCATION_ID,
-                reuse_retired_node_id=True,
-                private_identity_bound=True,
                 now=datetime.now(UTC),
             )
         except RegistrationConflict as error:
-            if "anonymous compatibility must be disabled" not in str(error):
+            if "permanently reserved" not in str(error):
                 raise
         else:
-            raise AssertionError("anonymous compatibility did not block NODE_ID reuse")
+            raise AssertionError("retired NODE_ID was accepted for replacement hardware")
 
 
 def retirement_completed(retirement_id: int) -> bool:
@@ -492,7 +490,7 @@ def main() -> None:
             if retained_payload(topic) is not None:
                 raise AssertionError(f"retained tombstone did not clear {topic}")
 
-        assert_anonymous_reuse_is_blocked()
+        assert_retired_node_id_is_permanently_reserved()
 
         stop_manager(manager_process, manager_log)
         manager_process = None
@@ -539,7 +537,7 @@ def main() -> None:
             "homeassistant_entities_removed": len(
                 final_probe.get("removed_entities", [])
             ),
-            "anonymous_reuse_blocked": True,
+            "retired_node_id_reuse_blocked": True,
             "manager_restart_resurrection_blocked": True,
             "production_services_modified": False,
             "secret_values_included": False,

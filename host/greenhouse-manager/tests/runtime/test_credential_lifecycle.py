@@ -98,26 +98,50 @@ def test_revoke_and_recovery_clear_pending_generation(tmp_path: Path) -> None:
     assert recovery.reason == "backup_integrity_failed"
 
 
-def test_revoke_releases_unique_node_id_for_replacement_hardware(
+def test_revoked_assignment_allows_new_node_with_higher_generation_only(
     tmp_path: Path,
 ) -> None:
     database = tmp_path / "registration.sqlite3"
-    replacement_hardware = "ghw-c6-112233445566"
+    replacement_node = "gh-n1-new-112233"
     with CredentialLifecycleStore(database) as store:
         store.activate(
             hardware_id=HARDWARE_ID,
             node_id=NODE_ID,
             generation=1,
+            pairing_id="pairing-old",
             now=NOW,
         )
         revoked = store.revoke(HARDWARE_ID, now=NOW)
+        with pytest.raises(CredentialLifecycleConflict, match="generation must increase"):
+            store.activate(
+                hardware_id=HARDWARE_ID,
+                node_id=replacement_node,
+                generation=1,
+                pairing_id="pairing-new",
+                now=NOW,
+            )
         replacement = store.activate(
-            hardware_id=replacement_hardware,
-            node_id=NODE_ID,
-            generation=1,
+            hardware_id=HARDWARE_ID,
+            node_id=replacement_node,
+            generation=2,
+            pairing_id="pairing-new",
             now=NOW,
         )
+        with pytest.raises(CredentialLifecycleConflict, match="permanently reserved"):
+            store.activate(
+                hardware_id="ghw-c6-112233445566",
+                node_id=NODE_ID,
+                generation=1,
+                pairing_id="pairing-other",
+                now=NOW,
+            )
+        history = store.list_for_hardware(HARDWARE_ID)
 
     assert revoked.node_id is None
     assert revoked.last_node_id == NODE_ID
-    assert replacement.node_id == NODE_ID
+    assert replacement.node_id == replacement_node
+    assert replacement.active_generation == 2
+    assert [record.state for record in history] == [
+        CredentialState.REVOKED,
+        CredentialState.ACTIVE,
+    ]
