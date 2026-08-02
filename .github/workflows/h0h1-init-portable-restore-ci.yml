@@ -5,12 +5,13 @@ on:
     paths:
       - "README.md"
       - "docs/adr/**"
-      - "docs/development/h0h1-init-portable-restore.md"
+      - "docs/development/h0h1-*.md"
       - "docs/status/h0h1-source-baseline-20260802.md"
       - "docs/roadmap/**"
       - "host/greenhouse-manager/**"
       - "infra/compose/c07-node-retirement/**"
       - "tools/h0h1_host_only_harness.py"
+      - "tools/h0h1_persistence_migration_harness.py"
       - ".github/workflows/h0h1-init-portable-restore-ci.yml"
       - ".github/workflows/project-roadmap-v07-c07-identity-ci.yml"
 
@@ -44,6 +45,7 @@ jobs:
           python -m compileall -q
           host/greenhouse-manager/src/greenhouse_manager/bootstrap
           tools/h0h1_host_only_harness.py
+          tools/h0h1_persistence_migration_harness.py
 
       - name: Ruff
         run: >-
@@ -58,6 +60,7 @@ jobs:
           host/greenhouse-manager/tests/runtime/test_node_retirement_runtime.py
           host/greenhouse-manager/tests/ops/test_registration_cli.py
           tools/h0h1_host_only_harness.py
+          tools/h0h1_persistence_migration_harness.py
 
       - name: Focused identity and bootstrap tests
         run: >-
@@ -85,6 +88,8 @@ jobs:
                   "greenhouse_manager.bootstrap.portable_restore_cli:main",
               "greenhouse-system-identity-guard":
                   "greenhouse_manager.bootstrap.identity_guard_cli:main",
+              "greenhouse-persistence-migration-plan":
+                  "greenhouse_manager.bootstrap.persistence_migration_cli:main",
           }
           for name, target in expected.items():
               assert scripts.get(name) == target, (name, scripts.get(name))
@@ -150,6 +155,38 @@ jobs:
           assert not any(value in lowered for value in forbidden)
           PY
 
+      - name: Run persistence migration host-only harness
+        run: |
+          python tools/h0h1_persistence_migration_harness.py \
+            --output review/h0h1-persistence-migration-result.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          result = json.loads(
+              Path("review/h0h1-persistence-migration-result.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          assert result["status"] == "PASS"
+          for key in (
+              "manager_persistence_mount_required",
+              "complete_role_layout",
+              "runtime_state_classification_required",
+          ):
+              assert result[key] is True, key
+          for key in (
+              "execution_authorized",
+              "real_backup_authorized",
+              "restore_authorized",
+              "anonymous_closure_authorized",
+              "production_services_modified",
+              "network_operation",
+              "secret_values_included",
+          ):
+              assert result[key] is False, key
+          PY
+
       - name: Build secret-free review bundle
         env:
           BASE_REF: ${{ github.base_ref }}
@@ -177,7 +214,7 @@ jobs:
       - name: Upload review Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: h0h1-v07-init-portable-restore-review-v1
+          name: h0h1-v07-init-portable-restore-review-v2
           path: review/
           if-no-files-found: error
           retention-days: 14
