@@ -12,6 +12,7 @@ on:
       - "infra/compose/c07-node-retirement/**"
       - "tools/h0h1_host_only_harness.py"
       - "tools/h0h1_persistence_migration_harness.py"
+      - "tools/h0h1_legacy_adoption_harness.py"
       - ".github/workflows/h0h1-init-portable-restore-ci.yml"
       - ".github/workflows/project-roadmap-v07-c07-identity-ci.yml"
 
@@ -25,7 +26,7 @@ concurrency:
 jobs:
   focused-contract:
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -46,6 +47,7 @@ jobs:
           host/greenhouse-manager/src/greenhouse_manager/bootstrap
           tools/h0h1_host_only_harness.py
           tools/h0h1_persistence_migration_harness.py
+          tools/h0h1_legacy_adoption_harness.py
 
       - name: Ruff
         run: >-
@@ -61,6 +63,7 @@ jobs:
           host/greenhouse-manager/tests/ops/test_registration_cli.py
           tools/h0h1_host_only_harness.py
           tools/h0h1_persistence_migration_harness.py
+          tools/h0h1_legacy_adoption_harness.py
 
       - name: Focused identity and bootstrap tests
         run: >-
@@ -187,6 +190,47 @@ jobs:
               assert result[key] is False, key
           PY
 
+      - name: Run legacy SYSTEM_ID adoption host-only harness
+        run: |
+          python tools/h0h1_legacy_adoption_harness.py \
+            --output review/h0h1-legacy-adoption-result.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("review/h0h1-legacy-adoption-result.json")
+          result = json.loads(path.read_text(encoding="utf-8"))
+          assert result["status"] == "PASS"
+          for key in (
+              "classification_contract_valid",
+              "existing_system_id_preserved",
+              "new_manager_identity_generated",
+              "empty_formal_manager_state_materialized",
+              "complete_role_inventory",
+              "candidate_root_private",
+              "candidate_members_private",
+              "portable_backup_encrypted",
+              "portable_backup_verified",
+              "portable_restore_round_trip",
+          ):
+              assert result[key] is True, key
+          for key in (
+              "new_system_id_generated",
+              "legacy_business_rows_reconstructed",
+              "anonymous_nodes_reconstructed",
+              "production_services_modified",
+              "network_operation",
+              "subprocess_operation",
+              "t1_operation",
+              "board_operation",
+              "live_apply_enabled",
+          ):
+              assert result[key] is False, key
+          forbidden = ("password", "passphrase", "private_key", "secret", "token")
+          lowered = path.read_text(encoding="utf-8").lower()
+          assert not any(value in lowered for value in forbidden)
+          PY
+
       - name: Build secret-free review bundle
         env:
           BASE_REF: ${{ github.base_ref }}
@@ -214,7 +258,7 @@ jobs:
       - name: Upload review Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: h0h1-v07-init-portable-restore-review-v2
+          name: h0h1-v07-init-portable-restore-review-v3
           path: review/
           if-no-files-found: error
           retention-days: 14
