@@ -9,7 +9,11 @@ v07_identity_alignment_included=true
 t1_read_only_audit_executed=true
 t1_manager_persistence_gap_confirmed=true
 persistence_migration_contract_implemented=true
-runtime_hidden_state_classified=false
+runtime_hidden_state_classified=true
+legacy_system_id_adoption_required=true
+legacy_system_id_adoption_contract_implemented=true
+legacy_adoption_host_only_harness_implemented=true
+candidate_root_prepared=false
 real_backup_created=false
 real_restore_executed=false
 anonymous_mqtt_closed=false
@@ -17,7 +21,7 @@ production_services_modified=false
 ready_for_live_apply=false
 ```
 
-本阶段只提供源码、测试、CLI、只读基线证据和 GitHub CI。真实 T1 写操作仍必须等待新的明确授权。
+本阶段只提供源码、测试、CLI、只读证据和 GitHub CI。真实 T1 写操作仍必须等待新的明确授权。
 
 ## 模块与入口
 
@@ -27,9 +31,10 @@ greenhouse_manager.bootstrap.portable_restore
 greenhouse_manager.bootstrap.identity_guard
 greenhouse_manager.bootstrap.anonymous_closure
 greenhouse_manager.bootstrap.persistence_migration
+greenhouse_manager.bootstrap.legacy_adoption
 ```
 
-对应入口：
+已安装入口：
 
 ```text
 greenhouse-init
@@ -38,7 +43,8 @@ greenhouse-system-identity-guard
 greenhouse-persistence-migration-plan
 ```
 
-`runtime/` 不导入 `bootstrap/`。首次初始化、离线恢复和迁移计划不是长期运行 Manager 的启动副作用。
+`legacy_adoption` 当前只校验分类证据并生成计划；不提供生产写入函数或生产执行 CLI。
+`runtime/` 不导入 `bootstrap/`。首次初始化、离线恢复、接纳和迁移计划不是长期运行 Manager 的启动副作用。
 
 ## 默认关闭合同
 
@@ -66,24 +72,33 @@ greenhouse-system-identity-guard release
   --confirm RELEASE-GREENHOUSE-SYSTEM-IDENTITY
 ```
 
-`greenhouse-persistence-migration-plan` 只读取精确绑定的 secret-free 基线并输出计划，不提供执行开关。
-
+`greenhouse-persistence-migration-plan` 只读取精确绑定的无敏感值基线并输出计划，不提供执行开关。
 这些参数和计划只是源码层安全门，不构成生产授权。生产阶段还必须重新绑定主机、镜像、路径、
 备份、授权、回滚和提交后审计。
 
-## T1 只读基线缺口
+## T1 只读分类结论
 
-精确只读审计确认：
+精确只读审计和隐藏状态分类确认：
 
 - T1 运行 Manager `0.4.64`；
 - Mosquitto Dynamic Security 和持久化数据库存在；
 - 匿名兼容仍开启；
 - Manager 没有 `/var/lib/greenhouse-manager` 持久化挂载；
-- 系统身份、Manager 身份以及 registration/credential/outbox 角色未在持久目录中发现；
-- 真实备份、恢复、匿名关闭和部署均继续阻塞。
+- 正式 SYSTEM_ID 文档、根密钥、系统 CA、MANAGER_ID 未发现；
+- registration、credential lifecycle 和 retirement outbox 结构化状态未发现；
+- 当前 `GH_SYSTEM_ID` 已存在并持续用于接收遥测；
+- 因此不得生成新 SYSTEM_ID，必须显式接纳现有 SYSTEM_ID。
 
-缺少持久挂载不能证明容器内部或旧路径不存在状态。必须先完成隐藏运行状态分类，再决定走新系统
-初始化还是显式旧状态导入。详细合同见 `docs/development/h0h1-persistence-migration.md`。
+分类结果 SHA-256：
+
+```text
+4e95fd661df371c9d124c17a4a892aca6db41e0fb7e202b4116bf804e425483a
+```
+
+详细合同见：
+
+- `docs/development/h0h1-persistence-migration.md`；
+- `docs/development/h0h1-legacy-system-id-adoption.md`。
 
 ## 可移植角色清单
 
@@ -117,11 +132,14 @@ broker_persistence_state
 - 原主机 release 后恢复主机可 claim；
 - Manager、Home Assistant 和节点认证 policy 完整；
 - 匿名 publish/subscribe 均被拒；
-- policy secret-bearing 字段被拒；
+- policy 敏感字段被拒；
 - CLI 从 0600 passphrase 文件读取，不输出 passphrase；
-- T1 基线绑定、只读证据和持久化缺口漂移均失败关闭；
-- 十角色目标布局完整，但隐藏状态未分类时执行保持阻塞；
-- 持久化迁移计划不得启用真实备份、恢复、匿名关闭或部署。
+- T1 基线、分类和源码绑定漂移均失败关闭；
+- 现有 SYSTEM_ID 被保留，不生成替代 SYSTEM_ID；
+- 正式 Manager SQLite 只创建当前 schema 和 provenance，业务行保持零；
+- 不从日志重建 registration、credential、NODE_ID lease 或 outbox；
+- 合成候选根十角色加密备份和第二目录恢复通过；
+- 所有真实 T1、服务、网络和板卡操作保持关闭。
 
 ## GitHub CI
 
@@ -132,8 +150,9 @@ broker_persistence_state
 3. Ruff；
 4. 两主机 host-only harness；
 5. Manager 持久化迁移 host-only harness；
-6. source boundary 和 secret-free output 检查；
-7. 生成包含实际 BASE_SHA、SOURCE_SHA、changed-files、review patch、两个 harness result 和
+6. 旧 SYSTEM_ID 接纳 host-only harness；
+7. source boundary 和无敏感值输出检查；
+8. 生成包含实际 BASE_SHA、SOURCE_SHA、changed-files、review patch、三个 harness result和
    SHA256SUMS 的 Artifact。
 
 生产 T1、生产 Broker 和板卡均不在该工作流中。
@@ -142,10 +161,11 @@ broker_persistence_state
 
 ```text
 source/Draft review
-→ T1 精确绑定只读状态分类
+→ 精确绑定的私有 SYSTEM_ID 读取与指纹验证
 → 私有候选持久根准备
-→ 身份初始化或旧状态显式导入
-→ Manager 状态装配与完整角色清单
+→ 保留旧 SYSTEM_ID 的正式身份接纳
+→ 零业务行正式 Manager 状态装配
+→ Broker 一致性快照和完整角色清单
 → 私有可移植备份准备与授权
 → 第二台 T1 离线恢复
 → identity conflict / takeover gate
