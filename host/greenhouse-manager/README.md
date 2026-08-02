@@ -1,6 +1,6 @@
 # greenhouse-manager · M0/M1 状态发现与 M2 配对入口
 
-本目录是 V0.5 主机端的可运行服务。M0 负责把节点发布到 MQTT 入口 Topic 的 `gh.telemetry/1` 消息校验、去重并转换为 retained 规范化状态；M1 在此基础上生成 Home Assistant MQTT Discovery 配置。
+本目录是 V0.7 主机端的可运行服务。M0 负责把节点发布到 MQTT 入口 Topic 的 `gh.telemetry/1` 消息校验、去重并转换为 retained 规范化状态；M1 在此基础上生成 Home Assistant MQTT Discovery 配置。
 
 ## 当前职责
 
@@ -88,9 +88,9 @@ greenhouse-manager-registration --db /var/lib/greenhouse-manager/registration.sq
 
 CLI 输出不包含 node_nonce、pairing_pop 或凭据。当前 `approve`
 只记录操作员决定，并明确返回 `credential_issued=false`；它不会创建
-Broker 账号或跳过后续 PoP。`logical_location_id` 是稳定的逻辑监测位置，
-用于主板更换时验证 NODE_ID 只能在同一位置复用；匿名兼容开启期间 CLI
-始终拒绝跨硬件复用。
+Broker 账号或跳过后续 PoP。`logical_location_id` 是稳定的逻辑监测位置，仅用于位置和审计记录，
+不授权 NODE_ID 复用。旧 NODE_ID 在 outbox 完成后进入永久 `retired`；
+同一 HARDWARE_ID 重新配对也必须使用新 pairing_id、递增 epoch、新凭据和全新 NODE_ID。
 
 ## M2.2a Dynamic Security 计划
 

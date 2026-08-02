@@ -266,25 +266,51 @@ def test_retirement_is_durable_auditable_and_releases_current_node_id(
     )
 
 
-def test_retired_hardware_cannot_pair_again(
+def test_retired_hardware_repair_waits_for_outbox_and_requires_new_node_id(
     registry: RegistrationRegistry,
 ) -> None:
     registry.observe_hello(valid_hello(), now=NOW)
     registry.approve(HARDWARE_ID, PAIRING_ID, node_id=NODE_ID, now=NOW)
-    registry.retire(HARDWARE_ID, system_id="greenhouse", now=NOW)
+    job = registry.retire(HARDWARE_ID, system_id="greenhouse", now=NOW)
 
     next_pairing = "ca3e468d-fcdd-413d-b834-a8ac0cbe889e"
-    result = registry.observe_hello(
+    blocked = registry.observe_hello(
         valid_hello(pairing_id=next_pairing, epoch=4),
         now=NOW + timedelta(seconds=1),
     )
+    assert blocked.status == "rejected"
+    assert blocked.reason == "hardware_retirement_incomplete"
 
-    assert result.status == "rejected"
-    assert result.reason == "hardware_retired"
-    assert result.record.state is RegistrationState.RETIRED
+    registry.mark_credentials_revoked(job.retirement_id, evidence="test", now=NOW)
+    registry.mark_runtime_cleanup_complete(job.retirement_id, now=NOW)
+    repaired = registry.observe_hello(
+        valid_hello(pairing_id=next_pairing, epoch=4),
+        now=NOW + timedelta(seconds=2),
+    )
+    assert repaired.status == "repaired_after_retirement"
+    assert repaired.record.state is RegistrationState.PENDING
+    assert repaired.record.node_id is None
+
+    with pytest.raises(RegistrationConflict, match="permanently reserved"):
+        registry.approve(
+            HARDWARE_ID,
+            next_pairing,
+            node_id=NODE_ID,
+            now=NOW + timedelta(seconds=3),
+        )
+
+    approved = registry.approve(
+        HARDWARE_ID,
+        next_pairing,
+        node_id="gh-n1-new-a9f2f8",
+        logical_location_id=LOGICAL_LOCATION_ID,
+        now=NOW + timedelta(seconds=4),
+    )
+    assert approved.node_id == "gh-n1-new-a9f2f8"
+    assert approved.state is RegistrationState.APPROVED
 
 
-def test_node_id_reuse_requires_same_location_private_binding_and_closed_anonymous_path(
+def test_retired_node_id_is_permanently_reserved_across_hardware(
     registry: RegistrationRegistry,
 ) -> None:
     registry.observe_hello(valid_hello(), now=NOW)
@@ -296,6 +322,8 @@ def test_node_id_reuse_requires_same_location_private_binding_and_closed_anonymo
         now=NOW,
     )
     job = registry.retire(HARDWARE_ID, system_id="greenhouse", now=NOW)
+    registry.mark_credentials_revoked(job.retirement_id, evidence="test", now=NOW)
+    registry.mark_runtime_cleanup_complete(job.retirement_id, now=NOW)
 
     second_hardware = "ghw-c6-112233445566"
     second_pairing = "d5bcf708-88a0-4974-8ca9-597482974e94"
@@ -303,7 +331,7 @@ def test_node_id_reuse_requires_same_location_private_binding_and_closed_anonymo
     second["hardware_id"] = second_hardware
     registry.observe_hello(second, now=NOW)
 
-    with pytest.raises(RegistrationConflict, match="cleanup is incomplete"):
+    with pytest.raises(RegistrationConflict, match="permanently reserved"):
         registry.approve(
             second_hardware,
             second_pairing,
@@ -311,75 +339,6 @@ def test_node_id_reuse_requires_same_location_private_binding_and_closed_anonymo
             logical_location_id=LOGICAL_LOCATION_ID,
             now=NOW,
         )
-
-    with pytest.raises(RegistrationConflict, match="credentials must be revoked"):
-        registry.mark_runtime_cleanup_complete(job.retirement_id, now=NOW)
-    registry.mark_credentials_revoked(
-        job.retirement_id,
-        evidence="test_revocation",
-        now=NOW,
-    )
-    completed = registry.mark_runtime_cleanup_complete(job.retirement_id, now=NOW)
-    assert completed.state.value == "completed"
-
-    with pytest.raises(RegistrationConflict, match="explicit"):
-        registry.approve(
-            second_hardware,
-            second_pairing,
-            node_id=NODE_ID,
-            logical_location_id=LOGICAL_LOCATION_ID,
-            now=NOW,
-        )
-    with pytest.raises(RegistrationConflict, match="same logical location"):
-        registry.approve(
-            second_hardware,
-            second_pairing,
-            node_id=NODE_ID,
-            logical_location_id="greenhouse-bed-02",
-            reuse_retired_node_id=True,
-            private_identity_bound=True,
-            anonymous_compatibility_enabled=False,
-            now=NOW,
-        )
-    with pytest.raises(RegistrationConflict, match="anonymous compatibility"):
-        registry.approve(
-            second_hardware,
-            second_pairing,
-            node_id=NODE_ID,
-            logical_location_id=LOGICAL_LOCATION_ID,
-            reuse_retired_node_id=True,
-            private_identity_bound=True,
-            now=NOW,
-        )
-    with pytest.raises(RegistrationConflict, match="private identity"):
-        registry.approve(
-            second_hardware,
-            second_pairing,
-            node_id=NODE_ID,
-            logical_location_id=LOGICAL_LOCATION_ID,
-            reuse_retired_node_id=True,
-            anonymous_compatibility_enabled=False,
-            now=NOW,
-        )
-
-    approved = registry.approve(
-        second_hardware,
-        second_pairing,
-        node_id=NODE_ID,
-        logical_location_id=LOGICAL_LOCATION_ID,
-        reuse_retired_node_id=True,
-        private_identity_bound=True,
-        anonymous_compatibility_enabled=False,
-        now=NOW,
-    )
-    assert approved.node_id == NODE_ID
-    assert approved.logical_location_id == LOGICAL_LOCATION_ID
-    assert registry.is_node_id_ingress_allowed(NODE_ID) is True
-    reuse_event = registry.list_events(hardware_id=second_hardware)[0]
-    assert reuse_event.event == "node_id_reuse_approved"
-    assert reuse_event.node_id == NODE_ID
-    assert reuse_event.logical_location_id == LOGICAL_LOCATION_ID
-    assert reuse_event.reason == f"replaced_hardware_id={HARDWARE_ID}"
 
 
 def test_legacy_registry_schema_adds_location_columns_fail_closed(
@@ -431,3 +390,38 @@ def test_repair_cannot_change_node_id_without_retirement(
             node_id="gh-n1-replacement",
             now=NOW + timedelta(seconds=2),
         )
+
+
+def test_reusable_lease_migrates_fail_closed_to_retired(tmp_path: Path) -> None:
+    database = tmp_path / "registration.sqlite3"
+    with RegistrationRegistry(database) as registry:
+        registry.observe_hello(valid_hello(), now=NOW)
+        registry.approve(HARDWARE_ID, PAIRING_ID, node_id=NODE_ID, now=NOW)
+        job = registry.retire(HARDWARE_ID, system_id="greenhouse", now=NOW)
+        registry.mark_credentials_revoked(job.retirement_id, evidence="test", now=NOW)
+        registry.mark_runtime_cleanup_complete(job.retirement_id, now=NOW)
+
+    with sqlite3.connect(database) as connection:
+        connection.executescript(
+            """
+            ALTER TABLE node_id_leases RENAME TO node_id_leases_v07;
+            CREATE TABLE node_id_leases (
+                node_id TEXT PRIMARY KEY,
+                hardware_id TEXT NOT NULL,
+                logical_location_id TEXT,
+                state TEXT NOT NULL CHECK (state IN ('active', 'retiring', 'reusable')),
+                retirement_id INTEGER,
+                updated_at TEXT NOT NULL
+            );
+            INSERT INTO node_id_leases
+            SELECT node_id, hardware_id, logical_location_id,
+                   CASE WHEN state = 'retired' THEN 'reusable' ELSE state END,
+                   retirement_id, updated_at
+            FROM node_id_leases_v07;
+            DROP TABLE node_id_leases_v07;
+            """
+        )
+
+    with RegistrationRegistry(database) as restored:
+        assert restored.node_id_lease_state(NODE_ID).value == "retired"
+        assert restored.is_node_id_ingress_allowed(NODE_ID) is False
