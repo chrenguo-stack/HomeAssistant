@@ -18,9 +18,9 @@ from greenhouse_manager.bootstrap.legacy_adoption import (
     CLASSIFICATION_SCHEMA,
     CLASSIFIED_ARTIFACT_ID,
     CLASSIFIED_ARTIFACT_SHA256,
+    CLASSIFIED_BASE_SHA,
     CLASSIFIED_BASELINE_RESULT_SHA256,
     CLASSIFIED_BASELINE_SCRIPT_SHA256,
-    CLASSIFIED_BASE_SHA,
     CLASSIFIED_SOURCE_HEAD_SHA,
     CLASSIFIED_SOURCE_PR,
     build_legacy_adoption_plan,
@@ -253,26 +253,25 @@ def _materialize_empty_manager_state(candidate: Path, fingerprint: str) -> Path:
         pass
     with CredentialLifecycleStore(state):
         pass
-    with closing(sqlite3.connect(state)) as connection:
-        with connection:
-            connection.execute(
-                """
-                CREATE TABLE h0h1_legacy_adoption_provenance (
-                    schema TEXT NOT NULL,
-                    classification_result_sha256 TEXT NOT NULL,
-                    system_id_fingerprint TEXT NOT NULL,
-                    structured_legacy_manager_state_imported INTEGER NOT NULL,
-                    anonymous_nodes_reconstructed INTEGER NOT NULL
-                )
-                """
+    with closing(sqlite3.connect(state)) as connection, connection:
+        connection.execute(
+            """
+            CREATE TABLE h0h1_legacy_adoption_provenance (
+                schema TEXT NOT NULL,
+                classification_result_sha256 TEXT NOT NULL,
+                system_id_fingerprint TEXT NOT NULL,
+                structured_legacy_manager_state_imported INTEGER NOT NULL,
+                anonymous_nodes_reconstructed INTEGER NOT NULL
             )
-            connection.execute(
-                """
-                INSERT INTO h0h1_legacy_adoption_provenance
-                VALUES (?, ?, ?, 0, 0)
-                """,
-                (PROVENANCE_SCHEMA, CLASSIFICATION_RESULT_SHA256, fingerprint),
-            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO h0h1_legacy_adoption_provenance
+            VALUES (?, ?, ?, 0, 0)
+            """,
+            (PROVENANCE_SCHEMA, CLASSIFICATION_RESULT_SHA256, fingerprint),
+        )
     state.chmod(0o600)
     return state
 
