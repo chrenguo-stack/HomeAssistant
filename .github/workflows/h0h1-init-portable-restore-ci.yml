@@ -72,8 +72,9 @@ jobs:
       - name: Module and execution boundary
         run: |
           python - <<'PY'
-          from pathlib import Path
+          import ast
           import tomllib
+          from pathlib import Path
 
           root = Path("host/greenhouse-manager")
           pyproject = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
@@ -93,12 +94,19 @@ jobs:
               text = path.read_text(encoding="utf-8")
               assert "greenhouse_manager.bootstrap" not in text, path
 
+          forbidden_modules = {"socket", "subprocess"}
           bootstrap = root / "src/greenhouse_manager/bootstrap"
           for path in bootstrap.rglob("*.py"):
               text = path.read_text(encoding="utf-8")
-              assert "subprocess" not in text, path
+              tree = ast.parse(text, filename=str(path))
+              for node in ast.walk(tree):
+                  if isinstance(node, ast.Import):
+                      imported = {alias.name.split(".", 1)[0] for alias in node.names}
+                      assert not imported & forbidden_modules, (path, imported)
+                  elif isinstance(node, ast.ImportFrom) and node.module:
+                      imported = node.module.split(".", 1)[0]
+                      assert imported not in forbidden_modules, (path, imported)
               assert "docker " not in text.lower(), path
-              assert "socket." not in text, path
           PY
 
       - name: Run two-host host-only harness
@@ -144,12 +152,14 @@ jobs:
 
       - name: Build secret-free review bundle
         env:
-          BASE_REF: ${{ github.base_ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          printf '%s\n' "$GITHUB_SHA" > review/SOURCE_SHA
-          git diff --name-only "origin/${BASE_REF}...HEAD" \
+          printf '%s\n' "$BASE_SHA" > review/BASE_SHA
+          printf '%s\n' "$HEAD_SHA" > review/SOURCE_SHA
+          git diff --name-only "${BASE_SHA}...${HEAD_SHA}" \
             > review/changed-files.txt
-          git diff --binary "origin/${BASE_REF}...HEAD" \
+          git diff --binary "${BASE_SHA}...${HEAD_SHA}" \
             > review/review.patch
           find review -type l -print -quit | grep -q . && exit 1 || true
           find review -type f -name '*.py[co]' -print -quit | grep -q . && exit 1 || true

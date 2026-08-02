@@ -30,12 +30,15 @@ from greenhouse_manager.bootstrap._portable_restore_format import (
     _decode_envelope,
     _derive_key,
     _encode_envelope,
-    _private_directory,
     _read_json_bytes,
     _require_crypto,
     _safe_relative,
     _sha256_bytes,
     _unb64,
+)
+from greenhouse_manager.bootstrap.system_init import (
+    _absolute_path,
+    _private_directory,
     _write_atomic,
 )
 
@@ -66,11 +69,23 @@ def create_portable_backup(
         raise PortableRestoreError("portable backup creation is disabled")
     if confirmation != CREATE_CONFIRMATION:
         raise PortableRestoreError("portable backup creation confirmation does not match")
-    root = Path(source_root).expanduser().resolve()
+    root = _absolute_path(
+        source_root,
+        error_type=PortableRestoreError,
+        label="portable backup source root",
+    )
     if root.is_symlink() or not root.is_dir():
         raise PortableRestoreError("portable backup source root must be a real directory")
-    destination = Path(output_path).expanduser().resolve()
-    _private_directory(destination.parent)
+    destination = _absolute_path(
+        output_path,
+        error_type=PortableRestoreError,
+        label="portable backup destination",
+    )
+    _private_directory(
+        destination.parent,
+        error_type=PortableRestoreError,
+        label="portable backup output directory",
+    )
     if destination.exists() or destination.is_symlink():
         raise PortableRestoreError("portable backup destination already exists")
 
@@ -170,6 +185,10 @@ def _verify_payload(
             names.append(name)
             if not member.isfile() or member.issym() or member.islnk():
                 raise PortableRestoreError("portable backup contains a non-regular member")
+            if member.mode & 0o777 != 0o600:
+                raise PortableRestoreError(
+                    f"portable backup archive member mode is invalid: {name}"
+                )
             stream = archive.extractfile(member)
             if stream is None:
                 raise PortableRestoreError(f"portable backup member cannot be read: {name}")
@@ -221,7 +240,11 @@ def verify_portable_backup(
     *,
     passphrase: str,
 ) -> PortableBackupReport:
-    archive_path = Path(path).expanduser().resolve()
+    archive_path = _absolute_path(
+        path,
+        error_type=PortableRestoreError,
+        label="portable backup archive",
+    )
     header, plaintext, envelope_sha256 = _decrypt_envelope(archive_path, passphrase)
     manifest, _payloads = _verify_payload(header, plaintext)
     return PortableBackupReport(
@@ -253,18 +276,30 @@ def restore_portable_backup(
         raise PortableRestoreError("portable restore is disabled")
     if confirmation != RESTORE_CONFIRMATION:
         raise PortableRestoreError("portable restore confirmation does not match")
-    archive_path = Path(path).expanduser().resolve()
+    archive_path = _absolute_path(
+        path,
+        error_type=PortableRestoreError,
+        label="portable backup archive",
+    )
     header, plaintext, envelope_sha256 = _decrypt_envelope(archive_path, passphrase)
     manifest, payloads = _verify_payload(header, plaintext)
     system_id = str(manifest["system_id"])
     if expected_system_id is not None and system_id != expected_system_id:
         raise PortableRestoreError("portable restore expected system identity does not match")
 
-    target = Path(target_root).expanduser().resolve()
+    target = _absolute_path(
+        target_root,
+        error_type=PortableRestoreError,
+        label="portable restore target",
+    )
     if target.exists() or target.is_symlink():
         raise PortableRestoreError("portable restore target must be absent")
     parent = target.parent
-    _private_directory(parent)
+    _private_directory(
+        parent,
+        error_type=PortableRestoreError,
+        label="portable restore parent",
+    )
     staging = parent / f".{target.name}.restore-{secrets.token_hex(8)}"
     staging.mkdir(mode=0o700)
     try:
@@ -295,7 +330,11 @@ def restore_portable_backup(
             os.close(parent_descriptor)
     except Exception:
         if staging.exists():
-            for candidate in sorted(staging.rglob("*"), reverse=True):
+            for candidate in sorted(
+                staging.rglob("*"),
+                key=lambda value: len(value.parts),
+                reverse=True,
+            ):
                 if candidate.is_file():
                     candidate.unlink(missing_ok=True)
                 elif candidate.is_dir():

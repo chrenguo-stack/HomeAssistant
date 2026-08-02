@@ -27,6 +27,7 @@ from greenhouse_manager.bootstrap.system_init import (
     SYSTEM_IDENTITY_NAME,
     SYSTEM_ROOT_KEY_NAME,
     InitializationError,
+    _absolute_path,
     _canonical_json,
     _sha256_bytes,
 )
@@ -172,21 +173,21 @@ def _read_json_bytes(value: bytes, *, name: str) -> dict[str, Any]:
 
 
 def _source_file(root: Path, relative: str) -> tuple[Path, bytes, int]:
-    path = root.joinpath(*PurePosixPath(relative).parts)
+    path = _absolute_path(
+        root.joinpath(*PurePosixPath(relative).parts),
+        error_type=PortableRestoreError,
+        label=f"portable backup inventory member {relative}",
+    )
     try:
-        resolved = path.resolve(strict=True)
-    except OSError as error:
-        raise PortableRestoreError(f"inventory member is missing: {relative}") from error
-    try:
-        resolved.relative_to(root)
+        path.relative_to(root)
     except ValueError as error:
         raise PortableRestoreError(f"inventory member escapes source root: {relative}") from error
-    if path.is_symlink() or resolved.is_symlink() or not resolved.is_file():
+    if not path.is_file():
         raise PortableRestoreError(f"inventory member is not a regular file: {relative}")
-    mode = resolved.stat().st_mode & 0o777
+    mode = path.stat().st_mode & 0o777
     if mode != 0o600:
         raise PortableRestoreError(f"inventory member mode must be 0600: {relative}")
-    return resolved, resolved.read_bytes(), mode
+    return path, path.read_bytes(), mode
 
 
 def _normalize_inventory(inventory: Mapping[str, str]) -> dict[str, str]:
@@ -335,3 +336,5 @@ def _decode_envelope(value: bytes) -> tuple[dict[str, Any], bytes]:
     if _sha256_bytes(ciphertext) != header.get("ciphertext_sha256"):
         raise PortableRestoreError("portable backup ciphertext digest drift")
     return header, ciphertext
+
+

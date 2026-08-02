@@ -342,6 +342,37 @@ def test_anonymous_closure_isolated_policy_regression(tmp_path: Path) -> None:
         validate_anonymous_closure_policy(unsafe)
 
 
+def test_symbolic_link_paths_are_rejected(tmp_path: Path) -> None:
+    _private_directory(tmp_path)
+    real_root = tmp_path / "real-system"
+    _private_directory(real_root)
+    linked_root = tmp_path / "linked-system"
+    linked_root.symlink_to(real_root, target_is_directory=True)
+    with pytest.raises(InitializationError, match="symbolic links"):
+        initialize_system(
+            linked_root,
+            enable=True,
+            confirmation=INITIALIZATION_CONFIRMATION,
+            now=NOW,
+        )
+
+    source, inventory, _system_id = _backup_source(tmp_path)
+    linked_state = source / "manager" / "linked.sqlite3"
+    linked_state.symlink_to(source / "manager" / "registration.sqlite3")
+    unsafe_inventory = dict(inventory)
+    unsafe_inventory[ROLE_MANAGER_CREDENTIAL_STATE] = "manager/linked.sqlite3"
+    with pytest.raises(PortableRestoreError, match="symbolic links"):
+        create_portable_backup(
+            source,
+            unsafe_inventory,
+            tmp_path / "symlink.ghpr",
+            passphrase=PASSPHRASE,
+            enable=True,
+            confirmation=CREATE_CONFIRMATION,
+            now=NOW,
+        )
+
+
 def test_mutating_operations_are_default_disabled(tmp_path: Path) -> None:
     _private_directory(tmp_path)
     with pytest.raises(InitializationError, match="disabled"):

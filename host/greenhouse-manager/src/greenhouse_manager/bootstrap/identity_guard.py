@@ -8,6 +8,7 @@ from typing import Any
 
 from greenhouse_manager.bootstrap.system_init import (
     InitializationError,
+    _absolute_path,
     _canonical_json,
     _private_directory,
     _write_atomic,
@@ -69,8 +70,16 @@ def inspect_identity(
     registry_root: str | Path,
     system_id: str,
 ) -> IdentityGuardReport:
-    root = Path(registry_root).expanduser().resolve()
-    _private_directory(root)
+    root = _absolute_path(
+        registry_root,
+        error_type=IdentityConflictError,
+        label="identity registry root",
+    )
+    _private_directory(
+        root,
+        error_type=IdentityConflictError,
+        label="identity registry root",
+    )
     document = _load_registry(root / "identity-claims.json")
     claim = document["claims"].get(system_id)
     if claim is not None and not isinstance(claim, dict):
@@ -98,8 +107,16 @@ def claim_identity(
 ) -> IdentityGuardReport:
     if not system_id or not host_instance_id:
         raise ValueError("system_id and host_instance_id must not be empty")
-    root = Path(registry_root).expanduser().resolve()
-    _private_directory(root)
+    root = _absolute_path(
+        registry_root,
+        error_type=IdentityConflictError,
+        label="identity registry root",
+    )
+    _private_directory(
+        root,
+        error_type=IdentityConflictError,
+        label="identity registry root",
+    )
     path = root / "identity-claims.json"
     document = _load_registry(path)
     existing = document["claims"].get(system_id)
@@ -150,8 +167,16 @@ def release_identity(
     enable: bool = False,
     confirmation: str | None = None,
 ) -> IdentityGuardReport:
-    root = Path(registry_root).expanduser().resolve()
-    _private_directory(root)
+    root = _absolute_path(
+        registry_root,
+        error_type=IdentityConflictError,
+        label="identity registry root",
+    )
+    _private_directory(
+        root,
+        error_type=IdentityConflictError,
+        label="identity registry root",
+    )
     path = root / "identity-claims.json"
     document = _load_registry(path)
     existing = document["claims"].get(system_id)

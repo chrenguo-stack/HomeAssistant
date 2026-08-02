@@ -85,15 +85,34 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _private_directory(path: Path) -> None:
-    if path.is_symlink():
-        raise InitializationError("initialization root must not be a symbolic link")
+def _absolute_path(
+    value: str | Path,
+    *,
+    error_type: type[InitializationError] = InitializationError,
+    label: str = "path",
+) -> Path:
+    path = Path(os.path.abspath(os.fspath(Path(value).expanduser())))
+    current = Path(path.anchor)
+    for part in path.parts[1:]:
+        current /= part
+        if current.is_symlink():
+            raise error_type(f"{label} must not contain symbolic links")
+    return path
+
+
+def _private_directory(
+    path: Path,
+    *,
+    error_type: type[InitializationError] = InitializationError,
+    label: str = "initialization root",
+) -> None:
+    _absolute_path(path, error_type=error_type, label=label)
     path.mkdir(parents=True, exist_ok=True, mode=0o700)
     if not path.is_dir():
-        raise InitializationError("initialization root must be a directory")
+        raise error_type(f"{label} must be a directory")
     mode = path.stat().st_mode & 0o777
     if mode & 0o077:
-        raise InitializationError("initialization root must not be accessible by group or other")
+        raise error_type(f"{label} must not be accessible by group or other")
 
 
 def _write_atomic(path: Path, payload: bytes, *, mode: int = 0o600) -> None:
@@ -199,7 +218,7 @@ def _verify_private_file(path: Path, expected: dict[str, Any]) -> None:
 
 
 def verify_initialization(root: str | Path) -> InitializationReport:
-    directory = Path(root).expanduser().resolve()
+    directory = _absolute_path(root, label="initialization root")
     _private_directory(directory)
     marker_path = directory / MARKER_NAME
     if marker_path.is_symlink() or not marker_path.is_file():
@@ -256,7 +275,7 @@ def initialize_system(
     confirmation: str | None = None,
     now: datetime | None = None,
 ) -> InitializationReport:
-    directory = Path(root).expanduser().resolve()
+    directory = _absolute_path(root, label="initialization root")
     _private_directory(directory)
     marker_path = directory / MARKER_NAME
     if marker_path.exists():

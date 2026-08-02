@@ -15,10 +15,15 @@ from greenhouse_manager.bootstrap.portable_restore import (
     restore_portable_backup,
     verify_portable_backup,
 )
+from greenhouse_manager.bootstrap.system_init import _absolute_path
 
 
 def _private_text(path: Path, *, label: str) -> str:
-    resolved = path.expanduser().resolve()
+    resolved = _absolute_path(
+        path,
+        error_type=PortableRestoreError,
+        label=label,
+    )
     if resolved.is_symlink() or not resolved.is_file():
         raise PortableRestoreError(f"{label} must be a regular file")
     if resolved.stat().st_mode & 0o077:
