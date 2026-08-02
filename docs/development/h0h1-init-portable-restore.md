@@ -152,7 +152,7 @@ broker_persistence_state
 5. Manager 持久化迁移 host-only harness；
 6. 旧 SYSTEM_ID 接纳 host-only harness；
 7. source boundary 和无敏感值输出检查；
-8. 生成包含实际 BASE_SHA、SOURCE_SHA、changed-files、review patch、三个 harness result和
+8. 生成包含实际 BASE_SHA、SOURCE_SHA、changed-files、review patch、三个 harness result 和
    SHA256SUMS 的 Artifact。
 
 生产 T1、生产 Broker 和板卡均不在该工作流中。
