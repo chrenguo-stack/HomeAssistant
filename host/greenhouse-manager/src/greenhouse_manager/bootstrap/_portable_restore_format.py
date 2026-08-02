@@ -1,16 +1,13 @@
 from __future__ import annotations
 
 import base64
-import hashlib
 import io
 import json
-import os
-import secrets
 import struct
 import tarfile
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -31,9 +28,7 @@ from greenhouse_manager.bootstrap.system_init import (
     SYSTEM_ROOT_KEY_NAME,
     InitializationError,
     _canonical_json,
-    _private_directory,
     _sha256_bytes,
-    _write_atomic,
 )
 
 ENVELOPE_SCHEMA = "gh.h0h1.portable-backup-envelope/1"

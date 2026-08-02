@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 from datetime import UTC, datetime
 from pathlib import Path
@@ -21,8 +20,8 @@ from greenhouse_manager.bootstrap.identity_guard import (
 )
 from greenhouse_manager.bootstrap.portable_restore import (
     CREATE_CONFIRMATION,
-    RESTORE_CONFIRMATION,
     REQUIRED_ROLES,
+    RESTORE_CONFIRMATION,
     ROLE_BROKER_DYNAMIC_SECURITY,
     ROLE_BROKER_PERSISTENCE,
     ROLE_MANAGER_CREDENTIAL_STATE,

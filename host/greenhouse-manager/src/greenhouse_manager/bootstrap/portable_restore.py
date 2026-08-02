@@ -9,26 +9,17 @@ from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from greenhouse_manager.bootstrap import _portable_restore_format as _format
 from greenhouse_manager.bootstrap._portable_restore_format import (
     AESGCM,
     CREATE_CONFIRMATION,
     ENVELOPE_SCHEMA,
-    InvalidTag,
     MANIFEST_SCHEMA,
     REQUIRED_ROLES,
     RESTORE_CONFIRMATION,
     RESTORE_MARKER,
     RESTORE_SCHEMA,
-    ROLE_BROKER_DYNAMIC_SECURITY,
-    ROLE_BROKER_PERSISTENCE,
-    ROLE_MANAGER_CREDENTIAL_STATE,
-    ROLE_MANAGER_IDENTITY,
-    ROLE_MANAGER_REGISTRATION_STATE,
-    ROLE_MANAGER_RETIREMENT_OUTBOX,
-    ROLE_SYSTEM_CA_CERTIFICATE,
-    ROLE_SYSTEM_CA_PRIVATE_KEY,
-    ROLE_SYSTEM_IDENTITY,
-    ROLE_SYSTEM_ROOT_KEY,
+    InvalidTag,
     PortableBackupReport,
     PortableRestoreError,
     PortableRestoreReport,
@@ -47,6 +38,17 @@ from greenhouse_manager.bootstrap._portable_restore_format import (
     _unb64,
     _write_atomic,
 )
+
+ROLE_BROKER_DYNAMIC_SECURITY = _format.ROLE_BROKER_DYNAMIC_SECURITY
+ROLE_BROKER_PERSISTENCE = _format.ROLE_BROKER_PERSISTENCE
+ROLE_MANAGER_CREDENTIAL_STATE = _format.ROLE_MANAGER_CREDENTIAL_STATE
+ROLE_MANAGER_IDENTITY = _format.ROLE_MANAGER_IDENTITY
+ROLE_MANAGER_REGISTRATION_STATE = _format.ROLE_MANAGER_REGISTRATION_STATE
+ROLE_MANAGER_RETIREMENT_OUTBOX = _format.ROLE_MANAGER_RETIREMENT_OUTBOX
+ROLE_SYSTEM_CA_CERTIFICATE = _format.ROLE_SYSTEM_CA_CERTIFICATE
+ROLE_SYSTEM_CA_PRIVATE_KEY = _format.ROLE_SYSTEM_CA_PRIVATE_KEY
+ROLE_SYSTEM_IDENTITY = _format.ROLE_SYSTEM_IDENTITY
+ROLE_SYSTEM_ROOT_KEY = _format.ROLE_SYSTEM_ROOT_KEY
 
 
 def create_portable_backup(
