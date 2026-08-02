@@ -6,12 +6,12 @@ from pathlib import Path
 from typing import Any
 
 from greenhouse_manager.bootstrap.persistence_migration import (
+    AUDIT_DECISION_ID,
     AUDITED_ARTIFACT_ID,
     AUDITED_ARTIFACT_SHA256,
     AUDITED_BASE_SHA,
     AUDITED_SOURCE_HEAD_SHA,
     AUDITED_SOURCE_PR,
-    AUDIT_DECISION_ID,
     BASELINE_SCHEMA,
     build_persistence_migration_plan,
 )
