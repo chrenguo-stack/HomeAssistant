@@ -6,7 +6,10 @@
 source_contract_implemented=true
 host_only_harness_implemented=true
 v07_identity_alignment_included=true
-t1_read_only_audit_executed=false
+t1_read_only_audit_executed=true
+t1_manager_persistence_gap_confirmed=true
+persistence_migration_contract_implemented=true
+runtime_hidden_state_classified=false
 real_backup_created=false
 real_restore_executed=false
 anonymous_mqtt_closed=false
@@ -14,7 +17,7 @@ production_services_modified=false
 ready_for_live_apply=false
 ```
 
-本阶段只提供源码、测试、CLI 和 GitHub CI。任何真实 T1 操作都必须等待新的明确授权。
+本阶段只提供源码、测试、CLI、只读基线证据和 GitHub CI。真实 T1 写操作仍必须等待新的明确授权。
 
 ## 模块与入口
 
@@ -23,6 +26,7 @@ greenhouse_manager.bootstrap.system_init
 greenhouse_manager.bootstrap.portable_restore
 greenhouse_manager.bootstrap.identity_guard
 greenhouse_manager.bootstrap.anonymous_closure
+greenhouse_manager.bootstrap.persistence_migration
 ```
 
 对应入口：
@@ -31,13 +35,14 @@ greenhouse_manager.bootstrap.anonymous_closure
 greenhouse-init
 greenhouse-portable-restore
 greenhouse-system-identity-guard
+greenhouse-persistence-migration-plan
 ```
 
-`runtime/` 不导入 `bootstrap/`。首次初始化和离线恢复不是长期运行 Manager 的启动副作用。
+`runtime/` 不导入 `bootstrap/`。首次初始化、离线恢复和迁移计划不是长期运行 Manager 的启动副作用。
 
 ## 默认关闭合同
 
-所有会产生文件的动作默认关闭：
+所有会产生文件或改变身份的动作默认关闭：
 
 ```text
 greenhouse-init initialize
@@ -61,8 +66,24 @@ greenhouse-system-identity-guard release
   --confirm RELEASE-GREENHOUSE-SYSTEM-IDENTITY
 ```
 
-这些参数只是源码层安全门，不构成生产授权。生产阶段还必须重新绑定主机、镜像、路径、
+`greenhouse-persistence-migration-plan` 只读取精确绑定的 secret-free 基线并输出计划，不提供执行开关。
+
+这些参数和计划只是源码层安全门，不构成生产授权。生产阶段还必须重新绑定主机、镜像、路径、
 备份、授权、回滚和提交后审计。
+
+## T1 只读基线缺口
+
+精确只读审计确认：
+
+- T1 运行 Manager `0.4.64`；
+- Mosquitto Dynamic Security 和持久化数据库存在；
+- 匿名兼容仍开启；
+- Manager 没有 `/var/lib/greenhouse-manager` 持久化挂载；
+- 系统身份、Manager 身份以及 registration/credential/outbox 角色未在持久目录中发现；
+- 真实备份、恢复、匿名关闭和部署均继续阻塞。
+
+缺少持久挂载不能证明容器内部或旧路径不存在状态。必须先完成隐藏运行状态分类，再决定走新系统
+初始化还是显式旧状态导入。详细合同见 `docs/development/h0h1-persistence-migration.md`。
 
 ## 可移植角色清单
 
@@ -97,7 +118,10 @@ broker_persistence_state
 - Manager、Home Assistant 和节点认证 policy 完整；
 - 匿名 publish/subscribe 均被拒；
 - policy secret-bearing 字段被拒；
-- CLI 从 0600 passphrase 文件读取，不输出 passphrase。
+- CLI 从 0600 passphrase 文件读取，不输出 passphrase；
+- T1 基线绑定、只读证据和持久化缺口漂移均失败关闭；
+- 十角色目标布局完整，但隐藏状态未分类时执行保持阻塞；
+- 持久化迁移计划不得启用真实备份、恢复、匿名关闭或部署。
 
 ## GitHub CI
 
@@ -106,17 +130,22 @@ broker_persistence_state
 1. V0.7/C-07 focused tests；
 2. bootstrap unit 和 CLI integration tests；
 3. Ruff；
-4. host-only harness；
-5. source boundary 和 secret-free output 检查；
-6. 生成包含 SOURCE_SHA、changed-files、review patch、harness result 和 SHA256SUMS 的 Artifact。
+4. 两主机 host-only harness；
+5. Manager 持久化迁移 host-only harness；
+6. source boundary 和 secret-free output 检查；
+7. 生成包含实际 BASE_SHA、SOURCE_SHA、changed-files、review patch、两个 harness result 和
+   SHA256SUMS 的 Artifact。
 
-Docker、Broker、T1 和板卡均不在该工作流中。
+生产 T1、生产 Broker 和板卡均不在该工作流中。
 
 ## 后续真实阶段
 
 ```text
 source/Draft review
-→ 第一台 T1 只读基线
+→ T1 精确绑定只读状态分类
+→ 私有候选持久根准备
+→ 身份初始化或旧状态显式导入
+→ Manager 状态装配与完整角色清单
 → 私有可移植备份准备与授权
 → 第二台 T1 离线恢复
 → identity conflict / takeover gate
