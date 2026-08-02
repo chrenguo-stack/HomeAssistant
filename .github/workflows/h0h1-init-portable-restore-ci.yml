@@ -152,9 +152,12 @@ jobs:
 
       - name: Build secret-free review bundle
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.base_ref }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
+          BASE_SHA="$(git rev-parse "origin/${BASE_REF}")"
+          git merge-base --is-ancestor "$BASE_SHA" "$HEAD_SHA"
+          printf '%s\n' "$BASE_REF" > review/BASE_REF
           printf '%s\n' "$BASE_SHA" > review/BASE_SHA
           printf '%s\n' "$HEAD_SHA" > review/SOURCE_SHA
           git diff --name-only "${BASE_SHA}...${HEAD_SHA}" \
