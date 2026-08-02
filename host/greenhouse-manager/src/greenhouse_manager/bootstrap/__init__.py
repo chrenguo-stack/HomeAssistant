@@ -11,6 +11,12 @@ from greenhouse_manager.bootstrap.identity_guard import (
     inspect_identity,
     release_identity,
 )
+from greenhouse_manager.bootstrap.persistence_migration import (
+    PersistenceMigrationError,
+    PersistenceMigrationPlan,
+    build_persistence_migration_plan,
+    load_audited_baseline,
+)
 from greenhouse_manager.bootstrap.portable_restore import (
     PortableBackupReport,
     PortableRestoreError,
@@ -32,13 +38,17 @@ __all__ = [
     "IdentityConflictError",
     "InitializationError",
     "InitializationReport",
+    "PersistenceMigrationError",
+    "PersistenceMigrationPlan",
     "PortableBackupReport",
     "PortableRestoreError",
     "PortableRestoreReport",
+    "build_persistence_migration_plan",
     "claim_identity",
     "create_portable_backup",
     "initialize_system",
     "inspect_identity",
+    "load_audited_baseline",
     "release_identity",
     "restore_portable_backup",
     "validate_anonymous_closure_policy",
