@@ -179,3 +179,33 @@ def test_rejects_non_finite_json_number(tmp_path: Path) -> None:
         assert result.messages == ()
         assert "non-finite JSON number" in str(result.reason)
         assert store.count_records() == 0
+
+
+def test_rejects_overflowing_json_float(tmp_path: Path) -> None:
+    raw = _payload(history_page()).replace(b"25.0", b"1e400", 1)
+    with HistoryStore(tmp_path / "manager-state.sqlite3") as store:
+        processor = HistoryReplayProcessor(system_id="system-001", store=store)
+
+        result = processor.process(_TOPIC, raw, received_at=_NOW)
+
+        assert result.status == "rejected"
+        assert result.messages == ()
+        assert "non-finite JSON number" in str(result.reason)
+        assert store.count_records() == 0
+
+
+def test_rejects_duplicate_json_object_key(tmp_path: Path) -> None:
+    raw = _payload(history_page()).replace(
+        b'{"batch_id":',
+        b'{"batch_id":"batch-duplicate","batch_id":',
+        1,
+    )
+    with HistoryStore(tmp_path / "manager-state.sqlite3") as store:
+        processor = HistoryReplayProcessor(system_id="system-001", store=store)
+
+        result = processor.process(_TOPIC, raw, received_at=_NOW)
+
+        assert result.status == "rejected"
+        assert result.messages == ()
+        assert "duplicate JSON object key: batch_id" in str(result.reason)
+        assert store.count_records() == 0
