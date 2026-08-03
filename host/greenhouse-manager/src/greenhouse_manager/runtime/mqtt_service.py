@@ -12,6 +12,8 @@ import paho.mqtt.client as mqtt
 
 from .config import Settings
 from .ha_discovery import HomeAssistantDiscovery
+from .history_replay import HistoryReplayProcessor
+from .history_store import HistoryStore
 from .ingest import PublishMessage, TelemetryProcessor
 from .pairing_intake import (
     PAIRING_HELLO_SUBSCRIPTION,
@@ -19,12 +21,14 @@ from .pairing_intake import (
     redacted_hardware_id,
     redacted_pairing_id,
 )
-from .registration import RegistrationRegistry
+from .registration import NodeIdLeaseState, RegistrationRegistry
 from .topics import (
     canonical_telemetry_subscription,
     diagnostic_topic,
+    history_replay_subscription,
     ingress_subscription,
     parse_canonical_telemetry_topic,
+    parse_history_replay_topic,
     parse_node_telemetry_topic,
 )
 
@@ -74,6 +78,21 @@ class ManagerMqttService:
         if settings.pairing_intake_enabled:
             assert self.registration_registry is not None
             self.pairing_processor = PairingHelloProcessor(self.registration_registry)
+
+        self.history_store: HistoryStore | None = None
+        self.history_processor: HistoryReplayProcessor | None = None
+        if settings.history_replay_enabled:
+            self.history_store = HistoryStore(
+                settings.history_db_path,
+                retention_days=settings.history_retention_days,
+            )
+            self.history_processor = HistoryReplayProcessor(
+                system_id=settings.system_id,
+                store=self.history_store,
+                max_records_per_page=settings.history_max_records_per_page,
+                max_payload_bytes=settings.history_max_payload_bytes,
+            )
+
         self.client = mqtt.Client(
             callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
             client_id=settings.mqtt_client_id,
@@ -202,6 +221,8 @@ class ManagerMqttService:
             ingress_subscription(self.settings.system_id),
             canonical_telemetry_subscription(self.settings.system_id),
         ]
+        if self.history_processor is not None:
+            topics.append(history_replay_subscription(self.settings.system_id))
         if self.pairing_processor is not None:
             topics.append(PAIRING_HELLO_SUBSCRIPTION)
         for topic in topics:
@@ -224,6 +245,54 @@ class ManagerMqttService:
         else:
             _LOGGER.info("MQTT disconnected")
 
+    def _on_history_message(self, message: mqtt.MQTTMessage) -> bool:
+        if self.history_processor is None:
+            return False
+        try:
+            history_topic = parse_history_replay_topic(message.topic)
+        except ValueError:
+            return False
+
+        node_allowed = True
+        if self.registration_registry is not None:
+            node_allowed = (
+                self.registration_registry.node_id_lease_state(history_topic.node_id)
+                is NodeIdLeaseState.ACTIVE
+            )
+        result = self.history_processor.process(
+            message.topic,
+            message.payload,
+            retained=bool(message.retain),
+            node_allowed=node_allowed,
+        )
+        for outgoing in result.messages:
+            self._publish(outgoing)
+        if result.status in {"accepted", "duplicate"}:
+            _LOGGER.info(
+                "History replay status=%s node=%s batch=%s page=%s",
+                result.status,
+                result.node_id,
+                result.batch_id,
+                result.page_index,
+            )
+        elif result.status == "retry":
+            _LOGGER.error(
+                "Deferred history replay without ACK node=%s batch=%s page=%s reason=%s",
+                result.node_id,
+                result.batch_id,
+                result.page_index,
+                result.reason,
+            )
+        else:
+            _LOGGER.warning(
+                "Rejected history replay node=%s batch=%s page=%s reason=%s",
+                result.node_id,
+                result.batch_id,
+                result.page_index,
+                result.reason,
+            )
+        return True
+
     def _on_message(self, client: mqtt.Client, userdata: Any, message: mqtt.MQTTMessage) -> None:
         if self.pairing_processor is not None and message.topic.startswith("gh/bootstrap/v1/node/"):
             result = self.pairing_processor.process(message.topic, message.payload)
@@ -245,6 +314,9 @@ class ManagerMqttService:
                     redacted_hardware_id(result.hardware_id),
                     redacted_pairing_id(result.pairing_id),
                 )
+            return
+
+        if self._on_history_message(message):
             return
 
         canonical_prefix = f"gh/v1/{self.settings.system_id}/state/"
@@ -338,12 +410,14 @@ class ManagerMqttService:
 
     def run(self) -> None:
         _LOGGER.info(
-            "Starting greenhouse-manager system_id=%s broker=%s:%d ha_discovery=%s pairing_intake=%s",
+            "Starting greenhouse-manager system_id=%s broker=%s:%d "
+            "ha_discovery=%s pairing_intake=%s history_replay=%s",
             self.settings.system_id,
             self.settings.mqtt_host,
             self.settings.mqtt_port,
             self.settings.ha_discovery_enabled,
             self.settings.pairing_intake_enabled,
+            self.settings.history_replay_enabled,
         )
         self.client.connect(self.settings.mqtt_host, self.settings.mqtt_port, keepalive=60)
         self.client.loop_start()
@@ -373,5 +447,7 @@ class ManagerMqttService:
         finally:
             self.client.disconnect()
             self.client.loop_stop()
+            if self.history_store is not None:
+                self.history_store.close()
             if self.registration_registry is not None:
                 self.registration_registry.close()
