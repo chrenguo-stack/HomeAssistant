@@ -51,6 +51,7 @@ diagnostic 或 Home Assistant Discovery 消息。
 - 可选 `fw_version`。
 
 `sampled_at` 是历史发生时间，必须带时区。节点不得提供 Manager 所有的 `received_at`。
+同一个 `(NODE_ID, batch_id)` 的所有页面必须声明完全相同的 `page_count`。
 
 ### 3. 身份、重复和冲突
 
@@ -70,10 +71,11 @@ diagnostic 或 Home Assistant Discovery 消息。
 
 1. 同一页键和同一规范化 payload 重试，返回 `duplicate` ACK；
 2. 同一页键对应不同 payload，拒绝整页；
-3. 同一记录键和同一规范化记录内容再次出现，作为记录级重复；
-4. 同一记录键对应不同内容，拒绝整页并回滚；
-5. 页到达顺序和 `seq` 大小不与 canonical telemetry 比较；
-6. 一页内重复记录键直接拒绝。
+3. 同一批次不同页面声明不同 `page_count`，拒绝整页；
+4. 同一记录键和同一规范化记录内容再次出现，作为记录级重复；
+5. 同一记录键对应不同内容，拒绝整页并回滚；
+6. 页到达顺序和 `seq` 大小不与 canonical telemetry 比较；
+7. 一页内重复记录键直接拒绝。
 
 ### 4. ACK 与精确续传
 
@@ -85,6 +87,9 @@ ACK Schema 为 `gh.history-replay.ack/1`，返回原始 `batch_id`、`page_index
 - `next_page_index`；
 - `processed_at`；
 - 拒绝时的 `reason`。
+
+`accepted` 或 `duplicate` 页面成功后，`next_page_index` 指向下一顺序页；当前页为最后一页时为
+`null`。`rejected` 页面必须把 `next_page_index` 保持为当前 `page_index`，防止节点越过未提交页。
 
 Manager 只有在 SQLite 事务成功提交，或确认同一页已耐久存在后，才发送 `committed=true`。
 数据库错误返回内部 `retry` 状态并且不发送 ACK，节点必须重试当前页。协议不要求节点按页序发送；节点以
@@ -112,8 +117,8 @@ C06-A 默认使用 PR #260 可移植状态根中的：
 ### 6. 保留与小时投影边界
 
 原始历史默认保存 7 天，可配置 1～30 天。提交页面时按 `sampled_at` 清理超期记录和对应的待投影
-小时。页接收元数据按 `committed_at` 使用同一窗口清理。每个新记录所在的 UTC 小时写入或重新置为
-`pending` 的投影 outbox。
+小时。页接收元数据按 `committed_at` 使用同一窗口清理。只有新插入记录所在的 UTC 小时才写入或
+重新置为 `pending` 的投影 outbox；完全重复的记录不得重新打开已完成的投影任务。
 
 C06-A 不调用 Home Assistant API，也不写 Home Assistant 数据库。C06-B 才负责：
 
@@ -140,6 +145,13 @@ retiring、retired 或未分配 NODE_ID 均拒绝。未加载 registry 时保持
 - 单进程内使用可重入锁串行化写事务；
 - 所有冲突整页回滚。
 
+### 9. Host-only 证据绑定
+
+C-06 GitHub Actions 必须在 pull request 事件中核验 stacked base ref 与 base SHA，任何 PR #260
+基线漂移均失败关闭。证据报告必须记录授权门、source ref/SHA、base ref/SHA 和精确基线核验结果。
+Artifact 内 `SHA256SUMS` 使用可在解压根目录直接校验的相对文件名，并在上传前执行一次
+`sha256sum -c`。
+
 ## 不变量
 
 1. 历史补发绝不覆盖 canonical 当前状态；
@@ -147,11 +159,14 @@ retiring、retired 或未分配 NODE_ID 均拒绝。未加载 registry 时保持
 3. ACK 不能先于耐久提交；
 4. 记录冲突不能部分写入；
 5. Manager 重启后重复页仍然可识别；
-6. C06-A 不连接真实 Home Assistant、T1、生产 Broker 或板卡；
-7. 本 ADR 不授权 Ready、merge、release、tag 或 deployment。
+6. 拒绝页不能推动节点越过当前页；
+7. 完全重复记录不能重新打开已完成投影任务；
+8. C06-A 不连接真实 Home Assistant、T1、生产 Broker 或板卡；
+9. 本 ADR 不授权 Ready、merge、release、tag 或 deployment。
 
 ## Host-only 验收
 
-必须覆盖：Schema、topic、retain、页几何、重复、冲突、乱序、重启续传、SQLite 幂等迁移、并发
-重复、保留清理、投影 outbox、inactive NODE_ID、资源上限、数据库失败不 ACK、canonical/Discovery
-隔离，以及现有 ingest、MQTT、C-07 和 H0/H1 回归。
+必须覆盖：Schema、topic、retain、页几何、批次 `page_count` 一致性、重复、冲突、乱序、重启续传、
+拒绝页重试游标、SQLite 幂等迁移、并发重复、保留清理、投影 outbox 幂等、inactive NODE_ID、资源
+上限、数据库失败不 ACK、canonical/Discovery 隔离、精确 stacked base 与 Artifact 校验绑定，以及现有
+ingest、MQTT、C-07 和 H0/H1 回归。
