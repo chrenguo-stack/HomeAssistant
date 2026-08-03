@@ -30,20 +30,28 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify exact authorized stack and reviewed predecessors
+      - name: Verify authorized C06 stack or exact C06 descendant
         if: github.event_name == 'pull_request'
         env:
-          EXPECTED_BASE_REF: feature/h0h1-v07-init-portable-restore-hostonly-20260802-v1
-          EXPECTED_BASE_SHA: d628b896314efd0aff58da151e3669eb7fe21d44
+          H0_BASE_REF: feature/h0h1-v07-init-portable-restore-hostonly-20260802-v1
+          H0_BASE_SHA: d628b896314efd0aff58da151e3669eb7fe21d44
+          C06_BASE_REF: feature/c06-history-replay-protocol-storage-hostonly-20260803-v1
+          C06_BASE_SHA: d0e00d264d41755101c80ad37a1f6fa661892276
           PRIOR_REVIEWED_HEAD_SHA: dac038c3595c80ac7d1a0666795effbbab4a4e4e
           FINAL_REVIEWED_HEAD_SHA: ffdfbc3dc64620881ea0732d0d964623439d0bba
           ACTUAL_BASE_REF: ${{ github.event.pull_request.base.ref }}
           ACTUAL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           ACTUAL_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          test "$ACTUAL_BASE_REF" = "$EXPECTED_BASE_REF"
-          test "$ACTUAL_BASE_SHA" = "$EXPECTED_BASE_SHA"
-          test "$(git merge-base "$ACTUAL_BASE_SHA" "$ACTUAL_HEAD_SHA")" = "$EXPECTED_BASE_SHA"
+          if [ "$ACTUAL_BASE_REF" = "$H0_BASE_REF" ]; then
+            test "$ACTUAL_BASE_SHA" = "$H0_BASE_SHA"
+          elif [ "$ACTUAL_BASE_REF" = "$C06_BASE_REF" ]; then
+            test "$ACTUAL_BASE_SHA" = "$C06_BASE_SHA"
+          else
+            echo "unsupported C06 stack base: $ACTUAL_BASE_REF" >&2
+            exit 1
+          fi
+          test "$(git merge-base "$ACTUAL_BASE_SHA" "$ACTUAL_HEAD_SHA")" = "$ACTUAL_BASE_SHA"
           git merge-base --is-ancestor "$PRIOR_REVIEWED_HEAD_SHA" "$ACTUAL_HEAD_SHA"
           git merge-base --is-ancestor "$FINAL_REVIEWED_HEAD_SHA" "$ACTUAL_HEAD_SHA"
           echo "C06_PRIOR_REVIEWED_HEAD_ANCESTOR_VERIFIED=true" >> "$GITHUB_ENV"
@@ -104,7 +112,7 @@ jobs:
           C06_SOURCE_REF: ${{ github.head_ref || github.ref_name }}
           C06_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           C06_BASE_REF: ${{ github.base_ref || github.ref_name }}
-          C06_EXACT_BASE_VERIFIED: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha == 'd628b896314efd0aff58da151e3669eb7fe21d44' && github.event.pull_request.base.ref == 'feature/h0h1-v07-init-portable-restore-hostonly-20260802-v1' }}
+          C06_EXACT_BASE_VERIFIED: ${{ github.event_name == 'pull_request' && ((github.event.pull_request.base.sha == 'd628b896314efd0aff58da151e3669eb7fe21d44' && github.event.pull_request.base.ref == 'feature/h0h1-v07-init-portable-restore-hostonly-20260802-v1') || (github.event.pull_request.base.sha == 'd0e00d264d41755101c80ad37a1f6fa661892276' && github.event.pull_request.base.ref == 'feature/c06-history-replay-protocol-storage-hostonly-20260803-v1')) }}
         run: |
           binding_flags=()
           if [ "$C06_EXACT_BASE_VERIFIED" = "true" ]; then
