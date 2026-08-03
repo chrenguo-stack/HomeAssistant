@@ -1,23 +1,30 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import math
 import re
 import sqlite3
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from importlib.resources import files
 from typing import Any, Literal
 
 from jsonschema import Draft202012Validator, FormatChecker
 
-from .history_store import HistoryConflict, HistoryStore, HistoryStoreError
+from .history_store import (
+    HistoryCapacityExceeded,
+    HistoryConflict,
+    HistoryStore,
+    HistoryStoreError,
+)
 from .ingest import PublishMessage
 from .topics import history_replay_ack_topic, parse_history_replay_topic
 
 HistoryReplayStatus = Literal["accepted", "duplicate", "rejected", "retry"]
 _BATCH_ID_RE = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
+_ESTIMATED_CLOCK_TOLERANCE = timedelta(seconds=1)
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,6 +45,14 @@ def _utc(value: datetime) -> datetime:
 
 def _timestamp(value: datetime) -> str:
     return _utc(value).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def _parse_timestamp(value: str) -> datetime:
+    normalized = value[:-1] + "+00:00" if value.endswith(("Z", "z")) else value
+    parsed = datetime.fromisoformat(normalized)
+    if parsed.tzinfo is None:
+        raise ValueError("timestamp must include a timezone")
+    return parsed.astimezone(UTC)
 
 
 def _reject_json_constant(value: str) -> object:
@@ -79,16 +94,24 @@ class HistoryReplayProcessor:
         *,
         system_id: str,
         store: HistoryStore,
+        retention_days: int = 7,
+        max_future_skew_s: int = 300,
         max_records_per_page: int = 256,
         max_payload_bytes: int = 262_144,
         schema: dict[str, Any] | None = None,
     ) -> None:
+        if not 1 <= retention_days <= 30:
+            raise ValueError("retention_days must be between 1 and 30")
+        if not 0 <= max_future_skew_s <= 86_400:
+            raise ValueError("max_future_skew_s must be between 0 and 86400")
         if not 1 <= max_records_per_page <= 256:
             raise ValueError("max_records_per_page must be between 1 and 256")
-        if not 4096 <= max_payload_bytes <= 1_048_576:
+        if not 4_096 <= max_payload_bytes <= 1_048_576:
             raise ValueError("max_payload_bytes must be between 4096 and 1048576")
         self.system_id = system_id
         self.store = store
+        self.retention = timedelta(days=retention_days)
+        self.max_future_skew = timedelta(seconds=max_future_skew_s)
         self.max_records_per_page = max_records_per_page
         self.max_payload_bytes = max_payload_bytes
         self.validator = Draft202012Validator(
@@ -98,10 +121,16 @@ class HistoryReplayProcessor:
 
     @staticmethod
     def _load_packaged_schema() -> dict[str, Any]:
-        path = files("greenhouse_manager").joinpath(
-            "schemas/gh.history-replay.batch-1.schema.json"
-        )
-        return json.loads(path.read_text(encoding="utf-8"))
+        package = files("greenhouse_manager")
+        history_path = package.joinpath("schemas/gh.history-replay.batch-1.schema.json")
+        telemetry_path = package.joinpath("schemas/gh.telemetry-1.schema.json")
+        history = json.loads(history_path.read_text(encoding="utf-8"))
+        telemetry = json.loads(telemetry_path.read_text(encoding="utf-8"))
+        record_properties = history["$defs"]["record"]["properties"]
+        for field in ("measurements", "quality", "power"):
+            record_properties[field] = copy.deepcopy(telemetry["properties"][field])
+        history["$defs"]["quality"] = copy.deepcopy(telemetry["$defs"]["quality"])
+        return history
 
     @staticmethod
     def _ack_identity(document: dict[str, Any]) -> tuple[str, int, int] | None:
@@ -110,9 +139,9 @@ class HistoryReplayProcessor:
         page_count = document.get("page_count")
         if not isinstance(batch_id, str) or _BATCH_ID_RE.fullmatch(batch_id) is None:
             return None
-        if type(page_index) is not int or not 0 <= page_index <= 4095:
+        if type(page_index) is not int or not 0 <= page_index <= 4_095:
             return None
-        if type(page_count) is not int or not 1 <= page_count <= 4096:
+        if type(page_count) is not int or not 1 <= page_count <= 4_096:
             return None
         if page_index >= page_count:
             return None
@@ -130,12 +159,9 @@ class HistoryReplayProcessor:
         records_total: int,
         inserted_records: int,
         duplicate_records: int,
+        next_page_index: int | None,
         reason: str | None = None,
     ) -> PublishMessage:
-        if status == "rejected":
-            next_page_index: int | None = page_index
-        else:
-            next_page_index = page_index + 1 if page_index + 1 < page_count else None
         payload: dict[str, Any] = {
             "schema": "gh.history-replay.ack/1",
             "node_id": node_id,
@@ -186,6 +212,7 @@ class HistoryReplayProcessor:
                     records_total=min(records_total, 256),
                     inserted_records=0,
                     duplicate_records=0,
+                    next_page_index=page_index,
                     reason=reason,
                 ),
             )
@@ -197,6 +224,46 @@ class HistoryReplayProcessor:
             messages=messages,
             reason=reason,
         )
+
+    def _validate_record_time(self, record: dict[str, Any], *, now: datetime) -> str | None:
+        quality = str(record["time_quality"])
+        sampled_raw = record.get("sampled_at")
+        anchor = record.get("time_anchor")
+        if quality == "relative_only":
+            if sampled_raw is not None or anchor is not None:
+                return "relative_only records require sampled_at=null and time_anchor=null"
+            return None
+
+        if not isinstance(sampled_raw, str):
+            return "trusted or estimated records require sampled_at"
+        try:
+            sampled_at = _parse_timestamp(sampled_raw)
+        except ValueError as error:
+            return f"invalid sampled_at: {error}"
+        if sampled_at > now + self.max_future_skew:
+            return "sampled_at exceeds configured future clock skew"
+        if sampled_at < now - self.retention:
+            return "sampled_at is older than the configured raw-history retention window"
+
+        if quality == "trusted":
+            if anchor is not None:
+                return "trusted records require time_anchor=null"
+            return None
+
+        if quality != "estimated" or not isinstance(anchor, dict):
+            return "estimated records require a time_anchor object"
+        try:
+            anchor_time = _parse_timestamp(str(anchor["sampled_at"]))
+            anchor_uptime = int(anchor["uptime_ms"])
+            uptime = int(record["uptime_ms"])
+        except (KeyError, TypeError, ValueError) as error:
+            return f"invalid estimated time anchor: {error}"
+        if uptime < anchor_uptime:
+            return "estimated record uptime_ms precedes time anchor uptime_ms"
+        expected = anchor_time + timedelta(milliseconds=uptime - anchor_uptime)
+        if abs(sampled_at - expected) > _ESTIMATED_CLOCK_TOLERANCE:
+            return "estimated sampled_at does not match time anchor and uptime_ms"
+        return None
 
     def process(
         self,
@@ -322,6 +389,15 @@ class HistoryReplayProcessor:
                 reason="history replay is not allowed for retired or unassigned node",
                 processed_at=now,
             )
+        for index, record in enumerate(records):
+            reason = self._validate_record_time(record, now=now)
+            if reason is not None:
+                return self._reject(
+                    node_id=node_id,
+                    document=document,
+                    reason=f"invalid record time at records.{index}: {reason}",
+                    processed_at=now,
+                )
 
         batch_id = str(document["batch_id"])
         page_index = int(document["page_index"])
@@ -336,14 +412,14 @@ class HistoryReplayProcessor:
                 payload_sha256=_canonical_payload_sha256(document),
                 received_at=now,
             )
-        except HistoryConflict as error:
+        except (HistoryConflict, HistoryCapacityExceeded) as error:
             return self._reject(
                 node_id=node_id,
                 document=document,
                 reason=str(error),
                 processed_at=now,
             )
-        except (sqlite3.Error, HistoryStoreError, OSError) as error:
+        except (sqlite3.Error, HistoryStoreError, OSError, ValueError) as error:
             return HistoryReplayResult(
                 status="retry",
                 node_id=node_id,
@@ -352,19 +428,23 @@ class HistoryReplayProcessor:
                 reason=f"durable history commit failed: {type(error).__name__}",
             )
 
+        status: Literal["accepted", "duplicate"] = (
+            "duplicate" if committed.status == "duplicate" else "accepted"
+        )
         ack = self._ack(
             node_id=node_id,
             batch_id=batch_id,
             page_index=page_index,
             page_count=page_count,
-            status="duplicate" if committed.status == "duplicate" else "accepted",
+            status=status,
             processed_at=now,
             records_total=committed.record_count,
             inserted_records=committed.inserted_count,
             duplicate_records=committed.duplicate_count,
+            next_page_index=committed.next_page_index,
         )
         return HistoryReplayResult(
-            status="duplicate" if committed.status == "duplicate" else "accepted",
+            status=status,
             node_id=node_id,
             batch_id=batch_id,
             page_index=page_index,
