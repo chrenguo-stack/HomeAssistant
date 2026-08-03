@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import sqlite3
 import tempfile
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -11,26 +12,30 @@ from typing import Any
 from greenhouse_manager.runtime.history_projection import (
     AdapterDispatchResult,
     FakeProjectionAdapter,
+    ProjectionContractError,
     ProjectionRunner,
+    aggregate_projection,
 )
-from greenhouse_manager.runtime.history_projection_store import ProjectionStore
+from greenhouse_manager.runtime.history_projection_store import ProjectionStore, ProjectionTask
 from greenhouse_manager.runtime.history_store import HistoryStore
+
+NOW = datetime(2026, 8, 3, 4, 10, tzinfo=UTC)
+HOUR = "2026-08-03T04:00:00.000Z"
 
 
 def _record(
-    *,
     seq: int,
     sampled_at: str,
-    temperature: float,
+    temperature: float | int,
+    *,
     quality: str = "ok",
-    time_quality: str = "trusted",
 ) -> dict[str, Any]:
     return {
         "boot_id": "boot-00000001",
         "seq": seq,
         "uptime_ms": seq * 1000,
         "sampled_at": sampled_at,
-        "time_quality": time_quality,
+        "time_quality": "trusted",
         "time_anchor": None,
         "cap_hash": "cap-hash-0001",
         "fw_version": "1.0.0",
@@ -50,10 +55,9 @@ def _record(
 
 def _commit(
     store: HistoryStore,
-    *,
     batch_id: str,
     records: list[dict[str, Any]],
-    received_at: datetime,
+    at: datetime,
 ) -> None:
     store.commit_page(
         node_id="node-0001",
@@ -62,8 +66,67 @@ def _commit(
         page_count=1,
         records=records,
         payload_sha256=hashlib.sha256(batch_id.encode()).hexdigest(),
-        received_at=received_at,
+        received_at=at,
     )
+
+
+def _temperature(batch: Any) -> dict[str, Any]:
+    return next(
+        series
+        for series in batch.payload["series"]
+        if series["measurement_key"] == "air_temperature_c"
+    )
+
+
+def _legacy_completed_reopens() -> bool:
+    with tempfile.TemporaryDirectory(prefix="c06b1-legacy-") as directory:
+        path = Path(directory) / "manager" / "manager-state.sqlite3"
+        with HistoryStore(path) as history:
+            _commit(
+                history,
+                "batch-legacy",
+                [_record(1, "2026-08-03T04:00:00Z", 24.0)],
+                NOW,
+            )
+        with sqlite3.connect(path) as connection:
+            connection.execute(
+                """
+                UPDATE c06_projection_outbox
+                SET state='completed', completed_at=updated_at
+                WHERE node_id='node-0001' AND sample_hour=?
+                """,
+                (HOUR,),
+            )
+        with ProjectionStore(path) as store:
+            job = store.get_job("node-0001", HOUR)
+            return (
+                store.schema_version() == 2
+                and job is not None
+                and job.state == "pending"
+                and job.attempts == 0
+                and store.claim_next(worker_id="migration-check", now=NOW)
+                is not None
+            )
+
+
+def _extreme_numeric_blocked() -> bool:
+    task = ProjectionTask(
+        node_id="node-0001",
+        sample_hour=HOUR,
+        projection_version=1,
+        revision=1,
+        attempts=1,
+        claimed_by="host-only-worker",
+        lease_until=NOW + timedelta(seconds=60),
+    )
+    try:
+        aggregate_projection(
+            task,
+            [_record(999, "2026-08-03T04:00:00Z", 10**1_000)],
+        )
+    except ProjectionContractError:
+        return True
+    return False
 
 
 def run(
@@ -76,115 +139,157 @@ def run(
     exact_base_verified: bool = False,
     base_ancestor_verified: bool = False,
 ) -> dict[str, Any]:
-    now = datetime(2026, 8, 3, 4, 10, tzinfo=UTC)
     with tempfile.TemporaryDirectory(prefix="c06b1-host-only-") as directory:
         root = Path(directory)
         path = root / "manager" / "manager-state.sqlite3"
         with HistoryStore(path) as history:
             _commit(
                 history,
-                batch_id="batch-initial",
-                received_at=now,
-                records=[
+                "batch-initial",
+                [
+                    _record(1, "2026-08-03T04:00:00Z", 22.0),
+                    _record(2, "2026-08-03T04:05:00Z", 26.0),
                     _record(
-                        seq=1,
-                        sampled_at="2026-08-03T04:00:00Z",
-                        temperature=22.0,
-                    ),
-                    _record(
-                        seq=2,
-                        sampled_at="2026-08-03T04:05:00Z",
-                        temperature=26.0,
-                    ),
-                    _record(
-                        seq=3,
-                        sampled_at="2026-08-03T04:10:00Z",
-                        temperature=99.0,
+                        3,
+                        "2026-08-03T04:10:00Z",
+                        99.0,
                         quality="stale",
                     ),
                 ],
+                NOW,
             )
-            with ProjectionStore(path) as projections:
+            with ProjectionStore(path) as store:
                 adapter = FakeProjectionAdapter()
                 runner = ProjectionRunner(
-                    store=projections,
+                    store=store,
                     adapter=adapter,
                     worker_id="host-only-worker",
                     retry_base_seconds=10,
                 )
-                first = runner.run_once(now=now)
+                first = runner.run_once(
+                    now=NOW,
+                    settled_at=NOW + timedelta(seconds=2),
+                )
                 if first.task is None:
                     raise RuntimeError("initial projection task was not claimed")
                 first_batch = adapter.dispatched[-1]
-                first_temperature = next(
-                    series
-                    for series in first_batch.payload["series"]
-                    if series["measurement_key"] == "air_temperature_c"
-                )
-                initial_revision = first.task.revision
+                first_temperature = _temperature(first_batch)
 
                 _commit(
                     history,
-                    batch_id="batch-late",
-                    received_at=now,
-                    records=[
-                        _record(
-                            seq=4,
-                            sampled_at="2026-08-03T04:15:00Z",
-                            temperature=28.0,
-                        )
+                    "batch-late-two",
+                    [
+                        _record(4, "2026-08-03T04:15:00Z", 28.0),
+                        _record(5, "2026-08-03T04:16:00Z", 30.0),
                     ],
+                    NOW + timedelta(seconds=3),
                 )
-                reopened = projections.get_job(
-                    "node-0001", "2026-08-03T04:00:00.000Z"
-                )
-                stale_completion_rejected = not projections.mark_completed(
+                reopened = store.get_job("node-0001", HOUR)
+                stale_rejected = not store.mark_completed(
                     first.task,
                     projection_hash=first.projection_hash or "0" * 64,
                     payload_json=first_batch.payload_json,
                     adapter_kind=adapter.kind,
                     adapter_version=adapter.version,
-                    now=now,
+                    now=NOW + timedelta(seconds=3),
                 )
-                second = runner.run_once(now=now)
-                second_batch = adapter.dispatched[-1]
-                second_temperature = next(
-                    series
-                    for series in second_batch.payload["series"]
-                    if series["measurement_key"] == "air_temperature_c"
+                second = runner.run_once(
+                    now=NOW + timedelta(seconds=3),
+                    settled_at=NOW + timedelta(seconds=4),
+                )
+                second_temperature = _temperature(adapter.dispatched[-1])
+
+                _commit(
+                    history,
+                    "batch-timeout",
+                    [_record(6, "2026-08-03T05:00:00Z", 31.0)],
+                    NOW + timedelta(hours=1),
+                )
+                timeout_runner = ProjectionRunner(
+                    store=store,
+                    adapter=FakeProjectionAdapter(),
+                    worker_id="timeout-worker",
+                    lease_seconds=60,
+                    adapter_timeout_seconds=30,
+                    retry_base_seconds=10,
+                )
+                timeout = timeout_runner.run_once(
+                    now=NOW + timedelta(hours=1),
+                    settled_at=NOW + timedelta(hours=1, seconds=31),
+                )
+                timeout_retry = timeout_runner.run_once(
+                    now=NOW + timedelta(hours=1, seconds=41)
                 )
 
                 _commit(
                     history,
-                    batch_id="batch-next-hour",
-                    received_at=now + timedelta(hours=1),
-                    records=[
-                        _record(
-                            seq=5,
-                            sampled_at="2026-08-03T05:00:00Z",
-                            temperature=30.0,
-                        )
-                    ],
+                    "batch-expired",
+                    [_record(7, "2026-08-03T06:00:00Z", 32.0)],
+                    NOW + timedelta(hours=2),
                 )
-                adapter.outcomes.extend(
-                    [
+                expired = ProjectionRunner(
+                    store=store,
+                    adapter=FakeProjectionAdapter(),
+                    worker_id="expired-worker",
+                    lease_seconds=60,
+                    adapter_timeout_seconds=30,
+                ).run_once(
+                    now=NOW + timedelta(hours=2),
+                    settled_at=NOW + timedelta(hours=2, seconds=60),
+                )
+                successor = ProjectionRunner(
+                    store=store,
+                    adapter=FakeProjectionAdapter(),
+                    worker_id="successor-worker",
+                    lease_seconds=60,
+                    adapter_timeout_seconds=30,
+                ).run_once(now=NOW + timedelta(hours=2, seconds=61))
+                expired_job = store.get_job(
+                    "node-0001", "2026-08-03T06:00:00.000Z"
+                )
+
+                _commit(
+                    history,
+                    "batch-requeue",
+                    [_record(8, "2026-08-03T07:00:00Z", 33.0)],
+                    NOW + timedelta(hours=3),
+                )
+                blocked_adapter = FakeProjectionAdapter(
+                    outcomes=[
                         AdapterDispatchResult(
-                            status="retry", code="isolated_adapter_unavailable"
+                            status="blocked", code="entity_missing"
                         ),
                         AdapterDispatchResult(status="verified"),
                     ]
                 )
-                retry = runner.run_once(now=now + timedelta(hours=1))
-                idle_before_due = runner.run_once(now=now + timedelta(hours=1)).status
-                retried = runner.run_once(
-                    now=now + timedelta(hours=1, seconds=10)
+                blocked_runner = ProjectionRunner(
+                    store=store,
+                    adapter=blocked_adapter,
+                    worker_id="operator-worker",
                 )
-                retry_job = projections.get_job(
-                    "node-0001", "2026-08-03T05:00:00.000Z"
+                blocked = blocked_runner.run_once(now=NOW + timedelta(hours=3))
+                blocked_job = store.get_job(
+                    "node-0001", "2026-08-03T07:00:00.000Z"
+                )
+                requeued = bool(
+                    blocked_job
+                    and store.requeue_blocked(
+                        node_id="node-0001",
+                        sample_hour="2026-08-03T07:00:00.000Z",
+                        expected_revision=blocked_job.revision,
+                        operator_reason="host-only entity contract repaired",
+                        now=NOW + timedelta(hours=3, seconds=1),
+                    )
+                )
+                requeue_completed = blocked_runner.run_once(
+                    now=NOW + timedelta(hours=3, seconds=1)
+                )
+                requeue_job = store.get_job(
+                    "node-0001", "2026-08-03T07:00:00.000Z"
                 )
 
                 report = {
-                    "schema": "gh.c06b1-history-projection-host-only-report/1",
+                    "schema": "gh.c06b1-history-projection-host-only-report/2",
                     "authorization": authorization,
                     "base_sha": base_sha,
                     "base_ref": base_ref,
@@ -195,9 +300,25 @@ def run(
                     "portable_manager_state_relative_path": (
                         "manager/manager-state.sqlite3"
                     ),
-                    "projection_schema_version": projections.schema_version(),
+                    "projection_schema_version": store.schema_version(),
+                    "projection_payload_schema": first_batch.payload["schema"],
+                    "projection_algorithm_version": first_batch.payload[
+                        "algorithm_version"
+                    ],
+                    "payload_runtime_flags_absent": all(
+                        key not in first_batch.payload
+                        for key in (
+                            "home_assistant_write_enabled",
+                            "direct_home_assistant_database_write",
+                            "relative_only_reconstruction",
+                            "dli_counter_projection",
+                        )
+                    ),
+                    "source_set_sha256_present": (
+                        len(first_batch.payload["source_set_sha256"]) == 64
+                    ),
                     "initial_status": first.status,
-                    "initial_revision": initial_revision,
+                    "initial_revision": first.task.revision,
                     "initial_temperature_mean": first_temperature["mean"],
                     "initial_temperature_samples": first_temperature["samples"],
                     "stale_quality_excluded": (
@@ -210,31 +331,60 @@ def run(
                         for item in first_batch.payload["series"]
                     ),
                     "late_revision": reopened.revision if reopened else None,
-                    "stale_completion_rejected": stale_completion_rejected,
+                    "late_attempts_reset": (
+                        reopened.attempts == 0 if reopened else False
+                    ),
+                    "multi_record_page_single_revision": bool(
+                        reopened
+                        and reopened.revision == first.task.revision + 1
+                    ),
+                    "stale_completion_rejected": stale_rejected,
                     "late_status": second.status,
                     "late_temperature_mean": second_temperature["mean"],
                     "late_temperature_samples": second_temperature["samples"],
-                    "retry_status": retry.status,
-                    "idle_before_retry_due": idle_before_due,
-                    "retried_status": retried.status,
-                    "retry_attempts": retry_job.attempts if retry_job else None,
-                    "adapter_kind": retry_job.adapter_kind if retry_job else None,
-                    "same_database_file": list(root.rglob("*.sqlite3")) == [path],
-                    "relative_only_reconstruction": first_batch.payload[
-                        "relative_only_reconstruction"
-                    ],
-                    "home_assistant_write_enabled": first_batch.payload[
-                        "home_assistant_write_enabled"
-                    ],
-                    "direct_home_assistant_database_write": first_batch.payload[
-                        "direct_home_assistant_database_write"
-                    ],
+                    "timeout_status": timeout.status,
+                    "timeout_code": timeout.code,
+                    "timeout_retried_status": timeout_retry.status,
+                    "expired_lease_status": expired.status,
+                    "expired_lease_code": expired.code,
+                    "expired_lease_successor_status": successor.status,
+                    "expired_lease_attempts": (
+                        expired_job.attempts if expired_job else None
+                    ),
+                    "blocked_status": blocked.status,
+                    "operator_requeue_succeeded": requeued,
+                    "operator_requeue_completed": requeue_completed.status,
+                    "operator_requeue_audited": bool(
+                        requeue_job
+                        and requeue_job.requeue_count == 1
+                        and requeue_job.last_requeue_reason
+                        == "host-only entity contract repaired"
+                    ),
+                    "legacy_completed_without_evidence_reopened": (
+                        _legacy_completed_reopens()
+                    ),
+                    "extreme_numeric_blocked": _extreme_numeric_blocked(),
+                    "same_database_file": (
+                        list(root.rglob("*.sqlite3")) == [path]
+                    ),
+                    "adapter_kind": adapter.kind,
+                    "adapter_version": adapter.version,
+                    "monotonic_revision_contract_verified": (
+                        second.status == "completed"
+                    ),
+                    "home_assistant_write_enabled": False,
+                    "direct_home_assistant_database_write": False,
+                    "relative_only_reconstruction": False,
                     "network_used": False,
                     "production_state_modified": False,
                 }
 
     expected = {
-        "projection_schema_version": 1,
+        "projection_schema_version": 2,
+        "projection_payload_schema": "gh.c06-hourly-projection/1",
+        "projection_algorithm_version": 2,
+        "payload_runtime_flags_absent": True,
+        "source_set_sha256_present": True,
         "initial_status": "completed",
         "initial_revision": 1,
         "initial_temperature_mean": 24.0,
@@ -242,25 +392,40 @@ def run(
         "stale_quality_excluded": 1,
         "dli_projected": False,
         "late_revision": 2,
+        "late_attempts_reset": True,
+        "multi_record_page_single_revision": True,
         "stale_completion_rejected": True,
         "late_status": "completed",
-        "late_temperature_samples": 3,
-        "retry_status": "retry",
-        "idle_before_retry_due": "idle",
-        "retried_status": "completed",
-        "retry_attempts": 2,
-        "adapter_kind": "fake-host-only",
+        "late_temperature_samples": 4,
+        "timeout_status": "retry",
+        "timeout_code": "adapter_timeout_exceeded",
+        "timeout_retried_status": "completed",
+        "expired_lease_status": "stale",
+        "expired_lease_code": "lease_expired_during_dispatch",
+        "expired_lease_successor_status": "completed",
+        "expired_lease_attempts": 2,
+        "blocked_status": "blocked",
+        "operator_requeue_succeeded": True,
+        "operator_requeue_completed": "completed",
+        "operator_requeue_audited": True,
+        "legacy_completed_without_evidence_reopened": True,
+        "extreme_numeric_blocked": True,
         "same_database_file": True,
-        "relative_only_reconstruction": False,
+        "adapter_kind": "fake-host-only",
+        "adapter_version": "2",
+        "monotonic_revision_contract_verified": True,
         "home_assistant_write_enabled": False,
         "direct_home_assistant_database_write": False,
+        "relative_only_reconstruction": False,
         "network_used": False,
         "production_state_modified": False,
     }
     for key, value in expected.items():
         if report[key] != value:
-            raise RuntimeError(f"host-only assertion failed: {key}={report[key]!r}")
-    if abs(report["late_temperature_mean"] - (76.0 / 3.0)) > 1e-12:
+            raise RuntimeError(
+                f"host-only assertion failed: {key}={report[key]!r}"
+            )
+    if abs(report["late_temperature_mean"] - 26.5) > 1e-12:
         raise RuntimeError("host-only assertion failed: late mean mismatch")
     return report
 
