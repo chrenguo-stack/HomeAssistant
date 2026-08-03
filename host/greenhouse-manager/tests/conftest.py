@@ -1,8 +1,14 @@
 from __future__ import annotations
 
 import os
+import sys
+from pathlib import Path
 
 import pytest
+
+_HOMEASSISTANT_TEST_ROOT = Path(__file__).resolve().parents[2] / "homeassistant"
+if str(_HOMEASSISTANT_TEST_ROOT) not in sys.path:
+    sys.path.insert(0, str(_HOMEASSISTANT_TEST_ROOT))
 
 _STAGE2C2_NODE_E2E_FILE = "test_stage2c2_node_manager_e2e_20260721_v47.py"
 
