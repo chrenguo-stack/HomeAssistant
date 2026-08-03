@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "docs/adr/0005-c06-history-replay.md"
+      - "docs/adr/0005-c06-history-replay-final-review-addendum.md"
       - "host/greenhouse-manager/**"
       - "tools/c06_history_replay_host_only_harness.py"
       - ".github/workflows/c06-history-replay-ci.yml"
@@ -12,6 +13,7 @@ on:
       - main
     paths:
       - "docs/adr/0005-c06-history-replay.md"
+      - "docs/adr/0005-c06-history-replay-final-review-addendum.md"
       - "host/greenhouse-manager/**"
       - "tools/c06_history_replay_host_only_harness.py"
       - ".github/workflows/c06-history-replay-ci.yml"
@@ -28,12 +30,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify exact authorized stack and reviewed predecessor
+      - name: Verify exact authorized stack and reviewed predecessors
         if: github.event_name == 'pull_request'
         env:
           EXPECTED_BASE_REF: feature/h0h1-v07-init-portable-restore-hostonly-20260802-v1
           EXPECTED_BASE_SHA: d628b896314efd0aff58da151e3669eb7fe21d44
-          REVIEWED_HEAD_SHA: dac038c3595c80ac7d1a0666795effbbab4a4e4e
+          PRIOR_REVIEWED_HEAD_SHA: dac038c3595c80ac7d1a0666795effbbab4a4e4e
+          FINAL_REVIEWED_HEAD_SHA: ffdfbc3dc64620881ea0732d0d964623439d0bba
           ACTUAL_BASE_REF: ${{ github.event.pull_request.base.ref }}
           ACTUAL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           ACTUAL_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -41,7 +44,10 @@ jobs:
           test "$ACTUAL_BASE_REF" = "$EXPECTED_BASE_REF"
           test "$ACTUAL_BASE_SHA" = "$EXPECTED_BASE_SHA"
           test "$(git merge-base "$ACTUAL_BASE_SHA" "$ACTUAL_HEAD_SHA")" = "$EXPECTED_BASE_SHA"
-          git merge-base --is-ancestor "$REVIEWED_HEAD_SHA" "$ACTUAL_HEAD_SHA"
+          git merge-base --is-ancestor "$PRIOR_REVIEWED_HEAD_SHA" "$ACTUAL_HEAD_SHA"
+          git merge-base --is-ancestor "$FINAL_REVIEWED_HEAD_SHA" "$ACTUAL_HEAD_SHA"
+          echo "C06_PRIOR_REVIEWED_HEAD_ANCESTOR_VERIFIED=true" >> "$GITHUB_ENV"
+          echo "C06_FINAL_REVIEWED_HEAD_ANCESTOR_VERIFIED=true" >> "$GITHUB_ENV"
 
       - uses: actions/setup-python@v5
         with:
@@ -70,6 +76,7 @@ jobs:
             host/greenhouse-manager/tests/runtime/test_history_topics.py \
             host/greenhouse-manager/tests/runtime/test_history_worker.py \
             host/greenhouse-manager/tests/runtime/test_mqtt_history_service.py \
+            host/greenhouse-manager/tests/runtime/test_history_final_review.py \
             tools/c06_history_replay_host_only_harness.py
 
       - name: Run C-06 host-only tests
@@ -83,33 +90,42 @@ jobs:
             tests/runtime/test_history_topics.py \
             tests/runtime/test_history_worker.py \
             tests/runtime/test_mqtt_history_service.py \
+            tests/runtime/test_history_final_review.py \
             tests/runtime/test_mqtt_service.py \
             tests/runtime/test_ingest.py
 
       - name: Build secret-free host-only evidence
         env:
           PYTHONPATH: host/greenhouse-manager/src
-          C06_AUTHORIZATION: D1-C06A-PR261-READ-ONLY-REVIEW-FINDINGS-REMEDIATION-AND-HOST-ONLY-REVALIDATION-20260803-01
-          C06_REVIEWED_HEAD_SHA: dac038c3595c80ac7d1a0666795effbbab4a4e4e
+          C06_AUTHORIZATION: D1-C06A-PR261-FINAL-REVIEW-BLOCKERS-REMEDIATION-AND-HOST-ONLY-REVALIDATION-20260803-01
+          C06_PRIOR_REVIEWED_HEAD_SHA: dac038c3595c80ac7d1a0666795effbbab4a4e4e
+          C06_FINAL_REVIEWED_HEAD_SHA: ffdfbc3dc64620881ea0732d0d964623439d0bba
           C06_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           C06_SOURCE_REF: ${{ github.head_ref || github.ref_name }}
           C06_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           C06_BASE_REF: ${{ github.base_ref || github.ref_name }}
           C06_EXACT_BASE_VERIFIED: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha == 'd628b896314efd0aff58da151e3669eb7fe21d44' && github.event.pull_request.base.ref == 'feature/h0h1-v07-init-portable-restore-hostonly-20260802-v1' }}
         run: |
-          binding_flag=()
+          binding_flags=()
           if [ "$C06_EXACT_BASE_VERIFIED" = "true" ]; then
-            binding_flag+=(--exact-base-verified)
+            binding_flags+=(--exact-base-verified)
+          fi
+          if [ "$C06_PRIOR_REVIEWED_HEAD_ANCESTOR_VERIFIED" = "true" ]; then
+            binding_flags+=(--prior-reviewed-head-ancestor-verified)
+          fi
+          if [ "$C06_FINAL_REVIEWED_HEAD_ANCESTOR_VERIFIED" = "true" ]; then
+            binding_flags+=(--final-reviewed-head-ancestor-verified)
           fi
           python tools/c06_history_replay_host_only_harness.py \
             --output artifacts/c06-history-replay-host-only-report.json \
             --authorization "$C06_AUTHORIZATION" \
-            --reviewed-head-sha "$C06_REVIEWED_HEAD_SHA" \
+            --prior-reviewed-head-sha "$C06_PRIOR_REVIEWED_HEAD_SHA" \
+            --final-reviewed-head-sha "$C06_FINAL_REVIEWED_HEAD_SHA" \
             --source-sha "$C06_SOURCE_SHA" \
             --source-ref "$C06_SOURCE_REF" \
             --base-sha "$C06_BASE_SHA" \
             --base-ref "$C06_BASE_REF" \
-            "${binding_flag[@]}"
+            "${binding_flags[@]}"
           (
             cd artifacts
             sha256sum c06-history-replay-host-only-report.json > SHA256SUMS
