@@ -2,12 +2,32 @@ from __future__ import annotations
 
 import asyncio
 import json
-import sys
 from datetime import UTC, datetime
-from pathlib import Path
+from typing import Any
 
 import pytest
 
+from custom_components.greenhouse_history.entity_resolver import (
+    EntityDescriptor,
+    EntityResolutionError,
+    EntityResolver,
+)
+from custom_components.greenhouse_history.ledger import (
+    LedgerCorruptionError,
+    MemoryLedgerStore,
+    ResolvedSeries,
+    TargetLedger,
+)
+from custom_components.greenhouse_history.protocol import ProtocolError
+from custom_components.greenhouse_history.protocol import (
+    parse_request as parse_ha_request,
+)
+from custom_components.greenhouse_history.recorder_adapter import (
+    RecorderAdapterError,
+    StatisticReadback,
+    projection_writes,
+    verify_readback,
+)
 from greenhouse_manager.runtime.history_projection_contract import ProjectionBatch
 from greenhouse_manager.runtime.history_projection_protocol import (
     ProjectionProtocolError,
@@ -18,32 +38,6 @@ from greenhouse_manager.runtime.history_projection_protocol import (
     projection_hash,
     projection_request_topic,
     projection_result_topic,
-)
-
-_HOMEASSISTANT_ROOT = Path(__file__).resolve().parents[3] / "homeassistant"
-if str(_HOMEASSISTANT_ROOT) not in sys.path:
-    sys.path.insert(0, str(_HOMEASSISTANT_ROOT))
-
-from custom_components.greenhouse_history.entity_resolver import (  # noqa: E402
-    EntityDescriptor,
-    EntityResolutionError,
-    EntityResolver,
-)
-from custom_components.greenhouse_history.ledger import (  # noqa: E402
-    LedgerCorruptionError,
-    MemoryLedgerStore,
-    ResolvedSeries,
-    TargetLedger,
-)
-from custom_components.greenhouse_history.protocol import (  # noqa: E402
-    ProtocolError,
-    parse_request as parse_ha_request,
-)
-from custom_components.greenhouse_history.recorder_adapter import (  # noqa: E402
-    RecorderAdapterError,
-    StatisticReadback,
-    projection_writes,
-    verify_readback,
 )
 
 _MEASUREMENT_KEYS = (
@@ -63,7 +57,7 @@ _MEASUREMENT_KEYS = (
 )
 
 
-def _projection(*, revision: int = 1, mean: float = 20.0) -> dict[str, object]:
+def _projection(*, revision: int = 1, mean: float = 20.0) -> dict[str, Any]:
     node_id = "node_0001"
     sample_hour = "2026-08-03T12:00:00Z"
     audit = {
@@ -214,7 +208,9 @@ def test_target_ledger_enforces_full_monotonic_matrix_and_persists() -> None:
         ledger = TargetLedger(store)
         await ledger.async_load()
         revision_1 = _request(revision=1, mean=20.0)
-        first = await ledger.async_prepare(revision_1, accepted_at="2026-08-03T12:30:00Z")
+        first = await ledger.async_prepare(
+            revision_1, accepted_at="2026-08-03T12:30:00Z"
+        )
         assert (first.status, first.code) == ("accepted", "accepted_new_target")
         pending_retry = await ledger.async_prepare(
             revision_1, accepted_at="2026-08-03T12:30:01Z"
@@ -243,14 +239,16 @@ def test_target_ledger_enforces_full_monotonic_matrix_and_persists() -> None:
         assert idempotent.status == "verified"
 
         conflict = await ledger.async_prepare(
-            _request(revision=1, mean=21.0), accepted_at="2026-08-03T12:31:02Z"
+            _request(revision=1, mean=21.0),
+            accepted_at="2026-08-03T12:31:02Z",
         )
         assert (conflict.status, conflict.code) == (
             "blocked",
             "target_same_revision_hash_conflict",
         )
         higher = await ledger.async_prepare(
-            _request(revision=2, mean=22.0), accepted_at="2026-08-03T12:32:00Z"
+            _request(revision=2, mean=22.0),
+            accepted_at="2026-08-03T12:32:00Z",
         )
         assert (higher.status, higher.code) == ("accepted", "accepted_higher_revision")
         lower = await ledger.async_prepare(
@@ -258,7 +256,8 @@ def test_target_ledger_enforces_full_monotonic_matrix_and_persists() -> None:
         )
         assert (lower.status, lower.code) == ("blocked", "target_newer_revision")
         still_pending_higher = await ledger.async_prepare(
-            _request(revision=3, mean=23.0), accepted_at="2026-08-03T12:32:02Z"
+            _request(revision=3, mean=23.0),
+            accepted_at="2026-08-03T12:32:02Z",
         )
         assert (still_pending_higher.status, still_pending_higher.code) == (
             "retry",
@@ -278,7 +277,9 @@ def test_target_ledger_enforces_full_monotonic_matrix_and_persists() -> None:
 
 def test_target_ledger_fails_closed_on_corrupt_or_unsupported_storage() -> None:
     async def scenario() -> None:
-        corrupt = TargetLedger(MemoryLedgerStore({"storage_schema_version": 1, "entries": []}))
+        corrupt = TargetLedger(
+            MemoryLedgerStore({"storage_schema_version": 1, "entries": []})
+        )
         with pytest.raises(LedgerCorruptionError):
             await corrupt.async_load()
         unsupported = TargetLedger(
