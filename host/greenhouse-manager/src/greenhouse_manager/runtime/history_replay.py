@@ -23,6 +23,7 @@ from .ingest import PublishMessage
 from .topics import history_replay_ack_topic, parse_history_replay_topic
 
 HistoryReplayStatus = Literal["accepted", "duplicate", "rejected", "retry"]
+MAX_HISTORY_UPTIME_MS = 315_576_000_000
 _BATCH_ID_RE = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
 _ESTIMATED_CLOCK_TOLERANCE = timedelta(seconds=1)
 
@@ -53,6 +54,14 @@ def _parse_timestamp(value: str) -> datetime:
     if parsed.tzinfo is None:
         raise ValueError("timestamp must include a timezone")
     return parsed.astimezone(UTC)
+
+
+def _validated_uptime_ms(value: object, field: str) -> int:
+    if type(value) is not int or not 0 <= value <= MAX_HISTORY_UPTIME_MS:
+        raise ValueError(
+            f"{field} must be an integer between 0 and {MAX_HISTORY_UPTIME_MS}"
+        )
+    return value
 
 
 def _reject_json_constant(value: str) -> object:
@@ -226,6 +235,11 @@ class HistoryReplayProcessor:
         )
 
     def _validate_record_time(self, record: dict[str, Any], *, now: datetime) -> str | None:
+        try:
+            uptime = _validated_uptime_ms(record.get("uptime_ms"), "uptime_ms")
+        except ValueError as error:
+            return str(error)
+
         quality = str(record["time_quality"])
         sampled_raw = record.get("sampled_at")
         anchor = record.get("time_anchor")
@@ -254,13 +268,18 @@ class HistoryReplayProcessor:
             return "estimated records require a time_anchor object"
         try:
             anchor_time = _parse_timestamp(str(anchor["sampled_at"]))
-            anchor_uptime = int(anchor["uptime_ms"])
-            uptime = int(record["uptime_ms"])
+            anchor_uptime = _validated_uptime_ms(
+                anchor.get("uptime_ms"), "time_anchor.uptime_ms"
+            )
         except (KeyError, TypeError, ValueError) as error:
             return f"invalid estimated time anchor: {error}"
         if uptime < anchor_uptime:
             return "estimated record uptime_ms precedes time anchor uptime_ms"
-        expected = anchor_time + timedelta(milliseconds=uptime - anchor_uptime)
+        try:
+            elapsed = timedelta(milliseconds=uptime - anchor_uptime)
+            expected = anchor_time + elapsed
+        except (OverflowError, ValueError):
+            return "estimated time arithmetic exceeds the supported range"
         if abs(sampled_at - expected) > _ESTIMATED_CLOCK_TOLERANCE:
             return "estimated sampled_at does not match time anchor and uptime_ms"
         return None
@@ -390,7 +409,10 @@ class HistoryReplayProcessor:
                 processed_at=now,
             )
         for index, record in enumerate(records):
-            reason = self._validate_record_time(record, now=now)
+            try:
+                reason = self._validate_record_time(record, now=now)
+            except (ArithmeticError, KeyError, TypeError, ValueError) as error:
+                reason = f"time validation failed safely: {type(error).__name__}"
             if reason is not None:
                 return self._reject(
                     node_id=node_id,
