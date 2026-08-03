@@ -68,7 +68,7 @@ def canonical_telemetry_topic(system_id: str, node_id: str) -> str:
 
 
 def history_replay_ack_topic(system_id: str, node_id: str) -> str:
-    return f"gh/v1/{system_id}/command/node/{node_id}/history/ack"
+    return f"gh/v1/{system_id}/out/node/{node_id}/history/ack"
 
 
 def availability_topic(system_id: str, node_id: str) -> str:
