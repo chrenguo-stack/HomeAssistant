@@ -12,8 +12,9 @@ import paho.mqtt.client as mqtt
 
 from .config import Settings
 from .ha_discovery import HomeAssistantDiscovery
-from .history_replay import HistoryReplayProcessor
+from .history_replay import HistoryReplayProcessor, HistoryReplayResult
 from .history_store import HistoryStore
+from .history_worker import HistoryReplayWorker, HistoryWorkItem
 from .ingest import PublishMessage, TelemetryProcessor
 from .pairing_intake import (
     PAIRING_HELLO_SUBSCRIPTION,
@@ -81,16 +82,28 @@ class ManagerMqttService:
 
         self.history_store: HistoryStore | None = None
         self.history_processor: HistoryReplayProcessor | None = None
+        self.history_worker: HistoryReplayWorker | None = None
         if settings.history_replay_enabled:
             self.history_store = HistoryStore(
                 settings.history_db_path,
                 retention_days=settings.history_retention_days,
+                max_records=settings.history_max_records,
+                max_db_bytes=settings.history_max_db_bytes,
             )
             self.history_processor = HistoryReplayProcessor(
                 system_id=settings.system_id,
                 store=self.history_store,
+                retention_days=settings.history_retention_days,
+                max_future_skew_s=settings.history_max_future_skew_s,
                 max_records_per_page=settings.history_max_records_per_page,
                 max_payload_bytes=settings.history_max_payload_bytes,
+            )
+            self.history_worker = HistoryReplayWorker(
+                processor=self.history_processor,
+                on_result=self._handle_history_result,
+                queue_capacity=settings.history_queue_capacity,
+                max_pages_per_minute=settings.history_max_pages_per_minute,
+                prune_interval_s=settings.history_prune_interval_s,
             )
 
         self.client = mqtt.Client(
@@ -245,26 +258,7 @@ class ManagerMqttService:
         else:
             _LOGGER.info("MQTT disconnected")
 
-    def _on_history_message(self, message: mqtt.MQTTMessage) -> bool:
-        if self.history_processor is None:
-            return False
-        try:
-            history_topic = parse_history_replay_topic(message.topic)
-        except ValueError:
-            return False
-
-        node_allowed = True
-        if self.registration_registry is not None:
-            node_allowed = (
-                self.registration_registry.node_id_lease_state(history_topic.node_id)
-                is NodeIdLeaseState.ACTIVE
-            )
-        result = self.history_processor.process(
-            message.topic,
-            message.payload,
-            retained=bool(message.retain),
-            node_allowed=node_allowed,
-        )
+    def _handle_history_result(self, result: HistoryReplayResult) -> None:
         for outgoing in result.messages:
             self._publish(outgoing)
         if result.status in {"accepted", "duplicate"}:
@@ -290,6 +284,37 @@ class ManagerMqttService:
                 result.batch_id,
                 result.page_index,
                 result.reason,
+            )
+
+    def _on_history_message(self, message: mqtt.MQTTMessage) -> bool:
+        if self.history_worker is None:
+            return False
+        try:
+            history_topic = parse_history_replay_topic(message.topic)
+        except ValueError:
+            return False
+
+        node_allowed = True
+        if self.registration_registry is not None:
+            node_allowed = (
+                self.registration_registry.node_id_lease_state(history_topic.node_id)
+                is NodeIdLeaseState.ACTIVE
+            )
+        status = self.history_worker.submit(
+            HistoryWorkItem(
+                node_id=history_topic.node_id,
+                topic=message.topic,
+                payload=bytes(message.payload),
+                retained=bool(message.retain),
+                node_allowed=node_allowed,
+                received_at=datetime.now(UTC),
+            )
+        )
+        if status != "queued":
+            _LOGGER.warning(
+                "Deferred history replay without ACK node=%s reason=%s",
+                history_topic.node_id,
+                status,
             )
         return True
 
@@ -419,10 +444,17 @@ class ManagerMqttService:
             self.settings.pairing_intake_enabled,
             self.settings.history_replay_enabled,
         )
-        self.client.connect(self.settings.mqtt_host, self.settings.mqtt_port, keepalive=60)
-        self.client.loop_start()
-
+        loop_started = False
         try:
+            if self.history_worker is not None:
+                self.history_worker.start()
+            self.client.connect(
+                self.settings.mqtt_host,
+                self.settings.mqtt_port,
+                keepalive=60,
+            )
+            self.client.loop_start()
+            loop_started = True
             while True:
                 time.sleep(5)
                 if self.pairing_processor is not None:
@@ -446,7 +478,10 @@ class ManagerMqttService:
             _LOGGER.info("Stopping greenhouse-manager")
         finally:
             self.client.disconnect()
-            self.client.loop_stop()
+            if loop_started:
+                self.client.loop_stop()
+            if self.history_worker is not None:
+                self.history_worker.stop()
             if self.history_store is not None:
                 self.history_store.close()
             if self.registration_registry is not None:
