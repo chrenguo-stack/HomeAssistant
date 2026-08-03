@@ -28,6 +28,8 @@ permissions:
 jobs:
   host-only:
     runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: host/homeassistant
 
     steps:
       - uses: actions/checkout@v4
