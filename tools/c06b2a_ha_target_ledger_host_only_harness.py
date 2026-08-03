@@ -18,22 +18,21 @@ from custom_components.greenhouse_history.ledger import (
     TargetLedger,
 )
 from custom_components.greenhouse_history.protocol import result_document
-from custom_components.greenhouse_history.protocol import (
-    parse_request as parse_ha_request,
-)
+from custom_components.greenhouse_history.protocol import parse_request as parse_ha_request
 from custom_components.greenhouse_history.recorder_adapter import (
     StatisticReadback,
+    StatisticWrite,
     projection_writes,
     verify_readback,
 )
-from greenhouse_manager.runtime.history_projection import aggregate_projection
-from greenhouse_manager.runtime.history_projection_protocol import (
+from greenhouse_manager.runtime.c06b2_ha_projection_protocol import (
     build_projection_request,
     build_projection_result,
     parse_projection_result,
     projection_request_topic,
     projection_result_topic,
 )
+from greenhouse_manager.runtime.history_projection import aggregate_projection
 from greenhouse_manager.runtime.history_projection_store import ProjectionTask
 
 NOW = datetime(2026, 8, 3, 15, 0, tzinfo=UTC)
@@ -94,7 +93,7 @@ def _request(revision: int, temperature: float, request_id: str):
 
 
 def _readback_matches(
-    writes: tuple[Any, ...], readback: tuple[StatisticReadback, ...]
+    writes: tuple[StatisticWrite, ...], readback: tuple[StatisticReadback, ...]
 ) -> bool:
     return bool(writes) and len(writes) == len(readback) and all(
         observed.statistic_id == expected.statistic_id
@@ -109,11 +108,11 @@ def _readback_matches(
 
 async def _probe() -> dict[str, Any]:
     manager_r1, request_r1 = _request(1, 22.0, "request_c06b2a_0001")
-    _manager_conflict, request_conflict = _request(1, 23.0, "request_c06b2a_0002")
-    _manager_r2, request_r2 = _request(2, 24.0, "request_c06b2a_0003")
-    _manager_r3, request_r3 = _request(3, 25.0, "request_c06b2a_0004")
+    _, conflict_request = _request(1, 23.0, "request_c06b2a_0002")
+    _, request_r2 = _request(2, 24.0, "request_c06b2a_0003")
+    _, request_r3 = _request(3, 25.0, "request_c06b2a_0004")
 
-    descriptors = [
+    descriptors = tuple(
         EntityDescriptor(
             entity_id=f"sensor.user_renamed_{item['measurement_key']}",
             domain="sensor",
@@ -123,19 +122,19 @@ async def _probe() -> dict[str, Any]:
             state_class="measurement",
         )
         for item in request_r1.projection["series"]
-    ]
+    )
     resolved = EntityResolver(descriptors).resolve_projection(request_r1.projection)
     writes = projection_writes(
         sample_hour=request_r1.projection["sample_hour"], resolved=resolved
     )
     readback = tuple(
         StatisticReadback(
-            statistic_id=item.statistic_id,
-            start=item.start,
-            unit_of_measurement=item.unit_of_measurement,
-            mean=item.mean,
-            minimum=item.minimum,
-            maximum=item.maximum,
+            item.statistic_id,
+            item.start,
+            item.unit_of_measurement,
+            item.mean,
+            item.minimum,
+            item.maximum,
         )
         for item in writes
     )
@@ -144,34 +143,29 @@ async def _probe() -> dict[str, Any]:
     store = MemoryLedgerStore()
     ledger = TargetLedger(store)
     await ledger.async_load()
-    created = await ledger.async_prepare(
-        request_r1, accepted_at="2026-08-03T15:00:00Z"
-    )
-    resumed = await ledger.async_prepare(
-        request_r1, accepted_at="2026-08-03T15:00:01Z"
-    )
-    ledger_series = tuple(
-        ResolvedSeries(
-            measurement_key=item.measurement_key,
-            entity_unique_id=item.entity_unique_id,
-            entity_id=item.entity_id,
-            unit_of_measurement=item.unit_of_measurement,
-            mean=item.mean,
-            minimum=item.minimum,
-            maximum=item.maximum,
-        )
-        for item in resolved
-    )
+    created = await ledger.async_prepare(request_r1, accepted_at="2026-08-03T15:00:00Z")
+    resumed = await ledger.async_prepare(request_r1, accepted_at="2026-08-03T15:00:01Z")
     verified_entry = await ledger.async_mark_verified(
         request_r1,
         verified_at="2026-08-03T15:00:02Z",
-        resolved_series=ledger_series,
+        resolved_series=tuple(
+            ResolvedSeries(
+                item.measurement_key,
+                item.entity_unique_id,
+                item.entity_id,
+                item.unit_of_measurement,
+                item.mean,
+                item.minimum,
+                item.maximum,
+            )
+            for item in resolved
+        ),
     )
     idempotent = await ledger.async_prepare(
         request_r1, accepted_at="2026-08-03T15:00:03Z"
     )
     conflict = await ledger.async_prepare(
-        request_conflict, accepted_at="2026-08-03T15:00:04Z"
+        conflict_request, accepted_at="2026-08-03T15:00:04Z"
     )
     higher = await ledger.async_prepare(
         request_r2, accepted_at="2026-08-03T15:00:05Z"
@@ -189,10 +183,9 @@ async def _probe() -> dict[str, Any]:
 
     corrupt_store_failed_closed = False
     try:
-        corrupt = TargetLedger(
+        await TargetLedger(
             MemoryLedgerStore({"storage_schema_version": 1, "entries": []})
-        )
-        await corrupt.async_load()
+        ).async_load()
     except LedgerCorruptionError:
         corrupt_store_failed_closed = True
 
@@ -268,7 +261,6 @@ def run(
     exact_base_verified: bool,
     base_ancestor_verified: bool,
 ) -> dict[str, Any]:
-    probe = asyncio.run(_probe())
     report = {
         "schema": "gh.c06b2a-ha-target-ledger-host-only-report/1",
         "authorization": authorization,
@@ -278,7 +270,7 @@ def run(
         "source_ref": source_ref,
         "exact_base_verified": exact_base_verified,
         "base_ancestor_verified": base_ancestor_verified,
-        **probe,
+        **asyncio.run(_probe()),
         "mqtt_network_used": False,
         "home_assistant_runtime_started": False,
         "recorder_write_performed": False,
