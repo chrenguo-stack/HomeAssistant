@@ -8,9 +8,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+from history_samples import history_record
 
 from greenhouse_manager.runtime.history_store import HistoryConflict, HistoryStore
-from history_samples import history_record
 
 
 def _payload_hash(value: object) -> str:
