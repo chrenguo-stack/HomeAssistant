@@ -3,9 +3,8 @@ from __future__ import annotations
 import json
 from importlib.resources import files
 
-from jsonschema import Draft202012Validator, FormatChecker
-
 from history_samples import history_page
+from jsonschema import Draft202012Validator, FormatChecker
 
 
 def _validator(name: str) -> Draft202012Validator:
