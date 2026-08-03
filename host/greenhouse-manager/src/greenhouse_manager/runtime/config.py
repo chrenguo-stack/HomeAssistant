@@ -70,10 +70,18 @@ class Settings:
     pairing_db_path: str = "/var/lib/greenhouse-manager/registration.sqlite3"
     pairing_pending_ttl_s: int = 120
     history_replay_enabled: bool = False
-    history_db_path: str = "/var/lib/greenhouse-manager/manager-state.sqlite3"
+    history_db_path: str = (
+        "/var/lib/greenhouse-manager/manager/manager-state.sqlite3"
+    )
     history_retention_days: int = 7
+    history_max_future_skew_s: int = 300
     history_max_records_per_page: int = 256
     history_max_payload_bytes: int = 262_144
+    history_max_records: int = 250_000
+    history_max_db_bytes: int = 268_435_456
+    history_queue_capacity: int = 64
+    history_max_pages_per_minute: int = 60
+    history_prune_interval_s: int = 300
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -100,14 +108,30 @@ class Settings:
             history_replay_enabled=_env_bool("GH_HISTORY_REPLAY_ENABLED", False),
             history_db_path=os.getenv(
                 "GH_HISTORY_DB_PATH",
-                "/var/lib/greenhouse-manager/manager-state.sqlite3",
+                "/var/lib/greenhouse-manager/manager/manager-state.sqlite3",
             ),
             history_retention_days=int(os.getenv("GH_HISTORY_RETENTION_DAYS", "7")),
+            history_max_future_skew_s=int(
+                os.getenv("GH_HISTORY_MAX_FUTURE_SKEW_S", "300")
+            ),
             history_max_records_per_page=int(
                 os.getenv("GH_HISTORY_MAX_RECORDS_PER_PAGE", "256")
             ),
             history_max_payload_bytes=int(
                 os.getenv("GH_HISTORY_MAX_PAYLOAD_BYTES", "262144")
+            ),
+            history_max_records=int(os.getenv("GH_HISTORY_MAX_RECORDS", "250000")),
+            history_max_db_bytes=int(
+                os.getenv("GH_HISTORY_MAX_DB_BYTES", "268435456")
+            ),
+            history_queue_capacity=int(
+                os.getenv("GH_HISTORY_QUEUE_CAPACITY", "64")
+            ),
+            history_max_pages_per_minute=int(
+                os.getenv("GH_HISTORY_MAX_PAGES_PER_MINUTE", "60")
+            ),
+            history_prune_interval_s=int(
+                os.getenv("GH_HISTORY_PRUNE_INTERVAL_S", "300")
             ),
         )
         settings.validate()
@@ -140,17 +164,41 @@ class Settings:
             )
         if not 30 <= self.pairing_pending_ttl_s <= 600:
             raise ValueError("GH_PAIRING_PENDING_TTL_S must be between 30 and 600 seconds")
-        if self.history_replay_enabled and not self.history_db_path.strip():
-            raise ValueError(
-                "GH_HISTORY_DB_PATH cannot be empty when history replay is enabled"
-            )
+        if self.history_replay_enabled:
+            history_path = Path(self.history_db_path).expanduser()
+            if not self.history_db_path.strip():
+                raise ValueError(
+                    "GH_HISTORY_DB_PATH cannot be empty when history replay is enabled"
+                )
+            if not history_path.is_absolute():
+                raise ValueError(
+                    "GH_HISTORY_DB_PATH must be absolute when history replay is enabled"
+                )
         if not 1 <= self.history_retention_days <= 30:
             raise ValueError("GH_HISTORY_RETENTION_DAYS must be between 1 and 30")
+        if not 0 <= self.history_max_future_skew_s <= 86_400:
+            raise ValueError("GH_HISTORY_MAX_FUTURE_SKEW_S must be between 0 and 86400")
         if not 1 <= self.history_max_records_per_page <= 256:
             raise ValueError(
                 "GH_HISTORY_MAX_RECORDS_PER_PAGE must be between 1 and 256"
             )
-        if not 4096 <= self.history_max_payload_bytes <= 1_048_576:
+        if not 4_096 <= self.history_max_payload_bytes <= 1_048_576:
             raise ValueError(
                 "GH_HISTORY_MAX_PAYLOAD_BYTES must be between 4096 and 1048576"
+            )
+        if not 1_024 <= self.history_max_records <= 2_000_000:
+            raise ValueError("GH_HISTORY_MAX_RECORDS must be between 1024 and 2000000")
+        if not 1_048_576 <= self.history_max_db_bytes <= 2_147_483_648:
+            raise ValueError(
+                "GH_HISTORY_MAX_DB_BYTES must be between 1048576 and 2147483648"
+            )
+        if not 1 <= self.history_queue_capacity <= 1_024:
+            raise ValueError("GH_HISTORY_QUEUE_CAPACITY must be between 1 and 1024")
+        if not 1 <= self.history_max_pages_per_minute <= 600:
+            raise ValueError(
+                "GH_HISTORY_MAX_PAGES_PER_MINUTE must be between 1 and 600"
+            )
+        if not 30 <= self.history_prune_interval_s <= 86_400:
+            raise ValueError(
+                "GH_HISTORY_PRUNE_INTERVAL_S must be between 30 and 86400"
             )
