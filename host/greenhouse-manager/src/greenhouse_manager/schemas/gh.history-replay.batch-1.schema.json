@@ -36,6 +36,18 @@
     }
   },
   "$defs": {
+    "quality": {
+      "enum": ["ok", "warming", "stale", "fault", "not_present"]
+    },
+    "time_anchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sampled_at", "uptime_ms"],
+      "properties": {
+        "sampled_at": {"type": "string", "format": "date-time"},
+        "uptime_ms": {"type": "integer", "minimum": 0}
+      }
+    },
     "record": {
       "type": "object",
       "additionalProperties": false,
@@ -44,6 +56,8 @@
         "seq",
         "uptime_ms",
         "sampled_at",
+        "time_quality",
+        "time_anchor",
         "cap_hash",
         "measurements",
         "quality",
@@ -58,18 +72,45 @@
         },
         "seq": {"type": "integer", "minimum": 0, "maximum": 4294967295},
         "uptime_ms": {"type": "integer", "minimum": 0},
-        "sampled_at": {"type": "string", "format": "date-time"},
+        "sampled_at": {
+          "type": ["string", "null"],
+          "format": "date-time"
+        },
+        "time_quality": {
+          "enum": ["trusted", "estimated", "relative_only"]
+        },
+        "time_anchor": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/time_anchor"}
+          ]
+        },
         "cap_hash": {"type": "string", "minLength": 8, "maxLength": 128},
         "fw_version": {"type": "string", "maxLength": 64},
         "measurements": {
           "type": "object",
-          "additionalProperties": {"type": ["number", "null"]}
+          "additionalProperties": {"type": ["number", "null"]},
+          "properties": {
+            "air_temperature_c": {"type": ["number", "null"]},
+            "air_humidity_pct": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
+            "co2_ppm": {"type": ["number", "null"], "minimum": 0},
+            "illuminance_lx": {"type": ["number", "null"], "minimum": 0},
+            "soil_temperature_c": {"type": ["number", "null"]},
+            "soil_moisture_pct": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
+            "soil_ec_us_cm": {"type": ["number", "null"], "minimum": 0},
+            "vpd_kpa": {"type": ["number", "null"], "minimum": 0},
+            "dew_point_c": {"type": ["number", "null"]},
+            "absolute_humidity_g_m3": {"type": ["number", "null"], "minimum": 0},
+            "ppfd_umol_m2_s": {"type": ["number", "null"], "minimum": 0},
+            "dli_today_mol_m2_d": {"type": ["number", "null"], "minimum": 0},
+            "dli_yesterday_mol_m2_d": {"type": ["number", "null"], "minimum": 0},
+            "battery_v": {"type": ["number", "null"], "minimum": 0},
+            "battery_pct": {"type": ["number", "null"], "minimum": 0, "maximum": 100}
+          }
         },
         "quality": {
           "type": "object",
-          "additionalProperties": {
-            "enum": ["ok", "warming", "stale", "fault", "not_present"]
-          }
+          "additionalProperties": {"$ref": "#/$defs/quality"}
         },
         "power": {
           "type": "object",
@@ -86,7 +127,45 @@
             "low": {"type": "boolean"}
           }
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {"time_quality": {"const": "trusted"}},
+            "required": ["time_quality"]
+          },
+          "then": {
+            "properties": {
+              "sampled_at": {"type": "string", "format": "date-time"},
+              "time_anchor": {"type": "null"}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {"time_quality": {"const": "estimated"}},
+            "required": ["time_quality"]
+          },
+          "then": {
+            "properties": {
+              "sampled_at": {"type": "string", "format": "date-time"},
+              "time_anchor": {"$ref": "#/$defs/time_anchor"}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {"time_quality": {"const": "relative_only"}},
+            "required": ["time_quality"]
+          },
+          "then": {
+            "properties": {
+              "sampled_at": {"type": "null"},
+              "time_anchor": {"type": "null"}
+            }
+          }
+        }
+      ]
     }
   }
 }
