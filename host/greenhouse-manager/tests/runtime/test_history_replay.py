@@ -67,6 +67,7 @@ def test_record_collision_returns_nack_and_preserves_original(tmp_path: Path) ->
         assert result.status == "rejected"
         assert "different historical content" in str(result.reason)
         assert result.messages[0].payload["committed"] is False
+        assert result.messages[0].payload["next_page_index"] == 0
         assert store.count_records() == 1
 
 
@@ -118,8 +119,10 @@ def test_rejects_retained_page_and_inactive_node_without_storage(tmp_path: Path)
         assert retained.messages[0].payload["reason"] == (
             "retained history replay pages are forbidden"
         )
+        assert retained.messages[0].payload["next_page_index"] == 0
         assert inactive.status == "rejected"
         assert "retired or unassigned" in str(inactive.reason)
+        assert inactive.messages[0].payload["next_page_index"] == 0
         assert store.count_records() == 0
 
 
