@@ -175,24 +175,34 @@ class ProjectionAdapter(Protocol):
         """Dispatch and verify the exact monotonic projection revision."""
 
 
+@dataclass(frozen=True, slots=True)
+class FakeProjectionTargetRecord:
+    """In-memory target-side tuple used by the host-only adapter."""
+
+    revision: int
+    projection_hash: str
+    payload_json: str
+
+
 @dataclass(slots=True)
 class FakeProjectionAdapter:
-    """Host-only adapter with no network or Home Assistant operation."""
+    """Stateful host-only target with no network or Home Assistant operation."""
 
     outcomes: list[AdapterDispatchResult] = field(default_factory=list)
     kind: str = "fake-host-only"
     version: str = "2"
     dispatched: list[ProjectionBatch] = field(default_factory=list, init=False)
+    operations: list[str] = field(default_factory=list, init=False)
+    _target: dict[str, FakeProjectionTargetRecord] = field(
+        default_factory=dict, init=False, repr=False
+    )
 
-    def dispatch(self, batch: ProjectionBatch) -> AdapterDispatchResult:
-        self.dispatched.append(batch)
-        result = (
-            self.outcomes.pop(0)
-            if self.outcomes
-            else AdapterDispatchResult(status="verified")
-        )
-        if result.status != "verified":
-            return result
+    @staticmethod
+    def _injected_verified_result(
+        result: AdapterDispatchResult, batch: ProjectionBatch
+    ) -> AdapterDispatchResult:
+        """Preserve explicit fault-injection results used by contract tests."""
+
         return AdapterDispatchResult(
             status="verified",
             code=result.code,
@@ -214,6 +224,97 @@ class FakeProjectionAdapter:
                 else result.monotonic_revision_enforced
             ),
         )
+
+    @staticmethod
+    def _verified(batch: ProjectionBatch) -> AdapterDispatchResult:
+        return AdapterDispatchResult(
+            status="verified",
+            verified_projection_hash=batch.projection_hash,
+            verified_revision=batch.revision,
+            verified_idempotency_key=batch.idempotency_key,
+            monotonic_revision_enforced=True,
+        )
+
+    def read_target(self, idempotency_key: str) -> FakeProjectionTargetRecord | None:
+        """Read back the exact host-only target tuple."""
+
+        return self._target.get(idempotency_key)
+
+    def dispatch(self, batch: ProjectionBatch) -> AdapterDispatchResult:
+        self.dispatched.append(batch)
+        if self.outcomes:
+            result = self.outcomes.pop(0)
+            if result.status != "verified":
+                self.operations.append(f"injected-{result.status}")
+                return result
+            has_explicit_verification_override = any(
+                value is not None
+                for value in (
+                    result.verified_projection_hash,
+                    result.verified_revision,
+                    result.verified_idempotency_key,
+                    result.monotonic_revision_enforced,
+                )
+            )
+            if has_explicit_verification_override:
+                self.operations.append("injected-verified")
+                return self._injected_verified_result(result, batch)
+
+        key = batch.idempotency_key
+        existing = self._target.get(key)
+        if existing is not None:
+            if batch.revision < existing.revision:
+                self.operations.append("rejected-lower-revision")
+                return AdapterDispatchResult(
+                    status="blocked",
+                    code="target_newer_revision",
+                    detail=(
+                        "target already contains a newer projection revision; "
+                        "the lower revision was not written"
+                    ),
+                    monotonic_revision_enforced=True,
+                )
+            if batch.revision == existing.revision:
+                if (
+                    batch.projection_hash != existing.projection_hash
+                    or batch.payload_json != existing.payload_json
+                ):
+                    self.operations.append("rejected-same-revision-conflict")
+                    return AdapterDispatchResult(
+                        status="blocked",
+                        code="target_same_revision_hash_conflict",
+                        detail=(
+                            "target contains the same revision with a different "
+                            "projection hash or payload"
+                        ),
+                        monotonic_revision_enforced=True,
+                    )
+                self.operations.append("verified-idempotent-readback")
+                return self._verified(batch)
+            operation = "replaced-higher-revision"
+        else:
+            operation = "created"
+
+        self._target[key] = FakeProjectionTargetRecord(
+            revision=batch.revision,
+            projection_hash=batch.projection_hash,
+            payload_json=batch.payload_json,
+        )
+        readback = self._target.get(key)
+        if readback != FakeProjectionTargetRecord(
+            revision=batch.revision,
+            projection_hash=batch.projection_hash,
+            payload_json=batch.payload_json,
+        ):
+            self.operations.append("readback-mismatch")
+            return AdapterDispatchResult(
+                status="blocked",
+                code="target_readback_mismatch",
+                detail="target readback did not match the exact written tuple",
+                monotonic_revision_enforced=True,
+            )
+        self.operations.append(operation)
+        return self._verified(batch)
 
 
 @dataclass(frozen=True, slots=True)
