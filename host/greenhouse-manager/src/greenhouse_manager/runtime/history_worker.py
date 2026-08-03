@@ -4,9 +4,10 @@ import queue
 import threading
 import time
 from collections import defaultdict, deque
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Callable, Literal
+from typing import Literal
 
 from .history_replay import HistoryReplayProcessor, HistoryReplayResult
 
