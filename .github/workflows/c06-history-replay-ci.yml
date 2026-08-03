@@ -26,6 +26,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Verify exact authorized stacked base
+        if: github.event_name == 'pull_request'
+        env:
+          EXPECTED_BASE_REF: feature/h0h1-v07-init-portable-restore-hostonly-20260802-v1
+          EXPECTED_BASE_SHA: d628b896314efd0aff58da151e3669eb7fe21d44
+          ACTUAL_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          ACTUAL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          test "$ACTUAL_BASE_REF" = "$EXPECTED_BASE_REF"
+          test "$ACTUAL_BASE_SHA" = "$EXPECTED_BASE_SHA"
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -69,11 +80,30 @@ jobs:
       - name: Build secret-free host-only evidence
         env:
           PYTHONPATH: host/greenhouse-manager/src
+          C06_AUTHORIZATION: D1-C06-HISTORY-REPLAY-PROTOCOL-STORAGE-AND-HOST-ONLY-STACKED-DRAFT-CREATION-20260803-01
+          C06_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          C06_SOURCE_REF: ${{ github.head_ref || github.ref_name }}
+          C06_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          C06_BASE_REF: ${{ github.base_ref || github.ref_name }}
+          C06_EXACT_BASE_VERIFIED: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha == 'd628b896314efd0aff58da151e3669eb7fe21d44' && github.event.pull_request.base.ref == 'feature/h0h1-v07-init-portable-restore-hostonly-20260802-v1' }}
         run: |
+          binding_flag=()
+          if [ "$C06_EXACT_BASE_VERIFIED" = "true" ]; then
+            binding_flag+=(--exact-base-verified)
+          fi
           python tools/c06_history_replay_host_only_harness.py \
-            --output artifacts/c06-history-replay-host-only-report.json
-          sha256sum artifacts/c06-history-replay-host-only-report.json \
-            > artifacts/SHA256SUMS
+            --output artifacts/c06-history-replay-host-only-report.json \
+            --authorization "$C06_AUTHORIZATION" \
+            --source-sha "$C06_SOURCE_SHA" \
+            --source-ref "$C06_SOURCE_REF" \
+            --base-sha "$C06_BASE_SHA" \
+            --base-ref "$C06_BASE_REF" \
+            "${binding_flag[@]}"
+          (
+            cd artifacts
+            sha256sum c06-history-replay-host-only-report.json > SHA256SUMS
+            sha256sum -c SHA256SUMS
+          )
 
       - name: Upload host-only evidence
         uses: actions/upload-artifact@v4
