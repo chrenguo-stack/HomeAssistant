@@ -80,12 +80,12 @@ def _sample_hour(sampled_at: str) -> str:
 def _private_path(path: Path) -> None:
     if not path.is_absolute():
         raise ValueError("history database path must be absolute")
+    if path.is_symlink():
+        raise ValueError("history database path must not be a symlink")
     if path.parts[-2:] != _HISTORY_DB_ROLE_PARTS:
         raise ValueError(
             "history database path must target manager/manager-state.sqlite3"
         )
-    if path.is_symlink():
-        raise ValueError("history database path must not be a symlink")
     parent = path.parent
     current = parent
     while True:
