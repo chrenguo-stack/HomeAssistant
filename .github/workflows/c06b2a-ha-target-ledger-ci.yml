@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - "docs/adr/ADR-0006-c06b2-real-home-assistant-history-projection-adapter.md"
-      - "host/greenhouse-manager/src/greenhouse_manager/runtime/history_projection_protocol.py"
+      - "host/greenhouse-manager/src/greenhouse_manager/runtime/c06b2_ha_projection_protocol.py"
       - "host/greenhouse-manager/src/greenhouse_manager/schemas/gh.c06b2-ha-projection-*.schema.json"
       - "host/greenhouse-manager/tests/runtime/test_c06b2_ha_target_core.py"
       - "host/homeassistant/custom_components/greenhouse_history/**"
@@ -15,7 +15,7 @@ on:
       - main
     paths:
       - "docs/adr/ADR-0006-c06b2-real-home-assistant-history-projection-adapter.md"
-      - "host/greenhouse-manager/src/greenhouse_manager/runtime/history_projection_protocol.py"
+      - "host/greenhouse-manager/src/greenhouse_manager/runtime/c06b2_ha_projection_protocol.py"
       - "host/greenhouse-manager/src/greenhouse_manager/schemas/gh.c06b2-ha-projection-*.schema.json"
       - "host/greenhouse-manager/tests/runtime/test_c06b2_ha_target_core.py"
       - "host/homeassistant/custom_components/greenhouse_history/**"
@@ -81,12 +81,12 @@ jobs:
         run: |
           python -m compileall -q \
             host/homeassistant/custom_components/greenhouse_history \
-            host/greenhouse-manager/src/greenhouse_manager/runtime/history_projection_protocol.py
+            host/greenhouse-manager/src/greenhouse_manager/runtime/c06b2_ha_projection_protocol.py
 
       - name: Ruff
         run: |
           python -m ruff check \
-            host/greenhouse-manager/src/greenhouse_manager/runtime/history_projection_protocol.py \
+            host/greenhouse-manager/src/greenhouse_manager/runtime/c06b2_ha_projection_protocol.py \
             host/greenhouse-manager/tests/runtime/test_c06b2_ha_target_core.py \
             host/homeassistant/custom_components/greenhouse_history \
             tools/c06b2a_ha_target_ledger_host_only_harness.py
