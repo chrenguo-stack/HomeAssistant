@@ -55,6 +55,7 @@ def _now_text() -> str:
 
 class ManagerMqttService:
     def __init__(self, settings: Settings) -> None:
+        settings.validate()
         self.settings = settings
         self._lifecycle_lock = threading.RLock()
         self.processor = TelemetryProcessor(
@@ -103,6 +104,8 @@ class ManagerMqttService:
                 on_result=self._handle_history_result,
                 queue_capacity=settings.history_queue_capacity,
                 max_pages_per_minute=settings.history_max_pages_per_minute,
+                rate_state_capacity=settings.history_rate_state_capacity,
+                rate_state_ttl_s=settings.history_rate_state_ttl_s,
                 prune_interval_s=settings.history_prune_interval_s,
             )
 
@@ -294,6 +297,39 @@ class ManagerMqttService:
         except ValueError:
             return False
 
+        payload = message.payload
+        try:
+            payload_size = len(payload)
+        except TypeError:
+            _LOGGER.warning(
+                "Deferred history replay without ACK node=%s reason=invalid_payload",
+                history_topic.node_id,
+            )
+            return True
+        if payload_size > self.settings.history_max_payload_bytes:
+            _LOGGER.warning(
+                "Deferred history replay without ACK node=%s reason=payload_too_large",
+                history_topic.node_id,
+            )
+            return True
+
+        qos = getattr(message, "qos", 1)
+        if type(qos) is int and qos != 1:
+            _LOGGER.warning(
+                "Deferred history replay without ACK node=%s reason=qos_must_be_1",
+                history_topic.node_id,
+            )
+            return True
+
+        try:
+            payload_bytes = payload if isinstance(payload, bytes) else bytes(payload)
+        except (TypeError, ValueError):
+            _LOGGER.warning(
+                "Deferred history replay without ACK node=%s reason=invalid_payload",
+                history_topic.node_id,
+            )
+            return True
+
         node_allowed = True
         if self.registration_registry is not None:
             node_allowed = (
@@ -304,7 +340,7 @@ class ManagerMqttService:
             HistoryWorkItem(
                 node_id=history_topic.node_id,
                 topic=message.topic,
-                payload=bytes(message.payload),
+                payload=payload_bytes,
                 retained=bool(message.retain),
                 node_allowed=node_allowed,
                 received_at=datetime.now(UTC),
@@ -457,6 +493,16 @@ class ManagerMqttService:
             loop_started = True
             while True:
                 time.sleep(5)
+                if self.history_worker is not None and not self.history_worker.is_alive:
+                    health = self.history_worker.health
+                    _LOGGER.error(
+                        "C-06 history worker stopped; restarting failures=%d "
+                        "last_stage=%s last_type=%s",
+                        health.failure_count,
+                        health.last_failure_stage,
+                        health.last_failure_type,
+                    )
+                    self.history_worker.start()
                 if self.pairing_processor is not None:
                     expired = self.pairing_processor.expire_pending()
                     if expired:
