@@ -16,8 +16,7 @@ from greenhouse_manager.runtime.history_projection_store import (
     ProjectionTask,
 )
 from greenhouse_manager.runtime.history_store import HistoryStore
-
-from .history_samples import history_record
+from history_samples import history_record
 
 NOW = datetime(2026, 8, 3, 4, 10, tzinfo=UTC)
 HOUR = "2026-08-03T04:00:00.000Z"
