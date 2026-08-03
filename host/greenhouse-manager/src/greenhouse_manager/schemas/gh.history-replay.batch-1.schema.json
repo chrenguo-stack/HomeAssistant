@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hahub.top/schemas/gh.history-replay.batch-1.schema.json",
+  "title": "Greenhouse historical telemetry replay page v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "node_id",
+    "batch_id",
+    "page_index",
+    "page_count",
+    "records"
+  ],
+  "properties": {
+    "schema": {"const": "gh.history-replay.batch/1"},
+    "node_id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "batch_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "page_index": {"type": "integer", "minimum": 0, "maximum": 4095},
+    "page_count": {"type": "integer", "minimum": 1, "maximum": 4096},
+    "records": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 256,
+      "items": {"$ref": "#/$defs/record"}
+    }
+  },
+  "$defs": {
+    "record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "boot_id",
+        "seq",
+        "uptime_ms",
+        "sampled_at",
+        "cap_hash",
+        "measurements",
+        "quality",
+        "power"
+      ],
+      "properties": {
+        "boot_id": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "seq": {"type": "integer", "minimum": 0, "maximum": 4294967295},
+        "uptime_ms": {"type": "integer", "minimum": 0},
+        "sampled_at": {"type": "string", "format": "date-time"},
+        "cap_hash": {"type": "string", "minLength": 8, "maxLength": 128},
+        "fw_version": {"type": "string", "maxLength": 64},
+        "measurements": {
+          "type": "object",
+          "additionalProperties": {"type": ["number", "null"]}
+        },
+        "quality": {
+          "type": "object",
+          "additionalProperties": {
+            "enum": ["ok", "warming", "stale", "fault", "not_present"]
+          }
+        },
+        "power": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["source", "low"],
+          "properties": {
+            "source": {"enum": ["main", "battery", "unknown"]},
+            "battery_v": {"type": ["number", "null"], "minimum": 0},
+            "battery_pct": {
+              "type": ["number", "null"],
+              "minimum": 0,
+              "maximum": 100
+            },
+            "low": {"type": "boolean"}
+          }
+        }
+      }
+    }
+  }
+}
