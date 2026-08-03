@@ -39,13 +39,18 @@
     "quality": {
       "enum": ["ok", "warming", "stale", "fault", "not_present"]
     },
+    "uptime_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 315576000000
+    },
     "time_anchor": {
       "type": "object",
       "additionalProperties": false,
       "required": ["sampled_at", "uptime_ms"],
       "properties": {
         "sampled_at": {"type": "string", "format": "date-time"},
-        "uptime_ms": {"type": "integer", "minimum": 0}
+        "uptime_ms": {"$ref": "#/$defs/uptime_ms"}
       }
     },
     "record": {
@@ -71,7 +76,7 @@
           "pattern": "^[A-Za-z0-9_-]+$"
         },
         "seq": {"type": "integer", "minimum": 0, "maximum": 4294967295},
-        "uptime_ms": {"type": "integer", "minimum": 0},
+        "uptime_ms": {"$ref": "#/$defs/uptime_ms"},
         "sampled_at": {
           "type": ["string", "null"],
           "format": "date-time"
