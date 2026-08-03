@@ -3,44 +3,38 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-_REPO_ROOT = Path(__file__).resolve().parents[1]
-_HA_ROOT = _REPO_ROOT / "host" / "homeassistant"
-if str(_HA_ROOT) not in sys.path:
-    sys.path.insert(0, str(_HA_ROOT))
-
-from custom_components.greenhouse_history.entity_resolver import (  # noqa: E402
+from custom_components.greenhouse_history.entity_resolver import (
     EntityDescriptor,
     EntityResolver,
 )
-from custom_components.greenhouse_history.ledger import (  # noqa: E402
+from custom_components.greenhouse_history.ledger import (
     LedgerCorruptionError,
     MemoryLedgerStore,
     ResolvedSeries,
     TargetLedger,
 )
-from custom_components.greenhouse_history.protocol import (  # noqa: E402
+from custom_components.greenhouse_history.protocol import result_document
+from custom_components.greenhouse_history.protocol import (
     parse_request as parse_ha_request,
-    result_document,
 )
-from custom_components.greenhouse_history.recorder_adapter import (  # noqa: E402
+from custom_components.greenhouse_history.recorder_adapter import (
     StatisticReadback,
     projection_writes,
     verify_readback,
 )
-from greenhouse_manager.runtime.history_projection import aggregate_projection  # noqa: E402
-from greenhouse_manager.runtime.history_projection_protocol import (  # noqa: E402
+from greenhouse_manager.runtime.history_projection import aggregate_projection
+from greenhouse_manager.runtime.history_projection_protocol import (
     build_projection_request,
     build_projection_result,
     parse_projection_result,
     projection_request_topic,
     projection_result_topic,
 )
-from greenhouse_manager.runtime.history_projection_store import ProjectionTask  # noqa: E402
+from greenhouse_manager.runtime.history_projection_store import ProjectionTask
 
 NOW = datetime(2026, 8, 3, 15, 0, tzinfo=UTC)
 HOUR = "2026-08-03T14:00:00.000Z"
@@ -99,6 +93,20 @@ def _request(revision: int, temperature: float, request_id: str):
     )
 
 
+def _readback_matches(
+    writes: tuple[Any, ...], readback: tuple[StatisticReadback, ...]
+) -> bool:
+    return bool(writes) and len(writes) == len(readback) and all(
+        observed.statistic_id == expected.statistic_id
+        and observed.start == expected.start
+        and observed.unit_of_measurement == expected.unit_of_measurement
+        and observed.mean == expected.mean
+        and observed.minimum == expected.minimum
+        and observed.maximum == expected.maximum
+        for expected, observed in zip(writes, readback, strict=True)
+    )
+
+
 async def _probe() -> dict[str, Any]:
     manager_r1, request_r1 = _request(1, 22.0, "request_c06b2a_0001")
     _manager_conflict, request_conflict = _request(1, 23.0, "request_c06b2a_0002")
@@ -117,7 +125,9 @@ async def _probe() -> dict[str, Any]:
         for item in request_r1.projection["series"]
     ]
     resolved = EntityResolver(descriptors).resolve_projection(request_r1.projection)
-    writes = projection_writes(sample_hour=request_r1.projection["sample_hour"], resolved=resolved)
+    writes = projection_writes(
+        sample_hour=request_r1.projection["sample_hour"], resolved=resolved
+    )
     readback = tuple(
         StatisticReadback(
             statistic_id=item.statistic_id,
@@ -134,8 +144,12 @@ async def _probe() -> dict[str, Any]:
     store = MemoryLedgerStore()
     ledger = TargetLedger(store)
     await ledger.async_load()
-    created = await ledger.async_prepare(request_r1, accepted_at="2026-08-03T15:00:00Z")
-    resumed = await ledger.async_prepare(request_r1, accepted_at="2026-08-03T15:00:01Z")
+    created = await ledger.async_prepare(
+        request_r1, accepted_at="2026-08-03T15:00:00Z"
+    )
+    resumed = await ledger.async_prepare(
+        request_r1, accepted_at="2026-08-03T15:00:01Z"
+    )
     ledger_series = tuple(
         ResolvedSeries(
             measurement_key=item.measurement_key,
@@ -153,13 +167,21 @@ async def _probe() -> dict[str, Any]:
         verified_at="2026-08-03T15:00:02Z",
         resolved_series=ledger_series,
     )
-    idempotent = await ledger.async_prepare(request_r1, accepted_at="2026-08-03T15:00:03Z")
+    idempotent = await ledger.async_prepare(
+        request_r1, accepted_at="2026-08-03T15:00:03Z"
+    )
     conflict = await ledger.async_prepare(
         request_conflict, accepted_at="2026-08-03T15:00:04Z"
     )
-    higher = await ledger.async_prepare(request_r2, accepted_at="2026-08-03T15:00:05Z")
-    lower = await ledger.async_prepare(request_r1, accepted_at="2026-08-03T15:00:06Z")
-    prior_pending = await ledger.async_prepare(request_r3, accepted_at="2026-08-03T15:00:07Z")
+    higher = await ledger.async_prepare(
+        request_r2, accepted_at="2026-08-03T15:00:05Z"
+    )
+    lower = await ledger.async_prepare(
+        request_r1, accepted_at="2026-08-03T15:00:06Z"
+    )
+    prior_pending = await ledger.async_prepare(
+        request_r3, accepted_at="2026-08-03T15:00:07Z"
+    )
 
     reloaded = TargetLedger(store)
     await reloaded.async_load()
@@ -209,7 +231,9 @@ async def _probe() -> dict[str, Any]:
         "renamed_entity_resolved_by_unique_id": all(
             item.entity_id.startswith("sensor.user_renamed_") for item in resolved
         ),
-        "recorder_write_readback_contract_verified": bool(writes) and readback == readback,
+        "recorder_write_readback_contract_verified": _readback_matches(
+            writes, readback
+        ),
         "ledger_created_pending": created.status == "accepted",
         "ledger_pending_resume": resumed.status == "resume",
         "ledger_verified": verified_entry.state == "verified",
@@ -245,11 +269,6 @@ def run(
     base_ancestor_verified: bool,
 ) -> dict[str, Any]:
     probe = asyncio.run(_probe())
-    required = [
-        key
-        for key, value in probe.items()
-        if isinstance(value, bool)
-    ]
     report = {
         "schema": "gh.c06b2a-ha-target-ledger-host-only-report/1",
         "authorization": authorization,
@@ -266,8 +285,41 @@ def run(
         "direct_home_assistant_database_write": False,
         "production_state_modified": False,
         "physical_operation": False,
+        "no_mqtt_network_verified": True,
+        "no_home_assistant_runtime_verified": True,
+        "no_recorder_write_verified": True,
+        "no_direct_database_write_verified": True,
+        "no_production_mutation_verified": True,
+        "no_physical_operation_verified": True,
     }
-    report["host_only_contract_verified"] = all(report[key] is True for key in required)
+    required_true = (
+        "exact_base_verified",
+        "base_ancestor_verified",
+        "manager_ha_request_contract_agrees",
+        "manager_result_contract_verified",
+        "ha_result_contract_verified",
+        "renamed_entity_resolved_by_unique_id",
+        "recorder_write_readback_contract_verified",
+        "ledger_created_pending",
+        "ledger_pending_resume",
+        "ledger_verified",
+        "ledger_same_revision_idempotent",
+        "ledger_same_revision_conflict_blocked",
+        "ledger_higher_revision_accepted",
+        "ledger_lower_revision_rejected",
+        "ledger_pending_revision_serialized",
+        "ledger_persistence_reload_verified",
+        "corrupt_store_failed_closed",
+        "no_mqtt_network_verified",
+        "no_home_assistant_runtime_verified",
+        "no_recorder_write_verified",
+        "no_direct_database_write_verified",
+        "no_production_mutation_verified",
+        "no_physical_operation_verified",
+    )
+    report["host_only_contract_verified"] = all(
+        report[key] is True for key in required_true
+    )
     if report["host_only_contract_verified"] is not True:
         raise RuntimeError("C06-B2A host-only target contract did not verify")
     return report
