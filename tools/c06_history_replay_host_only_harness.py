@@ -9,7 +9,10 @@ from typing import Any
 
 from greenhouse_manager.runtime.history_replay import HistoryReplayProcessor
 from greenhouse_manager.runtime.history_store import HistoryStore
-from greenhouse_manager.runtime.history_worker import HistoryReplayWorker, HistoryWorkItem
+from greenhouse_manager.runtime.history_worker import (
+    HistoryReplayWorker,
+    HistoryWorkItem,
+)
 
 
 def _record(
