@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import sqlite3
 from dataclasses import dataclass
@@ -41,6 +42,22 @@ def _timestamp(value: datetime) -> str:
 
 def _reject_json_constant(value: str) -> object:
     raise ValueError(f"non-finite JSON number: {value}")
+
+
+def _parse_json_float(value: str) -> float:
+    parsed = float(value)
+    if not math.isfinite(parsed):
+        raise ValueError(f"non-finite JSON number: {value}")
+    return parsed
+
+
+def _unique_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    document: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in document:
+            raise ValueError(f"duplicate JSON object key: {key}")
+        document[key] = value
+    return document
 
 
 def _canonical_payload_sha256(document: dict[str, Any]) -> str:
@@ -203,7 +220,16 @@ class HistoryReplayProcessor:
                 reason="topic system_id does not match manager system_id",
             )
 
-        payload_bytes = payload if isinstance(payload, bytes) else payload.encode("utf-8")
+        try:
+            payload_bytes = (
+                payload if isinstance(payload, bytes) else payload.encode("utf-8")
+            )
+        except UnicodeEncodeError as error:
+            return HistoryReplayResult(
+                status="rejected",
+                node_id=parsed_topic.node_id,
+                reason=f"invalid UTF-8 payload: {error}",
+            )
         if len(payload_bytes) > self.max_payload_bytes:
             return HistoryReplayResult(
                 status="rejected",
@@ -215,8 +241,15 @@ class HistoryReplayProcessor:
             document = json.loads(
                 payload_bytes.decode("utf-8"),
                 parse_constant=_reject_json_constant,
+                parse_float=_parse_json_float,
+                object_pairs_hook=_unique_json_object,
             )
-        except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
+        except (
+            UnicodeDecodeError,
+            json.JSONDecodeError,
+            ValueError,
+            RecursionError,
+        ) as error:
             return HistoryReplayResult(
                 status="rejected",
                 node_id=parsed_topic.node_id,
