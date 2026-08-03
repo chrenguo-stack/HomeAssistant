@@ -17,10 +17,14 @@ def _payload(document: object) -> bytes:
     return json.dumps(document, separators=(",", ":"), sort_keys=True).encode("utf-8")
 
 
+def _store(tmp_path: Path) -> HistoryStore:
+    return HistoryStore(tmp_path / "manager" / "manager-state.sqlite3")
+
+
 def test_accepts_page_only_after_durable_commit_and_emits_nonretained_ack(
     tmp_path: Path,
 ) -> None:
-    with HistoryStore(tmp_path / "manager-state.sqlite3") as store:
+    with _store(tmp_path) as store:
         processor = HistoryReplayProcessor(system_id="system-001", store=store)
         result = processor.process(_TOPIC, _payload(history_page()), received_at=_NOW)
 
@@ -28,16 +32,17 @@ def test_accepts_page_only_after_durable_commit_and_emits_nonretained_ack(
         assert store.count_records() == 1
         assert len(result.messages) == 1
         ack = result.messages[0]
-        assert ack.topic == "gh/v1/system-001/command/node/node-0001/history/ack"
+        assert ack.topic == "gh/v1/system-001/out/node/node-0001/history/ack"
         assert ack.retain is False
         assert ack.qos == 1
         assert ack.payload["committed"] is True
         assert ack.payload["inserted_records"] == 1
+        assert ack.payload["next_page_index"] is None
         assert "/state/" not in ack.topic
 
 
 def test_exact_retry_is_durable_duplicate_across_restart(tmp_path: Path) -> None:
-    path = tmp_path / "manager-state.sqlite3"
+    path = tmp_path / "manager" / "manager-state.sqlite3"
     with HistoryStore(path) as store:
         processor = HistoryReplayProcessor(system_id="system-001", store=store)
         assert processor.process(_TOPIC, _payload(history_page()), received_at=_NOW).status == (
@@ -50,11 +55,12 @@ def test_exact_retry_is_durable_duplicate_across_restart(tmp_path: Path) -> None
         assert result.status == "duplicate"
         assert result.messages[0].payload["status"] == "duplicate"
         assert result.messages[0].payload["committed"] is True
+        assert result.messages[0].payload["next_page_index"] is None
         assert reopened.count_records() == 1
 
 
 def test_record_collision_returns_nack_and_preserves_original(tmp_path: Path) -> None:
-    with HistoryStore(tmp_path / "manager-state.sqlite3") as store:
+    with _store(tmp_path) as store:
         processor = HistoryReplayProcessor(system_id="system-001", store=store)
         processor.process(_TOPIC, _payload(history_page()), received_at=_NOW)
         conflict = history_page(
@@ -71,9 +77,7 @@ def test_record_collision_returns_nack_and_preserves_original(tmp_path: Path) ->
         assert store.count_records() == 1
 
 
-def test_pages_and_sequences_can_arrive_out_of_order_without_canonical_comparison(
-    tmp_path: Path,
-) -> None:
+def test_out_of_order_pages_report_smallest_missing_page(tmp_path: Path) -> None:
     page_two = history_page(
         batch_id="batch-000003",
         page_index=1,
@@ -86,20 +90,21 @@ def test_pages_and_sequences_can_arrive_out_of_order_without_canonical_compariso
         page_count=2,
         records=[history_record(seq=100, sampled_at="2026-08-03T04:01:00Z")],
     )
-    with HistoryStore(tmp_path / "manager-state.sqlite3") as store:
+    with _store(tmp_path) as store:
         processor = HistoryReplayProcessor(system_id="system-001", store=store)
 
-        assert processor.process(_TOPIC, _payload(page_two), received_at=_NOW).status == (
-            "accepted"
-        )
-        assert processor.process(_TOPIC, _payload(page_one), received_at=_NOW).status == (
-            "accepted"
-        )
+        second = processor.process(_TOPIC, _payload(page_two), received_at=_NOW)
+        first = processor.process(_TOPIC, _payload(page_one), received_at=_NOW)
+
+        assert second.status == "accepted"
+        assert second.messages[0].payload["next_page_index"] == 0
+        assert first.status == "accepted"
+        assert first.messages[0].payload["next_page_index"] is None
         assert store.count_records() == 2
 
 
 def test_rejects_retained_page_and_inactive_node_without_storage(tmp_path: Path) -> None:
-    with HistoryStore(tmp_path / "manager-state.sqlite3") as store:
+    with _store(tmp_path) as store:
         processor = HistoryReplayProcessor(system_id="system-001", store=store)
 
         retained = processor.process(
@@ -127,7 +132,7 @@ def test_rejects_retained_page_and_inactive_node_without_storage(tmp_path: Path)
 
 
 def test_rejects_page_geometry_and_duplicate_keys(tmp_path: Path) -> None:
-    with HistoryStore(tmp_path / "manager-state.sqlite3") as store:
+    with _store(tmp_path) as store:
         processor = HistoryReplayProcessor(system_id="system-001", store=store)
         invalid_geometry = history_page(page_index=1, page_count=1)
         duplicate_keys = history_page(
@@ -150,7 +155,7 @@ def test_rejects_page_geometry_and_duplicate_keys(tmp_path: Path) -> None:
 
 
 def test_durable_store_failure_returns_retry_without_ack(tmp_path: Path) -> None:
-    with HistoryStore(tmp_path / "manager-state.sqlite3") as store:
+    with _store(tmp_path) as store:
         processor = HistoryReplayProcessor(system_id="system-001", store=store)
 
         def fail_commit(**_: object) -> object:
@@ -166,31 +171,23 @@ def test_durable_store_failure_returns_retry_without_ack(tmp_path: Path) -> None
         assert "OperationalError" in str(result.reason)
 
 
-def test_rejects_non_finite_json_number(tmp_path: Path) -> None:
+def test_rejects_non_finite_and_overflowing_json_numbers(tmp_path: Path) -> None:
     document = history_page()
     document["records"][0]["measurements"]["air_temperature_c"] = float("nan")
-    raw = json.dumps(document, allow_nan=True).encode("utf-8")
-    with HistoryStore(tmp_path / "manager-state.sqlite3") as store:
+    raw_nan = json.dumps(document, allow_nan=True).encode("utf-8")
+    raw_overflow = _payload(history_page()).replace(b"25.0", b"1e400", 1)
+    with _store(tmp_path) as store:
         processor = HistoryReplayProcessor(system_id="system-001", store=store)
 
-        result = processor.process(_TOPIC, raw, received_at=_NOW)
+        nan_result = processor.process(_TOPIC, raw_nan, received_at=_NOW)
+        overflow_result = processor.process(_TOPIC, raw_overflow, received_at=_NOW)
 
-        assert result.status == "rejected"
-        assert result.messages == ()
-        assert "non-finite JSON number" in str(result.reason)
-        assert store.count_records() == 0
-
-
-def test_rejects_overflowing_json_float(tmp_path: Path) -> None:
-    raw = _payload(history_page()).replace(b"25.0", b"1e400", 1)
-    with HistoryStore(tmp_path / "manager-state.sqlite3") as store:
-        processor = HistoryReplayProcessor(system_id="system-001", store=store)
-
-        result = processor.process(_TOPIC, raw, received_at=_NOW)
-
-        assert result.status == "rejected"
-        assert result.messages == ()
-        assert "non-finite JSON number" in str(result.reason)
+        assert nan_result.status == "rejected"
+        assert nan_result.messages == ()
+        assert "non-finite JSON number" in str(nan_result.reason)
+        assert overflow_result.status == "rejected"
+        assert overflow_result.messages == ()
+        assert "non-finite JSON number" in str(overflow_result.reason)
         assert store.count_records() == 0
 
 
@@ -200,7 +197,7 @@ def test_rejects_duplicate_json_object_key(tmp_path: Path) -> None:
         b'{"batch_id":"batch-duplicate","batch_id":',
         1,
     )
-    with HistoryStore(tmp_path / "manager-state.sqlite3") as store:
+    with _store(tmp_path) as store:
         processor = HistoryReplayProcessor(system_id="system-001", store=store)
 
         result = processor.process(_TOPIC, raw, received_at=_NOW)
@@ -209,3 +206,108 @@ def test_rejects_duplicate_json_object_key(tmp_path: Path) -> None:
         assert result.messages == ()
         assert "duplicate JSON object key: batch_id" in str(result.reason)
         assert store.count_records() == 0
+
+
+def test_accepts_estimated_and_relative_only_time_contracts(tmp_path: Path) -> None:
+    estimated = history_record(
+        seq=2,
+        uptime_ms=120_000,
+        sampled_at="2026-08-03T04:02:00Z",
+        time_quality="estimated",
+        time_anchor={"sampled_at": "2026-08-03T04:00:00Z", "uptime_ms": 0},
+    )
+    relative = history_record(
+        seq=3,
+        uptime_ms=180_000,
+        sampled_at=None,
+        time_quality="relative_only",
+        time_anchor=None,
+    )
+    with _store(tmp_path) as store:
+        processor = HistoryReplayProcessor(system_id="system-001", store=store)
+
+        estimated_result = processor.process(
+            _TOPIC,
+            _payload(history_page(batch_id="batch-est-001", records=[estimated])),
+            received_at=_NOW,
+        )
+        relative_result = processor.process(
+            _TOPIC,
+            _payload(history_page(batch_id="batch-rel-001", records=[relative])),
+            received_at=_NOW,
+        )
+
+        assert estimated_result.status == "accepted"
+        assert relative_result.status == "accepted"
+        assert store.count_records() == 2
+        assert store.pending_projection_hours() == (
+            ("node-0001", "2026-08-03T04:00:00.000Z"),
+        )
+
+
+def test_rejects_invalid_clock_anchor_future_and_expired_absolute_time(
+    tmp_path: Path,
+) -> None:
+    invalid_anchor = history_record(
+        seq=2,
+        uptime_ms=120_000,
+        sampled_at="2026-08-03T04:03:00Z",
+        time_quality="estimated",
+        time_anchor={"sampled_at": "2026-08-03T04:00:00Z", "uptime_ms": 0},
+    )
+    future = history_record(seq=3, sampled_at="2026-08-03T04:11:00Z")
+    expired = history_record(seq=4, sampled_at="2026-07-26T04:00:00Z")
+    with _store(tmp_path) as store:
+        processor = HistoryReplayProcessor(
+            system_id="system-001",
+            store=store,
+            retention_days=7,
+            max_future_skew_s=300,
+        )
+
+        anchor_result = processor.process(
+            _TOPIC,
+            _payload(history_page(batch_id="batch-anchor1", records=[invalid_anchor])),
+            received_at=_NOW,
+        )
+        future_result = processor.process(
+            _TOPIC,
+            _payload(history_page(batch_id="batch-future1", records=[future])),
+            received_at=_NOW,
+        )
+        expired_result = processor.process(
+            _TOPIC,
+            _payload(history_page(batch_id="batch-expire1", records=[expired])),
+            received_at=_NOW,
+        )
+
+        assert "does not match time anchor" in str(anchor_result.reason)
+        assert "future clock skew" in str(future_result.reason)
+        assert "older than" in str(expired_result.reason)
+        assert store.count_records() == 0
+
+
+def test_accepts_lowercase_rfc3339_and_reuses_canonical_measurement_limits(
+    tmp_path: Path,
+) -> None:
+    lowercase = history_record(sampled_at="2026-08-03t04:00:00z")
+    invalid_humidity = history_record(seq=2)
+    invalid_humidity["measurements"]["air_humidity_pct"] = 101.0
+    with _store(tmp_path) as store:
+        processor = HistoryReplayProcessor(system_id="system-001", store=store)
+
+        accepted = processor.process(
+            _TOPIC,
+            _payload(history_page(batch_id="batch-lower01", records=[lowercase])),
+            received_at=_NOW,
+        )
+        rejected = processor.process(
+            _TOPIC,
+            _payload(history_page(batch_id="batch-range01", records=[invalid_humidity])),
+            received_at=_NOW,
+        )
+
+        assert accepted.status == "accepted"
+        assert rejected.status == "rejected"
+        assert "maximum of 100" in str(rejected.reason)
+        assert store.count_records() == 1
