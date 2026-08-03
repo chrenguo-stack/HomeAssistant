@@ -17,8 +17,10 @@ from custom_components.greenhouse_history.ledger import (
     ResolvedSeries,
     TargetLedger,
 )
+from custom_components.greenhouse_history.protocol import (
+    parse_request as parse_ha_request,
+)
 from custom_components.greenhouse_history.protocol import result_document
-from custom_components.greenhouse_history.protocol import parse_request as parse_ha_request
 from custom_components.greenhouse_history.recorder_adapter import (
     StatisticReadback,
     StatisticWrite,
