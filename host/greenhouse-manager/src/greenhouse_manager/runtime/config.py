@@ -7,6 +7,7 @@ from pathlib import Path
 
 _ID_RE = re.compile(r"^[A-Za-z0-9_-]{3,64}$")
 _DISCOVERY_PREFIX_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+_HISTORY_DB_ROLE_PARTS = ("manager", "manager-state.sqlite3")
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -50,6 +51,16 @@ def _mqtt_password_from_env() -> str | None:
     return inline
 
 
+def _path_contains_symlink(path: Path) -> bool:
+    current = path
+    while True:
+        if current.is_symlink():
+            return True
+        if current == current.parent:
+            return False
+        current = current.parent
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     system_id: str
@@ -81,6 +92,8 @@ class Settings:
     history_max_db_bytes: int = 268_435_456
     history_queue_capacity: int = 64
     history_max_pages_per_minute: int = 60
+    history_rate_state_capacity: int = 1_024
+    history_rate_state_ttl_s: int = 3_600
     history_prune_interval_s: int = 300
 
     @classmethod
@@ -130,6 +143,12 @@ class Settings:
             history_max_pages_per_minute=int(
                 os.getenv("GH_HISTORY_MAX_PAGES_PER_MINUTE", "60")
             ),
+            history_rate_state_capacity=int(
+                os.getenv("GH_HISTORY_RATE_STATE_CAPACITY", "1024")
+            ),
+            history_rate_state_ttl_s=int(
+                os.getenv("GH_HISTORY_RATE_STATE_TTL_S", "3600")
+            ),
             history_prune_interval_s=int(
                 os.getenv("GH_HISTORY_PRUNE_INTERVAL_S", "300")
             ),
@@ -174,6 +193,15 @@ class Settings:
                 raise ValueError(
                     "GH_HISTORY_DB_PATH must be absolute when history replay is enabled"
                 )
+            if history_path.parts[-2:] != _HISTORY_DB_ROLE_PARTS:
+                raise ValueError(
+                    "GH_HISTORY_DB_PATH must target the portable "
+                    "manager/manager-state.sqlite3 role"
+                )
+            if _path_contains_symlink(history_path):
+                raise ValueError(
+                    "GH_HISTORY_DB_PATH and its ancestors must not be symlinks"
+                )
         if not 1 <= self.history_retention_days <= 30:
             raise ValueError("GH_HISTORY_RETENTION_DAYS must be between 1 and 30")
         if not 0 <= self.history_max_future_skew_s <= 86_400:
@@ -197,6 +225,14 @@ class Settings:
         if not 1 <= self.history_max_pages_per_minute <= 600:
             raise ValueError(
                 "GH_HISTORY_MAX_PAGES_PER_MINUTE must be between 1 and 600"
+            )
+        if not 1 <= self.history_rate_state_capacity <= 65_536:
+            raise ValueError(
+                "GH_HISTORY_RATE_STATE_CAPACITY must be between 1 and 65536"
+            )
+        if not 1 <= self.history_rate_state_ttl_s <= 86_400:
+            raise ValueError(
+                "GH_HISTORY_RATE_STATE_TTL_S must be between 1 and 86400"
             )
         if not 30 <= self.history_prune_interval_s <= 86_400:
             raise ValueError(
