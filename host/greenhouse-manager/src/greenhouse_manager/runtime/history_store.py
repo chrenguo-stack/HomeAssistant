@@ -240,6 +240,18 @@ class HistoryStore:
                     committed_at=_parse_timestamp(str(existing_page["committed_at"])),
                 )
 
+            existing_batch = self._connection.execute(
+                """
+                SELECT page_count FROM c06_history_pages
+                WHERE node_id = ? AND batch_id = ?
+                ORDER BY page_index
+                LIMIT 1
+                """,
+                (node_id, batch_id),
+            ).fetchone()
+            if existing_batch is not None and int(existing_batch["page_count"]) != page_count:
+                raise HistoryConflict("batch_id reused with different page_count")
+
             inserted_count = 0
             duplicate_count = 0
             for record, _record_json, record_sha256, _sampled_at, _hour in prepared:
@@ -260,7 +272,7 @@ class HistoryStore:
                 duplicate_count += 1
 
             for record, record_json, record_sha256, sampled_at, hour in prepared:
-                self._connection.execute(
+                insert = self._connection.execute(
                     """
                     INSERT OR IGNORE INTO c06_history_records (
                         node_id, boot_id, seq, sampled_at, sample_hour,
@@ -280,6 +292,8 @@ class HistoryStore:
                         committed_text,
                     ),
                 )
+                if insert.rowcount == 0:
+                    continue
                 self._connection.execute(
                     """
                     INSERT INTO c06_projection_outbox (
