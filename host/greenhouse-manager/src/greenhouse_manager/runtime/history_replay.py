@@ -87,9 +87,7 @@ class HistoryReplayProcessor:
         return json.loads(path.read_text(encoding="utf-8"))
 
     @staticmethod
-    def _ack_identity(
-        document: dict[str, Any], topic_node_id: str
-    ) -> tuple[str, int, int] | None:
+    def _ack_identity(document: dict[str, Any]) -> tuple[str, int, int] | None:
         batch_id = document.get("batch_id")
         page_index = document.get("page_index")
         page_count = document.get("page_count")
@@ -117,7 +115,10 @@ class HistoryReplayProcessor:
         duplicate_records: int,
         reason: str | None = None,
     ) -> PublishMessage:
-        next_page_index = page_index + 1 if page_index + 1 < page_count else None
+        if status == "rejected":
+            next_page_index: int | None = page_index
+        else:
+            next_page_index = page_index + 1 if page_index + 1 < page_count else None
         payload: dict[str, Any] = {
             "schema": "gh.history-replay.ack/1",
             "node_id": node_id,
@@ -149,7 +150,7 @@ class HistoryReplayProcessor:
         reason: str,
         processed_at: datetime,
     ) -> HistoryReplayResult:
-        identity = self._ack_identity(document, node_id)
+        identity = self._ack_identity(document)
         messages: tuple[PublishMessage, ...] = ()
         batch_id: str | None = None
         page_index: int | None = None
