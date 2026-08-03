@@ -10,6 +10,9 @@ _NODE_TELEMETRY_RE = re.compile(
 _CANONICAL_TELEMETRY_RE = re.compile(
     rf"^gh/v1/(?P<system_id>{_ID})/state/(?P<node_id>{_ID})/telemetry$"
 )
+_HISTORY_REPLAY_RE = re.compile(
+    rf"^gh/v1/(?P<system_id>{_ID})/ingress/node/(?P<node_id>{_ID})/history$"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,8 +41,22 @@ def parse_canonical_telemetry_topic(topic: str) -> NodeTelemetryTopic:
     )
 
 
+def parse_history_replay_topic(topic: str) -> NodeTelemetryTopic:
+    match = _HISTORY_REPLAY_RE.fullmatch(topic)
+    if match is None:
+        raise ValueError(f"Unsupported history replay topic: {topic}")
+    return NodeTelemetryTopic(
+        system_id=match.group("system_id"),
+        node_id=match.group("node_id"),
+    )
+
+
 def ingress_subscription(system_id: str) -> str:
     return f"gh/v1/{system_id}/ingress/node/+/telemetry"
+
+
+def history_replay_subscription(system_id: str) -> str:
+    return f"gh/v1/{system_id}/ingress/node/+/history"
 
 
 def canonical_telemetry_subscription(system_id: str) -> str:
@@ -48,6 +65,10 @@ def canonical_telemetry_subscription(system_id: str) -> str:
 
 def canonical_telemetry_topic(system_id: str, node_id: str) -> str:
     return f"gh/v1/{system_id}/state/{node_id}/telemetry"
+
+
+def history_replay_ack_topic(system_id: str, node_id: str) -> str:
+    return f"gh/v1/{system_id}/command/node/{node_id}/history/ack"
 
 
 def availability_topic(system_id: str, node_id: str) -> str:
