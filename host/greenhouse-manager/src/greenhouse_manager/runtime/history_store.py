@@ -11,6 +11,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+_HISTORY_DB_ROLE_PARTS = ("manager", "manager-state.sqlite3")
+
 
 class HistoryStoreError(RuntimeError):
     """Base class for durable C-06 history storage failures."""
@@ -78,13 +80,19 @@ def _sample_hour(sampled_at: str) -> str:
 def _private_path(path: Path) -> None:
     if not path.is_absolute():
         raise ValueError("history database path must be absolute")
-    if path.exists() and path.is_symlink():
+    if path.parts[-2:] != _HISTORY_DB_ROLE_PARTS:
+        raise ValueError(
+            "history database path must target manager/manager-state.sqlite3"
+        )
+    if path.is_symlink():
         raise ValueError("history database path must not be a symlink")
     parent = path.parent
     current = parent
-    while current != current.parent:
-        if current.exists() and current.is_symlink():
+    while True:
+        if current.is_symlink():
             raise ValueError("history database path ancestors must not be symlinks")
+        if current == current.parent:
+            break
         current = current.parent
     parent.mkdir(parents=True, mode=0o700, exist_ok=True)
     if parent.is_symlink() or not parent.is_dir():
