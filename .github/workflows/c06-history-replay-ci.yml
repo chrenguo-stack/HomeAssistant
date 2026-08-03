@@ -25,17 +25,23 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Verify exact authorized stacked base
+      - name: Verify exact authorized stack and reviewed predecessor
         if: github.event_name == 'pull_request'
         env:
           EXPECTED_BASE_REF: feature/h0h1-v07-init-portable-restore-hostonly-20260802-v1
           EXPECTED_BASE_SHA: d628b896314efd0aff58da151e3669eb7fe21d44
+          REVIEWED_HEAD_SHA: dac038c3595c80ac7d1a0666795effbbab4a4e4e
           ACTUAL_BASE_REF: ${{ github.event.pull_request.base.ref }}
           ACTUAL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          ACTUAL_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           test "$ACTUAL_BASE_REF" = "$EXPECTED_BASE_REF"
           test "$ACTUAL_BASE_SHA" = "$EXPECTED_BASE_SHA"
+          test "$(git merge-base "$ACTUAL_BASE_SHA" "$ACTUAL_HEAD_SHA")" = "$EXPECTED_BASE_SHA"
+          git merge-base --is-ancestor "$REVIEWED_HEAD_SHA" "$ACTUAL_HEAD_SHA"
 
       - uses: actions/setup-python@v5
         with:
@@ -52,6 +58,7 @@ jobs:
           ruff check \
             host/greenhouse-manager/src/greenhouse_manager/runtime/history_replay.py \
             host/greenhouse-manager/src/greenhouse_manager/runtime/history_store.py \
+            host/greenhouse-manager/src/greenhouse_manager/runtime/history_worker.py \
             host/greenhouse-manager/src/greenhouse_manager/runtime/topics.py \
             host/greenhouse-manager/src/greenhouse_manager/runtime/config.py \
             host/greenhouse-manager/src/greenhouse_manager/runtime/mqtt_service.py \
@@ -61,6 +68,7 @@ jobs:
             host/greenhouse-manager/tests/runtime/test_history_schema_contract.py \
             host/greenhouse-manager/tests/runtime/test_history_store.py \
             host/greenhouse-manager/tests/runtime/test_history_topics.py \
+            host/greenhouse-manager/tests/runtime/test_history_worker.py \
             host/greenhouse-manager/tests/runtime/test_mqtt_history_service.py \
             tools/c06_history_replay_host_only_harness.py
 
@@ -73,6 +81,7 @@ jobs:
             tests/runtime/test_history_schema_contract.py \
             tests/runtime/test_history_store.py \
             tests/runtime/test_history_topics.py \
+            tests/runtime/test_history_worker.py \
             tests/runtime/test_mqtt_history_service.py \
             tests/runtime/test_mqtt_service.py \
             tests/runtime/test_ingest.py
@@ -80,7 +89,8 @@ jobs:
       - name: Build secret-free host-only evidence
         env:
           PYTHONPATH: host/greenhouse-manager/src
-          C06_AUTHORIZATION: D1-C06-HISTORY-REPLAY-PROTOCOL-STORAGE-AND-HOST-ONLY-STACKED-DRAFT-CREATION-20260803-01
+          C06_AUTHORIZATION: D1-C06A-PR261-READ-ONLY-REVIEW-FINDINGS-REMEDIATION-AND-HOST-ONLY-REVALIDATION-20260803-01
+          C06_REVIEWED_HEAD_SHA: dac038c3595c80ac7d1a0666795effbbab4a4e4e
           C06_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           C06_SOURCE_REF: ${{ github.head_ref || github.ref_name }}
           C06_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
@@ -94,6 +104,7 @@ jobs:
           python tools/c06_history_replay_host_only_harness.py \
             --output artifacts/c06-history-replay-host-only-report.json \
             --authorization "$C06_AUTHORIZATION" \
+            --reviewed-head-sha "$C06_REVIEWED_HEAD_SHA" \
             --source-sha "$C06_SOURCE_SHA" \
             --source-ref "$C06_SOURCE_REF" \
             --base-sha "$C06_BASE_SHA" \
