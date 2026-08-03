@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 
 from greenhouse_manager.runtime.config import Settings
 from greenhouse_manager.runtime.mqtt_service import ManagerMqttService
+from greenhouse_manager.runtime.registration import NodeIdLeaseState
 
 
 def _history_page() -> bytes:
@@ -87,4 +88,38 @@ def test_history_message_only_publishes_nonretained_ack(
     assert b'"committed":true' in call.kwargs["payload"]
     assert service.history_store is not None
     assert service.history_store.count_records() == 1
+    service.history_store.close()
+
+
+@patch("greenhouse_manager.runtime.mqtt_service.mqtt.Client")
+def test_loaded_registry_rejects_inactive_history_node_without_storage(
+    client_class: object, tmp_path: Path
+) -> None:
+    client = client_class.return_value
+    client.publish.return_value = Mock(rc=0)
+    service = ManagerMqttService(
+        Settings(
+            system_id="system-001",
+            history_replay_enabled=True,
+            history_db_path=str(tmp_path / "manager-state.sqlite3"),
+        )
+    )
+    service.registration_registry = Mock()
+    service.registration_registry.node_id_lease_state.return_value = (
+        NodeIdLeaseState.RETIRED
+    )
+    message = Mock(
+        topic="gh/v1/system-001/ingress/node/node-0001/history",
+        payload=_history_page(),
+        retain=False,
+    )
+
+    service._on_message(client, None, message)
+
+    assert client.publish.call_count == 1
+    payload = client.publish.call_args.kwargs["payload"]
+    assert b'"committed":false' in payload
+    assert b'"next_page_index":0' in payload
+    assert service.history_store is not None
+    assert service.history_store.count_records() == 0
     service.history_store.close()
