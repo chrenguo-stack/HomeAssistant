@@ -183,6 +183,8 @@ def test_protocol_rejects_duplicate_hash_drift_and_wrong_system() -> None:
 
     drift = json.loads(encoded)
     drift["projection"]["series"][0]["mean"] = 21.0
+    drift["projection"]["series"][0]["min"] = 21.0
+    drift["projection"]["series"][0]["max"] = 21.0
     with pytest.raises(ProjectionProtocolError, match="projection_hash"):
         parse_projection_request(drift, expected_system_id=_SYSTEM_ID)
     with pytest.raises(ProtocolError, match="projection_hash"):
