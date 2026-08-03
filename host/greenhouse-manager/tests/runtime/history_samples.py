@@ -7,14 +7,19 @@ def history_record(
     *,
     boot_id: str = "boot-00000001",
     seq: int = 1,
-    sampled_at: str = "2026-08-03T04:00:00Z",
+    uptime_ms: int | None = None,
+    sampled_at: str | None = "2026-08-03T04:00:00Z",
+    time_quality: str = "trusted",
+    time_anchor: dict[str, Any] | None = None,
     temperature: float = 25.0,
 ) -> dict[str, Any]:
     return {
         "boot_id": boot_id,
         "seq": seq,
-        "uptime_ms": seq * 1000,
+        "uptime_ms": seq * 1000 if uptime_ms is None else uptime_ms,
         "sampled_at": sampled_at,
+        "time_quality": time_quality,
+        "time_anchor": time_anchor,
         "cap_hash": "cap-hash-0001",
         "fw_version": "1.0.0",
         "measurements": {
