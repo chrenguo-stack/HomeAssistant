@@ -135,6 +135,7 @@ services:
 
   observer:
     image: "${C06B2C_MANAGER_IMAGE:?set by verify.sh}"
+    user: "0:0"
     entrypoint: ["python", "/verify.py"]
     environment:
       GH_C06B2C_PHASE: observer
@@ -151,6 +152,7 @@ services:
 
   tester:
     image: "${C06B2C_MANAGER_IMAGE:?set by verify.sh}"
+    user: "0:0"
     entrypoint: ["python", "/verify.py"]
     environment:
       GH_C06B2C_MQTT_USERNAME: tester
