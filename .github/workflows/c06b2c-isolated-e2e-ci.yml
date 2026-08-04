@@ -1,0 +1,156 @@
+name: C06-B2C isolated Mosquitto HA Recorder E2E
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/c06b2c-isolated-e2e-ci.yml"
+      - "infra/compose/c06b2c-history-projection-e2e/**"
+      - "tools/c06b2c_isolated_e2e_evidence.py"
+      - "docs/adr/ADR-0006-c06b2-real-home-assistant-history-projection-adapter.md"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/c06b2c-isolated-e2e-ci.yml"
+      - "infra/compose/c06b2c-history-projection-e2e/**"
+      - "tools/c06b2c_isolated_e2e_evidence.py"
+      - "docs/adr/ADR-0006-c06b2-real-home-assistant-history-projection-adapter.md"
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact authorized C06-B2C stack
+        if: github.event_name == 'pull_request'
+        env:
+          AUTHORIZED_BASE_REF: feature/c06b2b-real-mqtt-recorder-runtime-hostonly-20260804-v1
+          AUTHORIZED_BASE_SHA: a55b59027cb58f471353983f092fede00ae85cd4
+          ACTUAL_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          ACTUAL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          ACTUAL_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$ACTUAL_BASE_REF" = "$AUTHORIZED_BASE_REF"
+          test "$ACTUAL_BASE_SHA" = "$AUTHORIZED_BASE_SHA"
+          test "$(git merge-base "$ACTUAL_BASE_SHA" "$ACTUAL_HEAD_SHA")" = "$ACTUAL_BASE_SHA"
+          git merge-base --is-ancestor "$AUTHORIZED_BASE_SHA" "$ACTUAL_HEAD_SHA"
+          echo "C06B2C_EXACT_BASE_VERIFIED=true" >> "$GITHUB_ENV"
+          echo "C06B2C_BASE_ANCESTOR_VERIFIED=true" >> "$GITHUB_ENV"
+
+      - name: Verify authorized C06-B2C file boundary
+        if: github.event_name == 'pull_request'
+        env:
+          ACTUAL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          ACTUAL_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          mapfile -t changed < <(git diff --name-only "$ACTUAL_BASE_SHA" "$ACTUAL_HEAD_SHA")
+          test "${#changed[@]}" -gt 0
+          for path in "${changed[@]}"; do
+            case "$path" in
+              .github/workflows/c06b2c-isolated-e2e-ci.yml|\
+              infra/compose/c06b2c-history-projection-e2e/*|\
+              tools/c06b2c_isolated_e2e_evidence.py|\
+              docs/adr/ADR-0006-c06b2-real-home-assistant-history-projection-adapter.md)
+                ;;
+              *)
+                echo "unauthorized C06-B2C changed file: $path" >&2
+                exit 1
+                ;;
+            esac
+          done
+          echo "C06B2C_AUTHORIZED_FILE_BOUNDARY_VERIFIED=true" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: host/greenhouse-manager/pyproject.toml
+
+      - name: Install lint dependencies
+        run: python -m pip install -e 'host/greenhouse-manager[dev]'
+
+      - name: Validate isolated E2E sources
+        run: |
+          python -m json.tool \
+            infra/compose/c06b2c-history-projection-e2e/homeassistant/core.config_entries.template.json \
+            >/dev/null
+          python -m json.tool \
+            infra/compose/c06b2c-history-projection-e2e/homeassistant/custom_components/c06b2c_probe/manifest.json \
+            >/dev/null
+          python -m compileall -q \
+            infra/compose/c06b2c-history-projection-e2e/init_manager_db.py \
+            infra/compose/c06b2c-history-projection-e2e/verify.py \
+            infra/compose/c06b2c-history-projection-e2e/homeassistant/custom_components/c06b2c_probe/__init__.py \
+            tools/c06b2c_isolated_e2e_evidence.py
+          bash -n infra/compose/c06b2c-history-projection-e2e/verify.sh
+          ruff check \
+            infra/compose/c06b2c-history-projection-e2e/init_manager_db.py \
+            infra/compose/c06b2c-history-projection-e2e/verify.py \
+            infra/compose/c06b2c-history-projection-e2e/homeassistant/custom_components/c06b2c_probe/__init__.py \
+            tools/c06b2c_isolated_e2e_evidence.py
+
+      - name: Run isolated real Broker Home Assistant Recorder closure
+        env:
+          C06B2C_AUTHORIZATION: D1-C06B2C-ISOLATED-REAL-MOSQUITTO-FULL-HOME-ASSISTANT-RECORDER-END-TO-END-STACKED-DRAFT-IMPLEMENTATION-20260804-01
+          C06B2C_SOURCE_REF: ${{ github.head_ref || github.ref_name }}
+          C06B2C_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          C06B2C_BASE_REF: ${{ github.base_ref || github.ref_name }}
+          C06B2C_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          mkdir -p artifacts/c06b2c
+          set +e
+          bash infra/compose/c06b2c-history-projection-e2e/verify.sh
+          execution_rc=$?
+          set -e
+
+          binding_flags=()
+          if [ "${C06B2C_EXACT_BASE_VERIFIED:-false}" = "true" ]; then
+            binding_flags+=(--exact-base-verified)
+          fi
+          if [ "${C06B2C_BASE_ANCESTOR_VERIFIED:-false}" = "true" ]; then
+            binding_flags+=(--base-ancestor-verified)
+          fi
+          if [ "${C06B2C_AUTHORIZED_FILE_BOUNDARY_VERIFIED:-false}" = "true" ]; then
+            binding_flags+=(--authorized-file-boundary-verified)
+          fi
+
+          python tools/c06b2c_isolated_e2e_evidence.py \
+            --input-dir artifacts/c06b2c \
+            --output artifacts/c06b2c/report.json \
+            --authorization "$C06B2C_AUTHORIZATION" \
+            --source-ref "$C06B2C_SOURCE_REF" \
+            --source-sha "$C06B2C_SOURCE_SHA" \
+            --base-ref "$C06B2C_BASE_REF" \
+            --base-sha "$C06B2C_BASE_SHA" \
+            --execution-exit-code "$execution_rc" \
+            "${binding_flags[@]}"
+
+          report_status="$(python -c 'import json; print(json.load(open("artifacts/c06b2c/report.json"))["status"])')"
+          (
+            cd artifacts/c06b2c
+            find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%P\0' \
+              | sort -z \
+              | xargs -0 sha256sum > SHA256SUMS
+            sha256sum -c SHA256SUMS
+          )
+          if [ "$report_status" != "passed" ]; then
+            execution_rc=1
+          fi
+          exit "$execution_rc"
+
+      - name: Upload C06-B2C isolated E2E evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: c06b2c-isolated-mqtt-ha-recorder-e2e-evidence
+          path: artifacts/c06b2c/
+          if-no-files-found: error
+          retention-days: 14
