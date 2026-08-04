@@ -34,11 +34,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify exact authorized Recorder barrier successor stack
+      - name: Verify exact authorized UTC readback successor stack
         if: github.event_name == 'pull_request'
         env:
-          EXPECTED_BASE_REF: feature/c06b2c-isolated-mosquitto-ha-recorder-e2e-20260804-v1
-          EXPECTED_BASE_SHA: 8f7c8603c92eba4246cb3b0f7b15c914b19b0ff3
+          EXPECTED_BASE_REF: feature/c06b2b-recorder-import-queue-barrier-c06b2c-successor-20260804-v1
+          EXPECTED_BASE_SHA: 21f288c1c47f7801e21e77ada460c6353e371e14
           ACTUAL_BASE_REF: ${{ github.event.pull_request.base.ref }}
           ACTUAL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           ACTUAL_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -50,13 +50,13 @@ jobs:
           echo "C06B2B_EXACT_BASE_VERIFIED=true" >> "$GITHUB_ENV"
           echo "C06B2B_BASE_ANCESTOR_VERIFIED=true" >> "$GITHUB_ENV"
 
-      - name: Verify authorized Recorder barrier file boundary
+      - name: Verify authorized UTC readback file boundary
         if: github.event_name == 'pull_request'
         env:
-          EXPECTED_BASE_SHA: 8f7c8603c92eba4246cb3b0f7b15c914b19b0ff3
+          EXPECTED_BASE_SHA: 21f288c1c47f7801e21e77ada460c6353e371e14
           ACTUAL_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          git diff --name-only "$EXPECTED_BASE_SHA" "$ACTUAL_HEAD_SHA" > /tmp/c06b2b-barrier-files.txt
+          git diff --name-only "$EXPECTED_BASE_SHA" "$ACTUAL_HEAD_SHA" > /tmp/c06b2b-utc-readback-files.txt
           python - <<'PY'
           from pathlib import Path
 
@@ -70,16 +70,16 @@ jobs:
           }
           changed = {
               line.strip()
-              for line in Path("/tmp/c06b2b-barrier-files.txt").read_text().splitlines()
+              for line in Path("/tmp/c06b2b-utc-readback-files.txt").read_text().splitlines()
               if line.strip()
           }
           unexpected = sorted(changed - allowed)
           if unexpected:
-              raise SystemExit(f"unauthorized Recorder barrier paths: {unexpected}")
+              raise SystemExit(f"unauthorized UTC readback paths: {unexpected}")
           missing = sorted(allowed - changed)
           if missing:
-              raise SystemExit(f"required Recorder barrier paths are missing: {missing}")
-          print("C06B2B_RECORDER_BARRIER_FILE_BOUNDARY=true")
+              raise SystemExit(f"required UTC readback paths are missing: {missing}")
+          print("C06B2B_UTC_READBACK_FILE_BOUNDARY=true")
           PY
 
       - uses: actions/setup-python@v5
@@ -89,7 +89,7 @@ jobs:
       - name: Install host-only dependencies
         run: python -m pip install -e 'host/greenhouse-manager[dev]'
 
-      - name: Compile Recorder barrier repair
+      - name: Compile UTC readback repair
         run: |
           python -m compileall -q \
             host/homeassistant/custom_components/greenhouse_history/recorder_adapter.py \
@@ -111,15 +111,15 @@ jobs:
             host/greenhouse-manager/tests/runtime/test_history_projection_monotonic_adapter.py \
             host/greenhouse-manager/tests/runtime/test_history_projection.py
 
-      - name: Generate secret-free Recorder barrier evidence
+      - name: Generate secret-free UTC readback evidence
         env:
-          AUTHORIZATION: D1-C06B2B-PR265-RECORDER-IMPORT-QUEUE-COMMIT-BARRIER-REAL-E2E-BLOCKER-SUCCESSOR-REPAIR-STACKED-DRAFT-IMPLEMENTATION-20260804-01
+          AUTHORIZATION: D1-C06B2B-PR266-RECORDER-READBACK-UTC-INSTANT-CANONICALIZATION-AND-FALSE-COMMIT-BARRIER-REMOVAL-REAL-E2E-SUCCESSOR-REPAIR-STACKED-DRAFT-IMPLEMENTATION-20260804-01
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           BASE_REF: ${{ github.base_ref || github.ref_name }}
           SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           SOURCE_REF: ${{ github.head_ref || github.ref_name }}
         run: |
-          mkdir -p evidence/c06b2b-recorder-barrier
+          mkdir -p evidence/c06b2b-recorder-utc-readback
           flags=()
           if [ "${C06B2B_EXACT_BASE_VERIFIED:-false}" = "true" ]; then
             flags+=(--exact-base-verified)
@@ -128,7 +128,7 @@ jobs:
             flags+=(--base-ancestor-verified)
           fi
           python tools/c06b2b_runtime_wiring_host_only_harness.py \
-            --output evidence/c06b2b-recorder-barrier/report.json \
+            --output evidence/c06b2b-recorder-utc-readback/report.json \
             --authorization "$AUTHORIZATION" \
             --base-sha "$BASE_SHA" \
             --base-ref "$BASE_REF" \
@@ -136,11 +136,11 @@ jobs:
             --source-ref "$SOURCE_REF" \
             "${flags[@]}"
           cp docs/adr/ADR-0006-c06b2-real-home-assistant-history-projection-adapter.md \
-            evidence/c06b2b-recorder-barrier/
+            evidence/c06b2b-recorder-utc-readback/
           cp .github/workflows/c06b2b-runtime-wiring-ci.yml \
-            evidence/c06b2b-recorder-barrier/
+            evidence/c06b2b-recorder-utc-readback/
           (
-            cd evidence/c06b2b-recorder-barrier
+            cd evidence/c06b2b-recorder-utc-readback
             sha256sum \
               report.json \
               ADR-0006-c06b2-real-home-assistant-history-projection-adapter.md \
@@ -151,7 +151,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: c06b2b-recorder-queue-barrier-host-only-evidence
-          path: evidence/c06b2b-recorder-barrier
+          name: c06b2b-recorder-utc-readback-host-only-evidence
+          path: evidence/c06b2b-recorder-utc-readback
           if-no-files-found: error
           retention-days: 30
