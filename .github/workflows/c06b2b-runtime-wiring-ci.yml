@@ -9,6 +9,7 @@ on:
       - "host/greenhouse-manager/tests/runtime/test_c06b2b_runtime_wiring.py"
       - "host/homeassistant/custom_components/greenhouse_history/**"
       - "tools/c06b2b_runtime_wiring_host_only_harness.py"
+      - ".github/workflows/c06-history-replay-ci.yml"
       - ".github/workflows/c06b2a-ha-target-ledger-ci.yml"
       - ".github/workflows/c06b2b-runtime-wiring-ci.yml"
   push:
@@ -21,6 +22,7 @@ on:
       - "host/greenhouse-manager/tests/runtime/test_c06b2b_runtime_wiring.py"
       - "host/homeassistant/custom_components/greenhouse_history/**"
       - "tools/c06b2b_runtime_wiring_host_only_harness.py"
+      - ".github/workflows/c06-history-replay-ci.yml"
       - ".github/workflows/c06b2a-ha-target-ledger-ci.yml"
       - ".github/workflows/c06b2b-runtime-wiring-ci.yml"
 
@@ -65,6 +67,7 @@ jobs:
           from pathlib import Path
 
           allowed = {
+              ".github/workflows/c06-history-replay-ci.yml",
               ".github/workflows/c06b2a-ha-target-ledger-ci.yml",
               ".github/workflows/c06b2b-runtime-wiring-ci.yml",
               "docs/adr/ADR-0006-c06b2-real-home-assistant-history-projection-adapter.md",
