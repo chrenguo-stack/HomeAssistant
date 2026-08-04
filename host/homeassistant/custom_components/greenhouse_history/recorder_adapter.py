@@ -44,7 +44,7 @@ class RecorderAdapter(Protocol):
         self,
         statistics: tuple[StatisticWrite, ...],
     ) -> None:
-        """Queue statistics and wait until Recorder commits the import."""
+        """Queue statistics through the supported Recorder API."""
 
     async def async_read_statistics(
         self,
@@ -68,30 +68,28 @@ def _utc_datetime(value: str, field: str) -> datetime:
             "target_timestamp_invalid",
             f"{field} must use UTC",
         )
-    return parsed
+    return parsed.astimezone(UTC)
 
 
-def _timestamp_text(value: Any) -> str:
+def _recorder_utc_datetime(value: Any) -> datetime:
     if isinstance(value, bool):
         raise RecorderAdapterError(
             "target_readback_invalid",
             "Recorder returned an invalid start timestamp",
         )
     if isinstance(value, int | float):
-        parsed = datetime.fromtimestamp(float(value), tz=UTC)
-    elif isinstance(value, datetime):
+        return datetime.fromtimestamp(float(value), tz=UTC)
+    if isinstance(value, datetime):
         if value.tzinfo is None:
             raise RecorderAdapterError(
                 "target_readback_invalid",
                 "Recorder returned a naive timestamp",
             )
-        parsed = value.astimezone(UTC)
-    else:
-        raise RecorderAdapterError(
-            "target_readback_invalid",
-            "Recorder returned an unsupported start timestamp",
-        )
-    return parsed.isoformat(timespec="seconds").replace("+00:00", "Z")
+        return value.astimezone(UTC)
+    raise RecorderAdapterError(
+        "target_readback_invalid",
+        "Recorder returned an unsupported start timestamp",
+    )
 
 
 class HomeAssistantRecorderAdapter:
@@ -101,43 +99,14 @@ class HomeAssistantRecorderAdapter:
         self,
         hass: Any,
         *,
-        commit_barrier_timeout_seconds: float = 5.0,
         readback_timeout_seconds: float = 10.0,
         readback_poll_seconds: float = 0.25,
     ) -> None:
-        if (
-            commit_barrier_timeout_seconds <= 0
-            or readback_timeout_seconds <= 0
-            or readback_poll_seconds <= 0
-        ):
-            raise ValueError("Recorder barrier and readback timing must be positive")
+        if readback_timeout_seconds <= 0 or readback_poll_seconds <= 0:
+            raise ValueError("Recorder readback timing must be positive")
         self.hass = hass
-        self.commit_barrier_timeout_seconds = commit_barrier_timeout_seconds
         self.readback_timeout_seconds = readback_timeout_seconds
         self.readback_poll_seconds = readback_poll_seconds
-
-    async def _async_wait_for_commit_barrier(self) -> None:
-        try:
-            from homeassistant.components.recorder.util import get_instance
-        except ImportError as exc:
-            raise RecorderAdapterError(
-                "recorder_api_unavailable",
-                "Home Assistant Recorder API is unavailable",
-            ) from exc
-
-        try:
-            async with asyncio.timeout(self.commit_barrier_timeout_seconds):
-                await get_instance(self.hass).async_block_till_done()
-        except TimeoutError as exc:
-            raise RecorderAdapterError(
-                "recorder_commit_barrier_timeout",
-                "Recorder import commit barrier timed out",
-            ) from exc
-        except Exception as exc:
-            raise RecorderAdapterError(
-                "recorder_commit_barrier_failed",
-                f"Recorder import commit barrier failed: {type(exc).__name__}",
-            ) from exc
 
     async def async_import_statistics(
         self,
@@ -194,8 +163,6 @@ class HomeAssistantRecorderAdapter:
                     ),
                 ) from exc
 
-        await self._async_wait_for_commit_barrier()
-
     async def _async_query_statistics(
         self,
         statistic_ids: tuple[str, ...],
@@ -238,10 +205,15 @@ class HomeAssistantRecorderAdapter:
         start: str,
         rows_by_id: dict[str, list[dict[str, Any]]],
     ) -> tuple[StatisticReadback, ...]:
+        target_start = _utc_datetime(start, "statistics.start")
         readback: list[StatisticReadback] = []
         for statistic_id in statistic_ids:
             rows = rows_by_id.get(statistic_id, ())
-            exact = [row for row in rows if _timestamp_text(row.get("start")) == start]
+            exact = [
+                row
+                for row in rows
+                if _recorder_utc_datetime(row.get("start")) == target_start
+            ]
             if len(exact) != 1:
                 continue
             row = exact[0]
