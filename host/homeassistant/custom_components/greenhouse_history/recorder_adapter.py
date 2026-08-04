@@ -115,7 +115,9 @@ class HomeAssistantRecorderAdapter:
         statistics: tuple[StatisticWrite, ...],
     ) -> None:
         try:
-            from homeassistant.components.recorder.const import DOMAIN as RECORDER_DOMAIN
+            from homeassistant.components.recorder.const import (
+                DOMAIN as RECORDER_DOMAIN,
+            )
             from homeassistant.components.recorder.models import StatisticMeanType
             from homeassistant.components.recorder.statistics import (
                 async_import_statistics,
@@ -154,7 +156,7 @@ class HomeAssistantRecorderAdapter:
             }
             try:
                 async_import_statistics(self.hass, metadata, (statistic,))
-            except Exception as exc:  # noqa: BLE001 - normalize supported API failures
+            except Exception as exc:
                 raise RecorderAdapterError(
                     "recorder_import_failed",
                     (
@@ -192,7 +194,7 @@ class HomeAssistantRecorderAdapter:
                 None,
                 {"mean", "min", "max"},
             )
-        except Exception as exc:  # noqa: BLE001 - normalize supported API failures
+        except Exception as exc:
             raise RecorderAdapterError(
                 "recorder_read_failed",
                 f"Recorder statistics query failed: {type(exc).__name__}",
