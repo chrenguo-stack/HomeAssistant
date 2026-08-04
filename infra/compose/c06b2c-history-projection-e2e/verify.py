@@ -5,11 +5,13 @@ import hashlib
 import json
 import os
 import queue
+import sqlite3
 import threading
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import paho.mqtt.client as mqtt
 from greenhouse_manager.runtime.history_projection_store import ProjectionStore
@@ -197,6 +199,17 @@ class Session:
             self.client.loop_stop()
 
 
+def runtime_ready() -> bool:
+    probe = read_json(PROBE_PATH)
+    return bool(
+        probe.get("ready") is True
+        and probe.get("runtime_loaded") is True
+        and probe.get("runtime_enabled") is True
+        and probe.get("mqtt_bridge_active") is True
+        and probe.get("recorder_write_active") is True
+    )
+
+
 def probe_ready(*, expected_revision: int | None = None) -> bool:
     probe = read_json(PROBE_PATH)
     if not (
@@ -281,7 +294,7 @@ def discovery_document(
 
 def phase_prepare() -> None:
     wait_until(
-        lambda: probe_ready(),
+        runtime_ready,
         timeout_s=120,
         description="Home Assistant C06-B2 runtime",
     )
@@ -334,7 +347,7 @@ def phase_prepare() -> None:
 def message_summary(message: mqtt.MQTTMessage) -> dict[str, Any]:
     document = json.loads(bytes(message.payload).decode("utf-8"))
     if not isinstance(document, dict):
-        raise AssertionError("captured MQTT payload is not an object")
+        raise TypeError("captured MQTT payload is not an object")
     projection = document.get("projection")
     return {
         "topic": message.topic,
@@ -407,7 +420,7 @@ def completed_job() -> tuple[dict[str, Any], str, int]:
             raise AssertionError("completed Manager job lacks projection evidence")
         projection = json.loads(job.payload_json)
         if not isinstance(projection, dict):
-            raise AssertionError("completed projection payload is invalid")
+            raise TypeError("completed projection payload is invalid")
         return projection, job.projection_hash, job.revision
 
 
@@ -473,7 +486,7 @@ def _job_is_completed() -> bool:
         with ProjectionStore(DATABASE) as store:
             job = store.get_job(NODE_ID, SAMPLE_HOUR)
             return bool(job and job.state == "completed")
-    except Exception:
+    except (OSError, RuntimeError, ValueError, sqlite3.Error):
         return False
 
 
