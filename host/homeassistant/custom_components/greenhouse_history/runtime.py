@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, ClassVar
 
 from .const import request_topic, result_topic
 from .entity_resolver import (
@@ -51,7 +51,7 @@ def _utc_text(clock: Clock) -> str:
 class ProjectionRequestProcessor:
     """Monotonic ledger, entity resolution, Recorder import, and readback pipeline."""
 
-    _BLOCKED_RECORDER_CODES = {
+    _BLOCKED_RECORDER_CODES: ClassVar[set[str]] = {
         "recorder_api_unavailable",
         "target_statistic_id_invalid",
         "target_statistic_shape_invalid",
