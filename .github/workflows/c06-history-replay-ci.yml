@@ -41,6 +41,8 @@ jobs:
           C06B1_BASE_SHA: 0ec7bb3d17f08f6e26d475ce6f2a55e5bea39434
           C06B2A_BASE_REF: feature/c06b2a-ha-target-ledger-custom-integration-20260803-v1
           C06B2A_BASE_SHA: 77259fe2ad0403a620c78626e01862804c7af6e4
+          PR267_BASE_REF: feature/c06b2b-recorder-readback-utc-canonicalization-pr266-successor-20260804-v1
+          PR267_BASE_SHA: 4c29fced18e8d45cac78f71ec82112bcf65a8cef
           PRIOR_REVIEWED_HEAD_SHA: dac038c3595c80ac7d1a0666795effbbab4a4e4e
           FINAL_REVIEWED_HEAD_SHA: ffdfbc3dc64620881ea0732d0d964623439d0bba
           ACTUAL_BASE_REF: ${{ github.event.pull_request.base.ref }}
@@ -55,6 +57,8 @@ jobs:
             test "$ACTUAL_BASE_SHA" = "$C06B1_BASE_SHA"
           elif [ "$ACTUAL_BASE_REF" = "$C06B2A_BASE_REF" ]; then
             test "$ACTUAL_BASE_SHA" = "$C06B2A_BASE_SHA"
+          elif [ "$ACTUAL_BASE_REF" = "$PR267_BASE_REF" ]; then
+            test "$ACTUAL_BASE_SHA" = "$PR267_BASE_SHA"
           else
             echo "unsupported C06 stack base: $ACTUAL_BASE_REF" >&2
             exit 1
@@ -62,8 +66,12 @@ jobs:
           test "$(git merge-base "$ACTUAL_BASE_SHA" "$ACTUAL_HEAD_SHA")" = "$ACTUAL_BASE_SHA"
           git merge-base --is-ancestor "$PRIOR_REVIEWED_HEAD_SHA" "$ACTUAL_HEAD_SHA"
           git merge-base --is-ancestor "$FINAL_REVIEWED_HEAD_SHA" "$ACTUAL_HEAD_SHA"
+          if [ "$ACTUAL_BASE_SHA" = "$PR267_BASE_SHA" ]; then
+            git merge-base --is-ancestor "$PR267_BASE_SHA" "$ACTUAL_HEAD_SHA"
+          fi
           echo "C06_PRIOR_REVIEWED_HEAD_ANCESTOR_VERIFIED=true" >> "$GITHUB_ENV"
           echo "C06_FINAL_REVIEWED_HEAD_ANCESTOR_VERIFIED=true" >> "$GITHUB_ENV"
+          echo "C06_EXACT_BASE_VERIFIED=true" >> "$GITHUB_ENV"
 
       - uses: actions/setup-python@v5
         with:
@@ -120,10 +128,9 @@ jobs:
           C06_SOURCE_REF: ${{ github.head_ref || github.ref_name }}
           C06_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           C06_BASE_REF: ${{ github.base_ref || github.ref_name }}
-          C06_EXACT_BASE_VERIFIED: ${{ github.event_name == 'pull_request' && ((github.event.pull_request.base.sha == 'd628b896314efd0aff58da151e3669eb7fe21d44' && github.event.pull_request.base.ref == 'feature/h0h1-v07-init-portable-restore-hostonly-20260802-v1') || (github.event.pull_request.base.sha == 'd0e00d264d41755101c80ad37a1f6fa661892276' && github.event.pull_request.base.ref == 'feature/c06-history-replay-protocol-storage-hostonly-20260803-v1') || (github.event.pull_request.base.sha == '0ec7bb3d17f08f6e26d475ce6f2a55e5bea39434' && github.event.pull_request.base.ref == 'feature/c06b1-history-projection-core-hostonly-20260803-v1') || (github.event.pull_request.base.sha == '77259fe2ad0403a620c78626e01862804c7af6e4' && github.event.pull_request.base.ref == 'feature/c06b2a-ha-target-ledger-custom-integration-20260803-v1')) }}
         run: |
           binding_flags=()
-          if [ "$C06_EXACT_BASE_VERIFIED" = "true" ]; then
+          if [ "${C06_EXACT_BASE_VERIFIED:-false}" = "true" ]; then
             binding_flags+=(--exact-base-verified)
           fi
           if [ "$C06_PRIOR_REVIEWED_HEAD_ANCESTOR_VERIFIED" = "true" ]; then
