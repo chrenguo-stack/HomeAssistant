@@ -99,6 +99,8 @@ class PahoProjectionRpcTransport:
         self._connected = threading.Event()
         self._started = False
         self._start_lock = threading.Lock()
+        self._state_lock = threading.Lock()
+        self._subscription_mid: int | None = None
         self._on_message: MessageCallback | None = None
         self._on_connect_callback: LifecycleCallback | None = None
         self._on_disconnect_callback: LifecycleCallback | None = None
@@ -109,6 +111,7 @@ class PahoProjectionRpcTransport:
             protocol=mqtt.MQTTv5,
         )
         self._client.on_connect = self._on_connect
+        self._client.on_subscribe = self._on_subscribe
         self._client.on_disconnect = self._on_disconnect
         self._client.on_message = self._handle_message
         self._client.reconnect_delay_set(min_delay=1, max_delay=15)
@@ -138,15 +141,42 @@ class PahoProjectionRpcTransport:
         properties: mqtt.Properties | None,
     ) -> None:
         del userdata, flags, properties
+        self._connected.clear()
+        with self._state_lock:
+            self._subscription_mid = None
         if reason_code.is_failure:
             _LOGGER.error("C06-B2 MQTT connection rejected: %s", reason_code)
             return
-        result, _mid = client.subscribe(self._result_topic, qos=1)
+        result, mid = client.subscribe(self._result_topic, qos=1)
         if result != mqtt.MQTT_ERR_SUCCESS:
             _LOGGER.error(
                 "C06-B2 result subscription failed topic=%s rc=%s",
                 self._result_topic,
                 result,
+            )
+            return
+        with self._state_lock:
+            self._subscription_mid = mid
+
+    def _on_subscribe(
+        self,
+        client: mqtt.Client,
+        userdata: object,
+        mid: int,
+        reason_codes: list[mqtt.ReasonCode],
+        properties: mqtt.Properties | None,
+    ) -> None:
+        del client, userdata, properties
+        with self._state_lock:
+            if mid != self._subscription_mid:
+                return
+            self._subscription_mid = None
+        if not reason_codes or any(code.is_failure for code in reason_codes):
+            self._connected.clear()
+            _LOGGER.error(
+                "C06-B2 result SUBACK rejected topic=%s reasons=%s",
+                self._result_topic,
+                reason_codes,
             )
             return
         self._connected.set()
@@ -164,6 +194,8 @@ class PahoProjectionRpcTransport:
     ) -> None:
         del client, userdata, disconnect_flags, properties
         self._connected.clear()
+        with self._state_lock:
+            self._subscription_mid = None
         if reason_code.is_failure:
             _LOGGER.warning("C06-B2 MQTT disconnected unexpectedly: %s", reason_code)
         callback = self._on_disconnect_callback
@@ -195,7 +227,9 @@ class PahoProjectionRpcTransport:
         with self._start_lock:
             if self._started:
                 if not self._connected.wait(self._connect_timeout_seconds):
-                    raise ProjectionRpcTransportError("MQTT transport is not connected")
+                    raise ProjectionRpcTransportError(
+                        "MQTT transport subscription is not ready"
+                    )
                 return
             self._started = True
             try:
@@ -211,7 +245,9 @@ class PahoProjectionRpcTransport:
                 raise
         if not self._connected.wait(self._connect_timeout_seconds):
             self.stop()
-            raise ProjectionRpcTransportError("MQTT connection timed out")
+            raise ProjectionRpcTransportError(
+                "MQTT connection or result subscription timed out"
+            )
 
     def publish(
         self,
@@ -243,6 +279,8 @@ class PahoProjectionRpcTransport:
                 return
             self._started = False
             self._connected.clear()
+            with self._state_lock:
+                self._subscription_mid = None
             try:
                 self._client.disconnect()
             finally:
