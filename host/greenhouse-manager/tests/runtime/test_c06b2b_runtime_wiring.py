@@ -21,7 +21,10 @@ from custom_components.greenhouse_history.recorder_adapter import (
     StatisticReadback,
     projection_writes,
 )
-from custom_components.greenhouse_history.runtime import ProjectionRequestProcessor
+from custom_components.greenhouse_history.runtime import (
+    HomeAssistantProjectionRuntime,
+    ProjectionRequestProcessor,
+)
 
 from greenhouse_manager.runtime.c06b2_ha_projection_protocol import (
     build_projection_request,
@@ -31,7 +34,10 @@ from greenhouse_manager.runtime.c06b2_ha_projection_protocol import (
     projection_hash,
     projection_result_topic,
 )
-from greenhouse_manager.runtime.c06b2_mqtt_rpc_adapter import MqttProjectionRpcAdapter
+from greenhouse_manager.runtime.c06b2_mqtt_rpc_adapter import (
+    MqttProjectionRpcAdapter,
+    PahoProjectionRpcTransport,
+)
 from greenhouse_manager.runtime.c06b2_runtime_wiring import manager_c06b2_runtime_enabled
 from greenhouse_manager.runtime.history_projection_contract import ProjectionBatch
 
@@ -174,6 +180,38 @@ def test_manager_rpc_exact_binding_timeout_and_reconnect() -> None:
     assert adapter.republish_count == 1
 
 
+def test_manager_transport_requires_successful_suback() -> None:
+    connected = 0
+    transport = PahoProjectionRpcTransport(
+        host="127.0.0.1", port=1883, client_id="host-only",
+        result_topic=projection_result_topic(SYSTEM),
+    )
+
+    def on_connect() -> None:
+        nonlocal connected
+        connected += 1
+
+    transport.set_callbacks(
+        on_message=lambda _topic, _payload: None,
+        on_connect=on_connect,
+        on_disconnect=lambda: None,
+    )
+
+    class Client:
+        def subscribe(self, topic: str, qos: int) -> tuple[int, int]:
+            assert topic == projection_result_topic(SYSTEM) and qos == 1
+            return 0, 42
+
+    client = Client()
+    success = SimpleNamespace(is_failure=False)
+    transport._on_connect(client, None, None, success, None)
+    assert not transport._connected.is_set() and connected == 0
+    transport._on_subscribe(client, None, 41, [success], None)
+    assert not transport._connected.is_set() and connected == 0
+    transport._on_subscribe(client, None, 42, [success], None)
+    assert transport._connected.is_set() and connected == 1
+
+
 def test_ha_bridge_is_bounded_and_callback_does_not_process() -> None:
     async def run() -> None:
         started, release = asyncio.Event(), asyncio.Event()
@@ -201,9 +239,13 @@ def test_ha_bridge_is_bounded_and_callback_does_not_process() -> None:
         bridge = MqttProjectionBridge(
             request_topic=request_topic(SYSTEM), result_topic=result_topic(SYSTEM),
             processor=Processor(), subscribe=subscribe, publish=publish,
-            queue_capacity=1,
+            queue_capacity=1, max_payload_bytes=1,
         )
         await bridge.async_start()
+        callback(SimpleNamespace(
+            topic=request_topic(SYSTEM), payload=b"xx", qos=1, retain=False
+        ))
+        assert bridge.health.oversized_payload == 1 and calls == 0
         message = SimpleNamespace(
             topic=request_topic(SYSTEM), payload=b"x", qos=1, retain=False
         )
@@ -217,6 +259,74 @@ def test_ha_bridge_is_bounded_and_callback_does_not_process() -> None:
         assert published == [(result_topic(SYSTEM), b"ok", 1, False)]
         await bridge.async_stop()
         assert not bridge.active
+
+    asyncio.run(run())
+
+
+def test_ha_runtime_waits_for_broker_suback(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def run() -> None:
+        callbacks: list[Any] = []
+        subscriptions: list[tuple[str, int, Any]] = []
+        cleanup = 0
+        unsubscribe = 0
+
+        mqtt_module = ModuleType("homeassistant.components.mqtt")
+        components_module = ModuleType("homeassistant.components")
+        homeassistant_module = ModuleType("homeassistant")
+        components_module.mqtt = mqtt_module
+        homeassistant_module.components = components_module
+        monkeypatch.setitem(sys.modules, "homeassistant", homeassistant_module)
+        monkeypatch.setitem(sys.modules, "homeassistant.components", components_module)
+        monkeypatch.setitem(sys.modules, "homeassistant.components.mqtt", mqtt_module)
+
+        def on_subscribe_done(
+            hass: Any, topic: str, qos: int, callback: Any
+        ) -> Any:
+            nonlocal cleanup
+            del hass
+            assert topic == request_topic(SYSTEM) and qos == 1
+            callbacks.append(callback)
+
+            def remove() -> None:
+                nonlocal cleanup
+                cleanup += 1
+
+            return remove
+
+        async def subscribe(
+            hass: Any, topic: str, callback: Any, qos: int, encoding: Any
+        ) -> Any:
+            nonlocal unsubscribe
+            del hass, callback
+            subscriptions.append((topic, qos, encoding))
+
+            def remove() -> None:
+                nonlocal unsubscribe
+                unsubscribe += 1
+
+            return remove
+
+        async def publish(*_: Any, **__: Any) -> None:
+            return
+
+        mqtt_module.async_on_subscribe_done = on_subscribe_done
+        mqtt_module.async_subscribe = subscribe
+        mqtt_module.async_publish = publish
+
+        ledger = TargetLedger(MemoryLedgerStore(), configured_system_id=SYSTEM)
+        await ledger.async_load()
+        runtime = HomeAssistantProjectionRuntime.create(
+            hass=SimpleNamespace(), system_id=SYSTEM, ledger=ledger,
+        )
+        start = asyncio.create_task(runtime.async_start())
+        await asyncio.sleep(0)
+        assert subscriptions == [(request_topic(SYSTEM), 1, None)]
+        assert not start.done() and not runtime.active
+        callbacks[0]()
+        await start
+        assert runtime.active and cleanup == 1
+        await runtime.async_stop()
+        assert unsubscribe == 1 and not runtime.active
 
     asyncio.run(run())
 
