@@ -94,12 +94,14 @@ jobs:
             >/dev/null
           python -m compileall -q \
             infra/compose/c06b2c-history-projection-e2e/init_manager_db.py \
+            infra/compose/c06b2c-history-projection-e2e/observer.py \
             infra/compose/c06b2c-history-projection-e2e/verify.py \
             infra/compose/c06b2c-history-projection-e2e/homeassistant/custom_components/c06b2c_probe/__init__.py \
             tools/c06b2c_isolated_e2e_evidence.py
           bash -n infra/compose/c06b2c-history-projection-e2e/verify.sh
           ruff check \
             infra/compose/c06b2c-history-projection-e2e/init_manager_db.py \
+            infra/compose/c06b2c-history-projection-e2e/observer.py \
             infra/compose/c06b2c-history-projection-e2e/verify.py \
             infra/compose/c06b2c-history-projection-e2e/homeassistant/custom_components/c06b2c_probe/__init__.py \
             tools/c06b2c_isolated_e2e_evidence.py
