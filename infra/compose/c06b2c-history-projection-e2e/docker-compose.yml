@@ -136,15 +136,11 @@ services:
   observer:
     image: "${C06B2C_MANAGER_IMAGE:?set by verify.sh}"
     user: "0:0"
-    entrypoint: ["python", "/verify.py"]
+    entrypoint: ["python", "/observer.py"]
     environment:
-      GH_C06B2C_PHASE: observer
-      GH_C06B2C_MQTT_USERNAME: tester
       GH_C06B2C_MQTT_PASSWORD: "${GH_TESTER_MQTT_PASSWORD:?set by verify.sh}"
     volumes:
-      - ./verify.py:/verify.py:ro
-      - ha-config:/ha-config:ro
-      - manager-state:/state
+      - ./observer.py:/observer.py:ro
       - ../../../artifacts/c06b2c:/evidence
     depends_on:
       broker:
