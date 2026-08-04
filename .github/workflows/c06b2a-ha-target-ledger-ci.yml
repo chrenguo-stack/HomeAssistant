@@ -38,19 +38,29 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify exact authorized C06-B2A stack
+      - name: Verify exact authorized C06-B2A stack or B2B successor
         if: github.event_name == 'pull_request'
         env:
-          EXPECTED_BASE_REF: feature/c06b1-history-projection-core-hostonly-20260803-v1
-          EXPECTED_BASE_SHA: 0ec7bb3d17f08f6e26d475ce6f2a55e5bea39434
+          ORIGINAL_BASE_REF: feature/c06b1-history-projection-core-hostonly-20260803-v1
+          ORIGINAL_BASE_SHA: 0ec7bb3d17f08f6e26d475ce6f2a55e5bea39434
+          SUCCESSOR_BASE_REF: feature/c06b2a-ha-target-ledger-custom-integration-20260803-v1
+          SUCCESSOR_BASE_SHA: 77259fe2ad0403a620c78626e01862804c7af6e4
           ACTUAL_BASE_REF: ${{ github.event.pull_request.base.ref }}
           ACTUAL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           ACTUAL_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          test "$ACTUAL_BASE_REF" = "$EXPECTED_BASE_REF"
-          test "$ACTUAL_BASE_SHA" = "$EXPECTED_BASE_SHA"
-          test "$(git merge-base "$ACTUAL_BASE_SHA" "$ACTUAL_HEAD_SHA")" = "$EXPECTED_BASE_SHA"
-          git merge-base --is-ancestor "$EXPECTED_BASE_SHA" "$ACTUAL_HEAD_SHA"
+          if [ "$ACTUAL_BASE_REF" = "$ORIGINAL_BASE_REF" ]; then
+            test "$ACTUAL_BASE_SHA" = "$ORIGINAL_BASE_SHA"
+          elif [ "$ACTUAL_BASE_REF" = "$SUCCESSOR_BASE_REF" ]; then
+            test "$ACTUAL_BASE_SHA" = "$SUCCESSOR_BASE_SHA"
+          else
+            echo "unsupported C06-B2A stack base: $ACTUAL_BASE_REF" >&2
+            exit 1
+          fi
+          test "$(git merge-base "$ACTUAL_BASE_SHA" "$ACTUAL_HEAD_SHA")" = "$ACTUAL_BASE_SHA"
+          git merge-base --is-ancestor "$ORIGINAL_BASE_SHA" "$ACTUAL_HEAD_SHA"
+          git merge-base --is-ancestor "$SUCCESSOR_BASE_SHA" "$ACTUAL_HEAD_SHA" || \
+            test "$ACTUAL_BASE_SHA" = "$ORIGINAL_BASE_SHA"
           echo "C06B2A_EXACT_BASE_VERIFIED=true" >> "$GITHUB_ENV"
           echo "C06B2A_BASE_ANCESTOR_VERIFIED=true" >> "$GITHUB_ENV"
 
