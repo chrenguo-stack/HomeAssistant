@@ -37,6 +37,12 @@ async def async_setup_entry(hass: Any, entry: Any) -> bool:
     runtime = None
     runtime_enabled = _runtime_enabled(entry)
     if runtime_enabled:
+        from homeassistant.components import mqtt
+        from homeassistant.exceptions import ConfigEntryNotReady
+
+        if not await mqtt.async_wait_for_mqtt_client(hass):
+            raise ConfigEntryNotReady("MQTT integration is not available")
+
         from .runtime import HomeAssistantProjectionRuntime
 
         runtime = HomeAssistantProjectionRuntime.create(
