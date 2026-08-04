@@ -335,8 +335,14 @@ def verify_readback(
     writes: tuple[StatisticWrite, ...],
     readback: tuple[StatisticReadback, ...],
 ) -> None:
-    expected = {(item.statistic_id, item.start): item for item in writes}
-    actual = {(item.statistic_id, item.start): item for item in readback}
+    expected = {
+        (item.statistic_id, _utc_datetime(item.start, "statistics.start")): item
+        for item in writes
+    }
+    actual = {
+        (item.statistic_id, _utc_datetime(item.start, "statistics.start")): item
+        for item in readback
+    }
     if set(actual) != set(expected):
         raise RecorderAdapterError(
             "target_readback_incomplete",
