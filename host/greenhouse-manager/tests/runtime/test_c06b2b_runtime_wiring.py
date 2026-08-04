@@ -411,7 +411,9 @@ def test_processor_monotonic_idempotency_and_pending_restart() -> None:
     asyncio.run(run())
 
 
-def test_supported_recorder_api_and_default_off(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_supported_recorder_api_utc_instant_matching_and_default_off(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     async def run() -> None:
         captured: list[Any] = []
         order: list[str] = []
@@ -446,9 +448,6 @@ def test_supported_recorder_api_and_default_off(monkeypatch: pytest.MonkeyPatch)
             }]}
 
         class Instance:
-            async def async_block_till_done(self) -> None:
-                order.append("commit_barrier")
-
             async def async_add_executor_job(self, func: Any, *args: Any) -> Any:
                 return func(*args)
 
@@ -462,7 +461,6 @@ def test_supported_recorder_api_and_default_off(monkeypatch: pytest.MonkeyPatch)
         hass = SimpleNamespace(states=SimpleNamespace(get=lambda _: state))
         adapter = HomeAssistantRecorderAdapter(
             hass,
-            commit_barrier_timeout_seconds=0.05,
             readback_timeout_seconds=0.05,
             readback_poll_seconds=0.01,
         )
@@ -471,38 +469,42 @@ def test_supported_recorder_api_and_default_off(monkeypatch: pytest.MonkeyPatch)
         )
         await adapter.async_import_statistics(writes)
         readback = await adapter.async_read_statistics(
-            ("sensor.user_renamed_temperature",), start=HOUR
+            ("sensor.user_renamed_temperature",),
+            start="2026-08-03T12:00:00.000Z",
         )
         assert len(readback) == 1
-        assert order == ["import", "commit_barrier", "readback"]
+        assert readback[0].start == "2026-08-03T12:00:00.000Z"
+        assert order == ["import", "readback"]
         assert captured[0][0]["source"] == "recorder"
         assert captured[0][0]["statistic_id"].startswith("sensor.")
 
-        class TimeoutInstance:
-            async def async_block_till_done(self) -> None:
-                await asyncio.Event().wait()
+        rows = {"sensor.user_renamed_temperature": [{
+            "start": datetime(2026, 8, 3, 12, tzinfo=UTC),
+            "mean": 20.0, "min": 20.0, "max": 20.0,
+        }]}
+        for equivalent_start in (
+            "2026-08-03T12:00:00Z",
+            "2026-08-03T12:00:00.000Z",
+            "2026-08-03T12:00:00+00:00",
+        ):
+            equivalent = adapter._readback_from_rows(
+                ("sensor.user_renamed_temperature",),
+                start=equivalent_start,
+                rows_by_id=rows,
+            )
+            assert len(equivalent) == 1
+            assert equivalent[0].start == equivalent_start
 
-        packages["homeassistant.components.recorder.util"].get_instance = (
-            lambda hass: TimeoutInstance()
+        adjacent_hour_rows = {"sensor.user_renamed_temperature": [{
+            "start": datetime(2026, 8, 3, 13, tzinfo=UTC),
+            "mean": 20.0, "min": 20.0, "max": 20.0,
+        }]}
+        adjacent_hour = adapter._readback_from_rows(
+            ("sensor.user_renamed_temperature",),
+            start="2026-08-03T12:00:00.000Z",
+            rows_by_id=adjacent_hour_rows,
         )
-        timeout_adapter = HomeAssistantRecorderAdapter(
-            hass, commit_barrier_timeout_seconds=0.01
-        )
-        with pytest.raises(RecorderAdapterError) as timeout_error:
-            await timeout_adapter.async_import_statistics(writes)
-        assert timeout_error.value.code == "recorder_commit_barrier_timeout"
-
-        class FailureInstance:
-            async def async_block_till_done(self) -> None:
-                raise RuntimeError("injected")
-
-        packages["homeassistant.components.recorder.util"].get_instance = (
-            lambda hass: FailureInstance()
-        )
-        failure_adapter = HomeAssistantRecorderAdapter(hass)
-        with pytest.raises(RecorderAdapterError) as failure_error:
-            await failure_adapter.async_import_statistics(writes)
-        assert failure_error.value.code == "recorder_commit_barrier_failed"
+        assert adjacent_hour == ()
 
     asyncio.run(run())
     monkeypatch.delenv("GH_C06B2_RUNTIME_ENABLED", raising=False)
