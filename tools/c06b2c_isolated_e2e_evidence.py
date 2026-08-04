@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-REPORT_SCHEMA = "gh.c06b2c-isolated-e2e-report/1"
+REPORT_SCHEMA = "gh.c06b2c-isolated-e2e-report/2"
 REQUIRED_FILES = (
     "execution.json",
     "images.json",
@@ -15,6 +15,7 @@ REQUIRED_FILES = (
     "observer-ready.json",
     "mqtt-capture.json",
     "initial.json",
+    "monotonic-attempt.json",
     "monotonic.json",
     "restart.json",
     "cleanup.json",
@@ -58,6 +59,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     observer = documents["observer-ready.json"]
     capture = documents["mqtt-capture.json"]
     initial = documents["initial.json"]
+    monotonic_attempt = documents["monotonic-attempt.json"]
     monotonic = documents["monotonic.json"]
     restart = documents["restart.json"]
     cleanup = documents["cleanup.json"]
@@ -65,6 +67,11 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
 
     request = capture.get("request") if isinstance(capture.get("request"), dict) else {}
     result = capture.get("result") if isinstance(capture.get("result"), dict) else {}
+    attempts = (
+        monotonic_attempt.get("attempts")
+        if isinstance(monotonic_attempt.get("attempts"), dict)
+        else {}
+    )
 
     checks = {
         "execution_passed": (
@@ -106,6 +113,12 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         "manager_job_completed": initial.get("manager_job_state") == "completed",
         "target_ledger_verified": initial.get("target_ledger_state") == "verified",
         "recorder_readback_exact": initial.get("recorder_readback_exact") is True,
+        "monotonic_attempt_evidence_complete": set(attempts) == {
+            "idempotent",
+            "higher_revision",
+            "lower_revision",
+            "same_revision_conflict",
+        },
         "idempotent_same_revision_verified": (
             monotonic.get("idempotent_status") == "verified"
         ),
@@ -176,6 +189,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         },
         "missing_evidence_files": missing,
         "checks": checks,
+        "monotonic_attempts": attempts,
         "images": images,
         "evidence_file_sha256": evidence_files,
         "runtime_defaults_changed": False,
