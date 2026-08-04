@@ -1,7 +1,7 @@
 # ADR-0006：C06-B2 真实 Home Assistant 历史投影适配器
 
-- 状态：已接受（C06-B2A/C06-B2B）；C06-B2C 真实隔离验收修复中
-- 阶段：C06-B2B 阻塞修复 / C06-B2C 重新验收
+- 状态：已接受（C06-B2A/C06-B2B）；C06-B2C 真实隔离验收后继修复中
+- 阶段：C06-B2B UTC 时间点读回修复 / C06-B2C 重新验收
 - C06-B2A 初始决策门：`D1-C06B2A-MQTT-RPC-PROTOCOL-HA-TARGET-LEDGER-AND-CUSTOM-INTEGRATION-STACKED-DRAFT-CREATION-20260803-01`
 - C06-B2A 修复决策门：`D1-C06B2A-PR263-BLOCKER-REMEDIATION-EXACT-GITHUB-WRITE-CLOSURE-20260804-01`
 - C06-B2B 实施决策门：`D1-C06B2B-REAL-MQTT-RPC-RECORDER-API-RUNTIME-WIRING-HOST-ONLY-STACKED-DRAFT-IMPLEMENTATION-20260804-01`
@@ -11,16 +11,23 @@
 - C06-B2C 初始精确堆叠基线：PR #264 HEAD `a55b59027cb58f471353983f092fede00ae85cd4`
 - C06-B2B Recorder 屏障修复决策门：`D1-C06B2B-PR265-RECORDER-IMPORT-QUEUE-COMMIT-BARRIER-REAL-E2E-BLOCKER-SUCCESSOR-REPAIR-STACKED-DRAFT-IMPLEMENTATION-20260804-01`
 - Recorder 屏障修复精确堆叠基线：PR #265 HEAD `8f7c8603c92eba4246cb3b0f7b15c914b19b0ff3`
+- C06-B2B UTC 时间点读回修复决策门：`D1-C06B2B-PR266-RECORDER-READBACK-UTC-INSTANT-CANONICALIZATION-AND-FALSE-COMMIT-BARRIER-REMOVAL-REAL-E2E-SUCCESSOR-REPAIR-STACKED-DRAFT-IMPLEMENTATION-20260804-01`
+- UTC 时间点读回修复精确堆叠基线：PR #266 HEAD `21f288c1c47f7801e21e77ada460c6353e371e14`
 
 ## 背景
 
-C06-B1 已冻结 Manager 侧小时统计投影合同、稳定 `idempotency_key`、单调 `revision` 和投影哈希。C06-B2A 建立了 Home Assistant 目标侧协议、单调账本、实体解析和 Recorder 抽象；C06-B2B 在默认关闭的前提下完成真实 MQTT RPC、Recorder 支持 API 和两端启动入口接线。
+C06-B1 已冻结 Manager 侧小时统计投影合同、稳定 `idempotency_key`、单调 `revision` 和投影哈希。C06-B2A 建立 Home Assistant 目标侧协议、单调账本、实体解析和 Recorder 抽象；C06-B2B 在默认关闭的前提下完成真实 MQTT RPC、Recorder 支持 API 和两端启动入口接线。
 
-C06-B2C 只验证上述已接受代码在 GitHub Runner 的一次性隔离环境中能否形成真实闭环，不访问 T1，不修改生产 Broker、Home Assistant、Recorder 或 Manager 数据库，也不改变任何运行默认值。
+C06-B2C 仅验证上述代码能否在 GitHub Runner 的一次性隔离环境中形成真实闭环，不访问 T1，不修改生产 Broker、Home Assistant、Recorder 或 Manager 数据库，也不改变任何运行默认值。
 
-PR #265 的真实隔离运行证明 Broker、完整 Home Assistant、临时 Recorder、正式 Manager 入口、MQTT Discovery、QoS 1 非保留请求和结果绑定均已实际工作，但 Recorder 导入后的首次读回返回 `retry/target_readback_incomplete`。失败运行 `30913737925` 的 Artifact `8894210396` 绑定 PR #265 精确 HEAD，ZIP SHA-256 为 `225a3c657078cc1df6e44692bd9edad72f981efb3dc6d7e10a5760a010d9f464`，且隔离容器、卷、网络和宿主端口清理均为零。
+PR #265 的真实隔离运行证明 Broker、完整 Home Assistant、临时 Recorder、正式 Manager 入口、MQTT Discovery、QoS 1 非保留请求和结果绑定均已实际工作，但 Recorder 导入后的读回返回 `retry/target_readback_incomplete`。该失败证据绑定运行 `30913737925`、Artifact `8894210396` 和 PR #265 精确 HEAD。
 
-只读核对 Home Assistant 2026.7.1 Recorder 实现后确认：`async_import_statistics` 将导入任务放入 Recorder 队列；支持的统计查询 API 不自动等待该任务提交。原适配器在导入后立即轮询读回，缺少写入和查询之间的 Recorder 提交屏障。该缺陷只能通过 C06-B2B 运行代码后继修复解决，原 C06-B2C 实施授权已经失败终止。
+PR #266 按独立授权加入 `async_block_till_done()` 后，Host-Only 测试通过，但真实隔离运行 `30916480533` 仍返回相同 `retry/target_readback_incomplete`。失败 Artifact `8895322947` 绑定 PR #266 精确 HEAD `21f288c1c47f7801e21e77ada460c6353e371e14`，摘要为 `sha256:20aa46e06e5c16151a57b96fccf16c639a0cd530dbb3b34c4cd93ba8ba92ece7`；隔离容器、卷、网络和宿主端口仍完全清理。
+
+进一步只读核验得到两个结论：
+
+1. 请求 `sample_hour` 可使用 `2026-08-03T04:00:00.000Z`，而 Recorder 返回时间被旧适配器格式化为 `2026-08-03T04:00:00Z`。旧代码直接比较字符串，导致同一 UTC 时间点因小数秒表示不同而被错误过滤。
+2. Home Assistant 2026.7.1 的 `async_block_till_done()` 在 Recorder 队列为空且事件 session 无待提交写入时可以立即返回；这不能对已被 Recorder 线程取走、由独立 session 处理的导入任务提供严格提交证明。因此不得继续把该调用描述为持久化提交屏障。
 
 ## 决策
 
@@ -33,10 +40,13 @@ PR #265 的真实隔离运行证明 Broker、完整 Home Assistant、临时 Reco
 7. 禁止 Manager 直接读写 Home Assistant 数据库。
 8. Manager 和 Home Assistant 的 C06-B2 运行能力保持显式 opt-in，默认关闭。
 9. C06-B2C 必须通过正式 Manager 程序入口、真实 Mosquitto、完整 Home Assistant Core、真实 MQTT Discovery 实体和临时 Recorder 验证闭环，不允许直接实例化两端 Adapter 冒充运行链。
-10. C06-B2C 测试发现运行代码缺陷时，以失败证据终止；不得在同一实施授权中修改 C06-B2B 运行代码。
-11. PR #265 失败后，仅在独立后继修复授权下允许修改 Recorder 适配器：全部 `async_import_statistics` 调用入队后，必须通过 Recorder 实例的 `async_block_till_done()` 等待有限提交屏障；屏障成功后才允许调用支持的统计查询 API。
-12. Recorder 提交屏障默认超时 5 秒。超时返回 `retry/recorder_commit_barrier_timeout`，其他屏障异常返回 `retry/recorder_commit_barrier_failed`；不得把屏障故障误报为读回键不完整。
-13. 保持统计 ID、`source="recorder"`、现有实体目标和支持的读回接口不变；不得改用 external statistics，也不得直接访问 Home Assistant 数据库。
+10. C06-B2C 测试发现运行代码缺陷时，以失败证据终止；不得在同一实施授权中继续修改 C06-B2B 运行代码。
+11. 移除 PR #266 引入的 `async_block_till_done()` 调用及其超时、异常分类，不再将其声明为 Recorder 导入提交屏障。
+12. 请求时间和 Recorder 返回时间必须分别解析成时区明确的 UTC `datetime`，随后按同一时间点比较；不得比较 RFC 3339 文本形式。
+13. `Z`、`.000Z` 和 `+00:00` 等表示同一 UTC 时间点的合法形式必须匹配；相邻小时必须严格拒绝。
+14. `StatisticReadback.start` 继续保留请求合同中的原始字符串，避免改变 MQTT RPC 和账本键合同；时间点判定只在适配器内部使用规范化 `datetime`。
+15. 导入后的持久化确认以现有有限支持 API 读回轮询为准：只有目标 statistic ID、UTC 小时和 `mean/min/max` 全部精确读回，才允许目标账本转为 `verified`。
+16. 保持统计 ID、`source="recorder"`、现有实体目标和支持的读回接口不变；不得改用 external statistics，也不得直接访问 Home Assistant 数据库。
 
 ## 只读复核后的强化约束
 
@@ -49,7 +59,7 @@ PR #265 的真实隔离运行证明 Broker、完整 Home Assistant、临时 Reco
 
 ## 目标账本单调规则
 
-- 目标不存在：接受并原子保存 `pending`，完成写后读回后转为 `verified`。
+- 目标不存在：接受并原子保存 `pending`，完成写后精确读回后转为 `verified`。
 - 同 revision、同 hash：若已 verified 则幂等成功；若 pending 则继续 reconciliation。
 - 同 revision、不同 hash：`blocked/target_same_revision_hash_conflict`。
 - 请求 revision 低于目标：`blocked/target_newer_revision`。
@@ -65,9 +75,9 @@ PR #265 的真实隔离运行证明 Broker、完整 Home Assistant、临时 Reco
 5. Artifact 不得包含 Broker 密码、`.storage` 原文件、Recorder 数据库、Manager 数据库、完整目标账本、容器环境变量或生产配置。
 6. 修复后重新运行同一真实隔离生命周期；只有首次写入、精确读回、幂等、升版、降版拒绝、同版冲突、HA 重启持久性和彻底清理全部通过，才能提出新的 C06-B2C 验收门。
 
-## Recorder 屏障后继修复边界
+## UTC 时间点读回后继修复边界
 
-后继 Draft 必须精确堆叠于 PR #265 HEAD，并且相对该基线只允许修改：
+后继 Draft 必须精确堆叠于 PR #266 HEAD `21f288c1c47f7801e21e77ada460c6353e371e14`，并且相对该基线只允许修改：
 
 - `host/homeassistant/custom_components/greenhouse_history/recorder_adapter.py`
 - `host/greenhouse-manager/tests/runtime/test_c06b2b_runtime_wiring.py`
@@ -76,11 +86,18 @@ PR #265 的真实隔离运行证明 Broker、完整 Home Assistant、临时 Reco
 - `tools/c06b2b_runtime_wiring_host_only_harness.py`
 - `docs/adr/ADR-0006-c06b2-real-home-assistant-history-projection-adapter.md`
 
-Host-Only 测试必须验证 `import → commit barrier → readback` 的严格调用顺序，并覆盖屏障超时和异常分类。C06-B2C 必须重新执行真实 Mosquitto、完整 Home Assistant、临时 Recorder 和正式 Manager 入口闭环。
+Host-Only 测试必须验证：
+
+- 导入后不再调用虚假提交屏障；
+- `2026-08-03T12:00:00Z`、`2026-08-03T12:00:00.000Z` 和 `2026-08-03T12:00:00+00:00` 与同一 Recorder UTC 时间点匹配；
+- 相邻小时不匹配；
+- 有限读回轮询仍为最终持久化确认路径。
+
+C06-B2C 必须重新执行真实 Mosquitto、完整 Home Assistant、临时 Recorder 和正式 Manager 入口闭环。
 
 ## 本阶段明确排除
 
-- 不修改 PR #260、PR #261、PR #262、PR #263、PR #264 或 PR #265；失败证据保持不可改写。
+- 不修改 PR #260 至 PR #266；既有失败证据保持不可改写。
 - 除上述六文件后继修复边界外，不修改 Manager 或 Home Assistant 运行代码。
 - 不访问或修改 T1、生产 Broker、生产 Home Assistant、生产 Recorder、生产 Manager 数据库、凭据、匿名模式、挂载或容器。
 - 不创建部署包、生产授权包、生产执行包或物理执行链。
@@ -88,4 +105,4 @@ Host-Only 测试必须验证 `import → commit barrier → readback` 的严格�
 
 ## 后续阶段
 
-Recorder 屏障修复和 C06-B2C 重新验收通过后，仍需另行决策是否进入故障矩阵、候选集成验收或堆叠 PR 的合并规划；本修复授权本身不授予其中任何权限。
+UTC 时间点读回修复和 C06-B2C 重新验收通过后，仍需另行决策是否进入故障矩阵、候选集成验收或堆叠 PR 的合并规划；本修复授权本身不授予其中任何权限。
