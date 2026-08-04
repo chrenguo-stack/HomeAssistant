@@ -135,7 +135,7 @@ class MqttProjectionBridge:
                     self.health.published += 1
             except asyncio.CancelledError:
                 raise
-            except Exception:  # noqa: BLE001 - keep the single worker alive
+            except Exception:
                 self.health.processing_failures += 1
                 _LOGGER.exception("C06-B2 Home Assistant projection worker failed")
             finally:
