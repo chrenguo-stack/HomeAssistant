@@ -44,7 +44,7 @@ class RecorderAdapter(Protocol):
         self,
         statistics: tuple[StatisticWrite, ...],
     ) -> None:
-        """Queue statistics through the supported Home Assistant Recorder API."""
+        """Queue statistics and wait until Recorder commits the import."""
 
     async def async_read_statistics(
         self,
@@ -101,14 +101,43 @@ class HomeAssistantRecorderAdapter:
         self,
         hass: Any,
         *,
+        commit_barrier_timeout_seconds: float = 5.0,
         readback_timeout_seconds: float = 10.0,
         readback_poll_seconds: float = 0.25,
     ) -> None:
-        if readback_timeout_seconds <= 0 or readback_poll_seconds <= 0:
-            raise ValueError("Recorder readback timing must be positive")
+        if (
+            commit_barrier_timeout_seconds <= 0
+            or readback_timeout_seconds <= 0
+            or readback_poll_seconds <= 0
+        ):
+            raise ValueError("Recorder barrier and readback timing must be positive")
         self.hass = hass
+        self.commit_barrier_timeout_seconds = commit_barrier_timeout_seconds
         self.readback_timeout_seconds = readback_timeout_seconds
         self.readback_poll_seconds = readback_poll_seconds
+
+    async def _async_wait_for_commit_barrier(self) -> None:
+        try:
+            from homeassistant.components.recorder.util import get_instance
+        except ImportError as exc:
+            raise RecorderAdapterError(
+                "recorder_api_unavailable",
+                "Home Assistant Recorder API is unavailable",
+            ) from exc
+
+        try:
+            async with asyncio.timeout(self.commit_barrier_timeout_seconds):
+                await get_instance(self.hass).async_block_till_done()
+        except TimeoutError as exc:
+            raise RecorderAdapterError(
+                "recorder_commit_barrier_timeout",
+                "Recorder import commit barrier timed out",
+            ) from exc
+        except Exception as exc:
+            raise RecorderAdapterError(
+                "recorder_commit_barrier_failed",
+                f"Recorder import commit barrier failed: {type(exc).__name__}",
+            ) from exc
 
     async def async_import_statistics(
         self,
@@ -164,6 +193,8 @@ class HomeAssistantRecorderAdapter:
                         f"{type(exc).__name__}"
                     ),
                 ) from exc
+
+        await self._async_wait_for_commit_barrier()
 
     async def _async_query_statistics(
         self,
