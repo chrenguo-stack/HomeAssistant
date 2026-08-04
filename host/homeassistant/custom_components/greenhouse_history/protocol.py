@@ -41,7 +41,7 @@ def _load_projection_schema() -> dict[str, Any]:
     except (OSError, json.JSONDecodeError) as exc:
         raise RuntimeError("unable to load the frozen hourly projection schema") from exc
     if not isinstance(document, dict):
-        raise RuntimeError("hourly projection schema root must be an object")
+        raise TypeError("hourly projection schema root must be an object")
     Draft202012Validator.check_schema(document)
     return document
 

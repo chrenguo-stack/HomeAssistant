@@ -22,6 +22,7 @@ from custom_components.greenhouse_history.recorder_adapter import (
     projection_writes,
     verify_readback,
 )
+
 from greenhouse_manager.runtime.c06b2_ha_projection_protocol import (
     ProjectionProtocolError,
     build_projection_request,
