@@ -77,6 +77,13 @@ jobs:
       - name: Install lint dependencies
         run: python -m pip install -e 'host/greenhouse-manager[dev]'
 
+      - name: Initialize failure-safe evidence directory
+        run: |
+          mkdir -p artifacts/c06b2c
+          printf '%s\n' \
+            '{"schema":"gh.c06b2c.workflow-placeholder/1","status":"pending","secret_values_included":false}' \
+            > artifacts/c06b2c/workflow-placeholder.json
+
       - name: Validate isolated E2E sources
         run: |
           python -m json.tool \
