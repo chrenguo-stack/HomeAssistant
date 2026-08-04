@@ -12,7 +12,9 @@ async def async_setup_entry(hass: Any, entry: Any) -> bool:
     from .storage import HomeAssistantLedgerStore
 
     system_id = validate_system_id(str(entry.data["system_id"]))
-    ledger = TargetLedger(HomeAssistantLedgerStore(hass))
+    ledger = TargetLedger(
+        HomeAssistantLedgerStore(hass), configured_system_id=system_id
+    )
     await ledger.async_load()
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
         "system_id": system_id,

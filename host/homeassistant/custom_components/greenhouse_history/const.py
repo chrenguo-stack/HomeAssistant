@@ -5,10 +5,13 @@ import re
 DOMAIN = "greenhouse_history"
 INTEGRATION_VERSION = "0.1.0"
 STORAGE_KEY = "greenhouse_history.target_ledger"
-STORAGE_VERSION = 1
+STORAGE_VERSION = 2
 REQUEST_SCHEMA = "gh.c06b2-ha-projection-request/1"
 RESULT_SCHEMA = "gh.c06b2-ha-projection-result/1"
 PROJECTION_SCHEMA = "gh.c06-hourly-projection/1"
+VERIFIED_RETENTION_DAYS = 14
+MAX_LEDGER_ENTRIES = 20_000
+MAX_LEDGER_BYTES = 134_217_728
 
 _ID_RE = re.compile(r"^[A-Za-z0-9_-]{3,64}$")
 

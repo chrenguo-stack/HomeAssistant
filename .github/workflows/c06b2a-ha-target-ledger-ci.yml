@@ -6,6 +6,7 @@ on:
       - "docs/adr/ADR-0006-c06b2-real-home-assistant-history-projection-adapter.md"
       - "host/greenhouse-manager/src/greenhouse_manager/runtime/c06b2_ha_projection_protocol.py"
       - "host/greenhouse-manager/src/greenhouse_manager/schemas/gh.c06b2-ha-projection-*.schema.json"
+      - "host/greenhouse-manager/src/greenhouse_manager/schemas/gh.c06-hourly-projection-1.schema.json"
       - "host/greenhouse-manager/tests/runtime/test_c06b2_ha_target_core.py"
       - "host/homeassistant/custom_components/greenhouse_history/**"
       - "tools/c06b2a_ha_target_ledger_host_only_harness.py"
@@ -17,6 +18,7 @@ on:
       - "docs/adr/ADR-0006-c06b2-real-home-assistant-history-projection-adapter.md"
       - "host/greenhouse-manager/src/greenhouse_manager/runtime/c06b2_ha_projection_protocol.py"
       - "host/greenhouse-manager/src/greenhouse_manager/schemas/gh.c06b2-ha-projection-*.schema.json"
+      - "host/greenhouse-manager/src/greenhouse_manager/schemas/gh.c06-hourly-projection-1.schema.json"
       - "host/greenhouse-manager/tests/runtime/test_c06b2_ha_target_core.py"
       - "host/homeassistant/custom_components/greenhouse_history/**"
       - "tools/c06b2a_ha_target_ledger_host_only_harness.py"
@@ -59,22 +61,30 @@ jobs:
       - name: Install host-only dependencies
         run: python -m pip install -e 'host/greenhouse-manager[dev]'
 
-      - name: Validate C06-B2A JSON Schemas
+      - name: Validate schemas and exact Manager-HA projection parity
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
           from jsonschema import Draft202012Validator
 
-          root = Path("host/greenhouse-manager/src/greenhouse_manager/schemas")
-          names = (
-              "gh.c06b2-ha-projection-request-1.schema.json",
-              "gh.c06b2-ha-projection-result-1.schema.json",
+          manager_root = Path("host/greenhouse-manager/src/greenhouse_manager/schemas")
+          ha_root = Path("host/homeassistant/custom_components/greenhouse_history")
+          paths = (
+              manager_root / "gh.c06b2-ha-projection-request-1.schema.json",
+              manager_root / "gh.c06b2-ha-projection-result-1.schema.json",
+              manager_root / "gh.c06-hourly-projection-1.schema.json",
+              ha_root / "gh.c06-hourly-projection-1.schema.json",
           )
-          for name in names:
-              document = json.loads((root / name).read_text(encoding="utf-8"))
+          for path in paths:
+              document = json.loads(path.read_text(encoding="utf-8"))
               Draft202012Validator.check_schema(document)
-              print(f"SCHEMA_VALID={name}")
+              print(f"SCHEMA_VALID={path}")
+          manager = paths[2].read_bytes()
+          home_assistant = paths[3].read_bytes()
+          if manager != home_assistant:
+              raise SystemExit("Manager and Home Assistant projection schemas differ")
+          print("MANAGER_HA_PROJECTION_SCHEMA_BYTE_PARITY=true")
           PY
 
       - name: Compile inactive custom integration
@@ -100,7 +110,7 @@ jobs:
 
       - name: Generate secret-free host-only evidence
         env:
-          AUTHORIZATION: D1-C06B2A-MQTT-RPC-PROTOCOL-HA-TARGET-LEDGER-AND-CUSTOM-INTEGRATION-STACKED-DRAFT-CREATION-20260803-01
+          AUTHORIZATION: D1-C06B2A-PR263-IMMUTABLE-LOCAL-MANIFEST-PER-BLOB-READBACK-AND-ATOMIC-TREE-SUCCESSOR-WRITE-CLOSURE-20260804-01
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           BASE_REF: ${{ github.base_ref || github.ref_name }}
           SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -126,6 +136,10 @@ jobs:
             evidence/c06b2a-ha-target-ledger/
           cp host/greenhouse-manager/src/greenhouse_manager/schemas/gh.c06b2-ha-projection-result-1.schema.json \
             evidence/c06b2a-ha-target-ledger/
+          cp host/greenhouse-manager/src/greenhouse_manager/schemas/gh.c06-hourly-projection-1.schema.json \
+            evidence/c06b2a-ha-target-ledger/manager-gh.c06-hourly-projection-1.schema.json
+          cp host/homeassistant/custom_components/greenhouse_history/gh.c06-hourly-projection-1.schema.json \
+            evidence/c06b2a-ha-target-ledger/ha-gh.c06-hourly-projection-1.schema.json
           cp docs/adr/ADR-0006-c06b2-real-home-assistant-history-projection-adapter.md \
             evidence/c06b2a-ha-target-ledger/
           (
@@ -134,6 +148,8 @@ jobs:
               report.json \
               gh.c06b2-ha-projection-request-1.schema.json \
               gh.c06b2-ha-projection-result-1.schema.json \
+              manager-gh.c06-hourly-projection-1.schema.json \
+              ha-gh.c06-hourly-projection-1.schema.json \
               ADR-0006-c06b2-real-home-assistant-history-projection-adapter.md \
               > SHA256SUMS
             sha256sum -c SHA256SUMS

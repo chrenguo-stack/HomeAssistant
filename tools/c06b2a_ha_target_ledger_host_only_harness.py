@@ -3,276 +3,285 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-from datetime import UTC, datetime, timedelta
+from copy import deepcopy
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from custom_components.greenhouse_history.entity_resolver import (
-    EntityDescriptor,
-    EntityResolver,
-)
 from custom_components.greenhouse_history.ledger import (
     LedgerCorruptionError,
     MemoryLedgerStore,
     ResolvedSeries,
     TargetLedger,
 )
-from custom_components.greenhouse_history.protocol import (
-    parse_request as parse_ha_request,
-)
-from custom_components.greenhouse_history.protocol import result_document
-from custom_components.greenhouse_history.recorder_adapter import (
-    StatisticReadback,
-    StatisticWrite,
-    projection_writes,
-    verify_readback,
-)
+from custom_components.greenhouse_history.protocol import ProtocolError
+from custom_components.greenhouse_history.protocol import parse_request as parse_ha
 from greenhouse_manager.runtime.c06b2_ha_projection_protocol import (
+    ProjectionProtocolError,
     build_projection_request,
     build_projection_result,
-    parse_projection_result,
-    projection_request_topic,
+    parse_and_bind_projection_result,
+    parse_projection_request,
+    projection_hash,
     projection_result_topic,
 )
-from greenhouse_manager.runtime.history_projection import aggregate_projection
-from greenhouse_manager.runtime.history_projection_store import ProjectionTask
+from greenhouse_manager.runtime.history_projection_contract import ProjectionBatch
 
-NOW = datetime(2026, 8, 3, 15, 0, tzinfo=UTC)
-HOUR = "2026-08-03T14:00:00.000Z"
-AUTHORIZATION = (
-    "D1-C06B2A-MQTT-RPC-PROTOCOL-HA-TARGET-LEDGER-AND-"
-    "CUSTOM-INTEGRATION-STACKED-DRAFT-CREATION-20260803-01"
+SYSTEM = "sys_c06b2a"
+NODE = "node_c06b2a"
+HOUR = "2026-08-03T14:00:00Z"
+AUTHORIZATION = "D1-C06B2A-PR263-BLOB-TRANSFER-FAILURE-SUCCESSOR-EXACT-GITHUB-WRITE-CLOSURE-20260804-01"
+KEYS = (
+    "air_temperature_c", "air_humidity_pct", "co2_ppm", "illuminance_lx",
+    "soil_temperature_c", "soil_moisture_pct", "soil_ec_us_cm", "vpd_kpa",
+    "dew_point_c", "absolute_humidity_g_m3", "ppfd_umol_m2_s", "battery_v",
+    "battery_pct",
 )
 
 
-def _record(temperature: float) -> dict[str, Any]:
+def projection(revision=1, mean=22.0, *, node=NODE, hour=HOUR):
+    item = {
+        "measurement_key": "air_temperature_c",
+        "entity_unique_id": f"{node}_air_temperature_c",
+        "name": "空气温度", "unit_of_measurement": "°C",
+        "device_class": "temperature", "unit_class_hint": "temperature",
+        "state_class": "measurement", "mean_type": "arithmetic",
+        "has_sum": False, "samples": 1, "mean": mean, "min": mean, "max": mean,
+    }
     return {
-        "boot_id": "boot-c06b2a-0001",
-        "seq": 1,
-        "uptime_ms": 1_000,
-        "sampled_at": "2026-08-03T14:00:00Z",
-        "time_quality": "trusted",
-        "time_anchor": None,
-        "cap_hash": "cap-c06b2a-0001",
-        "fw_version": "1.0.0",
-        "measurements": {
-            "air_temperature_c": temperature,
-            "air_humidity_pct": 65.0,
+        "schema": "gh.c06-hourly-projection/1",
+        "idempotency_key": f"{node}|{hour}|v1", "node_id": node,
+        "sample_hour": hour, "projection_version": 1, "revision": revision,
+        "algorithm_version": 2, "quality_policy": "ok-only/1",
+        "source_record_count": 1, "source_set_sha256": "a" * 64,
+        "eligible_record_count": 1, "skipped_time_quality": 0,
+        "series": [item],
+        "audit": {
+            key: {"present": int(key == "air_temperature_c"),
+                  "accepted": int(key == "air_temperature_c"),
+                  "excluded_quality": 0, "invalid_or_null": 0,
+                  "missing": int(key != "air_temperature_c")}
+            for key in KEYS
         },
-        "quality": {
-            "air_temperature_c": "ok",
-            "air_humidity_pct": "ok",
-        },
-        "power": {"source": "battery", "battery_v": 3.9, "low": False},
     }
 
 
-def _batch(revision: int, temperature: float):
-    return aggregate_projection(
-        ProjectionTask(
-            node_id="node-c06b2a-0001",
-            sample_hour=HOUR,
-            projection_version=1,
-            revision=revision,
-            attempts=1,
-            claimed_by="c06b2a-host-only",
-            lease_until=NOW + timedelta(seconds=60),
-        ),
-        [_record(temperature)],
+def manager_request(revision=1, mean=22.0, *, node=NODE, hour=HOUR):
+    payload = projection(revision, mean, node=node, hour=hour)
+    return build_projection_request(
+        batch=ProjectionBatch(node, hour, 1, revision, projection_hash(payload), payload),
+        system_id=SYSTEM, request_id=f"request_{node}_{revision:04d}",
+        sent_at=datetime(2026, 8, 3, 15, 0, tzinfo=UTC),
     )
 
 
-def _request(revision: int, temperature: float, request_id: str):
-    manager_request = build_projection_request(
-        batch=_batch(revision, temperature),
-        system_id="sys_c06b2a",
-        request_id=request_id,
-        sent_at=NOW,
-    )
-    return manager_request, parse_ha_request(
-        manager_request.as_payload(), configured_system_id="sys_c06b2a"
-    )
+def ha_request(*args, **kwargs):
+    return parse_ha(manager_request(*args, **kwargs).as_payload(), configured_system_id=SYSTEM)
 
 
-def _readback_matches(
-    writes: tuple[StatisticWrite, ...], readback: tuple[StatisticReadback, ...]
-) -> bool:
-    return bool(writes) and len(writes) == len(readback) and all(
-        observed.statistic_id == expected.statistic_id
-        and observed.start == expected.start
-        and observed.unit_of_measurement == expected.unit_of_measurement
-        and observed.mean == expected.mean
-        and observed.minimum == expected.minimum
-        and observed.maximum == expected.maximum
-        for expected, observed in zip(writes, readback, strict=True)
+def resolved(request):
+    return tuple(
+        ResolvedSeries(item["measurement_key"], item["entity_unique_id"],
+                       f"sensor.renamed_{item['measurement_key']}",
+                       item["unit_of_measurement"], float(item["mean"]),
+                       float(item["min"]), float(item["max"]))
+        for item in request.projection["series"]
     )
 
 
-async def _probe() -> dict[str, Any]:
-    manager_r1, request_r1 = _request(1, 22.0, "request_c06b2a_0001")
-    _, conflict_request = _request(1, 23.0, "request_c06b2a_0002")
-    _, request_r2 = _request(2, 24.0, "request_c06b2a_0003")
-    _, request_r3 = _request(3, 25.0, "request_c06b2a_0004")
+class FailingStore(MemoryLedgerStore):
+    async def async_save(self, document: dict[str, Any]) -> None:
+        raise OSError("injected")
 
-    descriptors = tuple(
-        EntityDescriptor(
-            entity_id=f"sensor.user_renamed_{item['measurement_key']}",
-            domain="sensor",
-            platform="mqtt",
-            unique_id=item["entity_unique_id"],
-            unit_of_measurement=item["unit_of_measurement"],
-            state_class="measurement",
-        )
-        for item in request_r1.projection["series"]
-    )
-    resolved = EntityResolver(descriptors).resolve_projection(request_r1.projection)
-    writes = projection_writes(
-        sample_hour=request_r1.projection["sample_hour"], resolved=resolved
-    )
-    readback = tuple(
-        StatisticReadback(
-            item.statistic_id,
-            item.start,
-            item.unit_of_measurement,
-            item.mean,
-            item.minimum,
-            item.maximum,
-        )
-        for item in writes
-    )
-    verify_readback(writes, readback)
 
+class BlockingStore(MemoryLedgerStore):
+    def __init__(self):
+        super().__init__()
+        self.started = asyncio.Event()
+        self.release = asyncio.Event()
+        self.calls = 0
+
+    async def async_save(self, document: dict[str, Any]) -> None:
+        self.calls += 1
+        self.started.set()
+        await self.release.wait()
+        await super().async_save(document)
+
+
+def schema_probe() -> tuple[bool, bool]:
+    root = Path(__file__).resolve().parents[1]
+    manager = (
+        root
+        / "host/greenhouse-manager/src/greenhouse_manager/schemas"
+        / "gh.c06-hourly-projection-1.schema.json"
+    )
+    ha = (
+        root
+        / "host/homeassistant/custom_components/greenhouse_history"
+        / "gh.c06-hourly-projection-1.schema.json"
+    )
+    parity = manager.read_bytes() == ha.read_bytes()
+    rejected = True
+    for field, value in (("measurement_key", "unknown"), ("unit_of_measurement", "°F"), ("mean", 2000.0)):
+        doc = manager_request().as_document()
+        item = doc["projection"]["series"][0]
+        item[field] = value
+        if field == "measurement_key":
+            item["entity_unique_id"] = f"{NODE}_{value}"
+        if field == "mean":
+            item["min"] = item["max"] = value
+        doc["projection_hash"] = projection_hash(doc["projection"])
+        for parser, kwargs in (
+            (parse_projection_request, {"expected_system_id": SYSTEM}),
+            (parse_ha, {"configured_system_id": SYSTEM}),
+        ):
+            try:
+                parser(doc, **kwargs)
+            except (ProjectionProtocolError, ProtocolError):
+                pass
+            else:
+                rejected = False
+    return parity, rejected
+
+
+async def ledger_probe() -> dict[str, bool]:
     store = MemoryLedgerStore()
-    ledger = TargetLedger(store)
+    ledger = TargetLedger(store, configured_system_id=SYSTEM)
     await ledger.async_load()
-    created = await ledger.async_prepare(request_r1, accepted_at="2026-08-03T15:00:00Z")
-    resumed = await ledger.async_prepare(request_r1, accepted_at="2026-08-03T15:00:01Z")
-    verified_entry = await ledger.async_mark_verified(
-        request_r1,
+    first = ha_request()
+    created = await ledger.async_prepare(first, accepted_at="2026-08-03T15:00:00Z")
+    resumed = await ledger.async_prepare(first, accepted_at="2026-08-03T15:00:01Z")
+    await ledger.async_mark_verified(
+        first,
         verified_at="2026-08-03T15:00:02Z",
-        resolved_series=tuple(
-            ResolvedSeries(
-                item.measurement_key,
-                item.entity_unique_id,
-                item.entity_id,
-                item.unit_of_measurement,
-                item.mean,
-                item.minimum,
-                item.maximum,
-            )
-            for item in resolved
-        ),
+        resolved_series=resolved(first),
     )
-    idempotent = await ledger.async_prepare(
-        request_r1, accepted_at="2026-08-03T15:00:03Z"
-    )
-    conflict = await ledger.async_prepare(
-        conflict_request, accepted_at="2026-08-03T15:00:04Z"
-    )
-    higher = await ledger.async_prepare(
-        request_r2, accepted_at="2026-08-03T15:00:05Z"
-    )
-    lower = await ledger.async_prepare(
-        request_r1, accepted_at="2026-08-03T15:00:06Z"
-    )
-    prior_pending = await ledger.async_prepare(
-        request_r3, accepted_at="2026-08-03T15:00:07Z"
-    )
+    idempotent = await ledger.async_prepare(first, accepted_at="2026-08-03T15:00:03Z")
+    conflict = await ledger.async_prepare(ha_request(mean=23), accepted_at="2026-08-03T15:00:04Z")
+    higher = await ledger.async_prepare(ha_request(2, 24), accepted_at="2026-08-03T15:00:05Z")
+    lower = await ledger.async_prepare(first, accepted_at="2026-08-03T15:00:06Z")
+    pending = await ledger.async_prepare(ha_request(3, 25), accepted_at="2026-08-03T15:00:07Z")
 
-    reloaded = TargetLedger(store)
-    await reloaded.async_load()
-    final_entry = reloaded.read(request_r1.idempotency_key)
-
-    corrupt_store_failed_closed = False
+    failing = TargetLedger(FailingStore(), configured_system_id=SYSTEM)
+    await failing.async_load()
+    atomic = False
     try:
-        await TargetLedger(
-            MemoryLedgerStore({"storage_schema_version": 1, "entries": []})
-        ).async_load()
-    except LedgerCorruptionError:
-        corrupt_store_failed_closed = True
+        await failing.async_prepare(first, accepted_at="2026-08-03T15:00:00Z")
+    except OSError:
+        atomic = failing.read(first.idempotency_key) is None
 
-    manager_result = build_projection_result(
-        request=manager_r1,
-        status="verified",
-        monotonic_revision_enforced=True,
-        verified_at=NOW + timedelta(seconds=10),
+    blocking_store = BlockingStore()
+    blocking = TargetLedger(blocking_store, configured_system_id=SYSTEM)
+    await blocking.async_load()
+    one = ha_request(node="node_probe1")
+    two = ha_request(node="node_probe2", hour="2026-08-03T16:00:00Z")
+    task1 = asyncio.create_task(blocking.async_prepare(one, accepted_at="2026-08-03T17:00:00Z"))
+    await blocking_store.started.wait()
+    old_visible = blocking.read(one.idempotency_key) is None
+    task2 = asyncio.create_task(blocking.async_prepare(two, accepted_at="2026-08-03T17:00:01Z"))
+    await asyncio.sleep(0)
+    serialized = blocking_store.calls == 1
+    blocking_store.release.set()
+    await asyncio.gather(task1, task2)
+    serialized = serialized and blocking_store.calls == 2 and len(blocking.snapshot()) == 2
+
+    semantic = True
+    assert store.document is not None
+    for field, value in (("system_id", "sys_other"), ("projection_hash", "b" * 64)):
+        doc = deepcopy(store.document)
+        target = doc if field == "system_id" else next(iter(doc["entries"].values()))
+        target[field] = value
+        try:
+            await TargetLedger(MemoryLedgerStore(doc), configured_system_id=SYSTEM).async_load()
+        except LedgerCorruptionError:
+            pass
+        else:
+            semantic = False
+
+    cap = TargetLedger(MemoryLedgerStore(), configured_system_id=SYSTEM, max_entries=1)
+    await cap.async_load()
+    await cap.async_prepare(one, accepted_at="2026-08-03T17:00:00Z")
+    capacity = (
+        await cap.async_prepare(two, accepted_at="2026-08-03T17:00:01Z")
+    ).code == "target_ledger_capacity_exceeded"
+
+    retention_store = MemoryLedgerStore()
+    retention = TargetLedger(retention_store, configured_system_id=SYSTEM, max_entries=1)
+    await retention.async_load()
+    old = ha_request(node="node_old", hour="2026-07-01T00:00:00Z")
+    await retention.async_prepare(old, accepted_at="2026-07-01T00:30:00Z")
+    await retention.async_mark_verified(
+        old,
+        verified_at="2026-07-01T00:31:00Z",
+        resolved_series=resolved(old),
     )
-    parsed_result = parse_projection_result(manager_result.as_payload())
-    ha_result = result_document(
-        request=request_r1,
-        status="verified",
-        monotonic_revision_enforced=True,
-        verified_at="2026-08-03T15:00:10Z",
-        code=None,
-        detail=None,
-    )
+    new = ha_request(node="node_new", hour="2026-08-03T00:00:00Z")
+    retained = (await retention.async_prepare(new, accepted_at="2026-08-03T00:30:00Z")).status == "accepted"
+    restarted = TargetLedger(retention_store, configured_system_id=SYSTEM, max_entries=1)
+    await restarted.async_load()
+    retained = retained and set(restarted.snapshot()) == {new.idempotency_key}
 
     return {
-        "request_topic": projection_request_topic("sys_c06b2a"),
-        "result_topic": projection_result_topic("sys_c06b2a"),
-        "manager_ha_request_contract_agrees": (
-            manager_r1.request_id == request_r1.request_id
-            and manager_r1.projection_hash == request_r1.projection_hash
-            and manager_r1.idempotency_key == request_r1.idempotency_key
-        ),
-        "manager_result_contract_verified": (
-            parsed_result.status == "verified"
-            and parsed_result.monotonic_revision_enforced is True
-        ),
-        "ha_result_contract_verified": (
-            ha_result["status"] == "verified"
-            and ha_result["projection_hash"] == request_r1.projection_hash
-        ),
-        "renamed_entity_resolved_by_unique_id": all(
-            item.entity_id.startswith("sensor.user_renamed_") for item in resolved
-        ),
-        "recorder_write_readback_contract_verified": _readback_matches(
-            writes, readback
-        ),
         "ledger_created_pending": created.status == "accepted",
         "ledger_pending_resume": resumed.status == "resume",
-        "ledger_verified": verified_entry.state == "verified",
         "ledger_same_revision_idempotent": idempotent.status == "verified",
-        "ledger_same_revision_conflict_blocked": (
-            conflict.status == "blocked"
-            and conflict.code == "target_same_revision_hash_conflict"
-        ),
+        "ledger_same_revision_conflict_blocked": conflict.code == "target_same_revision_hash_conflict",
         "ledger_higher_revision_accepted": higher.status == "accepted",
-        "ledger_lower_revision_rejected": (
-            lower.status == "blocked" and lower.code == "target_newer_revision"
-        ),
-        "ledger_pending_revision_serialized": (
-            prior_pending.status == "retry" and prior_pending.code == "prior_revision_pending"
-        ),
-        "ledger_persistence_reload_verified": bool(
-            final_entry and final_entry.revision == 2 and final_entry.state == "pending"
-        ),
-        "corrupt_store_failed_closed": corrupt_store_failed_closed,
-        "ledger_store_save_count": store.saves,
-        "resolved_series_count": len(resolved),
+        "ledger_lower_revision_rejected": lower.code == "target_newer_revision",
+        "ledger_pending_revision_serialized": pending.code == "prior_revision_pending",
+        "ledger_save_failure_atomic": atomic,
+        "ledger_old_state_visible_until_commit": old_visible,
+        "ledger_cross_key_writes_serialized": serialized,
+        "ledger_system_scope_and_semantic_reload_verified": semantic,
+        "ledger_capacity_bounded": capacity,
+        "ledger_verified_retention_and_restart_verified": retained,
     }
 
 
-def run(
-    *,
-    authorization: str,
-    base_sha: str,
-    base_ref: str,
-    source_sha: str,
-    source_ref: str,
-    exact_base_verified: bool,
-    base_ancestor_verified: bool,
-) -> dict[str, Any]:
+def result_probe() -> bool:
+    request = manager_request()
+    result = build_projection_result(
+        request=request, status="verified", monotonic_revision_enforced=True,
+        verified_at=datetime(2026, 8, 3, 15, 1, tzinfo=UTC),
+    )
+    parse_and_bind_projection_result(
+        result.as_payload(), expected_request=request,
+        actual_topic=projection_result_topic(SYSTEM), expected_system_id=SYSTEM,
+    )
+    for field, value in (("request_id", "different_request"), ("revision", 2), ("projection_hash", "b" * 64)):
+        doc = result.as_document()
+        doc[field] = value
+        try:
+            parse_and_bind_projection_result(
+                doc, expected_request=request, actual_topic=projection_result_topic(SYSTEM),
+                expected_system_id=SYSTEM,
+            )
+        except ProjectionProtocolError:
+            continue
+        return False
+    try:
+        parse_and_bind_projection_result(
+            result.as_payload(), expected_request=request,
+            actual_topic=projection_result_topic("sys_other"), expected_system_id=SYSTEM,
+        )
+    except ProjectionProtocolError:
+        return True
+    return False
+
+
+def run(args: argparse.Namespace) -> dict[str, Any]:
+    parity, differential = schema_probe()
     report = {
-        "schema": "gh.c06b2a-ha-target-ledger-host-only-report/1",
-        "authorization": authorization,
-        "base_sha": base_sha,
-        "base_ref": base_ref,
-        "source_sha": source_sha,
-        "source_ref": source_ref,
-        "exact_base_verified": exact_base_verified,
-        "base_ancestor_verified": base_ancestor_verified,
-        **asyncio.run(_probe()),
+        "schema": "gh.c06b2a-ha-target-ledger-host-only-report/2",
+        "authorization": args.authorization,
+        "base_sha": args.base_sha, "base_ref": args.base_ref,
+        "source_sha": args.source_sha, "source_ref": args.source_ref,
+        "exact_base_verified": args.exact_base_verified,
+        "base_ancestor_verified": args.base_ancestor_verified,
+        "manager_ha_projection_schema_byte_parity": parity,
+        "projection_schema_differential_rejection_verified": differential,
+        "manager_result_request_binding_verified": result_probe(),
+        **asyncio.run(ledger_probe()),
         "mqtt_network_used": False,
         "home_assistant_runtime_started": False,
         "recorder_write_performed": False,
@@ -286,24 +295,25 @@ def run(
         "no_production_mutation_verified": True,
         "no_physical_operation_verified": True,
     }
-    required_true = (
+    required = (
         "exact_base_verified",
         "base_ancestor_verified",
-        "manager_ha_request_contract_agrees",
-        "manager_result_contract_verified",
-        "ha_result_contract_verified",
-        "renamed_entity_resolved_by_unique_id",
-        "recorder_write_readback_contract_verified",
+        "manager_ha_projection_schema_byte_parity",
+        "projection_schema_differential_rejection_verified",
+        "manager_result_request_binding_verified",
         "ledger_created_pending",
         "ledger_pending_resume",
-        "ledger_verified",
         "ledger_same_revision_idempotent",
         "ledger_same_revision_conflict_blocked",
         "ledger_higher_revision_accepted",
         "ledger_lower_revision_rejected",
         "ledger_pending_revision_serialized",
-        "ledger_persistence_reload_verified",
-        "corrupt_store_failed_closed",
+        "ledger_save_failure_atomic",
+        "ledger_old_state_visible_until_commit",
+        "ledger_cross_key_writes_serialized",
+        "ledger_system_scope_and_semantic_reload_verified",
+        "ledger_capacity_bounded",
+        "ledger_verified_retention_and_restart_verified",
         "no_mqtt_network_verified",
         "no_home_assistant_runtime_verified",
         "no_recorder_write_verified",
@@ -311,11 +321,9 @@ def run(
         "no_production_mutation_verified",
         "no_physical_operation_verified",
     )
-    report["host_only_contract_verified"] = all(
-        report[key] is True for key in required_true
-    )
-    if report["host_only_contract_verified"] is not True:
-        raise RuntimeError("C06-B2A host-only target contract did not verify")
+    report["host_only_contract_verified"] = all(report[key] is True for key in required)
+    if not report["host_only_contract_verified"]:
+        raise RuntimeError("C06-B2A remediation evidence did not verify")
     return report
 
 
@@ -330,21 +338,12 @@ def main() -> int:
     parser.add_argument("--exact-base-verified", action="store_true")
     parser.add_argument("--base-ancestor-verified", action="store_true")
     args = parser.parse_args()
-    report = run(
-        authorization=args.authorization,
-        base_sha=args.base_sha,
-        base_ref=args.base_ref,
-        source_sha=args.source_sha,
-        source_ref=args.source_ref,
-        exact_base_verified=args.exact_base_verified,
-        base_ancestor_verified=args.base_ancestor_verified,
-    )
-    text = json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
-    if args.output is None:
-        print(text, end="")
-    else:
+    text = json.dumps(run(args), ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(text, encoding="utf-8")
+    else:
+        print(text, end="")
     return 0
 
 

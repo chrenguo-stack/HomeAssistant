@@ -74,17 +74,22 @@ def _reject_constant(raw: str) -> None:
 
 
 def strict_json_document(payload: bytes | str | dict[str, Any]) -> dict[str, Any]:
-    if isinstance(payload, dict):
-        encoded = canonical_json(payload)
-    elif isinstance(payload, bytes):
-        try:
+    try:
+        if isinstance(payload, dict):
+            encoded = canonical_json(payload)
+        elif isinstance(payload, bytes):
             encoded = payload.decode("utf-8")
-        except UnicodeDecodeError as exc:
-            raise ProjectionProtocolError("payload must contain UTF-8 JSON") from exc
-    elif isinstance(payload, str):
-        encoded = payload
-    else:
-        raise ProjectionProtocolError("payload must be bytes, text, or an object")
+        elif isinstance(payload, str):
+            encoded = payload
+        else:
+            raise ProjectionProtocolError("payload must be bytes, text, or an object")
+    except UnicodeDecodeError as exc:
+        raise ProjectionProtocolError("payload must contain UTF-8 JSON") from exc
+    except (TypeError, ValueError) as exc:
+        if isinstance(exc, ProjectionProtocolError):
+            raise
+        raise ProjectionProtocolError(f"payload cannot be encoded as strict JSON: {exc}") from exc
+
     try:
         document = json.loads(
             encoded,
@@ -102,7 +107,9 @@ def strict_json_document(payload: bytes | str | dict[str, Any]) -> dict[str, Any
 
 
 def _validate(
-    validator: Draft202012Validator, document: dict[str, Any], label: str
+    validator: Draft202012Validator,
+    document: dict[str, Any],
+    label: str,
 ) -> None:
     try:
         validator.validate(document)
@@ -123,7 +130,9 @@ def _validate_utc_timestamp(value: str, field: str) -> None:
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError as exc:
-        raise ProjectionProtocolError(f"{field} must be an RFC 3339 timestamp") from exc
+        raise ProjectionProtocolError(
+            f"{field} must be an RFC 3339 timestamp"
+        ) from exc
     if parsed.tzinfo is None or parsed.utcoffset() != UTC.utcoffset(parsed):
         raise ProjectionProtocolError(f"{field} must use UTC")
 
@@ -153,6 +162,26 @@ def validate_projection_payload(payload: dict[str, Any]) -> None:
             "projection idempotency_key does not match its identity"
         )
     _validate_utc_timestamp(sample_hour, "projection.sample_hour")
+    parsed = datetime.fromisoformat(sample_hour.replace("Z", "+00:00"))
+    if parsed.minute or parsed.second or parsed.microsecond:
+        raise ProjectionProtocolError("projection.sample_hour must be UTC hour aligned")
+    seen: set[str] = set()
+    for index, item in enumerate(payload["series"]):
+        key = str(item["measurement_key"])
+        if key in seen:
+            raise ProjectionProtocolError(
+                f"projection.series[{index}].measurement_key is duplicated"
+            )
+        seen.add(key)
+        if item["entity_unique_id"] != f"{node_id}_{key}":
+            raise ProjectionProtocolError(
+                "series entity_unique_id does not match node and measurement"
+            )
+        minimum = float(item["min"])
+        mean = float(item["mean"])
+        maximum = float(item["max"])
+        if not minimum <= mean <= maximum:
+            raise ProjectionProtocolError("series min/mean/max ordering is invalid")
 
 
 @dataclass(frozen=True, slots=True)
@@ -237,7 +266,9 @@ def build_projection_request(
 
 
 def parse_projection_request(
-    payload: bytes | str | dict[str, Any], *, expected_system_id: str
+    payload: bytes | str | dict[str, Any],
+    *,
+    expected_system_id: str,
 ) -> HomeAssistantProjectionRequest:
     _validate_system_id(expected_system_id)
     document = strict_json_document(payload)
@@ -282,7 +313,8 @@ def build_projection_result(
         ):
             raise ProjectionProtocolError("verified_at must use UTC")
         verified_at_text = verified_at.isoformat(timespec="milliseconds").replace(
-            "+00:00", "Z"
+            "+00:00",
+            "Z",
         )
     result = HomeAssistantProjectionResult(
         request_id=request.request_id,
@@ -317,3 +349,41 @@ def parse_projection_result(
         code=document.get("code"),
         detail=document.get("detail"),
     )
+
+
+def parse_and_bind_projection_result(
+    payload: bytes | str | dict[str, Any],
+    *,
+    expected_request: HomeAssistantProjectionRequest,
+    actual_topic: str,
+    expected_system_id: str,
+) -> HomeAssistantProjectionResult:
+    """Parse a result and bind every correlation field to one exact request."""
+
+    _validate_system_id(expected_system_id)
+    if expected_request.system_id != expected_system_id:
+        raise ProjectionProtocolError(
+            "expected request system_id does not match the configured system"
+        )
+    expected_topic = projection_result_topic(expected_system_id)
+    if actual_topic != expected_topic:
+        raise ProjectionProtocolError("projection result topic does not match the system")
+    result = parse_projection_result(payload)
+    expected = {
+        "request_id": expected_request.request_id,
+        "idempotency_key": expected_request.idempotency_key,
+        "revision": expected_request.revision,
+        "projection_hash": expected_request.projection_hash,
+    }
+    actual = {
+        "request_id": result.request_id,
+        "idempotency_key": result.idempotency_key,
+        "revision": result.revision,
+        "projection_hash": result.projection_hash,
+    }
+    for field, expected_value in expected.items():
+        if actual[field] != expected_value:
+            raise ProjectionProtocolError(
+                f"projection result {field} does not match the expected request"
+            )
+    return result
