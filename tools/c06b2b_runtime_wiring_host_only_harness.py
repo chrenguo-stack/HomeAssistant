@@ -7,8 +7,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 AUTHORIZATION = (
-    "D1-C06B2B-PR265-RECORDER-IMPORT-QUEUE-COMMIT-BARRIER-REAL-E2E-"
-    "BLOCKER-SUCCESSOR-REPAIR-STACKED-DRAFT-IMPLEMENTATION-20260804-01"
+    "D1-C06B2B-PR266-RECORDER-READBACK-UTC-INSTANT-CANONICALIZATION-AND-"
+    "FALSE-COMMIT-BARRIER-REMOVAL-REAL-E2E-SUCCESSOR-REPAIR-STACKED-DRAFT-"
+    "IMPLEMENTATION-20260804-01"
 )
 
 
@@ -81,11 +82,27 @@ def main() -> int:
             token in text["ha_recorder"]
             for token in ("async_import_statistics", "statistics_during_period")
         ),
-        "ha_recorder_commit_barrier": all(
+        "ha_utc_instant_readback_matching": all(
             token in text["ha_recorder"]
             for token in (
+                "_recorder_utc_datetime",
+                'target_start = _utc_datetime(start, "statistics.start")',
+                "== target_start",
+            )
+        ),
+        "ha_finite_readback_polling": all(
+            token in text["ha_recorder"]
+            for token in (
+                "readback_timeout_seconds",
+                "readback_poll_seconds",
+                "time.monotonic()",
+                "asyncio.sleep",
+            )
+        ),
+        "false_commit_barrier_removed": all(
+            token not in text["ha_recorder"]
+            for token in (
                 "async_block_till_done",
-                "asyncio.timeout",
                 "recorder_commit_barrier_timeout",
                 "recorder_commit_barrier_failed",
             )
@@ -111,12 +128,13 @@ def main() -> int:
                 "test_ha_runtime_waits_for_broker_suback",
             )
         ),
-        "commit_barrier_tests_present": all(
+        "utc_equivalence_and_adjacent_hour_tests_present": all(
             token in text["tests"]
             for token in (
-                '["import", "commit_barrier", "readback"]',
-                "recorder_commit_barrier_timeout",
-                "recorder_commit_barrier_failed",
+                "2026-08-03T12:00:00.000Z",
+                "2026-08-03T12:00:00+00:00",
+                "adjacent_hour_rows",
+                "assert adjacent_hour == ()",
             )
         ),
     }
@@ -125,7 +143,7 @@ def main() -> int:
         raise SystemExit(f"host-only contract checks failed: {failed}")
 
     report = {
-        "schema": "gh.c06b2b-runtime-wiring-host-only-report/3",
+        "schema": "gh.c06b2b-runtime-wiring-host-only-report/4",
         "status": "passed",
         "authorization": args.authorization,
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z"),
@@ -142,8 +160,8 @@ def main() -> int:
         "runtime_bounds": {
             "home_assistant_queue_capacity": 64,
             "home_assistant_max_request_bytes": 1_052_672,
-            "recorder_commit_barrier_timeout_seconds": 5,
             "recorder_readback_timeout_seconds": 10,
+            "recorder_readback_poll_seconds": 0.25,
             "manager_single_inflight": True,
             "mqtt_qos": 1,
             "mqtt_retain": False,
