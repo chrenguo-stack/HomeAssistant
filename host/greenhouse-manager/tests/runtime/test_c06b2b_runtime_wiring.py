@@ -414,6 +414,7 @@ def test_processor_monotonic_idempotency_and_pending_restart() -> None:
 def test_supported_recorder_api_and_default_off(monkeypatch: pytest.MonkeyPatch) -> None:
     async def run() -> None:
         captured: list[Any] = []
+        order: list[str] = []
         packages = {
             name: ModuleType(name)
             for name in (
@@ -433,25 +434,37 @@ def test_supported_recorder_api_and_default_off(monkeypatch: pytest.MonkeyPatch)
         )
 
         def import_stats(hass: Any, metadata: Any, rows: Any) -> None:
+            del hass
+            order.append("import")
             captured.append((metadata, rows))
 
         def query(*_: Any) -> dict[str, list[dict[str, Any]]]:
+            order.append("readback")
             return {"sensor.user_renamed_temperature": [{
                 "start": datetime(2026, 8, 3, 12, tzinfo=UTC),
                 "mean": 20.0, "min": 20.0, "max": 20.0,
             }]}
 
         class Instance:
+            async def async_block_till_done(self) -> None:
+                order.append("commit_barrier")
+
             async def async_add_executor_job(self, func: Any, *args: Any) -> Any:
                 return func(*args)
 
+        instance = Instance()
         packages["homeassistant.components.recorder.statistics"].async_import_statistics = import_stats
         packages["homeassistant.components.recorder.statistics"].statistics_during_period = query
-        packages["homeassistant.components.recorder.util"].get_instance = lambda hass: Instance()
+        packages["homeassistant.components.recorder.util"].get_instance = (
+            lambda hass: instance
+        )
         state = SimpleNamespace(attributes={"unit_of_measurement": "°C"})
         hass = SimpleNamespace(states=SimpleNamespace(get=lambda _: state))
         adapter = HomeAssistantRecorderAdapter(
-            hass, readback_timeout_seconds=0.05, readback_poll_seconds=0.01
+            hass,
+            commit_barrier_timeout_seconds=0.05,
+            readback_timeout_seconds=0.05,
+            readback_poll_seconds=0.01,
         )
         writes = projection_writes(
             sample_hour=HOUR, resolved=resolver().resolve_projection(projection())
@@ -461,8 +474,35 @@ def test_supported_recorder_api_and_default_off(monkeypatch: pytest.MonkeyPatch)
             ("sensor.user_renamed_temperature",), start=HOUR
         )
         assert len(readback) == 1
+        assert order == ["import", "commit_barrier", "readback"]
         assert captured[0][0]["source"] == "recorder"
         assert captured[0][0]["statistic_id"].startswith("sensor.")
+
+        class TimeoutInstance:
+            async def async_block_till_done(self) -> None:
+                await asyncio.Event().wait()
+
+        packages["homeassistant.components.recorder.util"].get_instance = (
+            lambda hass: TimeoutInstance()
+        )
+        timeout_adapter = HomeAssistantRecorderAdapter(
+            hass, commit_barrier_timeout_seconds=0.01
+        )
+        with pytest.raises(RecorderAdapterError) as timeout_error:
+            await timeout_adapter.async_import_statistics(writes)
+        assert timeout_error.value.code == "recorder_commit_barrier_timeout"
+
+        class FailureInstance:
+            async def async_block_till_done(self) -> None:
+                raise RuntimeError("injected")
+
+        packages["homeassistant.components.recorder.util"].get_instance = (
+            lambda hass: FailureInstance()
+        )
+        failure_adapter = HomeAssistantRecorderAdapter(hass)
+        with pytest.raises(RecorderAdapterError) as failure_error:
+            await failure_adapter.async_import_statistics(writes)
+        assert failure_error.value.code == "recorder_commit_barrier_failed"
 
     asyncio.run(run())
     monkeypatch.delenv("GH_C06B2_RUNTIME_ENABLED", raising=False)
