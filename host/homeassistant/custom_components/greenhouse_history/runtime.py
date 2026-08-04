@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any, ClassVar
 
-from .const import request_topic, result_topic
+from .const import (
+    C06B2_MQTT_QUEUE_CAPACITY,
+    C06B2_SUBSCRIBE_TIMEOUT_SECONDS,
+    request_topic,
+    result_topic,
+)
 from .entity_resolver import (
     EntityDescriptor,
     EntityResolutionError,
@@ -309,7 +315,7 @@ class HomeAssistantProjectionRuntime:
         hass: Any,
         system_id: str,
         ledger: TargetLedger,
-        queue_capacity: int = 32,
+        queue_capacity: int = C06B2_MQTT_QUEUE_CAPACITY,
     ) -> HomeAssistantProjectionRuntime:
         from homeassistant.components import mqtt
 
@@ -321,7 +327,36 @@ class HomeAssistantProjectionRuntime:
         )
 
         async def subscribe(topic: str, callback: Any, qos: int) -> Any:
-            return await mqtt.async_subscribe(hass, topic, callback, qos)
+            ready = asyncio.get_running_loop().create_future()
+
+            def on_subscribe_status() -> None:
+                if not ready.done():
+                    ready.set_result(None)
+
+            remove_status = mqtt.async_on_subscribe_done(
+                hass,
+                topic,
+                qos,
+                on_subscribe_status,
+            )
+            unsubscribe = None
+            try:
+                unsubscribe = await mqtt.async_subscribe(
+                    hass,
+                    topic,
+                    callback,
+                    qos,
+                    encoding=None,
+                )
+                async with asyncio.timeout(C06B2_SUBSCRIBE_TIMEOUT_SECONDS):
+                    await ready
+            except Exception:
+                if unsubscribe is not None:
+                    unsubscribe()
+                raise
+            finally:
+                remove_status()
+            return unsubscribe
 
         async def publish(
             topic: str,
