@@ -29,6 +29,7 @@ class ResolvedEntity:
     entity_unique_id: str
     entity_id: str
     unit_of_measurement: str
+    unit_class_hint: str | None
     state_class: str
     mean: float
     minimum: float
@@ -44,10 +45,14 @@ class EntityResolver:
             if entity.domain == "sensor" and entity.platform == "mqtt":
                 self._by_unique_id.setdefault(entity.unique_id, []).append(entity)
 
-    def resolve_projection(self, projection: dict[str, Any]) -> tuple[ResolvedEntity, ...]:
+    def resolve_projection(
+        self, projection: dict[str, Any]
+    ) -> tuple[ResolvedEntity, ...]:
         series = projection.get("series")
         if not isinstance(series, list):
-            raise EntityResolutionError("target_projection_invalid", "projection series is invalid")
+            raise EntityResolutionError(
+                "target_projection_invalid", "projection series is invalid"
+            )
         resolved: list[ResolvedEntity] = []
         seen_entity_ids: set[str] = set()
         for item in series:
@@ -75,7 +80,8 @@ class EntityResolver:
             entity = matches[0]
             if entity.disabled:
                 raise EntityResolutionError(
-                    "target_entity_disabled", f"target entity {entity.entity_id} is disabled"
+                    "target_entity_disabled",
+                    f"target entity {entity.entity_id} is disabled",
                 )
             expected_unit = item.get("unit_of_measurement")
             if entity.unit_of_measurement != expected_unit:
@@ -83,7 +89,10 @@ class EntityResolver:
                     "target_unit_mismatch",
                     f"target entity {entity.entity_id} unit does not match projection",
                 )
-            if entity.state_class != "measurement" or item.get("state_class") != "measurement":
+            if (
+                entity.state_class != "measurement"
+                or item.get("state_class") != "measurement"
+            ):
                 raise EntityResolutionError(
                     "target_state_class_mismatch",
                     f"target entity {entity.entity_id} is not a measurement statistic",
@@ -94,12 +103,18 @@ class EntityResolver:
                     f"multiple series resolve to target entity {entity.entity_id}",
                 )
             seen_entity_ids.add(entity.entity_id)
+            unit_class_hint = item.get("unit_class_hint")
+            if unit_class_hint is not None and not isinstance(unit_class_hint, str):
+                raise EntityResolutionError(
+                    "target_projection_invalid", "projection unit class hint is invalid"
+                )
             resolved.append(
                 ResolvedEntity(
                     measurement_key=measurement_key,
                     entity_unique_id=unique_id,
                     entity_id=entity.entity_id,
                     unit_of_measurement=expected_unit,
+                    unit_class_hint=unit_class_hint,
                     state_class="measurement",
                     mean=float(item["mean"]),
                     minimum=float(item["min"]),
