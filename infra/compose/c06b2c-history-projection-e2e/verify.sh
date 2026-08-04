@@ -223,11 +223,39 @@ test -s "$artifact_dir/observer-ready.json"
 current_stage="start-real-manager-runtime"
 docker compose -f "$compose_file" up --detach manager
 
+current_stage="wait-for-initial-mqtt-result"
+docker compose -f "$compose_file" wait observer
+
+test -s "$artifact_dir/mqtt-capture.json"
+current_stage="classify-initial-mqtt-result"
+python - <<'PY'
+import json
+from pathlib import Path
+
+capture = json.loads(Path("artifacts/c06b2c/mqtt-capture.json").read_text(encoding="utf-8"))
+result = capture["result"]
+print(
+    "C06B2C_INITIAL_RESULT="
+    + json.dumps(
+        {
+            "status": result.get("status"),
+            "code": result.get("code"),
+            "detail": result.get("detail"),
+            "request_id": result.get("request_id"),
+            "projection_hash": result.get("projection_hash"),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+)
+if result.get("status") != "verified":
+    raise SystemExit(42)
+PY
+
 current_stage="verify-initial-end-to-end-closure"
 docker compose -f "$compose_file" run --rm --no-deps \
   -e GH_C06B2C_PHASE=initial \
   tester
-docker compose -f "$compose_file" wait observer
 
 current_stage="verify-monotonic-and-idempotent-rules"
 docker compose -f "$compose_file" run --rm --no-deps \
