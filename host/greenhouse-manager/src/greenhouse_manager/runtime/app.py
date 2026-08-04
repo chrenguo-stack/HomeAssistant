@@ -6,11 +6,18 @@ import logging
 import os
 import sys
 
+from .c06b2_runtime_wiring import (
+    manager_c06b2_runtime_enabled,
+    run_manager_service,
+)
 from .config import Settings
-from .mqtt_service import ManagerMqttService
 
 
-def _configuration_report(settings: Settings) -> dict[str, object]:
+def _configuration_report(
+    settings: Settings,
+    *,
+    c06b2_runtime_enabled: bool,
+) -> dict[str, object]:
     return {
         "configuration_valid": True,
         "mqtt_authentication_configured": bool(
@@ -18,6 +25,7 @@ def _configuration_report(settings: Settings) -> dict[str, object]:
         ),
         "password_file_used": bool(os.getenv("GH_MQTT_PASSWORD_FILE")),
         "inline_password_used": bool(os.getenv("GH_MQTT_PASSWORD")),
+        "manager_c06b2_runtime_enabled": c06b2_runtime_enabled,
         "network_attempted": False,
         "secret_values_included": False,
     }
@@ -33,12 +41,22 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         settings = Settings.from_env()
+        c06b2_runtime_enabled = manager_c06b2_runtime_enabled()
     except (TypeError, ValueError) as exc:
         print(f"Configuration error: {exc}", file=sys.stderr)
         return 2
 
     if args.check_config:
-        print(json.dumps(_configuration_report(settings), sort_keys=True, separators=(",", ":")))
+        print(
+            json.dumps(
+                _configuration_report(
+                    settings,
+                    c06b2_runtime_enabled=c06b2_runtime_enabled,
+                ),
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        )
         return 0
 
     logging.basicConfig(
@@ -47,7 +65,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     try:
-        ManagerMqttService(settings).run()
+        run_manager_service(settings)
     except OSError as exc:
         logging.getLogger(__name__).error("Service stopped by network error: %s", exc)
         return 1
