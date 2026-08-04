@@ -7,8 +7,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 AUTHORIZATION = (
-    "D1-C06B2B-REAL-MQTT-RPC-RECORDER-API-RUNTIME-WIRING-HOST-ONLY-"
-    "STACKED-DRAFT-IMPLEMENTATION-20260804-01"
+    "D1-C06B2B-PR265-RECORDER-IMPORT-QUEUE-COMMIT-BARRIER-REAL-E2E-"
+    "BLOCKER-SUCCESSOR-REPAIR-STACKED-DRAFT-IMPLEMENTATION-20260804-01"
 )
 
 
@@ -81,6 +81,15 @@ def main() -> int:
             token in text["ha_recorder"]
             for token in ("async_import_statistics", "statistics_during_period")
         ),
+        "ha_recorder_commit_barrier": all(
+            token in text["ha_recorder"]
+            for token in (
+                "async_block_till_done",
+                "asyncio.timeout",
+                "recorder_commit_barrier_timeout",
+                "recorder_commit_barrier_failed",
+            )
+        ),
         "ha_no_external_or_direct_db": all(
             token not in text["ha_recorder"]
             for token in ("async_add_external_statistics", "sqlite3", "sqlalchemy", "db_schema")
@@ -102,13 +111,21 @@ def main() -> int:
                 "test_ha_runtime_waits_for_broker_suback",
             )
         ),
+        "commit_barrier_tests_present": all(
+            token in text["tests"]
+            for token in (
+                '["import", "commit_barrier", "readback"]',
+                "recorder_commit_barrier_timeout",
+                "recorder_commit_barrier_failed",
+            )
+        ),
     }
     failed = sorted(name for name, value in checks.items() if not value)
     if failed:
         raise SystemExit(f"host-only contract checks failed: {failed}")
 
     report = {
-        "schema": "gh.c06b2b-runtime-wiring-host-only-report/2",
+        "schema": "gh.c06b2b-runtime-wiring-host-only-report/3",
         "status": "passed",
         "authorization": args.authorization,
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z"),
@@ -125,6 +142,8 @@ def main() -> int:
         "runtime_bounds": {
             "home_assistant_queue_capacity": 64,
             "home_assistant_max_request_bytes": 1_052_672,
+            "recorder_commit_barrier_timeout_seconds": 5,
+            "recorder_readback_timeout_seconds": 10,
             "manager_single_inflight": True,
             "mqtt_qos": 1,
             "mqtt_retain": False,
