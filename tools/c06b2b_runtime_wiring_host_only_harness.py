@@ -54,13 +54,28 @@ def main() -> int:
             token in text["manager_adapter"]
             for token in ("mqtt_rpc_timeout", "ignored_result_count", "republish_count")
         ),
+        "manager_suback_required_before_ready": all(
+            token in text["manager_adapter"]
+            for token in ("on_subscribe", "_subscription_mid", "_connected.set()")
+        ),
         "manager_default_off": all(
             token in text["manager_wiring"]
             for token in ("GH_C06B2_RUNTIME_ENABLED", "if raw is None", "return False")
         ),
         "ha_bounded_single_worker": all(
             token in text["ha_bridge"]
-            for token in ("maxsize=queue_capacity", "QueueFull", "asyncio.create_task")
+            for token in (
+                "maxsize=queue_capacity",
+                "QueueFull",
+                "asyncio.create_task",
+                "max_payload_bytes",
+                "oversized_payload",
+            )
+        ),
+        "ha_mqtt_client_wait": "async_wait_for_mqtt_client" in text["ha_init"],
+        "ha_suback_required_before_active": all(
+            token in text["ha_runtime"]
+            for token in ("async_on_subscribe_done", "asyncio.timeout", "encoding=None")
         ),
         "ha_supported_recorder_api": all(
             token in text["ha_recorder"]
@@ -78,15 +93,22 @@ def main() -> int:
             "DEFAULT_C06B2_RUNTIME_ENABLED = False" in text["ha_const"]
             and "if runtime_enabled:" in text["ha_init"]
         ),
-        "host_only_tests_present": "test_manager_rpc_exact_binding_timeout_and_reconnect"
-        in text["tests"],
+        "host_only_tests_present": all(
+            token in text["tests"]
+            for token in (
+                "test_manager_rpc_exact_binding_timeout_and_reconnect",
+                "test_manager_transport_requires_successful_suback",
+                "test_ha_bridge_is_bounded_and_callback_does_not_process",
+                "test_ha_runtime_waits_for_broker_suback",
+            )
+        ),
     }
     failed = sorted(name for name, value in checks.items() if not value)
     if failed:
         raise SystemExit(f"host-only contract checks failed: {failed}")
 
     report = {
-        "schema": "gh.c06b2b-runtime-wiring-host-only-report/1",
+        "schema": "gh.c06b2b-runtime-wiring-host-only-report/2",
         "status": "passed",
         "authorization": args.authorization,
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z"),
@@ -100,6 +122,13 @@ def main() -> int:
             for path in paths.values()
         },
         "runtime_defaults": {"manager": False, "home_assistant": False},
+        "runtime_bounds": {
+            "home_assistant_queue_capacity": 64,
+            "home_assistant_max_request_bytes": 1_052_672,
+            "manager_single_inflight": True,
+            "mqtt_qos": 1,
+            "mqtt_retain": False,
+        },
         "execution_boundary": {
             "network_attempted": False,
             "t1_accessed": False,
