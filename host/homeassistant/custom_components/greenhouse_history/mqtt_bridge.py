@@ -7,6 +7,8 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from .const import C06B2_MAX_REQUEST_BYTES, C06B2_MQTT_QUEUE_CAPACITY
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -45,6 +47,7 @@ class BridgeHealth:
     published: int = 0
     dropped_queue_full: int = 0
     invalid_envelope: int = 0
+    oversized_payload: int = 0
     processing_failures: int = 0
 
 
@@ -59,13 +62,17 @@ class MqttProjectionBridge:
         processor: ProjectionMessageProcessor,
         subscribe: SubscribeCallable,
         publish: PublishCallable,
-        queue_capacity: int = 32,
+        queue_capacity: int = C06B2_MQTT_QUEUE_CAPACITY,
+        max_payload_bytes: int = C06B2_MAX_REQUEST_BYTES,
     ) -> None:
         if queue_capacity < 1:
             raise ValueError("MQTT bridge queue capacity must be positive")
+        if max_payload_bytes < 1:
+            raise ValueError("MQTT bridge payload bound must be positive")
         self.request_topic = request_topic
         self.result_topic = result_topic
         self.processor = processor
+        self.max_payload_bytes = max_payload_bytes
         self._subscribe = subscribe
         self._publish = publish
         self._queue: asyncio.Queue[InboundProjectionMessage] = asyncio.Queue(
@@ -83,14 +90,18 @@ class MqttProjectionBridge:
             and self._unsubscribe is not None
         )
 
-    @staticmethod
-    def _message_envelope(message: Any) -> InboundProjectionMessage:
+    def _message_envelope(self, message: Any) -> InboundProjectionMessage:
         topic = getattr(message, "topic", None)
         payload = getattr(message, "payload", None)
         qos = getattr(message, "qos", 1)
         retain = getattr(message, "retain", False)
         if not isinstance(topic, str):
             raise TypeError("MQTT message topic is invalid")
+        try:
+            if len(payload) > self.max_payload_bytes:
+                raise OverflowError("MQTT request payload exceeds the configured bound")
+        except TypeError as exc:
+            raise TypeError("MQTT message payload is invalid") from exc
         if isinstance(payload, str):
             payload_bytes = payload.encode("utf-8")
         elif isinstance(payload, bytes):
@@ -100,6 +111,8 @@ class MqttProjectionBridge:
                 payload_bytes = bytes(payload)
             except (TypeError, ValueError) as exc:
                 raise TypeError("MQTT message payload is invalid") from exc
+        if len(payload_bytes) > self.max_payload_bytes:
+            raise OverflowError("MQTT request payload exceeds the configured bound")
         if type(qos) is not int:
             raise TypeError("MQTT message QoS is invalid")
         return InboundProjectionMessage(topic, payload_bytes, qos, bool(retain))
@@ -109,6 +122,9 @@ class MqttProjectionBridge:
 
         try:
             envelope = self._message_envelope(message)
+        except OverflowError:
+            self.health.oversized_payload += 1
+            return
         except TypeError:
             self.health.invalid_envelope += 1
             return
