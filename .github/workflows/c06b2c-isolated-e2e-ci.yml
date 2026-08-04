@@ -33,11 +33,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify exact authorized Recorder barrier successor stack
+      - name: Verify exact authorized UTC readback successor stack
         if: github.event_name == 'pull_request'
         env:
-          AUTHORIZED_BASE_REF: feature/c06b2c-isolated-mosquitto-ha-recorder-e2e-20260804-v1
-          AUTHORIZED_BASE_SHA: 8f7c8603c92eba4246cb3b0f7b15c914b19b0ff3
+          AUTHORIZED_BASE_REF: feature/c06b2b-recorder-import-queue-barrier-c06b2c-successor-20260804-v1
+          AUTHORIZED_BASE_SHA: 21f288c1c47f7801e21e77ada460c6353e371e14
           ACTUAL_BASE_REF: ${{ github.event.pull_request.base.ref }}
           ACTUAL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           ACTUAL_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -49,7 +49,7 @@ jobs:
           echo "C06B2C_EXACT_BASE_VERIFIED=true" >> "$GITHUB_ENV"
           echo "C06B2C_BASE_ANCESTOR_VERIFIED=true" >> "$GITHUB_ENV"
 
-      - name: Verify authorized Recorder barrier file boundary
+      - name: Verify authorized UTC readback file boundary
         if: github.event_name == 'pull_request'
         env:
           ACTUAL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -74,7 +74,7 @@ jobs:
               fi
             done
             if [ "$found" != true ]; then
-              echo "unauthorized Recorder barrier path: $path" >&2
+              echo "unauthorized UTC readback path: $path" >&2
               exit 1
             fi
           done
@@ -99,7 +99,7 @@ jobs:
             '{"schema":"gh.c06b2c.workflow-placeholder/1","status":"pending","secret_values_included":false}' \
             > artifacts/c06b2c/workflow-placeholder.json
 
-      - name: Validate isolated E2E and Recorder barrier sources
+      - name: Validate isolated E2E and UTC readback sources
         run: |
           python -m json.tool \
             infra/compose/c06b2c-history-projection-e2e/homeassistant/core.config_entries.template.json \
@@ -129,7 +129,7 @@ jobs:
 
       - name: Run isolated real Broker Home Assistant Recorder closure
         env:
-          C06B2C_AUTHORIZATION: D1-C06B2B-PR265-RECORDER-IMPORT-QUEUE-COMMIT-BARRIER-REAL-E2E-BLOCKER-SUCCESSOR-REPAIR-STACKED-DRAFT-IMPLEMENTATION-20260804-01
+          C06B2C_AUTHORIZATION: D1-C06B2B-PR266-RECORDER-READBACK-UTC-INSTANT-CANONICALIZATION-AND-FALSE-COMMIT-BARRIER-REMOVAL-REAL-E2E-SUCCESSOR-REPAIR-STACKED-DRAFT-IMPLEMENTATION-20260804-01
           C06B2C_SOURCE_REF: ${{ github.head_ref || github.ref_name }}
           C06B2C_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           C06B2C_BASE_REF: ${{ github.base_ref || github.ref_name }}
