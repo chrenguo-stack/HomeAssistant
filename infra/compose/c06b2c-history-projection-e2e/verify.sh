@@ -275,7 +275,7 @@ if [[ "$fault_matrix" = "true" ]]; then
   docker compose -f "$compose_file" stop homeassistant
 
   current_stage="fault-start-manager-with-homeassistant-unavailable"
-  docker compose -f "$compose_file" start manager
+  docker compose -f "$compose_file" up --detach --no-deps manager
 
   current_stage="fault-observe-durable-retry"
   docker compose -f "$compose_file" run --rm --no-deps \
