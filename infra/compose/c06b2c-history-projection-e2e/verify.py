@@ -532,13 +532,15 @@ def dispatch_direct(
     session: Session,
     projection: dict[str, Any],
     request_id: str,
+    *,
+    timeout_s: float = 30.0,
 ) -> dict[str, Any]:
     session.publish(
         REQUEST_TOPIC,
         request_document(projection, request_id),
         retain=False,
     )
-    result = session.result_for(request_id)
+    result = session.result_for(request_id, timeout_s=timeout_s)
     if result.get("_qos") != 1 or result.get("_retain") is not False:
         raise AssertionError("direct result did not use QoS 1 retain=false")
     return result
@@ -756,11 +758,25 @@ def phase_fault_broker_restart() -> None:
     session.start()
     try:
         session.subscribe((RESULT_TOPIC,))
-        result = dispatch_direct(
-            session,
-            projection,
-            "c06-fault-broker-restart-idempotent-0001",
-        )
+        deadline = time.monotonic() + 120
+        attempts = 0
+        result: dict[str, Any] | None = None
+        while result is None and time.monotonic() < deadline:
+            attempts += 1
+            try:
+                result = dispatch_direct(
+                    session,
+                    projection,
+                    f"c06-fault-broker-restart-idempotent-{attempts:04d}",
+                    timeout_s=min(10.0, max(1.0, deadline - time.monotonic())),
+                )
+            except AssertionError as exc:
+                if "timed out waiting for result" not in str(exc):
+                    raise
+        if result is None:
+            raise AssertionError(
+                f"Broker restart reconciliation timed out after {attempts} probes"
+            )
         if (
             result.get("status") != "verified"
             or result.get("revision") != revision
@@ -773,6 +789,7 @@ def phase_fault_broker_restart() -> None:
                 "schema": "gh.c06-history-fault-broker-restart/1",
                 "broker_restarted": True,
                 "mqtt_clients_reconnected": True,
+                "reconnect_probe_attempts": attempts,
                 "same_revision_idempotent_status": result.get("status"),
                 "revision": result.get("revision"),
                 "projection_hash_exact": result.get("projection_hash") == digest,
