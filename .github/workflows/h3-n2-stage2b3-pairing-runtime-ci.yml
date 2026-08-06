@@ -2,11 +2,6 @@ name: H3 N2 Stage2B3 Pairing Runtime CI
 
 on:
   pull_request:
-    paths:
-      - "host/greenhouse-manager/**"
-      - "infra/compose/h3-pairing-lab/**"
-      - "protocols/pairing/**"
-      - ".github/workflows/h3-n2-stage2b3-pairing-runtime-ci.yml"
   push:
     branches:
       - main
@@ -20,7 +15,35 @@ permissions:
   contents: read
 
 jobs:
+  scope:
+    runs-on: ubuntu-24.04
+    outputs:
+      run: ${{ steps.detect.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: detect
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" != "pull_request" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git diff --name-only "$BASE_SHA" "$HEAD_SHA" > "$RUNNER_TEMP/changed-files.txt"
+          if grep -Eq '^(host/greenhouse-manager/|infra/compose/h3-pairing-lab/|protocols/pairing/|\.github/workflows/h3-n2-stage2b3-pairing-runtime-ci\.yml$)' "$RUNNER_TEMP/changed-files.txt"; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
   isolated-runtime:
+    needs: scope
+    if: needs.scope.outputs.run == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
