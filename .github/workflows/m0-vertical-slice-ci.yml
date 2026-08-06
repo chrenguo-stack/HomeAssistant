@@ -2,14 +2,6 @@ name: M0 vertical slice CI
 
 on:
   pull_request:
-    paths:
-      - "host/simulator/**"
-      - "host/greenhouse-manager/**"
-      - "infra/compose/m0/**"
-      - "infra/mosquitto/dev/**"
-      - "protocols/mqtt/**"
-      - "protocols/pairing/**"
-      - ".github/workflows/m0-vertical-slice-ci.yml"
   push:
     branches:
       - main
@@ -26,7 +18,35 @@ permissions:
   contents: read
 
 jobs:
+  scope:
+    runs-on: ubuntu-24.04
+    outputs:
+      run: ${{ steps.detect.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: detect
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" != "pull_request" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git diff --name-only "$BASE_SHA" "$HEAD_SHA" > "$RUNNER_TEMP/changed-files.txt"
+          if grep -Eq '^(host/simulator/|host/greenhouse-manager/|infra/compose/m0/|infra/mosquitto/dev/|protocols/mqtt/|protocols/pairing/|\.github/workflows/m0-vertical-slice-ci\.yml$)' "$RUNNER_TEMP/changed-files.txt"; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
   simulator-unit:
+    needs: scope
+    if: needs.scope.outputs.run == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -51,6 +71,8 @@ jobs:
         run: pytest -q
 
   compose-integration:
+    needs: scope
+    if: needs.scope.outputs.run == 'true'
     runs-on: ubuntu-latest
 
     steps:
