@@ -638,27 +638,28 @@ def phase_fault_seed() -> None:
         )
     with ProjectionStore(DATABASE) as store:
         job = store.get_job(NODE_ID, SAMPLE_HOUR)
-        if (
-            result.status != "committed"
-            or job is None
-            or job.state != "pending"
-            or job.revision != 2
-            or job.attempts != 0
-        ):
-            raise AssertionError("fault revision was not durably seeded as pending")
         write_json(
             "fault-seed.json",
             {
                 "schema": "gh.c06-history-fault-seed/1",
-                "revision": job.revision,
-                "state": job.state,
-                "attempts": job.attempts,
+                "commit_status": result.status,
+                "revision": job.revision if job is not None else None,
+                "state": job.state if job is not None else None,
+                "attempts": job.attempts if job is not None else None,
                 "record_count": 2,
                 "manager_stopped_before_seed": True,
                 "production_state_modified": False,
                 "secret_values_included": False,
             },
         )
+        if (
+            result.status != "accepted"
+            or job is None
+            or job.state != "pending"
+            or job.revision != 2
+            or job.attempts != 0
+        ):
+            raise AssertionError("fault revision was not durably seeded as pending")
 
 
 def _retry_job() -> dict[str, Any] | None:

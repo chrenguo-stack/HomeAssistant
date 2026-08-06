@@ -48,6 +48,7 @@ class C06FaultMatrixEvidenceTests(unittest.TestCase):
             "mqtt-capture.json": {},
             "initial.json": {},
             "fault-seed.json": {
+                "commit_status": "accepted",
                 "revision": 2,
                 "state": "pending",
                 "attempts": 0,

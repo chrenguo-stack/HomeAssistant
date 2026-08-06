@@ -67,7 +67,8 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         "base_ancestor_verified": args.base_ancestor_verified,
         "authorized_file_boundary_verified": args.authorized_file_boundary_verified,
         "revision_two_seeded_pending": (
-            seed.get("revision") == 2
+            seed.get("commit_status") == "accepted"
+            and seed.get("revision") == 2
             and seed.get("state") == "pending"
             and seed.get("attempts") == 0
         ),
