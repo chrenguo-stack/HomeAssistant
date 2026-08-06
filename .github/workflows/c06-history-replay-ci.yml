@@ -47,6 +47,9 @@ jobs:
           PR269_BASE_SHA: 0cc8daa58fdf1d1200af3c3c2c3ed53db2963b41
           PR273_BASE_REF: feature/c06b2b-recorder-replacement-expected-value-readback-pr267-successor-20260804-v1
           PR273_BASE_SHA: 249606dbab585e3b3beed47e77b9ae77a64e4291
+          PR267_STACK_BASE_REF: feature/c06b2b-recorder-import-queue-barrier-c06b2c-successor-20260804-v1
+          PR267_STACK_BASE_SHA: 21f288c1c47f7801e21e77ada460c6353e371e14
+          PR267_REPAIR_BASE_SHA: f98d93e43d10c32cd60580c80c484d829c8f6900
           PRIOR_REVIEWED_HEAD_SHA: dac038c3595c80ac7d1a0666795effbbab4a4e4e
           FINAL_REVIEWED_HEAD_SHA: ffdfbc3dc64620881ea0732d0d964623439d0bba
           ACTUAL_BASE_REF: ${{ github.event.pull_request.base.ref }}
@@ -62,11 +65,14 @@ jobs:
           elif [ "$ACTUAL_BASE_REF" = "$C06B2A_BASE_REF" ]; then
             test "$ACTUAL_BASE_SHA" = "$C06B2A_BASE_SHA"
           elif [ "$ACTUAL_BASE_REF" = "$PR267_BASE_REF" ]; then
-            test "$ACTUAL_BASE_SHA" = "$PR267_BASE_SHA"
+            test "$ACTUAL_BASE_SHA" = "$PR267_BASE_SHA" || \
+              test "$ACTUAL_BASE_SHA" = "$PR267_REPAIR_BASE_SHA"
           elif [ "$ACTUAL_BASE_REF" = "$PR269_BASE_REF" ]; then
             test "$ACTUAL_BASE_SHA" = "$PR269_BASE_SHA"
           elif [ "$ACTUAL_BASE_REF" = "$PR273_BASE_REF" ]; then
             test "$ACTUAL_BASE_SHA" = "$PR273_BASE_SHA"
+          elif [ "$ACTUAL_BASE_REF" = "$PR267_STACK_BASE_REF" ]; then
+            test "$ACTUAL_BASE_SHA" = "$PR267_STACK_BASE_SHA"
           else
             echo "unsupported C06 stack base: $ACTUAL_BASE_REF" >&2
             exit 1
@@ -76,6 +82,9 @@ jobs:
           git merge-base --is-ancestor "$FINAL_REVIEWED_HEAD_SHA" "$ACTUAL_HEAD_SHA"
           if [ "$ACTUAL_BASE_SHA" = "$PR267_BASE_SHA" ] || [ "$ACTUAL_BASE_SHA" = "$PR269_BASE_SHA" ] || [ "$ACTUAL_BASE_SHA" = "$PR273_BASE_SHA" ]; then
             git merge-base --is-ancestor "$PR267_BASE_SHA" "$ACTUAL_HEAD_SHA"
+          fi
+          if [ "$ACTUAL_BASE_SHA" = "$PR267_STACK_BASE_SHA" ] || [ "$ACTUAL_BASE_SHA" = "$PR267_REPAIR_BASE_SHA" ]; then
+            git merge-base --is-ancestor "$PR267_REPAIR_BASE_SHA" "$ACTUAL_HEAD_SHA"
           fi
           echo "C06_PRIOR_REVIEWED_HEAD_ANCESTOR_VERIFIED=true" >> "$GITHUB_ENV"
           echo "C06_FINAL_REVIEWED_HEAD_ANCESTOR_VERIFIED=true" >> "$GITHUB_ENV"

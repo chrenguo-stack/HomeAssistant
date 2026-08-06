@@ -23,7 +23,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  C06B3_AUTHORIZATION: D1-C06B3-PR268-HEAD-ED8B25B-SUCCESSOR-CI-GATE-REPAIR-DRAFT-AND-FULL-CI-20260806-01
+  C06B3_AUTHORIZATION: D1-C06B3-PR267-HEAD-F98D93E-SUCCESSOR-CI-GATE-REPAIR-DRAFT-AND-FULL-CI-20260806-01
 
 jobs:
   preflight:
@@ -42,27 +42,38 @@ jobs:
           SUCCESSOR_BASE_REF: feature/c06b2b-recorder-replacement-expected-value-readback-pr267-successor-20260804-v1
           PR273_BASE_SHA: 249606dbab585e3b3beed47e77b9ae77a64e4291
           REPAIR_BASE_SHA: ed8b25b9183e035fe413e674dfdd875f54870f19
+          PR267_STACK_BASE_REF: feature/c06b2b-recorder-import-queue-barrier-c06b2c-successor-20260804-v1
+          PR267_STACK_BASE_SHA: 21f288c1c47f7801e21e77ada460c6353e371e14
+          PR267_REPAIR_BASE_SHA: f98d93e43d10c32cd60580c80c484d829c8f6900
           ACTUAL_BASE_REF: ${{ github.event.pull_request.base.ref }}
           ACTUAL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           ACTUAL_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           if [ "$ACTUAL_BASE_REF" = "$PR268_UPSTREAM_BASE_REF" ]; then
-            test "$ACTUAL_BASE_SHA" = "$PR268_UPSTREAM_BASE_SHA"
+            test "$ACTUAL_BASE_SHA" = "$PR268_UPSTREAM_BASE_SHA" || \
+              test "$ACTUAL_BASE_SHA" = "$PR267_REPAIR_BASE_SHA"
           elif [ "$ACTUAL_BASE_REF" = "$SUCCESSOR_BASE_REF" ]; then
             test "$ACTUAL_BASE_SHA" = "$PR273_BASE_SHA" || \
               test "$ACTUAL_BASE_SHA" = "$REPAIR_BASE_SHA"
+          elif [ "$ACTUAL_BASE_REF" = "$PR267_STACK_BASE_REF" ]; then
+            test "$ACTUAL_BASE_SHA" = "$PR267_STACK_BASE_SHA"
           else
             echo "unsupported C06-B3 stack base: $ACTUAL_BASE_REF" >&2
             exit 1
           fi
           test "$(git merge-base "$ACTUAL_BASE_SHA" "$ACTUAL_HEAD_SHA")" = "$ACTUAL_BASE_SHA"
           git merge-base --is-ancestor "$PR268_UPSTREAM_BASE_SHA" "$ACTUAL_HEAD_SHA"
+          if [ "$ACTUAL_BASE_SHA" = "$PR267_STACK_BASE_SHA" ] || [ "$ACTUAL_BASE_SHA" = "$PR267_REPAIR_BASE_SHA" ]; then
+            git merge-base --is-ancestor "$PR267_REPAIR_BASE_SHA" "$ACTUAL_HEAD_SHA"
+          fi
 
       - name: Verify authorized C06-B3 file boundary
         env:
           PR268_UPSTREAM_BASE_SHA: 4c29fced18e8d45cac78f71ec82112bcf65a8cef
           PR273_BASE_SHA: 249606dbab585e3b3beed47e77b9ae77a64e4291
           REPAIR_BASE_SHA: ed8b25b9183e035fe413e674dfdd875f54870f19
+          PR267_STACK_BASE_SHA: 21f288c1c47f7801e21e77ada460c6353e371e14
+          PR267_REPAIR_BASE_SHA: f98d93e43d10c32cd60580c80c484d829c8f6900
           ACTUAL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           ACTUAL_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
@@ -105,12 +116,24 @@ jobs:
             ".github/workflows/c06b2b-runtime-wiring-ci.yml"
             ".github/workflows/c06b2c-isolated-e2e-ci.yml"
           )
+          pr267_repair_required=(
+            ".github/workflows/c06-history-replay-ci.yml"
+            ".github/workflows/c06b1-history-projection-ci.yml"
+            ".github/workflows/c06b1-stateful-monotonic-adapter-ci.yml"
+            ".github/workflows/c06b2a-ha-target-ledger-ci.yml"
+            ".github/workflows/c06b2b-runtime-wiring-ci.yml"
+            ".github/workflows/c06b2c-isolated-e2e-ci.yml"
+          )
           if [ "$ACTUAL_BASE_SHA" = "$PR273_BASE_SHA" ]; then
             required=("${pr273_required[@]}")
           elif [ "$ACTUAL_BASE_SHA" = "$PR268_UPSTREAM_BASE_SHA" ]; then
             required=("${pr268_required[@]}")
           elif [ "$ACTUAL_BASE_SHA" = "$REPAIR_BASE_SHA" ]; then
             required=("${repair_required[@]}")
+          elif [ "$ACTUAL_BASE_SHA" = "$PR267_STACK_BASE_SHA" ]; then
+            required=("${pr268_required[@]}")
+          elif [ "$ACTUAL_BASE_SHA" = "$PR267_REPAIR_BASE_SHA" ]; then
+            required=("${pr267_repair_required[@]}")
           else
             echo "unsupported C06-B3 boundary base: $ACTUAL_BASE_SHA" >&2
             exit 1
