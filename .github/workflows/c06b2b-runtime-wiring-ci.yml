@@ -93,6 +93,7 @@ jobs:
           }
           descendant_required = {
               ".github/workflows/c06-history-replay-ci.yml",
+              ".github/workflows/c06b1-history-projection-ci.yml",
               ".github/workflows/c06b1-stateful-monotonic-adapter-ci.yml",
               ".github/workflows/c06b2b-runtime-wiring-ci.yml",
               ".github/workflows/c06b2c-isolated-e2e-ci.yml",
