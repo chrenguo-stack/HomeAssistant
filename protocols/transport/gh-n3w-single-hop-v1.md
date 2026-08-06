@@ -78,8 +78,7 @@ QoS 为 1，Retain 为 false。Broker 身份必须绑定 `<gateway_id>`，Manage
 7. validator 成功后、canonical 接受前，原子提交最高 session 与 `node_id + boot_id + seq`。提交接口由直连和
    中继共用；提交失败时不得进入 canonical pipeline。
 
-直连入口也必须在其完整 validator 成功后、canonical 接受前调用同一原子提交接口。中继路径不得建立第二个
-NODE_ID、第二套 Discovery 或第二份 Home Assistant 设备。由直连切换到中继，或由中继切回直连时，较旧或重复
+直连入口也必须在其完整 validator 成功后、canonical 接受前调用同一原子提交接口。中继路径不得建立第二个 NODE_ID、第二套 Discovery 或第二份 Home Assistant 设备。由直连切换到中继，或由中继切回直连时，较旧或重复
 序列不得回滚 canonical state。
 
 ## 6. Fail-closed 结果
