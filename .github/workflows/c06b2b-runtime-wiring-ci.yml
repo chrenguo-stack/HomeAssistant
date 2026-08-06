@@ -47,13 +47,21 @@ jobs:
         env:
           EXPECTED_BASE_REF: feature/c06b2b-recorder-readback-utc-canonicalization-pr266-successor-20260804-v1
           EXPECTED_BASE_SHA: 4c29fced18e8d45cac78f71ec82112bcf65a8cef
+          DESCENDANT_BASE_REF: feature/c06b2b-pr268-c06b1-inherited-descendant-gates-20260804-v1
+          DESCENDANT_BASE_SHA: 0cc8daa58fdf1d1200af3c3c2c3ed53db2963b41
           ACTUAL_BASE_REF: ${{ github.event.pull_request.base.ref }}
           ACTUAL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           ACTUAL_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          test "$ACTUAL_BASE_REF" = "$EXPECTED_BASE_REF"
-          test "$ACTUAL_BASE_SHA" = "$EXPECTED_BASE_SHA"
-          test "$(git merge-base "$ACTUAL_BASE_SHA" "$ACTUAL_HEAD_SHA")" = "$EXPECTED_BASE_SHA"
+          if [ "$ACTUAL_BASE_REF" = "$EXPECTED_BASE_REF" ]; then
+            test "$ACTUAL_BASE_SHA" = "$EXPECTED_BASE_SHA"
+          elif [ "$ACTUAL_BASE_REF" = "$DESCENDANT_BASE_REF" ]; then
+            test "$ACTUAL_BASE_SHA" = "$DESCENDANT_BASE_SHA"
+          else
+            echo "unsupported C06-B2B stack base: $ACTUAL_BASE_REF" >&2
+            exit 1
+          fi
+          test "$(git merge-base "$ACTUAL_BASE_SHA" "$ACTUAL_HEAD_SHA")" = "$ACTUAL_BASE_SHA"
           git merge-base --is-ancestor "$EXPECTED_BASE_SHA" "$ACTUAL_HEAD_SHA"
           echo "C06B2B_EXACT_BASE_VERIFIED=true" >> "$GITHUB_ENV"
           echo "C06B2B_BASE_ANCESTOR_VERIFIED=true" >> "$GITHUB_ENV"
@@ -62,13 +70,16 @@ jobs:
         if: github.event_name == 'pull_request'
         env:
           EXPECTED_BASE_SHA: 4c29fced18e8d45cac78f71ec82112bcf65a8cef
+          DESCENDANT_BASE_SHA: 0cc8daa58fdf1d1200af3c3c2c3ed53db2963b41
+          ACTUAL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           ACTUAL_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          git diff --name-only "$EXPECTED_BASE_SHA" "$ACTUAL_HEAD_SHA" > /tmp/c06b2b-expected-value-files.txt
+          git diff --name-only "$ACTUAL_BASE_SHA" "$ACTUAL_HEAD_SHA" > /tmp/c06b2b-expected-value-files.txt
           python - <<'PY'
+          import os
           from pathlib import Path
 
-          allowed = {
+          legacy_required = {
               ".github/workflows/c06b2b-runtime-wiring-ci.yml",
               ".github/workflows/c06b2c-isolated-e2e-ci.yml",
               ".github/workflows/c06b2a-ha-target-ledger-ci.yml",
@@ -80,15 +91,34 @@ jobs:
               "host/homeassistant/custom_components/greenhouse_history/recorder_adapter.py",
               "tools/c06b2b_runtime_wiring_host_only_harness.py",
           }
+          descendant_required = {
+              ".github/workflows/c06-history-replay-ci.yml",
+              ".github/workflows/c06b1-stateful-monotonic-adapter-ci.yml",
+              ".github/workflows/c06b2b-runtime-wiring-ci.yml",
+              ".github/workflows/c06b2c-isolated-e2e-ci.yml",
+              "docs/status/c06-history-fault-matrix-20260806.md",
+              "host/greenhouse-manager/tests/runtime/test_history_projection_fault_matrix.py",
+              "infra/compose/c06b2c-history-projection-e2e/verify.py",
+              "infra/compose/c06b2c-history-projection-e2e/verify.sh",
+              "tools/c06_fault_matrix_evidence.py",
+              "tools/tests/test_c06_fault_matrix_evidence.py",
+          }
+          actual_base_sha = os.environ["ACTUAL_BASE_SHA"]
+          if actual_base_sha == os.environ["EXPECTED_BASE_SHA"]:
+              required = legacy_required
+          elif actual_base_sha == os.environ["DESCENDANT_BASE_SHA"]:
+              required = descendant_required
+          else:
+              raise SystemExit(f"unsupported C06-B2B boundary base: {actual_base_sha}")
           changed = {
               line.strip()
               for line in Path("/tmp/c06b2b-expected-value-files.txt").read_text().splitlines()
               if line.strip()
           }
-          unexpected = sorted(changed - allowed)
+          unexpected = sorted(changed - required)
           if unexpected:
               raise SystemExit(f"unauthorized expected-value readback paths: {unexpected}")
-          missing = sorted(allowed - changed)
+          missing = sorted(required - changed)
           if missing:
               raise SystemExit(f"required expected-value readback paths are missing: {missing}")
           print("C06B2B_EXPECTED_VALUE_FILE_BOUNDARY=true")
