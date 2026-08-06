@@ -25,8 +25,13 @@ N3-W 只允许 ESP-NOW 子节点向一个 Wi-Fi 中继发送自身遥测。子�
 - 中继只封装密文，不持有子节点应用明文，也不能替子节点生成有效 AEAD tag。
 - Manager 在解密后必须再次绑定外层与内层的 `node_id`、`boot_id` 和 `seq`。
 - Manager 必须持久化每个 `node_id` 的最高 session counter，以及统一的
-  `node_id + boot_id + seq` replay 集合。状态必须在 canonical pipeline 接受帧前原子提交；持久化状态不可用、
-  损坏或回退不确定时，入口必须在 AEAD 解密前 fail closed。
+  `node_id + boot_id + seq` replay 集合。直连与中继必须调用同一个原子状态转移；两条路径都必须验证
+  `boot_id` 的规范格式、非零 session 和 `seq` 范围，低于高水位时拒绝，高于高水位时原子推进，相同 tuple
+  返回 duplicate。不得由直连路径只写 replay 集合而不推进 session 高水位。
+- replay/high-water 状态只能在完整 `gh.telemetry/1` ingress validator 成功后、canonical 接受前原子提交。
+  验证失败、validator 异常或提交失败均不得进入 canonical pipeline。无效 telemetry 不消费 replay tuple，也不推进
+  session 高水位；发送端仍不得用同一 key 和 nonce 重新加密不同明文，修复后的新遥测必须使用新的 `seq`。
+- 持久化状态不可用、损坏或回退不确定时，入口必须在 AEAD 解密前 fail closed。
 
 ESP-NOW 链路层加密不能替代上述应用层 AEAD。
 
@@ -66,21 +71,23 @@ QoS 为 1，Retain 为 false。Broker 身份必须绑定 `<gateway_id>`，Manage
 
 1. 解析 topic 并校验 system、gateway、node；
 2. 验证网关身份、节点状态、网关到节点授权和 key epoch；
-3. 验证持久化 replay registry 可用、boot session 未回退、nonce 派生规则和帧大小；
+3. 验证持久化 replay registry 可用、boot session 未回退、`seq` 范围、nonce 派生规则和帧大小；
 4. 用外层头作为 AAD 执行 AEAD 解密；
 5. 校验内层 `gh.telemetry/1` 的 `node_id + boot_id + seq` 与外层完全相同；
-6. 将解密后的原始遥测交给已有节点 ingress validator；
-7. 原子提交最高 session 与 `node_id + boot_id + seq`，统一处理直连与中继路径；提交失败时不得进入
-   canonical pipeline。
+6. 将解密后的原始遥测交给已有完整节点 ingress validator，验证必填字段、类型、范围和 Manager-owned 字段；
+7. validator 成功后、canonical 接受前，原子提交最高 session 与 `node_id + boot_id + seq`。提交接口由直连和
+   中继共用；提交失败时不得进入 canonical pipeline。
 
-中继路径不得建立第二个 NODE_ID、第二套 Discovery 或第二份 Home Assistant 设备。由直连切换到中继，或由中继
-切回直连时，较旧或重复序列不得回滚 canonical state。
+直连入口也必须在其完整 validator 成功后、canonical 接受前调用同一原子提交接口。中继路径不得建立第二个
+NODE_ID、第二套 Discovery 或第二份 Home Assistant 设备。由直连切换到中继，或由中继切回直连时，较旧或重复
+序列不得回滚 canonical state。
 
 ## 6. Fail-closed 结果
 
 以下任一条件必须在进入 canonical pipeline 前拒绝：topic/载荷绑定不一致、未授权网关、节点 retired、未知 key
-epoch、session counter 回退、replay registry 不可用、nonce 不匹配、AEAD 失败、内外身份不一致、帧超限、
-非单跳或重复 `node_id + boot_id + seq`。
+epoch、session counter 回退、`seq` 越界、replay registry 不可用、nonce 不匹配、AEAD 失败、内外身份不一致、
+完整 telemetry validator 拒绝或异常、replay 原子提交失败、帧超限、非单跳或重复
+`node_id + boot_id + seq`。
 
 诊断只记录固定错误码和非敏感身份；不得记录密钥、明文、nonce 前像或完整密文。
 

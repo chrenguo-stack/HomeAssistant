@@ -13,6 +13,8 @@ _BOOT_ID = re.compile(r"^boot_([0-9a-f]{16})$")
 _MAX_ENVELOPE_BYTES = 4096
 _MAX_CIPHERTEXT_BYTES = 1024
 
+TelemetryValidator = Callable[[dict[str, Any]], bool | None]
+
 
 class ContractRejected(ValueError):
     """Raised internally when an envelope fails closed."""
@@ -39,22 +41,18 @@ class ReplayRegistry:
         if not self.available:
             raise ContractRejected("replay_registry_unavailable")
 
-    def observe_direct(self, *, node_id: str, boot_id: str, seq: int) -> None:
+    def validate_before_decrypt(self, *, node_id: str, boot_id: str, seq: int) -> None:
+        """Fail closed before decryption when persistent state or session is invalid."""
         self.require_available()
-        self.seen.add((node_id, boot_id, seq))
-
-    def reject_stale_session(self, *, node_id: str, boot_id: str) -> None:
-        """Fails closed before decryption when the sender session moved backwards."""
-        self.require_available()
-        session = _boot_session(boot_id)
+        session = _validate_boot_seq(boot_id, seq)
         highest = self.highest_session.get(node_id)
         if highest is not None and session < highest:
             raise ContractRejected("stale_boot_session")
 
-    def commit_relay(self, *, node_id: str, boot_id: str, seq: int) -> str:
-        """Models one atomic highest-session and replay-set transaction."""
+    def commit(self, *, node_id: str, boot_id: str, seq: int) -> str:
+        """Model one atomic cross-path highest-session and replay-set transaction."""
         self.require_available()
-        session = _boot_session(boot_id)
+        session = _validate_boot_seq(boot_id, seq)
         highest = self.highest_session.get(node_id)
         if highest is not None and session < highest:
             return "stale_boot_session"
@@ -77,12 +75,19 @@ def _boot_session(boot_id: str) -> int:
     return session
 
 
-def derive_nonce(node_id: str, boot_id: str, seq: int) -> bytes:
-    _boot_session(boot_id)
-    if not 0 <= seq < 2**32:
+def _validate_boot_seq(boot_id: Any, seq: Any) -> int:
+    if not isinstance(boot_id, str):
+        raise ContractRejected("boot_session_invalid")
+    session = _boot_session(boot_id)
+    if not isinstance(seq, int) or isinstance(seq, bool) or not 0 <= seq < 2**32:
         raise ContractRejected("sequence_out_of_range")
+    return session
+
+
+def derive_nonce(node_id: str, boot_id: str, seq: int) -> bytes:
+    session = _validate_boot_seq(boot_id, seq)
     del node_id  # The per-node key and AAD provide the node binding.
-    return _boot_session(boot_id).to_bytes(8, "big") + seq.to_bytes(4, "big")
+    return session.to_bytes(8, "big") + seq.to_bytes(4, "big")
 
 
 def _decode_b64(value: Any, *, field: str, length: int | None = None) -> bytes:
@@ -98,7 +103,10 @@ def _decode_b64(value: Any, *, field: str, length: int | None = None) -> bytes:
 
 
 class N3wIngressModel:
-    """Validates relay binding before an injected AEAD implementation is called."""
+    """Validate relay binding and canonical ingress ordering.
+
+    This host-only model is not wired to production entry points.
+    """
 
     def __init__(
         self,
@@ -108,16 +116,32 @@ class N3wIngressModel:
         gateway_nodes: dict[str, set[str]],
         key_epochs: dict[str, set[int]],
         replay_registry: ReplayRegistry,
+        telemetry_validator: TelemetryValidator,
     ) -> None:
         self.system_id = system_id
         self.active_nodes = set(active_nodes)
         self.gateway_nodes = {key: set(value) for key, value in gateway_nodes.items()}
         self.key_epochs = {key: set(value) for key, value in key_epochs.items()}
         self.replay_registry = replay_registry
+        self.telemetry_validator = telemetry_validator
 
-    def observe_direct(self, *, node_id: str, boot_id: str, seq: int) -> None:
-        """Models direct ingress sharing the persistent relay replay set."""
-        self.replay_registry.observe_direct(node_id=node_id, boot_id=boot_id, seq=seq)
+    def observe_direct(self, *, node_id: str, boot_id: str, seq: int) -> IngressResult:
+        """Commit a validated direct tuple before canonical acceptance."""
+        try:
+            replay_status = self.replay_registry.commit(
+                node_id=node_id, boot_id=boot_id, seq=seq
+            )
+        except ContractRejected as exc:
+            return IngressResult(status="rejected", code=str(exc), node_id=node_id)
+        if replay_status == "accepted":
+            return IngressResult(status="accepted", node_id=node_id)
+        return IngressResult(
+            status="duplicate"
+            if replay_status == "duplicate_node_boot_seq"
+            else "rejected",
+            code=replay_status,
+            node_id=node_id,
+        )
 
     def process(
         self,
@@ -203,9 +227,9 @@ class N3wIngressModel:
             or epoch not in self.key_epochs.get(node_id, set())
         ):
             raise ContractRejected("key_epoch_rejected")
-        if not isinstance(seq, int) or isinstance(seq, bool):
-            raise ContractRejected("sequence_out_of_range")
-        self.replay_registry.reject_stale_session(node_id=node_id, boot_id=boot_id)
+        self.replay_registry.validate_before_decrypt(
+            node_id=node_id, boot_id=boot_id, seq=seq
+        )
         nonce = _decode_b64(document["nonce_b64"], field="nonce", length=12)
         if nonce != derive_nonce(node_id, boot_id, seq):
             raise ContractRejected("nonce_mismatch")
@@ -245,7 +269,13 @@ class N3wIngressModel:
             telemetry.get("seq"),
         ) != (node_id, boot_id, seq):
             raise ContractRejected("inner_binding_mismatch")
-        replay_status = self.replay_registry.commit_relay(
+        try:
+            validation_result = self.telemetry_validator(telemetry)
+        except Exception as exc:
+            raise ContractRejected("telemetry_validation_rejected") from exc
+        if validation_result is not None and validation_result is not True:
+            raise ContractRejected("telemetry_validation_rejected")
+        replay_status = self.replay_registry.commit(
             node_id=node_id, boot_id=boot_id, seq=seq
         )
         if replay_status != "accepted":
