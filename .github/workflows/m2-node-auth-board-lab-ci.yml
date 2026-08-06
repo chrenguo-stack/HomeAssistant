@@ -2,23 +2,41 @@ name: M2 node auth board lab CI
 
 on:
   pull_request:
-    paths:
-      - "host/greenhouse-manager/src/greenhouse_manager/ops/node_mqtt_board_lab*.py"
-      - "host/greenhouse-manager/src/greenhouse_manager/schemas/node_mqtt_board_lab_observation_v1.json"
-      - "host/greenhouse-manager/tests/ops/test_node_mqtt_board_lab*.py"
-      - "host/greenhouse-manager/pyproject.toml"
-      - "firmware/esphome_rc/board_lab/m2_node_auth/**"
-      - "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_m2_node_auth_board_lab.yml"
-      - "firmware/esphome_rc/f1_0_rc2/packages/**"
-      - "firmware/esphome_rc/components/greenhouse_mqtt_auth/**"
-      - "protocols/pairing/gh-node-mqtt-board-lab-v1.md"
-      - ".github/workflows/m2-node-auth-board-lab-ci.yml"
 
 permissions:
   contents: read
 
 jobs:
+  scope:
+    runs-on: ubuntu-24.04
+    outputs:
+      run: ${{ steps.detect.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          show-progress: false
+      - id: detect
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" != "pull_request" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git diff --name-only "$BASE_SHA" "$HEAD_SHA" > "$RUNNER_TEMP/changed-files.txt"
+          if grep -Eq '^(host/greenhouse-manager/|firmware/esphome_rc/board_lab/m2_node_auth/|firmware/esphome_rc/f1_0_rc2/|firmware/esphome_rc/components/greenhouse_mqtt_auth/|protocols/pairing/|\.github/workflows/m2-node-auth-board-lab-ci\.yml$)' "$RUNNER_TEMP/changed-files.txt"; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
   validate:
+    needs: scope
+    if: needs.scope.outputs.run == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -160,6 +178,8 @@ jobs:
           rm -rf "${BOARD_LAB_WORKSPACE:-}" "${BOARD_LAB_REPORTS:-}"
 
   esp32-c6-board-targets:
+    needs: scope
+    if: needs.scope.outputs.run == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
