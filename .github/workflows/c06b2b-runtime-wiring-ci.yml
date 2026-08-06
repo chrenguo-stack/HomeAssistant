@@ -9,6 +9,10 @@ on:
       - "tools/c06b2b_runtime_wiring_host_only_harness.py"
       - ".github/workflows/c06b2b-runtime-wiring-ci.yml"
       - ".github/workflows/c06b2c-isolated-e2e-ci.yml"
+      - ".github/workflows/c06b2a-ha-target-ledger-ci.yml"
+      - ".github/workflows/c06-history-replay-ci.yml"
+      - "infra/compose/c06b2c-history-projection-e2e/verify.py"
+      - "tools/c06b2c_isolated_e2e_evidence.py"
   push:
     branches:
       - main
@@ -19,6 +23,10 @@ on:
       - "tools/c06b2b_runtime_wiring_host_only_harness.py"
       - ".github/workflows/c06b2b-runtime-wiring-ci.yml"
       - ".github/workflows/c06b2c-isolated-e2e-ci.yml"
+      - ".github/workflows/c06b2a-ha-target-ledger-ci.yml"
+      - ".github/workflows/c06-history-replay-ci.yml"
+      - "infra/compose/c06b2c-history-projection-e2e/verify.py"
+      - "tools/c06b2c_isolated_e2e_evidence.py"
 
 permissions:
   contents: read
@@ -34,52 +42,127 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify exact authorized UTC readback successor stack
+      - name: Verify exact authorized expected-value readback successor stack
         if: github.event_name == 'pull_request'
         env:
-          EXPECTED_BASE_REF: feature/c06b2b-recorder-import-queue-barrier-c06b2c-successor-20260804-v1
-          EXPECTED_BASE_SHA: 21f288c1c47f7801e21e77ada460c6353e371e14
+          EXPECTED_BASE_REF: feature/c06b2b-recorder-readback-utc-canonicalization-pr266-successor-20260804-v1
+          EXPECTED_BASE_SHA: 4c29fced18e8d45cac78f71ec82112bcf65a8cef
+          DESCENDANT_BASE_REF: feature/c06b2b-pr268-c06b1-inherited-descendant-gates-20260804-v1
+          DESCENDANT_BASE_SHA: 0cc8daa58fdf1d1200af3c3c2c3ed53db2963b41
+          SUCCESSOR_BASE_REF: feature/c06b2b-recorder-replacement-expected-value-readback-pr267-successor-20260804-v1
+          SUCCESSOR_BASE_SHA: 249606dbab585e3b3beed47e77b9ae77a64e4291
+          SUCCESSOR_MERGED_BASE_SHA: ed8b25b9183e035fe413e674dfdd875f54870f19
           ACTUAL_BASE_REF: ${{ github.event.pull_request.base.ref }}
           ACTUAL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           ACTUAL_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          test "$ACTUAL_BASE_REF" = "$EXPECTED_BASE_REF"
-          test "$ACTUAL_BASE_SHA" = "$EXPECTED_BASE_SHA"
-          test "$(git merge-base "$ACTUAL_BASE_SHA" "$ACTUAL_HEAD_SHA")" = "$EXPECTED_BASE_SHA"
+          if [ "$ACTUAL_BASE_REF" = "$EXPECTED_BASE_REF" ]; then
+            test "$ACTUAL_BASE_SHA" = "$EXPECTED_BASE_SHA"
+          elif [ "$ACTUAL_BASE_REF" = "$DESCENDANT_BASE_REF" ]; then
+            test "$ACTUAL_BASE_SHA" = "$DESCENDANT_BASE_SHA"
+          elif [ "$ACTUAL_BASE_REF" = "$SUCCESSOR_BASE_REF" ]; then
+            test "$ACTUAL_BASE_SHA" = "$SUCCESSOR_BASE_SHA" || \
+              test "$ACTUAL_BASE_SHA" = "$SUCCESSOR_MERGED_BASE_SHA"
+          else
+            echo "unsupported C06-B2B stack base: $ACTUAL_BASE_REF" >&2
+            exit 1
+          fi
+          test "$(git merge-base "$ACTUAL_BASE_SHA" "$ACTUAL_HEAD_SHA")" = "$ACTUAL_BASE_SHA"
           git merge-base --is-ancestor "$EXPECTED_BASE_SHA" "$ACTUAL_HEAD_SHA"
           echo "C06B2B_EXACT_BASE_VERIFIED=true" >> "$GITHUB_ENV"
           echo "C06B2B_BASE_ANCESTOR_VERIFIED=true" >> "$GITHUB_ENV"
 
-      - name: Verify authorized UTC readback file boundary
+      - name: Verify authorized expected-value readback file boundary
         if: github.event_name == 'pull_request'
         env:
-          EXPECTED_BASE_SHA: 21f288c1c47f7801e21e77ada460c6353e371e14
+          EXPECTED_BASE_SHA: 4c29fced18e8d45cac78f71ec82112bcf65a8cef
+          DESCENDANT_BASE_SHA: 0cc8daa58fdf1d1200af3c3c2c3ed53db2963b41
+          SUCCESSOR_BASE_SHA: 249606dbab585e3b3beed47e77b9ae77a64e4291
+          SUCCESSOR_MERGED_BASE_SHA: ed8b25b9183e035fe413e674dfdd875f54870f19
+          ACTUAL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           ACTUAL_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          git diff --name-only "$EXPECTED_BASE_SHA" "$ACTUAL_HEAD_SHA" > /tmp/c06b2b-utc-readback-files.txt
+          git diff --name-only "$ACTUAL_BASE_SHA" "$ACTUAL_HEAD_SHA" > /tmp/c06b2b-expected-value-files.txt
           python - <<'PY'
+          import os
           from pathlib import Path
 
-          allowed = {
+          legacy_required = {
               ".github/workflows/c06b2b-runtime-wiring-ci.yml",
               ".github/workflows/c06b2c-isolated-e2e-ci.yml",
+              ".github/workflows/c06b2a-ha-target-ledger-ci.yml",
+              ".github/workflows/c06-history-replay-ci.yml",
+              "infra/compose/c06b2c-history-projection-e2e/verify.py",
+              "tools/c06b2c_isolated_e2e_evidence.py",
               "docs/adr/ADR-0006-c06b2-real-home-assistant-history-projection-adapter.md",
               "host/greenhouse-manager/tests/runtime/test_c06b2b_runtime_wiring.py",
               "host/homeassistant/custom_components/greenhouse_history/recorder_adapter.py",
               "tools/c06b2b_runtime_wiring_host_only_harness.py",
           }
+          descendant_required = {
+              ".github/workflows/c06-history-replay-ci.yml",
+              ".github/workflows/c06b1-history-projection-ci.yml",
+              ".github/workflows/c06b1-stateful-monotonic-adapter-ci.yml",
+              ".github/workflows/c06b2b-runtime-wiring-ci.yml",
+              ".github/workflows/c06b2c-isolated-e2e-ci.yml",
+              "docs/status/c06-history-fault-matrix-20260806.md",
+              "host/greenhouse-manager/tests/runtime/test_history_projection_fault_matrix.py",
+              "infra/compose/c06b2c-history-projection-e2e/verify.py",
+              "infra/compose/c06b2c-history-projection-e2e/verify.sh",
+              "tools/c06_fault_matrix_evidence.py",
+              "tools/tests/test_c06_fault_matrix_evidence.py",
+          }
+          integrated_required = {
+              ".github/workflows/c06-history-replay-ci.yml",
+              ".github/workflows/c06b1-history-projection-ci.yml",
+              ".github/workflows/c06b1-stateful-monotonic-adapter-ci.yml",
+              ".github/workflows/c06b2a-ha-target-ledger-ci.yml",
+              ".github/workflows/c06b2b-runtime-wiring-ci.yml",
+              ".github/workflows/c06b2c-isolated-e2e-ci.yml",
+              "docs/adr/ADR-0006-c06b2-real-home-assistant-history-projection-adapter.md",
+              "docs/status/c06-history-fault-matrix-20260806.md",
+              "host/greenhouse-manager/tests/runtime/test_c06b2b_runtime_wiring.py",
+              "host/greenhouse-manager/tests/runtime/test_history_projection_fault_matrix.py",
+              "host/homeassistant/custom_components/greenhouse_history/recorder_adapter.py",
+              "infra/compose/c06b2c-history-projection-e2e/verify.py",
+              "infra/compose/c06b2c-history-projection-e2e/verify.sh",
+              "tools/c06_fault_matrix_evidence.py",
+              "tools/c06b2b_runtime_wiring_host_only_harness.py",
+              "tools/c06b2c_isolated_e2e_evidence.py",
+              "tools/tests/test_c06_fault_matrix_evidence.py",
+          }
+          repair_required = {
+              ".github/workflows/c06b1-history-projection-ci.yml",
+              ".github/workflows/c06b1-stateful-monotonic-adapter-ci.yml",
+              ".github/workflows/c06b2b-runtime-wiring-ci.yml",
+              ".github/workflows/c06b2c-isolated-e2e-ci.yml",
+          }
+          actual_base_sha = os.environ["ACTUAL_BASE_SHA"]
+          if actual_base_sha == os.environ["EXPECTED_BASE_SHA"]:
+              candidates = (legacy_required, integrated_required)
+          elif actual_base_sha in {
+              os.environ["DESCENDANT_BASE_SHA"],
+              os.environ["SUCCESSOR_BASE_SHA"],
+          }:
+              candidates = (descendant_required,)
+          elif actual_base_sha == os.environ["SUCCESSOR_MERGED_BASE_SHA"]:
+              candidates = (repair_required,)
+          else:
+              raise SystemExit(f"unsupported C06-B2B boundary base: {actual_base_sha}")
           changed = {
               line.strip()
-              for line in Path("/tmp/c06b2b-utc-readback-files.txt").read_text().splitlines()
+              for line in Path("/tmp/c06b2b-expected-value-files.txt").read_text().splitlines()
               if line.strip()
           }
-          unexpected = sorted(changed - allowed)
-          if unexpected:
-              raise SystemExit(f"unauthorized UTC readback paths: {unexpected}")
-          missing = sorted(allowed - changed)
-          if missing:
-              raise SystemExit(f"required UTC readback paths are missing: {missing}")
-          print("C06B2B_UTC_READBACK_FILE_BOUNDARY=true")
+          if not any(changed == required for required in candidates):
+              allowed = set().union(*candidates)
+              unexpected = sorted(changed - allowed)
+              missing_by_candidate = [sorted(required - changed) for required in candidates]
+              raise SystemExit(
+                  "C06-B2B boundary mismatch: "
+                  f"unexpected={unexpected}, missing_by_candidate={missing_by_candidate}"
+              )
+          print("C06B2B_EXPECTED_VALUE_FILE_BOUNDARY=true")
           PY
 
       - uses: actions/setup-python@v5
@@ -89,19 +172,23 @@ jobs:
       - name: Install host-only dependencies
         run: python -m pip install -e 'host/greenhouse-manager[dev]'
 
-      - name: Compile UTC readback repair
+      - name: Compile expected-value readback repair
         run: |
           python -m compileall -q \
             host/homeassistant/custom_components/greenhouse_history/recorder_adapter.py \
             host/greenhouse-manager/tests/runtime/test_c06b2b_runtime_wiring.py \
-            tools/c06b2b_runtime_wiring_host_only_harness.py
+            tools/c06b2b_runtime_wiring_host_only_harness.py \
+            infra/compose/c06b2c-history-projection-e2e/verify.py \
+            tools/c06b2c_isolated_e2e_evidence.py
 
       - name: Ruff
         run: |
           python -m ruff check \
             host/homeassistant/custom_components/greenhouse_history/recorder_adapter.py \
             host/greenhouse-manager/tests/runtime/test_c06b2b_runtime_wiring.py \
-            tools/c06b2b_runtime_wiring_host_only_harness.py
+            tools/c06b2b_runtime_wiring_host_only_harness.py \
+            infra/compose/c06b2c-history-projection-e2e/verify.py \
+            tools/c06b2c_isolated_e2e_evidence.py
 
       - name: Focused host-only and regression tests
         run: |
@@ -111,15 +198,15 @@ jobs:
             host/greenhouse-manager/tests/runtime/test_history_projection_monotonic_adapter.py \
             host/greenhouse-manager/tests/runtime/test_history_projection.py
 
-      - name: Generate secret-free UTC readback evidence
+      - name: Generate secret-free expected-value readback evidence
         env:
-          AUTHORIZATION: D1-C06B2B-PR266-RECORDER-READBACK-UTC-INSTANT-CANONICALIZATION-AND-FALSE-COMMIT-BARRIER-REMOVAL-REAL-E2E-SUCCESSOR-REPAIR-STACKED-DRAFT-IMPLEMENTATION-20260804-01
+          AUTHORIZATION: D1-C06B2B-PR267-RECORDER-REPLACEMENT-EXPECTED-VALUE-READBACK-POLLING-AND-MONOTONIC-FAILURE-EVIDENCE-REAL-E2E-SUCCESSOR-REPAIR-STACKED-DRAFT-IMPLEMENTATION-20260804-01
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           BASE_REF: ${{ github.base_ref || github.ref_name }}
           SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           SOURCE_REF: ${{ github.head_ref || github.ref_name }}
         run: |
-          mkdir -p evidence/c06b2b-recorder-utc-readback
+          mkdir -p evidence/c06b2b-recorder-expected-value-readback
           flags=()
           if [ "${C06B2B_EXACT_BASE_VERIFIED:-false}" = "true" ]; then
             flags+=(--exact-base-verified)
@@ -128,7 +215,7 @@ jobs:
             flags+=(--base-ancestor-verified)
           fi
           python tools/c06b2b_runtime_wiring_host_only_harness.py \
-            --output evidence/c06b2b-recorder-utc-readback/report.json \
+            --output evidence/c06b2b-recorder-expected-value-readback/report.json \
             --authorization "$AUTHORIZATION" \
             --base-sha "$BASE_SHA" \
             --base-ref "$BASE_REF" \
@@ -136,11 +223,11 @@ jobs:
             --source-ref "$SOURCE_REF" \
             "${flags[@]}"
           cp docs/adr/ADR-0006-c06b2-real-home-assistant-history-projection-adapter.md \
-            evidence/c06b2b-recorder-utc-readback/
+            evidence/c06b2b-recorder-expected-value-readback/
           cp .github/workflows/c06b2b-runtime-wiring-ci.yml \
-            evidence/c06b2b-recorder-utc-readback/
+            evidence/c06b2b-recorder-expected-value-readback/
           (
-            cd evidence/c06b2b-recorder-utc-readback
+            cd evidence/c06b2b-recorder-expected-value-readback
             sha256sum \
               report.json \
               ADR-0006-c06b2-real-home-assistant-history-projection-adapter.md \
@@ -151,7 +238,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: c06b2b-recorder-utc-readback-host-only-evidence
-          path: evidence/c06b2b-recorder-utc-readback
+          name: c06b2b-recorder-expected-value-readback-host-only-evidence
+          path: evidence/c06b2b-recorder-expected-value-readback
           if-no-files-found: error
           retention-days: 30

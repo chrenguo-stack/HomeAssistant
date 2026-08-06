@@ -57,6 +57,13 @@ jobs:
           C06B1_BASE_SHA: 0ec7bb3d17f08f6e26d475ce6f2a55e5bea39434
           C06B2A_BASE_REF: feature/c06b2a-ha-target-ledger-custom-integration-20260803-v1
           C06B2A_BASE_SHA: 77259fe2ad0403a620c78626e01862804c7af6e4
+          C06B2B_PR268_BASE_REF: feature/c06b2b-recorder-replacement-expected-value-readback-pr267-successor-20260804-v1
+          C06B2B_PR268_BASE_SHA: 249606dbab585e3b3beed47e77b9ae77a64e4291
+          C06B2B_PR268_MERGED_SHA: ed8b25b9183e035fe413e674dfdd875f54870f19
+          C06B2B_PR268_UPSTREAM_BASE_REF: feature/c06b2b-recorder-readback-utc-canonicalization-pr266-successor-20260804-v1
+          C06B2B_PR268_UPSTREAM_BASE_SHA: 4c29fced18e8d45cac78f71ec82112bcf65a8cef
+          C06B2B_PR269_BASE_REF: feature/c06b2b-pr268-c06b1-inherited-descendant-gates-20260804-v1
+          C06B2B_PR269_BASE_SHA: 0cc8daa58fdf1d1200af3c3c2c3ed53db2963b41
           ACTUAL_BASE_REF: ${{ github.event.pull_request.base.ref }}
           ACTUAL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           ACTUAL_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -67,6 +74,13 @@ jobs:
             test "$ACTUAL_BASE_SHA" = "$C06B1_BASE_SHA"
           elif [ "$ACTUAL_BASE_REF" = "$C06B2A_BASE_REF" ]; then
             test "$ACTUAL_BASE_SHA" = "$C06B2A_BASE_SHA"
+          elif [ "$ACTUAL_BASE_REF" = "$C06B2B_PR268_BASE_REF" ]; then
+            test "$ACTUAL_BASE_SHA" = "$C06B2B_PR268_BASE_SHA" || \
+              test "$ACTUAL_BASE_SHA" = "$C06B2B_PR268_MERGED_SHA"
+          elif [ "$ACTUAL_BASE_REF" = "$C06B2B_PR268_UPSTREAM_BASE_REF" ]; then
+            test "$ACTUAL_BASE_SHA" = "$C06B2B_PR268_UPSTREAM_BASE_SHA"
+          elif [ "$ACTUAL_BASE_REF" = "$C06B2B_PR269_BASE_REF" ]; then
+            test "$ACTUAL_BASE_SHA" = "$C06B2B_PR269_BASE_SHA"
           else
             echo "unsupported C06-B1 stack base: $ACTUAL_BASE_REF" >&2
             exit 1
@@ -118,7 +132,7 @@ jobs:
           C06B1_SOURCE_REF: ${{ github.head_ref || github.ref_name }}
           C06B1_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           C06B1_BASE_REF: ${{ github.base_ref || github.ref_name }}
-          C06B1_EXACT_BASE_VERIFIED: ${{ github.event_name == 'pull_request' && ((github.event.pull_request.base.sha == 'd0e00d264d41755101c80ad37a1f6fa661892276' && github.event.pull_request.base.ref == 'feature/c06-history-replay-protocol-storage-hostonly-20260803-v1') || (github.event.pull_request.base.sha == '0ec7bb3d17f08f6e26d475ce6f2a55e5bea39434' && github.event.pull_request.base.ref == 'feature/c06b1-history-projection-core-hostonly-20260803-v1') || (github.event.pull_request.base.sha == '77259fe2ad0403a620c78626e01862804c7af6e4' && github.event.pull_request.base.ref == 'feature/c06b2a-ha-target-ledger-custom-integration-20260803-v1')) }}
+          C06B1_EXACT_BASE_VERIFIED: ${{ github.event_name == 'pull_request' && ((github.event.pull_request.base.sha == 'd0e00d264d41755101c80ad37a1f6fa661892276' && github.event.pull_request.base.ref == 'feature/c06-history-replay-protocol-storage-hostonly-20260803-v1') || (github.event.pull_request.base.sha == '0ec7bb3d17f08f6e26d475ce6f2a55e5bea39434' && github.event.pull_request.base.ref == 'feature/c06b1-history-projection-core-hostonly-20260803-v1') || (github.event.pull_request.base.sha == '77259fe2ad0403a620c78626e01862804c7af6e4' && github.event.pull_request.base.ref == 'feature/c06b2a-ha-target-ledger-custom-integration-20260803-v1') || (github.event.pull_request.base.sha == '249606dbab585e3b3beed47e77b9ae77a64e4291' && github.event.pull_request.base.ref == 'feature/c06b2b-recorder-replacement-expected-value-readback-pr267-successor-20260804-v1') || (github.event.pull_request.base.sha == 'ed8b25b9183e035fe413e674dfdd875f54870f19' && github.event.pull_request.base.ref == 'feature/c06b2b-recorder-replacement-expected-value-readback-pr267-successor-20260804-v1') || (github.event.pull_request.base.sha == '4c29fced18e8d45cac78f71ec82112bcf65a8cef' && github.event.pull_request.base.ref == 'feature/c06b2b-recorder-readback-utc-canonicalization-pr266-successor-20260804-v1') || (github.event.pull_request.base.sha == '0cc8daa58fdf1d1200af3c3c2c3ed53db2963b41' && github.event.pull_request.base.ref == 'feature/c06b2b-pr268-c06b1-inherited-descendant-gates-20260804-v1')) }}
         run: |
           binding_flags=()
           if [ "$C06B1_EXACT_BASE_VERIFIED" = "true" ]; then

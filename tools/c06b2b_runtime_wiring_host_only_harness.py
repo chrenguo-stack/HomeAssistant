@@ -7,8 +7,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 AUTHORIZATION = (
-    "D1-C06B2B-PR266-RECORDER-READBACK-UTC-INSTANT-CANONICALIZATION-AND-"
-    "FALSE-COMMIT-BARRIER-REMOVAL-REAL-E2E-SUCCESSOR-REPAIR-STACKED-DRAFT-"
+    "D1-C06B2B-PR267-RECORDER-REPLACEMENT-EXPECTED-VALUE-READBACK-POLLING-AND-"
+    "MONOTONIC-FAILURE-EVIDENCE-REAL-E2E-SUCCESSOR-REPAIR-STACKED-DRAFT-"
     "IMPLEMENTATION-20260804-01"
 )
 
@@ -99,6 +99,16 @@ def main() -> int:
                 "asyncio.sleep",
             )
         ),
+        "ha_expected_value_readback_polling": all(
+            token in text["ha_recorder"]
+            for token in (
+                "_expected_statistics",
+                "verify_readback(expected, readback)",
+                "saw_complete_stale_values",
+                "target_readback_mismatch",
+                "target_readback_incomplete",
+            )
+        ),
         "false_commit_barrier_removed": all(
             token not in text["ha_recorder"]
             for token in (
@@ -137,13 +147,22 @@ def main() -> int:
                 "assert adjacent_hour == ()",
             )
         ),
+        "stale_replacement_and_timeout_classification_tests_present": all(
+            token in text["tests"]
+            for token in (
+                "stale_replacement_rows",
+                'assert order == ["import", "readback", "readback"]',
+                'stale_error.value.code == "target_readback_mismatch"',
+                'incomplete_error.value.code == "target_readback_incomplete"',
+            )
+        ),
     }
     failed = sorted(name for name, value in checks.items() if not value)
     if failed:
         raise SystemExit(f"host-only contract checks failed: {failed}")
 
     report = {
-        "schema": "gh.c06b2b-runtime-wiring-host-only-report/4",
+        "schema": "gh.c06b2b-runtime-wiring-host-only-report/5",
         "status": "passed",
         "authorization": args.authorization,
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z"),

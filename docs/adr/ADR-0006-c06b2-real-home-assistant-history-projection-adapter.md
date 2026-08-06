@@ -1,7 +1,7 @@
 # ADR-0006：C06-B2 真实 Home Assistant 历史投影适配器
 
-- 状态：已接受（C06-B2A/C06-B2B）；C06-B2C 真实隔离验收后继修复中
-- 阶段：C06-B2B UTC 时间点读回修复 / C06-B2C 重新验收
+- 状态：已接受（C06-B2A/C06-B2B）；C06-B2C 真实隔离验收升版替换读回后继修复中
+- 阶段：C06-B2B Recorder 升版替换预期值读回修复 / C06-B2C 重新验收
 - C06-B2A 初始决策门：`D1-C06B2A-MQTT-RPC-PROTOCOL-HA-TARGET-LEDGER-AND-CUSTOM-INTEGRATION-STACKED-DRAFT-CREATION-20260803-01`
 - C06-B2A 修复决策门：`D1-C06B2A-PR263-BLOCKER-REMEDIATION-EXACT-GITHUB-WRITE-CLOSURE-20260804-01`
 - C06-B2B 实施决策门：`D1-C06B2B-REAL-MQTT-RPC-RECORDER-API-RUNTIME-WIRING-HOST-ONLY-STACKED-DRAFT-IMPLEMENTATION-20260804-01`
@@ -13,6 +13,8 @@
 - Recorder 屏障修复精确堆叠基线：PR #265 HEAD `8f7c8603c92eba4246cb3b0f7b15c914b19b0ff3`
 - C06-B2B UTC 时间点读回修复决策门：`D1-C06B2B-PR266-RECORDER-READBACK-UTC-INSTANT-CANONICALIZATION-AND-FALSE-COMMIT-BARRIER-REMOVAL-REAL-E2E-SUCCESSOR-REPAIR-STACKED-DRAFT-IMPLEMENTATION-20260804-01`
 - UTC 时间点读回修复精确堆叠基线：PR #266 HEAD `21f288c1c47f7801e21e77ada460c6353e371e14`
+- C06-B2B 升版替换预期值读回修复决策门：`D1-C06B2B-PR267-RECORDER-REPLACEMENT-EXPECTED-VALUE-READBACK-POLLING-AND-MONOTONIC-FAILURE-EVIDENCE-REAL-E2E-SUCCESSOR-REPAIR-STACKED-DRAFT-IMPLEMENTATION-20260804-01`
+- 升版替换预期值读回修复精确堆叠基线：PR #267 HEAD `4c29fced18e8d45cac78f71ec82112bcf65a8cef`
 
 ## 背景
 
@@ -28,6 +30,10 @@ PR #266 按独立授权加入 `async_block_till_done()` 后，Host-Only 测试�
 
 1. 请求 `sample_hour` 可使用 `2026-08-03T04:00:00.000Z`，而 Recorder 返回时间被旧适配器格式化为 `2026-08-03T04:00:00Z`。旧代码直接比较字符串，导致同一 UTC 时间点因小数秒表示不同而被错误过滤。
 2. Home Assistant 2026.7.1 的 `async_block_till_done()` 在 Recorder 队列为空且事件 session 无待提交写入时可以立即返回；这不能对已被 Recorder 线程取走、由独立 session 处理的导入任务提供严格提交证明。因此不得继续把该调用描述为持久化提交屏障。
+
+PR #267 移除虚假提交屏障并改用 UTC 时间点比较后，Host-Only 运行 `30919045360` 通过，真实隔离运行 `30919045339` 的首次写入、目标账本和 Recorder 精确读回均已 `verified`，证明原 `target_readback_incomplete` 阻塞已经消除。随后高 revision 替换返回非 `verified`，运行在 `phase_monotonic` 终止；失败 Artifact `8896337266` 绑定 PR #267 精确 HEAD `4c29fced18e8d45cac78f71ec82112bcf65a8cef`，摘要为 `sha256:c6627f39569a5adb5b15715db0af1ec6c3c086e50d41e93fb7d580d422bbd9be`，隔离资源仍完全清理。
+
+根因是现有轮询只以目标键数量齐全为完成条件。升版替换时，旧 revision 的 statistic ID 和 UTC 小时仍完整存在，首次查询会返回键齐全但数值陈旧的旧行；旧代码因此提前停止轮询，随后外层 `verify_readback()` 才报告 `target_readback_mismatch`。持久化确认必须绑定本次导入的完整 `StatisticWrite` 预期值，而不能只绑定键和小时。
 
 ## 决策
 
@@ -47,6 +53,10 @@ PR #266 按独立授权加入 `async_block_till_done()` 后，Host-Only 测试�
 14. `StatisticReadback.start` 继续保留请求合同中的原始字符串，避免改变 MQTT RPC 和账本键合同；时间点判定只在适配器内部使用规范化 `datetime`。
 15. 导入后的持久化确认以现有有限支持 API 读回轮询为准：只有目标 statistic ID、UTC 小时和 `mean/min/max` 全部精确读回，才允许目标账本转为 `verified`。
 16. 保持统计 ID、`source="recorder"`、现有实体目标和支持的读回接口不变；不得改用 external statistics，也不得直接访问 Home Assistant 数据库。
+17. 每次成功调用 `async_import_statistics()` 后，适配器必须保存该批完整 `StatisticWrite` 作为紧随其后的读回期望；读回请求的 statistic ID 与 UTC 小时必须和该批期望严格一致。
+18. 每轮 Recorder 查询必须同时核对键、UTC 时间点、单位、`mean`、`min` 和 `max`。键齐全但值仍属于旧 revision 时必须继续轮询，不得提前返回。
+19. 超时分类保持可诊断：从未得到完整键集时返回 `retry/target_readback_incomplete`；曾得到完整键集但数值持续陈旧时返回 `retry/target_readback_mismatch`。
+20. 单调测试每个请求的实际响应或异常必须在断言前写入 `monotonic-attempt.json`；真实 E2E 失败时不得只留下通用 `AssertionError`。
 
 ## 只读复核后的强化约束
 
@@ -75,34 +85,39 @@ PR #266 按独立授权加入 `async_block_till_done()` 后，Host-Only 测试�
 5. Artifact 不得包含 Broker 密码、`.storage` 原文件、Recorder 数据库、Manager 数据库、完整目标账本、容器环境变量或生产配置。
 6. 修复后重新运行同一真实隔离生命周期；只有首次写入、精确读回、幂等、升版、降版拒绝、同版冲突、HA 重启持久性和彻底清理全部通过，才能提出新的 C06-B2C 验收门。
 
-## UTC 时间点读回后继修复边界
+## 升版替换预期值读回后继修复边界
 
-后继 Draft 必须精确堆叠于 PR #266 HEAD `21f288c1c47f7801e21e77ada460c6353e371e14`，并且相对该基线只允许修改：
+后继 Draft 必须精确堆叠于 PR #267 HEAD `4c29fced18e8d45cac78f71ec82112bcf65a8cef`。相对该基线只允许修改：
 
 - `host/homeassistant/custom_components/greenhouse_history/recorder_adapter.py`
 - `host/greenhouse-manager/tests/runtime/test_c06b2b_runtime_wiring.py`
+- `infra/compose/c06b2c-history-projection-e2e/verify.py`
+- `tools/c06b2b_runtime_wiring_host_only_harness.py`
+- `tools/c06b2c_isolated_e2e_evidence.py`
+- `docs/adr/ADR-0006-c06b2-real-home-assistant-history-projection-adapter.md`
 - `.github/workflows/c06b2b-runtime-wiring-ci.yml`
 - `.github/workflows/c06b2c-isolated-e2e-ci.yml`
-- `tools/c06b2b_runtime_wiring_host_only_harness.py`
-- `docs/adr/ADR-0006-c06b2-real-home-assistant-history-projection-adapter.md`
+- `.github/workflows/c06b2a-ha-target-ledger-ci.yml`
+- `.github/workflows/c06-history-replay-ci.yml`
 
 Host-Only 测试必须验证：
 
-- 导入后不再调用虚假提交屏障；
-- `2026-08-03T12:00:00Z`、`2026-08-03T12:00:00.000Z` 和 `2026-08-03T12:00:00+00:00` 与同一 Recorder UTC 时间点匹配；
-- 相邻小时不匹配；
-- 有限读回轮询仍为最终持久化确认路径。
+- 首次查询返回旧 revision 完整键和值时不会结束轮询；
+- 后续查询返回新 revision 预期值后才成功；
+- 完整键但持续陈旧在超时后分类为 `target_readback_mismatch`；
+- 持续缺键在超时后分类为 `target_readback_incomplete`；
+- UTC 等价形式与相邻小时约束继续保持。
 
-C06-B2C 必须重新执行真实 Mosquitto、完整 Home Assistant、临时 Recorder 和正式 Manager 入口闭环。
+C06-B2C 必须在断言前持久化幂等、升版、降版和同版冲突的逐请求响应证据，并重新执行真实 Mosquitto、完整 Home Assistant、临时 Recorder、正式 Manager 入口、HA 重启持久性和彻底清理。
 
 ## 本阶段明确排除
 
-- 不修改 PR #260 至 PR #266；既有失败证据保持不可改写。
-- 除上述六文件后继修复边界外，不修改 Manager 或 Home Assistant 运行代码。
+- 不修改 PR #260 至 PR #267；既有失败证据保持不可改写。
+- 除上述十文件后继修复边界外，不修改 Manager 或 Home Assistant 运行代码。
 - 不访问或修改 T1、生产 Broker、生产 Home Assistant、生产 Recorder、生产 Manager 数据库、凭据、匿名模式、挂载或容器。
 - 不创建部署包、生产授权包、生产执行包或物理执行链。
 - 不将任何 PR 标记 Ready，不合并、不发布、不打标签、不部署、不激活版本。
 
 ## 后续阶段
 
-UTC 时间点读回修复和 C06-B2C 重新验收通过后，仍需另行决策是否进入故障矩阵、候选集成验收或堆叠 PR 的合并规划；本修复授权本身不授予其中任何权限。
+升版替换预期值读回修复和 C06-B2C 重新验收通过后，仍需另行决策是否进入故障矩阵、候选集成验收或堆叠 PR 的合并规划；本修复授权本身不授予其中任何权限。

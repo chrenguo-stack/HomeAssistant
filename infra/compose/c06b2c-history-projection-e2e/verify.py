@@ -15,6 +15,7 @@ from typing import Any
 
 import paho.mqtt.client as mqtt
 from greenhouse_manager.runtime.history_projection_store import ProjectionStore
+from greenhouse_manager.runtime.history_store import HistoryStore
 
 BROKER = "broker"
 PORT = 1883
@@ -23,9 +24,7 @@ NODE_ID = "node-0001"
 SAMPLE_HOUR = "2026-08-03T04:00:00.000Z"
 IDEMPOTENCY_KEY = f"{NODE_ID}|{SAMPLE_HOUR}|v1"
 REQUEST_TOPIC = f"gh/v1/{SYSTEM_ID}/out/homeassistant/history/projection"
-RESULT_TOPIC = (
-    f"gh/v1/{SYSTEM_ID}/ingress/homeassistant/history/projection/result"
-)
+RESULT_TOPIC = f"gh/v1/{SYSTEM_ID}/ingress/homeassistant/history/projection/result"
 PROBE_PATH = Path("/ha-config/c06b2c-probe-state.json")
 DATABASE = Path("/state/manager/manager-state.sqlite3")
 EVIDENCE = Path("/evidence")
@@ -177,7 +176,9 @@ class Session:
         deadline = time.monotonic() + timeout_s
         while time.monotonic() < deadline:
             try:
-                message = self.messages.get(timeout=max(0.1, deadline - time.monotonic()))
+                message = self.messages.get(
+                    timeout=max(0.1, deadline - time.monotonic())
+                )
             except queue.Empty:
                 break
             if message.topic != RESULT_TOPIC:
@@ -267,6 +268,32 @@ def expected_statistics(probe: dict[str, Any], values: dict[str, float]) -> bool
     return True
 
 
+def expected_statistic_triplets(
+    probe: dict[str, Any],
+    values: dict[str, tuple[float, float, float]],
+) -> bool:
+    statistics = probe.get("statistics")
+    entities = probe.get("entities")
+    if not isinstance(statistics, dict) or not isinstance(entities, dict):
+        return False
+    for unique_id, (mean, minimum, maximum) in values.items():
+        entity = entities.get(unique_id)
+        if not isinstance(entity, dict):
+            return False
+        row = statistics.get(entity.get("entity_id"))
+        if not isinstance(row, dict):
+            return False
+        if (
+            row.get("start") != SAMPLE_HOUR
+            or row.get("unit_of_measurement") != EXPECTED_UNIQUE_IDS[unique_id][0]
+            or row.get("mean") != mean
+            or row.get("min") != minimum
+            or row.get("max") != maximum
+        ):
+            return False
+    return True
+
+
 def discovery_document(
     *,
     name: str,
@@ -293,11 +320,7 @@ def discovery_document(
 
 
 def phase_prepare() -> None:
-    wait_until(
-        runtime_ready,
-        timeout_s=120,
-        description="Home Assistant C06-B2 runtime",
-    )
+    wait_until(runtime_ready, timeout_s=120, description="Home Assistant C06-B2 runtime")
     session = Session("c06b2c-prepare")
     session.start()
     try:
@@ -319,11 +342,7 @@ def phase_prepare() -> None:
                 retain=True,
             )
             session.publish(state_topic, {"value": value}, retain=True)
-        wait_until(
-            lambda: probe_ready(),
-            timeout_s=90,
-            description="MQTT target entities",
-        )
+        wait_until(probe_ready, timeout_s=90, description="MQTT target entities")
         probe = read_json(PROBE_PATH)
         write_json(
             "prepare.json",
@@ -357,13 +376,17 @@ def message_summary(message: mqtt.MQTTMessage) -> dict[str, Any]:
         "schema": document.get("schema"),
         "request_id": document.get("request_id"),
         "status": document.get("status"),
+        "code": document.get("code"),
+        "detail": document.get("detail"),
         "idempotency_key": (
             document.get("idempotency_key")
             if projection is None
             else projection.get("idempotency_key")
         ),
         "revision": (
-            document.get("revision") if projection is None else projection.get("revision")
+            document.get("revision")
+            if projection is None
+            else projection.get("revision")
         ),
         "projection_hash": document.get("projection_hash"),
     }
@@ -387,7 +410,9 @@ def phase_observer() -> None:
         deadline = time.monotonic() + 180
         while time.monotonic() < deadline and set(captured) != {"request", "result"}:
             try:
-                message = session.messages.get(timeout=max(0.1, deadline - time.monotonic()))
+                message = session.messages.get(
+                    timeout=max(0.1, deadline - time.monotonic())
+                )
             except queue.Empty:
                 break
             if message.topic == REQUEST_TOPIC and "request" not in captured:
@@ -401,7 +426,7 @@ def phase_observer() -> None:
         write_json(
             "mqtt-capture.json",
             {
-                "schema": "gh.c06b2c.mqtt-capture/1",
+                "schema": "gh.c06b2c.mqtt-capture/2",
                 **captured,
                 "secret_values_included": False,
                 "production_broker_accessed": False,
@@ -426,7 +451,7 @@ def completed_job() -> tuple[dict[str, Any], str, int]:
 
 def phase_initial() -> None:
     wait_until(
-        lambda: _job_is_completed(),
+        _job_is_completed,
         timeout_s=120,
         description="Manager projection completion",
     )
@@ -507,15 +532,67 @@ def dispatch_direct(
     session: Session,
     projection: dict[str, Any],
     request_id: str,
+    *,
+    timeout_s: float = 30.0,
 ) -> dict[str, Any]:
     session.publish(
         REQUEST_TOPIC,
         request_document(projection, request_id),
         retain=False,
     )
-    result = session.result_for(request_id)
+    result = session.result_for(request_id, timeout_s=timeout_s)
     if result.get("_qos") != 1 or result.get("_retain") is not False:
         raise AssertionError("direct result did not use QoS 1 retain=false")
+    return result
+
+
+def result_evidence(result: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "request_id": result.get("request_id"),
+        "status": result.get("status"),
+        "code": result.get("code"),
+        "detail": result.get("detail"),
+        "idempotency_key": result.get("idempotency_key"),
+        "revision": result.get("revision"),
+        "projection_hash": result.get("projection_hash"),
+        "qos": result.get("_qos"),
+        "retain": result.get("_retain"),
+    }
+
+
+def write_monotonic_attempt(attempts: dict[str, Any]) -> None:
+    write_json(
+        "monotonic-attempt.json",
+        {
+            "schema": "gh.c06b2c.monotonic-attempt/1",
+            "attempts": attempts,
+            "direct_home_assistant_database_read": False,
+            "direct_home_assistant_database_write": False,
+            "production_state_modified": False,
+            "secret_values_included": False,
+        },
+    )
+
+
+def dispatch_recorded(
+    session: Session,
+    projection: dict[str, Any],
+    request_id: str,
+    label: str,
+    attempts: dict[str, Any],
+) -> dict[str, Any]:
+    try:
+        result = dispatch_direct(session, projection, request_id)
+    except Exception as exc:
+        attempts[label] = {
+            "request_id": request_id,
+            "exception_class": type(exc).__name__,
+            "exception_detail": str(exc)[:512],
+        }
+        write_monotonic_attempt(attempts)
+        raise
+    attempts[label] = result_evidence(result)
+    write_monotonic_attempt(attempts)
     return result
 
 
@@ -530,28 +607,230 @@ def revision_two_projection(original: dict[str, Any]) -> dict[str, Any]:
     return projection
 
 
+def phase_fault_seed() -> None:
+    record = {
+        "boot_id": "boot-00000001",
+        "seq": 2,
+        "uptime_ms": 2000,
+        "sampled_at": "2026-08-03T04:30:00Z",
+        "time_quality": "trusted",
+        "time_anchor": None,
+        "cap_hash": "cap-hash-0001",
+        "fw_version": "1.0.0",
+        "measurements": {
+            "air_temperature_c": 27.0,
+            "air_humidity_pct": 67.0,
+        },
+        "quality": {
+            "air_temperature_c": "ok",
+            "air_humidity_pct": "ok",
+        },
+        "power": {"source": "battery", "battery_v": 3.9, "low": False},
+    }
+    batch_id = "c06-fault-batch-0002"
+    with HistoryStore(DATABASE) as history:
+        result = history.commit_page(
+            node_id=NODE_ID,
+            batch_id=batch_id,
+            page_index=0,
+            page_count=1,
+            records=[record],
+            payload_sha256=hashlib.sha256(batch_id.encode()).hexdigest(),
+            received_at=datetime(2026, 8, 3, 4, 40, tzinfo=UTC),
+        )
+    with ProjectionStore(DATABASE) as store:
+        job = store.get_job(NODE_ID, SAMPLE_HOUR)
+        write_json(
+            "fault-seed.json",
+            {
+                "schema": "gh.c06-history-fault-seed/1",
+                "commit_status": result.status,
+                "revision": job.revision if job is not None else None,
+                "state": job.state if job is not None else None,
+                "attempts": job.attempts if job is not None else None,
+                "record_count": 2,
+                "manager_stopped_before_seed": True,
+                "production_state_modified": False,
+                "secret_values_included": False,
+            },
+        )
+        if (
+            result.status != "accepted"
+            or job is None
+            or job.state != "pending"
+            or job.revision != 2
+            or job.attempts != 0
+        ):
+            raise AssertionError("fault revision was not durably seeded as pending")
+
+
+def _retry_job() -> dict[str, Any] | None:
+    try:
+        with ProjectionStore(DATABASE) as store:
+            job = store.get_job(NODE_ID, SAMPLE_HOUR)
+            if job is None or job.state != "retry" or job.revision != 2:
+                return None
+            return {
+                "revision": job.revision,
+                "state": job.state,
+                "attempts": job.attempts,
+                "error_code": job.last_error_code,
+                "next_attempt_recorded": job.next_attempt_at is not None,
+            }
+    except (OSError, RuntimeError, ValueError, sqlite3.Error):
+        return None
+
+
+def phase_fault_wait_retry() -> None:
+    observed: dict[str, Any] = {}
+
+    def retry_observed() -> bool:
+        value = _retry_job()
+        if value is None:
+            return False
+        observed.update(value)
+        return True
+
+    wait_until(
+        retry_observed,
+        timeout_s=120,
+        description="Manager retry while Home Assistant is unavailable",
+        interval_s=0.2,
+    )
+    if observed.get("attempts", 0) < 1:
+        raise AssertionError("fault retry did not record an attempt")
+    write_json(
+        "fault-retry.json",
+        {
+            "schema": "gh.c06-history-fault-retry/1",
+            **observed,
+            "homeassistant_unavailable": True,
+            "retry_fail_closed": True,
+            "production_state_modified": False,
+            "secret_values_included": False,
+        },
+    )
+
+
+def phase_fault_recovery() -> None:
+    wait_until(
+        lambda: (
+            _job_is_completed()
+            and probe_ready(expected_revision=2)
+            and expected_statistic_triplets(
+                read_json(PROBE_PATH),
+                {
+                    "node-0001_air_temperature_c": (26.0, 25.0, 27.0),
+                    "node-0001_air_humidity_pct": (66.0, 65.0, 67.0),
+                },
+            )
+        ),
+        timeout_s=180,
+        description="durable Manager and Home Assistant fault recovery",
+    )
+    projection, digest, revision = completed_job()
+    if revision != 2 or projection_hash(projection) != digest:
+        raise AssertionError("recovered Manager tuple is inconsistent")
+    write_json(
+        "fault-recovery.json",
+        {
+            "schema": "gh.c06-history-fault-recovery/1",
+            "revision": revision,
+            "manager_job_state": "completed",
+            "target_ledger_state": "verified",
+            "recorder_readback_exact": True,
+            "manager_restarted": True,
+            "homeassistant_restarted": True,
+            "durable_retry_reconciled": True,
+            "projection_hash_recorded": bool(digest),
+            "direct_home_assistant_database_read": False,
+            "direct_home_assistant_database_write": False,
+            "production_state_modified": False,
+            "secret_values_included": False,
+        },
+    )
+
+
+def phase_fault_broker_restart() -> None:
+    wait_until(runtime_ready, timeout_s=120, description="runtime after Broker restart")
+    projection, digest, revision = completed_job()
+    session = Session("c06-fault-broker-restart")
+    session.start()
+    try:
+        session.subscribe((RESULT_TOPIC,))
+        deadline = time.monotonic() + 120
+        attempts = 0
+        result: dict[str, Any] | None = None
+        while result is None and time.monotonic() < deadline:
+            attempts += 1
+            try:
+                result = dispatch_direct(
+                    session,
+                    projection,
+                    f"c06-fault-broker-restart-idempotent-{attempts:04d}",
+                    timeout_s=min(10.0, max(1.0, deadline - time.monotonic())),
+                )
+            except AssertionError as exc:
+                if "timed out waiting for result" not in str(exc):
+                    raise
+        if result is None:
+            raise AssertionError(
+                f"Broker restart reconciliation timed out after {attempts} probes"
+            )
+        if (
+            result.get("status") != "verified"
+            or result.get("revision") != revision
+            or result.get("projection_hash") != digest
+        ):
+            raise AssertionError("Broker restart idempotent reconciliation failed")
+        write_json(
+            "fault-broker-restart.json",
+            {
+                "schema": "gh.c06-history-fault-broker-restart/1",
+                "broker_restarted": True,
+                "mqtt_clients_reconnected": True,
+                "reconnect_probe_attempts": attempts,
+                "same_revision_idempotent_status": result.get("status"),
+                "revision": result.get("revision"),
+                "projection_hash_exact": result.get("projection_hash") == digest,
+                "result_qos": result.get("_qos"),
+                "result_retain": result.get("_retain"),
+                "production_state_modified": False,
+                "secret_values_included": False,
+            },
+        )
+    finally:
+        session.close()
+
+
 def phase_monotonic() -> None:
     original, original_hash, original_revision = completed_job()
     if original_revision != 1 or projection_hash(original) != original_hash:
         raise AssertionError("completed Manager projection tuple is inconsistent")
     session = Session("c06b2c-monotonic")
     session.start()
+    attempts: dict[str, Any] = {}
+    write_monotonic_attempt(attempts)
     try:
         session.subscribe((RESULT_TOPIC,))
-        idempotent = dispatch_direct(
+        idempotent = dispatch_recorded(
             session,
             original,
             "c06b2c-idempotent-0001",
+            "idempotent",
+            attempts,
         )
         if idempotent.get("status") != "verified":
             raise AssertionError("same revision and hash was not idempotently verified")
 
         higher = revision_two_projection(original)
         higher_hash = projection_hash(higher)
-        higher_result = dispatch_direct(
+        higher_result = dispatch_recorded(
             session,
             higher,
             "c06b2c-higher-revision-0001",
+            "higher_revision",
+            attempts,
         )
         if higher_result.get("status") != "verified":
             raise AssertionError("higher revision was not verified")
@@ -570,10 +849,12 @@ def phase_monotonic() -> None:
             description="higher revision Recorder replacement",
         )
 
-        lower = dispatch_direct(
+        lower = dispatch_recorded(
             session,
             original,
             "c06b2c-lower-revision-0001",
+            "lower_revision",
+            attempts,
         )
         if (
             lower.get("status") != "blocked"
@@ -585,10 +866,12 @@ def phase_monotonic() -> None:
         for item in conflict_projection["series"]:
             if item["measurement_key"] == "air_temperature_c":
                 item["mean"] = item["min"] = item["max"] = 27.0
-        conflict = dispatch_direct(
+        conflict = dispatch_recorded(
             session,
             conflict_projection,
             "c06b2c-same-revision-conflict-0001",
+            "same_revision_conflict",
+            attempts,
         )
         if (
             conflict.get("status") != "blocked"
@@ -683,6 +966,10 @@ def main() -> None:
         "initial": phase_initial,
         "monotonic": phase_monotonic,
         "restart": phase_restart,
+        "fault-seed": phase_fault_seed,
+        "fault-wait-retry": phase_fault_wait_retry,
+        "fault-recovery": phase_fault_recovery,
+        "fault-broker-restart": phase_fault_broker_restart,
     }
     action = phases.get(phase)
     if action is None:

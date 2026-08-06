@@ -440,11 +440,16 @@ def test_supported_recorder_api_utc_instant_matching_and_default_off(
             order.append("import")
             captured.append((metadata, rows))
 
+        query_calls = 0
+
         def query(*_: Any) -> dict[str, list[dict[str, Any]]]:
+            nonlocal query_calls
+            query_calls += 1
             order.append("readback")
+            value = 19.0 if query_calls == 1 else 20.0
             return {"sensor.user_renamed_temperature": [{
                 "start": datetime(2026, 8, 3, 12, tzinfo=UTC),
-                "mean": 20.0, "min": 20.0, "max": 20.0,
+                "mean": value, "min": value, "max": value,
             }]}
 
         class Instance:
@@ -474,7 +479,8 @@ def test_supported_recorder_api_utc_instant_matching_and_default_off(
         )
         assert len(readback) == 1
         assert readback[0].start == "2026-08-03T12:00:00.000Z"
-        assert order == ["import", "readback"]
+        assert order == ["import", "readback", "readback"]
+        assert query_calls == 2
         assert captured[0][0]["source"] == "recorder"
         assert captured[0][0]["statistic_id"].startswith("sensor.")
 
@@ -505,6 +511,44 @@ def test_supported_recorder_api_utc_instant_matching_and_default_off(
             rows_by_id=adjacent_hour_rows,
         )
         assert adjacent_hour == ()
+
+        def stale_replacement_rows(*_: Any) -> dict[str, list[dict[str, Any]]]:
+            return {"sensor.user_renamed_temperature": [{
+                "start": datetime(2026, 8, 3, 12, tzinfo=UTC),
+                "mean": 19.0, "min": 19.0, "max": 19.0,
+            }]}
+
+        packages["homeassistant.components.recorder.statistics"].statistics_during_period = (
+            stale_replacement_rows
+        )
+        stale_adapter = HomeAssistantRecorderAdapter(
+            hass,
+            readback_timeout_seconds=0.003,
+            readback_poll_seconds=0.001,
+        )
+        await stale_adapter.async_import_statistics(writes)
+        with pytest.raises(RecorderAdapterError) as stale_error:
+            await stale_adapter.async_read_statistics(
+                ("sensor.user_renamed_temperature",),
+                start="2026-08-03T12:00:00.000Z",
+            )
+        assert stale_error.value.code == "target_readback_mismatch"
+
+        packages["homeassistant.components.recorder.statistics"].statistics_during_period = (
+            lambda *_: {}
+        )
+        incomplete_adapter = HomeAssistantRecorderAdapter(
+            hass,
+            readback_timeout_seconds=0.003,
+            readback_poll_seconds=0.001,
+        )
+        await incomplete_adapter.async_import_statistics(writes)
+        with pytest.raises(RecorderAdapterError) as incomplete_error:
+            await incomplete_adapter.async_read_statistics(
+                ("sensor.user_renamed_temperature",),
+                start="2026-08-03T12:00:00.000Z",
+            )
+        assert incomplete_error.value.code == "target_readback_incomplete"
 
     asyncio.run(run())
     monkeypatch.delenv("GH_C06B2_RUNTIME_ENABLED", raising=False)

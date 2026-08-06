@@ -107,6 +107,7 @@ class HomeAssistantRecorderAdapter:
         self.hass = hass
         self.readback_timeout_seconds = readback_timeout_seconds
         self.readback_poll_seconds = readback_poll_seconds
+        self._expected_statistics: tuple[StatisticWrite, ...] | None = None
 
     async def async_import_statistics(
         self,
@@ -162,6 +163,7 @@ class HomeAssistantRecorderAdapter:
                         f"{type(exc).__name__}"
                     ),
                 ) from exc
+        self._expected_statistics = tuple(statistics)
 
     async def _async_query_statistics(
         self,
@@ -253,8 +255,27 @@ class HomeAssistantRecorderAdapter:
         start: str,
     ) -> tuple[StatisticReadback, ...]:
         start_time = _utc_datetime(start, "statistics.start")
+        expected = self._expected_statistics
+        if expected is None:
+            raise RecorderAdapterError(
+                "target_readback_expected_missing",
+                "Recorder readback has no bound expected projection",
+            )
+        if (
+            tuple(item.statistic_id for item in expected) != statistic_ids
+            or any(
+                _utc_datetime(item.start, "statistics.start") != start_time
+                for item in expected
+            )
+        ):
+            raise RecorderAdapterError(
+                "target_readback_expected_mismatch",
+                "Recorder readback request does not match the imported projection",
+            )
+
         end_time = start_time + timedelta(hours=1)
         deadline = time.monotonic() + self.readback_timeout_seconds
+        saw_complete_stale_values = False
         while True:
             rows_by_id = await self._async_query_statistics(
                 statistic_ids,
@@ -266,11 +287,29 @@ class HomeAssistantRecorderAdapter:
                 start=start,
                 rows_by_id=rows_by_id,
             )
-            if len(readback) == len(statistic_ids):
-                return readback
-            if time.monotonic() >= deadline:
-                return readback
-            await asyncio.sleep(self.readback_poll_seconds)
+            try:
+                verify_readback(expected, readback)
+            except RecorderAdapterError as exc:
+                if exc.code == "target_readback_mismatch":
+                    saw_complete_stale_values = True
+                elif exc.code != "target_readback_incomplete":
+                    raise
+                if time.monotonic() >= deadline:
+                    if saw_complete_stale_values:
+                        raise RecorderAdapterError(
+                            "target_readback_mismatch",
+                            (
+                                "Recorder values did not reach the expected projection "
+                                "before timeout"
+                            ),
+                        ) from exc
+                    raise RecorderAdapterError(
+                        "target_readback_incomplete",
+                        "Recorder readback keys did not become complete before timeout",
+                    ) from exc
+                await asyncio.sleep(self.readback_poll_seconds)
+                continue
+            return readback
 
 
 def projection_writes(
@@ -296,8 +335,14 @@ def verify_readback(
     writes: tuple[StatisticWrite, ...],
     readback: tuple[StatisticReadback, ...],
 ) -> None:
-    expected = {(item.statistic_id, item.start): item for item in writes}
-    actual = {(item.statistic_id, item.start): item for item in readback}
+    expected = {
+        (item.statistic_id, _utc_datetime(item.start, "statistics.start")): item
+        for item in writes
+    }
+    actual = {
+        (item.statistic_id, _utc_datetime(item.start, "statistics.start")): item
+        for item in readback
+    }
     if set(actual) != set(expected):
         raise RecorderAdapterError(
             "target_readback_incomplete",
