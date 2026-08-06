@@ -23,7 +23,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  C06B3_AUTHORIZATION: D1-C06B3-PR273-SUCCESSOR-INTEGRATION-EXACT-PARENT-BASE-REBIND-AND-FULL-CI-REVALIDATION-AUTHORIZATION-20260806-01
+  C06B3_AUTHORIZATION: D1-C06B3-PR268-HEAD-ED8B25B-SUCCESSOR-CI-GATE-REPAIR-DRAFT-AND-FULL-CI-20260806-01
 
 jobs:
   preflight:
@@ -35,26 +35,39 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify exact PR 273 successor integration stack
+      - name: Verify exact PR 268 integration or successor repair stack
         env:
-          AUTHORIZED_BASE_REF: feature/c06b2b-recorder-replacement-expected-value-readback-pr267-successor-20260804-v1
-          AUTHORIZED_BASE_SHA: 249606dbab585e3b3beed47e77b9ae77a64e4291
+          PR268_UPSTREAM_BASE_REF: feature/c06b2b-recorder-readback-utc-canonicalization-pr266-successor-20260804-v1
+          PR268_UPSTREAM_BASE_SHA: 4c29fced18e8d45cac78f71ec82112bcf65a8cef
+          SUCCESSOR_BASE_REF: feature/c06b2b-recorder-replacement-expected-value-readback-pr267-successor-20260804-v1
+          PR273_BASE_SHA: 249606dbab585e3b3beed47e77b9ae77a64e4291
+          REPAIR_BASE_SHA: ed8b25b9183e035fe413e674dfdd875f54870f19
           ACTUAL_BASE_REF: ${{ github.event.pull_request.base.ref }}
           ACTUAL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           ACTUAL_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          test "$ACTUAL_BASE_REF" = "$AUTHORIZED_BASE_REF"
-          test "$ACTUAL_BASE_SHA" = "$AUTHORIZED_BASE_SHA"
+          if [ "$ACTUAL_BASE_REF" = "$PR268_UPSTREAM_BASE_REF" ]; then
+            test "$ACTUAL_BASE_SHA" = "$PR268_UPSTREAM_BASE_SHA"
+          elif [ "$ACTUAL_BASE_REF" = "$SUCCESSOR_BASE_REF" ]; then
+            test "$ACTUAL_BASE_SHA" = "$PR273_BASE_SHA" || \
+              test "$ACTUAL_BASE_SHA" = "$REPAIR_BASE_SHA"
+          else
+            echo "unsupported C06-B3 stack base: $ACTUAL_BASE_REF" >&2
+            exit 1
+          fi
           test "$(git merge-base "$ACTUAL_BASE_SHA" "$ACTUAL_HEAD_SHA")" = "$ACTUAL_BASE_SHA"
-          git merge-base --is-ancestor "$AUTHORIZED_BASE_SHA" "$ACTUAL_HEAD_SHA"
+          git merge-base --is-ancestor "$PR268_UPSTREAM_BASE_SHA" "$ACTUAL_HEAD_SHA"
 
       - name: Verify authorized C06-B3 file boundary
         env:
+          PR268_UPSTREAM_BASE_SHA: 4c29fced18e8d45cac78f71ec82112bcf65a8cef
+          PR273_BASE_SHA: 249606dbab585e3b3beed47e77b9ae77a64e4291
+          REPAIR_BASE_SHA: ed8b25b9183e035fe413e674dfdd875f54870f19
           ACTUAL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           ACTUAL_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           mapfile -t changed < <(git diff --name-only "$ACTUAL_BASE_SHA" "$ACTUAL_HEAD_SHA")
-          required=(
+          pr273_required=(
             ".github/workflows/c06b2c-isolated-e2e-ci.yml"
             ".github/workflows/c06-history-replay-ci.yml"
             ".github/workflows/c06b1-history-projection-ci.yml"
@@ -67,6 +80,41 @@ jobs:
             "host/greenhouse-manager/tests/runtime/test_history_projection_fault_matrix.py"
             "docs/status/c06-history-fault-matrix-20260806.md"
           )
+          pr268_required=(
+            ".github/workflows/c06-history-replay-ci.yml"
+            ".github/workflows/c06b1-history-projection-ci.yml"
+            ".github/workflows/c06b1-stateful-monotonic-adapter-ci.yml"
+            ".github/workflows/c06b2a-ha-target-ledger-ci.yml"
+            ".github/workflows/c06b2b-runtime-wiring-ci.yml"
+            ".github/workflows/c06b2c-isolated-e2e-ci.yml"
+            "docs/adr/ADR-0006-c06b2-real-home-assistant-history-projection-adapter.md"
+            "docs/status/c06-history-fault-matrix-20260806.md"
+            "host/greenhouse-manager/tests/runtime/test_c06b2b_runtime_wiring.py"
+            "host/greenhouse-manager/tests/runtime/test_history_projection_fault_matrix.py"
+            "host/homeassistant/custom_components/greenhouse_history/recorder_adapter.py"
+            "infra/compose/c06b2c-history-projection-e2e/verify.py"
+            "infra/compose/c06b2c-history-projection-e2e/verify.sh"
+            "tools/c06_fault_matrix_evidence.py"
+            "tools/c06b2b_runtime_wiring_host_only_harness.py"
+            "tools/c06b2c_isolated_e2e_evidence.py"
+            "tools/tests/test_c06_fault_matrix_evidence.py"
+          )
+          repair_required=(
+            ".github/workflows/c06b1-history-projection-ci.yml"
+            ".github/workflows/c06b1-stateful-monotonic-adapter-ci.yml"
+            ".github/workflows/c06b2b-runtime-wiring-ci.yml"
+            ".github/workflows/c06b2c-isolated-e2e-ci.yml"
+          )
+          if [ "$ACTUAL_BASE_SHA" = "$PR273_BASE_SHA" ]; then
+            required=("${pr273_required[@]}")
+          elif [ "$ACTUAL_BASE_SHA" = "$PR268_UPSTREAM_BASE_SHA" ]; then
+            required=("${pr268_required[@]}")
+          elif [ "$ACTUAL_BASE_SHA" = "$REPAIR_BASE_SHA" ]; then
+            required=("${repair_required[@]}")
+          else
+            echo "unsupported C06-B3 boundary base: $ACTUAL_BASE_SHA" >&2
+            exit 1
+          fi
           test "${#changed[@]}" -eq "${#required[@]}"
           for path in "${changed[@]}"; do
             printf '%s\n' "${required[@]}" | grep -Fx "$path" >/dev/null
