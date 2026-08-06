@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "greenhouse-manager"
-version = "0.4.96"
+version = "0.4.98"
 description = "Canonical MQTT state manager for the greenhouse monitoring system"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -24,9 +24,16 @@ pairing = [
   "cryptography>=44,<50",
   "zeroconf>=0.150,<1",
 ]
+bootstrap = [
+  "cryptography>=44,<50",
+]
 
 [project.scripts]
 greenhouse-manager = "greenhouse_manager.runtime.app:main"
+greenhouse-init = "greenhouse_manager.bootstrap.cli:main"
+greenhouse-portable-restore = "greenhouse_manager.bootstrap.portable_restore_cli:main"
+greenhouse-system-identity-guard = "greenhouse_manager.bootstrap.identity_guard_cli:main"
+greenhouse-persistence-migration-plan = "greenhouse_manager.bootstrap.persistence_migration_cli:main"
 greenhouse-manager-pairing-lab = "greenhouse_manager.ops.pairing_lab_cli:main"
 greenhouse-manager-registration = "greenhouse_manager.ops.registration_cli:main"
 greenhouse-manager-node-retirement = "greenhouse_manager.ops.node_retirement_cli:main"
