@@ -49,6 +49,8 @@ jobs:
           EXPECTED_BASE_SHA: 4c29fced18e8d45cac78f71ec82112bcf65a8cef
           DESCENDANT_BASE_REF: feature/c06b2b-pr268-c06b1-inherited-descendant-gates-20260804-v1
           DESCENDANT_BASE_SHA: 0cc8daa58fdf1d1200af3c3c2c3ed53db2963b41
+          SUCCESSOR_BASE_REF: feature/c06b2b-recorder-replacement-expected-value-readback-pr267-successor-20260804-v1
+          SUCCESSOR_BASE_SHA: 249606dbab585e3b3beed47e77b9ae77a64e4291
           ACTUAL_BASE_REF: ${{ github.event.pull_request.base.ref }}
           ACTUAL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           ACTUAL_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -57,6 +59,8 @@ jobs:
             test "$ACTUAL_BASE_SHA" = "$EXPECTED_BASE_SHA"
           elif [ "$ACTUAL_BASE_REF" = "$DESCENDANT_BASE_REF" ]; then
             test "$ACTUAL_BASE_SHA" = "$DESCENDANT_BASE_SHA"
+          elif [ "$ACTUAL_BASE_REF" = "$SUCCESSOR_BASE_REF" ]; then
+            test "$ACTUAL_BASE_SHA" = "$SUCCESSOR_BASE_SHA"
           else
             echo "unsupported C06-B2B stack base: $ACTUAL_BASE_REF" >&2
             exit 1
@@ -71,6 +75,7 @@ jobs:
         env:
           EXPECTED_BASE_SHA: 4c29fced18e8d45cac78f71ec82112bcf65a8cef
           DESCENDANT_BASE_SHA: 0cc8daa58fdf1d1200af3c3c2c3ed53db2963b41
+          SUCCESSOR_BASE_SHA: 249606dbab585e3b3beed47e77b9ae77a64e4291
           ACTUAL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           ACTUAL_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
@@ -107,7 +112,10 @@ jobs:
           actual_base_sha = os.environ["ACTUAL_BASE_SHA"]
           if actual_base_sha == os.environ["EXPECTED_BASE_SHA"]:
               required = legacy_required
-          elif actual_base_sha == os.environ["DESCENDANT_BASE_SHA"]:
+          elif actual_base_sha in {
+              os.environ["DESCENDANT_BASE_SHA"],
+              os.environ["SUCCESSOR_BASE_SHA"],
+          }:
               required = descendant_required
           else:
               raise SystemExit(f"unsupported C06-B2B boundary base: {actual_base_sha}")

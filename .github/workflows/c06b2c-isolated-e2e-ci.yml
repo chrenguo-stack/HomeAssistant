@@ -23,7 +23,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  C06B3_AUTHORIZATION: D1-C06B3-PR269-REAL-ISOLATED-MQTT-HA-RECORDER-FAULT-MATRIX-RETRY-RESTART-RECONCILIATION-AND-CLEANUP-STACKED-DRAFT-IMPLEMENTATION-20260806-01
+  C06B3_AUTHORIZATION: D1-C06B3-PR273-SUCCESSOR-INTEGRATION-EXACT-PARENT-BASE-REBIND-AND-FULL-CI-REVALIDATION-AUTHORIZATION-20260806-01
 
 jobs:
   preflight:
@@ -35,10 +35,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify exact PR 269 successor stack
+      - name: Verify exact PR 273 successor integration stack
         env:
-          AUTHORIZED_BASE_REF: feature/c06b2b-pr268-c06b1-inherited-descendant-gates-20260804-v1
-          AUTHORIZED_BASE_SHA: 0cc8daa58fdf1d1200af3c3c2c3ed53db2963b41
+          AUTHORIZED_BASE_REF: feature/c06b2b-recorder-replacement-expected-value-readback-pr267-successor-20260804-v1
+          AUTHORIZED_BASE_SHA: 249606dbab585e3b3beed47e77b9ae77a64e4291
           ACTUAL_BASE_REF: ${{ github.event.pull_request.base.ref }}
           ACTUAL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           ACTUAL_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
