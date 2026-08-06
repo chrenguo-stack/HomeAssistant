@@ -47,6 +47,9 @@ jobs:
           B2A_BASE_SHA: 77259fe2ad0403a620c78626e01862804c7af6e4
           PR267_BASE_REF: feature/c06b2b-recorder-readback-utc-canonicalization-pr266-successor-20260804-v1
           PR267_BASE_SHA: 4c29fced18e8d45cac78f71ec82112bcf65a8cef
+          PR267_STACK_BASE_REF: feature/c06b2b-recorder-import-queue-barrier-c06b2c-successor-20260804-v1
+          PR267_STACK_BASE_SHA: 21f288c1c47f7801e21e77ada460c6353e371e14
+          PR267_REPAIR_BASE_SHA: f98d93e43d10c32cd60580c80c484d829c8f6900
           ACTUAL_BASE_REF: ${{ github.event.pull_request.base.ref }}
           ACTUAL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           ACTUAL_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -56,7 +59,10 @@ jobs:
           elif [ "$ACTUAL_BASE_REF" = "$B2A_BASE_REF" ]; then
             test "$ACTUAL_BASE_SHA" = "$B2A_BASE_SHA"
           elif [ "$ACTUAL_BASE_REF" = "$PR267_BASE_REF" ]; then
-            test "$ACTUAL_BASE_SHA" = "$PR267_BASE_SHA"
+            test "$ACTUAL_BASE_SHA" = "$PR267_BASE_SHA" || \
+              test "$ACTUAL_BASE_SHA" = "$PR267_REPAIR_BASE_SHA"
+          elif [ "$ACTUAL_BASE_REF" = "$PR267_STACK_BASE_REF" ]; then
+            test "$ACTUAL_BASE_SHA" = "$PR267_STACK_BASE_SHA"
           else
             echo "unsupported C06-B2A stack base: $ACTUAL_BASE_REF" >&2
             exit 1
@@ -68,6 +74,9 @@ jobs:
           fi
           if [ "$ACTUAL_BASE_SHA" = "$PR267_BASE_SHA" ]; then
             git merge-base --is-ancestor "$PR267_BASE_SHA" "$ACTUAL_HEAD_SHA"
+          fi
+          if [ "$ACTUAL_BASE_SHA" = "$PR267_STACK_BASE_SHA" ] || [ "$ACTUAL_BASE_SHA" = "$PR267_REPAIR_BASE_SHA" ]; then
+            git merge-base --is-ancestor "$PR267_REPAIR_BASE_SHA" "$ACTUAL_HEAD_SHA"
           fi
           echo "C06B2A_EXACT_BASE_VERIFIED=true" >> "$GITHUB_ENV"
           echo "C06B2A_BASE_ANCESTOR_VERIFIED=true" >> "$GITHUB_ENV"
