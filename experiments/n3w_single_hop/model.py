@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import base64
-import hashlib
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Callable
 
 _ID = re.compile(r"^[a-z0-9][a-z0-9_-]{2,63}$")
+_BOOT_ID = re.compile(r"^boot_([0-9a-f]{16})$")
 _MAX_ENVELOPE_BYTES = 4096
 _MAX_CIPHERTEXT_BYTES = 1024
 
@@ -27,11 +27,62 @@ class IngressResult:
     telemetry: dict[str, Any] | None = None
 
 
+@dataclass
+class ReplayRegistry:
+    """Host-only port model for Manager-owned persistent replay state."""
+
+    available: bool = True
+    highest_session: dict[str, int] = field(default_factory=dict)
+    seen: set[tuple[str, str, int]] = field(default_factory=set)
+
+    def require_available(self) -> None:
+        if not self.available:
+            raise ContractRejected("replay_registry_unavailable")
+
+    def observe_direct(self, *, node_id: str, boot_id: str, seq: int) -> None:
+        self.require_available()
+        self.seen.add((node_id, boot_id, seq))
+
+    def reject_stale_session(self, *, node_id: str, boot_id: str) -> None:
+        """Fails closed before decryption when the sender session moved backwards."""
+        self.require_available()
+        session = _boot_session(boot_id)
+        highest = self.highest_session.get(node_id)
+        if highest is not None and session < highest:
+            raise ContractRejected("stale_boot_session")
+
+    def commit_relay(self, *, node_id: str, boot_id: str, seq: int) -> str:
+        """Models one atomic highest-session and replay-set transaction."""
+        self.require_available()
+        session = _boot_session(boot_id)
+        highest = self.highest_session.get(node_id)
+        if highest is not None and session < highest:
+            return "stale_boot_session"
+        dedup = (node_id, boot_id, seq)
+        if dedup in self.seen:
+            return "duplicate_node_boot_seq"
+        if highest is None or session > highest:
+            self.highest_session[node_id] = session
+        self.seen.add(dedup)
+        return "accepted"
+
+
+def _boot_session(boot_id: str) -> int:
+    match = _BOOT_ID.fullmatch(boot_id)
+    if match is None:
+        raise ContractRejected("boot_session_invalid")
+    session = int(match.group(1), 16)
+    if session == 0:
+        raise ContractRejected("boot_session_invalid")
+    return session
+
+
 def derive_nonce(node_id: str, boot_id: str, seq: int) -> bytes:
+    _boot_session(boot_id)
     if not 0 <= seq < 2**32:
         raise ContractRejected("sequence_out_of_range")
-    prefix = hashlib.sha256(f"{node_id}\0{boot_id}".encode()).digest()[:8]
-    return prefix + seq.to_bytes(4, "big")
+    del node_id  # The per-node key and AAD provide the node binding.
+    return _boot_session(boot_id).to_bytes(8, "big") + seq.to_bytes(4, "big")
 
 
 def _decode_b64(value: Any, *, field: str, length: int | None = None) -> bytes:
@@ -56,16 +107,17 @@ class N3wIngressModel:
         active_nodes: set[str],
         gateway_nodes: dict[str, set[str]],
         key_epochs: dict[str, set[int]],
+        replay_registry: ReplayRegistry,
     ) -> None:
         self.system_id = system_id
         self.active_nodes = set(active_nodes)
         self.gateway_nodes = {key: set(value) for key, value in gateway_nodes.items()}
         self.key_epochs = {key: set(value) for key, value in key_epochs.items()}
-        self._seen: set[tuple[str, str, int]] = set()
+        self.replay_registry = replay_registry
 
     def observe_direct(self, *, node_id: str, boot_id: str, seq: int) -> None:
-        """Models the existing direct-ingress dedup set shared with relay ingress."""
-        self._seen.add((node_id, boot_id, seq))
+        """Models direct ingress sharing the persistent relay replay set."""
+        self.replay_registry.observe_direct(node_id=node_id, boot_id=boot_id, seq=seq)
 
     def process(
         self,
@@ -153,6 +205,7 @@ class N3wIngressModel:
             raise ContractRejected("key_epoch_rejected")
         if not isinstance(seq, int) or isinstance(seq, bool):
             raise ContractRejected("sequence_out_of_range")
+        self.replay_registry.reject_stale_session(node_id=node_id, boot_id=boot_id)
         nonce = _decode_b64(document["nonce_b64"], field="nonce", length=12)
         if nonce != derive_nonce(node_id, boot_id, seq):
             raise ContractRejected("nonce_mismatch")
@@ -192,12 +245,17 @@ class N3wIngressModel:
             telemetry.get("seq"),
         ) != (node_id, boot_id, seq):
             raise ContractRejected("inner_binding_mismatch")
-        dedup = (node_id, boot_id, seq)
-        if dedup in self._seen:
+        replay_status = self.replay_registry.commit_relay(
+            node_id=node_id, boot_id=boot_id, seq=seq
+        )
+        if replay_status != "accepted":
             return IngressResult(
-                status="duplicate", code="duplicate_node_boot_seq", node_id=node_id
+                status="duplicate"
+                if replay_status == "duplicate_node_boot_seq"
+                else "rejected",
+                code=replay_status,
+                node_id=node_id,
             )
-        self._seen.add(dedup)
         return IngressResult(
             status="accepted",
             node_id=node_id,

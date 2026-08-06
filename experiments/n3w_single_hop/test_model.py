@@ -4,12 +4,16 @@ import base64
 import json
 import unittest
 
-from experiments.n3w_single_hop.model import N3wIngressModel, derive_nonce
+from experiments.n3w_single_hop.model import (
+    N3wIngressModel,
+    ReplayRegistry,
+    derive_nonce,
+)
 
 SYSTEM = "system_001"
 GATEWAY = "gateway_001"
 NODE = "node_001"
-BOOT = "boot_001"
+BOOT = "boot_0000000000000001"
 TOPIC = f"gh/v1/{SYSTEM}/ingress/gateway/{GATEWAY}/{NODE}/frame"
 
 
@@ -57,15 +61,18 @@ def envelope(
 
 class N3wIngressModelTest(unittest.TestCase):
     def setUp(self) -> None:
+        self.registry = ReplayRegistry()
         self.model = N3wIngressModel(
             system_id=SYSTEM,
             active_nodes={NODE},
             gateway_nodes={GATEWAY: {NODE}},
             key_epochs={NODE: {7}},
+            replay_registry=self.registry,
         )
 
     def decrypt(self, nonce: bytes, ciphertext: bytes, tag: bytes, aad: bytes) -> bytes:
         self.assertEqual(len(nonce), 12)
+        self.assertEqual(nonce, (1).to_bytes(8, "big") + (1).to_bytes(4, "big"))
         self.assertEqual(ciphertext, b"synthetic-ciphertext")
         self.assertEqual(tag, b"t" * 16)
         self.assertIn(b'"hop_count":1', aad)
@@ -142,12 +149,85 @@ class N3wIngressModelTest(unittest.TestCase):
             (result.status, result.code), ("duplicate", "duplicate_node_boot_seq")
         )
 
+    def test_persists_replay_state_across_manager_restart(self) -> None:
+        first = self.model.process(TOPIC, envelope(), decrypt=self.decrypt)
+        self.assertEqual(first.status, "accepted")
+        restarted = N3wIngressModel(
+            system_id=SYSTEM,
+            active_nodes={NODE},
+            gateway_nodes={GATEWAY: {NODE}},
+            key_epochs={NODE: {7}},
+            replay_registry=self.registry,
+        )
+        replay = restarted.process(TOPIC, envelope(), decrypt=self.decrypt)
+        self.assertEqual(
+            (replay.status, replay.code), ("duplicate", "duplicate_node_boot_seq")
+        )
+
+    def test_rejects_boot_session_rollback(self) -> None:
+        newer_boot = "boot_0000000000000002"
+
+        def newer_plaintext(*_: bytes) -> bytes:
+            return telemetry(boot=newer_boot)
+
+        accepted = self.model.process(
+            TOPIC, envelope(boot=newer_boot), decrypt=newer_plaintext
+        )
+        self.assertEqual(accepted.status, "accepted")
+        called = False
+
+        def rollback_plaintext(*_: bytes) -> bytes:
+            nonlocal called
+            called = True
+            return telemetry()
+
+        rollback = self.model.process(TOPIC, envelope(), decrypt=rollback_plaintext)
+        self.assertEqual(
+            (rollback.status, rollback.code), ("rejected", "stale_boot_session")
+        )
+        self.assertFalse(called)
+
+        rotated = N3wIngressModel(
+            system_id=SYSTEM,
+            active_nodes={NODE},
+            gateway_nodes={GATEWAY: {NODE}},
+            key_epochs={NODE: {7, 8}},
+            replay_registry=self.registry,
+        )
+        rollback = rotated.process(TOPIC, envelope(epoch=8), decrypt=rollback_plaintext)
+        self.assertEqual(rollback.code, "stale_boot_session")
+        self.assertFalse(called)
+
+    def test_fails_closed_before_decrypt_when_registry_is_unavailable(self) -> None:
+        self.registry.available = False
+        called = False
+
+        def decrypt(*_: bytes) -> bytes:
+            nonlocal called
+            called = True
+            return telemetry()
+
+        result = self.model.process(TOPIC, envelope(), decrypt=decrypt)
+        self.assertEqual(result.code, "replay_registry_unavailable")
+        self.assertFalse(called)
+
+    def test_rejects_noncanonical_boot_session(self) -> None:
+        document = json.loads(envelope())
+        document["boot_id"] = "boot_001"
+        result = self.model.process(TOPIC, json.dumps(document), decrypt=self.decrypt)
+        self.assertEqual(result.code, "boot_session_invalid")
+
+        document["boot_id"] = "boot_0000000000000000"
+        result = self.model.process(TOPIC, json.dumps(document), decrypt=self.decrypt)
+        self.assertEqual(result.code, "boot_session_invalid")
+
     def test_rejects_retired_node_before_decrypt(self) -> None:
         model = N3wIngressModel(
             system_id=SYSTEM,
             active_nodes=set(),
             gateway_nodes={GATEWAY: {NODE}},
             key_epochs={NODE: {7}},
+            replay_registry=ReplayRegistry(),
         )
         called = False
 
