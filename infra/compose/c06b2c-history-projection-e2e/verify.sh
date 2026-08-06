@@ -4,6 +4,11 @@ set -euo pipefail
 compose_file="infra/compose/c06b2c-history-projection-e2e/docker-compose.yml"
 artifact_dir="artifacts/c06b2c"
 project_name="c06b2c-history-${GITHUB_RUN_ID:-local}-${RANDOM}"
+fault_matrix="${C06B3_FAULT_MATRIX:-false}"
+if [[ "$fault_matrix" != "true" && "$fault_matrix" != "false" ]]; then
+  echo "C06B3_FAULT_MATRIX must be true or false" >&2
+  exit 2
+fi
 
 export COMPOSE_PROJECT_NAME="$project_name"
 export C06B2C_MANAGER_IMAGE="c06b2c-manager-${GITHUB_RUN_ID:-local}-${RANDOM}:test"
@@ -257,18 +262,70 @@ docker compose -f "$compose_file" run --rm --no-deps \
   -e GH_C06B2C_PHASE=initial \
   tester
 
-current_stage="verify-monotonic-and-idempotent-rules"
-docker compose -f "$compose_file" run --rm --no-deps \
-  -e GH_C06B2C_PHASE=monotonic \
-  tester
+if [[ "$fault_matrix" = "true" ]]; then
+  current_stage="fault-stop-manager-before-seed"
+  docker compose -f "$compose_file" stop manager
 
-current_stage="restart-homeassistant"
-docker compose -f "$compose_file" restart homeassistant
+  current_stage="fault-seed-revision-two"
+  docker compose -f "$compose_file" run --rm --no-deps \
+    -e GH_C06B2C_PHASE=fault-seed \
+    tester
 
-current_stage="verify-restart-persistence"
-docker compose -f "$compose_file" run --rm --no-deps \
-  -e GH_C06B2C_PHASE=restart \
-  tester
+  current_stage="fault-stop-homeassistant"
+  docker compose -f "$compose_file" stop homeassistant
+
+  current_stage="fault-start-manager-with-homeassistant-unavailable"
+  docker compose -f "$compose_file" up --detach --no-deps manager
+
+  current_stage="fault-observe-durable-retry"
+  docker compose -f "$compose_file" run --rm --no-deps \
+    -e GH_C06B2C_PHASE=fault-wait-retry \
+    tester
+
+  current_stage="fault-stop-manager-after-retry"
+  docker compose -f "$compose_file" stop manager
+
+  current_stage="fault-restart-homeassistant"
+  docker compose -f "$compose_file" up \
+    --detach \
+    --wait \
+    --wait-timeout 240 \
+    homeassistant
+
+  current_stage="fault-restart-manager"
+  docker compose -f "$compose_file" start manager
+
+  current_stage="fault-verify-durable-reconciliation"
+  docker compose -f "$compose_file" run --rm --no-deps \
+    -e GH_C06B2C_PHASE=fault-recovery \
+    tester
+
+  current_stage="fault-restart-broker"
+  docker compose -f "$compose_file" restart broker
+  docker compose -f "$compose_file" up \
+    --detach \
+    --wait \
+    --wait-timeout 120 \
+    broker
+
+  current_stage="fault-verify-broker-reconnect-idempotency"
+  docker compose -f "$compose_file" run --rm --no-deps \
+    -e GH_C06B2C_PHASE=fault-broker-restart \
+    tester
+else
+  current_stage="verify-monotonic-and-idempotent-rules"
+  docker compose -f "$compose_file" run --rm --no-deps \
+    -e GH_C06B2C_PHASE=monotonic \
+    tester
+
+  current_stage="restart-homeassistant"
+  docker compose -f "$compose_file" restart homeassistant
+
+  current_stage="verify-restart-persistence"
+  docker compose -f "$compose_file" run --rm --no-deps \
+    -e GH_C06B2C_PHASE=restart \
+    tester
+fi
 
 current_stage="verify-no-host-ports"
 host_ports="$(published_port_count)"
