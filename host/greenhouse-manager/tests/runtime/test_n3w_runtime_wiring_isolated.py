@@ -233,9 +233,7 @@ class SubscriptionBarrier:
             while self.count < target:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
-                    raise AssertionError(
-                        f"subscription barrier timed out at {self.count}/{target}"
-                    )
+                    raise AssertionError(f"subscription barrier timed out at {self.count}/{target}")
                 self._condition.wait(remaining)
 
 
@@ -253,6 +251,11 @@ class CanonicalCapture:
         self.client.on_subscribe = self._on_subscribe
         self.client.connect(host, port, keepalive=30)
         self.client.loop_start()
+        deadline = time.monotonic() + 5
+        while not self.client.is_connected():
+            if time.monotonic() >= deadline:
+                raise AssertionError("observer connection timed out")
+            time.sleep(0.01)
         self.client.subscribe(CANONICAL_TOPIC, qos=1)
         if not self.subscribed.wait(5):
             raise AssertionError("observer subscription timed out")
@@ -301,8 +304,7 @@ class CanonicalCapture:
                     return
                 self._condition.wait(remaining)
             raise AssertionError(
-                f"unexpected canonical publication count={len(self.documents)} "
-                f"previous={previous_count}"
+                f"unexpected canonical publication count={len(self.documents)} previous={previous_count}"
             )
 
     def close(self) -> None:
