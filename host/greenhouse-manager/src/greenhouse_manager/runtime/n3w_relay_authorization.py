@@ -23,6 +23,7 @@ _EXPECTED_TABLES_V1 = {
 }
 _EXPECTED_TABLES_V2 = _EXPECTED_TABLES_V1 | {"n3w_relay_operations"}
 _RUNTIME_KEY_STATES = {"ACTIVE", "GRACE"}
+REVOKED_GATEWAY_SENTINEL = "n3w_revoked_hold"
 
 
 class RelayAuthorizationStoreUnavailable(RuntimeError):
@@ -231,7 +232,11 @@ class SqliteRelayAuthorizationProvider:
         return key
 
     def resolve_key(self, *, gateway_id: str, node_id: str, key_epoch: int) -> bytes:
-        if _ID.fullmatch(gateway_id) is None or _ID.fullmatch(node_id) is None:
+        if (
+            _ID.fullmatch(gateway_id) is None
+            or gateway_id == REVOKED_GATEWAY_SENTINEL
+            or _ID.fullmatch(node_id) is None
+        ):
             raise RelayIngressRejected("outer_identity_invalid", node_id=node_id)
         if not isinstance(key_epoch, int) or isinstance(key_epoch, bool) or key_epoch < 1:
             raise RelayIngressRejected("key_epoch_rejected", node_id=node_id)
@@ -327,10 +332,14 @@ class SqliteRelayAuthorizationProvider:
                 ).fetchall()
                 enabled_grants = 0
                 for row in grant_rows:
-                    self._require_id(
+                    gateway_id = self._require_id(
                         row["gateway_id"],
                         code="authorization_store_corrupt",
                     )
+                    if gateway_id == REVOKED_GATEWAY_SENTINEL:
+                        raise RelayAuthorizationStoreUnavailable(
+                            "authorization_store_corrupt"
+                        )
                     node_id = self._require_id(
                         row["node_id"],
                         code="authorization_store_corrupt",
