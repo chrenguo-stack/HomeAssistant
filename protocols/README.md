@@ -58,7 +58,8 @@
 50. `discovery/gh-discovery-v1.md`：待冻结 mDNS、UDP 回退、重试和多主机处理；M2.0 pairing Draft 已给出最小发现依赖。
 51. `state/gh-path-lease-v1.md`：待冻结直连/中继路径租约、去重和切换滞回。
 52. `state/gh-availability-v1.md`：待将 M1 已验证行为整理为独立协议。
-53. `transport/gh-radio-frame-v1.md`：待冻结 ESP-NOW 与 LoRa 紧凑帧、认证和序列规则。
+53. `transport/gh-radio-frame-v1.md`：待冻结 LoRa 紧凑帧、认证和序列规则。
+54. `transport/gh-n3w-single-hop-v1.md`：N3-W Draft，冻结 ESP-NOW 单跳、应用层 AEAD、gateway ingress、跨路径去重与 fail-closed 边界；尚无生产接线或实板授权。
 
 ## 变更规则
 

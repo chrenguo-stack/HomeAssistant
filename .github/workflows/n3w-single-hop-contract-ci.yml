@@ -1,0 +1,92 @@
+name: N3-W single-hop contract CI
+
+on:
+  pull_request:
+    paths:
+      - "docs/decisions/n3w-stage-entry.json"
+      - "protocols/transport/gh-n3w-single-hop-v1.md"
+      - "protocols/README.md"
+      - "experiments/n3w_single_hop/**"
+      - "tools/n3w_single_hop_boundary_gate.py"
+      - ".github/workflows/n3w-single-hop-contract-ci.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/decisions/n3w-stage-entry.json"
+      - "protocols/transport/gh-n3w-single-hop-v1.md"
+      - "protocols/README.md"
+      - "experiments/n3w_single_hop/**"
+      - "tools/n3w_single_hop_boundary_gate.py"
+      - ".github/workflows/n3w-single-hop-contract-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  host-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Verify exact N3-W source or current-main successor boundary
+        if: github.event_name == 'pull_request'
+        env:
+          SOURCE_BASE_REF: feature/c06b2b-recorder-readback-utc-canonicalization-pr266-successor-20260804-v1
+          SOURCE_BASE_SHA: 2d444f3e392249c8d7bf1a1aa036e738a418d1cb
+          CURRENT_MAIN_INTEGRATION_REF: main
+          CURRENT_MAIN_INTEGRATION_SHA: c08989bbbc745f45177819c3d9b323798bbcae3b
+          PRESERVED_PR276_HEAD_SHA: 239ea594c643d4990d449187f8b0cabae619e3d7
+          N2_ACCEPTED_SHA: 99a90db6b48e91c145ccd5aee9182bf6639adf11
+          H0H1_ACCEPTED_SHA: d628b896314efd0aff58da151e3669eb7fe21d44
+          ACTUAL_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          ACTUAL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          ACTUAL_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$ACTUAL_BASE_REF" = "$SOURCE_BASE_REF" ]; then
+            test "$ACTUAL_BASE_SHA" = "$SOURCE_BASE_SHA"
+          elif [ "$ACTUAL_BASE_REF" = "$CURRENT_MAIN_INTEGRATION_REF" ]; then
+            test "$ACTUAL_BASE_SHA" = "$CURRENT_MAIN_INTEGRATION_SHA"
+            git merge-base --is-ancestor "$CURRENT_MAIN_INTEGRATION_SHA" "$ACTUAL_HEAD_SHA"
+            git merge-base --is-ancestor "$PRESERVED_PR276_HEAD_SHA" "$ACTUAL_HEAD_SHA"
+          else
+            echo "unsupported N3-W base: $ACTUAL_BASE_REF" >&2
+            exit 1
+          fi
+          git merge-base --is-ancestor "$N2_ACCEPTED_SHA" "$ACTUAL_HEAD_SHA"
+          git merge-base --is-ancestor "$H0H1_ACCEPTED_SHA" "$ACTUAL_HEAD_SHA"
+          git merge-base --is-ancestor "$SOURCE_BASE_SHA" "$ACTUAL_HEAD_SHA"
+      - name: Install pinned fast-check tooling
+        run: python -m pip install -q "ruff==0.15.22"
+      - name: Validate JSON and Python syntax
+        run: |
+          python -m json.tool docs/decisions/n3w-stage-entry.json >/dev/null
+          python -m compileall -q experiments/n3w_single_hop tools/n3w_single_hop_boundary_gate.py
+      - name: Run Ruff lint and format checks
+        run: |
+          python -m ruff check experiments/n3w_single_hop tools/n3w_single_hop_boundary_gate.py
+          python -m ruff format --check experiments/n3w_single_hop tools/n3w_single_hop_boundary_gate.py
+      - name: Run host-only contract tests
+        run: python -m unittest -v experiments.n3w_single_hop.test_model
+      - name: Run scope and safety boundary gate
+        env:
+          N3W_ACTUAL_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          N3W_ACTUAL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          N3W_ACTUAL_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          N3W_PRESERVED_SOURCE_SHA: 239ea594c643d4990d449187f8b0cabae619e3d7
+        run: python tools/n3w_single_hop_boundary_gate.py --output artifacts/n3w-single-hop-contract-report.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: n3w-single-hop-contract-evidence
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 14

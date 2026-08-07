@@ -1,0 +1,46 @@
+{
+  "schema": "gh.n3w-stage-entry/1",
+  "status": "authorized_for_host_only_contract_development",
+  "date": "2026-08-06",
+  "base": {
+    "ref": "feature/c06b2b-recorder-readback-utc-canonicalization-pr266-successor-20260804-v1",
+    "sha": "2d444f3e392249c8d7bf1a1aa036e738a418d1cb"
+  },
+  "prerequisites": {
+    "n2": {
+      "integration_pr": 259,
+      "accepted_sha": "99a90db6b48e91c145ccd5aee9182bf6639adf11",
+      "ancestor_of_base": true
+    },
+    "h0_h1": {
+      "pr": 260,
+      "accepted_sha": "d628b896314efd0aff58da151e3669eb7fe21d44",
+      "acceptance_manifest_sha256": "fd5a9a0094b46b45616f37a8366637a707a7609b2a45d107988ab913974ae78b",
+      "ancestor_of_base": true
+    },
+    "c06": {
+      "pr": 267,
+      "accepted_sha": "2d444f3e392249c8d7bf1a1aa036e738a418d1cb",
+      "acceptance_manifest_sha256": "d6a9ef467a77c0603495836534de5659a030a5318e834788047c058b5654deef",
+      "exact_base": true
+    }
+  },
+  "first_work_package": {
+    "name": "N3-W single-hop contract and host-only ingress model",
+    "production_wiring": false,
+    "firmware_driver": false,
+    "board_or_live_execution": false
+  },
+  "forbidden": [
+    "mesh",
+    "multi_hop",
+    "n3_l",
+    "production_mqtt",
+    "t1_write",
+    "node_or_board_write",
+    "credentials",
+    "deploy",
+    "release",
+    "tag"
+  ]
+}
