@@ -359,14 +359,17 @@ def test_n3w_relay_lifecycle_cli_requires_active_registration_and_never_prints_k
     key_input.write_bytes(N3W_KEY)
     os.chmod(key_input, 0o600)
 
-    assert run_cli(
-        registration,
-        "n3w-relay-authz-init",
-        "--authz-db",
-        str(authz_db),
-        "--key-dir",
-        str(key_dir),
-    )[0] == 0
+    assert (
+        run_cli(
+            registration,
+            "n3w-relay-authz-init",
+            "--authz-db",
+            str(authz_db),
+            "--key-dir",
+            str(key_dir),
+        )[0]
+        == 0
+    )
     code, grant, error = run_cli(
         registration,
         "n3w-relay-authz-grant",
@@ -435,14 +438,17 @@ def test_n3w_relay_grant_rejects_pending_or_unassigned_node(tmp_path: Path) -> N
     registration = database(tmp_path)
     authz_db = tmp_path / "authz.sqlite3"
     key_dir = tmp_path / "app-keys"
-    assert run_cli(
-        registration,
-        "n3w-relay-authz-init",
-        "--authz-db",
-        str(authz_db),
-        "--key-dir",
-        str(key_dir),
-    )[0] == 0
+    assert (
+        run_cli(
+            registration,
+            "n3w-relay-authz-init",
+            "--authz-db",
+            str(authz_db),
+            "--key-dir",
+            str(key_dir),
+        )[0]
+        == 0
+    )
 
     code, document, error = run_cli(
         registration,
@@ -568,14 +574,17 @@ def test_n3w_key_input_requires_private_regular_file(tmp_path: Path) -> None:
     key_input = tmp_path / "key-input.bin"
     key_input.write_bytes(N3W_KEY)
     os.chmod(key_input, 0o644)
-    assert run_cli(
-        registration,
-        "n3w-relay-authz-init",
-        "--authz-db",
-        str(authz_db),
-        "--key-dir",
-        str(key_dir),
-    )[0] == 0
+    assert (
+        run_cli(
+            registration,
+            "n3w-relay-authz-init",
+            "--authz-db",
+            str(authz_db),
+            "--key-dir",
+            str(key_dir),
+        )[0]
+        == 0
+    )
 
     code, document, error = run_cli(
         registration,
