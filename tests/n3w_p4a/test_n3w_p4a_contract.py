@@ -15,17 +15,10 @@ from greenhouse_manager.runtime.n3w_relay_ingress import (
 ROOT = Path(__file__).resolve().parents[2]
 VECTOR_PATH = ROOT / "protocols/transport/n3w-p4a-test-vector-v1.json"
 STAGE_PATH = (
-    ROOT
-    / "docs/decisions/n3w-esp32c6-frame-boot-keystate-core-stage-entry.json"
+    ROOT / "docs/decisions/n3w-esp32c6-frame-boot-keystate-core-stage-entry.json"
 )
-CORE_CPP = (
-    ROOT
-    / "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_core.cpp"
-)
-NVS_CPP = (
-    ROOT
-    / "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_esp32_nvs.cpp"
-)
+CORE_CPP = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_core.cpp"
+NVS_CPP = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_esp32_nvs.cpp"
 
 
 def _vector() -> dict[str, object]:
@@ -104,21 +97,12 @@ def test_stage_entry_binds_authorization_and_physical_n2_baseline() -> None:
     )
     assert doc["base_ref"] == "main"
     assert doc["base_sha"] == "b87432cf58631c43781c403e010272b60d32fcf1"
-    assert (
-        doc["preserved_pr_head"]
-        == "239ea594c643d4990d449187f8b0cabae619e3d7"
-    )
+    assert doc["preserved_pr_head"] == "239ea594c643d4990d449187f8b0cabae619e3d7"
 
     binding = doc["n2_physical_accepted_firmware_binding"]
     assert binding["source_pr"] == 204
-    assert (
-        binding["source_head_sha"]
-        == "8d76634adb171c6492e51a5ebd855bcd52bcf073"
-    )
-    assert (
-        binding["target_blob_sha"]
-        == "9dc8f766287e3cb47baf3e1f727635a85848e469"
-    )
+    assert binding["source_head_sha"] == "8d76634adb171c6492e51a5ebd855bcd52bcf073"
+    assert binding["target_blob_sha"] == "9dc8f766287e3cb47baf3e1f727635a85848e469"
     assert binding["board"] == "esp32-c6-devkitm-1"
     assert binding["variant"] == "ESP32C6"
     assert binding["framework"] == "esp-idf"
