@@ -1,0 +1,112 @@
+{
+  "schema": "gh.n3w-manager-path-lease-stage-entry/1",
+  "status": "authorized_for_non_live_persistent_path_lease_development",
+  "authorization": "D1-N3W-MANAGER-PERSISTENT-PATH-LEASE-AND-SWITCHING-NONLIVE-DEVELOPMENT-20260807-01",
+  "authorized_at": "2026-08-07T16:15:00+08:00",
+  "authorization_basis": "user explicitly approved the exact N3-W Manager persistent path lease and Direct/Relay switching non-live development gate after the protected-main, PR #276, merged-predecessor, CI and protect-main bindings were revalidated",
+  "base": {
+    "ref": "main",
+    "sha": "0db1c128c31c137e2bf6955365211280ce7036f8"
+  },
+  "preserved_contract": {
+    "pr": 276,
+    "state": "open_ready_unmerged",
+    "head": "239ea594c643d4990d449187f8b0cabae619e3d7",
+    "mutation_allowed": false
+  },
+  "predecessors": {
+    "replay_registry_merge": "b33f1498800daa79bf95e45af3afabcc2097d1a9",
+    "relay_ingress_merge": "10e5db6ed9be8683db326545e1e6912918eab152",
+    "durable_authorization_merge": "5e15bcc6955d58c1766c239a3274f211377d0706",
+    "unified_ingress_merge": "0db1c128c31c137e2bf6955365211280ce7036f8"
+  },
+  "work_package": {
+    "name": "Manager persistent path lease, canonical cursor and Direct/Relay switching",
+    "goal": "persist one active transport owner per node, require stable fail-closed switching, preserve a monotonic canonical boot/sequence cursor, and commit path ownership, cursor and replay/high-water changes in one SQLite transaction without production MQTT or live activation",
+    "allowed": [
+      "same-database persistent N3-W path lease tables",
+      "explicit Direct owner and gateway-bound Relay owner",
+      "injected path policy for stability window, minimum distinct frames, lease TTL and old-path grace",
+      "Direct-preferred switching policy",
+      "persistent candidate evidence and restart recovery",
+      "persistent canonical boot-session and sequence cursor",
+      "shared ReplayRegistry BEGIN IMMEDIATE transaction boundary",
+      "injected registration lifecycle ingress eligibility callback",
+      "host-only unit, restart, concurrency, corruption and rollback fault tests",
+      "dedicated GitHub CI and one Draft PR"
+    ],
+    "forbidden": [
+      "modifying or closing PR #276",
+      "production MQTT relay subscription",
+      "production Manager service entry-point wiring",
+      "canonical MQTT live publishing",
+      "production authorization provisioning or mutation",
+      "real key delivery or key rotation activation",
+      "real application keys in repository or CI evidence",
+      "production Manager configuration changes",
+      "T1, production Broker, Home Assistant, production Manager database, real credential, node or board access",
+      "ESP-NOW firmware or ESPHome product changes",
+      "Flash",
+      "deploy",
+      "release",
+      "tag",
+      "N3-L"
+    ]
+  },
+  "transaction_order": [
+    "complete canonical validation",
+    "registration lifecycle eligibility check",
+    "BEGIN IMMEDIATE on the ReplayRegistry SQLite connection",
+    "replay/high-water and canonical-cursor recheck",
+    "path lease/candidate/grace recheck",
+    "candidate-only frames may persist candidate evidence but must not consume replay state",
+    "accepted active-owner or switch-completing frame atomically consumes replay and updates path lease plus canonical cursor",
+    "COMMIT",
+    "canonical in-memory commit and message construction"
+  ],
+  "invariants": {
+    "production_mqtt_subscription": false,
+    "production_service_wiring": false,
+    "canonical_publish_executed": false,
+    "authorization_store_runtime_write": false,
+    "key_provisioning_or_rotation": false,
+    "board_or_live_execution": false,
+    "secret_values_in_evidence": false,
+    "pr276_mutation": false,
+    "one_shared_replay_registry": true,
+    "same_sqlite_transaction_for_path_cursor_and_replay": true,
+    "candidate_consumes_replay": false,
+    "retiring_or_retired_ingress_allowed": false,
+    "relay_lease_replaces_relay_authorization": false,
+    "path_policy_values_are_production_frozen": false,
+    "second_node_id_or_discovery_device": false
+  },
+  "exact_changed_file_scope": [
+    ".github/workflows/n3w-manager-path-lease-ci.yml",
+    "docs/decisions/n3w-manager-path-lease-stage-entry.json",
+    "host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_path_lease.py",
+    "host/greenhouse-manager/src/greenhouse_manager/runtime/replay_registry.py",
+    "host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_ingress_router.py",
+    "host/greenhouse-manager/tests/runtime/test_n3w_path_lease.py",
+    "host/greenhouse-manager/tests/runtime/test_replay_registry.py",
+    "host/greenhouse-manager/tests/runtime/test_n3w_ingress_router.py"
+  ],
+  "exit_gate": [
+    "first valid path atomically establishes one active lease and canonical cursor",
+    "healthy Direct cannot be preempted by incidental Relay traffic",
+    "expired Direct can switch to a stable authorized Relay candidate",
+    "stable Direct can preempt an active Relay after the configured stability requirement",
+    "candidate duplicate or non-advancing evidence cannot fabricate stability",
+    "candidate evidence survives Manager restart without consuming replay tuples",
+    "same-boot unseen sequence rollback is rejected as stale_sequence",
+    "higher boot session advances and lower boot session fails closed across paths",
+    "old-path grace never canonicalizes or consumes a new tuple",
+    "retiring or retired lifecycle eligibility rejects before path/replay mutation",
+    "path-state write failure rolls replay/high-water back",
+    "replay write failure rolls path/cursor transition back",
+    "concurrent path contenders serialize to one durable owner",
+    "clock rollback fails closed",
+    "all exact-head CI completes successfully"
+  ],
+  "next_gate": "Ready/merge requires a separate exact-head authorization. Production Manager MQTT relay subscription, service wiring, MQTT publication reliability/outbox work, real authorization/key provisioning, firmware, isolated dual-board testing and all live or physical execution remain separate gates."
+}
