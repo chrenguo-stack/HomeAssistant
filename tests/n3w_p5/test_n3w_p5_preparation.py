@@ -30,6 +30,11 @@ def _load_builder():
     return module
 
 
+def _test_mac(last_octet: int) -> str:
+    octets = bytes((2, 0, 0, 0, 0, last_octet))
+    return ":".join(f"{octet:02x}" for octet in octets)
+
+
 def test_stage_entry_freezes_exact_preparation_boundary() -> None:
     doc = json.loads(STAGE.read_text(encoding="utf-8"))
     assert doc["base_sha"] == "8a57243fce0d347ebb20108f4ec5a2d5d4267486"
@@ -50,8 +55,6 @@ def test_private_and_evidence_schemas_are_valid_and_secret_free_by_contract() ->
     evidence_schema = json.loads(EVIDENCE_SCHEMA.read_text(encoding="utf-8"))
     Draft202012Validator.check_schema(private_schema)
     Draft202012Validator.check_schema(evidence_schema)
-    child_mac = ":".join(("02", "00", "00", "00", "00", "01"))
-    relay_mac = ":".join(("02", "00", "00", "00", "00", "02"))
     candidate = {
         "schema": "gh.n3w-p5-private-input/1",
         "authorization_id": "D1-N3W-P5-PHYSICAL-TEST-ONLY",
@@ -59,8 +62,8 @@ def test_private_and_evidence_schemas_are_valid_and_secret_free_by_contract() ->
         "system_id": "n3wp5lab",
         "node_id": "n3wp5_child01",
         "gateway_id": "n3wp5_relay01",
-        "child_mac": child_mac,
-        "relay_mac": relay_mac,
+        "child_mac": _test_mac(1),
+        "relay_mac": _test_mac(2),
         "wifi_channel": 6,
         "session_floor": 1000,
         "wifi": {"ssid": "p5-lab", "password": "x" * 16},
