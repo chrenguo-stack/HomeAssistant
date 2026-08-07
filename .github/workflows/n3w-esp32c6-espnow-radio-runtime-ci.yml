@@ -42,6 +42,7 @@ jobs:
           actual="$(mktemp)"
           cat >"$allowed" <<'FILES'
           .github/workflows/n3w-esp32c6-espnow-radio-runtime-ci.yml
+          .github/workflows/n3w-esp32c6-frame-boot-keystate-core-ci.yml
           docs/decisions/n3w-esp32c6-espnow-radio-runtime-stage-entry.json
           firmware/esphome_rc/board_lab/n3w_p4b_espnow_runtime/n3w_p4b_espnow_runtime.yml
           firmware/esphome_rc/components/greenhouse_n3w_core/__init__.py
@@ -56,7 +57,7 @@ jobs:
           sed -i 's/^          //' "$allowed"
           sort -o "$allowed" "$allowed"
           git diff --name-only "$base"...HEAD | sort >"$actual"
-          test "$(wc -l <"$actual")" -eq 11
+          test "$(wc -l <"$actual")" -eq 12
           if comm -23 "$actual" "$allowed" | grep -q .; then
             echo 'Unauthorized changed file(s):'
             comm -23 "$actual" "$allowed"
