@@ -1,0 +1,189 @@
+name: N3-W Manager runtime wiring isolated CI
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/n3w-manager-runtime-wiring-isolated-ci.yml'
+      - 'docs/decisions/n3w-manager-runtime-wiring-stage-entry.json'
+      - 'host/greenhouse-manager/src/greenhouse_manager/runtime/config.py'
+      - 'host/greenhouse-manager/src/greenhouse_manager/runtime/mqtt_service.py'
+      - 'host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_runtime_wiring.py'
+      - 'host/greenhouse-manager/tests/runtime/test_config.py'
+      - 'host/greenhouse-manager/tests/runtime/test_mqtt_service.py'
+      - 'host/greenhouse-manager/tests/runtime/test_n3w_runtime_wiring.py'
+      - 'host/greenhouse-manager/tests/runtime/test_n3w_runtime_wiring_isolated.py'
+      - 'host/greenhouse-manager/tests/runtime/test_n3w_ingress_router.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  host-only-runtime-wiring:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install manager development dependencies
+        working-directory: host/greenhouse-manager
+        run: pip install -e '.[dev]'
+      - name: Exact base and scope gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='f0cf33ec165fdf25aa0fadfcb485214395c20974'
+          test "$(git merge-base "$base" HEAD)" = "$base"
+          allowed="$(mktemp)"
+          actual="$(mktemp)"
+          cat >"$allowed" <<'EOF'
+          .github/workflows/n3w-manager-runtime-wiring-isolated-ci.yml
+          docs/decisions/n3w-manager-runtime-wiring-stage-entry.json
+          host/greenhouse-manager/src/greenhouse_manager/runtime/config.py
+          host/greenhouse-manager/src/greenhouse_manager/runtime/mqtt_service.py
+          host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_runtime_wiring.py
+          host/greenhouse-manager/tests/runtime/test_config.py
+          host/greenhouse-manager/tests/runtime/test_mqtt_service.py
+          host/greenhouse-manager/tests/runtime/test_n3w_runtime_wiring.py
+          host/greenhouse-manager/tests/runtime/test_n3w_runtime_wiring_isolated.py
+          host/greenhouse-manager/tests/runtime/test_n3w_ingress_router.py
+          EOF
+          git diff --name-only "$base"...HEAD | sort >"$actual"
+          sort -o "$allowed" "$allowed"
+          if comm -23 "$actual" "$allowed" | grep -q .; then
+            echo 'Unauthorized changed file(s):'
+            comm -23 "$actual" "$allowed"
+            exit 1
+          fi
+          echo 'Authorized changed files:'
+          cat "$actual"
+      - name: Compile
+        run: |
+          python -m compileall -q \
+            host/greenhouse-manager/src/greenhouse_manager/runtime/config.py \
+            host/greenhouse-manager/src/greenhouse_manager/runtime/mqtt_service.py \
+            host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_runtime_wiring.py \
+            host/greenhouse-manager/tests/runtime/test_config.py \
+            host/greenhouse-manager/tests/runtime/test_mqtt_service.py \
+            host/greenhouse-manager/tests/runtime/test_n3w_runtime_wiring.py \
+            host/greenhouse-manager/tests/runtime/test_n3w_runtime_wiring_isolated.py \
+            host/greenhouse-manager/tests/runtime/test_n3w_ingress_router.py
+      - name: Ruff
+        working-directory: host/greenhouse-manager
+        run: |
+          ruff check \
+            src/greenhouse_manager/runtime/config.py \
+            src/greenhouse_manager/runtime/mqtt_service.py \
+            src/greenhouse_manager/runtime/n3w_runtime_wiring.py \
+            tests/runtime/test_config.py \
+            tests/runtime/test_mqtt_service.py \
+            tests/runtime/test_n3w_runtime_wiring.py \
+            tests/runtime/test_n3w_runtime_wiring_isolated.py \
+            tests/runtime/test_n3w_ingress_router.py
+          ruff format --check \
+            src/greenhouse_manager/runtime/config.py \
+            src/greenhouse_manager/runtime/mqtt_service.py \
+            src/greenhouse_manager/runtime/n3w_runtime_wiring.py \
+            tests/runtime/test_config.py \
+            tests/runtime/test_mqtt_service.py \
+            tests/runtime/test_n3w_runtime_wiring.py \
+            tests/runtime/test_n3w_runtime_wiring_isolated.py \
+            tests/runtime/test_n3w_ingress_router.py
+      - name: Host-only runtime wiring tests
+        working-directory: host/greenhouse-manager
+        run: |
+          pytest -q \
+            tests/runtime/test_config.py \
+            tests/runtime/test_mqtt_service.py \
+            tests/runtime/test_n3w_runtime_wiring.py \
+            tests/runtime/test_n3w_ingress_router.py
+      - name: Boundary gate
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          doc = json.loads(
+              Path('docs/decisions/n3w-manager-runtime-wiring-stage-entry.json').read_text()
+          )
+          assert doc['authorization_gate'] == (
+              'D1-N3W-MANAGER-RUNTIME-WIRING-DEFAULT-OFF-ISOLATED-'
+              'DEVELOPMENT-20260807-01'
+          )
+          assert doc['base_sha'] == 'f0cf33ec165fdf25aa0fadfcb485214395c20974'
+          assert doc['preserved_pr_head'] == '239ea594c643d4990d449187f8b0cabae619e3d7'
+          assert doc['mode'] == 'PRODUCTION_SHAPED_ISOLATED_DEFAULT_OFF'
+          assert doc['runtime_contract']['default_off'] is True
+          assert doc['runtime_contract']['single_canonical_publisher'] is True
+          assert doc['runtime_contract']['relay_rejection_publishes_canonical_diagnostic'] is False
+          assert all(value is False for value in doc['safety_boundary'].values())
+          PY
+
+  isolated-temporary-mosquitto:
+    needs: host-only-runtime-wiring
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install manager development dependencies
+        working-directory: host/greenhouse-manager
+        run: pip install -e '.[dev]'
+      - name: Install temporary Mosquitto
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mosquitto
+      - name: Run isolated restart reconnect path and revoke matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$(mktemp -d)"
+          port="$(python - <<'PY'
+          import socket
+          with socket.socket() as sock:
+              sock.bind(('127.0.0.1', 0))
+              print(sock.getsockname()[1])
+          PY
+          )"
+          cat >"$work/mosquitto.conf" <<EOF
+          listener $port 127.0.0.1
+          allow_anonymous true
+          persistence false
+          EOF
+          mosquitto -c "$work/mosquitto.conf" -v >"$work/mosquitto.log" 2>&1 &
+          broker_pid=$!
+          cleanup() {
+            kill "$broker_pid" >/dev/null 2>&1 || true
+            wait "$broker_pid" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          python - "$port" <<'PY'
+          import socket
+          import sys
+          import time
+          port = int(sys.argv[1])
+          deadline = time.monotonic() + 5
+          while True:
+              try:
+                  with socket.create_connection(('127.0.0.1', port), timeout=0.2):
+                      break
+              except OSError:
+                  if time.monotonic() >= deadline:
+                      raise SystemExit('temporary Mosquitto did not start')
+                  time.sleep(0.05)
+          PY
+          set +e
+          GH_N3W_TEST_MQTT_HOST=127.0.0.1 \
+          GH_N3W_TEST_MQTT_PORT="$port" \
+            pytest -q host/greenhouse-manager/tests/runtime/test_n3w_runtime_wiring_isolated.py
+          rc=$?
+          set -e
+          if [ "$rc" -ne 0 ]; then
+            cat "$work/mosquitto.log"
+            exit "$rc"
+          fi
