@@ -6,11 +6,11 @@ import re
 import sqlite3
 import stat
 import threading
-from collections.abc import Callable
-from contextlib import contextmanager
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Iterator, Protocol
+from typing import Protocol
 
 from ..runtime.n3w_relay_authorization import REVOKED_GATEWAY_SENTINEL
 from ..runtime.replay_registry import ReplayRegistry, ReplayRegistryUnavailable
@@ -932,10 +932,8 @@ class RelayAuthorizationAdmin:
             return
         dir_fd = self._directory_fd()
         try:
-            try:
+            with suppress(FileNotFoundError):
                 os.unlink(key_file, dir_fd=dir_fd)
-            except FileNotFoundError:
-                pass
             os.fsync(dir_fd)
         finally:
             os.close(dir_fd)
