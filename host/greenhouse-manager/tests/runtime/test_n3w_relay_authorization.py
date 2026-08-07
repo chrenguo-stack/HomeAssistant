@@ -106,37 +106,43 @@ def test_inactive_node_is_rejected(tmp_path: Path) -> None:
             (NODE_ID,),
         )
 
-    with SqliteRelayAuthorizationProvider(database, key_dir) as provider:
-        with pytest.raises(RelayIngressRejected, match="node_not_active"):
-            provider.resolve_key(
-                gateway_id=GATEWAY_ID,
-                node_id=NODE_ID,
-                key_epoch=1,
-            )
+    with (
+        SqliteRelayAuthorizationProvider(database, key_dir) as provider,
+        pytest.raises(RelayIngressRejected, match="node_not_active"),
+    ):
+        provider.resolve_key(
+            gateway_id=GATEWAY_ID,
+            node_id=NODE_ID,
+            key_epoch=1,
+        )
 
 
 def test_unauthorized_gateway_is_rejected(tmp_path: Path) -> None:
     database, key_dir = create_store(tmp_path)
 
-    with SqliteRelayAuthorizationProvider(database, key_dir) as provider:
-        with pytest.raises(RelayIngressRejected, match="gateway_node_unauthorized"):
-            provider.resolve_key(
-                gateway_id=OTHER_GATEWAY_ID,
-                node_id=NODE_ID,
-                key_epoch=1,
-            )
+    with (
+        SqliteRelayAuthorizationProvider(database, key_dir) as provider,
+        pytest.raises(RelayIngressRejected, match="gateway_node_unauthorized"),
+    ):
+        provider.resolve_key(
+            gateway_id=OTHER_GATEWAY_ID,
+            node_id=NODE_ID,
+            key_epoch=1,
+        )
 
 
 def test_unknown_or_disabled_epoch_is_rejected(tmp_path: Path) -> None:
     database, key_dir = create_store(tmp_path)
 
-    with SqliteRelayAuthorizationProvider(database, key_dir) as provider:
-        with pytest.raises(RelayIngressRejected, match="key_epoch_rejected"):
-            provider.resolve_key(
-                gateway_id=GATEWAY_ID,
-                node_id=NODE_ID,
-                key_epoch=2,
-            )
+    with (
+        SqliteRelayAuthorizationProvider(database, key_dir) as provider,
+        pytest.raises(RelayIngressRejected, match="key_epoch_rejected"),
+    ):
+        provider.resolve_key(
+            gateway_id=GATEWAY_ID,
+            node_id=NODE_ID,
+            key_epoch=2,
+        )
 
 
 def test_key_material_must_be_private_regular_and_32_bytes(tmp_path: Path) -> None:
@@ -144,23 +150,27 @@ def test_key_material_must_be_private_regular_and_32_bytes(tmp_path: Path) -> No
     key_path = key_dir / KEY_FILE
     key_path.write_bytes(b"too-short")
 
-    with SqliteRelayAuthorizationProvider(database, key_dir) as provider:
-        with pytest.raises(RelayIngressRejected, match="key_material_invalid"):
-            provider.resolve_key(
-                gateway_id=GATEWAY_ID,
-                node_id=NODE_ID,
-                key_epoch=1,
-            )
+    with (
+        SqliteRelayAuthorizationProvider(database, key_dir) as provider,
+        pytest.raises(RelayIngressRejected, match="key_material_invalid"),
+    ):
+        provider.resolve_key(
+            gateway_id=GATEWAY_ID,
+            node_id=NODE_ID,
+            key_epoch=1,
+        )
 
     key_path.write_bytes(KEY)
     os.chmod(key_path, 0o644)
-    with SqliteRelayAuthorizationProvider(database, key_dir) as provider:
-        with pytest.raises(RelayIngressRejected, match="key_file_permissions_invalid"):
-            provider.resolve_key(
-                gateway_id=GATEWAY_ID,
-                node_id=NODE_ID,
-                key_epoch=1,
-            )
+    with (
+        SqliteRelayAuthorizationProvider(database, key_dir) as provider,
+        pytest.raises(RelayIngressRejected, match="key_file_permissions_invalid"),
+    ):
+        provider.resolve_key(
+            gateway_id=GATEWAY_ID,
+            node_id=NODE_ID,
+            key_epoch=1,
+        )
 
 
 def test_key_file_reference_cannot_escape_private_directory(tmp_path: Path) -> None:
@@ -170,13 +180,15 @@ def test_key_file_reference_cannot_escape_private_directory(tmp_path: Path) -> N
             "UPDATE n3w_relay_key_epochs SET key_file = '../outside.key'"
         )
 
-    with SqliteRelayAuthorizationProvider(database, key_dir) as provider:
-        with pytest.raises(RelayIngressRejected, match="key_file_reference_invalid"):
-            provider.resolve_key(
-                gateway_id=GATEWAY_ID,
-                node_id=NODE_ID,
-                key_epoch=1,
-            )
+    with (
+        SqliteRelayAuthorizationProvider(database, key_dir) as provider,
+        pytest.raises(RelayIngressRejected, match="key_file_reference_invalid"),
+    ):
+        provider.resolve_key(
+            gateway_id=GATEWAY_ID,
+            node_id=NODE_ID,
+            key_epoch=1,
+        )
 
 
 def test_store_and_key_directory_permissions_fail_closed(tmp_path: Path) -> None:
@@ -200,11 +212,13 @@ def test_store_and_key_directory_permissions_fail_closed(tmp_path: Path) -> None
 def test_read_only_provider_cannot_mutate_database(tmp_path: Path) -> None:
     database, key_dir = create_store(tmp_path)
 
-    with SqliteRelayAuthorizationProvider(database, key_dir) as provider:
-        with pytest.raises(sqlite3.OperationalError):
-            provider._connection.execute(  # noqa: SLF001 - prove read-only boundary
-                "UPDATE n3w_relay_nodes SET active = 0"
-            )
+    with (
+        SqliteRelayAuthorizationProvider(database, key_dir) as provider,
+        pytest.raises(sqlite3.OperationalError),
+    ):
+        provider._connection.execute(  # noqa: SLF001 - prove read-only boundary
+            "UPDATE n3w_relay_nodes SET active = 0"
+        )
 
     with sqlite3.connect(database) as connection:
         row = connection.execute(
@@ -242,9 +256,11 @@ def test_audit_detects_invalid_metadata_without_returning_secret(tmp_path: Path)
             "UPDATE n3w_relay_gateway_nodes SET node_id = 'INVALID NODE'"
         )
 
-    with SqliteRelayAuthorizationProvider(database, key_dir) as provider:
-        with pytest.raises(
+    with (
+        SqliteRelayAuthorizationProvider(database, key_dir) as provider,
+        pytest.raises(
             RelayAuthorizationStoreUnavailable,
             match="authorization_store_corrupt",
-        ):
-            provider.audit()
+        ),
+    ):
+        provider.audit()
