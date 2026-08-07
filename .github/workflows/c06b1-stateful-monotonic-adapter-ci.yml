@@ -70,7 +70,7 @@ jobs:
           C06B2B_PR267_STACK_BASE_SHA: 21f288c1c47f7801e21e77ada460c6353e371e14
           C06B2B_PR267_REPAIR_BASE_SHA: f98d93e43d10c32cd60580c80c484d829c8f6900
           CURRENT_MAIN_INTEGRATION_REF: main
-          CURRENT_MAIN_INTEGRATION_SHA: 0ba33b6ddf19f10afd69d802a79d5699a22c80bb
+          C06_INTEGRATION_ROOT_SHA: c08989bbbc745f45177819c3d9b323798bbcae3b
           PRESERVED_PR267_HEAD_SHA: 2d444f3e392249c8d7bf1a1aa036e738a418d1cb
           ACTUAL_BASE_REF: ${{ github.event.pull_request.base.ref }}
           ACTUAL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -93,8 +93,8 @@ jobs:
           elif [ "$ACTUAL_BASE_REF" = "$C06B2B_PR267_STACK_BASE_REF" ]; then
             test "$ACTUAL_BASE_SHA" = "$C06B2B_PR267_STACK_BASE_SHA"
           elif [ "$ACTUAL_BASE_REF" = "$CURRENT_MAIN_INTEGRATION_REF" ]; then
-            test "$ACTUAL_BASE_SHA" = "$CURRENT_MAIN_INTEGRATION_SHA"
-            git merge-base --is-ancestor "$PRESERVED_PR267_HEAD_SHA" "$ACTUAL_HEAD_SHA"
+            git merge-base --is-ancestor "$C06_INTEGRATION_ROOT_SHA" "$ACTUAL_BASE_SHA"
+            git merge-base --is-ancestor "$PRESERVED_PR267_HEAD_SHA" "$ACTUAL_BASE_SHA"
           else
             echo "unsupported C06-B1 stack base: $ACTUAL_BASE_REF" >&2
             exit 1
