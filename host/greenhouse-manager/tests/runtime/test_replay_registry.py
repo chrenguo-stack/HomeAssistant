@@ -110,9 +110,11 @@ def test_commit_rolls_back_high_water_when_replay_insert_fails(tmp_path: Path) -
             """
         )
 
-    with ReplayRegistry(database) as registry:
-        with pytest.raises(ReplayRegistryUnavailable, match="replay_registry_unavailable"):
-            registry.commit(node_id=NODE_ID, boot_id=BOOT_2, seq=1)
+    with ReplayRegistry(database) as registry, pytest.raises(
+        ReplayRegistryUnavailable,
+        match="replay_registry_unavailable",
+    ):
+        registry.commit(node_id=NODE_ID, boot_id=BOOT_2, seq=1)
 
     with sqlite3.connect(database) as connection:
         connection.execute("DROP TRIGGER fail_replay_insert")
@@ -173,6 +175,8 @@ def test_audit_detects_invalid_persisted_high_water(tmp_path: Path) -> None:
             (NODE_ID,),
         )
 
-    with ReplayRegistry(database) as registry:
-        with pytest.raises(ReplayRegistryUnavailable, match="replay_registry_corrupt"):
-            registry.audit()
+    with ReplayRegistry(database) as registry, pytest.raises(
+        ReplayRegistryUnavailable,
+        match="replay_registry_corrupt",
+    ):
+        registry.audit()

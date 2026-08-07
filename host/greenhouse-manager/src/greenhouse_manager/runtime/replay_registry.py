@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import sqlite3
 import threading
+from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -254,10 +255,8 @@ class ReplayRegistry:
                 return ReplayCommit("accepted", key, new_highest)
             except (sqlite3.Error, ReplayRegistryUnavailable) as exc:
                 if transaction_open:
-                    try:
+                    with suppress(sqlite3.Error):
                         self._connection.execute("ROLLBACK")
-                    except sqlite3.Error:
-                        pass
                 if isinstance(exc, ReplayRegistryUnavailable):
                     raise
                 raise ReplayRegistryUnavailable("replay_registry_unavailable") from exc
