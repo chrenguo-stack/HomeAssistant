@@ -305,9 +305,7 @@ class RelayAuthorizationAdmin:
                 raise RelayAuthorizationAdminError("authorization_store_schema_mismatch")
             columns = {
                 row[1]
-                for row in self._connection.execute(
-                    "PRAGMA table_info(n3w_relay_key_epochs)"
-                ).fetchall()
+                for row in self._connection.execute("PRAGMA table_info(n3w_relay_key_epochs)").fetchall()
             }
             if not {"state", "key_sha256"} <= columns:
                 raise RelayAuthorizationAdminError("authorization_store_schema_mismatch")
