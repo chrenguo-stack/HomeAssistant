@@ -18,6 +18,7 @@ from .topics import (
 )
 
 ProcessStatus = Literal["accepted", "duplicate", "rejected"]
+PrepareStatus = Literal["accepted", "duplicate", "rejected"]
 RestoreStatus = Literal["restored", "rejected"]
 
 
@@ -39,6 +40,25 @@ class ProcessResult:
     messages: tuple[PublishMessage, ...] = ()
     reason: str | None = None
     dedup_key: tuple[str, str, int] | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedTelemetry:
+    """Fully validated ingress telemetry that has not mutated Manager state yet."""
+
+    node_id: str
+    document: dict[str, Any]
+    received_at: datetime
+    dedup_key: tuple[str, str, int]
+
+
+@dataclass(frozen=True, slots=True)
+class PrepareResult:
+    status: PrepareStatus
+    node_id: str | None
+    reason: str | None = None
+    dedup_key: tuple[str, str, int] | None = None
+    prepared: PreparedTelemetry | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,22 +129,24 @@ class TelemetryProcessor:
         while len(self._seen) > self.dedup_capacity:
             self._seen.popitem(last=False)
 
-    def process(
+    def prepare(
         self,
         topic: str,
         payload: bytes | str,
         *,
         received_at: datetime | None = None,
-    ) -> ProcessResult:
+    ) -> PrepareResult:
+        """Fully validate one ingress message without mutating lifecycle state."""
+
         now = received_at or _utc_now()
 
         try:
             parsed_topic = parse_node_telemetry_topic(topic)
         except ValueError as exc:
-            return ProcessResult(status="rejected", node_id=None, reason=str(exc))
+            return PrepareResult(status="rejected", node_id=None, reason=str(exc))
 
         if parsed_topic.system_id != self.system_id:
-            return ProcessResult(
+            return PrepareResult(
                 status="rejected",
                 node_id=parsed_topic.node_id,
                 reason="topic system_id does not match manager system_id",
@@ -133,32 +155,35 @@ class TelemetryProcessor:
         try:
             text = payload.decode("utf-8") if isinstance(payload, bytes) else payload
             document = json.loads(text)
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-            return ProcessResult(
+        except (UnicodeDecodeError, json.JSONDecodeError, TypeError) as exc:
+            return PrepareResult(
                 status="rejected",
                 node_id=parsed_topic.node_id,
                 reason=f"invalid JSON payload: {exc}",
             )
 
         if not isinstance(document, dict):
-            return ProcessResult(
+            return PrepareResult(
                 status="rejected",
                 node_id=parsed_topic.node_id,
                 reason="telemetry payload must be a JSON object",
             )
 
         if "received_at" in document:
-            return ProcessResult(
+            return PrepareResult(
                 status="rejected",
                 node_id=parsed_topic.node_id,
                 reason="ingress telemetry must not contain manager-owned received_at",
             )
 
-        errors = sorted(self.validator.iter_errors(document), key=lambda error: list(error.absolute_path))
+        errors = sorted(
+            self.validator.iter_errors(document),
+            key=lambda error: list(error.absolute_path),
+        )
         if errors:
             error = errors[0]
             path = ".".join(str(part) for part in error.absolute_path) or "$"
-            return ProcessResult(
+            return PrepareResult(
                 status="rejected",
                 node_id=parsed_topic.node_id,
                 reason=f"schema validation failed at {path}: {error.message}",
@@ -166,7 +191,7 @@ class TelemetryProcessor:
 
         node_id = str(document["node_id"])
         if node_id != parsed_topic.node_id:
-            return ProcessResult(
+            return PrepareResult(
                 status="rejected",
                 node_id=parsed_topic.node_id,
                 reason="payload node_id does not match topic node_id",
@@ -174,44 +199,90 @@ class TelemetryProcessor:
 
         dedup_key = (node_id, str(document["boot_id"]), int(document["seq"]))
         if dedup_key in self._seen:
-            self._seen.move_to_end(dedup_key)
-            return ProcessResult(
+            return PrepareResult(
                 status="duplicate",
                 node_id=node_id,
                 reason="duplicate node_id + boot_id + seq",
                 dedup_key=dedup_key,
             )
 
-        self._remember_dedup_key(dedup_key)
-
-        canonical = dict(document)
-        canonical["received_at"] = _rfc3339(now)
-
-        availability = {
-            "schema": "gh.availability/1",
-            "node_id": node_id,
-            "state": "online",
-            "last_seen": _rfc3339(now),
-        }
-
-        self._last_seen[node_id] = now
-        self._availability[node_id] = "online"
-
-        return ProcessResult(
+        prepared = PreparedTelemetry(
+            node_id=node_id,
+            document=dict(document),
+            received_at=now,
+            dedup_key=dedup_key,
+        )
+        return PrepareResult(
             status="accepted",
             node_id=node_id,
             dedup_key=dedup_key,
+            prepared=prepared,
+        )
+
+    def commit_prepared(self, prepared: PreparedTelemetry) -> ProcessResult:
+        """Commit a previously validated candidate to canonical in-memory state."""
+
+        if not isinstance(prepared, PreparedTelemetry):
+            raise TypeError("prepared must be PreparedTelemetry")
+        if prepared.dedup_key in self._seen:
+            self._seen.move_to_end(prepared.dedup_key)
+            return ProcessResult(
+                status="duplicate",
+                node_id=prepared.node_id,
+                reason="duplicate node_id + boot_id + seq",
+                dedup_key=prepared.dedup_key,
+            )
+
+        self._remember_dedup_key(prepared.dedup_key)
+
+        canonical = dict(prepared.document)
+        canonical["received_at"] = _rfc3339(prepared.received_at)
+
+        availability = {
+            "schema": "gh.availability/1",
+            "node_id": prepared.node_id,
+            "state": "online",
+            "last_seen": _rfc3339(prepared.received_at),
+        }
+
+        self._last_seen[prepared.node_id] = prepared.received_at
+        self._availability[prepared.node_id] = "online"
+
+        return ProcessResult(
+            status="accepted",
+            node_id=prepared.node_id,
+            dedup_key=prepared.dedup_key,
             messages=(
                 PublishMessage(
-                    topic=canonical_telemetry_topic(self.system_id, node_id),
+                    topic=canonical_telemetry_topic(self.system_id, prepared.node_id),
                     payload=canonical,
                 ),
                 PublishMessage(
-                    topic=availability_topic(self.system_id, node_id),
+                    topic=availability_topic(self.system_id, prepared.node_id),
                     payload=availability,
                 ),
             ),
         )
+
+    def process(
+        self,
+        topic: str,
+        payload: bytes | str,
+        *,
+        received_at: datetime | None = None,
+    ) -> ProcessResult:
+        """Backward-compatible one-shot validation and canonical state commit."""
+
+        prepared = self.prepare(topic, payload, received_at=received_at)
+        if prepared.status != "accepted":
+            return ProcessResult(
+                status=prepared.status,
+                node_id=prepared.node_id,
+                reason=prepared.reason,
+                dedup_key=prepared.dedup_key,
+            )
+        assert prepared.prepared is not None
+        return self.commit_prepared(prepared.prepared)
 
     def restore_canonical(self, topic: str, payload: bytes | str) -> RestoreResult:
         """Restore in-memory lifecycle state from retained canonical telemetry."""
@@ -230,7 +301,7 @@ class TelemetryProcessor:
         try:
             text = payload.decode("utf-8") if isinstance(payload, bytes) else payload
             document = json.loads(text)
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        except (UnicodeDecodeError, json.JSONDecodeError, TypeError) as exc:
             return RestoreResult(
                 status="rejected",
                 node_id=parsed_topic.node_id,
@@ -244,7 +315,10 @@ class TelemetryProcessor:
                 reason="canonical telemetry payload must be a JSON object",
             )
 
-        errors = sorted(self.validator.iter_errors(document), key=lambda error: list(error.absolute_path))
+        errors = sorted(
+            self.validator.iter_errors(document),
+            key=lambda error: list(error.absolute_path),
+        )
         if errors:
             error = errors[0]
             path = ".".join(str(part) for part in error.absolute_path) or "$"

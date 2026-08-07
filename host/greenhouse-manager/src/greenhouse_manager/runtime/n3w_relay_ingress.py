@@ -18,6 +18,7 @@ _MAX_CIPHERTEXT_BYTES = 1024
 _MAX_SEQ = 2**32 - 1
 
 IngressStatus = Literal["accepted", "duplicate", "rejected"]
+PreparationStatus = Literal["ready", "rejected"]
 
 
 class RelayIngressRejected(ValueError):
@@ -58,6 +59,19 @@ class RelayIngressResult:
     node_id: str | None = None
     ingress_topic: str | None = None
     telemetry: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class RelayIngressPreparation:
+    """Fully authenticated relay plaintext that has not consumed replay state."""
+
+    status: PreparationStatus
+    code: str | None = None
+    node_id: str | None = None
+    ingress_topic: str | None = None
+    telemetry: dict[str, Any] | None = None
+    boot_id: str | None = None
+    seq: int | None = None
 
 
 class RelayAuthorizationProvider(Protocol):
@@ -264,9 +278,10 @@ def aes256gcm_decrypt(
 class N3wRelayIngressCore:
     """Non-live Manager relay ingress core with persistent cross-path replay state.
 
-    This class deliberately does not subscribe to MQTT or publish canonical state.
-    Accepted relay plaintext is handed back on the existing direct-ingress topic so
-    a later production wiring gate can reuse the canonical Manager pipeline.
+    ``prepare`` authenticates and fully validates the relay plaintext without
+    consuming replay state. ``commit`` performs the atomic replay/high-water
+    transition. ``process`` preserves the original one-shot behavior by composing
+    those two phases. No method subscribes to MQTT or publishes canonical state.
     """
 
     def __init__(
@@ -284,15 +299,22 @@ class N3wRelayIngressCore:
         self.replay_registry = replay_registry
         self.telemetry_validator = telemetry_validator or PackagedTelemetryValidator()
 
-    def process(self, topic: str, payload: bytes | str) -> RelayIngressResult:
+    def prepare(self, topic: str, payload: bytes | str) -> RelayIngressPreparation:
         try:
-            return self._process(topic, payload)
+            return self._prepare(topic, payload)
         except RelayIngressRejected as exc:
-            return RelayIngressResult(status="rejected", code=exc.code, node_id=exc.node_id)
+            return RelayIngressPreparation(
+                status="rejected",
+                code=exc.code,
+                node_id=exc.node_id,
+            )
         except ReplayRegistryUnavailable:
-            return RelayIngressResult(status="rejected", code="replay_registry_unavailable")
+            return RelayIngressPreparation(
+                status="rejected",
+                code="replay_registry_unavailable",
+            )
 
-    def _process(self, topic: str, payload: bytes | str) -> RelayIngressResult:
+    def _prepare(self, topic: str, payload: bytes | str) -> RelayIngressPreparation:
         parsed_topic = parse_relay_topic(topic)
         if parsed_topic.system_id != self.system_id:
             raise RelayIngressRejected("system_binding_mismatch", node_id=parsed_topic.node_id)
@@ -345,29 +367,63 @@ class N3wRelayIngressCore:
         except Exception as exc:
             raise RelayIngressRejected("telemetry_validation_rejected", node_id=envelope.node_id) from exc
 
-        committed = self.replay_registry.commit(
+        return RelayIngressPreparation(
+            status="ready",
             node_id=envelope.node_id,
+            ingress_topic=f"gh/v1/{self.system_id}/ingress/node/{envelope.node_id}/telemetry",
+            telemetry=dict(telemetry),
             boot_id=envelope.boot_id,
             seq=envelope.seq,
         )
+
+    def commit(self, prepared: RelayIngressPreparation) -> RelayIngressResult:
+        if prepared.status != "ready":
+            return RelayIngressResult(
+                status="rejected",
+                code=prepared.code or "relay_preparation_rejected",
+                node_id=prepared.node_id,
+            )
+        if (
+            prepared.node_id is None
+            or prepared.ingress_topic is None
+            or prepared.telemetry is None
+            or prepared.boot_id is None
+            or prepared.seq is None
+        ):
+            return RelayIngressResult(status="rejected", code="relay_preparation_invalid")
+        try:
+            committed = self.replay_registry.commit(
+                node_id=prepared.node_id,
+                boot_id=prepared.boot_id,
+                seq=prepared.seq,
+            )
+        except (ReplayRegistryUnavailable, ValueError):
+            return RelayIngressResult(
+                status="rejected",
+                code="replay_registry_unavailable",
+                node_id=prepared.node_id,
+            )
         if committed.status == "duplicate":
             return RelayIngressResult(
                 status="duplicate",
                 code="duplicate_node_boot_seq",
-                node_id=envelope.node_id,
+                node_id=prepared.node_id,
             )
         if committed.status == "stale_boot_session":
             return RelayIngressResult(
                 status="rejected",
                 code="stale_boot_session",
-                node_id=envelope.node_id,
+                node_id=prepared.node_id,
             )
         return RelayIngressResult(
             status="accepted",
-            node_id=envelope.node_id,
-            ingress_topic=(f"gh/v1/{self.system_id}/ingress/node/{envelope.node_id}/telemetry"),
-            telemetry=telemetry,
+            node_id=prepared.node_id,
+            ingress_topic=prepared.ingress_topic,
+            telemetry=prepared.telemetry,
         )
+
+    def process(self, topic: str, payload: bytes | str) -> RelayIngressResult:
+        return self.commit(self.prepare(topic, payload))
 
     def commit_validated_direct_tuple(self, *, node_id: str, boot_id: str, seq: int) -> RelayIngressResult:
         """Model the future direct-path shared replay commit without wiring production."""
