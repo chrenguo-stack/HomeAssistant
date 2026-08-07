@@ -3,7 +3,8 @@ from __future__ import annotations
 import re
 import sqlite3
 import threading
-from contextlib import suppress
+from collections.abc import Iterator
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -78,6 +79,25 @@ def validate_replay_tuple(node_id: str, boot_id: str, seq: int) -> ReplayTuple:
     )
 
 
+class ReplayRegistryTransaction:
+    """One write transaction shared by replay and higher-level durable state."""
+
+    def __init__(self, registry: ReplayRegistry) -> None:
+        self._registry = registry
+
+    @property
+    def connection(self) -> sqlite3.Connection:
+        return self._registry._connection
+
+    def inspect(self, *, node_id: str, boot_id: str, seq: int) -> ReplayInspection:
+        key = validate_replay_tuple(node_id, boot_id, seq)
+        return self._registry._inspect_key(key)
+
+    def commit(self, *, node_id: str, boot_id: str, seq: int) -> ReplayCommit:
+        key = validate_replay_tuple(node_id, boot_id, seq)
+        return self._registry._commit_key(key)
+
+
 class ReplayRegistry:
     """SQLite-backed N3-W replay and boot-session high-water registry.
 
@@ -85,6 +105,11 @@ class ReplayRegistry:
     ``BEGIN IMMEDIATE`` transaction so a successful telemetry validator can
     atomically advance the high-water and consume the replay tuple immediately
     before canonical acceptance.
+
+    ``transaction`` exposes the same serialized SQLite transaction to higher-level
+    durable state machines. This lets N3-W path lease/cursor transitions and replay
+    consumption commit or roll back together without introducing a second database
+    transaction boundary.
     """
 
     def __init__(self, path: str | Path, *, read_only: bool = False) -> None:
@@ -210,83 +235,108 @@ class ReplayRegistry:
         ).fetchone()
         return row is not None
 
+    def _inspect_key(self, key: ReplayTuple) -> ReplayInspection:
+        highest = self._highest_session(key.node_id)
+        if highest is not None and key.boot_session < highest:
+            return ReplayInspection("stale_boot_session", key, highest)
+        if self._is_seen(key):
+            return ReplayInspection("duplicate", key, highest)
+        return ReplayInspection("ready", key, highest)
+
+    def _commit_key(self, key: ReplayTuple) -> ReplayCommit:
+        inspection = self._inspect_key(key)
+        if inspection.status == "stale_boot_session":
+            assert inspection.highest_session is not None
+            return ReplayCommit("stale_boot_session", key, inspection.highest_session)
+        if inspection.status == "duplicate":
+            return ReplayCommit(
+                "duplicate",
+                key,
+                inspection.highest_session or key.boot_session,
+            )
+
+        highest = inspection.highest_session
+        new_highest = max(highest or 0, key.boot_session)
+        if highest is None:
+            self._connection.execute(
+                """
+                INSERT INTO n3w_replay_state (node_id, highest_session_hex)
+                VALUES (?, ?)
+                """,
+                (key.node_id, self._session_hex(new_highest)),
+            )
+        elif new_highest != highest:
+            self._connection.execute(
+                """
+                UPDATE n3w_replay_state
+                SET highest_session_hex = ?
+                WHERE node_id = ?
+                """,
+                (self._session_hex(new_highest), key.node_id),
+            )
+            self._connection.execute(
+                """
+                DELETE FROM n3w_replay_seen
+                WHERE node_id = ? AND boot_id <> ?
+                """,
+                (key.node_id, key.boot_id),
+            )
+        self._connection.execute(
+            """
+            INSERT INTO n3w_replay_seen (
+                node_id, boot_id, seq, committed_at
+            ) VALUES (?, ?, ?, ?)
+            """,
+            (key.node_id, key.boot_id, key.seq, _utc_text()),
+        )
+        return ReplayCommit("accepted", key, new_highest)
+
+    @contextmanager
+    def transaction(self) -> Iterator[ReplayRegistryTransaction]:
+        """Open one serialized ``BEGIN IMMEDIATE`` transaction.
+
+        The transaction owns the registry lock for its complete lifetime. Any
+        SQLite failure rolls back the whole unit and is surfaced as a fail-closed
+        ``ReplayRegistryUnavailable`` error. Callers may mutate additional tables
+        through ``transaction.connection``; those writes share replay rollback.
+        """
+
+        with self._lock:
+            self._require_open()
+            if self.read_only:
+                raise ReplayRegistryUnavailable("replay_registry_read_only")
+            if self._connection.in_transaction:
+                raise ReplayRegistryUnavailable("replay_registry_transaction_active")
+            transaction_open = False
+            try:
+                self._connection.execute("BEGIN IMMEDIATE")
+                transaction_open = True
+                yield ReplayRegistryTransaction(self)
+                self._connection.execute("COMMIT")
+                transaction_open = False
+            except sqlite3.Error as exc:
+                if transaction_open:
+                    with suppress(sqlite3.Error):
+                        self._connection.execute("ROLLBACK")
+                raise ReplayRegistryUnavailable("replay_registry_unavailable") from exc
+            except Exception:
+                if transaction_open:
+                    with suppress(sqlite3.Error):
+                        self._connection.execute("ROLLBACK")
+                raise
+
     def inspect(self, *, node_id: str, boot_id: str, seq: int) -> ReplayInspection:
         key = validate_replay_tuple(node_id, boot_id, seq)
         with self._lock:
             self._require_open()
             try:
-                highest = self._highest_session(key.node_id)
-                if highest is not None and key.boot_session < highest:
-                    return ReplayInspection("stale_boot_session", key, highest)
-                if self._is_seen(key):
-                    return ReplayInspection("duplicate", key, highest)
-                return ReplayInspection("ready", key, highest)
+                return self._inspect_key(key)
             except sqlite3.Error as exc:
                 raise ReplayRegistryUnavailable("replay_registry_unavailable") from exc
 
     def commit(self, *, node_id: str, boot_id: str, seq: int) -> ReplayCommit:
-        key = validate_replay_tuple(node_id, boot_id, seq)
-        with self._lock:
-            self._require_open()
-            if self.read_only:
-                raise ReplayRegistryUnavailable("replay_registry_read_only")
-            transaction_open = False
-            try:
-                self._connection.execute("BEGIN IMMEDIATE")
-                transaction_open = True
-                highest = self._highest_session(key.node_id)
-                if highest is not None and key.boot_session < highest:
-                    self._connection.execute("COMMIT")
-                    transaction_open = False
-                    return ReplayCommit("stale_boot_session", key, highest)
-                if self._is_seen(key):
-                    self._connection.execute("COMMIT")
-                    transaction_open = False
-                    return ReplayCommit("duplicate", key, highest or key.boot_session)
-
-                new_highest = max(highest or 0, key.boot_session)
-                if highest is None:
-                    self._connection.execute(
-                        """
-                        INSERT INTO n3w_replay_state (node_id, highest_session_hex)
-                        VALUES (?, ?)
-                        """,
-                        (key.node_id, self._session_hex(new_highest)),
-                    )
-                elif new_highest != highest:
-                    self._connection.execute(
-                        """
-                        UPDATE n3w_replay_state
-                        SET highest_session_hex = ?
-                        WHERE node_id = ?
-                        """,
-                        (self._session_hex(new_highest), key.node_id),
-                    )
-                    self._connection.execute(
-                        """
-                        DELETE FROM n3w_replay_seen
-                        WHERE node_id = ? AND boot_id <> ?
-                        """,
-                        (key.node_id, key.boot_id),
-                    )
-                self._connection.execute(
-                    """
-                    INSERT INTO n3w_replay_seen (
-                        node_id, boot_id, seq, committed_at
-                    ) VALUES (?, ?, ?, ?)
-                    """,
-                    (key.node_id, key.boot_id, key.seq, _utc_text()),
-                )
-                self._connection.execute("COMMIT")
-                transaction_open = False
-                return ReplayCommit("accepted", key, new_highest)
-            except (sqlite3.Error, ReplayRegistryUnavailable) as exc:
-                if transaction_open:
-                    with suppress(sqlite3.Error):
-                        self._connection.execute("ROLLBACK")
-                if isinstance(exc, ReplayRegistryUnavailable):
-                    raise
-                raise ReplayRegistryUnavailable("replay_registry_unavailable") from exc
+        with self.transaction() as transaction:
+            return transaction.commit(node_id=node_id, boot_id=boot_id, seq=seq)
 
     def audit(self) -> dict[str, int | str]:
         with self._lock:
