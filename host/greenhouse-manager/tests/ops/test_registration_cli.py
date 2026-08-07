@@ -111,6 +111,8 @@ def test_cli_does_not_expose_node_id_reuse_flags() -> None:
 def test_n3w_replay_audit_uses_existing_registration_cli_entrypoint(tmp_path: Path) -> None:
     replay_path = tmp_path / "n3w-replay.sqlite3"
     missing_registration_path = tmp_path / "registration-does-not-exist.sqlite3"
+    with ReplayRegistry(replay_path):
+        pass
 
     code, document, error = run_cli(
         missing_registration_path,
@@ -126,6 +128,22 @@ def test_n3w_replay_audit_uses_existing_registration_cli_entrypoint(tmp_path: Pa
     assert document["node_count"] == 0
     assert replay_path.exists()
     assert not missing_registration_path.exists()
+
+
+def test_n3w_replay_audit_missing_db_fails_without_creating_it(tmp_path: Path) -> None:
+    replay_path = tmp_path / "missing-replay.sqlite3"
+
+    code, document, error = run_cli(
+        tmp_path / "unused-registration.sqlite3",
+        "n3w-replay-audit",
+        "--replay-db",
+        str(replay_path),
+    )
+
+    assert code == 3
+    assert document is None
+    assert "replay_registry_unavailable" in error
+    assert not replay_path.exists()
 
 
 def test_n3w_replay_inspect_is_read_only(tmp_path: Path) -> None:
@@ -164,11 +182,15 @@ def test_n3w_replay_inspect_is_read_only(tmp_path: Path) -> None:
 
 
 def test_n3w_replay_inspect_rejects_invalid_boot_session(tmp_path: Path) -> None:
+    replay_path = tmp_path / "n3w-replay.sqlite3"
+    with ReplayRegistry(replay_path):
+        pass
+
     code, document, error = run_cli(
         tmp_path / "unused-registration.sqlite3",
         "n3w-replay-inspect",
         "--replay-db",
-        str(tmp_path / "n3w-replay.sqlite3"),
+        str(replay_path),
         "--node-id",
         N3W_NODE_ID,
         "--boot-id",

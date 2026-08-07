@@ -51,6 +51,26 @@ def test_inspection_is_read_only_and_commit_consumes_tuple(tmp_path: Path) -> No
     assert duplicate.status == "duplicate"
 
 
+def test_read_only_open_never_creates_or_consumes_state(tmp_path: Path) -> None:
+    missing = tmp_path / "missing.sqlite3"
+    with pytest.raises(ReplayRegistryUnavailable, match="replay_registry_unavailable"):
+        ReplayRegistry(missing, read_only=True)
+    assert not missing.exists()
+
+    database = tmp_path / "replay.sqlite3"
+    with ReplayRegistry(database) as registry:
+        registry.commit(node_id=NODE_ID, boot_id=BOOT_1, seq=3)
+
+    with ReplayRegistry(database, read_only=True) as registry:
+        inspection = registry.inspect(node_id=NODE_ID, boot_id=BOOT_1, seq=4)
+        with pytest.raises(ReplayRegistryUnavailable, match="replay_registry_read_only"):
+            registry.commit(node_id=NODE_ID, boot_id=BOOT_1, seq=4)
+
+    assert inspection.status == "ready"
+    with ReplayRegistry(database) as registry:
+        assert registry.inspect(node_id=NODE_ID, boot_id=BOOT_1, seq=4).status == "ready"
+
+
 def test_higher_session_advances_and_lower_session_fails_closed(tmp_path: Path) -> None:
     with ReplayRegistry(tmp_path / "replay.sqlite3") as registry:
         assert registry.commit(node_id=NODE_ID, boot_id=BOOT_1, seq=5).status == "accepted"
@@ -110,9 +130,12 @@ def test_commit_rolls_back_high_water_when_replay_insert_fails(tmp_path: Path) -
             """
         )
 
-    with ReplayRegistry(database) as registry, pytest.raises(
-        ReplayRegistryUnavailable,
-        match="replay_registry_unavailable",
+    with (
+        ReplayRegistry(database) as registry,
+        pytest.raises(
+            ReplayRegistryUnavailable,
+            match="replay_registry_unavailable",
+        ),
     ):
         registry.commit(node_id=NODE_ID, boot_id=BOOT_2, seq=1)
 
@@ -129,23 +152,18 @@ def test_commit_rolls_back_high_water_when_replay_insert_fails(tmp_path: Path) -
     assert new_session.highest_session == 1
 
 
-def test_concurrent_same_tuple_has_one_accept_and_one_duplicate(tmp_path: Path) -> None:
+def test_concurrent_connections_serialize_same_tuple(tmp_path: Path) -> None:
     database = tmp_path / "replay.sqlite3"
-    registry = ReplayRegistry(database)
-    try:
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            futures = [
-                executor.submit(
-                    registry.commit,
-                    node_id=NODE_ID,
-                    boot_id=BOOT_1,
-                    seq=9,
-                )
-                for _ in range(2)
-            ]
-        statuses = sorted(future.result().status for future in futures)
-    finally:
-        registry.close()
+    with ReplayRegistry(database):
+        pass
+
+    def commit_once() -> str:
+        with ReplayRegistry(database) as registry:
+            return registry.commit(node_id=NODE_ID, boot_id=BOOT_1, seq=9).status
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [executor.submit(commit_once) for _ in range(2)]
+        statuses = sorted(future.result() for future in futures)
 
     assert statuses == ["accepted", "duplicate"]
 
@@ -175,8 +193,11 @@ def test_audit_detects_invalid_persisted_high_water(tmp_path: Path) -> None:
             (NODE_ID,),
         )
 
-    with ReplayRegistry(database) as registry, pytest.raises(
-        ReplayRegistryUnavailable,
-        match="replay_registry_corrupt",
+    with (
+        ReplayRegistry(database) as registry,
+        pytest.raises(
+            ReplayRegistryUnavailable,
+            match="replay_registry_corrupt",
+        ),
     ):
         registry.audit()

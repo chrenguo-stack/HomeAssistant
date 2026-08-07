@@ -72,6 +72,13 @@ jobs:
         run: |
           tmpdir="$(mktemp -d)"
           trap 'rm -rf "$tmpdir"' EXIT
+          REPLAY_DB="$tmpdir/n3w-replay.sqlite3" python - <<'PY'
+          import os
+          from greenhouse_manager.runtime.replay_registry import ReplayRegistry
+
+          with ReplayRegistry(os.environ["REPLAY_DB"]):
+              pass
+          PY
           greenhouse-manager-registration \
             --db "$tmpdir/unused-registration.sqlite3" \
             n3w-replay-audit \
@@ -87,3 +94,4 @@ jobs:
           assert document["node_count"] == 0
           assert document["replay_tuple_count"] == 0
           PY
+          test ! -e "$tmpdir/unused-registration.sqlite3"

@@ -52,13 +52,13 @@ def _parser() -> argparse.ArgumentParser:
 
     replay_audit = subparsers.add_parser(
         "n3w-replay-audit",
-        help="audit a Manager-owned N3-W replay registry without consuming tuples",
+        help="audit an existing Manager-owned N3-W replay registry without mutation",
     )
     replay_audit.add_argument("--replay-db", required=True)
 
     replay_inspect = subparsers.add_parser(
         "n3w-replay-inspect",
-        help="inspect one N3-W replay tuple without consuming it",
+        help="inspect one tuple in an existing N3-W replay registry without mutation",
     )
     replay_inspect.add_argument("--replay-db", required=True)
     replay_inspect.add_argument("--node-id", required=True)
@@ -94,10 +94,15 @@ def _write(output: TextIO, document: Any) -> None:
     output.write("\n")
 
 
-def _run_replay_command(args: argparse.Namespace, *, output: TextIO, error_output: TextIO) -> int:
+def _run_replay_command(
+    args: argparse.Namespace,
+    *,
+    output: TextIO,
+    error_output: TextIO,
+) -> int:
     database = Path(args.replay_db)
     try:
-        with ReplayRegistry(database) as registry:
+        with ReplayRegistry(database, read_only=True) as registry:
             if args.command == "n3w-replay-audit":
                 _write(output, registry.audit())
                 return 0

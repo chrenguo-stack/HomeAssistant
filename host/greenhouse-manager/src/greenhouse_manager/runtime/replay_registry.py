@@ -13,6 +13,11 @@ _NODE_ID = re.compile(r"^[a-z0-9][a-z0-9_-]{2,63}$")
 _BOOT_ID = re.compile(r"^boot_([0-9a-f]{16})$")
 _MAX_SEQ = 2**32 - 1
 _SCHEMA_VERSION = 1
+_EXPECTED_TABLES = {
+    "n3w_replay_meta",
+    "n3w_replay_state",
+    "n3w_replay_seen",
+}
 
 InspectionStatus = Literal["ready", "duplicate", "stale_boot_session"]
 CommitStatus = Literal["accepted", "duplicate", "stale_boot_session"]
@@ -82,21 +87,29 @@ class ReplayRegistry:
     before canonical acceptance.
     """
 
-    def __init__(self, path: str | Path) -> None:
+    def __init__(self, path: str | Path, *, read_only: bool = False) -> None:
         self.path = Path(path)
+        self.read_only = read_only
         self._lock = threading.RLock()
         self._closed = False
         try:
+            database = str(self.path)
+            if self.read_only:
+                database = f"{self.path.resolve().as_uri()}?mode=ro"
             self._connection = sqlite3.connect(
-                str(self.path),
+                database,
                 isolation_level=None,
                 check_same_thread=False,
                 timeout=5.0,
+                uri=self.read_only,
             )
             self._connection.row_factory = sqlite3.Row
             self._connection.execute("PRAGMA foreign_keys = ON")
             self._connection.execute("PRAGMA busy_timeout = 5000")
-            self._initialize()
+            if self.read_only:
+                self._require_schema()
+            else:
+                self._initialize()
             self._require_integrity()
         except (OSError, sqlite3.Error, ReplayRegistryUnavailable) as exc:
             connection = getattr(self, "_connection", None)
@@ -132,16 +145,28 @@ class ReplayRegistry:
                 );
                 """
             )
-            rows = self._connection.execute(
-                "SELECT schema_version FROM n3w_replay_meta"
-            ).fetchall()
+            rows = self._connection.execute("SELECT schema_version FROM n3w_replay_meta").fetchall()
             if not rows:
                 self._connection.execute(
                     "INSERT INTO n3w_replay_meta (schema_version) VALUES (?)",
                     (_SCHEMA_VERSION,),
                 )
-            elif len(rows) != 1 or rows[0]["schema_version"] != _SCHEMA_VERSION:
-                raise ReplayRegistryUnavailable("replay_registry_schema_mismatch")
+        self._require_schema()
+
+    def _require_schema(self) -> None:
+        rows = self._connection.execute(
+            """
+            SELECT name
+            FROM sqlite_master
+            WHERE type = 'table' AND name LIKE 'n3w_replay_%'
+            """
+        ).fetchall()
+        names = {row["name"] for row in rows}
+        if names != _EXPECTED_TABLES:
+            raise ReplayRegistryUnavailable("replay_registry_schema_mismatch")
+        versions = self._connection.execute("SELECT schema_version FROM n3w_replay_meta").fetchall()
+        if len(versions) != 1 or versions[0]["schema_version"] != _SCHEMA_VERSION:
+            raise ReplayRegistryUnavailable("replay_registry_schema_mismatch")
 
     def _require_integrity(self) -> None:
         row = self._connection.execute("PRAGMA quick_check").fetchone()
@@ -203,6 +228,8 @@ class ReplayRegistry:
         key = validate_replay_tuple(node_id, boot_id, seq)
         with self._lock:
             self._require_open()
+            if self.read_only:
+                raise ReplayRegistryUnavailable("replay_registry_read_only")
             transaction_open = False
             try:
                 self._connection.execute("BEGIN IMMEDIATE")
@@ -266,16 +293,8 @@ class ReplayRegistry:
             self._require_open()
             try:
                 self._require_integrity()
-                node_count = int(
-                    self._connection.execute(
-                        "SELECT COUNT(*) FROM n3w_replay_state"
-                    ).fetchone()[0]
-                )
-                replay_count = int(
-                    self._connection.execute(
-                        "SELECT COUNT(*) FROM n3w_replay_seen"
-                    ).fetchone()[0]
-                )
+                node_count = int(self._connection.execute("SELECT COUNT(*) FROM n3w_replay_state").fetchone()[0])
+                replay_count = int(self._connection.execute("SELECT COUNT(*) FROM n3w_replay_seen").fetchone()[0])
                 rows = self._connection.execute(
                     "SELECT node_id, highest_session_hex FROM n3w_replay_state"
                 ).fetchall()
@@ -284,9 +303,7 @@ class ReplayRegistry:
                     node_id = row["node_id"]
                     if not isinstance(node_id, str) or _NODE_ID.fullmatch(node_id) is None:
                         raise ReplayRegistryUnavailable("replay_registry_corrupt")
-                    highest_by_node[node_id] = self._parse_session_hex(
-                        row["highest_session_hex"]
-                    )
+                    highest_by_node[node_id] = self._parse_session_hex(row["highest_session_hex"])
                 seen_rows = self._connection.execute(
                     "SELECT node_id, boot_id, seq FROM n3w_replay_seen"
                 ).fetchall()
