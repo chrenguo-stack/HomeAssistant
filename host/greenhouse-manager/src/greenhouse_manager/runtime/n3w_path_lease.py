@@ -186,9 +186,7 @@ class N3wPathLeaseCoordinator:
                     )
                     """
                 )
-                versions = connection.execute(
-                    "SELECT schema_version FROM n3w_path_meta"
-                ).fetchall()
+                versions = connection.execute("SELECT schema_version FROM n3w_path_meta").fetchall()
                 if not versions:
                     connection.execute(
                         "INSERT INTO n3w_path_meta (schema_version) VALUES (?)",
@@ -214,9 +212,7 @@ class N3wPathLeaseCoordinator:
                 ).fetchall()
                 if {row["name"] for row in rows} != _EXPECTED_TABLES:
                     raise ReplayRegistryUnavailable("path_state_schema_mismatch")
-                versions = connection.execute(
-                    "SELECT schema_version FROM n3w_path_meta"
-                ).fetchall()
+                versions = connection.execute("SELECT schema_version FROM n3w_path_meta").fetchall()
                 if len(versions) != 1 or versions[0]["schema_version"] != _SCHEMA_VERSION:
                     raise ReplayRegistryUnavailable("path_state_schema_mismatch")
             except sqlite3.Error as exc:
@@ -660,11 +656,7 @@ class N3wPathLeaseCoordinator:
                 "rejected",
                 node_id=node_id,
                 owner=owner,
-                code=(
-                    str(exc)
-                    if str(exc).startswith("path_state_")
-                    else "replay_registry_unavailable"
-                ),
+                code=(str(exc) if str(exc).startswith("path_state_") else "replay_registry_unavailable"),
             )
         except sqlite3.Error:
             return self._decision(
