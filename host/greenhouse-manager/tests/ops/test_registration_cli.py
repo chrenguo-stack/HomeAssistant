@@ -8,6 +8,8 @@ from io import StringIO
 from pathlib import Path
 
 from greenhouse_manager.ops.registration_cli import _parser, main
+from greenhouse_manager.runtime.n3w_path_lease import N3wPathLeaseCoordinator, PathLeasePolicy, PathOwner
+from greenhouse_manager.runtime.n3w_relay_authorization import REVOKED_GATEWAY_SENTINEL
 from greenhouse_manager.runtime.registration import RegistrationRegistry
 from greenhouse_manager.runtime.replay_registry import ReplayRegistry
 
@@ -15,9 +17,11 @@ HARDWARE_ID = "ghw-c6-98a316a9f2f8"
 PAIRING_ID = "c83aeb0d-8f48-4a39-a34b-ea584a588475"
 LOGICAL_LOCATION_ID = "greenhouse-bed-01"
 N3W_NODE_ID = "node_01hzx7aq5fj3"
+N3W_ACTIVE_NODE_ID = "gh-n1-a9f2f8"
 N3W_BOOT_ID = "boot_0000000000000001"
 N3W_GATEWAY_ID = "gateway_01hzx7aq5fj3"
 N3W_KEY_FILE = "node_01hzx7aq5fj3-epoch-1.key"
+N3W_KEY = bytes(range(32))
 
 
 def hello() -> dict[str, object]:
@@ -41,6 +45,18 @@ def database(tmp_path: Path) -> Path:
     return path
 
 
+def active_database(tmp_path: Path) -> Path:
+    path = database(tmp_path)
+    with RegistrationRegistry(path) as registry:
+        registry.approve(
+            HARDWARE_ID,
+            PAIRING_ID,
+            node_id=N3W_ACTIVE_NODE_ID,
+            logical_location_id=LOGICAL_LOCATION_ID,
+        )
+    return path
+
+
 def run_cli(path: Path, *args: str) -> tuple[int, object, str]:
     stdout = StringIO()
     stderr = StringIO()
@@ -54,7 +70,7 @@ def relay_authorization_store(tmp_path: Path) -> tuple[Path, Path]:
     key_dir.mkdir()
     os.chmod(key_dir, 0o700)
     key_path = key_dir / N3W_KEY_FILE
-    key_path.write_bytes(bytes(range(32)))
+    key_path.write_bytes(N3W_KEY)
     os.chmod(key_path, 0o600)
 
     path = tmp_path / "relay-authorization.sqlite3"
@@ -283,7 +299,7 @@ def test_n3w_relay_authz_audit_is_secret_free_and_registration_independent(
     assert document["mutated"] is False
     serialized = json.dumps(document)
     assert N3W_KEY_FILE not in serialized
-    assert bytes(range(32)).hex() not in serialized
+    assert N3W_KEY.hex() not in serialized
     assert not unused_registration.exists()
 
 
@@ -308,3 +324,272 @@ def test_n3w_relay_authz_audit_missing_store_fails_without_creating_it(
     assert document is None
     assert "authorization_store_permissions_invalid" in error
     assert not missing.exists()
+
+
+def test_n3w_relay_authz_init_is_registration_independent(tmp_path: Path) -> None:
+    authz_db = tmp_path / "authz.sqlite3"
+    key_dir = tmp_path / "app-keys"
+    registration = tmp_path / "missing-registration.sqlite3"
+
+    code, document, error = run_cli(
+        registration,
+        "n3w-relay-authz-init",
+        "--authz-db",
+        str(authz_db),
+        "--key-dir",
+        str(key_dir),
+    )
+
+    assert code == 0
+    assert error == ""
+    assert document["schema_version"] == 2
+    assert document["secret_values_included"] is False
+    assert authz_db.exists()
+    assert key_dir.is_dir()
+    assert not registration.exists()
+
+
+def test_n3w_relay_lifecycle_cli_requires_active_registration_and_never_prints_key(
+    tmp_path: Path,
+) -> None:
+    registration = active_database(tmp_path)
+    authz_db = tmp_path / "authz.sqlite3"
+    key_dir = tmp_path / "app-keys"
+    key_input = tmp_path / "key-input.bin"
+    key_input.write_bytes(N3W_KEY)
+    os.chmod(key_input, 0o600)
+
+    assert run_cli(
+        registration,
+        "n3w-relay-authz-init",
+        "--authz-db",
+        str(authz_db),
+        "--key-dir",
+        str(key_dir),
+    )[0] == 0
+    code, grant, error = run_cli(
+        registration,
+        "n3w-relay-authz-grant",
+        "--authz-db",
+        str(authz_db),
+        "--key-dir",
+        str(key_dir),
+        "--gateway-id",
+        N3W_GATEWAY_ID,
+        "--node-id",
+        N3W_ACTIVE_NODE_ID,
+    )
+    assert code == 0
+    assert error == ""
+    assert grant["secret_values_included"] is False
+
+    code, staged, error = run_cli(
+        registration,
+        "n3w-relay-key-stage",
+        "--authz-db",
+        str(authz_db),
+        "--key-dir",
+        str(key_dir),
+        "--node-id",
+        N3W_ACTIVE_NODE_ID,
+        "--key-input",
+        str(key_input),
+    )
+    assert code == 0
+    assert error == ""
+    assert staged["key_epoch"] == 1
+    assert N3W_KEY.hex() not in json.dumps(staged)
+    assert str(key_input) not in json.dumps(staged)
+
+    code, activated, error = run_cli(
+        registration,
+        "n3w-relay-key-activate",
+        "--authz-db",
+        str(authz_db),
+        "--key-dir",
+        str(key_dir),
+        "--node-id",
+        N3W_ACTIVE_NODE_ID,
+        "--key-epoch",
+        "1",
+    )
+    assert code == 0
+    assert error == ""
+    assert activated["status"] == "passed"
+
+    code, audit, error = run_cli(
+        tmp_path / "unused-registration.sqlite3",
+        "n3w-relay-authz-audit",
+        "--authz-db",
+        str(authz_db),
+        "--key-dir",
+        str(key_dir),
+    )
+    assert code == 0
+    assert error == ""
+    assert audit["enabled_key_epoch_count"] == 1
+    assert audit["schema_version"] == 2
+
+
+def test_n3w_relay_grant_rejects_pending_or_unassigned_node(tmp_path: Path) -> None:
+    registration = database(tmp_path)
+    authz_db = tmp_path / "authz.sqlite3"
+    key_dir = tmp_path / "app-keys"
+    assert run_cli(
+        registration,
+        "n3w-relay-authz-init",
+        "--authz-db",
+        str(authz_db),
+        "--key-dir",
+        str(key_dir),
+    )[0] == 0
+
+    code, document, error = run_cli(
+        registration,
+        "n3w-relay-authz-grant",
+        "--authz-db",
+        str(authz_db),
+        "--key-dir",
+        str(key_dir),
+        "--gateway-id",
+        N3W_GATEWAY_ID,
+        "--node-id",
+        N3W_ACTIVE_NODE_ID,
+    )
+    assert code == 3
+    assert document is None
+    assert "node_id_not_active" in error
+
+
+def test_n3w_relay_revoke_cli_invalidates_matching_path_owner(tmp_path: Path) -> None:
+    registration = active_database(tmp_path)
+    authz_db = tmp_path / "authz.sqlite3"
+    key_dir = tmp_path / "app-keys"
+    replay_db = tmp_path / "replay.sqlite3"
+    key_input = tmp_path / "key-input.bin"
+    key_input.write_bytes(N3W_KEY)
+    os.chmod(key_input, 0o600)
+
+    for command in (
+        (
+            "n3w-relay-authz-init",
+            "--authz-db",
+            str(authz_db),
+            "--key-dir",
+            str(key_dir),
+        ),
+        (
+            "n3w-relay-authz-grant",
+            "--authz-db",
+            str(authz_db),
+            "--key-dir",
+            str(key_dir),
+            "--gateway-id",
+            N3W_GATEWAY_ID,
+            "--node-id",
+            N3W_ACTIVE_NODE_ID,
+        ),
+        (
+            "n3w-relay-key-stage",
+            "--authz-db",
+            str(authz_db),
+            "--key-dir",
+            str(key_dir),
+            "--node-id",
+            N3W_ACTIVE_NODE_ID,
+            "--key-input",
+            str(key_input),
+        ),
+        (
+            "n3w-relay-key-activate",
+            "--authz-db",
+            str(authz_db),
+            "--key-dir",
+            str(key_dir),
+            "--node-id",
+            N3W_ACTIVE_NODE_ID,
+            "--key-epoch",
+            "1",
+        ),
+    ):
+        assert run_cli(registration, *command)[0] == 0
+
+    with ReplayRegistry(replay_db) as replay:
+        path = N3wPathLeaseCoordinator(
+            replay_registry=replay,
+            policy=PathLeasePolicy(
+                stability_window_s=0,
+                minimum_distinct_frames=2,
+                lease_ttl_s=10,
+                old_path_grace_s=1,
+            ),
+            ingress_allowed=lambda _node_id: True,
+        )
+        assert (
+            path.process(
+                node_id=N3W_ACTIVE_NODE_ID,
+                boot_id=N3W_BOOT_ID,
+                seq=1,
+                owner=PathOwner("relay", N3W_GATEWAY_ID),
+                now=datetime.now(UTC),
+            ).status
+            == "accepted"
+        )
+
+    code, document, error = run_cli(
+        registration,
+        "n3w-relay-authz-revoke-grant",
+        "--authz-db",
+        str(authz_db),
+        "--key-dir",
+        str(key_dir),
+        "--gateway-id",
+        N3W_GATEWAY_ID,
+        "--node-id",
+        N3W_ACTIVE_NODE_ID,
+        "--replay-db",
+        str(replay_db),
+    )
+    assert code == 0
+    assert error == ""
+    assert document["recovery_pending"] is False
+    with sqlite3.connect(replay_db) as connection:
+        row = connection.execute(
+            "SELECT active_gateway_id,lease_expires_at FROM n3w_path_leases WHERE node_id=?",
+            (N3W_ACTIVE_NODE_ID,),
+        ).fetchone()
+    assert row == (REVOKED_GATEWAY_SENTINEL, "1970-01-01T00:00:00.000Z")
+
+
+def test_n3w_key_input_requires_private_regular_file(tmp_path: Path) -> None:
+    registration = active_database(tmp_path)
+    authz_db = tmp_path / "authz.sqlite3"
+    key_dir = tmp_path / "app-keys"
+    key_input = tmp_path / "key-input.bin"
+    key_input.write_bytes(N3W_KEY)
+    os.chmod(key_input, 0o644)
+    assert run_cli(
+        registration,
+        "n3w-relay-authz-init",
+        "--authz-db",
+        str(authz_db),
+        "--key-dir",
+        str(key_dir),
+    )[0] == 0
+
+    code, document, error = run_cli(
+        registration,
+        "n3w-relay-key-stage",
+        "--authz-db",
+        str(authz_db),
+        "--key-dir",
+        str(key_dir),
+        "--node-id",
+        N3W_ACTIVE_NODE_ID,
+        "--key-input",
+        str(key_input),
+    )
+    assert code == 3
+    assert document is None
+    assert "key_input_permissions_invalid" in error
+    assert N3W_KEY.hex() not in error
