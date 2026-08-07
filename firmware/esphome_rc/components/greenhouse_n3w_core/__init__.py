@@ -18,8 +18,10 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: dict) -> None:
-    # Compile/link support only. This P4a component does not initialize ESP-NOW,
-    # connect a Broker, load a production key, or transmit any frame.
+    # P4b compiles the ESP-NOW/Wi-Fi driver and radio policy, but the component
+    # remains inert: setup() does not initialize Wi-Fi/ESP-NOW, provision keys,
+    # transmit packets, connect a Broker, or activate a product firmware path.
     include_builtin_idf_component("nvs_flash")
+    include_builtin_idf_component("esp_wifi")
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
