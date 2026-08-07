@@ -297,10 +297,7 @@ class N3wRelayIngressCore:
         if parsed_topic.system_id != self.system_id:
             raise RelayIngressRejected("system_binding_mismatch", node_id=parsed_topic.node_id)
         envelope = parse_relay_envelope(payload)
-        if (
-            envelope.gateway_id != parsed_topic.gateway_id
-            or envelope.node_id != parsed_topic.node_id
-        ):
+        if envelope.gateway_id != parsed_topic.gateway_id or envelope.node_id != parsed_topic.node_id:
             raise RelayIngressRejected("outer_binding_mismatch", node_id=parsed_topic.node_id)
 
         key = self.authorization.resolve_key(
@@ -346,9 +343,7 @@ class N3wRelayIngressCore:
         except RelayIngressRejected as exc:
             raise RelayIngressRejected(exc.code, node_id=envelope.node_id) from exc
         except Exception as exc:
-            raise RelayIngressRejected(
-                "telemetry_validation_rejected", node_id=envelope.node_id
-            ) from exc
+            raise RelayIngressRejected("telemetry_validation_rejected", node_id=envelope.node_id) from exc
 
         committed = self.replay_registry.commit(
             node_id=envelope.node_id,
@@ -370,15 +365,11 @@ class N3wRelayIngressCore:
         return RelayIngressResult(
             status="accepted",
             node_id=envelope.node_id,
-            ingress_topic=(
-                f"gh/v1/{self.system_id}/ingress/node/{envelope.node_id}/telemetry"
-            ),
+            ingress_topic=(f"gh/v1/{self.system_id}/ingress/node/{envelope.node_id}/telemetry"),
             telemetry=telemetry,
         )
 
-    def commit_validated_direct_tuple(
-        self, *, node_id: str, boot_id: str, seq: int
-    ) -> RelayIngressResult:
+    def commit_validated_direct_tuple(self, *, node_id: str, boot_id: str, seq: int) -> RelayIngressResult:
         """Model the future direct-path shared replay commit without wiring production."""
         try:
             committed = self.replay_registry.commit(
