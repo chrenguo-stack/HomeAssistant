@@ -3,12 +3,13 @@ from __future__ import annotations
 import json
 import threading
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Literal
 
 from .ingest import ProcessResult, PublishMessage, TelemetryProcessor
-from .n3w_relay_ingress import N3wRelayIngressCore
-from .replay_registry import ReplayRegistry, ReplayRegistryUnavailable
+from .n3w_path_lease import N3wPathLeaseCoordinator, PathLeaseDecision, PathOwner
+from .n3w_relay_ingress import N3wRelayIngressCore, parse_relay_topic
+from .replay_registry import ReplayRegistry
 
 RouterStatus = Literal["accepted", "duplicate", "rejected"]
 IngressSource = Literal["direct", "relay"]
@@ -26,11 +27,12 @@ class UnifiedIngressResult:
 
 
 class N3wManagerIngressRouter:
-    """Non-live direct/relay ingress composition over one replay registry.
+    """Non-live Direct/Relay composition over one replay/path transaction boundary.
 
-    The router contains no MQTT client and publishes nothing. Both paths perform
-    complete canonical telemetry validation before the persistent replay/high-water
-    transition. Canonical in-memory state is committed only after replay acceptance.
+    The router contains no MQTT client and publishes nothing. Both ingress paths
+    complete canonical validation before the persistent path-lease/replay/cursor
+    transition. Canonical in-memory state is committed only after that transaction
+    accepts the frame.
     """
 
     def __init__(
@@ -39,14 +41,18 @@ class N3wManagerIngressRouter:
         processor: TelemetryProcessor,
         replay_registry: ReplayRegistry,
         relay_core: N3wRelayIngressCore,
+        path_lease: N3wPathLeaseCoordinator,
     ) -> None:
         if processor.system_id != relay_core.system_id:
             raise ValueError("system_id_mismatch")
         if relay_core.replay_registry is not replay_registry:
             raise ValueError("replay_registry_must_be_shared")
+        if path_lease.replay_registry is not replay_registry:
+            raise ValueError("path_lease_replay_registry_must_be_shared")
         self.processor = processor
         self.replay_registry = replay_registry
         self.relay_core = relay_core
+        self.path_lease = path_lease
         self.system_id = processor.system_id
         self._lock = threading.RLock()
 
@@ -68,6 +74,36 @@ class N3wManagerIngressRouter:
             dedup_key=result.dedup_key,
         )
 
+    @staticmethod
+    def _from_path(
+        source: IngressSource,
+        decision: PathLeaseDecision,
+        *,
+        dedup_key: tuple[str, str, int] | None,
+    ) -> UnifiedIngressResult:
+        return UnifiedIngressResult(
+            status=decision.status,
+            source=source,
+            node_id=decision.node_id,
+            code=decision.code,
+            dedup_key=dedup_key,
+        )
+
+    def _commit_path(
+        self,
+        *,
+        owner: PathOwner,
+        dedup_key: tuple[str, str, int],
+        observed_at: datetime,
+    ) -> PathLeaseDecision:
+        return self.path_lease.process(
+            node_id=dedup_key[0],
+            boot_id=dedup_key[1],
+            seq=dedup_key[2],
+            owner=owner,
+            now=observed_at,
+        )
+
     def process_direct(
         self,
         topic: str,
@@ -76,64 +112,38 @@ class N3wManagerIngressRouter:
         received_at: datetime | None = None,
     ) -> UnifiedIngressResult:
         with self._lock:
-            candidate = self.processor.prepare(topic, payload, received_at=received_at)
-            if candidate.status != "accepted":
+            observed_at = received_at or datetime.now(UTC)
+            candidate = self.processor.prepare(topic, payload, received_at=observed_at)
+            if candidate.status == "rejected":
                 return UnifiedIngressResult(
-                    status=candidate.status,
+                    status="rejected",
                     source="direct",
                     node_id=candidate.node_id,
-                    code=(
-                        "canonical_duplicate"
-                        if candidate.status == "duplicate"
-                        else "canonical_validation_rejected"
-                    ),
+                    code="canonical_validation_rejected",
+                    detail=candidate.reason,
+                    dedup_key=candidate.dedup_key,
+                )
+            assert candidate.dedup_key is not None
+            path = self._commit_path(
+                owner=PathOwner("direct"),
+                dedup_key=candidate.dedup_key,
+                observed_at=observed_at,
+            )
+            if path.status == "rejected":
+                return self._from_path("direct", path, dedup_key=candidate.dedup_key)
+            if path.status == "duplicate":
+                return self._from_path("direct", path, dedup_key=candidate.dedup_key)
+            if candidate.status == "duplicate":
+                return UnifiedIngressResult(
+                    status="duplicate",
+                    source="direct",
+                    node_id=candidate.node_id,
+                    code="canonical_duplicate_reconciled",
                     detail=candidate.reason,
                     dedup_key=candidate.dedup_key,
                 )
             assert candidate.prepared is not None
-            prepared = candidate.prepared
-
-            try:
-                replay = self.replay_registry.commit(
-                    node_id=prepared.node_id,
-                    boot_id=prepared.dedup_key[1],
-                    seq=prepared.dedup_key[2],
-                )
-            except ReplayRegistryUnavailable:
-                return UnifiedIngressResult(
-                    status="rejected",
-                    source="direct",
-                    node_id=prepared.node_id,
-                    code="replay_registry_unavailable",
-                    dedup_key=prepared.dedup_key,
-                )
-            except ValueError as exc:
-                return UnifiedIngressResult(
-                    status="rejected",
-                    source="direct",
-                    node_id=prepared.node_id,
-                    code=str(exc),
-                    dedup_key=prepared.dedup_key,
-                )
-
-            if replay.status == "duplicate":
-                return UnifiedIngressResult(
-                    status="duplicate",
-                    source="direct",
-                    node_id=prepared.node_id,
-                    code="duplicate_node_boot_seq",
-                    dedup_key=prepared.dedup_key,
-                )
-            if replay.status == "stale_boot_session":
-                return UnifiedIngressResult(
-                    status="rejected",
-                    source="direct",
-                    node_id=prepared.node_id,
-                    code="stale_boot_session",
-                    dedup_key=prepared.dedup_key,
-                )
-
-            return self._from_process("direct", self.processor.commit_prepared(prepared))
+            return self._from_process("direct", self.processor.commit_prepared(candidate.prepared))
 
     def process_relay(
         self,
@@ -143,6 +153,7 @@ class N3wManagerIngressRouter:
         received_at: datetime | None = None,
     ) -> UnifiedIngressResult:
         with self._lock:
+            observed_at = received_at or datetime.now(UTC)
             relay = self.relay_core.prepare(topic, payload)
             if relay.status != "ready":
                 return UnifiedIngressResult(
@@ -158,7 +169,7 @@ class N3wManagerIngressRouter:
             canonical = self.processor.prepare(
                 relay.ingress_topic,
                 json.dumps(relay.telemetry, separators=(",", ":"), sort_keys=True),
-                received_at=received_at,
+                received_at=observed_at,
             )
             if canonical.status == "rejected":
                 return UnifiedIngressResult(
@@ -169,25 +180,17 @@ class N3wManagerIngressRouter:
                     detail=canonical.reason,
                     dedup_key=canonical.dedup_key,
                 )
-
-            replay = self.relay_core.commit(relay)
-            if replay.status == "duplicate":
-                return UnifiedIngressResult(
-                    status="duplicate",
-                    source="relay",
-                    node_id=relay.node_id,
-                    code=replay.code,
-                    dedup_key=canonical.dedup_key,
-                )
-            if replay.status == "rejected":
-                return UnifiedIngressResult(
-                    status="rejected",
-                    source="relay",
-                    node_id=relay.node_id,
-                    code=replay.code,
-                    dedup_key=canonical.dedup_key,
-                )
-
+            assert canonical.dedup_key is not None
+            gateway_id = parse_relay_topic(topic).gateway_id
+            path = self._commit_path(
+                owner=PathOwner("relay", gateway_id),
+                dedup_key=canonical.dedup_key,
+                observed_at=observed_at,
+            )
+            if path.status == "rejected":
+                return self._from_path("relay", path, dedup_key=canonical.dedup_key)
+            if path.status == "duplicate":
+                return self._from_path("relay", path, dedup_key=canonical.dedup_key)
             if canonical.status == "duplicate":
                 return UnifiedIngressResult(
                     status="duplicate",
