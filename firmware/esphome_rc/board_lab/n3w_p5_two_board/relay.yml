@@ -1,0 +1,74 @@
+substitutions:
+  p5_system_id: n3wp5lab
+  p5_node_id: n3wp5_child01
+  p5_gateway_id: n3wp5_relay01
+  p5_peer_mac: "02:00:00:00:00:01"
+  p5_pmk_hex: "000102030405060708090a0b0c0d0e0f"
+  p5_lmk_hex: "101112131415161718191a1b1c1d1e1f"
+
+esphome:
+  name: gh-n3w-p5-relay-compile
+  friendly_name: N3-W P5 Relay Compile-only Target
+  min_version: 2026.4.3
+
+esp32:
+  board: esp32-c6-devkitm-1
+  variant: ESP32C6
+  flash_size: 8MB
+  framework:
+    type: esp-idf
+    advanced:
+      include_builtin_idf_components:
+        - nvs_flash
+        - esp_wifi
+
+logger:
+  level: INFO
+  hardware_uart: USB_SERIAL_JTAG
+
+wifi:
+  ssid: "N3W-P5-COMPILE-ONLY"
+  password: "p5-compile-only-not-a-secret"
+
+mqtt:
+  id: mqtt_client
+  broker: 192.0.2.1
+  port: 1883
+  username: p5_compile_relay
+  password: "p5-compile-only-not-a-secret"
+  discovery: false
+  topic_prefix: null
+  log_topic: null
+  reboot_timeout: 0s
+  on_message:
+    - topic: gh/p5/${p5_system_id}/control/${p5_gateway_id}
+      then:
+        - lambda: |-
+            id(n3w_p5_lab).handle_lab_command(x);
+
+external_components:
+  - source:
+      type: local
+      path: ../../components
+    components:
+      - greenhouse_n3w_core
+      - greenhouse_n3w_p5_lab
+
+greenhouse_n3w_core:
+
+greenhouse_n3w_p5_lab:
+  id: n3w_p5_lab
+  role: relay
+  execution_enabled: false
+  system_id: ${p5_system_id}
+  node_id: ${p5_node_id}
+  gateway_id: ${p5_gateway_id}
+  peer_mac: ${p5_peer_mac}
+  pmk_hex: ${p5_pmk_hex}
+  lmk_hex: ${p5_lmk_hex}
+  session_floor: 1000
+  publish_interval_ms: 5000
+
+# Relay intentionally has no application-key fields. Public repository target is
+# compile/link only and inert. Real link credentials and board MAC binding are
+# injected only into a future private physical package.

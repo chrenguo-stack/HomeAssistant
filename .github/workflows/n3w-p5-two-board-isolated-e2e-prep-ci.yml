@@ -1,0 +1,178 @@
+name: N3-W P5 two-board isolated E2E preparation CI
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/n3w-p5-two-board-isolated-e2e-prep-ci.yml'
+      - 'docs/decisions/n3w-p5-two-board-isolated-e2e-prep-stage-entry.json'
+      - 'docs/decisions/n3w-p5-two-board-isolated-e2e-execution-plan.json'
+      - 'protocols/transport/gh-n3w-p5-two-board-isolated-e2e-v1.md'
+      - 'protocols/transport/schemas/gh.n3w-p5-private-input-1.schema.json'
+      - 'protocols/transport/schemas/gh.n3w-p5-evidence-1.schema.json'
+      - 'firmware/esphome_rc/components/greenhouse_n3w_p5_lab/**'
+      - 'firmware/esphome_rc/board_lab/n3w_p5_two_board/**'
+      - 'infra/compose/n3w-p5-two-board-isolated/**'
+      - 'tools/n3w_p5/**'
+      - 'tests/n3w_p5/**'
+
+permissions:
+  contents: read
+
+jobs:
+  preparation-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Exact base and exact preparation scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='8a57243fce0d347ebb20108f4ec5a2d5d4267486'
+          test '${{ github.event.pull_request.base.ref }}' = 'main'
+          test '${{ github.event.pull_request.base.sha }}' = "$base"
+          test "$(git merge-base "$base" HEAD)" = "$base"
+
+          allowed="$(mktemp)"
+          actual="$(mktemp)"
+          cat >"$allowed" <<'FILES'
+          .github/workflows/n3w-p5-two-board-isolated-e2e-prep-ci.yml
+          docs/decisions/n3w-p5-two-board-isolated-e2e-execution-plan.json
+          docs/decisions/n3w-p5-two-board-isolated-e2e-prep-stage-entry.json
+          firmware/esphome_rc/board_lab/n3w_p5_two_board/child.yml
+          firmware/esphome_rc/board_lab/n3w_p5_two_board/relay.yml
+          firmware/esphome_rc/components/greenhouse_n3w_p5_lab/__init__.py
+          firmware/esphome_rc/components/greenhouse_n3w_p5_lab/n3w_p5_lab.cpp
+          firmware/esphome_rc/components/greenhouse_n3w_p5_lab/n3w_p5_lab.h
+          infra/compose/n3w-p5-two-board-isolated/.env.example
+          infra/compose/n3w-p5-two-board-isolated/acl
+          infra/compose/n3w-p5-two-board-isolated/docker-compose.yml
+          infra/compose/n3w-p5-two-board-isolated/homeassistant/configuration.yaml
+          infra/compose/n3w-p5-two-board-isolated/homeassistant/core.config_entries.template.json
+          infra/compose/n3w-p5-two-board-isolated/lab_admin.py
+          infra/compose/n3w-p5-two-board-isolated/mosquitto.conf
+          protocols/transport/gh-n3w-p5-two-board-isolated-e2e-v1.md
+          protocols/transport/schemas/gh.n3w-p5-evidence-1.schema.json
+          protocols/transport/schemas/gh.n3w-p5-private-input-1.schema.json
+          tests/n3w_p5/test_n3w_p5_preparation.py
+          tools/n3w_p5/build_execution_template.py
+          FILES
+          sed -i 's/^          //' "$allowed"
+          sort -o "$allowed" "$allowed"
+          git diff --name-only "$base"...HEAD | sort >"$actual"
+          test "$(wc -l <"$actual")" -eq 20
+          diff -u "$allowed" "$actual"
+
+      - name: Verify exact governance bindings
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          doc = json.loads(Path(
+              'docs/decisions/n3w-p5-two-board-isolated-e2e-prep-stage-entry.json'
+          ).read_text())
+          assert doc['base_sha'] == '8a57243fce0d347ebb20108f4ec5a2d5d4267486'
+          assert doc['preserved_pr'] == 276
+          assert doc['preserved_pr_head'] == '239ea594c643d4990d449187f8b0cabae619e3d7'
+          assert doc['p4b_dependency']['merged_pr'] == 291
+          assert doc['p4b_dependency']['merge_commit_sha'] == doc['base_sha']
+          assert doc['mode'] == 'PREPARATION_ONLY_NO_PHYSICAL_EXECUTION'
+          assert all(value is False for value in doc['safety_boundary'].values())
+          PY
+
+      - name: Install host dependencies
+        run: python -m pip install -e 'host/greenhouse-manager[dev]'
+
+      - name: JSON Python and Ruff quality
+        run: |
+          python -m json.tool docs/decisions/n3w-p5-two-board-isolated-e2e-prep-stage-entry.json >/dev/null
+          python -m json.tool docs/decisions/n3w-p5-two-board-isolated-e2e-execution-plan.json >/dev/null
+          python -m json.tool protocols/transport/schemas/gh.n3w-p5-private-input-1.schema.json >/dev/null
+          python -m json.tool protocols/transport/schemas/gh.n3w-p5-evidence-1.schema.json >/dev/null
+          python -m json.tool infra/compose/n3w-p5-two-board-isolated/homeassistant/core.config_entries.template.json >/dev/null
+          python -m compileall -q \
+            firmware/esphome_rc/components/greenhouse_n3w_p5_lab/__init__.py \
+            infra/compose/n3w-p5-two-board-isolated/lab_admin.py \
+            tools/n3w_p5/build_execution_template.py \
+            tests/n3w_p5/test_n3w_p5_preparation.py
+          ruff check \
+            firmware/esphome_rc/components/greenhouse_n3w_p5_lab/__init__.py \
+            infra/compose/n3w-p5-two-board-isolated/lab_admin.py \
+            tools/n3w_p5/build_execution_template.py \
+            tests/n3w_p5/test_n3w_p5_preparation.py
+          ruff format --check \
+            firmware/esphome_rc/components/greenhouse_n3w_p5_lab/__init__.py \
+            infra/compose/n3w-p5-two-board-isolated/lab_admin.py \
+            tools/n3w_p5/build_execution_template.py \
+            tests/n3w_p5/test_n3w_p5_preparation.py
+
+      - name: P5 preparation contract tests
+        run: pytest -q tests/n3w_p5/test_n3w_p5_preparation.py
+
+      - name: Validate isolated compose without starting it
+        env:
+          GH_P5_MANAGER_MQTT_PASSWORD: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          GH_P5_HA_MQTT_PASSWORD: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+          GH_P5_CHILD_MQTT_PASSWORD: cccccccccccccccccccccccccccccccc
+          GH_P5_RELAY_MQTT_PASSWORD: dddddddddddddddddddddddddddddddd
+          GH_P5_TESTER_MQTT_PASSWORD: eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+          GH_P5_APP_KEY_EPOCH1_HEX: 0101010101010101010101010101010101010101010101010101010101010101
+          GH_P5_APP_KEY_EPOCH2_HEX: 0202020202020202020202020202020202020202020202020202020202020202
+        run: docker compose -f infra/compose/n3w-p5-two-board-isolated/docker-compose.yml config --quiet
+
+      - name: Build deterministic public execution template only
+        run: |
+          python tools/n3w_p5/build_execution_template.py --output /tmp/n3w-p5-public-template.tar
+          test -s /tmp/n3w-p5-public-template.tar
+          tar -tf /tmp/n3w-p5-public-template.tar | grep -Fx PUBLIC_TEMPLATE_BINDING.json
+          tar -xOf /tmp/n3w-p5-public-template.tar PUBLIC_TEMPLATE_BINDING.json | \
+            grep -F '"physical_authorization_included": false'
+
+      - name: Explicit no-physical no-production safety gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='8a57243fce0d347ebb20108f4ec5a2d5d4267486'
+          changed="$(git diff --name-only "$base"...HEAD)"
+          if printf '%s\n' "$changed" | grep -E '^firmware/esphome_rc/f1_0_rc2/'; then
+            echo 'Product firmware mutation is outside P5 preparation authorization'
+            exit 1
+          fi
+          if printf '%s\n' "$changed" | grep -E '^infra/compose/t1/'; then
+            echo 'Production T1 compose mutation is outside P5 preparation authorization'
+            exit 1
+          fi
+          test "$(grep -R -l 'execution_enabled: true' firmware/esphome_rc/board_lab/n3w_p5_two_board || true)" = ''
+          ! grep -R -n -E '(esphome run|esptool|/dev/tty|/dev/cu\.|pio run .*upload)' \
+            .github/workflows/n3w-p5-two-board-isolated-e2e-prep-ci.yml \
+            tools/n3w_p5 \
+            infra/compose/n3w-p5-two-board-isolated/lab_admin.py
+          ! grep -R -n -E '(192\.168\.68\.|GH_SYSTEM_ID: greenhouse|/opt/greenhouse)' \
+            infra/compose/n3w-p5-two-board-isolated
+
+  esp32-c6-two-role-compile:
+    needs: preparation-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      matrix:
+        target: [child, relay]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install frozen ESPHome
+        run: python -m pip install --upgrade 'esphome==2026.4.3'
+      - name: Validate P5 role target
+        run: esphome config firmware/esphome_rc/board_lab/n3w_p5_two_board/${{ matrix.target }}.yml
+      - name: Compile P5 role target without upload
+        run: esphome compile firmware/esphome_rc/board_lab/n3w_p5_two_board/${{ matrix.target }}.yml

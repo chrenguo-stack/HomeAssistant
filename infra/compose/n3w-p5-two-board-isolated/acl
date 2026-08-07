@@ -1,0 +1,19 @@
+user manager
+ topic readwrite gh/v1/n3wp5lab/#
+ topic write homeassistant/#
+
+user homeassistant
+ topic read homeassistant/#
+ topic read gh/v1/n3wp5lab/state/#
+
+user p5child
+ topic write gh/v1/n3wp5lab/ingress/node/n3wp5_child01/telemetry
+ topic read gh/p5/n3wp5lab/control/n3wp5_child01
+
+user p5relay
+ topic write gh/v1/n3wp5lab/ingress/gateway/n3wp5_relay01/n3wp5_child01/frame
+ topic read gh/p5/n3wp5lab/control/n3wp5_relay01
+
+user tester
+ topic readwrite gh/#
+ topic read homeassistant/#
