@@ -87,10 +87,7 @@ class ReplayPathLeaseInvalidator:
                 if row is None:
                     return self._result(node_id=node_id, mutated=False)
 
-                active_match = (
-                    row["active_transport"] == "relay"
-                    and row["active_gateway_id"] == gateway_id
-                )
+                active_match = row["active_transport"] == "relay" and row["active_gateway_id"] == gateway_id
                 already_invalidated = (
                     row["active_transport"] == "relay"
                     and row["active_gateway_id"] == REVOKED_GATEWAY_SENTINEL
@@ -100,8 +97,7 @@ class ReplayPathLeaseInvalidator:
                     and row["old_grace_until"] == _EXPIRED_PATH_LEASE
                 )
                 candidate_match = (
-                    row["candidate_transport"] == "relay"
-                    and row["candidate_gateway_id"] == gateway_id
+                    row["candidate_transport"] == "relay" and row["candidate_gateway_id"] == gateway_id
                 )
                 previous_match = (
                     not active_match
@@ -299,23 +295,16 @@ class RelayAuthorizationAdmin:
         if not names:
             self._create_v2()
         elif names == v1:
-            versions = self._connection.execute(
-                "SELECT schema_version FROM n3w_relay_meta"
-            ).fetchall()
+            versions = self._connection.execute("SELECT schema_version FROM n3w_relay_meta").fetchall()
             if len(versions) != 1 or versions[0][0] != 1:
                 raise RelayAuthorizationAdminError("authorization_store_schema_mismatch")
             self._migrate_v1()
         elif names == v2:
-            versions = self._connection.execute(
-                "SELECT schema_version FROM n3w_relay_meta"
-            ).fetchall()
+            versions = self._connection.execute("SELECT schema_version FROM n3w_relay_meta").fetchall()
             if len(versions) != 1 or versions[0][0] != _SCHEMA_VERSION:
                 raise RelayAuthorizationAdminError("authorization_store_schema_mismatch")
             columns = {
-                row[1]
-                for row in self._connection.execute(
-                    "PRAGMA table_info(n3w_relay_key_epochs)"
-                ).fetchall()
+                row[1] for row in self._connection.execute("PRAGMA table_info(n3w_relay_key_epochs)").fetchall()
             }
             if not {"state", "key_sha256"} <= columns:
                 raise RelayAuthorizationAdminError("authorization_store_schema_mismatch")
@@ -542,9 +531,7 @@ class RelayAuthorizationAdmin:
         self._fsync_database()
         return self._finish_path_revoke(operation_key, node_id, gateway_id)
 
-    def _finish_path_revoke(
-        self, operation_key: str, node_id: str, gateway_id: str
-    ) -> dict[str, object]:
+    def _finish_path_revoke(self, operation_key: str, node_id: str, gateway_id: str) -> dict[str, object]:
         if self.path_invalidator is None:
             return self._result(
                 "revoke_grant",
@@ -636,10 +623,13 @@ class RelayAuthorizationAdmin:
                 return self._result("activate_key", node_id=node_id, key_epoch=key_epoch)
             if row["state"] != "STAGED":
                 raise RelayAuthorizationAdminError("key_epoch_not_staged")
-            if self._connection.execute(
-                "SELECT 1 FROM n3w_relay_key_epochs WHERE node_id=? AND state='GRACE'",
-                (node_id,),
-            ).fetchone() is not None:
+            if (
+                self._connection.execute(
+                    "SELECT 1 FROM n3w_relay_key_epochs WHERE node_id=? AND state='GRACE'",
+                    (node_id,),
+                ).fetchone()
+                is not None
+            ):
                 raise RelayAuthorizationAdminError("rotation_already_in_progress")
             self._read_key(row["key_file"], expected_sha256=row["key_sha256"])
             with self._transaction() as connection:
@@ -674,9 +664,7 @@ class RelayAuthorizationAdmin:
         with self._lock, self._transaction() as connection:
             current = self._key_row(node_id, key_epoch)
             if current["state"] == "REVOKED":
-                return self._result(
-                    "rollback_rotation", node_id=node_id, key_epoch=key_epoch
-                )
+                return self._result("rollback_rotation", node_id=node_id, key_epoch=key_epoch)
             if current["state"] != "ACTIVE":
                 raise RelayAuthorizationAdminError("rotation_not_active")
             grace = connection.execute(
@@ -749,9 +737,7 @@ class RelayAuthorizationAdmin:
         ).fetchall()
         for row in rows:
             if row["kind"] == "REVOKE_GRANT":
-                result = self._finish_path_revoke(
-                    row["operation_key"], row["node_id"], row["gateway_id"]
-                )
+                result = self._finish_path_revoke(row["operation_key"], row["node_id"], row["gateway_id"])
                 recovered += int(result["recovery_pending"] is False)
                 continue
             if row["kind"] != "STAGE_KEY" or row["status"] != "FILE_PENDING":
@@ -876,8 +862,7 @@ class RelayAuthorizationAdmin:
         if not isinstance(key_file, str) or _KEY_FILE.fullmatch(key_file) is None:
             raise RelayAuthorizationAdminError("key_file_reference_invalid")
         if expected_sha256 is not None and not (
-            isinstance(expected_sha256, str)
-            and re.fullmatch(r"[0-9a-f]{64}", expected_sha256)
+            isinstance(expected_sha256, str) and re.fullmatch(r"[0-9a-f]{64}", expected_sha256)
         ):
             raise RelayAuthorizationAdminError("key_material_binding_invalid")
         dir_fd = self._directory_fd()
@@ -909,10 +894,7 @@ class RelayAuthorizationAdmin:
             os.close(dir_fd)
         if len(material) != 32:
             raise RelayAuthorizationAdminError("key_material_invalid")
-        if (
-            expected_sha256 is not None
-            and hashlib.sha256(material).hexdigest() != expected_sha256
-        ):
+        if expected_sha256 is not None and hashlib.sha256(material).hexdigest() != expected_sha256:
             raise RelayAuthorizationAdminError("key_material_binding_invalid")
         return material
 
