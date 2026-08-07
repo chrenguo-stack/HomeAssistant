@@ -2,7 +2,7 @@ substitutions:
   p5_system_id: n3wp5lab
   p5_node_id: n3wp5_child01
   p5_gateway_id: n3wp5_relay01
-  p5_peer_mac: "02:00:00:00:00:02"
+  p5_peer_mac: compile-only-peer
   p5_pmk_hex: "000102030405060708090a0b0c0d0e0f"
   p5_lmk_hex: "101112131415161718191a1b1c1d1e1f"
   p5_app_key_epoch1_hex: "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
@@ -31,14 +31,11 @@ logger:
 
 wifi:
   ssid: "N3W-P5-COMPILE-ONLY"
-  password: "p5-compile-only-not-a-secret"
 
 mqtt:
   id: mqtt_client
   broker: 192.0.2.1
   port: 1883
-  username: p5_compile_child
-  password: "p5-compile-only-not-a-secret"
   discovery: false
   topic_prefix: null
   log_topic: null
@@ -75,6 +72,6 @@ greenhouse_n3w_p5_lab:
   publish_interval_ms: 5000
 
 # Public repository target: compile/link only and intentionally inert.
-# The later private physical package must bind real board MACs, isolated-only
-# credentials, P5-only keys and set execution_enabled=true under a separately
-# approved one-shot physical authorization.
+# compile-only-peer is rejected by the C++ runtime parser, so an accidentally
+# flashed public build fails closed before ESP-NOW initialization. The later
+# private package must bind the actual Relay MAC and isolated-only credentials.

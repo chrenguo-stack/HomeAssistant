@@ -37,6 +37,16 @@ def _hex_length(chars: int):
     return validate
 
 
+def _peer_mac(value):
+    value = cv.string_strict(value)
+    if value == "compile-only-peer":
+        return value
+    try:
+        return str(cv.mac_address(value))
+    except Invalid as exc:
+        raise Invalid("expected a MAC address or the compile-only sentinel") from exc
+
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(GreenhouseN3wP5Lab),
@@ -45,7 +55,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Required(CONF_SYSTEM_ID): cv.string_strict,
         cv.Required(CONF_NODE_ID): cv.string_strict,
         cv.Required(CONF_GATEWAY_ID): cv.string_strict,
-        cv.Required(CONF_PEER_MAC): cv.mac_address,
+        cv.Required(CONF_PEER_MAC): _peer_mac,
         cv.Required(CONF_PMK_HEX): _hex_length(32),
         cv.Required(CONF_LMK_HEX): _hex_length(32),
         cv.Optional(CONF_APP_KEY_EPOCH1_HEX, default=""): cv.Any("", _hex_length(64)),

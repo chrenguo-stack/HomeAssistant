@@ -2,7 +2,7 @@ substitutions:
   p5_system_id: n3wp5lab
   p5_node_id: n3wp5_child01
   p5_gateway_id: n3wp5_relay01
-  p5_peer_mac: "02:00:00:00:00:01"
+  p5_peer_mac: compile-only-peer
   p5_pmk_hex: "000102030405060708090a0b0c0d0e0f"
   p5_lmk_hex: "101112131415161718191a1b1c1d1e1f"
 
@@ -28,14 +28,11 @@ logger:
 
 wifi:
   ssid: "N3W-P5-COMPILE-ONLY"
-  password: "p5-compile-only-not-a-secret"
 
 mqtt:
   id: mqtt_client
   broker: 192.0.2.1
   port: 1883
-  username: p5_compile_relay
-  password: "p5-compile-only-not-a-secret"
   discovery: false
   topic_prefix: null
   log_topic: null
@@ -69,6 +66,7 @@ greenhouse_n3w_p5_lab:
   session_floor: 1000
   publish_interval_ms: 5000
 
-# Relay intentionally has no application-key fields. Public repository target is
-# compile/link only and inert. Real link credentials and board MAC binding are
-# injected only into a future private physical package.
+# Relay intentionally has no application-key fields. compile-only-peer is
+# rejected by the C++ runtime parser, so the public build fails closed if it is
+# ever flashed. The future private package must inject the actual Child MAC and
+# isolated-only link credentials.

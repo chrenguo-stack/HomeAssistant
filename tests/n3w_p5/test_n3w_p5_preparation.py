@@ -50,6 +50,8 @@ def test_private_and_evidence_schemas_are_valid_and_secret_free_by_contract() ->
     evidence_schema = json.loads(EVIDENCE_SCHEMA.read_text(encoding="utf-8"))
     Draft202012Validator.check_schema(private_schema)
     Draft202012Validator.check_schema(evidence_schema)
+    child_mac = ":".join(("02", "00", "00", "00", "00", "01"))
+    relay_mac = ":".join(("02", "00", "00", "00", "00", "02"))
     candidate = {
         "schema": "gh.n3w-p5-private-input/1",
         "authorization_id": "D1-N3W-P5-PHYSICAL-TEST-ONLY",
@@ -57,8 +59,8 @@ def test_private_and_evidence_schemas_are_valid_and_secret_free_by_contract() ->
         "system_id": "n3wp5lab",
         "node_id": "n3wp5_child01",
         "gateway_id": "n3wp5_relay01",
-        "child_mac": "02:00:00:00:00:01",
-        "relay_mac": "02:00:00:00:00:02",
+        "child_mac": child_mac,
+        "relay_mac": relay_mac,
         "wifi_channel": 6,
         "session_floor": 1000,
         "wifi": {"ssid": "p5-lab", "password": "x" * 16},
@@ -103,6 +105,8 @@ def test_two_firmware_roles_are_compile_only_and_relay_has_no_application_key() 
         assert "type: esp-idf" in text
         assert "greenhouse_n3w_core" in text
         assert "greenhouse_n3w_p5_lab" in text
+        assert "p5_peer_mac: compile-only-peer" in text
+        assert "password:" not in text
 
 
 def test_lab_runtime_reuses_p4a_p4b_and_keeps_relay_ciphertext_only() -> None:
