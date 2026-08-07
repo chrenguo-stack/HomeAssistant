@@ -1,0 +1,77 @@
+name: N3-W Manager relay authorization lifecycle CI
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/n3w-manager-relay-auth-lifecycle-ci.yml'
+      - 'docs/decisions/n3w-manager-relay-auth-lifecycle-stage-entry.json'
+      - 'host/greenhouse-manager/src/greenhouse_manager/ops/n3w_relay_authorization_admin.py'
+      - 'host/greenhouse-manager/src/greenhouse_manager/ops/registration_cli.py'
+      - 'host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_relay_authorization.py'
+      - 'host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_path_lease.py'
+      - 'host/greenhouse-manager/tests/ops/test_n3w_relay_authorization_admin.py'
+      - 'host/greenhouse-manager/tests/ops/test_registration_cli.py'
+      - 'host/greenhouse-manager/tests/runtime/test_n3w_relay_authorization.py'
+      - 'host/greenhouse-manager/tests/runtime/test_n3w_path_lease.py'
+      - 'host/greenhouse-manager/tests/runtime/test_n3w_ingress_router.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  relay-auth-lifecycle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install manager test dependencies
+        working-directory: host/greenhouse-manager
+        run: pip install -e '.[test]'
+      - name: Compile
+        run: python -m compileall -q host/greenhouse-manager/src host/greenhouse-manager/tests
+      - name: Ruff
+        working-directory: host/greenhouse-manager
+        run: |
+          ruff check src/greenhouse_manager/ops/n3w_relay_authorization_admin.py \
+            src/greenhouse_manager/ops/registration_cli.py \
+            src/greenhouse_manager/runtime/n3w_relay_authorization.py \
+            src/greenhouse_manager/runtime/n3w_path_lease.py \
+            tests/ops/test_n3w_relay_authorization_admin.py \
+            tests/ops/test_registration_cli.py \
+            tests/runtime/test_n3w_relay_authorization.py \
+            tests/runtime/test_n3w_path_lease.py \
+            tests/runtime/test_n3w_ingress_router.py
+          ruff format --check src/greenhouse_manager/ops/n3w_relay_authorization_admin.py \
+            src/greenhouse_manager/ops/registration_cli.py \
+            src/greenhouse_manager/runtime/n3w_relay_authorization.py \
+            src/greenhouse_manager/runtime/n3w_path_lease.py \
+            tests/ops/test_n3w_relay_authorization_admin.py \
+            tests/ops/test_registration_cli.py \
+            tests/runtime/test_n3w_relay_authorization.py \
+            tests/runtime/test_n3w_path_lease.py \
+            tests/runtime/test_n3w_ingress_router.py
+      - name: Host-only lifecycle tests
+        working-directory: host/greenhouse-manager
+        run: |
+          pytest -q \
+            tests/ops/test_n3w_relay_authorization_admin.py \
+            tests/ops/test_registration_cli.py \
+            tests/runtime/test_n3w_relay_authorization.py \
+            tests/runtime/test_n3w_path_lease.py \
+            tests/runtime/test_n3w_ingress_router.py
+      - name: Boundary gate
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          doc = json.loads(Path('docs/decisions/n3w-manager-relay-auth-lifecycle-stage-entry.json').read_text())
+          assert doc['authorization_gate'] == 'D1-N3W-MANAGER-GATEWAY-AUTHORIZATION-AND-APP-KEY-LIFECYCLE-NONLIVE-DEVELOPMENT-20260807-01'
+          assert doc['base_sha'] == '9d6899334e4e69676af0818fe1789632ffdb2c53'
+          assert doc['preserved_pr_head'] == '239ea594c643d4990d449187f8b0cabae619e3d7'
+          assert doc['mode'] == 'NON_LIVE_HOST_ONLY'
+          assert all(value is False for value in doc['safety_boundary'].values())
+          assert doc['lifecycle']['cross_store_acid_claimed'] is False
+          PY
