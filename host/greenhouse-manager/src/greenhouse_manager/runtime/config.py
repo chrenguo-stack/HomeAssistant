@@ -95,6 +95,16 @@ class Settings:
     history_rate_state_capacity: int = 1_024
     history_rate_state_ttl_s: int = 3_600
     history_prune_interval_s: int = 300
+    n3w_runtime_enabled: bool = False
+    n3w_replay_db_path: str = "/var/lib/greenhouse-manager/n3w/replay.sqlite3"
+    n3w_relay_authorization_db_path: str = (
+        "/var/lib/greenhouse-manager/n3w/relay-authorization.sqlite3"
+    )
+    n3w_relay_key_dir: str = "/var/lib/greenhouse-manager/n3w/relay-keys"
+    n3w_path_stability_window_s: float = 5.0
+    n3w_path_minimum_distinct_frames: int = 2
+    n3w_path_lease_ttl_s: float = 30.0
+    n3w_path_old_grace_s: float = 5.0
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -151,6 +161,31 @@ class Settings:
             ),
             history_prune_interval_s=int(
                 os.getenv("GH_HISTORY_PRUNE_INTERVAL_S", "300")
+            ),
+            n3w_runtime_enabled=_env_bool("GH_N3W_RUNTIME_ENABLED", False),
+            n3w_replay_db_path=os.getenv(
+                "GH_N3W_REPLAY_DB_PATH",
+                "/var/lib/greenhouse-manager/n3w/replay.sqlite3",
+            ),
+            n3w_relay_authorization_db_path=os.getenv(
+                "GH_N3W_RELAY_AUTHORIZATION_DB_PATH",
+                "/var/lib/greenhouse-manager/n3w/relay-authorization.sqlite3",
+            ),
+            n3w_relay_key_dir=os.getenv(
+                "GH_N3W_RELAY_KEY_DIR",
+                "/var/lib/greenhouse-manager/n3w/relay-keys",
+            ),
+            n3w_path_stability_window_s=float(
+                os.getenv("GH_N3W_PATH_STABILITY_WINDOW_S", "5")
+            ),
+            n3w_path_minimum_distinct_frames=int(
+                os.getenv("GH_N3W_PATH_MINIMUM_DISTINCT_FRAMES", "2")
+            ),
+            n3w_path_lease_ttl_s=float(
+                os.getenv("GH_N3W_PATH_LEASE_TTL_S", "30")
+            ),
+            n3w_path_old_grace_s=float(
+                os.getenv("GH_N3W_PATH_OLD_GRACE_S", "5")
             ),
         )
         settings.validate()
@@ -238,3 +273,43 @@ class Settings:
             raise ValueError(
                 "GH_HISTORY_PRUNE_INTERVAL_S must be between 30 and 86400"
             )
+        if not 0 <= self.n3w_path_stability_window_s <= 300:
+            raise ValueError(
+                "GH_N3W_PATH_STABILITY_WINDOW_S must be between 0 and 300"
+            )
+        if not 1 <= self.n3w_path_minimum_distinct_frames <= 32:
+            raise ValueError(
+                "GH_N3W_PATH_MINIMUM_DISTINCT_FRAMES must be between 1 and 32"
+            )
+        if not 0.1 <= self.n3w_path_lease_ttl_s <= 3_600:
+            raise ValueError(
+                "GH_N3W_PATH_LEASE_TTL_S must be between 0.1 and 3600"
+            )
+        if not 0 <= self.n3w_path_old_grace_s <= 300:
+            raise ValueError("GH_N3W_PATH_OLD_GRACE_S must be between 0 and 300")
+        if self.n3w_runtime_enabled:
+            configured_paths = {
+                "GH_PAIRING_DB_PATH": self.pairing_db_path,
+                "GH_N3W_REPLAY_DB_PATH": self.n3w_replay_db_path,
+                "GH_N3W_RELAY_AUTHORIZATION_DB_PATH": (
+                    self.n3w_relay_authorization_db_path
+                ),
+                "GH_N3W_RELAY_KEY_DIR": self.n3w_relay_key_dir,
+            }
+            normalized: dict[str, Path] = {}
+            for name, raw_path in configured_paths.items():
+                if not raw_path.strip():
+                    raise ValueError(f"{name} cannot be empty when N3-W runtime is enabled")
+                path = Path(raw_path).expanduser()
+                if not path.is_absolute():
+                    raise ValueError(f"{name} must be absolute when N3-W runtime is enabled")
+                normalized[name] = path
+            database_paths = {
+                normalized["GH_PAIRING_DB_PATH"],
+                normalized["GH_N3W_REPLAY_DB_PATH"],
+                normalized["GH_N3W_RELAY_AUTHORIZATION_DB_PATH"],
+            }
+            if len(database_paths) != 3:
+                raise ValueError("N3-W registration, replay, and authorization databases must differ")
+            if normalized["GH_N3W_RELAY_KEY_DIR"] in database_paths:
+                raise ValueError("GH_N3W_RELAY_KEY_DIR must not be a database path")

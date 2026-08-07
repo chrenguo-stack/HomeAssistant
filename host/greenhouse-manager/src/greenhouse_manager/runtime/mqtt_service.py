@@ -16,6 +16,12 @@ from .history_replay import HistoryReplayProcessor, HistoryReplayResult
 from .history_store import HistoryStore
 from .history_worker import HistoryReplayWorker, HistoryWorkItem
 from .ingest import PublishMessage, TelemetryProcessor
+from .n3w_ingress_router import UnifiedIngressResult
+from .n3w_runtime_wiring import (
+    N3wRuntimeWiring,
+    build_n3w_runtime_wiring,
+    require_n3w_registration_store,
+)
 from .pairing_intake import (
     PAIRING_HELLO_SUBSCRIPTION,
     PairingHelloProcessor,
@@ -72,6 +78,8 @@ class ManagerMqttService:
         self.registration_registry: RegistrationRegistry | None = None
         self.pairing_processor: PairingHelloProcessor | None = None
         registration_path = Path(settings.pairing_db_path)
+        if settings.n3w_runtime_enabled:
+            require_n3w_registration_store(settings.pairing_db_path)
         if settings.pairing_intake_enabled or registration_path.exists():
             self.registration_registry = RegistrationRegistry(
                 registration_path,
@@ -80,6 +88,19 @@ class ManagerMqttService:
         if settings.pairing_intake_enabled:
             assert self.registration_registry is not None
             self.pairing_processor = PairingHelloProcessor(self.registration_registry)
+
+        self.n3w_runtime: N3wRuntimeWiring | None = None
+        if settings.n3w_runtime_enabled:
+            try:
+                self.n3w_runtime = build_n3w_runtime_wiring(
+                    settings=settings,
+                    processor=self.processor,
+                    registration_registry=self.registration_registry,
+                )
+            except Exception:
+                if self.registration_registry is not None:
+                    self.registration_registry.close()
+                raise
 
         self.history_store: HistoryStore | None = None
         self.history_processor: HistoryReplayProcessor | None = None
@@ -221,6 +242,51 @@ class ManagerMqttService:
             )
         )
 
+    def _handle_n3w_result(self, result: UnifiedIngressResult) -> None:
+        if result.status == "accepted":
+            canonical_document: dict[str, Any] | None = None
+            for outgoing in result.messages:
+                self._publish(outgoing)
+                if outgoing.topic.endswith("/telemetry") and isinstance(
+                    outgoing.payload, dict
+                ):
+                    canonical_document = outgoing.payload
+            if canonical_document is not None:
+                self._publish_discovery(canonical_document)
+            _LOGGER.info(
+                "Accepted N3-W telemetry source=%s node=%s key=%s",
+                result.source,
+                result.node_id,
+                result.dedup_key,
+            )
+            return
+
+        if result.status == "duplicate":
+            _LOGGER.debug(
+                "Ignored N3-W duplicate source=%s node=%s key=%s code=%s",
+                result.source,
+                result.node_id,
+                result.dedup_key,
+                result.code,
+            )
+            return
+
+        _LOGGER.warning(
+            "Rejected N3-W ingress source=%s node=%s code=%s",
+            result.source,
+            result.node_id,
+            result.code,
+        )
+        if (
+            result.source == "direct"
+            and result.node_id
+            and result.code == "canonical_validation_rejected"
+        ):
+            self._publish_diagnostic(
+                result.node_id,
+                result.detail or "unknown validation error",
+            )
+
     def _on_connect(
         self,
         client: mqtt.Client,
@@ -237,6 +303,8 @@ class ManagerMqttService:
             ingress_subscription(self.settings.system_id),
             canonical_telemetry_subscription(self.settings.system_id),
         ]
+        if self.n3w_runtime is not None:
+            topics.append(self.n3w_runtime.relay_subscription)
         if self.history_processor is not None:
             topics.append(history_replay_subscription(self.settings.system_id))
         if self.pairing_processor is not None:
@@ -380,6 +448,18 @@ class ManagerMqttService:
         if self._on_history_message(message):
             return
 
+        if self.n3w_runtime is not None and self.n3w_runtime.is_relay_topic(
+            message.topic
+        ):
+            with self._lifecycle_lock:
+                result = self.n3w_runtime.router.process_relay(
+                    message.topic,
+                    message.payload,
+                    received_at=datetime.now(UTC),
+                )
+            self._handle_n3w_result(result)
+            return
+
         canonical_prefix = f"gh/v1/{self.settings.system_id}/state/"
         if message.topic.startswith(canonical_prefix) and message.topic.endswith("/telemetry"):
             try:
@@ -430,22 +510,32 @@ class ManagerMqttService:
                 )
             return
 
-        if self.registration_registry is not None:
-            try:
-                ingress = parse_node_telemetry_topic(message.topic)
-            except ValueError:
-                ingress = None
-            if (
-                ingress is not None
-                and not self.registration_registry.is_node_id_ingress_allowed(
-                    ingress.node_id
+        try:
+            ingress = parse_node_telemetry_topic(message.topic)
+        except ValueError:
+            ingress = None
+        if (
+            ingress is not None
+            and self.registration_registry is not None
+            and not self.registration_registry.is_node_id_ingress_allowed(
+                ingress.node_id
+            )
+        ):
+            _LOGGER.warning(
+                "Rejected telemetry for retired or unassigned node=%s",
+                ingress.node_id,
+            )
+            return
+
+        if self.n3w_runtime is not None and ingress is not None:
+            with self._lifecycle_lock:
+                result = self.n3w_runtime.router.process_direct(
+                    message.topic,
+                    message.payload,
+                    received_at=datetime.now(UTC),
                 )
-            ):
-                _LOGGER.warning(
-                    "Rejected telemetry for retired or unassigned node=%s",
-                    ingress.node_id,
-                )
-                return
+            self._handle_n3w_result(result)
+            return
 
         with self._lifecycle_lock:
             result = self.processor.process(message.topic, message.payload)
@@ -472,13 +562,14 @@ class ManagerMqttService:
     def run(self) -> None:
         _LOGGER.info(
             "Starting greenhouse-manager system_id=%s broker=%s:%d "
-            "ha_discovery=%s pairing_intake=%s history_replay=%s",
+            "ha_discovery=%s pairing_intake=%s history_replay=%s n3w_runtime=%s",
             self.settings.system_id,
             self.settings.mqtt_host,
             self.settings.mqtt_port,
             self.settings.ha_discovery_enabled,
             self.settings.pairing_intake_enabled,
             self.settings.history_replay_enabled,
+            self.settings.n3w_runtime_enabled,
         )
         loop_started = False
         try:
@@ -530,5 +621,7 @@ class ManagerMqttService:
                 self.history_worker.stop()
             if self.history_store is not None:
                 self.history_store.close()
+            if self.n3w_runtime is not None:
+                self.n3w_runtime.close()
             if self.registration_registry is not None:
                 self.registration_registry.close()
