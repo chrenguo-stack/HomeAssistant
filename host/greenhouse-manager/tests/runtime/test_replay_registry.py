@@ -152,6 +152,41 @@ def test_commit_rolls_back_high_water_when_replay_insert_fails(tmp_path: Path) -
     assert new_session.highest_session == 1
 
 
+def test_shared_transaction_rolls_back_replay_when_sibling_state_write_fails(tmp_path: Path) -> None:
+    database = tmp_path / "replay.sqlite3"
+    with ReplayRegistry(database):
+        pass
+    with sqlite3.connect(database) as connection:
+        connection.execute("CREATE TABLE sibling_state (node_id TEXT PRIMARY KEY, revision INTEGER NOT NULL)")
+        connection.execute("INSERT INTO sibling_state VALUES (?, 1)", (NODE_ID,))
+        connection.execute(
+            """
+            CREATE TRIGGER fail_sibling_update
+            BEFORE UPDATE ON sibling_state
+            BEGIN
+                SELECT RAISE(ABORT, 'forced sibling failure');
+            END;
+            """
+        )
+
+    with (
+        ReplayRegistry(database) as registry,
+        pytest.raises(ReplayRegistryUnavailable, match="replay_registry_unavailable"),
+    ):
+        with registry.transaction() as transaction:
+            committed = transaction.commit(node_id=NODE_ID, boot_id=BOOT_1, seq=11)
+            assert committed.status == "accepted"
+            transaction.connection.execute(
+                "UPDATE sibling_state SET revision = 2 WHERE node_id = ?",
+                (NODE_ID,),
+            )
+
+    with sqlite3.connect(database) as connection:
+        connection.execute("DROP TRIGGER fail_sibling_update")
+    with ReplayRegistry(database) as registry:
+        assert registry.inspect(node_id=NODE_ID, boot_id=BOOT_1, seq=11).status == "ready"
+
+
 def test_concurrent_connections_serialize_same_tuple(tmp_path: Path) -> None:
     database = tmp_path / "replay.sqlite3"
     with ReplayRegistry(database):
