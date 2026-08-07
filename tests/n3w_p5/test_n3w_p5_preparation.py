@@ -10,7 +10,9 @@ from jsonschema import Draft202012Validator
 ROOT = Path(__file__).resolve().parents[2]
 STAGE = ROOT / "docs/decisions/n3w-p5-two-board-isolated-e2e-prep-stage-entry.json"
 PLAN = ROOT / "docs/decisions/n3w-p5-two-board-isolated-e2e-execution-plan.json"
-PRIVATE_SCHEMA = ROOT / "protocols/transport/schemas/gh.n3w-p5-private-input-1.schema.json"
+PRIVATE_SCHEMA = (
+    ROOT / "protocols/transport/schemas/gh.n3w-p5-private-input-1.schema.json"
+)
 EVIDENCE_SCHEMA = ROOT / "protocols/transport/schemas/gh.n3w-p5-evidence-1.schema.json"
 CHILD = ROOT / "firmware/esphome_rc/board_lab/n3w_p5_two_board/child.yml"
 RELAY = ROOT / "firmware/esphome_rc/board_lab/n3w_p5_two_board/relay.yml"
@@ -161,7 +163,9 @@ def test_execution_plan_contains_full_p5_matrix_and_terminal_policy() -> None:
     assert "no_replay" in doc["terminal_attempt_policy"]
 
 
-def test_public_execution_template_is_deterministic_and_contains_no_authorization(tmp_path: Path) -> None:
+def test_public_execution_template_is_deterministic_and_contains_no_authorization(
+    tmp_path: Path,
+) -> None:
     builder = _load_builder()
     first = tmp_path / "first.tar"
     second = tmp_path / "second.tar"
