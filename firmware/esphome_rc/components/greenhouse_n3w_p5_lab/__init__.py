@@ -4,6 +4,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components.esp32 import include_builtin_idf_component
 from esphome.const import CONF_ID
+from voluptuous import Invalid
 
 DEPENDENCIES = ["esp32", "wifi", "mqtt"]
 
@@ -25,11 +26,15 @@ GreenhouseN3wP5Lab = ns.class_("GreenhouseN3wP5Lab", cg.Component)
 
 
 def _hex_length(chars: int):
-    return cv.All(
-        cv.string_strict,
-        cv.Length(min=chars, max=chars),
-        cv.matches_regex(r"^[0-9A-Fa-f]+$"),
-    )
+    def validate(value):
+        value = cv.string_strict(value)
+        if len(value) != chars:
+            raise Invalid(f"expected exactly {chars} hexadecimal characters")
+        if any(character not in "0123456789abcdefABCDEF" for character in value):
+            raise Invalid("expected hexadecimal characters only")
+        return value
+
+    return validate
 
 
 CONFIG_SCHEMA = cv.Schema(
