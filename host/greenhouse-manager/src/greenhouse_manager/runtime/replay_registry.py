@@ -293,12 +293,8 @@ class ReplayRegistry:
             self._require_open()
             try:
                 self._require_integrity()
-                node_count_row = self._connection.execute(
-                    "SELECT COUNT(*) FROM n3w_replay_state"
-                ).fetchone()
-                replay_count_row = self._connection.execute(
-                    "SELECT COUNT(*) FROM n3w_replay_seen"
-                ).fetchone()
+                node_count_row = self._connection.execute("SELECT COUNT(*) FROM n3w_replay_state").fetchone()
+                replay_count_row = self._connection.execute("SELECT COUNT(*) FROM n3w_replay_seen").fetchone()
                 node_count = int(node_count_row[0])
                 replay_count = int(replay_count_row[0])
                 rows = self._connection.execute(
