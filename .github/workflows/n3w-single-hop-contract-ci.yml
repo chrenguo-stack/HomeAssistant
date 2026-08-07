@@ -71,9 +71,10 @@ jobs:
         run: |
           python -m json.tool docs/decisions/n3w-stage-entry.json >/dev/null
           python -m compileall -q experiments/n3w_single_hop tools/n3w_single_hop_boundary_gate.py
-      - name: Run Ruff lint and format checks
+      - name: Run Ruff lint and diagnostic format diff
         run: |
           python -m ruff check experiments/n3w_single_hop tools/n3w_single_hop_boundary_gate.py
+          python -m ruff format --diff tools/n3w_single_hop_boundary_gate.py
           python -m ruff format --check experiments/n3w_single_hop tools/n3w_single_hop_boundary_gate.py
       - name: Run host-only contract tests
         run: python -m unittest -v experiments.n3w_single_hop.test_model
