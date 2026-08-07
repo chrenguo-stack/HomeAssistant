@@ -1,0 +1,24 @@
+{
+  "schema": "gh.n3w-p4a-test-vector/1",
+  "classification": "PUBLIC_TEST_ONLY",
+  "key_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "key_epoch": 7,
+  "gateway_id": "gateway_001",
+  "node_id": "node_0001",
+  "boot_session": 72623859790382856,
+  "boot_id": "boot_0102030405060708",
+  "seq": 168496141,
+  "nonce_hex": "01020304050607080a0b0c0d",
+  "nonce_b64": "AQIDBAUGBwgKCwwN",
+  "aad_utf8": "{\"boot_id\":\"boot_0102030405060708\",\"gateway_id\":\"gateway_001\",\"hop_count\":1,\"key_epoch\":7,\"node_id\":\"node_0001\",\"schema\":\"gh.relay/1\",\"seq\":168496141,\"transport\":\"esp_now\"}",
+  "plaintext_json": "{\"boot_id\":\"boot_0102030405060708\",\"cap_hash\":\"cap_hash_001\",\"measurements\":{\"air_temperature_c\":24.5},\"node_id\":\"node_0001\",\"power\":{\"low\":false,\"source\":\"main\"},\"quality\":{\"air_temperature_c\":\"ok\"},\"schema\":\"gh.telemetry/1\",\"seq\":168496141,\"uptime_ms\":1234}",
+  "ciphertext_hex": "3ff9ce942c2a4b94b93396729323ad4aa6b686a5a63825feb724c9a8a74eeab25b06877638f0cf31a138aa86e82a03d5df8b9a2acf8277215d9f5d8518814c108f319ee107a07cd38c4c5a1744699e7843be9f94c076f06f5ad7888f25271443537fee66d9392e006b92148bc659369cffe93b3ee0e7e9b4c643359e364de5751ece8940a236a441f054adf1218c0f96a3a56ddc4b013d5b3bdf880d8cd38f016c872665c8458c65a32c62d9b9561b77aec61d5b190738f326a8a4f7a7da365b09dde1ee97cdc242ab1455275519bd261b6b62689b9c7200945a00574e48e4c8ae1e731b0e2aa551ccc9e1981ccd2669ec920cc3ec07283347c883c84e6ec2fb710733",
+  "ciphertext_b64": "P/nOlCwqS5S5M5ZykyOtSqa2hqWmOCX+tyTJqKdO6rJbBod2OPDPMaE4qoboKgPV34uaKs+CdyFdn12FGIFMEI8xnuEHoHzTjExaF0RpnnhDvp+UwHbwb1rXiI8lJxRDU3/uZtk5LgBrkhSLxlk2nP/pOz7g5+m0xkM1njZN5XUezolAojakQfBUrfEhjA+Wo6Vt3EsBPVs734gNjNOPAWyHJmXIRYxloyxi2blWG3euxh1bGQc48yaopPen2jZbCd3h7pfNwkKrFFUnVRm9JhtrYmibnHIAlFoAV05I5MiuHnMbDiqlUczJ4ZgczSZp7JIMw+wHKDNHyIPITm7C+3EHMw==",
+  "tag_hex": "11a810b8148c1d8cfeff47f56ef9df34",
+  "tag_b64": "EagQuBSMHYz+/0f1bvnfNA==",
+  "notes": [
+    "Generated from the frozen gh.relay/1 Manager contract.",
+    "The key is deterministic public test material and is not a credential.",
+    "No ESP-NOW radio operation is part of this vector."
+  ]
+}

@@ -1,0 +1,177 @@
+name: N3-W ESP32-C6 frame boot keystate core CI
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/n3w-esp32c6-frame-boot-keystate-core-ci.yml'
+      - 'docs/decisions/n3w-esp32c6-frame-boot-keystate-core-stage-entry.json'
+      - 'protocols/transport/n3w-p4a-test-vector-v1.json'
+      - 'firmware/esphome_rc/components/greenhouse_n3w_core/**'
+      - 'firmware/esphome_rc/board_lab/n3w_p4a_frame_core/**'
+      - 'tests/n3w_p4a/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  host-only-core:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Exact base and authorized scope gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='b87432cf58631c43781c403e010272b60d32fcf1'
+          if [ "$GITHUB_EVENT_NAME" = 'pull_request' ]; then
+            test '${{ github.event.pull_request.base.ref }}' = 'main'
+            test '${{ github.event.pull_request.base.sha }}' = "$base"
+          fi
+          test "$(git merge-base "$base" HEAD)" = "$base"
+
+          allowed="$(mktemp)"
+          actual="$(mktemp)"
+          cat >"$allowed" <<'EOF'
+          .github/workflows/n3w-esp32c6-frame-boot-keystate-core-ci.yml
+          docs/decisions/n3w-esp32c6-frame-boot-keystate-core-stage-entry.json
+          firmware/esphome_rc/board_lab/n3w_p4a_frame_core/n3w_p4a_frame_core.yml
+          firmware/esphome_rc/components/greenhouse_n3w_core/__init__.py
+          firmware/esphome_rc/components/greenhouse_n3w_core/greenhouse_n3w_core.h
+          firmware/esphome_rc/components/greenhouse_n3w_core/n3w_core.cpp
+          firmware/esphome_rc/components/greenhouse_n3w_core/n3w_core.h
+          firmware/esphome_rc/components/greenhouse_n3w_core/n3w_esp32_nvs.cpp
+          firmware/esphome_rc/components/greenhouse_n3w_core/n3w_esp32_nvs.h
+          protocols/transport/n3w-p4a-test-vector-v1.json
+          tests/n3w_p4a/n3w_p4a_host_test.cpp
+          tests/n3w_p4a/test_n3w_p4a_contract.py
+          EOF
+          sort -o "$allowed" "$allowed"
+          git diff --name-only "$base"...HEAD | sort >"$actual"
+          if comm -23 "$actual" "$allowed" | grep -q .; then
+            echo 'Unauthorized changed file(s):'
+            comm -23 "$actual" "$allowed"
+            exit 1
+          fi
+          echo 'Authorized changed files:'
+          cat "$actual"
+
+      - name: Verify frozen N2 physical-accepted target binding
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_sha='8d76634adb171c6492e51a5ebd855bcd52bcf073'
+          target='firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/greenhouse_profile_isolated_device_g3r_watchdog_repaired_20260729_v1.yml'
+          expected_blob='9dc8f766287e3cb47baf3e1f727635a85848e469'
+          git cat-file -e "$source_sha^{commit}"
+          test "$(git rev-parse "$source_sha:$target")" = "$expected_blob"
+
+      - name: Install host dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ libmbedtls-dev
+          python -m pip install -e 'host/greenhouse-manager[dev]'
+
+      - name: JSON and Python quality
+        run: |
+          python -m json.tool \
+            docs/decisions/n3w-esp32c6-frame-boot-keystate-core-stage-entry.json \
+            >/dev/null
+          python -m json.tool \
+            protocols/transport/n3w-p4a-test-vector-v1.json \
+            >/dev/null
+          python -m compileall -q \
+            firmware/esphome_rc/components/greenhouse_n3w_core/__init__.py \
+            tests/n3w_p4a/test_n3w_p4a_contract.py
+          ruff check \
+            firmware/esphome_rc/components/greenhouse_n3w_core/__init__.py \
+            tests/n3w_p4a/test_n3w_p4a_contract.py
+          ruff format --check \
+            firmware/esphome_rc/components/greenhouse_n3w_core/__init__.py \
+            tests/n3w_p4a/test_n3w_p4a_contract.py
+
+      - name: Build and execute host C++ vector/session tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -Wall -Wextra \
+            -Ifirmware/esphome_rc/components/greenhouse_n3w_core \
+            firmware/esphome_rc/components/greenhouse_n3w_core/n3w_core.cpp \
+            tests/n3w_p4a/n3w_p4a_host_test.cpp \
+            -lmbedcrypto \
+            -o /tmp/n3w_p4a_host_test
+          /tmp/n3w_p4a_host_test
+
+      - name: Manager cross-language vector and boundary tests
+        run: pytest -q tests/n3w_p4a/test_n3w_p4a_contract.py
+
+      - name: Explicit P4a safety gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          component='firmware/esphome_rc/components/greenhouse_n3w_core'
+          if grep -R -n -E \
+            'esp_now_(init|deinit|send|add_peer|del_peer|register_recv_cb|register_send_cb)[[:space:]]*\(' \
+            "$component"; then
+            echo 'ESP-NOW radio API is outside P4a authorization'
+            exit 1
+          fi
+          if grep -R -n -E \
+            '(esptool|pio run .*upload|esphome run|espota|GH_N3W_RUNTIME_ENABLED=true)' \
+            "$component" \
+            firmware/esphome_rc/board_lab/n3w_p4a_frame_core; then
+            echo 'Physical execution or production enablement token detected'
+            exit 1
+          fi
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          doc = json.loads(
+              Path(
+                  'docs/decisions/'
+                  'n3w-esp32c6-frame-boot-keystate-core-stage-entry.json'
+              ).read_text()
+          )
+          assert doc['mode'] == 'HOST_ONLY_AND_COMPILE_ONLY'
+          assert doc['p4a_contract']['single_hop_only'] is True
+          assert doc['p4a_contract']['aead'] == 'AES-256-GCM'
+          assert doc['p4a_contract']['test_key_only'] is True
+          assert doc['p4a_contract']['esp_now_radio_runtime'] is False
+          assert doc['n2_physical_accepted_firmware_binding']['source_pr'] == 204
+          assert all(value is False for value in doc['safety_boundary'].values())
+          PY
+
+  esp32-c6-compile:
+    needs: host-only-core
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install frozen ESPHome
+        run: python -m pip install --upgrade 'esphome==2026.4.3'
+
+      - name: Validate compile-only ESP32-C6 target
+        run: |
+          esphome config \
+            firmware/esphome_rc/board_lab/n3w_p4a_frame_core/n3w_p4a_frame_core.yml
+
+      - name: Compile ESP32-C6 target
+        run: |
+          esphome compile \
+            firmware/esphome_rc/board_lab/n3w_p4a_frame_core/n3w_p4a_frame_core.yml
