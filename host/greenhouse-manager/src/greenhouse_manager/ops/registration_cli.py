@@ -10,6 +10,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, TextIO
 
+from ..runtime.n3w_relay_authorization import (
+    RelayAuthorizationStoreUnavailable,
+    SqliteRelayAuthorizationProvider,
+)
 from ..runtime.registration import RegistrationConflict, RegistrationRecord, RegistrationRegistry
 from ..runtime.replay_registry import ReplayRegistry, ReplayRegistryUnavailable
 
@@ -64,6 +68,13 @@ def _parser() -> argparse.ArgumentParser:
     replay_inspect.add_argument("--node-id", required=True)
     replay_inspect.add_argument("--boot-id", required=True)
     replay_inspect.add_argument("--seq", required=True, type=int)
+
+    relay_authz_audit = subparsers.add_parser(
+        "n3w-relay-authz-audit",
+        help="audit existing N3-W relay authorization metadata and private key references",
+    )
+    relay_authz_audit.add_argument("--authz-db", required=True)
+    relay_authz_audit.add_argument("--key-dir", required=True)
     return parser
 
 
@@ -133,6 +144,24 @@ def _run_replay_command(
         return 3
 
 
+def _run_relay_authz_command(
+    args: argparse.Namespace,
+    *,
+    output: TextIO,
+    error_output: TextIO,
+) -> int:
+    try:
+        with SqliteRelayAuthorizationProvider(
+            Path(args.authz_db),
+            Path(args.key_dir),
+        ) as provider:
+            _write(output, provider.audit())
+            return 0
+    except RelayAuthorizationStoreUnavailable as exc:
+        print(f"N3-W relay authorization audit failed: {exc}", file=error_output)
+        return 3
+
+
 def main(
     argv: Sequence[str] | None = None,
     *,
@@ -145,6 +174,12 @@ def main(
 
     if args.command in {"n3w-replay-audit", "n3w-replay-inspect"}:
         return _run_replay_command(args, output=output, error_output=error_output)
+    if args.command == "n3w-relay-authz-audit":
+        return _run_relay_authz_command(
+            args,
+            output=output,
+            error_output=error_output,
+        )
 
     database = Path(args.db)
     if not database.exists():

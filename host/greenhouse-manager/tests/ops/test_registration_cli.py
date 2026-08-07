@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import sqlite3
 from datetime import UTC, datetime
 from io import StringIO
 from pathlib import Path
@@ -14,6 +16,8 @@ PAIRING_ID = "c83aeb0d-8f48-4a39-a34b-ea584a588475"
 LOGICAL_LOCATION_ID = "greenhouse-bed-01"
 N3W_NODE_ID = "node_01hzx7aq5fj3"
 N3W_BOOT_ID = "boot_0000000000000001"
+N3W_GATEWAY_ID = "gateway_01hzx7aq5fj3"
+N3W_KEY_FILE = "node_01hzx7aq5fj3-epoch-1.key"
 
 
 def hello() -> dict[str, object]:
@@ -43,6 +47,55 @@ def run_cli(path: Path, *args: str) -> tuple[int, object, str]:
     code = main(["--db", str(path), *args], stdout=stdout, stderr=stderr)
     document = json.loads(stdout.getvalue()) if stdout.getvalue() else None
     return code, document, stderr.getvalue()
+
+
+def relay_authorization_store(tmp_path: Path) -> tuple[Path, Path]:
+    key_dir = tmp_path / "keys"
+    key_dir.mkdir()
+    os.chmod(key_dir, 0o700)
+    key_path = key_dir / N3W_KEY_FILE
+    key_path.write_bytes(bytes(range(32)))
+    os.chmod(key_path, 0o600)
+
+    path = tmp_path / "relay-authorization.sqlite3"
+    with sqlite3.connect(path) as connection:
+        connection.executescript(
+            """
+            CREATE TABLE n3w_relay_meta (schema_version INTEGER NOT NULL);
+            CREATE TABLE n3w_relay_nodes (
+                node_id TEXT PRIMARY KEY,
+                active INTEGER NOT NULL
+            );
+            CREATE TABLE n3w_relay_gateway_nodes (
+                gateway_id TEXT NOT NULL,
+                node_id TEXT NOT NULL,
+                enabled INTEGER NOT NULL,
+                PRIMARY KEY (gateway_id, node_id)
+            );
+            CREATE TABLE n3w_relay_key_epochs (
+                node_id TEXT NOT NULL,
+                key_epoch INTEGER NOT NULL,
+                key_file TEXT NOT NULL,
+                enabled INTEGER NOT NULL,
+                PRIMARY KEY (node_id, key_epoch)
+            );
+            """
+        )
+        connection.execute("INSERT INTO n3w_relay_meta VALUES (1)")
+        connection.execute(
+            "INSERT INTO n3w_relay_nodes VALUES (?, 1)",
+            (N3W_NODE_ID,),
+        )
+        connection.execute(
+            "INSERT INTO n3w_relay_gateway_nodes VALUES (?, ?, 1)",
+            (N3W_GATEWAY_ID, N3W_NODE_ID),
+        )
+        connection.execute(
+            "INSERT INTO n3w_relay_key_epochs VALUES (?, 1, ?, 1)",
+            (N3W_NODE_ID, N3W_KEY_FILE),
+        )
+    os.chmod(path, 0o600)
+    return path, key_dir
 
 
 def test_lists_pending_registration_without_nonce(tmp_path: Path) -> None:
@@ -202,3 +255,56 @@ def test_n3w_replay_inspect_rejects_invalid_boot_session(tmp_path: Path) -> None
     assert code == 3
     assert document is None
     assert "boot_session_invalid" in error
+
+
+def test_n3w_relay_authz_audit_is_secret_free_and_registration_independent(
+    tmp_path: Path,
+) -> None:
+    authz_db, key_dir = relay_authorization_store(tmp_path)
+    unused_registration = tmp_path / "registration-does-not-exist.sqlite3"
+
+    code, document, error = run_cli(
+        unused_registration,
+        "n3w-relay-authz-audit",
+        "--authz-db",
+        str(authz_db),
+        "--key-dir",
+        str(key_dir),
+    )
+
+    assert code == 0
+    assert error == ""
+    assert document["schema"] == "gh.n3w-relay-authorization-audit/1"
+    assert document["status"] == "passed"
+    assert document["active_node_count"] == 1
+    assert document["enabled_gateway_grant_count"] == 1
+    assert document["enabled_key_epoch_count"] == 1
+    assert document["secret_values_included"] is False
+    assert document["mutated"] is False
+    serialized = json.dumps(document)
+    assert N3W_KEY_FILE not in serialized
+    assert bytes(range(32)).hex() not in serialized
+    assert not unused_registration.exists()
+
+
+def test_n3w_relay_authz_audit_missing_store_fails_without_creating_it(
+    tmp_path: Path,
+) -> None:
+    key_dir = tmp_path / "keys"
+    key_dir.mkdir()
+    os.chmod(key_dir, 0o700)
+    missing = tmp_path / "missing-authz.sqlite3"
+
+    code, document, error = run_cli(
+        tmp_path / "unused-registration.sqlite3",
+        "n3w-relay-authz-audit",
+        "--authz-db",
+        str(missing),
+        "--key-dir",
+        str(key_dir),
+    )
+
+    assert code == 3
+    assert document is None
+    assert "authorization_store_permissions_invalid" in error
+    assert not missing.exists()

@@ -1,0 +1,72 @@
+{
+  "schema": "gh.n3w-manager-relay-authz-preflight-stage-entry/1",
+  "status": "authorized_for_non_live_manager_relay_authorization_preflight_development",
+  "authorization": "D1-N3W-MANAGER-DURABLE-AUTHORIZATION-KEY-LOADER-AND-RUNTIME-PREFLIGHT-NONLIVE-DEVELOPMENT-20260807-01",
+  "authorized_at": "2026-08-07T13:56:00+08:00",
+  "authorization_basis": "user explicitly agreed to enter the next N3-W stage after PR #284 integration; this stage is limited to production-shaped authorization/key loading preflight and remains non-live",
+  "base": {
+    "ref": "main",
+    "sha": "10e5db6ed9be8683db326545e1e6912918eab152"
+  },
+  "predecessor": {
+    "relay_ingress_merge": "10e5db6ed9be8683db326545e1e6912918eab152",
+    "relay_ingress_path": "host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_relay_ingress.py",
+    "replay_registry_path": "host/greenhouse-manager/src/greenhouse_manager/runtime/replay_registry.py"
+  },
+  "work_package": {
+    "name": "Manager durable relay authorization/key loader and non-live runtime preflight",
+    "goal": "replace test-only relay authorization fixtures with a production-shaped read-only authorization metadata adapter and private application-key file loader, while leaving MQTT subscription, provisioning, rotation, canonical publication, and live execution disabled",
+    "allowed": [
+      "read-only SQLite authorization metadata adapter",
+      "active-node, gateway-to-node grant, and key-epoch lookup",
+      "separate private raw 32-byte application key files under one private directory",
+      "fail-closed regular-file, no-symlink, private-permission, basename-only, and exact-key-length checks",
+      "secret-free authorization/key-reference audit",
+      "existing Manager CLI read-only preflight command",
+      "unit, corruption, permission, path-escape, inactive-node, unauthorized-gateway, unknown-epoch, and no-mutation tests",
+      "dedicated GitHub CI and Draft PR"
+    ],
+    "forbidden": [
+      "production MQTT relay subscription",
+      "canonical state publishing",
+      "authorization metadata mutation from the runtime adapter",
+      "key provisioning",
+      "key delivery",
+      "key rotation activation",
+      "real application keys in repository or CI evidence",
+      "production Manager configuration changes",
+      "ESP-NOW firmware or ESPHome product changes",
+      "T1, node, board, Broker, Home Assistant, production Manager database, or credential access",
+      "deploy",
+      "release",
+      "tag",
+      "N3-L"
+    ]
+  },
+  "storage_contract": {
+    "authorization_database": "SQLite metadata only; runtime opens mode=ro and never creates or mutates it",
+    "key_storage": "one 0700 private directory containing basename-only 0600 regular non-symlink raw 32-byte key files",
+    "secret_output": "audit output contains counts and status only, never key bytes or key filenames"
+  },
+  "invariants": {
+    "production_mqtt_subscription": false,
+    "authorization_store_runtime_write": false,
+    "key_provisioning_or_rotation": false,
+    "board_or_live_execution": false,
+    "secret_values_in_evidence": false,
+    "test_keys_only": true,
+    "relay_ingress_core_semantics_unchanged": true,
+    "replay_registry_semantics_unchanged": true
+  },
+  "exit_gate": [
+    "valid active node, authorized gateway-node pair, and enabled key epoch resolve exactly one 32-byte key",
+    "inactive node, unauthorized gateway-node pair, unknown or disabled key epoch fail closed",
+    "missing, malformed, world/group-accessible, symlinked, escaping, or wrong-size key material fails closed",
+    "authorization metadata database is existing, private, schema-valid, integrity-valid, and read-only",
+    "audit verifies all enabled metadata/key references without returning secrets or mutating state",
+    "CLI preflight works without a registration database and does not create missing authorization state",
+    "relay ingress and replay-registry regression tests remain green",
+    "all exact-head CI completes successfully"
+  ],
+  "next_gate": "Production Manager configuration binding, MQTT relay subscription, real provisioning/rotation workflow, canonical handoff wiring, Ready/merge, firmware, dual-board isolation tests, and live or physical execution remain separate authorizations."
+}
