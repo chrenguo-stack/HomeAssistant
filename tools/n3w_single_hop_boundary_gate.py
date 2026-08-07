@@ -90,9 +90,7 @@ def main() -> int:
     }
     failures.extend(name for name, passed in checks.items() if not passed)
 
-    base_ref = os.getenv("GITHUB_BASE_REF", "") or os.getenv(
-        "N3W_ACTUAL_BASE_REF", ""
-    )
+    base_ref = os.getenv("GITHUB_BASE_REF", "") or os.getenv("N3W_ACTUAL_BASE_REF", "")
     actual_base_sha = os.getenv("N3W_ACTUAL_BASE_SHA", "")
     actual_head_sha = os.getenv("N3W_ACTUAL_HEAD_SHA", "HEAD") or "HEAD"
     integration_mode = "local"
