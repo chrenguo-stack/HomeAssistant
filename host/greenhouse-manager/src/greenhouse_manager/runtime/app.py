@@ -6,8 +6,8 @@ import logging
 import os
 import sys
 
+from .c06b2_runtime_wiring import run_manager_service
 from .config import Settings
-from .mqtt_service import ManagerMqttService
 
 
 def _configuration_report(settings: Settings) -> dict[str, object]:
@@ -38,7 +38,13 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     if args.check_config:
-        print(json.dumps(_configuration_report(settings), sort_keys=True, separators=(",", ":")))
+        print(
+            json.dumps(
+                _configuration_report(settings),
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        )
         return 0
 
     logging.basicConfig(
@@ -47,7 +53,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     try:
-        ManagerMqttService(settings).run()
+        run_manager_service(settings)
     except OSError as exc:
         logging.getLogger(__name__).error("Service stopped by network error: %s", exc)
         return 1

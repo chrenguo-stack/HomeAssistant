@@ -1,0 +1,9 @@
+{
+  "domain": "c06b2c_probe",
+  "name": "C06-B2C Recorder Probe",
+  "codeowners": [],
+  "dependencies": ["mqtt", "recorder"],
+  "documentation": "https://github.com/chrenguo-stack/HomeAssistant",
+  "iot_class": "local_push",
+  "version": "1.0.0"
+}
