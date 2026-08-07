@@ -176,9 +176,7 @@ def test_key_material_must_be_private_regular_and_32_bytes(tmp_path: Path) -> No
 def test_key_file_reference_cannot_escape_private_directory(tmp_path: Path) -> None:
     database, key_dir = create_store(tmp_path)
     with sqlite3.connect(database) as connection:
-        connection.execute(
-            "UPDATE n3w_relay_key_epochs SET key_file = '../outside.key'"
-        )
+        connection.execute("UPDATE n3w_relay_key_epochs SET key_file = '../outside.key'")
 
     with (
         SqliteRelayAuthorizationProvider(database, key_dir) as provider,
@@ -252,9 +250,7 @@ def test_missing_or_wrong_schema_fails_without_creating_state(tmp_path: Path) ->
 def test_audit_detects_invalid_metadata_without_returning_secret(tmp_path: Path) -> None:
     database, key_dir = create_store(tmp_path)
     with sqlite3.connect(database) as connection:
-        connection.execute(
-            "UPDATE n3w_relay_gateway_nodes SET node_id = 'INVALID NODE'"
-        )
+        connection.execute("UPDATE n3w_relay_gateway_nodes SET node_id = 'INVALID NODE'")
 
     with (
         SqliteRelayAuthorizationProvider(database, key_dir) as provider,
