@@ -25,7 +25,11 @@ GreenhouseN3wP5Lab = ns.class_("GreenhouseN3wP5Lab", cg.Component)
 
 
 def _hex_length(chars: int):
-    return cv.All(cv.string_strict, cv.Length(min=chars, max=chars), cv.matches_regex(r"^[0-9A-Fa-f]+$"))
+    return cv.All(
+        cv.string_strict,
+        cv.Length(min=chars, max=chars),
+        cv.matches_regex(r"^[0-9A-Fa-f]+$"),
+    )
 
 
 CONFIG_SCHEMA = cv.Schema(
@@ -42,7 +46,9 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_APP_KEY_EPOCH1_HEX, default=""): cv.Any("", _hex_length(64)),
         cv.Optional(CONF_APP_KEY_EPOCH2_HEX, default=""): cv.Any("", _hex_length(64)),
         cv.Optional(CONF_SESSION_FLOOR, default=1): cv.int_range(min=1),
-        cv.Optional(CONF_PUBLISH_INTERVAL_MS, default=5000): cv.int_range(min=1000, max=60000),
+        cv.Optional(CONF_PUBLISH_INTERVAL_MS, default=5000): cv.int_range(
+            min=1000, max=60000
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
