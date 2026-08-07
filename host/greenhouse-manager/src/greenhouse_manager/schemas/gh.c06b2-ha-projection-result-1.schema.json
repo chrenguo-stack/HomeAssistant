@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hahub.top/schemas/gh.c06b2-ha-projection-result-1.schema.json",
+  "title": "Greenhouse C06-B2 Home Assistant projection result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "request_id",
+    "status",
+    "idempotency_key",
+    "revision",
+    "projection_hash",
+    "monotonic_revision_enforced",
+    "code",
+    "detail"
+  ],
+  "properties": {
+    "schema": {"const": "gh.c06b2-ha-projection-result/1"},
+    "request_id": {
+      "type": "string",
+      "minLength": 16,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "status": {"enum": ["verified", "retry", "blocked"]},
+    "idempotency_key": {
+      "type": "string",
+      "minLength": 16,
+      "maxLength": 256,
+      "pattern": "^[^\\r\\n]+$"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9223372036854775807
+    },
+    "projection_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "monotonic_revision_enforced": {"type": "boolean"},
+    "verified_at": {
+      "oneOf": [
+        {"type": "string", "format": "date-time"},
+        {"type": "null"}
+      ]
+    },
+    "code": {
+      "oneOf": [
+        {"type": "string", "minLength": 1, "maxLength": 96, "pattern": "^[a-z0-9_]+$"},
+        {"type": "null"}
+      ]
+    },
+    "detail": {
+      "oneOf": [
+        {"type": "string", "maxLength": 512},
+        {"type": "null"}
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "verified"}}},
+      "then": {
+        "required": ["verified_at"],
+        "properties": {
+          "monotonic_revision_enforced": {"const": true},
+          "verified_at": {"type": "string", "format": "date-time"},
+          "code": {"type": "null"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"status": {"enum": ["retry", "blocked"]}}},
+      "then": {
+        "required": ["verified_at"],
+        "properties": {
+          "verified_at": {"type": "null"},
+          "code": {"type": "string", "minLength": 1, "maxLength": 96, "pattern": "^[a-z0-9_]+$"}
+        }
+      }
+    }
+  ]
+}

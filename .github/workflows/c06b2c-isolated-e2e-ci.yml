@@ -1,0 +1,308 @@
+name: C06-B3 isolated MQTT HA Recorder fault matrix
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/c06b2c-isolated-e2e-ci.yml"
+      - ".github/workflows/c06-history-replay-ci.yml"
+      - ".github/workflows/c06b1-history-projection-ci.yml"
+      - ".github/workflows/c06b1-stateful-monotonic-adapter-ci.yml"
+      - ".github/workflows/c06b2b-runtime-wiring-ci.yml"
+      - "infra/compose/c06b2c-history-projection-e2e/verify.py"
+      - "infra/compose/c06b2c-history-projection-e2e/verify.sh"
+      - "tools/c06_fault_matrix_evidence.py"
+      - "tools/tests/test_c06_fault_matrix_evidence.py"
+      - "host/greenhouse-manager/tests/runtime/test_history_projection_fault_matrix.py"
+      - "docs/status/c06-history-fault-matrix-20260806.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: c06b3-fault-matrix-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  C06B3_AUTHORIZATION: D1-C06B3-PR267-HEAD-F98D93E-SUCCESSOR-CI-GATE-REPAIR-DRAFT-AND-FULL-CI-20260806-01
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact PR 268 integration or successor repair stack
+        env:
+          PR268_UPSTREAM_BASE_REF: feature/c06b2b-recorder-readback-utc-canonicalization-pr266-successor-20260804-v1
+          PR268_UPSTREAM_BASE_SHA: 4c29fced18e8d45cac78f71ec82112bcf65a8cef
+          SUCCESSOR_BASE_REF: feature/c06b2b-recorder-replacement-expected-value-readback-pr267-successor-20260804-v1
+          PR273_BASE_SHA: 249606dbab585e3b3beed47e77b9ae77a64e4291
+          REPAIR_BASE_SHA: ed8b25b9183e035fe413e674dfdd875f54870f19
+          PR267_STACK_BASE_REF: feature/c06b2b-recorder-import-queue-barrier-c06b2c-successor-20260804-v1
+          PR267_STACK_BASE_SHA: 21f288c1c47f7801e21e77ada460c6353e371e14
+          PR267_REPAIR_BASE_SHA: f98d93e43d10c32cd60580c80c484d829c8f6900
+          ACTUAL_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          ACTUAL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          ACTUAL_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$ACTUAL_BASE_REF" = "$PR268_UPSTREAM_BASE_REF" ]; then
+            test "$ACTUAL_BASE_SHA" = "$PR268_UPSTREAM_BASE_SHA" || \
+              test "$ACTUAL_BASE_SHA" = "$PR267_REPAIR_BASE_SHA"
+          elif [ "$ACTUAL_BASE_REF" = "$SUCCESSOR_BASE_REF" ]; then
+            test "$ACTUAL_BASE_SHA" = "$PR273_BASE_SHA" || \
+              test "$ACTUAL_BASE_SHA" = "$REPAIR_BASE_SHA"
+          elif [ "$ACTUAL_BASE_REF" = "$PR267_STACK_BASE_REF" ]; then
+            test "$ACTUAL_BASE_SHA" = "$PR267_STACK_BASE_SHA"
+          else
+            echo "unsupported C06-B3 stack base: $ACTUAL_BASE_REF" >&2
+            exit 1
+          fi
+          test "$(git merge-base "$ACTUAL_BASE_SHA" "$ACTUAL_HEAD_SHA")" = "$ACTUAL_BASE_SHA"
+          git merge-base --is-ancestor "$PR268_UPSTREAM_BASE_SHA" "$ACTUAL_HEAD_SHA"
+          if [ "$ACTUAL_BASE_SHA" = "$PR267_STACK_BASE_SHA" ] || [ "$ACTUAL_BASE_SHA" = "$PR267_REPAIR_BASE_SHA" ]; then
+            git merge-base --is-ancestor "$PR267_REPAIR_BASE_SHA" "$ACTUAL_HEAD_SHA"
+          fi
+
+      - name: Verify authorized C06-B3 file boundary
+        env:
+          PR268_UPSTREAM_BASE_SHA: 4c29fced18e8d45cac78f71ec82112bcf65a8cef
+          PR273_BASE_SHA: 249606dbab585e3b3beed47e77b9ae77a64e4291
+          REPAIR_BASE_SHA: ed8b25b9183e035fe413e674dfdd875f54870f19
+          PR267_STACK_BASE_SHA: 21f288c1c47f7801e21e77ada460c6353e371e14
+          PR267_REPAIR_BASE_SHA: f98d93e43d10c32cd60580c80c484d829c8f6900
+          ACTUAL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          ACTUAL_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          mapfile -t changed < <(git diff --name-only "$ACTUAL_BASE_SHA" "$ACTUAL_HEAD_SHA")
+          pr273_required=(
+            ".github/workflows/c06b2c-isolated-e2e-ci.yml"
+            ".github/workflows/c06-history-replay-ci.yml"
+            ".github/workflows/c06b1-history-projection-ci.yml"
+            ".github/workflows/c06b1-stateful-monotonic-adapter-ci.yml"
+            ".github/workflows/c06b2b-runtime-wiring-ci.yml"
+            "infra/compose/c06b2c-history-projection-e2e/verify.py"
+            "infra/compose/c06b2c-history-projection-e2e/verify.sh"
+            "tools/c06_fault_matrix_evidence.py"
+            "tools/tests/test_c06_fault_matrix_evidence.py"
+            "host/greenhouse-manager/tests/runtime/test_history_projection_fault_matrix.py"
+            "docs/status/c06-history-fault-matrix-20260806.md"
+          )
+          pr268_required=(
+            ".github/workflows/c06-history-replay-ci.yml"
+            ".github/workflows/c06b1-history-projection-ci.yml"
+            ".github/workflows/c06b1-stateful-monotonic-adapter-ci.yml"
+            ".github/workflows/c06b2a-ha-target-ledger-ci.yml"
+            ".github/workflows/c06b2b-runtime-wiring-ci.yml"
+            ".github/workflows/c06b2c-isolated-e2e-ci.yml"
+            "docs/adr/ADR-0006-c06b2-real-home-assistant-history-projection-adapter.md"
+            "docs/status/c06-history-fault-matrix-20260806.md"
+            "host/greenhouse-manager/tests/runtime/test_c06b2b_runtime_wiring.py"
+            "host/greenhouse-manager/tests/runtime/test_history_projection_fault_matrix.py"
+            "host/homeassistant/custom_components/greenhouse_history/recorder_adapter.py"
+            "infra/compose/c06b2c-history-projection-e2e/verify.py"
+            "infra/compose/c06b2c-history-projection-e2e/verify.sh"
+            "tools/c06_fault_matrix_evidence.py"
+            "tools/c06b2b_runtime_wiring_host_only_harness.py"
+            "tools/c06b2c_isolated_e2e_evidence.py"
+            "tools/tests/test_c06_fault_matrix_evidence.py"
+          )
+          repair_required=(
+            ".github/workflows/c06b1-history-projection-ci.yml"
+            ".github/workflows/c06b1-stateful-monotonic-adapter-ci.yml"
+            ".github/workflows/c06b2b-runtime-wiring-ci.yml"
+            ".github/workflows/c06b2c-isolated-e2e-ci.yml"
+          )
+          pr267_repair_required=(
+            ".github/workflows/c06-history-replay-ci.yml"
+            ".github/workflows/c06b1-history-projection-ci.yml"
+            ".github/workflows/c06b1-stateful-monotonic-adapter-ci.yml"
+            ".github/workflows/c06b2a-ha-target-ledger-ci.yml"
+            ".github/workflows/c06b2b-runtime-wiring-ci.yml"
+            ".github/workflows/c06b2c-isolated-e2e-ci.yml"
+          )
+          if [ "$ACTUAL_BASE_SHA" = "$PR273_BASE_SHA" ]; then
+            required=("${pr273_required[@]}")
+          elif [ "$ACTUAL_BASE_SHA" = "$PR268_UPSTREAM_BASE_SHA" ]; then
+            required=("${pr268_required[@]}")
+          elif [ "$ACTUAL_BASE_SHA" = "$REPAIR_BASE_SHA" ]; then
+            required=("${repair_required[@]}")
+          elif [ "$ACTUAL_BASE_SHA" = "$PR267_STACK_BASE_SHA" ]; then
+            required=("${pr268_required[@]}")
+          elif [ "$ACTUAL_BASE_SHA" = "$PR267_REPAIR_BASE_SHA" ]; then
+            required=("${pr267_repair_required[@]}")
+          else
+            echo "unsupported C06-B3 boundary base: $ACTUAL_BASE_SHA" >&2
+            exit 1
+          fi
+          test "${#changed[@]}" -eq "${#required[@]}"
+          for path in "${changed[@]}"; do
+            printf '%s\n' "${required[@]}" | grep -Fx "$path" >/dev/null
+          done
+          for path in "${required[@]}"; do
+            printf '%s\n' "${changed[@]}" | grep -Fx "$path" >/dev/null
+          done
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: host/greenhouse-manager/pyproject.toml
+
+      - name: Install test dependencies
+        run: python -m pip install -e 'host/greenhouse-manager[dev]'
+
+      - name: Run fast fault, safety, syntax, and lint gates
+        run: |
+          python -m compileall -q \
+            infra/compose/c06b2c-history-projection-e2e/verify.py \
+            tools/c06_fault_matrix_evidence.py \
+            tools/tests/test_c06_fault_matrix_evidence.py \
+            host/greenhouse-manager/tests/runtime/test_history_projection_fault_matrix.py
+          bash -n infra/compose/c06b2c-history-projection-e2e/verify.sh
+          ruff check \
+            infra/compose/c06b2c-history-projection-e2e/verify.py \
+            tools/c06_fault_matrix_evidence.py \
+            tools/tests/test_c06_fault_matrix_evidence.py \
+            host/greenhouse-manager/tests/runtime/test_history_projection_fault_matrix.py
+          python -m unittest discover -s tools/tests -p 'test_*.py' -v
+          python tools/check_public_repository_safety.py
+          python -m pytest -q \
+            host/greenhouse-manager/tests/runtime/test_c06b2b_runtime_wiring.py \
+            host/greenhouse-manager/tests/runtime/test_history_projection_fault_matrix.py
+
+  isolated-e2e-regression:
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Initialize failure-safe evidence directory
+        run: |
+          mkdir -p artifacts/c06b2c
+          printf '%s\n' \
+            '{"schema":"gh.c06b2c.workflow-placeholder/1","status":"pending","secret_values_included":false}' \
+            > artifacts/c06b2c/workflow-placeholder.json
+
+      - name: Run baseline isolated real Broker Home Assistant Recorder closure
+        env:
+          C06B2C_SOURCE_REF: ${{ github.head_ref }}
+          C06B2C_SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+          C06B2C_BASE_REF: ${{ github.base_ref }}
+          C06B2C_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set +e
+          bash infra/compose/c06b2c-history-projection-e2e/verify.sh
+          execution_rc=$?
+          set -e
+          python tools/c06b2c_isolated_e2e_evidence.py \
+            --input-dir artifacts/c06b2c \
+            --output artifacts/c06b2c/report.json \
+            --authorization "$C06B3_AUTHORIZATION" \
+            --source-ref "$C06B2C_SOURCE_REF" \
+            --source-sha "$C06B2C_SOURCE_SHA" \
+            --base-ref "$C06B2C_BASE_REF" \
+            --base-sha "$C06B2C_BASE_SHA" \
+            --execution-exit-code "$execution_rc" \
+            --exact-base-verified \
+            --base-ancestor-verified \
+            --authorized-file-boundary-verified
+          report_status="$(python -c 'import json; print(json.load(open("artifacts/c06b2c/report.json"))["status"])')"
+          if [ "$report_status" != "passed" ]; then
+            execution_rc=1
+          fi
+          exit "$execution_rc"
+
+      - name: Finalize evidence checksums
+        if: always()
+        run: |
+          cd artifacts/c06b2c
+          find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%P\0' \
+            | sort -z \
+            | xargs -0 sha256sum > SHA256SUMS
+          sha256sum -c SHA256SUMS
+
+      - name: Upload baseline isolated E2E evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: c06b3-baseline-isolated-e2e-evidence
+          path: artifacts/c06b2c/
+          if-no-files-found: error
+          retention-days: 14
+
+  isolated-fault-matrix:
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Initialize failure-safe evidence directory
+        run: |
+          mkdir -p artifacts/c06b2c
+          printf '%s\n' \
+            '{"schema":"gh.c06-fault-matrix.workflow-placeholder/1","status":"pending","secret_values_included":false}' \
+            > artifacts/c06b2c/workflow-placeholder.json
+
+      - name: Run isolated retry restart reconciliation and cleanup matrix
+        env:
+          C06B3_FAULT_MATRIX: "true"
+          C06B3_SOURCE_REF: ${{ github.head_ref }}
+          C06B3_SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+          C06B3_BASE_REF: ${{ github.base_ref }}
+          C06B3_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set +e
+          bash infra/compose/c06b2c-history-projection-e2e/verify.sh
+          execution_rc=$?
+          set -e
+          python tools/c06_fault_matrix_evidence.py \
+            --input-dir artifacts/c06b2c \
+            --output artifacts/c06b2c/report.json \
+            --authorization "$C06B3_AUTHORIZATION" \
+            --source-ref "$C06B3_SOURCE_REF" \
+            --source-sha "$C06B3_SOURCE_SHA" \
+            --base-ref "$C06B3_BASE_REF" \
+            --base-sha "$C06B3_BASE_SHA" \
+            --execution-exit-code "$execution_rc" \
+            --exact-base-verified \
+            --base-ancestor-verified \
+            --authorized-file-boundary-verified
+          report_status="$(python -c 'import json; print(json.load(open("artifacts/c06b2c/report.json"))["status"])')"
+          if [ "$report_status" != "passed" ]; then
+            execution_rc=1
+          fi
+          exit "$execution_rc"
+
+      - name: Finalize evidence checksums
+        if: always()
+        run: |
+          cd artifacts/c06b2c
+          find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%P\0' \
+            | sort -z \
+            | xargs -0 sha256sum > SHA256SUMS
+          sha256sum -c SHA256SUMS
+
+      - name: Upload isolated fault-matrix evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: c06b3-isolated-fault-matrix-evidence
+          path: artifacts/c06b2c/
+          if-no-files-found: error
+          retention-days: 14

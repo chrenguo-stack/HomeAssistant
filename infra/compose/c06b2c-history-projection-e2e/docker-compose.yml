@@ -1,0 +1,170 @@
+services:
+  broker-init:
+    image: eclipse-mosquitto:2.0.22
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        rm -f /mosquitto/data/passwords
+        mosquitto_passwd -b -c /mosquitto/data/passwords manager "$${GH_MANAGER_MQTT_PASSWORD}"
+        mosquitto_passwd -b /mosquitto/data/passwords homeassistant "$${GH_HA_MQTT_PASSWORD}"
+        mosquitto_passwd -b /mosquitto/data/passwords tester "$${GH_TESTER_MQTT_PASSWORD}"
+        chown 1883:1883 /mosquitto/data/passwords
+        chmod 600 /mosquitto/data/passwords
+    environment:
+      GH_MANAGER_MQTT_PASSWORD: "${GH_MANAGER_MQTT_PASSWORD:?set by verify.sh}"
+      GH_HA_MQTT_PASSWORD: "${GH_HA_MQTT_PASSWORD:?set by verify.sh}"
+      GH_TESTER_MQTT_PASSWORD: "${GH_TESTER_MQTT_PASSWORD:?set by verify.sh}"
+    volumes:
+      - broker-data:/mosquitto/data
+
+  broker:
+    image: eclipse-mosquitto:2.0.22
+    environment:
+      GH_TESTER_MQTT_PASSWORD: "${GH_TESTER_MQTT_PASSWORD:?set by verify.sh}"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - broker-data:/mosquitto/data
+    depends_on:
+      broker-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          mosquitto_pub -h 127.0.0.1 -u tester -P "$${GH_TESTER_MQTT_PASSWORD}"
+          -t c06b2c/health -m ok -q 1 >/dev/null 2>&1
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+
+  ha-config-init:
+    image: python:3.11-alpine
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        mkdir -p /config/.storage /config/custom_components
+        cp /source/ha/configuration.yaml /config/configuration.yaml
+        rm -rf /config/custom_components/greenhouse_history
+        rm -rf /config/custom_components/c06b2c_probe
+        cp -R /source/greenhouse_history /config/custom_components/greenhouse_history
+        cp -R /source/ha/custom_components/c06b2c_probe /config/custom_components/c06b2c_probe
+        python - <<'PY'
+        import os
+        from pathlib import Path
+
+        source = Path('/source/ha/core.config_entries.template.json')
+        target = Path('/config/.storage/core.config_entries')
+        text = source.read_text(encoding='utf-8')
+        text = text.replace('__HA_MQTT_PASSWORD__', os.environ['GH_HA_MQTT_PASSWORD'])
+        target.write_text(text, encoding='utf-8')
+        PY
+        chmod 755 /config /config/custom_components
+        chmod 700 /config/.storage
+        chmod 600 /config/.storage/core.config_entries
+    environment:
+      GH_HA_MQTT_PASSWORD: "${GH_HA_MQTT_PASSWORD:?set by verify.sh}"
+    volumes:
+      - ./homeassistant:/source/ha:ro
+      - ../../../host/homeassistant/custom_components/greenhouse_history:/source/greenhouse_history:ro
+      - ha-config:/config
+
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:2026.7.1
+    volumes:
+      - ha-config:/config
+    depends_on:
+      broker:
+        condition: service_healthy
+      ha-config-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "test -s /config/c06b2c-probe-state.json"]
+      interval: 3s
+      timeout: 3s
+      retries: 60
+      start_period: 20s
+
+  manager-db-init:
+    image: "${C06B2C_MANAGER_IMAGE:?set by verify.sh}"
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        mkdir -p /state/manager /evidence
+        python /init_manager_db.py
+        chown -R greenhouse:greenhouse /state
+        chmod 700 /state /state/manager
+        chmod 600 /state/manager/manager-state.sqlite3
+    environment:
+      GH_HISTORY_DB_PATH: /state/manager/manager-state.sqlite3
+      GH_C06B2C_EVIDENCE_DIR: /evidence
+    volumes:
+      - ./init_manager_db.py:/init_manager_db.py:ro
+      - manager-state:/state
+      - ../../../artifacts/c06b2c:/evidence
+
+  manager:
+    image: "${C06B2C_MANAGER_IMAGE:?set by verify.sh}"
+    build:
+      context: ../../../host/greenhouse-manager
+    environment:
+      GH_SYSTEM_ID: greenhouse
+      GH_MQTT_HOST: broker
+      GH_MQTT_PORT: "1883"
+      GH_MQTT_USERNAME: manager
+      GH_MQTT_PASSWORD: "${GH_MANAGER_MQTT_PASSWORD:?set by verify.sh}"
+      GH_MQTT_CLIENT_ID: c06b2c-manager
+      GH_MQTT_TLS: "false"
+      GH_HA_DISCOVERY_ENABLED: "false"
+      GH_PAIRING_INTAKE_ENABLED: "false"
+      GH_HISTORY_REPLAY_ENABLED: "false"
+      GH_HISTORY_DB_PATH: /state/manager/manager-state.sqlite3
+      GH_C06B2_RUNTIME_ENABLED: "true"
+      GH_STALE_AFTER_S: "180"
+      GH_LOG_LEVEL: INFO
+    volumes:
+      - manager-state:/state
+    depends_on:
+      broker:
+        condition: service_healthy
+      homeassistant:
+        condition: service_healthy
+
+  observer:
+    image: "${C06B2C_MANAGER_IMAGE:?set by verify.sh}"
+    user: "0:0"
+    entrypoint: ["python", "/observer.py"]
+    environment:
+      GH_C06B2C_MQTT_PASSWORD: "${GH_TESTER_MQTT_PASSWORD:?set by verify.sh}"
+    volumes:
+      - ./observer.py:/observer.py:ro
+      - ../../../artifacts/c06b2c:/evidence
+    depends_on:
+      broker:
+        condition: service_healthy
+
+  tester:
+    image: "${C06B2C_MANAGER_IMAGE:?set by verify.sh}"
+    user: "0:0"
+    entrypoint: ["python", "/verify.py"]
+    environment:
+      GH_C06B2C_MQTT_USERNAME: tester
+      GH_C06B2C_MQTT_PASSWORD: "${GH_TESTER_MQTT_PASSWORD:?set by verify.sh}"
+    volumes:
+      - ./verify.py:/verify.py:ro
+      - ha-config:/ha-config:ro
+      - manager-state:/state
+      - ../../../artifacts/c06b2c:/evidence
+    depends_on:
+      broker:
+        condition: service_healthy
+      homeassistant:
+        condition: service_healthy
+
+volumes:
+  broker-data:
+  ha-config:
+  manager-state:

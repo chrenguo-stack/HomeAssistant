@@ -1,0 +1,15 @@
+homeassistant:
+  name: C06-B2C History Projection Lab
+  time_zone: UTC
+
+recorder:
+
+logger:
+  default: warning
+  logs:
+    custom_components.greenhouse_history: info
+    custom_components.c06b2c_probe: info
+    homeassistant.components.mqtt: warning
+    homeassistant.components.recorder: warning
+
+c06b2c_probe:
