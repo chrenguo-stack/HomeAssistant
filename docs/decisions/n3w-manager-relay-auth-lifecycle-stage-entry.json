@@ -1,0 +1,31 @@
+{
+  "schema": "gh.n3w.manager-relay-auth-lifecycle-stage-entry/1",
+  "authorization_gate": "D1-N3W-MANAGER-GATEWAY-AUTHORIZATION-AND-APP-KEY-LIFECYCLE-NONLIVE-DEVELOPMENT-20260807-01",
+  "status": "authorized_in_progress",
+  "base_ref": "main",
+  "base_sha": "9d6899334e4e69676af0818fe1789632ffdb2c53",
+  "preserved_pr": 276,
+  "preserved_pr_head": "239ea594c643d4990d449187f8b0cabae619e3d7",
+  "mode": "NON_LIVE_HOST_ONLY",
+  "purpose": "Manager-side durable gateway authorization and application-key lifecycle management with fail-closed recovery and Relay path revocation coordination.",
+  "safety_boundary": {
+    "production_mqtt_relay_subscription": false,
+    "production_manager_service_wiring": false,
+    "canonical_live_publication": false,
+    "production_authorization_db_access": false,
+    "real_application_keys": false,
+    "t1_or_board_access": false,
+    "firmware_mutation": false,
+    "deploy_release_tag_or_n3l": false,
+    "pr276_mutation": false
+  },
+  "lifecycle": {
+    "key_states": ["STAGED", "ACTIVE", "GRACE", "REVOKED"],
+    "key_epoch_monotonic_non_reusable": true,
+    "authorization_disable_before_path_cleanup": true,
+    "cross_store_acid_claimed": false,
+    "durable_recovery_required": true,
+    "secret_free_audit_required": true
+  },
+  "next_gate": "Ready/merge, production service wiring, real provisioning/key delivery, live MQTT activation, firmware work, deployment, release, tag, and N3-L remain separately gated."
+}
