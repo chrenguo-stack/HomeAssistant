@@ -53,7 +53,9 @@ def _ensure_registration(registry: RegistrationRegistry) -> None:
         raise SystemExit("registration store unavailable") from exc
     if existing:
         if len(existing) != 1 or existing[0].node_id != NODE_ID:
-            raise SystemExit("isolated registration store is not the expected one-node state")
+            raise SystemExit(
+                "isolated registration store is not the expected one-node state"
+            )
         return
     now = datetime.now(UTC)
     hello = {
@@ -79,7 +81,9 @@ def _ensure_registration(registry: RegistrationRegistry) -> None:
     )
 
 
-def _open_admin() -> tuple[RegistrationRegistry, ReplayRegistry, RelayAuthorizationAdmin]:
+def _open_admin() -> tuple[
+    RegistrationRegistry, ReplayRegistry, RelayAuthorizationAdmin
+]:
     _prepare_paths()
     registry = RegistrationRegistry(REGISTRATION, pending_ttl_s=120)
     replay = ReplayRegistry(REPLAY)
@@ -98,13 +102,19 @@ def command_init() -> None:
         _ensure_registration(registry)
         audit = admin.audit()
         if audit["active_key_epoch_count"] or audit["staged_key_epoch_count"]:
-            raise SystemExit("refusing to overwrite non-empty P5 authorization/key state")
+            raise SystemExit(
+                "refusing to overwrite non-empty P5 authorization/key state"
+            )
         admin.grant(gateway_id=GATEWAY_ID, node_id=NODE_ID)
-        first = admin.stage_key(node_id=NODE_ID, key_material=_key("GH_P5_APP_KEY_EPOCH1_HEX"))
+        first = admin.stage_key(
+            node_id=NODE_ID, key_material=_key("GH_P5_APP_KEY_EPOCH1_HEX")
+        )
         if first["key_epoch"] != 1:
             raise SystemExit("unexpected first P5 key epoch")
         admin.activate_key(node_id=NODE_ID, key_epoch=1)
-        second = admin.stage_key(node_id=NODE_ID, key_material=_key("GH_P5_APP_KEY_EPOCH2_HEX"))
+        second = admin.stage_key(
+            node_id=NODE_ID, key_material=_key("GH_P5_APP_KEY_EPOCH2_HEX")
+        )
         if second["key_epoch"] != 2:
             raise SystemExit("unexpected second P5 key epoch")
         print(admin.audit())
@@ -148,7 +158,12 @@ def command_grant() -> None:
 def command_audit() -> None:
     registry, replay, admin = _open_admin()
     try:
-        print({"authorization": admin.audit(), "registration_count": len(registry.list_current())})
+        print(
+            {
+                "authorization": admin.audit(),
+                "registration_count": len(registry.list_current()),
+            }
+        )
     finally:
         admin.close()
         replay.close()
@@ -157,7 +172,9 @@ def command_audit() -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=["init", "rotate", "revoke-grant", "grant", "audit"])
+    parser.add_argument(
+        "command", choices=["init", "rotate", "revoke-grant", "grant", "audit"]
+    )
     args = parser.parse_args()
     {
         "init": command_init,
