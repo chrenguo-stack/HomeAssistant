@@ -8,9 +8,7 @@ from esphome.const import CONF_ID
 DEPENDENCIES = ["esp32"]
 
 greenhouse_n3w_core_ns = cg.esphome_ns.namespace("greenhouse_n3w_core")
-GreenhouseN3wCore = greenhouse_n3w_core_ns.class_(
-    "GreenhouseN3wCore", cg.Component
-)
+GreenhouseN3wCore = greenhouse_n3w_core_ns.class_("GreenhouseN3wCore", cg.Component)
 
 CONFIG_SCHEMA = cv.Schema(
     {

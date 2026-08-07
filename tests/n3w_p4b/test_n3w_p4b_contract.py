@@ -8,9 +8,13 @@ STAGE = ROOT / "docs/decisions/n3w-esp32c6-espnow-radio-runtime-stage-entry.json
 LINK = ROOT / "protocols/transport/gh-n3w-espnow-link-v1.md"
 RADIO_H = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_radio.h"
 RADIO_CPP = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_radio.cpp"
-DRIVER_CPP = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_espnow_driver.cpp"
+DRIVER_CPP = (
+    ROOT / "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_espnow_driver.cpp"
+)
 INIT_PY = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_core/__init__.py"
-COMPONENT_H = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_core/greenhouse_n3w_core.h"
+COMPONENT_H = (
+    ROOT / "firmware/esphome_rc/components/greenhouse_n3w_core/greenhouse_n3w_core.h"
+)
 
 
 def test_stage_entry_binds_exact_authorization_and_main() -> None:
@@ -22,9 +26,7 @@ def test_stage_entry_binds_exact_authorization_and_main() -> None:
     assert doc["base_ref"] == "main"
     assert doc["base_sha"] == "4f9242efc8c1b4776e4cc46c66ebc85b6e4ffe57"
     assert doc["preserved_pr"] == 276
-    assert doc["preserved_pr_head"] == (
-        "239ea594c643d4990d449187f8b0cabae619e3d7"
-    )
+    assert doc["preserved_pr_head"] == ("239ea594c643d4990d449187f8b0cabae619e3d7")
     assert doc["mode"] == "HOST_ONLY_AND_COMPILE_ONLY"
     assert doc["force_push"] is False
     assert doc["p4a_dependency"]["merged_pr"] == 290
@@ -78,7 +80,9 @@ def test_radio_core_freezes_fragment_receipt_and_path_semantics() -> None:
     assert "ApplicationKeyState" not in DRIVER_CPP.read_text(encoding="utf-8")
 
 
-def test_esp_idf_driver_has_real_compile_time_radio_calls_but_no_product_activation() -> None:
+def test_esp_idf_driver_has_real_compile_time_radio_calls_but_no_product_activation() -> (
+    None
+):
     driver = DRIVER_CPP.read_text(encoding="utf-8")
     for token in (
         "esp_now_init()",
