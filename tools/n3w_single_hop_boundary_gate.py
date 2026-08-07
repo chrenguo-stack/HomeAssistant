@@ -90,7 +90,9 @@ def main() -> int:
     }
     failures.extend(name for name, passed in checks.items() if not passed)
 
-    base_ref = os.getenv("GITHUB_BASE_REF", "") or os.getenv("N3W_ACTUAL_BASE_REF", "")
+    base_ref = os.getenv("GITHUB_BASE_REF", "") or os.getenv(
+        "N3W_ACTUAL_BASE_REF", ""
+    )
     actual_base_sha = os.getenv("N3W_ACTUAL_BASE_SHA", "")
     actual_head_sha = os.getenv("N3W_ACTUAL_HEAD_SHA", "HEAD") or "HEAD"
     integration_mode = "local"
@@ -151,7 +153,9 @@ def main() -> int:
             failures.append("github_base_mismatch")
             diff_base = SOURCE_BASE_SHA
 
-        changed = _git("diff", "--name-only", f"{diff_base}...{actual_head_sha}").stdout.splitlines()
+        changed = _git(
+            "diff", "--name-only", f"{diff_base}...{actual_head_sha}"
+        ).stdout.splitlines()
         allowed = {str(path) for path in FILES}
         if any(path not in allowed for path in changed):
             failures.append("change_scope_expanded")
