@@ -127,9 +127,11 @@ def test_staged_active_grace_rollback_and_epoch_non_reuse(tmp_path: Path) -> Non
         admin.grant(gateway_id=GATEWAY_A, node_id=NODE_ID)
         first = admin.stage_key(node_id=NODE_ID, key_material=KEY_A)
         assert first["key_epoch"] == 1
-        with SqliteRelayAuthorizationProvider(database, key_dir) as provider:
-            with pytest.raises(RelayIngressRejected, match="key_epoch_rejected"):
-                provider.resolve_key(gateway_id=GATEWAY_A, node_id=NODE_ID, key_epoch=1)
+        with (
+            SqliteRelayAuthorizationProvider(database, key_dir) as provider,
+            pytest.raises(RelayIngressRejected, match="key_epoch_rejected"),
+        ):
+            provider.resolve_key(gateway_id=GATEWAY_A, node_id=NODE_ID, key_epoch=1)
 
         admin.activate_key(node_id=NODE_ID, key_epoch=1)
         second = admin.stage_key(node_id=NODE_ID, key_material=KEY_B)
@@ -187,9 +189,11 @@ def test_revoke_disables_authorization_before_retryable_path_cleanup(tmp_path: P
         with pytest.raises(RelayAuthorizationAdminError, match="grant_recovery_pending"):
             admin.grant(gateway_id=GATEWAY_A, node_id=NODE_ID)
 
-    with SqliteRelayAuthorizationProvider(database, key_dir) as provider:
-        with pytest.raises(RelayIngressRejected, match="gateway_node_unauthorized"):
-            provider.resolve_key(gateway_id=GATEWAY_A, node_id=NODE_ID, key_epoch=1)
+    with (
+        SqliteRelayAuthorizationProvider(database, key_dir) as provider,
+        pytest.raises(RelayIngressRejected, match="gateway_node_unauthorized"),
+    ):
+        provider.resolve_key(gateway_id=GATEWAY_A, node_id=NODE_ID, key_epoch=1)
 
 
 def test_revoke_invalidates_active_relay_owner_preserves_cursor_and_requires_fresh_stability(
@@ -240,9 +244,11 @@ def test_revoke_invalidates_active_relay_owner_preserves_cursor_and_requires_fre
             revoked = admin.revoke_grant(gateway_id=GATEWAY_A, node_id=NODE_ID)
             assert revoked["recovery_pending"] is False
 
-            with SqliteRelayAuthorizationProvider(auth_db, key_dir) as provider:
-                with pytest.raises(RelayIngressRejected, match="gateway_node_unauthorized"):
-                    provider.resolve_key(gateway_id=GATEWAY_A, node_id=NODE_ID, key_epoch=1)
+            with (
+                SqliteRelayAuthorizationProvider(auth_db, key_dir) as provider,
+                pytest.raises(RelayIngressRejected, match="gateway_node_unauthorized"),
+            ):
+                provider.resolve_key(gateway_id=GATEWAY_A, node_id=NODE_ID, key_epoch=1)
 
             with sqlite3.connect(replay_db) as connection:
                 row = connection.execute(
@@ -348,6 +354,8 @@ def test_audits_never_expose_key_material_filename_or_fingerprint(tmp_path: Path
 
 def test_reserved_gateway_sentinel_cannot_be_granted(tmp_path: Path) -> None:
     database, key_dir = admin_paths(tmp_path)
-    with RelayAuthorizationAdmin(database, key_dir, node_state=active) as admin:
-        with pytest.raises(RelayAuthorizationAdminError, match="gateway_id_reserved"):
-            admin.grant(gateway_id=REVOKED_GATEWAY_SENTINEL, node_id=NODE_ID)
+    with (
+        RelayAuthorizationAdmin(database, key_dir, node_state=active) as admin,
+        pytest.raises(RelayAuthorizationAdminError, match="gateway_id_reserved"),
+    ):
+        admin.grant(gateway_id=REVOKED_GATEWAY_SENTINEL, node_id=NODE_ID)
