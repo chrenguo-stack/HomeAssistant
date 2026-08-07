@@ -172,14 +172,14 @@ def test_shared_transaction_rolls_back_replay_when_sibling_state_write_fails(tmp
     with (
         ReplayRegistry(database) as registry,
         pytest.raises(ReplayRegistryUnavailable, match="replay_registry_unavailable"),
+        registry.transaction() as transaction,
     ):
-        with registry.transaction() as transaction:
-            committed = transaction.commit(node_id=NODE_ID, boot_id=BOOT_1, seq=11)
-            assert committed.status == "accepted"
-            transaction.connection.execute(
-                "UPDATE sibling_state SET revision = 2 WHERE node_id = ?",
-                (NODE_ID,),
-            )
+        committed = transaction.commit(node_id=NODE_ID, boot_id=BOOT_1, seq=11)
+        assert committed.status == "accepted"
+        transaction.connection.execute(
+            "UPDATE sibling_state SET revision = 2 WHERE node_id = ?",
+            (NODE_ID,),
+        )
 
     with sqlite3.connect(database) as connection:
         connection.execute("DROP TRIGGER fail_sibling_update")
