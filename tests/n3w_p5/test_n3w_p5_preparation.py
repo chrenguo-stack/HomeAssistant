@@ -16,6 +16,7 @@ PRIVATE_SCHEMA = (
 EVIDENCE_SCHEMA = ROOT / "protocols/transport/schemas/gh.n3w-p5-evidence-1.schema.json"
 CHILD = ROOT / "firmware/esphome_rc/board_lab/n3w_p5_two_board/child.yml"
 RELAY = ROOT / "firmware/esphome_rc/board_lab/n3w_p5_two_board/relay.yml"
+P5_H = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_p5_lab/n3w_p5_lab.h"
 P5_CPP = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_p5_lab/n3w_p5_lab.cpp"
 COMPOSE = ROOT / "infra/compose/n3w-p5-two-board-isolated/docker-compose.yml"
 BUILDER = ROOT / "tools/n3w_p5/build_execution_template.py"
@@ -105,15 +106,19 @@ def test_two_firmware_roles_are_compile_only_and_relay_has_no_application_key() 
 
 
 def test_lab_runtime_reuses_p4a_p4b_and_keeps_relay_ciphertext_only() -> None:
+    header = P5_H.read_text(encoding="utf-8")
     source = P5_CPP.read_text(encoding="utf-8")
+    combined = header + "\n" + source
     for token in (
         "BootSessionManager",
+        "ChildRelayCache",
+        "RelayIngressController",
+        "RelayForwardSink",
         "build_relay_frame",
         "fragment_relay_frame",
-        "RelayIngressController",
         "encode_authenticated_probe",
         "decode_authenticated_probe",
-        "ACCEPTED_FOR_FORWARDING",
+        "accept_for_forwarding",
         "global_mqtt_client->publish",
         "PATH DIRECT",
         "PATH RELAY",
@@ -122,9 +127,9 @@ def test_lab_runtime_reuses_p4a_p4b_and_keeps_relay_ciphertext_only() -> None:
         "RESEND",
         "REORDER",
     ):
-        assert token in source
-    assert "aes256gcm_decrypt" not in source
-    assert "homeassistant/" not in source
+        assert token in combined
+    assert "aes256gcm_decrypt" not in combined
+    assert "homeassistant/" not in combined
 
 
 def test_isolated_compose_is_nonproduction_and_n3w_enabled_only_inside_lab() -> None:
