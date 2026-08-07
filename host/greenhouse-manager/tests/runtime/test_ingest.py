@@ -207,3 +207,39 @@ def test_retirement_clears_lifecycle_and_dedup_state() -> None:
     assert [message.payload for message in tombstones] == [b"", b"", b""]
     assert replay.status == "accepted"
     assert processor.stale_messages(now=NOW + timedelta(seconds=181)) == ()
+
+
+def test_prepare_is_fully_validating_but_does_not_mutate_state() -> None:
+    processor = TelemetryProcessor(system_id="dev", stale_after_s=180)
+    payload = json.dumps(valid_payload())
+
+    first = processor.prepare(TOPIC, payload, received_at=NOW)
+    second = processor.prepare(TOPIC, payload, received_at=NOW + timedelta(seconds=1))
+
+    assert first.status == "accepted"
+    assert first.prepared is not None
+    assert second.status == "accepted"
+    assert processor.stale_messages(now=NOW + timedelta(seconds=181)) == ()
+
+    committed = processor.commit_prepared(first.prepared)
+    assert committed.status == "accepted"
+    assert len(committed.messages) == 2
+
+    duplicate = processor.prepare(TOPIC, payload, received_at=NOW + timedelta(seconds=2))
+    assert duplicate.status == "duplicate"
+
+
+def test_commit_prepared_rechecks_in_memory_duplicate_boundary() -> None:
+    processor = TelemetryProcessor(system_id="dev")
+    payload = json.dumps(valid_payload())
+    first = processor.prepare(TOPIC, payload, received_at=NOW)
+    second = processor.prepare(TOPIC, payload, received_at=NOW)
+    assert first.prepared is not None
+    assert second.prepared is not None
+
+    accepted = processor.commit_prepared(first.prepared)
+    duplicate = processor.commit_prepared(second.prepared)
+
+    assert accepted.status == "accepted"
+    assert duplicate.status == "duplicate"
+    assert duplicate.messages == ()
