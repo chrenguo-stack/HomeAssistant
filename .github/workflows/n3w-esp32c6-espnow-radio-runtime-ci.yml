@@ -1,0 +1,188 @@
+name: N3-W ESP32-C6 ESP-NOW radio runtime CI
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/n3w-esp32c6-espnow-radio-runtime-ci.yml'
+      - 'docs/decisions/n3w-esp32c6-espnow-radio-runtime-stage-entry.json'
+      - 'protocols/transport/gh-n3w-espnow-link-v1.md'
+      - 'firmware/esphome_rc/components/greenhouse_n3w_core/**'
+      - 'firmware/esphome_rc/board_lab/n3w_p4b_espnow_runtime/**'
+      - 'tests/n3w_p4b/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  host-only-radio:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Exact base and authorized scope gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='4f9242efc8c1b4776e4cc46c66ebc85b6e4ffe57'
+          if [ "$GITHUB_EVENT_NAME" = 'pull_request' ]; then
+            test '${{ github.event.pull_request.base.ref }}' = 'main'
+            test '${{ github.event.pull_request.base.sha }}' = "$base"
+          fi
+          test "$(git merge-base "$base" HEAD)" = "$base"
+
+          allowed="$(mktemp)"
+          actual="$(mktemp)"
+          cat >"$allowed" <<'FILES'
+          .github/workflows/n3w-esp32c6-espnow-radio-runtime-ci.yml
+          docs/decisions/n3w-esp32c6-espnow-radio-runtime-stage-entry.json
+          firmware/esphome_rc/board_lab/n3w_p4b_espnow_runtime/n3w_p4b_espnow_runtime.yml
+          firmware/esphome_rc/components/greenhouse_n3w_core/__init__.py
+          firmware/esphome_rc/components/greenhouse_n3w_core/n3w_espnow_driver.cpp
+          firmware/esphome_rc/components/greenhouse_n3w_core/n3w_espnow_driver.h
+          firmware/esphome_rc/components/greenhouse_n3w_core/n3w_radio.cpp
+          firmware/esphome_rc/components/greenhouse_n3w_core/n3w_radio.h
+          protocols/transport/gh-n3w-espnow-link-v1.md
+          tests/n3w_p4b/n3w_p4b_host_test.cpp
+          tests/n3w_p4b/test_n3w_p4b_contract.py
+          FILES
+          sed -i 's/^          //' "$allowed"
+          sort -o "$allowed" "$allowed"
+          git diff --name-only "$base"...HEAD | sort >"$actual"
+          test "$(wc -l <"$actual")" -eq 11
+          if comm -23 "$actual" "$allowed" | grep -q .; then
+            echo 'Unauthorized changed file(s):'
+            comm -23 "$actual" "$allowed"
+            exit 1
+          fi
+          if comm -23 "$allowed" "$actual" | grep -q .; then
+            echo 'Authorized file missing from exact P4b change set:'
+            comm -23 "$allowed" "$actual"
+            exit 1
+          fi
+
+      - name: Verify P4a and preserved PR bindings
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse 4f9242efc8c1b4776e4cc46c66ebc85b6e4ffe57^{commit})" = \
+            '4f9242efc8c1b4776e4cc46c66ebc85b6e4ffe57'
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          doc = json.loads(Path(
+              'docs/decisions/n3w-esp32c6-espnow-radio-runtime-stage-entry.json'
+          ).read_text())
+          assert doc['preserved_pr'] == 276
+          assert doc['preserved_pr_head'] == '239ea594c643d4990d449187f8b0cabae619e3d7'
+          assert doc['p4a_dependency']['merged_pr'] == 290
+          assert doc['p4a_dependency']['merge_commit_sha'] == doc['base_sha']
+          PY
+
+      - name: Install host dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ libmbedtls-dev
+          python -m pip install -e 'host/greenhouse-manager[dev]'
+
+      - name: JSON Python and Ruff quality
+        run: |
+          python -m json.tool \
+            docs/decisions/n3w-esp32c6-espnow-radio-runtime-stage-entry.json \
+            >/dev/null
+          python -m compileall -q \
+            firmware/esphome_rc/components/greenhouse_n3w_core/__init__.py \
+            tests/n3w_p4b/test_n3w_p4b_contract.py
+          ruff check \
+            firmware/esphome_rc/components/greenhouse_n3w_core/__init__.py \
+            tests/n3w_p4b/test_n3w_p4b_contract.py
+          ruff format --check \
+            firmware/esphome_rc/components/greenhouse_n3w_core/__init__.py \
+            tests/n3w_p4b/test_n3w_p4b_contract.py
+
+      - name: Build and execute host C++ radio tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -Wall -Wextra -Werror \
+            -Ifirmware/esphome_rc/components/greenhouse_n3w_core \
+            firmware/esphome_rc/components/greenhouse_n3w_core/n3w_core.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_core/n3w_radio.cpp \
+            tests/n3w_p4b/n3w_p4b_host_test.cpp \
+            -lmbedcrypto \
+            -o /tmp/n3w_p4b_host_test
+          /tmp/n3w_p4b_host_test
+
+      - name: P4b Python contract tests
+        run: pytest -q tests/n3w_p4b/test_n3w_p4b_contract.py
+
+      - name: Explicit P4b safety boundary gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only 4f9242efc8c1b4776e4cc46c66ebc85b6e4ffe57...HEAD)"
+          if printf '%s\n' "$changed" | grep -E \
+            '^firmware/esphome_rc/(f1_0_rc2|packages|[^/]+\.ya?ml)' ; then
+            echo 'Product firmware path mutation is outside P4b authorization'
+            exit 1
+          fi
+          if grep -R -n -E \
+            '(esphome run|esptool|pio run .*upload|espota|GH_N3W_RUNTIME_ENABLED=true)' \
+            firmware/esphome_rc/components/greenhouse_n3w_core \
+            firmware/esphome_rc/board_lab/n3w_p4b_espnow_runtime; then
+            echo 'Physical execution or production activation token detected'
+            exit 1
+          fi
+          if grep -R -n -E \
+            '(homeassistant/#|gh/v1/.*/state/#|mqtt_password)' \
+            firmware/esphome_rc/components/greenhouse_n3w_core/n3w_radio.* \
+            firmware/esphome_rc/components/greenhouse_n3w_core/n3w_espnow_driver.*; then
+            echo 'Production MQTT/product credential wiring detected'
+            exit 1
+          fi
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          doc = json.loads(Path(
+              'docs/decisions/n3w-esp32c6-espnow-radio-runtime-stage-entry.json'
+          ).read_text())
+          assert doc['mode'] == 'HOST_ONLY_AND_COMPILE_ONLY'
+          assert doc['p4b_contract']['mesh'] is False
+          assert doc['p4b_contract']['multihop'] is False
+          assert doc['p4b_contract']['relay_holds_child_application_key'] is False
+          assert doc['p4b_contract']['production_mqtt_forwarding_wired'] is False
+          assert doc['p4b_contract']['product_firmware_runtime_activated'] is False
+          assert all(value is False for value in doc['safety_boundary'].values())
+          PY
+
+  esp32-c6-radio-compile:
+    needs: host-only-radio
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install frozen ESPHome
+        run: python -m pip install --upgrade 'esphome==2026.4.3'
+
+      - name: Validate compile-only P4b ESP32-C6 target
+        run: |
+          esphome config \
+            firmware/esphome_rc/board_lab/n3w_p4b_espnow_runtime/n3w_p4b_espnow_runtime.yml
+
+      - name: Compile actual ESP-NOW driver on ESP32-C6
+        run: |
+          esphome compile \
+            firmware/esphome_rc/board_lab/n3w_p4b_espnow_runtime/n3w_p4b_espnow_runtime.yml
