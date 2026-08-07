@@ -165,15 +165,9 @@ def test_builds_one_shared_production_shaped_runtime_and_audits_secret_free(
         assert wiring.router.replay_registry is wiring.replay_registry
         assert wiring.relay_core.replay_registry is wiring.replay_registry
         assert wiring.path_lease.replay_registry is wiring.replay_registry
-        assert wiring.relay_subscription == (
-            f"gh/v1/{SYSTEM_ID}/ingress/gateway/+/+/frame"
-        )
-        assert wiring.is_relay_topic(
-            f"gh/v1/{SYSTEM_ID}/ingress/gateway/{GATEWAY_ID}/{NODE_ID}/frame"
-        )
-        assert not wiring.is_relay_topic(
-            f"gh/v1/{SYSTEM_ID}/ingress/node/{NODE_ID}/telemetry"
-        )
+        assert wiring.relay_subscription == (f"gh/v1/{SYSTEM_ID}/ingress/gateway/+/+/frame")
+        assert wiring.is_relay_topic(f"gh/v1/{SYSTEM_ID}/ingress/gateway/{GATEWAY_ID}/{NODE_ID}/frame")
+        assert not wiring.is_relay_topic(f"gh/v1/{SYSTEM_ID}/ingress/node/{NODE_ID}/telemetry")
         assert audit["status"] == "passed"
         assert audit["secret_values_included"] is False
         assert audit["mutated"] is False
