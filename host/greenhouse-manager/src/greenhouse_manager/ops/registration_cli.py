@@ -11,17 +11,17 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, TextIO
 
-from .n3w_relay_authorization_admin import (
-    RelayAuthorizationAdmin,
-    RelayAuthorizationAdminError,
-    ReplayPathLeaseInvalidator,
-)
 from ..runtime.n3w_relay_authorization import (
     RelayAuthorizationStoreUnavailable,
     SqliteRelayAuthorizationProvider,
 )
 from ..runtime.registration import RegistrationConflict, RegistrationRecord, RegistrationRegistry
 from ..runtime.replay_registry import ReplayRegistry, ReplayRegistryUnavailable
+from .n3w_relay_authorization_admin import (
+    RelayAuthorizationAdmin,
+    RelayAuthorizationAdminError,
+    ReplayPathLeaseInvalidator,
+)
 
 DEFAULT_DB_PATH = "/var/lib/greenhouse-manager/registration.sqlite3"
 _ADMIN_COMMANDS = {
@@ -286,7 +286,9 @@ def _read_private_key_input(path_value: str) -> bytes:
     return material
 
 
-def _open_path_invalidator(replay_path: str | None) -> tuple[ReplayRegistry | None, object | None]:
+def _open_path_invalidator(
+    replay_path: str | None,
+) -> tuple[ReplayRegistry | None, object | None]:
     if replay_path is None:
         return None, None
     path = Path(replay_path)
@@ -294,6 +296,10 @@ def _open_path_invalidator(replay_path: str | None) -> tuple[ReplayRegistry | No
         raise RelayAuthorizationAdminError("replay_registry_missing")
     registry = ReplayRegistry(path)
     return registry, ReplayPathLeaseInvalidator(registry)
+
+
+def _inactive_node_state(_node_id: str) -> None:
+    return None
 
 
 def _run_admin_command(
@@ -316,7 +322,7 @@ def _run_admin_command(
             registration = RegistrationRegistry(registration_path)
             node_state = registration.node_id_lease_state
         else:
-            node_state = lambda _node_id: None
+            node_state = _inactive_node_state
 
         replay_arg = getattr(args, "replay_db", None)
         replay, path_invalidator = _open_path_invalidator(replay_arg)
@@ -411,7 +417,10 @@ def main(
                 )
             elif args.command == "reject":
                 record = registry.reject(args.hardware_id, args.pairing_id, reason=args.reason)
-                _write(output, {"result": "rejected", "registration": _record_document(record)})
+                _write(
+                    output,
+                    {"result": "rejected", "registration": _record_document(record)},
+                )
             elif args.command == "authorize-repair":
                 record = registry.authorize_repair(args.hardware_id)
                 _write(
