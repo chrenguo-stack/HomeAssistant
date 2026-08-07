@@ -97,9 +97,7 @@ class SqliteRelayAuthorizationProvider:
         names = {row["name"] for row in rows}
         if names != _EXPECTED_TABLES:
             raise RelayAuthorizationStoreUnavailable("authorization_store_schema_mismatch")
-        versions = self._connection.execute(
-            "SELECT schema_version FROM n3w_relay_meta"
-        ).fetchall()
+        versions = self._connection.execute("SELECT schema_version FROM n3w_relay_meta").fetchall()
         if len(versions) != 1 or versions[0]["schema_version"] != _SCHEMA_VERSION:
             raise RelayAuthorizationStoreUnavailable("authorization_store_schema_mismatch")
 
@@ -189,9 +187,7 @@ class SqliteRelayAuthorizationProvider:
             self._require_open()
             try:
                 self._require_integrity()
-                node_rows = self._connection.execute(
-                    "SELECT node_id, active FROM n3w_relay_nodes"
-                ).fetchall()
+                node_rows = self._connection.execute("SELECT node_id, active FROM n3w_relay_nodes").fetchall()
                 nodes: dict[str, int] = {}
                 for row in node_rows:
                     node_id = self._require_id(
@@ -199,9 +195,7 @@ class SqliteRelayAuthorizationProvider:
                         code="authorization_store_corrupt",
                     )
                     if row["active"] not in {0, 1}:
-                        raise RelayAuthorizationStoreUnavailable(
-                            "authorization_store_corrupt"
-                        )
+                        raise RelayAuthorizationStoreUnavailable("authorization_store_corrupt")
                     nodes[node_id] = row["active"]
 
                 grant_rows = self._connection.execute(
@@ -218,9 +212,7 @@ class SqliteRelayAuthorizationProvider:
                         code="authorization_store_corrupt",
                     )
                     if node_id not in nodes or row["enabled"] not in {0, 1}:
-                        raise RelayAuthorizationStoreUnavailable(
-                            "authorization_store_corrupt"
-                        )
+                        raise RelayAuthorizationStoreUnavailable("authorization_store_corrupt")
                     enabled_grants += int(row["enabled"] == 1)
 
                 key_rows = self._connection.execute(
@@ -243,9 +235,7 @@ class SqliteRelayAuthorizationProvider:
                         or key_epoch < 1
                         or row["enabled"] not in {0, 1}
                     ):
-                        raise RelayAuthorizationStoreUnavailable(
-                            "authorization_store_corrupt"
-                        )
+                        raise RelayAuthorizationStoreUnavailable("authorization_store_corrupt")
                     if row["enabled"] == 1:
                         self._load_key_file(row["key_file"])
                         enabled_epochs += 1
@@ -262,9 +252,7 @@ class SqliteRelayAuthorizationProvider:
                     "mutated": False,
                 }
             except sqlite3.Error as exc:
-                raise RelayAuthorizationStoreUnavailable(
-                    "authorization_store_unavailable"
-                ) from exc
+                raise RelayAuthorizationStoreUnavailable("authorization_store_unavailable") from exc
 
     def close(self) -> None:
         with self._lock:
