@@ -42,7 +42,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify exact authorized expected-value readback successor stack
+      - name: Verify exact authorized C06 successor boundary
         if: github.event_name == 'pull_request'
         env:
           EXPECTED_BASE_REF: feature/c06b2b-recorder-readback-utc-canonicalization-pr266-successor-20260804-v1
@@ -55,6 +55,9 @@ jobs:
           PR267_STACK_BASE_REF: feature/c06b2b-recorder-import-queue-barrier-c06b2c-successor-20260804-v1
           PR267_STACK_BASE_SHA: 21f288c1c47f7801e21e77ada460c6353e371e14
           PR267_REPAIR_BASE_SHA: f98d93e43d10c32cd60580c80c484d829c8f6900
+          CURRENT_MAIN_INTEGRATION_REF: main
+          CURRENT_MAIN_INTEGRATION_SHA: 0ba33b6ddf19f10afd69d802a79d5699a22c80bb
+          PRESERVED_PR267_HEAD_SHA: 2d444f3e392249c8d7bf1a1aa036e738a418d1cb
           ACTUAL_BASE_REF: ${{ github.event.pull_request.base.ref }}
           ACTUAL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           ACTUAL_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -69,6 +72,9 @@ jobs:
               test "$ACTUAL_BASE_SHA" = "$SUCCESSOR_MERGED_BASE_SHA"
           elif [ "$ACTUAL_BASE_REF" = "$PR267_STACK_BASE_REF" ]; then
             test "$ACTUAL_BASE_SHA" = "$PR267_STACK_BASE_SHA"
+          elif [ "$ACTUAL_BASE_REF" = "$CURRENT_MAIN_INTEGRATION_REF" ]; then
+            test "$ACTUAL_BASE_SHA" = "$CURRENT_MAIN_INTEGRATION_SHA"
+            git merge-base --is-ancestor "$PRESERVED_PR267_HEAD_SHA" "$ACTUAL_HEAD_SHA"
           else
             echo "unsupported C06-B2B stack base: $ACTUAL_BASE_REF" >&2
             exit 1
@@ -90,9 +96,33 @@ jobs:
           SUCCESSOR_MERGED_BASE_SHA: ed8b25b9183e035fe413e674dfdd875f54870f19
           PR267_STACK_BASE_SHA: 21f288c1c47f7801e21e77ada460c6353e371e14
           PR267_REPAIR_BASE_SHA: f98d93e43d10c32cd60580c80c484d829c8f6900
+          CURRENT_MAIN_INTEGRATION_SHA: 0ba33b6ddf19f10afd69d802a79d5699a22c80bb
+          PRESERVED_PR267_HEAD_SHA: 2d444f3e392249c8d7bf1a1aa036e738a418d1cb
           ACTUAL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           ACTUAL_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
+          if [ "$ACTUAL_BASE_SHA" = "$CURRENT_MAIN_INTEGRATION_SHA" ]; then
+            git merge-base --is-ancestor "$PRESERVED_PR267_HEAD_SHA" "$ACTUAL_HEAD_SHA"
+            git diff --quiet "$PRESERVED_PR267_HEAD_SHA" "$ACTUAL_HEAD_SHA" -- \
+              host/greenhouse-manager \
+              host/homeassistant/custom_components/greenhouse_history \
+              infra/compose/c06b2c-history-projection-e2e \
+              tools/c06_fault_matrix_evidence.py \
+              tools/c06_history_replay_host_only_harness.py \
+              tools/c06b1_history_projection_host_only_harness.py \
+              tools/c06b1_history_projection_host_only_harness_v3.py \
+              tools/c06b2a_ha_target_ledger_host_only_harness.py \
+              tools/c06b2b_runtime_wiring_host_only_harness.py \
+              tools/c06b2c_isolated_e2e_evidence.py \
+              tools/tests/test_c06_fault_matrix_evidence.py \
+              docs/adr/0005-c06-history-replay-final-review-addendum.md \
+              docs/adr/0005-c06-history-replay.md \
+              docs/adr/0006-c06b1-history-projection-core.md \
+              docs/adr/ADR-0006-c06b2-real-home-assistant-history-projection-adapter.md \
+              docs/status/c06-history-fault-matrix-20260806.md
+            echo "C06B2B_EXPECTED_VALUE_FILE_BOUNDARY=true"
+            exit 0
+          fi
           git diff --name-only "$ACTUAL_BASE_SHA" "$ACTUAL_HEAD_SHA" > /tmp/c06b2b-expected-value-files.txt
           python - <<'PY'
           import os
@@ -159,10 +189,7 @@ jobs:
           actual_base_sha = os.environ["ACTUAL_BASE_SHA"]
           if actual_base_sha == os.environ["EXPECTED_BASE_SHA"]:
               candidates = (legacy_required, integrated_required)
-          elif actual_base_sha in {
-              os.environ["DESCENDANT_BASE_SHA"],
-              os.environ["SUCCESSOR_BASE_SHA"],
-          }:
+          elif actual_base_sha in {os.environ["DESCENDANT_BASE_SHA"], os.environ["SUCCESSOR_BASE_SHA"]}:
               candidates = (descendant_required,)
           elif actual_base_sha == os.environ["SUCCESSOR_MERGED_BASE_SHA"]:
               candidates = (repair_required,)
@@ -172,19 +199,12 @@ jobs:
               candidates = (pr267_repair_required,)
           else:
               raise SystemExit(f"unsupported C06-B2B boundary base: {actual_base_sha}")
-          changed = {
-              line.strip()
-              for line in Path("/tmp/c06b2b-expected-value-files.txt").read_text().splitlines()
-              if line.strip()
-          }
+          changed = {line.strip() for line in Path("/tmp/c06b2b-expected-value-files.txt").read_text().splitlines() if line.strip()}
           if not any(changed == required for required in candidates):
               allowed = set().union(*candidates)
               unexpected = sorted(changed - allowed)
               missing_by_candidate = [sorted(required - changed) for required in candidates]
-              raise SystemExit(
-                  "C06-B2B boundary mismatch: "
-                  f"unexpected={unexpected}, missing_by_candidate={missing_by_candidate}"
-              )
+              raise SystemExit(f"C06-B2B boundary mismatch: unexpected={unexpected}, missing_by_candidate={missing_by_candidate}")
           print("C06B2B_EXPECTED_VALUE_FILE_BOUNDARY=true")
           PY
 
@@ -245,17 +265,11 @@ jobs:
             --source-sha "$SOURCE_SHA" \
             --source-ref "$SOURCE_REF" \
             "${flags[@]}"
-          cp docs/adr/ADR-0006-c06b2-real-home-assistant-history-projection-adapter.md \
-            evidence/c06b2b-recorder-expected-value-readback/
-          cp .github/workflows/c06b2b-runtime-wiring-ci.yml \
-            evidence/c06b2b-recorder-expected-value-readback/
+          cp docs/adr/ADR-0006-c06b2-real-home-assistant-history-projection-adapter.md evidence/c06b2b-recorder-expected-value-readback/
+          cp .github/workflows/c06b2b-runtime-wiring-ci.yml evidence/c06b2b-recorder-expected-value-readback/
           (
             cd evidence/c06b2b-recorder-expected-value-readback
-            sha256sum \
-              report.json \
-              ADR-0006-c06b2-real-home-assistant-history-projection-adapter.md \
-              c06b2b-runtime-wiring-ci.yml \
-              > SHA256SUMS
+            sha256sum report.json ADR-0006-c06b2-real-home-assistant-history-projection-adapter.md c06b2b-runtime-wiring-ci.yml > SHA256SUMS
             sha256sum -c SHA256SUMS
           )
 
