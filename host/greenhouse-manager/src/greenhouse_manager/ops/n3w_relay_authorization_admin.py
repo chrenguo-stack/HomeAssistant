@@ -304,7 +304,10 @@ class RelayAuthorizationAdmin:
             if len(versions) != 1 or versions[0][0] != _SCHEMA_VERSION:
                 raise RelayAuthorizationAdminError("authorization_store_schema_mismatch")
             columns = {
-                row[1] for row in self._connection.execute("PRAGMA table_info(n3w_relay_key_epochs)").fetchall()
+                row[1]
+                for row in self._connection.execute(
+                    "PRAGMA table_info(n3w_relay_key_epochs)"
+                ).fetchall()
             }
             if not {"state", "key_sha256"} <= columns:
                 raise RelayAuthorizationAdminError("authorization_store_schema_mismatch")
