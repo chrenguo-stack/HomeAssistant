@@ -7,10 +7,13 @@ from pathlib import Path
 
 from greenhouse_manager.ops.registration_cli import _parser, main
 from greenhouse_manager.runtime.registration import RegistrationRegistry
+from greenhouse_manager.runtime.replay_registry import ReplayRegistry
 
 HARDWARE_ID = "ghw-c6-98a316a9f2f8"
 PAIRING_ID = "c83aeb0d-8f48-4a39-a34b-ea584a588475"
 LOGICAL_LOCATION_ID = "greenhouse-bed-01"
+N3W_NODE_ID = "node_01hzx7aq5fj3"
+N3W_BOOT_ID = "boot_0000000000000001"
 
 
 def hello() -> dict[str, object]:
@@ -103,3 +106,99 @@ def test_cli_does_not_expose_node_id_reuse_flags() -> None:
     help_text = _parser().format_help()
     assert "--reuse-retired-node-id" not in help_text
     assert "--private-identity-bound" not in help_text
+
+
+def test_n3w_replay_audit_uses_existing_registration_cli_entrypoint(tmp_path: Path) -> None:
+    replay_path = tmp_path / "n3w-replay.sqlite3"
+    missing_registration_path = tmp_path / "registration-does-not-exist.sqlite3"
+    with ReplayRegistry(replay_path):
+        pass
+
+    code, document, error = run_cli(
+        missing_registration_path,
+        "n3w-replay-audit",
+        "--replay-db",
+        str(replay_path),
+    )
+
+    assert code == 0
+    assert error == ""
+    assert document["schema"] == "gh.n3w-replay-registry-audit/1"
+    assert document["status"] == "passed"
+    assert document["node_count"] == 0
+    assert replay_path.exists()
+    assert not missing_registration_path.exists()
+
+
+def test_n3w_replay_audit_missing_db_fails_without_creating_it(tmp_path: Path) -> None:
+    replay_path = tmp_path / "missing-replay.sqlite3"
+
+    code, document, error = run_cli(
+        tmp_path / "unused-registration.sqlite3",
+        "n3w-replay-audit",
+        "--replay-db",
+        str(replay_path),
+    )
+
+    assert code == 3
+    assert document is None
+    assert "replay_registry_unavailable" in error
+    assert not replay_path.exists()
+
+
+def test_n3w_replay_inspect_is_read_only(tmp_path: Path) -> None:
+    replay_path = tmp_path / "n3w-replay.sqlite3"
+    with ReplayRegistry(replay_path) as registry:
+        registry.commit(node_id=N3W_NODE_ID, boot_id=N3W_BOOT_ID, seq=1)
+
+    code, document, error = run_cli(
+        tmp_path / "unused-registration.sqlite3",
+        "n3w-replay-inspect",
+        "--replay-db",
+        str(replay_path),
+        "--node-id",
+        N3W_NODE_ID,
+        "--boot-id",
+        N3W_BOOT_ID,
+        "--seq",
+        "2",
+    )
+
+    assert code == 0
+    assert error == ""
+    assert document["status"] == "ready"
+    assert document["highest_session_hex"] == "0000000000000001"
+    assert document["mutated"] is False
+
+    with ReplayRegistry(replay_path) as registry:
+        assert (
+            registry.inspect(
+                node_id=N3W_NODE_ID,
+                boot_id=N3W_BOOT_ID,
+                seq=2,
+            ).status
+            == "ready"
+        )
+
+
+def test_n3w_replay_inspect_rejects_invalid_boot_session(tmp_path: Path) -> None:
+    replay_path = tmp_path / "n3w-replay.sqlite3"
+    with ReplayRegistry(replay_path):
+        pass
+
+    code, document, error = run_cli(
+        tmp_path / "unused-registration.sqlite3",
+        "n3w-replay-inspect",
+        "--replay-db",
+        str(replay_path),
+        "--node-id",
+        N3W_NODE_ID,
+        "--boot-id",
+        "boot_0000000000000000",
+        "--seq",
+        "1",
+    )
+
+    assert code == 3
+    assert document is None
+    assert "boot_session_invalid" in error

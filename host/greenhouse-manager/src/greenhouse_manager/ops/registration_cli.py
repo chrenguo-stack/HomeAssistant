@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, TextIO
 
 from ..runtime.registration import RegistrationConflict, RegistrationRecord, RegistrationRegistry
+from ..runtime.replay_registry import ReplayRegistry, ReplayRegistryUnavailable
 
 DEFAULT_DB_PATH = "/var/lib/greenhouse-manager/registration.sqlite3"
 
@@ -48,6 +49,21 @@ def _parser() -> argparse.ArgumentParser:
     repair.add_argument("hardware_id")
 
     subparsers.add_parser("expire", help="expire overdue pending registrations")
+
+    replay_audit = subparsers.add_parser(
+        "n3w-replay-audit",
+        help="audit an existing Manager-owned N3-W replay registry without mutation",
+    )
+    replay_audit.add_argument("--replay-db", required=True)
+
+    replay_inspect = subparsers.add_parser(
+        "n3w-replay-inspect",
+        help="inspect one tuple in an existing N3-W replay registry without mutation",
+    )
+    replay_inspect.add_argument("--replay-db", required=True)
+    replay_inspect.add_argument("--node-id", required=True)
+    replay_inspect.add_argument("--boot-id", required=True)
+    replay_inspect.add_argument("--seq", required=True, type=int)
     return parser
 
 
@@ -78,6 +94,45 @@ def _write(output: TextIO, document: Any) -> None:
     output.write("\n")
 
 
+def _run_replay_command(
+    args: argparse.Namespace,
+    *,
+    output: TextIO,
+    error_output: TextIO,
+) -> int:
+    database = Path(args.replay_db)
+    try:
+        with ReplayRegistry(database, read_only=True) as registry:
+            if args.command == "n3w-replay-audit":
+                _write(output, registry.audit())
+                return 0
+            inspection = registry.inspect(
+                node_id=args.node_id,
+                boot_id=args.boot_id,
+                seq=args.seq,
+            )
+            _write(
+                output,
+                {
+                    "schema": "gh.n3w-replay-registry-inspection/1",
+                    "status": inspection.status,
+                    "node_id": inspection.key.node_id,
+                    "boot_id": inspection.key.boot_id,
+                    "seq": inspection.key.seq,
+                    "highest_session_hex": (
+                        f"{inspection.highest_session:016x}"
+                        if inspection.highest_session is not None
+                        else None
+                    ),
+                    "mutated": False,
+                },
+            )
+            return 0
+    except (ReplayRegistryUnavailable, ValueError) as exc:
+        print(f"N3-W replay command failed: {exc}", file=error_output)
+        return 3
+
+
 def main(
     argv: Sequence[str] | None = None,
     *,
@@ -87,6 +142,10 @@ def main(
     output = stdout or sys.stdout
     error_output = stderr or sys.stderr
     args = _parser().parse_args(argv)
+
+    if args.command in {"n3w-replay-audit", "n3w-replay-inspect"}:
+        return _run_replay_command(args, output=output, error_output=error_output)
+
     database = Path(args.db)
     if not database.exists():
         print(f"Registration database does not exist: {database}", file=error_output)
