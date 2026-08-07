@@ -71,6 +71,10 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config: dict) -> None:
     include_builtin_idf_component("nvs_flash")
     include_builtin_idf_component("esp_wifi")
+    # The P5 Child exercises the P4a AES-256-GCM implementation instead of
+    # leaving it dead-stripped. Under the frozen ESPHome/PlatformIO ESP-IDF
+    # 5.5.4 lineage, explicitly keep the mbedcrypto archive on the final link.
+    cg.add_build_flag("-lmbedcrypto")
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     cg.add(var.set_role(config[CONF_ROLE]))
