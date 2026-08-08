@@ -71,11 +71,12 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config: dict) -> None:
     include_builtin_idf_component("nvs_flash")
     include_builtin_idf_component("esp_wifi")
-    # Keep mbedTLS available as an ESP-IDF component. Do not inject a raw
-    # global -lmbedcrypto build flag: ESPHome propagates global build flags to
-    # the bootloader sub-build, whose link context does not contain that
-    # application archive.
+    # Re-enable the ESP-IDF mbedTLS component and compile the generated ESPHome
+    # src component against the same ESP-IDF mbedTLS configuration as the
+    # library itself. Without MBEDTLS_CONFIG_FILE, n3w_core.cpp sees the
+    # upstream GCM ABI while ESP-IDF 5.5.4 builds mbedTLS with its ALT ABI.
     include_builtin_idf_component("mbedtls")
+    cg.add_build_flag('-DMBEDTLS_CONFIG_FILE=\\"mbedtls/esp_config.h\\"')
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     cg.add(var.set_role(config[CONF_ROLE]))
