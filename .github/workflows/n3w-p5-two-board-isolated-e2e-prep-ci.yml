@@ -162,6 +162,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
+      fail-fast: false
       matrix:
         target: [child, relay]
     steps:
@@ -175,4 +176,23 @@ jobs:
       - name: Validate P5 role target
         run: esphome config firmware/esphome_rc/board_lab/n3w_p5_two_board/${{ matrix.target }}.yml
       - name: Compile P5 role target without upload
-        run: esphome compile firmware/esphome_rc/board_lab/n3w_p5_two_board/${{ matrix.target }}.yml
+        shell: bash
+        run: |
+          set +e
+          target="firmware/esphome_rc/board_lab/n3w_p5_two_board/${{ matrix.target }}.yml"
+          esphome compile "$target"
+          rc=$?
+          if [ "$rc" -ne 0 ]; then
+            echo '=== P5 mbedTLS link diagnostics ==='
+            find firmware/esphome_rc/board_lab/n3w_p5_two_board -type f \
+              \( -name 'sdkconfig' -o -name 'sdkconfig.*' \) -print -exec \
+              grep -E '^(CONFIG_MBEDTLS_GCM_C|CONFIG_MBEDTLS_HARDWARE_GCM)=' {} \; || true
+            lib="$(find firmware/esphome_rc/board_lab/n3w_p5_two_board -name libmbedcrypto.a -print -quit)"
+            nm_tool="$(find ~/.platformio -type f -name 'riscv32-esp-elf-nm' -print -quit)"
+            printf 'LIBMBEDCRYPTO=%s\n' "$lib"
+            printf 'RISCV_NM=%s\n' "$nm_tool"
+            if [ -n "$lib" ] && [ -x "$nm_tool" ]; then
+              "$nm_tool" -g --defined-only "$lib" | grep -E 'mbedtls_gcm_(init|setkey|crypt_and_tag|free)' || true
+            fi
+          fi
+          exit "$rc"
