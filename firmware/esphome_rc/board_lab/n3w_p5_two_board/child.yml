@@ -20,13 +20,6 @@ esp32:
   flash_size: 8MB
   framework:
     type: esp-idf
-    # PlatformIO's generated src component has no REQUIRES edge to mbedtls.
-    # The P5 lab component therefore links the audited libmbedcrypto archive
-    # explicitly. Keep GCM in that archive self-contained for this frozen
-    # compile/isolated-test target instead of pulling the ESP-IDF hardware-GCM
-    # port through an unordered cross-archive reference.
-    sdkconfig_options:
-      CONFIG_MBEDTLS_HARDWARE_GCM: "n"
     advanced:
       include_builtin_idf_components:
         - nvs_flash
