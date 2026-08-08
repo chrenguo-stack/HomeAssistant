@@ -13,6 +13,8 @@ jobs:
   runtime-dependency-contract:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -72,13 +74,13 @@ jobs:
         run: pytest -q tests/n3w_p5/test_n3w_p5_preparation.py
 
       - name: Build production Manager image from the real Dockerfile
-        run: docker build -t n3wp5-manager-aead-successor:${GITHUB_SHA} host/greenhouse-manager
+        run: docker build -t n3wp5-manager-aead-successor:${HEAD_SHA} host/greenhouse-manager
 
       - name: Verify AEAD backend and relay decrypt path inside production image
         shell: bash
         run: |
           set -euo pipefail
-          docker run --rm -i --entrypoint python n3wp5-manager-aead-successor:${GITHUB_SHA} - <<'PY'
+          docker run --rm -i --entrypoint python n3wp5-manager-aead-successor:${HEAD_SHA} - <<'PY'
           from importlib.metadata import requires, version
 
           from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -116,7 +118,7 @@ jobs:
         run: |
           set -euo pipefail
           workflow='.github/workflows/n3w-p5-m02-aead-runtime-successor-repair-ci.yml'
-          ! grep -nE '(esptool|esphome run|/dev/tty|/dev/cu\.|docker exec|docker compose .*up|192\.168\.68\.)' "$workflow"
+          ! grep -nE '(esp[t]ool|esphome[[:space:]]+run|/dev/tt[y]|/dev/cu[.]|docker[[:space:]]+exec|docker[[:space:]]+compose[[:space:]].*up|192[.]168[.]68[.])' "$workflow"
           test "$(git diff --name-only 752c4709c6c9b60490dbcaf6da5807538dc03fa7...HEAD | grep -Ec '^(firmware/|infra/compose/)' || true)" -eq 0
 
       - name: Create secret-free successor evidence
@@ -133,7 +135,7 @@ jobs:
               'schema': 'gh.n3w-p5-m02-aead-runtime-successor-evidence/1',
               'authorization': 'D1-N3W-P5-M02-AEAD-RUNTIME-DEPENDENCY-SUCCESSOR-REPAIR-20260809-01',
               'predecessor_sha': os.environ['PREDECESSOR_SHA'],
-              'head_sha': os.environ['GITHUB_SHA'],
+              'head_sha': os.environ['HEAD_SHA'],
               'repair': {
                   'cryptography_base_runtime_dependency': True,
                   'production_image_built': True,
