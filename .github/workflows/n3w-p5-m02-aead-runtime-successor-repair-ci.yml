@@ -1,0 +1,171 @@
+name: N3-W P5 M02 AEAD runtime successor repair CI
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/n3w-p5-m02-aead-runtime-successor-repair-ci.yml'
+      - 'host/greenhouse-manager/pyproject.toml'
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-dependency-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Exact predecessor and add-only repair scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          predecessor='752c4709c6c9b60490dbcaf6da5807538dc03fa7'
+          base_ref='feature/n3w-p5-two-board-isolated-e2e-prep-20260807-v1'
+          test '${{ github.event.pull_request.base.ref }}' = "$base_ref"
+          test '${{ github.event.pull_request.base.sha }}' = "$predecessor"
+          test "$(git merge-base "$predecessor" HEAD)" = "$predecessor"
+
+          allowed="$(mktemp)"
+          actual="$(mktemp)"
+          cat >"$allowed" <<'FILES'
+          .github/workflows/n3w-p5-m02-aead-runtime-successor-repair-ci.yml
+          host/greenhouse-manager/pyproject.toml
+          FILES
+          sed -i 's/^          //' "$allowed"
+          sort -o "$allowed" "$allowed"
+          git diff --name-only "$predecessor"...HEAD | sort >"$actual"
+          test "$(wc -l <"$actual")" -eq 2
+          diff -u "$allowed" "$actual"
+
+      - name: Base runtime dependency contract
+        run: |
+          python - <<'PY'
+          import tomllib
+          from pathlib import Path
+
+          path = Path('host/greenhouse-manager/pyproject.toml')
+          document = tomllib.loads(path.read_text(encoding='utf-8'))
+          dependencies = document['project']['dependencies']
+          assert 'cryptography>=44,<50' in dependencies, dependencies
+          assert 'jsonschema>=4.23,<5' in dependencies
+          assert 'paho-mqtt>=2.1,<3' in dependencies
+
+          dockerfile = Path('host/greenhouse-manager/Dockerfile').read_text(encoding='utf-8')
+          assert 'python -m pip install .' in dockerfile
+          assert 'pip install .[' not in dockerfile
+          PY
+
+      - name: Install development test environment
+        run: python -m pip install -e 'host/greenhouse-manager[dev]'
+
+      - name: Full Manager test suite
+        run: pytest -q host/greenhouse-manager/tests
+
+      - name: P5 preparation regression tests
+        run: pytest -q tests/n3w_p5/test_n3w_p5_preparation.py
+
+      - name: Build production Manager image from the real Dockerfile
+        run: docker build -t n3wp5-manager-aead-successor:${GITHUB_SHA} host/greenhouse-manager
+
+      - name: Verify AEAD backend and relay decrypt path inside production image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm -i --entrypoint python n3wp5-manager-aead-successor:${GITHUB_SHA} - <<'PY'
+          from importlib.metadata import requires, version
+
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+          from greenhouse_manager.n3w_relay_ingress import aes256gcm_decrypt
+
+          installed = version('cryptography')
+          major = int(installed.split('.', 1)[0])
+          assert 44 <= major < 50, installed
+
+          manager_requirements = requires('greenhouse-manager') or []
+          assert any(item.lower().startswith('cryptography') for item in manager_requirements), manager_requirements
+
+          key = bytes.fromhex('11' * 32)
+          nonce = bytes.fromhex('22' * 12)
+          aad = b'n3w-p5-m02-aead-runtime-successor'
+          plaintext = b'{"schema":"gh.telemetry/1","probe":"production-image-aead"}'
+          encrypted = AESGCM(key).encrypt(nonce, plaintext, aad)
+          ciphertext, tag = encrypted[:-16], encrypted[-16:]
+          recovered = aes256gcm_decrypt(
+              key=key,
+              nonce=nonce,
+              ciphertext=ciphertext,
+              tag=tag,
+              aad=aad,
+          )
+          assert recovered == plaintext
+          print(f'CRYPTOGRAPHY_VERSION={installed}')
+          print('AESGCM_INSTANTIATION=PASS')
+          print('RELAY_DECRYPT_PATH=PASS')
+          print('BASE_PACKAGE_METADATA_DEPENDENCY=PASS')
+          PY
+
+      - name: Explicit no-physical no-live-runtime safety gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          workflow='.github/workflows/n3w-p5-m02-aead-runtime-successor-repair-ci.yml'
+          ! grep -nE '(esptool|esphome run|/dev/tty|/dev/cu\.|docker exec|docker compose .*up|192\.168\.68\.)' "$workflow"
+          test "$(git diff --name-only 752c4709c6c9b60490dbcaf6da5807538dc03fa7...HEAD | grep -Ec '^(firmware/|infra/compose/)' || true)" -eq 0
+
+      - name: Create secret-free successor evidence
+        env:
+          PREDECESSOR_SHA: 752c4709c6c9b60490dbcaf6da5807538dc03fa7
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          evidence = {
+              'schema': 'gh.n3w-p5-m02-aead-runtime-successor-evidence/1',
+              'authorization': 'D1-N3W-P5-M02-AEAD-RUNTIME-DEPENDENCY-SUCCESSOR-REPAIR-20260809-01',
+              'predecessor_sha': os.environ['PREDECESSOR_SHA'],
+              'head_sha': os.environ['GITHUB_SHA'],
+              'repair': {
+                  'cryptography_base_runtime_dependency': True,
+                  'production_image_built': True,
+                  'cryptography_imported_in_production_image': True,
+                  'aesgcm_instantiated_in_production_image': True,
+                  'relay_decrypt_path_executed_in_production_image': True,
+              },
+              'original_m02': {
+                  'status': 'CONSUMED_FAILED',
+                  'replay_allowed': False,
+                  'path_relay_resend_allowed': False,
+                  'history_rewritten': False,
+              },
+              'physical_board_accessed': False,
+              'live_manager_container_modified': False,
+              'broker_or_ha_modified': False,
+              'production_route_accessed': False,
+          }
+          target = Path('/tmp/n3w-p5-m02-aead-runtime-successor-evidence.json')
+          encoded = (json.dumps(evidence, indent=2, sort_keys=True) + '\n').encode()
+          target.write_bytes(encoded)
+          Path(str(target) + '.sha256').write_text(
+              hashlib.sha256(encoded).hexdigest() + '  ' + target.name + '\n',
+              encoding='utf-8',
+          )
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: n3w-p5-m02-aead-runtime-successor-evidence
+          path: |
+            /tmp/n3w-p5-m02-aead-runtime-successor-evidence.json
+            /tmp/n3w-p5-m02-aead-runtime-successor-evidence.json.sha256
+          if-no-files-found: error
+          retention-days: 14
