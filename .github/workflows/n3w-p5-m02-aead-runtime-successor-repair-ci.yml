@@ -84,7 +84,7 @@ jobs:
           from importlib.metadata import requires, version
 
           from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-          from greenhouse_manager.n3w_relay_ingress import aes256gcm_decrypt
+          from greenhouse_manager.runtime.n3w_relay_ingress import aes256gcm_decrypt
 
           installed = version('cryptography')
           major = int(installed.split('.', 1)[0])
