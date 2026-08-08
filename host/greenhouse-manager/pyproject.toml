@@ -97,7 +97,7 @@ greenhouse-manager-t1-broker-identity-activation-readiness-transaction-plan = "g
 greenhouse-manager-t1-broker-identity-production-transaction-adapter-contract = "greenhouse_manager.ops.t1_broker_identity_production_transaction_adapter_contract:main"
 
 [tool.setuptools]
-package-dir = {"" = "src"]
+package-dir = {"" = "src"}
 include-package-data = true
 
 [tool.setuptools.packages.find]
