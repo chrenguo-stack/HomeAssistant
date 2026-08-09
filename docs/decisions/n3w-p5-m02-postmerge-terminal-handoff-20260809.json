@@ -1,0 +1,133 @@
+{
+  "schema": "gh.n3w-p5-m02-postmerge-terminal-handoff/1",
+  "status": "POSTMERGE_TERMINAL_ARCHIVE_PREPARED",
+  "date": "2026-08-09",
+  "authorization": "D1-N3W-P5-M02-SUCCESSOR-POSTMERGE-TERMINAL-ARCHIVE-AND-DEVELOPMENT-HANDOFF-PREPARATION-R1-EXACT-MAIN-433BF6E5B9C0363B95C747B0C4763EF4404184BC-PR292-PR296-CLOSURE-BOUND-PR276-PRESERVED-20260809-01",
+  "repository": {
+    "exact_main": "433bf6e5b9c0363b95c747b0c4763ef4404184bc",
+    "premerge_main": "8a57243fce0d347ebb20108f4ec5a2d5d4267486",
+    "integration_pr": 296,
+    "integration_head": "61f45f1476791aec303aa487af9000751fe2a994",
+    "integration_method": "merge_commit"
+  },
+  "pull_requests": {
+    "276": {
+      "state": "open",
+      "merged": false,
+      "head": "239ea594c643d4990d449187f8b0cabae619e3d7",
+      "base": "2d444f3e392249c8d7bf1a1aa036e738a418d1cb",
+      "preserved": true
+    },
+    "292": {
+      "state": "closed",
+      "merged": true,
+      "head": "752c4709c6c9b60490dbcaf6da5807538dc03fa7",
+      "integrated_by": 296
+    },
+    "293": {
+      "state": "closed",
+      "merged": false,
+      "head": "3f3ccf641a77ef7c9891373299b0e2d4abe4dd6b",
+      "superseded": true,
+      "branch_preserved": true
+    },
+    "294": {
+      "state": "closed",
+      "merged": false,
+      "head": "a2014677ea0449552f4f58fb0cca27a4f76e6542",
+      "superseded": true,
+      "branch_preserved": true
+    },
+    "295": {
+      "state": "closed",
+      "merged": false,
+      "head": "246160e98632806bf3ee249406e5d691cde7c1f6",
+      "superseded": true,
+      "branch_preserved": true
+    },
+    "296": {
+      "state": "closed",
+      "merged": true,
+      "head": "61f45f1476791aec303aa487af9000751fe2a994",
+      "merge_commit": "433bf6e5b9c0363b95c747b0c4763ef4404184bc",
+      "branch_preserved": true
+    }
+  },
+  "ci": {
+    "pr293": {
+      "run": 31270136039,
+      "conclusion": "success",
+      "head": "3f3ccf641a77ef7c9891373299b0e2d4abe4dd6b",
+      "public_artifact_id": 9025351711,
+      "public_artifact_sha256": "8637cce425c453e86d17d4889b58807f50f98d032b88b64c7e1803a5f2fbf1b5"
+    },
+    "pr294": {
+      "run": 31292771162,
+      "conclusion": "success",
+      "head": "a2014677ea0449552f4f58fb0cca27a4f76e6542",
+      "public_artifact_id": 9031937556,
+      "public_artifact_sha256": "6474d8fad7ba222bff4891fc6fe80d0534a20e224007febc1d476573ffa1276f"
+    },
+    "pr295": {
+      "run": 31304344487,
+      "conclusion": "success",
+      "head": "246160e98632806bf3ee249406e5d691cde7c1f6"
+    },
+    "pr296": {
+      "run": 31308467411,
+      "conclusion": "success",
+      "head": "61f45f1476791aec303aa487af9000751fe2a994",
+      "public_artifact_id": 9036679174,
+      "public_artifact_sha256": "11d1b66d12f444e23621f7e0cf20c83c3c124a225857f45fa334e8a6cf7b9c2c"
+    }
+  },
+  "closure": {
+    "original_r3_m02_status": "CONSUMED_FAILED",
+    "original_r3_m02_replay_allowed": false,
+    "successor_factory_stages_passed": true,
+    "relay_path_real_aead_canonical_continuity_passed": true,
+    "gateway_ingress_frames": 24,
+    "canonical_telemetry_messages": 18,
+    "sequence_start": 143,
+    "sequence_end": 167,
+    "active_canonical_transport": "relay",
+    "production_services_modified": false,
+    "production_services_restarted": false
+  },
+  "last_operator_confirmed_state": {
+    "reverified_by_this_archive": false,
+    "child_mac_usb_sole_power": true,
+    "child_usb_connection_unchanged": true,
+    "relay_mac_usb_sole_power": true,
+    "relay_independent_5v_disconnected": true,
+    "no_reported_power_or_cable_change_after_acceptance": true
+  },
+  "public_boundary": {
+    "secret_values_included": false,
+    "board_macs_included": false,
+    "private_evidence_hashes_included": false,
+    "private_terminal_transcripts_included": false,
+    "factory_image_hashes_included": false,
+    "private_package_hashes_included": false,
+    "replayable_authorization_included": false
+  },
+  "operations_performed": {
+    "board_access": false,
+    "usb_or_serial_access": false,
+    "flash_erase_or_ota": false,
+    "power_change": false,
+    "mqtt_publish": false,
+    "path_control": false,
+    "live_service_mutation": false,
+    "production_network_access": false,
+    "deployment": false,
+    "release": false,
+    "tag": false
+  },
+  "next_gate": {
+    "archive_ready_for_review_authorized": false,
+    "archive_merge_authorized": false,
+    "m03_authorized": false,
+    "fresh_readonly_drift_review_required": true
+  }
+}
