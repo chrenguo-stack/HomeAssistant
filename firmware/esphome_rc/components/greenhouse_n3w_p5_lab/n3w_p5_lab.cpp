@@ -382,9 +382,12 @@ std::string GreenhouseN3wP5Lab::build_telemetry_(uint32_t seq) const {
 
 bool GreenhouseN3wP5Lab::publish_direct_(uint32_t seq, const std::string &telemetry) {
   if (mqtt::global_mqtt_client == nullptr || !mqtt::global_mqtt_client->is_connected()) return false;
-  if (!cache_relay_datagrams_(seq, telemetry, nullptr)) return false;
+  std::vector<std::vector<uint8_t>> pending_datagrams;
+  if (!build_relay_datagrams_(seq, telemetry, nullptr, &pending_datagrams)) return false;
   const std::string topic = "gh/v1/" + system_id_ + "/ingress/node/" + node_id_ + "/telemetry";
-  return mqtt::global_mqtt_client->publish(topic, telemetry, 1, false);
+  if (!mqtt::global_mqtt_client->publish(topic, telemetry, 1, false)) return false;
+  last_datagrams_ = std::move(pending_datagrams);
+  return true;
 }
 
 ApplicationKeyState *GreenhouseN3wP5Lab::active_key_() {
@@ -394,13 +397,17 @@ ApplicationKeyState *GreenhouseN3wP5Lab::active_key_() {
 bool GreenhouseN3wP5Lab::publish_relay_(uint32_t seq, const std::string &telemetry) {
   if (!radio_ready_ || !relay_authenticated_) return false;
   RelayFrame frame{};
-  if (!cache_relay_datagrams_(seq, telemetry, &frame)) return false;
+  std::vector<std::vector<uint8_t>> pending_datagrams;
+  if (!build_relay_datagrams_(seq, telemetry, &frame, &pending_datagrams)) return false;
   if (cache_.enqueue(frame, now_ms_()) != greenhouse_n3w_core::RadioError::NONE) return false;
+  last_datagrams_ = std::move(pending_datagrams);
   flush_relay_cache_();
   return true;
 }
 
-bool GreenhouseN3wP5Lab::cache_relay_datagrams_(uint32_t seq, const std::string &telemetry, RelayFrame *frame) {
+bool GreenhouseN3wP5Lab::build_relay_datagrams_(uint32_t seq, const std::string &telemetry, RelayFrame *frame,
+                                                std::vector<std::vector<uint8_t>> *datagrams) {
+  if (datagrams == nullptr) return false;
   greenhouse_n3w_core::RelayHeader header{};
   header.gateway_id = gateway_id_;
   header.node_id = node_id_;
@@ -411,12 +418,12 @@ bool GreenhouseN3wP5Lab::cache_relay_datagrams_(uint32_t seq, const std::string 
   if (greenhouse_n3w_core::build_relay_frame(header, *active_key_(), telemetry, &cached_frame) !=
       greenhouse_n3w_core::CoreError::NONE)
     return false;
-  std::vector<std::vector<uint8_t>> datagrams;
-  if (greenhouse_n3w_core::fragment_relay_frame(cached_frame, &datagrams) !=
+  std::vector<std::vector<uint8_t>> pending_datagrams;
+  if (greenhouse_n3w_core::fragment_relay_frame(cached_frame, &pending_datagrams) !=
       greenhouse_n3w_core::RadioError::NONE)
     return false;
-  last_datagrams_ = std::move(datagrams);
   if (frame != nullptr) *frame = std::move(cached_frame);
+  *datagrams = std::move(pending_datagrams);
   return true;
 }
 

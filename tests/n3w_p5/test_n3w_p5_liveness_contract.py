@@ -119,7 +119,7 @@ def test_cached_resend_requires_radio_ready_and_reports_exact_outcome() -> None:
     assert "desired_path_" not in body
 
 
-def test_direct_publish_primes_exact_relay_datagram_cache_before_mqtt() -> None:
+def test_direct_publish_commits_exact_relay_datagrams_only_after_mqtt_success() -> None:
     source = P5_CPP.read_text(encoding="utf-8")
     header = P5_H.read_text(encoding="utf-8")
     direct = function_body(
@@ -129,13 +129,17 @@ def test_direct_publish_primes_exact_relay_datagram_cache_before_mqtt() -> None:
     )
     cache = function_body(
         source,
-        "bool GreenhouseN3wP5Lab::cache_relay_datagrams_",
+        "bool GreenhouseN3wP5Lab::build_relay_datagrams_",
         "void GreenhouseN3wP5Lab::flush_relay_cache_",
     )
 
-    prime = direct.index("cache_relay_datagrams_(seq, telemetry, nullptr)")
+    build = direct.index(
+        "build_relay_datagrams_(seq, telemetry, nullptr, &pending_datagrams)"
+    )
     publish = direct.index("global_mqtt_client->publish")
-    assert prime < publish
+    publish_failure = direct.index("return false", publish)
+    commit = direct.index("last_datagrams_ = std::move(pending_datagrams)")
+    assert build < publish < publish_failure < commit
     assert "(void) seq" not in direct
     assert "driver_.send" not in direct
     assert "cache_.enqueue" not in direct
@@ -144,11 +148,12 @@ def test_direct_publish_primes_exact_relay_datagram_cache_before_mqtt() -> None:
         "build_relay_frame(header, *active_key_(), telemetry, &cached_frame)" in cache
     )
     assert "header.seq = seq" in cache
-    assert "fragment_relay_frame(cached_frame, &datagrams)" in cache
-    assert "last_datagrams_ = std::move(datagrams)" in cache
+    assert "fragment_relay_frame(cached_frame, &pending_datagrams)" in cache
+    assert "*datagrams = std::move(pending_datagrams)" in cache
+    assert "last_datagrams_" not in cache
     assert "driver_.send" not in cache
     assert "cache_.enqueue" not in cache
-    assert "bool cache_relay_datagrams_(uint32_t seq" in header
+    assert "bool build_relay_datagrams_(uint32_t seq" in header
 
 
 def test_relay_publish_reuses_cache_priming_then_enqueues_for_normal_retry() -> None:
@@ -156,13 +161,16 @@ def test_relay_publish_reuses_cache_priming_then_enqueues_for_normal_retry() -> 
     relay = function_body(
         source,
         "bool GreenhouseN3wP5Lab::publish_relay_",
-        "bool GreenhouseN3wP5Lab::cache_relay_datagrams_",
+        "bool GreenhouseN3wP5Lab::build_relay_datagrams_",
     )
 
-    prime = relay.index("cache_relay_datagrams_(seq, telemetry, &frame)")
+    build = relay.index(
+        "build_relay_datagrams_(seq, telemetry, &frame, &pending_datagrams)"
+    )
     enqueue = relay.index("cache_.enqueue(frame, now_ms_())")
+    commit = relay.index("last_datagrams_ = std::move(pending_datagrams)")
     flush = relay.index("flush_relay_cache_()")
-    assert prime < enqueue < flush
+    assert build < enqueue < commit < flush
 
 
 def test_async_espnow_delivery_failure_is_deferred_out_of_wifi_callback() -> None:
