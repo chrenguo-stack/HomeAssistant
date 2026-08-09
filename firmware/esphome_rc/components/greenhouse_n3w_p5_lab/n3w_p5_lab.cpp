@@ -266,7 +266,10 @@ void GreenhouseN3wP5Lab::process_relay_packet_(const RxEvent &event) {
   bool receipt_ready = false;
   const auto error = relay_ingress_.accept_fragment(
       event.data.data(), event.size, gateway_id_, node_id_, &receipt, &receipt_ready);
-  if (receipt_ready) {
+  const bool completed_receipt =
+      receipt_ready ||
+      (error == greenhouse_n3w_core::RadioError::NONE && receipt.boot_session != 0);
+  if (completed_receipt) {
     std::vector<uint8_t> reply;
     if (greenhouse_n3w_core::encode_authenticated_receipt_ack(
             lmk_, receipt.boot_session, receipt.seq, receipt.status, &reply) == greenhouse_n3w_core::RadioError::NONE)
@@ -305,16 +308,24 @@ bool GreenhouseN3wP5Lab::send_probe_() {
 void GreenhouseN3wP5Lab::maybe_publish_() {
   const uint64_t now = now_ms_();
   if (now - last_publish_ms_ < publish_interval_ms_) return;
-  if (desired_path_ == DesiredPath::RELAY && !relay_authenticated_) return;
+  if (desired_path_ == DesiredPath::RELAY &&
+      (!relay_authenticated_ || !radio_ready_ || cache_.full()))
+    return;
+  if (desired_path_ == DesiredPath::DIRECT &&
+      (mqtt::global_mqtt_client == nullptr || !mqtt::global_mqtt_client->is_connected()))
+    return;
   uint32_t seq = 0;
   if (boot_.take_sequence(&seq) != greenhouse_n3w_core::CoreError::NONE) {
     ESP_LOGE(TAG, "Sequence exhausted or boot session unavailable");
     this->mark_failed();
     return;
   }
+  last_publish_ms_ = now;
   const std::string telemetry = build_telemetry_(seq);
-  const bool accepted = desired_path_ == DesiredPath::DIRECT ? publish_direct_(seq, telemetry) : publish_relay_(seq, telemetry);
-  if (accepted) last_publish_ms_ = now;
+  if (desired_path_ == DesiredPath::DIRECT)
+    publish_direct_(seq, telemetry);
+  else
+    publish_relay_(seq, telemetry);
 }
 
 std::string GreenhouseN3wP5Lab::build_telemetry_(uint32_t seq) const {
@@ -371,7 +382,12 @@ void GreenhouseN3wP5Lab::flush_relay_cache_() {
   const uint32_t seq = entry->seq;
   const auto datagrams = entry->datagrams;
   const bool sent = send_datagrams_(datagrams, false);
-  cache_.note_attempt(session, seq, now);
+  const auto attempt = cache_.note_attempt(session, seq, now);
+  if (attempt == greenhouse_n3w_core::RadioError::RETRY_EXHAUSTED) {
+    const bool discarded = cache_.discard(session, seq);
+    ESP_LOGW(TAG, "Relay retry exhausted boot=%llu seq=%u discarded=%s",
+             static_cast<unsigned long long>(session), static_cast<unsigned>(seq), discarded ? "true" : "false");
+  }
   if (!sent) ESP_LOGW(TAG, "Relay datagram send failed boot=%llu seq=%u", static_cast<unsigned long long>(session), static_cast<unsigned>(seq));
 }
 
