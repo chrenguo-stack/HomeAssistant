@@ -53,8 +53,9 @@ void GreenhouseN3wP5Lab::setup() {
   }
 #ifdef USE_ESP32
   rx_queue_ = xQueueCreate(8, sizeof(RxEvent));
-  if (rx_queue_ == nullptr) {
-    ESP_LOGE(TAG, "Unable to allocate bounded RX queue");
+  tx_queue_ = xQueueCreate(8, sizeof(TxEvent));
+  if (rx_queue_ == nullptr || tx_queue_ == nullptr) {
+    ESP_LOGE(TAG, "Unable to allocate bounded ESP-NOW event queues");
     this->mark_failed();
     return;
   }
@@ -205,6 +206,7 @@ void GreenhouseN3wP5Lab::loop() {
   if (!execution_enabled_ || this->is_failed()) return;
   ensure_radio_ready_();
   process_rx_();
+  process_tx_();
   if (!is_child_) return;
   maybe_probe_();
   flush_relay_cache_();
@@ -236,10 +238,13 @@ void GreenhouseN3wP5Lab::on_espnow_send_result(
     const MacAddress &destination,
     bool success) {
   (void) destination;
-  if (!success) {
-    ++send_failures_;
-    ESP_LOGW(TAG, "ESP-NOW delivery callback failed total=%u", static_cast<unsigned>(send_failures_));
-  }
+#ifdef USE_ESP32
+  if (success || tx_queue_ == nullptr) return;
+  TxEvent event{};
+  xQueueSend(tx_queue_, &event, 0);
+#else
+  (void) success;
+#endif
 }
 
 void GreenhouseN3wP5Lab::process_rx_() {
@@ -250,6 +255,18 @@ void GreenhouseN3wP5Lab::process_rx_() {
     if (!greenhouse_n3w_core::same_mac(event.source, peer_mac_)) continue;
     if (is_child_) process_child_packet_(event);
     else process_relay_packet_(event);
+  }
+#endif
+}
+
+void GreenhouseN3wP5Lab::process_tx_() {
+#ifdef USE_ESP32
+  if (tx_queue_ == nullptr) return;
+  TxEvent event{};
+  while (xQueueReceive(tx_queue_, &event, 0) == pdTRUE) {
+    if (event.success) continue;
+    ++send_failures_;
+    ESP_LOGW(TAG, "ESP-NOW delivery callback failed total=%u", static_cast<unsigned>(send_failures_));
   }
 #endif
 }

@@ -119,16 +119,27 @@ def test_cached_resend_requires_radio_ready_and_reports_exact_outcome() -> None:
     assert "desired_path_" not in body
 
 
-def test_async_espnow_delivery_failure_is_observable() -> None:
+def test_async_espnow_delivery_failure_is_deferred_out_of_wifi_callback() -> None:
     source = P5_CPP.read_text(encoding="utf-8")
-    body = function_body(
+    callback = function_body(
         source,
         "void GreenhouseN3wP5Lab::on_espnow_send_result",
         "void GreenhouseN3wP5Lab::process_rx_",
     )
+    processor = function_body(
+        source,
+        "void GreenhouseN3wP5Lab::process_tx_",
+        "void GreenhouseN3wP5Lab::process_child_packet_",
+    )
+    header = P5_H.read_text(encoding="utf-8")
 
-    assert "++send_failures_" in body
-    assert "ESP-NOW delivery callback failed total=%u" in body
+    assert "xQueueSend(tx_queue_" in callback
+    assert "ESP_LOG" not in callback
+    assert "++send_failures_" not in callback
+    assert "xQueueReceive(tx_queue_" in processor
+    assert "++send_failures_" in processor
+    assert "ESP-NOW delivery callback failed total=%u" in processor
+    assert "QueueHandle_t tx_queue_{nullptr};" in header
 
 
 def test_relay_sends_explicit_rejected_receipt_without_false_positive_acceptance() -> (
