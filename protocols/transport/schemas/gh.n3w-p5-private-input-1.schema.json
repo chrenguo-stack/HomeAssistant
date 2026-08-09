@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hahub.top/schemas/gh.n3w-p5-private-input-1.schema.json",
+  "title": "N3-W P5 private physical input v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "authorization_id", "repository_sha", "system_id", "node_id", "gateway_id", "child_mac", "relay_mac", "wifi", "mqtt", "keys", "session_floor", "wifi_channel"],
+  "properties": {
+    "schema": {"const": "gh.n3w-p5-private-input/1"},
+    "authorization_id": {"type": "string", "minLength": 16, "maxLength": 160},
+    "repository_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "system_id": {"const": "n3wp5lab"},
+    "node_id": {"type": "string", "pattern": "^[A-Za-z0-9_-]{8,64}$"},
+    "gateway_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$"},
+    "child_mac": {"type": "string", "pattern": "^[0-9a-f]{2}(:[0-9a-f]{2}){5}$"},
+    "relay_mac": {"type": "string", "pattern": "^[0-9a-f]{2}(:[0-9a-f]{2}){5}$"},
+    "wifi_channel": {"type": "integer", "minimum": 1, "maximum": 14},
+    "session_floor": {"type": "integer", "minimum": 1, "maximum": 18446744073709551614},
+    "wifi": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ssid", "password"],
+      "properties": {
+        "ssid": {"type": "string", "minLength": 1, "maxLength": 32},
+        "password": {"type": "string", "minLength": 8, "maxLength": 63}
+      }
+    },
+    "mqtt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["host", "port", "child_username", "child_password", "relay_username", "relay_password", "manager_username", "manager_password", "ha_username", "ha_password"],
+      "properties": {
+        "host": {"type": "string", "minLength": 1, "maxLength": 253},
+        "port": {"type": "integer", "minimum": 1, "maximum": 65535},
+        "child_username": {"type": "string", "minLength": 3, "maxLength": 64},
+        "child_password": {"type": "string", "minLength": 16, "maxLength": 256},
+        "relay_username": {"type": "string", "minLength": 3, "maxLength": 64},
+        "relay_password": {"type": "string", "minLength": 16, "maxLength": 256},
+        "manager_username": {"type": "string", "minLength": 3, "maxLength": 64},
+        "manager_password": {"type": "string", "minLength": 16, "maxLength": 256},
+        "ha_username": {"type": "string", "minLength": 3, "maxLength": 64},
+        "ha_password": {"type": "string", "minLength": 16, "maxLength": 256}
+      }
+    },
+    "keys": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pmk_hex", "lmk_hex", "application_epoch_1_hex", "application_epoch_2_hex"],
+      "properties": {
+        "pmk_hex": {"type": "string", "pattern": "^[0-9a-f]{32}$"},
+        "lmk_hex": {"type": "string", "pattern": "^[0-9a-f]{32}$"},
+        "application_epoch_1_hex": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "application_epoch_2_hex": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    }
+  }
+}

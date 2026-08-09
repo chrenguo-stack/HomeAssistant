@@ -1,0 +1,110 @@
+{
+  "schema": "gh.n3w-p5-two-board-isolated-e2e-preparation/1",
+  "status": "preparation_in_progress",
+  "authorization_basis": "USER_APPROVED_P5_PREPARATION_20260807",
+  "preparation_gate": "D1-N3W-P5-TWO-BOARD-ISOLATED-E2E-PREPARATION-20260807-01",
+  "base_ref": "main",
+  "base_sha": "8a57243fce0d347ebb20108f4ec5a2d5d4267486",
+  "preserved_pr": 276,
+  "preserved_pr_head": "239ea594c643d4990d449187f8b0cabae619e3d7",
+  "p4b_dependency": {
+    "merged_pr": 291,
+    "merge_commit_sha": "8a57243fce0d347ebb20108f4ec5a2d5d4267486"
+  },
+  "mode": "PREPARATION_ONLY_NO_PHYSICAL_EXECUTION",
+  "branch": "feature/n3w-p5-two-board-isolated-e2e-prep-20260807-v1",
+  "pr_type": "Draft",
+  "force_push": false,
+  "board_toolchain_lineage": {
+    "accepted_source_pr": 204,
+    "accepted_source_head": "8d76634adb171c6492e51a5ebd855bcd52bcf073",
+    "board": "esp32-c6-devkitm-1",
+    "variant": "ESP32C6",
+    "flash_size": "8MB",
+    "framework": "esp-idf",
+    "esphome_version": "2026.4.3",
+    "historical_target_blob": "9dc8f766287e3cb47baf3e1f727635a85848e469"
+  },
+  "roles": {
+    "child": {
+      "logical_role": "N3-W Child",
+      "node_id_source": "private_physical_package",
+      "physical_mac_source": "future_read_only_board_binding",
+      "paths": ["wifi_direct", "espnow_relay"],
+      "holds_application_key": true,
+      "publishes_homeassistant_discovery": false
+    },
+    "relay": {
+      "logical_role": "N3-W single-hop Wi-Fi Relay",
+      "gateway_id_source": "private_physical_package",
+      "physical_mac_source": "future_read_only_board_binding",
+      "holds_application_key": false,
+      "decrypts_child_payload": false,
+      "publishes_homeassistant_discovery": false
+    }
+  },
+  "topology": "child_espnow_relay_isolated_wifi_mqtt_manager_homeassistant",
+  "contract": {
+    "mesh": false,
+    "multihop": false,
+    "single_node_id_across_paths": true,
+    "manager_only_canonical_publisher": true,
+    "same_homeassistant_device_across_paths": true,
+    "relay_receipt_is_manager_ack": false,
+    "manager_replay_and_path_lease_persistent": true,
+    "production_paths_used": false
+  },
+  "private_material": {
+    "generated_in_current_gate": false,
+    "committed_to_repository": false,
+    "future_required": [
+      "child_board_mac",
+      "relay_board_mac",
+      "espnow_pmk_16_bytes",
+      "espnow_lmk_16_bytes",
+      "application_key_epoch_1_32_bytes",
+      "application_key_epoch_2_32_bytes",
+      "isolated_wifi_ssid_and_psk",
+      "isolated_mqtt_credentials",
+      "manager_session_floor"
+    ],
+    "public_evidence_contains_only_fingerprints": true
+  },
+  "required_matrix": [
+    "direct_to_relay",
+    "relay_to_direct",
+    "same_node_id_same_ha_device",
+    "no_duplicate_discovery",
+    "no_canonical_rollback",
+    "duplicate_reorder_late",
+    "child_restart",
+    "relay_restart",
+    "manager_restart",
+    "lease_replay_persistence",
+    "gateway_authorization_revoke",
+    "application_key_rotation",
+    "broker_outage_recovery",
+    "complete_cleanup"
+  ],
+  "safety_boundary": {
+    "board_connected": false,
+    "board_enumerated": false,
+    "serial_opened": false,
+    "flash_executed": false,
+    "erase_executed": false,
+    "ota_executed": false,
+    "espnow_over_air_executed": false,
+    "real_key_generated_or_used": false,
+    "isolated_live_stack_started": false,
+    "production_t1_accessed": false,
+    "production_broker_accessed": false,
+    "production_homeassistant_accessed": false,
+    "production_manager_db_accessed": false,
+    "production_runtime_enabled": false,
+    "pr276_mutated": false,
+    "ready_or_merge_performed": false,
+    "deploy_release_tag_or_n3l": false
+  },
+  "next_gate": "D1-N3W-P5-TWO-BOARD-ISOLATED-E2E-PHYSICAL-EXECUTION-20260807-01",
+  "next_gate_status": "NOT_APPROVED_NOT_CREATED_AS_CONSUMABLE_AUTHORIZATION"
+}

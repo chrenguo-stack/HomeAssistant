@@ -1,0 +1,48 @@
+{
+  "schema": "gh.n3w-p5-execution-plan/1",
+  "status": "template_only",
+  "physical_execution_authorized": false,
+  "authorization_placeholder": "D1-N3W-P5-TWO-BOARD-ISOLATED-E2E-PHYSICAL-EXECUTION-20260807-01",
+  "terminal_attempt_policy": "one_authorization_one_terminal_attempt_no_replay",
+  "preflight": [
+    "verify_exact_main_and_execution_head",
+    "verify_pr276_unchanged",
+    "verify_ruleset_unchanged",
+    "verify_private_input_schema",
+    "bind_child_and_relay_mac_read_only",
+    "verify_distinct_board_macs",
+    "verify_isolated_wifi_channel",
+    "build_child_and_relay_from_exact_source",
+    "record_bin_elf_map_sha256",
+    "verify_no_production_route_or_volume",
+    "initialize_isolated_registration_replay_auth_state",
+    "record_db_before_hashes"
+  ],
+  "matrix": [
+    {"id": "M01", "name": "direct_steady", "action": "Child PATH DIRECT; collect >=3 canonical frames", "expect": "single active direct path; one HA device"},
+    {"id": "M02", "name": "direct_to_relay", "action": "Child PATH RELAY; authenticated Probe then >=3 frames", "expect": "lease switches only after stability; no duplicate canonical"},
+    {"id": "M03", "name": "relay_to_direct", "action": "Child PATH DIRECT; collect >=3 frames", "expect": "lease returns to direct; bounded old grace"},
+    {"id": "M04", "name": "duplicate", "action": "Child RESEND", "expect": "same tuple is duplicate; canonical unchanged"},
+    {"id": "M05", "name": "reorder", "action": "Child PATH RELAY then REORDER", "expect": "reassembly deterministic; at most one canonical"},
+    {"id": "M06", "name": "late_old_frame", "action": "advance canonical then Child RESEND old frame", "expect": "old frame cannot roll canonical back"},
+    {"id": "M07", "name": "child_restart", "action": "Child RESTART", "expect": "new persisted boot session; no nonce reuse"},
+    {"id": "M08", "name": "relay_restart", "action": "Relay RESTART", "expect": "re-Probe/reassembly recovery; same NODE_ID"},
+    {"id": "M09", "name": "manager_restart", "action": "restart isolated manager container only", "expect": "path lease and replay/high-water restore"},
+    {"id": "M10", "name": "authorization_revoke", "action": "lab admin revoke-grant", "expect": "Relay ingress fail closed and Relay lease invalidated"},
+    {"id": "M11", "name": "authorization_regrant", "action": "lab admin grant", "expect": "Relay must re-enter through normal stability path"},
+    {"id": "M12", "name": "key_rotation", "action": "activate epoch2 then Child KEY 2", "expect": "epoch2 accepted; canonical continuous; epoch1 grace semantics observable"},
+    {"id": "M13", "name": "broker_outage", "action": "stop isolated broker, wait through retry window, restore broker", "expect": "no false positive ReceiptAck; bounded retry; recovery without duplicate canonical"},
+    {"id": "M14", "name": "identity_continuity", "action": "compare HA device/entity registries before/after all path switches", "expect": "same NODE_ID maps to one device; no duplicate Discovery"}
+  ],
+  "cleanup": [
+    "stop_isolated_compose",
+    "destroy_p5_broker_passwords",
+    "destroy_p5_wifi_psk_copy",
+    "revoke_and_destroy_p5_application_keys",
+    "destroy_pmk_lmk_private_copies",
+    "destroy_isolated_manager_databases_and_ha_volume_after_hash_capture",
+    "remove_temporary_rendered_firmware_inputs",
+    "retain_only_secret_free_evidence",
+    "verify_production_services_unchanged"
+  ]
+}

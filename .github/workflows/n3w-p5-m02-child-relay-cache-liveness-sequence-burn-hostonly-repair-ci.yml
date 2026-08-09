@@ -1,0 +1,176 @@
+name: N3-W P5 M02 child relay cache liveness successor repair CI
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/n3w-p5-m02-child-relay-cache-liveness-sequence-burn-hostonly-repair-ci.yml'
+      - '.github/workflows/n3w-p5-two-board-isolated-e2e-prep-ci.yml'
+      - '.github/workflows/n3w-esp32c6-espnow-radio-runtime-ci.yml'
+      - 'firmware/esphome_rc/components/greenhouse_n3w_core/n3w_radio.h'
+      - 'firmware/esphome_rc/components/greenhouse_n3w_p5_lab/n3w_p5_lab.cpp'
+      - 'tests/n3w_p5/n3w_p5_liveness_host_test.cpp'
+      - 'tests/n3w_p5/test_n3w_p5_liveness_contract.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  host-only-liveness-repair:
+    if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.base.ref == 'feature/n3w-p5-m02-aead-runtime-dependency-successor-repair-20260809-v2' && github.event.pull_request.base.sha == '3f3ccf641a77ef7c9891373299b0e2d4abe4dd6b') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Exact predecessor and repair scope gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='3f3ccf641a77ef7c9891373299b0e2d4abe4dd6b'
+          base_branch='feature/n3w-p5-m02-aead-runtime-dependency-successor-repair-20260809-v2'
+          if [ "$GITHUB_EVENT_NAME" = 'pull_request' ]; then
+            test '${{ github.event.pull_request.base.ref }}' = "$base_branch"
+            test '${{ github.event.pull_request.base.sha }}' = "$base"
+          fi
+          test "$(git merge-base "$base" HEAD)" = "$base"
+
+          allowed="$(mktemp)"
+          actual="$(mktemp)"
+          cat >"$allowed" <<'FILES'
+          .github/workflows/n3w-esp32c6-espnow-radio-runtime-ci.yml
+          .github/workflows/n3w-p5-m02-child-relay-cache-liveness-sequence-burn-hostonly-repair-ci.yml
+          .github/workflows/n3w-p5-two-board-isolated-e2e-prep-ci.yml
+          firmware/esphome_rc/components/greenhouse_n3w_core/n3w_radio.h
+          firmware/esphome_rc/components/greenhouse_n3w_p5_lab/n3w_p5_lab.cpp
+          tests/n3w_p5/n3w_p5_liveness_host_test.cpp
+          tests/n3w_p5/test_n3w_p5_liveness_contract.py
+          FILES
+          sed -i 's/^          //' "$allowed"
+          sort -o "$allowed" "$allowed"
+          git diff --name-only "$base"...HEAD | sort >"$actual"
+          test "$(wc -l <"$actual")" -eq 7
+          diff -u "$allowed" "$actual"
+
+      - name: Verify immutable predecessor bindings
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse 3f3ccf641a77ef7c9891373299b0e2d4abe4dd6b^{commit})" = \
+            '3f3ccf641a77ef7c9891373299b0e2d4abe4dd6b'
+          git merge-base --is-ancestor \
+            752c4709c6c9b60490dbcaf6da5807538dc03fa7 \
+            3f3ccf641a77ef7c9891373299b0e2d4abe4dd6b
+
+      - name: Install host-only dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ libmbedtls-dev
+          python -m pip install --upgrade pytest ruff
+
+      - name: Python liveness contract quality
+        run: |
+          python -m compileall -q tests/n3w_p5/test_n3w_p5_liveness_contract.py
+          ruff check tests/n3w_p5/test_n3w_p5_liveness_contract.py
+          ruff format --check tests/n3w_p5/test_n3w_p5_liveness_contract.py
+
+      - name: Build and execute relay cache liveness host test
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -Wall -Wextra -Werror \
+            -Ifirmware/esphome_rc/components/greenhouse_n3w_core \
+            firmware/esphome_rc/components/greenhouse_n3w_core/n3w_core.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_core/n3w_radio.cpp \
+            tests/n3w_p5/n3w_p5_liveness_host_test.cpp \
+            -lmbedcrypto \
+            -o /tmp/n3w_p5_liveness_host_test
+          /tmp/n3w_p5_liveness_host_test
+
+      - name: P5 integration liveness contract tests
+        run: pytest -q tests/n3w_p5/test_n3w_p5_liveness_contract.py
+
+      - name: Explicit host-only and immutable-live safety gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='3f3ccf641a77ef7c9891373299b0e2d4abe4dd6b'
+          changed="$(git diff --name-only "$base"...HEAD)"
+          if printf '%s\n' "$changed" | grep -E \
+            '^(firmware/esphome_rc/f1_0_rc2/|infra/compose/|host/greenhouse-manager/)'; then
+            echo 'Live/product runtime mutation is outside host-only repair authorization'
+            exit 1
+          fi
+          ! grep -R -n -E \
+            '(esphome run|esptool|pio run .*upload|espota|/dev/cu\.|/dev/tty|192\.168\.68\.)' \
+            firmware/esphome_rc/components/greenhouse_n3w_core/n3w_radio.h \
+            firmware/esphome_rc/components/greenhouse_n3w_p5_lab/n3w_p5_lab.cpp \
+            tests/n3w_p5/n3w_p5_liveness_host_test.cpp
+          test "$(git diff --name-only "$base"...HEAD | grep -E '^firmware/esphome_rc/board_lab/' || true)" = ''
+
+      - name: Write secret-free exact-HEAD evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          repository_sha="$GITHUB_SHA"
+          if [ "$GITHUB_EVENT_NAME" = 'pull_request' ]; then
+            repository_sha='${{ github.event.pull_request.head.sha }}'
+          fi
+          REPOSITORY_SHA="$repository_sha" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          evidence = {
+              'schema': 'gh.n3w-p5-m02-child-liveness-hostonly-repair-evidence/1',
+              'repository_sha': os.environ['REPOSITORY_SHA'],
+              'exact_predecessor_sha': '3f3ccf641a77ef7c9891373299b0e2d4abe4dd6b',
+              'p5_predecessor_sha': '752c4709c6c9b60490dbcaf6da5807538dc03fa7',
+              'authorization': 'D1-N3W-P5-M02-SUCCESSOR-CHILD-RELAY-CACHE-LIVENESS-AND-SEQUENCE-BURN-HOSTONLY-REPAIR-20260809-01',
+              'host_only': True,
+              'board_accessed': False,
+              'live_stack_modified': False,
+              'path_control_command_sent': False,
+              'original_m02_status': 'CONSUMED_FAILED',
+              'original_m02_replay_allowed': False,
+              'physical_successor_completion_claimed': False,
+          }
+          Path('n3w-p5-m02-child-liveness-hostonly-repair-evidence.json').write_text(
+              json.dumps(evidence, indent=2, sort_keys=True) + '\n',
+              encoding='utf-8',
+          )
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: n3w-p5-m02-child-liveness-hostonly-repair-evidence
+          path: n3w-p5-m02-child-liveness-hostonly-repair-evidence.json
+          if-no-files-found: error
+          retention-days: 14
+
+  esp32-c6-p5-compile-only:
+    needs: host-only-liveness-repair
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [child, relay]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install frozen ESPHome
+        run: python -m pip install --upgrade 'esphome==2026.4.3'
+      - name: Validate compile-only P5 target
+        run: esphome config firmware/esphome_rc/board_lab/n3w_p5_two_board/${{ matrix.target }}.yml
+      - name: Compile P5 target without upload
+        run: esphome compile firmware/esphome_rc/board_lab/n3w_p5_two_board/${{ matrix.target }}.yml

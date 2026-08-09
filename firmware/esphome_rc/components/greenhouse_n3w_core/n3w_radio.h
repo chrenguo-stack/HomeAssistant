@@ -261,7 +261,18 @@ class ChildRelayCache {
       uint32_t seq,
       uint64_t now_ms);
   bool acknowledge(const ReceiptAckPacket &ack);
+  bool discard(uint64_t boot_session, uint32_t seq) {
+    if (boot_session == 0) return false;
+    for (auto it = entries_.begin(); it != entries_.end(); ++it) {
+      if (it->boot_session == boot_session && it->seq == seq) {
+        entries_.erase(it);
+        return true;
+      }
+    }
+    return false;
+  }
   std::size_t size() const { return entries_.size(); }
+  bool full() const { return capacity_ == 0 || entries_.size() >= capacity_; }
 
  protected:
   CachedRelayFrame *find_(uint64_t boot_session, uint32_t seq);

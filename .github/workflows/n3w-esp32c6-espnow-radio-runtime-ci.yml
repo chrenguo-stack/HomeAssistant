@@ -16,6 +16,7 @@ permissions:
 
 jobs:
   host-only-radio:
+    if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.base.ref == 'main' && github.event.pull_request.base.sha == '4f9242efc8c1b4776e4cc46c66ebc85b6e4ffe57' && github.event.pull_request.head.ref == 'feature/n3w-esp32c6-espnow-radio-runtime-20260807-v1' && github.event.pull_request.head.sha == 'b29ba2727a46c42c887b662fb67273bbb9a6caa2') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
