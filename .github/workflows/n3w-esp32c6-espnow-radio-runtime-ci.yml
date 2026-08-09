@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   host-only-radio:
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.base.ref != 'feature/n3w-p5-m02-aead-runtime-dependency-successor-repair-20260809-v2' }}
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'agent/n3w-p5-m02-stacked-main-integration-20260809-v1' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
