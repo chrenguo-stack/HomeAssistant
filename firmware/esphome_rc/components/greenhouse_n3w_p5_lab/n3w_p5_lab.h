@@ -113,12 +113,14 @@ class GreenhouseN3wP5Lab final : public Component,
 
   bool is_child_{false};
   bool radio_ready_{false};
+  bool radio_attempted_{false};
   bool relay_authenticated_{false};
   DesiredPath desired_path_{DesiredPath::DIRECT};
   uint32_t selected_key_epoch_{1};
   uint64_t probe_challenge_{0x5045000000000001ULL};
   uint64_t last_probe_ms_{0};
   uint64_t last_publish_ms_{0};
+  uint64_t last_radio_attempt_ms_{0};
   uint32_t rx_dropped_{0};
   uint32_t send_failures_{0};
 

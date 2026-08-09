@@ -2,6 +2,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 P5_CPP = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_p5_lab/n3w_p5_lab.cpp"
+P5_H = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_p5_lab/n3w_p5_lab.h"
 RADIO_H = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_radio.h"
 
 
@@ -60,6 +61,30 @@ def test_retry_exhaustion_discards_exact_cache_entry() -> None:
     exhausted = body.index("RadioError::RETRY_EXHAUSTED")
     discard = body.index("cache_.discard(session, seq)")
     assert attempt < exhausted < discard
+
+
+def test_connected_sta_channel_is_reused_without_radio_init_thrash() -> None:
+    source = P5_CPP.read_text(encoding="utf-8")
+    header = P5_H.read_text(encoding="utf-8")
+    body = function_body(
+        source,
+        "bool GreenhouseN3wP5Lab::ensure_radio_ready_()",
+        "void GreenhouseN3wP5Lab::loop()",
+    )
+
+    retry_gate = body.index("now - last_radio_attempt_ms_ < kRadioRetryIntervalMs")
+    attempt_record = body.index("last_radio_attempt_ms_ = now")
+    current_channel = body.index("esp_wifi_get_channel")
+    initialize = body.index("driver_.initialize")
+    add_peer = body.index("driver_.add_encrypted_peer")
+
+    assert retry_gate < attempt_record < current_channel < initialize < add_peer
+    assert "driver_.set_channel" not in body
+    assert "driver_.shutdown()" in body
+    assert "ESP-NOW initialization failed error=%u" in body
+    assert "ESP-NOW peer configuration failed error=%u" in body
+    assert "bool radio_attempted_{false};" in header
+    assert "uint64_t last_radio_attempt_ms_{0};" in header
 
 
 def test_relay_sends_explicit_rejected_receipt_without_false_positive_acceptance() -> (

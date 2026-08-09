@@ -18,6 +18,7 @@ namespace esphome::greenhouse_n3w_p5_lab {
 namespace {
 
 static const char *const TAG = "n3w_p5_lab";
+constexpr uint64_t kRadioRetryIntervalMs = 1000;
 
 uint8_t hex_nibble(char value) {
   if (value >= '0' && value <= '9') return static_cast<uint8_t>(value - '0');
@@ -164,15 +165,32 @@ bool GreenhouseN3wP5Lab::ensure_radio_ready_() {
   if (!execution_enabled_) return false;
   if (radio_ready_) return true;
 #ifdef USE_ESP32
+  const uint64_t now = now_ms_();
+  if (radio_attempted_ && now - last_radio_attempt_ms_ < kRadioRetryIntervalMs) return false;
+  radio_attempted_ = true;
+  last_radio_attempt_ms_ = now;
+
   uint8_t primary = 0;
   wifi_second_chan_t secondary = WIFI_SECOND_CHAN_NONE;
-  if (esp_wifi_get_channel(&primary, &secondary) != ESP_OK || !greenhouse_n3w_core::valid_radio_channel(primary))
+  if (esp_wifi_get_channel(&primary, &secondary) != ESP_OK ||
+      !greenhouse_n3w_core::valid_radio_channel(primary)) {
+    ESP_LOGW(TAG, "ESP-NOW deferred: connected STA channel is not ready");
     return false;
+  }
   relay_binding_.preferred_channel = primary;
-  if (driver_.initialize(this, pmk_) != greenhouse_n3w_core::DriverError::NONE) return false;
-  if (driver_.set_channel(primary) != greenhouse_n3w_core::DriverError::NONE ||
-      driver_.add_encrypted_peer(peer_mac_, lmk_, primary) != greenhouse_n3w_core::DriverError::NONE) {
+  const auto init_error = driver_.initialize(this, pmk_);
+  if (init_error != greenhouse_n3w_core::DriverError::NONE) {
+    ESP_LOGW(TAG, "ESP-NOW initialization failed error=%u", static_cast<unsigned>(init_error));
+    return false;
+  }
+
+  // Wi-Fi owns the channel while STA is associated. ESP-NOW shares that
+  // already-observed channel; calling esp_wifi_set_channel here is rejected by
+  // ESP-IDF on a connected STA and previously caused an init/deinit loop.
+  const auto peer_error = driver_.add_encrypted_peer(peer_mac_, lmk_, primary);
+  if (peer_error != greenhouse_n3w_core::DriverError::NONE) {
     driver_.shutdown();
+    ESP_LOGW(TAG, "ESP-NOW peer configuration failed error=%u", static_cast<unsigned>(peer_error));
     return false;
   }
   radio_ready_ = true;
