@@ -20,6 +20,7 @@ permissions:
 
 jobs:
   radio-init-successor-contract:
+    if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.base.ref == 'feature/n3w-p5-m02-child-relay-cache-liveness-sequence-burn-hostonly-repair-20260809-v1' && github.event.pull_request.base.sha == 'a2014677ea0449552f4f58fb0cca27a4f76e6542' && github.event.pull_request.head.ref == 'feature/n3w-p5-m02-espnow-connected-sta-radio-init-successor-20260809-v1') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
