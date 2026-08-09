@@ -1,0 +1,234 @@
+name: N3-W P5 M02 stacked main integration CI
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/n3w-esp32c6-espnow-radio-runtime-ci.yml'
+      - '.github/workflows/n3w-p5-m02-aead-runtime-successor-repair-ci.yml'
+      - '.github/workflows/n3w-p5-m02-child-relay-cache-liveness-sequence-burn-hostonly-repair-ci.yml'
+      - '.github/workflows/n3w-p5-m02-espnow-connected-sta-radio-init-successor-ci.yml'
+      - '.github/workflows/n3w-p5-m02-stacked-main-integration-ci.yml'
+      - '.github/workflows/n3w-p5-two-board-isolated-e2e-prep-ci.yml'
+      - 'docs/decisions/n3w-p5-two-board-isolated-e2e-execution-plan.json'
+      - 'docs/decisions/n3w-p5-two-board-isolated-e2e-prep-stage-entry.json'
+      - 'firmware/esphome_rc/board_lab/n3w_p5_two_board/**'
+      - 'firmware/esphome_rc/components/greenhouse_n3w_core/n3w_radio.h'
+      - 'firmware/esphome_rc/components/greenhouse_n3w_p5_lab/**'
+      - 'host/greenhouse-manager/pyproject.toml'
+      - 'infra/compose/n3w-p5-two-board-isolated/**'
+      - 'protocols/transport/gh-n3w-p5-two-board-isolated-e2e-v1.md'
+      - 'protocols/transport/schemas/gh.n3w-p5-evidence-1.schema.json'
+      - 'protocols/transport/schemas/gh.n3w-p5-private-input-1.schema.json'
+      - 'tests/n3w_p5/**'
+      - 'tools/n3w_p5/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  stacked-main-contract:
+    if: ${{ github.event.pull_request.base.ref == 'main' && github.event.pull_request.base.sha == '8a57243fce0d347ebb20108f4ec5a2d5d4267486' && github.event.pull_request.head.ref == 'agent/n3w-p5-m02-stacked-main-integration-20260809-v1' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      EXACT_MAIN: 8a57243fce0d347ebb20108f4ec5a2d5d4267486
+      EXACT_P5_PREP: 752c4709c6c9b60490dbcaf6da5807538dc03fa7
+      EXACT_AEAD_REPAIR: 3f3ccf641a77ef7c9891373299b0e2d4abe4dd6b
+      EXACT_LIVENESS_REPAIR: a2014677ea0449552f4f58fb0cca27a4f76e6542
+      EXACT_RADIO_INIT_TIP: 246160e98632806bf3ee249406e5d691cde7c1f6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Exact main, ancestry, cumulative scope, and CI-only successor delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          test '${{ github.event.pull_request.base.ref }}' = 'main'
+          test '${{ github.event.pull_request.base.sha }}' = "$EXACT_MAIN"
+          test "$(git merge-base "$EXACT_MAIN" HEAD)" = "$EXACT_MAIN"
+
+          git merge-base --is-ancestor "$EXACT_P5_PREP" "$EXACT_AEAD_REPAIR"
+          git merge-base --is-ancestor "$EXACT_AEAD_REPAIR" "$EXACT_LIVENESS_REPAIR"
+          git merge-base --is-ancestor "$EXACT_LIVENESS_REPAIR" "$EXACT_RADIO_INIT_TIP"
+          git merge-base --is-ancestor "$EXACT_RADIO_INIT_TIP" HEAD
+
+          cumulative_allowed="$(mktemp)"
+          cumulative_actual="$(mktemp)"
+          cat >"$cumulative_allowed" <<'FILES'
+          .github/workflows/n3w-esp32c6-espnow-radio-runtime-ci.yml
+          .github/workflows/n3w-p5-m02-aead-runtime-successor-repair-ci.yml
+          .github/workflows/n3w-p5-m02-child-relay-cache-liveness-sequence-burn-hostonly-repair-ci.yml
+          .github/workflows/n3w-p5-m02-espnow-connected-sta-radio-init-successor-ci.yml
+          .github/workflows/n3w-p5-m02-stacked-main-integration-ci.yml
+          .github/workflows/n3w-p5-two-board-isolated-e2e-prep-ci.yml
+          docs/decisions/n3w-p5-two-board-isolated-e2e-execution-plan.json
+          docs/decisions/n3w-p5-two-board-isolated-e2e-prep-stage-entry.json
+          firmware/esphome_rc/board_lab/n3w_p5_two_board/child.yml
+          firmware/esphome_rc/board_lab/n3w_p5_two_board/relay.yml
+          firmware/esphome_rc/components/greenhouse_n3w_core/n3w_radio.h
+          firmware/esphome_rc/components/greenhouse_n3w_p5_lab/__init__.py
+          firmware/esphome_rc/components/greenhouse_n3w_p5_lab/n3w_p5_lab.cpp
+          firmware/esphome_rc/components/greenhouse_n3w_p5_lab/n3w_p5_lab.h
+          host/greenhouse-manager/pyproject.toml
+          infra/compose/n3w-p5-two-board-isolated/.env.example
+          infra/compose/n3w-p5-two-board-isolated/acl
+          infra/compose/n3w-p5-two-board-isolated/docker-compose.yml
+          infra/compose/n3w-p5-two-board-isolated/homeassistant/configuration.yaml
+          infra/compose/n3w-p5-two-board-isolated/homeassistant/core.config_entries.template.json
+          infra/compose/n3w-p5-two-board-isolated/lab_admin.py
+          infra/compose/n3w-p5-two-board-isolated/mosquitto.conf
+          protocols/transport/gh-n3w-p5-two-board-isolated-e2e-v1.md
+          protocols/transport/schemas/gh.n3w-p5-evidence-1.schema.json
+          protocols/transport/schemas/gh.n3w-p5-private-input-1.schema.json
+          tests/n3w_p5/n3w_p5_liveness_host_test.cpp
+          tests/n3w_p5/test_n3w_p5_liveness_contract.py
+          tests/n3w_p5/test_n3w_p5_preparation.py
+          tools/n3w_p5/build_execution_template.py
+          FILES
+          sed -i 's/^          //' "$cumulative_allowed"
+          sort -o "$cumulative_allowed" "$cumulative_allowed"
+          git diff --name-only "$EXACT_MAIN"...HEAD | sort >"$cumulative_actual"
+          test "$(wc -l <"$cumulative_actual")" -eq 29
+          diff -u "$cumulative_allowed" "$cumulative_actual"
+
+          successor_allowed="$(mktemp)"
+          successor_actual="$(mktemp)"
+          cat >"$successor_allowed" <<'FILES'
+          .github/workflows/n3w-esp32c6-espnow-radio-runtime-ci.yml
+          .github/workflows/n3w-p5-m02-aead-runtime-successor-repair-ci.yml
+          .github/workflows/n3w-p5-m02-espnow-connected-sta-radio-init-successor-ci.yml
+          .github/workflows/n3w-p5-m02-stacked-main-integration-ci.yml
+          .github/workflows/n3w-p5-two-board-isolated-e2e-prep-ci.yml
+          FILES
+          sed -i 's/^          //' "$successor_allowed"
+          sort -o "$successor_allowed" "$successor_allowed"
+          git diff --name-only "$EXACT_RADIO_INIT_TIP"...HEAD | sort >"$successor_actual"
+          test "$(wc -l <"$successor_actual")" -eq 5
+          diff -u "$successor_allowed" "$successor_actual"
+
+      - name: Install host-only validation dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ libmbedtls-dev
+          python -m pip install -e 'host/greenhouse-manager[dev]'
+
+      - name: JSON, Python, and Ruff quality
+        run: |
+          python -m json.tool docs/decisions/n3w-p5-two-board-isolated-e2e-prep-stage-entry.json >/dev/null
+          python -m json.tool docs/decisions/n3w-p5-two-board-isolated-e2e-execution-plan.json >/dev/null
+          python -m json.tool protocols/transport/schemas/gh.n3w-p5-private-input-1.schema.json >/dev/null
+          python -m json.tool protocols/transport/schemas/gh.n3w-p5-evidence-1.schema.json >/dev/null
+          python -m compileall -q             firmware/esphome_rc/components/greenhouse_n3w_p5_lab/__init__.py             infra/compose/n3w-p5-two-board-isolated/lab_admin.py             tools/n3w_p5/build_execution_template.py             tests/n3w_p5/test_n3w_p5_preparation.py             tests/n3w_p5/test_n3w_p5_liveness_contract.py
+          ruff check             firmware/esphome_rc/components/greenhouse_n3w_p5_lab/__init__.py             infra/compose/n3w-p5-two-board-isolated/lab_admin.py             tools/n3w_p5/build_execution_template.py             tests/n3w_p5/test_n3w_p5_preparation.py             tests/n3w_p5/test_n3w_p5_liveness_contract.py
+          ruff format --check             firmware/esphome_rc/components/greenhouse_n3w_p5_lab/__init__.py             infra/compose/n3w-p5-two-board-isolated/lab_admin.py             tools/n3w_p5/build_execution_template.py             tests/n3w_p5/test_n3w_p5_preparation.py             tests/n3w_p5/test_n3w_p5_liveness_contract.py
+
+      - name: P4b and P5 host regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -Wall -Wextra -Werror             -Ifirmware/esphome_rc/components/greenhouse_n3w_core             firmware/esphome_rc/components/greenhouse_n3w_core/n3w_core.cpp             firmware/esphome_rc/components/greenhouse_n3w_core/n3w_radio.cpp             tests/n3w_p4b/n3w_p4b_host_test.cpp             -lmbedcrypto             -o /tmp/n3w_p4b_host_test
+          /tmp/n3w_p4b_host_test
+          g++ -std=c++17 -Wall -Wextra -Werror             -Ifirmware/esphome_rc/components/greenhouse_n3w_core             firmware/esphome_rc/components/greenhouse_n3w_core/n3w_core.cpp             firmware/esphome_rc/components/greenhouse_n3w_core/n3w_radio.cpp             tests/n3w_p5/n3w_p5_liveness_host_test.cpp             -lmbedcrypto             -o /tmp/n3w_p5_liveness_host_test
+          /tmp/n3w_p5_liveness_host_test
+          pytest -q tests/n3w_p4b/test_n3w_p4b_contract.py
+          pytest -q tests/n3w_p5/test_n3w_p5_preparation.py tests/n3w_p5/test_n3w_p5_liveness_contract.py
+
+      - name: Full Manager regression suite
+        run: pytest -q host/greenhouse-manager/tests
+
+      - name: Validate isolated compose without starting services
+        env:
+          GH_P5_MANAGER_MQTT_PASSWORD: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          GH_P5_HA_MQTT_PASSWORD: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+          GH_P5_CHILD_MQTT_PASSWORD: cccccccccccccccccccccccccccccccc
+          GH_P5_RELAY_MQTT_PASSWORD: dddddddddddddddddddddddddddddddd
+          GH_P5_TESTER_MQTT_PASSWORD: eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+          GH_P5_APP_KEY_EPOCH1_HEX: 0101010101010101010101010101010101010101010101010101010101010101
+          GH_P5_APP_KEY_EPOCH2_HEX: 0202020202020202020202020202020202020202020202020202020202020202
+        run: docker compose -f infra/compose/n3w-p5-two-board-isolated/docker-compose.yml config --quiet
+
+      - name: Build and verify production Manager AEAD dependency
+        run: |
+          docker build -t n3wp5-stacked-main-manager:${{ github.event.pull_request.head.sha }} host/greenhouse-manager
+          docker run --rm --entrypoint python             n3wp5-stacked-main-manager:${{ github.event.pull_request.head.sha }}             -c "from cryptography.hazmat.primitives.ciphers.aead import AESGCM; from greenhouse_manager.runtime.n3w_relay_ingress import aes256gcm_decrypt; key=bytes.fromhex('11'*32); nonce=bytes.fromhex('22'*12); aad=b'n3w-p5-stacked-main'; plaintext=b'integration'; encrypted=AESGCM(key).encrypt(nonce,plaintext,aad); assert aes256gcm_decrypt(key=key,nonce=nonce,ciphertext=encrypted[:-16],tag=encrypted[-16:],aad=aad)==plaintext; print('STACKED_MAIN_AEAD=PASS')"
+
+      - name: Deterministic public template and host-only safety boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/n3w_p5/build_execution_template.py --output /tmp/n3w-p5-public-template.tar
+          test -s /tmp/n3w-p5-public-template.tar
+          tar -xOf /tmp/n3w-p5-public-template.tar PUBLIC_TEMPLATE_BINDING.json |             grep -F '"physical_authorization_included": false'
+          test "$(git diff --name-only "$EXACT_RADIO_INIT_TIP"...HEAD | grep -Ev '^\.github/workflows/' || true)" = ''
+          test "$(git diff --name-only "$EXACT_MAIN"...HEAD | grep -E '^firmware/esphome_rc/f1_0_rc2/' || true)" = ''
+          test "$(git diff --name-only "$EXACT_MAIN"...HEAD | grep -E '^infra/compose/t1/' || true)" = ''
+
+      - name: Write secret-free exact-HEAD integration evidence
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          evidence = {
+              'schema': 'gh.n3w-p5-m02-stacked-main-integration-evidence/1',
+              'authorization': 'D1-N3W-P5-M02-SUCCESSOR-PR292-PR295-STACKED-MAIN-INTEGRATION-HOSTONLY-CI-LIFECYCLE-REPAIR-AND-DRAFT-PR-PREPARATION-R1-EXACT-MAIN-8A57243FCE0D347EBB20108F4EC5A2D5D4267486-EXACT-TIP-246160E98632806BF3EE249406E5D691CDE7C1F6-20260809-01',
+              'main_sha': os.environ['EXACT_MAIN'],
+              'p5_prep_sha': os.environ['EXACT_P5_PREP'],
+              'aead_repair_sha': os.environ['EXACT_AEAD_REPAIR'],
+              'liveness_repair_sha': os.environ['EXACT_LIVENESS_REPAIR'],
+              'radio_init_tip_sha': os.environ['EXACT_RADIO_INIT_TIP'],
+              'integration_head_sha': os.environ['HEAD_SHA'],
+              'successor_delta_ci_only': True,
+              'board_accessed': False,
+              'live_stack_modified': False,
+              'path_control_command_sent': False,
+              'production_network_accessed': False,
+              'merge_authorized': False,
+              'm03_authorized': False,
+          }
+          Path('n3w-p5-m02-stacked-main-integration-evidence.json').write_text(
+              json.dumps(evidence, indent=2, sort_keys=True) + '\n',
+              encoding='utf-8',
+          )
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: n3w-p5-m02-stacked-main-integration-evidence
+          path: n3w-p5-m02-stacked-main-integration-evidence.json
+          if-no-files-found: error
+          retention-days: 14
+
+  esp32-c6-p5-stacked-main-compile:
+    needs: stacked-main-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [child, relay]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install frozen ESPHome
+        run: python -m pip install --upgrade 'esphome==2026.4.3'
+      - name: Validate P5 role target
+        run: esphome config firmware/esphome_rc/board_lab/n3w_p5_two_board/${{ matrix.target }}.yml
+      - name: Compile P5 role target without upload
+        run: esphome compile firmware/esphome_rc/board_lab/n3w_p5_two_board/${{ matrix.target }}.yml
