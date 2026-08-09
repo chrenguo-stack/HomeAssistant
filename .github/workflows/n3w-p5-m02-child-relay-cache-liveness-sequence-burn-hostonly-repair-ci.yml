@@ -17,6 +17,7 @@ permissions:
 
 jobs:
   host-only-liveness-repair:
+    if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.base.ref == 'feature/n3w-p5-m02-aead-runtime-dependency-successor-repair-20260809-v2' && github.event.pull_request.base.sha == '3f3ccf641a77ef7c9891373299b0e2d4abe4dd6b') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

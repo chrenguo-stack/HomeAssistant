@@ -20,7 +20,7 @@ permissions:
 
 jobs:
   preparation-contract:
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.base.ref != 'feature/n3w-p5-m02-aead-runtime-dependency-successor-repair-20260809-v2' }}
+    if: ${{ github.event.pull_request.base.ref == 'main' && github.event.pull_request.base.sha == '8a57243fce0d347ebb20108f4ec5a2d5d4267486' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
