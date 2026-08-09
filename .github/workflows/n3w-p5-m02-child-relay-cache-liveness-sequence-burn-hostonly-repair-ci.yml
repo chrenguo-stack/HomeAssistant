@@ -108,8 +108,8 @@ jobs:
           fi
           ! grep -R -n -E \
             '(esphome run|esptool|pio run .*upload|espota|/dev/cu\.|/dev/tty|192\.168\.68\.)' \
-            .github/workflows/n3w-p5-m02-child-relay-cache-liveness-sequence-burn-hostonly-repair-ci.yml \
-            tests/n3w_p5/test_n3w_p5_liveness_contract.py \
+            firmware/esphome_rc/components/greenhouse_n3w_core/n3w_radio.h \
+            firmware/esphome_rc/components/greenhouse_n3w_p5_lab/n3w_p5_lab.cpp \
             tests/n3w_p5/n3w_p5_liveness_host_test.cpp
           test "$(git diff --name-only "$base"...HEAD | grep -E '^firmware/esphome_rc/board_lab/' || true)" = ''
 
@@ -117,14 +117,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python - <<'PY'
+          repository_sha="$GITHUB_SHA"
+          if [ "$GITHUB_EVENT_NAME" = 'pull_request' ]; then
+            repository_sha='${{ github.event.pull_request.head.sha }}'
+          fi
+          REPOSITORY_SHA="$repository_sha" python - <<'PY'
           import json
           import os
           from pathlib import Path
 
           evidence = {
               'schema': 'gh.n3w-p5-m02-child-liveness-hostonly-repair-evidence/1',
-              'repository_sha': os.environ['GITHUB_SHA'],
+              'repository_sha': os.environ['REPOSITORY_SHA'],
               'exact_predecessor_sha': '3f3ccf641a77ef7c9891373299b0e2d4abe4dd6b',
               'p5_predecessor_sha': '752c4709c6c9b60490dbcaf6da5807538dc03fa7',
               'authorization': 'D1-N3W-P5-M02-SUCCESSOR-CHILD-RELAY-CACHE-LIVENESS-AND-SEQUENCE-BURN-HOSTONLY-REPAIR-20260809-01',
