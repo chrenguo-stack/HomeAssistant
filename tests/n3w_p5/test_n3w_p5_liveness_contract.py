@@ -87,6 +87,61 @@ def test_connected_sta_channel_is_reused_without_radio_init_thrash() -> None:
     assert "uint64_t last_radio_attempt_ms_{0};" in header
 
 
+def test_cached_resend_requires_radio_ready_and_reports_exact_outcome() -> None:
+    source = P5_CPP.read_text(encoding="utf-8")
+    header = P5_H.read_text(encoding="utf-8")
+    body = function_body(
+        source,
+        "bool GreenhouseN3wP5Lab::resend_last_datagrams_(bool reverse)",
+        "void GreenhouseN3wP5Lab::handle_lab_command",
+    )
+    handler = function_body(
+        source,
+        "void GreenhouseN3wP5Lab::handle_lab_command",
+        "}  // namespace esphome::greenhouse_n3w_p5_lab",
+    )
+
+    empty_cache = body.index("last_datagrams_.empty()")
+    radio_ready = body.index("ensure_radio_ready_()")
+    send_cached = body.index("send_datagrams_(last_datagrams_, reverse)")
+    assert empty_cache < radio_ready < send_cached
+    assert "reason=empty_cache" in body
+    assert "reason=radio_not_ready" in body
+    assert "result=queued" in body
+    assert "reason=driver_send" in body
+    assert 'command == "RESEND"' in handler
+    assert "resend_last_datagrams_(false)" in handler
+    assert 'command == "REORDER"' in handler
+    assert "resend_last_datagrams_(true)" in handler
+    assert "bool resend_last_datagrams_(bool reverse);" in header
+    assert "boot_.take_sequence" not in body
+    assert "build_relay_frame" not in body
+    assert "desired_path_" not in body
+
+
+def test_async_espnow_delivery_failure_is_deferred_out_of_wifi_callback() -> None:
+    source = P5_CPP.read_text(encoding="utf-8")
+    callback = function_body(
+        source,
+        "void GreenhouseN3wP5Lab::on_espnow_send_result",
+        "void GreenhouseN3wP5Lab::process_rx_",
+    )
+    processor = function_body(
+        source,
+        "void GreenhouseN3wP5Lab::process_tx_",
+        "void GreenhouseN3wP5Lab::process_child_packet_",
+    )
+    header = P5_H.read_text(encoding="utf-8")
+
+    assert "xQueueSend(tx_queue_" in callback
+    assert "ESP_LOG" not in callback
+    assert "++send_failures_" not in callback
+    assert "xQueueReceive(tx_queue_" in processor
+    assert "++send_failures_" in processor
+    assert "ESP-NOW delivery callback failed total=%u" in processor
+    assert "QueueHandle_t tx_queue_{nullptr};" in header
+
+
 def test_relay_sends_explicit_rejected_receipt_without_false_positive_acceptance() -> (
     None
 ):

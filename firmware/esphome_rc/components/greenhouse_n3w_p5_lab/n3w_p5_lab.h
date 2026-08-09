@@ -76,12 +76,17 @@ class GreenhouseN3wP5Lab final : public Component,
     std::array<uint8_t, greenhouse_n3w_core::kEspNowDatagramLimit> data{};
   };
 
+  struct TxEvent {
+    bool success{false};
+  };
+
   enum class DesiredPath : uint8_t { DIRECT = 0, RELAY = 1 };
 
   bool parse_configuration_();
   bool ensure_radio_ready_();
   bool initialize_child_session_();
   void process_rx_();
+  void process_tx_();
   void process_child_packet_(const RxEvent &event);
   void process_relay_packet_(const RxEvent &event);
   void maybe_probe_();
@@ -89,6 +94,7 @@ class GreenhouseN3wP5Lab final : public Component,
   bool publish_direct_(uint32_t seq, const std::string &telemetry);
   bool publish_relay_(uint32_t seq, const std::string &telemetry);
   void flush_relay_cache_();
+  bool resend_last_datagrams_(bool reverse);
   bool send_datagrams_(const std::vector<std::vector<uint8_t>> &datagrams, bool reverse);
   bool send_probe_();
   std::string build_telemetry_(uint32_t seq) const;
@@ -141,6 +147,7 @@ class GreenhouseN3wP5Lab final : public Component,
 
 #ifdef USE_ESP32
   QueueHandle_t rx_queue_{nullptr};
+  QueueHandle_t tx_queue_{nullptr};
 #endif
 };
 

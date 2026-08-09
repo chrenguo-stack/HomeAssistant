@@ -1,0 +1,103 @@
+name: N3-W P5 M04 cached resend radio readiness and observability CI
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/n3w-p5-m04-resend-radio-ready-observability-hostonly-repair-ci.yml'
+      - 'firmware/esphome_rc/components/greenhouse_n3w_p5_lab/n3w_p5_lab.cpp'
+      - 'firmware/esphome_rc/components/greenhouse_n3w_p5_lab/n3w_p5_lab.h'
+      - 'tests/n3w_p5/test_n3w_p5_liveness_contract.py'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  host-only-resend-repair:
+    if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.base.ref == 'main' && github.event.pull_request.base.sha == 'cc3542867b32289abb9b768f2980b85ce247a7f3' && github.event.pull_request.head.ref == 'agent/n3w-p5-m04-resend-radio-ready-observability-20260809-v1') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Exact main and repair scope gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='cc3542867b32289abb9b768f2980b85ce247a7f3'
+          test "$(git merge-base "$base" HEAD)" = "$base"
+
+          allowed="$(mktemp)"
+          actual="$(mktemp)"
+          cat >"$allowed" <<'FILES'
+          .github/workflows/n3w-p5-m04-resend-radio-ready-observability-hostonly-repair-ci.yml
+          firmware/esphome_rc/components/greenhouse_n3w_p5_lab/n3w_p5_lab.cpp
+          firmware/esphome_rc/components/greenhouse_n3w_p5_lab/n3w_p5_lab.h
+          tests/n3w_p5/test_n3w_p5_liveness_contract.py
+          FILES
+          sed -i 's/^          //' "$allowed"
+          sort -o "$allowed" "$allowed"
+          git diff --name-only "$base"...HEAD | sort >"$actual"
+          diff -u "$allowed" "$actual"
+
+      - name: Install host-only dependencies
+        run: python -m pip install --upgrade pytest ruff jsonschema
+
+      - name: Python contract quality
+        run: |
+          python -m compileall -q tests/n3w_p5/test_n3w_p5_liveness_contract.py
+          ruff check tests/n3w_p5/test_n3w_p5_liveness_contract.py
+          ruff format --check tests/n3w_p5/test_n3w_p5_liveness_contract.py
+
+      - name: P5 cached resend and preparation contracts
+        run: |
+          pytest -q \
+            tests/n3w_p5/test_n3w_p5_preparation.py \
+            tests/n3w_p5/test_n3w_p5_liveness_contract.py
+
+      - name: Explicit host-only and no-replay safety gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='cc3542867b32289abb9b768f2980b85ce247a7f3'
+          changed="$(git diff --name-only "$base"...HEAD)"
+          if printf '%s\n' "$changed" | grep -E \
+            '^(firmware/esphome_rc/f1_0_rc2/|firmware/esphome_rc/board_lab/|infra/compose/|host/greenhouse-manager/)'; then
+            echo 'Live, board, or product runtime mutation is outside host-only authorization'
+            exit 1
+          fi
+          ! grep -R -n -E \
+            '(esphome run|esp[t]ool|pio run .*upload|espota|/dev/cu\.|/dev/tty|192\.168\.68\.)' \
+            firmware/esphome_rc/components/greenhouse_n3w_p5_lab/n3w_p5_lab.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_p5_lab/n3w_p5_lab.h
+
+  esp32-c6-p5-compile-only:
+    needs: host-only-resend-repair
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [child, relay]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install frozen ESPHome
+        run: python -m pip install --upgrade 'esphome==2026.4.3'
+      - name: Validate compile-only P5 target
+        run: esphome config firmware/esphome_rc/board_lab/n3w_p5_two_board/${{ matrix.target }}.yml
+      - name: Compile P5 target without upload
+        run: esphome compile firmware/esphome_rc/board_lab/n3w_p5_two_board/${{ matrix.target }}.yml
