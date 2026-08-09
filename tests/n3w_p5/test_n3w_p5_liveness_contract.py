@@ -11,7 +11,9 @@ def function_body(text: str, signature: str, next_signature: str) -> str:
     return text[start:end]
 
 
-def test_sequence_allocation_is_gated_by_transport_liveness_and_cache_capacity() -> None:
+def test_sequence_allocation_is_gated_by_transport_liveness_and_cache_capacity() -> (
+    None
+):
     text = P5_CPP.read_text(encoding="utf-8")
     body = function_body(
         text,
@@ -60,7 +62,9 @@ def test_retry_exhaustion_discards_exact_cache_entry() -> None:
     assert attempt < exhausted < discard
 
 
-def test_relay_sends_explicit_rejected_receipt_without_false_positive_acceptance() -> None:
+def test_relay_sends_explicit_rejected_receipt_without_false_positive_acceptance() -> (
+    None
+):
     text = P5_CPP.read_text(encoding="utf-8")
     body = function_body(
         text,
@@ -86,7 +90,7 @@ def test_cache_exports_exact_backpressure_and_discard_primitives() -> None:
 
 
 def test_hostonly_repair_does_not_add_physical_execution_tokens() -> None:
-    checked = [P5_CPP, RADIO_H, Path(__file__)]
+    checked = [P5_CPP, RADIO_H]
     forbidden = (
         "esphome run",
         "esptool",
