@@ -89,6 +89,7 @@ class GreenhouseN3wP5Lab final : public Component,
   bool publish_direct_(uint32_t seq, const std::string &telemetry);
   bool publish_relay_(uint32_t seq, const std::string &telemetry);
   void flush_relay_cache_();
+  bool resend_last_datagrams_(bool reverse);
   bool send_datagrams_(const std::vector<std::vector<uint8_t>> &datagrams, bool reverse);
   bool send_probe_();
   std::string build_telemetry_(uint32_t seq) const;

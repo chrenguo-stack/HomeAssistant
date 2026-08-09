@@ -236,7 +236,10 @@ void GreenhouseN3wP5Lab::on_espnow_send_result(
     const MacAddress &destination,
     bool success) {
   (void) destination;
-  if (!success) ++send_failures_;
+  if (!success) {
+    ++send_failures_;
+    ESP_LOGW(TAG, "ESP-NOW delivery callback failed total=%u", static_cast<unsigned>(send_failures_));
+  }
 }
 
 void GreenhouseN3wP5Lab::process_rx_() {
@@ -422,6 +425,29 @@ bool GreenhouseN3wP5Lab::send_datagrams_(const std::vector<std::vector<uint8_t>>
   return ok;
 }
 
+bool GreenhouseN3wP5Lab::resend_last_datagrams_(bool reverse) {
+  const char *command = reverse ? "REORDER" : "RESEND";
+  const auto count = static_cast<unsigned>(last_datagrams_.size());
+  if (last_datagrams_.empty()) {
+    ESP_LOGW(TAG, "Lab cached datagram command=%s result=rejected reason=empty_cache datagrams=0", command);
+    return false;
+  }
+  if (!ensure_radio_ready_()) {
+    ESP_LOGW(TAG, "Lab cached datagram command=%s result=rejected reason=radio_not_ready datagrams=%u",
+             command, count);
+    return false;
+  }
+  const bool queued = send_datagrams_(last_datagrams_, reverse);
+  if (queued) {
+    ESP_LOGI(TAG, "Lab cached datagram command=%s result=queued datagrams=%u order=%s",
+             command, count, reverse ? "reverse" : "original");
+  } else {
+    ESP_LOGW(TAG, "Lab cached datagram command=%s result=rejected reason=driver_send datagrams=%u order=%s",
+             command, count, reverse ? "reverse" : "original");
+  }
+  return queued;
+}
+
 void GreenhouseN3wP5Lab::handle_lab_command(const std::string &raw) {
   if (!execution_enabled_) return;
   const std::string command = upper_trim(raw);
@@ -442,9 +468,9 @@ void GreenhouseN3wP5Lab::handle_lab_command(const std::string &raw) {
     selected_key_epoch_ = 2;
     ESP_LOGI(TAG, "Lab command: KEY epoch 2");
   } else if (is_child_ && command == "RESEND") {
-    send_datagrams_(last_datagrams_, false);
+    resend_last_datagrams_(false);
   } else if (is_child_ && command == "REORDER") {
-    send_datagrams_(last_datagrams_, true);
+    resend_last_datagrams_(true);
   } else if (command == "RESET REASSEMBLY" && !is_child_) {
     relay_ingress_.reset();
   } else if (command == "RESTART") {
