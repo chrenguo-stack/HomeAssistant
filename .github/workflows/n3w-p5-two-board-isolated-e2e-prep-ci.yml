@@ -20,7 +20,7 @@ permissions:
 
 jobs:
   preparation-contract:
-    if: ${{ github.event.pull_request.base.ref == 'main' && github.event.pull_request.base.sha == '8a57243fce0d347ebb20108f4ec5a2d5d4267486' }}
+    if: ${{ github.event.pull_request.base.ref == 'main' && github.event.pull_request.base.sha == '8a57243fce0d347ebb20108f4ec5a2d5d4267486' && github.event.pull_request.head.ref == 'feature/n3w-p5-two-board-isolated-e2e-prep-20260807-v1' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
