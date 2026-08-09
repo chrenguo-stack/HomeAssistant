@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   runtime-dependency-contract:
+    if: ${{ github.event.pull_request.base.ref == 'feature/n3w-p5-two-board-isolated-e2e-prep-20260807-v1' && github.event.pull_request.base.sha == '752c4709c6c9b60490dbcaf6da5807538dc03fa7' && github.event.pull_request.head.ref == 'feature/n3w-p5-m02-aead-runtime-dependency-successor-repair-20260809-v2' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
