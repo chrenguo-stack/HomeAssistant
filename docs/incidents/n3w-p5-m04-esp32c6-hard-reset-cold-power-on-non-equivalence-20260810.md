@@ -134,7 +134,7 @@ The exactly-one M04 RESEND is consumed and must not be repeated.
 
 The accumulated P5 observations retain the operational rule:
 
-`hard reset issued != application_boot_proven`
+`hard reset issued != application boot proven`
 
 A successful image write, successful verification, and issuance of a hard reset are
 not sufficient by themselves to prove that the application has reached an accepted
