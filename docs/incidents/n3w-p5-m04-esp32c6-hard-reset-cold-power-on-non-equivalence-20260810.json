@@ -1,5 +1,5 @@
 {
-  "schema": "gh.n3w-p5-m04-esp32c6-reset-poweron-incident/1",
+  "schema": "gh.n3w-p5-m04-esp32c6-reset-poweron-incident/2",
   "date": "2026-08-10",
   "status": "SANITIZED_INCIDENT_ARCHIVE_M04_NOT_ACCEPTED",
   "github_baseline": {
@@ -11,24 +11,65 @@
   },
   "incident": {
     "device_count": 2,
+    "occurrence_count": 3,
     "roles": [
       "relay",
       "child"
     ],
-    "shared_observation": [
-      "frozen_full_image_write_passed",
-      "independent_image_verification_passed",
-      "hard_reset_issued",
-      "expected_application_or_network_liveness_not_recovered_after_hard_reset",
-      "no_rewrite_or_erase_during_recovery",
-      "exactly_one_complete_usb_power_removal_and_cold_power_on_restored_liveness"
-    ],
-    "relay_recovery": "application_output_resumed_and_two_device_isolated_sessions_were_stable",
-    "child_recovery": "new_child_telemetry_resumed_and_two_device_isolated_sessions_were_stable"
+    "original_observations": {
+      "occurrence_count": 2,
+      "shared_observation": [
+        "frozen_full_image_write_passed",
+        "independent_image_verification_passed",
+        "hard_reset_issued",
+        "expected_application_or_network_liveness_not_recovered_after_hard_reset",
+        "no_rewrite_or_erase_during_recovery",
+        "exactly_one_complete_usb_power_removal_and_cold_power_on_restored_liveness"
+      ],
+      "relay_recovery": "application_output_resumed_and_two_device_isolated_sessions_were_stable",
+      "child_recovery": "new_child_telemetry_resumed_and_two_device_isolated_sessions_were_stable"
+    },
+    "child_successor_recurrence": {
+      "pre_recovery_state": "exactly_one_application_start_reset_consumed_without_child_network_presence_recovery",
+      "cold_power_action": {
+        "child_only": true,
+        "complete_usb_power_removal": true,
+        "required_unpowered_interval_observed": true,
+        "relay_untouched": true,
+        "reset": false,
+        "serial": false,
+        "flash_or_erase": false,
+        "active_mqtt_publish": false,
+        "path_command": false,
+        "resend_command": false,
+        "service_mutation": false,
+        "reconnect_confirmation_captured_by_executor": false,
+        "reconnect_count_proven": false,
+        "same_host_connection_reconnect_proven": false
+      },
+      "execution_gate_terminal": "CONSUMED_FAILED_EXECUTION_BOUNDARY_VIOLATION",
+      "execution_gate_reclassified": false,
+      "execution_gate_replay_allowed": false,
+      "post_terminal_forensic": {
+        "operator_reported_child_connected": true,
+        "child_network_presence_observed": true,
+        "child_broker_tcp_session_observed": true,
+        "multiple_valid_direct_child_telemetry_observed": true,
+        "canonical_progressed_within_current_live_session": true,
+        "path_active": "direct",
+        "path_candidate_present": false,
+        "relay_preserved": true,
+        "services_stable_without_restart": true,
+        "forensic_fact": "CHILD_COLD_POWER_RECOVERY_CONFIRMED"
+      },
+      "raw_sequence_or_revision_values_published": false
+    }
   },
   "engineering_conclusion": {
     "rule": "hard_reset_issued != application_boot_proven",
     "replacement_sequence": "write -> verify -> no-reset -> separate startup/liveness gate",
+    "execution_terminal_and_later_forensic_fact_must_remain_separate": true,
+    "cross_boot_sequence_magnitude_is_not_used_as_recovery_proof": true,
     "specific_root_cause_proven": false
   },
   "root_cause_boundary": {
@@ -36,6 +77,8 @@
     "false_verification_primary_explanation_supported": false,
     "single_board_hardware_primary_explanation_supported": false,
     "role_specific_application_primary_explanation_supported": false,
+    "every_hard_reset_failure_claimed": false,
+    "every_cold_power_on_recovery_claimed": false,
     "silicon_or_software_root_cause_claimed": false
   },
   "public_private_boundary": {
@@ -44,26 +87,32 @@
     "private_image_or_package_digests_included": false,
     "private_terminal_or_evidence_digests_included": false,
     "raw_live_traces_included": false,
+    "raw_live_sequence_or_revision_values_included": false,
     "credentials_keys_or_session_material_included": false,
     "private_endpoint_identity_included": false,
     "replayable_authorization_or_ready_text_included": false
   },
   "phase_boundary": {
     "m04_accepted": false,
+    "child_current_runtime_state": "recovered_direct",
     "relay_action_allowed": false,
+    "relay_current_state": "running_untouched",
     "child_previous_exactly_one_reset": "consumed_do_not_repeat",
+    "child_cold_power_execution_gate": "consumed_failed_execution_boundary_violation_do_not_replay",
+    "child_post_terminal_forensic_fact": "child_cold_power_recovery_confirmed",
     "path_allowed_now": false,
     "resend_allowed_now": false,
     "m05_prohibited": true
   },
-  "next_live_action_if_separately_authorized_after_fresh_rebaseline": {
-    "scope": "child_only_exactly_one_usb_full_power_cycle_and_live_read_only_recovery_observation",
+  "next_live_decision_if_separately_authorized_after_fresh_rebaseline": {
+    "scope": "separate_exactly_one_resend_observation",
+    "authorization_required": true,
+    "fresh_rebaseline_required": true,
+    "current_archive_authorizes_action": false,
     "reset": false,
     "serial": false,
     "flash_or_erase": false,
-    "active_mqtt_publish": false,
-    "path": false,
-    "resend": false,
+    "path_change": false,
     "service_restart": false,
     "relay_power_or_action_change": false
   }
