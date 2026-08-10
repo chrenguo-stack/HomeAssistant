@@ -1,13 +1,13 @@
 {
-  "schema": "gh.n3w-p5-m04-esp32c6-reset-poweron-incident/3",
+  "schema": "gh.n3w-p5-m04-esp32c6-reset-poweron-incident/4",
   "date": "2026-08-10",
-  "status": "SANITIZED_INCIDENT_ARCHIVE_M04_PASS",
+  "status": "SANITIZED_INCIDENT_ARCHIVE_M05_PASS",
   "github_baseline": {
     "repository": "chrenguo-stack/HomeAssistant",
     "main_sha": "9ff26629146fe2c1056f52e269c044a135306772",
     "main_tree": "5cbe98c4e5838fb64378093691997423e3b65149",
     "pr_301": "merged_into_main",
-    "pr_302": "older_draft_pause_archive_not_current_m04_state_source"
+    "pr_302": "older_draft_pause_archive_not_current_m04_or_m05_state_source"
   },
   "incident": {
     "device_count": 2,
@@ -96,12 +96,62 @@
     "private_evidence_digest_published": false,
     "raw_live_tuple_values_published": false
   },
+  "m05_closure": {
+    "accepted": true,
+    "terminal": "PASS",
+    "preexecution_readonly_refreeze_passed": true,
+    "preexecution_active_path": "direct",
+    "preexecution_path_candidate_present": false,
+    "preexecution_unexpected_gateway_frame_observed": false,
+    "multi_fragment_cache_target_confirmed": true,
+    "exactly_one_reorder": {
+      "separately_authorized": true,
+      "authorization_consumed": true,
+      "replay_allowed": false,
+      "command_attempt_count": 1,
+      "source_bound_mechanism": "reverse_last_cached_relay_datagram_order",
+      "new_canonical_tuple_allocated_by_reorder": false,
+      "path_change_requested_by_reorder": false
+    },
+    "reassembly_and_gateway_contract": {
+      "reverse_fragment_order_was_meaningful_multi_fragment_test": true,
+      "relay_reassembled_same_cached_relay_form_frame": true,
+      "exact_cached_tuple_match_observed_via_gateway_ingress": true,
+      "gateway_match_count_exactly_one": true,
+      "unexpected_other_gateway_tuple_observed": false,
+      "independent_over_the_air_sniffer_order_capture_claimed": false
+    },
+    "post_reorder_contract": {
+      "direct_telemetry_continued": true,
+      "active_path_remained_direct": true,
+      "path_candidate_present": false,
+      "duplicate_relay_replay_did_not_switch_path": true,
+      "canonical_not_regressed": true,
+      "child_network_preserved": true,
+      "relay_network_preserved": true,
+      "manager_stable": true,
+      "broker_stable": true,
+      "home_assistant_stable": true,
+      "production_isolation_preserved": true
+    },
+    "private_immutable_live_evidence_frozen": true,
+    "private_evidence_integrity_verified": true,
+    "private_evidence_readback_exact": true,
+    "private_evidence_read_only_mode_verified": true,
+    "private_evidence_non_overwrite_semantics": true,
+    "private_evidence_digest_published": false,
+    "private_evidence_path_published": false,
+    "raw_live_tuple_values_published": false,
+    "raw_sequence_or_revision_values_published": false,
+    "raw_boot_or_session_identity_published": false
+  },
   "engineering_conclusion": {
     "rule": "hard_reset_issued != application_boot_proven",
     "replacement_sequence": "write -> verify -> no-reset -> separate startup/liveness gate",
     "execution_terminal_and_later_forensic_fact_must_remain_separate": true,
     "cross_boot_sequence_magnitude_is_not_used_as_recovery_proof": true,
     "direct_success_cache_priming_and_exactly_one_resend_contract_verified": true,
+    "multi_fragment_reverse_order_reassembly_contract_verified": true,
     "specific_root_cause_proven": false
   },
   "root_cause_boundary": {
@@ -111,35 +161,47 @@
     "role_specific_application_primary_explanation_supported": false,
     "every_hard_reset_failure_claimed": false,
     "every_cold_power_on_recovery_claimed": false,
-    "silicon_or_software_root_cause_claimed": false
+    "silicon_or_software_root_cause_claimed": false,
+    "m05_independent_radio_sniffer_fragment_order_claimed": false
   },
   "public_private_boundary": {
     "raw_device_identifiers_included": false,
     "local_serial_paths_included": false,
     "private_image_or_package_digests_included": false,
     "private_terminal_or_evidence_digests_included": false,
+    "private_evidence_filesystem_paths_included": false,
     "raw_live_traces_included": false,
     "raw_live_sequence_or_revision_values_included": false,
-    "credentials_keys_or_session_material_included": false,
+    "raw_live_boot_session_or_tuple_values_included": false,
+    "credentials_included": false,
+    "pmk_or_lmk_included": false,
+    "application_keys_included": false,
+    "other_keys_or_session_material_included": false,
     "private_endpoint_identity_included": false,
     "replayable_authorization_or_ready_text_included": false
   },
   "phase_boundary": {
     "m04_accepted": true,
     "m04_terminal": "PASS",
-    "child_current_runtime_state": "recovered_direct",
+    "m05_accepted": true,
+    "m05_terminal": "PASS",
+    "child_current_runtime_state": "direct",
     "relay_action_allowed": false,
     "relay_current_state": "running_untouched",
     "child_previous_exactly_one_reset": "consumed_do_not_repeat",
     "child_cold_power_execution_gate": "consumed_failed_execution_boundary_violation_do_not_replay",
     "child_post_terminal_forensic_fact": "child_cold_power_recovery_confirmed",
     "m04_exactly_one_resend": "consumed_pass_do_not_repeat",
+    "m05_exactly_one_reorder": "consumed_pass_do_not_repeat",
+    "m04_private_immutable_evidence": "frozen",
+    "m05_private_immutable_evidence": "frozen",
     "path_allowed_now": false,
     "resend_allowed_now": false,
-    "m05_authorized": false
+    "reorder_allowed_now": false,
+    "m06_authorized": false
   },
   "next_decision": {
-    "scope": "post_m04_m05_decision",
+    "scope": "post_m05_m06_decision",
     "separate_authorization_required": true,
     "current_archive_authorizes_action": false,
     "reset": false,
@@ -147,7 +209,10 @@
     "flash_or_erase": false,
     "path_change": false,
     "resend": false,
+    "reorder": false,
+    "mqtt_publish": false,
     "service_restart": false,
-    "relay_power_or_action_change": false
+    "relay_power_or_action_change": false,
+    "m06_execution": false
   }
 }
