@@ -1,7 +1,7 @@
 {
-  "schema": "gh.n3w-p5-m04-esp32c6-reset-poweron-incident/2",
+  "schema": "gh.n3w-p5-m04-esp32c6-reset-poweron-incident/3",
   "date": "2026-08-10",
-  "status": "SANITIZED_INCIDENT_ARCHIVE_M04_NOT_ACCEPTED",
+  "status": "SANITIZED_INCIDENT_ARCHIVE_M04_PASS",
   "github_baseline": {
     "repository": "chrenguo-stack/HomeAssistant",
     "main_sha": "9ff26629146fe2c1056f52e269c044a135306772",
@@ -65,11 +65,43 @@
       "raw_sequence_or_revision_values_published": false
     }
   },
+  "m04_closure": {
+    "accepted": true,
+    "terminal": "PASS",
+    "natural_direct_telemetry_observed": true,
+    "canonical_progressed_within_current_live_session": true,
+    "transactional_direct_relay_cache_priming_proven": true,
+    "exactly_one_resend": {
+      "separately_authorized": true,
+      "authorization_consumed": true,
+      "replay_allowed": false,
+      "command_attempt_count": 1,
+      "cached_relay_form_tuple_observed_via_gateway_ingress": true,
+      "exact_cached_tuple_match_observed": true,
+      "unexpected_other_gateway_tuple_observed": false
+    },
+    "post_resend_contract": {
+      "direct_telemetry_continued": true,
+      "active_path_remained_direct": true,
+      "path_candidate_present": false,
+      "duplicate_relay_replay_did_not_switch_path": true,
+      "child_network_preserved": true,
+      "relay_network_preserved": true,
+      "manager_stable": true,
+      "broker_stable": true,
+      "home_assistant_stable": true,
+      "production_isolation_preserved": true
+    },
+    "private_immutable_live_evidence_frozen": true,
+    "private_evidence_digest_published": false,
+    "raw_live_tuple_values_published": false
+  },
   "engineering_conclusion": {
     "rule": "hard_reset_issued != application_boot_proven",
     "replacement_sequence": "write -> verify -> no-reset -> separate startup/liveness gate",
     "execution_terminal_and_later_forensic_fact_must_remain_separate": true,
     "cross_boot_sequence_magnitude_is_not_used_as_recovery_proof": true,
+    "direct_success_cache_priming_and_exactly_one_resend_contract_verified": true,
     "specific_root_cause_proven": false
   },
   "root_cause_boundary": {
@@ -93,26 +125,28 @@
     "replayable_authorization_or_ready_text_included": false
   },
   "phase_boundary": {
-    "m04_accepted": false,
+    "m04_accepted": true,
+    "m04_terminal": "PASS",
     "child_current_runtime_state": "recovered_direct",
     "relay_action_allowed": false,
     "relay_current_state": "running_untouched",
     "child_previous_exactly_one_reset": "consumed_do_not_repeat",
     "child_cold_power_execution_gate": "consumed_failed_execution_boundary_violation_do_not_replay",
     "child_post_terminal_forensic_fact": "child_cold_power_recovery_confirmed",
+    "m04_exactly_one_resend": "consumed_pass_do_not_repeat",
     "path_allowed_now": false,
     "resend_allowed_now": false,
-    "m05_prohibited": true
+    "m05_authorized": false
   },
-  "next_live_decision_if_separately_authorized_after_fresh_rebaseline": {
-    "scope": "separate_exactly_one_resend_observation",
-    "authorization_required": true,
-    "fresh_rebaseline_required": true,
+  "next_decision": {
+    "scope": "post_m04_m05_decision",
+    "separate_authorization_required": true,
     "current_archive_authorizes_action": false,
     "reset": false,
     "serial": false,
     "flash_or_erase": false,
     "path_change": false,
+    "resend": false,
     "service_restart": false,
     "relay_power_or_action_change": false
   }
