@@ -1,22 +1,23 @@
-# N3-W / P5 / M04 ESP32-C6 post-flash startup incident archive
+# N3-W / P5 ESP32-C6 post-flash startup incident and M04/M05 closure archive
 
 Date: 2026-08-10
 
-Status: `SANITIZED_INCIDENT_ARCHIVE_M04_PASS`
+Status: `SANITIZED_INCIDENT_ARCHIVE_M05_PASS`
 
 ## Purpose
 
 This document preserves a public, sanitized engineering incident observed during
 N3-W / P5 / M04 physical replacement work on two independent ESP32-C6 devices,
-including a later recurrence on the Child successor and the subsequent M04 closure.
+including a later recurrence on the Child successor, the subsequent M04 closure,
+and the M05 reordered-fragment live validation.
 
 It records the operational distinction between a post-write hard reset and a true
 cold power-on without exposing private device identities, raw live traces, or
 replayable authorization material.
 
 This archive is documentation only. It does not authorize board access, serial
-access, reset, power changes, Flash or erase operations, MQTT publication, PATH or
-RESEND commands, service mutation, or M05 entry.
+access, reset, power changes, Flash or erase operations, MQTT publication, PATH,
+RESEND, or REORDER commands, service mutation, or M06 entry.
 
 ## Archival baseline
 
@@ -26,7 +27,7 @@ This draft remains bound to the exact public repository baseline:
 - `main`: `9ff26629146fe2c1056f52e269c044a135306772`;
 - tree: `5cbe98c4e5838fb64378093691997423e3b65149`;
 - PR #301: merged into that `main`;
-- PR #302: remains an older Draft pause archive and is not the current M04 state source.
+- PR #302: remains an older Draft pause archive and is not the current M04/M05 state source.
 
 The baseline above is an archival binding only. A future mutation must stop and be
 freshly rebound if `main` or the Draft PR state changes before that mutation.
@@ -130,6 +131,56 @@ The resulting M04 terminal state is:
 
 The exactly-one M04 RESEND is consumed and must not be repeated.
 
+## M05 reordered-fragment closure
+
+After M04 closure, a separate M05 preexecution read-only rebaseline confirmed that
+the current Child/Relay field state was still stable, the active path was Direct with
+no candidate path, production isolation remained intact, and the current cached
+Relay-form frame was large enough to require multiple ESP-NOW fragments. No Gateway
+frame was present during that preexecution observation.
+
+A separately authorized exactly-one REORDER live observation was then claimed once
+and consumed once. The REORDER contract was source-bound to retransmitting the most
+recent cached Relay-form datagrams in reverse fragment order without allocating a new
+canonical telemetry tuple or changing the requested path.
+
+The bounded M05 observation established the following sanitized facts:
+
+- exactly one REORDER command attempt was made;
+- the selected cached Relay-form frame consisted of multiple fragments, so reversed
+  ordering was a meaningful test rather than a single-fragment no-op;
+- the Relay successfully reassembled the reversed fragment delivery into the same
+  cached Relay-form frame and emitted exactly one matching Gateway ingress frame;
+- no unexpected different Gateway tuple was observed in the bounded observation;
+- newer Direct telemetry continued after the reordered replay;
+- the active path remained Direct and no candidate path appeared;
+- the duplicate Relay replay did not switch path ownership or regress canonical
+  state;
+- Child and Relay network presence remained stable;
+- Manager, Broker, and Home Assistant remained stable;
+- production-network isolation remained preserved.
+
+This is a source-bound reverse-order reassembly validation. It does not claim an
+independent radio sniffer capture of the over-the-air fragment arrival sequence.
+
+The unique M05 PASS terminal was subsequently frozen into separate private immutable
+evidence. The freeze verified exact readback, content-address binding, read-only file
+modes, and non-overwrite semantics without issuing any additional MQTT publication,
+REORDER, RESEND, PATH, board, USB, serial, reset, power, Flash, service, Relay
+hardware, or GitHub mutation.
+
+The public archive intentionally omits the private evidence digest and path, raw live
+tuple values, raw sequence/revision values, boot/session identity, device identity,
+endpoint identity, credentials, PMK/LMK/application keys, and other private material.
+
+The resulting M05 terminal state is:
+
+`M05_ACCEPTED=true`
+
+`M05_TERMINAL=PASS`
+
+The exactly-one M05 REORDER is consumed and permanently non-replayable.
+
 ## Engineering conclusion
 
 The accumulated P5 observations retain the operational rule:
@@ -153,6 +204,11 @@ Direct publication can prime the Relay-form resend cache transactionally, and a
 separately authorized cached replay can be recognized as the same canonical tuple
 without switching the active Direct path.
 
+M05 additionally confirms the bounded multi-fragment reorder contract: the cached
+Relay-form datagrams can be delivered in reverse fragment order, reassembled by the
+Relay into the same frame, and rejected as a duplicate at the canonical/path layer
+without displacing the active Direct path.
+
 ## What this incident does and does not establish
 
 The repeated behavior across two independent devices, with a later recurrence on the
@@ -168,9 +224,14 @@ The later recurrence also does not prove that every hard reset will fail or that
 every cold power-on will recover the device. It establishes only the repeated
 non-equivalence observed in this bounded P5 work.
 
+The M05 result does not establish an independent over-the-air capture of fragment
+ordering; it establishes the source-bound REORDER behavior together with successful
+multi-fragment Relay reassembly and the resulting end-to-end state invariants.
+
 ## Process change retained from the incident
 
-Future P5 physical replacement work should preserve these invariants:
+Future P5 physical replacement and live-validation work should preserve these
+invariants:
 
 - write success is recorded separately from application startup success;
 - image verification is recorded separately from application startup success;
@@ -184,6 +245,8 @@ Future P5 physical replacement work should preserve these invariants:
 - cross-boot recovery is judged from current-session evidence rather than historical
   sequence-number magnitude alone;
 - exactly-one live mutation authorizations remain non-replayable after claim;
+- REORDER validation must use a genuinely multi-fragment cached frame when the goal
+  is to test out-of-order fragment reassembly;
 - live recovery and validation evidence remains private and is not reproduced in the
   public archive.
 
@@ -195,30 +258,37 @@ This archive intentionally excludes:
 - local serial device paths;
 - private image or execution-package digests;
 - private terminal or evidence digests;
+- private immutable-evidence filesystem paths;
 - raw serial or network traces;
-- raw live sequence/revision or tuple values;
-- credentials, keys, session material, or private endpoint identity;
+- raw live sequence/revision, boot/session, or tuple values;
+- credentials, PMK, LMK, application keys, other keys, session material, or private
+  endpoint identity;
 - replayable physical or live authorization/READY text.
 
 Private immutable records remain the authoritative source for exact device identity,
 execution binding, and live evidence.
 
-## M04 state boundary
+## M04/M05 state boundary
 
-M04 is now closed successfully:
+M04 and M05 are now closed successfully:
 
 - `M04_ACCEPTED=true`;
 - `M04_TERMINAL=PASS`;
-- the current Child runtime was accepted on the Direct path for the M04 closure;
-- the Relay remained running and physically untouched during the final RESEND
-  validation;
+- `M05_ACCEPTED=true`;
+- `M05_TERMINAL=PASS`;
+- the current Child runtime remained on the Direct path through both closures;
+- the Relay remained running and physically untouched during the M04 RESEND and M05
+  REORDER validations;
 - the Child's earlier exactly-one RESET remains consumed and must not be repeated;
 - the later Child cold-power execution gate remains
   `CONSUMED_FAILED_EXECUTION_BOUNDARY_VIOLATION` and is non-replayable;
 - the post-terminal forensic fact remains `CHILD_COLD_POWER_RECOVERY_CONFIRMED`;
 - the M04 exactly-one RESEND is consumed PASS and must not be repeated;
-- PATH and RESEND are not authorized by this archive;
-- M05 has not been authorized.
+- the M05 exactly-one REORDER is consumed PASS and must not be repeated;
+- both M04 and M05 unique live PASS terminals are frozen in private immutable
+  evidence;
+- PATH, RESEND, and REORDER are not authorized by this archive;
+- M06 has not been authorized.
 
-Any M05 action requires a new, separate decision and authorization. This archive does
+Any M06 action requires a new, separate decision and authorization. This archive does
 not authorize that action.
