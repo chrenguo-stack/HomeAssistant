@@ -2,13 +2,13 @@
 
 Date: 2026-08-10
 
-Status: `SANITIZED_INCIDENT_ARCHIVE_M04_NOT_ACCEPTED`
+Status: `SANITIZED_INCIDENT_ARCHIVE_M04_PASS`
 
 ## Purpose
 
 This document preserves a public, sanitized engineering incident observed during
 N3-W / P5 / M04 physical replacement work on two independent ESP32-C6 devices,
-including a later recurrence on the Child successor.
+including a later recurrence on the Child successor and the subsequent M04 closure.
 
 It records the operational distinction between a post-write hard reset and a true
 cold power-on without exposing private device identities, raw live traces, or
@@ -16,7 +16,7 @@ replayable authorization material.
 
 This archive is documentation only. It does not authorize board access, serial
 access, reset, power changes, Flash or erase operations, MQTT publication, PATH or
-RESEND commands, service mutation, M04 acceptance, or M05 entry.
+RESEND commands, service mutation, or M05 entry.
 
 ## Archival baseline
 
@@ -93,11 +93,48 @@ and private evidence digests are intentionally omitted. Recovery is described by
 within-session progression rather than by comparing a new boot/session sequence
 number to a historical sequence baseline.
 
+## M04 closure
+
+After the Child successor had recovered onto a stable Direct path, a fresh read-only
+field rebaseline confirmed continued natural Direct telemetry, current-session
+canonical progression, stable Child and Relay network presence, stable Manager,
+Broker, and Home Assistant services, and preserved production-network isolation.
+
+A new separately authorized exactly-one RESEND observation was then performed. That
+authorization was claimed once, consumed once, and is permanently non-replayable.
+The live observation established the following sanitized facts:
+
+- exactly one RESEND command attempt was made;
+- the Relay/Gateway path emitted exactly one cached Relay-form frame matching the
+  Direct tuple selected immediately before the RESEND;
+- no unexpected different Gateway tuple was observed in that bounded observation;
+- newer Direct telemetry continued after the cached replay;
+- the active path remained Direct and no candidate path appeared;
+- the duplicate Relay replay did not switch path ownership or regress canonical
+  state;
+- Child and Relay network presence remained stable;
+- Manager, Broker, and Home Assistant remained stable;
+- production-network isolation remained preserved.
+
+The unique PASS terminal from that live observation was subsequently frozen into
+private immutable evidence and verified by readback before filesystem write
+protection. The public archive intentionally does not reproduce the private evidence
+digest, raw tuple values, raw sequence/revision values, device identities, endpoint
+identity, credentials, keys, or live traces.
+
+The resulting M04 terminal state is:
+
+`M04_ACCEPTED=true`
+
+`M04_TERMINAL=PASS`
+
+The exactly-one M04 RESEND is consumed and must not be repeated.
+
 ## Engineering conclusion
 
 The accumulated P5 observations retain the operational rule:
 
-`hard reset issued != application boot proven`
+`hard reset issued != application_boot_proven`
 
 A successful image write, successful verification, and issuance of a hard reset are
 not sufficient by themselves to prove that the application has reached an accepted
@@ -110,6 +147,11 @@ For this workflow, the safer physical replacement sequence remains:
 Startup/liveness must be proved independently. A cold power cycle, if ever needed,
 must remain separately authorized and bounded, and its execution terminal must not be
 rewritten after consumption.
+
+M04 additionally confirms the repaired Direct/Relay cache contract: successful
+Direct publication can prime the Relay-form resend cache transactionally, and a
+separately authorized cached replay can be recognized as the same canonical tuple
+without switching the active Direct path.
 
 ## What this incident does and does not establish
 
@@ -141,7 +183,9 @@ Future P5 physical replacement work should preserve these invariants:
   separately;
 - cross-boot recovery is judged from current-session evidence rather than historical
   sequence-number magnitude alone;
-- live recovery evidence remains private and is not reproduced in the public archive.
+- exactly-one live mutation authorizations remain non-replayable after claim;
+- live recovery and validation evidence remains private and is not reproduced in the
+  public archive.
 
 ## Public/private boundary
 
@@ -152,29 +196,29 @@ This archive intentionally excludes:
 - private image or execution-package digests;
 - private terminal or evidence digests;
 - raw serial or network traces;
-- raw live sequence/revision values;
+- raw live sequence/revision or tuple values;
 - credentials, keys, session material, or private endpoint identity;
-- replayable physical authorization or READY text.
+- replayable physical or live authorization/READY text.
 
 Private immutable records remain the authoritative source for exact device identity,
 execution binding, and live evidence.
 
 ## M04 state boundary
 
-This documentation archive does not close M04.
+M04 is now closed successfully:
 
-At the time of this update:
-
-- `M04_ACCEPTED=false`;
-- the current Child runtime is separately observed as recovered on the Direct path;
-- the Relay remains running and must remain untouched;
+- `M04_ACCEPTED=true`;
+- `M04_TERMINAL=PASS`;
+- the current Child runtime was accepted on the Direct path for the M04 closure;
+- the Relay remained running and physically untouched during the final RESEND
+  validation;
 - the Child's earlier exactly-one RESET remains consumed and must not be repeated;
 - the later Child cold-power execution gate remains
   `CONSUMED_FAILED_EXECUTION_BOUNDARY_VIOLATION` and is non-replayable;
-- the post-terminal forensic fact is `CHILD_COLD_POWER_RECOVERY_CONFIRMED`;
+- the post-terminal forensic fact remains `CHILD_COLD_POWER_RECOVERY_CONFIRMED`;
+- the M04 exactly-one RESEND is consumed PASS and must not be repeated;
 - PATH and RESEND are not authorized by this archive;
-- M05 remains prohibited.
+- M05 has not been authorized.
 
-After this archive update and a fresh no-drift rebaseline, the next live decision may
-consider a new, separately authorized exactly-one RESEND observation. This archive
-does not authorize that action.
+Any M05 action requires a new, separate decision and authorization. This archive does
+not authorize that action.
