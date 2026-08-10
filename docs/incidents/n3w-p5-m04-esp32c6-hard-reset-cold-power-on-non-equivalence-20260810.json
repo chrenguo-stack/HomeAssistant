@@ -1,0 +1,70 @@
+{
+  "schema": "gh.n3w-p5-m04-esp32c6-reset-poweron-incident/1",
+  "date": "2026-08-10",
+  "status": "SANITIZED_INCIDENT_ARCHIVE_M04_NOT_ACCEPTED",
+  "github_baseline": {
+    "repository": "chrenguo-stack/HomeAssistant",
+    "main_sha": "9ff26629146fe2c1056f52e269c044a135306772",
+    "main_tree": "5cbe98c4e5838fb64378093691997423e3b65149",
+    "pr_301": "merged_into_main",
+    "pr_302": "older_draft_pause_archive_not_current_m04_state_source"
+  },
+  "incident": {
+    "device_count": 2,
+    "roles": [
+      "relay",
+      "child"
+    ],
+    "shared_observation": [
+      "frozen_full_image_write_passed",
+      "independent_image_verification_passed",
+      "hard_reset_issued",
+      "expected_application_or_network_liveness_not_recovered_after_hard_reset",
+      "no_rewrite_or_erase_during_recovery",
+      "exactly_one_complete_usb_power_removal_and_cold_power_on_restored_liveness"
+    ],
+    "relay_recovery": "application_output_resumed_and_two_device_isolated_sessions_were_stable",
+    "child_recovery": "new_child_telemetry_resumed_and_two_device_isolated_sessions_were_stable"
+  },
+  "engineering_conclusion": {
+    "rule": "hard_reset_issued != application_boot_proven",
+    "replacement_sequence": "write -> verify -> no-reset -> separate startup/liveness gate",
+    "specific_root_cause_proven": false
+  },
+  "root_cause_boundary": {
+    "bad_write_primary_explanation_supported": false,
+    "false_verification_primary_explanation_supported": false,
+    "single_board_hardware_primary_explanation_supported": false,
+    "role_specific_application_primary_explanation_supported": false,
+    "silicon_or_software_root_cause_claimed": false
+  },
+  "public_private_boundary": {
+    "raw_device_identifiers_included": false,
+    "local_serial_paths_included": false,
+    "private_image_or_package_digests_included": false,
+    "private_terminal_or_evidence_digests_included": false,
+    "raw_live_traces_included": false,
+    "credentials_keys_or_session_material_included": false,
+    "private_endpoint_identity_included": false,
+    "replayable_authorization_or_ready_text_included": false
+  },
+  "phase_boundary": {
+    "m04_accepted": false,
+    "relay_action_allowed": false,
+    "child_previous_exactly_one_reset": "consumed_do_not_repeat",
+    "path_allowed_now": false,
+    "resend_allowed_now": false,
+    "m05_prohibited": true
+  },
+  "next_live_action_if_separately_authorized_after_fresh_rebaseline": {
+    "scope": "child_only_exactly_one_usb_full_power_cycle_and_live_read_only_recovery_observation",
+    "reset": false,
+    "serial": false,
+    "flash_or_erase": false,
+    "active_mqtt_publish": false,
+    "path": false,
+    "resend": false,
+    "service_restart": false,
+    "relay_power_or_action_change": false
+  }
+}
