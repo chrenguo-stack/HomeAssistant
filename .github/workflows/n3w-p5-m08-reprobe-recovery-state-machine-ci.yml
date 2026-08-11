@@ -61,7 +61,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y g++ libmbedtls-dev
-          python -m pip install --upgrade pytest ruff
+          python -m pip install --upgrade pytest ruff jsonschema
 
       - name: Python contract quality
         run: |
