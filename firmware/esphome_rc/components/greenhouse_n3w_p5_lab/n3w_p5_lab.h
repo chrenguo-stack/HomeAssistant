@@ -89,6 +89,7 @@ class GreenhouseN3wP5Lab final : public Component,
   void process_tx_();
   void process_child_packet_(const RxEvent &event);
   void process_relay_packet_(const RxEvent &event);
+  void invalidate_relay_auth_(const char *reason);
   void maybe_probe_();
   void maybe_publish_();
   bool publish_direct_(uint32_t seq, const std::string &telemetry);
@@ -123,6 +124,7 @@ class GreenhouseN3wP5Lab final : public Component,
   bool radio_ready_{false};
   bool radio_attempted_{false};
   bool relay_authenticated_{false};
+  bool relay_probe_established_since_boot_{false};
   DesiredPath desired_path_{DesiredPath::DIRECT};
   uint32_t selected_key_epoch_{1};
   uint64_t probe_challenge_{0x5045000000000001ULL};
