@@ -294,10 +294,18 @@ void GreenhouseN3wP5Lab::process_relay_packet_(const RxEvent &event) {
   greenhouse_n3w_core::ProbePacket probe{};
   if (greenhouse_n3w_core::decode_authenticated_probe(
           event.data.data(), event.size, gateway_id_, child_binding_, &probe) == greenhouse_n3w_core::RadioError::NONE) {
+    relay_ingress_.reset();
+    relay_probe_established_since_boot_ = true;
     std::vector<uint8_t> reply;
     if (greenhouse_n3w_core::encode_authenticated_probe_ack(lmk_, probe.challenge, true, &reply) ==
         greenhouse_n3w_core::RadioError::NONE)
       driver_.send(peer_mac_, reply.data(), reply.size());
+    ESP_LOGI(TAG, "Fresh authenticated Child probe established for current Relay boot");
+    return;
+  }
+
+  if (!relay_probe_established_since_boot_) {
+    ESP_LOGW(TAG, "Relay fragment ignored until fresh authenticated Child probe");
     return;
   }
 
@@ -326,6 +334,15 @@ bool GreenhouseN3wP5Lab::accept_for_forwarding(const RelayFrame &frame) {
     return false;
   const std::string topic = "gh/v1/" + system_id_ + "/ingress/gateway/" + gateway_id_ + "/" + node_id_ + "/frame";
   return mqtt::global_mqtt_client->publish(topic, payload, 1, false);
+}
+
+void GreenhouseN3wP5Lab::invalidate_relay_auth_(const char *reason) {
+  if (!is_child_) return;
+  relay_authenticated_ = false;
+  ++probe_challenge_;
+  if (probe_challenge_ == 0) ++probe_challenge_;
+  last_probe_ms_ = 0;
+  ESP_LOGI(TAG, "Relay authentication invalidated reason=%s", reason == nullptr ? "unspecified" : reason);
 }
 
 void GreenhouseN3wP5Lab::maybe_probe_() {
@@ -441,6 +458,7 @@ void GreenhouseN3wP5Lab::flush_relay_cache_() {
     const bool discarded = cache_.discard(session, seq);
     ESP_LOGW(TAG, "Relay retry exhausted boot=%llu seq=%u discarded=%s",
              static_cast<unsigned long long>(session), static_cast<unsigned>(seq), discarded ? "true" : "false");
+    invalidate_relay_auth_("receipt_ack_retry_exhausted");
   }
   if (!sent) ESP_LOGW(TAG, "Relay datagram send failed boot=%llu seq=%u", static_cast<unsigned long long>(session), static_cast<unsigned>(seq));
 }
@@ -490,9 +508,7 @@ void GreenhouseN3wP5Lab::handle_lab_command(const std::string &raw) {
     ESP_LOGI(TAG, "Lab command: PATH DIRECT");
   } else if (is_child_ && command == "PATH RELAY") {
     desired_path_ = DesiredPath::RELAY;
-    relay_authenticated_ = false;
-    ++probe_challenge_;
-    last_probe_ms_ = 0;
+    invalidate_relay_auth_("path_relay");
     ESP_LOGI(TAG, "Lab command: PATH RELAY");
   } else if (is_child_ && command == "KEY 1") {
     selected_key_epoch_ = 1;
