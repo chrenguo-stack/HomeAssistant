@@ -1,0 +1,145 @@
+{
+  "schema": "gh.n3w-p5-m13-broker-outage-host-only-plan/1",
+  "status": "host_only_contract_ready_live_execution_prohibited",
+  "development_authorization": {
+    "id": "D1-N3W-P5-M13-HOST-ONLY-CONTRACT-TESTS-AND-NO-LIVE-EXECUTION-DEVELOPMENT-20260813-01",
+    "claimed_once": true,
+    "consumed": true,
+    "replay_allowed": false
+  },
+  "base": {
+    "repository": "chrenguo-stack/HomeAssistant",
+    "branch": "main",
+    "commit_sha": "6bc4bd403d3913daf28017eea82dfab391265908",
+    "tree_sha": "54112010e5ec034c7954147fe38d9669f7b42463"
+  },
+  "matrix_contract": {
+    "id": "M13",
+    "name": "broker_outage",
+    "action": "stop isolated broker, wait through retry window, restore broker",
+    "expect": "no false positive ReceiptAck; bounded retry; recovery without duplicate canonical"
+  },
+  "m12_dependency": {
+    "classification": "PASS",
+    "final_freeze_sha256": "ea5549c22640f3213333bc37537ffe0985ea1e0144afaeedfe19b83f8d4725aa",
+    "epoch1_state": "GRACE",
+    "epoch2_state": "ACTIVE",
+    "active_gateway_id": "n3wp5_relay01",
+    "candidate_none": true,
+    "canonical_boot_session_hex": "077d07249ff2a1ac"
+  },
+  "change_scope": {
+    "allowed": [
+      ".github/workflows/n3w-p5-m13-broker-outage-host-only-ci.yml",
+      "docs/decisions/n3w-p5-m13-broker-outage-host-only-plan.json",
+      "tests/n3w_p5/test_n3w_p5_m13_broker_outage_contract.py"
+    ],
+    "manager_product_runtime_change": false,
+    "compose_change": false,
+    "firmware_change": false,
+    "live_executor_added": false,
+    "secret_material_added": false,
+    "github_mutation_authorized_by_this_document": false
+  },
+  "outage_contract": {
+    "relay_receipt_is_manager_ack": false,
+    "mqtt_client_must_be_connected_before_forwarding": true,
+    "mqtt_publish_must_return_true_before_accepted_for_forwarding": true,
+    "failed_forwarding_returns_exact_authenticated_rejected_receipt": true,
+    "rejected_receipt_does_not_remove_child_cache_entry": true,
+    "accepted_receipt_removes_only_exact_boot_seq": true,
+    "cache_capacity": 4,
+    "initial_retry_delay_ms": 500,
+    "maximum_retry_delay_ms": 8000,
+    "maximum_attempts": 5,
+    "attempt_offsets_ms": [0, 500, 1500, 3500, 7500],
+    "retry_exhaustion_discards_exact_entry": true,
+    "retry_exhaustion_invalidates_relay_authentication": true,
+    "fresh_probe_required_for_reentry": true,
+    "recovered_duplicate_tuple_cannot_advance_canonical_twice": true
+  },
+  "host_only_test_contract": {
+    "synthetic_frames_only": true,
+    "production_child_cache_implementation_compiled": true,
+    "production_receipt_ack_implementation_compiled": true,
+    "production_replay_registry": true,
+    "production_path_lease_coordinator": true,
+    "false_positive_acceptance_rejected": true,
+    "bounded_retry_schedule_verified": true,
+    "exact_cache_discard_and_capacity_recovery_verified": true,
+    "fresh_probe_source_ordering_verified": true,
+    "same_tuple_duplicate_canonical_prevented": true,
+    "canonical_and_revision_no_rollback_verified": true,
+    "mqtt_connection_required": false,
+    "docker_connection_required": false,
+    "board_connection_required": false,
+    "network_connection_required": false
+  },
+  "future_live_preflight": {
+    "authorized_now": false,
+    "exact_main_and_tree_rebound": false,
+    "m12_freeze_hash_verified": false,
+    "production_route_absent": false,
+    "manager_broker_ha_baseline_captured": false,
+    "three_sqlite_quick_checks_ok": false,
+    "epoch1_grace_epoch2_active_and_no_pending_operations_verified": false,
+    "relay_active_candidate_none_and_boot_session_bound": false,
+    "child_relay_manager_broker_and_canonical_evidence_prearmed": false,
+    "outage_window_rebound_to_exact_retry_policy": false
+  },
+  "future_live_transaction": {
+    "authorized_now": false,
+    "separate_verbatim_authorization_required": true,
+    "maximum_broker_stop_invocations": 1,
+    "minimum_outage_window_ms": 7500,
+    "maximum_broker_start_invocations": 1,
+    "automatic_retry": false,
+    "automatic_second_stop_or_start": false,
+    "service_recreate": false,
+    "manager_restart": false,
+    "homeassistant_restart": false,
+    "mqtt_command_publish": false,
+    "path_key_or_restart_command": false,
+    "board_reset_power_cycle_flash_or_erase": false,
+    "m14_entry": false
+  },
+  "future_live_pass_gates": [
+    "exactly_one_isolated_broker_stop",
+    "no_accepted_for_forwarding_receipt_while_broker_is_unavailable",
+    "child_attempt_count_and_timing_remain_bounded",
+    "retry_exhaustion_discards_only_the_exact_entry_and_invalidates_authentication",
+    "exactly_one_isolated_broker_start",
+    "relay_reconnect_and_fresh_child_probe_complete",
+    "fresh_epoch2_frames_resume_under_the_same_boot_session",
+    "canonical_advances_monotonically_without_duplicate_commit",
+    "path_returns_to_relay_with_candidate_none_through_normal_semantics",
+    "manager_and_homeassistant_identity_and_restart_counts_remain_unchanged",
+    "production_route_remains_absent"
+  ],
+  "failure_and_stop_policy": {
+    "any_failed_preflight_blocks_broker_stop": true,
+    "ambiguous_stop_count_blocks_further_action_except_separately_bound_recovery": true,
+    "broker_must_not_be_left_intentionally_stopped": true,
+    "start_failure_has_no_automatic_second_start": true,
+    "false_positive_receipt_or_unbounded_retry_is_m13_fail": true,
+    "duplicate_canonical_rollback_or_session_change_is_m13_fail": true,
+    "no_service_recreate_rollback_or_fallback": true,
+    "no_mqtt_command_publish": true,
+    "no_board_mutation": true,
+    "no_m14": true
+  },
+  "evidence_contract": {
+    "secret_values_included": false,
+    "broker_stop_and_start_attempt_counts_required": true,
+    "receipt_status_and_exact_tuple_metadata_required": true,
+    "retry_attempt_timestamps_and_exhaustion_required": true,
+    "pre_and_post_logical_sqlite_snapshots_required": true,
+    "canonical_boot_seq_revision_and_service_baseline_required": true,
+    "final_classification_must_be_read_only": true
+  },
+  "next_gate": {
+    "m13_live_allowed": false,
+    "m14_allowed": false,
+    "required_authorization": "D1-N3W-P5-M13-HOST-ONLY-CONTRACT-COMMIT-PUSH-DRAFT-PR-AND-CI-20260813-01"
+  }
+}
