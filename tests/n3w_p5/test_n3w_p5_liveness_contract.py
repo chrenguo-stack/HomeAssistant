@@ -3,6 +3,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 P5_CPP = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_p5_lab/n3w_p5_lab.cpp"
 P5_H = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_p5_lab/n3w_p5_lab.h"
+RADIO_CPP = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_radio.cpp"
 RADIO_H = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_radio.h"
 
 
@@ -66,25 +67,82 @@ def test_retry_exhaustion_discards_exact_cache_entry() -> None:
 def test_connected_sta_channel_is_reused_without_radio_init_thrash() -> None:
     source = P5_CPP.read_text(encoding="utf-8")
     header = P5_H.read_text(encoding="utf-8")
+    channel_reader = function_body(
+        source,
+        "bool GreenhouseN3wP5Lab::read_connected_sta_channel_",
+        "void GreenhouseN3wP5Lab::require_fresh_relay_probe_",
+    )
     body = function_body(
         source,
         "bool GreenhouseN3wP5Lab::ensure_radio_ready_()",
         "void GreenhouseN3wP5Lab::loop()",
     )
 
+    assert "esp_wifi_sta_get_ap_info" in channel_reader
+    assert "esp_wifi_get_channel" in channel_reader
     retry_gate = body.index("now - last_radio_attempt_ms_ < kRadioRetryIntervalMs")
     attempt_record = body.index("last_radio_attempt_ms_ = now")
-    current_channel = body.index("esp_wifi_get_channel")
     initialize = body.index("driver_.initialize")
-    add_peer = body.index("driver_.add_encrypted_peer")
-
-    assert retry_gate < attempt_record < current_channel < initialize < add_peer
+    assert retry_gate < attempt_record < initialize
     assert "driver_.set_channel" not in body
-    assert "driver_.shutdown()" in body
-    assert "ESP-NOW initialization failed error=%u" in body
-    assert "ESP-NOW peer configuration failed error=%u" in body
+    assert "driver_.add_encrypted_peer" in body
     assert "bool radio_attempted_{false};" in header
     assert "uint64_t last_radio_attempt_ms_{0};" in header
+    assert "uint8_t configured_peer_channel_{0};" in header
+
+
+def test_connected_sta_channel_change_rebinds_peer_and_requires_fresh_probe() -> None:
+    source = P5_CPP.read_text(encoding="utf-8")
+    body = function_body(
+        source,
+        "bool GreenhouseN3wP5Lab::ensure_radio_ready_()",
+        "void GreenhouseN3wP5Lab::loop()",
+    )
+    freshness = function_body(
+        source,
+        "void GreenhouseN3wP5Lab::require_fresh_relay_probe_",
+        "void GreenhouseN3wP5Lab::mark_radio_unavailable_",
+    )
+    unavailable = function_body(
+        source,
+        "void GreenhouseN3wP5Lab::mark_radio_unavailable_",
+        "bool GreenhouseN3wP5Lab::ensure_radio_ready_()",
+    )
+
+    unchanged = body.index("configured_peer_channel_ == primary")
+    peer_update = body.index("driver_.add_encrypted_peer")
+    channel_commit = body.index("configured_peer_channel_ = primary")
+    fresh_probe = body.index('require_fresh_relay_probe_("sta_channel_changed")')
+    assert unchanged < peer_update < channel_commit < fresh_probe
+    assert 'mark_radio_unavailable_("sta_disconnected")' in body
+    assert "driver_.shutdown()" in unavailable
+    assert "radio_ready_ = false" in unavailable
+    assert "configured_peer_channel_ = 0" in unavailable
+    assert "invalidate_relay_auth_(reason)" in freshness
+    assert "relay_probe_established_since_boot_ = false" in freshness
+    assert "relay_ingress_.reset()" in freshness
+    for forbidden in (
+        "desired_path_ =",
+        "selected_key_epoch_ =",
+        "boot_.take_sequence",
+        "esp_restart",
+    ):
+        assert forbidden not in freshness
+        assert forbidden not in unavailable
+
+
+def test_connected_sta_runtime_preserves_disconnected_scan_boundary() -> None:
+    p5 = P5_CPP.read_text(encoding="utf-8")
+    radio = RADIO_CPP.read_text(encoding="utf-8")
+    body = function_body(
+        p5,
+        "bool GreenhouseN3wP5Lab::ensure_radio_ready_()",
+        "void GreenhouseN3wP5Lab::loop()",
+    )
+
+    assert "driver_.set_channel" not in body
+    assert "ChannelScanPlan::configure" in radio
+    assert "ChannelScanPlan::advance" in radio
 
 
 def test_cached_resend_requires_radio_ready_and_reports_exact_outcome() -> None:
