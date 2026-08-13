@@ -191,6 +191,7 @@ void GreenhouseN3wP5Lab::mark_radio_unavailable_(const char *reason) {
   driver_.shutdown();
   radio_ready_ = false;
   configured_peer_channel_ = 0;
+  pending_peer_channel_ = 0;
   relay_binding_.preferred_channel = 0;
   require_fresh_relay_probe_(reason);
   ESP_LOGW(TAG, "ESP-NOW radio unavailable role=%s reason=%s", role_.c_str(), reason == nullptr ? "unspecified" : reason);
@@ -205,7 +206,16 @@ bool GreenhouseN3wP5Lab::ensure_radio_ready_() {
     mark_radio_unavailable_("sta_disconnected");
     return false;
   }
-  if (radio_ready_ && configured_peer_channel_ == primary) return true;
+  if (radio_ready_ && configured_peer_channel_ == primary) {
+    pending_peer_channel_ = 0;
+    return true;
+  }
+  if (radio_ready_ && pending_peer_channel_ != primary) {
+    pending_peer_channel_ = primary;
+    require_fresh_relay_probe_("sta_channel_changed");
+    ESP_LOGI(TAG, "ESP-NOW STA channel change detected role=%s previous=%u current=%u", role_.c_str(),
+             static_cast<unsigned>(configured_peer_channel_), static_cast<unsigned>(primary));
+  }
   if (radio_attempted_ && now - last_radio_attempt_ms_ < kRadioRetryIntervalMs) return false;
   radio_attempted_ = true;
   last_radio_attempt_ms_ = now;
@@ -222,7 +232,7 @@ bool GreenhouseN3wP5Lab::ensure_radio_ready_() {
       return false;
     }
     configured_peer_channel_ = primary;
-    require_fresh_relay_probe_("sta_channel_changed");
+    pending_peer_channel_ = 0;
     ESP_LOGI(TAG, "ESP-NOW peer channel updated role=%s previous=%u current=%u", role_.c_str(),
              static_cast<unsigned>(previous_channel), static_cast<unsigned>(primary));
     return true;
@@ -240,6 +250,7 @@ bool GreenhouseN3wP5Lab::ensure_radio_ready_() {
     return false;
   }
   configured_peer_channel_ = primary;
+  pending_peer_channel_ = 0;
   radio_ready_ = true;
   ESP_LOGI(TAG, "ESP-NOW ready role=%s channel=%u", role_.c_str(), static_cast<unsigned>(primary));
   return true;
