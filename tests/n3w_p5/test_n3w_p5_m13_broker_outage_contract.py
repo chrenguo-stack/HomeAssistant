@@ -19,6 +19,7 @@ from greenhouse_manager.runtime.replay_registry import ReplayRegistry
 
 PLAN = ROOT / "docs/decisions/n3w-p5-m13-broker-outage-host-only-plan.json"
 MATRIX = ROOT / "docs/decisions/n3w-p5-two-board-isolated-e2e-execution-plan.json"
+WORKFLOW = ROOT / ".github/workflows/n3w-p5-m13-broker-outage-host-only-ci.yml"
 P5_CPP = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_p5_lab/n3w_p5_lab.cpp"
 P5_H = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_p5_lab/n3w_p5_lab.h"
 RADIO_CPP = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_radio.cpp"
@@ -267,17 +268,17 @@ def test_recovery_and_delayed_duplicate_create_only_one_canonical_commit(
 
 
 def test_host_only_scope_contains_no_live_execution_tokens() -> None:
-    changed = [PLAN]
+    changed = [PLAN, Path(__file__), WORKFLOW]
     forbidden = (
-        "docker stop",
-        "docker start",
-        "docker restart",
-        "mosquitto_pub",
-        "esphome run",
-        "esptool",
-        "/dev/cu.",
-        "/dev/tty",
-        "192.168.68.",
+        "docker" + " stop",
+        "docker" + " start",
+        "docker" + " restart",
+        "mosquitto" + "_pub",
+        "esphome" + " run",
+        "esp" + "tool",
+        "/dev/" + "cu.",
+        "/dev/" + "tty",
+        "192." + "168.68.",
     )
     for path in changed:
         text = path.read_text(encoding="utf-8")

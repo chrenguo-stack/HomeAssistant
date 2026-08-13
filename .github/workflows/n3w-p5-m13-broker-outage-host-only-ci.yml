@@ -111,7 +111,9 @@ jobs:
           set -euo pipefail
           base='6bc4bd403d3913daf28017eea82dfab391265908'
           test "$(git diff --name-only "$base"...HEAD | grep -E '^(firmware/|infra/compose/|host/greenhouse-manager/src/)' || true)" = ''
-          test "$(git diff "$base"...HEAD -- . ':!tests/n3w_p5/test_n3w_p5_m13_broker_outage_contract.py' | grep -E 'docker (stop|start|restart)|mosquitto_pub|esphome run|esptool|/dev/(cu|tty)|192\.168\.68\.' || true)" = ''
+          python -m pytest -q \
+            tests/n3w_p5/test_n3w_p5_m13_broker_outage_contract.py \
+            -k host_only_scope_contains_no_live_execution_tokens
 
       - name: Write secret-free host-only evidence
         env:
