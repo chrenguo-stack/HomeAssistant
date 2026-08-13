@@ -373,7 +373,7 @@ void GreenhouseN3wP5Lab::process_relay_packet_(const RxEvent &event) {
     if (greenhouse_n3w_core::encode_authenticated_probe_ack(lmk_, probe.challenge, true, &reply) ==
         greenhouse_n3w_core::RadioError::NONE)
       driver_.send(peer_mac_, reply.data(), reply.size());
-    ESP_LOGI(TAG, "Fresh authenticated Child probe established for current Relay radio state");
+    ESP_LOGI(TAG, "Fresh authenticated Child probe established for current Relay boot");
     return;
   }
 
