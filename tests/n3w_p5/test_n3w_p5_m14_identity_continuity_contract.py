@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sys
 from copy import deepcopy
+from importlib import import_module
 from pathlib import Path
 from typing import Any
 
@@ -12,7 +13,9 @@ ROOT = Path(__file__).resolve().parents[2]
 MANAGER_SRC = ROOT / "host/greenhouse-manager/src"
 sys.path.insert(0, str(MANAGER_SRC))
 
-from greenhouse_manager.runtime.ha_discovery import HomeAssistantDiscovery  # noqa: E402
+HomeAssistantDiscovery = import_module(
+    "greenhouse_manager.runtime.ha_discovery"
+).HomeAssistantDiscovery
 
 PLAN = ROOT / "docs/decisions/n3w-p5-m14-identity-continuity-host-only-plan.json"
 MATRIX = ROOT / "docs/decisions/n3w-p5-two-board-isolated-e2e-execution-plan.json"
