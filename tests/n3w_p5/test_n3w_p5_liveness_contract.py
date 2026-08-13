@@ -176,7 +176,9 @@ def test_stale_rx_cannot_reopen_relay_fresh_probe_gate_after_radio_transition() 
     decode = relay.index("decode_authenticated_probe")
     stale_gate = relay.index("!relay_probe_established_since_boot_", decode)
     seen_guard = relay.index("relay_probe_challenge_seen_", stale_gate)
-    stale_compare = relay.index("probe.challenge == last_relay_probe_challenge_", seen_guard)
+    stale_compare = relay.index(
+        "probe.challenge == last_relay_probe_challenge_", seen_guard
+    )
     stale_return = relay.index("return;", stale_compare)
     establish = relay.index("relay_probe_established_since_boot_ = true", stale_return)
     remember = relay.index("last_relay_probe_challenge_ = probe.challenge", establish)
