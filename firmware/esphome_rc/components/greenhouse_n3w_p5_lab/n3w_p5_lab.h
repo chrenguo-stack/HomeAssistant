@@ -84,6 +84,9 @@ class GreenhouseN3wP5Lab final : public Component,
 
   bool parse_configuration_();
   bool ensure_radio_ready_();
+  bool read_connected_sta_channel_(uint8_t *primary) const;
+  void mark_radio_unavailable_(const char *reason);
+  void require_fresh_relay_probe_(const char *reason);
   bool initialize_child_session_();
   void process_rx_();
   void process_tx_();
@@ -131,6 +134,7 @@ class GreenhouseN3wP5Lab final : public Component,
   uint64_t last_probe_ms_{0};
   uint64_t last_publish_ms_{0};
   uint64_t last_radio_attempt_ms_{0};
+  uint8_t configured_peer_channel_{0};
   uint32_t rx_dropped_{0};
   uint32_t send_failures_{0};
 
