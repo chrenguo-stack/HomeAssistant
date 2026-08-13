@@ -177,6 +177,10 @@ bool GreenhouseN3wP5Lab::read_connected_sta_channel_(uint8_t *primary) const {
 }
 
 void GreenhouseN3wP5Lab::require_fresh_relay_probe_(const char *reason) {
+#ifdef USE_ESP32
+  if (rx_queue_ != nullptr) xQueueReset(rx_queue_);
+  if (tx_queue_ != nullptr) xQueueReset(tx_queue_);
+#endif
   if (is_child_) {
     invalidate_relay_auth_(reason);
     return;
@@ -233,6 +237,7 @@ bool GreenhouseN3wP5Lab::ensure_radio_ready_() {
     }
     configured_peer_channel_ = primary;
     pending_peer_channel_ = 0;
+    require_fresh_relay_probe_("sta_channel_rebound");
     ESP_LOGI(TAG, "ESP-NOW peer channel updated role=%s previous=%u current=%u", role_.c_str(),
              static_cast<unsigned>(previous_channel), static_cast<unsigned>(primary));
     return true;
@@ -252,6 +257,7 @@ bool GreenhouseN3wP5Lab::ensure_radio_ready_() {
   configured_peer_channel_ = primary;
   pending_peer_channel_ = 0;
   radio_ready_ = true;
+  require_fresh_relay_probe_("sta_radio_ready");
   ESP_LOGI(TAG, "ESP-NOW ready role=%s channel=%u", role_.c_str(), static_cast<unsigned>(primary));
   return true;
 #else
@@ -261,12 +267,16 @@ bool GreenhouseN3wP5Lab::ensure_radio_ready_() {
 
 void GreenhouseN3wP5Lab::loop() {
   if (!execution_enabled_ || this->is_failed()) return;
-  ensure_radio_ready_();
-  process_rx_();
-  process_tx_();
+  const bool current_radio_ready = ensure_radio_ready_();
+  if (current_radio_ready) {
+    process_rx_();
+    process_tx_();
+  }
   if (!is_child_) return;
-  maybe_probe_();
-  flush_relay_cache_();
+  if (current_radio_ready) {
+    maybe_probe_();
+    flush_relay_cache_();
+  }
   maybe_publish_();
 }
 
@@ -350,13 +360,20 @@ void GreenhouseN3wP5Lab::process_relay_packet_(const RxEvent &event) {
   greenhouse_n3w_core::ProbePacket probe{};
   if (greenhouse_n3w_core::decode_authenticated_probe(
           event.data.data(), event.size, gateway_id_, child_binding_, &probe) == greenhouse_n3w_core::RadioError::NONE) {
+    if (!relay_probe_established_since_boot_ && relay_probe_challenge_seen_ &&
+        probe.challenge == last_relay_probe_challenge_) {
+      ESP_LOGW(TAG, "Stale authenticated Child probe ignored after radio transition");
+      return;
+    }
     relay_ingress_.reset();
     relay_probe_established_since_boot_ = true;
+    last_relay_probe_challenge_ = probe.challenge;
+    relay_probe_challenge_seen_ = true;
     std::vector<uint8_t> reply;
     if (greenhouse_n3w_core::encode_authenticated_probe_ack(lmk_, probe.challenge, true, &reply) ==
         greenhouse_n3w_core::RadioError::NONE)
       driver_.send(peer_mac_, reply.data(), reply.size());
-    ESP_LOGI(TAG, "Fresh authenticated Child probe established for current Relay boot");
+    ESP_LOGI(TAG, "Fresh authenticated Child probe established for current Relay radio state");
     return;
   }
 
