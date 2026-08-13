@@ -3,6 +3,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 P5_CPP = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_p5_lab/n3w_p5_lab.cpp"
 P5_H = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_p5_lab/n3w_p5_lab.h"
+RADIO_CPP = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_radio.cpp"
 RADIO_H = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_radio.h"
 
 
@@ -66,25 +67,149 @@ def test_retry_exhaustion_discards_exact_cache_entry() -> None:
 def test_connected_sta_channel_is_reused_without_radio_init_thrash() -> None:
     source = P5_CPP.read_text(encoding="utf-8")
     header = P5_H.read_text(encoding="utf-8")
+    channel_reader = function_body(
+        source,
+        "bool GreenhouseN3wP5Lab::read_connected_sta_channel_",
+        "void GreenhouseN3wP5Lab::require_fresh_relay_probe_",
+    )
     body = function_body(
         source,
         "bool GreenhouseN3wP5Lab::ensure_radio_ready_()",
         "void GreenhouseN3wP5Lab::loop()",
     )
 
+    assert "esp_wifi_sta_get_ap_info" in channel_reader
+    assert "esp_wifi_get_channel" in channel_reader
     retry_gate = body.index("now - last_radio_attempt_ms_ < kRadioRetryIntervalMs")
     attempt_record = body.index("last_radio_attempt_ms_ = now")
-    current_channel = body.index("esp_wifi_get_channel")
     initialize = body.index("driver_.initialize")
-    add_peer = body.index("driver_.add_encrypted_peer")
-
-    assert retry_gate < attempt_record < current_channel < initialize < add_peer
+    assert retry_gate < attempt_record < initialize
     assert "driver_.set_channel" not in body
-    assert "driver_.shutdown()" in body
-    assert "ESP-NOW initialization failed error=%u" in body
-    assert "ESP-NOW peer configuration failed error=%u" in body
+    assert "driver_.add_encrypted_peer" in body
     assert "bool radio_attempted_{false};" in header
     assert "uint64_t last_radio_attempt_ms_{0};" in header
+    assert "uint8_t configured_peer_channel_{0};" in header
+    assert "uint8_t pending_peer_channel_{0};" in header
+
+
+def test_connected_sta_channel_change_rebinds_peer_and_requires_fresh_probe() -> None:
+    source = P5_CPP.read_text(encoding="utf-8")
+    body = function_body(
+        source,
+        "bool GreenhouseN3wP5Lab::ensure_radio_ready_()",
+        "void GreenhouseN3wP5Lab::loop()",
+    )
+    freshness = function_body(
+        source,
+        "void GreenhouseN3wP5Lab::require_fresh_relay_probe_",
+        "void GreenhouseN3wP5Lab::mark_radio_unavailable_",
+    )
+    unavailable = function_body(
+        source,
+        "void GreenhouseN3wP5Lab::mark_radio_unavailable_",
+        "bool GreenhouseN3wP5Lab::ensure_radio_ready_()",
+    )
+
+    unchanged = body.index("configured_peer_channel_ == primary")
+    transition = body.index("pending_peer_channel_ != primary")
+    pending = body.index("pending_peer_channel_ = primary", transition)
+    fresh_probe = body.index('require_fresh_relay_probe_("sta_channel_changed")')
+    retry_gate = body.index("now - last_radio_attempt_ms_ < kRadioRetryIntervalMs")
+    peer_update = body.index("driver_.add_encrypted_peer")
+    channel_commit = body.index("configured_peer_channel_ = primary", peer_update)
+    pending_clear = body.index("pending_peer_channel_ = 0", channel_commit)
+    rebound_fresh_probe = body.index(
+        'require_fresh_relay_probe_("sta_channel_rebound")', pending_clear
+    )
+    assert (
+        unchanged
+        < transition
+        < pending
+        < fresh_probe
+        < retry_gate
+        < peer_update
+        < channel_commit
+        < pending_clear
+        < rebound_fresh_probe
+    )
+    assert 'mark_radio_unavailable_("sta_disconnected")' in body
+    assert 'require_fresh_relay_probe_("sta_radio_ready")' in body
+    assert "driver_.shutdown()" in unavailable
+    assert "radio_ready_ = false" in unavailable
+    assert "configured_peer_channel_ = 0" in unavailable
+    assert "pending_peer_channel_ = 0" in unavailable
+    assert "xQueueReset(rx_queue_)" in freshness
+    assert "xQueueReset(tx_queue_)" in freshness
+    assert "invalidate_relay_auth_(reason)" in freshness
+    assert "relay_probe_established_since_boot_ = false" in freshness
+    assert "relay_ingress_.reset()" in freshness
+    for forbidden in (
+        "desired_path_ =",
+        "selected_key_epoch_ =",
+        "boot_.take_sequence",
+        "esp_restart",
+    ):
+        assert forbidden not in freshness
+        assert forbidden not in unavailable
+
+
+def test_stale_rx_cannot_reopen_relay_fresh_probe_gate_after_radio_transition() -> None:
+    source = P5_CPP.read_text(encoding="utf-8")
+    header = P5_H.read_text(encoding="utf-8")
+    loop = function_body(
+        source,
+        "void GreenhouseN3wP5Lab::loop()",
+        "void GreenhouseN3wP5Lab::on_espnow_receive",
+    )
+    relay = function_body(
+        source,
+        "void GreenhouseN3wP5Lab::process_relay_packet_",
+        "bool GreenhouseN3wP5Lab::accept_for_forwarding",
+    )
+
+    ready_result = loop.index("const bool current_radio_ready = ensure_radio_ready_()")
+    ready_guard = loop.index("if (current_radio_ready)", ready_result)
+    process_rx = loop.index("process_rx_()", ready_guard)
+    process_tx = loop.index("process_tx_()", process_rx)
+    assert ready_result < ready_guard < process_rx < process_tx
+
+    decode = relay.index("decode_authenticated_probe")
+    stale_gate = relay.index("!relay_probe_established_since_boot_", decode)
+    seen_guard = relay.index("relay_probe_challenge_seen_", stale_gate)
+    stale_compare = relay.index(
+        "probe.challenge == last_relay_probe_challenge_", seen_guard
+    )
+    stale_return = relay.index("return;", stale_compare)
+    establish = relay.index("relay_probe_established_since_boot_ = true", stale_return)
+    remember = relay.index("last_relay_probe_challenge_ = probe.challenge", establish)
+    mark_seen = relay.index("relay_probe_challenge_seen_ = true", remember)
+    assert (
+        decode
+        < stale_gate
+        < seen_guard
+        < stale_compare
+        < stale_return
+        < establish
+        < remember
+        < mark_seen
+    )
+    assert "Stale authenticated Child probe ignored after radio transition" in relay
+    assert "bool relay_probe_challenge_seen_{false};" in header
+    assert "uint64_t last_relay_probe_challenge_{0};" in header
+
+
+def test_connected_sta_runtime_preserves_disconnected_scan_boundary() -> None:
+    p5 = P5_CPP.read_text(encoding="utf-8")
+    radio = RADIO_CPP.read_text(encoding="utf-8")
+    body = function_body(
+        p5,
+        "bool GreenhouseN3wP5Lab::ensure_radio_ready_()",
+        "void GreenhouseN3wP5Lab::loop()",
+    )
+
+    assert "driver_.set_channel" not in body
+    assert "ChannelScanPlan::configure" in radio
+    assert "ChannelScanPlan::advance" in radio
 
 
 def test_cached_resend_requires_radio_ready_and_reports_exact_outcome() -> None:
