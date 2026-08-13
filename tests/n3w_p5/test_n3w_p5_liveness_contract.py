@@ -118,6 +118,9 @@ def test_connected_sta_channel_change_rebinds_peer_and_requires_fresh_probe() ->
     peer_update = body.index("driver_.add_encrypted_peer")
     channel_commit = body.index("configured_peer_channel_ = primary", peer_update)
     pending_clear = body.index("pending_peer_channel_ = 0", channel_commit)
+    rebound_fresh_probe = body.index(
+        'require_fresh_relay_probe_("sta_channel_rebound")', pending_clear
+    )
     assert (
         unchanged
         < transition
@@ -127,12 +130,16 @@ def test_connected_sta_channel_change_rebinds_peer_and_requires_fresh_probe() ->
         < peer_update
         < channel_commit
         < pending_clear
+        < rebound_fresh_probe
     )
     assert 'mark_radio_unavailable_("sta_disconnected")' in body
+    assert 'require_fresh_relay_probe_("sta_radio_ready")' in body
     assert "driver_.shutdown()" in unavailable
     assert "radio_ready_ = false" in unavailable
     assert "configured_peer_channel_ = 0" in unavailable
     assert "pending_peer_channel_ = 0" in unavailable
+    assert "xQueueReset(rx_queue_)" in freshness
+    assert "xQueueReset(tx_queue_)" in freshness
     assert "invalidate_relay_auth_(reason)" in freshness
     assert "relay_probe_established_since_boot_ = false" in freshness
     assert "relay_ingress_.reset()" in freshness
@@ -144,6 +151,49 @@ def test_connected_sta_channel_change_rebinds_peer_and_requires_fresh_probe() ->
     ):
         assert forbidden not in freshness
         assert forbidden not in unavailable
+
+
+def test_stale_rx_cannot_reopen_relay_fresh_probe_gate_after_radio_transition() -> None:
+    source = P5_CPP.read_text(encoding="utf-8")
+    header = P5_H.read_text(encoding="utf-8")
+    loop = function_body(
+        source,
+        "void GreenhouseN3wP5Lab::loop()",
+        "void GreenhouseN3wP5Lab::on_espnow_receive",
+    )
+    relay = function_body(
+        source,
+        "void GreenhouseN3wP5Lab::process_relay_packet_",
+        "bool GreenhouseN3wP5Lab::accept_for_forwarding",
+    )
+
+    ready_result = loop.index("const bool current_radio_ready = ensure_radio_ready_()")
+    ready_guard = loop.index("if (current_radio_ready)", ready_result)
+    process_rx = loop.index("process_rx_()", ready_guard)
+    process_tx = loop.index("process_tx_()", process_rx)
+    assert ready_result < ready_guard < process_rx < process_tx
+
+    decode = relay.index("decode_authenticated_probe")
+    stale_gate = relay.index("!relay_probe_established_since_boot_", decode)
+    seen_guard = relay.index("relay_probe_challenge_seen_", stale_gate)
+    stale_compare = relay.index("probe.challenge == last_relay_probe_challenge_", seen_guard)
+    stale_return = relay.index("return;", stale_compare)
+    establish = relay.index("relay_probe_established_since_boot_ = true", stale_return)
+    remember = relay.index("last_relay_probe_challenge_ = probe.challenge", establish)
+    mark_seen = relay.index("relay_probe_challenge_seen_ = true", remember)
+    assert (
+        decode
+        < stale_gate
+        < seen_guard
+        < stale_compare
+        < stale_return
+        < establish
+        < remember
+        < mark_seen
+    )
+    assert "Stale authenticated Child probe ignored after radio transition" in relay
+    assert "bool relay_probe_challenge_seen_{false};" in header
+    assert "uint64_t last_relay_probe_challenge_{0};" in header
 
 
 def test_connected_sta_runtime_preserves_disconnected_scan_boundary() -> None:
