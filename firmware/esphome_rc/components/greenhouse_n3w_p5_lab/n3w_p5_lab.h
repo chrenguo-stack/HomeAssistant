@@ -128,9 +128,11 @@ class GreenhouseN3wP5Lab final : public Component,
   bool radio_attempted_{false};
   bool relay_authenticated_{false};
   bool relay_probe_established_since_boot_{false};
+  bool relay_probe_challenge_seen_{false};
   DesiredPath desired_path_{DesiredPath::DIRECT};
   uint32_t selected_key_epoch_{1};
   uint64_t probe_challenge_{0x5045000000000001ULL};
+  uint64_t last_relay_probe_challenge_{0};
   uint64_t last_probe_ms_{0};
   uint64_t last_publish_ms_{0};
   uint64_t last_radio_attempt_ms_{0};
