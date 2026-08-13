@@ -135,6 +135,7 @@ class GreenhouseN3wP5Lab final : public Component,
   uint64_t last_publish_ms_{0};
   uint64_t last_radio_attempt_ms_{0};
   uint8_t configured_peer_channel_{0};
+  uint8_t pending_peer_channel_{0};
   uint32_t rx_dropped_{0};
   uint32_t send_failures_{0};
 
