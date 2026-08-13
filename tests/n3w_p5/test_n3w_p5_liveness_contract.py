@@ -89,6 +89,7 @@ def test_connected_sta_channel_is_reused_without_radio_init_thrash() -> None:
     assert "bool radio_attempted_{false};" in header
     assert "uint64_t last_radio_attempt_ms_{0};" in header
     assert "uint8_t configured_peer_channel_{0};" in header
+    assert "uint8_t pending_peer_channel_{0};" in header
 
 
 def test_connected_sta_channel_change_rebinds_peer_and_requires_fresh_probe() -> None:
@@ -110,14 +111,28 @@ def test_connected_sta_channel_change_rebinds_peer_and_requires_fresh_probe() ->
     )
 
     unchanged = body.index("configured_peer_channel_ == primary")
-    peer_update = body.index("driver_.add_encrypted_peer")
-    channel_commit = body.index("configured_peer_channel_ = primary")
+    transition = body.index("pending_peer_channel_ != primary")
+    pending = body.index("pending_peer_channel_ = primary", transition)
     fresh_probe = body.index('require_fresh_relay_probe_("sta_channel_changed")')
-    assert unchanged < peer_update < channel_commit < fresh_probe
+    retry_gate = body.index("now - last_radio_attempt_ms_ < kRadioRetryIntervalMs")
+    peer_update = body.index("driver_.add_encrypted_peer")
+    channel_commit = body.index("configured_peer_channel_ = primary", peer_update)
+    pending_clear = body.index("pending_peer_channel_ = 0", channel_commit)
+    assert (
+        unchanged
+        < transition
+        < pending
+        < fresh_probe
+        < retry_gate
+        < peer_update
+        < channel_commit
+        < pending_clear
+    )
     assert 'mark_radio_unavailable_("sta_disconnected")' in body
     assert "driver_.shutdown()" in unavailable
     assert "radio_ready_ = false" in unavailable
     assert "configured_peer_channel_ = 0" in unavailable
+    assert "pending_peer_channel_ = 0" in unavailable
     assert "invalidate_relay_auth_(reason)" in freshness
     assert "relay_probe_established_since_boot_ = false" in freshness
     assert "relay_ingress_.reset()" in freshness
