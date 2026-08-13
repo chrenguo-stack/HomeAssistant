@@ -1,0 +1,149 @@
+name: N3-W ESP-NOW channel recovery successor CI
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/n3w-espnow-channel-recovery-successor-ci.yml'
+      - 'firmware/esphome_rc/components/greenhouse_n3w_p5_lab/n3w_p5_lab.cpp'
+      - 'firmware/esphome_rc/components/greenhouse_n3w_p5_lab/n3w_p5_lab.h'
+      - 'tests/n3w_p5/test_n3w_p5_liveness_contract.py'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  channel-recovery-hostonly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Exact main and four-file successor scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='8c7d0dfb68d218b3ad80fe7f2f8dba8bed3fdb2b'
+          branch='agent/n3w-espnow-channel-recovery-successor-20260813-v1'
+          if [ "$GITHUB_EVENT_NAME" = 'pull_request' ]; then
+            test '${{ github.event.pull_request.base.ref }}' = 'main'
+            test '${{ github.event.pull_request.base.sha }}' = "$base"
+            test '${{ github.event.pull_request.head.ref }}' = "$branch"
+          fi
+          test "$(git merge-base "$base" HEAD)" = "$base"
+
+          allowed="$(mktemp)"
+          actual="$(mktemp)"
+          cat >"$allowed" <<'FILES'
+          .github/workflows/n3w-espnow-channel-recovery-successor-ci.yml
+          firmware/esphome_rc/components/greenhouse_n3w_p5_lab/n3w_p5_lab.cpp
+          firmware/esphome_rc/components/greenhouse_n3w_p5_lab/n3w_p5_lab.h
+          tests/n3w_p5/test_n3w_p5_liveness_contract.py
+          FILES
+          sed -i 's/^          //' "$allowed"
+          sort -o "$allowed" "$allowed"
+          git diff --name-only "$base"...HEAD | sort >"$actual"
+          test "$(wc -l <"$actual")" -eq 4
+          diff -u "$allowed" "$actual"
+
+      - name: Install host-only dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ libmbedtls-dev
+          python -m pip install --upgrade pytest ruff jsonschema
+
+      - name: Python contract quality
+        run: |
+          python -m compileall -q tests/n3w_p5/test_n3w_p5_liveness_contract.py
+          ruff check tests/n3w_p5/test_n3w_p5_liveness_contract.py
+          ruff format --check tests/n3w_p5/test_n3w_p5_liveness_contract.py
+
+      - name: Build and execute P4b channel-scan host tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -Wall -Wextra -Werror \
+            -Ifirmware/esphome_rc/components/greenhouse_n3w_core \
+            firmware/esphome_rc/components/greenhouse_n3w_core/n3w_core.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_core/n3w_radio.cpp \
+            tests/n3w_p4b/n3w_p4b_host_test.cpp \
+            -lmbedcrypto \
+            -o /tmp/n3w_p4b_host_test
+          /tmp/n3w_p4b_host_test
+
+      - name: Build and execute existing P5 host liveness tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -Wall -Wextra -Werror \
+            -Ifirmware/esphome_rc/components/greenhouse_n3w_core \
+            firmware/esphome_rc/components/greenhouse_n3w_core/n3w_core.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_core/n3w_radio.cpp \
+            tests/n3w_p5/n3w_p5_liveness_host_test.cpp \
+            -lmbedcrypto \
+            -o /tmp/n3w_p5_liveness_host_test
+          /tmp/n3w_p5_liveness_host_test
+
+      - name: P5 regression and channel recovery source contracts
+        run: |
+          pytest -q \
+            tests/n3w_p5/test_n3w_p5_preparation.py \
+            tests/n3w_p5/test_n3w_p5_liveness_contract.py \
+            tests/n3w_p5/test_n3w_p5_m08_reprobe_recovery_contract.py
+
+      - name: Explicit connected-STA and host-only safety gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='8c7d0dfb68d218b3ad80fe7f2f8dba8bed3fdb2b'
+          changed="$(git diff --name-only "$base"...HEAD)"
+          if printf '%s\n' "$changed" | grep -E \
+            '^(firmware/esphome_rc/f1_0_rc2/|infra/compose/|host/greenhouse-manager/|firmware/esphome_rc/board_lab/)'; then
+            echo 'Product/live/board-target mutation is outside this successor'
+            exit 1
+          fi
+          ! grep -R -n -E \
+            '(esphome run|esp[t]ool|pio run .*upload|espota|/dev/cu\.|/dev/tty|192\.168\.68\.)' \
+            firmware/esphome_rc/components/greenhouse_n3w_p5_lab/n3w_p5_lab.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_p5_lab/n3w_p5_lab.h \
+            tests/n3w_p5/test_n3w_p5_liveness_contract.py
+          if grep -n 'driver_\.set_channel' \
+            firmware/esphome_rc/components/greenhouse_n3w_p5_lab/n3w_p5_lab.cpp; then
+            echo 'Connected STA channel recovery must not call driver_.set_channel'
+            exit 1
+          fi
+          grep -q 'ChannelScanPlan::configure' \
+            firmware/esphome_rc/components/greenhouse_n3w_core/n3w_radio.cpp
+          grep -q 'ChannelScanPlan::advance' \
+            firmware/esphome_rc/components/greenhouse_n3w_core/n3w_radio.cpp
+
+  esp32-c6-channel-recovery-compile:
+    needs: channel-recovery-hostonly
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [child, relay]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install frozen ESPHome
+        run: python -m pip install --upgrade 'esphome==2026.4.3'
+      - name: Validate compile-only P5 target
+        run: esphome config firmware/esphome_rc/board_lab/n3w_p5_two_board/${{ matrix.target }}.yml
+      - name: Compile P5 target without upload
+        run: esphome compile firmware/esphome_rc/board_lab/n3w_p5_two_board/${{ matrix.target }}.yml
