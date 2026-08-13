@@ -163,40 +163,85 @@ uint64_t GreenhouseN3wP5Lab::now_ms_() {
 #endif
 }
 
+bool GreenhouseN3wP5Lab::read_connected_sta_channel_(uint8_t *primary) const {
+  if (primary == nullptr) return false;
+#ifdef USE_ESP32
+  wifi_ap_record_t access_point{};
+  if (esp_wifi_sta_get_ap_info(&access_point) != ESP_OK) return false;
+  wifi_second_chan_t secondary = WIFI_SECOND_CHAN_NONE;
+  return esp_wifi_get_channel(primary, &secondary) == ESP_OK &&
+         greenhouse_n3w_core::valid_radio_channel(*primary);
+#else
+  return false;
+#endif
+}
+
+void GreenhouseN3wP5Lab::require_fresh_relay_probe_(const char *reason) {
+  if (is_child_) {
+    invalidate_relay_auth_(reason);
+    return;
+  }
+  relay_probe_established_since_boot_ = false;
+  relay_ingress_.reset();
+  ESP_LOGI(TAG, "Relay fresh authenticated probe required reason=%s", reason == nullptr ? "unspecified" : reason);
+}
+
+void GreenhouseN3wP5Lab::mark_radio_unavailable_(const char *reason) {
+  if (!radio_ready_) return;
+  driver_.shutdown();
+  radio_ready_ = false;
+  configured_peer_channel_ = 0;
+  relay_binding_.preferred_channel = 0;
+  require_fresh_relay_probe_(reason);
+  ESP_LOGW(TAG, "ESP-NOW radio unavailable role=%s reason=%s", role_.c_str(), reason == nullptr ? "unspecified" : reason);
+}
+
 bool GreenhouseN3wP5Lab::ensure_radio_ready_() {
   if (!execution_enabled_) return false;
-  if (radio_ready_) return true;
 #ifdef USE_ESP32
   const uint64_t now = now_ms_();
+  uint8_t primary = 0;
+  if (!read_connected_sta_channel_(&primary)) {
+    mark_radio_unavailable_("sta_disconnected");
+    return false;
+  }
+  if (radio_ready_ && configured_peer_channel_ == primary) return true;
   if (radio_attempted_ && now - last_radio_attempt_ms_ < kRadioRetryIntervalMs) return false;
   radio_attempted_ = true;
   last_radio_attempt_ms_ = now;
-
-  uint8_t primary = 0;
-  wifi_second_chan_t secondary = WIFI_SECOND_CHAN_NONE;
-  if (esp_wifi_get_channel(&primary, &secondary) != ESP_OK ||
-      !greenhouse_n3w_core::valid_radio_channel(primary)) {
-    ESP_LOGW(TAG, "ESP-NOW deferred: connected STA channel is not ready");
-    return false;
-  }
   relay_binding_.preferred_channel = primary;
+
+  // Wi-Fi owns the channel while STA is associated. ESP-NOW follows the
+  // connected STA channel by adding/modifying the encrypted peer only; the
+  // connected-STA path must never call esp_wifi_set_channel().
+  if (radio_ready_) {
+    const uint8_t previous_channel = configured_peer_channel_;
+    const auto peer_error = driver_.add_encrypted_peer(peer_mac_, lmk_, primary);
+    if (peer_error != greenhouse_n3w_core::DriverError::NONE) {
+      ESP_LOGW(TAG, "ESP-NOW peer channel update failed error=%u", static_cast<unsigned>(peer_error));
+      return false;
+    }
+    configured_peer_channel_ = primary;
+    require_fresh_relay_probe_("sta_channel_changed");
+    ESP_LOGI(TAG, "ESP-NOW peer channel updated role=%s previous=%u current=%u", role_.c_str(),
+             static_cast<unsigned>(previous_channel), static_cast<unsigned>(primary));
+    return true;
+  }
+
   const auto init_error = driver_.initialize(this, pmk_);
   if (init_error != greenhouse_n3w_core::DriverError::NONE) {
     ESP_LOGW(TAG, "ESP-NOW initialization failed error=%u", static_cast<unsigned>(init_error));
     return false;
   }
-
-  // Wi-Fi owns the channel while STA is associated. ESP-NOW shares that
-  // already-observed channel; calling esp_wifi_set_channel here is rejected by
-  // ESP-IDF on a connected STA and previously caused an init/deinit loop.
   const auto peer_error = driver_.add_encrypted_peer(peer_mac_, lmk_, primary);
   if (peer_error != greenhouse_n3w_core::DriverError::NONE) {
     driver_.shutdown();
     ESP_LOGW(TAG, "ESP-NOW peer configuration failed error=%u", static_cast<unsigned>(peer_error));
     return false;
   }
+  configured_peer_channel_ = primary;
   radio_ready_ = true;
-  ESP_LOGI(TAG, "ESP-NOW ready role=%s channel=%u", role_.c_str(), primary);
+  ESP_LOGI(TAG, "ESP-NOW ready role=%s channel=%u", role_.c_str(), static_cast<unsigned>(primary));
   return true;
 #else
   return false;
