@@ -158,13 +158,21 @@ LinkKey nonzero_key(uint8_t seed) {
   return key;
 }
 
-ProductEspNowRuntime make_runtime(FakeRadio *radio, FakeClock *clock, FakeEvents *events) {
+ProductEspNowRuntime make_runtime_with_candidate_policy(
+    FakeRadio *radio,
+    FakeClock *clock,
+    FakeEvents *events,
+    RelayCandidatePolicy candidate_policy) {
   WifiDirectHealthPolicy direct_policy{1, 3, 3};
-  RelayCandidatePolicy candidate_policy{8, 15000, -92, 12, 30000};
   AutoPathPolicy path_policy{2};
   ProductRuntimePolicy runtime_policy{{1, 6, 11}, 250, 10, 1000};
   return ProductEspNowRuntime(
       radio, clock, events, direct_policy, candidate_policy, path_policy, runtime_policy);
+}
+
+ProductEspNowRuntime make_runtime(FakeRadio *radio, FakeClock *clock, FakeEvents *events) {
+  return make_runtime_with_candidate_policy(
+      radio, clock, events, RelayCandidatePolicy{8, 15000, -92, 12, 30000});
 }
 
 void enter_discovery(ProductEspNowRuntime *runtime) {
@@ -240,10 +248,20 @@ int main() {
   assert(events.authorization_requests.size() == 1);
   assert(runtime.pending_authorization_mac().has_value());
 
-  // Runtime peer establishment uses fresh Manager authorization + pairwise LMK.
+  // Mismatched or expired authorization material is rejected before peer installation.
   RuntimePeerMaterial material;
   material.authorization = authorization_for(events.authorization_requests.back(), clock.now);
   material.lmk = nonzero_key(0x40);
+  RuntimePeerMaterial mismatched = material;
+  mismatched.authorization.gateway_id = "gw_other";
+  assert(runtime.install_authorized_peer(mismatched) == ProductRuntimeError::STATE_REJECTED);
+  assert(!radio.peer_present);
+  RuntimePeerMaterial expired = material;
+  expired.authorization.expires_at_ms = expired.authorization.issued_at_ms;
+  assert(runtime.install_authorized_peer(expired) == ProductRuntimeError::STATE_REJECTED);
+  assert(!radio.peer_present);
+
+  // Runtime peer establishment uses fresh Manager authorization + pairwise LMK.
   assert(runtime.install_authorized_peer(material) == ProductRuntimeError::NONE);
   assert(runtime.path_state() == AutoPathState::RELAY_ACTIVE);
   assert(runtime.relay_telemetry_ready());
@@ -278,6 +296,84 @@ int main() {
   assert(runtime.scan_active());
   assert(!radio.peer_present);
 
+  // Radio peer-install failure is surfaced and also fails closed back to discovery.
+  FakeRadio failing_radio;
+  FakeClock failing_clock;
+  FakeEvents failing_events;
+  auto failing_runtime = make_runtime(&failing_radio, &failing_clock, &failing_events);
+  assert(failing_runtime.start(nonzero_key(0x50)) == ProductRuntimeError::NONE);
+  assert(failing_runtime.set_last_direct_channel(6) == ProductRuntimeError::NONE);
+  enter_discovery(&failing_runtime);
+  const MacAddress mac_fail{0x02, 0x10, 0x20, 0x30, 0x40, 0x60};
+  deliver_advertisement(
+      &failing_runtime, &failing_clock, mac_fail, "gw_radio_fail", 1, -45);
+  assert(failing_runtime.apply_manager_eligibility(
+             mac_fail, "gw_radio_fail", eligible(failing_clock.now, 21)) ==
+         ProductRuntimeError::NONE);
+  RuntimePeerMaterial failing_material;
+  failing_material.authorization =
+      authorization_for(failing_events.authorization_requests.back(), failing_clock.now);
+  failing_material.lmk = nonzero_key(0x60);
+  failing_radio.add_peer_error = DriverError::PEER_CONFIG_FAILED;
+  assert(failing_runtime.install_authorized_peer(failing_material) ==
+         ProductRuntimeError::RADIO_ERROR);
+  assert(failing_runtime.scan_active());
+  assert(!failing_runtime.active_peer_mac().has_value());
+  assert(!failing_radio.peer_present);
+
+  // Expired active authorization releases the physical peer and requests fresh authorization.
+  FakeRadio expiry_radio;
+  FakeClock expiry_clock;
+  FakeEvents expiry_events;
+  auto expiry_runtime = make_runtime(&expiry_radio, &expiry_clock, &expiry_events);
+  assert(expiry_runtime.start(nonzero_key(0x70)) == ProductRuntimeError::NONE);
+  assert(expiry_runtime.set_last_direct_channel(6) == ProductRuntimeError::NONE);
+  enter_discovery(&expiry_runtime);
+  const MacAddress mac_expiry{0x02, 0x12, 0x23, 0x34, 0x45, 0x67};
+  deliver_advertisement(
+      &expiry_runtime, &expiry_clock, mac_expiry, "gw_expiry", 1, -48);
+  assert(expiry_runtime.apply_manager_eligibility(
+             mac_expiry, "gw_expiry", eligible(expiry_clock.now, 31)) ==
+         ProductRuntimeError::NONE);
+  RuntimePeerMaterial expiry_material;
+  expiry_material.authorization =
+      authorization_for(expiry_events.authorization_requests.back(), expiry_clock.now);
+  expiry_material.authorization.expires_at_ms = expiry_clock.now + 2;
+  expiry_material.lmk = nonzero_key(0x80);
+  assert(expiry_runtime.install_authorized_peer(expiry_material) == ProductRuntimeError::NONE);
+  assert(expiry_radio.peer_present);
+  expiry_clock.now += 3;
+  assert(expiry_runtime.tick() == ProductRuntimeError::NONE);
+  assert(!expiry_runtime.active_peer_mac().has_value());
+  assert(!expiry_radio.peer_present);
+  assert(!expiry_runtime.relay_telemetry_ready());
+  assert(!expiry_events.released.empty());
+  assert(expiry_runtime.path_state() == AutoPathState::RELAY_AUTH);
+  assert(expiry_events.authorization_requests.size() == 2);
+
+  // Candidate mirror lifetime tracks the S2 candidate TTL so stale entries cannot
+  // permanently block a later node when the bounded table is reused.
+  FakeRadio prune_radio;
+  FakeClock prune_clock;
+  FakeEvents prune_events;
+  RelayCandidatePolicy tiny_policy{1, 5, -92, 12, 30000};
+  auto prune_runtime = make_runtime_with_candidate_policy(
+      &prune_radio, &prune_clock, &prune_events, tiny_policy);
+  assert(prune_runtime.start(nonzero_key(0x90)) == ProductRuntimeError::NONE);
+  assert(prune_runtime.set_last_direct_channel(6) == ProductRuntimeError::NONE);
+  enter_discovery(&prune_runtime);
+  const MacAddress mac_old{0x02, 0x21, 0x31, 0x41, 0x51, 0x61};
+  deliver_advertisement(&prune_runtime, &prune_clock, mac_old, "gw_old", 1, -60);
+  prune_clock.now += 10;
+  assert(prune_runtime.tick() == ProductRuntimeError::NONE);
+  const MacAddress mac_new{0x02, 0x22, 0x32, 0x42, 0x52, 0x62};
+  deliver_advertisement(&prune_runtime, &prune_clock, mac_new, "gw_new", 1, -44);
+  assert(prune_runtime.apply_manager_eligibility(
+             mac_new, "gw_new", eligible(prune_clock.now, 41)) ==
+         ProductRuntimeError::NONE);
+  assert(prune_runtime.path_state() == AutoPathState::RELAY_AUTH);
+  assert(prune_events.authorization_requests.back().observation.source_mac == mac_new);
+
   // Direct, eligible nodes emit non-secret dynamic advertisements on their real Wi-Fi channel.
   FakeRadio relay_radio;
   FakeClock relay_clock;
@@ -304,6 +400,9 @@ int main() {
   assert(relay_events.advertisements.size() == 1);
 
   runtime.stop();
+  failing_runtime.stop();
+  expiry_runtime.stop();
+  prune_runtime.stop();
   relay_runtime.stop();
   return 0;
 }
