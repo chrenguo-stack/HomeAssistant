@@ -193,4 +193,4 @@ jobs:
             exit 1
           fi
           ! grep -q 'N3wProductIsolatedMqttService' \
-            host/greenhouse-manager/src/greenhouse_manager/app.py
+            host/greenhouse-manager/src/greenhouse_manager/runtime/app.py

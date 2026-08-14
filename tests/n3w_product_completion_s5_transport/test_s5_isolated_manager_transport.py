@@ -86,6 +86,7 @@ def test_isolated_manager_service_is_explicit_opt_in() -> None:
         / "greenhouse-manager"
         / "src"
         / "greenhouse_manager"
+        / "runtime"
         / "app.py"
     ).read_text(encoding="utf-8")
     product_service = (
