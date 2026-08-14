@@ -88,7 +88,8 @@ void ProductS5TelemetryBridge::on_s5_peer_identity_bound(
     const MacAddress &peer_mac,
     const std::string &peer_node_id) {
   if (!active_peer_mac_.has_value() || !same_mac_(*active_peer_mac_, peer_mac) ||
-      !greenhouse_n3w_core::valid_identity(peer_node_id) || peer_node_id == local_node_id_) {
+      !greenhouse_n3w_core::valid_identity(peer_node_id) || peer_node_id == local_node_id_ ||
+      (!active_peer_node_id_.empty() && active_peer_node_id_ != peer_node_id)) {
     last_error_ = ProductS5TelemetryError::STATE_REJECTED;
     return;
   }
