@@ -53,6 +53,9 @@ class ProductS5TelemetryBridge final : public ProductS5TelemetrySink,
   ProductS5TelemetryError tick(uint64_t now_ms);
 
   bool active_peer() const { return active_peer_mac_.has_value(); }
+  bool identity_bound() const { return !active_peer_node_id_.empty(); }
+  bool active_lmk_resident() const { return nonzero_key_(active_lmk_); }
+  const std::string &active_peer_node_id() const { return active_peer_node_id_; }
   std::size_t pending_frames() const { return child_cache_.size(); }
   ProductS5TelemetryError last_error() const { return last_error_; }
 
@@ -60,6 +63,9 @@ class ProductS5TelemetryBridge final : public ProductS5TelemetrySink,
       const MacAddress &peer_mac,
       const LinkKey &lmk,
       uint8_t channel) override;
+  void on_s5_peer_identity_bound(
+      const MacAddress &peer_mac,
+      const std::string &peer_node_id) override;
   void on_s5_peer_removed(const MacAddress &peer_mac) override;
   void on_s5_telemetry_datagram(
       const MacAddress &source,
@@ -87,6 +93,7 @@ class ProductS5TelemetryBridge final : public ProductS5TelemetrySink,
   std::optional<MacAddress> active_peer_mac_{};
   LinkKey active_lmk_{};
   uint8_t active_channel_{0};
+  std::string active_peer_node_id_;
   std::string relay_child_node_id_;
   ProductS5TelemetryError last_error_{ProductS5TelemetryError::NONE};
 };
