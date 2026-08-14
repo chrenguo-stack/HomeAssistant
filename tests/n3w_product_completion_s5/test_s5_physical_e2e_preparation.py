@@ -24,6 +24,10 @@ AUTH = (
     "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-FULL-TWO-BOARD-ISOLATED-"
     "PHYSICAL-E2E-PREPARATION-20260814-01"
 )
+NEXT_GATE = (
+    "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-ISOLATED-MANAGER-TRANSPORT-"
+    "HOST-COMPILE-IMPLEMENTATION-20260814-01"
+)
 
 
 def load_tool():
@@ -49,15 +53,41 @@ class S5PhysicalPreparationTest(unittest.TestCase):
         self.assertEqual(document["authorization"], AUTH)
         self.assertEqual(document["starting_head"], STARTING_HEAD)
         self.assertEqual(document["runtime_implementation_head"], RUNTIME_HEAD)
-        self.assertEqual(document["classification"]["s5_full_two_board_e2e"], "PENDING")
-        self.assertFalse(document["preparation_scope"]["physical_execution_authorized"])
-        self.assertFalse(document["not_authorized"]["espnow_rf"] is False)
-        self.assertFalse(document["not_authorized"]["flash"] is False)
-        self.assertFalse(document["not_authorized"]["serial"] is False)
         self.assertEqual(
-            document["next_gate"],
-            "PRIVATE_PACKAGE_MATERIALIZATION_AND_READONLY_BINDING_REVIEW_BEFORE_SEPARATE_PHYSICAL_EXECUTION_AUTHORIZATION",
+            document["status"],
+            "PUBLIC_PREPARATION_BLOCKED_MANAGER_TRANSPORT_IMPLEMENTATION_REQUIRED",
         )
+        self.assertEqual(document["classification"]["s5_full_two_board_e2e"], "PENDING")
+        self.assertEqual(
+            document["classification"]["s5_physical_preparation_public_contract"],
+            "PASS_WITH_IMPLEMENTATION_BLOCKER",
+        )
+        self.assertFalse(document["preparation_scope"]["private_package_materialization_ready"])
+        self.assertFalse(document["preparation_scope"]["physical_execution_authorization_ready"])
+        self.assertFalse(document["preparation_scope"]["physical_execution_authorized"])
+        self.assertFalse(document["readiness_audit"]["concrete_board_s5_manager_transport_present"])
+        self.assertFalse(document["readiness_audit"]["isolated_manager_opens_network_transport"])
+        self.assertFalse(
+            document["readiness_audit"]["concrete_relay_to_isolated_manager_telemetry_transport_present"]
+        )
+        self.assertFalse(
+            document["readiness_audit"][
+                "physical_package_can_currently_execute_required_manager_grant_and_telemetry_path"
+            ]
+        )
+        self.assertEqual({item["id"] for item in document["blocking_findings"]}, {"S5-PREP-B01", "S5-PREP-B02"})
+        self.assertEqual(document["required_successor_repair"]["scope"], "HOST_COMPILE_ONLY_NO_LIVE_EXECUTION")
+        self.assertEqual(document["next_gate"], NEXT_GATE)
+        for key in (
+            "espnow_rf",
+            "flash",
+            "serial",
+            "usb_jtag_board_access",
+            "wifi_connection",
+            "real_mqtt_network_e2e",
+            "production_t1",
+        ):
+            self.assertTrue(document["not_authorized"][key], key)
         matrix = set(document["physical_acceptance_matrix"])
         for required in {
             "relay_advertisement_is_observed_only_as_untrusted_hint",
@@ -87,7 +117,7 @@ class S5PhysicalPreparationTest(unittest.TestCase):
         self.assertTrue({"subprocess", "socket", "serial", "paho"}.isdisjoint(imported))
         self.assertTrue({"system", "popen", "execv", "execve", "spawnv"}.isdisjoint(calls))
 
-    def test_private_package_is_non_executable_fresh_and_permission_restricted(self) -> None:
+    def test_private_package_generator_itself_remains_non_executable_fresh_and_permission_restricted(self) -> None:
         module = load_tool()
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
