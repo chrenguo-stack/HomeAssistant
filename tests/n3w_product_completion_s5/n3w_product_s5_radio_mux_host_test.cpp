@@ -48,6 +48,14 @@ class FakeInner final : public ProductRuntimeRadioPort {
 
 class RuntimeSink final : public EspNowEventSink {
  public:
+  void on_espnow_receive(
+      const MacAddress &source,
+      const uint8_t *data,
+      std::size_t size) override {
+    EspNowReceiveMetadata metadata;
+    on_espnow_receive_with_metadata(source, data, size, metadata);
+  }
+
   void on_espnow_receive_with_metadata(
       const MacAddress &source,
       const uint8_t *data,
