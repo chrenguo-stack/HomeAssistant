@@ -5,14 +5,12 @@
 #include <limits>
 #include <string>
 
-#include "pairing_client_core.h"
-#include "secure_pairing_channel.h"
-
 namespace esphome::greenhouse_pairing_client {
 namespace {
 
 constexpr std::array<uint8_t, 4> PAYLOAD_MAGIC = {'G', 'H', 'C', '1'};
-constexpr uint16_t FIELD_COUNT = 9;
+constexpr uint16_t LEGACY_FIELD_COUNT = 9;
+constexpr uint16_t PRODUCT_FIELD_COUNT = 10;
 
 void put_u16(std::vector<uint8_t> *output, uint16_t value) {
   output->push_back(static_cast<uint8_t>((value >> 8) & 0xffU));
@@ -73,19 +71,6 @@ bool take_string(const std::vector<uint8_t> &input, size_t *offset,
   return value->find('\0') == std::string::npos;
 }
 
-bool validate_values(const std::array<std::string, FIELD_COUNT> &fields,
-                     uint16_t broker_port, uint32_t generation) {
-  return fields[0] == CREDENTIALS_CONTENT_TYPE &&
-         PairingClientCore::valid_identifier(fields[1]) &&
-         PairingClientCore::valid_identifier(fields[2]) &&
-         PairingClientCore::valid_local_host(fields[3]) && broker_port != 0 &&
-         PairingClientCore::valid_local_host(fields[4]) &&
-         !fields[5].empty() && fields[5].size() <= 8192 &&
-         PairingClientCore::valid_identifier(fields[6]) &&
-         PairingClientCore::valid_identifier(fields[7]) && generation != 0 &&
-         !fields[8].empty() && fields[8].size() <= 512;
-}
-
 void wipe_string(std::string *value) {
   if (value == nullptr)
     return;
@@ -94,7 +79,7 @@ void wipe_string(std::string *value) {
   value->shrink_to_fit();
 }
 
-void wipe_fields(std::array<std::string, FIELD_COUNT> *fields) {
+void wipe_fields(std::array<std::string, PRODUCT_FIELD_COUNT> *fields) {
   if (fields == nullptr)
     return;
   for (auto &field : *fields)
@@ -119,23 +104,36 @@ bool PairingCredentialCodec::encode(const RamCredentialBundle &bundle,
   if (!bundle.valid())
     return false;
 
-  output->reserve(64 + bundle.ca_pem.size() + bundle.mqtt_password.size());
+  const bool product = bundle.has_n3w_credentials();
+  const uint16_t version = product
+                               ? PERSISTED_CREDENTIAL_PAYLOAD_VERSION_PRODUCT
+                               : PERSISTED_CREDENTIAL_PAYLOAD_VERSION_LEGACY;
+  const uint16_t field_count = product ? PRODUCT_FIELD_COUNT : LEGACY_FIELD_COUNT;
+
+  output->reserve(96 + bundle.ca_pem.size() + bundle.mqtt_password.size() +
+                  bundle.n3w_application_key.size());
   output->insert(output->end(), PAYLOAD_MAGIC.begin(), PAYLOAD_MAGIC.end());
-  put_u16(output, PERSISTED_CREDENTIAL_PAYLOAD_VERSION);
-  put_u16(output, FIELD_COUNT);
+  put_u16(output, version);
+  put_u16(output, field_count);
   put_u32(output, bundle.credential_generation);
   put_u16(output, bundle.broker_port);
+  if (product)
+    put_u32(output, bundle.n3w_key_epoch);
 
-  const std::array<const std::string *, FIELD_COUNT> fields = {
-      &bundle.schema,       &bundle.system_id,
-      &bundle.node_id,      &bundle.broker_host,
+  const std::array<const std::string *, PRODUCT_FIELD_COUNT> fields = {
+      &bundle.schema,
+      &bundle.system_id,
+      &bundle.node_id,
+      &bundle.broker_host,
       &bundle.broker_tls_server_name,
-      &bundle.ca_pem,       &bundle.mqtt_username,
+      &bundle.ca_pem,
+      &bundle.mqtt_username,
       &bundle.mqtt_client_id,
       &bundle.mqtt_password,
+      &bundle.n3w_application_key,
   };
-  for (const std::string *field : fields) {
-    if (field == nullptr || !put_string(output, *field)) {
+  for (uint16_t index = 0; index < field_count; ++index) {
+    if (!put_string(output, *fields[index])) {
       wipe_vector(output);
       return false;
     }
@@ -164,23 +162,33 @@ bool PairingCredentialCodec::decode(const std::vector<uint8_t> &input,
   if (!take_u16(input, &offset, &version) ||
       !take_u16(input, &offset, &field_count) ||
       !take_u32(input, &offset, &generation) ||
-      !take_u16(input, &offset, &broker_port) ||
-      version != PERSISTED_CREDENTIAL_PAYLOAD_VERSION ||
-      field_count != FIELD_COUNT)
+      !take_u16(input, &offset, &broker_port))
     return false;
 
-  std::array<std::string, FIELD_COUNT> fields;
-  const std::array<size_t, FIELD_COUNT> maximums = {
-      64, 128, 128, 253, 253, 8192, 128, 128, 512};
+  const bool legacy =
+      version == PERSISTED_CREDENTIAL_PAYLOAD_VERSION_LEGACY &&
+      field_count == LEGACY_FIELD_COUNT;
+  const bool product =
+      version == PERSISTED_CREDENTIAL_PAYLOAD_VERSION_PRODUCT &&
+      field_count == PRODUCT_FIELD_COUNT;
+  if (!legacy && !product)
+    return false;
+
+  uint32_t n3w_key_epoch = 0;
+  if (product && !take_u32(input, &offset, &n3w_key_epoch))
+    return false;
+
+  std::array<std::string, PRODUCT_FIELD_COUNT> fields;
+  const std::array<size_t, PRODUCT_FIELD_COUNT> maximums = {
+      64, 128, 128, 253, 253, 8192, 128, 128, 512, 64};
   bool success = true;
-  for (size_t index = 0; index < fields.size(); index++) {
+  for (uint16_t index = 0; index < field_count; ++index) {
     if (!take_string(input, &offset, maximums[index], &fields[index])) {
       success = false;
       break;
     }
   }
-  success = success && offset == input.size() &&
-            validate_values(fields, broker_port, generation);
+  success = success && offset == input.size();
   if (!success) {
     wipe_fields(&fields);
     return false;
@@ -197,8 +205,12 @@ bool PairingCredentialCodec::decode(const std::vector<uint8_t> &input,
   output->mqtt_client_id = fields[7];
   output->credential_generation = generation;
   output->mqtt_password = fields[8];
+  if (product) {
+    output->n3w_key_epoch = n3w_key_epoch;
+    output->n3w_application_key = fields[9];
+  }
   wipe_fields(&fields);
-  if (!output->valid()) {
+  if (!output->valid() || (product && !output->has_n3w_credentials())) {
     output->clear();
     return false;
   }
