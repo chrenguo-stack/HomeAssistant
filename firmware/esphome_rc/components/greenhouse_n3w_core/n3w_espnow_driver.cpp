@@ -81,6 +81,32 @@ DriverError EspNowDriver::set_channel(uint8_t channel) {
 #endif
 }
 
+DriverError EspNowDriver::prepare_broadcast_peer(uint8_t channel) {
+#ifndef USE_ESP32
+  (void) channel;
+  return DriverError::NOT_INITIALIZED;
+#else
+  if (!initialized_) {
+    return DriverError::NOT_INITIALIZED;
+  }
+  if (!valid_radio_channel(channel)) {
+    return DriverError::INVALID_ARGUMENT;
+  }
+  esp_now_peer_info_t peer{};
+  std::memcpy(peer.peer_addr, kEspNowBroadcastMac.data(), kEspNowBroadcastMac.size());
+  peer.channel = channel;
+  peer.ifidx = WIFI_IF_STA;
+  peer.encrypt = false;
+  esp_err_t err = ESP_OK;
+  if (esp_now_is_peer_exist(peer.peer_addr)) {
+    err = esp_now_mod_peer(&peer);
+  } else {
+    err = esp_now_add_peer(&peer);
+  }
+  return err == ESP_OK ? DriverError::NONE : DriverError::PEER_CONFIG_FAILED;
+#endif
+}
+
 DriverError EspNowDriver::add_encrypted_peer(
     const MacAddress &peer_mac,
     const LinkKey &lmk,
@@ -158,6 +184,27 @@ DriverError EspNowDriver::send(
 #endif
 }
 
+DriverError EspNowDriver::send_broadcast(
+    const uint8_t *data,
+    std::size_t size) {
+#ifndef USE_ESP32
+  (void) data;
+  (void) size;
+  return DriverError::NOT_INITIALIZED;
+#else
+  if (!initialized_) {
+    return DriverError::NOT_INITIALIZED;
+  }
+  if (data == nullptr || size == 0 || size > kEspNowDatagramLimit ||
+      !esp_now_is_peer_exist(kEspNowBroadcastMac.data())) {
+    return DriverError::INVALID_ARGUMENT;
+  }
+  return esp_now_send(kEspNowBroadcastMac.data(), data, size) == ESP_OK
+             ? DriverError::NONE
+             : DriverError::SEND_FAILED;
+#endif
+}
+
 #ifdef USE_ESP32
 void EspNowDriver::recv_cb_(
     const esp_now_recv_info_t *info,
@@ -170,8 +217,13 @@ void EspNowDriver::recv_cb_(
   }
   MacAddress source{};
   std::copy_n(info->src_addr, source.size(), source.begin());
-  active_->sink_->on_espnow_receive(
-      source, data, static_cast<std::size_t>(data_len));
+  EspNowReceiveMetadata metadata{};
+  if (info->rx_ctrl != nullptr) {
+    metadata.rssi_dbm = static_cast<int16_t>(info->rx_ctrl->rssi);
+    metadata.channel = static_cast<uint8_t>(info->rx_ctrl->channel);
+  }
+  active_->sink_->on_espnow_receive_with_metadata(
+      source, data, static_cast<std::size_t>(data_len), metadata);
 }
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
