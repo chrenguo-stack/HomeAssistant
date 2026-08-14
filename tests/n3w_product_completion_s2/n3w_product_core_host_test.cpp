@@ -85,6 +85,8 @@ void test_direct_failure_detector() {
   assert(detector.state() == WifiDirectHealthState::DEGRADED);
   assert(detector.note_direct_result(false) == ProductCoreError::NONE);
   assert(detector.state() == WifiDirectHealthState::UNAVAILABLE);
+  assert(detector.note_direct_result(true) == ProductCoreError::STATE_REJECTED);
+  assert(detector.state() == WifiDirectHealthState::UNAVAILABLE);
 
   assert(detector.note_recovery_probe(true) == ProductCoreError::NONE);
   assert(detector.state() == WifiDirectHealthState::RECOVERING);
@@ -118,10 +120,12 @@ void test_candidate_filter_score_and_hysteresis() {
   assert(table.select(std::nullopt, 0, now, &selected));
   const MacAddress first = selected.observation.source_mac;
 
+  // A current relay is held during the minimum hold window even if B scores slightly better.
   RelayCandidateRecord held;
   assert(table.select(first, now, now + 10000, &held));
   assert(same_mac(held.observation.source_mac, first));
 
+  // Make the competing candidate decisively better after the hold window.
   b_eligibility.uplink_quality_pct = 100;
   b_eligibility.load_pct = 0;
   assert(table.apply_manager_eligibility(b.source_mac, b.gateway_id, b_eligibility) ==
@@ -130,6 +134,7 @@ void test_candidate_filter_score_and_hysteresis() {
   assert(table.select(first, now, now + 31000, &switched));
   assert(same_mac(switched.observation.source_mac, b.source_mac));
 
+  // A relay using another relay as its uplink is never eligible in single-hop product mode.
   auto invalid = b_eligibility;
   invalid.direct_uplink = false;
   assert(table.apply_manager_eligibility(b.source_mac, b.gateway_id, invalid) ==
@@ -138,12 +143,17 @@ void test_candidate_filter_score_and_hysteresis() {
   assert(table.select(b.source_mac, now, now + 32000, &fallback));
   assert(same_mac(fallback.observation.source_mac, a.source_mac));
 
+  // Changing an untrusted advertised gateway identity invalidates prior Manager eligibility.
   auto changed = a;
   changed.gateway_id = "relay_a_changed";
   changed.observed_at_ms = now + 1000;
   assert(table.observe(changed) == ProductCoreError::NONE);
   const RelayCandidateRecord *record = table.find(a.source_mac);
   assert(record != nullptr && !record->has_eligibility);
+
+  auto stale = changed;
+  stale.observed_at_ms = now;
+  assert(table.observe(stale) == ProductCoreError::INVALID_ARGUMENT);
 }
 
 void test_dynamic_peer_lifecycle_is_manager_bound_and_expiring() {
@@ -208,6 +218,7 @@ void test_simulated_dynamic_discovery_failover_and_direct_return() {
   assert(core.note_direct_result(false, start + 20) == ProductCoreError::NONE);
   assert(core.path_state() == AutoPathState::DISCOVERY);
 
+  // A node that did not exist at factory-flash time can appear now and be accepted dynamically.
   const auto relay_a = observation("relay_runtime_a", 0x51, -58, start + 30, 6);
   assert(core.observe_candidate(relay_a) == ProductCoreError::NONE);
   assert(core.select_candidate(start + 31) == ProductCoreError::NOT_FOUND);
