@@ -223,6 +223,7 @@ class ProductEspNowRuntime final : public EspNowEventSink {
   ProductRuntimeError fail_pending_authorization_(uint64_t now_ms);
   CandidateMirror *find_mirror_(const MacAddress &source_mac);
   const CandidateMirror *find_mirror_(const MacAddress &source_mac) const;
+  void prune_mirrors_(uint64_t now_ms);
   void mirror_observation_(const RelayCandidateObservation &observation);
   void mirror_eligibility_(
       const MacAddress &source_mac,
