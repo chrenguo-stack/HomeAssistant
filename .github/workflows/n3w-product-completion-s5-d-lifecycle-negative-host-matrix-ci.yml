@@ -1,0 +1,172 @@
+name: N3-W Product Completion S5 D lifecycle negative host matrix CI
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/n3w-product-completion-s5-c-isolated-manager-telemetry-ci.yml'
+      - '.github/workflows/n3w-product-completion-s5-d-lifecycle-negative-host-matrix-ci.yml'
+      - 'docs/decisions/n3w-product-completion-s5-d-lifecycle-negative-host-matrix-20260814.json'
+      - 'firmware/esphome_rc/components/greenhouse_n3w_product_core/**'
+      - 'firmware/esphome_rc/components/greenhouse_n3w_product_runtime/**'
+      - 'tests/n3w_product_completion_s5/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: n3w-s5-d-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lifecycle-negative-matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Authorized S5-D checkpoint and exact successor scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          start='259670af65f3a5fdd9209e78bf06ce3d57972a71'
+          base='38c3b692d4ebe90d0040c732b6c0313fdfdc1ef6'
+          git merge-base --is-ancestor "$start" HEAD
+          if [ "$GITHUB_EVENT_NAME" = 'pull_request' ]; then
+            test '${{ github.event.pull_request.base.ref }}' = 'main'
+            test '${{ github.event.pull_request.base.sha }}' = "$base"
+          fi
+
+          allowed="$(mktemp)"
+          actual="$(mktemp)"
+          cat >"$allowed" <<'FILES'
+          .github/workflows/n3w-product-completion-s5-c-isolated-manager-telemetry-ci.yml
+          .github/workflows/n3w-product-completion-s5-d-lifecycle-negative-host-matrix-ci.yml
+          docs/decisions/n3w-product-completion-s5-d-lifecycle-negative-host-matrix-20260814.json
+          firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_product_core.cpp
+          firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_product_core.h
+          firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_integration.cpp
+          firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_integration.h
+          firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_runtime.cpp
+          firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_runtime.h
+          firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_s5_peer_coordinator.cpp
+          firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_s5_peer_coordinator.h
+          firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_s5_radio_mux.cpp
+          firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_s5_radio_mux.h
+          firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_s5_telemetry.cpp
+          firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_s5_telemetry.h
+          tests/n3w_product_completion_s5/n3w_product_s5_peer_coordinator_host_test.cpp
+          tests/n3w_product_completion_s5/n3w_product_s5_telemetry_host_test.cpp
+          tests/n3w_product_completion_s5/test_s5_manager_authorization_loop.py
+          FILES
+          sed -i 's/^          //' "$allowed"
+          sort -o "$allowed" "$allowed"
+          git diff --name-only "$start"...HEAD | sort >"$actual"
+          diff -u "$allowed" "$actual"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install host dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libmbedtls-dev libssl-dev
+          python -m pip install -e 'host/greenhouse-manager[dev]'
+
+      - name: Validate authorization and frozen product boundaries
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('docs/decisions/n3w-product-completion-s5-d-lifecycle-negative-host-matrix-20260814.json')
+          d = json.loads(p.read_text())
+          assert d['authorization'] == 'D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-D-LIFECYCLE-NEGATIVE-HOST-MATRIX-20260814-01'
+          assert d['authorized'] is True
+          assert d['starting_head'] == '259670af65f3a5fdd9209e78bf06ce3d57972a71'
+          assert d['scope']['authorization_id_bound_explicit_revoke'] is True
+          assert d['scope']['gateway_bound_relayframe_not_rehomed'] is True
+          assert d['required_invariants']['old_gateway_bound_relayframe_may_move_to_new_relay'] is False
+          assert d['required_invariants']['wifi_recovery_switchback_in_scope'] is False
+          assert d['classification']['s5_full_two_board_e2e'] == 'PENDING'
+          PY
+          grep -q 'execution_enabled: false' firmware/esphome_rc/board_lab/n3w_product_completion_s5/child.yml
+          grep -q 'execution_enabled: false' firmware/esphome_rc/board_lab/n3w_product_completion_s5/relay.yml
+
+      - name: Run Manager replay stale credential and grant negative matrix
+        run: |
+          python -m pytest -q tests/n3w_product_completion_s5/test_s5_manager_authorization_loop.py
+
+      - name: Prepare host include tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/n3w_include/esphome
+          ln -s "$GITHUB_WORKSPACE/firmware/esphome_rc/components" /tmp/n3w_include/esphome/components
+
+      - name: Compile and run peer lifecycle matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -Wall -Wextra -Werror \
+            -I/tmp/n3w_include \
+            -Ifirmware/esphome_rc/components/greenhouse_n3w_core \
+            -Ifirmware/esphome_rc/components/greenhouse_n3w_product_core \
+            -Ifirmware/esphome_rc/components/greenhouse_n3w_product_runtime \
+            firmware/esphome_rc/components/greenhouse_n3w_core/n3w_core.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_core/n3w_radio.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_core/n3w_espnow_driver.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_product_core.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_runtime.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_peer_security.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_peer_handshake_wire.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_s5_radio_mux.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_s5_peer_coordinator.cpp \
+            tests/n3w_product_completion_s5/n3w_product_s5_peer_coordinator_host_test.cpp \
+            -lmbedcrypto -lcrypto \
+            -o /tmp/n3w_s5_d_peer_lifecycle
+          /tmp/n3w_s5_d_peer_lifecycle
+
+      - name: Compile and run reliable-link cache and gateway-binding matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -Wall -Wextra -Werror \
+            -I/tmp/n3w_include \
+            -Ifirmware/esphome_rc/components/greenhouse_n3w_core \
+            -Ifirmware/esphome_rc/components/greenhouse_n3w_product_runtime \
+            firmware/esphome_rc/components/greenhouse_n3w_core/n3w_core.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_core/n3w_radio.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_s5_telemetry.cpp \
+            tests/n3w_product_completion_s5/n3w_product_s5_telemetry_host_test.cpp \
+            -lmbedcrypto \
+            -o /tmp/n3w_s5_d_telemetry_lifecycle
+          /tmp/n3w_s5_d_telemetry_lifecycle
+
+      - name: S5-C and isolated Manager regression
+        run: |
+          python -m pytest -q \
+            tests/n3w_product_completion_s5/test_s5_isolated_manager_telemetry.py \
+            tests/n3w_product_completion_s5/test_s5_cross_language_vector.py
+
+      - name: No-live no-static-peer no-switchback safety gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          scope=(
+            firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_product_core.cpp
+            firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_runtime.cpp
+            firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_s5_peer_coordinator.cpp
+            firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_s5_radio_mux.cpp
+            firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_s5_telemetry.cpp
+            firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_integration.cpp
+          )
+          if grep -n -E \
+            '(esphome run|esptool|espota|pio run .*upload|esp_wifi_connect|PATH[[:space:]]+(DIRECT|RELAY)|p5_peer_mac|p5_link_lmk|wifi_recovery_switchback)' \
+            "${scope[@]}"; then
+            echo 'Live execution, manual PATH, static peer material, or excluded Wi-Fi switchback detected'
+            exit 1
+          fi
