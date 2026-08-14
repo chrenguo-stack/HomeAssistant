@@ -19,6 +19,7 @@ from greenhouse_manager.runtime.n3w_product_peer_authorization import (
     ProductNodeApplicationKeyProvider,
     RegistrationMembershipResolver,
     RelayEligibilitySnapshot,
+    RelayRuntimeHealth,
     SqlitePeerAuthorizationReplayStore,
     build_endpoint_proof,
     derive_pair_lmk,
@@ -83,9 +84,18 @@ class _Eligibility:
             valid_until_ms=NOW_MS + 60_000,
         )
 
-    def get_relay_eligibility(self, *, system_id: str, node_id: str) -> RelayEligibilitySnapshot:
+    def get_relay_eligibility(
+        self,
+        *,
+        system_id: str,
+        node_id: str,
+        health: RelayRuntimeHealth,
+        now_ms: int,
+    ) -> RelayEligibilitySnapshot:
         assert system_id == SYSTEM_ID
         assert node_id == RELAY_NODE
+        assert health.observed_at_ms == NOW_MS
+        assert now_ms >= NOW_MS
         return self.snapshot
 
 
@@ -179,6 +189,12 @@ def _unsigned_request() -> tuple[PeerAuthorizationRequest, X25519PrivateKey, X25
             key_epoch=1,
             ephemeral_public_key=_raw_public(relay_private),
             nonce=b"r" * 32,
+        ),
+        relay_health=RelayRuntimeHealth(
+            observed_at_ms=NOW_MS,
+            relay_capable=True,
+            low_battery=False,
+            overloaded=False,
         ),
     )
     return request, child_private, relay_private
