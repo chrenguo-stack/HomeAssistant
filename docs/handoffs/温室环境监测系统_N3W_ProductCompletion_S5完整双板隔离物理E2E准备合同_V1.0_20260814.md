@@ -30,7 +30,7 @@ S5_FULL_TWO_BOARD_E2E=PENDING
 - branch: `feature/n3w-product-completion-s5-two-board-isolated-20260814-v1`
 - PR #322 必须保持 Draft / Open / Unmerged。
 
-本准备阶段只允许新增准备合同、私有包生成器、host-only 准备测试和对应 CI。若 runtime/Manager 产品实现发生任何额外变化，现有准备绑定失效，必须重新评估。
+本准备阶段只允许新增/更新准备合同、私有包生成器、host-only 准备测试和对应 CI；另外只允许对既有 S5-D CI 的 successor-lineage scope gate 做兼容性修复，以便在**冻结 S5-D implementation checkpoint 不变**的前提下重新执行原 S5-D regression matrix。该兼容性修复不得修改 S5-D runtime、Manager 产品实现或扩大物理权限。若 runtime/Manager 产品实现发生任何额外变化，现有准备绑定失效，必须重新评估。
 
 ## 3. 私有包物化输入
 
