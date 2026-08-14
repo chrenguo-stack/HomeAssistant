@@ -1,0 +1,73 @@
+{
+  "schema": "gh.n3w-product-completion-s3-disconnected-espnow-runtime-stage-entry/1",
+  "authorization_source": "User explicit instruction after S2 closure: 执行下一阶段",
+  "status": "IN_DEVELOPMENT",
+  "repository": "chrenguo-stack/HomeAssistant",
+  "baseline": {
+    "main_sha": "e8c9d3aeb4be8918b17226e52e2e098e5daf45f9",
+    "main_tree": "70aafa9fb1428ab996d3954cec1c87b5f5cb1b22",
+    "s2_pr": 317,
+    "s2_closed_merged": true
+  },
+  "stage": "S3_DISCONNECTED_ESPNOW_DISCOVERY_RUNTIME",
+  "scope": {
+    "disconnected_scan": true,
+    "dynamic_advertisement": true,
+    "candidate_collection": true,
+    "candidate_selection_via_s2_core": true,
+    "runtime_peer_installation": true,
+    "espnow_rx_rssi_channel_metadata": true,
+    "unencrypted_discovery_broadcast_transport": true
+  },
+  "security_boundary": {
+    "advertisement_is_trusted_identity": false,
+    "advertisement_contains_secret": false,
+    "advertisement_alone_may_activate_relay": false,
+    "manager_authorization_required_before_peer_activation": true,
+    "runtime_generates_pairwise_lmk": false,
+    "runtime_accepts_pairwise_lmk_only_with_matching_authorization": true,
+    "system_wide_shared_lmk_introduced": false,
+    "relay_receives_child_application_key": false,
+    "manager_unreachable_new_peer_behavior": "FAIL_CLOSED"
+  },
+  "s4_deferred_integration": {
+    "same_system_verification": true,
+    "node_retirement": true,
+    "dynamic_peer_authorization_issuance": true,
+    "pairwise_key_derivation_or_delivery": true,
+    "key_rotation": true,
+    "relay_eligibility_authority": true,
+    "uplink_health_authority": true
+  },
+  "preserved_baseline": {
+    "existing_n3w_protocol_reliability_baseline_preserved": true,
+    "pr315_pr316_reopened": false,
+    "existing_receipt_ack_retry_semantics_authoritative": true,
+    "manual_path_command_required": false,
+    "factory_fixed_peer_binding_added": false,
+    "old_node_peer_injection_required_for_late_node": false
+  },
+  "execution_boundary": {
+    "board_access": false,
+    "usb_serial_access": false,
+    "flash_erase_ota": false,
+    "espnow_rf_execution": false,
+    "lora_rf_execution": false,
+    "t1_access": false,
+    "manager_runtime_mutation": false,
+    "mqtt_broker_mutation": false,
+    "home_assistant_mutation": false,
+    "production_mutation": false,
+    "n3l_started": false
+  },
+  "acceptance": {
+    "host_compile_and_simulation_required": true,
+    "advertisement_only_never_authorizes": true,
+    "manager_verified_eligibility_required_for_selection": true,
+    "authorized_dynamic_peer_install_required": true,
+    "relay_failure_returns_to_discovery": true,
+    "late_node_without_preconfigured_peer_is_collectable": true,
+    "final_product_acceptance_requires_physical_t1": true,
+    "preferred_physical_t1": "spare_non_production_t1"
+  }
+}
