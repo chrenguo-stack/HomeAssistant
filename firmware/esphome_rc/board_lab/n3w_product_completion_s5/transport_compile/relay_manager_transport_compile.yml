@@ -19,14 +19,13 @@ logger:
   level: INFO
   hardware_uart: USB_SERIAL_JTAG
 
-# Compile USE_MQTT and Wi-Fi ownership without enabling either network stack on
-# boot. This is a compile-only target: it carries no SSID, password, Broker
-# credential, peer identity, or production endpoint.
-wifi:
-  enable_on_boot: false
+# Compile the generic network and MQTT ownership needed by the concrete S5
+# transport without configuring any Wi-Fi network. MQTT is disabled on boot and
+# the loopback broker value is compile-only; no live connection is executed.
+network:
 
 mqtt:
-  broker: ""
+  broker: "127.0.0.1"
   enable_on_boot: false
   discovery: false
 
