@@ -36,6 +36,7 @@ jobs:
           allowed="$(mktemp)"
           actual="$(mktemp)"
           cat >"$allowed" <<'FILES'
+          .github/workflows/n3w-product-completion-s5-ab-host-compile-ci.yml
           .github/workflows/n3w-product-completion-s5-c-isolated-manager-telemetry-ci.yml
           docs/decisions/n3w-product-completion-s5-c-isolated-manager-telemetry-host-compile-20260814.json
           firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_integration.cpp
