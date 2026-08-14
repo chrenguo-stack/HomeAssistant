@@ -55,10 +55,12 @@ struct ProductS5NodeCredentials {
 struct ProductS5CoordinatorPolicy {
   uint32_t peer_handshake_timeout_ms{10000};
   uint32_t manager_timeout_ms{10000};
+  uint32_t max_grant_lifetime_ms{60000};
 
   bool valid() const {
     return peer_handshake_timeout_ms >= 1000 && peer_handshake_timeout_ms <= 60000 &&
-           manager_timeout_ms >= 1000 && manager_timeout_ms <= 60000;
+           manager_timeout_ms >= 1000 && manager_timeout_ms <= 60000 &&
+           max_grant_lifetime_ms >= 1000 && max_grant_lifetime_ms <= 300000;
   }
 };
 
@@ -78,12 +80,18 @@ class ProductS5CryptoRandomSource final : public ProductS5RandomSource {
 class ProductS5RelayHealthProvider {
  public:
   virtual ~ProductS5RelayHealthProvider() = default;
-  virtual bool read_health(uint64_t now_ms, ProductRelayHealth *health) = 0;
+  virtual bool read_health(uint64_t authority_now_ms, ProductRelayHealth *health) = 0;
 };
 
 class ProductS5ManagerPort {
  public:
   virtual ~ProductS5ManagerPort() = default;
+
+  // The Relay is online when it asks the Manager for authorization. Its
+  // transport supplies Manager-aligned Unix epoch milliseconds for request
+  // freshness and signed-health timestamps. ProductRuntimeClock remains local
+  // monotonic time and is never treated as Unix epoch time.
+  virtual bool authority_now_ms(uint64_t *now_ms) = 0;
   virtual bool submit_peer_authorization(const ProductPeerRequest &request) = 0;
 };
 
@@ -117,9 +125,6 @@ class ProductS5PeerCoordinator final : public ProductRuntimeEventSink,
       const std::string &authorization_id);
   void reset();
 
-  // The application key is needed only to derive the endpoint relay-auth key.
-  // Board assembly calls this immediately after attach so the long-lived
-  // coordinator retains only the derived key and non-secret self metadata.
   void scrub_application_key() {
     zeroize_(credentials_.application_key.data(), credentials_.application_key.size());
   }
@@ -184,19 +189,29 @@ class ProductS5PeerCoordinator final : public ProductRuntimeEventSink,
   ProductS5CoordinatorError install_relay_peer_and_forward_child_grant_(
       const ProductPeerGrant &child_grant,
       const ProductPeerGrant &relay_grant,
-      uint64_t now_ms);
+      uint64_t local_now_ms,
+      uint64_t local_expires_at_ms);
   ProductS5CoordinatorError install_child_runtime_peer_(
       const ProductPeerGrant &child_grant,
-      uint64_t now_ms);
+      uint64_t local_now_ms,
+      uint64_t local_expires_at_ms);
 
   bool grant_matches_pending_(
       const ProductPeerGrant &grant,
       ProductPeerRole expected_role) const;
+  bool local_grant_expiry_(
+      const ProductPeerGrant &grant,
+      uint64_t local_now_ms,
+      uint64_t *local_expires_at_ms) const;
   RelayCandidateEligibility eligibility_from_grant_(
-      const ProductPeerGrant &grant) const;
+      const ProductPeerGrant &grant,
+      uint64_t local_now_ms,
+      uint64_t local_expires_at_ms) const;
   RuntimePeerMaterial runtime_material_from_grant_(
       const ProductPeerGrant &grant,
-      const LinkKey &lmk) const;
+      const LinkKey &lmk,
+      uint64_t local_now_ms,
+      uint64_t local_expires_at_ms) const;
   ProductS5CoordinatorError send_broadcast_(
       uint8_t channel,
       const std::vector<uint8_t> &packet);
@@ -222,6 +237,7 @@ class ProductS5PeerCoordinator final : public ProductRuntimeEventSink,
   ProductRuntimeRadioPort *radio_{nullptr};
 
   ProductS5PeerState state_{ProductS5PeerState::IDLE};
+  uint64_t handshake_started_at_ms_{0};
   uint64_t deadline_ms_{0};
   uint64_t active_expires_at_ms_{0};
   uint64_t session_token_{0};
