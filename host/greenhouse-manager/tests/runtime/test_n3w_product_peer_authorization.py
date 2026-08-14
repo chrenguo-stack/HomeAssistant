@@ -325,7 +325,10 @@ def test_every_frozen_relay_eligibility_condition_fails_closed(integrated, field
 def test_endpoint_proofs_are_role_and_pair_bound(integrated) -> None:
     _, _, membership, _, service = integrated
     request, _, _, child_auth, _ = _signed_request(membership)
-    forged_relay = replace(request.relay, proof=build_endpoint_proof(request, role="relay", relay_auth_key=child_auth))
+    forged_relay = replace(
+        request.relay,
+        proof=build_endpoint_proof(request, role="relay", relay_auth_key=child_auth),
+    )
     request = replace(request, relay=forged_relay)
 
     with pytest.raises(PeerAuthorizationRejected, match="relay_proof_rejected"):
