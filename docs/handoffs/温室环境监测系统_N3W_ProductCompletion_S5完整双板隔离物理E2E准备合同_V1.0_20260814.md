@@ -121,6 +121,31 @@ GitHub 可以保存：精确公开 SHA、CI run、脱敏 PASS/FAIL 分类、pack
 
 GitHub 不保存：MAC 明文、USB/端口绑定、application key、PMK、LMK、完整 Manager state、private firmware、原始 serial log、可重放的实板命令或 physical authorization material。
 
-## 9. 下一决策门
+## 9. 准备审计发现的阻塞
 
-公共准备 CI 通过后，仍必须先在本地物化新的 private package，并把生成器 stdout 中的脱敏 JSON 返回用于**只读绑定复核**。只有该复核通过，才生成下一枚一次性 physical execution authorization。
+公共 package generator、验收矩阵、cleanup 合同和 host-only CI 已经可以冻结；但在准备完成前进行了“这个 package 是否真的能执行完整物理链路”的静态复核，发现两个必须先修复的实现缺口。
+
+**S5-PREP-B01：Relay → Manager 授权传输缺失。** 当前 `GreenhouseN3wProductIntegration::configure_s5_isolated()` 只接受外部 `ProductS5ManagerPort *manager`。Relay coordinator 会通过该接口获取 Manager authority epoch 并提交 S4 peer authorization request，但冻结实现中没有面向实板的具体 transport 来完成“请求发布 → Manager S4 authority → response → 两端 grant 回灌”。如果现在直接物化 package，后续只能临时拼接未经绑定的 live 代码，不能形成可复现产品证据。
+
+**S5-PREP-B02：Relay → isolated Manager telemetry uplink 缺失。** S5-C 的 `N3wProductIsolatedManager` 明确是 non-live adapter，不打开 socket、不创建 MQTT client；板侧可靠 telemetry bridge 则依赖外部 `RelayForwardSink`。冻结的 public S5 board assembly 没有把该 sink 绑定到一个隔离、可复现的 Manager uplink。因此当前只能证明 Child↔Relay reliable ESP-NOW 的 host/compile 语义，不能执行完整 Child→Relay→isolated Manager 物理链路。
+
+这两个缺口不允许在本准备授权中直接以 runtime 产品改动方式修补，因为本授权已经冻结 S5-D implementation checkpoint。当前不得生成 physical execution authorization，也不应正式物化一次性 private package，以免生成注定无法完成验收的包。
+
+## 10. 下一决策门
+
+下一阶段必须先完成一个**纯 host/compile、无 live 网络/板卡执行**的 transport successor：
+
+```text
+D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-ISOLATED-MANAGER-TRANSPORT-HOST-COMPILE-IMPLEMENTATION-20260814-01
+```
+
+该 successor 只允许补齐：
+
+- opt-in isolated Relay Manager transport，复用现有 S4 authorization topic/schema；
+- Manager-aligned epoch source，禁止把 ESP monotonic uptime 当 Unix epoch；
+- response 解码并向既有 `ProductS5PeerCoordinator` 提交 child/relay grant；
+- opt-in `RelayForwardSink`，把既有 `gh.relay/1` frame 送入既有 isolated Manager ingress topic；
+- ESP32-C6 Relay compile-only target 和 host cross-language tests；
+- public profiles/default production Manager 继续 inert/unchanged。
+
+该 successor 仍不得访问板卡、串口、USB/JTAG、ESP-NOW RF、Wi-Fi、真实 MQTT 网络、T1 或生产服务。它通过并重新冻结 runtime implementation 后，才能重新执行本 preparation gate、物化新的 private package、做只读绑定复核，最后再申请一次性 physical execution authorization。
