@@ -241,12 +241,24 @@ bool PairingNetworkTransport::parse_envelope_(const std::string &body,
 
 bool PairingNetworkTransport::parse_credentials_(const std::string &plaintext,
                                                   RamCredentialBundle *credentials) const {
-  JsonPtr document = parse_json_object(
-      plaintext, {"schema", "system_id", "node_id", "broker_host", "broker_port",
-                  "broker_tls_server_name", "ca_pem", "mqtt_username", "mqtt_client_id",
-                  "credential_generation", "mqtt_password"});
-  if (!document || credentials == nullptr)
+  if (credentials == nullptr)
     return false;
+  const std::set<std::string> legacy_fields = {
+      "schema", "system_id", "node_id", "broker_host", "broker_port",
+      "broker_tls_server_name", "ca_pem", "mqtt_username", "mqtt_client_id",
+      "credential_generation", "mqtt_password"};
+  const std::set<std::string> product_fields = {
+      "schema", "system_id", "node_id", "broker_host", "broker_port",
+      "broker_tls_server_name", "ca_pem", "mqtt_username", "mqtt_client_id",
+      "credential_generation", "mqtt_password", "n3w_key_epoch", "n3w_application_key"};
+
+  JsonPtr document = parse_json_object(plaintext, product_fields);
+  const bool product = static_cast<bool>(document);
+  if (!document)
+    document = parse_json_object(plaintext, legacy_fields);
+  if (!document)
+    return false;
+
   RamCredentialBundle candidate;
   uint32_t port = 0;
   if (!json_string(document.get(), "schema", &candidate.schema, 64) ||
@@ -262,7 +274,11 @@ bool PairingNetworkTransport::parse_credentials_(const std::string &plaintext,
       !json_string(document.get(), "mqtt_password", &candidate.mqtt_password, 512))
     return false;
   candidate.broker_port = static_cast<uint16_t>(port);
-  if (!candidate.valid()) {
+  if (product &&
+      (!json_uint32(document.get(), "n3w_key_epoch", &candidate.n3w_key_epoch, false) ||
+       !json_string(document.get(), "n3w_application_key", &candidate.n3w_application_key, 64)))
+    return false;
+  if (!candidate.valid() || (product && !candidate.has_n3w_credentials())) {
     candidate.clear();
     return false;
   }
