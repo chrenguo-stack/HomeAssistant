@@ -235,6 +235,23 @@ class ProductEspNowRuntime final : public EspNowEventSink {
       const RelayCandidateEligibility &eligibility);
   ProductRuntimeError reject_peer_authorization();
   ProductRuntimeError install_authorized_peer(const RuntimePeerMaterial &material);
+  ProductRuntimeError revoke_active_peer(const std::string &authorization_id) {
+    if (!started_) return ProductRuntimeError::NOT_READY;
+    if (clock_ == nullptr || !active_peer_mac_.has_value()) {
+      return ProductRuntimeError::STATE_REJECTED;
+    }
+    const ProductCoreError revoked =
+        orchestration_.revoke_peer_authorization(authorization_id);
+    if (revoked == ProductCoreError::INVALID_ARGUMENT) {
+      return ProductRuntimeError::INVALID_ARGUMENT;
+    }
+    if (revoked == ProductCoreError::AUTHORIZATION_REJECTED ||
+        revoked == ProductCoreError::STATE_REJECTED) {
+      return ProductRuntimeError::STATE_REJECTED;
+    }
+    if (revoked != ProductCoreError::NONE) return ProductRuntimeError::CORE_ERROR;
+    return handle_path_state_(clock_->now_ms());
+  }
   ProductRuntimeError note_relay_result(bool success);
   ProductRuntimeError send_active_peer(const uint8_t *data, std::size_t size);
   ProductRuntimeError tick();
