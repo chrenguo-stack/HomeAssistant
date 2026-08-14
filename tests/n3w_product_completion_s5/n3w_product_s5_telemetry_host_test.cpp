@@ -148,6 +148,17 @@ int main() {
   assert(child.active_peer_node_id() == "node_relay01");
   assert(relay.active_peer_node_id() == "node_child01");
 
+  // Once Manager authorization binds identity to an installed MAC, that
+  // binding is immutable until peer removal. Reusing the same MAC with a
+  // different NODE_ID must fail closed rather than silently changing the
+  // gateway/child identity attached to the active LMK.
+  child.on_s5_peer_identity_bound(relay_mac, "node_relay99");
+  assert(child.last_error() == ProductS5TelemetryError::STATE_REJECTED);
+  assert(child.active_peer_node_id() == "node_relay01");
+  relay.on_s5_peer_identity_bound(child_mac, "node_child99");
+  assert(relay.last_error() == ProductS5TelemetryError::STATE_REJECTED);
+  assert(relay.active_peer_node_id() == "node_child01");
+
   assert(child.send_relay_frame(frame, 1000) == ProductS5TelemetryError::NONE);
   assert(forward.count == 1);
   assert(forward.last.header.schema == "gh.relay/1");
