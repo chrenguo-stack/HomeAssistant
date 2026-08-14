@@ -2,16 +2,32 @@
   "schema": "gh.n3w-product-completion-s5-isolated-manager-transport-host-compile/1",
   "date": "2026-08-14",
   "authorization": "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-ISOLATED-MANAGER-TRANSPORT-HOST-COMPILE-IMPLEMENTATION-20260814-01",
+  "link_fix_authorization": "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-MANAGER-TRANSPORT-USE_MQTT-INCLUDE-ORDER-LINK-FIX-20260814-01",
   "repository": "chrenguo-stack/HomeAssistant",
   "pull_request": 322,
   "branch": "feature/n3w-product-completion-s5-two-board-isolated-20260814-v1",
   "base_main": "38c3b692d4ebe90d0040c732b6c0313fdfdc1ef6",
   "starting_head": "8b332b65f6cca11b33e8f3d421920123d446f7e7",
-  "status": "AUTHORIZED_IMPLEMENTATION_AWAITING_CI",
+  "transport_pre_link_fix_head": "be2e35a52d9354b547a38d218165e432afe8c305",
+  "implementation_head": "35ac7ef4c77a4cde4faaf8f530b15a7f392d661d",
+  "status": "HOST_COMPILE_PASS_REBASELINE_REQUIRED",
   "blockers_addressed": [
     "S5-PREP-B01",
     "S5-PREP-B02"
   ],
+  "blocker_resolution_level": "HOST_COMPILE_VERIFIED_ONLY",
+  "physical_preparation_rebaseline_required": true,
+  "link_fix": {
+    "original_failed_run": 31807307310,
+    "original_failed_job": 94789356174,
+    "original_failure": "ProductS5EspHomeMqttBus vtable unresolved at ESP32-C6 final link",
+    "root_cause": "USE_MQTT feature define was visible in the component translation unit before the transport header but not in the transport translation unit, so MQTT bus method definitions were preprocessed out",
+    "intermediate_fix_head": "ef6c54fc4b09194e83fd450b1abe2f7b9dcd5631",
+    "intermediate_run": 31814378183,
+    "intermediate_failure": "unconditional esphome/core/defines.h include broke the standalone host compile include tree",
+    "final_fix": "conditionally include esphome/core/defines.h when available before evaluating USE_MQTT",
+    "final_fix_head": "35ac7ef4c77a4cde4faaf8f530b15a7f392d661d"
+  },
   "scope": {
     "host_compile_only": true,
     "concrete_opt_in_relay_manager_transport": true,
@@ -43,6 +59,44 @@
     "esp32c6_mqtt_transport_compile_pass": true,
     "s5_ab_c_d_regression_required": true,
     "full_two_board_e2e_status": "PENDING"
+  },
+  "ci_at_implementation_head": {
+    "s5_isolated_manager_transport": {
+      "run": 31814530072,
+      "result": "PASS"
+    },
+    "s5_d_lifecycle_negative": {
+      "run": 31814530016,
+      "result": "PASS"
+    },
+    "s5_c_isolated_manager_telemetry": {
+      "run": 31814530160,
+      "result": "PASS"
+    },
+    "s5_ab_host_compile": {
+      "run": 31814530050,
+      "result": "PASS"
+    },
+    "s5_board_integration": {
+      "run": 31814530037,
+      "result": "PASS"
+    },
+    "s3_disconnected_espnow_runtime": {
+      "run": 31814530162,
+      "result": "PASS"
+    },
+    "greenhouse_manager": {
+      "run": 31814530022,
+      "result": "PASS"
+    },
+    "public_repository_safety": {
+      "run": 31814530167,
+      "result": "PASS"
+    },
+    "s5_physical_preparation_contract_regression": {
+      "run": 31814530156,
+      "result": "PASS"
+    }
   },
   "not_authorized": [
     "erase",
