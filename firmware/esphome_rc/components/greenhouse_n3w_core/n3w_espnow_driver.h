@@ -12,6 +12,9 @@
 
 namespace esphome::greenhouse_n3w_core {
 
+constexpr MacAddress kEspNowBroadcastMac{
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+
 enum class DriverError : uint8_t {
   NONE = 0,
   INVALID_ARGUMENT,
@@ -25,6 +28,11 @@ enum class DriverError : uint8_t {
   SEND_FAILED,
 };
 
+struct EspNowReceiveMetadata {
+  int16_t rssi_dbm{-127};
+  uint8_t channel{0};
+};
+
 class EspNowEventSink {
  public:
   virtual ~EspNowEventSink() = default;
@@ -34,6 +42,16 @@ class EspNowEventSink {
       const MacAddress &source,
       const uint8_t *data,
       std::size_t size) = 0;
+  // Metadata-aware receive is backward-compatible with existing sinks. New
+  // product runtimes use RSSI/channel for disconnected candidate collection.
+  virtual void on_espnow_receive_with_metadata(
+      const MacAddress &source,
+      const uint8_t *data,
+      std::size_t size,
+      const EspNowReceiveMetadata &metadata) {
+    (void) metadata;
+    on_espnow_receive(source, data, size);
+  }
   virtual void on_espnow_send_result(
       const MacAddress &destination,
       bool success) = 0;
@@ -45,6 +63,7 @@ class EspNowDriver {
   void shutdown();
 
   DriverError set_channel(uint8_t channel);
+  DriverError prepare_broadcast_peer(uint8_t channel);
   DriverError add_encrypted_peer(
       const MacAddress &peer_mac,
       const LinkKey &lmk,
@@ -52,6 +71,9 @@ class EspNowDriver {
   DriverError remove_peer(const MacAddress &peer_mac);
   DriverError send(
       const MacAddress &peer_mac,
+      const uint8_t *data,
+      std::size_t size);
+  DriverError send_broadcast(
       const uint8_t *data,
       std::size_t size);
 
