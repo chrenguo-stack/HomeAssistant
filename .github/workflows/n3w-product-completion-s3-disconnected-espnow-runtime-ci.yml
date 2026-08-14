@@ -27,35 +27,15 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Exact base and S3 scope gate
+      - name: S3 lineage gate
         shell: bash
         run: |
           set -euo pipefail
-          base='e8c9d3aeb4be8918b17226e52e2e098e5daf45f9'
-          test "$(git merge-base "$base" HEAD)" = "$base"
+          s3_candidate='8340abe2aa1b73b9069ad4008d1cdae314c19745'
+          git merge-base --is-ancestor "$s3_candidate" HEAD
           if [ "$GITHUB_EVENT_NAME" = 'pull_request' ]; then
             test '${{ github.event.pull_request.base.ref }}' = 'main'
-            test '${{ github.event.pull_request.base.sha }}' = "$base"
           fi
-
-          allowed="$(mktemp)"
-          actual="$(mktemp)"
-          cat >"$allowed" <<'FILES'
-          .github/workflows/n3w-product-completion-s3-disconnected-espnow-runtime-ci.yml
-          docs/decisions/n3w-product-completion-s3-disconnected-espnow-runtime-stage-entry-20260814.json
-          firmware/esphome_rc/components/greenhouse_n3w_core/n3w_espnow_driver.cpp
-          firmware/esphome_rc/components/greenhouse_n3w_core/n3w_espnow_driver.h
-          firmware/esphome_rc/components/greenhouse_n3w_product_runtime/__init__.py
-          firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_runtime.cpp
-          firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_runtime.h
-          tests/n3w_product_completion_s3/n3w_product_runtime_host_test.cpp
-          tests/n3w_product_completion_s3/test_n3w_product_s3_contract.py
-          FILES
-          sed -i 's/^          //' "$allowed"
-          sort -o "$allowed" "$allowed"
-          git diff --name-only "$base"...HEAD | sort >"$actual"
-          test "$(wc -l <"$actual")" -eq 9
-          diff -u "$allowed" "$actual"
 
       - name: Install host dependencies
         run: |

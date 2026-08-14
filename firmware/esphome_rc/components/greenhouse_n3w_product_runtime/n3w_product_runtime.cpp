@@ -595,4 +595,75 @@ void ProductEspNowRuntime::on_espnow_send_result(
   // relay success. Existing N3-W ReceiptAck/retry semantics remain authoritative.
 }
 
+ProductRuntimeCoordinator::ProductRuntimeCoordinator(
+    ProductEspNowRuntime *runtime,
+    ProductManagerIntegrationPort *manager,
+    ProductRuntimeEventSink *downstream)
+    : runtime_(runtime), manager_(manager), downstream_(downstream) {}
+
+void ProductRuntimeCoordinator::on_candidate_observed(
+    const RelayCandidateObservation &observation) {
+  RelayCandidateRecord candidate;
+  candidate.observation = observation;
+  latest_candidate_ = candidate;
+  if (manager_ != nullptr) (void) manager_->request_manager_eligibility(candidate);
+  if (downstream_ != nullptr) downstream_->on_candidate_observed(observation);
+}
+
+void ProductRuntimeCoordinator::on_authorization_needed(
+    const RelayCandidateRecord &candidate) {
+  latest_candidate_ = candidate;
+  if (manager_ == nullptr || !manager_->request_peer_authorization(candidate)) {
+    if (runtime_ != nullptr) (void) runtime_->reject_peer_authorization();
+  }
+  if (downstream_ != nullptr) downstream_->on_authorization_needed(candidate);
+}
+
+void ProductRuntimeCoordinator::on_peer_active(
+    const DynamicPeerAuthorization &authorization) {
+  if (downstream_ != nullptr) downstream_->on_peer_active(authorization);
+}
+
+void ProductRuntimeCoordinator::on_peer_released(const MacAddress &peer_mac) {
+  if (downstream_ != nullptr) downstream_->on_peer_released(peer_mac);
+}
+
+void ProductRuntimeCoordinator::on_advertisement_sent(
+    const ProductDiscoveryAdvertisement &advertisement) {
+  if (downstream_ != nullptr) downstream_->on_advertisement_sent(advertisement);
+}
+
+ProductRuntimeError ProductRuntimeCoordinator::drain_manager_decisions_() {
+  if (runtime_ == nullptr || manager_ == nullptr) return ProductRuntimeError::INVALID_ARGUMENT;
+
+  ManagerEligibilityDecision eligibility;
+  while (manager_->poll_manager_eligibility(&eligibility)) {
+    const ProductRuntimeError result = runtime_->apply_manager_eligibility(
+        eligibility.source_mac, eligibility.gateway_id, eligibility.eligibility);
+    if (result != ProductRuntimeError::NONE) return result;
+  }
+
+  ManagerPeerAuthorizationDecision authorization;
+  while (manager_->poll_peer_authorization(&authorization)) {
+    ProductRuntimeError result = ProductRuntimeError::NONE;
+    if (authorization.status == ManagerPeerAuthorizationStatus::AUTHORIZED) {
+      result = runtime_->install_authorized_peer(authorization.material);
+    } else if (authorization.status == ManagerPeerAuthorizationStatus::REJECTED ||
+               authorization.status == ManagerPeerAuthorizationStatus::UNAVAILABLE) {
+      result = runtime_->reject_peer_authorization();
+    } else {
+      return ProductRuntimeError::PACKET_REJECTED;
+    }
+    if (result != ProductRuntimeError::NONE) return result;
+  }
+  return ProductRuntimeError::NONE;
+}
+
+ProductRuntimeError ProductRuntimeCoordinator::tick() {
+  const ProductRuntimeError decisions = drain_manager_decisions_();
+  if (decisions != ProductRuntimeError::NONE) return decisions;
+  if (runtime_ == nullptr) return ProductRuntimeError::INVALID_ARGUMENT;
+  return runtime_->tick();
+}
+
 }  // namespace esphome::greenhouse_n3w_product_runtime

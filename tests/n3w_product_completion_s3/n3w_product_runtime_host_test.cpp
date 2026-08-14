@@ -114,6 +114,36 @@ class FakeEvents final : public ProductRuntimeEventSink {
   std::vector<ProductDiscoveryAdvertisement> advertisements{};
 };
 
+class FakeManagerPort final : public ProductManagerIntegrationPort {
+ public:
+  bool request_manager_eligibility(const RelayCandidateRecord &candidate) override {
+    eligibility_requests.push_back(candidate);
+    return accept_requests;
+  }
+  bool poll_manager_eligibility(ManagerEligibilityDecision *decision) override {
+    if (decision == nullptr || !eligibility_decision.has_value()) return false;
+    *decision = *eligibility_decision;
+    eligibility_decision.reset();
+    return true;
+  }
+  bool request_peer_authorization(const RelayCandidateRecord &candidate) override {
+    authorization_requests.push_back(candidate);
+    return accept_requests;
+  }
+  bool poll_peer_authorization(ManagerPeerAuthorizationDecision *decision) override {
+    if (decision == nullptr || !authorization_decision.has_value()) return false;
+    *decision = *authorization_decision;
+    authorization_decision.reset();
+    return true;
+  }
+
+  bool accept_requests{true};
+  std::vector<RelayCandidateRecord> eligibility_requests{};
+  std::vector<RelayCandidateRecord> authorization_requests{};
+  std::optional<ManagerEligibilityDecision> eligibility_decision{};
+  std::optional<ManagerPeerAuthorizationDecision> authorization_decision{};
+};
+
 RelayCandidateEligibility eligible(uint64_t now_ms, uint32_t credential_generation) {
   RelayCandidateEligibility value;
   value.manager_verified = true;
@@ -399,10 +429,62 @@ int main() {
   assert(broadcast_decoded.advertisement_generation == local.advertisement_generation);
   assert(relay_events.advertisements.size() == 1);
 
+  // S5 integration coordinator carries S3 observations through Manager
+  // eligibility and S4 authorization before installing the encrypted peer.
+  FakeRadio integrated_radio;
+  FakeClock integrated_clock;
+  FakeManagerPort integrated_manager;
+  FakeEvents integrated_events;
+  ProductEspNowRuntime integrated_runtime(
+      &integrated_radio,
+      &integrated_clock,
+      nullptr,
+      WifiDirectHealthPolicy{},
+      RelayCandidatePolicy{},
+      AutoPathPolicy{},
+      ProductRuntimePolicy{});
+  ProductRuntimeCoordinator coordinator(
+      &integrated_runtime, &integrated_manager, &integrated_events);
+  integrated_runtime.set_event_sink(&coordinator);
+  assert(integrated_runtime.start(nonzero_key(0xa0)) == ProductRuntimeError::NONE);
+  assert(integrated_runtime.set_last_direct_channel(6) == ProductRuntimeError::NONE);
+  enter_discovery(&integrated_runtime);
+  const MacAddress integrated_mac{0x02, 0x71, 0x72, 0x73, 0x74, 0x75};
+  deliver_advertisement(
+      &integrated_runtime,
+      &integrated_clock,
+      integrated_mac,
+      "gw_integrated",
+      1,
+      -47);
+  assert(integrated_manager.eligibility_requests.size() == 1);
+  assert(integrated_manager.authorization_requests.empty());
+
+  ManagerEligibilityDecision eligibility_decision;
+  eligibility_decision.source_mac = integrated_mac;
+  eligibility_decision.gateway_id = "gw_integrated";
+  eligibility_decision.eligibility = eligible(integrated_clock.now, 51);
+  integrated_manager.eligibility_decision = eligibility_decision;
+  assert(coordinator.tick() == ProductRuntimeError::NONE);
+  assert(integrated_manager.authorization_requests.size() == 1);
+
+  ManagerPeerAuthorizationDecision authorization_decision;
+  authorization_decision.status = ManagerPeerAuthorizationStatus::AUTHORIZED;
+  authorization_decision.material.authorization = authorization_for(
+      integrated_manager.authorization_requests.back(), integrated_clock.now);
+  authorization_decision.material.lmk = nonzero_key(0xb0);
+  integrated_manager.authorization_decision = authorization_decision;
+  assert(coordinator.tick() == ProductRuntimeError::NONE);
+  assert(integrated_runtime.path_state() == AutoPathState::RELAY_ACTIVE);
+  assert(integrated_radio.peer_present);
+  assert(integrated_radio.added_peer == integrated_mac);
+  assert(integrated_events.active.size() == 1);
+
   runtime.stop();
   failing_runtime.stop();
   expiry_runtime.stop();
   prune_runtime.stop();
   relay_runtime.stop();
+  integrated_runtime.stop();
   return 0;
 }

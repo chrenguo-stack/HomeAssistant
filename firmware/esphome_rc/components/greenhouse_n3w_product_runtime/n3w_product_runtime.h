@@ -84,6 +84,24 @@ struct RuntimePeerMaterial {
   LinkKey lmk{};
 };
 
+struct ManagerEligibilityDecision {
+  MacAddress source_mac{};
+  std::string gateway_id;
+  RelayCandidateEligibility eligibility{};
+};
+
+enum class ManagerPeerAuthorizationStatus : uint8_t {
+  NONE = 0,
+  AUTHORIZED,
+  REJECTED,
+  UNAVAILABLE,
+};
+
+struct ManagerPeerAuthorizationDecision {
+  ManagerPeerAuthorizationStatus status{ManagerPeerAuthorizationStatus::NONE};
+  RuntimePeerMaterial material{};
+};
+
 class ProductRuntimeClock {
  public:
   virtual ~ProductRuntimeClock() = default;
@@ -156,6 +174,41 @@ class ProductRuntimeEventSink {
   }
 };
 
+class ProductManagerIntegrationPort {
+ public:
+  virtual ~ProductManagerIntegrationPort() = default;
+  virtual bool request_manager_eligibility(const RelayCandidateRecord &candidate) = 0;
+  virtual bool poll_manager_eligibility(ManagerEligibilityDecision *decision) = 0;
+  virtual bool request_peer_authorization(const RelayCandidateRecord &candidate) = 0;
+  virtual bool poll_peer_authorization(ManagerPeerAuthorizationDecision *decision) = 0;
+};
+
+class ProductEspNowRuntime;
+
+class ProductRuntimeCoordinator final : public ProductRuntimeEventSink {
+ public:
+  ProductRuntimeCoordinator(
+      ProductEspNowRuntime *runtime,
+      ProductManagerIntegrationPort *manager,
+      ProductRuntimeEventSink *downstream = nullptr);
+
+  ProductRuntimeError tick();
+
+  void on_candidate_observed(const RelayCandidateObservation &observation) override;
+  void on_authorization_needed(const RelayCandidateRecord &candidate) override;
+  void on_peer_active(const DynamicPeerAuthorization &authorization) override;
+  void on_peer_released(const MacAddress &peer_mac) override;
+  void on_advertisement_sent(const ProductDiscoveryAdvertisement &advertisement) override;
+
+ private:
+  ProductRuntimeError drain_manager_decisions_();
+
+  ProductEspNowRuntime *runtime_{nullptr};
+  ProductManagerIntegrationPort *manager_{nullptr};
+  ProductRuntimeEventSink *downstream_{nullptr};
+  std::optional<RelayCandidateRecord> latest_candidate_{};
+};
+
 class ProductEspNowRuntime final : public EspNowEventSink {
  public:
   ProductEspNowRuntime(
@@ -169,6 +222,7 @@ class ProductEspNowRuntime final : public EspNowEventSink {
 
   ProductRuntimeError start(const LinkKey &pmk);
   void stop();
+  void set_event_sink(ProductRuntimeEventSink *events) { events_ = events; }
 
   ProductRuntimeError set_last_direct_channel(uint8_t channel);
   ProductRuntimeError set_local_relay_advertisement(

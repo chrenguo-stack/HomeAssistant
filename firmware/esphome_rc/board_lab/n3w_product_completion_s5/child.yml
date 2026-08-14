@@ -1,0 +1,44 @@
+esphome:
+  name: gh-n3w-product-s5-child-compile
+  friendly_name: N3-W Product S5 Child Compile Target
+  min_version: 2026.4.3
+  build_path: !env_var S5_BUILD_PATH
+
+esp32:
+  board: esp32-c6-devkitm-1
+  variant: ESP32C6
+  flash_size: 8MB
+  framework:
+    type: esp-idf
+    advanced:
+      include_builtin_idf_components:
+        - nvs_flash
+        - esp_wifi
+
+logger:
+  level: INFO
+  hardware_uart: USB_SERIAL_JTAG
+
+external_components:
+  - source:
+      type: local
+      path: ../../components
+    components:
+      - greenhouse_n3w_core
+      - greenhouse_n3w_product_core
+      - greenhouse_n3w_product_runtime
+
+greenhouse_n3w_core:
+
+greenhouse_n3w_product_core:
+
+greenhouse_n3w_product_runtime:
+  id: n3w_product_integration
+  role: child
+  execution_enabled: false
+  pmk_hex: "000102030405060708090a0b0c0d0e0f"
+  last_direct_channel: 6
+
+# This public target compiles and links the real S3/S4 board integration but is
+# intentionally inert. A later private physical package supplies isolated-only
+# runtime material and explicitly enables execution after CI passes.
