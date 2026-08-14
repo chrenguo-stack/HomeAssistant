@@ -1,0 +1,194 @@
+name: N3-W Product Completion S5 isolated Manager transport CI
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/n3w-product-completion-s5-isolated-manager-transport-ci.yml'
+      - 'docs/decisions/n3w-product-completion-s5-isolated-manager-transport-host-compile-20260814.json'
+      - 'firmware/esphome_rc/board_lab/n3w_product_completion_s5/relay_manager_transport_compile.yml'
+      - 'firmware/esphome_rc/components/greenhouse_n3w_s5_manager_transport/**'
+      - 'host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_product_authority_time.py'
+      - 'host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_product_isolated_mqtt_service.py'
+      - 'tests/n3w_product_completion_s5_transport/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: n3w-s5-isolated-manager-transport-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  transport-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Authorized transport successor lineage and exact scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          start='8b332b65f6cca11b33e8f3d421920123d446f7e7'
+          base='38c3b692d4ebe90d0040c732b6c0313fdfdc1ef6'
+          git merge-base --is-ancestor "$start" HEAD
+          if [ "$GITHUB_EVENT_NAME" = 'pull_request' ]; then
+            test '${{ github.event.pull_request.base.ref }}' = 'main'
+            test '${{ github.event.pull_request.base.sha }}' = "$base"
+          fi
+          git config core.quotePath false
+          allowed="$(mktemp)"
+          actual="$(mktemp)"
+          cat >"$allowed" <<'FILES'
+          .github/workflows/n3w-product-completion-s5-isolated-manager-transport-ci.yml
+          docs/decisions/n3w-product-completion-s5-isolated-manager-transport-host-compile-20260814.json
+          firmware/esphome_rc/board_lab/n3w_product_completion_s5/relay_manager_transport_compile.yml
+          firmware/esphome_rc/components/greenhouse_n3w_s5_manager_transport/__init__.py
+          firmware/esphome_rc/components/greenhouse_n3w_s5_manager_transport/greenhouse_n3w_s5_manager_transport.h
+          firmware/esphome_rc/components/greenhouse_n3w_s5_manager_transport/n3w_product_s5_manager_component.cpp
+          firmware/esphome_rc/components/greenhouse_n3w_s5_manager_transport/n3w_product_s5_manager_component.h
+          firmware/esphome_rc/components/greenhouse_n3w_s5_manager_transport/n3w_product_s5_manager_transport.cpp
+          firmware/esphome_rc/components/greenhouse_n3w_s5_manager_transport/n3w_product_s5_manager_transport.h
+          firmware/esphome_rc/components/greenhouse_n3w_s5_manager_transport/n3w_product_s5_manager_wire.cpp
+          firmware/esphome_rc/components/greenhouse_n3w_s5_manager_transport/n3w_product_s5_manager_wire.h
+          host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_product_authority_time.py
+          host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_product_isolated_mqtt_service.py
+          tests/n3w_product_completion_s5_transport/n3w_product_s5_manager_transport_host_test.cpp
+          tests/n3w_product_completion_s5_transport/test_s5_isolated_manager_transport.py
+          FILES
+          sed -i 's/^          //' "$allowed"
+          sort -o "$allowed" "$allowed"
+          git diff --name-only "$start"...HEAD | sort >"$actual"
+          diff -u "$allowed" "$actual"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install host dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libmbedtls-dev libssl-dev
+          python -m pip install -e 'host/greenhouse-manager[dev]'
+
+      - name: Validate authorization and Manager contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('docs/decisions/n3w-product-completion-s5-isolated-manager-transport-host-compile-20260814.json')
+          d = json.loads(p.read_text())
+          assert d['authorization'] == 'D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-ISOLATED-MANAGER-TRANSPORT-HOST-COMPILE-IMPLEMENTATION-20260814-01'
+          assert d['starting_head'] == '8b332b65f6cca11b33e8f3d421920123d446f7e7'
+          assert d['scope']['host_compile_only'] is True
+          assert d['scope']['existing_s4_peer_authorization_topic_schema'] is True
+          assert d['scope']['endpoint_monotonic_uptime_is_manager_epoch'] is False
+          assert d['scope']['existing_relay_frame_schema'] == 'gh.relay/1'
+          assert d['scope']['existing_telemetry_schema'] == 'gh.telemetry/1'
+          assert d['required_invariants']['s4_manager_is_only_peer_authorization_authority'] is True
+          assert d['required_invariants']['manager_generates_or_distributes_pair_lmk'] is False
+          assert d['required_invariants']['normal_app_selects_isolated_manager_service'] is False
+          assert d['acceptance']['full_two_board_e2e_status'] == 'PENDING'
+          PY
+          python -m pytest -q \
+            tests/n3w_product_completion_s5/test_s5_manager_authorization_loop.py \
+            tests/n3w_product_completion_s5/test_s5_isolated_manager_telemetry.py \
+            tests/n3w_product_completion_s5_transport/test_s5_isolated_manager_transport.py
+
+      - name: Generate actual S4 Manager request and response vectors
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import runpy
+          import sys
+          import tempfile
+          from pathlib import Path
+
+          root = Path.cwd()
+          sys.path.insert(0, str(root / 'host' / 'greenhouse-manager' / 'src'))
+
+          from greenhouse_manager.runtime.n3w_product_manager_adapter import (
+              encode_peer_authorization_request,
+              encode_peer_authorization_response,
+          )
+          from greenhouse_manager.runtime.n3w_product_peer_authorization import (
+              SqlitePeerAuthorizationReplayStore,
+          )
+
+          vector = runpy.run_path(
+              'tests/n3w_product_completion_s5/test_s5_manager_authorization_loop.py'
+          )
+          request = vector['_request']()
+          with tempfile.TemporaryDirectory() as tmp:
+              replay = SqlitePeerAuthorizationReplayStore(str(Path(tmp) / 'replay.sqlite3'))
+              try:
+                  authorization = vector['_service'](replay).authorize(
+                      request, now_ms=vector['NOW_MS']
+                  )
+              finally:
+                  replay.close()
+          Path('/tmp/s5-manager-request.json').write_bytes(
+              encode_peer_authorization_request(request)
+          )
+          Path('/tmp/s5-manager-response.json').write_bytes(
+              encode_peer_authorization_response(authorization)
+          )
+          PY
+
+      - name: Compile and run C++ S4 wire and isolated transport contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/n3w_include/esphome
+          ln -s "$GITHUB_WORKSPACE/firmware/esphome_rc/components" /tmp/n3w_include/esphome/components
+          g++ -std=c++17 -Wall -Wextra -Werror \
+            -I/tmp/n3w_include \
+            -Ifirmware/esphome_rc/components/greenhouse_n3w_core \
+            -Ifirmware/esphome_rc/components/greenhouse_n3w_product_core \
+            -Ifirmware/esphome_rc/components/greenhouse_n3w_product_runtime \
+            -Ifirmware/esphome_rc/components/greenhouse_n3w_s5_manager_transport \
+            firmware/esphome_rc/components/greenhouse_n3w_core/n3w_core.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_peer_security.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_s5_manager_transport/n3w_product_s5_manager_wire.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_s5_manager_transport/n3w_product_s5_manager_transport.cpp \
+            tests/n3w_product_completion_s5_transport/n3w_product_s5_manager_transport_host_test.cpp \
+            -lmbedcrypto -lcrypto \
+            -o /tmp/n3w_s5_isolated_manager_transport
+          /tmp/n3w_s5_isolated_manager_transport \
+            /tmp/s5-manager-request.json \
+            /tmp/s5-manager-response.json
+
+      - name: Compile inert ESP32-C6 Relay Manager transport target
+        env:
+          S5_BUILD_PATH: /tmp/n3w-s5-relay-manager-transport-build
+        run: |
+          python -m pip install --upgrade 'esphome==2026.4.3'
+          esphome config \
+            firmware/esphome_rc/board_lab/n3w_product_completion_s5/relay_manager_transport_compile.yml
+          esphome compile \
+            firmware/esphome_rc/board_lab/n3w_product_completion_s5/relay_manager_transport_compile.yml
+
+      - name: No-live no-static-peer production-default safety gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'execution_enabled: false' \
+            firmware/esphome_rc/board_lab/n3w_product_completion_s5/relay_manager_transport_compile.yml
+          test "$(grep -c 'enable_on_boot: false' \
+            firmware/esphome_rc/board_lab/n3w_product_completion_s5/relay_manager_transport_compile.yml)" -eq 2
+          if grep -R -n -E \
+            '(esphome[[:space:]]+run|esptool|espota|pio[[:space:]]+run.*upload|esp_wifi_connect\(|p5_peer_mac|p5_link_lmk|GH_MQTT_PASSWORD|wifi_ssid|wifi_password)' \
+            firmware/esphome_rc/components/greenhouse_n3w_s5_manager_transport \
+            firmware/esphome_rc/board_lab/n3w_product_completion_s5/relay_manager_transport_compile.yml \
+            tests/n3w_product_completion_s5_transport; then
+            echo 'Live execution, Wi-Fi connection, static peer, or secret material detected' >&2
+            exit 1
+          fi
+          ! grep -q 'N3wProductIsolatedMqttService' \
+            host/greenhouse-manager/src/greenhouse_manager/app.py

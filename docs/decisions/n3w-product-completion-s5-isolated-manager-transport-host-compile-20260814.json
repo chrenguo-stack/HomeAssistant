@@ -1,0 +1,66 @@
+{
+  "schema": "gh.n3w-product-completion-s5-isolated-manager-transport-host-compile/1",
+  "date": "2026-08-14",
+  "authorization": "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-ISOLATED-MANAGER-TRANSPORT-HOST-COMPILE-IMPLEMENTATION-20260814-01",
+  "repository": "chrenguo-stack/HomeAssistant",
+  "pull_request": 322,
+  "branch": "feature/n3w-product-completion-s5-two-board-isolated-20260814-v1",
+  "base_main": "38c3b692d4ebe90d0040c732b6c0313fdfdc1ef6",
+  "starting_head": "8b332b65f6cca11b33e8f3d421920123d446f7e7",
+  "status": "AUTHORIZED_IMPLEMENTATION_AWAITING_CI",
+  "blockers_addressed": [
+    "S5-PREP-B01",
+    "S5-PREP-B02"
+  ],
+  "scope": {
+    "host_compile_only": true,
+    "concrete_opt_in_relay_manager_transport": true,
+    "existing_s4_peer_authorization_topic_schema": true,
+    "manager_epoch_transport_anchor": true,
+    "endpoint_monotonic_uptime_is_manager_epoch": false,
+    "existing_relay_frame_schema": "gh.relay/1",
+    "existing_telemetry_schema": "gh.telemetry/1",
+    "relay_forward_sink_to_existing_manager_ingress": true,
+    "esp32c6_relay_compile_only": true,
+    "normal_production_manager_startup_changed": false,
+    "public_profiles_enabled": false
+  },
+  "required_invariants": {
+    "s4_manager_is_only_peer_authorization_authority": true,
+    "manager_generates_or_distributes_pair_lmk": false,
+    "each_endpoint_verifies_own_manager_grant": true,
+    "each_endpoint_derives_pair_lmk_locally": true,
+    "relay_advertisement_is_untrusted_hint_only": true,
+    "factory_peer_mac_node_id_gateway_id_or_lmk": false,
+    "new_telemetry_schema": false,
+    "normal_app_selects_isolated_manager_service": false
+  },
+  "acceptance": {
+    "actual_python_s4_request_encoded_by_cpp_exactly": true,
+    "actual_python_s4_response_decoded_by_cpp": true,
+    "authority_time_request_response_fails_closed": true,
+    "relayframe_serializes_to_existing_manager_ingress": true,
+    "esp32c6_mqtt_transport_compile_pass": true,
+    "s5_ab_c_d_regression_required": true,
+    "full_two_board_e2e_status": "PENDING"
+  },
+  "not_authorized": [
+    "erase",
+    "flash",
+    "ota",
+    "serial",
+    "usb_jtag_board_access",
+    "espnow_rf_execution",
+    "wifi_connection",
+    "real_mqtt_network_e2e",
+    "spare_t1_runtime",
+    "production_t1",
+    "production_manager_broker_ha_mutation",
+    "pr_merge",
+    "release",
+    "deployment",
+    "n3l",
+    "physical_package_materialization"
+  ],
+  "next_gate_after_pass": "REBASELINE_PHYSICAL_PREPARATION_AND_PRIVATE_PACKAGE_MATERIALIZATION_READONLY_BINDING_REVIEW"
+}
