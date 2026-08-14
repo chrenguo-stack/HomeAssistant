@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -10,6 +11,9 @@ from greenhouse_manager.runtime.registration import NodeIdLeaseState
 
 
 def _history_page(*, batch_id: str = "batch-000001") -> bytes:
+    sampled_at = (datetime.now(UTC) - timedelta(minutes=1)).isoformat(
+        timespec="seconds"
+    ).replace("+00:00", "Z")
     document = {
         "schema": "gh.history-replay.batch/1",
         "node_id": "node-0001",
@@ -21,7 +25,7 @@ def _history_page(*, batch_id: str = "batch-000001") -> bytes:
                 "boot_id": "boot-00000001",
                 "seq": 1,
                 "uptime_ms": 1000,
-                "sampled_at": "2026-08-03T04:00:00Z",
+                "sampled_at": sampled_at,
                 "time_quality": "trusted",
                 "time_anchor": None,
                 "cap_hash": "cap-hash-0001",
