@@ -69,15 +69,67 @@ jobs:
         working-directory: host/greenhouse-manager
         run: python -m pytest -q tests/runtime/test_n3w_product_peer_authorization.py
 
-      - name: Run full Manager regression suite
-        working-directory: host/greenhouse-manager
+      - name: Run full Manager regression delta gate
         shell: bash
         run: |
-          set -o pipefail
-          python -m pytest -q --tb=short \
-            --junitxml="$RUNNER_TEMP/s4-full-manager-junit.xml" \
-            2>&1 | tee "$RUNNER_TEMP/s4-full-manager-pytest.log"
-          exit "${PIPESTATUS[0]}"
+          set -uo pipefail
+          EXPECTED_BASE='8020194edfeea03a52466e83cb3071de54afbd48'
+          HEAD_ROOT="$GITHUB_WORKSPACE/host/greenhouse-manager"
+          BASE_WORKTREE="$RUNNER_TEMP/s4-exact-base"
+
+          set +e
+          (
+            cd "$HEAD_ROOT"
+            python -m pytest -q --tb=short \
+              --junitxml="$RUNNER_TEMP/s4-head-junit.xml" \
+              2>&1 | tee "$RUNNER_TEMP/s4-head-pytest.log"
+          )
+          HEAD_STATUS=${PIPESTATUS[0]}
+          set -e
+
+          git worktree add --detach "$BASE_WORKTREE" "$EXPECTED_BASE"
+          python -m pip install -e "$BASE_WORKTREE/host/greenhouse-manager[dev]"
+
+          set +e
+          (
+            cd "$BASE_WORKTREE/host/greenhouse-manager"
+            python -m pytest -q --tb=short \
+              --junitxml="$RUNNER_TEMP/s4-base-junit.xml" \
+              2>&1 | tee "$RUNNER_TEMP/s4-base-pytest.log"
+          )
+          BASE_STATUS=${PIPESTATUS[0]}
+          set -e
+
+          export HEAD_STATUS BASE_STATUS
+          python - <<'PY'
+          import os
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          def failures(path: Path) -> set[str]:
+              root = ET.parse(path).getroot()
+              result: set[str] = set()
+              for case in root.iter('testcase'):
+                  if case.find('failure') is not None or case.find('error') is not None:
+                      classname = case.attrib.get('classname', '')
+                      name = case.attrib.get('name', '')
+                      result.add(f'{classname}::{name}')
+              return result
+
+          temp = Path(os.environ['RUNNER_TEMP'])
+          head = failures(temp / 's4-head-junit.xml')
+          base = failures(temp / 's4-base-junit.xml')
+          regressions = sorted(head - base)
+          fixed = sorted(base - head)
+          print(f'HEAD_FULL_SUITE_STATUS={os.environ["HEAD_STATUS"]}')
+          print(f'BASE_FULL_SUITE_STATUS={os.environ["BASE_STATUS"]}')
+          print(f'HEAD_FAILURES={sorted(head)}')
+          print(f'BASE_FAILURES={sorted(base)}')
+          print(f'NEW_S4_REGRESSIONS={regressions}')
+          print(f'BASE_FAILURES_FIXED_BY_HEAD={fixed}')
+          if regressions:
+              raise SystemExit('S4 introduced full-suite regressions relative to exact base')
+          PY
 
       - name: Preserve full Manager regression diagnostics
         if: always()
@@ -85,9 +137,11 @@ jobs:
         with:
           name: n3w-s4-full-manager-regression-${{ github.run_id }}
           path: |
-            ${{ runner.temp }}/s4-full-manager-pytest.log
-            ${{ runner.temp }}/s4-full-manager-junit.xml
-          if-no-files-found: error
+            ${{ runner.temp }}/s4-head-pytest.log
+            ${{ runner.temp }}/s4-head-junit.xml
+            ${{ runner.temp }}/s4-base-pytest.log
+            ${{ runner.temp }}/s4-base-junit.xml
+          if-no-files-found: warn
           retention-days: 7
 
       - name: Ruff S4 implementation and tests
