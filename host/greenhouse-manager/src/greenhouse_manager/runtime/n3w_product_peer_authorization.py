@@ -15,6 +15,10 @@ from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 from .credential_lifecycle import CredentialLifecycleStore, CredentialState
+from .n3w_relay_authorization import (
+    RelayAuthorizationStoreUnavailable,
+    SqliteRelayAuthorizationProvider,
+)
 from .registration import RegistrationRegistry, RegistrationState
 
 _ID = re.compile(r"^[A-Za-z0-9_-]{3,64}$")
@@ -25,6 +29,7 @@ _AUTH_KEY_INFO = b"gh.n3w-product/relay-auth-key/1"
 _PROOF_DOMAIN = b"gh.n3w-product/peer-proof/1"
 _GRANT_DOMAIN = b"gh.n3w-product/peer-grant/1"
 _LMK_DOMAIN = b"gh.n3w-product/espnow-lmk/1"
+_RUNTIME_KEY_STATES = {"ACTIVE", "GRACE"}
 
 
 class PeerAuthorizationRejected(RuntimeError):
@@ -167,6 +172,66 @@ class PairAuthorization:
     relay_grant: EndpointGrant
 
 
+class ProductNodeApplicationKeyProvider(SqliteRelayAuthorizationProvider):
+    """Resolve a node's own N3-W key without any pre-created gateway/node pair grant."""
+
+    def resolve_node_application_key(self, *, node_id: str, key_epoch: int) -> bytes:
+        if _ID.fullmatch(node_id) is None:
+            raise PeerAuthorizationRejected("node_key_identity_invalid")
+        if not isinstance(key_epoch, int) or isinstance(key_epoch, bool) or key_epoch < 1:
+            raise PeerAuthorizationRejected("key_epoch_rejected")
+
+        with self._lock:
+            try:
+                self._require_open()
+                node = self._connection.execute(
+                    "SELECT active FROM n3w_relay_nodes WHERE node_id = ?",
+                    (node_id,),
+                ).fetchone()
+                if node is None or node["active"] != 1:
+                    raise PeerAuthorizationRejected("node_key_not_active")
+
+                if self._schema_version == 1:
+                    epoch = self._connection.execute(
+                        """
+                        SELECT key_file, enabled
+                        FROM n3w_relay_key_epochs
+                        WHERE node_id = ? AND key_epoch = ?
+                        """,
+                        (node_id, key_epoch),
+                    ).fetchone()
+                    accepted = epoch is not None and epoch["enabled"] == 1
+                    expected_sha256 = None
+                else:
+                    epoch = self._connection.execute(
+                        """
+                        SELECT key_file, enabled, state, key_sha256
+                        FROM n3w_relay_key_epochs
+                        WHERE node_id = ? AND key_epoch = ?
+                        """,
+                        (node_id, key_epoch),
+                    ).fetchone()
+                    accepted = (
+                        epoch is not None
+                        and epoch["enabled"] == 1
+                        and epoch["state"] in _RUNTIME_KEY_STATES
+                    )
+                    expected_sha256 = epoch["key_sha256"] if epoch is not None else None
+                if not accepted or epoch is None:
+                    raise PeerAuthorizationRejected("key_epoch_rejected")
+                try:
+                    return self._load_key_file(
+                        epoch["key_file"],
+                        expected_sha256=expected_sha256,
+                    )
+                except RelayAuthorizationStoreUnavailable as error:
+                    raise PeerAuthorizationUnavailable(str(error)) from error
+            except (PeerAuthorizationRejected, PeerAuthorizationUnavailable):
+                raise
+            except sqlite3.Error as error:
+                raise PeerAuthorizationUnavailable("application_key_store_unavailable") from error
+
+
 class RegistrationMembershipResolver:
     """Bind successor peer authorization to existing registration and credential lifecycle state."""
 
@@ -221,6 +286,8 @@ class RegistrationMembershipResolver:
                 key_epoch=key_epoch,
             )
         except PeerAuthorizationRejected:
+            raise
+        except PeerAuthorizationUnavailable:
             raise
         except Exception as error:
             raise PeerAuthorizationUnavailable("application_key_unavailable") from error
@@ -361,11 +428,15 @@ class PeerAuthorizationService:
         request_sha256 = hashlib.sha256(
             _request_core(request) + request.child.proof + request.relay.proof
         ).hexdigest()
+        replay_expires_at_ms = max(
+            expires_at_ms,
+            request.requested_at_ms + self.max_request_skew_ms + 1,
+        )
         if not self.replay_store.claim(
             request_sha256=request_sha256,
             session_id=request.session_id,
             now_ms=now_ms,
-            expires_at_ms=expires_at_ms,
+            expires_at_ms=replay_expires_at_ms,
         ):
             raise PeerAuthorizationRejected("request_replayed")
 
