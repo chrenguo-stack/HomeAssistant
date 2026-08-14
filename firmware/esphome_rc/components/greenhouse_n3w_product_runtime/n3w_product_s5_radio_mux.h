@@ -17,17 +17,34 @@ class ProductS5DatagramSink {
       const EspNowReceiveMetadata &metadata) = 0;
 };
 
+class ProductS5TelemetrySink {
+ public:
+  virtual ~ProductS5TelemetrySink() = default;
+  virtual void on_s5_peer_installed(
+      const MacAddress &peer_mac,
+      const LinkKey &lmk,
+      uint8_t channel) = 0;
+  virtual void on_s5_peer_removed(const MacAddress &peer_mac) = 0;
+  virtual void on_s5_telemetry_datagram(
+      const MacAddress &source,
+      const uint8_t *data,
+      std::size_t size,
+      const EspNowReceiveMetadata &metadata) = 0;
+};
+
 // S5-only adapter that multiplexes the single ESP-NOW callback without
-// changing the frozen S3 runtime contract. Discovery advertisements continue
-// to flow only into ProductEspNowRuntime. Non-discovery datagrams are exposed
-// to the S5 peer-auth/reliable-transport coordinator.
+// changing the frozen S3 runtime contract. Product discovery goes only to S3,
+// GP/v1 pre-authorization packets go only to the S5 peer coordinator, and the
+// existing GH/v1 DATA_FRAGMENT/RECEIPT_ACK packets go only to the reliable
+// telemetry sink. Unknown datagrams are dropped fail-closed.
 class ProductS5RadioMux final : public ProductRuntimeRadioPort,
                                 public EspNowEventSink {
  public:
   ProductS5RadioMux(
       ProductRuntimeRadioPort *inner,
-      ProductS5DatagramSink *s5_sink)
-      : inner_(inner), s5_sink_(s5_sink) {}
+      ProductS5DatagramSink *s5_sink,
+      ProductS5TelemetrySink *telemetry_sink = nullptr)
+      : inner_(inner), s5_sink_(s5_sink), telemetry_sink_(telemetry_sink) {}
 
   DriverError initialize(EspNowEventSink *runtime_sink, const LinkKey &pmk) override;
   void shutdown() override;
@@ -61,9 +78,12 @@ class ProductS5RadioMux final : public ProductRuntimeRadioPort,
 
  private:
   static bool valid_unicast_mac_(const MacAddress &mac);
+  static bool is_handshake_datagram_(const uint8_t *data, std::size_t size);
+  static bool is_telemetry_datagram_(const uint8_t *data, std::size_t size);
 
   ProductRuntimeRadioPort *inner_{nullptr};
   ProductS5DatagramSink *s5_sink_{nullptr};
+  ProductS5TelemetrySink *telemetry_sink_{nullptr};
   EspNowEventSink *runtime_sink_{nullptr};
   bool initialized_{false};
 };
