@@ -46,6 +46,12 @@ class ProductS5RadioMux final : public ProductRuntimeRadioPort,
       ProductS5TelemetrySink *telemetry_sink = nullptr)
       : inner_(inner), s5_sink_(s5_sink), telemetry_sink_(telemetry_sink) {}
 
+  bool set_telemetry_sink(ProductS5TelemetrySink *sink) {
+    if (initialized_ || sink == nullptr) return false;
+    telemetry_sink_ = sink;
+    return true;
+  }
+
   DriverError initialize(EspNowEventSink *runtime_sink, const LinkKey &pmk) override;
   void shutdown() override;
   DriverError set_channel(uint8_t channel) override;
