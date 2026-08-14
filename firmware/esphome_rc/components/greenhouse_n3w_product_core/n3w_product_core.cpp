@@ -37,6 +37,10 @@ bool WifiDirectHealthPolicy::valid() const {
 
 ProductCoreError WifiDirectHealthDetector::note_direct_result(bool success) {
   if (!policy_.valid()) return ProductCoreError::POLICY_INVALID;
+  if (state_ == WifiDirectHealthState::UNAVAILABLE ||
+      state_ == WifiDirectHealthState::RECOVERING) {
+    return ProductCoreError::STATE_REJECTED;
+  }
   if (success) {
     failures_ = 0;
     recoveries_ = 0;
@@ -101,10 +105,12 @@ bool RelayCandidatePolicy::valid() const {
 ProductCoreError RelayCandidateTable::observe(const RelayCandidateObservation &observation) {
   if (!policy_.valid()) return ProductCoreError::POLICY_INVALID;
   if (!observation.valid()) return ProductCoreError::INVALID_ARGUMENT;
-  prune(observation.observed_at_ms);
 
   for (auto &record : records_) {
     if (!same_mac(record.observation.source_mac, observation.source_mac)) continue;
+    if (observation.observed_at_ms < record.observation.observed_at_ms) {
+      return ProductCoreError::INVALID_ARGUMENT;
+    }
     const bool identity_changed = record.observation.gateway_id != observation.gateway_id;
     record.observation = observation;
     if (identity_changed) {
