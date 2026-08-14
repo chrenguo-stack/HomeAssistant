@@ -22,6 +22,7 @@
     "physical_acceptance_matrix": true,
     "abort_and_cleanup_contract": true,
     "host_only_preparation_ci": true,
+    "s5_d_successor_ci_lineage_compatibility_only": true,
     "private_package_materialization_requires_local_operator": true,
     "physical_execution_authorized": false
   },
@@ -110,5 +111,6 @@
     "deployment": true,
     "n3l": true
   },
+  "ci_compatibility_note": "The S5-D implementation remains frozen at 660acf72b701d9ff8e3a881e97e5d15357286786. The S5-D workflow may change only to recognize this explicitly authorized physical-preparation successor and rerun the frozen S5-D regression matrix; this does not expand runtime or physical scope.",
   "next_gate": "PRIVATE_PACKAGE_MATERIALIZATION_AND_READONLY_BINDING_REVIEW_BEFORE_SEPARATE_PHYSICAL_EXECUTION_AUTHORIZATION"
 }
