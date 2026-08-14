@@ -221,7 +221,9 @@ class ManagedProductCredentialIssuer:
                 except Exception as rollback_error:
                     rollback_failures.append(rollback_error)
             if rollback_failures:
-                raise PairingRollbackError("product credential rotation rollback failed") from rollback_failures[0]
+                raise PairingRollbackError(
+                    "product credential rotation rollback failed"
+                ) from rollback_failures[0]
             raise PairingProvisioningError("product credential rotation failed") from error
 
     def rollback(self, material: ProductCredentialMaterial) -> None:
