@@ -5,7 +5,11 @@ on:
     paths:
       - '.github/workflows/n3w-product-completion-s5-c-isolated-manager-telemetry-ci.yml'
       - '.github/workflows/n3w-product-completion-s5-d-lifecycle-negative-host-matrix-ci.yml'
+      - '.github/workflows/n3w-product-completion-s5-physical-e2e-preparation-ci.yml'
       - 'docs/decisions/n3w-product-completion-s5-d-lifecycle-negative-host-matrix-20260814.json'
+      - 'docs/decisions/n3w-product-completion-s5-full-two-board-isolated-physical-e2e-preparation-20260814.json'
+      - 'docs/handoffs/温室环境监测系统_N3W_ProductCompletion_S5完整双板隔离物理E2E准备合同_V1.0_20260814.md'
+      - 'tools/n3w_product_s5_prepare_physical_package.py'
       - 'firmware/esphome_rc/components/greenhouse_n3w_product_core/**'
       - 'firmware/esphome_rc/components/greenhouse_n3w_product_runtime/**'
       - 'tests/n3w_product_completion_s5/**'
@@ -32,16 +36,19 @@ jobs:
         run: |
           set -euo pipefail
           start='259670af65f3a5fdd9209e78bf06ce3d57972a71'
+          checkpoint='660acf72b701d9ff8e3a881e97e5d15357286786'
           base='38c3b692d4ebe90d0040c732b6c0313fdfdc1ef6'
-          git merge-base --is-ancestor "$start" HEAD
+          git merge-base --is-ancestor "$start" "$checkpoint"
+          git merge-base --is-ancestor "$checkpoint" HEAD
           if [ "$GITHUB_EVENT_NAME" = 'pull_request' ]; then
             test '${{ github.event.pull_request.base.ref }}' = 'main'
             test '${{ github.event.pull_request.base.sha }}' = "$base"
           fi
+          git config core.quotePath false
 
-          allowed="$(mktemp)"
-          actual="$(mktemp)"
-          cat >"$allowed" <<'FILES'
+          frozen_allowed="$(mktemp)"
+          frozen_actual="$(mktemp)"
+          cat >"$frozen_allowed" <<'FILES'
           .github/workflows/n3w-product-completion-s5-c-isolated-manager-telemetry-ci.yml
           .github/workflows/n3w-product-completion-s5-d-lifecycle-negative-host-matrix-ci.yml
           docs/decisions/n3w-product-completion-s5-d-lifecycle-negative-host-matrix-20260814.json
@@ -60,10 +67,26 @@ jobs:
           tests/n3w_product_completion_s5/n3w_product_s5_telemetry_host_test.cpp
           tests/n3w_product_completion_s5/test_s5_manager_authorization_loop.py
           FILES
-          sed -i 's/^          //' "$allowed"
-          sort -o "$allowed" "$allowed"
-          git diff --name-only "$start"...HEAD | sort >"$actual"
-          diff -u "$allowed" "$actual"
+          sed -i 's/^          //' "$frozen_allowed"
+          sort -o "$frozen_allowed" "$frozen_allowed"
+          git diff --name-only "$start"..."$checkpoint" | sort >"$frozen_actual"
+          diff -u "$frozen_allowed" "$frozen_actual"
+
+          successor_allowed="$(mktemp)"
+          successor_actual="$(mktemp)"
+          cat >"$successor_allowed" <<'FILES'
+          .github/workflows/n3w-product-completion-s5-d-lifecycle-negative-host-matrix-ci.yml
+          .github/workflows/n3w-product-completion-s5-physical-e2e-preparation-ci.yml
+          docs/decisions/n3w-product-completion-s5-d-lifecycle-negative-host-matrix-20260814.json
+          docs/decisions/n3w-product-completion-s5-full-two-board-isolated-physical-e2e-preparation-20260814.json
+          docs/handoffs/温室环境监测系统_N3W_ProductCompletion_S5完整双板隔离物理E2E准备合同_V1.0_20260814.md
+          tests/n3w_product_completion_s5/test_s5_physical_e2e_preparation.py
+          tools/n3w_product_s5_prepare_physical_package.py
+          FILES
+          sed -i 's/^          //' "$successor_allowed"
+          sort -o "$successor_allowed" "$successor_allowed"
+          git diff --name-only "$checkpoint"...HEAD | sort >"$successor_actual"
+          diff -u "$successor_allowed" "$successor_actual"
 
       - uses: actions/setup-python@v5
         with:
