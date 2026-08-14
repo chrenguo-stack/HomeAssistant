@@ -5,7 +5,7 @@ on:
     paths:
       - '.github/workflows/n3w-product-completion-s5-isolated-manager-transport-ci.yml'
       - 'docs/decisions/n3w-product-completion-s5-isolated-manager-transport-host-compile-20260814.json'
-      - 'firmware/esphome_rc/board_lab/n3w_product_completion_s5/relay_manager_transport_compile.yml'
+      - 'firmware/esphome_rc/board_lab/n3w_product_completion_s5/transport_compile/relay_manager_transport_compile.yml'
       - 'firmware/esphome_rc/components/greenhouse_n3w_s5_manager_transport/**'
       - 'host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_product_authority_time.py'
       - 'host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_product_isolated_mqtt_service.py'
@@ -47,7 +47,7 @@ jobs:
           .github/workflows/n3w-product-completion-s5-isolated-manager-transport-ci.yml
           .github/workflows/n3w-product-completion-s5-physical-e2e-preparation-ci.yml
           docs/decisions/n3w-product-completion-s5-isolated-manager-transport-host-compile-20260814.json
-          firmware/esphome_rc/board_lab/n3w_product_completion_s5/relay_manager_transport_compile.yml
+          firmware/esphome_rc/board_lab/n3w_product_completion_s5/transport_compile/relay_manager_transport_compile.yml
           firmware/esphome_rc/components/greenhouse_n3w_s5_manager_transport/__init__.py
           firmware/esphome_rc/components/greenhouse_n3w_s5_manager_transport/greenhouse_n3w_s5_manager_transport.h
           firmware/esphome_rc/components/greenhouse_n3w_s5_manager_transport/n3w_product_s5_manager_component.cpp
@@ -172,22 +172,22 @@ jobs:
         run: |
           python -m pip install --upgrade 'esphome==2026.4.3'
           esphome config \
-            firmware/esphome_rc/board_lab/n3w_product_completion_s5/relay_manager_transport_compile.yml
+            firmware/esphome_rc/board_lab/n3w_product_completion_s5/transport_compile/relay_manager_transport_compile.yml
           esphome compile \
-            firmware/esphome_rc/board_lab/n3w_product_completion_s5/relay_manager_transport_compile.yml
+            firmware/esphome_rc/board_lab/n3w_product_completion_s5/transport_compile/relay_manager_transport_compile.yml
 
       - name: No-live no-static-peer production-default safety gate
         shell: bash
         run: |
           set -euo pipefail
           grep -q 'execution_enabled: false' \
-            firmware/esphome_rc/board_lab/n3w_product_completion_s5/relay_manager_transport_compile.yml
+            firmware/esphome_rc/board_lab/n3w_product_completion_s5/transport_compile/relay_manager_transport_compile.yml
           test "$(grep -c 'enable_on_boot: false' \
-            firmware/esphome_rc/board_lab/n3w_product_completion_s5/relay_manager_transport_compile.yml)" -eq 2
+            firmware/esphome_rc/board_lab/n3w_product_completion_s5/transport_compile/relay_manager_transport_compile.yml)" -eq 2
           if grep -R -n -E \
             '(esphome[[:space:]]+run|esptool|espota|pio[[:space:]]+run.*upload|esp_wifi_connect\(|p5_peer_mac|p5_link_lmk|GH_MQTT_PASSWORD|wifi_ssid|wifi_password)' \
             firmware/esphome_rc/components/greenhouse_n3w_s5_manager_transport \
-            firmware/esphome_rc/board_lab/n3w_product_completion_s5/relay_manager_transport_compile.yml \
+            firmware/esphome_rc/board_lab/n3w_product_completion_s5/transport_compile/relay_manager_transport_compile.yml \
             tests/n3w_product_completion_s5_transport; then
             echo 'Live execution, Wi-Fi connection, static peer, or secret material detected' >&2
             exit 1
