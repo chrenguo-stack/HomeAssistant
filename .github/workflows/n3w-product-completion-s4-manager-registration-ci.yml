@@ -69,6 +69,19 @@ jobs:
         working-directory: host/greenhouse-manager
         run: python -m pytest -q tests/runtime/test_n3w_product_peer_authorization.py
 
+      - name: Run full Manager regression suite
+        working-directory: host/greenhouse-manager
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m pytest -q --tb=short 2>&1 | tee "$RUNNER_TEMP/s4-full-manager-pytest.log"
+          status=${PIPESTATUS[0]}
+          if [[ $status -ne 0 ]]; then
+            message="$(tail -n 80 "$RUNNER_TEMP/s4-full-manager-pytest.log" | python -c 'import sys; print(sys.stdin.read().replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A"))')"
+            echo "::error title=S4 full Manager regression failure::$message"
+          fi
+          exit "$status"
+
       - name: Ruff S4 implementation and tests
         working-directory: host/greenhouse-manager
         run: >-
