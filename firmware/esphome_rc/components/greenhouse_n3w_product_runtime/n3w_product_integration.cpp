@@ -41,6 +41,15 @@ void GreenhouseN3wProductIntegration::zeroize_(void *data, std::size_t length) {
   while (length-- > 0) *cursor++ = 0;
 }
 
+GreenhouseN3wProductIntegration::~GreenhouseN3wProductIntegration() {
+  // Member destruction would otherwise destroy the telemetry sink before the
+  // S5 coordinator. Tear down peers while the mux and telemetry sink are both
+  // alive, then stop the runtime/radio before unique_ptr destruction begins.
+  if (s5_coordinator_ != nullptr) s5_coordinator_->reset();
+  if (runtime_ != nullptr) runtime_->stop();
+  zeroize_(pmk_.data(), pmk_.size());
+}
+
 void GreenhouseN3wProductIntegration::configure_s5_isolated(
     ProductS5SelfCredentialProvider *self_credentials,
     ProductS5RelayHealthProvider *relay_health,
@@ -98,7 +107,8 @@ bool GreenhouseN3wProductIntegration::setup_s5_isolated_() {
       credentials.node_id,
       s5_radio_mux_.get(),
       relay_role ? s5_relay_forward_sink_ : nullptr);
-  if (!s5_radio_mux_->set_telemetry_sink(s5_telemetry_.get())) {
+  if (!s5_radio_mux_->set_telemetry_sink(s5_telemetry_.get()) ||
+      !s5_coordinator_->set_telemetry_sink(s5_telemetry_.get())) {
     zeroize_(credentials.application_key.data(), credentials.application_key.size());
     return false;
   }
@@ -261,16 +271,16 @@ ProductRuntimeError GreenhouseN3wProductIntegration::note_direct_result(bool suc
 ProductS5CoordinatorError GreenhouseN3wProductIntegration::submit_s5_manager_authorization(
     const ProductPeerGrant &child_grant,
     const ProductPeerGrant &relay_grant) {
-  if (s5_coordinator_ == nullptr || s5_telemetry_ == nullptr || role_ != "relay" ||
-      !s5_telemetry_->set_relay_child_node_id(child_grant.child_node_id)) {
+  if (s5_coordinator_ == nullptr || role_ != "relay") {
     return ProductS5CoordinatorError::NOT_READY;
   }
-  const ProductS5CoordinatorError result =
-      s5_coordinator_->accept_manager_authorization(child_grant, relay_grant);
-  if (result != ProductS5CoordinatorError::NONE) {
-    s5_telemetry_->clear_relay_child_node_id();
-  }
-  return result;
+  return s5_coordinator_->accept_manager_authorization(child_grant, relay_grant);
+}
+
+ProductS5CoordinatorError GreenhouseN3wProductIntegration::revoke_s5_authorization(
+    const std::string &authorization_id) {
+  if (s5_coordinator_ == nullptr) return ProductS5CoordinatorError::NOT_READY;
+  return s5_coordinator_->revoke_active_authorization(authorization_id);
 }
 
 ProductS5TelemetryError GreenhouseN3wProductIntegration::send_s5_relay_frame(
