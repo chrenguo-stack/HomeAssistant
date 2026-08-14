@@ -88,7 +88,7 @@ jobs:
           docs/decisions/n3w-product-completion-s5-full-two-board-isolated-physical-e2e-preparation-20260814.json
           docs/decisions/n3w-product-completion-s5-isolated-manager-transport-host-compile-20260814.json
           docs/handoffs/温室环境监测系统_N3W_ProductCompletion_S5完整双板隔离物理E2E准备合同_V1.0_20260814.md
-          firmware/esphome_rc/board_lab/n3w_product_completion_s5/relay_manager_transport_compile.yml
+          firmware/esphome_rc/board_lab/n3w_product_completion_s5/transport_compile/relay_manager_transport_compile.yml
           firmware/esphome_rc/components/greenhouse_n3w_s5_manager_transport/__init__.py
           firmware/esphome_rc/components/greenhouse_n3w_s5_manager_transport/greenhouse_n3w_s5_manager_transport.h
           firmware/esphome_rc/components/greenhouse_n3w_s5_manager_transport/n3w_product_s5_manager_component.cpp
