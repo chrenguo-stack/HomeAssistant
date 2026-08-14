@@ -7,6 +7,9 @@ on:
       - 'docs/decisions/n3w-product-completion-s5-two-board-isolated-physical-stage-entry-20260814.json'
       - 'firmware/esphome_rc/components/greenhouse_n3w_product_core/**'
       - 'firmware/esphome_rc/components/greenhouse_n3w_product_runtime/**'
+      - 'firmware/esphome_rc/components/greenhouse_pairing_client/pairing_ram_credentials.*'
+      - 'firmware/esphome_rc/components/greenhouse_pairing_client/pairing_credential_codec.*'
+      - 'firmware/esphome_rc/components/greenhouse_pairing_client/pairing_network_transport_esp_json.cpp'
       - 'firmware/esphome_rc/board_lab/n3w_product_s5_two_board/**'
       - 'tests/n3w_product_completion_s5/**'
   workflow_dispatch:
@@ -43,6 +46,12 @@ jobs:
           firmware/esphome_rc/components/greenhouse_n3w_product_runtime/__init__.py
           firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_peer_security.cpp
           firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_peer_security.h
+          firmware/esphome_rc/components/greenhouse_pairing_client/pairing_credential_codec.cpp
+          firmware/esphome_rc/components/greenhouse_pairing_client/pairing_credential_codec.h
+          firmware/esphome_rc/components/greenhouse_pairing_client/pairing_network_transport_esp_json.cpp
+          firmware/esphome_rc/components/greenhouse_pairing_client/pairing_ram_credentials.cpp
+          firmware/esphome_rc/components/greenhouse_pairing_client/pairing_ram_credentials.h
+          tests/n3w_product_completion_s5/n3w_product_credential_persistence_host_test.cpp
           tests/n3w_product_completion_s5/n3w_product_peer_security_host_test.cpp
           tests/n3w_product_completion_s5/test_s5_cross_language_vector.py
           FILES
@@ -100,6 +109,21 @@ jobs:
             -o /tmp/n3w_product_completion_s5_peer_security
           /tmp/n3w_product_completion_s5_peer_security
 
+      - name: Compile and run product credential persistence test
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -Wall -Wextra -Werror \
+            -I/tmp/n3w_include \
+            -Ifirmware/esphome_rc/components/greenhouse_pairing_client \
+            firmware/esphome_rc/components/greenhouse_pairing_client/pairing_client_core.cpp \
+            firmware/esphome_rc/components/greenhouse_pairing_client/pairing_ram_credentials.cpp \
+            firmware/esphome_rc/components/greenhouse_pairing_client/pairing_credential_codec.cpp \
+            firmware/esphome_rc/components/greenhouse_pairing_client/secure_pairing_channel_encoding.cpp \
+            tests/n3w_product_completion_s5/n3w_product_credential_persistence_host_test.cpp \
+            -o /tmp/n3w_product_completion_s5_credential_persistence
+          /tmp/n3w_product_completion_s5_credential_persistence
+
       - name: S5 successor safety gate
         shell: bash
         run: |
@@ -107,6 +131,7 @@ jobs:
           scope=(
             firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_peer_security.cpp
             firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_peer_security.h
+            firmware/esphome_rc/components/greenhouse_pairing_client/pairing_network_transport_esp_json.cpp
             firmware/esphome_rc/board_lab/n3w_product_s5_two_board/crypto_compile.yml
           )
           if grep -R -n -E \
