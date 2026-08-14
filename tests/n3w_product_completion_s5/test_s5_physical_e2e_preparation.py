@@ -1,0 +1,208 @@
+from __future__ import annotations
+
+import ast
+import importlib.util
+import json
+import os
+import stat
+import tempfile
+import unittest
+from argparse import Namespace
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+TOOL = ROOT / "tools" / "n3w_product_s5_prepare_physical_package.py"
+DECISION = (
+    ROOT
+    / "docs"
+    / "decisions"
+    / "n3w-product-completion-s5-full-two-board-isolated-physical-e2e-preparation-20260814.json"
+)
+STARTING_HEAD = "eb2fdc795850fedd4f49ce3fbba8cd03a4548de9"
+RUNTIME_HEAD = "660acf72b701d9ff8e3a881e97e5d15357286786"
+AUTH = (
+    "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-FULL-TWO-BOARD-ISOLATED-"
+    "PHYSICAL-E2E-PREPARATION-20260814-01"
+)
+
+
+def load_tool():
+    spec = importlib.util.spec_from_file_location("s5_prepare", TOOL)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def private_write(path: Path, data: bytes) -> None:
+    path.write_bytes(data)
+    os.chmod(path, 0o600)
+
+
+class S5PhysicalPreparationTest(unittest.TestCase):
+    def test_decision_contract(self) -> None:
+        document = json.loads(DECISION.read_text(encoding="utf-8"))
+        self.assertEqual(document["authorization"], AUTH)
+        self.assertEqual(document["starting_head"], STARTING_HEAD)
+        self.assertEqual(document["runtime_implementation_head"], RUNTIME_HEAD)
+        self.assertEqual(document["classification"]["s5_full_two_board_e2e"], "PENDING")
+        self.assertFalse(document["preparation_scope"]["physical_execution_authorized"])
+        self.assertFalse(document["not_authorized"]["espnow_rf"] is False)
+        self.assertFalse(document["not_authorized"]["flash"] is False)
+        self.assertFalse(document["not_authorized"]["serial"] is False)
+        self.assertEqual(
+            document["next_gate"],
+            "PRIVATE_PACKAGE_MATERIALIZATION_AND_READONLY_BINDING_REVIEW_BEFORE_SEPARATE_PHYSICAL_EXECUTION_AUTHORIZATION",
+        )
+        matrix = set(document["physical_acceptance_matrix"])
+        for required in {
+            "relay_advertisement_is_observed_only_as_untrusted_hint",
+            "child_and_relay_independently_derive_same_nonzero_pair_specific_16_byte_lmk",
+            "child_relayframe_reaches_isolated_manager_using_existing_gh_relay_1_and_gh_telemetry_1_contracts",
+            "node_id_boot_id_sequence_dedup_and_home_assistant_device_identity_continuity",
+            "finite_grant_expiry_removes_dynamic_peer",
+            "exact_authorization_id_revoke_removes_dynamic_peer",
+            "both_boards_finish_in_rom_bootloader_with_rf_stopped",
+        }:
+            self.assertIn(required, matrix)
+
+    def test_generator_has_no_live_execution_imports_or_process_launch(self) -> None:
+        tree = ast.parse(TOOL.read_text(encoding="utf-8"))
+        imported: set[str] = set()
+        calls: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                imported.update(alias.name.split(".")[0] for alias in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                imported.add(node.module.split(".")[0])
+            elif isinstance(node, ast.Call):
+                if isinstance(node.func, ast.Name):
+                    calls.add(node.func.id)
+                elif isinstance(node.func, ast.Attribute):
+                    calls.add(node.func.attr)
+        self.assertTrue({"subprocess", "socket", "serial", "paho"}.isdisjoint(imported))
+        self.assertTrue({"system", "popen", "execv", "execve", "spawnv"}.isdisjoint(calls))
+
+    def test_private_package_is_non_executable_fresh_and_permission_restricted(self) -> None:
+        module = load_tool()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            child = root / "child.json"
+            relay = root / "relay.json"
+            child_fw = root / "child.bin"
+            relay_fw = root / "relay.bin"
+            manager = root / "manager.bundle"
+            private_write(
+                child,
+                json.dumps(
+                    {
+                        "system_id": "system001",
+                        "node_id": "node_child01",
+                        "credential_generation": 7,
+                        "key_epoch": 9,
+                        "application_key_hex": "81" * 32,
+                        "local_mac": "02:11:22:33:44:55",
+                    }
+                ).encode(),
+            )
+            private_write(
+                relay,
+                json.dumps(
+                    {
+                        "system_id": "system001",
+                        "node_id": "node_relay01",
+                        "credential_generation": 11,
+                        "key_epoch": 13,
+                        "application_key_hex": "a1" * 32,
+                        "local_mac": "02:aa:bb:cc:dd:ee",
+                    }
+                ).encode(),
+            )
+            private_write(child_fw, b"child-firmware-fixture")
+            private_write(relay_fw, b"relay-firmware-fixture")
+            private_write(manager, b"isolated-manager-state-fixture")
+
+            secrets_seen: set[str] = set()
+            for index in (1, 2):
+                output = root / f"package-{index}"
+                result = module.prepare(
+                    Namespace(
+                        preparation_head="1" * 40,
+                        runtime_head=RUNTIME_HEAD,
+                        child_credentials=str(child),
+                        relay_credentials=str(relay),
+                        child_firmware=str(child_fw),
+                        relay_firmware=str(relay_fw),
+                        manager_bundle=str(manager),
+                        output=str(output),
+                    )
+                )
+                self.assertFalse(result["execution_authorized"])
+                self.assertTrue(result["ready_for_readonly_binding_review"])
+                manifest = json.loads((output / "manifest.json").read_text())
+                secret = json.loads((output / "private_secrets.json").read_text())
+                self.assertFalse(manifest["execution_authorized"])
+                self.assertIsNone(manifest["physical_execution_authorization"])
+                self.assertFalse(secret["execution_authorized"])
+                self.assertIsNone(secret["physical_execution_authorization"])
+                self.assertEqual(len(bytes.fromhex(secret["espnow_pmk_hex"])), 16)
+                self.assertNotEqual(bytes.fromhex(secret["espnow_pmk_hex"]), bytes(16))
+                secrets_seen.add(secret["espnow_pmk_hex"])
+                self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o700)
+                for name in (
+                    "manifest.json",
+                    "private_secrets.json",
+                    "cleanup_contract.json",
+                    "READ_ONLY_GATE.txt",
+                ):
+                    self.assertEqual(stat.S_IMODE((output / name).stat().st_mode), 0o600)
+                    self.assertFalse(bool((output / name).stat().st_mode & stat.S_IXUSR))
+            self.assertEqual(len(secrets_seen), 2)
+
+    def test_cross_system_or_non_private_input_fails_closed(self) -> None:
+        module = load_tool()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            child = root / "child.json"
+            relay = root / "relay.json"
+            fw1 = root / "c.bin"
+            fw2 = root / "r.bin"
+            manager = root / "manager.bundle"
+            base = {
+                "node_id": "node_child01",
+                "credential_generation": 1,
+                "key_epoch": 1,
+                "application_key_hex": "11" * 32,
+                "local_mac": "02:11:22:33:44:55",
+            }
+            private_write(child, json.dumps({"system_id": "system001", **base}).encode())
+            relay_value = {
+                "system_id": "system002",
+                **base,
+                "node_id": "node_relay01",
+                "local_mac": "02:aa:bb:cc:dd:ee",
+            }
+            private_write(relay, json.dumps(relay_value).encode())
+            private_write(fw1, b"c")
+            private_write(fw2, b"r")
+            private_write(manager, b"m")
+            with self.assertRaisesRegex(ValueError, "same system"):
+                module.prepare(
+                    Namespace(
+                        preparation_head="2" * 40,
+                        runtime_head=RUNTIME_HEAD,
+                        child_credentials=str(child),
+                        relay_credentials=str(relay),
+                        child_firmware=str(fw1),
+                        relay_firmware=str(fw2),
+                        manager_bundle=str(manager),
+                        output=str(root / "out"),
+                    )
+                )
+            os.chmod(child, 0o644)
+            with self.assertRaisesRegex(ValueError, "permissions"):
+                module._load_credentials(child, "child_credentials")
+
+
+if __name__ == "__main__":
+    unittest.main()
