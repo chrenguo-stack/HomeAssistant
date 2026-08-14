@@ -1,0 +1,32 @@
+esphome:
+  name: gh-n3w-s5-peer-crypto
+  friendly_name: Greenhouse N3-W S5 Peer Crypto Compile Target
+  min_version: 2026.4.3
+
+esp32:
+  board: esp32-c6-devkitm-1
+  variant: ESP32C6
+  flash_size: 8MB
+  framework:
+    type: esp-idf
+    advanced:
+      include_builtin_idf_components:
+        - nvs_flash
+        - esp_wifi
+
+logger:
+  level: INFO
+  hardware_uart: USB_SERIAL_JTAG
+
+external_components:
+  - source:
+      type: local
+      path: ../../components
+    components:
+      - greenhouse_n3w_core
+      - greenhouse_n3w_product_core
+      - greenhouse_n3w_product_runtime
+
+# Compile/link-only S5 target. It contains no peer MAC, LMK, application key,
+# Wi-Fi/site credential, Manager address, or runtime activation instruction.
+greenhouse_n3w_product_runtime:

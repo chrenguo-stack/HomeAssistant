@@ -1,0 +1,243 @@
+name: N3-W Product Completion S5 two-board isolated CI
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/n3w-product-completion-s5-two-board-isolated-ci.yml'
+      - 'docs/decisions/n3w-product-completion-s5-two-board-isolated-physical-stage-entry-20260814.json'
+      - 'firmware/esphome_rc/components/greenhouse_n3w_product_core/**'
+      - 'firmware/esphome_rc/components/greenhouse_n3w_product_runtime/**'
+      - 'firmware/esphome_rc/components/greenhouse_pairing_client/pairing_ram_credentials.*'
+      - 'firmware/esphome_rc/components/greenhouse_pairing_client/pairing_credential_codec.*'
+      - 'firmware/esphome_rc/components/greenhouse_pairing_client/pairing_network_transport_esp_json.cpp'
+      - 'firmware/esphome_rc/board_lab/n3w_product_s5_two_board/**'
+      - 'tests/n3w_product_completion_s5/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  peer-security-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Exact base and current S5 scope gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='38c3b692d4ebe90d0040c732b6c0313fdfdc1ef6'
+          test "$(git merge-base "$base" HEAD)" = "$base"
+          if [ "$GITHUB_EVENT_NAME" = 'pull_request' ]; then
+            test '${{ github.event.pull_request.base.ref }}' = 'main'
+            test '${{ github.event.pull_request.base.sha }}' = "$base"
+          fi
+          allowed="$(mktemp)"
+          actual="$(mktemp)"
+          cat >"$allowed" <<'FILES'
+          .github/workflows/n3w-product-completion-s5-two-board-isolated-ci.yml
+          docs/decisions/n3w-product-completion-s5-two-board-isolated-physical-stage-entry-20260814.json
+          firmware/esphome_rc/board_lab/n3w_product_s5_two_board/crypto_compile.yml
+          firmware/esphome_rc/components/greenhouse_n3w_product_core/__init__.py
+          firmware/esphome_rc/components/greenhouse_n3w_product_runtime/__init__.py
+          firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_peer_handshake_wire.cpp
+          firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_peer_handshake_wire.h
+          firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_peer_security.cpp
+          firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_peer_security.h
+          firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_s5_peer_coordinator.cpp
+          firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_s5_peer_coordinator.h
+          firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_s5_radio_mux.cpp
+          firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_s5_radio_mux.h
+          firmware/esphome_rc/components/greenhouse_pairing_client/pairing_credential_codec.cpp
+          firmware/esphome_rc/components/greenhouse_pairing_client/pairing_credential_codec.h
+          firmware/esphome_rc/components/greenhouse_pairing_client/pairing_network_transport_esp_json.cpp
+          firmware/esphome_rc/components/greenhouse_pairing_client/pairing_ram_credentials.cpp
+          firmware/esphome_rc/components/greenhouse_pairing_client/pairing_ram_credentials.h
+          tests/n3w_product_completion_s5/n3w_product_credential_persistence_host_test.cpp
+          tests/n3w_product_completion_s5/n3w_product_peer_handshake_wire_host_test.cpp
+          tests/n3w_product_completion_s5/n3w_product_peer_security_host_test.cpp
+          tests/n3w_product_completion_s5/n3w_product_s5_peer_coordinator_host_test.cpp
+          tests/n3w_product_completion_s5/n3w_product_s5_radio_mux_host_test.cpp
+          tests/n3w_product_completion_s5/test_s5_cross_language_vector.py
+          FILES
+          sed -i 's/^          //' "$allowed"
+          sort -o "$allowed" "$allowed"
+          git diff --name-only "$base"...HEAD | sort >"$actual"
+          diff -u "$allowed" "$actual"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install host crypto and Manager dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libmbedtls-dev libssl-dev
+          python -m pip install -e 'host/greenhouse-manager[dev]'
+
+      - name: Validate S5 stage entry
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('docs/decisions/n3w-product-completion-s5-two-board-isolated-physical-stage-entry-20260814.json')
+          d = json.loads(p.read_text())
+          assert d['stage'] == 'S5_TWO_BOARD_ISOLATED_PHYSICAL'
+          assert d['authorized'] is True
+          assert d['base_sha'] == '38c3b692d4ebe90d0040c732b6c0313fdfdc1ef6'
+          assert d['frozen_invariants']['static_peer_mac_required'] is False
+          assert d['frozen_invariants']['factory_pair_lmk'] is False
+          assert d['frozen_invariants']['manager_distributes_pair_lmk'] is False
+          assert d['frozen_invariants']['encrypted_peer_installed_only_after_manager_authorization'] is True
+          assert d['acceptance']['physical_two_board_required'] is True
+          assert d['acceptance']['host_or_ci_only_is_s5_pass'] is False
+          assert d['acceptance']['status'] == 'AUTHORIZED_IN_PROGRESS'
+          PY
+
+      - name: Run Manager/Firmware cross-language vector
+        run: python -m pytest -q tests/n3w_product_completion_s5/test_s5_cross_language_vector.py
+
+      - name: Prepare host include tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/n3w_include/esphome
+          ln -s "$GITHUB_WORKSPACE/firmware/esphome_rc/components" /tmp/n3w_include/esphome/components
+
+      - name: Compile and run C++ peer-security vector
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -Wall -Wextra -Werror \
+            -I/tmp/n3w_include \
+            -Ifirmware/esphome_rc/components/greenhouse_n3w_core \
+            -Ifirmware/esphome_rc/components/greenhouse_n3w_product_runtime \
+            firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_peer_security.cpp \
+            tests/n3w_product_completion_s5/n3w_product_peer_security_host_test.cpp \
+            -lmbedcrypto -lcrypto \
+            -o /tmp/n3w_product_completion_s5_peer_security
+          /tmp/n3w_product_completion_s5_peer_security
+
+      - name: Compile and run pre-auth handshake wire test
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -Wall -Wextra -Werror \
+            -I/tmp/n3w_include \
+            -Ifirmware/esphome_rc/components/greenhouse_n3w_core \
+            -Ifirmware/esphome_rc/components/greenhouse_n3w_product_runtime \
+            firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_peer_security.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_peer_handshake_wire.cpp \
+            tests/n3w_product_completion_s5/n3w_product_peer_handshake_wire_host_test.cpp \
+            -lmbedcrypto -lcrypto \
+            -o /tmp/n3w_product_completion_s5_peer_handshake_wire
+          /tmp/n3w_product_completion_s5_peer_handshake_wire
+
+      - name: Compile and run S5 callback mux test
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -Wall -Wextra -Werror \
+            -I/tmp/n3w_include \
+            -Ifirmware/esphome_rc/components/greenhouse_n3w_core \
+            -Ifirmware/esphome_rc/components/greenhouse_n3w_product_core \
+            -Ifirmware/esphome_rc/components/greenhouse_n3w_product_runtime \
+            firmware/esphome_rc/components/greenhouse_n3w_core/n3w_core.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_core/n3w_radio.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_core/n3w_espnow_driver.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_product_core.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_runtime.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_s5_radio_mux.cpp \
+            tests/n3w_product_completion_s5/n3w_product_s5_radio_mux_host_test.cpp \
+            -lmbedcrypto \
+            -o /tmp/n3w_product_completion_s5_radio_mux
+          /tmp/n3w_product_completion_s5_radio_mux
+
+      - name: Compile and run two-board coordinator test
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -Wall -Wextra -Werror \
+            -I/tmp/n3w_include \
+            -Ifirmware/esphome_rc/components/greenhouse_n3w_core \
+            -Ifirmware/esphome_rc/components/greenhouse_n3w_product_core \
+            -Ifirmware/esphome_rc/components/greenhouse_n3w_product_runtime \
+            firmware/esphome_rc/components/greenhouse_n3w_core/n3w_core.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_core/n3w_radio.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_core/n3w_espnow_driver.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_product_core.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_runtime.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_peer_security.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_peer_handshake_wire.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_s5_radio_mux.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_s5_peer_coordinator.cpp \
+            tests/n3w_product_completion_s5/n3w_product_s5_peer_coordinator_host_test.cpp \
+            -lmbedcrypto -lcrypto \
+            -o /tmp/n3w_product_completion_s5_peer_coordinator
+          /tmp/n3w_product_completion_s5_peer_coordinator
+
+      - name: Compile and run product credential persistence test
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -Wall -Wextra -Werror \
+            -I/tmp/n3w_include \
+            -Ifirmware/esphome_rc/components/greenhouse_pairing_client \
+            firmware/esphome_rc/components/greenhouse_pairing_client/pairing_client_core.cpp \
+            firmware/esphome_rc/components/greenhouse_pairing_client/pairing_ram_credentials.cpp \
+            firmware/esphome_rc/components/greenhouse_pairing_client/pairing_credential_codec.cpp \
+            firmware/esphome_rc/components/greenhouse_pairing_client/secure_pairing_channel_encoding.cpp \
+            firmware/esphome_rc/components/greenhouse_pairing_client/secure_pairing_channel_crypto.cpp \
+            tests/n3w_product_completion_s5/n3w_product_credential_persistence_host_test.cpp \
+            -lcrypto \
+            -o /tmp/n3w_product_completion_s5_credential_persistence
+          /tmp/n3w_product_completion_s5_credential_persistence
+
+      - name: S5 successor safety gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          scope=(
+            firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_peer_security.cpp
+            firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_peer_security.h
+            firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_peer_handshake_wire.cpp
+            firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_peer_handshake_wire.h
+            firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_s5_peer_coordinator.cpp
+            firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_s5_peer_coordinator.h
+            firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_s5_radio_mux.cpp
+            firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_s5_radio_mux.h
+            firmware/esphome_rc/components/greenhouse_pairing_client/pairing_network_transport_esp_json.cpp
+            firmware/esphome_rc/board_lab/n3w_product_s5_two_board/crypto_compile.yml
+          )
+          if grep -R -n -E \
+            '(PATH[[:space:]]+(DIRECT|RELAY)|p5_peer_mac|p5_link_lmk|esphome run|esptool|espota|pio run .*upload)' \
+            "${scope[@]}"; then
+            echo 'Static P5 peer material, manual PATH control, or physical execution detected'
+            exit 1
+          fi
+
+  esp32-c6-peer-security-compile:
+    needs: peer-security-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install frozen ESPHome
+        run: python -m pip install --upgrade 'esphome==2026.4.3'
+
+      - name: Validate S5 compile-only target
+        run: esphome config firmware/esphome_rc/board_lab/n3w_product_s5_two_board/crypto_compile.yml
+
+      - name: Compile S5 peer security for ESP32-C6
+        run: esphome compile firmware/esphome_rc/board_lab/n3w_product_s5_two_board/crypto_compile.yml

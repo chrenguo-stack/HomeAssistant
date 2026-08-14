@@ -1,0 +1,55 @@
+{
+  "schema": "gh.n3w-product-completion-stage-entry/1",
+  "stage": "S5_TWO_BOARD_ISOLATED_PHYSICAL",
+  "authorization_source": "User explicit approval: 批准下一阶段 S5：Two-board Isolated Physical",
+  "authorized": true,
+  "authorized_date": "2026-08-14",
+  "base_branch": "main",
+  "base_sha": "38c3b692d4ebe90d0040c732b6c0313fdfdc1ef6",
+  "base_tree": "b1610a851cd88bbfca9c3fd5ca49d16a393696ad",
+  "scope": [
+    "two_real_esp32_c6_isolated_physical_acceptance",
+    "product_successor_node_runtime_wiring",
+    "child_relay_pre_authorization_handshake_transport",
+    "endpoint_x25519_hkdf_hmac_firmware_implementation",
+    "manager_product_service_isolated_opt_in",
+    "dynamic_peer_installation_without_static_peer_binding",
+    "existing_n3w_reliable_transport_reuse",
+    "cross_language_crypto_contract_vectors",
+    "isolated_lab_build_and_execution_harness"
+  ],
+  "frozen_invariants": {
+    "factory_fixed_peer_information": false,
+    "factory_pair_lmk": false,
+    "system_wide_shared_lmk": false,
+    "manager_distributes_pair_lmk": false,
+    "static_peer_mac_required": false,
+    "static_gateway_node_pair_grant_required": false,
+    "manager_is_membership_authority": true,
+    "advertisement_is_untrusted_hint_only": true,
+    "encrypted_peer_installed_only_after_manager_authorization": true,
+    "peer_lmk_is_endpoint_derived": true,
+    "single_hop_only": true,
+    "existing_n3w_receipt_ack_is_authoritative": true,
+    "manual_path_command_required": false,
+    "home_assistant_identity_is_system_node_only": true
+  },
+  "excluded": [
+    "t1_access",
+    "production_t1_mutation",
+    "production_manager_mutation",
+    "production_mqtt_broker_mutation",
+    "production_home_assistant_mutation",
+    "n3l",
+    "s6_three_board_acceptance"
+  ],
+  "acceptance": {
+    "physical_two_board_required": true,
+    "host_or_ci_only_is_s5_pass": false,
+    "real_espnow_rf_required": true,
+    "real_manager_mqtt_path_required": true,
+    "t1_required_for_s5": false,
+    "t1_required_for_final_product_acceptance": true,
+    "status": "AUTHORIZED_IN_PROGRESS"
+  }
+}

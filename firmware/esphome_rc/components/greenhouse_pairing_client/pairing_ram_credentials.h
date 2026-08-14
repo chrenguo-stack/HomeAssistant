@@ -26,8 +26,15 @@ struct RamCredentialBundle {
   uint32_t credential_generation{0};
   std::string mqtt_password;
 
+  // Product N3-W credentials are optional so the legacy pairing profile
+  // remains wire/persistence compatible. They are accepted only as an exact
+  // pair: a non-zero epoch plus a 32-byte base64url application key.
+  uint32_t n3w_key_epoch{0};
+  std::string n3w_application_key;
+
   bool valid() const;
   bool present() const;
+  bool has_n3w_credentials() const;
   std::string delivery_ack_json() const;
   void clear();
 

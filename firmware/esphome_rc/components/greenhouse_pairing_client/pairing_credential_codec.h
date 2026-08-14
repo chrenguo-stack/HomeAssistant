@@ -8,7 +8,10 @@
 
 namespace esphome::greenhouse_pairing_client {
 
-static constexpr uint16_t PERSISTED_CREDENTIAL_PAYLOAD_VERSION = 1;
+static constexpr uint16_t PERSISTED_CREDENTIAL_PAYLOAD_VERSION_LEGACY = 1;
+static constexpr uint16_t PERSISTED_CREDENTIAL_PAYLOAD_VERSION_PRODUCT = 2;
+static constexpr uint16_t PERSISTED_CREDENTIAL_PAYLOAD_VERSION =
+    PERSISTED_CREDENTIAL_PAYLOAD_VERSION_PRODUCT;
 static constexpr size_t PERSISTED_CREDENTIAL_MAX_BYTES = 12288;
 
 class PairingCredentialCodec {
