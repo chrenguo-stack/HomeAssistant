@@ -119,6 +119,7 @@ void ProductS5PeerCoordinator::clear_pending_(bool remove_relay_peer) {
   relay_pending_child_mac_.reset();
   relay_active_child_mac_.reset();
   clear_cached_runtime_material_();
+  active_authorization_id_.clear();
   pending_channel_ = 0;
   session_token_ = 0;
   deadline_ms_ = 0;
@@ -156,6 +157,31 @@ ProductS5CoordinatorError ProductS5PeerCoordinator::tick() {
   const ProductRuntimeError result = runtime_->tick();
   return result == ProductRuntimeError::NONE ? ProductS5CoordinatorError::NONE
                                              : ProductS5CoordinatorError::RUNTIME_FAILED;
+}
+
+ProductS5CoordinatorError ProductS5PeerCoordinator::revoke_active_authorization(
+    const std::string &authorization_id) {
+  if (!greenhouse_n3w_product_core::valid_identity(authorization_id) ||
+      active_authorization_id_.empty() || authorization_id != active_authorization_id_) {
+    return ProductS5CoordinatorError::STATE_REJECTED;
+  }
+  if (role_ == ProductS5Role::CHILD) {
+    if (state_ != ProductS5PeerState::CHILD_ACTIVE || runtime_ == nullptr) {
+      return ProductS5CoordinatorError::STATE_REJECTED;
+    }
+    const ProductRuntimeError result = runtime_->revoke_active_peer(authorization_id);
+    return result == ProductRuntimeError::NONE ? ProductS5CoordinatorError::NONE
+                                               : ProductS5CoordinatorError::RUNTIME_FAILED;
+  }
+  if (state_ != ProductS5PeerState::RELAY_ACTIVE || radio_ == nullptr ||
+      !relay_active_child_mac_.has_value()) {
+    return ProductS5CoordinatorError::STATE_REJECTED;
+  }
+  const MacAddress child_mac = *relay_active_child_mac_;
+  const DriverError removed = radio_->remove_peer(child_mac);
+  clear_pending_(false);
+  return removed == DriverError::NONE ? ProductS5CoordinatorError::NONE
+                                      : ProductS5CoordinatorError::RADIO_FAILED;
 }
 
 ProductS5CoordinatorError ProductS5PeerCoordinator::send_broadcast_(
@@ -445,11 +471,15 @@ ProductS5CoordinatorError ProductS5PeerCoordinator::install_relay_peer_and_forwa
     return ProductS5CoordinatorError::CRYPTO_FAILED;
   }
   const MacAddress child_mac = *relay_pending_child_mac_;
+  const std::string child_node_id = pending_request_->child.node_id;
   if (radio_->add_encrypted_peer(child_mac, lmk, pending_channel_) != DriverError::NONE) {
     zeroize_(lmk.data(), lmk.size());
     return ProductS5CoordinatorError::RADIO_FAILED;
   }
   zeroize_(lmk.data(), lmk.size());
+  if (telemetry_sink_ != nullptr) {
+    telemetry_sink_->on_s5_peer_identity_bound(child_mac, child_node_id);
+  }
 
   ProductChildGrantPacket compact;
   compact.session_token = session_token_;
@@ -471,6 +501,7 @@ ProductS5CoordinatorError ProductS5PeerCoordinator::install_relay_peer_and_forwa
 
   relay_active_child_mac_ = child_mac;
   relay_pending_child_mac_.reset();
+  active_authorization_id_ = relay_grant.authorization_id;
   active_expires_at_ms_ = relay_grant.expires_at_ms;
   deadline_ms_ = 0;
   state_ = ProductS5PeerState::RELAY_ACTIVE;
@@ -542,6 +573,7 @@ ProductS5CoordinatorError ProductS5PeerCoordinator::install_child_runtime_peer_(
     return ProductS5CoordinatorError::STATE_REJECTED;
   }
   state_ = ProductS5PeerState::CHILD_WAIT_RUNTIME_INSTALL;
+  active_authorization_id_ = child_grant.authorization_id;
   active_expires_at_ms_ = child_grant.expires_at_ms;
   const ProductRuntimeError result = runtime_->apply_manager_eligibility(
       child_candidate_->source_mac, child_candidate_->gateway_id, eligibility);
@@ -622,6 +654,11 @@ void ProductS5PeerCoordinator::on_peer_active(
     const DynamicPeerAuthorization &authorization) {
   if (role_ == ProductS5Role::CHILD && state_ == ProductS5PeerState::CHILD_WAIT_RUNTIME_INSTALL &&
       authorization.manager_authorized && authorization.same_system) {
+    active_authorization_id_ = authorization.authorization_id;
+    if (telemetry_sink_ != nullptr) {
+      telemetry_sink_->on_s5_peer_identity_bound(
+          authorization.peer_mac, authorization.gateway_id);
+    }
     state_ = ProductS5PeerState::CHILD_ACTIVE;
   }
 }
