@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import secrets
 import threading
@@ -8,15 +9,11 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Protocol
 
-from .credential_lifecycle import (
-    CredentialLifecycleConflict,
-    CredentialLifecycleStore,
-    CredentialState,
-)
+from .credential_lifecycle import CredentialLifecycleStore, CredentialState
 from .pairing_secure_transport import (
     SecureEnvelope,
     SecurePairingConflict,
-    SecurePairingEndpoint,
+    SecurePairingCoordinator,
     SecurePairingRollbackError,
     SecurePairingState,
 )
@@ -221,7 +218,7 @@ class ManagedProductCredentialIssuer:
                         reason="product_key_activation_failed",
                         now=now,
                     )
-                except (CredentialLifecycleConflict, Exception) as rollback_error:
+                except Exception as rollback_error:
                     rollback_failures.append(rollback_error)
             if rollback_failures:
                 raise PairingRollbackError("product credential rotation rollback failed") from rollback_failures[0]
@@ -238,8 +235,6 @@ class ManagedProductCredentialIssuer:
 
 
 def _encode_base64url(value: bytes) -> str:
-    import base64
-
     return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
 
 
@@ -321,10 +316,11 @@ class ProductPairingCore:
             if existing is not None:
                 return existing
             base = self.core.issue_credentials(session_id, now=now)
+            snapshot = self.core.status(session_id, now=now)
             try:
                 material = self.issuer.stage(
-                    hardware_id=self.core.status(session_id, now=now).hardware_id,
-                    pairing_id=self.core.status(session_id, now=now).pairing_id,
+                    hardware_id=snapshot.hardware_id,
+                    pairing_id=snapshot.pairing_id,
                     node_id=base.node_id,
                     credential_generation=base.credential_generation,
                 )
@@ -391,24 +387,26 @@ class ProductPairingCore:
         return expired
 
     def status(self, session_id: str, *, now: datetime | None = None) -> PairingSessionSnapshot:
-        try:
-            snapshot = self.core.status(session_id, now=now)
-        finally:
-            self._rollback_terminal_materials(now=now)
+        snapshot = self.core.status(session_id, now=now)
+        self._rollback_if_terminal(session_id, snapshot)
         return snapshot
 
     def _rollback_terminal_materials(self, *, now: datetime | None) -> None:
         with self._lock:
-            for session_id, material in tuple(self._materials.items()):
+            for session_id in tuple(self._materials):
                 snapshot = self.core.status(session_id, now=now)
-                if snapshot.state not in {PairingSessionState.EXPIRED, PairingSessionState.FAILED}:
-                    continue
-                self.issuer.rollback(material)
-                self._materials.pop(session_id, None)
-                self._bundles.pop(session_id, None)
+                self._rollback_if_terminal(session_id, snapshot)
+
+    def _rollback_if_terminal(self, session_id: str, snapshot: PairingSessionSnapshot) -> None:
+        if snapshot.state not in {PairingSessionState.EXPIRED, PairingSessionState.FAILED}:
+            return
+        material = self._materials.pop(session_id, None)
+        self._bundles.pop(session_id, None)
+        if material is not None:
+            self.issuer.rollback(material)
 
 
-class ProductSecurePairingEndpoint(SecurePairingEndpoint):
+class ProductSecurePairingCoordinator(SecurePairingCoordinator):
     """Encrypt the node's own N3-W application key inside the existing secure pairing channel."""
 
     def issue_encrypted_credentials(
