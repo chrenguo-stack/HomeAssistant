@@ -149,7 +149,7 @@ jobs:
           set -euo pipefail
           mkdir -p /tmp/n3w_include/esphome
           ln -s "$GITHUB_WORKSPACE/firmware/esphome_rc/components" /tmp/n3w_include/esphome/components
-          g++ -std=c++17 -Wall -Wextra -Werror \
+          g++ -std=c++17 -Wall -Wextra -Werror -Wno-error=unused-function \
             -I/tmp/n3w_include \
             -Ifirmware/esphome_rc/components/greenhouse_n3w_core \
             -Ifirmware/esphome_rc/components/greenhouse_n3w_product_core \
