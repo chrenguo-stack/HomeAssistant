@@ -3,6 +3,7 @@ name: N3-W Product Completion S5 physical E2E preparation CI
 on:
   pull_request:
     paths:
+      - '.github/workflows/n3w-product-completion-s5-d-lifecycle-negative-host-matrix-ci.yml'
       - 'docs/decisions/n3w-product-completion-s5-full-two-board-isolated-physical-e2e-preparation-20260814.json'
       - 'docs/handoffs/温室环境监测系统_N3W_ProductCompletion_S5完整双板隔离物理E2E准备合同_V1.0_20260814.md'
       - 'tools/n3w_product_s5_prepare_physical_package.py'
@@ -29,14 +30,14 @@ jobs:
           git merge-base --is-ancestor "$START" HEAD
           git config core.quotePath false
           mapfile -t changed < <(git diff --name-only "$START" HEAD)
-          allowed='^(docs/decisions/n3w-product-completion-s5-full-two-board-isolated-physical-e2e-preparation-20260814\.json|docs/handoffs/温室环境监测系统_N3W_ProductCompletion_S5完整双板隔离物理E2E准备合同_V1\.0_20260814\.md|tools/n3w_product_s5_prepare_physical_package\.py|tests/n3w_product_completion_s5/test_s5_physical_e2e_preparation\.py|\.github/workflows/n3w-product-completion-s5-physical-e2e-preparation-ci\.yml)$'
+          allowed='^(\.github/workflows/n3w-product-completion-s5-d-lifecycle-negative-host-matrix-ci\.yml|docs/decisions/n3w-product-completion-s5-full-two-board-isolated-physical-e2e-preparation-20260814\.json|docs/handoffs/温室环境监测系统_N3W_ProductCompletion_S5完整双板隔离物理E2E准备合同_V1\.0_20260814\.md|tools/n3w_product_s5_prepare_physical_package\.py|tests/n3w_product_completion_s5/test_s5_physical_e2e_preparation\.py|\.github/workflows/n3w-product-completion-s5-physical-e2e-preparation-ci\.yml)$'
           for path in "${changed[@]}"; do
             if [[ ! "$path" =~ $allowed ]]; then
               echo "Unexpected S5 preparation path: $path" >&2
               exit 1
             fi
           done
-          test "${#changed[@]}" -eq 5
+          test "${#changed[@]}" -eq 6
 
       - uses: actions/setup-python@v5
         with:
@@ -84,6 +85,7 @@ jobs:
           d = json.loads(p.read_text())
           assert d['authorization'] == 'D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-FULL-TWO-BOARD-ISOLATED-PHYSICAL-E2E-PREPARATION-20260814-01'
           assert d['preparation_scope']['physical_execution_authorized'] is False
+          assert d['preparation_scope']['s5_d_successor_ci_lineage_compatibility_only'] is True
           assert d['classification']['s5_full_two_board_e2e'] == 'PENDING'
           for key in ('erase','flash','ota','serial','usb_jtag_board_access','espnow_rf','wifi_connection','real_mqtt_network_e2e','production_t1','pr_merge','release','deployment','n3l'):
               assert d['not_authorized'][key] is True, key
