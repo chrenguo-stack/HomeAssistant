@@ -133,6 +133,24 @@ class StaticEligibilityProvider:
         )
 
 
+class RevokedEligibilityProvider(StaticEligibilityProvider):
+    def get_relay_eligibility(
+        self,
+        *,
+        system_id: str,
+        node_id: str,
+        health: RelayRuntimeHealth,
+        now_ms: int,
+    ) -> RelayEligibilitySnapshot:
+        current = super().get_relay_eligibility(
+            system_id=system_id,
+            node_id=node_id,
+            health=health,
+            now_ms=now_ms,
+        )
+        return replace(current, revoked=True)
+
+
 def _request() -> PeerAuthorizationRequest:
     child_auth = derive_relay_auth_key(CHILD_MEMBERSHIP)
     relay_auth = derive_relay_auth_key(RELAY_MEMBERSHIP)
@@ -174,17 +192,25 @@ def _request() -> PeerAuthorizationRequest:
     )
 
 
-def test_actual_manager_service_grants_match_endpoint_crypto_and_replay_contract(tmp_path: Path) -> None:
-    replay = SqlitePeerAuthorizationReplayStore(str(tmp_path / "peer-replay.sqlite3"))
-    service = PeerAuthorizationService(
+def _service(
+    replay: SqlitePeerAuthorizationReplayStore,
+    *,
+    eligibility: StaticEligibilityProvider | None = None,
+) -> PeerAuthorizationService:
+    return PeerAuthorizationService(
         StaticMembershipResolver(),
-        StaticEligibilityProvider(),
+        eligibility or StaticEligibilityProvider(),
         replay,
         grant_ttl_ms=29_900,
         max_request_skew_ms=10_000,
         authorization_epoch=7,
         uuid_factory=lambda: uuid.UUID(AUTHORIZATION_ID),
     )
+
+
+def test_actual_manager_service_grants_match_endpoint_crypto_and_replay_contract(tmp_path: Path) -> None:
+    replay = SqlitePeerAuthorizationReplayStore(str(tmp_path / "peer-replay.sqlite3"))
+    service = _service(replay)
     request = _request()
     authorization = service.authorize(request, now_ms=NOW_MS)
 
@@ -221,8 +247,24 @@ def test_actual_manager_service_grants_match_endpoint_crypto_and_replay_contract
     assert child_lmk.hex() == "aaebd482e2dec5346c9d11b00ad9c3fb"
     assert child_lmk != bytes(16)
 
-    tampered = replace(authorization.child_grant, authorization_epoch=8)
-    assert not verify_endpoint_grant(tampered, relay_auth_key=child_auth, now_ms=NOW_MS + 100)
+    tampered_epoch = replace(authorization.child_grant, authorization_epoch=8)
+    assert not verify_endpoint_grant(
+        tampered_epoch, relay_auth_key=child_auth, now_ms=NOW_MS + 100
+    )
+    tampered_generation = replace(
+        authorization.child_grant,
+        relay_credential_generation=authorization.child_grant.relay_credential_generation + 1,
+    )
+    assert not verify_endpoint_grant(
+        tampered_generation, relay_auth_key=child_auth, now_ms=NOW_MS + 100
+    )
+    tampered_key_epoch = replace(
+        authorization.child_grant,
+        relay_key_epoch=authorization.child_grant.relay_key_epoch + 1,
+    )
+    assert not verify_endpoint_grant(
+        tampered_key_epoch, relay_auth_key=child_auth, now_ms=NOW_MS + 100
+    )
     assert not verify_endpoint_grant(
         authorization.child_grant,
         relay_auth_key=child_auth,
@@ -248,4 +290,62 @@ def test_actual_manager_service_grants_match_endpoint_crypto_and_replay_contract
     with pytest.raises(PeerAuthorizationRejected, match="cross_system_rejected"):
         service.authorize(cross_system, now_ms=NOW_MS)
 
+    wrong_child_generation = replace(
+        request,
+        session_id="s5-session-child-generation",
+        child=replace(
+            request.child,
+            credential_generation=request.child.credential_generation + 1,
+        ),
+    )
+    with pytest.raises(PeerAuthorizationRejected, match="credential_generation_rejected"):
+        service.authorize(wrong_child_generation, now_ms=NOW_MS)
+
+    wrong_relay_generation = replace(
+        request,
+        session_id="s5-session-relay-generation",
+        relay=replace(
+            request.relay,
+            credential_generation=request.relay.credential_generation + 1,
+        ),
+    )
+    with pytest.raises(PeerAuthorizationRejected, match="credential_generation_rejected"):
+        service.authorize(wrong_relay_generation, now_ms=NOW_MS)
+
+    wrong_key_epoch = replace(
+        request,
+        session_id="s5-session-key-epoch",
+        relay=replace(request.relay, key_epoch=request.relay.key_epoch + 1),
+    )
+    with pytest.raises(PeerAuthorizationRejected, match="credential_generation_rejected"):
+        service.authorize(wrong_key_epoch, now_ms=NOW_MS)
+
     replay.close()
+
+
+def test_request_replay_survives_manager_replay_store_restart(tmp_path: Path) -> None:
+    database = tmp_path / "peer-replay.sqlite3"
+    request = _request()
+
+    first_replay = SqlitePeerAuthorizationReplayStore(str(database))
+    first = _service(first_replay)
+    first.authorize(request, now_ms=NOW_MS)
+    first_replay.close()
+
+    reopened_replay = SqlitePeerAuthorizationReplayStore(str(database))
+    reopened = _service(reopened_replay)
+    try:
+        with pytest.raises(PeerAuthorizationRejected, match="request_replayed"):
+            reopened.authorize(request, now_ms=NOW_MS + 200)
+    finally:
+        reopened_replay.close()
+
+
+def test_revoked_relay_eligibility_fails_closed_before_grant_issue(tmp_path: Path) -> None:
+    replay = SqlitePeerAuthorizationReplayStore(str(tmp_path / "peer-replay.sqlite3"))
+    service = _service(replay, eligibility=RevokedEligibilityProvider())
+    try:
+        with pytest.raises(PeerAuthorizationRejected, match="relay_not_eligible"):
+            service.authorize(_request(), now_ms=NOW_MS)
+    finally:
+        replay.close()
