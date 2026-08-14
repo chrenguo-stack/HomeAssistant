@@ -4,6 +4,8 @@
 #include <cstring>
 
 #ifdef USE_ESP32
+#include "esp_event.h"
+#include "esp_netif.h"
 #include "esp_now.h"
 #include "esp_wifi.h"
 #endif
@@ -12,6 +14,52 @@ namespace esphome::greenhouse_n3w_core {
 
 #ifdef USE_ESP32
 EspNowDriver *EspNowDriver::active_ = nullptr;
+#endif
+
+#ifdef USE_ESP32
+DriverError EspNowDriver::start_wifi_() {
+  wifi_mode_t mode{};
+  const esp_err_t mode_error = esp_wifi_get_mode(&mode);
+  if (mode_error == ESP_OK) {
+    uint8_t channel = 0;
+    wifi_second_chan_t secondary = WIFI_SECOND_CHAN_NONE;
+    return esp_wifi_get_channel(&channel, &secondary) == ESP_OK
+               ? DriverError::NONE
+               : DriverError::WIFI_START_FAILED;
+  }
+  if (mode_error != ESP_ERR_WIFI_NOT_INIT) {
+    return DriverError::WIFI_INIT_FAILED;
+  }
+
+  const esp_err_t netif_error = esp_netif_init();
+  if (netif_error != ESP_OK && netif_error != ESP_ERR_INVALID_STATE) {
+    return DriverError::WIFI_INIT_FAILED;
+  }
+  const esp_err_t event_error = esp_event_loop_create_default();
+  if (event_error != ESP_OK && event_error != ESP_ERR_INVALID_STATE) {
+    return DriverError::WIFI_INIT_FAILED;
+  }
+
+  wifi_init_config_t config = WIFI_INIT_CONFIG_DEFAULT();
+  if (esp_wifi_init(&config) != ESP_OK) {
+    return DriverError::WIFI_INIT_FAILED;
+  }
+  wifi_owned_ = true;
+  if (esp_wifi_set_storage(WIFI_STORAGE_RAM) != ESP_OK ||
+      esp_wifi_set_mode(WIFI_MODE_STA) != ESP_OK ||
+      esp_wifi_start() != ESP_OK) {
+    stop_owned_wifi_();
+    return DriverError::WIFI_START_FAILED;
+  }
+  return DriverError::NONE;
+}
+
+void EspNowDriver::stop_owned_wifi_() {
+  if (!wifi_owned_) return;
+  (void) esp_wifi_stop();
+  (void) esp_wifi_deinit();
+  wifi_owned_ = false;
+}
 #endif
 
 DriverError EspNowDriver::initialize(EspNowEventSink *sink, const LinkKey &pmk) {
@@ -26,11 +74,17 @@ DriverError EspNowDriver::initialize(EspNowEventSink *sink, const LinkKey &pmk) 
   if (initialized_ || active_ != nullptr) {
     return DriverError::ALREADY_INITIALIZED;
   }
+  const DriverError wifi_error = start_wifi_();
+  if (wifi_error != DriverError::NONE) {
+    return wifi_error;
+  }
   if (esp_now_init() != ESP_OK) {
+    stop_owned_wifi_();
     return DriverError::ESPNOW_INIT_FAILED;
   }
   if (esp_now_set_pmk(pmk.data()) != ESP_OK) {
     esp_now_deinit();
+    stop_owned_wifi_();
     return DriverError::ESPNOW_PMK_FAILED;
   }
   active_ = this;
@@ -42,6 +96,7 @@ DriverError EspNowDriver::initialize(EspNowEventSink *sink, const LinkKey &pmk) 
     active_ = nullptr;
     sink_ = nullptr;
     esp_now_deinit();
+    stop_owned_wifi_();
     return DriverError::ESPNOW_CALLBACK_FAILED;
   }
   initialized_ = true;
@@ -59,6 +114,7 @@ void EspNowDriver::shutdown() {
   if (active_ == this) {
     active_ = nullptr;
   }
+  stop_owned_wifi_();
 #endif
   sink_ = nullptr;
   initialized_ = false;

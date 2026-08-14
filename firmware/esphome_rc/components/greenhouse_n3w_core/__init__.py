@@ -22,6 +22,8 @@ async def to_code(config: dict) -> None:
     # remains inert: setup() does not initialize Wi-Fi/ESP-NOW, provision keys,
     # transmit packets, connect a Broker, or activate a product firmware path.
     include_builtin_idf_component("nvs_flash")
+    include_builtin_idf_component("esp_event")
+    include_builtin_idf_component("esp_netif")
     include_builtin_idf_component("esp_wifi")
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)

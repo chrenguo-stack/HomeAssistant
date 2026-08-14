@@ -57,3 +57,14 @@ def test_manager_boundary_is_wired_to_runtime_authorization():
     assert "request_peer_authorization" in implementation
     assert "install_authorized_peer" in implementation
     assert "execution_enabled_" in integration
+
+
+def test_execution_path_bootstraps_espnow_without_network_credentials():
+    driver = (
+        ROOT
+        / "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_espnow_driver.cpp"
+    ).read_text()
+    assert "esp_wifi_set_storage(WIFI_STORAGE_RAM)" in driver
+    assert "esp_wifi_set_mode(WIFI_MODE_STA)" in driver
+    assert driver.index("esp_wifi_start()") < driver.index("esp_now_init()")
+    assert "esp_wifi_connect(" not in driver

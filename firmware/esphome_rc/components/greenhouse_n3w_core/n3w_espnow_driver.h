@@ -20,6 +20,8 @@ enum class DriverError : uint8_t {
   INVALID_ARGUMENT,
   NOT_INITIALIZED,
   ALREADY_INITIALIZED,
+  WIFI_INIT_FAILED,
+  WIFI_START_FAILED,
   WIFI_CHANNEL_FAILED,
   ESPNOW_INIT_FAILED,
   ESPNOW_CALLBACK_FAILED,
@@ -81,6 +83,9 @@ class EspNowDriver {
 
  protected:
 #ifdef USE_ESP32
+  DriverError start_wifi_();
+  void stop_owned_wifi_();
+
   static void recv_cb_(
       const esp_now_recv_info_t *info,
       const uint8_t *data,
@@ -95,6 +100,7 @@ class EspNowDriver {
       esp_now_send_status_t status);
 #endif
   static EspNowDriver *active_;
+  bool wifi_owned_{false};
 #endif
 
   EspNowEventSink *sink_{nullptr};
