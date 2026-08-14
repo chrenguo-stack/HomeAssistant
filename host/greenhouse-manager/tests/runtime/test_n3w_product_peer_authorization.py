@@ -305,13 +305,15 @@ def test_product_key_provider_needs_no_static_gateway_node_grant(tmp_path: Path)
     with ProductNodeApplicationKeyProvider(database, key_dir) as product:
         assert product.resolve_node_application_key(node_id=CHILD_NODE, key_epoch=1) == CHILD_KEY
 
-    with SqliteRelayAuthorizationProvider(database, key_dir) as legacy:
-        with pytest.raises(RelayIngressRejected, match="gateway_node_unauthorized"):
-            legacy.resolve_key(
-                gateway_id=RELAY_NODE,
-                node_id=CHILD_NODE,
-                key_epoch=1,
-            )
+    with (
+        SqliteRelayAuthorizationProvider(database, key_dir) as legacy,
+        pytest.raises(RelayIngressRejected, match="gateway_node_unauthorized"),
+    ):
+        legacy.resolve_key(
+            gateway_id=RELAY_NODE,
+            node_id=CHILD_NODE,
+            key_epoch=1,
+        )
 
 
 def test_cross_system_and_wrong_credential_generation_fail_closed(integrated) -> None:
