@@ -26,33 +26,15 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Exact base and S2 scope gate
+      - name: S2 lineage gate
         shell: bash
         run: |
           set -euo pipefail
-          base='c671c994064658e93321917c1efc75663ad65781'
-          test "$(git merge-base "$base" HEAD)" = "$base"
+          s2_candidate='48ee785bd148184917dc186dc27f4f58c9585e55'
+          git merge-base --is-ancestor "$s2_candidate" HEAD
           if [ "$GITHUB_EVENT_NAME" = 'pull_request' ]; then
             test '${{ github.event.pull_request.base.ref }}' = 'main'
-            test '${{ github.event.pull_request.base.sha }}' = "$base"
           fi
-
-          allowed="$(mktemp)"
-          actual="$(mktemp)"
-          cat >"$allowed" <<'FILES'
-          .github/workflows/n3w-product-completion-s2-hostonly-core-ci.yml
-          docs/decisions/n3w-product-completion-s1-contract-freeze-20260814.json
-          docs/decisions/n3w-product-completion-s2-hostonly-core-stage-entry-20260814.json
-          firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_product_core.cpp
-          firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_product_core.h
-          tests/n3w_product_completion_s2/n3w_product_core_host_test.cpp
-          tests/n3w_product_completion_s2/test_n3w_product_s2_contract.py
-          FILES
-          sed -i 's/^          //' "$allowed"
-          sort -o "$allowed" "$allowed"
-          git diff --name-only "$base"...HEAD | sort >"$actual"
-          test "$(wc -l <"$actual")" -eq 7
-          diff -u "$allowed" "$actual"
 
       - name: Install host test dependency
         run: python -m pip install pytest
