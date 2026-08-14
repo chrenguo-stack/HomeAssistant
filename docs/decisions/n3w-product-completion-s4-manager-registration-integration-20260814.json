@@ -5,8 +5,17 @@
   "authorized": true,
   "authorized_date": "2026-08-14",
   "base_branch": "main",
-  "base_sha": "8020194edfeea03a52466e83cb3071de54afbd48",
-  "base_tree": "cbec93e9602565a9228340445c9687b6eb2a0e5b",
+  "base_sha": "1ec7b5f0b9842df990073ca7f6864764cb0fb3cd",
+  "base_tree": "66e634165e1e8af72ad86af2e0f5a10ebf10f0a4",
+  "original_authorized_base_sha": "8020194edfeea03a52466e83cb3071de54afbd48",
+  "original_authorized_base_tree": "cbec93e9602565a9228340445c9687b6eb2a0e5b",
+  "rebaseline": {
+    "authorization": "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S4-PR319-REBASELINE-READY-AND-MERGE-20260814-02",
+    "reason": "PR #320 repaired the pre-existing time-aging greenhouse-manager required test without changing runtime semantics",
+    "from_base_sha": "8020194edfeea03a52466e83cb3071de54afbd48",
+    "to_base_sha": "1ec7b5f0b9842df990073ca7f6864764cb0fb3cd",
+    "to_base_tree": "66e634165e1e8af72ad86af2e0f5a10ebf10f0a4"
+  },
   "scope": [
     "manager_registration_membership_binding",
     "credential_generation_binding",
