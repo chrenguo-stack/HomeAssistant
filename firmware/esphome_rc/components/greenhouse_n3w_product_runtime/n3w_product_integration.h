@@ -26,6 +26,8 @@ class GreenhouseN3wProductIntegration final : public Component,
                                                public ProductRuntimeClock,
                                                public ProductManagerIntegrationPort {
  public:
+  ~GreenhouseN3wProductIntegration() override;
+
   void set_execution_enabled(bool value) { execution_enabled_ = value; }
   void set_role(const std::string &value) { role_ = value; }
   void set_pmk_hex(const std::string &value) { pmk_hex_ = value; }
@@ -58,6 +60,8 @@ class GreenhouseN3wProductIntegration final : public Component,
   ProductS5CoordinatorError submit_s5_manager_authorization(
       const ProductPeerGrant &child_grant,
       const ProductPeerGrant &relay_grant);
+  ProductS5CoordinatorError revoke_s5_authorization(
+      const std::string &authorization_id);
   ProductS5TelemetryError send_s5_relay_frame(
       const RelayFrame &frame,
       uint64_t now_ms);
