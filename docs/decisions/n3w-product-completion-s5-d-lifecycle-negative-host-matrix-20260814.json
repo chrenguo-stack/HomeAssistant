@@ -19,6 +19,9 @@
     "ephemeral_and_cached_lmk_zeroization": true,
     "reliable_link_retry_cache_lifecycle": true,
     "gateway_bound_relayframe_not_rehomed": true,
+    "manager_epoch_request_freshness": true,
+    "endpoint_monotonic_grant_lifetime": true,
+    "manager_authority_clock_unavailable_fail_closed": true,
     "existing_s4_peer_authorization_only": true,
     "existing_relay_frame_schema": "gh.relay/1",
     "existing_telemetry_schema": "gh.telemetry/1",
@@ -35,6 +38,8 @@
     "factory_peer_relationship": false,
     "public_profiles_remain_inert": true,
     "old_gateway_bound_relayframe_may_move_to_new_relay": false,
+    "endpoint_monotonic_clock_treated_as_manager_epoch": false,
+    "grant_absolute_manager_epoch_reused_as_local_runtime_deadline": false,
     "wifi_recovery_switchback_in_scope": false
   },
   "not_authorized": {
