@@ -3,10 +3,11 @@
   "date": "2026-08-14",
   "authorization": "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-C-ISOLATED-MANAGER-TELEMETRY-HOST-COMPILE-IMPLEMENTATION-20260814-01",
   "starting_head": "37b1bc49998c6e1235788f078cb7936d6d9da35c",
+  "implementation_head": "b90a5eb432d033919f6758ae49465c05bb57e2b3",
   "base_main": "38c3b692d4ebe90d0040c732b6c0313fdfdc1ef6",
   "pr": 322,
   "branch": "feature/n3w-product-completion-s5-two-board-isolated-20260814-v1",
-  "status": "IMPLEMENTED_CI_PENDING",
+  "status": "HOST_COMPILE_PASS_ARCHIVED",
   "scope": {
     "isolated_manager_adapter": true,
     "existing_s4_peer_authorization_only": true,
@@ -41,6 +42,20 @@
     "active_lmk_zeroized_on_peer_removal": true,
     "unknown_s5_datagrams_dropped": true
   },
+  "evidence": {
+    "s5_c_ci_run": 31796186411,
+    "s5_c_ci": "PASS",
+    "s5_ab_regression_run": 31796186375,
+    "s5_ab_regression": "PASS",
+    "s5_board_integration_run": 31796186294,
+    "s5_board_integration": "PASS",
+    "esp32_c6_child_compile": "PASS",
+    "esp32_c6_relay_compile": "PASS",
+    "s3_runtime_run": 31796186232,
+    "s3_runtime_and_driver_compile": "PASS",
+    "public_repository_safety": "PASS",
+    "greenhouse_manager_ci": "PASS"
+  },
   "not_authorized": {
     "erase": true,
     "flash": true,
@@ -61,7 +76,8 @@
   "classification": {
     "s5_driver_initialization_crash_fix": "PHYSICAL_VERIFIED",
     "s5_ab_host_compile": "PASS",
-    "s5_c_host_compile": "CI_PENDING",
+    "s5_c_host_compile": "PASS",
     "s5_full_two_board_e2e": "PENDING"
-  }
+  },
+  "archive_note": "This record archives CI observed on implementation_head. The documentation-only archive commit does not constitute physical or RF execution and does not upgrade S5_FULL_TWO_BOARD_E2E."
 }
