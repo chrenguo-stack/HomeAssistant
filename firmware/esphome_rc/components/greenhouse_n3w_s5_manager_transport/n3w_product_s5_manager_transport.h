@@ -16,6 +16,7 @@ namespace esphome::greenhouse_n3w_s5_manager_transport {
 
 using greenhouse_n3w_product_runtime::ProductPeerGrant;
 using greenhouse_n3w_product_runtime::ProductPeerRequest;
+using greenhouse_n3w_product_runtime::ProductPeerRole;
 using greenhouse_n3w_product_runtime::ProductPeerSecurity;
 using greenhouse_n3w_product_runtime::ProductRuntimeClock;
 using greenhouse_n3w_product_runtime::ProductS5ManagerPort;
