@@ -358,7 +358,9 @@ class PeerAuthorizationService:
         expires_at_ms = min(now_ms + self.grant_ttl_ms, relay_eligibility.valid_until_ms)
         if expires_at_ms <= now_ms:
             raise PeerAuthorizationRejected("relay_eligibility_expired")
-        request_sha256 = hashlib.sha256(_request_core(request) + request.child.proof + request.relay.proof).hexdigest()
+        request_sha256 = hashlib.sha256(
+            _request_core(request) + request.child.proof + request.relay.proof
+        ).hexdigest()
         if not self.replay_store.claim(
             request_sha256=request_sha256,
             session_id=request.session_id,
