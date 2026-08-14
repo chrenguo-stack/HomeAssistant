@@ -45,7 +45,14 @@ class NodeApplicationKeyProvider(Protocol):
 
 
 class RelayEligibilityProvider(Protocol):
-    def get_relay_eligibility(self, *, system_id: str, node_id: str) -> RelayEligibilitySnapshot: ...
+    def get_relay_eligibility(
+        self,
+        *,
+        system_id: str,
+        node_id: str,
+        health: RelayRuntimeHealth,
+        now_ms: int,
+    ) -> RelayEligibilitySnapshot: ...
 
 
 @dataclass(frozen=True, slots=True, repr=False)
@@ -63,6 +70,24 @@ class NodeMembership:
             f"system_id={self.system_id!r}, hardware_id={self.hardware_id!r}, "
             f"node_id={self.node_id!r}, credential_generation={self.credential_generation!r}, "
             f"key_epoch={self.key_epoch!r}, application_key=<redacted>)"
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class RelayRuntimeHealth:
+    observed_at_ms: int
+    relay_capable: bool
+    low_battery: bool
+    overloaded: bool
+
+    def valid_shape(self) -> bool:
+        return (
+            isinstance(self.observed_at_ms, int)
+            and not isinstance(self.observed_at_ms, bool)
+            and self.observed_at_ms >= 0
+            and type(self.relay_capable) is bool
+            and type(self.low_battery) is bool
+            and type(self.overloaded) is bool
         )
 
 
@@ -127,6 +152,7 @@ class PeerAuthorizationRequest:
     requested_at_ms: int
     child: EndpointHandshake
     relay: EndpointHandshake
+    relay_health: RelayRuntimeHealth
 
     def valid_shape(self) -> bool:
         return (
@@ -137,6 +163,7 @@ class PeerAuthorizationRequest:
             and self.requested_at_ms >= 0
             and self.child.valid_shape()
             and self.relay.valid_shape()
+            and self.relay_health.valid_shape()
             and self.child.node_id != self.relay.node_id
         )
 
@@ -407,6 +434,8 @@ class PeerAuthorizationService:
             relay_eligibility = self.eligibility.get_relay_eligibility(
                 system_id=request.system_id,
                 node_id=request.relay.node_id,
+                health=request.relay_health,
+                now_ms=now_ms,
             )
         except PeerAuthorizationRejected:
             raise
@@ -581,6 +610,10 @@ def _request_core(request: PeerAuthorizationRequest) -> bytes:
         str(request.relay.key_epoch),
         _b64(request.relay.ephemeral_public_key),
         _b64(request.relay.nonce),
+        str(request.relay_health.observed_at_ms),
+        "1" if request.relay_health.relay_capable else "0",
+        "1" if request.relay_health.low_battery else "0",
+        "1" if request.relay_health.overloaded else "0",
     ]
     return "\n".join(fields).encode("ascii")
 
