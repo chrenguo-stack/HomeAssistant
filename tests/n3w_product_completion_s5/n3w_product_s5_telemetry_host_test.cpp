@@ -53,7 +53,9 @@ class NetworkPort final : public ProductRuntimeRadioPort {
       const MacAddress &,
       const uint8_t *data,
       std::size_t size) override {
-    if (peer_sink_ == nullptr || data == nullptr || size == 0) return DriverError::SEND_FAILED;
+    ++send_count;
+    if (fail_send || peer_sink_ == nullptr || data == nullptr || size == 0)
+      return DriverError::SEND_FAILED;
     EspNowReceiveMetadata metadata;
     metadata.channel = channel_ == 0 ? 6 : channel_;
     metadata.rssi_dbm = -45;
@@ -61,15 +63,18 @@ class NetworkPort final : public ProductRuntimeRadioPort {
     return DriverError::NONE;
   }
 
+  bool fail_send{false};
+  int send_count{0};
+
  private:
   MacAddress mac_{};
   ProductS5TelemetrySink *peer_sink_{nullptr};
   uint8_t channel_{6};
 };
 
-LinkKey link_key() {
+LinkKey link_key(uint8_t seed = 0x31) {
   LinkKey key{};
-  for (std::size_t i = 0; i < key.size(); ++i) key[i] = static_cast<uint8_t>(0x31 + i);
+  for (std::size_t i = 0; i < key.size(); ++i) key[i] = static_cast<uint8_t>(seed + i);
   return key;
 }
 
@@ -84,12 +89,36 @@ ApplicationKeyState application_key() {
   return state;
 }
 
+RelayFrame relay_frame(
+    const std::string &gateway_id,
+    uint32_t seq,
+    const ApplicationKeyState &key) {
+  RelayHeader header;
+  header.gateway_id = gateway_id;
+  header.node_id = "node_child01";
+  header.key_epoch = 3;
+  header.boot_id = "boot_0000000000000001";
+  header.seq = seq;
+  const std::string telemetry =
+      std::string("{\"schema\":\"gh.telemetry/1\",\"node_id\":\"node_child01\",") +
+      "\"boot_id\":\"boot_0000000000000001\",\"seq\":" + std::to_string(seq) +
+      ",\"uptime_ms\":1234,\"cap_hash\":\"cap_hash_001\"," +
+      "\"measurements\":{\"air_temperature_c\":24.5}," +
+      "\"quality\":{\"air_temperature_c\":\"ok\"}," +
+      "\"power\":{\"source\":\"main\",\"low\":false}}";
+  RelayFrame frame;
+  assert(build_relay_frame(header, key, telemetry, &frame) == CoreError::NONE);
+  return frame;
+}
+
 }  // namespace
 
 int main() {
   const MacAddress child_mac{0x02, 0x11, 0x22, 0x33, 0x44, 0x55};
   const MacAddress relay_mac{0x02, 0xaa, 0xbb, 0xcc, 0xdd, 0xee};
+  const MacAddress relay2_mac{0x02, 0xab, 0xbc, 0xcd, 0xde, 0xef};
   const LinkKey lmk = link_key();
+  const ApplicationKeyState key = application_key();
 
   NetworkPort child_radio(child_mac);
   NetworkPort relay_radio(relay_mac);
@@ -101,22 +130,23 @@ int main() {
   child_radio.connect(&relay);
   relay_radio.connect(&child);
 
+  // Link-layer peer installation alone is insufficient. The Manager-verified
+  // node identity must be bound to the same MAC before reliable telemetry is
+  // allowed in either direction.
   child.on_s5_peer_installed(relay_mac, lmk, 6);
   relay.on_s5_peer_installed(child_mac, lmk, 6);
-  assert(relay.set_relay_child_node_id("node_child01"));
-
-  RelayHeader header;
-  header.gateway_id = "node_relay01";
-  header.node_id = "node_child01";
-  header.key_epoch = 3;
-  header.boot_id = "boot_0000000000000001";
-  header.seq = 42;
-
-  const std::string telemetry =
-      R"({"schema":"gh.telemetry/1","node_id":"node_child01","boot_id":"boot_0000000000000001","seq":42,"uptime_ms":1234,"cap_hash":"cap_hash_001","measurements":{"air_temperature_c":24.5},"quality":{"air_temperature_c":"ok"},"power":{"source":"main","low":false}})";
-  RelayFrame frame;
-  const ApplicationKeyState key = application_key();
-  assert(build_relay_frame(header, key, telemetry, &frame) == CoreError::NONE);
+  assert(child.active_lmk_resident());
+  assert(relay.active_lmk_resident());
+  assert(!child.identity_bound());
+  assert(!relay.identity_bound());
+  const RelayFrame frame = relay_frame("node_relay01", 42, key);
+  assert(child.send_relay_frame(frame, 1000) == ProductS5TelemetryError::NOT_READY);
+  child.on_s5_peer_identity_bound(relay_mac, "node_relay01");
+  relay.on_s5_peer_identity_bound(child_mac, "node_child01");
+  assert(child.identity_bound());
+  assert(relay.identity_bound());
+  assert(child.active_peer_node_id() == "node_relay01");
+  assert(relay.active_peer_node_id() == "node_child01");
 
   assert(child.send_relay_frame(frame, 1000) == ProductS5TelemetryError::NONE);
   assert(forward.count == 1);
@@ -124,7 +154,7 @@ int main() {
   assert(forward.last.header.transport == "esp_now");
   assert(forward.last.header.gateway_id == "node_relay01");
   assert(forward.last.header.node_id == "node_child01");
-  assert(forward.last.header.boot_id == header.boot_id);
+  assert(forward.last.header.boot_id == "boot_0000000000000001");
   assert(forward.last.header.seq == 42);
   assert(forward.last.header.key_epoch == 3);
   assert(forward.last.ciphertext == frame.ciphertext);
@@ -145,11 +175,50 @@ int main() {
       stranger, fake_fragment, sizeof(fake_fragment), metadata);
   assert(forward.count == 1);
 
+  // Exercise retry-cache lifecycle. A frame that failed on Relay-1 remains
+  // queued only while Relay-1 is the active authorized identity. Peer removal
+  // clears the cache and LMK. A later Relay-2 authorization cannot inherit or
+  // resend Relay-1-bound ciphertext.
+  child_radio.fail_send = true;
+  const RelayFrame old_gateway_frame = relay_frame("node_relay01", 43, key);
+  assert(child.send_relay_frame(old_gateway_frame, 2000) ==
+         ProductS5TelemetryError::RADIO_FAILED);
+  assert(child.pending_frames() == 1);
+  const int sends_before_remove = child_radio.send_count;
+
   child.on_s5_peer_removed(relay_mac);
   relay.on_s5_peer_removed(child_mac);
   assert(!child.active_peer());
   assert(!relay.active_peer());
+  assert(!child.active_lmk_resident());
+  assert(!relay.active_lmk_resident());
+  assert(!child.identity_bound());
+  assert(!relay.identity_bound());
+  assert(child.pending_frames() == 0);
 
-  std::cout << "S5_RELIABLE_TELEMETRY_BRIDGE=PASS\n";
+  child_radio.fail_send = false;
+  child.on_s5_peer_installed(relay2_mac, link_key(0x51), 6);
+  child.on_s5_peer_identity_bound(relay2_mac, "node_relay02");
+  assert(child.active_peer());
+  assert(child.identity_bound());
+  assert(child.active_peer_node_id() == "node_relay02");
+  assert(child.tick(3000) == ProductS5TelemetryError::NONE);
+  assert(child_radio.send_count == sends_before_remove);
+  assert(child.send_relay_frame(old_gateway_frame, 3001) ==
+         ProductS5TelemetryError::FRAME_REJECTED);
+  assert(child.pending_frames() == 0);
+
+  // New data must be rendered for the currently authorized gateway identity;
+  // it is not a re-homed copy of the old gateway-bound RelayFrame.
+  const RelayFrame relay2_frame = relay_frame("node_relay02", 44, key);
+  assert(child.send_relay_frame(relay2_frame, 3002) == ProductS5TelemetryError::NONE ||
+         child.last_error() == ProductS5TelemetryError::RADIO_FAILED);
+
+  child.on_s5_peer_removed(relay2_mac);
+  assert(!child.active_lmk_resident());
+  assert(!child.identity_bound());
+  assert(child.pending_frames() == 0);
+
+  std::cout << "S5_RELIABLE_LINK_LIFECYCLE_GATEWAY_BINDING=PASS\n";
   return 0;
 }
