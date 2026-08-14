@@ -72,7 +72,7 @@ jobs:
       - name: Ruff S4 implementation and tests
         working-directory: host/greenhouse-manager
         run: >-
-          python -m ruff check
+          python -m ruff check --output-format=github
           src/greenhouse_manager/runtime/n3w_product_peer_authorization.py
           tests/runtime/test_n3w_product_peer_authorization.py
 
