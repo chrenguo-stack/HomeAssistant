@@ -161,7 +161,7 @@ class FakeManager final : public ProductS5ManagerPort {
       FakeClock *clock,
       ProductS5NodeCredentials child,
       ProductS5NodeCredentials relay)
-      : clock_(clock), child_(child), relay_(relay) {}
+      : clock_(clock), child_(std::move(child)), relay_(std::move(relay)) {}
 
   bool submit_peer_authorization(const ProductPeerRequest &request) override {
     assert(request.valid_shape(true));
@@ -172,11 +172,6 @@ class FakeManager final : public ProductS5ManagerPort {
 
   void attach(ProductS5PeerCoordinator *relay_coordinator) {
     relay_coordinator_ = relay_coordinator;
-  }
-
-  void reset_submission() {
-    submitted = false;
-    request_.reset();
   }
 
   std::pair<ProductPeerGrant, ProductPeerGrant> grants() const {
@@ -287,233 +282,207 @@ void enter_discovery(ProductEspNowRuntime *runtime) {
   assert(runtime->scan_active());
 }
 
-void begin_pairing(
-    FakeClock *clock,
-    FakeManager *manager,
-    ProductS5PeerCoordinator *relay_coordinator) {
-  manager->reset_submission();
-  clock->now += 1001;
-  assert(relay_coordinator->tick() == ProductS5CoordinatorError::NONE);
-  assert(manager->submitted);
-}
-
-void assert_pair_active(
-    ProductS5PeerCoordinator *child_coordinator,
-    ProductS5PeerCoordinator *relay_coordinator,
-    ProductEspNowRuntime *child_runtime,
-    const NetworkRadio &child_radio,
-    const NetworkRadio &relay_radio,
-    const MacAddress &child_mac,
-    const MacAddress &relay_mac) {
-  assert(relay_coordinator->state() == ProductS5PeerState::RELAY_ACTIVE);
-  assert(child_coordinator->state() == ProductS5PeerState::CHILD_ACTIVE);
-  assert(child_runtime->path_state() == AutoPathState::RELAY_ACTIVE);
-  assert(child_runtime->relay_telemetry_ready());
-  assert(child_radio.encrypted_peer);
-  assert(relay_radio.encrypted_peer);
-  assert(child_radio.peer_mac_ == relay_mac);
-  assert(relay_radio.peer_mac_ == child_mac);
-  assert(child_radio.lmk_ == relay_radio.lmk_);
-  LinkKey zero{};
-  assert(child_radio.lmk_ != zero);
-  assert(child_coordinator->active_authorization_id() == kAuthorizationId);
-  assert(relay_coordinator->active_authorization_id() == kAuthorizationId);
-  assert(!child_coordinator->ephemeral_private_resident());
-  assert(!relay_coordinator->ephemeral_private_resident());
-  assert(!child_coordinator->cached_runtime_lmk_resident());
-  assert(!relay_coordinator->cached_runtime_lmk_resident());
-}
-
-}  // namespace
-
-int main() {
-  FakeClock clock;
-  const MacAddress child_mac{0x02, 0x11, 0x22, 0x33, 0x44, 0x55};
-  const MacAddress relay_mac{0x02, 0xaa, 0xbb, 0xcc, 0xdd, 0xee};
-  const ProductS5NodeCredentials child_credentials =
-      credentials("node_child01", 7, 9, 0x81);
-  const ProductS5NodeCredentials relay_credentials =
-      credentials("node_relay01", 11, 13, 0xa1);
-
-  DeterministicRandom child_random(0x0123456789abcdefULL, 0x01);
-  DeterministicRandom relay_random(0, 0x11);
-  FakeHealth relay_health;
-  FakeManager manager(&clock, child_credentials, relay_credentials);
-
-  ProductS5PeerCoordinator child_coordinator(
+struct Fixture {
+  FakeClock clock{};
+  MacAddress child_mac{0x02, 0x11, 0x22, 0x33, 0x44, 0x55};
+  MacAddress relay_mac{0x02, 0xaa, 0xbb, 0xcc, 0xdd, 0xee};
+  ProductS5NodeCredentials child_credentials{credentials("node_child01", 7, 9, 0x81)};
+  ProductS5NodeCredentials relay_credentials{credentials("node_relay01", 11, 13, 0xa1)};
+  DeterministicRandom child_random{0x0123456789abcdefULL, 0x01};
+  DeterministicRandom relay_random{0, 0x11};
+  FakeHealth relay_health{};
+  FakeManager manager{&clock, child_credentials, relay_credentials};
+  ProductS5PeerCoordinator child_coordinator{
       ProductS5Role::CHILD,
       child_mac,
       child_credentials,
       &clock,
       &child_random,
       nullptr,
-      nullptr);
-  ProductS5PeerCoordinator relay_coordinator(
+      nullptr};
+  ProductS5PeerCoordinator relay_coordinator{
       ProductS5Role::RELAY,
       relay_mac,
       relay_credentials,
       &clock,
       &relay_random,
       &relay_health,
-      &manager);
-  manager.attach(&relay_coordinator);
+      &manager};
+  NetworkRadio child_inner{child_mac};
+  NetworkRadio relay_inner{relay_mac};
+  ProductS5RadioMux child_mux{&child_inner, &child_coordinator};
+  ProductS5RadioMux relay_mux{&relay_inner, &relay_coordinator};
+  ProductEspNowRuntime child_runtime{make_runtime(&child_mux, &clock, &child_coordinator)};
+  ProductEspNowRuntime relay_runtime{make_runtime(&relay_mux, &clock, &relay_coordinator)};
 
-  NetworkRadio child_inner(child_mac);
-  NetworkRadio relay_inner(relay_mac);
-  child_inner.connect(&relay_inner);
-  relay_inner.connect(&child_inner);
-  ProductS5RadioMux child_mux(&child_inner, &child_coordinator);
-  ProductS5RadioMux relay_mux(&relay_inner, &relay_coordinator);
-  ProductEspNowRuntime child_runtime = make_runtime(&child_mux, &clock, &child_coordinator);
-  ProductEspNowRuntime relay_runtime = make_runtime(&relay_mux, &clock, &relay_coordinator);
-  assert(child_coordinator.attach(&child_runtime, &child_mux) == ProductS5CoordinatorError::NONE);
-  assert(relay_coordinator.attach(&relay_runtime, &relay_mux) == ProductS5CoordinatorError::NONE);
+  Fixture() {
+    manager.attach(&relay_coordinator);
+    child_inner.connect(&relay_inner);
+    relay_inner.connect(&child_inner);
+    assert(child_coordinator.attach(&child_runtime, &child_mux) == ProductS5CoordinatorError::NONE);
+    assert(relay_coordinator.attach(&relay_runtime, &relay_mux) == ProductS5CoordinatorError::NONE);
+    assert(child_runtime.start(pmk(0x10)) == ProductRuntimeError::NONE);
+    assert(relay_runtime.start(pmk(0x30)) == ProductRuntimeError::NONE);
+    assert(child_runtime.set_last_direct_channel(6) == ProductRuntimeError::NONE);
+    assert(relay_runtime.set_last_direct_channel(6) == ProductRuntimeError::NONE);
+    enter_discovery(&child_runtime);
+    LocalRelayAdvertisement advertisement;
+    advertisement.enabled = true;
+    advertisement.gateway_id = relay_credentials.node_id;
+    advertisement.channel = 6;
+    advertisement.advertisement_generation = 1;
+    assert(relay_runtime.set_local_relay_advertisement(advertisement) == ProductRuntimeError::NONE);
+  }
 
-  assert(child_runtime.start(pmk(0x10)) == ProductRuntimeError::NONE);
-  assert(relay_runtime.start(pmk(0x30)) == ProductRuntimeError::NONE);
-  assert(child_runtime.set_last_direct_channel(6) == ProductRuntimeError::NONE);
-  assert(relay_runtime.set_last_direct_channel(6) == ProductRuntimeError::NONE);
-  enter_discovery(&child_runtime);
+  ~Fixture() {
+    relay_coordinator.reset();
+    child_runtime.stop();
+    relay_runtime.stop();
+    child_coordinator.reset();
+  }
 
-  LocalRelayAdvertisement advertisement;
-  advertisement.enabled = true;
-  advertisement.gateway_id = relay_credentials.node_id;
-  advertisement.channel = 6;
-  advertisement.advertisement_generation = 1;
-  assert(relay_runtime.set_local_relay_advertisement(advertisement) == ProductRuntimeError::NONE);
+  void begin_pairing() {
+    assert(relay_coordinator.tick() == ProductS5CoordinatorError::NONE);
+    assert(manager.submitted);
+    assert(child_coordinator.state() == ProductS5PeerState::CHILD_WAIT_GRANT);
+    assert(relay_coordinator.state() == ProductS5PeerState::RELAY_WAIT_MANAGER);
+  }
 
-  // First provisional exchange. Manager grant binding tamper must be rejected
-  // before either endpoint installs a peer, while a valid grant can still
-  // complete the same pending request.
-  assert(relay_coordinator.tick() == ProductS5CoordinatorError::NONE);
-  assert(manager.submitted);
-  assert(child_coordinator.state() == ProductS5PeerState::CHILD_WAIT_GRANT);
-  assert(relay_coordinator.state() == ProductS5PeerState::RELAY_WAIT_MANAGER);
-  assert(child_coordinator.ephemeral_private_resident());
-  assert(relay_coordinator.ephemeral_private_resident());
-  assert(child_inner.add_peer_count == 0);
-  assert(relay_inner.add_peer_count == 0);
+  void assert_pair_active() {
+    assert(relay_coordinator.state() == ProductS5PeerState::RELAY_ACTIVE);
+    assert(child_coordinator.state() == ProductS5PeerState::CHILD_ACTIVE);
+    assert(child_runtime.path_state() == AutoPathState::RELAY_ACTIVE);
+    assert(child_runtime.relay_telemetry_ready());
+    assert(child_inner.encrypted_peer);
+    assert(relay_inner.encrypted_peer);
+    assert(child_inner.peer_mac_ == relay_mac);
+    assert(relay_inner.peer_mac_ == child_mac);
+    assert(child_inner.lmk_ == relay_inner.lmk_);
+    LinkKey zero{};
+    assert(child_inner.lmk_ != zero);
+    assert(child_coordinator.active_authorization_id() == kAuthorizationId);
+    assert(relay_coordinator.active_authorization_id() == kAuthorizationId);
+    assert(!child_coordinator.ephemeral_private_resident());
+    assert(!relay_coordinator.ephemeral_private_resident());
+    assert(!child_coordinator.cached_runtime_lmk_resident());
+    assert(!relay_coordinator.cached_runtime_lmk_resident());
+  }
+};
 
-  auto tampered = manager.grants();
+void grant_binding_duplicate_and_revoke_matrix() {
+  Fixture fixture;
+  fixture.begin_pairing();
+  assert(fixture.child_coordinator.ephemeral_private_resident());
+  assert(fixture.relay_coordinator.ephemeral_private_resident());
+  assert(fixture.child_inner.add_peer_count == 0);
+  assert(fixture.relay_inner.add_peer_count == 0);
+
+  auto tampered = fixture.manager.grants();
   ++tampered.first.relay_credential_generation;
-  assert(relay_coordinator.accept_manager_authorization(tampered.first, tampered.second) ==
+  assert(fixture.relay_coordinator.accept_manager_authorization(tampered.first, tampered.second) ==
          ProductS5CoordinatorError::STATE_REJECTED);
-  assert(!child_inner.encrypted_peer);
-  assert(!relay_inner.encrypted_peer);
-  manager.deliver();
-  assert_pair_active(
-      &child_coordinator,
-      &relay_coordinator,
-      &child_runtime,
-      child_inner,
-      relay_inner,
-      child_mac,
-      relay_mac);
+  assert(!fixture.child_inner.encrypted_peer);
+  assert(!fixture.relay_inner.encrypted_peer);
 
-  // Duplicate grant delivery after activation is state-rejected and cannot
-  // install a second peer.
-  const int child_adds_after_first = child_inner.add_peer_count;
-  const int relay_adds_after_first = relay_inner.add_peer_count;
-  auto duplicate = manager.grants();
-  assert(relay_coordinator.accept_manager_authorization(duplicate.first, duplicate.second) ==
+  fixture.manager.deliver();
+  fixture.assert_pair_active();
+  const int child_adds = fixture.child_inner.add_peer_count;
+  const int relay_adds = fixture.relay_inner.add_peer_count;
+  auto duplicate = fixture.manager.grants();
+  assert(fixture.relay_coordinator.accept_manager_authorization(duplicate.first, duplicate.second) ==
          ProductS5CoordinatorError::STATE_REJECTED);
-  assert(child_inner.add_peer_count == child_adds_after_first);
-  assert(relay_inner.add_peer_count == relay_adds_after_first);
+  assert(fixture.child_inner.add_peer_count == child_adds);
+  assert(fixture.relay_inner.add_peer_count == relay_adds);
 
-  // Explicit revoke is authorization-ID-bound. A wrong ID is fail-closed and
-  // leaves the active peer untouched. Matching revocation removes each local
-  // dynamic peer and returns the Child to rediscovery without a manual PATH.
   const std::string wrong_authorization = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
-  assert(relay_coordinator.revoke_active_authorization(wrong_authorization) ==
+  assert(fixture.relay_coordinator.revoke_active_authorization(wrong_authorization) ==
          ProductS5CoordinatorError::STATE_REJECTED);
-  assert(child_coordinator.revoke_active_authorization(wrong_authorization) ==
+  assert(fixture.child_coordinator.revoke_active_authorization(wrong_authorization) ==
          ProductS5CoordinatorError::STATE_REJECTED);
-  assert(child_inner.encrypted_peer);
-  assert(relay_inner.encrypted_peer);
-  assert(relay_coordinator.revoke_active_authorization(kAuthorizationId) ==
+  assert(fixture.child_inner.encrypted_peer);
+  assert(fixture.relay_inner.encrypted_peer);
+
+  assert(fixture.relay_coordinator.revoke_active_authorization(kAuthorizationId) ==
          ProductS5CoordinatorError::NONE);
-  assert(child_coordinator.revoke_active_authorization(kAuthorizationId) ==
+  assert(fixture.child_coordinator.revoke_active_authorization(kAuthorizationId) ==
          ProductS5CoordinatorError::NONE);
-  assert(!child_inner.encrypted_peer);
-  assert(!relay_inner.encrypted_peer);
-  assert(child_coordinator.state() == ProductS5PeerState::IDLE);
-  assert(relay_coordinator.state() == ProductS5PeerState::IDLE);
-  assert(child_runtime.path_state() == AutoPathState::REDISCOVERY ||
-         child_runtime.path_state() == AutoPathState::DISCOVERY);
-  assert(child_runtime.scan_active());
-  assert(child_coordinator.active_authorization_id().empty());
-  assert(relay_coordinator.active_authorization_id().empty());
+  assert(!fixture.child_inner.encrypted_peer);
+  assert(!fixture.relay_inner.encrypted_peer);
+  assert(fixture.child_coordinator.state() == ProductS5PeerState::IDLE);
+  assert(fixture.relay_coordinator.state() == ProductS5PeerState::IDLE);
+  assert(fixture.child_runtime.path_state() == AutoPathState::REDISCOVERY ||
+         fixture.child_runtime.path_state() == AutoPathState::DISCOVERY);
+  assert(fixture.child_runtime.scan_active());
+  assert(fixture.child_coordinator.active_authorization_id().empty());
+  assert(fixture.relay_coordinator.active_authorization_id().empty());
+}
 
-  // Re-establish a fresh dynamic peer and prove finite grant expiry removes
-  // both peers and all cached/ephemeral material.
-  begin_pairing(&clock, &manager, &relay_coordinator);
-  manager.deliver();
-  assert_pair_active(
-      &child_coordinator,
-      &relay_coordinator,
-      &child_runtime,
-      child_inner,
-      relay_inner,
-      child_mac,
-      relay_mac);
-  clock.now += 30001;
-  assert(relay_coordinator.tick() == ProductS5CoordinatorError::NONE);
-  assert(!relay_inner.encrypted_peer);
-  assert(relay_coordinator.state() == ProductS5PeerState::IDLE);
-  assert(child_coordinator.tick() == ProductS5CoordinatorError::NONE);
-  assert(!child_inner.encrypted_peer);
-  assert(child_coordinator.state() == ProductS5PeerState::IDLE);
-  assert(!child_coordinator.ephemeral_private_resident());
-  assert(!relay_coordinator.ephemeral_private_resident());
-  assert(!child_coordinator.cached_runtime_lmk_resident());
+void finite_expiry_matrix() {
+  Fixture fixture;
+  fixture.begin_pairing();
+  fixture.manager.deliver();
+  fixture.assert_pair_active();
+  fixture.clock.now += 30001;
+  assert(fixture.relay_coordinator.tick() == ProductS5CoordinatorError::NONE);
+  assert(!fixture.relay_inner.encrypted_peer);
+  assert(fixture.relay_coordinator.state() == ProductS5PeerState::IDLE);
+  assert(fixture.child_coordinator.tick() == ProductS5CoordinatorError::NONE);
+  assert(!fixture.child_inner.encrypted_peer);
+  assert(fixture.child_coordinator.state() == ProductS5PeerState::IDLE);
+  assert(!fixture.child_coordinator.ephemeral_private_resident());
+  assert(!fixture.relay_coordinator.ephemeral_private_resident());
+  assert(!fixture.child_coordinator.cached_runtime_lmk_resident());
+}
 
-  // Interrupted pre-auth/Manager exchange times out without creating an
-  // encrypted peer. Pending request and ephemeral private key material are
-  // cleared on both endpoints.
-  begin_pairing(&clock, &manager, &relay_coordinator);
-  assert(child_coordinator.state() == ProductS5PeerState::CHILD_WAIT_GRANT);
-  assert(relay_coordinator.state() == ProductS5PeerState::RELAY_WAIT_MANAGER);
-  assert(child_coordinator.has_pending_request());
-  assert(relay_coordinator.has_pending_request());
-  assert(child_coordinator.ephemeral_private_resident());
-  assert(relay_coordinator.ephemeral_private_resident());
-  clock.now += 20001;
-  assert(relay_coordinator.tick() == ProductS5CoordinatorError::NONE);
-  assert(child_coordinator.tick() == ProductS5CoordinatorError::NONE);
-  assert(child_coordinator.state() == ProductS5PeerState::IDLE);
-  assert(relay_coordinator.state() == ProductS5PeerState::IDLE);
-  assert(!child_coordinator.has_pending_request());
-  assert(!relay_coordinator.has_pending_request());
-  assert(!child_coordinator.ephemeral_private_resident());
-  assert(!relay_coordinator.ephemeral_private_resident());
-  assert(!child_coordinator.cached_runtime_lmk_resident());
-  assert(!relay_coordinator.cached_runtime_lmk_resident());
-  assert(!child_inner.encrypted_peer);
-  assert(!relay_inner.encrypted_peer);
+void interrupted_handshake_timeout_matrix() {
+  Fixture fixture;
+  fixture.begin_pairing();
+  assert(fixture.child_coordinator.has_pending_request());
+  assert(fixture.relay_coordinator.has_pending_request());
+  assert(fixture.child_coordinator.ephemeral_private_resident());
+  assert(fixture.relay_coordinator.ephemeral_private_resident());
+  fixture.clock.now += 20001;
+  assert(fixture.relay_coordinator.tick() == ProductS5CoordinatorError::NONE);
+  assert(fixture.child_coordinator.tick() == ProductS5CoordinatorError::NONE);
+  assert(fixture.child_coordinator.state() == ProductS5PeerState::IDLE);
+  assert(fixture.relay_coordinator.state() == ProductS5PeerState::IDLE);
+  assert(!fixture.child_coordinator.has_pending_request());
+  assert(!fixture.relay_coordinator.has_pending_request());
+  assert(!fixture.child_coordinator.ephemeral_private_resident());
+  assert(!fixture.relay_coordinator.ephemeral_private_resident());
+  assert(!fixture.child_coordinator.cached_runtime_lmk_resident());
+  assert(!fixture.relay_coordinator.cached_runtime_lmk_resident());
+  assert(!fixture.child_inner.encrypted_peer);
+  assert(!fixture.relay_inner.encrypted_peer);
+}
 
-  // A final active session is torn down using the same ordering used by the
-  // board integration destructor: Relay coordinator reset first, then Child
-  // runtime stop. No peer/LMK survives a node restart boundary.
-  begin_pairing(&clock, &manager, &relay_coordinator);
-  manager.deliver();
-  assert_pair_active(
-      &child_coordinator,
-      &relay_coordinator,
-      &child_runtime,
-      child_inner,
-      relay_inner,
-      child_mac,
-      relay_mac);
-  relay_coordinator.reset();
-  child_runtime.stop();
-  relay_runtime.stop();
-  assert(!relay_inner.encrypted_peer);
-  assert(!child_inner.encrypted_peer);
-  assert(relay_coordinator.state() == ProductS5PeerState::IDLE);
-  assert(child_coordinator.state() == ProductS5PeerState::IDLE);
-  assert(!child_coordinator.ephemeral_private_resident());
-  assert(!relay_coordinator.ephemeral_private_resident());
+void restart_teardown_matrix() {
+  Fixture fixture;
+  fixture.begin_pairing();
+  fixture.manager.deliver();
+  fixture.assert_pair_active();
 
+  // Same ordering as board integration destruction: Relay-owned direct peer
+  // is removed before radio shutdown; Child runtime then removes its active
+  // dynamic peer. No local peer or LMK survives the restart boundary.
+  fixture.relay_coordinator.reset();
+  fixture.child_runtime.stop();
+  fixture.relay_runtime.stop();
+  assert(!fixture.relay_inner.encrypted_peer);
+  assert(!fixture.child_inner.encrypted_peer);
+  assert(fixture.relay_coordinator.state() == ProductS5PeerState::IDLE);
+  assert(fixture.child_coordinator.state() == ProductS5PeerState::IDLE);
+  assert(!fixture.child_coordinator.ephemeral_private_resident());
+  assert(!fixture.relay_coordinator.ephemeral_private_resident());
+}
+
+}  // namespace
+
+int main() {
+  grant_binding_duplicate_and_revoke_matrix();
+  finite_expiry_matrix();
+  interrupted_handshake_timeout_matrix();
+  restart_teardown_matrix();
   std::cout << "S5_LIFECYCLE_NEGATIVE_PEER_MATRIX=PASS\n";
   return 0;
 }
