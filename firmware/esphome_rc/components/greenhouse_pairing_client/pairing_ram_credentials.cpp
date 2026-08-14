@@ -1,6 +1,7 @@
 #include "pairing_ram_credentials.h"
 
 #include <algorithm>
+#include <cctype>
 
 #include "pairing_client_core.h"
 #include "secure_pairing_channel.h"
@@ -15,6 +16,14 @@ void secure_clear(std::string *value) {
   std::fill(value->begin(), value->end(), '\0');
   value->clear();
   value->shrink_to_fit();
+}
+
+bool valid_base64url_32(const std::string &value) {
+  if (value.size() != 43)
+    return false;
+  return std::all_of(value.begin(), value.end(), [](unsigned char c) {
+    return std::isalnum(c) != 0 || c == '_' || c == '-';
+  });
 }
 
 }  // namespace
@@ -51,10 +60,15 @@ void RamCredentialBundle::move_from_(RamCredentialBundle *other) {
   this->mqtt_client_id = other->mqtt_client_id;
   this->credential_generation = other->credential_generation;
   this->mqtt_password = other->mqtt_password;
+  this->n3w_key_epoch = other->n3w_key_epoch;
+  this->n3w_application_key = other->n3w_application_key;
   other->clear();
 }
 
 bool RamCredentialBundle::valid() const {
+  const bool n3w_valid =
+      (this->n3w_key_epoch == 0 && this->n3w_application_key.empty()) ||
+      (this->n3w_key_epoch != 0 && valid_base64url_32(this->n3w_application_key));
   return this->schema == CREDENTIALS_CONTENT_TYPE &&
          PairingClientCore::valid_identifier(this->system_id) &&
          PairingClientCore::valid_identifier(this->node_id) &&
@@ -63,11 +77,16 @@ bool RamCredentialBundle::valid() const {
          this->ca_pem.size() <= 8192 && PairingClientCore::valid_identifier(this->mqtt_username) &&
          PairingClientCore::valid_identifier(this->mqtt_client_id) &&
          this->credential_generation != 0 && !this->mqtt_password.empty() &&
-         this->mqtt_password.size() <= 512;
+         this->mqtt_password.size() <= 512 && n3w_valid;
 }
 
 bool RamCredentialBundle::present() const {
-  return !this->node_id.empty() || !this->mqtt_password.empty() || this->credential_generation != 0;
+  return !this->node_id.empty() || !this->mqtt_password.empty() || this->credential_generation != 0 ||
+         this->n3w_key_epoch != 0 || !this->n3w_application_key.empty();
+}
+
+bool RamCredentialBundle::has_n3w_credentials() const {
+  return this->n3w_key_epoch != 0 && valid_base64url_32(this->n3w_application_key);
 }
 
 std::string RamCredentialBundle::delivery_ack_json() const {
@@ -89,8 +108,10 @@ void RamCredentialBundle::clear() {
   secure_clear(&this->mqtt_username);
   secure_clear(&this->mqtt_client_id);
   secure_clear(&this->mqtt_password);
+  secure_clear(&this->n3w_application_key);
   this->broker_port = 0;
   this->credential_generation = 0;
+  this->n3w_key_epoch = 0;
 }
 
 }  // namespace esphome::greenhouse_pairing_client
