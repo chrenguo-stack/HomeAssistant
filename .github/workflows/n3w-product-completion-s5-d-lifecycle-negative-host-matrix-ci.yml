@@ -88,7 +88,12 @@ jobs:
           assert d['starting_head'] == '259670af65f3a5fdd9209e78bf06ce3d57972a71'
           assert d['scope']['authorization_id_bound_explicit_revoke'] is True
           assert d['scope']['gateway_bound_relayframe_not_rehomed'] is True
+          assert d['scope']['manager_epoch_request_freshness'] is True
+          assert d['scope']['endpoint_monotonic_grant_lifetime'] is True
+          assert d['scope']['manager_authority_clock_unavailable_fail_closed'] is True
           assert d['required_invariants']['old_gateway_bound_relayframe_may_move_to_new_relay'] is False
+          assert d['required_invariants']['endpoint_monotonic_clock_treated_as_manager_epoch'] is False
+          assert d['required_invariants']['grant_absolute_manager_epoch_reused_as_local_runtime_deadline'] is False
           assert d['required_invariants']['wifi_recovery_switchback_in_scope'] is False
           assert d['classification']['s5_full_two_board_e2e'] == 'PENDING'
           PY
