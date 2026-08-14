@@ -139,9 +139,11 @@ def test_product_key_is_staged_after_approval_and_activated_only_after_ack(produ
     assert len(provisioner.provisioned) == 1
     with pytest.raises(KeyError):
         credential_store.get(HARDWARE_ID)
-    with ProductNodeApplicationKeyProvider(database, key_dir) as provider:
-        with pytest.raises(PeerAuthorizationRejected, match="key_epoch_rejected"):
-            provider.resolve_node_application_key(node_id=NODE_ID, key_epoch=1)
+    with (
+        ProductNodeApplicationKeyProvider(database, key_dir) as provider,
+        pytest.raises(PeerAuthorizationRejected, match="key_epoch_rejected"),
+    ):
+        provider.resolve_node_application_key(node_id=NODE_ID, key_epoch=1)
 
     consumed = product.acknowledge_delivery(offer.session_id, now=NOW)
 
