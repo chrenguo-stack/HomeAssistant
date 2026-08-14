@@ -1,6 +1,7 @@
 #include "n3w_product_s5_peer_coordinator.h"
 
 #include <algorithm>
+#include <limits>
 #include <utility>
 
 namespace esphome::greenhouse_n3w_product_runtime {
@@ -122,6 +123,7 @@ void ProductS5PeerCoordinator::clear_pending_(bool remove_relay_peer) {
   active_authorization_id_.clear();
   pending_channel_ = 0;
   session_token_ = 0;
+  handshake_started_at_ms_ = 0;
   deadline_ms_ = 0;
   active_expires_at_ms_ = 0;
   state_ = ProductS5PeerState::IDLE;
@@ -246,13 +248,15 @@ ProductS5CoordinatorError ProductS5PeerCoordinator::start_child_provisional_(
   request.child.ephemeral_public_key = child_public;
   request.child.nonce = nonce;
 
+  const uint64_t local_now_ms = clock_->now_ms();
   session_token_ = token;
   local_ephemeral_private_ = child_private;
   child_candidate_ = observation;
   pending_channel_ = observation.channel;
   pending_request_ = request;
   state_ = ProductS5PeerState::CHILD_WAIT_CHALLENGE;
-  deadline_ms_ = clock_->now_ms() + policy_.peer_handshake_timeout_ms;
+  handshake_started_at_ms_ = local_now_ms;
+  deadline_ms_ = local_now_ms + policy_.peer_handshake_timeout_ms;
   const ProductS5CoordinatorError sent = send_broadcast_(observation.channel, encoded);
   if (sent != ProductS5CoordinatorError::NONE) clear_pending_(false);
   zeroize_(child_private.data(), child_private.size());
@@ -293,19 +297,21 @@ ProductS5CoordinatorError ProductS5PeerCoordinator::accept_child_auth_init_(
     return ProductS5CoordinatorError::CRYPTO_FAILED;
   }
 
-  const uint64_t now_ms = clock_->now_ms();
+  const uint64_t local_now_ms = clock_->now_ms();
+  uint64_t authority_now_ms = 0;
   ProductRelayHealth health;
-  if (relay_health_ == nullptr || !relay_health_->read_health(now_ms, &health) ||
+  if (manager_ == nullptr || !manager_->authority_now_ms(&authority_now_ms) || authority_now_ms == 0 ||
+      relay_health_ == nullptr || !relay_health_->read_health(authority_now_ms, &health) ||
       health.observed_at_ms == 0) {
     zeroize_(relay_private.data(), relay_private.size());
     zeroize_(relay_nonce.data(), relay_nonce.size());
-    return ProductS5CoordinatorError::STATE_REJECTED;
+    return ProductS5CoordinatorError::MANAGER_FAILED;
   }
 
   ProductPeerRequest request;
   request.system_id = credentials_.system_id;
   request.session_id = product_session_id(init.session_token);
-  request.requested_at_ms = now_ms;
+  request.requested_at_ms = authority_now_ms;
   request.child.node_id = init.child_node_id;
   request.child.credential_generation = init.child_credential_generation;
   request.child.key_epoch = init.child_key_epoch;
@@ -331,7 +337,7 @@ ProductS5CoordinatorError ProductS5PeerCoordinator::accept_child_auth_init_(
   challenge.relay_key_epoch = credentials_.key_epoch;
   challenge.relay_ephemeral_public_key = relay_public;
   challenge.relay_nonce = relay_nonce;
-  challenge.requested_at_ms = now_ms;
+  challenge.requested_at_ms = authority_now_ms;
   challenge.relay_health = health;
   std::vector<uint8_t> encoded;
   if (!encode_relay_challenge(challenge, &encoded)) {
@@ -346,7 +352,8 @@ ProductS5CoordinatorError ProductS5PeerCoordinator::accept_child_auth_init_(
   pending_channel_ = metadata.channel;
   pending_request_ = request;
   state_ = ProductS5PeerState::RELAY_WAIT_CHILD_PROOF;
-  deadline_ms_ = now_ms + policy_.peer_handshake_timeout_ms;
+  handshake_started_at_ms_ = local_now_ms;
+  deadline_ms_ = local_now_ms + policy_.peer_handshake_timeout_ms;
   const ProductS5CoordinatorError sent = send_broadcast_(metadata.channel, encoded);
   if (sent != ProductS5CoordinatorError::NONE) clear_pending_(false);
   zeroize_(relay_private.data(), relay_private.size());
@@ -438,6 +445,26 @@ bool ProductS5PeerCoordinator::grant_matches_pending_(
          grant.child_nonce == request.child.nonce && grant.relay_nonce == request.relay.nonce;
 }
 
+bool ProductS5PeerCoordinator::local_grant_expiry_(
+    const ProductPeerGrant &grant,
+    uint64_t local_now_ms,
+    uint64_t *local_expires_at_ms) const {
+  if (local_expires_at_ms == nullptr || !grant.valid_shape() ||
+      local_now_ms < handshake_started_at_ms_) {
+    return false;
+  }
+  const uint64_t signed_lifetime_ms = grant.expires_at_ms - grant.issued_at_ms;
+  const uint64_t elapsed_since_handshake_ms = local_now_ms - handshake_started_at_ms_;
+  if (signed_lifetime_ms == 0 || signed_lifetime_ms > policy_.max_grant_lifetime_ms ||
+      elapsed_since_handshake_ms >= signed_lifetime_ms) {
+    return false;
+  }
+  const uint64_t remaining_ms = signed_lifetime_ms - elapsed_since_handshake_ms;
+  if (remaining_ms > std::numeric_limits<uint64_t>::max() - local_now_ms) return false;
+  *local_expires_at_ms = local_now_ms + remaining_ms;
+  return *local_expires_at_ms > local_now_ms;
+}
+
 ProductS5CoordinatorError ProductS5PeerCoordinator::accept_manager_authorization(
     const ProductPeerGrant &child_grant,
     const ProductPeerGrant &relay_grant) {
@@ -450,19 +477,27 @@ ProductS5CoordinatorError ProductS5PeerCoordinator::accept_manager_authorization
       child_grant.authorization_epoch != relay_grant.authorization_epoch) {
     return ProductS5CoordinatorError::STATE_REJECTED;
   }
-  const uint64_t now_ms = clock_->now_ms();
-  if (!ProductPeerSecurity::verify_endpoint_grant(relay_grant, relay_auth_key_, now_ms)) {
+  uint64_t authority_now_ms = 0;
+  if (manager_ == nullptr || !manager_->authority_now_ms(&authority_now_ms) || authority_now_ms == 0 ||
+      !ProductPeerSecurity::verify_endpoint_grant(relay_grant, relay_auth_key_, authority_now_ms)) {
     return ProductS5CoordinatorError::CRYPTO_FAILED;
   }
-  return install_relay_peer_and_forward_child_grant_(child_grant, relay_grant, now_ms);
+  const uint64_t local_now_ms = clock_->now_ms();
+  uint64_t local_expires_at_ms = 0;
+  if (!local_grant_expiry_(relay_grant, local_now_ms, &local_expires_at_ms)) {
+    return ProductS5CoordinatorError::EXPIRED;
+  }
+  return install_relay_peer_and_forward_child_grant_(
+      child_grant, relay_grant, local_now_ms, local_expires_at_ms);
 }
 
 ProductS5CoordinatorError ProductS5PeerCoordinator::install_relay_peer_and_forward_child_grant_(
     const ProductPeerGrant &child_grant,
     const ProductPeerGrant &relay_grant,
-    uint64_t now_ms) {
+    uint64_t local_now_ms,
+    uint64_t local_expires_at_ms) {
   if (!pending_request_.has_value() || !relay_pending_child_mac_.has_value() || radio_ == nullptr ||
-      now_ms < relay_grant.issued_at_ms || now_ms >= relay_grant.expires_at_ms) {
+      local_expires_at_ms <= local_now_ms) {
     return ProductS5CoordinatorError::STATE_REJECTED;
   }
   LinkKey lmk{};
@@ -502,7 +537,7 @@ ProductS5CoordinatorError ProductS5PeerCoordinator::install_relay_peer_and_forwa
   relay_active_child_mac_ = child_mac;
   relay_pending_child_mac_.reset();
   active_authorization_id_ = relay_grant.authorization_id;
-  active_expires_at_ms_ = relay_grant.expires_at_ms;
+  active_expires_at_ms_ = local_expires_at_ms;
   deadline_ms_ = 0;
   state_ = ProductS5PeerState::RELAY_ACTIVE;
   clear_ephemeral_();
@@ -512,7 +547,9 @@ ProductS5CoordinatorError ProductS5PeerCoordinator::install_relay_peer_and_forwa
 }
 
 RelayCandidateEligibility ProductS5PeerCoordinator::eligibility_from_grant_(
-    const ProductPeerGrant &grant) const {
+    const ProductPeerGrant &grant,
+    uint64_t local_now_ms,
+    uint64_t local_expires_at_ms) const {
   RelayCandidateEligibility eligibility;
   eligibility.manager_verified = true;
   eligibility.registered = true;
@@ -529,14 +566,16 @@ RelayCandidateEligibility ProductS5PeerCoordinator::eligibility_from_grant_(
   eligibility.load_pct = eligibility.overloaded ? 100 : 0;
   eligibility.battery_pct = eligibility.low_battery ? 1 : 100;
   eligibility.credential_generation = grant.relay_credential_generation;
-  eligibility.verified_at_ms = grant.issued_at_ms;
-  eligibility.valid_until_ms = grant.expires_at_ms;
+  eligibility.verified_at_ms = local_now_ms;
+  eligibility.valid_until_ms = local_expires_at_ms;
   return eligibility;
 }
 
 RuntimePeerMaterial ProductS5PeerCoordinator::runtime_material_from_grant_(
     const ProductPeerGrant &grant,
-    const LinkKey &lmk) const {
+    const LinkKey &lmk,
+    uint64_t local_now_ms,
+    uint64_t local_expires_at_ms) const {
   RuntimePeerMaterial material;
   if (!child_candidate_.has_value()) return material;
   material.authorization.authorization_id = grant.authorization_id;
@@ -544,8 +583,8 @@ RuntimePeerMaterial ProductS5PeerCoordinator::runtime_material_from_grant_(
   material.authorization.peer_mac = child_candidate_->source_mac;
   material.authorization.channel = child_candidate_->channel;
   material.authorization.relay_credential_generation = grant.relay_credential_generation;
-  material.authorization.issued_at_ms = grant.issued_at_ms;
-  material.authorization.expires_at_ms = grant.expires_at_ms;
+  material.authorization.issued_at_ms = local_now_ms;
+  material.authorization.expires_at_ms = local_expires_at_ms;
   material.authorization.manager_authorized = true;
   material.authorization.same_system = true;
   material.lmk = lmk;
@@ -554,10 +593,10 @@ RuntimePeerMaterial ProductS5PeerCoordinator::runtime_material_from_grant_(
 
 ProductS5CoordinatorError ProductS5PeerCoordinator::install_child_runtime_peer_(
     const ProductPeerGrant &child_grant,
-    uint64_t now_ms) {
+    uint64_t local_now_ms,
+    uint64_t local_expires_at_ms) {
   if (role_ != ProductS5Role::CHILD || !pending_request_.has_value() ||
-      !child_candidate_.has_value() || runtime_ == nullptr ||
-      now_ms < child_grant.issued_at_ms || now_ms >= child_grant.expires_at_ms) {
+      !child_candidate_.has_value() || runtime_ == nullptr || local_expires_at_ms <= local_now_ms) {
     return ProductS5CoordinatorError::STATE_REJECTED;
   }
   LinkKey lmk{};
@@ -565,16 +604,18 @@ ProductS5CoordinatorError ProductS5PeerCoordinator::install_child_runtime_peer_(
           local_ephemeral_private_, pending_request_->relay.ephemeral_public_key, child_grant, &lmk)) {
     return ProductS5CoordinatorError::CRYPTO_FAILED;
   }
-  cached_runtime_material_ = runtime_material_from_grant_(child_grant, lmk);
+  cached_runtime_material_ =
+      runtime_material_from_grant_(child_grant, lmk, local_now_ms, local_expires_at_ms);
   zeroize_(lmk.data(), lmk.size());
-  const RelayCandidateEligibility eligibility = eligibility_from_grant_(child_grant);
-  if (!eligibility.valid_shape() || !eligibility.eligible_at(now_ms)) {
+  const RelayCandidateEligibility eligibility =
+      eligibility_from_grant_(child_grant, local_now_ms, local_expires_at_ms);
+  if (!eligibility.valid_shape() || !eligibility.eligible_at(local_now_ms)) {
     clear_cached_runtime_material_();
     return ProductS5CoordinatorError::STATE_REJECTED;
   }
   state_ = ProductS5PeerState::CHILD_WAIT_RUNTIME_INSTALL;
   active_authorization_id_ = child_grant.authorization_id;
-  active_expires_at_ms_ = child_grant.expires_at_ms;
+  active_expires_at_ms_ = local_expires_at_ms;
   const ProductRuntimeError result = runtime_->apply_manager_eligibility(
       child_candidate_->source_mac, child_candidate_->gateway_id, eligibility);
   if (result != ProductRuntimeError::NONE || state_ != ProductS5PeerState::CHILD_ACTIVE) {
@@ -616,12 +657,16 @@ ProductS5CoordinatorError ProductS5PeerCoordinator::accept_child_grant_(
   grant.expires_at_ms = packet.expires_at_ms;
   grant.authorization_epoch = packet.authorization_epoch;
   grant.grant_mac = packet.child_grant_mac;
-  const uint64_t now_ms = clock_->now_ms();
+  const uint64_t local_now_ms = clock_->now_ms();
+  uint64_t local_expires_at_ms = 0;
   if (!grant_matches_pending_(grant, ProductPeerRole::CHILD) ||
-      !ProductPeerSecurity::verify_endpoint_grant(grant, relay_auth_key_, now_ms)) {
+      !ProductPeerSecurity::verify_endpoint_grant_signature(grant, relay_auth_key_)) {
     return ProductS5CoordinatorError::CRYPTO_FAILED;
   }
-  return install_child_runtime_peer_(grant, now_ms);
+  if (!local_grant_expiry_(grant, local_now_ms, &local_expires_at_ms)) {
+    return ProductS5CoordinatorError::EXPIRED;
+  }
+  return install_child_runtime_peer_(grant, local_now_ms, local_expires_at_ms);
 }
 
 void ProductS5PeerCoordinator::on_authorization_needed(
