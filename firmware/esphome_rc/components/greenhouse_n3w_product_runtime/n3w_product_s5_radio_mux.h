@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 
 #include "n3w_product_runtime.h"
 
@@ -24,6 +25,9 @@ class ProductS5TelemetrySink {
       const MacAddress &peer_mac,
       const LinkKey &lmk,
       uint8_t channel) = 0;
+  virtual void on_s5_peer_identity_bound(
+      const MacAddress &peer_mac,
+      const std::string &peer_node_id) = 0;
   virtual void on_s5_peer_removed(const MacAddress &peer_mac) = 0;
   virtual void on_s5_telemetry_datagram(
       const MacAddress &source,
