@@ -23,6 +23,7 @@ def test_stage_boundary_and_frozen_s1_contracts():
     assert s1["contracts"]["runtime_peer_security"]["system_wide_shared_lmk"] is False
     assert s1["contracts"]["dynamic_node_addition"]["new_node_requires_old_node_peer_injection"] is False
 
+    assert s3["status"] == "IMPLEMENTED_CANDIDATE"
     assert s3["stage"] == "S3_DISCONNECTED_ESPNOW_DISCOVERY_RUNTIME"
     assert s3["scope"]["disconnected_scan"] is True
     assert s3["scope"]["dynamic_advertisement"] is True
@@ -88,6 +89,20 @@ def test_s4_authority_is_not_implemented_in_s3():
     assert "HKDF" not in source
     assert "X25519" not in source
     assert "cryptography" not in source
+
+
+def test_self_review_hardening_and_compile_only_validation_are_recorded():
+    s3 = load(DECISION)
+    hardening = s3["self_review_hardening"]
+    assert all(hardening.values())
+    validation = s3["validation"]
+    assert validation["host_cpp_compile_werror"] is True
+    assert validation["host_behavior_simulation"] is True
+    assert validation["product_contract_tests"] is True
+    assert validation["exact_nine_file_scope_gate"] is True
+    assert validation["esp32c6_compile_only_driver_validation"] is True
+    assert validation["physical_board_execution"] is False
+    assert validation["rf_execution"] is False
 
 
 def test_existing_protocol_reliability_remains_authoritative():
