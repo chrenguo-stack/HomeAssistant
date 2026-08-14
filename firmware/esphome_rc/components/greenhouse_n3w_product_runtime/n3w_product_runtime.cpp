@@ -1,6 +1,7 @@
 #include "n3w_product_runtime.h"
 
 #include <algorithm>
+#include <utility>
 
 namespace esphome::greenhouse_n3w_product_runtime {
 namespace {
@@ -204,6 +205,7 @@ void ProductEspNowRuntime::stop() {
   (void) release_active_peer_();
   scan_active_ = false;
   pending_authorization_mac_.reset();
+  mirrors_.clear();
   radio_->shutdown();
   started_ = false;
 }
@@ -292,6 +294,16 @@ const ProductEspNowRuntime::CandidateMirror *ProductEspNowRuntime::find_mirror_(
   return nullptr;
 }
 
+void ProductEspNowRuntime::prune_mirrors_(uint64_t now_ms) {
+  mirrors_.erase(
+      std::remove_if(mirrors_.begin(), mirrors_.end(), [&](const CandidateMirror &mirror) {
+        const uint64_t observed_at_ms = mirror.record.observation.observed_at_ms;
+        return now_ms < observed_at_ms ||
+               now_ms - observed_at_ms > candidate_policy_.observation_ttl_ms;
+      }),
+      mirrors_.end());
+}
+
 void ProductEspNowRuntime::mirror_observation_(
     const RelayCandidateObservation &observation) {
   CandidateMirror *existing = find_mirror_(observation.source_mac);
@@ -325,12 +337,15 @@ ProductRuntimeError ProductEspNowRuntime::apply_manager_eligibility(
     const std::string &gateway_id,
     const RelayCandidateEligibility &eligibility) {
   if (!started_) return ProductRuntimeError::NOT_READY;
+  const uint64_t now_ms = clock_->now_ms();
+  orchestration_.maintenance(now_ms);
+  prune_mirrors_(now_ms);
   const ProductCoreError error = orchestration_.apply_manager_eligibility(
       source_mac, gateway_id, eligibility);
   if (error != ProductCoreError::NONE) return ProductRuntimeError::CORE_ERROR;
   mirror_eligibility_(source_mac, eligibility);
-  next_candidate_select_ms_ = clock_->now_ms();
-  return maybe_select_candidate_(clock_->now_ms());
+  next_candidate_select_ms_ = now_ms;
+  return maybe_select_candidate_(now_ms);
 }
 
 ProductRuntimeError ProductEspNowRuntime::maybe_select_candidate_(uint64_t now_ms) {
@@ -351,7 +366,8 @@ ProductRuntimeError ProductEspNowRuntime::maybe_select_candidate_(uint64_t now_m
   pending_authorization_mac_ = mirror->record.observation.source_mac;
   stop_scan_();
   if (radio_->set_channel(mirror->record.observation.channel) != DriverError::NONE) {
-    return fail_pending_authorization_(now_ms);
+    const ProductRuntimeError recovery = fail_pending_authorization_(now_ms);
+    return recovery == ProductRuntimeError::NONE ? ProductRuntimeError::RADIO_ERROR : recovery;
   }
   if (events_ != nullptr) events_->on_authorization_needed(mirror->record);
   return ProductRuntimeError::NONE;
@@ -388,18 +404,21 @@ ProductRuntimeError ProductEspNowRuntime::install_authorized_peer(
     return ProductRuntimeError::STATE_REJECTED;
   }
   if (radio_->set_channel(material.authorization.channel) != DriverError::NONE) {
-    return fail_pending_authorization_(now_ms);
+    const ProductRuntimeError recovery = fail_pending_authorization_(now_ms);
+    return recovery == ProductRuntimeError::NONE ? ProductRuntimeError::RADIO_ERROR : recovery;
   }
   if (radio_->add_encrypted_peer(
           material.authorization.peer_mac, material.lmk, material.authorization.channel) !=
       DriverError::NONE) {
-    return fail_pending_authorization_(now_ms);
+    const ProductRuntimeError recovery = fail_pending_authorization_(now_ms);
+    return recovery == ProductRuntimeError::NONE ? ProductRuntimeError::RADIO_ERROR : recovery;
   }
   const ProductCoreError accepted =
       orchestration_.accept_peer_authorization(material.authorization, now_ms);
   if (accepted != ProductCoreError::NONE) {
     (void) radio_->remove_peer(material.authorization.peer_mac);
-    return fail_pending_authorization_(now_ms);
+    const ProductRuntimeError recovery = fail_pending_authorization_(now_ms);
+    return recovery == ProductRuntimeError::NONE ? ProductRuntimeError::CORE_ERROR : recovery;
   }
   active_peer_mac_ = material.authorization.peer_mac;
   pending_authorization_mac_.reset();
@@ -516,6 +535,7 @@ ProductRuntimeError ProductEspNowRuntime::tick() {
   if (!started_) return ProductRuntimeError::NOT_READY;
   const uint64_t now_ms = clock_->now_ms();
   orchestration_.maintenance(now_ms);
+  prune_mirrors_(now_ms);
   ProductRuntimeError state_error = handle_path_state_(now_ms);
   if (state_error != ProductRuntimeError::NONE) return state_error;
   if (scan_active_) {
@@ -550,13 +570,16 @@ void ProductEspNowRuntime::on_espnow_receive_with_metadata(
       metadata.rssi_dbm < -127 || metadata.rssi_dbm > 0) {
     return;
   }
+  const uint64_t now_ms = clock_->now_ms();
+  orchestration_.maintenance(now_ms);
+  prune_mirrors_(now_ms);
   RelayCandidateObservation observation;
   observation.gateway_id = advertisement.gateway_id;
   observation.source_mac = source;
   observation.channel = advertisement.channel;
   observation.rssi_dbm = metadata.rssi_dbm;
   observation.advertisement_generation = advertisement.advertisement_generation;
-  observation.observed_at_ms = clock_->now_ms();
+  observation.observed_at_ms = now_ms;
   const ProductCoreError observed = orchestration_.observe_candidate(observation);
   if (observed != ProductCoreError::NONE) return;
   mirror_observation_(observation);
