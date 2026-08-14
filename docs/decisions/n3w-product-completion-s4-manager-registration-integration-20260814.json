@@ -10,12 +10,20 @@
   "scope": [
     "manager_registration_membership_binding",
     "credential_generation_binding",
+    "post_registration_node_application_key_staging",
+    "secure_pairing_delivery_of_node_only_application_key",
+    "delivery_ack_bound_key_activation",
+    "application_key_rotation_grace_and_revocation",
     "manager_authorized_dynamic_peer_grants",
     "domain_separated_per_node_relay_authentication",
+    "signed_relay_runtime_health_binding",
+    "canonical_direct_path_lease_eligibility_authority",
     "ephemeral_x25519_peer_key_agreement",
     "pair_specific_hkdf_sha256_espnow_lmk_derivation",
     "relay_eligibility_fail_closed_gate",
     "persistent_peer_authorization_replay_rejection",
+    "existing_node_acl_subtree_peer_authorization_mqtt_adapter",
+    "opt_in_product_manager_mqtt_service",
     "host_only_tests_and_ci"
   ],
   "frozen_invariants": {
@@ -27,9 +35,14 @@
     "static_gateway_node_pair_grant_required": false,
     "manager_is_membership_authority": true,
     "relay_requires_direct_uplink": true,
+    "relay_runtime_health_is_proof_bound": true,
+    "canonical_path_authority_is_manager_side": true,
+    "node_application_key_is_delivered_only_inside_existing_secure_pairing_channel": true,
+    "node_application_key_activation_requires_delivery_ack": true,
     "single_hop_only": true,
     "grant_has_finite_expiry": true,
-    "dynamic_late_node_addition_supported_by_design": true
+    "dynamic_late_node_addition_supported_by_design": true,
+    "legacy_manager_service_auto_activation": false
   },
   "excluded": [
     "board_access",
