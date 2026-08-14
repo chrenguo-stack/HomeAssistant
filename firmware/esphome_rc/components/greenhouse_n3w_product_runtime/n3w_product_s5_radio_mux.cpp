@@ -81,7 +81,10 @@ DriverError ProductS5RadioMux::add_encrypted_peer(
 DriverError ProductS5RadioMux::remove_peer(const MacAddress &peer_mac) {
   if (inner_ == nullptr) return DriverError::INVALID_ARGUMENT;
   const DriverError result = inner_->remove_peer(peer_mac);
-  if (result == DriverError::NONE && telemetry_sink_ != nullptr) {
+  // A failed hardware removal must not keep application-layer LMK/cache state
+  // alive. Local S5 telemetry is deauthorized on the removal attempt and the
+  // driver error is still returned to the caller for diagnostics/recovery.
+  if (telemetry_sink_ != nullptr) {
     telemetry_sink_->on_s5_peer_removed(peer_mac);
   }
   return result;
