@@ -4,7 +4,9 @@
 #include <cstdint>
 #include <string>
 
+#if __has_include("esphome/core/defines.h")
 #include "esphome/core/defines.h"
+#endif
 #include "esphome/components/greenhouse_n3w_core/n3w_radio.h"
 #include "n3w_product_s5_manager_wire.h"
 #include "esphome/components/greenhouse_n3w_product_runtime/n3w_product_s5_peer_coordinator.h"
