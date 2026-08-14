@@ -1,7 +1,7 @@
 {
   "schema": "gh.n3w-product-completion-s3-disconnected-espnow-runtime-stage-entry/1",
   "authorization_source": "User explicit instruction after S2 closure: 执行下一阶段",
-  "status": "IN_DEVELOPMENT",
+  "status": "IMPLEMENTED_CANDIDATE",
   "repository": "chrenguo-stack/HomeAssistant",
   "baseline": {
     "main_sha": "e8c9d3aeb4be8918b17226e52e2e098e5daf45f9",
@@ -46,6 +46,24 @@
     "manual_path_command_required": false,
     "factory_fixed_peer_binding_added": false,
     "old_node_peer_injection_required_for_late_node": false
+  },
+  "self_review_hardening": {
+    "stale_candidate_mirror_pruned_with_candidate_ttl": true,
+    "mismatched_authorization_rejected_before_peer_install": true,
+    "expired_authorization_rejected_before_peer_install": true,
+    "peer_install_radio_failure_surfaced_and_fail_closed": true,
+    "active_authorization_expiry_releases_peer": true,
+    "late_candidate_after_stale_capacity_is_selectable": true
+  },
+  "validation": {
+    "host_cpp_compile_werror": true,
+    "host_behavior_simulation": true,
+    "product_contract_tests": true,
+    "exact_nine_file_scope_gate": true,
+    "esp32c6_compile_only_driver_validation": true,
+    "esp32c6_compile_fixture": "firmware/esphome_rc/board_lab/n3w_p4b_espnow_runtime/n3w_p4b_espnow_runtime.yml",
+    "physical_board_execution": false,
+    "rf_execution": false
   },
   "execution_boundary": {
     "board_access": false,
