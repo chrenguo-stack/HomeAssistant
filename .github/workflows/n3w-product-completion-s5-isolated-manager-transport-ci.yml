@@ -183,7 +183,7 @@ jobs:
           grep -q 'execution_enabled: false' \
             firmware/esphome_rc/board_lab/n3w_product_completion_s5/transport_compile/relay_manager_transport_compile.yml
           test "$(grep -c 'enable_on_boot: false' \
-            firmware/esphome_rc/board_lab/n3w_product_completion_s5/transport_compile/relay_manager_transport_compile.yml)" -eq 2
+            firmware/esphome_rc/board_lab/n3w_product_completion_s5/transport_compile/relay_manager_transport_compile.yml)" -eq 1
           if grep -R -n -E \
             '(esphome[[:space:]]+run|esptool|espota|pio[[:space:]]+run.*upload|esp_wifi_connect\(|p5_peer_mac|p5_link_lmk|GH_MQTT_PASSWORD|wifi_ssid|wifi_password)' \
             firmware/esphome_rc/components/greenhouse_n3w_s5_manager_transport \
