@@ -48,6 +48,8 @@ jobs:
           firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_peer_handshake_wire.h
           firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_peer_security.cpp
           firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_peer_security.h
+          firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_s5_radio_mux.cpp
+          firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_s5_radio_mux.h
           firmware/esphome_rc/components/greenhouse_pairing_client/pairing_credential_codec.cpp
           firmware/esphome_rc/components/greenhouse_pairing_client/pairing_credential_codec.h
           firmware/esphome_rc/components/greenhouse_pairing_client/pairing_network_transport_esp_json.cpp
@@ -56,6 +58,7 @@ jobs:
           tests/n3w_product_completion_s5/n3w_product_credential_persistence_host_test.cpp
           tests/n3w_product_completion_s5/n3w_product_peer_handshake_wire_host_test.cpp
           tests/n3w_product_completion_s5/n3w_product_peer_security_host_test.cpp
+          tests/n3w_product_completion_s5/n3w_product_s5_radio_mux_host_test.cpp
           tests/n3w_product_completion_s5/test_s5_cross_language_vector.py
           FILES
           sed -i 's/^          //' "$allowed"
@@ -127,6 +130,26 @@ jobs:
             -o /tmp/n3w_product_completion_s5_peer_handshake_wire
           /tmp/n3w_product_completion_s5_peer_handshake_wire
 
+      - name: Compile and run S5 callback mux test
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -Wall -Wextra -Werror \
+            -I/tmp/n3w_include \
+            -Ifirmware/esphome_rc/components/greenhouse_n3w_core \
+            -Ifirmware/esphome_rc/components/greenhouse_n3w_product_core \
+            -Ifirmware/esphome_rc/components/greenhouse_n3w_product_runtime \
+            firmware/esphome_rc/components/greenhouse_n3w_core/n3w_core.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_core/n3w_radio.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_core/n3w_espnow_driver.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_product_core.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_runtime.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_s5_radio_mux.cpp \
+            tests/n3w_product_completion_s5/n3w_product_s5_radio_mux_host_test.cpp \
+            -lmbedcrypto \
+            -o /tmp/n3w_product_completion_s5_radio_mux
+          /tmp/n3w_product_completion_s5_radio_mux
+
       - name: Compile and run product credential persistence test
         shell: bash
         run: |
@@ -153,6 +176,8 @@ jobs:
             firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_peer_security.h
             firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_peer_handshake_wire.cpp
             firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_peer_handshake_wire.h
+            firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_s5_radio_mux.cpp
+            firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_s5_radio_mux.h
             firmware/esphome_rc/components/greenhouse_pairing_client/pairing_network_transport_esp_json.cpp
             firmware/esphome_rc/board_lab/n3w_product_s5_two_board/crypto_compile.yml
           )
