@@ -1,0 +1,67 @@
+{
+  "schema": "gh.n3w-product-completion-s5-c-host-compile/1",
+  "date": "2026-08-14",
+  "authorization": "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-C-ISOLATED-MANAGER-TELEMETRY-HOST-COMPILE-IMPLEMENTATION-20260814-01",
+  "starting_head": "37b1bc49998c6e1235788f078cb7936d6d9da35c",
+  "base_main": "38c3b692d4ebe90d0040c732b6c0313fdfdc1ef6",
+  "pr": 322,
+  "branch": "feature/n3w-product-completion-s5-two-board-isolated-20260814-v1",
+  "status": "IMPLEMENTED_CI_PENDING",
+  "scope": {
+    "isolated_manager_adapter": true,
+    "existing_s4_peer_authorization_only": true,
+    "existing_n3w_ingress_router_only": true,
+    "existing_relay_frame_schema": "gh.relay/1",
+    "existing_telemetry_schema": "gh.telemetry/1",
+    "existing_radio_packets": [
+      "DATA_FRAGMENT",
+      "RECEIPT_ACK"
+    ],
+    "board_s5_private_runtime_seam": true,
+    "public_profiles_remain_inert": true,
+    "esp32_c6_compile_only": true
+  },
+  "frozen_product_invariants": {
+    "factory_peer_mac": false,
+    "factory_peer_node_id": false,
+    "factory_gateway_id": false,
+    "factory_pair_lmk": false,
+    "factory_peer_relationship": false,
+    "manager_distributes_pair_lmk": false,
+    "advertisement_is_authorization": false,
+    "new_telemetry_schema": false,
+    "node_credentials_are_self_only_post_registration": true,
+    "s4_manager_is_only_peer_authority": true
+  },
+  "security_hardening": {
+    "remove_self_mac_tautology": true,
+    "application_key_scrub_after_auth_key_derivation": true,
+    "temporary_cached_lmk_explicit_zeroize": true,
+    "active_lmk_retained_only_for_active_reliable_link": true,
+    "active_lmk_zeroized_on_peer_removal": true,
+    "unknown_s5_datagrams_dropped": true
+  },
+  "not_authorized": {
+    "erase": true,
+    "flash": true,
+    "ota": true,
+    "serial": true,
+    "usb_jtag_board_access": true,
+    "espnow_rf": true,
+    "wifi_connection": true,
+    "real_mqtt_network_e2e": true,
+    "spare_t1_runtime": true,
+    "production_t1": true,
+    "production_manager_broker_ha_mutation": true,
+    "pr_merge": true,
+    "release": true,
+    "deployment": true,
+    "n3l": true
+  },
+  "classification": {
+    "s5_driver_initialization_crash_fix": "PHYSICAL_VERIFIED",
+    "s5_ab_host_compile": "PASS",
+    "s5_c_host_compile": "CI_PENDING",
+    "s5_full_two_board_e2e": "PENDING"
+  }
+}
