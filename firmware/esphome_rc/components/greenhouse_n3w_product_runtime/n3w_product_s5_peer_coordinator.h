@@ -104,10 +104,17 @@ class ProductS5PeerCoordinator final : public ProductRuntimeEventSink,
   ProductS5CoordinatorError attach(
       ProductEspNowRuntime *runtime,
       ProductRuntimeRadioPort *radio);
+  bool set_telemetry_sink(ProductS5TelemetrySink *sink) {
+    if (sink == nullptr || telemetry_sink_ != nullptr) return false;
+    telemetry_sink_ = sink;
+    return true;
+  }
   ProductS5CoordinatorError tick();
   ProductS5CoordinatorError accept_manager_authorization(
       const ProductPeerGrant &child_grant,
       const ProductPeerGrant &relay_grant);
+  ProductS5CoordinatorError revoke_active_authorization(
+      const std::string &authorization_id);
   void reset();
 
   // The application key is needed only to derive the endpoint relay-auth key.
@@ -120,6 +127,16 @@ class ProductS5PeerCoordinator final : public ProductRuntimeEventSink,
     return ProductPeerSecurity::nonzero_(
         credentials_.application_key.data(), credentials_.application_key.size());
   }
+  bool ephemeral_private_resident() const {
+    return ProductPeerSecurity::nonzero_(
+        local_ephemeral_private_.data(), local_ephemeral_private_.size());
+  }
+  bool cached_runtime_lmk_resident() const {
+    return cached_runtime_material_.has_value() &&
+           ProductPeerSecurity::nonzero_(
+               cached_runtime_material_->lmk.data(),
+               cached_runtime_material_->lmk.size());
+  }
 
   ProductS5Role role() const { return role_; }
   ProductS5PeerState state() const { return state_; }
@@ -130,6 +147,9 @@ class ProductS5PeerCoordinator final : public ProductRuntimeEventSink,
   }
   const std::optional<MacAddress> &active_relay_child_mac() const {
     return relay_active_child_mac_;
+  }
+  const std::string &active_authorization_id() const {
+    return active_authorization_id_;
   }
 
   void on_candidate_observed(const RelayCandidateObservation &observation) override;
@@ -196,6 +216,7 @@ class ProductS5PeerCoordinator final : public ProductRuntimeEventSink,
   ProductS5RandomSource *random_{nullptr};
   ProductS5RelayHealthProvider *relay_health_{nullptr};
   ProductS5ManagerPort *manager_{nullptr};
+  ProductS5TelemetrySink *telemetry_sink_{nullptr};
   ProductS5CoordinatorPolicy policy_{};
   ProductEspNowRuntime *runtime_{nullptr};
   ProductRuntimeRadioPort *radio_{nullptr};
@@ -211,6 +232,7 @@ class ProductS5PeerCoordinator final : public ProductRuntimeEventSink,
   uint8_t pending_channel_{0};
   std::optional<ProductPeerRequest> pending_request_{};
   std::optional<RuntimePeerMaterial> cached_runtime_material_{};
+  std::string active_authorization_id_;
 };
 
 }  // namespace esphome::greenhouse_n3w_product_runtime
