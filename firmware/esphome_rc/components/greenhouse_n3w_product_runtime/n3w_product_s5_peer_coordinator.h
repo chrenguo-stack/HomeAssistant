@@ -110,6 +110,17 @@ class ProductS5PeerCoordinator final : public ProductRuntimeEventSink,
       const ProductPeerGrant &relay_grant);
   void reset();
 
+  // The application key is needed only to derive the endpoint relay-auth key.
+  // Board assembly calls this immediately after attach so the long-lived
+  // coordinator retains only the derived key and non-secret self metadata.
+  void scrub_application_key() {
+    zeroize_(credentials_.application_key.data(), credentials_.application_key.size());
+  }
+  bool application_key_resident() const {
+    return ProductPeerSecurity::nonzero_(
+        credentials_.application_key.data(), credentials_.application_key.size());
+  }
+
   ProductS5Role role() const { return role_; }
   ProductS5PeerState state() const { return state_; }
   bool provisional_channel_locked() const;
@@ -170,6 +181,7 @@ class ProductS5PeerCoordinator final : public ProductRuntimeEventSink,
       uint8_t channel,
       const std::vector<uint8_t> &packet);
   void clear_ephemeral_();
+  void clear_cached_runtime_material_();
   void clear_pending_(bool remove_relay_peer);
   void expire_pending_(uint64_t now_ms);
   static bool valid_unicast_mac_(const MacAddress &mac);
