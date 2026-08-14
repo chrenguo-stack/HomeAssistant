@@ -1,0 +1,73 @@
+{
+  "schema": "gh.n3w-product-completion-stage-entry/1",
+  "stage": "S4_MANAGER_REGISTRATION_INTEGRATION",
+  "authorization": "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S4-MANAGER-REGISTRATION-INTEGRATION-20260814-01",
+  "authorized": true,
+  "authorized_date": "2026-08-14",
+  "base_branch": "main",
+  "base_sha": "1ec7b5f0b9842df990073ca7f6864764cb0fb3cd",
+  "base_tree": "66e634165e1e8af72ad86af2e0f5a10ebf10f0a4",
+  "original_authorized_base_sha": "8020194edfeea03a52466e83cb3071de54afbd48",
+  "original_authorized_base_tree": "cbec93e9602565a9228340445c9687b6eb2a0e5b",
+  "rebaseline": {
+    "authorization": "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S4-PR319-REBASELINE-READY-AND-MERGE-20260814-02",
+    "reason": "PR #320 repaired the pre-existing time-aging greenhouse-manager required test without changing runtime semantics",
+    "from_base_sha": "8020194edfeea03a52466e83cb3071de54afbd48",
+    "to_base_sha": "1ec7b5f0b9842df990073ca7f6864764cb0fb3cd",
+    "to_base_tree": "66e634165e1e8af72ad86af2e0f5a10ebf10f0a4"
+  },
+  "scope": [
+    "manager_registration_membership_binding",
+    "credential_generation_binding",
+    "post_registration_node_application_key_staging",
+    "secure_pairing_delivery_of_node_only_application_key",
+    "delivery_ack_bound_key_activation",
+    "application_key_rotation_grace_and_revocation",
+    "manager_authorized_dynamic_peer_grants",
+    "domain_separated_per_node_relay_authentication",
+    "signed_relay_runtime_health_binding",
+    "canonical_direct_path_lease_eligibility_authority",
+    "ephemeral_x25519_peer_key_agreement",
+    "pair_specific_hkdf_sha256_espnow_lmk_derivation",
+    "relay_eligibility_fail_closed_gate",
+    "persistent_peer_authorization_replay_rejection",
+    "existing_node_acl_subtree_peer_authorization_mqtt_adapter",
+    "opt_in_product_manager_mqtt_service",
+    "host_only_tests_and_ci"
+  ],
+  "frozen_invariants": {
+    "factory_fixed_peer_information": false,
+    "factory_pair_lmk": false,
+    "system_wide_shared_lmk": false,
+    "manager_distributes_pair_lmk": false,
+    "relay_receives_child_application_key": false,
+    "static_gateway_node_pair_grant_required": false,
+    "manager_is_membership_authority": true,
+    "relay_requires_direct_uplink": true,
+    "relay_runtime_health_is_proof_bound": true,
+    "canonical_path_authority_is_manager_side": true,
+    "node_application_key_is_delivered_only_inside_existing_secure_pairing_channel": true,
+    "node_application_key_activation_requires_delivery_ack": true,
+    "single_hop_only": true,
+    "grant_has_finite_expiry": true,
+    "dynamic_late_node_addition_supported_by_design": true,
+    "legacy_manager_service_auto_activation": false
+  },
+  "excluded": [
+    "board_access",
+    "usb_serial_access",
+    "flash_or_ota",
+    "espnow_rf_execution",
+    "t1_access",
+    "manager_live_runtime_mutation",
+    "mqtt_broker_mutation",
+    "home_assistant_mutation",
+    "production_mutation",
+    "s5_physical_acceptance",
+    "n3l"
+  ],
+  "final_product_acceptance": {
+    "physical_t1_required": true,
+    "host_only_is_final_acceptance": false
+  }
+}
