@@ -25,18 +25,23 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Authorized checkpoint and exact S5-A/B scope
+      - name: Frozen S5-A/B checkpoint and successor lineage
         shell: bash
         run: |
           set -euo pipefail
           checkpoint='41154e532c4ba00e3c0e4ef86d79b6c8824247fe'
+          ab_head='37b1bc49998c6e1235788f078cb7936d6d9da35c'
           main='38c3b692d4ebe90d0040c732b6c0313fdfdc1ef6'
-          test "$(git merge-base "$checkpoint" HEAD)" = "$checkpoint"
+          git merge-base --is-ancestor "$checkpoint" "$ab_head"
+          git merge-base --is-ancestor "$ab_head" HEAD
           if [ "$GITHUB_EVENT_NAME" = 'pull_request' ]; then
             test '${{ github.event.pull_request.base.ref }}' = 'main'
             test '${{ github.event.pull_request.base.sha }}' = "$main"
           fi
 
+          # Freeze the A/B implementation itself exactly once. Authorized
+          # successors are governed by their own stage-specific scope gate;
+          # this workflow remains a regression gate against the current HEAD.
           allowed="$(mktemp)"
           actual="$(mktemp)"
           cat >"$allowed" <<'FILES'
@@ -59,7 +64,7 @@ jobs:
           FILES
           sed -i 's/^          //' "$allowed"
           sort -o "$allowed" "$allowed"
-          git diff --name-only "$checkpoint"...HEAD | sort >"$actual"
+          git diff --name-only "$checkpoint"..."$ab_head" | sort >"$actual"
           diff -u "$allowed" "$actual"
 
       - uses: actions/setup-python@v5
