@@ -48,6 +48,7 @@ jobs:
           firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_product_core.h
           firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_integration.cpp
           firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_integration.h
+          firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_peer_security.h
           firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_runtime.h
           firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_s5_peer_coordinator.cpp
           firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_s5_peer_coordinator.h
