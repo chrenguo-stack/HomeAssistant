@@ -115,10 +115,13 @@ class ProductPeerSecurity {
   static bool grant_binding(const ProductPeerGrant &grant, std::string *output);
   static bool encode_base64url(const uint8_t *data, std::size_t length, std::string *output);
 
- private:
+  // Exposed for the POD validation methods in this contract unit. Callers
+  // should use the high-level proof/grant APIs rather than composing crypto.
   static bool valid_identifier_(const std::string &value);
   static bool valid_session_id_(const std::string &value);
   static bool nonzero_(const uint8_t *data, std::size_t length);
+
+ private:
   static bool sha256_(const uint8_t *data, std::size_t length, ProductPeerKey *digest);
   static bool hmac_sha256_(
       const uint8_t *key,
