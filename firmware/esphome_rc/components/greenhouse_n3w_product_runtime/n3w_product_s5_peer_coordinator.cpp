@@ -102,6 +102,13 @@ void ProductS5PeerCoordinator::clear_ephemeral_() {
   zeroize_(local_ephemeral_private_.data(), local_ephemeral_private_.size());
 }
 
+void ProductS5PeerCoordinator::clear_cached_runtime_material_() {
+  if (cached_runtime_material_.has_value()) {
+    zeroize_(cached_runtime_material_->lmk.data(), cached_runtime_material_->lmk.size());
+    cached_runtime_material_.reset();
+  }
+}
+
 void ProductS5PeerCoordinator::clear_pending_(bool remove_relay_peer) {
   if (remove_relay_peer && radio_ != nullptr && relay_active_child_mac_.has_value()) {
     (void) radio_->remove_peer(*relay_active_child_mac_);
@@ -111,7 +118,7 @@ void ProductS5PeerCoordinator::clear_pending_(bool remove_relay_peer) {
   child_candidate_.reset();
   relay_pending_child_mac_.reset();
   relay_active_child_mac_.reset();
-  cached_runtime_material_.reset();
+  clear_cached_runtime_material_();
   pending_channel_ = 0;
   session_token_ = 0;
   deadline_ms_ = 0;
@@ -239,8 +246,8 @@ ProductS5CoordinatorError ProductS5PeerCoordinator::accept_child_auth_init_(
     const ProductChildAuthInit &init,
     const EspNowReceiveMetadata &metadata) {
   if (role_ != ProductS5Role::RELAY || state_ != ProductS5PeerState::IDLE || runtime_ == nullptr ||
-      runtime_->path_state() != AutoPathState::DIRECT || !same_mac_(source, source) ||
-      !valid_unicast_mac_(source) || !init.valid() || init.target_relay_node_id != credentials_.node_id ||
+      runtime_->path_state() != AutoPathState::DIRECT || !valid_unicast_mac_(source) ||
+      !init.valid() || init.target_relay_node_id != credentials_.node_id ||
       init.child_node_id == credentials_.node_id ||
       !greenhouse_n3w_core::valid_radio_channel(metadata.channel)) {
     return ProductS5CoordinatorError::STATE_REJECTED;
@@ -531,7 +538,7 @@ ProductS5CoordinatorError ProductS5PeerCoordinator::install_child_runtime_peer_(
   zeroize_(lmk.data(), lmk.size());
   const RelayCandidateEligibility eligibility = eligibility_from_grant_(child_grant);
   if (!eligibility.valid_shape() || !eligibility.eligible_at(now_ms)) {
-    cached_runtime_material_.reset();
+    clear_cached_runtime_material_();
     return ProductS5CoordinatorError::STATE_REJECTED;
   }
   state_ = ProductS5PeerState::CHILD_WAIT_RUNTIME_INSTALL;
@@ -539,7 +546,6 @@ ProductS5CoordinatorError ProductS5PeerCoordinator::install_child_runtime_peer_(
   const ProductRuntimeError result = runtime_->apply_manager_eligibility(
       child_candidate_->source_mac, child_candidate_->gateway_id, eligibility);
   if (result != ProductRuntimeError::NONE || state_ != ProductS5PeerState::CHILD_ACTIVE) {
-    cached_runtime_material_.reset();
     (void) runtime_->reject_peer_authorization();
     clear_pending_(false);
     return ProductS5CoordinatorError::RUNTIME_FAILED;
@@ -600,13 +606,12 @@ void ProductS5PeerCoordinator::on_authorization_needed(
   }
   const ProductRuntimeError result = runtime_->install_authorized_peer(*cached_runtime_material_);
   if (result != ProductRuntimeError::NONE) {
-    cached_runtime_material_.reset();
     clear_pending_(false);
     return;
   }
   state_ = ProductS5PeerState::CHILD_ACTIVE;
   deadline_ms_ = 0;
-  cached_runtime_material_.reset();
+  clear_cached_runtime_material_();
   clear_ephemeral_();
   pending_request_.reset();
   child_candidate_.reset();
