@@ -44,6 +44,7 @@ void ProductS5TelemetryBridge::clear_active_peer_() {
   active_peer_mac_.reset();
   zeroize_(active_lmk_.data(), active_lmk_.size());
   active_channel_ = 0;
+  active_peer_node_id_.clear();
   relay_child_node_id_.clear();
   relay_ingress_.reset();
   if (role_ == ProductS5TelemetryRole::CHILD) {
@@ -62,6 +63,7 @@ bool ProductS5TelemetryBridge::set_relay_child_node_id(const std::string &node_i
 
 void ProductS5TelemetryBridge::clear_relay_child_node_id() {
   relay_child_node_id_.clear();
+  if (role_ == ProductS5TelemetryRole::RELAY) active_peer_node_id_.clear();
   relay_ingress_.reset();
 }
 
@@ -77,6 +79,24 @@ void ProductS5TelemetryBridge::on_s5_peer_installed(
   active_peer_mac_ = peer_mac;
   active_lmk_ = lmk;
   active_channel_ = channel;
+  active_peer_node_id_.clear();
+  relay_child_node_id_.clear();
+  last_error_ = ProductS5TelemetryError::NONE;
+}
+
+void ProductS5TelemetryBridge::on_s5_peer_identity_bound(
+    const MacAddress &peer_mac,
+    const std::string &peer_node_id) {
+  if (!active_peer_mac_.has_value() || !same_mac_(*active_peer_mac_, peer_mac) ||
+      !greenhouse_n3w_core::valid_identity(peer_node_id) || peer_node_id == local_node_id_) {
+    last_error_ = ProductS5TelemetryError::STATE_REJECTED;
+    return;
+  }
+  active_peer_node_id_ = peer_node_id;
+  if (role_ == ProductS5TelemetryRole::RELAY) {
+    relay_child_node_id_ = peer_node_id;
+    relay_ingress_.reset();
+  }
   last_error_ = ProductS5TelemetryError::NONE;
 }
 
@@ -98,7 +118,8 @@ bool ProductS5TelemetryBridge::accept_for_forwarding(const RelayFrame &frame) {
 
 ProductS5TelemetryError ProductS5TelemetryBridge::flush_due_(uint64_t now_ms) {
   if (role_ != ProductS5TelemetryRole::CHILD || radio_ == nullptr ||
-      !active_peer_mac_.has_value() || !nonzero_key_(active_lmk_)) {
+      !active_peer_mac_.has_value() || active_peer_node_id_.empty() ||
+      !nonzero_key_(active_lmk_)) {
     return ProductS5TelemetryError::NOT_READY;
   }
   const auto *due = child_cache_.next_due(now_ms);
@@ -124,11 +145,13 @@ ProductS5TelemetryError ProductS5TelemetryBridge::send_relay_frame(
     const RelayFrame &frame,
     uint64_t now_ms) {
   if (role_ != ProductS5TelemetryRole::CHILD || radio_ == nullptr ||
-      !active_peer_mac_.has_value() || !nonzero_key_(active_lmk_)) {
+      !active_peer_mac_.has_value() || active_peer_node_id_.empty() ||
+      !nonzero_key_(active_lmk_)) {
     return ProductS5TelemetryError::NOT_READY;
   }
   if (frame.header.schema != "gh.relay/1" || frame.header.transport != "esp_now" ||
-      frame.header.node_id != local_node_id_) {
+      frame.header.node_id != local_node_id_ ||
+      frame.header.gateway_id != active_peer_node_id_) {
     return ProductS5TelemetryError::FRAME_REJECTED;
   }
   const auto queued = child_cache_.enqueue(frame, now_ms);
@@ -153,7 +176,8 @@ void ProductS5TelemetryBridge::on_s5_telemetry_datagram(
     const EspNowReceiveMetadata &metadata) {
   (void) metadata;
   if (data == nullptr || size == 0 || !active_peer_mac_.has_value() ||
-      !same_mac_(source, *active_peer_mac_) || !nonzero_key_(active_lmk_)) {
+      active_peer_node_id_.empty() || !same_mac_(source, *active_peer_mac_) ||
+      !nonzero_key_(active_lmk_)) {
     return;
   }
 
