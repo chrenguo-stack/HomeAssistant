@@ -1,0 +1,51 @@
+{
+  "schema": "gh.n3w-product-completion-stage-entry/1",
+  "stage": "S4_MANAGER_REGISTRATION_INTEGRATION",
+  "authorization": "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S4-MANAGER-REGISTRATION-INTEGRATION-20260814-01",
+  "authorized": true,
+  "authorized_date": "2026-08-14",
+  "base_branch": "main",
+  "base_sha": "8020194edfeea03a52466e83cb3071de54afbd48",
+  "base_tree": "cbec93e9602565a9228340445c9687b6eb2a0e5b",
+  "scope": [
+    "manager_registration_membership_binding",
+    "credential_generation_binding",
+    "manager_authorized_dynamic_peer_grants",
+    "domain_separated_per_node_relay_authentication",
+    "ephemeral_x25519_peer_key_agreement",
+    "pair_specific_hkdf_sha256_espnow_lmk_derivation",
+    "relay_eligibility_fail_closed_gate",
+    "persistent_peer_authorization_replay_rejection",
+    "host_only_tests_and_ci"
+  ],
+  "frozen_invariants": {
+    "factory_fixed_peer_information": false,
+    "factory_pair_lmk": false,
+    "system_wide_shared_lmk": false,
+    "manager_distributes_pair_lmk": false,
+    "relay_receives_child_application_key": false,
+    "static_gateway_node_pair_grant_required": false,
+    "manager_is_membership_authority": true,
+    "relay_requires_direct_uplink": true,
+    "single_hop_only": true,
+    "grant_has_finite_expiry": true,
+    "dynamic_late_node_addition_supported_by_design": true
+  },
+  "excluded": [
+    "board_access",
+    "usb_serial_access",
+    "flash_or_ota",
+    "espnow_rf_execution",
+    "t1_access",
+    "manager_live_runtime_mutation",
+    "mqtt_broker_mutation",
+    "home_assistant_mutation",
+    "production_mutation",
+    "s5_physical_acceptance",
+    "n3l"
+  ],
+  "final_product_acceptance": {
+    "physical_t1_required": true,
+    "host_only_is_final_acceptance": false
+  }
+}
