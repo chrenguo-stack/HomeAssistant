@@ -120,7 +120,9 @@ jobs:
             firmware/esphome_rc/components/greenhouse_pairing_client/pairing_ram_credentials.cpp \
             firmware/esphome_rc/components/greenhouse_pairing_client/pairing_credential_codec.cpp \
             firmware/esphome_rc/components/greenhouse_pairing_client/secure_pairing_channel_encoding.cpp \
+            firmware/esphome_rc/components/greenhouse_pairing_client/secure_pairing_channel_crypto.cpp \
             tests/n3w_product_completion_s5/n3w_product_credential_persistence_host_test.cpp \
+            -lcrypto \
             -o /tmp/n3w_product_completion_s5_credential_persistence
           /tmp/n3w_product_completion_s5_credential_persistence
 
