@@ -17,11 +17,14 @@ using namespace esphome::greenhouse_n3w_product_runtime;
 namespace {
 
 constexpr const char *kAuthorizationId = "11111111-2222-3333-4444-555555555555";
+constexpr uint64_t kManagerEpochMs = 1786689000000ULL;
 
 class FakeClock final : public ProductRuntimeClock {
  public:
+  // Deliberately uptime-like, not Unix epoch time. This is the clock domain
+  // available to a disconnected Child and to ESP-IDF esp_timer.
   uint64_t now_ms() const override { return now; }
-  uint64_t now{1786689000000ULL};
+  uint64_t now{5000};
 };
 
 class DeterministicRandom final : public ProductS5RandomSource {
@@ -48,9 +51,9 @@ class DeterministicRandom final : public ProductS5RandomSource {
 
 class FakeHealth final : public ProductS5RelayHealthProvider {
  public:
-  bool read_health(uint64_t now_ms, ProductRelayHealth *health) override {
-    if (health == nullptr) return false;
-    health->observed_at_ms = now_ms;
+  bool read_health(uint64_t authority_now_ms, ProductRelayHealth *health) override {
+    if (health == nullptr || authority_now_ms < 1000000000000ULL) return false;
+    health->observed_at_ms = authority_now_ms;
     health->relay_capable = true;
     health->low_battery = false;
     health->overloaded = false;
@@ -157,14 +160,21 @@ ProductPeerProof grant_mac(
 
 class FakeManager final : public ProductS5ManagerPort {
  public:
-  FakeManager(
-      FakeClock *clock,
-      ProductS5NodeCredentials child,
-      ProductS5NodeCredentials relay)
-      : clock_(clock), child_(std::move(child)), relay_(std::move(relay)) {}
+  FakeManager(ProductS5NodeCredentials child, ProductS5NodeCredentials relay)
+      : child_(std::move(child)), relay_(std::move(relay)) {}
+
+  bool authority_now_ms(uint64_t *now_ms) override {
+    if (now_ms == nullptr || !authority_available) return false;
+    *now_ms = authority_now;
+    return true;
+  }
 
   bool submit_peer_authorization(const ProductPeerRequest &request) override {
     assert(request.valid_shape(true));
+    // Request freshness and Relay health are in Manager epoch time, never in
+    // the endpoint's uptime clock domain.
+    assert(request.requested_at_ms == authority_now);
+    assert(request.relay_health.observed_at_ms == authority_now);
     request_ = request;
     submitted = true;
     return true;
@@ -223,17 +233,18 @@ class FakeManager final : public ProductS5ManagerPort {
     grant.relay_ephemeral_public_key = request.relay.ephemeral_public_key;
     grant.child_nonce = request.child.nonce;
     grant.relay_nonce = request.relay.nonce;
-    grant.issued_at_ms = clock_->now;
-    grant.expires_at_ms = clock_->now + 30000;
+    grant.issued_at_ms = authority_now;
+    grant.expires_at_ms = authority_now + 30000;
     grant.authorization_epoch = 1;
     return grant;
   }
 
-  FakeClock *clock_{nullptr};
   ProductS5NodeCredentials child_{};
   ProductS5NodeCredentials relay_{};
   ProductS5PeerCoordinator *relay_coordinator_{nullptr};
   std::optional<ProductPeerRequest> request_{};
+  uint64_t authority_now{kManagerEpochMs};
+  bool authority_available{true};
   bool submitted{false};
 };
 
@@ -291,7 +302,7 @@ struct Fixture {
   DeterministicRandom child_random{0x0123456789abcdefULL, 0x01};
   DeterministicRandom relay_random{0, 0x11};
   FakeHealth relay_health{};
-  FakeManager manager{&clock, child_credentials, relay_credentials};
+  FakeManager manager{child_credentials, relay_credentials};
   ProductS5PeerCoordinator child_coordinator{
       ProductS5Role::CHILD,
       child_mac,
@@ -342,6 +353,8 @@ struct Fixture {
   }
 
   void begin_pairing() {
+    assert(clock.now < 1000000);
+    assert(manager.authority_now > 1000000000000ULL);
     assert(relay_coordinator.tick() == ProductS5CoordinatorError::NONE);
     assert(manager.submitted);
     assert(child_coordinator.state() == ProductS5PeerState::CHILD_WAIT_GRANT);
@@ -422,6 +435,8 @@ void finite_expiry_matrix() {
   fixture.begin_pairing();
   fixture.manager.deliver();
   fixture.assert_pair_active();
+  // Advance only endpoint monotonic time. No Unix-epoch clock is available to
+  // the Child after authorization, yet the signed finite grant still expires.
   fixture.clock.now += 30001;
   assert(fixture.relay_coordinator.tick() == ProductS5CoordinatorError::NONE);
   assert(!fixture.relay_inner.encrypted_peer);
@@ -456,15 +471,24 @@ void interrupted_handshake_timeout_matrix() {
   assert(!fixture.relay_inner.encrypted_peer);
 }
 
+void authority_clock_unavailable_fails_closed() {
+  Fixture fixture;
+  fixture.manager.authority_available = false;
+  // Relay cannot mint a Manager-fresh request from local uptime. The Child may
+  // start a provisional exchange, but no authorization request reaches Manager
+  // and no encrypted peer can be installed.
+  assert(fixture.relay_coordinator.tick() == ProductS5CoordinatorError::NONE);
+  assert(!fixture.manager.submitted);
+  assert(!fixture.child_inner.encrypted_peer);
+  assert(!fixture.relay_inner.encrypted_peer);
+}
+
 void restart_teardown_matrix() {
   Fixture fixture;
   fixture.begin_pairing();
   fixture.manager.deliver();
   fixture.assert_pair_active();
 
-  // Same ordering as board integration destruction: Relay-owned direct peer
-  // is removed before radio shutdown; Child runtime then removes its active
-  // dynamic peer. No local peer or LMK survives the restart boundary.
   fixture.relay_coordinator.reset();
   fixture.child_runtime.stop();
   fixture.relay_runtime.stop();
@@ -482,6 +506,7 @@ int main() {
   grant_binding_duplicate_and_revoke_matrix();
   finite_expiry_matrix();
   interrupted_handshake_timeout_matrix();
+  authority_clock_unavailable_fails_closed();
   restart_teardown_matrix();
   std::cout << "S5_LIFECYCLE_NEGATIVE_PEER_MATRIX=PASS\n";
   return 0;
