@@ -248,6 +248,21 @@ class RelayOrchestrationCore {
       const DynamicPeerAuthorization &authorization,
       uint64_t now_ms);
   ProductCoreError reject_peer_authorization();
+  ProductCoreError revoke_peer_authorization(const std::string &authorization_id) {
+    if (!valid_identity(authorization_id)) return ProductCoreError::INVALID_ARGUMENT;
+    if (path_.state() != AutoPathState::RELAY_ACTIVE ||
+        peer_.state() != DynamicPeerState::ACTIVE ||
+        !peer_.authorization().has_value()) {
+      return ProductCoreError::STATE_REJECTED;
+    }
+    if (peer_.authorization()->authorization_id != authorization_id) {
+      return ProductCoreError::AUTHORIZATION_REJECTED;
+    }
+    peer_.revoke();
+    selected_mac_.reset();
+    selected_since_ms_ = 0;
+    return path_.on_peer_lost();
+  }
   ProductCoreError note_relay_result(bool success, uint64_t now_ms);
   void maintenance(uint64_t now_ms);
 
