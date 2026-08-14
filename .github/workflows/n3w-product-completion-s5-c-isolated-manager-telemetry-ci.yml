@@ -22,17 +22,23 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Authorized checkpoint and exact S5-C scope
+      - name: Frozen S5-C checkpoint and successor lineage
         shell: bash
         run: |
           set -euo pipefail
           start='37b1bc49998c6e1235788f078cb7936d6d9da35c'
+          c_archive='259670af65f3a5fdd9209e78bf06ce3d57972a71'
           base='38c3b692d4ebe90d0040c732b6c0313fdfdc1ef6'
-          git merge-base --is-ancestor "$start" HEAD
+          git merge-base --is-ancestor "$start" "$c_archive"
+          git merge-base --is-ancestor "$c_archive" HEAD
           if [ "$GITHUB_EVENT_NAME" = 'pull_request' ]; then
             test '${{ github.event.pull_request.base.ref }}' = 'main'
             test '${{ github.event.pull_request.base.sha }}' = "$base"
           fi
+
+          # Freeze the completed S5-C implementation/archive scope exactly.
+          # Authorized successors use their own scope gates while this workflow
+          # remains a current-HEAD regression test for the S5-C contracts.
           allowed="$(mktemp)"
           actual="$(mktemp)"
           cat >"$allowed" <<'FILES'
@@ -53,7 +59,7 @@ jobs:
           FILES
           sed -i 's/^          //' "$allowed"
           sort -o "$allowed" "$allowed"
-          git diff --name-only "$start"...HEAD | sort >"$actual"
+          git diff --name-only "$start"..."$c_archive" | sort >"$actual"
           diff -u "$allowed" "$actual"
 
       - uses: actions/setup-python@v5
