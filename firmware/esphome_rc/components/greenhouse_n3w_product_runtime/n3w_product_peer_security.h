@@ -102,11 +102,15 @@ class ProductPeerSecurity {
 
   // Verify the Manager HMAC and all signed grant fields without assuming that
   // the endpoint has a wall clock in the Manager's Unix-epoch time domain.
-  // Disconnected Child nodes use this together with the signed grant lifetime
-  // and a local monotonic handshake deadline.
+  // Passing the signed issuance instant into the full verifier preserves one
+  // crypto implementation while removing any dependency on local wall time;
+  // callers must separately enforce the signed lifetime on monotonic time.
   static bool verify_endpoint_grant_signature(
       const ProductPeerGrant &grant,
-      const ProductPeerKey &relay_auth_key);
+      const ProductPeerKey &relay_auth_key) {
+    return grant.valid_shape() &&
+           verify_endpoint_grant(grant, relay_auth_key, grant.issued_at_ms);
+  }
 
   // Full verification for callers that do have Manager-aligned epoch time.
   static bool verify_endpoint_grant(
