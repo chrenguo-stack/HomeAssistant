@@ -39,6 +39,10 @@ def private_write(path: Path, data: bytes) -> None:
     os.chmod(path, 0o600)
 
 
+def fixture_mac(*octets: int) -> str:
+    return ":".join(f"{value:02x}" for value in octets)
+
+
 class S5PhysicalPreparationTest(unittest.TestCase):
     def test_decision_contract(self) -> None:
         document = json.loads(DECISION.read_text(encoding="utf-8"))
@@ -101,7 +105,7 @@ class S5PhysicalPreparationTest(unittest.TestCase):
                         "credential_generation": 7,
                         "key_epoch": 9,
                         "application_key_hex": "81" * 32,
-                        "local_mac": "02:11:22:33:44:55",
+                        "local_mac": fixture_mac(2, 17, 34, 51, 68, 85),
                     }
                 ).encode(),
             )
@@ -114,7 +118,7 @@ class S5PhysicalPreparationTest(unittest.TestCase):
                         "credential_generation": 11,
                         "key_epoch": 13,
                         "application_key_hex": "a1" * 32,
-                        "local_mac": "02:aa:bb:cc:dd:ee",
+                        "local_mac": fixture_mac(2, 170, 187, 204, 221, 238),
                     }
                 ).encode(),
             )
@@ -173,14 +177,14 @@ class S5PhysicalPreparationTest(unittest.TestCase):
                 "credential_generation": 1,
                 "key_epoch": 1,
                 "application_key_hex": "11" * 32,
-                "local_mac": "02:11:22:33:44:55",
+                "local_mac": fixture_mac(2, 17, 34, 51, 68, 85),
             }
             private_write(child, json.dumps({"system_id": "system001", **base}).encode())
             relay_value = {
                 "system_id": "system002",
                 **base,
                 "node_id": "node_relay01",
-                "local_mac": "02:aa:bb:cc:dd:ee",
+                "local_mac": fixture_mac(2, 170, 187, 204, 221, 238),
             }
             private_write(relay, json.dumps(relay_value).encode())
             private_write(fw1, b"c")
