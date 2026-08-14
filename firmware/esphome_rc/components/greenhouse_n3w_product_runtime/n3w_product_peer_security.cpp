@@ -3,8 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
-#include <cstring>
-#include <limits>
+#include <string>
 #include <vector>
 
 #include "mbedtls/md.h"
@@ -33,49 +32,43 @@ const char *role_name(ProductPeerRole role) {
   return role == ProductPeerRole::CHILD ? "child" : "relay";
 }
 
-void append_field(std::string *output, const std::string &field) {
+void append_field(std::string *output, const std::string &value) {
   if (!output->empty()) output->push_back('\n');
-  output->append(field);
+  output->append(value);
 }
 
-void append_u32_field(std::string *output, uint32_t value) {
+void append_u32(std::string *output, uint32_t value) {
   append_field(output, std::to_string(value));
 }
 
-void append_u64_field(std::string *output, uint64_t value) {
+void append_u64(std::string *output, uint64_t value) {
   append_field(output, std::to_string(value));
 }
 
-bool safe_size_sum(std::size_t left, std::size_t right, std::size_t *sum) {
-  if (sum == nullptr || left > std::numeric_limits<std::size_t>::max() - right) return false;
-  *sum = left + right;
-  return true;
+bool grant_binding_shape_valid(const ProductPeerGrant &grant) {
+  return ProductPeerSecurity::valid_session_id_(grant.authorization_id) &&
+         ProductPeerSecurity::valid_identifier_(grant.system_id) &&
+         ProductPeerSecurity::valid_session_id_(grant.session_id) &&
+         ProductPeerSecurity::valid_identifier_(grant.child_node_id) &&
+         ProductPeerSecurity::valid_identifier_(grant.relay_node_id) &&
+         grant.child_node_id != grant.relay_node_id &&
+         grant.child_credential_generation > 0 &&
+         grant.relay_credential_generation > 0 && grant.child_key_epoch > 0 &&
+         grant.relay_key_epoch > 0 && grant.issued_at_ms < grant.expires_at_ms &&
+         grant.authorization_epoch > 0 &&
+         ProductPeerSecurity::nonzero_(grant.child_ephemeral_public_key.data(),
+                                       grant.child_ephemeral_public_key.size()) &&
+         ProductPeerSecurity::nonzero_(grant.relay_ephemeral_public_key.data(),
+                                       grant.relay_ephemeral_public_key.size()) &&
+         ProductPeerSecurity::nonzero_(grant.child_nonce.data(), grant.child_nonce.size()) &&
+         ProductPeerSecurity::nonzero_(grant.relay_nonce.data(), grant.relay_nonce.size());
 }
 
 }  // namespace
 
 bool ProductPeerEndpoint::valid_shape(bool require_proof) const {
-  return ProductPeerSecurity::request_core(
-             ProductPeerRequest{
-                 .system_id = "sys",
-                 .session_id = "shape000",
-                 .requested_at_ms = 0,
-                 .child = *this,
-                 .relay = ProductPeerEndpoint{
-                     .node_id = node_id == "peer" ? "other" : "peer",
-                     .credential_generation = 1,
-                     .key_epoch = 1,
-                     .ephemeral_public_key = ProductPeerKey{1},
-                     .nonce = ProductPeerNonce{1},
-                     .proof = ProductPeerProof{1},
-                 },
-                 .relay_health = ProductRelayHealth{},
-             },
-             nullptr) == false &&
-         ProductPeerSecurity::encode_base64url(ephemeral_public_key.data(),
-                                               ephemeral_public_key.size(),
-                                               nullptr) == false &&
-         !node_id.empty() && credential_generation > 0 && key_epoch > 0 &&
+  return ProductPeerSecurity::valid_identifier_(node_id) && credential_generation > 0 &&
+         key_epoch > 0 &&
          ProductPeerSecurity::nonzero_(ephemeral_public_key.data(), ephemeral_public_key.size()) &&
          ProductPeerSecurity::nonzero_(nonce.data(), nonce.size()) &&
          (!require_proof || ProductPeerSecurity::nonzero_(proof.data(), proof.size()));
@@ -83,50 +76,26 @@ bool ProductPeerEndpoint::valid_shape(bool require_proof) const {
 
 bool ProductPeerRequest::valid_shape(bool require_proofs) const {
   return ProductPeerSecurity::valid_identifier_(system_id) &&
-         ProductPeerSecurity::valid_session_id_(session_id) &&
-         child.node_id != relay.node_id && ProductPeerSecurity::valid_identifier_(child.node_id) &&
-         ProductPeerSecurity::valid_identifier_(relay.node_id) && child.credential_generation > 0 &&
-         relay.credential_generation > 0 && child.key_epoch > 0 && relay.key_epoch > 0 &&
-         ProductPeerSecurity::nonzero_(child.ephemeral_public_key.data(),
-                                       child.ephemeral_public_key.size()) &&
-         ProductPeerSecurity::nonzero_(relay.ephemeral_public_key.data(),
-                                       relay.ephemeral_public_key.size()) &&
-         ProductPeerSecurity::nonzero_(child.nonce.data(), child.nonce.size()) &&
-         ProductPeerSecurity::nonzero_(relay.nonce.data(), relay.nonce.size()) &&
-         (!require_proofs ||
-          (ProductPeerSecurity::nonzero_(child.proof.data(), child.proof.size()) &&
-           ProductPeerSecurity::nonzero_(relay.proof.data(), relay.proof.size())));
+         ProductPeerSecurity::valid_session_id_(session_id) && child.node_id != relay.node_id &&
+         child.valid_shape(require_proofs) && relay.valid_shape(require_proofs);
 }
 
 bool ProductPeerGrant::valid_shape() const {
-  return ProductPeerSecurity::valid_identifier_(system_id) &&
-         ProductPeerSecurity::valid_session_id_(session_id) &&
-         ProductPeerSecurity::valid_session_id_(authorization_id) &&
-         ProductPeerSecurity::valid_identifier_(child_node_id) &&
-         ProductPeerSecurity::valid_identifier_(relay_node_id) && child_node_id != relay_node_id &&
-         child_credential_generation > 0 && relay_credential_generation > 0 &&
-         child_key_epoch > 0 && relay_key_epoch > 0 && authorization_epoch > 0 &&
-         issued_at_ms < expires_at_ms &&
-         ProductPeerSecurity::nonzero_(child_ephemeral_public_key.data(),
-                                       child_ephemeral_public_key.size()) &&
-         ProductPeerSecurity::nonzero_(relay_ephemeral_public_key.data(),
-                                       relay_ephemeral_public_key.size()) &&
-         ProductPeerSecurity::nonzero_(child_nonce.data(), child_nonce.size()) &&
-         ProductPeerSecurity::nonzero_(relay_nonce.data(), relay_nonce.size()) &&
+  return grant_binding_shape_valid(*this) &&
          ProductPeerSecurity::nonzero_(grant_mac.data(), grant_mac.size());
 }
 
 bool ProductPeerSecurity::valid_identifier_(const std::string &value) {
   if (value.size() < 3 || value.size() > 64) return false;
-  return std::all_of(value.begin(), value.end(), [](unsigned char c) {
-    return std::isalnum(c) != 0 || c == '_' || c == '-';
+  return std::all_of(value.begin(), value.end(), [](unsigned char value) {
+    return std::isalnum(value) != 0 || value == '_' || value == '-';
   });
 }
 
 bool ProductPeerSecurity::valid_session_id_(const std::string &value) {
   if (value.size() < 8 || value.size() > 128) return false;
-  return std::all_of(value.begin(), value.end(), [](unsigned char c) {
-    return std::isalnum(c) != 0 || c == '.' || c == '_' || c == ':' || c == '-';
+  return std::all_of(value.begin(), value.end(), [](unsigned char value) {
+    return std::isalnum(value) != 0 || value == '.' || value == '_' || value == ':' || value == '-';
   });
 }
 
@@ -151,12 +120,7 @@ bool ProductPeerSecurity::random_private_key(ProductPeerKey *private_key) {
 bool ProductPeerSecurity::x25519_public_key(
     const ProductPeerKey &private_key,
     ProductPeerKey *public_key) {
-  ProductPeerKey unused_shared{};
-  ProductPeerKey basepoint{};
-  basepoint[0] = 9;
-  const bool success = x25519_shared_secret(private_key, basepoint, &unused_shared);
-  zeroize_(unused_shared.data(), unused_shared.size());
-  if (!success || public_key == nullptr) return false;
+  if (public_key == nullptr || !nonzero_(private_key.data(), private_key.size())) return false;
 #ifdef USE_ESP32
   if (psa_crypto_init() != PSA_SUCCESS) return false;
   psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
@@ -179,11 +143,11 @@ bool ProductPeerSecurity::x25519_public_key(
       EVP_PKEY_X25519, nullptr, private_key.data(), private_key.size());
   if (key == nullptr) return false;
   std::size_t output_length = public_key->size();
-  const bool success_public =
+  const bool success =
       EVP_PKEY_get_raw_public_key(key, public_key->data(), &output_length) == 1 &&
       output_length == public_key->size() && nonzero_(public_key->data(), public_key->size());
   EVP_PKEY_free(key);
-  return success_public;
+  return success;
 #endif
 }
 
@@ -209,12 +173,11 @@ bool ProductPeerSecurity::x25519_shared_secret(
   if (status != PSA_SUCCESS) return false;
   std::size_t shared_length = 0;
   status = psa_raw_key_agreement(
-      PSA_ALG_ECDH, key_id, peer_public_key.data(), peer_public_key.size(),
-      shared_secret->data(), shared_secret->size(), &shared_length);
+      PSA_ALG_ECDH, key_id, peer_public_key.data(), peer_public_key.size(), shared_secret->data(),
+      shared_secret->size(), &shared_length);
   const psa_status_t destroy_status = psa_destroy_key(key_id);
   if (status != PSA_SUCCESS || destroy_status != PSA_SUCCESS ||
-      shared_length != shared_secret->size() ||
-      !nonzero_(shared_secret->data(), shared_secret->size())) {
+      shared_length != shared_secret->size() || !nonzero_(shared_secret->data(), shared_secret->size())) {
     zeroize_(shared_secret->data(), shared_secret->size());
     return false;
   }
@@ -248,7 +211,7 @@ bool ProductPeerSecurity::sha256_(
     const uint8_t *data,
     std::size_t length,
     ProductPeerKey *digest) {
-  if (data == nullptr || digest == nullptr) return false;
+  if (data == nullptr || length == 0 || digest == nullptr) return false;
   const mbedtls_md_info_t *info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
   return info != nullptr && mbedtls_md(info, data, length, digest->data()) == 0;
 }
@@ -259,7 +222,9 @@ bool ProductPeerSecurity::hmac_sha256_(
     const uint8_t *data,
     std::size_t data_length,
     ProductPeerProof *digest) {
-  if (key == nullptr || key_length == 0 || data == nullptr || digest == nullptr) return false;
+  if (key == nullptr || key_length == 0 || data == nullptr || data_length == 0 || digest == nullptr) {
+    return false;
+  }
   const mbedtls_md_info_t *info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
   return info != nullptr &&
          mbedtls_md_hmac(info, key, key_length, data, data_length, digest->data()) == 0;
@@ -274,8 +239,8 @@ bool ProductPeerSecurity::hkdf_sha256_(
     std::size_t info_length,
     uint8_t *output,
     std::size_t output_length) {
-  if (ikm == nullptr || ikm_length == 0 || info == nullptr || output == nullptr ||
-      output_length == 0 || output_length > 32) {
+  if (ikm == nullptr || ikm_length == 0 || info == nullptr || info_length == 0 ||
+      output == nullptr || output_length == 0 || output_length > 32) {
     return false;
   }
   ProductPeerProof prk{};
@@ -288,12 +253,7 @@ bool ProductPeerSecurity::hkdf_sha256_(
     return false;
   }
   std::vector<uint8_t> expand_input;
-  std::size_t reserve_size = 0;
-  if (!safe_size_sum(info_length, 1, &reserve_size)) {
-    zeroize_(prk.data(), prk.size());
-    return false;
-  }
-  expand_input.reserve(reserve_size);
+  expand_input.reserve(info_length + 1);
   expand_input.insert(expand_input.end(), info, info + info_length);
   expand_input.push_back(1);
   const bool success = hmac_sha256_(
@@ -330,31 +290,33 @@ bool ProductPeerSecurity::encode_base64url(
   output->reserve((length * 4 + 2) / 3);
   std::size_t index = 0;
   while (index + 3 <= length) {
-    const uint32_t word = (static_cast<uint32_t>(data[index]) << 16U) |
-                          (static_cast<uint32_t>(data[index + 1]) << 8U) |
-                          static_cast<uint32_t>(data[index + 2]);
-    output->push_back(kBase64Alphabet[(word >> 18U) & 0x3fU]);
-    output->push_back(kBase64Alphabet[(word >> 12U) & 0x3fU]);
-    output->push_back(kBase64Alphabet[(word >> 6U) & 0x3fU]);
-    output->push_back(kBase64Alphabet[word & 0x3fU]);
+    const uint32_t value = (static_cast<uint32_t>(data[index]) << 16U) |
+                           (static_cast<uint32_t>(data[index + 1]) << 8U) |
+                           static_cast<uint32_t>(data[index + 2]);
+    output->push_back(kBase64Alphabet[(value >> 18U) & 0x3fU]);
+    output->push_back(kBase64Alphabet[(value >> 12U) & 0x3fU]);
+    output->push_back(kBase64Alphabet[(value >> 6U) & 0x3fU]);
+    output->push_back(kBase64Alphabet[value & 0x3fU]);
     index += 3;
   }
   const std::size_t remaining = length - index;
   if (remaining == 1) {
-    const uint32_t word = static_cast<uint32_t>(data[index]) << 16U;
-    output->push_back(kBase64Alphabet[(word >> 18U) & 0x3fU]);
-    output->push_back(kBase64Alphabet[(word >> 12U) & 0x3fU]);
+    const uint32_t value = static_cast<uint32_t>(data[index]) << 16U;
+    output->push_back(kBase64Alphabet[(value >> 18U) & 0x3fU]);
+    output->push_back(kBase64Alphabet[(value >> 12U) & 0x3fU]);
   } else if (remaining == 2) {
-    const uint32_t word = (static_cast<uint32_t>(data[index]) << 16U) |
-                          (static_cast<uint32_t>(data[index + 1]) << 8U);
-    output->push_back(kBase64Alphabet[(word >> 18U) & 0x3fU]);
-    output->push_back(kBase64Alphabet[(word >> 12U) & 0x3fU]);
-    output->push_back(kBase64Alphabet[(word >> 6U) & 0x3fU]);
+    const uint32_t value = (static_cast<uint32_t>(data[index]) << 16U) |
+                           (static_cast<uint32_t>(data[index + 1]) << 8U);
+    output->push_back(kBase64Alphabet[(value >> 18U) & 0x3fU]);
+    output->push_back(kBase64Alphabet[(value >> 12U) & 0x3fU]);
+    output->push_back(kBase64Alphabet[(value >> 6U) & 0x3fU]);
   }
   return !output->empty();
 }
 
-bool ProductPeerSecurity::request_core(const ProductPeerRequest &request, std::string *output) {
+bool ProductPeerSecurity::request_core(
+    const ProductPeerRequest &request,
+    std::string *output) {
   if (output == nullptr || !request.valid_shape(false)) return false;
   std::string child_public;
   std::string child_nonce;
@@ -372,34 +334,28 @@ bool ProductPeerSecurity::request_core(const ProductPeerRequest &request, std::s
   append_field(output, kRequestDomain);
   append_field(output, request.system_id);
   append_field(output, request.session_id);
-  append_u64_field(output, request.requested_at_ms);
+  append_u64(output, request.requested_at_ms);
   append_field(output, request.child.node_id);
-  append_u32_field(output, request.child.credential_generation);
-  append_u32_field(output, request.child.key_epoch);
+  append_u32(output, request.child.credential_generation);
+  append_u32(output, request.child.key_epoch);
   append_field(output, child_public);
   append_field(output, child_nonce);
   append_field(output, request.relay.node_id);
-  append_u32_field(output, request.relay.credential_generation);
-  append_u32_field(output, request.relay.key_epoch);
+  append_u32(output, request.relay.credential_generation);
+  append_u32(output, request.relay.key_epoch);
   append_field(output, relay_public);
   append_field(output, relay_nonce);
-  append_u64_field(output, request.relay_health.observed_at_ms);
+  append_u64(output, request.relay_health.observed_at_ms);
   append_field(output, request.relay_health.relay_capable ? "1" : "0");
   append_field(output, request.relay_health.low_battery ? "1" : "0");
   append_field(output, request.relay_health.overloaded ? "1" : "0");
   return true;
 }
 
-bool ProductPeerSecurity::grant_binding(const ProductPeerGrant &grant, std::string *output) {
-  if (output == nullptr || !valid_identifier_(grant.system_id) ||
-      !valid_session_id_(grant.session_id) || !valid_session_id_(grant.authorization_id) ||
-      !valid_identifier_(grant.child_node_id) || !valid_identifier_(grant.relay_node_id) ||
-      grant.child_node_id == grant.relay_node_id || grant.child_credential_generation == 0 ||
-      grant.relay_credential_generation == 0 || grant.child_key_epoch == 0 ||
-      grant.relay_key_epoch == 0 || grant.authorization_epoch == 0 ||
-      grant.issued_at_ms >= grant.expires_at_ms) {
-    return false;
-  }
+bool ProductPeerSecurity::grant_binding(
+    const ProductPeerGrant &grant,
+    std::string *output) {
+  if (output == nullptr || !grant_binding_shape_valid(grant)) return false;
   std::string child_public;
   std::string relay_public;
   std::string child_nonce;
@@ -419,17 +375,17 @@ bool ProductPeerSecurity::grant_binding(const ProductPeerGrant &grant, std::stri
   append_field(output, grant.session_id);
   append_field(output, grant.child_node_id);
   append_field(output, grant.relay_node_id);
-  append_u32_field(output, grant.child_credential_generation);
-  append_u32_field(output, grant.relay_credential_generation);
-  append_u32_field(output, grant.child_key_epoch);
-  append_u32_field(output, grant.relay_key_epoch);
+  append_u32(output, grant.child_credential_generation);
+  append_u32(output, grant.relay_credential_generation);
+  append_u32(output, grant.child_key_epoch);
+  append_u32(output, grant.relay_key_epoch);
   append_field(output, child_public);
   append_field(output, relay_public);
   append_field(output, child_nonce);
   append_field(output, relay_nonce);
-  append_u64_field(output, grant.issued_at_ms);
-  append_u64_field(output, grant.expires_at_ms);
-  append_u32_field(output, grant.authorization_epoch);
+  append_u64(output, grant.issued_at_ms);
+  append_u64(output, grant.expires_at_ms);
+  append_u32(output, grant.authorization_epoch);
   return true;
 }
 
@@ -441,8 +397,8 @@ bool ProductPeerSecurity::derive_relay_auth_key(
     uint32_t key_epoch,
     ProductPeerKey *relay_auth_key) {
   if (relay_auth_key == nullptr || !nonzero_(application_key.data(), application_key.size()) ||
-      !valid_identifier_(system_id) || !valid_identifier_(node_id) ||
-      credential_generation == 0 || key_epoch == 0) {
+      !valid_identifier_(system_id) || !valid_identifier_(node_id) || credential_generation == 0 ||
+      key_epoch == 0) {
     return false;
   }
   std::string info(kAuthKeyInfo);
