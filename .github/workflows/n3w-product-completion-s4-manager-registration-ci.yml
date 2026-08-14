@@ -31,7 +31,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          EXPECTED_BASE='8020194edfeea03a52466e83cb3071de54afbd48'
+          EXPECTED_BASE='1ec7b5f0b9842df990073ca7f6864764cb0fb3cd'
           git fetch --no-tags origin main
           BASE="$(git merge-base HEAD origin/main)"
           test "$BASE" = "$EXPECTED_BASE"
@@ -70,7 +70,13 @@ jobs:
           path = Path('docs/decisions/n3w-product-completion-s4-manager-registration-integration-20260814.json')
           doc = json.loads(path.read_text())
           assert doc['authorization'] == 'D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S4-MANAGER-REGISTRATION-INTEGRATION-20260814-01'
-          assert doc['base_sha'] == '8020194edfeea03a52466e83cb3071de54afbd48'
+          assert doc['base_sha'] == '1ec7b5f0b9842df990073ca7f6864764cb0fb3cd'
+          assert doc['base_tree'] == '66e634165e1e8af72ad86af2e0f5a10ebf10f0a4'
+          assert doc['original_authorized_base_sha'] == '8020194edfeea03a52466e83cb3071de54afbd48'
+          assert doc['original_authorized_base_tree'] == 'cbec93e9602565a9228340445c9687b6eb2a0e5b'
+          assert doc['rebaseline']['authorization'] == 'D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S4-PR319-REBASELINE-READY-AND-MERGE-20260814-02'
+          assert doc['rebaseline']['from_base_sha'] == '8020194edfeea03a52466e83cb3071de54afbd48'
+          assert doc['rebaseline']['to_base_sha'] == '1ec7b5f0b9842df990073ca7f6864764cb0fb3cd'
           assert doc['authorized'] is True
           assert doc['frozen_invariants']['factory_fixed_peer_information'] is False
           assert doc['frozen_invariants']['system_wide_shared_lmk'] is False
@@ -97,7 +103,7 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
-          EXPECTED_BASE='8020194edfeea03a52466e83cb3071de54afbd48'
+          EXPECTED_BASE='1ec7b5f0b9842df990073ca7f6864764cb0fb3cd'
           HEAD_ROOT="$GITHUB_WORKSPACE/host/greenhouse-manager"
           BASE_WORKTREE="$RUNNER_TEMP/s4-exact-base"
 
