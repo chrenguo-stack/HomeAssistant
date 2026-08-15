@@ -137,7 +137,11 @@ def assemble_isolated_manager_service(settings: Settings) -> IsolatedManagerAsse
 
     authority = build_isolated_peer_authority(settings)
     try:
-        service = N3wProductIsolatedMqttService(settings, authority.adapter)
+        service = N3wProductIsolatedMqttService(
+            settings,
+            authority.adapter,
+            authority.application_keys,
+        )
     except Exception:
         authority.close()
         raise
