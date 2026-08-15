@@ -55,11 +55,10 @@ bool GreenhouseN3wS5PrivateRuntimeMaterial::parse_hex_key_(
 bool GreenhouseN3wS5PrivateRuntimeMaterial::parse_mac_(
     const std::string &value,
     MacAddress *output) {
-  if (output == nullptr || value.size() != 17) return false;
+  if (output == nullptr || value.size() != output->size() * 2) return false;
   uint8_t aggregate = 0;
   for (std::size_t index = 0; index < output->size(); ++index) {
-    const std::size_t offset = index * 3;
-    if (index != output->size() - 1 && value[offset + 2] != ':') return false;
+    const std::size_t offset = index * 2;
     const uint8_t high = hex_nibble(value[offset]);
     const uint8_t low = hex_nibble(value[offset + 1]);
     if (high == 0xff || low == 0xff) return false;
