@@ -259,7 +259,59 @@ def _render_child(
     *, source_root: Path, build_path: Path, credentials: dict[str, Any], pmk_hex: str, channel: int
 ) -> str:
     components = source_root / "firmware" / "esphome_rc" / "components"
-    return f"""esphome:\n  name: gh-n3w-s5-child-private\n  friendly_name: N3-W Product S5 Private Child\n  min_version: {ESPHOME_VERSION}\n  build_path: {_yaml(build_path)}\n\nesp32:\n  board: esp32-c6-devkitm-1\n  variant: ESP32C6\n  flash_size: 8MB\n  framework:\n    type: esp-idf\n    advanced:\n      include_builtin_idf_components:\n        - nvs_flash\n        - esp_wifi\n\nlogger:\n  level: INFO\n  hardware_uart: USB_SERIAL_JTAG\n\nexternal_components:\n  - source:\n      type: local\n      path: {_yaml(components)}\n    components:\n      - greenhouse_n3w_core\n      - greenhouse_n3w_product_core\n      - greenhouse_n3w_product_runtime\n      - greenhouse_n3w_s5_private_runtime\n\ngreenhouse_n3w_core:\n\ngreenhouse_n3w_product_core:\n\ngreenhouse_n3w_product_runtime:\n  id: n3w_product_integration\n  role: child\n  execution_enabled: true\n  pmk_hex: {_yaml(pmk_hex)}\n  last_direct_channel: {channel}\n\ngreenhouse_n3w_s5_private_runtime:\n  id: n3w_private_runtime_material\n  product_runtime_id: n3w_product_integration\n  role: child\n  system_id: {_yaml(credentials['system_id'])}\n  node_id: {_yaml(credentials['node_id'])}\n  credential_generation: {credentials['credential_generation']}\n  key_epoch: {credentials['key_epoch']}\n  application_key_hex: {_yaml(credentials['application_key_hex'])}\n  local_mac: {_yaml(credentials['local_mac'].replace(':', ''))}\n"""
+    return f"""esphome:
+  name: gh-n3w-s5-child-private
+  friendly_name: N3-W Product S5 Private Child
+  min_version: {ESPHOME_VERSION}
+  build_path: {_yaml(build_path)}
+
+esp32:
+  board: esp32-c6-devkitm-1
+  variant: ESP32C6
+  flash_size: 8MB
+  framework:
+    type: esp-idf
+    advanced:
+      include_builtin_idf_components:
+        - nvs_flash
+        - esp_wifi
+
+logger:
+  level: INFO
+  hardware_uart: USB_SERIAL_JTAG
+
+external_components:
+  - source:
+      type: local
+      path: {_yaml(components)}
+    components:
+      - greenhouse_n3w_core
+      - greenhouse_n3w_product_core
+      - greenhouse_n3w_product_runtime
+      - greenhouse_n3w_s5_private_runtime
+
+greenhouse_n3w_core:
+
+greenhouse_n3w_product_core:
+
+greenhouse_n3w_product_runtime:
+  id: n3w_product_integration
+  role: child
+  execution_enabled: true
+  pmk_hex: {_yaml(pmk_hex)}
+  last_direct_channel: {channel}
+
+greenhouse_n3w_s5_private_runtime:
+  id: n3w_private_runtime_material
+  product_runtime_id: n3w_product_integration
+  role: child
+  system_id: {_yaml(credentials['system_id'])}
+  node_id: {_yaml(credentials['node_id'])}
+  credential_generation: {credentials['credential_generation']}
+  key_epoch: {credentials['key_epoch']}
+  application_key_hex: {_yaml(credentials['application_key_hex'])}
+  local_mac: {_yaml(credentials['local_mac'].replace(':', ''))}
+"""
 
 
 def _render_relay(
@@ -279,7 +331,81 @@ def _render_relay(
             f"  password: {_yaml(network['mqtt_password'])}\n"
         )
     channel = network["wifi_channel"]
-    return f"""esphome:\n  name: gh-n3w-s5-relay-private\n  friendly_name: N3-W Product S5 Private Relay\n  min_version: {ESPHOME_VERSION}\n  build_path: {_yaml(build_path)}\n\nesp32:\n  board: esp32-c6-devkitm-1\n  variant: ESP32C6\n  flash_size: 8MB\n  framework:\n    type: esp-idf\n    advanced:\n      include_builtin_idf_components:\n        - nvs_flash\n        - esp_wifi\n\nlogger:\n  level: INFO\n  hardware_uart: USB_SERIAL_JTAG\n\nwifi:\n  networks:\n    - ssid: {_yaml(network['wifi_ssid'])}\n{password_line}      channel: {channel}\n  fast_connect: true\n\nmqtt:\n  broker: {_yaml(network['mqtt_broker'])}\n  port: {network['mqtt_port']}\n  client_id: {_yaml(network['mqtt_client_id'])}\n{mqtt_auth}  discovery: false\n\nexternal_components:\n  - source:\n      type: local\n      path: {_yaml(components)}\n    components:\n      - greenhouse_n3w_core\n      - greenhouse_n3w_product_core\n      - greenhouse_n3w_product_runtime\n      - greenhouse_n3w_s5_manager_transport\n      - greenhouse_n3w_s5_private_runtime\n\ngreenhouse_n3w_core:\n\ngreenhouse_n3w_product_core:\n\ngreenhouse_n3w_product_runtime:\n  id: n3w_product_integration\n  role: relay\n  execution_enabled: true\n  pmk_hex: {_yaml(pmk_hex)}\n  last_direct_channel: {channel}\n\ngreenhouse_n3w_s5_manager_transport:\n  id: n3w_product_manager_transport\n  product_runtime_id: n3w_product_integration\n  execution_enabled: true\n\ngreenhouse_n3w_s5_private_runtime:\n  id: n3w_private_runtime_material\n  product_runtime_id: n3w_product_integration\n  manager_transport_id: n3w_product_manager_transport\n  role: relay\n  system_id: {_yaml(credentials['system_id'])}\n  node_id: {_yaml(credentials['node_id'])}\n  credential_generation: {credentials['credential_generation']}\n  key_epoch: {credentials['key_epoch']}\n  application_key_hex: {_yaml(credentials['application_key_hex'])}\n  local_mac: {_yaml(credentials['local_mac'].replace(':', ''))}\n  relay_capable: true\n  low_battery: false\n  overloaded: false\n"""
+    return f"""esphome:
+  name: gh-n3w-s5-relay-private
+  friendly_name: N3-W Product S5 Private Relay
+  min_version: {ESPHOME_VERSION}
+  build_path: {_yaml(build_path)}
+
+esp32:
+  board: esp32-c6-devkitm-1
+  variant: ESP32C6
+  flash_size: 8MB
+  framework:
+    type: esp-idf
+    advanced:
+      include_builtin_idf_components:
+        - nvs_flash
+        - esp_wifi
+
+logger:
+  level: INFO
+  hardware_uart: USB_SERIAL_JTAG
+
+wifi:
+  networks:
+    - ssid: {_yaml(network['wifi_ssid'])}
+{password_line}      channel: {channel}
+  fast_connect: true
+
+mqtt:
+  broker: {_yaml(network['mqtt_broker'])}
+  port: {network['mqtt_port']}
+  client_id: {_yaml(network['mqtt_client_id'])}
+{mqtt_auth}  discovery: false
+
+external_components:
+  - source:
+      type: local
+      path: {_yaml(components)}
+    components:
+      - greenhouse_n3w_core
+      - greenhouse_n3w_product_core
+      - greenhouse_n3w_product_runtime
+      - greenhouse_n3w_s5_manager_transport
+      - greenhouse_n3w_s5_private_runtime
+
+greenhouse_n3w_core:
+
+greenhouse_n3w_product_core:
+
+greenhouse_n3w_product_runtime:
+  id: n3w_product_integration
+  role: relay
+  execution_enabled: true
+  pmk_hex: {_yaml(pmk_hex)}
+  last_direct_channel: {channel}
+
+greenhouse_n3w_s5_manager_transport:
+  id: n3w_product_manager_transport
+  product_runtime_id: n3w_product_integration
+  execution_enabled: true
+
+greenhouse_n3w_s5_private_runtime:
+  id: n3w_private_runtime_material
+  product_runtime_id: n3w_product_integration
+  manager_transport_id: n3w_product_manager_transport
+  role: relay
+  system_id: {_yaml(credentials['system_id'])}
+  node_id: {_yaml(credentials['node_id'])}
+  credential_generation: {credentials['credential_generation']}
+  key_epoch: {credentials['key_epoch']}
+  application_key_hex: {_yaml(credentials['application_key_hex'])}
+  local_mac: {_yaml(credentials['local_mac'].replace(':', ''))}
+  relay_capable: true
+  low_battery: false
+  overloaded: false
+"""
 
 
 def _sqlite_connection(path: Path) -> sqlite3.Connection:
@@ -547,6 +673,7 @@ def _public_network_binding(value: dict[str, Any]) -> dict[str, object]:
 
 
 def build(args: argparse.Namespace) -> dict[str, object]:
+    os.umask(0o077)
     source_root = Path(args.source_root).resolve()
     if not source_root.is_dir():
         raise PrivatePackageBuildError("source_root_invalid")
@@ -628,6 +755,7 @@ def build(args: argparse.Namespace) -> dict[str, object]:
         _run_esphome("config", config, output / "build_logs" / f"{role}-config.log", source_root)
         _run_esphome("compile", config, output / "build_logs" / f"{role}-compile.log", source_root)
 
+    shutil.rmtree(output / "rendered" / ".esphome", ignore_errors=True)
     child_fw = _locate_firmware(output / ".work" / "child", "child")
     relay_fw = _locate_firmware(output / ".work" / "relay", "relay")
     _copy_private_file(child_fw, output / "artifacts" / "child_firmware.bin", "child_firmware")
