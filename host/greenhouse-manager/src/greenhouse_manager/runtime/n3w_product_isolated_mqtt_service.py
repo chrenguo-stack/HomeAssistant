@@ -5,8 +5,9 @@ import logging
 import re
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 import paho.mqtt.client as mqtt
 
