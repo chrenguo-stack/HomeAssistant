@@ -44,6 +44,28 @@ def main() -> int:
         raise ValueError("p5relay_acl_block_missing")
     original_block = block_match.group(0)
     updated_block = original_block
+    telemetry_pattern = re.compile(
+        rf"^ topic write gh/v1/{re.escape(system)}/ingress/node/"
+        rf"[A-Za-z0-9_-]+/telemetry$",
+        re.MULTILINE,
+    )
+    telemetry_count = len(telemetry_pattern.findall(updated_block))
+    telemetry_added = telemetry_count == 0
+    if telemetry_count > 1:
+        raise ValueError("approved_acl_entry_count_mismatch")
+    if telemetry_added:
+        gateway_pattern = re.compile(
+            rf"^( topic write gh/v1/{re.escape(system)}/ingress/gateway/"
+            rf"[A-Za-z0-9_-]+/[A-Za-z0-9_-]+/frame)$",
+            re.MULTILINE,
+        )
+        if len(gateway_pattern.findall(updated_block)) != 1:
+            raise ValueError("p5relay_gateway_anchor_count_mismatch")
+        updated_block = gateway_pattern.sub(
+            rf"\1\n topic write gh/v1/{system}/ingress/node/{node}/telemetry",
+            updated_block,
+            count=1,
+        )
     for permission, suffix in SUFFIXES:
         pattern = re.compile(
             rf"^ topic {permission} gh/v1/{re.escape(system)}/"
@@ -69,8 +91,13 @@ def main() -> int:
             rf"(?:ingress|out)/node/[A-Za-z0-9_-]+/{re.escape(suffix)}$",
             re.MULTILINE,
         )
-        before_without_approved = scrub.sub("[APPROVED_ENTRY]", before_without_approved)
-        after_without_approved = scrub.sub("[APPROVED_ENTRY]", after_without_approved)
+        marker = f"[APPROVED_ENTRY:{permission}:{suffix}]"
+        before_without_approved = scrub.sub(marker, before_without_approved)
+        after_without_approved = scrub.sub(marker, after_without_approved)
+    if telemetry_added:
+        after_without_approved = after_without_approved.replace(
+            "[APPROVED_ENTRY:write:telemetry]\n", "", 1
+        )
     if before_without_approved != after_without_approved:
         raise ValueError("acl_scope_expanded")
     if original.replace(original_block, "[P5RELAY_BLOCK]", 1) != updated.replace(

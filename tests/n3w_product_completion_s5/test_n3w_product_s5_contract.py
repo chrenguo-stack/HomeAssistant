@@ -115,7 +115,7 @@ def test_isolated_relay_acl_covers_dynamic_peer_authorization_transport():
     ) in acl
 
 
-def test_private_acl_renderer_changes_only_the_three_approved_entries():
+def test_private_acl_renderer_changes_only_the_four_approved_entries():
     with tempfile.TemporaryDirectory() as temporary:
         root = Path(temporary)
         credentials = root / "relay.json"
@@ -154,3 +154,45 @@ def test_private_acl_renderer_changes_only_the_three_approved_entries():
             "/node/private_relay/telemetry",
         )
         assert updated == expected
+
+
+def test_private_acl_renderer_adds_only_the_approved_relay_liveness_entry():
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        credentials = root / "relay.json"
+        acl = root / "acl"
+        credentials.write_text(
+            json.dumps({"system_id": "n3wp5lab", "node_id": "private_relay"}),
+            encoding="utf-8",
+        )
+        current = (
+            ROOT / "infra/compose/n3w-p5-two-board-isolated/acl"
+        ).read_text(encoding="utf-8")
+        old_deployment = current.replace(
+            " topic write gh/v1/n3wp5lab/ingress/node/n3wp5_relay01/telemetry\n",
+            "",
+        )
+        acl.write_text(old_deployment, encoding="utf-8")
+
+        subprocess.run(
+            [
+                sys.executable,
+                str(PRIVATE_ACL_RENDERER),
+                "--relay-credentials",
+                str(credentials),
+                "--output",
+                str(acl),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        expected = current.replace(
+            "/node/n3wp5_relay01/relay-peer-auth/",
+            "/node/private_relay/relay-peer-auth/",
+        ).replace(
+            "/node/n3wp5_relay01/telemetry",
+            "/node/private_relay/telemetry",
+        )
+        assert acl.read_text(encoding="utf-8") == expected
