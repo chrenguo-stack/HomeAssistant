@@ -82,7 +82,7 @@ jobs:
                   "key_epoch": 9,
                   "application_key_hex": "81" * 32,
                   "local_mac": "02:11:22:33:44:55",
-                  "capabilities": ["telemetry"],
+                  "capabilities": ["telemetry", "n3w-product-relay"],
               },
               "relay": {
                   "role": "relay",
@@ -164,6 +164,11 @@ jobs:
               "SELECT COUNT(*) FROM credential_assignments "
               "WHERE state='active' AND pending_generation IS NULL"
           ).fetchone()[0] == 2
+          caps = reg.execute(
+              "SELECT capabilities_json FROM pairing_sessions"
+          ).fetchall()
+          assert len(caps) == 2
+          assert all("n3w-product-relay" in json.loads(row[0]) for row in caps)
           reg.close()
 
           relay = sqlite3.connect(state / "relay-authorization.sqlite3")
@@ -178,6 +183,7 @@ jobs:
           assert replay.execute("SELECT COUNT(*) FROM n3w_replay_seen").fetchone()[0] == 0
           replay.close()
           print("S5_INITIALIZER_TWO_INDEPENDENT_NODE_MEMBERSHIPS=PASS")
+          print("BOTH_NODES_RELAY_CAPABLE=true")
           print("STATIC_GATEWAY_RELATION_PRESENT=false")
           print("PAIR_LMK_PRESENT=false")
           print("PMK_PRESENT=false")
