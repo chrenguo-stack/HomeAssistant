@@ -62,6 +62,7 @@ def test_manager_boundary_is_wired_to_runtime_authorization():
 def test_isolated_child_enters_relay_discovery_without_direct_transport():
     integration = (RUNTIME_DIR / "n3w_product_integration.cpp").read_text()
     assert "WifiDirectHealthPolicy{1, 1, 3}" in integration
+    assert "runtime_policy.allowed_channels = {last_direct_channel_}" in integration
     assert "!relay_role && runtime_->note_direct_result(false)" in integration
 
 

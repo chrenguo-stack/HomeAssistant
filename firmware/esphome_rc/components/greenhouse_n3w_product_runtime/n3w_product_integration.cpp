@@ -115,12 +115,17 @@ bool GreenhouseN3wProductIntegration::setup_s5_isolated_() {
 
   // The isolated S5 Child composition intentionally has no Wi-Fi Direct
   // transport. Treat its first explicit Direct failure as terminal so the
-  // runtime enters Relay discovery instead of remaining idle in DIRECT.
+  // runtime enters Relay discovery instead of remaining idle in DIRECT. The
+  // private package also freezes both boards and the isolated AP to the same
+  // channel, so avoid a generic 1/6/11 scan that can repeatedly miss the
+  // Relay's bounded advertisement interval.
   const WifiDirectHealthPolicy direct_health =
       relay_role ? WifiDirectHealthPolicy{} : WifiDirectHealthPolicy{1, 1, 3};
+  ProductRuntimePolicy runtime_policy{};
+  if (!relay_role) runtime_policy.allowed_channels = {last_direct_channel_};
   runtime_ = std::make_unique<ProductEspNowRuntime>(
       s5_radio_mux_.get(), this, s5_coordinator_.get(), direct_health,
-      RelayCandidatePolicy{}, AutoPathPolicy{}, ProductRuntimePolicy{});
+      RelayCandidatePolicy{}, AutoPathPolicy{}, runtime_policy);
   if (s5_coordinator_->attach(runtime_.get(), s5_radio_mux_.get()) != ProductS5CoordinatorError::NONE) {
     zeroize_(credentials.application_key.data(), credentials.application_key.size());
     return false;
