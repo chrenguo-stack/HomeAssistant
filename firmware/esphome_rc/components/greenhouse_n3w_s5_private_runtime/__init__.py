@@ -30,7 +30,7 @@ CONF_LOW_BATTERY = "low_battery"
 CONF_OVERLOADED = "overloaded"
 
 _ID_RE = re.compile(r"^[A-Za-z0-9_-]{3,64}$")
-_MAC_RE = re.compile(r"^(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
+_COMPACT_MAC_RE = re.compile(r"^[0-9A-Fa-f]{12}$")
 
 ns = cg.esphome_ns.namespace("greenhouse_n3w_s5_private_runtime")
 runtime_ns = cg.esphome_ns.namespace("greenhouse_n3w_product_runtime")
@@ -68,12 +68,12 @@ def _application_key(value: object) -> str:
 
 def _local_mac(value: object) -> str:
     parsed = cv.string_strict(value)
-    if _MAC_RE.fullmatch(parsed) is None:
-        raise Invalid("local_mac must be six hexadecimal octets")
+    if _COMPACT_MAC_RE.fullmatch(parsed) is None:
+        raise Invalid("local_mac must be exactly 12 hexadecimal characters")
     first = int(parsed[0:2], 16)
     if first & 0x01:
         raise Invalid("local_mac must be unicast")
-    if parsed.lower() == "00:00:00:00:00:00":
+    if int(parsed, 16) == 0:
         raise Invalid("local_mac must be nonzero")
     return parsed.lower()
 
