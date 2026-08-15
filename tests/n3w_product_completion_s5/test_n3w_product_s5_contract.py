@@ -1,4 +1,7 @@
 import json
+import subprocess
+import sys
+import tempfile
 from pathlib import Path
 
 
@@ -6,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[2]
 DECISION = ROOT / "docs/decisions/n3w-product-completion-s5-two-board-isolated-physical-20260814.json"
 BOARD_DIR = ROOT / "firmware/esphome_rc/board_lab/n3w_product_completion_s5"
 RUNTIME_DIR = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_product_runtime"
+PRIVATE_ACL_RENDERER = ROOT / "tools/n3w_product_s5_render_private_acl.py"
 
 
 def test_decision_record_bounds_this_round_before_physical_execution():
@@ -89,3 +93,56 @@ def test_physical_diagnostics_are_bounded_and_do_not_log_identity_or_payload():
     assert "kDiagnosticLogLimit = 8" in mux
     assert "classification=discovery" in mux
     assert "source.data()" not in driver
+
+
+def test_isolated_relay_acl_covers_dynamic_peer_authorization_transport():
+    acl = (
+        ROOT / "infra/compose/n3w-p5-two-board-isolated/acl"
+    ).read_text()
+    assert (
+        "topic write gh/v1/n3wp5lab/ingress/node/n3wp5_relay01/"
+        "relay-peer-auth/time-request"
+    ) in acl
+    assert (
+        "topic write gh/v1/n3wp5lab/ingress/node/n3wp5_relay01/"
+        "relay-peer-auth/request"
+    ) in acl
+    assert (
+        "topic read gh/v1/n3wp5lab/out/node/n3wp5_relay01/relay-peer-auth/+"
+    ) in acl
+
+
+def test_private_acl_renderer_changes_only_the_three_approved_entries():
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        credentials = root / "relay.json"
+        acl = root / "acl"
+        credentials.write_text(
+            json.dumps({"system_id": "n3wp5lab", "node_id": "private_relay"}),
+            encoding="utf-8",
+        )
+        original = (
+            ROOT / "infra/compose/n3w-p5-two-board-isolated/acl"
+        ).read_text(encoding="utf-8")
+        acl.write_text(original, encoding="utf-8")
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(PRIVATE_ACL_RENDERER),
+                "--relay-credentials",
+                str(credentials),
+                "--output",
+                str(acl),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.stdout.strip() == "PRIVATE_ACL_APPROVED_ENTRIES_BIND=PASS"
+        updated = acl.read_text(encoding="utf-8")
+        assert updated == original.replace(
+            "/node/n3wp5_relay01/relay-peer-auth/",
+            "/node/private_relay/relay-peer-auth/",
+        )
