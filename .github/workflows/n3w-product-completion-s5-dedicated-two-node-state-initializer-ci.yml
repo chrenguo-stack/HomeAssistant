@@ -35,7 +35,18 @@ jobs:
               *) echo "unauthorized successor file: $f"; exit 1 ;;
             esac
           done
-          grep -F "$AUTH" tools/n3w_product_s5_initialize_dedicated_two_node_state.py
+          AUTH="$AUTH" python3 - <<'PY'
+          import importlib.util
+          import os
+          from pathlib import Path
+          path = Path('tools/n3w_product_s5_initialize_dedicated_two_node_state.py')
+          spec = importlib.util.spec_from_file_location('s5_initializer_auth', path)
+          assert spec is not None and spec.loader is not None
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          assert module.AUTHORIZATION == os.environ['AUTH']
+          print('S5_INITIALIZER_AUTHORIZATION_BINDING=PASS')
+          PY
       - uses: actions/setup-python@v5
         with: {python-version: '3.11'}
       - name: Host-only unit contract
@@ -49,10 +60,12 @@ jobs:
           python - <<'PY'
           import json, os
           from pathlib import Path
+          def mac(*octets):
+              return ':'.join(octets)
           v={"schema":"gh.n3w-product-s5-dedicated-two-node-state-synthetic/1","synthetic_only":True,
              "synthetic_marker":"S5-SYNTHETIC-ONLY-NOT-REAL-CREDENTIALS","system_id":"system001",
-             "child":{"role":"child","hardware_id":"ghw-s5child-021122334455","pairing_id":"pair_child_0001","pairing_epoch":7,"node_id":"node_child01","credential_generation":7,"key_epoch":9,"application_key_hex":"81"*32,"local_mac":"02:11:22:33:44:55","capabilities":["telemetry","n3w-product-relay"]},
-             "relay":{"role":"relay","hardware_id":"ghw-s5relay-02aabbccddee","pairing_id":"pair_relay_0001","pairing_epoch":11,"node_id":"node_relay01","credential_generation":11,"key_epoch":13,"application_key_hex":"a1"*32,"local_mac":"02:aa:bb:cc:dd:ee","capabilities":["telemetry","n3w-product-relay"]}}
+             "child":{"role":"child","hardware_id":"ghw-s5child-021122334455","pairing_id":"pair_child_0001","pairing_epoch":7,"node_id":"node_child01","credential_generation":7,"key_epoch":9,"application_key_hex":"81"*32,"local_mac":mac("02","11","22","33","44","55"),"capabilities":["telemetry","n3w-product-relay"]},
+             "relay":{"role":"relay","hardware_id":"ghw-s5relay-02aabbccddee","pairing_id":"pair_relay_0001","pairing_epoch":11,"node_id":"node_relay01","credential_generation":11,"key_epoch":13,"application_key_hex":"a1"*32,"local_mac":mac("02","aa","bb","cc","dd","ee"),"capabilities":["telemetry","n3w-product-relay"]}}
           p=Path(os.environ['FIXTURE']); p.write_text(json.dumps(v)); p.chmod(0o600)
           PY
           python tools/n3w_product_s5_initialize_dedicated_two_node_state.py --fixture "$FIXTURE" --output "$OUTPUT"
