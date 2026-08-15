@@ -66,6 +66,22 @@ class GreenhouseN3wProductIntegration final : public Component,
       const RelayFrame &frame,
       uint64_t now_ms);
 
+  // Private physical test stimulus may ask only for the Manager-authorized
+  // Child-side gateway identity after the dynamic peer has become ACTIVE.
+  // No factory/static peer relation is exposed through this seam.
+  bool s5_child_active_gateway_id(std::string *gateway_id) const {
+    if (gateway_id == nullptr || role_ != "child" || s5_coordinator_ == nullptr ||
+        s5_telemetry_ == nullptr ||
+        s5_coordinator_->state() != ProductS5PeerState::CHILD_ACTIVE ||
+        !s5_telemetry_->identity_bound()) {
+      return false;
+    }
+    const std::string &value = s5_telemetry_->active_peer_node_id();
+    if (!greenhouse_n3w_core::valid_identity(value)) return false;
+    *gateway_id = value;
+    return true;
+  }
+
   bool manager_eligibility_requested() const { return eligibility_requested_; }
   bool peer_authorization_requested() const { return authorization_requested_; }
   bool s5_isolated_configured() const { return s5_self_credentials_ != nullptr; }

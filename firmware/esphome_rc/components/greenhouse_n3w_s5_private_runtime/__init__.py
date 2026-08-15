@@ -28,6 +28,9 @@ CONF_LOCAL_MAC = "local_mac"
 CONF_RELAY_CAPABLE = "relay_capable"
 CONF_LOW_BATTERY = "low_battery"
 CONF_OVERLOADED = "overloaded"
+CONF_TELEMETRY_STIMULUS_ENABLED = "telemetry_stimulus_enabled"
+CONF_TELEMETRY_STIMULUS_BOOT_SESSION = "telemetry_stimulus_boot_session"
+CONF_TELEMETRY_STIMULUS_SEQ = "telemetry_stimulus_seq"
 
 _ID_RE = re.compile(r"^[A-Za-z0-9_-]{3,64}$")
 _COMPACT_MAC_RE = re.compile(r"^[0-9A-Fa-f]{12}$")
@@ -81,10 +84,25 @@ def _local_mac(value: object) -> str:
 def _role_contract(config: dict) -> dict:
     role = config[CONF_ROLE]
     manager_present = CONF_MANAGER_TRANSPORT_ID in config
+    stimulus_enabled = config[CONF_TELEMETRY_STIMULUS_ENABLED]
+    stimulus_session_present = CONF_TELEMETRY_STIMULUS_BOOT_SESSION in config
+
     if role == "relay" and not manager_present:
         raise Invalid("relay private runtime requires manager_transport_id")
     if role == "child" and manager_present:
         raise Invalid("child private runtime must not bind a Manager transport")
+
+    if stimulus_enabled:
+        if role != "child":
+            raise Invalid("private telemetry stimulus is Child-only")
+        if not stimulus_session_present:
+            raise Invalid(
+                "telemetry_stimulus_boot_session is required when telemetry stimulus is enabled"
+            )
+    elif stimulus_session_present:
+        raise Invalid(
+            "telemetry_stimulus_boot_session is forbidden when telemetry stimulus is disabled"
+        )
     return config
 
 
@@ -106,6 +124,13 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_RELAY_CAPABLE, default=True): cv.boolean,
             cv.Optional(CONF_LOW_BATTERY, default=False): cv.boolean,
             cv.Optional(CONF_OVERLOADED, default=False): cv.boolean,
+            cv.Optional(CONF_TELEMETRY_STIMULUS_ENABLED, default=False): cv.boolean,
+            cv.Optional(CONF_TELEMETRY_STIMULUS_BOOT_SESSION): cv.int_range(
+                min=1, max=0xFFFFFFFFFFFFFFFF
+            ),
+            cv.Optional(CONF_TELEMETRY_STIMULUS_SEQ, default=0): cv.int_range(
+                min=0, max=0xFFFFFFFF
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     _role_contract,
@@ -125,6 +150,14 @@ async def to_code(config: dict) -> None:
     cg.add(var.set_relay_capable(config[CONF_RELAY_CAPABLE]))
     cg.add(var.set_low_battery(config[CONF_LOW_BATTERY]))
     cg.add(var.set_overloaded(config[CONF_OVERLOADED]))
+    cg.add(var.set_telemetry_stimulus_enabled(config[CONF_TELEMETRY_STIMULUS_ENABLED]))
+    cg.add(var.set_telemetry_stimulus_seq(config[CONF_TELEMETRY_STIMULUS_SEQ]))
+    if CONF_TELEMETRY_STIMULUS_BOOT_SESSION in config:
+        cg.add(
+            var.set_telemetry_stimulus_boot_session(
+                config[CONF_TELEMETRY_STIMULUS_BOOT_SESSION]
+            )
+        )
 
     integration = await cg.get_variable(config[CONF_PRODUCT_RUNTIME_ID])
     if config[CONF_ROLE] == "child":

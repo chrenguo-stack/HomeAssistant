@@ -7,6 +7,7 @@
 
 #include "esphome/components/greenhouse_n3w_product_runtime/n3w_product_integration.h"
 #include "esphome/core/component.h"
+#include "n3w_product_s5_private_telemetry_stimulus.h"
 
 namespace esphome::greenhouse_n3w_s5_private_runtime {
 
@@ -34,6 +35,11 @@ class GreenhouseN3wS5PrivateRuntimeMaterial final
   void set_relay_capable(bool value) { relay_capable_ = value; }
   void set_low_battery(bool value) { low_battery_ = value; }
   void set_overloaded(bool value) { overloaded_ = value; }
+  void set_telemetry_stimulus_enabled(bool value) { telemetry_stimulus_enabled_ = value; }
+  void set_telemetry_stimulus_boot_session(uint64_t value) {
+    telemetry_stimulus_boot_session_ = value;
+  }
+  void set_telemetry_stimulus_seq(uint32_t value) { telemetry_stimulus_seq_ = value; }
 
   // Child has no direct Manager transport. The private provider binds only the
   // child's own post-registration material into the already-reviewed S5 path.
@@ -43,12 +49,14 @@ class GreenhouseN3wS5PrivateRuntimeMaterial final
   bool read_health(uint64_t authority_now_ms, ProductRelayHealth *health) override;
 
   void setup() override;
+  void loop() override;
   void dump_config() override;
   float get_setup_priority() const override;
 
   bool material_ready() const { return material_ready_; }
   bool application_key_resident() const;
   uint8_t remaining_credential_loads() const { return remaining_credential_loads_; }
+  bool telemetry_stimulus_submitted() const { return telemetry_stimulus_.submitted(); }
 
  private:
   static bool parse_hex_key_(const std::string &value, std::array<uint8_t, 32> *output);
@@ -70,6 +78,12 @@ class GreenhouseN3wS5PrivateRuntimeMaterial final
   bool child_bound_{false};
   bool material_ready_{false};
   uint8_t remaining_credential_loads_{0};
+  GreenhouseN3wProductIntegration *child_integration_{nullptr};
+
+  bool telemetry_stimulus_enabled_{false};
+  uint64_t telemetry_stimulus_boot_session_{0};
+  uint32_t telemetry_stimulus_seq_{0};
+  ProductS5PrivateTelemetryStimulus telemetry_stimulus_{};
 };
 
 }  // namespace esphome::greenhouse_n3w_s5_private_runtime

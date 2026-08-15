@@ -50,6 +50,10 @@ greenhouse_n3w_s5_private_runtime:
   key_epoch: 9
   application_key_hex: "8182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0"
   local_mac: "021122334455"
+  telemetry_stimulus_enabled: true
+  telemetry_stimulus_boot_session: 7
+  telemetry_stimulus_seq: 0
 
 # Synthetic values only. CI compiles this target but never flashes or runs it.
-# The production/factory profiles remain inert and contain none of these fields.
+# The R7 stimulus is private-fixture-only, exactly once, and remains absent from
+# public/factory profiles.

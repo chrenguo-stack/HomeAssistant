@@ -72,6 +72,7 @@ bool GreenhouseN3wS5PrivateRuntimeMaterial::configure_child(
     GreenhouseN3wProductIntegration *integration) {
   if (integration == nullptr || role_ != "child" || child_bound_) return false;
   integration->configure_s5_isolated(this, nullptr, nullptr, nullptr);
+  child_integration_ = integration;
   child_bound_ = true;
   return true;
 }
@@ -105,6 +106,22 @@ void GreenhouseN3wS5PrivateRuntimeMaterial::setup() {
     return;
   }
 
+  if (telemetry_stimulus_enabled_) {
+    if (role_ != "child" || child_integration_ == nullptr ||
+        telemetry_stimulus_boot_session_ == 0 ||
+        !telemetry_stimulus_.configure(
+            node_id_,
+            key_epoch_,
+            application_key_,
+            telemetry_stimulus_boot_session_,
+            telemetry_stimulus_seq_)) {
+      ESP_LOGE(TAG, "S5 R7 private telemetry stimulus configuration rejected");
+      zeroize_(application_key_.data(), application_key_.size());
+      this->mark_failed();
+      return;
+    }
+  }
+
   // The Relay transport reads identity once before the Product integration
   // consumes the same endpoint credential. Child needs only the latter load.
   remaining_credential_loads_ = role_ == "relay" ? 2 : 1;
@@ -114,6 +131,77 @@ void GreenhouseN3wS5PrivateRuntimeMaterial::setup() {
     application_key_hex_.clear();
     application_key_hex_.shrink_to_fit();
   }
+}
+
+void GreenhouseN3wS5PrivateRuntimeMaterial::loop() {
+  if (!telemetry_stimulus_enabled_ || this->is_failed() ||
+      telemetry_stimulus_.submitted()) {
+    return;
+  }
+  if (role_ != "child" || child_integration_ == nullptr) {
+    ESP_LOGE(TAG, "S5 R7 private telemetry stimulus lost Child binding");
+    this->mark_failed();
+    return;
+  }
+
+  std::string gateway_id;
+  if (!child_integration_->s5_child_active_gateway_id(&gateway_id)) return;
+
+  if (!telemetry_stimulus_.prepared()) {
+    const auto prepared =
+        telemetry_stimulus_.prepare(gateway_id, child_integration_->now_ms());
+    if (prepared != ProductS5PrivateTelemetryStimulusError::NONE) {
+      ESP_LOGE(
+          TAG,
+          "S5 R7 private telemetry stimulus prepare failed result=%u",
+          static_cast<unsigned>(prepared));
+      this->mark_failed();
+      return;
+    }
+  } else if (telemetry_stimulus_.prepared_gateway_id() != gateway_id) {
+    // Never re-home one already encrypted RelayFrame to a different Relay.
+    ESP_LOGE(TAG, "S5 R7 private telemetry stimulus gateway binding changed");
+    this->mark_failed();
+    return;
+  }
+
+  const auto *frame = telemetry_stimulus_.prepared_frame();
+  if (frame == nullptr) {
+    ESP_LOGE(TAG, "S5 R7 private telemetry stimulus frame unavailable");
+    this->mark_failed();
+    return;
+  }
+
+  const auto result =
+      child_integration_->send_s5_relay_frame(*frame, child_integration_->now_ms());
+  if (result == greenhouse_n3w_product_runtime::ProductS5TelemetryError::NOT_READY) {
+    return;
+  }
+
+  if (result == greenhouse_n3w_product_runtime::ProductS5TelemetryError::NONE ||
+      result == greenhouse_n3w_product_runtime::ProductS5TelemetryError::RADIO_FAILED) {
+    // RADIO_FAILED means the already-enqueued frame remains in the existing
+    // ChildRelayCache and is retried by the existing reliable-link tick. Do
+    // not create or enqueue a second application telemetry record.
+    if (!telemetry_stimulus_.mark_submitted()) {
+      ESP_LOGE(TAG, "S5 R7 private telemetry stimulus submit state rejected");
+      this->mark_failed();
+      return;
+    }
+    ESP_LOGI(
+        TAG,
+        "S5 R7 private telemetry stimulus submitted exactly_once=true initial_radio_ok=%s",
+        result == greenhouse_n3w_product_runtime::ProductS5TelemetryError::NONE
+            ? "true"
+            : "false");
+    return;
+  }
+
+  ESP_LOGE(
+      TAG,
+      "S5 R7 private telemetry stimulus enqueue failed result=%u",
+      static_cast<unsigned>(result));
+  this->mark_failed();
 }
 
 bool GreenhouseN3wS5PrivateRuntimeMaterial::load_self(
@@ -166,6 +254,14 @@ void GreenhouseN3wS5PrivateRuntimeMaterial::dump_config() {
   ESP_LOGCONFIG(TAG, "  factory peer identity: false");
   ESP_LOGCONFIG(TAG, "  pair LMK supplied: false");
   ESP_LOGCONFIG(TAG, "  application key logged: false");
+  ESP_LOGCONFIG(
+      TAG,
+      "  R7 telemetry stimulus enabled: %s",
+      telemetry_stimulus_enabled_ ? "true" : "false");
+  ESP_LOGCONFIG(
+      TAG,
+      "  R7 telemetry stimulus submitted: %s",
+      telemetry_stimulus_.submitted() ? "true" : "false");
 }
 
 }  // namespace esphome::greenhouse_n3w_s5_private_runtime
