@@ -3,12 +3,13 @@ from __future__ import annotations
 import ast
 import importlib.util
 import json
+import os
 import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[2] if "tests" in Path(__file__).parts else Path.cwd()
 TOOL = ROOT / "tools" / "n3w_product_s5_initialize_dedicated_two_node_state.py"
 AUTHORIZATION = (
     "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-DEDICATED-TWO-NODE-STATE-"
@@ -40,7 +41,7 @@ def fixture() -> dict[str, object]:
             "key_epoch": 9,
             "application_key_hex": "81" * 32,
             "local_mac": "02:11:22:33:44:55",
-            "capabilities": ["telemetry"],
+            "capabilities": ["telemetry", "n3w-product-relay"],
         },
         "relay": {
             "role": "relay",
@@ -213,22 +214,29 @@ class DedicatedTwoNodeStateInitializerTest(unittest.TestCase):
             path.write_text(json.dumps(capability), encoding="utf-8")
             with self.assertRaisesRegex(
                 self.module.SyntheticStateError,
-                "relay_capability_missing",
+                "relay_relay_capability_missing",
             ):
                 self.module.initialize(path, root / "out-capability")
 
-            child_preseed = fixture()
-            child_preseed["child"]["capabilities"] = [
-                "telemetry",
-                "n3w-product-relay",
-            ]
-            path = root / "child-preseed.json"
-            path.write_text(json.dumps(child_preseed), encoding="utf-8")
+            child_capability = fixture()
+            child_capability["child"]["capabilities"] = ["telemetry"]
+            path = root / "child-capability.json"
+            path.write_text(json.dumps(child_capability), encoding="utf-8")
             with self.assertRaisesRegex(
                 self.module.SyntheticStateError,
-                "child_relay_capability_preseed_rejected",
+                "child_relay_capability_missing",
             ):
-                self.module.initialize(path, root / "out-child-preseed")
+                self.module.initialize(path, root / "out-child-capability")
+
+            mac_binding = fixture()
+            mac_binding["child"]["hardware_id"] = "ghw-s5child-021122334456"
+            path = root / "mac-binding.json"
+            path.write_text(json.dumps(mac_binding), encoding="utf-8")
+            with self.assertRaisesRegex(
+                self.module.SyntheticStateError,
+                "child_hardware_mac_binding_mismatch",
+            ):
+                self.module.initialize(path, root / "out-mac-binding")
 
 
 if __name__ == "__main__":
