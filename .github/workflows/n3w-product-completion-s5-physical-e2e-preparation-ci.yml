@@ -42,7 +42,9 @@ jobs:
         run: |
           set -euo pipefail
           START=eb2fdc795850fedd4f49ce3fbba8cd03a4548de9
-          git merge-base --is-ancestor "$START" HEAD
+          ARCHIVE=f530ee94e5d5339e0f30b902f6f41c83b8408f13
+          git merge-base --is-ancestor "$START" "$ARCHIVE"
+          git merge-base --is-ancestor "$ARCHIVE" HEAD
           git config core.quotePath false
           allowed="$(mktemp)"
           actual="$(mktemp)"
@@ -85,9 +87,51 @@ jobs:
           FILES
           sed -i 's/^          //' "$allowed"
           sort -o "$allowed" "$allowed"
-          git diff --name-only "$START"...HEAD | sort >"$actual"
+          git diff --name-only "$START"..."$ARCHIVE" | sort >"$actual"
           diff -u "$allowed" "$actual"
 
+      - name: R6 successor exact scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive='f530ee94e5d5339e0f30b902f6f41c83b8408f13'
+          git merge-base --is-ancestor "$archive" HEAD
+          git config core.quotePath false
+          r6_successor_allowed="$(mktemp)"
+          r6_successor_actual="$(mktemp)"
+          cat >"$r6_successor_allowed" <<'FILES'
+          .github/workflows/n3w-product-completion-s3-disconnected-espnow-runtime-ci.yml
+          .github/workflows/n3w-product-completion-s5-ab-host-compile-ci.yml
+          .github/workflows/n3w-product-completion-s5-board-integration-ci.yml
+          .github/workflows/n3w-product-completion-s5-c-isolated-manager-telemetry-ci.yml
+          .github/workflows/n3w-product-completion-s5-d-lifecycle-negative-host-matrix-ci.yml
+          .github/workflows/n3w-product-completion-s5-dedicated-two-node-state-initializer-ci.yml
+          .github/workflows/n3w-product-completion-s5-isolated-manager-transport-ci.yml
+          .github/workflows/n3w-product-completion-s5-physical-e2e-preparation-ci.yml
+          .github/workflows/n3w-product-completion-s5-private-package-builder-ci.yml
+          .github/workflows/n3w-product-completion-s5-private-runtime-composition-ci.yml
+          docs/decisions/n3w-product-completion-s5-dedicated-two-node-state-initializer-hostonly-20260815.json
+          firmware/esphome_rc/components/greenhouse_n3w_core/n3w_espnow_driver.cpp
+          firmware/esphome_rc/components/greenhouse_n3w_core/n3w_espnow_driver.h
+          firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_integration.cpp
+          firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_s5_radio_mux.cpp
+          firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_s5_radio_mux.h
+          firmware/esphome_rc/components/greenhouse_n3w_s5_manager_transport/n3w_product_s5_manager_component.cpp
+          firmware/esphome_rc/components/greenhouse_n3w_s5_manager_transport/n3w_product_s5_manager_transport.cpp
+          firmware/esphome_rc/components/greenhouse_n3w_s5_manager_transport/n3w_product_s5_manager_transport.h
+          firmware/esphome_rc/components/greenhouse_n3w_s5_manager_transport/n3w_product_s5_manager_wire.cpp
+          firmware/esphome_rc/components/greenhouse_n3w_s5_manager_transport/n3w_product_s5_manager_wire.h
+          infra/compose/n3w-p5-two-board-isolated/acl
+          tests/n3w_product_completion_s5/test_n3w_product_s5_contract.py
+          tests/n3w_product_completion_s5_initializer/test_s5_dedicated_two_node_state_initializer.py
+          tests/n3w_product_completion_s5_transport/n3w_product_s5_manager_transport_host_test.cpp
+          tools/n3w_product_s5_initialize_dedicated_two_node_state.py
+          tools/n3w_product_s5_render_private_acl.py
+          FILES
+          sed -i 's/^          //' "$r6_successor_allowed"
+          sort -o "$r6_successor_allowed" "$r6_successor_allowed"
+          git diff --name-only "$archive"...HEAD | sort >"$r6_successor_actual"
+          diff -u "$r6_successor_allowed" "$r6_successor_actual"
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'

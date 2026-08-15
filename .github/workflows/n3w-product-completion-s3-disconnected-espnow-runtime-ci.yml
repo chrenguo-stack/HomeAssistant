@@ -53,9 +53,28 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p /tmp/n3w_include/esphome
+          # Host-only shim: production ESPHome provides this header.
+          # The shim exists only under /tmp and never enters firmware.
+          mkdir -p /tmp/n3w_include/esphome/core
           ln -s "$GITHUB_WORKSPACE/firmware/esphome_rc/components" /tmp/n3w_include/esphome/components
+          cat >/tmp/n3w_include/esphome/core/log.h <<'N3W_HOST_LOG_H'
+          #pragma once
+          namespace esphome {
+          namespace n3w_host_log_stub {
+          template<typename... Args>
+          inline void consume(Args&&...) {}
+          }  // namespace n3w_host_log_stub
+          }  // namespace esphome
+          #define ESP_LOGE(...) do { ::esphome::n3w_host_log_stub::consume(__VA_ARGS__); } while (0)
+          #define ESP_LOGW(...) do { ::esphome::n3w_host_log_stub::consume(__VA_ARGS__); } while (0)
+          #define ESP_LOGI(...) do { ::esphome::n3w_host_log_stub::consume(__VA_ARGS__); } while (0)
+          #define ESP_LOGD(...) do { ::esphome::n3w_host_log_stub::consume(__VA_ARGS__); } while (0)
+          #define ESP_LOGV(...) do { ::esphome::n3w_host_log_stub::consume(__VA_ARGS__); } while (0)
+          #define ESP_LOGVV(...) do { ::esphome::n3w_host_log_stub::consume(__VA_ARGS__); } while (0)
+          #define ESP_LOGCONFIG(...) do { ::esphome::n3w_host_log_stub::consume(__VA_ARGS__); } while (0)
+          N3W_HOST_LOG_H
           g++ -std=c++17 -Wall -Wextra -Werror \
+            -Wno-error=unused-const-variable \
             -I/tmp/n3w_include \
             -Ifirmware/esphome_rc/components/greenhouse_n3w_core \
             -Ifirmware/esphome_rc/components/greenhouse_n3w_product_core \
