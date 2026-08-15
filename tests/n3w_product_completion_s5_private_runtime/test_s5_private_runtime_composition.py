@@ -80,9 +80,10 @@ class _FakeAdapter:
 
 
 class _FakeIsolatedService:
-    def __init__(self, settings, adapter):
+    def __init__(self, settings, adapter, application_keys):
         self.settings = settings
         self.adapter = adapter
+        self.application_keys = application_keys
         self.ran = False
 
     def run(self):
@@ -140,7 +141,12 @@ def test_isolated_service_factory_injects_s4_adapter_and_closes_owned_authority(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    authority = type("Authority", (), {"adapter": object(), "closed": False})()
+    application_keys = object()
+    authority = type(
+        "Authority",
+        (),
+        {"adapter": object(), "application_keys": application_keys, "closed": False},
+    )()
 
     def close() -> None:
         authority.closed = True
@@ -151,6 +157,7 @@ def test_isolated_service_factory_injects_s4_adapter_and_closes_owned_authority(
 
     assembly = launcher.assemble_isolated_manager_service(_settings(tmp_path))
     assert assembly.service.adapter is authority.adapter
+    assert assembly.service.application_keys is application_keys
     assembly.run()
     assert assembly.service.ran
     assert authority.closed
