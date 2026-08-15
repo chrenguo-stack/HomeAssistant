@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cstring>
 
+#include "esphome/core/log.h"
+
 #ifdef USE_ESP32
 #include "esp_event.h"
 #include "esp_netif.h"
@@ -11,6 +13,11 @@
 #endif
 
 namespace esphome::greenhouse_n3w_core {
+
+namespace {
+static const char *const TAG = "n3w_espnow_driver";
+constexpr uint8_t kDiagnosticLogLimit = 8;
+}
 
 #ifdef USE_ESP32
 EspNowDriver *EspNowDriver::active_ = nullptr;
@@ -89,6 +96,8 @@ DriverError EspNowDriver::initialize(EspNowEventSink *sink, const LinkKey &pmk) 
   }
   active_ = this;
   sink_ = sink;
+  diagnostic_receive_logs_.store(0, std::memory_order_relaxed);
+  diagnostic_broadcast_logs_.store(0, std::memory_order_relaxed);
   if (esp_now_register_recv_cb(&EspNowDriver::recv_cb_) != ESP_OK ||
       esp_now_register_send_cb(&EspNowDriver::send_cb_) != ESP_OK) {
     esp_now_unregister_recv_cb();
@@ -278,6 +287,13 @@ void EspNowDriver::recv_cb_(
     metadata.rssi_dbm = static_cast<int16_t>(info->rx_ctrl->rssi);
     metadata.channel = static_cast<uint8_t>(info->rx_ctrl->channel);
   }
+  const uint8_t receive_index = active_->diagnostic_receive_logs_.fetch_add(
+      1, std::memory_order_relaxed);
+  if (receive_index < kDiagnosticLogLimit) {
+    ESP_LOGI(TAG, "ESP-NOW diagnostic receive count=%u size=%d channel=%u",
+             static_cast<unsigned>(receive_index + 1), data_len,
+             static_cast<unsigned>(metadata.channel));
+  }
   active_->sink_->on_espnow_receive_with_metadata(
       source, data, static_cast<std::size_t>(data_len), metadata);
 }
@@ -292,6 +308,15 @@ void EspNowDriver::send_cb_(
   }
   MacAddress destination{};
   std::copy_n(info->des_addr, destination.size(), destination.begin());
+  if (destination == kEspNowBroadcastMac) {
+    const uint8_t send_index = active_->diagnostic_broadcast_logs_.fetch_add(
+        1, std::memory_order_relaxed);
+    if (send_index < kDiagnosticLogLimit) {
+      ESP_LOGI(TAG, "ESP-NOW diagnostic broadcast completion count=%u success=%s",
+               static_cast<unsigned>(send_index + 1),
+               status == ESP_NOW_SEND_SUCCESS ? "true" : "false");
+    }
+  }
   active_->sink_->on_espnow_send_result(
       destination, status == ESP_NOW_SEND_SUCCESS);
 }
@@ -304,6 +329,15 @@ void EspNowDriver::send_cb_(
   }
   MacAddress destination{};
   std::copy_n(mac_addr, destination.size(), destination.begin());
+  if (destination == kEspNowBroadcastMac) {
+    const uint8_t send_index = active_->diagnostic_broadcast_logs_.fetch_add(
+        1, std::memory_order_relaxed);
+    if (send_index < kDiagnosticLogLimit) {
+      ESP_LOGI(TAG, "ESP-NOW diagnostic broadcast completion count=%u success=%s",
+               static_cast<unsigned>(send_index + 1),
+               status == ESP_NOW_SEND_SUCCESS ? "true" : "false");
+    }
+  }
   active_->sink_->on_espnow_send_result(
       destination, status == ESP_NOW_SEND_SUCCESS);
 }

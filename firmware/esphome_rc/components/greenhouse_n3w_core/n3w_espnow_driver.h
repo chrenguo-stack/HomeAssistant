@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 
@@ -101,6 +102,8 @@ class EspNowDriver {
 #endif
   static EspNowDriver *active_;
   bool wifi_owned_{false};
+  std::atomic<uint8_t> diagnostic_receive_logs_{0};
+  std::atomic<uint8_t> diagnostic_broadcast_logs_{0};
 #endif
 
   EspNowEventSink *sink_{nullptr};

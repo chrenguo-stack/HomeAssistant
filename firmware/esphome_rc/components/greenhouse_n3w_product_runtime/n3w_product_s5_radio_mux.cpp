@@ -1,5 +1,7 @@
 #include "n3w_product_s5_radio_mux.h"
 
+#include "esphome/core/log.h"
+
 namespace esphome::greenhouse_n3w_product_runtime {
 
 namespace {
@@ -11,6 +13,8 @@ constexpr uint8_t kHandshakeLastType = 5;
 constexpr uint8_t kLinkMagic0 = 'G';
 constexpr uint8_t kLinkMagic1 = 'H';
 constexpr uint8_t kLinkVersion = 1;
+static const char *const TAG = "n3w_product_s5_radio_mux";
+constexpr uint8_t kDiagnosticLogLimit = 8;
 }
 
 bool ProductS5RadioMux::valid_unicast_mac_(const MacAddress &mac) {
@@ -122,15 +126,28 @@ void ProductS5RadioMux::on_espnow_receive_with_metadata(
 
   ProductDiscoveryAdvertisement advertisement;
   if (decode_product_discovery_advertisement(data, size, &advertisement)) {
+    if (diagnostic_classification_logs_++ < kDiagnosticLogLimit) {
+      ESP_LOGI(TAG, "S5 diagnostic datagram classification=discovery");
+    }
     runtime_sink_->on_espnow_receive_with_metadata(source, data, size, metadata);
     return;
   }
   if (is_handshake_datagram_(data, size)) {
+    if (diagnostic_classification_logs_++ < kDiagnosticLogLimit) {
+      ESP_LOGI(TAG, "S5 diagnostic datagram classification=handshake");
+    }
     s5_sink_->on_s5_datagram(source, data, size, metadata);
     return;
   }
   if (telemetry_sink_ != nullptr && is_telemetry_datagram_(data, size)) {
+    if (diagnostic_classification_logs_++ < kDiagnosticLogLimit) {
+      ESP_LOGI(TAG, "S5 diagnostic datagram classification=telemetry");
+    }
     telemetry_sink_->on_s5_telemetry_datagram(source, data, size, metadata);
+    return;
+  }
+  if (diagnostic_classification_logs_++ < kDiagnosticLogLimit) {
+    ESP_LOGI(TAG, "S5 diagnostic datagram classification=unknown");
   }
 }
 

@@ -75,3 +75,17 @@ def test_execution_path_bootstraps_espnow_without_network_credentials():
     assert "esp_wifi_set_mode(WIFI_MODE_STA)" in driver
     assert driver.index("esp_wifi_start()") < driver.index("esp_now_init()")
     assert "esp_wifi_connect(" not in driver
+
+
+def test_physical_diagnostics_are_bounded_and_do_not_log_identity_or_payload():
+    driver = (
+        ROOT
+        / "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_espnow_driver.cpp"
+    ).read_text()
+    mux = (RUNTIME_DIR / "n3w_product_s5_radio_mux.cpp").read_text()
+    assert "kDiagnosticLogLimit = 8" in driver
+    assert "diagnostic broadcast completion" in driver
+    assert "diagnostic receive" in driver
+    assert "kDiagnosticLogLimit = 8" in mux
+    assert "classification=discovery" in mux
+    assert "source.data()" not in driver

@@ -96,6 +96,7 @@ class ProductS5RadioMux final : public ProductRuntimeRadioPort,
   ProductS5TelemetrySink *telemetry_sink_{nullptr};
   EspNowEventSink *runtime_sink_{nullptr};
   bool initialized_{false};
+  uint8_t diagnostic_classification_logs_{0};
 };
 
 }  // namespace esphome::greenhouse_n3w_product_runtime
