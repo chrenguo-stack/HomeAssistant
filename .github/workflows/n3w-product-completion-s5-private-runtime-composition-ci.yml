@@ -1,0 +1,142 @@
+name: N3-W Product Completion S5 private runtime composition CI
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/n3w-product-completion-s5-private-runtime-composition-ci.yml'
+      - '.github/workflows/n3w-product-completion-s5-d-lifecycle-negative-host-matrix-ci.yml'
+      - '.github/workflows/n3w-product-completion-s5-isolated-manager-transport-ci.yml'
+      - '.github/workflows/n3w-product-completion-s5-physical-e2e-preparation-ci.yml'
+      - 'docs/decisions/n3w-product-completion-s5-private-runtime-composition-20260815.json'
+      - 'docs/decisions/n3w-product-completion-s5-isolated-manager-transport-host-compile-20260814.json'
+      - 'firmware/esphome_rc/board_lab/n3w_product_completion_s5/private_runtime_compile/**'
+      - 'firmware/esphome_rc/components/greenhouse_n3w_s5_private_runtime/**'
+      - 'host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_product_isolated_app.py'
+      - 'host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_product_isolated_launcher.py'
+      - 'tests/n3w_product_completion_s5_private_runtime/**'
+      - 'tests/n3w_product_completion_s5/test_s5_physical_e2e_preparation.py'
+      - 'tools/n3w_product_s5_prepare_physical_package.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: n3w-s5-private-runtime-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  private-runtime-host-compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Authorized lineage and exact successor scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          start='a17b0f58f5889aa3b79601e655c3d20ee89da073'
+          base='38c3b692d4ebe90d0040c732b6c0313fdfdc1ef6'
+          git merge-base --is-ancestor "$start" HEAD
+          if [ "$GITHUB_EVENT_NAME" = 'pull_request' ]; then
+            test '${{ github.event.pull_request.base.ref }}' = 'main'
+            test '${{ github.event.pull_request.base.sha }}' = "$base"
+          fi
+          git config core.quotePath false
+          allowed="$(mktemp)"
+          actual="$(mktemp)"
+          cat >"$allowed" <<'FILES'
+          .github/workflows/n3w-product-completion-s5-d-lifecycle-negative-host-matrix-ci.yml
+          .github/workflows/n3w-product-completion-s5-isolated-manager-transport-ci.yml
+          .github/workflows/n3w-product-completion-s5-physical-e2e-preparation-ci.yml
+          .github/workflows/n3w-product-completion-s5-private-runtime-composition-ci.yml
+          docs/decisions/n3w-product-completion-s5-isolated-manager-transport-host-compile-20260814.json
+          docs/decisions/n3w-product-completion-s5-private-runtime-composition-20260815.json
+          firmware/esphome_rc/board_lab/n3w_product_completion_s5/private_runtime_compile/child_private_runtime_compile.yml
+          firmware/esphome_rc/board_lab/n3w_product_completion_s5/private_runtime_compile/relay_private_runtime_compile.yml
+          firmware/esphome_rc/components/greenhouse_n3w_s5_private_runtime/__init__.py
+          firmware/esphome_rc/components/greenhouse_n3w_s5_private_runtime/greenhouse_n3w_s5_private_runtime.h
+          firmware/esphome_rc/components/greenhouse_n3w_s5_private_runtime/n3w_product_s5_private_runtime.cpp
+          host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_product_isolated_app.py
+          host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_product_isolated_launcher.py
+          tests/n3w_product_completion_s5/test_s5_physical_e2e_preparation.py
+          tests/n3w_product_completion_s5_private_runtime/test_s5_private_runtime_composition.py
+          tools/n3w_product_s5_prepare_physical_package.py
+          FILES
+          sed -i 's/^          //' "$allowed"
+          sort -o "$allowed" "$allowed"
+          git diff --name-only "$start"...HEAD | sort >"$actual"
+          diff -u "$allowed" "$actual"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install host dependencies
+        run: python -m pip install -e 'host/greenhouse-manager[dev]'
+
+      - name: Validate authorization and host composition contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('docs/decisions/n3w-product-completion-s5-private-runtime-composition-20260815.json')
+          d = json.loads(p.read_text())
+          assert d['authorization'] == 'D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-PRIVATE-RUNTIME-COMPOSITION-AND-ISOLATED-MANAGER-LAUNCHER-HOST-COMPILE-IMPLEMENTATION-20260814-01'
+          assert d['starting_head'] == 'a17b0f58f5889aa3b79601e655c3d20ee89da073'
+          assert d['scope']['host_compile_only'] is True
+          assert d['scope']['private_package_materialization'] is False
+          assert d['scope']['physical_execution'] is False
+          assert d['required_invariants']['normal_production_manager_startup_changed'] is False
+          assert d['required_invariants']['factory_peer_identity_or_pair_lmk_added'] is False
+          assert d['acceptance']['s5_full_two_board_e2e'] == 'PENDING'
+          PY
+          python -m pytest -q \
+            tests/n3w_product_completion_s5_private_runtime/test_s5_private_runtime_composition.py \
+            tests/n3w_product_completion_s5_transport/test_s5_isolated_manager_transport.py \
+            tests/n3w_product_completion_s5/test_s5_manager_authorization_loop.py
+          python -m unittest tests.n3w_product_completion_s5.test_s5_physical_e2e_preparation -v
+
+      - name: Install frozen ESPHome
+        run: python -m pip install --upgrade 'esphome==2026.4.3'
+
+      - name: Compile private Child fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          export S5_BUILD_PATH=/tmp/n3w-s5-private-child
+          esphome config firmware/esphome_rc/board_lab/n3w_product_completion_s5/private_runtime_compile/child_private_runtime_compile.yml
+          esphome compile firmware/esphome_rc/board_lab/n3w_product_completion_s5/private_runtime_compile/child_private_runtime_compile.yml
+
+      - name: Compile private Relay plus Manager transport fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          export S5_BUILD_PATH=/tmp/n3w-s5-private-relay
+          esphome config firmware/esphome_rc/board_lab/n3w_product_completion_s5/private_runtime_compile/relay_private_runtime_compile.yml
+          esphome compile firmware/esphome_rc/board_lab/n3w_product_completion_s5/private_runtime_compile/relay_private_runtime_compile.yml
+
+      - name: No-live no-factory-peer safety gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          scope=(
+            firmware/esphome_rc/components/greenhouse_n3w_s5_private_runtime
+            host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_product_isolated_app.py
+            host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_product_isolated_launcher.py
+            tools/n3w_product_s5_prepare_physical_package.py
+          )
+          if grep -R -n -E \
+            '(esphome run|esptool|espota|pio run .*upload|esp_wifi_connect|PATH[[:space:]]+(DIRECT|RELAY)|p5_peer_mac|p5_link_lmk|factory_peer_mac|pair_lmk_hex)' \
+            "${scope[@]}"; then
+            echo 'Live execution or factory peer/pair-LMK material detected'
+            exit 1
+          fi
+          grep -q 'execution_enabled: false' firmware/esphome_rc/board_lab/n3w_product_completion_s5/child.yml
+          grep -q 'execution_enabled: false' firmware/esphome_rc/board_lab/n3w_product_completion_s5/relay.yml
+          ! grep -q 'n3w_product_isolated_app' host/greenhouse-manager/src/greenhouse_manager/runtime/app.py
