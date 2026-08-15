@@ -1,0 +1,81 @@
+{
+  "schema": "gh.n3w-product-s5-preflash-public-archive/1",
+  "date": "2026-08-15",
+  "repository": "chrenguo-stack/HomeAssistant",
+  "pr": 322,
+  "pr_expected_state": {"state": "open", "draft": true, "merged": false},
+  "source_head": "d30f4999235619bd545f166ff27d11941aacdd7c",
+  "private_state_closure_sha256": "e5ff057e43e7a24d8270eab197bf28aa022881c2c1046fceae8f7ea871512abc",
+  "package": {
+    "package_id": "S5-E2E-a78a5898-bf24-4bb7-bd49-f221dbffcaf6",
+    "private_package_closure_sha256": "aeab2aaa69b7d81ce05a551ab82b4a22907cefa0fc49b45f3c9c39ef2d3bd77f",
+    "manifest_sha256": "c3f5bb6a4e1a408146bae398b14ed9fab37b4823db7b4a2fb740ea2ec9c892ea",
+    "preflash_readiness_sha256": "134835fa079abac9b07da187d1aabb648843df045f08831c1742f2d4cf181c65",
+    "child_firmware_sha256": "26f40aa68e4b36f7f4de75af5e2a5590828fa653cfab425a1fbade9678e8ca3b",
+    "relay_firmware_sha256": "26f8f04c0cf481e5ebf236e709c151f75818c894da870acdf81ef4a17d72834a",
+    "fresh_pmk_sha256": "c8e3b744eee8c41148c9bd52c21b17bdc1d2a0b9931336a81ebfbe1a84d73145",
+    "real_private_package_materialized": true,
+    "real_pmk_generated": true,
+    "pair_lmk_generated": false,
+    "execution_authorized": false,
+    "physical_execution_authorization_present": false
+  },
+  "physical_identity": {
+    "result": "PASS",
+    "fresh_physical_mac_revalidation_performed": true,
+    "board_a_local_mac_sha256": "c25b9bc46cf2c4247c607e6cc9ff7536fb22bac5c4e38fe610ca1f176b2f7ca6",
+    "board_b_local_mac_sha256": "de6b31f7d4d166afb8edcce53fe77e8cf3e723676ebac2360a405884dc846108",
+    "board_a_test_role": "child",
+    "board_b_test_role": "relay",
+    "role_assignment_is_test_only": true
+  },
+  "network_mapping": {
+    "mode": "EXACT_JSON_PATHS_ONLY",
+    "wifi_ssid": "wifi.ssid",
+    "wifi_password": "wifi.password",
+    "wifi_channel": "wifi_channel",
+    "mqtt_broker": "mqtt.host",
+    "mqtt_port": "mqtt.port",
+    "mqtt_username": "mqtt.relay_username",
+    "mqtt_password": "mqtt.relay_password",
+    "mqtt_tls": "absent_default_false",
+    "mqtt_client_id": "fresh_random_test_only",
+    "child_credentials_reused": false,
+    "manager_credentials_reused": false,
+    "ha_credentials_reused": false
+  },
+  "authorization_history": {
+    "failed_r1": {
+      "authorization": "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-REAL-PRIVATE-PACKAGE-MATERIALIZATION-AND-PREFLASH-READINESS-20260815-01",
+      "status": "CONSUMED_FAILED",
+      "replay_allowed": false,
+      "real_pmk_generated": false,
+      "partial_private_package_present": false,
+      "failure_reason": "legacy_network_field_missing:wifi_password"
+    },
+    "network_field_diagnostic": {
+      "authorization": "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-LEGACY-ISOLATED-NETWORK-FIELD-PATH-READONLY-DIAGNOSTIC-20260815-01",
+      "status": "PASS_CONSUMED"
+    },
+    "successor_r2": {
+      "authorization": "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-REAL-PRIVATE-PACKAGE-MATERIALIZATION-AND-PREFLASH-READINESS-SUCCESSOR-R2-20260815-01",
+      "status": "PASS_CONSUMED",
+      "replay_allowed": false
+    }
+  },
+  "current_boundary": {
+    "flash_executed": false,
+    "espnow_rf_executed": false,
+    "wifi_mqtt_live_e2e_executed": false,
+    "s5_full_two_board_e2e": "PENDING",
+    "production_readiness": "NOT_CLAIMED",
+    "n3l_started": false,
+    "next_phase": "NEW_CONVERSATION_PREFLASH_READONLY_REBASELINE"
+  },
+  "public_archive_policy": {
+    "private_package_uploaded": false,
+    "secret_values_uploaded": false,
+    "local_absolute_paths_uploaded": false,
+    "usb_port_plaintext_uploaded": false
+  }
+}
