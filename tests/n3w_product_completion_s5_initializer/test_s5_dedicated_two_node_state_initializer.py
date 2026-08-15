@@ -24,6 +24,10 @@ def load_tool():
     return module
 
 
+def mac(*octets: str) -> str:
+    return ":".join(octets)
+
+
 def fixture() -> dict[str, object]:
     return {
         "schema": "gh.n3w-product-s5-dedicated-two-node-state-synthetic/1",
@@ -39,7 +43,7 @@ def fixture() -> dict[str, object]:
             "credential_generation": 7,
             "key_epoch": 9,
             "application_key_hex": "81" * 32,
-            "local_mac": "02:11:22:33:44:55",
+            "local_mac": mac("02", "11", "22", "33", "44", "55"),
             "capabilities": ["telemetry", "n3w-product-relay"],
         },
         "relay": {
@@ -51,7 +55,7 @@ def fixture() -> dict[str, object]:
             "credential_generation": 11,
             "key_epoch": 13,
             "application_key_hex": "a1" * 32,
-            "local_mac": "02:aa:bb:cc:dd:ee",
+            "local_mac": mac("02", "aa", "bb", "cc", "dd", "ee"),
             "capabilities": ["telemetry", "n3w-product-relay"],
         },
     }
@@ -263,7 +267,6 @@ class DedicatedTwoNodeStateInitializerTest(unittest.TestCase):
                 "child_relay_capability_missing",
             ):
                 self.module.initialize(path, root / "out-child-capability")
-
 
 
 if __name__ == "__main__":
