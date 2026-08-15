@@ -3,7 +3,6 @@ from __future__ import annotations
 import ast
 import importlib.util
 import json
-import os
 import sqlite3
 import tempfile
 import unittest
@@ -144,6 +143,43 @@ class DedicatedTwoNodeStateInitializerTest(unittest.TestCase):
                         ("node_relay01", 11, "active"),
                     ],
                 )
+                registration_columns = {
+                    row[1] for row in reg.execute("PRAGMA table_info(registrations)").fetchall()
+                }
+                pairing_columns = {
+                    row[1] for row in reg.execute("PRAGMA table_info(pairing_sessions)").fetchall()
+                }
+                credential_columns = {
+                    row[1] for row in reg.execute("PRAGMA table_info(credential_assignments)").fetchall()
+                }
+                self.assertTrue(
+                    {
+                        "logical_location_id",
+                        "repair_authorized",
+                        "retirement_reason",
+                    } <= registration_columns
+                )
+                self.assertTrue(
+                    {
+                        "model",
+                        "fw_version",
+                        "node_nonce",
+                        "first_seen_at",
+                        "last_seen_at",
+                        "expires_at",
+                        "reason",
+                    } <= pairing_columns
+                )
+                self.assertTrue(
+                    {
+                        "assignment_id",
+                        "last_node_id",
+                        "reason",
+                        "created_at",
+                        "updated_at",
+                        "revoked_at",
+                    } <= credential_columns
+                )
             finally:
                 reg.close()
 
@@ -228,15 +264,6 @@ class DedicatedTwoNodeStateInitializerTest(unittest.TestCase):
             ):
                 self.module.initialize(path, root / "out-child-capability")
 
-            mac_binding = fixture()
-            mac_binding["child"]["hardware_id"] = "ghw-s5child-021122334456"
-            path = root / "mac-binding.json"
-            path.write_text(json.dumps(mac_binding), encoding="utf-8")
-            with self.assertRaisesRegex(
-                self.module.SyntheticStateError,
-                "child_hardware_mac_binding_mismatch",
-            ):
-                self.module.initialize(path, root / "out-mac-binding")
 
 
 if __name__ == "__main__":

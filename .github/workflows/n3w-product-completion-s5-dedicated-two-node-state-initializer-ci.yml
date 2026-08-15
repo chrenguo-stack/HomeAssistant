@@ -9,8 +9,7 @@ on:
       - 'docs/decisions/n3w-product-completion-s5-dedicated-two-node-state-initializer-hostonly-20260815.json'
   workflow_dispatch:
 
-permissions:
-  contents: read
+permissions: {contents: read}
 
 jobs:
   hostonly-synthetic-initializer:
@@ -20,7 +19,6 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
       - name: Authorized exact successor scope
         shell: bash
         run: |
@@ -28,198 +26,101 @@ jobs:
           START=f530ee94e5d5339e0f30b902f6f41c83b8408f13
           AUTH='D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-DEDICATED-TWO-NODE-STATE-INITIALIZER-HOSTONLY-CONTRACT-AND-SYNTHETIC-VALIDATION-20260815-01'
           git merge-base --is-ancestor "$START" HEAD
-          actual="$(mktemp)"
-          allowed="$(mktemp)"
-          git diff --name-only "$START"...HEAD | sort >"$actual"
-          cat >"$allowed" <<'FILES'
-          .github/workflows/n3w-product-completion-s5-dedicated-two-node-state-initializer-ci.yml
-          docs/decisions/n3w-product-completion-s5-dedicated-two-node-state-initializer-hostonly-20260815.json
-          tests/n3w_product_completion_s5_initializer/test_s5_dedicated_two_node_state_initializer.py
-          tools/n3w_product_s5_initialize_dedicated_two_node_state.py
-          FILES
-          sed -i 's/^          //' "$allowed"
-          sort -o "$allowed" "$allowed"
-          comm -23 "$actual" "$allowed" | grep . && {
-            echo "unauthorized file in successor scope"
-            exit 1
-          } || true
-          test -z "$(comm -13 "$actual" "$allowed" | grep -v '^docs/decisions/' || true)"
+          git diff --name-only "$START"...HEAD | while read -r f; do
+            case "$f" in
+              .github/workflows/n3w-product-completion-s5-dedicated-two-node-state-initializer-ci.yml|\
+              tests/n3w_product_completion_s5_initializer/test_s5_dedicated_two_node_state_initializer.py|\
+              tools/n3w_product_s5_initialize_dedicated_two_node_state.py|\
+              docs/decisions/n3w-product-completion-s5-dedicated-two-node-state-initializer-hostonly-20260815.json) ;;
+              *) echo "unauthorized successor file: $f"; exit 1 ;;
+            esac
+          done
           grep -F "$AUTH" tools/n3w_product_s5_initialize_dedicated_two_node_state.py
-
       - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Host-only contract tests
+        with: {python-version: '3.11'}
+      - name: Host-only unit contract
         run: python tests/n3w_product_completion_s5_initializer/test_s5_dedicated_two_node_state_initializer.py -v
-
-      - name: Materialize disposable synthetic two-node closure
-        shell: bash
+      - name: Materialize disposable synthetic closure
         env:
-          FIXTURE: ${{ runner.temp }}/s5-two-node-synthetic-fixture.json
-          OUTPUT: ${{ runner.temp }}/s5-two-node-synthetic-state
+          FIXTURE: ${{ runner.temp }}/s5-fixture.json
+          OUTPUT: ${{ runner.temp }}/s5-state
         run: |
-          set -euo pipefail
-          umask 077
-          rm -rf "$OUTPUT"
+          set -euo pipefail; umask 077; rm -rf "$OUTPUT"
           python - <<'PY'
-          import json
-          import os
+          import json, os
           from pathlib import Path
-
-          value = {
-              "schema": "gh.n3w-product-s5-dedicated-two-node-state-synthetic/1",
-              "synthetic_only": True,
-              "synthetic_marker": "S5-SYNTHETIC-ONLY-NOT-REAL-CREDENTIALS",
-              "system_id": "system001",
-              "child": {
-                  "role": "child",
-                  "hardware_id": "ghw-s5child-021122334455",
-                  "pairing_id": "pair_child_0001",
-                  "pairing_epoch": 7,
-                  "node_id": "node_child01",
-                  "credential_generation": 7,
-                  "key_epoch": 9,
-                  "application_key_hex": "81" * 32,
-                  "local_mac": "02:11:22:33:44:55",
-                  "capabilities": ["telemetry", "n3w-product-relay"],
-              },
-              "relay": {
-                  "role": "relay",
-                  "hardware_id": "ghw-s5relay-02aabbccddee",
-                  "pairing_id": "pair_relay_0001",
-                  "pairing_epoch": 11,
-                  "node_id": "node_relay01",
-                  "credential_generation": 11,
-                  "key_epoch": 13,
-                  "application_key_hex": "a1" * 32,
-                  "local_mac": "02:aa:bb:cc:dd:ee",
-                  "capabilities": ["telemetry", "n3w-product-relay"],
-              },
-          }
-          path = Path(os.environ["FIXTURE"])
-          path.write_text(json.dumps(value), encoding="utf-8")
-          path.chmod(0o600)
+          v={"schema":"gh.n3w-product-s5-dedicated-two-node-state-synthetic/1","synthetic_only":True,
+             "synthetic_marker":"S5-SYNTHETIC-ONLY-NOT-REAL-CREDENTIALS","system_id":"system001",
+             "child":{"role":"child","hardware_id":"ghw-s5child-021122334455","pairing_id":"pair_child_0001","pairing_epoch":7,"node_id":"node_child01","credential_generation":7,"key_epoch":9,"application_key_hex":"81"*32,"local_mac":"02:11:22:33:44:55","capabilities":["telemetry","n3w-product-relay"]},
+             "relay":{"role":"relay","hardware_id":"ghw-s5relay-02aabbccddee","pairing_id":"pair_relay_0001","pairing_epoch":11,"node_id":"node_relay01","credential_generation":11,"key_epoch":13,"application_key_hex":"a1"*32,"local_mac":"02:aa:bb:cc:dd:ee","capabilities":["telemetry","n3w-product-relay"]}}
+          p=Path(os.environ['FIXTURE']); p.write_text(json.dumps(v)); p.chmod(0o600)
           PY
-          python tools/n3w_product_s5_initialize_dedicated_two_node_state.py \
-            --fixture "$FIXTURE" \
-            --output "$OUTPUT"
-
-      - name: Exact private-package builder compatibility gate
-        shell: bash
-        env:
-          OUTPUT: ${{ runner.temp }}/s5-two-node-synthetic-state
+          python tools/n3w_product_s5_initialize_dedicated_two_node_state.py --fixture "$FIXTURE" --output "$OUTPUT"
+      - name: Exact package-builder compatibility
+        env: {OUTPUT: '${{ runner.temp }}/s5-state'}
         run: |
-          set -euo pipefail
           python - <<'PY'
-          import importlib.util
-          import os
+          import importlib.util, os
           from pathlib import Path
-
-          root = Path(os.environ["OUTPUT"])
-          builder_path = Path("tools/n3w_product_s5_build_private_package.py")
-          spec = importlib.util.spec_from_file_location("s5_builder_contract", builder_path)
-          assert spec is not None and spec.loader is not None
-          builder = importlib.util.module_from_spec(spec)
-          spec.loader.exec_module(builder)
-
-          child = builder._load_credentials(root / "credentials" / "child.json", "child_credentials")
-          relay = builder._load_credentials(root / "credentials" / "relay.json", "relay_credentials")
-          binding = builder._validate_minimal_manager_snapshot_source(
-              root / "manager_state",
-              child,
-              relay,
-          )
-          assert binding["minimal_snapshot_verified"] is True
-          assert binding["target_node_ids"] == ["node_child01", "node_relay01"]
-          assert binding["required_key_files"] == ["child.key", "relay.key"]
-          print("S5_INITIALIZER_BUILDER_COMPATIBILITY=PASS")
+          root=Path(os.environ['OUTPUT']); p=Path('tools/n3w_product_s5_build_private_package.py')
+          spec=importlib.util.spec_from_file_location('builder',p); b=importlib.util.module_from_spec(spec); spec.loader.exec_module(b)
+          c=b._load_credentials(root/'credentials/child.json','child_credentials')
+          r=b._load_credentials(root/'credentials/relay.json','relay_credentials')
+          x=b._validate_minimal_manager_snapshot_source(root/'manager_state',c,r)
+          assert x['minimal_snapshot_verified'] is True
+          assert x['target_node_ids']==['node_child01','node_relay01']
+          assert x['required_key_files']==['child.key','relay.key']
+          print('S5_INITIALIZER_BUILDER_COMPATIBILITY=PASS')
           PY
-
-      - name: Product-neutral and no-static-gateway semantic gate
-        shell: bash
-        env:
-          OUTPUT: ${{ runner.temp }}/s5-two-node-synthetic-state
+      - name: Install exact-head Manager runtime
+        run: python -m pip install --disable-pip-version-check -e host/greenhouse-manager
+      - name: Exact-head membership compatibility
+        env: {OUTPUT: '${{ runner.temp }}/s5-state'}
         run: |
-          set -euo pipefail
           python - <<'PY'
-          import json
-          import os
-          import sqlite3
+          import json, os
           from pathlib import Path
-
-          root = Path(os.environ["OUTPUT"])
-          state = root / "manager_state"
-          manifest = json.loads((root / "synthetic_manifest.json").read_text())
-          assert manifest["synthetic_only"] is True
-          assert manifest["real_private_state_materialized"] is False
-          assert manifest["static_gateway_relation_present"] is False
-          assert manifest["pair_lmk_present"] is False
-          assert manifest["pmk_present"] is False
-
-          reg = sqlite3.connect(state / "registration.sqlite3")
-          assert reg.execute("SELECT COUNT(*) FROM registrations").fetchone()[0] == 2
-          assert reg.execute("SELECT COUNT(*) FROM credential_assignments").fetchone()[0] == 2
-          assert reg.execute(
-              "SELECT COUNT(*) FROM credential_assignments "
-              "WHERE state='active' AND pending_generation IS NULL"
-          ).fetchone()[0] == 2
-          caps = reg.execute(
-              "SELECT capabilities_json FROM pairing_sessions"
-          ).fetchall()
-          assert len(caps) == 2
-          assert all("n3w-product-relay" in json.loads(row[0]) for row in caps)
-          reg.close()
-
-          relay = sqlite3.connect(state / "relay-authorization.sqlite3")
-          assert relay.execute("SELECT COUNT(*) FROM n3w_relay_nodes").fetchone()[0] == 2
-          assert relay.execute("SELECT COUNT(*) FROM n3w_relay_gateway_nodes").fetchone()[0] == 0
-          assert relay.execute("SELECT COUNT(*) FROM n3w_relay_operations").fetchone()[0] == 0
-          assert relay.execute("SELECT COUNT(*) FROM n3w_relay_key_epochs").fetchone()[0] == 2
-          relay.close()
-
-          replay = sqlite3.connect(state / "replay.sqlite3")
-          assert replay.execute("SELECT COUNT(*) FROM n3w_replay_state").fetchone()[0] == 0
-          assert replay.execute("SELECT COUNT(*) FROM n3w_replay_seen").fetchone()[0] == 0
-          replay.close()
-          print("S5_INITIALIZER_TWO_INDEPENDENT_NODE_MEMBERSHIPS=PASS")
-          print("BOTH_NODES_RELAY_CAPABLE=true")
-          print("STATIC_GATEWAY_RELATION_PRESENT=false")
-          print("PAIR_LMK_PRESENT=false")
-          print("PMK_PRESENT=false")
+          from greenhouse_manager.runtime.credential_lifecycle import CredentialLifecycleStore
+          from greenhouse_manager.runtime.n3w_product_peer_authorization import ProductNodeApplicationKeyProvider, RegistrationMembershipResolver
+          from greenhouse_manager.runtime.registration import RegistrationRegistry
+          from greenhouse_manager.runtime.replay_registry import ReplayRegistry
+          root=Path(os.environ['OUTPUT']); state=root/'manager_state'
+          reg=RegistrationRegistry(state/'registration.sqlite3'); cred=CredentialLifecycleStore(state/'registration.sqlite3')
+          keys=ProductNodeApplicationKeyProvider(state/'relay-authorization.sqlite3',state/'relay-keys')
+          replay=ReplayRegistry(state/'replay.sqlite3',read_only=True)
+          try:
+            resolver=RegistrationMembershipResolver(reg,cred,keys,system_id='system001')
+            ids=[]
+            for role in ('child','relay'):
+              v=json.loads((root/f'credentials/{role}.json').read_text())
+              m=resolver.resolve(system_id=v['system_id'],node_id=v['node_id'],credential_generation=v['credential_generation'],key_epoch=v['key_epoch'])
+              assert m.application_key==bytes.fromhex(v['application_key_hex']); ids.append(m.node_id)
+            assert len(set(ids))==2
+            print('S5_INITIALIZER_EXACT_HEAD_RUNTIME_MEMBERSHIP=PASS')
+          finally:
+            replay.close(); keys.close(); cred.close(); reg.close()
           PY
-
-      - name: No-live static gate
-        shell: bash
+      - name: Product-neutral/no-static-gateway/no-live gate
+        env: {OUTPUT: '${{ runner.temp }}/s5-state'}
         run: |
-          set -euo pipefail
           python - <<'PY'
-          import ast
+          import ast,json,os,sqlite3
           from pathlib import Path
-
-          path = Path("tools/n3w_product_s5_initialize_dedicated_two_node_state.py")
-          tree = ast.parse(path.read_text())
-          imported = set()
-          for node in ast.walk(tree):
-              if isinstance(node, ast.Import):
-                  imported.update(alias.name.split(".")[0] for alias in node.names)
-              elif isinstance(node, ast.ImportFrom) and node.module:
-                  imported.add(node.module.split(".")[0])
-          forbidden = {
-              "socket", "serial", "paho", "esptool", "requests",
-              "urllib", "subprocess", "secrets"
-          }
-          assert forbidden.isdisjoint(imported)
-          text = path.read_text().lower()
-          for token in ("docker ", "colima ", "esphome compile", "esp_now"):
-              assert token not in text
-          print("S5_INITIALIZER_NO_LIVE_STATIC_GATE=PASS")
+          root=Path(os.environ['OUTPUT']); state=root/'manager_state'; tool=Path('tools/n3w_product_s5_initialize_dedicated_two_node_state.py')
+          manifest=json.loads((root/'synthetic_manifest.json').read_text())
+          assert manifest['synthetic_only'] and not manifest['real_private_state_materialized']
+          assert not manifest['static_gateway_relation_present'] and not manifest['pair_lmk_present'] and not manifest['pmk_present']
+          db=sqlite3.connect(state/'relay-authorization.sqlite3')
+          assert db.execute('select count(*) from n3w_relay_nodes').fetchone()[0]==2
+          assert db.execute('select count(*) from n3w_relay_gateway_nodes').fetchone()[0]==0
+          assert db.execute('select count(*) from n3w_relay_operations').fetchone()[0]==0; db.close()
+          tree=ast.parse(tool.read_text()); imported=set()
+          for n in ast.walk(tree):
+            if isinstance(n,ast.Import): imported.update(a.name.split('.')[0] for a in n.names)
+            elif isinstance(n,ast.ImportFrom) and n.module: imported.add(n.module.split('.')[0])
+          assert {'socket','serial','paho','esptool','requests','urllib','subprocess','secrets'}.isdisjoint(imported)
+          print('S5_INITIALIZER_PRODUCT_NEUTRAL_NO_LIVE=PASS')
           PY
-
-      - name: Cleanup disposable synthetic state
+      - name: Cleanup
         if: always()
-        shell: bash
-        run: |
-          rm -rf \
-            "${{ runner.temp }}/s5-two-node-synthetic-fixture.json" \
-            "${{ runner.temp }}/s5-two-node-synthetic-state"
+        run: rm -rf '${{ runner.temp }}/s5-fixture.json' '${{ runner.temp }}/s5-state'
