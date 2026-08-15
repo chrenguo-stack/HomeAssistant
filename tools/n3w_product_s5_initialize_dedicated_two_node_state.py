@@ -115,14 +115,14 @@ def _validate_node(value: object, role: str) -> dict[str, Any]:
         or len(set(capabilities)) != len(capabilities)
     ):
         raise SyntheticStateError(f"{role}_capabilities_invalid")
-    if role == "relay" and RELAY_CAPABILITY not in capabilities:
-        raise SyntheticStateError("relay_capability_missing")
-    if role == "child" and RELAY_CAPABILITY in capabilities:
-        raise SyntheticStateError("child_relay_capability_preseed_rejected")
+    if RELAY_CAPABILITY not in capabilities:
+        raise SyntheticStateError(f"{role}_relay_capability_missing")
 
     normalized = dict(value)
     normalized["application_key_hex"] = _validate_key_hex(value["application_key_hex"], role)
     normalized["local_mac"] = _validate_mac(value["local_mac"], role)
+    if not value["hardware_id"].endswith(normalized["local_mac"].replace(":", "")):
+        raise SyntheticStateError(f"{role}_hardware_mac_binding_mismatch")
     normalized["capabilities"] = list(capabilities)
     return normalized
 
