@@ -12,6 +12,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 TOOL = ROOT / "tools" / "n3w_product_s5_prepare_physical_package.py"
+LAUNCHER = (
+    ROOT
+    / "host"
+    / "greenhouse-manager"
+    / "src"
+    / "greenhouse_manager"
+    / "runtime"
+    / "n3w_product_isolated_app.py"
+)
 DECISION = (
     ROOT
     / "docs"
@@ -19,7 +28,8 @@ DECISION = (
     / "n3w-product-completion-s5-full-two-board-isolated-physical-e2e-preparation-20260814.json"
 )
 STARTING_HEAD = "eb2fdc795850fedd4f49ce3fbba8cd03a4548de9"
-RUNTIME_HEAD = "660acf72b701d9ff8e3a881e97e5d15357286786"
+HISTORICAL_RUNTIME_HEAD = "660acf72b701d9ff8e3a881e97e5d15357286786"
+PRIVATE_RUNTIME_HEAD = "2278729f10fdb66cba098c2672d069a8255fe7cd"
 AUTH = (
     "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-FULL-TWO-BOARD-ISOLATED-"
     "PHYSICAL-E2E-PREPARATION-20260814-01"
@@ -47,12 +57,26 @@ def fixture_mac(*octets: int) -> str:
     return ":".join(f"{value:02x}" for value in octets)
 
 
+def network_fixture(*, channel: int = 6) -> dict[str, object]:
+    return {
+        "wifi_ssid": "s5-isolated-fixture",
+        "wifi_password": "fixture-pass-123",
+        "wifi_channel": channel,
+        "mqtt_broker": "192.0.2.10",
+        "mqtt_port": 1883,
+        "mqtt_client_id": "gh-s5-relay-fixture",
+        "mqtt_username": "fixture-user",
+        "mqtt_password": "fixture-mqtt-pass",
+        "mqtt_tls": False,
+    }
+
+
 class S5PhysicalPreparationTest(unittest.TestCase):
     def test_decision_contract(self) -> None:
         document = json.loads(DECISION.read_text(encoding="utf-8"))
         self.assertEqual(document["authorization"], AUTH)
         self.assertEqual(document["starting_head"], STARTING_HEAD)
-        self.assertEqual(document["runtime_implementation_head"], RUNTIME_HEAD)
+        self.assertEqual(document["runtime_implementation_head"], HISTORICAL_RUNTIME_HEAD)
         self.assertEqual(
             document["status"],
             "PUBLIC_PREPARATION_BLOCKED_MANAGER_TRANSPORT_IMPLEMENTATION_REQUIRED",
@@ -119,10 +143,12 @@ class S5PhysicalPreparationTest(unittest.TestCase):
 
     def test_private_package_generator_itself_remains_non_executable_fresh_and_permission_restricted(self) -> None:
         module = load_tool()
+        self.assertEqual(module.RUNTIME_IMPLEMENTATION_HEAD, PRIVATE_RUNTIME_HEAD)
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             child = root / "child.json"
             relay = root / "relay.json"
+            network = root / "network.json"
             child_fw = root / "child.bin"
             relay_fw = root / "relay.bin"
             manager = root / "manager.bundle"
@@ -152,6 +178,7 @@ class S5PhysicalPreparationTest(unittest.TestCase):
                     }
                 ).encode(),
             )
+            private_write(network, json.dumps(network_fixture()).encode())
             private_write(child_fw, b"child-firmware-fixture")
             private_write(relay_fw, b"relay-firmware-fixture")
             private_write(manager, b"isolated-manager-state-fixture")
@@ -162,21 +189,36 @@ class S5PhysicalPreparationTest(unittest.TestCase):
                 result = module.prepare(
                     Namespace(
                         preparation_head="1" * 40,
-                        runtime_head=RUNTIME_HEAD,
+                        runtime_head=PRIVATE_RUNTIME_HEAD,
                         child_credentials=str(child),
                         relay_credentials=str(relay),
+                        isolated_network=str(network),
+                        espnow_channel=6,
                         child_firmware=str(child_fw),
                         relay_firmware=str(relay_fw),
                         manager_bundle=str(manager),
+                        manager_launcher_source=str(LAUNCHER),
                         output=str(output),
                     )
                 )
                 self.assertFalse(result["execution_authorized"])
                 self.assertTrue(result["ready_for_readonly_binding_review"])
+                self.assertEqual(result["private_runtime_component"], "greenhouse_n3w_s5_private_runtime")
+                self.assertEqual(
+                    result["isolated_manager_launcher_module"],
+                    "greenhouse_manager.runtime.n3w_product_isolated_app",
+                )
+                self.assertEqual(result["network_binding"]["wifi_channel"], 6)
+                self.assertEqual(result["espnow_channel"], 6)
                 manifest = json.loads((output / "manifest.json").read_text())
                 secret = json.loads((output / "private_secrets.json").read_text())
+                packaged_network = json.loads((output / "isolated_network.json").read_text())
+                self.assertEqual(manifest["schema"], "gh.n3w-product-s5-private-physical-e2e-package/2")
                 self.assertFalse(manifest["execution_authorized"])
                 self.assertIsNone(manifest["physical_execution_authorization"])
+                self.assertTrue(manifest["radio_binding"]["channels_match"])
+                self.assertEqual(manifest["radio_binding"]["espnow_channel"], 6)
+                self.assertEqual(packaged_network, network_fixture())
                 self.assertFalse(secret["execution_authorized"])
                 self.assertIsNone(secret["physical_execution_authorization"])
                 self.assertEqual(len(bytes.fromhex(secret["espnow_pmk_hex"])), 16)
@@ -186,6 +228,7 @@ class S5PhysicalPreparationTest(unittest.TestCase):
                 for name in (
                     "manifest.json",
                     "private_secrets.json",
+                    "isolated_network.json",
                     "cleanup_contract.json",
                     "READ_ONLY_GATE.txt",
                 ):
@@ -193,12 +236,13 @@ class S5PhysicalPreparationTest(unittest.TestCase):
                     self.assertFalse(bool((output / name).stat().st_mode & stat.S_IXUSR))
             self.assertEqual(len(secrets_seen), 2)
 
-    def test_cross_system_or_non_private_input_fails_closed(self) -> None:
+    def test_cross_system_non_private_or_channel_mismatch_fails_closed(self) -> None:
         module = load_tool()
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             child = root / "child.json"
             relay = root / "relay.json"
+            network = root / "network.json"
             fw1 = root / "c.bin"
             fw2 = root / "r.bin"
             manager = root / "manager.bundle"
@@ -217,25 +261,35 @@ class S5PhysicalPreparationTest(unittest.TestCase):
                 "local_mac": fixture_mac(2, 170, 187, 204, 221, 238),
             }
             private_write(relay, json.dumps(relay_value).encode())
+            private_write(network, json.dumps(network_fixture()).encode())
             private_write(fw1, b"c")
             private_write(fw2, b"r")
             private_write(manager, b"m")
+            common = dict(
+                preparation_head="2" * 40,
+                runtime_head=PRIVATE_RUNTIME_HEAD,
+                child_credentials=str(child),
+                relay_credentials=str(relay),
+                isolated_network=str(network),
+                espnow_channel=6,
+                child_firmware=str(fw1),
+                relay_firmware=str(fw2),
+                manager_bundle=str(manager),
+                manager_launcher_source=str(LAUNCHER),
+                output=str(root / "out"),
+            )
             with self.assertRaisesRegex(ValueError, "same system"):
-                module.prepare(
-                    Namespace(
-                        preparation_head="2" * 40,
-                        runtime_head=RUNTIME_HEAD,
-                        child_credentials=str(child),
-                        relay_credentials=str(relay),
-                        child_firmware=str(fw1),
-                        relay_firmware=str(fw2),
-                        manager_bundle=str(manager),
-                        output=str(root / "out"),
-                    )
-                )
+                module.prepare(Namespace(**common))
             os.chmod(child, 0o644)
             with self.assertRaisesRegex(ValueError, "permissions"):
                 module._load_credentials(child, "child_credentials")
+
+            os.chmod(child, 0o600)
+            private_write(relay, json.dumps({"system_id": "system001", **relay_value, "system_id": "system001"}).encode())
+            private_write(network, json.dumps(network_fixture(channel=11)).encode())
+            common["output"] = str(root / "out-channel")
+            with self.assertRaisesRegex(ValueError, "must equal"):
+                module.prepare(Namespace(**common))
 
 
 if __name__ == "__main__":
