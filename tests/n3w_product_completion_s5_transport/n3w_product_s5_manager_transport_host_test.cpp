@@ -171,14 +171,25 @@ int main(int argc, char **argv) {
       "node_relay01",
       &clock,
       &bus,
-      &authorization_sink);
+      &authorization_sink,
+      0x1020304050607080ULL);
   assert(transport.start());
   assert(bus.subscription ==
          "gh/v1/system001/out/node/node_relay01/relay-peer-auth/+");
 
   uint64_t authority_now = 0;
   assert(!transport.authority_now_ms(&authority_now));
-  assert(bus.published.size() == 1);
+  assert(bus.published.size() == 2);
+  assert(bus.published.front().topic ==
+         "gh/v1/system001/ingress/node/node_relay01/telemetry");
+  assert(bus.published.front().payload ==
+         "{\"schema\":\"gh.telemetry/1\",\"node_id\":\"node_relay01\","
+         "\"boot_id\":\"boot_1020304050607080\",\"seq\":0,"
+         "\"uptime_ms\":1000,\"cap_hash\":\"n3w-s5-relay-liveness-v1\","
+         "\"measurements\":{},\"quality\":{},"
+         "\"power\":{\"source\":\"unknown\",\"low\":false}}");
+  assert(bus.published.front().qos == 1);
+  assert(!bus.published.front().retain);
   assert(bus.published.back().topic ==
          "gh/v1/system001/ingress/node/node_relay01/"
          "relay-peer-auth/time-request");
@@ -196,6 +207,14 @@ int main(int argc, char **argv) {
       time_response);
   assert(transport.authority_now_ms(&authority_now));
   assert(authority_now == request.requested_at_ms);
+
+  clock.now = 6000;
+  assert(transport.maintain_direct_liveness());
+  assert(bus.published.back().topic ==
+         "gh/v1/system001/ingress/node/node_relay01/telemetry");
+  assert(bus.published.back().payload.find("\"seq\":1") !=
+         std::string::npos);
+  clock.now = 1000;
 
   assert(transport.submit_peer_authorization(request));
   assert(transport.authorization_pending());

@@ -100,6 +100,9 @@ def test_isolated_relay_acl_covers_dynamic_peer_authorization_transport():
         ROOT / "infra/compose/n3w-p5-two-board-isolated/acl"
     ).read_text()
     assert (
+        "topic write gh/v1/n3wp5lab/ingress/node/n3wp5_relay01/telemetry"
+    ) in acl
+    assert (
         "topic write gh/v1/n3wp5lab/ingress/node/n3wp5_relay01/"
         "relay-peer-auth/time-request"
     ) in acl
@@ -142,7 +145,12 @@ def test_private_acl_renderer_changes_only_the_three_approved_entries():
 
         assert result.stdout.strip() == "PRIVATE_ACL_APPROVED_ENTRIES_BIND=PASS"
         updated = acl.read_text(encoding="utf-8")
-        assert updated == original.replace(
+        expected = original.replace(
             "/node/n3wp5_relay01/relay-peer-auth/",
             "/node/private_relay/relay-peer-auth/",
         )
+        expected = expected.replace(
+            "/node/n3wp5_relay01/telemetry",
+            "/node/private_relay/telemetry",
+        )
+        assert updated == expected

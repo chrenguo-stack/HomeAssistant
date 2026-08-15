@@ -36,6 +36,9 @@ std::string product_peer_authority_time_request_topic(
 std::string product_peer_authority_time_response_topic(
     const std::string &system_id,
     const std::string &relay_node_id);
+std::string product_relay_direct_telemetry_topic(
+    const std::string &system_id,
+    const std::string &relay_node_id);
 std::string product_relay_ingress_topic(
     const std::string &system_id,
     const std::string &relay_node_id,

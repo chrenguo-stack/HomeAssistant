@@ -61,13 +61,16 @@ struct ProductS5ManagerTransportPolicy {
   uint32_t authority_refresh_interval_ms{10000};
   uint32_t authority_max_age_ms{30000};
   uint32_t authority_request_timeout_ms{5000};
+  uint32_t direct_liveness_interval_ms{5000};
 
   bool valid() const {
     return authority_refresh_interval_ms >= 1000 &&
            authority_refresh_interval_ms <= authority_max_age_ms &&
            authority_max_age_ms <= 300000 &&
            authority_request_timeout_ms >= 500 &&
-           authority_request_timeout_ms <= authority_max_age_ms;
+           authority_request_timeout_ms <= authority_max_age_ms &&
+           direct_liveness_interval_ms >= 1000 &&
+           direct_liveness_interval_ms <= 10000;
   }
 };
 
@@ -84,9 +87,11 @@ class ProductS5IsolatedManagerTransport final : public ProductS5ManagerPort,
       ProductRuntimeClock *clock,
       ProductS5MessageBusPort *bus,
       ProductS5ManagerAuthorizationSink *authorization_sink,
+      uint64_t boot_session,
       ProductS5ManagerTransportPolicy policy = {});
 
   bool start();
+  bool maintain_direct_liveness();
   bool authority_now_ms(uint64_t *now_ms) override;
   bool submit_peer_authorization(
       const ProductPeerRequest &request) override;
@@ -115,11 +120,18 @@ class ProductS5IsolatedManagerTransport final : public ProductS5ManagerPort,
   ProductRuntimeClock *clock_{nullptr};
   ProductS5MessageBusPort *bus_{nullptr};
   ProductS5ManagerAuthorizationSink *authorization_sink_{nullptr};
+  uint64_t boot_session_{0};
   ProductS5ManagerTransportPolicy policy_{};
   bool started_{false};
   std::string response_subscription_;
   std::string time_request_topic_;
   std::string time_response_topic_;
+  std::string direct_liveness_topic_;
+  std::string direct_liveness_boot_id_;
+  uint32_t direct_liveness_sequence_{0};
+  uint64_t direct_liveness_last_local_ms_{0};
+  bool direct_liveness_sent_{false};
+  bool direct_liveness_exhausted_{false};
 
   uint64_t time_request_counter_{0};
   bool time_request_pending_{false};

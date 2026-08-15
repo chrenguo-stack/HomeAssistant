@@ -13,6 +13,7 @@ from pathlib import Path
 
 IDENTITY = re.compile(r"^[A-Za-z0-9_-]{3,64}$")
 SUFFIXES = (
+    ("write", "telemetry"),
     ("write", "relay-peer-auth/time-request"),
     ("write", "relay-peer-auth/request"),
     ("read", "relay-peer-auth/+"),
@@ -34,24 +35,34 @@ def main() -> int:
         raise ValueError("invalid_relay_node_id")
 
     original = args.output.read_text(encoding="utf-8")
-    updated = original
+    block_pattern = re.compile(
+        r"^user p5relay\n(?P<body>(?:^ [^\n]*(?:\n|$))*)",
+        re.MULTILINE,
+    )
+    block_match = block_pattern.search(original)
+    if block_match is None:
+        raise ValueError("p5relay_acl_block_missing")
+    original_block = block_match.group(0)
+    updated_block = original_block
     for permission, suffix in SUFFIXES:
         pattern = re.compile(
             rf"^ topic {permission} gh/v1/{re.escape(system)}/"
             rf"(?:ingress|out)/node/[A-Za-z0-9_-]+/{re.escape(suffix)}$",
             re.MULTILINE,
         )
-        matches = pattern.findall(updated)
+        matches = pattern.findall(updated_block)
         if len(matches) != 1:
             raise ValueError("approved_acl_entry_count_mismatch")
         direction = "ingress" if permission == "write" else "out"
         replacement = (
             f" topic {permission} gh/v1/{system}/{direction}/node/{node}/{suffix}"
         )
-        updated = pattern.sub(replacement, updated, count=1)
+        updated_block = pattern.sub(replacement, updated_block, count=1)
 
-    before_without_approved = original
-    after_without_approved = updated
+    updated = original.replace(original_block, updated_block, 1)
+
+    before_without_approved = original_block
+    after_without_approved = updated_block
     for permission, suffix in SUFFIXES:
         scrub = re.compile(
             rf"^ topic {permission} gh/v1/{re.escape(system)}/"
@@ -62,6 +73,10 @@ def main() -> int:
         after_without_approved = scrub.sub("[APPROVED_ENTRY]", after_without_approved)
     if before_without_approved != after_without_approved:
         raise ValueError("acl_scope_expanded")
+    if original.replace(original_block, "[P5RELAY_BLOCK]", 1) != updated.replace(
+        updated_block, "[P5RELAY_BLOCK]", 1
+    ):
+        raise ValueError("acl_outside_p5relay_changed")
 
     mode = args.output.stat().st_mode & 0o777
     fd, temporary = tempfile.mkstemp(prefix=".acl-", dir=args.output.parent)

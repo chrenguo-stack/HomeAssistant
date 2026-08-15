@@ -2,6 +2,10 @@
 
 #include "esphome/core/log.h"
 
+#ifdef USE_ESP32
+#include "esp_system.h"
+#endif
+
 namespace esphome::greenhouse_n3w_s5_manager_transport {
 namespace {
 static const char *const TAG = "n3w_s5_manager_transport";
@@ -61,12 +65,20 @@ void GreenhouseN3wS5ManagerTransportComponent::setup() {
   }
 
   bus_ = std::make_unique<ProductS5EspHomeMqttBus>();
+  uint64_t boot_session = 1;
+#ifdef USE_ESP32
+  boot_session =
+      (static_cast<uint64_t>(esp_random()) << 32U) |
+      static_cast<uint64_t>(esp_random());
+  if (boot_session == 0) boot_session = 1;
+#endif
   transport_ = std::make_unique<ProductS5IsolatedManagerTransport>(
       credentials.system_id,
       credentials.node_id,
       integration_,
       bus_.get(),
-      this);
+      this,
+      boot_session);
   zeroize_(
       credentials.application_key.data(),
       credentials.application_key.size());

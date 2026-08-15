@@ -289,6 +289,17 @@ std::string product_peer_authority_time_response_topic(
          "/relay-peer-auth/time";
 }
 
+std::string product_relay_direct_telemetry_topic(
+    const std::string &system_id,
+    const std::string &relay_node_id) {
+  if (!ProductPeerSecurity::valid_identifier_(system_id) ||
+      !ProductPeerSecurity::valid_identifier_(relay_node_id)) {
+    return {};
+  }
+  return "gh/v1/" + system_id + "/ingress/node/" + relay_node_id +
+         "/telemetry";
+}
+
 std::string product_relay_ingress_topic(
     const std::string &system_id,
     const std::string &relay_node_id,

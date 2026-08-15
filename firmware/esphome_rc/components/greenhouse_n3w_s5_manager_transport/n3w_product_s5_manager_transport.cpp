@@ -11,17 +11,20 @@ ProductS5IsolatedManagerTransport::ProductS5IsolatedManagerTransport(
     ProductRuntimeClock *clock,
     ProductS5MessageBusPort *bus,
     ProductS5ManagerAuthorizationSink *authorization_sink,
+    uint64_t boot_session,
     ProductS5ManagerTransportPolicy policy)
     : system_id_(std::move(system_id)),
       relay_node_id_(std::move(relay_node_id)),
       clock_(clock),
       bus_(bus),
       authorization_sink_(authorization_sink),
+      boot_session_(boot_session),
       policy_(policy) {}
 
 bool ProductS5IsolatedManagerTransport::start() {
   if (started_ || clock_ == nullptr || bus_ == nullptr ||
       authorization_sink_ == nullptr || !policy_.valid() ||
+      boot_session_ == 0 ||
       !ProductPeerSecurity::valid_identifier_(system_id_) ||
       !ProductPeerSecurity::valid_identifier_(relay_node_id_)) {
     return false;
@@ -36,13 +39,56 @@ bool ProductS5IsolatedManagerTransport::start() {
   time_response_topic_ =
       product_peer_authority_time_response_topic(
           system_id_, relay_node_id_);
+  direct_liveness_topic_ =
+      product_relay_direct_telemetry_topic(system_id_, relay_node_id_);
+  direct_liveness_boot_id_ =
+      greenhouse_n3w_core::format_boot_id(boot_session_);
   if (response_subscription_.empty() || time_request_topic_.empty() ||
-      time_response_topic_.empty() ||
+      time_response_topic_.empty() || direct_liveness_topic_.empty() ||
+      direct_liveness_boot_id_.empty() ||
       !bus_->begin(response_subscription_, this)) {
     return false;
   }
 
   started_ = true;
+  return true;
+}
+
+bool ProductS5IsolatedManagerTransport::maintain_direct_liveness() {
+  if (!started_ || clock_ == nullptr || bus_ == nullptr ||
+      !bus_->connected() || direct_liveness_exhausted_) {
+    return false;
+  }
+  const uint64_t local_now_ms = clock_->now_ms();
+  if (direct_liveness_sent_) {
+    if (local_now_ms < direct_liveness_last_local_ms_) {
+      direct_liveness_sent_ = false;
+    } else if (local_now_ms - direct_liveness_last_local_ms_ <
+               policy_.direct_liveness_interval_ms) {
+      return true;
+    }
+  }
+
+  const std::string payload =
+      "{\"schema\":\"gh.telemetry/1\",\"node_id\":\"" +
+      relay_node_id_ + "\",\"boot_id\":\"" + direct_liveness_boot_id_ +
+      "\",\"seq\":" + std::to_string(direct_liveness_sequence_) +
+      ",\"uptime_ms\":" + std::to_string(local_now_ms) +
+      ",\"cap_hash\":\"n3w-s5-relay-liveness-v1\","
+      "\"measurements\":{},\"quality\":{},"
+      "\"power\":{\"source\":\"unknown\",\"low\":false}}";
+  if (!bus_->publish_message(
+          direct_liveness_topic_, payload, 1, false)) {
+    return false;
+  }
+  direct_liveness_sent_ = true;
+  direct_liveness_last_local_ms_ = local_now_ms;
+  if (direct_liveness_sequence_ ==
+      std::numeric_limits<uint32_t>::max()) {
+    direct_liveness_exhausted_ = true;
+  } else {
+    ++direct_liveness_sequence_;
+  }
   return true;
 }
 
@@ -79,6 +125,8 @@ bool ProductS5IsolatedManagerTransport::request_authority_time_(
 
 bool ProductS5IsolatedManagerTransport::authority_now_ms(uint64_t *now_ms) {
   if (now_ms == nullptr || !started_ || clock_ == nullptr) return false;
+
+  (void) maintain_direct_liveness();
 
   const uint64_t local_now_ms = clock_->now_ms();
   if (time_request_pending_ &&
