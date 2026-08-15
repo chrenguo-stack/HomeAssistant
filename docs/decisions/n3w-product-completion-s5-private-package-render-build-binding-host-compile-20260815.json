@@ -8,9 +8,18 @@
   "preexisting_implementation_classification": "PREEXISTING_IMPLEMENTATION_ACCEPTED_AFTER_INDEPENDENT_PROVENANCE_REVIEW",
   "repair_start_head": "f0d8345fc572d01ceb38bfeabf4e878e4cfdb65e",
   "lineage_start_head": "15510ac3dbf3f8639f63e9dfa5146a27b52eb0d0",
-  "status": "IMPLEMENTED_PENDING_EXACT_HEAD_CI",
-  "implementation_head": null,
+  "status": "PASS",
+  "implementation_head": "ac528a46e582054a9e6e16ed7d8bfab3c4956046",
   "scope": "HOST_COMPILE_ONLY_SYNTHETIC_PRIVATE_FIXTURES_NO_LIVE_EXECUTION",
+  "exact_head_ci": {
+    "validated_head": "ac528a46e582054a9e6e16ed7d8bfab3c4956046",
+    "workflow": "N3-W Product Completion S5 private package render build binding CI",
+    "run_id": 31862620775,
+    "job_id": 94958508250,
+    "conclusion": "success",
+    "synthetic_only": true,
+    "physical_execution_authorized": false
+  },
   "resolved_blockers_expected": {
     "S5-MAT-B01": "fresh PMK is generated before render and the same PMK is rendered into both Child and Relay compile configurations",
     "S5-MAT-B02": "private credentials and network inputs are rendered into exact ESPHome configs and compiled into bound firmware artifacts",
@@ -81,10 +90,10 @@
     "exact_head_ci_required_before_pass_classification": true
   },
   "classification": {
-    "private_package_render_build_binding_host_compile": "PENDING_EXACT_HEAD_CI",
+    "private_package_render_build_binding_host_compile": "PASS_SYNTHETIC_HOST_COMPILE_ONLY",
     "preexisting_builder_provenance": "ACCEPTED_AS_PREEXISTING_REVIEWED_BASELINE",
     "retroactive_legacy_authorization_attribution": false,
-    "minimal_manager_snapshot_contract": "IMPLEMENTED_PENDING_EXACT_HEAD_CI",
+    "minimal_manager_snapshot_contract": "PASS_SYNTHETIC_CONTRACT_ONLY",
     "private_real_credential_access": false,
     "private_real_manager_state_access": false,
     "private_real_pmk_generated": false,
