@@ -49,7 +49,7 @@ greenhouse_n3w_s5_private_runtime:
   credential_generation: 7
   key_epoch: 9
   application_key_hex: "8182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0"
-  local_mac: "02:11:22:33:44:55"
+  local_mac: "021122334455"
 
 # Synthetic values only. CI compiles this target but never flashes or runs it.
 # The production/factory profiles remain inert and contain none of these fields.
