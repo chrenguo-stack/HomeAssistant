@@ -13,7 +13,9 @@ on:
       - 'firmware/esphome_rc/components/greenhouse_n3w_s5_private_runtime/**'
       - 'host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_product_isolated_app.py'
       - 'host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_product_isolated_launcher.py'
+      - 'host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_product_isolated_mqtt_service.py'
       - 'tests/n3w_product_completion_s5_private_runtime/**'
+      - 'tests/n3w_product_completion_s5_transport/test_s5_isolated_manager_transport.py'
       - 'tests/n3w_product_completion_s5/test_s5_physical_e2e_preparation.py'
       - 'tools/n3w_product_s5_prepare_physical_package.py'
   workflow_dispatch:
@@ -62,8 +64,10 @@ jobs:
           firmware/esphome_rc/components/greenhouse_n3w_s5_private_runtime/n3w_product_s5_private_runtime.cpp
           host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_product_isolated_app.py
           host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_product_isolated_launcher.py
+          host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_product_isolated_mqtt_service.py
           tests/n3w_product_completion_s5/test_s5_physical_e2e_preparation.py
           tests/n3w_product_completion_s5_private_runtime/test_s5_private_runtime_composition.py
+          tests/n3w_product_completion_s5_transport/test_s5_isolated_manager_transport.py
           tools/n3w_product_s5_prepare_physical_package.py
           FILES
           sed -i 's/^          //' "$allowed"
@@ -129,6 +133,7 @@ jobs:
             firmware/esphome_rc/components/greenhouse_n3w_s5_private_runtime
             host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_product_isolated_app.py
             host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_product_isolated_launcher.py
+            host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_product_isolated_mqtt_service.py
             tools/n3w_product_s5_prepare_physical_package.py
           )
           if grep -R -n -E \
