@@ -38,6 +38,10 @@ def private_json(path: Path, value: object) -> None:
     os.chmod(path, 0o600)
 
 
+def fixture_mac(*octets: int) -> str:
+    return ":".join(f"{value:02x}" for value in octets)
+
+
 def child_fixture() -> dict[str, object]:
     return {
         "system_id": "system001",
@@ -45,7 +49,7 @@ def child_fixture() -> dict[str, object]:
         "credential_generation": 7,
         "key_epoch": 9,
         "application_key_hex": "81" * 32,
-        "local_mac": "02:11:22:33:44:55",
+        "local_mac": fixture_mac(2, 17, 34, 51, 68, 85),
     }
 
 
@@ -56,7 +60,7 @@ def relay_fixture() -> dict[str, object]:
         "credential_generation": 11,
         "key_epoch": 13,
         "application_key_hex": "a1" * 32,
-        "local_mac": "02:aa:bb:cc:dd:ee",
+        "local_mac": fixture_mac(2, 170, 187, 204, 221, 238),
     }
 
 
