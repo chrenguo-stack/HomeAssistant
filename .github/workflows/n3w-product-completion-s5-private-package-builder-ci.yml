@@ -3,7 +3,11 @@ name: N3-W Product Completion S5 private package render build binding CI
 on:
   pull_request:
     paths:
+      - '.github/workflows/n3w-product-completion-s5-d-lifecycle-negative-host-matrix-ci.yml'
+      - '.github/workflows/n3w-product-completion-s5-isolated-manager-transport-ci.yml'
+      - '.github/workflows/n3w-product-completion-s5-physical-e2e-preparation-ci.yml'
       - '.github/workflows/n3w-product-completion-s5-private-package-builder-ci.yml'
+      - '.github/workflows/n3w-product-completion-s5-private-runtime-composition-ci.yml'
       - 'docs/decisions/n3w-product-completion-s5-private-package-render-build-binding-host-compile-20260815.json'
       - 'tests/n3w_product_completion_s5_package/**'
       - 'tools/n3w_product_s5_build_private_package.py'
@@ -32,7 +36,11 @@ jobs:
           allowed="$(mktemp)"
           git diff --name-only "$START"...HEAD | sort >"$actual"
           cat >"$allowed" <<'FILES'
+          .github/workflows/n3w-product-completion-s5-d-lifecycle-negative-host-matrix-ci.yml
+          .github/workflows/n3w-product-completion-s5-isolated-manager-transport-ci.yml
+          .github/workflows/n3w-product-completion-s5-physical-e2e-preparation-ci.yml
           .github/workflows/n3w-product-completion-s5-private-package-builder-ci.yml
+          .github/workflows/n3w-product-completion-s5-private-runtime-composition-ci.yml
           docs/decisions/n3w-product-completion-s5-private-package-render-build-binding-host-compile-20260815.json
           tests/n3w_product_completion_s5_package/test_s5_private_package_builder.py
           tools/n3w_product_s5_build_private_package.py

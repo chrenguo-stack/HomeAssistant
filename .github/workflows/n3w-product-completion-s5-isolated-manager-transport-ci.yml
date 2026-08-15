@@ -5,8 +5,10 @@ on:
     paths:
       - '.github/workflows/n3w-product-completion-s5-isolated-manager-transport-ci.yml'
       - '.github/workflows/n3w-product-completion-s5-private-runtime-composition-ci.yml'
+      - '.github/workflows/n3w-product-completion-s5-private-package-builder-ci.yml'
       - 'docs/decisions/n3w-product-completion-s5-isolated-manager-transport-host-compile-20260814.json'
       - 'docs/decisions/n3w-product-completion-s5-private-runtime-composition-20260815.json'
+      - 'docs/decisions/n3w-product-completion-s5-private-package-render-build-binding-host-compile-20260815.json'
       - 'firmware/esphome_rc/board_lab/n3w_product_completion_s5/transport_compile/relay_manager_transport_compile.yml'
       - 'firmware/esphome_rc/board_lab/n3w_product_completion_s5/private_runtime_compile/**'
       - 'firmware/esphome_rc/components/greenhouse_n3w_s5_manager_transport/**'
@@ -18,7 +20,9 @@ on:
       - 'tests/n3w_product_completion_s5_transport/**'
       - 'tests/n3w_product_completion_s5_private_runtime/**'
       - 'tests/n3w_product_completion_s5/test_s5_physical_e2e_preparation.py'
+      - 'tests/n3w_product_completion_s5_package/test_s5_private_package_builder.py'
       - 'tools/n3w_product_s5_prepare_physical_package.py'
+      - 'tools/n3w_product_s5_build_private_package.py'
   workflow_dispatch:
 
 permissions:
@@ -55,8 +59,10 @@ jobs:
           .github/workflows/n3w-product-completion-s5-d-lifecycle-negative-host-matrix-ci.yml
           .github/workflows/n3w-product-completion-s5-isolated-manager-transport-ci.yml
           .github/workflows/n3w-product-completion-s5-physical-e2e-preparation-ci.yml
+          .github/workflows/n3w-product-completion-s5-private-package-builder-ci.yml
           .github/workflows/n3w-product-completion-s5-private-runtime-composition-ci.yml
           docs/decisions/n3w-product-completion-s5-isolated-manager-transport-host-compile-20260814.json
+          docs/decisions/n3w-product-completion-s5-private-package-render-build-binding-host-compile-20260815.json
           docs/decisions/n3w-product-completion-s5-private-runtime-composition-20260815.json
           firmware/esphome_rc/board_lab/n3w_product_completion_s5/private_runtime_compile/child_private_runtime_compile.yml
           firmware/esphome_rc/board_lab/n3w_product_completion_s5/private_runtime_compile/relay_private_runtime_compile.yml
@@ -77,9 +83,11 @@ jobs:
           host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_product_isolated_launcher.py
           host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_product_isolated_mqtt_service.py
           tests/n3w_product_completion_s5/test_s5_physical_e2e_preparation.py
+          tests/n3w_product_completion_s5_package/test_s5_private_package_builder.py
           tests/n3w_product_completion_s5_private_runtime/test_s5_private_runtime_composition.py
           tests/n3w_product_completion_s5_transport/n3w_product_s5_manager_transport_host_test.cpp
           tests/n3w_product_completion_s5_transport/test_s5_isolated_manager_transport.py
+          tools/n3w_product_s5_build_private_package.py
           tools/n3w_product_s5_prepare_physical_package.py
           FILES
           sed -i 's/^          //' "$allowed"
