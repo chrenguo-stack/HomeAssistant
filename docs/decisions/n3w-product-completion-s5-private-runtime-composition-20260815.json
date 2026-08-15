@@ -1,0 +1,81 @@
+{
+  "schema": "gh.n3w-product-completion-s5-private-runtime-composition/1",
+  "date": "2026-08-15",
+  "authorization": "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-PRIVATE-RUNTIME-COMPOSITION-AND-ISOLATED-MANAGER-LAUNCHER-HOST-COMPILE-IMPLEMENTATION-20260814-01",
+  "repository": "chrenguo-stack/HomeAssistant",
+  "pull_request": 322,
+  "branch": "feature/n3w-product-completion-s5-two-board-isolated-20260814-v1",
+  "base_main": "38c3b692d4ebe90d0040c732b6c0313fdfdc1ef6",
+  "starting_head": "a17b0f58f5889aa3b79601e655c3d20ee89da073",
+  "runtime_composition_checkpoint": "2278729f10fdb66cba098c2672d069a8255fe7cd",
+  "status": "AUTHORIZED_IMPLEMENTATION_AWAITING_EXACT_HEAD_CI",
+  "scope": {
+    "host_compile_only": true,
+    "generic_private_self_credential_provider": true,
+    "generic_private_relay_health_provider": true,
+    "private_child_s5_composition": true,
+    "private_relay_manager_transport_composition": true,
+    "isolated_manager_launcher": true,
+    "private_network_broker_channel_binding_contract": true,
+    "private_package_materialization": false,
+    "physical_execution": false,
+    "production_runtime_mutation": false
+  },
+  "blockers_targeted": {
+    "S5-REBASE-B01": "rebind package generator to reviewed private-runtime implementation checkpoint",
+    "S5-REBASE-B02": "provide own-node-only concrete credential and Relay health providers plus Child/Relay composition",
+    "S5-REBASE-B03": "provide explicit isolated-lab Manager launcher using existing S4 peer authority and N3-W runtime state",
+    "S5-REBASE-B04": "bind isolated Wi-Fi, MQTT and Wi-Fi/ESP-NOW channel compatibility in the private package contract"
+  },
+  "required_invariants": {
+    "normal_production_manager_startup_changed": false,
+    "public_factory_profiles_enabled": false,
+    "factory_peer_identity_or_pair_lmk_added": false,
+    "private_provider_accepts_peer_identity": false,
+    "manager_generates_or_distributes_pair_lmk": false,
+    "s4_manager_remains_only_peer_authorization_authority": true,
+    "existing_gh_relay_1_and_gh_telemetry_1_preserved": true,
+    "endpoint_monotonic_clock_treated_as_manager_epoch": false,
+    "wifi_recovery_switchback_added": false
+  },
+  "implementation": {
+    "private_runtime_component": "greenhouse_n3w_s5_private_runtime",
+    "child_credential_loads_before_zeroize": 1,
+    "relay_credential_loads_before_zeroize": 2,
+    "relay_health_timestamp_source": "manager_authority_epoch_argument",
+    "isolated_manager_launcher_module": "greenhouse_manager.runtime.n3w_product_isolated_app",
+    "isolated_manager_opt_in_env": "GH_N3W_S5_ISOLATED_MANAGER_ENABLED",
+    "normal_app_imports_isolated_launcher": false,
+    "package_generator_runtime_binding": "2278729f10fdb66cba098c2672d069a8255fe7cd",
+    "package_generator_generates_pair_lmk": false
+  },
+  "acceptance": {
+    "private_child_esp32c6_compile": "PENDING_CI",
+    "private_relay_manager_transport_esp32c6_compile": "PENDING_CI",
+    "isolated_manager_host_contract": "PENDING_CI",
+    "existing_s4_transport_regression": "PENDING_CI",
+    "physical_preparation_contract_regression": "PENDING_CI",
+    "public_repository_safety": "PENDING_CI",
+    "s5_full_two_board_e2e": "PENDING"
+  },
+  "not_authorized": [
+    "private_real_credential_access",
+    "private_package_materialization",
+    "erase",
+    "flash",
+    "ota",
+    "serial",
+    "usb_jtag_board_access",
+    "espnow_rf_execution",
+    "wifi_connection",
+    "real_mqtt_network_e2e",
+    "spare_t1_runtime",
+    "production_t1",
+    "production_manager_broker_ha_mutation",
+    "pr_merge",
+    "release",
+    "deployment",
+    "n3l"
+  ],
+  "next_gate_after_pass": "REBASELINE_PHYSICAL_PREPARATION_AND_PRIVATE_PACKAGE_MATERIALIZATION_READONLY_BINDING_REVIEW"
+}
