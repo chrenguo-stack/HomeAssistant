@@ -24,10 +24,17 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-AUTHORIZATION = (
-    "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-PRIVATE-PACKAGE-RENDER-BUILD-"
-    "AND-BINDING-HOST-COMPILE-IMPLEMENTATION-20260815-01"
+PROVENANCE_REVIEW_AUTHORIZATION = (
+    "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-PRIVATE-PACKAGE-BUILDER-EXACT-HEAD-"
+    "READONLY-REBASELINE-AND-PROVENANCE-REVIEW-20260815-01"
 )
+CONTRACT_REPAIR_AUTHORIZATION = (
+    "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-PRIVATE-PACKAGE-PROVENANCE-METADATA-"
+    "AND-MINIMAL-MANAGER-SNAPSHOT-CONTRACT-REPAIR-20260815-01"
+)
+AUTHORIZATION = CONTRACT_REPAIR_AUTHORIZATION
+PREEXISTING_IMPLEMENTATION_HEAD = "180d8dd102b6ca12a0e6adca134a821b57fd3322"
+PREEXISTING_IMPLEMENTATION_ORIGIN = "PREEXISTING_REVIEWED_BASELINE"
 AUTHORIZATION_START_HEAD = "15510ac3dbf3f8639f63e9dfa5146a27b52eb0d0"
 ESPHOME_VERSION = "2026.4.3"
 ALLOWED_ESPHOME_ACTIONS = ("config", "compile")
@@ -48,7 +55,6 @@ REQUIRED_MANAGER_STATE = (
 _ID = re.compile(r"^[A-Za-z0-9_-]{3,64}$")
 _MAC = re.compile(r"^(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
 _KEY_FILE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
-_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 
 class PrivatePackageBuildError(RuntimeError):
@@ -469,6 +475,48 @@ def _validate_pairing_state(path: Path, credential: dict[str, Any]) -> dict[str,
         connection.close()
 
 
+def _validate_minimal_registration_snapshot(path: Path, allowed_node_ids: set[str]) -> None:
+    connection = _sqlite_connection(path)
+    try:
+        if _table_names(connection) != {"registrations", "pairing_sessions", "credential_assignments"}:
+            raise PrivatePackageBuildError("manager_snapshot_registration_not_minimal")
+        registrations = connection.execute(
+            "SELECT hardware_id, current_pairing_id, node_id, retired_at FROM registrations"
+        ).fetchall()
+        if (
+            len(registrations) != 2
+            or {row["node_id"] for row in registrations} != allowed_node_ids
+            or any(row["retired_at"] is not None for row in registrations)
+        ):
+            raise PrivatePackageBuildError("manager_snapshot_registration_not_minimal")
+        hardware_ids = {row["hardware_id"] for row in registrations}
+        pairing_ids = {row["current_pairing_id"] for row in registrations}
+        pairings = connection.execute(
+            "SELECT pairing_id, hardware_id, state FROM pairing_sessions"
+        ).fetchall()
+        if (
+            len(pairings) != 2
+            or {row["pairing_id"] for row in pairings} != pairing_ids
+            or {row["hardware_id"] for row in pairings} != hardware_ids
+            or any(row["state"] != "approved" for row in pairings)
+        ):
+            raise PrivatePackageBuildError("manager_snapshot_pairing_sessions_not_minimal")
+        lifecycle = connection.execute(
+            "SELECT hardware_id, node_id, active_generation, state FROM credential_assignments"
+        ).fetchall()
+        if (
+            len(lifecycle) != 2
+            or {row["node_id"] for row in lifecycle} != allowed_node_ids
+            or {row["hardware_id"] for row in lifecycle} != hardware_ids
+            or any(row["state"] != "active" for row in lifecycle)
+        ):
+            raise PrivatePackageBuildError("manager_snapshot_credentials_not_minimal")
+    except sqlite3.Error as exc:
+        raise PrivatePackageBuildError("manager_snapshot_registration_query_failed") from exc
+    finally:
+        connection.close()
+
+
 def _validate_replay_state(path: Path) -> dict[str, object]:
     connection = _sqlite_connection(path)
     try:
@@ -483,6 +531,25 @@ def _validate_replay_state(path: Path) -> dict[str, object]:
             "state_row_count": int(connection.execute("SELECT COUNT(*) FROM n3w_replay_state").fetchone()[0]),
             "seen_row_count": int(connection.execute("SELECT COUNT(*) FROM n3w_replay_seen").fetchone()[0]),
         }
+    finally:
+        connection.close()
+
+
+def _validate_minimal_replay_snapshot(path: Path, allowed_node_ids: set[str]) -> None:
+    connection = _sqlite_connection(path)
+    try:
+        if _table_names(connection) != {"n3w_replay_meta", "n3w_replay_state", "n3w_replay_seen"}:
+            raise PrivatePackageBuildError("manager_snapshot_replay_not_minimal")
+        state_ids = {
+            str(row[0]) for row in connection.execute("SELECT DISTINCT node_id FROM n3w_replay_state").fetchall()
+        }
+        seen_ids = {
+            str(row[0]) for row in connection.execute("SELECT DISTINCT node_id FROM n3w_replay_seen").fetchall()
+        }
+        if not state_ids <= allowed_node_ids or not seen_ids <= allowed_node_ids:
+            raise PrivatePackageBuildError("manager_snapshot_replay_contains_other_node")
+    except sqlite3.Error as exc:
+        raise PrivatePackageBuildError("manager_snapshot_replay_query_failed") from exc
     finally:
         connection.close()
 
@@ -536,6 +603,7 @@ def _validate_application_key(
     return {
         "node_id": credential["node_id"],
         "key_epoch": credential["key_epoch"],
+        "key_file": key_file,
         "application_key_sha256": actual_hash,
     }
 
@@ -562,18 +630,57 @@ def _validate_relay_authorization_state(
             expected.add("n3w_relay_operations")
         if names != expected:
             raise PrivatePackageBuildError("manager_relay_authorization_schema_mismatch")
+
+        allowed_node_ids = {str(child["node_id"]), str(relay["node_id"])}
+        node_rows = connection.execute("SELECT node_id, active FROM n3w_relay_nodes").fetchall()
+        if (
+            len(node_rows) != 2
+            or {str(row["node_id"]) for row in node_rows} != allowed_node_ids
+            or any(row["active"] != 1 for row in node_rows)
+        ):
+            raise PrivatePackageBuildError("manager_snapshot_relay_nodes_not_minimal")
+
+        if version == 1:
+            epoch_rows = connection.execute(
+                "SELECT node_id, key_epoch, key_file, enabled FROM n3w_relay_key_epochs"
+            ).fetchall()
+        else:
+            epoch_rows = connection.execute(
+                "SELECT node_id, key_epoch, key_file, enabled, state FROM n3w_relay_key_epochs"
+            ).fetchall()
+        expected_epochs = {
+            str(child["node_id"]): int(child["key_epoch"]),
+            str(relay["node_id"]): int(relay["key_epoch"]),
+        }
+        if len(epoch_rows) != 2 or {str(row["node_id"]) for row in epoch_rows} != allowed_node_ids:
+            raise PrivatePackageBuildError("manager_snapshot_key_epochs_not_minimal")
+        for row in epoch_rows:
+            node_id = str(row["node_id"])
+            if row["key_epoch"] != expected_epochs[node_id] or row["enabled"] != 1:
+                raise PrivatePackageBuildError("manager_snapshot_key_epochs_not_minimal")
+            if version == 2 and row["state"] not in {"ACTIVE", "GRACE"}:
+                raise PrivatePackageBuildError("manager_snapshot_key_epochs_not_minimal")
+
+        gateway_rows = int(connection.execute("SELECT COUNT(*) FROM n3w_relay_gateway_nodes").fetchone()[0])
+        if gateway_rows != 0:
+            raise PrivatePackageBuildError("manager_snapshot_gateway_relation_present")
+        if version == 2:
+            operation_rows = int(connection.execute("SELECT COUNT(*) FROM n3w_relay_operations").fetchone()[0])
+            if operation_rows != 0:
+                raise PrivatePackageBuildError("manager_snapshot_relay_operations_not_minimal")
+
         child_binding = _validate_application_key(connection, key_dir, child, version)
         relay_binding = _validate_application_key(connection, key_dir, relay, version)
-        enabled_grants = int(
-            connection.execute("SELECT COUNT(*) FROM n3w_relay_gateway_nodes WHERE enabled = 1").fetchone()[0]
-        )
-        if enabled_grants != 0:
-            raise PrivatePackageBuildError("static_gateway_child_preseed_rejected")
+        key_files = {str(child_binding["key_file"]), str(relay_binding["key_file"])}
+        if len(key_files) != 2:
+            raise PrivatePackageBuildError("manager_snapshot_relay_key_file_collision")
         return {
             "schema_version": version,
             "child": child_binding,
             "relay": relay_binding,
+            "required_key_files": sorted(key_files),
             "enabled_gateway_grant_count": 0,
+            "gateway_relation_row_count": 0,
             "dynamic_ingress_authority_persisted": False,
         }
     except sqlite3.Error as exc:
@@ -582,10 +689,13 @@ def _validate_relay_authorization_state(
         connection.close()
 
 
-def _copy_and_validate_manager_state(
-    source: Path, target: Path, child: dict[str, Any], relay: dict[str, Any]
+def _validate_minimal_manager_snapshot_source(
+    source: Path, child: dict[str, Any], relay: dict[str, Any]
 ) -> dict[str, object]:
     _require_private_path(source, directory=True, label="manager_state_root")
+    actual_top_level = {entry.name for entry in source.iterdir()}
+    if actual_top_level != set(REQUIRED_MANAGER_STATE):
+        raise PrivatePackageBuildError("manager_snapshot_top_level_not_minimal")
     for sidecar in source.glob("*.sqlite3-*"):
         if sidecar.name.endswith(("-wal", "-shm", "-journal")):
             raise PrivatePackageBuildError("manager_state_not_quiescent")
@@ -593,17 +703,44 @@ def _copy_and_validate_manager_state(
         if not (source / name).exists():
             raise PrivatePackageBuildError(f"manager_state_missing:{name}")
 
+    allowed_node_ids = {str(child["node_id"]), str(relay["node_id"])}
+    _validate_minimal_registration_snapshot(source / "registration.sqlite3", allowed_node_ids)
+    _validate_minimal_replay_snapshot(source / "replay.sqlite3", allowed_node_ids)
+
+    source_keys = source / "relay-keys"
+    _require_private_path(source_keys, directory=True, label="manager_relay_key_dir")
+    for entry in source_keys.iterdir():
+        if not entry.is_file() or entry.is_symlink():
+            raise PrivatePackageBuildError("manager_relay_key_dir_entry_invalid")
+    relay_auth = _validate_relay_authorization_state(
+        source / "relay-authorization.sqlite3", source_keys, child, relay
+    )
+    actual_key_files = {entry.name for entry in source_keys.iterdir()}
+    expected_key_files = set(relay_auth["required_key_files"])
+    if actual_key_files != expected_key_files:
+        raise PrivatePackageBuildError("manager_snapshot_relay_keys_not_minimal")
+
+    return {
+        "minimal_snapshot_verified": True,
+        "target_node_ids": sorted(allowed_node_ids),
+        "required_key_files": sorted(expected_key_files),
+        "top_level_entries": sorted(actual_top_level),
+    }
+
+
+def _copy_and_validate_manager_state(
+    source: Path, target: Path, child: dict[str, Any], relay: dict[str, Any]
+) -> dict[str, object]:
+    minimal_source = _validate_minimal_manager_snapshot_source(source, child, relay)
+
     target.mkdir(mode=0o700, parents=False, exist_ok=False)
     for name in REQUIRED_MANAGER_STATE[:3]:
         _copy_private_file(source / name, target / name, f"manager_state_{name}")
     source_keys = source / "relay-keys"
-    _require_private_path(source_keys, directory=True, label="manager_relay_key_dir")
     target_keys = target / "relay-keys"
     target_keys.mkdir(mode=0o700)
-    for entry in sorted(source_keys.iterdir(), key=lambda item: item.name):
-        if not entry.is_file() or entry.is_symlink():
-            raise PrivatePackageBuildError("manager_relay_key_dir_entry_invalid")
-        _copy_private_file(entry, target_keys / entry.name, "manager_application_key_file")
+    for key_file in minimal_source["required_key_files"]:
+        _copy_private_file(source_keys / str(key_file), target_keys / str(key_file), "manager_application_key_file")
 
     registration = _validate_pairing_state(target / "registration.sqlite3", child)
     relay_registration = _validate_pairing_state(target / "registration.sqlite3", relay)
@@ -619,6 +756,7 @@ def _copy_and_validate_manager_state(
         "registration": {"child": registration, "relay": relay_registration},
         "replay": replay,
         "relay_authorization": relay_auth,
+        "minimal_snapshot": minimal_source,
         "file_sha256": file_hashes,
         "quiescent_snapshot_required": True,
     }
@@ -704,6 +842,10 @@ def build(args: argparse.Namespace) -> dict[str, object]:
     if child["node_id"] == relay["node_id"] or child["local_mac"] == relay["local_mac"]:
         raise PrivatePackageBuildError("child_relay_identity_collision")
 
+    # Validate the upstream snapshot before creating any package output. This prevents
+    # unrelated node material from ever being copied into a failed package attempt.
+    _validate_minimal_manager_snapshot_source(manager_state, child, relay)
+
     output.mkdir(mode=0o700, parents=False)
     for name in ("inputs", "rendered", "artifacts", "build_logs", ".work"):
         (output / name).mkdir(mode=0o700)
@@ -765,7 +907,13 @@ def build(args: argparse.Namespace) -> dict[str, object]:
     manifest = {
         "schema": "gh.n3w-product-s5-private-physical-e2e-package/3",
         "package_id": package_id,
-        "implementation_authorization": AUTHORIZATION,
+        "implementation_provenance": {
+            "origin": PREEXISTING_IMPLEMENTATION_ORIGIN,
+            "preexisting_implementation_head": PREEXISTING_IMPLEMENTATION_HEAD,
+            "provenance_review_authorization": PROVENANCE_REVIEW_AUTHORIZATION,
+            "contract_repair_authorization": CONTRACT_REPAIR_AUTHORIZATION,
+            "retroactive_legacy_authorization_attribution": False,
+        },
         "authorization_start_head": AUTHORIZATION_START_HEAD,
         "source_head": args.source_head,
         "esphome_version": ESPHOME_VERSION,
@@ -786,6 +934,7 @@ def build(args: argparse.Namespace) -> dict[str, object]:
             "source_tree_exact_head_verified": True,
             "source_binding_paths_clean": True,
             "allowed_esphome_actions": list(ALLOWED_ESPHOME_ACTIONS),
+            "minimal_manager_snapshot_verified": True,
             "child_rendered_yaml_sha256": _sha256_file(child_config),
             "relay_rendered_yaml_sha256": _sha256_file(relay_config),
             "child_firmware_sha256": _sha256_file(output / "artifacts" / "child_firmware.bin"),
@@ -800,6 +949,8 @@ def build(args: argparse.Namespace) -> dict[str, object]:
         "composition_contract": {
             "child_consumes_only_own_post_registration_material": True,
             "relay_consumes_only_own_post_registration_material": True,
+            "manager_snapshot_contains_only_target_child_and_relay": True,
+            "relay_key_directory_exact_target_closure": True,
             "factory_peer_identity_present": False,
             "static_gateway_child_preseed_present": False,
             "pair_lmk_supplied_by_package": False,
@@ -838,6 +989,7 @@ def build(args: argparse.Namespace) -> dict[str, object]:
         "child_firmware_sha256": manifest["build_provenance"]["child_firmware_sha256"],
         "relay_firmware_sha256": manifest["build_provenance"]["relay_firmware_sha256"],
         "manager_state_file_count": len(manager_binding["file_sha256"]),
+        "minimal_manager_snapshot_verified": True,
         "execution_authorized": False,
         "ready_for_readonly_binding_review": True,
     }
