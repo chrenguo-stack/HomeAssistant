@@ -1,0 +1,55 @@
+esphome:
+  name: gh-n3w-s5-child-private
+  friendly_name: N3-W Product S5 Private Child Compile Fixture
+  min_version: 2026.4.3
+  build_path: !env_var S5_BUILD_PATH
+
+esp32:
+  board: esp32-c6-devkitm-1
+  variant: ESP32C6
+  flash_size: 8MB
+  framework:
+    type: esp-idf
+    advanced:
+      include_builtin_idf_components:
+        - nvs_flash
+        - esp_wifi
+
+logger:
+  level: INFO
+  hardware_uart: USB_SERIAL_JTAG
+
+external_components:
+  - source:
+      type: local
+      path: ../../../components
+    components:
+      - greenhouse_n3w_core
+      - greenhouse_n3w_product_core
+      - greenhouse_n3w_product_runtime
+      - greenhouse_n3w_s5_private_runtime
+
+greenhouse_n3w_core:
+
+greenhouse_n3w_product_core:
+
+greenhouse_n3w_product_runtime:
+  id: n3w_product_integration
+  role: child
+  execution_enabled: true
+  pmk_hex: "000102030405060708090a0b0c0d0e0f"
+  last_direct_channel: 6
+
+greenhouse_n3w_s5_private_runtime:
+  id: n3w_private_runtime_material
+  product_runtime_id: n3w_product_integration
+  role: child
+  system_id: system001
+  node_id: node_child01
+  credential_generation: 7
+  key_epoch: 9
+  application_key_hex: "8182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0"
+  local_mac: "02:11:22:33:44:55"
+
+# Synthetic values only. CI compiles this target but never flashes or runs it.
+# The production/factory profiles remain inert and contain none of these fields.
