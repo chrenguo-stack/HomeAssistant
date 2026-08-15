@@ -1,0 +1,78 @@
+{
+  "schema": "gh.n3w-product-completion.s5-private-package-render-build-binding-host-compile/1",
+  "authorization": "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-PRIVATE-PACKAGE-RENDER-BUILD-AND-BINDING-HOST-COMPILE-IMPLEMENTATION-20260815-01",
+  "starting_head": "15510ac3dbf3f8639f63e9dfa5146a27b52eb0d0",
+  "status": "IMPLEMENTED_PENDING_EXACT_HEAD_CI",
+  "implementation_head": null,
+  "scope": "HOST_COMPILE_ONLY_SYNTHETIC_PRIVATE_FIXTURES_NO_LIVE_EXECUTION",
+  "resolved_blockers_expected": {
+    "S5-MAT-B01": "fresh PMK is generated before render and the same PMK is rendered into both Child and Relay compile configurations",
+    "S5-MAT-B02": "private credentials and network inputs are rendered into exact ESPHome configs and compiled into bound firmware artifacts",
+    "S5-MAT-B03": "Relay Wi-Fi, MQTT and channel configuration is rendered into the Relay firmware config and bound by config and firmware SHA256 provenance",
+    "S5-MAT-B04": "quiescent Manager state is copied into the package, checked for registration/generation/key-epoch/application-key identity binding, replay-store integrity and absence of static gateway-child grants"
+  },
+  "implementation_contract": {
+    "builder": "tools/n3w_product_s5_build_private_package.py",
+    "esphome_version": "2026.4.3",
+    "allowed_esphome_actions": [
+      "config",
+      "compile"
+    ],
+    "fresh_pmk_before_render": true,
+    "same_fresh_pmk_in_child_and_relay_configs": true,
+    "child_consumes_only_own_post_registration_material": true,
+    "relay_consumes_only_own_post_registration_material": true,
+    "relay_network_material_bound_into_compile_config": true,
+    "firmware_artifacts_copied_into_private_package": true,
+    "source_exact_head_and_clean_binding_paths_required": true,
+    "private_inputs_and_output_must_be_outside_git_source_tree": true,
+    "manager_state_must_be_quiescent_private_snapshot": true,
+    "manager_state_copied_into_package": true,
+    "manager_registration_and_credential_generation_checked": true,
+    "manager_application_key_epoch_and_material_checked": true,
+    "manager_replay_schema_and_integrity_checked": true,
+    "static_gateway_child_preseed_rejected": true,
+    "dynamic_ingress_authority_persisted": false,
+    "pair_lmk_supplied_by_package": false,
+    "manager_generates_pair_lmk": false,
+    "execution_authorized": false
+  },
+  "ci_contract": {
+    "synthetic_credentials_only": true,
+    "synthetic_isolated_network_only": true,
+    "synthetic_manager_state_only": true,
+    "esp32_c6_child_config_compile": true,
+    "esp32_c6_relay_manager_transport_config_compile": true,
+    "firmware_sha256_provenance_verified": true,
+    "manager_state_binding_verified": true,
+    "no_live_no_board_static_gate": true,
+    "exact_head_ci_required_before_pass_classification": true
+  },
+  "classification": {
+    "private_package_render_build_binding_host_compile": "PENDING_EXACT_HEAD_CI",
+    "private_real_credential_access": false,
+    "private_real_package_materialized": false,
+    "physical_execution_authorization_ready": false,
+    "physical_execution_authorized": false,
+    "s5_full_two_board_e2e": "PENDING"
+  },
+  "not_authorized": {
+    "board_access": true,
+    "serial": true,
+    "usb_jtag_board_access": true,
+    "erase": true,
+    "flash": true,
+    "ota": true,
+    "espnow_rf": true,
+    "wifi_connection": true,
+    "real_mqtt_network_e2e": true,
+    "spare_t1_runtime": true,
+    "production_t1": true,
+    "production_manager_broker_ha": true,
+    "pr_merge": true,
+    "release": true,
+    "deployment": true,
+    "n3l": true
+  },
+  "next_gate_after_exact_head_ci_pass": "REBASELINE_PHYSICAL_PREPARATION_AND_PRIVATE_PACKAGE_MATERIALIZATION_READONLY_BINDING_REVIEW"
+}
