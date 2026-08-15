@@ -10,14 +10,14 @@
   "starting_head": "8b332b65f6cca11b33e8f3d421920123d446f7e7",
   "transport_pre_link_fix_head": "be2e35a52d9354b547a38d218165e432afe8c305",
   "implementation_head": "35ac7ef4c77a4cde4faaf8f530b15a7f392d661d",
-  "status": "HOST_COMPILE_PASS_REBASELINE_BLOCKED_PRIVATE_COMPOSITION_REQUIRED",
+  "status": "HOST_COMPILE_PASS_PRIVATE_COMPOSITION_BLOCKERS_RESOLVED_REBASELINE_REVIEW_REQUIRED",
   "blockers_addressed": [
     "S5-PREP-B01",
     "S5-PREP-B02"
   ],
   "blocker_resolution_level": "HOST_COMPILE_VERIFIED_ONLY",
-  "physical_preparation_rebaseline_required": false,
-  "physical_preparation_rebaseline_completed": true,
+  "physical_preparation_rebaseline_required": true,
+  "physical_preparation_rebaseline_completed": false,
   "link_fix": {
     "original_failed_run": 31807307310,
     "original_failed_job": 94789356174,
@@ -105,37 +105,44 @@
     "review_mode": "HOST_READONLY_STATIC_REBASELINE_BEFORE_PRIVATE_MATERIALIZATION",
     "historical_preparation_decision_rewritten": false,
     "historical_s5_prep_b01_b02_resolution": "RESOLVED_AT_HOST_COMPILE_LEVEL",
-    "private_package_materialization_authorized_if_readiness_passes": true,
+    "private_runtime_successor_authorization": "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-PRIVATE-RUNTIME-COMPOSITION-AND-ISOLATED-MANAGER-LAUNCHER-HOST-COMPILE-IMPLEMENTATION-20260814-01",
+    "private_runtime_checkpoint": "e06c8bc90b08987a17783a1a113ea1aaa81b81c0",
+    "private_runtime_validated_head": "971b4e19877bc0f05b79a299a8102c40ca2c23d8",
+    "private_package_materialization_authorized_if_readiness_passes": false,
     "private_package_materialization_attempted": false,
     "private_package_materialized": false,
-    "materialization_stop_reason": "FAIL_CLOSED_STRUCTURAL_READINESS_BLOCKERS_FOUND_BEFORE_SECRET_OR_PACKAGE_CREATION",
+    "materialization_stop_reason": "HOST_COMPILE_STRUCTURAL_BLOCKERS_RESOLVED_REBASELINE_AND_READONLY_BINDING_REVIEW_REQUIRED_BEFORE_ANY_REAL_PRIVATE_MATERIALIZATION",
     "readonly_binding_review_performed": false,
     "physical_execution_authorization_ready": false,
     "physical_execution_authorized": false,
     "structural_findings": [
       {
         "id": "S5-REBASE-B01",
-        "classification": "BLOCKING",
-        "finding": "The public private-package generator is still pinned to the pre-transport S5-D implementation head 660acf72b701d9ff8e3a881e97e5d15357286786 and rejects the current transport implementation head.",
-        "required_repair": "Rebind the private-package materializer to the current reviewed S5 transport/runtime implementation lineage without rewriting the historical preparation record."
+        "classification": "RESOLVED_HOST_COMPILE",
+        "finding": "The public private-package generator was pinned to the pre-transport S5-D implementation head 660acf72b701d9ff8e3a881e97e5d15357286786 and rejected the current transport implementation head.",
+        "required_repair": "Rebind the private-package materializer to the current reviewed S5 transport/runtime implementation lineage without rewriting the historical preparation record.",
+        "resolution": "The generator and its host contract are rebound to reviewed private-runtime checkpoint e06c8bc90b08987a17783a1a113ea1aaa81b81c0; no real package was materialized."
       },
       {
         "id": "S5-REBASE-B02",
-        "classification": "BLOCKING",
-        "finding": "No concrete private ProductS5SelfCredentialProvider composition exists for Child or Relay, and no concrete private ProductS5RelayHealthProvider is bound for Relay. Public and compile-only YAML profiles remain intentionally inert and do not invoke configure_s5_isolated/configure_private.",
-        "required_repair": "Add a generic secret-free host/compile-reviewed private composition path that can consume only each endpoint's own post-registration material at package build time; it must not add factory peer identity or pair LMK."
+        "classification": "RESOLVED_HOST_COMPILE",
+        "finding": "No concrete private ProductS5SelfCredentialProvider composition existed for Child or Relay, and no concrete private ProductS5RelayHealthProvider was bound for Relay. Public and compile-only YAML profiles remained intentionally inert and did not invoke configure_s5_isolated/configure_private.",
+        "required_repair": "Add a generic secret-free host/compile-reviewed private composition path that can consume only each endpoint's own post-registration material at package build time; it must not add factory peer identity or pair LMK.",
+        "resolution": "greenhouse_n3w_s5_private_runtime now provides own-node-only credential and Relay-health composition, and synthetic ESP32-C6 Child and Relay host/compile targets passed while public/factory profiles remain inert."
       },
       {
         "id": "S5-REBASE-B03",
-        "classification": "BLOCKING",
-        "finding": "N3wProductIsolatedMqttService exists as an explicit opt-in live-capable service, but the private package has no bound isolated Manager launcher/assembly that instantiates it with the existing S4 PeerAuthorizationMqttAdapter and N3-W runtime state. Normal production app.py intentionally does not select it.",
-        "required_repair": "Provide a host/compile-reviewed isolated-lab-only Manager launcher/assembly while leaving normal production Manager startup unchanged."
+        "classification": "RESOLVED_HOST_COMPILE",
+        "finding": "N3wProductIsolatedMqttService existed as an explicit opt-in live-capable service, but the private package had no bound isolated Manager launcher/assembly that instantiated it with the existing S4 PeerAuthorizationMqttAdapter and N3-W runtime state. Normal production app.py intentionally did not select it.",
+        "required_repair": "Provide a host/compile-reviewed isolated-lab-only Manager launcher/assembly while leaving normal production Manager startup unchanged.",
+        "resolution": "The explicit n3w_product_isolated_app/n3w_product_isolated_launcher composition reuses the existing S4 authority and N3-W runtime; normal production app.py remains unchanged and does not select the isolated launcher."
       },
       {
         "id": "S5-REBASE-B04",
-        "classification": "BLOCKING",
-        "finding": "The historical private package input contract does not bind the isolated Relay Wi-Fi configuration, MQTT broker/client configuration, or the ESP-NOW/AP channel compatibility required by the real Relay-to-Manager path.",
-        "required_repair": "Extend only the private one-shot package contract to bind isolated-lab network/broker/channel inputs; these values must never enter public/factory profiles or public evidence."
+        "classification": "RESOLVED_HOST_COMPILE",
+        "finding": "The historical private package input contract did not bind the isolated Relay Wi-Fi configuration, MQTT broker/client configuration, or the ESP-NOW/AP channel compatibility required by the real Relay-to-Manager path.",
+        "required_repair": "Extend only the private one-shot package contract to bind isolated-lab network/broker/channel inputs; these values must never enter public/factory profiles or public evidence.",
+        "resolution": "The private one-shot package contract now validates isolated Wi-Fi/MQTT fields and requires the bound Wi-Fi channel to equal the ESP-NOW channel; only synthetic compile fixtures are public."
       }
     ],
     "preserved_boundaries": {
@@ -155,7 +162,7 @@
       "real_mqtt_network_e2e": false,
       "production_access": false
     },
-    "next_gate": "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-PRIVATE-RUNTIME-COMPOSITION-AND-ISOLATED-MANAGER-LAUNCHER-HOST-COMPILE-IMPLEMENTATION-20260814-01"
+    "next_gate": "REBASELINE_PHYSICAL_PREPARATION_AND_PRIVATE_PACKAGE_MATERIALIZATION_READONLY_BINDING_REVIEW"
   },
   "not_authorized": [
     "erase",
@@ -175,5 +182,5 @@
     "n3l",
     "physical_package_materialization"
   ],
-  "next_gate_after_pass": "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-PRIVATE-RUNTIME-COMPOSITION-AND-ISOLATED-MANAGER-LAUNCHER-HOST-COMPILE-IMPLEMENTATION-20260814-01"
+  "next_gate_after_pass": "REBASELINE_PHYSICAL_PREPARATION_AND_PRIVATE_PACKAGE_MATERIALIZATION_READONLY_BINDING_REVIEW"
 }
