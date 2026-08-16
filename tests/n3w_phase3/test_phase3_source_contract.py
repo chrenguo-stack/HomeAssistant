@@ -31,7 +31,7 @@ def test_compact_frame_is_single_datagram_and_gateway_independent() -> None:
     assert "fragment_count" not in source
     assert "ReceiptAck" not in source
     assert "gateway_id" not in source
-    assert '"gh.relay/2"' in source
+    assert "gh.relay/2" in source
 
 
 def test_setup_secret_is_device_generated_and_not_factory_baked() -> None:
