@@ -85,12 +85,14 @@ jobs:
           git diff --name-only "$start"..."$archive" | sort >"$actual"
           diff -u "$allowed" "$actual"
 
-      - name: R6 successor exact scope
+      - name: R6 immutable successor exact scope
         shell: bash
         run: |
           set -euo pipefail
           archive='f530ee94e5d5339e0f30b902f6f41c83b8408f13'
-          git merge-base --is-ancestor "$archive" HEAD
+          r6='39816fcbf2d8fa7942a68d22fc738e2defef89cc'
+          git merge-base --is-ancestor "$archive" "$r6"
+          git merge-base --is-ancestor "$r6" HEAD
           git config core.quotePath false
           r6_successor_allowed="$(mktemp)"
           r6_successor_actual="$(mktemp)"
@@ -125,14 +127,60 @@ jobs:
           FILES
           sed -i 's/^          //' "$r6_successor_allowed"
           sort -o "$r6_successor_allowed" "$r6_successor_allowed"
-          git diff --name-only "$archive"...HEAD | sort >"$r6_successor_actual"
+          git diff --name-only "$archive"..."$r6" | sort >"$r6_successor_actual"
           diff -u "$r6_successor_allowed" "$r6_successor_actual"
+
+      - name: R7 telemetry stimulus and CI repair exact scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          r6='39816fcbf2d8fa7942a68d22fc738e2defef89cc'
+          implementation='6dcb0cc9e336db777e704065834d162b7a20b424'
+          git merge-base --is-ancestor "$r6" "$implementation"
+          git merge-base --is-ancestor "$implementation" HEAD
+          git config core.quotePath false
+          implementation_allowed="$(mktemp)"
+          implementation_actual="$(mktemp)"
+          cat >"$implementation_allowed" <<'FILES'
+          docs/decisions/n3w-product-completion-s5-r7-private-physical-telemetry-stimulus-host-compile-20260815.json
+          firmware/esphome_rc/board_lab/n3w_product_completion_s5/private_runtime_compile/child_private_runtime_compile.yml
+          firmware/esphome_rc/components/greenhouse_n3w_product_runtime/n3w_product_integration.h
+          firmware/esphome_rc/components/greenhouse_n3w_s5_private_runtime/__init__.py
+          firmware/esphome_rc/components/greenhouse_n3w_s5_private_runtime/greenhouse_n3w_s5_private_runtime.h
+          firmware/esphome_rc/components/greenhouse_n3w_s5_private_runtime/n3w_product_s5_private_runtime.cpp
+          firmware/esphome_rc/components/greenhouse_n3w_s5_private_runtime/n3w_product_s5_private_telemetry_stimulus.cpp
+          firmware/esphome_rc/components/greenhouse_n3w_s5_private_runtime/n3w_product_s5_private_telemetry_stimulus.h
+          tests/n3w_product_completion_s5_private_runtime/n3w_product_s5_private_telemetry_stimulus_host_test.cpp
+          FILES
+          sed -i 's/^          //' "$implementation_allowed"
+          sort -o "$implementation_allowed" "$implementation_allowed"
+          git diff --name-only "$r6"..."$implementation" | sort >"$implementation_actual"
+          diff -u "$implementation_allowed" "$implementation_actual"
+
+          ci_allowed="$(mktemp)"
+          ci_actual="$(mktemp)"
+          cat >"$ci_allowed" <<'FILES'
+          .github/workflows/n3w-product-completion-s5-d-lifecycle-negative-host-matrix-ci.yml
+          .github/workflows/n3w-product-completion-s5-dedicated-two-node-state-initializer-ci.yml
+          .github/workflows/n3w-product-completion-s5-isolated-manager-transport-ci.yml
+          .github/workflows/n3w-product-completion-s5-physical-e2e-preparation-ci.yml
+          .github/workflows/n3w-product-completion-s5-private-package-builder-ci.yml
+          .github/workflows/n3w-product-completion-s5-private-runtime-composition-ci.yml
+          FILES
+          sed -i 's/^          //' "$ci_allowed"
+          sort -o "$ci_allowed" "$ci_allowed"
+          git diff --name-only "$implementation"...HEAD | sort >"$ci_actual"
+          diff -u "$ci_allowed" "$ci_actual"
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Install host dependencies
-        run: python -m pip install -e 'host/greenhouse-manager[dev]'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libmbedtls-dev
+          python -m pip install -e 'host/greenhouse-manager[dev]'
 
       - name: Validate authorization and host composition contracts
         shell: bash
@@ -151,12 +199,40 @@ jobs:
           assert d['required_invariants']['normal_production_manager_startup_changed'] is False
           assert d['required_invariants']['factory_peer_identity_or_pair_lmk_added'] is False
           assert d['acceptance']['s5_full_two_board_e2e'] == 'PENDING'
+          r7 = json.loads(Path('docs/decisions/n3w-product-completion-s5-r7-private-physical-telemetry-stimulus-host-compile-20260815.json').read_text())
+          assert r7['authorization'] == 'D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-R7-PRIVATE-PHYSICAL-TELEMETRY-STIMULUS-HOST-COMPILE-IMPLEMENTATION-20260815-01'
+          assert r7['starting_head'] == '39816fcbf2d8fa7942a68d22fc738e2defef89cc'
+          assert r7['scope']['host_compile_only'] is True
+          assert r7['scope']['private_package_materialization'] is False
+          assert r7['scope']['board_access'] is False
+          assert r7['scope']['flash_or_erase'] is False
+          assert r7['scope']['wifi_or_espnow_rf'] is False
+          assert r7['acceptance']['host_cpp_exactly_once_test_required'] is True
+          assert r7['acceptance']['esp32_c6_private_child_compile_required'] is True
+          assert r7['acceptance']['esp32_c6_private_relay_compile_required'] is True
           PY
           python -m pytest -q \
             tests/n3w_product_completion_s5_private_runtime/test_s5_private_runtime_composition.py \
             tests/n3w_product_completion_s5_transport/test_s5_isolated_manager_transport.py \
             tests/n3w_product_completion_s5/test_s5_manager_authorization_loop.py
           python -m unittest tests.n3w_product_completion_s5.test_s5_physical_e2e_preparation -v
+
+      - name: Compile and run R7 private exactly-once telemetry stimulus
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/n3w_include/esphome
+          ln -s "$GITHUB_WORKSPACE/firmware/esphome_rc/components" /tmp/n3w_include/esphome/components
+          g++ -std=c++17 -Wall -Wextra -Werror \
+            -I/tmp/n3w_include \
+            -Ifirmware/esphome_rc/components/greenhouse_n3w_core \
+            -Ifirmware/esphome_rc/components/greenhouse_n3w_s5_private_runtime \
+            firmware/esphome_rc/components/greenhouse_n3w_core/n3w_core.cpp \
+            firmware/esphome_rc/components/greenhouse_n3w_s5_private_runtime/n3w_product_s5_private_telemetry_stimulus.cpp \
+            tests/n3w_product_completion_s5_private_runtime/n3w_product_s5_private_telemetry_stimulus_host_test.cpp \
+            -lmbedcrypto \
+            -o /tmp/n3w_s5_r7_private_telemetry_stimulus
+          /tmp/n3w_s5_r7_private_telemetry_stimulus
 
       - name: Install frozen ESPHome
         run: python -m pip install --upgrade 'esphome==2026.4.3'
