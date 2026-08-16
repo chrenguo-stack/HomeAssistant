@@ -1,7 +1,6 @@
 #include "n3w_compact_telemetry.h"
 
 #include <algorithm>
-#include <cstring>
 
 #include "mbedtls/base64.h"
 
@@ -41,30 +40,6 @@ bool read_u64(const uint8_t *data, std::size_t size, std::size_t *offset, uint64
   for (std::size_t i = 0; i < 8U; ++i) parsed = (parsed << 8U) | data[*offset + i];
   *offset += 8U;
   *value = parsed;
-  return true;
-}
-
-uint8_t nibble(char ch) {
-  if (ch >= '0' && ch <= '9') return static_cast<uint8_t>(ch - '0');
-  if (ch >= 'a' && ch <= 'f') return static_cast<uint8_t>(10 + ch - 'a');
-  return static_cast<uint8_t>(10 + ch - 'A');
-}
-
-bool decode_hex_vector(const char *text, std::vector<uint8_t> *output) {
-  if (text == nullptr || output == nullptr) return false;
-  const std::size_t length = std::strlen(text);
-  if (length == 0 || (length % 2U) != 0) return false;
-  output->assign(length / 2U, 0);
-  const auto valid = [](char ch) {
-    return (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') ||
-           (ch >= 'A' && ch <= 'F');
-  };
-  for (std::size_t i = 0; i < output->size(); ++i) {
-    const char high = text[i * 2U];
-    const char low = text[i * 2U + 1U];
-    if (!valid(high) || !valid(low)) return false;
-    (*output)[i] = static_cast<uint8_t>((nibble(high) << 4U) | nibble(low));
-  }
   return true;
 }
 
