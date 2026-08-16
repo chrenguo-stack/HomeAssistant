@@ -105,8 +105,53 @@ void GreenhouseN3wS5ManagerTransportComponent::loop() {
 
   // Warm/refresh Manager epoch without ever substituting endpoint monotonic
   // uptime. Missing/stale authority time remains fail-closed.
+  //
+  // The diagnostic state around this call is intentionally non-secret. It is
+  // used only by the private-lab successor to distinguish:
+  //   (1) ESPHome's global MQTT client is not visible to CustomMQTTDevice;
+  //   (2) the MQTT bus is connected but the first direct-liveness publish
+  //       does not succeed; or
+  //   (3) the liveness publish succeeds and any remaining fault is downstream.
+  const bool bus_connected_before = transport_->message_bus_connected();
+  const bool liveness_sent_before = transport_->direct_liveness_sent();
   uint64_t authority_now = 0;
-  (void) transport_->authority_now_ms(&authority_now);
+  const bool authority_ready = transport_->authority_now_ms(&authority_now);
+  const bool bus_connected_after = transport_->message_bus_connected();
+  const bool liveness_sent_after = transport_->direct_liveness_sent();
+
+  if (!diagnostic_state_initialized_ ||
+      bus_connected_after != diagnostic_last_bus_connected_) {
+    ESP_LOGI(
+        TAG,
+        "S5 MQTT diagnostic bus_connected=%s liveness_sent=%s authority_ready=%s",
+        bus_connected_after ? "true" : "false",
+        liveness_sent_after ? "true" : "false",
+        authority_ready ? "true" : "false");
+    diagnostic_state_initialized_ = true;
+    diagnostic_last_bus_connected_ = bus_connected_after;
+  }
+
+  if (bus_connected_after && !liveness_sent_before &&
+      liveness_sent_after && !diagnostic_liveness_success_seen_) {
+    ESP_LOGI(
+        TAG,
+        "S5 MQTT diagnostic first_direct_liveness_publish=success");
+    diagnostic_liveness_success_seen_ = true;
+  }
+
+  if ((bus_connected_before || bus_connected_after) &&
+      !liveness_sent_after && !diagnostic_liveness_failure_seen_) {
+    ESP_LOGW(
+        TAG,
+        "S5 MQTT diagnostic first_direct_liveness_publish=failed "
+        "while_bus_connected=true");
+    diagnostic_liveness_failure_seen_ = true;
+  }
+
+  if (authority_ready && !diagnostic_authority_ready_seen_) {
+    ESP_LOGI(TAG, "S5 MQTT diagnostic authority_time_ready=true");
+    diagnostic_authority_ready_seen_ = true;
+  }
 
   if (queued_child_grant_.has_value() &&
       queued_relay_grant_.has_value()) {
