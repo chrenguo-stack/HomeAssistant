@@ -11,6 +11,7 @@ import re
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome.components.esp32 import include_builtin_idf_component
 from esphome.const import CONF_ID
 from voluptuous import Invalid
 
@@ -138,6 +139,13 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: dict) -> None:
+    # Match generated ESPHome source to ESP-IDF's configured mbedTLS ABI. The
+    # IDF 5.5.x build uses its esp_config.h (including accelerated GCM ALT
+    # paths); compiling n3w_core.cpp against upstream defaults leaves the
+    # legacy mbedtls_gcm_* calls unresolved at the final firmware link.
+    include_builtin_idf_component("mbedtls")
+    cg.add_build_flag('-DMBEDTLS_CONFIG_FILE=\\"mbedtls/esp_config.h\\"')
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     cg.add(var.set_role(config[CONF_ROLE]))
