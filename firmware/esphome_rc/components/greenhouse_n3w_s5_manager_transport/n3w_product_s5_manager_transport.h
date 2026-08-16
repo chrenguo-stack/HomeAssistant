@@ -108,6 +108,13 @@ class ProductS5IsolatedManagerTransport final : public ProductS5ManagerPort,
   }
   const std::string &relay_node_id() const { return relay_node_id_; }
 
+  // Private-lab diagnostic seam. It exposes only transport state, never
+  // credentials, payloads, peer identity, or authorization material.
+  bool message_bus_connected() {
+    return started_ && bus_ != nullptr && bus_->connected();
+  }
+  bool direct_liveness_sent() const { return direct_liveness_sent_; }
+
  private:
   bool request_authority_time_(uint64_t local_now_ms);
   void clear_authority_anchor_();
