@@ -14,7 +14,10 @@ CURRENT_TEST_TELEMETRY_BYTES = 255
 def test_periodic_telemetry_fits_frozen_single_frame_budget() -> None:
     assert CURRENT_TEST_TELEMETRY_BYTES + CURRENT_DATA_HEADER_BYTES == 309
     assert CURRENT_MAX_CIPHERTEXT_BYTES + CURRENT_DATA_HEADER_BYTES == 1078
-    assert CURRENT_MAX_CIPHERTEXT_BYTES + CURRENT_DATA_HEADER_BYTES <= ESPNOW_V2_PAYLOAD_LIMIT
+    assert (
+        CURRENT_MAX_CIPHERTEXT_BYTES + CURRENT_DATA_HEADER_BYTES
+        <= ESPNOW_V2_PAYLOAD_LIMIT
+    )
 
 
 # Decision B: transport-independent canonical freshness.
@@ -55,11 +58,14 @@ class CanonicalCursor:
 def test_multi_ingress_latest_valid_wins_without_path_ownership() -> None:
     cursor = CanonicalCursor()
 
-    assert cursor.observe(boot_session=1, seq=100) is FreshnessResult.ACCEPT  # Direct
-    assert cursor.observe(boot_session=1, seq=100) is FreshnessResult.DUPLICATE  # Relay A
-    assert cursor.observe(boot_session=1, seq=101) is FreshnessResult.ACCEPT  # Relay B
-    assert cursor.observe(boot_session=1, seq=100) is FreshnessResult.STALE_SEQUENCE  # Direct late
-    assert cursor.observe(boot_session=1, seq=102) is FreshnessResult.ACCEPT  # Direct
+    assert cursor.observe(boot_session=1, seq=100) is FreshnessResult.ACCEPT
+    assert cursor.observe(boot_session=1, seq=100) is FreshnessResult.DUPLICATE
+    assert cursor.observe(boot_session=1, seq=101) is FreshnessResult.ACCEPT
+    assert (
+        cursor.observe(boot_session=1, seq=100)
+        is FreshnessResult.STALE_SEQUENCE
+    )
+    assert cursor.observe(boot_session=1, seq=102) is FreshnessResult.ACCEPT
 
 
 def test_new_boot_accepts_seq_reset_and_old_boot_is_rejected() -> None:
@@ -91,8 +97,11 @@ class NodeIdAllocatorModel:
         while self.candidates:
             suffix = self.candidates.pop(0)
             candidate = f"node-{suffix}"
-            if len(suffix) != 32 or any(character not in "0123456789abcdef" for character in suffix):
-                raise ValueError("candidate must represent 128 random bits as lowercase hex")
+            valid_hex = all(character in "0123456789abcdef" for character in suffix)
+            if len(suffix) != 32 or not valid_hex:
+                raise ValueError(
+                    "candidate must represent 128 random bits as lowercase hex"
+                )
             if candidate in self.reserved:
                 continue
             self.reserved.add(candidate)
@@ -110,7 +119,9 @@ class NodeIdAllocatorModel:
 def test_node_id_is_opaque_stable_and_never_reused() -> None:
     first_suffix = "0" * 31 + "1"
     second_suffix = "0" * 31 + "2"
-    allocator = NodeIdAllocatorModel(candidates=[first_suffix, first_suffix, second_suffix])
+    allocator = NodeIdAllocatorModel(
+        candidates=[first_suffix, first_suffix, second_suffix]
+    )
 
     first = allocator.allocate("hardware-a")
     assert first == f"node-{first_suffix}"
