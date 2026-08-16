@@ -154,7 +154,7 @@ class S5R7PrivatePackageBuilderTest(unittest.TestCase):
             "seq": 0,
         }
         child_yaml = module._render_r7_child(
-            base,
+            base._render_child,
             stimulus,
             source_root=ROOT,
             build_path=Path("/tmp/s5-r7-child"),
