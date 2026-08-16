@@ -1,0 +1,260 @@
+name: N3-W Product Completion S5 R7 private package stimulus builder CI
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/n3w-product-completion-s5-r7-private-package-stimulus-builder-ci.yml'
+      - 'docs/decisions/n3w-product-completion-s5-r7-private-telemetry-stimulus-package-builder-contract-repair-20260816.json'
+      - 'tests/n3w_product_completion_s5_package/test_s5_r7_private_package_builder.py'
+      - 'tools/n3w_product_s5_build_private_package_r7.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: n3w-s5-r7-private-package-stimulus-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  r7-private-package-stimulus-host-compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Authorized R7 package-builder successor exact scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          start='9862d7ecbe95439fd36ceb91854505a923cbfea2'
+          git merge-base --is-ancestor "$start" HEAD
+          if [ "$GITHUB_EVENT_NAME" = 'pull_request' ]; then
+            test '${{ github.event.pull_request.base.ref }}' = 'main'
+            test "$(git rev-parse HEAD)" = '${{ github.event.pull_request.head.sha }}'
+          fi
+          git config core.quotePath false
+          allowed="$(mktemp)"
+          actual="$(mktemp)"
+          cat >"$allowed" <<'FILES'
+          .github/workflows/n3w-product-completion-s5-r7-private-package-stimulus-builder-ci.yml
+          docs/decisions/n3w-product-completion-s5-r7-private-telemetry-stimulus-package-builder-contract-repair-20260816.json
+          tests/n3w_product_completion_s5_package/test_s5_r7_private_package_builder.py
+          tools/n3w_product_s5_build_private_package_r7.py
+          FILES
+          sed -i 's/^          //' "$allowed"
+          sort -o "$allowed" "$allowed"
+          git diff --name-only "$start"...HEAD | sort >"$actual"
+          diff -u "$allowed" "$actual"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Validate authorization and unit contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path('docs/decisions/n3w-product-completion-s5-r7-private-telemetry-stimulus-package-builder-contract-repair-20260816.json')
+          decision = json.loads(path.read_text())
+          assert decision['authorization'] == 'D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-R7-PRIVATE-TELEMETRY-STIMULUS-PACKAGE-BUILDER-CONTRACT-REPAIR-20260816-01'
+          assert decision['starting_head'] == '9862d7ecbe95439fd36ceb91854505a923cbfea2'
+          assert decision['scope']['host_only'] is True
+          assert decision['scope']['real_private_package_materialization'] is False
+          assert decision['scope']['synthetic_ci_package_materialization'] is True
+          assert decision['scope']['board_access'] is False
+          assert decision['scope']['flash_or_erase'] is False
+          assert decision['scope']['wifi_or_espnow_rf'] is False
+          assert decision['replay_binding']['read_only'] is True
+          assert decision['replay_binding']['uint64_max_fails_closed'] is True
+          assert decision['acceptance']['physical_execution_authorized'] is False
+          PY
+          python tests/n3w_product_completion_s5_package/test_s5_r7_private_package_builder.py -v
+
+      - name: Install frozen ESPHome
+        run: python -m pip install --disable-pip-version-check 'esphome==2026.4.3'
+
+      - name: Materialize disposable two-node synthetic state
+        shell: bash
+        env:
+          FIXTURE: ${{ runner.temp }}/s5-r7-fixture.json
+          STATE: ${{ runner.temp }}/s5-r7-state
+          NETWORK: ${{ runner.temp }}/s5-r7-network.json
+        run: |
+          set -euo pipefail
+          umask 077
+          rm -rf "$STATE" "$FIXTURE" "$NETWORK"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          def mac(*octets):
+              return ':'.join(octets)
+
+          fixture = {
+              'schema': 'gh.n3w-product-s5-dedicated-two-node-state-synthetic/1',
+              'synthetic_only': True,
+              'synthetic_marker': 'S5-SYNTHETIC-ONLY-NOT-REAL-CREDENTIALS',
+              'system_id': 'system001',
+              'child': {
+                  'role': 'child',
+                  'hardware_id': 'ghw-s5child-021122334455',
+                  'pairing_id': 'pair_child_0001',
+                  'pairing_epoch': 7,
+                  'node_id': 'node_child01',
+                  'credential_generation': 7,
+                  'key_epoch': 9,
+                  'application_key_hex': '81' * 32,
+                  'local_mac': mac('02','11','22','33','44','55'),
+                  'capabilities': ['telemetry', 'n3w-product-relay'],
+              },
+              'relay': {
+                  'role': 'relay',
+                  'hardware_id': 'ghw-s5relay-02aabbccddee',
+                  'pairing_id': 'pair_relay_0001',
+                  'pairing_epoch': 11,
+                  'node_id': 'node_relay01',
+                  'credential_generation': 11,
+                  'key_epoch': 13,
+                  'application_key_hex': 'a1' * 32,
+                  'local_mac': mac('02','aa','bb','cc','dd','ee'),
+                  'capabilities': ['telemetry', 'n3w-product-relay'],
+              },
+          }
+          path = Path(os.environ['FIXTURE'])
+          path.write_text(json.dumps(fixture), encoding='utf-8')
+          path.chmod(0o600)
+
+          network = {
+              'wifi_ssid': 's5-r7-isolated-fixture',
+              'wifi_password': 'fixture-pass-123',
+              'wifi_channel': 6,
+              'mqtt_broker': '192.0.2.10',
+              'mqtt_port': 1883,
+              'mqtt_client_id': 'gh-s5-r7-relay-fixture',
+              'mqtt_username': 'fixture-user',
+              'mqtt_password': 'fixture-mqtt-pass',
+              'mqtt_tls': False,
+          }
+          npath = Path(os.environ['NETWORK'])
+          npath.write_text(json.dumps(network), encoding='utf-8')
+          npath.chmod(0o600)
+          PY
+          python tools/n3w_product_s5_initialize_dedicated_two_node_state.py \
+            --fixture "$FIXTURE" \
+            --output "$STATE"
+          python - <<'PY'
+          import os
+          import sqlite3
+          from pathlib import Path
+          replay = Path(os.environ['STATE']) / 'manager_state' / 'replay.sqlite3'
+          db = sqlite3.connect(replay)
+          db.execute(
+              'INSERT INTO n3w_replay_state(node_id, highest_session_hex) VALUES (?, ?)',
+              ('node_child01', '0000000000000007'),
+          )
+          db.commit()
+          db.close()
+          replay.chmod(0o600)
+          PY
+
+      - name: Render compile and bind synthetic R7 private package
+        shell: bash
+        env:
+          STATE: ${{ runner.temp }}/s5-r7-state
+          NETWORK: ${{ runner.temp }}/s5-r7-network.json
+          PACKAGE: ${{ runner.temp }}/s5-r7-package
+          EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          rm -rf "$PACKAGE"
+          python tools/n3w_product_s5_build_private_package_r7.py \
+            --source-root "$GITHUB_WORKSPACE" \
+            --source-head "$EXACT_HEAD" \
+            --child-credentials "$STATE/credentials/child.json" \
+            --relay-credentials "$STATE/credentials/relay.json" \
+            --isolated-network "$NETWORK" \
+            --manager-state-root "$STATE/manager_state" \
+            --output "$PACKAGE"
+
+      - name: Verify Child-only replay-safe stimulus and no-live package boundary
+        shell: bash
+        env:
+          PACKAGE: ${{ runner.temp }}/s5-r7-package
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          root = Path(os.environ['PACKAGE'])
+          child = (root / 'rendered' / 'child.yml').read_text()
+          relay = (root / 'rendered' / 'relay.yml').read_text()
+          manifest = json.loads((root / 'manifest.json').read_text())
+          binding = manifest['telemetry_stimulus_binding']
+          assert child.count('telemetry_stimulus_enabled: true') == 1
+          assert child.count('telemetry_stimulus_boot_session: 8') == 1
+          assert child.count('telemetry_stimulus_seq: 0') == 1
+          assert 'telemetry_stimulus_' not in relay
+          assert binding['role'] == 'child'
+          assert binding['enabled'] is True
+          assert binding['source_highest_session_hex'] == '0000000000000007'
+          assert binding['boot_session'] == 8
+          assert binding['boot_id'] == 'boot_0000000000000008'
+          assert binding['seq'] == 0
+          assert binding['manager_replay_snapshot_mutated'] is False
+          assert binding['relay_stimulus_enabled'] is False
+          assert manifest['execution_authorized'] is False
+          assert manifest['physical_execution_authorization'] is None
+          assert manifest['composition_contract']['r7_private_child_telemetry_stimulus_enabled'] is True
+          assert manifest['composition_contract']['r7_private_relay_telemetry_stimulus_enabled'] is False
+          for role in ('child', 'relay'):
+              path = root / 'artifacts' / f'{role}_firmware.bin'
+              assert path.is_file() and path.stat().st_size > 0
+          print('R7_PRIVATE_PACKAGE_STIMULUS_BINDING=PASS')
+          print('R7_PRIVATE_PACKAGE_CHILD_BOOT_SESSION=8')
+          print('R7_PRIVATE_PACKAGE_CHILD_SEQ=0')
+          print('PHYSICAL_EXECUTION_AUTHORIZED=false')
+          PY
+
+      - name: No-live no-board static gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import ast
+          import importlib.util
+          from pathlib import Path
+          wrapper = Path('tools/n3w_product_s5_build_private_package_r7.py')
+          tree = ast.parse(wrapper.read_text())
+          imported = set()
+          for node in ast.walk(tree):
+              if isinstance(node, ast.Import):
+                  imported.update(alias.name.split('.')[0] for alias in node.names)
+              elif isinstance(node, ast.ImportFrom) and node.module:
+                  imported.add(node.module.split('.')[0])
+          assert {'socket', 'serial', 'paho', 'esptool'}.isdisjoint(imported)
+          base_path = Path('tools/n3w_product_s5_build_private_package.py')
+          spec = importlib.util.spec_from_file_location('base_builder', base_path)
+          assert spec is not None and spec.loader is not None
+          base = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(base)
+          assert base.ALLOWED_ESPHOME_ACTIONS == ('config', 'compile')
+          PY
+
+      - name: Cleanup synthetic private material
+        if: always()
+        shell: bash
+        run: |
+          rm -rf \
+            '${{ runner.temp }}/s5-r7-fixture.json' \
+            '${{ runner.temp }}/s5-r7-network.json' \
+            '${{ runner.temp }}/s5-r7-state' \
+            '${{ runner.temp }}/s5-r7-package'
