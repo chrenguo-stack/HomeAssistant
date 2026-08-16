@@ -248,7 +248,8 @@ jobs:
           python -m pytest -q \
             tests/n3w_product_completion_s5/test_s5_manager_authorization_loop.py \
             tests/n3w_product_completion_s5/test_s5_isolated_manager_telemetry.py \
-            tests/n3w_product_completion_s5_transport/test_s5_isolated_manager_transport.py
+            tests/n3w_product_completion_s5_transport/test_s5_isolated_manager_transport.py \
+            tests/n3w_product_completion_s5_transport/test_s5_relay_mqtt_diagnostic_contract.py
 
       - name: Generate actual S4 Manager request and response vectors
         shell: bash
