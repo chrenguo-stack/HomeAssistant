@@ -73,7 +73,18 @@ jobs:
           dedicated_allowed="$(mktemp)"
           dedicated_actual="$(mktemp)"
           cat >"$dedicated_allowed" <<'FILES'
+          .github/workflows/n3w-product-completion-s5-d-lifecycle-negative-host-matrix-ci.yml
+          .github/workflows/n3w-product-completion-s5-dedicated-two-node-state-initializer-ci.yml
+          .github/workflows/n3w-product-completion-s5-isolated-manager-transport-ci.yml
+          .github/workflows/n3w-product-completion-s5-physical-e2e-preparation-ci.yml
+          .github/workflows/n3w-product-completion-s5-private-package-builder-ci.yml
+          .github/workflows/n3w-product-completion-s5-private-runtime-composition-ci.yml
           .github/workflows/n3w-product-completion-s5-r7-private-package-stimulus-builder-ci.yml
+          docs/decisions/n3w-product-completion-s5-r7-relay-mqtt-bus-liveness-rootcause-and-diagnostic-instrumentation-20260816.json
+          firmware/esphome_rc/components/greenhouse_n3w_s5_manager_transport/n3w_product_s5_manager_component.cpp
+          firmware/esphome_rc/components/greenhouse_n3w_s5_manager_transport/n3w_product_s5_manager_component.h
+          firmware/esphome_rc/components/greenhouse_n3w_s5_manager_transport/n3w_product_s5_manager_transport.h
+          tests/n3w_product_completion_s5_transport/test_s5_relay_mqtt_diagnostic_contract.py
           FILES
           sed -i 's/^          //' "$dedicated_allowed"
           sort -o "$dedicated_allowed" "$dedicated_allowed"
