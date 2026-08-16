@@ -91,11 +91,15 @@ class N3wCanonicalIngressCoordinator:
         try:
             with self.replay_registry.transaction() as transaction:
                 connection = transaction.connection
-                connection.executescript(
+                connection.execute(
                     """
                     CREATE TABLE IF NOT EXISTS n3w_canonical_meta (
                         schema_version INTEGER NOT NULL
-                    );
+                    )
+                    """
+                )
+                connection.execute(
+                    """
                     CREATE TABLE IF NOT EXISTS n3w_canonical_cursors (
                         node_id TEXT PRIMARY KEY,
                         boot_session_hex TEXT NOT NULL,
@@ -105,7 +109,7 @@ class N3wCanonicalIngressCoordinator:
                         ),
                         last_gateway_id TEXT,
                         updated_at TEXT NOT NULL
-                    );
+                    )
                     """
                 )
                 versions = connection.execute(
