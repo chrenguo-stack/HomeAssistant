@@ -202,7 +202,12 @@ jobs:
           .github/workflows/n3w-product-completion-s5-private-runtime-composition-ci.yml
           .github/workflows/n3w-product-completion-s5-r7-private-package-stimulus-builder-ci.yml
           docs/decisions/n3w-product-completion-s5-r7-private-telemetry-stimulus-package-builder-contract-repair-20260816.json
+          docs/decisions/n3w-product-completion-s5-r7-relay-mqtt-bus-liveness-rootcause-and-diagnostic-instrumentation-20260816.json
+          firmware/esphome_rc/components/greenhouse_n3w_s5_manager_transport/n3w_product_s5_manager_component.cpp
+          firmware/esphome_rc/components/greenhouse_n3w_s5_manager_transport/n3w_product_s5_manager_component.h
+          firmware/esphome_rc/components/greenhouse_n3w_s5_manager_transport/n3w_product_s5_manager_transport.h
           tests/n3w_product_completion_s5_package/test_s5_r7_private_package_builder.py
+          tests/n3w_product_completion_s5_transport/test_s5_relay_mqtt_diagnostic_contract.py
           tools/n3w_product_s5_build_private_package_r7.py
           FILES
           sed -i 's/^          //' "$package_successor_allowed"
