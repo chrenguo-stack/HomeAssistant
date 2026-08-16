@@ -70,6 +70,8 @@ def test_node_key_resolves_without_gateway_grant(tmp_path) -> None:
 
 def test_node_key_rejects_inactive_or_wrong_epoch(tmp_path) -> None:
     database, key_dir = build_store(tmp_path)
-    with SqliteNodeApplicationKeyProvider(database, key_dir) as provider:
-        with pytest.raises(RelayIngressRejected, match="key_epoch_rejected"):
-            provider.resolve_key(node_id=NODE_ID, key_epoch=2)
+    with (
+        SqliteNodeApplicationKeyProvider(database, key_dir) as provider,
+        pytest.raises(RelayIngressRejected, match="key_epoch_rejected"),
+    ):
+        provider.resolve_key(node_id=NODE_ID, key_epoch=2)

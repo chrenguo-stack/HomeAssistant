@@ -76,16 +76,20 @@ def test_rotate_requires_initialized_system_and_secrets_are_redacted(tmp_path) -
 
 
 def test_invalid_key_generator_fails_closed(tmp_path) -> None:
-    with SystemPeerTrustStore(
-        tmp_path / "peer-trust.sqlite3",
-        random_bytes=lambda _: b"short",
-    ) as store:
-        with pytest.raises(PeerTrustStoreConflict, match="invalid length"):
-            store.get_or_create(SYSTEM_ID, now=NOW)
+    with (
+        SystemPeerTrustStore(
+            tmp_path / "peer-trust.sqlite3",
+            random_bytes=lambda _: b"short",
+        ) as store,
+        pytest.raises(PeerTrustStoreConflict, match="invalid length"),
+    ):
+        store.get_or_create(SYSTEM_ID, now=NOW)
 
-    with SystemPeerTrustStore(
-        tmp_path / "peer-trust-zero.sqlite3",
-        random_bytes=lambda _: b"\x00" * 32,
-    ) as store:
-        with pytest.raises(PeerTrustStoreConflict, match="all-zero"):
-            store.get_or_create(SYSTEM_ID, now=NOW)
+    with (
+        SystemPeerTrustStore(
+            tmp_path / "peer-trust-zero.sqlite3",
+            random_bytes=lambda _: b"\x00" * 32,
+        ) as store,
+        pytest.raises(PeerTrustStoreConflict, match="all-zero"),
+    ):
+        store.get_or_create(SYSTEM_ID, now=NOW)
