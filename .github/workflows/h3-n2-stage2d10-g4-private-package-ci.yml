@@ -1,0 +1,120 @@
+name: H3 N2 Stage2D10 G4 Private Package CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d10-g4-private-package-ci.yml"
+      - "tests/h3_n2_stage2d10_isolated_broker/**"
+      - "tools/h3_n2_stage2d10_g4_private_descriptor_gate_20260723_v1.py"
+  push:
+    branches:
+      - main
+      - feature/h3-n2-stage2d10-g4-activate-profile-20260723-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d10-g4-private-package-ci.yml"
+      - "tests/h3_n2_stage2d10_isolated_broker/**"
+      - "tools/h3_n2_stage2d10_g4_private_descriptor_gate_20260723_v1.py"
+
+permissions:
+  contents: read
+
+jobs:
+  locked-private-package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - name: Compile and run descriptor gate
+        run: |
+          set -euo pipefail
+          python -m py_compile \
+            tools/h3_n2_stage2d10_g4_private_descriptor_gate_20260723_v1.py
+          python tools/h3_n2_stage2d10_g4_private_descriptor_gate_20260723_v1.py \
+            --descriptor tests/h3_n2_stage2d10_isolated_broker/stage2d10_g4_private_execution_descriptor_20260723_v1.json.template \
+            | tee /tmp/stage2d10-g4-private-descriptor-v1.log
+          grep -Fx 'STAGE2D10_G4_PRIVATE_DESCRIPTOR_GATE=PASS' \
+            /tmp/stage2d10-g4-private-descriptor-v1.log
+          grep -Fx 'GATE=LOCKED' \
+            /tmp/stage2d10-g4-private-descriptor-v1.log
+          grep -Fx 'EXECUTION_AUTHORIZED=false' \
+            /tmp/stage2d10-g4-private-descriptor-v1.log
+          grep -Fx 'PRIVATE_VALUES_INCLUDED_IN_OUTPUT=false' \
+            /tmp/stage2d10-g4-private-descriptor-v1.log
+      - name: Verify Broker and ACL templates remain isolated
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          root = Path("tests/h3_n2_stage2d10_isolated_broker")
+          broker = (
+              root / "mosquitto_stage2d10_g4_20260723_v1.conf.template"
+          ).read_text(encoding="utf-8")
+          acl = (
+              root / "mosquitto_stage2d10_g4_acl_20260723_v1.template"
+          ).read_text(encoding="utf-8")
+          descriptor = (
+              root / "stage2d10_g4_private_execution_descriptor_20260723_v1.json.template"
+          ).read_text(encoding="utf-8")
+
+          broker_directives = "\n".join(
+              line.strip()
+              for line in broker.splitlines()
+              if line.strip() and not line.lstrip().startswith("#")
+          )
+
+          for required in (
+              "allow_anonymous false",
+              "persistence false",
+              "retain_available false",
+              "require_certificate false",
+              "<ABSOLUTE_PRIVATE_PASSWORD_FILE>",
+              "<ABSOLUTE_PRIVATE_ACL_FILE>",
+              "<ABSOLUTE_PRIVATE_CA_FILE>",
+              "<ABSOLUTE_PRIVATE_SERVER_CERT_FILE>",
+              "<ABSOLUTE_PRIVATE_SERVER_KEY_FILE>",
+          ):
+              assert required in broker_directives, required
+
+          for prohibited in (
+              "allow_anonymous true",
+              "persistence true",
+              "include_dir",
+              "plugin ",
+              "bridge ",
+              "connection_messages false",
+          ):
+              assert prohibited not in broker_directives, prohibited
+
+          assert "user <TEST_USERNAME>" in acl
+          assert "topic readwrite gh-test/<TEST_RUN_ID>/#" in acl
+          assert "homeassistant" not in acl.lower()
+          assert "gh/v1/" not in acl
+
+          assert '"execution_authorized": false' in descriptor
+          assert '"cleanup_command": 0' in descriptor
+          assert '"operation": "ACTIVATE_PROFILE"' in descriptor
+          assert '"active_generation": 0' in descriptor
+          assert '"candidate_generation": 1' in descriptor
+          assert '"one_shot": true' in descriptor
+          assert '"replay_permitted": false' in descriptor
+          PY
+      - name: Verify no rendered private package is committed
+        run: |
+          set -euo pipefail
+          if git ls-files tests/h3_n2_stage2d10_isolated_broker \
+              | grep -Ev '\.(template)$'; then
+            echo 'rendered Stage2D10 private package detected' >&2
+            exit 1
+          fi
+          if git grep -IlE \
+              'BEGIN PRIVATE KEY|PRIVATE_TEST_WIFI_PASSWORD|PRIVATE_TEST_MQTT_PASSWORD' \
+              -- tests/h3_n2_stage2d10_isolated_broker ':!*.template'; then
+            echo 'private Stage2D10 material detected' >&2
+            exit 1
+          fi
+      - name: Cleanup
+        if: always()
+        run: rm -f /tmp/stage2d10-g4-private-descriptor-v1.log

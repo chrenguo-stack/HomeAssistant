@@ -1,0 +1,50 @@
+esphome:
+  name: gh-2d10-g4-c1
+  friendly_name: Greenhouse Stage 2D-10 G4 Locked Compile-Only
+  min_version: 2026.4.3
+
+esp32:
+  board: esp32-c6-devkitm-1
+  variant: ESP32C6
+  flash_size: 8MB
+  partitions: ../h3_profile_isolated_device_g3_prepare/stage2d9_g3_partitions_20260722_v65.csv
+  framework:
+    type: esp-idf
+    advanced:
+      include_builtin_idf_components:
+        - mqtt
+        - nvs_flash
+        - esp_hw_support
+    sdkconfig_options:
+      CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG: y
+      CONFIG_ESP_CONSOLE_SECONDARY_NONE: y
+      CONFIG_MBEDTLS_PSA_CRYPTO_C: y
+      CONFIG_MBEDTLS_ECP_DP_CURVE25519_ENABLED: y
+      CONFIG_MBEDTLS_CHACHA20_C: y
+      CONFIG_MBEDTLS_POLY1305_C: y
+      CONFIG_MBEDTLS_CHACHAPOLY_C: y
+      CONFIG_MBEDTLS_HARDWARE_MPI: n
+
+logger:
+  level: DEBUG
+  hardware_uart: USB_SERIAL_JTAG
+
+external_components:
+  - source:
+      type: local
+      path: ../../components
+    components:
+      - greenhouse_pairing_client
+      - greenhouse_profile_production_adapters
+      - greenhouse_profile_lifecycle_controller
+      - greenhouse_profile_isolated_acceptance
+      - greenhouse_profile_isolated_device_driver
+      - greenhouse_profile_isolated_device_g4_activation
+
+# Compile-only target. The G4 component accepts only execution_gate=LOCKED.
+# This file does not authorize a Broker, Flash, NVS mutation, ACTIVATE_PROFILE,
+# post-restart verification, cleanup, OTA, release or any device operation.
+greenhouse_profile_isolated_device_g4_activation:
+  partition_label: gh2d8_p2d9
+  namespace_name: gh2d8_s2d9
+  execution_gate: LOCKED
