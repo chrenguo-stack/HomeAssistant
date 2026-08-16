@@ -8,9 +8,12 @@ on:
       - '.github/workflows/n3w-product-completion-s5-physical-e2e-preparation-ci.yml'
       - '.github/workflows/n3w-product-completion-s5-private-package-builder-ci.yml'
       - '.github/workflows/n3w-product-completion-s5-private-runtime-composition-ci.yml'
+      - '.github/workflows/n3w-product-completion-s5-r7-private-package-stimulus-builder-ci.yml'
       - 'docs/decisions/n3w-product-completion-s5-private-package-render-build-binding-host-compile-20260815.json'
+      - 'docs/decisions/n3w-product-completion-s5-r7-private-telemetry-stimulus-package-builder-contract-repair-20260816.json'
       - 'tests/n3w_product_completion_s5_package/**'
       - 'tools/n3w_product_s5_build_private_package.py'
+      - 'tools/n3w_product_s5_build_private_package_r7.py'
   workflow_dispatch:
 
 permissions:
@@ -102,8 +105,10 @@ jobs:
           set -euo pipefail
           r6='39816fcbf2d8fa7942a68d22fc738e2defef89cc'
           implementation='6dcb0cc9e336db777e704065834d162b7a20b424'
+          ci_repair='9862d7ecbe95439fd36ceb91854505a923cbfea2'
           git merge-base --is-ancestor "$r6" "$implementation"
-          git merge-base --is-ancestor "$implementation" HEAD
+          git merge-base --is-ancestor "$implementation" "$ci_repair"
+          git merge-base --is-ancestor "$ci_repair" HEAD
           git config core.quotePath false
           implementation_allowed="$(mktemp)"
           implementation_actual="$(mktemp)"
@@ -136,8 +141,27 @@ jobs:
           FILES
           sed -i 's/^          //' "$ci_allowed"
           sort -o "$ci_allowed" "$ci_allowed"
-          git diff --name-only "$implementation"...HEAD | sort >"$ci_actual"
+          git diff --name-only "$implementation"..."$ci_repair" | sort >"$ci_actual"
           diff -u "$ci_allowed" "$ci_actual"
+
+          package_successor_allowed="$(mktemp)"
+          package_successor_actual="$(mktemp)"
+          cat >"$package_successor_allowed" <<'FILES'
+          .github/workflows/n3w-product-completion-s5-d-lifecycle-negative-host-matrix-ci.yml
+          .github/workflows/n3w-product-completion-s5-dedicated-two-node-state-initializer-ci.yml
+          .github/workflows/n3w-product-completion-s5-isolated-manager-transport-ci.yml
+          .github/workflows/n3w-product-completion-s5-physical-e2e-preparation-ci.yml
+          .github/workflows/n3w-product-completion-s5-private-package-builder-ci.yml
+          .github/workflows/n3w-product-completion-s5-private-runtime-composition-ci.yml
+          .github/workflows/n3w-product-completion-s5-r7-private-package-stimulus-builder-ci.yml
+          docs/decisions/n3w-product-completion-s5-r7-private-telemetry-stimulus-package-builder-contract-repair-20260816.json
+          tests/n3w_product_completion_s5_package/test_s5_r7_private_package_builder.py
+          tools/n3w_product_s5_build_private_package_r7.py
+          FILES
+          sed -i 's/^          //' "$package_successor_allowed"
+          sort -o "$package_successor_allowed" "$package_successor_allowed"
+          git diff --name-only "$ci_repair"...HEAD | sort >"$package_successor_actual"
+          diff -u "$package_successor_allowed" "$package_successor_actual"
 
       - uses: actions/setup-python@v5
         with:
