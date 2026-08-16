@@ -1,0 +1,150 @@
+name: H3 N2 Stage2D9R Private Content Failure Marker Probe Package CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-private-content-failure-marker-probe-package-ci.yml"
+      - "tools/h3_n2_stage2d9r_private_content_binding_probe_20260724_v2.py"
+      - "tools/h3_n2_stage2d9r_private_content_failure_marker_probe_20260724_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_content_binding_probe_20260724_v2.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_content_failure_marker_probe_20260724_v1.py"
+  push:
+    branches:
+      - feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-private-content-failure-marker-probe-package-ci.yml"
+      - "tools/h3_n2_stage2d9r_private_content_binding_probe_20260724_v2.py"
+      - "tools/h3_n2_stage2d9r_private_content_failure_marker_probe_20260724_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_content_binding_probe_20260724_v2.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_content_failure_marker_probe_20260724_v1.py"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Fail closed on repository drift
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+        run: |
+          set -euo pipefail
+          test "$HEAD_BRANCH" = feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          git fetch --no-tags --depth=1 origin main
+          test "$(git rev-parse FETCH_HEAD)" = a3a72d75480362999e70e180f33459198b3951b5
+          test "$(git status --porcelain)" = ""
+
+      - name: Verify corrected verifier and marker probe contracts
+        run: |
+          set -euo pipefail
+          sha256sum -c <<'SUMS'
+          912b8da3ba3633b7f0027260e295d1d09bd5da84005b7e1cea84c50269b27f94  tools/h3_n2_stage2d9r_private_content_binding_probe_20260724_v2.py
+          a4cc029daed6b3fd66f957361677e74b21062589aa4bfc0a928a80269c0731a8  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_content_binding_probe_20260724_v2.py
+          ab37c6a083198fd9ba4124a1550d4ee48c7171e5572b6862d846cafe0d10187b  tools/h3_n2_stage2d9r_private_content_failure_marker_probe_20260724_v1.py
+          756316bc98a8f2c2b084bb88178c1c3ffadd63c0d72db5df51b0ad29c6372603  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_content_failure_marker_probe_20260724_v1.py
+          SUMS
+          python -m py_compile \
+            tools/h3_n2_stage2d9r_private_content_binding_probe_20260724_v2.py \
+            tools/h3_n2_stage2d9r_private_content_failure_marker_probe_20260724_v1.py
+          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_content_binding_probe_20260724_v2.py -v 2>&1 | tee /tmp/v2-contract.log
+          grep -F 'Ran 11 tests' /tmp/v2-contract.log
+          grep -F 'OK' /tmp/v2-contract.log
+          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_content_failure_marker_probe_20260724_v1.py -v 2>&1 | tee /tmp/marker-contract.log
+          grep -F 'Ran 4 tests' /tmp/marker-contract.log
+          grep -F 'OK' /tmp/marker-contract.log
+
+      - name: Assemble read-only U1-03 failure marker probe
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-private-content-u1-03-failure-marker-probe-v1
+          mkdir -p "$root/tools"
+          cp tools/h3_n2_stage2d9r_private_content_failure_marker_probe_20260724_v1.py "$root/tools/"
+          cat > "$root/README.md" <<'EOF'
+          # Stage 2D-9R U1-03 consumed-failure marker probe
+
+          Read-only metadata probe. It validates the U1-03 marker as
+          CONSUMED_FAILED with BROKER_CERTIFICATE_DIGEST_MISMATCH and reports only
+          the marker SHA-256 plus already-public safe metadata. It does not read
+          private PKI/command content, modify the marker, or perform network,
+          Broker, board, serial, Flash/NVS, PREPARE, VERIFY, ACTIVATE, CLEANUP,
+          production, Ready, merge, release, tag, or deployment operations.
+          EOF
+          cat > "$root/run_stage2d9r_private_content_failure_marker_probe_20260724_v1_8c2f51a4.sh" <<'SH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          umask 077
+          ROOT="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)"
+          cd "$ROOT"
+          shasum -a 256 -c SHA256SUMS
+          "$(command -v python3)" \
+            "$ROOT/tools/h3_n2_stage2d9r_private_content_failure_marker_probe_20260724_v1.py"
+          SH
+          chmod 0700 "$root"/run_*.sh
+          find "$root" -type f ! -name 'run_*.sh' -exec chmod 0600 {} +
+          (cd "$root" && find . -type f ! -name SHA256SUMS -print0 | LC_ALL=C sort -z | xargs -0 shasum -a 256 | sed 's#  \./#  #' > SHA256SUMS)
+          chmod 0600 "$root/SHA256SUMS"
+
+      - name: Smoke-test fail-closed package boundary
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-private-content-u1-03-failure-marker-probe-v1
+          empty=/tmp/stage2d9r-private-content-u1-03-empty-home
+          mkdir -m 0700 "$empty"
+          (cd "$root" && sha256sum -c SHA256SUMS)
+          set +e
+          output="$(python "$root/tools/h3_n2_stage2d9r_private_content_failure_marker_probe_20260724_v1.py" --home "$empty" 2>&1)"
+          rc=$?
+          set -e
+          printf '%s\n' "$output"
+          test "$rc" -eq 2
+          grep -F 'FAILURE_CODE=AUTHORIZATION_DIRECTORY_INVALID' <<<"$output"
+          grep -F 'PRIVATE_CONTENT_READ=false' <<<"$output"
+          grep -F 'MARKER_MODIFIED=false' <<<"$output"
+          test -z "$(find "$empty" -mindepth 1 -print -quit)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-private-content-u1-03-failure-marker-probe-v1
+          path: /tmp/stage2d9r-private-content-u1-03-failure-marker-probe-v1
+          if-no-files-found: error
+          retention-days: 5
+          compression-level: 0
+
+      - name: Report safe diagnostic boundary
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          printf '%s\n' \
+            'STAGE2D9R_U1_03_FAILURE_MARKER_PROBE_PACKAGE=PASS' \
+            "SOURCE_SHA=$SOURCE_SHA" \
+            'MAIN_SHA=a3a72d75480362999e70e180f33459198b3951b5' \
+            'U1_03_STATUS_EXPECTED=CONSUMED_FAILED' \
+            'U1_03_FAILURE_CODE_EXPECTED=BROKER_CERTIFICATE_DIGEST_MISMATCH' \
+            'PRIVATE_CONTENT_READ=false' \
+            'MARKER_MODIFIED=false' \
+            'NETWORK_OPERATION=false' \
+            'BROKER_STARTED=false' \
+            'BOARD_OPERATION=false' \
+            'SERIAL_OPERATION=false' \
+            'FLASH_OPERATION=false'
+
+      - name: Cleanup
+        if: always()
+        run: rm -rf /tmp/stage2d9r-private-content-u1-03-failure-marker-probe-v1 /tmp/stage2d9r-private-content-u1-03-empty-home /tmp/v2-contract.log /tmp/marker-contract.log

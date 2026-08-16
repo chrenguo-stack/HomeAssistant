@@ -1,0 +1,213 @@
+name: H3 N2 Stage2D9R TLS Candidate CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-tls-candidate-ci.yml"
+      - "docs/decisions/h3-n2-stage2d10-d1-tls-valid-candidate-chain-20260723-v1.md"
+      - "docs/development/h3-n2-stage2d9r-g3-tls-valid-candidate-plan-20260723-v1.md"
+      - "docs/development/h3-n2-stage2d9r-private-pki-policy-20260723-v1.md"
+      - "tools/h3_n2_stage2d9r_tls_candidate_descriptor_gate_20260723_v1.py"
+      - "tools/h3_n2_stage2d9r_tls_public_binding_builder_20260723_v1.py"
+      - "tools/h3_n2_stage2d9r_broker_candidate_binding_gate_20260723_v1.py"
+      - "tools/h3_n2_stage2d9r_private_pki_custody_gate_20260723_v1.py"
+      - "tools/h3_n2_stage2d9r_prepare_command_protocol_20260723_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/**"
+  push:
+    branches:
+      - feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-tls-candidate-ci.yml"
+      - "docs/decisions/h3-n2-stage2d10-d1-tls-valid-candidate-chain-20260723-v1.md"
+      - "docs/development/h3-n2-stage2d9r-g3-tls-valid-candidate-plan-20260723-v1.md"
+      - "docs/development/h3-n2-stage2d9r-private-pki-policy-20260723-v1.md"
+      - "tools/h3_n2_stage2d9r_tls_candidate_descriptor_gate_20260723_v1.py"
+      - "tools/h3_n2_stage2d9r_tls_public_binding_builder_20260723_v1.py"
+      - "tools/h3_n2_stage2d9r_broker_candidate_binding_gate_20260723_v1.py"
+      - "tools/h3_n2_stage2d9r_private_pki_custody_gate_20260723_v1.py"
+      - "tools/h3_n2_stage2d9r_prepare_command_protocol_20260723_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/**"
+
+permissions:
+  contents: read
+
+jobs:
+  tls-candidate-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Record OpenSSL version
+        run: openssl version
+
+      - name: Compile descriptor, binding, custody, command tools and tests
+        run: |
+          python -m py_compile \
+            tools/h3_n2_stage2d9r_tls_candidate_descriptor_gate_20260723_v1.py \
+            tools/h3_n2_stage2d9r_tls_public_binding_builder_20260723_v1.py \
+            tools/h3_n2_stage2d9r_broker_candidate_binding_gate_20260723_v1.py \
+            tools/h3_n2_stage2d9r_private_pki_custody_gate_20260723_v1.py \
+            tools/h3_n2_stage2d9r_prepare_command_protocol_20260723_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_tls_candidate_descriptor_gate_20260723_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_tls_public_binding_builder_20260723_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_broker_candidate_binding_gate_20260723_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_pki_custody_gate_20260723_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_prepare_command_protocol_20260723_v1.py
+
+      - name: Run descriptor fault matrix
+        run: |
+          set -euo pipefail
+          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_tls_candidate_descriptor_gate_20260723_v1.py \
+            -v 2>&1 | tee /tmp/stage2d9r-tls-candidate-tests-v1.log
+          grep -F 'Ran 11 tests' /tmp/stage2d9r-tls-candidate-tests-v1.log
+          grep -F 'OK' /tmp/stage2d9r-tls-candidate-tests-v1.log
+
+      - name: Run offline PKI binding fault matrix
+        run: |
+          set -euo pipefail
+          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_tls_public_binding_builder_20260723_v1.py \
+            -v 2>&1 | tee /tmp/stage2d9r-tls-binding-tests-v1.log
+          grep -F 'Ran 9 tests' /tmp/stage2d9r-tls-binding-tests-v1.log
+          grep -F 'OK' /tmp/stage2d9r-tls-binding-tests-v1.log
+
+      - name: Run Broker-to-candidate identity matrix
+        run: |
+          set -euo pipefail
+          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_broker_candidate_binding_gate_20260723_v1.py \
+            -v 2>&1 | tee /tmp/stage2d9r-broker-binding-tests-v1.log
+          grep -F 'Ran 8 tests' /tmp/stage2d9r-broker-binding-tests-v1.log
+          grep -F 'OK' /tmp/stage2d9r-broker-binding-tests-v1.log
+          python tools/h3_n2_stage2d9r_broker_candidate_binding_gate_20260723_v1.py \
+            --config tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_isolated_broker_public_config_20260723_v1.json \
+            | tee /tmp/stage2d9r-broker-binding-gate-v1.log
+          grep -Fx 'STAGE2D9R_BROKER_CANDIDATE_BINDING=PASS' \
+            /tmp/stage2d9r-broker-binding-gate-v1.log
+          grep -Fx 'TEST_RUN_SUFFIX=tlsvalid01' \
+            /tmp/stage2d9r-broker-binding-gate-v1.log
+
+      - name: Run private PKI custody matrix
+        run: |
+          set -euo pipefail
+          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_pki_custody_gate_20260723_v1.py \
+            -v 2>&1 | tee /tmp/stage2d9r-private-custody-tests-v1.log
+          grep -F 'Ran 12 tests' /tmp/stage2d9r-private-custody-tests-v1.log
+          grep -F 'OK' /tmp/stage2d9r-private-custody-tests-v1.log
+          python tools/h3_n2_stage2d9r_private_pki_custody_gate_20260723_v1.py \
+            --descriptor tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_private_pki_custody_descriptor_20260723_v1.json.template \
+            --expect-state LOCKED_TEMPLATE \
+            | tee /tmp/stage2d9r-private-custody-gate-v1.log
+          grep -Fx 'STAGE2D9R_PRIVATE_PKI_CUSTODY_GATE=PASS' \
+            /tmp/stage2d9r-private-custody-gate-v1.log
+          grep -Fx 'STATE=LOCKED_TEMPLATE' \
+            /tmp/stage2d9r-private-custody-gate-v1.log
+          grep -Fx 'BROKER_START_AUTHORIZED=false' \
+            /tmp/stage2d9r-private-custody-gate-v1.log
+
+      - name: Run PREPARE and VERIFY command fault matrix
+        run: |
+          set -euo pipefail
+          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_prepare_command_protocol_20260723_v1.py \
+            -v 2>&1 | tee /tmp/stage2d9r-command-tests-v1.log
+          grep -F 'Ran 11 tests' /tmp/stage2d9r-command-tests-v1.log
+          grep -F 'OK' /tmp/stage2d9r-command-tests-v1.log
+          if grep -Fq 'stage2d9-test-ca' /tmp/stage2d9r-command-tests-v1.log; then
+            echo 'legacy non-PEM CA marker leaked to output' >&2
+            exit 1
+          fi
+
+      - name: Validate default descriptor remains locked
+        run: |
+          set -euo pipefail
+          python tools/h3_n2_stage2d9r_tls_candidate_descriptor_gate_20260723_v1.py \
+            --descriptor tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_tls_candidate_descriptor_20260723_v1.json \
+            --expect-state LOCKED_DESIGN \
+            | tee /tmp/stage2d9r-tls-candidate-gate-v1.log
+          grep -Fx 'STAGE2D9R_TLS_DESCRIPTOR_GATE=PASS' \
+            /tmp/stage2d9r-tls-candidate-gate-v1.log
+          grep -Fx 'STATE=LOCKED_DESIGN' \
+            /tmp/stage2d9r-tls-candidate-gate-v1.log
+          grep -Fx 'SECRET_VALUES_INCLUDED=false' \
+            /tmp/stage2d9r-tls-candidate-gate-v1.log
+          grep -Fx 'EXECUTION_AUTHORIZED=false' \
+            /tmp/stage2d9r-tls-candidate-gate-v1.log
+          grep -Fx 'BOARD_OPERATION_AUTHORIZED=false' \
+            /tmp/stage2d9r-tls-candidate-gate-v1.log
+          grep -Fx 'NETWORK_OPERATION_AUTHORIZED=false' \
+            /tmp/stage2d9r-tls-candidate-gate-v1.log
+
+      - name: Verify public-source and secret boundary
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import json
+
+          root = Path('.')
+          prohibited_suffixes = {'.key', '.p12', '.pfx', '.jks'}
+          prohibited_names = {'password', 'mqtt_password', 'private_key', 'private_key_pem', 'unlock_token', 'persistence_key', 'raw_command'}
+          private_headers = ('BEGIN PRIVATE KEY', 'BEGIN RSA PRIVATE KEY', 'BEGIN EC PRIVATE KEY', 'BEGIN OPENSSH PRIVATE KEY')
+
+          for path in root.rglob('*'):
+              if path.is_file() and path.suffix.lower() in prohibited_suffixes:
+                  raise SystemExit(f'prohibited private-material file: {path}')
+
+          def inspect(value, source):
+              if isinstance(value, dict):
+                  for key, item in value.items():
+                      if key in prohibited_names:
+                          raise SystemExit(f'forbidden secret key in {source}: {key}')
+                      inspect(item, source)
+              elif isinstance(value, list):
+                  for item in value:
+                      inspect(item, source)
+              elif isinstance(value, str):
+                  if any(header in value for header in private_headers):
+                      raise SystemExit(f'private key material in {source}')
+
+          for path in Path('tests/h3_n2_stage2d9r_tls_candidate').glob('*.json*'):
+              inspect(json.loads(path.read_text(encoding='utf-8')), path)
+
+          locked = json.loads(Path(
+              'tests/h3_n2_stage2d9r_tls_candidate/'
+              'stage2d9r_tls_candidate_descriptor_20260723_v1.json'
+          ).read_text(encoding='utf-8'))
+          for key in ('execution_authorized', 'board_operation_authorized', 'network_operation_authorized', 'prepare_authorized', 'verify_authorized', 'activate_authorized', 'cleanup_authorized'):
+              assert locked[key] is False, key
+          custody = json.loads(Path(
+              'tests/h3_n2_stage2d9r_tls_candidate/'
+              'stage2d9r_private_pki_custody_descriptor_20260723_v1.json.template'
+          ).read_text(encoding='utf-8'))
+          assert custody['authorization']['authorized'] is False
+          assert custody['authorization']['consumed'] is False
+          assert custody['broker_start_authorized'] is False
+          PY
+          grep -F 'LOCKED_SOURCE_AND_COMPILE_ONLY' \
+            docs/decisions/h3-n2-stage2d10-d1-tls-valid-candidate-chain-20260723-v1.md
+          grep -F 'PRIVATE_PKI_GENERATION_AUTHORIZED=false' \
+            docs/development/h3-n2-stage2d9r-g3-tls-valid-candidate-plan-20260723-v1.md
+          grep -F 'This policy defines a future test-only private PKI package' \
+            docs/development/h3-n2-stage2d9r-private-pki-policy-20260723-v1.md
+          grep -F 'GH2D9R_PREPARE_V1' \
+            tools/h3_n2_stage2d9r_prepare_command_protocol_20260723_v1.py
+          grep -F 'GH2D9R_VERIFY_V1' \
+            tools/h3_n2_stage2d9r_prepare_command_protocol_20260723_v1.py
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -f \
+            /tmp/stage2d9r-tls-candidate-tests-v1.log \
+            /tmp/stage2d9r-tls-binding-tests-v1.log \
+            /tmp/stage2d9r-broker-binding-tests-v1.log \
+            /tmp/stage2d9r-broker-binding-gate-v1.log \
+            /tmp/stage2d9r-private-custody-tests-v1.log \
+            /tmp/stage2d9r-private-custody-gate-v1.log \
+            /tmp/stage2d9r-command-tests-v1.log \
+            /tmp/stage2d9r-tls-candidate-gate-v1.log

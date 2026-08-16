@@ -1,0 +1,202 @@
+name: H3 N2 Stage2D9R Final Source Lock CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-final-source-lock-ci.yml"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor/**"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/greenhouse_profile_isolated_device_g3r_immutable_20260724_v1.yml"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3_prepare/stage2d9_g3_partitions_20260722_v65.csv"
+      - "tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_final_build_binding_20260724_v1.json"
+      - "tests/h3_n2_stage2d9r_tls_candidate/public_command_material_tlsvalid01/public-command-material-descriptor.redacted.json"
+  push:
+    branches:
+      - feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-final-source-lock-ci.yml"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor/**"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/greenhouse_profile_isolated_device_g3r_immutable_20260724_v1.yml"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3_prepare/stage2d9_g3_partitions_20260722_v65.csv"
+      - "tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_final_build_binding_20260724_v1.json"
+      - "tests/h3_n2_stage2d9r_tls_candidate/public_command_material_tlsvalid01/public-command-material-descriptor.redacted.json"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  final-source-lock:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Verify exact public build bindings
+        run: |
+          set -euo pipefail
+          echo 'ff5d93654b87075fd9764ad0aceb00c5cf9e94136162b1e5dbe4b78f18989f99  tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_final_build_binding_20260724_v1.json' | sha256sum -c -
+          echo 'a6c9868e2a82e2feccbaaf9c5d331e2d7eb9306ffa555cd5594173830286c037  firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/greenhouse_profile_isolated_device_g3r_immutable_20260724_v1.yml' | sha256sum -c -
+          echo '91c10168174438fc30b3dce087a6b75e24375b87b4262bafddb5b2822ee16d23  tests/h3_n2_stage2d9r_tls_candidate/public_command_material_tlsvalid01/public-command-material-descriptor.redacted.json' | sha256sum -c -
+          echo '5afa0f77d5d815f00b14afbcc3b974037c5ba10c9bdcdcffa196b55e403b5cd8  firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3_prepare/stage2d9_g3_partitions_20260722_v65.csv' | sha256sum -c -
+      - name: Validate canonical build binding and locked target
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import re
+          from pathlib import Path
+
+          binding_path = Path(
+              'tests/h3_n2_stage2d9r_tls_candidate/'
+              'stage2d9r_final_build_binding_20260724_v1.json'
+          )
+          public_path = Path(
+              'tests/h3_n2_stage2d9r_tls_candidate/'
+              'public_command_material_tlsvalid01/'
+              'public-command-material-descriptor.redacted.json'
+          )
+          target_path = Path(
+              'firmware/esphome_rc/board_lab/'
+              'h3_profile_isolated_device_g3r_tls_prepare/'
+              'greenhouse_profile_isolated_device_g3r_immutable_20260724_v1.yml'
+          )
+          data = json.loads(binding_path.read_text(encoding='utf-8'))
+          public = json.loads(public_path.read_text(encoding='utf-8'))
+          target = target_path.read_text(encoding='utf-8')
+          payload = data['payload']
+          canonical = json.dumps(
+              payload, sort_keys=True, separators=(',', ':'), ensure_ascii=False
+          ).encode()
+          full = hashlib.sha256(canonical).hexdigest()
+
+          assert data['schema'] == 'gh.h3.n2.stage2d9r-final-build-binding/1'
+          assert data['stage'] == 'H3/N2 Stage 2D-9R G3R'
+          assert data['state'] == 'FINAL_SOURCE_BOUND'
+          assert data['build_binding_sha256_full'] == full
+          assert data['build_binding'] == full[:40]
+          assert data['build_binding'] == 'b39f20c55b865ec87eb650d620fd1a82b930c1ad'
+          assert payload['source_checkpoint_sha'] == '5b2fe7070d5cc282d3028f441678a7f807a1f08f'
+          assert payload['public_descriptor_sha256'] == hashlib.sha256(public_path.read_bytes()).hexdigest()
+          assert payload['implementation_binding'] == public['implementation_binding']
+          assert payload['unlock_digest_sha256'] == public['unlock_digest_sha256']
+          assert payload['ca_pem_sha256'] == public['frozen_candidate_binding']['ca_pem_sha256']
+          assert payload['candidate_digest_sha256'] == public['frozen_candidate_binding']['candidate_digest_sha256']
+          assert payload['broker_host'] == 'stage2d9r.local'
+          assert payload['broker_tls_server_name'] == 'stage2d9r.local'
+          assert payload['partition_table_sha256'] == '5afa0f77d5d815f00b14afbcc3b974037c5ba10c9bdcdcffa196b55e403b5cd8'
+
+          expected = {
+              'build_binding': 'b39f20c55b865ec87eb650d620fd1a82b930c1ad',
+              'unlock_digest': '3650d44f8761f21dc1931fbd9b6ba6a1d9da92ffa469b3d4f98ee5411a6809e3',
+              'ca_pem_sha256': 'cfcb6638ed61731270f3bf8e9e262c1512fbca8ff34d4b08b62186453233e963',
+          }
+          for field, value in expected.items():
+              match = re.search(
+                  rf'^\s+{field}:\s*["\']?([0-9a-f]+)["\']?\s*$',
+                  target,
+                  re.M,
+              )
+              assert match is not None and match.group(1) == value, field
+
+          top_level = {
+              line.split(':', 1)[0]
+              for line in target.splitlines()
+              if line and not line[0].isspace() and not line.startswith('#') and ':' in line
+          }
+          for prohibited in ('wifi', 'api', 'ota', 'captive_portal', 'web_server', 'mqtt'):
+              assert prohibited not in top_level, prohibited
+          assert '0' * 64 not in target
+          assert '0' * 40 not in target
+
+          for key in (
+              'private_values_included',
+              'private_paths_included',
+              'raw_unlock_token_included',
+              'execution_authorized',
+              'board_operation_authorized',
+              'serial_operation_authorized',
+              'flash_operation_authorized',
+              'physical_nvs_operation_authorized',
+              'network_operation_authorized',
+              'broker_operation_authorized',
+              'prepare_authorized',
+              'verify_authorized',
+              'activate_authorized',
+              'cleanup_authorized',
+              'production_operation_authorized',
+              'ready_authorized',
+              'merge_authorized',
+              'release_authorized',
+          ):
+              assert data[key] is False, key
+
+          serialized = binding_path.read_text(encoding='utf-8') + target + public_path.read_text(encoding='utf-8')
+          for prohibited in (
+              'BEGIN PRIVATE KEY',
+              'BEGIN RSA PRIVATE KEY',
+              'BEGIN EC PRIVATE KEY',
+              'unlock-token.hex',
+              '/private/tmp/',
+              '/Users/',
+          ):
+              assert prohibited not in serialized, prohibited
+          PY
+      - name: Install pinned ESPHome
+        run: python -m pip install -q "esphome==2026.4.3"
+      - name: Validate final immutable compile source
+        run: |
+          set -o pipefail
+          cd firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare
+          esphome config greenhouse_profile_isolated_device_g3r_immutable_20260724_v1.yml \
+            2>&1 | tee /tmp/stage2d9r-final-source-config-v1.log
+      - name: Compile final immutable source
+        run: |
+          set -o pipefail
+          cd firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare
+          esphome compile greenhouse_profile_isolated_device_g3r_immutable_20260724_v1.yml \
+            2>&1 | tee /tmp/stage2d9r-final-source-compile-v1.log
+      - name: Verify compile result and public-only binary bindings
+        run: |
+          set -euo pipefail
+          grep -F 'INFO Successfully compiled program.' /tmp/stage2d9r-final-source-compile-v1.log
+          BUILD_ROOT='firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/.esphome/build/gh-2d9r-g3r-i1'
+          test -f "$BUILD_ROOT/.pioenvs/gh-2d9r-g3r-i1/firmware.bin"
+          strings "$BUILD_ROOT/.pioenvs/gh-2d9r-g3r-i1/firmware.bin" > /tmp/stage2d9r-final-source-strings-v1.txt
+          grep -F 'b39f20c55b865ec87eb650d620fd1a82b930c1ad' /tmp/stage2d9r-final-source-strings-v1.txt
+          grep -F '3650d44f8761f21dc1931fbd9b6ba6a1d9da92ffa469b3d4f98ee5411a6809e3' /tmp/stage2d9r-final-source-strings-v1.txt
+          grep -F 'cfcb6638ed61731270f3bf8e9e262c1512fbca8ff34d4b08b62186453233e963' /tmp/stage2d9r-final-source-strings-v1.txt
+          if grep -Eqi \
+            'BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|mqtt_password|GH2D9R_PREPARE_V1 [^" ]|GH2D9R_VERIFY_V1 [^" ]' \
+            /tmp/stage2d9r-final-source-config-v1.log \
+            /tmp/stage2d9r-final-source-compile-v1.log; then
+            echo 'private or executable command material detected' >&2
+            exit 1
+          fi
+      - name: Report locked source
+        run: |
+          printf '%s\n' \
+            'STAGE2D9R_FINAL_SOURCE_LOCK=PASS' \
+            'BUILD_BINDING=b39f20c55b865ec87eb650d620fd1a82b930c1ad' \
+            'UNLOCK_DIGEST_SHA256=3650d44f8761f21dc1931fbd9b6ba6a1d9da92ffa469b3d4f98ee5411a6809e3' \
+            'CA_PEM_SHA256=cfcb6638ed61731270f3bf8e9e262c1512fbca8ff34d4b08b62186453233e963' \
+            'EXECUTION_AUTHORIZED=false' \
+            'BOARD_OPERATION_AUTHORIZED=false' \
+            'NETWORK_OPERATION_AUTHORIZED=false' \
+            'PREPARE_AUTHORIZED=false' \
+            'VERIFY_AUTHORIZED=false' \
+            'READY_AUTHORIZED=false' \
+            'MERGE_AUTHORIZED=false' \
+            'RELEASE_AUTHORIZED=false'
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/.esphome
+          rm -f /tmp/stage2d9r-final-source-*.log /tmp/stage2d9r-final-source-strings-v1.txt

@@ -1,0 +1,63 @@
+{
+  "schema": "gh.h3.n2.stage2d9r-private-pki-toolchain-probe-u1-l1/1",
+  "stage": "H3/N2 Stage 2D-9R G3R",
+  "result": "passed_read_only_probe",
+  "probe_package": {
+    "artifact_id": 8567934795,
+    "workflow_run_id": 30017898990,
+    "artifact_name": "stage2d9r-private-pki-toolchain-probe-review-v1",
+    "artifact_zip_sha256": "76584fb7d80e28860f3c35fadd2fe3738932ec9e6258bcffdde39672e18b4d4e",
+    "artifact_expired": false,
+    "artifact_source_sha": "c899829e89d87ce29c50e869b2970f8132d0e67f"
+  },
+  "host_toolchain": {
+    "architecture": "x86_64",
+    "python_executable_sha256": "4e28e811a89aeac6eed668ae641c7f85f5831e42e8dc6cd9a85a3bcc032ec46a",
+    "python_version": "3.11.9 (v3.11.9:de54cf5be3, Apr 2 2024, 07:12:50) [Clang 13.0.0 (clang-1300.0.29.30)]",
+    "openssl_executable_sha256": "04ad05ce2e7eaf92116dac99a984cc0e589040a103589f93a9fe452832766973",
+    "openssl_version": "OpenSSL 3.5.0 8 Apr 2025 (Library: OpenSSL 3.5.0 8 Apr 2025)",
+    "mosquitto_passwd_executable_sha256": "d6fdc23fa4bb09198bf74925207aa2b69b1455970e31fefc6157dfe4be2b07ee",
+    "mosquitto_passwd_version": "mosquitto_passwd is a tool for managing password files for mosquitto.",
+    "mosquitto_passwd_algorithm_support": [
+      "argon2id",
+      "sha512-pbkdf2"
+    ]
+  },
+  "source_bindings": {
+    "generator_path": "tools/h3_n2_stage2d9r_private_pki_generator_20260723_v1.py",
+    "generator_sha256": "a9be0c96fd58882b3778886515076f6aae5940c0ac195fc629ed1ebe708265d0",
+    "custody_root_selection_rule": "HOME_LOCAL_STATE_STAGE2D9R_PRIVATE_PKI_V1",
+    "custody_root_digest_sha256": "4cd43ee4b2df177bd99c32d3904dbe1e1df890aa14c6b6714a6b4f7ae4024868",
+    "custody_root_exists": false,
+    "candidate_host": "stage2d9r.local",
+    "candidate_port": 8883,
+    "candidate_run_suffix": "tlsvalid01"
+  },
+  "probe_boundaries": {
+    "secret_values_included": false,
+    "private_paths_included": false,
+    "private_pki_generated": false,
+    "private_custody_created": false,
+    "authorization_record_created": false,
+    "authorization_consumed": false,
+    "board_operation": false,
+    "serial_operation": false,
+    "flash_operation": false,
+    "physical_nvs_operation": false,
+    "network_operation": false,
+    "broker_started": false,
+    "prepare_executed": false,
+    "verify_executed": false,
+    "activate_executed": false,
+    "cleanup_executed": false,
+    "production_operation": false
+  },
+  "disposition": {
+    "toolchain_probe": "passed",
+    "u1_generation_authorized": false,
+    "u1_review_record_permitted": true,
+    "future_board_action_authorized": false,
+    "ready_merge_release_authorized": false,
+    "next_action": "freeze final source head and exact U1 review binding, then obtain explicit one-shot operator authorization for offline private PKI generation only"
+  }
+}

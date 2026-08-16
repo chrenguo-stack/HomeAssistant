@@ -1,0 +1,182 @@
+name: H3 N2 Stage2D9R Immutable Build Reusable
+
+on:
+  workflow_call:
+    inputs:
+      lane:
+        required: true
+        type: string
+      artifact_name:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  clean-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    env:
+      SOURCE_DATE_EPOCH: "1784851200"
+      TZ: UTC
+      LC_ALL: C.UTF-8
+      LANG: C.UTF-8
+      PYTHONHASHSEED: "0"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Verify immutable build source inputs
+        run: |
+          set -euo pipefail
+          echo 'd27122cf9cdc79f5dea2e9d9c40b64cbb29e675440b329fe846fa9a9e5bbaff4  tools/h3_n2_stage2d9r_immutable_build_packager_20260724_v1.py' | sha256sum -c -
+          echo 'ff5d93654b87075fd9764ad0aceb00c5cf9e94136162b1e5dbe4b78f18989f99  tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_final_build_binding_20260724_v1.json' | sha256sum -c -
+          echo 'a6c9868e2a82e2feccbaaf9c5d331e2d7eb9306ffa555cd5594173830286c037  firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/greenhouse_profile_isolated_device_g3r_immutable_20260724_v1.yml' | sha256sum -c -
+          echo '91c10168174438fc30b3dce087a6b75e24375b87b4262bafddb5b2822ee16d23  tests/h3_n2_stage2d9r_tls_candidate/public_command_material_tlsvalid01/public-command-material-descriptor.redacted.json' | sha256sum -c -
+          echo '5afa0f77d5d815f00b14afbcc3b974037c5ba10c9bdcdcffa196b55e403b5cd8  firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3_prepare/stage2d9_g3_partitions_20260722_v65.csv' | sha256sum -c -
+      - name: Install pinned ESPHome
+        run: python -m pip install -q "esphome==2026.4.3"
+      - name: Bind ESPHome build clock to SOURCE_DATE_EPOCH
+        id: reproducible_time
+        run: |
+          set -euo pipefail
+          python - <<'PY' | tee /tmp/stage2d9r-esphome-time-patch.txt
+          import hashlib
+          import os
+          from pathlib import Path
+          import esphome.writer
+
+          path = Path(esphome.writer.__file__).resolve(strict=True)
+          text = path.read_text(encoding='utf-8')
+          old = (
+              '    build_time = int(time.time())\n'
+              '    build_time_str = time.strftime("%Y-%m-%d %H:%M:%S %z", time.localtime(build_time))\n'
+          )
+          new = (
+              '    source_date_epoch = os.environ.get("SOURCE_DATE_EPOCH")\n'
+              '    build_time = int(source_date_epoch) if source_date_epoch is not None else int(time.time())\n'
+              '    build_time_str = time.strftime("%Y-%m-%d %H:%M:%S %z", time.localtime(build_time))\n'
+          )
+          if text.count(old) != 1:
+              raise RuntimeError('ESPHome writer build-time source is not the reviewed 2026.4.3 form')
+          patched = text.replace(old, new)
+          path.write_text(patched, encoding='utf-8')
+          observed = hashlib.sha256(path.read_bytes()).hexdigest()
+          epoch = os.environ.get('SOURCE_DATE_EPOCH')
+          if epoch != '1784851200':
+              raise RuntimeError('SOURCE_DATE_EPOCH binding changed')
+          print(f'writer_path={path}')
+          print(f'esphome_writer_sha256={observed}')
+          print(f'source_date_epoch={epoch}')
+          PY
+          writer_hash="$(sed -n 's/^esphome_writer_sha256=//p' /tmp/stage2d9r-esphome-time-patch.txt)"
+          test "${#writer_hash}" = 64
+          echo "esphome_writer_sha256=$writer_hash" >> "$GITHUB_OUTPUT"
+      - name: Capture deterministic Python environment
+        id: environment
+        env:
+          ESPHOME_WRITER_SHA256: ${{ steps.reproducible_time.outputs.esphome_writer_sha256 }}
+        run: |
+          set -euo pipefail
+          {
+            python -m pip freeze --all
+            echo "esphome-writer-patched-sha256==$ESPHOME_WRITER_SHA256"
+            echo "source-date-epoch==$SOURCE_DATE_EPOCH"
+          } | LC_ALL=C sort > /tmp/stage2d9r-python-environment.txt
+          digest="$(sha256sum /tmp/stage2d9r-python-environment.txt | awk '{print $1}')"
+          workflow_digest="$(sha256sum .github/workflows/h3-n2-stage2d9r-immutable-build-reusable.yml | awk '{print $1}')"
+          echo "python_environment_sha256=$digest" >> "$GITHUB_OUTPUT"
+          echo "compile_workflow_sha256=$workflow_digest" >> "$GITHUB_OUTPUT"
+      - name: Validate immutable target
+        run: |
+          set -o pipefail
+          cd firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare
+          esphome config greenhouse_profile_isolated_device_g3r_immutable_20260724_v1.yml \
+            2>&1 | tee /tmp/stage2d9r-immutable-${{ inputs.lane }}-config.log
+      - name: Clean compile immutable target
+        run: |
+          set -euo pipefail
+          rm -rf firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/.esphome
+          cd firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare
+          esphome compile greenhouse_profile_isolated_device_g3r_immutable_20260724_v1.yml \
+            2>&1 | tee /tmp/stage2d9r-immutable-${{ inputs.lane }}-compile.log
+          grep -F 'INFO Successfully compiled program.' /tmp/stage2d9r-immutable-${{ inputs.lane }}-compile.log
+      - name: Verify deterministic build timestamp
+        run: |
+          set -euo pipefail
+          app='firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/.esphome/build/gh-2d9r-g3r-i1/.pioenvs/gh-2d9r-g3r-i1/firmware.bin'
+          test -f "$app"
+          strings "$app" | grep -Fx '2026-07-24 00:00:00 +0000'
+      - name: Package deterministic public-only firmware payload
+        env:
+          BUILD_LANE: ${{ inputs.lane }}
+          ARTIFACT_NAME: ${{ inputs.artifact_name }}
+          PYTHON_ENV_SHA256: ${{ steps.environment.outputs.python_environment_sha256 }}
+          COMPILE_WORKFLOW_SHA256: ${{ steps.environment.outputs.compile_workflow_sha256 }}
+        run: |
+          set -euo pipefail
+          python tools/h3_n2_stage2d9r_immutable_build_packager_20260724_v1.py \
+            --build-root firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/.esphome/build/gh-2d9r-g3r-i1 \
+            --output-dir "/tmp/stage2d9r-immutable-build-$BUILD_LANE" \
+            --lane "$BUILD_LANE" \
+            --artifact-name "$ARTIFACT_NAME" \
+            --source-sha "$GITHUB_SHA" \
+            --run-id "$GITHUB_RUN_ID" \
+            --python-environment-sha256 "$PYTHON_ENV_SHA256" \
+            --compile-workflow-sha256 "$COMPILE_WORKFLOW_SHA256" \
+            | tee "/tmp/stage2d9r-immutable-$BUILD_LANE-package.log"
+      - name: Verify package privacy boundary
+        env:
+          BUILD_LANE: ${{ inputs.lane }}
+        run: |
+          set -euo pipefail
+          root="/tmp/stage2d9r-immutable-build-$BUILD_LANE"
+          test -f "$root/stage2d9r-g3r-immutable-payload-v1.tar"
+          test -f "$root/build-record.json"
+          test -f "$root/payload-tar.sha256"
+          test "$(stat -c '%a' "$root/stage2d9r-g3r-immutable-payload-v1.tar")" = "600"
+          grep -Fx 'PRIVATE_VALUES_INCLUDED=false' "/tmp/stage2d9r-immutable-$BUILD_LANE-package.log"
+          grep -Fx 'EXECUTION_AUTHORIZED=false' "/tmp/stage2d9r-immutable-$BUILD_LANE-package.log"
+          grep -Fx 'BOARD_OPERATION_AUTHORIZED=false' "/tmp/stage2d9r-immutable-$BUILD_LANE-package.log"
+          grep -Fx 'NETWORK_OPERATION_AUTHORIZED=false' "/tmp/stage2d9r-immutable-$BUILD_LANE-package.log"
+          if grep -Eqi \
+            'BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|unlock-token.hex|/Users/|/private/tmp/' \
+            "$root/build-record.json"; then
+            echo 'private material detected in immutable build record' >&2
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: /tmp/stage2d9r-immutable-build-${{ inputs.lane }}
+          if-no-files-found: error
+          retention-days: 5
+          compression-level: 0
+      - name: Report locked compile boundary
+        run: |
+          printf '%s\n' \
+            'STAGE2D9R_IMMUTABLE_BUILD_UPLOAD=PASS' \
+            'LANE=${{ inputs.lane }}' \
+            'SOURCE_DATE_EPOCH=1784851200' \
+            'EXECUTION_AUTHORIZED=false' \
+            'BOARD_OPERATION_AUTHORIZED=false' \
+            'NETWORK_OPERATION_AUTHORIZED=false' \
+            'PREPARE_AUTHORIZED=false' \
+            'VERIFY_AUTHORIZED=false' \
+            'READY_AUTHORIZED=false' \
+            'MERGE_AUTHORIZED=false' \
+            'RELEASE_AUTHORIZED=false'
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf \
+            firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/.esphome \
+            /tmp/stage2d9r-immutable-build-${{ inputs.lane }}
+          rm -f \
+            /tmp/stage2d9r-immutable-${{ inputs.lane }}-*.log \
+            /tmp/stage2d9r-python-environment.txt \
+            /tmp/stage2d9r-esphome-time-patch.txt

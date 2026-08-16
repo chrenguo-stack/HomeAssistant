@@ -1,0 +1,105 @@
+name: H3 N2 Stage2D9R Immutable Build Contract CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-immutable-build-contract-ci.yml"
+      - "tools/h3_n2_stage2d9r_immutable_build_manifest_gate_20260723_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_immutable_build_manifest_20260723_v1.json.template"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_immutable_build_manifest_gate_20260723_v1.py"
+  push:
+    branches:
+      - feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-immutable-build-contract-ci.yml"
+      - "tools/h3_n2_stage2d9r_immutable_build_manifest_gate_20260723_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_immutable_build_manifest_20260723_v1.json.template"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_immutable_build_manifest_gate_20260723_v1.py"
+
+permissions:
+  contents: read
+
+jobs:
+  immutable-build-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile immutable manifest gate and tests
+        run: |
+          python -m py_compile \
+            tools/h3_n2_stage2d9r_immutable_build_manifest_gate_20260723_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_immutable_build_manifest_gate_20260723_v1.py
+      - name: Run immutable manifest fault matrix
+        run: |
+          set -euo pipefail
+          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_immutable_build_manifest_gate_20260723_v1.py \
+            -v 2>&1 | tee /tmp/stage2d9r-immutable-build-tests-v1.log
+          grep -F 'Ran 11 tests' /tmp/stage2d9r-immutable-build-tests-v1.log
+          grep -F 'OK' /tmp/stage2d9r-immutable-build-tests-v1.log
+      - name: Validate locked immutable build template
+        run: |
+          set -euo pipefail
+          python tools/h3_n2_stage2d9r_immutable_build_manifest_gate_20260723_v1.py \
+            --manifest tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_immutable_build_manifest_20260723_v1.json.template \
+            --expect-state LOCKED_SOURCE \
+            | tee /tmp/stage2d9r-immutable-build-gate-v1.log
+          grep -Fx 'STAGE2D9R_IMMUTABLE_BUILD_GATE=PASS' \
+            /tmp/stage2d9r-immutable-build-gate-v1.log
+          grep -Fx 'STATE=LOCKED_SOURCE' \
+            /tmp/stage2d9r-immutable-build-gate-v1.log
+          grep -Fx 'EXECUTION_AUTHORIZED=false' \
+            /tmp/stage2d9r-immutable-build-gate-v1.log
+          grep -Fx 'READY_AUTHORIZED=false' \
+            /tmp/stage2d9r-immutable-build-gate-v1.log
+          grep -Fx 'MERGE_AUTHORIZED=false' \
+            /tmp/stage2d9r-immutable-build-gate-v1.log
+          grep -Fx 'RELEASE_AUTHORIZED=false' \
+            /tmp/stage2d9r-immutable-build-gate-v1.log
+      - name: Verify source-only manifest boundary
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          manifest = json.loads(Path(
+              'tests/h3_n2_stage2d9r_tls_candidate/'
+              'stage2d9r_immutable_build_manifest_20260723_v1.json.template'
+          ).read_text(encoding='utf-8'))
+          assert manifest['state'] == 'LOCKED_SOURCE'
+          assert manifest['compile_run_ids'] == []
+          assert manifest['artifact']['artifact_id'] is None
+          assert manifest['reproducibility']['clean_build_count'] == 0
+          assert manifest['reproducibility']['all_firmware_hashes_identical'] is False
+          for key in (
+              'private_values_included',
+              'private_paths_included',
+              'execution_authorized',
+              'board_operation_authorized',
+              'serial_operation_authorized',
+              'flash_operation_authorized',
+              'physical_nvs_operation_authorized',
+              'network_operation_authorized',
+              'broker_operation_authorized',
+              'prepare_authorized',
+              'verify_authorized',
+              'activate_authorized',
+              'cleanup_authorized',
+              'production_operation_authorized',
+              'ready_authorized',
+              'merge_authorized',
+              'release_authorized',
+          ):
+              assert manifest[key] is False, key
+          PY
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -f \
+            /tmp/stage2d9r-immutable-build-tests-v1.log \
+            /tmp/stage2d9r-immutable-build-gate-v1.log

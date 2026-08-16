@@ -1,0 +1,157 @@
+name: H3 N2 Stage2D9R Private Content Success Marker Probe Package CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-private-content-success-marker-probe-package-ci.yml"
+      - "tools/h3_n2_stage2d9r_private_content_success_marker_probe_20260725_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_content_success_marker_probe_20260725_v1.py"
+  push:
+    branches:
+      - feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-private-content-success-marker-probe-package-ci.yml"
+      - "tools/h3_n2_stage2d9r_private_content_success_marker_probe_20260725_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_content_success_marker_probe_20260725_v1.py"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Fail closed on repository drift
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+        run: |
+          set -euo pipefail
+          test "$HEAD_BRANCH" = feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          git fetch --no-tags --depth=1 origin main
+          test "$(git rev-parse FETCH_HEAD)" = a3a72d75480362999e70e180f33459198b3951b5
+          test "$(git status --porcelain)" = ""
+
+      - name: Verify success marker probe contract
+        run: |
+          set -euo pipefail
+          sha256sum -c <<'SUMS'
+          994c3f633213ed64e436fff8411eb5258d2a18569a2c3875f74f830cb5e88cb0  tools/h3_n2_stage2d9r_private_content_success_marker_probe_20260725_v1.py
+          f22b386facdef641a354d97d1bb0f0576a3d8b952c94d3a462a0664d0187fea3  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_content_success_marker_probe_20260725_v1.py
+          SUMS
+          export PYTHONPYCACHEPREFIX=/tmp/stage2d9r-success-marker-pycache
+          python -m py_compile \
+            tools/h3_n2_stage2d9r_private_content_success_marker_probe_20260725_v1.py
+          python \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_content_success_marker_probe_20260725_v1.py \
+            -v 2>&1 | tee /tmp/success-marker-contract.log
+          grep -F 'Ran 4 tests' /tmp/success-marker-contract.log
+          grep -F 'OK' /tmp/success-marker-contract.log
+          test -z "$(find . -type d -name __pycache__ -print -quit)"
+          test -z "$(find . -type f \( -name '*.pyc' -o -name '*.pyo' \) -print -quit)"
+          rm -rf "$PYTHONPYCACHEPREFIX"
+
+      - name: Assemble read-only U1-04 success marker probe
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-private-content-u1-04-success-marker-probe-v1
+          mkdir -p "$root/tools"
+          cp tools/h3_n2_stage2d9r_private_content_success_marker_probe_20260725_v1.py "$root/tools/"
+          cat > "$root/README.md" <<'EOF'
+          # Stage 2D-9R U1-04 consumed-success marker probe
+
+          Read-only metadata probe. It validates the U1-04 marker as CONSUMED,
+          binds the exact authorization-record and private-content result SHA-256,
+          and reports only the marker SHA-256 plus already-public safe metadata.
+          It does not read private PKI or command content, modify the marker, or
+          perform network, Broker, board, serial, Flash/NVS, PREPARE, VERIFY,
+          ACTIVATE, CLEANUP, production, Ready, merge, release, tag, or deployment
+          operations.
+          EOF
+          cat > "$root/run_stage2d9r_private_content_success_marker_probe_20260725_v1_d1cd5f72.sh" <<'SH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          umask 077
+          ROOT="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)"
+          cd "$ROOT"
+          shasum -a 256 -c SHA256SUMS
+          "$(command -v python3)" \
+            "$ROOT/tools/h3_n2_stage2d9r_private_content_success_marker_probe_20260725_v1.py"
+          SH
+          chmod 0700 "$root"/run_*.sh
+          find "$root" -type f ! -name 'run_*.sh' -exec chmod 0600 {} +
+          (cd "$root" && find . -type f ! -name SHA256SUMS -print0 | LC_ALL=C sort -z | xargs -0 shasum -a 256 | sed 's#  \./#  #' > SHA256SUMS)
+          chmod 0600 "$root/SHA256SUMS"
+
+      - name: Smoke-test fail-closed package boundary
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-private-content-u1-04-success-marker-probe-v1
+          empty=/tmp/stage2d9r-private-content-u1-04-empty-home
+          mkdir -m 0700 "$empty"
+          (cd "$root" && sha256sum -c SHA256SUMS)
+          set +e
+          output="$(PYTHONDONTWRITEBYTECODE=1 python "$root/tools/h3_n2_stage2d9r_private_content_success_marker_probe_20260725_v1.py" --home "$empty" 2>&1)"
+          rc=$?
+          set -e
+          printf '%s\n' "$output"
+          test "$rc" -eq 2
+          grep -F 'FAILURE_CODE=AUTHORIZATION_DIRECTORY_INVALID' <<<"$output"
+          grep -F 'PRIVATE_CONTENT_READ=false' <<<"$output"
+          grep -F 'MARKER_MODIFIED=false' <<<"$output"
+          test -z "$(find "$empty" -mindepth 1 -print -quit)"
+
+      - name: Verify exact package inventory and redaction boundary
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-private-content-u1-04-success-marker-probe-v1
+          (cd "$root" && sha256sum -c SHA256SUMS)
+          test -z "$(find "$root" -type d -name __pycache__ -print -quit)"
+          test -z "$(find "$root" -type f \( -name '*.pyc' -o -name '*.pyo' \) -print -quit)"
+          ! grep -R -I -n -E 'BEGIN (RSA |EC )?PRIVATE KEY|/Users/|/private/tmp/|unlock-token\.hex' "$root"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-private-content-u1-04-success-marker-probe-v1
+          path: /tmp/stage2d9r-private-content-u1-04-success-marker-probe-v1
+          if-no-files-found: error
+          retention-days: 5
+          compression-level: 0
+
+      - name: Report safe diagnostic boundary
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          printf '%s\n' \
+            'STAGE2D9R_U1_04_SUCCESS_MARKER_PROBE_PACKAGE=PASS' \
+            "SOURCE_SHA=$SOURCE_SHA" \
+            'MAIN_SHA=a3a72d75480362999e70e180f33459198b3951b5' \
+            'U1_04_STATUS_EXPECTED=CONSUMED' \
+            'U1_04_RECORD_SHA256=f9d02e196fa884be7b72a18849bd59aa902512bc5cfac8f20b10ecd20fdf9ed8' \
+            'U1_04_RESULT_SHA256=d1cd5f72134a19f0748869990e4ff15f61ac0df02331b74ad57a603d35c617a7' \
+            'PRIVATE_CONTENT_READ=false' \
+            'MARKER_MODIFIED=false' \
+            'NETWORK_OPERATION=false' \
+            'BROKER_STARTED=false' \
+            'BOARD_OPERATION=false' \
+            'SERIAL_OPERATION=false' \
+            'FLASH_OPERATION=false'
+
+      - name: Cleanup
+        if: always()
+        run: rm -rf /tmp/stage2d9r-private-content-u1-04-success-marker-probe-v1 /tmp/stage2d9r-private-content-u1-04-empty-home /tmp/stage2d9r-success-marker-pycache /tmp/success-marker-contract.log

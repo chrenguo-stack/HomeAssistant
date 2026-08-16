@@ -1,0 +1,70 @@
+{
+  "schema": "gh.h3.n2.stage2d9r-private-content-u1-success-l1/1",
+  "stage": "H3/N2 Stage 2D-9R G3R",
+  "authorization_id": "U1-H3N2-STAGE2D9R-PRIVATE-CONTENT-BINDING-20260724-04",
+  "result": "consumed_passed_retired",
+  "binding_source_sha": "6a145847401bb4b64d32661b73764c8679330fb9",
+  "pull_request": 176,
+  "authorization_record_sha256": "f9d02e196fa884be7b72a18849bd59aa902512bc5cfac8f20b10ecd20fdf9ed8",
+  "private_content_binding_sha256": "d1cd5f72134a19f0748869990e4ff15f61ac0df02331b74ad57a603d35c617a7",
+  "consumed_marker_sha256": "0f4cf491548527d0c8339f1261777420952db9c59805badeafc55b62dba0d8dc",
+  "status": "CONSUMED",
+  "failure_code": null,
+  "one_shot": true,
+  "replay_permitted": false,
+  "automatic_retry_permitted": false,
+  "command_binding": {
+    "private_package_sha256": "cc9086c20781007655c498b78ff1ce7af3316db0c02edbae2440d177d7fdfbb5",
+    "unlock_digest_sha256": "3650d44f8761f21dc1931fbd9b6ba6a1d9da92ffa469b3d4f98ee5411a6809e3",
+    "token_file_digest_bound": true,
+    "u1_01_record_cross_binding_valid": true,
+    "u1_02_record_cross_binding_valid": true,
+    "raw_unlock_token_included": false
+  },
+  "pki_binding": {
+    "private_package_sha256": "0632b37a70aa2eae416c48ffa9420a8f1e13788c22a7d12e211f77cf6e78a267",
+    "ca_pem_sha256": "cfcb6638ed61731270f3bf8e9e262c1512fbca8ff34d4b08b62186453233e963",
+    "broker_certificate_sha256": "988b6f82b04b0b3cf13f58a07ecd85e420e5576c167fe01ea0940d4530e20ac7",
+    "broker_spki_sha256": "f034dc2a036f709287f0558773418ee1799e75bee50dcf55e09143a3a9052a03",
+    "candidate_digest_sha256": "f22144e37372b883b7a38d07eff2980a865108cf7c8fed9bfdb9f198a030b5c5",
+    "root_ca_private_key_matches_certificate": true,
+    "broker_private_key_matches_certificate": true,
+    "certificate_chain_valid": true,
+    "hostname_valid": true,
+    "password_database_hash_format_valid": true,
+    "authorization_record_cross_binding_valid": true,
+    "raw_private_keys_included": false,
+    "raw_mqtt_password_included": false,
+    "password_database_content_included": false
+  },
+  "success_marker_probe": {
+    "schema": "gh.h3.n2.stage2d9r-private-content-success-marker-probe/1",
+    "passed": true,
+    "marker_modified": false,
+    "private_content_read": false,
+    "private_paths_included": false,
+    "secret_values_included": false
+  },
+  "protected_boundaries": {
+    "network_operation": false,
+    "broker_started": false,
+    "board_operation": false,
+    "serial_operation": false,
+    "flash_operation": false,
+    "physical_nvs_operation": false,
+    "prepare_executed": false,
+    "verify_executed": false,
+    "activate_executed": false,
+    "cleanup_executed": false,
+    "production_operation": false,
+    "ready_merge_release_authorized": false
+  },
+  "disposition": {
+    "u1_04_retired": true,
+    "u1_04_replay_authorized": false,
+    "private_content_binding_closed": true,
+    "next_gate": "D2_REVIEW_ONLY_AFTER_CURRENT_HEAD_ALL_CI_SUCCESS_AND_BINDING_RECHECK",
+    "d2_authorized": false,
+    "physical_execution_authorized": false
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "broker_host": "stage2d9r.local",
+  "broker_port": 8883,
+  "broker_tls_server_name": "stage2d9r.local",
+  "credential_generation": 1,
+  "dns_san": [
+    "stage2d9r.local"
+  ],
+  "execution_authorized": false,
+  "mqtt_client_id": "gh-test-client-gh-test-run-tlsvalid01",
+  "mqtt_password_sha256": "2cad4f6eddc6cce6eb1b1ced62a07f9a8f5ac73232de44664b403f5090145c2f",
+  "mqtt_username": "stage2d9r-test",
+  "network_operation_authorized": false,
+  "node_id": "gh-test-node-tlsvalid01",
+  "private_values_included": false,
+  "schema": "gh.h3.n2.stage2d9r-isolated-broker-public-config/1",
+  "system_id": "gh-test-system-tlsvalid01",
+  "test_run_suffix": "tlsvalid01",
+  "test_topic_root": "gh-test/gh-test-run-tlsvalid01/node"
+}

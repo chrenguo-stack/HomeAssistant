@@ -1,0 +1,137 @@
+name: H3 N2 Stage2D9R Private Command Material Contract CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-private-command-material-contract-ci.yml"
+      - "tools/h3_n2_stage2d9r_private_command_material_generator_20260724_v1.py"
+      - "tools/h3_n2_stage2d9r_private_command_material_gate_20260724_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_command_material_20260724_v1.py"
+      - "docs/development/h3-n2-stage2d9r-private-command-material-u1-review-20260724-v1.md"
+      - "docs/acceptance/h3-n2-stage2d9r-private-command-material-toolchain-probe-l1-v1.json"
+      - "docs/status/STAGE_STATUS_H3_N2_STAGE2D9R_G3R_20260723.md"
+  push:
+    branches:
+      - feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-private-command-material-contract-ci.yml"
+      - "tools/h3_n2_stage2d9r_private_command_material_generator_20260724_v1.py"
+      - "tools/h3_n2_stage2d9r_private_command_material_gate_20260724_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_command_material_20260724_v1.py"
+      - "docs/development/h3-n2-stage2d9r-private-command-material-u1-review-20260724-v1.md"
+      - "docs/acceptance/h3-n2-stage2d9r-private-command-material-toolchain-probe-l1-v1.json"
+      - "docs/status/STAGE_STATUS_H3_N2_STAGE2D9R_G3R_20260723.md"
+
+permissions:
+  contents: read
+
+jobs:
+  command-material-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Verify frozen reviewed source digests
+        run: |
+          set -euo pipefail
+          echo '60628bf274fdcca05e8644b30510f6abde2129a57e3e49ca5a12db30d7129563  tools/h3_n2_stage2d9r_private_command_material_generator_20260724_v1.py' | sha256sum -c -
+          echo '512fb70c14d3ad983055fde4e85cb3814445df3ad7b5555695cc6c54575b4a6e  tools/h3_n2_stage2d9r_private_command_material_gate_20260724_v1.py' | sha256sum -c -
+          echo '5a7ed752b8e9e54f0f8c9e5f00f63360fa2a441ca38073dd67028506b57e6462  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_command_material_20260724_v1.py' | sha256sum -c -
+      - name: Verify read-only toolchain probe public closure
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path('docs/acceptance/h3-n2-stage2d9r-private-command-material-toolchain-probe-l1-v1.json')
+          data = json.loads(path.read_text(encoding='utf-8'))
+          assert data['schema'] == 'gh.h3.n2.stage2d9r-private-command-material-toolchain-probe-l1/1'
+          assert data['stage'] == 'H3/N2 Stage 2D-9R G3R'
+          assert data['result'] == 'passed_read_only_with_terminal_tail_noise'
+          package = data['probe_package']
+          assert package['artifact_id'] == 8571761445
+          assert package['artifact_source_sha'] == '0e7faaaed40433e4b7e0b985f4684b3d126f6948'
+          assert package['artifact_zip_sha256'] == '914379b7640cf60591211d709f16197d6bff40ed7ab942bfb51468e59fa4407a'
+          assert package['implementation_binding'] == '3d3b67cac008adf30e90a51e891d0dd53b36df69'
+          toolchain = data['toolchain']
+          assert toolchain['generator_sha256'] == '60628bf274fdcca05e8644b30510f6abde2129a57e3e49ca5a12db30d7129563'
+          assert toolchain['gate_sha256'] == '512fb70c14d3ad983055fde4e85cb3814445df3ad7b5555695cc6c54575b4a6e'
+          assert toolchain['python_executable_sha256'] == '4e28e811a89aeac6eed668ae641c7f85f5831e42e8dc6cd9a85a3bcc032ec46a'
+          custody = data['custody']
+          assert custody['root_selection_rule'] == 'HOME_LOCAL_STATE_STAGE2D9R_PRIVATE_COMMAND_MATERIAL_V1'
+          assert custody['root_digest_sha256'] == 'ef5f79be168fff686cabcc91fdc4109918d75d3311da1209dd8d0e381804006e'
+          assert custody['root_exists'] is False
+          capture = data['capture_integrity']
+          assert capture['bound_fields_complete'] is True
+          assert capture['trailing_stage_field_used_as_security_binding'] is False
+          assert capture['rerun_required'] is False
+          assert all(value is False for value in data['privacy'].values())
+          assert all(value is False for value in data['protected_boundaries'].values())
+          PY
+      - name: Compile generator gate and tests
+        run: |
+          python -m py_compile \
+            tools/h3_n2_stage2d9r_private_command_material_generator_20260724_v1.py \
+            tools/h3_n2_stage2d9r_private_command_material_gate_20260724_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_command_material_20260724_v1.py
+      - name: Run command-material fault matrix
+        run: |
+          set -euo pipefail
+          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_private_command_material_20260724_v1.py \
+            -v 2>&1 | tee /tmp/stage2d9r-command-material-tests-v1.log
+          grep -F 'Ran 8 tests' /tmp/stage2d9r-command-material-tests-v1.log
+          grep -F 'OK' /tmp/stage2d9r-command-material-tests-v1.log
+      - name: Verify default invocation fails closed
+        run: |
+          set +e
+          python tools/h3_n2_stage2d9r_private_command_material_generator_20260724_v1.py \
+            > /tmp/stage2d9r-command-material-default-v1.log 2>&1
+          rc=$?
+          set -e
+          test "$rc" -ne 0
+          grep -Fx 'STAGE2D9R_PRIVATE_COMMAND_MATERIAL_GENERATION=FAIL' /tmp/stage2d9r-command-material-default-v1.log
+          grep -Fx 'SECRET_VALUES_INCLUDED=false' /tmp/stage2d9r-command-material-default-v1.log
+          grep -Fx 'BOARD_OPERATION=false' /tmp/stage2d9r-command-material-default-v1.log
+          grep -Fx 'NETWORK_OPERATION=false' /tmp/stage2d9r-command-material-default-v1.log
+          grep -Fx 'BROKER_STARTED=false' /tmp/stage2d9r-command-material-default-v1.log
+      - name: Verify prohibited operation surface is absent
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          text = Path('tools/h3_n2_stage2d9r_private_command_material_generator_20260724_v1.py').read_text()
+          for required in (
+              'generation requires explicit --execute',
+              'authorization already claimed or consumed',
+              'custody root selection rule mismatch',
+              'implementation binding mismatch',
+              'BOARD_OPERATION=false',
+              'NETWORK_OPERATION=false',
+              'BROKER_STARTED=false',
+          ):
+              assert required in text, required
+          for prohibited in (
+              'import socket', 'from socket import', 'requests.', 'urllib.request',
+              'serial.Serial', 'esptool', 'mosquitto', 'systemctl', 'docker ',
+              'PREPARE_CANDIDATE ', 'ACTIVATE_PROFILE ', 'CLEANUP_TEST_STATE ',
+              'homeassistant', 'greenhouse-manager',
+          ):
+              assert prohibited not in text, prohibited
+          PY
+      - name: Report locked boundary
+        run: |
+          printf '%s\n' \
+            'STAGE2D9R_PRIVATE_COMMAND_MATERIAL_CONTRACT=PASS' \
+            'PRIVATE_GENERATION_AUTHORIZED=false' \
+            'BOARD_OPERATION_AUTHORIZED=false' \
+            'NETWORK_OPERATION_AUTHORIZED=false' \
+            'BROKER_OPERATION_AUTHORIZED=false' \
+            'PREPARE_AUTHORIZED=false' \
+            'VERIFY_AUTHORIZED=false'
+      - name: Cleanup
+        if: always()
+        run: rm -f /tmp/stage2d9r-command-material-*.log

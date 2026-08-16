@@ -1,0 +1,98 @@
+{
+  "authorization": {
+    "authorization_binding_sha256": "283b6bf20bbeda03181a719ffd638f3a4b3a40e86c047aff9f4280df29763327",
+    "authorization_record_sha256": "fb11a086dcfb58ea483aae4d5c09f13c5740a5d619c4e967013a5da8e70fd44e",
+    "authorized_execution_package_sha256": "0c8b7a3bbdef7f913a2434f0c9cac0e1ad475d29729cdf824c52b57736bf2d3d",
+    "automatic_retry_permitted": false,
+    "command_group_sha256": "6c80d52017444a176417e7572e251918dbd5584ec60e0fced7533581ee5aac5f",
+    "consumed": true,
+    "one_shot": true,
+    "replay_permitted": false,
+    "review_binding_sha256": "aa2c28c7ca6f3eff1aa61a5827c58102527a0548c683798d670b53daf2ea65d9",
+    "review_package_sha256": "3d7a1055d68d161f7f9bb6c3077ee2bf010cfad45a97bb437c3e11bc19df5b2c",
+    "status": "consumed_passed_retired",
+    "stop_conditions_sha256": "67616bae0c2be5fdb06f59659cf3f3cf39d1170b2f1b01c7a524779a13c091b5"
+  },
+  "authorization_id": "U1-H3N2-STAGE2D9R-COMMAND-MATERIAL-20260724-02",
+  "disposition": {
+    "future_board_action_authorized": false,
+    "future_u1_replay_authorized": false,
+    "next_action": "commit the independently verified redacted public descriptor and this public closure to Draft PR #176, require the new HEAD closure CI to pass, then separately bind the nonzero unlock digest into immutable firmware source without authorizing board or network operations",
+    "public_descriptor_content_pending_read_only_export": false,
+    "u1_02_authorization_retired": true,
+    "u1_02_generation": "passed"
+  },
+  "generated_public_bindings": {
+    "authorization_consumed_marker_sha256": "1fc51b7338adc56b00b38795173b805b7408e7aafa4e0315e7553dc5898779a9",
+    "ca_pem_sha256": "cfcb6638ed61731270f3bf8e9e262c1512fbca8ff34d4b08b62186453233e963",
+    "candidate_digest_sha256": "f22144e37372b883b7a38d07eff2980a865108cf7c8fed9bfdb9f198a030b5c5",
+    "execution_binding_sha256": "283b6bf20bbeda03181a719ffd638f3a4b3a40e86c047aff9f4280df29763327",
+    "private_command_material_package_sha256": "cc9086c20781007655c498b78ff1ce7af3316db0c02edbae2440d177d7fdfbb5",
+    "private_descriptor_sha256": "cda5b1604200045fec0db45e46f9c441e1bde10f2e5a57f8c98ee2d14b5f9a75",
+    "public_descriptor_sha256": "91c10168174438fc30b3dce087a6b75e24375b87b4262bafddb5b2822ee16d23",
+    "unlock_digest_sha256": "3650d44f8761f21dc1931fbd9b6ba6a1d9da92ffa469b3d4f98ee5411a6809e3"
+  },
+  "implementation_binding": "3d3b67cac008adf30e90a51e891d0dd53b36df69",
+  "offline_proofs": {
+    "authorization_consumed": true,
+    "private_custody_gate": "passed_by_wrapper_before_PASS",
+    "private_modes_valid": true,
+    "public_descriptor_export_sha256": "91c10168174438fc30b3dce087a6b75e24375b87b4262bafddb5b2822ee16d23",
+    "public_descriptor_read_only_export_verified": true,
+    "public_private_leakage_scan_passed": true,
+    "self_contained_source_integrity": "passed"
+  },
+  "prior_failed_authorization": {
+    "authorization_id": "U1-H3N2-STAGE2D9R-COMMAND-MATERIAL-20260724-01",
+    "authorization_record_sha256": "a574d572aeecd63439e4e4c8ff1f2a70cf984bfcab7ece67db1d61fe7daae737",
+    "consumed_marker_sha256": "7461c0396a7be9fc99d1e880fdfc386054f003b4a64f9e758e6b826f93769314",
+    "custody_root_created": false,
+    "failure_closure_sha256": "e13d19af3f70ea72c7f74f583ee187ba55fe61dd9df99779a2afb4f2a36361a4",
+    "failure_stage": "WRAPPER_PRECHECK",
+    "generator_invoked": false,
+    "replay_permitted": false,
+    "status": "consumed_failed_retired",
+    "unlock_token_generated": false
+  },
+  "privacy": {
+    "private_keys_included": false,
+    "private_paths_included": false,
+    "raw_authorization_record_included": false,
+    "raw_mqtt_password_included": false,
+    "raw_unlock_token_included": false,
+    "secret_values_included": false
+  },
+  "protected_boundaries": {
+    "activate_executed": false,
+    "board_operation": false,
+    "broker_started": false,
+    "cleanup_executed": false,
+    "flash_operation": false,
+    "network_operation": false,
+    "physical_nvs_operation": false,
+    "prepare_executed": false,
+    "production_operation": false,
+    "ready_merge_release_tag_deployment_authorized": false,
+    "serial_operation": false,
+    "verify_executed": false
+  },
+  "pull_request": 176,
+  "repository": "chrenguo-stack/HomeAssistant",
+  "result": "passed_consumed_retired",
+  "schema": "gh.h3.n2.stage2d9r-private-command-material-u1-generation-l1/2",
+  "source_sha": "9dd8ca9e0b3139bfd187eb7a1dfa38485a9eb2fd",
+  "stage": "H3/N2 Stage 2D-9R G3R",
+  "toolchain": {
+    "contract_test_sha256": "5a7ed752b8e9e54f0f8c9e5f00f63360fa2a441ca38073dd67028506b57e6462",
+    "custody_root_digest_sha256": "ef5f79be168fff686cabcc91fdc4109918d75d3311da1209dd8d0e381804006e",
+    "custody_root_selection_rule": "HOME_LOCAL_STATE_STAGE2D9R_PRIVATE_COMMAND_MATERIAL_V1",
+    "gate_sha256": "512fb70c14d3ad983055fde4e85cb3814445df3ad7b5555695cc6c54575b4a6e",
+    "generator_sha256": "60628bf274fdcca05e8644b30510f6abde2129a57e3e49ca5a12db30d7129563",
+    "python_executable_sha256": "4e28e811a89aeac6eed668ae641c7f85f5831e42e8dc6cd9a85a3bcc032ec46a",
+    "python_version": "3.11.9"
+  },
+  "traceability": {
+    "pre_export_closure_sha256": "91766d2e8ace50cff15e8ea07cdbac9aaa6958e356577305bfe8b95cf19a27e2",
+    "public_descriptor_export_verified_from_operator_capture": true
+  }
+}

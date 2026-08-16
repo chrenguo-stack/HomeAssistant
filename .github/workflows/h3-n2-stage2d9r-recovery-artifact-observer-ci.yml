@@ -1,0 +1,139 @@
+name: H3 N2 Stage2D9R Locked Recovery Artifact Observer CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-recovery-artifact-observer-ci.yml"
+      - ".github/workflows/h3-n2-stage2d9r-recovery-artifact-closure-ci.yml"
+      - "tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_recovery_artifact_manifest_20260724_v1.json"
+      - "docs/acceptance/h3-n2-stage2d9r-locked-recovery-artifact-observer-l1-v1.json"
+      - "tools/h3_n2_stage2d9r_recovery_artifact_manifest_gate_20260724_v1.py"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  observe-committed-locked-recovery:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Verify exact committed recovery evidence
+        run: |
+          set -euo pipefail
+          echo '88ac19e9baa1c00581adfb89ad5f0b00a0cf5e4044fe330b4e5670615bf5df4a  tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_recovery_artifact_manifest_20260724_v1.json' | sha256sum -c -
+          echo '457f92efae2b48eae2b93ec887c9dc5b40c949b193ea2345db917f2d30f47058  docs/acceptance/h3-n2-stage2d9r-locked-recovery-artifact-observer-l1-v1.json' | sha256sum -c -
+          echo 'a2dc5dda67224475940f15361568b62adf3360bdeda61f370ff1cd2c65de5779  tools/h3_n2_stage2d9r_recovery_artifact_manifest_gate_20260724_v1.py' | sha256sum -c -
+      - name: Validate frozen manifest and observer binding
+        run: |
+          set -euo pipefail
+          manifest=tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_recovery_artifact_manifest_20260724_v1.json
+          observer=docs/acceptance/h3-n2-stage2d9r-locked-recovery-artifact-observer-l1-v1.json
+          python tools/h3_n2_stage2d9r_recovery_artifact_manifest_gate_20260724_v1.py \
+            --manifest "$manifest" \
+            | tee /tmp/stage2d9r-recovery-observer-gate.log
+          grep -Fx 'STAGE2D9R_RECOVERY_ARTIFACT_GATE=PASS' /tmp/stage2d9r-recovery-observer-gate.log
+          grep -Fx 'STATE=RECOVERY_ARTIFACT_FROZEN' /tmp/stage2d9r-recovery-observer-gate.log
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          manifest_path = Path(
+              'tests/h3_n2_stage2d9r_tls_candidate/'
+              'stage2d9r_recovery_artifact_manifest_20260724_v1.json'
+          )
+          observer_path = Path(
+              'docs/acceptance/'
+              'h3-n2-stage2d9r-locked-recovery-artifact-observer-l1-v1.json'
+          )
+          manifest_bytes = manifest_path.read_bytes()
+          observer_bytes = observer_path.read_bytes()
+          manifest = json.loads(manifest_bytes)
+          observer = json.loads(observer_bytes)
+
+          assert observer['schema'] == (
+              'gh.h3.n2.stage2d9r-locked-recovery-artifact-observer-l1/1'
+          )
+          assert observer['result'] == 'passed_read_only'
+          assert observer['source_sha'] == manifest['source_sha'] == (
+              'f312f8580d9f4312f4dd1429b2d7755e1c550636'
+          )
+          assert observer['build_a_run_id'] == manifest['build_run_ids'][0]
+          assert observer['build_b_run_id'] == manifest['build_run_ids'][1]
+          assert observer['canonical_artifact_id'] == (
+              manifest['artifact']['canonical_artifact_id']
+          )
+          assert observer['repro_artifact_id'] == (
+              manifest['artifact']['repro_artifact_id']
+          )
+          assert observer['payload_tar_sha256'] == (
+              manifest['artifact']['payload_tar_sha256']
+          )
+          assert observer['manifest_sha256'] == (
+              manifest['artifact']['manifest_sha256']
+          )
+          assert observer['manifest_file_sha256'] == hashlib.sha256(
+              manifest_bytes
+          ).hexdigest()
+          assert hashlib.sha256(observer_bytes).hexdigest() == (
+              '457f92efae2b48eae2b93ec887c9dc5b40c949b193ea2345db917f2d30f47058'
+          )
+          assert observer['reproducible'] is True
+          false_keys = (
+              'private_values_included', 'private_paths_included',
+              'execution_authorized', 'recovery_authorized',
+              'board_operation_authorized', 'serial_operation_authorized',
+              'flash_operation_authorized', 'physical_nvs_operation_authorized',
+              'network_operation_authorized', 'broker_operation_authorized',
+              'prepare_authorized', 'verify_authorized',
+              'activate_authorized', 'cleanup_authorized',
+              'production_operation_authorized', 'ready_authorized',
+              'merge_authorized', 'release_authorized',
+              'deployment_authorized',
+          )
+          for data in (manifest, observer):
+              for key in false_keys:
+                  assert data[key] is False, key
+          PY
+      - name: Verify frozen Artifact metadata remains available
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for spec in \
+            '8589561310:30075191850:stage2d9r-g3r-recovery-locked-v1' \
+            '8589560891:30075191822:stage2d9r-g3r-recovery-repro-v1' \
+            '8589568443:30075191767:stage2d9r-g3r-recovery-freeze-evidence-v1'; do
+            IFS=: read -r artifact_id run_id expected_name <<< "$spec"
+            data="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id")"
+            test "$(jq -r .name <<< "$data")" = "$expected_name"
+            test "$(jq -r .expired <<< "$data")" = false
+            test "$(jq -r .workflow_run.id <<< "$data")" = "$run_id"
+            test "$(jq -r .workflow_run.head_sha <<< "$data")" = \
+              'f312f8580d9f4312f4dd1429b2d7755e1c550636'
+          done
+      - name: Report committed recovery observer boundary
+        run: |
+          printf '%s\n' \
+            'STAGE2D9R_LOCKED_RECOVERY_OBSERVER=PASS' \
+            'OBSERVATION_MODE=COMMITTED_CLOSURE_READ_ONLY' \
+            'FROZEN_SOURCE_SHA=f312f8580d9f4312f4dd1429b2d7755e1c550636' \
+            'REPRODUCIBLE=true' \
+            'RECOVERY_AUTHORIZED=false' \
+            'EXECUTION_AUTHORIZED=false' \
+            'BOARD_OPERATION_AUTHORIZED=false' \
+            'SERIAL_OPERATION_AUTHORIZED=false' \
+            'FLASH_OPERATION_AUTHORIZED=false' \
+            'NETWORK_OPERATION_AUTHORIZED=false' \
+            'PREPARE_AUTHORIZED=false' \
+            'VERIFY_AUTHORIZED=false'
+      - name: Cleanup
+        if: always()
+        run: rm -f /tmp/stage2d9r-recovery-observer-gate.log
