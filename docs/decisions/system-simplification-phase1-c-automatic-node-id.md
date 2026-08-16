@@ -23,26 +23,19 @@ Friendly name and Home Assistant area remain user-editable metadata and are not 
 
 ## 2. Allocation contract
 
-Manager SHALL allocate `NODE_ID` transactionally after the device has been approved for registration.
+Manager SHALL generate `NODE_ID` automatically when an approved device first becomes a registered node.
 
-Frozen target format:
-
-```text
-node-<32 lowercase hexadecimal characters>
-```
-
-The suffix is generated from 128 bits of cryptographically secure random data.
-
-Properties:
+Phase 1 deliberately does **not** freeze a textual encoding or bit-length that the source architecture plan does not specify. Phase 2 may choose an implementation representation only if it preserves these required properties:
 
 - not derived from MAC;
-- not derived from location, customer or greenhouse name;
+- contains no customer-private meaning;
 - absent from generic factory firmware;
-- stable after assignment;
-- database uniqueness enforced;
-- collision causes generation of another candidate inside the same allocation transaction;
-- retirement permanently reserves the old `NODE_ID`;
-- the same physical hardware rejoining after retirement receives a new `NODE_ID`.
+- user does not enter it;
+- stable once assigned;
+- unique among allocated identities;
+- allocation collision is resolved without reusing an already allocated identity;
+- retirement permanently prevents the old `NODE_ID` from being issued again;
+- the same physical hardware joining again after retirement receives a new `NODE_ID`.
 
 ## 3. HARDWARE_ID remains separate
 
@@ -57,19 +50,18 @@ Hardware replacement is a new registration and a new `NODE_ID`. Historical curve
 
 `pairing_epoch` currently participates in the legacy registration replay/generation path. The ADR-0007 Setup Secret transcript does not depend on `pairing_epoch`.
 
-Phase 1 freezes the new rule:
+Phase 1 freezes only the source-supported conclusion:
 
-- `pairing_epoch` is not a required input to new Setup Secret proof, bootstrap key derivation, SYSTEM_PEER_KEY trust or NODE_ID generation;
-- it remains compatibility-only while the legacy pairing path exists;
-- final deletion is a later migration decision after legacy replay tests are replaced.
+- re-audit whether `pairing_epoch` still participates in a real security decision after ADR-0007;
+- if fresh `SETUP_SECRET`, `pairing_id`, `NODE_ID` and MQTT credentials make it redundant, it may become audit-only or be deleted later;
+- while the legacy path still depends on it, it remains compatibility state and is not deleted in Phase 1.
 
 ## 5. Required host cases
 
-- allocation does not use MAC or user metadata;
-- generated ID matches the frozen opaque format;
+- allocation does not derive the identity from MAC or user-friendly metadata;
+- assigned identity remains stable for an active registration;
 - a deliberate candidate collision retries rather than reusing an existing ID;
-- assigned ID remains stable for an active registration;
-- retired ID is never issued again;
-- re-registering retired hardware gets a new ID.
+- retired identity is never issued again;
+- re-registering retired hardware gets a new identity.
 
 Phase 2 will implement the allocator in Manager storage; Phase 1 only freezes and simulates these rules.

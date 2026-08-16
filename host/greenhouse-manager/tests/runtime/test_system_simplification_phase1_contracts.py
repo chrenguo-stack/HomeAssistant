@@ -85,13 +85,9 @@ class NodeIdAllocatorModel:
         if existing is not None:
             return existing
         while self.candidates:
-            suffix = self.candidates.pop(0)
-            candidate = f"node-{suffix}"
-            valid_hex = all(character in "0123456789abcdef" for character in suffix)
-            if len(suffix) != 32 or not valid_hex:
-                raise ValueError(
-                    "candidate must represent 128 random bits as lowercase hex"
-                )
+            candidate = self.candidates.pop(0)
+            if not candidate:
+                raise ValueError("candidate node id must be non-empty")
             if candidate in self.reserved:
                 continue
             self.reserved.add(candidate)
@@ -106,32 +102,28 @@ class NodeIdAllocatorModel:
             raise RuntimeError("hardware has no active node id") from error
 
 
-def test_node_id_is_opaque_stable_and_never_reused() -> None:
-    first_suffix = "0" * 31 + "1"
-    second_suffix = "0" * 31 + "2"
-    allocator = NodeIdAllocatorModel(
-        candidates=[first_suffix, first_suffix, second_suffix]
-    )
+def test_node_id_is_internal_stable_and_never_reused() -> None:
+    first_id = "internal-generated-id-a"
+    second_id = "internal-generated-id-b"
+    allocator = NodeIdAllocatorModel(candidates=[first_id, first_id, second_id])
 
     first = allocator.allocate("hardware-a")
-    assert first == f"node-{first_suffix}"
+    assert first == first_id
     assert allocator.allocate("hardware-a") == first
     assert "hardware-a" not in first
 
     assert allocator.retire("hardware-a") == first
     second = allocator.allocate("hardware-a")
-    assert second == f"node-{second_suffix}"
+    assert second == second_id
     assert second != first
     assert first in allocator.reserved
 
 
 def test_node_id_collision_is_retried_inside_allocator() -> None:
-    reserved_suffix = "a" * 32
-    fresh_suffix = "b" * 32
-    allocator = NodeIdAllocatorModel(candidates=[reserved_suffix, fresh_suffix])
-    allocator.reserved.add(f"node-{reserved_suffix}")
+    allocator = NodeIdAllocatorModel(candidates=["already-used", "fresh-id"])
+    allocator.reserved.add("already-used")
 
-    assert allocator.allocate("hardware-b") == f"node-{fresh_suffix}"
+    assert allocator.allocate("hardware-b") == "fresh-id"
 
 
 # Decision D: precheck failures do not consume a protected session; claims do.
