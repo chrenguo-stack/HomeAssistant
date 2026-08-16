@@ -31,24 +31,54 @@ jobs:
         run: |
           set -euo pipefail
           start='9862d7ecbe95439fd36ceb91854505a923cbfea2'
-          git merge-base --is-ancestor "$start" HEAD
+          package_successor='873a80969b0ebd71c6a2654a962137b0c55c7f52'
+          inherited_ci_rebind='5c01aa290c0a6c79f010e8b023019ec946eb07e6'
+          git merge-base --is-ancestor "$start" "$package_successor"
+          git merge-base --is-ancestor "$package_successor" "$inherited_ci_rebind"
+          git merge-base --is-ancestor "$inherited_ci_rebind" HEAD
           if [ "$GITHUB_EVENT_NAME" = 'pull_request' ]; then
             test '${{ github.event.pull_request.base.ref }}' = 'main'
             test "$(git rev-parse HEAD)" = '${{ github.event.pull_request.head.sha }}'
           fi
           git config core.quotePath false
-          allowed="$(mktemp)"
-          actual="$(mktemp)"
-          cat >"$allowed" <<'FILES'
+
+          package_allowed="$(mktemp)"
+          package_actual="$(mktemp)"
+          cat >"$package_allowed" <<'FILES'
           .github/workflows/n3w-product-completion-s5-r7-private-package-stimulus-builder-ci.yml
           docs/decisions/n3w-product-completion-s5-r7-private-telemetry-stimulus-package-builder-contract-repair-20260816.json
           tests/n3w_product_completion_s5_package/test_s5_r7_private_package_builder.py
           tools/n3w_product_s5_build_private_package_r7.py
           FILES
-          sed -i 's/^          //' "$allowed"
-          sort -o "$allowed" "$allowed"
-          git diff --name-only "$start"...HEAD | sort >"$actual"
-          diff -u "$allowed" "$actual"
+          sed -i 's/^          //' "$package_allowed"
+          sort -o "$package_allowed" "$package_allowed"
+          git diff --name-only "$start"..."$package_successor" | sort >"$package_actual"
+          diff -u "$package_allowed" "$package_actual"
+
+          inherited_allowed="$(mktemp)"
+          inherited_actual="$(mktemp)"
+          cat >"$inherited_allowed" <<'FILES'
+          .github/workflows/n3w-product-completion-s5-d-lifecycle-negative-host-matrix-ci.yml
+          .github/workflows/n3w-product-completion-s5-dedicated-two-node-state-initializer-ci.yml
+          .github/workflows/n3w-product-completion-s5-isolated-manager-transport-ci.yml
+          .github/workflows/n3w-product-completion-s5-physical-e2e-preparation-ci.yml
+          .github/workflows/n3w-product-completion-s5-private-package-builder-ci.yml
+          .github/workflows/n3w-product-completion-s5-private-runtime-composition-ci.yml
+          FILES
+          sed -i 's/^          //' "$inherited_allowed"
+          sort -o "$inherited_allowed" "$inherited_allowed"
+          git diff --name-only "$package_successor"..."$inherited_ci_rebind" | sort >"$inherited_actual"
+          diff -u "$inherited_allowed" "$inherited_actual"
+
+          dedicated_allowed="$(mktemp)"
+          dedicated_actual="$(mktemp)"
+          cat >"$dedicated_allowed" <<'FILES'
+          .github/workflows/n3w-product-completion-s5-r7-private-package-stimulus-builder-ci.yml
+          FILES
+          sed -i 's/^          //' "$dedicated_allowed"
+          sort -o "$dedicated_allowed" "$dedicated_allowed"
+          git diff --name-only "$inherited_ci_rebind"...HEAD | sort >"$dedicated_actual"
+          diff -u "$dedicated_allowed" "$dedicated_actual"
 
       - uses: actions/setup-python@v5
         with:
