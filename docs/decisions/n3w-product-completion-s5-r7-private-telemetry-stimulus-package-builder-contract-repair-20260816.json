@@ -1,0 +1,42 @@
+{
+  "schema": "gh.n3w-product-s5-r7-private-telemetry-stimulus-package-builder-contract-repair/1",
+  "authorization": "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-R7-PRIVATE-TELEMETRY-STIMULUS-PACKAGE-BUILDER-CONTRACT-REPAIR-20260816-01",
+  "authorized": true,
+  "starting_head": "9862d7ecbe95439fd36ceb91854505a923cbfea2",
+  "scope": {
+    "host_only": true,
+    "real_private_package_materialization": false,
+    "synthetic_ci_package_materialization": true,
+    "board_access": false,
+    "flash_or_erase": false,
+    "wifi_or_espnow_rf": false,
+    "production_access": false,
+    "n3l_access": false
+  },
+  "design": {
+    "historical_base_builder_mutated": false,
+    "successor_builder": "tools/n3w_product_s5_build_private_package_r7.py",
+    "existing_relayframe_transport_reused": true,
+    "second_telemetry_protocol_added": false,
+    "child_direct_mqtt_added": false,
+    "static_peer_or_pair_lmk_added": false,
+    "relay_telemetry_stimulus_enabled": false
+  },
+  "replay_binding": {
+    "source": "manager_state/replay.sqlite3",
+    "selection": "child_highest_boot_session_plus_one_or_one_when_absent",
+    "sequence": 0,
+    "read_only": true,
+    "uint64_max_fails_closed": true,
+    "replay_database_mutation": false
+  },
+  "acceptance": {
+    "child_rendered_yaml_stimulus_enabled": true,
+    "child_rendered_yaml_replay_safe_boot_session": true,
+    "child_rendered_yaml_seq_zero": true,
+    "relay_rendered_yaml_stimulus_absent": true,
+    "synthetic_esp32_c6_child_compile_required": true,
+    "synthetic_esp32_c6_relay_compile_required": true,
+    "physical_execution_authorized": false
+  }
+}
