@@ -171,6 +171,7 @@ jobs:
           .github/workflows/n3w-product-completion-s5-physical-e2e-preparation-ci.yml
           .github/workflows/n3w-product-completion-s5-private-package-builder-ci.yml
           .github/workflows/n3w-product-completion-s5-private-runtime-composition-ci.yml
+          firmware/esphome_rc/components/greenhouse_n3w_s5_private_runtime/__init__.py
           FILES
           sed -i 's/^          //' "$ci_allowed"
           sort -o "$ci_allowed" "$ci_allowed"
