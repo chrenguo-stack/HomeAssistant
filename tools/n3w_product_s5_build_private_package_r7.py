@@ -18,7 +18,7 @@ import re
 import sqlite3
 import stat
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 AUTHORIZATION = (
     "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-R7-PRIVATE-TELEMETRY-STIMULUS-"
@@ -129,8 +129,12 @@ def _select_replay_safe_stimulus(replay_path: Path, child_node_id: str) -> dict[
             connection.close()
 
 
-def _render_r7_child(base, stimulus: dict[str, object], **kwargs: Any) -> str:
-    rendered = base._render_child(**kwargs)
+def _render_r7_child(
+    render_child: Callable[..., str],
+    stimulus: dict[str, object],
+    **kwargs: Any,
+) -> str:
+    rendered = render_child(**kwargs)
     if "telemetry_stimulus_" in rendered:
         raise R7PrivatePackageBuildError("base_child_stimulus_already_present")
     if not rendered.endswith("\n"):
@@ -195,7 +199,7 @@ def build(args) -> dict[str, object]:
     original_render_child = base._render_child
 
     def render_child_with_r7_stimulus(**kwargs: Any) -> str:
-        return _render_r7_child(base, stimulus, **kwargs)
+        return _render_r7_child(original_render_child, stimulus, **kwargs)
 
     base._render_child = render_child_with_r7_stimulus
     try:
