@@ -54,6 +54,15 @@ class GreenhouseN3wS5ManagerTransportComponent final
   std::unique_ptr<ProductS5IsolatedManagerTransport> transport_{};
   std::optional<ProductPeerGrant> queued_child_grant_{};
   std::optional<ProductPeerGrant> queued_relay_grant_{};
+
+  // Private-lab diagnostics are deliberately state-only. They never include
+  // credentials, peer material, payloads, MAC addresses, or NODE_ID values.
+  bool diagnostic_state_initialized_{false};
+  bool diagnostic_last_bus_connected_{false};
+  bool diagnostic_liveness_success_seen_{false};
+  bool diagnostic_liveness_failure_seen_{false};
+  bool diagnostic_authority_ready_seen_{false};
+  uint64_t diagnostic_last_report_ms_{0};
 };
 
 }  // namespace esphome::greenhouse_n3w_s5_manager_transport
