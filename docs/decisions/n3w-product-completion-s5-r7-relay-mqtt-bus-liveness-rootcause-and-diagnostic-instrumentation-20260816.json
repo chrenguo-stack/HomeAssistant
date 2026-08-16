@@ -1,0 +1,79 @@
+{
+  "schema": "gh.n3w-product-s5-r7-relay-mqtt-bus-rootcause-diagnostic/1",
+  "authorization": "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-R7-RELAY-MQTT-BUS-LIVENESS-ROOTCAUSE-AND-DIAGNOSTIC-INSTRUMENTATION-HOSTONLY-20260816-01",
+  "predecessor_exact_head": "44bb584efa435821b9eba0792840b68d1b1d61fe",
+  "scope": {
+    "host_only": true,
+    "source_mutation": true,
+    "host_test_and_compile": true,
+    "board_access": false,
+    "serial_access": false,
+    "reset": false,
+    "flash": false,
+    "erase": false,
+    "wifi_rf": false,
+    "espnow_rf": false,
+    "mqtt_live_e2e": false,
+    "production_access": false,
+    "n3l_access": false
+  },
+  "frozen_physical_facts": {
+    "relay_application_loaded_from_app0": true,
+    "relay_application_runtime_marker_seen": true,
+    "relay_crash_or_watchdog_marker_seen": false,
+    "wifi_connected_marker_seen": true,
+    "mqtt_connected_marker_seen": true,
+    "required_relay_liveness_event_seen": false,
+    "authority_time_request_event_seen": false,
+    "espnow_discovery_broadcasts_observed": true,
+    "prior_relay_only_physical_scope_compliant_pass": false,
+    "prior_relay_only_physical_scope_violation": "ESP-NOW discovery advertisement RF occurred while that authorization declared ESPNOW_RF=false"
+  },
+  "root_cause_findings": {
+    "application_not_running": "ruled_out",
+    "wifi_association_failure": "ruled_out",
+    "global_mqtt_connection_failure": "ruled_out",
+    "required_s5_manager_transport_publication": "not_observed",
+    "custom_mqtt_device_separate_connection_hypothesis": "not_supported_by_esphome_2026_4_3_source",
+    "esphome_2026_4_3_custom_mqtt_device_behavior": {
+      "is_connected": "delegates to global_mqtt_client->is_connected()",
+      "publish": "delegates to global_mqtt_client->publish(...)"
+    },
+    "remaining_boundary": [
+      "manager transport loop does not observe the global MQTT connected state at the expected time",
+      "or the first direct-liveness publish returns false despite the MQTT bus reporting connected",
+      "or publication succeeds locally but the expected message is lost downstream"
+    ]
+  },
+  "instrumentation_contract": {
+    "behavior_change_allowed": false,
+    "second_publish_path_allowed": false,
+    "second_protocol_allowed": false,
+    "diagnostic_state_only": true,
+    "diagnostic_fields": [
+      "message_bus_connected",
+      "direct_liveness_sent",
+      "authority_time_ready"
+    ],
+    "diagnostic_log_markers": [
+      "S5 MQTT diagnostic bus_connected=... liveness_sent=... authority_ready=...",
+      "S5 MQTT diagnostic first_direct_liveness_publish=success",
+      "S5 MQTT diagnostic first_direct_liveness_publish=failed while_bus_connected=true",
+      "S5 MQTT diagnostic authority_time_ready=true"
+    ],
+    "forbidden_diagnostic_material": [
+      "credentials",
+      "application_key",
+      "PMK",
+      "LMK",
+      "payload",
+      "peer MAC",
+      "NODE_ID",
+      "SYSTEM_ID"
+    ]
+  },
+  "future_physical_contract_correction": {
+    "relay_application_boot_implies_espnow_discovery_rf_in_current_r7_runtime": true,
+    "future_relay_application_boot_authorization_must_not_claim_espnow_rf_false": true
+  }
+}
