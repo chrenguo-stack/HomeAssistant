@@ -304,7 +304,16 @@ void SimpleProductComponent::advance_recovery_() {
   const uint64_t now = now_ms();
   if (now < next_recovery_probe_ms_) return;
   next_recovery_probe_ms_ = now + kRecoveryProbeMs;
-  const bool direct_ready = wifi_connected() && mqtt_connected();
+  bool direct_ready = wifi_connected() && mqtt_connected();
+  if (direct_ready) {
+    uint8_t channel = 0;
+    wifi_second_chan_t secondary = WIFI_SECOND_CHAN_NONE;
+    if (esp_wifi_get_channel(&channel, &secondary) != ESP_OK ||
+        !valid_radio_channel(channel) ||
+        !runtime_.update_direct_channel_hint(channel)) {
+      direct_ready = false;
+    }
+  }
   (void) runtime_.note_direct_recovery_probe(direct_ready);
 }
 
