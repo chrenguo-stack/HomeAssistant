@@ -372,7 +372,9 @@ SimplePairingClientError SimplePairingClient::load_existing_() {
 
 SimplePairingClientError SimplePairingClient::prepare_bootstrap_() {
   const SimpleNvsStatus status = setup_secret_store_->load_or_create(&setup_secret_);
-  if (status != SimpleNvsStatus::OK) return SimplePairingClientError::PERSISTENCE_FAILED;
+  if (status != SimpleNvsStatus::OK && status != SimpleNvsStatus::CREATED) {
+    return SimplePairingClientError::PERSISTENCE_FAILED;
+  }
   setup_secret_ready_ = true;
   pairing_id_ = pairing_id_from_secret(setup_secret_, local_mac_);
   return pairing_id_.empty() ? SimplePairingClientError::CRYPTO_FAILED
