@@ -30,17 +30,18 @@ class Phase4IsolatedManagerHarness:
         keys: NodeApplicationKeyProvider,
         ingress_allowed: Callable[[str], bool] | None = None,
         random_bytes: Callable[[int], bytes] | None = None,
+        processor: TelemetryProcessor | None = None,
     ) -> None:
         approver_kwargs = {} if random_bytes is None else {"random_bytes": random_bytes}
         self.approver = AutomaticNodeIdApprover(registration, **approver_kwargs)
-        processor = TelemetryProcessor(system_id=system_id)
+        self.processor = processor or TelemetryProcessor(system_id=system_id)
         canonical = N3wCanonicalIngressCoordinator(
             replay_registry=replay,
             ingress_allowed=ingress_allowed or (lambda _node_id: True),
         )
         relay_core = CompactRelayIngressCore(system_id=system_id, keys=keys)
         self.router = N3wMultiIngressRouter(
-            processor=processor,
+            processor=self.processor,
             canonical=canonical,
             relay_core=relay_core,
         )
