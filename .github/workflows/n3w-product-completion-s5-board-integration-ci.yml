@@ -37,11 +37,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # S5 is an inherited lineage/scope contract. Later successor work may
+          # intentionally remain stacked on the frozen S5 R7 branch, so ancestry
+          # is the durable gate rather than requiring every PR to target main.
           base='38c3b692d4ebe90d0040c732b6c0313fdfdc1ef6'
           git merge-base --is-ancestor "$base" HEAD
-          if [ "$GITHUB_EVENT_NAME" = 'pull_request' ]; then
-            test '${{ github.event.pull_request.base.ref }}' = 'main'
-          fi
 
           if git diff --name-only "$base"...HEAD | grep -E \
             '(^|/)(secrets\.ya?ml|.*\.bin|.*\.elf|.*\.map)$'; then
