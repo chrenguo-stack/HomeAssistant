@@ -16,6 +16,14 @@ from .pairing_endpoint import make_pairing_http_server
 from .pairing_network_service import PairingNetworkService
 
 
+class _NullAdvertiser:
+    def start(self) -> None:
+        return
+
+    def close(self) -> None:
+        return
+
+
 @dataclass(frozen=True, slots=True)
 class SimplifiedPairingNetworkSettings:
     manager_id: str
@@ -123,11 +131,13 @@ class SimplifiedPairingRuntime:
 
     @property
     def http_address(self) -> tuple[str, int]:
-        return tuple(self.components.network_service.http_server.server_address)  # type: ignore[return-value]
+        address = self.components.network_service.http_server.server_address
+        return str(address[0]), int(address[1])
 
     @property
     def udp_address(self) -> tuple[str, int]:
-        return tuple(self.components.network_service.udp_server.server_address)  # type: ignore[return-value]
+        address = self.components.network_service.udp_server.server_address
+        return str(address[0]), int(address[1])
 
 
 def assemble_simplified_pairing_runtime(
@@ -163,7 +173,7 @@ def assemble_simplified_pairing_runtime(
         network = PairingNetworkService(
             http_server=http_server,
             udp_server=udp_server,
-            advertiser=None,
+            advertiser=_NullAdvertiser(),
         )
         return SimplifiedPairingRuntime(
             settings,
