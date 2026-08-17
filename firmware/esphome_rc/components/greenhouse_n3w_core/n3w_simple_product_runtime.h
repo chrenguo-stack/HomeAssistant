@@ -112,6 +112,8 @@ class SimpleProductRuntime {
   const ProvisionedPeerStateV2 &provisioned_state() const { return state_; }
 
  private:
+  friend struct SimpleProductRelayPeer;
+
   struct PendingChallenge {
     std::string relay_node_id;
     MacAddress relay_mac{};
