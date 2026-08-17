@@ -130,6 +130,7 @@ class _Session:
     node_id: str | None = None
     staged: StagedSimplifiedBundle | None = None
     delivery_digest: bytes | None = None
+    issued_credentials: SimplifiedEncryptedCredentials | None = None
 
 
 class SimplifiedPairingCoordinator:
@@ -207,7 +208,10 @@ class SimplifiedPairingCoordinator:
             if any(
                 s.hardware_id == hardware_id
                 and s.pairing_id == pairing_id
-                and s.state in {SimplifiedPairingState.OPEN, SimplifiedPairingState.CREDENTIALS_ISSUED}
+                and s.state in {
+                    SimplifiedPairingState.OPEN,
+                    SimplifiedPairingState.CREDENTIALS_ISSUED,
+                }
                 for s in self._sessions.values()
             ):
                 raise SimplifiedPairingConflict("pairing_session_exists")
@@ -234,7 +238,9 @@ class SimplifiedPairingCoordinator:
                 expires_at=expires_at,
             )
             self._sessions[session_id] = session
-            manager_proof = build_setup_proof(bytes(session.secret), transcript, role="manager")
+            manager_proof = build_setup_proof(
+                bytes(session.secret), transcript, role="manager"
+            )
             return SimplifiedPairingOffer(
                 schema="gh.pair.simple-offer/1",
                 session_id=session_id,
@@ -258,19 +264,26 @@ class SimplifiedPairingCoordinator:
         with self._lock:
             session = self._require_session(session_id)
             self._expire_if_needed(session, observed_at)
-            if session.state is SimplifiedPairingState.CREDENTIALS_ISSUED:
-                raise SimplifiedPairingConflict("credentials_already_issued")
-            if session.state is not SimplifiedPairingState.OPEN:
+            if session.state not in {
+                SimplifiedPairingState.OPEN,
+                SimplifiedPairingState.CREDENTIALS_ISSUED,
+            }:
                 raise SimplifiedPairingConflict("pairing_session_not_open")
-            if not verify_setup_proof(
+            proof_valid = verify_setup_proof(
                 bytes(session.secret),
                 session.transcript,
                 role="node",
                 proof=proof,
-            ):
-                session.state = SimplifiedPairingState.FAILED
-                self._clear_secret(session)
+            )
+            if not proof_valid:
+                if session.state is SimplifiedPairingState.OPEN:
+                    session.state = SimplifiedPairingState.FAILED
+                    self._clear_secret(session)
                 raise SimplifiedPairingRejected("node_proof_rejected")
+            if session.state is SimplifiedPairingState.CREDENTIALS_ISSUED:
+                if session.issued_credentials is None:
+                    raise SimplifiedPairingError("issued_credentials_missing")
+                return session.issued_credentials
 
             approved = self.approver.approve(
                 session.hardware_id,
@@ -292,7 +305,9 @@ class SimplifiedPairingCoordinator:
             if not isinstance(nonce, bytes) or len(nonce) != 12:
                 staged.rollback()
                 raise SimplifiedPairingError("credential_nonce_generation_failed")
-            bootstrap_key = derive_bootstrap_key(bytes(session.secret), session.transcript)
+            bootstrap_key = derive_bootstrap_key(
+                bytes(session.secret), session.transcript
+            )
             ciphertext = encrypt_credential_bundle(
                 bootstrap_key,
                 session.transcript,
@@ -300,11 +315,7 @@ class SimplifiedPairingCoordinator:
                 plaintext=staged.bundle.to_json_bytes(),
             )
             digest = hashlib.sha256(nonce + ciphertext).digest()
-            session.node_id = approved.node_id
-            session.staged = staged
-            session.delivery_digest = digest
-            session.state = SimplifiedPairingState.CREDENTIALS_ISSUED
-            return SimplifiedEncryptedCredentials(
+            issued = SimplifiedEncryptedCredentials(
                 schema="gh.pair.simple-credentials/1",
                 session_id=session_id,
                 node_id=approved.node_id,
@@ -312,6 +323,12 @@ class SimplifiedPairingCoordinator:
                 ciphertext=_b64(ciphertext),
                 delivery_digest=_b64(digest),
             )
+            session.node_id = approved.node_id
+            session.staged = staged
+            session.delivery_digest = digest
+            session.issued_credentials = issued
+            session.state = SimplifiedPairingState.CREDENTIALS_ISSUED
+            return issued
 
     def acknowledge(
         self,
@@ -325,7 +342,10 @@ class SimplifiedPairingCoordinator:
         with self._lock:
             session = self._require_session(session_id)
             self._expire_if_needed(session, observed_at)
-            if session.state is not SimplifiedPairingState.CREDENTIALS_ISSUED or session.staged is None:
+            if (
+                session.state is not SimplifiedPairingState.CREDENTIALS_ISSUED
+                or session.staged is None
+            ):
                 raise SimplifiedPairingConflict("credentials_not_issued")
             if session.delivery_digest is None or not secrets.compare_digest(
                 supplied, session.delivery_digest
@@ -334,6 +354,7 @@ class SimplifiedPairingCoordinator:
             session.staged.commit(now=observed_at)
             session.staged = None
             session.delivery_digest = None
+            session.issued_credentials = None
             session.state = SimplifiedPairingState.CONSUMED
             self._clear_secret(session)
             self._erase_imported_secret(session.hardware_id, session.pairing_id)
@@ -400,6 +421,7 @@ class SimplifiedPairingCoordinator:
         staged = session.staged
         session.staged = None
         session.delivery_digest = None
+        session.issued_credentials = None
         if staged is not None:
             staged.rollback()
 
