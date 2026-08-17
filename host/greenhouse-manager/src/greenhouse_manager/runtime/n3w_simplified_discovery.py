@@ -4,7 +4,7 @@ import json
 import re
 import socketserver
 from dataclasses import asdict, dataclass
-from typing import Any, Mapping
+from typing import Any
 
 from .pairing_discovery import (
     DISCOVERY_RESPONSE_SCHEMA,
@@ -49,7 +49,9 @@ class SimplifiedManagerCandidate:
             raise ValueError("scheme is invalid")
         if not 1 <= self.port <= 65535:
             raise ValueError("port is invalid")
-        if _PAIRING_PATH.fullmatch(self.pairing_path) is None or self.pairing_path.startswith("//"):
+        if _PAIRING_PATH.fullmatch(
+            self.pairing_path
+        ) is None or self.pairing_path.startswith("//"):
             raise ValueError("pairing_path is invalid")
         if self.protocol != SIMPLE_PAIRING_PROTOCOL:
             raise ValueError("protocol is invalid")
@@ -130,5 +132,8 @@ class SimplifiedPairingUDPServer(socketserver.UDPServer):
         rate_limiter: SlidingWindowRateLimiter | None = None,
     ) -> None:
         self.candidate = candidate
-        self.rate_limiter = rate_limiter or SlidingWindowRateLimiter(limit=12, window_s=60)
+        self.rate_limiter = rate_limiter or SlidingWindowRateLimiter(
+            limit=12,
+            window_s=60,
+        )
         super().__init__(server_address, _SimplifiedUDPHandler)
