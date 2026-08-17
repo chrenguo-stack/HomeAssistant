@@ -91,6 +91,7 @@ class SimpleProductRuntime {
 
   SimpleProductError note_direct_result(bool success);
   SimpleProductError note_direct_recovery_probe(bool success);
+  bool update_direct_channel_hint(uint8_t channel);
   SimpleProductError send_telemetry(
       const std::string &telemetry_json,
       const std::string &boot_id,
@@ -105,6 +106,7 @@ class SimpleProductRuntime {
   void set_relay_capable(bool value) { relay_capable_ = value; }
   bool started() const { return started_; }
   LocalPathState path_state() const { return path_.state(); }
+  uint8_t direct_channel_hint() const { return direct_channel_; }
   const std::optional<SimpleProductRelayPeer> &active_relay() const {
     return active_relay_;
   }
