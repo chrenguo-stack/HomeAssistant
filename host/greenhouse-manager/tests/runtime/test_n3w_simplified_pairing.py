@@ -7,11 +7,13 @@ from datetime import UTC, datetime
 from greenhouse_manager.runtime.n3w_simple_pairing_crypto import (
     PairingTranscript,
     build_setup_proof,
-    derive_bootstrap_key,
     decrypt_credential_bundle,
+    derive_bootstrap_key,
     verify_setup_proof,
 )
-from greenhouse_manager.runtime.n3w_simplified_credentials import SimplifiedProductCredentialBundle
+from greenhouse_manager.runtime.n3w_simplified_credentials import (
+    SimplifiedProductCredentialBundle,
+)
 from greenhouse_manager.runtime.n3w_simplified_pairing import (
     SimplifiedPairingCoordinator,
     SimplifiedPairingState,
@@ -83,7 +85,11 @@ class FakeStager:
                 broker_host="mqtt.greenhouse.local",
                 broker_port=8883,
                 broker_tls_server_name="mqtt.greenhouse.local",
-                ca_pem="-----BEGIN CERTIFICATE-----\nTEST\n-----END CERTIFICATE-----\n",
+                ca_pem=(
+                    "-----BEGIN CERTIFICATE-----\n"
+                    "TEST\n"
+                    "-----END CERTIFICATE-----\n"
+                ),
                 mqtt_username=f"ghn_{node_id}",
                 mqtt_client_id=node_id,
                 credential_generation=credential_generation,
@@ -111,7 +117,9 @@ def hello() -> dict[str, object]:
     }
 
 
-def test_setup_secret_pairing_auto_assigns_node_and_encrypts_complete_bundle(tmp_path) -> None:
+def test_setup_secret_pairing_auto_assigns_node_and_encrypts_complete_bundle(
+    tmp_path,
+) -> None:
     random = RoutedRandom()
     stager = FakeStager()
     with RegistrationRegistry(tmp_path / "registration.sqlite3") as registry:
@@ -172,7 +180,9 @@ def test_setup_secret_pairing_auto_assigns_node_and_encrypts_complete_bundle(tmp
         assert stager.last.rolled_back is False
 
 
-def test_invalid_node_proof_never_allocates_node_id_or_stages_credentials(tmp_path) -> None:
+def test_invalid_node_proof_never_allocates_node_id_or_stages_credentials(
+    tmp_path,
+) -> None:
     random = RoutedRandom()
     stager = FakeStager()
     with RegistrationRegistry(tmp_path / "registration.sqlite3") as registry:
