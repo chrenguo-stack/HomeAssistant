@@ -1,0 +1,31 @@
+esphome:
+  name: gh-n3w-phase4-generic
+  friendly_name: Greenhouse N3-W Phase 4 Generic Physical Harness
+  min_version: 2026.4.3
+
+esp32:
+  board: esp32-c6-devkitm-1
+  variant: ESP32C6
+  flash_size: 8MB
+  framework:
+    type: esp-idf
+    advanced:
+      include_builtin_idf_components:
+        - nvs_flash
+        - esp_event
+        - esp_netif
+        - esp_wifi
+
+logger:
+  level: INFO
+  hardware_uart: USB_SERIAL_JTAG
+
+external_components:
+  - source:
+      type: local
+      path: ../../components
+    components:
+      - greenhouse_n3w_core
+
+greenhouse_n3w_core:
+  phase4_source_harness: true
