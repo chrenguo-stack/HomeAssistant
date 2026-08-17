@@ -164,9 +164,9 @@ class SimplifiedPairingEndpointApp:
                 HTTPStatus.OK,
                 {
                     "schema": "gh.pair.simple-hello-result/1",
-                    "status": result.state.value,
-                    "hardware_id": result.hardware_id,
-                    "pairing_id": result.pairing_id,
+                    "status": result.status,
+                    "hardware_id": result.record.hardware_id,
+                    "pairing_id": result.record.pairing_id,
                 },
                 request_id,
             )
