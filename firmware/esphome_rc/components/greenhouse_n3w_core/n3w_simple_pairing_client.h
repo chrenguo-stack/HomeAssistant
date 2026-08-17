@@ -8,6 +8,7 @@
 #include "n3w_esp32_pairing_nvs.h"
 #include "n3w_esp32_runtime_nvs.h"
 #include "n3w_esp32_simple_nvs.h"
+#include "n3w_radio.h"
 #include "n3w_simple_crypto.h"
 
 namespace esphome::greenhouse_n3w_core {
