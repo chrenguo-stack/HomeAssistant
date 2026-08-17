@@ -41,6 +41,7 @@ class SimpleProductComponent : public Component,
   LocalPathState path_state() const { return runtime_.path_state(); }
   const std::string &hardware_id() const { return pairing_client_.hardware_id(); }
   const std::string &pairing_id() const { return pairing_client_.pairing_id(); }
+  const std::string &node_id() const { return peer_state_.node_id; }
   std::string pairing_qr_payload() const { return pairing_client_.pairing_qr_payload(); }
 
   // EspNowEventSink. Receive work is copied into a bounded SPSC ring and

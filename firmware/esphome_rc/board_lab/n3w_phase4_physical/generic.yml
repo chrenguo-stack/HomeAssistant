@@ -46,5 +46,66 @@ external_components:
       - greenhouse_n3w_core
 
 greenhouse_n3w_core:
+  id: n3w_phase4_core
   phase4_source_harness: true
   phase4_product_runtime: true
+
+# Phase 4 lab-only observability. The payload includes the device-generated
+# one-time pairing PoP and must stay in the private physical-session evidence root.
+# It is never a factory constant and disappears after successful pairing ACK.
+interval:
+  - interval: 3s
+    then:
+      - lambda: |-
+          const std::string pairing_payload = id(n3w_phase4_core).pairing_qr_payload();
+          if (!pairing_payload.empty()) {
+            ESP_LOGI(
+                "phase4_lab",
+                "PHASE4_PAIRING_QR_PAYLOAD=%s",
+                pairing_payload.c_str());
+          }
+
+  # Role-neutral synthetic telemetry is intentionally confined to this lab target.
+  # It exercises the real Direct -> Discovery -> RelayActive -> Direct state machine
+  # without introducing a factory NODE_ID, SYSTEM_ID, peer MAC, LMK, or site secret.
+  - interval: 5s
+    then:
+      - lambda: |-
+          if (!id(n3w_phase4_core).runtime_ready()) return;
+
+          static std::string boot_id;
+          static uint32_t seq = 0;
+          if (boot_id.empty()) {
+            std::array<uint8_t, 8> random_boot{};
+            if (!id(n3w_phase4_core).fill(random_boot.data(), random_boot.size())) return;
+            static constexpr char kHex[] = "0123456789abcdef";
+            boot_id = "phase4_";
+            for (const uint8_t value : random_boot) {
+              boot_id.push_back(kHex[(value >> 4U) & 0x0fU]);
+              boot_id.push_back(kHex[value & 0x0fU]);
+            }
+          }
+
+          const uint32_t current_seq = ++seq;
+          const uint64_t uptime_ms = static_cast<uint64_t>(millis());
+          const auto path_before = id(n3w_phase4_core).path_state();
+          const std::string telemetry =
+              "{\"schema\":\"gh.telemetry/1\",\"node_id\":\"" +
+              id(n3w_phase4_core).node_id() +
+              "\",\"boot_id\":\"" + boot_id +
+              "\",\"seq\":" + std::to_string(current_seq) +
+              ",\"uptime_ms\":" + std::to_string(uptime_ms) +
+              ",\"cap_hash\":\"phase4lab\",\"fw_version\":\"phase4-simple\"," +
+              "\"measurements\":{},\"quality\":{}," +
+              "\"power\":{\"source\":\"unknown\",\"low\":false}," +
+              "\"phase4_lab\":true}";
+          const bool accepted = id(n3w_phase4_core).send_telemetry_json(
+              telemetry, boot_id, current_seq);
+          const auto path_after = id(n3w_phase4_core).path_state();
+          ESP_LOGI(
+              "phase4_lab",
+              "PHASE4_LAB_TELEMETRY seq=%u path_before=%u path_after=%u accepted=%s",
+              static_cast<unsigned>(current_seq),
+              static_cast<unsigned>(path_before),
+              static_cast<unsigned>(path_after),
+              accepted ? "true" : "false");

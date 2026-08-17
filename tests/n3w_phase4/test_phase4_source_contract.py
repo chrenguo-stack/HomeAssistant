@@ -28,6 +28,7 @@ def test_generic_phase4_target_is_role_neutral_and_first_use_ready() -> None:
     config = text(LAB / "generic.yml")
     lowered = config.lower()
     assert "greenhouse_n3w_core:" in config
+    assert "id: n3w_phase4_core" in config
     assert "phase4_source_harness: true" in config
     assert "phase4_product_runtime: true" in config
     assert "wifi:" in config
@@ -48,6 +49,36 @@ def test_generic_phase4_target_is_role_neutral_and_first_use_ready() -> None:
         "!secret",
     )
     assert not any(value in lowered for value in forbidden)
+
+
+def test_phase4_lab_target_exposes_private_pairing_pop_and_synthetic_telemetry() -> None:
+    config = text(LAB / "generic.yml")
+    component = text(CORE / "n3w_simple_product_component.h")
+
+    assert "PHASE4_PAIRING_QR_PAYLOAD=%s" in config
+    assert "pairing_qr_payload()" in config
+    assert "runtime_ready()" in config
+    assert "send_telemetry_json" in config
+    assert "PHASE4_LAB_TELEMETRY" in config
+    assert "phase4_lab" in config
+    assert "uptime_ms" in config
+    assert "cap_hash" in config
+    assert "measurements" in config
+    assert "quality" in config
+    assert "power" in config
+    assert "std::array<uint8_t, 8> random_boot" in config
+    assert "id(n3w_phase4_core).node_id()" in config
+    assert "const std::string &node_id() const { return peer_state_.node_id; }" in component
+
+    # Physical-lab stimulus remains role neutral and derives all identities at runtime.
+    for forbidden in (
+        "node_child",
+        "node_relay",
+        "gh-system-01",
+        "02:00:00:00:00:0a",
+        "02:00:00:00:00:0b",
+    ):
+        assert forbidden not in config.lower()
 
 
 def test_source_harness_binds_real_adapters_without_executing_them() -> None:
