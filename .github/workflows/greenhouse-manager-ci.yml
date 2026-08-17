@@ -11,7 +11,9 @@ on:
       - "protocols/pairing/**"
       - "firmware/esphome_rc/components/greenhouse_n3w_core/**"
       - "firmware/esphome_rc/board_lab/n3w_phase3_simple/**"
+      - "firmware/esphome_rc/board_lab/n3w_phase4_physical/**"
       - "tests/n3w_phase3/**"
+      - "tests/n3w_phase4/**"
       - ".github/workflows/greenhouse-manager-ci.yml"
 
 permissions:
@@ -40,12 +42,12 @@ jobs:
             exit 0
           fi
           git diff --name-only "$BASE_SHA" "$HEAD_SHA" > "$RUNNER_TEMP/changed-files.txt"
-          if grep -Eq '^(host/greenhouse-manager/|protocols/mqtt/|protocols/pairing/|firmware/esphome_rc/components/greenhouse_n3w_core/|firmware/esphome_rc/board_lab/n3w_phase3_simple/|tests/n3w_phase3/|\.github/workflows/greenhouse-manager-ci\.yml$)' "$RUNNER_TEMP/changed-files.txt"; then
+          if grep -Eq '^(host/greenhouse-manager/|protocols/mqtt/|protocols/pairing/|firmware/esphome_rc/components/greenhouse_n3w_core/|firmware/esphome_rc/board_lab/n3w_phase3_simple/|firmware/esphome_rc/board_lab/n3w_phase4_physical/|tests/n3w_phase3/|tests/n3w_phase4/|\.github/workflows/greenhouse-manager-ci\.yml$)' "$RUNNER_TEMP/changed-files.txt"; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
           fi
-          if grep -Eq '^(firmware/esphome_rc/components/greenhouse_n3w_core/|firmware/esphome_rc/board_lab/n3w_phase3_simple/|tests/n3w_phase3/|\.github/workflows/greenhouse-manager-ci\.yml$)' "$RUNNER_TEMP/changed-files.txt"; then
+          if grep -Eq '^(firmware/esphome_rc/components/greenhouse_n3w_core/|firmware/esphome_rc/board_lab/n3w_phase3_simple/|firmware/esphome_rc/board_lab/n3w_phase4_physical/|tests/n3w_phase3/|tests/n3w_phase4/|\.github/workflows/greenhouse-manager-ci\.yml$)' "$RUNNER_TEMP/changed-files.txt"; then
             echo "phase3=true" >> "$GITHUB_OUTPUT"
           else
             echo "phase3=false" >> "$GITHUB_OUTPUT"
@@ -96,6 +98,8 @@ jobs:
           python -m pip install -q "pytest>=8,<9" "esphome==2026.4.3"
       - name: Phase 3 source safety contracts
         run: pytest -q tests/n3w_phase3/test_phase3_source_contract.py
+      - name: Phase 4 source-only activation contracts
+        run: pytest -q tests/n3w_phase4/test_phase4_source_contract.py
       - name: Build and run C++ cross-language vectors
         shell: bash
         run: |
@@ -126,3 +130,10 @@ jobs:
           cd firmware/esphome_rc/board_lab/n3w_phase3_simple
           esphome config relay.yml
           esphome compile relay.yml
+      - name: Compile generic ESP32-C6 Phase 4 physical harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd firmware/esphome_rc/board_lab/n3w_phase4_physical
+          esphome config generic.yml
+          esphome compile generic.yml
