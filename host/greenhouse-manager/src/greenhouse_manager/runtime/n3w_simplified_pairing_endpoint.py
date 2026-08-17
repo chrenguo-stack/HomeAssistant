@@ -8,17 +8,14 @@ from datetime import UTC, datetime
 from http import HTTPStatus
 from typing import Any
 
-from .pairing_discovery import is_local_source
-from .pairing_endpoint import (
-    FixedWindowRateLimiter,
-    PairingHTTPResponse,
-)
 from .n3w_simplified_pairing import (
     SimplifiedPairingConflict,
     SimplifiedPairingCoordinator,
     SimplifiedPairingError,
     SimplifiedPairingRejected,
 )
+from .pairing_discovery import is_local_source
+from .pairing_endpoint import FixedWindowRateLimiter, PairingHTTPResponse
 
 _SESSION_PATH = re.compile(
     r"^/v2/pairing/sessions/([0-9a-fA-F-]{36})/(establish|ack|abort|status)$"
@@ -26,7 +23,11 @@ _SESSION_PATH = re.compile(
 _MAX_REQUEST_BYTES = 16 * 1024
 
 
-def _response(status: int, document: Mapping[str, Any], request_id: str) -> PairingHTTPResponse:
+def _response(
+    status: int,
+    document: Mapping[str, Any],
+    request_id: str,
+) -> PairingHTTPResponse:
     body = json.dumps(
         document,
         sort_keys=True,
@@ -78,7 +79,10 @@ class SimplifiedPairingEndpointApp:
     ) -> None:
         self.coordinator = coordinator
         self.registry = coordinator.registry
-        self.rate_limiter = rate_limiter or FixedWindowRateLimiter(limit=30, window_s=60)
+        self.rate_limiter = rate_limiter or FixedWindowRateLimiter(
+            limit=30,
+            window_s=60,
+        )
         self.clock = clock
 
     def handle(
@@ -90,7 +94,11 @@ class SimplifiedPairingEndpointApp:
         body: bytes,
         client_ip: str,
     ) -> PairingHTTPResponse:
-        request_id = headers.get("X-Request-ID") or headers.get("x-request-id") or str(uuid.uuid4())
+        request_id = (
+            headers.get("X-Request-ID")
+            or headers.get("x-request-id")
+            or str(uuid.uuid4())
+        )
         try:
             request_id = str(uuid.UUID(request_id))
         except ValueError:
@@ -99,20 +107,40 @@ class SimplifiedPairingEndpointApp:
             if not is_local_source(client_ip):
                 raise SimplifiedPairingRejected("source_not_local")
             if not self.rate_limiter.allow(client_ip):
-                return self._error(HTTPStatus.TOO_MANY_REQUESTS, "rate_limited", request_id)
+                return self._error(
+                    HTTPStatus.TOO_MANY_REQUESTS,
+                    "rate_limited",
+                    request_id,
+                )
             if len(body) > _MAX_REQUEST_BYTES:
-                return self._error(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "request_too_large", request_id)
+                return self._error(
+                    HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+                    "request_too_large",
+                    request_id,
+                )
             if method not in {"GET", "POST"}:
-                return self._error(HTTPStatus.METHOD_NOT_ALLOWED, "method_not_allowed", request_id)
+                return self._error(
+                    HTTPStatus.METHOD_NOT_ALLOWED,
+                    "method_not_allowed",
+                    request_id,
+                )
             return self._dispatch(method, path, body, request_id)
         except SimplifiedPairingRejected as error:
             return self._error(HTTPStatus.FORBIDDEN, str(error), request_id)
         except SimplifiedPairingConflict as error:
             return self._error(HTTPStatus.CONFLICT, str(error), request_id)
         except KeyError:
-            return self._error(HTTPStatus.NOT_FOUND, "registration_not_found", request_id)
+            return self._error(
+                HTTPStatus.NOT_FOUND,
+                "registration_not_found",
+                request_id,
+            )
         except SimplifiedPairingError:
-            return self._error(HTTPStatus.INTERNAL_SERVER_ERROR, "pairing_failed", request_id)
+            return self._error(
+                HTTPStatus.INTERNAL_SERVER_ERROR,
+                "pairing_failed",
+                request_id,
+            )
         except (TypeError, ValueError):
             return self._error(HTTPStatus.BAD_REQUEST, "invalid_request", request_id)
 
@@ -144,14 +172,24 @@ class SimplifiedPairingEndpointApp:
             )
         if method == "POST" and path == "/v2/pairing/begin":
             document = _strict_json(body)
-            _exact(document, {"schema", "hardware_id", "pairing_id", "node_nonce"})
+            _exact(
+                document,
+                {"schema", "hardware_id", "pairing_id", "node_nonce"},
+            )
             if document["schema"] != "gh.pair.simple-begin/1":
                 raise SimplifiedPairingRejected("schema_invalid")
-            values = (document["hardware_id"], document["pairing_id"], document["node_nonce"])
+            values = (
+                document["hardware_id"],
+                document["pairing_id"],
+                document["node_nonce"],
+            )
             if any(not isinstance(value, str) for value in values):
                 raise SimplifiedPairingRejected("request_fields_invalid")
             offer = self.coordinator.begin(
-                values[0], values[1], node_nonce=values[2], now=self.clock()
+                values[0],
+                values[1],
+                node_nonce=values[2],
+                now=self.clock(),
             )
             return _response(
                 HTTPStatus.OK,
@@ -191,11 +229,18 @@ class SimplifiedPairingEndpointApp:
                 request_id,
             )
         if method != "POST" or action == "status":
-            return self._error(HTTPStatus.METHOD_NOT_ALLOWED, "method_not_allowed", request_id)
+            return self._error(
+                HTTPStatus.METHOD_NOT_ALLOWED,
+                "method_not_allowed",
+                request_id,
+            )
         document = _strict_json(body)
         if action == "establish":
             _exact(document, {"schema", "node_proof"})
-            if document["schema"] != "gh.pair.simple-establish/1" or not isinstance(document["node_proof"], str):
+            if (
+                document["schema"] != "gh.pair.simple-establish/1"
+                or not isinstance(document["node_proof"], str)
+            ):
                 raise SimplifiedPairingRejected("schema_invalid")
             encrypted = self.coordinator.establish(
                 session_id,
@@ -216,7 +261,10 @@ class SimplifiedPairingEndpointApp:
             )
         if action == "ack":
             _exact(document, {"schema", "delivery_digest"})
-            if document["schema"] != "gh.pair.simple-ack/1" or not isinstance(document["delivery_digest"], str):
+            if (
+                document["schema"] != "gh.pair.simple-ack/1"
+                or not isinstance(document["delivery_digest"], str)
+            ):
                 raise SimplifiedPairingRejected("schema_invalid")
             snapshot = self.coordinator.acknowledge(
                 session_id,
