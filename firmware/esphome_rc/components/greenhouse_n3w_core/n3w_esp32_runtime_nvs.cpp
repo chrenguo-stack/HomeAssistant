@@ -1,6 +1,15 @@
 #include "n3w_esp32_runtime_nvs.h"
 
 #include <algorithm>
+#include <utility>
+
+#ifdef USE_ESP32
+#include <cstddef>
+#include <cstring>
+
+#include "mbedtls/md.h"
+#include "nvs.h"
+#endif
 
 namespace esphome::greenhouse_n3w_core {
 
@@ -37,13 +46,6 @@ void ProvisionedBrokerStateV2::clear() {
 }
 
 #ifdef USE_ESP32
-
-#include <cstddef>
-#include <cstring>
-
-#include "mbedtls/md.h"
-#include "nvs.h"
-
 namespace {
 
 constexpr uint32_t kBrokerMagic = 0x4E334232U;  // N3B2
@@ -207,7 +209,6 @@ SimpleNvsStatus NvsProvisionedBrokerStoreV2::erase() {
   nvs_close(handle);
   return error == ESP_OK ? SimpleNvsStatus::OK : SimpleNvsStatus::IO_ERROR;
 }
-
 #endif  // USE_ESP32
 
 }  // namespace esphome::greenhouse_n3w_core
