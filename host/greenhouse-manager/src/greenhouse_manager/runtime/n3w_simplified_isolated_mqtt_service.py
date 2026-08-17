@@ -8,7 +8,6 @@ from typing import Any
 import paho.mqtt.client as mqtt
 
 from .config import Settings
-from .ingest import PublishMessage
 from .mqtt_service import ManagerMqttService
 from .n3w_compact_relay import NodeApplicationKeyProvider
 from .n3w_multi_ingress_router import MultiIngressResult
@@ -39,7 +38,10 @@ class N3wSimplifiedIsolatedMqttService(ManagerMqttService):
     ) -> None:
         source_settings = replace(settings, n3w_runtime_enabled=False)
         super().__init__(source_settings)
-        if self.registration_registry is not None and self.registration_registry is not registration:
+        if (
+            self.registration_registry is not None
+            and self.registration_registry is not registration
+        ):
             self.registration_registry.close()
         self.registration_registry = registration
         self.phase4 = Phase4IsolatedManagerHarness(
