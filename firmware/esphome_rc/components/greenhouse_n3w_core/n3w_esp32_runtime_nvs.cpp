@@ -4,8 +4,11 @@
 #include <utility>
 
 #ifdef USE_ESP32
+#include <array>
 #include <cstddef>
 #include <cstring>
+#include <memory>
+#include <new>
 
 #include "mbedtls/md.h"
 #include "nvs.h"
@@ -98,12 +101,21 @@ bool write_check(PersistedBrokerState *record) {
 }
 
 bool valid_check(const PersistedBrokerState &record) {
-  PersistedBrokerState copy = record;
-  if (!write_check(&copy)) return false;
+  std::array<uint8_t, 32> expected{};
+  const mbedtls_md_info_t *info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
+  if (info == nullptr ||
+      mbedtls_md(
+          info,
+          reinterpret_cast<const uint8_t *>(&record),
+          offsetof(PersistedBrokerState, check),
+          expected.data()) != 0) {
+    return false;
+  }
   uint8_t diff = 0;
   for (std::size_t i = 0; i < sizeof(record.check); ++i) {
-    diff |= copy.check[i] ^ record.check[i];
+    diff |= expected[i] ^ record.check[i];
   }
+  expected.fill(0);
   return diff == 0;
 }
 
@@ -145,28 +157,30 @@ SimpleNvsStatus NvsProvisionedBrokerStoreV2::load(ProvisionedBrokerStateV2 *stat
   if (state == nullptr || namespace_name_.empty() || key_name_.empty()) {
     return SimpleNvsStatus::INVALID_ARGUMENT;
   }
-  PersistedBrokerState record{};
-  const SimpleNvsStatus status = read_record(namespace_name_, key_name_, &record);
+  auto record = std::unique_ptr<PersistedBrokerState>(
+      new (std::nothrow) PersistedBrokerState{});
+  if (!record) return SimpleNvsStatus::IO_ERROR;
+  const SimpleNvsStatus status = read_record(namespace_name_, key_name_, record.get());
   if (status != SimpleNvsStatus::OK) return status;
-  if (record.magic != kBrokerMagic || record.version != kRecordVersion ||
-      !valid_check(record) || !terminated(record.system_id) ||
-      !terminated(record.node_id) || !terminated(record.broker_host) ||
-      !terminated(record.broker_tls_server_name) || !terminated(record.ca_pem) ||
-      !terminated(record.mqtt_username) || !terminated(record.mqtt_password) ||
-      !terminated(record.mqtt_client_id)) {
+  if (record->magic != kBrokerMagic || record->version != kRecordVersion ||
+      !valid_check(*record) || !terminated(record->system_id) ||
+      !terminated(record->node_id) || !terminated(record->broker_host) ||
+      !terminated(record->broker_tls_server_name) || !terminated(record->ca_pem) ||
+      !terminated(record->mqtt_username) || !terminated(record->mqtt_password) ||
+      !terminated(record->mqtt_client_id)) {
     return SimpleNvsStatus::CORRUPT;
   }
   ProvisionedBrokerStateV2 candidate;
-  candidate.system_id = record.system_id;
-  candidate.node_id = record.node_id;
-  candidate.broker_host = record.broker_host;
-  candidate.broker_port = record.broker_port;
-  candidate.broker_tls_server_name = record.broker_tls_server_name;
-  candidate.ca_pem = record.ca_pem;
-  candidate.mqtt_username = record.mqtt_username;
-  candidate.mqtt_password = record.mqtt_password;
-  candidate.mqtt_client_id = record.mqtt_client_id;
-  candidate.credential_generation = record.credential_generation;
+  candidate.system_id = record->system_id;
+  candidate.node_id = record->node_id;
+  candidate.broker_host = record->broker_host;
+  candidate.broker_port = record->broker_port;
+  candidate.broker_tls_server_name = record->broker_tls_server_name;
+  candidate.ca_pem = record->ca_pem;
+  candidate.mqtt_username = record->mqtt_username;
+  candidate.mqtt_password = record->mqtt_password;
+  candidate.mqtt_client_id = record->mqtt_client_id;
+  candidate.credential_generation = record->credential_generation;
   if (!candidate.valid()) {
     candidate.clear();
     return SimpleNvsStatus::CORRUPT;
@@ -179,23 +193,25 @@ SimpleNvsStatus NvsProvisionedBrokerStoreV2::save(const ProvisionedBrokerStateV2
   if (!state.valid() || namespace_name_.empty() || key_name_.empty()) {
     return SimpleNvsStatus::INVALID_ARGUMENT;
   }
-  PersistedBrokerState record{};
-  record.magic = kBrokerMagic;
-  record.version = kRecordVersion;
-  record.broker_port = state.broker_port;
-  record.credential_generation = state.credential_generation;
-  if (!copy_text(state.system_id, record.system_id) ||
-      !copy_text(state.node_id, record.node_id) ||
-      !copy_text(state.broker_host, record.broker_host) ||
-      !copy_text(state.broker_tls_server_name, record.broker_tls_server_name) ||
-      !copy_text(state.ca_pem, record.ca_pem) ||
-      !copy_text(state.mqtt_username, record.mqtt_username) ||
-      !copy_text(state.mqtt_password, record.mqtt_password) ||
-      !copy_text(state.mqtt_client_id, record.mqtt_client_id) ||
-      !write_check(&record)) {
+  auto record = std::unique_ptr<PersistedBrokerState>(
+      new (std::nothrow) PersistedBrokerState{});
+  if (!record) return SimpleNvsStatus::IO_ERROR;
+  record->magic = kBrokerMagic;
+  record->version = kRecordVersion;
+  record->broker_port = state.broker_port;
+  record->credential_generation = state.credential_generation;
+  if (!copy_text(state.system_id, record->system_id) ||
+      !copy_text(state.node_id, record->node_id) ||
+      !copy_text(state.broker_host, record->broker_host) ||
+      !copy_text(state.broker_tls_server_name, record->broker_tls_server_name) ||
+      !copy_text(state.ca_pem, record->ca_pem) ||
+      !copy_text(state.mqtt_username, record->mqtt_username) ||
+      !copy_text(state.mqtt_password, record->mqtt_password) ||
+      !copy_text(state.mqtt_client_id, record->mqtt_client_id) ||
+      !write_check(record.get())) {
     return SimpleNvsStatus::INVALID_ARGUMENT;
   }
-  return write_record(namespace_name_, key_name_, record);
+  return write_record(namespace_name_, key_name_, *record);
 }
 
 SimpleNvsStatus NvsProvisionedBrokerStoreV2::erase() {
