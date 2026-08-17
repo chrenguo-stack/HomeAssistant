@@ -79,7 +79,7 @@ interval:
             std::array<uint8_t, 8> random_boot{};
             if (!id(n3w_phase4_core).fill(random_boot.data(), random_boot.size())) return;
             static constexpr char kHex[] = "0123456789abcdef";
-            boot_id = "phase4_";
+            boot_id = "boot_";
             for (const uint8_t value : random_boot) {
               boot_id.push_back(kHex[(value >> 4U) & 0x0fU]);
               boot_id.push_back(kHex[value & 0x0fU]);
