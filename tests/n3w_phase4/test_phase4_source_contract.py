@@ -24,6 +24,29 @@ def test_concrete_driver_accepts_new_single_frame_budget_without_rewriting_legac
     assert "kDataFragmentPayloadBytes = 180" in radio_header
 
 
+def test_simplified_runtime_reuses_connected_sta_channel_without_init_thrash() -> None:
+    source = text(CORE / "n3w_simple_product_component.cpp")
+    header = text(CORE / "n3w_simple_product_component.h")
+    start = source.index("bool SimpleProductComponent::start_runtime_if_ready_()")
+    end = source.index("void SimpleProductComponent::advance_pairing_()", start)
+    body = source[start:end]
+
+    retry_gate = body.index(
+        "now - last_radio_attempt_ms_ < kRadioRetryIntervalMs"
+    )
+    current_channel = body.index("esp_wifi_get_channel")
+    initialize = body.index("radio_.initialize")
+    broadcast_peer = body.index("radio_.prepare_broadcast_peer")
+
+    assert retry_gate < current_channel < initialize < broadcast_peer
+    assert "radio_.set_channel" not in body
+    assert "ESP-NOW initialization failed error=%u" in body
+    assert "ESP-NOW broadcast peer configuration failed error=%u" in body
+    assert "Simplified N3-W runtime start failed error=%u" in body
+    assert "bool radio_attempted_{false};" in header
+    assert "uint64_t last_radio_attempt_ms_{0};" in header
+
+
 def test_generic_phase4_target_is_role_neutral_and_first_use_ready() -> None:
     config = text(LAB / "generic.yml")
     lowered = config.lower()

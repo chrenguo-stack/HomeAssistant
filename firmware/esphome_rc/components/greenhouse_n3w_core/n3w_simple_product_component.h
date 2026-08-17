@@ -129,8 +129,10 @@ class SimpleProductComponent : public Component,
   bool runtime_state_loaded_{false};
   bool mqtt_configured_{false};
   bool runtime_ready_{false};
+  bool radio_attempted_{false};
   uint64_t next_pairing_attempt_ms_{0};
   uint64_t next_recovery_probe_ms_{0};
+  uint64_t last_radio_attempt_ms_{0};
   MacAddress local_mac_{};
   ProvisionedPeerStateV2 peer_state_{};
   ProvisionedBrokerStateV2 broker_state_{};

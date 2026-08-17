@@ -28,6 +28,7 @@ namespace {
 static const char *const TAG = "n3w_simple_product";
 constexpr char kPmkDomain[] = "gh.n3w.espnow-pmk/1";
 constexpr std::size_t kHttpResponseMaxBytes = 16 * 1024;
+constexpr uint64_t kRadioRetryIntervalMs = 1000;
 
 struct HttpResponseCollector {
   std::string *output{nullptr};
@@ -232,33 +233,57 @@ bool SimpleProductComponent::start_runtime_if_ready_() {
   if (!runtime_state_loaded_ || !mqtt_configured_ || !wifi_connected()) {
     return false;
   }
+  const uint64_t now = now_ms();
+  if (radio_attempted_ &&
+      now - last_radio_attempt_ms_ < kRadioRetryIntervalMs) {
+    return false;
+  }
+  radio_attempted_ = true;
+  last_radio_attempt_ms_ = now;
+
   uint8_t channel = 0;
   wifi_second_chan_t secondary = WIFI_SECOND_CHAN_NONE;
   if (esp_wifi_get_channel(&channel, &secondary) != ESP_OK ||
       !valid_radio_channel(channel)) {
+    ESP_LOGW(TAG, "ESP-NOW deferred: connected STA channel is not ready");
     return false;
   }
   LinkKey pmk{};
   if (!derive_pmk_(&pmk)) return false;
   DriverError error = radio_.initialize(this, pmk);
   pmk.fill(0);
-  if (error != DriverError::NONE) return false;
-  error = radio_.set_channel(channel);
-  if (error == DriverError::NONE) {
-    error = radio_.prepare_broadcast_peer(channel);
-  }
   if (error != DriverError::NONE) {
+    ESP_LOGW(
+        TAG,
+        "ESP-NOW initialization failed error=%u",
+        static_cast<unsigned>(error));
+    return false;
+  }
+
+  // Wi-Fi owns the channel while STA is associated. ESP-NOW shares the
+  // already-observed channel; do not call esp_wifi_set_channel here.
+  error = radio_.prepare_broadcast_peer(channel);
+  if (error != DriverError::NONE) {
+    ESP_LOGW(
+        TAG,
+        "ESP-NOW broadcast peer configuration failed error=%u",
+        static_cast<unsigned>(error));
     radio_.shutdown();
     return false;
   }
-  if (runtime_.start(peer_state_, local_mac_, channel) !=
-      SimpleProductError::NONE) {
+  const SimpleProductError runtime_error =
+      runtime_.start(peer_state_, local_mac_, channel);
+  if (runtime_error != SimpleProductError::NONE) {
+    ESP_LOGW(
+        TAG,
+        "Simplified N3-W runtime start failed error=%u",
+        static_cast<unsigned>(runtime_error));
     radio_.shutdown();
     return false;
   }
   runtime_.set_relay_capable(mqtt_connected());
   runtime_ready_ = true;
-  next_recovery_probe_ms_ = now_ms() + kRecoveryProbeMs;
+  next_recovery_probe_ms_ = now + kRecoveryProbeMs;
   ESP_LOGI(
       TAG,
       "Simplified N3-W product runtime active node=%s channel=%u",
