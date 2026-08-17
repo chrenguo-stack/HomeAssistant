@@ -33,6 +33,8 @@ async def to_code(config: dict) -> None:
     include_builtin_idf_component("esp_netif")
     include_builtin_idf_component("esp_wifi")
     include_builtin_idf_component("esp_http_client")
+    include_builtin_idf_component("mbedtls")
+    cg.add_build_flag('-DMBEDTLS_CONFIG_FILE=\\"mbedtls/esp_config.h\\"')
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     cg.add(var.set_phase4_source_harness_enabled(config[CONF_PHASE4_SOURCE_HARNESS]))
