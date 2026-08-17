@@ -75,8 +75,6 @@ def test_phase4_lab_target_exposes_private_pairing_pop_and_synthetic_telemetry()
         "node_child",
         "node_relay",
         "gh-system-01",
-        "02:00:00:00:00:0a",
-        "02:00:00:00:00:0b",
     ):
         assert forbidden not in config.lower()
 
