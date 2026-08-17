@@ -116,6 +116,24 @@ jobs:
             -lmbedcrypto \
             -o /tmp/n3w-phase3-host-test
           /tmp/n3w-phase3-host-test
+      - name: Build and run Phase 4 simplified product runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          core=firmware/esphome_rc/components/greenhouse_n3w_core
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror \
+            -I"$core" \
+            "$core/n3w_core.cpp" \
+            "$core/n3w_radio.cpp" \
+            "$core/n3w_simple_crypto.cpp" \
+            "$core/n3w_compact_telemetry.cpp" \
+            "$core/n3w_simple_runtime.cpp" \
+            "$core/n3w_simple_state_host.cpp" \
+            "$core/n3w_simple_product_runtime.cpp" \
+            tests/n3w_phase4/n3w_phase4_runtime_host_test.cpp \
+            -lmbedcrypto \
+            -o /tmp/n3w-phase4-runtime-host-test
+          /tmp/n3w-phase4-runtime-host-test
       - name: Compile generic ESP32-C6 Child context
         shell: bash
         run: |
