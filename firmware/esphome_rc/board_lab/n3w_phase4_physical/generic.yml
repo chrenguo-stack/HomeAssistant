@@ -15,10 +15,28 @@ esp32:
         - esp_event
         - esp_netif
         - esp_wifi
+        - esp_http_client
 
 logger:
   level: INFO
   hardware_uart: USB_SERIAL_JTAG
+
+# Generic first-use access point only. No customer/site STA credential is present
+# in the public firmware source. Captive Portal writes the user's Wi-Fi choice at
+# first use; later nodes repeat the same independent process.
+wifi:
+  ap:
+    ssid: "Greenhouse N3-W Setup"
+
+captive_portal:
+
+# MQTT is deliberately inert until gh.pair.credentials/2 has been authenticated,
+# persisted, and acknowledged. The component replaces every runtime Broker field
+# before enabling the client.
+mqtt:
+  broker: 127.0.0.1
+  enable_on_boot: false
+  discovery: false
 
 external_components:
   - source:
@@ -29,3 +47,4 @@ external_components:
 
 greenhouse_n3w_core:
   phase4_source_harness: true
+  phase4_product_runtime: true
