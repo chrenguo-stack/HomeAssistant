@@ -239,7 +239,7 @@ DriverError EspNowDriver::send(
   if (!initialized_) {
     return DriverError::NOT_INITIALIZED;
   }
-  if (data == nullptr || size == 0 || size > kEspNowDatagramLimit ||
+  if (data == nullptr || size == 0 || size > kEspNowPhysicalDatagramLimit ||
       !esp_now_is_peer_exist(peer_mac.data())) {
     return DriverError::INVALID_ARGUMENT;
   }
@@ -260,7 +260,7 @@ DriverError EspNowDriver::send_broadcast(
   if (!initialized_) {
     return DriverError::NOT_INITIALIZED;
   }
-  if (data == nullptr || size == 0 || size > kEspNowDatagramLimit ||
+  if (data == nullptr || size == 0 || size > kEspNowPhysicalDatagramLimit ||
       !esp_now_is_peer_exist(kEspNowBroadcastMac.data())) {
     return DriverError::INVALID_ARGUMENT;
   }
@@ -277,7 +277,7 @@ void EspNowDriver::recv_cb_(
     int data_len) {
   if (active_ == nullptr || active_->sink_ == nullptr || info == nullptr ||
       info->src_addr == nullptr || data == nullptr || data_len <= 0 ||
-      static_cast<std::size_t>(data_len) > kEspNowDatagramLimit) {
+      static_cast<std::size_t>(data_len) > kEspNowPhysicalDatagramLimit) {
     return;
   }
   MacAddress source{};
