@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components.esp32 import include_builtin_idf_component
+from esphome.components.esp32 import (
+    add_idf_sdkconfig_option,
+    include_builtin_idf_component,
+)
 from esphome.const import CONF_ID
 
 DEPENDENCIES = ["esp32"]
@@ -24,6 +27,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: dict) -> None:
+    add_idf_sdkconfig_option("CONFIG_MBEDTLS_HKDF_C", True)
     include_builtin_idf_component("nvs_flash")
     include_builtin_idf_component("esp_event")
     include_builtin_idf_component("esp_netif")
