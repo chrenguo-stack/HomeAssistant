@@ -6,8 +6,12 @@
 #include <string>
 #include <vector>
 
+#ifdef USE_MQTT
 #include "esphome/components/mqtt/mqtt_client.h"
+#endif
+#ifdef USE_WIFI
 #include "esphome/components/wifi/wifi_component.h"
+#endif
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esp_http_client.h"
@@ -47,11 +51,21 @@ esp_err_t http_event_handler(esp_http_client_event_t *event) {
 }
 
 bool mqtt_connected() {
-  return mqtt::global_mqtt_client != nullptr && mqtt::global_mqtt_client->is_connected();
+#ifdef USE_MQTT
+  return mqtt::global_mqtt_client != nullptr &&
+         mqtt::global_mqtt_client->is_connected();
+#else
+  return false;
+#endif
 }
 
 bool wifi_connected() {
-  return wifi::global_wifi_component != nullptr && wifi::global_wifi_component->is_connected();
+#ifdef USE_WIFI
+  return wifi::global_wifi_component != nullptr &&
+         wifi::global_wifi_component->is_connected();
+#else
+  return false;
+#endif
 }
 
 }  // namespace
@@ -87,13 +101,18 @@ void SimpleProductComponent::setup() {
       mark_failed();
       return;
     }
-    ESP_LOGI(TAG, "Provisioned N3-W runtime state loaded for node=%s", peer_state_.node_id.c_str());
+    ESP_LOGI(
+        TAG,
+        "Provisioned N3-W runtime state loaded for node=%s",
+        peer_state_.node_id.c_str());
     return;
   }
   if (pairing != SimplePairingClientError::NONE &&
       pairing != SimplePairingClientError::ACK_PENDING) {
-    ESP_LOGE(TAG, "Simplified pairing bootstrap initialization failed code=%u",
-             static_cast<unsigned>(pairing));
+    ESP_LOGE(
+        TAG,
+        "Simplified pairing bootstrap initialization failed code=%u",
+        static_cast<unsigned>(pairing));
     mark_failed();
     return;
   }
@@ -127,13 +146,17 @@ bool SimpleProductComponent::send_telemetry_json(
     const std::string &boot_id,
     uint32_t seq) {
   if (!runtime_ready_) return false;
-  return runtime_.send_telemetry(telemetry_json, boot_id, seq) == SimpleProductError::NONE;
+  return runtime_.send_telemetry(telemetry_json, boot_id, seq) ==
+         SimpleProductError::NONE;
 }
 
 bool SimpleProductComponent::read_local_mac_() {
   local_mac_.fill(0);
   return esp_read_mac(local_mac_.data(), ESP_MAC_WIFI_STA) == ESP_OK &&
-         std::any_of(local_mac_.begin(), local_mac_.end(), [](uint8_t value) { return value != 0; });
+         std::any_of(
+             local_mac_.begin(),
+             local_mac_.end(),
+             [](uint8_t value) { return value != 0; });
 }
 
 bool SimpleProductComponent::load_runtime_state_() {
@@ -141,7 +164,8 @@ bool SimpleProductComponent::load_runtime_state_() {
   ProvisionedBrokerStateV2 broker;
   if (peer_store_.load(&peer) != SimpleNvsStatus::OK ||
       broker_store_.load(&broker) != SimpleNvsStatus::OK || !peer.valid() ||
-      !broker.valid() || peer.system_id != broker.system_id || peer.node_id != broker.node_id) {
+      !broker.valid() || peer.system_id != broker.system_id ||
+      peer.node_id != broker.node_id) {
     return false;
   }
   peer_state_ = std::move(peer);
@@ -151,32 +175,42 @@ bool SimpleProductComponent::load_runtime_state_() {
 }
 
 bool SimpleProductComponent::configure_mqtt_() {
+#ifdef USE_MQTT
   if (!runtime_state_loaded_ || mqtt::global_mqtt_client == nullptr) return false;
   mqtt::global_mqtt_client->set_broker_address(broker_state_.broker_host);
   mqtt::global_mqtt_client->set_broker_port(broker_state_.broker_port);
   mqtt::global_mqtt_client->set_username(broker_state_.mqtt_username);
   mqtt::global_mqtt_client->set_password(broker_state_.mqtt_password);
   mqtt::global_mqtt_client->set_client_id(broker_state_.mqtt_client_id);
-  mqtt::global_mqtt_client->set_ca_certificate(broker_state_.ca_pem);
+  mqtt::global_mqtt_client->set_ca_certificate(broker_state_.ca_pem.c_str());
   mqtt::global_mqtt_client->set_enable_on_boot(true);
   mqtt::global_mqtt_client->enable();
   mqtt_configured_ = true;
   return true;
+#else
+  return false;
+#endif
 }
 
 bool SimpleProductComponent::derive_pmk_(LinkKey *pmk) const {
   if (pmk == nullptr || !peer_state_.valid()) return false;
   std::vector<uint8_t> message;
-  message.insert(message.end(), std::begin(kPmkDomain), std::end(kPmkDomain) - 1);
+  message.insert(
+      message.end(), std::begin(kPmkDomain), std::end(kPmkDomain) - 1);
   message.push_back(0);
-  message.insert(message.end(), peer_state_.system_id.begin(), peer_state_.system_id.end());
+  message.insert(
+      message.end(),
+      peer_state_.system_id.begin(),
+      peer_state_.system_id.end());
   message.push_back(0);
   for (int shift = 56; shift >= 0; shift -= 8) {
     message.push_back(static_cast<uint8_t>(
-        (static_cast<uint64_t>(peer_state_.peer_trust_generation) >> shift) & 0xffU));
+        (static_cast<uint64_t>(peer_state_.peer_trust_generation) >> shift) &
+        0xffU));
   }
   std::array<uint8_t, 32> digest{};
-  const mbedtls_md_info_t *info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
+  const mbedtls_md_info_t *info =
+      mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
   if (info == nullptr ||
       mbedtls_md_hmac(
           info,
@@ -189,15 +223,19 @@ bool SimpleProductComponent::derive_pmk_(LinkKey *pmk) const {
   }
   std::copy_n(digest.begin(), pmk->size(), pmk->begin());
   digest.fill(0);
-  return std::any_of(pmk->begin(), pmk->end(), [](uint8_t value) { return value != 0; });
+  return std::any_of(
+      pmk->begin(), pmk->end(), [](uint8_t value) { return value != 0; });
 }
 
 bool SimpleProductComponent::start_runtime_if_ready_() {
   if (runtime_ready_) return true;
-  if (!runtime_state_loaded_ || !mqtt_configured_ || !wifi_connected()) return false;
+  if (!runtime_state_loaded_ || !mqtt_configured_ || !wifi_connected()) {
+    return false;
+  }
   uint8_t channel = 0;
   wifi_second_chan_t secondary = WIFI_SECOND_CHAN_NONE;
-  if (esp_wifi_get_channel(&channel, &secondary) != ESP_OK || !valid_radio_channel(channel)) {
+  if (esp_wifi_get_channel(&channel, &secondary) != ESP_OK ||
+      !valid_radio_channel(channel)) {
     return false;
   }
   LinkKey pmk{};
@@ -206,20 +244,26 @@ bool SimpleProductComponent::start_runtime_if_ready_() {
   pmk.fill(0);
   if (error != DriverError::NONE) return false;
   error = radio_.set_channel(channel);
-  if (error == DriverError::NONE) error = radio_.prepare_broadcast_peer(channel);
+  if (error == DriverError::NONE) {
+    error = radio_.prepare_broadcast_peer(channel);
+  }
   if (error != DriverError::NONE) {
     radio_.shutdown();
     return false;
   }
-  if (runtime_.start(peer_state_, local_mac_, channel) != SimpleProductError::NONE) {
+  if (runtime_.start(peer_state_, local_mac_, channel) !=
+      SimpleProductError::NONE) {
     radio_.shutdown();
     return false;
   }
   runtime_.set_relay_capable(mqtt_connected());
   runtime_ready_ = true;
   next_recovery_probe_ms_ = now_ms() + kRecoveryProbeMs;
-  ESP_LOGI(TAG, "Simplified N3-W product runtime active node=%s channel=%u",
-           peer_state_.node_id.c_str(), static_cast<unsigned>(channel));
+  ESP_LOGI(
+      TAG,
+      "Simplified N3-W product runtime active node=%s channel=%u",
+      peer_state_.node_id.c_str(),
+      static_cast<unsigned>(channel));
   return true;
 }
 
@@ -232,7 +276,9 @@ void SimpleProductComponent::advance_pairing_() {
   if (result == SimplePairingClientError::NONE ||
       result == SimplePairingClientError::ALREADY_PROVISIONED) {
     if (pairing_client_.provisioned()) {
-      ESP_LOGI(TAG, "Simplified pairing committed; loading product runtime state");
+      ESP_LOGI(
+          TAG,
+          "Simplified pairing committed; loading product runtime state");
       (void) load_runtime_state_();
       (void) configure_mqtt_();
     }
@@ -241,10 +287,16 @@ void SimpleProductComponent::advance_pairing_() {
   if (result == SimplePairingClientError::NOT_READY ||
       result == SimplePairingClientError::DISCOVERY_FAILED ||
       result == SimplePairingClientError::ACK_PENDING) {
-    ESP_LOGD(TAG, "Simplified pairing waiting code=%u", static_cast<unsigned>(result));
+    ESP_LOGD(
+        TAG,
+        "Simplified pairing waiting code=%u",
+        static_cast<unsigned>(result));
     return;
   }
-  ESP_LOGW(TAG, "Simplified pairing attempt failed code=%u", static_cast<unsigned>(result));
+  ESP_LOGW(
+      TAG,
+      "Simplified pairing attempt failed code=%u",
+      static_cast<unsigned>(result));
 }
 
 void SimpleProductComponent::advance_recovery_() {
@@ -263,8 +315,11 @@ void SimpleProductComponent::drain_radio_() {
     const uint8_t write = rx_write_.load(std::memory_order_acquire);
     if (read == write) break;
     const RxSlot &slot = rx_ring_[read];
-    (void) runtime_.on_radio_receive(slot.source, slot.data.data(), slot.size, slot.channel);
-    rx_read_.store(static_cast<uint8_t>((read + 1U) % kRxRingSlots), std::memory_order_release);
+    (void) runtime_.on_radio_receive(
+        slot.source, slot.data.data(), slot.size, slot.channel);
+    rx_read_.store(
+        static_cast<uint8_t>((read + 1U) % kRxRingSlots),
+        std::memory_order_release);
   }
 }
 
@@ -281,7 +336,9 @@ void SimpleProductComponent::on_espnow_receive_with_metadata(
     const uint8_t *data,
     std::size_t size,
     const EspNowReceiveMetadata &metadata) {
-  if (data == nullptr || size == 0 || size > kEspNowPhysicalDatagramLimit) return;
+  if (data == nullptr || size == 0 || size > kEspNowPhysicalDatagramLimit) {
+    return;
+  }
   const uint8_t write = rx_write_.load(std::memory_order_relaxed);
   const uint8_t next = static_cast<uint8_t>((write + 1U) % kRxRingSlots);
   if (next == rx_read_.load(std::memory_order_acquire)) {
@@ -307,7 +364,9 @@ bool SimpleProductComponent::set_radio_channel(uint8_t channel) {
   return radio_.set_channel(channel) == DriverError::NONE;
 }
 
-bool SimpleProductComponent::broadcast_control(const uint8_t *data, std::size_t size) {
+bool SimpleProductComponent::broadcast_control(
+    const uint8_t *data,
+    std::size_t size) {
   return radio_.send_broadcast(data, size) == DriverError::NONE;
 }
 
@@ -315,7 +374,8 @@ bool SimpleProductComponent::install_encrypted_peer(
     const MacAddress &peer_mac,
     const LinkKey &lmk,
     uint8_t channel) {
-  return radio_.add_encrypted_peer(peer_mac, lmk, channel) == DriverError::NONE;
+  return radio_.add_encrypted_peer(peer_mac, lmk, channel) ==
+         DriverError::NONE;
 }
 
 bool SimpleProductComponent::remove_peer(const MacAddress &peer_mac) {
@@ -332,13 +392,27 @@ bool SimpleProductComponent::send_encrypted_peer(
 bool SimpleProductComponent::publish_direct(
     const std::string &topic,
     const std::string &payload) {
-  return mqtt_connected() && mqtt::global_mqtt_client->publish(topic, payload, 1, false);
+#ifdef USE_MQTT
+  return mqtt_connected() &&
+         mqtt::global_mqtt_client->publish(topic, payload, 1, false);
+#else
+  (void) topic;
+  (void) payload;
+  return false;
+#endif
 }
 
 bool SimpleProductComponent::publish_relay(
     const std::string &topic,
     const std::string &payload) {
-  return mqtt_connected() && mqtt::global_mqtt_client->publish(topic, payload, 1, false);
+#ifdef USE_MQTT
+  return mqtt_connected() &&
+         mqtt::global_mqtt_client->publish(topic, payload, 1, false);
+#else
+  (void) topic;
+  (void) payload;
+  return false;
+#endif
 }
 
 uint64_t SimpleProductComponent::now_ms() const {
@@ -349,10 +423,13 @@ bool SimpleProductComponent::fill(uint8_t *data, std::size_t size) {
   return fill_pairing_random(data, size);
 }
 
-bool SimpleProductComponent::fill_pairing_random(uint8_t *data, std::size_t size) {
+bool SimpleProductComponent::fill_pairing_random(
+    uint8_t *data,
+    std::size_t size) {
   if (data == nullptr || size == 0) return false;
   esp_fill_random(data, size);
-  return std::any_of(data, data + size, [](uint8_t value) { return value != 0; });
+  return std::any_of(
+      data, data + size, [](uint8_t value) { return value != 0; });
 }
 
 bool SimpleProductComponent::discover_manager(
@@ -366,8 +443,11 @@ bool SimpleProductComponent::discover_manager(
   timeval timeout{};
   timeout.tv_sec = 1;
   timeout.tv_usec = 0;
-  bool ok = ::setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast)) == 0 &&
-            ::setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) == 0;
+  bool ok =
+      ::setsockopt(
+          fd, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast)) == 0 &&
+      ::setsockopt(
+          fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) == 0;
   sockaddr_in target{};
   target.sin_family = AF_INET;
   target.sin_port = htons(kDiscoveryPort);
@@ -379,13 +459,16 @@ bool SimpleProductComponent::discover_manager(
              request_json.size(),
              0,
              reinterpret_cast<sockaddr *>(&target),
-             sizeof(target)) == static_cast<ssize_t>(request_json.size());
+             sizeof(target)) ==
+         static_cast<ssize_t>(request_json.size());
   }
   if (ok) {
     std::array<char, 1401> buffer{};
-    const ssize_t received = ::recv(fd, buffer.data(), buffer.size() - 1U, 0);
+    const ssize_t received =
+        ::recv(fd, buffer.data(), buffer.size() - 1U, 0);
     if (received > 0) {
-      response_json->assign(buffer.data(), static_cast<std::size_t>(received));
+      response_json->assign(
+          buffer.data(), static_cast<std::size_t>(received));
     } else {
       ok = false;
     }
@@ -402,11 +485,13 @@ bool SimpleProductComponent::http_post_(
     int *status_code,
     std::string *response_json) {
   if (host.empty() || port == 0 || path.empty() || path.front() != '/' ||
-      request_json.empty() || status_code == nullptr || response_json == nullptr) {
+      request_json.empty() || status_code == nullptr ||
+      response_json == nullptr) {
     return false;
   }
   response_json->clear();
-  const std::string url = "http://" + host + ":" + std::to_string(port) + path;
+  const std::string url =
+      "http://" + host + ":" + std::to_string(port) + path;
   HttpResponseCollector collector{response_json, false};
   esp_http_client_config_t config{};
   config.url = url.c_str();
