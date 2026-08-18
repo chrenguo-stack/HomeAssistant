@@ -20,12 +20,13 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class N3wSimplifiedIsolatedMqttService(ManagerMqttService):
-    """Opt-in Phase 4 MQTT entrypoint with no legacy PATH/finite-grant authority.
+    """Simplified N3-W MQTT entrypoint with no legacy PATH/finite-grant authority.
 
-    Normal Manager startup never instantiates this class. The base service is
-    deliberately constructed with `n3w_runtime_enabled=False`; Direct and Relay
-    ingress are then routed only through `N3wMultiIngressRouter` and one shared
-    canonical freshness cursor.
+    Phase 4 originally kept this entrypoint isolated-only. Phase 5-A promotes the
+    same validated Direct/Relay router behind the normal Manager service selector.
+    The base service is deliberately constructed with both legacy N3-W runtime and
+    legacy pairing intake disabled; Direct and Relay ingress are routed only through
+    `N3wMultiIngressRouter` and one shared canonical freshness cursor.
     """
 
     def __init__(
@@ -36,7 +37,11 @@ class N3wSimplifiedIsolatedMqttService(ManagerMqttService):
         replay: ReplayRegistry,
         keys: NodeApplicationKeyProvider,
     ) -> None:
+        # Keep the original one-line replacement as a Phase 4 source-contract
+        # compatibility marker, then independently disable the superseded MQTT
+        # pairing intake for the promoted Phase 5-A path.
         source_settings = replace(settings, n3w_runtime_enabled=False)
+        source_settings = replace(source_settings, pairing_intake_enabled=False)
         super().__init__(source_settings)
         if (
             self.registration_registry is not None
