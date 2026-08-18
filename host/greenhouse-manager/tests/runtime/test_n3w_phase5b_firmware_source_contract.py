@@ -3,6 +3,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[4]
 CORE = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_core"
 P5_LAB = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_p5_lab"
+S5_BOARD = ROOT / "firmware/esphome_rc/board_lab/n3w_product_completion_s5"
 
 
 def _text(path: Path) -> str:
@@ -12,9 +13,13 @@ def _text(path: Path) -> str:
 def test_active_radio_surface_drops_reliable_fragmentation_stack() -> None:
     header = _text(CORE / "n3w_radio.h")
     source = _text(CORE / "n3w_radio.cpp")
-    active_header = header.split(
-        "#ifdef GREENHOUSE_N3W_ENABLE_LEGACY_RADIO", 1
-    )[0]
+    legacy_include_gate = (
+        '\n#ifdef GREENHOUSE_N3W_ENABLE_LEGACY_RADIO\n'
+        '#include "n3w_radio_legacy.h"\n'
+        "#endif"
+    )
+    assert legacy_include_gate in header
+    active_header = header.replace(legacy_include_gate, "", 1)
 
     for marker in (
         "struct DataFragment",
@@ -44,7 +49,7 @@ def test_active_radio_surface_drops_reliable_fragmentation_stack() -> None:
         assert preserved in active_header
 
 
-def test_legacy_radio_exists_only_behind_p5_lab_compile_gate() -> None:
+def test_legacy_radio_exists_only_behind_explicit_regression_gates() -> None:
     legacy_header = _text(CORE / "n3w_radio_legacy.h")
     legacy_wrapper = _text(CORE / "n3w_radio_legacy.cpp")
     lab_component = _text(P5_LAB / "__init__.py")
@@ -58,8 +63,11 @@ def test_legacy_radio_exists_only_behind_p5_lab_compile_gate() -> None:
     ):
         assert marker in legacy_header
 
-    assert "GREENHOUSE_N3W_ENABLE_LEGACY_RADIO" in legacy_wrapper
-    assert 'cg.add_build_flag("-DGREENHOUSE_N3W_ENABLE_LEGACY_RADIO=1")' in lab_component
+    gate = "GREENHOUSE_N3W_ENABLE_LEGACY_RADIO"
+    assert gate in legacy_wrapper
+    assert f'cg.add_build_flag("-D{gate}=1")' in lab_component
+    for role in ("child", "relay"):
+        assert f'-D{gate}=1' in _text(S5_BOARD / f"{role}.yml")
     assert "regression reference" in legacy_header
     assert "release/runtime code must not" in legacy_header.lower()
 
