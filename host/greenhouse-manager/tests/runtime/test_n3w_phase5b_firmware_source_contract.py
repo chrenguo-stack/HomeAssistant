@@ -52,6 +52,7 @@ def test_active_radio_surface_drops_reliable_fragmentation_stack() -> None:
 def test_legacy_radio_exists_only_behind_explicit_regression_gates() -> None:
     legacy_header = _text(CORE / "n3w_radio_legacy.h")
     legacy_wrapper = _text(CORE / "n3w_radio_legacy.cpp")
+    legacy_impl = CORE / "n3w_radio_legacy_impl.h"
     lab_component = _text(P5_LAB / "__init__.py")
 
     for marker in (
@@ -65,6 +66,9 @@ def test_legacy_radio_exists_only_behind_explicit_regression_gates() -> None:
 
     gate = "GREENHOUSE_N3W_ENABLE_LEGACY_RADIO"
     assert gate in legacy_wrapper
+    assert '#include "n3w_radio_legacy_impl.h"' in legacy_wrapper
+    assert legacy_impl.is_file()
+    assert not (CORE / "n3w_radio_legacy_impl.inc").exists()
     assert f'cg.add_build_flag("-D{gate}=1")' in lab_component
     for role in ("child", "relay"):
         target = _text(S5_BOARD / f"{role}.yml")
