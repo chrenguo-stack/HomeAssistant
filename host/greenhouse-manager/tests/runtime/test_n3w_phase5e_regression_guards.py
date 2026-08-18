@@ -7,7 +7,6 @@ import pytest
 
 from greenhouse_manager.ops.registration_cli import _parser
 
-
 MANAGER_ROOT = Path(__file__).resolve().parents[2]
 REPO_ROOT = Path(__file__).resolve().parents[4]
 RUNTIME_ROOT = MANAGER_ROOT / "src" / "greenhouse_manager" / "runtime"
