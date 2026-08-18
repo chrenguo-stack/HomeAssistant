@@ -11,6 +11,8 @@ MANAGER_ROOT = Path(__file__).resolve().parents[2]
 REPO_ROOT = Path(__file__).resolve().parents[4]
 RUNTIME_ROOT = MANAGER_ROOT / "src" / "greenhouse_manager" / "runtime"
 OPS_ROOT = MANAGER_ROOT / "src" / "greenhouse_manager" / "ops"
+WORKFLOW_ROOT = REPO_ROOT / ".github" / "workflows"
+COMPONENT_ROOT = REPO_ROOT / "firmware" / "esphome_rc" / "components"
 
 
 RETIRED_CANONICAL_RUNTIME_FILES = {
@@ -43,6 +45,30 @@ CURRENT_RUNTIME_FILES = {
 HISTORICAL_RUNTIME_FILES = {
     "n3w_path_lease_legacy.py",
     "n3w_relay_ingress_legacy.py",
+}
+
+RETIRED_PRODUCT_COMPONENTS = {
+    "greenhouse_n3w_product_core",
+    "greenhouse_n3w_product_runtime",
+}
+
+RETIRED_PRODUCT_WORKFLOWS = {
+    "n3w-esp32c6-espnow-radio-runtime-ci.yml",
+    "n3w-espnow-channel-recovery-successor-ci.yml",
+    "n3w-p5-m02-aead-runtime-successor-repair-ci.yml",
+    "n3w-p5-m02-child-relay-cache-liveness-sequence-burn-hostonly-repair-ci.yml",
+    "n3w-p5-m02-espnow-connected-sta-radio-init-successor-ci.yml",
+    "n3w-p5-m02-stacked-main-integration-ci.yml",
+    "n3w-p5-m04-direct-relay-datagram-cache-priming-hostonly-repair-ci.yml",
+    "n3w-p5-m04-resend-radio-ready-observability-hostonly-repair-ci.yml",
+    "n3w-p5-m08-reprobe-recovery-state-machine-ci.yml",
+    "n3w-p5-two-board-isolated-e2e-prep-ci.yml",
+    "n3w-product-completion-s2-hostonly-core-ci.yml",
+    "n3w-product-completion-s3-disconnected-espnow-runtime-ci.yml",
+    "n3w-product-completion-s5-ab-host-compile-ci.yml",
+    "n3w-product-completion-s5-board-integration-ci.yml",
+    "n3w-product-completion-s5-dedicated-two-node-state-initializer-ci.yml",
+    "n3w-product-completion-s5-r7-private-package-stimulus-builder-ci.yml",
 }
 
 
@@ -108,6 +134,16 @@ def test_registration_approve_uses_manager_assigned_node_id() -> None:
                 "operator-choice",
             ]
         )
+
+
+def test_retired_product_components_are_absent() -> None:
+    present = {path.name for path in COMPONENT_ROOT.iterdir() if path.is_dir()}
+    assert RETIRED_PRODUCT_COMPONENTS.isdisjoint(present)
+
+
+def test_retired_product_workflows_are_absent() -> None:
+    present = {path.name for path in WORKFLOW_ROOT.glob("*.yml")}
+    assert RETIRED_PRODUCT_WORKFLOWS.isdisjoint(present)
 
 
 def test_normal_rc2_does_not_select_retired_product_runtime() -> None:
