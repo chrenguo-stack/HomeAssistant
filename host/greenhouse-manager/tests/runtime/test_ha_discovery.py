@@ -174,3 +174,32 @@ def test_retirement_tombstones_both_discovery_topics_and_clears_cache() -> None:
     assert all(message.payload == b"" for message in messages)
     assert all(message.retain for message in messages)
     assert len(republished) == 2
+
+
+def test_transport_metadata_does_not_change_or_republish_identity() -> None:
+    discovery = HomeAssistantDiscovery(system_id="greenhouse")
+    direct = canonical_telemetry()
+    direct.update({"active_transport": "direct", "gateway_id": None})
+    first = discovery.messages_for_telemetry(direct)
+
+    relay = canonical_telemetry()
+    relay.update(
+        {
+            "active_transport": "relay",
+            "gateway_id": "gh-n1-relay01",
+            "key_epoch": 2,
+            "seq": 9,
+        }
+    )
+    assert discovery.messages_for_telemetry(relay) == ()
+
+    fresh = HomeAssistantDiscovery(system_id="greenhouse")
+    relay_messages = fresh.messages_for_telemetry(relay)
+    assert [message.topic for message in relay_messages] == [
+        message.topic for message in first
+    ]
+    assert relay_messages[0].payload["device"]["identifiers"] == (
+        first[0].payload["device"]["identifiers"]
+    )
+    assert relay_messages[0].payload["device"]["serial_number"] == NODE_ID
+    assert relay_messages[0].payload["state_topic"] == first[0].payload["state_topic"]
