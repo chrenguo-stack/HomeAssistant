@@ -4,7 +4,7 @@ import base64
 import json
 from pathlib import Path
 
-from greenhouse_manager.runtime.n3w_relay_ingress import (
+from greenhouse_manager.runtime.n3w_relay_ingress_legacy import (
     RelayEnvelope,
     aes256gcm_decrypt,
     build_aad,
