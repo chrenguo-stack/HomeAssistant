@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[4]
 CORE = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_core"
 P5_LAB = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_p5_lab"
