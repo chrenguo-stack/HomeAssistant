@@ -395,6 +395,23 @@ void SimpleProductComponent::on_espnow_send_result(
 }
 
 bool SimpleProductComponent::set_radio_channel(uint8_t channel) {
+  if (!valid_radio_channel(channel)) return false;
+
+  // While STA is associated, ESP-NOW must share the channel already owned by
+  // Wi-Fi. Treat an idempotent request for that channel as success without
+  // calling esp_wifi_set_channel(); reject any attempt to move an associated
+  // STA to a different channel. Once STA is disconnected, the ESP-NOW runtime
+  // may control the radio channel for discovery/relay scanning as before.
+  if (wifi_connected()) {
+    uint8_t current_channel = 0;
+    wifi_second_chan_t secondary = WIFI_SECOND_CHAN_NONE;
+    if (esp_wifi_get_channel(&current_channel, &secondary) != ESP_OK ||
+        !valid_radio_channel(current_channel)) {
+      return false;
+    }
+    return current_channel == channel;
+  }
+
   return radio_.set_channel(channel) == DriverError::NONE;
 }
 
@@ -518,33 +535,33 @@ bool SimpleProductComponent::http_post_(
     const std::string &request_json,
     int *status_code,
     std::string *response_json) {
-  if (host.empty() || port == 0 || path.empty() || path.front() != '/' ||
-      request_json.empty() || status_code == nullptr ||
-      response_json == nullptr) {
+  if (host.empty() || port == 0 || path.empty() || request_json.empty() ||
+      status_code == nullptr || response_json == nullptr) {
     return false;
   }
   response_json->clear();
-  const std::string url =
-      "http://" + host + ":" + std::to_string(port) + path;
   HttpResponseCollector collector{response_json, false};
   esp_http_client_config_t config{};
-  config.url = url.c_str();
+  config.host = host.c_str();
+  config.port = port;
+  config.path = path.c_str();
+  config.method = HTTP_METHOD_POST;
   config.event_handler = http_event_handler;
   config.user_data = &collector;
-  config.timeout_ms = 4000;
+  config.timeout_ms = 2500;
   esp_http_client_handle_t client = esp_http_client_init(&config);
   if (client == nullptr) return false;
-  esp_http_client_set_method(client, HTTP_METHOD_POST);
-  esp_http_client_set_header(client, "Content-Type", "application/json");
-  esp_http_client_set_header(client, "Cache-Control", "no-store");
-  esp_http_client_set_post_field(
-      client,
-      request_json.data(),
-      static_cast<int>(request_json.size()));
-  const esp_err_t result = esp_http_client_perform(client);
-  *status_code = esp_http_client_get_status_code(client);
+  bool ok =
+      esp_http_client_set_header(client, "Content-Type", "application/json") ==
+          ESP_OK &&
+      esp_http_client_set_post_field(
+          client, request_json.data(), request_json.size()) == ESP_OK &&
+      esp_http_client_perform(client) == ESP_OK;
+  if (ok) {
+    *status_code = esp_http_client_get_status_code(client);
+  }
   esp_http_client_cleanup(client);
-  return result == ESP_OK && !collector.overflow;
+  return ok && !collector.overflow;
 }
 
 bool SimpleProductComponent::post_json(
@@ -553,30 +570,14 @@ bool SimpleProductComponent::post_json(
     const std::string &request_json,
     int *status_code,
     std::string *response_json) {
-  return candidate.valid() &&
-         http_post_(
-             candidate.host,
-             candidate.port,
-             path,
-             request_json,
-             status_code,
-             response_json);
-}
-
-bool SimpleProductComponent::post_json(
-    const PendingPairingAckV2 &pending,
-    const std::string &path,
-    const std::string &request_json,
-    int *status_code,
-    std::string *response_json) {
-  return pending.valid() &&
-         http_post_(
-             pending.manager_host,
-             pending.manager_port,
-             path,
-             request_json,
-             status_code,
-             response_json);
+  if (!candidate.valid()) return false;
+  return http_post_(
+      candidate.host,
+      candidate.port,
+      path,
+      request_json,
+      status_code,
+      response_json);
 }
 
 }  // namespace esphome::greenhouse_n3w_core
