@@ -67,7 +67,10 @@ def test_legacy_radio_exists_only_behind_explicit_regression_gates() -> None:
     assert gate in legacy_wrapper
     assert f'cg.add_build_flag("-D{gate}=1")' in lab_component
     for role in ("child", "relay"):
-        assert f'-D{gate}=1' in _text(S5_BOARD / f"{role}.yml")
+        target = _text(S5_BOARD / f"{role}.yml")
+        assert "platformio_options:" in target
+        assert "build_flags:" in target
+        assert f'-D{gate}=1' in target
     assert "regression reference" in legacy_header
     assert "release/runtime code must not" in legacy_header.lower()
 
