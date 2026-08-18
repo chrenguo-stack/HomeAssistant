@@ -51,8 +51,10 @@ def test_active_radio_surface_drops_reliable_fragmentation_stack() -> None:
 
 def test_legacy_radio_exists_only_behind_explicit_regression_gates() -> None:
     legacy_header = _text(CORE / "n3w_radio_legacy.h")
-    legacy_wrapper = _text(CORE / "n3w_radio_legacy.cpp")
-    legacy_impl = CORE / "n3w_radio_legacy_impl.h"
+    legacy_component = CORE.parent / "greenhouse_n3w_legacy_radio"
+    legacy_impl = legacy_component / "n3w_radio_legacy_impl.cpp"
+    legacy_forwarder = legacy_component / "n3w_radio.h"
+    legacy_component_init = _text(legacy_component / "__init__.py")
     lab_component = _text(P5_LAB / "__init__.py")
 
     for marker in (
@@ -65,16 +67,24 @@ def test_legacy_radio_exists_only_behind_explicit_regression_gates() -> None:
         assert marker in legacy_header
 
     gate = "GREENHOUSE_N3W_ENABLE_LEGACY_RADIO"
-    assert gate in legacy_wrapper
-    assert '#include "n3w_radio_legacy_impl.h"' in legacy_wrapper
+    legacy_impl_text = _text(legacy_impl)
     assert legacy_impl.is_file()
+    assert '#include "n3w_radio.h"' in legacy_impl_text
+    assert "fragment_relay_frame(" in legacy_impl_text
+    assert legacy_forwarder.is_file()
+    assert "greenhouse_n3w_core/n3w_radio.h" in _text(legacy_forwarder)
+    assert 'DEPENDENCIES = ["greenhouse_n3w_core"]' in legacy_component_init
+    assert not (CORE / "n3w_radio_legacy.cpp").exists()
+    assert not (CORE / "n3w_radio_legacy_impl.h").exists()
     assert not (CORE / "n3w_radio_legacy_impl.inc").exists()
+    assert 'AUTO_LOAD = ["greenhouse_n3w_legacy_radio"]' in lab_component
     assert f'cg.add_build_flag("-D{gate}=1")' in lab_component
     for role in ("child", "relay"):
         target = _text(S5_BOARD / f"{role}.yml")
         assert "platformio_options:" in target
         assert "build_flags:" in target
         assert f'-D{gate}=1' in target
+        assert "greenhouse_n3w_legacy_radio" in target
     assert "regression reference" in legacy_header
     assert "release/runtime code must not" in legacy_header.lower()
 

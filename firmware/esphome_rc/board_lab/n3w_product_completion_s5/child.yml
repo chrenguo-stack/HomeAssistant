@@ -31,10 +31,13 @@ external_components:
       path: ../../components
     components:
       - greenhouse_n3w_core
+      - greenhouse_n3w_legacy_radio
       - greenhouse_n3w_product_core
       - greenhouse_n3w_product_runtime
 
 greenhouse_n3w_core:
+
+greenhouse_n3w_legacy_radio:
 
 greenhouse_n3w_product_core:
 

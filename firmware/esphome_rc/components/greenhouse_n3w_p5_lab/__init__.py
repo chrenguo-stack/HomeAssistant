@@ -7,6 +7,7 @@ from esphome.const import CONF_ID
 from voluptuous import Invalid
 
 DEPENDENCIES = ["esp32", "wifi", "mqtt"]
+AUTO_LOAD = ["greenhouse_n3w_legacy_radio"]
 
 CONF_ROLE = "role"
 CONF_EXECUTION_ENABLED = "execution_enabled"
