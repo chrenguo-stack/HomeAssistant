@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
 from greenhouse_manager.runtime.n3w_canonical_ingress import N3wCanonicalIngressCoordinator
-from greenhouse_manager.runtime.n3w_path_lease import (
+from greenhouse_manager.runtime.n3w_path_lease_legacy import (
     N3wPathLeaseCoordinator,
     PathLeasePolicy,
     PathOwner,
