@@ -1,8 +1,10 @@
+import inspect
 import json
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
+from greenhouse_manager.runtime import n3w_simplified_credentials as simplified_credentials
 from greenhouse_manager.runtime.n3w_peer_trust_store import SystemPeerTrustStore
-from greenhouse_manager.runtime.n3w_product_pairing import ProductCredentialBundle
 from greenhouse_manager.runtime.n3w_simple_pairing_crypto import (
     PairingTranscript,
     decrypt_credential_bundle,
@@ -19,8 +21,25 @@ PEER_KEY = bytes(range(32))
 SETUP_SECRET = bytes(range(32, 64))
 
 
-def legacy_bundle() -> ProductCredentialBundle:
-    return ProductCredentialBundle(
+@dataclass(frozen=True, slots=True)
+class BaseCredentialBundleFixture:
+    schema: str
+    system_id: str
+    node_id: str
+    broker_host: str
+    broker_port: int
+    broker_tls_server_name: str
+    ca_pem: str
+    mqtt_username: str
+    mqtt_client_id: str
+    credential_generation: int
+    n3w_key_epoch: int
+    mqtt_password: str
+    n3w_application_key: str
+
+
+def base_bundle() -> BaseCredentialBundleFixture:
+    return BaseCredentialBundleFixture(
         schema="gh.pair.credentials/1",
         system_id=SYSTEM_ID,
         node_id="node_child01",
@@ -37,12 +56,20 @@ def legacy_bundle() -> ProductCredentialBundle:
     )
 
 
+def test_simplified_credentials_do_not_import_legacy_product_pairing() -> None:
+    source = inspect.getsource(simplified_credentials)
+    assert "n3w_product_pairing" not in source
+    assert "ProductCredentialSource" in source
+    assert "n3w_simple_pairing_crypto" in source
+    assert "n3w_long_lived_peer_trust" in source
+
+
 def test_v2_bundle_preserves_per_node_credentials_and_adds_peer_trust(tmp_path) -> None:
     with SystemPeerTrustStore(
         tmp_path / "peer.sqlite3",
         random_bytes=lambda _: PEER_KEY,
     ) as store:
-        bundle = SimplifiedCredentialBundleIssuer(store).issue(legacy_bundle(), now=NOW)
+        bundle = SimplifiedCredentialBundleIssuer(store).issue(base_bundle(), now=NOW)
 
     document = bundle.to_document()
     assert document["schema"] == "gh.pair.credentials/2"
@@ -69,7 +96,7 @@ def test_v2_bundle_encrypts_over_setup_secret_channel(tmp_path) -> None:
         tmp_path / "peer.sqlite3",
         random_bytes=lambda _: PEER_KEY,
     ) as store:
-        bundle = SimplifiedCredentialBundleIssuer(store).issue(legacy_bundle(), now=NOW)
+        bundle = SimplifiedCredentialBundleIssuer(store).issue(base_bundle(), now=NOW)
         ciphertext = encrypt_for_setup_secret(
             bundle,
             setup_secret=SETUP_SECRET,

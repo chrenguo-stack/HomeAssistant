@@ -4,9 +4,9 @@ import base64
 import json
 from dataclasses import dataclass, field
 
+from .n3w_credential_contract import ProductCredentialSource
 from .n3w_long_lived_peer_trust import SystemPeerCredential
 from .n3w_peer_trust_store import SystemPeerTrustStore
-from .n3w_product_pairing import ProductCredentialBundle
 from .n3w_simple_pairing_crypto import (
     PairingTranscript,
     derive_bootstrap_key,
@@ -43,7 +43,7 @@ class SimplifiedProductCredentialBundle:
     @classmethod
     def from_existing(
         cls,
-        base: ProductCredentialBundle,
+        base: ProductCredentialSource,
         peer: SystemPeerCredential,
     ) -> SimplifiedProductCredentialBundle:
         if base.system_id != peer.system_id:
@@ -118,7 +118,7 @@ class SimplifiedCredentialBundleIssuer:
 
     def issue(
         self,
-        base: ProductCredentialBundle,
+        base: ProductCredentialSource,
         *,
         now=None,
     ) -> SimplifiedProductCredentialBundle:
