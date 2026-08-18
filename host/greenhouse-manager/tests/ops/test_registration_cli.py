@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, datetime
 from io import StringIO
 from pathlib import Path
@@ -55,7 +56,9 @@ def test_lists_pending_registration_without_nonce(tmp_path: Path) -> None:
     assert "node_nonce" not in document[0]
 
 
-def test_approve_is_explicitly_not_credential_issuance(tmp_path: Path) -> None:
+def test_approve_uses_manager_assigned_node_id_and_does_not_issue_credentials(
+    tmp_path: Path,
+) -> None:
     path = database(tmp_path)
 
     code, document, error = run_cli(
@@ -63,8 +66,6 @@ def test_approve_is_explicitly_not_credential_issuance(tmp_path: Path) -> None:
         "approve",
         HARDWARE_ID,
         PAIRING_ID,
-        "--node-id",
-        "gh-n1-a9f2f8",
         "--logical-location-id",
         LOGICAL_LOCATION_ID,
     )
@@ -73,7 +74,8 @@ def test_approve_is_explicitly_not_credential_issuance(tmp_path: Path) -> None:
     assert error == ""
     assert document["result"] == "operator_approved"
     assert document["credential_issued"] is False
-    assert document["registration"]["node_id"] == "gh-n1-a9f2f8"
+    assert document["node_id_assignment"] == "manager_automatic"
+    assert re.fullmatch(r"node_[0-9a-f]{32}", document["registration"]["node_id"])
     assert document["registration"]["logical_location_id"] == LOGICAL_LOCATION_ID
 
 
@@ -102,10 +104,15 @@ def test_missing_database_fails_without_creating_it(tmp_path: Path) -> None:
     assert not path.exists()
 
 
-def test_cli_does_not_expose_node_id_reuse_flags() -> None:
-    help_text = _parser().format_help()
-    assert "--reuse-retired-node-id" not in help_text
-    assert "--private-identity-bound" not in help_text
+def test_cli_does_not_expose_retired_node_id_admin_flags() -> None:
+    parser = _parser()
+    root_help = parser.format_help()
+    command_action = next(action for action in parser._actions if action.dest == "command")
+    approve_help = command_action.choices["approve"].format_help()
+
+    assert "--node-id" not in approve_help
+    assert "--reuse-retired-node-id" not in root_help
+    assert "--private-identity-bound" not in root_help
 
 
 def test_n3w_replay_audit_uses_existing_registration_cli_entrypoint(tmp_path: Path) -> None:

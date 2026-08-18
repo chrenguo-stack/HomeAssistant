@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, TextIO
 
+from ..runtime.n3w_auto_node_id import AutomaticNodeIdApprover
 from ..runtime.registration import RegistrationConflict, RegistrationRecord, RegistrationRegistry
 from ..runtime.replay_registry import ReplayRegistry, ReplayRegistryUnavailable
 
@@ -31,14 +32,16 @@ def _parser() -> argparse.ArgumentParser:
     events.add_argument("--hardware-id")
     events.add_argument("--limit", type=int, default=100)
 
-    approve = subparsers.add_parser("approve", help="record operator approval only")
+    approve = subparsers.add_parser(
+        "approve",
+        help="record operator approval with Manager-assigned NODE_ID",
+    )
     approve.add_argument("hardware_id")
     approve.add_argument("pairing_id")
-    approve.add_argument("--node-id", required=True)
     approve.add_argument(
         "--logical-location-id",
         required=True,
-        help="stable logical monitoring location bound to this node_id",
+        help="stable logical monitoring location bound to the Manager-assigned node_id",
     )
     reject = subparsers.add_parser("reject", help="reject a pending registration")
     reject.add_argument("hardware_id")
@@ -164,10 +167,9 @@ def main(
                     documents.append(document)
                 _write(output, documents)
             elif args.command == "approve":
-                record = registry.approve(
+                record = AutomaticNodeIdApprover(registry).approve(
                     args.hardware_id,
                     args.pairing_id,
-                    node_id=args.node_id,
                     logical_location_id=args.logical_location_id,
                 )
                 _write(
@@ -175,6 +177,7 @@ def main(
                     {
                         "result": "operator_approved",
                         "credential_issued": False,
+                        "node_id_assignment": "manager_automatic",
                         "registration": _record_document(record),
                     },
                 )
