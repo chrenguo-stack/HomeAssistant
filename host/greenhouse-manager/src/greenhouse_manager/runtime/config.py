@@ -101,10 +101,6 @@ class Settings:
         "/var/lib/greenhouse-manager/n3w/relay-authorization.sqlite3"
     )
     n3w_relay_key_dir: str = "/var/lib/greenhouse-manager/n3w/relay-keys"
-    n3w_path_stability_window_s: float = 5.0
-    n3w_path_minimum_distinct_frames: int = 2
-    n3w_path_lease_ttl_s: float = 30.0
-    n3w_path_old_grace_s: float = 5.0
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -174,18 +170,6 @@ class Settings:
             n3w_relay_key_dir=os.getenv(
                 "GH_N3W_RELAY_KEY_DIR",
                 "/var/lib/greenhouse-manager/n3w/relay-keys",
-            ),
-            n3w_path_stability_window_s=float(
-                os.getenv("GH_N3W_PATH_STABILITY_WINDOW_S", "5")
-            ),
-            n3w_path_minimum_distinct_frames=int(
-                os.getenv("GH_N3W_PATH_MINIMUM_DISTINCT_FRAMES", "2")
-            ),
-            n3w_path_lease_ttl_s=float(
-                os.getenv("GH_N3W_PATH_LEASE_TTL_S", "30")
-            ),
-            n3w_path_old_grace_s=float(
-                os.getenv("GH_N3W_PATH_OLD_GRACE_S", "5")
             ),
         )
         settings.validate()
@@ -273,20 +257,6 @@ class Settings:
             raise ValueError(
                 "GH_HISTORY_PRUNE_INTERVAL_S must be between 30 and 86400"
             )
-        if not 0 <= self.n3w_path_stability_window_s <= 300:
-            raise ValueError(
-                "GH_N3W_PATH_STABILITY_WINDOW_S must be between 0 and 300"
-            )
-        if not 1 <= self.n3w_path_minimum_distinct_frames <= 32:
-            raise ValueError(
-                "GH_N3W_PATH_MINIMUM_DISTINCT_FRAMES must be between 1 and 32"
-            )
-        if not 0.1 <= self.n3w_path_lease_ttl_s <= 3_600:
-            raise ValueError(
-                "GH_N3W_PATH_LEASE_TTL_S must be between 0.1 and 3600"
-            )
-        if not 0 <= self.n3w_path_old_grace_s <= 300:
-            raise ValueError("GH_N3W_PATH_OLD_GRACE_S must be between 0 and 300")
         if self.n3w_runtime_enabled:
             configured_paths = {
                 "GH_PAIRING_DB_PATH": self.pairing_db_path,
