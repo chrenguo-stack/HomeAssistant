@@ -4,7 +4,6 @@ import ast
 from pathlib import Path
 
 import pytest
-
 from greenhouse_manager.ops.registration_cli import _parser
 
 
@@ -66,7 +65,7 @@ def test_retired_manager_authority_is_absent_from_canonical_runtime() -> None:
 
 def test_current_simplified_runtime_entrypoints_remain_present() -> None:
     present = {path.name for path in RUNTIME_ROOT.glob("*.py")}
-    assert CURRENT_RUNTIME_FILES <= present
+    assert present >= CURRENT_RUNTIME_FILES
 
 
 def test_only_explicit_historical_runtime_modules_use_legacy_names() -> None:
