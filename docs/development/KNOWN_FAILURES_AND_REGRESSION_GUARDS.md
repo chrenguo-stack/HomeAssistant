@@ -45,6 +45,7 @@
 | KF-025 | C-06 regression CI | 有用的 C-06 host regression 曾被旧 lineage/exact-main gate 阻塞，导致当前代码变化时产生与功能无关的失败 | regression coverage 与一次性历史 lineage/evidence 合同耦合 | C06-B1/B2B/history workflow 已收敛为 current host regression，移除旧 lineage authority / 重复 isolated evidence workflow | GUARDED |
 | KF-026 | N3-W Phase 5-E regression guard | 新增 simplification guard 后，greenhouse-manager CI 连续在 Ruff `I001`/`SIM300` 停止，pytest 未执行 | 手写新测试未先完全匹配仓库 Ruff import-block 与 SIM 规则；第一次修正又误解了 Ruff 对 import block 后空行的要求 | 以 exact CI Ruff 输出为唯一格式 authority，逐项修正且每个新 HEAD 只做一次 focused validation；最终 `greenhouse-manager CI/test` 的 Lint+Test 已 PASS | GUARDED |
 | KF-027 | N3-W Final Closure / R5 acceptance scope | R5 的 Broker-side Direct MQTT/application uplink failure 曾可能被表述为“真实 Wi-Fi 断开”验证，从而扩大物理验收结论 | 测试故障注入发生在 MQTT/application uplink 层，R5 期间 STA/AP 关联仍保持；`MQTT failure` 与 `STA Wi-Fi loss` 不是同一故障层 | 永久区分两类 oracle：`REAL_WIFI_LOSS_PASS` 必须证明 STA 实际 disconnected/unassociated 且 Direct IP path unavailable；`REAL_WIFI_RECOVERY_PASS` 必须证明 STA/IP 实际恢复并自动回到 Direct。R5 仅保留 controlled Direct MQTT failure→authenticated Relay→Direct recovery 的历史 PASS，不得据此替代 FC-4 新的真实 Wi-Fi loss 三板物理验收 | GUARDED |
+| KF-028 | N3-W Final Closure / FC-2 artifact helper | exact-source firmware 编译成功后，`Freeze toolchain and binary hashes` 立即失败，artifact 未上传 | helper 错误假定 ESPHome build root 位于 checkout 根目录 `.esphome/build`；该 target 的实际 build root 位于 `TARGET_CONFIG` 所在目录下的 `.esphome/build/gh-n3w-phase4-generic` | artifact collector 必须从 `dirname(TARGET_CONFIG)` 派生 build root，并绑定 `TARGET_NAME` 后检查目录/唯一文件；不得凭仓库根目录猜测 ESPHome 输出路径。修正后同一 exact `147ead29...` source compile/freeze/upload 全部 PASS | GUARDED |
 
 ## 固定回归规则
 
@@ -62,6 +63,7 @@
 - **Architecture retirement**：产品 authority 退休时，source / test / workflow / admin / config 必须同阶段收口；禁止 live CI 长期宣示已退休产品语义。
 - **Historical quarantine**：历史兼容实现若必须保留，名称和引用必须显式表明 `_legacy` / `s5` / lab / historical 身份；normal product runtime 不得导入。
 - **Automatic NODE_ID**：正常 registration approve 不允许操作者输入 NODE_ID；NODE_ID 由 Manager 自动分配且退役后不复用。
+- **ESPHome build output binding**：artifact collector 必须从实际 target config 所在目录 / resolved build path 派生 build root，并绑定明确 target name；禁止默认 repo-root `.esphome/build`。
 
 ## 维护模板
 
