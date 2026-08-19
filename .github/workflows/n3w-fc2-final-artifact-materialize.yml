@@ -112,7 +112,8 @@ jobs:
           PKG="$OUT/package"
           mkdir -p "$PKG"
 
-          BUILD_ROOT="$GITHUB_WORKSPACE/source/.esphome/build/${TARGET_NAME}"
+          CONFIG_DIR="$(dirname "${TARGET_CONFIG}")"
+          BUILD_ROOT="$GITHUB_WORKSPACE/source/${CONFIG_DIR}/.esphome/build/${TARGET_NAME}"
           test -d "$BUILD_ROOT"
 
           find_one() {
