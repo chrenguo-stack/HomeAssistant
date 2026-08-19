@@ -1,0 +1,195 @@
+name: N3W FC2 Final Firmware Artifact
+
+on:
+  push:
+    branches:
+      - build/n3w-fc2-final-artifact-20260819-v1
+    paths:
+      - .github/workflows/n3w-fc2-final-artifact-materialize.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_HEAD: 147ead29b5963150e17d582492b148854b0250b4
+  SOURCE_TREE: 9c62b1c87549120e0b8f53b0bd949ce5b00a0569
+  FIRMWARE_TREE: 0bc639f301dae9964061bd2b7b72a21ef2a88341
+  TARGET_CONFIG: firmware/esphome_rc/board_lab/n3w_phase4_physical/generic.yml
+  TARGET_CONFIG_BLOB: 6e40a198c5fcc9f445668da6e78f455a390e991f
+  ESPHOME_VERSION: 2026.4.3
+  TARGET_NAME: gh-n3w-phase4-generic
+  PACKAGE_ID: N3W-FC2-FINAL-147ead29-20260819
+
+jobs:
+  materialize:
+    name: exact-source-firmware-materialization
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout exact Phase5 final source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_HEAD }}
+          path: source
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install exact ESPHome
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install "esphome==${ESPHOME_VERSION}"
+          esphome version
+
+      - name: Bind exact source and generic factory contract
+        working-directory: source
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${SOURCE_HEAD}"
+          test "$(git rev-parse HEAD^{tree})" = "${SOURCE_TREE}"
+          test "$(git rev-parse HEAD:firmware)" = "${FIRMWARE_TREE}"
+          test "$(git rev-parse HEAD:${TARGET_CONFIG})" = "${TARGET_CONFIG_BLOB}"
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path("firmware/esphome_rc/board_lab/n3w_phase4_physical/generic.yml")
+          text = path.read_text(encoding="utf-8")
+          active = "\n".join(
+              line for line in text.splitlines()
+              if not line.lstrip().startswith("#")
+          )
+
+          # Exactly one factory SSID is allowed and it must be the generic setup AP.
+          ssids = re.findall(r"(?m)^\s*ssid:\s*([^#\n]+)$", active)
+          assert len(ssids) == 1, ssids
+          assert ssids[0].strip().strip('"\'') == "Greenhouse N3-W Setup", ssids
+          assert re.search(r"(?m)^\s*password\s*:", active) is None
+
+          # MQTT must remain an inert local placeholder until authenticated provisioning.
+          assert re.search(r"(?m)^\s*broker:\s*127\.0\.0\.1\s*$", active)
+          assert re.search(r"(?m)^\s*enable_on_boot:\s*false\s*$", active)
+
+          # No factory/site identity or peer credential may be supplied as YAML data.
+          for key in (
+              "node_id", "system_id", "gateway_id", "peer_mac", "peer_key",
+              "system_peer_key", "lmk", "mqtt_username", "mqtt_password",
+              "manager_host", "manager_url",
+          ):
+              assert re.search(rf"(?m)^\s*{re.escape(key)}\s*:", active) is None, key
+
+          assert "phase4_product_runtime: true" in active
+          assert "greenhouse_n3w_core" in active
+          assert "greenhouse_n3w_product_runtime" not in active
+          assert "greenhouse_n3w_legacy_radio" not in active
+          assert "GREENHOUSE_N3W_ENABLE_LEGACY_RADIO" not in active
+          print("GENERIC_FACTORY_SOURCE_CONTRACT=PASS")
+          PY
+
+      - name: Compile exact final N3-W validation firmware
+        working-directory: source
+        run: |
+          set -euo pipefail
+          esphome config "${TARGET_CONFIG}"
+          esphome compile "${TARGET_CONFIG}"
+
+      - name: Freeze toolchain and binary hashes
+        run: |
+          set -euo pipefail
+          OUT="$GITHUB_WORKSPACE/fc2-out"
+          PKG="$OUT/package"
+          mkdir -p "$PKG"
+
+          BUILD_ROOT="$GITHUB_WORKSPACE/source/.esphome/build/${TARGET_NAME}"
+          test -d "$BUILD_ROOT"
+
+          find_one() {
+            local pattern="$1"
+            mapfile -t hits < <(find "$BUILD_ROOT" -type f -name "$pattern" -print | sort)
+            if [ "${#hits[@]}" -ne 1 ]; then
+              printf 'Expected exactly one %s, found %s\n' "$pattern" "${#hits[@]}" >&2
+              printf '%s\n' "${hits[@]:-}" >&2
+              exit 20
+            fi
+            printf '%s\n' "${hits[0]}"
+          }
+
+          BOOTLOADER="$(find_one bootloader.bin)"
+          PARTITIONS="$(find_one partitions.bin)"
+          APP="$(find_one firmware.bin)"
+          FACTORY="$(find_one firmware.factory.bin)"
+
+          install -m 0644 "$BOOTLOADER" "$PKG/bootloader.bin"
+          install -m 0644 "$PARTITIONS" "$PKG/partitions.bin"
+          install -m 0644 "$APP" "$PKG/app.bin"
+          install -m 0644 "$FACTORY" "$PKG/factory.bin"
+
+          {
+            echo "PACKAGE_ID=${PACKAGE_ID}"
+            echo "SOURCE_HEAD=${SOURCE_HEAD}"
+            echo "SOURCE_TREE=${SOURCE_TREE}"
+            echo "FIRMWARE_TREE=${FIRMWARE_TREE}"
+            echo "TARGET_CONFIG=${TARGET_CONFIG}"
+            echo "TARGET_CONFIG_BLOB=${TARGET_CONFIG_BLOB}"
+            echo "TARGET_NAME=${TARGET_NAME}"
+            echo "RUNNER_IMAGE=ubuntu-24.04"
+            echo "PYTHON_VERSION=$(python --version 2>&1)"
+            echo "ESPHOME_VERSION=$(esphome version | tr '\n' ' ')"
+            echo "PLATFORMIO_VERSION=$(python -m platformio --version | tr '\n' ' ')"
+            echo "GENERIC_FACTORY_SOURCE_CONTRACT=PASS"
+            echo "LEGACY_RADIO_SELECTED=false"
+            echo "RETIRED_PRODUCT_RUNTIME_SELECTED=false"
+          } > "$PKG/MANIFEST.txt"
+
+          python -m platformio pkg list --global > "$PKG/PLATFORMIO_GLOBAL_PACKAGES.txt" 2>&1 || true
+          python -m pip freeze > "$PKG/PIP_FREEZE.txt"
+
+          TOOLCHAIN_GCC="$(find "$HOME/.platformio/packages" -type f -path '*/bin/riscv32-esp-elf-gcc' -print | sort | head -n 1 || true)"
+          if [ -n "$TOOLCHAIN_GCC" ]; then
+            "$TOOLCHAIN_GCC" --version > "$PKG/RISCV_TOOLCHAIN_VERSION.txt"
+          else
+            echo "riscv32-esp-elf-gcc path not found" > "$PKG/RISCV_TOOLCHAIN_VERSION.txt"
+          fi
+
+          IDF_DIR="$(find "$HOME/.platformio/packages" -maxdepth 1 -type d -name 'framework-espidf*' -print | sort | head -n 1 || true)"
+          if [ -n "$IDF_DIR" ] && [ -f "$IDF_DIR/tools/cmake/version.cmake" ]; then
+            cp "$IDF_DIR/tools/cmake/version.cmake" "$PKG/ESP_IDF_VERSION_SOURCE.txt"
+          else
+            echo "framework-espidf version source not found" > "$PKG/ESP_IDF_VERSION_SOURCE.txt"
+          fi
+
+          (cd "$PKG" && sha256sum bootloader.bin partitions.bin app.bin factory.bin > BINARY_SHA256SUMS.txt)
+          (cd "$PKG" && stat -c '%n %s' bootloader.bin partitions.bin app.bin factory.bin > BINARY_SIZES.txt)
+
+          TAR="$OUT/${PACKAGE_ID}.tar"
+          tar --sort=name --mtime='UTC 2026-08-19 00:00:00' \
+              --owner=0 --group=0 --numeric-owner \
+              -cf "$TAR" -C "$PKG" .
+          sha256sum "$TAR" > "$OUT/${PACKAGE_ID}.tar.sha256"
+
+          echo "--- FC2 MANIFEST ---"
+          cat "$PKG/MANIFEST.txt"
+          echo "--- BINARY HASHES ---"
+          cat "$PKG/BINARY_SHA256SUMS.txt"
+          echo "--- BINARY SIZES ---"
+          cat "$PKG/BINARY_SIZES.txt"
+          echo "--- PACKAGE HASH ---"
+          cat "$OUT/${PACKAGE_ID}.tar.sha256"
+
+      - name: Upload frozen FC2 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: N3W-FC2-FINAL-147ead29-20260819
+          path: |
+            fc2-out/N3W-FC2-FINAL-147ead29-20260819.tar
+            fc2-out/N3W-FC2-FINAL-147ead29-20260819.tar.sha256
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
