@@ -183,8 +183,13 @@ class SimplifiedPairingCoordinator:
             raise SimplifiedPairingConflict("registration_not_pending")
         key = (hardware_id, pairing_id)
         with self._lock:
-            if key in self._setup:
-                raise SimplifiedPairingConflict("setup_secret_already_imported")
+            existing = self._setup.get(key)
+            if existing is not None:
+                if secrets.compare_digest(bytes(existing), setup_secret):
+                    return
+                raise SimplifiedPairingConflict(
+                    "setup_secret_conflicting_import"
+                )
             self._setup[key] = bytearray(setup_secret)
 
     def begin(
@@ -292,37 +297,79 @@ class SimplifiedPairingCoordinator:
             )
             if approved.node_id is None:
                 raise SimplifiedPairingError("automatic_node_id_missing")
-            staged = self.stager.stage(
-                hardware_id=session.hardware_id,
-                pairing_id=session.pairing_id,
-                node_id=approved.node_id,
-                credential_generation=approved.pairing_epoch,
-            )
+            try:
+                staged = self.stager.stage(
+                    hardware_id=session.hardware_id,
+                    pairing_id=session.pairing_id,
+                    node_id=approved.node_id,
+                    credential_generation=approved.pairing_epoch,
+                )
+            except Exception:
+                self._rollback_automatic_approval(
+                    session,
+                    now=observed_at,
+                    reason="credential_stage_failed",
+                )
+                raise
+
             if staged.bundle.node_id != approved.node_id:
-                staged.rollback()
-                raise SimplifiedPairingError("credential_node_binding_mismatch")
-            nonce = self.random_bytes(12)
-            if not isinstance(nonce, bytes) or len(nonce) != 12:
-                staged.rollback()
-                raise SimplifiedPairingError("credential_nonce_generation_failed")
-            bootstrap_key = derive_bootstrap_key(
-                bytes(session.secret), session.transcript
-            )
-            ciphertext = encrypt_credential_bundle(
-                bootstrap_key,
-                session.transcript,
-                nonce=nonce,
-                plaintext=staged.bundle.to_json_bytes(),
-            )
-            digest = hashlib.sha256(nonce + ciphertext).digest()
-            issued = SimplifiedEncryptedCredentials(
-                schema="gh.pair.simple-credentials/1",
-                session_id=session_id,
-                node_id=approved.node_id,
-                nonce=_b64(nonce),
-                ciphertext=_b64(ciphertext),
-                delivery_digest=_b64(digest),
-            )
+                try:
+                    staged.rollback()
+                finally:
+                    self._rollback_automatic_approval(
+                        session,
+                        now=observed_at,
+                        reason="credential_node_binding_mismatch",
+                    )
+                raise SimplifiedPairingError(
+                    "credential_node_binding_mismatch"
+                )
+
+            try:
+                nonce = self.random_bytes(12)
+                if (
+                    not isinstance(nonce, bytes)
+                    or len(nonce) != 12
+                ):
+                    raise SimplifiedPairingError(
+                        "credential_nonce_generation_failed"
+                    )
+
+                bootstrap_key = derive_bootstrap_key(
+                    bytes(session.secret),
+                    session.transcript,
+                )
+
+                ciphertext = encrypt_credential_bundle(
+                    bootstrap_key,
+                    session.transcript,
+                    nonce=nonce,
+                    plaintext=staged.bundle.to_json_bytes(),
+                )
+
+                digest = hashlib.sha256(
+                    nonce + ciphertext
+                ).digest()
+
+                issued = SimplifiedEncryptedCredentials(
+                    schema="gh.pair.simple-credentials/1",
+                    session_id=session_id,
+                    node_id=approved.node_id,
+                    nonce=_b64(nonce),
+                    ciphertext=_b64(ciphertext),
+                    delivery_digest=_b64(digest),
+                )
+            except Exception:
+                try:
+                    staged.rollback()
+                finally:
+                    self._rollback_automatic_approval(
+                        session,
+                        now=observed_at,
+                        reason="credential_assembly_failed",
+                    )
+                raise
+
             session.node_id = approved.node_id
             session.staged = staged
             session.delivery_digest = digest
@@ -351,7 +398,48 @@ class SimplifiedPairingCoordinator:
                 supplied, session.delivery_digest
             ):
                 raise SimplifiedPairingRejected("delivery_digest_rejected")
-            session.staged.commit(now=observed_at)
+            try:
+                session.staged.commit(
+                    now=observed_at
+                )
+            except Exception as commit_error:
+                rollback_error = None
+                approval_error = None
+
+                try:
+                    self._rollback_staged(
+                        session
+                    )
+                except Exception as error:
+                    rollback_error = error
+
+                try:
+                    self._rollback_automatic_approval(
+                        session,
+                        now=observed_at,
+                        reason="credential_commit_failed",
+                    )
+                except Exception as error:
+                    approval_error = error
+
+                session.state = (
+                    SimplifiedPairingState.FAILED
+                )
+                self._clear_secret(session)
+
+                if (
+                    rollback_error is not None
+                    or approval_error is not None
+                ):
+                    raise SimplifiedPairingError(
+                        "credential_commit_rollback_failed"
+                    ) from (
+                        rollback_error
+                        or approval_error
+                    )
+
+                raise commit_error
+
             session.staged = None
             session.delivery_digest = None
             session.issued_credentials = None
@@ -365,9 +453,26 @@ class SimplifiedPairingCoordinator:
             session = self._require_session(session_id)
             if session.state is SimplifiedPairingState.CONSUMED:
                 raise SimplifiedPairingConflict("consumed_pairing_cannot_abort")
-            self._rollback_staged(session)
+            rollback_error = None
+
+            try:
+                self._rollback_staged(session)
+            except Exception as error:
+                rollback_error = error
+
+            self._rollback_automatic_approval(
+                session,
+                now=datetime.now(UTC),
+                reason="pairing_aborted",
+            )
+
             session.state = SimplifiedPairingState.FAILED
             self._clear_secret(session)
+
+            if rollback_error is not None:
+                raise SimplifiedPairingError(
+                    "pairing_abort_rollback_failed"
+                ) from rollback_error
             return self._snapshot(session)
 
     def status(
@@ -393,9 +498,27 @@ class SimplifiedPairingCoordinator:
                     SimplifiedPairingState.EXPIRED,
                 } or observed_at <= session.expires_at:
                     continue
-                self._rollback_staged(session)
+                rollback_error = None
+
+                try:
+                    self._rollback_staged(session)
+                except Exception as error:
+                    rollback_error = error
+
+                self._rollback_automatic_approval(
+                    session,
+                    now=observed_at,
+                    reason="pairing_session_expired",
+                )
+
                 session.state = SimplifiedPairingState.EXPIRED
                 self._clear_secret(session)
+
+                if rollback_error is not None:
+                    raise SimplifiedPairingError(
+                        "pairing_expiry_rollback_failed"
+                    ) from rollback_error
+
                 expired += 1
         return expired
 
@@ -412,10 +535,74 @@ class SimplifiedPairingCoordinator:
             SimplifiedPairingState.EXPIRED,
         }:
             return
-        self._rollback_staged(session)
+        rollback_error = None
+
+        try:
+            self._rollback_staged(session)
+        except Exception as error:
+            rollback_error = error
+
+        self._rollback_automatic_approval(
+            session,
+            now=now,
+            reason="pairing_session_expired",
+        )
+
         session.state = SimplifiedPairingState.EXPIRED
         self._clear_secret(session)
-        raise SimplifiedPairingConflict("pairing_session_expired")
+
+        if rollback_error is not None:
+            raise SimplifiedPairingError(
+                "pairing_expiry_rollback_failed"
+            ) from rollback_error
+
+        raise SimplifiedPairingConflict(
+            "pairing_session_expired"
+        )
+
+    def _rollback_automatic_approval(
+        self,
+        session: _Session,
+        *,
+        now: datetime,
+        reason: str,
+    ) -> None:
+        try:
+            record = self.registry.get(
+                session.hardware_id
+            )
+        except KeyError:
+            return
+
+        if (
+            record.pairing_id
+            != session.pairing_id
+        ):
+            raise SimplifiedPairingError(
+                "registration_rollback_binding_failed"
+            )
+
+        if (
+            record.state
+            is RegistrationState.PENDING
+            and record.node_id is None
+        ):
+            session.node_id = None
+            return
+
+        try:
+            self.registry.rollback_automatic_approval(
+                session.hardware_id,
+                session.pairing_id,
+                reason=reason,
+                now=now,
+            )
+        except Exception as error:
+            raise SimplifiedPairingError(
+                "registration_rollback_failed"
+            ) from error
+
+        session.node_id = None
 
     def _rollback_staged(self, session: _Session) -> None:
         staged = session.staged

@@ -40,7 +40,7 @@ def write_ca(path: Path) -> None:
     )
 
 
-def test_settings(tmp_path: Path) -> PairingRuntimeSettings:
+def _pairing_runtime_settings(tmp_path: Path) -> PairingRuntimeSettings:
     ca_file = tmp_path / "ca.pem"
     write_ca(ca_file)
     return PairingRuntimeSettings(
@@ -82,7 +82,7 @@ def test_runtime_starts_only_explicit_listeners_and_closes(
         return advertiser
 
     runtime = assemble_pairing_runtime(
-        test_settings(tmp_path),
+        _pairing_runtime_settings(tmp_path),
         IsolatedLabProvisioner(),
         advertiser_factory=make_advertiser,
     )
@@ -114,7 +114,7 @@ def test_runtime_starts_only_explicit_listeners_and_closes(
 
 def test_qr_import_requires_started_runtime(tmp_path: Path) -> None:
     runtime = assemble_pairing_runtime(
-        test_settings(tmp_path),
+        _pairing_runtime_settings(tmp_path),
         IsolatedLabProvisioner(),
         advertiser_factory=FakeAdvertiser,
     )

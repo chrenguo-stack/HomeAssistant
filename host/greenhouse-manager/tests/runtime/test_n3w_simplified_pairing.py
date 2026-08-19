@@ -4,6 +4,8 @@ import base64
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
+import pytest
+
 from greenhouse_manager.runtime.n3w_simple_pairing_crypto import (
     PairingTranscript,
     build_setup_proof,
@@ -18,7 +20,11 @@ from greenhouse_manager.runtime.n3w_simplified_pairing import (
     SimplifiedPairingCoordinator,
     SimplifiedPairingState,
 )
-from greenhouse_manager.runtime.registration import RegistrationRegistry
+from greenhouse_manager.runtime.registration import (
+    NodeIdLeaseState,
+    RegistrationRegistry,
+    RegistrationState,
+)
 
 NOW = datetime(2026, 8, 17, 8, 30, tzinfo=UTC)
 HARDWARE_ID = "ghw-c6-00000000000a"
@@ -217,3 +223,212 @@ def test_invalid_node_proof_never_allocates_node_id_or_stages_credentials(
         record = registry.get(HARDWARE_ID)
         assert record.node_id is None
         assert stager.last is None
+
+
+
+class FailingSimplifiedStager:
+    def stage(
+        self,
+        *,
+        hardware_id: str,
+        pairing_id: str,
+        node_id: str,
+        credential_generation: int,
+    ):
+        raise RuntimeError(
+            "synthetic_stage_failure"
+        )
+
+
+def test_stage_failure_rolls_automatic_approval_back_to_pending(
+    tmp_path,
+) -> None:
+    random = RoutedRandom()
+
+    with RegistrationRegistry(
+        tmp_path / "registration.sqlite3"
+    ) as registry:
+        registry.observe_hello(
+            hello(),
+            now=NOW,
+        )
+
+        coordinator = SimplifiedPairingCoordinator(
+            registry,
+            FailingSimplifiedStager(),
+            manager_id="manager_lab_01",
+            random_bytes=random,
+        )
+
+        coordinator.import_setup_secret(
+            HARDWARE_ID,
+            PAIRING_ID,
+            setup_secret=SETUP_SECRET,
+        )
+
+        offer = coordinator.begin(
+            HARDWARE_ID,
+            PAIRING_ID,
+            node_nonce=b64(
+                random.node_nonce
+            ),
+            now=NOW,
+        )
+
+        transcript = PairingTranscript(
+            pairing_id=PAIRING_ID,
+            hardware_id=HARDWARE_ID,
+            manager_id=offer.manager_id,
+            node_nonce=random.node_nonce,
+            manager_nonce=unb64(
+                offer.manager_nonce
+            ),
+        )
+
+        proof = build_setup_proof(
+            SETUP_SECRET,
+            transcript,
+            role="node",
+        )
+
+        allocated = (
+            "node_"
+            "11111111111111111111111111111111"
+        )
+
+        with pytest.raises(
+            RuntimeError,
+            match="synthetic_stage_failure",
+        ):
+            coordinator.establish(
+                offer.session_id,
+                node_proof=b64(proof),
+                now=NOW,
+            )
+
+        record = registry.get(
+            HARDWARE_ID
+        )
+
+        assert (
+            record.state
+            is RegistrationState.PENDING
+        )
+        assert record.node_id is None
+
+        assert (
+            registry.node_id_lease_state(
+                allocated
+            )
+            is NodeIdLeaseState.RETIRED
+        )
+
+        assert any(
+            event.event
+            == "automatic_approval_rolled_back"
+            for event
+            in registry.list_events(
+                hardware_id=HARDWARE_ID
+            )
+        )
+
+
+def test_abort_after_credentials_issued_rolls_registration_back(
+    tmp_path,
+) -> None:
+    random = RoutedRandom()
+    stager = FakeStager()
+
+    with RegistrationRegistry(
+        tmp_path / "registration.sqlite3"
+    ) as registry:
+        registry.observe_hello(
+            hello(),
+            now=NOW,
+        )
+
+        coordinator = SimplifiedPairingCoordinator(
+            registry,
+            stager,
+            manager_id="manager_lab_01",
+            random_bytes=random,
+        )
+
+        coordinator.import_setup_secret(
+            HARDWARE_ID,
+            PAIRING_ID,
+            setup_secret=SETUP_SECRET,
+        )
+
+        offer = coordinator.begin(
+            HARDWARE_ID,
+            PAIRING_ID,
+            node_nonce=b64(
+                random.node_nonce
+            ),
+            now=NOW,
+        )
+
+        transcript = PairingTranscript(
+            pairing_id=PAIRING_ID,
+            hardware_id=HARDWARE_ID,
+            manager_id=offer.manager_id,
+            node_nonce=random.node_nonce,
+            manager_nonce=unb64(
+                offer.manager_nonce
+            ),
+        )
+
+        proof = build_setup_proof(
+            SETUP_SECRET,
+            transcript,
+            role="node",
+        )
+
+        issued = coordinator.establish(
+            offer.session_id,
+            node_proof=b64(proof),
+            now=NOW,
+        )
+
+        allocated = issued.node_id
+
+        assert (
+            registry.get(
+                HARDWARE_ID
+            ).state
+            is RegistrationState.APPROVED
+        )
+
+        snapshot = coordinator.abort(
+            offer.session_id
+        )
+
+        assert (
+            snapshot.state
+            is SimplifiedPairingState.FAILED
+        )
+        assert snapshot.node_id is None
+
+        current = registry.get(
+            HARDWARE_ID
+        )
+
+        assert (
+            current.state
+            is RegistrationState.PENDING
+        )
+        assert current.node_id is None
+
+        assert (
+            registry.node_id_lease_state(
+                allocated
+            )
+            is NodeIdLeaseState.RETIRED
+        )
+
+        assert stager.last is not None
+        assert (
+            stager.last.rolled_back
+            is True
+        )

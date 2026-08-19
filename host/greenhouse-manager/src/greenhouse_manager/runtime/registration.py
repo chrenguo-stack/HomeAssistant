@@ -620,6 +620,120 @@ class RegistrationRegistry:
             )
             return self.get(hardware_id)
 
+    def rollback_automatic_approval(
+        self,
+        hardware_id: str,
+        pairing_id: str,
+        *,
+        reason: str = "credential_delivery_rolled_back",
+        now: datetime | None = None,
+    ) -> RegistrationRecord:
+        """Undo an automatic approval before credential delivery commits.
+
+        The abandoned NODE_ID remains permanently reserved. The current
+        pairing session returns to PENDING so the same Setup-Secret session
+        may retry with a fresh automatically allocated NODE_ID.
+        """
+
+        normalized_reason = reason.strip()
+        if not normalized_reason:
+            raise ValueError(
+                "rollback reason must not be empty"
+            )
+
+        occurred_at = _utc(
+            now or datetime.now(UTC)
+        )
+
+        with self._lock, self._connection:
+            record = self._require_current(
+                hardware_id,
+                pairing_id,
+            )
+
+            if (
+                record.state
+                is RegistrationState.PENDING
+                and record.node_id is None
+            ):
+                return record
+
+            if (
+                record.state
+                is not RegistrationState.APPROVED
+                or record.node_id is None
+            ):
+                raise RegistrationConflict(
+                    "only an uncommitted automatic approval "
+                    "can be rolled back"
+                )
+
+            node_id = record.node_id
+
+            event_id = self._record_event(
+                hardware_id,
+                pairing_id,
+                "automatic_approval_rolled_back",
+                normalized_reason,
+                occurred_at,
+                node_id=node_id,
+                logical_location_id=(
+                    record.logical_location_id
+                ),
+            )
+
+            self._close_assignment_history(
+                record,
+                released_at=occurred_at,
+                retirement_event_id=event_id,
+            )
+
+            cursor = self._connection.execute(
+                """
+                UPDATE node_id_leases
+                SET
+                    state = ?,
+                    retirement_id = NULL,
+                    updated_at = ?
+                WHERE
+                    node_id = ?
+                    AND hardware_id = ?
+                    AND state = ?
+                """,
+                (
+                    NodeIdLeaseState.RETIRED,
+                    _timestamp(occurred_at),
+                    node_id,
+                    hardware_id,
+                    NodeIdLeaseState.ACTIVE,
+                ),
+            )
+
+            if cursor.rowcount != 1:
+                raise RegistrationConflict(
+                    "automatic approval lease rollback "
+                    "could not be proven"
+                )
+
+            self._connection.execute(
+                """
+                UPDATE registrations
+                SET
+                    node_id = NULL,
+                    logical_location_id = NULL
+                WHERE hardware_id = ?
+                """,
+                (hardware_id,),
+            )
+
+            self._set_session_state(
+                pairing_id,
+                RegistrationState.PENDING,
+                normalized_reason,
+            )
+
+            return self.get(hardware_id)
+
     def reject(
         self,
         hardware_id: str,

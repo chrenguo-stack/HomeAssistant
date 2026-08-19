@@ -51,6 +51,23 @@ def _mqtt_password_from_env() -> str | None:
     return inline
 
 
+def _n3w_provisioning_password_from_env() -> str | None:
+    password_file = (
+        os.getenv(
+            "GH_N3W_PROVISIONING_PASSWORD_FILE"
+        )
+        or None
+    )
+
+    if password_file is None:
+        return None
+
+    return _read_private_secret(
+        "GH_N3W_PROVISIONING_PASSWORD_FILE",
+        password_file,
+    )
+
+
 def _path_contains_symlink(path: Path) -> bool:
     current = path
     while True:
@@ -101,6 +118,31 @@ class Settings:
         "/var/lib/greenhouse-manager/n3w/relay-authorization.sqlite3"
     )
     n3w_relay_key_dir: str = "/var/lib/greenhouse-manager/n3w/relay-keys"
+    n3w_product_pairing_enabled: bool = False
+    n3w_pairing_manager_id: str = "manager-disabled"
+    n3w_pairing_bind_host: str = "0.0.0.0"
+    n3w_pairing_advertised_host: str = "greenhouse-manager.local"
+    n3w_pairing_http_port: int = 47112
+    n3w_pairing_udp_port: int = 47111
+
+    n3w_provisioning_username: str | None = None
+    n3w_provisioning_password: str | None = None
+    n3w_provisioning_client_id: str | None = None
+
+    n3w_node_broker_host: str = "mqtt.greenhouse.local"
+    n3w_node_broker_port: int = 8883
+    n3w_node_broker_tls_server_name: str = "mqtt.greenhouse.local"
+    n3w_node_broker_ca_file: str | None = None
+
+    n3w_peer_trust_db_path: str = (
+        "/var/lib/greenhouse-manager/n3w/system-peer-trust.sqlite3"
+    )
+    n3w_credential_lifecycle_db_path: str = (
+        "/var/lib/greenhouse-manager/n3w/credential-lifecycle.sqlite3"
+    )
+    n3w_setup_secret_inbox_dir: str = (
+        "/var/lib/greenhouse-manager/n3w/setup-secret-inbox"
+    )
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -170,6 +212,90 @@ class Settings:
             n3w_relay_key_dir=os.getenv(
                 "GH_N3W_RELAY_KEY_DIR",
                 "/var/lib/greenhouse-manager/n3w/relay-keys",
+            ),
+            n3w_product_pairing_enabled=_env_bool(
+                "GH_N3W_PRODUCT_PAIRING_ENABLED",
+                False,
+            ),
+            n3w_pairing_manager_id=os.getenv(
+                "GH_N3W_PAIRING_MANAGER_ID",
+                "manager-disabled",
+            ),
+            n3w_pairing_bind_host=os.getenv(
+                "GH_N3W_PAIRING_BIND_HOST",
+                "0.0.0.0",
+            ),
+            n3w_pairing_advertised_host=os.getenv(
+                "GH_N3W_PAIRING_ADVERTISED_HOST",
+                "greenhouse-manager.local",
+            ),
+            n3w_pairing_http_port=int(
+                os.getenv(
+                    "GH_N3W_PAIRING_HTTP_PORT",
+                    "47112",
+                )
+            ),
+            n3w_pairing_udp_port=int(
+                os.getenv(
+                    "GH_N3W_PAIRING_UDP_PORT",
+                    "47111",
+                )
+            ),
+            n3w_provisioning_username=(
+                os.getenv(
+                    "GH_N3W_PROVISIONING_USERNAME"
+                )
+                or None
+            ),
+            n3w_provisioning_password=(
+                _n3w_provisioning_password_from_env()
+            ),
+            n3w_provisioning_client_id=(
+                os.getenv(
+                    "GH_N3W_PROVISIONING_CLIENT_ID"
+                )
+                or None
+            ),
+            n3w_node_broker_host=os.getenv(
+                "GH_N3W_NODE_BROKER_HOST",
+                "mqtt.greenhouse.local",
+            ),
+            n3w_node_broker_port=int(
+                os.getenv(
+                    "GH_N3W_NODE_BROKER_PORT",
+                    "8883",
+                )
+            ),
+            n3w_node_broker_tls_server_name=os.getenv(
+                "GH_N3W_NODE_BROKER_TLS_SERVER_NAME",
+                "mqtt.greenhouse.local",
+            ),
+            n3w_node_broker_ca_file=(
+                os.getenv(
+                    "GH_N3W_NODE_BROKER_CA_FILE"
+                )
+                or None
+            ),
+            n3w_peer_trust_db_path=os.getenv(
+                "GH_N3W_PEER_TRUST_DB_PATH",
+                (
+                    "/var/lib/greenhouse-manager/"
+                    "n3w/system-peer-trust.sqlite3"
+                ),
+            ),
+            n3w_credential_lifecycle_db_path=os.getenv(
+                "GH_N3W_CREDENTIAL_LIFECYCLE_DB_PATH",
+                (
+                    "/var/lib/greenhouse-manager/"
+                    "n3w/credential-lifecycle.sqlite3"
+                ),
+            ),
+            n3w_setup_secret_inbox_dir=os.getenv(
+                "GH_N3W_SETUP_SECRET_INBOX_DIR",
+                (
+                    "/var/lib/greenhouse-manager/"
+                    "n3w/setup-secret-inbox"
+                ),
             ),
         )
         settings.validate()
@@ -257,6 +383,230 @@ class Settings:
             raise ValueError(
                 "GH_HISTORY_PRUNE_INTERVAL_S must be between 30 and 86400"
             )
+        if self.n3w_product_pairing_enabled:
+            if not self.n3w_runtime_enabled:
+                raise ValueError(
+                    "GH_N3W_PRODUCT_PAIRING_ENABLED "
+                    "requires GH_N3W_RUNTIME_ENABLED"
+                )
+
+            if (
+                _ID_RE.fullmatch(
+                    self.n3w_pairing_manager_id
+                )
+                is None
+            ):
+                raise ValueError(
+                    "GH_N3W_PAIRING_MANAGER_ID must "
+                    "match [A-Za-z0-9_-]{3,64}"
+                )
+
+            if self.n3w_pairing_bind_host not in {
+                "0.0.0.0",
+                "127.0.0.1",
+            }:
+                raise ValueError(
+                    "GH_N3W_PAIRING_BIND_HOST must be "
+                    "0.0.0.0 or 127.0.0.1"
+                )
+
+            if (
+                not self.n3w_pairing_advertised_host
+                or any(
+                    character.isspace()
+                    for character
+                    in self.n3w_pairing_advertised_host
+                )
+            ):
+                raise ValueError(
+                    "GH_N3W_PAIRING_ADVERTISED_HOST "
+                    "must be non-empty"
+                )
+
+            for name, port in (
+                (
+                    "GH_N3W_PAIRING_HTTP_PORT",
+                    self.n3w_pairing_http_port,
+                ),
+                (
+                    "GH_N3W_PAIRING_UDP_PORT",
+                    self.n3w_pairing_udp_port,
+                ),
+                (
+                    "GH_N3W_NODE_BROKER_PORT",
+                    self.n3w_node_broker_port,
+                ),
+            ):
+                if not 1 <= port <= 65535:
+                    raise ValueError(
+                        f"{name} must be between "
+                        "1 and 65535"
+                    )
+
+            provisioning = (
+                self.n3w_provisioning_username,
+                self.n3w_provisioning_password,
+                self.n3w_provisioning_client_id,
+            )
+
+            if not all(provisioning):
+                raise ValueError(
+                    "N3-W provisioning identity is "
+                    "incomplete"
+                )
+
+            if (
+                not self.n3w_node_broker_host
+                or any(
+                    character.isspace()
+                    for character
+                    in self.n3w_node_broker_host
+                )
+            ):
+                raise ValueError(
+                    "GH_N3W_NODE_BROKER_HOST "
+                    "must be non-empty"
+                )
+
+            if (
+                not self.n3w_node_broker_tls_server_name
+                or any(
+                    character.isspace()
+                    for character
+                    in self.n3w_node_broker_tls_server_name
+                )
+            ):
+                raise ValueError(
+                    "GH_N3W_NODE_BROKER_TLS_SERVER_NAME "
+                    "must be non-empty"
+                )
+
+            if not self.n3w_node_broker_ca_file:
+                raise ValueError(
+                    "GH_N3W_NODE_BROKER_CA_FILE "
+                    "is required"
+                )
+
+            ca_path = Path(
+                self.n3w_node_broker_ca_file
+            ).expanduser()
+
+            if (
+                not ca_path.is_absolute()
+                or ca_path.is_symlink()
+                or not ca_path.is_file()
+            ):
+                raise ValueError(
+                    "GH_N3W_NODE_BROKER_CA_FILE must "
+                    "reference an absolute regular "
+                    "non-symlink file"
+                )
+
+            if ca_path.stat().st_size > 64 * 1024:
+                raise ValueError(
+                    "GH_N3W_NODE_BROKER_CA_FILE "
+                    "exceeds 64 KiB"
+                )
+
+            try:
+                ca_pem = ca_path.read_text(
+                    encoding="utf-8"
+                )
+            except UnicodeError as error:
+                raise ValueError(
+                    "GH_N3W_NODE_BROKER_CA_FILE must "
+                    "contain UTF-8 PEM"
+                ) from error
+
+            if (
+                "-----BEGIN CERTIFICATE-----"
+                not in ca_pem
+                or "-----END CERTIFICATE-----"
+                not in ca_pem
+                or "\x00" in ca_pem
+            ):
+                raise ValueError(
+                    "GH_N3W_NODE_BROKER_CA_FILE must "
+                    "contain a PEM certificate"
+                )
+
+            product_private_paths = {
+                "GH_N3W_PEER_TRUST_DB_PATH":
+                    self.n3w_peer_trust_db_path,
+                "GH_N3W_CREDENTIAL_LIFECYCLE_DB_PATH":
+                    self.n3w_credential_lifecycle_db_path,
+                "GH_N3W_SETUP_SECRET_INBOX_DIR":
+                    self.n3w_setup_secret_inbox_dir,
+            }
+
+            normalized_product_paths = {}
+
+            for name, raw_path in (
+                product_private_paths.items()
+            ):
+                if not raw_path.strip():
+                    raise ValueError(
+                        f"{name} cannot be empty"
+                    )
+
+                private_path = Path(
+                    raw_path
+                ).expanduser()
+
+                if not private_path.is_absolute():
+                    raise ValueError(
+                        f"{name} must be absolute"
+                    )
+
+                if _path_contains_symlink(
+                    private_path
+                ):
+                    raise ValueError(
+                        f"{name} and its ancestors "
+                        "must not be symlinks"
+                    )
+
+                normalized_product_paths[
+                    name
+                ] = private_path
+
+            product_databases = {
+                Path(
+                    self.pairing_db_path
+                ).expanduser(),
+                Path(
+                    self.n3w_replay_db_path
+                ).expanduser(),
+                Path(
+                    self.n3w_relay_authorization_db_path
+                ).expanduser(),
+                normalized_product_paths[
+                    "GH_N3W_PEER_TRUST_DB_PATH"
+                ],
+                normalized_product_paths[
+                    (
+                        "GH_N3W_CREDENTIAL_"
+                        "LIFECYCLE_DB_PATH"
+                    )
+                ],
+            }
+
+            if len(product_databases) != 5:
+                raise ValueError(
+                    "N3-W product databases must differ"
+                )
+
+            if (
+                normalized_product_paths[
+                    "GH_N3W_SETUP_SECRET_INBOX_DIR"
+                ]
+                in product_databases
+            ):
+                raise ValueError(
+                    "GH_N3W_SETUP_SECRET_INBOX_DIR "
+                    "must not be a database path"
+                )
+
         if self.n3w_runtime_enabled:
             configured_paths = {
                 "GH_PAIRING_DB_PATH": self.pairing_db_path,

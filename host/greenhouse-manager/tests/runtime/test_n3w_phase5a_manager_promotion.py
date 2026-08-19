@@ -53,7 +53,10 @@ def test_selector_promotes_simplified_service_when_n3w_enabled(
         return expected
 
     monkeypatch.setattr(wiring, "build_n3w_simplified_manager_service", build)
-    settings = SimpleNamespace(n3w_runtime_enabled=True)
+    settings = SimpleNamespace(
+        n3w_runtime_enabled=True,
+        n3w_product_pairing_enabled=False,
+    )
     assert wiring.build_manager_mqtt_service(settings) is expected
     assert called == [settings]
 

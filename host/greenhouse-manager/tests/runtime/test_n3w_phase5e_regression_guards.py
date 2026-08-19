@@ -31,6 +31,10 @@ RETIRED_CANONICAL_RUNTIME_FILES = {
 }
 
 CURRENT_RUNTIME_FILES = {
+    "n3w_simplified_product_runtime.py",
+    "n3w_node_identity_provisioner.py",
+    "n3w_node_application_keys.py",
+    "n3w_node_credentials.py",
     "n3w_auto_node_id.py",
     "n3w_canonical_ingress.py",
     "n3w_compact_relay.py",
@@ -166,3 +170,219 @@ def test_legacy_radio_is_explicit_opt_in_only() -> None:
     ).read_text(encoding="utf-8")
     assert "#ifdef GREENHOUSE_N3W_ENABLE_LEGACY_RADIO" in radio_header
     assert '#include "n3w_radio_legacy.h"' in radio_header
+
+
+def test_current_runtime_relative_imports_are_closed() -> None:
+    missing: dict[str, list[str]] = {}
+    for path in sorted(RUNTIME_ROOT.glob("*.py")):
+        tree = ast.parse(
+            path.read_text(encoding="utf-8"),
+            filename=str(path),
+        )
+        unresolved: list[str] = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ImportFrom):
+                continue
+            if node.level != 1 or not node.module:
+                continue
+            module_file = RUNTIME_ROOT / f"{node.module}.py"
+            package_file = RUNTIME_ROOT / node.module / "__init__.py"
+            if not module_file.exists() and not package_file.exists():
+                unresolved.append(node.module)
+        if unresolved:
+            missing[path.name] = sorted(set(unresolved))
+    assert missing == {}
+
+
+def test_simplified_provisioning_never_reimports_retired_product_pairing() -> None:
+    source = (
+        RUNTIME_ROOT / "n3w_simplified_provisioning.py"
+    ).read_text(encoding="utf-8")
+    assert "n3w_product_pairing" not in source
+    assert "n3w_node_credentials" in source
+
+
+def test_current_node_key_writer_has_no_gateway_grant_or_path_authority() -> None:
+    source = (
+        RUNTIME_ROOT / "n3w_node_application_keys.py"
+    ).read_text(encoding="utf-8")
+
+    admin_source = source.split(
+        "class SqliteNodeApplicationKeyAdmin:",
+        1,
+    )[1]
+
+    assert "n3w_relay_gateway_nodes" not in admin_source
+    assert "gateway_id" not in admin_source
+    assert "PATH" not in admin_source
+    assert "path_invalidator" not in admin_source
+
+
+def test_setup_secret_has_no_lan_admin_import_endpoint() -> None:
+    endpoint = (
+        RUNTIME_ROOT / "n3w_simplified_pairing_endpoint.py"
+    ).read_text(encoding="utf-8")
+
+    product_runtime = (
+        RUNTIME_ROOT / "n3w_simplified_product_runtime.py"
+    ).read_text(encoding="utf-8")
+
+    assert "import_setup_secret" not in endpoint
+    assert "PrivateSetupSecretInbox" in product_runtime
+    assert "gh.pair.setup-secret-import/1" in product_runtime
+
+
+def test_simplified_product_composition_keeps_retired_authority_absent() -> None:
+    import ast
+
+    runtime_path = (
+        RUNTIME_ROOT
+        / "n3w_simplified_product_runtime.py"
+    )
+
+    source = runtime_path.read_text(
+        encoding="utf-8"
+    )
+
+    tree = ast.parse(
+        source,
+        filename=str(runtime_path),
+    )
+
+    retired_modules = {
+        "n3w_product_pairing",
+        "n3w_product_peer_authorization",
+    }
+
+    for node in ast.walk(tree):
+        if isinstance(
+            node,
+            ast.ImportFrom,
+        ):
+            module = node.module or ""
+
+            if (
+                node.level == 1
+                and module in retired_modules
+            ):
+                raise AssertionError(
+                    "retired relative module "
+                    f"imported: {module}"
+                )
+
+            if any(
+                module.endswith(
+                    f".{retired}"
+                )
+                for retired
+                in retired_modules
+            ):
+                raise AssertionError(
+                    "retired module imported: "
+                    f"{module}"
+                )
+
+        if isinstance(
+            node,
+            ast.Import,
+        ):
+            for alias in node.names:
+                if (
+                    alias.name
+                    in retired_modules
+                    or any(
+                        alias.name.endswith(
+                            f".{retired}"
+                        )
+                        for retired
+                        in retired_modules
+                    )
+                ):
+                    raise AssertionError(
+                        "retired module imported: "
+                        f"{alias.name}"
+                    )
+
+    for retired_symbol in (
+        "ProductSecurePairingCoordinator",
+        "path_invalidator",
+        "n3w_relay_gateway_nodes",
+        "X25519",
+    ):
+        assert retired_symbol not in source
+
+
+def test_simplified_pairing_preack_failures_rollback_automatic_approval() -> None:
+    pairing = (
+        RUNTIME_ROOT / "n3w_simplified_pairing.py"
+    ).read_text(encoding="utf-8")
+
+    registration = (
+        RUNTIME_ROOT / "registration.py"
+    ).read_text(encoding="utf-8")
+
+    assert (
+        "rollback_automatic_approval"
+        in pairing
+    )
+
+    assert (
+        "def rollback_automatic_approval("
+        in registration
+    )
+
+    assert (
+        "NodeIdLeaseState.RETIRED"
+        in registration
+    )
+
+
+def test_final_manager_product_pairing_is_wired_into_normal_lifecycle() -> None:
+    wiring = (
+        RUNTIME_ROOT / "n3w_manager_runtime_wiring.py"
+    ).read_text(encoding="utf-8")
+
+    config = (
+        RUNTIME_ROOT / "config.py"
+    ).read_text(encoding="utf-8")
+
+    assert (
+        "build_n3w_simplified_product_manager_service"
+        in wiring
+    )
+
+    assert (
+        "N3wSimplifiedProductPairingWorker"
+        in wiring
+    )
+
+    assert (
+        "n3w_product_pairing_enabled"
+        in config
+    )
+
+    assert (
+        "GH_N3W_PRODUCT_PAIRING_ENABLED"
+        in config
+    )
+
+
+def test_final_product_pairing_wiring_never_restores_retired_authority() -> None:
+    paths = (
+        RUNTIME_ROOT / "n3w_manager_runtime_wiring.py",
+        RUNTIME_ROOT / "n3w_simplified_product_runtime.py",
+    )
+
+    source = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in paths
+    )
+
+    for retired in (
+        "ProductSecurePairingCoordinator",
+        "n3w_product_peer_authorization",
+        "path_invalidator",
+        "finite_grant",
+        "X25519",
+    ):
+        assert retired not in source

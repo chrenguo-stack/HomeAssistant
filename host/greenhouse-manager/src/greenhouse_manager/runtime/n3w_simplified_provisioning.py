@@ -9,7 +9,7 @@ from .dynsec_plan import (
     build_node_provisioning_plan,
     generate_node_credentials,
 )
-from .n3w_product_pairing import (
+from .n3w_node_credentials import (
     ProductCredentialBundle,
     ProductCredentialIssuer,
     ProductCredentialMaterial,

@@ -45,6 +45,13 @@
 | KF-025 | C-06 regression CI | 有用的 C-06 host regression 曾被旧 lineage/exact-main gate 阻塞，导致当前代码变化时产生与功能无关的失败 | regression coverage 与一次性历史 lineage/evidence 合同耦合 | C06-B1/B2B/history workflow 已收敛为 current host regression，移除旧 lineage authority / 重复 isolated evidence workflow | GUARDED |
 | KF-026 | N3-W Phase 5-E regression guard | 新增 simplification guard 后，greenhouse-manager CI 连续在 Ruff `I001`/`SIM300` 停止，pytest 未执行 | 手写新测试未先完全匹配仓库 Ruff import-block 与 SIM 规则；第一次修正又误解了 Ruff 对 import block 后空行的要求 | 以 exact CI Ruff 输出为唯一格式 authority，逐项修正且每个新 HEAD 只做一次 focused validation；最终 `greenhouse-manager CI/test` 的 Lint+Test 已 PASS | GUARDED |
 
+| KF-027 | FC4 S4A local CI parity | 3 个 T1 CLI 子进程测试本地 full pytest 报 `ModuleNotFoundError: greenhouse_manager` | 主 pytest 使用 validation venv，但继承 PATH 中 `python3` 落到系统解释器 | 本地 CI parity 将 validation venv/bin 置于 PATH 首位；targeted + full pytest 共同保护 | GUARDED |
+| KF-028 | FC4 S4A / node MQTT isolated lab | macOS 上 `/tmp` safety test 错误落到 `workspace must be empty` | `/tmp` resolve 为 `/private/tmp` 后与未 canonicalize 的 `Path("/tmp")` 比较 | 安全 guard 两侧统一 canonicalize，Linux/macOS 保持相同拒绝语义 | GUARDED |
+| KF-029 | FC4 S4A / N3-W Manager selector | 旧 Phase5A selector test 触发 `AttributeError: n3w_product_pairing_enabled` | successor Settings 新增字段，旧 SimpleNamespace test double 未同步默认 false 合同 | test double 显式加入 `n3w_product_pairing_enabled=False`；production selector 不静默 getattr 降级 | GUARDED |
+| KF-030 | FC4 S4A / pytest | `PytestReturnNotNoneWarning`，`test_settings` 返回 `PairingRuntimeSettings` | 测试 helper 使用 `test_` 名称，被 pytest 误收集为独立测试 | 重命名 `_pairing_runtime_settings`；full pytest 不得再出现该 warning | GUARDED |
+| KF-031 | Assistant / FC4 S4A executor | repair executor 曾因 stdin collision 与 literal precondition mismatch 在写入前停止 | stdin 同时承载脚本/Ruff JSON；整段字符串匹配对源码 空白结构过敏 | 工具输出独立 subprocess capture；源码转换优先 AST/source-bound；写前 fail-closed | GUARDED |
+| KF-032 | Assistant / FC4 S4B version archive | `VERSION_OCCURRENCE_SCOPE_DRIFT` 在 mutation 前停止 | 执行器把所有 `0.4.98` 字面量误当成当前 package version，未区分 H0/H1 冻结迁移合同和 provenance | 版本 bump 使用语义 allowlist：仅 package declaration 和 package-version regression 更新；历史合同版本必须精确保留 | GUARDED |
+
 ## 固定回归规则
 
 以下规则适用于所有后续阶段：
