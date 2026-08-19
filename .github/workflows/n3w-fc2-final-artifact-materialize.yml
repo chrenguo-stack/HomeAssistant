@@ -6,6 +6,11 @@ on:
       - build/n3w-fc2-final-artifact-20260819-v1
     paths:
       - .github/workflows/n3w-fc2-final-artifact-materialize.yml
+  pull_request:
+    branches:
+      - build/n3w-fc2-trigger-base-20260819-v1
+    paths:
+      - .github/workflows/n3w-fc2-final-artifact-materialize.yml
   workflow_dispatch:
 
 permissions:
