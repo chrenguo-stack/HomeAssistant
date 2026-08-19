@@ -85,6 +85,12 @@ def test_esp_idf_driver_has_real_compile_time_radio_calls_but_no_product_activat
 ):
     driver = DRIVER_CPP.read_text(encoding="utf-8")
     for token in (
+        "esp_netif_init()",
+        "esp_event_loop_create_default()",
+        "esp_wifi_init(&config)",
+        "esp_wifi_set_storage(WIFI_STORAGE_RAM)",
+        "esp_wifi_set_mode(WIFI_MODE_STA)",
+        "esp_wifi_start()",
         "esp_now_init()",
         "esp_now_set_pmk(",
         "esp_now_register_recv_cb(",
@@ -100,6 +106,8 @@ def test_esp_idf_driver_has_real_compile_time_radio_calls_but_no_product_activat
         assert token in driver
 
     init_source = INIT_PY.read_text(encoding="utf-8")
+    assert 'include_builtin_idf_component("esp_event")' in init_source
+    assert 'include_builtin_idf_component("esp_netif")' in init_source
     assert 'include_builtin_idf_component("esp_wifi")' in init_source
     component = COMPONENT_H.read_text(encoding="utf-8")
     assert "void setup() override {}" in component
@@ -113,8 +121,29 @@ def test_esp_idf_driver_has_real_compile_time_radio_calls_but_no_product_activat
         "homeassistant/#",
         "gh/v1/+/state/#",
         "mqtt_password",
+        "esp_wifi_connect(",
     ):
         assert forbidden not in combined
+
+
+def test_espnow_driver_owns_an_isolated_wifi_lifecycle() -> None:
+    driver = DRIVER_CPP.read_text(encoding="utf-8")
+    ordered_start = (
+        "esp_netif_init()",
+        "esp_event_loop_create_default()",
+        "esp_wifi_init(&config)",
+        "esp_wifi_set_storage(WIFI_STORAGE_RAM)",
+        "esp_wifi_set_mode(WIFI_MODE_STA)",
+        "esp_wifi_start()",
+        "esp_now_init()",
+    )
+    positions = [driver.index(token) for token in ordered_start]
+    assert positions == sorted(positions)
+    assert "wifi_owned_ = true" in driver
+    assert "stop_owned_wifi_();" in driver
+    assert "esp_wifi_connect(" not in driver
+    shutdown = driver[driver.index("void EspNowDriver::shutdown()") :]
+    assert shutdown.index("esp_now_deinit()") < shutdown.index("stop_owned_wifi_()")
 
 
 def test_link_contract_states_ack_is_local_not_manager_acceptance() -> None:

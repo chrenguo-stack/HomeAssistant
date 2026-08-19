@@ -12,6 +12,10 @@ user p5child
 
 user p5relay
  topic write gh/v1/n3wp5lab/ingress/gateway/n3wp5_relay01/n3wp5_child01/frame
+ topic write gh/v1/n3wp5lab/ingress/node/n3wp5_relay01/telemetry
+ topic write gh/v1/n3wp5lab/ingress/node/n3wp5_relay01/relay-peer-auth/time-request
+ topic write gh/v1/n3wp5lab/ingress/node/n3wp5_relay01/relay-peer-auth/request
+ topic read gh/v1/n3wp5lab/out/node/n3wp5_relay01/relay-peer-auth/+
  topic read gh/p5/n3wp5lab/control/n3wp5_relay01
 
 user tester

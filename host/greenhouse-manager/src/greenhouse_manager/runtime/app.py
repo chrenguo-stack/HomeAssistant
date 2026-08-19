@@ -6,8 +6,8 @@ import logging
 import os
 import sys
 
-from .c06b2_runtime_wiring import run_manager_service
 from .config import Settings
+from .n3w_manager_runtime_wiring import run_manager_service
 
 
 def _configuration_report(settings: Settings) -> dict[str, object]:

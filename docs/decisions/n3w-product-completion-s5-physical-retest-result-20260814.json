@@ -1,0 +1,64 @@
+{
+  "schema": "gh.n3w-product-completion-s5-physical-retest-result/1",
+  "stage": "S5_TWO_BOARD_ISOLATED_PHYSICAL",
+  "date": "2026-08-14",
+  "repository": "chrenguo-stack/HomeAssistant",
+  "pull_request": 322,
+  "base_sha": "38c3b692d4ebe90d0040c732b6c0313fdfdc1ef6",
+  "tested_implementation_sha": "ae8dda51998c46bf9ac86dda4ca0219112c378aa",
+  "status": "espnow_initialization_crash_fix_physical_verified_full_e2e_pending",
+  "attempts": [
+    {
+      "attempt_id": "S5-PHYSICAL-20260814-01",
+      "head_sha": "fd509538086479361ce931d9c073564606d53ae0",
+      "result": "terminal_failure",
+      "classification": "deterministic_load_access_fault_in_esp_now_init_on_both_roles",
+      "final_state": "both_boards_rom_bootloader_rf_stopped"
+    },
+    {
+      "attempt_id": "S5-PHYSICAL-20260814-02",
+      "head_sha": "ae8dda51998c46bf9ac86dda4ca0219112c378aa",
+      "authorization_source": "user_approved_start_testing_natural_language",
+      "result": "espnow_initialization_crash_fix_verified",
+      "board_bindings_verified": true,
+      "child_erase_flash_verify": "pass",
+      "relay_erase_flash_verify": "pass",
+      "child_espnow_init": "pass",
+      "relay_espnow_init": "pass",
+      "child_setup": "pass",
+      "relay_setup": "pass",
+      "post_initialization_stability_seconds": 45,
+      "crash_or_reboot_observed": false,
+      "encrypted_peer_link": "not_attempted_manager_authorization_adapter_pending",
+      "final_state": "both_boards_rom_bootloader_rf_stopped"
+    }
+  ],
+  "ci": {
+    "applicable_checks_passed_at_tested_implementation_sha": true,
+    "s5_board_integration_run": 31786353110,
+    "s3_disconnected_espnow_runtime_run": 31786353131,
+    "s2_host_only_core_run": 31786353137,
+    "public_repository_safety_run": 31786353125
+  },
+  "safety": {
+    "isolated_non_production_only": true,
+    "wifi_credentials_created": false,
+    "wifi_connection_attempted": false,
+    "production_access_observed": false,
+    "production_mutation_observed": false,
+    "ephemeral_secret_material_committed": false,
+    "board_identifiers_committed": false,
+    "raw_serial_evidence_committed": false,
+    "espnow_rf_stopped": true
+  },
+  "not_claimed": [
+    "manager_authorization_test_adapter",
+    "relay_advertisement_physical_acceptance",
+    "encrypted_child_relay_peer_link",
+    "relay_telemetry_to_isolated_manager_and_home_assistant",
+    "identity_continuity_physical_acceptance",
+    "authorization_expiry_and_revoke_physical_acceptance",
+    "full_two_board_acceptance_matrix",
+    "production_readiness"
+  ]
+}

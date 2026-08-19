@@ -1,0 +1,77 @@
+esphome:
+  name: gh-n3w-s5-relay-private
+  friendly_name: N3-W Product S5 Private Relay Compile Fixture
+  min_version: 2026.4.3
+  build_path: !env_var S5_BUILD_PATH
+
+esp32:
+  board: esp32-c6-devkitm-1
+  variant: ESP32C6
+  flash_size: 8MB
+  framework:
+    type: esp-idf
+    advanced:
+      include_builtin_idf_components:
+        - nvs_flash
+        - esp_wifi
+
+logger:
+  level: INFO
+  hardware_uart: USB_SERIAL_JTAG
+
+wifi:
+  networks:
+    - ssid: "s5-isolated-fixture"
+      channel: 6
+  fast_connect: true
+
+mqtt:
+  broker: "192.0.2.10"
+  port: 1883
+  client_id: "gh-s5-relay-fixture"
+  discovery: false
+
+external_components:
+  - source:
+      type: local
+      path: ../../../components
+    components:
+      - greenhouse_n3w_core
+      - greenhouse_n3w_product_core
+      - greenhouse_n3w_product_runtime
+      - greenhouse_n3w_s5_manager_transport
+      - greenhouse_n3w_s5_private_runtime
+
+greenhouse_n3w_core:
+
+greenhouse_n3w_product_core:
+
+greenhouse_n3w_product_runtime:
+  id: n3w_product_integration
+  role: relay
+  execution_enabled: true
+  pmk_hex: "000102030405060708090a0b0c0d0e0f"
+  last_direct_channel: 6
+
+greenhouse_n3w_s5_manager_transport:
+  id: n3w_product_manager_transport
+  product_runtime_id: n3w_product_integration
+  execution_enabled: true
+
+greenhouse_n3w_s5_private_runtime:
+  id: n3w_private_runtime_material
+  product_runtime_id: n3w_product_integration
+  manager_transport_id: n3w_product_manager_transport
+  role: relay
+  system_id: system001
+  node_id: node_relay01
+  credential_generation: 11
+  key_epoch: 13
+  application_key_hex: "a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0"
+  local_mac: "02aabbccddee"
+  relay_capable: true
+  low_battery: false
+  overloaded: false
+
+# Synthetic TEST-NET/open-network fixture only. CI compiles this target but
+# never runs it. The bound Wi-Fi channel equals the ESP-NOW direct channel.

@@ -3,15 +3,70 @@
 #include <algorithm>
 #include <cstring>
 
+#include "esphome/core/log.h"
+
 #ifdef USE_ESP32
+#include "esp_event.h"
+#include "esp_netif.h"
 #include "esp_now.h"
 #include "esp_wifi.h"
 #endif
 
 namespace esphome::greenhouse_n3w_core {
 
+namespace {
+static const char *const TAG = "n3w_espnow_driver";
+constexpr uint8_t kDiagnosticLogLimit = 8;
+}
+
 #ifdef USE_ESP32
 EspNowDriver *EspNowDriver::active_ = nullptr;
+#endif
+
+#ifdef USE_ESP32
+DriverError EspNowDriver::start_wifi_() {
+  wifi_mode_t mode{};
+  const esp_err_t mode_error = esp_wifi_get_mode(&mode);
+  if (mode_error == ESP_OK) {
+    uint8_t channel = 0;
+    wifi_second_chan_t secondary = WIFI_SECOND_CHAN_NONE;
+    return esp_wifi_get_channel(&channel, &secondary) == ESP_OK
+               ? DriverError::NONE
+               : DriverError::WIFI_START_FAILED;
+  }
+  if (mode_error != ESP_ERR_WIFI_NOT_INIT) {
+    return DriverError::WIFI_INIT_FAILED;
+  }
+
+  const esp_err_t netif_error = esp_netif_init();
+  if (netif_error != ESP_OK && netif_error != ESP_ERR_INVALID_STATE) {
+    return DriverError::WIFI_INIT_FAILED;
+  }
+  const esp_err_t event_error = esp_event_loop_create_default();
+  if (event_error != ESP_OK && event_error != ESP_ERR_INVALID_STATE) {
+    return DriverError::WIFI_INIT_FAILED;
+  }
+
+  wifi_init_config_t config = WIFI_INIT_CONFIG_DEFAULT();
+  if (esp_wifi_init(&config) != ESP_OK) {
+    return DriverError::WIFI_INIT_FAILED;
+  }
+  wifi_owned_ = true;
+  if (esp_wifi_set_storage(WIFI_STORAGE_RAM) != ESP_OK ||
+      esp_wifi_set_mode(WIFI_MODE_STA) != ESP_OK ||
+      esp_wifi_start() != ESP_OK) {
+    stop_owned_wifi_();
+    return DriverError::WIFI_START_FAILED;
+  }
+  return DriverError::NONE;
+}
+
+void EspNowDriver::stop_owned_wifi_() {
+  if (!wifi_owned_) return;
+  (void) esp_wifi_stop();
+  (void) esp_wifi_deinit();
+  wifi_owned_ = false;
+}
 #endif
 
 DriverError EspNowDriver::initialize(EspNowEventSink *sink, const LinkKey &pmk) {
@@ -26,15 +81,23 @@ DriverError EspNowDriver::initialize(EspNowEventSink *sink, const LinkKey &pmk) 
   if (initialized_ || active_ != nullptr) {
     return DriverError::ALREADY_INITIALIZED;
   }
+  const DriverError wifi_error = start_wifi_();
+  if (wifi_error != DriverError::NONE) {
+    return wifi_error;
+  }
   if (esp_now_init() != ESP_OK) {
+    stop_owned_wifi_();
     return DriverError::ESPNOW_INIT_FAILED;
   }
   if (esp_now_set_pmk(pmk.data()) != ESP_OK) {
     esp_now_deinit();
+    stop_owned_wifi_();
     return DriverError::ESPNOW_PMK_FAILED;
   }
   active_ = this;
   sink_ = sink;
+  diagnostic_receive_logs_.store(0, std::memory_order_relaxed);
+  diagnostic_broadcast_logs_.store(0, std::memory_order_relaxed);
   if (esp_now_register_recv_cb(&EspNowDriver::recv_cb_) != ESP_OK ||
       esp_now_register_send_cb(&EspNowDriver::send_cb_) != ESP_OK) {
     esp_now_unregister_recv_cb();
@@ -42,6 +105,7 @@ DriverError EspNowDriver::initialize(EspNowEventSink *sink, const LinkKey &pmk) 
     active_ = nullptr;
     sink_ = nullptr;
     esp_now_deinit();
+    stop_owned_wifi_();
     return DriverError::ESPNOW_CALLBACK_FAILED;
   }
   initialized_ = true;
@@ -59,6 +123,7 @@ void EspNowDriver::shutdown() {
   if (active_ == this) {
     active_ = nullptr;
   }
+  stop_owned_wifi_();
 #endif
   sink_ = nullptr;
   initialized_ = false;
@@ -174,7 +239,7 @@ DriverError EspNowDriver::send(
   if (!initialized_) {
     return DriverError::NOT_INITIALIZED;
   }
-  if (data == nullptr || size == 0 || size > kEspNowDatagramLimit ||
+  if (data == nullptr || size == 0 || size > kEspNowPhysicalDatagramLimit ||
       !esp_now_is_peer_exist(peer_mac.data())) {
     return DriverError::INVALID_ARGUMENT;
   }
@@ -195,7 +260,7 @@ DriverError EspNowDriver::send_broadcast(
   if (!initialized_) {
     return DriverError::NOT_INITIALIZED;
   }
-  if (data == nullptr || size == 0 || size > kEspNowDatagramLimit ||
+  if (data == nullptr || size == 0 || size > kEspNowPhysicalDatagramLimit ||
       !esp_now_is_peer_exist(kEspNowBroadcastMac.data())) {
     return DriverError::INVALID_ARGUMENT;
   }
@@ -212,7 +277,7 @@ void EspNowDriver::recv_cb_(
     int data_len) {
   if (active_ == nullptr || active_->sink_ == nullptr || info == nullptr ||
       info->src_addr == nullptr || data == nullptr || data_len <= 0 ||
-      static_cast<std::size_t>(data_len) > kEspNowDatagramLimit) {
+      static_cast<std::size_t>(data_len) > kEspNowPhysicalDatagramLimit) {
     return;
   }
   MacAddress source{};
@@ -221,6 +286,13 @@ void EspNowDriver::recv_cb_(
   if (info->rx_ctrl != nullptr) {
     metadata.rssi_dbm = static_cast<int16_t>(info->rx_ctrl->rssi);
     metadata.channel = static_cast<uint8_t>(info->rx_ctrl->channel);
+  }
+  const uint8_t receive_index = active_->diagnostic_receive_logs_.fetch_add(
+      1, std::memory_order_relaxed);
+  if (receive_index < kDiagnosticLogLimit) {
+    ESP_LOGI(TAG, "ESP-NOW diagnostic receive count=%u size=%d channel=%u",
+             static_cast<unsigned>(receive_index + 1), data_len,
+             static_cast<unsigned>(metadata.channel));
   }
   active_->sink_->on_espnow_receive_with_metadata(
       source, data, static_cast<std::size_t>(data_len), metadata);
@@ -236,6 +308,15 @@ void EspNowDriver::send_cb_(
   }
   MacAddress destination{};
   std::copy_n(info->des_addr, destination.size(), destination.begin());
+  if (destination == kEspNowBroadcastMac) {
+    const uint8_t send_index = active_->diagnostic_broadcast_logs_.fetch_add(
+        1, std::memory_order_relaxed);
+    if (send_index < kDiagnosticLogLimit) {
+      ESP_LOGI(TAG, "ESP-NOW diagnostic broadcast completion count=%u success=%s",
+               static_cast<unsigned>(send_index + 1),
+               status == ESP_NOW_SEND_SUCCESS ? "true" : "false");
+    }
+  }
   active_->sink_->on_espnow_send_result(
       destination, status == ESP_NOW_SEND_SUCCESS);
 }
@@ -248,6 +329,15 @@ void EspNowDriver::send_cb_(
   }
   MacAddress destination{};
   std::copy_n(mac_addr, destination.size(), destination.begin());
+  if (destination == kEspNowBroadcastMac) {
+    const uint8_t send_index = active_->diagnostic_broadcast_logs_.fetch_add(
+        1, std::memory_order_relaxed);
+    if (send_index < kDiagnosticLogLimit) {
+      ESP_LOGI(TAG, "ESP-NOW diagnostic broadcast completion count=%u success=%s",
+               static_cast<unsigned>(send_index + 1),
+               status == ESP_NOW_SEND_SUCCESS ? "true" : "false");
+    }
+  }
   active_->sink_->on_espnow_send_result(
       destination, status == ESP_NOW_SEND_SUCCESS);
 }

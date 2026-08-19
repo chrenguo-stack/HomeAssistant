@@ -20,6 +20,7 @@ def test_builds_exact_per_node_acl_profile() -> None:
     assert plan.username == "ghn_gh-n1-a9f2f8"
     assert plan.client_id == "gh-n1-a9f2f8"
     assert ("publishClientSend", "gh/v1/greenhouse/ingress/node/gh-n1-a9f2f8/#") in allowed
+    assert ("publishClientSend", "gh/v1/greenhouse/ingress/gateway/gh-n1-a9f2f8/#") in allowed
     assert ("subscribePattern", "gh/v1/greenhouse/out/node/gh-n1-a9f2f8/#") in allowed
     assert ("publishClientReceive", "gh/v1/greenhouse/out/node/gh-n1-a9f2f8/#") in allowed
     assert all("+/" not in topic and "/+" not in topic for _acl_type, topic in allowed)

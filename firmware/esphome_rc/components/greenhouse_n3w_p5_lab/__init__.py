@@ -7,6 +7,7 @@ from esphome.const import CONF_ID
 from voluptuous import Invalid
 
 DEPENDENCIES = ["esp32", "wifi", "mqtt"]
+AUTO_LOAD = ["greenhouse_n3w_legacy_radio"]
 
 CONF_ROLE = "role"
 CONF_EXECUTION_ENABLED = "execution_enabled"
@@ -76,7 +77,10 @@ async def to_code(config: dict) -> None:
     # library itself. Without MBEDTLS_CONFIG_FILE, n3w_core.cpp sees the
     # upstream GCM ABI while ESP-IDF 5.5.4 builds mbedTLS with its ALT ABI.
     include_builtin_idf_component("mbedtls")
-    cg.add_build_flag('-DMBEDTLS_CONFIG_FILE=\\"mbedtls/esp_config.h\\"')
+    cg.add_build_flag('-DMBEDTLS_CONFIG_FILE=\\\"mbedtls/esp_config.h\\\"')
+    # Phase 5-B quarantine: only this frozen P5 lab is allowed to compile the
+    # retired fragmentation/receipt-ACK/retry-cache implementation.
+    cg.add_build_flag("-DGREENHOUSE_N3W_ENABLE_LEGACY_RADIO=1")
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     cg.add(var.set_role(config[CONF_ROLE]))

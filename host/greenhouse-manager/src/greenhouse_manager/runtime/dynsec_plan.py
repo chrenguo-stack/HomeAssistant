@@ -83,6 +83,7 @@ def build_node_provisioning_plan(
         raise ValueError("generation must be between 1 and 4294967295")
 
     ingress = f"gh/v1/{system_id}/ingress/node/{node_id}/#"
+    relay_ingress = f"gh/v1/{system_id}/ingress/gateway/{node_id}/#"
     outbound = f"gh/v1/{system_id}/out/node/{node_id}/#"
     role_name = f"gh-node-{system_id}-{node_id}"
     acls = (
@@ -93,6 +94,7 @@ def build_node_provisioning_plan(
         DynsecAcl("subscribePattern", "homeassistant/#", False, 1000),
         DynsecAcl("subscribePattern", f"gh/v1/{system_id}/state/#", False, 1000),
         DynsecAcl("publishClientSend", ingress, True, 100),
+        DynsecAcl("publishClientSend", relay_ingress, True, 100),
         DynsecAcl("subscribePattern", outbound, True, 100),
         DynsecAcl("publishClientReceive", outbound, True, 100),
         DynsecAcl("unsubscribePattern", outbound, True, 100),
