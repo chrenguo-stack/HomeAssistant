@@ -3,6 +3,12 @@ esphome:
   friendly_name: N3-W Product S5 Relay Compile Target
   min_version: 2026.4.3
   build_path: !env_var S5_BUILD_PATH
+  # Frozen S5 is a regression target for the retired radio stack. Keep the
+  # compatibility implementation opt-in here; active product configs must not
+  # inherit this flag. ESPHome 2026.4.3 exposes this through platformio_options.
+  platformio_options:
+    build_flags:
+      - "-DGREENHOUSE_N3W_ENABLE_LEGACY_RADIO=1"
 
 esp32:
   board: esp32-c6-devkitm-1
@@ -25,10 +31,13 @@ external_components:
       path: ../../components
     components:
       - greenhouse_n3w_core
+      - greenhouse_n3w_legacy_radio
       - greenhouse_n3w_product_core
       - greenhouse_n3w_product_runtime
 
 greenhouse_n3w_core:
+
+greenhouse_n3w_legacy_radio:
 
 greenhouse_n3w_product_core:
 

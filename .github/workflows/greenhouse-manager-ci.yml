@@ -9,6 +9,11 @@ on:
       - "host/greenhouse-manager/**"
       - "protocols/mqtt/**"
       - "protocols/pairing/**"
+      - "firmware/esphome_rc/components/greenhouse_n3w_core/**"
+      - "firmware/esphome_rc/board_lab/n3w_phase3_simple/**"
+      - "firmware/esphome_rc/board_lab/n3w_phase4_physical/**"
+      - "tests/n3w_phase3/**"
+      - "tests/n3w_phase4/**"
       - ".github/workflows/greenhouse-manager-ci.yml"
 
 permissions:
@@ -19,6 +24,7 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       run: ${{ steps.detect.outputs.run }}
+      phase3: ${{ steps.detect.outputs.phase3 }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,13 +38,19 @@ jobs:
           set -euo pipefail
           if [[ "$EVENT_NAME" != "pull_request" ]]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "phase3=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           git diff --name-only "$BASE_SHA" "$HEAD_SHA" > "$RUNNER_TEMP/changed-files.txt"
-          if grep -Eq '^(host/greenhouse-manager/|protocols/mqtt/|protocols/pairing/|\.github/workflows/greenhouse-manager-ci\.yml$)' "$RUNNER_TEMP/changed-files.txt"; then
+          if grep -Eq '^(host/greenhouse-manager/|protocols/mqtt/|protocols/pairing/|firmware/esphome_rc/components/greenhouse_n3w_core/|firmware/esphome_rc/board_lab/n3w_phase3_simple/|firmware/esphome_rc/board_lab/n3w_phase4_physical/|tests/n3w_phase3/|tests/n3w_phase4/|\.github/workflows/greenhouse-manager-ci\.yml$)' "$RUNNER_TEMP/changed-files.txt"; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+          if grep -Eq '^(firmware/esphome_rc/components/greenhouse_n3w_core/|firmware/esphome_rc/board_lab/n3w_phase3_simple/|firmware/esphome_rc/board_lab/n3w_phase4_physical/|tests/n3w_phase3/|tests/n3w_phase4/|\.github/workflows/greenhouse-manager-ci\.yml$)' "$RUNNER_TEMP/changed-files.txt"; then
+            echo "phase3=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "phase3=false" >> "$GITHUB_OUTPUT"
           fi
 
   test:
@@ -66,3 +78,80 @@ jobs:
 
       - name: Test
         run: pytest -q
+
+  n3w-phase3-cross-language:
+    needs: scope
+    if: needs.scope.outputs.phase3 == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install host and ESP32-C6 tool dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libmbedtls-dev
+          python -m pip install -q "pytest>=8,<9" "esphome==2026.4.3"
+      - name: Phase 3 source safety contracts
+        run: pytest -q tests/n3w_phase3/test_phase3_source_contract.py
+      - name: Phase 4 source-only activation contracts
+        run: pytest -q tests/n3w_phase4/test_phase4_source_contract.py
+      - name: Build and run C++ cross-language vectors
+        shell: bash
+        run: |
+          set -euo pipefail
+          core=firmware/esphome_rc/components/greenhouse_n3w_core
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror \
+            -I"$core" \
+            "$core/n3w_core.cpp" \
+            "$core/n3w_radio.cpp" \
+            "$core/n3w_simple_crypto.cpp" \
+            "$core/n3w_compact_telemetry.cpp" \
+            "$core/n3w_simple_runtime.cpp" \
+            tests/n3w_phase3/n3w_phase3_host_test.cpp \
+            -lmbedcrypto \
+            -o /tmp/n3w-phase3-host-test
+          /tmp/n3w-phase3-host-test
+      - name: Build and run Phase 4 simplified product runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          core=firmware/esphome_rc/components/greenhouse_n3w_core
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror \
+            -I"$core" \
+            "$core/n3w_core.cpp" \
+            "$core/n3w_radio.cpp" \
+            "$core/n3w_simple_crypto.cpp" \
+            "$core/n3w_compact_telemetry.cpp" \
+            "$core/n3w_simple_runtime.cpp" \
+            "$core/n3w_simple_state_host.cpp" \
+            "$core/n3w_simple_product_runtime.cpp" \
+            tests/n3w_phase4/n3w_phase4_runtime_host_test.cpp \
+            -lmbedcrypto \
+            -o /tmp/n3w-phase4-runtime-host-test
+          /tmp/n3w-phase4-runtime-host-test
+      - name: Compile generic ESP32-C6 Child context
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd firmware/esphome_rc/board_lab/n3w_phase3_simple
+          esphome config child.yml
+          esphome compile child.yml
+      - name: Compile generic ESP32-C6 Relay context
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd firmware/esphome_rc/board_lab/n3w_phase3_simple
+          esphome config relay.yml
+          esphome compile relay.yml
+      - name: Compile generic ESP32-C6 Phase 4 physical harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd firmware/esphome_rc/board_lab/n3w_phase4_physical
+          esphome config generic.yml
+          esphome compile generic.yml

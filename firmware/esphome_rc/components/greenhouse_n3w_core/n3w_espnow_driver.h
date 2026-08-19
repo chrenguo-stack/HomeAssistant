@@ -13,6 +13,18 @@
 
 namespace esphome::greenhouse_n3w_core {
 
+// Keep kEspNowDatagramLimit=240 in n3w_radio.h as the legacy control and
+// fragmentation contract. The concrete ESP-NOW v2 driver must also be able to
+// carry the new single-frame N3W2 telemetry payload (maximum 1072 bytes).
+constexpr std::size_t kEspNowPhysicalDatagramLimit = 1470;
+
+#ifdef USE_ESP32
+#ifdef ESP_NOW_MAX_DATA_LEN_V2
+static_assert(kEspNowPhysicalDatagramLimit <= ESP_NOW_MAX_DATA_LEN_V2,
+              "configured ESP-NOW physical datagram limit exceeds ESP-IDF v2 limit");
+#endif
+#endif
+
 constexpr MacAddress kEspNowBroadcastMac{
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 

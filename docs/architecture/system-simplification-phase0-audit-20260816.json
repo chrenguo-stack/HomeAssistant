@@ -1,0 +1,89 @@
+{
+  "schema": "gh.system-simplification.phase0-audit/1",
+  "date": "2026-08-16",
+  "result": "PASS_WITH_MIGRATION_GATES",
+  "frozen_product_constraints": {
+    "sku_count": 2,
+    "skus": ["wifi", "lora"],
+    "default_power": "battery_plus_solar",
+    "dedicated_relay_sku": false,
+    "dedicated_gateway_sku": false,
+    "generic_factory_firmware": true,
+    "offline_monitoring": true,
+    "lcd_five_pages": true,
+    "per_node_mqtt_identity": true,
+    "node_id_reuse": false,
+    "adr_0007_accepted": true,
+    "r8_replay": false
+  },
+  "audit": {
+    "espnow_telemetry": {
+      "current_test_telemetry_bytes": 255,
+      "current_data_header_bytes": 54,
+      "current_max_ciphertext_bytes": 1024,
+      "espnow_v2_payload_limit_bytes": 1470,
+      "current_test_single_frame_bytes": 309,
+      "current_max_single_frame_bytes": 1078,
+      "fit_single_frame": true,
+      "decision": "SIMPLIFY"
+    },
+    "reliable_periodic_telemetry": {
+      "current_fragment_payload_bytes": 180,
+      "current_max_fragment_count": 6,
+      "current_protocol_elements": [
+        "DATA_FRAGMENT",
+        "RECEIPT_ACK",
+        "ChildRelayCache",
+        "retry",
+        "RESEND_behavior",
+        "REORDER_reassembly"
+      ],
+      "decision": "DELETE_AFTER_MIGRATION"
+    },
+    "direct_relay_path": {
+      "current_path_policy_fields": [
+        "stability_window_s",
+        "minimum_distinct_frames",
+        "lease_ttl_s",
+        "old_path_grace_s"
+      ],
+      "canonical_high_water_currently_embedded_in_path_lease": true,
+      "target": "multi_ingress_latest_valid_wins",
+      "decision": "MIGRATION"
+    },
+    "node_id": {
+      "current_first_approval_requires_operator_node_id": true,
+      "automatic_allocator_implemented": false,
+      "target": "manager_generated_stable_never_reused",
+      "decision": "MIGRATION"
+    },
+    "pairing_epoch": {
+      "present_in_legacy_registration_replay_logic": true,
+      "present_in_adr_0007_simple_pairing_transcript": false,
+      "target": "compatibility_only_then_delete_candidate",
+      "decision": "SIMPLIFY"
+    },
+    "development_process": {
+      "authorization_claim_code_search_matches": 71,
+      "execution_package_code_search_matches": 28,
+      "target": "session_precheck_claim_single_evidence_root",
+      "decision": "SIMPLIFY"
+    },
+    "github": {
+      "open_draft_pr_snapshot": 54,
+      "workflow_snapshot": 295,
+      "target": "few_active_prs_and_5_to_6_durable_ci_families",
+      "decision": "SIMPLIFY"
+    }
+  },
+  "migration_gates": [
+    "espnow_v2_frame_budget",
+    "independent_canonical_high_water_cursor",
+    "gateway_metadata_decoupled_from_canonical_payload",
+    "automatic_node_id_allocator",
+    "setup_secret_replay_proof",
+    "single_evidence_root_contract"
+  ],
+  "phase1_allowed": true,
+  "phase2_allowed": false
+}
