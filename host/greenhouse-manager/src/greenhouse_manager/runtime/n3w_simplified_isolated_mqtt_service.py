@@ -41,6 +41,10 @@ class N3wSimplifiedIsolatedMqttService(ManagerMqttService):
         # compatibility marker, then independently disable the superseded MQTT
         # pairing intake for the promoted Phase 5-A path.
         source_settings = replace(settings, n3w_runtime_enabled=False)
+        source_settings = replace(
+            source_settings,
+            n3w_product_pairing_enabled=False,
+        )
         source_settings = replace(source_settings, pairing_intake_enabled=False)
         super().__init__(source_settings)
         if (
