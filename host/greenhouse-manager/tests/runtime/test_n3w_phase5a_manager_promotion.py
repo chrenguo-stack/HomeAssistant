@@ -9,6 +9,12 @@ import pytest
 from greenhouse_manager.runtime import app
 from greenhouse_manager.runtime import n3w_manager_runtime_wiring as wiring
 from greenhouse_manager.runtime import n3w_simplified_isolated_mqtt_service as simplified_mqtt
+from greenhouse_manager.runtime.config import Settings
+from greenhouse_manager.runtime.n3w_compact_relay import (
+    StaticNodeApplicationKeyProvider,
+)
+from greenhouse_manager.runtime.registration import RegistrationRegistry
+from greenhouse_manager.runtime.replay_registry import ReplayRegistry
 
 
 class _FakeService:
@@ -82,7 +88,36 @@ def test_c06b2_runtime_keeps_injection_seam(
 def test_promoted_service_disables_both_legacy_entrypoints() -> None:
     source = inspect.getsource(simplified_mqtt)
     assert "replace(settings, n3w_runtime_enabled=False)" in source
+    assert "n3w_product_pairing_enabled=False" in source
     assert "replace(source_settings, pairing_intake_enabled=False)" in source
+
+
+def test_promoted_service_constructs_with_product_pairing_enabled(
+    tmp_path,
+) -> None:
+    registration_path = tmp_path / "registration.sqlite3"
+    replay_path = tmp_path / "replay.sqlite3"
+    settings = Settings(
+        system_id="lab",
+        pairing_db_path=str(registration_path),
+        n3w_runtime_enabled=True,
+        n3w_product_pairing_enabled=True,
+    )
+
+    with (
+        RegistrationRegistry(registration_path) as registration,
+        ReplayRegistry(replay_path) as replay,
+    ):
+        service = simplified_mqtt.N3wSimplifiedIsolatedMqttService(
+            settings,
+            registration=registration,
+            replay=replay,
+            keys=StaticNodeApplicationKeyProvider({}),
+        )
+
+        assert service.settings.n3w_runtime_enabled is False
+        assert service.settings.n3w_product_pairing_enabled is False
+        assert service.settings.pairing_intake_enabled is False
 
 
 def test_phase5a_wiring_has_no_path_or_finite_grant_authority() -> None:

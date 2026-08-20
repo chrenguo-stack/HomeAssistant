@@ -51,6 +51,7 @@
 | KF-030 | FC4 S4A / pytest | `PytestReturnNotNoneWarning`，`test_settings` 返回 `PairingRuntimeSettings` | 测试 helper 使用 `test_` 名称，被 pytest 误收集为独立测试 | 重命名 `_pairing_runtime_settings`；full pytest 不得再出现该 warning | GUARDED |
 | KF-031 | Assistant / FC4 S4A executor | repair executor 曾因 stdin collision 与 literal precondition mismatch 在写入前停止 | stdin 同时承载脚本/Ruff JSON；整段字符串匹配对源码 空白结构过敏 | 工具输出独立 subprocess capture；源码转换优先 AST/source-bound；写前 fail-closed | GUARDED |
 | KF-032 | Assistant / FC4 S4B version archive | `VERSION_OCCURRENCE_SCOPE_DRIFT` 在 mutation 前停止 | 执行器把所有 `0.4.98` 字面量误当成当前 package version，未区分 H0/H1 冻结迁移合同和 provenance | 版本 bump 使用语义 allowlist：仅 package declaration 和 package-version regression 更新；历史合同版本必须精确保留 | GUARDED |
+| KF-033 | FC4 Final Physical Acceptance / Manager startup | production-equivalent 配置启用 N3-W product pairing 时，simplified Manager 构造阶段触发 `GH_N3W_PRODUCT_PAIRING_ENABLED requires GH_N3W_RUNTIME_ENABLED` | 基类内部 `source_settings` projection 关闭 `n3w_runtime_enabled` 后，未同步关闭仅由外层 final-product composition 管理的 `n3w_product_pairing_enabled`，导致内部配置自相矛盾 | 保留 Phase 4 one-line runtime-disable source marker；对内部 projection 独立关闭 `n3w_product_pairing_enabled` 和 legacy `pairing_intake_enabled`；增加真实 constructor regression，断言三项内部标志均为 false | GUARDED |
 
 ## 固定回归规则
 
