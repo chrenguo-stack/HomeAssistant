@@ -1,0 +1,154 @@
+{
+  "schema": "gh.development-artifact-archive/1",
+  "audit_date": "2026-08-21",
+  "scope": "N3-W FC4 development and live-validation boundaries on 2026-08-20",
+  "authoritative_source": {
+    "main_head": "3bd3f0736eb387dc76d53f472da59056e05a88e3",
+    "main_tree": "b0d6fd40c196ba63f6aedec51a591b51bac68676",
+    "clean_successor_head": "933a1a00ef05c919d3809b96edb1c2dd459e0aca",
+    "pull_request": 327,
+    "ci_success": 26,
+    "ci_skipped": 1,
+    "ci_failure": 0
+  },
+  "p2b3d_runtime_binding": {
+    "terminal": "CLOSED_HEALTHY",
+    "source_archive": {
+      "sha256": "bc08d628f34de09f376e2912114212c500d80ea4061a7f93528ae4c2fdce3b59",
+      "size": 9021440
+    },
+    "manager_image": {
+      "tag_class": "local-fc4-manager-authoritative-main",
+      "image_id": "sha256:871e45beee9862198616e87818f55a357a4c66ad5cbe3449a5948ca1e4ea4086",
+      "architecture": "arm64",
+      "os": "linux",
+      "runtime_uid_gid": "999:999"
+    },
+    "compose": {
+      "active_sha256": "b61afc05f70b9f1fcfb29a28b19ae4c481cae5321f95bfe70db4f52edc23e2ec",
+      "rollback_sha256": "c45fcd46a0a18395fed1e41000ea5db67b4c861936c15f9d6b48f27cfccb0b1b"
+    },
+    "private_evidence": [
+      {
+        "id": "p2b3d-claim",
+        "path_class": "t1-private-evidence/claim",
+        "sha256": "1386369f62181313261487a08534153480feac72882e761b40ca9b1978b9a302",
+        "size": "legacy-not-captured",
+        "mode": "0600",
+        "purpose": "authorization claim and exact runtime rebind",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "p2b3d-health-closure",
+        "path_class": "t1-private-evidence/health-closure",
+        "sha256": "cfa8c1d22dc837965689bf33f103d5e065abdcdc6f483e33e300b247452d3c03",
+        "size": "legacy-not-captured",
+        "mode": "0600",
+        "purpose": "post-rebind service and endpoint health closure",
+        "secret_values_included_in_public_binding": false
+      }
+    ],
+    "health": {
+      "manager_running": true,
+      "manager_restart_count": 0,
+      "manager_network_mode": "host",
+      "pairing_http_schema": "gh.pair.simple-health/1",
+      "pairing_http": "PASS",
+      "broker_tls_from_manager_namespace": "PASS",
+      "mqtt_established_connections": 1,
+      "udp_47111_listener_count": 1,
+      "http_47112_listener_count": 1,
+      "critical_log_count": 0,
+      "kf036_recovery_executed": false,
+      "board_access": false
+    }
+  },
+  "private_local_artifacts": [
+    {
+      "id": "legacy-board-readback-01",
+      "sha256": "d3b26835d3a0ef9c23b396e1858b2d6ddf88460a9af013965de4b239ccb4724a",
+      "size": 836400,
+      "captured_at": "2026-08-20T16:23:37+08:00",
+      "classification": "PRIVATE_REQUIRED",
+      "identity_binding": "QUARANTINED_UNBOUND"
+    },
+    {
+      "id": "legacy-board-readback-02",
+      "sha256": "887d4d9dc2913eefde3649fa659e1713041155e05c446cfd2259e307fc8f8c7c",
+      "size": 989904,
+      "captured_at": "2026-08-20T16:24:08+08:00",
+      "classification": "PRIVATE_REQUIRED",
+      "identity_binding": "QUARANTINED_UNBOUND"
+    },
+    {
+      "id": "legacy-board-full-app-readback-01",
+      "sha256": "bb69b1702b977fb715565353f9a7def1c4608c6a121f3923c5ab2d09c61b427b",
+      "size": 1106320,
+      "captured_at": "2026-08-20T16:28:37+08:00",
+      "classification": "PRIVATE_REQUIRED",
+      "identity_binding": "QUARANTINED_UNBOUND"
+    },
+    {
+      "id": "legacy-board-full-app-readback-02",
+      "sha256": "bb69b1702b977fb715565353f9a7def1c4608c6a121f3923c5ab2d09c61b427b",
+      "size": 1106320,
+      "captured_at": "2026-08-20T16:28:43+08:00",
+      "classification": "PRIVATE_REQUIRED",
+      "identity_binding": "QUARANTINED_UNBOUND"
+    },
+    {
+      "id": "legacy-board-final-app-readback-01",
+      "sha256": "95e177042fd15cb0e4b4aef762adf37811c736d34579e480f534ffbe5ee14a7a",
+      "size": 1106320,
+      "captured_at": "2026-08-20T17:21:41+08:00",
+      "classification": "PRIVATE_REQUIRED",
+      "identity_binding": "QUARANTINED_UNBOUND"
+    },
+    {
+      "id": "legacy-board-final-app-readback-02",
+      "sha256": "95e177042fd15cb0e4b4aef762adf37811c736d34579e480f534ffbe5ee14a7a",
+      "size": 1106320,
+      "captured_at": "2026-08-20T17:22:14+08:00",
+      "classification": "PRIVATE_REQUIRED",
+      "identity_binding": "QUARANTINED_UNBOUND"
+    }
+  ],
+  "reproducibility_bindings": [
+    {
+      "id": "arm64-python-base-transport",
+      "sha256": "73bcf72288971535519056a03944cb98e333254ceec387eae54b6be1949c09a5",
+      "size": 45839360,
+      "image_digest": "sha256:c3030eb5af86633f87e538de534dd455ca0cf2b4eceee87069b713f33d2d03f6",
+      "classification": "EPHEMERAL_DISCARDABLE_AFTER_BINDING"
+    },
+    {
+      "id": "fc4-firmware-build-package",
+      "sha256": "b6925ab8f6f4204a551b7a7f140b7360f7f8248209ee2a1998bb725e02b86e03",
+      "size": 2115227,
+      "source_head": "f38a6eb966c4fc11eff4bd3a112f02ba1dbf6a60",
+      "classification": "PRIVATE_REQUIRED",
+      "board_identity_binding": "NOT_ESTABLISHED"
+    },
+    {
+      "id": "host-network-candidate-helper",
+      "sha256": "23c69a17fe2aa0b753a39d88d8432e24f18f84b3c118c1b9c0b0d2c955a56ca5",
+      "size": 1014,
+      "classification": "SUPERSEDED_BY_KF034_KF035_DEPLOYMENT_GATE"
+    },
+    {
+      "id": "resolved-loopback-helper",
+      "sha256": "d3f75b144713f19b5c5fe4941937d02f5387897b5af15a2a78f7efbe1b6575da",
+      "size": 646,
+      "classification": "SUPERSEDED_BY_KF035_DEPLOYMENT_GATE"
+    }
+  ],
+  "pending_live_authorization": {
+    "id": "D1-N3W-FC4-F45C-KF036-EXPIRED-FIRST-REGISTRATION-TOMBSTONE-RECOVERY-LIVE-EXECUTION-AND-AUDIT-20260820-01",
+    "approved": true,
+    "claimed": false,
+    "consumed": false,
+    "archive_recovery_does_not_consume_authorization": true
+  },
+  "public_raw_evidence_exposed": false,
+  "secret_values_included": false
+}

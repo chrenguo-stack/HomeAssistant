@@ -49,6 +49,31 @@ def _hello() -> dict[str, object]:
     }
 
 
+def test_health_schema_is_bound_to_simplified_endpoint(tmp_path) -> None:
+    with RegistrationRegistry(tmp_path / "registration.sqlite3") as registry:
+        app = SimplifiedPairingEndpointApp(
+            SimplifiedPairingCoordinator(
+                registry,
+                UnusedStager(),
+                manager_id="manager_lab_01",
+            ),
+            clock=lambda: NOW,
+        )
+        response = app.handle(
+            method="GET",
+            path="/healthz",
+            headers={},
+            body=b"",
+            client_ip="127.0.0.1",
+        )
+
+    assert response.status == HTTPStatus.OK
+    assert json.loads(response.body.decode("utf-8")) == {
+        "schema": "gh.pair.simple-health/1",
+        "status": "ok",
+    }
+
+
 def test_http_hello_maps_registration_observe_result(tmp_path) -> None:
     with RegistrationRegistry(tmp_path / "registration.sqlite3") as registry:
         app = SimplifiedPairingEndpointApp(
