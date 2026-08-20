@@ -22,8 +22,11 @@ def test_fc4_archive_manifest_is_public_safe_and_machine_checkable() -> None:
     assert document["schema"] == "gh.development-artifact-archive/1"
     assert document["public_raw_evidence_exposed"] is False
     assert document["secret_values_included"] is False
-    assert document["pending_live_authorization"]["claimed"] is False
-    assert document["pending_live_authorization"]["consumed"] is False
+    authorization = document["live_authorization_history"]
+    assert authorization["claimed"] is True
+    assert authorization["consumed"] is True
+    assert authorization["status"] == "CONSUMED_FAILED"
+    assert authorization["replay_permitted"] is False
 
     source = document["authoritative_source"]
     assert GIT_OBJECT_ID.fullmatch(source["main_head"])
@@ -38,6 +41,45 @@ def test_fc4_archive_manifest_is_public_safe_and_machine_checkable() -> None:
 
     for evidence in runtime["private_evidence"]:
         assert SHA256.fullmatch(evidence["sha256"])
+        assert evidence["secret_values_included_in_public_binding"] is False
+
+    failure = document["kf036_consumed_failure"]
+    assert failure["status"] == "CONSUMED_FAILED"
+    assert failure["replay_permitted"] is False
+    assert failure["root_cause"] == "docker_run_stdin_not_attached"
+    assert failure["executor_observation"]["docker_interactive_flag_present"] is False
+    assert failure["executor_observation"]["result_size"] == 0
+    assert failure["post_failure_state"]["registration_database_mutated"] is False
+    assert failure["post_failure_state"]["credential_database_mutated"] is False
+    assert failure["post_failure_state"]["manager_health"] == "PASS"
+    assert failure["closure_evidence_present"] is False
+
+    binding = failure["fc4_database_binding"]
+    assert binding["registration_container_path"] == (
+        "/var/lib/greenhouse-manager/manager/registration.sqlite3"
+    )
+    assert binding["credential_container_path"] == (
+        "/var/lib/greenhouse-manager/n3w/credential-lifecycle.sqlite3"
+    )
+    assert binding["generic_registration_default_applies"] is False
+
+    successor = failure["successor_contract"]
+    assert successor["new_authorization_required"] is True
+    assert successor["docker_stdin_transport"] == "--interactive"
+    assert successor["python_program_source"] == "stdin"
+    assert successor["nonempty_result_required_before_json_parse"] is True
+    assert successor["live_container_inspection_count_minimum"] >= 2
+    assert (
+        successor["registration_container_path"]
+        == (binding["registration_container_path"])
+    )
+    assert (
+        successor["credential_container_path"] == binding["credential_container_path"]
+    )
+
+    for evidence in failure["private_evidence"]:
+        assert SHA256.fullmatch(evidence["sha256"])
+        assert evidence["mode"] == "0600"
         assert evidence["secret_values_included_in_public_binding"] is False
 
     artifacts = document["private_local_artifacts"]

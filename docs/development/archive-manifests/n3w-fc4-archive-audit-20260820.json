@@ -63,6 +63,90 @@
       "board_access": false
     }
   },
+  "kf036_consumed_failure": {
+    "authorization": "D1-N3W-FC4-F45C-KF036-EXPIRED-FIRST-REGISTRATION-TOMBSTONE-RECOVERY-LIVE-EXECUTION-AND-AUDIT-20260820-01",
+    "status": "CONSUMED_FAILED",
+    "replay_permitted": false,
+    "hardware_mac_tail": "F4:5C",
+    "failure_stage": "recovery_result_capture_oracle",
+    "root_cause": "docker_run_stdin_not_attached",
+    "executor_observation": {
+      "python_program_source": "stdin",
+      "docker_interactive_flag_present": false,
+      "container_exit_code": 0,
+      "result_size": 0,
+      "result_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "explanation": "docker run closed stdin because -i/--interactive was absent; python - read EOF and exited without invoking the recovery CLI"
+    },
+    "fc4_database_binding": {
+      "state_mount_container_path": "/var/lib/greenhouse-manager",
+      "registration_container_path": "/var/lib/greenhouse-manager/manager/registration.sqlite3",
+      "credential_container_path": "/var/lib/greenhouse-manager/n3w/credential-lifecycle.sqlite3",
+      "generic_registration_default_applies": false
+    },
+    "post_failure_state": {
+      "registration_database_mutated": false,
+      "registration_sha256_before": "de612681d5bd7e9584d5b120512b3bd257b6e3e8a8476b47d1f28c1c46132d9c",
+      "registration_sha256_after": "de612681d5bd7e9584d5b120512b3bd257b6e3e8a8476b47d1f28c1c46132d9c",
+      "credential_database_mutated": false,
+      "credential_sha256_before": "7d1be670b5c1edfdf22b5a14f3d2454ee283e64b351a42a3a14fec31424bec29",
+      "credential_sha256_after": "7d1be670b5c1edfdf22b5a14f3d2454ee283e64b351a42a3a14fec31424bec29",
+      "current_expired_registration_present": true,
+      "credential_assignment_count": 0,
+      "manager_running": true,
+      "manager_health": "PASS",
+      "manager_restart_count": 0,
+      "board_access": false,
+      "device_reset": false
+    },
+    "private_evidence": [
+      {
+        "id": "kf036-consumed-failure-claim",
+        "path_class": "t1-private-evidence/claim",
+        "sha256": "8792bcee15084c66f2ab2e57eac67e380222a5215a3bddb23dc62e4df7184ee1",
+        "size": 1103,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf036-registration-before-backup",
+        "path_class": "t1-private-evidence/database-backup",
+        "sha256": "de612681d5bd7e9584d5b120512b3bd257b6e3e8a8476b47d1f28c1c46132d9c",
+        "size": 86016,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf036-credential-before-backup",
+        "path_class": "t1-private-evidence/database-backup",
+        "sha256": "7d1be670b5c1edfdf22b5a14f3d2454ee283e64b351a42a3a14fec31424bec29",
+        "size": 28672,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf036-empty-recovery-result",
+        "path_class": "t1-private-evidence/executor-result",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      }
+    ],
+    "closure_evidence_present": false,
+    "successor_contract": {
+      "new_authorization_required": true,
+      "adopt_unchanged_database_hashes": true,
+      "fresh_private_evidence_namespace_required": true,
+      "manager_stopped_machine_proof_required": true,
+      "live_container_inspection_count_minimum": 2,
+      "docker_stdin_transport": "--interactive",
+      "python_program_source": "stdin",
+      "nonempty_result_required_before_json_parse": true,
+      "registration_container_path": "/var/lib/greenhouse-manager/manager/registration.sqlite3",
+      "credential_container_path": "/var/lib/greenhouse-manager/n3w/credential-lifecycle.sqlite3"
+    }
+  },
   "private_local_artifacts": [
     {
       "id": "legacy-board-readback-01",
@@ -142,12 +226,13 @@
       "classification": "SUPERSEDED_BY_KF035_DEPLOYMENT_GATE"
     }
   ],
-  "pending_live_authorization": {
+  "live_authorization_history": {
     "id": "D1-N3W-FC4-F45C-KF036-EXPIRED-FIRST-REGISTRATION-TOMBSTONE-RECOVERY-LIVE-EXECUTION-AND-AUDIT-20260820-01",
     "approved": true,
-    "claimed": false,
-    "consumed": false,
-    "archive_recovery_does_not_consume_authorization": true
+    "claimed": true,
+    "consumed": true,
+    "status": "CONSUMED_FAILED",
+    "replay_permitted": false
   },
   "public_raw_evidence_exposed": false,
   "secret_values_included": false

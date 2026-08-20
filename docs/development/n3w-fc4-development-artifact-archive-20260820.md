@@ -89,8 +89,52 @@ and `tools/n3w_pairing_deployment_gate.py`. They are not deployment authority.
 
 ## Physical authorization boundary
 
-The archive-recovery work does not access T1 or boards and does not claim or
-consume the approved KF-036 live authorization. Before live execution, the
-executor must rebind authoritative main, exact Manager image, stopped Manager
-state, registration and credential database bind mounts, target expired and
-unapproved registration state, and absence of credential history.
+The first archive-recovery commit did not access T1 or boards and did not claim
+the then-pending KF-036 live authorization. The later live boundary did claim
+and consume that authorization; its terminal state is recorded below.
+
+## KF-036 consumed failure and unchanged-state adoption
+
+The corrected read-only preclaim uniquely bound the F4:5C current registration
+as expired, epoch 1, never approved, without NODE_ID, location, repair flag,
+node history, lease, or credential assignment. It also found an FC4-specific
+path contract:
+
+```text
+REGISTRATION_CONTAINER_PATH=/var/lib/greenhouse-manager/manager/registration.sqlite3
+CREDENTIAL_CONTAINER_PATH=/var/lib/greenhouse-manager/n3w/credential-lifecycle.sqlite3
+GENERIC_REGISTRATION_DEFAULT_APPLIES=false
+```
+
+After claim, the executor stopped Manager and created two mode-0600 private
+database backups. The isolated Manager-image command used `python -` to read
+its program from stdin, but the `docker run` invocation omitted `-i` /
+`--interactive`. Docker therefore closed stdin; Python read EOF, performed no
+recovery, emitted no JSON, and exited zero. The nonempty-result/JSON oracle then
+failed. This is KF-040.
+
+The automatic failure trap restarted Manager. Read-only post-failure audit
+proved:
+
+```text
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+TERMINAL=CONSUMED_FAILED
+AUTHORIZATION_REPLAY_PERMITTED=false
+
+REGISTRATION_DATABASE_MUTATED=false
+CREDENTIAL_DATABASE_MUTATED=false
+CURRENT_EXPIRED_REGISTRATION_PRESENT=true
+CREDENTIAL_ASSIGNMENT_COUNT=0
+MANAGER_HEALTH=PASS
+MANAGER_RESTART_COUNT=0
+BOARD_ACCESS=false
+DEVICE_RESET=false
+```
+
+The exact before/after hashes and four private evidence bindings are in the
+companion manifest. A successor must explicitly adopt those unchanged hashes,
+use a fresh private evidence namespace and a new authorization, pass the exact
+FC4 container paths, keep stdin attached with `--interactive`, and reject an
+empty result before JSON parsing. The consumed authorization must never be
+rerun.
