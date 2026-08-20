@@ -48,13 +48,59 @@ def _parse_timestamp(value: str) -> datetime:
 class CredentialLifecycleStore:
     """Secret-free, multi-assignment credential lifecycle history."""
 
-    def __init__(self, path: str | Path) -> None:
+    def __init__(self, path: str | Path, *, read_only: bool = False) -> None:
         self._lock = threading.RLock()
-        self._connection = sqlite3.connect(
-            str(path), isolation_level="IMMEDIATE", check_same_thread=False
-        )
+        self._read_only = read_only
+        database = Path(path)
+        if read_only:
+            if not database.is_file() or database.is_symlink():
+                raise CredentialLifecycleConflict("credential lifecycle database is missing or unsafe")
+            self._connection = sqlite3.connect(
+                f"{database.resolve().as_uri()}?mode=ro",
+                uri=True,
+                check_same_thread=False,
+            )
+        else:
+            self._connection = sqlite3.connect(
+                str(database),
+                isolation_level="IMMEDIATE",
+                check_same_thread=False,
+            )
         self._connection.row_factory = sqlite3.Row
-        self._initialize()
+        if read_only:
+            try:
+                self._validate_read_only_schema()
+            except Exception:
+                self._connection.close()
+                raise
+        else:
+            self._initialize()
+
+    def _validate_read_only_schema(self) -> None:
+        required = {
+            "assignment_id",
+            "hardware_id",
+            "pairing_id",
+            "node_id",
+            "last_node_id",
+            "active_generation",
+            "pending_generation",
+            "state",
+            "reason",
+            "created_at",
+            "updated_at",
+            "revoked_at",
+        }
+        columns = {
+            row["name"]
+            for row in self._connection.execute("PRAGMA table_info(credential_assignments)").fetchall()
+        }
+        if columns != required:
+            raise CredentialLifecycleConflict("credential lifecycle read-only schema is invalid")
+
+    def _require_writable(self) -> None:
+        if self._read_only:
+            raise CredentialLifecycleConflict("credential lifecycle store is read-only")
 
     def _initialize(self) -> None:
         with self._lock, self._connection:
@@ -160,6 +206,7 @@ class CredentialLifecycleStore:
         pairing_id: str | None = None,
         now: datetime | None = None,
     ) -> CredentialLifecycle:
+        self._require_writable()
         if generation < 1:
             raise ValueError("generation must be positive")
         updated_at = now or datetime.now(UTC)
@@ -210,6 +257,7 @@ class CredentialLifecycleStore:
         generation: int,
         now: datetime | None = None,
     ) -> CredentialLifecycle:
+        self._require_writable()
         updated_at = now or datetime.now(UTC)
         with self._lock, self._connection:
             current = self._require_current(hardware_id)
@@ -237,6 +285,7 @@ class CredentialLifecycleStore:
     def commit_rotation(
         self, hardware_id: str, *, now: datetime | None = None
     ) -> CredentialLifecycle:
+        self._require_writable()
         updated_at = now or datetime.now(UTC)
         with self._lock, self._connection:
             current = self._require_current(hardware_id)
@@ -267,6 +316,7 @@ class CredentialLifecycleStore:
         reason: str = "candidate_verification_failed",
         now: datetime | None = None,
     ) -> CredentialLifecycle:
+        self._require_writable()
         updated_at = now or datetime.now(UTC)
         with self._lock, self._connection:
             current = self._require_current(hardware_id)
@@ -294,6 +344,7 @@ class CredentialLifecycleStore:
         reason: str = "operator_revoked",
         now: datetime | None = None,
     ) -> CredentialLifecycle:
+        self._require_writable()
         if not reason:
             raise ValueError("reason must not be empty")
         updated_at = now or datetime.now(UTC)
@@ -328,6 +379,7 @@ class CredentialLifecycleStore:
         reason: str,
         now: datetime | None = None,
     ) -> CredentialLifecycle:
+        self._require_writable()
         if not reason:
             raise ValueError("reason must not be empty")
         updated_at = now or datetime.now(UTC)

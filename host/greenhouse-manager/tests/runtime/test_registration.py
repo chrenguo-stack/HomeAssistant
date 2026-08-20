@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from greenhouse_manager.runtime.credential_lifecycle import CredentialLifecycleStore
 from greenhouse_manager.runtime.registration import (
     HelloValidationError,
     RegistrationConflict,
@@ -149,6 +150,118 @@ def test_expires_pending_and_refuses_late_approval(registry: RegistrationRegistr
     assert registry.get(HARDWARE_ID).state == RegistrationState.EXPIRED
     with pytest.raises(RegistrationConflict, match="expired state"):
         registry.approve(HARDWARE_ID, PAIRING_ID, node_id=NODE_ID, now=NOW)
+
+
+def test_abandons_only_expired_first_registration_and_preserves_replay_tombstone(
+    registry: RegistrationRegistry,
+    tmp_path: Path,
+) -> None:
+    registry.observe_hello(valid_hello(), now=NOW)
+    registry.expire_pending(now=NOW + timedelta(seconds=121))
+
+    with CredentialLifecycleStore(tmp_path / "credential-lifecycle.sqlite3") as credentials:
+        abandoned = registry.abandon_expired_first_registration(
+            HARDWARE_ID,
+            PAIRING_ID,
+            credential_history=credentials,
+            now=NOW + timedelta(seconds=122),
+        )
+
+    with pytest.raises(KeyError):
+        registry.get(HARDWARE_ID)
+
+    old_replay = registry.observe_hello(
+        valid_hello(),
+        now=NOW + timedelta(seconds=123),
+    )
+    replacement_pairing_id = "ca3e468d-fcdd-413d-b834-a8ac0cbe889e"
+    replacement = registry.observe_hello(
+        valid_hello(pairing_id=replacement_pairing_id, epoch=3),
+        now=NOW + timedelta(seconds=124),
+    )
+    events = registry.list_events(hardware_id=HARDWARE_ID)
+    tombstone = registry._connection.execute(
+        "SELECT state FROM pairing_sessions WHERE pairing_id = ?",
+        (PAIRING_ID,),
+    ).fetchone()
+
+    assert abandoned.state is RegistrationState.EXPIRED
+    assert old_replay.status == "rejected"
+    assert old_replay.reason == "replay_detected"
+    assert replacement.status == "created"
+    assert replacement.record.state is RegistrationState.PENDING
+    assert tombstone["state"] == "expired"
+    assert [event.event for event in events] == [
+        "hello_created",
+        "expired_first_registration_abandoned",
+        "expired",
+        "hello_created",
+    ]
+
+
+def test_expired_first_registration_abandonment_rejects_credential_history(
+    registry: RegistrationRegistry,
+    tmp_path: Path,
+) -> None:
+    registry.observe_hello(valid_hello(), now=NOW)
+    registry.expire_pending(now=NOW + timedelta(seconds=121))
+
+    with CredentialLifecycleStore(tmp_path / "credential-lifecycle.sqlite3") as credentials:
+        credentials.activate(
+            hardware_id=HARDWARE_ID,
+            node_id=NODE_ID,
+            generation=1,
+            pairing_id=PAIRING_ID,
+            now=NOW,
+        )
+        with pytest.raises(RegistrationConflict, match="credential assignment history"):
+            registry.abandon_expired_first_registration(
+                HARDWARE_ID,
+                PAIRING_ID,
+                credential_history=credentials,
+                now=NOW + timedelta(seconds=122),
+            )
+
+    assert registry.get(HARDWARE_ID).state is RegistrationState.EXPIRED
+
+
+def test_expired_first_registration_abandonment_rejects_prior_node_assignment(
+    registry: RegistrationRegistry,
+    tmp_path: Path,
+) -> None:
+    registry.observe_hello(valid_hello(), now=NOW)
+    registry.approve(HARDWARE_ID, PAIRING_ID, node_id=NODE_ID, now=NOW)
+    registry.rollback_automatic_approval(HARDWARE_ID, PAIRING_ID, now=NOW)
+    registry.expire_pending(now=NOW + timedelta(seconds=121))
+
+    with (
+        CredentialLifecycleStore(tmp_path / "credential-lifecycle.sqlite3") as credentials,
+        pytest.raises(RegistrationConflict, match="prior node assignment history"),
+    ):
+        registry.abandon_expired_first_registration(
+            HARDWARE_ID,
+            PAIRING_ID,
+            credential_history=credentials,
+            now=NOW + timedelta(seconds=122),
+        )
+
+
+def test_expired_first_registration_abandonment_rejects_pending_state(
+    registry: RegistrationRegistry,
+    tmp_path: Path,
+) -> None:
+    registry.observe_hello(valid_hello(), now=NOW)
+
+    with (
+        CredentialLifecycleStore(tmp_path / "credential-lifecycle.sqlite3") as credentials,
+        pytest.raises(RegistrationConflict, match="only an expired"),
+    ):
+        registry.abandon_expired_first_registration(
+            HARDWARE_ID,
+            PAIRING_ID,
+            credential_history=credentials,
+            now=NOW,
+        )
 
 
 def test_node_id_cannot_be_assigned_to_two_hardware_ids(registry: RegistrationRegistry) -> None:

@@ -10,7 +10,7 @@ from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from importlib.resources import files
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from jsonschema import Draft202012Validator, FormatChecker
 
@@ -33,6 +33,12 @@ class HelloValidationError(ValueError):
 
 class RegistrationConflict(RuntimeError):
     """Raised when a requested state transition is not safe."""
+
+
+class CredentialHistoryReader(Protocol):
+    """Minimum secret-free credential history surface used by recovery."""
+
+    def list_for_hardware(self, hardware_id: str) -> tuple[object, ...]: ...
 
 
 @dataclass(frozen=True)
@@ -789,6 +795,80 @@ class RegistrationRegistry:
                     observed_at,
                 )
             return cursor.rowcount
+
+    def abandon_expired_first_registration(
+        self,
+        hardware_id: str,
+        pairing_id: str,
+        *,
+        credential_history: CredentialHistoryReader,
+        reason: str = "expired_first_pairing_recovery",
+        now: datetime | None = None,
+    ) -> RegistrationRecord:
+        """Release only an expired, never-approved first-registration pointer.
+
+        The expired pairing session and audit events remain durable replay
+        tombstones. A reset device may therefore present a new pairing identity,
+        while the abandoned identity continues to be rejected as a replay.
+        """
+
+        normalized_reason = reason.strip()
+        if not normalized_reason:
+            raise ValueError("abandonment reason must not be empty")
+        occurred_at = _utc(now or datetime.now(UTC))
+
+        with self._lock, self._connection:
+            record = self._require_current(hardware_id, pairing_id)
+            current = self._current_row(hardware_id)
+            if current is None:
+                raise RegistrationConflict("current registration is missing")
+            if record.state is not RegistrationState.EXPIRED:
+                raise RegistrationConflict("only an expired first registration can be abandoned")
+            if (
+                record.node_id is not None
+                or record.logical_location_id is not None
+                or bool(current["repair_authorized"])
+            ):
+                raise RegistrationConflict("registration has approved identity state")
+            if credential_history.list_for_hardware(hardware_id):
+                raise RegistrationConflict("registration has credential assignment history")
+
+            prior_identity_state = self._connection.execute(
+                """
+                SELECT 1
+                WHERE EXISTS (
+                    SELECT 1 FROM node_id_leases WHERE hardware_id = ?
+                ) OR EXISTS (
+                    SELECT 1 FROM registration_node_history WHERE hardware_id = ?
+                ) OR EXISTS (
+                    SELECT 1 FROM retirement_outbox WHERE hardware_id = ?
+                ) OR EXISTS (
+                    SELECT 1 FROM registration_events
+                    WHERE hardware_id = ? AND node_id IS NOT NULL
+                )
+                """,
+                (hardware_id, hardware_id, hardware_id, hardware_id),
+            ).fetchone()
+            if prior_identity_state is not None:
+                raise RegistrationConflict("registration has prior node assignment history")
+
+            self._record_event(
+                hardware_id,
+                pairing_id,
+                "expired_first_registration_abandoned",
+                normalized_reason,
+                occurred_at,
+            )
+            cursor = self._connection.execute(
+                """
+                DELETE FROM registrations
+                WHERE hardware_id = ? AND current_pairing_id = ?
+                """,
+                (hardware_id, pairing_id),
+            )
+            if cursor.rowcount != 1:
+                raise RegistrationConflict("expired first registration release could not be proven")
+            return record
 
     def get(self, hardware_id: str) -> RegistrationRecord:
         with self._lock:

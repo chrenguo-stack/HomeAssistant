@@ -145,3 +145,35 @@ def test_revoked_assignment_allows_new_node_with_higher_generation_only(
         CredentialState.REVOKED,
         CredentialState.ACTIVE,
     ]
+
+
+def test_read_only_store_audits_history_without_mutation(tmp_path: Path) -> None:
+    database = tmp_path / "credential-lifecycle.sqlite3"
+    with CredentialLifecycleStore(database) as writable:
+        writable.activate(
+            hardware_id=HARDWARE_ID,
+            node_id=NODE_ID,
+            generation=1,
+            pairing_id="pairing-old",
+            now=NOW,
+        )
+
+    before = database.read_bytes()
+    with CredentialLifecycleStore(database, read_only=True) as read_only:
+        history = read_only.list_for_hardware(HARDWARE_ID)
+        with pytest.raises(CredentialLifecycleConflict, match="read-only"):
+            read_only.revoke(HARDWARE_ID, now=NOW)
+
+    assert len(history) == 1
+    assert database.read_bytes() == before
+
+
+def test_read_only_store_rejects_missing_database_without_creating_it(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "missing.sqlite3"
+
+    with pytest.raises(CredentialLifecycleConflict, match="missing or unsafe"):
+        CredentialLifecycleStore(database, read_only=True)
+
+    assert not database.exists()

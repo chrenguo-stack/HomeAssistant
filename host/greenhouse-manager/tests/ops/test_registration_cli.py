@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from io import StringIO
 from pathlib import Path
 
 from greenhouse_manager.ops.registration_cli import _parser, main
+from greenhouse_manager.runtime.credential_lifecycle import CredentialLifecycleStore
 from greenhouse_manager.runtime.registration import RegistrationRegistry
 from greenhouse_manager.runtime.replay_registry import ReplayRegistry
 
@@ -15,6 +16,7 @@ PAIRING_ID = "c83aeb0d-8f48-4a39-a34b-ea584a588475"
 LOGICAL_LOCATION_ID = "greenhouse-bed-01"
 N3W_NODE_ID = "node_01hzx7aq5fj3"
 N3W_BOOT_ID = "boot_0000000000000001"
+MANAGER_CONTAINER = "fc4-manager"
 
 
 def hello() -> dict[str, object]:
@@ -38,10 +40,74 @@ def database(tmp_path: Path) -> Path:
     return path
 
 
-def run_cli(path: Path, *args: str) -> tuple[int, object, str]:
+def expired_databases(tmp_path: Path) -> tuple[Path, Path]:
+    now = datetime.now(UTC)
+    registration = tmp_path / "registration.sqlite3"
+    credential = tmp_path / "n3w" / "credential-lifecycle.sqlite3"
+    credential.parent.mkdir()
+    with RegistrationRegistry(registration, pending_ttl_s=1) as registry:
+        registry.observe_hello(hello(), now=now)
+        registry.expire_pending(now=now + timedelta(seconds=2))
+    with CredentialLifecycleStore(credential):
+        pass
+    return registration, credential
+
+
+def manager_inspection(
+    registration: Path,
+    credential: Path,
+    *,
+    running: bool = False,
+    registration_source: Path | None = None,
+    credential_source: Path | None = None,
+) -> dict[str, object]:
+    if registration_source is None and credential_source is None:
+        mounts = [
+            {
+                "Type": "bind",
+                "Source": str(registration.parent),
+                "Destination": "/var/lib/greenhouse-manager",
+            }
+        ]
+    else:
+        mounts = [
+            {
+                "Type": "bind",
+                "Source": str(registration_source or registration),
+                "Destination": "/var/lib/greenhouse-manager/registration.sqlite3",
+            },
+            {
+                "Type": "bind",
+                "Source": str(credential_source or credential),
+                "Destination": ("/var/lib/greenhouse-manager/n3w/credential-lifecycle.sqlite3"),
+            },
+        ]
+    return {
+        "Name": f"/{MANAGER_CONTAINER}",
+        "State": {
+            "Status": "running" if running else "exited",
+            "Running": running,
+            "Restarting": False,
+            "Paused": False,
+            "Pid": 1234 if running else 0,
+        },
+        "Mounts": mounts,
+    }
+
+
+def run_cli(
+    path: Path,
+    *args: str,
+    container_inspector=None,
+) -> tuple[int, object, str]:
     stdout = StringIO()
     stderr = StringIO()
-    code = main(["--db", str(path), *args], stdout=stdout, stderr=stderr)
+    code = main(
+        ["--db", str(path), *args],
+        stdout=stdout,
+        stderr=stderr,
+        container_inspector=container_inspector,
+    )
     document = json.loads(stdout.getvalue()) if stdout.getvalue() else None
     return code, document, stderr.getvalue()
 
@@ -102,6 +168,247 @@ def test_missing_database_fails_without_creating_it(tmp_path: Path) -> None:
     assert document is None
     assert "does not exist" in error
     assert not path.exists()
+
+
+def test_abandon_expired_first_registration_is_audited_and_secret_free(
+    tmp_path: Path,
+) -> None:
+    registration, credential = expired_databases(tmp_path)
+
+    code, document, error = run_cli(
+        registration,
+        "abandon-expired-first",
+        HARDWARE_ID,
+        PAIRING_ID,
+        "--credential-db",
+        str(credential),
+        "--manager-container",
+        MANAGER_CONTAINER,
+        "--confirm-manager-stopped",
+        container_inspector=lambda _name: manager_inspection(registration, credential),
+    )
+
+    assert code == 0
+    assert error == ""
+    assert document["result"] == "expired_first_registration_abandoned"
+    assert document["registration"]["state"] == "expired"
+    assert document["current_registration_released"] is True
+    assert document["replay_tombstone_preserved"] is True
+    assert document["credential_history_absent"] is True
+    assert document["manager_container_stopped"] is True
+    assert document["registration_db_binding_verified"] is True
+    assert document["credential_db_binding_verified"] is True
+    assert document["device_reset_performed"] is False
+    assert "node_nonce" not in json.dumps(document)
+
+    with RegistrationRegistry(registration) as registry:
+        assert registry.list_current() == ()
+        assert registry.list_events(hardware_id=HARDWARE_ID)[0].event == (
+            "expired_first_registration_abandoned"
+        )
+
+
+def test_abandon_expired_first_registration_requires_existing_credential_db(
+    tmp_path: Path,
+) -> None:
+    registration, _credential = expired_databases(tmp_path)
+    missing = tmp_path / "missing-credential.sqlite3"
+
+    code, document, error = run_cli(
+        registration,
+        "abandon-expired-first",
+        HARDWARE_ID,
+        PAIRING_ID,
+        "--credential-db",
+        str(missing),
+        "--manager-container",
+        MANAGER_CONTAINER,
+        "--confirm-manager-stopped",
+    )
+
+    assert code == 2
+    assert document is None
+    assert "does not exist" in error
+    assert not missing.exists()
+
+
+def test_abandon_expired_first_registration_requires_stopped_runtime_confirmation(
+    tmp_path: Path,
+) -> None:
+    registration, credential = expired_databases(tmp_path)
+    before = registration.read_bytes()
+
+    code, document, error = run_cli(
+        registration,
+        "abandon-expired-first",
+        HARDWARE_ID,
+        PAIRING_ID,
+        "--credential-db",
+        str(credential),
+        "--manager-container",
+        MANAGER_CONTAINER,
+    )
+
+    assert code == 3
+    assert document is None
+    assert "--confirm-manager-stopped is required" in error
+    assert registration.read_bytes() == before
+    with RegistrationRegistry(registration) as registry:
+        assert registry.get(HARDWARE_ID).state.value == "expired"
+
+
+def test_abandon_expired_first_registration_rejects_credential_history(
+    tmp_path: Path,
+) -> None:
+    registration, credential = expired_databases(tmp_path)
+    with CredentialLifecycleStore(credential) as credentials:
+        credentials.activate(
+            hardware_id=HARDWARE_ID,
+            node_id="gh-n1-a9f2f8",
+            generation=1,
+            pairing_id=PAIRING_ID,
+        )
+
+    code, document, error = run_cli(
+        registration,
+        "abandon-expired-first",
+        HARDWARE_ID,
+        PAIRING_ID,
+        "--credential-db",
+        str(credential),
+        "--manager-container",
+        MANAGER_CONTAINER,
+        "--confirm-manager-stopped",
+        container_inspector=lambda _name: manager_inspection(registration, credential),
+    )
+
+    assert code == 3
+    assert document is None
+    assert "credential assignment history" in error
+    with RegistrationRegistry(registration) as registry:
+        assert registry.get(HARDWARE_ID).state.value == "expired"
+
+
+def test_abandon_expired_first_registration_rejects_running_manager(
+    tmp_path: Path,
+) -> None:
+    registration, credential = expired_databases(tmp_path)
+    before = registration.read_bytes()
+
+    code, document, error = run_cli(
+        registration,
+        "abandon-expired-first",
+        HARDWARE_ID,
+        PAIRING_ID,
+        "--credential-db",
+        str(credential),
+        "--manager-container",
+        MANAGER_CONTAINER,
+        "--confirm-manager-stopped",
+        container_inspector=lambda _name: manager_inspection(
+            registration,
+            credential,
+            running=True,
+        ),
+    )
+
+    assert code == 3
+    assert document is None
+    assert "process is not proven stopped" in error
+    assert registration.read_bytes() == before
+
+
+def test_abandon_expired_first_registration_rechecks_manager_before_mutation(
+    tmp_path: Path,
+) -> None:
+    registration, credential = expired_databases(tmp_path)
+    before = registration.read_bytes()
+    inspections = iter(
+        (
+            manager_inspection(registration, credential),
+            manager_inspection(registration, credential, running=True),
+        )
+    )
+
+    code, document, error = run_cli(
+        registration,
+        "abandon-expired-first",
+        HARDWARE_ID,
+        PAIRING_ID,
+        "--credential-db",
+        str(credential),
+        "--manager-container",
+        MANAGER_CONTAINER,
+        "--confirm-manager-stopped",
+        container_inspector=lambda _name: next(inspections),
+    )
+
+    assert code == 3
+    assert document is None
+    assert "process is not proven stopped" in error
+    assert registration.read_bytes() == before
+
+
+def test_abandon_expired_first_registration_rejects_registration_db_binding_mismatch(
+    tmp_path: Path,
+) -> None:
+    registration, credential = expired_databases(tmp_path)
+    wrong = tmp_path / "wrong-registration.sqlite3"
+    wrong.write_bytes(registration.read_bytes())
+    before = registration.read_bytes()
+
+    code, document, error = run_cli(
+        registration,
+        "abandon-expired-first",
+        HARDWARE_ID,
+        PAIRING_ID,
+        "--credential-db",
+        str(credential),
+        "--manager-container",
+        MANAGER_CONTAINER,
+        "--confirm-manager-stopped",
+        container_inspector=lambda _name: manager_inspection(
+            registration,
+            credential,
+            registration_source=wrong,
+        ),
+    )
+
+    assert code == 3
+    assert document is None
+    assert "registration database binding mismatch" in error
+    assert registration.read_bytes() == before
+
+
+def test_abandon_expired_first_registration_rejects_credential_db_binding_mismatch(
+    tmp_path: Path,
+) -> None:
+    registration, credential = expired_databases(tmp_path)
+    wrong = tmp_path / "wrong-credential.sqlite3"
+    wrong.write_bytes(credential.read_bytes())
+    before = registration.read_bytes()
+
+    code, document, error = run_cli(
+        registration,
+        "abandon-expired-first",
+        HARDWARE_ID,
+        PAIRING_ID,
+        "--credential-db",
+        str(credential),
+        "--manager-container",
+        MANAGER_CONTAINER,
+        "--confirm-manager-stopped",
+        container_inspector=lambda _name: manager_inspection(
+            registration,
+            credential,
+            credential_source=wrong,
+        ),
+    )
+
+    assert code == 3
+    assert document is None
+    assert "credential database binding mismatch" in error
+    assert registration.read_bytes() == before
 
 
 def test_cli_does_not_expose_retired_node_id_admin_flags() -> None:

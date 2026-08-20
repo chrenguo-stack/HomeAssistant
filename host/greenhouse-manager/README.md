@@ -78,12 +78,16 @@ M2.1c 提供本机操作员 CLI：
 greenhouse-manager-registration --db /var/lib/greenhouse-manager/registration.sqlite3 list
 greenhouse-manager-registration --db /var/lib/greenhouse-manager/registration.sqlite3 events
 greenhouse-manager-registration --db /var/lib/greenhouse-manager/registration.sqlite3 \
-  approve <hardware_id> <pairing_id> --node-id <node_id> \
-  --logical-location-id <logical_location_id>
+  approve <hardware_id> <pairing_id> --logical-location-id <logical_location_id>
 greenhouse-manager-registration --db /var/lib/greenhouse-manager/registration.sqlite3 \
   reject <hardware_id> <pairing_id> --reason user_rejected
 greenhouse-manager-registration --db /var/lib/greenhouse-manager/registration.sqlite3 \
   authorize-repair <hardware_id>
+greenhouse-manager-registration --db /var/lib/greenhouse-manager/registration.sqlite3 \
+  abandon-expired-first <hardware_id> <pairing_id> \
+  --credential-db /var/lib/greenhouse-manager/n3w/credential-lifecycle.sqlite3 \
+  --manager-container fc4-manager \
+  --confirm-manager-stopped
 ```
 
 CLI 输出不包含 node_nonce、pairing_pop 或凭据。当前 `approve`
@@ -91,6 +95,15 @@ CLI 输出不包含 node_nonce、pairing_pop 或凭据。当前 `approve`
 Broker 账号或跳过后续 PoP。`logical_location_id` 是稳定的逻辑监测位置，仅用于位置和审计记录，
 不授权 NODE_ID 复用。旧 NODE_ID 在 outbox 完成后进入永久 `retired`；
 同一 HARDWARE_ID 重新配对也必须使用新 pairing_id、递增 epoch、新凭据和全新 NODE_ID。
+
+`abandon-expired-first` 只用于从未批准、没有 NODE_ID、没有任何凭据历史的
+expired 首次注册。执行前必须停止 Manager，命令以只读方式检查现有 credential
+lifecycle 数据库，并使用 Docker inspect 机器证明指定 Manager 容器处于 exited/PID 0
+状态，且 registration/credential 两个数据库参数与该容器的 bind mount 精确对应。
+人工 `--confirm-manager-stopped` 不能替代这些检查。验证通过后只解除 current
+registration 指针；旧 pairing session 和 audit event 永久保留为 replay tombstone。
+该命令不重置设备，也不签发凭据。旧 pairing identity 继续被拒绝；设备必须在独立
+物理授权下生成新的 Setup Secret/pairing identity。
 
 ## M2.2a Dynamic Security 计划
 
