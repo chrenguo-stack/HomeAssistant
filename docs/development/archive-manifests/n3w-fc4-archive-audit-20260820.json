@@ -750,6 +750,40 @@
       "board_gate_after_recovery_only": true
     }
   },
+  "kf045_source_host_path_recovery_executor": {
+    "authorization": "D1-N3W-FC4-F350-KF045-ISOLATED-RECOVERY-HOST-SOURCE-PATH-ADAPTER-IMPLEMENTATION-TEST-AND-GITHUB-PUSH-20260821-01",
+    "authorization_claimed": true,
+    "authorization_consumed": true,
+    "scope": "SOURCE_IMPLEMENTATION_TEST_AND_GITHUB_PUSH",
+    "source_base_head": "56600ae503cb09e0a2c48d753092ae1b5999df01",
+    "entry_point": "greenhouse-manager-n3w-expired-first-recovery",
+    "host_source_registration_path_required": true,
+    "host_source_credential_path_required": true,
+    "manager_destination_paths_separate": true,
+    "mode_0600_stopped_inspect_required": true,
+    "pre_mutation_database_hashes_required": true,
+    "hardware_and_pairing_hash_binding_required": true,
+    "real_inspect_adapter_integration_regression": true,
+    "destination_domain_mismatch_rejected_before_mutation": true,
+    "mismatch_database_hash_unchanged": true,
+    "empty_result_rejected_before_json_parse": true,
+    "pairing_id_raw_exposed": false,
+    "secret_value_exposed": false,
+    "targeted_registration_credential_test_count": 51,
+    "full_manager_validation": {
+      "passed": 1119,
+      "skipped": 1,
+      "subtests_passed": 5,
+      "failure": 0
+    },
+    "source_guard_status": "PASS",
+    "live_acceptance_status": "PENDING_NEW_AUTHORIZATION",
+    "t1_access": false,
+    "t1_mutated": false,
+    "board_access": false,
+    "serial_access": false,
+    "recovery_executed_live": false
+  },
   "private_local_artifacts": [
     {
       "id": "legacy-board-readback-01",

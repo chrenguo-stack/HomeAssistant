@@ -304,6 +304,32 @@ def test_fc4_archive_manifest_is_public_safe_and_machine_checkable() -> None:
         assert evidence["mode"] == "0600"
         assert evidence["secret_values_included_in_public_binding"] is False
 
+    kf045_source = document["kf045_source_host_path_recovery_executor"]
+    assert kf045_source["authorization_claimed"] is True
+    assert kf045_source["authorization_consumed"] is True
+    assert kf045_source["entry_point"] == (
+        "greenhouse-manager-n3w-expired-first-recovery"
+    )
+    assert kf045_source["host_source_registration_path_required"] is True
+    assert kf045_source["host_source_credential_path_required"] is True
+    assert kf045_source["manager_destination_paths_separate"] is True
+    assert kf045_source["mode_0600_stopped_inspect_required"] is True
+    assert kf045_source["real_inspect_adapter_integration_regression"] is True
+    assert kf045_source[
+        "destination_domain_mismatch_rejected_before_mutation"
+    ] is True
+    assert kf045_source["mismatch_database_hash_unchanged"] is True
+    assert kf045_source["empty_result_rejected_before_json_parse"] is True
+    assert kf045_source["pairing_id_raw_exposed"] is False
+    assert kf045_source["secret_value_exposed"] is False
+    assert kf045_source["full_manager_validation"]["passed"] == 1119
+    assert kf045_source["full_manager_validation"]["failure"] == 0
+    assert kf045_source["source_guard_status"] == "PASS"
+    assert kf045_source["live_acceptance_status"] == "PENDING_NEW_AUTHORIZATION"
+    assert kf045_source["t1_access"] is False
+    assert kf045_source["board_access"] is False
+    assert kf045_source["recovery_executed_live"] is False
+
     artifacts = document["private_local_artifacts"]
     assert len(artifacts) == 6
     assert all(SHA256.fullmatch(item["sha256"]) for item in artifacts)

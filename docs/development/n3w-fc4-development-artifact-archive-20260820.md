@@ -490,3 +490,39 @@ absolute path, pass those host paths to `--db/--credential-db`, and reserve the
 Manager destination paths exclusively for the two `*-container-path` binding
 arguments. It must reject an empty result before JSON parsing. No board or NVS
 operation may begin until recovery and Manager health both close successfully.
+
+## KF-045 source-only host-source recovery executor
+
+The approved source-only boundary added the supported
+`greenhouse-manager-n3w-expired-first-recovery` entry point. The executor
+requires separate arguments for the host-source registration/credential files
+and Manager container destinations. It also requires a mode-0600 stopped
+Manager inspect document, exact pre-mutation hashes, hardware ID, pairing-ID
+SHA-256 and explicit stopped confirmation.
+
+The executor locates the raw pairing ID only in memory by its expected hash,
+injects the real inspect document into the existing recovery CLI, captures its
+raw result privately in memory, rejects a nonzero or empty result before JSON
+parsing, verifies the immutable expired tombstone and separate recovery event,
+and emits only a sanitized result. It never prints the raw pairing ID.
+
+The integration regression uses the real registration and credential stores
+plus a Docker-inspect-shaped mount document. It proves the exact host-source
+path succeeds, while an otherwise identical destination-domain database copy
+fails before mutation with its content hash unchanged. An injected empty nested
+result is also rejected before parsing.
+
+```text
+SOURCE_AUTHORIZATION_CLAIMED=true
+SOURCE_AUTHORIZATION_CONSUMED=true
+TARGETED_REGISTRATION_CREDENTIAL_TESTS=51 passed
+FULL_MANAGER_TESTS=1119 passed, 1 skipped, 5 subtests passed
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+SERIAL_ACCESS=false
+RECOVERY_EXECUTED_LIVE=false
+```
+
+KF-045 remains OPEN pending a new live successor. The prior unchanged database
+hashes and private failure evidence remain the required adoption authority.
