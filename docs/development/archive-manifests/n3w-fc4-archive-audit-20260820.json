@@ -651,6 +651,105 @@
     "flash_mutated": false,
     "private_handoff_delivered": false
   },
+  "kf044_live_successor_kf045_consumed_failure": {
+    "authorization": "D1-N3W-FC4-F350-KF044-SUCCESSOR-ADOPT-EXPIRED-TOMBSTONE-RECOVER-NEW-PAIRING-IDENTITY-ARM-LIVE-TTL-GATED-HANDOFF-DELIVERY-AND-RESUME-E2E-20260821-01",
+    "status": "CONSUMED_FAILED_AT_ISOLATED_RECOVERY_REGISTRATION_DB_BINDING",
+    "claimed": true,
+    "consumed": true,
+    "replay_permitted": false,
+    "source_head": "90941587cb3eb6b27599253fe197b0340e4eb414",
+    "source_tree": "d064364bcbb364018ba0abed3c56ee8934cd0b8f",
+    "hardware_id": "ghw-c6-98a316a9f350",
+    "pairing_id_sha256": "7ea23bfae78dcd4d2ae20f66d4b73bd2785a6ceb7afaea5d6b112e1f72052049",
+    "preclaim_board_readonly_access": true,
+    "preclaim_application_verify_flash": "PASS",
+    "manager_stopped_machine_proof": true,
+    "manager_inspect_captured": true,
+    "database_backups_created": true,
+    "failure_reason": "registration_database_binding_mismatch",
+    "registration_db_argument_domain": "manager_container_destination_path",
+    "required_db_argument_domain": "inspect_source_host_path_visible_in_isolated_container",
+    "registration_container_path_argument_correct": true,
+    "credential_container_path_argument_correct": true,
+    "registration_database_mutated": false,
+    "registration_sha256": "8d3aa21824aec1a3ead73963ff381a2269440880dbbeb59d1cc18189788756e4",
+    "credential_database_mutated": false,
+    "credential_sha256": "25840bf73043640867a75eedc06e782231569b9c22f4c3b80efe591eff3ed50e",
+    "current_registration_count": 1,
+    "pairing_session_state": "expired",
+    "pairing_session_reason": "expired",
+    "recovery_event_count": 0,
+    "manager_running": true,
+    "manager_restart_count": 0,
+    "pairing_health_schema": "gh.pair.simple-health/1",
+    "postclaim_board_access": false,
+    "postclaim_serial_access": false,
+    "nvs_erased": false,
+    "flash_mutated": false,
+    "secret_value_exposed": false,
+    "private_evidence": [
+      {
+        "id": "kf045-successor-claim",
+        "path_class": "approved-local-private-evidence/physical-successor-claim",
+        "sha256": "4088b3388752ae9ba91211c3d57082b3fcaeacea020433828b365ed2d144b921",
+        "size": 1209,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf045-manager-stopped-inspect",
+        "path_class": "t1-private-evidence/container-inspect",
+        "sha256": "2f5816a5ff774555d5f66bbc9cfe47b5deacdfaa0a2a2483b2eb242edbdfdf4d",
+        "size": 11506,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf045-registration-before-recovery",
+        "path_class": "t1-private-evidence/database-backup",
+        "sha256": "8d3aa21824aec1a3ead73963ff381a2269440880dbbeb59d1cc18189788756e4",
+        "size": 86016,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf045-credential-before-recovery",
+        "path_class": "t1-private-evidence/database-backup",
+        "sha256": "25840bf73043640867a75eedc06e782231569b9c22f4c3b80efe591eff3ed50e",
+        "size": 28672,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf045-empty-recovery-result",
+        "path_class": "t1-private-evidence/executor-result",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf045-postfail-audit",
+        "path_class": "approved-local-private-evidence/postfail-audit",
+        "sha256": "349f39dc6e6f963b8770ed6a8edb112dee802bf43ad15ce5630a51201943988e",
+        "size": 1412,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      }
+    ],
+    "successor_contract": {
+      "new_authorization_required": true,
+      "adopt_unchanged_database_hashes": true,
+      "adopt_private_evidence": true,
+      "fresh_private_namespace_required": true,
+      "registration_db_argument_uses_host_source_path": true,
+      "credential_db_argument_uses_host_source_path": true,
+      "container_path_arguments_remain_manager_destinations": true,
+      "real_inspect_adapter_regression_required": true,
+      "nonempty_result_required_before_json_parse": true,
+      "board_gate_after_recovery_only": true
+    }
+  },
   "private_local_artifacts": [
     {
       "id": "legacy-board-readback-01",

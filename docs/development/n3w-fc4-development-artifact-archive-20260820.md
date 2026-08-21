@@ -448,3 +448,45 @@ source regressions; no source change was made in response.
 KF-044 remains OPEN until a separately authorized live successor proves the
 gate on a fresh pending identity and completes E2E. The expired F3:50 physical
 authorization remains non-replayable.
+
+## KF-044 live successor stopped at isolated DB path binding
+
+The live successor passed exact source, USB, chip, Flash, application,
+tombstone, database, inbox and service-health preclaims. After claim it stopped
+the exact Manager container, machine-proved `exited/PID 0`, captured the private
+inspect document and mode-0600 backups of both databases, then launched the
+recovery program through attached stdin in the exact Manager image.
+
+Recovery stopped before opening the mutation transaction with
+`registration database binding mismatch`. The executor passed the Manager
+container destination as `--db`; the safety gate compares that resolved path
+with the host Source path derived from the captured inspect mount. Both paths
+were visible inside the isolated container, but they are different path
+domains. This is KF-045.
+
+Post-failure classification proved:
+
+```text
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+AUTHORIZATION_REPLAY_PERMITTED=false
+TERMINAL=CONSUMED_FAILED_AT_ISOLATED_RECOVERY_REGISTRATION_DB_BINDING
+REGISTRATION_DATABASE_MUTATED=false
+CREDENTIAL_DATABASE_MUTATED=false
+CURRENT_REGISTRATION_COUNT=1
+PAIRING_SESSION_STATE=expired
+RECOVERY_EVENT_COUNT=0
+RECOVERY_RESULT_SIZE=0
+MANAGER_RUNNING=true
+MANAGER_RESTART_COUNT=0
+POSTCLAIM_BOARD_ACCESS=false
+NVS_ERASE=false
+FLASH_MUTATION=false
+```
+
+A successor must adopt the unchanged DB hashes and all private evidence, use a
+fresh authorization/namespace, mount the state root RW at its original host
+absolute path, pass those host paths to `--db/--credential-db`, and reserve the
+Manager destination paths exclusively for the two `*-container-path` binding
+arguments. It must reject an empty result before JSON parsing. No board or NVS
+operation may begin until recovery and Manager health both close successfully.

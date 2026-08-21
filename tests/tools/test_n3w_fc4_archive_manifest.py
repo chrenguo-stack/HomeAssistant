@@ -275,6 +275,35 @@ def test_fc4_archive_manifest_is_public_safe_and_machine_checkable() -> None:
     assert ttl_guard["board_access"] is False
     assert ttl_guard["private_handoff_delivered"] is False
 
+    kf045 = document["kf044_live_successor_kf045_consumed_failure"]
+    assert kf045["status"] == (
+        "CONSUMED_FAILED_AT_ISOLATED_RECOVERY_REGISTRATION_DB_BINDING"
+    )
+    assert kf045["claimed"] is True
+    assert kf045["consumed"] is True
+    assert kf045["replay_permitted"] is False
+    assert kf045["manager_stopped_machine_proof"] is True
+    assert kf045["database_backups_created"] is True
+    assert kf045["registration_database_mutated"] is False
+    assert kf045["credential_database_mutated"] is False
+    assert kf045["current_registration_count"] == 1
+    assert kf045["pairing_session_state"] == "expired"
+    assert kf045["recovery_event_count"] == 0
+    assert kf045["manager_running"] is True
+    assert kf045["manager_restart_count"] == 0
+    assert kf045["postclaim_board_access"] is False
+    assert kf045["nvs_erased"] is False
+    assert kf045["flash_mutated"] is False
+    assert kf045["successor_contract"]["new_authorization_required"] is True
+    assert kf045["successor_contract"][
+        "registration_db_argument_uses_host_source_path"
+    ] is True
+    assert kf045["successor_contract"]["nonempty_result_required_before_json_parse"] is True
+    for evidence in kf045["private_evidence"]:
+        assert SHA256.fullmatch(evidence["sha256"])
+        assert evidence["mode"] == "0600"
+        assert evidence["secret_values_included_in_public_binding"] is False
+
     artifacts = document["private_local_artifacts"]
     assert len(artifacts) == 6
     assert all(SHA256.fullmatch(item["sha256"]) for item in artifacts)
