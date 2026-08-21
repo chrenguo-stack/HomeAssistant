@@ -47,6 +47,23 @@ class NvsSetupSecretStore {
   std::string key_name_;
 };
 
+class NvsPairingEpochStore {
+ public:
+  explicit NvsPairingEpochStore(
+      std::string namespace_name = "gh_n3w_v2",
+      std::string key_name = "pair_epoch")
+      : namespace_name_(std::move(namespace_name)), key_name_(std::move(key_name)) {}
+
+  // Pairing epoch is durable for the hardware identity lifecycle. Fresh devices
+  // materialize epoch 1; explicit repair recovery may advance it monotonically.
+  SimpleNvsStatus load(uint32_t *epoch);
+  SimpleNvsStatus save(uint32_t epoch);
+
+ private:
+  std::string namespace_name_;
+  std::string key_name_;
+};
+
 class NvsProvisionedPeerStoreV2 {
  public:
   explicit NvsProvisionedPeerStoreV2(
