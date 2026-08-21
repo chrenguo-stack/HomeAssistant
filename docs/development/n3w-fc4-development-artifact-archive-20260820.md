@@ -304,3 +304,42 @@ HA_ENTITY_REGISTRY_MATCH_COUNT=5
 The mode-0600 private closure is hash-bound in the companion manifest. This
 live result closes KF-036 as guarded. It validates F4:5C only and does not grant
 or imply authorization for another board.
+
+## F3:50 sequential preclaim and portable handoff capture guard
+
+The next sequential-board read-only preclaim found exactly one USB device and
+bound it to ESP32-C6 base MAC `98:a3:16:a9:f3:50`, hardware ID
+`ghw-c6-98a316a9f350`, chip revision 0.2 and 8 MiB Flash. Secure Boot and Flash
+Encryption were disabled. A verify-only application comparison passed against
+the frozen application SHA-256
+`95e177042fd15cb0e4b4aef762adf37811c736d34579e480f534ffbe5ee14a7a`.
+Serial observation showed an unprovisioned board emitting a private pairing
+payload; only the pairing-ID SHA-256 and encoded Setup Secret length were
+retained publicly. No handoff file was created and the pending physical
+authorization remained unclaimed.
+
+That preclaim also found that the surviving one-time F4:5C capture helper
+hard-coded its USB device and temporary output paths. Reusing it for F3:50
+would violate the exact-device boundary. KF-043 replaces that helper with the
+supported `greenhouse-manager-n3w-setup-secret-capture` entry point. The command
+requires explicit serial, hardware-ID, pairing-ID-hash and absolute output
+bindings; validates a private parent directory before opening serial; creates
+the output exactly once with mode 0600; and emits only hashes, lengths and a
+`SECRET_VALUE_EXPOSED=false` marker. CLI call-chain regressions cover success,
+identity mismatch, unsafe parent permissions and overwrite refusal.
+
+```text
+AUTHORIZATION_APPROVED=true
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+BOARD_BASE_MAC=98:a3:16:a9:f3:50
+PAIRING_ID_SHA256=7ea23bfae78dcd4d2ae20f66d4b73bd2785a6ceb7afaea5d6b112e1f72052049
+SETUP_SECRET_ENCODED_LENGTH=43
+PRIVATE_HANDOFF_FILE_PRESENT=false
+FLASH_MUTATION=false
+```
+
+The next physical entry may resume only after this source/test/documentation
+boundary is pushed and exact-bound. It must re-check that the authorization is
+still unclaimed and must use the new command rather than the retired temporary
+helper.

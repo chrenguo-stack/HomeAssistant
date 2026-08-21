@@ -28,6 +28,9 @@ pairing = [
 bootstrap = [
   "cryptography>=44,<50",
 ]
+physical-handoff = [
+  "pyserial>=3.5,<4",
+]
 
 [project.scripts]
 greenhouse-manager = "greenhouse_manager.runtime.app:main"
@@ -38,6 +41,7 @@ greenhouse-persistence-migration-plan = "greenhouse_manager.bootstrap.persistenc
 greenhouse-manager-pairing-lab = "greenhouse_manager.ops.pairing_lab_cli:main"
 greenhouse-manager-registration = "greenhouse_manager.ops.registration_cli:main"
 greenhouse-manager-node-retirement = "greenhouse_manager.ops.node_retirement_cli:main"
+greenhouse-manager-n3w-setup-secret-capture = "greenhouse_manager.ops.n3w_setup_secret_handoff_capture:main"
 greenhouse-manager-t1-preflight = "greenhouse_manager.ops.t1_preflight:main"
 greenhouse-manager-t1-backup = "greenhouse_manager.ops.t1_backup:main"
 greenhouse-manager-t1-shadow = "greenhouse_manager.ops.t1_shadow:main"

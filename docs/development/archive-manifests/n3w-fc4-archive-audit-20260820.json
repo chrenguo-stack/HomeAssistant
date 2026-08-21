@@ -465,6 +465,49 @@
     "scope_closed_for_hardware_only": true,
     "other_board_authorization_implied": false
   },
+  "f350_readonly_preclaim_and_kf043_guard": {
+    "authorization": "D1-N3W-FC4-F350-SEQUENTIAL-PAIRING-HANDOFF-WIFI-AND-FINAL-PRODUCT-E2E-20260821-01",
+    "authorization_approved": true,
+    "authorization_claimed": false,
+    "authorization_consumed": false,
+    "usb_device_count": 1,
+    "serial_device": "/dev/cu.usbmodem14101",
+    "usb_serial": "98:A3:16:A9:F3:50",
+    "usb_vid": "0x303a",
+    "usb_pid": "0x1001",
+    "chip": "ESP32-C6 QFN40",
+    "chip_revision": "0.2",
+    "base_mac": "98:a3:16:a9:f3:50",
+    "flash_size_bytes": 8388608,
+    "secure_boot_enabled": false,
+    "flash_encryption_enabled": false,
+    "application_verify_flash": "PASS",
+    "application_sha256": "95e177042fd15cb0e4b4aef762adf37811c736d34579e480f534ffbe5ee14a7a",
+    "hardware_id": "ghw-c6-98a316a9f350",
+    "hardware_id_sha256": "f1f1e36fe4784a26b936d6a2bc5d239ab531f5683aca91356a5e39f3f566b1eb",
+    "pairing_id_sha256": "7ea23bfae78dcd4d2ae20f66d4b73bd2785a6ceb7afaea5d6b112e1f72052049",
+    "setup_secret_encoded_length": 43,
+    "private_handoff_file_present": false,
+    "secret_value_exposed": false,
+    "flash_mutated": false,
+    "kf043": {
+      "status": "GUARDED",
+      "fault": "one-time F4:5C helper hard-coded serial and output paths",
+      "replacement_entry_point": "greenhouse-manager-n3w-setup-secret-capture",
+      "required_bindings": [
+        "serial_port",
+        "expected_hardware_id",
+        "expected_pairing_id_sha256",
+        "absolute_private_output"
+      ],
+      "private_parent_checked_before_serial_open": true,
+      "exclusive_mode_0600_output": true,
+      "identity_mismatch_fails_before_write": true,
+      "secret_safe_stdout": true,
+      "cli_call_chain_regression_present": true
+    },
+    "next_gate": "push and exact-bind KF-043 before claiming physical authorization"
+  },
   "private_local_artifacts": [
     {
       "id": "legacy-board-readback-01",

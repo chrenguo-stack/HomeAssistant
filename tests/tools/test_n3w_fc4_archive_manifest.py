@@ -184,6 +184,27 @@ def test_fc4_archive_manifest_is_public_safe_and_machine_checkable() -> None:
         assert evidence["mode"] == "0600"
         assert evidence["secret_values_included_in_public_binding"] is False
 
+    preclaim = document["f350_readonly_preclaim_and_kf043_guard"]
+    assert preclaim["authorization_approved"] is True
+    assert preclaim["authorization_claimed"] is False
+    assert preclaim["authorization_consumed"] is False
+    assert preclaim["base_mac"] == "98:a3:16:a9:f3:50"
+    assert preclaim["application_verify_flash"] == "PASS"
+    assert preclaim["private_handoff_file_present"] is False
+    assert preclaim["secret_value_exposed"] is False
+    assert preclaim["flash_mutated"] is False
+
+    guard = preclaim["kf043"]
+    assert guard["status"] == "GUARDED"
+    assert guard["replacement_entry_point"] == (
+        "greenhouse-manager-n3w-setup-secret-capture"
+    )
+    assert guard["private_parent_checked_before_serial_open"] is True
+    assert guard["exclusive_mode_0600_output"] is True
+    assert guard["identity_mismatch_fails_before_write"] is True
+    assert guard["secret_safe_stdout"] is True
+    assert guard["cli_call_chain_regression_present"] is True
+
     artifacts = document["private_local_artifacts"]
     assert len(artifacts) == 6
     assert all(SHA256.fullmatch(item["sha256"]) for item in artifacts)
