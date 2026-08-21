@@ -120,6 +120,18 @@ def test_fc4_archive_manifest_is_public_safe_and_machine_checkable() -> None:
         assert evidence["mode"] == "0600"
         assert evidence["secret_values_included_in_public_binding"] is False
 
+    archive_recovery = document["prephysical_archive_recovery_20260821"]
+    assert archive_recovery["pending_physical_authorization_claimed"] is False
+    assert archive_recovery["board_access"] is False
+    assert archive_recovery["serial_access"] is False
+    assert archive_recovery["flash_mutated"] is False
+    assert archive_recovery["setup_secret_handoff_output_present"] is False
+    assert archive_recovery["unarchived_critical_result_count"] == 0
+    for artifact in archive_recovery["artifacts"]:
+        assert SHA256.fullmatch(artifact["sha256"])
+        assert artifact["mode"] == "0600"
+        assert artifact["secret_values_included_in_public_binding"] is False
+
     artifacts = document["private_local_artifacts"]
     assert len(artifacts) == 6
     assert all(SHA256.fullmatch(item["sha256"]) for item in artifacts)

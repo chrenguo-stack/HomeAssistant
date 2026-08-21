@@ -273,6 +273,37 @@
       }
     ]
   },
+  "prephysical_archive_recovery_20260821": {
+    "trigger": "KF-039 local sweep found legacy F4:5C artifacts omitted from the first manifest",
+    "pending_physical_authorization_claimed": false,
+    "board_access": false,
+    "serial_access": false,
+    "flash_mutated": false,
+    "private_evidence_root_class": "approved-local-private-evidence/n3w-fc4/prephysical-archive-recovery",
+    "setup_secret_handoff_output_present": false,
+    "secret_values_included_in_public_binding": false,
+    "artifacts": [
+      {
+        "id": "f45c-factory-readback",
+        "classification": "PRIVATE_REQUIRED",
+        "sha256": "4b394cc63fb394dd6b877cc31d5ab532491e804a52a5cf061d3de03f7f3f0820",
+        "size": 1171856,
+        "mode": "0600",
+        "purpose": "preserve raw pre-FC4 F4:5C factory Flash readback without public exposure",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "f45c-setup-secret-capture-executor",
+        "classification": "PRIVATE_REQUIRED",
+        "sha256": "dda03e6d9613429bc88d155fb39c6d8200db276f50e5f889cf6330773e12bf37",
+        "size": 1459,
+        "mode": "0600",
+        "purpose": "preserve the one-time serial Setup Secret handoff capture executor",
+        "secret_values_included_in_public_binding": false
+      }
+    ],
+    "unarchived_critical_result_count": 0
+  },
   "private_local_artifacts": [
     {
       "id": "legacy-board-readback-01",

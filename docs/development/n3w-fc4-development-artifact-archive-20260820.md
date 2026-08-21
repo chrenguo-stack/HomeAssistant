@@ -203,3 +203,16 @@ BOARD_ACCESS=false
 The private claim and closure are bound by sanitized SHA-256 and size metadata
 in the companion manifest. This closes the missing recovery evidence boundary;
 it does not authorize a device reset or any subsequent physical test.
+
+## F4:5C pre-physical archive recovery
+
+The next physical preclaim found two valuable legacy files that the first
+archive sweep had missed: a raw F4:5C factory readback and the one-time helper
+used to capture a Setup Secret handoff from serial output. The handoff JSON
+itself was already absent, so no secret value was recovered or exposed.
+
+Before claiming the pending physical authorization, both surviving files were
+copied with mode 0600 into the established private evidence root. Their
+sanitized hashes, sizes and purposes are recorded in the companion manifest;
+neither raw file is committed. This archive-recovery action did not open the
+serial port, access the board, reset pairing state or modify Flash.
