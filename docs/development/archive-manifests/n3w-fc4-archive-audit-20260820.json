@@ -784,6 +784,115 @@
     "serial_access": false,
     "recovery_executed_live": false
   },
+  "kf045_live_recovery_closure": {
+    "authorization": "D1-N3W-FC4-F350-KF045-SUCCESSOR-ADOPT-UNCHANGED-DB-AND-EVIDENCE-EXACT-HOST-PATH-RECOVERY-NEW-PAIRING-IDENTITY-TTL-GATED-HANDOFF-AND-RESUME-E2E-20260821-01",
+    "status": "CONSUMED_PARTIAL_SUCCESS_RECOVERY_CLOSED_BOARD_NOT_STARTED",
+    "claimed": true,
+    "consumed": true,
+    "replay_permitted": false,
+    "source_head": "a9b754b2e1b91de11b15a52a28a5ae6b499b6a31",
+    "source_tree": "ed127d78031cfafa7526391fc8717103283bfec5",
+    "source_archive_sha256": "3e25db35f52103410115ee78a7ff9b15258aa8601d420565be005313e2d8d49c",
+    "exact_executor_import_arm64_manager_image": "PASS",
+    "recovery_executor_result": "PASS",
+    "host_source_database_paths_verified": true,
+    "raw_recovery_result_nonempty": true,
+    "current_registration_count": 0,
+    "replay_tombstone_state": "expired",
+    "replay_tombstone_reason": "expired",
+    "recovery_event": "expired_first_registration_abandoned",
+    "recovery_event_reason": "expired_first_pairing_recovery",
+    "registration_sha256_before": "8d3aa21824aec1a3ead73963ff381a2269440880dbbeb59d1cc18189788756e4",
+    "registration_sha256_after": "4a9ce7ae9fc69c981fe2570ab09a4d1d1772398247e59ed08fcdcb5d5177c8c2",
+    "credential_sha256_before": "25840bf73043640867a75eedc06e782231569b9c22f4c3b80efe591eff3ed50e",
+    "credential_sha256_after": "25840bf73043640867a75eedc06e782231569b9c22f4c3b80efe591eff3ed50e",
+    "credential_database_mutated": false,
+    "manager_running": true,
+    "manager_restart_count": 0,
+    "pairing_health_schema": "gh.pair.simple-health/1",
+    "readonly_outer_oracle": "PASS",
+    "recovery_replayed": false,
+    "board_access_after_recovery": false,
+    "nvs_erased": false,
+    "flash_mutated": false,
+    "pairing_id_raw_exposed": false,
+    "secret_value_exposed": false,
+    "private_evidence": [
+      {
+        "id": "kf045-live-successor-claim",
+        "path_class": "approved-local-private-evidence/live-successor-claim",
+        "sha256": "73f1e7416b2615a71d1746ea14a349b94cd715b7e8107c1f1843fec191dd7581",
+        "size": 1156,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf045-exact-source-archive",
+        "path_class": "approved-private-evidence/exact-source-archive",
+        "sha256": "3e25db35f52103410115ee78a7ff9b15258aa8601d420565be005313e2d8d49c",
+        "size": 691419,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf045-live-manager-stopped-inspect",
+        "path_class": "t1-private-evidence/container-inspect",
+        "sha256": "eca1dcea0f4326cc90da2a79b49d7b012c0c52ad17ff377ab836ba6c1cc35165",
+        "size": 11507,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf045-live-registration-before-recovery",
+        "path_class": "t1-private-evidence/database-backup",
+        "sha256": "8d3aa21824aec1a3ead73963ff381a2269440880dbbeb59d1cc18189788756e4",
+        "size": 86016,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf045-live-credential-before-recovery",
+        "path_class": "t1-private-evidence/database-backup",
+        "sha256": "25840bf73043640867a75eedc06e782231569b9c22f4c3b80efe591eff3ed50e",
+        "size": 28672,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf045-live-recovery-result",
+        "path_class": "t1-private-evidence/sanitized-executor-result",
+        "sha256": "78fa7887cf4267fdf5908bb10ef0d1afee499d0e385ab84b787abc2fafa2725f",
+        "size": 903,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf045-live-recovery-error",
+        "path_class": "t1-private-evidence/executor-error",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf045-live-recovery-closure",
+        "path_class": "approved-local-private-evidence/recovery-closure",
+        "sha256": "6f548dd87d5b0fea0a3a38150d44a06ab6cdc3bbb44935224d8a2cdc9202315e",
+        "size": 1462,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      }
+    ],
+    "continuation_gate": {
+      "rerun_recovery": false,
+      "adopt_released_current_registration": true,
+      "board_identity_rebind_required": true,
+      "scoped_nvs_erase_maximum": "0x790000+0x70000",
+      "application_flash_rewrite": false,
+      "capture_new_pairing_handoff": true,
+      "ttl_gated_delivery_required": true
+    }
+  },
   "private_local_artifacts": [
     {
       "id": "legacy-board-readback-01",

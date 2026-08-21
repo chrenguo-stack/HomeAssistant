@@ -330,6 +330,36 @@ def test_fc4_archive_manifest_is_public_safe_and_machine_checkable() -> None:
     assert kf045_source["board_access"] is False
     assert kf045_source["recovery_executed_live"] is False
 
+    live_recovery = document["kf045_live_recovery_closure"]
+    assert live_recovery["status"] == (
+        "CONSUMED_PARTIAL_SUCCESS_RECOVERY_CLOSED_BOARD_NOT_STARTED"
+    )
+    assert live_recovery["claimed"] is True
+    assert live_recovery["consumed"] is True
+    assert live_recovery["replay_permitted"] is False
+    assert live_recovery["recovery_executor_result"] == "PASS"
+    assert live_recovery["host_source_database_paths_verified"] is True
+    assert live_recovery["raw_recovery_result_nonempty"] is True
+    assert live_recovery["current_registration_count"] == 0
+    assert live_recovery["replay_tombstone_state"] == "expired"
+    assert live_recovery["recovery_event"] == (
+        "expired_first_registration_abandoned"
+    )
+    assert live_recovery["credential_database_mutated"] is False
+    assert live_recovery["manager_running"] is True
+    assert live_recovery["manager_restart_count"] == 0
+    assert live_recovery["readonly_outer_oracle"] == "PASS"
+    assert live_recovery["recovery_replayed"] is False
+    assert live_recovery["board_access_after_recovery"] is False
+    assert live_recovery["nvs_erased"] is False
+    assert live_recovery["flash_mutated"] is False
+    assert live_recovery["continuation_gate"]["rerun_recovery"] is False
+    assert live_recovery["continuation_gate"]["ttl_gated_delivery_required"] is True
+    for evidence in live_recovery["private_evidence"]:
+        assert SHA256.fullmatch(evidence["sha256"])
+        assert evidence["mode"] == "0600"
+        assert evidence["secret_values_included_in_public_binding"] is False
+
     artifacts = document["private_local_artifacts"]
     assert len(artifacts) == 6
     assert all(SHA256.fullmatch(item["sha256"]) for item in artifacts)

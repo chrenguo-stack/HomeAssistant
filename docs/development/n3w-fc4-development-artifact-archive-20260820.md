@@ -526,3 +526,45 @@ RECOVERY_EXECUTED_LIVE=false
 
 KF-045 remains OPEN pending a new live successor. The prior unchanged database
 hashes and private failure evidence remain the required adoption authority.
+
+## KF-045 live recovery closure
+
+The next live successor adopted the unchanged databases and all KF-045 private
+evidence, materialized an exact source archive at `a9b754b2`, and proved the new
+executor imports inside the exact ARM64 Manager image before stopping service.
+It then captured a fresh stopped inspect and backups and ran the executor with
+the state root mounted RW at its original host absolute path.
+
+The executor returned exit 0 with a nonempty sanitized result. It released the
+current registration, preserved the original `expired/expired` replay tombstone,
+appended the separate `expired_first_registration_abandoned` event with reason
+`expired_first_pairing_recovery`, and left the credential database unchanged.
+Manager returned healthy with zero restarts.
+
+The initial shell output did not include its planned terminal footer, so no
+board work followed. A separate read-only replay of every result, DB, Manager
+and health oracle passed. Recovery was not repeated.
+
+```text
+TERMINAL=CONSUMED_PARTIAL_SUCCESS_RECOVERY_CLOSED_BOARD_NOT_STARTED
+RECOVERY_EXECUTOR_RESULT=PASS
+HOST_SOURCE_DATABASE_PATHS_VERIFIED=true
+RAW_RECOVERY_RESULT_NONEMPTY=true
+CURRENT_REGISTRATION_COUNT=0
+REPLAY_TOMBSTONE_STATE=expired
+REPLAY_TOMBSTONE_REASON=expired
+RECOVERY_EVENT=expired_first_registration_abandoned
+RECOVERY_EVENT_REASON=expired_first_pairing_recovery
+CREDENTIAL_DATABASE_MUTATED=false
+MANAGER_RUNNING=true
+MANAGER_RESTART_COUNT=0
+READONLY_OUTER_ORACLE=PASS
+BOARD_ACCESS_AFTER_RECOVERY=false
+NVS_ERASE=false
+FLASH_MUTATION=false
+```
+
+This live result closes KF-045 as GUARDED. The consumed authorization may
+continue only from its already-approved post-recovery board boundary; it must
+not invoke recovery again. KF-044 remains open until a fresh pairing identity
+passes both TTL delivery gates and completes E2E.
