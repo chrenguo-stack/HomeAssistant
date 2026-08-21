@@ -343,3 +343,32 @@ The next physical entry may resume only after this source/test/documentation
 boundary is pushed and exact-bound. It must re-check that the authorization is
 still unclaimed and must use the new command rather than the retired temporary
 helper.
+
+## F3:50 bound handoff capture
+
+After the KF-043 source boundary was pushed and exact-bound, the final
+preclaim repeated the clean worktree, exact USB serial and fresh private
+namespace checks. The approved authorization was then claimed and consumed by
+creating its mode-0600 private claim. The new supported capture entry point
+observed the same expected hardware ID and pairing-ID hash and created exactly
+one mode-0600 private handoff.
+
+```text
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+PRIVATE_PAIRING_PAYLOAD=CAPTURED
+PAIRING_ID_SHA256=7ea23bfae78dcd4d2ae20f66d4b73bd2785a6ceb7afaea5d6b112e1f72052049
+SETUP_SECRET_ENCODED_LENGTH=43
+SECRET_VALUE_EXPOSED=false
+FLASH_MUTATION=false
+NVS_ERASE=false
+T1_MUTATION=false
+TERMINAL=CONSUMED_PARTIAL_SUCCESS_WAITING_FOR_OPERATOR_WIFI_CONFIGURATION
+```
+
+The private claim, secret-safe capture result and Setup Secret handoff are
+represented only by sanitized hash/size/mode bindings in the companion
+manifest. The consumed authorization must not capture another handoff or reset
+the board. Continuation waits for operator Wi-Fi configuration, then must
+observe this exact pairing identity as pending before delivering the existing
+handoff to Manager.

@@ -205,6 +205,24 @@ def test_fc4_archive_manifest_is_public_safe_and_machine_checkable() -> None:
     assert guard["secret_safe_stdout"] is True
     assert guard["cli_call_chain_regression_present"] is True
 
+    f350_capture = document["f350_bound_handoff_capture"]
+    assert f350_capture["status"] == (
+        "CONSUMED_PARTIAL_SUCCESS_WAITING_FOR_OPERATOR_WIFI_CONFIGURATION"
+    )
+    assert f350_capture["claimed"] is True
+    assert f350_capture["consumed"] is True
+    assert f350_capture["replay_permitted"] is False
+    assert f350_capture["secret_value_exposed"] is False
+    assert f350_capture["flash_mutated"] is False
+    assert f350_capture["nvs_erased"] is False
+    assert f350_capture["t1_mutated"] is False
+    assert f350_capture["continuation_gate"]["repeat_handoff_capture"] is False
+    assert f350_capture["continuation_gate"]["repeat_nvs_erase"] is False
+    for evidence in f350_capture["private_evidence"]:
+        assert SHA256.fullmatch(evidence["sha256"])
+        assert evidence["mode"] == "0600"
+        assert evidence["secret_values_included_in_public_binding"] is False
+
     artifacts = document["private_local_artifacts"]
     assert len(artifacts) == 6
     assert all(SHA256.fullmatch(item["sha256"]) for item in artifacts)

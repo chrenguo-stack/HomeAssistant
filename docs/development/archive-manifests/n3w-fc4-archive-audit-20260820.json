@@ -508,6 +508,55 @@
     },
     "next_gate": "push and exact-bind KF-043 before claiming physical authorization"
   },
+  "f350_bound_handoff_capture": {
+    "authorization": "D1-N3W-FC4-F350-SEQUENTIAL-PAIRING-HANDOFF-WIFI-AND-FINAL-PRODUCT-E2E-20260821-01",
+    "status": "CONSUMED_PARTIAL_SUCCESS_WAITING_FOR_OPERATOR_WIFI_CONFIGURATION",
+    "claimed": true,
+    "consumed": true,
+    "replay_permitted": false,
+    "source_archive_head": "24e077c114ff745ec67e8155abb3501e586801f5",
+    "source_archive_tree": "50543d50b2f2151d55becc7d56f4ec6456745a66",
+    "hardware_id": "ghw-c6-98a316a9f350",
+    "hardware_id_sha256": "f1f1e36fe4784a26b936d6a2bc5d239ab531f5683aca91356a5e39f3f566b1eb",
+    "pairing_id_sha256": "7ea23bfae78dcd4d2ae20f66d4b73bd2785a6ceb7afaea5d6b112e1f72052049",
+    "setup_secret_encoded_length": 43,
+    "secret_value_exposed": false,
+    "flash_mutated": false,
+    "nvs_erased": false,
+    "t1_mutated": false,
+    "private_evidence": [
+      {
+        "id": "f350-sequential-e2e-claim",
+        "path_class": "approved-local-private-evidence/physical-claim",
+        "sha256": "f5e88a9776bc498f00f0e1fa609737f0cbf0a5f87bfec329526f669b53597940",
+        "size": 854,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "f350-handoff-capture-result",
+        "path_class": "approved-local-private-evidence/secret-safe-capture-result",
+        "sha256": "3ebfa2ad3a9a81d562df4b444d3a1f3db67394d81e4184d158048f04852c2003",
+        "size": 338,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "f350-setup-secret-handoff",
+        "path_class": "approved-local-private-evidence/setup-secret-handoff",
+        "sha256": "b5caec070af85d64bc95053a4261d7ee52ecfdd9be85479fb72348429acae374",
+        "size": 192,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      }
+    ],
+    "continuation_gate": {
+      "operator_wifi_configuration_required": true,
+      "exact_pending_pairing_hash_required_before_delivery": true,
+      "repeat_handoff_capture": false,
+      "repeat_nvs_erase": false
+    }
+  },
   "private_local_artifacts": [
     {
       "id": "legacy-board-readback-01",
