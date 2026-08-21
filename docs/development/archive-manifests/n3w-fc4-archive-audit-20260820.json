@@ -1096,6 +1096,48 @@
     "kf047_status": "OPEN",
     "next_gate": "SOURCE_REGRESSION_EXPLICIT_ONE_SHOT_ENTRYPOINT_THEN_NEW_LIVE_SUCCESSOR"
   },
+  "kf047_source_exact_image_one_shot_gate": {
+    "authorization": "D1-N3W-FC4-F350-KF047-EXACT-IMAGE-ONE-SHOT-ENTRYPOINT-GATE-IMPLEMENTATION-TEST-AND-GITHUB-PUSH-20260821-01",
+    "authorization_claimed": true,
+    "authorization_consumed": true,
+    "source_parent_head": "115b402454063dcc884221058c9a1d54b2d45c2b",
+    "formal_entrypoint": "greenhouse-manager-n3w-exact-image-one-shot",
+    "exact_image_id_required": true,
+    "expected_product_entrypoint": "greenhouse-manager",
+    "explicit_one_shot_entrypoint": "python",
+    "preflight_network_none": true,
+    "preflight_read_only": true,
+    "preflight_cap_drop_all": true,
+    "preflight_no_new_privileges": true,
+    "state_root_same_absolute_path": true,
+    "source_mount_read_only": true,
+    "recovery_argv_tuple": true,
+    "recovery_shell_execution": false,
+    "negative_regressions": [
+      "image_id_drift",
+      "missing_product_entrypoint",
+      "wrong_product_entrypoint",
+      "module_preflight_failure",
+      "empty_recovery_output"
+    ],
+    "changed_source_files": [
+      "host/greenhouse-manager/pyproject.toml",
+      "host/greenhouse-manager/src/greenhouse_manager/ops/n3w_exact_image_one_shot.py",
+      "host/greenhouse-manager/tests/ops/test_n3w_exact_image_one_shot.py"
+    ],
+    "targeted_tests": "12 passed",
+    "full_manager_tests": "1127 passed, 1 skipped, 5 subtests passed",
+    "ruff": "PASS",
+    "initial_full_suite_environment_failure": "KF-027_RELATIVE_PYTHONPATH_SUBPROCESS_CWD",
+    "source_changed_for_environment_failure": false,
+    "t1_access": false,
+    "board_access": false,
+    "usb_access": false,
+    "database_mutated": false,
+    "recovery_executed_live": false,
+    "kf047_status": "OPEN_LIVE_ACCEPTANCE_REQUIRED",
+    "next_gate": "NEW_LIVE_SUCCESSOR_ADOPT_UNCHANGED_DB_AND_KF047_EVIDENCE"
+  },
   "private_local_artifacts": [
     {
       "id": "legacy-board-readback-01",

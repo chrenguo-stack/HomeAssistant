@@ -755,3 +755,52 @@ KF-047 requires a source/regression boundary before another live successor:
 explicitly bind the one-shot entrypoint and prove the constructed exact-image
 command before service stop. KF-044 remains OPEN and no active TTL window was
 started in this failed authorization.
+
+## KF-047 exact-image one-shot source guard
+
+The approved source-only boundary added
+`greenhouse-manager-n3w-exact-image-one-shot`. Its preflight reads real Docker
+image-inspect JSON, requires the exact immutable image ID and the bound product
+entrypoint `greenhouse-manager`, then launches the recovery module `--help` in a
+network-none, read-only, capability-dropped container with an explicit
+`--entrypoint python`.
+
+The formal run command is built only from a successful binding. It uses the
+immutable image ID instead of a tag, keeps source read-only, mounts the state
+root at the same absolute host/container path, retains network/capability
+isolation, explicitly overrides the entrypoint, and forwards recovery arguments
+as an argv tuple without a shell. Nonzero or empty module output fails closed.
+
+Regression coverage proves the exact entrypoint position, immutable image ID,
+same-path state mount, wrong/missing product entrypoint rejection, image-ID
+drift rejection, preflight failure before recovery construction, and empty
+success-output rejection. The first full-suite invocation used a relative
+`PYTHONPATH`; three existing CLI subprocess tests changed cwd and reproduced
+KF-027. Re-running with the absolute source path passed without source changes.
+
+```text
+SOURCE_AUTHORIZATION=D1-N3W-FC4-F350-KF047-EXACT-IMAGE-ONE-SHOT-ENTRYPOINT-GATE-IMPLEMENTATION-TEST-AND-GITHUB-PUSH-20260821-01
+SOURCE_AUTHORIZATION_CLAIMED=true
+SOURCE_AUTHORIZATION_CONSUMED=true
+SOURCE_PARENT_HEAD=115b402454063dcc884221058c9a1d54b2d45c2b
+FORMAL_ENTRYPOINT=greenhouse-manager-n3w-exact-image-one-shot
+EXACT_IMAGE_ID_REQUIRED=true
+PRODUCT_ENTRYPOINT_REQUIRED=greenhouse-manager
+EXPLICIT_ONE_SHOT_ENTRYPOINT=python
+PREFLIGHT_NETWORK_NONE=true
+PREFLIGHT_READ_ONLY=true
+RECOVERY_SHELL_EXECUTION=false
+TARGETED_TESTS=12 passed
+FULL_MANAGER_TESTS=1127 passed, 1 skipped, 5 subtests passed
+RUFF=PASS
+T1_ACCESS=false
+BOARD_ACCESS=false
+USB_ACCESS=false
+DATABASE_MUTATION=false
+RECOVERY_EXECUTED_LIVE=false
+```
+
+KF-047 remains OPEN only for live acceptance. A new successor must adopt the
+unchanged database hashes and all KF-047 private evidence, run the formal
+preflight before stopping Manager, and use the formal runner for recovery. The
+consumed failed authorization remains non-replayable.
