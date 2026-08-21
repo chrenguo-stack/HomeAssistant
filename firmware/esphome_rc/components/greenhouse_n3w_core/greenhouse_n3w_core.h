@@ -27,6 +27,7 @@ class GreenhouseN3wCore : public SimpleProductComponent {
   }
 
   void set_phase4_product_runtime_enabled(bool enabled) {
+    phase4_product_runtime_enabled_ = enabled;
     set_activation_enabled(enabled);
   }
 
@@ -46,6 +47,57 @@ class GreenhouseN3wCore : public SimpleProductComponent {
 
   bool phase4_source_harness_ready() const {
     return phase4_source_harness_ready_;
+  }
+
+  // Recovery-only surface for an explicitly inert helper image. The helper may
+  // create gh_n3w/boot_state only when it is absent; it never overwrites an
+  // existing durable counter and is unavailable while product/runtime harness
+  // execution is enabled.
+  bool provision_boot_session_recovery_floor(uint64_t floor) {
+    if (floor == 0 || phase4_product_runtime_enabled_ ||
+        phase4_source_harness_enabled_ || runtime_ready() ||
+        boot_session_manager_.ready()) {
+      ESP_LOGE(
+          "n3w_boot_recovery",
+          "Boot-session recovery precondition rejected");
+      return false;
+    }
+
+    uint64_t existing = 0;
+    const StoreStatus preexisting = boot_session_store_.load(&existing);
+    if (preexisting != StoreStatus::MISSING) {
+      ESP_LOGE(
+          "n3w_boot_recovery",
+          "Boot-session recovery requires missing durable state status=%u",
+          static_cast<unsigned>(preexisting));
+      return false;
+    }
+
+    const CoreError result =
+        boot_session_manager_.provision_recovery_floor(
+            &boot_session_store_, floor);
+    if (result != CoreError::NONE) {
+      ESP_LOGE(
+          "n3w_boot_recovery",
+          "Boot-session recovery persistence failed code=%u",
+          static_cast<unsigned>(result));
+      return false;
+    }
+
+    uint64_t verified = 0;
+    const StoreStatus verify_status = boot_session_store_.load(&verified);
+    if (verify_status != StoreStatus::OK || verified != floor) {
+      ESP_LOGE(
+          "n3w_boot_recovery",
+          "Boot-session recovery verification failed status=%u",
+          static_cast<unsigned>(verify_status));
+      return false;
+    }
+
+    ESP_LOGI(
+        "n3w_boot_recovery",
+        "Boot-session recovery floor persisted and verified");
+    return true;
   }
 
   // Returns one telemetry identity owned by the product runtime. Sequence values
@@ -145,6 +197,7 @@ class GreenhouseN3wCore : public SimpleProductComponent {
 
   bool phase4_source_harness_enabled_{false};
   bool phase4_source_harness_ready_{false};
+  bool phase4_product_runtime_enabled_{false};
   bool fresh_identity_candidate_{false};
   Phase4PhysicalHarness phase4_harness_{};
   NvsBootSessionStore boot_session_store_{};
