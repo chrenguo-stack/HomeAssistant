@@ -873,7 +873,11 @@ the established private evidence domain.
 
 This is a source/docs/tests-only repair. It did not access T1, a board, USB or
 serial, and did not perform Flash, reset, NVS, registration, credential,
-Broker, Manager, or Home Assistant mutation. The public-repository safety scanner, FC4 archive manifest regression, and Ruff
-validation subsequently passed. The final staged-secret guard also passed
-with all four repair files checked. KF-049 is guarded at source level; the
-Git commit remains pending explicit authorization.
+Broker, Manager, or Home Assistant mutation. The public-repository safety scanner, FC4 archive manifest regression, Ruff,
+and final staged-secret guard all passed. The repair commit
+`3f026de62762532f692a5a2ec4632ce5035b2ee7` (tree `15cc8bfb005edc32d58d7b5c3634205ecb62213b`) was then exact-pushed to
+`docs/n3w-fc4-development-artifact-archive-20260821`; `origin/main` remained `3bd3f0736eb387dc76d53f472da59056e05a88e3`.
+KF-049 is therefore guarded and remotely archived. This post-commit metadata
+correction intentionally records only that already-completed repair/push and
+does not claim its own commit or push state, avoiding recursive stale
+bookkeeping.
