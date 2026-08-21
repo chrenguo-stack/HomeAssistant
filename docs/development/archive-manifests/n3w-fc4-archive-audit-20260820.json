@@ -1391,6 +1391,7 @@
     "board_access": false,
     "serial_access": false,
     "physical_mutation": false,
-    "archive_status": "RECORDED_PENDING_GIT_ARCHIVE"
+    "archive_status": "LOCAL_GIT_ARCHIVED_PENDING_REMOTE_PUSH",
+    "post_commit_metadata_policy": "records only the local Git archive state; remote completion is established externally by exact remote-head binding after push, without a recursive self-reporting metadata commit"
   }
 }
