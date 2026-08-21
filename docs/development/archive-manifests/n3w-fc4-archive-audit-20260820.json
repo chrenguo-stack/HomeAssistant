@@ -378,6 +378,46 @@
       "manager_inbox_container_path": "/var/lib/greenhouse-manager/n3w/setup-secret-inbox"
     }
   },
+  "f45c_kf042_successor_handoff_capture": {
+    "authorization": "D1-N3W-FC4-F45C-KF042-SUCCESSOR-ADOPT-SCOPED-NVS-ERASE-CAPTURE-NEW-HANDOFF-AND-RESUME-E2E-20260821-01",
+    "status": "CONSUMED_PARTIAL_SUCCESS_WAITING_FOR_OPERATOR_WIFI_CONFIGURATION",
+    "claimed": true,
+    "consumed": true,
+    "replay_permitted": false,
+    "adopted_scoped_nvs_erase": true,
+    "repeated_nvs_erase": false,
+    "flash_mutated": false,
+    "t1_mutated": false,
+    "manager_mutated": false,
+    "hardware_id_sha256": "cd90494824273fb6050c29989370690984487f7cdaea89ac4ff8b5eebc4371b0",
+    "pairing_id_sha256": "667e83fbf0e504c6f4b2a97a1ca9bd0706698ba7373e56348c175859be5cfa7a",
+    "setup_secret_encoded_length": 43,
+    "secret_value_exposed": false,
+    "private_evidence": [
+      {
+        "id": "f45c-kf042-successor-claim",
+        "path_class": "approved-local-private-evidence/physical-successor-claim",
+        "sha256": "6528bc277e60f6c6a693183fc99eae0d7ab6e9c587b4dd0403b3da171582db9b",
+        "size": 585,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "f45c-new-setup-secret-handoff",
+        "path_class": "approved-local-private-evidence/setup-secret-handoff",
+        "sha256": "78be9ce98cd3ebffa8dcdf6170279ad88e738e8c4b06f6c97f8ffae2a7773f74",
+        "size": 192,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      }
+    ],
+    "continuation_gate": {
+      "operator_wifi_configuration_required": true,
+      "new_pending_registration_required_before_handoff_delivery": true,
+      "repeat_handoff_capture": false,
+      "repeat_nvs_erase": false
+    }
+  },
   "private_local_artifacts": [
     {
       "id": "legacy-board-readback-01",

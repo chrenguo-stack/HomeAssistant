@@ -250,3 +250,27 @@ The consumed authorization must not erase NVS again. A successor must adopt
 the current new pairing identity, capture its handoff into the private evidence
 root, wait for the operator to restore Wi-Fi, observe the new pending
 registration, then deliver the mode-0600 handoff to the exact Manager inbox.
+
+## KF-042 successor handoff capture
+
+The successor authorization adopted the new pairing ID hash and the prior
+scoped NVS erase without repeating any Flash operation. After a final
+secret-free serial rebind it created a private claim and captured the new Setup
+Secret handoff directly into the approved private evidence root with mode 0600.
+Only the file hash and size are public.
+
+```text
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+TERMINAL=CONSUMED_PARTIAL_SUCCESS_WAITING_FOR_OPERATOR_WIFI_CONFIGURATION
+PRIVATE_HANDOFF_CAPTURE=PASS
+SECRET_VALUE_EXPOSED=false
+REPEAT_NVS_ERASE=false
+FLASH_MUTATION=false
+T1_MUTATION=false
+```
+
+The board now waits for the operator to restore Wi-Fi. The handoff must not be
+placed in the Manager inbox until the new registration is observed as pending,
+because the inbox deliberately rejects and removes secrets whose registration
+does not yet exist in pending state.

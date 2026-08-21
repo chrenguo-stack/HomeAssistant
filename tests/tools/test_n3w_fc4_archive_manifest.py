@@ -151,6 +151,23 @@ def test_fc4_archive_manifest_is_public_safe_and_machine_checkable() -> None:
         assert evidence["mode"] == "0600"
         assert evidence["secret_values_included_in_public_binding"] is False
 
+    handoff = document["f45c_kf042_successor_handoff_capture"]
+    assert handoff["status"] == (
+        "CONSUMED_PARTIAL_SUCCESS_WAITING_FOR_OPERATOR_WIFI_CONFIGURATION"
+    )
+    assert handoff["claimed"] is True
+    assert handoff["consumed"] is True
+    assert handoff["replay_permitted"] is False
+    assert handoff["adopted_scoped_nvs_erase"] is True
+    assert handoff["repeated_nvs_erase"] is False
+    assert handoff["flash_mutated"] is False
+    assert handoff["secret_value_exposed"] is False
+    assert handoff["continuation_gate"]["repeat_handoff_capture"] is False
+    for evidence in handoff["private_evidence"]:
+        assert SHA256.fullmatch(evidence["sha256"])
+        assert evidence["mode"] == "0600"
+        assert evidence["secret_values_included_in_public_binding"] is False
+
     artifacts = document["private_local_artifacts"]
     assert len(artifacts) == 6
     assert all(SHA256.fullmatch(item["sha256"]) for item in artifacts)
