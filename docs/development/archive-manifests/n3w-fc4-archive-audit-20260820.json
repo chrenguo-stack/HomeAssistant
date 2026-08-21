@@ -557,6 +557,61 @@
       "repeat_nvs_erase": false
     }
   },
+  "f350_expired_pending_delivery_stop": {
+    "authorization": "D1-N3W-FC4-F350-SEQUENTIAL-PAIRING-HANDOFF-WIFI-AND-FINAL-PRODUCT-E2E-20260821-01",
+    "status": "CONSUMED_PARTIAL_SUCCESS_STOPPED_AT_EXPIRED_PENDING_DELIVERY_GATE",
+    "claimed": true,
+    "consumed": true,
+    "replay_permitted": false,
+    "hardware_id": "ghw-c6-98a316a9f350",
+    "pairing_id_sha256": "7ea23bfae78dcd4d2ae20f66d4b73bd2785a6ceb7afaea5d6b112e1f72052049",
+    "pairing_epoch": 1,
+    "pairing_session_state": "expired",
+    "pairing_session_reason": "expired",
+    "first_seen_at": "2026-08-21T01:38:22.870Z",
+    "last_seen_at": "2026-08-21T01:40:17.915Z",
+    "expires_at": "2026-08-21T01:40:22.870Z",
+    "pending_ttl_seconds": 120,
+    "exact_pending_observed_before_transfer": true,
+    "exact_pending_at_atomic_delivery": false,
+    "handoff_atomic_delivery": false,
+    "t1_staging_created": true,
+    "t1_staging_removed": true,
+    "t1_final_inbox_file_present": false,
+    "local_private_handoff_preserved": true,
+    "local_private_handoff_sha256": "b5caec070af85d64bc95053a4261d7ee52ecfdd9be85479fb72348429acae374",
+    "registration_sha256": "8d3aa21824aec1a3ead73963ff381a2269440880dbbeb59d1cc18189788756e4",
+    "credential_sha256": "25840bf73043640867a75eedc06e782231569b9c22f4c3b80efe591eff3ed50e",
+    "manager_running": true,
+    "manager_restart_count": 0,
+    "broker_running": true,
+    "broker_restart_count": 0,
+    "homeassistant_running": true,
+    "homeassistant_restart_count": 0,
+    "secret_value_exposed": false,
+    "flash_mutated": false,
+    "nvs_erased": false,
+    "board_reset": false,
+    "private_evidence": [
+      {
+        "id": "f350-expired-before-handoff-delivery-audit",
+        "path_class": "approved-local-private-evidence/postfail-audit",
+        "sha256": "13a154c579546d7c6d025ddb098722615760f24b2beb0944d370f06423280437",
+        "size": 1410,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      }
+    ],
+    "successor_contract": {
+      "new_authorization_required": true,
+      "adopt_expired_tombstone": true,
+      "adopt_existing_private_handoff_hash": "b5caec070af85d64bc95053a4261d7ee52ecfdd9be85479fb72348429acae374",
+      "repeat_current_handoff_delivery": false,
+      "minimum_pending_ttl_margin_gate_required": true,
+      "kf036_recovery_safety_contract_required": true,
+      "new_pairing_identity_required": true
+    }
+  },
   "private_local_artifacts": [
     {
       "id": "legacy-board-readback-01",

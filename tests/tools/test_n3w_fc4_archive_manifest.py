@@ -223,6 +223,30 @@ def test_fc4_archive_manifest_is_public_safe_and_machine_checkable() -> None:
         assert evidence["mode"] == "0600"
         assert evidence["secret_values_included_in_public_binding"] is False
 
+    expired_stop = document["f350_expired_pending_delivery_stop"]
+    assert expired_stop["status"] == (
+        "CONSUMED_PARTIAL_SUCCESS_STOPPED_AT_EXPIRED_PENDING_DELIVERY_GATE"
+    )
+    assert expired_stop["claimed"] is True
+    assert expired_stop["consumed"] is True
+    assert expired_stop["replay_permitted"] is False
+    assert expired_stop["pairing_session_state"] == "expired"
+    assert expired_stop["pending_ttl_seconds"] == 120
+    assert expired_stop["exact_pending_observed_before_transfer"] is True
+    assert expired_stop["exact_pending_at_atomic_delivery"] is False
+    assert expired_stop["handoff_atomic_delivery"] is False
+    assert expired_stop["t1_staging_removed"] is True
+    assert expired_stop["t1_final_inbox_file_present"] is False
+    assert expired_stop["local_private_handoff_preserved"] is True
+    assert expired_stop["secret_value_exposed"] is False
+    assert expired_stop["successor_contract"]["new_authorization_required"] is True
+    assert expired_stop["successor_contract"]["repeat_current_handoff_delivery"] is False
+    assert expired_stop["successor_contract"]["minimum_pending_ttl_margin_gate_required"] is True
+    for evidence in expired_stop["private_evidence"]:
+        assert SHA256.fullmatch(evidence["sha256"])
+        assert evidence["mode"] == "0600"
+        assert evidence["secret_values_included_in_public_binding"] is False
+
     artifacts = document["private_local_artifacts"]
     assert len(artifacts) == 6
     assert all(SHA256.fullmatch(item["sha256"]) for item in artifacts)

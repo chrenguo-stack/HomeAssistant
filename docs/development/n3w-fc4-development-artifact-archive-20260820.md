@@ -372,3 +372,35 @@ manifest. The consumed authorization must not capture another handoff or reset
 the board. Continuation waits for operator Wi-Fi configuration, then must
 observe this exact pairing identity as pending before delivering the existing
 handoff to Manager.
+
+## F3:50 expired before atomic handoff delivery
+
+After Wi-Fi configuration, T1 observed exactly one matching F3:50 session as
+`pending`, epoch 1. The local handoff was rebound by mode and SHA-256, then
+copied to an inbox filename that Manager does not scan. Before atomic rename,
+the remote fail-closed validator repeated the handoff hardware/pairing binding
+and live session-state check. That final state check failed because the session
+had just transitioned to `expired`; the staging file was removed and the final
+inbox filename was never created.
+
+Read-only classification proved the pending lifetime was exactly 120 seconds:
+
+```text
+FIRST_SEEN_AT=2026-08-21T01:38:22.870Z
+LAST_SEEN_AT=2026-08-21T01:40:17.915Z
+EXPIRES_AT=2026-08-21T01:40:22.870Z
+PAIRING_SESSION_STATE=expired
+PAIRING_SESSION_REASON=expired
+HANDOFF_ATOMIC_DELIVERY=false
+T1_STAGING_REMOVED=true
+T1_FINAL_INBOX_FILE_PRESENT=false
+LOCAL_PRIVATE_HANDOFF_PRESERVED=true
+SECRET_VALUE_EXPOSED=false
+```
+
+This is KF-044. A boolean pending check is insufficient near the end of a
+fixed, non-renewing TTL; delivery must require an explicit remaining-time
+margin before transfer and must still re-check immediately before atomic
+rename. The current authorization is consumed and cannot be replayed. A new
+authorization must explicitly adopt the expired tombstone, the preserved
+private handoff hash and this stopped state before any recovery or board reset.
