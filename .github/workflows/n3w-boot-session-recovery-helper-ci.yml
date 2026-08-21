@@ -1,0 +1,74 @@
+name: N3-W boot-session recovery helper CI
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/n3w-boot-session-recovery-helper-ci.yml'
+      - 'firmware/esphome_rc/board_lab/n3w_boot_session_recovery/**'
+      - 'firmware/esphome_rc/components/greenhouse_n3w_core/greenhouse_n3w_core.h'
+      - 'firmware/esphome_rc/components/greenhouse_n3w_core/n3w_core.cpp'
+      - 'firmware/esphome_rc/components/greenhouse_n3w_core/n3w_core.h'
+      - 'firmware/esphome_rc/components/greenhouse_n3w_core/n3w_esp32_nvs.cpp'
+      - 'firmware/esphome_rc/components/greenhouse_n3w_core/n3w_esp32_nvs.h'
+      - 'tests/n3w_boot_recovery/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install test dependencies
+        run: python -m pip install pytest
+
+      - name: Recovery helper source contract
+        run: pytest -q tests/n3w_boot_recovery
+
+      - name: Explicit no-network and no-upload safety gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          helper='firmware/esphome_rc/board_lab/n3w_boot_session_recovery/recovery_floor_helper.yml'
+          if grep -n -E \
+            '^[[:space:]]*(wifi|mqtt|api|ota|captive_portal|web_server):|esphome run|pio run .*upload|esptool' \
+            "$helper"; then
+            echo 'Recovery helper must remain network-free and compile-only in CI'
+            exit 1
+          fi
+          grep -F 'recovery_floor_hex: "0000000000000000"' "$helper"
+          grep -F 'phase4_source_harness: false' "$helper"
+          grep -F 'phase4_product_runtime: false' "$helper"
+
+  esp32-c6-compile:
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install frozen ESPHome
+        run: python -m pip install --upgrade 'esphome==2026.4.3'
+
+      - name: Validate default-noop recovery helper
+        run: |
+          esphome config \
+            firmware/esphome_rc/board_lab/n3w_boot_session_recovery/recovery_floor_helper.yml
+
+      - name: Compile default-noop recovery helper
+        run: |
+          esphome compile \
+            firmware/esphome_rc/board_lab/n3w_boot_session_recovery/recovery_floor_helper.yml
