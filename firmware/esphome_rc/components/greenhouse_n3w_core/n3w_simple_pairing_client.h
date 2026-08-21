@@ -68,7 +68,6 @@ class SimplePairingClient {
       SimplePairingClientNetwork *network,
       SimplePairingClientRandom *random,
       NvsSetupSecretStore *setup_secret_store,
-      NvsPairingEpochStore *pairing_epoch_store,
       NvsProvisionedPeerStoreV2 *peer_store,
       NvsProvisionedBrokerStoreV2 *broker_store,
       NvsPendingPairingAckStoreV2 *ack_store);
@@ -103,10 +102,10 @@ class SimplePairingClient {
   SimplePairingClientNetwork *network_{nullptr};
   SimplePairingClientRandom *random_{nullptr};
   NvsSetupSecretStore *setup_secret_store_{nullptr};
-  NvsPairingEpochStore *pairing_epoch_store_{nullptr};
   NvsProvisionedPeerStoreV2 *peer_store_{nullptr};
   NvsProvisionedBrokerStoreV2 *broker_store_{nullptr};
   NvsPendingPairingAckStoreV2 *ack_store_{nullptr};
+  NvsPairingEpochStore pairing_epoch_store_{};
   MacAddress local_mac_{};
   SetupSecret setup_secret_{};
   std::string hardware_id_{};
