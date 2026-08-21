@@ -239,6 +239,40 @@
       "close_missing_evidence_before_physical_continuation": true
     }
   },
+  "kf041_closure": {
+    "authorization": "D1-N3W-FC4-F45C-KF041-SUCCESSOR-ADOPT-VALID-RECOVERY-STATE-AND-CLOSE-EVIDENCE-20260821-01",
+    "status": "CLOSED_VALID_RECOVERY_STATE",
+    "claimed": true,
+    "consumed": true,
+    "replay_permitted": false,
+    "recovery_replayed": false,
+    "adopted_registration_sha256": "077d888a83bc3f43310107aa885d5520ae4a51fb04fe80aa0342066ffd3e9fc5",
+    "adopted_credential_sha256": "7d1be670b5c1edfdf22b5a14f3d2454ee283e64b351a42a3a14fec31424bec29",
+    "registration_database_mutated": false,
+    "credential_database_mutated": false,
+    "container_mutated": false,
+    "board_access": false,
+    "device_reset": false,
+    "flash": false,
+    "private_evidence": [
+      {
+        "id": "kf041-closure-successor-claim",
+        "path_class": "t1-private-evidence/claim",
+        "sha256": "ab5252dd8c058935ec58ba453e95b35ee9af1fa17ca65453537f31cf9738bbec",
+        "size": 496,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf041-valid-recovery-closure",
+        "path_class": "t1-private-evidence/closure",
+        "sha256": "859dfa1ce0fb0183caceec92c46353588e151cf00814d4b9777b9d376db386a9",
+        "size": 1229,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      }
+    ]
+  },
   "private_local_artifacts": [
     {
       "id": "legacy-board-readback-01",

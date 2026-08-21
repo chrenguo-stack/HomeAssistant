@@ -105,6 +105,21 @@ def test_fc4_archive_manifest_is_public_safe_and_machine_checkable() -> None:
         assert evidence["mode"] == "0600"
         assert evidence["secret_values_included_in_public_binding"] is False
 
+    closure = document["kf041_closure"]
+    assert closure["status"] == "CLOSED_VALID_RECOVERY_STATE"
+    assert closure["claimed"] is True
+    assert closure["consumed"] is True
+    assert closure["replay_permitted"] is False
+    assert closure["recovery_replayed"] is False
+    assert closure["registration_database_mutated"] is False
+    assert closure["credential_database_mutated"] is False
+    assert closure["container_mutated"] is False
+    assert closure["board_access"] is False
+    for evidence in closure["private_evidence"]:
+        assert SHA256.fullmatch(evidence["sha256"])
+        assert evidence["mode"] == "0600"
+        assert evidence["secret_values_included_in_public_binding"] is False
+
     artifacts = document["private_local_artifacts"]
     assert len(artifacts) == 6
     assert all(SHA256.fullmatch(item["sha256"]) for item in artifacts)

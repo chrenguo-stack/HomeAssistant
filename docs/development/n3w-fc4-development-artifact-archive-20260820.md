@@ -182,3 +182,24 @@ No closure evidence was created after the false oracle. A later authorization
 must adopt this already-mutated valid database state, must not invoke the
 recovery CLI again, and may only close the missing evidence before any newly
 authorized physical continuation.
+
+## KF-041 closure successor
+
+The separately authorized closure successor re-bound the exact valid recovery
+state, exact Manager image, service listeners, database hashes and fresh
+private evidence paths before claim. It then created only a mode-0600 claim and
+closure record. It did not run the recovery CLI and did not mutate either
+database, any container or a board.
+
+```text
+TERMINAL=CLOSED_VALID_RECOVERY_STATE
+RECOVERY_REPLAY=false
+REGISTRATION_DATABASE_MUTATED_IN_THIS_BOUNDARY=false
+CREDENTIAL_DATABASE_MUTATED_IN_THIS_BOUNDARY=false
+CONTAINER_MUTATION=false
+BOARD_ACCESS=false
+```
+
+The private claim and closure are bound by sanitized SHA-256 and size metadata
+in the companion manifest. This closes the missing recovery evidence boundary;
+it does not authorize a device reset or any subsequent physical test.
