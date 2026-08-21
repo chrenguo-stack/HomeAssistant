@@ -181,7 +181,7 @@ def test_abandons_only_expired_first_registration_and_preserves_replay_tombstone
     )
     events = registry.list_events(hardware_id=HARDWARE_ID)
     tombstone = registry._connection.execute(
-        "SELECT state FROM pairing_sessions WHERE pairing_id = ?",
+        "SELECT state, reason FROM pairing_sessions WHERE pairing_id = ?",
         (PAIRING_ID,),
     ).fetchone()
 
@@ -191,12 +191,19 @@ def test_abandons_only_expired_first_registration_and_preserves_replay_tombstone
     assert replacement.status == "created"
     assert replacement.record.state is RegistrationState.PENDING
     assert tombstone["state"] == "expired"
+    assert tombstone["reason"] == "expired"
     assert [event.event for event in events] == [
         "hello_created",
         "expired_first_registration_abandoned",
         "expired",
         "hello_created",
     ]
+    abandonment = next(
+        event
+        for event in events
+        if event.event == "expired_first_registration_abandoned"
+    )
+    assert abandonment.reason == "expired_first_pairing_recovery"
 
 
 def test_expired_first_registration_abandonment_rejects_credential_history(

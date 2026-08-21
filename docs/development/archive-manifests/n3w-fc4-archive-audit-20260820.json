@@ -147,6 +147,98 @@
       "credential_container_path": "/var/lib/greenhouse-manager/n3w/credential-lifecycle.sqlite3"
     }
   },
+  "kf036_successor_partial_success": {
+    "authorization": "D1-N3W-FC4-F45C-KF036-SUCCESSOR-ADOPT-UNCHANGED-DB-INTERACTIVE-STDIN-TOMBSTONE-RECOVERY-LIVE-EXECUTION-AND-AUDIT-20260821-01",
+    "status": "CONSUMED_PARTIAL_SUCCESS_STOPPED_AT_FALSE_TOMBSTONE_REASON_ORACLE",
+    "replay_permitted": false,
+    "hardware_mac_tail": "F4:5C",
+    "product_recovery_succeeded": true,
+    "executor_oracle_succeeded": false,
+    "failure_stage": "post_recovery_replay_tombstone_reason_oracle",
+    "root_cause": "executor_conflated_immutable_tombstone_reason_with_recovery_event_reason",
+    "executor_observation": {
+      "docker_interactive_flag_present": true,
+      "result_nonempty": true,
+      "result_size": 699,
+      "result_sha256": "b9cd619966ca70cd30b814b5484e6ff6fc7b3e31583fa79ead2571a7b522a0cb",
+      "native_cli_result": "PASS",
+      "incorrect_expected_tombstone_reason": "expired_first_pairing_recovery",
+      "correct_tombstone_reason": "expired",
+      "correct_recovery_event_reason": "expired_first_pairing_recovery"
+    },
+    "database_hashes": {
+      "registration_sha256_before": "de612681d5bd7e9584d5b120512b3bd257b6e3e8a8476b47d1f28c1c46132d9c",
+      "registration_sha256_after": "077d888a83bc3f43310107aa885d5520ae4a51fb04fe80aa0342066ffd3e9fc5",
+      "credential_sha256_before": "7d1be670b5c1edfdf22b5a14f3d2454ee283e64b351a42a3a14fec31424bec29",
+      "credential_sha256_after": "7d1be670b5c1edfdf22b5a14f3d2454ee283e64b351a42a3a14fec31424bec29"
+    },
+    "post_recovery_state": {
+      "current_registration_count": 0,
+      "replay_tombstone": {
+        "state": "expired",
+        "reason": "expired"
+      },
+      "recovery_event": {
+        "event": "expired_first_registration_abandoned",
+        "reason": "expired_first_pairing_recovery"
+      },
+      "node_history_count": 0,
+      "node_lease_count": 0,
+      "credential_assignment_count": 0,
+      "manager_image_id": "sha256:871e45beee9862198616e87818f55a357a4c66ad5cbe3449a5948ca1e4ea4086",
+      "manager_running": true,
+      "manager_restart_count": 0,
+      "manager_network_mode": "host",
+      "udp_47111_listener_count": 1,
+      "http_47112_listener_count": 1,
+      "broker_8883_listener_count": 3,
+      "critical_log_count": 0,
+      "board_access": false,
+      "device_reset": false
+    },
+    "private_evidence": [
+      {
+        "id": "kf036-successor-claim",
+        "path_class": "t1-private-evidence/claim",
+        "sha256": "96246b18013f01a5865a1daf10c4225d148a2856ffe6ee3aa3c64eb65a94ecbf",
+        "size": 1320,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf036-successor-registration-before-backup",
+        "path_class": "t1-private-evidence/database-backup",
+        "sha256": "de612681d5bd7e9584d5b120512b3bd257b6e3e8a8476b47d1f28c1c46132d9c",
+        "size": 86016,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf036-successor-credential-before-backup",
+        "path_class": "t1-private-evidence/database-backup",
+        "sha256": "7d1be670b5c1edfdf22b5a14f3d2454ee283e64b351a42a3a14fec31424bec29",
+        "size": 28672,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf036-successor-recovery-result",
+        "path_class": "t1-private-evidence/executor-result",
+        "sha256": "b9cd619966ca70cd30b814b5484e6ff6fc7b3e31583fa79ead2571a7b522a0cb",
+        "size": 699,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      }
+    ],
+    "closure_evidence_present": false,
+    "continuation_contract": {
+      "new_authorization_required": true,
+      "adopt_mutated_valid_database_state": true,
+      "rerun_recovery_cli": false,
+      "rewrite_pairing_session_tombstone": false,
+      "close_missing_evidence_before_physical_continuation": true
+    }
+  },
   "private_local_artifacts": [
     {
       "id": "legacy-board-readback-01",

@@ -138,3 +138,47 @@ use a fresh private evidence namespace and a new authorization, pass the exact
 FC4 container paths, keep stdin attached with `--interactive`, and reject an
 empty result before JSON parsing. The consumed authorization must never be
 rerun.
+
+## KF-036 successor recovery success and false terminal oracle
+
+The successor authorization adopted the unchanged databases and prior private
+evidence, used the exact FC4 paths and kept container stdin attached with
+`--interactive`. The native recovery CLI returned a nonempty successful JSON
+result. It released the current registration pointer and appended the explicit
+`expired_first_registration_abandoned` event with reason
+`expired_first_pairing_recovery`.
+
+The executor then stopped at an incorrect postcondition: it expected the old
+pairing session reason itself to change to the recovery reason. That expectation
+contradicts the replay-tombstone contract. The immutable session correctly
+remained `state=expired, reason=expired`; the separate event records why the
+current pointer was abandoned. This executor-oracle defect is KF-041, not a
+product recovery failure.
+
+Corrected read-only terminal audit proved:
+
+```text
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+TERMINAL=CONSUMED_PARTIAL_SUCCESS_STOPPED_AT_FALSE_TOMBSTONE_REASON_ORACLE
+AUTHORIZATION_REPLAY_PERMITTED=false
+
+PRODUCT_RECOVERY_SUCCEEDED=true
+CURRENT_REGISTRATION_COUNT=0
+REPLAY_TOMBSTONE_STATE=expired
+REPLAY_TOMBSTONE_REASON=expired
+RECOVERY_EVENT=expired_first_registration_abandoned
+RECOVERY_EVENT_REASON=expired_first_pairing_recovery
+NODE_HISTORY_COUNT=0
+NODE_LEASE_COUNT=0
+CREDENTIAL_ASSIGNMENT_COUNT=0
+MANAGER_HEALTH=PASS
+MANAGER_RESTART_COUNT=0
+CRITICAL_LOG_COUNT=0
+BOARD_ACCESS=false
+```
+
+No closure evidence was created after the false oracle. A later authorization
+must adopt this already-mutated valid database state, must not invoke the
+recovery CLI again, and may only close the missing evidence before any newly
+authorized physical continuation.

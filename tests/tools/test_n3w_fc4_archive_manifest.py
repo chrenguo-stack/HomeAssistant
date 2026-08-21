@@ -82,6 +82,29 @@ def test_fc4_archive_manifest_is_public_safe_and_machine_checkable() -> None:
         assert evidence["mode"] == "0600"
         assert evidence["secret_values_included_in_public_binding"] is False
 
+    recovery = document["kf036_successor_partial_success"]
+    assert recovery["status"] == (
+        "CONSUMED_PARTIAL_SUCCESS_STOPPED_AT_FALSE_TOMBSTONE_REASON_ORACLE"
+    )
+    assert recovery["replay_permitted"] is False
+    assert recovery["product_recovery_succeeded"] is True
+    assert recovery["executor_oracle_succeeded"] is False
+    assert recovery["post_recovery_state"]["current_registration_count"] == 0
+    assert recovery["post_recovery_state"]["replay_tombstone"] == {
+        "state": "expired",
+        "reason": "expired",
+    }
+    assert recovery["post_recovery_state"]["recovery_event"] == {
+        "event": "expired_first_registration_abandoned",
+        "reason": "expired_first_pairing_recovery",
+    }
+    assert recovery["closure_evidence_present"] is False
+    assert recovery["continuation_contract"]["rerun_recovery_cli"] is False
+    for evidence in recovery["private_evidence"]:
+        assert SHA256.fullmatch(evidence["sha256"])
+        assert evidence["mode"] == "0600"
+        assert evidence["secret_values_included_in_public_binding"] is False
+
     artifacts = document["private_local_artifacts"]
     assert len(artifacts) == 6
     assert all(SHA256.fullmatch(item["sha256"]) for item in artifacts)
