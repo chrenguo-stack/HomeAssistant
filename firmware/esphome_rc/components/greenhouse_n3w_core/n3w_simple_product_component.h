@@ -139,6 +139,7 @@ class SimpleProductComponent : public Component,
   EspNowDriver radio_{};
   SimpleProductRuntime runtime_;
   NvsSetupSecretStore setup_secret_store_{};
+  NvsPairingEpochStore pairing_epoch_store_{};
   NvsProvisionedPeerStoreV2 peer_store_{};
   NvsProvisionedBrokerStoreV2 broker_store_{};
   NvsPendingPairingAckStoreV2 ack_store_{};
