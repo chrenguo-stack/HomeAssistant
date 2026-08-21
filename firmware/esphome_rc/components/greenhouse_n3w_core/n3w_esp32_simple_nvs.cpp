@@ -14,8 +14,9 @@
 namespace esphome::greenhouse_n3w_core {
 namespace {
 
-constexpr uint32_t kSetupMagic = 0x4E335332U;  // N3S2
-constexpr uint32_t kPeerMagic = 0x4E335032U;   // N3P2
+constexpr uint32_t kSetupMagic = 0x4E335332U;         // N3S2
+constexpr uint32_t kPairingEpochMagic = 0x4E334532U;  // N3E2
+constexpr uint32_t kPeerMagic = 0x4E335032U;          // N3P2
 constexpr uint16_t kRecordVersion = 1U;
 constexpr std::size_t kIdCapacity = 65U;
 
@@ -24,6 +25,14 @@ struct PersistedSetupSecret {
   uint16_t version;
   uint16_t reserved;
   uint8_t secret[kSetupSecretBytes];
+  uint8_t check[32];
+};
+
+struct PersistedPairingEpoch {
+  uint32_t magic;
+  uint16_t version;
+  uint16_t reserved;
+  uint32_t epoch;
   uint8_t check[32];
 };
 
@@ -194,6 +203,45 @@ SimpleNvsStatus NvsSetupSecretStore::load_or_create(SetupSecret *secret) {
 
 SimpleNvsStatus NvsSetupSecretStore::erase() {
   return erase_key(namespace_name_, key_name_);
+}
+
+SimpleNvsStatus NvsPairingEpochStore::load(uint32_t *epoch) {
+  if (epoch == nullptr || namespace_name_.empty() || key_name_.empty()) {
+    return SimpleNvsStatus::INVALID_ARGUMENT;
+  }
+  PersistedPairingEpoch record{};
+  const SimpleNvsStatus status =
+      read_blob(namespace_name_, key_name_, &record, sizeof(record));
+  if (status != SimpleNvsStatus::OK) return status;
+  if (record.magic != kPairingEpochMagic || record.version != kRecordVersion ||
+      record.reserved != 0 || record.epoch == 0 || !valid_check(record)) {
+    return SimpleNvsStatus::CORRUPT;
+  }
+  *epoch = record.epoch;
+  return SimpleNvsStatus::OK;
+}
+
+SimpleNvsStatus NvsPairingEpochStore::save(uint32_t epoch) {
+  if (epoch == 0 || namespace_name_.empty() || key_name_.empty()) {
+    return SimpleNvsStatus::INVALID_ARGUMENT;
+  }
+
+  uint32_t existing = 0;
+  const SimpleNvsStatus existing_status = load(&existing);
+  if (existing_status == SimpleNvsStatus::OK) {
+    if (epoch < existing) return SimpleNvsStatus::INVALID_ARGUMENT;
+    if (epoch == existing) return SimpleNvsStatus::OK;
+  } else if (existing_status != SimpleNvsStatus::MISSING) {
+    return existing_status;
+  }
+
+  PersistedPairingEpoch record{};
+  record.magic = kPairingEpochMagic;
+  record.version = kRecordVersion;
+  record.reserved = 0;
+  record.epoch = epoch;
+  if (!write_check(&record)) return SimpleNvsStatus::IO_ERROR;
+  return write_blob(namespace_name_, key_name_, &record, sizeof(record));
 }
 
 SimpleNvsStatus NvsProvisionedPeerStoreV2::load(ProvisionedPeerStateV2 *state) {
