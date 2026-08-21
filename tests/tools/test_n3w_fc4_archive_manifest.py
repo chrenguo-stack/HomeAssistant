@@ -168,6 +168,22 @@ def test_fc4_archive_manifest_is_public_safe_and_machine_checkable() -> None:
         assert evidence["mode"] == "0600"
         assert evidence["secret_values_included_in_public_binding"] is False
 
+    e2e = document["f45c_final_product_e2e_closure"]
+    assert e2e["status"] == "PASS_F45C_FINAL_PRODUCT_E2E"
+    assert e2e["pairing_session_state"] == "approved"
+    assert e2e["credential_assignment_count"] == 1
+    assert e2e["board_runtime"]["serial_pairing_qr_payload_count"] == 0
+    assert e2e["manager_runtime"]["accepted_telemetry_count"] > 0
+    assert e2e["manager_runtime"]["rejected_telemetry_count"] == 0
+    assert e2e["homeassistant_runtime"]["device_registry_match_count"] == 1
+    assert e2e["homeassistant_runtime"]["entity_registry_match_count"] >= 1
+    assert e2e["secret_value_exposed"] is False
+    assert e2e["other_board_authorization_implied"] is False
+    for evidence in e2e["private_evidence"]:
+        assert SHA256.fullmatch(evidence["sha256"])
+        assert evidence["mode"] == "0600"
+        assert evidence["secret_values_included_in_public_binding"] is False
+
     artifacts = document["private_local_artifacts"]
     assert len(artifacts) == 6
     assert all(SHA256.fullmatch(item["sha256"]) for item in artifacts)

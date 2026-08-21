@@ -418,6 +418,53 @@
       "repeat_nvs_erase": false
     }
   },
+  "f45c_final_product_e2e_closure": {
+    "authorization": "D1-N3W-FC4-F45C-KF042-SUCCESSOR-ADOPT-SCOPED-NVS-ERASE-CAPTURE-NEW-HANDOFF-AND-RESUME-E2E-20260821-01",
+    "status": "PASS_F45C_FINAL_PRODUCT_E2E",
+    "hardware_id": "ghw-c6-98a316a9f45c",
+    "base_mac": "98:a3:16:a9:f4:5c",
+    "pairing_id_sha256": "667e83fbf0e504c6f4b2a97a1ca9bd0706698ba7373e56348c175859be5cfa7a",
+    "pairing_epoch": 1,
+    "pairing_session_state": "approved",
+    "node_id": "node_39c9c9c308eac09b5cbb00ac9780f6bc",
+    "credential_assignment_count": 1,
+    "registration_sha256": "3b68dfd0a08f0ab9294f5884e499cbed1052861bbb3e39634acc68d20831d367",
+    "credential_sha256": "25840bf73043640867a75eedc06e782231569b9c22f4c3b80efe591eff3ed50e",
+    "board_runtime": {
+      "serial_telemetry_accepted_true_count": 6,
+      "serial_pairing_qr_payload_count": 0,
+      "pairing_or_state_failure_count": 0,
+      "application_flash_rewritten": false,
+      "repeat_nvs_erase": false
+    },
+    "manager_runtime": {
+      "accepted_telemetry_count": 37,
+      "rejected_telemetry_count": 0,
+      "homeassistant_discovery_publish_count": 2,
+      "restart_count": 0,
+      "critical_log_count": 0
+    },
+    "homeassistant_runtime": {
+      "device_registry_match_count": 1,
+      "entity_registry_match_count": 5,
+      "restart_count": 0,
+      "critical_log_count": 0
+    },
+    "broker_restart_count": 0,
+    "private_evidence": [
+      {
+        "id": "f45c-final-product-e2e-closure",
+        "path_class": "approved-local-private-evidence/final-product-e2e-closure",
+        "sha256": "a6352ab3b36782b333bd846d8213dd784e95be4e3383b3eeec78c3a03770c38f",
+        "size": 1363,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      }
+    ],
+    "secret_value_exposed": false,
+    "scope_closed_for_hardware_only": true,
+    "other_board_authorization_implied": false
+  },
   "private_local_artifacts": [
     {
       "id": "legacy-board-readback-01",

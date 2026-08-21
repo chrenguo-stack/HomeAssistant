@@ -274,3 +274,33 @@ The board now waits for the operator to restore Wi-Fi. The handoff must not be
 placed in the Manager inbox until the new registration is observed as pending,
 because the inbox deliberately rejects and removes secrets whose registration
 does not yet exist in pending state.
+
+## F4:5C final-product E2E closure
+
+After the operator restored Wi-Fi, T1 observed the new pairing identity as a
+fresh epoch-1 pending registration. The exact private handoff was then copied
+under a non-matching temporary name, hash-checked, changed to mode 0600 and
+numeric UID/GID 999:999, and atomically renamed into the Manager inbox. Manager
+consumed the file and completed automatic approval and credential issuance.
+
+The board stopped emitting the Setup Secret payload and produced six observed
+`accepted=true` telemetry cycles. T1 accepted 37 telemetry messages with zero
+rejections, published both Home Assistant discovery records, and Home Assistant
+materialized one device and five entities. Manager, Broker and Home Assistant
+remained running with zero restarts and no critical errors.
+
+```text
+TERMINAL=PASS_F45C_FINAL_PRODUCT_E2E
+PAIRING_SESSION_STATE=approved
+PAIRING_EPOCH=1
+CREDENTIAL_ASSIGNMENT_COUNT=1
+SERIAL_PAIRING_QR_PAYLOAD_COUNT=0
+MANAGER_ACCEPTED_TELEMETRY_COUNT=37
+MANAGER_REJECTED_TELEMETRY_COUNT=0
+HA_DEVICE_REGISTRY_MATCH_COUNT=1
+HA_ENTITY_REGISTRY_MATCH_COUNT=5
+```
+
+The mode-0600 private closure is hash-bound in the companion manifest. This
+live result closes KF-036 as guarded. It validates F4:5C only and does not grant
+or imply authorization for another board.
