@@ -220,7 +220,7 @@ serial port, access the board, reset pairing state or modify Flash.
 ## F4:5C post-KF-036 scoped NVS reset
 
 The authorized physical successor bound the sole USB device to base MAC
-`98:a3:16:a9:f4:5c`, ESP32-C6 revision 0.2, 8 MiB Flash and the frozen
+`sha256:de6b31f7d4d166afb8edcce53fe77e8cf3e723676ebac2360a405884dc846108`, ESP32-C6 revision 0.2, 8 MiB Flash and the frozen
 application image. After claim it captured a mode-0600 private backup of the
 exact NVS partition and successfully erased only `0x790000/0x70000`; it did not
 rewrite the application or erase the full Flash.
@@ -308,7 +308,7 @@ or imply authorization for another board.
 ## F3:50 sequential preclaim and portable handoff capture guard
 
 The next sequential-board read-only preclaim found exactly one USB device and
-bound it to ESP32-C6 base MAC `98:a3:16:a9:f3:50`, hardware ID
+bound it to ESP32-C6 base MAC `sha256:c25b9bc46cf2c4247c607e6cc9ff7536fb22bac5c4e38fe610ca1f176b2f7ca6`, hardware ID
 `ghw-c6-98a316a9f350`, chip revision 0.2 and 8 MiB Flash. Secure Boot and Flash
 Encryption were disabled. A verify-only application comparison passed against
 the frozen application SHA-256
@@ -332,7 +332,7 @@ identity mismatch, unsafe parent permissions and overwrite refusal.
 AUTHORIZATION_APPROVED=true
 AUTHORIZATION_CLAIMED=false
 AUTHORIZATION_CONSUMED=false
-BOARD_BASE_MAC=98:a3:16:a9:f3:50
+BOARD_BASE_MAC_SHA256=c25b9bc46cf2c4247c607e6cc9ff7536fb22bac5c4e38fe610ca1f176b2f7ca6
 PAIRING_ID_SHA256=7ea23bfae78dcd4d2ae20f66d4b73bd2785a6ceb7afaea5d6b112e1f72052049
 SETUP_SECRET_ENCODED_LENGTH=43
 PRIVATE_HANDOFF_FILE_PRESENT=false
@@ -572,8 +572,8 @@ passes both TTL delivery gates and completes E2E.
 ## F3:50 scoped NVS reset and Wi-Fi handoff gate
 
 The same consumed successor continued only from its approved post-recovery
-board boundary. USB serial `98:A3:16:A9:F3:50`, base MAC
-`98:a3:16:a9:f3:50`, application image and partition-table hashes were rebound
+board boundary. USB serial `sha256:c25b9bc46cf2c4247c607e6cc9ff7536fb22bac5c4e38fe610ca1f176b2f7ca6`, base MAC
+`sha256:c25b9bc46cf2c4247c607e6cc9ff7536fb22bac5c4e38fe610ca1f176b2f7ca6`, application image and partition-table hashes were rebound
 before mutation. Flash verification proved the installed application still
 matches the bound FC4 image.
 
@@ -593,8 +593,8 @@ operator Wi-Fi configuration gate; the old expired handoff remains forbidden.
 AUTHORIZATION_CLAIMED=true
 AUTHORIZATION_CONSUMED=true
 RECOVERY_REPLAYED=false
-USB_IDENTITY=98:A3:16:A9:F3:50
-BASE_MAC=98:a3:16:a9:f3:50
+USB_IDENTITY_SHA256=c25b9bc46cf2c4247c607e6cc9ff7536fb22bac5c4e38fe610ca1f176b2f7ca6
+BASE_MAC_SHA256=c25b9bc46cf2c4247c607e6cc9ff7536fb22bac5c4e38fe610ca1f176b2f7ca6
 APPLICATION_FLASH_VERIFY=PASS
 SCOPED_NVS_RANGE=0x790000+0x70000
 NVS_BACKUP_SIZE=458752
@@ -861,3 +861,19 @@ KF-047 entrypoint enforcement remains valid. KF-048 is the new blocker: use
 least-privilege same-path directory mounts and runtime-UID ownership, add a
 pre-stop accessibility probe, and preserve sanitized inner errors. The
 consumed authorization must not be replayed.
+
+## Public repository safety follow-up
+
+The current exact-head manual audit detected 14 MAC-shaped raw board identifiers
+across the public FC4 archive manifest, this development archive, and its
+manifest regression. Public archive identity bindings are now represented as
+SHA-256 of the normalized lowercase identifier instead of the raw MAC/USB
+serial value. Raw board readbacks and other private evidence remain only in
+the established private evidence domain.
+
+This is a source/docs/tests-only repair. It did not access T1, a board, USB or
+serial, and did not perform Flash, reset, NVS, registration, credential,
+Broker, Manager, or Home Assistant mutation. The public-repository safety scanner, FC4 archive manifest regression, and Ruff
+validation subsequently passed. The final staged-secret guard also passed
+with all four repair files checked. KF-049 is guarded at source level; the
+Git commit remains pending explicit authorization.

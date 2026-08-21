@@ -188,7 +188,10 @@ def test_fc4_archive_manifest_is_public_safe_and_machine_checkable() -> None:
     assert preclaim["authorization_approved"] is True
     assert preclaim["authorization_claimed"] is False
     assert preclaim["authorization_consumed"] is False
-    assert preclaim["base_mac"] == "98:a3:16:a9:f3:50"
+    assert preclaim["base_mac_sha256"] == "c25b9bc46cf2c4247c607e6cc9ff7536fb22bac5c4e38fe610ca1f176b2f7ca6"
+    assert preclaim["base_mac_raw_exposed"] is False
+    assert preclaim["usb_serial_sha256"] == "c25b9bc46cf2c4247c607e6cc9ff7536fb22bac5c4e38fe610ca1f176b2f7ca6"
+    assert preclaim["usb_serial_raw_exposed"] is False
     assert preclaim["application_verify_flash"] == "PASS"
     assert preclaim["private_handoff_file_present"] is False
     assert preclaim["secret_value_exposed"] is False
