@@ -216,3 +216,37 @@ copied with mode 0600 into the established private evidence root. Their
 sanitized hashes, sizes and purposes are recorded in the companion manifest;
 neither raw file is committed. This archive-recovery action did not open the
 serial port, access the board, reset pairing state or modify Flash.
+
+## F4:5C post-KF-036 scoped NVS reset
+
+The authorized physical successor bound the sole USB device to base MAC
+`98:a3:16:a9:f4:5c`, ESP32-C6 revision 0.2, 8 MiB Flash and the frozen
+application image. After claim it captured a mode-0600 private backup of the
+exact NVS partition and successfully erased only `0x790000/0x70000`; it did not
+rewrite the application or erase the full Flash.
+
+The executor then hard-reset the board and attempted to prove the erased
+partition was still entirely `0xFF`. That oracle was invalid: the application
+booted before the following readback connection and immediately initialized
+NVS. The readback therefore contained new state. A secret-free serial
+classifier proved the board had generated a new pairing ID different from the
+expired identity and was still emitting a 32-byte Setup Secret representation.
+No handoff file was created. This is KF-042.
+
+```text
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+TERMINAL=CONSUMED_PARTIAL_SUCCESS_STOPPED_AT_POST_ERASE_ALL_FF_ORACLE
+NVS_SCOPED_ERASE=true
+APPLICATION_FLASH_REWRITE=false
+FULL_FLASH_ERASE=false
+NEW_PAIRING_ID_DIFFERENT=true
+PRIVATE_HANDOFF_FILE_PRESENT=false
+T1_CURRENT_REGISTRATION_COUNT=0
+T1_CREDENTIAL_ASSIGNMENT_COUNT=0
+```
+
+The consumed authorization must not erase NVS again. A successor must adopt
+the current new pairing identity, capture its handoff into the private evidence
+root, wait for the operator to restore Wi-Fi, observe the new pending
+registration, then deliver the mode-0600 handoff to the exact Manager inbox.

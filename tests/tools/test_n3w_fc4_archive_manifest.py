@@ -132,6 +132,25 @@ def test_fc4_archive_manifest_is_public_safe_and_machine_checkable() -> None:
         assert artifact["mode"] == "0600"
         assert artifact["secret_values_included_in_public_binding"] is False
 
+    physical = document["f45c_post_kf036_physical_partial_success"]
+    assert physical["status"] == (
+        "CONSUMED_PARTIAL_SUCCESS_STOPPED_AT_POST_ERASE_ALL_FF_ORACLE"
+    )
+    assert physical["claimed"] is True
+    assert physical["consumed"] is True
+    assert physical["replay_permitted"] is False
+    assert physical["nvs_operation"]["scoped_erase_succeeded"] is True
+    assert physical["nvs_operation"]["application_flash_rewritten"] is False
+    assert physical["new_pairing_observation"][
+        "different_from_expired_pairing_id"
+    ] is True
+    assert physical["new_pairing_observation"]["secret_value_exposed"] is False
+    assert physical["successor_contract"]["repeat_nvs_erase"] is False
+    for evidence in physical["private_evidence"]:
+        assert SHA256.fullmatch(evidence["sha256"])
+        assert evidence["mode"] == "0600"
+        assert evidence["secret_values_included_in_public_binding"] is False
+
     artifacts = document["private_local_artifacts"]
     assert len(artifacts) == 6
     assert all(SHA256.fullmatch(item["sha256"]) for item in artifacts)

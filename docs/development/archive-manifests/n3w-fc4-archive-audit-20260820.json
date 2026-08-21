@@ -304,6 +304,80 @@
     ],
     "unarchived_critical_result_count": 0
   },
+  "f45c_post_kf036_physical_partial_success": {
+    "authorization": "D1-N3W-FC4-F45C-POST-KF036-PAIRING-STATE-RESET-AND-FINAL-PRODUCT-E2E-RESUME-20260821-01",
+    "status": "CONSUMED_PARTIAL_SUCCESS_STOPPED_AT_POST_ERASE_ALL_FF_ORACLE",
+    "claimed": true,
+    "consumed": true,
+    "replay_permitted": false,
+    "hardware_id": "ghw-c6-98a316a9f45c",
+    "base_mac": "98:a3:16:a9:f4:5c",
+    "chip": "ESP32-C6 QFN40 revision 0.2",
+    "flash_size_bytes": 8388608,
+    "expected_application_sha256": "95e177042fd15cb0e4b4aef762adf37811c736d34579e480f534ffbe5ee14a7a",
+    "nvs_operation": {
+      "offset": "0x790000",
+      "size": "0x70000",
+      "scoped_erase_succeeded": true,
+      "application_flash_rewritten": false,
+      "full_flash_erased": false,
+      "invalid_oracle": "all_ff_after_hard_reset_and_application_first_boot"
+    },
+    "new_pairing_observation": {
+      "pairing_id_sha256": "667e83fbf0e504c6f4b2a97a1ca9bd0706698ba7373e56348c175859be5cfa7a",
+      "different_from_expired_pairing_id": true,
+      "setup_secret_present": true,
+      "setup_secret_encoded_length": 43,
+      "secret_value_exposed": false,
+      "private_handoff_file_present": false
+    },
+    "t1_post_failure_state": {
+      "registration_sha256": "077d888a83bc3f43310107aa885d5520ae4a51fb04fe80aa0342066ffd3e9fc5",
+      "credential_sha256": "7d1be670b5c1edfdf22b5a14f3d2454ee283e64b351a42a3a14fec31424bec29",
+      "current_registration_count": 0,
+      "expired_pairing_session_count": 1,
+      "credential_assignment_count": 0,
+      "manager_running": true,
+      "manager_restart_count": 0
+    },
+    "private_evidence": [
+      {
+        "id": "f45c-post-kf036-physical-claim",
+        "path_class": "approved-local-private-evidence/physical-claim",
+        "sha256": "814890b47ffa77b14b722815be8c35a51b4e52a17a258558ec25b6b25584a9f5",
+        "size": 674,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "f45c-nvs-before-scoped-erase",
+        "path_class": "approved-local-private-evidence/raw-nvs-backup",
+        "sha256": "8099aa90273237987107ac743b9a1ab10f5886d250c3c08f5cac631a08b23eab",
+        "size": 458752,
+        "mode": "0600",
+        "non_ff_bytes": 3532,
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "f45c-nvs-after-erase-and-first-boot",
+        "path_class": "approved-local-private-evidence/raw-nvs-readback",
+        "sha256": "4990361052de3fa233aa3bb97fb260da9f03a63963f0a7997777d85f51e4e94d",
+        "size": 458752,
+        "mode": "0600",
+        "non_ff_bytes": 2421,
+        "secret_values_included_in_public_binding": false
+      }
+    ],
+    "successor_contract": {
+      "new_authorization_required": true,
+      "repeat_nvs_erase": false,
+      "adopt_new_pairing_id_hash": "667e83fbf0e504c6f4b2a97a1ca9bd0706698ba7373e56348c175859be5cfa7a",
+      "capture_private_handoff": true,
+      "operator_wifi_configuration_required": true,
+      "wait_for_new_pending_registration_before_handoff_delivery": true,
+      "manager_inbox_container_path": "/var/lib/greenhouse-manager/n3w/setup-secret-inbox"
+    }
+  },
   "private_local_artifacts": [
     {
       "id": "legacy-board-readback-01",
