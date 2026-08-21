@@ -999,6 +999,26 @@
     "next_gate": "FORMAL_PRETRANSFER_TTL_GATE",
     "kf046_status": "OPEN"
   },
+  "f350_second_kf044_expired_pretransfer_stop": {
+    "pairing_id_sha256": "480a6813f0342528a5c8ae91f7086e84e8ad1a73105ce0363bd10406da0cf526",
+    "exact_current_match_count": 1,
+    "pairing_epoch": 1,
+    "state": "expired",
+    "reason": "expired",
+    "first_seen_at": "2026-08-21T02:44:35.797Z",
+    "last_seen_at": "2026-08-21T02:46:34.254Z",
+    "expires_at": "2026-08-21T02:46:35.797Z",
+    "formal_pretransfer_gate": "FAIL:EXACT_CURRENT_PAIRING_SESSION_NOT_PENDING",
+    "minimum_remaining_seconds": 60,
+    "registration_db_sha256": "3b54e11081a5db0ccd638120b687136a639b4d8ab6adb8f157065e886616591c",
+    "private_handoff_transferred": false,
+    "recovery_replayed": false,
+    "pairing_id_raw_exposed_by_gate": false,
+    "setup_secret_exposed": false,
+    "terminal": "CONSUMED_STOPPED_AT_SECOND_EXPIRED_PRETRANSFER_GATE",
+    "kf044_status": "OPEN",
+    "next_gate": "NEW_SUCCESSOR_ADOPT_TOMBSTONE_PREARM_ATOMIC_TTL_DELIVERY_EXECUTOR"
+  },
   "private_local_artifacts": [
     {
       "id": "legacy-board-readback-01",

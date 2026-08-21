@@ -675,3 +675,39 @@ The corrected guard is: prove STA state first; only instruct fallback AP setup
 when the board is actually disconnected and the exact fallback start marker is
 observed. This result supersedes the earlier operator-Wi-Fi gate assumption but
 does not invalidate the fresh handoff.
+
+## F3:50 second KF-044 TTL stop
+
+The formal pre-transfer gate was invoked from the exact archived T1 source only
+after the saved-STA diagnosis and its mandatory GitHub archive completed. It
+correctly rejected the exact current session because the fixed 120-second
+pending window had expired. No handoff bytes crossed from the Mac to T1.
+
+The first attempt used a nonexistent extracted-source path and therefore
+produced no gate output; it was not accepted as success. A read-only path audit
+located the exact module under the successor `source` tree, proved its hash,
+size, import origin and `main` entry, and only then ran the formal gate.
+
+```text
+DELIVERY_GATE=FAIL:EXACT_CURRENT_PAIRING_SESSION_NOT_PENDING
+EXACT_CURRENT_MATCH_COUNT=1
+PAIRING_ID_SHA256=480a6813f0342528a5c8ae91f7086e84e8ad1a73105ce0363bd10406da0cf526
+CURRENT_PAIRING_EPOCH=1
+CURRENT_STATE=expired
+CURRENT_REASON=expired
+CURRENT_FIRST_SEEN_AT=2026-08-21T02:44:35.797Z
+CURRENT_LAST_SEEN_AT=2026-08-21T02:46:34.254Z
+CURRENT_EXPIRES_AT=2026-08-21T02:46:35.797Z
+REGISTRATION_DB_SHA256=3b54e11081a5db0ccd638120b687136a639b4d8ab6adb8f157065e886616591c
+PRIVATE_HANDOFF_TRANSFERRED=false
+RECOVERY_REPLAYED=false
+PAIRING_ID_RAW_EXPOSED=false
+SETUP_SECRET_EXPOSED=false
+TERMINAL=CONSUMED_STOPPED_AT_SECOND_EXPIRED_PRETRANSFER_GATE
+```
+
+The next successor must first adopt this expired tombstone and private handoff,
+close all preparatory archive work, and pre-arm a single executor that performs
+pending observation, both formal TTL gates, private transfer and atomic delivery
+within the active window. The existing recovery and NVS operations must not be
+replayed under the consumed authorization.
