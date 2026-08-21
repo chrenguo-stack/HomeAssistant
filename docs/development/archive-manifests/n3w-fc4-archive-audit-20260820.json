@@ -1138,6 +1138,98 @@
     "kf047_status": "OPEN_LIVE_ACCEPTANCE_REQUIRED",
     "next_gate": "NEW_LIVE_SUCCESSOR_ADOPT_UNCHANGED_DB_AND_KF047_EVIDENCE"
   },
+  "kf048_runtime_uid_mount_authority_consumed_failure": {
+    "authorization": "D1-N3W-FC4-F350-KF047-SUCCESSOR-ADOPT-UNCHANGED-DB-AND-EVIDENCE-EXACT-IMAGE-ONE-SHOT-PREFLIGHT-RECOVERY-PREARM-SCOPED-NVS-NEW-IDENTITY-ATOMIC-TTL-DELIVERY-AND-RESUME-E2E-20260821-01",
+    "authorization_claimed": true,
+    "authorization_consumed": true,
+    "authorization_replay_permitted": false,
+    "source_head": "1a01c650d64d3861869524e9d2879d67efd1ddb9",
+    "source_tree": "67282fbbd414f3ab46a11fe81fd20ab2b0a2e43f",
+    "source_archive_sha256": "a699b778dc95db6a6a97343b47ee128c41037e503e1919b5549e2f669a8c4f42",
+    "source_archive_size": 1711477,
+    "exact_image_preflight": "PASS",
+    "preflight_sha256": "bc489139ca67ada833329395753b7a969a865c72bb8f13e37e022a66c843cd3f",
+    "exact_image_runtime_uid": 999,
+    "exact_image_runtime_gid": 999,
+    "broad_private_root_mode": "0700",
+    "broad_private_root_uid": 0,
+    "broad_private_root_gid": 0,
+    "registration_parent_mode": "0700",
+    "registration_parent_uid": 999,
+    "registration_parent_gid": 999,
+    "credential_parent_mode": "0700",
+    "credential_parent_uid": 999,
+    "credential_parent_gid": 999,
+    "inspect_mode": "0600",
+    "inspect_uid": 0,
+    "inspect_gid": 0,
+    "registration_sha256_before": "3b54e11081a5db0ccd638120b687136a639b4d8ab6adb8f157065e886616591c",
+    "registration_sha256_after": "3b54e11081a5db0ccd638120b687136a639b4d8ab6adb8f157065e886616591c",
+    "credential_sha256_before": "25840bf73043640867a75eedc06e782231569b9c22f4c3b80efe591eff3ed50e",
+    "credential_sha256_after": "25840bf73043640867a75eedc06e782231569b9c22f4c3b80efe591eff3ed50e",
+    "database_mutated": false,
+    "second_expired_tombstone_preserved": true,
+    "outer_failure_result": "FAIL:isolated recovery module execution failed",
+    "inner_sanitized_failure_preserved": false,
+    "outer_recovery_started_claim_accurate": false,
+    "manager_running": true,
+    "manager_restart_count": 0,
+    "board_access": false,
+    "nvs_erased": false,
+    "private_handoff_transferred": false,
+    "private_evidence": [
+      {
+        "id": "kf048-live-authorization-claim",
+        "path_class": "approved-local-private-evidence/authorization-claim",
+        "sha256": "37187c21165a3606a18e200850f5baa2602ce55d74a86cf08e92e7afd4083094",
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf048-exact-source-archive",
+        "path_class": "approved-private-evidence/exact-source-archive",
+        "sha256": "a699b778dc95db6a6a97343b47ee128c41037e503e1919b5549e2f669a8c4f42",
+        "size": 1711477,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf048-exact-image-preflight",
+        "path_class": "t1-private-evidence/exact-image-preflight",
+        "sha256": "bc489139ca67ada833329395753b7a969a865c72bb8f13e37e022a66c843cd3f",
+        "size": 218,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf048-manager-stopped-inspect",
+        "path_class": "t1-private-evidence/container-inspect",
+        "sha256": "c79b5c4041072c40ca0f2ad350975dfed313207076bbcc56e89c190f53b982f1",
+        "size": 11507,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf048-formal-recovery-result",
+        "path_class": "t1-private-evidence/formal-runner-result",
+        "sha256": "75e1117eeb02a14c7c3358d09ca53f9756ed9ccf74fe1877460d0561e4e93b98",
+        "size": 91,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf048-postfail-closure",
+        "path_class": "approved-local-private-evidence/postfail-closure",
+        "sha256": "d00ca4c188224cdb7165dd8f37ff650b9746cdd2857a8c3b7ce341f4530b011a",
+        "size": 1085,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      }
+    ],
+    "terminal": "CONSUMED_FAILED_BEFORE_DATABASE_MUTATION",
+    "kf048_status": "OPEN",
+    "next_gate": "SOURCE_FIX_MINIMAL_RUNTIME_UID_MOUNTS_AND_INNER_ERROR_PROPAGATION"
+  },
   "private_local_artifacts": [
     {
       "id": "legacy-board-readback-01",

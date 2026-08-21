@@ -804,3 +804,60 @@ KF-047 remains OPEN only for live acceptance. A new successor must adopt the
 unchanged database hashes and all KF-047 private evidence, run the formal
 preflight before stopping Manager, and use the formal runner for recovery. The
 consumed failed authorization remains non-replayable.
+
+## KF-048 live successor stopped at runtime-UID mount authority
+
+The KF-047 live successor passed all read-only bindings, claimed its fresh
+authorization, materialized source `1a01c650` with identical local/T1 archive
+hashes, and ran the formal exact-image preflight while Manager remained
+running. The preflight proved the immutable image ID, product entrypoint,
+explicit Python entrypoint and recovery module help.
+
+After Manager stopped and fresh mode-0600 inspect/database backups were
+captured, the formal runner returned its generic isolated-execution failure.
+The failure path restarted Manager. Read-only classification proved both live
+database hashes still exactly equal their backups, the second expired current
+tombstone remains, and no board, NVS or handoff operation began.
+
+An isolated read-only probe using the exact image then established the root
+cause. Its effective identity is `999:999`; the runner mounted the whole FC4
+private root, which is `0700 root:root`, so that identity cannot traverse to
+either database. The stopped inspect is independently `0600 root:root` and
+also unreadable. In contrast, the exact registration and credential parent
+directories are both `0700 999:999` and are the correct minimal RW mount roots.
+
+The outer runner also reduced the inner failure to a generic message and
+printed `RECOVERY_STARTED=false`, even though Python had launched the recovery
+module. That diagnostic contract must be corrected together with the mount
+contract.
+
+```text
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+AUTHORIZATION_REPLAY_PERMITTED=false
+EXACT_IMAGE_ONE_SHOT_PREFLIGHT=PASS
+EXACT_IMAGE_RUNTIME_UID=999
+EXACT_IMAGE_RUNTIME_GID=999
+FC4_PRIVATE_ROOT_MODE=0700
+FC4_PRIVATE_ROOT_OWNER=0:0
+REGISTRATION_PARENT_MODE_OWNER=0700:999:999
+CREDENTIAL_PARENT_MODE_OWNER=0700:999:999
+INSPECT_MODE_OWNER=0600:0:0
+REGISTRATION_SHA256_BEFORE=3b54e11081a5db0ccd638120b687136a639b4d8ab6adb8f157065e886616591c
+REGISTRATION_SHA256_AFTER=3b54e11081a5db0ccd638120b687136a639b4d8ab6adb8f157065e886616591c
+CREDENTIAL_SHA256_BEFORE=25840bf73043640867a75eedc06e782231569b9c22f4c3b80efe591eff3ed50e
+CREDENTIAL_SHA256_AFTER=25840bf73043640867a75eedc06e782231569b9c22f4c3b80efe591eff3ed50e
+DATABASE_MUTATION=false
+SECOND_EXPIRED_TOMBSTONE_PRESERVED=true
+MANAGER_RUNNING=true
+MANAGER_RESTART_COUNT=0
+BOARD_ACCESS=false
+NVS_ERASE=false
+PRIVATE_HANDOFF_TRANSFER=false
+TERMINAL=CONSUMED_FAILED_BEFORE_DATABASE_MUTATION
+```
+
+KF-047 entrypoint enforcement remains valid. KF-048 is the new blocker: use
+least-privilege same-path directory mounts and runtime-UID ownership, add a
+pre-stop accessibility probe, and preserve sanitized inner errors. The
+consumed authorization must not be replayed.
