@@ -404,3 +404,47 @@ margin before transfer and must still re-check immediately before atomic
 rename. The current authorization is consumed and cannot be replayed. A new
 authorization must explicitly adopt the expired tombstone, the preserved
 private handoff hash and this stopped state before any recovery or board reset.
+
+## KF-044 source-only TTL margin gate
+
+The separately approved source-only boundary added the supported
+`greenhouse-manager-n3w-setup-secret-delivery-gate` entry point. It performs no
+delivery and has two read-only phases:
+
+- `pretransfer` binds the read-only registration database, current registration,
+  exact hardware ID, pairing-ID SHA-256, `pending` state and an explicit minimum
+  number of remaining seconds;
+- `predelivery` repeats those checks and additionally validates that the staged
+  handoff is a regular mode-0600 file with the expected UID/GID, exact schema,
+  hardware identity, pairing identity and 32-byte encoded Setup Secret.
+
+Both phases emit only hashes, expiry/remaining-time facts and explicit
+`PAIRING_ID_RAW_EXPOSED=false` / `SETUP_SECRET_EXPOSED=false` markers. The
+integration regression proves the database content hash remains unchanged and
+covers adequate margin, inadequate margin, non-current pairing identity,
+valid private handoff and unsafe handoff permissions. Related registration and
+private-inbox regressions also pass.
+
+```text
+SOURCE_AUTHORIZATION_CLAIMED=true
+SOURCE_AUTHORIZATION_CONSUMED=true
+SOURCE_MUTATION_ONLY=true
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+SERIAL_ACCESS=false
+FLASH_MUTATION=false
+PRIVATE_HANDOFF_DELIVERY=false
+TARGETED_AND_RELATED_TESTS=36 passed
+FULL_MANAGER_TESTS=1115 passed, 1 skipped, 5 subtests passed
+```
+
+The first full-suite run in the restricted workspace reported four
+`PermissionError: Operation not permitted` failures at local TCP/UDP loopback
+socket bind points. An otherwise identical run with local loopback binding
+permitted passed the complete suite. These were sandbox false failures, not
+source regressions; no source change was made in response.
+
+KF-044 remains OPEN until a separately authorized live successor proves the
+gate on a fresh pending identity and completes E2E. The expired F3:50 physical
+authorization remains non-replayable.

@@ -247,6 +247,34 @@ def test_fc4_archive_manifest_is_public_safe_and_machine_checkable() -> None:
         assert evidence["mode"] == "0600"
         assert evidence["secret_values_included_in_public_binding"] is False
 
+    ttl_guard = document["kf044_source_ttl_margin_gate"]
+    assert ttl_guard["authorization_claimed"] is True
+    assert ttl_guard["authorization_consumed"] is True
+    assert ttl_guard["entry_point"] == (
+        "greenhouse-manager-n3w-setup-secret-delivery-gate"
+    )
+    assert ttl_guard["phases"] == ["pretransfer", "predelivery"]
+    assert ttl_guard["registration_database_read_only"] is True
+    assert ttl_guard["current_registration_binding_required"] is True
+    assert ttl_guard["exact_pairing_hash_binding_required"] is True
+    assert ttl_guard["explicit_minimum_remaining_seconds_required"] is True
+    assert ttl_guard["predelivery_uid_gid_binding_required"] is True
+    assert ttl_guard["pairing_id_raw_exposed"] is False
+    assert ttl_guard["setup_secret_exposed"] is False
+    assert ttl_guard["full_manager_validation"] == {
+        "passed": 1115,
+        "skipped": 1,
+        "subtests_passed": 5,
+        "failure": 0,
+        "restricted_sandbox_loopback_bind_false_failures": 4,
+        "unrestricted_loopback_rerun": "PASS",
+    }
+    assert ttl_guard["source_guard_status"] == "PASS"
+    assert ttl_guard["live_acceptance_status"] == "PENDING_NEW_AUTHORIZATION"
+    assert ttl_guard["t1_access"] is False
+    assert ttl_guard["board_access"] is False
+    assert ttl_guard["private_handoff_delivered"] is False
+
     artifacts = document["private_local_artifacts"]
     assert len(artifacts) == 6
     assert all(SHA256.fullmatch(item["sha256"]) for item in artifacts)

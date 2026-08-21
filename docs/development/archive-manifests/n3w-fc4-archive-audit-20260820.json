@@ -612,6 +612,45 @@
       "new_pairing_identity_required": true
     }
   },
+  "kf044_source_ttl_margin_gate": {
+    "authorization": "D1-N3W-FC4-F350-KF044-PENDING-TTL-MARGIN-GATE-SOURCE-IMPLEMENTATION-TEST-AND-GITHUB-PUSH-20260821-01",
+    "authorization_claimed": true,
+    "authorization_consumed": true,
+    "scope": "SOURCE_IMPLEMENTATION_TEST_AND_GITHUB_PUSH",
+    "source_base_head": "ec39d36d29d156b2f855118e461f7784f67528b7",
+    "entry_point": "greenhouse-manager-n3w-setup-secret-delivery-gate",
+    "phases": [
+      "pretransfer",
+      "predelivery"
+    ],
+    "registration_database_read_only": true,
+    "current_registration_binding_required": true,
+    "exact_hardware_binding_required": true,
+    "exact_pairing_hash_binding_required": true,
+    "explicit_minimum_remaining_seconds_required": true,
+    "predelivery_mode_0600_required": true,
+    "predelivery_uid_gid_binding_required": true,
+    "predelivery_handoff_schema_and_identity_binding_required": true,
+    "pairing_id_raw_exposed": false,
+    "setup_secret_exposed": false,
+    "targeted_and_related_test_count": 36,
+    "full_manager_validation": {
+      "passed": 1115,
+      "skipped": 1,
+      "subtests_passed": 5,
+      "failure": 0,
+      "restricted_sandbox_loopback_bind_false_failures": 4,
+      "unrestricted_loopback_rerun": "PASS"
+    },
+    "source_guard_status": "PASS",
+    "live_acceptance_status": "PENDING_NEW_AUTHORIZATION",
+    "t1_access": false,
+    "t1_mutated": false,
+    "board_access": false,
+    "serial_access": false,
+    "flash_mutated": false,
+    "private_handoff_delivered": false
+  },
   "private_local_artifacts": [
     {
       "id": "legacy-board-readback-01",
