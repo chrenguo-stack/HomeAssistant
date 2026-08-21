@@ -986,6 +986,19 @@
     "kf044_status": "OPEN",
     "next_gate": "ARCHIVE_REMOTE_EXACT_THEN_RESET_AND_CONNECT_EXACT_SETUP_SSID"
   },
+  "f350_kf046_saved_wifi_continuity_correction": {
+    "scoped_pairing_nvs_erase": "PASS",
+    "saved_wifi_credential_continuity": true,
+    "wifi_sta_ssid": "OrayBox-6806",
+    "wifi_sta_connected": true,
+    "fallback_ap_expected": false,
+    "operator_wifi_configuration_required": false,
+    "secret_value_exposed": false,
+    "supersedes_operator_wifi_gate_assumption": true,
+    "fresh_handoff_remains_valid": true,
+    "next_gate": "FORMAL_PRETRANSFER_TTL_GATE",
+    "kf046_status": "OPEN"
+  },
   "private_local_artifacts": [
     {
       "id": "legacy-board-readback-01",

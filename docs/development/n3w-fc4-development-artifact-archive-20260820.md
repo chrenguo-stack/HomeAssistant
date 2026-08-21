@@ -651,3 +651,27 @@ NEXT_GATE=ARCHIVE_REMOTE_EXACT_THEN_RESET_AND_CONNECT_EXACT_SETUP_SSID
 KF-044 remains OPEN. No private transfer may start until a fresh exact pending
 session exists and the formal pre-transfer TTL gate passes with sufficient
 margin.
+
+### KF-046 live correction: saved STA continuity
+
+A second strict Wi-Fi-only serial observation corrected the setup-AP
+assumption. F3:50 loaded Wi-Fi state outside the scoped product pairing-NVS
+reset and connected successfully to the saved `OrayBox-6806` STA. ESPHome
+therefore correctly did not broadcast its fallback AP. The operator does not
+need to configure Wi-Fi again.
+
+```text
+SCOPED_PAIRING_NVS_ERASE=PASS
+SAVED_WIFI_CREDENTIAL_CONTINUITY=true
+WIFI_STA_SSID=OrayBox-6806
+WIFI_STA_CONNECTED=true
+FALLBACK_AP_EXPECTED=false
+WIFI_CONFIGURATION_REQUIRED=false
+SECRET_VALUE_EXPOSED=false
+NEXT_GATE=FORMAL_PRETRANSFER_TTL_GATE
+```
+
+The corrected guard is: prove STA state first; only instruct fallback AP setup
+when the board is actually disconnected and the exact fallback start marker is
+observed. This result supersedes the earlier operator-Wi-Fi gate assumption but
+does not invalidate the fresh handoff.
