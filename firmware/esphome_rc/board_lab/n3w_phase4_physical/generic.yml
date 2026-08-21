@@ -68,25 +68,20 @@ interval:
   # Role-neutral synthetic telemetry is intentionally confined to this lab target.
   # It exercises the real Direct -> Discovery -> RelayActive -> Direct state machine
   # without introducing a factory NODE_ID, SYSTEM_ID, peer MAC, LMK, or site secret.
+  # boot_id and seq are allocated by the product component from its durable monotonic
+  # boot-session state. The harness must never synthesize or randomize those values.
   - interval: 5s
     then:
       - lambda: |-
           if (!id(n3w_phase4_core).runtime_ready()) return;
 
-          static std::string boot_id;
-          static uint32_t seq = 0;
-          if (boot_id.empty()) {
-            std::array<uint8_t, 8> random_boot{};
-            if (!id(n3w_phase4_core).fill(random_boot.data(), random_boot.size())) return;
-            static constexpr char kHex[] = "0123456789abcdef";
-            boot_id = "boot_";
-            for (const uint8_t value : random_boot) {
-              boot_id.push_back(kHex[(value >> 4U) & 0x0fU]);
-              boot_id.push_back(kHex[value & 0x0fU]);
-            }
+          std::string boot_id;
+          uint32_t current_seq = 0;
+          if (!id(n3w_phase4_core).take_telemetry_identity(
+                  &boot_id, &current_seq)) {
+            return;
           }
 
-          const uint32_t current_seq = ++seq;
           const uint64_t uptime_ms = static_cast<uint64_t>(millis());
           const auto path_before = id(n3w_phase4_core).path_state();
           const std::string telemetry =
