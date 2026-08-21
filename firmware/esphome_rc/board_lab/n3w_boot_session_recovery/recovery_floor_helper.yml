@@ -1,0 +1,53 @@
+substitutions:
+  recovery_floor_hex: "0000000000000000"
+
+esphome:
+  name: gh-n3w-boot-recovery
+  friendly_name: Greenhouse N3-W Boot Session Recovery Helper
+  min_version: 2026.4.3
+  on_boot:
+    priority: -200.0
+    then:
+      - lambda: |-
+          constexpr uint64_t kRecoveryFloor = 0x${recovery_floor_hex}ULL;
+          if (kRecoveryFloor == 0ULL) {
+            ESP_LOGE(
+                "n3w_boot_recovery",
+                "Recovery floor unset; no write executed");
+            return;
+          }
+
+          const bool recovered =
+              id(n3w_boot_recovery_core)
+                  .provision_boot_session_recovery_floor(kRecoveryFloor);
+
+          ESP_LOGI(
+              "n3w_boot_recovery",
+              "BSR_RECOVERY_FLOOR_WRITE=%s",
+              recovered ? "PASS" : "FAIL");
+
+esp32:
+  board: esp32-c6-devkitm-1
+  variant: ESP32C6
+  flash_size: 8MB
+  framework:
+    type: esp-idf
+    advanced:
+      include_builtin_idf_components:
+        - nvs_flash
+
+logger:
+  level: INFO
+  hardware_uart: USB_SERIAL_JTAG
+
+external_components:
+  - source:
+      type: local
+      path: ../../components
+    components:
+      - greenhouse_n3w_core
+
+greenhouse_n3w_core:
+  id: n3w_boot_recovery_core
+  phase4_source_harness: false
+  phase4_product_runtime: false
