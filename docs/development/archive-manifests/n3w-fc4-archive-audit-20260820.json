@@ -940,6 +940,52 @@
     "next_gate": "OPERATOR_WIFI_CONFIGURATION_THEN_SECRET_SAFE_CAPTURE_AND_TTL_GATED_DELIVERY",
     "kf044_status": "OPEN"
   },
+  "f350_new_pairing_handoff_and_kf046_diagnosis": {
+    "hardware_id": "ghw-c6-98a316a9f350",
+    "hardware_id_sha256": "f1f1e36fe4784a26b936d6a2bc5d239ab531f5683aca91356a5e39f3f566b1eb",
+    "pairing_id_sha256": "480a6813f0342528a5c8ae91f7086e84e8ad1a73105ce0363bd10406da0cf526",
+    "different_from_expired_pairing_id": true,
+    "setup_secret_encoded_length": 43,
+    "setup_secret_exposed": false,
+    "old_expired_handoff_adopted": false,
+    "private_handoff_delivered": false,
+    "setup_ap_ssid": "Greenhouse N3-W Setup",
+    "setup_ap_timeout_seconds": 90,
+    "setup_ap_contains_board_suffix": false,
+    "controlled_tool_transcript_raw_pairing_id_line": true,
+    "raw_pairing_id_written_to_evidence_file": false,
+    "raw_pairing_id_written_to_repository": false,
+    "raw_pairing_id_pushed_to_github": false,
+    "private_evidence": [
+      {
+        "id": "f350-new-pairing-observation",
+        "path_class": "approved-local-private-evidence/sanitized-pairing-observation",
+        "sha256": "bd1539678e48e04a975dd2c9b5b712eecafcd0876901a84b20e47bd0ffb581aa",
+        "size": 247,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "f350-new-setup-secret-handoff",
+        "path_class": "approved-local-private-evidence/setup-secret-handoff",
+        "sha256": "68caeb775c45e8652e706a8b814d9de54a60e5779a440708f089742f02d688f3",
+        "size": 192,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "f350-new-handoff-capture-result",
+        "path_class": "approved-local-private-evidence/sanitized-capture-result",
+        "sha256": "40726f07e4517ab87e1884c633f37bb6e0b839d09c9c6732b09fc3c7e3e39580",
+        "size": 338,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      }
+    ],
+    "kf046_status": "OPEN",
+    "kf044_status": "OPEN",
+    "next_gate": "ARCHIVE_REMOTE_EXACT_THEN_RESET_AND_CONNECT_EXACT_SETUP_SSID"
+  },
   "private_local_artifacts": [
     {
       "id": "legacy-board-readback-01",

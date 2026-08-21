@@ -612,3 +612,42 @@ NEXT_GATE=OPERATOR_WIFI_CONFIGURATION_THEN_SECRET_SAFE_CAPTURE
 This closes the scoped NVS-reset sub-boundary. KF-044 remains OPEN until a new
 identity is captured, passes the formal pre-transfer and pre-delivery TTL
 gates, and completes the final-product E2E.
+
+## F3:50 fresh handoff capture and setup-AP identity diagnosis
+
+A normal board reset proved the application healthy and produced a fresh local
+pairing identity for `ghw-c6-98a316a9f350`. The formal capture entry point then
+rebound the hardware and pairing hashes and exclusively created a mode-0600
+private handoff. The new pairing hash differs from the expired tombstone; no
+old handoff was adopted or delivered.
+
+The generated exact firmware source explains why the operator did not find a
+Wi-Fi network named after F3:50: this image configures the generic fallback SSID
+`Greenhouse N3-W Setup` and an AP timeout of 90 seconds. The board identifier is
+not part of that SSID. This discovery and the diagnostic redaction gap are
+recorded as KF-046.
+
+During diagnosis, a filter that redacted `GHN3W2` payload lines still admitted
+one ordinary status line containing the raw pairing ID into the controlled tool
+transcript. It was not written to an evidence file, repository or GitHub, and
+the setup secret was not exposed. Subsequent filters must reject the complete
+line on either payload or `pairing_id=` markers and emit only hashes/lengths.
+
+```text
+PAIRING_PAYLOAD_OBSERVED=true
+HARDWARE_ID_SHA256=f1f1e36fe4784a26b936d6a2bc5d239ab531f5683aca91356a5e39f3f566b1eb
+PAIRING_ID_SHA256=480a6813f0342528a5c8ae91f7086e84e8ad1a73105ce0363bd10406da0cf526
+PAIRING_ID_DIFFERS_FROM_EXPIRED=true
+SETUP_SECRET_LENGTH=43
+PRIVATE_HANDOFF_SHA256=68caeb775c45e8652e706a8b814d9de54a60e5779a440708f089742f02d688f3
+PRIVATE_HANDOFF_MODE=0600
+SECRET_VALUE_EXPOSED=false
+SETUP_AP_SSID=Greenhouse N3-W Setup
+SETUP_AP_TIMEOUT_SECONDS=90
+KF046_STATUS=OPEN
+NEXT_GATE=ARCHIVE_REMOTE_EXACT_THEN_RESET_AND_CONNECT_EXACT_SETUP_SSID
+```
+
+KF-044 remains OPEN. No private transfer may start until a fresh exact pending
+session exists and the formal pre-transfer TTL gate passes with sufficient
+margin.
