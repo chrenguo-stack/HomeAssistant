@@ -105,10 +105,12 @@ def test_generic_phase4_target_is_role_neutral_and_first_use_ready() -> None:
 def test_phase4_lab_target_exposes_private_pairing_pop_and_synthetic_telemetry() -> None:
     config = text(LAB / "generic.yml")
     component = text(CORE / "n3w_simple_product_component.h")
+    core = text(CORE / "greenhouse_n3w_core.h")
 
     assert "PHASE4_PAIRING_QR_PAYLOAD=%s" in config
     assert "pairing_qr_payload()" in config
     assert "runtime_ready()" in config
+    assert "take_telemetry_identity" in config
     assert "send_telemetry_json" in config
     assert "PHASE4_LAB_TELEMETRY" in config
     assert "phase4_lab" in config
@@ -117,7 +119,12 @@ def test_phase4_lab_target_exposes_private_pairing_pop_and_synthetic_telemetry()
     assert "measurements" in config
     assert "quality" in config
     assert "power" in config
-    assert "std::array<uint8_t, 8> random_boot" in config
+    assert "std::array<uint8_t, 8> random_boot" not in config
+    assert "static uint32_t seq" not in config
+    assert "NvsBootSessionStore boot_session_store_{};" in core
+    assert "BootSessionManager boot_session_manager_{};" in core
+    assert "provision_recovery_floor" in core
+    assert "fresh_identity_candidate_" in core
     assert "id(n3w_phase4_core).node_id()" in config
     assert "const std::string &node_id() const { return peer_state_.node_id; }" in component
 
