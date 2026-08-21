@@ -19,7 +19,7 @@ esphome:
 
           const bool recovered =
               id(n3w_boot_recovery_core)
-                  .provision_boot_session_recovery_floor(kRecoveryFloor);
+                  ->provision_boot_session_recovery_floor(kRecoveryFloor);
 
           ESP_LOGI(
               "n3w_boot_recovery",
