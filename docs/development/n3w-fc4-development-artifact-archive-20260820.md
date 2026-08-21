@@ -568,3 +568,47 @@ This live result closes KF-045 as GUARDED. The consumed authorization may
 continue only from its already-approved post-recovery board boundary; it must
 not invoke recovery again. KF-044 remains open until a fresh pairing identity
 passes both TTL delivery gates and completes E2E.
+
+## F3:50 scoped NVS reset and Wi-Fi handoff gate
+
+The same consumed successor continued only from its approved post-recovery
+board boundary. USB serial `98:A3:16:A9:F3:50`, base MAC
+`98:a3:16:a9:f3:50`, application image and partition-table hashes were rebound
+before mutation. Flash verification proved the installed application still
+matches the bound FC4 image.
+
+The executor captured a private mode-0600 backup, erased only the calculated
+NVS range `0x790000+0x70000`, held the chip in the bootloader, and read the
+entire range back before application startup. All 458,752 read-back bytes were
+`0xFF`; only then was the application hard-reset. No bootloader, partition
+table, OTA metadata or application region was written.
+
+The first 25-second pairing observation correctly produced no payload. NVS
+reset also removed the operator Wi-Fi configuration, so the board has not yet
+reached the network-dependent fresh-pairing phase. No observation file, setup
+secret handoff or capture result was created. The boundary stops at the
+operator Wi-Fi configuration gate; the old expired handoff remains forbidden.
+
+```text
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+RECOVERY_REPLAYED=false
+USB_IDENTITY=98:A3:16:A9:F3:50
+BASE_MAC=98:a3:16:a9:f3:50
+APPLICATION_FLASH_VERIFY=PASS
+SCOPED_NVS_RANGE=0x790000+0x70000
+NVS_BACKUP_SIZE=458752
+NVS_BACKUP_NON_FF_BYTES=3320
+NVS_ERASED_PREBOOT_READBACK_SIZE=458752
+NVS_ERASED_PREBOOT_NON_FF_BYTES=0
+SCOPED_NVS_ERASE_PREBOOT_ORACLE=PASS
+APPLICATION_FLASH_REWRITE=false
+FULL_FLASH_ERASE=false
+NEW_PAIRING_PAYLOAD_OBSERVED=false
+NEW_PRIVATE_HANDOFF_CREATED=false
+NEXT_GATE=OPERATOR_WIFI_CONFIGURATION_THEN_SECRET_SAFE_CAPTURE
+```
+
+This closes the scoped NVS-reset sub-boundary. KF-044 remains OPEN until a new
+identity is captured, passes the formal pre-transfer and pre-delivery TTL
+gates, and completes the final-product E2E.

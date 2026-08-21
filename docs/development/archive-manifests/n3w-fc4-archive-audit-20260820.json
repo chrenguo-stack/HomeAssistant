@@ -893,6 +893,53 @@
       "ttl_gated_delivery_required": true
     }
   },
+  "f350_scoped_nvs_reset_wifi_gate": {
+    "authorization": "D1-N3W-FC4-F350-KF045-SUCCESSOR-ADOPT-UNCHANGED-DB-AND-EVIDENCE-EXACT-HOST-PATH-RECOVERY-NEW-PAIRING-IDENTITY-TTL-GATED-HANDOFF-AND-RESUME-E2E-20260821-01",
+    "authorization_claimed": true,
+    "authorization_consumed": true,
+    "authorization_replay_permitted": false,
+    "recovery_replayed": false,
+    "usb_serial": "98:A3:16:A9:F3:50",
+    "base_mac": "98:a3:16:a9:f3:50",
+    "hardware_id": "ghw-c6-98a316a9f350",
+    "application_sha256": "95e177042fd15cb0e4b4aef762adf37811c736d34579e480f534ffbe5ee14a7a",
+    "partition_table_sha256": "6664b08a14a9cdc170e322823db29fbe485d87db9c4ec42759d9372028953dca",
+    "application_flash_verify": "PASS",
+    "scoped_nvs_offset": "0x790000",
+    "scoped_nvs_size": "0x70000",
+    "scoped_nvs_size_bytes": 458752,
+    "backup_non_ff_bytes": 3320,
+    "erased_preboot_non_ff_bytes": 0,
+    "scoped_nvs_erase_preboot_oracle": "PASS",
+    "application_flash_rewrite": false,
+    "full_flash_erase": false,
+    "new_pairing_payload_observed": false,
+    "new_pairing_observation_created": false,
+    "new_private_handoff_created": false,
+    "capture_result_created": false,
+    "old_expired_handoff_delivery_permitted": false,
+    "private_evidence": [
+      {
+        "id": "f350-nvs-before-scoped-erase",
+        "path_class": "approved-local-private-evidence/nvs-backup",
+        "sha256": "7cc908849041ee02cece27c95132aad2a4c1ece33952876717bf09359c814eeb",
+        "size": 458752,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "f350-nvs-erased-preboot-readback",
+        "path_class": "approved-local-private-evidence/nvs-erased-readback",
+        "sha256": "6c28586364462df0ca5704154d2962e6d2a714a2443388b2a97220269188dcac",
+        "size": 458752,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      }
+    ],
+    "terminal": "CONSUMED_PARTIAL_SUCCESS_STOPPED_AT_OPERATOR_WIFI_CONFIGURATION_GATE",
+    "next_gate": "OPERATOR_WIFI_CONFIGURATION_THEN_SECRET_SAFE_CAPTURE_AND_TTL_GATED_DELIVERY",
+    "kf044_status": "OPEN"
+  },
   "private_local_artifacts": [
     {
       "id": "legacy-board-readback-01",
