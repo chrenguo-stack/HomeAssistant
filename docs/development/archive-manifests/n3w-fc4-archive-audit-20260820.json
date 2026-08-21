@@ -1358,5 +1358,39 @@
     "pr_created_by_repair_push": false,
     "merge_executed_by_repair_push": false,
     "post_commit_metadata_policy": "record the already-pushed repair commit and remote binding only; do not self-report commit/push state of this metadata follow-up"
+  },
+  "current_exact_manual_source_validation_20260821": {
+    "branch": "docs/n3w-fc4-development-artifact-archive-20260821",
+    "exact_head": "ea857c0034ff63067bc307f947582351faf0ca60",
+    "exact_tree": "6e3595259e338e2c4be5db9f4c8cdd833f5b490f",
+    "validation_mode": "MANUAL_TERMINAL_SOURCE_ONLY",
+    "targeted_regression": {
+      "status": "PASS",
+      "passed": 40
+    },
+    "manager_full": {
+      "status": "PASS",
+      "passed": 1127,
+      "skipped": 1,
+      "subtests_passed": 5
+    },
+    "n3w_regression": {
+      "status": "PASS",
+      "passed": 30
+    },
+    "public_repository_safety": "PASS",
+    "ruff": "PASS",
+    "git_diff_check": "PASS",
+    "worktree_clean_after_validation": true,
+    "index_clean_after_validation": true,
+    "kf049_status": "GUARDED",
+    "kf048_status": "OPEN_UNCHANGED",
+    "kf048_source_implementation_started": false,
+    "physical_authorization_active": false,
+    "t1_access": false,
+    "board_access": false,
+    "serial_access": false,
+    "physical_mutation": false,
+    "archive_status": "RECORDED_PENDING_GIT_ARCHIVE"
   }
 }

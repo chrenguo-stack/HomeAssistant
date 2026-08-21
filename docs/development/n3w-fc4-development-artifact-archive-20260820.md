@@ -881,3 +881,27 @@ KF-049 is therefore guarded and remotely archived. This post-commit metadata
 correction intentionally records only that already-completed repair/push and
 does not claim its own commit or push state, avoiding recursive stale
 bookkeeping.
+
+## Current exact-head manual source validation
+
+After KF-049 repair and post-commit metadata closure were remotely archived, the branch was rebound to exact HEAD `ea857c0034ff63067bc307f947582351faf0ca60` with tree `6e3595259e338e2c4be5db9f4c8cdd833f5b490f`.
+
+The current exact source was then revalidated through independent manual Terminal gates:
+
+```text
+CURRENT_EXACT_TARGETED=PASS
+TARGETED_RESULT=40 passed
+CURRENT_EXACT_MANAGER_FULL=PASS
+MANAGER_FULL_RESULT=1127 passed, 1 skipped, 5 subtests passed
+CURRENT_EXACT_N3W_REGRESSION=PASS
+N3W_REGRESSION_RESULT=30 passed
+CURRENT_EXACT_PUBLIC_REPOSITORY_SAFETY=PASS
+CURRENT_EXACT_RUFF=PASS
+CURRENT_EXACT_GIT_DIFF_CHECK=PASS
+CURRENT_EXACT_WORKTREE_CLEAN=true
+CURRENT_EXACT_INDEX_CLEAN=true
+```
+
+These are source-only validation results. They did not access T1, a board, USB or serial and did not perform Flash, reset, NVS, registration, credential, Broker, Manager, Home Assistant or other physical/runtime mutation.
+
+This validation does not close KF-048. KF-048 remains OPEN, its source implementation has not started, and there is no active physical authorization. This entry prevents the current exact-head validation results from remaining solely in Terminal/Chat history.
