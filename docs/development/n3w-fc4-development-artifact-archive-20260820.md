@@ -711,3 +711,47 @@ close all preparatory archive work, and pre-arm a single executor that performs
 pending observation, both formal TTL gates, private transfer and atomic delivery
 within the active window. The existing recovery and NVS operations must not be
 replayed under the consumed authorization.
+
+## KF-047 successor stopped before database mutation
+
+The next approved successor passed source/archive, USB, Flash, Manager image,
+second expired tombstone and fresh-namespace preclaims, then claimed and
+consumed its authorization. It stopped Manager, captured a mode-0600 inspect
+document and both database backups, and attempted the formal recovery module in
+the exact product image.
+
+The product image has `ENTRYPOINT=greenhouse-manager`. Because the invocation
+did not override it, the appended `python -m ...` tokens were passed to the
+product CLI, which rejected them as unrecognized arguments with exit 2. The
+recovery module never started. The empty result was rejected before parsing;
+Manager was restarted by the failure path.
+
+Read-only classification proves both live databases exactly equal their
+pre-mutation backups, the second `expired/expired` current tombstone remains,
+Manager is running with zero restarts, and no board or handoff operation began.
+
+```text
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+AUTHORIZATION_REPLAY_PERMITTED=false
+RECOVERY_EXECUTOR_RC=2
+RECOVERY_RESULT_SIZE=0
+FAIL_STAGE=EXACT_IMAGE_ONE_SHOT_ENTRYPOINT_BINDING
+REGISTRATION_SHA256_BEFORE=3b54e11081a5db0ccd638120b687136a639b4d8ab6adb8f157065e886616591c
+REGISTRATION_SHA256_AFTER=3b54e11081a5db0ccd638120b687136a639b4d8ab6adb8f157065e886616591c
+CREDENTIAL_SHA256_BEFORE=25840bf73043640867a75eedc06e782231569b9c22f4c3b80efe591eff3ed50e
+CREDENTIAL_SHA256_AFTER=25840bf73043640867a75eedc06e782231569b9c22f4c3b80efe591eff3ed50e
+DATABASE_MUTATION=false
+SECOND_EXPIRED_TOMBSTONE_PRESERVED=true
+MANAGER_RUNNING=true
+MANAGER_RESTART_COUNT=0
+BOARD_ACCESS=false
+NVS_ERASE=false
+PRIVATE_HANDOFF_TRANSFER=false
+TERMINAL=CONSUMED_FAILED_BEFORE_DATABASE_MUTATION
+```
+
+KF-047 requires a source/regression boundary before another live successor:
+explicitly bind the one-shot entrypoint and prove the constructed exact-image
+command before service stop. KF-044 remains OPEN and no active TTL window was
+started in this failed authorization.

@@ -1019,6 +1019,83 @@
     "kf044_status": "OPEN",
     "next_gate": "NEW_SUCCESSOR_ADOPT_TOMBSTONE_PREARM_ATOMIC_TTL_DELIVERY_EXECUTOR"
   },
+  "kf047_exact_image_entrypoint_consumed_failure": {
+    "authorization": "D1-N3W-FC4-F350-KF044-SUCCESSOR-ADOPT-SECOND-EXPIRED-TOMBSTONE-PREARM-RECOVERY-SCOPED-NVS-NEW-IDENTITY-ATOMIC-TTL-DELIVERY-AND-RESUME-E2E-20260821-01",
+    "authorization_claimed": true,
+    "authorization_consumed": true,
+    "authorization_replay_permitted": false,
+    "failure_stage": "EXACT_IMAGE_ONE_SHOT_ENTRYPOINT_BINDING",
+    "manager_image_id": "sha256:871e45beee9862198616e87818f55a357a4c66ad5cbe3449a5948ca1e4ea4086",
+    "manager_image_tag": "local/greenhouse-manager:fc4-3bd3f073",
+    "inherited_entrypoint": "greenhouse-manager",
+    "required_entrypoint_override": "python",
+    "recovery_executor_rc": 2,
+    "recovery_result_size": 0,
+    "registration_sha256_before": "3b54e11081a5db0ccd638120b687136a639b4d8ab6adb8f157065e886616591c",
+    "registration_sha256_after": "3b54e11081a5db0ccd638120b687136a639b4d8ab6adb8f157065e886616591c",
+    "credential_sha256_before": "25840bf73043640867a75eedc06e782231569b9c22f4c3b80efe591eff3ed50e",
+    "credential_sha256_after": "25840bf73043640867a75eedc06e782231569b9c22f4c3b80efe591eff3ed50e",
+    "database_mutated": false,
+    "second_expired_tombstone_preserved": true,
+    "manager_running": true,
+    "manager_restart_count": 0,
+    "board_access": false,
+    "nvs_erased": false,
+    "private_handoff_transferred": false,
+    "private_evidence": [
+      {
+        "id": "kf047-local-authorization-claim",
+        "path_class": "approved-local-private-evidence/authorization-claim",
+        "sha256": "fe51fb73e25d213509bdd4bdfaac7445b8c746f89ea377e982bf8818ce3f4667",
+        "size": 555,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf047-manager-stopped-inspect",
+        "path_class": "t1-private-evidence/container-inspect",
+        "sha256": "dd40f83d9a64ee37b7353570d9662ed0c4d7c99212aee949ffc0ac19418d750e",
+        "size": 11507,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf047-registration-before-recovery",
+        "path_class": "t1-private-evidence/database-backup",
+        "sha256": "3b54e11081a5db0ccd638120b687136a639b4d8ab6adb8f157065e886616591c",
+        "size": 86016,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf047-credential-before-recovery",
+        "path_class": "t1-private-evidence/database-backup",
+        "sha256": "25840bf73043640867a75eedc06e782231569b9c22f4c3b80efe591eff3ed50e",
+        "size": 28672,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf047-recovery-error",
+        "path_class": "t1-private-evidence/executor-error",
+        "sha256": "e5ef44178cd560cea92247e5ae965955b8db6235fcaef2c41298c8edc9b3df5d",
+        "size": 1022,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf047-postfail-closure",
+        "path_class": "approved-local-private-evidence/postfail-closure",
+        "sha256": "c38073f7159ac989bbd241f9fa94bec586fabd9bb782b538ca3ca968870fc6c6",
+        "size": 834,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      }
+    ],
+    "terminal": "CONSUMED_FAILED_BEFORE_DATABASE_MUTATION",
+    "kf047_status": "OPEN",
+    "next_gate": "SOURCE_REGRESSION_EXPLICIT_ONE_SHOT_ENTRYPOINT_THEN_NEW_LIVE_SUCCESSOR"
+  },
   "private_local_artifacts": [
     {
       "id": "legacy-board-readback-01",
