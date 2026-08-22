@@ -13,7 +13,6 @@ from .registration import (
     RegistrationConflict,
     RegistrationRegistry,
     RegistrationState,
-    _timestamp,
     _utc,
 )
 
