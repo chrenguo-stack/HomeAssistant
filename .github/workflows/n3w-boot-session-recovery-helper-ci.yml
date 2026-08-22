@@ -37,16 +37,24 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          helper='firmware/esphome_rc/board_lab/n3w_boot_session_recovery/recovery_floor_helper.yml'
-          if grep -n -E \
-            '^[[:space:]]*(wifi|mqtt|api|ota|captive_portal|web_server):|esphome run|pio run .*upload|esptool' \
-            "$helper"; then
-            echo 'Recovery helper must remain network-free and compile-only in CI'
-            exit 1
-          fi
-          grep -F 'recovery_floor_hex: "0000000000000000"' "$helper"
-          grep -F 'phase4_source_harness: false' "$helper"
-          grep -F 'phase4_product_runtime: false' "$helper"
+          helpers=(
+            'firmware/esphome_rc/board_lab/n3w_boot_session_recovery/recovery_floor_helper.yml'
+            'firmware/esphome_rc/board_lab/n3w_boot_session_recovery/pairing_epoch_successor_helper.yml'
+          )
+          for helper in "${helpers[@]}"; do
+            if grep -n -E \
+              '^[[:space:]]*(wifi|mqtt|api|ota|captive_portal|web_server):|esphome run|pio run .*upload|esptool' \
+              "$helper"; then
+              echo "Recovery helper must remain network-free and compile-only in CI: $helper"
+              exit 1
+            fi
+            grep -F 'recovery_floor_hex: "0000000000000000"' "$helper"
+            grep -F 'phase4_source_harness: false' "$helper"
+            grep -F 'phase4_product_runtime: false' "$helper"
+          done
+          grep -F 'repair_pairing_epoch: "0"' "${helpers[0]}"
+          grep -F 'current_pairing_epoch: "0"' "${helpers[1]}"
+          grep -F 'successor_pairing_epoch: "0"' "${helpers[1]}"
 
   esp32-c6-compile:
     needs: source-contract
@@ -63,12 +71,16 @@ jobs:
       - name: Install frozen ESPHome
         run: python -m pip install --upgrade 'esphome==2026.4.3'
 
-      - name: Validate default-noop recovery helper
+      - name: Validate default-noop recovery helpers
         run: |
           esphome config \
             firmware/esphome_rc/board_lab/n3w_boot_session_recovery/recovery_floor_helper.yml
+          esphome config \
+            firmware/esphome_rc/board_lab/n3w_boot_session_recovery/pairing_epoch_successor_helper.yml
 
-      - name: Compile default-noop recovery helper
+      - name: Compile default-noop recovery helpers
         run: |
           esphome compile \
             firmware/esphome_rc/board_lab/n3w_boot_session_recovery/recovery_floor_helper.yml
+          esphome compile \
+            firmware/esphome_rc/board_lab/n3w_boot_session_recovery/pairing_epoch_successor_helper.yml
