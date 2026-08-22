@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Protocol
 
 from .credential_lifecycle import CredentialLifecycleStore, CredentialState
+from .n3w_pairing_recovery import stage_pairing_epoch_key
 from .pairing_service import (
     CredentialBundle,
     PairingProvisioningError,
@@ -82,19 +83,35 @@ class ManagedProductCredentialIssuer:
         node_id: str,
         credential_generation: int,
     ) -> ProductCredentialMaterial:
+        if (
+            not isinstance(credential_generation, int)
+            or isinstance(credential_generation, bool)
+            or credential_generation < 1
+        ):
+            raise PairingProvisioningError(
+                "product credential generation is invalid"
+            )
         application_key = self.random_bytes(32)
         if len(application_key) != 32:
             raise PairingProvisioningError("product application-key generator returned invalid length")
         try:
-            result = self.application_keys.stage_key(
+            result = stage_pairing_epoch_key(
+                self.application_keys,
                 node_id=node_id,
                 key_material=application_key,
+                target_key_epoch=credential_generation,
             )
         except Exception as error:
             raise PairingProvisioningError("product application-key staging failed") from error
         key_epoch = result.get("key_epoch")
-        if not isinstance(key_epoch, int) or isinstance(key_epoch, bool) or key_epoch < 1:
-            raise PairingProvisioningError("product application-key staging returned invalid epoch")
+        if (
+            not isinstance(key_epoch, int)
+            or isinstance(key_epoch, bool)
+            or key_epoch != credential_generation
+        ):
+            raise PairingProvisioningError(
+                "product application-key epoch does not match credential generation"
+            )
         return ProductCredentialMaterial(
             hardware_id=hardware_id,
             pairing_id=pairing_id,
