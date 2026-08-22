@@ -12,6 +12,7 @@ from enum import StrEnum
 from typing import Protocol
 
 from .n3w_auto_node_id import AutomaticNodeIdApprover
+from .n3w_pairing_recovery import rollback_automatic_approval_preserving_node
 from .n3w_simple_pairing_crypto import (
     PairingTranscript,
     build_setup_proof,
@@ -128,6 +129,7 @@ class _Session:
     expires_at: datetime
     state: SimplifiedPairingState = SimplifiedPairingState.OPEN
     node_id: str | None = None
+    inherited_node_id: str | None = None
     staged: StagedSimplifiedBundle | None = None
     delivery_digest: bytes | None = None
     issued_credentials: SimplifiedEncryptedCredentials | None = None
@@ -290,6 +292,10 @@ class SimplifiedPairingCoordinator:
                     raise SimplifiedPairingError("issued_credentials_missing")
                 return session.issued_credentials
 
+            pre_approval = self.registry.get(
+                session.hardware_id
+            )
+            session.inherited_node_id = pre_approval.node_id
             approved = self.approver.approve(
                 session.hardware_id,
                 session.pairing_id,
@@ -582,21 +588,36 @@ class SimplifiedPairingCoordinator:
                 "registration_rollback_binding_failed"
             )
 
-        if (
-            record.state
-            is RegistrationState.PENDING
-            and record.node_id is None
+        if record.state is RegistrationState.PENDING and (
+            (
+                session.inherited_node_id is None
+                and record.node_id is None
+            )
+            or (
+                session.inherited_node_id is not None
+                and record.node_id == session.inherited_node_id
+            )
         ):
             session.node_id = None
             return
 
         try:
-            self.registry.rollback_automatic_approval(
-                session.hardware_id,
-                session.pairing_id,
-                reason=reason,
-                now=now,
-            )
+            if session.inherited_node_id is not None:
+                rollback_automatic_approval_preserving_node(
+                    self.registry,
+                    session.hardware_id,
+                    session.pairing_id,
+                    preserve_node_id=session.inherited_node_id,
+                    reason=reason,
+                    now=now,
+                )
+            else:
+                self.registry.rollback_automatic_approval(
+                    session.hardware_id,
+                    session.pairing_id,
+                    reason=reason,
+                    now=now,
+                )
         except Exception as error:
             raise SimplifiedPairingError(
                 "registration_rollback_failed"
