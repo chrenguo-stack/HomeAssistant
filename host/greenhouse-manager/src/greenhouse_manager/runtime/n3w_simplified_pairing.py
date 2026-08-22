@@ -588,16 +588,18 @@ class SimplifiedPairingCoordinator:
                 "registration_rollback_binding_failed"
             )
 
-        if record.state is RegistrationState.PENDING:
-            if (
+        if record.state is RegistrationState.PENDING and (
+            (
                 session.inherited_node_id is None
                 and record.node_id is None
-            ) or (
+            )
+            or (
                 session.inherited_node_id is not None
                 and record.node_id == session.inherited_node_id
-            ):
-                session.node_id = None
-                return
+            )
+        ):
+            session.node_id = None
+            return
 
         try:
             if session.inherited_node_id is not None:
