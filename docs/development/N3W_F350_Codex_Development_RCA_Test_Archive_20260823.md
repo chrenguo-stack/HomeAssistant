@@ -46,8 +46,8 @@
 2. 只读扫描本机 surviving `.esphome/build/gh-n3w-repair-epoch-successor`，未发现 complete same-name bundle。
 3. 生成当前 helper manifest 并与 selected R2 helper bundle 比较；direct dependency、版本、IDF 和 target 兼容。
 4. Control-A 早期尝试分别停在 executor 诱发的 Python dependency install 和 IDF Component Manager registry resolution；编译器尚未到达时的旧分类结果被 supersede。
-5. 注入 exact-bound helper lock/managed component 后，在 `PLATFORMIO_OFFLINE=1` 和 loopback proxy fail-closed 条件下完成临时 Control-A 构建。生成代码明确冻结 nonzero recovery floor（原值只保留于 private evidence）、current epoch `2`、successor epoch `3`。
-6. Control-A 新构建 whole-image SHA 与目标 helper 不同；未把“不相同”误判为 tuple 不同。generated source 证明 tuple 为 `2 -> 3`，但 whole-image reproducibility 仍未证明。
+5. 注入 exact-bound helper lock/managed component 后，在 `PLATFORMIO_OFFLINE=1` 和 loopback proxy fail-closed 条件下完成临时 Control-A 构建。Control-A 生成代码明确冻结 nonzero recovery floor（原值只保留于 private evidence）、current epoch `2`、successor epoch `3`。
+6. Control-A 新构建 whole-image SHA 与目标 helper 不同；未把“不相同”误判为 tuple 不同。Control-A generated source 只证明该次 Control 构建参数为 `2 -> 3`，不证明目标 helper 的 bit-for-bit compile-time provenance；目标 helper 的 `2 -> 3` 语义由 exact app0 binding、active-slot forensic、hard-reset success marker 和 durable NVS transition 共同证明。
 7. 经独立授权对 F350 执行 helper app0 binding/write/readback 和多条启动路径 RCA。app0 独立 readback 与目标 helper SHA 完全一致。
 8. direct-ROM API、controlled attach+run、`FLASH_END(0)` 等路径均未产生可接受的 application marker 或 durable epoch transition；active OTA forensic 证明目标为 app0，wrong-slot 假设被排除。
 9. 最终在一次明确外部 hard reset 前启动连续日志捕获，观察到一次 helper success marker；随后只读 NVS 证明 pairing epoch 从 `2` 单调推进到 `3` 且 durable。
@@ -84,9 +84,9 @@
 - **触发条件**：在不同临时 build context/time 中重建 exact source 和 substitutions。
 - **根因**：whole-image 差异的精确来源未证明；不能把整个 image hash 当作 compile-time tuple 的唯一 oracle。
 - **被 supersede 的旧判断**：`whole-image mismatch == tuple mismatch` 被拒绝。
-- **修复**：保存 ELF 和 generated `main.cpp`，直接复核编译常量和控制流。
-- **验证**：generated source 明确为 current epoch `2`、successor epoch `3`，且先验证 recovery oracle、再单调写入、最后 readback verify。
-- **残余风险**：目标 helper与新 Control-A 的 bit-for-bit reproducibility 为 `UNKNOWN`。
+- **修复**：保存 Control-A ELF 和 generated `main.cpp`，直接复核该次 Control 构建的编译常量和控制流；目标 helper 另以 runtime evidence chain 验证，不把两者混为同一 provenance oracle。
+- **验证**：Control-A generated source 明确为 current epoch `2`、successor epoch `3`，且先验证 recovery oracle、再单调写入、最后 readback verify。目标 helper 的运行时语义由 exact app0 readback、active app0、hard-reset marker 和 durable NVS `2 -> 3` transition 证明。
+- **残余风险**：目标 helper 与新 Control-A 的 bit-for-bit reproducibility 未复现；`TARGET_BINARY_WHOLE_IMAGE_PROVENANCE=NOT_BIT_FOR_BIT_REPRODUCED`。
 
 ### 4.4 ROM/stub handoff was not an application boot oracle
 
