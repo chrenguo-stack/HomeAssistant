@@ -239,7 +239,6 @@ class Stage1CExistingContractTests(unittest.TestCase):
             [
                 "createRole",
                 "createClient",
-                "deleteClient",
                 "deleteRole",
             ],
         )
@@ -530,7 +529,7 @@ class Stage1CRollbackContractTests(unittest.TestCase):
                 self.commands.append(command)
                 if command == "createClient":
                     raise DynsecError("primary secret")
-                if command == "deleteClient":
+                if command == "deleteRole":
                     raise DynsecError("rollback secret")
                 return ({"command": command},)
 
@@ -544,7 +543,7 @@ class Stage1CRollbackContractTests(unittest.TestCase):
 
         self.assertEqual(
             captured.exception.rollback_failures,
-            (("deleteClient", "DynsecError"),),
+            (("deleteRole", "DynsecError"),),
         )
         self.assertIsInstance(
             captured.exception.__cause__,
