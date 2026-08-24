@@ -30,6 +30,10 @@ class DynsecError(RuntimeError):
     pass
 
 
+class DynsecOutcomeUncertain(DynsecError):
+    """The Broker may have applied a command whose response was not proven."""
+
+
 class DynsecRollbackError(DynsecError):
     """Reports a primary failure plus one or more failed cleanup commands.
 
@@ -202,25 +206,49 @@ class DynsecProvisioner:
     def provision(
         self, plan: IdentityPlan, credentials: IdentityCredentials
     ) -> None:
-        role_started = False
-        client_started = False
+        role_created = False
+        client_created = False
         try:
-            role_started = True
             self.transport.execute((create_role_command(plan),))
-            client_started = True
+            role_created = True
             self.transport.execute((create_client_command(plan, credentials),))
+            client_created = True
         except Exception as provisioning_error:
             rollback_failures: list[tuple[str, BaseException]] = []
             rollback_commands: list[dict[str, Any]] = []
 
-            if client_started:
-                rollback_commands.append(
-                    {"command": "deleteClient", "username": plan.username}
-                )
-            if role_started:
-                rollback_commands.append(
-                    {"command": "deleteRole", "rolename": plan.role_name}
-                )
+            if isinstance(provisioning_error, DynsecOutcomeUncertain):
+                try:
+                    client_present, role_present = self._target_presence(plan)
+                except Exception as inventory_error:
+                    raise DynsecRollbackError(
+                        "provisioning reconciliation",
+                        (("inventory", inventory_error),),
+                    ) from provisioning_error
+
+                # An uncertain create response is not proof of ownership.  If
+                # the client is present, leave the exact target untouched for
+                # explicit reconciliation rather than risk deleting a
+                # pre-existing or successfully-created identity.  If the
+                # client is absent, a role whose create call returned success
+                # is safe to roll back.
+                if client_created and client_present:
+                    rollback_commands.append(
+                        {"command": "deleteClient", "username": plan.username}
+                    )
+                if role_created and role_present and not client_present:
+                    rollback_commands.append(
+                        {"command": "deleteRole", "rolename": plan.role_name}
+                    )
+            else:
+                if client_created:
+                    rollback_commands.append(
+                        {"command": "deleteClient", "username": plan.username}
+                    )
+                if role_created:
+                    rollback_commands.append(
+                        {"command": "deleteRole", "rolename": plan.role_name}
+                    )
 
             for command in rollback_commands:
                 try:
@@ -267,6 +295,21 @@ class DynsecProvisioner:
                 raise DynsecError(f"Dynamic Security {collection} entry is invalid")
             names.add(name)
         return names
+
+    def _target_presence(self, plan: IdentityPlan) -> tuple[bool, bool]:
+        client_response = self.transport.execute(({"command": "listClients"},))[0]
+        role_response = self.transport.execute(({"command": "listRoles"},))[0]
+        clients = self._listed_names(
+            client_response,
+            collection="clients",
+            aliases=("username", "name"),
+        )
+        roles = self._listed_names(
+            role_response,
+            collection="roles",
+            aliases=("rolename", "name"),
+        )
+        return plan.username in clients, plan.role_name in roles
 
     def deprovision(self, plan: IdentityPlan) -> None:
         client_response = self.transport.execute(({"command": "listClients"},))[0]
@@ -401,7 +444,7 @@ class PahoDynsecTransport:
                 remaining = deadline - time.monotonic()
 
                 if remaining <= 0:
-                    raise DynsecError(
+                    raise DynsecOutcomeUncertain(
                         "Dynamic Security correlated response timed out "
                         f"ignored={ignored_this_call}"
                     )
@@ -411,7 +454,7 @@ class PahoDynsecTransport:
                         timeout=remaining,
                     )
                 except queue.Empty as exc:
-                    raise DynsecError(
+                    raise DynsecOutcomeUncertain(
                         "Dynamic Security correlated response timed out "
                         f"ignored={ignored_this_call}"
                     ) from exc
@@ -424,7 +467,7 @@ class PahoDynsecTransport:
                     UnicodeDecodeError,
                     json.JSONDecodeError,
                 ) as exc:
-                    raise DynsecError(
+                    raise DynsecOutcomeUncertain(
                         "Dynamic Security returned invalid JSON"
                     ) from exc
 
@@ -435,7 +478,7 @@ class PahoDynsecTransport:
                 )
 
                 if not isinstance(responses, list):
-                    raise DynsecError(
+                    raise DynsecOutcomeUncertain(
                         "Dynamic Security response is missing responses"
                     )
 
@@ -443,7 +486,7 @@ class PahoDynsecTransport:
                     isinstance(response, dict)
                     for response in responses
                 ):
-                    raise DynsecError(
+                    raise DynsecOutcomeUncertain(
                         "Dynamic Security returned an invalid "
                         "response entry"
                     )

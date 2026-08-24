@@ -128,7 +128,7 @@ def test_applies_legacy_shadow_in_dependency_order() -> None:
     ]
 
 
-def test_rolls_back_client_and_role_after_client_failure() -> None:
+def test_rolls_back_only_confirmed_role_after_client_failure() -> None:
     plan, credentials = plan_and_credentials()
     transport = RecordingTransport(fail_call=2)
 
@@ -136,8 +136,7 @@ def test_rolls_back_client_and_role_after_client_failure() -> None:
         DynsecProvisioner(transport).provision(plan, credentials)
 
     commands = [call[0]["command"] for call in transport.calls]
-    assert commands == ["createRole", "createClient", "deleteClient", "deleteRole"]
-
+    assert commands == ["createRole", "createClient", "deleteRole"]
 
 
 def test_reports_provisioning_and_rollback_failure_without_secrets() -> None:
@@ -152,8 +151,8 @@ def test_reports_provisioning_and_rollback_failure_without_secrets() -> None:
             command = commands[0]["command"]
             if command == "createClient":
                 raise DynsecError("primary secret details")
-            if command == "deleteClient":
-                raise DynsecError("rollback client secret details")
+            if command == "deleteRole":
+                raise DynsecError("rollback role secret details")
             return tuple(
                 {"command": item["command"]}
                 for item in commands
@@ -166,10 +165,10 @@ def test_reports_provisioning_and_rollback_failure_without_secrets() -> None:
 
     assert captured.value.operation == "provisioning"
     assert captured.value.rollback_failures == (
-        ("deleteClient", "DynsecError"),
+        ("deleteRole", "DynsecError"),
     )
     assert "primary secret details" not in str(captured.value)
-    assert "rollback client secret details" not in str(captured.value)
+    assert "rollback role secret details" not in str(captured.value)
     assert isinstance(captured.value.__cause__, DynsecError)
 
 

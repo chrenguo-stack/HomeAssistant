@@ -1,0 +1,117 @@
+substitutions:
+  recovery_floor_hex: "0000000000000000"
+  current_pairing_epoch: "0"
+  successor_pairing_epoch: "0"
+
+esphome:
+  name: gh-n3w-repair-epoch-successor
+  friendly_name: Greenhouse N3-W Repair Pairing Epoch Successor Helper
+  min_version: 2026.4.3
+  on_boot:
+    priority: -200.0
+    then:
+      - lambda: |-
+          constexpr uint64_t kRecoveryFloor = 0x${recovery_floor_hex}ULL;
+          constexpr uint32_t kCurrentPairingEpoch = ${current_pairing_epoch}U;
+          constexpr uint32_t kSuccessorPairingEpoch = ${successor_pairing_epoch}U;
+
+          if (
+              kRecoveryFloor == 0ULL ||
+              kCurrentPairingEpoch < 2U ||
+              kSuccessorPairingEpoch <= kCurrentPairingEpoch ||
+              kSuccessorPairingEpoch - kCurrentPairingEpoch != 1U) {
+            ESP_LOGE(
+                "n3w_boot_recovery",
+                "Repair epoch successor parameters invalid; no write executed");
+            return;
+          }
+
+          using esphome::greenhouse_n3w_core::NvsPairingEpochStore;
+          using esphome::greenhouse_n3w_core::SimpleNvsStatus;
+
+          NvsPairingEpochStore pairing_epoch_store;
+          uint32_t observed_pairing_epoch = 0;
+          const SimpleNvsStatus observed_status =
+              pairing_epoch_store.load(&observed_pairing_epoch);
+
+          if (
+              observed_status != SimpleNvsStatus::OK ||
+              (observed_pairing_epoch != kCurrentPairingEpoch &&
+               observed_pairing_epoch != kSuccessorPairingEpoch)) {
+            ESP_LOGE(
+                "n3w_boot_recovery",
+                "Repair epoch successor durable state rejected status=%u epoch=%u",
+                static_cast<unsigned>(observed_status),
+                static_cast<unsigned>(observed_pairing_epoch));
+            return;
+          }
+
+          // Reuse the already-audited repair helper as the semantic precondition
+          // oracle for the frozen recovery floor, missing pending ACK, inert
+          // product runtime, and removed legacy credentials.  It is called with
+          // the epoch actually observed so an interrupted 2->3 write is
+          // restart-safe and idempotent.
+          const bool recovery_state_valid =
+              id(n3w_boot_recovery_core)
+                  ->provision_boot_session_repair_recovery(
+                      kRecoveryFloor,
+                      observed_pairing_epoch);
+          if (!recovery_state_valid) {
+            ESP_LOGE(
+                "n3w_boot_recovery",
+                "Repair epoch successor precondition oracle rejected state");
+            return;
+          }
+
+          if (observed_pairing_epoch == kCurrentPairingEpoch) {
+            if (
+                pairing_epoch_store.save(kSuccessorPairingEpoch) !=
+                SimpleNvsStatus::OK) {
+              ESP_LOGE(
+                  "n3w_boot_recovery",
+                  "Repair pairing epoch successor persistence failed");
+              return;
+            }
+          }
+
+          uint32_t verified_pairing_epoch = 0;
+          if (
+              pairing_epoch_store.load(&verified_pairing_epoch) !=
+                  SimpleNvsStatus::OK ||
+              verified_pairing_epoch != kSuccessorPairingEpoch) {
+            ESP_LOGE(
+                "n3w_boot_recovery",
+                "Repair pairing epoch successor verification failed");
+            return;
+          }
+
+          ESP_LOGI(
+              "n3w_boot_recovery",
+              "BSR_PAIRING_EPOCH_SUCCESSOR_WRITE=PASS epoch=%u",
+              static_cast<unsigned>(verified_pairing_epoch));
+
+esp32:
+  board: esp32-c6-devkitm-1
+  variant: ESP32C6
+  flash_size: 8MB
+  framework:
+    type: esp-idf
+    advanced:
+      include_builtin_idf_components:
+        - nvs_flash
+
+logger:
+  level: INFO
+  hardware_uart: USB_SERIAL_JTAG
+
+external_components:
+  - source:
+      type: local
+      path: ../../components
+    components:
+      - greenhouse_n3w_core
+
+greenhouse_n3w_core:
+  id: n3w_boot_recovery_core
+  phase4_source_harness: false
+  phase4_product_runtime: false
