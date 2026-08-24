@@ -87,7 +87,9 @@ Selected R2 helper-specific offline-bundle binding:
     delivered.
 14. Epoch5 passed pretransfer and predelivery gates with 117/115 seconds
     remaining; the 0600 handoff was atomically delivered and consumed. Manager
-    approval then hit a DynSec target-identity collision and safely rolled back.
+    approval then hit a DynSec target-identity collision. The business
+    transaction failed closed and committed no valid credential, but its DynSec
+    rollback was not proven state-preserving.
 15. Read-only postfailure evidence showed no accepted Epoch5 credential. The
     expired session was preserved rather than forced through.
 16. Epoch6 helper execution and product restoration passed, but its pending
@@ -174,17 +176,37 @@ Selected R2 helper-specific offline-bundle binding:
   before helper execution. Epoch7 proved the sequence with large TTL margin.
 - **Guard:** updated KF-044.
 
-### 4.7 DynSec asymmetric stale target identity
+### 4.7 DynSec asymmetric target identity recovery
 
 - **Observed:** Epoch5 atomic delivery succeeded, but automatic approval hit a
-  target identity collision and rolled back; the target client/role state was
-  asymmetric afterward.
-- **Cause:** exact target DynSec identity objects were not both absent before
-  provisioning.
+  target identity collision. No credential was accepted, while the target
+  client was present and target role absent afterward.
+- **Cause boundary:** the asymmetric field state is proven; whether both target
+  objects existed immediately before approval is not. Exact source review in
+  section 4.8 identifies a rollback path highly consistent with the result.
 - **Resolution:** private backup, stopped exact Manager, exact-target recovery
   through the production provisioner, then verify both objects and restart the
   same image.
-- **Guard:** KF-059.
+- **Guard:** KF-059 records the completed field recovery; it is `RESOLVED`, not
+  evidence that the source rollback defect is guarded.
+
+### 4.8 DynSec provisioning rollback ownership
+
+- **Observed source semantics:** exact Manager revision sets `role_started` and
+  `client_started` before the corresponding create call succeeds. The exception
+  path deletes a target whenever its attempt flag is set.
+- **Risk:** a collision on a pre-existing role/client can cause rollback to
+  delete an object not created by the current transaction. Thus Epoch5 was
+  business-layer fail-closed but cannot be described as a state-preserving
+  DynSec rollback.
+- **Required source fix:** track `role_created`/`client_created` only after a
+  successful create response. If the Broker result is uncertain, inventory and
+  reconcile instead of unconditionally deleting the target.
+- **Required regression matrix:** preserve pre-existing role+client; preserve a
+  pre-existing client while deleting only a newly created role; never delete a
+  pre-existing role after createRole collision; allow clean-target provision.
+- **Guard:** KF-060 remains `OPEN`; this docs-only PR does not modify Manager
+  source or tests.
 
 ## 5. Superseded hypotheses and paths
 
@@ -199,6 +221,8 @@ Selected R2 helper-specific offline-bundle binding:
   LAN topology.
 - Repeating delivery after a DynSec collision would succeed without recovering
   the exact stale target identity.
+- Epoch5 DynSec rollback was state-preserving merely because the credential
+  transaction failed closed.
 - Starting a new pairing identity before sensitive-transfer authorization could
   still reliably fit the non-renewing pending TTL.
 
@@ -239,6 +263,8 @@ already present in the exact authority lineage before this work began.
 - Product complete local-bundle compatibility: PASS.
 - Product `--only-generate`: PASS.
 - Product temporary full offline Control-A build: PASS.
+- Product artifact classification: exact-source/private-evidence-bound accepted
+  artifact; it is not a publicly reproducible build artifact.
 - Product firmware SHA-256:
   `a7ffbe05e85e8e11bb1063ff549f034518fded8eef4165c1b5fc4751f2525a16`
 - Product size: `1109232` bytes; app0 range `0x10000..0x3D0000`;
@@ -256,14 +282,23 @@ These results are evidence records, not permission to replay them:
   credential/key mutation.
 - Epoch4 delivery: FAIL/expired; no private transfer.
 - Epoch5 helper/restore and atomic delivery: PASS; approval then failed at
-  DynSec collision and rolled back; no accepted Epoch5 credential.
+  DynSec collision. No credential was accepted, but DynSec rollback was not
+  state-preserving-proven and left an asymmetric target state.
 - Epoch6 helper/restore: PASS; transfer gate expired before authorization; no
   private transfer.
 - Exact-target DynSec recovery with backup: PASS.
 - Epoch7 helper/restore, TTL gates, atomic delivery, pairing approval, ACK and
   final read-only acceptance: PASS.
 
-### 7.4 Not executed during this archive pass
+### 7.4 Exact-head CI interpretation
+
+- CI exact-head binding: PASS.
+- GitHub correctly classified this as a docs-only change. Ten workflow `scope`
+  jobs and Public repository safety's `tracked-content-safety` succeeded.
+- Thirteen substantive Manager/board/DynSec/runtime jobs were skipped by scope;
+  their skipped state must not be reported as a fresh full regression run.
+
+### 7.5 Not executed during this archive pass
 
 - Any new build or dependency installation.
 - Any board, USB, serial, reset, flash or live NVS operation.
@@ -319,6 +354,11 @@ Epoch7 final secret-safe bindings:
 | `F350_LAST_PROVEN_PHYSICAL_STATE` | `EXACT_PRODUCT_APP_RUNNING_AFTER_FINAL_HARD_RESET_AND_LAN_PROBE` |
 | `FC4_FINAL_PHYSICAL_ACCEPTANCE` | `PASS` |
 
+`BSR_R2_EXECUTED=true` means the BSR-R2 recovery objective reached and froze
+its accepted terminal state through the successor Epoch3-to-Epoch7 recovery
+chain. It does not retroactively convert the earlier Epoch3, Epoch4 or Epoch6
+fail-closed attempts into PASS.
+
 Final Manager state: Epoch7 approved; credential generation 7 active with no
 pending generation; relay key epoch 7 ACTIVE and epoch 1 GRACE; retained node
 lease active; target DynSec client/role present; inbox empty. Final board state:
@@ -350,7 +390,8 @@ absent, exact product app0 bound, partition and otadata unchanged.
 4. Verify product firmware, partition and app0 boundary bindings.
 5. Verify all final acceptance claims against the secret-safe Epoch7 summary.
 6. Verify this PR still changes only the two documentation files.
-7. Verify KF-044/KF-055..KF-059 completeness and status choices.
+7. Verify KF-044/KF-055..KF-060 completeness and status choices, especially
+   KF-059 `RESOLVED` versus KF-060 `OPEN`.
 8. Verify public-repository safety and all checks bind the final PR head.
 
 DO NOT MERGE BEFORE CHATGPT INDEPENDENT AUDIT.
