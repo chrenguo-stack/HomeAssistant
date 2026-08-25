@@ -23,7 +23,7 @@ from .pairing_service import CredentialBundle, NodeIdentityProvisioner, PairingR
 
 @dataclass(slots=True)
 class StagedProvisionedSimplifiedBundle:
-    """One reversible Broker + node-application-key staging transaction."""
+    """One reversible first-registration Broker + application-key transaction."""
 
     bundle: SimplifiedProductCredentialBundle
     plan: NodeProvisioningPlan
@@ -70,7 +70,11 @@ class StagedProvisionedSimplifiedBundle:
 
 
 class SimplifiedProvisioningStager:
-    """Build `gh.pair.credentials/2` without the old X25519/finite-grant path."""
+    """Build first-registration `gh.pair.credentials/2`.
+
+    Registered pairing recovery must stop before this stager. MQTT and
+    application-key rotations use their independent lifecycle APIs.
+    """
 
     def __init__(
         self,

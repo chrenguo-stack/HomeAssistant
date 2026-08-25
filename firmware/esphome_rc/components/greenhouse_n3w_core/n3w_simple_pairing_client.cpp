@@ -15,8 +15,6 @@ namespace esphome::greenhouse_n3w_core {
 namespace {
 
 constexpr char kSimplePairingProtocol[] = "gh-n3w-simple-pairing/1";
-constexpr char kPairingIdDomainV1[] = "gh.pair.simple-id/1";
-constexpr char kPairingIdDomainV2[] = "gh.pair.simple-id/2";
 
 std::string base64url_encode(const uint8_t *data, std::size_t size) {
   if (data == nullptr || size == 0) return {};
@@ -86,51 +84,6 @@ std::string hardware_id_from_mac(const MacAddress &mac) {
       "ghw-c6-%02x%02x%02x%02x%02x%02x",
       mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
   return buffer;
-}
-
-std::string pairing_id_from_secret(
-    const SetupSecret &secret,
-    const MacAddress &mac,
-    uint32_t pairing_epoch) {
-  if (pairing_epoch == 0) return {};
-
-  std::vector<uint8_t> input;
-  if (pairing_epoch == 1) {
-    input.insert(
-        input.end(),
-        std::begin(kPairingIdDomainV1),
-        std::end(kPairingIdDomainV1) - 1);
-  } else {
-    input.insert(
-        input.end(),
-        std::begin(kPairingIdDomainV2),
-        std::end(kPairingIdDomainV2) - 1);
-  }
-  input.insert(input.end(), secret.begin(), secret.end());
-  input.insert(input.end(), mac.begin(), mac.end());
-  if (pairing_epoch > 1) {
-    for (int shift = 24; shift >= 0; shift -= 8) {
-      input.push_back(static_cast<uint8_t>((pairing_epoch >> shift) & 0xffU));
-    }
-  }
-
-  std::array<uint8_t, 32> digest{};
-  const mbedtls_md_info_t *info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
-  if (info == nullptr ||
-      mbedtls_md(info, input.data(), input.size(), digest.data()) != 0) {
-    return {};
-  }
-  digest[6] = static_cast<uint8_t>((digest[6] & 0x0fU) | 0x40U);
-  digest[8] = static_cast<uint8_t>((digest[8] & 0x3fU) | 0x80U);
-  char output[37]{};
-  std::snprintf(
-      output,
-      sizeof(output),
-      "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
-      digest[0], digest[1], digest[2], digest[3],
-      digest[4], digest[5], digest[6], digest[7],
-      digest[8], digest[9], digest[10], digest[11], digest[12], digest[13], digest[14], digest[15]);
-  return output;
 }
 
 std::string uuid_from_random(const std::array<uint8_t, 16> &random) {
@@ -319,6 +272,58 @@ bool parse_bundle(
   return peer->valid() && broker->valid();
 }
 
+enum class HelloTransactionDisposition : uint8_t {
+  CONTINUE = 0,
+  TERMINAL,
+};
+
+bool parse_hello_result(
+    const std::string &response,
+    const std::string &hardware_id,
+    const std::string &pairing_id,
+    HelloTransactionDisposition *disposition) {
+  if (disposition == nullptr) return false;
+
+  JsonDocument document = json::parse_json(response);
+  JsonObjectConst root = document.as<JsonObjectConst>();
+
+  std::string schema;
+  std::string response_hardware;
+  std::string response_pairing;
+  std::string status;
+  std::string disposition_text;
+
+  if (root.isNull() ||
+      !read_string(root, "schema", &schema) ||
+      schema != "gh.pair.simple-hello-result/1" ||
+      !read_string(root, "hardware_id", &response_hardware) ||
+      response_hardware != hardware_id ||
+      !read_string(root, "pairing_id", &response_pairing) ||
+      response_pairing != pairing_id ||
+      !read_string(root, "status", &status) ||
+      !read_string(root, "transaction_disposition", &disposition_text)) {
+    return false;
+  }
+
+  if (disposition_text == "continue") {
+    *disposition = HelloTransactionDisposition::CONTINUE;
+    return true;
+  }
+
+  if (disposition_text == "terminal") {
+    std::string reason;
+    if (status != "rejected" ||
+        !read_string(root, "reason", &reason) ||
+        (reason != "expired" && reason != "replay_detected")) {
+      return false;
+    }
+    *disposition = HelloTransactionDisposition::TERMINAL;
+    return true;
+  }
+
+  return false;
+}
+
 }  // namespace
 
 bool SimpleManagerCandidateV2::valid() const {
@@ -360,14 +365,6 @@ SimplePairingClientError SimplePairingClient::initialize(const MacAddress &local
 }
 
 SimplePairingClientError SimplePairingClient::load_existing_() {
-  uint32_t stored_pairing_epoch = 0;
-  const SimpleNvsStatus epoch_status =
-      pairing_epoch_store_.load(&stored_pairing_epoch);
-  if (epoch_status != SimpleNvsStatus::OK &&
-      epoch_status != SimpleNvsStatus::MISSING) {
-    return SimplePairingClientError::PERSISTENCE_FAILED;
-  }
-
   ProvisionedPeerStateV2 peer;
   ProvisionedBrokerStateV2 broker;
   const SimpleNvsStatus peer_status = peer_store_->load(&peer);
@@ -380,15 +377,6 @@ SimplePairingClientError SimplePairingClient::load_existing_() {
                                    broker.valid() && peer.system_id == broker.system_id &&
                                    peer.node_id == broker.node_id;
   if (credentials_present) {
-    // A legacy provisioned identity with no durable pairing epoch must not keep
-    // operating under its old key. Explicit repair recovery materializes a
-    // higher pairing epoch and removes the old credential blobs first.
-    if (epoch_status != SimpleNvsStatus::OK ||
-        peer.n3w_key_epoch < stored_pairing_epoch ||
-        broker.credential_generation != stored_pairing_epoch) {
-      return SimplePairingClientError::PERSISTENCE_FAILED;
-    }
-    pairing_epoch_ = stored_pairing_epoch;
     if (ack_status == SimpleNvsStatus::OK && pending.valid()) {
       return SimplePairingClientError::ACK_PENDING;
     }
@@ -404,35 +392,54 @@ SimplePairingClientError SimplePairingClient::load_existing_() {
       ack_status != SimpleNvsStatus::MISSING) {
     return SimplePairingClientError::PERSISTENCE_FAILED;
   }
-  if (epoch_status == SimpleNvsStatus::OK) pairing_epoch_ = stored_pairing_epoch;
   return SimplePairingClientError::NONE;
 }
 
 SimplePairingClientError SimplePairingClient::prepare_bootstrap_() {
-  if (pairing_epoch_ == 0) {
-    uint32_t stored_pairing_epoch = 0;
-    const SimpleNvsStatus epoch_status =
-        pairing_epoch_store_.load(&stored_pairing_epoch);
-    if (epoch_status == SimpleNvsStatus::MISSING) {
-      if (pairing_epoch_store_.save(1) != SimpleNvsStatus::OK ||
-          pairing_epoch_store_.load(&stored_pairing_epoch) != SimpleNvsStatus::OK ||
-          stored_pairing_epoch != 1) {
-        return SimplePairingClientError::PERSISTENCE_FAILED;
-      }
-    } else if (epoch_status != SimpleNvsStatus::OK) {
-      return SimplePairingClientError::PERSISTENCE_FAILED;
-    }
-    pairing_epoch_ = stored_pairing_epoch;
-  }
-
   const SimpleNvsStatus status = setup_secret_store_->load_or_create(&setup_secret_);
   if (status != SimpleNvsStatus::OK && status != SimpleNvsStatus::CREATED) {
     return SimplePairingClientError::PERSISTENCE_FAILED;
   }
   setup_secret_ready_ = true;
-  pairing_id_ = pairing_id_from_secret(setup_secret_, local_mac_, pairing_epoch_);
+  PendingPairingIntent intent;
+  const SimpleNvsStatus intent_status = pairing_intent_store_.load(&intent);
+  if (intent_status == SimpleNvsStatus::OK) {
+    pairing_id_ = intent.random_pairing_id;
+  } else if (intent_status == SimpleNvsStatus::MISSING) {
+    return renew_pairing_intent_();
+  } else {
+    return SimplePairingClientError::PERSISTENCE_FAILED;
+  }
   return pairing_id_.empty() ? SimplePairingClientError::CRYPTO_FAILED
                              : SimplePairingClientError::NONE;
+}
+
+SimplePairingClientError SimplePairingClient::renew_pairing_intent_() {
+  // A transaction ID is random state, not a distributed generation counter.
+  // Keep the old durable intent unless a distinct replacement is generated
+  // and successfully committed to NVS.
+  for (uint8_t attempt = 0; attempt < 4; ++attempt) {
+    std::array<uint8_t, 16> pairing_random{};
+    if (!fill_(pairing_random.data(), pairing_random.size())) {
+      return SimplePairingClientError::IO_FAILED;
+    }
+
+    std::string next_pairing_id = uuid_from_random(pairing_random);
+    if (next_pairing_id.empty() || next_pairing_id == pairing_id_) {
+      continue;
+    }
+
+    PendingPairingIntent replacement;
+    replacement.random_pairing_id = next_pairing_id;
+    if (pairing_intent_store_.save(replacement) != SimpleNvsStatus::OK) {
+      return SimplePairingClientError::PERSISTENCE_FAILED;
+    }
+
+    pairing_id_ = std::move(next_pairing_id);
+    return SimplePairingClientError::NONE;
+  }
+
+  return SimplePairingClientError::CRYPTO_FAILED;
 }
 
 SimplePairingClientError SimplePairingClient::run_once(uint64_t now_ms) {
@@ -495,13 +502,11 @@ SimplePairingClientError SimplePairingClient::discover_(SimpleManagerCandidateV2
 
 SimplePairingClientError SimplePairingClient::send_hello_(
     const SimpleManagerCandidateV2 &candidate) {
-  if (pairing_epoch_ == 0) return SimplePairingClientError::PERSISTENCE_FAILED;
   std::array<uint8_t, 32> hello_nonce{};
   if (!fill_(hello_nonce.data(), hello_nonce.size())) return SimplePairingClientError::IO_FAILED;
   const std::string request = json::build_json([&](JsonObject root) {
     root["schema"] = "gh.pair.hello/1";
     root["pairing_id"] = pairing_id_;
-    root["pairing_epoch"] = pairing_epoch_;
     root["hardware_id"] = hardware_id_;
     root["model"] = "greenhouse-wifi-c6";
     root["fw_version"] = "phase4-simple";
@@ -517,6 +522,23 @@ SimplePairingClientError SimplePairingClient::send_hello_(
   if (!network_->post_json(candidate, path, request, &status, &response) || status != 200) {
     return SimplePairingClientError::HTTP_FAILED;
   }
+
+  HelloTransactionDisposition disposition = HelloTransactionDisposition::CONTINUE;
+  if (!parse_hello_result(
+          response,
+          hardware_id_,
+          pairing_id_,
+          &disposition)) {
+    return SimplePairingClientError::RESPONSE_REJECTED;
+  }
+
+  if (disposition == HelloTransactionDisposition::TERMINAL) {
+    const SimplePairingClientError renewed = renew_pairing_intent_();
+    return renewed == SimplePairingClientError::NONE
+               ? SimplePairingClientError::TRANSACTION_RENEWED
+               : renewed;
+  }
+
   return SimplePairingClientError::NONE;
 }
 
@@ -617,9 +639,7 @@ SimplePairingClientError SimplePairingClient::pair_with_(
 
   ProvisionedPeerStateV2 peer;
   ProvisionedBrokerStateV2 broker;
-  if (!parse_bundle(plaintext, candidate, node_id, &peer, &broker) ||
-      pairing_epoch_ == 0 || broker.credential_generation != pairing_epoch_ ||
-      peer.n3w_key_epoch < pairing_epoch_) {
+  if (!parse_bundle(plaintext, candidate, node_id, &peer, &broker)) {
     std::fill(plaintext.begin(), plaintext.end(), 0);
     peer.clear();
     broker.clear();
@@ -673,6 +693,7 @@ SimplePairingClientError SimplePairingClient::acknowledge_(const PendingPairingA
     return SimplePairingClientError::ACK_PENDING;
   }
   if (setup_secret_store_->erase() != SimpleNvsStatus::OK ||
+      pairing_intent_store_.erase() != SimpleNvsStatus::OK ||
       ack_store_->erase() != SimpleNvsStatus::OK) {
     return SimplePairingClientError::PERSISTENCE_FAILED;
   }

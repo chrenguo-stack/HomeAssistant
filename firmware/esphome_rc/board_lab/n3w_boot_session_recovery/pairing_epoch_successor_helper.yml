@@ -1,4 +1,5 @@
 substitutions:
+  # LEGACY_MIGRATION_ONLY / ENGINEERING_MIGRATION_ONLY / BOARD_LAB_ONLY.
   recovery_floor_hex: "0000000000000000"
   current_pairing_epoch: "0"
   successor_pairing_epoch: "0"

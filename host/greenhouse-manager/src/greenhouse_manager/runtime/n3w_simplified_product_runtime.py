@@ -18,10 +18,15 @@ from .credential_lifecycle import CredentialLifecycleStore
 from .n3w_node_application_keys import (
     SqliteNodeApplicationKeyAdmin,
 )
-from .n3w_node_credentials import ManagedProductCredentialIssuer
+from .n3w_node_credentials import (
+    ManagedApplicationKeyLifecycle,
+    ManagedMqttCredentialLifecycle,
+    ManagedProductCredentialIssuer,
+)
 from .n3w_node_identity_provisioner import (
     PahoNodeIdentityProvisioner,
 )
+from .n3w_pairing_local_ipc import ManagerOwnedPairingSocket
 from .n3w_peer_trust_store import SystemPeerTrustStore
 from .n3w_simplified_credentials import (
     SimplifiedCredentialBundleIssuer,
@@ -138,6 +143,89 @@ def _ensure_private_database(path: Path) -> None:
     os.chmod(path, 0o600)
 
 
+def _ensure_private_runtime_directory(path: Path) -> None:
+    """Create or validate one process-owned ephemeral runtime directory."""
+
+    if not path.is_absolute():
+        raise SimplifiedProductRuntimeError(
+            "pairing_runtime_directory_path_invalid"
+        )
+
+    if path.exists() or path.is_symlink():
+        _require_private_path(
+            path,
+            directory=True,
+            code="pairing_runtime_directory_permissions_invalid",
+        )
+        return
+
+    parent = path.parent
+
+    if _path_contains_symlink(parent):
+        raise SimplifiedProductRuntimeError(
+            "pairing_runtime_directory_parent_invalid"
+        )
+
+    try:
+        parent_info = parent.stat()
+    except OSError as error:
+        raise SimplifiedProductRuntimeError(
+            "pairing_runtime_directory_parent_invalid"
+        ) from error
+
+    parent_mode = stat.S_IMODE(parent_info.st_mode)
+
+    owned_private_parent = (
+        stat.S_ISDIR(parent_info.st_mode)
+        and not (parent_mode & 0o077)
+        and (
+            not hasattr(os, "getuid")
+            or parent_info.st_uid == os.getuid()
+        )
+    )
+
+    sticky_shared_parent = (
+        stat.S_ISDIR(parent_info.st_mode)
+        and bool(parent_info.st_mode & stat.S_ISVTX)
+        and bool(parent_mode & 0o002)
+    )
+
+    if not (
+        owned_private_parent
+        or sticky_shared_parent
+    ):
+        raise SimplifiedProductRuntimeError(
+            "pairing_runtime_directory_parent_invalid"
+        )
+
+    created = False
+    try:
+        path.mkdir(mode=0o700)
+        created = True
+    except FileExistsError:
+        # A concurrent creator is accepted only if the final path still
+        # proves to be our own private non-symlink directory below.
+        pass
+    except OSError as error:
+        raise SimplifiedProductRuntimeError(
+            "pairing_runtime_directory_create_failed"
+        ) from error
+
+    if created:
+        try:
+            os.chmod(path, 0o700)
+        except OSError as error:
+            raise SimplifiedProductRuntimeError(
+                "pairing_runtime_directory_create_failed"
+            ) from error
+
+    _require_private_path(
+        path,
+        directory=True,
+        code="pairing_runtime_directory_permissions_invalid",
+    )
+
+
 def _decode_setup_secret(value: object) -> bytes:
     if (
         not isinstance(value, str)
@@ -183,7 +271,7 @@ class SimplifiedProductCompositionConfig:
 
     peer_trust_db_path: str
     credential_lifecycle_db_path: str
-    setup_secret_inbox_dir: str
+    pairing_socket_path: str
 
     bind_host: str = "0.0.0.0"
     http_port: int = 47112
@@ -226,7 +314,7 @@ class SimplifiedProductCompositionConfig:
         for raw in (
             self.peer_trust_db_path,
             self.credential_lifecycle_db_path,
-            self.setup_secret_inbox_dir,
+            self.pairing_socket_path,
         ):
             path = Path(raw).expanduser()
             if not path.is_absolute():
@@ -236,7 +324,7 @@ class SimplifiedProductCompositionConfig:
 
 
 class PrivateSetupSecretInbox:
-    """Private local handoff from trusted UI/operator glue.
+    """LAB_ONLY filesystem compatibility adapter.
 
     Setup Secret is never exposed as a LAN HTTP administration API.
     Final handoff files are mode 0600 under one mode-0700 directory.
@@ -606,9 +694,11 @@ class SimplifiedProductPairingComposition:
     key_admin: SqliteNodeApplicationKeyAdmin
     credential_store: CredentialLifecycleStore
     peer_trust: SystemPeerTrustStore
+    application_key_lifecycle: ManagedApplicationKeyLifecycle
+    mqtt_credential_lifecycle: ManagedMqttCredentialLifecycle
     coordinator: SimplifiedPairingCoordinator
     pairing_runtime: Any
-    setup_secret_inbox: PrivateSetupSecretInbox
+    pairing_socket: ManagerOwnedPairingSocket
 
     _closed: bool = False
 
@@ -621,7 +711,7 @@ class SimplifiedProductPairingComposition:
         failures: list[Exception] = []
 
         try:
-            self.setup_secret_inbox.stop()
+            self.pairing_socket.stop()
         except Exception as error:
             failures.append(error)
 
@@ -751,9 +841,7 @@ def build_simplified_product_config_from_settings(
         credential_lifecycle_db_path=(
             settings.n3w_credential_lifecycle_db_path
         ),
-        setup_secret_inbox_dir=(
-            settings.n3w_setup_secret_inbox_dir
-        ),
+        pairing_socket_path=settings.n3w_pairing_socket_path,
         bind_host=(
             settings.n3w_pairing_bind_host
         ),
@@ -876,10 +964,22 @@ def build_simplified_product_pairing_composition(
             )
         )
 
+        application_key_lifecycle = (
+            ManagedApplicationKeyLifecycle(
+                key_admin
+            )
+        )
+
+        mqtt_credential_lifecycle = (
+            ManagedMqttCredentialLifecycle(
+                credential_store
+            )
+        )
+
         product_issuer = (
             ManagedProductCredentialIssuer(
-                key_admin,
-                credential_store,
+                application_key_lifecycle,
+                mqtt_credential_lifecycle,
             )
         )
 
@@ -955,9 +1055,17 @@ def build_simplified_product_pairing_composition(
             )
         )
 
-        inbox = PrivateSetupSecretInbox(
+        pairing_socket_path = Path(
+            config.pairing_socket_path
+        ).expanduser()
+
+        _ensure_private_runtime_directory(
+            pairing_socket_path.parent
+        )
+
+        pairing_socket = ManagerOwnedPairingSocket(
             coordinator,
-            config.setup_secret_inbox_dir,
+            pairing_socket_path,
         )
 
         return (
@@ -968,11 +1076,17 @@ def build_simplified_product_pairing_composition(
                     credential_store
                 ),
                 peer_trust=peer_trust,
+                application_key_lifecycle=(
+                    application_key_lifecycle
+                ),
+                mqtt_credential_lifecycle=(
+                    mqtt_credential_lifecycle
+                ),
                 coordinator=coordinator,
                 pairing_runtime=(
                     pairing_runtime
                 ),
-                setup_secret_inbox=inbox,
+                pairing_socket=pairing_socket,
             )
         )
 

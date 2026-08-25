@@ -8,8 +8,11 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Protocol
 
-from .credential_lifecycle import CredentialLifecycleStore, CredentialState
-from .n3w_pairing_recovery import stage_pairing_epoch_key
+from .credential_lifecycle import (
+    CredentialLifecycle,
+    CredentialLifecycleStore,
+    CredentialState,
+)
 from .pairing_service import (
     CredentialBundle,
     PairingProvisioningError,
@@ -60,19 +63,340 @@ class ProductCredentialIssuer(Protocol):
     def rollback(self, material: ProductCredentialMaterial) -> None: ...
 
 
-class ManagedProductCredentialIssuer:
-    """Stage a node-only N3-W key, then activate it only after encrypted delivery ack."""
+@dataclass(frozen=True, slots=True, repr=False)
+class ProductApplicationKeyMaterial:
+    node_id: str
+    key_epoch: int
+    application_key: bytes = field(repr=False)
+
+    def __repr__(self) -> str:
+        return (
+            "ProductApplicationKeyMaterial("
+            f"node_id={self.node_id!r}, "
+            f"key_epoch={self.key_epoch!r}, "
+            "application_key=<redacted>)"
+        )
+
+
+class ManagedApplicationKeyLifecycle:
+    """Independent N3-W application-key lifecycle.
+
+    This API has no MQTT credential-generation or credential-store
+    dependency.
+    """
 
     def __init__(
         self,
         application_keys: ProductApplicationKeyAdmin,
-        credential_store: CredentialLifecycleStore,
         *,
         random_bytes: Callable[[int], bytes] = secrets.token_bytes,
     ) -> None:
         self.application_keys = application_keys
-        self.credential_store = credential_store
         self.random_bytes = random_bytes
+        self._lock = threading.RLock()
+
+    def _stage(
+        self,
+        *,
+        node_id: str,
+    ) -> ProductApplicationKeyMaterial:
+        application_key = self.random_bytes(32)
+
+        if len(application_key) != 32:
+            raise PairingProvisioningError(
+                "product application-key generator returned invalid length"
+            )
+
+        try:
+            result = self.application_keys.stage_key(
+                node_id=node_id,
+                key_material=application_key,
+            )
+        except Exception as error:
+            raise PairingProvisioningError(
+                "product application-key staging failed"
+            ) from error
+
+        key_epoch = result.get("key_epoch")
+
+        if (
+            not isinstance(key_epoch, int)
+            or isinstance(key_epoch, bool)
+            or key_epoch < 1
+        ):
+            raise PairingProvisioningError(
+                "product application-key epoch is invalid"
+            )
+
+        return ProductApplicationKeyMaterial(
+            node_id=node_id,
+            key_epoch=key_epoch,
+            application_key=application_key,
+        )
+
+    def stage_initial(
+        self,
+        *,
+        node_id: str,
+    ) -> ProductApplicationKeyMaterial:
+        return self._stage(
+            node_id=node_id,
+        )
+
+    def activate_initial(
+        self,
+        material: ProductApplicationKeyMaterial,
+    ) -> None:
+        try:
+            self.application_keys.activate_key(
+                node_id=material.node_id,
+                key_epoch=material.key_epoch,
+            )
+        except Exception as error:
+            raise PairingProvisioningError(
+                "product application-key initial activation failed"
+            ) from error
+
+    def rollback_initial(
+        self,
+        material: ProductApplicationKeyMaterial,
+    ) -> None:
+        try:
+            self.application_keys.revoke_key(
+                node_id=material.node_id,
+                key_epoch=material.key_epoch,
+            )
+        except Exception as error:
+            raise PairingRollbackError(
+                "product application-key initial rollback failed"
+            ) from error
+
+    def stage_rotation(
+        self,
+        *,
+        node_id: str,
+    ) -> ProductApplicationKeyMaterial:
+        return self._stage(
+            node_id=node_id,
+        )
+
+    def activate_rotation(
+        self,
+        material: ProductApplicationKeyMaterial,
+    ) -> None:
+        try:
+            self.application_keys.activate_key(
+                node_id=material.node_id,
+                key_epoch=material.key_epoch,
+            )
+        except Exception as error:
+            raise PairingProvisioningError(
+                "product application-key rotation activation failed"
+            ) from error
+
+    def rollback_staged_rotation(
+        self,
+        material: ProductApplicationKeyMaterial,
+    ) -> None:
+        try:
+            self.application_keys.revoke_key(
+                node_id=material.node_id,
+                key_epoch=material.key_epoch,
+            )
+        except Exception as error:
+            raise PairingRollbackError(
+                "staged application-key rotation rollback failed"
+            ) from error
+
+    def rollback_active_rotation(
+        self,
+        material: ProductApplicationKeyMaterial,
+    ) -> None:
+        try:
+            self.application_keys.rollback_rotation(
+                node_id=material.node_id,
+                key_epoch=material.key_epoch,
+            )
+        except Exception as error:
+            raise PairingRollbackError(
+                "active application-key rotation rollback failed"
+            ) from error
+
+
+class ManagedMqttCredentialLifecycle:
+    """Independent MQTT credential-generation lifecycle.
+
+    This API has no N3-W application-key admin or key-epoch dependency.
+    """
+
+    def __init__(
+        self,
+        credential_store: CredentialLifecycleStore,
+    ) -> None:
+        self.credential_store = credential_store
+        self._lock = threading.RLock()
+
+    def ensure_first_registration(
+        self,
+        *,
+        hardware_id: str,
+        credential_generation: int,
+    ) -> None:
+        if (
+            not isinstance(credential_generation, int)
+            or isinstance(credential_generation, bool)
+            or credential_generation != 1
+        ):
+            raise PairingProvisioningError(
+                "first registration credential generation must be 1"
+            )
+
+        try:
+            self.credential_store.get(
+                hardware_id
+            )
+        except KeyError:
+            return
+
+        raise PairingProvisioningError(
+            "product credential lifecycle already exists"
+        )
+
+    def activate_initial(
+        self,
+        *,
+        hardware_id: str,
+        pairing_id: str,
+        node_id: str,
+        credential_generation: int,
+        now: datetime | None = None,
+    ) -> CredentialLifecycle:
+        with self._lock:
+            try:
+                existing = (
+                    self.credential_store.get(
+                        hardware_id
+                    )
+                )
+            except KeyError:
+                existing = None
+
+            if existing is not None:
+                if (
+                    existing.state
+                    is CredentialState.ACTIVE
+                    and existing.node_id
+                    == node_id
+                    and existing.active_generation
+                    == credential_generation
+                    and existing.pairing_id
+                    == pairing_id
+                ):
+                    return existing
+
+                raise PairingProvisioningError(
+                    "product credential lifecycle already exists"
+                )
+
+            try:
+                return self.credential_store.activate(
+                    hardware_id=hardware_id,
+                    pairing_id=pairing_id,
+                    node_id=node_id,
+                    generation=credential_generation,
+                    now=now,
+                )
+            except Exception as error:
+                raise PairingProvisioningError(
+                    "MQTT credential initial activation failed"
+                ) from error
+
+    def begin_rotation(
+        self,
+        hardware_id: str,
+        *,
+        credential_generation: int,
+        now: datetime | None = None,
+    ) -> CredentialLifecycle:
+        try:
+            return self.credential_store.begin_rotation(
+                hardware_id,
+                generation=credential_generation,
+                now=now,
+            )
+        except Exception as error:
+            raise PairingProvisioningError(
+                "MQTT credential rotation start failed"
+            ) from error
+
+    def commit_rotation(
+        self,
+        hardware_id: str,
+        *,
+        now: datetime | None = None,
+    ) -> CredentialLifecycle:
+        try:
+            return self.credential_store.commit_rotation(
+                hardware_id,
+                now=now,
+            )
+        except Exception as error:
+            raise PairingProvisioningError(
+                "MQTT credential rotation commit failed"
+            ) from error
+
+    def rollback_rotation(
+        self,
+        hardware_id: str,
+        *,
+        reason: str = "candidate_verification_failed",
+        now: datetime | None = None,
+    ) -> CredentialLifecycle:
+        try:
+            return self.credential_store.roll_back_rotation(
+                hardware_id,
+                reason=reason,
+                now=now,
+            )
+        except Exception as error:
+            raise PairingRollbackError(
+                "MQTT credential rotation rollback failed"
+            ) from error
+
+    def require_recovery(
+        self,
+        hardware_id: str,
+        *,
+        reason: str,
+        now: datetime | None = None,
+    ) -> CredentialLifecycle:
+        try:
+            return self.credential_store.require_recovery(
+                hardware_id,
+                reason=reason,
+                now=now,
+            )
+        except Exception as error:
+            raise PairingProvisioningError(
+                "MQTT credential recovery transition failed"
+            ) from error
+
+
+class ManagedProductCredentialIssuer:
+    """First-registration composer only.
+
+    Pairing may initialize MQTT generation 1 and the initial N3-W
+    application key in one reversible transaction. Rotation of either
+    lifecycle is deliberately excluded from this interface.
+    """
+
+    def __init__(
+        self,
+        application_keys: ManagedApplicationKeyLifecycle,
+        mqtt_credentials: ManagedMqttCredentialLifecycle,
+    ) -> None:
+        self.application_keys = application_keys
+        self.mqtt_credentials = mqtt_credentials
         self._lock = threading.RLock()
 
     def stage(
@@ -83,164 +407,83 @@ class ManagedProductCredentialIssuer:
         node_id: str,
         credential_generation: int,
     ) -> ProductCredentialMaterial:
-        if (
-            not isinstance(credential_generation, int)
-            or isinstance(credential_generation, bool)
-            or credential_generation < 1
-        ):
-            raise PairingProvisioningError(
-                "product credential generation is invalid"
-            )
-        application_key = self.random_bytes(32)
-        if len(application_key) != 32:
-            raise PairingProvisioningError("product application-key generator returned invalid length")
-        try:
-            result = stage_pairing_epoch_key(
-                self.application_keys,
+        self.mqtt_credentials.ensure_first_registration(
+            hardware_id=hardware_id,
+            credential_generation=credential_generation,
+        )
+
+        key_material = (
+            self.application_keys.stage_initial(
                 node_id=node_id,
-                key_material=application_key,
-                target_key_epoch=credential_generation,
             )
-        except Exception as error:
-            raise PairingProvisioningError("product application-key staging failed") from error
-        key_epoch = result.get("key_epoch")
-        if (
-            not isinstance(key_epoch, int)
-            or isinstance(key_epoch, bool)
-            or key_epoch != credential_generation
-        ):
-            raise PairingProvisioningError(
-                "product application-key epoch does not match credential generation"
-            )
+        )
+
         return ProductCredentialMaterial(
             hardware_id=hardware_id,
             pairing_id=pairing_id,
             node_id=node_id,
             credential_generation=credential_generation,
-            key_epoch=key_epoch,
-            application_key=application_key,
+            key_epoch=key_material.key_epoch,
+            application_key=key_material.application_key,
         )
 
-    def commit(self, material: ProductCredentialMaterial, *, now: datetime | None = None) -> None:
-        with self._lock:
-            try:
-                lifecycle = self.credential_store.get(material.hardware_id)
-            except KeyError:
-                lifecycle = None
+    @staticmethod
+    def _application_material(
+        material: ProductCredentialMaterial,
+    ) -> ProductApplicationKeyMaterial:
+        return ProductApplicationKeyMaterial(
+            node_id=material.node_id,
+            key_epoch=material.key_epoch,
+            application_key=material.application_key,
+        )
 
-            if lifecycle is None:
-                self._commit_first_assignment(material, now=now)
-                return
-            if (
-                lifecycle.state is CredentialState.ACTIVE
-                and lifecycle.node_id == material.node_id
-                and lifecycle.active_generation == material.credential_generation
-            ):
-                return
-            if lifecycle.state is not CredentialState.ACTIVE or lifecycle.node_id != material.node_id:
-                raise PairingProvisioningError("product credential lifecycle is not rotatable")
-            if material.credential_generation <= lifecycle.active_generation:
-                raise PairingProvisioningError("product credential generation did not advance")
-            self._commit_rotation(material, now=now)
-
-    def _commit_first_assignment(
+    def commit(
         self,
         material: ProductCredentialMaterial,
         *,
-        now: datetime | None,
+        now: datetime | None = None,
     ) -> None:
-        activated = False
-        try:
-            self.application_keys.activate_key(
-                node_id=material.node_id,
-                key_epoch=material.key_epoch,
+        with self._lock:
+            application_material = (
+                self._application_material(
+                    material
+                )
             )
-            activated = True
-            self.credential_store.activate(
-                hardware_id=material.hardware_id,
-                pairing_id=material.pairing_id,
-                node_id=material.node_id,
-                generation=material.credential_generation,
-                now=now,
+
+            self.application_keys.activate_initial(
+                application_material
             )
-        except Exception as error:
-            if activated:
+
+            try:
+                self.mqtt_credentials.activate_initial(
+                    hardware_id=material.hardware_id,
+                    pairing_id=material.pairing_id,
+                    node_id=material.node_id,
+                    credential_generation=(
+                        material.credential_generation
+                    ),
+                    now=now,
+                )
+            except Exception:
                 try:
-                    self.application_keys.revoke_key(
-                        node_id=material.node_id,
-                        key_epoch=material.key_epoch,
+                    self.application_keys.rollback_initial(
+                        application_material
                     )
                 except Exception as rollback_error:
                     raise PairingRollbackError(
-                        "product credential first-assignment rollback failed"
+                        "first-registration application-key rollback failed"
                     ) from rollback_error
-            if isinstance(error, (PairingProvisioningError, PairingRollbackError)):
                 raise
-            raise PairingProvisioningError("product credential activation failed") from error
 
-    def _commit_rotation(
+    def rollback(
         self,
         material: ProductCredentialMaterial,
-        *,
-        now: datetime | None,
     ) -> None:
-        rotation_started = False
-        key_activated = False
-        try:
-            self.credential_store.begin_rotation(
-                material.hardware_id,
-                generation=material.credential_generation,
-                now=now,
+        self.application_keys.rollback_initial(
+            self._application_material(
+                material
             )
-            rotation_started = True
-            self.application_keys.activate_key(
-                node_id=material.node_id,
-                key_epoch=material.key_epoch,
-            )
-            key_activated = True
-            self.credential_store.commit_rotation(material.hardware_id, now=now)
-        except Exception as error:
-            rollback_failures: list[Exception] = []
-            if key_activated:
-                try:
-                    self.application_keys.rollback_rotation(
-                        node_id=material.node_id,
-                        key_epoch=material.key_epoch,
-                    )
-                except Exception as rollback_error:
-                    rollback_failures.append(rollback_error)
-            else:
-                try:
-                    self.application_keys.revoke_key(
-                        node_id=material.node_id,
-                        key_epoch=material.key_epoch,
-                    )
-                except Exception as rollback_error:
-                    rollback_failures.append(rollback_error)
-            if rotation_started:
-                try:
-                    self.credential_store.roll_back_rotation(
-                        material.hardware_id,
-                        reason="product_key_activation_failed",
-                        now=now,
-                    )
-                except Exception as rollback_error:
-                    rollback_failures.append(rollback_error)
-            if rollback_failures:
-                raise PairingRollbackError(
-                    "product credential rotation rollback failed"
-                ) from rollback_failures[0]
-            raise PairingProvisioningError("product credential rotation failed") from error
-
-    def rollback(self, material: ProductCredentialMaterial) -> None:
-        try:
-            self.application_keys.revoke_key(
-                node_id=material.node_id,
-                key_epoch=material.key_epoch,
-            )
-        except Exception as error:
-            raise PairingRollbackError("staged product credential rollback failed") from error
-
+        )
 
 def _encode_base64url(value: bytes) -> str:
     return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")

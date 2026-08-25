@@ -217,10 +217,7 @@ def make_settings(
             root
             / "credential-lifecycle.sqlite3"
         ),
-        n3w_setup_secret_inbox_dir=str(
-            root
-            / "setup-secret-inbox"
-        ),
+        n3w_pairing_socket_path=str(root / "pairing.sock"),
     )
 
 
@@ -270,51 +267,10 @@ def test_first_registration_product_closure(
             == "created"
         )
 
-        handoff = (
-            root
-            / "setup-secret-inbox"
-            / (
-                "handoff-"
-                + "1" * 32
-                + ".json"
-            )
-        )
-
-        handoff.write_text(
-            json.dumps(
-                {
-                    "schema": (
-                        "gh.pair."
-                        "setup-secret-import/1"
-                    ),
-                    "hardware_id": (
-                        HARDWARE_ID
-                    ),
-                    "pairing_id": (
-                        PAIRING_ID
-                    ),
-                    "setup_secret": b64(
-                        SETUP_SECRET
-                    ),
-                },
-                separators=(",", ":"),
-            ),
-            encoding="utf-8",
-        )
-
-        os.chmod(
-            handoff,
-            0o600,
-        )
-
-        assert (
-            composition
-            .setup_secret_inbox
-            .process_once()
-            == {
-                "accepted": 1,
-                "rejected": 0,
-            }
+        composition.coordinator.import_setup_secret(
+            HARDWARE_ID,
+            PAIRING_ID,
+            setup_secret=SETUP_SECRET,
         )
 
         node_nonce = (

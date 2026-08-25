@@ -22,6 +22,7 @@ enum class SimplePairingClientError : uint8_t {
   RESPONSE_REJECTED,
   CRYPTO_FAILED,
   PERSISTENCE_FAILED,
+  TRANSACTION_RENEWED,
   ACK_PENDING,
   ALREADY_PROVISIONED,
 };
@@ -80,13 +81,13 @@ class SimplePairingClient {
   bool setup_secret_ready() const { return setup_secret_ready_; }
   const std::string &hardware_id() const { return hardware_id_; }
   const std::string &pairing_id() const { return pairing_id_; }
-  uint32_t pairing_epoch() const { return pairing_epoch_; }
   std::string setup_secret_base64url() const;
   std::string pairing_qr_payload() const;
 
  private:
   SimplePairingClientError load_existing_();
   SimplePairingClientError prepare_bootstrap_();
+  SimplePairingClientError renew_pairing_intent_();
   SimplePairingClientError discover_(SimpleManagerCandidateV2 *candidate);
   SimplePairingClientError send_hello_(const SimpleManagerCandidateV2 &candidate);
   SimplePairingClientError pair_with_(const SimpleManagerCandidateV2 &candidate);
@@ -105,12 +106,11 @@ class SimplePairingClient {
   NvsProvisionedPeerStoreV2 *peer_store_{nullptr};
   NvsProvisionedBrokerStoreV2 *broker_store_{nullptr};
   NvsPendingPairingAckStoreV2 *ack_store_{nullptr};
-  NvsPairingEpochStore pairing_epoch_store_{};
+  NvsPendingPairingIntentStore pairing_intent_store_{};
   MacAddress local_mac_{};
   SetupSecret setup_secret_{};
   std::string hardware_id_{};
   std::string pairing_id_{};
-  uint32_t pairing_epoch_{0};
   bool initialized_{false};
   bool setup_secret_ready_{false};
   bool provisioned_{false};

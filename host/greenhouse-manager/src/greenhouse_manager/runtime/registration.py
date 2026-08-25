@@ -4,6 +4,7 @@ import json
 import re
 import sqlite3
 import threading
+import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -65,6 +66,14 @@ class ObserveResult:
     status: str
     record: RegistrationRecord
     reason: str | None = None
+
+
+@dataclass(slots=True)
+class RepairIntent:
+    hardware_id: str
+    pairing_id: str
+    expires_at: datetime
+    consumed: bool = False
 
 
 @dataclass(frozen=True)
@@ -136,6 +145,10 @@ class RegistrationRegistry:
         if pending_ttl_s < 1:
             raise ValueError("pending_ttl_s must be positive")
         self.pending_ttl = timedelta(seconds=pending_ttl_s)
+        self.repair_intent_ttl = timedelta(
+            seconds=min(pending_ttl_s, 120)
+        )
+        self._repair_intents: dict[str, RepairIntent] = {}
         self._lock = threading.RLock()
         self._connection = sqlite3.connect(str(path), isolation_level="IMMEDIATE", check_same_thread=False)
         self._connection.row_factory = sqlite3.Row
@@ -386,11 +399,13 @@ class RegistrationRegistry:
         observed_at = _utc(now or datetime.now(UTC))
         pairing_id = hello["pairing_id"]
         hardware_id = hello["hardware_id"]
-        epoch = hello["pairing_epoch"]
 
         with self._lock, self._connection:
             replay = self._session_row(pairing_id)
             current = self._current_row(hardware_id)
+            # Compatibility columns retain a Manager-local audit sequence only.
+            # Device-provided legacy pairing_epoch is never correctness authority.
+            epoch = 1 if current is None else int(current["pairing_epoch"]) + 1
             was_retired = current is not None and current["retired_at"] is not None
 
             if was_retired:
@@ -414,7 +429,7 @@ class RegistrationRegistry:
                     )
 
             if replay is not None:
-                if replay["hardware_id"] != hardware_id or replay["pairing_epoch"] != epoch:
+                if replay["hardware_id"] != hardware_id:
                     record = self._row_to_record(replay, current["node_id"] if current else None)
                     return ObserveResult("rejected", record, "replay_detected")
                 if current is None or current["current_pairing_id"] != pairing_id:
@@ -438,16 +453,30 @@ class RegistrationRegistry:
                 )
                 return ObserveResult("duplicate", self.get(hardware_id))
 
-            if current is not None and epoch <= current["pairing_epoch"]:
-                return ObserveResult("rejected", self.get(hardware_id), "generation_rollback")
-
+            repair_intent: RepairIntent | None = None
             if (
                 current is not None
                 and not was_retired
-                and current["state"] == RegistrationState.APPROVED
-                and not current["repair_authorized"]
+                and current["node_id"] is not None
             ):
-                return ObserveResult("rejected", self.get(hardware_id), "repair_not_authorized")
+                intent = self._repair_intents.get(hardware_id)
+                if (
+                    intent is None
+                    or intent.pairing_id != pairing_id
+                    or intent.consumed
+                ):
+                    return ObserveResult(
+                        "rejected",
+                        self.get(hardware_id),
+                        "repair_intent_required",
+                    )
+                if observed_at > intent.expires_at:
+                    return ObserveResult(
+                        "rejected",
+                        self.get(hardware_id),
+                        "repair_intent_expired",
+                    )
+                repair_intent = intent
 
             expires_at = observed_at + self.pending_ttl
             self._connection.execute(
@@ -523,26 +552,83 @@ class RegistrationRegistry:
                 None,
                 observed_at,
             )
+            if repair_intent is not None:
+                repair_intent.consumed = True
             return ObserveResult(status, self.get(hardware_id))
 
-    def authorize_repair(self, hardware_id: str, *, now: datetime | None = None) -> RegistrationRecord:
-        """Open one re-pair window after an authenticated or explicit user action."""
-        with self._lock, self._connection:
+    def authorize_repair(
+        self,
+        hardware_id: str,
+        pairing_id: str,
+        *,
+        now: datetime | None = None,
+    ) -> RepairIntent:
+        """Create one short-lived Manager-process repair authorization.
+
+        This intent is deliberately non-durable. Manager restart invalidates it.
+        SQLite repair_authorized compatibility state is never correctness
+        authority and is never set by this method.
+        """
+        if HARDWARE_ID_PATTERN.fullmatch(hardware_id) is None:
+            raise ValueError("hardware_id_invalid")
+        if not isinstance(pairing_id, str):
+            raise ValueError("pairing_id_invalid")
+        try:
+            canonical_pairing_id = str(uuid.UUID(pairing_id))
+        except ValueError as error:
+            raise ValueError("pairing_id_invalid") from error
+        if canonical_pairing_id != pairing_id:
+            raise ValueError("pairing_id_invalid")
+
+        observed_at = _utc(now or datetime.now(UTC))
+
+        with self._lock:
             record = self.get(hardware_id)
-            if record.state != RegistrationState.APPROVED:
-                raise RegistrationConflict("only an approved registration can enter re-pair mode")
-            self._connection.execute(
-                "UPDATE registrations SET repair_authorized = 1 WHERE hardware_id = ?",
-                (hardware_id,),
+
+            if record.node_id is None:
+                raise RegistrationConflict(
+                    "repair requires an existing registered identity"
+                )
+
+            if record.state is RegistrationState.PENDING:
+                raise RegistrationConflict(
+                    "registered repair transaction is still pending"
+                )
+
+            if record.state not in {
+                RegistrationState.APPROVED,
+                RegistrationState.REJECTED,
+                RegistrationState.EXPIRED,
+            }:
+                raise RegistrationConflict(
+                    "registration state cannot authorize repair"
+                )
+
+            if pairing_id == record.pairing_id:
+                raise RegistrationConflict(
+                    "repair requires a fresh pairing_id"
+                )
+            if self._session_row(pairing_id) is not None:
+                raise RegistrationConflict(
+                    "pairing_id has already been observed"
+                )
+
+            existing = self._repair_intents.get(hardware_id)
+            if (
+                existing is not None
+                and existing.pairing_id == pairing_id
+                and not existing.consumed
+                and observed_at <= existing.expires_at
+            ):
+                return existing
+
+            intent = RepairIntent(
+                hardware_id=hardware_id,
+                pairing_id=pairing_id,
+                expires_at=observed_at + self.repair_intent_ttl,
             )
-            self._record_event(
-                hardware_id,
-                record.pairing_id,
-                "repair_authorized",
-                None,
-                _utc(now or datetime.now(UTC)),
-            )
-            return record
+            self._repair_intents[hardware_id] = intent
+            return intent
 
     def approve(
         self,
@@ -827,7 +913,6 @@ class RegistrationRegistry:
             if (
                 record.node_id is not None
                 or record.logical_location_id is not None
-                or bool(current["repair_authorized"])
             ):
                 raise RegistrationConflict("registration has approved identity state")
             if credential_history.list_for_hardware(hardware_id):

@@ -228,7 +228,8 @@ def test_setup_secret_has_no_lan_admin_import_endpoint() -> None:
     ).read_text(encoding="utf-8")
 
     assert "import_setup_secret" not in endpoint
-    assert "PrivateSetupSecretInbox" in product_runtime
+    assert "ManagerOwnedPairingSocket" in product_runtime
+    assert "PrivateSetupSecretInbox(" not in product_runtime
     assert "gh.pair.setup-secret-import/1" in product_runtime
 
 

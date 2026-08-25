@@ -311,6 +311,7 @@ void SimpleProductComponent::advance_pairing_() {
   }
   if (result == SimplePairingClientError::NOT_READY ||
       result == SimplePairingClientError::DISCOVERY_FAILED ||
+      result == SimplePairingClientError::TRANSACTION_RENEWED ||
       result == SimplePairingClientError::ACK_PENDING) {
     ESP_LOGD(
         TAG,

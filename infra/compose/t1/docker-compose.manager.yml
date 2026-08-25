@@ -18,6 +18,7 @@ services:
       GH_HA_DISCOVERY_ENABLED: "${GH_HA_DISCOVERY_ENABLED:-true}"
       GH_HA_DISCOVERY_PREFIX: "${GH_HA_DISCOVERY_PREFIX:-homeassistant}"
       GH_HA_DEVICE_NAME_PREFIX: "${GH_HA_DEVICE_NAME_PREFIX:-温室监测节点}"
+      GH_N3W_PAIRING_SOCKET_PATH: "/tmp/greenhouse-manager/pairing.sock"
     networks:
       - ha_network
     restart: unless-stopped

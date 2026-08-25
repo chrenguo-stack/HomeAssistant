@@ -68,18 +68,38 @@ def test_creates_pending_and_deduplicates_same_session(registry: RegistrationReg
     assert duplicate.record.last_seen_at == NOW + timedelta(seconds=10)
 
 
-def test_approved_device_requires_repair_authorization_and_preserves_node_id(
+def test_approved_device_requires_bound_repair_intent_and_preserves_node_id(
     registry: RegistrationRegistry,
 ) -> None:
     registry.observe_hello(valid_hello(), now=NOW)
-    approved = registry.approve(HARDWARE_ID, PAIRING_ID, node_id=NODE_ID, now=NOW)
+    approved = registry.approve(
+        HARDWARE_ID,
+        PAIRING_ID,
+        node_id=NODE_ID,
+        now=NOW,
+    )
 
     next_pairing_id = "ca3e468d-fcdd-413d-b834-a8ac0cbe889e"
+
     blocked = registry.observe_hello(
         valid_hello(pairing_id=next_pairing_id, epoch=4),
+        now=NOW + timedelta(seconds=18),
+    )
+
+    still_current = registry.get(HARDWARE_ID)
+
+    assert blocked.status == "rejected"
+    assert blocked.reason == "repair_intent_required"
+    assert still_current.pairing_id == PAIRING_ID
+    assert still_current.state is RegistrationState.APPROVED
+    assert still_current.node_id == NODE_ID
+
+    registry.authorize_repair(
+        HARDWARE_ID,
+        next_pairing_id,
         now=NOW + timedelta(seconds=19),
     )
-    registry.authorize_repair(HARDWARE_ID)
+
     superseded = registry.observe_hello(
         valid_hello(pairing_id=next_pairing_id, epoch=4),
         now=NOW + timedelta(seconds=20),
@@ -91,9 +111,6 @@ def test_approved_device_requires_repair_authorization_and_preserves_node_id(
     )
 
     assert approved.node_id == NODE_ID
-    assert blocked.status == "rejected"
-    assert blocked.reason == "repair_not_authorized"
-    assert blocked.record.state == RegistrationState.APPROVED
     assert superseded.status == "superseded"
     assert superseded.record.node_id == NODE_ID
     assert reapproved.node_id == NODE_ID
@@ -107,12 +124,14 @@ def test_first_approval_requires_explicit_node_id(registry: RegistrationRegistry
         registry.approve(HARDWARE_ID, PAIRING_ID, now=NOW)
 
 
-def test_rejects_pairing_replay_and_epoch_rollback(registry: RegistrationRegistry) -> None:
+def test_rejects_terminal_pairing_id_but_ignores_legacy_device_epoch(
+    registry: RegistrationRegistry,
+) -> None:
     registry.observe_hello(valid_hello(), now=NOW)
     registry.reject(HARDWARE_ID, PAIRING_ID)
 
     replay = registry.observe_hello(valid_hello(), now=NOW + timedelta(seconds=1))
-    rollback = registry.observe_hello(
+    fresh = registry.observe_hello(
         valid_hello(
             pairing_id="3de01176-a1bb-4f5a-b1f8-cdeaf42e54c0",
             epoch=2,
@@ -122,8 +141,8 @@ def test_rejects_pairing_replay_and_epoch_rollback(registry: RegistrationRegistr
 
     assert replay.status == "rejected"
     assert replay.reason == "replay_detected"
-    assert rollback.status == "rejected"
-    assert rollback.reason == "generation_rollback"
+    assert fresh.status == "superseded"
+    assert fresh.record.pairing_epoch == 2
 
 
 def test_new_epoch_supersedes_pending_session(registry: RegistrationRegistry) -> None:
@@ -496,8 +515,12 @@ def test_repair_cannot_change_node_id_without_retirement(
 ) -> None:
     registry.observe_hello(valid_hello(), now=NOW)
     registry.approve(HARDWARE_ID, PAIRING_ID, node_id=NODE_ID, now=NOW)
-    registry.authorize_repair(HARDWARE_ID, now=NOW)
     next_pairing_id = "ca3e468d-fcdd-413d-b834-a8ac0cbe889e"
+    registry.authorize_repair(
+        HARDWARE_ID,
+        next_pairing_id,
+        now=NOW,
+    )
     registry.observe_hello(
         valid_hello(pairing_id=next_pairing_id, epoch=4),
         now=NOW + timedelta(seconds=1),
@@ -545,3 +568,219 @@ def test_reusable_lease_migrates_fail_closed_to_retired(tmp_path: Path) -> None:
     with RegistrationRegistry(database) as restored:
         assert restored.node_id_lease_state(NODE_ID).value == "retired"
         assert restored.is_node_id_ingress_allowed(NODE_ID) is False
+
+def test_repair_intent_expires_without_mutating_approved_registration(
+    registry: RegistrationRegistry,
+) -> None:
+    registry.observe_hello(valid_hello(), now=NOW)
+    registry.approve(
+        HARDWARE_ID,
+        PAIRING_ID,
+        node_id=NODE_ID,
+        now=NOW,
+    )
+
+    next_pairing_id = "7e0a9e6d-5b62-4de8-9d90-f1a8dd5774c9"
+    registry.authorize_repair(
+        HARDWARE_ID,
+        next_pairing_id,
+        now=NOW,
+    )
+
+    blocked = registry.observe_hello(
+        valid_hello(pairing_id=next_pairing_id, epoch=4),
+        now=NOW + timedelta(seconds=121),
+    )
+
+    current = registry.get(HARDWARE_ID)
+
+    assert blocked.status == "rejected"
+    assert blocked.reason == "repair_intent_expired"
+    assert current.pairing_id == PAIRING_ID
+    assert current.state is RegistrationState.APPROVED
+    assert current.node_id == NODE_ID
+
+
+def test_repair_intent_is_lost_on_manager_restart(tmp_path: Path) -> None:
+    database = tmp_path / "registration.sqlite3"
+    next_pairing_id = "7e0a9e6d-5b62-4de8-9d90-f1a8dd5774c9"
+
+    with RegistrationRegistry(database) as first:
+        first.observe_hello(valid_hello(), now=NOW)
+        first.approve(
+            HARDWARE_ID,
+            PAIRING_ID,
+            node_id=NODE_ID,
+            now=NOW,
+        )
+        first.authorize_repair(
+            HARDWARE_ID,
+            next_pairing_id,
+            now=NOW,
+        )
+
+    with RegistrationRegistry(database) as restored:
+        blocked = restored.observe_hello(
+            valid_hello(pairing_id=next_pairing_id, epoch=4),
+            now=NOW + timedelta(seconds=1),
+        )
+        current = restored.get(HARDWARE_ID)
+
+    assert blocked.status == "rejected"
+    assert blocked.reason == "repair_intent_required"
+    assert current.pairing_id == PAIRING_ID
+    assert current.state is RegistrationState.APPROVED
+    assert current.node_id == NODE_ID
+
+def test_consumed_repair_intent_cannot_be_used_to_supersede_pending_repair(
+    registry: RegistrationRegistry,
+) -> None:
+    pairing_2 = "ca3e468d-fcdd-413d-b834-a8ac0cbe889e"
+    pairing_3 = "7e0a9e6d-5b62-4de8-9d90-f1a8dd5774c9"
+
+    registry.observe_hello(valid_hello(), now=NOW)
+    registry.approve(
+        HARDWARE_ID,
+        PAIRING_ID,
+        node_id=NODE_ID,
+        now=NOW,
+    )
+
+    registry.authorize_repair(
+        HARDWARE_ID,
+        pairing_2,
+        now=NOW + timedelta(seconds=1),
+    )
+    accepted = registry.observe_hello(
+        valid_hello(pairing_id=pairing_2, epoch=4),
+        now=NOW + timedelta(seconds=2),
+    )
+
+    assert accepted.status == "superseded"
+    assert accepted.record.state is RegistrationState.PENDING
+    assert accepted.record.node_id == NODE_ID
+
+    blocked = registry.observe_hello(
+        valid_hello(pairing_id=pairing_3, epoch=5),
+        now=NOW + timedelta(seconds=3),
+    )
+    current = registry.get(HARDWARE_ID)
+
+    assert blocked.status == "rejected"
+    assert blocked.reason == "repair_intent_required"
+    assert current.pairing_id == pairing_2
+    assert current.state is RegistrationState.PENDING
+    assert current.node_id == NODE_ID
+
+    with pytest.raises(
+        RegistrationConflict,
+        match="still pending",
+    ):
+        registry.authorize_repair(
+            HARDWARE_ID,
+            pairing_3,
+            now=NOW + timedelta(seconds=4),
+        )
+
+
+def test_expired_registered_repair_requires_new_pair_bound_intent(
+    registry: RegistrationRegistry,
+) -> None:
+    pairing_2 = "ca3e468d-fcdd-413d-b834-a8ac0cbe889e"
+    pairing_3 = "7e0a9e6d-5b62-4de8-9d90-f1a8dd5774c9"
+
+    registry.observe_hello(valid_hello(), now=NOW)
+    registry.approve(
+        HARDWARE_ID,
+        PAIRING_ID,
+        node_id=NODE_ID,
+        now=NOW,
+    )
+
+    registry.authorize_repair(
+        HARDWARE_ID,
+        pairing_2,
+        now=NOW + timedelta(seconds=1),
+    )
+    registry.observe_hello(
+        valid_hello(pairing_id=pairing_2, epoch=4),
+        now=NOW + timedelta(seconds=2),
+    )
+
+    assert (
+        registry.expire_pending(
+            now=NOW + timedelta(seconds=123)
+        )
+        == 1
+    )
+    assert registry.get(HARDWARE_ID).state is RegistrationState.EXPIRED
+
+    blocked = registry.observe_hello(
+        valid_hello(pairing_id=pairing_3, epoch=5),
+        now=NOW + timedelta(seconds=124),
+    )
+
+    assert blocked.status == "rejected"
+    assert blocked.reason == "repair_intent_required"
+    assert registry.get(HARDWARE_ID).pairing_id == pairing_2
+
+    registry.authorize_repair(
+        HARDWARE_ID,
+        pairing_3,
+        now=NOW + timedelta(seconds=125),
+    )
+    accepted = registry.observe_hello(
+        valid_hello(pairing_id=pairing_3, epoch=5),
+        now=NOW + timedelta(seconds=126),
+    )
+
+    assert accepted.status == "superseded"
+    assert accepted.record.pairing_id == pairing_3
+    assert accepted.record.state is RegistrationState.PENDING
+    assert accepted.record.node_id == NODE_ID
+
+def test_legacy_repair_authorized_flag_is_not_product_correctness_authority(
+    registry: RegistrationRegistry,
+    tmp_path: Path,
+) -> None:
+    registry.observe_hello(
+        valid_hello(),
+        now=NOW,
+    )
+    registry.expire_pending(
+        now=NOW + timedelta(seconds=121)
+    )
+
+    # Simulate a legacy database that retained the old durable repair bit.
+    # It is compatibility residue only and must no longer affect product
+    # recovery decisions.
+    with registry._connection:
+        registry._connection.execute(
+            """
+            UPDATE registrations
+            SET repair_authorized = 1
+            WHERE hardware_id = ?
+            """,
+            (HARDWARE_ID,),
+        )
+
+    with CredentialLifecycleStore(
+        tmp_path / "credential-lifecycle.sqlite3"
+    ) as credentials:
+        abandoned = (
+            registry
+            .abandon_expired_first_registration(
+                HARDWARE_ID,
+                PAIRING_ID,
+                credential_history=credentials,
+                now=NOW + timedelta(seconds=122),
+            )
+        )
+
+    assert (
+        abandoned.state
+        is RegistrationState.EXPIRED
+    )
+
+    with pytest.raises(KeyError):
+        registry.get(HARDWARE_ID)

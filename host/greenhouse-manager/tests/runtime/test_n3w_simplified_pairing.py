@@ -17,6 +17,7 @@ from greenhouse_manager.runtime.n3w_simplified_credentials import (
     SimplifiedProductCredentialBundle,
 )
 from greenhouse_manager.runtime.n3w_simplified_pairing import (
+    SimplifiedPairingConflict,
     SimplifiedPairingCoordinator,
     SimplifiedPairingState,
 )
@@ -73,6 +74,7 @@ class FakeStaged:
 class FakeStager:
     def __init__(self) -> None:
         self.last: FakeStaged | None = None
+        self.stage_calls = 0
 
     def stage(
         self,
@@ -82,6 +84,7 @@ class FakeStager:
         node_id: str,
         credential_generation: int,
     ) -> FakeStaged:
+        self.stage_calls += 1
         assert hardware_id == HARDWARE_ID
         assert pairing_id == PAIRING_ID
         self.last = FakeStaged(
@@ -184,6 +187,98 @@ def test_setup_secret_pairing_auto_assigns_node_and_encrypts_complete_bundle(
         assert snapshot.state is SimplifiedPairingState.CONSUMED
         assert stager.last is not None and stager.last.committed is True
         assert stager.last.rolled_back is False
+
+
+
+def test_registered_pairing_requires_explicit_credential_recovery_before_staging(
+    tmp_path,
+) -> None:
+    random = RoutedRandom()
+    stager = FakeStager()
+    registered_node_id = "node_22222222222222222222222222222222"
+    repair_pairing_id = "7e0a9e6d-5b62-4de8-9d90-f1a8dd5774c9"
+
+    with RegistrationRegistry(
+        tmp_path / "registration.sqlite3"
+    ) as registry:
+        registry.observe_hello(
+            hello(),
+            now=NOW,
+        )
+        registry.approve(
+            HARDWARE_ID,
+            PAIRING_ID,
+            node_id=registered_node_id,
+            now=NOW,
+        )
+
+        repair_hello = hello()
+        repair_hello["pairing_id"] = repair_pairing_id
+        registry.authorize_repair(
+            HARDWARE_ID,
+            repair_pairing_id,
+            now=NOW,
+        )
+        observed = registry.observe_hello(
+            repair_hello,
+            now=NOW,
+        )
+
+        assert observed.record.node_id == registered_node_id
+
+        coordinator = SimplifiedPairingCoordinator(
+            registry,
+            stager,
+            manager_id="manager_lab_01",
+            random_bytes=random,
+        )
+
+        coordinator.import_setup_secret(
+            HARDWARE_ID,
+            repair_pairing_id,
+            setup_secret=SETUP_SECRET,
+        )
+
+        offer = coordinator.begin(
+            HARDWARE_ID,
+            repair_pairing_id,
+            node_nonce=b64(random.node_nonce),
+            now=NOW,
+        )
+
+        transcript = PairingTranscript(
+            pairing_id=repair_pairing_id,
+            hardware_id=HARDWARE_ID,
+            manager_id=offer.manager_id,
+            node_nonce=random.node_nonce,
+            manager_nonce=unb64(offer.manager_nonce),
+        )
+
+        proof = build_setup_proof(
+            SETUP_SECRET,
+            transcript,
+            role="node",
+        )
+
+        with pytest.raises(
+            SimplifiedPairingConflict,
+            match="credential_recovery_required",
+        ):
+            coordinator.establish(
+                offer.session_id,
+                node_proof=b64(proof),
+                now=NOW,
+            )
+
+        current = registry.get(HARDWARE_ID)
+
+        assert current.node_id == registered_node_id
+        assert current.pairing_id == repair_pairing_id
+        assert current.state is RegistrationState.PENDING
+
+        # Most important C2 invariant: ordinary registered pairing never
+        # reaches Broker credential or application-key staging.
+        assert stager.stage_calls == 0
 
 
 def test_invalid_node_proof_never_allocates_node_id_or_stages_credentials(

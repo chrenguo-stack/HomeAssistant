@@ -140,9 +140,7 @@ class Settings:
     n3w_credential_lifecycle_db_path: str = (
         "/var/lib/greenhouse-manager/n3w/credential-lifecycle.sqlite3"
     )
-    n3w_setup_secret_inbox_dir: str = (
-        "/var/lib/greenhouse-manager/n3w/setup-secret-inbox"
-    )
+    n3w_pairing_socket_path: str = "/run/greenhouse-manager/pairing.sock"
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -290,12 +288,9 @@ class Settings:
                     "n3w/credential-lifecycle.sqlite3"
                 ),
             ),
-            n3w_setup_secret_inbox_dir=os.getenv(
-                "GH_N3W_SETUP_SECRET_INBOX_DIR",
-                (
-                    "/var/lib/greenhouse-manager/"
-                    "n3w/setup-secret-inbox"
-                ),
+            n3w_pairing_socket_path=os.getenv(
+                "GH_N3W_PAIRING_SOCKET_PATH",
+                "/run/greenhouse-manager/pairing.sock",
             ),
         )
         settings.validate()
@@ -535,8 +530,8 @@ class Settings:
                     self.n3w_peer_trust_db_path,
                 "GH_N3W_CREDENTIAL_LIFECYCLE_DB_PATH":
                     self.n3w_credential_lifecycle_db_path,
-                "GH_N3W_SETUP_SECRET_INBOX_DIR":
-                    self.n3w_setup_secret_inbox_dir,
+                "GH_N3W_PAIRING_SOCKET_PATH":
+                    self.n3w_pairing_socket_path,
             }
 
             normalized_product_paths = {}
@@ -596,16 +591,6 @@ class Settings:
                     "N3-W product databases must differ"
                 )
 
-            if (
-                normalized_product_paths[
-                    "GH_N3W_SETUP_SECRET_INBOX_DIR"
-                ]
-                in product_databases
-            ):
-                raise ValueError(
-                    "GH_N3W_SETUP_SECRET_INBOX_DIR "
-                    "must not be a database path"
-                )
 
         if self.n3w_runtime_enabled:
             configured_paths = {

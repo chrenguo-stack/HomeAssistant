@@ -12,7 +12,7 @@ from greenhouse_manager.runtime.n3w_node_application_keys import (
     SqliteNodeApplicationKeyAdmin,
 )
 from greenhouse_manager.runtime.n3w_node_credentials import (
-    ManagedProductCredentialIssuer,
+    ManagedApplicationKeyLifecycle,
 )
 from greenhouse_manager.runtime.n3w_pairing_recovery import (
     stage_pairing_epoch_key,
@@ -22,6 +22,7 @@ from greenhouse_manager.runtime.n3w_simple_pairing_crypto import (
     build_setup_proof,
 )
 from greenhouse_manager.runtime.n3w_simplified_pairing import (
+    SimplifiedPairingConflict,
     SimplifiedPairingCoordinator,
 )
 from greenhouse_manager.runtime.registration import (
@@ -82,6 +83,7 @@ def _prepare_expired_epoch2(
     )
     registry.authorize_repair(
         HARDWARE_ID,
+        PAIRING_2,
         now=NOW + timedelta(seconds=1),
     )
     successor = registry.observe_hello(
@@ -99,7 +101,7 @@ def _prepare_expired_epoch2(
     assert expired.node_id == NODE_ID
 
 
-def test_expired_epoch2_requires_new_epoch3_pairing_identity(
+def test_expired_transaction_requires_fresh_id_not_higher_device_epoch(
     tmp_path,
 ) -> None:
     with RegistrationRegistry(
@@ -115,20 +117,30 @@ def test_expired_epoch2_requires_new_epoch3_pairing_identity(
         assert same.status == "rejected"
         assert same.reason == "replay_detected"
 
-        same_epoch_new_id = registry.observe_hello(
+        blocked = registry.observe_hello(
             _hello(PAIRING_2_ALT, 2),
             now=NOW + timedelta(seconds=72),
         )
-        assert same_epoch_new_id.status == "rejected"
-        assert same_epoch_new_id.reason == "generation_rollback"
+        assert blocked.status == "rejected"
+        assert blocked.reason == "repair_intent_required"
+        assert registry.get(HARDWARE_ID).pairing_id == PAIRING_2
 
-        epoch3 = registry.observe_hello(
-            _hello(PAIRING_3, 3),
+        # Device pairing_epoch is audit metadata only. A fresh random ID
+        # with the same legacy epoch is accepted after a new bound intent.
+        registry.authorize_repair(
+            HARDWARE_ID,
+            PAIRING_2_ALT,
             now=NOW + timedelta(seconds=73),
         )
-        assert epoch3.status == "superseded"
-        assert epoch3.record.state is RegistrationState.PENDING
-        assert epoch3.record.node_id == NODE_ID
+        same_epoch_new_id = registry.observe_hello(
+            _hello(PAIRING_2_ALT, 2),
+            now=NOW + timedelta(seconds=74),
+        )
+
+        assert same_epoch_new_id.status == "superseded"
+        assert same_epoch_new_id.record.pairing_id == PAIRING_2_ALT
+        assert same_epoch_new_id.record.state is RegistrationState.PENDING
+        assert same_epoch_new_id.record.node_id == NODE_ID
 
 
 def _build_key_admin(tmp_path) -> tuple[
@@ -149,7 +161,7 @@ def _build_key_admin(tmp_path) -> tuple[
     return admin, database
 
 
-def test_epoch3_credential_stage_jumps_key1_to_key3_without_key2(
+def test_application_key_rotation_is_independent_of_credential_generation(
     tmp_path,
 ) -> None:
     admin, database = _build_key_admin(tmp_path)
@@ -164,22 +176,17 @@ def test_epoch3_credential_stage_jumps_key1_to_key3_without_key2(
             key_epoch=1,
         )
 
-        issuer = ManagedProductCredentialIssuer(
+        lifecycle = ManagedApplicationKeyLifecycle(
             admin,
-            object(),
             random_bytes=lambda size: (
                 KEY_3 if size == 32 else b""
             ),
         )
-        material = issuer.stage(
-            hardware_id=HARDWARE_ID,
-            pairing_id=PAIRING_3,
+        material = lifecycle.stage_rotation(
             node_id=NODE_ID,
-            credential_generation=3,
         )
 
-        assert material.credential_generation == 3
-        assert material.key_epoch == 3
+        assert material.key_epoch == 2
 
         with sqlite3.connect(database) as connection:
             rows = connection.execute(
@@ -194,10 +201,12 @@ def test_epoch3_credential_stage_jumps_key1_to_key3_without_key2(
 
         assert rows == [
             (1, "ACTIVE", 1),
-            (3, "STAGED", 0),
+            (2, "STAGED", 0),
         ]
 
-        issuer.rollback(material)
+        lifecycle.rollback_staged_rotation(
+            material
+        )
 
         with sqlite3.connect(database) as connection:
             rows_after = connection.execute(
@@ -212,7 +221,7 @@ def test_epoch3_credential_stage_jumps_key1_to_key3_without_key2(
 
         assert rows_after == [
             (1, "ACTIVE", 1),
-            (3, "REVOKED", 0),
+            (2, "REVOKED", 0),
         ]
     finally:
         admin.close()
@@ -258,7 +267,7 @@ class _FailingStager:
         assert hardware_id == HARDWARE_ID
         assert pairing_id == PAIRING_3
         assert node_id == NODE_ID
-        assert credential_generation == 3
+        assert credential_generation == 1
         raise RuntimeError("synthetic_epoch3_stage_failure")
 
 
@@ -271,7 +280,7 @@ class _PairingRandom:
         raise AssertionError(size)
 
 
-def test_epoch3_stage_failure_preserves_inherited_node_id_and_lease(
+def test_epoch3_registered_recovery_stops_before_staging_and_preserves_identity(
     tmp_path,
 ) -> None:
     database = tmp_path / "registration.sqlite3"
@@ -280,6 +289,12 @@ def test_epoch3_stage_failure_preserves_inherited_node_id_and_lease(
         pending_ttl_s=60,
     ) as registry:
         _prepare_expired_epoch2(registry)
+
+        registry.authorize_repair(
+            HARDWARE_ID,
+            PAIRING_3,
+            now=NOW + timedelta(seconds=72),
+        )
         epoch3 = registry.observe_hello(
             _hello(PAIRING_3, 3),
             now=NOW + timedelta(seconds=73),
@@ -319,8 +334,8 @@ def test_epoch3_stage_failure_preserves_inherited_node_id_and_lease(
         )
 
         with pytest.raises(
-            RuntimeError,
-            match="synthetic_epoch3_stage_failure",
+            SimplifiedPairingConflict,
+            match="credential_recovery_required",
         ):
             coordinator.establish(
                 offer.session_id,
@@ -340,10 +355,12 @@ def test_epoch3_stage_failure_preserves_inherited_node_id_and_lease(
         events = registry.list_events(
             hardware_id=HARDWARE_ID
         )
-        assert any(
+
+        # C2 must stop before automatic approval/staging. Therefore no
+        # rollback event should be necessary or observable.
+        assert not any(
             event.event
             == "automatic_approval_rolled_back_preserved_node"
-            and event.node_id == NODE_ID
             for event in events
         )
 

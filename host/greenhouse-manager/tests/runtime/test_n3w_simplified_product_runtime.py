@@ -16,6 +16,8 @@ from greenhouse_manager.runtime.n3w_simplified_pairing import (
 from greenhouse_manager.runtime.n3w_simplified_product_runtime import (
     PrivateSetupSecretInbox,
     SimplifiedProductCompositionConfig,
+    SimplifiedProductRuntimeError,
+    _ensure_private_runtime_directory,
     build_simplified_product_pairing_composition,
 )
 from greenhouse_manager.runtime.registration import (
@@ -168,10 +170,7 @@ def make_config(
             root
             / "credential-lifecycle.sqlite3"
         ),
-        setup_secret_inbox_dir=str(
-            root
-            / "setup-secret-inbox"
-        ),
+        pairing_socket_path=str(root / "pairing.sock"),
     )
 
 
@@ -231,7 +230,7 @@ def test_product_pairing_composition_is_source_only_and_grant_free(
 
         assert (
             composition
-            .setup_secret_inbox
+            .pairing_socket
             .is_alive
             is False
         )
@@ -252,14 +251,6 @@ def test_product_pairing_composition_is_source_only_and_grant_free(
                 == 0o600
             )
 
-        assert (
-            (
-                root
-                / "setup-secret-inbox"
-            ).stat().st_mode
-            & 0o777
-            == 0o700
-        )
     finally:
         composition.close()
 
@@ -446,3 +437,36 @@ def test_setup_secret_import_is_idempotent_but_conflict_fails(
                     bytes([0xFF]) * 32
                 ),
             )
+
+def test_pairing_runtime_directory_can_be_created_inside_sticky_tmpfs(
+    tmp_path: Path,
+) -> None:
+    shared = tmp_path / "tmpfs"
+    shared.mkdir()
+    os.chmod(shared, 0o1777)
+
+    runtime = shared / "greenhouse-manager"
+
+    _ensure_private_runtime_directory(runtime)
+
+    assert runtime.is_dir()
+    assert runtime.stat().st_mode & 0o777 == 0o700
+
+    if hasattr(os, "getuid"):
+        assert runtime.stat().st_uid == os.getuid()
+
+
+def test_pairing_runtime_directory_rejects_nonsticky_shared_parent(
+    tmp_path: Path,
+) -> None:
+    shared = tmp_path / "unsafe"
+    shared.mkdir()
+    os.chmod(shared, 0o777)
+
+    with pytest.raises(
+        SimplifiedProductRuntimeError,
+        match="pairing_runtime_directory_parent_invalid",
+    ):
+        _ensure_private_runtime_directory(
+            shared / "greenhouse-manager"
+        )

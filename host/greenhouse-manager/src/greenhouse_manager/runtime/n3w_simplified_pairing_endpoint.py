@@ -67,6 +67,20 @@ def _iso(value: datetime) -> str:
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
+_TERMINAL_HELLO_REASONS = frozenset(
+    {
+        "expired",
+        "replay_detected",
+    }
+)
+
+
+def _hello_transaction_disposition(*, status: str, reason: str | None) -> str:
+    if status == "rejected" and reason in _TERMINAL_HELLO_REASONS:
+        return "terminal"
+    return "continue"
+
+
 class SimplifiedPairingEndpointApp:
     """Local-only HTTP adapter for Phase 4 Setup-Secret pairing."""
 
@@ -165,8 +179,13 @@ class SimplifiedPairingEndpointApp:
                 {
                     "schema": "gh.pair.simple-hello-result/1",
                     "status": result.status,
-                    "hardware_id": result.record.hardware_id,
-                    "pairing_id": result.record.pairing_id,
+                    "hardware_id": document["hardware_id"],
+                    "pairing_id": document["pairing_id"],
+                    "transaction_disposition": _hello_transaction_disposition(
+                        status=result.status,
+                        reason=result.reason,
+                    ),
+                    "reason": result.reason,
                 },
                 request_id,
             )
