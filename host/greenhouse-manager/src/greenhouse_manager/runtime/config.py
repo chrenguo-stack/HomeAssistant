@@ -143,6 +143,7 @@ class Settings:
     n3w_setup_secret_inbox_dir: str = (
         "/var/lib/greenhouse-manager/n3w/setup-secret-inbox"
     )
+    n3w_pairing_socket_path: str = "/run/greenhouse-manager/pairing.sock"
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -296,6 +297,10 @@ class Settings:
                     "/var/lib/greenhouse-manager/"
                     "n3w/setup-secret-inbox"
                 ),
+            ),
+            n3w_pairing_socket_path=os.getenv(
+                "GH_N3W_PAIRING_SOCKET_PATH",
+                "/run/greenhouse-manager/pairing.sock",
             ),
         )
         settings.validate()
@@ -537,6 +542,8 @@ class Settings:
                     self.n3w_credential_lifecycle_db_path,
                 "GH_N3W_SETUP_SECRET_INBOX_DIR":
                     self.n3w_setup_secret_inbox_dir,
+                "GH_N3W_PAIRING_SOCKET_PATH":
+                    self.n3w_pairing_socket_path,
             }
 
             normalized_product_paths = {}

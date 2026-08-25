@@ -219,14 +219,14 @@ class FakeComposition:
         self.pairing_runtime = (
             FakeRuntime()
         )
-        self.setup_secret_inbox = (
+        self.pairing_socket = (
             FakeInbox()
         )
         self.closed = 0
 
     def close(self):
         self.closed += 1
-        self.setup_secret_inbox.stop()
+        self.pairing_socket.stop()
         self.pairing_runtime.close()
 
 
@@ -250,7 +250,7 @@ def test_product_pairing_worker_owns_lifecycle() -> None:
         == 1
     )
     assert (
-        composition.setup_secret_inbox.started
+        composition.pairing_socket.started
         == 1
     )
 

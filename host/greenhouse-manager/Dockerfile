@@ -7,7 +7,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN groupadd --system greenhouse \
     && useradd --system --gid greenhouse --create-home greenhouse \
     && mkdir -p /var/lib/greenhouse-manager \
-    && chown greenhouse:greenhouse /var/lib/greenhouse-manager
+    && mkdir -p /run/greenhouse-manager \
+    && chown greenhouse:greenhouse /var/lib/greenhouse-manager /run/greenhouse-manager \
+    && chmod 0700 /run/greenhouse-manager
 
 WORKDIR /app
 

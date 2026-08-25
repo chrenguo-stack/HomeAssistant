@@ -22,6 +22,7 @@ from .n3w_node_credentials import ManagedProductCredentialIssuer
 from .n3w_node_identity_provisioner import (
     PahoNodeIdentityProvisioner,
 )
+from .n3w_pairing_local_ipc import ManagerOwnedPairingSocket
 from .n3w_peer_trust_store import SystemPeerTrustStore
 from .n3w_simplified_credentials import (
     SimplifiedCredentialBundleIssuer,
@@ -183,7 +184,7 @@ class SimplifiedProductCompositionConfig:
 
     peer_trust_db_path: str
     credential_lifecycle_db_path: str
-    setup_secret_inbox_dir: str
+    pairing_socket_path: str
 
     bind_host: str = "0.0.0.0"
     http_port: int = 47112
@@ -226,7 +227,7 @@ class SimplifiedProductCompositionConfig:
         for raw in (
             self.peer_trust_db_path,
             self.credential_lifecycle_db_path,
-            self.setup_secret_inbox_dir,
+            self.pairing_socket_path,
         ):
             path = Path(raw).expanduser()
             if not path.is_absolute():
@@ -236,7 +237,7 @@ class SimplifiedProductCompositionConfig:
 
 
 class PrivateSetupSecretInbox:
-    """Private local handoff from trusted UI/operator glue.
+    """LAB_ONLY filesystem compatibility adapter.
 
     Setup Secret is never exposed as a LAN HTTP administration API.
     Final handoff files are mode 0600 under one mode-0700 directory.
@@ -608,7 +609,7 @@ class SimplifiedProductPairingComposition:
     peer_trust: SystemPeerTrustStore
     coordinator: SimplifiedPairingCoordinator
     pairing_runtime: Any
-    setup_secret_inbox: PrivateSetupSecretInbox
+    pairing_socket: ManagerOwnedPairingSocket
 
     _closed: bool = False
 
@@ -621,7 +622,7 @@ class SimplifiedProductPairingComposition:
         failures: list[Exception] = []
 
         try:
-            self.setup_secret_inbox.stop()
+            self.pairing_socket.stop()
         except Exception as error:
             failures.append(error)
 
@@ -751,9 +752,7 @@ def build_simplified_product_config_from_settings(
         credential_lifecycle_db_path=(
             settings.n3w_credential_lifecycle_db_path
         ),
-        setup_secret_inbox_dir=(
-            settings.n3w_setup_secret_inbox_dir
-        ),
+        pairing_socket_path=settings.n3w_pairing_socket_path,
         bind_host=(
             settings.n3w_pairing_bind_host
         ),
@@ -955,9 +954,9 @@ def build_simplified_product_pairing_composition(
             )
         )
 
-        inbox = PrivateSetupSecretInbox(
+        pairing_socket = ManagerOwnedPairingSocket(
             coordinator,
-            config.setup_secret_inbox_dir,
+            config.pairing_socket_path,
         )
 
         return (
@@ -972,7 +971,7 @@ def build_simplified_product_pairing_composition(
                 pairing_runtime=(
                     pairing_runtime
                 ),
-                setup_secret_inbox=inbox,
+                pairing_socket=pairing_socket,
             )
         )
 

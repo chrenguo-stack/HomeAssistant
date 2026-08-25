@@ -168,10 +168,7 @@ def make_config(
             root
             / "credential-lifecycle.sqlite3"
         ),
-        setup_secret_inbox_dir=str(
-            root
-            / "setup-secret-inbox"
-        ),
+        pairing_socket_path=str(root / "pairing.sock"),
     )
 
 
@@ -231,7 +228,7 @@ def test_product_pairing_composition_is_source_only_and_grant_free(
 
         assert (
             composition
-            .setup_secret_inbox
+            .pairing_socket
             .is_alive
             is False
         )
@@ -252,14 +249,6 @@ def test_product_pairing_composition_is_source_only_and_grant_free(
                 == 0o600
             )
 
-        assert (
-            (
-                root
-                / "setup-secret-inbox"
-            ).stat().st_mode
-            & 0o777
-            == 0o700
-        )
     finally:
         composition.close()
 

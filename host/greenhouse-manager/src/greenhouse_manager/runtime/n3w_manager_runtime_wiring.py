@@ -111,7 +111,7 @@ class N3wSimplifiedProductPairingWorker:
 
         try:
             self.composition.pairing_runtime.start()
-            self.composition.setup_secret_inbox.start()
+            self.composition.pairing_socket.start()
         except Exception:
             self.composition.close()
             raise
@@ -137,7 +137,7 @@ class N3wSimplifiedProductPairingWorker:
 
                 if (
                     not self.composition
-                    .setup_secret_inbox
+                    .pairing_socket
                     .is_alive
                 ):
                     raise RuntimeError(
