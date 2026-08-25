@@ -517,12 +517,9 @@ def test_n3w_replay_inspect_rejects_invalid_boot_session(tmp_path: Path) -> None
     assert document is None
     assert "boot_session_invalid" in error
 
+
 def test_registration_cli_does_not_expose_durable_repair_authorization() -> None:
     options = _parser()
-    command_action = next(
-        action
-        for action in options._actions
-        if action.dest == "command"
-    )
+    command_action = next(action for action in options._actions if action.dest == "command")
 
     assert "authorize-repair" not in command_action.choices

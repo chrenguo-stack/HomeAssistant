@@ -93,7 +93,10 @@ def test_product_pairing_client_uses_durable_random_transaction_id() -> None:
     assert "NvsPairingEpochStore" not in header
     assert "pairing_id_from_secret" not in source
     assert "std::array<uint8_t, 16> pairing_random{}" in source
-    assert "pairing_intent_store_.save(intent)" in source
+    assert "PendingPairingIntent replacement" in source
+    saved = source.index("pairing_intent_store_.save(replacement)")
+    activated = source.index("pairing_id_ = std::move(next_pairing_id)")
+    assert saved < activated
     assert 'root["pairing_epoch"]' not in source
     assert "pairing_intent_store_.erase()" in source
 
