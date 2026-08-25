@@ -50,14 +50,15 @@ local attempt sequence without using it in security or lifecycle decisions.
 ## Local validation
 
 - Manager focused suites: `48 passed`;
-- pairing simplification and UDS contracts: `9 passed`;
-- Manager full pytest: `1171 passed, 1 skipped`;
+- pairing simplification and UDS contracts: `10 passed`;
+- Manager full pytest: `1172 passed, 1 skipped`;
 - Phase3/Phase4/boot-recovery source contracts: `23 passed`;
 - schema/public-safety pytest: `8 passed`;
 - Ruff: passed;
 - public repository safety scan: passed;
 - ESPHome Phase4 generic configuration: passed;
-- ESP32-C6 Phase4 generic compile: passed, image size `1108110` bytes.
+- ESP32-C6 Phase4 generic compile: passed, image size `1108110` bytes,
+  firmware SHA-256 `a8936fd0d81ef9e166aa5bb4bd335b4945a90c6088779f7f754038ca7605387c`.
 
 The first local compile attempt stopped before compilation because the sandbox
 could not write the existing PlatformIO cache lock. Re-running the same exact
