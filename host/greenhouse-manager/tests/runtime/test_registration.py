@@ -68,21 +68,16 @@ def test_creates_pending_and_deduplicates_same_session(registry: RegistrationReg
     assert duplicate.record.last_seen_at == NOW + timedelta(seconds=10)
 
 
-def test_approved_device_requires_repair_authorization_and_preserves_node_id(
+def test_approved_device_accepts_fresh_transaction_and_preserves_node_id(
     registry: RegistrationRegistry,
 ) -> None:
     registry.observe_hello(valid_hello(), now=NOW)
     approved = registry.approve(HARDWARE_ID, PAIRING_ID, node_id=NODE_ID, now=NOW)
 
     next_pairing_id = "ca3e468d-fcdd-413d-b834-a8ac0cbe889e"
-    blocked = registry.observe_hello(
-        valid_hello(pairing_id=next_pairing_id, epoch=4),
-        now=NOW + timedelta(seconds=19),
-    )
-    registry.authorize_repair(HARDWARE_ID)
     superseded = registry.observe_hello(
         valid_hello(pairing_id=next_pairing_id, epoch=4),
-        now=NOW + timedelta(seconds=20),
+        now=NOW + timedelta(seconds=19),
     )
     reapproved = registry.approve(
         HARDWARE_ID,
@@ -91,9 +86,6 @@ def test_approved_device_requires_repair_authorization_and_preserves_node_id(
     )
 
     assert approved.node_id == NODE_ID
-    assert blocked.status == "rejected"
-    assert blocked.reason == "repair_not_authorized"
-    assert blocked.record.state == RegistrationState.APPROVED
     assert superseded.status == "superseded"
     assert superseded.record.node_id == NODE_ID
     assert reapproved.node_id == NODE_ID
@@ -107,12 +99,14 @@ def test_first_approval_requires_explicit_node_id(registry: RegistrationRegistry
         registry.approve(HARDWARE_ID, PAIRING_ID, now=NOW)
 
 
-def test_rejects_pairing_replay_and_epoch_rollback(registry: RegistrationRegistry) -> None:
+def test_rejects_terminal_pairing_id_but_ignores_legacy_device_epoch(
+    registry: RegistrationRegistry,
+) -> None:
     registry.observe_hello(valid_hello(), now=NOW)
     registry.reject(HARDWARE_ID, PAIRING_ID)
 
     replay = registry.observe_hello(valid_hello(), now=NOW + timedelta(seconds=1))
-    rollback = registry.observe_hello(
+    fresh = registry.observe_hello(
         valid_hello(
             pairing_id="3de01176-a1bb-4f5a-b1f8-cdeaf42e54c0",
             epoch=2,
@@ -122,8 +116,8 @@ def test_rejects_pairing_replay_and_epoch_rollback(registry: RegistrationRegistr
 
     assert replay.status == "rejected"
     assert replay.reason == "replay_detected"
-    assert rollback.status == "rejected"
-    assert rollback.reason == "generation_rollback"
+    assert fresh.status == "superseded"
+    assert fresh.record.pairing_epoch == 2
 
 
 def test_new_epoch_supersedes_pending_session(registry: RegistrationRegistry) -> None:

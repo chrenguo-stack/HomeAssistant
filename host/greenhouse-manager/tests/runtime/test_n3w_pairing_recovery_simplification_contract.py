@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 RUNTIME = ROOT / "src" / "greenhouse_manager" / "runtime"
 FIRMWARE = (
@@ -71,5 +70,5 @@ def test_final_delivery_receipt_and_telemetry_replay_guards_remain() -> None:
 
     assert "delivery_digest" in coordinator
     assert "delivery_digest" in firmware
-    assert "STALE_BOOT" in canonical
-    assert "STALE_SEQUENCE" in canonical
+    assert "stale_boot_session" in canonical
+    assert "stale_sequence" in canonical

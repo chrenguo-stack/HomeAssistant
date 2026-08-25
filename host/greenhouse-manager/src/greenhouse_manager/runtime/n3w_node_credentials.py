@@ -9,7 +9,6 @@ from datetime import datetime
 from typing import Protocol
 
 from .credential_lifecycle import CredentialLifecycleStore, CredentialState
-from .n3w_pairing_recovery import stage_pairing_epoch_key
 from .pairing_service import (
     CredentialBundle,
     PairingProvisioningError,
@@ -95,11 +94,9 @@ class ManagedProductCredentialIssuer:
         if len(application_key) != 32:
             raise PairingProvisioningError("product application-key generator returned invalid length")
         try:
-            result = stage_pairing_epoch_key(
-                self.application_keys,
+            result = self.application_keys.stage_key(
                 node_id=node_id,
                 key_material=application_key,
-                target_key_epoch=credential_generation,
             )
         except Exception as error:
             raise PairingProvisioningError("product application-key staging failed") from error
@@ -107,10 +104,10 @@ class ManagedProductCredentialIssuer:
         if (
             not isinstance(key_epoch, int)
             or isinstance(key_epoch, bool)
-            or key_epoch != credential_generation
+            or key_epoch < 1
         ):
             raise PairingProvisioningError(
-                "product application-key epoch does not match credential generation"
+                "product application-key epoch is invalid"
             )
         return ProductCredentialMaterial(
             hardware_id=hardware_id,

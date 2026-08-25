@@ -85,31 +85,17 @@ def test_pairing_epoch_store_is_durable_and_monotonic() -> None:
     assert "record.epoch == 0" in source
 
 
-def test_pairing_client_uses_durable_epoch_and_new_repair_pairing_id() -> None:
+def test_product_pairing_client_uses_durable_random_transaction_id() -> None:
     header = text(CORE / "n3w_simple_pairing_client.h")
     source = text(CORE / "n3w_simple_pairing_client.cpp")
 
-    assert "NvsPairingEpochStore pairing_epoch_store_{}" in header
-    assert "uint32_t pairing_epoch_{0}" in header
-    assert "kPairingIdDomainV1" in source
-    assert "kPairingIdDomainV2" in source
-    assert "pairing_epoch > 1" in source
-    assert "pairing_epoch_store_.save(1)" in source
-    assert 'root["pairing_epoch"] = pairing_epoch_' in source
-    assert 'root["pairing_epoch"] = 1' not in source
-
-    load_start = source.index("SimplePairingClient::load_existing_()")
-    load_end = source.index("SimplePairingClient::prepare_bootstrap_()", load_start)
-    load_body = source[load_start:load_end]
-    assert "epoch_status != SimpleNvsStatus::OK" in load_body
-    assert "peer.n3w_key_epoch < stored_pairing_epoch" in load_body
-    assert "broker.credential_generation != stored_pairing_epoch" in load_body
-
-    pair_start = source.index("SimplePairingClient::pair_with_(")
-    pair_end = source.index("SimplePairingClient::persist_bundle_", pair_start)
-    pair_body = source[pair_start:pair_end]
-    assert "broker.credential_generation != pairing_epoch_" in pair_body
-    assert "peer.n3w_key_epoch < pairing_epoch_" in pair_body
+    assert "NvsPendingPairingIntentStore pairing_intent_store_{}" in header
+    assert "NvsPairingEpochStore" not in header
+    assert "pairing_id_from_secret" not in source
+    assert "std::array<uint8_t, 16> pairing_random{}" in source
+    assert "pairing_intent_store_.save(intent)" in source
+    assert 'root["pairing_epoch"]' not in source
+    assert "pairing_intent_store_.erase()" in source
 
 
 def test_formal_protocol_requires_new_key_epoch_and_floor_above_high_water() -> None:

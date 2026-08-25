@@ -15,6 +15,7 @@ namespace esphome::greenhouse_n3w_core {
 namespace {
 
 constexpr uint32_t kSetupMagic = 0x4E335332U;         // N3S2
+constexpr uint32_t kPairingIntentMagic = 0x4E334932U; // N3I2
 constexpr uint32_t kPairingEpochMagic = 0x4E334532U;  // N3E2
 constexpr uint32_t kPeerMagic = 0x4E335032U;          // N3P2
 constexpr uint16_t kRecordVersion = 1U;
@@ -33,6 +34,14 @@ struct PersistedPairingEpoch {
   uint16_t version;
   uint16_t reserved;
   uint32_t epoch;
+  uint8_t check[32];
+};
+
+struct PersistedPairingIntent {
+  uint32_t magic;
+  uint16_t version;
+  uint16_t reserved;
+  char pairing_id[37];
   uint8_t check[32];
 };
 
@@ -164,6 +173,47 @@ void ProvisionedPeerStateV2::clear() {
   std::fill(system_peer_key.begin(), system_peer_key.end(), 0);
   n3w_key_epoch = 0;
   std::fill(n3w_application_key.begin(), n3w_application_key.end(), 0);
+}
+
+bool PendingPairingIntent::valid() const {
+  return random_pairing_id.size() == 36U &&
+         random_pairing_id[8] == '-' && random_pairing_id[13] == '-' &&
+         random_pairing_id[18] == '-' && random_pairing_id[23] == '-';
+}
+
+void PendingPairingIntent::clear() { random_pairing_id.clear(); }
+
+SimpleNvsStatus NvsPendingPairingIntentStore::load(PendingPairingIntent *intent) {
+  if (intent == nullptr || namespace_name_.empty() || key_name_.empty()) {
+    return SimpleNvsStatus::INVALID_ARGUMENT;
+  }
+  PersistedPairingIntent record{};
+  const SimpleNvsStatus status = read_blob(namespace_name_, key_name_, &record, sizeof(record));
+  if (status != SimpleNvsStatus::OK) return status;
+  if (record.magic != kPairingIntentMagic || record.version != kRecordVersion ||
+      record.reserved != 0 || record.pairing_id[36] != '\0' || !valid_check(record)) {
+    return SimpleNvsStatus::CORRUPT;
+  }
+  PendingPairingIntent candidate{.random_pairing_id = record.pairing_id};
+  if (!candidate.valid()) return SimpleNvsStatus::CORRUPT;
+  *intent = std::move(candidate);
+  return SimpleNvsStatus::OK;
+}
+
+SimpleNvsStatus NvsPendingPairingIntentStore::save(const PendingPairingIntent &intent) {
+  if (!intent.valid() || namespace_name_.empty() || key_name_.empty()) {
+    return SimpleNvsStatus::INVALID_ARGUMENT;
+  }
+  PersistedPairingIntent record{};
+  record.magic = kPairingIntentMagic;
+  record.version = kRecordVersion;
+  std::memcpy(record.pairing_id, intent.random_pairing_id.data(), 36U);
+  if (!write_check(&record)) return SimpleNvsStatus::IO_ERROR;
+  return write_blob(namespace_name_, key_name_, &record, sizeof(record));
+}
+
+SimpleNvsStatus NvsPendingPairingIntentStore::erase() {
+  return erase_key(namespace_name_, key_name_);
 }
 
 SimpleNvsStatus NvsSetupSecretStore::load_or_create(SetupSecret *secret) {

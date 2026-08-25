@@ -30,6 +30,29 @@ struct ProvisionedPeerStateV2 {
   void clear();
 };
 
+struct PendingPairingIntent {
+  std::string random_pairing_id;
+
+  bool valid() const;
+  void clear();
+};
+
+class NvsPendingPairingIntentStore {
+ public:
+  explicit NvsPendingPairingIntentStore(
+      std::string namespace_name = "gh_n3w_v2",
+      std::string key_name = "pair_intent")
+      : namespace_name_(std::move(namespace_name)), key_name_(std::move(key_name)) {}
+
+  SimpleNvsStatus load(PendingPairingIntent *intent);
+  SimpleNvsStatus save(const PendingPairingIntent &intent);
+  SimpleNvsStatus erase();
+
+ private:
+  std::string namespace_name_;
+  std::string key_name_;
+};
+
 class NvsSetupSecretStore {
  public:
   explicit NvsSetupSecretStore(
@@ -54,8 +77,7 @@ class NvsPairingEpochStore {
       std::string key_name = "pair_epoch")
       : namespace_name_(std::move(namespace_name)), key_name_(std::move(key_name)) {}
 
-  // Pairing epoch is durable for the hardware identity lifecycle. Fresh devices
-  // materialize epoch 1; explicit repair recovery may advance it monotonically.
+  // LEGACY_MIGRATION_ONLY / BOARD_LAB_ONLY. Product pairing does not use this.
   SimpleNvsStatus load(uint32_t *epoch);
   SimpleNvsStatus save(uint32_t epoch);
 

@@ -308,7 +308,11 @@ class SimplifiedPairingCoordinator:
                     hardware_id=session.hardware_id,
                     pairing_id=session.pairing_id,
                     node_id=approved.node_id,
-                    credential_generation=approved.pairing_epoch,
+                    # First registration is generation 1. Pairing retries are
+                    # not credential rotations; an already-active Broker
+                    # identity fails closed in the provisioner rather than
+                    # being destructively replaced.
+                    credential_generation=1,
                 )
             except Exception:
                 self._rollback_automatic_approval(

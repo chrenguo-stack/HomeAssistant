@@ -99,7 +99,7 @@ def _prepare_expired_epoch2(
     assert expired.node_id == NODE_ID
 
 
-def test_expired_epoch2_requires_new_epoch3_pairing_identity(
+def test_expired_transaction_requires_fresh_id_not_higher_device_epoch(
     tmp_path,
 ) -> None:
     with RegistrationRegistry(
@@ -119,8 +119,8 @@ def test_expired_epoch2_requires_new_epoch3_pairing_identity(
             _hello(PAIRING_2_ALT, 2),
             now=NOW + timedelta(seconds=72),
         )
-        assert same_epoch_new_id.status == "rejected"
-        assert same_epoch_new_id.reason == "generation_rollback"
+        assert same_epoch_new_id.status == "superseded"
+        assert same_epoch_new_id.record.pairing_id == PAIRING_2_ALT
 
         epoch3 = registry.observe_hello(
             _hello(PAIRING_3, 3),
@@ -149,7 +149,7 @@ def _build_key_admin(tmp_path) -> tuple[
     return admin, database
 
 
-def test_epoch3_credential_stage_jumps_key1_to_key3_without_key2(
+def test_application_key_epoch_advances_independently_of_credential_generation(
     tmp_path,
 ) -> None:
     admin, database = _build_key_admin(tmp_path)
@@ -179,7 +179,7 @@ def test_epoch3_credential_stage_jumps_key1_to_key3_without_key2(
         )
 
         assert material.credential_generation == 3
-        assert material.key_epoch == 3
+        assert material.key_epoch == 2
 
         with sqlite3.connect(database) as connection:
             rows = connection.execute(
@@ -194,7 +194,7 @@ def test_epoch3_credential_stage_jumps_key1_to_key3_without_key2(
 
         assert rows == [
             (1, "ACTIVE", 1),
-            (3, "STAGED", 0),
+            (2, "STAGED", 0),
         ]
 
         issuer.rollback(material)
@@ -212,7 +212,7 @@ def test_epoch3_credential_stage_jumps_key1_to_key3_without_key2(
 
         assert rows_after == [
             (1, "ACTIVE", 1),
-            (3, "REVOKED", 0),
+            (2, "REVOKED", 0),
         ]
     finally:
         admin.close()
@@ -258,7 +258,7 @@ class _FailingStager:
         assert hardware_id == HARDWARE_ID
         assert pairing_id == PAIRING_3
         assert node_id == NODE_ID
-        assert credential_generation == 3
+        assert credential_generation == 1
         raise RuntimeError("synthetic_epoch3_stage_failure")
 
 

@@ -386,11 +386,13 @@ class RegistrationRegistry:
         observed_at = _utc(now or datetime.now(UTC))
         pairing_id = hello["pairing_id"]
         hardware_id = hello["hardware_id"]
-        epoch = hello["pairing_epoch"]
 
         with self._lock, self._connection:
             replay = self._session_row(pairing_id)
             current = self._current_row(hardware_id)
+            # Compatibility columns retain a Manager-local audit sequence only.
+            # Device-provided legacy pairing_epoch is never correctness authority.
+            epoch = 1 if current is None else int(current["pairing_epoch"]) + 1
             was_retired = current is not None and current["retired_at"] is not None
 
             if was_retired:
@@ -414,7 +416,7 @@ class RegistrationRegistry:
                     )
 
             if replay is not None:
-                if replay["hardware_id"] != hardware_id or replay["pairing_epoch"] != epoch:
+                if replay["hardware_id"] != hardware_id:
                     record = self._row_to_record(replay, current["node_id"] if current else None)
                     return ObserveResult("rejected", record, "replay_detected")
                 if current is None or current["current_pairing_id"] != pairing_id:
@@ -437,17 +439,6 @@ class RegistrationRegistry:
                     (_timestamp(observed_at), pairing_id),
                 )
                 return ObserveResult("duplicate", self.get(hardware_id))
-
-            if current is not None and epoch <= current["pairing_epoch"]:
-                return ObserveResult("rejected", self.get(hardware_id), "generation_rollback")
-
-            if (
-                current is not None
-                and not was_retired
-                and current["state"] == RegistrationState.APPROVED
-                and not current["repair_authorized"]
-            ):
-                return ObserveResult("rejected", self.get(hardware_id), "repair_not_authorized")
 
             expires_at = observed_at + self.pending_ttl
             self._connection.execute(
