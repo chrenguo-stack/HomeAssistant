@@ -17,6 +17,7 @@ from greenhouse_manager.runtime.n3w_pairing_local_ipc import (
 HARDWARE_ID = "ghw-c6-aabbccddeeff"
 PAIRING_ID = "ba999b15-e74f-4ef5-bad7-8dcd62c13d66"
 SECRET = base64.urlsafe_b64encode(bytes(range(32))).rstrip(b"=").decode()
+SHORT_TEMP_ROOT = Path(tempfile.gettempdir()).resolve()
 
 
 class Coordinator:
@@ -35,7 +36,7 @@ class Coordinator:
 
 def test_manager_owned_socket_imports_without_staging_file() -> None:
     coordinator = Coordinator()
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as directory:
+    with tempfile.TemporaryDirectory(dir=SHORT_TEMP_ROOT) as directory:
         socket_path = Path(directory) / "pairing.sock"
         server = ManagerOwnedPairingSocket(coordinator, socket_path)
         server.start()
@@ -60,7 +61,7 @@ def test_manager_owned_socket_imports_without_staging_file() -> None:
 
 def test_socket_rejects_malformed_and_oversized_requests() -> None:
     coordinator = Coordinator()
-    with tempfile.TemporaryDirectory(dir="/private/tmp") as directory:
+    with tempfile.TemporaryDirectory(dir=SHORT_TEMP_ROOT) as directory:
         socket_path = Path(directory) / "pairing.sock"
         server = ManagerOwnedPairingSocket(coordinator, socket_path)
         server.start()
