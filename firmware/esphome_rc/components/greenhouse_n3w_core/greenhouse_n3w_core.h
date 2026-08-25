@@ -54,7 +54,9 @@ class GreenhouseN3wCore : public SimpleProductComponent {
   // generation so the old application-key epoch cannot be reused. The helper is
   // inert unless product/runtime harness execution is disabled.
   //
-  // The sequence is restart-safe: pairing_epoch is materialized first and acts
+  // LEGACY_MIGRATION_ONLY / ENGINEERING_MIGRATION_ONLY / BOARD_LAB_ONLY.
+  // Normal product runtime and Final Product Acceptance must not call this.
+  // The historical sequence is restart-safe: pairing_epoch is materialized first and acts
   // as the recovery marker; a retry may then resume floor persistence and old
   // credential removal without lowering either durable generation.
   bool provision_boot_session_repair_recovery(

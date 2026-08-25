@@ -14,6 +14,34 @@
 
 状态：`OPEN` = 尚未根治；`GUARDED` = 已修复且有回归保护；`RESOLVED` = 已修复，但主要依靠流程/环境约束。
 
+`DOMAIN` 是当前问题的 primary classification，只能取：`PRODUCT`、
+`SECURITY`、`PHYSICAL_HARNESS`、`INFRASTRUCTURE`、`CI`。问题发生在 FC4
+流程中本身不构成 `PRODUCT` 分类。
+
+### 当前 N3-W pairing/recovery primary DOMAIN
+
+| ID | DOMAIN | 说明 |
+|---|---|---|
+| KF-044 | PHYSICAL_HARNESS | handoff/pending-window 执行时序 |
+| KF-045 | PHYSICAL_HARNESS | recovery DB 路径域执行器 |
+| KF-046 | PHYSICAL_HARNESS | AP/串口诊断 oracle 与 redaction |
+| KF-047 | INFRASTRUCTURE | exact-image entrypoint/argv |
+| KF-048 | INFRASTRUCTURE | container UID 与 private-state mount |
+| KF-049 | SECURITY | 公共仓库身份信息暴露防护 |
+| KF-050 | PRODUCT | BOOT session monotonic replay correctness |
+| KF-051 | PRODUCT | 已退休的 pairing-epoch/key-epoch coupling；V2 regression 禁止恢复 |
+| KF-052 | PRODUCT | repair rollback 必须保持 stable NODE_ID |
+| KF-053 | INFRASTRUCTURE | ARM64 architecture-family normalization |
+| KF-054 | PHYSICAL_HARNESS | executor shell helper portability |
+| KF-055 | PHYSICAL_HARNESS | executor parser portability |
+| KF-056 | CI | offline build dependency/bundle scope |
+| KF-057 | PHYSICAL_HARNESS | flash/boot/serial/NVS oracle separation |
+| KF-058 | PHYSICAL_HARNESS | LAN diagnosis fact authority |
+| KF-059 | SECURITY | exact-target DynSec identity recovery |
+| KF-060 | SECURITY | DynSec destructive rollback ownership |
+
+该表是 primary `DOMAIN` authority；下方历史索引保持原事实文字不变。
+
 ## 快速索引
 
 | ID | 阶段 / 模块 | 现象 | 根因 | 修复 / 闪避规则 | 状态 |
