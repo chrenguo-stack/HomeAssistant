@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from greenhouse_manager.ops.n3w_pairing_cli import parser
 from greenhouse_manager.runtime.n3w_pairing_local_ipc import (
     ManagerOwnedPairingSocket,
     PairingLocalIpcError,
@@ -82,3 +83,20 @@ def test_socket_refuses_symlink_ambiguity(tmp_path: Path) -> None:
 
     with pytest.raises(PairingLocalIpcError, match="pairing_socket_path_invalid"):
         ManagerOwnedPairingSocket(Coordinator(), link / "pairing.sock")
+
+
+def test_cli_does_not_accept_setup_secret_in_process_arguments() -> None:
+    options = parser()
+    assert "--setup-secret " not in options.format_help()
+    with pytest.raises(SystemExit):
+        options.parse_args(
+            [
+                "import",
+                "--hardware-id",
+                HARDWARE_ID,
+                "--pairing-id",
+                PAIRING_ID,
+                "--setup-secret",
+                SECRET,
+            ]
+        )
