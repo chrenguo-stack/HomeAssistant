@@ -59,8 +59,12 @@ def test_repair_preserves_existing_node_id(tmp_path) -> None:
             random_bytes=FixedRandom(b"\x02" * 16),
         )
         first = approver.approve(HARDWARE_ID, PAIRING_ID, now=NOW)
-        registry.authorize_repair(HARDWARE_ID)
         next_pairing = "ca3e468d-fcdd-413d-b834-a8ac0cbe889e"
+        registry.authorize_repair(
+            HARDWARE_ID,
+            next_pairing,
+            now=NOW,
+        )
         registry.observe_hello(
             valid_hello(pairing_id=next_pairing, epoch=4),
             now=NOW + timedelta(seconds=1),

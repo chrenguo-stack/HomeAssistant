@@ -217,10 +217,6 @@ def make_settings(
             root
             / "credential-lifecycle.sqlite3"
         ),
-        n3w_setup_secret_inbox_dir=str(
-            root
-            / "setup-secret-inbox"
-        ),
         n3w_pairing_socket_path=str(root / "pairing.sock"),
     )
 

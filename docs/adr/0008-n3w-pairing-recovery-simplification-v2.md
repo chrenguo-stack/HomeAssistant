@@ -46,6 +46,18 @@ Wi-Fi loss, Relay switching, pairing retry, adding a node, and ordinary
 non-compromise retirement do not rotate them. A real compromise or explicit
 security event may rotate them.
 
+V2 进一步冻结 lifecycle ownership 边界：
+
+- `ManagedMqttCredentialLifecycle` 只拥有 MQTT credential generation/password 状态，
+  不拥有 N3-W application-key material；
+- `ManagedApplicationKeyLifecycle` 只拥有 N3-W application-key generation/state，
+  不拥有 MQTT generation/password；
+- `ManagedProductCredentialIssuer` 是 `FIRST_REGISTRATION_COMPOSER_ONLY`：
+  允许在首次注册时原子组合 MQTT generation 1 与初始 application key，
+  但它不是 credential 或 application-key rotation API。
+
+pairing retry 与 ordinary repair 不得通过 first-registration composer 推进任一 lifecycle。
+
 ## Transaction and commit boundary
 
 The product pairing path is:
@@ -67,6 +79,46 @@ failure before the final receipt must not leave partially active credentials.
 The receipt is the one transactional acknowledgement; additional timing floors,
 successor generations, and physical recovery states are not product authority.
 
+### Terminal pairing transaction renewal
+
+设备只有在 Manager 返回以下精确 terminal rejection 时才生成新的 pairing ID：
+
+```text
+status == "rejected"
+AND
+reason in {"expired", "replay_detected"}
+```
+
+HTTP/transient failure、timeout、malformed response 以及其他 non-terminal rejection
+都必须保留当前 pairing ID。新的 pairing ID 必须先完成 durable persistence，
+之后才能更新内存中的 active identity。
+
+由于 terminal `/hello` rejection 发生在 Setup Secret PoP 之前，能够伪造 Manager
+terminal response 的同网段攻击者理论上可以造成 pairing-ID churn、NVS wear，
+或者 pairing availability / DoS。该风险作为 C1 的已记录 residual availability risk
+保留。它不能泄露 credential，也不能授权或触发 MQTT credential、N3-W application key
+或 `SYSTEM_PEER_KEY` rotation。
+
+### Bounded repair authorization
+
+ordinary repair authorization 使用内存态 `RepairIntent`，不使用 durable correctness
+authority。其合同为：
+
+```text
+one-shot
+TTL <= 120 seconds
+hardware_id bound
+pairing_id bound
+Manager restart invalidates
+```
+
+current identity 必须存在、不得 retired，并继续持有 stable `NODE_ID`；存在 competing
+pending pairing 时不得授权。相同 pairing ID 的重复请求可以幂等处理，但 fresh
+unauthorized pairing ID 不得改变 durable state。
+
+legacy database 中的 `repair_authorized` 字段可以为兼容性继续存在，但其值不得再参与
+product recovery correctness 判定。
+
 ## Product Setup Secret interface
 
 The filesystem Setup Secret inbox is `LAB_ONLY` compatibility code and is not
@@ -77,13 +129,46 @@ Manager-owned local Unix domain socket, normally:
 /run/greenhouse-manager/pairing.sock
 ```
 
-The Manager creates, owns, permissions, and removes the socket. A bounded local
-request supports only `import_setup_secret` and contains exactly `schema`,
-`hardware_id`, `pairing_id`, and `setup_secret`. The Manager synchronously
-accepts or rejects through the existing coordinator. The secret is not logged,
-written to a staging file, or persisted by the IPC layer. The path is absolute,
-local-only and rejected on symlink ambiguity. CLI/UI clients call this IPC and
-never write SQLite directly.
+The Manager creates, owns, permissions, and removes the socket. The bounded
+Manager-owned UDS exposes exactly two product operations:
+
+- Setup Secret import: request schema `gh.pair.setup-secret-import/1`, carrying
+  exactly `schema`, `hardware_id`, `pairing_id`, and `setup_secret`;
+- repair authorization: request schema `gh.pair.repair-authorize/1`, carrying
+  the bounded repair-authorization request for the exact hardware/pairing
+  identity.
+
+The Manager synchronously accepts or rejects both operations through the
+existing coordinator. Setup Secret material is not logged, written to a staging
+file, or persisted by the IPC layer. The path is absolute, local-only and
+rejected on symlink ambiguity. CLI/UI clients call this IPC and never write
+SQLite directly.
+
+非 Compose 安装可以继续使用 `/run` 下的默认路径。T1 Compose 保持 Manager root
+filesystem 为 read-only，并使用既有 `/tmp` tmpfs 中的私有 runtime：
+
+```text
+/tmp/greenhouse-manager/                mode 0700
+/tmp/greenhouse-manager/pairing.sock    mode 0600
+```
+
+symlink ambiguity 与 unsafe world-writable parent layout 必须拒绝。共享 `/tmp`
+只有在 sticky-bit parent + Manager-owned private child directory 的条件下才允许使用。
+
+本地 RPC 的 stream framing authority 冻结为：
+
+- request 最大 4096 bytes；
+- response 最大 4096 bytes；
+- 第一个 LF 结束 logical frame；
+- reader 继续读取到 EOF，并拒绝之后出现的任何 non-whitespace bytes；
+- client 发送 request 后执行 `SHUT_WR` half-close；
+- response schema 必须严格且按 operation 区分：
+  Setup Secret import 使用 `gh.pair.setup-secret-import-result/1`，
+  repair authorization 使用 `gh.pair.repair-authorize-result/1`；
+- repair request 即使 downstream exception，也必须返回
+  `gh.pair.repair-authorize-result/1`，不能返回 Setup Secret import response schema。
+
+因此 Unix stream 的单次 `recv()` 边界不得被视为 message boundary。
 
 ## Identity, replay and retirement
 

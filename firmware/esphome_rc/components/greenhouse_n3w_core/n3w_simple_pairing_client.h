@@ -22,6 +22,7 @@ enum class SimplePairingClientError : uint8_t {
   RESPONSE_REJECTED,
   CRYPTO_FAILED,
   PERSISTENCE_FAILED,
+  TRANSACTION_RENEWED,
   ACK_PENDING,
   ALREADY_PROVISIONED,
 };
@@ -86,6 +87,7 @@ class SimplePairingClient {
  private:
   SimplePairingClientError load_existing_();
   SimplePairingClientError prepare_bootstrap_();
+  SimplePairingClientError renew_pairing_intent_();
   SimplePairingClientError discover_(SimpleManagerCandidateV2 *candidate);
   SimplePairingClientError send_hello_(const SimpleManagerCandidateV2 &candidate);
   SimplePairingClientError pair_with_(const SimpleManagerCandidateV2 &candidate);

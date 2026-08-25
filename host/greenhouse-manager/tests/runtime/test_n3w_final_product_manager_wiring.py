@@ -154,6 +154,13 @@ def test_settings_read_product_pairing_without_network(
         == "manager_lab_01"
     )
 
+    # Legacy LAB filesystem-inbox environment must not become part
+    # of final product Settings.
+    assert not hasattr(
+        settings,
+        "n3w_setup_secret_inbox_dir",
+    )
+
 
 def test_product_selector_uses_product_manager(
     monkeypatch,

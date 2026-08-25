@@ -153,9 +153,6 @@ def _parser() -> argparse.ArgumentParser:
     reject.add_argument("pairing_id")
     reject.add_argument("--reason", default="user_rejected")
 
-    repair = subparsers.add_parser("authorize-repair", help="open one explicit re-pair window")
-    repair.add_argument("hardware_id")
-
     subparsers.add_parser("expire", help="expire overdue pending registrations")
 
     abandon = subparsers.add_parser(
@@ -356,16 +353,6 @@ def main(
                 _write(
                     output,
                     {"result": "rejected", "registration": _record_document(record)},
-                )
-            elif args.command == "authorize-repair":
-                record = registry.authorize_repair(args.hardware_id)
-                _write(
-                    output,
-                    {
-                        "result": "repair_authorized",
-                        "one_time": True,
-                        "registration": _record_document(record),
-                    },
                 )
             elif args.command == "expire":
                 _write(output, {"expired": registry.expire_pending()})

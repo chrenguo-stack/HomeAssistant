@@ -29,7 +29,7 @@
 | KF-048 | INFRASTRUCTURE | container UID 与 private-state mount |
 | KF-049 | SECURITY | 公共仓库身份信息暴露防护 |
 | KF-050 | PRODUCT | BOOT session monotonic replay correctness |
-| KF-051 | PRODUCT | 已退休的 pairing-epoch/key-epoch coupling；V2 regression 禁止恢复 |
+| KF-051 | PRODUCT | 已退休的 pairing/session 与 MQTT credential / N3-W application-key lifecycle 耦合；V2 regression 禁止恢复 |
 | KF-052 | PRODUCT | repair rollback 必须保持 stable NODE_ID |
 | KF-053 | INFRASTRUCTURE | ARM64 architecture-family normalization |
 | KF-054 | PHYSICAL_HARNESS | executor shell helper portability |
@@ -39,6 +39,11 @@
 | KF-058 | PHYSICAL_HARNESS | LAN diagnosis fact authority |
 | KF-059 | SECURITY | exact-target DynSec identity recovery |
 | KF-060 | SECURITY | DynSec destructive rollback ownership |
+| KF-066 | SECURITY | durable `repair_authorized` correctness residue |
+| KF-067 | PRODUCT | Manager 本地 UDS framing / response-schema uniqueness |
+
+`KF-061`～`KF-065` 已被既有历史记录占用并保留，不得在 public index 中重新分配；
+非公共 evidence 的具体事故内容不在本公共索引中重述。`KF-068`～`KF-070` 当前保持未分配。
 
 该表是 primary `DOMAIN` authority；下方历史索引保持原事实文字不变。
 
@@ -109,6 +114,9 @@
 | KF-059 | FC4 F350 repair approval / DynSec target identity recovery | Epoch5 handoff 已通过两次 TTL gate 并被 inbox 原子消费，但 automatic approval 在 DynSec 目标身份冲突处业务层 fail-closed；没有提交有效 credential，事后目标 client 存在而 role 缺失 | 现场 exact target identity 已进入非对称状态；该状态由 pre-existing 对象与 KF-060 rollback ownership 缺陷共同形成的精确前序只能依据现有 source/evidence 推断，不能称为已证明的 state-preserving rollback | 冲突后先保存私有 DynSec 备份，再停用 exact Manager并通过同一 production provisioner 的 `deprovision` 语义最小删除 exact target client/role，禁止清空 DynSec 或触碰非目标身份。Epoch7 已证明 target client/role 重新创建且 credential generation 7 active；现场恢复闭环；后续 source defect 已由 KF-060 的独立 source/test 修复闭环 | RESOLVED |
 | KF-060 | Manager DynSec provisioning rollback ownership | exact Manager `DynsecProvisioner.provision()` 曾在 `createRole`/`createClient` 成功返回前设置 `role_started`/`client_started`；若 create 因 pre-existing 对象冲突，异常路径可能删除并非本事务创建的 target 对象。Epoch5 的 `client present / role absent` 与该路径高度吻合 | rollback ownership 曾以“尝试已开始”代替“本事务已成功创建”；因此业务层虽 fail-closed，DynSec rollback 未证明 state-preserving，可能删除 pre-existing role/client | PR #333 已合并 source/test 修复：仅在 create 成功后设置 `role_created`/`client_created`；post-publish 不确定结果使用 `DynsecOutcomeUncertain` 并先 inventory/reconcile，禁止无所有权证明的 destructive rollback。六类 regression 覆盖 pre-existing role/client、仅新 role、旧 role collision、clean target，以及 uncertain applied/not-applied client。exact rebind HEAD `3e38cf74b976e9810a4b87c25dc5364b1d8030c7` 的 13 个 PR workflow 全部 PASS，source merge commit=`18d7975da2fbe60d1b22c2ce7970aba80b13c3ab` | GUARDED |
 
+| KF-066 | PR #336 C3/C7 repair authorization | 旧数据库中的 durable `repair_authorized=1` 可能继续被 active recovery path 当作 repair correctness authority | 历史持久化兼容字段与当前一次性人工 repair intent 的 authority 边界未完全分离 | active product path 只接受内存态、one-shot、`TTL <= 120s`、`hardware_id + pairing_id` 精确绑定且 Manager restart 失效的 `RepairIntent`；删除 durable bit 的 correctness fallback；fresh unauthorized pairing 不改变 durable state；focused/full regression 禁止恢复 durable authority | GUARDED |
+| KF-067 | PR #336 C6/C7 Manager local pairing RPC | Unix stream `recv()` 边界可能被误当作 message boundary；repair downstream exception 又可能返回 Setup Secret import schema，导致 request/response contract 非唯一 | local RPC framing 与 operation-specific response schema 没有形成单一严格 authority | request/response 均限制为 4096 bytes；首个 LF 定义 frame，随后继续读到 EOF 并拒绝 trailing non-whitespace；client send 后执行 `SHUT_WR`；严格校验 response schema；repair exception 始终返回 repair response schema；focused regression 固定这些合同 | GUARDED |
+
 ## 固定回归规则
 
 以下规则适用于所有后续阶段：
@@ -122,6 +130,7 @@
 - **No speculative fix**：根因未证实前，不以“试试看”的方式修改生产路径或物理固件。
 - **Exact-base source edit**：源码局部修复必须以 exact-base blob 为输入；提交后必须做 changed-file/hunk allowlist，禁止由截断视图重建整文件。
 - **Architecture retirement**：产品 authority 退休时，source / test / workflow / admin / config 必须同阶段收口；禁止 live CI 长期宣示已退休产品语义。
+- **Pairing/security lifecycle separation**：pairing/session retry 与 ordinary repair 不得推进 MQTT credential generation、N3-W application-key generation 或 `SYSTEM_PEER_KEY` lifecycle；first-registration issuer 只负责组合初始 credential/key，不得成为 rotation API；pairing epoch 不得重新进入上述 lifecycle correctness。
 - **Historical quarantine**：历史兼容实现若必须保留，名称和引用必须显式表明 `_legacy` / `s5` / lab / historical 身份；normal product runtime 不得导入。
 - **Automatic NODE_ID**：正常 registration approve 不允许操作者输入 NODE_ID；NODE_ID 由 Manager 自动分配且退役后不复用。
 - **Architecture-family normalization**：host/kernel/Docker server 的架构 preflight 必须先归一等价别名（当前 `arm64` / `aarch64`）再比较；artifact/image metadata 与 exact revision 作为独立 authority 校验，禁止把别名差异误判为平台不兼容。

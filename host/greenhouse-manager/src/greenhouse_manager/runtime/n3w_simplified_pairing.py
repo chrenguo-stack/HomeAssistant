@@ -194,6 +194,19 @@ class SimplifiedPairingCoordinator:
                 )
             self._setup[key] = bytearray(setup_secret)
 
+    def authorize_repair(
+        self,
+        hardware_id: str,
+        pairing_id: str,
+        *,
+        now: datetime | None = None,
+    ) -> None:
+        self.registry.authorize_repair(
+            hardware_id,
+            pairing_id,
+            now=now,
+        )
+
     def begin(
         self,
         hardware_id: str,
@@ -296,6 +309,20 @@ class SimplifiedPairingCoordinator:
                 session.hardware_id
             )
             session.inherited_node_id = pre_approval.node_id
+
+            # Pairing/session recovery is not credential recovery.
+            #
+            # An inherited NODE_ID proves that this hardware already has a
+            # registered product identity. The Manager intentionally does not
+            # retain a re-deliverable MQTT plaintext password, so ordinary
+            # pairing must stop before Broker credential provisioning or
+            # N3-W application-key staging. Credential loss/rotation belongs
+            # to its explicit security lifecycle.
+            if session.inherited_node_id is not None:
+                raise SimplifiedPairingConflict(
+                    "credential_recovery_required"
+                )
+
             approved = self.approver.approve(
                 session.hardware_id,
                 session.pairing_id,
@@ -308,10 +335,9 @@ class SimplifiedPairingCoordinator:
                     hardware_id=session.hardware_id,
                     pairing_id=session.pairing_id,
                     node_id=approved.node_id,
-                    # First registration is generation 1. Pairing retries are
-                    # not credential rotations; an already-active Broker
-                    # identity fails closed in the provisioner rather than
-                    # being destructively replaced.
+                    # This staging path is reachable only for first
+                    # registration. Registered repair/re-delivery is rejected
+                    # above before Broker or application-key mutation.
                     credential_generation=1,
                 )
             except Exception:

@@ -272,6 +272,58 @@ bool parse_bundle(
   return peer->valid() && broker->valid();
 }
 
+enum class HelloTransactionDisposition : uint8_t {
+  CONTINUE = 0,
+  TERMINAL,
+};
+
+bool parse_hello_result(
+    const std::string &response,
+    const std::string &hardware_id,
+    const std::string &pairing_id,
+    HelloTransactionDisposition *disposition) {
+  if (disposition == nullptr) return false;
+
+  JsonDocument document = json::parse_json(response);
+  JsonObjectConst root = document.as<JsonObjectConst>();
+
+  std::string schema;
+  std::string response_hardware;
+  std::string response_pairing;
+  std::string status;
+  std::string disposition_text;
+
+  if (root.isNull() ||
+      !read_string(root, "schema", &schema) ||
+      schema != "gh.pair.simple-hello-result/1" ||
+      !read_string(root, "hardware_id", &response_hardware) ||
+      response_hardware != hardware_id ||
+      !read_string(root, "pairing_id", &response_pairing) ||
+      response_pairing != pairing_id ||
+      !read_string(root, "status", &status) ||
+      !read_string(root, "transaction_disposition", &disposition_text)) {
+    return false;
+  }
+
+  if (disposition_text == "continue") {
+    *disposition = HelloTransactionDisposition::CONTINUE;
+    return true;
+  }
+
+  if (disposition_text == "terminal") {
+    std::string reason;
+    if (status != "rejected" ||
+        !read_string(root, "reason", &reason) ||
+        (reason != "expired" && reason != "replay_detected")) {
+      return false;
+    }
+    *disposition = HelloTransactionDisposition::TERMINAL;
+    return true;
+  }
+
+  return false;
+}
+
 }  // namespace
 
 bool SimpleManagerCandidateV2::valid() const {
@@ -354,20 +406,40 @@ SimplePairingClientError SimplePairingClient::prepare_bootstrap_() {
   if (intent_status == SimpleNvsStatus::OK) {
     pairing_id_ = intent.random_pairing_id;
   } else if (intent_status == SimpleNvsStatus::MISSING) {
-    std::array<uint8_t, 16> pairing_random{};
-    if (!fill_(pairing_random.data(), pairing_random.size())) {
-      return SimplePairingClientError::IO_FAILED;
-    }
-    pairing_id_ = uuid_from_random(pairing_random);
-    intent.random_pairing_id = pairing_id_;
-    if (pairing_intent_store_.save(intent) != SimpleNvsStatus::OK) {
-      return SimplePairingClientError::PERSISTENCE_FAILED;
-    }
+    return renew_pairing_intent_();
   } else {
     return SimplePairingClientError::PERSISTENCE_FAILED;
   }
   return pairing_id_.empty() ? SimplePairingClientError::CRYPTO_FAILED
                              : SimplePairingClientError::NONE;
+}
+
+SimplePairingClientError SimplePairingClient::renew_pairing_intent_() {
+  // A transaction ID is random state, not a distributed generation counter.
+  // Keep the old durable intent unless a distinct replacement is generated
+  // and successfully committed to NVS.
+  for (uint8_t attempt = 0; attempt < 4; ++attempt) {
+    std::array<uint8_t, 16> pairing_random{};
+    if (!fill_(pairing_random.data(), pairing_random.size())) {
+      return SimplePairingClientError::IO_FAILED;
+    }
+
+    std::string next_pairing_id = uuid_from_random(pairing_random);
+    if (next_pairing_id.empty() || next_pairing_id == pairing_id_) {
+      continue;
+    }
+
+    PendingPairingIntent replacement;
+    replacement.random_pairing_id = next_pairing_id;
+    if (pairing_intent_store_.save(replacement) != SimpleNvsStatus::OK) {
+      return SimplePairingClientError::PERSISTENCE_FAILED;
+    }
+
+    pairing_id_ = std::move(next_pairing_id);
+    return SimplePairingClientError::NONE;
+  }
+
+  return SimplePairingClientError::CRYPTO_FAILED;
 }
 
 SimplePairingClientError SimplePairingClient::run_once(uint64_t now_ms) {
@@ -450,6 +522,23 @@ SimplePairingClientError SimplePairingClient::send_hello_(
   if (!network_->post_json(candidate, path, request, &status, &response) || status != 200) {
     return SimplePairingClientError::HTTP_FAILED;
   }
+
+  HelloTransactionDisposition disposition = HelloTransactionDisposition::CONTINUE;
+  if (!parse_hello_result(
+          response,
+          hardware_id_,
+          pairing_id_,
+          &disposition)) {
+    return SimplePairingClientError::RESPONSE_REJECTED;
+  }
+
+  if (disposition == HelloTransactionDisposition::TERMINAL) {
+    const SimplePairingClientError renewed = renew_pairing_intent_();
+    return renewed == SimplePairingClientError::NONE
+               ? SimplePairingClientError::TRANSACTION_RENEWED
+               : renewed;
+  }
+
   return SimplePairingClientError::NONE;
 }
 

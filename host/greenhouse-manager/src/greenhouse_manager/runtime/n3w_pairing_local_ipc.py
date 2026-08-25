@@ -11,7 +11,11 @@ from typing import Protocol
 
 SCHEMA = "gh.pair.setup-secret-import/1"
 RESPONSE_SCHEMA = "gh.pair.setup-secret-import-result/1"
+REPAIR_SCHEMA = "gh.pair.repair-authorize/1"
+REPAIR_RESPONSE_SCHEMA = "gh.pair.repair-authorize-result/1"
 MAX_REQUEST_BYTES = 4096
+MAX_RESPONSE_BYTES = 4096
+SOCKET_TIMEOUT_S = 2.0
 
 
 class SetupSecretImporter(Protocol):
@@ -21,6 +25,12 @@ class SetupSecretImporter(Protocol):
         pairing_id: str,
         *,
         setup_secret: bytes,
+    ) -> None: ...
+
+    def authorize_repair(
+        self,
+        hardware_id: str,
+        pairing_id: str,
     ) -> None: ...
 
 
@@ -51,19 +61,161 @@ def _decode_secret(value: object) -> bytearray:
     return decoded
 
 
-def _response(*, accepted: bool, code: str) -> bytes:
+def _response(
+    *,
+    accepted: bool,
+    code: str,
+    schema: str = RESPONSE_SCHEMA,
+) -> bytes:
     return (
         json.dumps(
             {
                 "accepted": accepted,
                 "code": code,
-                "schema": RESPONSE_SCHEMA,
+                "schema": schema,
             },
             sort_keys=True,
             separators=(",", ":"),
         ).encode("utf-8")
         + b"\n"
     )
+
+
+
+def _wipe_buffer(value: bytearray) -> None:
+    if value:
+        value[:] = b"\0" * len(value)
+        value.clear()
+
+
+def _read_frame(
+    connection: socket.socket,
+    *,
+    max_bytes: int,
+    timeout_code: str,
+    too_large_code: str,
+    invalid_code: str,
+) -> bytearray:
+    """Read exactly one bounded newline-or-EOF frame.
+
+    A newline identifies the logical end of the frame, but the reader
+    continues through EOF so a second frame cannot hide in a later stream
+    segment. Only whitespace is permitted after the first newline.
+    """
+
+    payload = bytearray()
+    frame_end: int | None = None
+
+    try:
+        while len(payload) <= max_bytes:
+            try:
+                block = connection.recv(
+                    min(
+                        1024,
+                        max_bytes + 1 - len(payload),
+                    )
+                )
+            except TimeoutError as error:
+                raise PairingLocalIpcError(
+                    timeout_code
+                ) from error
+            except OSError as error:
+                raise PairingLocalIpcError(
+                    invalid_code
+                ) from error
+
+            if not block:
+                break
+
+            payload.extend(block)
+
+            if len(payload) > max_bytes:
+                raise PairingLocalIpcError(
+                    too_large_code
+                )
+
+            if frame_end is None:
+                newline = payload.find(b"\n")
+
+                if newline >= 0:
+                    frame_end = newline
+
+            if frame_end is not None:
+                trailing = payload[
+                    frame_end + 1:
+                ]
+
+                if bytes(trailing).strip():
+                    raise PairingLocalIpcError(
+                        invalid_code
+                    )
+
+        if len(payload) > max_bytes:
+            raise PairingLocalIpcError(
+                too_large_code
+            )
+
+        if not payload:
+            raise PairingLocalIpcError(
+                invalid_code
+            )
+
+        if frame_end is not None:
+            del payload[frame_end:]
+
+        if not payload:
+            raise PairingLocalIpcError(
+                invalid_code
+            )
+
+        return payload
+
+    except Exception:
+        _wipe_buffer(payload)
+        raise
+
+def _decode_response(
+    payload: bytearray,
+    *,
+    response_schema: str,
+) -> dict[str, object]:
+    try:
+        document = json.loads(
+            bytes(payload).decode("utf-8")
+        )
+    except (
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+    ) as error:
+        raise PairingLocalIpcError(
+            "response_invalid"
+        ) from error
+
+    if (
+        not isinstance(document, dict)
+        or set(document)
+        != {
+            "accepted",
+            "code",
+            "schema",
+        }
+        or document.get("schema")
+        != response_schema
+        or not isinstance(
+            document.get("accepted"),
+            bool,
+        )
+        or not isinstance(
+            document.get("code"),
+            str,
+        )
+        or not document["code"]
+    ):
+        raise PairingLocalIpcError(
+            "response_invalid"
+        )
+
+    return document
 
 
 class ManagerOwnedPairingSocket:
@@ -157,48 +309,185 @@ class ManagerOwnedPairingSocket:
 
     def _handle(self, connection: socket.socket) -> bytes:
         payload = bytearray()
+        response_schema = RESPONSE_SCHEMA
         try:
-            while len(payload) <= MAX_REQUEST_BYTES:
-                block = connection.recv(min(1024, MAX_REQUEST_BYTES + 1 - len(payload)))
-                if not block:
-                    break
-                payload.extend(block)
-                if b"\n" in block:
-                    break
-            if len(payload) > MAX_REQUEST_BYTES:
-                raise PairingLocalIpcError("request_too_large")
-            document = json.loads(bytes(payload).decode("utf-8"))
-            if not isinstance(document, dict) or set(document) != {
-                "schema",
-                "hardware_id",
-                "pairing_id",
-                "setup_secret",
-            }:
-                raise PairingLocalIpcError("request_fields_invalid")
-            if document["schema"] != SCHEMA:
-                raise PairingLocalIpcError("request_schema_invalid")
-            hardware_id = document["hardware_id"]
-            pairing_id = document["pairing_id"]
-            if not isinstance(hardware_id, str) or not isinstance(pairing_id, str):
-                raise PairingLocalIpcError("request_identity_invalid")
-            secret = _decode_secret(document["setup_secret"])
+            payload = _read_frame(
+                connection,
+                max_bytes=MAX_REQUEST_BYTES,
+                timeout_code="request_timeout",
+                too_large_code="request_too_large",
+                invalid_code="request_frame_invalid",
+            )
+
             try:
-                self.coordinator.import_setup_secret(
+                document = json.loads(
+                    bytes(payload).decode("utf-8")
+                )
+            except (
+                UnicodeDecodeError,
+                json.JSONDecodeError,
+            ) as error:
+                raise PairingLocalIpcError(
+                    "request_json_invalid"
+                ) from error
+
+            if not isinstance(document, dict):
+                raise PairingLocalIpcError("request_fields_invalid")
+
+            schema = document.get("schema")
+
+            if schema == REPAIR_SCHEMA:
+                response_schema = REPAIR_RESPONSE_SCHEMA
+
+            if schema == SCHEMA:
+                if set(document) != {
+                    "schema",
+                    "hardware_id",
+                    "pairing_id",
+                    "setup_secret",
+                }:
+                    raise PairingLocalIpcError("request_fields_invalid")
+                hardware_id = document["hardware_id"]
+                pairing_id = document["pairing_id"]
+                if (
+                    not isinstance(hardware_id, str)
+                    or not isinstance(pairing_id, str)
+                ):
+                    raise PairingLocalIpcError(
+                        "request_identity_invalid"
+                    )
+                secret = _decode_secret(document["setup_secret"])
+                try:
+                    self.coordinator.import_setup_secret(
+                        hardware_id,
+                        pairing_id,
+                        setup_secret=bytes(secret),
+                    )
+                finally:
+                    secret[:] = b"\0" * len(secret)
+                    secret.clear()
+                return _response(
+                    accepted=True,
+                    code="accepted",
+                )
+
+            if schema == REPAIR_SCHEMA:
+                if set(document) != {
+                    "schema",
+                    "hardware_id",
+                    "pairing_id",
+                }:
+                    raise PairingLocalIpcError(
+                        "request_fields_invalid"
+                    )
+                hardware_id = document["hardware_id"]
+                pairing_id = document["pairing_id"]
+                if (
+                    not isinstance(hardware_id, str)
+                    or not isinstance(pairing_id, str)
+                ):
+                    raise PairingLocalIpcError(
+                        "request_identity_invalid"
+                    )
+                self.coordinator.authorize_repair(
                     hardware_id,
                     pairing_id,
-                    setup_secret=bytes(secret),
                 )
-            finally:
-                secret[:] = b"\0" * len(secret)
-                secret.clear()
-            return _response(accepted=True, code="accepted")
-        except Exception as error:
-            code = str(error) if isinstance(error, PairingLocalIpcError) else "rejected"
-            return _response(accepted=False, code=code)
-        finally:
-            payload[:] = b"\0" * len(payload)
-            payload.clear()
+                return _response(
+                    accepted=True,
+                    code="repair_authorized",
+                    schema=REPAIR_RESPONSE_SCHEMA,
+                )
 
+            raise PairingLocalIpcError("request_schema_invalid")
+        except Exception as error:
+            code = (
+                str(error)
+                if isinstance(
+                    error,
+                    PairingLocalIpcError,
+                )
+                else "rejected"
+            )
+            return _response(
+                accepted=False,
+                code=code,
+                schema=response_schema,
+            )
+        finally:
+            _wipe_buffer(payload)
+
+
+def _request_over_socket(
+    path: str | Path,
+    document: dict[str, object],
+    *,
+    response_schema: str,
+    timeout_s: float = SOCKET_TIMEOUT_S,
+) -> dict[str, object]:
+    if timeout_s <= 0:
+        raise PairingLocalIpcError(
+            "socket_timeout_invalid"
+        )
+
+    request = bytearray(
+        json.dumps(
+            document,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        + b"\n"
+    )
+
+    response = bytearray()
+
+    try:
+        if len(request) > MAX_REQUEST_BYTES:
+            raise PairingLocalIpcError(
+                "request_too_large"
+            )
+
+        with socket.socket(
+            socket.AF_UNIX,
+            socket.SOCK_STREAM,
+        ) as client:
+            client.settimeout(timeout_s)
+
+            try:
+                client.connect(
+                    str(Path(path).expanduser())
+                )
+                client.sendall(
+                    bytes(request)
+                )
+                client.shutdown(
+                    socket.SHUT_WR
+                )
+            except TimeoutError as error:
+                raise PairingLocalIpcError(
+                    "ipc_timeout"
+                ) from error
+            except OSError as error:
+                raise PairingLocalIpcError(
+                    "ipc_unavailable"
+                ) from error
+
+            response = _read_frame(
+                client,
+                max_bytes=MAX_RESPONSE_BYTES,
+                timeout_code="response_timeout",
+                too_large_code="response_too_large",
+                invalid_code="response_frame_invalid",
+            )
+
+        return _decode_response(
+            response,
+            response_schema=response_schema,
+        )
+
+    finally:
+        _wipe_buffer(request)
+        _wipe_buffer(response)
 
 def import_setup_secret_over_socket(
     path: str | Path,
@@ -207,23 +496,30 @@ def import_setup_secret_over_socket(
     pairing_id: str,
     setup_secret: str,
 ) -> dict[str, object]:
-    request = json.dumps(
+    return _request_over_socket(
+        path,
         {
             "schema": SCHEMA,
             "hardware_id": hardware_id,
             "pairing_id": pairing_id,
             "setup_secret": setup_secret,
         },
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8") + b"\n"
-    if len(request) > MAX_REQUEST_BYTES:
-        raise PairingLocalIpcError("request_too_large")
-    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
-        client.connect(str(Path(path).expanduser()))
-        client.sendall(request)
-        response = client.recv(MAX_REQUEST_BYTES + 1)
-    document = json.loads(response.decode("utf-8"))
-    if not isinstance(document, dict) or document.get("schema") != RESPONSE_SCHEMA:
-        raise PairingLocalIpcError("response_invalid")
-    return document
+        response_schema=RESPONSE_SCHEMA,
+    )
+
+
+def authorize_repair_over_socket(
+    path: str | Path,
+    *,
+    hardware_id: str,
+    pairing_id: str,
+) -> dict[str, object]:
+    return _request_over_socket(
+        path,
+        {
+            "schema": REPAIR_SCHEMA,
+            "hardware_id": hardware_id,
+            "pairing_id": pairing_id,
+        },
+        response_schema=REPAIR_RESPONSE_SCHEMA,
+    )
