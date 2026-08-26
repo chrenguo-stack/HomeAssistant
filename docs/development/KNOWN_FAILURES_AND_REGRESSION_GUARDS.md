@@ -41,9 +41,10 @@
 | KF-060 | SECURITY | DynSec destructive rollback ownership |
 | KF-066 | SECURITY | durable `repair_authorized` correctness residue |
 | KF-067 | PRODUCT | Manager 本地 UDS framing / response-schema uniqueness |
+| KF-068 | INFRASTRUCTURE | 新会话 handoff / Codex DSL execution semantics |
 
 `KF-061`～`KF-065` 已被既有历史记录占用并保留，不得在 public index 中重新分配；
-非公共 evidence 的具体事故内容不在本公共索引中重述。`KF-068`～`KF-070` 当前保持未分配。
+非公共 evidence 的具体事故内容不在本公共索引中重述。`KF-069`～`KF-070` 当前保持未分配。
 
 该表是 primary `DOMAIN` authority；下方历史索引保持原事实文字不变。
 
@@ -116,6 +117,7 @@
 
 | KF-066 | PR #336 C3/C7 repair authorization | 旧数据库中的 durable `repair_authorized=1` 可能继续被 active recovery path 当作 repair correctness authority | 历史持久化兼容字段与当前一次性人工 repair intent 的 authority 边界未完全分离 | active product path 只接受内存态、one-shot、`TTL <= 120s`、`hardware_id + pairing_id` 精确绑定且 Manager restart 失效的 `RepairIntent`；删除 durable bit 的 correctness fallback；fresh unauthorized pairing 不改变 durable state；focused/full regression 禁止恢复 durable authority | GUARDED |
 | KF-067 | PR #336 C6/C7 Manager local pairing RPC | Unix stream `recv()` 边界可能被误当作 message boundary；repair downstream exception 又可能返回 Setup Secret import schema，导致 request/response contract 非唯一 | local RPC framing 与 operation-specific response schema 没有形成单一严格 authority | request/response 均限制为 4096 bytes；首个 LF 定义 frame，随后继续读到 EOF 并拒绝 trailing non-whitespace；client send 后执行 `SHUT_WR`；严格校验 response schema；repair exception 始终返回 repair response schema；focused regression 固定这些合同 | GUARDED |
+| KF-068 | Assistant / new-chat handoff / Codex DSL execution | 新 Codex 会话收到 bounded DSL protocol 后两次以“缺少 SSH/Python executor”为由 fail-closed；随后高阶模型转而生成大型 Python executor，又引入 Compose service-key 硬编码和 DynSec optional `disabled` 字段判定两个 false positive | handoff 只写了“Codex 低阶执行、不得扩大 scope/修复”，没有显式冻结“DSL→最低必要命令的机械编译属于 Codex 正常执行职责”；新会话因此把自行生成底层命令误判为 scope expansion，高阶模型又过度补偿为手写 executor | 新增 `NEW_CHAT_HANDOFF_STANDARD.md` 与固定模板；所有正式 handoff 必须声明 `DSL_EXECUTION_MODEL=true`、`PREWRITTEN_EXECUTOR_REQUIRED=false`、`DSL_COMPILATION_AUTHORIZED=true`，并通过 `HANDOFF_EXECUTION_SEMANTICS_COMPLETENESS=PASS`。除非协议明确要求 exact implementation/byte sequence，缺少预写 executor 不得成为 blocker；高阶模型默认只设计 DSL/gate/authorization/rollback/closure，不再为普通 inspect/derive/resolve 工作流手写大型 executor | GUARDED |
 
 ## 固定回归规则
 
@@ -142,6 +144,7 @@
 - **Pending-window readiness**：会产生新 pairing identity 的物理 Gate 只能在敏感传输授权、TTL 双 gate、远端 0600 staging 和原子消费执行器全部预置后开始。
 - **DynSec exact-target recovery**：DynSec provisioning 冲突只允许在私有备份后，通过 production provisioner 的 exact-target deprovision 语义恢复；不得用全局清空、手改无关身份或放宽冲突检查换取通过。
 - **DynSec rollback ownership**：provision rollback 只能删除已证明由本事务成功创建的对象；“create 已尝试”不等于“对象归本事务所有”。不确定返回必须 inventory/reconcile，禁止直接删除 exact target。
+- **New-chat DSL execution semantics**：正式 handoff 必须显式声明 DSL 可由 Codex 机械编译为最低必要命令，`PREWRITTEN_EXECUTOR_REQUIRED=false`；`no scope expansion` 不得被解释为禁止正常 DSL→command compilation。仅当协议明确绑定 exact supplied implementation 时才允许以 missing executor 停止。
 
 ## 维护模板
 
