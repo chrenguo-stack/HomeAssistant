@@ -134,6 +134,9 @@
 | KF-071 | FC4 R2C4E R6 current-runtime authority classifier | read-only R6B 把 stopped historical rollback `fc4-manager` artifact 当成 current Manager，进而误报 Manager revision、registration topology 和四库 topology drift | classifier 过度依赖 container name，没有把 preserved rollback artifact 与 exact successor/running revision/read-only rootfs/Compose service 等 current-runtime authority 绑定 | current Manager 必须由 exact successor contract + running state + frozen revision + rootfs mode + Compose service/identity 组合判定；preserved rollback artifact 默认排除，除非独立 disaster-recovery authorization；listener evidence若使用必须解析 PID/cgroup/container owner，禁止仅凭端口或名称选 authority | OPEN |
 | KF-072 | FC4 R2C4E R6 evidence serialization | exact target authority 不可恢复时，早期 closure 将多项未观测 runtime/state 事实序列化为 `false`，制造了看似真实的负面状态 | executor/oracle 把“没有证据”折叠成 boolean negative，没有保持三态 evidence semantics | 强制 observed-true / observed-false / UNKNOWN-or-UNPROVEN 三态；未访问 authority 时只能输出 `UNKNOWN`、`UNPROVEN` 或 `NOT_OBSERVED`，只有实际观测/权威推导出的负面事实才能写 `false`；UNKNOWN 永远不得满足 PASS gate | OPEN |
 
+
+| KF-073 | FC4 Board-C setup-secret capture executor | Opening pySerial directly can toggle RTS/DTR and reset an ESP32-C6 during first-registration capture | pySerial applies control-line state during constructor/open; prior test doubles did not model line transitions | Construct the serial object closed, set `rtscts=false`, `dsrdtr=false`, DTR/RTS deasserted before a single open; require explicit live-risk acknowledgement; never claim no-reset proof; regression tests assert pre-open state, zero-open fail-closed guards, and at-most-one open | SOURCE_GUARDED_PHYSICAL_VALIDATION_PENDING |
+
 ## 固定回归规则
 
 以下规则适用于所有后续阶段：
