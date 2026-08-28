@@ -16,7 +16,7 @@ SETUP_SECRET = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 
 
 class FakeSerial:
-    instances: list["FakeSerial"] = []
+    instances: list[FakeSerial] = []
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         self.args, self.kwargs = args, kwargs
@@ -39,7 +39,7 @@ class FakeSerial:
     def close(self) -> None:
         self.is_open = False
 
-    def __enter__(self) -> "FakeSerial":
+    def __enter__(self) -> FakeSerial:
         return self
 
     def __exit__(self, *args: object) -> None:
