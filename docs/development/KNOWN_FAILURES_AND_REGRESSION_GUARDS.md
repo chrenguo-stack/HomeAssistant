@@ -39,11 +39,16 @@
 | KF-058 | PHYSICAL_HARNESS | LAN diagnosis fact authority |
 | KF-059 | SECURITY | exact-target DynSec identity recovery |
 | KF-060 | SECURITY | DynSec destructive rollback ownership |
+| KF-061 | PRODUCT | pairing pending/session TTL wiring 与 completion budget |
+| KF-062 | PHYSICAL_HARNESS | Manager snapshot SSH transport adapter |
+| KF-063 | PHYSICAL_HARNESS | successor session observation race |
+| KF-064 | PHYSICAL_HARNESS | physical serial capture Python / pyserial runtime dependency |
+| KF-065 | PHYSICAL_HARNESS | LAB-only filesystem handoff ownership/readability contract |
 | KF-066 | SECURITY | durable `repair_authorized` correctness residue |
 | KF-067 | PRODUCT | Manager 本地 UDS framing / response-schema uniqueness |
+| KF-070 | PHYSICAL_HARNESS | Compose recreate acceptance oracle / Docker RestartCount 误用 |
 
-`KF-061`～`KF-065` 已被既有历史记录占用并保留，不得在 public index 中重新分配；
-非公共 evidence 的具体事故内容不在本公共索引中重述。`KF-068`～`KF-070` 当前保持未分配。
+`KF-061`～`KF-065` 的下方条目只保留 secret-safe 事故摘要和回归规则；raw handoff、Setup Secret、板卡身份、私有路径与其他 private evidence 继续只存在于 private evidence。`KF-068`～`KF-069` 当前在 `main` 上保持未分配，开放文档 PR 的编号冲突必须在各自 merge 前独立协调。
 
 该表是 primary `DOMAIN` authority；下方历史索引保持原事实文字不变。
 
@@ -113,9 +118,15 @@
 | KF-058 | FC4 F350 LAN / pairing discovery diagnosis | 产品已正常连接到与 T1 相同的 Wi-Fi 节点且两端地址在路由器中持续可见，但诊断曾在未询问操作者网络事实前推测 Wi-Fi 未连接并探索 relay/broadcast 替代路径，消耗了 pending 窗口 | 把有限的本地串口/Manager discovery 观测扩张成链路缺失结论，且没有先建立项目网络环境 authority；属于 diagnosis classifier false positive，不是板卡或 T1 断网 | 任何网络 RCA 先向操作者取得或从 authority 读取 SSID/节点、两端地址和路由器可见性，再分别验证板卡 STA、T1 listener、unicast reachability 与 broadcast delivery；单一 discovery 缺失不得推出 Wi-Fi 缺失。已按用户提供的同网事实纠正并在最终状态验证 LAN 可达 | RESOLVED |
 | KF-059 | FC4 F350 repair approval / DynSec target identity recovery | Epoch5 handoff 已通过两次 TTL gate 并被 inbox 原子消费，但 automatic approval 在 DynSec 目标身份冲突处业务层 fail-closed；没有提交有效 credential，事后目标 client 存在而 role 缺失 | 现场 exact target identity 已进入非对称状态；该状态由 pre-existing 对象与 KF-060 rollback ownership 缺陷共同形成的精确前序只能依据现有 source/evidence 推断，不能称为已证明的 state-preserving rollback | 冲突后先保存私有 DynSec 备份，再停用 exact Manager并通过同一 production provisioner 的 `deprovision` 语义最小删除 exact target client/role，禁止清空 DynSec 或触碰非目标身份。Epoch7 已证明 target client/role 重新创建且 credential generation 7 active；现场恢复闭环；后续 source defect 已由 KF-060 的独立 source/test 修复闭环 | RESOLVED |
 | KF-060 | Manager DynSec provisioning rollback ownership | exact Manager `DynsecProvisioner.provision()` 曾在 `createRole`/`createClient` 成功返回前设置 `role_started`/`client_started`；若 create 因 pre-existing 对象冲突，异常路径可能删除并非本事务创建的 target 对象。Epoch5 的 `client present / role absent` 与该路径高度吻合 | rollback ownership 曾以“尝试已开始”代替“本事务已成功创建”；因此业务层虽 fail-closed，DynSec rollback 未证明 state-preserving，可能删除 pre-existing role/client | PR #333 已合并 source/test 修复：仅在 create 成功后设置 `role_created`/`client_created`；post-publish 不确定结果使用 `DynsecOutcomeUncertain` 并先 inventory/reconcile，禁止无所有权证明的 destructive rollback。六类 regression 覆盖 pre-existing role/client、仅新 role、旧 role collision、clean target，以及 uncertain applied/not-applied client。exact rebind HEAD `3e38cf74b976e9810a4b87c25dc5364b1d8030c7` 的 13 个 PR workflow 全部 PASS，source merge commit=`18d7975da2fbe60d1b22c2ce7970aba80b13c3ab` | GUARDED |
+| KF-061 | FC4 Board-B pairing TTL / completion budget | pending/session TTL wiring 与执行预算曾未形成独立、可证明合同，successor handoff 可能在 pretransfer/predelivery 前因窗口耗尽而 fail-closed | simplified composition 曾让 session TTL 继承 pending 语义，执行器又缺少统一的 admission/ACK completion budget | 已建立独立 pending/session TTL wiring、bounded ACK/deadline 与 timing regression；PR #336 进一步规定 timing floors/successor generation 不再作为 normal product recovery authority，pairing retry 使用 fresh random pairing transaction | GUARDED |
+| KF-062 | FC4 Board-B Manager snapshot transport | fresh handoff 后 executor 的 Manager snapshot 子命令在 TTL 计算前失败；旧 adapter 通过 SSH 尾部参数传递多行 Python，远端 command boundary 未被正式 preflight 证明 | 把多行 Python 同时交给 SSH/remote shell/`python -c` 参数解析，transport framing/quoting 不是单一 authority | 正式 adapter 改为 `docker exec -i ... python -` 通过 stdin 传输；runtime DB path、SQLite `mode=ro`/`query_only`、schema、唯一 target/session 与 exact `_snapshot()` parser 必须在 physical claim 前用同一正式命令 PASS | GUARDED |
+| KF-063 | FC4 Board-B successor observation | fresh successor handoff 已产生，但第一次 Manager snapshot 仍可能看到 predecessor epoch；旧 executor 将单次旧 epoch 直接判为 mismatch 并消费了 successor physical epoch | Manager session persistence/observer 可见性存在短暂 race，而 executor 缺少 bounded successor-session convergence oracle | 使用同一 KF-062 snapshot adapter 做 identity/hash-bound、monotonic-deadline、TTL-aware bounded polling；仅 predecessor 可作为 transient，wrong hash/NODE_ID/higher epoch/terminal/expiry/deadline 立即 fail-closed；禁止固定 `sleep` 代替 oracle | GUARDED |
+| KF-064 | FC4 Board-B serial capture runtime | successor helper 已完成 app0 write/readback 后，helper boot 前 private serial collector 启动失败，正式 capture Python 缺少 `pyserial` | physical preflight 只证明 flash/readback 路径，没有绑定未来正式 capture interpreter 及其 runtime dependency | 固定 absolute capture interpreter；在任何 helper write/claim 前用同一 interpreter 验证 `import serial`、capture script hash 与 off-board PTY capture/timeout/cleanup contract；完整 product-restore flash/readback fallback 也必须 preflight | GUARDED |
+| KF-065 | FC4 Board-B filesystem handoff ownership | LAB recovery flow 的 handoff 已通过 timing gate 并原子投递，但 `0600` 文件 owner 未绑定 Manager runtime identity，Manager 无法读取，pairing 停在 pending | delivery contract 只覆盖 mode/atomicity，未覆盖 final owner/readability；root 创建的 private file 与非 root Manager runtime identity 不一致 | PR #336 已把 filesystem Setup Secret inbox 从 normal product architecture 退休为 `LAB_ONLY`，正式产品入口改为 Manager-owned local UDS；LAB path 若保留，必须在 delivery 前绑定 Manager UID/GID、`0600`、same-filesystem atomic rename 与 post-rename readability，禁止用 `0644/0666` 降低保密性规避 | RESOLVED |
 
 | KF-066 | PR #336 C3/C7 repair authorization | 旧数据库中的 durable `repair_authorized=1` 可能继续被 active recovery path 当作 repair correctness authority | 历史持久化兼容字段与当前一次性人工 repair intent 的 authority 边界未完全分离 | active product path 只接受内存态、one-shot、`TTL <= 120s`、`hardware_id + pairing_id` 精确绑定且 Manager restart 失效的 `RepairIntent`；删除 durable bit 的 correctness fallback；fresh unauthorized pairing 不改变 durable state；focused/full regression 禁止恢复 durable authority | GUARDED |
 | KF-067 | PR #336 C6/C7 Manager local pairing RPC | Unix stream `recv()` 边界可能被误当作 message boundary；repair downstream exception 又可能返回 Setup Secret import schema，导致 request/response contract 非唯一 | local RPC framing 与 operation-specific response schema 没有形成单一严格 authority | request/response 均限制为 4096 bytes；首个 LF 定义 frame，随后继续读到 EOF 并拒绝 trailing non-whitespace；client send 后执行 `SHUT_WR`；严格校验 response schema；repair exception 始终返回 repair response schema；focused regression 固定这些合同 | GUARDED |
+| KF-070 | Spare T1 Manager candidate deployment acceptance oracle | candidate cutover 在任何 live mutation 前被 `RESTART_COUNT_DELTA_ORACLE_UNSATISFIABLE` 阻断；旧 oracle 要求 `RestartCount 0 -> 1` | Docker `RestartCount` 只统计同一 container instance 的 restart；Compose image/config cutover 会 recreate 新 container，新实例的 `RestartCount` 从 0 开始，因此跨 instance 要求 `+1` 在逻辑上不可满足 | recreate 必须用 pre/post container identity change + exact target create/start count 证明；新 container `RestartCount=0` 合法；同时证明 non-target container ID/recreate/restart 均未变化。后继 successor gate 已用该 oracle完成单次 target recreate | GUARDED |
 
 ## 固定回归规则
 
@@ -128,7 +139,7 @@
 - **Single authority**：文件路径、payload、credential、canonical state 等关键事实不得由多个位置各自猜测。
 - **Host-first diagnosis**：能够通过 host-only/private evidence 定位的问题，不先增加板卡写操作或新的物理授权。
 - **No speculative fix**：根因未证实前，不以“试试看”的方式修改生产路径或物理固件。
-- **Exact-base source edit**：源码局部修复必须以 exact-base blob 为输入；提交后必须做 changed-file/hunk allowlist，禁止由截断视图重建整文件。
+- **Exact-base source edit**：源码局部修复必须以 exact-base blob 为输入；提交后必须做 changed-file/hunk allowlist；出现任何非目标 hunk 立即恢复。禁止用截断/局部视图重建整个源码文件。
 - **Architecture retirement**：产品 authority 退休时，source / test / workflow / admin / config 必须同阶段收口；禁止 live CI 长期宣示已退休产品语义。
 - **Pairing/security lifecycle separation**：pairing/session retry 与 ordinary repair 不得推进 MQTT credential generation、N3-W application-key generation 或 `SYSTEM_PEER_KEY` lifecycle；first-registration issuer 只负责组合初始 credential/key，不得成为 rotation API；pairing epoch 不得重新进入上述 lifecycle correctness。
 - **Historical quarantine**：历史兼容实现若必须保留，名称和引用必须显式表明 `_legacy` / `s5` / lab / historical 身份；normal product runtime 不得导入。
@@ -142,6 +153,9 @@
 - **Pending-window readiness**：会产生新 pairing identity 的物理 Gate 只能在敏感传输授权、TTL 双 gate、远端 0600 staging 和原子消费执行器全部预置后开始。
 - **DynSec exact-target recovery**：DynSec provisioning 冲突只允许在私有备份后，通过 production provisioner 的 exact-target deprovision 语义恢复；不得用全局清空、手改无关身份或放宽冲突检查换取通过。
 - **DynSec rollback ownership**：provision rollback 只能删除已证明由本事务成功创建的对象；“create 已尝试”不等于“对象归本事务所有”。不确定返回必须 inventory/reconcile，禁止直接删除 exact target。
+- **Physical-harness preclaim completeness**：任何 successor/helper physical claim 前必须使用正式执行路径证明 snapshot transport、bounded successor observation、exact serial-capture interpreter/import、product-restore write/readback fallback 和必要的权限/ownership contract；host-only failure 必须停在 claim/mutation 之前。
+- **LAB inbox ownership**：filesystem handoff 仅允许作为 `LAB_ONLY` compatibility path；若使用，final file 必须保持 `0600` 且 owner/group 精确绑定 Manager runtime identity，并在 atomic rename 前后证明 Manager-readable 与非 world-readable。normal product pairing不得重新依赖 filesystem inbox。
+- **Container recreate oracle**：Compose recreate 不得用跨 container 的 `RestartCount` delta 证明次数；使用 container identity change、target create/start count 与 non-target invariants 作为 authority。
 
 ## 维护模板
 
