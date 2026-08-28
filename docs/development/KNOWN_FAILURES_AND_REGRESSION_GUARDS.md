@@ -46,9 +46,12 @@
 | KF-065 | PHYSICAL_HARNESS | LAB-only filesystem handoff ownership/readability contract |
 | KF-066 | SECURITY | durable `repair_authorized` correctness residue |
 | KF-067 | PRODUCT | Manager 本地 UDS framing / response-schema uniqueness |
+| KF-069 | SECURITY | active DynSec authority lineage regression / stale predecessor snapshot |
 | KF-070 | PHYSICAL_HARNESS | Compose recreate acceptance oracle / Docker RestartCount 误用 |
+| KF-071 | PHYSICAL_HARNESS | current-runtime authority discriminator / preserved rollback artifact exclusion |
+| KF-072 | PHYSICAL_HARNESS | UNKNOWN propagation / unobserved fact serialization |
 
-`KF-061`～`KF-065` 的下方条目只保留 secret-safe 事故摘要和回归规则；raw handoff、Setup Secret、板卡身份、私有路径与其他 private evidence 继续只存在于 private evidence。`KF-068`～`KF-069` 当前在 `main` 上保持未分配，开放文档 PR 的编号冲突必须在各自 merge 前独立协调。
+`KF-061`～`KF-065` 的下方条目只保留 secret-safe 事故摘要和回归规则；raw handoff、Setup Secret、板卡身份、私有路径与其他 private evidence 继续只存在于 private evidence。`KF-068` 当前由开放文档 PR #340 预留；`KF-069`、`KF-071`、`KF-072` 已在本归档分支分配；开放文档 PR 的编号冲突必须在各自 merge 前独立协调。
 
 该表是 primary `DOMAIN` authority；下方历史索引保持原事实文字不变。
 
@@ -126,7 +129,10 @@
 
 | KF-066 | PR #336 C3/C7 repair authorization | 旧数据库中的 durable `repair_authorized=1` 可能继续被 active recovery path 当作 repair correctness authority | 历史持久化兼容字段与当前一次性人工 repair intent 的 authority 边界未完全分离 | active product path 只接受内存态、one-shot、`TTL <= 120s`、`hardware_id + pairing_id` 精确绑定且 Manager restart 失效的 `RepairIntent`；删除 durable bit 的 correctness fallback；fresh unauthorized pairing 不改变 durable state；focused/full regression 禁止恢复 durable authority | GUARDED |
 | KF-067 | PR #336 C6/C7 Manager local pairing RPC | Unix stream `recv()` 边界可能被误当作 message boundary；repair downstream exception 又可能返回 Setup Secret import schema，导致 request/response contract 非唯一 | local RPC framing 与 operation-specific response schema 没有形成单一严格 authority | request/response 均限制为 4096 bytes；首个 LF 定义 frame，随后继续读到 EOF 并拒绝 trailing non-whitespace；client send 后执行 `SHUT_WR`；严格校验 response schema；repair exception 始终返回 repair response schema；focused regression 固定这些合同 | GUARDED |
+| KF-069 | FC4 R2C4E R6 DynSec active authority | running FC4 Broker 的 active persisted DynSec 被只读解析为已知 2026-08-24 predecessor snapshot；当前 Manager/Provisioning identity 均不在该 active persisted state，Broker 对当前 Manager client-id 的最近可观察判决为 `Not authorized` | active DynSec authority lineage 回退到了 pre-reconciliation state；已证明 product authorization state stale，但更低层究竟是 host-source locator 回退还是 intended source object 被旧内容覆盖仍为 UNKNOWN | mutation 前必须从 running Broker effective config + mount 绑定唯一 active DynSec source；禁止把 `changeIndex` 差异当作纯 metadata 自动接受，也禁止盲目整文件 rewind。bounded repair preclaim 只恢复当前 Manager/Provisioning 所需身份与 role binding、保留其他 identities/ACLs，修复后证明两类 MQTT auth 并冻结新 active baseline | OPEN |
 | KF-070 | Spare T1 Manager candidate deployment acceptance oracle | candidate cutover 在任何 live mutation 前被 `RESTART_COUNT_DELTA_ORACLE_UNSATISFIABLE` 阻断；旧 oracle 要求 `RestartCount 0 -> 1` | Docker `RestartCount` 只统计同一 container instance 的 restart；Compose image/config cutover 会 recreate 新 container，新实例的 `RestartCount` 从 0 开始，因此跨 instance 要求 `+1` 在逻辑上不可满足 | recreate 必须用 pre/post container identity change + exact target create/start count 证明；新 container `RestartCount=0` 合法；同时证明 non-target container ID/recreate/restart 均未变化。后继 successor gate 已用该 oracle完成单次 target recreate | GUARDED |
+| KF-071 | FC4 R2C4E R6 current-runtime authority classifier | read-only R6B 把 stopped historical rollback `fc4-manager` artifact 当成 current Manager，进而误报 Manager revision、registration topology 和四库 topology drift | classifier 过度依赖 container name，没有把 preserved rollback artifact 与 exact successor/running revision/read-only rootfs/Compose service 等 current-runtime authority 绑定 | current Manager 必须由 exact successor contract + running state + frozen revision + rootfs mode + Compose service/identity 组合判定；preserved rollback artifact 默认排除，除非独立 disaster-recovery authorization；listener evidence若使用必须解析 PID/cgroup/container owner，禁止仅凭端口或名称选 authority | OPEN |
+| KF-072 | FC4 R2C4E R6 evidence serialization | exact target authority 不可恢复时，早期 closure 将多项未观测 runtime/state 事实序列化为 `false`，制造了看似真实的负面状态 | executor/oracle 把“没有证据”折叠成 boolean negative，没有保持三态 evidence semantics | 强制 observed-true / observed-false / UNKNOWN-or-UNPROVEN 三态；未访问 authority 时只能输出 `UNKNOWN`、`UNPROVEN` 或 `NOT_OBSERVED`，只有实际观测/权威推导出的负面事实才能写 `false`；UNKNOWN 永远不得满足 PASS gate | OPEN |
 
 ## 固定回归规则
 
@@ -134,9 +140,13 @@
 
 - **Evidence scope**：运行时结论只来自明确 runtime evidence；源码、CI、venv、build 输出不能冒充现场证据。
 - **Exact binding**：物理执行前必须重新绑定 exact HEAD / tree / artifact hash；文档提交导致 HEAD 改变时，不得自动继承旧 artifact 的 exact-head 资格。
+- **Repository/product-source authority split**：物理验收期间 repository `main` tip 与 frozen product-source authority 必须分别记录。documentation-only `main` advancement 不得自动重定义已部署/冻结产品 revision；冻结产品 revision 也不得被误报为当前 repository `main`。
 - **Claim boundary**：`AUTHORIZATION_CLAIMED=true` 后任何失败都 fail-closed；同一 authorization 永久不可重放。
 - **Failure classification**：网络获取失败、CI 瞬态失败、测试 oracle 失败、产品真实故障必须分别分类。
 - **Single authority**：文件路径、payload、credential、canonical state 等关键事实不得由多个位置各自猜测。
+- **Cross-session exact-target authority**：跨会话执行应在受控 private evidence 中保留 exact locator provenance、host-key binding 和 public-safe machine-binding hash；descriptor 缺失时只允许从已冻结历史 evidence 恢复，目标不唯一必须 fail-closed，禁止用 LAN 扫描替代 authority。
+- **Runtime authority discriminator**：preserved rollback artifact 与 current runtime 共存时，禁止仅按 container name 选择 current Manager；必须绑定 exact successor、running state、frozen revision、rootfs mode 与 Compose identity，必要的 listener 证据必须解析到 PID/cgroup/container owner。
+- **Unknown propagation**：authority 不可达、未检查或证据不足时必须输出 `UNKNOWN` / `UNPROVEN` / `NOT_OBSERVED`；不得把 evidence absence 序列化为 `false`，UNKNOWN 不得满足 PASS。
 - **Host-first diagnosis**：能够通过 host-only/private evidence 定位的问题，不先增加板卡写操作或新的物理授权。
 - **No speculative fix**：根因未证实前，不以“试试看”的方式修改生产路径或物理固件。
 - **Exact-base source edit**：源码局部修复必须以 exact-base blob 为输入；提交后必须做 changed-file/hunk allowlist；出现任何非目标 hunk 立即恢复。禁止用截断/局部视图重建整个源码文件。
@@ -153,6 +163,7 @@
 - **Pending-window readiness**：会产生新 pairing identity 的物理 Gate 只能在敏感传输授权、TTL 双 gate、远端 0600 staging 和原子消费执行器全部预置后开始。
 - **DynSec exact-target recovery**：DynSec provisioning 冲突只允许在私有备份后，通过 production provisioner 的 exact-target deprovision 语义恢复；不得用全局清空、手改无关身份或放宽冲突检查换取通过。
 - **DynSec rollback ownership**：provision rollback 只能删除已证明由本事务成功创建的对象；“create 已尝试”不等于“对象归本事务所有”。不确定返回必须 inventory/reconcile，禁止直接删除 exact target。
+- **DynSec active-authority lineage**：当前 DynSec authority 必须从 running Broker effective config + mount 唯一解析；若 active persisted object 命中已知 predecessor snapshot 或缺失当前 service identities，必须先做 bounded authority reconciliation，禁止将其降级为纯 `changeIndex` metadata drift，也禁止盲目恢复整份历史文件。
 - **Physical-harness preclaim completeness**：任何 successor/helper physical claim 前必须使用正式执行路径证明 snapshot transport、bounded successor observation、exact serial-capture interpreter/import、product-restore write/readback fallback 和必要的权限/ownership contract；host-only failure 必须停在 claim/mutation 之前。
 - **LAB inbox ownership**：filesystem handoff 仅允许作为 `LAB_ONLY` compatibility path；若使用，final file 必须保持 `0600` 且 owner/group 精确绑定 Manager runtime identity，并在 atomic rename 前后证明 Manager-readable 与非 world-readable。normal product pairing不得重新依赖 filesystem inbox。
 - **Container recreate oracle**：Compose recreate 不得用跨 container 的 `RestartCount` delta 证明次数；使用 container identity change、target create/start count 与 non-target invariants 作为 authority。
