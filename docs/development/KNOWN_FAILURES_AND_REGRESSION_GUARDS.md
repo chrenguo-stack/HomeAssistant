@@ -41,9 +41,11 @@
 | KF-060 | SECURITY | DynSec destructive rollback ownership |
 | KF-066 | SECURITY | durable `repair_authorized` correctness residue |
 | KF-067 | PRODUCT | Manager 本地 UDS framing / response-schema uniqueness |
+| KF-068 | CI | stacked PR actual-base / merge-scope binding |
+| KF-069 | CI | cross-artifact provenance isolation |
 
 `KF-061`～`KF-065` 已被既有历史记录占用并保留，不得在 public index 中重新分配；
-非公共 evidence 的具体事故内容不在本公共索引中重述。`KF-068`～`KF-070` 当前保持未分配。
+非公共 evidence 的具体事故内容不在本公共索引中重述。`KF-070` 当前保持未分配。
 
 该表是 primary `DOMAIN` authority；下方历史索引保持原事实文字不变。
 
@@ -116,6 +118,8 @@
 
 | KF-066 | PR #336 C3/C7 repair authorization | 旧数据库中的 durable `repair_authorized=1` 可能继续被 active recovery path 当作 repair correctness authority | 历史持久化兼容字段与当前一次性人工 repair intent 的 authority 边界未完全分离 | active product path 只接受内存态、one-shot、`TTL <= 120s`、`hardware_id + pairing_id` 精确绑定且 Manager restart 失效的 `RepairIntent`；删除 durable bit 的 correctness fallback；fresh unauthorized pairing 不改变 durable state；focused/full regression 禁止恢复 durable authority | GUARDED |
 | KF-067 | PR #336 C6/C7 Manager local pairing RPC | Unix stream `recv()` 边界可能被误当作 message boundary；repair downstream exception 又可能返回 Setup Secret import schema，导致 request/response contract 非唯一 | local RPC framing 与 operation-specific response schema 没有形成单一严格 authority | request/response 均限制为 4096 bytes；首个 LF 定义 frame，随后继续读到 EOF 并拒绝 trailing non-whitespace；client send 后执行 `SHUT_WR`；严格校验 response schema；repair exception 始终返回 repair response schema；focused regression 固定这些合同 | GUARDED |
+| KF-068 | GitHub stacked PR / merge scope | Codex 本地 `authority..HEAD` 仅 1 commit / 2 files，但 Draft PR #332 实际错误以 `main` 为 base，GitHub 合并范围膨胀为 66 commits / 35 files；初始 handoff 仍把本地 authority 作为 `BASE_SHA` 报告 | 把“本地 compare base”误当成“GitHub PR actual base”，提交后没有重新读取远端 PR 的 base branch/base SHA/commit count/changed-file scope 做闭合 | stacked PR 创建、retarget 或 push 后必须重新读取 GitHub actual `base branch + base SHA + head SHA`，并执行 actual-base..HEAD compare；commit count、changed-file count 与 changed-file allowlist 必须同时符合预期，否则 `STOP / DO_NOT_MERGE`。PR #332 retarget 到 exact stacked base 后恢复正确 scope | RESOLVED |
+| KF-069 | Control artifact / target artifact provenance | Control-A whole-image SHA 与历史 target helper 不同，但初版 RCA 文字一度可能把 Control-A generated source 的 `2 -> 3` 参数证明扩展理解为 target helper 的 compile-time provenance | 混淆“控制构建的源码/参数证明”与“另一个 binary artifact 的 provenance”；跨 artifact 证据没有保持 exact identity boundary | source/generated-code/ELF/build 参数证明只能归属于其 exact artifact SHA；不同 SHA 的 target binary 不得继承 Control build 的 compile-time provenance。目标 binary 的运行语义可由独立 exact-app binding + runtime marker + durable-state transition 证明，但必须明确标注不等于 bit-for-bit reproducibility。PR #332 已用独立 docs correction 收紧该边界 | RESOLVED |
 
 ## 固定回归规则
 
@@ -142,6 +146,8 @@
 - **Pending-window readiness**：会产生新 pairing identity 的物理 Gate 只能在敏感传输授权、TTL 双 gate、远端 0600 staging 和原子消费执行器全部预置后开始。
 - **DynSec exact-target recovery**：DynSec provisioning 冲突只允许在私有备份后，通过 production provisioner 的 exact-target deprovision 语义恢复；不得用全局清空、手改无关身份或放宽冲突检查换取通过。
 - **DynSec rollback ownership**：provision rollback 只能删除已证明由本事务成功创建的对象；“create 已尝试”不等于“对象归本事务所有”。不确定返回必须 inventory/reconcile，禁止直接删除 exact target。
+- **PR merge-scope binding**：PR 的实际合并 authority 是 GitHub 上的 `base branch + base SHA + head SHA`，不是执行器内部声明的 `BASE_SHA`。创建、retarget 或 push 后必须重新读取远端 PR metadata，并验证 actual-base..HEAD 的 commit count、changed-file count 与 changed-file allowlist；不一致时禁止 Ready/Merge。
+- **Cross-artifact provenance isolation**：source/generated-code/ELF/build 参数证明只能归属于其 exact artifact。不同 SHA 的 target binary 不得继承 Control build 的 compile-time provenance；runtime semantics proof 与 bit-for-bit build provenance 必须分开记录。
 
 ## 维护模板
 
