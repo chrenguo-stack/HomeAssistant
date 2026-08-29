@@ -137,6 +137,9 @@
 
 | KF-073 | FC4 Board-C setup-secret capture executor | Opening pySerial directly can toggle RTS/DTR and reset an ESP32-C6 during first-registration capture | pySerial applies control-line state during constructor/open; prior test doubles did not model line transitions | Construct the serial object closed, set `rtscts=false`, `dsrdtr=false`, DTR/RTS deasserted before a single open; require explicit live-risk acknowledgement; never claim no-reset proof; regression tests assert pre-open state, zero-open fail-closed guards, and at-most-one open | SOURCE_GUARDED_PHYSICAL_VALIDATION_PENDING |
 
+
+| KF-074 | PHYSICAL_HARNESS | FC4 Board-C P9 Setup-Secret physical recapture consumed by HARDWARE_ID_BINDING_MISMATCH | Capture supplied `--expected-hardware-id` from an independent static literal instead of the R4 automatic-approval rollback tombstone-derived durable Board-C authority; pairing hash lineage was correct and product identity drift was not proven | Board-C P9 uses one source-owned durable hardware authority for passive USB equality and downstream capture; independent/static overrides are rejected; authority or USB mismatch stops before CLAIM/serial open; durable-to-capture and pairing continuity are regression-tested; raw identities remain private and consumed authorization is non-replayable | GUARDED |
+
 ## 固定回归规则
 
 以下规则适用于所有后续阶段：
