@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 _HARDWARE_ID = re.compile(r"ghw-c6-([0-9a-f]{12})\Z")
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
