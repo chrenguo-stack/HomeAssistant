@@ -10,10 +10,10 @@ from greenhouse_manager.ops.n3w_boardc_p9_capture_authority import (
     prepare_boardc_p9_authority,
 )
 
-ID_A = "ghw-c6-98a316a9f350"
-ID_B = "ghw-c6-001122334455"
-USB_A = "98:A3:16:A9:F3:50"
-USB_B = "00:11:22:33:44:55"
+ID_A = "ghw-c6-a1b2c3d4e5f6"
+ID_B = "ghw-c6-102030405060"
+USB_A = "a1b2c3d4e5f6"
+USB_B = "102030405060"
 PAIRING = "a" * 64
 
 
