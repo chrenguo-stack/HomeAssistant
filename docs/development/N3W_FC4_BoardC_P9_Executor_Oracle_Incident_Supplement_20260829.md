@@ -1,8 +1,9 @@
 # N3-W / FC4 Board C P9 Executor / Oracle Incident Supplement
 
 - 日期：2026-08-29
+- 收口更新：2026-08-30
 - 性质：public-safe known-failure supplement
-- 目标：记录本轮实际发生、但不属于产品故障的 executor/oracle false negatives，供后续合并进 `KNOWN_FAILURES_AND_REGRESSION_GUARDS.md`。
+- 目标：记录本轮实际发生、但不属于产品故障的 executor/oracle false negatives，并完成对 `KNOWN_FAILURES_AND_REGRESSION_GUARDS.md` 的 central-index 收口。
 
 ## 1. 事故集合
 
@@ -45,25 +46,27 @@ FAIL_CLASS=EXECUTOR_OR_ORACLE_DEFECT
 5. executor/oracle failure 只允许分类为 `EXECUTOR_OR_ORACLE_DEFECT` / `NOT_EVALUATED`，不得自动序列化业务字段为 `false`。
 6. 连续两次 executor/preclaim failure 后，第三次前必须 route audit；成功 route audit reset fuse。
 
-## 4. 建议 central index 条目
+## 4. Central index 最终分配
 
-在合并该 documentation lineage 时，应先读取 `docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md` 的最新编号。如果 `KF-075` 仍未被占用，可使用：
+2026-08-30 收口时重新读取 `docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md`，确认 `KF-075` 仍未被占用，并已正式分配：
 
 ```text
-| KF-075 | FC4 Board-C P9 diagnostic executor authority/transport | P2/P3/DynSec discovery 多次出现 listener false-negative、误用 local Docker、container stdin 未连接、Docker label template 不兼容；纠正 executor 后相同产品状态立即 PASS | ad-hoc diagnostic executor 未在运行前机器绑定 execution target、stdin transport、Docker template surface 与 positional output schema，导致 tooling 假阴性被表现成业务状态 | runtime/preclaim 第一屏绑定 execution target；container heredoc 使用 `docker exec -i ... python -` 并验证 body sentinel；Compose service 使用已验证 `.Label` surface；positional parser 必须平台 smoke-test；未执行 authority 时保持 UNKNOWN/NOT_EVALUATED；两次连续 executor failure 触发 route audit | GUARDED |
+| KF-075 | FC4 Board-C P9 diagnostic executor authority/transport | P2/P3/DynSec discovery 多次出现 listener false-negative、误用 local Docker、container stdin 未连接、Docker label template 不兼容；纠正 executor 后相同产品状态立即 PASS | ad-hoc diagnostic executor 未在运行前机器绑定 execution target、stdin transport、Docker template surface 与 positional output schema，导致 tooling 假阴性被表现成业务状态 | runtime/preclaim 第一屏绑定 execution target；container heredoc 使用 `docker exec -i ... python -` 并验证 body sentinel；Compose service 使用已验证 `.Label` surface；positional parser 必须平台 smoke-test；未执行 authority 时保持 UNKNOWN/NOT_EVALUATED；两次连续 executor/preclaim failure 触发 mandatory route audit | GUARDED |
 ```
 
-如果编号已被占用，必须重新读取 central index 后选择下一个真实空号，禁止直接复用 `KF-075`。
+同时，本轮后续 MQTT/TLS 诊断另行形成 `KF-076`（PRODUCT）和 `KF-077`（PHYSICAL_HARNESS）；它们不改变本文件所记录 P9 四项事故的 executor/oracle 分类。
 
-## 5. 路线影响
+## 5. 当前路线影响
 
 ```text
 NORTH_STAR=FC4_FINAL_PHYSICAL_ACCEPTANCE
 CURRENT_ROUTE_NODE=BOARD_C_FIRST_REGISTRATION
-ACTIVE_DETOUR=NONE
+ACTIVE_DETOUR=BOARD_C_TLS_SERVER_NAME_FIRMWARE_REPAIR
+RETURN_TO_ROUTE=BOARD_C_FIRST_REGISTRATION_RUNTIME_ACCEPTANCE
+NEW_BRANCH_ALLOWED=false
 PRODUCT_ROUTE_VALID=true
 CURRENT_EXECUTOR_FAILURE_STREAK=0
 ROUTE_AUDIT_REQUIRED=false
 ```
 
-本补充记录不新增 product route branch，也不授权任何 mutation。
+本补充本身不授权任何产品源码、T1 runtime 或 Board C mutation。当前已证明的产品 blocker 由 `KF-076` 独立记录，不得反向把本文件的 P9 tooling false negatives 重分类为产品故障。
