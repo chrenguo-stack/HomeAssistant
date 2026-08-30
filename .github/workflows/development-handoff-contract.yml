@@ -12,8 +12,6 @@ on:
       - "tools/check_public_repository_safety.py"
       - ".github/workflows/development-handoff-contract.yml"
   push:
-    branches:
-      - main
     paths:
       - "AGENTS.md"
       - "docs/development/HANDOFF_DOCUMENT_CONTRACT.md"
