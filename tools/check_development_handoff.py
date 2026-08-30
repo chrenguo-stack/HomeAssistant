@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,29 +19,38 @@ from typing import Sequence
 SCHEMA_VERSION = "1.0"
 TEMPLATE_ID = "N3W_FC4_DEVELOPMENT_HANDOFF_TEMPLATE"
 TEMPLATE_VERSION = "1.0"
+TEMPLATE_PATH = Path(
+    "docs/development/templates/N3W_FC4_DEVELOPMENT_HANDOFF_TEMPLATE_V1.0.md"
+)
 
-REQUIRED_HEADINGS = (
-    "## 1. Document Identity / Schema",
-    "## 2. North Star / Route",
-    "## 3. Execution Model",
-    "## 4. Repository / Branch Authority",
-    "## 5. Frozen Product Source",
-    "## 6. Worktree / Workspace Guard",
-    "## 7. Runtime Authority",
-    "## 8. Product State / Proven Facts",
-    "## 9. Active Blocker / Root Cause",
-    "## 10. Failure Classification / Fuse",
-    "## 11. Authorization Ledger",
-    "## 12. Mutation State",
-    "## 13. Known Failures / Regression Guards",
-    "## 14. Forbidden Actions / Non-goals",
-    "## 15. Next Route Action",
-    "## 16. Physical State",
-    "## 17. Source Repair / Changed-file Allowlist",
-    "## 18. Tests / CI / Artifact Authority",
-    "## 19. Next-Session Read-Only Recovery",
-    "## 20. New Conversation Startup Prompt",
-    "## 21. Handoff Terminal",
+REQUIRED_HEADINGS = tuple(
+    f"## {number}. {title}"
+    for number, title in enumerate(
+        (
+            "Document Identity / Schema",
+            "North Star / Route",
+            "Execution Model",
+            "Repository / Branch Authority",
+            "Frozen Product Source",
+            "Worktree / Workspace Guard",
+            "Runtime Authority",
+            "Product State / Proven Facts",
+            "Active Blocker / Root Cause",
+            "Failure Classification / Fuse",
+            "Authorization Ledger",
+            "Mutation State",
+            "Known Failures / Regression Guards",
+            "Forbidden Actions / Non-goals",
+            "Next Route Action",
+            "Physical State",
+            "Source Repair / Changed-file Allowlist",
+            "Tests / CI / Artifact Authority",
+            "Next-Session Read-Only Recovery",
+            "New Conversation Startup Prompt",
+            "Handoff Terminal",
+        ),
+        start=1,
+    )
 )
 
 REQUIRED_KEYS = (
@@ -166,10 +176,9 @@ def parse_assignments(text: str) -> dict[str, list[str]]:
     result: dict[str, list[str]] = {}
     for raw in text.splitlines():
         match = ASSIGNMENT_RE.match(raw.strip())
-        if not match:
-            continue
-        key, value = match.groups()
-        result.setdefault(key, []).append(value.strip())
+        if match:
+            key, value = match.groups()
+            result.setdefault(key, []).append(value.strip())
     return result
 
 
@@ -250,23 +259,14 @@ def validate_text(text: str, path: str = "<memory>") -> list[Finding]:
     if fail_class is not None and fail_class not in ALLOWED_FAIL_CLASSES:
         findings.add(Finding("invalid-fail-class", fail_class))
 
-    streak = last_value(assignments, "CURRENT_EXECUTOR_FAILURE_STREAK")
-    if streak is not None:
-        try:
-            if int(streak) < 0:
-                raise ValueError
-        except ValueError:
-            findings.add(Finding("invalid-failure-streak", streak))
-
-    consumed_count = last_value(assignments, "CONSUMED_AUTHORIZATION_COUNT")
-    parsed_consumed_count: int | None = None
-    if consumed_count is not None:
-        try:
-            parsed_consumed_count = int(consumed_count)
-            if parsed_consumed_count < 0:
-                raise ValueError
-        except ValueError:
-            findings.add(Finding("invalid-consumed-authorization-count", consumed_count))
+    for key in ("CURRENT_EXECUTOR_FAILURE_STREAK", "CONSUMED_AUTHORIZATION_COUNT"):
+        value = last_value(assignments, key)
+        if value is not None:
+            try:
+                if int(value) < 0:
+                    raise ValueError
+            except ValueError:
+                findings.add(Finding("invalid-nonnegative-integer", f"{key}={value}"))
 
     blocks, block_findings = authorization_blocks(text)
     findings.update(block_findings)
@@ -289,13 +289,15 @@ def validate_text(text: str, path: str = "<memory>") -> list[Finding]:
         if state == "CANDIDATE" and replay not in {"false", "NOT_APPLICABLE"}:
             findings.add(Finding("candidate-authorization-replay", f"block={index}"))
 
-    if parsed_consumed_count is not None and parsed_consumed_count != consumed_blocks:
-        findings.add(
-            Finding(
-                "consumed-authorization-count-mismatch",
-                f"declared={parsed_consumed_count} blocks={consumed_blocks}",
+    declared_count = last_value(assignments, "CONSUMED_AUTHORIZATION_COUNT")
+    if declared_count is not None and declared_count.isdigit():
+        if int(declared_count) != consumed_blocks:
+            findings.add(
+                Finding(
+                    "consumed-authorization-count-mismatch",
+                    f"declared={declared_count} blocks={consumed_blocks}",
+                )
             )
-        )
 
     for rule, pattern in PRIVATE_PATTERNS:
         match = pattern.search(text)
@@ -314,7 +316,6 @@ def validate_text(text: str, path: str = "<memory>") -> list[Finding]:
         text,
     ):
         findings.add(Finding("raw-private-authority", path))
-
     if re.search(
         r"<(?:VALUE|VERSION|YYYY-MM-DD|BRANCH|40-HEX-SHA|TEMPLATE_GIT_BLOB_SHA|EXACT_NEXT_ACTION)",
         text,
@@ -326,6 +327,45 @@ def validate_text(text: str, path: str = "<memory>") -> list[Finding]:
 
 def schema_declared(text: str) -> bool:
     return bool(re.search(r"(?m)^HANDOFF_SCHEMA_VERSION=", text))
+
+
+def git_blob_sha(repository: Path, path: Path) -> str:
+    result = subprocess.run(
+        ["git", "hash-object", "--", str(path)],
+        cwd=repository,
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    return result.stdout.strip()
+
+
+def validate_file(path: Path, repository: Path) -> list[Finding]:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as error:
+        return [Finding("file-read-error", type(error).__name__)]
+    if not schema_declared(text):
+        return [Finding("schema-not-declared", str(path))]
+
+    findings = set(validate_text(text, str(path)))
+    template = repository / TEMPLATE_PATH
+    try:
+        actual_template_sha = git_blob_sha(repository, template)
+    except (OSError, subprocess.CalledProcessError):
+        findings.add(Finding("template-blob-query-failed", str(TEMPLATE_PATH)))
+        return sorted(findings)
+
+    recorded = last_value(parse_assignments(text), "HANDOFF_TEMPLATE_BLOB_SHA")
+    if recorded != actual_template_sha:
+        findings.add(
+            Finding(
+                "template-blob-binding-mismatch",
+                f"recorded={recorded} actual={actual_template_sha}",
+            )
+        )
+    return sorted(findings)
 
 
 def discover_schema_handoffs(repository: Path) -> tuple[list[Path], int]:
@@ -350,16 +390,6 @@ def discover_schema_handoffs(repository: Path) -> tuple[list[Path], int]:
         else:
             legacy += 1
     return schema_files, legacy
-
-
-def validate_file(path: Path) -> list[Finding]:
-    try:
-        text = path.read_text(encoding="utf-8")
-    except OSError as error:
-        return [Finding("file-read-error", type(error).__name__)]
-    if not schema_declared(text):
-        return [Finding("schema-not-declared", str(path))]
-    return validate_text(text, str(path))
 
 
 def self_test() -> list[str]:
@@ -461,10 +491,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     repository = args.repository.resolve()
     if args.file is not None:
-        path = args.file
-        if not path.is_absolute():
-            path = repository / path
-        findings = validate_file(path)
+        path = args.file if args.file.is_absolute() else repository / args.file
+        findings = validate_file(path, repository)
         if findings:
             print("development-handoff-lint: failed")
             for finding in findings:
@@ -474,13 +502,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     files, legacy = discover_schema_handoffs(repository)
-    if not files:
-        print(f"development-handoff-lint: passed schema_files=0 legacy_skipped={legacy}")
-        return 0
-
     all_findings: list[tuple[Path, Finding]] = []
     for path in files:
-        for finding in validate_file(path):
+        for finding in validate_file(path, repository):
             all_findings.append((path, finding))
     if all_findings:
         print("development-handoff-lint: failed")
