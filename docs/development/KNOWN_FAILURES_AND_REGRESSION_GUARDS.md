@@ -50,8 +50,13 @@
 | KF-070 | PHYSICAL_HARNESS | Compose recreate acceptance oracle / Docker RestartCount 误用 |
 | KF-071 | PHYSICAL_HARNESS | current-runtime authority discriminator / preserved rollback artifact exclusion |
 | KF-072 | PHYSICAL_HARNESS | UNKNOWN propagation / unobserved fact serialization |
+| KF-073 | PHYSICAL_HARNESS | Board-C serial capture RTS/DTR reset-risk contract |
+| KF-074 | PHYSICAL_HARNESS | Board-C durable hardware authority binding |
+| KF-075 | PHYSICAL_HARNESS | Board-C diagnostic executor target/transport/oracle authority |
+| KF-076 | PRODUCT | MQTT TCP endpoint 与 TLS server identity 未正确分离 |
+| KF-077 | PHYSICAL_HARNESS | serial/MQTT log classifier `connected` substring 假阳性 |
 
-`KF-061`～`KF-065` 的下方条目只保留 secret-safe 事故摘要和回归规则；raw handoff、Setup Secret、板卡身份、私有路径与其他 private evidence 继续只存在于 private evidence。`KF-068` 当前由开放文档 PR #340 预留；`KF-069`、`KF-071`、`KF-072` 已在本归档分支分配；开放文档 PR 的编号冲突必须在各自 merge 前独立协调。
+`KF-061`～`KF-065` 的下方条目只保留 secret-safe 事故摘要和回归规则；raw handoff、Setup Secret、板卡身份、私有路径与其他 private evidence 继续只存在于 private evidence。`KF-068` 当前由开放文档 PR #340 预留；`KF-069`、`KF-071`～`KF-077` 已在本归档分支分配；开放文档 PR 的编号冲突必须在各自 merge 前独立协调。
 
 该表是 primary `DOMAIN` authority；下方历史索引保持原事实文字不变。
 
@@ -139,6 +144,9 @@
 
 
 | KF-074 | PHYSICAL_HARNESS | FC4 Board-C P9 Setup-Secret physical recapture consumed by HARDWARE_ID_BINDING_MISMATCH | Capture supplied `--expected-hardware-id` from an independent static literal instead of the R4 automatic-approval rollback tombstone-derived durable Board-C authority; pairing hash lineage was correct and product identity drift was not proven | Board-C P9 uses one source-owned durable hardware authority for passive USB equality and downstream capture; independent/static overrides are rejected; authority or USB mismatch stops before CLAIM/serial open; durable-to-capture and pairing continuity are regression-tested; raw identities remain private and consumed authorization is non-replayable | GUARDED |
+| KF-075 | FC4 Board-C P9 diagnostic executor authority/transport | P2/P3/DynSec discovery 多次出现 listener false-negative、误用 local Docker、container stdin 未连接、Docker label template 不兼容；纠正 executor 后相同产品状态立即 PASS | ad-hoc diagnostic executor 未在运行前机器绑定 execution target、stdin transport、Docker template surface 与 positional output schema，导致 tooling 假阴性被表现成业务状态 | runtime/preclaim 第一屏绑定 execution target；container heredoc 使用 `docker exec -i ... python -` 并验证 body sentinel；Compose service 使用已验证 `.Label` surface；positional parser 必须平台 smoke-test；未执行 authority 时保持 UNKNOWN/NOT_EVALUATED；两次连续 executor/preclaim failure 触发 mandatory route audit | GUARDED |
+| KF-076 | FC4 Board-C first-registration MQTT/TLS | Board C 已完成 APPROVED registration、credential generation 1、application-key ACTIVE 与 DynSec identity，但持续 TCP 连接 8883 后无法形成 MQTT client；一次性只读串口捕获出现 `ESP_ERR_MBEDTLS_SSL_HANDSHAKE_FAILED` / mbedTLS `-0x2700` 证书校验失败 | Manager 正确下发彼此独立的 `broker_host=IP` 与 `broker_tls_server_name=DNS`，Broker 证书 CA/有效期正确且 CN/SAN 只匹配 TLS DNS；frozen firmware `configure_mqtt_()` 只把 `broker_host` 交给 MQTT backend，完全未消费已持久化的 `broker_tls_server_name`，导致 TLS server identity 按连接 IP 校验而失败。Phase4 A/B isolated E2E 因 `broker_host == broker_tls_server_name == certificate IP SAN` 而未触发该缺陷 | 保持 `TCP_CONNECT_TARGET=broker_host` 与 `TLS_EXPECTED_SERVER_NAME=broker_tls_server_name` 分离；最小 firmware/backend repair 必须把 TLS server name 映射到 ESP-MQTT `broker.verification.common_name` 或 exact-version 等价入口，同时保持 CN/SAN 校验开启。禁止 `skip_cert_cn_check`、禁止把现场 IP 加入证书作为 workaround、禁止强制把 TCP host 改成 DNS。回归必须覆盖 `host=IP / tls_name=DNS / DNS-only SAN => PASS`、wrong DNS/CA/time-invalid => FAIL，并证明 provisioning→NVS→configure_mqtt→backend 全链实际消费 server name。完成 source/test/build/CI/Board-C physical acceptance 前保持 OPEN | OPEN |
+| KF-077 | FC4 Board-C serial/MQTT diagnostic classifier | 一次性串口诊断曾输出 `SERIAL_MQTT_CONNECTED_LINE_COUNT=4`，与同窗 4 条 disconnect 同时出现；后续精确 Broker/current-node 与 TLS 证据证明不能把该值当成成功连接 | matcher 使用裸 `connected` substring，`disconnected` 本身包含 `connected`，产生结构化看似合理的假阳性 | 连接成功必须使用带 token/word boundary 的 exact event matcher 或结构化 event code；显式先排除 `disconnected`，并加入 `connected` 不得命中 `disconnected` 的 negative regression。该错误计数已作废且不影响 KF-076 根因；机器 regression 落地前保持 OPEN | OPEN |
 
 ## 固定回归规则
 
@@ -173,6 +181,9 @@
 - **Physical-harness preclaim completeness**：任何 successor/helper physical claim 前必须使用正式执行路径证明 snapshot transport、bounded successor observation、exact serial-capture interpreter/import、product-restore write/readback fallback 和必要的权限/ownership contract；host-only failure 必须停在 claim/mutation 之前。
 - **LAB inbox ownership**：filesystem handoff 仅允许作为 `LAB_ONLY` compatibility path；若使用，final file 必须保持 `0600` 且 owner/group 精确绑定 Manager runtime identity，并在 atomic rename 前后证明 Manager-readable 与非 world-readable。normal product pairing不得重新依赖 filesystem inbox。
 - **Container recreate oracle**：Compose recreate 不得用跨 container 的 `RestartCount` delta 证明次数；使用 container identity change、target create/start count 与 non-target invariants 作为 authority。
+- **Executor failure fuse**：一次成功 route audit 后若连续两次 executor/preclaim 以 executor/oracle 类缺陷未闭合，则第三次 successor/preclaim 前必须 mandatory route audit；route audit PASS 后重置 fuse。不得用不断重写 oracle 的方式绕过路线复核。
+- **TLS endpoint/identity separation**：MQTT/TLS 产品路径必须分别绑定 TCP connect target 与 certificate expected server name；`broker_host` 与 `broker_tls_server_name` 不得隐式要求相等。至少保持 `host=IP / tls_name=DNS / DNS-only SAN` 正向回归，以及 wrong TLS name、wrong CA、time-invalid certificate 负向回归；禁止以关闭 hostname 校验或现场 IP SAN 绕过。
+- **Log-token matcher boundary**：日志分类器不得用会跨 token 命中的裸 substring 证明状态；尤其 `connected` 必须明确不匹配 `disconnected`。成功状态优先使用结构化 event code、完整词边界或互斥 matcher，并保留负向 regression。
 
 ## 维护模板
 
