@@ -173,6 +173,8 @@ Use public-safe placeholders such as:
 
 The existing `tools/check_public_repository_safety.py` remains authoritative for repository-wide leak detection. The handoff linter adds handoff-specific fail-closed checks.
 
+Because the repository-safety step scans the whole tracked repository, a handoff closeout may expose a pre-existing safety violation outside the handoff files. Such a finding is a real closeout blocker: fix the originating tracked fixture/document with the smallest public-safe change, preserve its product/test semantics, and rerun the same gate. Do not weaken or scope down the safety checker merely to make the handoff pass.
+
 ## Template versioning
 
 The canonical template is versioned. A handoff must record:
