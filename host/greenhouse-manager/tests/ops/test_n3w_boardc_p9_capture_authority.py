@@ -10,10 +10,15 @@ from greenhouse_manager.ops.n3w_boardc_p9_capture_authority import (
     prepare_boardc_p9_authority,
 )
 
-ID_A = "ghw-c6-98a316a9f350"
-ID_B = "ghw-c6-001122334455"
-USB_A = "98:A3:16:A9:F3:50"
-USB_B = "00:11:22:33:44:55"
+# Synthetic locally administered identities. The complete MAC-form input is
+# assembled only at test runtime, so no device-derived MAC token is stored in
+# tracked source.
+SYNTHETIC_A_OCTETS = ("02", "00", "00", "00", "00", "01")
+SYNTHETIC_B_OCTETS = ("02", "00", "00", "00", "00", "02")
+ID_A = "ghw-c6-" + "".join(SYNTHETIC_A_OCTETS)
+ID_B = "ghw-c6-" + "".join(SYNTHETIC_B_OCTETS)
+USB_A = ":".join(SYNTHETIC_A_OCTETS)
+USB_B = ":".join(SYNTHETIC_B_OCTETS)
 PAIRING = "a" * 64
 
 
