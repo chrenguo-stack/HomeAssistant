@@ -5,6 +5,7 @@ For work involving GitHub Actions, pull requests, ESPHome or ESP32-C6 builds, gr
 - `docs/skills/greenhouse-github-development-efficiency/SKILL.md`
 - `docs/development/local-ai-task-splitting-rules.md`
 - `docs/development/development-artifact-archive-rules.md`
+- `docs/development/HANDOFF_DOCUMENT_CONTRACT.md`
 
 The local task-splitting rules define the verified Mac development environment and require AI assistants to identify work that can be run locally, split independent work packages when safe, reuse local fast tests and cached firmware builds, and reserve Docker, GitHub required gates, board validation, and T1 production validation for their appropriate environments.
 
@@ -20,3 +21,13 @@ claim or consume a pending physical authorization.
 
 对于任何新建模块、重构已有模块、或清理孤立代码的工作，读取并遵循：
 - `docs/development/module-lifecycle-rules.md`
+
+For every newly generated development handoff:
+
+- start from `docs/development/templates/N3W_FC4_DEVELOPMENT_HANDOFF_TEMPLATE_V1.0.md`;
+- keep every required section, using `NOT_APPLICABLE` instead of deleting a section;
+- preserve `EXECUTION_MODEL=HIGH_LEVEL_REASONING_PLUS_BOUNDED_CODEX_EXECUTION`;
+- run `python3 tools/check_development_handoff.py --file <handoff>`;
+- require handoff lint and public-repository safety to pass before declaring closeout complete.
+
+Legacy handoffs without `HANDOFF_SCHEMA_VERSION` remain historical records and are not silently treated as schema-compliant.
