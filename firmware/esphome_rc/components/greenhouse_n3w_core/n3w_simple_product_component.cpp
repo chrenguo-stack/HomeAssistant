@@ -183,6 +183,8 @@ bool SimpleProductComponent::configure_mqtt_() {
   mqtt::global_mqtt_client->set_username(broker_state_.mqtt_username);
   mqtt::global_mqtt_client->set_password(broker_state_.mqtt_password);
   mqtt::global_mqtt_client->set_client_id(broker_state_.mqtt_client_id);
+  mqtt::global_mqtt_client->set_tls_server_name(
+      broker_state_.broker_tls_server_name);
   mqtt::global_mqtt_client->set_ca_certificate(broker_state_.ca_pem.c_str());
   mqtt::global_mqtt_client->set_enable_on_boot(true);
   mqtt::global_mqtt_client->enable();

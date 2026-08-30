@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components.esp32 import (
+    add_extra_script,
     add_idf_sdkconfig_option,
     include_builtin_idf_component,
 )
@@ -27,6 +30,11 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: dict) -> None:
+    add_extra_script(
+        "pre",
+        "n3w_tls_server_name_patch.py",
+        Path(__file__).with_name("n3w_tls_server_name_patch.py.script"),
+    )
     add_idf_sdkconfig_option("CONFIG_MBEDTLS_HKDF_C", True)
     include_builtin_idf_component("nvs_flash")
     include_builtin_idf_component("esp_event")
