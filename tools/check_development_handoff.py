@@ -420,7 +420,7 @@ def self_test() -> list[str]:
     ):
         failures.append("consumed-replay-not-detected")
 
-    bad_home = good + "\n/Users/example/private\n"
+    bad_home = good + "\n/" + "Users" + "/example/private\n"
     if not any(
         finding.rule == "developer-home-path"
         for finding in validate_text(bad_home, "bad-home")
