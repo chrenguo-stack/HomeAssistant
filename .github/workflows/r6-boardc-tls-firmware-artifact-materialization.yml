@@ -1,0 +1,97 @@
+name: R6 Board C TLS firmware artifact materialization
+
+on:
+  push:
+    branches:
+      - fix/n3w-fc4-boardc-tls-server-name-20260830
+
+permissions:
+  contents: read
+
+jobs:
+  materialize:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Bind exact source authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected_parent='60030b5f6de67f5aa12ebd58f87ca30edba8177a'
+          workflow_path='.github/workflows/r6-boardc-tls-firmware-artifact-materialization.yml'
+          test "$(git rev-parse HEAD^)" = "$expected_parent"
+          test "$(git diff --name-only HEAD^ HEAD)" = "$workflow_path"
+          echo "TLS_SOURCE_AUTHORITY=$expected_parent"
+          echo "MATERIALIZATION_COMMIT=$GITHUB_SHA"
+
+      - name: Install exact ESPHome
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -q 'esphome==2026.4.3'
+          test "$(esphome version | awk '{print $2}')" = '2026.4.3'
+
+      - name: Validate and compile exact Phase 4 generic ESP32-C6 firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd firmware/esphome_rc/board_lab/n3w_phase4_physical
+          esphome config generic.yml
+          esphome compile generic.yml
+
+      - name: Materialize and hash firmware outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          node='gh-n3w-phase4-generic'
+          env_dir="firmware/esphome_rc/board_lab/n3w_phase4_physical/.esphome/build/${node}/.pioenvs/${node}"
+          out="$RUNNER_TEMP/r6-boardc-tls-firmware"
+          mkdir -p "$out"
+          test -f "$env_dir/firmware.bin"
+          test -f "$env_dir/firmware.factory.bin"
+          cp "$env_dir/firmware.bin" "$out/"
+          cp "$env_dir/firmware.factory.bin" "$out/"
+          for name in bootloader.bin partitions.bin ota_data_initial.bin firmware.elf firmware.map; do
+            if test -f "$env_dir/$name"; then
+              cp "$env_dir/$name" "$out/"
+            fi
+          done
+          {
+            echo 'FORMAT=R6_BOARD_C_TLS_FIRMWARE_ARTIFACT_V1'
+            echo 'TLS_SOURCE_AUTHORITY=60030b5f6de67f5aa12ebd58f87ca30edba8177a'
+            echo "MATERIALIZATION_COMMIT=$GITHUB_SHA"
+            echo 'ESPHOME_VERSION=2026.4.3'
+            echo 'TARGET=firmware/esphome_rc/board_lab/n3w_phase4_physical/generic.yml'
+            echo 'NODE=gh-n3w-phase4-generic'
+            echo 'BOARD=esp32-c6-devkitm-1'
+            echo 'VARIANT=ESP32C6'
+            echo 'FLASH_SIZE=8MB'
+            echo 'FRAMEWORK=esp-idf'
+          } > "$out/MANIFEST.txt"
+          (
+            cd "$out"
+            sha256sum firmware.bin firmware.factory.bin > SHA256SUMS.txt
+            for name in bootloader.bin partitions.bin ota_data_initial.bin firmware.elf firmware.map; do
+              if test -f "$name"; then
+                sha256sum "$name" >> SHA256SUMS.txt
+              fi
+            done
+            cat SHA256SUMS.txt
+          )
+
+      - name: Upload exact firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: r6-boardc-tls-firmware-${{ github.sha }}
+          path: ${{ runner.temp }}/r6-boardc-tls-firmware/
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
