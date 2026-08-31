@@ -227,3 +227,59 @@ def test_simplified_manager_network_entrypoints_remain_opt_in() -> None:
     assert "N3wMultiIngressRouter" not in normal_app
     assert "SimplifiedPairingRuntime" not in normal_app
     assert "assemble_simplified_pairing_runtime" in pairing_runtime
+
+def test_tls_server_name_repair_separates_tcp_target_from_tls_identity() -> None:
+    source = text(CORE / "n3w_simple_product_component.cpp")
+    start = source.index("bool SimpleProductComponent::configure_mqtt_()")
+    end = source.index("bool SimpleProductComponent::derive_pmk_", start)
+    body = source[start:end]
+
+    tcp_target = body.index(
+        "set_broker_address(broker_state_.broker_host)"
+    )
+    tls_identity = body.index(
+        "set_tls_server_name(\n"
+        "      broker_state_.broker_tls_server_name)"
+    )
+    ca_binding = body.index(
+        "set_ca_certificate(broker_state_.ca_pem.c_str())"
+    )
+    enable = body.index("enable();", ca_binding)
+
+    assert tcp_target < tls_identity < ca_binding < enable
+    assert (
+        "set_broker_address(broker_state_.broker_tls_server_name)"
+        not in body
+    )
+    assert "set_skip_cert_cn_check(true)" not in body
+
+
+def test_tls_server_name_patch_carrier_is_exact_generated_source_overlay() -> None:
+    init_candidates = list(CORE.glob("??init??.py"))
+    assert len(init_candidates) == 1
+    component_init = text(init_candidates[0])
+    patch = text(CORE / "n3w_tls_server_name_patch.py.script")
+
+    assert "add_extra_script(" in component_init
+    assert '"pre",' in component_init
+    assert '"n3w_tls_server_name_patch.py",' in component_init
+    assert '"n3w_tls_server_name_patch.py.script"' in component_init
+
+    assert 'EXPECTED_ESPHOME_VERSION = "2026.4.3"' in patch
+    assert "14473f737a0739f043b154dd1ea3e55012ca2096" in patch
+    assert "58d1b29b3258a1fcae99b23f67c99a728ea0992c" in patch
+
+    assert 'TARGET_NAMES = (' in patch
+    assert '"mqtt_client.h",' in patch
+    assert '"mqtt_backend_esp32.h",' in patch
+    assert '"mqtt_backend_esp32.cpp"' not in patch
+
+    assert 'env.subst("$PROJECT_SRC_DIR")' in patch
+    assert '"esphome" / "components" / "mqtt"' in patch
+    assert "broker.verification.common_name" in patch
+    assert "tls_server_name_" in patch
+
+    assert "skip_cert_common_name_check = true" not in patch
+    assert "site-packages" not in patch.lower()
+    assert "requests." not in patch
+    assert "urllib" not in patch
