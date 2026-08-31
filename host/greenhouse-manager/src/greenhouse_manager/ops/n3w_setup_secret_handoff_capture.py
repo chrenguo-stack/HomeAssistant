@@ -1,4 +1,9 @@
-"""Capture one N3-W setup-secret handoff without exposing secret material."""
+"""Capture one N3-W setup-secret handoff without exposing secret material.
+
+The live serial path is deliberately risk-bounded: control lines are configured
+while the port is still closed, and opening is gated by an explicit operator
+acknowledgement. This does not prove that the board will not reset.
+"""
 
 from __future__ import annotations
 
@@ -18,13 +23,23 @@ PAIRING_PAYLOAD = re.compile(
     rb"GHN3W2:([A-Za-z0-9._-]+):([A-Za-z0-9._-]+):([A-Za-z0-9_-]+)"
 )
 MAX_CAPTURE_BYTES = 64 * 1024
+SERIAL_CONTROL_LINE_POLICY = "PRECONFIGURED_DEASSERTED_BEST_EFFORT"
+SERIAL_OPEN_NO_RESET_PROVEN = False
+MAX_LIVE_SERIAL_OPEN_COUNT = 1
 
 
 class SerialPort(Protocol):
+    is_open: bool
+    port: str | None
+    rtscts: bool
+    dsrdtr: bool
+    dtr: bool
+    rts: bool
+
+    def open(self) -> None: ...
+    def close(self) -> None: ...
     def __enter__(self) -> SerialPort: ...
-
     def __exit__(self, *args: object) -> None: ...
-
     def read(self, size: int) -> bytes: ...
 
 
@@ -49,7 +64,6 @@ def _decode_payload(
     match = PAIRING_PAYLOAD.search(raw)
     if match is None:
         raise CaptureError("PRIVATE_PAIRING_PAYLOAD_NOT_OBSERVED")
-
     hardware_id, pairing_id, setup_secret = (
         value.decode("ascii") for value in match.groups()
     )
@@ -76,12 +90,32 @@ def _private_output_path(value: str) -> Path:
         raise CaptureError("OUTPUT_ALREADY_EXISTS")
     parent = path.parent.resolve(strict=True)
     parent_stat = parent.stat()
-    parent_mode = stat.S_IMODE(parent_stat.st_mode)
-    if parent_mode & 0o077:
+    if stat.S_IMODE(parent_stat.st_mode) & 0o077:
         raise CaptureError("OUTPUT_PARENT_NOT_PRIVATE")
     if parent_stat.st_uid != os.geteuid():
         raise CaptureError("OUTPUT_PARENT_OWNER_MISMATCH")
     return parent / path.name
+
+
+def _construct_serial(
+    serial_factory: SerialFactory, *, port: str, baud: int
+) -> SerialPort:
+    """Construct closed, deasserted serial state, then open exactly once."""
+    try:
+        device = serial_factory(port=None, baudrate=baud, timeout=0.5)
+    except TypeError:
+        # Test doubles may use pyserial's positional naming, but must still be
+        # capable of representing a closed object and explicit open().
+        device = serial_factory(None, baud, timeout=0.5)
+    device.port = port
+    device.rtscts = False
+    device.dsrdtr = False
+    device.dtr = False
+    device.rts = False
+    if getattr(device, "is_open", False):
+        raise CaptureError("SERIAL_FACTORY_RETURNED_OPEN")
+    device.open()
+    return device
 
 
 def _capture_bytes(
@@ -90,19 +124,27 @@ def _capture_bytes(
     port: str,
     baud: int,
     timeout_seconds: float,
+    live_risk_acknowledged: bool,
 ) -> bytes:
+    if not live_risk_acknowledged:
+        raise CaptureError("LIVE_SERIAL_OPEN_RISK_ACK_REQUIRED")
     deadline = time.monotonic() + timeout_seconds
     buffer = bytearray()
-    with serial_factory(port, baud, timeout=0.5) as device:
-        while time.monotonic() < deadline:
-            chunk = device.read(4096)
-            if not chunk:
-                continue
-            buffer.extend(chunk)
-            if len(buffer) > MAX_CAPTURE_BYTES:
-                del buffer[:-MAX_CAPTURE_BYTES]
-            if PAIRING_PAYLOAD.search(buffer):
-                return bytes(buffer)
+    device = _construct_serial(serial_factory, port=port, baud=baud)
+    try:
+        with device:
+            while time.monotonic() < deadline:
+                chunk = device.read(4096)
+                if not chunk:
+                    continue
+                buffer.extend(chunk)
+                if len(buffer) > MAX_CAPTURE_BYTES:
+                    del buffer[:-MAX_CAPTURE_BYTES]
+                if PAIRING_PAYLOAD.search(buffer):
+                    return bytes(buffer)
+    finally:
+        if getattr(device, "is_open", False):
+            device.close()
     raise CaptureError("PRIVATE_PAIRING_PAYLOAD_NOT_OBSERVED")
 
 
@@ -142,6 +184,11 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--expected-pairing-id-sha256", required=True)
     parser.add_argument("--baud", type=int, default=115200)
     parser.add_argument("--timeout-seconds", type=float, default=15.0)
+    parser.add_argument(
+        "--ack-live-serial-open-risk",
+        action="store_true",
+        help="Acknowledge that opening may reset the board; no-reset is not proven",
+    )
     return parser
 
 
@@ -170,20 +217,21 @@ def main(
             port=args.port,
             baud=args.baud,
             timeout_seconds=args.timeout_seconds,
+            live_risk_acknowledged=args.ack_live_serial_open_risk,
         )
         hardware_id, pairing_id, setup_secret = _decode_payload(
             captured,
             expected_hardware_id=args.expected_hardware_id,
             expected_pairing_id_sha256=args.expected_pairing_id_sha256,
         )
-        payload = _serialize_handoff(hardware_id, pairing_id, setup_secret)
-        _write_exclusive(output, payload)
+        _write_exclusive(output, _serialize_handoff(hardware_id, pairing_id, setup_secret))
     except (CaptureError, FileExistsError, OSError) as error:
         message = str(error) if isinstance(error, CaptureError) else "PRIVATE_HANDOFF_WRITE_FAILED"
         print(f"CAPTURE_RESULT=FAIL:{message}")
         print("SECRET_VALUE_EXPOSED=false")
         return 1
 
+    payload = _serialize_handoff(hardware_id, pairing_id, setup_secret)
     print("PRIVATE_PAIRING_PAYLOAD=CAPTURED")
     print(f"HARDWARE_ID_SHA256={_sha256(hardware_id)}")
     print(f"PAIRING_ID_SHA256={_sha256(pairing_id)}")

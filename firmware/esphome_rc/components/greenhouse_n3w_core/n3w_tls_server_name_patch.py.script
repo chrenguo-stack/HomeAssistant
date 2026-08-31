@@ -1,0 +1,155 @@
+from pathlib import Path
+import hashlib
+import os
+
+Import("env")
+
+EXPECTED_ESPHOME_VERSION = "2026.4.3"
+EXPECTED_MQTT_CLIENT_H_BLOB = "14473f737a0739f043b154dd1ea3e55012ca2096"
+EXPECTED_MQTT_BACKEND_ESP32_H_BLOB = "58d1b29b3258a1fcae99b23f67c99a728ea0992c"
+
+TARGET_NAMES = (
+    "mqtt_client.h",
+    "mqtt_backend_esp32.h",
+)
+
+CLIENT_OLD = (
+    "#ifdef USE_ESP32\n"
+    "  void set_ca_certificate(const char *cert) { this->mqtt_backend_.set_ca_certificate(cert); }\n"
+    "  void set_cl_certificate(const char *cert) { this->mqtt_backend_.set_cl_certificate(cert); }\n"
+    "  void set_cl_key(const char *key) { this->mqtt_backend_.set_cl_key(key); }\n"
+    "  void set_skip_cert_cn_check(bool skip_check) { this->mqtt_backend_.set_skip_cert_cn_check(skip_check); }\n"
+    "#endif\n"
+)
+
+CLIENT_NEW = (
+    "#ifdef USE_ESP32\n"
+    "  void set_tls_server_name(const std::string &server_name) { this->mqtt_backend_.set_tls_server_name(server_name); }\n"
+    "  void set_ca_certificate(const char *cert) { this->mqtt_backend_.set_ca_certificate(cert); }\n"
+    "  void set_cl_certificate(const char *cert) { this->mqtt_backend_.set_cl_certificate(cert); }\n"
+    "  void set_cl_key(const char *key) { this->mqtt_backend_.set_cl_key(key); }\n"
+    "  void set_skip_cert_cn_check(bool skip_check) { this->mqtt_backend_.set_skip_cert_cn_check(skip_check); }\n"
+    "#endif\n"
+)
+
+BACKEND_SETTER_OLD = (
+    "  void set_ca_certificate(const std::string &cert) { ca_certificate_ = cert; }\n"
+    "  void set_cl_certificate(const std::string &cert) { cl_certificate_ = cert; }\n"
+    "  void set_cl_key(const std::string &key) { cl_key_ = key; }\n"
+    "  void set_skip_cert_cn_check(bool skip_check) { skip_cert_cn_check_ = skip_check; }\n"
+)
+
+BACKEND_SETTER_NEW = (
+    "  void set_tls_server_name(const std::string &server_name) {\n"
+    "    this->tls_server_name_ = server_name;\n"
+    "    this->mqtt_cfg_.broker.verification.common_name =\n"
+    "        this->tls_server_name_.empty() ? nullptr : this->tls_server_name_.c_str();\n"
+    "  }\n"
+    "  void set_ca_certificate(const std::string &cert) { ca_certificate_ = cert; }\n"
+    "  void set_cl_certificate(const std::string &cert) { cl_certificate_ = cert; }\n"
+    "  void set_cl_key(const std::string &key) { cl_key_ = key; }\n"
+    "  void set_skip_cert_cn_check(bool skip_check) { skip_cert_cn_check_ = skip_check; }\n"
+)
+
+BACKEND_STORAGE_OLD = (
+    "  std::string host_;\n"
+    "  uint16_t port_;\n"
+)
+
+BACKEND_STORAGE_NEW = (
+    "  std::string host_;\n"
+    "  std::string tls_server_name_;\n"
+    "  uint16_t port_;\n"
+)
+
+def git_blob_sha1(data: bytes) -> str:
+    header = f"blob {len(data)}\0".encode("ascii")
+    return hashlib.sha1(header + data).hexdigest()
+
+def unpatch_and_verify(text: str, expected_blob: str, replacements) -> bool:
+    candidate = text
+    for old, new in reversed(replacements):
+        if candidate.count(new) != 1:
+            return False
+        candidate = candidate.replace(new, old, 1)
+    return git_blob_sha1(candidate.encode("utf-8")) == expected_blob
+
+def patch_exact(path: Path, expected_blob: str, replacements) -> str:
+    raw = path.read_bytes()
+    current_blob = git_blob_sha1(raw)
+    text = raw.decode("utf-8")
+
+    if current_blob == expected_blob:
+        patched = text
+        for old, new in replacements:
+            if patched.count(old) != 1:
+                raise RuntimeError(
+                    f"{path.name}: exact preimage hunk count mismatch"
+                )
+            if new in patched:
+                raise RuntimeError(
+                    f"{path.name}: patched hunk unexpectedly already present"
+                )
+            patched = patched.replace(old, new, 1)
+
+        if not unpatch_and_verify(patched, expected_blob, replacements):
+            raise RuntimeError(
+                f"{path.name}: postimage does not reverse to exact preimage"
+            )
+
+        tmp = path.with_name(path.name + ".n3w-tls-tmp")
+        tmp.write_bytes(patched.encode("utf-8"))
+        os.replace(tmp, path)
+        return "APPLIED"
+
+    if unpatch_and_verify(text, expected_blob, replacements):
+        return "ALREADY_EXACT"
+
+    raise RuntimeError(
+        f"{path.name}: unknown upstream source; refusing generated-source patch"
+    )
+
+def main() -> None:
+    project_src = Path(env.subst("$PROJECT_SRC_DIR"))
+    mqtt_dir = project_src / "esphome" / "components" / "mqtt"
+
+    targets = {
+        "mqtt_client.h": mqtt_dir / "mqtt_client.h",
+        "mqtt_backend_esp32.h": mqtt_dir / "mqtt_backend_esp32.h",
+    }
+
+    present = {name: path.is_file() for name, path in targets.items()}
+
+    if not any(present.values()):
+        print(
+            "N3W_TLS_SERVER_NAME_PATCH=NOT_APPLICABLE "
+            "reason=mqtt_generated_sources_absent"
+        )
+        return
+
+    if not all(present.values()):
+        raise RuntimeError(
+            "N3W TLS server-name patch target set is partial; refusing build"
+        )
+
+    client_state = patch_exact(
+        targets["mqtt_client.h"],
+        EXPECTED_MQTT_CLIENT_H_BLOB,
+        ((CLIENT_OLD, CLIENT_NEW),),
+    )
+    backend_state = patch_exact(
+        targets["mqtt_backend_esp32.h"],
+        EXPECTED_MQTT_BACKEND_ESP32_H_BLOB,
+        (
+            (BACKEND_SETTER_OLD, BACKEND_SETTER_NEW),
+            (BACKEND_STORAGE_OLD, BACKEND_STORAGE_NEW),
+        ),
+    )
+
+    print(
+        "N3W_TLS_SERVER_NAME_PATCH=PASS "
+        f"mqtt_client_h={client_state} "
+        f"mqtt_backend_esp32_h={backend_state}"
+    )
+
+main()
