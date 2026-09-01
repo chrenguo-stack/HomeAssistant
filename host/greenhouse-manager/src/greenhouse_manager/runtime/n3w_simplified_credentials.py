@@ -111,13 +111,7 @@ class SimplifiedProductCredentialBundle:
 
 
 class SimplifiedCredentialBundleIssuer:
-    """Attach canonical SYSTEM_PEER_KEY material to a node credential bundle.
-
-    First registration may initialize the per-system peer-trust credential.
-    Any later MQTT credential generation is recovery/rotation territory and
-    must reuse already-existing peer trust rather than implicitly creating or
-    advancing an independent security lifecycle.
-    """
+    """Attach canonical SYSTEM_PEER_KEY material to a node credential bundle."""
 
     def __init__(self, peer_trust: SystemPeerTrustStore) -> None:
         self.peer_trust = peer_trust
@@ -128,16 +122,23 @@ class SimplifiedCredentialBundleIssuer:
         *,
         now=None,
     ) -> SimplifiedProductCredentialBundle:
-        if base.credential_generation == 1:
-            peer = self.peer_trust.get_or_create(base.system_id, now=now)
+        """Compose a normal bundle, initializing peer trust when necessary."""
+        peer = self.peer_trust.get_or_create(base.system_id, now=now)
+        return SimplifiedProductCredentialBundle.from_existing(base, peer)
+
+    def issue_existing(
+        self,
+        base: ProductCredentialSource,
+    ) -> SimplifiedProductCredentialBundle:
+        """Compose recovery material from already-existing peer trust only."""
+        getter = getattr(self.peer_trust, "get", None)
+        if callable(getter):
+            peer = getter(base.system_id)
         else:
-            getter = getattr(self.peer_trust, "get", None)
-            if callable(getter):
-                peer = getter(base.system_id)
-            else:
-                # Test doubles predating recovery may expose only get_or_create;
-                # production SystemPeerTrustStore always exposes get().
-                peer = self.peer_trust.get_or_create(base.system_id, now=now)
+            # Compatibility for narrow test doubles. Production
+            # SystemPeerTrustStore always exposes get(), so recovery cannot
+            # initialize missing peer trust in the product runtime.
+            peer = self.peer_trust.get_or_create(base.system_id)
         return SimplifiedProductCredentialBundle.from_existing(base, peer)
 
 
