@@ -132,13 +132,11 @@ class SimplifiedCredentialBundleIssuer:
     ) -> SimplifiedProductCredentialBundle:
         """Compose recovery material from already-existing peer trust only."""
         getter = getattr(self.peer_trust, "get", None)
-        if callable(getter):
-            peer = getter(base.system_id)
-        else:
-            # Compatibility for narrow test doubles. Production
-            # SystemPeerTrustStore always exposes get(), so recovery cannot
-            # initialize missing peer trust in the product runtime.
-            peer = self.peer_trust.get_or_create(base.system_id)
+        peer = (
+            getter(base.system_id)
+            if callable(getter)
+            else self.peer_trust.get_or_create(base.system_id)
+        )
         return SimplifiedProductCredentialBundle.from_existing(base, peer)
 
 
