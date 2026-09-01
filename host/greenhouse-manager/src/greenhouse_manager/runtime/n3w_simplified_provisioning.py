@@ -304,7 +304,7 @@ class SimplifiedProvisioningStager:
                 mqtt_password=credentials.password,
                 n3w_application_key=_base64url(application_key),
             )
-            simplified = self.simplified_issuer.issue(product)
+            simplified = self.simplified_issuer.issue_existing(product)
             return StagedRecoveredSimplifiedBundle(
                 bundle=simplified,
                 plan=plan,
