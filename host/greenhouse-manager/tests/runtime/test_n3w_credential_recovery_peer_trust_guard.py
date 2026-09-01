@@ -38,7 +38,7 @@ def test_recovery_does_not_initialize_missing_peer_trust(tmp_path) -> None:
         issuer = SimplifiedCredentialBundleIssuer(store)
 
         with pytest.raises(KeyError):
-            issuer.issue(_bundle(2), now=NOW)
+            issuer.issue_existing(_bundle(2))
 
         assert store.audit()["system_count"] == 0
 
@@ -58,7 +58,7 @@ def test_recovery_reuses_existing_peer_trust_without_rotation(tmp_path) -> None:
         first = issuer.issue(_bundle(1), now=NOW)
         before = store.snapshot(SYSTEM_ID)
 
-        recovered = issuer.issue(_bundle(2), now=NOW)
+        recovered = issuer.issue_existing(_bundle(2))
         after = store.snapshot(SYSTEM_ID)
 
         assert recovered.system_peer_key == first.system_peer_key
