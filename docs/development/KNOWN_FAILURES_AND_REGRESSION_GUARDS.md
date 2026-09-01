@@ -51,6 +51,7 @@
 | KF-071 | PHYSICAL_HARNESS | current-runtime authority discriminator / preserved rollback artifact exclusion |
 | KF-072 | PHYSICAL_HARNESS | UNKNOWN propagation / unobserved fact serialization |
 | KF-075 | PRODUCT | existing-identity MQTT credential recovery product-path gap |
+| KF-076 | INFRASTRUCTURE | GitHub connector PR state transition / post-merge workflow authority |
 
 `KF-061`～`KF-065` 的下方条目只保留 secret-safe 事故摘要和回归规则；raw handoff、Setup Secret、板卡身份、私有路径与其他 private evidence 继续只存在于 private evidence。`KF-068` 的历史文档 PR #340 已关闭未合并，当前不再占用编号；`KF-075` 由 PR #350 分配给 existing-identity MQTT credential recovery 产品路径缺口；`KF-069`、`KF-071`、`KF-072` 已在本归档分支分配；开放文档 PR 的编号冲突必须在各自 merge 前独立协调。
 
@@ -141,6 +142,7 @@
 
 | KF-074 | PHYSICAL_HARNESS | FC4 Board-C P9 Setup-Secret physical recapture consumed by HARDWARE_ID_BINDING_MISMATCH | Capture supplied `--expected-hardware-id` from an independent static literal instead of the R4 automatic-approval rollback tombstone-derived durable Board-C authority; pairing hash lineage was correct and product identity drift was not proven | Board-C P9 uses one source-owned durable hardware authority for passive USB equality and downstream capture; independent/static overrides are rejected; authority or USB mismatch stops before CLAIM/serial open; durable-to-capture and pairing continuity are regression-tested; raw identities remain private and consumed authorization is non-replayable | GUARDED |
 | KF-075 | N3-W R2B existing-identity MQTT credential recovery | 已注册节点板端 durable credential state 丢失后，Manager 仍保留 stable NODE_ID + active MQTT credential，但 ordinary pairing 只能停在 `credential_recovery_required`，缺少产品级 recovery 入口 | MQTT credential recovery lifecycle 已存在但未接入 Manager-owned pairing authorization/provisioning 产品路径 | PR #350：新增 exact hardware+pairing bounded credential-recovery authorization；保留 stable NODE_ID；仅 stage `active+1` MQTT generation；复用 active N3-W application key；recovery 只能读取既有 SYSTEM_PEER_KEY，不得创建/旋转；Board durable persist + final receipt 前不得改 Broker；receipt 后仅替换既有 client password；partial external commit 必须 fail-closed/reconcile；focused/full CI guard | OPEN |
+| KF-076 | Assistant / GitHub connector authority | `Ready for review` 自动转换因 connector 查询不存在的 `Repository.fullDatabaseId` 字段失败；用户手动转换后 read-back 正常；PR #350 merge 后 commit-workflow wrapper 又返回空集合，而同一 merge SHA 的 push workflow/check-runs 实际存在并运行 | connector response GraphQL schema 与 wrapper event scope 不完整：前者引用当前 GitHub schema 不支持的字段，后者只覆盖 pull-request-triggered runs，不能作为 post-merge workflow 唯一 authority | connector mutation 返回错误后必须重新 read-back `draft/state/merged/head_sha`；post-merge CI 必须读取 merge SHA 的 push workflow/check-runs，禁止把 PR-only wrapper 空结果解释为“没有 CI”；tooling failure 与 repository/source/CI/product failure 分开分类 | OPEN |
 
 ## 固定回归规则
 
@@ -151,6 +153,7 @@
 - **Repository/product-source authority split**：物理验收期间 repository `main` tip 与 frozen product-source authority 必须分别记录。documentation-only `main` advancement 不得自动重定义已部署/冻结产品 revision；冻结产品 revision 也不得被误报为当前 repository `main`。
 - **Claim boundary**：`AUTHORIZATION_CLAIMED=true` 后任何失败都 fail-closed；同一 authorization 永久不可重放。
 - **Failure classification**：网络获取失败、CI 瞬态失败、测试 oracle 失败、产品真实故障必须分别分类。
+- **GitHub connector authority**：PR state mutation / workflow wrapper 不是 GitHub state 的唯一 authority；mutation 返回错误后必须 read-back `draft/state/merged/head_sha`；post-merge CI 必须以 merge SHA 的 push workflow/check-runs 复核，禁止把 PR-only wrapper 的空结果解释为“没有 CI”；connector/tooling failure 与 repository/source/CI/product failure 分开分类。
 - **Single authority**：文件路径、payload、credential、canonical state 等关键事实不得由多个位置各自猜测。
 - **Cross-session exact-target authority**：跨会话执行应在受控 private evidence 中保留 exact locator provenance、host-key binding 和 public-safe machine-binding hash；descriptor 缺失时只允许从已冻结历史 evidence 恢复，目标不唯一必须 fail-closed，禁止用 LAN 扫描替代 authority。
 - **Runtime authority discriminator**：preserved rollback artifact 与 current runtime 共存时，禁止仅按 container name 选择 current Manager；必须绑定 exact successor、running state、frozen revision、rootfs mode 与 Compose identity，必要的 listener 证据必须解析到 PID/cgroup/container owner。
