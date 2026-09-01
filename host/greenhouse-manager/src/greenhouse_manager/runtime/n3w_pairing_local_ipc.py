@@ -13,6 +13,10 @@ SCHEMA = "gh.pair.setup-secret-import/1"
 RESPONSE_SCHEMA = "gh.pair.setup-secret-import-result/1"
 REPAIR_SCHEMA = "gh.pair.repair-authorize/1"
 REPAIR_RESPONSE_SCHEMA = "gh.pair.repair-authorize-result/1"
+CREDENTIAL_RECOVERY_SCHEMA = "gh.pair.credential-recovery-authorize/1"
+CREDENTIAL_RECOVERY_RESPONSE_SCHEMA = (
+    "gh.pair.credential-recovery-authorize-result/1"
+)
 MAX_REQUEST_BYTES = 4096
 MAX_RESPONSE_BYTES = 4096
 SOCKET_TIMEOUT_S = 2.0
@@ -28,6 +32,12 @@ class SetupSecretImporter(Protocol):
     ) -> None: ...
 
     def authorize_repair(
+        self,
+        hardware_id: str,
+        pairing_id: str,
+    ) -> None: ...
+
+    def authorize_credential_recovery(
         self,
         hardware_id: str,
         pairing_id: str,
@@ -79,7 +89,6 @@ def _response(
         ).encode("utf-8")
         + b"\n"
     )
-
 
 
 def _wipe_buffer(value: bytearray) -> None:
@@ -174,6 +183,7 @@ def _read_frame(
         _wipe_buffer(payload)
         raise
 
+
 def _decode_response(
     payload: bytearray,
     *,
@@ -219,7 +229,7 @@ def _decode_response(
 
 
 class ManagerOwnedPairingSocket:
-    """Manager-owned, local-only Setup Secret import endpoint."""
+    """Manager-owned local-only pairing authorization endpoint."""
 
     def __init__(
         self,
@@ -338,6 +348,8 @@ class ManagerOwnedPairingSocket:
 
             if schema == REPAIR_SCHEMA:
                 response_schema = REPAIR_RESPONSE_SCHEMA
+            elif schema == CREDENTIAL_RECOVERY_SCHEMA:
+                response_schema = CREDENTIAL_RECOVERY_RESPONSE_SCHEMA
 
             if schema == SCHEMA:
                 if set(document) != {
@@ -397,6 +409,34 @@ class ManagerOwnedPairingSocket:
                     accepted=True,
                     code="repair_authorized",
                     schema=REPAIR_RESPONSE_SCHEMA,
+                )
+
+            if schema == CREDENTIAL_RECOVERY_SCHEMA:
+                if set(document) != {
+                    "schema",
+                    "hardware_id",
+                    "pairing_id",
+                }:
+                    raise PairingLocalIpcError(
+                        "request_fields_invalid"
+                    )
+                hardware_id = document["hardware_id"]
+                pairing_id = document["pairing_id"]
+                if (
+                    not isinstance(hardware_id, str)
+                    or not isinstance(pairing_id, str)
+                ):
+                    raise PairingLocalIpcError(
+                        "request_identity_invalid"
+                    )
+                self.coordinator.authorize_credential_recovery(
+                    hardware_id,
+                    pairing_id,
+                )
+                return _response(
+                    accepted=True,
+                    code="credential_recovery_authorized",
+                    schema=CREDENTIAL_RECOVERY_RESPONSE_SCHEMA,
                 )
 
             raise PairingLocalIpcError("request_schema_invalid")
@@ -489,6 +529,7 @@ def _request_over_socket(
         _wipe_buffer(request)
         _wipe_buffer(response)
 
+
 def import_setup_secret_over_socket(
     path: str | Path,
     *,
@@ -522,4 +563,21 @@ def authorize_repair_over_socket(
             "pairing_id": pairing_id,
         },
         response_schema=REPAIR_RESPONSE_SCHEMA,
+    )
+
+
+def authorize_credential_recovery_over_socket(
+    path: str | Path,
+    *,
+    hardware_id: str,
+    pairing_id: str,
+) -> dict[str, object]:
+    return _request_over_socket(
+        path,
+        {
+            "schema": CREDENTIAL_RECOVERY_SCHEMA,
+            "hardware_id": hardware_id,
+            "pairing_id": pairing_id,
+        },
+        response_schema=CREDENTIAL_RECOVERY_RESPONSE_SCHEMA,
     )

@@ -50,8 +50,9 @@
 | KF-070 | PHYSICAL_HARNESS | Compose recreate acceptance oracle / Docker RestartCount 误用 |
 | KF-071 | PHYSICAL_HARNESS | current-runtime authority discriminator / preserved rollback artifact exclusion |
 | KF-072 | PHYSICAL_HARNESS | UNKNOWN propagation / unobserved fact serialization |
+| KF-075 | PRODUCT | existing-identity MQTT credential recovery product-path gap |
 
-`KF-061`～`KF-065` 的下方条目只保留 secret-safe 事故摘要和回归规则；raw handoff、Setup Secret、板卡身份、私有路径与其他 private evidence 继续只存在于 private evidence。`KF-068` 当前由开放文档 PR #340 预留；`KF-069`、`KF-071`、`KF-072` 已在本归档分支分配；开放文档 PR 的编号冲突必须在各自 merge 前独立协调。
+`KF-061`～`KF-065` 的下方条目只保留 secret-safe 事故摘要和回归规则；raw handoff、Setup Secret、板卡身份、私有路径与其他 private evidence 继续只存在于 private evidence。`KF-068` 的历史文档 PR #340 已关闭未合并，当前不再占用编号；`KF-075` 由 PR #350 分配给 existing-identity MQTT credential recovery 产品路径缺口；`KF-069`、`KF-071`、`KF-072` 已在本归档分支分配；开放文档 PR 的编号冲突必须在各自 merge 前独立协调。
 
 该表是 primary `DOMAIN` authority；下方历史索引保持原事实文字不变。
 
@@ -139,6 +140,7 @@
 
 
 | KF-074 | PHYSICAL_HARNESS | FC4 Board-C P9 Setup-Secret physical recapture consumed by HARDWARE_ID_BINDING_MISMATCH | Capture supplied `--expected-hardware-id` from an independent static literal instead of the R4 automatic-approval rollback tombstone-derived durable Board-C authority; pairing hash lineage was correct and product identity drift was not proven | Board-C P9 uses one source-owned durable hardware authority for passive USB equality and downstream capture; independent/static overrides are rejected; authority or USB mismatch stops before CLAIM/serial open; durable-to-capture and pairing continuity are regression-tested; raw identities remain private and consumed authorization is non-replayable | GUARDED |
+| KF-075 | N3-W R2B existing-identity MQTT credential recovery | 已注册节点板端 durable credential state 丢失后，Manager 仍保留 stable NODE_ID + active MQTT credential，但 ordinary pairing 只能停在 `credential_recovery_required`，缺少产品级 recovery 入口 | MQTT credential recovery lifecycle 已存在但未接入 Manager-owned pairing authorization/provisioning 产品路径 | PR #350：新增 exact hardware+pairing bounded credential-recovery authorization；保留 stable NODE_ID；仅 stage `active+1` MQTT generation；复用 active N3-W application key；recovery 只能读取既有 SYSTEM_PEER_KEY，不得创建/旋转；Board durable persist + final receipt 前不得改 Broker；receipt 后仅替换既有 client password；partial external commit 必须 fail-closed/reconcile；focused/full CI guard | OPEN |
 
 ## 固定回归规则
 
@@ -158,6 +160,7 @@
 - **Exact-base source edit**：源码局部修复必须以 exact-base blob 为输入；提交后必须做 changed-file/hunk allowlist；出现任何非目标 hunk 立即恢复。禁止用截断/局部视图重建整个源码文件。
 - **Architecture retirement**：产品 authority 退休时，source / test / workflow / admin / config 必须同阶段收口；禁止 live CI 长期宣示已退休产品语义。
 - **Pairing/security lifecycle separation**：pairing/session retry 与 ordinary repair 不得推进 MQTT credential generation、N3-W application-key generation 或 `SYSTEM_PEER_KEY` lifecycle；first-registration issuer 只负责组合初始 credential/key，不得成为 rotation API；pairing epoch 不得重新进入上述 lifecycle correctness。
+- **Existing-identity credential recovery**：只有独立、exact hardware+pairing、bounded 的显式 security authorization 才能进入 credential recovery；必须保留 stable NODE_ID，仅推进 MQTT credential generation，复用 active N3-W application key 与既有 SYSTEM_PEER_KEY，禁止在 recovery 中创建/旋转 peer trust；Board durable persist/final receipt 前不得修改 Broker，外部 Broker password 已改变但本地 lifecycle 尚未 commit 时必须 fail-closed 并进入 reconciliation，禁止冒充 rollback/success。
 - **Historical quarantine**：历史兼容实现若必须保留，名称和引用必须显式表明 `_legacy` / `s5` / lab / historical 身份；normal product runtime 不得导入。
 - **Automatic NODE_ID**：正常 registration approve 不允许操作者输入 NODE_ID；NODE_ID 由 Manager 自动分配且退役后不复用。
 - **Architecture-family normalization**：host/kernel/Docker server 的架构 preflight 必须先归一等价别名（当前 `arm64` / `aarch64`）再比较；artifact/image metadata 与 exact revision 作为独立 authority 校验，禁止把别名差异误判为平台不兼容。

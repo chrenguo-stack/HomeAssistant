@@ -118,6 +118,22 @@ class SimplifiedBundleStager(Protocol):
         credential_generation: int,
     ) -> StagedSimplifiedBundle: ...
 
+    def stage_recovery(
+        self,
+        *,
+        hardware_id: str,
+        pairing_id: str,
+        node_id: str,
+    ) -> StagedSimplifiedBundle: ...
+
+
+@dataclass(slots=True)
+class _CredentialRecoveryIntent:
+    hardware_id: str
+    pairing_id: str
+    expires_at: datetime
+    consumed: bool = False
+
 
 @dataclass(slots=True)
 class _Session:
@@ -138,12 +154,11 @@ class _Session:
 class SimplifiedPairingCoordinator:
     """Setup-Secret bootstrap with automatic NODE_ID assignment.
 
-    This is the Phase 4 replacement for the endpoint X25519 pairing path. The
-    one-time Setup Secret is imported by the trusted local UI, never compiled in
-    firmware. A node proves possession, Manager proves possession back, and only
-    then is a NODE_ID allocated and the complete post-registration credential
-    bundle encrypted with AES-256-GCM. No peer MAC/LMK or gateway relation is
-    delivered by this channel.
+    First registration composes an initial credential bundle. Existing-identity
+    recovery is deliberately separate: an operator must explicitly authorize a
+    bounded credential-recovery transaction for the exact fresh pairing ID.
+    That recovery preserves the stable NODE_ID and uses the MQTT credential
+    lifecycle without implicitly rotating N3-W application or peer-trust keys.
     """
 
     def __init__(
@@ -170,6 +185,10 @@ class SimplifiedPairingCoordinator:
         self._lock = threading.RLock()
         self._setup: dict[tuple[str, str], bytearray] = {}
         self._sessions: dict[str, _Session] = {}
+        self._credential_recovery_intents: dict[
+            str,
+            _CredentialRecoveryIntent,
+        ] = {}
 
     def import_setup_secret(
         self,
@@ -206,6 +225,42 @@ class SimplifiedPairingCoordinator:
             pairing_id,
             now=now,
         )
+
+    def authorize_credential_recovery(
+        self,
+        hardware_id: str,
+        pairing_id: str,
+        *,
+        now: datetime | None = None,
+    ) -> None:
+        """Authorize one exact existing-identity credential recovery.
+
+        The registration repair intent remains the gate that permits the fresh
+        pairing hello. This second in-memory intent is the explicit security
+        authorization that allows the authenticated pairing transaction to
+        enter MQTT credential recovery. Manager restart invalidates both.
+        """
+        repair = self.registry.authorize_repair(
+            hardware_id,
+            pairing_id,
+            now=now,
+        )
+        with self._lock:
+            existing = self._credential_recovery_intents.get(hardware_id)
+            if (
+                existing is not None
+                and existing.pairing_id == pairing_id
+                and not existing.consumed
+                and (now or datetime.now(UTC)).astimezone(UTC) <= existing.expires_at
+            ):
+                return
+            self._credential_recovery_intents[hardware_id] = (
+                _CredentialRecoveryIntent(
+                    hardware_id=hardware_id,
+                    pairing_id=pairing_id,
+                    expires_at=repair.expires_at,
+                )
+            )
 
     def begin(
         self,
@@ -310,18 +365,17 @@ class SimplifiedPairingCoordinator:
             )
             session.inherited_node_id = pre_approval.node_id
 
-            # Pairing/session recovery is not credential recovery.
-            #
-            # An inherited NODE_ID proves that this hardware already has a
-            # registered product identity. The Manager intentionally does not
-            # retain a re-deliverable MQTT plaintext password, so ordinary
-            # pairing must stop before Broker credential provisioning or
-            # N3-W application-key staging. Credential loss/rotation belongs
-            # to its explicit security lifecycle.
+            # Ordinary pairing/session repair is still not credential recovery.
+            # An inherited NODE_ID may cross this boundary only when a separate
+            # exact, bounded credential-recovery authorization is present.
             if session.inherited_node_id is not None:
-                raise SimplifiedPairingConflict(
-                    "credential_recovery_required"
-                )
+                if not self._credential_recovery_authorized(
+                    session,
+                    observed_at,
+                ):
+                    raise SimplifiedPairingConflict(
+                        "credential_recovery_required"
+                    )
 
             approved = self.approver.approve(
                 session.hardware_id,
@@ -330,16 +384,32 @@ class SimplifiedPairingCoordinator:
             )
             if approved.node_id is None:
                 raise SimplifiedPairingError("automatic_node_id_missing")
+
             try:
-                staged = self.stager.stage(
-                    hardware_id=session.hardware_id,
-                    pairing_id=session.pairing_id,
-                    node_id=approved.node_id,
-                    # This staging path is reachable only for first
-                    # registration. Registered repair/re-delivery is rejected
-                    # above before Broker or application-key mutation.
-                    credential_generation=1,
-                )
+                if session.inherited_node_id is not None:
+                    recovery_stage = getattr(
+                        self.stager,
+                        "stage_recovery",
+                        None,
+                    )
+                    if not callable(recovery_stage):
+                        raise SimplifiedPairingConflict(
+                            "credential_recovery_unavailable"
+                        )
+                    staged = recovery_stage(
+                        hardware_id=session.hardware_id,
+                        pairing_id=session.pairing_id,
+                        node_id=approved.node_id,
+                    )
+                else:
+                    staged = self.stager.stage(
+                        hardware_id=session.hardware_id,
+                        pairing_id=session.pairing_id,
+                        node_id=approved.node_id,
+                        # First registration remains generation 1. Registered
+                        # recovery never enters this composer path.
+                        credential_generation=1,
+                    )
             except Exception:
                 self._rollback_automatic_approval(
                     session,
@@ -476,6 +546,11 @@ class SimplifiedPairingCoordinator:
 
                 raise commit_error
 
+            if session.inherited_node_id is not None:
+                self._consume_credential_recovery_intent(
+                    session
+                )
+
             session.staged = None
             session.delivery_digest = None
             session.issued_credentials = None
@@ -557,6 +632,39 @@ class SimplifiedPairingCoordinator:
 
                 expired += 1
         return expired
+
+    def _credential_recovery_authorized(
+        self,
+        session: _Session,
+        now: datetime,
+    ) -> bool:
+        intent = self._credential_recovery_intents.get(
+            session.hardware_id
+        )
+        return bool(
+            intent is not None
+            and intent.hardware_id == session.hardware_id
+            and intent.pairing_id == session.pairing_id
+            and not intent.consumed
+            and now <= intent.expires_at
+        )
+
+    def _consume_credential_recovery_intent(
+        self,
+        session: _Session,
+    ) -> None:
+        intent = self._credential_recovery_intents.get(
+            session.hardware_id
+        )
+        if (
+            intent is None
+            or intent.pairing_id != session.pairing_id
+            or intent.consumed
+        ):
+            raise SimplifiedPairingError(
+                "credential_recovery_intent_binding_failed"
+            )
+        intent.consumed = True
 
     def _require_session(self, session_id: str) -> _Session:
         try:

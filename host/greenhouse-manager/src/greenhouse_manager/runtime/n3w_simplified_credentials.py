@@ -111,7 +111,7 @@ class SimplifiedProductCredentialBundle:
 
 
 class SimplifiedCredentialBundleIssuer:
-    """Attach the current canonical SYSTEM_PEER_KEY to an existing node bundle."""
+    """Attach canonical SYSTEM_PEER_KEY material to a node credential bundle."""
 
     def __init__(self, peer_trust: SystemPeerTrustStore) -> None:
         self.peer_trust = peer_trust
@@ -122,7 +122,21 @@ class SimplifiedCredentialBundleIssuer:
         *,
         now=None,
     ) -> SimplifiedProductCredentialBundle:
+        """Compose a normal bundle, initializing peer trust when necessary."""
         peer = self.peer_trust.get_or_create(base.system_id, now=now)
+        return SimplifiedProductCredentialBundle.from_existing(base, peer)
+
+    def issue_existing(
+        self,
+        base: ProductCredentialSource,
+    ) -> SimplifiedProductCredentialBundle:
+        """Compose recovery material from already-existing peer trust only."""
+        getter = getattr(self.peer_trust, "get", None)
+        peer = (
+            getter(base.system_id)
+            if callable(getter)
+            else self.peer_trust.get_or_create(base.system_id)
+        )
         return SimplifiedProductCredentialBundle.from_existing(base, peer)
 
 
