@@ -5,7 +5,11 @@ from typing import Any
 
 import paho.mqtt.client as mqtt
 
-from .dynsec_api import DynsecProvisioner, PahoDynsecTransport
+from .dynsec_api import (
+    DynsecProvisioner,
+    PahoDynsecTransport,
+    set_client_password_command,
+)
 from .dynsec_plan import NodeCredentials, NodeProvisioningPlan
 
 
@@ -130,6 +134,18 @@ class PahoNodeIdentityProvisioner:
                     provisioner.deprovision(plan)
                     return
 
+                if operation == "set_password":
+                    plan, credentials = args
+                    transport.execute(
+                        (
+                            set_client_password_command(
+                                plan,
+                                credentials,
+                            ),
+                        )
+                    )
+                    return
+
                 raise RuntimeError("unsupported provisioning operation")
             finally:
                 client.disconnect()
@@ -153,4 +169,21 @@ class PahoNodeIdentityProvisioner:
         self._run(
             "deprovision",
             plan,
+        )
+
+    def set_password(
+        self,
+        plan: NodeProvisioningPlan,
+        credentials: NodeCredentials,
+    ) -> None:
+        """Commit one already-staged node password replacement.
+
+        Recovery deliberately uses the existing username, client ID, role and
+        ACLs. Only the password changes, after the node has durably persisted
+        the encrypted recovery bundle and returned its delivery receipt.
+        """
+        self._run(
+            "set_password",
+            plan,
+            credentials,
         )
