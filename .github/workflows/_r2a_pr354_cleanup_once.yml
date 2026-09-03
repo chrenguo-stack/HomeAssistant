@@ -1,0 +1,77 @@
+name: R2A PR354 one-shot cleanup
+
+on:
+  push:
+    branches:
+      - docs/n3w-r2a-board-a-known-failures-closeout-20260903
+
+permissions:
+  contents: write
+
+concurrency:
+  group: r2a-pr354-one-shot-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact branch head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Restore the two unrelated historical drifts exactly
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md')
+          text = p.read_text(encoding='utf-8')
+          replacements = [
+              (
+                  'root 创建的 private file 与 non root Manager runtime identity 不一致',
+                  'root 创建的 private file 与非 root Manager runtime identity 不一致',
+              ),
+              (
+                  '`bash -n` 之外还必须做回归模式扫描与可构造的 synthetic end-to-end dry-run。',
+                  '`bash -n` 之外还必须做回归模式扫描与可构造的 synthetic dry-run。',
+              ),
+          ]
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'exact replacement precondition failed: count={count} old={old!r}')
+              text = text.replace(old, new, 1)
+          p.write_text(text, encoding='utf-8')
+          PY
+
+          rm -f .github/workflows/_r2a_pr354_cleanup_once.yml
+
+          mapfile -t changed < <(git diff --name-only | sort)
+          expected=(
+            '.github/workflows/_r2a_pr354_cleanup_once.yml'
+            'docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md'
+          )
+          if [[ "${changed[*]}" != "${expected[*]}" ]]; then
+            printf 'unexpected changed files: %s\n' "${changed[*]}" >&2
+            exit 1
+          fi
+
+          grep -Fq 'root 创建的 private file 与非 root Manager runtime identity 不一致' docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md
+          grep -Fq '`bash -n` 之外还必须做回归模式扫描与可构造的 synthetic dry-run。' docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md
+          ! grep -Fq 'root 创建的 private file 与 non root Manager runtime identity 不一致' docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md
+          ! grep -Fq '`bash -n` 之外还必须做回归模式扫描与可构造的 synthetic end-to-end dry-run。' docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md
+          git diff --check
+
+      - name: Commit exact cleanup and self-delete workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md .github/workflows/_r2a_pr354_cleanup_once.yml
+          git commit -m 'docs: restore final unrelated KNOWN drift before R2A merge'
+          git push origin "HEAD:${GITHUB_REF_NAME}"
