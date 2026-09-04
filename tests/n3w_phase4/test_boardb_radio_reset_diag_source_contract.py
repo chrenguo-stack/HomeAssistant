@@ -31,6 +31,19 @@ def test_boardb_diagnostic_observability_markers_present():
         assert marker in core
 
 
+def test_state_marker_carries_reset_observability_context():
+    core = text(CORE)
+    state_start = core.index('void diag_log_state_(bool force)')
+    state_end = core.index('bool persisted_runtime_state_present_()', state_start)
+    state = core[state_start:state_end]
+
+    for field in ('uptime_ms=', 'boot_reset_reason=', 'idf='):
+        assert field in state
+    assert '"N3W_DIAG_BOOT' in core
+    assert 'esp_reset_reason()' in state
+    assert 'esp_get_idf_version()' in state
+
+
 def test_diagnostic_branch_does_not_change_known_transport_policy():
     product = text(PRODUCT)
     runtime_h = text(RUNTIME_H)

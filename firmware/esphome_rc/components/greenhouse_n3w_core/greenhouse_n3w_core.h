@@ -475,13 +475,21 @@ class GreenhouseN3wCore : public SimpleProductComponent {
     if (force || changed || now - diag_last_state_log_ms_ >= 5000) {
       ESP_LOGI(
           "n3w_diag",
-          "N3W_DIAG_STATE wifi_connected=%s mqtt_connected=%s runtime_ready=%s path=%u channel_rc=%d channel=%u rx_dropped=%u channel_attempts=%u channel_failures=%u",
+          "N3W_DIAG_STATE wifi_connected=%s mqtt_connected=%s runtime_ready=%s path=%u channel_rc=%d channel=%u uptime_ms=%llu boot_reset_reason=%d idf=%s rx_dropped=%u channel_attempts=%u channel_failures=%u",
           wifi_connected ? "true" : "false",
           mqtt_connected ? "true" : "false",
           runtime_ready() ? "true" : "false",
           path,
           channel_rc,
           static_cast<unsigned>(channel),
+          static_cast<unsigned long long>(now),
+#ifdef USE_ESP32
+          static_cast<int>(esp_reset_reason()),
+          esp_get_idf_version(),
+#else
+          -1,
+          "non-esp32",
+#endif
           static_cast<unsigned>(rx_dropped_.load(std::memory_order_relaxed)),
           static_cast<unsigned>(diag_channel_attempts_),
           static_cast<unsigned>(diag_channel_failures_));
