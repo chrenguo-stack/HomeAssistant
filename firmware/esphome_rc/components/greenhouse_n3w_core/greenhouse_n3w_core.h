@@ -5,6 +5,17 @@
 
 #include "esphome/core/log.h"
 
+#ifdef USE_MQTT
+#include "esphome/components/mqtt/mqtt_client.h"
+#endif
+#ifdef USE_WIFI
+#include "esphome/components/wifi/wifi_component.h"
+#endif
+#ifdef USE_ESP32
+#include "esp_system.h"
+#include "esp_wifi.h"
+#endif
+
 #include "n3w_compact_telemetry.h"
 #include "n3w_core.h"
 #include "n3w_esp32_nvs.h"
@@ -34,19 +45,152 @@ class GreenhouseN3wCore : public SimpleProductComponent {
   Phase4PhysicalHarness *phase4_harness() { return &phase4_harness_; }
 
   void setup() override {
+#ifdef USE_ESP32
+    ESP_LOGI(
+        "n3w_diag",
+        "N3W_DIAG_BOOT reset_reason=%d idf=%s",
+        static_cast<int>(esp_reset_reason()),
+        esp_get_idf_version());
+#endif
     fresh_identity_candidate_ = !persisted_runtime_state_present_();
     if (phase4_source_harness_enabled_) {
       phase4_source_harness_ready_ = phase4_harness_.prepare_source_only();
     }
     SimpleProductComponent::setup();
+    diag_log_state_(true);
   }
 
   void loop() override {
     SimpleProductComponent::loop();
+    diag_log_state_(false);
   }
 
   bool phase4_source_harness_ready() const {
     return phase4_source_harness_ready_;
+  }
+
+  void on_espnow_receive_with_metadata(
+      const MacAddress &source,
+      const uint8_t *data,
+      std::size_t size,
+      const EspNowReceiveMetadata &metadata) override {
+    ESP_LOGI(
+        "n3w_diag",
+        "N3W_DIAG_ESPNOW_RX kind=%s src=%02x:%02x:%02x:%02x:%02x:%02x size=%u channel=%u rssi=%d path=%u",
+        diag_frame_kind_(data, size),
+        static_cast<unsigned>(source[0]),
+        static_cast<unsigned>(source[1]),
+        static_cast<unsigned>(source[2]),
+        static_cast<unsigned>(source[3]),
+        static_cast<unsigned>(source[4]),
+        static_cast<unsigned>(source[5]),
+        static_cast<unsigned>(size),
+        static_cast<unsigned>(metadata.channel),
+        static_cast<int>(metadata.rssi_dbm),
+        diag_path_value_());
+    SimpleProductComponent::on_espnow_receive_with_metadata(
+        source, data, size, metadata);
+  }
+
+  void on_espnow_send_result(
+      const MacAddress &destination,
+      bool success) override {
+    ESP_LOGI(
+        "n3w_diag",
+        "N3W_DIAG_ESPNOW_TX_DONE dst=%02x:%02x:%02x:%02x:%02x:%02x success=%s path=%u",
+        static_cast<unsigned>(destination[0]),
+        static_cast<unsigned>(destination[1]),
+        static_cast<unsigned>(destination[2]),
+        static_cast<unsigned>(destination[3]),
+        static_cast<unsigned>(destination[4]),
+        static_cast<unsigned>(destination[5]),
+        success ? "true" : "false",
+        diag_path_value_());
+    SimpleProductComponent::on_espnow_send_result(destination, success);
+  }
+
+  bool set_radio_channel(uint8_t channel) override {
+    uint8_t before_channel = 0;
+    uint8_t after_channel = 0;
+    const int before_rc = diag_read_channel_(&before_channel);
+    const bool wifi_before = diag_wifi_connected_();
+    const bool accepted = SimpleProductComponent::set_radio_channel(channel);
+    const int after_rc = diag_read_channel_(&after_channel);
+
+    ++diag_channel_attempts_;
+    if (!accepted) ++diag_channel_failures_;
+    const uint64_t now = now_ms();
+    const bool log_failure =
+        !accepted &&
+        (diag_channel_failures_ <= 8 ||
+         now - diag_last_channel_failure_log_ms_ >= 250);
+    if (accepted || log_failure) {
+      if (!accepted) diag_last_channel_failure_log_ms_ = now;
+      ESP_LOGI(
+          "n3w_diag",
+          "N3W_DIAG_CHANNEL request=%u wifi_connected=%s accepted=%s before_rc=%d before=%u after_rc=%d after=%u attempts=%u failures=%u path=%u",
+          static_cast<unsigned>(channel),
+          wifi_before ? "true" : "false",
+          accepted ? "true" : "false",
+          before_rc,
+          static_cast<unsigned>(before_channel),
+          after_rc,
+          static_cast<unsigned>(after_channel),
+          static_cast<unsigned>(diag_channel_attempts_),
+          static_cast<unsigned>(diag_channel_failures_),
+          diag_path_value_());
+    }
+    return accepted;
+  }
+
+  bool broadcast_control(
+      const uint8_t *data,
+      std::size_t size) override {
+    const char *kind = diag_frame_kind_(data, size);
+    const bool accepted = SimpleProductComponent::broadcast_control(data, size);
+    ESP_LOGI(
+        "n3w_diag",
+        "N3W_DIAG_ESPNOW_TX_SUBMIT kind=%s mode=broadcast size=%u accepted=%s path=%u",
+        kind,
+        static_cast<unsigned>(size),
+        accepted ? "true" : "false",
+        diag_path_value_());
+    return accepted;
+  }
+
+  bool send_encrypted_peer(
+      const MacAddress &peer_mac,
+      const uint8_t *data,
+      std::size_t size) override {
+    const bool accepted =
+        SimpleProductComponent::send_encrypted_peer(peer_mac, data, size);
+    ESP_LOGI(
+        "n3w_diag",
+        "N3W_DIAG_ESPNOW_TX_SUBMIT kind=compact mode=unicast dst=%02x:%02x:%02x:%02x:%02x:%02x size=%u accepted=%s path=%u",
+        static_cast<unsigned>(peer_mac[0]),
+        static_cast<unsigned>(peer_mac[1]),
+        static_cast<unsigned>(peer_mac[2]),
+        static_cast<unsigned>(peer_mac[3]),
+        static_cast<unsigned>(peer_mac[4]),
+        static_cast<unsigned>(peer_mac[5]),
+        static_cast<unsigned>(size),
+        accepted ? "true" : "false",
+        diag_path_value_());
+    return accepted;
+  }
+
+  bool publish_direct(
+      const std::string &topic,
+      const std::string &payload) override {
+    const bool accepted = SimpleProductComponent::publish_direct(topic, payload);
+    ESP_LOGI(
+        "n3w_diag",
+        "N3W_DIAG_DIRECT_PUBLISH accepted=%s wifi_connected=%s mqtt_connected=%s path=%u",
+        accepted ? "true" : "false",
+        diag_wifi_connected_() ? "true" : "false",
+        diag_mqtt_connected_() ? "true" : "false",
+        diag_path_value_());
+    return accepted;
   }
 
   // Recovery-only surface for a legacy provisioned identity whose durable boot
@@ -254,6 +398,103 @@ class GreenhouseN3wCore : public SimpleProductComponent {
   }
 
  protected:
+  static bool diag_wifi_connected_() {
+#ifdef USE_WIFI
+    return wifi::global_wifi_component != nullptr &&
+           wifi::global_wifi_component->is_connected();
+#else
+    return false;
+#endif
+  }
+
+  static bool diag_mqtt_connected_() {
+#ifdef USE_MQTT
+    return mqtt::global_mqtt_client != nullptr &&
+           mqtt::global_mqtt_client->is_connected();
+#else
+    return false;
+#endif
+  }
+
+  static int diag_read_channel_(uint8_t *channel) {
+    if (channel == nullptr) return -1;
+    *channel = 0;
+#ifdef USE_ESP32
+    wifi_second_chan_t secondary = WIFI_SECOND_CHAN_NONE;
+    return static_cast<int>(esp_wifi_get_channel(channel, &secondary));
+#else
+    return -1;
+#endif
+  }
+
+  static const char *diag_frame_kind_(
+      const uint8_t *data,
+      std::size_t size) {
+    if (data == nullptr || size == 0) return "invalid";
+    SimpleRelayDiscovery discovery;
+    if (decode_simple_relay_discovery(data, size, &discovery) ==
+        SimpleRuntimeError::NONE) {
+      return "relay_discovery";
+    }
+    SimplePeerChallenge challenge;
+    if (decode_simple_peer_challenge(data, size, &challenge) ==
+        SimpleRuntimeError::NONE) {
+      return "peer_challenge";
+    }
+    SimplePeerAccept accept;
+    if (decode_simple_peer_accept(data, size, &accept) ==
+        SimpleRuntimeError::NONE) {
+      return "peer_accept";
+    }
+    CompactTelemetryFrameV2 compact;
+    if (decode_compact_telemetry_frame_v2(data, size, &compact) ==
+        CompactTelemetryError::NONE) {
+      return "compact";
+    }
+    return "unknown";
+  }
+
+  unsigned diag_path_value_() const {
+    return runtime_ready()
+               ? static_cast<unsigned>(path_state())
+               : 255U;
+  }
+
+  void diag_log_state_(bool force) {
+    const uint64_t now = now_ms();
+    const bool wifi_connected = diag_wifi_connected_();
+    const bool mqtt_connected = diag_mqtt_connected_();
+    const unsigned path = diag_path_value_();
+    uint8_t channel = 0;
+    const int channel_rc = diag_read_channel_(&channel);
+    const bool changed =
+        !diag_state_initialized_ || wifi_connected != diag_last_wifi_connected_ ||
+        mqtt_connected != diag_last_mqtt_connected_ ||
+        path != diag_last_path_ || channel != diag_last_channel_ ||
+        channel_rc != diag_last_channel_rc_;
+    if (force || changed || now - diag_last_state_log_ms_ >= 5000) {
+      ESP_LOGI(
+          "n3w_diag",
+          "N3W_DIAG_STATE wifi_connected=%s mqtt_connected=%s runtime_ready=%s path=%u channel_rc=%d channel=%u rx_dropped=%u channel_attempts=%u channel_failures=%u",
+          wifi_connected ? "true" : "false",
+          mqtt_connected ? "true" : "false",
+          runtime_ready() ? "true" : "false",
+          path,
+          channel_rc,
+          static_cast<unsigned>(channel),
+          static_cast<unsigned>(rx_dropped_.load(std::memory_order_relaxed)),
+          static_cast<unsigned>(diag_channel_attempts_),
+          static_cast<unsigned>(diag_channel_failures_));
+      diag_last_state_log_ms_ = now;
+    }
+    diag_state_initialized_ = true;
+    diag_last_wifi_connected_ = wifi_connected;
+    diag_last_mqtt_connected_ = mqtt_connected;
+    diag_last_path_ = path;
+    diag_last_channel_ = channel;
+    diag_last_channel_rc_ = channel_rc;
+  }
+
   bool persisted_runtime_state_present_() {
     ProvisionedPeerStateV2 peer;
     ProvisionedBrokerStateV2 broker;
@@ -317,6 +558,16 @@ class GreenhouseN3wCore : public SimpleProductComponent {
     return true;
   }
 
+  bool diag_state_initialized_{false};
+  bool diag_last_wifi_connected_{false};
+  bool diag_last_mqtt_connected_{false};
+  unsigned diag_last_path_{255U};
+  uint8_t diag_last_channel_{0};
+  int diag_last_channel_rc_{-1};
+  uint32_t diag_channel_attempts_{0};
+  uint32_t diag_channel_failures_{0};
+  uint64_t diag_last_state_log_ms_{0};
+  uint64_t diag_last_channel_failure_log_ms_{0};
   bool phase4_source_harness_enabled_{false};
   bool phase4_source_harness_ready_{false};
   bool phase4_product_runtime_enabled_{false};
