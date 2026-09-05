@@ -1,0 +1,14 @@
+menu "N3W R1R3 ROC Lifecycle Baseline"
+
+    choice R1R3_ROLE
+        prompt "R1R3 board role"
+        default R1R3_ROLE_DUT
+
+        config R1R3_ROLE_DUT
+            bool "DUT STA (Board B)"
+
+        config R1R3_ROLE_CONTROL
+            bool "Control SoftAP (Board A)"
+    endchoice
+
+endmenu

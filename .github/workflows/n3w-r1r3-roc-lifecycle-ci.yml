@@ -1,0 +1,222 @@
+name: N3W R1R3 ROC Lifecycle Diagnostic Build
+
+on:
+  push:
+    branches:
+      - "diag/n3w-r1r3-roc-lifecycle-ci-20260905"
+    paths:
+      - ".github/workflows/n3w-r1r3-roc-lifecycle-ci.yml"
+      - "diagnostics/n3w_r1r3_roc_lifecycle/**"
+      - "docs/development/N3W_R1R3_ROC_LIFECYCLE_HOST_DIAGNOSTIC_PLAN_20260905.md"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostic-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    env:
+      ESPRESSIF_OFFICIAL_COMMIT: 735507283d5b2f9fb363a1901172dbd9e847945d
+      PIOARDUINO_FRAMEWORK_COMMIT: 8de41af2dbb81bc443a8d7986ebd152f82e10bba
+      IDF_TARGET: esp32c6
+      DIAG_PATH: diagnostics/n3w_r1r3_roc_lifecycle
+
+    steps:
+      - name: Checkout R1R3 diagnostic control commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Ubuntu host prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            git wget flex bison gperf ccache libffi-dev libssl-dev \
+            dfu-util libusb-1.0-0
+
+      - name: Materialize exact official and pioarduino authorities
+        shell: bash
+        run: |
+          set -euo pipefail
+          OFFICIAL="$RUNNER_TEMP/espressif-idf"
+          PIOIDF="$RUNNER_TEMP/pioarduino-idf"
+
+          git init "$OFFICIAL"
+          git -C "$OFFICIAL" remote add origin https://github.com/espressif/esp-idf.git
+          git -C "$OFFICIAL" fetch --depth=1 origin "$ESPRESSIF_OFFICIAL_COMMIT"
+          git -C "$OFFICIAL" checkout --detach FETCH_HEAD
+
+          git init "$PIOIDF"
+          git -C "$PIOIDF" remote add origin https://github.com/pioarduino/esp-idf.git
+          git -C "$PIOIDF" fetch --depth=1 origin "$PIOARDUINO_FRAMEWORK_COMMIT"
+          git -C "$PIOIDF" checkout --detach FETCH_HEAD
+          git -C "$PIOIDF" submodule update --init --recursive
+
+          test "$(git -C "$OFFICIAL" rev-parse HEAD)" = "$ESPRESSIF_OFFICIAL_COMMIT"
+          test "$(git -C "$PIOIDF" rev-parse HEAD)" = "$PIOARDUINO_FRAMEWORK_COMMIT"
+
+          OFFICIAL_ESPNOW="$OFFICIAL/components/esp_wifi/include/esp_now.h"
+          PIO_ESPNOW="$PIOIDF/components/esp_wifi/include/esp_now.h"
+          OFFICIAL_WIFITYPES="$OFFICIAL/components/esp_wifi/include/esp_wifi_types_generic.h"
+          PIO_WIFITYPES="$PIOIDF/components/esp_wifi/include/esp_wifi_types_generic.h"
+
+          cmp "$OFFICIAL_ESPNOW" "$PIO_ESPNOW"
+          cmp "$OFFICIAL_WIFITYPES" "$PIO_WIFITYPES"
+
+          grep -q 'esp_now_switch_channel_tx' "$OFFICIAL_ESPNOW"
+          grep -q 'esp_now_remain_on_channel' "$OFFICIAL_ESPNOW"
+          grep -q 'WIFI_ROC_CANCEL' "$OFFICIAL_WIFITYPES"
+          grep -q 'WIFI_ROC_REQ' "$OFFICIAL_WIFITYPES"
+
+          echo "OFFICIAL_ESPNOW_HEADER_SHA256=$(sha256sum "$OFFICIAL_ESPNOW" | awk '{print $1}')"
+          echo "PIOARDUINO_ESPNOW_HEADER_SHA256=$(sha256sum "$PIO_ESPNOW" | awk '{print $1}')"
+          echo "OFFICIAL_WIFI_TYPES_HEADER_SHA256=$(sha256sum "$OFFICIAL_WIFITYPES" | awk '{print $1}')"
+          echo "PIOARDUINO_WIFI_TYPES_HEADER_SHA256=$(sha256sum "$PIO_WIFITYPES" | awk '{print $1}')"
+          echo "R1R3_OFFICIAL_ROC_API_AUTHORITY=PASS"
+          echo "PIOIDF=$PIOIDF" >> "$GITHUB_ENV"
+          echo "OFFICIAL_IDF=$OFFICIAL" >> "$GITHUB_ENV"
+
+      - name: Install exact pioarduino ESP-IDF runner environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          export IDF_TOOLS_PATH="$RUNNER_TEMP/idf-tools"
+          cd "$PIOIDF"
+          ./install.sh esp32c6
+          echo "IDF_TOOLS_PATH=$IDF_TOOLS_PATH" >> "$GITHUB_ENV"
+
+      - name: Build CONTROL diagnostic image
+        shell: bash
+        run: |
+          set -euo pipefail
+          export IDF_TOOLS_PATH="$RUNNER_TEMP/idf-tools"
+          cd "$PIOIDF"
+          source ./export.sh
+
+          SRC="$GITHUB_WORKSPACE/$DIAG_PATH"
+          WORK="$RUNNER_TEMP/r1r3-control"
+          cp -a "$SRC" "$WORK"
+          cp "$WORK/sdkconfig.defaults.control" "$WORK/sdkconfig.defaults"
+          cd "$WORK"
+          idf.py set-target esp32c6
+          idf.py reconfigure
+          idf.py build
+          grep -q '^CONFIG_R1R3_ROLE_CONTROL=y$' sdkconfig
+          echo "R1R3_CONTROL_HOST_COMPILE=PASS"
+
+      - name: Build DUT diagnostic image
+        shell: bash
+        run: |
+          set -euo pipefail
+          export IDF_TOOLS_PATH="$RUNNER_TEMP/idf-tools"
+          cd "$PIOIDF"
+          source ./export.sh
+
+          SRC="$GITHUB_WORKSPACE/$DIAG_PATH"
+          WORK="$RUNNER_TEMP/r1r3-dut"
+          cp -a "$SRC" "$WORK"
+          cp "$WORK/sdkconfig.defaults.dut" "$WORK/sdkconfig.defaults"
+          cd "$WORK"
+          idf.py set-target esp32c6
+          idf.py reconfigure
+          idf.py build
+          grep -q '^CONFIG_R1R3_ROLE_DUT=y$' sdkconfig
+          echo "R1R3_DUT_HOST_COMPILE=PASS"
+
+      - name: Bind exact R1R3 source and build artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          CONTROL="$RUNNER_TEMP/r1r3-control"
+          DUT="$RUNNER_TEMP/r1r3-dut"
+          OUT="$RUNNER_TEMP/r1r3-artifacts"
+          mkdir -p "$OUT/control" "$OUT/dut"
+
+          SOURCE_TREE_HASH="$(git rev-parse "$GITHUB_SHA:$DIAG_PATH")"
+          MAIN_SOURCE_SHA256="$(sha256sum "$DIAG_PATH/main/r1r3_roc_lifecycle_main.c" | awk '{print $1}')"
+
+          CONTROL_BIN="$CONTROL/build/n3w_r1r3_roc_lifecycle.bin"
+          CONTROL_ELF="$CONTROL/build/n3w_r1r3_roc_lifecycle.elf"
+          CONTROL_BOOT="$CONTROL/build/bootloader/bootloader.bin"
+          CONTROL_PART="$CONTROL/build/partition_table/partition-table.bin"
+          CONTROL_FLASH="$CONTROL/build/flasher_args.json"
+
+          DUT_BIN="$DUT/build/n3w_r1r3_roc_lifecycle.bin"
+          DUT_ELF="$DUT/build/n3w_r1r3_roc_lifecycle.elf"
+          DUT_BOOT="$DUT/build/bootloader/bootloader.bin"
+          DUT_PART="$DUT/build/partition_table/partition-table.bin"
+          DUT_FLASH="$DUT/build/flasher_args.json"
+
+          for f in \
+            "$CONTROL_BIN" "$CONTROL_ELF" "$CONTROL_BOOT" "$CONTROL_PART" "$CONTROL_FLASH" "$CONTROL/sdkconfig" \
+            "$DUT_BIN" "$DUT_ELF" "$DUT_BOOT" "$DUT_PART" "$DUT_FLASH" "$DUT/sdkconfig"; do
+            test -f "$f"
+          done
+
+          cp "$CONTROL_BIN" "$OUT/control/"
+          cp "$CONTROL_ELF" "$OUT/control/"
+          cp "$CONTROL_BOOT" "$OUT/control/"
+          cp "$CONTROL_PART" "$OUT/control/"
+          cp "$CONTROL_FLASH" "$OUT/control/"
+          cp "$CONTROL/sdkconfig" "$OUT/control/"
+
+          cp "$DUT_BIN" "$OUT/dut/"
+          cp "$DUT_ELF" "$OUT/dut/"
+          cp "$DUT_BOOT" "$OUT/dut/"
+          cp "$DUT_PART" "$OUT/dut/"
+          cp "$DUT_FLASH" "$OUT/dut/"
+          cp "$DUT/sdkconfig" "$OUT/dut/"
+
+          EVIDENCE="$OUT/n3w-r1r3-build-evidence.txt"
+          {
+            echo "CONTROL_REPOSITORY_COMMIT=$GITHUB_SHA"
+            echo "GITHUB_RUN_ID=$GITHUB_RUN_ID"
+            echo "ESPRESSIF_OFFICIAL_COMMIT=$ESPRESSIF_OFFICIAL_COMMIT"
+            echo "PIOARDUINO_FRAMEWORK_COMMIT=$PIOARDUINO_FRAMEWORK_COMMIT"
+            echo "DIAGNOSTIC_SOURCE_TREE_HASH=$SOURCE_TREE_HASH"
+            echo "DIAGNOSTIC_MAIN_SHA256=$MAIN_SOURCE_SHA256"
+            echo "R1R3_HOME_CHANNEL=1"
+            echo "R1R3_TARGET_CHANNEL=6"
+            echo "R1R3_ROC_WAIT_MS=3000"
+            echo "R1R3_ROC_OP_ID=77"
+            echo "EXPLICIT_ROC_CANCEL=true"
+            echo "ROC_REQ_AND_CANCEL_SAME_OP_ID=true"
+            echo "R1R3_OFFICIAL_ROC_API_AUTHORITY=PASS"
+            echo "R1R3_CONTROL_HOST_COMPILE=PASS"
+            echo "R1R3_DUT_HOST_COMPILE=PASS"
+            echo "PRODUCT_SOURCE_CHANGED=false"
+            echo "BOARD_ACCESS=false"
+            echo "FLASH=false"
+            echo "RF_EXECUTION=false"
+            echo "READY_FOR_R1R3_SHORT_PHYSICAL_GATE=true"
+          } | tee "$EVIDENCE"
+
+          (
+            cd "$OUT"
+            find control dut -type f -print0 | sort -z | xargs -0 sha256sum
+            sha256sum n3w-r1r3-build-evidence.txt
+          ) | tee "$OUT/SHA256SUMS"
+
+          echo "CONTROL_APP_BIN_SHA256=$(sha256sum "$CONTROL_BIN" | awk '{print $1}')"
+          echo "CONTROL_APP_ELF_SHA256=$(sha256sum "$CONTROL_ELF" | awk '{print $1}')"
+          echo "DUT_APP_BIN_SHA256=$(sha256sum "$DUT_BIN" | awk '{print $1}')"
+          echo "DUT_APP_ELF_SHA256=$(sha256sum "$DUT_ELF" | awk '{print $1}')"
+          echo "R1R3_DIAGNOSTIC_SOURCE_TREE_HASH=$SOURCE_TREE_HASH"
+          echo "R1R3_DIAGNOSTIC_MAIN_SHA256=$MAIN_SOURCE_SHA256"
+
+      - name: Upload R1R3 diagnostic evidence and images
+        uses: actions/upload-artifact@v4
+        with:
+          name: n3w-r1r3-roc-lifecycle-diagnostic-build
+          path: ${{ runner.temp }}/r1r3-artifacts/
+          if-no-files-found: error
+          retention-days: 14
