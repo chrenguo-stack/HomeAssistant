@@ -1,0 +1,311 @@
+# N3-W Official ESP-NOW R0 Two-Board Physical Reference — Closeout
+
+Date: 2026-09-05  
+Document class: `PHYSICAL_REFERENCE_CLOSEOUT`  
+Product source mutation: `false`  
+Repository base: `127c3f1e89baaaba7b7fd60d6d263632d30b2461`  
+Product source authority: `bff94bc4922d7a984eb1363cc24a163ad466a166`
+
+## 1. Purpose
+
+This document archives the completed two-board physical execution of the unmodified official Espressif ESP-NOW R0 reference on two ESP32-C6 boards, followed by restoration of the original product firmware.
+
+The experiment was intentionally isolated from N3-W product logic. Its purpose was to establish whether Board B's basic ESP32-C6 / ESP-NOW radio path is functional independently of the KF-089 product startup path.
+
+## 2. Frozen build and source authority
+
+```text
+CURRENT_MAIN=127c3f1e89baaaba7b7fd60d6d263632d30b2461
+CURRENT_TREE=32135508818124e848bc895073b3cb6aaa6b9af3
+PRODUCT_SOURCE_AUTHORITY=bff94bc4922d7a984eb1363cc24a163ad466a166
+
+GITHUB_RUN_ID=33936221349
+GITHUB_ARTIFACT_ID=9960339799
+LOCAL_ARTIFACT_ZIP_SHA256=5aa8bfcd5d0bf63fb3dd04f0f5a917cfb2e1b1798037e7fe811d7d3781c4b4ed
+
+ESPRESSIF_OFFICIAL_COMMIT=735507283d5b2f9fb363a1901172dbd9e847945d
+PIOARDUINO_FRAMEWORK_COMMIT=8de41af2dbb81bc443a8d7986ebd152f82e10bba
+OFFICIAL_EXAMPLE_TREE_HASH=1c3754f448019dedf8d70d1f9b492cf2d61be458
+```
+
+The exact GitHub Actions artifact was materialized locally and hash-bound before either board was accessed.
+
+## 3. Physical targets
+
+```text
+TARGET_1_PRODUCT_ID=BOARD_B
+TARGET_1_PORT=/dev/cu.usbmodem14101
+TARGET_1_USB_IDENTITY=98:A3:16:A9:F3:50
+TARGET_1_MAC=98:a3:16:a9:f3:50
+TARGET_1_CHIP=ESP32-C6
+TARGET_1_REVISION=v0.2
+TARGET_1_PHYSICAL_FLASH_SIZE=8MB
+TARGET_1_SECURE_BOOT_ENABLED=false
+TARGET_1_FLASH_ENCRYPTION_ENABLED=false
+
+TARGET_2_PRODUCT_ID=CONTROL_BOARD_BOARD_A
+TARGET_2_PORT=/dev/cu.usbmodem14201
+TARGET_2_USB_IDENTITY=98:A3:16:A9:F4:5C
+TARGET_2_MAC=98:a3:16:a9:f4:5c
+TARGET_2_CHIP=ESP32-C6
+TARGET_2_REVISION=v0.2
+TARGET_2_PHYSICAL_FLASH_SIZE=8MB
+TARGET_2_SECURE_BOOT_ENABLED=false
+TARGET_2_FLASH_ENCRYPTION_ENABLED=false
+```
+
+Board C was not accessed.
+
+## 4. Pre-flash backups
+
+Both boards received complete 8 MB raw flash backups before any reference image write.
+
+```text
+TARGET_1_PREFLASH_FULL_BACKUP_SIZE=8388608
+TARGET_1_PREFLASH_FULL_BACKUP_SHA256=e3b1554bb567ac959db31343b508a7f730e431a4981559fc1e5f59abea01cc5a
+
+TARGET_2_PREFLASH_FULL_BACKUP_SIZE=8388608
+TARGET_2_PREFLASH_FULL_BACKUP_SHA256=6a9dd877c05e0a349fcde88dd3fa214d244063f8e807939cddceb63207b5acb3
+```
+
+## 5. Reference flash and boot
+
+```text
+TARGET_1_REFERENCE_FLASH=PASS_HASH_VERIFIED
+TARGET_2_REFERENCE_FLASH=PASS_HASH_VERIFIED
+
+TARGET_1_REFERENCE_BOOT=PASS_ROM_BOOTLOADER_APPLICATION
+TARGET_2_REFERENCE_BOOT=PASS_ROM_BOOTLOADER_APPLICATION
+```
+
+No source rebuild or product-source change occurred during this physical gate.
+
+## 6. ESP-NOW RF evidence
+
+Both boards started the official ESP-NOW broadcast phase and discovered each other dynamically.
+
+```text
+TARGET_1_BROADCAST_START=PASS
+TARGET_2_BROADCAST_START=PASS
+
+TARGET_1_OBSERVED_PEER_MAC=98:a3:16:a9:f4:5c
+TARGET_2_OBSERVED_PEER_MAC=98:a3:16:a9:f3:50
+
+TARGET_1_BROADCAST_RX_COUNT=3
+TARGET_2_BROADCAST_RX_COUNT=4
+
+TWO_WAY_BROADCAST_DISCOVERY=PASS
+```
+
+The observed peer MACs matched the other board's base MAC exactly:
+
+```text
+TARGET_1_PEER_MAC_EQUALS_TARGET_2_BASE_MAC=true
+TARGET_2_PEER_MAC_EQUALS_TARGET_1_BASE_MAC=true
+PIOARDUINO_MAC_IDENTITY_RUNTIME_OBSERVATION=PASS
+```
+
+Board A transitioned to unicast sender and Board B received the complete sequential unicast run:
+
+```text
+UNICAST_SENDER=BOARD_A
+UNICAST_RECEIVER=BOARD_B
+UNICAST_RX_COUNT=100
+UNICAST_FIRST_SEQ=0
+UNICAST_LAST_SEQ=99
+SENDER_SEND_DONE=PASS
+REFERENCE_RF_QUALITY=PASS_NO_ERRORS
+```
+
+No panic, abort, repeated reboot, ESP-NOW initialization error, or transmission error was observed.
+
+Frozen functional result:
+
+```text
+OFFICIAL_ESPNOW_R0_TWO_BOARD_FUNCTIONAL_PASS=PASS
+OFFICIAL_ESPNOW_R0_PHYSICAL_REFERENCE=PASS
+BOARD_B_OFFICIAL_ESPNOW_BASIC_RF_CAPABILITY=PROVEN
+```
+
+## 7. Product restoration
+
+After the reference test, both boards were restored from their own pre-flash 8 MB raw backups.
+
+```text
+TARGET_1_RESTORE_WRITE=PASS
+TARGET_2_RESTORE_WRITE=PASS
+
+TARGET_1_RESTORE_VERIFICATION=PASS_NON_NVS_EXACT_NVS_RUNTIME_DELTA
+TARGET_2_RESTORE_VERIFICATION=PASS_NON_NVS_EXACT_NVS_RUNTIME_DELTA
+
+TARGET_1_PRODUCT_REBOOT_AFTER_RESTORE=PASS
+TARGET_2_PRODUCT_REBOOT_AFTER_RESTORE=PASS
+```
+
+The post-restore full-flash SHA-256 did not remain identical to the pre-flash image after the restored product booted. The observed differences were restricted to each board's NVS partition; all non-NVS regions were byte-for-byte identical to the corresponding pre-flash backup. The restored product logs showed the original N3-W application and node identity loading normally.
+
+Therefore this experiment classifies restoration as successful, with expected/accepted runtime NVS mutation after product reboot rather than a failed product restore.
+
+## 8. KF-089 disposition after R0
+
+The physical reference does not support a Board B hardware-radio root cause for KF-089.
+
+```text
+KF089_HARDWARE_RADIO_ROOT_CAUSE=NOT_SUPPORTED_BY_REFERENCE_RF_PASS
+READY_TO_REEVALUATE_KF089_PRODUCT_REPAIR=true
+```
+
+This result does **not** itself authorize KF-089 product implementation. It establishes that the next engineering step should compare the product's Wi-Fi/ESP-NOW startup and channel-ownership assumptions against the official reference behavior.
+
+## 9. Scope integrity
+
+```text
+HOMEASSISTANT_REPOSITORY_WRITE=false   # during the physical gate itself
+PRODUCT_SOURCE_CHANGED=false
+PR361_CHANGED=false
+T1_MUTATION=false
+MANAGER_MUTATION=false
+BROKER_MUTATION=false
+DYNSEC_MUTATION=false
+EFUSE_WRITE=false
+
+BOARD_ACCESS=true
+USB_ACCESS=true
+SERIAL_OPEN=true
+FLASH_READ=true
+FLASH_WRITE=true
+RF_EXECUTION=true
+```
+
+This closeout document is a later docs-only archival mutation and does not alter the product-source authority above.
+
+## 10. Raw serial evidence locations at closeout time
+
+The executor reported the original serial captures at:
+
+```text
+/private/tmp/n3w-r0-serial-captures-full/A.log
+/private/tmp/n3w-r0-serial-captures-full/B.log
+/private/tmp/n3w-r0-postrestore-logs/A.log
+/private/tmp/n3w-r0-postrestore-logs/B.log
+```
+
+These paths are host-local evidence locations. This document records their locations and the closure derived from them; it does not claim that the four raw host-local files are embedded in this Git commit.
+
+## 11. Exact closure
+
+```text
+=== N3W OFFICIAL ESPNOW R0 TWO-BOARD PHYSICAL REFERENCE R1 CLOSURE ===
+
+EXECUTION_ID=N3W-OFFICIAL-ESPNOW-R0-TWO-BOARD-PHYSICAL-REFERENCE-ARTIFACT-HANDOFF-R1-20260905-01
+PARENT_EXECUTION_ID=N3W-OFFICIAL-ESPNOW-R0-TWO-BOARD-PHYSICAL-REFERENCE-EXECUTION-20260905-01
+
+CURRENT_MAIN=127c3f1e89baaaba7b7fd60d6d263632d30b2461
+CURRENT_TREE=32135508818124e848bc895073b3cb6aaa6b9af3
+PRODUCT_SOURCE_AUTHORITY=bff94bc4922d7a984eb1363cc24a163ad466a166
+
+LOCAL_ARTIFACT_ZIP=/Users/chenrenguo/Downloads/n3w-official-espnow-r0-reference-build.zip
+LOCAL_ARTIFACT_ZIP_SHA256=5aa8bfcd5d0bf63fb3dd04f0f5a917cfb2e1b1798037e7fe811d7d3781c4b4ed
+REFERENCE_ARTIFACT_AUTHORITY=PASS
+
+TARGET_1_PRODUCT_ID=BOARD_B
+TARGET_1_PORT=/dev/cu.usbmodem14101
+TARGET_1_USB_IDENTITY=98:A3:16:A9:F3:50
+TARGET_1_MAC=98:a3:16:a9:f3:50
+TARGET_1_CHIP=ESP32-C6
+TARGET_1_REVISION=v0.2
+TARGET_1_PHYSICAL_FLASH_SIZE=8MB
+TARGET_1_SECURE_BOOT_ENABLED=false
+TARGET_1_FLASH_ENCRYPTION_ENABLED=false
+
+TARGET_2_PRODUCT_ID=CONTROL_BOARD_BOARD_A
+TARGET_2_PORT=/dev/cu.usbmodem14201
+TARGET_2_USB_IDENTITY=98:A3:16:A9:F4:5C
+TARGET_2_MAC=98:a3:16:a9:f4:5c
+TARGET_2_CHIP=ESP32-C6
+TARGET_2_REVISION=v0.2
+TARGET_2_PHYSICAL_FLASH_SIZE=8MB
+TARGET_2_SECURE_BOOT_ENABLED=false
+TARGET_2_FLASH_ENCRYPTION_ENABLED=false
+
+TARGET_1_PREFLASH_FULL_BACKUP_SIZE=8388608
+TARGET_1_PREFLASH_FULL_BACKUP_SHA256=e3b1554bb567ac959db31343b508a7f730e431a4981559fc1e5f59abea01cc5a
+
+TARGET_2_PREFLASH_FULL_BACKUP_SIZE=8388608
+TARGET_2_PREFLASH_FULL_BACKUP_SHA256=6a9dd877c05e0a349fcde88dd3fa214d244063f8e807939cddceb63207b5acb3
+
+TARGET_1_REFERENCE_FLASH=PASS_HASH_VERIFIED
+TARGET_2_REFERENCE_FLASH=PASS_HASH_VERIFIED
+
+TARGET_1_REFERENCE_BOOT=PASS_ROM_BOOTLOADER_APPLICATION
+TARGET_2_REFERENCE_BOOT=PASS_ROM_BOOTLOADER_APPLICATION
+
+TARGET_1_BROADCAST_START=PASS
+TARGET_2_BROADCAST_START=PASS
+
+TARGET_1_OBSERVED_PEER_MAC=98:a3:16:a9:f4:5c
+TARGET_2_OBSERVED_PEER_MAC=98:a3:16:a9:f3:50
+
+TARGET_1_BROADCAST_RX_COUNT=3
+TARGET_2_BROADCAST_RX_COUNT=4
+
+TWO_WAY_BROADCAST_DISCOVERY=PASS
+
+TARGET_1_PEER_MAC_EQUALS_TARGET_2_BASE_MAC=true
+TARGET_2_PEER_MAC_EQUALS_TARGET_1_BASE_MAC=true
+PIOARDUINO_MAC_IDENTITY_RUNTIME_OBSERVATION=PASS
+
+UNICAST_SENDER=BOARD_A
+UNICAST_RECEIVER=BOARD_B
+UNICAST_RX_COUNT=100
+UNICAST_FIRST_SEQ=0
+UNICAST_LAST_SEQ=99
+SENDER_SEND_DONE=PASS
+REFERENCE_RF_QUALITY=PASS_NO_ERRORS
+
+OFFICIAL_ESPNOW_R0_TWO_BOARD_FUNCTIONAL_PASS=PASS
+
+TARGET_1_RESTORE_WRITE=PASS
+TARGET_2_RESTORE_WRITE=PASS
+
+TARGET_1_RESTORE_VERIFICATION=PASS_NON_NVS_EXACT_NVS_RUNTIME_DELTA
+TARGET_2_RESTORE_VERIFICATION=PASS_NON_NVS_EXACT_NVS_RUNTIME_DELTA
+
+TARGET_1_PRODUCT_REBOOT_AFTER_RESTORE=PASS
+TARGET_2_PRODUCT_REBOOT_AFTER_RESTORE=PASS
+
+HOMEASSISTANT_REPOSITORY_WRITE=false
+PRODUCT_SOURCE_CHANGED=false
+PR361_CHANGED=false
+T1_MUTATION=false
+MANAGER_MUTATION=false
+BROKER_MUTATION=false
+DYNSEC_MUTATION=false
+EFUSE_WRITE=false
+
+BOARD_ACCESS=true
+USB_ACCESS=true
+SERIAL_OPEN=true
+FLASH_READ=true
+FLASH_WRITE=true
+RF_EXECUTION=true
+
+OFFICIAL_ESPNOW_R0_PHYSICAL_REFERENCE=PASS
+BOARD_B_OFFICIAL_ESPNOW_BASIC_RF_CAPABILITY=PROVEN
+KF089_HARDWARE_RADIO_ROOT_CAUSE=NOT_SUPPORTED_BY_REFERENCE_RF_PASS
+READY_TO_REEVALUATE_KF089_PRODUCT_REPAIR=true
+
+GATE_RESULT=PASS_REFERENCE_RF_BASELINE_RESTORED_PRODUCT_WITH_NVS_RUNTIME_DELTA
+NEXT_ROUTE=HIGH_LEVEL_KF089_PRODUCT_DIAGNOSTIC_REEVALUATION
+STOP=true
+
+=== END ===
+```
+
+## 12. Frozen next-route boundary
+
+```text
+R0_OFFICIAL_ESPNOW_PHYSICAL_REFERENCE=FROZEN_PASS
+KF089_PRODUCT_IMPLEMENTATION_AUTHORIZED=false
+NEXT_ROUTE=POST_R0_WIFI_ESPNOW_COEXISTENCE_AND_KF089_REEVALUATION
+```
