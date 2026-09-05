@@ -1,0 +1,14 @@
+menu "N3W R1 Off-Channel Baseline"
+
+    choice R1_ROLE
+        prompt "R1 board role"
+        default R1_ROLE_DUT
+
+        config R1_ROLE_DUT
+            bool "DUT STA (Board B)"
+
+        config R1_ROLE_CONTROL
+            bool "Control SoftAP (Board A)"
+    endchoice
+
+endmenu

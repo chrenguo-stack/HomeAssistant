@@ -1,0 +1,192 @@
+name: N3W R1 Official Off-Channel ESP-NOW Diagnostic Build
+
+on:
+  push:
+    branches:
+      - "diag/n3w-r1-offchannel-espnow-baseline-20260905"
+    paths:
+      - ".github/workflows/n3w-r1-offchannel-espnow-ci.yml"
+      - "diagnostics/n3w_r1_offchannel_espnow/**"
+      - "docs/development/N3W_PRODUCT_DEVELOPMENT_PRINCIPLES_AND_R1_OFFCHANNEL_PLAN_20260905.md"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostic-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    env:
+      ESPRESSIF_OFFICIAL_COMMIT: 735507283d5b2f9fb363a1901172dbd9e847945d
+      PIOARDUINO_FRAMEWORK_COMMIT: 8de41af2dbb81bc443a8d7986ebd152f82e10bba
+      IDF_TARGET: esp32c6
+      DIAG_PATH: diagnostics/n3w_r1_offchannel_espnow
+
+    steps:
+      - name: Checkout diagnostic control commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Ubuntu host prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            git wget flex bison gperf ccache libffi-dev libssl-dev \
+            dfu-util libusb-1.0-0
+
+      - name: Materialize exact official and pioarduino authorities
+        shell: bash
+        run: |
+          set -euo pipefail
+          OFFICIAL="$RUNNER_TEMP/espressif-idf"
+          PIOIDF="$RUNNER_TEMP/pioarduino-idf"
+
+          git init "$OFFICIAL"
+          git -C "$OFFICIAL" remote add origin https://github.com/espressif/esp-idf.git
+          git -C "$OFFICIAL" fetch --depth=1 origin "$ESPRESSIF_OFFICIAL_COMMIT"
+          git -C "$OFFICIAL" checkout --detach FETCH_HEAD
+
+          git init "$PIOIDF"
+          git -C "$PIOIDF" remote add origin https://github.com/pioarduino/esp-idf.git
+          git -C "$PIOIDF" fetch --depth=1 origin "$PIOARDUINO_FRAMEWORK_COMMIT"
+          git -C "$PIOIDF" checkout --detach FETCH_HEAD
+          git -C "$PIOIDF" submodule update --init --recursive
+
+          test "$(git -C "$OFFICIAL" rev-parse HEAD)" = "$ESPRESSIF_OFFICIAL_COMMIT"
+          test "$(git -C "$PIOIDF" rev-parse HEAD)" = "$PIOARDUINO_FRAMEWORK_COMMIT"
+
+          OFFICIAL_HEADER="$OFFICIAL/components/esp_wifi/include/esp_now.h"
+          PIO_HEADER="$PIOIDF/components/esp_wifi/include/esp_now.h"
+          cmp "$OFFICIAL_HEADER" "$PIO_HEADER"
+          grep -q 'esp_now_switch_channel_tx' "$OFFICIAL_HEADER"
+          grep -q 'esp_now_remain_on_channel' "$OFFICIAL_HEADER"
+
+          echo "OFFICIAL_ESPNOW_HEADER_SHA256=$(sha256sum "$OFFICIAL_HEADER" | awk '{print $1}')"
+          echo "PIOARDUINO_ESPNOW_HEADER_SHA256=$(sha256sum "$PIO_HEADER" | awk '{print $1}')"
+          echo "OFFICIAL_OFFCHANNEL_API_AUTHORITY=PASS"
+          echo "PIOIDF=$PIOIDF" >> "$GITHUB_ENV"
+
+      - name: Install exact pioarduino ESP-IDF runner environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          export IDF_TOOLS_PATH="$RUNNER_TEMP/idf-tools"
+          cd "$PIOIDF"
+          ./install.sh esp32c6
+          echo "IDF_TOOLS_PATH=$IDF_TOOLS_PATH" >> "$GITHUB_ENV"
+
+      - name: Build CONTROL diagnostic image
+        shell: bash
+        run: |
+          set -euo pipefail
+          export IDF_TOOLS_PATH="$RUNNER_TEMP/idf-tools"
+          cd "$PIOIDF"
+          source ./export.sh
+
+          SRC="$GITHUB_WORKSPACE/$DIAG_PATH"
+          WORK="$RUNNER_TEMP/r1-control"
+          cp -a "$SRC" "$WORK"
+          cp "$WORK/sdkconfig.defaults.control" "$WORK/sdkconfig.defaults"
+          cd "$WORK"
+          idf.py set-target esp32c6
+          idf.py reconfigure
+          idf.py build
+          grep -q '^CONFIG_R1_ROLE_CONTROL=y$' sdkconfig
+          echo "R1_CONTROL_BUILD=PASS"
+
+      - name: Build DUT diagnostic image
+        shell: bash
+        run: |
+          set -euo pipefail
+          export IDF_TOOLS_PATH="$RUNNER_TEMP/idf-tools"
+          cd "$PIOIDF"
+          source ./export.sh
+
+          SRC="$GITHUB_WORKSPACE/$DIAG_PATH"
+          WORK="$RUNNER_TEMP/r1-dut"
+          cp -a "$SRC" "$WORK"
+          cp "$WORK/sdkconfig.defaults.dut" "$WORK/sdkconfig.defaults"
+          cd "$WORK"
+          idf.py set-target esp32c6
+          idf.py reconfigure
+          idf.py build
+          grep -q '^CONFIG_R1_ROLE_DUT=y$' sdkconfig
+          echo "R1_DUT_BUILD=PASS"
+
+      - name: Bind exact source and build artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/r1-artifacts"
+          mkdir -p "$OUT/control" "$OUT/dut"
+
+          SOURCE_TREE="$(git rev-parse "$GITHUB_SHA:$DIAG_PATH")"
+          SOURCE_MAIN_SHA="$(sha256sum "$DIAG_PATH/main/r1_offchannel_main.c" | awk '{print $1}')"
+          OFFICIAL_HEADER_SHA="$(sha256sum "$RUNNER_TEMP/espressif-idf/components/esp_wifi/include/esp_now.h" | awk '{print $1}')"
+          PIO_HEADER_SHA="$(sha256sum "$PIOIDF/components/esp_wifi/include/esp_now.h" | awk '{print $1}')"
+          test "$OFFICIAL_HEADER_SHA" = "$PIO_HEADER_SHA"
+
+          for role in control dut; do
+            WORK="$RUNNER_TEMP/r1-$role"
+            BUILD="$WORK/build"
+            test -f "$BUILD/n3w_r1_offchannel_espnow.elf"
+            test -f "$BUILD/n3w_r1_offchannel_espnow.bin"
+            test -f "$BUILD/bootloader/bootloader.bin"
+            test -f "$BUILD/partition_table/partition-table.bin"
+            test -f "$WORK/sdkconfig"
+
+            cp "$BUILD/n3w_r1_offchannel_espnow.elf" "$OUT/$role/"
+            cp "$BUILD/n3w_r1_offchannel_espnow.bin" "$OUT/$role/"
+            cp "$BUILD/bootloader/bootloader.bin" "$OUT/$role/"
+            cp "$BUILD/partition_table/partition-table.bin" "$OUT/$role/"
+            cp "$WORK/sdkconfig" "$OUT/$role/"
+
+            for candidate in "$BUILD/flasher_args.json" "$BUILD/flash_args" "$BUILD/flash_project_args"; do
+              if [ -f "$candidate" ]; then cp "$candidate" "$OUT/$role/"; break; fi
+            done
+          done
+
+          EVIDENCE="$OUT/n3w-r1-offchannel-build-evidence.txt"
+          {
+            echo "CONTROL_REPOSITORY_COMMIT=$GITHUB_SHA"
+            echo "GITHUB_RUN_ID=$GITHUB_RUN_ID"
+            echo "RUNNER_OS=$RUNNER_OS"
+            echo "ESPRESSIF_OFFICIAL_COMMIT=$ESPRESSIF_OFFICIAL_COMMIT"
+            echo "PIOARDUINO_FRAMEWORK_COMMIT=$PIOARDUINO_FRAMEWORK_COMMIT"
+            echo "OFFICIAL_ESPNOW_HEADER_SHA256=$OFFICIAL_HEADER_SHA"
+            echo "PIOARDUINO_ESPNOW_HEADER_SHA256=$PIO_HEADER_SHA"
+            echo "OFFICIAL_OFFCHANNEL_API_AUTHORITY=PASS"
+            echo "DIAGNOSTIC_SOURCE_TREE_HASH=$SOURCE_TREE"
+            echo "DIAGNOSTIC_MAIN_SHA256=$SOURCE_MAIN_SHA"
+            echo "R1_HOME_CHANNEL=1"
+            echo "R1_TARGET_CHANNEL=6"
+            echo "R1_CONTROL_BUILD=PASS"
+            echo "R1_DUT_BUILD=PASS"
+            echo "R1_CONTROL_ELF_SHA256=$(sha256sum "$OUT/control/n3w_r1_offchannel_espnow.elf" | awk '{print $1}')"
+            echo "R1_CONTROL_BIN_SHA256=$(sha256sum "$OUT/control/n3w_r1_offchannel_espnow.bin" | awk '{print $1}')"
+            echo "R1_DUT_ELF_SHA256=$(sha256sum "$OUT/dut/n3w_r1_offchannel_espnow.elf" | awk '{print $1}')"
+            echo "R1_DUT_BIN_SHA256=$(sha256sum "$OUT/dut/n3w_r1_offchannel_espnow.bin" | awk '{print $1}')"
+            echo "PRODUCT_SOURCE_CHANGED=false"
+            echo "BOARD_ACCESS=false"
+            echo "FLASH=false"
+            echo "RF_EXECUTION=false"
+            echo "READY_FOR_R1_PHYSICAL_DESIGN_REVIEW=true"
+          } | tee "$EVIDENCE"
+
+          (cd "$OUT" && find . -type f -not -name 'SHA256SUMS.txt' -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt)
+
+      - name: Upload R1 diagnostic evidence and images
+        uses: actions/upload-artifact@v4
+        with:
+          name: n3w-r1-offchannel-espnow-diagnostic-build
+          path: ${{ runner.temp }}/r1-artifacts/
+          if-no-files-found: error
+          retention-days: 14
