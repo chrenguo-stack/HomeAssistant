@@ -1,0 +1,53 @@
+# Curated critical CI excerpt; this is not a complete raw GitHub Actions job log.
+# Repository: chrenguo-stack/HomeAssistant
+# R1R4 commit: 1b89639f9454ea725da1fef32564f5cdfa006289
+# R1R4 tree: b2b815283deb1cbc976eab74c38ca096dd23b90d
+# CI run: 33957392009
+# CI job: 101283085978
+# CI result: FAILURE
+#
+# Exact framework authorities observed in the job:
+# ESPRESSIF_REF=735507283d5b2f9fb363a1901172dbd9e847945d
+# PIOARDUINO_REF=8de41af2dbb81bc443a8d7986ebd152f82e10bba
+# PIOARDUINO_FRAMEWORK_REF=8de41af2dbb81bc443a8d7986ebd152f82e10bba
+#
+# Source-contract oracle before CONTROL build:
+SOURCE_CONTRACT_OK
+#
+# CONTROL build command:
+pio run --project-dir diagnostics/n3w_r1r4_usb_console_evidence --environment control
+
+In file included from .ci-idf/esp-idf/components/log/include/esp_log.h:15,
+                 from control_main.cpp:6:
+.ci-idf/esp-idf/components/log/include/esp_log_format.h:90:10: fatal error: esp_app_desc.h: No such file or directory
+   90 | #include "esp_app_desc.h"
+      |          ^~~~~~~~~~~~~~~~
+compilation terminated.
+*** [.pio-ci-control/build/esp32-c6-devkitc-1/src/control_main.cpp.o] Error 1
+========================== [FAILED] Took 2.40 seconds ==========================
+
+# Postconditions at this stop boundary:
+R1R4_EVIDENCE_HARDENING_SOURCE_CONTRACT=PASS
+CONTROL_BUILD=FAIL
+CONTROL_GENERATED_SDKCONFIG_USB_PRIMARY_ORACLE=NOT_EXECUTED
+DUT_BUILD=NOT_EXECUTED
+BINARY_EVIDENCE=NOT_EXECUTED
+ARTIFACT=NOT_PRODUCED
+BOARD_ACCESS=false
+USB_ACCESS=false
+SERIAL_OPEN=false
+FLASH_READ=false
+FLASH_WRITE=false
+RF_EXECUTION=false
+CI_RERUN=false
+AUTO_REPAIR=false
+
+# Narrow evidence classification:
+FAILURE_CLASS=SOURCE_COMPILE_ERROR
+FIRST_FAILURE=CONTROL_COMPILE_MISSING_ESP_APP_DESC_H_IN_FRAMEWORK_IDF_INCLUDE_RESOLUTION
+
+# Non-conclusions:
+KCONFIG_CONFLICT_PROVEN=false
+USB_SERIAL_JTAG_RUNTIME_FAILURE_PROVEN=false
+OFFICIAL_ROC_API_CAUSAL=false
+KF089_CAUSAL=false
