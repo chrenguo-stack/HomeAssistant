@@ -1,0 +1,267 @@
+name: N3W R1R4 USB Console Evidence Hardened Diagnostic Build
+
+on:
+  push:
+    branches:
+      - "diag/n3w-r1r4-usb-console-evidence-20260905"
+    paths:
+      - ".github/workflows/n3w-r1r4-usb-console-evidence-ci.yml"
+      - "diagnostics/n3w_r1r4_usb_console_evidence/**"
+      - "docs/development/N3W_R1R4_USB_CONSOLE_EVIDENCE_HARDENING_PLAN_20260905.md"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostic-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    env:
+      ESPRESSIF_OFFICIAL_COMMIT: 735507283d5b2f9fb363a1901172dbd9e847945d
+      PIOARDUINO_FRAMEWORK_COMMIT: 8de41af2dbb81bc443a8d7986ebd152f82e10bba
+      IDF_TARGET: esp32c6
+      DIAG_PATH: diagnostics/n3w_r1r4_usb_console_evidence
+
+    steps:
+      - name: Checkout R1R4 diagnostic commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Ubuntu host prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            git wget flex bison gperf ccache libffi-dev libssl-dev \
+            dfu-util libusb-1.0-0
+
+      - name: Materialize exact official and pioarduino authorities
+        shell: bash
+        run: |
+          set -euo pipefail
+          OFFICIAL="$RUNNER_TEMP/espressif-idf"
+          PIOIDF="$RUNNER_TEMP/pioarduino-idf"
+
+          git init "$OFFICIAL"
+          git -C "$OFFICIAL" remote add origin https://github.com/espressif/esp-idf.git
+          git -C "$OFFICIAL" fetch --depth=1 origin "$ESPRESSIF_OFFICIAL_COMMIT"
+          git -C "$OFFICIAL" checkout --detach FETCH_HEAD
+
+          git init "$PIOIDF"
+          git -C "$PIOIDF" remote add origin https://github.com/pioarduino/esp-idf.git
+          git -C "$PIOIDF" fetch --depth=1 origin "$PIOARDUINO_FRAMEWORK_COMMIT"
+          git -C "$PIOIDF" checkout --detach FETCH_HEAD
+          git -C "$PIOIDF" submodule update --init --recursive
+
+          test "$(git -C "$OFFICIAL" rev-parse HEAD)" = "$ESPRESSIF_OFFICIAL_COMMIT"
+          test "$(git -C "$PIOIDF" rev-parse HEAD)" = "$PIOARDUINO_FRAMEWORK_COMMIT"
+
+          find_console_kconfig() {
+            local root="$1"
+            grep -RIl --include='Kconfig*' \
+              'config ESP_CONSOLE_USB_SERIAL_JTAG' "$root/components" | head -1
+          }
+          OFFICIAL_CONSOLE_KCONFIG="$(find_console_kconfig "$OFFICIAL")"
+          PIO_CONSOLE_KCONFIG="$(find_console_kconfig "$PIOIDF")"
+          test -n "$OFFICIAL_CONSOLE_KCONFIG"
+          test -n "$PIO_CONSOLE_KCONFIG"
+          grep -q 'config ESP_CONSOLE_USB_SERIAL_JTAG' "$OFFICIAL_CONSOLE_KCONFIG"
+          grep -q 'config ESP_CONSOLE_SECONDARY_NONE' "$OFFICIAL_CONSOLE_KCONFIG"
+          grep -RIl --include='Kconfig*' \
+            'depends on !ESP_CONSOLE_USB_SERIAL_JTAG' "$OFFICIAL/components" >/dev/null
+          grep -q 'config ESP_CONSOLE_USB_SERIAL_JTAG' "$PIO_CONSOLE_KCONFIG"
+          grep -q 'config ESP_CONSOLE_SECONDARY_NONE' "$PIO_CONSOLE_KCONFIG"
+          grep -RIl --include='Kconfig*' \
+            'depends on !ESP_CONSOLE_USB_SERIAL_JTAG' "$PIOIDF/components" >/dev/null
+
+          echo "R1R4_OFFICIAL_CONSOLE_KCONFIG_SHA256=$(sha256sum "$OFFICIAL_CONSOLE_KCONFIG" | awk '{print $1}')"
+          echo "R1R4_PIO_CONSOLE_KCONFIG_SHA256=$(sha256sum "$PIO_CONSOLE_KCONFIG" | awk '{print $1}')"
+          echo "R1R4_OFFICIAL_CONSOLE_KCONFIG_SHA256=$(sha256sum "$OFFICIAL_CONSOLE_KCONFIG" | awk '{print $1}')" >> "$GITHUB_ENV"
+          echo "R1R4_PIO_CONSOLE_KCONFIG_SHA256=$(sha256sum "$PIO_CONSOLE_KCONFIG" | awk '{print $1}')" >> "$GITHUB_ENV"
+          echo "R1R4_OFFICIAL_USB_CONSOLE_AUTHORITY=PASS"
+          echo "PIOIDF=$PIOIDF" >> "$GITHUB_ENV"
+          echo "OFFICIAL_IDF=$OFFICIAL" >> "$GITHUB_ENV"
+
+      - name: Install exact pioarduino ESP-IDF runner environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          export IDF_TOOLS_PATH="$RUNNER_TEMP/idf-tools"
+          cd "$PIOIDF"
+          ./install.sh esp32c6
+          echo "IDF_TOOLS_PATH=$IDF_TOOLS_PATH" >> "$GITHUB_ENV"
+
+      - name: Verify R1R4 source contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="$GITHUB_WORKSPACE/$DIAG_PATH/main/r1r4_usb_console_evidence_main.c"
+          for token in \
+            R1R4_CAPTURE_HEARTBEAT \
+            R1R4_LOCAL_CAPTURE_ARMED \
+            R1R4_CAPTURE_READY_TX \
+            R1R4_CAPTURE_READY_RX \
+            R1R4_LIFECYCLE_GATE_OPEN \
+            WIFI_ROC_REQ \
+            WIFI_ROC_CANCEL \
+            esp_now_remain_on_channel \
+            esp_now_switch_channel_tx; do
+            grep -q "$token" "$SRC"
+          done
+          grep -q 'R1R4_CAPTURE_ARM_DELAY_MS 5000' "$SRC"
+          grep -q 'R1R4_CAPTURE_HEARTBEAT_INTERVAL_MS 250' "$SRC"
+          grep -q 'R1R3_HOME_CHANNEL 1' "$SRC"
+          grep -q 'R1R3_TARGET_CHANNEL 6' "$SRC"
+          grep -q 'R1R3_ROC_WAIT_MS 3000' "$SRC"
+          grep -q 'R1R3_ROC_OP_ID 77' "$SRC"
+          if grep -q 'CONFIG_ESP_CONSOLE_UART_DEFAULT' "$GITHUB_WORKSPACE/$DIAG_PATH/sdkconfig.defaults.control"; then exit 1; fi
+          if grep -q 'CONFIG_ESP_CONSOLE_UART_CUSTOM' "$GITHUB_WORKSPACE/$DIAG_PATH/sdkconfig.defaults.control"; then exit 1; fi
+          echo "R1R4_EVIDENCE_HARDENING_SOURCE_CONTRACT=PASS"
+
+      - name: Build CONTROL diagnostic image
+        shell: bash
+        run: |
+          set -euo pipefail
+          export IDF_TOOLS_PATH="$RUNNER_TEMP/idf-tools"
+          cd "$PIOIDF"
+          source ./export.sh
+          SRC="$GITHUB_WORKSPACE/$DIAG_PATH"
+          WORK="$RUNNER_TEMP/r1r4-control"
+          cp -a "$SRC" "$WORK"
+          cp "$WORK/sdkconfig.defaults.control" "$WORK/sdkconfig.defaults"
+          cd "$WORK"
+          idf.py set-target esp32c6
+          idf.py reconfigure
+          idf.py build
+          grep -q '^CONFIG_R1R4_ROLE_CONTROL=y$' sdkconfig
+          grep -q '^CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y$' sdkconfig
+          grep -q '^CONFIG_ESP_CONSOLE_SECONDARY_NONE=y$' sdkconfig
+          grep -q '^# CONFIG_ESP_CONSOLE_UART_DEFAULT is not set$' sdkconfig
+          grep -q '^# CONFIG_ESP_CONSOLE_UART_CUSTOM is not set$' sdkconfig
+          grep -q '^CONFIG_ESP_CONSOLE_UART_NUM=-1$' sdkconfig
+          grep -q '^CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG_ENABLED=y$' sdkconfig
+          echo "R1R4_CONTROL_USB_PRIMARY_CONSOLE=PASS"
+
+      - name: Build DUT diagnostic image
+        shell: bash
+        run: |
+          set -euo pipefail
+          export IDF_TOOLS_PATH="$RUNNER_TEMP/idf-tools"
+          cd "$PIOIDF"
+          source ./export.sh
+          SRC="$GITHUB_WORKSPACE/$DIAG_PATH"
+          WORK="$RUNNER_TEMP/r1r4-dut"
+          cp -a "$SRC" "$WORK"
+          cp "$WORK/sdkconfig.defaults.dut" "$WORK/sdkconfig.defaults"
+          cd "$WORK"
+          idf.py set-target esp32c6
+          idf.py reconfigure
+          idf.py build
+          grep -q '^CONFIG_R1R4_ROLE_DUT=y$' sdkconfig
+          grep -q '^CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y$' sdkconfig
+          grep -q '^CONFIG_ESP_CONSOLE_SECONDARY_NONE=y$' sdkconfig
+          grep -q '^# CONFIG_ESP_CONSOLE_UART_DEFAULT is not set$' sdkconfig
+          grep -q '^# CONFIG_ESP_CONSOLE_UART_CUSTOM is not set$' sdkconfig
+          grep -q '^CONFIG_ESP_CONSOLE_UART_NUM=-1$' sdkconfig
+          grep -q '^CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG_ENABLED=y$' sdkconfig
+          echo "R1R4_DUT_USB_PRIMARY_CONSOLE=PASS"
+
+      - name: Verify binary strings and bind diagnostic artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          CONTROL="$RUNNER_TEMP/r1r4-control"
+          DUT="$RUNNER_TEMP/r1r4-dut"
+          OUT="$RUNNER_TEMP/r1r4-artifacts"
+          mkdir -p "$OUT/control" "$OUT/dut"
+
+          CONTROL_BIN="$CONTROL/build/n3w_r1r4_usb_console_evidence.bin"
+          CONTROL_ELF="$CONTROL/build/n3w_r1r4_usb_console_evidence.elf"
+          CONTROL_BOOT="$CONTROL/build/bootloader/bootloader.bin"
+          CONTROL_PART="$CONTROL/build/partition_table/partition-table.bin"
+          CONTROL_FLASH="$CONTROL/build/flasher_args.json"
+          DUT_BIN="$DUT/build/n3w_r1r4_usb_console_evidence.bin"
+          DUT_ELF="$DUT/build/n3w_r1r4_usb_console_evidence.elf"
+          DUT_BOOT="$DUT/build/bootloader/bootloader.bin"
+          DUT_PART="$DUT/build/partition_table/partition-table.bin"
+          DUT_FLASH="$DUT/build/flasher_args.json"
+
+          for f in "$CONTROL_BIN" "$CONTROL_ELF" "$CONTROL_BOOT" "$CONTROL_PART" "$CONTROL_FLASH" "$CONTROL/sdkconfig" \
+                   "$DUT_BIN" "$DUT_ELF" "$DUT_BOOT" "$DUT_PART" "$DUT_FLASH" "$DUT/sdkconfig"; do test -f "$f"; done
+
+          strings "$CONTROL_ELF" | grep -q R1R4_CAPTURE_HEARTBEAT
+          strings "$CONTROL_ELF" | grep -q R1R4_LOCAL_CAPTURE_ARMED
+          strings "$CONTROL_ELF" | grep -q R1R4_CAPTURE_READY_RX
+          strings "$CONTROL_ELF" | grep -q R1R4_LIFECYCLE_GATE_OPEN
+          strings "$DUT_ELF" | grep -q R1R4_CAPTURE_HEARTBEAT
+          strings "$DUT_ELF" | grep -q R1R4_LOCAL_CAPTURE_ARMED
+          strings "$DUT_ELF" | grep -q R1R4_CAPTURE_READY_TX
+          strings "$DUT_ELF" | grep -q R1R4_LIFECYCLE_GATE_OPEN
+          echo "R1R4_CONTROL_EVIDENCE_STRINGS=PASS"
+          echo "R1R4_DUT_EVIDENCE_STRINGS=PASS"
+
+          cp "$CONTROL_BIN" "$OUT/control/"
+          cp "$CONTROL_ELF" "$OUT/control/"
+          cp "$CONTROL_BOOT" "$OUT/control/"
+          cp "$CONTROL_PART" "$OUT/control/"
+          cp "$CONTROL_FLASH" "$OUT/control/"
+          cp "$CONTROL/sdkconfig" "$OUT/control/"
+          cp "$DUT_BIN" "$OUT/dut/"
+          cp "$DUT_ELF" "$OUT/dut/"
+          cp "$DUT_BOOT" "$OUT/dut/"
+          cp "$DUT_PART" "$OUT/dut/"
+          cp "$DUT_FLASH" "$OUT/dut/"
+          cp "$DUT/sdkconfig" "$OUT/dut/"
+
+          SOURCE_TREE_HASH="$(git rev-parse "$GITHUB_SHA:$DIAG_PATH")"
+          MAIN_SOURCE_SHA256="$(sha256sum "$DIAG_PATH/main/r1r4_usb_console_evidence_main.c" | awk '{print $1}')"
+          EVIDENCE="$OUT/n3w-r1r4-build-evidence.txt"
+          {
+            echo "CONTROL_REPOSITORY_COMMIT=$GITHUB_SHA"
+            echo "GITHUB_RUN_ID=$GITHUB_RUN_ID"
+            echo "ESPRESSIF_OFFICIAL_COMMIT=$ESPRESSIF_OFFICIAL_COMMIT"
+            echo "PIOARDUINO_FRAMEWORK_COMMIT=$PIOARDUINO_FRAMEWORK_COMMIT"
+            echo "R1R4_DIAGNOSTIC_SOURCE_TREE_HASH=$SOURCE_TREE_HASH"
+            echo "R1R4_DIAGNOSTIC_MAIN_SHA256=$MAIN_SOURCE_SHA256"
+            echo "R1R4_HOME_CHANNEL=1"
+            echo "R1R4_TARGET_CHANNEL=6"
+            echo "R1R4_ROC_WAIT_MS=3000"
+            echo "R1R4_ROC_OP_ID=77"
+            echo "PRIMARY_CONSOLE=USB_SERIAL_JTAG"
+            echo "SECONDARY_CONSOLE=NONE"
+            echo "CAPTURE_HEARTBEAT_INTERVAL_MS=250"
+            echo "CAPTURE_ARM_DELAY_MS=5000"
+            echo "CAPTURE_READY_HANDSHAKE=true"
+            echo "R1R4_OFFICIAL_USB_CONSOLE_AUTHORITY=PASS"
+            echo "R1R4_OFFICIAL_CONSOLE_KCONFIG_SHA256=$R1R4_OFFICIAL_CONSOLE_KCONFIG_SHA256"
+            echo "R1R4_PIO_CONSOLE_KCONFIG_SHA256=$R1R4_PIO_CONSOLE_KCONFIG_SHA256"
+            echo "R1R4_CONTROL_USB_PRIMARY_CONSOLE=PASS"
+            echo "R1R4_DUT_USB_PRIMARY_CONSOLE=PASS"
+            echo "R1R4_EVIDENCE_HARDENING_SOURCE_CONTRACT=PASS"
+            echo "PRODUCT_SOURCE_CHANGED=false"
+            echo "BOARD_ACCESS=false"
+            echo "FLASH=false"
+            echo "RF_EXECUTION=false"
+            echo "READY_FOR_R1R4_PHYSICAL_EVIDENCE_GATE_REVIEW=true"
+          } | tee "$EVIDENCE"
+
+          (
+            cd "$OUT"
+            find control dut -type f -print0 | sort -z | xargs -0 sha256sum
+            sha256sum n3w-r1r4-build-evidence.txt
+          ) | tee "$OUT/SHA256SUMS"
+
+      - name: Upload R1R4 diagnostic evidence and images
+        uses: actions/upload-artifact@v4
+        with:
+          name: n3w-r1r4-usb-console-evidence-diagnostic-build
+          path: ${{ runner.temp }}/r1r4-artifacts/
+          if-no-files-found: error
+          retention-days: 14

@@ -1,0 +1,14 @@
+menu "N3W R1R4 USB Console Evidence Hardened ROC Lifecycle"
+
+    choice R1R4_ROLE
+        prompt "R1R4 board role"
+        default R1R4_ROLE_DUT
+
+        config R1R4_ROLE_DUT
+            bool "DUT STA (Board B)"
+
+        config R1R4_ROLE_CONTROL
+            bool "Control SoftAP (Board A)"
+    endchoice
+
+endmenu
