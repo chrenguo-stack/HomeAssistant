@@ -1,0 +1,208 @@
+name: N3W Official ESP-NOW R0 Reference Build
+
+on:
+  push:
+    branches:
+      - "diag/n3w-official-espnow-r0-reference-ci-20260905"
+    paths:
+      - ".github/workflows/n3w-official-espnow-r0-reference-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  reference-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    env:
+      ESPRESSIF_OFFICIAL_COMMIT: 735507283d5b2f9fb363a1901172dbd9e847945d
+      PIOARDUINO_FRAMEWORK_COMMIT: 8de41af2dbb81bc443a8d7986ebd152f82e10bba
+      OFFICIAL_EXAMPLE_TREE_HASH: 1c3754f448019dedf8d70d1f9b492cf2d61be458
+      IDF_TARGET: esp32c6
+
+    steps:
+      - name: Checkout repository control commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Ubuntu host prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            git wget flex bison gperf ccache libffi-dev libssl-dev \
+            dfu-util libusb-1.0-0
+          python --version
+          git --version
+
+      - name: Materialize exact Espressif and pioarduino authorities
+        shell: bash
+        run: |
+          set -euo pipefail
+          OFFICIAL="$RUNNER_TEMP/espressif-idf"
+          PIOIDF="$RUNNER_TEMP/pioarduino-idf"
+
+          git init "$OFFICIAL"
+          git -C "$OFFICIAL" remote add origin https://github.com/espressif/esp-idf.git
+          git -C "$OFFICIAL" fetch --depth=1 origin "$ESPRESSIF_OFFICIAL_COMMIT"
+          git -C "$OFFICIAL" checkout --detach FETCH_HEAD
+
+          git init "$PIOIDF"
+          git -C "$PIOIDF" remote add origin https://github.com/pioarduino/esp-idf.git
+          git -C "$PIOIDF" fetch --depth=1 origin "$PIOARDUINO_FRAMEWORK_COMMIT"
+          git -C "$PIOIDF" checkout --detach FETCH_HEAD
+          git -C "$PIOIDF" submodule update --init --recursive
+
+          test "$(git -C "$OFFICIAL" rev-parse HEAD)" = "$ESPRESSIF_OFFICIAL_COMMIT"
+          test "$(git -C "$PIOIDF" rev-parse HEAD)" = "$PIOARDUINO_FRAMEWORK_COMMIT"
+
+          OFFICIAL_TREE="$(git -C "$OFFICIAL" rev-parse HEAD:examples/wifi/espnow)"
+          PIO_TREE="$(git -C "$PIOIDF" rev-parse HEAD:examples/wifi/espnow)"
+
+          echo "ESPRESSIF_OFFICIAL_COMMIT_ACTUAL=$(git -C "$OFFICIAL" rev-parse HEAD)"
+          echo "PIOARDUINO_FRAMEWORK_COMMIT_ACTUAL=$(git -C "$PIOIDF" rev-parse HEAD)"
+          echo "ESPRESSIF_OFFICIAL_EXAMPLE_TREE_HASH=$OFFICIAL_TREE"
+          echo "PIOARDUINO_EXAMPLE_TREE_HASH=$PIO_TREE"
+
+          test "$OFFICIAL_TREE" = "$OFFICIAL_EXAMPLE_TREE_HASH"
+          test "$PIO_TREE" = "$OFFICIAL_EXAMPLE_TREE_HASH"
+          diff -qr "$OFFICIAL/examples/wifi/espnow" "$PIOIDF/examples/wifi/espnow"
+
+          echo "OFFICIAL_EXAMPLE_TREE_EQUIVALENCE=PASS"
+          echo "PIOIDF=$PIOIDF" >> "$GITHUB_ENV"
+          echo "OFFICIAL_IDF=$OFFICIAL" >> "$GITHUB_ENV"
+
+      - name: Install exact pioarduino ESP-IDF build environment in runner temp
+        shell: bash
+        run: |
+          set -euo pipefail
+          export IDF_TOOLS_PATH="$RUNNER_TEMP/idf-tools"
+          cd "$PIOIDF"
+          ./install.sh esp32c6
+          echo "IDF_TOOLS_PATH=$IDF_TOOLS_PATH" >> "$GITHUB_ENV"
+
+      - name: Configure exact unmodified official example for ESP32-C6
+        shell: bash
+        run: |
+          set -euo pipefail
+          export IDF_TOOLS_PATH="$RUNNER_TEMP/idf-tools"
+          cd "$PIOIDF"
+          source ./export.sh
+
+          echo "PYTHON_VERSION=$(python --version 2>&1)"
+          echo "IDF_VERSION=$(idf.py --version)"
+          echo "CMAKE_VERSION=$(cmake --version | head -n1)"
+          echo "NINJA_VERSION=$(ninja --version)"
+          echo "RISCV32_GCC_VERSION=$(riscv32-esp-elf-gcc --version | head -n1)"
+
+          cd examples/wifi/espnow
+          BEFORE="$(git -C "$PIOIDF" rev-parse HEAD:examples/wifi/espnow)"
+          test "$BEFORE" = "$OFFICIAL_EXAMPLE_TREE_HASH"
+
+          idf.py set-target esp32c6
+          idf.py reconfigure
+
+          AFTER="$(git -C "$PIOIDF" rev-parse HEAD:examples/wifi/espnow)"
+          test "$AFTER" = "$OFFICIAL_EXAMPLE_TREE_HASH"
+
+          echo "REFERENCE_EXAMPLE_TREE_HASH_BEFORE=$BEFORE"
+          echo "REFERENCE_EXAMPLE_TREE_HASH_AFTER_CONFIGURE=$AFTER"
+          echo "REFERENCE_IDF_CONFIGURE=PASS"
+
+      - name: Compile exact unmodified official example
+        shell: bash
+        run: |
+          set -euo pipefail
+          export IDF_TOOLS_PATH="$RUNNER_TEMP/idf-tools"
+          cd "$PIOIDF"
+          source ./export.sh
+          cd examples/wifi/espnow
+
+          idf.py build
+
+          AFTER="$(git -C "$PIOIDF" rev-parse HEAD:examples/wifi/espnow)"
+          test "$AFTER" = "$OFFICIAL_EXAMPLE_TREE_HASH"
+          git -C "$PIOIDF" diff --exit-code -- examples/wifi/espnow
+
+          echo "REFERENCE_EXAMPLE_TREE_HASH_AFTER=$AFTER"
+          echo "REFERENCE_IDF_COMPILE=PASS"
+          echo "REFERENCE_BUILD_TARGET=esp32c6"
+
+      - name: Bind build artifacts and produce evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILD="$PIOIDF/examples/wifi/espnow/build"
+          EVIDENCE="$RUNNER_TEMP/n3w-official-espnow-r0-evidence.txt"
+
+          APP_ELF="$(find "$BUILD" -maxdepth 1 -type f -name '*.elf' -print -quit)"
+          APP_BIN="$(find "$BUILD" -maxdepth 1 -type f -name '*.bin' -print -quit)"
+          BOOT_BIN="$BUILD/bootloader/bootloader.bin"
+          PART_BIN="$BUILD/partition_table/partition-table.bin"
+          SDKCONFIG="$PIOIDF/examples/wifi/espnow/sdkconfig"
+
+          test -n "$APP_ELF" && test -f "$APP_ELF"
+          test -n "$APP_BIN" && test -f "$APP_BIN"
+          test -f "$BOOT_BIN"
+          test -f "$PART_BIN"
+          test -f "$SDKCONFIG"
+
+          APP_ELF_SHA256="$(sha256sum "$APP_ELF" | awk '{print $1}')"
+          APP_BIN_SHA256="$(sha256sum "$APP_BIN" | awk '{print $1}')"
+          BOOT_SHA256="$(sha256sum "$BOOT_BIN" | awk '{print $1}')"
+          PART_SHA256="$(sha256sum "$PART_BIN" | awk '{print $1}')"
+          SDKCONFIG_SHA256="$(sha256sum "$SDKCONFIG" | awk '{print $1}')"
+
+          FLASH_MANIFEST=""
+          for candidate in "$BUILD/flasher_args.json" "$BUILD/flash_args" "$BUILD/flash_project_args"; do
+            if [ -f "$candidate" ]; then FLASH_MANIFEST="$candidate"; break; fi
+          done
+          test -n "$FLASH_MANIFEST"
+          FLASH_SHA256="$(sha256sum "$FLASH_MANIFEST" | awk '{print $1}')"
+
+          {
+            echo "CONTROL_REPOSITORY_COMMIT=$GITHUB_SHA"
+            echo "GITHUB_RUN_ID=$GITHUB_RUN_ID"
+            echo "RUNNER_OS=$RUNNER_OS"
+            echo "ESPRESSIF_OFFICIAL_COMMIT=$ESPRESSIF_OFFICIAL_COMMIT"
+            echo "PIOARDUINO_FRAMEWORK_COMMIT=$PIOARDUINO_FRAMEWORK_COMMIT"
+            echo "OFFICIAL_EXAMPLE_TREE_HASH=$OFFICIAL_EXAMPLE_TREE_HASH"
+            echo "REFERENCE_APP_ELF=$(basename "$APP_ELF")"
+            echo "REFERENCE_APP_ELF_SIZE=$(stat -c %s "$APP_ELF")"
+            echo "REFERENCE_APP_ELF_SHA256=$APP_ELF_SHA256"
+            echo "REFERENCE_APP_BIN=$(basename "$APP_BIN")"
+            echo "REFERENCE_APP_BIN_SIZE=$(stat -c %s "$APP_BIN")"
+            echo "REFERENCE_APP_BIN_SHA256=$APP_BIN_SHA256"
+            echo "REFERENCE_BOOTLOADER_BIN_SHA256=$BOOT_SHA256"
+            echo "REFERENCE_PARTITION_TABLE_BIN_SHA256=$PART_SHA256"
+            echo "REFERENCE_FLASH_ARGS_OR_MANIFEST=$(basename "$FLASH_MANIFEST")"
+            echo "REFERENCE_FLASH_ARGS_OR_MANIFEST_SHA256=$FLASH_SHA256"
+            echo "SDKCONFIG_SHA256=$SDKCONFIG_SHA256"
+            echo "OFFICIAL_ESPNOW_R0_SOURCE_AUTHORITY=PASS"
+            echo "OFFICIAL_ESPNOW_R0_HOST_COMPILE=PASS"
+            echo "READY_FOR_R0_TWO_BOARD_PHYSICAL_AUTHORIZATION=true"
+          } | tee "$EVIDENCE"
+
+          mkdir -p "$RUNNER_TEMP/reference-artifacts"
+          cp "$APP_ELF" "$RUNNER_TEMP/reference-artifacts/"
+          cp "$APP_BIN" "$RUNNER_TEMP/reference-artifacts/"
+          cp "$BOOT_BIN" "$RUNNER_TEMP/reference-artifacts/"
+          cp "$PART_BIN" "$RUNNER_TEMP/reference-artifacts/"
+          cp "$FLASH_MANIFEST" "$RUNNER_TEMP/reference-artifacts/"
+          cp "$SDKCONFIG" "$RUNNER_TEMP/reference-artifacts/"
+          cp "$EVIDENCE" "$RUNNER_TEMP/reference-artifacts/"
+
+      - name: Upload reference evidence and build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: n3w-official-espnow-r0-reference-build
+          path: ${{ runner.temp }}/reference-artifacts/
+          if-no-files-found: error
+          retention-days: 14
