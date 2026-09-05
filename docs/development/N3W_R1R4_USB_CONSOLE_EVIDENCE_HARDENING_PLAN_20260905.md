@@ -32,3 +32,23 @@ The CI workflow builds CONTROL and DUT independently from the frozen Espressif
 and pioarduino commits, checks official console Kconfig authority, verifies
 generated sdkconfig and binary strings, and publishes a bound diagnostic
 artifact. CI PASS is not physical-execution authorization.
+
+## Fresh exact-source CI re-execution record
+
+```text
+GATE=N3W_R1R4_FRESH_EXACT_SOURCE_CI_REEXECUTION
+PARENT_R1R4_COMMIT=1b89639f9454ea725da1fef32564f5cdfa006289
+CI_REEXECUTION_REASON=GITHUB_ACTIONS_RERUN_ORCHESTRATION_STUCK_RUN_33957392009
+ABANDON_STUCK_RUN_33957392009=true
+DELETE_STUCK_RUN=false
+DIAGNOSTIC_SOURCE_CHANGED=false
+WORKFLOW_CHANGED=false
+PRODUCT_SOURCE_CHANGED=false
+PHYSICAL_EXECUTION=false
+BOARD_ACCESS=false
+```
+
+This documentation-only change exists solely to create a fresh push-triggered
+CI execution from the exact frozen R1R4 diagnostic source and workflow after
+the original GitHub Actions rerun became stuck before materializing a second
+attempt. It does not authorize source repair or physical execution.
