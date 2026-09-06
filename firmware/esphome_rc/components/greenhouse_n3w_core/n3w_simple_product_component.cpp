@@ -232,10 +232,27 @@ bool SimpleProductComponent::derive_pmk_(LinkKey *pmk) const {
 
 bool SimpleProductComponent::start_runtime_if_ready_() {
   if (runtime_ready_) return true;
-  if (!runtime_state_loaded_ || !mqtt_configured_ || !wifi_connected()) {
+  if (!runtime_state_loaded_ || !mqtt_configured_) {
     return false;
   }
+
   const uint64_t now = now_ms();
+  const bool direct_available = wifi_connected();
+  if (!direct_available) {
+    if (!runtime_start_grace_started_) {
+      runtime_start_grace_started_ = true;
+      runtime_start_grace_started_ms_ = now;
+      ESP_LOGI(
+          TAG,
+          "N3-W waiting up to %u ms for preferred Direct Wi-Fi before Relay discovery",
+          static_cast<unsigned>(kInitialDirectGraceMs));
+      return false;
+    }
+    if (now - runtime_start_grace_started_ms_ < kInitialDirectGraceMs) {
+      return false;
+    }
+  }
+
   if (radio_attempted_ &&
       now - last_radio_attempt_ms_ < kRadioRetryIntervalMs) {
     return false;
@@ -244,12 +261,17 @@ bool SimpleProductComponent::start_runtime_if_ready_() {
   last_radio_attempt_ms_ = now;
 
   uint8_t channel = 0;
-  wifi_second_chan_t secondary = WIFI_SECOND_CHAN_NONE;
-  if (esp_wifi_get_channel(&channel, &secondary) != ESP_OK ||
-      !valid_radio_channel(channel)) {
-    ESP_LOGW(TAG, "ESP-NOW deferred: connected STA channel is not ready");
-    return false;
+  SimpleProductStartMode start_mode = SimpleProductStartMode::DISCOVERY;
+  if (direct_available) {
+    wifi_second_chan_t secondary = WIFI_SECOND_CHAN_NONE;
+    if (esp_wifi_get_channel(&channel, &secondary) != ESP_OK ||
+        !valid_radio_channel(channel)) {
+      ESP_LOGW(TAG, "ESP-NOW deferred: connected STA channel is not ready");
+      return false;
+    }
+    start_mode = SimpleProductStartMode::DIRECT;
   }
+
   LinkKey pmk{};
   if (!derive_pmk_(&pmk)) return false;
   DriverError error = radio_.initialize(this, pmk);
@@ -262,19 +284,22 @@ bool SimpleProductComponent::start_runtime_if_ready_() {
     return false;
   }
 
-  // Wi-Fi owns the channel while STA is associated. ESP-NOW shares the
-  // already-observed channel; do not call esp_wifi_set_channel here.
-  error = radio_.prepare_broadcast_peer(channel);
-  if (error != DriverError::NONE) {
-    ESP_LOGW(
-        TAG,
-        "ESP-NOW broadcast peer configuration failed error=%u",
-        static_cast<unsigned>(error));
-    radio_.shutdown();
-    return false;
+  if (start_mode == SimpleProductStartMode::DIRECT) {
+    // Wi-Fi owns the channel while STA is associated. ESP-NOW shares the
+    // already-observed channel; do not call esp_wifi_set_channel here.
+    error = radio_.prepare_broadcast_peer(channel);
+    if (error != DriverError::NONE) {
+      ESP_LOGW(
+          TAG,
+          "ESP-NOW broadcast peer configuration failed error=%u",
+          static_cast<unsigned>(error));
+      radio_.shutdown();
+      return false;
+    }
   }
+
   const SimpleProductError runtime_error =
-      runtime_.start(peer_state_, local_mac_, channel);
+      runtime_.start(peer_state_, local_mac_, channel, start_mode);
   if (runtime_error != SimpleProductError::NONE) {
     ESP_LOGW(
         TAG,
@@ -288,8 +313,9 @@ bool SimpleProductComponent::start_runtime_if_ready_() {
   next_recovery_probe_ms_ = now + kRecoveryProbeMs;
   ESP_LOGI(
       TAG,
-      "Simplified N3-W product runtime active node=%s channel=%u",
+      "Simplified N3-W product runtime active node=%s mode=%s direct_channel=%u",
       peer_state_.node_id.c_str(),
+      start_mode == SimpleProductStartMode::DIRECT ? "direct" : "discovery",
       static_cast<unsigned>(channel));
   return true;
 }
@@ -338,6 +364,7 @@ void SimpleProductComponent::advance_recovery_() {
     wifi_second_chan_t secondary = WIFI_SECOND_CHAN_NONE;
     if (esp_wifi_get_channel(&channel, &secondary) != ESP_OK ||
         !valid_radio_channel(channel) ||
+        radio_.prepare_broadcast_peer(channel) != DriverError::NONE ||
         !runtime_.update_direct_channel_hint(channel)) {
       direct_ready = false;
     }
@@ -403,8 +430,9 @@ bool SimpleProductComponent::set_radio_channel(uint8_t channel) {
   // While STA is associated, ESP-NOW must share the channel already owned by
   // Wi-Fi. Treat an idempotent request for that channel as success without
   // calling esp_wifi_set_channel(); reject any attempt to move an associated
-  // STA to a different channel. Once STA is disconnected, the ESP-NOW runtime
-  // may control the radio channel for discovery/relay scanning as before.
+  // STA to a different channel. Once STA is disconnected, the N3-W discovery
+  // loop may use the official channel setter and rebind its broadcast peer to
+  // the channel actually being scanned.
   if (wifi_connected()) {
     uint8_t current_channel = 0;
     wifi_second_chan_t secondary = WIFI_SECOND_CHAN_NONE;
@@ -415,7 +443,10 @@ bool SimpleProductComponent::set_radio_channel(uint8_t channel) {
     return current_channel == channel;
   }
 
-  return radio_.set_channel(channel) == DriverError::NONE;
+  if (radio_.set_channel(channel) != DriverError::NONE) {
+    return false;
+  }
+  return radio_.prepare_broadcast_peer(channel) == DriverError::NONE;
 }
 
 bool SimpleProductComponent::broadcast_control(
