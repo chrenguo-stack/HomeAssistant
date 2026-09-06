@@ -120,7 +120,12 @@ jobs:
           grep -q 'R1R3_HOME_CHANNEL 1' "$SRC"
           grep -q 'R1R3_TARGET_CHANNEL 6' "$SRC"
           grep -q 'R1R3_ROC_WAIT_MS 3000' "$SRC"
-          grep -q 'R1R3_ROC_OP_ID 77' "$SRC"
+          if grep -q 'R1R3_ROC_OP_ID' "$SRC"; then exit 1; fi
+          grep -q 'request_op_id' "$SRC"
+          grep -q 'driver_op_id' "$SRC"
+          grep -q 'WIFI_EVENT_ACTION_TX_STATUS' "$SRC"
+          grep -q 'WIFI_EVENT_ROC_DONE' "$SRC"
+          grep -q 'R1R4_HOME_CHANNEL_CHECK' "$SRC"
           if grep -q 'CONFIG_ESP_CONSOLE_UART_DEFAULT' "$GITHUB_WORKSPACE/$DIAG_PATH/sdkconfig.defaults.control"; then exit 1; fi
           if grep -q 'CONFIG_ESP_CONSOLE_UART_CUSTOM' "$GITHUB_WORKSPACE/$DIAG_PATH/sdkconfig.defaults.control"; then exit 1; fi
           echo "R1R4_EVIDENCE_HARDENING_SOURCE_CONTRACT=PASS"
@@ -233,7 +238,7 @@ jobs:
             echo "R1R4_HOME_CHANNEL=1"
             echo "R1R4_TARGET_CHANNEL=6"
             echo "R1R4_ROC_WAIT_MS=3000"
-            echo "R1R4_ROC_OP_ID=77"
+            echo "R1R4_ROC_OP_ID=DRIVER_ASSIGNED"
             echo "PRIMARY_CONSOLE=USB_SERIAL_JTAG"
             echo "SECONDARY_CONSOLE=NONE"
             echo "CAPTURE_HEARTBEAT_INTERVAL_MS=250"

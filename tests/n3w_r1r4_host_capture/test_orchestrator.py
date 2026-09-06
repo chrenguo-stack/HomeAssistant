@@ -17,6 +17,8 @@ DualCapture = module.DualCapture
 RoleBinding = module.RoleBinding
 SerialBackend = module.SerialBackend
 run_live_capture_window = module._run_live_capture_window
+OperationEventTracker = module.OperationEventTracker
+operation_summary_consistent = module.operation_summary_consistent
 
 
 class Clock:
@@ -49,11 +51,22 @@ def ready(capture: object) -> None:
 
 def line(role: str, *, result: str = "PASS") -> bytes:
     if role == "CONTROL":
-        summary = f"R1R3_SUMMARY role=CONTROL baseline={result} probe_tx_api={result} home_ack={result}"
+        summary = (
+            f"R1R3_SUMMARY role=CONTROL baseline={result} probe_tx_api={result} "
+            f"switch_tx_api={result} switch_tx_request_op_id=55 switch_tx_driver_op_id=1 "
+            f"switch_tx_completion={result} switch_tx_status=TX_DURATION_COMPLETED "
+            f"control_home_channel_api={result} control_home_channel=1 control_ap_sta_link=true "
+            f"control_home_return={result} home_ack_api=NOT_APPLICABLE "
+            f"home_ack_send_callback=NOT_APPLICABLE home_ack_received={result} home_ack={result}"
+        )
     else:
         summary = (
-            f"R1R3_SUMMARY role=DUT baseline={result} roc_req={result} probe_rx={result} "
-            f"roc_cancel={result} home_recovery={result} home_ack_tx={result} disconnect_count=0"
+            f"R1R3_SUMMARY role=DUT baseline={result} roc_req={result} "
+            f"roc_request_input_op_id=0 roc_driver_op_id=1 roc_natural_complete=false "
+            f"roc_cancel_api={result} roc_cancel_complete={result} roc_completion_status=WIFI_ROC_FAIL "
+            f"probe_rx={result} home_recovery={result} home_channel_api={result} home_channel=1 "
+            f"home_sta_link=true home_ack_tx={result} home_ack_api={result} "
+            f"home_ack_send_callback={result} home_ack_received=NOT_APPLICABLE disconnect_count=0"
         )
     return (
         f"R1R4_CAPTURE_HEARTBEAT role={role}\n"
@@ -76,9 +89,10 @@ def test_normal_two_board_run_separates_summary_from_pass(tmp_path: Path) -> Non
     assert manifest["capture_completeness"] == "COMPLETE"
     assert manifest["capture_valid"] is True
     assert "experiment_pass" not in manifest
-    assert manifest["observed_lifecycle_results"]["CONTROL"] == {
-        "baseline": "PASS", "probe_tx_api": "PASS", "home_ack": "PASS"
-    }
+    assert manifest["observed_lifecycle_results"]["CONTROL"]["baseline"] == "PASS"
+    assert manifest["observed_lifecycle_results"]["CONTROL"]["switch_tx_driver_op_id"] == "1"
+    assert manifest["observed_lifecycle_results"]["CONTROL"]["control_home_return"] == "PASS"
+    assert manifest["observed_lifecycle_results"]["DUT"]["roc_cancel_complete"] == "PASS"
     assert (tmp_path / "control.raw").read_bytes()
     assert (tmp_path / "dut.raw").read_bytes()
     assert (tmp_path / "host.events.jsonl").read_text(encoding="utf-8")
@@ -89,8 +103,23 @@ def test_summary_without_explicit_pass_is_not_product_pass(tmp_path: Path) -> No
     clock = Clock()
     capture = make_capture(tmp_path, clock)
     ready(capture)
-    capture.feed("CONTROL", b"R1R3_SUMMARY role=CONTROL baseline=PASS probe_tx_api=FAIL home_ack=FAIL\n")
-    capture.feed("DUT", b"R1R3_SUMMARY role=DUT baseline=PASS roc_req=FAIL probe_rx=FAIL roc_cancel=FAIL home_recovery=FAIL home_ack_tx=FAIL disconnect_count=4\n")
+    capture.feed(
+        "CONTROL",
+        b"R1R3_SUMMARY role=CONTROL baseline=PASS probe_tx_api=FAIL switch_tx_api=FAIL "
+        b"switch_tx_request_op_id=55 switch_tx_driver_op_id=1 switch_tx_completion=FAIL "
+        b"switch_tx_status=TX_FAILED control_home_channel_api=PASS control_home_channel=6 "
+        b"control_ap_sta_link=true control_home_return=FAIL home_ack_api=NOT_APPLICABLE "
+        b"home_ack_send_callback=NOT_APPLICABLE home_ack_received=FAIL home_ack=FAIL\n",
+    )
+    capture.feed(
+        "DUT",
+        b"R1R3_SUMMARY role=DUT baseline=PASS roc_req=FAIL roc_request_input_op_id=0 "
+        b"roc_driver_op_id=0 roc_natural_complete=false roc_cancel_api=FAIL "
+        b"roc_cancel_complete=FAIL roc_completion_status=UNKNOWN probe_rx=FAIL home_recovery=FAIL "
+        b"home_channel_api=FAIL home_channel=6 home_sta_link=false home_ack_tx=FAIL "
+        b"home_ack_api=FAIL home_ack_send_callback=UNKNOWN home_ack_received=NOT_APPLICABLE "
+        b"disconnect_count=4\n",
+    )
     manifest = capture.finalize()
 
     assert manifest["summaries_complete"] is True
@@ -338,10 +367,77 @@ def test_disconnect_after_prestart_bytes_before_enter_invalidates_capture(tmp_pa
     capture.update_port_state("CONTROL", True, "control-usb")
     assert capture.begin_experiment()
     capture.feed("CONTROL", b"R1R4_LIFECYCLE_GATE_OPEN control_capture_armed=true dut_capture_ready=true\n")
-    capture.feed("CONTROL", b"R1R3_SUMMARY role=CONTROL baseline=PASS probe_tx_api=PASS home_ack=PASS\n")
+    capture.feed(
+        "CONTROL",
+        b"R1R3_SUMMARY role=CONTROL baseline=PASS probe_tx_api=PASS switch_tx_api=PASS "
+        b"switch_tx_request_op_id=55 switch_tx_driver_op_id=1 switch_tx_completion=PASS "
+        b"switch_tx_status=TX_DURATION_COMPLETED control_home_channel_api=PASS "
+        b"control_home_channel=1 control_ap_sta_link=true control_home_return=PASS "
+        b"home_ack_api=NOT_APPLICABLE home_ack_send_callback=NOT_APPLICABLE "
+        b"home_ack_received=PASS home_ack=PASS\n",
+    )
     capture.feed("DUT", line("DUT"))
     manifest = capture.finalize()
 
     assert any(event.kind == "capture_interrupted" and event.role == "CONTROL" for event in capture.events)
     assert manifest["capture_interrupted"]["CONTROL"] is True
     assert manifest["capture_valid"] is False
+
+
+def test_driver_id_is_matched_separately_from_request_id() -> None:
+    tracker = OperationEventTracker("ACTION_TX", expected_op_id=1)
+    assert tracker.observe("ACTION_TX", 55, "TX_DURATION_COMPLETED") is False
+    assert tracker.observe("ACTION_TX", 1, "TX_DONE") is True
+    assert tracker.completion_pass() is False
+    assert tracker.observe("ACTION_TX", 1, "TX_DURATION_COMPLETED") is True
+    assert tracker.completion_pass() is True
+    assert tracker.ignored_events == 1
+
+
+def test_completion_event_before_api_return_is_retained_by_tracker() -> None:
+    tracker = OperationEventTracker("ROC_DONE", expected_op_id=7)
+    assert tracker.observe("ROC_DONE", 7, "WIFI_ROC_FAIL") is True
+    assert tracker.roc_cancel_complete is True
+    assert tracker.completion_pass() is True
+
+
+def test_wrong_id_does_not_release_wait_and_natural_is_not_cancel() -> None:
+    tracker = OperationEventTracker("ROC_DONE", expected_op_id=7)
+    assert tracker.observe("ROC_DONE", 8, "WIFI_ROC_FAIL") is False
+    assert tracker.completion_pass() is False
+    assert tracker.observe("ROC_DONE", 7, "WIFI_ROC_DONE") is True
+    assert tracker.roc_natural_complete is True
+    assert tracker.roc_cancel_complete is False
+
+
+def test_queue_overflow_and_timeout_cannot_pass() -> None:
+    tracker = OperationEventTracker("ACTION_TX", expected_op_id=1, queue_overflow=True)
+    assert tracker.observe("ACTION_TX", 1, "TX_DURATION_COMPLETED") is False
+    assert tracker.completion_pass() is False
+
+
+def test_home_return_requires_actual_channel_one_and_link() -> None:
+    fields = {
+        "switch_tx_completion": "PASS",
+        "switch_tx_status": "TX_DURATION_COMPLETED",
+        "switch_tx_api": "PASS",
+        "control_home_return": "PASS",
+        "control_home_channel_api": "PASS",
+        "control_home_channel": "6",
+        "control_ap_sta_link": "true",
+    }
+    assert operation_summary_consistent("CONTROL", fields) is False
+    fields["control_home_channel"] = "1"
+    assert operation_summary_consistent("CONTROL", fields) is True
+
+
+def test_home_ack_api_success_and_callback_failure_remain_distinct() -> None:
+    fields = {
+        "switch_tx_completion": "FAIL",
+        "switch_tx_status": "TX_FAILED",
+        "switch_tx_api": "PASS",
+        "control_home_return": "FAIL",
+        "home_ack_api": "PASS",
+        "home_ack_send_callback": "FAIL",
+    }
+    assert operation_summary_consistent("CONTROL", fields) is True

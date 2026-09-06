@@ -33,11 +33,125 @@ class RoleBinding:
 
 
 REAL_SUMMARY_FIELDS: dict[Role, tuple[str, ...]] = {
-    "CONTROL": ("baseline", "probe_tx_api", "home_ack"),
-    "DUT": ("baseline", "roc_req", "probe_rx", "roc_cancel", "home_recovery", "home_ack_tx", "disconnect_count"),
+    "CONTROL": (
+        "baseline",
+        "probe_tx_api",
+        "switch_tx_api",
+        "switch_tx_request_op_id",
+        "switch_tx_driver_op_id",
+        "switch_tx_completion",
+        "switch_tx_status",
+        "control_home_channel_api",
+        "control_home_channel",
+        "control_ap_sta_link",
+        "control_home_return",
+        "home_ack_api",
+        "home_ack_send_callback",
+        "home_ack_received",
+        "home_ack",
+    ),
+    "DUT": (
+        "baseline",
+        "roc_req",
+        "roc_request_input_op_id",
+        "roc_driver_op_id",
+        "roc_natural_complete",
+        "roc_cancel_api",
+        "roc_cancel_complete",
+        "roc_completion_status",
+        "probe_rx",
+        "home_recovery",
+        "home_channel_api",
+        "home_channel",
+        "home_sta_link",
+        "home_ack_tx",
+        "home_ack_api",
+        "home_ack_send_callback",
+        "home_ack_received",
+        "disconnect_count",
+    ),
 }
 _TOKEN_RE = re.compile(r"([A-Za-z0-9_]+)=([^\s,]+)")
 _BOOT_MARKERS = ("ESP-ROM:", "rst:0x", "boot:0x", "cpu_start: Starting scheduler", "app_init()")
+
+
+@dataclass
+class OperationEventTracker:
+    """Host-side model for the bounded async operation evidence contract."""
+
+    kind: str
+    expected_op_id: int
+    queue_overflow: bool = False
+    ignored_events: int = 0
+    tx_done: bool = False
+    tx_duration_complete: bool = False
+    tx_failed: bool = False
+    tx_cancelled: bool = False
+    roc_natural_complete: bool = False
+    roc_cancel_complete: bool = False
+    terminal_status: str = "UNKNOWN"
+
+    def observe(self, kind: str, op_id: int, status: str) -> bool:
+        if self.queue_overflow or kind != self.kind or op_id != self.expected_op_id:
+            self.ignored_events += 1
+            return False
+        if kind == "ACTION_TX":
+            if status == "TX_DONE":
+                self.tx_done = True
+            elif status == "TX_DURATION_COMPLETED":
+                self.tx_duration_complete = True
+                self.terminal_status = status
+            elif status == "TX_FAILED":
+                self.tx_failed = True
+                self.terminal_status = status
+            elif status == "TX_OP_CANCELLED":
+                self.tx_cancelled = True
+                self.terminal_status = status
+            return True
+        if kind == "ROC_DONE":
+            self.terminal_status = status
+            if status == "WIFI_ROC_DONE":
+                self.roc_natural_complete = True
+            elif status == "WIFI_ROC_FAIL":
+                self.roc_cancel_complete = True
+            return True
+        self.ignored_events += 1
+        return False
+
+    def completion_pass(self) -> bool:
+        if self.queue_overflow:
+            return False
+        if self.kind == "ACTION_TX":
+            return self.tx_duration_complete and not self.tx_failed and not self.tx_cancelled
+        if self.kind == "ROC_DONE":
+            return self.roc_natural_complete or self.roc_cancel_complete
+        return False
+
+
+def operation_summary_consistent(role: Role, fields: dict[str, str]) -> bool:
+    """Reject summaries that claim async success without its required evidence."""
+    if role == "CONTROL":
+        if fields.get("switch_tx_completion") == "PASS":
+            if fields.get("switch_tx_status") != "TX_DURATION_COMPLETED":
+                return False
+            if fields.get("switch_tx_api") != "PASS":
+                return False
+        if fields.get("control_home_return") == "PASS":
+            if fields.get("control_home_channel_api") != "PASS":
+                return False
+            if fields.get("control_home_channel") != "1":
+                return False
+            if fields.get("control_ap_sta_link") != "true":
+                return False
+        return True
+    if fields.get("roc_cancel_complete") == "PASS":
+        if fields.get("roc_cancel_api") != "PASS":
+            return False
+        if fields.get("roc_completion_status") != "WIFI_ROC_FAIL":
+            return False
+        if fields.get("roc_natural_complete") == "true":
+            return False
+    return True
 
 
 @dataclass(frozen=True)
@@ -371,6 +485,10 @@ class DualCapture:
             set(REAL_SUMMARY_FIELDS[role]).issubset(states[role].summary_fields)
             for role in ROLES
         )
+        operation_summary_valid = {
+            role: operation_summary_consistent(role, states[role].summary_fields)
+            for role in ROLES
+        }
         fatal_capture_events = {
             "log_missing",
             "summary_missing",
@@ -381,7 +499,7 @@ class DualCapture:
             "device_reboot_detected",
             "capture_interrupted",
         }
-        capture_valid = required_evidence and summary_fields_complete and ordered and not any(
+        capture_valid = required_evidence and summary_fields_complete and all(operation_summary_valid.values()) and ordered and not any(
             event.kind in fatal_capture_events for event in self.events
         )
         capture_completeness = "COMPLETE" if capture_valid else "INCOMPLETE"
@@ -398,6 +516,7 @@ class DualCapture:
                 for role in ROLES
             },
             "summary_fields_complete": summary_fields_complete,
+            "operation_summary_valid": operation_summary_valid,
             "capture_completeness": capture_completeness,
             "capture_valid": capture_valid,
             "product_experiment_result": "REQUIRES_RAW_LOG_REVIEW",

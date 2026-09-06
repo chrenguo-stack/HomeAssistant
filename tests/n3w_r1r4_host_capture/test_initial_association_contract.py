@@ -47,10 +47,31 @@ def test_offchannel_contract_parameters_are_unchanged() -> None:
         "#define R1R3_HOME_CHANNEL 1",
         "#define R1R3_TARGET_CHANNEL 6",
         "#define R1R3_ROC_WAIT_MS 3000",
-        "#define R1R3_ROC_OP_ID 77",
         "esp_now_remain_on_channel(&cfg)",
         "esp_now_switch_channel_tx(cfg)",
         "WIFI_ROC_REQ",
         "WIFI_ROC_CANCEL",
+        "request_op_id",
+        "driver_op_id",
+        "WIFI_EVENT_ACTION_TX_STATUS",
+        "WIFI_EVENT_ROC_DONE",
     ):
         assert token in SOURCE
+    assert "R1R3_ROC_OP_ID" not in SOURCE
+
+
+def test_driver_operation_id_is_saved_and_reused_for_cancel() -> None:
+    assert "roc_request(\n        R1R3_TARGET_CHANNEL, request_op_id, &s_roc_driver_op_id)" in SOURCE
+    assert "roc_cancel(R1R3_TARGET_CHANNEL, s_roc_driver_op_id)" in SOURCE
+    assert "cancel_request_driver_op_id" in SOURCE
+    assert "WIFI_EVENT_ACTION_TX_STATUS" in SOURCE
+    assert "WIFI_EVENT_ROC_DONE" in SOURCE
+    assert "R1R4_OPERATION_TIMEOUT" in SOURCE
+    assert "R1R4_OP_EVENT_QUEUE_OVERFLOW" in SOURCE
+
+
+def test_control_home_return_uses_actual_channel_not_event_channel() -> None:
+    assert "R1R4_HOME_CHANNEL_CHECK" in SOURCE
+    assert "control_home_channel" in SOURCE
+    assert "control_home_return" in SOURCE
+    assert "control_home_channel=6" not in SOURCE

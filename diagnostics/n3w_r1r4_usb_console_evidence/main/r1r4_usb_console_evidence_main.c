@@ -25,7 +25,6 @@
 #define R1R3_CONTROL_PROBE_DELAY_MS 350
 #define R1R3_ROC_PROBE_WAIT_MS 1500
 #define R1R3_HOME_RECOVERY_TIMEOUT_MS 5000
-#define R1R3_ROC_OP_ID 77
 #define R1R3_INITIAL_ASSOC_MAX_ATTEMPTS 3
 #define R1R3_INITIAL_ASSOC_TIMEOUT_MS 15000
 #define R1R3_INITIAL_ASSOC_ATTEMPT_WAIT_MS 5000
@@ -78,13 +77,56 @@ static uint32_t s_wifi_disconnect_count;
 static bool s_baseline_pass;
 static bool s_roc_req_ok;
 static bool s_probe_rx_ok;
-static bool s_roc_cancel_ok;
 static bool s_home_recovery_ok;
 static bool s_home_ack_ok;
+static bool s_home_ack_received;
 static volatile bool s_initial_assoc_active;
 static volatile uint8_t s_initial_assoc_last_disconnect_reason;
 static uint8_t s_initial_assoc_attempts;
 static esp_err_t s_initial_assoc_last_result = ESP_FAIL;
+
+typedef enum {
+    R1R4_OP_EVENT_ACTION_TX = 1,
+    R1R4_OP_EVENT_ROC_DONE = 2,
+} r1r4_op_event_kind_t;
+
+typedef struct {
+    r1r4_op_event_kind_t kind;
+    uint8_t op_id;
+    uint8_t channel;
+    uint8_t status;
+} r1r4_op_event_t;
+
+typedef enum {
+    R1R4_ASYNC_UNKNOWN = 0,
+    R1R4_ASYNC_PASS,
+    R1R4_ASYNC_FAIL,
+} r1r4_async_result_t;
+
+static QueueHandle_t s_op_event_queue;
+static volatile bool s_op_event_queue_overflow;
+static bool s_control_tx_done;
+static bool s_control_tx_failed;
+static bool s_control_tx_duration_complete;
+static bool s_control_tx_cancelled;
+static uint8_t s_control_tx_driver_op_id;
+static uint8_t s_control_tx_request_op_id;
+static bool s_control_home_channel_api_ok;
+static uint8_t s_control_home_channel;
+static bool s_control_home_ap_link;
+static bool s_control_home_return;
+static bool s_roc_natural_complete;
+static bool s_roc_cancel_requested;
+static bool s_roc_cancel_api_ok;
+static uint8_t s_roc_request_op_id;
+static uint8_t s_roc_driver_op_id;
+static uint8_t s_roc_completion_status;
+static bool s_home_ack_api_ok;
+static r1r4_async_result_t s_home_ack_send_callback = R1R4_ASYNC_UNKNOWN;
+static volatile bool s_home_ack_callback_waiting;
+static volatile bool s_home_ack_callback_seen;
+static volatile bool s_home_ack_callback_ambiguous;
+static volatile uint32_t s_non_home_send_callbacks_pending;
 
 #define EV_WIFI_LINK BIT0
 #define EV_BASELINE BIT1
@@ -94,6 +136,7 @@ static esp_err_t s_initial_assoc_last_result = ESP_FAIL;
 #define EV_HOME_ACK BIT5
 #define EV_CAPTURE_ARMED BIT6
 #define EV_DUT_CAPTURE_READY BIT7
+#define EV_HOME_ACK_SEND_CALLBACK BIT8
 
 #define R1R4_CAPTURE_HEARTBEAT_INTERVAL_MS 250
 #define R1R4_CAPTURE_ARM_DELAY_MS 5000
@@ -179,6 +222,146 @@ static void log_state(const char *step) {
 #endif
 }
 
+static const char *action_tx_status_name(uint8_t status) {
+    switch ((wifi_action_tx_status_type_t)status) {
+        case WIFI_ACTION_TX_DONE: return "TX_DONE";
+        case WIFI_ACTION_TX_FAILED: return "TX_FAILED";
+        case WIFI_ACTION_TX_DURATION_COMPLETED: return "TX_DURATION_COMPLETED";
+        case WIFI_ACTION_TX_OP_CANCELLED: return "TX_OP_CANCELLED";
+        default: return "UNKNOWN";
+    }
+}
+
+static const char *roc_status_name(uint8_t status) {
+    switch ((wifi_roc_done_status_t)status) {
+        case WIFI_ROC_DONE: return "WIFI_ROC_DONE";
+        case WIFI_ROC_FAIL: return "WIFI_ROC_FAIL";
+        default: return "UNKNOWN";
+    }
+}
+
+static const char *async_result_name(r1r4_async_result_t result) {
+    switch (result) {
+        case R1R4_ASYNC_PASS: return "PASS";
+        case R1R4_ASYNC_FAIL: return "FAIL";
+        default: return "UNKNOWN";
+    }
+}
+
+static bool wait_for_action_tx_completion(uint8_t expected_op_id, uint32_t timeout_ms) {
+    const TickType_t deadline = xTaskGetTickCount() + pdMS_TO_TICKS(timeout_ms);
+    while (xTaskGetTickCount() < deadline) {
+        r1r4_op_event_t event = {0};
+        const TickType_t remaining = deadline - xTaskGetTickCount();
+        if (xQueueReceive(s_op_event_queue, &event, remaining) != pdTRUE) break;
+        if (event.kind != R1R4_OP_EVENT_ACTION_TX || event.op_id != expected_op_id) {
+            ESP_LOGW(TAG,
+                     "R1R4_OP_EVENT_IGNORED role=%s kind=%u expected_op_id=%u event_op_id=%u status=%u",
+                     R1R3_LOCAL_ROLE,
+                     (unsigned)event.kind,
+                     (unsigned)expected_op_id,
+                     (unsigned)event.op_id,
+                     (unsigned)event.status);
+            continue;
+        }
+        ESP_LOGI(TAG,
+                 "R1R4_ACTION_TX_EVENT role=%s op_id=%u channel=%u status=%s",
+                 R1R3_LOCAL_ROLE,
+                 (unsigned)event.op_id,
+                 (unsigned)event.channel,
+                 action_tx_status_name(event.status));
+        switch ((wifi_action_tx_status_type_t)event.status) {
+            case WIFI_ACTION_TX_DONE:
+                s_control_tx_done = true;
+                break;
+            case WIFI_ACTION_TX_FAILED:
+                s_control_tx_failed = true;
+                s_control_tx_duration_complete = false;
+                return false;
+            case WIFI_ACTION_TX_DURATION_COMPLETED:
+                s_control_tx_duration_complete = true;
+                return !s_op_event_queue_overflow;
+            case WIFI_ACTION_TX_OP_CANCELLED:
+                s_control_tx_cancelled = true;
+                return false;
+            default:
+                break;
+        }
+    }
+    ESP_LOGW(TAG,
+             "R1R4_OPERATION_TIMEOUT role=%s kind=ACTION_TX op_id=%u queue_overflow=%s",
+             R1R3_LOCAL_ROLE,
+             (unsigned)expected_op_id,
+             s_op_event_queue_overflow ? "true" : "false");
+    return false;
+}
+
+static bool wait_for_roc_completion(uint8_t expected_op_id, uint32_t timeout_ms) {
+    const TickType_t deadline = xTaskGetTickCount() + pdMS_TO_TICKS(timeout_ms);
+    while (xTaskGetTickCount() < deadline) {
+        r1r4_op_event_t event = {0};
+        const TickType_t remaining = deadline - xTaskGetTickCount();
+        if (xQueueReceive(s_op_event_queue, &event, remaining) != pdTRUE) break;
+        if (event.kind != R1R4_OP_EVENT_ROC_DONE || event.op_id != expected_op_id) {
+            ESP_LOGW(TAG,
+                     "R1R4_OP_EVENT_IGNORED role=%s kind=%u expected_op_id=%u event_op_id=%u status=%u",
+                     R1R3_LOCAL_ROLE,
+                     (unsigned)event.kind,
+                     (unsigned)expected_op_id,
+                     (unsigned)event.op_id,
+                     (unsigned)event.status);
+            continue;
+        }
+        s_roc_completion_status = event.status;
+        ESP_LOGI(TAG,
+                 "R1R4_ROC_DONE_EVENT role=%s op_id=%u channel=%u status=%s cancel_requested=%s",
+                 R1R3_LOCAL_ROLE,
+                 (unsigned)event.op_id,
+                 (unsigned)event.channel,
+                 roc_status_name(event.status),
+                 s_roc_cancel_requested ? "true" : "false");
+        if (event.status == WIFI_ROC_DONE) {
+            s_roc_natural_complete = true;
+            return !s_op_event_queue_overflow;
+        }
+        if (event.status == WIFI_ROC_FAIL && s_roc_cancel_requested) {
+            s_roc_cancel_complete = true;
+            return !s_op_event_queue_overflow;
+        }
+        return false;
+    }
+    ESP_LOGW(TAG,
+             "R1R4_OPERATION_TIMEOUT role=%s kind=ROC_DONE op_id=%u queue_overflow=%s",
+             R1R3_LOCAL_ROLE,
+             (unsigned)expected_op_id,
+             s_op_event_queue_overflow ? "true" : "false");
+    return false;
+}
+
+static bool log_home_channel_check(
+    const char *step, bool *link_out, uint8_t *channel_out, bool *api_ok_out) {
+    uint8_t channel = 0;
+    wifi_second_chan_t secondary = WIFI_SECOND_CHAN_NONE;
+    const esp_err_t channel_err = esp_wifi_get_channel(&channel, &secondary);
+#if CONFIG_R1R4_ROLE_DUT
+    const bool link = dut_sta_associated();
+#else
+    const bool link = (xEventGroupGetBits(s_events) & EV_WIFI_LINK) != 0;
+#endif
+    if (link_out != NULL) *link_out = link;
+    if (channel_out != NULL) *channel_out = channel;
+    if (api_ok_out != NULL) *api_ok_out = channel_err == ESP_OK;
+    ESP_LOGI(TAG,
+             "R1R4_HOME_CHANNEL_CHECK role=%s step=%s get_channel_result=%s channel=%u home_channel=%u link=%s",
+             R1R3_LOCAL_ROLE,
+             step,
+             esp_err_to_name(channel_err),
+             (unsigned)channel,
+             R1R3_HOME_CHANNEL,
+             link ? "true" : "false");
+    return channel_err == ESP_OK && channel == R1R3_HOME_CHANNEL && link;
+}
+
 static esp_err_t add_peer(const uint8_t *mac, wifi_interface_t ifidx, uint8_t channel) {
     esp_now_peer_info_t peer = {0};
     memcpy(peer.peer_addr, mac, ESP_NOW_ETH_ALEN);
@@ -198,12 +381,30 @@ static esp_err_t send_normal(const uint8_t *dest, r1r3_msg_type_t type, uint8_t 
         .seq = seq,
         .reserved = 0,
     };
+    const bool is_home_ack = type == R1R3_MSG_HOME_ACK;
+    if (is_home_ack) {
+        s_home_ack_callback_waiting = true;
+        s_home_ack_callback_seen = false;
+        s_home_ack_callback_ambiguous = s_non_home_send_callbacks_pending != 0;
+        s_home_ack_send_callback = R1R4_ASYNC_UNKNOWN;
+        xEventGroupClearBits(s_events, EV_HOME_ACK_SEND_CALLBACK);
+    } else {
+        s_non_home_send_callbacks_pending++;
+    }
     const esp_err_t err = esp_now_send(dest, (const uint8_t *)&msg, sizeof(msg));
+    if (!is_home_ack && err != ESP_OK && s_non_home_send_callbacks_pending > 0) {
+        s_non_home_send_callbacks_pending--;
+    }
+    if (is_home_ack) {
+        s_home_ack_api_ok = err == ESP_OK;
+        if (err != ESP_OK) s_home_ack_callback_waiting = false;
+    }
     ESP_LOGI(TAG,
-             "R1R3_NORMAL_TX role=%s type=%u seq=%u result=%s",
+             "R1R3_NORMAL_TX role=%s type=%u seq=%u home_ack_api=%s result=%s",
              R1R3_LOCAL_ROLE,
              (unsigned)type,
              (unsigned)seq,
+             is_home_ack ? (err == ESP_OK ? "PASS" : "FAIL") : "NOT_APPLICABLE",
              esp_err_to_name(err));
     return err;
 }
@@ -240,7 +441,8 @@ static esp_err_t send_offchannel(const uint8_t *dest, r1r3_msg_type_t type, uint
     cfg->channel = channel;
     cfg->sec_channel = WIFI_SECOND_CHAN_NONE;
     cfg->wait_time_ms = R1R3_SWITCH_TX_WAIT_MS;
-    cfg->op_id = seq;
+    const uint8_t request_op_id = seq;
+    cfg->op_id = request_op_id;
     memcpy(cfg->dest_mac, dest, ESP_NOW_ETH_ALEN);
     cfg->data_len = payload_len;
 
@@ -254,54 +456,75 @@ static esp_err_t send_offchannel(const uint8_t *dest, r1r3_msg_type_t type, uint
 
     log_state("CONTROL_BEFORE_SWITCH_TX");
     const esp_err_t err = esp_now_switch_channel_tx(cfg);
+    const uint8_t driver_op_id = cfg->op_id;
+    s_control_tx_request_op_id = request_op_id;
+    s_control_tx_driver_op_id = driver_op_id;
     ESP_LOGI(TAG,
-             "R1R3_SWITCH_CHANNEL_TX role=%s target=%u wait_ms=%u op_id=%u result=%s",
+             "R1R3_SWITCH_CHANNEL_TX role=%s target=%u wait_ms=%u application_seq=%u request_op_id=%u driver_op_id=%u result=%s",
              R1R3_LOCAL_ROLE,
              (unsigned)channel,
              (unsigned)cfg->wait_time_ms,
-             (unsigned)cfg->op_id,
+             (unsigned)seq,
+             (unsigned)request_op_id,
+             (unsigned)driver_op_id,
              esp_err_to_name(err));
     log_state("CONTROL_AFTER_SWITCH_TX_RETURN");
-    vTaskDelay(pdMS_TO_TICKS(R1R3_SWITCH_TX_WAIT_MS + 100));
+    bool completion_ok = false;
+    if (err == ESP_OK) {
+        completion_ok = wait_for_action_tx_completion(
+            driver_op_id, R1R3_SWITCH_TX_WAIT_MS + 1000);
+    }
+    ESP_LOGI(TAG,
+             "R1R4_ACTION_TX_COMPLETION role=%s driver_op_id=%u tx_done=%s tx_failed=%s duration_complete=%s op_cancelled=%s result=%s",
+             R1R3_LOCAL_ROLE,
+             (unsigned)driver_op_id,
+             s_control_tx_done ? "true" : "false",
+             s_control_tx_failed ? "true" : "false",
+             s_control_tx_duration_complete ? "true" : "false",
+             s_control_tx_cancelled ? "true" : "false",
+             completion_ok ? "PASS" : "FAIL");
     log_state("CONTROL_AFTER_SWITCH_TX_SETTLE");
     free(cfg);
     return err;
 }
 
-static esp_err_t roc_request(uint8_t channel, uint8_t op_id) {
+static esp_err_t roc_request(uint8_t channel, uint8_t request_op_id, uint8_t *driver_op_id_out) {
     esp_now_remain_on_channel_t cfg = {
         .type = WIFI_ROC_REQ,
         .channel = channel,
         .sec_channel = WIFI_SECOND_CHAN_NONE,
         .wait_time_ms = R1R3_ROC_WAIT_MS,
-        .op_id = op_id,
+        .op_id = request_op_id,
     };
     log_state("DUT_BEFORE_ROC_REQ");
     const esp_err_t err = esp_now_remain_on_channel(&cfg);
+    if (driver_op_id_out != NULL) *driver_op_id_out = cfg.op_id;
     ESP_LOGI(TAG,
-             "R1R3_ROC_REQ role=DUT target=%u wait_ms=%u op_id=%u result=%s",
+             "R1R3_ROC_REQ role=DUT target=%u wait_ms=%u request_op_id=%u driver_op_id=%u result=%s",
              (unsigned)channel,
              (unsigned)cfg.wait_time_ms,
+             (unsigned)request_op_id,
              (unsigned)cfg.op_id,
              esp_err_to_name(err));
     log_state("DUT_AFTER_ROC_REQ_RETURN");
     return err;
 }
 
-static esp_err_t roc_cancel(uint8_t channel, uint8_t op_id) {
+static esp_err_t roc_cancel(uint8_t channel, uint8_t request_driver_op_id) {
     esp_now_remain_on_channel_t cfg = {
         .type = WIFI_ROC_CANCEL,
         .channel = channel,
         .sec_channel = WIFI_SECOND_CHAN_NONE,
         .wait_time_ms = 0,
-        .op_id = op_id,
+        .op_id = request_driver_op_id,
     };
     log_state("DUT_BEFORE_ROC_CANCEL");
     const esp_err_t err = esp_now_remain_on_channel(&cfg);
     ESP_LOGI(TAG,
-             "R1R3_ROC_CANCEL role=DUT target=%u wait_ms=%u op_id=%u result=%s",
+             "R1R3_ROC_CANCEL role=DUT target=%u wait_ms=%u cancel_request_driver_op_id=%u cancel_api_returned_op_id=%u result=%s",
              (unsigned)channel,
              (unsigned)cfg.wait_time_ms,
+             (unsigned)request_driver_op_id,
              (unsigned)cfg.op_id,
              esp_err_to_name(err));
     log_state("DUT_AFTER_ROC_CANCEL_RETURN");
@@ -327,9 +550,25 @@ static void recv_cb(const esp_now_recv_info_t *info, const uint8_t *data, int le
 
 static void send_cb(const esp_now_send_info_t *info, esp_now_send_status_t status) {
     if (info == NULL || info->des_addr == NULL) return;
+    const char *purpose = "UNASSOCIATED";
+    if (s_home_ack_callback_waiting) {
+        purpose = s_home_ack_callback_ambiguous ? "HOME_ACK_UNKNOWN" : "HOME_ACK";
+        if (s_home_ack_callback_ambiguous || s_home_ack_callback_seen) {
+            s_home_ack_send_callback = R1R4_ASYNC_UNKNOWN;
+        } else {
+            s_home_ack_callback_seen = true;
+            s_home_ack_callback_waiting = false;
+            s_home_ack_send_callback =
+                status == ESP_NOW_SEND_SUCCESS ? R1R4_ASYNC_PASS : R1R4_ASYNC_FAIL;
+        }
+        xEventGroupSetBits(s_events, EV_HOME_ACK_SEND_CALLBACK);
+    } else if (s_non_home_send_callbacks_pending > 0) {
+        s_non_home_send_callbacks_pending--;
+    }
     ESP_LOGI(TAG,
-             "R1R3_SEND_CB role=%s dest=%02x:%02x:%02x:%02x:%02x:%02x status=%s",
+             "R1R3_SEND_CB role=%s purpose=%s dest=%02x:%02x:%02x:%02x:%02x:%02x status=%s",
              R1R3_LOCAL_ROLE,
+             purpose,
              info->des_addr[0], info->des_addr[1], info->des_addr[2],
              info->des_addr[3], info->des_addr[4], info->des_addr[5],
              status == ESP_NOW_SEND_SUCCESS ? "SUCCESS" : "FAIL");
@@ -338,7 +577,42 @@ static void send_cb(const esp_now_send_info_t *info, esp_now_send_status_t statu
 static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data) {
     (void)arg;
     (void)base;
-    (void)data;
+    if (id == WIFI_EVENT_ACTION_TX_STATUS && data != NULL) {
+        const wifi_event_action_tx_status_t *status = (const wifi_event_action_tx_status_t *)data;
+        const r1r4_op_event_t event = {
+            .kind = R1R4_OP_EVENT_ACTION_TX,
+            .op_id = status->op_id,
+            .channel = status->channel,
+            .status = (uint8_t)status->status,
+        };
+        if (s_op_event_queue == NULL || xQueueSend(s_op_event_queue, &event, 0) != pdTRUE) {
+            s_op_event_queue_overflow = true;
+            ESP_LOGE(TAG,
+                     "R1R4_OP_EVENT_QUEUE_OVERFLOW role=%s kind=ACTION_TX op_id=%u status=%u",
+                     R1R3_LOCAL_ROLE,
+                     (unsigned)event.op_id,
+                     (unsigned)event.status);
+        }
+        return;
+    }
+    if (id == WIFI_EVENT_ROC_DONE && data != NULL) {
+        const wifi_event_roc_done_t *status = (const wifi_event_roc_done_t *)data;
+        const r1r4_op_event_t event = {
+            .kind = R1R4_OP_EVENT_ROC_DONE,
+            .op_id = status->op_id,
+            .channel = status->channel,
+            .status = (uint8_t)status->status,
+        };
+        if (s_op_event_queue == NULL || xQueueSend(s_op_event_queue, &event, 0) != pdTRUE) {
+            s_op_event_queue_overflow = true;
+            ESP_LOGE(TAG,
+                     "R1R4_OP_EVENT_QUEUE_OVERFLOW role=%s kind=ROC_DONE op_id=%u status=%u",
+                     R1R3_LOCAL_ROLE,
+                     (unsigned)event.op_id,
+                     (unsigned)event.status);
+        }
+        return;
+    }
 #if CONFIG_R1R4_ROLE_CONTROL
     if (id == WIFI_EVENT_AP_STACONNECTED) {
         xEventGroupSetBits(s_events, EV_WIFI_LINK);
@@ -443,6 +717,7 @@ static void control_rx_task(void *arg) {
                      (unsigned)event.rx_channel, (unsigned)event.msg.seq);
             if (event.rx_channel == R1R3_HOME_CHANNEL) {
                 s_home_ack_ok = true;
+                s_home_ack_received = true;
                 xEventGroupSetBits(s_events, EV_HOME_ACK);
             }
         } else if (event.msg.type == R1R4_MSG_CAPTURE_READY) {
@@ -495,18 +770,43 @@ static void control_task(void *arg) {
     }
 
     vTaskDelay(pdMS_TO_TICKS(R1R3_CONTROL_PROBE_DELAY_MS));
+    s_control_tx_done = false;
+    s_control_tx_failed = false;
+    s_control_tx_duration_complete = false;
+    s_control_tx_cancelled = false;
     const esp_err_t probe_err = send_offchannel(
         s_peer_mac, R1R3_MSG_OFFCHANNEL_PROBE, 55, R1R3_TARGET_CHANNEL);
     ESP_LOGI(TAG, "R1R3_CONTROL_PROBE_TX result=%s", esp_err_to_name(probe_err));
+
+    s_control_home_return = log_home_channel_check(
+        "CONTROL_AFTER_ACTION_TX",
+        &s_control_home_ap_link,
+        &s_control_home_channel,
+        &s_control_home_channel_api_ok);
+    if (!s_control_home_return) {
+        ESP_LOGW(TAG, "R1R4_CONTROL_HOME_RETURN result=FAIL");
+    }
 
     const EventBits_t home_ack = xEventGroupWaitBits(
         s_events, EV_HOME_ACK, pdFALSE, pdTRUE, pdMS_TO_TICKS(7000));
     log_state("CONTROL_FINAL");
     ESP_LOGI(TAG,
-             "R1R3_SUMMARY role=CONTROL baseline=%s probe_tx_api=%s home_ack=%s",
+             "R1R3_SUMMARY role=CONTROL baseline=%s probe_tx_api=%s switch_tx_api=%s switch_tx_request_op_id=%u switch_tx_driver_op_id=%u switch_tx_completion=%s switch_tx_status=%s control_home_channel_api=%s control_home_channel=%u control_ap_sta_link=%s control_home_return=%s home_ack_api=NOT_APPLICABLE home_ack_send_callback=NOT_APPLICABLE home_ack_received=%s home_ack=%s",
              s_baseline_pass ? "PASS" : "FAIL",
              probe_err == ESP_OK ? "PASS" : "FAIL",
-             (home_ack & EV_HOME_ACK) && s_home_ack_ok ? "PASS" : "FAIL");
+             probe_err == ESP_OK ? "PASS" : "FAIL",
+             (unsigned)s_control_tx_request_op_id,
+             (unsigned)s_control_tx_driver_op_id,
+             s_control_tx_duration_complete ? "PASS" : "FAIL",
+             s_control_tx_duration_complete ? "TX_DURATION_COMPLETED" :
+                 (s_control_tx_failed ? "TX_FAILED" :
+                  (s_control_tx_cancelled ? "TX_OP_CANCELLED" : "TIMEOUT")),
+             s_control_home_channel_api_ok ? "PASS" : "FAIL",
+             (unsigned)s_control_home_channel,
+             s_control_home_ap_link ? "true" : "false",
+             s_control_home_return ? "PASS" : "FAIL",
+             (home_ack & EV_HOME_ACK) && s_home_ack_received ? "PASS" : "FAIL",
+             (home_ack & EV_HOME_ACK) && s_home_ack_received ? "PASS" : "FAIL");
 
     for (;;) vTaskDelay(pdMS_TO_TICKS(1000));
 }
@@ -638,8 +938,16 @@ static void dut_experiment_task(void *arg) {
 
     s_roc_active = true;
     s_roc_cancel_complete = false;
-    const esp_err_t req_err = roc_request(R1R3_TARGET_CHANNEL, R1R3_ROC_OP_ID);
+    s_roc_natural_complete = false;
+    s_roc_cancel_requested = false;
+    s_roc_cancel_api_ok = false;
+    s_roc_completion_status = 0xff;
+    s_roc_request_op_id = 0;
+    const uint8_t request_op_id = 0;
+    const esp_err_t req_err = roc_request(
+        R1R3_TARGET_CHANNEL, request_op_id, &s_roc_driver_op_id);
     s_roc_req_ok = req_err == ESP_OK;
+    s_roc_request_op_id = request_op_id;
 
     const EventBits_t probe = xEventGroupWaitBits(
         s_events, EV_PROBE_RX, pdFALSE, pdTRUE, pdMS_TO_TICKS(R1R3_ROC_PROBE_WAIT_MS));
@@ -650,13 +958,24 @@ static void dut_experiment_task(void *arg) {
 
     esp_err_t cancel_err = ESP_FAIL;
     if (s_roc_req_ok) {
-        cancel_err = roc_cancel(R1R3_TARGET_CHANNEL, R1R3_ROC_OP_ID);
-        s_roc_cancel_ok = cancel_err == ESP_OK;
+        s_roc_cancel_requested = true;
+        cancel_err = roc_cancel(R1R3_TARGET_CHANNEL, s_roc_driver_op_id);
+        s_roc_cancel_api_ok = cancel_err == ESP_OK;
+        if (s_roc_cancel_api_ok) {
+            (void)wait_for_roc_completion(s_roc_driver_op_id, R1R3_HOME_RECOVERY_TIMEOUT_MS);
+        }
     } else {
         ESP_LOGW(TAG, "R1R3_ROC_CANCEL skipped=true reason=ROC_REQ_FAILED");
     }
     s_roc_active = false;
-    s_roc_cancel_complete = true;
+    ESP_LOGI(TAG,
+             "R1R4_ROC_COMPLETION role=DUT request_op_id=%u driver_op_id=%u natural_complete=%s cancel_api=%s cancel_complete=%s status=%s",
+             (unsigned)s_roc_request_op_id,
+             (unsigned)s_roc_driver_op_id,
+             s_roc_natural_complete ? "true" : "false",
+             s_roc_cancel_api_ok ? "PASS" : "FAIL",
+             s_roc_cancel_complete ? "true" : "false",
+             roc_status_name(s_roc_completion_status));
 
     log_state("DUT_POST_CANCEL_IMMEDIATE");
     vTaskDelay(pdMS_TO_TICKS(100));
@@ -667,10 +986,10 @@ static void dut_experiment_task(void *arg) {
     const TickType_t deadline = xTaskGetTickCount() + pdMS_TO_TICKS(R1R3_HOME_RECOVERY_TIMEOUT_MS);
     unsigned reconnect_attempt = 0;
     while (xTaskGetTickCount() < deadline) {
-        uint8_t channel = 0;
-        const bool channel_ok = get_current_channel(&channel);
-        const bool associated = dut_sta_associated();
-        if (channel_ok && channel == R1R3_HOME_CHANNEL && associated) {
+        bool home_channel_api_ok = false;
+        const bool home_ready = log_home_channel_check(
+            "DUT_HOME_RECOVERY_POLL", NULL, NULL, &home_channel_api_ok);
+        if (home_ready && home_channel_api_ok) {
             s_home_recovery_ok = true;
             break;
         }
@@ -683,22 +1002,53 @@ static void dut_experiment_task(void *arg) {
         vTaskDelay(pdMS_TO_TICKS(500));
     }
 
+    bool final_home_link = false;
+    uint8_t final_home_channel = 0;
+    bool final_home_api_ok = false;
+    const bool final_home_return = log_home_channel_check(
+        "DUT_HOME_RECOVERY_FINAL",
+        &final_home_link,
+        &final_home_channel,
+        &final_home_api_ok);
+    ESP_LOGI(TAG, "R1R4_DUT_HOME_RETURN result=%s", final_home_return ? "PASS" : "FAIL");
     log_state("DUT_HOME_RECOVERY_FINAL");
     esp_err_t home_ack_err = ESP_FAIL;
     if (s_home_recovery_ok) {
         home_ack_err = send_normal(s_peer_mac, R1R3_MSG_HOME_ACK, 66);
         s_home_ack_ok = home_ack_err == ESP_OK;
+        if (s_home_ack_ok) {
+            const EventBits_t callback = xEventGroupWaitBits(
+                s_events,
+                EV_HOME_ACK_SEND_CALLBACK,
+                pdFALSE,
+                pdTRUE,
+                pdMS_TO_TICKS(1000));
+            if ((callback & EV_HOME_ACK_SEND_CALLBACK) == 0) {
+                s_home_ack_send_callback = R1R4_ASYNC_UNKNOWN;
+                ESP_LOGW(TAG, "R1R4_HOME_ACK_CALLBACK_TIMEOUT role=DUT api=PASS");
+            }
+        }
     }
     ESP_LOGI(TAG, "R1R3_HOME_ACK_TX result=%s", esp_err_to_name(home_ack_err));
 
     ESP_LOGI(TAG,
-             "R1R3_SUMMARY role=DUT baseline=%s roc_req=%s probe_rx=%s roc_cancel=%s home_recovery=%s home_ack_tx=%s disconnect_count=%lu",
+             "R1R3_SUMMARY role=DUT baseline=%s roc_req=%s roc_request_input_op_id=%u roc_driver_op_id=%u roc_natural_complete=%s roc_cancel_api=%s roc_cancel_complete=%s roc_completion_status=%s probe_rx=%s home_recovery=%s home_channel_api=%s home_channel=%u home_sta_link=%s home_ack_tx=%s home_ack_api=%s home_ack_send_callback=%s home_ack_received=NOT_APPLICABLE disconnect_count=%lu",
              s_baseline_pass ? "PASS" : "FAIL",
              s_roc_req_ok ? "PASS" : "FAIL",
+             (unsigned)s_roc_request_op_id,
+             (unsigned)s_roc_driver_op_id,
+             s_roc_natural_complete ? "true" : "false",
+             s_roc_cancel_api_ok ? "PASS" : "FAIL",
+             s_roc_cancel_complete ? "PASS" : "FAIL",
+             roc_status_name(s_roc_completion_status),
              s_probe_rx_ok ? "PASS" : "FAIL",
-             s_roc_cancel_ok ? "PASS" : "FAIL",
              s_home_recovery_ok ? "PASS" : "FAIL",
+             final_home_api_ok ? "PASS" : "FAIL",
+             (unsigned)final_home_channel,
+             final_home_link ? "true" : "false",
              s_home_ack_ok ? "PASS" : "FAIL",
+             s_home_ack_api_ok ? "PASS" : "FAIL",
+             async_result_name(s_home_ack_send_callback),
              (unsigned long)s_wifi_disconnect_count);
 
     for (;;) vTaskDelay(pdMS_TO_TICKS(1000));
@@ -719,7 +1069,8 @@ void app_main(void) {
 
     s_events = xEventGroupCreate();
     s_rx_queue = xQueueCreate(16, sizeof(r1r3_rx_event_t));
-    if (s_events == NULL || s_rx_queue == NULL) abort();
+    s_op_event_queue = xQueueCreate(16, sizeof(r1r4_op_event_t));
+    if (s_events == NULL || s_rx_queue == NULL || s_op_event_queue == NULL) abort();
 
 #if CONFIG_R1R4_ROLE_CONTROL
     wifi_init_control();
