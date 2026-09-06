@@ -150,6 +150,7 @@ class LocalPathController {
   explicit LocalPathController(LocalPathPolicy policy) : policy_(policy) {}
 
   LocalPathState state() const { return state_; }
+  RadioError reset(LocalPathState initial_state = LocalPathState::DIRECT);
   RadioError note_direct_result(bool success);
   RadioError note_authenticated_relay_ready(bool ready);
   RadioError note_relay_result(bool success);

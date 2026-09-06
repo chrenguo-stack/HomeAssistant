@@ -91,6 +91,52 @@ ProvisionedPeerStateV2 make_state(const std::string &node_id, uint8_t app_key_by
 }  // namespace
 
 int main() {
+  const MacAddress offline_mac{0x02, 0x00, 0x00, 0x00, 0x00, 0x0C};
+  const auto offline_state = make_state("node_offline", 0x33);
+
+  {
+    FakeClock invalid_clock;
+    FakeRandom invalid_random;
+    FakePort invalid_port;
+    SimpleProductRuntime invalid_runtime(
+        &invalid_port, &invalid_clock, &invalid_random);
+    assert(
+        invalid_runtime.start(
+            offline_state,
+            offline_mac,
+            0,
+            SimpleProductStartMode::DIRECT) ==
+        SimpleProductError::INVALID_ARGUMENT);
+  }
+
+  {
+    FakeClock offline_clock;
+    FakeRandom offline_random;
+    FakePort offline_port;
+    SimpleProductRuntime offline(
+        &offline_port, &offline_clock, &offline_random);
+    assert(
+        offline.start(
+            offline_state,
+            offline_mac,
+            0,
+            SimpleProductStartMode::DISCOVERY) == SimpleProductError::NONE);
+    assert(offline.path_state() == LocalPathState::DISCOVERY);
+    assert(offline.direct_channel_hint() == 0);
+    assert(offline_port.channel == 1);
+
+    offline_clock.value += 250;
+    assert(offline.tick() == SimpleProductError::NONE);
+    assert(offline_port.channel == 6);
+
+    assert(offline.update_direct_channel_hint(11));
+    assert(offline.note_direct_recovery_probe(true) == SimpleProductError::NONE);
+    assert(offline.path_state() == LocalPathState::DISCOVERY);
+    assert(offline.note_direct_recovery_probe(true) == SimpleProductError::NONE);
+    assert(offline.path_state() == LocalPathState::DIRECT);
+    assert(offline_port.channel == 11);
+  }
+
   FakeClock child_clock;
   FakeClock relay_clock;
   FakeRandom child_random;

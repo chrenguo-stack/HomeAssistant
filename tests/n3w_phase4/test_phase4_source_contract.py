@@ -58,9 +58,18 @@ def test_simplified_port_never_mutates_an_associated_sta_channel() -> None:
     wifi_gate = body.index("if (wifi_connected())")
     observe_channel = body.index("esp_wifi_get_channel", wifi_gate)
     same_channel_success = body.index("return current_channel == channel", observe_channel)
-    driver_mutation = body.index("return radio_.set_channel(channel)", same_channel_success)
+    driver_mutation = body.index("radio_.set_channel(channel)", same_channel_success)
+    broadcast_rebind = body.index(
+        "radio_.prepare_broadcast_peer(channel)", driver_mutation
+    )
 
-    assert wifi_gate < observe_channel < same_channel_success < driver_mutation
+    assert (
+        wifi_gate
+        < observe_channel
+        < same_channel_success
+        < driver_mutation
+        < broadcast_rebind
+    )
     assert body.count("radio_.set_channel(channel)") == 1
     assert body.count("esp_wifi_get_channel") == 1
 
@@ -71,7 +80,8 @@ def test_simplified_port_never_mutates_an_associated_sta_channel() -> None:
     # Runtime start intentionally keeps the generic port contract. The concrete
     # ESP32 product adapter must make an idempotent request for the already-owned
     # STA channel a no-op, so this indirect path can no longer reach
-    # esp_wifi_set_channel() while associated.
+    # esp_wifi_set_channel() while associated. The disconnected branch may then
+    # switch channels and rebind the broadcast peer for Relay discovery.
     assert "port_->set_radio_channel(direct_channel_)" in runtime_body
 
 
@@ -227,6 +237,7 @@ def test_simplified_manager_network_entrypoints_remain_opt_in() -> None:
     assert "N3wMultiIngressRouter" not in normal_app
     assert "SimplifiedPairingRuntime" not in normal_app
     assert "assemble_simplified_pairing_runtime" in pairing_runtime
+
 
 def test_tls_server_name_repair_separates_tcp_target_from_tls_identity() -> None:
     source = text(CORE / "n3w_simple_product_component.cpp")

@@ -24,6 +24,11 @@ enum class SimpleProductError : uint8_t {
   STATE_REJECTED,
 };
 
+enum class SimpleProductStartMode : uint8_t {
+  DIRECT = 0,
+  DISCOVERY,
+};
+
 struct SimpleProductPolicy {
   LocalPathPolicy path{};
   std::vector<uint8_t> allowed_channels{1, 6, 11};
@@ -85,7 +90,8 @@ class SimpleProductRuntime {
   SimpleProductError start(
       const ProvisionedPeerStateV2 &state,
       const MacAddress &local_mac,
-      uint8_t direct_channel);
+      uint8_t direct_channel,
+      SimpleProductStartMode start_mode = SimpleProductStartMode::DIRECT);
   void stop();
   SimpleProductError tick();
 
