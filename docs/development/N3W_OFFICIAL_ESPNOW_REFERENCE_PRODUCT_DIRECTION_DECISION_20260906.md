@@ -51,6 +51,29 @@ The repair direction is:
 
 Important: the repair must not be implemented as merely deleting the existing `wifi_connected()` guard. The runtime start contract and initial-path semantics must also be corrected so that a node can start legitimately without a known Direct channel.
 
+### 3.1 Route clarification — disconnected Relay discovery is the required failover path
+
+The product must distinguish two different cross-channel scenarios:
+
+1. **Wi-Fi-disconnected Relay discovery — required product behavior.** A provisioned node has no usable Direct Wi-Fi association. In this state N3-W must still be able to start and autonomously search for a trusted Relay-capable peer.
+2. **Associated off-channel operation — optional capability / separate validation subject.** A node remains logically associated to an AP while temporarily operating away from the AP home channel.
+
+The first case is the required failover path. The second case must not be a prerequisite for the first.
+
+A cached Relay or cached Relay channel is only a search optimization. It is not authoritative because the previous Relay may have moved, lost power, lost Wi-Fi, changed channel, or otherwise become unavailable.
+
+Therefore, after Direct Wi-Fi is unavailable, the node-local discovery policy must be able to:
+
+1. try the current / last-known useful channel first when available;
+2. try a cached trusted Relay channel as a hint when available;
+3. if no acceptable Relay is found, perform a bounded sweep of the allowed channel set;
+4. on each candidate channel, perform the required ESP-NOW discovery exchange;
+5. stop scanning as soon as an acceptable trusted Relay path is established.
+
+This scan is an N3-W application-level discovery loop constructed from Espressif-supported Wi-Fi / ESP-NOW primitives. The project does not require Espressif to provide a single high-level "automatic Relay scan" API.
+
+Because a Wi-Fi-disconnected node cannot communicate with Home Assistant / Manager through its lost Direct path, this discovery process must be node-local and autonomous. Home Assistant / Manager may retain last-known channel information for diagnostics or as a future hint, but they are not a real-time authority for offline channel selection.
+
 ## 4. Gap 2 — channel-management architecture
 
 ### Conclusion
@@ -69,7 +92,7 @@ The low-level channel-control layer should preferentially use Espressif-supporte
 N3-W retains only the simple product-level policy/state logic required for:
 
 - Direct-first preference;
-- bounded Relay discovery;
+- Wi-Fi-disconnected autonomous bounded Relay discovery;
 - single-hop Relay selection;
 - bounded Direct recovery;
 - peer trust/security decisions;
@@ -101,13 +124,13 @@ The stock Espressif ESP-NOW example at the bound revision still configures its b
 
 ### Product direction
 
-Use “current-channel peer + official controlled channel operation” as the **preferred candidate for further validation**, because it may cleanly separate:
+Use “current-channel peer + official controlled channel operation” as a candidate for further validation where associated off-channel behavior is useful.
 
-- peer semantics: communicate on the radio’s current working channel;
-- discovery policy: N3-W chooses the target channel;
-- low-level channel operation: official Espressif API performs the bounded transition.
+However, **closing the full associated off-channel lifecycle is no longer a prerequisite for implementing or validating Wi-Fi-disconnected autonomous Relay discovery**.
 
-Do not implement this combination in product source until the remaining lifecycle evidence is closed.
+For the required disconnected failover path, use the simplest Espressif-supported channel-control + ESP-NOW discovery mechanism that can perform the bounded channel sweep safely on the exact ESP32-C6 / ESP-IDF authority.
+
+Do not implement a complex product radio-ownership layer merely to preserve an existing Wi-Fi association across temporary off-channel operation unless later product evidence proves that capability is actually required.
 
 ## 6. Why N3-W needs cross-channel capability
 
@@ -118,18 +141,22 @@ N3-W cannot assume that every nearby node will always be on the same channel bec
 - devices are not factory-bound to specific peers;
 - users may add nodes later;
 - a node may lose Direct Wi-Fi while another nearby node remains associated to a router on a different channel;
+- a cached Relay/channel may become stale;
 - the searching node does not know in advance which nearby trusted Relay-capable node or channel will be available.
 
 Therefore cross-channel operation is a **fallback discovery capability**, not the normal steady-state mode.
 
+The primary required case is a node with no usable Direct Wi-Fi path. It must be able to discover a Relay without depending on Home Assistant or Manager for real-time channel guidance.
+
 Preferred search order:
 
-1. Try the current / last-known channel first.
-2. If a trusted Relay is found, stay with that channel and avoid broader scanning.
-3. Only if that fails, perform bounded scanning of the allowed channel set.
-4. Stop scanning as soon as an acceptable Relay path is established.
+1. Try the current / last-known useful channel first.
+2. Try a cached trusted Relay channel as a hint if available.
+3. If a trusted Relay is found, stay with that channel and avoid broader scanning.
+4. Only if that fails, perform bounded scanning of the allowed channel set.
+5. Stop scanning as soon as an acceptable Relay path is established.
 
-This keeps the common case simple and limits radio disruption.
+This keeps the common case simple and makes failover self-contained on the node.
 
 ## 7. Frozen product-direction decision
 
@@ -140,6 +167,18 @@ The following direction is now authoritative for subsequent N3-W development:
 **Modify.**
 
 Provisioned runtime startup must no longer require live Wi-Fi association before ESP-NOW discovery/Relay can start.
+
+### Wi-Fi-disconnected Relay discovery
+
+**Required product behavior.**
+
+A provisioned node with no usable Direct Wi-Fi association must be able to start N3-W and autonomously perform bounded channel-by-channel Relay discovery. Cached Relay/channel information is an optimization hint only, never a prerequisite or authority.
+
+### Associated off-channel operation
+
+**Not a prerequisite for failover.**
+
+Keeping a live AP association while temporarily leaving the AP home channel may continue to be studied, but it is not the primary Relay acquisition path and must not block implementation of disconnected Relay discovery.
 
 ### Low-level channel control
 
@@ -157,29 +196,25 @@ N3-W remains responsible for Direct-first preference, bounded discovery, peer/pa
 
 **Do not implement for now.**
 
-Only reconsider it if bounded official mechanisms are later proven insufficient on the exact ESP32-C6 / ESP-IDF authority.
+Only reconsider it if official mechanisms are later proven insufficient for a required product behavior on the exact ESP32-C6 / ESP-IDF authority.
 
-### Current-channel peer + controlled off-channel operation
+### Current-channel peer + controlled associated off-channel operation
 
-**Preferred candidate for continued validation.**
+**Optional candidate for continued validation.**
 
-Treat it as an N3-W design candidate built from official capabilities, not as an Espressif-recommended architecture.
+Treat it as an N3-W design candidate built from official capabilities, not as an Espressif-recommended architecture, and not as a gate for disconnected Relay discovery.
 
 ## 8. Immediate development sequence
 
 The next development sequence is:
 
-1. Complete the current R1R4 evidence-harness issue only to the point required to obtain reliable physical evidence; do not reopen historical CI root-cause archaeology.
-2. Close the remaining official bounded off-channel lifecycle evidence:
-   - receive while temporarily operating off the home channel;
-   - cancel/end the bounded operation;
-   - return to the original home channel;
-   - recover Wi-Fi association as applicable;
-   - resume normal home-channel ESP-NOW operation.
-3. Re-evaluate the deferred KF-089 repair against those results.
-4. Implement the smallest product repair consistent with this document.
-5. Run host regression and then bounded physical validation.
-6. Return to the N3-W three-board / T1 real-world Direct → Relay → Direct acceptance route.
+1. Rebind current product source and identify the complete startup contract surrounding `start_runtime_if_ready_()`; do not reduce the repair to deletion of the `wifi_connected()` guard.
+2. Define the minimum legitimate no-association startup state and initial-path semantics.
+3. Implement Wi-Fi-disconnected autonomous bounded Relay discovery using the smallest Espressif-supported channel-control + ESP-NOW discovery mechanism.
+4. Run host regression and bounded physical validation of cold boot / Wi-Fi loss → channel sweep → trusted Relay acquisition → Relay telemetry.
+5. Validate bounded Direct recovery from Relay back to Wi-Fi.
+6. Continue associated off-channel lifecycle work only if it remains useful as a separate capability; do not let it block the required disconnected failover route.
+7. Return to the N3-W three-board / T1 real-world Direct → Relay → Direct acceptance route.
 
 ## 9. Architecture guard
 
@@ -193,8 +228,12 @@ Preferred order:
 
 No new full radio-ownership subsystem, parallel Wi-Fi state machine, or equivalent low-level abstraction may be introduced merely as a precautionary design.
 
+The following additional guard is frozen:
+
+> A node that has lost Wi-Fi must not depend on Home Assistant, Manager, or a previously cached Relay remaining valid in order to discover a new Relay. Relay discovery after Direct loss is a node-local autonomous operation.
+
 ## 10. Final disposition
 
 This document is the active design authority for the next N3-W ESP-NOW development stage.
 
-The deferred KF-089 design remains archived reference material, but any portions that assume a full radio-ownership state machine are subordinate to this decision and must be re-evaluated before implementation.
+The deferred KF-089 design remains archived reference material, but any portions that assume a full radio-ownership state machine or that make associated off-channel lifecycle closure a prerequisite for disconnected Relay acquisition are subordinate to this decision and must be re-evaluated before implementation.
