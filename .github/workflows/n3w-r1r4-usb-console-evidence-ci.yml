@@ -109,6 +109,9 @@ jobs:
             R1R4_CAPTURE_READY_TX \
             R1R4_CAPTURE_READY_RX \
             R1R4_LIFECYCLE_GATE_OPEN \
+            R1R3_STAGE_ATTEMPT \
+            R1R3_STAGE_TIMEOUT \
+            R1R3_STAGE_NOT_EXECUTED \
             WIFI_ROC_REQ \
             WIFI_ROC_CANCEL \
             esp_now_remain_on_channel \
@@ -121,6 +124,10 @@ jobs:
           grep -q 'R1R3_TARGET_CHANNEL 6' "$SRC"
           grep -q 'R1R3_ROC_WAIT_MS 3000' "$SRC"
           grep -q 'R1R3_ROC_OP_ID 77' "$SRC"
+          grep -q 'R1R3_INITIAL_ASSOC_MAX_ATTEMPTS 3' "$SRC"
+          grep -q 'R1R3_INITIAL_ASSOC_TIMEOUT_MS 15000' "$SRC"
+          grep -q 'R1R3_BASELINE_TIMEOUT_MS 15000' "$SRC"
+          grep -q 'R1R3_OFFCHANNEL_START_TIMEOUT_MS 15000' "$SRC"
           if grep -q 'CONFIG_ESP_CONSOLE_UART_DEFAULT' "$GITHUB_WORKSPACE/$DIAG_PATH/sdkconfig.defaults.control"; then exit 1; fi
           if grep -q 'CONFIG_ESP_CONSOLE_UART_CUSTOM' "$GITHUB_WORKSPACE/$DIAG_PATH/sdkconfig.defaults.control"; then exit 1; fi
           echo "R1R4_EVIDENCE_HARDENING_SOURCE_CONTRACT=PASS"
@@ -238,6 +245,11 @@ jobs:
             echo "SECONDARY_CONSOLE=NONE"
             echo "CAPTURE_HEARTBEAT_INTERVAL_MS=250"
             echo "CAPTURE_ARM_DELAY_MS=5000"
+            echo "INITIAL_ASSOC_MAX_ATTEMPTS=3"
+            echo "INITIAL_ASSOC_TIMEOUT_MS=15000"
+            echo "BASELINE_TIMEOUT_MS=15000"
+            echo "OFFCHANNEL_START_TIMEOUT_MS=15000"
+            echo "HOST_LIVE_CAPTURE_WINDOW_S=60"
             echo "CAPTURE_READY_HANDSHAKE=true"
             echo "R1R4_OFFICIAL_USB_CONSOLE_AUTHORITY=PASS"
             echo "R1R4_OFFICIAL_CONSOLE_KCONFIG_SHA256=$R1R4_OFFICIAL_CONSOLE_KCONFIG_SHA256"

@@ -26,6 +26,11 @@
 #define R1R3_ROC_PROBE_WAIT_MS 1500
 #define R1R3_HOME_RECOVERY_TIMEOUT_MS 5000
 #define R1R3_ROC_OP_ID 77
+#define R1R3_INITIAL_ASSOC_MAX_ATTEMPTS 3
+#define R1R3_INITIAL_ASSOC_TIMEOUT_MS 15000
+#define R1R3_INITIAL_ASSOC_ATTEMPT_WAIT_MS 5000
+#define R1R3_BASELINE_TIMEOUT_MS 15000
+#define R1R3_OFFCHANNEL_START_TIMEOUT_MS 15000
 
 static const char *TAG = "n3w_r1r4_usb";
 static const char *R1R3_AP_SSID = "N3W-R1R3-ROC";
@@ -76,6 +81,10 @@ static bool s_probe_rx_ok;
 static bool s_roc_cancel_ok;
 static bool s_home_recovery_ok;
 static bool s_home_ack_ok;
+static volatile bool s_initial_assoc_active;
+static volatile uint8_t s_initial_assoc_last_disconnect_reason;
+static uint8_t s_initial_assoc_attempts;
+static esp_err_t s_initial_assoc_last_result = ESP_FAIL;
 
 #define EV_WIFI_LINK BIT0
 #define EV_BASELINE BIT1
@@ -343,10 +352,17 @@ static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
         xEventGroupSetBits(s_events, EV_WIFI_LINK);
         ESP_LOGI(TAG, "R1R3_WIFI_EVENT role=DUT STA_CONNECTED");
     } else if (id == WIFI_EVENT_STA_DISCONNECTED) {
+        uint8_t reason = 0;
+        if (data != NULL) {
+            reason = ((const wifi_event_sta_disconnected_t *)data)->reason;
+        }
+        s_initial_assoc_last_disconnect_reason = reason;
         s_wifi_disconnect_count++;
         xEventGroupClearBits(s_events, EV_WIFI_LINK);
         ESP_LOGW(TAG,
-                 "R1R3_WIFI_EVENT role=DUT STA_DISCONNECTED count=%lu roc_active=%s cancel_complete=%s",
+                 "R1R3_WIFI_EVENT role=DUT STA_DISCONNECTED reason=%u initial_assoc_active=%s count=%lu roc_active=%s cancel_complete=%s",
+                 (unsigned)reason,
+                 s_initial_assoc_active ? "true" : "false",
                  (unsigned long)s_wifi_disconnect_count,
                  s_roc_active ? "true" : "false",
                  s_roc_cancel_complete ? "true" : "false");
@@ -388,7 +404,6 @@ static void wifi_init_dut(void) {
     sta.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &sta));
     ESP_ERROR_CHECK(esp_wifi_start());
-    ESP_ERROR_CHECK(esp_wifi_connect());
 }
 
 static void espnow_init_common(void) {
@@ -536,16 +551,86 @@ static void dut_rx_task(void *arg) {
     }
 }
 
+static bool wait_initial_association(void) {
+    const TickType_t start = xTaskGetTickCount();
+    const TickType_t deadline = start + pdMS_TO_TICKS(R1R3_INITIAL_ASSOC_TIMEOUT_MS);
+    s_initial_assoc_active = true;
+    s_initial_assoc_attempts = 0;
+    s_initial_assoc_last_result = ESP_FAIL;
+
+    while (s_initial_assoc_attempts < R1R3_INITIAL_ASSOC_MAX_ATTEMPTS &&
+           xTaskGetTickCount() < deadline) {
+        s_initial_assoc_attempts++;
+        s_initial_assoc_last_result = esp_wifi_connect();
+        ESP_LOGI(TAG,
+                 "R1R3_STAGE_ATTEMPT stage=INITIAL_ASSOCIATION attempt=%u/%u api_result=%s disconnect_reason=%u",
+                 (unsigned)s_initial_assoc_attempts,
+                 (unsigned)R1R3_INITIAL_ASSOC_MAX_ATTEMPTS,
+                 esp_err_to_name(s_initial_assoc_last_result),
+                 (unsigned)s_initial_assoc_last_disconnect_reason);
+
+        const TickType_t attempt_deadline =
+            xTaskGetTickCount() + pdMS_TO_TICKS(R1R3_INITIAL_ASSOC_ATTEMPT_WAIT_MS);
+        while ((xEventGroupGetBits(s_events) & EV_WIFI_LINK) == 0 &&
+               xTaskGetTickCount() < attempt_deadline &&
+               xTaskGetTickCount() < deadline) {
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+        if ((xEventGroupGetBits(s_events) & EV_WIFI_LINK) != 0) {
+            s_initial_assoc_active = false;
+            ESP_LOGI(TAG,
+                     "R1R3_STAGE_RESULT stage=INITIAL_ASSOCIATION result=PASS attempts=%u last_api_result=%s disconnect_reason=%u",
+                     (unsigned)s_initial_assoc_attempts,
+                     esp_err_to_name(s_initial_assoc_last_result),
+                     (unsigned)s_initial_assoc_last_disconnect_reason);
+            return true;
+        }
+    }
+
+    s_initial_assoc_active = false;
+    ESP_LOGW(TAG,
+             "R1R3_STAGE_TIMEOUT stage=INITIAL_ASSOCIATION result=TIMEOUT attempts=%u max_attempts=%u window_ms=%u last_api_result=%s disconnect_reason=%u",
+             (unsigned)s_initial_assoc_attempts,
+             (unsigned)R1R3_INITIAL_ASSOC_MAX_ATTEMPTS,
+             (unsigned)R1R3_INITIAL_ASSOC_TIMEOUT_MS,
+             esp_err_to_name(s_initial_assoc_last_result),
+             (unsigned)s_initial_assoc_last_disconnect_reason);
+    return false;
+}
+
 static void dut_experiment_task(void *arg) {
     (void)arg;
     ESP_LOGI(TAG, "R1R3_ROLE=DUT HOME_CHANNEL=%u TARGET_CHANNEL=%u",
              R1R3_HOME_CHANNEL, R1R3_TARGET_CHANNEL);
 
-    (void)xEventGroupWaitBits(s_events, EV_BASELINE, pdFALSE, pdTRUE, portMAX_DELAY);
+    if (!wait_initial_association()) {
+        ESP_LOGW(TAG, "R1R3_STAGE_NOT_EXECUTED stage=BASELINE reason=INITIAL_ASSOCIATION_TIMEOUT");
+        ESP_LOGW(TAG, "R1R3_STAGE_NOT_EXECUTED stage=OFFCHANNEL reason=BASELINE_NOT_REACHED");
+        for (;;) vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+
+    const EventBits_t baseline = xEventGroupWaitBits(
+        s_events, EV_BASELINE, pdFALSE, pdTRUE, pdMS_TO_TICKS(R1R3_BASELINE_TIMEOUT_MS));
+    if ((baseline & EV_BASELINE) == 0) {
+        ESP_LOGW(TAG,
+                 "R1R3_STAGE_TIMEOUT stage=BASELINE result=TIMEOUT window_ms=%u",
+                 (unsigned)R1R3_BASELINE_TIMEOUT_MS);
+        ESP_LOGW(TAG, "R1R3_STAGE_NOT_EXECUTED stage=OFFCHANNEL reason=BASELINE_TIMEOUT");
+        for (;;) vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+    ESP_LOGI(TAG, "R1R3_STAGE_RESULT stage=BASELINE result=PASS");
     log_state("DUT_BASELINE_ESTABLISHED");
     ESP_LOGI(TAG, "R1R3_BASELINE_RESULT=PASS");
 
-    (void)xEventGroupWaitBits(s_events, EV_START_ROC, pdFALSE, pdTRUE, portMAX_DELAY);
+    const EventBits_t start_roc = xEventGroupWaitBits(
+        s_events, EV_START_ROC, pdFALSE, pdTRUE, pdMS_TO_TICKS(R1R3_OFFCHANNEL_START_TIMEOUT_MS));
+    if ((start_roc & EV_START_ROC) == 0) {
+        ESP_LOGW(TAG,
+                 "R1R3_STAGE_TIMEOUT stage=OFFCHANNEL result=TIMEOUT window_ms=%u",
+                 (unsigned)R1R3_OFFCHANNEL_START_TIMEOUT_MS);
+        for (;;) vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+    ESP_LOGI(TAG, "R1R3_STAGE_RESULT stage=OFFCHANNEL result=EXECUTED");
     log_state("DUT_PRE_ARM");
     const esp_err_t armed_err = send_normal(s_peer_mac, R1R3_MSG_ROC_ARMED, 20);
     ESP_LOGI(TAG, "R1R3_ROC_ARMED_TX result=%s", esp_err_to_name(armed_err));

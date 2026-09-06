@@ -16,6 +16,7 @@ SPEC.loader.exec_module(module)
 DualCapture = module.DualCapture
 RoleBinding = module.RoleBinding
 SerialBackend = module.SerialBackend
+run_live_capture_window = module._run_live_capture_window
 
 
 class Clock:
@@ -256,6 +257,35 @@ def test_serial_backend_uses_non_toggling_lines_and_reconnects(tmp_path: Path) -
     assert any(event.kind == "capture_interrupted" and event.role == "DUT" for event in capture.events)
     assert manifest["capture_valid"] is False
     backend.close_all()
+
+
+def test_live_window_runs_without_operator_input_and_is_bounded(tmp_path: Path) -> None:
+    clock = Clock()
+    capture = make_capture(tmp_path, clock)
+    capture.mark_reader_ready("CONTROL", "control-usb")
+    capture.mark_reader_ready("DUT", "dut-usb")
+    assert capture.begin_host_capture()
+    sleeps: list[float] = []
+
+    def sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+        clock.advance(max(seconds, 0.001))
+
+    run_live_capture_window(capture, duration_s=0.05, clock=lambda: clock.now / 1_000_000_000, sleeper=sleep)
+    manifest = capture.finalize(now_ns=clock.now)
+
+    assert capture.experiment_started is True
+    assert sleeps
+    assert any(event.kind == "experiment_started" for event in capture.events)
+    assert manifest["capture_valid"] is False
+
+
+def test_live_cli_has_no_enter_gate_and_keeps_sixty_second_window() -> None:
+    source = MODULE_PATH.read_text(encoding="utf-8")
+    assert "LIVE_CAPTURE_DURATION_S = 60.0" in source
+    assert "_wait_for_operator_confirmation" not in source
+    assert "operator-timeout-s" not in source
+    assert "fixed 60-second capture window started; no operator input required" in source
 
 
 def test_multiple_initial_boot_lines_are_allowed_before_heartbeat(tmp_path: Path) -> None:

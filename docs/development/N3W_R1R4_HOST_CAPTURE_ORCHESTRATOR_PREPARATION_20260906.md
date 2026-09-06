@@ -16,7 +16,7 @@ The state machine distinguishes:
 
 - `collector_ready`: a reader has reported a matching unique device binding;
 - `heartbeat_received`: actual bytes contained a heartbeat;
-- `experiment_started`: the host operator passed the pre-start barrier;
+- `experiment_started`: the host entered the fixed live capture window;
 - `experiment_start_observed`: a device lifecycle gate was observed;
 - `summary_received` / `experiment_end_observed`: a role emitted its summary;
 - `port_disconnected`, `port_reconnected`, `log_missing`, and
@@ -56,8 +56,9 @@ host-only boundary.
 7. duplicate device binding, role swap, non-empty output directory, and the
    simulated serial backend's disconnect/reconnect plus boot-session guard.
 8. bytes received after `HOST_COLLECTOR_READY` followed by disconnect before
-   operator confirmation, which is invalidated rather than treated as a
+   the capture window completes, which is invalidated rather than treated as a
    complete capture.
+9. a bounded live window that starts without operator input.
 
 These tests prove only the host state machine and replay behavior. They do not
 prove real USB enumeration timing.
@@ -68,15 +69,15 @@ prove real USB enumeration timing.
    bind each physical USB identity to CONTROL or DUT before opening a reader.
 2. Start both reader loops and their durable raw/event outputs.
 3. Require two explicit `collector_ready` events with matching identities.
-4. Announce `HOST_COLLECTOR_READY` only after the reader loop is running. Keep
-   reading while waiting for bounded operator confirmation; do not block the
-   reader on `Enter`.
-5. Only then power/reset/start the diagnostic application according to the
+4. Announce `HOST_COLLECTOR_READY` only after the reader loop is running, then
+   start the fixed 60-second capture window immediately. No Enter or other
+   operator input is required, and the reader never blocks on stdin.
+5. Power/reset/start the diagnostic application according to the
    already-approved physical procedure. Do not wait for a device lifecycle
    gate to start capture.
-6. Keep reading until both role summaries are received or the bounded summary
-   deadline expires. Require heartbeat → lifecycle gate → summary on each
-   endpoint; otherwise write `capture_completeness=INCOMPLETE` and
+6. Keep reading until both role summaries are received or the bounded 60-second
+   window ends. Require heartbeat → lifecycle gate → summary on each endpoint;
+   otherwise write `capture_completeness=INCOMPLETE` and
    `capture_valid=false`.
 7. If USB re-enumerates, record disconnect, accept only the same bound device
    identity on reconnect, and resume the same role's files. A mismatch is a

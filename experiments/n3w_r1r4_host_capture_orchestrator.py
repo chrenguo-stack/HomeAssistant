@@ -14,8 +14,6 @@ import argparse
 import hashlib
 import json
 import re
-import select
-import sys
 import threading
 import time
 from dataclasses import dataclass, field
@@ -25,6 +23,7 @@ from typing import Callable, Iterable, Literal
 
 Role = Literal["CONTROL", "DUT"]
 ROLES: tuple[Role, Role] = ("CONTROL", "DUT")
+LIVE_CAPTURE_DURATION_S = 60.0
 
 
 @dataclass(frozen=True)
@@ -208,8 +207,8 @@ class DualCapture:
         state.connected = False
         state.disconnected = True
         # Bytes received after HOST_COLLECTOR_READY are already evidence. A
-        # disconnect during the operator-confirmation window must not be
-        # hidden merely because begin_experiment() has not been called yet.
+        # disconnect after reader readiness must not be hidden merely because
+        # the bounded capture window has not completed yet.
         if self.host_started and state.data_seen:
             state.capture_interrupted = True
             self._emit(
@@ -234,7 +233,7 @@ class DualCapture:
         return True
 
     def begin_experiment(self, *, now_ns: int | None = None) -> bool:
-        """Mark the operator/device experiment start after the host barrier."""
+        """Mark the device experiment start after the host reader barrier."""
         if not self.host_started or not self.ready_barrier():
             self._emit("experiment_start_blocked", None, {"reason": "host_capture_not_ready"}, now_ns=now_ns)
             return False
@@ -613,19 +612,19 @@ def _feed_file(capture: DualCapture, role: Role, path: Path) -> None:
         capture.feed(role, path.read_bytes())
 
 
-def _wait_for_operator_confirmation(timeout_s: float) -> bool:
-    """Wait for Enter without stopping the background reader loop."""
-    deadline = time.monotonic() + timeout_s
-    while time.monotonic() < deadline:
-        remaining = max(0.0, deadline - time.monotonic())
-        try:
-            readable, _, _ = select.select([sys.stdin], [], [], min(0.2, remaining))
-        except (OSError, ValueError):
-            return False
-        if readable:
-            sys.stdin.readline()
-            return True
-    return False
+def _run_live_capture_window(
+    capture: DualCapture,
+    *,
+    duration_s: float = LIVE_CAPTURE_DURATION_S,
+    clock: Callable[[], float] = time.monotonic,
+    sleeper: Callable[[float], None] = time.sleep,
+) -> None:
+    """Run the bounded live window without an operator-input barrier."""
+    capture.begin_experiment()
+    deadline = clock() + duration_s
+    while clock() < deadline and not all(state.summary_seen for state in capture.states.values()):
+        capture.tick()
+        sleeper(min(0.02, max(0.0, deadline - clock())))
 
 
 def main() -> int:
@@ -638,8 +637,6 @@ def main() -> int:
     parser.add_argument("--dut-device", required=True)
     parser.add_argument("--control-port")
     parser.add_argument("--dut-port")
-    parser.add_argument("--duration-s", type=float, default=60.0)
-    parser.add_argument("--operator-timeout-s", type=float, default=30.0)
     args = parser.parse_args()
     capture = DualCapture(
         args.output_dir,
@@ -674,17 +671,10 @@ def main() -> int:
         else:
             print(
                 "HOST_COLLECTOR_READY=true; reader loop is running; "
-                "start the already-approved diagnostic application, then press Enter"
+                "fixed 60-second capture window started; no operator input required"
             )
-            if not _wait_for_operator_confirmation(args.operator_timeout_s):
-                capture._emit("operator_confirmation_timeout", None, {"timeout_s": args.operator_timeout_s})
-            else:
-                capture.begin_experiment()
-                deadline = time.monotonic() + args.duration_s
-                while time.monotonic() < deadline and not all(state.summary_seen for state in capture.states.values()):
-                    capture.tick()
-                    time.sleep(0.02)
-                exit_code = 0
+            _run_live_capture_window(capture)
+            exit_code = 0
     except KeyboardInterrupt:
         capture._emit("host_interrupted", None, {})
         exit_code = 130
