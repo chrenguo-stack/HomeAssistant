@@ -445,6 +445,19 @@ bool LocalPathPolicy::valid() const {
          relay_failures_to_discovery > 0;
 }
 
+RadioError LocalPathController::reset(LocalPathState initial_state) {
+  if (!policy_.valid() ||
+      (initial_state != LocalPathState::DIRECT &&
+       initial_state != LocalPathState::DISCOVERY)) {
+    return RadioError::INVALID_ARGUMENT;
+  }
+  state_ = initial_state;
+  direct_failures_ = 0;
+  direct_recoveries_ = 0;
+  relay_failures_ = 0;
+  return RadioError::NONE;
+}
+
 RadioError LocalPathController::note_direct_result(bool success) {
   if (!policy_.valid() || state_ != LocalPathState::DIRECT) {
     return RadioError::INVALID_ARGUMENT;
