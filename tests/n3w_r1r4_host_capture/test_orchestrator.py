@@ -64,6 +64,7 @@ def line(role: str, *, result: str = "PASS") -> bytes:
             f"R1R3_SUMMARY role=DUT baseline={result} roc_req={result} "
             f"roc_request_input_op_id=0 roc_driver_op_id=1 roc_natural_complete=false "
             f"roc_cancel_api={result} roc_cancel_complete={result} roc_completion_status=WIFI_ROC_FAIL "
+            f"roc_termination_observed=true roc_termination_wait={result} roc_active=false "
             f"probe_rx={result} home_recovery={result} home_channel_api={result} home_channel=1 "
             f"home_sta_link=true home_ack_tx={result} home_ack_api={result} "
             f"home_ack_send_callback={result} home_ack_received=NOT_APPLICABLE disconnect_count=0"
@@ -115,9 +116,10 @@ def test_summary_without_explicit_pass_is_not_product_pass(tmp_path: Path) -> No
         "DUT",
         b"R1R3_SUMMARY role=DUT baseline=PASS roc_req=FAIL roc_request_input_op_id=0 "
         b"roc_driver_op_id=0 roc_natural_complete=false roc_cancel_api=FAIL "
-        b"roc_cancel_complete=FAIL roc_completion_status=UNKNOWN probe_rx=FAIL home_recovery=FAIL "
-        b"home_channel_api=FAIL home_channel=6 home_sta_link=false home_ack_tx=FAIL "
-        b"home_ack_api=FAIL home_ack_send_callback=UNKNOWN home_ack_received=NOT_APPLICABLE "
+        b"roc_cancel_complete=FAIL roc_termination_observed=false roc_termination_wait=FAIL roc_active=true "
+        b"roc_completion_status=UNKNOWN probe_rx=FAIL home_recovery=NOT_EXECUTED "
+        b"home_channel_api=FAIL home_channel=6 home_sta_link=false home_ack_tx=NOT_EXECUTED "
+        b"home_ack_api=NOT_EXECUTED home_ack_send_callback=NOT_EXECUTED home_ack_received=NOT_APPLICABLE "
         b"disconnect_count=4\n",
     )
     manifest = capture.finalize()

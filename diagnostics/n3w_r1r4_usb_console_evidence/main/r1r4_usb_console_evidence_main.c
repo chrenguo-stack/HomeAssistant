@@ -15,6 +15,7 @@
 #include "esp_netif.h"
 #include "esp_now.h"
 #include "esp_wifi.h"
+#include "r1r4_operation_state.h"
 
 #define R1R3_HOME_CHANNEL 1
 #define R1R3_TARGET_CHANNEL 6
@@ -118,6 +119,8 @@ static bool s_control_home_return;
 static bool s_roc_natural_complete;
 static bool s_roc_cancel_requested;
 static bool s_roc_cancel_api_ok;
+static bool s_roc_termination_observed;
+static bool s_roc_termination_wait_ok;
 static uint8_t s_roc_request_op_id;
 static uint8_t s_roc_driver_op_id;
 static uint8_t s_roc_completion_status;
@@ -322,12 +325,19 @@ static bool wait_for_roc_completion(uint8_t expected_op_id, uint32_t timeout_ms)
                  s_roc_cancel_requested ? "true" : "false");
         if (event.status == WIFI_ROC_DONE) {
             s_roc_natural_complete = !s_op_event_queue_overflow;
+            s_roc_termination_observed = !s_op_event_queue_overflow;
+            s_roc_termination_wait_ok = !s_op_event_queue_overflow;
             return !s_op_event_queue_overflow;
         }
-        if (event.status == WIFI_ROC_FAIL && s_roc_cancel_requested) {
-            s_roc_cancel_complete = !s_op_event_queue_overflow;
+        if (event.status == WIFI_ROC_FAIL) {
+            s_roc_termination_observed = !s_op_event_queue_overflow;
+            s_roc_termination_wait_ok = !s_op_event_queue_overflow;
+            if (s_roc_cancel_requested) {
+                s_roc_cancel_complete = !s_op_event_queue_overflow;
+            }
             return !s_op_event_queue_overflow;
         }
+        s_roc_termination_wait_ok = false;
         return false;
     }
     ESP_LOGW(TAG,
@@ -335,6 +345,7 @@ static bool wait_for_roc_completion(uint8_t expected_op_id, uint32_t timeout_ms)
              R1R3_LOCAL_ROLE,
              (unsigned)expected_op_id,
              s_op_event_queue_overflow ? "true" : "false");
+    s_roc_termination_wait_ok = false;
     return false;
 }
 
@@ -941,6 +952,8 @@ static void dut_experiment_task(void *arg) {
     s_roc_natural_complete = false;
     s_roc_cancel_requested = false;
     s_roc_cancel_api_ok = false;
+    s_roc_termination_observed = false;
+    s_roc_termination_wait_ok = false;
     s_roc_completion_status = 0xff;
     s_roc_request_op_id = 0;
     const uint8_t request_op_id = 0;
@@ -958,24 +971,64 @@ static void dut_experiment_task(void *arg) {
 
     esp_err_t cancel_err = ESP_FAIL;
     if (s_roc_req_ok) {
-        s_roc_cancel_requested = true;
         cancel_err = roc_cancel(R1R3_TARGET_CHANNEL, s_roc_driver_op_id);
         s_roc_cancel_api_ok = cancel_err == ESP_OK;
-        if (s_roc_cancel_api_ok) {
-            (void)wait_for_roc_completion(s_roc_driver_op_id, R1R3_HOME_RECOVERY_TIMEOUT_MS);
-        }
+        s_roc_cancel_requested = s_roc_cancel_api_ok;
+        (void)wait_for_roc_completion(s_roc_driver_op_id, R1R3_HOME_RECOVERY_TIMEOUT_MS);
     } else {
         ESP_LOGW(TAG, "R1R3_ROC_CANCEL skipped=true reason=ROC_REQ_FAILED");
     }
-    s_roc_active = false;
     ESP_LOGI(TAG,
-             "R1R4_ROC_COMPLETION role=DUT request_op_id=%u driver_op_id=%u natural_complete=%s cancel_api=%s cancel_complete=%s status=%s",
+             "R1R4_ROC_COMPLETION role=DUT request_op_id=%u driver_op_id=%u natural_complete=%s cancel_api=%s cancel_complete=%s termination_observed=%s termination_wait=%s status=%s",
              (unsigned)s_roc_request_op_id,
              (unsigned)s_roc_driver_op_id,
              s_roc_natural_complete ? "true" : "false",
              s_roc_cancel_api_ok ? "PASS" : "FAIL",
              s_roc_cancel_complete ? "true" : "false",
+             s_roc_termination_observed ? "true" : "false",
+             s_roc_termination_wait_ok ? "PASS" : "FAIL",
              roc_status_name(s_roc_completion_status));
+
+    const r1r4_operation_state_t operation_state = {
+        .request_ok = s_roc_req_ok,
+        .termination_observed = s_roc_termination_observed,
+        .event_loss = s_op_event_queue_overflow,
+        .roc_active = s_roc_active,
+    };
+    if (!r1r4_should_clear_roc_active(operation_state)) {
+        uint8_t observed_channel = 0;
+        bool observed_link = false;
+        bool observed_api_ok = false;
+        (void)log_home_channel_check(
+            "DUT_TERMINATION_UNCONFIRMED", &observed_link, &observed_channel, &observed_api_ok);
+        ESP_LOGW(TAG,
+                 "R1R3_STAGE_NOT_EXECUTED stage=HOME_RECOVERY reason=ROC_TERMINATION_UNCONFIRMED channel_api=%s channel=%u sta_link=%s",
+                 observed_api_ok ? "PASS" : "FAIL",
+                 (unsigned)observed_channel,
+                 observed_link ? "true" : "false");
+        ESP_LOGW(TAG,
+                 "R1R3_STAGE_NOT_EXECUTED stage=HOME_ACK reason=ROC_TERMINATION_UNCONFIRMED");
+        ESP_LOGI(TAG,
+                 "R1R3_SUMMARY role=DUT baseline=%s roc_req=%s roc_request_input_op_id=%u roc_driver_op_id=%u roc_natural_complete=%s roc_cancel_api=%s roc_cancel_complete=%s roc_termination_observed=%s roc_termination_wait=%s roc_active=%s roc_completion_status=%s probe_rx=%s home_recovery=NOT_EXECUTED home_channel_api=%s home_channel=%u home_sta_link=%s home_ack_tx=NOT_EXECUTED home_ack_api=NOT_EXECUTED home_ack_send_callback=NOT_EXECUTED home_ack_received=NOT_APPLICABLE disconnect_count=%lu",
+                 s_baseline_pass ? "PASS" : "FAIL",
+                 s_roc_req_ok ? "PASS" : "FAIL",
+                 (unsigned)s_roc_request_op_id,
+                 (unsigned)s_roc_driver_op_id,
+                 s_roc_natural_complete ? "true" : "false",
+                 s_roc_cancel_api_ok ? "PASS" : "FAIL",
+                 s_roc_cancel_complete ? "PASS" : "FAIL",
+                 s_roc_termination_observed ? "true" : "false",
+                 s_roc_termination_wait_ok ? "PASS" : "FAIL",
+                 s_roc_active ? "true" : "false",
+                 roc_status_name(s_roc_completion_status),
+                 s_probe_rx_ok ? "PASS" : "FAIL",
+                 observed_api_ok ? "PASS" : "FAIL",
+                 (unsigned)observed_channel,
+                 observed_link ? "true" : "false",
+                 (unsigned long)s_wifi_disconnect_count);
+        for (;;) vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+    s_roc_active = false;
 
     log_state("DUT_POST_CANCEL_IMMEDIATE");
     vTaskDelay(pdMS_TO_TICKS(100));
@@ -1010,10 +1063,11 @@ static void dut_experiment_task(void *arg) {
         &final_home_link,
         &final_home_channel,
         &final_home_api_ok);
+    s_home_recovery_ok = final_home_return;
     ESP_LOGI(TAG, "R1R4_DUT_HOME_RETURN result=%s", final_home_return ? "PASS" : "FAIL");
     log_state("DUT_HOME_RECOVERY_FINAL");
     esp_err_t home_ack_err = ESP_FAIL;
-    if (s_home_recovery_ok) {
+    if (r1r4_should_send_home_ack(operation_state, final_home_return)) {
         home_ack_err = send_normal(s_peer_mac, R1R3_MSG_HOME_ACK, 66);
         s_home_ack_ok = home_ack_err == ESP_OK;
         if (s_home_ack_ok) {
@@ -1032,7 +1086,7 @@ static void dut_experiment_task(void *arg) {
     ESP_LOGI(TAG, "R1R3_HOME_ACK_TX result=%s", esp_err_to_name(home_ack_err));
 
     ESP_LOGI(TAG,
-             "R1R3_SUMMARY role=DUT baseline=%s roc_req=%s roc_request_input_op_id=%u roc_driver_op_id=%u roc_natural_complete=%s roc_cancel_api=%s roc_cancel_complete=%s roc_completion_status=%s probe_rx=%s home_recovery=%s home_channel_api=%s home_channel=%u home_sta_link=%s home_ack_tx=%s home_ack_api=%s home_ack_send_callback=%s home_ack_received=NOT_APPLICABLE disconnect_count=%lu",
+             "R1R3_SUMMARY role=DUT baseline=%s roc_req=%s roc_request_input_op_id=%u roc_driver_op_id=%u roc_natural_complete=%s roc_cancel_api=%s roc_cancel_complete=%s roc_termination_observed=%s roc_termination_wait=%s roc_active=%s roc_completion_status=%s probe_rx=%s home_recovery=%s home_channel_api=%s home_channel=%u home_sta_link=%s home_ack_tx=%s home_ack_api=%s home_ack_send_callback=%s home_ack_received=NOT_APPLICABLE disconnect_count=%lu",
              s_baseline_pass ? "PASS" : "FAIL",
              s_roc_req_ok ? "PASS" : "FAIL",
              (unsigned)s_roc_request_op_id,
@@ -1040,6 +1094,9 @@ static void dut_experiment_task(void *arg) {
              s_roc_natural_complete ? "true" : "false",
              s_roc_cancel_api_ok ? "PASS" : "FAIL",
              s_roc_cancel_complete ? "PASS" : "FAIL",
+             s_roc_termination_observed ? "true" : "false",
+             s_roc_termination_wait_ok ? "PASS" : "FAIL",
+             s_roc_active ? "true" : "false",
              roc_status_name(s_roc_completion_status),
              s_probe_rx_ok ? "PASS" : "FAIL",
              s_home_recovery_ok ? "PASS" : "FAIL",

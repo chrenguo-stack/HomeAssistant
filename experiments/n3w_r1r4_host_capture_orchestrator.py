@@ -58,6 +58,9 @@ REAL_SUMMARY_FIELDS: dict[Role, tuple[str, ...]] = {
         "roc_natural_complete",
         "roc_cancel_api",
         "roc_cancel_complete",
+        "roc_termination_observed",
+        "roc_termination_wait",
+        "roc_active",
         "roc_completion_status",
         "probe_rx",
         "home_recovery",
@@ -151,6 +154,23 @@ def operation_summary_consistent(role: Role, fields: dict[str, str]) -> bool:
             return False
         if fields.get("roc_natural_complete") == "true":
             return False
+    if fields.get("roc_req") == "PASS":
+        termination_ok = (
+            fields.get("roc_termination_observed") == "true"
+            and fields.get("roc_termination_wait") == "PASS"
+            and fields.get("roc_active") == "false"
+        )
+        if not termination_ok:
+            if fields.get("roc_active") != "true":
+                return False
+            if fields.get("home_recovery") != "NOT_EXECUTED":
+                return False
+            if fields.get("home_ack_tx") != "NOT_EXECUTED":
+                return False
+    if fields.get("roc_termination_wait") == "PASS" and fields.get("roc_active") != "false":
+        return False
+    if fields.get("home_ack_tx") == "PASS" and fields.get("home_recovery") != "PASS":
+        return False
     return True
 
 

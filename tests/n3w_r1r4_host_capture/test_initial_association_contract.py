@@ -75,3 +75,23 @@ def test_control_home_return_uses_actual_channel_not_event_channel() -> None:
     assert "control_home_channel" in SOURCE
     assert "control_home_return" in SOURCE
     assert "control_home_channel=6" not in SOURCE
+
+
+def test_dut_completion_is_shared_with_minimal_c_decision_harness() -> None:
+    state_header = (
+        Path(__file__).parents[2]
+        / "diagnostics"
+        / "n3w_r1r4_usb_console_evidence"
+        / "main"
+        / "r1r4_operation_state.h"
+    ).read_text(encoding="utf-8")
+    for token in (
+        "r1r4_termination_trusted",
+        "r1r4_should_clear_roc_active",
+        "r1r4_should_continue_home_recovery",
+        "r1r4_should_send_home_ack",
+        "ROC_TERMINATION_UNCONFIRMED",
+        "home_recovery=NOT_EXECUTED",
+        "home_ack_tx=NOT_EXECUTED",
+    ):
+        assert token in state_header or token in SOURCE
