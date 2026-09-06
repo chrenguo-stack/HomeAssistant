@@ -991,6 +991,7 @@ static void dut_experiment_task(void *arg) {
 
     const r1r4_operation_state_t operation_state = {
         .request_ok = s_roc_req_ok,
+        .cancel_api_ok = s_roc_cancel_api_ok,
         .termination_observed = s_roc_termination_observed,
         .event_loss = s_op_event_queue_overflow,
         .roc_active = s_roc_active,

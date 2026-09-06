@@ -3,11 +3,11 @@
 #include "r1r4_operation_state.h"
 
 int main(void) {
-    const r1r4_operation_state_t trusted_natural = {true, true, false, true};
-    const r1r4_operation_state_t trusted_after_cancel_api_failure = {true, true, false, true};
-    const r1r4_operation_state_t no_matching_event = {true, false, false, true};
-    const r1r4_operation_state_t event_lost = {true, true, true, true};
-    const r1r4_operation_state_t request_failed = {false, true, false, true};
+    const r1r4_operation_state_t trusted_natural = {true, true, true, false, true};
+    const r1r4_operation_state_t trusted_after_cancel_api_failure = {true, false, true, false, true};
+    const r1r4_operation_state_t no_matching_event = {true, false, false, false, true};
+    const r1r4_operation_state_t event_lost = {true, true, true, true, true};
+    const r1r4_operation_state_t request_failed = {false, false, true, false, true};
 
     assert(r1r4_termination_trusted(trusted_natural));
     assert(r1r4_termination_trusted(trusted_after_cancel_api_failure));

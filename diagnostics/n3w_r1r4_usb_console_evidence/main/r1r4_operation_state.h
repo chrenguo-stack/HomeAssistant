@@ -7,6 +7,7 @@
  * harness.  They deliberately contain no ESP-IDF or transport behavior. */
 typedef struct {
     bool request_ok;
+    bool cancel_api_ok;
     bool termination_observed;
     bool event_loss;
     bool roc_active;
