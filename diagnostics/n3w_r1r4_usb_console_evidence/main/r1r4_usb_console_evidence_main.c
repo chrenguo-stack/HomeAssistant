@@ -102,14 +102,14 @@ static void capture_evidence_task(void *arg) {
         if (!armed && now >= deadline) {
             armed = true;
             xEventGroupSetBits(s_events, EV_CAPTURE_ARMED);
-            ESP_LOGI(TAG, "R1R4_LOCAL_CAPTURE_ARMED role=%s", R1R4_LOCAL_ROLE);
+            ESP_LOGI(TAG, "R1R4_LOCAL_CAPTURE_ARMED role=%s", R1R3_LOCAL_ROLE);
             next_heartbeat = now + pdMS_TO_TICKS(1000);
         }
 
         if (now >= next_heartbeat) {
             ESP_LOGI(TAG,
                      "R1R4_CAPTURE_HEARTBEAT role=%s phase=%s seq=%lu",
-                     R1R4_LOCAL_ROLE,
+                     R1R3_LOCAL_ROLE,
                      armed ? "ARMED" : "PRE_ARM",
                      (unsigned long)seq++);
             next_heartbeat = now + pdMS_TO_TICKS(armed ? 1000 : R1R4_CAPTURE_HEARTBEAT_INTERVAL_MS);
