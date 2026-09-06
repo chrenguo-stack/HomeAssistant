@@ -6,6 +6,8 @@ Implementation status: `NOT_STARTED`
 Implementation authority: `NOT_FINAL`  
 Repository base at design time: `bff94bc4922d7a984eb1363cc24a163ad466a166`
 
+> **2026-09-06 authority update:** implementation direction is now governed by `docs/development/N3W_OFFICIAL_ESPNOW_REFERENCE_PRODUCT_DIRECTION_DECISION_20260906.md`. The full Wi-Fi/ESP-NOW radio-ownership proposal below is retained as historical/deferred design material and is **not** the default implementation route. Current direction is: fix startup architecture, prefer Espressif official low-level channel APIs, keep only minimal N3-W discovery/path policy, and validate `current-channel peer + official controlled channel operation` before considering any full ownership state machine.
+
 ## 1. Purpose
 
 This document preserves the minimal product-repair design developed after the 2026-09-04 Board B real-world cold-boot Relay failure was traced to KF-089.
@@ -91,6 +93,8 @@ The existing `ChannelScanPlan` already accepts `last_direct_channel=0` and can c
 The design should add an explicit initial-state/reset surface to the path controller rather than entering Discovery by fabricating repeated Direct failures.
 
 ### 4.2 Explicit Wi-Fi / ESP-NOW radio ownership
+
+**2026-09-06 note:** this subsection is no longer the default implementation direction. It is retained only as a deferred fallback design. A full ownership state machine may be reconsidered only if exact official bounded channel operations are later proven insufficient for the product requirement.
 
 The present adapter treats:
 
@@ -249,20 +253,18 @@ Physical acceptance must still use a fresh source→artifact→board binding per
 
 ## 8. Superseding route
 
-The active next route is now:
+The active route is now governed by:
 
-```text
-N3W_OFFICIAL_ESPNOW_REFERENCE_BASELINE_R0
-```
+`docs/development/N3W_OFFICIAL_ESPNOW_REFERENCE_PRODUCT_DIRECTION_DECISION_20260906.md`
 
 Sequence:
 
 ```text
-R0 = unmodified official Espressif ESP-NOW baseline on ESP32-C6
-R1 = official-reference Wi-Fi/ESP-NOW coexistence experiment
-R2 = incrementally reintroduce N3-W semantics
-then
-re-evaluate this deferred minimal repair design
+complete official bounded off-channel lifecycle evidence
+→ re-evaluate this deferred design
+→ implement the smallest compatible KF-089 repair
+→ host regression + bounded physical validation
+→ return to three-board/T1 real-world failover acceptance
 ```
 
 ## 9. Frozen disposition
@@ -272,8 +274,9 @@ DOCUMENT_CLASS=DEFERRED_PRODUCT_REPAIR_DESIGN
 SOURCE_DEFECT_PROVEN=true
 PRODUCT_SOURCE_MUTATION=false
 IMPLEMENTATION_AUTHORIZED=false
+FULL_RADIO_OWNERSHIP_DEFAULT=false
 DESIGN_MAY_BE_REVISED_BY_OFFICIAL_REFERENCE=true
 
 NEXT_AUTHORITY=
-OFFICIAL_ESPNOW_REFERENCE_PHYSICAL_EVIDENCE
+N3W_OFFICIAL_ESPNOW_REFERENCE_PRODUCT_DIRECTION_DECISION_20260906.md
 ```
