@@ -123,6 +123,7 @@ class SimpleProductComponent : public Component,
   static constexpr std::size_t kRxRingSlots = 4;
   static constexpr uint32_t kPairingRetryMs = 5000;
   static constexpr uint32_t kRecoveryProbeMs = 2000;
+  static constexpr uint32_t kInitialDirectGraceMs = 15000;
   static constexpr uint16_t kDiscoveryPort = 47111;
 
   bool activation_enabled_{false};
@@ -130,9 +131,11 @@ class SimpleProductComponent : public Component,
   bool mqtt_configured_{false};
   bool runtime_ready_{false};
   bool radio_attempted_{false};
+  bool runtime_start_grace_started_{false};
   uint64_t next_pairing_attempt_ms_{0};
   uint64_t next_recovery_probe_ms_{0};
   uint64_t last_radio_attempt_ms_{0};
+  uint64_t runtime_start_grace_started_ms_{0};
   MacAddress local_mac_{};
   ProvisionedPeerStateV2 peer_state_{};
   ProvisionedBrokerStateV2 broker_state_{};
