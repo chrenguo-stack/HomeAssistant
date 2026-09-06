@@ -1,9 +1,11 @@
 # N3-W Official ESP-NOW Reference → Product Direction Decision
 
 Date: 2026-09-06  
-Status: `ACTIVE_PRODUCT_DIRECTION`  
+Status: `PARTIALLY_SUPERSEDED_PRODUCT_DIRECTION`  
 Scope: N3-W ESP-NOW runtime / channel-management architecture  
 Source authority at decision time: `127c3f1e89baaaba7b7fd60d6d263632d30b2461`
+
+> **2026-09-06 路线更新：** 用户已确认 [R1R4 归档与产品路线调整](N3W_R1R4_ARCHIVE_AND_PRODUCT_ROUTE_RESET_20260906.md)。下文第 5、7、8 节中将保持关联的 controlled off-channel lifecycle 完整验证作为产品修复前置条件的要求已被替代。当前优先使用普通官方 ESP-NOW 能力，修复已配对节点无 Wi-Fi 冷启动与失联后的 bounded discovery；不再以 R1R4 完成事件诊断阻挡产品工作。其余身份、安全、单跳和简化原则继续有效。
 
 ## 1. Purpose
 
