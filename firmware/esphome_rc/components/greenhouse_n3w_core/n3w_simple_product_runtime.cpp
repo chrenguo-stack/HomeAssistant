@@ -38,10 +38,16 @@ SimpleProductRuntime::SimpleProductRuntime(
 SimpleProductError SimpleProductRuntime::start(
     const ProvisionedPeerStateV2 &state,
     const MacAddress &local_mac,
-    uint8_t direct_channel) {
+    uint8_t direct_channel,
+    SimpleProductStartMode start_mode) {
+  const bool direct_start = start_mode == SimpleProductStartMode::DIRECT;
+  const bool discovery_start = start_mode == SimpleProductStartMode::DISCOVERY;
+  const bool channel_valid_for_mode =
+      direct_start ? valid_radio_channel(direct_channel)
+                   : (direct_channel == 0 || valid_radio_channel(direct_channel));
   if (started_ || port_ == nullptr || clock_ == nullptr || random_ == nullptr ||
       !policy_.valid() || !state.valid() || !valid_unicast_mac_(local_mac) ||
-      !valid_radio_channel(direct_channel)) {
+      (!direct_start && !discovery_start) || !channel_valid_for_mode) {
     return SimpleProductError::INVALID_ARGUMENT;
   }
   state_ = state;
@@ -60,14 +66,30 @@ SimpleProductError SimpleProductRuntime::start(
     stop();
     return SimpleProductError::CRYPTO_FAILED;
   }
-  if (scan_.configure(direct_channel_, policy_.allowed_channels) !=
-          RadioError::NONE ||
-      !port_->set_radio_channel(direct_channel_)) {
+  const LocalPathState initial_path =
+      direct_start ? LocalPathState::DIRECT : LocalPathState::DISCOVERY;
+  if (path_.reset(initial_path) != RadioError::NONE ||
+      scan_.configure(direct_channel_, policy_.allowed_channels) !=
+          RadioError::NONE) {
     stop();
     return SimpleProductError::RADIO_FAILED;
   }
+  const uint64_t now = clock_->now_ms();
+  if (direct_start) {
+    if (!port_->set_radio_channel(direct_channel_)) {
+      stop();
+      return SimpleProductError::RADIO_FAILED;
+    }
+    next_advertisement_ms_ = now;
+  } else {
+    const uint8_t channel = scan_.current();
+    if (!valid_radio_channel(channel) || !port_->set_radio_channel(channel)) {
+      stop();
+      return SimpleProductError::RADIO_FAILED;
+    }
+    next_scan_switch_ms_ = now + policy_.scan_dwell_ms;
+  }
   started_ = true;
-  next_advertisement_ms_ = clock_->now_ms();
   return SimpleProductError::NONE;
 }
 
@@ -92,6 +114,7 @@ void SimpleProductRuntime::stop() {
   direct_channel_ = 0;
   next_scan_switch_ms_ = 0;
   next_advertisement_ms_ = 0;
+  (void) path_.reset(LocalPathState::DIRECT);
   started_ = false;
 }
 
@@ -455,11 +478,11 @@ SimpleProductError SimpleProductRuntime::maybe_advance_scan_(uint64_t now_ms) {
   if (pending_challenge_.has_value() || now_ms < next_scan_switch_ms_) {
     return SimpleProductError::NONE;
   }
+  next_scan_switch_ms_ = now_ms + policy_.scan_dwell_ms;
   const uint8_t channel = scan_.advance();
   if (!valid_radio_channel(channel) || !port_->set_radio_channel(channel)) {
     return SimpleProductError::RADIO_FAILED;
   }
-  next_scan_switch_ms_ = now_ms + policy_.scan_dwell_ms;
   return SimpleProductError::NONE;
 }
 
