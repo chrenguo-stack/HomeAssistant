@@ -279,7 +279,7 @@ static bool wait_for_action_tx_completion(uint8_t expected_op_id, uint32_t timeo
                 s_control_tx_duration_complete = false;
                 return false;
             case WIFI_ACTION_TX_DURATION_COMPLETED:
-                s_control_tx_duration_complete = true;
+                s_control_tx_duration_complete = !s_op_event_queue_overflow;
                 return !s_op_event_queue_overflow;
             case WIFI_ACTION_TX_OP_CANCELLED:
                 s_control_tx_cancelled = true;
@@ -321,11 +321,11 @@ static bool wait_for_roc_completion(uint8_t expected_op_id, uint32_t timeout_ms)
                  roc_status_name(event.status),
                  s_roc_cancel_requested ? "true" : "false");
         if (event.status == WIFI_ROC_DONE) {
-            s_roc_natural_complete = true;
+            s_roc_natural_complete = !s_op_event_queue_overflow;
             return !s_op_event_queue_overflow;
         }
         if (event.status == WIFI_ROC_FAIL && s_roc_cancel_requested) {
-            s_roc_cancel_complete = true;
+            s_roc_cancel_complete = !s_op_event_queue_overflow;
             return !s_op_event_queue_overflow;
         }
         return false;
