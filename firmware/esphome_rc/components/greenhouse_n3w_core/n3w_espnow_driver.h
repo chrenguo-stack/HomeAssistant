@@ -92,6 +92,9 @@ class EspNowDriver {
       const uint8_t *data,
       std::size_t size);
 
+  int32_t last_channel_error_raw() const { return last_channel_error_raw_; }
+  uint8_t last_channel_observed() const { return last_channel_observed_; }
+
   bool initialized() const { return initialized_; }
 
  protected:
@@ -120,6 +123,8 @@ class EspNowDriver {
 
   EspNowEventSink *sink_{nullptr};
   bool initialized_{false};
+  int32_t last_channel_error_raw_{0};
+  uint8_t last_channel_observed_{0};
 };
 
 }  // namespace esphome::greenhouse_n3w_core

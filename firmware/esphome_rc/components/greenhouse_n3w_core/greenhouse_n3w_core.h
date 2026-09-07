@@ -29,6 +29,7 @@ class GreenhouseN3wCore : public SimpleProductComponent {
   void set_phase4_product_runtime_enabled(bool enabled) {
     phase4_product_runtime_enabled_ = enabled;
     set_activation_enabled(enabled);
+    set_lab_diagnostics_enabled(enabled);
   }
 
   Phase4PhysicalHarness *phase4_harness() { return &phase4_harness_; }

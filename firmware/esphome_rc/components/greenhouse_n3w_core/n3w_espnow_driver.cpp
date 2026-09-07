@@ -96,6 +96,8 @@ DriverError EspNowDriver::initialize(EspNowEventSink *sink, const LinkKey &pmk) 
   }
   active_ = this;
   sink_ = sink;
+  last_channel_error_raw_ = 0;
+  last_channel_observed_ = 0;
   diagnostic_receive_logs_.store(0, std::memory_order_relaxed);
   diagnostic_broadcast_logs_.store(0, std::memory_order_relaxed);
   if (esp_now_register_recv_cb(&EspNowDriver::recv_cb_) != ESP_OK ||
@@ -140,9 +142,19 @@ DriverError EspNowDriver::set_channel(uint8_t channel) {
   if (!valid_radio_channel(channel)) {
     return DriverError::INVALID_ARGUMENT;
   }
-  return esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE) == ESP_OK
-             ? DriverError::NONE
-             : DriverError::WIFI_CHANNEL_FAILED;
+  last_channel_observed_ = 0;
+  const esp_err_t set_result =
+      esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE);
+  last_channel_error_raw_ = static_cast<int32_t>(set_result);
+  if (set_result == ESP_OK) {
+    wifi_second_chan_t secondary = WIFI_SECOND_CHAN_NONE;
+    uint8_t observed = 0;
+    if (esp_wifi_get_channel(&observed, &secondary) == ESP_OK) {
+      last_channel_observed_ = observed;
+    }
+  }
+  return set_result == ESP_OK ? DriverError::NONE
+                              : DriverError::WIFI_CHANNEL_FAILED;
 #endif
 }
 
