@@ -1,25 +1,39 @@
 # N3-W Current State
 
-Updated: 2026-09-07 18:36 +08:00  
+Updated: 2026-09-07 19:20 +08:00  
 Status: `CURRENT_STATE_AUTHORITY`
 
 This file is the concise public-safe authority for the current N3-W development state. Historical detail and the 2026-09-07 local-chat/GitHub reconciliation are archived in:
 
 `docs/development/N3W_KF089_LOCAL_CHAT_GITHUB_ALIGNMENT_ARCHIVE_20260907.md`
 
+Post-merge clarification for the archive's self-referential `main` wording is recorded in:
+
+`docs/development/N3W_KF089_ALIGNMENT_ARCHIVE_POSTMERGE_CORRECTION_20260907.md`
+
 When this file conflicts with older handoffs or historical alignment documents, prefer fresh exact repository/CI/physical evidence, then the active product-direction decision, then this file.
 
-## Repository authority
+## Repository / source authority
+
+Do **not** freeze a literal `CURRENT_MAIN=<sha>` inside this live file. Updating this file itself advances `main`, which would make such a field stale as soon as the documentation PR merges.
+
+Instead, the stable product/source authority is:
 
 ```text
 REPOSITORY=chrenguo-stack/HomeAssistant
-CURRENT_MAIN=483ff1c662dc74d6e12529e27a69819e68160f9e
-CURRENT_TREE=300b8fae886c954fe888edee17d6810e3c979bdc
+PRODUCT_SOURCE_AUTHORITY=483ff1c662dc74d6e12529e27a69819e68160f9e
+PRODUCT_SOURCE_TREE=300b8fae886c954fe888edee17d6810e3c979bdc
+LAST_PRODUCT_SOURCE_CHANGE=PR_370
 PR_369=MERGED
 PR_369_MERGE_COMMIT=d27c4aec59c75ebcc18b19cb2cc9d0562d0b7e08
 PR_370=MERGED
 PR_370_MERGE_COMMIT=483ff1c662dc74d6e12529e27a69819e68160f9e
+ALIGNMENT_ARCHIVE_PR=371
+ALIGNMENT_ARCHIVE_PR_MERGE=cb437a2103dda026271a98c2d2acb172205fd72d
+REPOSITORY_MAIN=QUERY_GITHUB_FRESH
 ```
+
+Documentation-only descendants of `483ff1c...` do not change the product-source authority unless they also modify product/test source. Any physical or build gate that needs `main` must freshly resolve `origin/main` and separately bind the product-source ancestor/content it intends to use.
 
 Active architecture authority:
 
@@ -129,7 +143,7 @@ PRODUCT_NVS_MUTATION=false
 
 ## New exact-main physical artifact
 
-The merged PR #370 exact-main physical target has been rebuilt successfully:
+The PR #370 product/source authority physical target has been rebuilt successfully from commit `483ff1c...`:
 
 ```text
 SOURCE_COMMIT=483ff1c662dc74d6e12529e27a69819e68160f9e
@@ -154,7 +168,7 @@ The new observability artifact has been built but has not yet been proven flashe
 
 Therefore the next physical boundary must not assume either board is already running `efae17f4...`.
 
-The last proven board application normalization used the older repaired firmware `11f21dc4...`. The next task must refresh the two boards to the new exact-main observability application image and establish a fresh Direct + diagnostic baseline before another battery-only Relay test.
+The last proven board application normalization used the older repaired firmware `11f21dc4...`. The next task must refresh the two boards to the new observability application image and establish a fresh Direct + diagnostic baseline before another battery-only Relay test.
 
 ## Current next gate
 
@@ -166,7 +180,7 @@ Required outcome before the next battery-only cold boot:
 
 1. fresh Board A/B identity and partition rebind;
 2. safe application-slot refresh to `efae17f4...` with exact readback SHA;
-3. both OTA application slots normalized to the new exact-main image;
+3. both OTA application slots normalized to the new observability image;
 4. Direct telemetry accepted on both boards;
 5. schema-v3 diagnostic serial summaries present;
 6. Direct path has zero discovery scan attempts;
