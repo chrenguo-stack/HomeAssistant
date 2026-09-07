@@ -1,4 +1,11 @@
+import json
+import importlib.util
+import shutil
+import subprocess
+import sys
 from pathlib import Path
+
+import esphome
 
 
 ROOT = Path(__file__).parents[2]
@@ -16,9 +23,23 @@ def test_diagnostic_namespace_and_schema_are_lab_only():
     source = DIAG_CPP.read_text(encoding="utf-8")
     assert '"gh_n3w_diag"' in header
     assert '"snapshot"' in header
-    assert "kSchemaVersion = 1U" in header
+    assert "kSchemaVersion = 2U" in header
     assert "NVS_READWRITE" in source
     assert "gh_n3w_v2" not in source
+
+
+def test_diagnostics_are_explicit_and_disabled_by_default():
+    init = (CORE / "__init__.py").read_text(encoding="utf-8")
+    core = (CORE / "greenhouse_n3w_core.h").read_text(encoding="utf-8")
+    generic = (
+        ROOT / "firmware/esphome_rc/board_lab/n3w_phase4_physical/generic.yml"
+    ).read_text(encoding="utf-8")
+    assert 'cv.Optional(CONF_PHASE4_LAB_DIAGNOSTICS, default=False)' in init
+    assert "phase4_lab_diagnostics: true" in generic
+    product_setter = core.split("void set_phase4_product_runtime_enabled", 1)[1].split(
+        "void set_phase4_lab_diagnostics_enabled", 1
+    )[0]
+    assert "set_lab_diagnostics_enabled" not in product_setter
 
 
 def test_snapshot_has_required_channel_and_path_fields():
@@ -35,6 +56,11 @@ def test_snapshot_has_required_channel_and_path_fields():
         "channel_failures",
         "last_requested_channel",
         "last_observed_channel",
+        "boot_session",
+        "snapshot_uptime_ms",
+        "channel_set_attempts",
+        "channel_set_successes",
+        "channel_set_failures",
     ):
         assert field in header
 
@@ -110,6 +136,97 @@ def test_host_utility_is_read_only_and_namespace_scoped():
     utility = UTILITY.read_text(encoding="utf-8")
     assert "gh_n3w_diag" in utility
     assert "snapshot" in utility
-    assert "serial" in utility.lower()
+    assert "esptool" in utility
     assert "write_bytes" not in utility
     assert "nvs_erase" not in utility
+    assert '"--port"' in utility
+    assert '"--nvs-offset"' in utility
+    assert '"--nvs-size"' in utility
+    assert '"no_reset"' in utility
+
+
+def test_host_utility_extracts_only_diagnostic_blob_from_nvs_layout():
+    spec = importlib.util.spec_from_file_location("n3w_diag_reader", UTILITY)
+    assert spec is not None and spec.loader is not None
+    reader = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(reader)
+
+    payload = b"diagnostic-snapshot"
+    page = bytearray(b"\xff" * reader.PAGE_SIZE)
+
+    def mark_written(slot: int) -> None:
+        bitmap_slot = slot - 2
+        bitmap_index = bitmap_slot // 4
+        shift = (bitmap_slot % 4) * 2
+        page[reader.ENTRY_SIZE + bitmap_index] &= ~(0x03 << shift)
+        page[reader.ENTRY_SIZE + bitmap_index] |= 0x02 << shift
+
+    def write_entry(
+        slot: int,
+        namespace: int,
+        entry_type: int,
+        key: bytes,
+        *,
+        span: int = 1,
+        chunk_index: int = 0xFF,
+    ) -> memoryview:
+        start = slot * reader.ENTRY_SIZE
+        entry = memoryview(page)[start : start + reader.ENTRY_SIZE]
+        entry[0] = namespace
+        entry[1] = entry_type
+        entry[2] = span
+        entry[3] = chunk_index
+        entry[8:24] = b"\x00" * 16
+        entry[8 : 8 + len(key)] = key
+        mark_written(slot)
+        return entry
+
+    write_entry(2, 0, 0x01, reader.NAMESPACE.encode())[24] = 1
+    blob_index = write_entry(3, 1, 0x48, reader.KEY.encode())
+    blob_index[24:28] = len(payload).to_bytes(4, "little")
+    blob_index[28] = 1
+    blob_index[29] = 1
+    blob_data = write_entry(4, 1, 0x42, reader.KEY.encode(), span=2, chunk_index=1)
+    blob_data[24:28] = len(payload).to_bytes(4, "little")
+    write_entry(5, 1, 0, b"")[: len(payload)] = payload
+
+    assert reader._extract_snapshot_from_nvs(bytes(page)) == payload
+
+
+def test_diagnostics_behavioral_persistence_and_round_trip(tmp_path: Path):
+    compiler = shutil.which("g++")
+    assert compiler is not None
+    helper = ROOT / "tests/n3w_kf089/n3w_lab_diagnostics_host_test.cpp"
+    executable = tmp_path / "n3w-lab-diagnostics-host-test"
+    include_root = Path(esphome.__file__).resolve().parent.parent
+    subprocess.run(
+        [
+            compiler,
+            "-std=c++17",
+            "-O0",
+            "-I",
+            str(CORE),
+            "-I",
+            str(include_root),
+            str(helper),
+            str(CORE / "n3w_lab_diagnostics.cpp"),
+            "-o",
+            str(executable),
+        ],
+        check=True,
+    )
+    blob = tmp_path / "snapshot.bin"
+    subprocess.run([str(executable), str(blob)], check=True)
+    parsed = subprocess.run(
+        [sys.executable, str(UTILITY), "--blob", str(blob)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    values = json.loads(parsed.stdout)
+    assert values["boot_session"] == 0x1122334455667788
+    assert values["snapshot_uptime_ms"] == 179750
+    assert values["schema_version"] == 2
+    assert values["scan_attempts"] == 720
+    assert values["current_channel"] == 11
+    assert values["direct_channel_hint"] == 0

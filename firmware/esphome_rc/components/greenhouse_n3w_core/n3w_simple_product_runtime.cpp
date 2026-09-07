@@ -83,7 +83,20 @@ SimpleProductError SimpleProductRuntime::start(
     next_advertisement_ms_ = now;
   } else {
     const uint8_t channel = scan_.current();
-    if (!valid_radio_channel(channel) || !port_->set_radio_channel(channel)) {
+    if (diagnostic_sink_ != nullptr) {
+      diagnostic_sink_->on_scan_attempt(channel, now);
+    }
+    const bool channel_set =
+        valid_radio_channel(channel) && port_->set_radio_channel(channel);
+    if (diagnostic_sink_ != nullptr) {
+      diagnostic_sink_->on_scan_result(
+          channel,
+          channel_set,
+          port_->last_channel_observed(),
+          port_->last_channel_error_raw(),
+          clock_->now_ms());
+    }
+    if (!channel_set) {
       stop();
       return SimpleProductError::RADIO_FAILED;
     }
@@ -265,7 +278,19 @@ SimpleProductError SimpleProductRuntime::begin_discovery_() {
     return SimpleProductError::RADIO_FAILED;
   }
   const uint8_t channel = scan_.current();
-  if (!port_->set_radio_channel(channel)) {
+  if (diagnostic_sink_ != nullptr) {
+    diagnostic_sink_->on_scan_attempt(channel, clock_->now_ms());
+  }
+  const bool channel_set = port_->set_radio_channel(channel);
+  if (diagnostic_sink_ != nullptr) {
+    diagnostic_sink_->on_scan_result(
+        channel,
+        channel_set,
+        port_->last_channel_observed(),
+        port_->last_channel_error_raw(),
+        clock_->now_ms());
+  }
+  if (!channel_set) {
     return SimpleProductError::RADIO_FAILED;
   }
   next_scan_switch_ms_ = clock_->now_ms() + policy_.scan_dwell_ms;
@@ -535,10 +560,29 @@ SimpleProductError SimpleProductRuntime::maybe_advance_scan_(uint64_t now_ms) {
   }
   next_scan_switch_ms_ = now_ms + policy_.scan_dwell_ms;
   const uint8_t channel = scan_.advance();
-  if (!valid_radio_channel(channel) || !port_->set_radio_channel(channel)) {
+  if (diagnostic_sink_ != nullptr) {
+    diagnostic_sink_->on_scan_attempt(channel, now_ms);
+  }
+  const bool channel_set =
+      valid_radio_channel(channel) && port_->set_radio_channel(channel);
+  if (diagnostic_sink_ != nullptr) {
+    diagnostic_sink_->on_scan_result(
+        channel,
+        channel_set,
+        port_->last_channel_observed(),
+        port_->last_channel_error_raw(),
+        clock_->now_ms());
+  }
+  if (!channel_set) {
     return SimpleProductError::RADIO_FAILED;
   }
   return SimpleProductError::NONE;
+}
+
+uint8_t SimpleProductRuntime::working_channel() const {
+  if (active_relay_.has_value()) return active_relay_->channel;
+  if (path_.state() == LocalPathState::DIRECT) return direct_channel_;
+  return scan_.current();
 }
 
 SimpleProductRelayPeer *SimpleProductRuntime::find_relay_child_(

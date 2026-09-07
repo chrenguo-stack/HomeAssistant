@@ -49,6 +49,7 @@ greenhouse_n3w_core:
   id: n3w_phase4_core
   phase4_source_harness: true
   phase4_product_runtime: true
+  phase4_lab_diagnostics: true
 
 # Phase 4 lab-only observability. The payload includes the device-generated
 # one-time pairing PoP and must stay in the private physical-session evidence root.

@@ -141,6 +141,7 @@ void SimpleProductComponent::loop() {
   (void) runtime_.tick();
   diagnostics_.observe_runtime(
       static_cast<uint8_t>(runtime_.path_state()),
+      runtime_.working_channel(),
       runtime_.direct_channel_hint(),
       static_cast<uint32_t>(runtime_.relay_child_count()),
       runtime_.active_relay().has_value(),
@@ -435,6 +436,8 @@ void SimpleProductComponent::on_espnow_send_result(
 
 bool SimpleProductComponent::set_radio_channel(uint8_t channel) {
   if (!valid_radio_channel(channel)) {
+    last_channel_observed_ = 0;
+    last_channel_error_raw_ = -1;
     diagnostics_.note_channel_result(channel, false, 0, -1, now_ms());
     return false;
   }
@@ -449,6 +452,8 @@ bool SimpleProductComponent::set_radio_channel(uint8_t channel) {
     uint8_t current_channel = 0;
     wifi_second_chan_t secondary = WIFI_SECOND_CHAN_NONE;
     const esp_err_t get_result = esp_wifi_get_channel(&current_channel, &secondary);
+    last_channel_observed_ = current_channel;
+    last_channel_error_raw_ = static_cast<int32_t>(get_result);
     if (get_result != ESP_OK || !valid_radio_channel(current_channel)) {
       diagnostics_.note_channel_result(
           channel, false, current_channel, static_cast<int32_t>(get_result), now_ms());
@@ -463,6 +468,8 @@ bool SimpleProductComponent::set_radio_channel(uint8_t channel) {
   const bool success =
       set_result == DriverError::NONE &&
       radio_.prepare_broadcast_peer(channel) == DriverError::NONE;
+  last_channel_observed_ = radio_.last_channel_observed();
+  last_channel_error_raw_ = radio_.last_channel_error_raw();
   diagnostics_.note_channel_result(
       channel,
       success,

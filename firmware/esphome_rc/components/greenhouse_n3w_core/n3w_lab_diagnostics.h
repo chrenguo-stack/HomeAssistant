@@ -9,7 +9,7 @@ namespace esphome::greenhouse_n3w_core {
 class N3wLabDiagnostics final : public SimpleProductDiagnosticSink {
  public:
   static constexpr uint32_t kMagic = 0x4e335744U;
-  static constexpr uint16_t kSchemaVersion = 1U;
+  static constexpr uint16_t kSchemaVersion = 2U;
   static constexpr char kNamespace[] = "gh_n3w_diag";
   static constexpr char kKey[] = "snapshot";
 
@@ -18,15 +18,21 @@ class N3wLabDiagnostics final : public SimpleProductDiagnosticSink {
     uint32_t magic{kMagic};
     uint16_t schema_version{kSchemaVersion};
     uint16_t size{sizeof(Snapshot)};
+    uint64_t boot_session{0};
+    uint64_t snapshot_uptime_ms{0};
     uint8_t runtime_start_mode{0};
     uint8_t path_state{0};
     uint8_t current_channel{0};
+    uint8_t direct_channel_hint{0};
     uint8_t last_requested_channel{0};
     uint8_t last_observed_channel{0};
-    uint8_t reserved[3]{0, 0, 0};
+    uint8_t reserved[1]{0};
     uint32_t scan_attempts{0};
     uint32_t scan_successes{0};
     uint32_t scan_failures{0};
+    uint32_t channel_set_attempts{0};
+    uint32_t channel_set_successes{0};
+    uint32_t channel_set_failures{0};
     uint32_t channel_attempts[3]{0, 0, 0};
     uint32_t channel_successes[3]{0, 0, 0};
     uint32_t channel_failures[3]{0, 0, 0};
@@ -53,8 +59,17 @@ class N3wLabDiagnostics final : public SimpleProductDiagnosticSink {
   void set_enabled(bool enabled) { enabled_ = enabled; }
   bool enabled() const { return enabled_; }
   void begin_boot_session();
+  void bind_boot_session(uint64_t session, uint64_t uptime_ms);
+  bool boot_session_bound() const { return boot_session_bound_; }
+  uint32_t persist_count() const { return persist_count_; }
   const Snapshot &snapshot() const { return snapshot_; }
 
+  void note_channel_set_result(
+      uint8_t requested,
+      bool success,
+      uint8_t observed,
+      int32_t raw_error,
+      uint64_t now_ms);
   void note_channel_result(
       uint8_t requested,
       bool success,
@@ -64,6 +79,7 @@ class N3wLabDiagnostics final : public SimpleProductDiagnosticSink {
   void observe_runtime(
       uint8_t path_state,
       uint8_t current_channel,
+      uint8_t direct_channel_hint,
       uint32_t relay_children,
       bool relay_active,
       uint64_t now_ms);
@@ -74,6 +90,13 @@ class N3wLabDiagnostics final : public SimpleProductDiagnosticSink {
 
   // SimpleProductDiagnosticSink.
   void on_runtime_start(uint8_t mode, uint8_t path_state) override;
+  void on_scan_attempt(uint8_t requested, uint64_t now_ms) override;
+  void on_scan_result(
+      uint8_t requested,
+      bool success,
+      uint8_t observed,
+      int32_t raw_error,
+      uint64_t now_ms) override;
   void on_discovery_rx(bool accepted, uint64_t now_ms) override;
   void on_challenge_tx(bool success, uint64_t now_ms) override;
   void on_challenge_rx(bool verified, uint64_t now_ms) override;
@@ -89,9 +112,11 @@ class N3wLabDiagnostics final : public SimpleProductDiagnosticSink {
 
   bool enabled_{false};
   bool boot_session_started_{false};
+  bool boot_session_bound_{false};
   bool dirty_{false};
   uint64_t last_persist_ms_{0};
   uint64_t next_summary_ms_{0};
+  uint32_t persist_count_{0};
   uint32_t relay_children_{0};
   bool relay_active_{false};
   Snapshot snapshot_{};
