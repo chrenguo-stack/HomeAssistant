@@ -37,6 +37,22 @@ int main(int argc, char **argv) {
   assert(diagnostics.snapshot().direct_channel_hint == 0);
   assert(diagnostics.persist_count() <= 40);
 
+  N3wLabDiagnostics repeated_failures;
+  repeated_failures.set_enabled(true);
+  repeated_failures.begin_boot_session();
+  repeated_failures.bind_boot_session(10, 0);
+  for (uint32_t cycle = 0; cycle < 720; ++cycle) {
+    const uint64_t now_ms = static_cast<uint64_t>(cycle) * 250U;
+    const uint8_t channel = kChannels[cycle % 3U];
+    repeated_failures.on_scan_attempt(channel, now_ms);
+    repeated_failures.note_channel_result(channel, false, 0, -1, now_ms);
+    repeated_failures.on_scan_result(channel, false, 0, -1, now_ms);
+    repeated_failures.observe_runtime(1, channel, 0, 0, false, now_ms);
+  }
+  assert(repeated_failures.snapshot().scan_attempts == 720);
+  assert(repeated_failures.snapshot().scan_failures == 720);
+  assert(repeated_failures.persist_count() <= 40);
+
   N3wLabDiagnostics direct;
   direct.set_enabled(true);
   direct.begin_boot_session();
