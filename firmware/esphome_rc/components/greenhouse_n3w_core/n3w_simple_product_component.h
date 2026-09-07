@@ -11,6 +11,7 @@
 #include "n3w_esp32_pairing_nvs.h"
 #include "n3w_esp32_runtime_nvs.h"
 #include "n3w_espnow_driver.h"
+#include "n3w_lab_diagnostics.h"
 #include "n3w_simple_pairing_client.h"
 #include "n3w_simple_product_runtime.h"
 
@@ -27,6 +28,10 @@ class SimpleProductComponent : public Component,
   SimpleProductComponent();
 
   void set_activation_enabled(bool enabled) { activation_enabled_ = enabled; }
+  void set_lab_diagnostics_enabled(bool enabled) {
+    diagnostics_.set_enabled(enabled);
+    runtime_.set_diagnostic_sink(enabled ? &diagnostics_ : nullptr);
+  }
   void setup() override;
   void loop() override;
   float get_setup_priority() const override;
@@ -71,6 +76,8 @@ class SimpleProductComponent : public Component,
       const MacAddress &peer_mac,
       const uint8_t *data,
       std::size_t size) override;
+  uint8_t last_channel_observed() const override { return last_channel_observed_; }
+  int32_t last_channel_error_raw() const override { return last_channel_error_raw_; }
   bool publish_direct(const std::string &topic, const std::string &payload) override;
   bool publish_relay(const std::string &topic, const std::string &payload) override;
 
@@ -120,6 +127,14 @@ class SimpleProductComponent : public Component,
       int *status_code,
       std::string *response_json);
 
+  void begin_lab_diagnostic_boot_session_() {
+    diagnostics_.begin_boot_session();
+  }
+
+  void bind_lab_diagnostic_boot_session_(uint64_t session, uint64_t uptime_ms) {
+    diagnostics_.bind_boot_session(session, uptime_ms);
+  }
+
   static constexpr std::size_t kRxRingSlots = 4;
   static constexpr uint32_t kPairingRetryMs = 5000;
   static constexpr uint32_t kRecoveryProbeMs = 2000;
@@ -140,6 +155,9 @@ class SimpleProductComponent : public Component,
   ProvisionedPeerStateV2 peer_state_{};
   ProvisionedBrokerStateV2 broker_state_{};
   EspNowDriver radio_{};
+  uint8_t last_channel_observed_{0};
+  int32_t last_channel_error_raw_{0};
+  N3wLabDiagnostics diagnostics_{};
   SimpleProductRuntime runtime_;
   NvsSetupSecretStore setup_secret_store_{};
   NvsProvisionedPeerStoreV2 peer_store_{};

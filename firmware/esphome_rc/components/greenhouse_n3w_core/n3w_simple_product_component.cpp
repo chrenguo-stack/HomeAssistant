@@ -139,6 +139,14 @@ void SimpleProductComponent::loop() {
   }
   runtime_.set_relay_capable(mqtt_connected());
   (void) runtime_.tick();
+  diagnostics_.observe_runtime(
+      static_cast<uint8_t>(runtime_.path_state()),
+      runtime_.working_channel(),
+      runtime_.direct_channel_hint(),
+      static_cast<uint32_t>(runtime_.relay_child_count()),
+      runtime_.active_relay().has_value(),
+      now_ms());
+  diagnostics_.emit_summary(now_ms());
   advance_recovery_();
 }
 
@@ -298,6 +306,7 @@ bool SimpleProductComponent::start_runtime_if_ready_() {
     }
   }
 
+  begin_lab_diagnostic_boot_session_();
   const SimpleProductError runtime_error =
       runtime_.start(peer_state_, local_mac_, channel, start_mode);
   if (runtime_error != SimpleProductError::NONE) {
@@ -407,6 +416,7 @@ void SimpleProductComponent::on_espnow_receive_with_metadata(
   const uint8_t next = static_cast<uint8_t>((write + 1U) % kRxRingSlots);
   if (next == rx_read_.load(std::memory_order_acquire)) {
     rx_dropped_.fetch_add(1, std::memory_order_relaxed);
+    diagnostics_.note_rx_dropped(now_ms());
     return;
   }
   RxSlot &slot = rx_ring_[write];
@@ -420,12 +430,18 @@ void SimpleProductComponent::on_espnow_receive_with_metadata(
 void SimpleProductComponent::on_espnow_send_result(
     const MacAddress &destination,
     bool success) {
-  (void) destination;
-  (void) success;
+  if (destination == kEspNowBroadcastMac) {
+    diagnostics_.on_broadcast_completion(success, now_ms());
+  }
 }
 
 bool SimpleProductComponent::set_radio_channel(uint8_t channel) {
-  if (!valid_radio_channel(channel)) return false;
+  if (!valid_radio_channel(channel)) {
+    last_channel_observed_ = 0;
+    last_channel_error_raw_ = -1;
+    diagnostics_.note_channel_result(channel, false, 0, -1, now_ms());
+    return false;
+  }
 
   // While STA is associated, ESP-NOW must share the channel already owned by
   // Wi-Fi. Treat an idempotent request for that channel as success without
@@ -436,17 +452,32 @@ bool SimpleProductComponent::set_radio_channel(uint8_t channel) {
   if (wifi_connected()) {
     uint8_t current_channel = 0;
     wifi_second_chan_t secondary = WIFI_SECOND_CHAN_NONE;
-    if (esp_wifi_get_channel(&current_channel, &secondary) != ESP_OK ||
-        !valid_radio_channel(current_channel)) {
+    const esp_err_t get_result = esp_wifi_get_channel(&current_channel, &secondary);
+    last_channel_observed_ = current_channel;
+    last_channel_error_raw_ = static_cast<int32_t>(get_result);
+    if (get_result != ESP_OK || !valid_radio_channel(current_channel)) {
+      diagnostics_.note_channel_result(
+          channel, false, current_channel, static_cast<int32_t>(get_result), now_ms());
       return false;
     }
+    diagnostics_.note_channel_result(
+        channel, current_channel == channel, current_channel, 0, now_ms());
     return current_channel == channel;
   }
 
-  if (radio_.set_channel(channel) != DriverError::NONE) {
-    return false;
-  }
-  return radio_.prepare_broadcast_peer(channel) == DriverError::NONE;
+  const DriverError set_result = radio_.set_channel(channel);
+  const bool success =
+      set_result == DriverError::NONE &&
+      radio_.prepare_broadcast_peer(channel) == DriverError::NONE;
+  last_channel_observed_ = radio_.last_channel_observed();
+  last_channel_error_raw_ = radio_.last_channel_error_raw();
+  diagnostics_.note_channel_result(
+      channel,
+      success,
+      radio_.last_channel_observed(),
+      radio_.last_channel_error_raw(),
+      now_ms());
+  return success;
 }
 
 bool SimpleProductComponent::broadcast_control(
@@ -459,8 +490,10 @@ bool SimpleProductComponent::install_encrypted_peer(
     const MacAddress &peer_mac,
     const LinkKey &lmk,
     uint8_t channel) {
-  return radio_.add_encrypted_peer(peer_mac, lmk, channel) ==
-         DriverError::NONE;
+  const bool success = radio_.add_encrypted_peer(peer_mac, lmk, channel) ==
+                       DriverError::NONE;
+  diagnostics_.note_peer_install(success, now_ms());
+  return success;
 }
 
 bool SimpleProductComponent::remove_peer(const MacAddress &peer_mac) {

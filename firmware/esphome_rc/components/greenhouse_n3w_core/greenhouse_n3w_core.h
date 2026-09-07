@@ -31,6 +31,10 @@ class GreenhouseN3wCore : public SimpleProductComponent {
     set_activation_enabled(enabled);
   }
 
+  void set_phase4_lab_diagnostics_enabled(bool enabled) {
+    set_lab_diagnostics_enabled(enabled);
+  }
+
   Phase4PhysicalHarness *phase4_harness() { return &phase4_harness_; }
 
   void setup() override {
@@ -228,6 +232,11 @@ class GreenhouseN3wCore : public SimpleProductComponent {
   bool take_telemetry_identity(std::string *boot_id, uint32_t *seq) {
     if (boot_id == nullptr || seq == nullptr || !runtime_ready()) return false;
     if (!begin_boot_session_if_needed_()) return false;
+
+    if (boot_session_manager_.ready()) {
+      bind_lab_diagnostic_boot_session_(
+          boot_session_manager_.session(), now_ms());
+    }
 
     uint32_t issued_seq = 0;
     const CoreError sequence_result =

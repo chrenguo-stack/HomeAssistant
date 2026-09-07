@@ -39,6 +39,7 @@ struct FakePort final : SimpleProductPort {
   std::vector<std::pair<std::string, std::string>> direct;
   std::vector<std::pair<std::string, std::string>> relay;
   bool direct_success{true};
+  bool broadcast_success{true};
 
   bool set_radio_channel(uint8_t value) override {
     channel = value;
@@ -46,7 +47,7 @@ struct FakePort final : SimpleProductPort {
   }
   bool broadcast_control(const uint8_t *data, std::size_t size) override {
     broadcasts.emplace_back(data, data + size);
-    return true;
+    return broadcast_success;
   }
   bool install_encrypted_peer(
       const MacAddress &mac,
@@ -74,6 +75,32 @@ struct FakePort final : SimpleProductPort {
     relay.push_back({topic, payload});
     return true;
   }
+};
+
+struct RecordingDiagnosticSink final : SimpleProductDiagnosticSink {
+  uint32_t advertisement_attempts{0};
+  uint32_t advertisement_successes{0};
+  uint32_t advertisement_failures{0};
+
+  void on_runtime_start(uint8_t, uint8_t) override {}
+  void on_scan_attempt(uint8_t, uint64_t) override {}
+  void on_scan_result(uint8_t, bool, uint8_t, int32_t, uint64_t) override {}
+  void on_discovery_rx(bool, uint64_t) override {}
+  void on_challenge_tx(bool, uint64_t) override {}
+  void on_challenge_rx(bool, uint64_t) override {}
+  void on_accept_tx(bool, uint64_t) override {}
+  void on_accept_rx(bool, uint64_t) override {}
+  void on_relay_active(uint64_t) override {}
+  void on_relay_telemetry(bool, uint64_t) override {}
+  void on_relay_advertisement(bool submitted, uint64_t) override {
+    ++advertisement_attempts;
+    if (submitted) {
+      ++advertisement_successes;
+    } else {
+      ++advertisement_failures;
+    }
+  }
+  void on_broadcast_completion(bool, uint64_t) override {}
 };
 
 ProvisionedPeerStateV2 make_state(const std::string &node_id, uint8_t app_key_byte) {
@@ -135,6 +162,76 @@ int main() {
     assert(offline.note_direct_recovery_probe(true) == SimpleProductError::NONE);
     assert(offline.path_state() == LocalPathState::DIRECT);
     assert(offline_port.channel == 11);
+  }
+
+  // Gateway evidence contract: local advertisement attempts/submission are
+  // distinct from the lower-level broadcast completion oracle. If gateway
+  // ad_submit_success > 0 but broadcast_done_success == 0, investigate the
+  // lower-level ESP-NOW completion path; if discovery_rx > 0, continue
+  // challenge/accept adjudication. Diagnostics must not change direct
+  // scheduling, bytes, path state, or tick results.
+  {
+    FakeClock enabled_clock;
+    FakeRandom enabled_random;
+    FakePort enabled_port;
+    RecordingDiagnosticSink enabled_sink;
+    SimpleProductRuntime enabled_runtime(
+        &enabled_port, &enabled_clock, &enabled_random);
+    enabled_runtime.set_diagnostic_sink(&enabled_sink);
+    assert(enabled_runtime.start(offline_state, offline_mac, 6) ==
+           SimpleProductError::NONE);
+    enabled_runtime.set_relay_capable(true);
+    std::vector<SimpleProductError> enabled_results;
+    for (uint64_t now = 1000; now < 21000; now += 250) {
+      enabled_clock.value = now;
+      enabled_results.push_back(enabled_runtime.tick());
+    }
+    assert(enabled_sink.advertisement_attempts == 10);
+    assert(enabled_sink.advertisement_successes == 10);
+    assert(enabled_sink.advertisement_failures == 0);
+    assert(enabled_port.broadcasts.size() == 10);
+    assert(enabled_runtime.path_state() == LocalPathState::DIRECT);
+
+    FakeClock disabled_clock;
+    FakeRandom disabled_random;
+    FakePort disabled_port;
+    SimpleProductRuntime disabled_runtime(
+        &disabled_port, &disabled_clock, &disabled_random);
+    assert(disabled_runtime.start(offline_state, offline_mac, 6) ==
+           SimpleProductError::NONE);
+    disabled_runtime.set_relay_capable(true);
+    std::vector<SimpleProductError> disabled_results;
+    for (uint64_t now = 1000; now < 21000; now += 250) {
+      disabled_clock.value = now;
+      disabled_results.push_back(disabled_runtime.tick());
+    }
+    assert(disabled_results == enabled_results);
+    assert(disabled_port.broadcasts == enabled_port.broadcasts);
+    assert(disabled_runtime.path_state() == enabled_runtime.path_state());
+
+    FakeClock failed_clock;
+    FakeRandom failed_random;
+    FakePort failed_port;
+    failed_port.broadcast_success = false;
+    RecordingDiagnosticSink failed_sink;
+    SimpleProductRuntime failed_runtime(
+        &failed_port, &failed_clock, &failed_random);
+    failed_runtime.set_diagnostic_sink(&failed_sink);
+    assert(failed_runtime.start(offline_state, offline_mac, 6) ==
+           SimpleProductError::NONE);
+    failed_runtime.set_relay_capable(true);
+    for (uint64_t now = 1000; now < 21000; now += 250) {
+      failed_clock.value = now;
+      const SimpleProductError result = failed_runtime.tick();
+      assert(result == ((now - 1000) % 2000 == 0
+                            ? SimpleProductError::RADIO_FAILED
+                            : SimpleProductError::NONE));
+    }
+    assert(failed_sink.advertisement_attempts == 10);
+    assert(failed_sink.advertisement_successes == 0);
+    assert(failed_sink.advertisement_failures == 10);
+    assert(failed_port.broadcasts.size() == 10);
+    assert(failed_runtime.path_state() == LocalPathState::DIRECT);
   }
 
   FakeClock child_clock;

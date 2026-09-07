@@ -83,13 +83,31 @@ SimpleProductError SimpleProductRuntime::start(
     next_advertisement_ms_ = now;
   } else {
     const uint8_t channel = scan_.current();
-    if (!valid_radio_channel(channel) || !port_->set_radio_channel(channel)) {
+    if (diagnostic_sink_ != nullptr) {
+      diagnostic_sink_->on_scan_attempt(channel, now);
+    }
+    const bool channel_set =
+        valid_radio_channel(channel) && port_->set_radio_channel(channel);
+    if (diagnostic_sink_ != nullptr) {
+      diagnostic_sink_->on_scan_result(
+          channel,
+          channel_set,
+          port_->last_channel_observed(),
+          port_->last_channel_error_raw(),
+          clock_->now_ms());
+    }
+    if (!channel_set) {
       stop();
       return SimpleProductError::RADIO_FAILED;
     }
     next_scan_switch_ms_ = now + policy_.scan_dwell_ms;
   }
   started_ = true;
+  if (diagnostic_sink_ != nullptr) {
+    diagnostic_sink_->on_runtime_start(
+        static_cast<uint8_t>(start_mode),
+        static_cast<uint8_t>(path_.state()));
+  }
   return SimpleProductError::NONE;
 }
 
@@ -202,6 +220,9 @@ SimpleProductError SimpleProductRuntime::send_telemetry(
   }
   const bool success = port_->send_encrypted_peer(
       active_relay_->mac, encoded.data(), encoded.size());
+  if (diagnostic_sink_ != nullptr) {
+    diagnostic_sink_->on_relay_telemetry(success, clock_->now_ms());
+  }
   const LocalPathState before = path_.state();
   if (path_.note_relay_result(success) != RadioError::NONE) {
     return SimpleProductError::STATE_REJECTED;
@@ -257,7 +278,19 @@ SimpleProductError SimpleProductRuntime::begin_discovery_() {
     return SimpleProductError::RADIO_FAILED;
   }
   const uint8_t channel = scan_.current();
-  if (!port_->set_radio_channel(channel)) {
+  if (diagnostic_sink_ != nullptr) {
+    diagnostic_sink_->on_scan_attempt(channel, clock_->now_ms());
+  }
+  const bool channel_set = port_->set_radio_channel(channel);
+  if (diagnostic_sink_ != nullptr) {
+    diagnostic_sink_->on_scan_result(
+        channel,
+        channel_set,
+        port_->last_channel_observed(),
+        port_->last_channel_error_raw(),
+        clock_->now_ms());
+  }
+  if (!channel_set) {
     return SimpleProductError::RADIO_FAILED;
   }
   next_scan_switch_ms_ = clock_->now_ms() + policy_.scan_dwell_ms;
@@ -289,13 +322,19 @@ SimpleProductError SimpleProductRuntime::handle_discovery_(
     const MacAddress &source,
     const SimpleRelayDiscovery &packet,
     uint8_t channel) {
+  const bool accepted =
+      path_.state() == LocalPathState::DISCOVERY &&
+      !pending_challenge_.has_value() && packet.valid() &&
+      packet.peer_trust_generation == peer_credential_.generation &&
+      packet.relay_node_id != state_.node_id && packet.channel == channel;
+  if (diagnostic_sink_ != nullptr) {
+    diagnostic_sink_->on_discovery_rx(accepted, clock_->now_ms());
+  }
   if (path_.state() != LocalPathState::DISCOVERY ||
       pending_challenge_.has_value()) {
     return SimpleProductError::STATE_REJECTED;
   }
-  if (!packet.valid() ||
-      packet.peer_trust_generation != peer_credential_.generation ||
-      packet.relay_node_id == state_.node_id || packet.channel != channel) {
+  if (!accepted) {
     return SimpleProductError::PACKET_REJECTED;
   }
   PeerEndpointV2 relay{packet.relay_node_id, source};
@@ -314,9 +353,14 @@ SimpleProductError SimpleProductRuntime::handle_discovery_(
     return SimpleProductError::CRYPTO_FAILED;
   }
   std::vector<uint8_t> encoded;
-  if (encode_simple_peer_challenge(challenge, &encoded) !=
-          SimpleRuntimeError::NONE ||
-      !port_->broadcast_control(encoded.data(), encoded.size())) {
+  const bool challenge_sent =
+      encode_simple_peer_challenge(challenge, &encoded) ==
+          SimpleRuntimeError::NONE &&
+      port_->broadcast_control(encoded.data(), encoded.size());
+  if (diagnostic_sink_ != nullptr) {
+    diagnostic_sink_->on_challenge_tx(challenge_sent, clock_->now_ms());
+  }
+  if (!challenge_sent) {
     return SimpleProductError::RADIO_FAILED;
   }
   PendingChallenge pending;
@@ -333,19 +377,34 @@ SimpleProductError SimpleProductRuntime::handle_challenge_(
     const MacAddress &source,
     const SimplePeerChallenge &packet,
     uint8_t channel) {
+  const uint64_t now = clock_->now_ms();
   if (path_.state() != LocalPathState::DIRECT || !relay_capable_ ||
       packet.relay_node_id != state_.node_id ||
       packet.child_node_id == state_.node_id ||
       packet.peer_trust_generation != peer_credential_.generation) {
+    if (diagnostic_sink_ != nullptr) {
+      diagnostic_sink_->on_challenge_rx(false, now);
+    }
     return SimpleProductError::STATE_REJECTED;
   }
   PeerEndpointV2 child{packet.child_node_id, source};
-  if (!child.valid()) return SimpleProductError::PACKET_REJECTED;
+  if (!child.valid()) {
+    if (diagnostic_sink_ != nullptr) {
+      diagnostic_sink_->on_challenge_rx(false, now);
+    }
+    return SimpleProductError::PACKET_REJECTED;
+  }
   SimpleLmk lmk{};
   if (verify_simple_peer_challenge(
-          peer_credential_, source, local_endpoint_, packet, &lmk) !=
+      peer_credential_, source, local_endpoint_, packet, &lmk) !=
       SimpleRuntimeError::NONE) {
+    if (diagnostic_sink_ != nullptr) {
+      diagnostic_sink_->on_challenge_rx(false, now);
+    }
     return SimpleProductError::PACKET_REJECTED;
+  }
+  if (diagnostic_sink_ != nullptr) {
+    diagnostic_sink_->on_challenge_rx(true, now);
   }
   SimplePeerAccept accept;
   if (build_simple_peer_accept(
@@ -358,8 +417,13 @@ SimpleProductError SimpleProductRuntime::handle_challenge_(
     return SimpleProductError::CRYPTO_FAILED;
   }
   std::vector<uint8_t> encoded;
-  if (encode_simple_peer_accept(accept, &encoded) != SimpleRuntimeError::NONE ||
-      !port_->broadcast_control(encoded.data(), encoded.size())) {
+  const bool accept_sent =
+      encode_simple_peer_accept(accept, &encoded) == SimpleRuntimeError::NONE &&
+      port_->broadcast_control(encoded.data(), encoded.size());
+  if (diagnostic_sink_ != nullptr) {
+    diagnostic_sink_->on_accept_tx(accept_sent, now);
+  }
+  if (!accept_sent) {
     return SimpleProductError::RADIO_FAILED;
   }
   const LinkKey link_key = as_link_key_(lmk);
@@ -389,8 +453,12 @@ SimpleProductError SimpleProductRuntime::handle_accept_(
     const MacAddress &source,
     const SimplePeerAccept &packet,
     uint8_t channel) {
+  const uint64_t now = clock_->now_ms();
   if (path_.state() != LocalPathState::DISCOVERY ||
       !pending_challenge_.has_value()) {
+    if (diagnostic_sink_ != nullptr) {
+      diagnostic_sink_->on_accept_rx(false, now);
+    }
     return SimpleProductError::STATE_REJECTED;
   }
   const PendingChallenge &pending = *pending_challenge_;
@@ -399,13 +467,22 @@ SimpleProductError SimpleProductRuntime::handle_accept_(
       packet.child_node_id != state_.node_id ||
       packet.peer_trust_generation != peer_credential_.generation ||
       packet.challenge_nonce != pending.challenge_nonce) {
+    if (diagnostic_sink_ != nullptr) {
+      diagnostic_sink_->on_accept_rx(false, now);
+    }
     return SimpleProductError::PACKET_REJECTED;
   }
   SimpleLmk lmk{};
   if (verify_simple_peer_accept(
-          peer_credential_, source, local_endpoint_, packet, &lmk) !=
+      peer_credential_, source, local_endpoint_, packet, &lmk) !=
       SimpleRuntimeError::NONE) {
+    if (diagnostic_sink_ != nullptr) {
+      diagnostic_sink_->on_accept_rx(false, now);
+    }
     return SimpleProductError::PACKET_REJECTED;
+  }
+  if (diagnostic_sink_ != nullptr) {
+    diagnostic_sink_->on_accept_rx(true, now);
   }
   const LinkKey link_key = as_link_key_(lmk);
   if (!port_->install_encrypted_peer(source, link_key, channel)) {
@@ -423,6 +500,9 @@ SimpleProductError SimpleProductRuntime::handle_accept_(
   }
   active_relay_ = std::move(relay);
   pending_challenge_.reset();
+  if (diagnostic_sink_ != nullptr) {
+    diagnostic_sink_->on_relay_active(now);
+  }
   return SimpleProductError::NONE;
 }
 
@@ -464,9 +544,14 @@ SimpleProductError SimpleProductRuntime::maybe_advertise_relay_(
   discovery.channel = direct_channel_;
   discovery.relay_node_id = state_.node_id;
   std::vector<uint8_t> encoded;
-  if (encode_simple_relay_discovery(discovery, &encoded) !=
-          SimpleRuntimeError::NONE ||
-      !port_->broadcast_control(encoded.data(), encoded.size())) {
+  const bool submitted =
+      encode_simple_relay_discovery(discovery, &encoded) ==
+          SimpleRuntimeError::NONE &&
+      port_->broadcast_control(encoded.data(), encoded.size());
+  if (diagnostic_sink_ != nullptr) {
+    diagnostic_sink_->on_relay_advertisement(submitted, now_ms);
+  }
+  if (!submitted) {
     next_advertisement_ms_ = now_ms + policy_.relay_advertisement_interval_ms;
     return SimpleProductError::RADIO_FAILED;
   }
@@ -480,10 +565,29 @@ SimpleProductError SimpleProductRuntime::maybe_advance_scan_(uint64_t now_ms) {
   }
   next_scan_switch_ms_ = now_ms + policy_.scan_dwell_ms;
   const uint8_t channel = scan_.advance();
-  if (!valid_radio_channel(channel) || !port_->set_radio_channel(channel)) {
+  if (diagnostic_sink_ != nullptr) {
+    diagnostic_sink_->on_scan_attempt(channel, now_ms);
+  }
+  const bool channel_set =
+      valid_radio_channel(channel) && port_->set_radio_channel(channel);
+  if (diagnostic_sink_ != nullptr) {
+    diagnostic_sink_->on_scan_result(
+        channel,
+        channel_set,
+        port_->last_channel_observed(),
+        port_->last_channel_error_raw(),
+        clock_->now_ms());
+  }
+  if (!channel_set) {
     return SimpleProductError::RADIO_FAILED;
   }
   return SimpleProductError::NONE;
+}
+
+uint8_t SimpleProductRuntime::working_channel() const {
+  if (active_relay_.has_value()) return active_relay_->channel;
+  if (path_.state() == LocalPathState::DIRECT) return direct_channel_;
+  return scan_.current();
 }
 
 SimpleProductRelayPeer *SimpleProductRuntime::find_relay_child_(

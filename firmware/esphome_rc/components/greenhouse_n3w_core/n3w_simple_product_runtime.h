@@ -66,6 +66,8 @@ class SimpleProductPort {
       const MacAddress &peer_mac,
       const uint8_t *data,
       std::size_t size) = 0;
+  virtual uint8_t last_channel_observed() const { return 0; }
+  virtual int32_t last_channel_error_raw() const { return 0; }
   virtual bool publish_direct(const std::string &topic, const std::string &payload) = 0;
   virtual bool publish_relay(const std::string &topic, const std::string &payload) = 0;
 };
@@ -77,6 +79,28 @@ struct SimpleProductRelayPeer {
   uint8_t channel{0};
 
   bool valid() const;
+};
+
+class SimpleProductDiagnosticSink {
+ public:
+  virtual ~SimpleProductDiagnosticSink() = default;
+  virtual void on_runtime_start(uint8_t mode, uint8_t path_state) = 0;
+  virtual void on_scan_attempt(uint8_t requested, uint64_t now_ms) = 0;
+  virtual void on_scan_result(
+      uint8_t requested,
+      bool success,
+      uint8_t observed,
+      int32_t raw_error,
+      uint64_t now_ms) = 0;
+  virtual void on_discovery_rx(bool accepted, uint64_t now_ms) = 0;
+  virtual void on_challenge_tx(bool success, uint64_t now_ms) = 0;
+  virtual void on_challenge_rx(bool verified, uint64_t now_ms) = 0;
+  virtual void on_accept_tx(bool success, uint64_t now_ms) = 0;
+  virtual void on_accept_rx(bool verified, uint64_t now_ms) = 0;
+  virtual void on_relay_active(uint64_t now_ms) = 0;
+  virtual void on_relay_telemetry(bool success, uint64_t now_ms) = 0;
+  virtual void on_relay_advertisement(bool submitted, uint64_t now_ms) = 0;
+  virtual void on_broadcast_completion(bool success, uint64_t now_ms) = 0;
 };
 
 class SimpleProductRuntime {
@@ -110,9 +134,13 @@ class SimpleProductRuntime {
       uint8_t channel);
 
   void set_relay_capable(bool value) { relay_capable_ = value; }
+  void set_diagnostic_sink(SimpleProductDiagnosticSink *sink) {
+    diagnostic_sink_ = sink;
+  }
   bool started() const { return started_; }
   LocalPathState path_state() const { return path_.state(); }
   uint8_t direct_channel_hint() const { return direct_channel_; }
+  uint8_t working_channel() const;
   const std::optional<SimpleProductRelayPeer> &active_relay() const {
     return active_relay_;
   }
@@ -175,6 +203,7 @@ class SimpleProductRuntime {
   std::optional<PendingChallenge> pending_challenge_{};
   std::optional<SimpleProductRelayPeer> active_relay_{};
   std::vector<SimpleProductRelayPeer> relay_children_{};
+  SimpleProductDiagnosticSink *diagnostic_sink_{nullptr};
 };
 
 }  // namespace esphome::greenhouse_n3w_core

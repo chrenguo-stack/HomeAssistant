@@ -16,6 +16,7 @@ AUTO_LOAD = ["json"]
 
 CONF_PHASE4_SOURCE_HARNESS = "phase4_source_harness"
 CONF_PHASE4_PRODUCT_RUNTIME = "phase4_product_runtime"
+CONF_PHASE4_LAB_DIAGNOSTICS = "phase4_lab_diagnostics"
 
 greenhouse_n3w_core_ns = cg.esphome_ns.namespace("greenhouse_n3w_core")
 GreenhouseN3wCore = greenhouse_n3w_core_ns.class_("GreenhouseN3wCore", cg.Component)
@@ -25,6 +26,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(GreenhouseN3wCore),
         cv.Optional(CONF_PHASE4_SOURCE_HARNESS, default=False): cv.boolean,
         cv.Optional(CONF_PHASE4_PRODUCT_RUNTIME, default=False): cv.boolean,
+        cv.Optional(CONF_PHASE4_LAB_DIAGNOSTICS, default=False): cv.boolean,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -47,3 +49,4 @@ async def to_code(config: dict) -> None:
     await cg.register_component(var, config)
     cg.add(var.set_phase4_source_harness_enabled(config[CONF_PHASE4_SOURCE_HARNESS]))
     cg.add(var.set_phase4_product_runtime_enabled(config[CONF_PHASE4_PRODUCT_RUNTIME]))
+    cg.add(var.set_phase4_lab_diagnostics_enabled(config[CONF_PHASE4_LAB_DIAGNOSTICS]))
