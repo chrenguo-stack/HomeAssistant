@@ -34,6 +34,8 @@ void N3wLabDiagnostics::begin_boot_session() {
   persist_count_ = 0;
   relay_children_ = 0;
   relay_active_ = false;
+  pending_broadcast_success_.store(0, std::memory_order_relaxed);
+  pending_broadcast_failure_.store(0, std::memory_order_relaxed);
 }
 
 void N3wLabDiagnostics::bind_boot_session(uint64_t session, uint64_t uptime_ms) {
@@ -179,14 +181,18 @@ void N3wLabDiagnostics::note_relay_telemetry(bool success, uint64_t now_ms) {
 }
 
 void N3wLabDiagnostics::emit_summary(uint64_t now_ms) {
-  if (!enabled_ || !boot_session_started_ || !boot_session_bound_ ||
-      now_ms < next_summary_ms_) {
+  if (!enabled_ || !boot_session_started_ || !boot_session_bound_) {
     return;
   }
+  // Broadcast completion callbacks can run from the Wi-Fi task. They only
+  // enqueue counters; merge and flush them from the normal component loop.
+  drain_broadcast_completions_(now_ms);
+  persist_(now_ms, false);
+  if (now_ms < next_summary_ms_) return;
   next_summary_ms_ = now_ms + kSummaryIntervalMs;
   ESP_LOGI(
       TAG,
-      "N3W_DIAG_DISCOVERY schema=%u boot_session=%llu snapshot_uptime_ms=%llu path=%u current_channel=%u direct_channel_hint=%u attempts=%u success=%u fail=%u discovery_rx=%u challenge_rx=%u accept_tx=%u relay_children=%u relay_active_count=%u",
+      "N3W_DIAG_DISCOVERY schema=%u boot_session=%llu snapshot_uptime_ms=%llu path=%u current_channel=%u direct_channel_hint=%u attempts=%u success=%u fail=%u discovery_rx=%u challenge_rx=%u accept_tx=%u relay_children=%u relay_active_count=%u ad_attempts=%u ad_submit_success=%u ad_submit_fail=%u broadcast_done=%u broadcast_done_success=%u",
       static_cast<unsigned>(snapshot_.schema_version),
       static_cast<unsigned long long>(snapshot_.boot_session),
       static_cast<unsigned long long>(snapshot_.snapshot_uptime_ms),
@@ -200,7 +206,25 @@ void N3wLabDiagnostics::emit_summary(uint64_t now_ms) {
       static_cast<unsigned>(snapshot_.challenge_rx),
       static_cast<unsigned>(snapshot_.accept_tx),
       static_cast<unsigned>(relay_children_),
-      static_cast<unsigned>(snapshot_.relay_active_count));
+      static_cast<unsigned>(snapshot_.relay_active_count),
+      static_cast<unsigned>(snapshot_.relay_advertisement_attempts),
+      static_cast<unsigned>(snapshot_.relay_advertisement_submit_success),
+      static_cast<unsigned>(snapshot_.relay_advertisement_submit_failure),
+      static_cast<unsigned>(snapshot_.broadcast_completion_count),
+      static_cast<unsigned>(snapshot_.broadcast_completion_success));
+}
+
+void N3wLabDiagnostics::drain_broadcast_completions_(uint64_t now_ms) {
+  const uint32_t success =
+      pending_broadcast_success_.exchange(0, std::memory_order_relaxed);
+  const uint32_t failure =
+      pending_broadcast_failure_.exchange(0, std::memory_order_relaxed);
+  if (success == 0 && failure == 0) return;
+  snapshot_.broadcast_completion_count += success + failure;
+  snapshot_.broadcast_completion_success += success;
+  snapshot_.broadcast_completion_failure += failure;
+  snapshot_.snapshot_uptime_ms = now_ms;
+  dirty_ = true;
 }
 
 void N3wLabDiagnostics::on_runtime_start(uint8_t mode, uint8_t path_state) {
@@ -254,6 +278,31 @@ void N3wLabDiagnostics::on_relay_active(uint64_t now_ms) {
 
 void N3wLabDiagnostics::on_relay_telemetry(bool success, uint64_t now_ms) {
   note_relay_telemetry(success, now_ms);
+}
+
+void N3wLabDiagnostics::on_relay_advertisement(
+    bool submitted,
+    uint64_t now_ms) {
+  if (!enabled_ || !boot_session_started_) return;
+  ++snapshot_.relay_advertisement_attempts;
+  if (submitted) {
+    ++snapshot_.relay_advertisement_submit_success;
+  } else {
+    ++snapshot_.relay_advertisement_submit_failure;
+  }
+  mark_(now_ms, false);
+}
+
+void N3wLabDiagnostics::on_broadcast_completion(
+    bool success,
+    uint64_t now_ms) {
+  if (!enabled_ || !boot_session_started_) return;
+  (void) now_ms;
+  if (success) {
+    pending_broadcast_success_.fetch_add(1, std::memory_order_relaxed);
+  } else {
+    pending_broadcast_failure_.fetch_add(1, std::memory_order_relaxed);
+  }
 }
 
 }  // namespace esphome::greenhouse_n3w_core

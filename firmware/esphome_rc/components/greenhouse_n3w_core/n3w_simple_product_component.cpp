@@ -430,8 +430,9 @@ void SimpleProductComponent::on_espnow_receive_with_metadata(
 void SimpleProductComponent::on_espnow_send_result(
     const MacAddress &destination,
     bool success) {
-  (void) destination;
-  (void) success;
+  if (destination == kEspNowBroadcastMac) {
+    diagnostics_.on_broadcast_completion(success, now_ms());
+  }
 }
 
 bool SimpleProductComponent::set_radio_channel(uint8_t channel) {

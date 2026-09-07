@@ -99,6 +99,8 @@ class SimpleProductDiagnosticSink {
   virtual void on_accept_rx(bool verified, uint64_t now_ms) = 0;
   virtual void on_relay_active(uint64_t now_ms) = 0;
   virtual void on_relay_telemetry(bool success, uint64_t now_ms) = 0;
+  virtual void on_relay_advertisement(bool submitted, uint64_t now_ms) = 0;
+  virtual void on_broadcast_completion(bool success, uint64_t now_ms) = 0;
 };
 
 class SimpleProductRuntime {

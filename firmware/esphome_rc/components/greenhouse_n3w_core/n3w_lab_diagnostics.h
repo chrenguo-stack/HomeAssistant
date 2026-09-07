@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 
 #include "n3w_simple_product_runtime.h"
@@ -9,7 +10,7 @@ namespace esphome::greenhouse_n3w_core {
 class N3wLabDiagnostics final : public SimpleProductDiagnosticSink {
  public:
   static constexpr uint32_t kMagic = 0x4e335744U;
-  static constexpr uint16_t kSchemaVersion = 2U;
+  static constexpr uint16_t kSchemaVersion = 3U;
   static constexpr char kNamespace[] = "gh_n3w_diag";
   static constexpr char kKey[] = "snapshot";
 
@@ -53,6 +54,12 @@ class N3wLabDiagnostics final : public SimpleProductDiagnosticSink {
     uint32_t relay_telemetry_attempts{0};
     uint32_t relay_telemetry_success{0};
     uint32_t rx_dropped{0};
+    uint32_t relay_advertisement_attempts{0};
+    uint32_t relay_advertisement_submit_success{0};
+    uint32_t relay_advertisement_submit_failure{0};
+    uint32_t broadcast_completion_count{0};
+    uint32_t broadcast_completion_success{0};
+    uint32_t broadcast_completion_failure{0};
   };
 #pragma pack(pop)
 
@@ -104,10 +111,13 @@ class N3wLabDiagnostics final : public SimpleProductDiagnosticSink {
   void on_accept_rx(bool verified, uint64_t now_ms) override;
   void on_relay_active(uint64_t now_ms) override;
   void on_relay_telemetry(bool success, uint64_t now_ms) override;
+  void on_relay_advertisement(bool submitted, uint64_t now_ms) override;
+  void on_broadcast_completion(bool success, uint64_t now_ms) override;
 
  private:
   void persist_(uint64_t now_ms, bool force);
   void mark_(uint64_t now_ms, bool force);
+  void drain_broadcast_completions_(uint64_t now_ms);
   static int channel_slot_(uint8_t channel);
 
   bool enabled_{false};
@@ -119,6 +129,8 @@ class N3wLabDiagnostics final : public SimpleProductDiagnosticSink {
   uint32_t persist_count_{0};
   uint32_t relay_children_{0};
   bool relay_active_{false};
+  std::atomic<uint32_t> pending_broadcast_success_{0};
+  std::atomic<uint32_t> pending_broadcast_failure_{0};
   Snapshot snapshot_{};
 };
 

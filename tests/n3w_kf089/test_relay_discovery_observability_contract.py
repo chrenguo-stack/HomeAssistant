@@ -23,7 +23,7 @@ def test_diagnostic_namespace_and_schema_are_lab_only():
     source = DIAG_CPP.read_text(encoding="utf-8")
     assert '"gh_n3w_diag"' in header
     assert '"snapshot"' in header
-    assert "kSchemaVersion = 2U" in header
+    assert "kSchemaVersion = 3U" in header
     assert "NVS_READWRITE" in source
     assert "gh_n3w_v2" not in source
 
@@ -61,6 +61,12 @@ def test_snapshot_has_required_channel_and_path_fields():
         "channel_set_attempts",
         "channel_set_successes",
         "channel_set_failures",
+        "relay_advertisement_attempts",
+        "relay_advertisement_submit_success",
+        "relay_advertisement_submit_failure",
+        "broadcast_completion_count",
+        "broadcast_completion_success",
+        "broadcast_completion_failure",
     ):
         assert field in header
 
@@ -84,6 +90,14 @@ def test_runtime_start_and_channel_observation_are_instrumented():
     assert "on_runtime_start" in runtime
     assert "note_channel_result" in component
     assert "return success;" in component
+
+
+def test_advertisement_and_broadcast_completion_observability_are_lab_only():
+    runtime = RUNTIME.read_text(encoding="utf-8")
+    component = COMPONENT.read_text(encoding="utf-8")
+    assert "on_relay_advertisement(submitted" in runtime
+    assert "destination == kEspNowBroadcastMac" in component
+    assert "on_broadcast_completion(success" in component
 
 
 def test_discovery_rx_records_accept_and_reject_stages():
@@ -127,6 +141,14 @@ def test_serial_summary_is_bounded_and_redacted_by_construction():
     source = DIAG_CPP.read_text(encoding="utf-8")
     assert "N3W_DIAG_DISCOVERY" in source
     assert "kSummaryIntervalMs = 10000" in source
+    for marker in (
+        "ad_attempts=%u",
+        "ad_submit_success=%u",
+        "ad_submit_fail=%u",
+        "broadcast_done=%u",
+        "broadcast_done_success=%u",
+    ):
+        assert marker in source
     assert "node_id" not in source
     assert "system_id" not in source
     assert "secret" not in source.lower()
@@ -226,7 +248,44 @@ def test_diagnostics_behavioral_persistence_and_round_trip(tmp_path: Path):
     values = json.loads(parsed.stdout)
     assert values["boot_session"] == 0x1122334455667788
     assert values["snapshot_uptime_ms"] == 179750
-    assert values["schema_version"] == 2
+    assert values["schema_version"] == 3
     assert values["scan_attempts"] == 720
     assert values["current_channel"] == 11
     assert values["direct_channel_hint"] == 0
+    assert values["relay_advertisement_attempts"] == 0
+    assert values["broadcast_completion_count"] == 0
+
+
+def test_advertisement_behavioral_and_diagnostics_neutrality(tmp_path: Path):
+    compiler = shutil.which("g++")
+    assert compiler is not None
+    executable = tmp_path / "n3w-phase4-runtime-host-test"
+    sources = [
+        CORE / "n3w_core.cpp",
+        CORE / "n3w_radio.cpp",
+        CORE / "n3w_simple_crypto.cpp",
+        CORE / "n3w_compact_telemetry.cpp",
+        CORE / "n3w_simple_runtime.cpp",
+        CORE / "n3w_simple_state_host.cpp",
+        CORE / "n3w_simple_product_runtime.cpp",
+        ROOT / "tests/n3w_phase4/n3w_phase4_runtime_host_test.cpp",
+    ]
+    subprocess.run(
+        [
+            compiler,
+            "-std=c++17",
+            "-O2",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-Wno-error=unneeded-internal-declaration",
+            "-I",
+            str(CORE),
+            *(str(source) for source in sources),
+            "-lmbedcrypto",
+            "-o",
+            str(executable),
+        ],
+        check=True,
+    )
+    subprocess.run([str(executable)], check=True)

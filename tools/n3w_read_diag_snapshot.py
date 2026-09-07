@@ -19,7 +19,7 @@ from pathlib import Path
 
 
 MAGIC = 0x4E335744
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 NAMESPACE = "gh_n3w_diag"
 KEY = "snapshot"
 PAGE_SIZE = 4096
@@ -68,6 +68,12 @@ class Snapshot(ctypes.LittleEndianStructure):
         ("relay_telemetry_attempts", ctypes.c_uint32),
         ("relay_telemetry_success", ctypes.c_uint32),
         ("rx_dropped", ctypes.c_uint32),
+        ("relay_advertisement_attempts", ctypes.c_uint32),
+        ("relay_advertisement_submit_success", ctypes.c_uint32),
+        ("relay_advertisement_submit_failure", ctypes.c_uint32),
+        ("broadcast_completion_count", ctypes.c_uint32),
+        ("broadcast_completion_success", ctypes.c_uint32),
+        ("broadcast_completion_failure", ctypes.c_uint32),
     ]
 
 
@@ -108,6 +114,12 @@ def _values(snapshot: Snapshot) -> dict[str, object]:
         "relay_telemetry_attempts": snapshot.relay_telemetry_attempts,
         "relay_telemetry_success": snapshot.relay_telemetry_success,
         "rx_dropped": snapshot.rx_dropped,
+        "relay_advertisement_attempts": snapshot.relay_advertisement_attempts,
+        "relay_advertisement_submit_success": snapshot.relay_advertisement_submit_success,
+        "relay_advertisement_submit_failure": snapshot.relay_advertisement_submit_failure,
+        "broadcast_completion_count": snapshot.broadcast_completion_count,
+        "broadcast_completion_success": snapshot.broadcast_completion_success,
+        "broadcast_completion_failure": snapshot.broadcast_completion_failure,
     }
 
 

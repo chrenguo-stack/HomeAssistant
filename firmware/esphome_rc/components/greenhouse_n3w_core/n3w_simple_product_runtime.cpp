@@ -544,9 +544,14 @@ SimpleProductError SimpleProductRuntime::maybe_advertise_relay_(
   discovery.channel = direct_channel_;
   discovery.relay_node_id = state_.node_id;
   std::vector<uint8_t> encoded;
-  if (encode_simple_relay_discovery(discovery, &encoded) !=
-          SimpleRuntimeError::NONE ||
-      !port_->broadcast_control(encoded.data(), encoded.size())) {
+  const bool submitted =
+      encode_simple_relay_discovery(discovery, &encoded) ==
+          SimpleRuntimeError::NONE &&
+      port_->broadcast_control(encoded.data(), encoded.size());
+  if (diagnostic_sink_ != nullptr) {
+    diagnostic_sink_->on_relay_advertisement(submitted, now_ms);
+  }
+  if (!submitted) {
     next_advertisement_ms_ = now_ms + policy_.relay_advertisement_interval_ms;
     return SimpleProductError::RADIO_FAILED;
   }

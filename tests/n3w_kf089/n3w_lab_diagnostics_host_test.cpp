@@ -53,6 +53,23 @@ int main(int argc, char **argv) {
   assert(repeated_failures.snapshot().scan_failures == 720);
   assert(repeated_failures.persist_count() <= 40);
 
+  N3wLabDiagnostics advertisements;
+  advertisements.set_enabled(true);
+  advertisements.begin_boot_session();
+  advertisements.bind_boot_session(11, 0);
+  for (uint64_t now_ms = 0; now_ms < 180000; now_ms += 2000) {
+    advertisements.on_relay_advertisement(true, now_ms);
+    advertisements.on_broadcast_completion((now_ms % 4000U) == 0U, now_ms);
+    advertisements.emit_summary(now_ms);
+  }
+  assert(advertisements.snapshot().relay_advertisement_attempts == 90);
+  assert(advertisements.snapshot().relay_advertisement_submit_success == 90);
+  assert(advertisements.snapshot().relay_advertisement_submit_failure == 0);
+  assert(advertisements.snapshot().broadcast_completion_count == 90);
+  assert(advertisements.snapshot().broadcast_completion_success == 45);
+  assert(advertisements.snapshot().broadcast_completion_failure == 45);
+  assert(advertisements.persist_count() <= 40);
+
   N3wLabDiagnostics direct;
   direct.set_enabled(true);
   direct.begin_boot_session();
