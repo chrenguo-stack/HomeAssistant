@@ -1,35 +1,46 @@
 # N3-W Current State Index
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
-Formal next-chat handoff: `docs/development/N3W_KF089_BOARD_A_DUAL_SLOT_NORMALIZED_POSTCHECK_PREEXECUTION_NEW_CHAT_HANDOFF_V1.0_20260907.md`  
-Latest physical progress archive: `docs/development/N3W_KF089_BOARD_A_APP0_NORMALIZATION_PROGRESS_20260907.md`  
-Board A durable-baseline PASS archive: `docs/development/N3W_KF089_BOARD_A_DURABLE_DIAG_BASELINE_PASS_20260907.md`  
-Previous remote-T1 contract-stop addendum: `docs/development/N3W_KF089_REMOTE_T1_WINDOW_CONTRACT_STOP_20260907.md`  
-Previous harness addendum: `docs/development/N3W_KF089_OBSERVABILITY_BASELINE_HARNESS_BLOCKER_20260907.md`  
-Detailed 2026-09-07 reconciliation archive: `docs/development/N3W_KF089_LOCAL_CHAT_GITHUB_ALIGNMENT_ARCHIVE_20260907.md`  
-Post-merge archive correction: `docs/development/N3W_KF089_ALIGNMENT_ARCHIVE_POSTMERGE_CORRECTION_20260907.md`
+Formal next-chat handoff: `docs/development/N3W_KF089_SCHEMA_V4_FRESH_RF_EXECUTION_PREEXECUTION_NEW_CHAT_HANDOFF_V1.0_20260908.md`
+Active product-direction authority: `docs/development/N3W_OFFICIAL_ESPNOW_REFERENCE_PRODUCT_DIRECTION_DECISION_20260906.md`
 
-Current frozen physical boundary:
+## Current source authority
 
 ```text
-BOARD_A_DIRECT_BASELINE=PASS
-BOARD_A_APP0_EXACT_OBSERVABILITY=PASS
-BOARD_A_APP1_EXACT_OBSERVABILITY=PASS
-BOARD_A_BOTH_SLOTS_EXACT_MAIN=PASS
-BOARD_A_SELECTED_SLOT=1
-BOARD_A_CURRENT_MODE=ROM_DOWNLOAD_MODE
-BOARD_A_POSTCHECK=PENDING_BOOT_GPIO9_RELEASE
-PRODUCT_FAILURE=false
-
-BOARD_B_OBSERVABILITY_REFRESH=NOT_EXECUTED
+REPOSITORY_MAIN=QUERY_GITHUB_FRESH
+REPOSITORY_MAIN_TREE=QUERY_GITHUB_FRESH
+ALIGNMENT_BASE_MAIN=fe116efabbd986263b043aa1a36ad74bf283bafa
+ALIGNMENT_BASE_TREE=1ae70a7d8776f8343d53d5c784141e8d8d1b1abc
+PRODUCT_SOURCE_AUTHORITY=fe116efabbd986263b043aa1a36ad74bf283bafa
+PRODUCT_SOURCE_TREE=1ae70a7d8776f8343d53d5c784141e8d8d1b1abc
+DIAGNOSTIC_SCHEMA_VERSION=4
 ```
 
-The app0-only mutation preserved partition table, otadata, NVS and app1 exactly. The subsequent postcheck did not observe application telemetry because Board A remained in ROM Download Mode; this is not a product-failure claim.
-
-Current ONE gate:
+## Frozen physical boundary
 
 ```text
-NEXT_ONE_GATE=KF089_BOARD_A_RELEASE_BOOT_AND_POSTCHECK
+BOARD_A_STATE=BATTERY_POWERED_AT_FIXED_RELAY_ANCHOR_POSITION
+BOARD_B_STATE=ROM_DOWNLOAD_MODE_AT_TEST_MAC
+BOARD_B_SELECTED_SLOT=app1
+BOARD_B_APP1_SCHEMA_V4_DEPLOYED=true
+BOARD_B_POST_DEPLOYMENT_APPLICATION_SESSION_CREATED=false
 ```
 
-Do not replay Board A app0 normalization. The next gate only releases BOOT/GPIO9, performs one normal boot with BOOT released, and uses the actual remote T1 Manager canonical observer for read-only postcheck. Board B remains out of scope until that gate passes.
+## Current KF-089 boundary
+
+```text
+KF089_AUTONOMOUS_DISCOVERY_ENTRY=PASS
+KF089_A_B_ESPNOW_REACHABILITY=PASS
+SELECTIVE_RF_ZONE_QUALIFIED=PASS
+KF089_RELAY_ADVERTISEMENT_DECODED=PASS
+KF089_RELAY_ADVERTISEMENT_ACCEPTED=NOT_PROVEN
+FIRST_UNPROVEN_STAGE=DISCOVERY_ADVERTISEMENT_ACCEPTANCE
+```
+
+## Current ONE gate after alignment merge
+
+```text
+NEXT_ONE_GATE=N3W_KF089_SCHEMA_V4_FRESH_RF_SESSION_EXECUTION_20260908_01
+```
+
+Board B schema-v4 observability deployment is complete and verified in app1. Do not retain stale current-state text claiming that Board B observability refresh is unexecuted. Historical archives remain historical and are not rewritten.
