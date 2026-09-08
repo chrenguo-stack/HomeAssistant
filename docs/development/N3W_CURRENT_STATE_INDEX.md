@@ -8,7 +8,7 @@ Active product-direction authority: `docs/development/N3W_OFFICIAL_ESPNOW_REFERE
 
 ```text
 MAIN=fe116efabbd986263b043aa1a36ad74bf283bafa
-TREE=1ae70a7d8776f8343d53d5c784141e8d8d1abc
+TREE=1ae70a7d8776f8343d53d5c784141e8d8d1b1abc
 DIAGNOSTIC_SCHEMA_VERSION=4
 ```
 

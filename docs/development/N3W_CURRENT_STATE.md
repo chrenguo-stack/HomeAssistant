@@ -11,7 +11,7 @@ This is the concise public-safe authority for the current N3-W state. Fresh exac
 REPOSITORY=chrenguo-stack/HomeAssistant
 REPOSITORY_MAIN=fe116efabbd986263b043aa1a36ad74bf283bafa
 PRODUCT_SOURCE_AUTHORITY=fe116efabbd986263b043aa1a36ad74bf283bafa
-PRODUCT_SOURCE_TREE=1ae70a7d8776f8343d53d5c784141e8d8d1abc
+PRODUCT_SOURCE_TREE=1ae70a7d8776f8343d53d5c784141e8d8d1b1abc
 LAST_PRODUCT_SOURCE_CHANGE=PR_376
 ```
 
