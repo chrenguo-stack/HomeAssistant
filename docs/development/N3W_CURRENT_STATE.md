@@ -9,11 +9,16 @@ This is the concise public-safe authority for the current N3-W state. Fresh exac
 
 ```text
 REPOSITORY=chrenguo-stack/HomeAssistant
-REPOSITORY_MAIN=fe116efabbd986263b043aa1a36ad74bf283bafa
+REPOSITORY_MAIN=QUERY_GITHUB_FRESH
+REPOSITORY_MAIN_TREE=QUERY_GITHUB_FRESH
+ALIGNMENT_BASE_MAIN=fe116efabbd986263b043aa1a36ad74bf283bafa
+ALIGNMENT_BASE_TREE=1ae70a7d8776f8343d53d5c784141e8d8d1b1abc
 PRODUCT_SOURCE_AUTHORITY=fe116efabbd986263b043aa1a36ad74bf283bafa
 PRODUCT_SOURCE_TREE=1ae70a7d8776f8343d53d5c784141e8d8d1b1abc
 LAST_PRODUCT_SOURCE_CHANGE=PR_376
 ```
+
+Repository main must always be queried fresh. Documentation-only descendants do not redefine the frozen product-source authority.
 
 Active architecture authority remains:
 
