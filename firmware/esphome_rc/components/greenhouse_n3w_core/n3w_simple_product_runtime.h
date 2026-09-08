@@ -29,6 +29,16 @@ enum class SimpleProductStartMode : uint8_t {
   DISCOVERY,
 };
 
+enum class DiscoveryRejectReason : uint8_t {
+  NONE = 0,
+  STATE_NOT_DISCOVERY = 1,
+  PENDING_CHALLENGE = 2,
+  PACKET_INVALID = 3,
+  TRUST_GENERATION_MISMATCH = 4,
+  SELF_RELAY = 5,
+  CHANNEL_MISMATCH = 6,
+};
+
 struct SimpleProductPolicy {
   LocalPathPolicy path{};
   std::vector<uint8_t> allowed_channels{1, 6, 11};
@@ -93,6 +103,16 @@ class SimpleProductDiagnosticSink {
       int32_t raw_error,
       uint64_t now_ms) = 0;
   virtual void on_discovery_rx(bool accepted, uint64_t now_ms) = 0;
+  virtual void on_discovery_rejected(
+      DiscoveryRejectReason reason,
+      uint8_t packet_channel,
+      uint8_t rx_channel,
+      uint64_t now_ms) {
+    (void) reason;
+    (void) packet_channel;
+    (void) rx_channel;
+    (void) now_ms;
+  }
   virtual void on_challenge_tx(bool success, uint64_t now_ms) = 0;
   virtual void on_challenge_rx(bool verified, uint64_t now_ms) = 0;
   virtual void on_accept_tx(bool success, uint64_t now_ms) = 0;

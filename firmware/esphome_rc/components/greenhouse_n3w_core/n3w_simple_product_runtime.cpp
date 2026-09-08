@@ -328,7 +328,26 @@ SimpleProductError SimpleProductRuntime::handle_discovery_(
       packet.peer_trust_generation == peer_credential_.generation &&
       packet.relay_node_id != state_.node_id && packet.channel == channel;
   if (diagnostic_sink_ != nullptr) {
-    diagnostic_sink_->on_discovery_rx(accepted, clock_->now_ms());
+    const uint64_t now_ms = clock_->now_ms();
+    if (!accepted) {
+      DiscoveryRejectReason reason = DiscoveryRejectReason::NONE;
+      if (path_.state() != LocalPathState::DISCOVERY) {
+        reason = DiscoveryRejectReason::STATE_NOT_DISCOVERY;
+      } else if (pending_challenge_.has_value()) {
+        reason = DiscoveryRejectReason::PENDING_CHALLENGE;
+      } else if (!packet.valid()) {
+        reason = DiscoveryRejectReason::PACKET_INVALID;
+      } else if (packet.peer_trust_generation != peer_credential_.generation) {
+        reason = DiscoveryRejectReason::TRUST_GENERATION_MISMATCH;
+      } else if (packet.relay_node_id == state_.node_id) {
+        reason = DiscoveryRejectReason::SELF_RELAY;
+      } else if (packet.channel != channel) {
+        reason = DiscoveryRejectReason::CHANNEL_MISMATCH;
+      }
+      diagnostic_sink_->on_discovery_rejected(
+          reason, packet.channel, channel, now_ms);
+    }
+    diagnostic_sink_->on_discovery_rx(accepted, now_ms);
   }
   if (path_.state() != LocalPathState::DISCOVERY ||
       pending_challenge_.has_value()) {

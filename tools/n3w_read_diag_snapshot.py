@@ -27,7 +27,7 @@ ENTRY_SIZE = 32
 NVS_READ_COMMAND = "read-flash"
 
 
-class Snapshot(ctypes.LittleEndianStructure):
+class SnapshotV3(ctypes.LittleEndianStructure):
     _pack_ = 1
     _fields_ = [
         ("magic", ctypes.c_uint32),
@@ -77,8 +77,27 @@ class Snapshot(ctypes.LittleEndianStructure):
     ]
 
 
+class SnapshotV4(ctypes.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = SnapshotV3._fields_ + [
+        ("discovery_reject_state", ctypes.c_uint32),
+        ("discovery_reject_pending", ctypes.c_uint32),
+        ("discovery_reject_packet_invalid", ctypes.c_uint32),
+        ("discovery_reject_trust_generation", ctypes.c_uint32),
+        ("discovery_reject_self", ctypes.c_uint32),
+        ("discovery_reject_channel_mismatch", ctypes.c_uint32),
+        ("last_discovery_rejection_reason", ctypes.c_uint8),
+        ("last_discovery_packet_channel", ctypes.c_uint8),
+        ("last_discovery_rx_channel", ctypes.c_uint8),
+    ]
+
+
+# Preserve the historical import name for callers that only need schema v3.
+Snapshot = SnapshotV3
+
+
 def _values(snapshot: Snapshot) -> dict[str, object]:
-    return {
+    values = {
         "schema_version": snapshot.schema_version,
         "boot_session": snapshot.boot_session,
         "snapshot_uptime_ms": snapshot.snapshot_uptime_ms,
@@ -121,6 +140,24 @@ def _values(snapshot: Snapshot) -> dict[str, object]:
         "broadcast_completion_success": snapshot.broadcast_completion_success,
         "broadcast_completion_failure": snapshot.broadcast_completion_failure,
     }
+    if isinstance(snapshot, SnapshotV4):
+        values.update(
+            {
+                "discovery_rejection_reason_supported": True,
+                "discovery_reject_state": snapshot.discovery_reject_state,
+                "discovery_reject_pending": snapshot.discovery_reject_pending,
+                "discovery_reject_packet_invalid": snapshot.discovery_reject_packet_invalid,
+                "discovery_reject_trust_generation": snapshot.discovery_reject_trust_generation,
+                "discovery_reject_self": snapshot.discovery_reject_self,
+                "discovery_reject_channel_mismatch": snapshot.discovery_reject_channel_mismatch,
+                "last_discovery_rejection_reason": snapshot.last_discovery_rejection_reason,
+                "last_discovery_packet_channel": snapshot.last_discovery_packet_channel,
+                "last_discovery_rx_channel": snapshot.last_discovery_rx_channel,
+            }
+        )
+    else:
+        values["discovery_rejection_reason_supported"] = False
+    return values
 
 
 def _decode_key(raw: bytes) -> str:
@@ -236,12 +273,25 @@ def main() -> int:
     if args.namespace != NAMESPACE or args.key != KEY:
         parser.error("only gh_n3w_diag/snapshot is readable")
     raw = _capture_nvs_partition(args)
-    if len(raw) != ctypes.sizeof(Snapshot):
-        parser.error("snapshot blob size is invalid")
-    snapshot = Snapshot.from_buffer_copy(raw)
-    if snapshot.magic != MAGIC or snapshot.schema_version != SCHEMA_VERSION:
+    if len(raw) < 8:
+        parser.error("snapshot header is invalid")
+    magic = int.from_bytes(raw[0:4], "little")
+    schema_version = int.from_bytes(raw[4:6], "little")
+    if magic != MAGIC:
+        parser.error("snapshot magic is invalid")
+    snapshot_type = {
+        3: SnapshotV3,
+        4: SnapshotV4,
+    }.get(schema_version)
+    if snapshot_type is None:
         parser.error("snapshot schema is invalid")
-    if snapshot.size != ctypes.sizeof(Snapshot):
+    expected_size = ctypes.sizeof(snapshot_type)
+    if len(raw) != expected_size:
+        parser.error("snapshot blob size is invalid")
+    snapshot = snapshot_type.from_buffer_copy(raw)
+    if snapshot.magic != MAGIC or snapshot.schema_version != schema_version:
+        parser.error("snapshot schema is invalid")
+    if snapshot.size != expected_size:
         parser.error("snapshot self-size is invalid")
     print(json.dumps(_values(snapshot), sort_keys=True))
     return 0

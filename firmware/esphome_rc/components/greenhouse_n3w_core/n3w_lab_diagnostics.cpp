@@ -234,6 +234,41 @@ void N3wLabDiagnostics::on_runtime_start(uint8_t mode, uint8_t path_state) {
   mark_(snapshot_.snapshot_uptime_ms, true);
 }
 
+void N3wLabDiagnostics::on_discovery_rejected(
+    DiscoveryRejectReason reason,
+    uint8_t packet_channel,
+    uint8_t rx_channel,
+    uint64_t now_ms) {
+  if (!enabled_ || !boot_session_started_) return;
+  snapshot_.last_discovery_rejection_reason = static_cast<uint8_t>(reason);
+  snapshot_.last_discovery_packet_channel = packet_channel;
+  snapshot_.last_discovery_rx_channel = rx_channel;
+  switch (reason) {
+    case DiscoveryRejectReason::STATE_NOT_DISCOVERY:
+      ++snapshot_.discovery_reject_state;
+      break;
+    case DiscoveryRejectReason::PENDING_CHALLENGE:
+      ++snapshot_.discovery_reject_pending;
+      break;
+    case DiscoveryRejectReason::PACKET_INVALID:
+      ++snapshot_.discovery_reject_packet_invalid;
+      break;
+    case DiscoveryRejectReason::TRUST_GENERATION_MISMATCH:
+      ++snapshot_.discovery_reject_trust_generation;
+      break;
+    case DiscoveryRejectReason::SELF_RELAY:
+      ++snapshot_.discovery_reject_self;
+      break;
+    case DiscoveryRejectReason::CHANNEL_MISMATCH:
+      ++snapshot_.discovery_reject_channel_mismatch;
+      break;
+    case DiscoveryRejectReason::NONE:
+      break;
+  }
+  snapshot_.snapshot_uptime_ms = now_ms;
+  dirty_ = true;
+}
+
 void N3wLabDiagnostics::on_discovery_rx(bool accepted, uint64_t now_ms) {
   if (!enabled_ || !boot_session_started_) return;
   ++snapshot_.discovery_rx;

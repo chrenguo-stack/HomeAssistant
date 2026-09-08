@@ -10,7 +10,7 @@ namespace esphome::greenhouse_n3w_core {
 class N3wLabDiagnostics final : public SimpleProductDiagnosticSink {
  public:
   static constexpr uint32_t kMagic = 0x4e335744U;
-  static constexpr uint16_t kSchemaVersion = 3U;
+  static constexpr uint16_t kSchemaVersion = 4U;
   static constexpr char kNamespace[] = "gh_n3w_diag";
   static constexpr char kKey[] = "snapshot";
 
@@ -60,6 +60,15 @@ class N3wLabDiagnostics final : public SimpleProductDiagnosticSink {
     uint32_t broadcast_completion_count{0};
     uint32_t broadcast_completion_success{0};
     uint32_t broadcast_completion_failure{0};
+    uint32_t discovery_reject_state{0};
+    uint32_t discovery_reject_pending{0};
+    uint32_t discovery_reject_packet_invalid{0};
+    uint32_t discovery_reject_trust_generation{0};
+    uint32_t discovery_reject_self{0};
+    uint32_t discovery_reject_channel_mismatch{0};
+    uint8_t last_discovery_rejection_reason{0};
+    uint8_t last_discovery_packet_channel{0};
+    uint8_t last_discovery_rx_channel{0};
   };
 #pragma pack(pop)
 
@@ -105,6 +114,11 @@ class N3wLabDiagnostics final : public SimpleProductDiagnosticSink {
       int32_t raw_error,
       uint64_t now_ms) override;
   void on_discovery_rx(bool accepted, uint64_t now_ms) override;
+  void on_discovery_rejected(
+      DiscoveryRejectReason reason,
+      uint8_t packet_channel,
+      uint8_t rx_channel,
+      uint64_t now_ms) override;
   void on_challenge_tx(bool success, uint64_t now_ms) override;
   void on_challenge_rx(bool verified, uint64_t now_ms) override;
   void on_accept_tx(bool success, uint64_t now_ms) override;
