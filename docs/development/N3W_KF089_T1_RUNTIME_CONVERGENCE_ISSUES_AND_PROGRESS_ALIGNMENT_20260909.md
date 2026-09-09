@@ -434,3 +434,44 @@ T1_CONTROLLED_REBOOT_BOOT_RECOVERY=PASS
 ```
 
 Only after the clean T1 baseline is proven should the route return to Board A Direct re-verification and then, if that passes, the canonical RF prewindow / fresh RF execution sequence.
+
+## 9. Final convergence closure — 2026-09-10
+
+The T1 runtime-convergence detour is closed. The final read-only post-reboot
+acceptance proved one authoritative Manager, one authoritative Broker, the
+required Broker two-network topology, live host publication for all required
+Broker mappings, and automatic recovery after one controlled T1 reboot.
+
+The final root cause and repair closure is:
+
+- the previous successful Broker topology used both the private/internal
+  network and the external reachability network;
+- the successor/rematerialization recipe omitted the external network
+  attachment, leaving the clean Broker internal-only and preventing host
+  publication from becoming usable by Manager;
+- the exact external reachability network attachment was restored;
+- runtime host mappings, including TLS 8883, were restored and verified after
+  rematerialization and reboot;
+- Manager recovered its TLS MQTT session and remained healthy;
+- Home Assistant had a post-reboot live authenticated MQTT relationship with
+  the current authoritative Broker, proven by an exact runtime socket to the
+  current Broker TLS endpoint;
+- the controlled T1 reboot acceptance passed without manual container repair,
+  runtime residue reappearing, or a second reboot.
+
+```text
+ROOT_DOMAIN=T1_RUNTIME_CONVERGENCE
+ROOT_CLASS=T1_RUNTIME_CONVERGENCE_FINAL_ACCEPTANCE_PASS
+ROOT_SUBCLASS=SINGLE_MANAGER_SINGLE_BROKER_TWO_NETWORK_REBOOT_RECOVERY_AND_HA_CONTINUITY_PROVEN
+ROOT_CAUSE_RUNTIME_CONFIRMED=true
+INCIDENT_ROOT_DOMAIN=DEPLOYMENT_NETWORK
+INCIDENT_ROOT_CLASS=CLEAN_BROKER_SECOND_NETWORK_ATTACHMENT_LOST
+INCIDENT_ROOT_SUBCLASS=EXTERNAL_REACHABILITY_NETWORK_OMITTED_DURING_REMATERIALIZATION
+NETWORK_ATTACHMENT_LOSS_STAGE=SUCCESSOR_RECIPE_MATERIALIZATION
+CONTROLLED_REBOOT_REGRESSION_AFTER_REPAIR=PASS
+T1_RUNTIME_CONVERGENCE_FINAL_ACCEPTANCE=PASS
+```
+
+No product source, firmware, Broker configuration, Manager source, workflow,
+board, or RF state was changed by this closeout. The active detour is none;
+the next route is the Board A Direct post-T1 recovery read-only verification.

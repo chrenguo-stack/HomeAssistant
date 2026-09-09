@@ -46,39 +46,39 @@ FIRST_UNPROVEN_STAGE=DISCOVERY_ADVERTISEMENT_ACCEPTANCE
 ## Current T1 runtime-convergence boundary
 
 ```text
+T1_RUNTIME_CONVERGENCE=CLOSED_PASS
+ACTIVE_DETOUR=NONE
 AUTHORITATIVE_MANAGER_COUNT=1
 LEGACY_MANAGER_COUNT=0
 AUTHORITATIVE_BROKER_COUNT=1
 LEGACY_BROKER_COUNT=0
 N3W_ACTIVE_COMPOSE_LINEAGE_COUNT=1
-
-CLEAN_BROKER_RUNNING=true
-CURRENT_MANAGER_RUNNING=false
-
-CURRENT_BLOCKER=T1_DOCKER_HOST_PORT_BINDING_RUNTIME_MATERIALIZATION_FAILURE
-ROOT_DOMAIN=DOCKER_RUNTIME
-ROOT_CLASS=HOST_PORT_BINDING_RUNTIME_MATERIALIZATION_FAILURE
-ROOT_SUBCLASS=HOSTCONFIG_BINDING_PRESENT_NETWORKSETTINGS_MAPPING_ABSENT
-
-MOST_RELEVANT_EXISTING_KNOWN_FAILURE=KF-035
-KF035_RECURRENCE_PROVEN=false
+BROKER_NETWORK_COUNT_FINAL=2
+BROKER_RUNTIME_MAPPING_COUNT=3
+BROKER_HOST_PUBLICATION_RUNTIME=PASS
+MANAGER_TO_BROKER_TLS_MQTT=PASS
+HA_TO_BROKER_RUNTIME_CONTINUITY=PASS
+T1_CONTROLLED_REBOOT_BOOT_RECOVERY=PASS
 ```
 
-The clean Broker is internally healthy (listener/TLS/DynSec/config/data continuity PASS), but Docker runtime host-port publication is absent despite correct Compose declaration and `HostConfig.PortBindings`. Current Manager remains stopped to avoid restart-loop noise.
-
-`KF-035` is the primary historical comparator: host-network Manager Broker-TLS continuity depends on the exact address resolved in the Manager image/host-network namespace. The present incident is not yet proven to be a KF-035 recurrence because the current runtime mapping is absent below HostConfig; therefore bind-address/interface validity is the first check in the next forensic.
+The final root cause was loss of the Broker external reachability network
+attachment during successor recipe materialization. The exact attachment and
+runtime host mappings were restored; Manager and Home Assistant recovered
+their post-reboot Broker relationships. The detailed public-safe archive is
+the current T1 runtime-convergence authority.
 
 ## Current ONE gate
 
 ```text
-NEXT_ONE_GATE=N3W_KF089_T1_DOCKER_HOST_PORT_BINDING_RUNTIME_READONLY_FORENSIC_20260909_01
+NEXT_ONE_GATE=N3W_KF089_BOARD_A_DIRECT_POST_T1_RECOVERY_READONLY_VERIFICATION_20260910_01
 ```
 
-The next gate is strictly read-only and investigates Docker host-port materialization in this order: exact HostIP/bind-address/interface validity (KF-035 comparator), network driver/bridge/veth, host listener/proxy, iptables/nftables/NAT rules, Docker daemon network/programming errors, old-successful-network semantics, removed-network correlation, and daemon network-config drift.
+The next gate is the Board A Direct post-T1 recovery read-only verification.
 
 ## Route after T1 convergence
 
-After the clean T1 runtime is proven, including controlled reboot/boot-recovery acceptance, return to:
+With the clean T1 runtime and controlled reboot/boot-recovery acceptance
+proven, return to:
 
 ```text
 BOARD_A_DIRECT_POST_T1_RECOVERY_READONLY_VERIFICATION

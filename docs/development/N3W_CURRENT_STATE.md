@@ -9,8 +9,8 @@ This is the concise public-safe authority for the current N3-W state. Fresh exac
 
 ```text
 REPOSITORY=chrenguo-stack/HomeAssistant
-REPOSITORY_MAIN=QUERY_GITHUB_FRESH
-REPOSITORY_MAIN_TREE=QUERY_GITHUB_FRESH
+REPOSITORY_MAIN=de061392f2293febf2fc8adef895975ebb085cf6
+REPOSITORY_MAIN_TREE=737c9b620757225b4456056e9a826250f9c16e71
 ALIGNMENT_BASE_MAIN=55e9bd5e4bcbcf359bd69ecddda32813cdff8ffb
 ALIGNMENT_BASE_TREE=cac1fe4c4ce22c54420eb990401da1141a3f6626
 PRODUCT_SOURCE_AUTHORITY=fe116efabbd986263b043aa1a36ad74bf283bafa
@@ -75,78 +75,39 @@ Fresh RF execution has not resumed. The original fresh-RF attempt stopped before
 
 ## T1 runtime-convergence boundary
 
-A controlled T1 cleanup/rematerialization detour is active.
-
-Legacy runtime cleanup has completed:
+T1 runtime convergence is closed PASS. The final state has one Manager, one
+Broker, one active N3-W Compose lineage, and the Broker's required private and
+external reachability networks.
 
 ```text
+T1_RUNTIME_CONVERGENCE=CLOSED_PASS
+ACTIVE_DETOUR=NONE
 AUTHORITATIVE_MANAGER_COUNT=1
 LEGACY_MANAGER_COUNT=0
 AUTHORITATIVE_BROKER_COUNT=1
 LEGACY_BROKER_COUNT=0
-LEGACY_NETWORK_REMOVE_COUNT=2
 N3W_ACTIVE_COMPOSE_LINEAGE_COUNT=1
+BROKER_NETWORK_COUNT_FINAL=2
+BROKER_RUNTIME_MAPPING_COUNT=3
+BROKER_HOST_PUBLICATION_RUNTIME=PASS
+BROKER_TLS_DYNSEC_RUNTIME=PASS
+MANAGER_TO_BROKER_TLS_MQTT=PASS
+HA_TO_BROKER_RUNTIME_CONTINUITY=PASS
+T1_RUNTIME_RESIDUE_POSTCHECK=PASS
+T1_CONTROLLED_REBOOT_BOOT_RECOVERY=PASS
 ```
 
-A private quiesced preservation/rollback package was completed before destructive rematerialization.
+The final root cause was deployment-network loss during successor recipe
+materialization: the external reachability network attachment was omitted,
+leaving the clean Broker internal-only and preventing usable host publication.
+The exact external attachment and host mappings were restored. Manager
+recovered automatically after the controlled reboot; Home Assistant also
+retained a post-reboot live authenticated MQTT relationship with the current
+Broker. No product source or firmware authority changed.
 
-Current clean Broker is internally healthy:
-
-```text
-CLEAN_BROKER_RUNNING=true
-BROKER_RESTART_COUNT=0
-BROKER_REQUIRED_LISTENER_PRESENT=true
-BROKER_TLS_LISTENER_PRESENT=true
-BROKER_DYNSEC_RUNTIME=PASS
-BROKER_CONFIG_AUTHORITY=PASS
-BROKER_DYNSEC_AUTHORITY=PASS
-BROKER_TLS_AUTHORITY=PASS
-BROKER_DATA_CONTINUITY=PASS
-BROKER_RESTART_POLICY=unless-stopped
-```
-
-Current Manager is deliberately stopped after failed Manager recovery against the clean Broker host path:
-
-```text
-CURRENT_MANAGER_CLASS=ROLLED_BACK_MANAGER
-CURRENT_MANAGER_RUNNING=false
-CURRENT_MANAGER_CONFIG_REPAIR_REQUIRED=false
-CURRENT_MANAGER_CREDENTIAL_REPAIR_REQUIRED=false
-```
-
-The Manager's observed failure path was:
-
-```text
-TCP_CONNECT -> ENETUNREACH
-```
-
-The active root blocker is now below Compose declaration and container HostConfig:
-
-```text
-RAW_RECIPE_PUBLICATION=PRESENT
-EFFECTIVE_COMPOSE_PUBLICATION=PRESENT
-CONTAINER_HOSTCONFIG_PUBLICATION=PRESENT
-CONTAINER_RUNTIME_PUBLICATION=ABSENT
-OLD_SUCCESSFUL_HOST_PUBLICATION=PRESENT
-
-CURRENT_BLOCKER=T1_DOCKER_HOST_PORT_BINDING_RUNTIME_MATERIALIZATION_FAILURE
-ROOT_DOMAIN=DOCKER_RUNTIME
-ROOT_CLASS=HOST_PORT_BINDING_RUNTIME_MATERIALIZATION_FAILURE
-ROOT_SUBCLASS=HOSTCONFIG_BINDING_PRESENT_NETWORKSETTINGS_MAPPING_ABSENT
-```
-
-Historical correlation must also remain visible:
-
-```text
-MOST_RELEVANT_EXISTING_KNOWN_FAILURE=KF-035
-KF035_RECURRENCE_PROVEN=false
-```
-
-`KF-035` previously proved that host-network Manager Broker-TLS continuity depends on the exact address returned inside the Manager image/host-network namespace, and that publishing 8883 to the wrong loopback bind address produces `Network is unreachable`. The present incident is not yet proven to be the same root cause because the current container has correct `HostConfig.PortBindings` but no runtime mapping. The next read-only forensic must therefore test the HostIP/bind-address/interface validity first before escalating to a generic Docker NAT/runtime defect.
-
-The adjacent `KF-034` explains why Manager host networking is intentional: the pairing limited-broadcast path was not carried correctly by Docker bridge/port-publication deployment.
-
-Home Assistant remains a non-target service and has not been restarted/recreated during this cleanup.
+The controlled reboot acceptance used one reboot only and required no manual
+container start, stop, restart, recreate, network repair, or Docker daemon
+restart.
 
 Detailed public-safe archive:
 
@@ -171,16 +132,16 @@ Detailed public-safe archive:
 ## Current ONE gate
 
 ```text
-NEXT_ONE_GATE=N3W_KF089_T1_DOCKER_HOST_PORT_BINDING_RUNTIME_READONLY_FORENSIC_20260909_01
+NEXT_ONE_GATE=N3W_KF089_BOARD_A_DIRECT_POST_T1_RECOVERY_READONLY_VERIFICATION_20260910_01
 ```
 
-This gate is read-only. Keep clean Broker running and current Manager stopped. Priority 1 is the KF-035 comparator: inspect the exact HostIP class in current `HostConfig.PortBindings` and prove that every required explicit bind address/interface exists and is UP. Only after that should it inspect Docker network/bridge/veth state, host listener/proxy state, iptables/nftables/NAT publication rules, Docker daemon network errors, old-successful-network semantics, removed-network correlation, and daemon networking configuration drift. It must not restart/recreate Manager or Broker, mutate routes/firewall/DNS, restart Docker, reboot T1, access boards, or resume RF.
+This gate is read-only and must not access Board A, move either board, or
+resume RF. It verifies the post-T1 Board A Direct runtime baseline before any
+future physical gate; it does not execute that physical gate automatically.
 
 ## Route after T1 convergence
 
-T1 convergence is not complete until Broker host publication, Manager→Broker TLS MQTT, HA continuity, residue cleanup, and a controlled T1 reboot/boot-recovery acceptance all pass.
-
-Only then return to:
+T1 convergence is complete. Return to:
 
 ```text
 BOARD_A_DIRECT_POST_T1_RECOVERY_READONLY_VERIFICATION
