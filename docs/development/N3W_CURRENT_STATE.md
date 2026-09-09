@@ -11,8 +11,8 @@ This is the concise public-safe authority for the current N3-W state. Fresh exac
 REPOSITORY=chrenguo-stack/HomeAssistant
 REPOSITORY_MAIN=QUERY_GITHUB_FRESH
 REPOSITORY_MAIN_TREE=QUERY_GITHUB_FRESH
-ALIGNMENT_BASE_MAIN=406f6022cc8a4267397a338156592aa507a3ff3a
-ALIGNMENT_BASE_TREE=6bf72d98097fdd32354451a5b177fe1b28b2a15a
+ALIGNMENT_BASE_MAIN=55e9bd5e4bcbcf359bd69ecddda32813cdff8ffb
+ALIGNMENT_BASE_TREE=cac1fe4c4ce22c54420eb990401da1141a3f6626
 PRODUCT_SOURCE_AUTHORITY=fe116efabbd986263b043aa1a36ad74bf283bafa
 PRODUCT_SOURCE_TREE=1ae70a7d8776f8343d53d5c784141e8d8d1b1abc
 LAST_PRODUCT_SOURCE_CHANGE=PR_376
@@ -135,6 +135,17 @@ ROOT_CLASS=HOST_PORT_BINDING_RUNTIME_MATERIALIZATION_FAILURE
 ROOT_SUBCLASS=HOSTCONFIG_BINDING_PRESENT_NETWORKSETTINGS_MAPPING_ABSENT
 ```
 
+Historical correlation must also remain visible:
+
+```text
+MOST_RELEVANT_EXISTING_KNOWN_FAILURE=KF-035
+KF035_RECURRENCE_PROVEN=false
+```
+
+`KF-035` previously proved that host-network Manager Broker-TLS continuity depends on the exact address returned inside the Manager image/host-network namespace, and that publishing 8883 to the wrong loopback bind address produces `Network is unreachable`. The present incident is not yet proven to be the same root cause because the current container has correct `HostConfig.PortBindings` but no runtime mapping. The next read-only forensic must therefore test the HostIP/bind-address/interface validity first before escalating to a generic Docker NAT/runtime defect.
+
+The adjacent `KF-034` explains why Manager host networking is intentional: the pairing limited-broadcast path was not carried correctly by Docker bridge/port-publication deployment.
+
 Home Assistant remains a non-target service and has not been restarted/recreated during this cleanup.
 
 Detailed public-safe archive:
@@ -155,6 +166,7 @@ Detailed public-safe archive:
 - Stateful destructive rematerialization must use a quiesced snapshot unless an application-consistent online snapshot mechanism is proven.
 - `Config.ExposedPorts`, `HostConfig.PortBindings`, and actual runtime `NetworkSettings.Ports` / `docker port` mappings are separate evidence layers.
 - A Compose `ports:` declaration is not sufficient proof that Docker runtime host publication exists.
+- For the host-network Manager/Broker path, the exact Manager-image + host-network namespace resolution is authoritative for Broker bind-address compatibility; host-side resolution alone is insufficient (KF-035).
 
 ## Current ONE gate
 
@@ -162,7 +174,7 @@ Detailed public-safe archive:
 NEXT_ONE_GATE=N3W_KF089_T1_DOCKER_HOST_PORT_BINDING_RUNTIME_READONLY_FORENSIC_20260909_01
 ```
 
-This gate is read-only. Keep clean Broker running and current Manager stopped. It must inspect host bind-address validity, Docker network/bridge/veth state, host listener/proxy state, iptables/nftables/NAT publication rules, Docker daemon network errors, old-successful-network semantics, removed-network correlation, and daemon networking configuration drift. It must not restart/recreate Manager or Broker, mutate routes/firewall/DNS, restart Docker, reboot T1, access boards, or resume RF.
+This gate is read-only. Keep clean Broker running and current Manager stopped. Priority 1 is the KF-035 comparator: inspect the exact HostIP class in current `HostConfig.PortBindings` and prove that every required explicit bind address/interface exists and is UP. Only after that should it inspect Docker network/bridge/veth state, host listener/proxy state, iptables/nftables/NAT publication rules, Docker daemon network errors, old-successful-network semantics, removed-network correlation, and daemon networking configuration drift. It must not restart/recreate Manager or Broker, mutate routes/firewall/DNS, restart Docker, reboot T1, access boards, or resume RF.
 
 ## Route after T1 convergence
 
