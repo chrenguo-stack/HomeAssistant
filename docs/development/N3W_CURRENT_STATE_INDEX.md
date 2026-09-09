@@ -10,8 +10,8 @@ Active product-direction authority: `docs/development/N3W_OFFICIAL_ESPNOW_REFERE
 ```text
 REPOSITORY_MAIN=QUERY_GITHUB_FRESH
 REPOSITORY_MAIN_TREE=QUERY_GITHUB_FRESH
-ALIGNMENT_BASE_MAIN=406f6022cc8a4267397a338156592aa507a3ff3a
-ALIGNMENT_BASE_TREE=6bf72d98097fdd32354451a5b177fe1b28b2a15a
+ALIGNMENT_BASE_MAIN=55e9bd5e4bcbcf359bd69ecddda32813cdff8ffb
+ALIGNMENT_BASE_TREE=cac1fe4c4ce22c54420eb990401da1141a3f6626
 PRODUCT_SOURCE_AUTHORITY=fe116efabbd986263b043aa1a36ad74bf283bafa
 PRODUCT_SOURCE_TREE=1ae70a7d8776f8343d53d5c784141e8d8d1b1abc
 DIAGNOSTIC_SCHEMA_VERSION=4
@@ -59,9 +59,14 @@ CURRENT_BLOCKER=T1_DOCKER_HOST_PORT_BINDING_RUNTIME_MATERIALIZATION_FAILURE
 ROOT_DOMAIN=DOCKER_RUNTIME
 ROOT_CLASS=HOST_PORT_BINDING_RUNTIME_MATERIALIZATION_FAILURE
 ROOT_SUBCLASS=HOSTCONFIG_BINDING_PRESENT_NETWORKSETTINGS_MAPPING_ABSENT
+
+MOST_RELEVANT_EXISTING_KNOWN_FAILURE=KF-035
+KF035_RECURRENCE_PROVEN=false
 ```
 
 The clean Broker is internally healthy (listener/TLS/DynSec/config/data continuity PASS), but Docker runtime host-port publication is absent despite correct Compose declaration and `HostConfig.PortBindings`. Current Manager remains stopped to avoid restart-loop noise.
+
+`KF-035` is the primary historical comparator: host-network Manager Broker-TLS continuity depends on the exact address resolved in the Manager image/host-network namespace. The present incident is not yet proven to be a KF-035 recurrence because the current runtime mapping is absent below HostConfig; therefore bind-address/interface validity is the first check in the next forensic.
 
 ## Current ONE gate
 
@@ -69,7 +74,7 @@ The clean Broker is internally healthy (listener/TLS/DynSec/config/data continui
 NEXT_ONE_GATE=N3W_KF089_T1_DOCKER_HOST_PORT_BINDING_RUNTIME_READONLY_FORENSIC_20260909_01
 ```
 
-The next gate is strictly read-only and investigates Docker host-port materialization: host bind-address validity, network driver/bridge/veth, host listener/proxy, iptables/nftables/NAT rules, Docker daemon network/programming errors, old-successful-network semantics, removed-network correlation, and daemon network-config drift.
+The next gate is strictly read-only and investigates Docker host-port materialization in this order: exact HostIP/bind-address/interface validity (KF-035 comparator), network driver/bridge/veth, host listener/proxy, iptables/nftables/NAT rules, Docker daemon network/programming errors, old-successful-network semantics, removed-network correlation, and daemon network-config drift.
 
 ## Route after T1 convergence
 

@@ -225,6 +225,36 @@ Regression rule: do not merge these incidents into one root cause until Docker d
 
 Status: `OPEN_CORRELATION`.
 
+### T1RC-011 — Current `ENETUNREACH` has a direct historical comparator in existing KF-035
+
+The central known-failure index already contains an OPEN guard, `KF-035 / FC4 host-network Manager / Broker TLS continuity`. That historical incident proved an important deployment fact:
+
+- Manager intentionally runs with host networking;
+- the Broker remains containerized and must publish TLS 8883 to the exact host-side address actually resolved by the Manager's own image/network namespace;
+- assuming all loopback hostnames resolve to the same address is invalid;
+- historical `Network is unreachable` was caused by using host-side resolution as authority instead of exact Manager-image + host-network `getaddrinfo()` evidence.
+
+The adjacent `KF-034` explains why Manager host networking is intentional: Docker bridge/`ports` could not carry the required limited-broadcast pairing path, so the final-product Manager deployment uses host networking.
+
+Current evidence is not yet sufficient to declare the present incident a recurrence of KF-035 because the present failure is one layer lower in Docker runtime bookkeeping:
+
+```text
+HostConfig.PortBindings=PRESENT
+NetworkSettings/runtime mapping=ABSENT
+```
+
+However, KF-035 becomes the primary historical comparator. The next forensic must therefore prioritize checking whether the current `HostConfig.PortBindings` target a specific host address/interface that is now absent or down before classifying the incident as a generic Docker daemon/NAT defect.
+
+Freeze:
+
+```text
+HISTORICAL_GUARD_CORRELATION=KF-035
+KF035_RECURRENCE_PROVEN=false
+KF035_BIND_ADDRESS_HYPOTHESIS_REQUIRES_FRESH_READONLY_CHECK=true
+```
+
+Status: `OPEN_CORRELATION`.
+
 ## 3. T1 cleanup progress reached in this conversation
 
 ### 3.1 Inventory / authority convergence
@@ -368,18 +398,18 @@ RF_EXECUTION=false
 T1_MUTATION=false
 ```
 
-Primary forensic targets:
+Primary forensic targets, in priority order:
 
-- validity/up-state of any explicit HostIP bind target;
-- exact Docker network driver/bridge/veth materialization;
-- host-to-container direct reachability;
-- host listener/socket evidence;
-- userland-proxy policy/process state;
-- iptables/nftables/NAT chains and exact Broker publish rules;
-- Docker daemon network/programming errors near Broker create;
-- comparison with the old successful Broker network object;
-- whether the two removed legacy networks were truly unrelated;
-- Docker daemon network-config drift.
+1. exact `HostConfig.PortBindings` HostIP class and whether any required explicit bind address/interface is currently present and UP — this is the direct KF-035 comparator;
+2. exact Docker network driver/bridge/veth materialization;
+3. host-to-container direct reachability;
+4. host listener/socket evidence;
+5. userland-proxy policy/process state;
+6. iptables/nftables/NAT chains and exact Broker publish rules;
+7. Docker daemon network/programming errors near Broker create;
+8. comparison with the old successful Broker network object;
+9. whether the two removed legacy networks were truly unrelated;
+10. Docker daemon network-config drift.
 
 No Manager restart, Broker recreate, route/firewall mutation, Docker daemon restart, or T1 reboot is authorized by this forensic gate.
 
