@@ -83,6 +83,40 @@ int main(int argc, char **argv) {
   direct.on_scan_result(1, true, 1, 0, 250);
   assert(direct.snapshot().scan_attempts == 1);
 
+  N3wLabDiagnostics completions;
+  completions.set_enabled(true);
+  completions.begin_boot_session();
+  completions.bind_boot_session(12, 0);
+  completions.on_unicast_completion(true, 0);
+  completions.on_unicast_completion(true, 0);
+  completions.on_unicast_completion(false, 0);
+  completions.on_compact_rx(100);
+  completions.on_compact_state_rejected(100);
+  completions.on_compact_child_binding_failure(100);
+  completions.on_compact_decode(true, 100);
+  completions.on_compact_decode(false, 100);
+  completions.on_compact_wrap_failure(100);
+  completions.on_compact_forward_attempt(100);
+  completions.on_compact_forward_submit(true, 100);
+  completions.on_compact_forward_submit(false, 100);
+  assert(completions.snapshot().unicast_completion_count == 0);
+  completions.emit_summary(10000);
+  assert(completions.snapshot().unicast_completion_count == 3);
+  assert(completions.snapshot().unicast_completion_success == 2);
+  assert(completions.snapshot().unicast_completion_failure == 1);
+  assert(completions.snapshot().unicast_completion_success +
+             completions.snapshot().unicast_completion_failure ==
+         completions.snapshot().unicast_completion_count);
+  assert(completions.snapshot().compact_rx_count == 1);
+  assert(completions.snapshot().compact_state_reject_count == 1);
+  assert(completions.snapshot().compact_child_binding_failure == 1);
+  assert(completions.snapshot().compact_decode_success == 1);
+  assert(completions.snapshot().compact_decode_failure == 1);
+  assert(completions.snapshot().compact_wrap_failure == 1);
+  assert(completions.snapshot().compact_forward_attempts == 1);
+  assert(completions.snapshot().compact_forward_submit_success == 1);
+  assert(completions.snapshot().compact_forward_submit_failure == 1);
+
   const auto &snapshot = diagnostics.snapshot();
   assert(snapshot.magic == N3wLabDiagnostics::kMagic);
   assert(snapshot.schema_version == N3wLabDiagnostics::kSchemaVersion);

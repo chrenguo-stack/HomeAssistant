@@ -10,7 +10,7 @@ namespace esphome::greenhouse_n3w_core {
 class N3wLabDiagnostics final : public SimpleProductDiagnosticSink {
  public:
   static constexpr uint32_t kMagic = 0x4e335744U;
-  static constexpr uint16_t kSchemaVersion = 4U;
+  static constexpr uint16_t kSchemaVersion = 5U;
   static constexpr char kNamespace[] = "gh_n3w_diag";
   static constexpr char kKey[] = "snapshot";
 
@@ -69,6 +69,19 @@ class N3wLabDiagnostics final : public SimpleProductDiagnosticSink {
     uint8_t last_discovery_rejection_reason{0};
     uint8_t last_discovery_packet_channel{0};
     uint8_t last_discovery_rx_channel{0};
+    // v5 fields are appended so the v4 binary prefix remains unchanged.
+    uint32_t unicast_completion_count{0};
+    uint32_t unicast_completion_success{0};
+    uint32_t unicast_completion_failure{0};
+    uint32_t compact_rx_count{0};
+    uint32_t compact_state_reject_count{0};
+    uint32_t compact_child_binding_failure{0};
+    uint32_t compact_decode_success{0};
+    uint32_t compact_decode_failure{0};
+    uint32_t compact_wrap_failure{0};
+    uint32_t compact_forward_attempts{0};
+    uint32_t compact_forward_submit_success{0};
+    uint32_t compact_forward_submit_failure{0};
   };
 #pragma pack(pop)
 
@@ -127,11 +140,20 @@ class N3wLabDiagnostics final : public SimpleProductDiagnosticSink {
   void on_relay_telemetry(bool success, uint64_t now_ms) override;
   void on_relay_advertisement(bool submitted, uint64_t now_ms) override;
   void on_broadcast_completion(bool success, uint64_t now_ms) override;
+  void on_unicast_completion(bool success, uint64_t now_ms) override;
+  void on_compact_rx(uint64_t now_ms) override;
+  void on_compact_state_rejected(uint64_t now_ms) override;
+  void on_compact_child_binding_failure(uint64_t now_ms) override;
+  void on_compact_decode(bool success, uint64_t now_ms) override;
+  void on_compact_wrap_failure(uint64_t now_ms) override;
+  void on_compact_forward_attempt(uint64_t now_ms) override;
+  void on_compact_forward_submit(bool success, uint64_t now_ms) override;
 
  private:
   void persist_(uint64_t now_ms, bool force);
   void mark_(uint64_t now_ms, bool force);
   void drain_broadcast_completions_(uint64_t now_ms);
+  void drain_unicast_completions_(uint64_t now_ms);
   static int channel_slot_(uint8_t channel);
 
   bool enabled_{false};
@@ -145,6 +167,8 @@ class N3wLabDiagnostics final : public SimpleProductDiagnosticSink {
   bool relay_active_{false};
   std::atomic<uint32_t> pending_broadcast_success_{0};
   std::atomic<uint32_t> pending_broadcast_failure_{0};
+  std::atomic<uint32_t> pending_unicast_success_{0};
+  std::atomic<uint32_t> pending_unicast_failure_{0};
   Snapshot snapshot_{};
 };
 

@@ -24,7 +24,7 @@ def test_diagnostic_namespace_and_schema_are_lab_only():
     source = DIAG_CPP.read_text(encoding="utf-8")
     assert '"gh_n3w_diag"' in header
     assert '"snapshot"' in header
-    assert "kSchemaVersion = 4U" in header
+    assert "kSchemaVersion = 5U" in header
     assert "NVS_READWRITE" in source
     assert "gh_n3w_v2" not in source
 
@@ -79,6 +79,52 @@ def test_snapshot_has_required_channel_and_path_fields():
         "last_discovery_rx_channel",
     ):
         assert field in header
+
+
+def test_relay_telemetry_observability_contract_is_state_neutral():
+    header = DIAG_H.read_text(encoding="utf-8")
+    runtime_header = (CORE / "n3w_simple_product_runtime.h").read_text(encoding="utf-8")
+    runtime = RUNTIME.read_text(encoding="utf-8")
+    component = COMPONENT.read_text(encoding="utf-8")
+    diagnostics = DIAG_CPP.read_text(encoding="utf-8")
+    for field in (
+        "unicast_completion_count",
+        "unicast_completion_success",
+        "unicast_completion_failure",
+        "compact_rx_count",
+        "compact_state_reject_count",
+        "compact_child_binding_failure",
+        "compact_decode_success",
+        "compact_decode_failure",
+        "compact_wrap_failure",
+        "compact_forward_attempts",
+        "compact_forward_submit_success",
+        "compact_forward_submit_failure",
+    ):
+        assert field in header
+    for marker in (
+        "on_unicast_completion",
+        "pending_unicast_success_",
+        "pending_unicast_failure_",
+        "on_compact_rx",
+        "on_compact_state_rejected",
+        "on_compact_child_binding_failure",
+        "on_compact_decode",
+        "on_compact_wrap_failure",
+        "on_compact_forward_attempt",
+        "on_compact_forward_submit",
+    ):
+        assert marker in runtime_header or marker in runtime or marker in diagnostics
+    assert "on_unicast_completion(success, 0)" in component
+    assert "path_.note_relay_result(success)" in runtime
+    assert runtime.index("on_relay_telemetry(success") < runtime.index(
+        "path_.note_relay_result(success)"
+    )
+    assert "pending_unicast_success_.fetch_add" in diagnostics
+    assert "pending_unicast_failure_.fetch_add" in diagnostics
+    assert "nvs_set_blob" not in diagnostics.split(
+        "void N3wLabDiagnostics::on_unicast_completion", 1
+    )[1].split("void N3wLabDiagnostics::on_compact_rx", 1)[0]
 
 
 def test_raw_esp_error_and_readback_are_preserved():
@@ -342,7 +388,7 @@ def test_diagnostic_rejection_counters_are_bounded_and_exactly_once(tmp_path: Pa
                 diagnostics.on_discovery_rx(false, 100 + i);
               }
               const auto &snapshot = diagnostics.snapshot();
-              assert(snapshot.schema_version == 4);
+              assert(snapshot.schema_version == 5);
               assert(snapshot.size == sizeof(N3wLabDiagnostics::Snapshot));
               assert(snapshot.discovery_rx == 6);
               assert(snapshot.discovery_rejected == 6);
@@ -518,7 +564,7 @@ def test_diagnostics_behavioral_persistence_and_round_trip(tmp_path: Path):
     values = json.loads(parsed.stdout)
     assert values["boot_session"] == 0x1122334455667788
     assert values["snapshot_uptime_ms"] == 179750
-    assert values["schema_version"] == 4
+    assert values["schema_version"] == 5
     assert values["discovery_rejection_reason_supported"] is True
     assert values["discovery_reject_state"] == 0
     assert values["last_discovery_rejection_reason"] == 0
@@ -564,7 +610,7 @@ def test_advertisement_behavioral_and_diagnostics_neutrality(tmp_path: Path):
     subprocess.run([str(executable)], check=True)
 
 
-def test_parser_v3_v4_and_unknown_schema_contract(tmp_path: Path):
+def test_parser_v3_v4_v5_and_unknown_schema_contract(tmp_path: Path):
     spec = importlib.util.spec_from_file_location("n3w_diag_reader_versions", UTILITY)
     assert spec is not None and spec.loader is not None
     reader = importlib.util.module_from_spec(spec)
@@ -610,6 +656,54 @@ def test_parser_v3_v4_and_unknown_schema_contract(tmp_path: Path):
     assert v4_values["last_discovery_rejection_reason"] == 6
     assert v4_values["last_discovery_packet_channel"] == 11
     assert v4_values["last_discovery_rx_channel"] == 6
+
+    v5 = reader.SnapshotV5()
+    v5.magic = reader.MAGIC
+    v5.size = reader.ctypes.sizeof(reader.SnapshotV5)
+    v5.schema_version = 5
+    v5.discovery_reject_channel_mismatch = 9
+    v5.last_discovery_rejection_reason = 6
+    v5.last_discovery_packet_channel = 11
+    v5.last_discovery_rx_channel = 6
+    v5.unicast_completion_count = 7
+    v5.unicast_completion_success = 5
+    v5.unicast_completion_failure = 2
+    v5.compact_rx_count = 6
+    v5.compact_state_reject_count = 1
+    v5.compact_child_binding_failure = 1
+    v5.compact_decode_success = 3
+    v5.compact_decode_failure = 1
+    v5.compact_wrap_failure = 1
+    v5.compact_forward_attempts = 2
+    v5.compact_forward_submit_success = 1
+    v5.compact_forward_submit_failure = 1
+    v5_blob = tmp_path / "snapshot-v5.bin"
+    v5_blob.write_bytes(bytes(v5))
+    parsed_v5 = subprocess.run(
+        [sys.executable, str(UTILITY), "--blob", str(v5_blob)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    v5_values = json.loads(parsed_v5.stdout)
+    assert v5_values["schema_version"] == 5
+    assert v5_values["unicast_completion_count"] == 7
+    assert v5_values["unicast_completion_success"] == 5
+    assert v5_values["unicast_completion_failure"] == 2
+    assert v5_values["compact_rx_count"] == 6
+    assert v5_values["compact_state_reject_count"] == 1
+    assert v5_values["compact_child_binding_failure"] == 1
+    assert v5_values["compact_decode_success"] == 3
+    assert v5_values["compact_decode_failure"] == 1
+    assert v5_values["compact_wrap_failure"] == 1
+    assert v5_values["compact_forward_attempts"] == 2
+    assert v5_values["compact_forward_submit_success"] == 1
+    assert v5_values["compact_forward_submit_failure"] == 1
+
+    assert reader.ctypes.sizeof(reader.SnapshotV5) < 512
+    # The v5 header intentionally changes schema/size; every field after the
+    # historical header remains byte-for-byte at the v4 offset.
+    assert bytes(v5)[8 : reader.ctypes.sizeof(reader.SnapshotV4)] == bytes(v4)[8:]
 
     unknown = bytearray(bytes(v4))
     unknown[4:6] = (99).to_bytes(2, "little")

@@ -36,6 +36,8 @@ void N3wLabDiagnostics::begin_boot_session() {
   relay_active_ = false;
   pending_broadcast_success_.store(0, std::memory_order_relaxed);
   pending_broadcast_failure_.store(0, std::memory_order_relaxed);
+  pending_unicast_success_.store(0, std::memory_order_relaxed);
+  pending_unicast_failure_.store(0, std::memory_order_relaxed);
 }
 
 void N3wLabDiagnostics::bind_boot_session(uint64_t session, uint64_t uptime_ms) {
@@ -187,12 +189,14 @@ void N3wLabDiagnostics::emit_summary(uint64_t now_ms) {
   // Broadcast completion callbacks can run from the Wi-Fi task. They only
   // enqueue counters; merge and flush them from the normal component loop.
   drain_broadcast_completions_(now_ms);
+  // Unicast completion callbacks use the same atomic-only boundary.
+  drain_unicast_completions_(now_ms);
   persist_(now_ms, false);
   if (now_ms < next_summary_ms_) return;
   next_summary_ms_ = now_ms + kSummaryIntervalMs;
   ESP_LOGI(
       TAG,
-      "N3W_DIAG_DISCOVERY schema=%u boot_session=%llu snapshot_uptime_ms=%llu path=%u current_channel=%u direct_channel_hint=%u attempts=%u success=%u fail=%u discovery_rx=%u challenge_rx=%u accept_tx=%u relay_children=%u relay_active_count=%u ad_attempts=%u ad_submit_success=%u ad_submit_fail=%u broadcast_done=%u broadcast_done_success=%u",
+      "N3W_DIAG_DISCOVERY schema=%u boot_session=%llu snapshot_uptime_ms=%llu path=%u current_channel=%u direct_channel_hint=%u attempts=%u success=%u fail=%u discovery_rx=%u challenge_rx=%u accept_tx=%u relay_children=%u relay_active_count=%u ad_attempts=%u ad_submit_success=%u ad_submit_fail=%u broadcast_done=%u broadcast_done_success=%u unicast_done=%u unicast_done_success=%u compact_rx=%u compact_decode_ok=%u compact_forward_attempts=%u compact_forward_submit_success=%u",
       static_cast<unsigned>(snapshot_.schema_version),
       static_cast<unsigned long long>(snapshot_.boot_session),
       static_cast<unsigned long long>(snapshot_.snapshot_uptime_ms),
@@ -211,7 +215,13 @@ void N3wLabDiagnostics::emit_summary(uint64_t now_ms) {
       static_cast<unsigned>(snapshot_.relay_advertisement_submit_success),
       static_cast<unsigned>(snapshot_.relay_advertisement_submit_failure),
       static_cast<unsigned>(snapshot_.broadcast_completion_count),
-      static_cast<unsigned>(snapshot_.broadcast_completion_success));
+      static_cast<unsigned>(snapshot_.broadcast_completion_success),
+      static_cast<unsigned>(snapshot_.unicast_completion_count),
+      static_cast<unsigned>(snapshot_.unicast_completion_success),
+      static_cast<unsigned>(snapshot_.compact_rx_count),
+      static_cast<unsigned>(snapshot_.compact_decode_success),
+      static_cast<unsigned>(snapshot_.compact_forward_attempts),
+      static_cast<unsigned>(snapshot_.compact_forward_submit_success));
 }
 
 void N3wLabDiagnostics::drain_broadcast_completions_(uint64_t now_ms) {
@@ -223,6 +233,19 @@ void N3wLabDiagnostics::drain_broadcast_completions_(uint64_t now_ms) {
   snapshot_.broadcast_completion_count += success + failure;
   snapshot_.broadcast_completion_success += success;
   snapshot_.broadcast_completion_failure += failure;
+  snapshot_.snapshot_uptime_ms = now_ms;
+  dirty_ = true;
+}
+
+void N3wLabDiagnostics::drain_unicast_completions_(uint64_t now_ms) {
+  const uint32_t success =
+      pending_unicast_success_.exchange(0, std::memory_order_relaxed);
+  const uint32_t failure =
+      pending_unicast_failure_.exchange(0, std::memory_order_relaxed);
+  if (success == 0 && failure == 0) return;
+  snapshot_.unicast_completion_count += success + failure;
+  snapshot_.unicast_completion_success += success;
+  snapshot_.unicast_completion_failure += failure;
   snapshot_.snapshot_uptime_ms = now_ms;
   dirty_ = true;
 }
@@ -338,6 +361,66 @@ void N3wLabDiagnostics::on_broadcast_completion(
   } else {
     pending_broadcast_failure_.fetch_add(1, std::memory_order_relaxed);
   }
+}
+
+void N3wLabDiagnostics::on_unicast_completion(bool success, uint64_t now_ms) {
+  // Callback path: atomic increment only. Do not read or persist Snapshot here.
+  (void) now_ms;
+  if (success) {
+    pending_unicast_success_.fetch_add(1, std::memory_order_relaxed);
+  } else {
+    pending_unicast_failure_.fetch_add(1, std::memory_order_relaxed);
+  }
+}
+
+void N3wLabDiagnostics::on_compact_rx(uint64_t now_ms) {
+  if (!enabled_ || !boot_session_started_) return;
+  ++snapshot_.compact_rx_count;
+  mark_(now_ms, false);
+}
+
+void N3wLabDiagnostics::on_compact_state_rejected(uint64_t now_ms) {
+  if (!enabled_ || !boot_session_started_) return;
+  ++snapshot_.compact_state_reject_count;
+  mark_(now_ms, false);
+}
+
+void N3wLabDiagnostics::on_compact_child_binding_failure(uint64_t now_ms) {
+  if (!enabled_ || !boot_session_started_) return;
+  ++snapshot_.compact_child_binding_failure;
+  mark_(now_ms, false);
+}
+
+void N3wLabDiagnostics::on_compact_decode(bool success, uint64_t now_ms) {
+  if (!enabled_ || !boot_session_started_) return;
+  if (success) {
+    ++snapshot_.compact_decode_success;
+  } else {
+    ++snapshot_.compact_decode_failure;
+  }
+  mark_(now_ms, false);
+}
+
+void N3wLabDiagnostics::on_compact_wrap_failure(uint64_t now_ms) {
+  if (!enabled_ || !boot_session_started_) return;
+  ++snapshot_.compact_wrap_failure;
+  mark_(now_ms, false);
+}
+
+void N3wLabDiagnostics::on_compact_forward_attempt(uint64_t now_ms) {
+  if (!enabled_ || !boot_session_started_) return;
+  ++snapshot_.compact_forward_attempts;
+  mark_(now_ms, false);
+}
+
+void N3wLabDiagnostics::on_compact_forward_submit(bool success, uint64_t now_ms) {
+  if (!enabled_ || !boot_session_started_) return;
+  if (success) {
+    ++snapshot_.compact_forward_submit_success;
+  } else {
+    ++snapshot_.compact_forward_submit_failure;
+  }
+  mark_(now_ms, false);
 }
 
 }  // namespace esphome::greenhouse_n3w_core
