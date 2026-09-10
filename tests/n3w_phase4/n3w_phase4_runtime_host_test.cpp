@@ -40,6 +40,7 @@ struct FakePort final : SimpleProductPort {
   std::vector<std::pair<std::string, std::string>> relay;
   bool direct_success{true};
   bool broadcast_success{true};
+  bool relay_success{true};
 
   bool set_radio_channel(uint8_t value) override {
     channel = value;
@@ -73,7 +74,7 @@ struct FakePort final : SimpleProductPort {
   }
   bool publish_relay(const std::string &topic, const std::string &payload) override {
     relay.push_back({topic, payload});
-    return true;
+    return relay_success;
   }
 };
 
@@ -81,6 +82,14 @@ struct RecordingDiagnosticSink final : SimpleProductDiagnosticSink {
   uint32_t advertisement_attempts{0};
   uint32_t advertisement_successes{0};
   uint32_t advertisement_failures{0};
+  uint32_t compact_rx{0};
+  uint32_t compact_state_reject{0};
+  uint32_t compact_child_binding_failure{0};
+  uint32_t compact_decode_success{0};
+  uint32_t compact_decode_failure{0};
+  uint32_t compact_forward_attempts{0};
+  uint32_t compact_forward_success{0};
+  uint32_t compact_forward_failure{0};
 
   void on_runtime_start(uint8_t, uint8_t) override {}
   void on_scan_attempt(uint8_t, uint64_t) override {}
@@ -101,6 +110,18 @@ struct RecordingDiagnosticSink final : SimpleProductDiagnosticSink {
     }
   }
   void on_broadcast_completion(bool, uint64_t) override {}
+  void on_compact_rx(uint64_t) override { ++compact_rx; }
+  void on_compact_state_rejected(uint64_t) override { ++compact_state_reject; }
+  void on_compact_child_binding_failure(uint64_t) override {
+    ++compact_child_binding_failure;
+  }
+  void on_compact_decode(bool success, uint64_t) override {
+    (success ? ++compact_decode_success : ++compact_decode_failure);
+  }
+  void on_compact_forward_attempt(uint64_t) override { ++compact_forward_attempts; }
+  void on_compact_forward_submit(bool success, uint64_t) override {
+    (success ? ++compact_forward_success : ++compact_forward_failure);
+  }
 };
 
 ProvisionedPeerStateV2 make_state(const std::string &node_id, uint8_t app_key_byte) {
@@ -248,6 +269,8 @@ int main() {
 
   SimpleProductRuntime child(&child_port, &child_clock, &child_random);
   SimpleProductRuntime relay(&relay_port, &relay_clock, &relay_random);
+  RecordingDiagnosticSink relay_sink;
+  relay.set_diagnostic_sink(&relay_sink);
   assert(child.start(child_state, child_mac, 6) == SimpleProductError::NONE);
   assert(relay.start(relay_state, relay_mac, 6) == SimpleProductError::NONE);
 
@@ -288,6 +311,7 @@ int main() {
   assert(!relay_port.installed.empty());
   assert(child_port.installed.back().lmk == relay_port.installed.back().lmk);
 
+  relay.set_relay_capable(true);
   child_port.direct_success = true;
   const std::string relay_json =
       R"({"schema":"gh.telemetry/1","node_id":"node_child","boot_id":"boot_0000000000000001","seq":5})";
@@ -302,6 +326,27 @@ int main() {
          "gh/v1/gh-system-01/ingress/gateway/node_relay/node_child/frame");
   assert(relay_port.relay.back().second.find("N3W2") != std::string::npos ||
          !relay_port.relay.back().second.empty());
+  assert(relay_sink.compact_rx == 1);
+  assert(relay_sink.compact_decode_success == 1);
+  assert(relay_sink.compact_forward_attempts == 1);
+  assert(relay_sink.compact_forward_success == 1);
+
+  const MacAddress unknown_mac{0x02, 0x00, 0x00, 0x00, 0x00, 0x09};
+  assert(relay.on_radio_receive(unknown_mac, encoded.data(), encoded.size(), 6) ==
+         SimpleProductError::PACKET_REJECTED);
+  assert(relay_sink.compact_child_binding_failure == 1);
+
+  std::vector<uint8_t> malformed = encoded;
+  malformed[3] ^= 0x01;
+  assert(relay.on_radio_receive(child_mac, malformed.data(), malformed.size(), 6) ==
+         SimpleProductError::PACKET_REJECTED);
+  assert(relay_sink.compact_decode_failure == 1);
+
+  relay_port.relay_success = false;
+  assert(relay.on_radio_receive(child_mac, encoded.data(), encoded.size(), 6) ==
+         SimpleProductError::MQTT_FAILED);
+  assert(relay_sink.compact_forward_attempts == 2);
+  assert(relay_sink.compact_forward_failure == 1);
 
   assert(child.note_direct_recovery_probe(true) == SimpleProductError::NONE);
   assert(child.path_state() == LocalPathState::RELAY_ACTIVE);

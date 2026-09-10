@@ -92,6 +92,24 @@ class SnapshotV4(ctypes.LittleEndianStructure):
     ]
 
 
+class SnapshotV5(ctypes.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = SnapshotV4._fields_ + [
+        ("unicast_completion_count", ctypes.c_uint32),
+        ("unicast_completion_success", ctypes.c_uint32),
+        ("unicast_completion_failure", ctypes.c_uint32),
+        ("compact_rx_count", ctypes.c_uint32),
+        ("compact_state_reject_count", ctypes.c_uint32),
+        ("compact_child_binding_failure", ctypes.c_uint32),
+        ("compact_decode_success", ctypes.c_uint32),
+        ("compact_decode_failure", ctypes.c_uint32),
+        ("compact_wrap_failure", ctypes.c_uint32),
+        ("compact_forward_attempts", ctypes.c_uint32),
+        ("compact_forward_submit_success", ctypes.c_uint32),
+        ("compact_forward_submit_failure", ctypes.c_uint32),
+    ]
+
+
 # Preserve the historical import name for callers that only need schema v3.
 Snapshot = SnapshotV3
 
@@ -140,7 +158,34 @@ def _values(snapshot: Snapshot) -> dict[str, object]:
         "broadcast_completion_success": snapshot.broadcast_completion_success,
         "broadcast_completion_failure": snapshot.broadcast_completion_failure,
     }
-    if isinstance(snapshot, SnapshotV4):
+    if isinstance(snapshot, SnapshotV5):
+        values.update(
+            {
+                "discovery_rejection_reason_supported": True,
+                "discovery_reject_state": snapshot.discovery_reject_state,
+                "discovery_reject_pending": snapshot.discovery_reject_pending,
+                "discovery_reject_packet_invalid": snapshot.discovery_reject_packet_invalid,
+                "discovery_reject_trust_generation": snapshot.discovery_reject_trust_generation,
+                "discovery_reject_self": snapshot.discovery_reject_self,
+                "discovery_reject_channel_mismatch": snapshot.discovery_reject_channel_mismatch,
+                "last_discovery_rejection_reason": snapshot.last_discovery_rejection_reason,
+                "last_discovery_packet_channel": snapshot.last_discovery_packet_channel,
+                "last_discovery_rx_channel": snapshot.last_discovery_rx_channel,
+                "unicast_completion_count": snapshot.unicast_completion_count,
+                "unicast_completion_success": snapshot.unicast_completion_success,
+                "unicast_completion_failure": snapshot.unicast_completion_failure,
+                "compact_rx_count": snapshot.compact_rx_count,
+                "compact_state_reject_count": snapshot.compact_state_reject_count,
+                "compact_child_binding_failure": snapshot.compact_child_binding_failure,
+                "compact_decode_success": snapshot.compact_decode_success,
+                "compact_decode_failure": snapshot.compact_decode_failure,
+                "compact_wrap_failure": snapshot.compact_wrap_failure,
+                "compact_forward_attempts": snapshot.compact_forward_attempts,
+                "compact_forward_submit_success": snapshot.compact_forward_submit_success,
+                "compact_forward_submit_failure": snapshot.compact_forward_submit_failure,
+            }
+        )
+    elif isinstance(snapshot, SnapshotV4):
         values.update(
             {
                 "discovery_rejection_reason_supported": True,
@@ -282,6 +327,7 @@ def main() -> int:
     snapshot_type = {
         3: SnapshotV3,
         4: SnapshotV4,
+        5: SnapshotV5,
     }.get(schema_version)
     if snapshot_type is None:
         parser.error("snapshot schema is invalid")

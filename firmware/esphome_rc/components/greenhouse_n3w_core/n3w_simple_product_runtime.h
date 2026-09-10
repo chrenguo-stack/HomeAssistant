@@ -121,6 +121,25 @@ class SimpleProductDiagnosticSink {
   virtual void on_relay_telemetry(bool success, uint64_t now_ms) = 0;
   virtual void on_relay_advertisement(bool submitted, uint64_t now_ms) = 0;
   virtual void on_broadcast_completion(bool success, uint64_t now_ms) = 0;
+  // Send callbacks run from the Wi-Fi task. Implementations must only enqueue
+  // atomic state here; durable persistence belongs to the normal loop.
+  virtual void on_unicast_completion(bool success, uint64_t now_ms) {
+    (void) success;
+    (void) now_ms;
+  }
+  virtual void on_compact_rx(uint64_t now_ms) { (void) now_ms; }
+  virtual void on_compact_state_rejected(uint64_t now_ms) { (void) now_ms; }
+  virtual void on_compact_child_binding_failure(uint64_t now_ms) { (void) now_ms; }
+  virtual void on_compact_decode(bool success, uint64_t now_ms) {
+    (void) success;
+    (void) now_ms;
+  }
+  virtual void on_compact_wrap_failure(uint64_t now_ms) { (void) now_ms; }
+  virtual void on_compact_forward_attempt(uint64_t now_ms) { (void) now_ms; }
+  virtual void on_compact_forward_submit(bool success, uint64_t now_ms) {
+    (void) success;
+    (void) now_ms;
+  }
 };
 
 class SimpleProductRuntime {

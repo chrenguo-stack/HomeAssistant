@@ -432,6 +432,9 @@ void SimpleProductComponent::on_espnow_send_result(
     bool success) {
   if (destination == kEspNowBroadcastMac) {
     diagnostics_.on_broadcast_completion(success, now_ms());
+  } else {
+    // Unicast callback path only enqueues an atomic completion counter.
+    diagnostics_.on_unicast_completion(success, 0);
   }
 }
 

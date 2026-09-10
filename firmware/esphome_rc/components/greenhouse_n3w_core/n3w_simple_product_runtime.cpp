@@ -529,28 +529,53 @@ SimpleProductError SimpleProductRuntime::handle_compact_(
     const MacAddress &source,
     const uint8_t *data,
     std::size_t size) {
+  if (diagnostic_sink_ != nullptr) {
+    diagnostic_sink_->on_compact_rx(clock_->now_ms());
+  }
   if (path_.state() != LocalPathState::DIRECT || !relay_capable_) {
+    if (diagnostic_sink_ != nullptr) {
+      diagnostic_sink_->on_compact_state_rejected(clock_->now_ms());
+    }
     return SimpleProductError::STATE_REJECTED;
   }
   SimpleProductRelayPeer *child = find_relay_child_(source);
-  if (child == nullptr) return SimpleProductError::PACKET_REJECTED;
+  if (child == nullptr) {
+    if (diagnostic_sink_ != nullptr) {
+      diagnostic_sink_->on_compact_child_binding_failure(clock_->now_ms());
+    }
+    return SimpleProductError::PACKET_REJECTED;
+  }
   CompactTelemetryFrameV2 frame;
   if (decode_compact_telemetry_frame_v2(data, size, &frame) !=
       CompactTelemetryError::NONE) {
+    if (diagnostic_sink_ != nullptr) {
+      diagnostic_sink_->on_compact_decode(false, clock_->now_ms());
+    }
     return SimpleProductError::PACKET_REJECTED;
+  }
+  if (diagnostic_sink_ != nullptr) {
+    diagnostic_sink_->on_compact_decode(true, clock_->now_ms());
   }
   std::vector<uint8_t> encoded(data, data + size);
   std::string payload;
   if (wrap_compact_relay_mqtt_v2(encoded, &payload) !=
       CompactTelemetryError::NONE) {
+    if (diagnostic_sink_ != nullptr) {
+      diagnostic_sink_->on_compact_wrap_failure(clock_->now_ms());
+    }
     return SimpleProductError::PACKET_REJECTED;
   }
   const std::string topic =
       "gh/v1/" + state_.system_id + "/ingress/gateway/" + state_.node_id +
       "/" + child->node_id + "/frame";
-  return port_->publish_relay(topic, payload)
-             ? SimpleProductError::NONE
-             : SimpleProductError::MQTT_FAILED;
+  if (diagnostic_sink_ != nullptr) {
+    diagnostic_sink_->on_compact_forward_attempt(clock_->now_ms());
+  }
+  const bool submitted = port_->publish_relay(topic, payload);
+  if (diagnostic_sink_ != nullptr) {
+    diagnostic_sink_->on_compact_forward_submit(submitted, clock_->now_ms());
+  }
+  return submitted ? SimpleProductError::NONE : SimpleProductError::MQTT_FAILED;
 }
 
 SimpleProductError SimpleProductRuntime::maybe_advertise_relay_(
