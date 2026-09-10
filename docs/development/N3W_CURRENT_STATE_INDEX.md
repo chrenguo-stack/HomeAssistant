@@ -9,8 +9,8 @@ Active product-direction authority: `docs/development/N3W_OFFICIAL_ESPNOW_REFERE
 ## Current source authority
 
 ```text
-REPOSITORY_MAIN=5d58727f5040281ee2beb9597f66a6a2da9bac57
-REPOSITORY_MAIN_TREE=b27b2968ea4e0b3bcb5f8312c3d31d391bd8d3ed
+REPOSITORY_MAIN=8a79b44ae42cb71fef75389524ed9094badb85a6
+REPOSITORY_MAIN_TREE=0c878193b894d58b17ae399aade9b610c380e6ce
 PR381_BASE_MAIN=f7083fbb7a7ba228dcd5f253b9cba752f6c7104c
 PR381_HEAD=b521ad1a5e223d2cf5a0de43fa6ff956339e9a0e
 PR381_MERGE_COMMIT=5d58727f5040281ee2beb9597f66a6a2da9bac57
@@ -21,6 +21,8 @@ DIAGNOSTIC_SOURCE_AUTHORITY=5d58727f5040281ee2beb9597f66a6a2da9bac57
 DIAGNOSTIC_SCHEMA_VERSION=5
 ```
 
+Repository main may advance through documentation-only alignment commits
+without changing the frozen firmware / diagnostic source authority.
 Documentation-only descendants do not redefine product-source authority.
 
 ## Frozen physical boundary
