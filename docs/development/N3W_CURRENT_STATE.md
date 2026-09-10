@@ -9,8 +9,8 @@ This is the concise public-safe authority for the current N3-W state. Fresh exac
 
 ```text
 REPOSITORY=chrenguo-stack/HomeAssistant
-REPOSITORY_MAIN=5d58727f5040281ee2beb9597f66a6a2da9bac57
-REPOSITORY_MAIN_TREE=b27b2968ea4e0b3bcb5f8312c3d31d391bd8d3ed
+REPOSITORY_MAIN=8a79b44ae42cb71fef75389524ed9094badb85a6
+REPOSITORY_MAIN_TREE=0c878193b894d58b17ae399aade9b610c380e6ce
 PR381_BASE_MAIN=f7083fbb7a7ba228dcd5f253b9cba752f6c7104c
 PR381_HEAD=b521ad1a5e223d2cf5a0de43fa6ff956339e9a0e
 PR381_MERGE_COMMIT=5d58727f5040281ee2beb9597f66a6a2da9bac57
@@ -22,7 +22,7 @@ PRODUCT_BEHAVIOR_SOURCE_AUTHORITY=fe116efabbd986263b043aa1a36ad74bf283bafa
 DIAGNOSTIC_SOURCE_AUTHORITY=5d58727f5040281ee2beb9597f66a6a2da9bac57
 ```
 
-Repository main must always be queried fresh. Documentation-only descendants do not redefine the frozen product-source authority.
+Repository main must always be queried fresh. Repository main may advance through documentation-only alignment commits without changing the frozen firmware / diagnostic source authority. Documentation-only descendants do not redefine the frozen product-source authority.
 
 Active architecture authority remains:
 
