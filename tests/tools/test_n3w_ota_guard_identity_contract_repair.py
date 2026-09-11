@@ -118,6 +118,23 @@ class IdentityContractRepairTests(unittest.TestCase):
             self.assertIs(result, completed)
             self.assertFalse((store.root / "rom-identity-contract-repair.json").exists())
 
+    def test_09_host_only_replay_accepts_old_private_stdout_shape(self):
+        base_mac = example_mac("48")
+        with tempfile.TemporaryDirectory() as td:
+            evidence = Path(td) / "rom_identity_read.stdout.txt"
+            evidence.write_text(forensic_shape(base_mac))
+            occurrences, distinct = r.replay_identity_evidence(str(evidence), base_mac)
+            self.assertEqual((occurrences, distinct), (2, 1))
+
+    def test_10_host_only_replay_rejects_expected_identity_mismatch(self):
+        observed = example_mac("49")
+        expected = example_mac("50")
+        with tempfile.TemporaryDirectory() as td:
+            evidence = Path(td) / "rom_identity_read.stdout.txt"
+            evidence.write_text(forensic_shape(observed))
+            with self.assertRaisesRegex(r.base.GuardError, "does not match expected"):
+                r.replay_identity_evidence(str(evidence), expected)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
