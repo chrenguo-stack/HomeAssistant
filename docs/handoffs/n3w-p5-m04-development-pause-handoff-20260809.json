@@ -1,0 +1,63 @@
+{
+  "schema": "gh.n3w-p5-m04-development-pause-handoff/1",
+  "date": "2026-08-09",
+  "status": "DEVELOPMENT_PAUSED_PR301_DRAFT_CI_PASS_M04_NOT_ACCEPTED",
+  "github": {
+    "main_sha": "ae4a323af49aa1f6aec8b1582d865a01898d26d7",
+    "pr_301": {
+      "number": 301,
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "mergeable": true,
+      "base_branch": "main",
+      "base_sha": "ae4a323af49aa1f6aec8b1582d865a01898d26d7",
+      "head_branch": "agent/n3w-p5-m04-direct-relay-cache-priming",
+      "head_sha": "b724dc6f4b07cd62e02d2650e60110c128328025",
+      "dedicated_ci": {
+        "run_id": 31321846342,
+        "name": "N3-W P5 M04 direct Relay datagram cache priming CI",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    }
+  },
+  "phase": {
+    "m03": "terminal_pass",
+    "m04": "not_accepted_repair_draft_unmerged",
+    "latest_m04_live_authorization": "consumed_failed_non_replayable",
+    "resend_consumption": "exactly_one_consumed_do_not_replay",
+    "m05": "prohibited"
+  },
+  "repair": {
+    "root_cause": "A restart clears the volatile Relay datagram cache and successful Direct telemetry did not repopulate it.",
+    "head_behavior": [
+      "Build Relay-form datagrams for the exact Direct canonical tuple.",
+      "Commit the Direct resend cache only after MQTT publish success.",
+      "Preserve the prior successful cache on Direct publish failure.",
+      "Do not send ESP-NOW or enqueue the Relay retry cache from Direct priming.",
+      "Commit the normal Relay resend cache only after retry-cache enqueue success."
+    ]
+  },
+  "validation": {
+    "focused_host_tests_passed": 18,
+    "ruff": "pass",
+    "child_esp32c6_compile_only": "pass",
+    "relay_esp32c6_compile_only": "pass",
+    "board_live_for_pr301": "not_run"
+  },
+  "private_boundary": {
+    "credentials_included": false,
+    "device_identifiers_included": false,
+    "factory_image_digests_included": false,
+    "private_package_or_evidence_digests_included": false,
+    "replayable_authorizations_included": false
+  },
+  "pause_invariants": [
+    "Keep PR #301 Draft and unmerged until separately authorized.",
+    "Do not replay the consumed M04 RESEND.",
+    "Perform no board, serial, Flash, reset, power, MQTT publish, path-control, or service mutation.",
+    "Keep M05 prohibited until a new M04 execution and closure pass."
+  ],
+  "next_action": "Fresh read-only GitHub, CI, private-binding, and physical-state drift rebaseline under a new explicit scope."
+}
