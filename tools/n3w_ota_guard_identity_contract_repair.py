@@ -2,8 +2,8 @@
 """N3W OTA Guard ROM identity contract repair R1.
 
 This is a surgical successor adapter for the reviewed N3W OTA Guard v0.2.2
-Board-B-recovery-only implementation.  It does not replace or modify the reviewed
-mutation core.  It fixes one observed host-side identity parsing defect:
+Board-B-recovery-only implementation. It does not replace or modify the reviewed
+mutation core. It fixes one observed host-side identity parsing defect:
 
 - esptool 5.2.0 on ESP32-C6 prints an 8-octet EUI64 ``MAC:`` line as well as a
   six-octet ``BASE MAC:`` line;
@@ -18,7 +18,7 @@ raw subprocess evidence, and passes a single canonical BASE MAC line to the
 reviewed v0.2.2 expected-vs-observed comparison.
 
 The reviewed base source is Git-blob-bound before any recovery workflow is
-started.  This adapter does not add app0 write, mutation retry, rollback, or any
+started. This adapter does not add app0 write, mutation retry, rollback, or any
 new physical capability.
 """
 
@@ -47,7 +47,7 @@ _BASE_MAC_LINE_RE = re.compile(
 def git_blob_sha1(path: Path) -> str:
     data = path.read_bytes()
     header = f"blob {len(data)}\0".encode("ascii")
-    return hashlib.sha1(header + data).hexdigest()  # noqa: S324 - Git object identity
+    return hashlib.sha1(header + data).hexdigest()  # Git object identity, not crypto auth
 
 
 def verify_reviewed_base_binding() -> str:
@@ -93,6 +93,19 @@ def extract_authoritative_base_mac(output: str) -> tuple[str, int]:
             "ROM identity output contains multiple distinct exact BASE MAC values"
         )
     return next(iter(distinct)), len(matches)
+
+
+def replay_identity_evidence(stdout_path: str, expected_base_mac: str) -> tuple[int, int]:
+    """Host-only replay of already captured read-mac stdout against private identity."""
+    path = Path(stdout_path).expanduser().resolve()
+    if not path.is_file():
+        raise base.GuardError("identity stdout evidence file is missing")
+    output = path.read_text(encoding="utf-8")
+    observed, occurrence_count = extract_authoritative_base_mac(output)
+    expected = base.normalize_mac(expected_base_mac)
+    if observed != expected:
+        raise base.GuardError("replayed exact BASE MAC does not match expected identity")
+    return occurrence_count, 1
 
 
 def identity_contract_runner(argv, evidence, label):
@@ -160,12 +173,16 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="n3w-ota-guard-identity-repair")
     parser.add_argument("--python", default=sys.executable)
     parser.add_argument(
-        "--esptool", required=True, help="exact ESP-IDF v5.5.4 esptool.py wrapper"
+        "--esptool", help="exact ESP-IDF v5.5.4 esptool.py wrapper"
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
     check = sub.add_parser("check-repair-binding")
     check.add_argument("--quiet", action="store_true")
+
+    replay = sub.add_parser("replay-identity-evidence")
+    replay.add_argument("--stdout-file", required=True)
+    replay.add_argument("--expected-base-mac", required=True)
 
     recover = sub.add_parser("recover-app0-to-slot0")
     recover.add_argument("--port", required=True)
@@ -186,7 +203,20 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print("REPAIR_BINDING=PASS")
             return 0
 
+        if args.command == "replay-identity-evidence":
+            occurrence_count, distinct_count = replay_identity_evidence(
+                args.stdout_file, args.expected_base_mac
+            )
+            print("IDENTITY_REPAIR_REPLAY=PASS")
+            print(f"AUTHORITATIVE_BASE_MAC_LINE_COUNT={occurrence_count}")
+            print(f"AUTHORITATIVE_DISTINCT_BASE_MAC_COUNT={distinct_count}")
+            print("EXPECTED_IDENTITY_MATCH=PASS")
+            print("BOARD_ACCESS=false")
+            return 0
+
         if args.command == "recover-app0-to-slot0":
+            if not args.esptool:
+                raise base.GuardError("physical recovery requires --esptool")
             result = execute_recovery_app0_to_slot0(
                 args.python,
                 args.esptool,
