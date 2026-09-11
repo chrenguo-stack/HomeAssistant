@@ -9,18 +9,19 @@ PHYSICAL_AUTHORIZATION_GRANTED=true
 PHYSICAL_AUTHORIZATION_CLAIMED=true
 PHYSICAL_AUTHORIZATION_CONSUMED=false
 REPLAY_PERMITTED=false
+AUTHORIZATION_RETIRED=true
 ```
 
 The user explicitly granted this one-time successor authorization after the ROM identity parser defect was repaired and replayed successfully against the consumed private evidence.
 
-A later executor attempt stopped during pre-open command construction because the private expected-identity argument could not be extracted. No software open/connection to Board B occurred, so the authorization is not consumed and remains valid after host-only repair of that command-construction problem.
+The executor later proved expected-identity argument construction, but the workflow stopped before opening Board B because the ID02 claim already existed. Under the active anti-replay rule, claim existence prevents starting the one-time workflow again even though no physical open occurred. Therefore ID02 is retired and must not be reused.
 
-## Allowed workflow
+## Allowed workflow (historical scope)
 
 1. Fresh rebind reviewed Guard base + identity-contract-r1 repair, local toolchain, firmware authority, and private expected Board B identity.
 2. Discover the Board B port; the port is only a locator.
 3. Fresh ROM identity check using identity-contract-r1.
-4. Read existing app0 at 0x10000 for exactly 1115648 bytes and require SHA-256 `5168a1958669ce06002cc5cb507fda7fc7477ca53294a73dbcf582e5879f383b`.
+4. Read existing app0 at 0x10000 for exactly 1115648 bytes and require the frozen SHA-256.
 5. Read the full 0x2000 otadata preimage and prepare the recovery plan.
 6. On the mutation connection, recheck identity, app0 freshness, and otadata-preimage freshness.
 7. Permit at most one 32-byte otadata entry mutation.
@@ -44,22 +45,14 @@ BOARD_A_ACCESS=false
 T1_MUTATION=false
 ```
 
-If any identity, app0, source/tool binding, or pre-mutation freshness check fails, STOP without mutation.
-
-If failure occurs after entering the otadata mutation boundary, do not retry, do not auto-rollback, and do not auto-boot. Only the Guard's single bounded read-only failure-state capture is allowed.
-
-## Consumption rule
-
-The authorization becomes consumed at the first software open/connection to the selected Board B physical port under this workflow. Any STOP after that requires a new adjudication and, if needed, a new explicit authorization.
-
-The pre-open command-construction STOP did not meet that consumption condition.
-
 ## Current state
 
 ```text
 PHYSICAL_AUTHORIZATION_GRANTED=true
 PHYSICAL_AUTHORIZATION_CLAIMED=true
 PHYSICAL_AUTHORIZATION_CONSUMED=false
-PHYSICAL_EXECUTION=PAUSED_FOR_HOST_ONLY_EXPECTED_IDENTITY_ARGUMENT_REPAIR
-NEXT_ONE_GATE=HOST_ONLY_EXPECTED_IDENTITY_ARGUMENT_REPAIR
+AUTHORIZATION_RETIRED=true
+REPLAY_PERMITTED=false
+PHYSICAL_DEVICE_OPEN_OCCURRED=false
+NEXT_ONE_GATE=USER_EXPLICIT_ID03_PHYSICAL_AUTHORIZATION
 ```
