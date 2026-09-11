@@ -1,22 +1,24 @@
 #!/usr/bin/env python3
-"""N3W OTA Guard v0.2.1-review.
+"""N3W OTA Guard v0.2.2-review.
 
 Recovery-only ESP32-C6 OTA safety helper for the current N3-W / KF-089 Board B
 successor workflow.
 
 Safety properties of this revision:
-- Board B app0 is read-only: this tool contains no app0 write primitive or fresh
-  deployment workflow.
+- Board B app0 is read-only: no app0 write primitive or fresh deployment workflow.
 - app0 at 0x10000 is exact-bound by size + SHA-256 before any otadata mutation.
 - read operations use explicit esptool 5.2.0 CLI reset/connection arguments.
-- otadata mutation does NOT call esptool.cmds.write_flash / CLI write-flash,
-  because that high-level path can reconnect/retry the whole write operation.
-- the only mutation primitive is a project-owned direct ROM write of exactly one
-  32-byte esp_ota_select_entry_t at 0x9000 or 0xA000, with one connection attempt
-  and one flash-block attempt.
-- the mutation connection re-verifies BASE_MAC and device-side app0 MD5 before
-  flash_begin. SHA-256 remains the firmware authority; MD5 is freshness-only.
+- otadata mutation never calls esptool.cmds.write_flash / CLI write-flash because
+  that high-level path can reconnect/retry the whole write operation.
+- the only mutation primitive is a direct ROM write of one 32-byte
+  esp_ota_select_entry_t at 0x9000 or 0xA000, with one connection attempt and one
+  flash-block attempt.
+- the mutation connection re-verifies BASE_MAC, app0 freshness, and the exact
+  pre-read otadata snapshot before flash_begin. SHA-256 remains firmware authority;
+  device-side MD5 is used only as a same-connection freshness check.
 - OTA selection changes only ota_seq + CRC and preserves seq_label + ota_state.
+- if mutation may have started and an exception occurs, the tool performs one
+  bounded read-only otadata failure-state capture; it never retries mutation.
 - post-write verification reads full 0x2000 otadata and requires the non-target
   sector to remain byte-identical.
 - evidence is durable/private and rejected if placed inside a Git worktree.
@@ -44,7 +46,7 @@ from pathlib import Path
 from typing import Callable, Mapping, Sequence
 
 TOOL_NAME = "N3W OTA Guard"
-TOOL_VERSION = "0.2.1-review"
+TOOL_VERSION = "0.2.2-review"
 TOOL_MODE = "BOARD_B_RECOVERY_ONLY"
 
 CHIP = "esp32c6"
@@ -70,7 +72,7 @@ OTA_APP_COUNT = 2
 UINT32_MAX = 0xFFFFFFFF
 
 EXPECTED_ESPTOOL_VERSION = "5.2.0"
-# Official ESP-IDF v5.5.4 components/esptool_py/esptool/esptool.py wrapper.
+# Exact ESP-IDF v5.5.4 components/esptool_py/esptool/esptool.py delegate wrapper.
 EXPECTED_ESPTOOL_WRAPPER_SHA256 = "a8461ddc0852eb1d00cf9d13bfc7698a3cad92871e51f2c4d1ff7ee2561150be"
 EXPECTED_FLASH_WRITE_SIZE = 0x400
 
@@ -88,7 +90,7 @@ class OtaState(IntEnum):
     UNDEFINED = UINT32_MAX
 
 
-KNOWN_OTA_STATES = {int(v) for v in OtaState}
+KNOWN_OTA_STATES = {int(value) for value in OtaState}
 SAFE_ACTIVE_STATES = {int(OtaState.VALID), int(OtaState.UNDEFINED)}
 SAFE_TARGET_PRESERVE_STATES = {int(OtaState.VALID), int(OtaState.UNDEFINED)}
 
@@ -107,6 +109,7 @@ class ToolchainBinding:
     cmds_module_sha256: str
     esp32c6_module_path: str
     esp32c6_module_sha256: str
+    package_root: str
     flash_sector_size: int
     flash_write_size: int
     write_block_attempts: int
@@ -295,6 +298,10 @@ def sha256_file(path: os.PathLike[str] | str) -> str:
     return digest.hexdigest()
 
 
+def md5_bytes(data: bytes) -> str:
+    return hashlib.md5(data, usedforsecurity=False).hexdigest()
+
+
 def md5_file(path: os.PathLike[str] | str) -> str:
     digest = hashlib.md5(usedforsecurity=False)
     with open(path, "rb") as handle:
@@ -374,7 +381,6 @@ def parse_otadata(raw: bytes) -> OtaSnapshot:
     if not valid:
         raise GuardError("no valid OTA-select copy")
     if len(valid) == 2 and valid[0].seq == valid[1].seq:
-        # IDF chooses copy 0 on a tie; Guard treats this as unhealthy/ambiguous.
         raise GuardError("ambiguous OTA-select state: both valid copies have equal ota_seq")
 
     active = max(valid, key=lambda entry: entry.seq)
@@ -401,8 +407,6 @@ def _next_seq_for_target(active_seq: int, target_slot: int) -> int:
         multiplier = (delta + OTA_APP_COUNT - 1) // OTA_APP_COUNT
         candidate = base + multiplier * OTA_APP_COUNT
 
-    # The current Guard refuses switching to the already-selected slot, so the
-    # IDF-equivalent candidate must be strictly newer here.
     if candidate <= active_seq:
         raise GuardError("computed ota_seq is not newer than active ota_seq")
     if candidate >= UINT32_MAX:
@@ -495,6 +499,17 @@ def plan_ota_switch_to_app0(raw: bytes, app_binding: AppPayloadBinding) -> OtaSw
     )
 
 
+def expected_post_otadata(pre: bytes, plan: OtaSwitchPlan) -> bytes:
+    if len(pre) != OTADATA_SIZE:
+        raise GuardError("prechange otadata must be exactly 0x2000 bytes")
+    post = bytearray(pre)
+    target_rel = OTADATA_COPY_OFFSETS[plan.target_copy_index]
+    post[target_rel : target_rel + OTADATA_SECTOR_SIZE] = (
+        plan.entry_image + b"\xff" * (OTADATA_SECTOR_SIZE - OTA_ENTRY_SIZE)
+    )
+    return bytes(post)
+
+
 def verify_ota_switch(pre: bytes, post: bytes, plan: OtaSwitchPlan) -> None:
     if len(pre) != OTADATA_SIZE or len(post) != OTADATA_SIZE:
         raise GuardError("pre/post otadata must each be exactly 0x2000 bytes")
@@ -504,10 +519,7 @@ def verify_ota_switch(pre: bytes, post: bytes, plan: OtaSwitchPlan) -> None:
         other_rel : other_rel + OTADATA_SECTOR_SIZE
     ]:
         raise GuardError("non-target otadata sector changed")
-    expected_target = plan.entry_image + b"\xff" * (
-        OTADATA_SECTOR_SIZE - OTA_ENTRY_SIZE
-    )
-    if post[target_rel : target_rel + OTADATA_SECTOR_SIZE] != expected_target:
+    if post != expected_post_otadata(pre, plan):
         raise GuardError("target otadata sector does not match erase+32-byte-write semantics")
 
     snapshot = parse_otadata(post)
@@ -566,8 +578,7 @@ def validate_esptool_read_argv(argv: Sequence[str]) -> None:
         raise GuardError("unexpected esptool global argument shape")
     prefix = list(argv[:sub_index])
     port = prefix[5]
-    expected_prefix = _base_esptool_argv(prefix[0], prefix[1], port)
-    if prefix != expected_prefix:
+    if prefix != _base_esptool_argv(prefix[0], prefix[1], port):
         raise GuardError("esptool global arguments are not the exact guard contract")
     if any(token in argv for token in ("write-flash", "erase-flash", "erase-region")):
         raise GuardError("mutation command is forbidden in read-only esptool CLI")
@@ -641,12 +652,6 @@ def _mac_to_tuple(value: str) -> tuple[int, ...]:
     return tuple(int(part, 16) for part in normalize_mac(value).split(":"))
 
 
-def _tuple_to_mac(value: Sequence[int]) -> str:
-    if len(value) != 6 or any(not 0 <= int(part) <= 255 for part in value):
-        raise GuardError("invalid BASE_MAC tuple")
-    return ":".join(f"{int(part):02x}" for part in value)
-
-
 def verify_identity_output(output: str, expected_base_mac: str) -> IdentityBinding:
     expected = normalize_mac(expected_base_mac)
     candidates = {
@@ -688,10 +693,13 @@ def bind_toolchain_runtime(
     expected_wrapper_sha256: str = EXPECTED_ESPTOOL_WRAPPER_SHA256,
     expected_version: str = EXPECTED_ESPTOOL_VERSION,
 ) -> tuple[ToolchainBinding, dict[str, object]]:
-    """Bind exact interpreter/esptool runtime used by direct ROM mutation.
+    """Bind the exact interpreter and the esptool runtime used for mutation.
 
-    esptool.loader reads write_block_attempts at import time, therefore stale
-    prior imports are rejected rather than silently inheriting default retries.
+    The frozen ESP-IDF wrapper is a 269-byte delegate which launches
+    ``sys.executable -m esptool``. Therefore package modules are expected to live
+    in the bound interpreter's site-packages, not under the wrapper directory.
+    We require the exact wrapper hash, exact interpreter, package version, common
+    package root, module hashes in evidence, and the reviewed runtime constants.
     """
     requested_python = Path(python_exe).resolve()
     actual_python = Path(sys.executable).resolve()
@@ -735,18 +743,12 @@ def bind_toolchain_runtime(
     loader_path, loader_sha = _module_binding(loader)
     cmds_path, cmds_sha = _module_binding(cmds)
     esp32c6_path, esp32c6_sha = _module_binding(esp32c6)
-
-    # The package imported by this interpreter must come from the exact ESP-IDF
-    # esptool source tree that contains the frozen wrapper, not merely be another
-    # installed package which happens to report version 5.2.0.
-    source_root = wrapper.parent
-    for module_path in (esptool_path_loaded, loader_path, cmds_path, esp32c6_path):
+    package_root = Path(esptool_path_loaded).resolve().parent
+    for module_path in (loader_path, cmds_path, esp32c6_path):
         try:
-            Path(module_path).resolve().relative_to(source_root)
+            Path(module_path).resolve().relative_to(package_root)
         except ValueError as exc:
-            raise GuardError(
-                "esptool runtime module is outside the frozen wrapper source tree"
-            ) from exc
+            raise GuardError("esptool runtime modules do not share one package root") from exc
 
     binding = ToolchainBinding(
         python_executable=str(actual_python),
@@ -761,6 +763,7 @@ def bind_toolchain_runtime(
         cmds_module_sha256=cmds_sha,
         esp32c6_module_path=esp32c6_path,
         esp32c6_module_sha256=esp32c6_sha,
+        package_root=str(package_root),
         flash_sector_size=esp_cls.FLASH_SECTOR_SIZE,
         flash_write_size=esp_cls.FLASH_WRITE_SIZE,
         write_block_attempts=loader.WRITE_BLOCK_ATTEMPTS,
@@ -774,6 +777,15 @@ def bind_toolchain_runtime(
     return binding, runtime
 
 
+def _validate_authorization_id(authorization_id: str) -> str:
+    normalized = authorization_id.strip()
+    if not normalized:
+        raise GuardError("physical recovery requires a non-empty authorization id")
+    if len(normalized) > 256 or any(ord(char) < 0x20 for char in normalized):
+        raise GuardError("authorization id has invalid format")
+    return normalized
+
+
 def _validate_direct_write_request(offset: int, entry_data: bytes) -> None:
     if offset not in OTADATA_ENTRY_FLASH_OFFSETS:
         raise GuardError("direct mutation offset is outside otadata copy starts")
@@ -781,18 +793,42 @@ def _validate_direct_write_request(offset: int, entry_data: bytes) -> None:
         raise GuardError("direct mutation payload must be exactly 32 bytes")
 
 
+def _write_mutation_phase(
+    evidence: EvidenceStore,
+    ordinal: int,
+    phase: str,
+    *,
+    mutation_possible: bool,
+    authorization_id: str,
+) -> None:
+    evidence.write_json(
+        f"otadata-mutation-phase-{ordinal:02d}-{phase.lower().replace('_', '-')}.json",
+        {
+            "timestamp_utc": utc_now(),
+            "phase": phase,
+            "mutation_possible": mutation_possible,
+            "authorization_id": authorization_id,
+        },
+    )
+
+
 def _perform_direct_otadata_write_once(
     runtime: Mapping[str, object],
     *,
     port: str,
     expected_base_mac: str,
+    authorization_id: str,
     app_binding: AppPayloadBinding,
+    pre_otadata: bytes,
     offset: int,
     entry_data: bytes,
     evidence: EvidenceStore,
 ) -> None:
     """Perform exactly one low-level ESP32-C6 ROM otadata write attempt."""
+    authorization_id = _validate_authorization_id(authorization_id)
     _validate_direct_write_request(offset, entry_data)
+    if len(pre_otadata) != OTADATA_SIZE:
+        raise GuardError("direct mutation requires exact 0x2000 prechange otadata")
     if app_binding.slot != APP0_SLOT or app_binding.offset != APP0_OFFSET:
         raise GuardError("direct mutation lacks an app0 binding")
     if app_binding.size != APP0_PAYLOAD_SIZE:
@@ -800,12 +836,11 @@ def _perform_direct_otadata_write_once(
     if app_binding.sha256.lower() != APP0_EXPECTED_SHA256.lower():
         raise GuardError("direct mutation lacks frozen app0 SHA256 authority")
 
-    # Re-check the SHA-bound evidence file immediately before opening the mutation
-    # connection so a stale/changed host reference cannot be used for freshness.
     refreshed = verify_app0_payload(app_binding.source_path, APP0_EXPECTED_SHA256)
     if refreshed.sha256 != app_binding.sha256:
         raise GuardError("app0 evidence binding changed before mutation")
-    expected_md5 = md5_file(app_binding.source_path)
+    expected_app0_md5 = md5_file(app_binding.source_path)
+    expected_otadata_md5 = md5_bytes(pre_otadata)
     expected_mac_tuple = _mac_to_tuple(expected_base_mac)
 
     esp_cls = runtime["ESP32C6ROM"]
@@ -818,12 +853,14 @@ def _perform_direct_otadata_write_once(
         "otadata-mutation-attempt.json",
         {
             "timestamp_utc": utc_now(),
+            "authorization_id": authorization_id,
             "primitive": "DIRECT_ESPTOOL_ROM_SINGLE_ATTEMPT",
             "stock_esptool_write_flash_used": False,
             "target_offset": f"0x{offset:x}",
             "entry_size": len(entry_data),
             "entry_sha256": sha256_bytes(entry_data),
             "app0_authority_sha256": app_binding.sha256,
+            "pre_otadata_sha256": sha256_bytes(pre_otadata),
             "workflow_retry": False,
             "connect_attempts": 1,
             "write_block_attempts": 1,
@@ -844,29 +881,76 @@ def _perform_direct_otadata_write_once(
 
         attach_flash(esp)  # type: ignore[operator]
         esp.flash_set_parameters(FLASH_SIZE_BYTES)
-        observed_md5 = str(esp.flash_md5sum(APP0_OFFSET, APP0_PAYLOAD_SIZE)).lower()
-        if observed_md5 != expected_md5.lower():
+        observed_app0_md5 = str(
+            esp.flash_md5sum(APP0_OFFSET, APP0_PAYLOAD_SIZE)
+        ).lower()
+        if observed_app0_md5 != expected_app0_md5.lower():
             raise GuardError("mutation-time app0 freshness check failed")
+        observed_otadata_md5 = str(
+            esp.flash_md5sum(OTADATA_OFFSET, OTADATA_SIZE)
+        ).lower()
+        if observed_otadata_md5 != expected_otadata_md5.lower():
+            raise GuardError("mutation-time otadata preimage freshness check failed")
 
         evidence.write_json(
             "otadata-mutation-preclaim.json",
             {
                 "timestamp_utc": utc_now(),
+                "authorization_id": authorization_id,
                 "identity_binding": "PASS",
                 "app0_sha256_authority": "PASS",
                 "app0_same_connection_md5_freshness": "PASS",
+                "otadata_same_connection_md5_freshness": "PASS",
                 "target_offset": f"0x{offset:x}",
                 "entry_sha256": sha256_bytes(entry_data),
                 "mutation_started": False,
             },
         )
 
+        # flash_begin itself performs erase work. Once this boundary is entered,
+        # persistent state may be uncertain even if the call raises.
+        _write_mutation_phase(
+            evidence,
+            1,
+            "FLASH_BEGIN_ENTERING",
+            mutation_possible=True,
+            authorization_id=authorization_id,
+        )
         blocks = esp.flash_begin(OTA_ENTRY_SIZE, offset)
+        _write_mutation_phase(
+            evidence,
+            2,
+            "FLASH_BEGIN_COMPLETED",
+            mutation_possible=True,
+            authorization_id=authorization_id,
+        )
         if blocks != 1:
-            raise GuardError("unexpected flash_begin block count")
+            raise GuardError("unexpected flash_begin block count after mutation boundary")
+
         block = entry_data + b"\xff" * (flash_write_size - len(entry_data))
+        _write_mutation_phase(
+            evidence,
+            3,
+            "FLASH_BLOCK_ENTERING",
+            mutation_possible=True,
+            authorization_id=authorization_id,
+        )
         esp.flash_block(block, 0)
+        _write_mutation_phase(
+            evidence,
+            4,
+            "FLASH_BLOCK_COMPLETED",
+            mutation_possible=True,
+            authorization_id=authorization_id,
+        )
         esp.flash_finish(reboot=False)
+        _write_mutation_phase(
+            evidence,
+            5,
+            "FLASH_FINISH_COMPLETED",
+            mutation_possible=True,
+            authorization_id=authorization_id,
+        )
 
 
 # -------------------- Execution/evidence --------------------
@@ -971,11 +1055,65 @@ def _read_and_bind_app0(
     return binding
 
 
+def _capture_failure_state(
+    python_exe: str,
+    esptool_path: str,
+    port: str,
+    store: EvidenceStore,
+    runner: ReadRunner,
+    pre: bytes,
+    plan: OtaSwitchPlan,
+    mutation_error: Exception,
+) -> None:
+    failure_path = store.path("otadata-failure-state.bin")
+    record: dict[str, object] = {
+        "timestamp_utc": utc_now(),
+        "mutation_error_type": type(mutation_error).__name__,
+        "mutation_retry": False,
+        "capture_attempted": True,
+    }
+    try:
+        runner(
+            build_otadata_read_command(
+                python_exe, esptool_path, port, str(failure_path)
+            ),
+            store,
+            "otadata_failure_state_read",
+        )
+        observed = _load_exact(failure_path, OTADATA_SIZE, "failure-state otadata")
+        expected_post = expected_post_otadata(pre, plan)
+        if observed == pre:
+            classification = "PRECHANGE_EXACT"
+        elif observed == expected_post:
+            classification = "EXPECTED_POSTCHANGE_EXACT"
+        else:
+            classification = "PARTIAL_OR_OTHER_STATE"
+        record.update(
+            {
+                "capture_result": "PASS",
+                "state_sha256": sha256_bytes(observed),
+                "state_classification": classification,
+                "equals_prechange": observed == pre,
+                "equals_expected_postchange": observed == expected_post,
+            }
+        )
+    except Exception as capture_error:  # evidence capture must never trigger mutation/retry
+        record.update(
+            {
+                "capture_result": "FAIL",
+                "capture_error_type": type(capture_error).__name__,
+                "state_classification": "UNKNOWN",
+            }
+        )
+    store.write_json("otadata-mutation-failure-state.json", record)
+
+
 def _switch_to_app0_after_binding(
     python_exe: str,
     esptool_path: str,
     port: str,
     expected_base_mac: str,
+    authorization_id: str,
     store: EvidenceStore,
     runner: ReadRunner,
     runtime: Mapping[str, object],
@@ -992,15 +1130,35 @@ def _switch_to_app0_after_binding(
     plan = plan_ota_switch_to_app0(pre, app_binding)
     _write_plan_evidence(store, plan)
 
-    _perform_direct_otadata_write_once(
-        runtime,
-        port=port,
-        expected_base_mac=expected_base_mac,
-        app_binding=app_binding,
-        offset=plan.target_entry_flash_offset,
-        entry_data=plan.entry_image,
-        evidence=store,
-    )
+    try:
+        _perform_direct_otadata_write_once(
+            runtime,
+            port=port,
+            expected_base_mac=expected_base_mac,
+            authorization_id=authorization_id,
+            app_binding=app_binding,
+            pre_otadata=pre,
+            offset=plan.target_entry_flash_offset,
+            entry_data=plan.entry_image,
+            evidence=store,
+        )
+    except Exception as mutation_error:
+        # If flash_begin was entered, persistent state may have changed. Capture one
+        # bounded read-only snapshot, never retry the mutation, then re-raise.
+        if store.path(
+            "otadata-mutation-phase-01-flash-begin-entering.json"
+        ).exists():
+            _capture_failure_state(
+                python_exe,
+                esptool_path,
+                port,
+                store,
+                runner,
+                pre,
+                plan,
+                mutation_error,
+            )
+        raise
 
     runner(
         build_otadata_read_command(python_exe, esptool_path, port, str(post_path)),
@@ -1021,6 +1179,7 @@ def _switch_to_app0_after_binding(
             "mutation_retry": False,
             "same_connection_identity_recheck": True,
             "same_connection_app0_md5_freshness": True,
+            "same_connection_otadata_md5_freshness": True,
         },
     )
     return plan
@@ -1033,9 +1192,11 @@ def execute_recovery_app0_to_slot0(
     evidence_dir: os.PathLike[str] | str,
     *,
     expected_base_mac: str,
+    authorization_id: str,
     runner: ReadRunner = run_read_command,
 ) -> WorkflowResult:
     """Current Board B recovery workflow. There is no app0 write path."""
+    authorization_id = _validate_authorization_id(authorization_id)
     store = EvidenceStore(evidence_dir)
     config_path = store.ensure_esptool_config()
     store.write_json(
@@ -1045,6 +1206,8 @@ def execute_recovery_app0_to_slot0(
             "tool_version": TOOL_VERSION,
             "tool_mode": TOOL_MODE,
             "workflow": "RECOVERY_EXISTING_APP0_TO_SLOT0",
+            "authorization_id": authorization_id,
+            "authorization_replay_enforcement": "EXTERNAL_GATE_REQUIRED",
             "app0_write_allowed": False,
             "stock_esptool_write_flash_allowed": False,
             "started_utc": utc_now(),
@@ -1067,13 +1230,19 @@ def execute_recovery_app0_to_slot0(
         esptool_path,
         port,
         expected_base_mac,
+        authorization_id,
         store,
         runner,
         runtime,
         app_binding,
     )
     store.write_json(
-        "workflow-result.json", {"result": "PASS", "finished_utc": utc_now()}
+        "workflow-result.json",
+        {
+            "result": "PASS",
+            "authorization_id": authorization_id,
+            "finished_utc": utc_now(),
+        },
     )
     return WorkflowResult(identity_binding, app_binding, plan, str(store.root))
 
@@ -1106,6 +1275,7 @@ def _parser() -> argparse.ArgumentParser:
     recover.add_argument("--port", required=True)
     recover.add_argument("--evidence-dir", required=True)
     recover.add_argument("--expected-base-mac", required=True)
+    recover.add_argument("--authorization-id", required=True)
 
     tool = sub.add_parser("check-toolchain")
     tool.add_argument("--evidence-dir", required=True)
@@ -1130,7 +1300,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             app_binding = verify_app0_payload(
                 args.app0_readback, APP0_EXPECTED_SHA256
             )
-            raw = _load_exact(args.otadata, OTADATA_SIZE, "otadata")
+            raw = Path(args.otadata).read_bytes()
+            if len(raw) != OTADATA_SIZE:
+                raise GuardError("otadata must be exactly 0x2000 bytes")
             plan = plan_ota_switch_to_app0(raw, app_binding)
             print(json.dumps(plan.public_dict(), indent=2, sort_keys=True))
             _print_argv(
@@ -1157,6 +1329,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.port,
                 args.evidence_dir,
                 expected_base_mac=args.expected_base_mac,
+                authorization_id=args.authorization_id,
             )
             print(
                 json.dumps(
