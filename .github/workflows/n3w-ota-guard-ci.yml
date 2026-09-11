@@ -4,14 +4,18 @@ on:
   pull_request:
     paths:
       - "tools/n3w_ota_guard.py"
+      - "tools/n3w_ota_guard_identity_contract_repair.py"
       - "tests/tools/test_n3w_ota_guard.py"
+      - "tests/tools/test_n3w_ota_guard_identity_contract_repair.py"
       - ".github/workflows/n3w-ota-guard-ci.yml"
   push:
     branches:
       - main
     paths:
       - "tools/n3w_ota_guard.py"
+      - "tools/n3w_ota_guard_identity_contract_repair.py"
       - "tests/tools/test_n3w_ota_guard.py"
+      - "tests/tools/test_n3w_ota_guard_identity_contract_repair.py"
       - ".github/workflows/n3w-ota-guard-ci.yml"
 
 permissions:
@@ -29,6 +33,10 @@ jobs:
         run: >-
           python -W error -m py_compile
           tools/n3w_ota_guard.py
+          tools/n3w_ota_guard_identity_contract_repair.py
           tests/tools/test_n3w_ota_guard.py
-      - name: Run R2 host regression
+          tests/tools/test_n3w_ota_guard_identity_contract_repair.py
+      - name: Run reviewed base host regression
         run: python -W error tests/tools/test_n3w_ota_guard.py
+      - name: Run ROM identity contract repair regression
+        run: python -W error tests/tools/test_n3w_ota_guard_identity_contract_repair.py
