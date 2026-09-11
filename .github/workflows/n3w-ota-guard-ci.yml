@@ -1,0 +1,42 @@
+name: N3W OTA Guard CI
+
+on:
+  pull_request:
+    paths:
+      - "tools/n3w_ota_guard.py"
+      - "tools/n3w_ota_guard_identity_contract_repair.py"
+      - "tests/tools/test_n3w_ota_guard.py"
+      - "tests/tools/test_n3w_ota_guard_identity_contract_repair.py"
+      - ".github/workflows/n3w-ota-guard-ci.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "tools/n3w_ota_guard.py"
+      - "tools/n3w_ota_guard_identity_contract_repair.py"
+      - "tests/tools/test_n3w_ota_guard.py"
+      - "tests/tools/test_n3w_ota_guard_identity_contract_repair.py"
+      - ".github/workflows/n3w-ota-guard-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  host-regression:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile with warnings as errors
+        run: >-
+          python -W error -m py_compile
+          tools/n3w_ota_guard.py
+          tools/n3w_ota_guard_identity_contract_repair.py
+          tests/tools/test_n3w_ota_guard.py
+          tests/tools/test_n3w_ota_guard_identity_contract_repair.py
+      - name: Run reviewed base host regression
+        run: python -W error tests/tools/test_n3w_ota_guard.py
+      - name: Run ROM identity contract repair regression
+        run: python -W error tests/tools/test_n3w_ota_guard_identity_contract_repair.py
