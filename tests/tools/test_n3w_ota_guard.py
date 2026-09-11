@@ -61,14 +61,28 @@ class FakeESP:
     FLASH_WRITE_SIZE = 0x400
     FLASH_SECTOR_SIZE = 0x1000
 
-    def __init__(self, port, baud, *, observed_mac, observed_md5, stub=False, secure=False, blocks=1):
+    def __init__(
+        self,
+        port,
+        baud,
+        *,
+        observed_mac,
+        observed_app0_md5,
+        observed_otadata_md5,
+        stub=False,
+        secure=False,
+        blocks=1,
+        fail_block=False,
+    ):
         self.port = port
         self.baud = baud
         self.observed_mac = observed_mac
-        self.observed_md5 = observed_md5
+        self.observed_app0_md5 = observed_app0_md5
+        self.observed_otadata_md5 = observed_otadata_md5
         self.sync_stub_detected = stub
         self.secure_download_mode = secure
         self.blocks = blocks
+        self.fail_block = fail_block
         self.events: list[tuple] = []
 
     def __enter__(self):
@@ -91,7 +105,11 @@ class FakeESP:
 
     def flash_md5sum(self, offset, size):
         self.events.append(("flash_md5sum", offset, size))
-        return self.observed_md5
+        if offset == m.APP0_OFFSET:
+            return self.observed_app0_md5
+        if offset == m.OTADATA_OFFSET:
+            return self.observed_otadata_md5
+        raise AssertionError("unexpected MD5 geometry")
 
     def flash_begin(self, size, offset):
         self.events.append(("flash_begin", size, offset))
@@ -99,6 +117,8 @@ class FakeESP:
 
     def flash_block(self, data, seq):
         self.events.append(("flash_block", len(data), seq, bytes(data[:32])))
+        if self.fail_block:
+            raise RuntimeError("synthetic block failure")
 
     def flash_finish(self, reboot=False):
         self.events.append(("flash_finish", reboot))
@@ -171,19 +191,12 @@ class GuardTests(unittest.TestCase):
     def test_12_postverify_accepts_one_sector_erase_plus_32_byte_write(self):
         pre = active_app1()
         plan = m.plan_ota_switch_to_app0(pre, frozen_binding(Path("x")))
-        post = bytearray(pre)
-        rel = m.OTADATA_COPY_OFFSETS[plan.target_copy_index]
-        post[rel : rel + m.OTADATA_SECTOR_SIZE] = b"\xff" * m.OTADATA_SECTOR_SIZE
-        post[rel : rel + 32] = plan.entry_image
-        m.verify_ota_switch(pre, bytes(post), plan)
+        m.verify_ota_switch(pre, m.expected_post_otadata(pre, plan), plan)
 
     def test_13_postverify_rejects_non_target_change(self):
         pre = active_app1()
         plan = m.plan_ota_switch_to_app0(pre, frozen_binding(Path("x")))
-        post = bytearray(pre)
-        rel = m.OTADATA_COPY_OFFSETS[plan.target_copy_index]
-        post[rel : rel + m.OTADATA_SECTOR_SIZE] = b"\xff" * m.OTADATA_SECTOR_SIZE
-        post[rel : rel + 32] = plan.entry_image
+        post = bytearray(m.expected_post_otadata(pre, plan))
         other = m.OTADATA_COPY_OFFSETS[1 - plan.target_copy_index]
         post[other + 0x100] ^= 1
         with self.assertRaisesRegex(m.GuardError, "non-target"):
@@ -192,10 +205,8 @@ class GuardTests(unittest.TestCase):
     def test_14_postverify_rejects_unexpected_target_sector_byte(self):
         pre = active_app1()
         plan = m.plan_ota_switch_to_app0(pre, frozen_binding(Path("x")))
-        post = bytearray(pre)
+        post = bytearray(m.expected_post_otadata(pre, plan))
         rel = m.OTADATA_COPY_OFFSETS[plan.target_copy_index]
-        post[rel : rel + m.OTADATA_SECTOR_SIZE] = b"\xff" * m.OTADATA_SECTOR_SIZE
-        post[rel : rel + 32] = plan.entry_image
         post[rel + 100] = 0
         with self.assertRaisesRegex(m.GuardError, r"erase\+32-byte-write"):
             m.verify_ota_switch(pre, bytes(post), plan)
@@ -262,7 +273,6 @@ class GuardTests(unittest.TestCase):
 
     def test_26_evidence_store_refuses_nonempty_directory(self):
         import tempfile
-
         with tempfile.TemporaryDirectory() as td:
             directory = Path(td) / "ev"
             directory.mkdir()
@@ -272,7 +282,6 @@ class GuardTests(unittest.TestCase):
 
     def test_27_evidence_store_refuses_git_worktree(self):
         import tempfile
-
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             (root / ".git").mkdir()
@@ -281,7 +290,6 @@ class GuardTests(unittest.TestCase):
 
     def test_28_esptool_config_is_single_attempt(self):
         import tempfile
-
         with tempfile.TemporaryDirectory() as td:
             store = m.EvidenceStore(Path(td) / "ev")
             cfg = store.ensure_esptool_config().read_text()
@@ -315,20 +323,42 @@ class GuardTests(unittest.TestCase):
         with self.assertRaises(m.GuardError):
             m._validate_direct_write_request(0x9000, b"x" * 31)
 
-    def _direct_fixture(self, td: str, *, md5_override=None, mac_override=None, stub=False, secure=False, blocks=1):
+    def _direct_fixture(
+        self,
+        td: str,
+        *,
+        app_md5_override=None,
+        otadata_md5_override=None,
+        mac_override=None,
+        stub=False,
+        secure=False,
+        blocks=1,
+        fail_block=False,
+    ):
         root = Path(td)
         payload = b"R" * m.APP0_PAYLOAD_SIZE
         payload_path = root / "app0.bin"
         payload_path.write_bytes(payload)
         digest = hashlib.sha256(payload).hexdigest()
-        expected_md5 = hashlib.md5(payload, usedforsecurity=False).hexdigest()
+        expected_app_md5 = hashlib.md5(payload, usedforsecurity=False).hexdigest()
+        pre = active_app1()
+        expected_ota_md5 = hashlib.md5(pre, usedforsecurity=False).hexdigest()
         mac = example_mac("11")
         observed_mac = tuple(int(x, 16) for x in (mac_override or mac).split(":"))
-        observed_md5 = md5_override or expected_md5
         instances = []
 
         def factory(port, baud):
-            esp = FakeESP(port, baud, observed_mac=observed_mac, observed_md5=observed_md5, stub=stub, secure=secure, blocks=blocks)
+            esp = FakeESP(
+                port,
+                baud,
+                observed_mac=observed_mac,
+                observed_app0_md5=app_md5_override or expected_app_md5,
+                observed_otadata_md5=otadata_md5_override or expected_ota_md5,
+                stub=stub,
+                secure=secure,
+                blocks=blocks,
+                fail_block=fail_block,
+            )
             instances.append(esp)
             return esp
 
@@ -339,24 +369,29 @@ class GuardTests(unittest.TestCase):
             "flash_write_size": 0x400,
         }
         evidence = m.EvidenceStore(root / "ev")
-        return payload_path, digest, mac, runtime, instances, attached, evidence
+        return payload_path, digest, mac, pre, runtime, instances, attached, evidence
+
+    def _call_direct(self, fixture, *, entry_data=b"E" * 32):
+        payload_path, digest, mac, pre, runtime, instances, attached, evidence = fixture
+        with mock.patch.object(m, "APP0_EXPECTED_SHA256", digest):
+            binding = m.verify_app0_payload(payload_path, digest)
+            m._perform_direct_otadata_write_once(
+                runtime,
+                port="/dev/example",
+                expected_base_mac=mac,
+                authorization_id="AUTH-TEST-01",
+                app_binding=binding,
+                pre_otadata=pre,
+                offset=0x9000,
+                entry_data=entry_data,
+                evidence=evidence,
+            )
+        return instances, attached, evidence
 
     def test_32_direct_mutation_has_one_connect_one_block_no_reboot(self):
         import tempfile
-
         with tempfile.TemporaryDirectory() as td:
-            payload_path, digest, mac, runtime, instances, attached, evidence = self._direct_fixture(td)
-            with mock.patch.object(m, "APP0_EXPECTED_SHA256", digest):
-                binding = m.verify_app0_payload(payload_path, digest)
-                m._perform_direct_otadata_write_once(
-                    runtime,
-                    port="/dev/example",
-                    expected_base_mac=mac,
-                    app_binding=binding,
-                    offset=0x9000,
-                    entry_data=b"E" * 32,
-                    evidence=evidence,
-                )
+            instances, attached, _evidence = self._call_direct(self._direct_fixture(td))
             events = instances[0].events
             self.assertEqual([e for e in events if e[0] == "connect"], [("connect", "no-reset", 1)])
             self.assertEqual([e for e in events if e[0] == "flash_begin"], [("flash_begin", 32, 0x9000)])
@@ -368,83 +403,68 @@ class GuardTests(unittest.TestCase):
 
     def test_33_direct_mutation_identity_mismatch_stops_before_flash(self):
         import tempfile
-
         with tempfile.TemporaryDirectory() as td:
-            payload_path, digest, mac, runtime, instances, _attached, evidence = self._direct_fixture(td, mac_override=example_mac("12"))
+            fixture = self._direct_fixture(td, mac_override=example_mac("12"))
+            with self.assertRaisesRegex(m.GuardError, "identity mismatch"):
+                self._call_direct(fixture)
+            self.assertFalse(any(e[0] == "flash_begin" for e in fixture[5][0].events))
+
+    def test_34_direct_mutation_app_md5_mismatch_stops_before_flash(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            fixture = self._direct_fixture(td, app_md5_override="0" * 32)
+            with self.assertRaisesRegex(m.GuardError, "app0 freshness"):
+                self._call_direct(fixture)
+            self.assertFalse(any(e[0] == "flash_begin" for e in fixture[5][0].events))
+
+    def test_35_direct_mutation_otadata_preimage_mismatch_stops_before_flash(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            fixture = self._direct_fixture(td, otadata_md5_override="0" * 32)
+            with self.assertRaisesRegex(m.GuardError, "otadata preimage freshness"):
+                self._call_direct(fixture)
+            self.assertFalse(any(e[0] == "flash_begin" for e in fixture[5][0].events))
+
+    def test_36_direct_mutation_stub_detected_stops_before_flash(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            fixture = self._direct_fixture(td, stub=True)
+            with self.assertRaisesRegex(m.GuardError, "stub"):
+                self._call_direct(fixture)
+            self.assertFalse(any(e[0] == "flash_begin" for e in fixture[5][0].events))
+
+    def test_37_direct_mutation_bad_flash_begin_count_marks_mutation_boundary(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            fixture = self._direct_fixture(td, blocks=2)
+            with self.assertRaisesRegex(m.GuardError, "after mutation boundary"):
+                self._call_direct(fixture)
+            self.assertTrue(any(e[0] == "flash_begin" for e in fixture[5][0].events))
+            self.assertTrue((fixture[7].root / "otadata-mutation-phase-01-flash-begin-entering.json").is_file())
+            self.assertFalse(any(e[0] == "flash_block" for e in fixture[5][0].events))
+
+    def test_38_direct_mutation_requires_authorization_id(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            fixture = self._direct_fixture(td)
+            payload_path, digest, mac, pre, runtime, _instances, _attached, evidence = fixture
             with mock.patch.object(m, "APP0_EXPECTED_SHA256", digest):
                 binding = m.verify_app0_payload(payload_path, digest)
-                with self.assertRaisesRegex(m.GuardError, "identity mismatch"):
+                with self.assertRaisesRegex(m.GuardError, "authorization"):
                     m._perform_direct_otadata_write_once(
                         runtime,
                         port="/dev/example",
                         expected_base_mac=mac,
+                        authorization_id="",
                         app_binding=binding,
+                        pre_otadata=pre,
                         offset=0x9000,
                         entry_data=b"E" * 32,
                         evidence=evidence,
                     )
-            self.assertFalse(any(e[0] == "flash_begin" for e in instances[0].events))
 
-    def test_34_direct_mutation_md5_mismatch_stops_before_flash(self):
+    def test_39_toolchain_rejects_python_interpreter_mismatch_before_import(self):
         import tempfile
-
-        with tempfile.TemporaryDirectory() as td:
-            payload_path, digest, mac, runtime, instances, _attached, evidence = self._direct_fixture(td, md5_override="0" * 32)
-            with mock.patch.object(m, "APP0_EXPECTED_SHA256", digest):
-                binding = m.verify_app0_payload(payload_path, digest)
-                with self.assertRaisesRegex(m.GuardError, "freshness"):
-                    m._perform_direct_otadata_write_once(
-                        runtime,
-                        port="/dev/example",
-                        expected_base_mac=mac,
-                        app_binding=binding,
-                        offset=0x9000,
-                        entry_data=b"E" * 32,
-                        evidence=evidence,
-                    )
-            self.assertFalse(any(e[0] == "flash_begin" for e in instances[0].events))
-
-    def test_35_direct_mutation_stub_detected_stops_before_flash(self):
-        import tempfile
-
-        with tempfile.TemporaryDirectory() as td:
-            payload_path, digest, mac, runtime, instances, _attached, evidence = self._direct_fixture(td, stub=True)
-            with mock.patch.object(m, "APP0_EXPECTED_SHA256", digest):
-                binding = m.verify_app0_payload(payload_path, digest)
-                with self.assertRaisesRegex(m.GuardError, "stub"):
-                    m._perform_direct_otadata_write_once(
-                        runtime,
-                        port="/dev/example",
-                        expected_base_mac=mac,
-                        app_binding=binding,
-                        offset=0x9000,
-                        entry_data=b"E" * 32,
-                        evidence=evidence,
-                    )
-            self.assertFalse(any(e[0] == "flash_begin" for e in instances[0].events))
-
-    def test_36_direct_mutation_bad_flash_begin_count_stops_before_block(self):
-        import tempfile
-
-        with tempfile.TemporaryDirectory() as td:
-            payload_path, digest, mac, runtime, instances, _attached, evidence = self._direct_fixture(td, blocks=2)
-            with mock.patch.object(m, "APP0_EXPECTED_SHA256", digest):
-                binding = m.verify_app0_payload(payload_path, digest)
-                with self.assertRaisesRegex(m.GuardError, "block count"):
-                    m._perform_direct_otadata_write_once(
-                        runtime,
-                        port="/dev/example",
-                        expected_base_mac=mac,
-                        app_binding=binding,
-                        offset=0x9000,
-                        entry_data=b"E" * 32,
-                        evidence=evidence,
-                    )
-            self.assertFalse(any(e[0] == "flash_block" for e in instances[0].events))
-
-    def test_37_toolchain_rejects_python_interpreter_mismatch_before_import(self):
-        import tempfile
-
         with tempfile.TemporaryDirectory() as td:
             wrapper = Path(td) / "esptool.py"
             wrapper.write_text("x")
@@ -458,9 +478,8 @@ class GuardTests(unittest.TestCase):
                     expected_wrapper_sha256=hashlib.sha256(b"x").hexdigest(),
                 )
 
-    def test_38_toolchain_rejects_prior_esptool_import(self):
+    def test_40_toolchain_rejects_prior_esptool_import(self):
         import tempfile
-
         with tempfile.TemporaryDirectory() as td:
             wrapper = Path(td) / "esptool.py"
             wrapper.write_text("x")
@@ -483,9 +502,8 @@ class GuardTests(unittest.TestCase):
                 else:
                     sys.modules["esptool.fake"] = old
 
-    def test_39_recovery_workflow_fake_path_never_writes_app0(self):
+    def test_41_recovery_workflow_fake_path_never_writes_app0(self):
         import tempfile
-
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             evidence_dir = root / "ev"
@@ -514,12 +532,9 @@ class GuardTests(unittest.TestCase):
             def fake_bind(*args, **kwargs):
                 return SimpleNamespace(public_dict=lambda: {"fake": True}), {"fake": True}
 
-            def fake_mutator(runtime, *, port, expected_base_mac, app_binding, offset, entry_data, evidence):
-                post = bytearray(pre)
-                rel = offset - m.OTADATA_OFFSET
-                post[rel : rel + m.OTADATA_SECTOR_SIZE] = b"\xff" * m.OTADATA_SECTOR_SIZE
-                post[rel : rel + 32] = entry_data
-                state["post"] = bytes(post)
+            def fake_mutator(runtime, **kwargs):
+                plan = m.plan_ota_switch_to_app0(pre, kwargs["app_binding"])
+                state["post"] = m.expected_post_otadata(pre, plan)
 
             with mock.patch.object(m, "APP0_EXPECTED_SHA256", payload_digest), mock.patch.object(
                 m, "bind_toolchain_runtime", side_effect=fake_bind
@@ -532,20 +547,18 @@ class GuardTests(unittest.TestCase):
                     "/dev/example",
                     evidence_dir,
                     expected_base_mac=mac,
+                    authorization_id="AUTH-TEST-02",
                     runner=runner,
                 )
             self.assertEqual(result.ota_plan.target_slot, 0)
-            self.assertEqual(
-                labels,
-                ["rom_identity_read", "app0_existing_read", "otadata_pre_read", "otadata_post_read"],
-            )
+            self.assertEqual(labels, ["rom_identity_read", "app0_existing_read", "otadata_pre_read", "otadata_post_read"])
             workflow = (evidence_dir / "workflow.json").read_text()
             self.assertIn('"app0_write_allowed": false', workflow)
+            self.assertIn('"authorization_id": "AUTH-TEST-02"', workflow)
             self.assertNotIn("app0_write", labels)
 
-    def test_40_recovery_app0_mismatch_stops_before_otadata(self):
+    def test_42_recovery_app0_mismatch_stops_before_otadata(self):
         import tempfile
-
         with tempfile.TemporaryDirectory() as td:
             evidence_dir = Path(td) / "ev"
             mac = example_mac("22")
@@ -571,9 +584,77 @@ class GuardTests(unittest.TestCase):
                         "/dev/example",
                         evidence_dir,
                         expected_base_mac=mac,
+                        authorization_id="AUTH-TEST-03",
                         runner=runner,
                     )
             self.assertEqual(labels, ["rom_identity_read", "app0_existing_read"])
+
+    def test_43_mutation_failure_boundary_triggers_readonly_state_capture(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            store = m.EvidenceStore(Path(td) / "ev")
+            pre = active_app1()
+            binding = frozen_binding(store.path("app0-existing-readback.bin"))
+            plan = m.plan_ota_switch_to_app0(pre, binding)
+            observed = m.expected_post_otadata(pre, plan)
+            labels = []
+
+            def runner(argv, evidence, label):
+                labels.append(label)
+                if label == "otadata_pre_read":
+                    Path(argv[-1]).write_bytes(pre)
+                elif label == "otadata_failure_state_read":
+                    Path(argv[-1]).write_bytes(observed)
+                else:
+                    raise AssertionError(label)
+                return SimpleNamespace(stdout="")
+
+            def fail_after_boundary(runtime, **kwargs):
+                kwargs["evidence"].write_json(
+                    "otadata-mutation-phase-01-flash-begin-entering.json",
+                    {"mutation_possible": True},
+                )
+                raise RuntimeError("synthetic mutation failure")
+
+            with mock.patch.object(m, "_perform_direct_otadata_write_once", side_effect=fail_after_boundary):
+                with self.assertRaisesRegex(RuntimeError, "synthetic"):
+                    m._switch_to_app0_after_binding(
+                        "/python",
+                        "/idf/esptool.py",
+                        "/dev/example",
+                        example_mac("31"),
+                        "AUTH-TEST-04",
+                        store,
+                        runner,
+                        {"fake": True},
+                        binding,
+                    )
+            self.assertEqual(labels, ["otadata_pre_read", "otadata_failure_state_read"])
+            record = (store.root / "otadata-mutation-failure-state.json").read_text()
+            self.assertIn('"state_classification": "EXPECTED_POSTCHANGE_EXACT"', record)
+            self.assertIn('"mutation_retry": false', record)
+
+    def test_44_official_idf_wrapper_hash_constant(self):
+        wrapper = (
+            "#\n"
+            "# SPDX-FileCopyrightText: 2022-2025 Espressif Systems (Shanghai) CO LTD\n"
+            "#\n"
+            "# SPDX-License-Identifier: Apache-2.0\n"
+            "#\n"
+            "import subprocess\n"
+            "import sys\n\n"
+            "if __name__ == '__main__':\n"
+            "    sys.exit(subprocess.run([sys.executable, '-u', '-m', 'esptool'] + sys.argv[1:]).returncode)\n"
+        ).encode()
+        self.assertEqual(hashlib.sha256(wrapper).hexdigest(), m.EXPECTED_ESPTOOL_WRAPPER_SHA256)
+
+    def test_45_review_version_and_auth_cli(self):
+        self.assertEqual(m.TOOL_VERSION, "0.2.2-review")
+        recover = next(
+            action for action in m._parser()._actions if action.dest == "command"
+        ).choices["recover-app0-to-slot0"]
+        option_strings = {opt for action in recover._actions for opt in action.option_strings}
+        self.assertIn("--authorization-id", option_strings)
 
 
 if __name__ == "__main__":
