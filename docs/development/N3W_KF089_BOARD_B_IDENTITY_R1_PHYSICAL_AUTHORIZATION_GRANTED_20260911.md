@@ -6,12 +6,14 @@
 AUTHORIZATION_ID=N3W_KF089_BOARD_B_EXISTING_APP0_RECOVERY_TO_SLOT0_IDENTITY_R1_20260911_02
 TARGET_ROLE=BOARD_B
 PHYSICAL_AUTHORIZATION_GRANTED=true
-PHYSICAL_AUTHORIZATION_CLAIMED=false
+PHYSICAL_AUTHORIZATION_CLAIMED=true
 PHYSICAL_AUTHORIZATION_CONSUMED=false
 REPLAY_PERMITTED=false
 ```
 
 The user explicitly granted this one-time successor authorization after the ROM identity parser defect was repaired and replayed successfully against the consumed private evidence.
+
+A later executor attempt stopped during pre-open command construction because the private expected-identity argument could not be extracted. No software open/connection to Board B occurred, so the authorization is not consumed and remains valid after host-only repair of that command-construction problem.
 
 ## Allowed workflow
 
@@ -50,11 +52,14 @@ If failure occurs after entering the otadata mutation boundary, do not retry, do
 
 The authorization becomes consumed at the first software open/connection to the selected Board B physical port under this workflow. Any STOP after that requires a new adjudication and, if needed, a new explicit authorization.
 
+The pre-open command-construction STOP did not meet that consumption condition.
+
 ## Current state
 
 ```text
 PHYSICAL_AUTHORIZATION_GRANTED=true
-PHYSICAL_AUTHORIZATION_CLAIMED=false
+PHYSICAL_AUTHORIZATION_CLAIMED=true
 PHYSICAL_AUTHORIZATION_CONSUMED=false
-PHYSICAL_EXECUTION=WAITING_FOR_MAC_CODEX
+PHYSICAL_EXECUTION=PAUSED_FOR_HOST_ONLY_EXPECTED_IDENTITY_ARGUMENT_REPAIR
+NEXT_ONE_GATE=HOST_ONLY_EXPECTED_IDENTITY_ARGUMENT_REPAIR
 ```
