@@ -3,13 +3,7 @@
 Updated: 2026-09-12  
 Status: `CURRENT_STATE_AUTHORITY`
 
-Fresh exact repository/runtime/physical evidence takes precedence over older archives. The detailed local-chat/GitHub alignment is:
-
-`docs/development/N3W_KF089_LOCAL_CHAT_GITHUB_ALIGNMENT_20260912.md`
-
-The latest ID11 execution stop is:
-
-`docs/development/N3W_KF089_ID11_RF_CAPTURE_STOP_HOST_IDENTITY_NORMALIZATION_20260912.md`
+Fresh exact repository/runtime/physical evidence takes precedence over older archives. The detailed local-chat/GitHub alignment is recorded under `docs/development/` on the active progress branch.
 
 ## Repository / source authority
 
@@ -25,8 +19,6 @@ PR385_STATE=OPEN_UNMERGED
 PR387_STATE=OPEN_UNMERGED
 ```
 
-Documentation-only descendants do not redefine the frozen product or diagnostic source authorities.
-
 ## Current KF-089 product boundary
 
 ```text
@@ -41,8 +33,6 @@ KF089_AUTHENTICATED_RELAY_ACQUISITION=PASS
 KF089_END_TO_END_RELAY_TELEMETRY=NOT_PROVEN
 FIRST_UNPROVEN_STAGE=B_UNICAST_TX_COMPLETION_OR_A_COMPACT_RX
 ```
-
-ID11 has not yet changed this product boundary because the decisive persisted Schema-v5 counters were not recovered.
 
 ## Board B recovery boundary
 
@@ -66,6 +56,8 @@ No further Board B boot-recovery mutation is currently justified.
 ```text
 AUTHORIZATION_ID=N3W_KF089_AB_RELAY_DATA_PATH_END_TO_END_PHYSICAL_20260912_11
 ID11_CLAIMED=true
+RF_WINDOW_COMPLETED=true
+SECOND_RF_CAPTURE=false
 BOARD_A_DIRECT_BASELINE=true
 BOARD_A_DIRECT_DURING_WINDOW=true
 BOARD_B_COLD_BOOT_EXECUTED=true
@@ -76,55 +68,46 @@ RF_WINDOW_SECONDS=90
 BOARD_B_DIRECT_INGRESS_COUNT=0
 BOARD_B_RELAY_INGRESS_COUNT=0
 BOARD_B_ACCEPTED_RELAY_COUNT=0
-SECOND_RF_CAPTURE=false
 ```
 
-The zero relay-ingress count is not sufficient to declare an N3-W data-path failure. Board B / Board A Schema-v5 counter readback stopped before execution because the host-side Board B identity validation/normalization failed.
+The RF capture is consumed and must not be repeated merely to recover missing host evidence.
+
+## ID11 readback blocker
+
+The post-RF Board B identity command was executed, but the execution did not preserve the identity command stdout/stderr/result or validation-source evidence. Host-only replay therefore cannot prove the historical normalization failure.
 
 ```text
-FIRST_EXECUTION_BLOCKER=BOARD_B_IDENTITY_VALIDATION_HOST_NORMALIZATION
-BOARD_B_SCHEMA_READBACK=NOT_EXECUTED
-BOARD_A_SCHEMA_READBACK=NOT_EXECUTED
-KF089_END_TO_END_RELAY_TELEMETRY=NOT_PROVEN
+ID11_IDENTITY_COMMAND_RECOVERED=false
+ID11_IDENTITY_STDOUT_RECOVERED=false
+ID11_IDENTITY_STDERR_RECOVERED=false
+ID11_VALIDATION_SOURCE_RECOVERED=false
+IDENTITY_FAILURE_CLASS=EVIDENCE_INCOMPLETE
+SAME_AS_OTA_GUARD_IDENTITY_R1_ROOT_CAUSE=NOT_PROVEN
+POST_RF_APPLICATION_BOOT_OBSERVED=false
+ID11_SCHEMA_V5_SNAPSHOT_PRESERVATION=UNKNOWN
+BOARD_B_READONLY_RESUME_READY=false
+BOARD_A_READONLY_RESUME_READY=false
+SECOND_RF_CAPTURE_REQUIRED=false
 ```
 
-The consumed RF capture must be preserved. Do not repeat the RF test merely to recover missing readback evidence.
-
-## T1 runtime boundary
-
-```text
-T1_RUNTIME_CONVERGENCE=CLOSED_PASS
-ACTIVE_DETOUR=NONE
-AUTHORITATIVE_MANAGER_COUNT=1
-LEGACY_MANAGER_COUNT=0
-AUTHORITATIVE_BROKER_COUNT=1
-LEGACY_BROKER_COUNT=0
-N3W_ACTIVE_COMPOSE_LINEAGE_COUNT=1
-BROKER_HOST_PUBLICATION_RUNTIME=PASS
-MANAGER_TO_BROKER_TLS_MQTT=PASS
-HA_TO_BROKER_RUNTIME_CONTINUITY=PASS
-T1_CONTROLLED_REBOOT_BOOT_RECOVERY=PASS
-```
+Zero T1 relay ingress in the 90-second RF window does not localize the product failure because Board B / Board A Schema-v5 counters remain unread.
 
 ## Current ONE gate
 
 ```text
-CURRENT_ONE_GATE=N3W_KF089_ID11_BOARD_B_IDENTITY_HOST_NORMALIZATION_FORENSIC
-BOARD_ACCESS=false
+CURRENT_ONE_GATE=N3W_KF089_ID11_FRESH_READONLY_RECOVERY_HOST_PREP
+REAL_BOARD_ACCESS=false
 USB_ACCESS=false
+SERIAL_OPEN=false
 SECOND_RF_CAPTURE=false
-AUTO_RETRY=false
 ```
 
-The host-only forensic must recover the exact Board B identity command stdout/stderr and exact parser/normalizer path used in ID11, determine why validation failed, and compare it with the already-reviewed ESP32-C6 `BASE MAC:` identity-contract repair without assuming the same root cause.
-
-If host normalization alone is proven and the diagnostic snapshots remain preserved, the next successor may be a separately authorized **read-only** A/B diagnostic readback of the already-consumed ID11 session. It must not rerun the RF window or boot the applications before readback.
+The next host-only task must construct and test a fresh read-only successor that saves raw identity evidence before validation, uses canonical exact `BASE MAC:` semantics, then reads only `gh_n3w_diag/snapshot` using the existing read-only diagnostic tool. Only after host tests PASS may one new bounded read-only authorization cover Board B and Board A once each. Applications must not boot before snapshot readback.
 
 ## N3W OTA Guard boundary
 
-PR #385 remains open and unmerged.
-
 ```text
+PR385_STATE=OPEN_UNMERGED
 GUARD_PREMUTATION_AND_MUTATION_DATA_PATH=PASS
 GUARD_IDENTITY_CONTRACT_REPAIR=PASS
 GUARD_POSTMUTATION_FLASH_FINISH_HANDLING=REPAIR_REQUIRED
@@ -132,25 +115,17 @@ GUARD_FAILURE_STATE_RECONNECT_PATH=REVIEW_REQUIRED
 N3W_OTA_GUARD_FULLY_READY=false
 ```
 
-ID11 is a relay data-path real-board test and does not exercise the OTA Guard mutation path.
+ID11 is an N3-W relay data-path real-board test and does not exercise the OTA Guard mutation path.
 
 ## Required guards
 
 - USB port is a locator only, never board identity authority.
-- Fresh ROM identity is required before any board write.
+- Fresh ROM identity is required before board-specific readback/write attribution.
 - No automatic mutation retry or rollback after an uncertain write boundary.
 - Lab diagnostic NVS writes are distinct from product NVS mutation.
-- Strict read-only gates must not create target-side state.
-- Historical counters must be attributed to their boot session and captured test window.
+- Strict read-only gates must not write target flash/NVS/otadata.
+- Historical counters must be attributed to their boot session and exact RF window.
 - Public GitHub must not contain private board identities, credentials, raw private NVS, or private remote-host details.
-
-## Route
-
-```text
-CURRENT=ID11_HOST_IDENTITY_NORMALIZATION_FORENSIC
-NEXT=RECOVER_EXISTING_ID11_SCHEMA_V5_READBACK_IF_SAFE
-THEN=ADJUDICATE_B_TO_A_TO_T1_DATA_PATH
-SECOND_RF_CAPTURE=FORBIDDEN
-```
+- `esp_now_send(...) == ESP_OK` is submit evidence only, never delivery proof.
 
 No PR merge is authorized by this current-state refresh.
