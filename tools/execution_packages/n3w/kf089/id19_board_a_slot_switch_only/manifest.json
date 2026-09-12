@@ -1,0 +1,60 @@
+{
+  "package_schema_version": 1,
+  "project": "n3w",
+  "stage": "kf089",
+  "gate_id": "id19_board_a_slot_switch_only",
+  "predecessor": {
+    "gate": "ID18",
+    "execution_package_commit": "b796acc305a06610b34c1d0d0e35fcf2b37336ff",
+    "result": "PASS"
+  },
+  "authority_references": {
+    "schema5_source_commit": "5d58727f5040281ee2beb9597f66a6a2da9bac57",
+    "schema5_app0_sha256": "5168a1958669ce06002cc5cb507fda7fc7477ca53294a73dbcf582e5879f383b",
+    "rollback_app1_sha256": "5a3004647de0ef71e7be5664863a62b76a47c0cfdb32e38b07a296ca379f7562",
+    "id18_executor_impl_git_blob": "27744d2b54ec0d5318496d9ca99b647465daa769",
+    "esptool_version": "5.3.1"
+  },
+  "prestate_contract": {
+    "selected_slot": 1,
+    "active_ota_seq": 4,
+    "active_ota_state": 2,
+    "target_slot": 0,
+    "app0_exact_schema5": true,
+    "app1_rollback_hash_exact": true
+  },
+  "mutation_contract": {
+    "target": "otadata_target_copy_only",
+    "target_entry_size": 32,
+    "direct_rom_single_connection": true,
+    "stock_high_level_write_flash_used": false,
+    "flash_finish_used": false,
+    "whole_image_retry": false,
+    "slot_switch_in_same_gate": true,
+    "application_boot_in_same_gate": false
+  },
+  "success_contract": {
+    "selected_slot": 0,
+    "app0_exact_schema5_unchanged": true,
+    "app1_hash_unchanged": true,
+    "non_target_otadata_sector_unchanged": true,
+    "application_booted": false,
+    "next_route": "PREPARE_BOARD_A_SCHEMA5_BOOT_POSTCHECK_PACKAGE"
+  },
+  "forbidden": {
+    "app0_write": true,
+    "app1_write": true,
+    "firmware_reflash": true,
+    "nvs_write": true,
+    "bootloader_write": true,
+    "partition_table_write": true,
+    "application_boot": true,
+    "board_b_physical_access": true,
+    "t1_access": true,
+    "rf_execution": true,
+    "pairing_change": true,
+    "automatic_retry": true,
+    "automatic_rollback": true,
+    "flash_finish": true
+  }
+}
