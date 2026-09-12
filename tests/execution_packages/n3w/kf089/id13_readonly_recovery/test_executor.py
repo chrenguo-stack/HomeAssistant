@@ -36,6 +36,26 @@ def test_package_files_parse_and_bind_expected_gate():
     assert manifest["project"] == "n3w"
     assert manifest["stage"] == "kf089"
     assert manifest["gate_id"] == "id13_readonly_recovery"
+
+    prep = manifest["manual_physical_preparation"]
+    assert prep["occurs_only_after_explicit_id13_authorization"] is True
+    assert prep["board_a_and_board_b_must_begin_unpowered"] is True
+    assert prep["non_usb_power_sources_must_be_disconnected"] is True
+    assert prep["boot_gpio9_level_during_power_on_reset"] == 0
+    assert prep["gpio8_expected_level_during_power_on_reset"] == 1
+    assert prep["mode_after_power_on_reset"] == "ROM_DOWNLOAD"
+    assert prep["application_boot_forbidden"] is True
+    assert prep["reset_retry_forbidden"] is True
+    assert prep["suspected_application_boot_requires_stop"] is True
+    assert prep["operator_sequence"] == [
+        "BOARD_B_HOLD_BOOT_GPIO9_LOW_BEFORE_USB_POWER",
+        "BOARD_B_APPLY_USB_POWER_WHILE_BOOT_HELD",
+        "BOARD_B_RELEASE_BOOT_ONLY_AFTER_USB_ENUMERATION",
+        "BOARD_A_HOLD_BOOT_GPIO9_LOW_BEFORE_USB_POWER",
+        "BOARD_A_APPLY_USB_POWER_WHILE_BOOT_HELD",
+        "BOARD_A_RELEASE_BOOT_ONLY_AFTER_USB_ENUMERATION",
+    ]
+
     assert schema["$schema"].endswith("2020-12/schema")
     assert schema["title"] == "N3W KF-089 ID13 read-only recovery closure"
 
