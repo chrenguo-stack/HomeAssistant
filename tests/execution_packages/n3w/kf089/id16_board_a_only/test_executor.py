@@ -61,7 +61,8 @@ def test_decoder_uses_full_nvs_image_mode() -> None:
 
 def test_board_a_identity_suffix_parser_is_canonical_base_mac_only() -> None:
     mac = ":".join(["98", "a3", "16", "a9", "f3", "50"])
-    output = "MAC: 00:00:00:00:00:00\nBASE MAC: " + mac + "\n"
+    generic_mac = ":".join(["00"] * 6)
+    output = "MAC: " + generic_mac + "\nBASE MAC: " + mac + "\n"
     parsed = executor.parse_base_mac(output)
     assert executor.mac_suffix(parsed) == "f3:50"
 
