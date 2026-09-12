@@ -143,6 +143,42 @@ CLOSURE
 
 Board B and Board A must be simultaneously available through two distinct port locators for this package revision. If the physical arrangement later requires sequential reconnect on one locator, STOP before authorization and return to the high-level model for a new package revision. Codex must not improvise around this contract.
 
+### 5.1 Manual ROM-only preparation contract
+
+The current executor intentionally uses `--before no-reset --after no-reset --no-stub`. It therefore does **not** force either target into Download Boot mode. The operator must prepare both boards in ROM Download mode only after explicit ID13 physical authorization and before the executor is invoked.
+
+Both boards must begin fully unpowered. Disconnect battery, solar, Boost, bench supply, or any other non-USB power path before preparation. Normal USB power-on without the BOOT strap is forbidden because that may start the product application and alter the persisted diagnostic state being recovered.
+
+The board design binds BOOT to GPIO9 and holds GPIO8 high. The authorized preparation sequence is:
+
+```text
+BOARD B
+  -> with Board B unpowered, hold BOOT so GPIO9 is low
+  -> while BOOT remains held, connect Board B USB-C to the Mac and apply USB power
+  -> keep BOOT held through power-on/reset and USB enumeration
+  -> release BOOT only after enumeration
+
+BOARD A
+  -> with Board A unpowered, hold BOOT so GPIO9 is low
+  -> while BOOT remains held, connect Board A USB-C to the Mac and apply USB power
+  -> keep BOOT held through power-on/reset and USB enumeration
+  -> release BOOT only after enumeration
+```
+
+Expected strap state at the sampled power-on reset boundary:
+
+```text
+GPIO9=0
+GPIO8=1
+EXPECTED_BOOT_MODE=ROM_DOWNLOAD
+```
+
+After both boards are prepared, do not press RESET, do not power-cycle, do not disconnect/reconnect, and do not allow a reset retry before the executor completes or STOPs.
+
+If either board was already powered, normal application boot is observed or suspected, BOOT was not held through the relevant power-on reset, the device fails to enumerate, or any reset/reconnect would be required, STOP before executor use and return to the high-level model. Do not improvise a retry under the same execution record.
+
+Manual ROM preparation is within the future explicit ID13 physical authorization scope; it is not authorized during package authoring. The executor's persisted `authorization.json` records claim/consume immediately before the first software board-target command. If manual preparation itself deviates from this contract, treat ID13 conservatively as non-replayable and return for adjudication rather than attempting to continue.
+
 ## 6. Read-only esptool contract
 
 The executor constructs explicit commands equivalent to:
