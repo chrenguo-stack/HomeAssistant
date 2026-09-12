@@ -18,6 +18,12 @@ executor = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = executor
 spec.loader.exec_module(executor)
 
+entry_spec = importlib.util.spec_from_file_location("id20_executor_entry_test", ENTRY)
+assert entry_spec and entry_spec.loader
+entry = importlib.util.module_from_spec(entry_spec)
+sys.modules[entry_spec.name] = entry
+entry_spec.loader.exec_module(entry)
+
 
 def _snapshot() -> dict[str, int]:
     value = {
@@ -124,6 +130,22 @@ def test_runtime_without_advertisement_stops() -> None:
         assert "did not attempt" in str(exc)
     else:
         raise AssertionError("runtime without advertisement evidence must stop")
+
+
+def test_interlock_completion_is_independent_of_postcheck_result() -> None:
+    interlock = {
+        "token_match": True,
+        "single_normal_boot_attested": True,
+        "fresh_rom_reentry_attested": True,
+        "observed_elapsed_seconds": 60.0,
+        "minimum_elapsed_seconds": 45,
+    }
+    assert entry._operator_interlock_completed(interlock) is True
+    interlock["observed_elapsed_seconds"] = 44.9
+    assert entry._operator_interlock_completed(interlock) is False
+    interlock["observed_elapsed_seconds"] = 60.0
+    interlock["token_match"] = False
+    assert entry._operator_interlock_completed(interlock) is False
 
 
 def test_source_contains_no_flash_mutation_calls() -> None:
