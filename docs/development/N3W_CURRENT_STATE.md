@@ -3,7 +3,7 @@
 Updated: 2026-09-12  
 Status: `CURRENT_STATE_AUTHORITY`
 
-Fresh exact repository/runtime/physical evidence takes precedence over older archives. The detailed local-chat/GitHub alignment is recorded under `docs/development/` on the active progress branch.
+Fresh exact repository/runtime/physical evidence takes precedence over older archives.
 
 ## Repository / source authority
 
@@ -17,6 +17,7 @@ DIAGNOSTIC_SOURCE_AUTHORITY=5d58727f5040281ee2beb9597f66a6a2da9bac57
 DIAGNOSTIC_SCHEMA_VERSION=5
 PR385_STATE=OPEN_UNMERGED
 PR387_STATE=OPEN_UNMERGED
+PR388_STATE=OPEN_UNMERGED_PROCESS_CANDIDATE
 ```
 
 ## Current KF-089 product boundary
@@ -49,7 +50,7 @@ N3W_RUNTIME=PASS
 SCHEMA_V5_RUNTIME_STATE=PASS
 ```
 
-No further Board B boot-recovery mutation is currently justified.
+No further Board B boot-recovery mutation is justified by current evidence.
 
 ## ID11 consumed RF capture
 
@@ -70,61 +71,95 @@ BOARD_B_RELAY_INGRESS_COUNT=0
 BOARD_B_ACCEPTED_RELAY_COUNT=0
 ```
 
-The RF capture is consumed and must not be repeated merely to recover missing host evidence. Zero T1 relay ingress in the 90-second RF window does not localize the product failure because Board B / Board A Schema-v5 counters remain unread.
+The RF capture is consumed and must not be repeated merely to recover missing host evidence. Zero T1 relay ingress does not localize the product failure because Board B / Board A Schema-v5 counters remain unread.
 
-## ID11 historical readback evidence gap
-
-The original post-RF Board B identity attempt did not preserve enough raw identity evidence for fact-level replay.
+## ID11 historical evidence gap
 
 ```text
 ID11_IDENTITY_COMMAND_RECOVERED=false
 ID11_IDENTITY_STDOUT_RECOVERED=false
 ID11_IDENTITY_STDERR_RECOVERED=false
+ID11_VALIDATION_SOURCE_RECOVERED=false
 IDENTITY_FAILURE_CLASS=EVIDENCE_INCOMPLETE
 POST_RF_APPLICATION_BOOT_OBSERVED=false
 SECOND_RF_CAPTURE_REQUIRED=false
 ```
 
-## ID12 fresh read-only recovery STOP
+The historical identity-normalization root cause is not proven and must not be reconstructed from summary text alone.
 
-Host-only preparation for a fresh identity + NVS readback successor passed, then the user explicitly authorized:
+## ID12 read-only recovery STOP
+
+User authorized:
 
 ```text
 AUTHORIZATION_ID=N3W_KF089_ID11_AB_SCHEMA_V5_READONLY_RECOVERY_20260912_12
+ID12_CLAIMED=true
+REPLAY_PERMITTED=false
 ```
 
-ID12 stopped before any board access because the exact esptool wrapper file was not executable when invoked directly as a host command.
+Observed closure:
 
 ```text
-ID12_CLAIMED=true
 BOARD_B_IDENTITY_PASS=NOT_EXECUTED
 BOARD_B_NVS_READ_PASS=NOT_EXECUTED
 BOARD_A_IDENTITY_PASS=NOT_EXECUTED
 BOARD_A_NVS_READ_PASS=NOT_EXECUTED
 FIRST_UNPROVEN_OR_FAILED_STAGE=BOARD_B_IDENTITY_COMMAND_START
 RAW_EVIDENCE_PERSISTED=false
+SECOND_RF_CAPTURE=false
 APPLICATION_BOOT=false
 FLASH_WRITE=false
 NVS_WRITE=false
 AUTO_RETRY=false
 RESULT=STOP
-STOP_REASON=ESPTOOL_WRAPPER_NOT_EXECUTABLE_BEFORE_READ_MAC
+STOP_REASON=esptool wrapper had no executable permission; command failed before read-mac; Board B was not accessed
 ```
 
-This is a host invocation defect only. It is not Board B failure and does not change the ID11 RF evidence. ID12 is retired because it was claimed; it must not be replayed.
+Evidence classification:
+
+```text
+OBSERVED_BOARD_ACCESS=false
+OBSERVED_READ_MAC_EXECUTED=false
+OBSERVED_RAW_EVIDENCE_PERSISTED=false
+OBSERVED_WRAPPER_EXECUTION_PERMISSION_ERROR=true
+
+WRAPPER_IS_PYTHON_SCRIPT=NOT_PROVEN
+DIRECT_WRAPPER_EXECUTION_USED=NOT_PROVEN
+MISSING_EXECUTABLE_BIT_IS_ROOT_CAUSE=NOT_PROVEN
+CORRECT_FIX_IS_PYTHON_PLUS_WRAPPER=NOT_PROVEN
+```
+
+Therefore ID12 proves a host-side pre-board execution failure, not a product or board failure. ID12 is consumed and must not be replayed.
+
+## Execution-model transition
+
+PR #388 is an open, unmerged process candidate that replaces ad-hoc DSL command compilation with versioned Execution Packages.
+
+```text
+HANDOFF_STANDARD_CANDIDATE_VERSION=1.1
+EXECUTION_MODEL=HIGH_LEVEL_MODEL_DESIGNS_VERSIONED_EXECUTION_PACKAGE
+CODEX_ROLE=EXACT_EXECUTOR
+REPOSITORY_VERSIONED_EXECUTOR=true
+RAW_EVIDENCE_FIRST=true
+DSL_EXECUTION_MODEL=false
+DSL_ROLE=GOAL_AND_BOUNDARY_ONLY
+DSL_TO_COMMAND_COMPILATION=false
+```
+
+User direction at the end of this conversation is stricter than the current PR #388 candidate wording: future code should be authored by the high-level model and committed to GitHub; Codex should only execute exact committed code and return evidence/results. The next chat must formalize this stricter role split and the repository storage layout before the next physical gate.
 
 ## Current ONE gate
 
 ```text
-CURRENT_ONE_GATE=N3W_KF089_ID12_ESPT0OL_PYTHON_INVOCATION_HOST_REPAIR
+CURRENT_ONE_GATE=N3W_KF089_EXECUTION_PACKAGE_ROLE_AND_STORAGE_FREEZE
 REAL_BOARD_ACCESS=false
 USB_ACCESS=false
 SERIAL_OPEN=false
-SECOND_RF_CAPTURE=false
+RF_EXECUTION=false
 NEW_PHYSICAL_AUTHORIZATION=false
 ```
 
-The next host-only task must repair the fresh read-only successor so the exact bound esptool Python wrapper is invoked through the exact bound Python interpreter instead of relying on the wrapper executable bit. The repair must cover both `read-mac` and `read-flash`, persist raw identity/read evidence, contain no write/erase primitive, and pass tests with a deliberately non-executable wrapper fixture. Only after that host repair is durably shared and tested may one new bounded read-only authorization be proposed for Board B and Board A.
+The next gate is host-only. It must freeze the new collaboration rule and package storage convention, update the process candidate if needed, then materialize the next read-only recovery Execution Package before requesting any new physical authorization.
 
 ## N3W OTA Guard boundary
 
@@ -142,11 +177,10 @@ ID11/ID12 are N3-W relay-data-path evidence-recovery work and do not exercise th
 ## Required guards
 
 - USB port is a locator only, never board identity authority.
-- Fresh ROM identity is required before board-specific readback/write attribution.
-- No automatic mutation retry or rollback after an uncertain write boundary.
-- Strict read-only gates must not write target flash/NVS/otadata.
-- Historical counters must be attributed to their boot session and exact RF window.
+- No automatic RF retry; ID11 RF capture is consumed.
+- ID12 is consumed and cannot be replayed.
+- Strict read-only gates must not write target Flash/NVS/otadata.
 - Public GitHub must not contain private board identities, credentials, raw private NVS, or private remote-host details.
 - `esp_now_send(...) == ESP_OK` is submit evidence only, never delivery proof.
-
-No PR merge is authorized by this current-state refresh.
+- Do not convert a plausible host-tool explanation into a proven root cause without raw evidence or exact source.
+- No PR merge is authorized by this current-state refresh.
