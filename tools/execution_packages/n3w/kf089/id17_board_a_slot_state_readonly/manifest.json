@@ -1,0 +1,116 @@
+{
+  "package_schema_version": 1,
+  "project": "n3w",
+  "stage": "kf089",
+  "gate_id": "id17_board_a_slot_state_readonly",
+  "package_status": "review_only_until_exact_head_host_tests_pass",
+  "authority_references": {
+    "repository": "chrenguo-stack/HomeAssistant",
+    "repository_main": "7478e0fbcf893761ab76cc9952e09e77cda22755",
+    "id16_predecessor_branch_head": "cfbfbcb0cbb0431e75a9c95f6f3d1f56afaf9c8d",
+    "schema5_source_commit": "5d58727f5040281ee2beb9597f66a6a2da9bac57",
+    "schema5_firmware_size": 1115648,
+    "schema5_firmware_sha256": "5168a1958669ce06002cc5cb507fda7fc7477ca53294a73dbcf582e5879f383b",
+    "dual_slot_authority_doc": "docs/development/N3W_KF089_RELAY_ACQUISITION_TELEMETRY_OBSERVABILITY_AND_SCHEMA_V5_PROGRESS_ALIGNMENT_20260910.md"
+  },
+  "predecessor_evidence": {
+    "id15_board_b_schema5": true,
+    "id15_board_b_unicast_completion_count": 44,
+    "id15_board_b_unicast_completion_success": 41,
+    "id15_board_b_unicast_completion_failure": 3,
+    "id16_authorization_consumed": true,
+    "id16_replay_permitted": false,
+    "id16_board_a_read_mac": "PASS",
+    "id16_board_a_nvs_read": "PASS",
+    "id16_board_a_nvs_sha256": "02963bcef9349f5926b0041d63824aeca3523c43d2e89f2b3e55a525eb80c039",
+    "id16_board_a_schema_version": 3,
+    "current_first_unproven_stage": "BETWEEN_B_UNICAST_COMPLETION_AND_A_COMPACT_RX"
+  },
+  "ota_guard_disposition": {
+    "pr": 385,
+    "review_head": "a2943076b5952cac1e81534c0bc86041a681db18",
+    "tool_mode": "BOARD_B_RECOVERY_ONLY",
+    "guard_premutation_and_mutation_data_path": "PASS",
+    "guard_postmutation_flash_finish_handling": "REPAIR_REQUIRED",
+    "guard_failure_state_reconnect_path": "REVIEW_REQUIRED",
+    "guard_fully_ready": false,
+    "id17_uses_ota_guard_mutation": false,
+    "reason": "ID17 is read-only evidence collection to decide whether any firmware write is needed before designing a mutation package"
+  },
+  "target_contract": {
+    "physical_target": "BOARD_A_ONLY",
+    "expected_base_mac_suffix": "f3:50",
+    "usb_port_is_locator_only": true,
+    "full_base_mac_public_commit": false,
+    "purpose": "classify active/inactive OTA slot and exact Schema-v5 payload presence without mutation"
+  },
+  "manual_physical_preparation": {
+    "occurs_only_after_explicit_id17_authorization": true,
+    "board_a_must_begin_unpowered": true,
+    "non_usb_power_sources_must_be_disconnected": true,
+    "boot_gpio9_level_during_power_on_reset": 0,
+    "gpio8_expected_level_during_power_on_reset": 1,
+    "mode_after_power_on_reset": "ROM_DOWNLOAD",
+    "operator_sequence": [
+      "BOARD_A_HOLD_BOOT_GPIO9_LOW_BEFORE_USB_POWER",
+      "BOARD_A_APPLY_USB_POWER_WHILE_BOOT_HELD",
+      "BOARD_A_RELEASE_BOOT_ONLY_AFTER_USB_ENUMERATION"
+    ],
+    "reset_retry_forbidden": true,
+    "reconnect_retry_forbidden": true,
+    "application_boot_forbidden": true
+  },
+  "read_only_geometry": {
+    "chip": "esp32c6",
+    "flash_size": "8MB",
+    "partition_table_offset": "0x8000",
+    "partition_table_size": "0x1000",
+    "otadata_offset": "0x9000",
+    "otadata_size": "0x2000",
+    "app0_offset": "0x10000",
+    "app0_partition_size": "0x3C0000",
+    "app1_offset": "0x3D0000",
+    "app1_partition_size": "0x3C0000",
+    "schema5_payload_window_size": 1115648,
+    "before_reset_mode": "no-reset",
+    "after_reset_mode": "no-reset",
+    "no_stub": true
+  },
+  "tool_bindings": {
+    "python_major_minor": "3.11",
+    "esptool_version": "5.3.1"
+  },
+  "classification_contract": {
+    "active_slot_exact_schema5": "host-computed from selected OTA slot and payload SHA256",
+    "inactive_slot_exact_schema5": "host-computed from inactive OTA slot and payload SHA256",
+    "route_if_inactive_exact": "PREPARE_BOARD_A_SLOT_SWITCH_ONLY_PACKAGE",
+    "route_if_inactive_not_exact": "PREPARE_BOARD_A_INACTIVE_SLOT_SCHEMA5_DEPLOYMENT_PACKAGE",
+    "route_if_active_exact": "HOST_ADJUDICATE_ACTIVE_SCHEMA5_SELECTION_VS_SCHEMA3_RUNTIME_HISTORY"
+  },
+  "evidence": {
+    "private_root_required": true,
+    "private_root_must_be_outside_repository": true,
+    "directory_mode": "0700",
+    "file_mode": "0600",
+    "raw_partition_table_private": true,
+    "raw_otadata_private": true,
+    "raw_slot_payload_windows_private": true,
+    "full_base_mac_private": true,
+    "hash_algorithm": "SHA256",
+    "command_persisted_before_launch": true
+  },
+  "forbidden": {
+    "board_b_physical_access": true,
+    "rf_execution": true,
+    "t1_access": true,
+    "application_boot": true,
+    "reset_retry": true,
+    "auto_retry": true,
+    "firmware_reflash": true,
+    "flash_write": true,
+    "nvs_write": true,
+    "otadata_write": true,
+    "pairing_change": true,
+    "ota_slot_switch": true
+  }
+}
