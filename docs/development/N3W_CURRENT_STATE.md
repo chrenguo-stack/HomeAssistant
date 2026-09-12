@@ -70,39 +70,61 @@ BOARD_B_RELAY_INGRESS_COUNT=0
 BOARD_B_ACCEPTED_RELAY_COUNT=0
 ```
 
-The RF capture is consumed and must not be repeated merely to recover missing host evidence.
+The RF capture is consumed and must not be repeated merely to recover missing host evidence. Zero T1 relay ingress in the 90-second RF window does not localize the product failure because Board B / Board A Schema-v5 counters remain unread.
 
-## ID11 readback blocker
+## ID11 historical readback evidence gap
 
-The post-RF Board B identity command was executed, but the execution did not preserve the identity command stdout/stderr/result or validation-source evidence. Host-only replay therefore cannot prove the historical normalization failure.
+The original post-RF Board B identity attempt did not preserve enough raw identity evidence for fact-level replay.
 
 ```text
 ID11_IDENTITY_COMMAND_RECOVERED=false
 ID11_IDENTITY_STDOUT_RECOVERED=false
 ID11_IDENTITY_STDERR_RECOVERED=false
-ID11_VALIDATION_SOURCE_RECOVERED=false
 IDENTITY_FAILURE_CLASS=EVIDENCE_INCOMPLETE
-SAME_AS_OTA_GUARD_IDENTITY_R1_ROOT_CAUSE=NOT_PROVEN
 POST_RF_APPLICATION_BOOT_OBSERVED=false
-ID11_SCHEMA_V5_SNAPSHOT_PRESERVATION=UNKNOWN
-BOARD_B_READONLY_RESUME_READY=false
-BOARD_A_READONLY_RESUME_READY=false
 SECOND_RF_CAPTURE_REQUIRED=false
 ```
 
-Zero T1 relay ingress in the 90-second RF window does not localize the product failure because Board B / Board A Schema-v5 counters remain unread.
+## ID12 fresh read-only recovery STOP
+
+Host-only preparation for a fresh identity + NVS readback successor passed, then the user explicitly authorized:
+
+```text
+AUTHORIZATION_ID=N3W_KF089_ID11_AB_SCHEMA_V5_READONLY_RECOVERY_20260912_12
+```
+
+ID12 stopped before any board access because the exact esptool wrapper file was not executable when invoked directly as a host command.
+
+```text
+ID12_CLAIMED=true
+BOARD_B_IDENTITY_PASS=NOT_EXECUTED
+BOARD_B_NVS_READ_PASS=NOT_EXECUTED
+BOARD_A_IDENTITY_PASS=NOT_EXECUTED
+BOARD_A_NVS_READ_PASS=NOT_EXECUTED
+FIRST_UNPROVEN_OR_FAILED_STAGE=BOARD_B_IDENTITY_COMMAND_START
+RAW_EVIDENCE_PERSISTED=false
+APPLICATION_BOOT=false
+FLASH_WRITE=false
+NVS_WRITE=false
+AUTO_RETRY=false
+RESULT=STOP
+STOP_REASON=ESPTOOL_WRAPPER_NOT_EXECUTABLE_BEFORE_READ_MAC
+```
+
+This is a host invocation defect only. It is not Board B failure and does not change the ID11 RF evidence. ID12 is retired because it was claimed; it must not be replayed.
 
 ## Current ONE gate
 
 ```text
-CURRENT_ONE_GATE=N3W_KF089_ID11_FRESH_READONLY_RECOVERY_HOST_PREP
+CURRENT_ONE_GATE=N3W_KF089_ID12_ESPT0OL_PYTHON_INVOCATION_HOST_REPAIR
 REAL_BOARD_ACCESS=false
 USB_ACCESS=false
 SERIAL_OPEN=false
 SECOND_RF_CAPTURE=false
+NEW_PHYSICAL_AUTHORIZATION=false
 ```
 
-The next host-only task must construct and test a fresh read-only successor that saves raw identity evidence before validation, uses canonical exact `BASE MAC:` semantics, then reads only `gh_n3w_diag/snapshot` using the existing read-only diagnostic tool. Only after host tests PASS may one new bounded read-only authorization cover Board B and Board A once each. Applications must not boot before snapshot readback.
+The next host-only task must repair the fresh read-only successor so the exact bound esptool Python wrapper is invoked through the exact bound Python interpreter instead of relying on the wrapper executable bit. The repair must cover both `read-mac` and `read-flash`, persist raw identity/read evidence, contain no write/erase primitive, and pass tests with a deliberately non-executable wrapper fixture. Only after that host repair is durably shared and tested may one new bounded read-only authorization be proposed for Board B and Board A.
 
 ## N3W OTA Guard boundary
 
@@ -115,14 +137,13 @@ GUARD_FAILURE_STATE_RECONNECT_PATH=REVIEW_REQUIRED
 N3W_OTA_GUARD_FULLY_READY=false
 ```
 
-ID11 is an N3-W relay data-path real-board test and does not exercise the OTA Guard mutation path.
+ID11/ID12 are N3-W relay-data-path evidence-recovery work and do not exercise the OTA Guard mutation path.
 
 ## Required guards
 
 - USB port is a locator only, never board identity authority.
 - Fresh ROM identity is required before board-specific readback/write attribution.
 - No automatic mutation retry or rollback after an uncertain write boundary.
-- Lab diagnostic NVS writes are distinct from product NVS mutation.
 - Strict read-only gates must not write target flash/NVS/otadata.
 - Historical counters must be attributed to their boot session and exact RF window.
 - Public GitHub must not contain private board identities, credentials, raw private NVS, or private remote-host details.
