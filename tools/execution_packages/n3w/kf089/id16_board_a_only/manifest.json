@@ -1,0 +1,107 @@
+{
+  "package_schema_version": 1,
+  "project": "n3w",
+  "stage": "kf089",
+  "gate_id": "id16_board_a_only",
+  "package_status": "review_only_until_exact_head_host_tests_pass",
+  "authority_references": {
+    "repository": "chrenguo-stack/HomeAssistant",
+    "base_main": "7478e0fbcf893761ab76cc9952e09e77cda22755",
+    "id13_execution_package_head": "480b05438d94c633a5d7e26715695a298976ef0f",
+    "id15_host_decode_repair_head": "4c3c13089f724c96d9ac0381f665a6fe55554f2f",
+    "diagnostic_schema_version": 5,
+    "product_behavior_source_authority": "fe116efabbd986263b043aa1a36ad74bf283bafa",
+    "diagnostic_source_authority": "5d58727f5040281ee2beb9597f66a6a2da9bac57"
+  },
+  "execution_model": {
+    "primary_principle": "ACCURACY_SAFETY_EFFICIENCY_VERIFIABILITY_FIRST",
+    "code_authoring_model": "HIGH_LEVEL_MODEL_ONLY",
+    "codex_code_authoring": false,
+    "codex_role": "EXACT_EXECUTOR_AND_RESULT_REPORTER",
+    "raw_evidence_first": true,
+    "dsl_execution_model": false
+  },
+  "predecessor_evidence": {
+    "id15_authorization_consumed": true,
+    "id15_replay_permitted": false,
+    "board_b_read_mac": "PASS",
+    "board_b_nvs_read": "PASS",
+    "board_b_nvs_size": "0x70000",
+    "board_b_nvs_sha256": "dce0587cd47676de068c3e23b77cb8df05b11d6acf55799583f54e2d2340b422",
+    "board_b_schema_version": 5,
+    "board_b_path_state": 2,
+    "board_b_relay_active_count": 1,
+    "board_b_relay_telemetry_attempts": 44,
+    "board_b_relay_telemetry_success": 44,
+    "board_b_unicast_completion_count": 44,
+    "board_b_unicast_completion_success": 41,
+    "board_b_unicast_completion_failure": 3,
+    "board_b_unicast_tx_completion": "PROVEN",
+    "next_unproven_stage": "A_COMPACT_RX"
+  },
+  "target_contract": {
+    "physical_target": "BOARD_A_ONLY",
+    "board_b_physical_access_forbidden": true,
+    "board_b_existing_private_nvs_reuse_required": true,
+    "board_a_expected_base_mac_suffix": "f3:50",
+    "full_base_mac_public_commit": false,
+    "usb_port_is_locator_only": true
+  },
+  "manual_physical_preparation": {
+    "occurs_only_after_explicit_id16_authorization": true,
+    "board_a_must_begin_unpowered": true,
+    "non_usb_power_sources_must_be_disconnected": true,
+    "boot_gpio9_level_during_power_on_reset": 0,
+    "gpio8_expected_level_during_power_on_reset": 1,
+    "mode_after_power_on_reset": "ROM_DOWNLOAD",
+    "operator_sequence": [
+      "BOARD_A_HOLD_BOOT_GPIO9_LOW_BEFORE_USB_POWER",
+      "BOARD_A_APPLY_USB_POWER_WHILE_BOOT_HELD",
+      "BOARD_A_RELEASE_BOOT_ONLY_AFTER_USB_ENUMERATION"
+    ],
+    "application_boot_forbidden": true,
+    "reset_retry_forbidden": true,
+    "reconnect_retry_forbidden": true,
+    "suspected_application_boot_requires_stop": true
+  },
+  "read_only_geometry": {
+    "chip": "esp32c6",
+    "flash_size": "8MB",
+    "nvs_offset": "0x790000",
+    "nvs_size": "0x70000",
+    "before_reset_mode": "no-reset",
+    "after_reset_mode": "no-reset",
+    "no_stub": true
+  },
+  "tool_bindings": {
+    "python_major_minor": "3.11",
+    "esptool_version": "5.3.1",
+    "diag_parser_path": "tools/n3w_read_diag_snapshot.py",
+    "diag_parser_git_blob": "af78ed4cb14c38579f56e6ba3019e2debdb21d9e",
+    "diag_parser_input_mode": "--nvs-image"
+  },
+  "evidence": {
+    "private_root_required": true,
+    "private_root_must_be_outside_repository": true,
+    "directory_mode": "0700",
+    "file_mode": "0600",
+    "hash_algorithm": "SHA256",
+    "command_persisted_before_launch": true,
+    "raw_private_evidence_committed_to_github": false
+  },
+  "forbidden": {
+    "board_b_physical_access": true,
+    "second_rf_capture": true,
+    "rf_execution": true,
+    "t1_access": true,
+    "t1_mutation": true,
+    "application_boot": true,
+    "reset_retry": true,
+    "auto_retry": true,
+    "firmware_reflash": true,
+    "flash_write": true,
+    "nvs_write": true,
+    "otadata_write": true,
+    "pairing_change": true
+  }
+}
