@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""KF-089 ID16: reuse frozen ID15 Board B evidence and read only Board A.
-
-The executor is fail-closed. Host-only validation of the saved Board B NVS image
-happens before the physical authorization claim. After claim, only Board A may
-be accessed: one read-mac, one read-only NVS read, then offline Schema-v5 decode.
-"""
-
+"""KF-089 ID16 Board A-only read-only recovery executor."""
 from __future__ import annotations
 
 import argparse
@@ -40,8 +34,7 @@ BOARD_A_REQUIRED_FIELDS = (
     "schema_version", "boot_session", "snapshot_uptime_ms", "path_state",
     "compact_rx_count", "compact_state_reject_count", "compact_child_binding_failure",
     "compact_decode_success", "compact_decode_failure", "compact_wrap_failure",
-    "compact_forward_attempts", "compact_forward_submit_success",
-    "compact_forward_submit_failure",
+    "compact_forward_attempts", "compact_forward_submit_success", "compact_forward_submit_failure",
 )
 BASE_MAC_RE = re.compile(r"(?im)^\s*BASE MAC:\s*([0-9a-f]{2}(?::[0-9a-f]{2}){5})\s*$")
 VERSION_RE = re.compile(r"(?i)\bv?(\d+\.\d+\.\d+)\b")
@@ -59,11 +52,11 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 def sha256_file(path: Path) -> str:
-    h = hashlib.sha256()
-    with path.open("rb") as f:
-        for chunk in iter(lambda: f.read(1024 * 1024), b""):
-            h.update(chunk)
-    return h.hexdigest()
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 def write_json(path: Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -125,7 +118,7 @@ def build_decode_command(repo_root: Path, nvs_path: Path) -> list[str]:
     return [sys.executable, str(repo_root / DIAG_PARSER_RELATIVE), "--nvs-image", str(nvs_path)]
 
 def parse_base_mac(stdout: str) -> str:
-    matches = sorted(set(m.lower() for m in BASE_MAC_RE.findall(stdout)))
+    matches = sorted(set(value.lower() for value in BASE_MAC_RE.findall(stdout)))
     if len(matches) != 1:
         raise StopExecution("expected exactly one complete BASE MAC line")
     return matches[0]
@@ -181,12 +174,13 @@ def run_recorded(*, evidence_root: Path, index: int, label: str, argv: list[str]
     return completed
 
 def verify_git_and_tools(evidence_root: Path, repo_root: Path,
-                         expected_package_commit: str, op_index: int) -> int:
-    for label, argv, expected in (
-        ("host_git_head", ["git", "rev-parse", "HEAD"], expected_package_commit),
+                         expected_commit: str, op_index: int) -> int:
+    checks = (
+        ("host_git_head", ["git", "rev-parse", "HEAD"], expected_commit),
         ("host_git_status", ["git", "status", "--porcelain", "--untracked-files=no"], ""),
         ("host_diag_parser_blob", ["git", "hash-object", str(DIAG_PARSER_RELATIVE)], EXPECTED_DIAG_PARSER_BLOB),
-    ):
+    )
+    for label, argv, expected in checks:
         result = run_recorded(evidence_root=evidence_root, index=op_index, label=label,
                               argv=argv, cwd=repo_root)
         if result.returncode != 0 or (result.stdout or "").strip() != expected:
@@ -200,27 +194,37 @@ def verify_git_and_tools(evidence_root: Path, repo_root: Path,
         raise StopExecution("esptool version preflight failed")
     return op_index + 1
 
-def verify_board_a_locator(evidence_root: Path, port: str) -> None:
+def verify_board_a_locator(root: Path, port: str) -> None:
     path = Path(port)
     info = path.stat()
     if not stat.S_ISCHR(info.st_mode):
         raise StopExecution("Board A port locator is not a character device")
-    write_json(evidence_root / "host_port_locator_preflight.json", {
+    write_json(root / "host_port_locator_preflight.json", {
         "serial_open": False, "usb_device_open": False,
         "board_a_locator": str(path), "resolved_locator": os.path.realpath(str(path)),
         "character_device": True, "checked_at": utc_now(),
     })
-def initial_authorization(root: Path, auth: str, execution_id: str) -> None:
-    write_json(root / "authorization.json", {"authorization_id": auth,
-        "execution_id": execution_id, "claimed": False, "consumed": False,
-        "replay_permitted": False})
-def claim_authorization(root: Path, auth: str, execution_id: str) -> None:
-    now = utc_now()
-    write_json(root / "authorization.json", {"authorization_id": auth,
-        "execution_id": execution_id, "claimed": True, "consumed": True,
-        "replay_permitted": False,
-        "claim_boundary": "immediately_before_board_a_read_mac",
-        "claimed_at": now, "consumed_at": now})
+def write_authorization(root: Path, auth: str, execution_id: str, *, claimed: bool) -> None:
+    value = {"authorization_id": auth, "execution_id": execution_id,
+             "claimed": claimed, "consumed": claimed, "replay_permitted": False}
+    if claimed:
+        now = utc_now()
+        value.update({"claim_boundary": "immediately_before_board_a_read_mac",
+                      "claimed_at": now, "consumed_at": now})
+    write_json(root / "authorization.json", value)
+def decode_nvs(*, root: Path, repo_root: Path, nvs_path: Path, op_index: int,
+               label: str, fields: tuple[str, ...], board: str) -> tuple[int, dict[str, Any]]:
+    result = run_recorded(evidence_root=root, index=op_index, label=label,
+                          argv=build_decode_command(repo_root, nvs_path), cwd=repo_root)
+    if result.returncode != 0:
+        raise StopExecution(f"{board} Schema-v5 decode failed")
+    try:
+        snapshot = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise StopExecution(f"{board} decoded snapshot is not valid JSON") from exc
+    if not isinstance(snapshot, dict):
+        raise StopExecution(f"{board} decoded snapshot must be an object")
+    return op_index + 1, validate_snapshot(snapshot, fields, board)
 def evidence_manifest(root: Path) -> list[dict[str, Any]]:
     items = []
     for path in sorted(root.rglob("*")):
@@ -228,10 +232,9 @@ def evidence_manifest(root: Path) -> list[dict[str, Any]]:
             items.append({"path": path.relative_to(root).as_posix(),
                           "size": path.stat().st_size, "sha256": sha256_file(path)})
     return items
-
 def write_closure(root: Path, *, execution_id: str, package_commit: str,
                   authorization_id: str, result: str, failed: str | None,
-                  stop_reason: str | None, target_access: bool,
+                  stop_reason: str | None, target_access: bool | str,
                   board_b: dict[str, Any] | None, board_a: dict[str, Any] | None) -> None:
     auth = json.loads((root / "authorization.json").read_text(encoding="utf-8"))
     write_json(root / "closure.json", {
@@ -250,21 +253,6 @@ def write_closure(root: Path, *, execution_id: str, package_commit: str,
     write_json(root / "evidence_manifest.json", {"schema_version": 1,
         "execution_id": execution_id, "authorization": authorization_id,
         "files": evidence_manifest(root)})
-
-def decode_nvs(*, root: Path, repo_root: Path, nvs_path: Path, op_index: int,
-               label: str, fields: tuple[str, ...], board: str) -> tuple[int, dict[str, Any]]:
-    result = run_recorded(evidence_root=root, index=op_index, label=label,
-                          argv=build_decode_command(repo_root, nvs_path), cwd=repo_root)
-    if result.returncode != 0:
-        raise StopExecution(f"{board} Schema-v5 decode failed")
-    try:
-        snapshot = json.loads(result.stdout)
-    except json.JSONDecodeError as exc:
-        raise StopExecution(f"{board} decoded snapshot is not valid JSON") from exc
-    if not isinstance(snapshot, dict):
-        raise StopExecution(f"{board} decoded snapshot must be an object")
-    return op_index + 1, validate_snapshot(snapshot, fields, board)
-
 def self_check(package_dir: Path, repo_root: Path) -> None:
     load_manifest(package_dir)
     parser_blob = subprocess.run(["git", "hash-object", str(DIAG_PARSER_RELATIVE)],
@@ -308,11 +296,11 @@ def main() -> int:
     if sha256_file(board_b_nvs) != EXPECTED_BOARD_B_NVS_SHA256:
         raise StopExecution("ID15 Board B NVS evidence SHA256 mismatch")
     ensure_private_dir(evidence_root)
-    initial_authorization(evidence_root, args.authorization_id, args.execution_id)
+    write_authorization(evidence_root, args.authorization_id, args.execution_id, claimed=False)
     op_index = 1
     board_b = None
     board_a = None
-    target_access = False
+    target_access: bool | str = False
     failed = "HOST_PREFLIGHT"
     try:
         op_index = verify_git_and_tools(evidence_root, repo_root,
@@ -328,8 +316,9 @@ def main() -> int:
             nvs_path=board_b_nvs, op_index=op_index, label="board_b_existing_nvs_decode",
             fields=BOARD_B_REQUIRED_FIELDS, board="board_b")
         write_json(evidence_root / "board_b_selected_counters.json", board_b)
-        claim_authorization(evidence_root, args.authorization_id, args.execution_id)
+        write_authorization(evidence_root, args.authorization_id, args.execution_id, claimed=True)
         failed = "BOARD_A_READ_MAC"
+        target_access = "UNKNOWN"
         identity = run_recorded(evidence_root=evidence_root, index=op_index,
             label="board_a_read_mac", argv=build_read_mac_command(args.board_a_port),
             cwd=repo_root, target_operation=True,
@@ -356,7 +345,6 @@ def main() -> int:
         op_index += 1
         if nvs.returncode != 0:
             raise StopExecution("board_a NVS read failed")
-        target_access = True
         if not nvs_path.is_file() or nvs_path.stat().st_size != NVS_SIZE:
             raise StopExecution("board_a NVS output size/path mismatch")
         os.chmod(nvs_path, 0o600)
