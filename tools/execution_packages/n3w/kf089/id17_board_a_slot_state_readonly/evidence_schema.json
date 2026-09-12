@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "N3W KF089 ID17 read-only preclaim closure",
+  "type": "object",
+  "required": [
+    "execution_id",
+    "execution_package_commit",
+    "authorization",
+    "authorization_claimed",
+    "authorization_consumed",
+    "replay_permitted",
+    "read_only_preclaim_result",
+    "target_access_occurred",
+    "next_route"
+  ],
+  "properties": {
+    "execution_id": {"type": "string"},
+    "execution_package_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "authorization": {"type": "string"},
+    "authorization_claimed": {"type": "boolean"},
+    "authorization_consumed": {"type": "boolean"},
+    "replay_permitted": {"const": false},
+    "read_only_preclaim_result": {"enum": ["PASS", "STOP"]},
+    "first_failed_operation": {"type": ["string", "null"]},
+    "stop_reason": {"type": ["string", "null"]},
+    "target_access_occurred": {"type": ["boolean", "string"]},
+    "slot_state": {
+      "type": ["object", "null"],
+      "properties": {
+        "selected_slot": {"enum": [0, 1]},
+        "inactive_slot": {"enum": [0, 1]},
+        "active_ota_seq": {"type": "integer", "minimum": 1},
+        "active_ota_state": {"type": "integer"},
+        "active_state_safe_for_future_mutation": {"type": "boolean"},
+        "schema5_exact_slots": {
+          "type": "array",
+          "items": {"enum": [0, 1]},
+          "uniqueItems": true
+        },
+        "active_slot_exact_schema5": {"type": "boolean"},
+        "inactive_slot_exact_schema5": {"type": "boolean"},
+        "next_route": {"type": "string"}
+      }
+    },
+    "next_route": {"type": "string"}
+  },
+  "additionalProperties": true
+}
