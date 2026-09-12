@@ -3,16 +3,23 @@
 # 新会话交接文档 V<version> — <YYYY-MM-DD>
 
 ```text
-HANDOFF_STANDARD_VERSION=1.0
+HANDOFF_STANDARD_VERSION=1.1
 PRIMARY_EXECUTION_PRINCIPLE=ACCURACY_SAFETY_EFFICIENCY_VERIFIABILITY_FIRST
-EXECUTION_MODEL=HIGH_LEVEL_MODEL_PLUS_CODEX_LOW_ORDER_EXECUTION
-EXECUTION_MODEL_IS_DEFAULT_COORDINATION_PATTERN=true
-DSL_EXECUTION_MODEL=true
-PREWRITTEN_EXECUTOR_REQUIRED=false
+EXECUTION_MODEL=HIGH_LEVEL_MODEL_DESIGNS_VERSIONED_EXECUTION_PACKAGE
+CODEX_ROLE=EXACT_EXECUTOR
+EXECUTION_PACKAGE_MODEL=true
+REPOSITORY_VERSIONED_EXECUTOR=true
+RAW_EVIDENCE_FIRST=true
+DSL_EXECUTION_MODEL=false
+DSL_ROLE=GOAL_AND_BOUNDARY_ONLY
+DSL_TO_COMMAND_COMPILATION=false
 NEXT_ONE_GATE_ONLY=true
+TEAM_SHARED_WORKSPACE=GITHUB
 ```
 
-> 本文必须符合 `docs/development/NEW_CHAT_HANDOFF_STANDARD.md`。  
+> 本文必须符合：  
+> `docs/development/NEW_CHAT_HANDOFF_STANDARD.md`  
+> `docs/development/TEAM_COLLABORATION_WORKSPACE_STANDARD.md`  
 > 如本文与 exact repository/runtime/live evidence 冲突，以更高 authority 为准，并先停止执行、完成 rebind。
 
 ---
@@ -38,77 +45,79 @@ HANDOFF_READY_FOR_NEW_CHAT=<true|false>
 
 ### 1.0 首要执行原则
 
-所有流程、规则、角色分工和 DSL 设计都服务于同一个目标：**准确、安全、高效、可验证地完成当前任务**。
+所有流程、角色分工、Execution Package、授权与证据设计都服务于同一个目标：**准确、安全、高效、可验证地完成当前任务**。
 
 ```text
 PRIMARY_EXECUTION_PRINCIPLE=ACCURACY_SAFETY_EFFICIENCY_VERIFIABILITY_FIRST
 WORKFLOW_CONVENTIONS_ARE_MEANS_NOT_GOALS=true
-ROLE_ALLOCATION_MAY_ADAPT_TO_TASK=true
-DSL_GRANULARITY_MAY_ADAPT_TO_TASK=true
+TEAM_SHARED_WORKSPACE=GITHUB
+CHAT_AND_EXECUTOR_SESSIONS=EPHEMERAL_WORKSPACES
 ```
 
-必须遵守以下解释：
+### 1.1 默认执行模型
 
-- `HIGH_LEVEL_MODEL_PLUS_CODEX_LOW_ORDER_EXECUTION` 是默认协作模式，不是任务本身的目标；
-- 不得为了机械遵守“高阶模型设计 / Codex 低阶执行”而人为增加步骤、重复审计、扩大沟通成本或降低正确性；
-- 当高阶模型直接编写核心代码、Codex 负责落盘/测试/集成更安全高效时，应采用该方式；
-- 当 Codex 直接完成实现更合适且边界明确时，不必人为拆碎任务；
-- 角色可以重叠，但 authority、authorization、mutation scope、rollback、fail-closed 等真正的安全边界仍然是硬约束，不得以“效率”为由绕过；
-- 任何执行方式的选择，都应以减少错误概率、缩短闭环、提高证据质量为判断标准。
-
-### 1.1 高阶模型默认职责
-
-- 维护产品路线与架构边界；
-- 维护 exact-main/image/successor/runtime authority；
-- 设计 gate、scope、authorization、rollback；
-- 根据执行结果做 PASS / FAIL / STOP 分类；
-- 区分 product/runtime/infrastructure/CI/physical-harness defect；
-- 防止测试框架复杂度超过产品本身；
-- 对安全关键算法、核心代码或高风险实现，在必要时直接负责设计或实现，而不是机械下放。
-
-### 1.2 Codex 默认职责
-
-- 机械执行 exact DSL contract，或按当前任务合同承担实现/集成职责；
-- 运行必要的 Git/Docker/SSH/Compose/shell/test 命令；
-- 使用已安装工具完成最小解析与 evidence capture；
-- mutation 只能发生在明确授权边界内；
-- 第一处 substantive failure 后 fail-closed STOP；
-- 返回结构化 closure。
-
-Codex 不得自行扩大 scope、修复、重放 consumed authorization、跨越下一 gate，除非当前合同明确重新定义了其职责和允许范围。
-
-### 1.3 DSL execution semantics
+正式执行 gate 默认采用：
 
 ```text
-DSL_EXECUTION_MODEL=true
-PREWRITTEN_EXECUTOR_REQUIRED=false
-DSL_COMPILATION_AUTHORIZED=true
-
-DSL_TO_COMMAND_COMPILATION=true
-SCOPE_EXPANSION=false
-REPAIR=false
-DESIGN_CHANGE=false
+EXECUTION_MODEL=HIGH_LEVEL_MODEL_DESIGNS_VERSIONED_EXECUTION_PACKAGE
+CODEX_ROLE=EXACT_EXECUTOR
+REPOSITORY_VERSIONED_EXECUTOR=true
+RAW_EVIDENCE_FIRST=true
+DSL_EXECUTION_MODEL=false
+DSL_ROLE=GOAL_AND_BOUNDARY_ONLY
+DSL_TO_COMMAND_COMPILATION=false
 ```
 
-Codex 必须将 DSL 中的 `inspect / derive / resolve / verify / create bounded snapshot` 等 primitive 机械翻译为最低必要命令执行。除非合同明确要求 exact supplied implementation，否则不得因为缺少预写 Bash/Python executor 而停止。
+解释：
 
-若直接提供完整代码、补丁或精确实现比 DSL 更安全高效，可以直接采用；但仍必须保持 scope、authorization、rollback 和 evidence contract 明确。
+- 高阶模型负责目标、架构、gate、scope、authorization、rollback、evidence contract 和最终判定；
+- 具体命令、顺序、checkpoint、证据写入方式放进经过测试并提交 GitHub 的 exact executor；
+- Codex 在正式执行 gate 中只运行绑定到 exact commit/hash 的 executor，不再把长篇 DSL 临时翻译成 shell/Python 命令；
+- DSL/自然语言仍可描述目标、允许/禁止范围、PASS/FAIL/STOP 条件，但不再是命令生成权威；
+- 任何需要后续判断的 argv/stdout/stderr/return code/traceback 必须由 executor 自动保存，不能只靠 Codex 摘要；
+- executor 若缺失、漂移或失败，默认 STOP；修 executor 是新的 host-only gate，不在一次性物理授权中边修边继续。
+
+### 1.2 高阶模型默认职责
+
+- 维护产品路线与架构边界；
+- 维护 exact-main/image/runtime/artifact authority；
+- 设计 gate、scope、authorization、rollback；
+- 设计或审查 Execution Package；
+- 明确 raw evidence 在操作前后必须保存什么；
+- 对结果做 `OBSERVED / DERIVED / HYPOTHESIS` 分类；
+- 根据源码 + raw evidence 做 PASS / FAIL / STOP；
+- 防止把 host/executor/tooling defect 误判成产品 defect；
+- 不得声称知道未被 raw evidence 或 exact source 证明的命令/代码细节。
+
+### 1.3 Codex 默认职责
+
+正式执行 gate 中 Codex 必须：
+
+- rebind exact package commit；
+- 验证 manifest / executor / evidence schema / tests 绑定；
+- 精确运行 executor；
+- 不修改 executor；
+- 不临时拼接 substitute command；
+- 第一处 substantive failure 后按 contract STOP；
+- 返回 closure + evidence manifest。
+
+Codex 不得自行扩大 scope、修复、重放 consumed authorization、跨越下一 gate。
 
 ### 1.4 标准交互循环
 
-默认循环：
-
 ```text
-高阶模型：分析 / gate / 最小授权设计
+高阶模型：设计 gate + Execution Package/evidence contract
         ↓
-用户：批准需要 mutation 的 exact authorization
+Host-only：实现/测试/审查 package，提交 GitHub，绑定 commit/hash
         ↓
-Codex：执行 DSL / 代码落盘 / 测试 / closure
+用户：批准需要的 exact live/physical authorization
         ↓
-高阶模型：复核结果 / 决定下一步
+Codex：运行 exact executor，自动保存 raw evidence
+        ↓
+高阶模型：读取 source + raw evidence + closure，完成判定
 ```
 
-这是默认协作模式，不是强制流程。若另一种分工能在不削弱安全边界的前提下显著提高正确性、效率或可验证性，应采用更合适的方式，并在 handoff 中写清实际职责分配。
+若 package 尚未 READY，则下一 gate 必须先是 host-only package materialization/repair，而不是直接进入实板或 live mutation。
 
 ---
 
@@ -177,6 +186,26 @@ TARGET_ARCH=
 <OTHER REQUIRED EXACT AUTHORITIES>
 ```
 
+### 3.5 Execution Package authority
+
+```text
+EXECUTION_PACKAGE_REQUIRED=true|false
+EXECUTION_PACKAGE_STATUS=READY|MATERIALIZATION_REQUIRED|NOT_APPLICABLE
+EXECUTION_PACKAGE_COMMIT=
+TASK_SPEC_PATH=
+EXECUTOR_PATH=
+EXECUTOR_GIT_BLOB=
+EXECUTOR_SHA256=
+EVIDENCE_SCHEMA_PATH=
+EVIDENCE_SCHEMA_GIT_BLOB=
+MANIFEST_PATH=
+MANIFEST_GIT_BLOB=
+TEST_PATH=
+TEST_RESULT=
+```
+
+若 `EXECUTION_PACKAGE_REQUIRED=true` 且 `EXECUTION_PACKAGE_STATUS!=READY`，不得直接进入 physical/live gate。
+
 ---
 
 ## 4. Current Live Baseline
@@ -214,25 +243,26 @@ RF_EXECUTION=false
 
 ---
 
-## 5. Proven Current Facts
+## 5. Proven Current Facts / Evidence Classes
 
 只列已有 direct evidence 支持的当前事实。
 
+必须使用以下分类：
+
 ```text
-<FACT_1>=
-<FACT_2>=
-...
+OBSERVED_<NAME>=<direct raw/source/live evidence>
+DERIVED_<NAME>=<strictly derived from OBSERVED facts>
+HYPOTHESIS_<NAME>=<plausible but not proven>
 ```
+
+规则：
+
+- `OBSERVED`：直接来自 raw evidence、exact source、GitHub commit、live readback；
+- `DERIVED`：无需新增假设即可严格推出；
+- `HYPOTHESIS`：合理猜测，不能写入 proven facts；
+- Codex 的一句摘要若没有 raw evidence 支持，只能证明摘要本身被返回，不能反推出 argv/source line/root cause。
 
 保留重要 evidence/path/hash，但不输出 secret。
-
-明确把推断单独标记：
-
-```text
-INFERENCE_<NAME>=
-```
-
-不得把 inference 写进 proven facts。
 
 ---
 
@@ -244,9 +274,11 @@ INFERENCE_<NAME>=
 
 ```text
 ROOT_CAUSE=
+ROOT_CAUSE_CLASS=OBSERVED|DERIVED|HYPOTHESIS|TBD
 PROVEN_BY=
 SOURCE_DEFECT_PROVEN=
 RUNTIME_DEFECT_PROVEN=
+EXECUTOR_DEFECT_PROVEN=
 ```
 
 ### Blocker B — <name>
@@ -287,6 +319,8 @@ CURRENT_BLOCKER_COUNT=0
 
 ```text
 AUTHORIZATION=<name>
+BOUND_EXECUTION_PACKAGE_COMMIT=
+BOUND_EXECUTOR_BLOB=
 CLAIMED=
 CONSUMED=
 RESULT=
@@ -295,6 +329,8 @@ SUPERSEDED_BY=
 ```
 
 必须显式列出 consumed/superseded 的 replay guard。
+
+优化规则：host-only package 构造/测试应尽量在 claim 前完成；一次性 physical authorization 应尽量在第一处真正 target/device action 前才 claim。
 
 如果下一 authorization 只是建议：
 
@@ -360,6 +396,8 @@ NEXT_ONE_GATE=<exact logical gate name>
 ```text
 <INPUT_1>=
 <INPUT_2>=
+EXECUTION_PACKAGE_COMMIT=
+EXECUTOR_GIT_BLOB=
 ```
 
 ### 10.3 Required proof / operations
@@ -377,10 +415,10 @@ NEXT_ONE_GATE=<exact logical gate name>
 READY_FOR_<NEXT_STAGE>=true
 ```
 
-### 10.5 FAIL
+### 10.5 FAIL / STOP
 
 ```text
-<GATE_RESULT>=FAIL_<EXACT_CLASS>
+<GATE_RESULT>=FAIL_<EXACT_CLASS>|STOP_<EXACT_CLASS>
 READY_FOR_<NEXT_STAGE>=false
 STOP=true
 ```
@@ -396,6 +434,8 @@ Default：
 ```text
 LIVE_MUTATION_DEFAULT=false
 BOARD_ACCESS_DEFAULT=false
+AUTO_REPAIR=false
+AUTO_RETRY=false
 ```
 
 ### ALLOWED
@@ -410,7 +450,7 @@ BOARD_ACCESS_DEFAULT=false
 - ...
 ```
 
-如允许 bounded evidence/snapshot write：
+如允许 bounded evidence filesystem write：
 
 ```text
 LIVE_RUNTIME_MUTATION=false
@@ -420,87 +460,135 @@ BOUNDED_WRITE_SCOPE=<exact path/scope>
 
 ---
 
-## 12. Execution Contract
+## 12. Versioned Execution Package Contract
 
-本节必须是 self-contained execution protocol，而不是“参考上一条消息”。
+本节取代旧版 `Codex DSL Execution Contract`。
 
-先明确本 gate 的实际角色分配：
-
-```text
-EXECUTION_ROLE_ALLOCATION=
-HIGH_LEVEL_MODEL_RESPONSIBILITY=
-CODEX_RESPONSIBILITY=
-DIRECT_CODE_SUPPLIED=true|false
-DSL_COMPILATION_USED=true|false
-```
-
-若采用 DSL 执行，起始语义可写：
+### 12.1 Package readiness
 
 ```text
-ROLE:
-Task-appropriate executor under the bounded contract below.
-
-This document is an executable DSL protocol.
-A separately supplied Bash/Python executor is NOT required unless
-this protocol explicitly says so.
-
-Mechanically compile this DSL into the minimum necessary commands
-using already-installed tools, then execute exactly the bounded gate.
-
-DSL_TO_COMMAND_COMPILATION=true
-SCOPE_EXPANSION=false
-REPAIR=false
-DESIGN_CHANGE=false
-
-Do not repair.
-Do not retry unless explicitly permitted.
-Do not enter the next gate.
+EXECUTION_PACKAGE_REQUIRED=true|false
+EXECUTION_PACKAGE_MATERIALIZED=true|false
+EXECUTION_PACKAGE_GITHUB_SHARED=true|false
+EXECUTION_PACKAGE_TESTS_PASS=true|false
+EXECUTION_PACKAGE_EXACT_BINDING=PASS|FAIL|NOT_APPLICABLE
+CODEX_MAY_MODIFY_EXECUTOR_DURING_EXECUTION=false
+AD_HOC_COMMAND_SYNTHESIS_ALLOWED=false
 ```
 
-然后写完整编号 DSL / exact implementation contract：
+若 required package 未 READY：
 
 ```text
-============================================================
-0. EXECUTION / AUTHORIZATION STATUS
-============================================================
-...
-
-============================================================
-1. FROZEN INPUTS
-============================================================
-...
-
-============================================================
-2. HARD SCOPE
-============================================================
-...
-
-============================================================
-3. PRECLAIM / EXECUTION
-============================================================
-...
-
-============================================================
-N. HARD STOP
-============================================================
-...
+NEXT_ONE_GATE=<HOST_ONLY_EXECUTION_PACKAGE_MATERIALIZATION_OR_REPAIR>
+PHYSICAL_EXECUTION_ALLOWED=false
+LIVE_MUTATION_ALLOWED=false
 ```
 
-不要为了遵守固定分工而默认拒绝直接提供高阶模型生成的核心代码；是否提供代码应由当前任务的正确性、安全性、效率和可验证性决定。
+### 12.2 Canonical package contents
+
+典型内容：
+
+```text
+TASK.md                    # goal/scope/PASS/STOP，人类可读
+executor.py                # exact command/order/checkpoint/evidence behavior
+evidence_schema.json       # required evidence files/fields
+manifest.json              # source/tool/input/hash/auth bindings
+tests/...                  # host regression tests
+```
+
+实际路径：
+
+```text
+TASK_SPEC_PATH=
+EXECUTOR_PATH=
+EVIDENCE_SCHEMA_PATH=
+MANIFEST_PATH=
+TEST_PATH=
+```
+
+### 12.3 Exact execution invocation
+
+Codex 正式执行时只应收到简短、可验证的 invocation，例如：
+
+```text
+Checkout/rebind EXECUTION_PACKAGE_COMMIT=<sha>.
+Verify manifest and package hashes.
+Run exactly:
+<EXACT_EXECUTOR_INVOCATION>
+Do not modify executor.
+Do not synthesize substitute commands.
+Return closure + evidence manifest.
+```
+
+如果 executor 无法启动、工具绑定不一致、hash 漂移或 manifest 不满足：STOP。不要现场修复并继续。
+
+### 12.4 DSL role
+
+```text
+DSL_EXECUTION_MODEL=false
+DSL_ROLE=GOAL_AND_BOUNDARY_ONLY
+DSL_TO_COMMAND_COMPILATION=false
+```
+
+交接文档中的编号步骤只定义意图和约束；真正会运行的 argv、工具路径、顺序、重试、证据写入必须存在于 exact executor/manifest/tests 中。
 
 ---
 
-## 13. Expected Closure
+## 13. Expected Closure + Raw Evidence Contract
 
-预先定义执行者最终只返回的结构化字段。
+### 13.1 Raw evidence first
+
+Closure 是摘要，不是 raw evidence 替代品。
+
+对每个重要 external command/device operation，executor 至少应按顺序保存：
+
+```text
+persist command.json
+→ execute
+→ persist stdout/stderr/result
+→ validate
+→ persist validation/adjudication
+```
+
+推荐：
+
+```text
+op_NN/
+  command.json
+  stdout.txt|stdout.bin
+  stderr.txt|stderr.bin
+  result.json
+```
+
+`command.json` 应在命令启动前存在，使“命令根本没启动”也仍然能够恢复实际 argv/executable/tool hash。
+
+必须明确：
+
+```text
+RAW_EVIDENCE_REQUIRED=true|false
+RAW_EVIDENCE_PRIVATE_ROOT=
+PUBLIC_SAFE_EVIDENCE_MANIFEST=
+RAW_EVIDENCE_HASH_ALGORITHM=SHA256
+```
+
+raw private evidence 可留在 Git 外，但 GitHub 必须保留 public-safe locator/hash/status，不得提交 secret/private identity。
+
+### 13.2 Expected closure
 
 ```text
 === <GATE NAME> CLOSURE ===
 
 EXECUTION_ID=
+EXECUTION_PACKAGE_COMMIT=
+EXECUTOR_GIT_BLOB=
 AUTHORIZATION=
 AUTHORIZATION_CLAIMED=
 AUTHORIZATION_CONSUMED=
+
+RAW_EVIDENCE_COMPLETE=
+EVIDENCE_MANIFEST_PATH_OR_HASH=
+FIRST_FAILED_OPERATION=
+TARGET_ACCESS_OCCURRED=
 
 <EXACT BINDING FIELDS>
 
@@ -509,11 +597,12 @@ BOARD_ACCESS=
 
 <GATE_RESULT>=
 NEXT_ROUTE=
+STOP_REASON=
 
 === END ===
 ```
 
-Closure 必须足以让高阶模型直接分类，不依赖执行者再次解释 raw log。
+不得用 closure 声称 executor 未保存/未证明的 argv、源码位置、root cause 或 target state。
 
 ---
 
@@ -528,19 +617,21 @@ AFTER_PASS_NEXT_STAGE=
 AUTO_EXECUTE_AFTER_PASS=false
 ```
 
-需要新 mutation authorization 时：
+需要新 authorization 时：
 
 ```text
 NEW_AUTHORIZATION_REQUIRED=true
 ```
 
-### FAIL 后
+### FAIL / STOP 后
 
 ```text
 AUTO_REPAIR=false
 AUTO_RETRY=false
 RETURN_TO_HIGH_LEVEL_MODEL=true
 ```
+
+若失败发生在 executor/host 层，先做 host-only 取证或 package repair；不得仅凭摘要猜测具体 root cause。
 
 ---
 
@@ -559,6 +650,7 @@ KF_ID=
 DOMAIN=
 SYMPTOM=
 ROOT_CAUSE=
+ROOT_CAUSE_CLASS=OBSERVED|DERIVED|HYPOTHESIS|TBD
 FIX_OR_GUARD=
 STATUS=
 ```
@@ -573,10 +665,12 @@ STATUS=
 
 - 阅读本 handoff；
 - 阅读 `NEW_CHAT_HANDOFF_STANDARD.md`；
+- 阅读 `TEAM_COLLABORATION_WORKSPACE_STANDARD.md`；
 - 阅读 `KNOWN_FAILURES_AND_REGRESSION_GUARDS.md`；
-- 承认首要执行原则：准确、安全、高效、可验证优先；
-- 将“高阶模型 + Codex low-order execution”视为默认协调模式，而不是必须机械遵守的目标；
-- 根据任务性质选择最合适的角色分工和执行粒度；
+- 承认准确、安全、高效、可验证优先；
+- 使用 GitHub versioned Execution Package，而不是把 DSL 临时编译成命令；
+- Codex 正式执行时只运行 exact executor；
+- raw evidence 优先于 closure 摘要；
 - 只进入 `NEXT_ONE_GATE`；
 - 默认不 mutation、不访问板卡；
 - 不重放 consumed authorization；
@@ -587,13 +681,15 @@ STATUS=
 ```text
 阅读《<handoff file>》以及：
 - docs/development/NEW_CHAT_HANDOFF_STANDARD.md
+- docs/development/TEAM_COLLABORATION_WORKSPACE_STANDARD.md
 - docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md
 
 继续“<project>”。
 
-首要执行原则：准确、安全、高效、可验证地完成任务。
-“高阶模型思考 + Codex 低阶模型执行”是默认协作模式，不是目标本身；
-如直接编码、调整角色分工或改变 DSL 粒度能显著提高正确性/效率且不突破安全边界，应采用更合适的方式。
+首要执行原则：准确、安全、高效、可验证。
+执行模式：高阶模型设计并审查 GitHub versioned Execution Package；Codex 是 exact executor。
+DSL/自然语言只描述目标和边界，不作为临时命令编译权威。
+任何重要执行必须 raw-evidence-first；不要根据简短 STOP_REASON 猜 argv、源码或 root cause。
 
 当前只进入：
 NEXT_ONE_GATE=<...>
@@ -601,7 +697,7 @@ NEXT_ONE_GATE=<...>
 LIVE_MUTATION_DEFAULT=false
 BOARD_ACCESS_DEFAULT=false
 
-先 rebind 当前 authority，再执行该 gate；不要自动跨越下一阶段。
+先 rebind 当前 authority 和 exact execution package；不要自动跨越下一阶段。
 ```
 
 ---
@@ -613,21 +709,26 @@ BOARD_ACCESS_DEFAULT=false
 ```text
 CURRENT_STAGE=
 CURRENT_STOP_POINT=
-
 SOURCE_DEFECT_PROVEN=
 CURRENT_BLOCKER=
-
 LIVE_SYSTEM_STATE=
-
 NEXT_ONE_GATE=
 
 PRIMARY_EXECUTION_PRINCIPLE=ACCURACY_SAFETY_EFFICIENCY_VERIFIABILITY_FIRST
-EXECUTION_MODEL_IS_DEFAULT_COORDINATION_PATTERN=true
+EXECUTION_MODEL=HIGH_LEVEL_MODEL_DESIGNS_VERSIONED_EXECUTION_PACKAGE
+CODEX_ROLE=EXACT_EXECUTOR
+EXECUTION_PACKAGE_STATUS=
+EXECUTION_PACKAGE_COMMIT=
+RAW_EVIDENCE_FIRST=true
+DSL_EXECUTION_MODEL=false
+
+TEAM_SHARED_WORKSPACE=GITHUB
+IMPORTANT_CHAT_ONLY_ARTIFACT_COUNT=
+TEAM_SHARE_COMPLETENESS=PASS|FAIL
 
 LIVE_MUTATION_DEFAULT=false
 BOARD_ACCESS_DEFAULT=false
-
-HANDOFF_STANDARD_VERSION=1.0
+HANDOFF_STANDARD_VERSION=1.1
 ```
 
 ---
@@ -639,41 +740,45 @@ HANDOFF_STANDARD_VERSION=1.0
 ```text
 === HANDOFF COMPLIANCE AUDIT ===
 
-HANDOFF_STANDARD_VERSION=1.0
+HANDOFF_STANDARD_VERSION=1.1
 
 PRIMARY_EXECUTION_PRINCIPLE_EXPLICIT=PASS
 EXECUTION_MODEL_EXPLICIT=PASS
-EXECUTION_MODEL_NOT_TREATED_AS_GOAL=PASS
-ROLE_ALLOCATION_ADAPTIVE=PASS
-HIGH_LEVEL_CODEX_ROLE_BOUNDARY=PASS
-DSL_EXECUTION_SEMANTICS_EXPLICIT=PASS
+EXECUTION_PACKAGE_MODEL_EXPLICIT=PASS
+CODEX_EXACT_EXECUTOR_ROLE_EXPLICIT=PASS
+DSL_NOT_COMMAND_AUTHORITY=PASS
+RAW_EVIDENCE_FIRST_EXPLICIT=PASS
 
 PRODUCT_NORTH_STAR_PRESENT=PASS
 FROZEN_AUTHORITIES_COMPLETE=PASS
 CURRENT_LIVE_BASELINE_COMPLETE=PASS
 
-PROVEN_FACTS_SEPARATED_FROM_INFERENCE=PASS
+OBSERVED_DERIVED_HYPOTHESIS_SEPARATED=PASS
 CURRENT_BLOCKERS_EXPLICIT=PASS
 CLOSED_ROUTES_EXPLICIT=PASS
 
 AUTHORIZATION_LEDGER_COMPLETE=PASS
+AUTHORIZATION_PACKAGE_BINDING_EXPLICIT=PASS
 CONSUMED_AUTH_REPLAY_GUARD=PASS
 ROLLBACK_AUTHORITY_EXPLICIT=PASS
 
 NEXT_ONE_GATE_EXPLICIT=PASS
 NEXT_GATE_SCOPE_BOUNDED=PASS
+EXECUTION_PACKAGE_READY_OR_MATERIALIZATION_GATE=PASS
 
 ALLOWED_FORBIDDEN_SCOPE_EXPLICIT=PASS
+RAW_EVIDENCE_CONTRACT_PRESENT=PASS
 EXPECTED_CLOSURE_PRESENT=PASS
 AFTER_PASS_DOES_NOT_AUTO_EXECUTE=PASS
 
+TEAM_SHARED_WORKSPACE_EXPLICIT=PASS
+TEAM_SHARE_COMPLETENESS_CLASSIFIED=PASS
 KNOWN_FAILURES_UPDATE_CLASSIFIED=PASS
 NEW_CHAT_START_PROMPT_PRESENT=PASS
 FINAL_FROZEN_STATE_PRESENT=PASS
 
 HANDOFF_STATE_COMPLETENESS=PASS
 HANDOFF_EXECUTION_SEMANTICS_COMPLETENESS=PASS
-
 HANDOFF_READY_FOR_NEW_CHAT=true
 
 === END ===
