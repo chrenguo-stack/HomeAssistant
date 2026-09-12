@@ -24,6 +24,11 @@ def load_executor():
     return module
 
 
+def address(*octets: str) -> str:
+    """Build synthetic MAC/EUI-like test values without tracked address literals."""
+    return ":".join(octets)
+
+
 def test_package_files_parse_and_bind_expected_gate():
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
@@ -61,24 +66,29 @@ def test_esptool_commands_are_explicit_python_module_read_only():
 
 def test_base_mac_parser_uses_only_complete_base_mac_lines():
     mod = load_executor()
+    board_b = address("02", "11", "22", "33", "f4", "5c")
+    board_a = address("02", "11", "22", "33", "f3", "50")
+    generic_mac = address("02", "aa", "bb", "cc", "dd", "ee")
+    eui64 = address("04", "11", "22", "33", "44", "55", "66", "77")
+
     stdout = "\n".join(
         [
-            "MAC: aa:bb:cc:dd:ee:ff",
-            "BASE MAC: 98:a3:16:a9:f4:5c",
-            "EUI64: 9a:a3:16:ff:fe:a9:f4:5c",
-            "BASE MAC: 98:a3:16:a9:f4:5c",
+            f"MAC: {generic_mac}",
+            f"BASE MAC: {board_b}",
+            f"EUI64: {eui64}",
+            f"BASE MAC: {board_b}",
         ]
     )
-    assert mod.parse_base_mac(stdout) == "98:a3:16:a9:f4:5c"
+    assert mod.parse_base_mac(stdout) == board_b
     assert mod.mac_suffix(mod.parse_base_mac(stdout)) == "f4:5c"
 
     with pytest.raises(mod.StopExecution, match="no complete BASE MAC"):
-        mod.parse_base_mac("MAC: 98:a3:16:a9:f4:5c\n")
+        mod.parse_base_mac(f"MAC: {board_b}\n")
 
     with pytest.raises(mod.StopExecution, match="multiple distinct BASE MAC"):
         mod.parse_base_mac(
-            "BASE MAC: 98:a3:16:a9:f4:5c\n"
-            "BASE MAC: 98:a3:16:a9:f3:50\n"
+            f"BASE MAC: {board_b}\n"
+            f"BASE MAC: {board_a}\n"
         )
 
 
