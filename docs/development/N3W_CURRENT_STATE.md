@@ -3,9 +3,13 @@
 Updated: 2026-09-12  
 Status: `CURRENT_STATE_AUTHORITY`
 
-Fresh exact repository/runtime/physical evidence takes precedence over older archives. The detailed local-chat/GitHub alignment for this state is:
+Fresh exact repository/runtime/physical evidence takes precedence over older archives. The detailed local-chat/GitHub alignment is:
 
 `docs/development/N3W_KF089_LOCAL_CHAT_GITHUB_ALIGNMENT_20260912.md`
+
+The latest ID11 execution stop is:
+
+`docs/development/N3W_KF089_ID11_RF_CAPTURE_STOP_HOST_IDENTITY_NORMALIZATION_20260912.md`
 
 ## Repository / source authority
 
@@ -38,9 +42,9 @@ KF089_END_TO_END_RELAY_TELEMETRY=NOT_PROVEN
 FIRST_UNPROVEN_STAGE=B_UNICAST_TX_COMPLETION_OR_A_COMPACT_RX
 ```
 
-## Board B recovery boundary
+ID11 has not yet changed this product boundary because the decisive persisted Schema-v5 counters were not recovered.
 
-The previous state claiming Board B remained in ROM download mode is superseded.
+## Board B recovery boundary
 
 ```text
 ID03_OTADATA_MUTATION_PERSISTED=true
@@ -50,39 +54,41 @@ SECOND_OTADATA_MUTATION_REQUIRED=false
 APP0_REWRITE_REQUIRED=false
 OTADATA_REWRITE_REQUIRED=false
 FIRMWARE_FAILURE_PROVEN=false
-```
-
-ID06/ID07 were USB/RTS core-reset-only operations and did not re-sample the boot strap. ID09 captured ROM download mode. ID10 then executed one complete physical power cycle.
-
-T1/Broker correlation after that power cycle recovered 194 fresh Board B Direct telemetry messages, sequence 0-193, all accepted. Therefore:
-
-```text
 PRODUCT_RUNTIME_AFTER_POWER_CYCLE=PASS
 N3W_RUNTIME=PASS
 SCHEMA_V5_RUNTIME_STATE=PASS
-N3W_DIAG_DISCOVERY_SERIAL_LINE=NOT_DIRECTLY_OBSERVED
 ```
 
 No further Board B boot-recovery mutation is currently justified.
 
-## Current A/B / T1 readiness
+## ID11 consumed RF capture
 
 ```text
-T1_OBSERVER_READY=true
-BOARD_A_DIRECT_CURRENT=true
-BOARD_B_DIRECT_CURRENT=true
-FRESH_BOOT_COUNTER_RESET_CONTRACT=PASS
-A_FRESH_BOOT_BASELINE_SUFFICIENT=true
-B_COLD_BOOT_BASELINE_SUFFICIENT=true
-SELECTIVE_RF_ZONE_FROZEN=PASS
-DEFAULT_STUB_READBACK_READY=true
-BOARD_B_READBACK_COMMAND_READY=true
-BOARD_A_READBACK_COMMAND_READY=true
-FULL_OPERATOR_SEQUENCE_READY=true
-SINGLE_AUTHORIZATION_CAN_COVER_ALL=true
+AUTHORIZATION_ID=N3W_KF089_AB_RELAY_DATA_PATH_END_TO_END_PHYSICAL_20260912_11
+ID11_CLAIMED=true
+BOARD_A_DIRECT_BASELINE=true
+BOARD_A_DIRECT_DURING_WINDOW=true
+BOARD_B_COLD_BOOT_EXECUTED=true
+SELECTIVE_RF_ZONE_USED=true
+RF_WINDOW_START=2026-09-12T01:11:08.309724329Z
+RF_WINDOW_END=2026-09-12T01:12:38.355480750Z
+RF_WINDOW_SECONDS=90
+BOARD_B_DIRECT_INGRESS_COUNT=0
+BOARD_B_RELAY_INGRESS_COUNT=0
+BOARD_B_ACCEPTED_RELAY_COUNT=0
+SECOND_RF_CAPTURE=false
 ```
 
-The qualified selective-RF geometry remains authoritative: Board A stays Direct while Board B is moved, powered off, to the known Wi-Fi-loss position. The Mac is not required at Board B's RF-loss position. Schema-v5 counters are read back after the RF window.
+The zero relay-ingress count is not sufficient to declare an N3-W data-path failure. Board B / Board A Schema-v5 counter readback stopped before execution because the host-side Board B identity validation/normalization failed.
+
+```text
+FIRST_EXECUTION_BLOCKER=BOARD_B_IDENTITY_VALIDATION_HOST_NORMALIZATION
+BOARD_B_SCHEMA_READBACK=NOT_EXECUTED
+BOARD_A_SCHEMA_READBACK=NOT_EXECUTED
+KF089_END_TO_END_RELAY_TELEMETRY=NOT_PROVEN
+```
+
+The consumed RF capture must be preserved. Do not repeat the RF test merely to recover missing readback evidence.
 
 ## T1 runtime boundary
 
@@ -100,36 +106,19 @@ HA_TO_BROKER_RUNTIME_CONTINUITY=PASS
 T1_CONTROLLED_REBOOT_BOOT_RECOVERY=PASS
 ```
 
-ID11 does not authorize T1 mutation.
-
 ## Current ONE gate
 
 ```text
-CURRENT_ONE_GATE=N3W_KF089_AB_RELAY_DATA_PATH_END_TO_END_PHYSICAL_20260912_11
-CURRENT_GATE_STATE=AUTHORIZED_NOT_YET_ADJUDICATED
-ONE_RF_CAPTURE_ONLY=true
+CURRENT_ONE_GATE=N3W_KF089_ID11_BOARD_B_IDENTITY_HOST_NORMALIZATION_FORENSIC
+BOARD_ACCESS=false
+USB_ACCESS=false
+SECOND_RF_CAPTURE=false
 AUTO_RETRY=false
-FLASH_WRITE=false
-NVS_WRITE=false
-OTADATA_WRITE=false
-PAIRING_CHANGE=false
-T1_MUTATION=false
 ```
 
-ID11 must localize the first unproven boundary using Board B unicast-completion counters, Board A compact receive/decode/forward counters, and exact-window T1/Manager ingress evidence.
+The host-only forensic must recover the exact Board B identity command stdout/stderr and exact parser/normalizer path used in ID11, determine why validation failed, and compare it with the already-reviewed ESP32-C6 `BASE MAC:` identity-contract repair without assuming the same root cause.
 
-Pass route:
-
-```text
-B_UNICAST_TX_COMPLETION
--> A_COMPACT_RX
--> A_COMPACT_DECODE
--> A_LOCAL_FORWARD_SUBMIT
--> A_TO_T1_DOWNSTREAM_INGRESS
--> KF089_END_TO_END_RELAY_TELEMETRY
-```
-
-`esp_now_send(...) == ESP_OK` is submit evidence only and is never delivery proof.
+If host normalization alone is proven and the diagnostic snapshots remain preserved, the next successor may be a separately authorized **read-only** A/B diagnostic readback of the already-consumed ID11 session. It must not rerun the RF window or boot the applications before readback.
 
 ## N3W OTA Guard boundary
 
@@ -143,9 +132,7 @@ GUARD_FAILURE_STATE_RECONNECT_PATH=REVIEW_REQUIRED
 N3W_OTA_GUARD_FULLY_READY=false
 ```
 
-Host/CI review proved the OTA-selection semantics, second-app0-flash guard, pre-mutation freshness checks, single-attempt mutation contract, and ESP32-C6 BASE MAC identity repair. Real Board B ID03 evidence then proved the flash block persisted even though `flash_finish(reboot=False)` failed and immediate failure-state reconnect could not confirm state. The post-mutation completion/verification path therefore remains a separate repair item.
-
-ID11 is an N3-W relay data-path real-board test and does not exercise the OTA Guard mutation path.
+ID11 is a relay data-path real-board test and does not exercise the OTA Guard mutation path.
 
 ## Required guards
 
@@ -153,17 +140,17 @@ ID11 is an N3-W relay data-path real-board test and does not exercise the OTA Gu
 - Fresh ROM identity is required before any board write.
 - No automatic mutation retry or rollback after an uncertain write boundary.
 - Lab diagnostic NVS writes are distinct from product NVS mutation.
-- Strict read-only gates must not create temporary state on the target.
-- Manager/Broker authority must not be selected by container name alone.
-- Historical counters must be attributed to their boot session and exact test window.
+- Strict read-only gates must not create target-side state.
+- Historical counters must be attributed to their boot session and captured test window.
 - Public GitHub must not contain private board identities, credentials, raw private NVS, or private remote-host details.
 
 ## Route
 
 ```text
-CURRENT=ID11_AB_RELAY_DATA_PATH_END_TO_END_PHYSICAL
-NEXT=ADJUDICATE_FIRST_PASS_OR_FAIL_BOUNDARY
-THEN=OTA_GUARD_POSTMUTATION_COMPLETION_REPAIR_WHEN_RELAY_GATE_STABLE
+CURRENT=ID11_HOST_IDENTITY_NORMALIZATION_FORENSIC
+NEXT=RECOVER_EXISTING_ID11_SCHEMA_V5_READBACK_IF_SAFE
+THEN=ADJUDICATE_B_TO_A_TO_T1_DATA_PATH
+SECOND_RF_CAPTURE=FORBIDDEN
 ```
 
 No PR merge is authorized by this current-state refresh.
