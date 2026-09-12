@@ -40,6 +40,25 @@
     "t1_mutation": true
   },
   "gate_id": "id13_readonly_recovery",
+  "manual_physical_preparation": {
+    "application_boot_forbidden": true,
+    "board_a_and_board_b_must_begin_unpowered": true,
+    "boot_gpio9_level_during_power_on_reset": 0,
+    "gpio8_expected_level_during_power_on_reset": 1,
+    "mode_after_power_on_reset": "ROM_DOWNLOAD",
+    "non_usb_power_sources_must_be_disconnected": true,
+    "occurs_only_after_explicit_id13_authorization": true,
+    "operator_sequence": [
+      "BOARD_B_HOLD_BOOT_GPIO9_LOW_BEFORE_USB_POWER",
+      "BOARD_B_APPLY_USB_POWER_WHILE_BOOT_HELD",
+      "BOARD_B_RELEASE_BOOT_ONLY_AFTER_USB_ENUMERATION",
+      "BOARD_A_HOLD_BOOT_GPIO9_LOW_BEFORE_USB_POWER",
+      "BOARD_A_APPLY_USB_POWER_WHILE_BOOT_HELD",
+      "BOARD_A_RELEASE_BOOT_ONLY_AFTER_USB_ENUMERATION"
+    ],
+    "reset_retry_forbidden": true,
+    "suspected_application_boot_requires_stop": true
+  },
   "package_schema_version": 1,
   "package_status": "review_only_until_exact_head_host_tests_pass",
   "predecessor_authorizations": {
