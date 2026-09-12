@@ -1,0 +1,115 @@
+{
+  "$id": "https://example.invalid/n3w/kf089/id13_readonly_recovery/closure.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "authorization": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "authorization_claimed": {
+      "type": "boolean"
+    },
+    "authorization_consumed": {
+      "type": "boolean"
+    },
+    "board_a_selected_counters": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "board_b_selected_counters": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "execution_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "execution_package_commit": {
+      "pattern": "^[0-9a-f]{40}$",
+      "type": "string"
+    },
+    "first_failed_operation": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "next_route": {
+      "enum": [
+        "HIGH_LEVEL_MODEL_SCHEMA_V5_COUNTER_ADJUDICATION",
+        "STOP_RETURN_TO_HIGH_LEVEL_MODEL"
+      ]
+    },
+    "raw_evidence_complete": {
+      "type": "boolean"
+    },
+    "read_only_recovery_result": {
+      "enum": [
+        "PASS",
+        "STOP"
+      ]
+    },
+    "replay_permitted": {
+      "const": false
+    },
+    "stop_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "target_access_occurred": {
+      "oneOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "const": "UNKNOWN"
+        }
+      ]
+    }
+  },
+  "required": [
+    "execution_id",
+    "execution_package_commit",
+    "authorization",
+    "authorization_claimed",
+    "authorization_consumed",
+    "replay_permitted",
+    "raw_evidence_complete",
+    "first_failed_operation",
+    "target_access_occurred",
+    "read_only_recovery_result",
+    "board_b_selected_counters",
+    "board_a_selected_counters",
+    "next_route",
+    "stop_reason"
+  ],
+  "title": "N3W KF-089 ID13 read-only recovery closure",
+  "type": "object",
+  "x-required-private-artifacts": [
+    "session.json",
+    "authorization.json",
+    "closure.json",
+    "evidence_manifest.json",
+    "op_NN_*/command.json",
+    "op_NN_*/stdout.txt",
+    "op_NN_*/stderr.txt",
+    "op_NN_*/result.json",
+    "board_b/identity_private.json",
+    "board_b/nvs_partition.bin",
+    "board_b/snapshot_private.json",
+    "board_b/selected_counters.json",
+    "board_b/capture_manifest.json",
+    "board_a/identity_private.json",
+    "board_a/nvs_partition.bin",
+    "board_a/snapshot_private.json",
+    "board_a/selected_counters.json",
+    "board_a/capture_manifest.json"
+  ]
+}

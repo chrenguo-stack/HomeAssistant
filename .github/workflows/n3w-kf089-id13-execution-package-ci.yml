@@ -1,0 +1,54 @@
+name: N3W KF089 ID13 execution package CI
+
+on:
+  pull_request:
+    paths:
+      - "tools/execution_packages/n3w/kf089/id13_readonly_recovery/**"
+      - "tests/execution_packages/n3w/kf089/id13_readonly_recovery/**"
+      - ".github/workflows/n3w-kf089-id13-execution-package-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  host-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install exact host test dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install -q "pytest>=8,<9" "esptool==5.3.1"
+
+      - name: Validate JSON package contracts
+        run: |
+          set -euo pipefail
+          python -m json.tool tools/execution_packages/n3w/kf089/id13_readonly_recovery/manifest.json >/dev/null
+          python -m json.tool tools/execution_packages/n3w/kf089/id13_readonly_recovery/evidence_schema.json >/dev/null
+
+      - name: Compile executor
+        run: |
+          set -euo pipefail
+          python -m py_compile tools/execution_packages/n3w/kf089/id13_readonly_recovery/executor.py
+
+      - name: Host-only executor self-check
+        run: |
+          set -euo pipefail
+          python tools/execution_packages/n3w/kf089/id13_readonly_recovery/executor.py --self-check
+
+      - name: Focused package tests
+        run: |
+          set -euo pipefail
+          pytest -q tests/execution_packages/n3w/kf089/id13_readonly_recovery/test_executor.py
