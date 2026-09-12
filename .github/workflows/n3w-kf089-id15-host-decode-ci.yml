@@ -1,0 +1,27 @@
+name: N3W KF089 ID15 host decode CI
+
+on:
+  pull_request:
+    paths:
+      - "tools/n3w_read_diag_snapshot.py"
+      - "tests/n3w_kf089/test_n3w_read_diag_snapshot_nvs_image.py"
+      - ".github/workflows/n3w-kf089-id15-host-decode-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  host-only:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install exact test dependency
+        run: python -m pip install pytest==8.3.5
+      - name: Compile parser
+        run: python -m py_compile tools/n3w_read_diag_snapshot.py
+      - name: Run NVS-image decode regression
+        run: python -m pytest -q tests/n3w_kf089/test_n3w_read_diag_snapshot_nvs_image.py
