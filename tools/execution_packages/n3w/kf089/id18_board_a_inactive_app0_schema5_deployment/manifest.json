@@ -11,7 +11,8 @@
     "schema5_source_commit": "5d58727f5040281ee2beb9597f66a6a2da9bac57",
     "schema5_firmware_size": 1115648,
     "schema5_firmware_sha256": "5168a1958669ce06002cc5cb507fda7fc7477ca53294a73dbcf582e5879f383b",
-    "dual_slot_authority_doc": "docs/development/N3W_KF089_RELAY_ACQUISITION_TELEMETRY_OBSERVABILITY_AND_SCHEMA_V5_PROGRESS_ALIGNMENT_20260910.md"
+    "dual_slot_authority_doc": "docs/development/N3W_KF089_RELAY_ACQUISITION_TELEMETRY_OBSERVABILITY_AND_SCHEMA_V5_PROGRESS_ALIGNMENT_20260910.md",
+    "esptool_5_3_1_commit": "0d2dfefe029eb48c23ddde61f9118b32d39dc7b9"
   },
   "predecessor_evidence": {
     "id17_result": "PASS",
@@ -46,12 +47,13 @@
     "gpio8_expected_level_during_power_on_reset": 1,
     "mode_after_power_on_reset": "ROM_DOWNLOAD",
     "reset_retry_forbidden": true,
-    "reconnect_retry_forbidden": true,
+    "physical_reconnect_retry_forbidden": true,
     "application_boot_forbidden": true
   },
   "geometry": {
     "chip": "esp32c6",
     "flash_size": "8MB",
+    "flash_size_bytes": 8388608,
     "partition_table_offset": "0x8000",
     "partition_table_size": "0x1000",
     "otadata_offset": "0x9000",
@@ -68,16 +70,23 @@
     "before_reset_mode": "no-reset",
     "after_reset_mode": "no-reset",
     "no_stub": true,
+    "rom_flash_write_size": "0x400",
     "connect_attempts": 1,
     "write_block_attempts": 1,
-    "open_port_attempts": 1
+    "open_port_attempts": 1,
+    "stock_high_level_write_flash_used": false,
+    "flash_finish_used": false
   },
   "mutation_contract": {
-    "allowed_mutation": "WRITE_EXACT_SCHEMA5_TO_INACTIVE_APP0_ONLY",
-    "mutation_command_count_max": 1,
+    "allowed_mutation": "DIRECT_ROM_WRITE_EXACT_SCHEMA5_TO_INACTIVE_APP0_ONLY",
+    "mutation_connection_count_max": 1,
+    "flash_begin_count_max": 1,
+    "each_flash_block_attempt_count_max": 1,
     "target_offset": "0x10000",
     "target_slot": 0,
-    "post_write_exact_readback_required": true,
+    "same_connection_prestate_md5_required": true,
+    "same_connection_postwrite_md5_required": true,
+    "post_write_exact_sha256_readback_required": true,
     "otadata_byte_identity_required": true,
     "app1_window_hash_identity_required": true,
     "automatic_mutation_retry": false,
@@ -95,8 +104,10 @@
     "raw_otadata_private": true,
     "raw_slot_payload_windows_private": true,
     "firmware_path_private": true,
+    "block_progress_private": true,
     "hash_algorithm": "SHA256",
-    "command_persisted_before_launch": true
+    "command_persisted_before_launch": true,
+    "mutation_boundary_persisted_before_flash_begin": true
   },
   "forbidden": {
     "board_b_physical_access": true,
@@ -110,8 +121,11 @@
     "bootloader_write": true,
     "partition_table_write": true,
     "pairing_change": true,
+    "stock_esptool_write_flash": true,
+    "whole_image_mutation_retry": true,
     "auto_retry": true,
     "reset_retry": true,
-    "auto_rollback": true
+    "auto_rollback": true,
+    "flash_finish": true
   }
 }

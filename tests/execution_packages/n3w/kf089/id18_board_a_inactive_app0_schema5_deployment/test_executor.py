@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import struct
+import subprocess
 import sys
 from pathlib import Path
 
@@ -75,16 +77,20 @@ def _otadata(active_seq: int = 4, active_state: int = 2, older_seq: int = 3) -> 
     return bytes(raw)
 
 
-def test_manifest_freezes_app0_only_mutation_scope() -> None:
+def test_manifest_freezes_direct_rom_app0_only_scope() -> None:
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert manifest["gate_id"] == "id18_board_a_inactive_app0_schema5_deployment"
     assert manifest["target_contract"]["target_slot"] == 0
     assert manifest["target_contract"]["rollback_slot"] == 1
     assert manifest["mutation_contract"]["slot_switch_in_same_gate"] is False
+    assert manifest["tool_bindings"]["stock_high_level_write_flash_used"] is False
+    assert manifest["tool_bindings"]["flash_finish_used"] is False
     assert manifest["forbidden"]["ota_slot_switch"] is True
     assert manifest["forbidden"]["otadata_write"] is True
     assert manifest["forbidden"]["app1_write"] is True
-    assert manifest["forbidden"]["auto_retry"] is True
+    assert manifest["forbidden"]["stock_esptool_write_flash"] is True
+    assert manifest["forbidden"]["whole_image_mutation_retry"] is True
+    assert manifest["forbidden"]["flash_finish"] is True
 
 
 def test_exact_schema5_authority_is_frozen() -> None:
@@ -93,6 +99,7 @@ def test_exact_schema5_authority_is_frozen() -> None:
     assert refs["schema5_source_commit"] == executor.SCHEMA5_SOURCE_COMMIT
     assert refs["schema5_firmware_size"] == executor.SCHEMA5_FIRMWARE_SIZE
     assert refs["schema5_firmware_sha256"] == executor.SCHEMA5_FIRMWARE_SHA256
+    assert refs["esptool_5_3_1_commit"] == "0d2dfefe029eb48c23ddde61f9118b32d39dc7b9"
 
 
 def test_read_commands_remain_rom_read_only() -> None:
@@ -122,17 +129,12 @@ def test_read_commands_remain_rom_read_only() -> None:
         executor.assert_read_only_argv(argv)
 
 
-def test_mutation_command_is_exactly_one_app0_write() -> None:
-    firmware = Path("/tmp/exact-schema5.bin")
-    argv = executor.build_app0_write_command("/dev/example", firmware)
-    assert argv.count("write-flash") == 1
-    assert hex(executor.APP0_OFFSET) in argv
-    assert str(firmware) in argv
-    assert hex(executor.OTADATA_OFFSET) not in argv
-    assert hex(executor.APP1_OFFSET) not in argv
-    assert "erase-flash" not in argv
-    assert "erase-region" not in argv
-    assert "switch_ota_partition" not in argv
+def test_executor_source_does_not_call_stock_write_flash_or_flash_finish() -> None:
+    source = EXECUTOR.read_text(encoding="utf-8")
+    assert "cmds.write_flash" not in source
+    assert ".flash_finish(" not in source
+    assert "esp.flash_begin(" in source
+    assert "esp.flash_block(" in source
 
 
 def test_partition_geometry_accepts_exact_contract() -> None:
@@ -153,7 +155,6 @@ def test_id17_prestate_is_required() -> None:
 
 
 def test_prestate_rejects_slot_drift() -> None:
-    # seq 5 selects slot 0 in the two-slot mapping.
     raw = bytearray(b"\xff" * executor.OTADATA_SIZE)
     raw[0:executor.OTA_ENTRY_SIZE] = _ota_entry(5, 2)
     ota = executor.parse_otadata(bytes(raw))
@@ -176,13 +177,116 @@ def test_firmware_binding_requires_exact_size_and_hash(tmp_path: Path) -> None:
         raise AssertionError("wrong firmware must stop")
 
 
-def test_esptool_cfg_bounds_connection_and_block_attempts(tmp_path: Path) -> None:
+def test_esptool_cfg_binds_block_retry_to_one(tmp_path: Path) -> None:
     executor.ensure_private_dir(tmp_path)
     cfg = executor.make_esptool_cfg(tmp_path)
     text = cfg.read_text(encoding="utf-8")
     assert "connect_attempts = 1" in text
     assert "write_block_attempts = 1" in text
     assert "open_port_attempts = 1" in text
+
+    code = (
+        "import os,sys; "
+        f"os.environ['ESPTOOL_CFGFILE']={str(cfg)!r}; "
+        "import esptool, esptool.loader as loader; "
+        "print(esptool.__version__, loader.WRITE_BLOCK_ATTEMPTS, loader.ESPLoader.WRITE_FLASH_ATTEMPTS)"
+    )
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=False)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.strip() == "5.3.1 1 2"
+
+
+def test_direct_rom_mutation_sends_each_block_once_and_never_finishes(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    fake_data = (b"schema5-test-payload-" * 130)[:2500]
+    fake_size = len(fake_data)
+    fake_sha = hashlib.sha256(fake_data).hexdigest()
+    monkeypatch.setattr(executor, "SCHEMA5_FIRMWARE_SIZE", fake_size)
+    monkeypatch.setattr(executor, "SCHEMA5_FIRMWARE_SHA256", fake_sha)
+
+    firmware = tmp_path / "firmware.bin"
+    pre_app0 = tmp_path / "pre_app0.bin"
+    pre_app1 = tmp_path / "pre_app1.bin"
+    firmware.write_bytes(fake_data)
+    pre_app0.write_bytes(b"A" * fake_size)
+    pre_app1.write_bytes(b"B" * fake_size)
+    pre_otadata = b"C" * executor.OTADATA_SIZE
+
+    expected_pre_app0_md5 = executor.md5_file(pre_app0)
+    expected_pre_app1_md5 = executor.md5_file(pre_app1)
+    expected_pre_ota_md5 = executor.md5_bytes(pre_otadata)
+    expected_post_md5 = executor.md5_bytes(fake_data)
+    base_mac = "98:a3:16:a9:f3:50"
+
+    class FakeEsp:
+        IS_STUB = False
+        sync_stub_detected = False
+        secure_download_mode = False
+
+        def __init__(self):
+            self.blocks: list[tuple[int, bytes]] = []
+            self.connect_calls: list[tuple[str, int]] = []
+            self.begin_calls: list[tuple[int, int]] = []
+            self.flash_params: list[int] = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def connect(self, *, mode: str, attempts: int):
+            self.connect_calls.append((mode, attempts))
+
+        def read_mac(self, kind: str):
+            assert kind == "BASE_MAC"
+            return tuple(int(part, 16) for part in base_mac.split(":"))
+
+        def flash_set_parameters(self, size: int):
+            self.flash_params.append(size)
+
+        def flash_md5sum(self, offset: int, size: int):
+            if offset == executor.APP0_OFFSET:
+                return expected_post_md5 if self.blocks else expected_pre_app0_md5
+            if offset == executor.OTADATA_OFFSET:
+                return expected_pre_ota_md5
+            if offset == executor.APP1_OFFSET:
+                return expected_pre_app1_md5
+            raise AssertionError("unexpected md5 geometry")
+
+        def flash_begin(self, size: int, offset: int):
+            self.begin_calls.append((size, offset))
+            return (size + executor.EXPECTED_FLASH_WRITE_SIZE - 1) // executor.EXPECTED_FLASH_WRITE_SIZE
+
+        def flash_block(self, block: bytes, seq: int):
+            self.blocks.append((seq, block))
+
+    fake = FakeEsp()
+    runtime = {
+        "ESP32C6ROM": lambda port, baud: fake,
+        "attach_flash": lambda esp: None,
+        "flash_write_size": executor.EXPECTED_FLASH_WRITE_SIZE,
+    }
+    evidence = tmp_path / "evidence"
+    executor.ensure_private_dir(evidence)
+    executor.direct_write_app0_once(
+        runtime=runtime,
+        root=evidence,
+        port="/dev/example",
+        expected_base_mac=base_mac,
+        firmware=firmware,
+        pre_app0=pre_app0,
+        pre_otadata=pre_otadata,
+        pre_app1=pre_app1,
+    )
+
+    expected_blocks = (fake_size + executor.EXPECTED_FLASH_WRITE_SIZE - 1) // executor.EXPECTED_FLASH_WRITE_SIZE
+    assert fake.connect_calls == [("no-reset", 1)]
+    assert fake.begin_calls == [(fake_size, executor.APP0_OFFSET)]
+    assert [seq for seq, _ in fake.blocks] == list(range(expected_blocks))
+    assert all(len(block) == executor.EXPECTED_FLASH_WRITE_SIZE for _, block in fake.blocks)
+    assert json.loads((evidence / "direct_rom_mutation_completion.json").read_text())["flash_finish_used"] is False
 
 
 def test_canonical_base_mac_parser_ignores_generic_mac_line() -> None:

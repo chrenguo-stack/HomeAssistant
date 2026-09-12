@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """KF-089 ID18 Board A inactive-app0 Schema-v5 deployment.
 
-One bounded mutation is permitted: write the exact frozen Schema-v5 firmware to
-inactive app0 only. OTA selection remains on app1. No application boot occurs.
+Exactly one bounded mutation primitive is permitted: a direct ESP32-C6 ROM write
+of the exact frozen Schema-v5 payload to inactive app0. Stock esptool
+``write-flash`` is deliberately not used because esptool v5.3.1 has an
+independent whole-image reconnect/retry loop in that high-level path.
 """
 from __future__ import annotations
 
 import argparse
 import binascii
 import hashlib
+import importlib
 import json
 import os
 import re
@@ -19,11 +22,14 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 
 PACKAGE_SCHEMA_VERSION = 1
 EXPECTED_ESPTOOL_VERSION = "5.3.1"
 EXPECTED_BOARD_A_SUFFIX = "f3:50"
+BAUD = 115200
+FLASH_SIZE_BYTES = 8 * 1024 * 1024
+EXPECTED_FLASH_WRITE_SIZE = 0x400
 
 PARTITION_TABLE_OFFSET = 0x8000
 PARTITION_TABLE_SIZE = 0x1000
@@ -61,15 +67,9 @@ BASE_MAC_RE = re.compile(
     r"(?im)^\s*BASE MAC:\s*([0-9a-f]{2}(?::[0-9a-f]{2}){5})\s*$"
 )
 VERSION_RE = re.compile(r"(?i)\bv?(\d+\.\d+\.\d+)\b")
-
 READ_ONLY_FORBIDDEN = {
     "write-flash", "erase-flash", "erase-region", "write-mem", "write-flash-status",
     "write_flash", "erase_flash", "erase_region", "write_mem", "write_flash_status",
-}
-MUTATION_FORBIDDEN = {
-    "erase-flash", "erase-region", "write-mem", "write-flash-status",
-    "erase_flash", "erase_region", "write_mem", "write_flash_status",
-    "switch_ota_partition", "erase_ota_partition",
 }
 
 
@@ -118,8 +118,24 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def md5_bytes(data: bytes) -> str:
+    return hashlib.md5(data, usedforsecurity=False).hexdigest()
+
+
+def md5_file(path: Path) -> str:
+    digest = hashlib.md5(usedforsecurity=False)
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
@@ -201,25 +217,6 @@ def build_read_flash_command(port: str, offset: int, size: int, output: Path) ->
     return argv
 
 
-def build_app0_write_command(port: str, firmware: Path) -> list[str]:
-    argv = [
-        *esptool_base(port),
-        "write-flash", "--flash-size", "8MB",
-        hex(APP0_OFFSET), str(firmware),
-    ]
-    lowered = {str(item).strip().lower() for item in argv}
-    forbidden = sorted(lowered & MUTATION_FORBIDDEN)
-    if forbidden:
-        raise StopExecution(f"forbidden mutation token present: {forbidden}")
-    if argv.count("write-flash") != 1:
-        raise StopExecution("mutation command must contain exactly one write-flash")
-    if hex(APP0_OFFSET) not in argv:
-        raise StopExecution("mutation command is not bound to app0 offset")
-    if hex(OTADATA_OFFSET) in argv or hex(APP1_OFFSET) in argv:
-        raise StopExecution("mutation command references forbidden partition offset")
-    return argv
-
-
 def parse_base_mac(stdout: str) -> str:
     matches = sorted(set(value.lower() for value in BASE_MAC_RE.findall(stdout)))
     if len(matches) != 1:
@@ -232,6 +229,10 @@ def mac_suffix(mac: str) -> str:
     if len(parts) != 6:
         raise StopExecution("normalized BASE MAC is invalid")
     return ":".join(parts[-2:]).lower()
+
+
+def mac_tuple(mac: str) -> tuple[int, ...]:
+    return tuple(int(part, 16) for part in mac.split(":"))
 
 
 def parse_partition_table(raw: bytes) -> dict[str, PartitionEntry]:
@@ -299,10 +300,11 @@ def parse_ota_entry(raw: bytes, index: int) -> OtaEntry:
 def parse_otadata(raw: bytes) -> OtaSnapshot:
     if len(raw) != OTADATA_SIZE:
         raise StopExecution("otadata capture size mismatch")
-    entries = tuple(
+    entries_list = [
         parse_ota_entry(raw[rel: rel + OTA_ENTRY_SIZE], index)
         for index, rel in enumerate(OTA_COPY_RELATIVE_OFFSETS)
-    )
+    ]
+    entries = (entries_list[0], entries_list[1])
     valid = [entry for entry in entries if entry.boot_valid]
     if not valid:
         raise StopExecution("no valid OTA-select copy")
@@ -312,7 +314,7 @@ def parse_otadata(raw: bytes) -> OtaSnapshot:
     slot = active.slot
     if slot not in (0, 1):
         raise StopExecution("selected OTA slot is invalid")
-    return OtaSnapshot((entries[0], entries[1]), active.index, slot, active.ota_state, active.seq)
+    return OtaSnapshot(entries, active.index, slot, active.ota_state, active.seq)
 
 
 def verify_expected_prestate(ota: OtaSnapshot) -> None:
@@ -352,11 +354,9 @@ def make_esptool_cfg(root: Path) -> Path:
 
 def run_recorded(
     *, root: Path, index: int, label: str, argv: list[str], cwd: Path,
-    target_operation: bool = False, mutation_operation: bool = False,
-    extra_env: dict[str, str] | None = None,
+    target_operation: bool = False, extra_env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    if not mutation_operation:
-        assert_read_only_argv(argv)
+    assert_read_only_argv(argv)
     op_dir = root / f"op_{index:02d}_{label}"
     ensure_private_dir(op_dir)
     write_json(op_dir / "command.json", {
@@ -365,7 +365,7 @@ def run_recorded(
         "label": label,
         "operation_index": index,
         "target_operation": target_operation,
-        "mutation_operation": mutation_operation,
+        "mutation_operation": False,
         "utc_start": utc_now(),
         "environment_overrides": dict(sorted((extra_env or {}).items())),
     })
@@ -383,7 +383,6 @@ def run_recorded(
             "command_started": False,
             "returncode": None,
             "target_access_occurred": False if target_operation else None,
-            "mutation_may_have_started": False,
             "utc_end": utc_now(),
         })
         raise StopExecution(f"{label} process launch failed") from exc
@@ -397,7 +396,6 @@ def run_recorded(
             True if target_operation and completed.returncode == 0
             else "UNKNOWN" if target_operation else None
         ),
-        "mutation_may_have_started": bool(mutation_operation),
         "utc_end": utc_now(),
     })
     return completed
@@ -461,6 +459,173 @@ def write_authorization(root: Path, auth: str, execution_id: str, *, claimed: bo
     write_json(root / "authorization.json", value)
 
 
+def module_binding(module: object) -> dict[str, str]:
+    raw = getattr(module, "__file__", None)
+    if not raw:
+        raise StopExecution("esptool runtime module has no file binding")
+    path = Path(raw).resolve()
+    return {"path": str(path), "sha256": sha256_file(path)}
+
+
+def bind_direct_rom_runtime(cfg: Path, evidence_root: Path) -> dict[str, Any]:
+    if any(name == "esptool" or name.startswith("esptool.") for name in sys.modules):
+        raise StopExecution("esptool imported before direct-ROM retry contract was bound")
+    os.environ["ESPTOOL_CFGFILE"] = str(cfg.resolve())
+    os.environ["ESPTOOL_OPEN_PORT_ATTEMPTS"] = "1"
+
+    esptool = importlib.import_module("esptool")
+    loader = importlib.import_module("esptool.loader")
+    cmds = importlib.import_module("esptool.cmds")
+    esp32c6 = importlib.import_module("esptool.targets.esp32c6")
+
+    if getattr(esptool, "__version__", None) != EXPECTED_ESPTOOL_VERSION:
+        raise StopExecution("unexpected esptool runtime version")
+    if loader.WRITE_BLOCK_ATTEMPTS != 1:
+        raise StopExecution("esptool block retry contract is not one attempt")
+    esp_cls = esp32c6.ESP32C6ROM
+    if esp_cls.CHIP_NAME != "ESP32-C6":
+        raise StopExecution("unexpected direct-ROM target class")
+    if esp_cls.FLASH_WRITE_SIZE != EXPECTED_FLASH_WRITE_SIZE:
+        raise StopExecution("unexpected direct-ROM flash write block size")
+
+    binding = {
+        "esptool_version": getattr(esptool, "__version__", None),
+        "loader_write_block_attempts": loader.WRITE_BLOCK_ATTEMPTS,
+        "high_level_write_flash_attempts_not_used": loader.ESPLoader.WRITE_FLASH_ATTEMPTS,
+        "stock_high_level_write_flash_used": False,
+        "flash_finish_used": False,
+        "esp32c6_flash_write_size": esp_cls.FLASH_WRITE_SIZE,
+        "esptool_module": module_binding(esptool),
+        "loader_module": module_binding(loader),
+        "cmds_module": module_binding(cmds),
+        "esp32c6_module": module_binding(esp32c6),
+    }
+    write_json(evidence_root / "direct_rom_runtime_binding_private.json", binding)
+    return {
+        "ESP32C6ROM": esp_cls,
+        "attach_flash": cmds.attach_flash,
+        "flash_write_size": esp_cls.FLASH_WRITE_SIZE,
+        "binding": binding,
+    }
+
+
+def write_mutation_progress(root: Path, **values: Any) -> None:
+    payload = {"utc": utc_now(), **values}
+    write_json(root / "direct_rom_mutation_progress.json", payload)
+
+
+def direct_write_app0_once(
+    *, runtime: Mapping[str, Any], root: Path, port: str, expected_base_mac: str,
+    firmware: Path, pre_app0: Path, pre_otadata: bytes, pre_app1: Path,
+) -> None:
+    data = firmware.read_bytes()
+    if len(data) != SCHEMA5_FIRMWARE_SIZE or sha256_bytes(data) != SCHEMA5_FIRMWARE_SHA256:
+        raise StopExecution("direct mutation firmware binding changed")
+    if len(pre_otadata) != OTADATA_SIZE:
+        raise StopExecution("direct mutation otadata preimage size mismatch")
+
+    expected_mac = mac_tuple(expected_base_mac)
+    expected_app0_md5 = md5_file(pre_app0)
+    expected_otadata_md5 = md5_bytes(pre_otadata)
+    expected_app1_md5 = md5_file(pre_app1)
+    expected_firmware_md5 = md5_bytes(data)
+
+    esp_cls = runtime["ESP32C6ROM"]
+    attach_flash = runtime["attach_flash"]
+    flash_write_size = int(runtime["flash_write_size"])
+    if flash_write_size != EXPECTED_FLASH_WRITE_SIZE:
+        raise StopExecution("direct mutation flash write size mismatch")
+
+    write_json(root / "direct_rom_mutation_attempt.json", {
+        "primitive": "DIRECT_ESP32C6_ROM_APP0_SINGLE_CONNECTION",
+        "stock_high_level_write_flash_used": False,
+        "flash_finish_used": False,
+        "target_offset": hex(APP0_OFFSET),
+        "firmware_size": len(data),
+        "firmware_sha256": sha256_bytes(data),
+        "connect_attempts": 1,
+        "write_block_attempts": 1,
+        "whole_image_retry": False,
+        "automatic_rollback": False,
+        "utc": utc_now(),
+    })
+
+    with esp_cls(port, BAUD) as esp:  # type: ignore[operator]
+        esp.connect(mode="no-reset", attempts=1)
+        if getattr(esp, "sync_stub_detected", False) or getattr(esp, "IS_STUB", False):
+            raise StopExecution("existing flasher stub detected; ROM-only mutation required")
+        if getattr(esp, "secure_download_mode", False):
+            raise StopExecution("unexpected secure download mode")
+        if tuple(esp.read_mac("BASE_MAC")) != expected_mac:
+            raise StopExecution("mutation-time ROM identity mismatch")
+
+        attach_flash(esp)  # type: ignore[operator]
+        esp.flash_set_parameters(FLASH_SIZE_BYTES)
+        if str(esp.flash_md5sum(APP0_OFFSET, SCHEMA5_FIRMWARE_SIZE)).lower() != expected_app0_md5:
+            raise StopExecution("mutation-time app0 freshness check failed")
+        if str(esp.flash_md5sum(OTADATA_OFFSET, OTADATA_SIZE)).lower() != expected_otadata_md5:
+            raise StopExecution("mutation-time otadata freshness check failed")
+        if str(esp.flash_md5sum(APP1_OFFSET, SCHEMA5_FIRMWARE_SIZE)).lower() != expected_app1_md5:
+            raise StopExecution("mutation-time app1 freshness check failed")
+
+        write_json(root / "direct_rom_mutation_preclaim.json", {
+            "identity_binding": "PASS",
+            "app0_same_connection_md5_freshness": "PASS",
+            "otadata_same_connection_md5_freshness": "PASS",
+            "app1_same_connection_md5_freshness": "PASS",
+            "mutation_started": False,
+            "utc": utc_now(),
+        })
+
+        expected_blocks = (len(data) + flash_write_size - 1) // flash_write_size
+        write_json(root / "direct_rom_mutation_boundary_entered.json", {
+            "phase": "FLASH_BEGIN_ENTERING",
+            "persistent_app0_state_may_change_after_this_point": True,
+            "target_offset": hex(APP0_OFFSET),
+            "firmware_size": len(data),
+            "expected_blocks": expected_blocks,
+            "utc": utc_now(),
+        })
+        blocks = esp.flash_begin(len(data), APP0_OFFSET)
+        if blocks != expected_blocks:
+            raise StopExecution(
+                f"direct ROM flash_begin block count mismatch: got {blocks}, expected {expected_blocks}"
+            )
+        write_mutation_progress(
+            root, phase="FLASH_BEGIN_COMPLETED", expected_blocks=expected_blocks,
+            last_completed_seq=-1, next_seq=0,
+        )
+
+        for seq in range(expected_blocks):
+            start = seq * flash_write_size
+            block = data[start: start + flash_write_size]
+            if len(block) < flash_write_size:
+                block = block + b"\xff" * (flash_write_size - len(block))
+            write_mutation_progress(
+                root, phase="FLASH_BLOCK_ENTERING", expected_blocks=expected_blocks,
+                last_completed_seq=seq - 1, next_seq=seq,
+            )
+            esp.flash_block(block, seq)
+            write_mutation_progress(
+                root, phase="FLASH_BLOCK_COMPLETED", expected_blocks=expected_blocks,
+                last_completed_seq=seq, next_seq=(seq + 1 if seq + 1 < expected_blocks else None),
+            )
+
+        observed_post_md5 = str(
+            esp.flash_md5sum(APP0_OFFSET, SCHEMA5_FIRMWARE_SIZE)
+        ).lower()
+        if observed_post_md5 != expected_firmware_md5:
+            raise StopExecution("same-connection app0 postwrite MD5 verification failed")
+        write_json(root / "direct_rom_mutation_completion.json", {
+            "phase": "ALL_FLASH_BLOCKS_COMPLETED_AND_MD5_VERIFIED",
+            "blocks_completed": expected_blocks,
+            "firmware_md5": expected_firmware_md5,
+            "flash_finish_used": False,
+            "whole_image_retry": False,
+            "utc": utc_now(),
+        })
+
+
 def evidence_manifest(root: Path) -> list[dict[str, Any]]:
     files: list[dict[str, Any]] = []
     for path in sorted(root.rglob("*")):
@@ -476,11 +641,12 @@ def evidence_manifest(root: Path) -> list[dict[str, Any]]:
 def write_closure(
     root: Path, *, execution_id: str, package_commit: str, authorization_id: str,
     result: str, failed: str | None, stop_reason: str | None,
-    target_access: bool | str, mutation_started: bool,
-    prestate: dict[str, Any] | None, poststate: dict[str, Any] | None,
-    next_route: str,
+    target_access: bool | str, prestate: dict[str, Any] | None,
+    poststate: dict[str, Any] | None, next_route: str,
 ) -> None:
     auth = json.loads((root / "authorization.json").read_text(encoding="utf-8"))
+    mutation_boundary_entered = (root / "direct_rom_mutation_boundary_entered.json").is_file()
+    mutation_completed = (root / "direct_rom_mutation_completion.json").is_file()
     write_json(root / "closure.json", {
         "execution_id": execution_id,
         "execution_package_commit": package_commit,
@@ -492,9 +658,12 @@ def write_closure(
         "first_failed_operation": failed,
         "stop_reason": stop_reason,
         "target_access_occurred": target_access,
-        "mutation_command_started": mutation_started,
-        "automatic_mutation_retry": False,
+        "mutation_boundary_entered": mutation_boundary_entered,
+        "mutation_completed_and_same_connection_md5_verified": mutation_completed,
+        "stock_high_level_write_flash_used": False,
+        "whole_image_mutation_retry": False,
         "automatic_rollback": False,
+        "flash_finish_used": False,
         "ota_slot_switch_executed": False,
         "prestate": prestate,
         "poststate": poststate,
@@ -508,28 +677,6 @@ def write_closure(
     })
 
 
-def capture_failure_state(
-    *, root: Path, repo_root: Path, port: str, cfg: Path, op_index: int,
-) -> None:
-    board_dir = root / "board_a"
-    ensure_private_dir(board_dir)
-    env = {"ESPTOOL_CFGFILE": str(cfg), "ESPTOOL_OPEN_PORT_ATTEMPTS": "1"}
-    for label, offset, size in (
-        ("failure_otadata", OTADATA_OFFSET, OTADATA_SIZE),
-        ("failure_app0_window", APP0_OFFSET, SCHEMA5_FIRMWARE_SIZE),
-    ):
-        out = board_dir / f"{label}.bin"
-        try:
-            run_recorded(
-                root=root, index=op_index, label=label,
-                argv=build_read_flash_command(port, offset, size, out),
-                cwd=repo_root, target_operation=True, extra_env=env,
-            )
-        except Exception:
-            pass
-        op_index += 1
-
-
 def self_check(package_dir: Path) -> None:
     load_manifest(package_dir)
     assert_read_only_argv(build_read_mac_command("/dev/example"))
@@ -540,9 +687,11 @@ def self_check(package_dir: Path) -> None:
         (APP1_OFFSET, SCHEMA5_FIRMWARE_SIZE),
     ):
         assert_read_only_argv(build_read_flash_command("/dev/example", offset, size, Path("/tmp/out.bin")))
-    mutation = build_app0_write_command("/dev/example", Path("/tmp/firmware.bin"))
-    if mutation.count("write-flash") != 1 or hex(APP0_OFFSET) not in mutation:
-        raise StopExecution("app0 mutation self-check failed")
+    source = Path(__file__).read_text(encoding="utf-8")
+    if "cmds.write_flash" in source:
+        raise StopExecution("stock high-level esptool write_flash must not be used")
+    if ".flash_finish(" in source:
+        raise StopExecution("flash_finish must not be used in ID18 ROM mutation")
     if SCHEMA5_FIRMWARE_SIZE > APP0_PARTITION_SIZE:
         raise StopExecution("Schema-v5 image does not fit app0")
 
@@ -586,7 +735,6 @@ def main() -> int:
 
     op_index = 1
     target_access: bool | str = False
-    mutation_started = False
     failed = "HOST_PREFLIGHT"
     prestate: dict[str, Any] | None = None
     poststate: dict[str, Any] | None = None
@@ -671,28 +819,20 @@ def main() -> int:
                 package_commit=args.expected_package_commit,
                 authorization_id=args.authorization_id, result="PASS_NO_MUTATION_NEEDED",
                 failed=None, stop_reason=None, target_access=target_access,
-                mutation_started=False, prestate=prestate, poststate=prestate,
-                next_route=next_route,
+                prestate=prestate, poststate=prestate, next_route=next_route,
             )
             closure = json.loads((root / "closure.json").read_text(encoding="utf-8"))
             print(json.dumps(closure, sort_keys=True))
             return 0
 
-        failed = "BOARD_A_APP0_SCHEMA5_WRITE"
-        mutation_started = True
-        write_result = run_recorded(
-            root=root, index=op_index, label="board_a_write_app0_schema5",
-            argv=build_app0_write_command(args.board_a_port, firmware),
-            cwd=repo_root, target_operation=True, mutation_operation=True,
-            extra_env=env,
+        failed = "BOARD_A_DIRECT_ROM_APP0_SCHEMA5_WRITE"
+        runtime = bind_direct_rom_runtime(cfg, root)
+        direct_write_app0_once(
+            runtime=runtime, root=root, port=args.board_a_port,
+            expected_base_mac=base_mac, firmware=firmware,
+            pre_app0=paths["pre_app0_window"], pre_otadata=pre_otadata_raw,
+            pre_app1=paths["pre_app1_window"],
         )
-        op_index += 1
-        if write_result.returncode != 0:
-            capture_failure_state(
-                root=root, repo_root=repo_root, port=args.board_a_port,
-                cfg=cfg, op_index=op_index,
-            )
-            raise StopExecution("board_a app0 Schema-v5 write failed; app0 persistent state uncertain")
 
         post_paths: dict[str, Path] = {}
         for label, offset, size in (
@@ -746,8 +886,7 @@ def main() -> int:
             package_commit=args.expected_package_commit,
             authorization_id=args.authorization_id, result="PASS",
             failed=None, stop_reason=None, target_access=target_access,
-            mutation_started=mutation_started, prestate=prestate,
-            poststate=poststate, next_route=next_route,
+            prestate=prestate, poststate=poststate, next_route=next_route,
         )
     except (StopExecution, OSError, ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         write_closure(
@@ -755,8 +894,8 @@ def main() -> int:
             package_commit=args.expected_package_commit,
             authorization_id=args.authorization_id, result="STOP",
             failed=failed, stop_reason=str(exc), target_access=target_access,
-            mutation_started=mutation_started, prestate=prestate,
-            poststate=poststate, next_route="STOP_RETURN_TO_HIGH_LEVEL_MODEL",
+            prestate=prestate, poststate=poststate,
+            next_route="STOP_RETURN_TO_HIGH_LEVEL_MODEL",
         )
 
     closure = json.loads((root / "closure.json").read_text(encoding="utf-8"))
