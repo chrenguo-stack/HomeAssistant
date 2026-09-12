@@ -2,6 +2,7 @@
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
 Current local-chat/GitHub alignment: `docs/development/N3W_KF089_LOCAL_CHAT_GITHUB_ALIGNMENT_20260912.md`  
+Latest ID11 STOP: `docs/development/N3W_KF089_ID11_RF_CAPTURE_STOP_HOST_IDENTITY_NORMALIZATION_20260912.md`  
 Current T1 runtime-convergence archive: `docs/development/N3W_KF089_T1_RUNTIME_CONVERGENCE_ISSUES_AND_PROGRESS_ALIGNMENT_20260909.md`  
 Previous detailed KF-089 progress archive: `docs/development/N3W_KF089_RELAY_ACQUISITION_TELEMETRY_OBSERVABILITY_AND_SCHEMA_V5_PROGRESS_ALIGNMENT_20260910.md`  
 Active product-direction authority: `docs/development/N3W_OFFICIAL_ESPNOW_REFERENCE_PRODUCT_DIRECTION_DECISION_20260906.md`
@@ -23,12 +24,8 @@ BOARD_B_BOOT_RECOVERY=CLOSED_ENOUGH_FOR_RELAY_TESTING
 PRODUCT_RUNTIME_AFTER_POWER_CYCLE=PASS
 N3W_RUNTIME=PASS
 SCHEMA_V5_RUNTIME_STATE=PASS
-BOARD_A_DIRECT_CURRENT=true
-BOARD_B_DIRECT_CURRENT=true
 T1_RUNTIME_CONVERGENCE=CLOSED_PASS
 ```
-
-The stale state that Board B remains in ROM download mode is superseded. ID10 performed a complete power cycle and post-power-cycle T1/Broker evidence recovered 194 accepted Direct telemetry messages from Board B.
 
 ## Current KF-089 boundary
 
@@ -40,14 +37,34 @@ KF089_END_TO_END_RELAY_TELEMETRY=NOT_PROVEN
 FIRST_UNPROVEN_STAGE=B_UNICAST_TX_COMPLETION_OR_A_COMPACT_RX
 ```
 
+## ID11 consumed capture
+
+```text
+ID11_CLAIMED=true
+RF_WINDOW_SECONDS=90
+BOARD_A_DIRECT_BASELINE=true
+BOARD_A_DIRECT_DURING_WINDOW=true
+BOARD_B_COLD_BOOT_EXECUTED=true
+SELECTIVE_RF_ZONE_USED=true
+BOARD_B_DIRECT_INGRESS_COUNT=0
+BOARD_B_RELAY_INGRESS_COUNT=0
+BOARD_B_ACCEPTED_RELAY_COUNT=0
+SECOND_RF_CAPTURE=false
+```
+
+The RF window completed. Product-path adjudication did not complete because the Board B diagnostic readback was stopped by a host-side identity validation/normalization error before NVS snapshot recovery. Zero relay ingress alone is not a product-failure proof.
+
 ## Current ONE gate
 
 ```text
-CURRENT_ONE_GATE=N3W_KF089_AB_RELAY_DATA_PATH_END_TO_END_PHYSICAL_20260912_11
-CURRENT_GATE_STATE=AUTHORIZED_NOT_YET_ADJUDICATED
+CURRENT_ONE_GATE=N3W_KF089_ID11_BOARD_B_IDENTITY_HOST_NORMALIZATION_FORENSIC
+BOARD_ACCESS=false
+USB_ACCESS=false
+SECOND_RF_CAPTURE=false
+AUTO_RETRY=false
 ```
 
-ID11 is one bounded physical RF capture with no automatic retry, no flash/NVS/otadata write, no pairing change, and no T1 mutation. It must localize the path through Board B async unicast completion, Board A compact RX/decode/forward submit, and final T1 ingress.
+The goal is to repair or correctly classify the host identity validation using already captured evidence, then—only if safe and separately authorized—recover the persisted A/B Schema-v5 snapshots from this same ID11 capture. Do not repeat RF.
 
 ## OTA Guard side state
 
@@ -59,7 +76,5 @@ GUARD_POSTMUTATION_FLASH_FINISH_HANDLING=REPAIR_REQUIRED
 GUARD_FAILURE_STATE_RECONNECT_PATH=REVIEW_REQUIRED
 N3W_OTA_GUARD_FULLY_READY=false
 ```
-
-The OTA Guard is not the current main gate. Its remaining work is the post-mutation completion/verification repair exposed by the real Board B ID03 execution.
 
 Historical archives remain historical and are not rewritten. No PR merge is authorized by this index refresh.
