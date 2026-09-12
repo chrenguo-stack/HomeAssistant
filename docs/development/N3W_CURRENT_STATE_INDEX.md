@@ -2,9 +2,9 @@
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
 Current local-chat/GitHub alignment: `docs/development/N3W_KF089_LOCAL_CHAT_GITHUB_ALIGNMENT_20260912.md`  
-Latest ID11 STOP: `docs/development/N3W_KF089_ID11_RF_CAPTURE_STOP_HOST_IDENTITY_NORMALIZATION_20260912.md`  
+Latest consumed RF gate: `docs/development/N3W_KF089_AB_RELAY_DATA_PATH_ID11_PHYSICAL_AUTHORIZATION_20260912.md`  
+Latest ID12 authorization: `docs/development/N3W_KF089_ID11_AB_SCHEMA_V5_READONLY_RECOVERY_ID12_AUTHORIZATION_20260912.md`  
 Current T1 runtime-convergence archive: `docs/development/N3W_KF089_T1_RUNTIME_CONVERGENCE_ISSUES_AND_PROGRESS_ALIGNMENT_20260909.md`  
-Previous detailed KF-089 progress archive: `docs/development/N3W_KF089_RELAY_ACQUISITION_TELEMETRY_OBSERVABILITY_AND_SCHEMA_V5_PROGRESS_ALIGNMENT_20260910.md`  
 Active product-direction authority: `docs/development/N3W_OFFICIAL_ESPNOW_REFERENCE_PRODUCT_DIRECTION_DECISION_20260906.md`
 
 ## Current source authority
@@ -41,6 +41,7 @@ FIRST_UNPROVEN_STAGE=B_UNICAST_TX_COMPLETION_OR_A_COMPACT_RX
 
 ```text
 ID11_CLAIMED=true
+RF_WINDOW_COMPLETED=true
 RF_WINDOW_SECONDS=90
 BOARD_A_DIRECT_BASELINE=true
 BOARD_A_DIRECT_DURING_WINDOW=true
@@ -52,19 +53,46 @@ BOARD_B_ACCEPTED_RELAY_COUNT=0
 SECOND_RF_CAPTURE=false
 ```
 
-The RF window completed. Product-path adjudication did not complete because the Board B diagnostic readback was stopped by a host-side identity validation/normalization error before NVS snapshot recovery. Zero relay ingress alone is not a product-failure proof.
+Product-path adjudication remains incomplete because A/B Schema-v5 counters were not recovered. The RF capture must not be repeated merely to recover host evidence.
+
+## ID12 consumed read-only attempt
+
+```text
+ID12_CLAIMED=true
+REPLAY_PERMITTED=false
+BOARD_ACCESS=false
+READ_MAC_EXECUTED=false
+RAW_EVIDENCE_PERSISTED=false
+RESULT=STOP
+FIRST_UNPROVEN_OR_FAILED_STAGE=BOARD_B_IDENTITY_COMMAND_START
+```
+
+The only observed failure statement is that the esptool wrapper lacked executable permission and the command failed before `read-mac`. The detailed invocation form and root cause are not proven because raw argv/stdout/stderr/traceback were not preserved. Do not treat a Python-wrapper explanation as OBSERVED fact.
+
+## Process transition
+
+```text
+PR388_STATE=OPEN_UNMERGED
+HANDOFF_STANDARD_CANDIDATE_VERSION=1.1
+EXECUTION_MODEL=HIGH_LEVEL_MODEL_DESIGNS_VERSIONED_EXECUTION_PACKAGE
+CODEX_ROLE=EXACT_EXECUTOR
+RAW_EVIDENCE_FIRST=true
+DSL_EXECUTION_MODEL=false
+```
+
+End-of-chat user direction: future code should be authored by the high-level model and committed to GitHub; Codex should execute exact committed code and report raw evidence/results only. Repository storage convention for Execution Packages must be frozen in the next host-only gate.
 
 ## Current ONE gate
 
 ```text
-CURRENT_ONE_GATE=N3W_KF089_ID11_BOARD_B_IDENTITY_HOST_NORMALIZATION_FORENSIC
+CURRENT_ONE_GATE=N3W_KF089_EXECUTION_PACKAGE_ROLE_AND_STORAGE_FREEZE
 BOARD_ACCESS=false
 USB_ACCESS=false
 SECOND_RF_CAPTURE=false
 AUTO_RETRY=false
 ```
 
-The goal is to repair or correctly classify the host identity validation using already captured evidence, then—only if safe and separately authorized—recover the persisted A/B Schema-v5 snapshots from this same ID11 capture. Do not repeat RF.
+After the role/storage convention is frozen and the process candidate is aligned, the high-level model must author and commit the next A/B read-only recovery Execution Package. Only after host tests/review may a new physical read-only authorization be requested.
 
 ## OTA Guard side state
 
