@@ -1,0 +1,76 @@
+{
+  "package_schema_version": 1,
+  "project": "n3w",
+  "stage": "kf089",
+  "gate_id": "id20_board_a_schema5_boot_postcheck",
+  "predecessor": {
+    "gate": "ID19",
+    "execution_package_commit": "643df426a03a20b319d8faa2a9d62eda9c56d6a6",
+    "result": "PASS"
+  },
+  "authority_references": {
+    "schema5_source_commit": "5d58727f5040281ee2beb9597f66a6a2da9bac57",
+    "schema5_app0_sha256": "5168a1958669ce06002cc5cb507fda7fc7477ca53294a73dbcf582e5879f383b",
+    "rollback_app1_sha256": "5a3004647de0ef71e7be5664863a62b76a47c0cfdb32e38b07a296ca379f7562",
+    "id19_executor_impl_git_blob": "b51344bc804463f5e5c9d1d3c421be81e3fb352e",
+    "id18_executor_impl_git_blob": "27744d2b54ec0d5318496d9ca99b647465daa769",
+    "diag_parser_git_blob": "af78ed4cb14c38579f56e6ba3019e2debdb21d9e",
+    "esptool_version": "5.3.1"
+  },
+  "prestate_contract": {
+    "selected_slot": 0,
+    "active_ota_seq": 5,
+    "active_ota_state": 2,
+    "prior_board_a_schema_version": 3,
+    "prior_board_a_boot_session": 11540229135812003068
+  },
+  "operator_contract": {
+    "single_normal_boot": true,
+    "minimum_interlock_elapsed_seconds": 45,
+    "board_b_and_other_compact_senders_powered_off": true,
+    "serial_open": false,
+    "controlled_rf_experiment": false,
+    "single_postboot_rom_reentry": true,
+    "automatic_retry": false
+  },
+  "postcheck_contract": {
+    "selected_slot": 0,
+    "active_ota_seq": 5,
+    "active_ota_state": 2,
+    "schema_version": 5,
+    "minimum_snapshot_uptime_ms": 5000,
+    "final_path_state": 0,
+    "allowed_direct_channels": [1, 6, 11],
+    "minimum_relay_advertisement_attempts": 1,
+    "minimum_relay_advertisement_submit_success": 1,
+    "minimum_broadcast_completion_count": 1,
+    "relay_active_count": 0,
+    "relay_telemetry_attempts": 0,
+    "compact_counters_all_zero": true
+  },
+  "success_contract": {
+    "board_a_schema5_actually_booted": true,
+    "board_a_schema5_runtime_alive": true,
+    "schema5_compact_baseline_clean": true,
+    "application_left_powered_on": false,
+    "next_route": "PREPARE_KF089_SCHEMA5_TWO_BOARD_RELAY_VALIDATION_PACKAGE"
+  },
+  "forbidden": {
+    "flash_write": true,
+    "flash_erase": true,
+    "nvs_write": true,
+    "otadata_write": true,
+    "app0_write": true,
+    "app1_write": true,
+    "partition_table_write": true,
+    "bootloader_write": true,
+    "pairing_change": true,
+    "t1_access": true,
+    "board_b_physical_access": true,
+    "serial_open": true,
+    "controlled_rf_experiment": true,
+    "automatic_retry": true,
+    "automatic_rollback": true,
+    "second_normal_boot": true
+  }
+}
