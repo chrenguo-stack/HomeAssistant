@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Read only the Phase 4 gh_n3w_diag/snapshot blob.
 
-With ``--blob`` the input is an already-exported value blob.  With ``--port``
-the utility invokes esptool's read-flash operation against the NVS partition,
-with reset suppression, then extracts only the diagnostic namespace/key into a
-0600 temporary file.  It never writes or erases flash.
+With ``--blob`` the input is an already-exported snapshot value blob. With
+``--nvs-image`` the input is a full NVS partition image and the utility extracts
+only the diagnostic namespace/key before decoding. With ``--port`` the utility
+invokes esptool's read-flash operation against the NVS partition, with reset
+suppression, then performs the same extraction. It never writes or erases flash.
 """
 
 from __future__ import annotations
@@ -271,10 +272,12 @@ def _extract_snapshot_from_nvs(raw: bytes) -> bytes:
 
 
 def _capture_nvs_partition(args: argparse.Namespace) -> bytes:
-    if args.port is None:
-        return args.blob.read_bytes()
     if args.blob is not None:
-        raise ValueError("--blob and --port are mutually exclusive")
+        return args.blob.read_bytes()
+    if args.nvs_image is not None:
+        return _extract_snapshot_from_nvs(args.nvs_image.read_bytes())
+    if args.port is None:
+        raise ValueError("one source is required")
     if args.nvs_offset < 0 or args.nvs_size <= 0 or args.nvs_size % PAGE_SIZE != 0:
         raise ValueError("NVS offset/size are invalid")
     temp_path: Path | None = None
@@ -308,6 +311,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--blob", type=Path)
+    source.add_argument("--nvs-image", type=Path)
     source.add_argument("--port")
     parser.add_argument("--esptool", default="esptool")
     parser.add_argument("--nvs-offset", type=lambda value: int(value, 0), default=0x790000)
