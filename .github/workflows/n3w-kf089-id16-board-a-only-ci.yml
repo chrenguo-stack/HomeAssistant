@@ -1,0 +1,34 @@
+name: N3W KF089 ID16 Board A-only CI
+
+on:
+  pull_request:
+    paths:
+      - 'tools/execution_packages/n3w/kf089/id16_board_a_only/**'
+      - 'tests/execution_packages/n3w/kf089/id16_board_a_only/**'
+      - 'tools/n3w_read_diag_snapshot.py'
+      - '.github/workflows/n3w-kf089-id16-board-a-only-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  host-only:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install exact host dependencies
+        run: python -m pip install --disable-pip-version-check pytest esptool==5.3.1
+      - name: Validate JSON manifest
+        run: python -m json.tool tools/execution_packages/n3w/kf089/id16_board_a_only/manifest.json >/dev/null
+      - name: Compile executor
+        run: python -m py_compile tools/execution_packages/n3w/kf089/id16_board_a_only/executor.py
+      - name: Run executor self-check
+        run: python tools/execution_packages/n3w/kf089/id16_board_a_only/executor.py --self-check
+      - name: Run focused package tests
+        run: python -m pytest -q tests/execution_packages/n3w/kf089/id16_board_a_only/test_executor.py
+      - name: Preserve corrected NVS-image parser regression
+        run: python -m pytest -q tests/n3w_kf089/test_n3w_read_diag_snapshot_nvs_image.py
