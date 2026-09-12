@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import struct
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).parents[5]
@@ -12,6 +13,7 @@ MANIFEST = ROOT / "tools/execution_packages/n3w/kf089/id17_board_a_slot_state_re
 spec = importlib.util.spec_from_file_location("id17_executor", EXECUTOR)
 assert spec and spec.loader
 executor = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = executor
 spec.loader.exec_module(executor)
 
 
