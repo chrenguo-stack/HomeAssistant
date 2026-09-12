@@ -1,0 +1,156 @@
+name: N3W KF089 Board B Successor Preclaim CI
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/n3w-kf089-board-b-successor-preclaim-ci.yml'
+      - 'docs/development/N3W_KF089_BOARD_B_PHYSICAL_SUCCESSOR_PRECLAIM_DESIGN_20260911.md'
+      - 'docs/development/N3W_KF089_BOARD_B_PHYSICAL_SUCCESSOR_PRECLAIM_EXECUTION_20260911.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  host-only-preclaim:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      REVIEWED_IMPLEMENTATION_HEAD: b8eb0aec6d26d3905e8bc861625c1e20f1c40ba3
+      EXPECTED_TOOL_BLOB: e7b0019cdb9673fbf4e23653dec561ea40ff757c
+      EXPECTED_TEST_BLOB: 5b4405b178384e2f3326c6ad0a3a963508d723e4
+      ESP_IDF_COMMIT: 735507283d5b2f9fb363a1901172dbd9e847945d
+      EXPECTED_ESPTOOL_WRAPPER_SHA256: a8461ddc0852eb1d00cf9d13bfc7698a3cad92871e51f2c4d1ff7ee2561150be
+      EXPECTED_ESPTOOL_VERSION: 5.2.0
+    steps:
+      - name: Check out design branch
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install exact esptool runtime
+        run: |
+          python -m pip install --disable-pip-version-check --no-input 'esptool==5.2.0'
+          python - <<'PY'
+          import esptool
+          assert esptool.__version__ == '5.2.0', esptool.__version__
+          print('ESPTOOL_VERSION=5.2.0')
+          PY
+
+      - name: Materialize exact reviewed OTA Guard source and test
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="$RUNNER_TEMP/n3w-ota-guard-source"
+          mkdir -p "$SRC/tools" "$SRC/tests/tools"
+          curl --fail --silent --show-error --location \
+            "https://raw.githubusercontent.com/chrenguo-stack/HomeAssistant/${REVIEWED_IMPLEMENTATION_HEAD}/tools/n3w_ota_guard.py" \
+            -o "$SRC/tools/n3w_ota_guard.py"
+          curl --fail --silent --show-error --location \
+            "https://raw.githubusercontent.com/chrenguo-stack/HomeAssistant/${REVIEWED_IMPLEMENTATION_HEAD}/tests/tools/test_n3w_ota_guard.py" \
+            -o "$SRC/tests/tools/test_n3w_ota_guard.py"
+          python - "$SRC/tools/n3w_ota_guard.py" "$EXPECTED_TOOL_BLOB" "$SRC/tests/tools/test_n3w_ota_guard.py" "$EXPECTED_TEST_BLOB" <<'PY'
+          import hashlib
+          import pathlib
+          import sys
+
+          def git_blob_sha(path: str) -> str:
+              data = pathlib.Path(path).read_bytes()
+              header = f"blob {len(data)}\0".encode()
+              return hashlib.sha1(header + data).hexdigest()
+
+          pairs = [(sys.argv[1], sys.argv[2]), (sys.argv[3], sys.argv[4])]
+          for path, expected in pairs:
+              observed = git_blob_sha(path)
+              print(f"GIT_BLOB path={pathlib.Path(path).name} observed={observed} expected={expected}")
+              if observed != expected:
+                  raise SystemExit(f"Git blob mismatch for {path}")
+          print('REVIEWED_SOURCE_BLOB_BINDING=PASS')
+          PY
+
+      - name: Bind exact ESP-IDF v5.5.4 wrapper
+        shell: bash
+        run: |
+          set -euo pipefail
+          WRAPPER="$RUNNER_TEMP/esptool.py"
+          curl --fail --silent --show-error --location \
+            "https://raw.githubusercontent.com/espressif/esp-idf/${ESP_IDF_COMMIT}/components/esptool_py/esptool/esptool.py" \
+            -o "$WRAPPER"
+          echo "${EXPECTED_ESPTOOL_WRAPPER_SHA256}  ${WRAPPER}" | sha256sum --check --strict
+          echo "ESP_IDF_COMMIT=${ESP_IDF_COMMIT}"
+          echo "ESPTOOL_WRAPPER_SHA256=${EXPECTED_ESPTOOL_WRAPPER_SHA256}"
+          echo 'ESP_IDF_WRAPPER_BINDING=PASS'
+
+      - name: Run reviewed 45-test host regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="$RUNNER_TEMP/n3w-ota-guard-source"
+          python -W error -m py_compile "$SRC/tools/n3w_ota_guard.py" "$SRC/tests/tools/test_n3w_ota_guard.py"
+          python -W error "$SRC/tests/tools/test_n3w_ota_guard.py"
+          echo 'REVIEWED_HOST_REGRESSION=PASS'
+
+      - name: Execute Guard toolchain preclaim
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="$RUNNER_TEMP/n3w-ota-guard-source"
+          WRAPPER="$RUNNER_TEMP/esptool.py"
+          EVIDENCE="$RUNNER_TEMP/n3w-board-b-preclaim-evidence"
+          python "$SRC/tools/n3w_ota_guard.py" \
+            --python "$(command -v python)" \
+            --esptool "$WRAPPER" \
+            check-toolchain \
+            --evidence-dir "$EVIDENCE"
+          cat "$EVIDENCE/toolchain-binding.json"
+          python - "$EVIDENCE/toolchain-binding.json" <<'PY'
+          import json
+          import pathlib
+          import sys
+          data = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          assert data['esptool_version'] == '5.2.0'
+          assert data['flash_sector_size'] == 0x1000
+          assert data['flash_write_size'] == 0x400
+          assert data['write_block_attempts'] == 1
+          assert data['esptool_wrapper_sha256'] == 'a8461ddc0852eb1d00cf9d13bfc7698a3cad92871e51f2c4d1ff7ee2561150be'
+          print('TOOLCHAIN_RUNTIME_BINDING=PASS')
+          PY
+
+      - name: Write public-safe preclaim summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/n3w-board-b-preclaim-summary.txt"
+          cat > "$OUT" <<EOF
+          GATE=HOST_ONLY_PHYSICAL_SUCCESSOR_PRECLAIM_EXECUTION
+          REVIEWED_IMPLEMENTATION_HEAD=${REVIEWED_IMPLEMENTATION_HEAD}
+          TOOL_GIT_BLOB=${EXPECTED_TOOL_BLOB}
+          TEST_GIT_BLOB=${EXPECTED_TEST_BLOB}
+          ESP_IDF_COMMIT=${ESP_IDF_COMMIT}
+          ESPTOOL_VERSION=${EXPECTED_ESPTOOL_VERSION}
+          ESPTOOL_WRAPPER_SHA256=${EXPECTED_ESPTOOL_WRAPPER_SHA256}
+          REVIEWED_SOURCE_BLOB_BINDING=PASS
+          REVIEWED_HOST_REGRESSION=PASS
+          TOOLCHAIN_RUNTIME_BINDING=PASS
+          BOARD_ACCESS=false
+          USB_ACCESS=false
+          SERIAL_OPEN=false
+          FLASH_READ=false
+          FLASH_WRITE=false
+          OTADATA_WRITE=false
+          RF_EXECUTION=false
+          EOF
+          cat "$OUT"
+
+      - name: Upload public-safe preclaim evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: n3w-kf089-board-b-host-only-preclaim
+          path: |
+            ${{ runner.temp }}/n3w-board-b-preclaim-summary.txt
+            ${{ runner.temp }}/n3w-board-b-preclaim-evidence/toolchain-binding.json
+          retention-days: 30
+          if-no-files-found: error
