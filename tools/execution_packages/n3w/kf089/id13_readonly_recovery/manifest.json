@@ -1,0 +1,106 @@
+{
+  "authority_references": {
+    "base_main": "7478e0fbcf893761ab76cc9952e09e77cda22755",
+    "diagnostic_schema_version": 5,
+    "diagnostic_source_authority": "5d58727f5040281ee2beb9597f66a6a2da9bac57",
+    "id12_handoff_path": "docs/development/N3W_KF089_ID12_PREBOARD_STOP_EXECUTION_PACKAGE_TRANSITION_NEW_CHAT_HANDOFF_V1.0_20260912.md",
+    "process_pr_388_head_at_authoring": "100027c5cfe98bd1bae9b03df618783a3e6c8983",
+    "product_behavior_source_authority": "fe116efabbd986263b043aa1a36ad74bf283bafa",
+    "progress_pr_387_head_at_authoring": "4e5df8dfe2999dfc8d772a020e18680fe8bb281f",
+    "repository": "chrenguo-stack/HomeAssistant"
+  },
+  "evidence": {
+    "command_persisted_before_launch": true,
+    "directory_mode": "0700",
+    "file_mode": "0600",
+    "hash_algorithm": "SHA256",
+    "private_root_must_be_outside_repository": true,
+    "private_root_required": true,
+    "raw_private_evidence_committed_to_github": false
+  },
+  "execution_model": {
+    "code_authoring_model": "HIGH_LEVEL_MODEL_ONLY",
+    "codex_code_authoring": false,
+    "codex_role": "EXACT_EXECUTOR_AND_RESULT_REPORTER",
+    "dsl_execution_model": false,
+    "primary_principle": "ACCURACY_SAFETY_EFFICIENCY_VERIFIABILITY_FIRST",
+    "raw_evidence_first": true
+  },
+  "forbidden": {
+    "application_boot": true,
+    "auto_retry": true,
+    "firmware_reflash": true,
+    "flash_write": true,
+    "nvs_write": true,
+    "otadata_write": true,
+    "pairing_change": true,
+    "reset_retry": true,
+    "second_rf_capture": true,
+    "t1_access": true,
+    "t1_mutation": true
+  },
+  "gate_id": "id13_readonly_recovery",
+  "manual_physical_preparation": {
+    "application_boot_forbidden": true,
+    "board_a_and_board_b_must_begin_unpowered": true,
+    "boot_gpio9_level_during_power_on_reset": 0,
+    "gpio8_expected_level_during_power_on_reset": 1,
+    "mode_after_power_on_reset": "ROM_DOWNLOAD",
+    "non_usb_power_sources_must_be_disconnected": true,
+    "occurs_only_after_explicit_id13_authorization": true,
+    "operator_sequence": [
+      "BOARD_B_HOLD_BOOT_GPIO9_LOW_BEFORE_USB_POWER",
+      "BOARD_B_APPLY_USB_POWER_WHILE_BOOT_HELD",
+      "BOARD_B_RELEASE_BOOT_ONLY_AFTER_USB_ENUMERATION",
+      "BOARD_A_HOLD_BOOT_GPIO9_LOW_BEFORE_USB_POWER",
+      "BOARD_A_APPLY_USB_POWER_WHILE_BOOT_HELD",
+      "BOARD_A_RELEASE_BOOT_ONLY_AFTER_USB_ENUMERATION"
+    ],
+    "reset_retry_forbidden": true,
+    "suspected_application_boot_requires_stop": true
+  },
+  "package_schema_version": 1,
+  "package_status": "review_only_until_exact_head_host_tests_pass",
+  "predecessor_authorizations": {
+    "id11": {
+      "claimed": true,
+      "consumed": true,
+      "replay_permitted": false,
+      "rf_window_seconds": 90
+    },
+    "id12": {
+      "claimed": true,
+      "consumed": true,
+      "replay_permitted": false,
+      "result": "STOP_BEFORE_BOARD_ACCESS"
+    },
+    "id13": {
+      "granted": false,
+      "note": "new physical authorization must be requested only after exact package head host tests and review pass"
+    }
+  },
+  "project": "n3w",
+  "read_only_geometry": {
+    "after_reset_mode": "no-reset",
+    "before_reset_mode": "no-reset",
+    "flash_size": "8MB",
+    "no_stub": true,
+    "nvs_offset": "0x790000",
+    "nvs_size": "0x70000"
+  },
+  "stage": "kf089",
+  "target_contract": {
+    "board_a_expected_base_mac_suffix": "f3:50",
+    "board_b_expected_base_mac_suffix": "f4:5c",
+    "full_base_mac_public_commit": false,
+    "simultaneous_distinct_port_locators_required": true,
+    "usb_port_is_locator_only": true
+  },
+  "tool_bindings": {
+    "chip": "esp32c6",
+    "diag_parser_git_blob": "de6951daf6cfd20035243b85c32957eb6108308a",
+    "diag_parser_path": "tools/n3w_read_diag_snapshot.py",
+    "esptool_version": "5.3.1",
+    "python_major_minor": "3.11"
+  }
+}
