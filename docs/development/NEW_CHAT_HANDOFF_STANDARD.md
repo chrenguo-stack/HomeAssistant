@@ -23,11 +23,16 @@ HANDOFF_STATE_COMPLETENESS=PASS
 HANDOFF_EXECUTION_SEMANTICS_COMPLETENESS=PASS
 ```
 
-The key execution change in version 1.1 is:
+The project-wide execution model is:
 
 ```text
 EXECUTION_MODEL=HIGH_LEVEL_MODEL_DESIGNS_VERSIONED_EXECUTION_PACKAGE
-CODEX_ROLE=EXACT_EXECUTOR
+CODE_AUTHORING_MODEL=HIGH_LEVEL_MODEL_ONLY
+HIGH_LEVEL_MODEL_WRITES_PROJECT_CODE=true
+HIGH_LEVEL_MODEL_WRITES_EXECUTION_CODE=true
+HIGH_LEVEL_MODEL_COMMITS_CODE_TO_GITHUB=true
+CODEX_CODE_AUTHORING=false
+CODEX_ROLE=EXACT_EXECUTOR_AND_RESULT_REPORTER
 REPOSITORY_VERSIONED_EXECUTOR=true
 RAW_EVIDENCE_FIRST=true
 DSL_EXECUTION_MODEL=false
@@ -35,7 +40,7 @@ DSL_ROLE=GOAL_AND_BOUNDARY_ONLY
 DSL_TO_COMMAND_COMPILATION=false
 ```
 
-Natural-language/DSL text may describe purpose, scope, invariants, PASS/FAIL conditions, and authorization boundaries. It is no longer executable authority for Codex to translate into ad-hoc shell/Python commands for a physical, mutating, one-shot, or evidence-critical gate.
+Natural-language/DSL text may describe purpose, scope, invariants, PASS/FAIL/STOP conditions, and authorization boundaries. It is not executable authority for Codex to translate into ad-hoc shell/Python commands.
 
 ---
 
@@ -48,7 +53,7 @@ When authorities appear to conflict, use this order unless a stage-specific cont
 2. explicit current authorization boundary
 3. this NEW_CHAT_HANDOFF_STANDARD.md
 4. current formal handoff document
-5. versioned Execution Package bound by the handoff
+5. exact committed Execution Package bound by the handoff
 6. KNOWN_FAILURES_AND_REGRESSION_GUARDS.md
 7. current-conversation inference
 ```
@@ -73,52 +78,82 @@ Never promote `HYPOTHESIS` or `PROPOSED` into a proven/current fact.
 
 ### 2.1 High-level model responsibilities
 
-The high-level model owns:
+The high-level model owns all project and execution code authoring. It must:
 
-- product route and architecture boundary;
-- exact source/runtime/artifact authority;
-- gate design, scope, authorization and rollback;
-- deciding whether a source change is justified;
-- designing or reviewing the Execution Package;
-- defining what raw evidence must exist before an operation can be adjudicated;
-- PASS / FAIL / STOP classification from source + raw evidence;
-- keeping product defects separate from host/tooling/executor defects;
-- refusing to infer command/code details that are not present in evidence.
+- maintain product route and architecture boundaries;
+- bind exact source/runtime/artifact authority;
+- design gate scope, authorization, rollback, and evidence contracts;
+- decide whether a source change is justified;
+- design and write project code when required;
+- design and write every Execution Package artifact, including executors, helpers, manifests, evidence schemas, and tests;
+- commit those artifacts to GitHub before Codex execution;
+- define what raw evidence must exist before an operation can be adjudicated;
+- classify results as `OBSERVED / DERIVED / HYPOTHESIS`;
+- decide PASS / FAIL / STOP from exact source + raw evidence;
+- keep product defects separate from host/tooling/executor defects;
+- refuse to infer command/code details that are not present in evidence.
 
-The high-level model may author the exact executor directly, or may delegate executor implementation to Codex during a host-only development gate. What matters is that the executor is reviewed, tested, committed, and hash/commit-bound before it becomes execution authority.
+The following are frozen:
+
+```text
+CODE_AUTHORING_MODEL=HIGH_LEVEL_MODEL_ONLY
+HIGH_LEVEL_MODEL_WRITES_PROJECT_CODE=true
+HIGH_LEVEL_MODEL_WRITES_EXECUTION_CODE=true
+HIGH_LEVEL_MODEL_COMMITS_CODE_TO_GITHUB=true
+```
 
 ### 2.2 Codex responsibilities
 
-For an execution gate, Codex is the exact executor. It must:
+Codex is an exact executor and result reporter, not a code author.
+
+For an execution gate, Codex may:
 
 - checkout/rebind the exact package commit;
-- verify the package manifest and required files;
-- execute the versioned executor exactly as specified;
-- preserve raw command/stdout/stderr/result evidence before summarizing;
-- stop at the first substantive mismatch unless the package explicitly permits continuation;
+- verify the package manifest, file presence, and required hashes;
+- run host tests already committed in the package when explicitly instructed;
+- execute the committed executor exactly as specified;
+- preserve and return raw command/stdout/stderr/result evidence;
 - return the predefined closure and evidence manifest.
 
-Codex must not, during an exact execution gate:
+Codex must not:
 
+- author project source code;
+- author or modify an executor, helper, manifest, evidence schema, or test;
 - compile prose/DSL into substitute commands;
-- silently modify the executor;
 - improvise a missing command;
-- repair the executor and continue in the same one-shot/physical authorization;
-- enlarge scope;
-- weaken a gate;
+- patch an executor locally and continue;
+- repair a failed executor in the execution environment;
+- create a temporary replacement executor/helper to bypass a package defect;
+- enlarge scope or weaken a gate;
 - replay consumed/superseded authorization;
 - cross into the next gate automatically;
-- install or substitute tooling unless the package explicitly authorizes it.
+- install or substitute tooling unless the exact committed package explicitly authorizes that operation.
 
-A separate host-only development gate may explicitly authorize Codex to implement or repair the package. That development gate ends after tests + GitHub persistence; it does not automatically consume the later physical/runtime authorization.
+Frozen role:
+
+```text
+CODEX_CODE_AUTHORING=false
+CODEX_ROLE=EXACT_EXECUTOR_AND_RESULT_REPORTER
+```
+
+If committed execution code is wrong, incomplete, missing, or incompatible:
+
+```text
+STOP
+-> RETURN_TO_HIGH_LEVEL_MODEL
+-> HIGH_LEVEL_MODEL_MODIFIES_GITHUB_CODE
+-> NEW_COMMIT
+-> REBIND_EXACT_COMMIT_AND_TEST
+-> ONLY_THEN_CONSIDER_REEXECUTION
+```
+
+Codex must never repair execution code in place and continue under the same physical/one-shot execution attempt.
 
 ---
 
 ## 3. Execution Package model
 
-### 3.1 Default rule
-
-For formal handoff continuation, the preferred execution authority is a versioned repository package.
+### 3.1 When a package is required
 
 An Execution Package is REQUIRED when any of these is true:
 
@@ -133,19 +168,65 @@ An Execution Package is REQUIRED when any of these is true:
 
 For trivial host-only, read-only inspection with no finite authorization and no state risk, a package may be minimal or not required. The handoff must state why.
 
-### 3.2 Canonical package contents
+### 3.2 Frozen repository storage layout
 
-Use normal readable repository paths. A typical package contains:
+Execution Packages are formal project engineering code. They are organized by project, stage, and gate, not by executor identity.
+
+```text
+EXECUTION_PACKAGE_STORAGE_MODEL=STAGE_AND_GATE_SCOPED
+EXECUTION_PACKAGE_ROOT=tools/execution_packages/<project>/<stage>/<gate_id>/
+EXECUTION_PACKAGE_TEST_ROOT=tests/execution_packages/<project>/<stage>/<gate_id>/
+CODEX_ONLY_FOLDER=false
+```
+
+Canonical example:
+
+```text
+tools/execution_packages/
+└── n3w/
+    └── kf089/
+        └── id13_readonly_recovery/
+            ├── TASK.md
+            ├── executor.py
+            ├── manifest.json
+            └── evidence_schema.json
+
+tests/execution_packages/
+└── n3w/
+    └── kf089/
+        └── id13_readonly_recovery/
+            └── test_executor.py
+```
+
+Rules:
+
+- do not create a generic `codex/`, `for_codex/`, `executor_misc/`, or equivalent Codex-only catch-all folder;
+- keep gate-specific code inside the gate package while it has only one concrete consumer;
+- do not build a generic execution framework in anticipation of reuse;
+- extract a helper only after actual reuse exists across at least two concrete packages and the shared contract is clear;
+- helper extraction is a normal high-level-model-authored GitHub code change with tests and review;
+- historical packages remain readable/reproducible unless a separate cleanup decision supersedes them.
+
+### 3.3 Canonical package contents
+
+A typical package contains:
 
 ```text
 TASK.md                    # human-readable goal/scope/PASS/STOP contract
 executor.py                # exact commands, ordering, checkpoints and evidence writes
-evidence_schema.json       # required raw evidence files/fields
 manifest.json              # source/tool/input/hash/authorization bindings
-tests/...                  # host tests for executor and failure behavior
+evidence_schema.json       # required raw evidence files/fields
 ```
 
-The exact repository paths are stage-specific and must be recorded in the handoff.
+Host tests live under the mirrored test root:
+
+```text
+tests/execution_packages/<project>/<stage>/<gate_id>/
+```
+
+Additional helpers are permitted only when the gate actually needs them. Package-local helper code remains inside that gate directory unless real reuse justifies later extraction.
+
+### 3.4 Package identity and readiness
 
 The package must be bound by durable identifiers, preferably:
 
@@ -158,8 +239,6 @@ EVIDENCE_SCHEMA_GIT_BLOB=
 TEST_COMMIT_OR_RUN=
 ```
 
-### 3.3 Package readiness
-
 Before a physical/mutating/evidence-critical authorization is requested:
 
 ```text
@@ -167,11 +246,12 @@ EXECUTION_PACKAGE_MATERIALIZED=true
 EXECUTION_PACKAGE_GITHUB_SHARED=true
 EXECUTION_PACKAGE_TESTS_PASS=true
 EXECUTION_PACKAGE_EXACT_BINDING=PASS
+RAW_EVIDENCE_CONTRACT_PASS=true
 ```
 
-If any of those is false, the next gate is host-only package materialization/repair, not physical execution.
+If any item is false, execution is not ready. The high-level model must repair the package in GitHub first.
 
-### 3.4 DSL role after version 1.1
+### 3.5 DSL role
 
 DSL/natural-language contracts remain useful for:
 
@@ -182,7 +262,7 @@ DSL/natural-language contracts remain useful for:
 - PASS/FAIL/STOP rules;
 - expected closure fields.
 
-They are NOT a command compiler contract:
+They are not a command compiler contract:
 
 ```text
 DSL_EXECUTION_MODEL=false
@@ -190,7 +270,7 @@ DSL_TO_COMMAND_COMPILATION=false
 AD_HOC_COMMAND_SYNTHESIS_FOR_EXECUTION_GATE=false
 ```
 
-If an execution detail matters, put it in the versioned executor or package manifest and test it there.
+If an execution detail matters, put it in the exact committed executor/manifest/tests.
 
 ---
 
@@ -200,7 +280,7 @@ A closure summary is not a substitute for raw evidence.
 
 For every external command or device operation whose details may matter later, the executor must persist the command description before starting the operation, then persist the result afterward.
 
-A recommended per-operation evidence layout is:
+Recommended per-operation layout:
 
 ```text
 op_NN/
@@ -230,14 +310,14 @@ op_NN/
 - first failed operation;
 - evidence file hashes.
 
-The evidence write order must make command evidence survive even if process launch itself fails:
+Evidence write order:
 
 ```text
 persist command.json
-→ execute
-→ persist stdout/stderr/result
-→ validate
-→ persist validation/adjudication
+-> execute
+-> persist stdout/stderr/result
+-> validate
+-> persist validation/adjudication
 ```
 
 Raw private evidence may stay outside Git, but GitHub must contain the public-safe manifest, hashes, status, and recovery locator needed for continuity.
@@ -265,12 +345,12 @@ SUPERSEDED_BY=
 
 Rules:
 
-- host-only package development does not consume the later physical/live authorization;
-- complete host-only prechecks before claiming a one-shot physical authorization whenever possible;
-- claim a finite physical authorization immediately before the first authorized target/device action, not during package construction;
+- package authoring, repair, and host tests happen before later physical/live authorization whenever possible;
+- package authoring is performed by the high-level model, not Codex;
+- claim a finite physical authorization immediately before the first authorized target/device action;
 - after claim, a one-shot/finite authorization is consumed even if execution later fails, unless the authorization explicitly says otherwise;
 - consumed/superseded authorization is never silently reused;
-- if executor/package material changes after authorization, treat that as a new authority binding and obtain new authorization when required;
+- if executor/package material changes after authorization, treat that as a new authority binding and obtain a new authorization when required;
 - `READY_FOR_*_AUTHORIZATION=true` is readiness only, not authorization.
 
 ---
@@ -279,21 +359,39 @@ Rules:
 
 Executor/tooling failure and product failure must remain separate.
 
-If an execution package fails before the target/device operation begins:
+If a package fails before the target/device operation begins:
 
 ```text
 PRODUCT_FAILURE_PROVEN=false
 EXECUTOR_OR_HOST_FAILURE=true
 ```
 
-Do not infer the root cause from a one-line STOP summary if actual argv/source/traceback evidence is absent.
+Do not infer a root cause from a compact STOP summary if actual argv/source/traceback evidence is absent.
 
-After any STOP, classify what is known as `OBSERVED`, `DERIVED`, and `HYPOTHESIS` before designing repair.
+After any STOP, classify what is known as `OBSERVED`, `DERIVED`, and `HYPOTHESIS` before repair.
 
-Repair is a separate gate unless the current package explicitly and safely authorizes a bounded continuation. For physical/one-shot gates, the default is:
+For package defects:
 
 ```text
-AUTO_REPAIR=false
+AUTO_REPAIR_BY_CODEX=false
+LOCAL_EXECUTOR_PATCH_BY_CODEX=false
+AD_HOC_SUBSTITUTE_COMMAND=false
+```
+
+Repair path:
+
+```text
+STOP
+-> high-level model edits package source
+-> commit to GitHub
+-> bind new exact commit/blob/hash
+-> run host tests
+-> re-evaluate authorization state
+```
+
+For physical/one-shot gates, default:
+
+```text
 AUTO_RETRY=false
 ```
 
@@ -334,11 +432,11 @@ If a section is not applicable, retain it and write `NOT_APPLICABLE:<reason>`.
 Record only authorities needed for continuation. Prefer the authority closest to the thing being proven:
 
 ```text
-source authority → exact commit/tree
-executor authority → exact commit/blob/hash
-OCI image → digest/image ID
-live runtime → docker/process/live evidence
-board identity → fresh silicon/ROM identity, not USB path
+source authority -> exact commit/tree
+executor authority -> exact commit/blob/hash
+OCI image -> digest/image ID
+live runtime -> docker/process/live evidence
+board identity -> fresh silicon/ROM identity, not USB path
 ```
 
 The handoff must explicitly say what is live now and what requires a fresh read-only rebind in the new session.
@@ -373,7 +471,7 @@ NEXT_ONE_GATE=<name>
 
 The gate must include purpose, frozen inputs, allowed/forbidden operations, PASS/FAIL/STOP conditions, package readiness/binding, expected raw evidence, and expected closure.
 
-If the required package is not yet materialized/tested, `NEXT_ONE_GATE` must be the host-only package materialization/repair gate.
+If a required package is not READY, physical/live execution is forbidden until the high-level model authors/repairs and commits the package and its host tests pass.
 
 Codex never auto-enters the next gate.
 
@@ -417,7 +515,7 @@ IMPORTANT_CHAT_ONLY_ARTIFACT_COUNT=<n>
 TEAM_SHARE_COMPLETENESS=PASS|FAIL
 ```
 
-Source/tests/execution packages with ongoing engineering value are not durably complete until pushed to GitHub and commit/hash-bound.
+Source, tests, and execution packages with ongoing engineering value are not durably complete until pushed to GitHub and commit/hash-bound.
 
 Raw private evidence may remain private if GitHub contains a safe locator/hash/status sufficient for future recovery.
 
@@ -432,7 +530,7 @@ When producing a handoff:
 3. Carry forward only current authorities and relevant closed-route guards.
 4. Preserve exact consumed/replay states.
 5. Define one next gate.
-6. Bind the exact Execution Package, or make package materialization the next gate.
+6. Bind the exact committed Execution Package, or mark execution blocked until the high-level model materializes it.
 7. Include raw-evidence requirements before execution.
 8. Include a self-contained new-chat start prompt.
 9. Run the compliance audit before calling the handoff formal.
@@ -449,16 +547,19 @@ Every formal handoff ends with this block, with all applicable fields `PASS` bef
 HANDOFF_STANDARD_VERSION=1.1
 
 PRIMARY_EXECUTION_PRINCIPLE_EXPLICIT=PASS
-EXECUTION_MODEL_EXPLICIT=PASS
+CODE_AUTHORING_MODEL_HIGH_LEVEL_ONLY=PASS
+HIGH_LEVEL_MODEL_EXECUTION_CODE_AUTHORING_EXPLICIT=PASS
+CODEX_CODE_AUTHORING_DISABLED=PASS
+CODEX_EXACT_EXECUTOR_AND_RESULT_REPORTER_ROLE=PASS
 EXECUTION_PACKAGE_MODEL_EXPLICIT=PASS
-CODEX_EXACT_EXECUTOR_ROLE_EXPLICIT=PASS
+EXECUTION_PACKAGE_STORAGE_MODEL_EXPLICIT=PASS
+CODEX_ONLY_FOLDER_DISABLED=PASS
 DSL_NOT_COMMAND_AUTHORITY=PASS
 RAW_EVIDENCE_FIRST_EXPLICIT=PASS
 
 PRODUCT_NORTH_STAR_PRESENT=PASS
 FROZEN_AUTHORITIES_COMPLETE=PASS
 CURRENT_LIVE_BASELINE_COMPLETE=PASS
-
 OBSERVED_DERIVED_HYPOTHESIS_SEPARATED=PASS
 CURRENT_BLOCKERS_EXPLICIT=PASS
 CLOSED_ROUTES_EXPLICIT=PASS
@@ -470,8 +571,7 @@ ROLLBACK_AUTHORITY_EXPLICIT=PASS
 
 NEXT_ONE_GATE_EXPLICIT=PASS
 NEXT_GATE_SCOPE_BOUNDED=PASS
-EXECUTION_PACKAGE_READY_OR_MATERIALIZATION_GATE=PASS
-
+EXECUTION_PACKAGE_READY_OR_EXECUTION_BLOCKED=PASS
 ALLOWED_FORBIDDEN_SCOPE_EXPLICIT=PASS
 RAW_EVIDENCE_CONTRACT_PRESENT=PASS
 EXPECTED_CLOSURE_PRESENT=PASS
@@ -508,13 +608,24 @@ Current standard candidate:
 
 ```text
 HANDOFF_STANDARD_VERSION=1.1
+PRIMARY_EXECUTION_PRINCIPLE=ACCURACY_SAFETY_EFFICIENCY_VERIFIABILITY_FIRST
 EXECUTION_MODEL=HIGH_LEVEL_MODEL_DESIGNS_VERSIONED_EXECUTION_PACKAGE
-CODEX_ROLE=EXACT_EXECUTOR
+CODE_AUTHORING_MODEL=HIGH_LEVEL_MODEL_ONLY
+HIGH_LEVEL_MODEL_WRITES_PROJECT_CODE=true
+HIGH_LEVEL_MODEL_WRITES_EXECUTION_CODE=true
+HIGH_LEVEL_MODEL_COMMITS_CODE_TO_GITHUB=true
+CODEX_CODE_AUTHORING=false
+CODEX_ROLE=EXACT_EXECUTOR_AND_RESULT_REPORTER
 REPOSITORY_VERSIONED_EXECUTOR=true
 RAW_EVIDENCE_FIRST=true
 DSL_EXECUTION_MODEL=false
 DSL_ROLE=GOAL_AND_BOUNDARY_ONLY
 DSL_TO_COMMAND_COMPILATION=false
+EXECUTION_PACKAGE_STORAGE_MODEL=STAGE_AND_GATE_SCOPED
+EXECUTION_PACKAGE_ROOT=tools/execution_packages/<project>/<stage>/<gate_id>/
+EXECUTION_PACKAGE_TEST_ROOT=tests/execution_packages/<project>/<stage>/<gate_id>/
+CODEX_ONLY_FOLDER=false
+PREMATURE_GENERIC_EXECUTION_FRAMEWORK=false
 NEXT_ONE_GATE_ONLY=true
 COMPLIANCE_AUDIT_REQUIRED=true
 ```
