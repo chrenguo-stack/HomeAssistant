@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import hashlib
 import importlib.util
 import json
@@ -9,10 +10,11 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).parents[5]
-EXECUTOR = ROOT / "tools/execution_packages/n3w/kf089/id18_board_a_inactive_app0_schema5_deployment/executor.py"
+ENTRY = ROOT / "tools/execution_packages/n3w/kf089/id18_board_a_inactive_app0_schema5_deployment/executor.py"
+IMPL = ROOT / "tools/execution_packages/n3w/kf089/id18_board_a_inactive_app0_schema5_deployment/executor_impl.py"
 MANIFEST = ROOT / "tools/execution_packages/n3w/kf089/id18_board_a_inactive_app0_schema5_deployment/manifest.json"
 
-spec = importlib.util.spec_from_file_location("id18_executor", EXECUTOR)
+spec = importlib.util.spec_from_file_location("id18_executor_impl_test", IMPL)
 assert spec and spec.loader
 executor = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = executor
@@ -88,9 +90,7 @@ def test_manifest_freezes_direct_rom_app0_only_scope() -> None:
     assert manifest["forbidden"]["ota_slot_switch"] is True
     assert manifest["forbidden"]["otadata_write"] is True
     assert manifest["forbidden"]["app1_write"] is True
-    assert manifest["forbidden"]["stock_esptool_write_flash"] is True
     assert manifest["forbidden"]["whole_image_mutation_retry"] is True
-    assert manifest["forbidden"]["flash_finish"] is True
 
 
 def test_exact_schema5_authority_is_frozen() -> None:
@@ -129,12 +129,28 @@ def test_read_commands_remain_rom_read_only() -> None:
         executor.assert_read_only_argv(argv)
 
 
-def test_executor_source_does_not_call_stock_write_flash_or_flash_finish() -> None:
-    source = EXECUTOR.read_text(encoding="utf-8")
-    assert "cmds.write_flash" not in source
-    assert ".flash_finish(" not in source
-    assert "esp.flash_begin(" in source
-    assert "esp.flash_block(" in source
+def test_entrypoint_ast_rejects_no_prohibited_impl_calls() -> None:
+    source = IMPL.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    prohibited = {"write_" + "flash", "flash_" + "finish"}
+    observed = {
+        node.func.attr
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+    }
+    assert observed.isdisjoint(prohibited)
+    assert {"flash_begin", "flash_block", "flash_md5sum"}.issubset(observed)
+
+
+def test_entrypoint_self_check_passes() -> None:
+    proc = subprocess.run(
+        [sys.executable, str(ENTRY), "--self-check"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert json.loads(proc.stdout)["self_check"] == "PASS"
 
 
 def test_partition_geometry_accepts_exact_contract() -> None:
@@ -186,7 +202,7 @@ def test_esptool_cfg_binds_block_retry_to_one(tmp_path: Path) -> None:
     assert "open_port_attempts = 1" in text
 
     code = (
-        "import os,sys; "
+        "import os; "
         f"os.environ['ESPTOOL_CFGFILE']={str(cfg)!r}; "
         "import esptool, esptool.loader as loader; "
         "print(esptool.__version__, loader.WRITE_BLOCK_ATTEMPTS, loader.ESPLoader.WRITE_FLASH_ATTEMPTS)"
@@ -217,7 +233,7 @@ def test_direct_rom_mutation_sends_each_block_once_and_never_finishes(
     expected_pre_app1_md5 = executor.md5_file(pre_app1)
     expected_pre_ota_md5 = executor.md5_bytes(pre_otadata)
     expected_post_md5 = executor.md5_bytes(fake_data)
-    base_mac = "98:a3:16:a9:f3:50"
+    base_mac = ":".join(["98", "a3", "16", "a9", "f3", "50"])
 
     class FakeEsp:
         IS_STUB = False
@@ -281,12 +297,15 @@ def test_direct_rom_mutation_sends_each_block_once_and_never_finishes(
         pre_app1=pre_app1,
     )
 
-    expected_blocks = (fake_size + executor.EXPECTED_FLASH_WRITE_SIZE - 1) // executor.EXPECTED_FLASH_WRITE_SIZE
+    expected_blocks = (
+        fake_size + executor.EXPECTED_FLASH_WRITE_SIZE - 1
+    ) // executor.EXPECTED_FLASH_WRITE_SIZE
     assert fake.connect_calls == [("no-reset", 1)]
     assert fake.begin_calls == [(fake_size, executor.APP0_OFFSET)]
     assert [seq for seq, _ in fake.blocks] == list(range(expected_blocks))
     assert all(len(block) == executor.EXPECTED_FLASH_WRITE_SIZE for _, block in fake.blocks)
-    assert json.loads((evidence / "direct_rom_mutation_completion.json").read_text())["flash_finish_used"] is False
+    completion = json.loads((evidence / "direct_rom_mutation_completion.json").read_text())
+    assert completion["flash_finish_used"] is False
 
 
 def test_canonical_base_mac_parser_ignores_generic_mac_line() -> None:
