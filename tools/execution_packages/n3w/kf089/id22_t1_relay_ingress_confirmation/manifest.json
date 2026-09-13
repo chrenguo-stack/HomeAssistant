@@ -17,7 +17,10 @@
     "esptool_version": "5.3.1",
     "board_a_public_suffix": "F3:50",
     "board_b_public_suffix": "F4:5C",
-    "t1_runtime_convergence": "CLOSED_PASS"
+    "t1_runtime_convergence": "CLOSED_PASS",
+    "manager_container_name": "greenhouse-manager",
+    "manager_compose_service": "greenhouse-manager",
+    "broker_compose_service": "broker"
   },
   "prestate_contract": {
     "both_selected_slots": 0,
