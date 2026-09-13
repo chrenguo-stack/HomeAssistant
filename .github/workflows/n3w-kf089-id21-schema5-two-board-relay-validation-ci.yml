@@ -1,0 +1,32 @@
+name: N3W KF089 ID21 Schema-v5 two-board Relay validation CI
+
+on:
+  pull_request:
+    paths:
+      - 'tools/execution_packages/n3w/kf089/id21_schema5_two_board_relay_validation/**'
+      - 'tests/execution_packages/n3w/kf089/id21_schema5_two_board_relay_validation/**'
+      - '.github/workflows/n3w-kf089-id21-schema5-two-board-relay-validation-ci.yml'
+  workflow_dispatch:
+
+jobs:
+  host-only:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install exact host dependency
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install 'esptool==5.3.1' pytest
+      - name: Validate manifest
+        run: python -m json.tool tools/execution_packages/n3w/kf089/id21_schema5_two_board_relay_validation/manifest.json >/dev/null
+      - name: Compile executors
+        run: |
+          python -m py_compile tools/execution_packages/n3w/kf089/id21_schema5_two_board_relay_validation/executor.py
+          python -m py_compile tools/execution_packages/n3w/kf089/id21_schema5_two_board_relay_validation/executor_impl.py
+      - name: Run self-check
+        run: python tools/execution_packages/n3w/kf089/id21_schema5_two_board_relay_validation/executor.py --self-check
+      - name: Run focused tests
+        run: python -m pytest -q tests/execution_packages/n3w/kf089/id21_schema5_two_board_relay_validation/test_executor.py

@@ -1,0 +1,85 @@
+{
+  "package_schema_version": 1,
+  "project": "n3w",
+  "stage": "kf089",
+  "gate_id": "id21_schema5_two_board_relay_validation",
+  "predecessor": {
+    "gate": "ID20R1",
+    "execution_package_commit": "88c7d29a1c6f9fc2b17e371b0c6dd95f8867ab61",
+    "result": "PASS"
+  },
+  "authority_references": {
+    "schema5_source_commit": "5d58727f5040281ee2beb9597f66a6a2da9bac57",
+    "schema5_firmware_size": 1115648,
+    "schema5_firmware_sha256": "5168a1958669ce06002cc5cb507fda7fc7477ca53294a73dbcf582e5879f383b",
+    "id18_executor_impl_git_blob": "27744d2b54ec0d5318496d9ca99b647465daa769",
+    "diag_parser_git_blob": "af78ed4cb14c38579f56e6ba3019e2debdb21d9e",
+    "esptool_version": "5.3.1",
+    "board_a_public_suffix": "F3:50",
+    "board_b_public_suffix": "F4:5C",
+    "progress_sync_commit": "86a3b4b51863e0995832270cc8d52dc34ae5bfd4"
+  },
+  "prestate_contract": {
+    "board_a_selected_slot": 0,
+    "board_a_active_ota_seq": 5,
+    "active_ota_state": 2,
+    "both_selected_images_exact_schema5": true,
+    "both_diagnostic_schema_version": 5,
+    "board_a_compact_counters_all_zero": true
+  },
+  "operator_contract": {
+    "normal_boots_per_board": 2,
+    "direct_baseline_min_seconds": 60,
+    "relay_staging_min_seconds": 45,
+    "relay_window_min_seconds": 150,
+    "selective_rf_condition": "Board A remains in normal AP coverage; Board B loses AP/Wi-Fi while A<->B ESP-NOW remains viable",
+    "post_relay_board_a_persist_seconds": 10,
+    "serial_open": false,
+    "t1_access": false,
+    "automatic_retry": false
+  },
+  "direct_baseline_contract": {
+    "both_schema_version": 5,
+    "both_final_path_state": 0,
+    "both_relay_active_count": 0,
+    "both_relay_telemetry_attempts": 0,
+    "board_a_compact_counters_all_zero": true,
+    "both_minimum_relay_advertisement_attempts": 1
+  },
+  "relay_validation_contract": {
+    "board_a_final_path_state": 0,
+    "board_b_final_path_state": 2,
+    "board_b_minimum_relay_active_count": 1,
+    "board_b_minimum_accept_verify": 1,
+    "board_b_minimum_peer_install_success": 1,
+    "board_b_minimum_relay_telemetry_attempts": 1,
+    "board_b_minimum_relay_telemetry_submit_success": 1,
+    "board_b_minimum_unicast_completion_success": 1,
+    "board_a_minimum_compact_rx_count": 1,
+    "board_a_minimum_compact_decode_success": 1,
+    "board_a_minimum_compact_forward_attempts": 1,
+    "board_a_minimum_compact_forward_submit_success": 1
+  },
+  "success_contract": {
+    "board_side_relay_chain_proven": true,
+    "kf089_end_to_end_relay_telemetry": "NOT_YET_PROVEN",
+    "next_route": "PREPARE_KF089_T1_RELAY_INGRESS_CONFIRMATION_PACKAGE"
+  },
+  "forbidden": {
+    "flash_write": true,
+    "flash_erase": true,
+    "nvs_write": true,
+    "otadata_write": true,
+    "app_write": true,
+    "partition_table_write": true,
+    "bootloader_write": true,
+    "pairing_change": true,
+    "credential_change": true,
+    "serial_open": true,
+    "t1_access": true,
+    "third_normal_boot": true,
+    "automatic_retry": true,
+    "automatic_rollback": true,
+    "firmware_reflash": true
+  }
+}
