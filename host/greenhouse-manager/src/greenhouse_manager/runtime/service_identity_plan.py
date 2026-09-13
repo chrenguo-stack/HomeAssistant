@@ -55,6 +55,7 @@ def _allow_topic(topic: str) -> tuple[DynsecAcl, ...]:
 
 def _manager_acls(system_id: str) -> tuple[DynsecAcl, ...]:
     ingress = f"gh/v1/{system_id}/ingress/node/+/telemetry"
+    relay_ingress = f"gh/v1/{system_id}/ingress/gateway/+/+/frame"
     state_telemetry = f"gh/v1/{system_id}/state/+/telemetry"
     return (
         DynsecAcl("publishClientSend", "$CONTROL/#", False, 1000),
@@ -68,6 +69,7 @@ def _manager_acls(system_id: str) -> tuple[DynsecAcl, ...]:
             100,
         ),
         *_allow_topic(ingress),
+        *_allow_topic(relay_ingress),
         *_allow_topic(state_telemetry),
         *_allow_topic("gh/bootstrap/v1/node/+/hello"),
     )
