@@ -15,7 +15,7 @@ Package preparation does not authorize T1 access or mutation. A fresh explicit a
 
 ## Source repair
 
-The Manager service identity contract now grants the exact existing runtime Relay subscription:
+The Manager service identity contract grants the exact existing runtime Relay subscription:
 
 ```text
 gh/v1/<system_id>/ingress/gateway/+/+/frame
@@ -46,9 +46,10 @@ Before mutation the executor must prove:
 3. the expected Manager service role is bound to that active client;
 4. default `subscribe` and `publishClientReceive` are deny;
 5. the Direct ingress receive ACL contract remains intact;
-6. no exact or broader Relay receive allow currently covers the target;
+6. no exact or broader Relay receive/unsubscribe allow currently covers the target;
 7. the Manager container has a complete dedicated N3-W provisioning identity and Broker endpoint;
-8. the repaired source contract is bound to the exact repository blob.
+8. the repaired source contract is bound to the exact repository blob;
+9. a fresh private copy of the live Dynamic Security JSON is recorded with SHA256 before the first mutation command.
 
 Any drift stops before mutation.
 
@@ -64,11 +65,54 @@ allow unsubscribePattern     gh/v1/<sid>/ingress/gateway/+/+/frame priority=100
 
 The control operation is executed in the existing Manager container through stdin-fed Python. No script, credential, or temporary file is written on T1. The provisioning password is read only inside the container and is never emitted.
 
+## Exact poststate contract
+
+PASS requires independent live Dynamic Security readback to prove all of the following simultaneously:
+
+```text
+EXACT_TARGET_ACL_ENTRY_COUNT=3
+EACH_TARGET_ACL_TYPE_COUNT=1
+DEFAULT_SUBSCRIBE_DENY=true
+DEFAULT_PUBLISH_CLIENT_RECEIVE_DENY=true
+DIRECT_INGRESS_ACL_CONTRACT_INTACT=true
+RELAY_SUBSCRIBE_BROAD_ALLOW_COUNT=1
+RELAY_RECEIVE_BROAD_ALLOW_COUNT=1
+RELAY_UNSUBSCRIBE_BROAD_ALLOW_COUNT=1
+```
+
+The `=1` broad counts above mean the exact target topic itself is the only matching allow. Any broader `gateway/#`, `ingress/#`, `gh/#`, `#`, duplicate exact ACL, or default-access weakening is a transaction failure.
+
 ## Transaction and rollback
 
-The prestate has all three target ACLs absent. After the bounded `addRoleACL` operations, live Dynamic Security state is independently read from the authoritative Broker.
+The proven prestate has all three target ACLs absent. After the first mutation attempt, **any** later failure before full PASS enters rollback, including:
 
-If the mutation is partial, rejected, or the exact poststate is not proven, ID24 removes only target ACLs observed present and then re-reads live state. PASS rollback means the prestate absence is restored. A rollback that cannot be proven is a hard STOP requiring high-level recovery; no automatic repair retry is allowed.
+- an addRoleACL rejection or uncertain response;
+- failure to read/parse the post-mutation DynSec state;
+- exact-poststate mismatch;
+- broader/default ACL drift;
+- Manager/Broker runtime-stability postcheck failure;
+- unexpected exception after mutation began.
+
+Rollback issues `removeRoleACL` only for the same three exact target ACL type/topic pairs, then independently re-reads the authoritative live DynSec state.
+
+The live readback is the rollback authority. A remove command may return non-PASS when an uncertain add never committed; this is benign only if the final authoritative state exactly matches the proven prestate defect contract.
+
+```text
+ROLLBACK_PASS=
+  target exact/broad Relay ACL coverage restored to zero
+  AND default subscribe remains deny
+  AND default publishClientReceive remains deny
+  AND Direct ingress ACL contract remains intact
+```
+
+If rollback cannot be proven:
+
+```text
+ROLLBACK_RESULT=FAIL
+FIRST_FAILED_OPERATION=T1_DYNSEC_ROLLBACK
+AUTO_RETRY=false
+MANUAL_RECOVERY_REQUIRED_BY_HIGH_LEVEL_MODEL=true
+```
 
 Rollback is a safety action inside the same authorization, not a replay.
 
@@ -77,8 +121,10 @@ Rollback is a safety action inside the same authorization, not a replay.
 ```text
 SOURCE_CONTRACT_REPAIRED=true
 LIVE_PRESTATE_DEFECT_PROVEN=true
+PRECHANGE_DYNSEC_SNAPSHOT_SHA256_RECORDED=true
 TARGET_ACL_ADD_SUCCESS_COUNT=3
 POSTSTATE_EXACT_RELAY_ACL_COUNT=3
+POSTSTATE_EXACT_CONTRACT_PROVEN=true
 MANAGER_RUNTIME_STABLE=true
 BROKER_RUNTIME_STABLE=true
 REPAIR_RESULT=PASS
@@ -114,10 +160,10 @@ AUTO_RETRY=false
 PR_MERGE=false
 ```
 
-The only live mutation later authorized by ID24 is the exact three-entry Dynamic Security role ACL change plus a bounded rollback if needed.
+The only live mutation later authorized by ID24 is the exact three-entry Dynamic Security role ACL change plus bounded rollback of those same exact entries if needed.
 
 ## Private/public boundary
 
-Private evidence may contain the SSH target, raw Docker inspect output, raw DynSec JSON, active client/role names, system ID, private paths, and provisioning configuration metadata. None may be posted to public GitHub.
+Private evidence may contain the SSH target, raw Docker inspect output, raw DynSec JSON, active client/role names, system ID, private paths, provisioning configuration metadata, and the private prechange snapshot/hash authority. None may be posted to public GitHub.
 
 Public-safe evidence is limited to exact source/package commits, booleans, sanitized counts, PASS/STOP classification, rollback status, and next-route classification.
