@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import shlex
@@ -45,6 +46,10 @@ def dump(path: Path, value: Any) -> None:
         json.dumps(value, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+
+
+def sha256_text(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
 def git_text(args: list[str]) -> str:
@@ -333,6 +338,21 @@ def _allowed_topics(
     }
 
 
+def _allowed_exact_count(
+    role: dict[str, Any],
+    acl_type: str,
+    topic: str,
+) -> int:
+    return sum(
+        1
+        for acl in role.get("acls") or []
+        if isinstance(acl, dict)
+        and acl.get("acltype") == acl_type
+        and acl.get("allow") is True
+        and acl.get("topic") == topic
+    )
+
+
 def analyze_dynsec(
     raw: str,
     runtime_env: dict[str, str],
@@ -348,16 +368,9 @@ def analyze_dynsec(
         ) from exc
     if not isinstance(value, dict):
         raise StopExecution("T1_DYNSEC_STATE", "DynSec root is not an object")
-    clients = [
-        item
-        for item in (value.get("clients") or [])
-        if isinstance(item, dict)
-    ]
-    roles_list = [
-        item
-        for item in (value.get("roles") or [])
-        if isinstance(item, dict)
-    ]
+
+    clients = [item for item in (value.get("clients") or []) if isinstance(item, dict)]
+    roles_list = [item for item in (value.get("roles") or []) if isinstance(item, dict)]
     roles = {
         item.get("rolename"): item
         for item in roles_list
@@ -433,9 +446,13 @@ def analyze_dynsec(
         "gh/#",
         "#",
     }
-    relay_exact_present = {
-        acl_type: relay_topic in _allowed_topics(role, acl_type)
+    relay_exact_entry_counts = {
+        acl_type: _allowed_exact_count(role, acl_type, relay_topic)
         for acl_type in TARGET_ACL_TYPES
+    }
+    relay_exact_present = {
+        acl_type: count == 1
+        for acl_type, count in relay_exact_entry_counts.items()
     }
     relay_subscribe_broad_count = len(
         _allowed_topics(role, "subscribePattern") & broad
@@ -443,15 +460,14 @@ def analyze_dynsec(
     relay_receive_broad_count = len(
         _allowed_topics(role, "publishClientReceive") & broad
     )
+    relay_unsubscribe_broad_count = len(
+        _allowed_topics(role, "unsubscribePattern") & broad
+    )
 
     direct_topic = f"gh/v1/{system_id}/ingress/node/+/telemetry"
     direct_contract_ok = all(
         direct_topic in _allowed_topics(role, acl_type)
-        for acl_type in (
-            "subscribePattern",
-            "publishClientReceive",
-            "unsubscribePattern",
-        )
+        for acl_type in TARGET_ACL_TYPES
     )
     if not direct_contract_ok:
         raise StopExecution(
@@ -464,13 +480,24 @@ def analyze_dynsec(
         and default_receive_deny
         and relay_subscribe_broad_count == 0
         and relay_receive_broad_count == 0
-        and not any(relay_exact_present.values())
+        and relay_unsubscribe_broad_count == 0
+        and all(count == 0 for count in relay_exact_entry_counts.values())
     )
     if require_defect and not defect:
         raise StopExecution(
             "T1_DYNSEC_STATE",
             "live Manager Relay ACL prestate no longer matches the proven defect",
         )
+
+    exact_repaired_contract = (
+        default_subscribe_deny
+        and default_receive_deny
+        and direct_contract_ok
+        and all(count == 1 for count in relay_exact_entry_counts.values())
+        and relay_subscribe_broad_count == 1
+        and relay_receive_broad_count == 1
+        and relay_unsubscribe_broad_count == 1
+    )
 
     return {
         "system_id": system_id,
@@ -479,12 +506,23 @@ def analyze_dynsec(
         "default_subscribe_deny": default_subscribe_deny,
         "default_publish_client_receive_deny": default_receive_deny,
         "relay_exact_present": relay_exact_present,
-        "relay_exact_count": sum(relay_exact_present.values()),
+        "relay_exact_entry_counts": relay_exact_entry_counts,
+        "relay_exact_count": sum(relay_exact_entry_counts.values()),
         "relay_subscribe_broad_allow_count": relay_subscribe_broad_count,
         "relay_receive_broad_allow_count": relay_receive_broad_count,
+        "relay_unsubscribe_broad_allow_count": relay_unsubscribe_broad_count,
         "direct_contract_ok": direct_contract_ok,
         "defect": defect,
+        "exact_repaired_contract": exact_repaired_contract,
     }
+
+
+def require_exact_repaired_poststate(analysis: dict[str, Any]) -> None:
+    if not analysis.get("exact_repaired_contract"):
+        raise StopExecution(
+            "T1_DYNSEC_POSTCHECK",
+            "live DynSec poststate is not the exact least-privilege repaired contract",
+        )
 
 
 def runtime_fingerprint(item: dict[str, Any]) -> dict[str, Any]:
@@ -512,8 +550,7 @@ def require_runtime_stable(
     manager_stable = (
         after_manager_fp["id"] == before_manager_fp["id"]
         and after_manager_fp["image"] == before_manager_fp["image"]
-        and after_manager_fp["restart_count"]
-        == before_manager_fp["restart_count"]
+        and after_manager_fp["restart_count"] == before_manager_fp["restart_count"]
         and after_manager_fp["started_at"] == before_manager_fp["started_at"]
         and after_manager_fp["running"] is True
     )
@@ -595,6 +632,86 @@ def read_live_dynsec(
     )
 
 
+def save_prechange_snapshot(root: Path, raw: str) -> str:
+    snapshot_path = root / "prechange_dynamic_security_private.json"
+    snapshot_path.write_text(raw, encoding="utf-8")
+    digest = sha256_text(raw)
+    dump(
+        root / "prechange_dynamic_security_authority_private.json",
+        {
+            "sha256": digest,
+            "utf8_bytes": len(raw.encode("utf-8")),
+            "snapshot_file": snapshot_path.name,
+        },
+    )
+    return digest
+
+
+def rollback_target_acls(
+    *,
+    root: Path,
+    next_op: int,
+    target: str,
+    manager_id: str,
+    python_path: str,
+    role_name: str,
+    topic: str,
+    mutator_bytes: bytes,
+    broker_id: str,
+    dynsec_state_path: str,
+    runtime_env: dict[str, str],
+) -> tuple[int, bool, str]:
+    failures = 0
+    for acl_type in TARGET_ACL_TYPES:
+        result = ssh_op(
+            root,
+            next_op,
+            f"rollback_remove_{acl_type}",
+            target,
+            mutator_command(
+                manager_id,
+                python_path,
+                "remove",
+                role_name,
+                acl_type,
+                topic,
+            ),
+            input_bytes=mutator_bytes,
+        )
+        next_op += 1
+        if not mutator_result_ok(result):
+            failures += 1
+
+    try:
+        rollback_raw = read_live_dynsec(
+            root,
+            next_op,
+            "rollback_broker_dynamic_security_json",
+            target,
+            broker_id,
+            dynsec_state_path,
+        )
+        next_op += 1
+        rollback = analyze_dynsec(
+            rollback_raw,
+            runtime_env,
+            require_defect=True,
+        )
+        restored = rollback["defect"] is True
+    except Exception as exc:
+        return next_op, False, f"rollback verification failed: {type(exc).__name__}: {exc}"
+
+    if not restored:
+        return next_op, False, "rollback state did not restore proven prestate defect"
+    # Live readback is the rollback authority. A removeRoleACL response can be
+    # non-PASS when the target ACL was never committed; that is benign if the
+    # authoritative post-rollback state exactly matches the proven prestate.
+    return next_op, True, (
+        "" if failures == 0 else
+        f"prestate restored despite {failures} non-PASS remove responses"
+    )
+
+
 def self_check() -> None:
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     if manifest.get("gate_id") != "id24_manager_relay_dynsec_acl_repair":
@@ -628,6 +745,7 @@ def main() -> int:
     if args.self_check:
         self_check()
         return 0
+
     required = (
         "expected_package_commit",
         "authorization_id",
@@ -657,8 +775,10 @@ def main() -> int:
         "application_topic_subscriber": False,
         "source_contract_repaired": False,
         "live_prestate_defect_proven": False,
+        "prechange_dynsec_snapshot_sha256_recorded": False,
         "target_acl_add_success_count": 0,
         "poststate_exact_relay_acl_count": 0,
+        "poststate_exact_contract_proven": False,
         "rollback_attempted": False,
         "rollback_result": "NOT_NEEDED",
         "repair_result": "STOP",
@@ -669,15 +789,17 @@ def main() -> int:
     }
 
     mutator_bytes = b""
-    target_context: dict[str, Any] | None = None
     manager: dict[str, Any] | None = None
     broker: dict[str, Any] | None = None
     runtime_env: dict[str, str] | None = None
-    dynsec_state_path: str | None = None
+    target_context: dict[str, Any] | None = None
+    dynsec_state_path = ""
     manager_id = ""
     broker_id = ""
     python_path = ""
     next_op = 1
+    mutation_started = False
+    mutation_completed = False
 
     try:
         validate_target(args.t1_ssh_target)
@@ -741,14 +863,14 @@ def main() -> int:
                 "T1_RUNTIME_PRECLAIM",
                 "T1 container inventory is empty",
             )
+
         inspect_raw = require_ok(
             ssh_op(
                 root,
                 next_op,
                 "preclaim_t1_container_inspect",
                 args.t1_ssh_target,
-                "docker inspect "
-                + " ".join(shlex.quote(value) for value in ids),
+                "docker inspect " + " ".join(shlex.quote(value) for value in ids),
             ),
             "T1_RUNTIME_PRECLAIM",
             "cannot inspect T1 containers",
@@ -779,6 +901,7 @@ def main() -> int:
         )
         next_op += 1
         dynsec_state_path = dynsec_path(conf)
+
         prestate_raw = read_live_dynsec(
             root,
             next_op,
@@ -794,6 +917,8 @@ def main() -> int:
             require_defect=True,
         )
         closure["live_prestate_defect_proven"] = True
+        digest = save_prechange_snapshot(root, prestate_raw)
+        closure["prechange_dynsec_snapshot_sha256_recorded"] = bool(digest)
         dump(root / "prestate_analysis_private.json", target_context)
 
         required_env = (
@@ -830,11 +955,7 @@ def main() -> int:
             "Manager Python runtime is unavailable",
         )
         next_op += 1
-        python_path = (
-            python_raw.strip().splitlines()[0]
-            if python_raw.strip()
-            else ""
-        )
+        python_path = python_raw.strip().splitlines()[0] if python_raw.strip() else ""
         if not python_path.startswith("/"):
             raise StopExecution(
                 "T1_PROVISIONING_PRECLAIM",
@@ -863,7 +984,7 @@ def main() -> int:
                 "in-container provisioning transport preflight failed",
             )
 
-        add_failure: str | None = None
+        mutation_started = True
         for acl_type in TARGET_ACL_TYPES:
             result = ssh_op(
                 root,
@@ -882,11 +1003,12 @@ def main() -> int:
             )
             next_op += 1
             closure["dynsec_mutation"] = True
-            if mutator_result_ok(result):
-                closure["target_acl_add_success_count"] += 1
-                continue
-            add_failure = acl_type
-            break
+            if not mutator_result_ok(result):
+                raise StopExecution(
+                    "T1_DYNSEC_MUTATION",
+                    f"addRoleACL failed or response was uncertain for {acl_type}",
+                )
+            closure["target_acl_add_success_count"] += 1
 
         post_raw = read_live_dynsec(
             root,
@@ -903,68 +1025,8 @@ def main() -> int:
             require_defect=False,
         )
         closure["poststate_exact_relay_acl_count"] = post["relay_exact_count"]
-        all_target_present = (
-            post["relay_exact_count"] == len(TARGET_ACL_TYPES)
-            and all(post["relay_exact_present"].values())
-        )
-        if add_failure is not None or not all_target_present:
-            closure["rollback_attempted"] = True
-            rollback_command_failures = 0
-            for acl_type in TARGET_ACL_TYPES:
-                if not post["relay_exact_present"].get(acl_type, False):
-                    continue
-                result = ssh_op(
-                    root,
-                    next_op,
-                    f"rollback_remove_{acl_type}",
-                    args.t1_ssh_target,
-                    mutator_command(
-                        manager_id,
-                        python_path,
-                        "remove",
-                        target_context["role_name"],
-                        acl_type,
-                        target_context["relay_topic"],
-                    ),
-                    input_bytes=mutator_bytes,
-                )
-                next_op += 1
-                if not mutator_result_ok(result):
-                    rollback_command_failures += 1
-
-            rollback_raw = read_live_dynsec(
-                root,
-                next_op,
-                "rollback_broker_dynamic_security_json",
-                args.t1_ssh_target,
-                broker_id,
-                dynsec_state_path,
-            )
-            next_op += 1
-            rollback = analyze_dynsec(
-                rollback_raw,
-                runtime_env,
-                require_defect=False,
-            )
-            rollback_restored = (
-                rollback["relay_exact_count"] == 0
-                and rollback["relay_subscribe_broad_allow_count"] == 0
-                and rollback["relay_receive_broad_allow_count"] == 0
-            )
-            closure["rollback_result"] = (
-                "PASS"
-                if rollback_command_failures == 0 and rollback_restored
-                else "FAIL"
-            )
-            if closure["rollback_result"] != "PASS":
-                raise StopExecution(
-                    "T1_DYNSEC_ROLLBACK",
-                    "ACL repair failed and rollback was not proven",
-                )
-            raise StopExecution(
-                "T1_DYNSEC_MUTATION",
-                "ACL repair did not reach the exact target state; prestate restored",
-            )
+        require_exact_repaired_poststate(post)
+        closure["poststate_exact_contract_proven"] = True
 
         ids_after_raw = require_ok(
             ssh_op(
@@ -978,19 +1040,14 @@ def main() -> int:
             "cannot enumerate T1 containers after repair",
         )
         next_op += 1
-        ids_after = [
-            line.strip()
-            for line in ids_after_raw.splitlines()
-            if line.strip()
-        ]
+        ids_after = [line.strip() for line in ids_after_raw.splitlines() if line.strip()]
         inspect_after_raw = require_ok(
             ssh_op(
                 root,
                 next_op,
                 "postcheck_t1_container_inspect",
                 args.t1_ssh_target,
-                "docker inspect "
-                + " ".join(shlex.quote(value) for value in ids_after),
+                "docker inspect " + " ".join(shlex.quote(value) for value in ids_after),
             ),
             "T1_RUNTIME_POSTCHECK",
             "cannot inspect T1 containers after repair",
@@ -1002,6 +1059,8 @@ def main() -> int:
             parse_inventory(inspect_after_raw),
         )
         closure.update(stability)
+
+        mutation_completed = True
         closure["repair_result"] = "PASS"
         closure["next_route"] = (
             "PREPARE_KF089_MANAGER_RELAY_SUBSCRIPTION_REACTIVATION_PACKAGE"
@@ -1013,6 +1072,46 @@ def main() -> int:
     except Exception as exc:
         closure["first_failed_operation"] = "UNEXPECTED_EXCEPTION"
         closure["stop_reason"] = f"{type(exc).__name__}: {exc}"
+
+    if (
+        mutation_started
+        and not mutation_completed
+        and target_context is not None
+        and runtime_env is not None
+        and manager_id
+        and broker_id
+        and python_path
+        and dynsec_state_path
+        and mutator_bytes
+    ):
+        closure["rollback_attempted"] = True
+        try:
+            next_op, rollback_ok, rollback_reason = rollback_target_acls(
+                root=root,
+                next_op=next_op,
+                target=args.t1_ssh_target,
+                manager_id=manager_id,
+                python_path=python_path,
+                role_name=target_context["role_name"],
+                topic=target_context["relay_topic"],
+                mutator_bytes=mutator_bytes,
+                broker_id=broker_id,
+                dynsec_state_path=dynsec_state_path,
+                runtime_env=runtime_env,
+            )
+        except Exception as exc:
+            rollback_ok = False
+            rollback_reason = f"{type(exc).__name__}: {exc}"
+        closure["rollback_result"] = "PASS" if rollback_ok else "FAIL"
+        if not rollback_ok:
+            original = closure.get("stop_reason") or "mutation failed"
+            closure["first_failed_operation"] = "T1_DYNSEC_ROLLBACK"
+            closure["stop_reason"] = (
+                f"{original}; rollback incomplete: {rollback_reason}"
+            )
+        else:
+            original = closure.get("stop_reason") or "mutation did not complete"
+            closure["stop_reason"] = f"{original}; exact prestate restored"
 
     if root.exists():
         dump(root / "closure.json", closure)
