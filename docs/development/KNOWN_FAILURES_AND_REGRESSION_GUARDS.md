@@ -172,6 +172,16 @@
 | KF-090 | N3-W physical target binding / board-targeted mutation | Board-targeted schema-v4 deployment initially stopped before mutation because the executor compared the operator-confirmed physical target against an inverted historical A/B identity mapping | Historical A/B identity mapping authority was wrong; USB port/history cannot establish current board identity | Any board-targeted mutation must first stop for explicit operator target/connection confirmation; pending human action is `STOP_PENDING_OPERATOR`, not FAIL; after confirmation perform fresh ROM silicon identity verification before any write; USB port is locator only; any identity mismatch stops before mutation | GUARDED |
 | KF-089 | N3-W Board B provisioned cold-boot Relay | 已配网节点在 Wi-Fi 不可用条件下冷启动时，T1 既看不到 Direct 也看不到 Relay；源码证明 Relay-capable N3-W runtime 根本未初始化 | 产品 startup gate 在 ESP-NOW 初始化和 `runtime_.start(...)` 之前要求 `wifi_connected()`，导致 Direct Wi-Fi 不可用时阻断整个 Relay-capable runtime | startup-gate source repair 已合并并证明；provisioned runtime 可在无既有 Wi-Fi association 时启动，Direct 仍优先；Direct→DISCOVERY、autonomous scan、A/B ESP-NOW reachability、Relay advertisement decode/acceptance 与 authenticated Relay acquisition 已有 durable evidence；E2E Relay telemetry 仍未证明。Schema-v5 observability 用于区分 B unicast completion 与 A compact RX/forwarding；full custom radio ownership 继续 deferred | GUARDED |
 
+### KF-089 current addendum — Manager Relay DynSec receive ACL blocker
+
+ID21 has proven the complete board-side Relay chain, including B unicast TX completion and A compact RX/decode/forward submission. ID22R2 then stopped at Manager Relay acceptance. ID23 proved `MANAGER_RELAY_DYNSEC_SOURCE_CONTRACT_DEFECT=PROVEN`, `LIVE_T1_MANAGER_DYNSEC_ROLE_MATCHES_SOURCE_DEFECT=PROVEN`, and `ROOT_CAUSE=MANAGER_RELAY_DYNSEC_RECEIVE_ACL_MISSING`; all three observed node clients retained their self-gateway publish ACL coverage.
+
+Regression guard: Manager Relay receive permission may cover only `gh/v1/<system_id>/ingress/gateway/+/+/frame` with the exact `subscribePattern`, `publishClientReceive`, and `unsubscribePattern` allow trio. Broader `gateway/#`, `ingress/#`, `gh/#`, or `#` grants are forbidden, and DynSec subscribe / publishClientReceive defaults must remain deny. Any live repair must exact-bind the active Manager identity/role, save a fresh private prechange DynSec snapshot plus SHA256, use bounded rollback after an incomplete started mutation, and still perform a later bounded end-to-end Relay retest.
+
+`PREPARE_KF089_MANAGER_RELAY_DYNSEC_ACL_REPAIR_PACKAGE=PASS`; `KF089_END_TO_END_RELAY_TELEMETRY=NOT_PROVEN`; next gate is `REQUEST_KF089_MANAGER_RELAY_DYNSEC_ACL_REPAIR_T1_MUTATION_AUTHORIZATION`.
+
+Detailed public-safe authority: `docs/development/N3W_KF089_MANAGER_RELAY_DYNSEC_ACL_FAILURE_AND_GUARDS_20260913.md`
+
 ## 固定回归规则
 
 **Physical target confirmation before board mutation**：任何 board-targeted Flash/NVS/otadata/firmware mutation 前，executor 必须先取得明确的 operator target/connection confirmation，再访问板卡；human action 必须停在 `STOP_PENDING_OPERATOR`。确认后仍必须独立完成 fresh silicon identity verification，且 identity 必须与目标匹配后才可写入。USB port number 只能作为 locator，不能作为 identity authority。
