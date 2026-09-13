@@ -22,12 +22,25 @@ sys.modules[entry_spec.name] = entry
 entry_spec.loader.exec_module(entry)
 
 
-def _container_row(*, service: str, cid: str, running: bool = True, restart: int = 0, network: str = "bridge", ports: dict | None = None) -> dict:
+def _container_row(
+    *,
+    service: str,
+    cid: str,
+    name: str | None = None,
+    project: str = "test",
+    running: bool = True,
+    restart: int = 0,
+    network: str = "bridge",
+    ports: dict | None = None,
+) -> dict:
     return {
         "id": cid,
-        "name": "/" + service,
+        "name": "/" + (name or service),
         "image": "local/" + service + ":test",
-        "labels": {"com.docker.compose.service": service, "com.docker.compose.project": "test"},
+        "labels": {
+            "com.docker.compose.service": service,
+            "com.docker.compose.project": project,
+        },
         "running": running,
         "restart_count": restart,
         "network_mode": network,
@@ -86,33 +99,81 @@ def _snapshot_b_relay() -> dict[str, int]:
     return value
 
 
+def _healthy_runtime_rows() -> list[dict]:
+    return [
+        _container_row(
+            service="greenhouse-manager",
+            name="greenhouse-manager",
+            cid="m1",
+            project="manager-successor",
+            network="host",
+        ),
+        _container_row(
+            service="broker",
+            name="fc4-broker",
+            cid="b1",
+            project="n3wfc4",
+            ports={"8883/tcp": [{"HostIp": "0.0.0.0", "HostPort": "8883"}]},
+        ),
+        _container_row(service="homeassistant", name="fc4-homeassistant", cid="h1"),
+    ]
+
+
 def test_self_check() -> None:
     impl.self_check()
     entry.self_check()
 
 
-def test_t1_runtime_classifier_accepts_single_healthy_manager_broker() -> None:
-    rows = [
-        _container_row(service="manager", cid="m1", network="host"),
-        _container_row(service="broker", cid="b1", ports={"8883/tcp": [{"HostIp": "0.0.0.0", "HostPort": "8883"}]}),
-        _container_row(service="homeassistant", cid="h1"),
-    ]
-    result = impl.classify_t1_runtime(rows)
+def test_current_t1_runtime_classifier_accepts_authoritative_manager_broker() -> None:
+    result = entry._classify_current_t1_runtime(impl, _healthy_runtime_rows())
     assert result["manager"]["id"] == "m1"
     assert result["broker"]["id"] == "b1"
 
 
-def test_t1_runtime_classifier_rejects_duplicate_manager() -> None:
-    rows = [
-        _container_row(service="manager", cid="m1", network="host"),
-        _container_row(service="manager", cid="m2", network="host"),
-        _container_row(service="broker", cid="b1", ports={"8883/tcp": [{"HostIp": "0.0.0.0", "HostPort": "8883"}]}),
-    ]
+def test_current_t1_runtime_classifier_rejects_legacy_manager_service_name() -> None:
+    rows = _healthy_runtime_rows()
+    rows[0]["labels"]["com.docker.compose.service"] = "manager"
     try:
-        impl.classify_t1_runtime(rows)
+        entry._classify_current_t1_runtime(impl, rows)
     except impl.StopExecution:
         return
-    raise AssertionError("duplicate Manager must fail closed")
+    raise AssertionError("legacy Manager service selector must fail closed")
+
+
+def test_current_t1_runtime_classifier_rejects_manager_container_name_mismatch() -> None:
+    rows = _healthy_runtime_rows()
+    rows[0]["name"] = "/other-manager"
+    try:
+        entry._classify_current_t1_runtime(impl, rows)
+    except impl.StopExecution:
+        return
+    raise AssertionError("Manager container-name mismatch must fail closed")
+
+
+def test_current_t1_runtime_classifier_rejects_duplicate_authoritative_manager() -> None:
+    rows = _healthy_runtime_rows()
+    rows.insert(
+        1,
+        _container_row(
+            service="greenhouse-manager",
+            name="greenhouse-manager",
+            cid="m2",
+            project="manager-successor",
+            network="host",
+        ),
+    )
+    try:
+        entry._classify_current_t1_runtime(impl, rows)
+    except impl.StopExecution:
+        return
+    raise AssertionError("duplicate authoritative Manager must fail closed")
+
+
+def test_runtime_classifier_installer_replaces_stale_impl_selector() -> None:
+    entry._install_current_t1_runtime_classifier(impl)
+    result = impl.classify_t1_runtime(_healthy_runtime_rows())
+    assert result["manager"]["id"] == "m1"
+    assert result["broker"]["id"] == "b1"
 
 
 def test_manager_relay_log_parser_positive() -> None:
@@ -138,8 +199,20 @@ def test_board_relay_adjudication_same_fresh_session_passes() -> None:
 
 def test_t1_stability_requires_same_ids_and_restart_counts() -> None:
     pre = {
-        "manager": _container_row(service="manager", cid="m1", network="host", restart=0),
-        "broker": _container_row(service="broker", cid="b1", restart=0, ports={"8883/tcp": [{}]}),
+        "manager": _container_row(
+            service="greenhouse-manager",
+            name="greenhouse-manager",
+            cid="m1",
+            network="host",
+            restart=0,
+        ),
+        "broker": _container_row(
+            service="broker",
+            name="fc4-broker",
+            cid="b1",
+            restart=0,
+            ports={"8883/tcp": [{}]},
+        ),
     }
     post = json.loads(json.dumps(pre))
     stable = impl.t1_stability(pre, post)
@@ -150,6 +223,10 @@ def test_t1_stability_requires_same_ids_and_restart_counts() -> None:
 
 def test_manifest_forbids_t1_mutation_and_second_boot() -> None:
     manifest = impl.load_manifest()
+    refs = manifest["authority_references"]
+    assert refs["manager_container_name"] == "greenhouse-manager"
+    assert refs["manager_compose_service"] == "greenhouse-manager"
+    assert refs["broker_compose_service"] == "broker"
     forbidden = manifest["forbidden"]
     for key in (
         "t1_file_write",
