@@ -4,8 +4,11 @@ from __future__ import annotations
 import ast
 import importlib.util
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 PACKAGE_DIR = Path(__file__).resolve().parent
 IMPL_PATH = PACKAGE_DIR / "executor_impl.py"
@@ -53,10 +56,140 @@ def _assert_no_mutation_call_sites() -> None:
             raise RuntimeError(f"prohibited T1/MQTT mutation token found: {token}")
 
 
+def _extract_t1_target(argv: list[str]) -> str | None:
+    for index, item in enumerate(argv):
+        if item == "--t1-ssh-target":
+            return argv[index + 1] if index + 1 < len(argv) else None
+        if item.startswith("--t1-ssh-target="):
+            return item.split("=", 1)[1]
+    return None
+
+
+def _validate_t1_target(value: str | None) -> str:
+    if value is None or not value.strip():
+        raise RuntimeError("ID22 T1 SSH target is required")
+    target = value.strip()
+    lowered = target.lower()
+    placeholders = (
+        "你的t1_ssh_target",
+        "your_t1_ssh_target",
+        "t1_ssh_target",
+        "<t1_ssh_target>",
+    )
+    if lowered in placeholders or "你的" in target:
+        raise RuntimeError("ID22 T1 SSH target is still a documentation placeholder")
+    if any(ch.isspace() for ch in target):
+        raise RuntimeError("ID22 T1 SSH target must not contain whitespace")
+    try:
+        target.encode("ascii")
+    except UnicodeEncodeError as exc:
+        raise RuntimeError("ID22 T1 SSH target must be an ASCII SSH alias/host expression") from exc
+    if target.startswith("-") or len(target) > 255:
+        raise RuntimeError("ID22 T1 SSH target shape is invalid")
+    return target
+
+
+def _decode_process_bytes(value: bytes | None) -> str:
+    return (value or b"").decode("utf-8", errors="backslashreplace")
+
+
+def _install_robust_recorded_runner(impl: Any) -> None:
+    id18 = impl.id18
+
+    def robust_run_recorded(
+        *,
+        root: Path,
+        index: int,
+        label: str,
+        argv: list[str],
+        cwd: Path,
+        target_operation: bool = False,
+        extra_env: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        id18.assert_read_only_argv(argv)
+        op_dir = root / f"op_{index:02d}_{label}"
+        id18.ensure_private_dir(op_dir)
+        id18.write_json(
+            op_dir / "command.json",
+            {
+                "argv": argv,
+                "cwd": str(cwd),
+                "label": label,
+                "operation_index": index,
+                "target_operation": target_operation,
+                "mutation_operation": False,
+                "utc_start": id18.utc_now(),
+                "environment_overrides": dict(sorted((extra_env or {}).items())),
+            },
+        )
+        env = os.environ.copy()
+        if extra_env:
+            env.update(extra_env)
+        try:
+            raw = subprocess.run(
+                argv,
+                cwd=cwd,
+                env=env,
+                capture_output=True,
+                text=False,
+                check=False,
+            )
+        except OSError as exc:
+            id18.write_text(op_dir / "stdout.txt", "")
+            id18.write_text(op_dir / "stderr.txt", f"{type(exc).__name__}: {exc}\n")
+            id18.write_json(
+                op_dir / "result.json",
+                {
+                    "command_started": False,
+                    "returncode": None,
+                    "target_access_occurred": False if target_operation else None,
+                    "utc_end": id18.utc_now(),
+                },
+            )
+            raise impl.StopExecution(f"{label} process launch failed") from exc
+
+        stdout = _decode_process_bytes(raw.stdout)
+        stderr = _decode_process_bytes(raw.stderr)
+        id18.write_text(op_dir / "stdout.txt", stdout)
+        id18.write_text(op_dir / "stderr.txt", stderr)
+        id18.write_json(
+            op_dir / "result.json",
+            {
+                "command_started": True,
+                "returncode": raw.returncode,
+                "target_access_occurred": (
+                    True if target_operation and raw.returncode == 0
+                    else "UNKNOWN" if target_operation else None
+                ),
+                "stdout_utf8_decode": "backslashreplace",
+                "stderr_utf8_decode": "backslashreplace",
+                "utc_end": id18.utc_now(),
+            },
+        )
+        return subprocess.CompletedProcess(
+            args=raw.args,
+            returncode=raw.returncode,
+            stdout=stdout,
+            stderr=stderr,
+        )
+
+    impl.run_recorded = robust_run_recorded
+
+
 def self_check() -> None:
     impl = _load_impl()
     impl.self_check()
     _assert_no_mutation_call_sites()
+    if _validate_t1_target("root@t1") != "root@t1":
+        raise RuntimeError("T1 target validator self-check failed")
+    try:
+        _validate_t1_target("你的T1_SSH_TARGET")
+    except RuntimeError:
+        pass
+    else:
+        raise RuntimeError("T1 placeholder validator self-check failed")
+    if "\\xff" not in _decode_process_bytes(b"x\xff"):
+        raise RuntimeError("subprocess byte decoder self-check failed")
 
 
 def main() -> int:
@@ -66,7 +199,12 @@ def main() -> int:
         self_check()
         print(json.dumps({"self_check": "PASS"}, sort_keys=True))
         return 0
+
+    # Fail before the implementation can create evidence or claim an authorization
+    # when the operator has left the documentation placeholder in place.
+    _validate_t1_target(_extract_t1_target(sys.argv[1:]))
     impl = _load_impl()
+    _install_robust_recorded_runner(impl)
     return int(impl.main())
 
 
