@@ -14,8 +14,10 @@ PACKAGE_DIR = Path(__file__).resolve().parent
 IMPL_PATH = PACKAGE_DIR / "executor_impl.py"
 
 CURRENT_MANAGER_CONTAINER_NAME = "greenhouse-manager"
-CURRENT_MANAGER_COMPOSE_SERVICE = "greenhouse-manager"
+CURRENT_MANAGER_IMAGE_PREFIX = "greenhouse-manager:"
+FROZEN_MANAGER_SOURCE_REVISION = "8fbedc7e0778ce91d146cd5f0772bebdd20ad13a"
 CURRENT_BROKER_COMPOSE_SERVICE = "broker"
+CURRENT_BROKER_COMPOSE_PROJECT = "n3wfc4"
 
 
 def _load_impl():
@@ -94,17 +96,26 @@ def _compose_label(row: dict[str, Any], key: str) -> str:
     return value.strip() if isinstance(value, str) else ""
 
 
+def _manager_source_revision(row: dict[str, Any]) -> str:
+    labels = row.get("labels")
+    if not isinstance(labels, dict):
+        return ""
+    value = labels.get("org.opencontainers.image.revision")
+    return value.strip() if isinstance(value, str) else ""
+
+
 def _classify_current_t1_runtime(impl: Any, rows: list[dict[str, Any]]) -> dict[str, Any]:
     managers = [
         row for row in rows
         if _normalized_container_name(row) == CURRENT_MANAGER_CONTAINER_NAME
-        and _compose_label(row, "com.docker.compose.service") == CURRENT_MANAGER_COMPOSE_SERVICE
-        and _compose_label(row, "com.docker.compose.project")
+        and isinstance(row.get("image"), str)
+        and row["image"].startswith(CURRENT_MANAGER_IMAGE_PREFIX)
+        and _manager_source_revision(row) == FROZEN_MANAGER_SOURCE_REVISION
     ]
     brokers = [
         row for row in rows
         if _compose_label(row, "com.docker.compose.service") == CURRENT_BROKER_COMPOSE_SERVICE
-        and _compose_label(row, "com.docker.compose.project")
+        and _compose_label(row, "com.docker.compose.project") == CURRENT_BROKER_COMPOSE_PROJECT
     ]
     if len(managers) != 1:
         raise impl.StopExecution(f"T1 authoritative Manager count is {len(managers)}, expected 1")
@@ -123,17 +134,34 @@ def _classify_current_t1_runtime(impl: Any, rows: list[dict[str, Any]]) -> dict[
         raise impl.StopExecution("T1 Broker runtime port metadata is invalid")
     if not ports.get("8883/tcp"):
         raise impl.StopExecution("T1 Broker has no live 8883/tcp runtime publication")
-    return {"manager": manager, "broker": broker, "container_count": len(rows)}
+    return {
+        "manager": manager,
+        "broker": broker,
+        "container_count": len(rows),
+        "manager_binding_mode": "container_name+image_prefix+frozen_source_revision",
+        "broker_binding_mode": "compose_service+compose_project",
+    }
 
 
 def _install_current_t1_runtime_classifier(impl: Any) -> None:
     def classify(rows: list[dict[str, Any]]) -> dict[str, Any]:
         return _classify_current_t1_runtime(impl, rows)
+
+    original_public = impl.public_t1_runtime
+
+    def public(runtime: dict[str, Any]) -> dict[str, Any]:
+        value = original_public(runtime)
+        value["manager_binding_mode"] = runtime.get("manager_binding_mode", "UNKNOWN")
+        value["broker_binding_mode"] = runtime.get("broker_binding_mode", "UNKNOWN")
+        return value
+
     impl.classify_t1_runtime = classify
+    impl.public_t1_runtime = public
 
 
 def _install_robust_recorded_runner(impl: Any) -> None:
     id18 = impl.id18
+
     def robust_run_recorded(
         *, root: Path, index: int, label: str, argv: list[str], cwd: Path,
         target_operation: bool = False, extra_env: dict[str, str] | None = None,
@@ -176,39 +204,45 @@ def _install_robust_recorded_runner(impl: Any) -> None:
             "utc_end": id18.utc_now(),
         })
         return subprocess.CompletedProcess(args=raw.args, returncode=raw.returncode, stdout=stdout, stderr=stderr)
+
     impl.run_recorded = robust_run_recorded
 
 
 def _classifier_self_check(impl: Any) -> None:
     manager = {
-        "id": "m1", "name": "/greenhouse-manager", "image": "local/greenhouse-manager:test",
-        "labels": {
-            "com.docker.compose.service": "greenhouse-manager",
-            "com.docker.compose.project": "manager-project",
-        },
-        "running": True, "restart_count": 0, "network_mode": "host", "ports": {},
+        "id": "m1",
+        "name": "/greenhouse-manager",
+        "image": "greenhouse-manager:fc4-kf075-test",
+        "labels": {"org.opencontainers.image.revision": FROZEN_MANAGER_SOURCE_REVISION},
+        "running": True,
+        "restart_count": 0,
+        "network_mode": "host",
+        "ports": {},
     }
     broker = {
-        "id": "b1", "name": "/fc4-broker", "image": "local/mosquitto:test",
+        "id": "b1",
+        "name": "/n3wfc4-broker-1",
+        "image": "local/mosquitto:test",
         "labels": {
             "com.docker.compose.service": "broker",
             "com.docker.compose.project": "n3wfc4",
         },
-        "running": True, "restart_count": 0, "network_mode": "bridge",
-        "ports": {"8883/tcp": [{"HostIp": "0.0.0.0", "HostPort": "8883"}]},
+        "running": True,
+        "restart_count": 0,
+        "network_mode": "bridge",
+        "ports": {"8883/tcp": [{"HostIp": "127.0.0.1", "HostPort": "8883"}]},
     }
     result = _classify_current_t1_runtime(impl, [manager, broker])
     if result["manager"]["id"] != "m1" or result["broker"]["id"] != "b1":
         raise RuntimeError("current T1 runtime classifier self-check failed")
-    stale = dict(manager)
-    stale["labels"] = dict(manager["labels"])
-    stale["labels"]["com.docker.compose.service"] = "manager"
+    drifted = dict(manager)
+    drifted["labels"] = {"org.opencontainers.image.revision": "0" * 40}
     try:
-        _classify_current_t1_runtime(impl, [stale, broker])
+        _classify_current_t1_runtime(impl, [drifted, broker])
     except impl.StopExecution:
         pass
     else:
-        raise RuntimeError("legacy Manager service selector was not rejected")
+        raise RuntimeError("drifted Manager source revision was not rejected")
 
 
 def self_check() -> None:
@@ -218,8 +252,10 @@ def self_check() -> None:
     refs = impl.load_manifest()["authority_references"]
     expected_refs = {
         "manager_container_name": CURRENT_MANAGER_CONTAINER_NAME,
-        "manager_compose_service": CURRENT_MANAGER_COMPOSE_SERVICE,
+        "manager_image_prefix": CURRENT_MANAGER_IMAGE_PREFIX,
+        "frozen_deployed_product_manager_source": FROZEN_MANAGER_SOURCE_REVISION,
         "broker_compose_service": CURRENT_BROKER_COMPOSE_SERVICE,
+        "broker_compose_project": CURRENT_BROKER_COMPOSE_PROJECT,
     }
     for key, expected in expected_refs.items():
         if refs.get(key) != expected:
