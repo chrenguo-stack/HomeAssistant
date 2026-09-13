@@ -19,8 +19,10 @@
     "board_b_public_suffix": "F4:5C",
     "t1_runtime_convergence": "CLOSED_PASS",
     "manager_container_name": "greenhouse-manager",
-    "manager_compose_service": "greenhouse-manager",
-    "broker_compose_service": "broker"
+    "manager_image_prefix": "greenhouse-manager:",
+    "frozen_deployed_product_manager_source": "8fbedc7e0778ce91d146cd5f0772bebdd20ad13a",
+    "broker_compose_service": "broker",
+    "broker_compose_project": "n3wfc4"
   },
   "prestate_contract": {
     "both_selected_slots": 0,
@@ -30,8 +32,10 @@
     "both_diagnostic_schema_version": 5
   },
   "t1_preclaim_contract": {
-    "manager_service_count": 1,
+    "manager_authority_count": 1,
+    "manager_binding": "container_name+image_prefix+frozen_source_revision",
     "broker_service_count": 1,
+    "broker_binding": "compose_service+compose_project",
     "manager_running": true,
     "broker_running": true,
     "manager_network_mode": "host",
