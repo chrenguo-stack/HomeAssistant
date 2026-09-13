@@ -13,6 +13,10 @@ from typing import Any
 PACKAGE_DIR = Path(__file__).resolve().parent
 IMPL_PATH = PACKAGE_DIR / "executor_impl.py"
 
+CURRENT_MANAGER_CONTAINER_NAME = "greenhouse-manager"
+CURRENT_MANAGER_COMPOSE_SERVICE = "greenhouse-manager"
+CURRENT_BROKER_COMPOSE_SERVICE = "broker"
+
 
 def _load_impl():
     spec = importlib.util.spec_from_file_location("id22_executor_impl", IMPL_PATH)
@@ -27,24 +31,13 @@ def _load_impl():
 def _assert_no_mutation_call_sites() -> None:
     tree = ast.parse(IMPL_PATH.read_text(encoding="utf-8"), filename=str(IMPL_PATH))
     prohibited_attrs = {
-        "flash_begin",
-        "flash_block",
-        "flash_finish",
-        "write_flash",
-        "erase_flash",
-        "erase_region",
-        "write_mem",
+        "flash_begin", "flash_block", "flash_finish", "write_flash",
+        "erase_flash", "erase_region", "write_mem",
     }
     prohibited_tokens = {
-        "docker restart",
-        "docker start",
-        "docker stop",
-        "docker rm",
-        "docker exec",
-        "docker compose up",
-        "docker compose down",
-        "mosquitto_pub",
-        "mosquitto_sub",
+        "docker restart", "docker start", "docker stop", "docker rm",
+        "docker exec", "docker compose up", "docker compose down",
+        "mosquitto_pub", "mosquitto_sub",
     }
     source = IMPL_PATH.read_text(encoding="utf-8")
     for node in ast.walk(tree):
@@ -70,12 +63,7 @@ def _validate_t1_target(value: str | None) -> str:
         raise RuntimeError("ID22 T1 SSH target is required")
     target = value.strip()
     lowered = target.lower()
-    placeholders = (
-        "你的t1_ssh_target",
-        "your_t1_ssh_target",
-        "t1_ssh_target",
-        "<t1_ssh_target>",
-    )
+    placeholders = ("你的t1_ssh_target", "your_t1_ssh_target", "t1_ssh_target", "<t1_ssh_target>")
     if lowered in placeholders or "你的" in target:
         raise RuntimeError("ID22 T1 SSH target is still a documentation placeholder")
     if any(ch.isspace() for ch in target):
@@ -93,93 +81,149 @@ def _decode_process_bytes(value: bytes | None) -> str:
     return (value or b"").decode("utf-8", errors="backslashreplace")
 
 
+def _normalized_container_name(row: dict[str, Any]) -> str:
+    value = row.get("name")
+    return value.lstrip("/").strip() if isinstance(value, str) else ""
+
+
+def _compose_label(row: dict[str, Any], key: str) -> str:
+    labels = row.get("labels")
+    if not isinstance(labels, dict):
+        return ""
+    value = labels.get(key)
+    return value.strip() if isinstance(value, str) else ""
+
+
+def _classify_current_t1_runtime(impl: Any, rows: list[dict[str, Any]]) -> dict[str, Any]:
+    managers = [
+        row for row in rows
+        if _normalized_container_name(row) == CURRENT_MANAGER_CONTAINER_NAME
+        and _compose_label(row, "com.docker.compose.service") == CURRENT_MANAGER_COMPOSE_SERVICE
+        and _compose_label(row, "com.docker.compose.project")
+    ]
+    brokers = [
+        row for row in rows
+        if _compose_label(row, "com.docker.compose.service") == CURRENT_BROKER_COMPOSE_SERVICE
+        and _compose_label(row, "com.docker.compose.project")
+    ]
+    if len(managers) != 1:
+        raise impl.StopExecution(f"T1 authoritative Manager count is {len(managers)}, expected 1")
+    if len(brokers) != 1:
+        raise impl.StopExecution(f"T1 authoritative Broker count is {len(brokers)}, expected 1")
+    manager = managers[0]
+    broker = brokers[0]
+    if not manager.get("running"):
+        raise impl.StopExecution("T1 Manager is not running")
+    if not broker.get("running"):
+        raise impl.StopExecution("T1 Broker is not running")
+    if manager.get("network_mode") != "host":
+        raise impl.StopExecution("T1 Manager network mode is not host")
+    ports = broker.get("ports")
+    if not isinstance(ports, dict):
+        raise impl.StopExecution("T1 Broker runtime port metadata is invalid")
+    if not ports.get("8883/tcp"):
+        raise impl.StopExecution("T1 Broker has no live 8883/tcp runtime publication")
+    return {"manager": manager, "broker": broker, "container_count": len(rows)}
+
+
+def _install_current_t1_runtime_classifier(impl: Any) -> None:
+    def classify(rows: list[dict[str, Any]]) -> dict[str, Any]:
+        return _classify_current_t1_runtime(impl, rows)
+    impl.classify_t1_runtime = classify
+
+
 def _install_robust_recorded_runner(impl: Any) -> None:
     id18 = impl.id18
-
     def robust_run_recorded(
-        *,
-        root: Path,
-        index: int,
-        label: str,
-        argv: list[str],
-        cwd: Path,
-        target_operation: bool = False,
-        extra_env: dict[str, str] | None = None,
+        *, root: Path, index: int, label: str, argv: list[str], cwd: Path,
+        target_operation: bool = False, extra_env: dict[str, str] | None = None,
     ) -> subprocess.CompletedProcess[str]:
         id18.assert_read_only_argv(argv)
         op_dir = root / f"op_{index:02d}_{label}"
         id18.ensure_private_dir(op_dir)
-        id18.write_json(
-            op_dir / "command.json",
-            {
-                "argv": argv,
-                "cwd": str(cwd),
-                "label": label,
-                "operation_index": index,
-                "target_operation": target_operation,
-                "mutation_operation": False,
-                "utc_start": id18.utc_now(),
-                "environment_overrides": dict(sorted((extra_env or {}).items())),
-            },
-        )
+        id18.write_json(op_dir / "command.json", {
+            "argv": argv, "cwd": str(cwd), "label": label,
+            "operation_index": index, "target_operation": target_operation,
+            "mutation_operation": False, "utc_start": id18.utc_now(),
+            "environment_overrides": dict(sorted((extra_env or {}).items())),
+        })
         env = os.environ.copy()
         if extra_env:
             env.update(extra_env)
         try:
-            raw = subprocess.run(
-                argv,
-                cwd=cwd,
-                env=env,
-                capture_output=True,
-                text=False,
-                check=False,
-            )
+            raw = subprocess.run(argv, cwd=cwd, env=env, capture_output=True, text=False, check=False)
         except OSError as exc:
             id18.write_text(op_dir / "stdout.txt", "")
             id18.write_text(op_dir / "stderr.txt", f"{type(exc).__name__}: {exc}\n")
-            id18.write_json(
-                op_dir / "result.json",
-                {
-                    "command_started": False,
-                    "returncode": None,
-                    "target_access_occurred": False if target_operation else None,
-                    "utc_end": id18.utc_now(),
-                },
-            )
+            id18.write_json(op_dir / "result.json", {
+                "command_started": False, "returncode": None,
+                "target_access_occurred": False if target_operation else None,
+                "utc_end": id18.utc_now(),
+            })
             raise impl.StopExecution(f"{label} process launch failed") from exc
-
         stdout = _decode_process_bytes(raw.stdout)
         stderr = _decode_process_bytes(raw.stderr)
         id18.write_text(op_dir / "stdout.txt", stdout)
         id18.write_text(op_dir / "stderr.txt", stderr)
-        id18.write_json(
-            op_dir / "result.json",
-            {
-                "command_started": True,
-                "returncode": raw.returncode,
-                "target_access_occurred": (
-                    True if target_operation and raw.returncode == 0
-                    else "UNKNOWN" if target_operation else None
-                ),
-                "stdout_utf8_decode": "backslashreplace",
-                "stderr_utf8_decode": "backslashreplace",
-                "utc_end": id18.utc_now(),
-            },
-        )
-        return subprocess.CompletedProcess(
-            args=raw.args,
-            returncode=raw.returncode,
-            stdout=stdout,
-            stderr=stderr,
-        )
-
+        id18.write_json(op_dir / "result.json", {
+            "command_started": True, "returncode": raw.returncode,
+            "target_access_occurred": (
+                True if target_operation and raw.returncode == 0
+                else "UNKNOWN" if target_operation else None
+            ),
+            "stdout_utf8_decode": "backslashreplace",
+            "stderr_utf8_decode": "backslashreplace",
+            "utc_end": id18.utc_now(),
+        })
+        return subprocess.CompletedProcess(args=raw.args, returncode=raw.returncode, stdout=stdout, stderr=stderr)
     impl.run_recorded = robust_run_recorded
+
+
+def _classifier_self_check(impl: Any) -> None:
+    manager = {
+        "id": "m1", "name": "/greenhouse-manager", "image": "local/greenhouse-manager:test",
+        "labels": {
+            "com.docker.compose.service": "greenhouse-manager",
+            "com.docker.compose.project": "manager-project",
+        },
+        "running": True, "restart_count": 0, "network_mode": "host", "ports": {},
+    }
+    broker = {
+        "id": "b1", "name": "/fc4-broker", "image": "local/mosquitto:test",
+        "labels": {
+            "com.docker.compose.service": "broker",
+            "com.docker.compose.project": "n3wfc4",
+        },
+        "running": True, "restart_count": 0, "network_mode": "bridge",
+        "ports": {"8883/tcp": [{"HostIp": "0.0.0.0", "HostPort": "8883"}]},
+    }
+    result = _classify_current_t1_runtime(impl, [manager, broker])
+    if result["manager"]["id"] != "m1" or result["broker"]["id"] != "b1":
+        raise RuntimeError("current T1 runtime classifier self-check failed")
+    stale = dict(manager)
+    stale["labels"] = dict(manager["labels"])
+    stale["labels"]["com.docker.compose.service"] = "manager"
+    try:
+        _classify_current_t1_runtime(impl, [stale, broker])
+    except impl.StopExecution:
+        pass
+    else:
+        raise RuntimeError("legacy Manager service selector was not rejected")
 
 
 def self_check() -> None:
     impl = _load_impl()
     impl.self_check()
     _assert_no_mutation_call_sites()
+    refs = impl.load_manifest()["authority_references"]
+    expected_refs = {
+        "manager_container_name": CURRENT_MANAGER_CONTAINER_NAME,
+        "manager_compose_service": CURRENT_MANAGER_COMPOSE_SERVICE,
+        "broker_compose_service": CURRENT_BROKER_COMPOSE_SERVICE,
+    }
+    for key, expected in expected_refs.items():
+        if refs.get(key) != expected:
+            raise RuntimeError(f"ID22 runtime authority reference mismatch: {key}")
     if _validate_t1_target("root@t1") != "root@t1":
         raise RuntimeError("T1 target validator self-check failed")
     try:
@@ -190,6 +234,7 @@ def self_check() -> None:
         raise RuntimeError("T1 placeholder validator self-check failed")
     if "\\xff" not in _decode_process_bytes(b"x\xff"):
         raise RuntimeError("subprocess byte decoder self-check failed")
+    _classifier_self_check(impl)
 
 
 def main() -> int:
@@ -199,12 +244,10 @@ def main() -> int:
         self_check()
         print(json.dumps({"self_check": "PASS"}, sort_keys=True))
         return 0
-
-    # Fail before the implementation can create evidence or claim an authorization
-    # when the operator has left the documentation placeholder in place.
     _validate_t1_target(_extract_t1_target(sys.argv[1:]))
     impl = _load_impl()
     _install_robust_recorded_runner(impl)
+    _install_current_t1_runtime_classifier(impl)
     return int(impl.main())
 
 
