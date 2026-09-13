@@ -1,0 +1,30 @@
+name: N3W KF089 ID23 T1 DynSec Relay ACL read-only forensic CI
+
+on:
+  pull_request:
+    paths:
+      - "tools/execution_packages/n3w/kf089/id23_t1_dynsec_relay_acl_readonly_forensic/**"
+      - "tests/execution_packages/n3w/kf089/id23_t1_dynsec_relay_acl_readonly_forensic/**"
+      - ".github/workflows/n3w-kf089-id23-t1-dynsec-relay-acl-readonly-forensic-ci.yml"
+  workflow_dispatch:
+
+jobs:
+  id23-host-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate manifest
+        run: python -m json.tool tools/execution_packages/n3w/kf089/id23_t1_dynsec_relay_acl_readonly_forensic/manifest.json >/dev/null
+      - name: Compile executor
+        run: python -m py_compile tools/execution_packages/n3w/kf089/id23_t1_dynsec_relay_acl_readonly_forensic/executor.py
+      - name: Self-check frozen source contract
+        run: python tools/execution_packages/n3w/kf089/id23_t1_dynsec_relay_acl_readonly_forensic/executor.py --self-check
+      - name: Install focused test dependency
+        run: python -m pip install pytest==8.4.2
+      - name: Focused tests
+        run: python -m pytest -q tests/execution_packages/n3w/kf089/id23_t1_dynsec_relay_acl_readonly_forensic/test_executor.py
