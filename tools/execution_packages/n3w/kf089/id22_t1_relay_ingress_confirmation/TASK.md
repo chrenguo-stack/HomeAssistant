@@ -59,6 +59,25 @@ T1_CONTROLLED_REBOOT_BOOT_RECOVERY=PASS
 
 Fresh ID22 preclaim must re-observe the relevant runtime before any RF window.
 
+The currently deployed Manager authority is not represented by a Compose service label. ID22 therefore binds the Manager using the public-safe frozen deployed authority tuple:
+
+```text
+CONTAINER_NAME=greenhouse-manager
+IMAGE_PREFIX=greenhouse-manager:
+SOURCE_REVISION=8fbedc7e0778ce91d146cd5f0772bebdd20ad13a
+NETWORK_MODE=host
+```
+
+The Broker remains bound by its current Compose lineage:
+
+```text
+COMPOSE_SERVICE=broker
+COMPOSE_PROJECT=n3wfc4
+TLS_RUNTIME_PUBLICATION=8883/tcp
+```
+
+This reflects the observed post-convergence runtime and avoids treating absence of a Manager Compose label as absence of the Manager itself.
+
 ## Why Manager log acceptance is a valid T1 ingress oracle
 
 The frozen Manager source subscribes to:
@@ -81,7 +100,7 @@ only after its MQTT `_on_message` relay path has parsed and accepted the Relay i
 
 The executor SSHes to a user-supplied private T1 target and performs read-only Docker inspection only.
 
-It requires exactly one Compose service `manager` and one Compose service `broker` across the current container inventory; both must be running. Manager must use host networking. Broker must expose a live `8883/tcp` runtime publication. Container IDs, images, Compose labels, restart counts and port mappings are captured privately.
+It requires exactly one authoritative Manager matching the frozen deployed Manager tuple above and exactly one Broker matching the current `n3wfc4` Compose `broker` lineage; both must be running. Manager must use host networking. Broker must expose a live `8883/tcp` runtime publication. Container IDs, images, labels, restart counts and port mappings are captured privately.
 
 No container restart, exec, create, stop, network change, file write, MQTT publish/subscribe, or configuration mutation is permitted.
 
