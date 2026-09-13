@@ -1,0 +1,98 @@
+{
+  "package_schema_version": 1,
+  "project": "n3w",
+  "stage": "kf089",
+  "gate_id": "id22_t1_relay_ingress_confirmation",
+  "predecessor": {
+    "gate": "ID21",
+    "execution_package_commit": "9ebe5968e2f06f23a657abbeeb68c4094b445a66",
+    "result": "PASS"
+  },
+  "authority_references": {
+    "schema5_source_commit": "5d58727f5040281ee2beb9597f66a6a2da9bac57",
+    "schema5_firmware_size": 1115648,
+    "schema5_firmware_sha256": "5168a1958669ce06002cc5cb507fda7fc7477ca53294a73dbcf582e5879f383b",
+    "id21_executor_impl_git_blob": "b0ad0eff061d2e6a2455fd00681aee9e30009642",
+    "manager_simplified_mqtt_service_git_blob": "2a478300e66bed341f55b44e629c24847128f413",
+    "esptool_version": "5.3.1",
+    "board_a_public_suffix": "F3:50",
+    "board_b_public_suffix": "F4:5C",
+    "t1_runtime_convergence": "CLOSED_PASS"
+  },
+  "prestate_contract": {
+    "both_selected_slots": 0,
+    "both_active_ota_seq": 5,
+    "active_ota_state": 2,
+    "both_selected_images_exact_schema5": true,
+    "both_diagnostic_schema_version": 5
+  },
+  "t1_preclaim_contract": {
+    "manager_service_count": 1,
+    "broker_service_count": 1,
+    "manager_running": true,
+    "broker_running": true,
+    "manager_network_mode": "host",
+    "broker_tls_runtime_publication": "8883/tcp"
+  },
+  "operator_contract": {
+    "normal_boots_per_board": 1,
+    "relay_staging_min_seconds": 45,
+    "relay_window_min_seconds": 180,
+    "post_relay_board_a_persist_seconds": 10,
+    "other_lab_compact_senders_powered_off": true,
+    "serial_open": false,
+    "manual_t1_access_during_window": false,
+    "automatic_retry": false
+  },
+  "board_relay_contract": {
+    "board_a_final_path_state": 0,
+    "board_b_final_path_state": 2,
+    "board_b_minimum_relay_active_count": 1,
+    "board_b_minimum_accept_verify": 1,
+    "board_b_minimum_peer_install_success": 1,
+    "board_b_minimum_relay_telemetry_attempts": 1,
+    "board_b_minimum_relay_telemetry_submit_success": 1,
+    "board_b_minimum_unicast_completion_success": 1,
+    "board_a_minimum_compact_rx_count": 1,
+    "board_a_minimum_compact_decode_success": 1,
+    "board_a_minimum_compact_forward_attempts": 1,
+    "board_a_minimum_compact_forward_submit_success": 1
+  },
+  "t1_ingress_contract": {
+    "minimum_manager_accepted_relay_count": 1,
+    "manager_container_identity_stable": true,
+    "broker_container_identity_stable": true,
+    "manager_restart_count_unchanged": true,
+    "broker_restart_count_unchanged": true
+  },
+  "success_contract": {
+    "board_side_relay_chain_proven_in_id22_session": true,
+    "t1_broker_mediated_relay_ingress": "PROVEN",
+    "manager_relay_ingress": "PROVEN",
+    "manager_relay_acceptance": "PROVEN",
+    "kf089_end_to_end_relay_telemetry": "PROVEN",
+    "home_assistant_entity_update": "NOT_IN_SCOPE",
+    "next_route": "PREPARE_KF089_END_TO_END_RELAY_CLOSEOUT_PACKAGE"
+  },
+  "forbidden": {
+    "flash_write": true,
+    "flash_erase": true,
+    "host_nvs_write": true,
+    "otadata_write": true,
+    "app_write": true,
+    "partition_table_write": true,
+    "bootloader_write": true,
+    "pairing_change": true,
+    "credential_change": true,
+    "serial_open": true,
+    "t1_file_write": true,
+    "t1_docker_mutation": true,
+    "t1_network_mutation": true,
+    "mqtt_test_publish": true,
+    "mqtt_extra_subscriber": true,
+    "second_normal_boot": true,
+    "automatic_retry": true,
+    "automatic_rollback": true,
+    "firmware_reflash": true
+  }
+}
