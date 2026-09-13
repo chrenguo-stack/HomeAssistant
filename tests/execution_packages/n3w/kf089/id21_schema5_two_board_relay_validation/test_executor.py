@@ -18,6 +18,12 @@ executor = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = executor
 spec.loader.exec_module(executor)
 
+entry_spec = importlib.util.spec_from_file_location("id21_executor_entry_test", ENTRY)
+assert entry_spec and entry_spec.loader
+entry = importlib.util.module_from_spec(entry_spec)
+sys.modules[entry_spec.name] = entry
+entry_spec.loader.exec_module(entry)
+
 
 def _snapshot(*, session: int, path: int = 0) -> dict[str, int]:
     value = {
@@ -94,6 +100,33 @@ def test_entrypoint_self_check_passes() -> None:
     )
     assert proc.returncode == 0, proc.stderr
     assert json.loads(proc.stdout)["self_check"] == "PASS"
+
+
+def test_interlock_completion_is_fail_closed(tmp_path: Path) -> None:
+    path = tmp_path / "interlock.json"
+    assert entry._interlock_completed(path) is False
+    path.write_text(
+        json.dumps(
+            {
+                "token_match": True,
+                "observed_elapsed_seconds": 150.0,
+                "minimum_elapsed_seconds": 150,
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert entry._interlock_completed(path) is True
+    path.write_text(
+        json.dumps(
+            {
+                "token_match": True,
+                "observed_elapsed_seconds": 149.9,
+                "minimum_elapsed_seconds": 150,
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert entry._interlock_completed(path) is False
 
 
 def test_board_a_prestate_requires_exact_zero_compact_baseline() -> None:
