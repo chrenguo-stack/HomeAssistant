@@ -24,10 +24,10 @@ entry_spec.loader.exec_module(entry)
 
 def _container_row(
     *,
-    service: str,
     cid: str,
-    name: str | None = None,
-    project: str = "test",
+    name: str,
+    image: str,
+    labels: dict[str, str],
     running: bool = True,
     restart: int = 0,
     network: str = "bridge",
@@ -35,17 +35,39 @@ def _container_row(
 ) -> dict:
     return {
         "id": cid,
-        "name": "/" + (name or service),
-        "image": "local/" + service + ":test",
-        "labels": {
-            "com.docker.compose.service": service,
-            "com.docker.compose.project": project,
-        },
+        "name": "/" + name,
+        "image": image,
+        "labels": labels,
         "running": running,
         "restart_count": restart,
         "network_mode": network,
         "ports": ports or {},
     }
+
+
+def _manager_row(*, cid: str = "m1", revision: str | None = None, name: str = "greenhouse-manager") -> dict:
+    return _container_row(
+        cid=cid,
+        name=name,
+        image="greenhouse-manager:fc4-kf075-test",
+        labels={
+            "org.opencontainers.image.revision": revision or entry.FROZEN_MANAGER_SOURCE_REVISION,
+        },
+        network="host",
+    )
+
+
+def _broker_row(*, cid: str = "b1", project: str = "n3wfc4") -> dict:
+    return _container_row(
+        cid=cid,
+        name="n3wfc4-broker-1",
+        image="local/mosquitto:test",
+        labels={
+            "com.docker.compose.service": "broker",
+            "com.docker.compose.project": project,
+        },
+        ports={"8883/tcp": [{"HostIp": "127.0.0.1", "HostPort": "8883"}]},
+    )
 
 
 def _snapshot_direct() -> dict[str, int]:
@@ -101,21 +123,17 @@ def _snapshot_b_relay() -> dict[str, int]:
 
 def _healthy_runtime_rows() -> list[dict]:
     return [
+        _manager_row(),
+        _broker_row(),
         _container_row(
-            service="greenhouse-manager",
-            name="greenhouse-manager",
-            cid="m1",
-            project="manager-successor",
-            network="host",
+            cid="h1",
+            name="fc4-homeassistant",
+            image="local/homeassistant:test",
+            labels={
+                "com.docker.compose.service": "homeassistant",
+                "com.docker.compose.project": "n3wfc4",
+            },
         ),
-        _container_row(
-            service="broker",
-            name="fc4-broker",
-            cid="b1",
-            project="n3wfc4",
-            ports={"8883/tcp": [{"HostIp": "0.0.0.0", "HostPort": "8883"}]},
-        ),
-        _container_row(service="homeassistant", name="fc4-homeassistant", cid="h1"),
     ]
 
 
@@ -124,25 +142,34 @@ def test_self_check() -> None:
     entry.self_check()
 
 
-def test_current_t1_runtime_classifier_accepts_authoritative_manager_broker() -> None:
+def test_current_t1_runtime_classifier_accepts_observed_standalone_manager_authority() -> None:
     result = entry._classify_current_t1_runtime(impl, _healthy_runtime_rows())
     assert result["manager"]["id"] == "m1"
     assert result["broker"]["id"] == "b1"
+    assert result["manager_binding_mode"] == "container_name+image_prefix+frozen_source_revision"
+    assert result["broker_binding_mode"] == "compose_service+compose_project"
 
 
-def test_current_t1_runtime_classifier_rejects_legacy_manager_service_name() -> None:
+def test_current_t1_runtime_classifier_does_not_require_manager_compose_labels() -> None:
     rows = _healthy_runtime_rows()
-    rows[0]["labels"]["com.docker.compose.service"] = "manager"
+    assert "com.docker.compose.service" not in rows[0]["labels"]
+    result = entry._classify_current_t1_runtime(impl, rows)
+    assert result["manager"]["id"] == "m1"
+
+
+def test_current_t1_runtime_classifier_rejects_manager_source_revision_drift() -> None:
+    rows = _healthy_runtime_rows()
+    rows[0] = _manager_row(revision="0" * 40)
     try:
         entry._classify_current_t1_runtime(impl, rows)
     except impl.StopExecution:
         return
-    raise AssertionError("legacy Manager service selector must fail closed")
+    raise AssertionError("Manager source-revision drift must fail closed")
 
 
 def test_current_t1_runtime_classifier_rejects_manager_container_name_mismatch() -> None:
     rows = _healthy_runtime_rows()
-    rows[0]["name"] = "/other-manager"
+    rows[0] = _manager_row(name="other-manager")
     try:
         entry._classify_current_t1_runtime(impl, rows)
     except impl.StopExecution:
@@ -152,16 +179,7 @@ def test_current_t1_runtime_classifier_rejects_manager_container_name_mismatch()
 
 def test_current_t1_runtime_classifier_rejects_duplicate_authoritative_manager() -> None:
     rows = _healthy_runtime_rows()
-    rows.insert(
-        1,
-        _container_row(
-            service="greenhouse-manager",
-            name="greenhouse-manager",
-            cid="m2",
-            project="manager-successor",
-            network="host",
-        ),
-    )
+    rows.insert(1, _manager_row(cid="m2"))
     try:
         entry._classify_current_t1_runtime(impl, rows)
     except impl.StopExecution:
@@ -169,11 +187,22 @@ def test_current_t1_runtime_classifier_rejects_duplicate_authoritative_manager()
     raise AssertionError("duplicate authoritative Manager must fail closed")
 
 
+def test_current_t1_runtime_classifier_rejects_broker_project_drift() -> None:
+    rows = _healthy_runtime_rows()
+    rows[1] = _broker_row(project="other")
+    try:
+        entry._classify_current_t1_runtime(impl, rows)
+    except impl.StopExecution:
+        return
+    raise AssertionError("Broker Compose-project drift must fail closed")
+
+
 def test_runtime_classifier_installer_replaces_stale_impl_selector() -> None:
     entry._install_current_t1_runtime_classifier(impl)
     result = impl.classify_t1_runtime(_healthy_runtime_rows())
     assert result["manager"]["id"] == "m1"
-    assert result["broker"]["id"] == "b1"
+    public = impl.public_t1_runtime(result)
+    assert public["manager_binding_mode"] == "container_name+image_prefix+frozen_source_revision"
 
 
 def test_manager_relay_log_parser_positive() -> None:
@@ -198,22 +227,7 @@ def test_board_relay_adjudication_same_fresh_session_passes() -> None:
 
 
 def test_t1_stability_requires_same_ids_and_restart_counts() -> None:
-    pre = {
-        "manager": _container_row(
-            service="greenhouse-manager",
-            name="greenhouse-manager",
-            cid="m1",
-            network="host",
-            restart=0,
-        ),
-        "broker": _container_row(
-            service="broker",
-            name="fc4-broker",
-            cid="b1",
-            restart=0,
-            ports={"8883/tcp": [{}]},
-        ),
-    }
+    pre = {"manager": _manager_row(), "broker": _broker_row()}
     post = json.loads(json.dumps(pre))
     stable = impl.t1_stability(pre, post)
     assert all(stable.values())
@@ -221,12 +235,14 @@ def test_t1_stability_requires_same_ids_and_restart_counts() -> None:
     assert impl.t1_stability(pre, post)["manager_restart_count_unchanged"] is False
 
 
-def test_manifest_forbids_t1_mutation_and_second_boot() -> None:
+def test_manifest_forbids_t1_mutation_and_freezes_observed_authority() -> None:
     manifest = impl.load_manifest()
     refs = manifest["authority_references"]
     assert refs["manager_container_name"] == "greenhouse-manager"
-    assert refs["manager_compose_service"] == "greenhouse-manager"
+    assert refs["manager_image_prefix"] == "greenhouse-manager:"
+    assert refs["frozen_deployed_product_manager_source"] == entry.FROZEN_MANAGER_SOURCE_REVISION
     assert refs["broker_compose_service"] == "broker"
+    assert refs["broker_compose_project"] == "n3wfc4"
     forbidden = manifest["forbidden"]
     for key in (
         "t1_file_write",
