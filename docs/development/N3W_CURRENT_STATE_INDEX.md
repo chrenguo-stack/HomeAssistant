@@ -1,42 +1,35 @@
 # N3-W Current State Index
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
+Current ID21–ID24 alignment: `docs/development/N3W_KF089_ID21_ID24_CURRENT_STATE_ALIGNMENT_20260913.md`  
 Current T1 runtime-convergence archive: `docs/development/N3W_KF089_T1_RUNTIME_CONVERGENCE_ISSUES_AND_PROGRESS_ALIGNMENT_20260909.md`  
-Previous formal fresh-RF handoff: `docs/development/N3W_KF089_SCHEMA_V4_FRESH_RF_EXECUTION_PREEXECUTION_NEW_CHAT_HANDOFF_V1.0_20260908.md`  
-Current detailed KF-089 progress archive: `docs/development/N3W_KF089_RELAY_ACQUISITION_TELEMETRY_OBSERVABILITY_AND_SCHEMA_V5_PROGRESS_ALIGNMENT_20260910.md`
 Active product-direction authority: `docs/development/N3W_OFFICIAL_ESPNOW_REFERENCE_PRODUCT_DIRECTION_DECISION_20260906.md`
 
-## Current source authority
+## Current source / package authority
 
 ```text
-REPOSITORY_MAIN=8a79b44ae42cb71fef75389524ed9094badb85a6
-REPOSITORY_MAIN_TREE=0c878193b894d58b17ae399aade9b610c380e6ce
-PR381_BASE_MAIN=f7083fbb7a7ba228dcd5f253b9cba752f6c7104c
-PR381_HEAD=b521ad1a5e223d2cf5a0de43fa6ff956339e9a0e
-PR381_MERGE_COMMIT=5d58727f5040281ee2beb9597f66a6a2da9bac57
-PRODUCT_SOURCE_AUTHORITY=fe116efabbd986263b043aa1a36ad74bf283bafa
-PRODUCT_SOURCE_TREE=1ae70a7d8776f8343d53d5c784141e8d8d1b1abc
+REPOSITORY_MAIN=7478e0fbcf893761ab76cc9952e09e77cda22755
+REPOSITORY_MAIN_TREE=91d2e4767887dad86525cf521e476d4a1234551a
+
 PRODUCT_BEHAVIOR_SOURCE_AUTHORITY=fe116efabbd986263b043aa1a36ad74bf283bafa
 DIAGNOSTIC_SOURCE_AUTHORITY=5d58727f5040281ee2beb9597f66a6a2da9bac57
 DIAGNOSTIC_SCHEMA_VERSION=5
+
+ID21_EXECUTION_PACKAGE_COMMIT=9ebe5968e2f06f23a657abbeeb68c4094b445a66
+ID22_EXECUTION_PACKAGE_COMMIT=23b3dc63dc112979a8e94928185daf8af2da6640
+ID23_EXECUTION_PACKAGE_COMMIT=17709dca4dec4dc5d4f8fceb4c6dbfc135becfa4
+
+ID24_REPAIR_PR=400
+ID24_REPAIR_HEAD=b973934b760db975ada601819191c62fe0513a9e
+ID24_REPAIR_PR_STATE=OPEN_DRAFT_UNMERGED
+ID24_DEDICATED_CI_RUN=34764719402
+ID24_DEDICATED_CI=PASS
+ID24_PUBLIC_REPOSITORY_SAFETY_RUN=34764719347
+ID24_PUBLIC_REPOSITORY_SAFETY=PASS
+ID24_HOST_ONLY_PREPARE_ACCEPTANCE=PASS
 ```
 
-Repository main may advance through documentation-only alignment commits
-without changing the frozen firmware / diagnostic source authority.
-Documentation-only descendants do not redefine product-source authority.
-
-## Frozen physical boundary
-
-```text
-BOARD_A_STATE=LAST_PROVEN_DIRECT_AND_RELAY_CAPABLE_RUNTIME_STATE
-BOARD_A_ACCESSED_DURING_LATER_HOST_ONLY_GATES=false
-BOARD_B_STATE=ROM_DOWNLOAD_MODE_USB_CONNECTED_BATTERY_DISCONNECTED
-BOARD_B_APPLICATION_BOOT_AFTER_FROZEN_CAPTURE=false
-BOARD_B_APP1_ROLLBACK_PRESERVED=true
-```
-
-Board B remains in ROM download mode with its battery disconnected. No
-Schema-v5 application boot or physical deployment has been executed.
+Repository main may advance independently through later documentation/process merges. Open stacked PRs and documentation branches are durable evidence surfaces but do not redefine `main` until merged.
 
 ## Current KF-089 product boundary
 
@@ -48,12 +41,38 @@ KF089_A_B_ESPNOW_REACHABILITY=PASS
 SELECTIVE_RF_ZONE_QUALIFIED=PASS
 KF089_RELAY_ADVERTISEMENT_DECODED=PASS
 KF089_RELAY_ADVERTISEMENT_ACCEPTED=PASS
-KF089_AUTHENTICATED_RELAY_ACQUISITION=PASS
+KF089_AUTHENTICATED_RELAY_ACQUISITION=PROVEN
+
+B_UNICAST_TX_COMPLETION=PROVEN
+A_COMPACT_RX=PROVEN
+A_COMPACT_DECODE=PROVEN
+A_COMPACT_FORWARD_SUBMIT=PROVEN
+BOARD_SIDE_RELAY_CHAIN=PROVEN
+
+MANAGER_RELAY_DYNSEC_SOURCE_CONTRACT_DEFECT=PROVEN
+LIVE_T1_MANAGER_DYNSEC_ROLE_MATCHES_SOURCE_DEFECT=PROVEN
+LIVE_T1_NODE_SELF_GATEWAY_PUBLISH_ACL=PROVEN_FOR_ALL_3_NODE_CLIENTS
+ROOT_CAUSE=MANAGER_RELAY_DYNSEC_RECEIVE_ACL_MISSING
+
 KF089_END_TO_END_RELAY_TELEMETRY=NOT_PROVEN
-FIRST_UNPROVEN_STAGE=B_UNICAST_TX_COMPLETION_OR_A_COMPACT_RX
+FIRST_UNRESOLVED_LAYER=POST_REPAIR_BROKER_TO_MANAGER_RELAY_INGRESS_AND_END_TO_END_CONFIRMATION
 ```
 
-## Current T1 runtime-convergence boundary
+The previous `FIRST_UNPROVEN_STAGE=B_UNICAST_TX_COMPLETION_OR_A_COMPACT_RX` boundary is obsolete and must not be reused.
+
+## Evidence-route summary
+
+```text
+ID21=PASS_BOARD_SIDE_RELAY_CHAIN
+ID22R2=STOP_T1_MANAGER_RELAY_ACCEPTANCE
+ID23_EXECUTOR=STOP_FAIL_CLOSED_ON_TWO_MANAGER_LIKE_DYNSEC_CLIENTS
+ID23_POSTEXEC_OFFLINE_ADJUDICATION=PASS_ACTIVE_MANAGER_EXACT_MATCH
+ID24_HOST_ONLY_PREPARE=PASS
+```
+
+ID23's executor STOP remains historically true and is not rewritten. The live root cause was proven later by offline exact matching against the already-captured private ID23 evidence; no second ID23 T1 access or replay occurred.
+
+## Current T1 runtime boundary
 
 ```text
 T1_RUNTIME_CONVERGENCE=CLOSED_PASS
@@ -66,37 +85,43 @@ N3W_ACTIVE_COMPOSE_LINEAGE_COUNT=1
 BROKER_NETWORK_COUNT_FINAL=2
 BROKER_RUNTIME_MAPPING_COUNT=3
 BROKER_HOST_PUBLICATION_RUNTIME=PASS
+BROKER_TLS_DYNSEC_RUNTIME=PASS
 MANAGER_TO_BROKER_TLS_MQTT=PASS
 HA_TO_BROKER_RUNTIME_CONTINUITY=PASS
 T1_CONTROLLED_REBOOT_BOOT_RECOVERY=PASS
 ```
 
-The final root cause was loss of the Broker external reachability network
-attachment during successor recipe materialization. The exact attachment and
-runtime host mappings were restored; Manager and Home Assistant recovered
-their post-reboot Broker relationships. The detailed public-safe archive is
-the current T1 runtime-convergence authority.
+The last ID23 observation of Manager/Broker health is historical evidence only. A future live repair requires a fresh exact runtime/DynSec preclaim before mutation.
+
+## Current physical boundary
+
+```text
+BOARD_A_CURRENT_POWER_STATE=UNKNOWN
+BOARD_B_CURRENT_POWER_STATE=UNKNOWN
+BOARD_A_ACCESS_DURING_ID23=false
+BOARD_B_ACCESS_DURING_ID23=false
+CONTROLLED_RF_EXPERIMENT_DURING_ID23=false
+```
+
+No new board/RF replay is justified for the proven Manager DynSec ACL blocker.
 
 ## Current ONE gate
 
 ```text
-NEXT_ONE_GATE=N3W_KF089_SCHEMA_V5_TWO_BOARD_DEPLOYMENT_AND_RELAY_TELEMETRY_LOCALIZATION
+PREPARE_KF089_MANAGER_RELAY_DYNSEC_ACL_REPAIR_PACKAGE=PASS
+NEXT_ONE_GATE=REQUEST_KF089_MANAGER_RELAY_DYNSEC_ACL_REPAIR_T1_MUTATION_AUTHORIZATION
+LIVE_T1_MUTATION_AUTHORIZATION_GRANTED=false
 ```
 
-Physical authorization is required for the next gate. It covers Schema-v5
-two-board deployment and Relay-telemetry localization.
+The accepted ID24 package is bound to PR #400 exact head `b973934b760db975ada601819191c62fe0513a9e`. The next action is authorization discussion only. No live T1 mutation, Board A/B access, RF execution, credential rotation, Broker replacement, or PR merge is implied.
 
-## Route after T1 convergence
-
-With the clean T1 runtime and controlled reboot/boot-recovery acceptance
-proven, return to:
+## Route after successful ACL repair
 
 ```text
-SCHEMA_V5_TWO_BOARD_DEPLOYMENT
--> TWO_BOARD_DIRECT_BASELINE
--> SELECTIVE_RF_LOCALIZATION_CAPTURE
--> B/A DURABLE_SCHEMA_V5_READBACK
--> DOWNSTREAM_RELAY_TELEMETRY_ADJUDICATION
+MANAGER_RELAY_DYNSEC_ACL_REPAIR
+-> MANAGER_RELAY_SUBSCRIPTION_REACTIVATION / BOUNDED_RUNTIME_CONFIRMATION
+-> MINIMAL_END_TO_END_RELAY_TELEMETRY_VERIFICATION
+-> KF089_END_TO_END_RELAY_TELEMETRY_ADJUDICATION
 ```
 
-Do not retain stale current-state text claiming that Board B is still at the test Mac or that the fresh-RF gate is immediately executable. Historical archives remain historical and are not rewritten.
+Historical archives remain historical and are not rewritten. Private Dynamic Security state, credentials, service/node identities, raw Docker/Broker logs, raw NVS, complete board identities, T1 target details, and private paths stay outside public GitHub.
