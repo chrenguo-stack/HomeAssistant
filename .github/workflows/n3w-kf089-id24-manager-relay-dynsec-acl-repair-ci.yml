@@ -35,4 +35,4 @@ jobs:
       - name: Self-check ID24 package
         run: python tools/execution_packages/n3w/kf089/id24_manager_relay_dynsec_acl_repair/executor.py --self-check
       - name: Focused ID24 tests
-        run: python -m pytest -q tests/execution_packages/n3w/kf089/id24_manager_relay_dynsec_acl_repair/test_executor.py
+        run: python -m pytest -q tests/execution_packages/n3w/kf089/id24_manager_relay_dynsec_acl_repair
