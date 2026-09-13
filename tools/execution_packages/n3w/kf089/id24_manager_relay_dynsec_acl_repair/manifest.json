@@ -1,0 +1,70 @@
+{
+  "package_schema_version": 1,
+  "project": "n3w",
+  "stage": "kf089",
+  "gate_id": "id24_manager_relay_dynsec_acl_repair",
+  "predecessor": {
+    "gate": "ID23_POSTEXEC_OFFLINE_ADJUDICATION",
+    "id23_execution_package_commit": "17709dca4dec4dc5d4f8fceb4c6dbfc135becfa4",
+    "id23_executor_result": "STOP",
+    "id23_offline_adjudication": "PASS",
+    "root_cause": "MANAGER_RELAY_DYNSEC_RECEIVE_ACL_MISSING"
+  },
+  "authority_references": {
+    "deployed_manager_source": "8fbedc7e0778ce91d146cd5f0772bebdd20ad13a",
+    "repaired_service_identity_plan_blob": "19d95cfe59c12ee0abeaddf8c777fb663a5bd399",
+    "manager_container_name": "greenhouse-manager",
+    "manager_image_prefix": "greenhouse-manager:",
+    "broker_compose_service": "broker",
+    "broker_compose_project": "n3wfc4"
+  },
+  "source_repair": {
+    "relay_topic": "gh/v1/<sid>/ingress/gateway/+/+/frame",
+    "manager_acl_types": [
+      "subscribePattern",
+      "publishClientReceive",
+      "unsubscribePattern"
+    ],
+    "broad_gateway_wildcard_not_granted": true
+  },
+  "live_repair_contract": {
+    "prestate_must_match_proven_defect": true,
+    "active_manager_must_exact_match_runtime_username_and_clientid": true,
+    "direct_ingress_acl_must_remain_intact": true,
+    "provisioning_identity_only": true,
+    "dynsec_add_role_acl_count": 3,
+    "rollback_to_prestate_on_partial_or_failed_mutation": true,
+    "manager_restart": false,
+    "broker_restart": false,
+    "application_mqtt_probe": false,
+    "postcheck_manager_and_broker_runtime_stability": true
+  },
+  "pass_boundary": {
+    "source_contract_repaired": true,
+    "live_prestate_defect_proven": true,
+    "target_acl_add_success_count": 3,
+    "poststate_exact_relay_acl_count": 3,
+    "manager_runtime_stable": true,
+    "broker_runtime_stable": true,
+    "next_route": "PREPARE_KF089_MANAGER_RELAY_SUBSCRIPTION_REACTIVATION_PACKAGE"
+  },
+  "forbidden": {
+    "board_a_access": true,
+    "board_b_access": true,
+    "application_boot": true,
+    "controlled_rf_experiment": true,
+    "flash_write": true,
+    "host_nvs_write": true,
+    "otadata_write": true,
+    "serial_open": true,
+    "t1_file_write": true,
+    "manager_restart": true,
+    "broker_restart": true,
+    "broker_config_mutation": true,
+    "credential_change": true,
+    "mqtt_test_publish": true,
+    "application_topic_subscriber": true,
+    "automatic_retry": true,
+    "pr_merge": true
+  }
+}
