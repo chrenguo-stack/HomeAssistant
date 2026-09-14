@@ -7,15 +7,15 @@ This is the concise public-safe authority for the current N3-W state. Fresh exac
 
 ## Repository / source authority
 
-Fresh repository `main` observed after the clean KF-089 code/package integration sequence:
+KF-089 code/package integration baseline after the clean PR #406 → #407 → #408 sequence:
 
 ```text
 REPOSITORY=chrenguo-stack/HomeAssistant
-REPOSITORY_MAIN=1bbd4f3f1cfbccaa383d326a28bc972ed4ee202b
-REPOSITORY_MAIN_TREE=5b9bdc77585f3c1990b4123fccfb84f4d16d281d
+KF089_CODE_PACKAGE_INTEGRATION_BASE_MAIN=1bbd4f3f1cfbccaa383d326a28bc972ed4ee202b
+KF089_CODE_PACKAGE_INTEGRATION_BASE_TREE=5b9bdc77585f3c1990b4123fccfb84f4d16d281d
 ```
 
-The accepted KF-089 repair/validation code and execution-package stack is now integrated into `main` through the clean integration path:
+The accepted KF-089 repair/validation code and execution-package stack is integrated into `main` through the clean integration path:
 
 ```text
 PR406=MERGED
@@ -39,7 +39,7 @@ MANAGER_RELAY_SOURCE_CONTRACT_INTEGRATION=PASS
 
 Historical PR #400 / #403 / #404 remain provenance for the original accepted live packages. The clean integration path above is the authority for what entered `main`; consumed historical live authorizations remain non-replayable.
 
-Repository main must always be queried fresh. Live acceptance and repository integration remain separate authorities: the live T1 repair and physical Relay acceptance were proven before integration, and the corresponding source/guard package stack is now also present in `main`.
+Repository `main` must always be queried fresh. The fixed SHA above is the KF-089 code/package integration baseline, not a permanent claim about the repository tip after documentation-only descendants. Live acceptance and repository integration remain separate authorities: the live T1 repair and physical Relay acceptance were proven before integration, and the corresponding source/guard package stack is now also present in `main`.
 
 Active architecture authority remains:
 
@@ -221,17 +221,18 @@ The accepted fresh/cold Relay path must not be re-labelled as proof of a same-se
 
 ## Current ONE gate
 
-KF-089 no longer requires another physical/T1 gate for its Relay end-to-end acceptance, and the code/package integration route is complete.
+KF-089 no longer requires another physical/T1 gate for its Relay end-to-end acceptance. The code/package integration route is complete, and this closeout/current-authority documentation is merge-ready under the separately granted PR #409 merge-closeout authorization.
 
 ```text
-NEXT_ONE_GATE=KF089_CLOSEOUT_DOCS_AND_CENTRAL_GUARD_REVIEW
+KF089_RELAY_END_TO_END_CLOSEOUT=PASS
 PR406_PR407_PR408_INTEGRATION=PASS
+PR409_MERGE_CLOSEOUT_AUTHORIZATION=GRANTED_2026-09-14
 PHYSICAL_AUTHORIZATION_REQUIRED=false
 T1_AUTHORIZATION_REQUIRED=false
-PR409_MERGE_AUTHORIZED=false
+POST_PR409_NEXT_ONE_GATE=NONE_WITHIN_KF089_RELAY_CLOSEOUT
 ```
 
-PR #409 remains a documentation/central-guard candidate only. Before any merge decision it must contain refreshed current-state text and the fresh exact-base KF-089 edit to `KNOWN_FAILURES_AND_REGRESSION_GUARDS.md`, then pass a focused diff review and public-repository safety CI. No PR #409 merge authority is implied by this document.
+PR #409 is the repository integration vehicle for these closeout/current-authority documents. Its live GitHub merge state must be queried fresh rather than inferred from this file. After PR #409 integration and post-merge CI verification, no further gate remains inside the KF-089 Relay end-to-end closeout itself.
 
 ## Frozen broader acceptance
 
