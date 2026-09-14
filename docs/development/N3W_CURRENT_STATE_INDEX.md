@@ -8,22 +8,29 @@ Active product-direction authority: `docs/development/N3W_OFFICIAL_ESPNOW_REFERE
 
 ## Current repository authority
 
-Fresh main observed during closeout:
+Fresh `main` observed after the clean KF-089 code/package integration sequence:
 
 ```text
-REPOSITORY_MAIN=7478e0fbcf893761ab76cc9952e09e77cda22755
-REPOSITORY_MAIN_TREE=91d2e4767887dad86525cf521e476d4a1234551a
+REPOSITORY_MAIN=1bbd4f3f1cfbccaa383d326a28bc972ed4ee202b
+REPOSITORY_MAIN_TREE=5b9bdc77585f3c1990b4123fccfb84f4d16d281d
 ```
 
-Accepted but still-unmerged KF-089 review stack:
+Integrated clean stack:
 
 ```text
-PR400_HEAD=b973934b760db975ada601819191c62fe0513a9e
-PR403_HEAD=1f4cb36a2d1180753556eb08d2b46fa180d423e0
-PR404_HEAD=83006bc87904843d6ca784355556032852c3813d
+PR406=MERGED
+PR406_MERGE_COMMIT=d7d9cd9d49f795c71a96c5f28f90cbdd9930c5e2
+PR407=MERGED
+PR407_MERGE_COMMIT=9237e1ad1b4cf1850af40599ce173f07b00ad5cd
+PR408=MERGED
+PR408_MERGE_COMMIT=1bbd4f3f1cfbccaa383d326a28bc972ed4ee202b
+ID23_ID24_ID25_ID26_REPOSITORY_INTEGRATION=PASS
+MANAGER_RELAY_SOURCE_CONTRACT_INTEGRATION=PASS
 ```
 
-Do not describe current `main` as already containing the full KF-089 Manager Relay DynSec source repair until the stack is integrated and fresh main is rebound.
+Historical PR #400 / #403 / #404 remain provenance for the original accepted live package heads. Current `main` contains the clean ID23→ID24→ID25→ID26 integration route through PR #406→#407→#408.
+
+PR #409 remains an unmerged documentation/central-guard candidate. No PR #409 merge authority is implied by this index.
 
 ## Current deployed authorities
 
@@ -32,9 +39,10 @@ BOARD_FIRMWARE_SOURCE_AUTHORITY=5d58727f5040281ee2beb9597f66a6a2da9bac57
 BOARD_FIRMWARE_SHA256=5168a1958669ce06002cc5cb507fda7fc7477ca53294a73dbcf582e5879f383b
 DIAGNOSTIC_SCHEMA_VERSION=5
 DEPLOYED_MANAGER_SOURCE=8fbedc7e0778ce91d146cd5f0772bebdd20ad13a
+LIVE_MANAGER_DYNSEC_REPAIR=PASS
 ```
 
-The running T1 Dynamic Security role has been repaired in place and the Manager subscription was reactivated with one controlled restart. Those live-state facts are distinct from repository-main integration.
+The running T1 Dynamic Security role was repaired in place and the Manager subscription was reactivated with one controlled restart before the final ID26 revalidation. These live-state facts remain distinct from the repository revision of the deployed Manager image. The corrected source contract is now durable in repository `main`.
 
 ## KF-089 accepted product boundary
 
@@ -93,20 +101,13 @@ LIVE_RELAY_TO_DIRECT_RECOVERY=NOT_YET_ADJUDICATED
 ## Current ONE gate
 
 ```text
-NEXT_ONE_GATE=KF089_PR_STACK_INTEGRATION_REVIEW
+NEXT_ONE_GATE=KF089_CLOSEOUT_DOCS_AND_CENTRAL_GUARD_REVIEW
+PR406_PR407_PR408_INTEGRATION=PASS
 PHYSICAL_AUTHORIZATION_REQUIRED=false
 T1_AUTHORIZATION_REQUIRED=false
+PR409_MERGE_AUTHORIZED=false
 ```
 
-Integration order:
+Before any PR #409 merge decision, the candidate must contain the refreshed current-state documents and a fresh exact-base KF-089 edit to `docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md`, followed by focused diff review and public-repository safety CI.
 
-```text
-PR400
--> PR403
--> PR404
--> KF089_CLOSEOUT_DOCS_PR
-```
-
-Each stacked PR must be freshly diff-reviewed against the then-current main before integration. No merge authority is implied by this index.
-
-Historical archives remain historical and are not rewritten. In particular, stale text saying `KF089_END_TO_END_RELAY_TELEMETRY=NOT_PROVEN` remains valid only for the dated archive in which it was recorded, not for the current state after the 2026-09-14 ID26 PASS.
+Historical archives remain historical and are not rewritten solely to erase dated intermediate states. In particular, stale text saying `KF089_END_TO_END_RELAY_TELEMETRY=NOT_PROVEN` remains valid only for the dated archive in which it was recorded, not for the current state after the 2026-09-14 ID26 PASS.
