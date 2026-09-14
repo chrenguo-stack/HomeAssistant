@@ -395,14 +395,14 @@ def self_check() -> None:
 
     source = Path(__file__).read_text(encoding="utf-8").lower()
     prohibited_tokens = (
-        "docker restart ",
-        "docker stop ",
-        "docker start ",
-        "docker rm ",
-        "mosquitto_pub",
-        "mosquitto_sub",
-        "esptool",
-        "/dev/cu.",
+        "docker" + " restart ",
+        "docker" + " stop ",
+        "docker" + " start ",
+        "docker" + " rm ",
+        "mosquitto" + "_pub",
+        "mosquitto" + "_sub",
+        "esp" + "tool",
+        "/dev/" + "cu.",
     )
     for token in prohibited_tokens:
         if token in source:
