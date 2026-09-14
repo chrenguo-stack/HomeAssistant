@@ -1,41 +1,78 @@
 # N3-W Current State
 
-Updated: 2026-09-10
+Updated: 2026-09-14
 Status: `CURRENT_STATE_AUTHORITY`
 
 This is the concise public-safe authority for the current N3-W state. Fresh exact repository, runtime, and physical evidence takes precedence if later evidence proves drift.
 
 ## Repository / source authority
 
+KF-089 code/package integration baseline after the clean PR #406 → #407 → #408 sequence:
+
 ```text
 REPOSITORY=chrenguo-stack/HomeAssistant
-REPOSITORY_MAIN=8a79b44ae42cb71fef75389524ed9094badb85a6
-REPOSITORY_MAIN_TREE=0c878193b894d58b17ae399aade9b610c380e6ce
-PR381_BASE_MAIN=f7083fbb7a7ba228dcd5f253b9cba752f6c7104c
-PR381_HEAD=b521ad1a5e223d2cf5a0de43fa6ff956339e9a0e
-PR381_MERGE_COMMIT=5d58727f5040281ee2beb9597f66a6a2da9bac57
-PR381_MERGE_TREE=b27b2968ea4e0b3bcb5f8312c3d31d391bd8d3ed
-PRODUCT_SOURCE_AUTHORITY=fe116efabbd986263b043aa1a36ad74bf283bafa
-PRODUCT_SOURCE_TREE=1ae70a7d8776f8343d53d5c784141e8d8d1b1abc
-LAST_PRODUCT_SOURCE_CHANGE=PR_376
-PRODUCT_BEHAVIOR_SOURCE_AUTHORITY=fe116efabbd986263b043aa1a36ad74bf283bafa
-DIAGNOSTIC_SOURCE_AUTHORITY=5d58727f5040281ee2beb9597f66a6a2da9bac57
+KF089_CODE_PACKAGE_INTEGRATION_BASE_MAIN=1bbd4f3f1cfbccaa383d326a28bc972ed4ee202b
+KF089_CODE_PACKAGE_INTEGRATION_BASE_TREE=5b9bdc77585f3c1990b4123fccfb84f4d16d281d
 ```
 
-Repository main must always be queried fresh. Repository main may advance through documentation-only alignment commits without changing the frozen firmware / diagnostic source authority. Documentation-only descendants do not redefine the frozen product-source authority.
+The accepted KF-089 repair/validation code and execution-package stack is integrated into `main` through the clean integration path:
+
+```text
+PR406=MERGED
+PR406_HEAD=159e8deabdbbf0f1990c4ecd7e425116a97b1879
+PR406_MERGE_COMMIT=d7d9cd9d49f795c71a96c5f28f90cbdd9930c5e2
+PR406_POSTMERGE_CI=PASS
+
+PR407=MERGED
+PR407_HEAD=55af8ba3a7bb55325f9b430e67a3e08efff1b6f5
+PR407_MERGE_COMMIT=9237e1ad1b4cf1850af40599ce173f07b00ad5cd
+PR407_POSTMERGE_CI=PASS
+
+PR408=MERGED
+PR408_HEAD=c8f4efbdbd0f14fbc0c6c50ac915af06ce34b755
+PR408_MERGE_COMMIT=1bbd4f3f1cfbccaa383d326a28bc972ed4ee202b
+PR408_POSTMERGE_CI=PASS
+
+ID23_ID24_ID25_ID26_REPOSITORY_INTEGRATION=PASS
+MANAGER_RELAY_SOURCE_CONTRACT_INTEGRATION=PASS
+```
+
+Historical PR #400 / #403 / #404 remain provenance for the original accepted live packages. The clean integration path above is the authority for what entered `main`; consumed historical live authorizations remain non-replayable.
+
+Repository `main` must always be queried fresh. The fixed SHA above is the KF-089 code/package integration baseline, not a permanent claim about the repository tip after documentation-only descendants. Live acceptance and repository integration remain separate authorities: the live T1 repair and physical Relay acceptance were proven before integration, and the corresponding source/guard package stack is now also present in `main`.
 
 Active architecture authority remains:
 
 `docs/development/N3W_OFFICIAL_ESPNOW_REFERENCE_PRODUCT_DIRECTION_DECISION_20260906.md`
 
-Current product direction:
+Current product direction remains:
 
 - provisioned runtime startup does not require an existing Wi-Fi association;
 - Direct remains preferred;
 - when Direct is unavailable, node-local bounded autonomous Relay discovery is allowed;
-- full custom radio-ownership architecture remains deferred unless evidence requires it.
+- full custom radio-ownership architecture remains deferred unless later evidence requires it.
 
-## KF-089 product status
+## Deployed product authorities
+
+Board Schema-v5 authority used by the accepted two-board Relay chain:
+
+```text
+BOARD_FIRMWARE_SOURCE_AUTHORITY=5d58727f5040281ee2beb9597f66a6a2da9bac57
+BOARD_FIRMWARE_SHA256=5168a1958669ce06002cc5cb507fda7fc7477ca53294a73dbcf582e5879f383b
+DIAGNOSTIC_SCHEMA_VERSION=5
+```
+
+The deployed Manager runtime authority remains distinct from repository-main source integration:
+
+```text
+DEPLOYED_MANAGER_SOURCE=8fbedc7e0778ce91d146cd5f0772bebdd20ad13a
+LIVE_MANAGER_DYNSEC_REPAIR=PASS
+MANAGER_RELAY_SOURCE_CONTRACT_INTEGRATION=PASS
+```
+
+ID24 repaired the active live Dynamic Security role in place. ID25 then performed exactly one Manager restart to establish a fresh MQTT subscription cycle. ID26 proved fresh Relay telemetry delivery without further Manager/Broker/DynSec mutation. Integrating the source contract into `main` does not retroactively change the deployed Manager image revision; it makes the corrected contract durable for repository-controlled future materialization.
+
+## KF-089 final Relay acceptance
 
 ```text
 KF089_STARTUP_GATE_REPAIR=PASS
@@ -46,128 +83,163 @@ SELECTIVE_RF_ZONE_QUALIFIED=PASS
 KF089_RELAY_ADVERTISEMENT_DECODED=PASS
 KF089_RELAY_ADVERTISEMENT_ACCEPTED=PASS
 KF089_AUTHENTICATED_RELAY_ACQUISITION=PASS
-KF089_END_TO_END_RELAY_TELEMETRY=NOT_PROVEN
-FIRST_UNPROVEN_STAGE=B_UNICAST_TX_COMPLETION_OR_A_COMPACT_RX
+BOARD_SIDE_RELAY_CHAIN=PROVEN
+T1_BROKER_MEDIATED_RELAY_INGRESS=PROVEN
+MANAGER_RELAY_ACCEPTANCE=PROVEN
+KF089_END_TO_END_RELAY_TELEMETRY=PROVEN
 ```
 
-The current T1 runtime-convergence detour does not change this product-level acceptance boundary.
-
-## Observability authority
+The final ID26 fresh window was isolated by a Board-B-off baseline:
 
 ```text
-DIAGNOSTIC_SCHEMA_VERSION=5
-DIAGNOSTIC_NAMESPACE=gh_n3w_diag
-DIAGNOSTIC_KEY=snapshot
-PRODUCT_TARGET_DIAGNOSTICS_ENABLED=false
-PHASE4_GENERIC_DIAGNOSTICS_ENABLED=true
+PREWINDOW_ACCEPTED_RELAY_COUNT=0
+PREWINDOW_QUIESCENCE_SECONDS_OBSERVED=10.003290081047453
+RELAY_WINDOW_SECONDS_OBSERVED=384.16830721497536
+WINDOW_ACCEPTED_RELAY_COUNT=38
+WINDOW_REJECTED_RELAY_COUNT=0
+WINDOW_DUPLICATE_RELAY_COUNT=0
+WINDOW_UNIQUE_ACCEPTED_RELAY_ROUTE_COUNT=1
 ```
 
-## Physical boundary
+This proves the product chain through Manager acceptance:
 
 ```text
-BOARD_A_STATE=LAST_PROVEN_DIRECT_AND_RELAY_CAPABLE_RUNTIME_STATE
-BOARD_A_ACCESSED_DURING_LATER_HOST_ONLY_GATES=false
-BOARD_B_STATE=ROM_DOWNLOAD_MODE_USB_CONNECTED_BATTERY_DISCONNECTED
-BOARD_B_APPLICATION_BOOT_AFTER_FROZEN_CAPTURE=false
-BOARD_B_APP1_ROLLBACK_PRESERVED=true
+BOARD_B
+-> ESP_NOW
+-> BOARD_A_GATEWAY_FORWARD
+-> MQTT_BROKER
+-> MANAGER_RELAY_INGRESS
+-> MANAGER_ACCEPTED_TELEMETRY
 ```
 
-The current physical boundary is frozen after the Schema-v4 durable
-handshake/RelayActive capture and later host-only recovery evidence. Board B
-is in ROM download mode with its battery disconnected; no application boot has
-occurred after the frozen capture/recovery readback. Board A was not accessed
-during later host-only/source gates, so its last proven Direct/Relay-capable
-runtime state remains the applicable public-safe statement. No fresh Schema-v5
-physical deployment has been executed.
+Detailed public-safe closeout authority:
 
-## T1 runtime-convergence boundary
+`docs/development/N3W_KF089_RELAY_END_TO_END_CLOSEOUT_20260914.md`
 
-T1 runtime convergence is closed PASS. The final state has one Manager, one
-Broker, one active N3-W Compose lineage, and the Broker's required private and
-external reachability networks.
+## Dynamic Security / subscription repair boundary
+
+The downstream Relay failure was localized to the active Manager Dynamic Security role. Default subscribe and client-receive behavior remained deny, while the Manager role lacked the exact Relay ingress receive contract.
+
+Accepted least-privilege topic:
+
+```text
+gh/v1/<sid>/ingress/gateway/+/+/frame
+```
+
+Accepted ACL trio:
+
+```text
+subscribePattern
+publishClientReceive
+unsubscribePattern
+```
+
+Final repair/runtime state:
+
+```text
+ID24_REPAIR_RESULT=PASS
+POSTSTATE_EXACT_RELAY_ACL_COUNT=3
+POSTSTATE_EXACT_CONTRACT_PROVEN=true
+
+ID25_REACTIVATION_RESULT=PASS
+POSTRESTART_RELAY_SUBSCRIPTION_REQUEST_OBSERVED=true
+POSTRESTART_DIRECT_SUBSCRIPTION_REQUEST_OBSERVED=true
+POSTRESTART_FAILURE_LOG_ABSENT=true
+
+ID26_REVALIDATION_RESULT=PASS
+LIVE_REPAIRED_DYNSEC_POSTSTATE_PROVEN=true
+DYNSEC_STATE_UNCHANGED=true
+MANAGER_RUNTIME_STABLE=true
+BROKER_RUNTIME_STABLE=true
+```
+
+No broad `ingress/gateway/#` grant is part of the accepted repair.
+
+## Last-proven physical boundary
+
+```text
+BOARD_A_LAST_PROVEN_STATE=POWERED_DIRECT_DURING_ID26_UNTOUCHED
+BOARD_A_USB_ACCESS_DURING_ID26=false
+BOARD_A_PHYSICAL_MUTATION_DURING_ID26=false
+
+BOARD_B_ID26_INITIAL_STATE=POWERED_OFF_AT_QUALIFIED_RELAY_ONLY_LOCATION
+BOARD_B_ID26_POWER_WINDOW_COMPLETED=true
+BOARD_B_ID26_FINAL_STATE=POWERED_OFF
+BOARD_B_USB_ACCESS_DURING_ID26=false
+
+CONTROLLED_RF_EXPERIMENT=PASS
+```
+
+These are last-proven experiment boundary facts, not a claim about the boards' real-time state after the operator later leaves the experiment.
+
+## T1 runtime boundary
+
+The previously accepted T1 runtime-convergence closure remains in force. ID24-ID26 additionally prove the current Relay receive path without reopening the infrastructure detour.
 
 ```text
 T1_RUNTIME_CONVERGENCE=CLOSED_PASS
-ACTIVE_DETOUR=NONE
 AUTHORITATIVE_MANAGER_COUNT=1
-LEGACY_MANAGER_COUNT=0
 AUTHORITATIVE_BROKER_COUNT=1
-LEGACY_BROKER_COUNT=0
-N3W_ACTIVE_COMPOSE_LINEAGE_COUNT=1
-BROKER_NETWORK_COUNT_FINAL=2
-BROKER_RUNTIME_MAPPING_COUNT=3
 BROKER_HOST_PUBLICATION_RUNTIME=PASS
-BROKER_TLS_DYNSEC_RUNTIME=PASS
 MANAGER_TO_BROKER_TLS_MQTT=PASS
-HA_TO_BROKER_RUNTIME_CONTINUITY=PASS
-T1_RUNTIME_RESIDUE_POSTCHECK=PASS
-T1_CONTROLLED_REBOOT_BOOT_RECOVERY=PASS
+
+ID26_MANAGER_RUNTIME_STABLE=true
+ID26_BROKER_RUNTIME_STABLE=true
+ID26_DYNSEC_STATE_UNCHANGED=true
 ```
 
-The final root cause was deployment-network loss during successor recipe
-materialization: the external reachability network attachment was omitted,
-leaving the clean Broker internal-only and preventing usable host publication.
-The exact external attachment and host mappings were restored. Manager
-recovered automatically after the controlled reboot; Home Assistant also
-retained a post-reboot live authenticated MQTT relationship with the current
-Broker. No product source or firmware authority changed.
-
-The controlled reboot acceptance used one reboot only and required no manual
-container start, stop, restart, recreate, network repair, or Docker daemon
-restart.
-
-Detailed public-safe archive:
+Detailed historical T1 convergence archive:
 
 `docs/development/N3W_KF089_T1_RUNTIME_CONVERGENCE_ISSUES_AND_PROGRESS_ALIGNMENT_20260909.md`
 
-## Required guards
-
-- USB port is a locator only and is not board identity authority.
-- Board-targeted mutation requires explicit operator target/connection confirmation before board access.
-- Fresh ROM silicon identity is required before any board write.
-- Application serial open is not a passive runtime oracle.
-- Lab diagnostic NVS writes are distinct from product NVS mutation.
-- Discovery RX means decoded handler RX, not accepted advertisement.
-- Historical discovery counts are boot-session cumulative, not exact final RF-window counts.
-- Manager/Broker authority must not be selected by container name alone.
-- Strict read-only gates must not create temporary files.
-- Stateful destructive rematerialization must use a quiesced snapshot unless an application-consistent online snapshot mechanism is proven.
-- `Config.ExposedPorts`, `HostConfig.PortBindings`, and actual runtime `NetworkSettings.Ports` / `docker port` mappings are separate evidence layers.
-- A Compose `ports:` declaration is not sufficient proof that Docker runtime host publication exists.
-- For the host-network Manager/Broker path, the exact Manager-image + host-network namespace resolution is authoritative for Broker bind-address compatibility; host-side resolution alone is insufficient (KF-035).
-
-## Current ONE gate
+## Acceptance boundaries not claimed by KF-089 closeout
 
 ```text
-NEXT_ONE_GATE=N3W_KF089_SCHEMA_V5_TWO_BOARD_DEPLOYMENT_AND_RELAY_TELEMETRY_LOCALIZATION
-```
-
-Physical authorization is required. The next route is Schema-v5 two-board
-deployment, then two-board Direct baseline, selective-RF localization capture,
-durable Schema-v5 readback, and downstream Relay-telemetry adjudication.
-
-## Route after T1 convergence
-
-T1 convergence is complete. Return to:
-
-```text
-SCHEMA_V5_TWO_BOARD_DEPLOYMENT
--> TWO_BOARD_DIRECT_BASELINE
--> SELECTIVE_RF_LOCALIZATION_CAPTURE
--> B/A DURABLE_SCHEMA_V5_READBACK
--> DOWNSTREAM_RELAY_TELEMETRY_ADJUDICATION
-```
-
-Acceptance boundaries remain:
-
-```text
-FC4_FINAL_PHYSICAL_ACCEPTANCE=FROZEN_PASS
-N3W_THREE_BOARD_R2_RUNTIME_LIVENESS=FROZEN_PASS
-KF089_STARTUP_GATE_REPAIR=PASS
-KF089_RELAY_ADVERTISEMENT_ACCEPTED=PASS
-KF089_AUTHENTICATED_RELAY_ACQUISITION=PASS
+HOME_ASSISTANT_ENTITY_UPDATE=NOT_IN_SCOPE
 LIVE_DIRECT_TO_RELAY_FAILOVER=NOT_YET_ADJUDICATED
 LIVE_RELAY_TO_DIRECT_RECOVERY=NOT_YET_ADJUDICATED
 ```
 
-Public GitHub stores source, tests, hashes, sanitized closures, architecture decisions, and sanitized runtime alignment. Raw NVS, credentials, private board identities, remote-host details, private paths/addresses, and other sensitive physical evidence remain private/local.
+The accepted fresh/cold Relay path must not be re-labelled as proof of a same-session Direct→Relay transition or Relay→Direct recovery.
+
+## Required guards
+
+- USB port is a locator only and is not board identity authority.
+- Board-targeted mutation requires explicit operator target/connection confirmation before board access and fresh ROM silicon identity before write.
+- Application serial open is not a passive runtime oracle.
+- Lab diagnostic NVS writes are distinct from product NVS mutation.
+- Discovery RX means decoded handler RX, not accepted advertisement.
+- Historical discovery counts are boot-session cumulative, not exact final RF-window counts.
+- Schema-v4 `esp_now_send(...) == ESP_OK` is submit acceptance, not asynchronous delivery completion; Schema-v5 completion counters are the correct device-side completion oracle.
+- Manager/Broker authority must not be selected by container name alone.
+- Strict read-only gates must not create temporary files on the target.
+- Current DynSec authority must be derived from the running Broker effective configuration; broad Relay grants remain forbidden.
+- The Manager Relay role must retain exactly the required least-privilege receive contract while default deny remains active.
+- A live in-place ACL repair does not reactivate an existing MQTT subscription by itself; reactivation evidence must be established separately.
+- End-to-end Relay proof requires a bounded fresh traffic window with a clean pre-window baseline or another equally strong attribution oracle.
+- Consumed one-shot authorizations are never replayable.
+
+## Current ONE gate
+
+KF-089 no longer requires another physical/T1 gate for its Relay end-to-end acceptance. The code/package integration route is complete, and this closeout/current-authority documentation is merge-ready under the separately granted PR #409 merge-closeout authorization.
+
+```text
+KF089_RELAY_END_TO_END_CLOSEOUT=PASS
+PR406_PR407_PR408_INTEGRATION=PASS
+PR409_MERGE_CLOSEOUT_AUTHORIZATION=GRANTED_2026-09-14
+PHYSICAL_AUTHORIZATION_REQUIRED=false
+T1_AUTHORIZATION_REQUIRED=false
+POST_PR409_NEXT_ONE_GATE=NONE_WITHIN_KF089_RELAY_CLOSEOUT
+```
+
+PR #409 is the repository integration vehicle for these closeout/current-authority documents. Its live GitHub merge state must be queried fresh rather than inferred from this file. After PR #409 integration and post-merge CI verification, no further gate remains inside the KF-089 Relay end-to-end closeout itself.
+
+## Frozen broader acceptance
+
+```text
+FC4_FINAL_PHYSICAL_ACCEPTANCE=FROZEN_PASS
+N3W_THREE_BOARD_R2_RUNTIME_LIVENESS=FROZEN_PASS
+KF089_RELAY_END_TO_END_CLOSEOUT=PASS
+```
+
+Public GitHub stores source, tests, hashes, sanitized closures, architecture decisions, and sanitized runtime alignment. Raw NVS, credentials, private board identities, remote-host details, private paths/addresses, raw Manager logs, and raw Dynamic Security snapshots remain private/local.
