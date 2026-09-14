@@ -1,0 +1,53 @@
+{
+  "package_schema_version": 1,
+  "project": "n3w",
+  "stage": "kf089",
+  "gate_id": "id24r1_t1_dynsec_state_readonly_recovery",
+  "predecessor": {
+    "proven_root_cause_comment_id": 5653214151,
+    "id24_repair_package_head": "b973934b760db975ada601819191c62fe0513a9e",
+    "historical_live_execution_provenance": "UNRESOLVED"
+  },
+  "authority_references": {
+    "deployed_manager_source": "8fbedc7e0778ce91d146cd5f0772bebdd20ad13a",
+    "id24_repair_executor": "tools/execution_packages/n3w/kf089/id24_manager_relay_dynsec_acl_repair/executor.py",
+    "manager_container_name": "greenhouse-manager",
+    "broker_compose_service": "broker",
+    "broker_compose_project": "n3wfc4"
+  },
+  "purpose": {
+    "fresh_live_state_only": true,
+    "classify_pre_repair_defect": true,
+    "classify_exact_repaired_state": true,
+    "classify_partial_or_drift_state": true,
+    "resolve_historical_execution_provenance": false
+  },
+  "read_only_contract": {
+    "t1_ssh_readonly": true,
+    "docker_inventory_readonly": true,
+    "broker_config_readonly": true,
+    "dynsec_state_readonly": true,
+    "private_snapshot_and_sha256_on_host": true,
+    "manager_broker_runtime_stability_postcheck": true
+  },
+  "forbidden": {
+    "dynsec_mutation": true,
+    "mqtt_control_request": true,
+    "mqtt_test_publish": true,
+    "application_topic_subscriber": true,
+    "manager_restart": true,
+    "broker_restart": true,
+    "docker_mutation": true,
+    "broker_config_mutation": true,
+    "credential_change": true,
+    "t1_file_write": true,
+    "board_a_access": true,
+    "board_b_access": true,
+    "serial_open": true,
+    "flash_write": true,
+    "nvs_mutation": true,
+    "rf_execution": true,
+    "automatic_retry": true,
+    "pr_merge": true
+  }
+}
