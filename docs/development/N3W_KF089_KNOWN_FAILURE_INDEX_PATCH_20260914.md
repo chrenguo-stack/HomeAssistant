@@ -1,9 +1,9 @@
 # KF-089 Known-Failure Index Closeout Patch
 
-Status: `PUBLIC_SAFE_EXACT_EDIT_APPLIED_IN_PR409_CANDIDATE`
+Status: `PUBLIC_SAFE_EXACT_EDIT_MERGE_READY`
 Date: `2026-09-14`
 
-This file freezes the exact semantic update applied to `docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md` in the PR #409 closeout candidate after the clean KF-089 code/package stack was integrated into `main`. It preserves the accepted 2026-09-14 live result and the exact edit provenance without implying that PR #409 itself has been merged.
+This file freezes the exact semantic update applied to `docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md` in the PR #409 closeout candidate after the clean KF-089 code/package stack was integrated into `main`. It preserves the accepted 2026-09-14 live result and the exact edit provenance. PR #409 merge completion itself must be read from GitHub history rather than inferred from this file.
 
 ## Domain table replacement
 
@@ -41,14 +41,16 @@ CENTRAL_INDEX_EDIT_PRESENT_IN_PR409=true
 CENTRAL_INDEX_FOCUSED_DIFF_REVIEW=PASS
 ```
 
+The fixed SHA above is the exact base used to prepare the central-index edit. It is not a permanent claim about the repository tip after PR #409 or later descendants.
+
 The focused diff review proves that the central-index candidate changes are limited to the KF-089 domain row, the KF-089 quick-index row, and the two Relay regression rules. No unrelated hunk remains.
 
-PR #409 is still an open closeout candidate and remains unmerged pending final review/CI and separate merge authorization.
+A separate explicit PR #409 merge-closeout authorization was granted on 2026-09-14. That authorization permits merge only after fresh exact-head/diff/CI revalidation; it does not itself prove that merge has completed.
 
 ```text
 KNOWN_FAILURE_CURRENT_STATUS=GUARDED
 KF089_END_TO_END_RELAY_TELEMETRY=PROVEN
 CENTRAL_INDEX_EDIT_PENDING=false
 CENTRAL_INDEX_EDIT_PRESENT_IN_PR409=true
-PR409_MERGE_AUTHORIZED=false
+PR409_MERGE_CLOSEOUT_AUTHORIZATION=GRANTED_2026-09-14
 ```
