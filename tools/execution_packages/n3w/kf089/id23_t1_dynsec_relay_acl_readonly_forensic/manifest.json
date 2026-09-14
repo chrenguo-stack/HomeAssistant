@@ -1,0 +1,62 @@
+{
+  "package_schema_version": 1,
+  "project": "n3w",
+  "stage": "kf089",
+  "gate_id": "id23_t1_dynsec_relay_acl_readonly_forensic",
+  "predecessor": {
+    "gate": "ID22R2",
+    "execution_package_commit": "23b3dc63dc112979a8e94928185daf8af2da6640",
+    "authorization": "N3W_KF089_ID22_T1_RELAY_INGRESS_CONFIRMATION_20260913_22R2",
+    "result": "STOP",
+    "first_failed_operation": "T1_MANAGER_RELAY_ACCEPTANCE",
+    "board_side_relay_chain_proven_in_id22_session": true
+  },
+  "authority_references": {
+    "deployed_manager_source": "8fbedc7e0778ce91d146cd5f0772bebdd20ad13a",
+    "manager_service_identity_plan_blob": "8d90ed70b5598db475b4b40f7243c2186b742e68",
+    "node_dynsec_plan_blob": "380516ec03c68e055ef06375c36c11686f24a1bb",
+    "manager_simplified_mqtt_service_blob": "2a478300e66bed341f55b44e629c24847128f413",
+    "manager_container_name": "greenhouse-manager",
+    "manager_image_prefix": "greenhouse-manager:",
+    "broker_compose_service": "broker",
+    "broker_compose_project": "n3wfc4"
+  },
+  "source_contract": {
+    "manager_relay_subscription": "gh/v1/<sid>/ingress/gateway/+/+/frame",
+    "manager_source_relay_receive_acl": "MISSING",
+    "node_source_self_gateway_publish_acl": "PRESENT",
+    "source_contract_defect": "PROVEN"
+  },
+  "live_forensic_contract": {
+    "bind_id22r2_private_window": true,
+    "derive_dynsec_path_from_live_mosquitto_config": true,
+    "read_live_dynsec_json": true,
+    "read_bounded_broker_logs": true,
+    "manager_default_subscribe_must_be_observed": true,
+    "manager_default_publish_client_receive_must_be_observed": true,
+    "manager_relay_subscribe_allow_count_must_be_observed": true,
+    "manager_relay_receive_allow_count_must_be_observed": true,
+    "node_self_gateway_publish_acl_coverage_must_be_observed": true
+  },
+  "forbidden": {
+    "board_a_access": true,
+    "board_b_access": true,
+    "application_boot": true,
+    "controlled_rf_experiment": true,
+    "flash_write": true,
+    "host_nvs_write": true,
+    "otadata_write": true,
+    "serial_open": true,
+    "t1_file_write": true,
+    "t1_docker_mutation": true,
+    "t1_network_mutation": true,
+    "dynsec_mutation": true,
+    "broker_config_mutation": true,
+    "mqtt_test_publish": true,
+    "mqtt_extra_subscriber": true,
+    "mqtt_control_request": true,
+    "automatic_retry": true,
+    "automatic_repair": true,
+    "pr_merge": true
+  }
+}

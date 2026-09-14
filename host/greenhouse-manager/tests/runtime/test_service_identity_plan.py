@@ -41,6 +41,26 @@ def test_manager_identity_matches_current_runtime_topics() -> None:
     ) in allowed
     assert (
         "subscribePattern",
+        "gh/v1/greenhouse/ingress/gateway/+/+/frame",
+    ) in allowed
+    assert (
+        "publishClientReceive",
+        "gh/v1/greenhouse/ingress/gateway/+/+/frame",
+    ) in allowed
+    assert (
+        "unsubscribePattern",
+        "gh/v1/greenhouse/ingress/gateway/+/+/frame",
+    ) in allowed
+    assert (
+        "subscribePattern",
+        "gh/v1/greenhouse/ingress/gateway/#",
+    ) not in allowed
+    assert (
+        "publishClientReceive",
+        "gh/v1/greenhouse/ingress/gateway/#",
+    ) not in allowed
+    assert (
+        "subscribePattern",
         "gh/v1/greenhouse/state/+/telemetry",
     ) in allowed
 
