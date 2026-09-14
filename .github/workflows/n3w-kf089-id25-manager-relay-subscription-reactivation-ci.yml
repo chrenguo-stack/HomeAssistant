@@ -1,0 +1,33 @@
+name: N3W KF089 ID25 Manager Relay subscription reactivation CI
+
+on:
+  pull_request:
+    paths:
+      - "host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_simplified_isolated_mqtt_service.py"
+      - "host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_manager_runtime_wiring.py"
+      - "tools/execution_packages/n3w/kf089/id24_manager_relay_dynsec_acl_repair/**"
+      - "tools/execution_packages/n3w/kf089/id25_manager_relay_subscription_reactivation/**"
+      - "tests/execution_packages/n3w/kf089/id25_manager_relay_subscription_reactivation/**"
+      - ".github/workflows/n3w-kf089-id25-manager-relay-subscription-reactivation-ci.yml"
+  workflow_dispatch:
+
+jobs:
+  id25-host-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate manifest
+        run: python -m json.tool tools/execution_packages/n3w/kf089/id25_manager_relay_subscription_reactivation/manifest.json >/dev/null
+      - name: Compile executor
+        run: python -m py_compile tools/execution_packages/n3w/kf089/id25_manager_relay_subscription_reactivation/executor.py
+      - name: Install focused test dependency
+        run: python -m pip install pytest==8.4.2
+      - name: Self-check ID25 package
+        run: python tools/execution_packages/n3w/kf089/id25_manager_relay_subscription_reactivation/executor.py --self-check
+      - name: Focused ID25 tests
+        run: python -m pytest -q tests/execution_packages/n3w/kf089/id25_manager_relay_subscription_reactivation
