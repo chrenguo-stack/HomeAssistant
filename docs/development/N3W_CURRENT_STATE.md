@@ -7,26 +7,39 @@ This is the concise public-safe authority for the current N3-W state. Fresh exac
 
 ## Repository / source authority
 
-Fresh repository main observed during KF-089 closeout:
+Fresh repository `main` observed after the clean KF-089 code/package integration sequence:
 
 ```text
 REPOSITORY=chrenguo-stack/HomeAssistant
-REPOSITORY_MAIN=7478e0fbcf893761ab76cc9952e09e77cda22755
-REPOSITORY_MAIN_TREE=91d2e4767887dad86525cf521e476d4a1234551a
+REPOSITORY_MAIN=1bbd4f3f1cfbccaa383d326a28bc972ed4ee202b
+REPOSITORY_MAIN_TREE=5b9bdc77585f3c1990b4123fccfb84f4d16d281d
 ```
 
-The accepted KF-089 repair/validation stack is not yet integrated into `main`:
+The accepted KF-089 repair/validation code and execution-package stack is now integrated into `main` through the clean integration path:
 
 ```text
-PR400_STATE=OPEN_DRAFT_UNMERGED
-PR400_HEAD=b973934b760db975ada601819191c62fe0513a9e
-PR403_STATE=OPEN_DRAFT_UNMERGED
-PR403_HEAD=1f4cb36a2d1180753556eb08d2b46fa180d423e0
-PR404_STATE=OPEN_DRAFT_UNMERGED
-PR404_HEAD=83006bc87904843d6ca784355556032852c3813d
+PR406=MERGED
+PR406_HEAD=159e8deabdbbf0f1990c4ecd7e425116a97b1879
+PR406_MERGE_COMMIT=d7d9cd9d49f795c71a96c5f28f90cbdd9930c5e2
+PR406_POSTMERGE_CI=PASS
+
+PR407=MERGED
+PR407_HEAD=55af8ba3a7bb55325f9b430e67a3e08efff1b6f5
+PR407_MERGE_COMMIT=9237e1ad1b4cf1850af40599ce173f07b00ad5cd
+PR407_POSTMERGE_CI=PASS
+
+PR408=MERGED
+PR408_HEAD=c8f4efbdbd0f14fbc0c6c50ac915af06ce34b755
+PR408_MERGE_COMMIT=1bbd4f3f1cfbccaa383d326a28bc972ed4ee202b
+PR408_POSTMERGE_CI=PASS
+
+ID23_ID24_ID25_ID26_REPOSITORY_INTEGRATION=PASS
+MANAGER_RELAY_SOURCE_CONTRACT_INTEGRATION=PASS
 ```
 
-Repository main must always be queried fresh. Live acceptance and repository integration are separate authorities: the T1 runtime repair and physical Relay acceptance are proven, while the corresponding source/guard stack still requires normal PR integration.
+Historical PR #400 / #403 / #404 remain provenance for the original accepted live packages. The clean integration path above is the authority for what entered `main`; consumed historical live authorizations remain non-replayable.
+
+Repository main must always be queried fresh. Live acceptance and repository integration remain separate authorities: the live T1 repair and physical Relay acceptance were proven before integration, and the corresponding source/guard package stack is now also present in `main`.
 
 Active architecture authority remains:
 
@@ -49,15 +62,15 @@ BOARD_FIRMWARE_SHA256=5168a1958669ce06002cc5cb507fda7fc7477ca53294a73dbcf582e587
 DIAGNOSTIC_SCHEMA_VERSION=5
 ```
 
-Current deployed Manager authority remains distinct from the unmerged source repair:
+The deployed Manager runtime authority remains distinct from repository-main source integration:
 
 ```text
 DEPLOYED_MANAGER_SOURCE=8fbedc7e0778ce91d146cd5f0772bebdd20ad13a
 LIVE_MANAGER_DYNSEC_REPAIR=PASS
-MANAGER_RELAY_SOURCE_CONTRACT_INTEGRATION=PENDING_PR400_MERGE_PATH
+MANAGER_RELAY_SOURCE_CONTRACT_INTEGRATION=PASS
 ```
 
-ID24 repaired the active live Dynamic Security role in place. ID25 then performed exactly one Manager restart to establish a fresh MQTT subscription cycle. ID26 proved fresh Relay telemetry delivery without further Manager/Broker/DynSec mutation.
+ID24 repaired the active live Dynamic Security role in place. ID25 then performed exactly one Manager restart to establish a fresh MQTT subscription cycle. ID26 proved fresh Relay telemetry delivery without further Manager/Broker/DynSec mutation. Integrating the source contract into `main` does not retroactively change the deployed Manager image revision; it makes the corrected contract durable for repository-controlled future materialization.
 
 ## KF-089 final Relay acceptance
 
@@ -208,24 +221,17 @@ The accepted fresh/cold Relay path must not be re-labelled as proof of a same-se
 
 ## Current ONE gate
 
-KF-089 no longer requires another physical/T1 gate for its Relay end-to-end acceptance.
+KF-089 no longer requires another physical/T1 gate for its Relay end-to-end acceptance, and the code/package integration route is complete.
 
 ```text
-NEXT_ONE_GATE=KF089_PR_STACK_INTEGRATION_REVIEW
+NEXT_ONE_GATE=KF089_CLOSEOUT_DOCS_AND_CENTRAL_GUARD_REVIEW
+PR406_PR407_PR408_INTEGRATION=PASS
 PHYSICAL_AUTHORIZATION_REQUIRED=false
 T1_AUTHORIZATION_REQUIRED=false
+PR409_MERGE_AUTHORIZED=false
 ```
 
-Safe integration order is documented in the closeout archive:
-
-```text
-PR400
--> PR403
--> PR404
--> KF089_CLOSEOUT_DOCS_PR
-```
-
-Each stacked PR must be freshly reviewed against the then-current `main` before integration. No merge authority is implied by this state document.
+PR #409 remains a documentation/central-guard candidate only. Before any merge decision it must contain refreshed current-state text and the fresh exact-base KF-089 edit to `KNOWN_FAILURES_AND_REGRESSION_GUARDS.md`, then pass a focused diff review and public-repository safety CI. No PR #409 merge authority is implied by this document.
 
 ## Frozen broader acceptance
 
