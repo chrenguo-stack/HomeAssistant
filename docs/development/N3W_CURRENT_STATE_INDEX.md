@@ -8,11 +8,11 @@ Active product-direction authority: `docs/development/N3W_OFFICIAL_ESPNOW_REFERE
 
 ## Current repository authority
 
-Fresh `main` observed after the clean KF-089 code/package integration sequence:
+KF-089 code/package integration baseline after the clean PR #406 → #407 → #408 sequence:
 
 ```text
-REPOSITORY_MAIN=1bbd4f3f1cfbccaa383d326a28bc972ed4ee202b
-REPOSITORY_MAIN_TREE=5b9bdc77585f3c1990b4123fccfb84f4d16d281d
+KF089_CODE_PACKAGE_INTEGRATION_BASE_MAIN=1bbd4f3f1cfbccaa383d326a28bc972ed4ee202b
+KF089_CODE_PACKAGE_INTEGRATION_BASE_TREE=5b9bdc77585f3c1990b4123fccfb84f4d16d281d
 ```
 
 Integrated clean stack:
@@ -28,9 +28,9 @@ ID23_ID24_ID25_ID26_REPOSITORY_INTEGRATION=PASS
 MANAGER_RELAY_SOURCE_CONTRACT_INTEGRATION=PASS
 ```
 
-Historical PR #400 / #403 / #404 remain provenance for the original accepted live package heads. Current `main` contains the clean ID23→ID24→ID25→ID26 integration route through PR #406→#407→#408.
+Historical PR #400 / #403 / #404 remain provenance for the original accepted live package heads. The clean integration path through PR #406→#407→#408 is the repository authority for the KF-089 code/package stack.
 
-PR #409 remains an unmerged documentation/central-guard candidate. No PR #409 merge authority is implied by this index.
+The fixed SHA above is the KF-089 code/package integration baseline, not a permanent claim about the current repository tip after documentation-only descendants. Repository `main` must always be queried fresh.
 
 ## Current deployed authorities
 
@@ -100,14 +100,17 @@ LIVE_RELAY_TO_DIRECT_RECOVERY=NOT_YET_ADJUDICATED
 
 ## Current ONE gate
 
+The KF-089 Relay end-to-end technical acceptance and code/package integration are complete. PR #409 is the merge vehicle for the final current-state/central-guard documentation, under a separately granted merge-closeout authorization.
+
 ```text
-NEXT_ONE_GATE=KF089_CLOSEOUT_DOCS_AND_CENTRAL_GUARD_REVIEW
+KF089_RELAY_END_TO_END_CLOSEOUT=PASS
 PR406_PR407_PR408_INTEGRATION=PASS
+PR409_MERGE_CLOSEOUT_AUTHORIZATION=GRANTED_2026-09-14
 PHYSICAL_AUTHORIZATION_REQUIRED=false
 T1_AUTHORIZATION_REQUIRED=false
-PR409_MERGE_AUTHORIZED=false
+POST_PR409_NEXT_ONE_GATE=NONE_WITHIN_KF089_RELAY_CLOSEOUT
 ```
 
-Before any PR #409 merge decision, the candidate must contain the refreshed current-state documents and a fresh exact-base KF-089 edit to `docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md`, followed by focused diff review and public-repository safety CI.
+PR #409 merge state must be queried fresh from GitHub rather than inferred from this index. After PR #409 integration and post-merge CI verification, no further gate remains within the KF-089 Relay end-to-end closeout.
 
 Historical archives remain historical and are not rewritten solely to erase dated intermediate states. In particular, stale text saying `KF089_END_TO_END_RELAY_TELEMETRY=NOT_PROVEN` remains valid only for the dated archive in which it was recorded, not for the current state after the 2026-09-14 ID26 PASS.
