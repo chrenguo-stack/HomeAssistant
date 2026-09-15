@@ -160,6 +160,9 @@ class SimpleProductRuntime {
 
   SimpleProductError note_direct_result(bool success);
   SimpleProductError note_direct_recovery_probe(bool success);
+  SimpleProductError note_relay_delivery_result(
+      const MacAddress &destination,
+      bool success);
   bool update_direct_channel_hint(uint8_t channel);
   SimpleProductError send_telemetry(
       const std::string &telemetry_json,
