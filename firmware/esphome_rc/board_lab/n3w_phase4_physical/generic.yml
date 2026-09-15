@@ -25,6 +25,7 @@ logger:
 # in the public firmware source. Captive Portal writes the user's Wi-Fi choice at
 # first use; later nodes repeat the same independent process.
 wifi:
+  reboot_timeout: 0s
   ap:
     ssid: "Greenhouse N3-W Setup"
 
@@ -37,6 +38,7 @@ mqtt:
   broker: 127.0.0.1
   enable_on_boot: false
   discovery: false
+  reboot_timeout: 0s
 
 external_components:
   - source:
