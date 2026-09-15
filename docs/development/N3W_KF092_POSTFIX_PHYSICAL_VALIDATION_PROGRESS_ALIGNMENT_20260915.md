@@ -1,23 +1,28 @@
 # N3-W KF-092 Post-Fix Physical Validation Progress Alignment — 2026-09-15
 
-Status: `CURRENT_PROGRESS_ALIGNMENT`
+Status: `CLOSED_PASS_ARCHIVE`
 
-> Public-safe alignment only. Raw node IDs, board MACs, host addresses, credentials, private paths, raw NVS contents and raw runtime logs are intentionally omitted.
+> Public-safe alignment/archive only. Raw node IDs, board MACs, host addresses, credentials, private paths, raw NVS contents and raw runtime logs are intentionally omitted.
 
 ## 1. Scope
 
-This document synchronizes the current local KF-092 physical-validation progress with GitHub after the Relay MAC delivery-feedback repair, the Relay-only connectivity-reboot harness repair, the exact causal validation, and the subsequent A/B firmware alignment.
+This document records the complete KF-092 physical-validation progression: Relay MAC delivery-feedback repair, Relay-only connectivity-reboot harness repair, exact causal validation, Board A/B firmware alignment, and final aligned long-duration continuity.
 
 ```text
 NORTH_STAR=N3W_MULTI_NODE_RELAY_AND_RUNTIME_FAILOVER_ACCEPTANCE
 CURRENT_DEFECT=KF-092
 KF092_PHYSICAL_CAUSATION=PASS
-LONG_DURATION_RELAY_CONTINUITY=IN_PROGRESS
+LONG_DURATION_RELAY_CONTINUITY=PASS
+KF092_STATUS=CLOSED_PASS
 ```
 
-The previously accepted KF-089 Relay end-to-end closeout and the KF-091 Home Assistant/Broker TLS-DNS repair remain frozen PASS and are not reopened.
+The previously accepted KF-089 Relay end-to-end closeout and KF-091 Home Assistant/Broker TLS-DNS repair remain frozen PASS and are not reopened.
 
-## 2. Fresh repository authority
+The concise final authority is:
+
+`docs/development/N3W_KF092_POSTFIX_PHYSICAL_VALIDATION_CLOSEOUT_20260915.md`
+
+## 2. Fresh repository authority at closeout
 
 ```text
 CURRENT_MAIN=56cc0b10726a25c380fe8aa6cd7ab488b5eac291
@@ -160,8 +165,6 @@ actual async unicast failure
 -> same-boot recovery
 ```
 
-Final classification:
-
 ```text
 PR411_ASYNC_MAC_DELIVERY_FEEDBACK=PHYSICAL_PASS
 RELAY_FAILURE_TO_DISCOVERY=PHYSICAL_PASS
@@ -177,9 +180,9 @@ The snapshot does not persist the exact chronological grouping of every individu
 
 After KF-092 causation closed, a separate 20-minute continuity run reproduced partial burst gaps but did not reproduce the earlier extreme single-frame behavior.
 
-Board B remained one boot and Relay-only. Manager saw 206 Relay frames over sequence positions spanning 7 through 246, leaving 34 sequence positions absent from Manager visibility. Missing frames were bursty.
+Board B remained one boot and Relay-only. Manager saw 206 Relay frames over a 240-position sequence span, leaving 34 sequence positions absent from Manager visibility. Missing frames were bursty.
 
-At the same times, Board A Direct visibility also degraded. Exact forensic correlation then proved Board A MQTT timeout/reconnect events and later two Board A reboots while Board B remained in the same boot.
+At the same times, Board A Direct visibility also degraded. Exact forensic correlation then proved Board A MQTT timeout/reconnect events and later two Board A reboots while Board B remained in the same boot and Manager/Broker stayed running.
 
 ```text
 BOARD_B_SAME_BOOT_20MIN=true
@@ -193,7 +196,7 @@ MANAGER_RESTART_COUNT=0
 BROKER_RESTART_COUNT=0
 ```
 
-This evidence shifts the separate continuity investigation away from a pure Board-B-to-Board-A ESP-NOW incompatibility hypothesis and toward Board A local connectivity/reboot behavior or its shared upstream boundary.
+This evidence shifted the separate continuity investigation away from a pure Board-B-to-Board-A ESP-NOW incompatibility hypothesis and toward Board A local connectivity/reboot behavior or its shared upstream boundary.
 
 The earlier Board B battery-depleted run remains invalid for product adjudication and is not used as evidence of discovery or Relay failure.
 
@@ -203,7 +206,9 @@ Board A was intentionally kept on its older firmware during KF-092 causal valida
 
 Deployment used inactive-slot-first application-only update. The new image was written to the inactive application slot, exact readback SHA matched the expected artifact, the original application slot was preserved as rollback, and NVS readback remained unchanged.
 
-The initial OTA switch attempt stopped before mutation because the host Python environment could not resolve ESP-IDF helper modules. A later attempt also stopped before the switch because `IDF_PATH` was not exported and `parttool.py` therefore retained a literal `$IDF_PATH` in the esptool path. After explicitly binding both `PYTHONPATH` and `IDF_PATH`, the official OTA switch completed and post-switch metadata proved the new application slot active.
+The initial OTA switch attempt stopped before mutation because the host Python environment could not resolve ESP-IDF helper modules. A later attempt also stopped before the switch because `IDF_PATH` was not exported. After explicitly binding both `PYTHONPATH` and `IDF_PATH`, the official OTA switch completed and post-switch metadata proved the new application slot active.
+
+The first `hard-reset` validation did not prove an application boot because the device remained synchronizable as a ROM/stub bootloader target. A subsequent real power-cycle cold boot produced the required application-layer evidence.
 
 ```text
 BOARD_A_EXACT_ARTIFACT_BINDING=PASS
@@ -212,23 +217,11 @@ BOARD_A_OTA_SWITCH_RECOVERY=PASS
 BOARD_A_NVS_READBACK_UNCHANGED=PASS
 BOARD_A_NEW_SLOT=app1
 BOARD_A_ROLLBACK_SLOT=app0
-```
-
-The first `hard-reset` validation did not prove an application boot because the device remained synchronizable as a ROM/stub bootloader target. A subsequent real power-cycle cold boot produced the required application-layer evidence.
-
-Cold-boot Direct baseline:
-
-```text
 BOARD_A_ACCEPTED_DIRECT_COUNT=22
 BOARD_A_BOOT_COUNT=1
 BOARD_A_SEQUENCE_CONTIGUOUS=true
 BOARD_A_MQTT_TLS_SESSION_REESTABLISHED=true
 BOARD_A_APP1_COLD_BOOT_DIRECT_BASELINE=PASS
-```
-
-Therefore:
-
-```text
 BOARD_A_PR411_PR412_ALIGNMENT_REDEPLOY=PASS
 BOARD_A_APP1_ACTIVATION=PASS
 BOARD_A_IDENTITY_PRESERVED=PASS
@@ -257,27 +250,85 @@ BROKER_RESTART_COUNT=0
 ALIGNED_AB_RELAY_BASELINE=PASS
 ```
 
-This establishes a clean start point for the long-duration continuity revalidation with both Board A and Board B on the same exact PR #412 successor artifact.
+## 11. Final aligned A/B 30-minute continuity — PASS
 
-## 11. Current ONE gate
+The 30-minute gate completed with both boards on the same exact PR #412 successor artifact.
 
-A 30-minute observation is currently in progress:
+Board A:
 
 ```text
-CURRENT_ONE_GATE=N3W_KF092_ALIGNED_AB_RELAY_LONG_DURATION_CONTINUITY_20260915_01
-GATE_STATE=IN_PROGRESS
+BOARD_A_ACCEPTED_COUNT=360
+BOARD_A_DIRECT_COUNT=360
+BOARD_A_RELAY_COUNT=0
+BOARD_A_BOOT_COUNT=1
+BOARD_A_SEQ_GAP_COUNT=0
+BOARD_A_TIME_GAP_COUNT=0
+BOARD_A_MQTT_TIMEOUT_OBSERVED=false
 ```
 
-The gate is intended to determine whether, after A/B firmware alignment:
+Board B:
 
-- Board A remains in one boot;
-- Board A avoids the prior MQTT timeout/reconnect/reboot pattern;
-- Board B remains one boot and Relay-only through Board A;
-- Board B no longer exhibits the prior long burst gaps caused by the shared Board A/upstream instability.
+```text
+BOARD_B_ACCEPTED_COUNT=354
+BOARD_B_DIRECT_COUNT=0
+BOARD_B_RELAY_COUNT=354
+BOARD_B_BOOT_COUNT=1
+BOARD_B_GATEWAY_EXACT_A=true
+BOARD_B_SEQUENCE_SPAN=360
+BOARD_B_ISOLATED_MISSING_FRAME_COUNT=6
+BOARD_B_MULTI_FRAME_BURST_LOSS_OBSERVED=false
+```
 
-No conclusion from this 30-minute gate is recorded until the observation completes.
+Infrastructure:
 
-## 12. Execution model
+```text
+MANAGER_STATUS=running
+MANAGER_RESTART_COUNT=0
+BROKER_STATUS=running
+BROKER_RESTART_COUNT=0
+```
+
+The six missing Board B sequence positions were isolated single-frame losses. Five created approximately 10-second accepted-frame intervals because one nominal 5-second frame was absent. No long multi-frame outage was observed and Board A Direct traffic had no corresponding gap.
+
+Final continuity classification:
+
+```text
+N3W_KF092_ALIGNED_AB_RELAY_LONG_DURATION_CONTINUITY_20260915_01=PASS
+BOARD_A_30MIN_DIRECT_CONTINUITY=PASS
+BOARD_A_SINGLE_BOOT_30MIN=PASS
+BOARD_B_30MIN_RELAY_CONTINUITY=PASS
+BOARD_B_SINGLE_BOOT_30MIN=PASS
+PREVIOUS_LARGE_BURST_GAPS_REPRODUCED=false
+PREVIOUS_BOARD_A_REBOOT_PATTERN_REPRODUCED=false
+ALIGNED_AB_LONG_DURATION_MAJOR_CONTINUITY_DEFECT=CLOSED_PASS
+ZERO_LOSS_RELAY_NOT_PROVEN=true
+```
+
+The aligned run strongly supports Board A's old connectivity/reboot behavior as a major contributor to the earlier large burst gaps. One controlled comparison does not prove it was the unique cause of every earlier missing frame.
+
+## 12. KF-092 closure and next boundary
+
+```text
+KF092_SOURCE_REPAIR=PASS
+KF092_REBOOT_POLICY_REPAIR=PASS
+KF092_REBOOT_POLICY_PHYSICAL_FIX=PASS
+KF092_PHYSICAL_CAUSATION_PROVEN=true
+KF092_POSTFIX_PHYSICAL_VALIDATION=PASS
+KF092_ALIGNED_AB_LONG_DURATION_CONTINUITY=PASS
+KF092_STATUS=CLOSED_PASS
+```
+
+KF-092 causal closure started from an established Relay path and must not be relabelled as proof of same-session Direct→Relay failover.
+
+```text
+MAINLINE_ACCEPTANCE_ITEM_3_LIVE_DIRECT_TO_RELAY_FAILOVER=NOT_YET_CLOSED
+MAINLINE_ACCEPTANCE_ITEM_4_LIVE_RELAY_TO_DIRECT_RECOVERY=PENDING
+NEXT_ONE_GATE=N3W_LIVE_DIRECT_TO_RELAY_FAILOVER_ACCEPTANCE_PRECLAIM
+```
+
+Home Assistant Relay entity-update acceptance remains separately open.
+
+## 13. Execution model
 
 ```text
 EXECUTION_MODEL=HIGH_LEVEL_MODEL_PLUS_MAC_TERMINAL_EXECUTION
@@ -287,9 +338,9 @@ EXECUTOR=USER_MAC_TERMINAL
 USER_ROLE=EXACT_COMMAND_EXECUTOR_AND_RAW_RESULT_REPORTER
 ```
 
-## 13. Safety / authority boundary
+## 14. Safety / authority boundary
 
-- PR #410, PR #411 and PR #412 remain open and unmerged at this alignment point.
+- PR #410, PR #411 and PR #412 remain open and unmerged at this closeout point.
 - No merge is authorized by this documentation synchronization.
 - No further board firmware write is authorized by this documentation synchronization.
 - No Broker, Manager, Home Assistant, Dynamic Security, credential or TLS mutation is authorized by this documentation synchronization.
