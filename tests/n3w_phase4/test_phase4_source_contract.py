@@ -98,6 +98,15 @@ def test_generic_phase4_target_is_role_neutral_and_first_use_ready() -> None:
     assert "enable_on_boot: false" in config
     assert "broker: 127.0.0.1" in config
     assert 'ssid: "Greenhouse N3-W Setup"' in config
+    wifi_start = config.index("wifi:")
+    captive_portal_start = config.index("captive_portal:", wifi_start)
+    wifi_block = config[wifi_start:captive_portal_start]
+    mqtt_start = config.index("mqtt:")
+    external_components_start = config.index("external_components:", mqtt_start)
+    mqtt_block = config[mqtt_start:external_components_start]
+    assert "reboot_timeout: 0s" in wifi_block
+    assert "reboot_timeout: 0s" in mqtt_block
+    assert config.count("reboot_timeout: 0s") == 2
     forbidden = (
         "node_id:",
         "system_id:",
