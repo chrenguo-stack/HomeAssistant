@@ -3,25 +3,32 @@
 Updated: 2026-09-15  
 Status: `CURRENT_STATE_AUTHORITY`
 
-Fresh exact repository/runtime/live evidence takes precedence over this document if later evidence proves drift.
+Fresh exact repository/runtime/live evidence takes precedence if later evidence proves drift.
 
 ## Repository authority
 
 ```text
 REPOSITORY=chrenguo-stack/HomeAssistant
 CURRENT_MAIN=56cc0b10726a25c380fe8aa6cd7ab488b5eac291
+CURRENT_MAIN_TREE=eed4ac1a95b64bc8c90c5784da8ffaeabb76ac7c
 CURRENT_DOC_ALIGNMENT_PR=410
-CURRENT_DOC_ALIGNMENT_BRANCH=docs/n3w-multinode-relay-ha-mqtt-alignment-20260915
-PR410_MERGED=false
+PR410_STATE=OPEN_UNMERGED
+
+PR411_STATE=OPEN_UNMERGED
+PR411_HEAD=576bb79c422e469ef5505f9d2bd32bfc2ec825eb
+PR411_ROLE=KF092_RELAY_MAC_DELIVERY_FEEDBACK_SOURCE_REPAIR
+PR411_CI=PASS
+
+PR412_STATE=OPEN_UNMERGED
+PR412_HEAD=f80d4a58bccb790029dbc85a9a9f48ad509e3a2d
+PR412_BASE=576bb79c422e469ef5505f9d2bd32bfc2ec825eb
+PR412_ROLE=PHYSICAL_HARNESS_CONNECTIVITY_REBOOT_TIMEOUT_REPAIR
+PR412_CI=PASS
 ```
 
-KF-089 code/package integration through PR #406→#408 remains closed and accepted. Current board firmware source authority remains:
+Detailed current KF-092 physical-progress authority:
 
-```text
-BOARD_FIRMWARE_SOURCE_AUTHORITY=5d58727f5040281ee2beb9597f66a6a2da9bac57
-DIAGNOSTIC_SCHEMA_VERSION=5
-DEPLOYED_MANAGER_SOURCE=8fbedc7e0778ce91d146cd5f0772bebdd20ad13a
-```
+`docs/development/N3W_KF092_POSTFIX_PHYSICAL_VALIDATION_PROGRESS_ALIGNMENT_20260915.md`
 
 ## Product North Star
 
@@ -34,235 +41,213 @@ Broader acceptance state:
 ```text
 MAINLINE_ACCEPTANCE_ITEM_1_BOARD_BC_SIMULTANEOUS_RELAY_VIA_A=PASS
 MAINLINE_ACCEPTANCE_ITEM_2_HOME_ASSISTANT_RELAY_ENTITY_UPDATE=NOT_YET_CLOSED
-MAINLINE_ACCEPTANCE_ITEM_3_LIVE_DIRECT_TO_RELAY_FAILOVER=PENDING
+MAINLINE_ACCEPTANCE_ITEM_3_LIVE_DIRECT_TO_RELAY_FAILOVER=IN_PROGRESS_KF092
 MAINLINE_ACCEPTANCE_ITEM_4_LIVE_RELAY_TO_DIRECT_RECOVERY=PENDING
 ```
 
-The accepted simultaneous two-child Relay proof remains frozen:
+The accepted KF-089 Relay end-to-end closeout and the KF-091 Home Assistant/Broker TLS-DNS repair remain frozen PASS and are not reopened.
+
+## KF-091 — closed infrastructure repair
 
 ```text
-WINDOW_ACCEPTED_RELAY_COUNT=82
-WINDOW_REJECTED_RELAY_COUNT=0
-WINDOW_DUPLICATE_RELAY_COUNT=0
-WINDOW_UNIQUE_RELAY_ROUTE_COUNT=2
-WINDOW_UNIQUE_RELAY_NODE_COUNT=2
-WINDOW_UNIQUE_RELAY_GATEWAY_COUNT=1
-BOARD_B_ACCEPTED_RELAY_COUNT=40
-BOARD_C_ACCEPTED_RELAY_COUNT=42
-BOARD_A_DIRECT_DURING_RELAY_COUNT=98
-BOARD_B_DIRECT_DURING_RELAY_COUNT=0
-BOARD_C_DIRECT_DURING_RELAY_COUNT=0
-BOARD_BC_SIMULTANEOUS_RELAY_VIA_A=PROVEN
-```
-
-## KF-091 infrastructure repair — CLOSED PASS
-
-KF-091 was localized to:
-
-```text
-ROOT_DOMAIN=INFRASTRUCTURE
+KF091_STATUS=CLOSED_PASS
 ROOT_CLASS=DOCKER_NETWORK_DNS_TO_TLS_IDENTITY_BINDING
 ROOT_CAUSE_CLASS=BROKER_SHARED_NETWORK_MISSING_ALIAS_FOR_EXISTING_TLS_DNS_SAN
-```
-
-The exact preclaim proved the TLS DNS SAN, Home Assistant MQTT target, and Manager target were identical by public-safe fingerprint and that the SAN was absent from the Broker shared-network DNS authority.
-
-Authorized repair:
-
-```text
-AUTHORIZATION=FC4_HOME_ASSISTANT_BROKER_TLS_SAN_ALIAS_REPAIR_MUTATION_20260915_01
-AUTHORIZATION_CLAIMED=true
-AUTHORIZATION_CONSUMED=true
-RESULT=PASS
-REPLAY_PERMITTED=false
-```
-
-Repair closure:
-
-```text
 REPAIR_DESIGN=ADD_EXISTING_TLS_DNS_SAN_AS_BROKER_SHARED_NETWORK_ALIAS
-BROKER_RECREATE_COUNT_EXACT=1
-COMPOSE_SOURCE_PRE_SHA256=56f004d4b1741ea7e868de7aa5491faa213b56c87864cc19deeadd5f465429db
-COMPOSE_SOURCE_POST_SHA256=d3a2bb681db523d4414e64fd26d49074d76c90ac5265493f18ec760494472f60
-BROKER_IMAGE_UNCHANGED=true
-BROKER_8883_PUBLICATION_UNCHANGED=true
-BROKER_CA_UNCHANGED=true
-BROKER_CERT_UNCHANGED=true
-DYNSEC_SHA256_UNCHANGED=true
-MANAGER_CONTAINER_ID_UNCHANGED=true
-HOME_ASSISTANT_CONTAINER_ID_UNCHANGED=true
-HOME_ASSISTANT_MQTT_ENTRY_CHANGE=false
-HOME_ASSISTANT_CREDENTIAL_CHANGE=false
-BOARD_MUTATION=false
 FC4_HA_TLS_SAN_DNS_RESOLVED=true
-FC4_HA_TCP_8883_CONNECTABLE=true
-FC4_HA_TLS_CHAIN_VERIFIED=true
 FC4_HA_TLS_HOSTNAME_VERIFIED=true
-MANAGER_8883_SESSION_RECOVERED=true
-```
-
-Subsequent read-only validation observed:
-
-```text
 HA_MQTT_8883_SESSION_OBSERVED=true
 ```
 
-Therefore the prior Home Assistant/Broker TLS DNS blocker is closed. Do not reconfigure Home Assistant, rotate certificates/credentials, weaken hostname verification, or reopen DynSec for this issue without new direct counter-evidence.
+No Home Assistant MQTT-entry change, certificate/CA rotation, credential rotation, Dynamic Security mutation, Manager configuration change or board mutation was required.
 
-## Current board/runtime observations
+## KF-092 source defect and source repair
 
-Operator-confirmed physical state is intentionally unchanged for handoff.
-
-```text
-BOARD_A_PHYSICAL_STATE=POWERED_UNCHANGED
-BOARD_A_LAST_RUNTIME_ROLE=DIRECT
-
-BOARD_B_PHYSICAL_STATE=POWERED_UNCHANGED
-BOARD_B_DIRECT_ACCEPTANCE_IN_FRESH_RELAY_WINDOWS=0
-BOARD_B_RELAY_ONLY_WINDOW_PROVEN=true
-BOARD_B_RELAY_RUNTIME=INTERMITTENT
-
-BOARD_C_PHYSICAL_STATE=POWERED_UNCHANGED
-BOARD_C_AP_ASSOCIATED_OPERATOR_CONFIRMED=true
-BOARD_C_DIRECT_PATH_REAL=true
-BOARD_C_EXCLUDED_FROM_RELAY_ONLY_HA_ORACLE=true
-```
-
-Board B evidence across bounded windows:
+Proven defect:
 
 ```text
-FRESH_WINDOW_1_BOARD_B_DIRECT=0
-FRESH_WINDOW_1_BOARD_B_RELAY=27
-LATER_180S_BOARD_B_DIRECT=0
-LATER_180S_BOARD_B_RELAY=0
-LOOKBACK_BOARD_B_ACCEPTED_RELAY=56
-LOOKBACK_BOARD_B_REJECTED=0
-LATEST_OBSERVED_RELAY_RUN_START=2026-09-15T03:06:35Z
-LATEST_OBSERVED_RELAY_RUN_END_AT_CAPTURE=2026-09-15T03:08:00Z
-LATEST_OBSERVED_RELAY_RUN_COUNT=16
-```
-
-This proves Board B can lose Manager-visible Relay telemetry for a bounded period and later resume Relay without operator intervention. It does not prove a fixed Relay-session lifetime.
-
-Board C remained Direct-capable and AP-associated. Historical mixed Direct/Relay observations for Board C must not be used as the Relay-only Home Assistant oracle.
-
-## KF-092 source defect — current blocker
-
-Fresh source review of the deployed board source authority and current repository code proved a Relay delivery-feedback defect:
-
-```text
-KF092_STATUS=OPEN
 KF092_DOMAIN=FIRMWARE_RUNTIME
-SOURCE_DEFECT_PROVEN=true
-FIELD_INCIDENT_CAUSATION=STRONGLY_INDICATED_NOT_YET_PHYSICALLY_PROVEN
 ROOT_CLASS=ASYNC_ESPNOW_DELIVERY_RESULT_NOT_FEEDING_RELAY_PATH_CONTROLLER
+SOURCE_DEFECT_PROVEN=true
 ```
 
-Current control flow:
+PR #411 repairs the source contract so that actual asynchronous unicast MAC completion, not synchronous submit acceptance, drives Relay delivery hysteresis.
+
+Accepted repair semantics:
 
 ```text
-send_telemetry()
--> send_encrypted_peer()
--> EspNowDriver::send()
--> esp_now_send(...) == ESP_OK
--> synchronous submit result passed to LocalPathController::note_relay_result()
+SYNC_SUBMIT_SUCCESS=NOT_DELIVERY_SUCCESS
+IMMEDIATE_SYNC_SUBMIT_FAILURE=COUNTS_AS_FAILURE
+ASYNC_UNICAST_COMPLETION=CALLBACK_SAFE_BOUNDED_ENQUEUE
+NORMAL_LOOP=DRAINS_COMPLETIONS=true
+CURRENT_ACTIVE_RELAY_DESTINATION_MATCH_REQUIRED=true
+BROADCAST_COMPLETION_AFFECTS_CHILD_RELAY_PATH=false
+STALE_RELAY_COMPLETION=IGNORE
+RELAY_FAILURES_TO_DISCOVERY=2
 ```
-
-But actual MAC-layer ESP-NOW delivery success/failure arrives later through the asynchronous send callback. The callback currently forwards unicast completion only to diagnostics and does not feed the runtime/path controller.
-
-Consequences:
 
 ```text
-MAC_DELIVERY_FAIL_CAN_OCCUR=true
-SYNC_SUBMIT_CAN_STILL_BE_ESP_OK=true
-RELAY_FAILURE_HYSTERESIS_SEES_FALSE_SUCCESS=true
-RELAY_ACTIVE_CAN_REMAIN_STUCK=true
-REDISCOVERY_CAN_BE_DELAYED_OR_SKIPPED=true
+KF092_SOURCE_REPAIR=PASS
+PR411_CI=PASS
 ```
 
-This source defect matches the observed Board B symptom class but requires post-fix physical validation before field causation is upgraded to proven.
+## Post-fix physical evidence before harness repair
 
-## KF-092 minimum repair direction
+Board B was successfully deployed with the PR #411 repair firmware using an application-only inactive-slot-first update with readback verification and no deployment-time product NVS erase.
 
-The repair must preserve callback/task safety. The Wi-Fi task must not mutate `LocalPathController` directly.
+Fresh Relay-only Manager observation proved continuous Relay telemetry with no Direct acceptance. A controlled Relay reachability interruption then proved Relay interruption and recovery, including same-boot recovery before a later unexpected Board B reboot.
 
-Required design:
+Subsequent timeline recovery observed repeated Board B boot sessions at approximately 15-minute intervals while the Manager remained continuously running.
+
+Classification:
 
 ```text
-ESP-NOW unicast callback
--> enqueue bounded completion record {destination, success}
--> normal component loop drains records
--> accept only completion matching current active Relay destination
--> feed actual MAC result into Relay failure hysteresis
+BOARD_B_PERIODIC_REBOOT_REPRODUCED=true
+REBOOT_PERIOD_APPROX=15_MINUTES
+REBOOT_IS_NOT_EVIDENCE_OF_KF092_SOURCE_REPAIR_FAILURE=true
+HARNESS_REBOOT_POLICY_CONFLICT=PROVEN
 ```
 
-Additional rules:
+The reboot pattern is consistent with ESPHome connectivity reboot policy conflicting with intentional Relay-only operation, where Direct Wi-Fi and MQTT are unavailable by design.
 
-- synchronous `esp_now_send()` immediate submission failure counts as a failure because no callback-successful delivery can follow;
-- `ESP_OK` submission is not delivery success and must not reset Relay failure hysteresis by itself;
-- broadcast completions never affect child Relay path state;
-- stale completion from an old Relay peer is ignored;
-- two actual Relay failures must still drive the existing default hysteresis from `RELAY_ACTIVE` to `DISCOVERY`;
-- one actual success after a prior failure resets Relay failure hysteresis;
-- callback code remains bounded and non-blocking.
+## Physical harness reboot-timeout repair
 
-Required host/source tests include success, one failure, two failures→DISCOVERY, immediate submit failure, broadcast exclusion, stale destination exclusion, callback-task non-mutation, and failure-reset-on-success.
-
-## Current live-service boundary
-
-Last exact evidence before handoff:
+PR #412 changes only the Phase 4 physical harness and its source-contract test:
 
 ```text
-AUTHORITATIVE_MANAGER_RUNNING=true
-AUTHORITATIVE_BROKER_RUNNING=true
-AUTHORITATIVE_HOMEASSISTANT=fc4-homeassistant
-HA_MQTT_8883_SESSION_OBSERVED=true
-DYNSEC_ACCEPTED_SHA256=af6ab6e7c43c9eeb4300d529a4f9acdd097c83f2f2e8c3b780af03926252aeff
+wifi.reboot_timeout=0s
+mqtt.reboot_timeout=0s
+PRODUCT_CPP_MUTATION=false
 ```
 
-No live runtime mutation, board access, USB/serial access, Flash write, NVS mutation, RF experiment, MQTT test publish, or extra subscriber is authorized for the next source-repair gate.
-
-## Authorization carried to next chat
+Local source/config validation passed and all 11 observed PR #412 workflows completed successfully.
 
 ```text
-AUTHORIZATION=N3W_KF092_RELAY_MAC_DELIVERY_FEEDBACK_SOURCE_REPAIR_20260915_01
-GRANTED=true
-CLAIMED=false
-CONSUMED=false
-RESULT=PENDING
-REPLAY_PERMITTED=true
-SCOPE=SOURCE_HOST_TEST_CI_DOCUMENTATION_ONLY
-BOARD_ACCESS=false
-T1_LIVE_MUTATION=false
+HARNESS_REBOOT_TIMEOUT_SOURCE_REPAIR=PASS
+PR412_CI=PASS
 ```
 
-The authorization is intentionally carried forward. The next chat does not need to ask for the same source-repair authorization again if fresh repository authority rebind succeeds and the repair stays inside the frozen scope.
+## Board B exact PR #412 redeployment
+
+Exact deployed source authority:
+
+```text
+SOURCE_HEAD=f80d4a58bccb790029dbc85a9a9f48ad509e3a2d
+SOURCE_TREE=448b10e4b11f7585d32e00c349cb39d2aaea200e
+FIRMWARE_SIZE=1115968
+FIRMWARE_SHA256=44584b34671123ba05d4b6f94643fb9bcdad0001c5e2797d93eefe6cb2cb81db
+```
+
+Deployment closure:
+
+```text
+PRE_ACTIVE_SLOT=1
+TARGET_SLOT=0
+TARGET_SLOT_READBACK_VERIFY=PASS
+POST_ACTIVE_SLOT=0
+ROLLBACK_SLOT=1
+NVS_READBACK_UNCHANGED=PASS
+NVS_ERASE=false
+BOOTLOADER_WRITE=false
+PARTITION_TABLE_WRITE=false
+BOARD_B_HARNESS_REDEPLOY=PASS
+```
+
+The one-shot redeployment authorization was consumed and is not replayable.
+
+## Board B post-deploy runtime baseline
+
+A controlled serial diagnostic explicitly proved the new application booted from app0 at offset `0x10000`, loaded the existing provisioned runtime state, connected Wi-Fi, activated Direct mode on channel 11, connected MQTT and produced schema-v5 accepted telemetry.
+
+A subsequent T1-only correlation window proved:
+
+```text
+DIRECT_ACCEPTED_COUNT=12
+RELAY_ACCEPTED_COUNT=0
+BOOT_COUNT=1
+BOARD_B_DIRECT_CORRELATION=PASS
+MANAGER_RESTART_COUNT=0
+```
+
+Therefore:
+
+```text
+BOARD_B_DEPLOYED_SLOT_BOOT=PASS
+BOARD_B_PROVISIONED_STATE_PRESERVED=PASS
+BOARD_B_DIRECT_RUNTIME=PASS
+BOARD_B_MQTT_RUNTIME=PASS
+BOARD_B_NEW_HARNESS_FIRMWARE_ACTIVE=true
+```
+
+The earlier immediate post-flash no-ingress window is classified as `APPLICATION_BOOT_NOT_PROVEN_AFTER_ROM_FLASH_SESSION`, not as a Direct/MQTT/Manager defect. Future ROM-flash validation must explicitly establish a clean normal application boot before T1-only acceptance.
+
+## Board C current evidence
+
+Fresh observation proves the third board remains Direct-active with continuous Manager acceptance. A separate bounded Board B Relay interval also observed that board acting as a Relay gateway.
+
+```text
+BOARD_C_DIRECT_RUNTIME=PASS
+BOARD_C_RELAY_GATEWAY_FUNCTION=OBSERVED_PASS
+```
+
+The earlier simultaneous Board B + Board C Relay-through-Board A acceptance remains frozen PASS.
+
+## Current KF-092 physical-validation boundary
+
+```text
+KF092_SOURCE_REPAIR=PASS
+KF092_RELAY_ONLY_BASELINE=PASS
+KF092_RELAY_RECOVERY_BEHAVIOR=PASS
+HARNESS_REBOOT_POLICY_CONFLICT=PROVEN
+HARNESS_REBOOT_TIMEOUT_SOURCE_REPAIR=PASS
+HARNESS_REDEPLOYMENT=PASS
+POSTDEPLOY_DIRECT_BASELINE=PASS
+
+CONNECTIVITY_REBOOT_TIMEOUT_PHYSICAL_FIX=NOT_YET_PROVEN
+KF092_RELAY_FAILURE_PATH_EXERCISED=NOT_YET_PROVEN
+PHYSICAL_CAUSATION_PROVEN=false
+KF092_POSTFIX_PHYSICAL_VALIDATION=NOT_YET_CLOSED
+```
+
+The post-PR #412 20-minute Relay-only same-boot gate has not yet been executed. Therefore the previous approximately 15-minute reboot behavior has not yet been physically proven eliminated.
 
 ## Current ONE gate
 
 ```text
-CURRENT_ONE_GATE=N3W_KF092_RELAY_MAC_DELIVERY_FEEDBACK_SOURCE_REPAIR_20260915_01
-LIVE_MUTATION_DEFAULT=false
-BOARD_ACCESS_DEFAULT=false
+CURRENT_ONE_GATE=KF092_BOARD_B_20MIN_RELAY_ONLY_SAME_BOOT_STABILITY
 ```
 
-The next chat starts directly with source repair after fresh repository rebind. It must not perform board deployment or physical validation automatically after source/CI PASS.
+Required result:
+
+```text
+DIRECT_ACCEPTED_COUNT=0
+RELAY_ACCEPTED_COUNT>0
+BOOT_COUNT=1
+SAME_BOOT_20MIN=PASS
+RELAY_ONLY_20MIN=PASS
+CONNECTIVITY_REBOOT_TIMEOUT_PHYSICAL_FIX=PASS
+```
+
+Only after that passes should the exact KF-092 causal gate continue with controlled Relay reachability loss, actual asynchronous unicast failure evidence, `RELAY_ACTIVE -> DISCOVERY`, authenticated Relay reacquisition, same-boot recovery and a durable schema-v5 diagnostic snapshot.
+
+## Execution model
+
+```text
+EXECUTION_MODEL=HIGH_LEVEL_MODEL_PLUS_MAC_TERMINAL_EXECUTION
+CODE_AUTHORING_MODEL=HIGH_LEVEL_MODEL_ONLY
+CODEX_ENABLED=false
+EXECUTOR=USER_MAC_TERMINAL
+USER_ROLE=EXACT_COMMAND_EXECUTOR_AND_RAW_RESULT_REPORTER
+```
 
 ## Required guards
 
 - `esp_now_send(...) == ESP_OK` is submit acceptance, not MAC delivery completion.
 - Wi-Fi-task callback code must not directly mutate normal-loop path state.
-- actual unicast completion must be destination-bound before affecting the current Relay path.
-- consumed authorizations are not replayable.
+- Actual unicast completion must be destination-bound before affecting the current Relay path.
+- Relay-only physical acceptance must remain stable beyond the previous approximately 15-minute connectivity reboot window.
+- Application serial open is not a passive runtime oracle.
+- After a ROM-flash session, normal application boot must be proven explicitly before T1-only acceptance.
+- Consumed one-shot physical authorizations are never replayable.
 - USB port is a locator only, not board identity authority.
-- no board/serial/Flash/NVS/RF access without a later explicit physical authorization.
-- no Home Assistant/Broker/DynSec repair is currently indicated.
-- no TLS hostname-verification weakening is permitted.
-
-Detailed KF-092 authority:
-
-`docs/development/N3W_KF092_RELAY_MAC_DELIVERY_FEEDBACK_SOURCE_DEFECT_20260915.md`
-
-Formal next-chat handoff:
-
-`docs/development/N3W_KF092_RELAY_MAC_DELIVERY_FEEDBACK_SOURCE_REPAIR_NEW_CHAT_HANDOFF_V1.0_20260915.md`
+- No merge, additional board firmware write, Broker/Manager/Home Assistant/DynSec/credential/TLS mutation is authorized by this documentation synchronization.
