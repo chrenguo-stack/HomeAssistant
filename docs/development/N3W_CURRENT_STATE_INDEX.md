@@ -1,116 +1,185 @@
 # N3-W Current State Index
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
-Current KF-089 Relay end-to-end closeout: `docs/development/N3W_KF089_RELAY_END_TO_END_CLOSEOUT_20260914.md`  
-Current T1 runtime-convergence archive: `docs/development/N3W_KF089_T1_RUNTIME_CONVERGENCE_ISSUES_AND_PROGRESS_ALIGNMENT_20260909.md`  
-Previous detailed KF-089 progress archive: `docs/development/N3W_KF089_RELAY_ACQUISITION_TELEMETRY_OBSERVABILITY_AND_SCHEMA_V5_PROGRESS_ALIGNMENT_20260910.md`  
+Current KF-092 closeout authority: `docs/development/N3W_KF092_POSTFIX_PHYSICAL_VALIDATION_CLOSEOUT_20260915.md`  
+KF-092 detailed physical-progress archive: `docs/development/N3W_KF092_POSTFIX_PHYSICAL_VALIDATION_PROGRESS_ALIGNMENT_20260915.md`  
+KF-092 original source-defect authority: `docs/development/N3W_KF092_RELAY_MAC_DELIVERY_FEEDBACK_SOURCE_DEFECT_20260915.md`  
+KF-091 repair record: `docs/development/N3W_KF091_HOME_ASSISTANT_BROKER_TLS_DNS_BINDING_20260915.md`  
+Broader multi-node Relay / Home Assistant alignment archive: `docs/development/N3W_MULTI_NODE_RELAY_HOME_ASSISTANT_MQTT_PATH_PROGRESS_ALIGNMENT_20260915.md`  
+KF-089 Relay end-to-end closeout: `docs/development/N3W_KF089_RELAY_END_TO_END_CLOSEOUT_20260914.md`  
 Active product-direction authority: `docs/development/N3W_OFFICIAL_ESPNOW_REFERENCE_PRODUCT_DIRECTION_DECISION_20260906.md`
 
-## Current repository authority
-
-KF-089 code/package integration baseline after the clean PR #406 → #407 → #408 sequence:
+## Repository authority
 
 ```text
-KF089_CODE_PACKAGE_INTEGRATION_BASE_MAIN=1bbd4f3f1cfbccaa383d326a28bc972ed4ee202b
-KF089_CODE_PACKAGE_INTEGRATION_BASE_TREE=5b9bdc77585f3c1990b4123fccfb84f4d16d281d
+REPOSITORY=chrenguo-stack/HomeAssistant
+CURRENT_MAIN=56cc0b10726a25c380fe8aa6cd7ab488b5eac291
+CURRENT_MAIN_TREE=eed4ac1a95b64bc8c90c5784da8ffaeabb76ac7c
+CURRENT_DOC_ALIGNMENT_PR=410
+PR410_STATE=OPEN_UNMERGED
+
+PR411_STATE=OPEN_UNMERGED
+PR411_HEAD=576bb79c422e469ef5505f9d2bd32bfc2ec825eb
+PR411_CI=PASS
+
+PR412_STATE=OPEN_UNMERGED
+PR412_HEAD=f80d4a58bccb790029dbc85a9a9f48ad509e3a2d
+PR412_BASE=576bb79c422e469ef5505f9d2bd32bfc2ec825eb
+PR412_CI=PASS
 ```
 
-Integrated clean stack:
+Repository `main` must be queried fresh before source mutation or merge. These fixed SHAs are closeout-time authority only.
 
-```text
-PR406=MERGED
-PR406_MERGE_COMMIT=d7d9cd9d49f795c71a96c5f28f90cbdd9930c5e2
-PR407=MERGED
-PR407_MERGE_COMMIT=9237e1ad1b4cf1850af40599ce173f07b00ad5cd
-PR408=MERGED
-PR408_MERGE_COMMIT=1bbd4f3f1cfbccaa383d326a28bc972ed4ee202b
-ID23_ID24_ID25_ID26_REPOSITORY_INTEGRATION=PASS
-MANAGER_RELAY_SOURCE_CONTRACT_INTEGRATION=PASS
-```
-
-Historical PR #400 / #403 / #404 remain provenance for the original accepted live package heads. The clean integration path through PR #406→#407→#408 is the repository authority for the KF-089 code/package stack.
-
-The fixed SHA above is the KF-089 code/package integration baseline, not a permanent claim about the current repository tip after documentation-only descendants. Repository `main` must always be queried fresh.
-
-## Current deployed authorities
-
-```text
-BOARD_FIRMWARE_SOURCE_AUTHORITY=5d58727f5040281ee2beb9597f66a6a2da9bac57
-BOARD_FIRMWARE_SHA256=5168a1958669ce06002cc5cb507fda7fc7477ca53294a73dbcf582e5879f383b
-DIAGNOSTIC_SCHEMA_VERSION=5
-DEPLOYED_MANAGER_SOURCE=8fbedc7e0778ce91d146cd5f0772bebdd20ad13a
-LIVE_MANAGER_DYNSEC_REPAIR=PASS
-```
-
-The running T1 Dynamic Security role was repaired in place and the Manager subscription was reactivated with one controlled restart before the final ID26 revalidation. These live-state facts remain distinct from the repository revision of the deployed Manager image. The corrected source contract is now durable in repository `main`.
-
-## KF-089 accepted product boundary
-
-```text
-KF089_STARTUP_GATE_REPAIR=PASS
-KF089_DIRECT_TO_DISCOVERY_TRANSITION=PASS
-KF089_AUTONOMOUS_DISCOVERY_SCAN=PASS
-KF089_A_B_ESPNOW_REACHABILITY=PASS
-SELECTIVE_RF_ZONE_QUALIFIED=PASS
-KF089_RELAY_ADVERTISEMENT_DECODED=PASS
-KF089_RELAY_ADVERTISEMENT_ACCEPTED=PASS
-KF089_AUTHENTICATED_RELAY_ACQUISITION=PASS
-BOARD_SIDE_RELAY_CHAIN=PROVEN
-T1_BROKER_MEDIATED_RELAY_INGRESS=PROVEN
-MANAGER_RELAY_ACCEPTANCE=PROVEN
-KF089_END_TO_END_RELAY_TELEMETRY=PROVEN
-```
-
-Final ID26 attribution window:
-
-```text
-PREWINDOW_ACCEPTED_RELAY_COUNT=0
-WINDOW_ACCEPTED_RELAY_COUNT=38
-WINDOW_REJECTED_RELAY_COUNT=0
-WINDOW_DUPLICATE_RELAY_COUNT=0
-WINDOW_UNIQUE_ACCEPTED_RELAY_ROUTE_COUNT=1
-```
-
-## Current live safety boundary
-
-```text
-ID24_REPAIR_RESULT=PASS
-ID25_REACTIVATION_RESULT=PASS
-ID26_REVALIDATION_RESULT=PASS
-
-ID26_MANAGER_RUNTIME_STABLE=true
-ID26_BROKER_RUNTIME_STABLE=true
-ID26_DYNSEC_STATE_UNCHANGED=true
-
-BOARD_A_USB_ACCESS_DURING_ID26=false
-BOARD_B_USB_ACCESS_DURING_ID26=false
-SERIAL_OPEN_DURING_ID26=false
-FLASH_WRITE_DURING_ID26=false
-HOST_NVS_WRITE_DURING_ID26=false
-MQTT_TEST_PUBLISH_DURING_ID26=false
-```
-
-## Boundaries not proven by this closeout
-
-```text
-HOME_ASSISTANT_ENTITY_UPDATE=NOT_IN_SCOPE
-LIVE_DIRECT_TO_RELAY_FAILOVER=NOT_YET_ADJUDICATED
-LIVE_RELAY_TO_DIRECT_RECOVERY=NOT_YET_ADJUDICATED
-```
-
-## Current ONE gate
-
-The KF-089 Relay end-to-end technical acceptance and code/package integration are complete. PR #409 is the merge vehicle for the final current-state/central-guard documentation, under a separately granted merge-closeout authorization.
+## Frozen accepted boundaries
 
 ```text
 KF089_RELAY_END_TO_END_CLOSEOUT=PASS
-PR406_PR407_PR408_INTEGRATION=PASS
-PR409_MERGE_CLOSEOUT_AUTHORIZATION=GRANTED_2026-09-14
-PHYSICAL_AUTHORIZATION_REQUIRED=false
-T1_AUTHORIZATION_REQUIRED=false
-POST_PR409_NEXT_ONE_GATE=NONE_WITHIN_KF089_RELAY_CLOSEOUT
+KF091_HOME_ASSISTANT_BROKER_TLS_DNS_BINDING_REPAIR=PASS
+MAINLINE_ACCEPTANCE_ITEM_1_BOARD_BC_SIMULTANEOUS_RELAY_VIA_A=PASS
 ```
 
-PR #409 merge state must be queried fresh from GitHub rather than inferred from this index. After PR #409 integration and post-merge CI verification, no further gate remains within the KF-089 Relay end-to-end closeout.
+These results are not reopened by KF-092 closeout.
 
-Historical archives remain historical and are not rewritten solely to erase dated intermediate states. In particular, stale text saying `KF089_END_TO_END_RELAY_TELEMETRY=NOT_PROVEN` remains valid only for the dated archive in which it was recorded, not for the current state after the 2026-09-14 ID26 PASS.
+## KF-092 source and physical causation — CLOSED PASS
+
+```text
+ROOT_CLASS=ASYNC_ESPNOW_DELIVERY_RESULT_NOT_FEEDING_RELAY_PATH_CONTROLLER
+SOURCE_DEFECT_PROVEN=true
+KF092_SOURCE_REPAIR=PASS
+PR411_CI=PASS
+
+PR411_ASYNC_MAC_DELIVERY_FEEDBACK=PHYSICAL_PASS
+RELAY_FAILURE_TO_DISCOVERY=PHYSICAL_PASS
+DISCOVERY_TO_RELAY_REACQUISITION=PHYSICAL_PASS
+SAME_BOOT_RECOVERY=PHYSICAL_PASS
+KF092_PHYSICAL_CAUSATION_PROVEN=true
+KF092_POSTFIX_PHYSICAL_VALIDATION=PASS
+```
+
+The repaired path is physically proven: real async unicast delivery failures feed Relay hysteresis, drive `RELAY_ACTIVE -> DISCOVERY`, and permit authenticated same-boot Relay reacquisition.
+
+## Relay-only reboot-policy repair — PASS
+
+```text
+BOARD_B_PERIODIC_REBOOT_REPRODUCED=true
+REBOOT_PERIOD_APPROX=15_MINUTES
+HARNESS_REBOOT_POLICY_CONFLICT=PROVEN
+
+wifi.reboot_timeout=0s
+mqtt.reboot_timeout=0s
+PRODUCT_CPP_MUTATION=false
+HARNESS_REBOOT_TIMEOUT_SOURCE_REPAIR=PASS
+PR412_CI=PASS
+```
+
+Exact PR #412 successor artifact:
+
+```text
+SOURCE_HEAD=f80d4a58bccb790029dbc85a9a9f48ad509e3a2d
+SOURCE_TREE=448b10e4b11f7585d32e00c349cb39d2aaea200e
+FIRMWARE_SHA256=44584b34671123ba05d4b6f94643fb9bcdad0001c5e2797d93eefe6cb2cb81db
+```
+
+A durable Board B Relay-only snapshot exceeded 26 minutes in one boot.
+
+```text
+CONNECTIVITY_REBOOT_TIMEOUT_PHYSICAL_FIX=PASS
+PERIODIC_APPROX_15MIN_REBOOT_ELIMINATED=true
+```
+
+## Separate Relay continuity investigation
+
+A later 20-minute run kept Board B in one boot but showed burst gaps in Manager-visible Relay traffic. Exact T1/Broker correlation showed simultaneous Board A Direct degradation, Board A MQTT timeout/reconnect events, and later Board A reboots while Manager and Broker stayed up.
+
+This moved the continuity investigation away from a pure Board-B-to-Board-A ESP-NOW incompatibility explanation and toward Board A local connectivity/reboot behavior or its shared upstream boundary.
+
+## Board A / Board B aligned successor state
+
+Board A was subsequently updated to the same exact PR #412 successor artifact as Board B, with inactive-slot-first application-only deployment, exact readback verification, rollback slot retained and NVS unchanged. A true cold boot proved Board A Direct runtime and identity continuity.
+
+```text
+BOARD_A_PR411_PR412_ALIGNMENT_REDEPLOY=PASS
+BOARD_A_APP1_ACTIVATION=PASS
+BOARD_A_IDENTITY_PRESERVED=PASS
+BOARD_A_DIRECT_BASELINE_AFTER_ALIGNMENT=PASS
+```
+
+A clean aligned preclaim then passed with Board A Direct and Board B Relay-through-A, one boot each and zero sequence gaps.
+
+## Final aligned 30-minute continuity — PASS
+
+```text
+BOARD_A_ACCEPTED_COUNT=360
+BOARD_A_DIRECT_COUNT=360
+BOARD_A_BOOT_COUNT=1
+BOARD_A_SEQ_GAP_COUNT=0
+BOARD_A_TIME_GAP_COUNT=0
+BOARD_A_MQTT_TIMEOUT_OBSERVED=false
+
+BOARD_B_ACCEPTED_COUNT=354
+BOARD_B_RELAY_COUNT=354
+BOARD_B_DIRECT_COUNT=0
+BOARD_B_BOOT_COUNT=1
+BOARD_B_GATEWAY_EXACT_A=true
+BOARD_B_SEQUENCE_SPAN=360
+BOARD_B_ISOLATED_MISSING_FRAME_COUNT=6
+BOARD_B_MULTI_FRAME_BURST_LOSS_OBSERVED=false
+
+MANAGER_RESTART_COUNT=0
+BROKER_RESTART_COUNT=0
+```
+
+```text
+N3W_KF092_ALIGNED_AB_RELAY_LONG_DURATION_CONTINUITY_20260915_01=PASS
+BOARD_A_30MIN_DIRECT_CONTINUITY=PASS
+BOARD_B_30MIN_RELAY_CONTINUITY=PASS
+PREVIOUS_LARGE_BURST_GAPS_REPRODUCED=false
+PREVIOUS_BOARD_A_REBOOT_PATTERN_REPRODUCED=false
+ALIGNED_AB_LONG_DURATION_MAJOR_CONTINUITY_DEFECT=CLOSED_PASS
+ZERO_LOSS_RELAY_NOT_PROVEN=true
+```
+
+The six missing Board B sequence positions were isolated single-frame losses, not long burst outages. The aligned comparison strongly supports Board A's old connectivity/reboot behavior as a major contributor to the earlier burst gaps, without claiming it was the unique cause of every earlier missing frame.
+
+## KF-092 final status
+
+```text
+KF092_SOURCE_REPAIR=PASS
+KF092_REBOOT_POLICY_REPAIR=PASS
+KF092_REBOOT_POLICY_PHYSICAL_FIX=PASS
+KF092_PHYSICAL_CAUSATION_PROVEN=true
+KF092_POSTFIX_PHYSICAL_VALIDATION=PASS
+KF092_ALIGNED_AB_LONG_DURATION_CONTINUITY=PASS
+KF092_STATUS=CLOSED_PASS
+```
+
+## Current broader acceptance boundary
+
+```text
+MAINLINE_ACCEPTANCE_ITEM_1_BOARD_BC_SIMULTANEOUS_RELAY_VIA_A=PASS
+MAINLINE_ACCEPTANCE_ITEM_2_HOME_ASSISTANT_RELAY_ENTITY_UPDATE=NOT_YET_CLOSED
+MAINLINE_ACCEPTANCE_ITEM_3_LIVE_DIRECT_TO_RELAY_FAILOVER=NOT_YET_CLOSED
+MAINLINE_ACCEPTANCE_ITEM_4_LIVE_RELAY_TO_DIRECT_RECOVERY=PENDING
+```
+
+KF-092 controlled causal proof started from an established Relay path. It must not be relabelled as proof of a same-session Direct→Relay failover.
+
+## Current ONE gate
+
+```text
+CURRENT_ONE_GATE=N3W_LIVE_DIRECT_TO_RELAY_FAILOVER_ACCEPTANCE_PRECLAIM
+GATE_STATE=PENDING
+```
+
+The next mainline gate must establish a clean live Direct baseline and then separately prove automatic Direct→Relay failover without child reboot. Relay→Direct recovery remains a subsequent independent gate.
+
+## Execution model
+
+```text
+EXECUTION_MODEL=HIGH_LEVEL_MODEL_PLUS_MAC_TERMINAL_EXECUTION
+CODE_AUTHORING_MODEL=HIGH_LEVEL_MODEL_ONLY
+CODEX_ENABLED=false
+EXECUTOR=USER_MAC_TERMINAL
+```
+
+Historical handoff and archive files remain historical and are not rewritten merely to erase dated intermediate states.

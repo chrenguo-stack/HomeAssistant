@@ -1,245 +1,254 @@
 # N3-W Current State
 
-Updated: 2026-09-14
+Updated: 2026-09-15  
 Status: `CURRENT_STATE_AUTHORITY`
 
-This is the concise public-safe authority for the current N3-W state. Fresh exact repository, runtime, and physical evidence takes precedence if later evidence proves drift.
+Fresh exact repository/runtime/live evidence takes precedence if later evidence proves drift.
 
-## Repository / source authority
-
-KF-089 code/package integration baseline after the clean PR #406 → #407 → #408 sequence:
+## Repository authority
 
 ```text
 REPOSITORY=chrenguo-stack/HomeAssistant
-KF089_CODE_PACKAGE_INTEGRATION_BASE_MAIN=1bbd4f3f1cfbccaa383d326a28bc972ed4ee202b
-KF089_CODE_PACKAGE_INTEGRATION_BASE_TREE=5b9bdc77585f3c1990b4123fccfb84f4d16d281d
+CURRENT_MAIN=56cc0b10726a25c380fe8aa6cd7ab488b5eac291
+CURRENT_MAIN_TREE=eed4ac1a95b64bc8c90c5784da8ffaeabb76ac7c
+CURRENT_DOC_ALIGNMENT_PR=410
+PR410_STATE=OPEN_UNMERGED
+
+PR411_STATE=OPEN_UNMERGED
+PR411_HEAD=576bb79c422e469ef5505f9d2bd32bfc2ec825eb
+PR411_ROLE=KF092_RELAY_MAC_DELIVERY_FEEDBACK_SOURCE_REPAIR
+PR411_CI=PASS
+
+PR412_STATE=OPEN_UNMERGED
+PR412_HEAD=f80d4a58bccb790029dbc85a9a9f48ad509e3a2d
+PR412_BASE=576bb79c422e469ef5505f9d2bd32bfc2ec825eb
+PR412_ROLE=PHYSICAL_HARNESS_CONNECTIVITY_REBOOT_TIMEOUT_REPAIR
+PR412_CI=PASS
 ```
 
-The accepted KF-089 repair/validation code and execution-package stack is integrated into `main` through the clean integration path:
+Current KF-092 closeout authority:
+
+`docs/development/N3W_KF092_POSTFIX_PHYSICAL_VALIDATION_CLOSEOUT_20260915.md`
+
+Detailed physical-progress archive:
+
+`docs/development/N3W_KF092_POSTFIX_PHYSICAL_VALIDATION_PROGRESS_ALIGNMENT_20260915.md`
+
+## Product North Star
 
 ```text
-PR406=MERGED
-PR406_HEAD=159e8deabdbbf0f1990c4ecd7e425116a97b1879
-PR406_MERGE_COMMIT=d7d9cd9d49f795c71a96c5f28f90cbdd9930c5e2
-PR406_POSTMERGE_CI=PASS
-
-PR407=MERGED
-PR407_HEAD=55af8ba3a7bb55325f9b430e67a3e08efff1b6f5
-PR407_MERGE_COMMIT=9237e1ad1b4cf1850af40599ce173f07b00ad5cd
-PR407_POSTMERGE_CI=PASS
-
-PR408=MERGED
-PR408_HEAD=c8f4efbdbd0f14fbc0c6c50ac915af06ce34b755
-PR408_MERGE_COMMIT=1bbd4f3f1cfbccaa383d326a28bc972ed4ee202b
-PR408_POSTMERGE_CI=PASS
-
-ID23_ID24_ID25_ID26_REPOSITORY_INTEGRATION=PASS
-MANAGER_RELAY_SOURCE_CONTRACT_INTEGRATION=PASS
+NORTH_STAR=N3W_MULTI_NODE_RELAY_AND_RUNTIME_FAILOVER_ACCEPTANCE
 ```
 
-Historical PR #400 / #403 / #404 remain provenance for the original accepted live packages. The clean integration path above is the authority for what entered `main`; consumed historical live authorizations remain non-replayable.
-
-Repository `main` must always be queried fresh. The fixed SHA above is the KF-089 code/package integration baseline, not a permanent claim about the repository tip after documentation-only descendants. Live acceptance and repository integration remain separate authorities: the live T1 repair and physical Relay acceptance were proven before integration, and the corresponding source/guard package stack is now also present in `main`.
-
-Active architecture authority remains:
-
-`docs/development/N3W_OFFICIAL_ESPNOW_REFERENCE_PRODUCT_DIRECTION_DECISION_20260906.md`
-
-Current product direction remains:
-
-- provisioned runtime startup does not require an existing Wi-Fi association;
-- Direct remains preferred;
-- when Direct is unavailable, node-local bounded autonomous Relay discovery is allowed;
-- full custom radio-ownership architecture remains deferred unless later evidence requires it.
-
-## Deployed product authorities
-
-Board Schema-v5 authority used by the accepted two-board Relay chain:
+Broader acceptance state:
 
 ```text
-BOARD_FIRMWARE_SOURCE_AUTHORITY=5d58727f5040281ee2beb9597f66a6a2da9bac57
-BOARD_FIRMWARE_SHA256=5168a1958669ce06002cc5cb507fda7fc7477ca53294a73dbcf582e5879f383b
-DIAGNOSTIC_SCHEMA_VERSION=5
+MAINLINE_ACCEPTANCE_ITEM_1_BOARD_BC_SIMULTANEOUS_RELAY_VIA_A=PASS
+MAINLINE_ACCEPTANCE_ITEM_2_HOME_ASSISTANT_RELAY_ENTITY_UPDATE=NOT_YET_CLOSED
+MAINLINE_ACCEPTANCE_ITEM_3_LIVE_DIRECT_TO_RELAY_FAILOVER=NOT_YET_CLOSED
+MAINLINE_ACCEPTANCE_ITEM_4_LIVE_RELAY_TO_DIRECT_RECOVERY=PENDING
 ```
 
-The deployed Manager runtime authority remains distinct from repository-main source integration:
+The accepted KF-089 Relay end-to-end closeout and KF-091 Home Assistant/Broker TLS-DNS repair remain frozen PASS and are not reopened.
+
+## KF-092 source defect and source repair — PASS
 
 ```text
-DEPLOYED_MANAGER_SOURCE=8fbedc7e0778ce91d146cd5f0772bebdd20ad13a
-LIVE_MANAGER_DYNSEC_REPAIR=PASS
-MANAGER_RELAY_SOURCE_CONTRACT_INTEGRATION=PASS
+KF092_DOMAIN=FIRMWARE_RUNTIME
+ROOT_CLASS=ASYNC_ESPNOW_DELIVERY_RESULT_NOT_FEEDING_RELAY_PATH_CONTROLLER
+SOURCE_DEFECT_PROVEN=true
 ```
 
-ID24 repaired the active live Dynamic Security role in place. ID25 then performed exactly one Manager restart to establish a fresh MQTT subscription cycle. ID26 proved fresh Relay telemetry delivery without further Manager/Broker/DynSec mutation. Integrating the source contract into `main` does not retroactively change the deployed Manager image revision; it makes the corrected contract durable for repository-controlled future materialization.
-
-## KF-089 final Relay acceptance
+PR #411 repairs the runtime so actual asynchronous unicast MAC completion, not synchronous submit acceptance, drives Relay delivery hysteresis.
 
 ```text
-KF089_STARTUP_GATE_REPAIR=PASS
-KF089_DIRECT_TO_DISCOVERY_TRANSITION=PASS
-KF089_AUTONOMOUS_DISCOVERY_SCAN=PASS
-KF089_A_B_ESPNOW_REACHABILITY=PASS
-SELECTIVE_RF_ZONE_QUALIFIED=PASS
-KF089_RELAY_ADVERTISEMENT_DECODED=PASS
-KF089_RELAY_ADVERTISEMENT_ACCEPTED=PASS
-KF089_AUTHENTICATED_RELAY_ACQUISITION=PASS
-BOARD_SIDE_RELAY_CHAIN=PROVEN
-T1_BROKER_MEDIATED_RELAY_INGRESS=PROVEN
-MANAGER_RELAY_ACCEPTANCE=PROVEN
-KF089_END_TO_END_RELAY_TELEMETRY=PROVEN
+SYNC_SUBMIT_SUCCESS=NOT_DELIVERY_SUCCESS
+IMMEDIATE_SYNC_SUBMIT_FAILURE=COUNTS_AS_FAILURE
+ASYNC_UNICAST_COMPLETION=CALLBACK_SAFE_BOUNDED_ENQUEUE
+NORMAL_LOOP=DRAINS_COMPLETIONS=true
+CURRENT_ACTIVE_RELAY_DESTINATION_MATCH_REQUIRED=true
+BROADCAST_COMPLETION_AFFECTS_CHILD_RELAY_PATH=false
+STALE_RELAY_COMPLETION=IGNORE
+RELAY_FAILURES_TO_DISCOVERY=2
+KF092_SOURCE_REPAIR=PASS
+PR411_CI=PASS
 ```
 
-The final ID26 fresh window was isolated by a Board-B-off baseline:
+## Relay-only reboot-policy repair — PASS
+
+Before PR #412, repeated Board B Relay-only runs showed approximately 15-minute reboot intervals while Manager remained stable. This was classified as a physical-harness connectivity reboot policy conflict, not evidence that PR #411 failed.
+
+PR #412 changes only the physical harness:
 
 ```text
-PREWINDOW_ACCEPTED_RELAY_COUNT=0
-PREWINDOW_QUIESCENCE_SECONDS_OBSERVED=10.003290081047453
-RELAY_WINDOW_SECONDS_OBSERVED=384.16830721497536
-WINDOW_ACCEPTED_RELAY_COUNT=38
-WINDOW_REJECTED_RELAY_COUNT=0
-WINDOW_DUPLICATE_RELAY_COUNT=0
-WINDOW_UNIQUE_ACCEPTED_RELAY_ROUTE_COUNT=1
+wifi.reboot_timeout=0s
+mqtt.reboot_timeout=0s
+PRODUCT_CPP_MUTATION=false
+HARNESS_REBOOT_TIMEOUT_SOURCE_REPAIR=PASS
+PR412_CI=PASS
 ```
 
-This proves the product chain through Manager acceptance:
+Exact successor artifact:
 
 ```text
-BOARD_B
--> ESP_NOW
--> BOARD_A_GATEWAY_FORWARD
--> MQTT_BROKER
--> MANAGER_RELAY_INGRESS
--> MANAGER_ACCEPTED_TELEMETRY
+SOURCE_HEAD=f80d4a58bccb790029dbc85a9a9f48ad509e3a2d
+SOURCE_TREE=448b10e4b11f7585d32e00c349cb39d2aaea200e
+FIRMWARE_SIZE=1115968
+FIRMWARE_SHA256=44584b34671123ba05d4b6f94643fb9bcdad0001c5e2797d93eefe6cb2cb81db
 ```
 
-Detailed public-safe closeout authority:
-
-`docs/development/N3W_KF089_RELAY_END_TO_END_CLOSEOUT_20260914.md`
-
-## Dynamic Security / subscription repair boundary
-
-The downstream Relay failure was localized to the active Manager Dynamic Security role. Default subscribe and client-receive behavior remained deny, while the Manager role lacked the exact Relay ingress receive contract.
-
-Accepted least-privilege topic:
+A durable Board B Relay-only schema-v5 snapshot exceeded 26 minutes in one boot and remained RelayActive.
 
 ```text
-gh/v1/<sid>/ingress/gateway/+/+/frame
+CONNECTIVITY_REBOOT_TIMEOUT_PHYSICAL_FIX=PASS
+PERIODIC_APPROX_15MIN_REBOOT_ELIMINATED=true
 ```
 
-Accepted ACL trio:
+## KF-092 exact physical causation — PASS
+
+A controlled Relay reachability interruption from a freshly proven Relay baseline established the repaired causal chain in one Board B boot:
 
 ```text
-subscribePattern
-publishClientReceive
-unsubscribePattern
+actual async unicast failure
+-> Relay delivery hysteresis
+-> RELAY_ACTIVE -> DISCOVERY
+-> authenticated Relay reacquisition
+-> RELAY_ACTIVE
+-> same-boot recovery
 ```
-
-Final repair/runtime state:
 
 ```text
-ID24_REPAIR_RESULT=PASS
-POSTSTATE_EXACT_RELAY_ACL_COUNT=3
-POSTSTATE_EXACT_CONTRACT_PROVEN=true
-
-ID25_REACTIVATION_RESULT=PASS
-POSTRESTART_RELAY_SUBSCRIPTION_REQUEST_OBSERVED=true
-POSTRESTART_DIRECT_SUBSCRIPTION_REQUEST_OBSERVED=true
-POSTRESTART_FAILURE_LOG_ABSENT=true
-
-ID26_REVALIDATION_RESULT=PASS
-LIVE_REPAIRED_DYNSEC_POSTSTATE_PROVEN=true
-DYNSEC_STATE_UNCHANGED=true
-MANAGER_RUNTIME_STABLE=true
-BROKER_RUNTIME_STABLE=true
+PR411_ASYNC_MAC_DELIVERY_FEEDBACK=PHYSICAL_PASS
+RELAY_FAILURE_TO_DISCOVERY=PHYSICAL_PASS
+DISCOVERY_TO_RELAY_REACQUISITION=PHYSICAL_PASS
+SAME_BOOT_RECOVERY=PHYSICAL_PASS
+KF092_PHYSICAL_CAUSATION_PROVEN=true
+KF092_POSTFIX_PHYSICAL_VALIDATION=PASS
 ```
 
-No broad `ingress/gateway/#` grant is part of the accepted repair.
+The durable snapshot does not preserve the exact chronological grouping of every recorded completion failure, so no stronger claim is made about the ordering of all failures.
 
-## Last-proven physical boundary
+## Separate Relay continuity investigation and Board A alignment
+
+A later 20-minute Relay continuity run kept Board B in one boot but showed burst gaps in Manager-visible Relay traffic. The same intervals showed Board A Direct degradation. Exact Broker evidence showed Board A MQTT timeout/reconnect events and later Board A reboots while Manager and Broker remained stable.
+
+This made a pure B→A ESP-NOW incompatibility explanation unsupported and identified Board A local connectivity/reboot behavior or its shared upstream boundary as the primary continuity suspect.
+
+Board A was then aligned to the same exact PR #412 successor artifact as Board B. Deployment used inactive-slot-first application-only update with exact readback verification, old application slot retained as rollback and NVS unchanged. A real cold boot proved the new application slot, original identity, MQTT/TLS Direct path and contiguous telemetry.
 
 ```text
-BOARD_A_LAST_PROVEN_STATE=POWERED_DIRECT_DURING_ID26_UNTOUCHED
-BOARD_A_USB_ACCESS_DURING_ID26=false
-BOARD_A_PHYSICAL_MUTATION_DURING_ID26=false
-
-BOARD_B_ID26_INITIAL_STATE=POWERED_OFF_AT_QUALIFIED_RELAY_ONLY_LOCATION
-BOARD_B_ID26_POWER_WINDOW_COMPLETED=true
-BOARD_B_ID26_FINAL_STATE=POWERED_OFF
-BOARD_B_USB_ACCESS_DURING_ID26=false
-
-CONTROLLED_RF_EXPERIMENT=PASS
+BOARD_A_PR411_PR412_ALIGNMENT_REDEPLOY=PASS
+BOARD_A_APP1_ACTIVATION=PASS
+BOARD_A_IDENTITY_PRESERVED=PASS
+BOARD_A_DIRECT_BASELINE_AFTER_ALIGNMENT=PASS
 ```
 
-These are last-proven experiment boundary facts, not a claim about the boards' real-time state after the operator later leaves the experiment.
+## Fully aligned A/B Relay baseline — PASS
 
-## T1 runtime boundary
-
-The previously accepted T1 runtime-convergence closure remains in force. ID24-ID26 additionally prove the current Relay receive path without reopening the infrastructure detour.
+After both boards returned to the qualified physical layout, a clean preclaim established:
 
 ```text
-T1_RUNTIME_CONVERGENCE=CLOSED_PASS
-AUTHORITATIVE_MANAGER_COUNT=1
-AUTHORITATIVE_BROKER_COUNT=1
-BROKER_HOST_PUBLICATION_RUNTIME=PASS
-MANAGER_TO_BROKER_TLS_MQTT=PASS
-
-ID26_MANAGER_RUNTIME_STABLE=true
-ID26_BROKER_RUNTIME_STABLE=true
-ID26_DYNSEC_STATE_UNCHANGED=true
+BOARD_A_DIRECT_COUNT=24
+BOARD_A_BOOT_COUNT=1
+BOARD_A_SEQ_GAP_COUNT=0
+BOARD_B_RELAY_COUNT=24
+BOARD_B_DIRECT_COUNT=0
+BOARD_B_BOOT_COUNT=1
+BOARD_B_SEQ_GAP_COUNT=0
+BOARD_B_RELAY_GATEWAY_EXACT_A=true
+MANAGER_RESTART_COUNT=0
+BROKER_RESTART_COUNT=0
+ALIGNED_AB_RELAY_BASELINE=PASS
 ```
 
-Detailed historical T1 convergence archive:
+## Aligned A/B 30-minute Relay continuity — PASS
 
-`docs/development/N3W_KF089_T1_RUNTIME_CONVERGENCE_ISSUES_AND_PROGRESS_ALIGNMENT_20260909.md`
-
-## Acceptance boundaries not claimed by KF-089 closeout
+Final 30-minute observation with both boards on the exact same PR #412 successor artifact:
 
 ```text
-HOME_ASSISTANT_ENTITY_UPDATE=NOT_IN_SCOPE
-LIVE_DIRECT_TO_RELAY_FAILOVER=NOT_YET_ADJUDICATED
-LIVE_RELAY_TO_DIRECT_RECOVERY=NOT_YET_ADJUDICATED
+BOARD_A_ACCEPTED_COUNT=360
+BOARD_A_DIRECT_COUNT=360
+BOARD_A_BOOT_COUNT=1
+BOARD_A_SEQ_GAP_COUNT=0
+BOARD_A_TIME_GAP_COUNT=0
+BOARD_A_MQTT_TIMEOUT_OBSERVED=false
+
+BOARD_B_ACCEPTED_COUNT=354
+BOARD_B_DIRECT_COUNT=0
+BOARD_B_RELAY_COUNT=354
+BOARD_B_BOOT_COUNT=1
+BOARD_B_GATEWAY_EXACT_A=true
+BOARD_B_SEQUENCE_SPAN=360
+BOARD_B_ISOLATED_MISSING_FRAME_COUNT=6
+BOARD_B_MULTI_FRAME_BURST_LOSS_OBSERVED=false
+
+MANAGER_RESTART_COUNT=0
+BROKER_RESTART_COUNT=0
 ```
 
-The accepted fresh/cold Relay path must not be re-labelled as proof of a same-session Direct→Relay transition or Relay→Direct recovery.
+The six missing Board B sequence positions were isolated single-frame losses. No long multi-frame outage occurred and Board A had no Direct gap.
 
-## Required guards
+```text
+N3W_KF092_ALIGNED_AB_RELAY_LONG_DURATION_CONTINUITY_20260915_01=PASS
+BOARD_A_30MIN_DIRECT_CONTINUITY=PASS
+BOARD_A_SINGLE_BOOT_30MIN=PASS
+BOARD_B_30MIN_RELAY_CONTINUITY=PASS
+BOARD_B_SINGLE_BOOT_30MIN=PASS
+PREVIOUS_LARGE_BURST_GAPS_REPRODUCED=false
+PREVIOUS_BOARD_A_REBOOT_PATTERN_REPRODUCED=false
+ALIGNED_AB_LONG_DURATION_MAJOR_CONTINUITY_DEFECT=CLOSED_PASS
+ZERO_LOSS_RELAY_NOT_PROVEN=true
+```
 
-- USB port is a locator only and is not board identity authority.
-- Board-targeted mutation requires explicit operator target/connection confirmation before board access and fresh ROM silicon identity before write.
-- Application serial open is not a passive runtime oracle.
-- Lab diagnostic NVS writes are distinct from product NVS mutation.
-- Discovery RX means decoded handler RX, not accepted advertisement.
-- Historical discovery counts are boot-session cumulative, not exact final RF-window counts.
-- Schema-v4 `esp_now_send(...) == ESP_OK` is submit acceptance, not asynchronous delivery completion; Schema-v5 completion counters are the correct device-side completion oracle.
-- Manager/Broker authority must not be selected by container name alone.
-- Strict read-only gates must not create temporary files on the target.
-- Current DynSec authority must be derived from the running Broker effective configuration; broad Relay grants remain forbidden.
-- The Manager Relay role must retain exactly the required least-privilege receive contract while default deny remains active.
-- A live in-place ACL repair does not reactivate an existing MQTT subscription by itself; reactivation evidence must be established separately.
-- End-to-end Relay proof requires a bounded fresh traffic window with a clean pre-window baseline or another equally strong attribution oracle.
-- Consumed one-shot authorizations are never replayable.
+The aligned comparison strongly supports Board A's old connectivity/reboot behavior as a major contributor to the earlier large burst gaps. It does not prove that behavior was the unique cause of every earlier missing frame.
+
+## KF-092 closeout
+
+```text
+KF092_SOURCE_REPAIR=PASS
+KF092_SOURCE_CI=PASS
+KF092_REBOOT_POLICY_REPAIR=PASS
+KF092_REBOOT_POLICY_PHYSICAL_FIX=PASS
+KF092_PHYSICAL_CAUSATION_PROVEN=true
+KF092_POSTFIX_PHYSICAL_VALIDATION=PASS
+KF092_ALIGNED_AB_LONG_DURATION_CONTINUITY=PASS
+KF092_STATUS=CLOSED_PASS
+```
+
+KF-092 is no longer the active physical gate.
 
 ## Current ONE gate
 
-KF-089 no longer requires another physical/T1 gate for its Relay end-to-end acceptance. The code/package integration route is complete, and this closeout/current-authority documentation is merge-ready under the separately granted PR #409 merge-closeout authorization.
+KF-092 causal closure must not be relabelled as proof of a same-session Direct→Relay failover. The accepted KF-092 controlled experiment started from an already established Relay path and interrupted the active Relay gateway.
 
 ```text
-KF089_RELAY_END_TO_END_CLOSEOUT=PASS
-PR406_PR407_PR408_INTEGRATION=PASS
-PR409_MERGE_CLOSEOUT_AUTHORIZATION=GRANTED_2026-09-14
-PHYSICAL_AUTHORIZATION_REQUIRED=false
-T1_AUTHORIZATION_REQUIRED=false
-POST_PR409_NEXT_ONE_GATE=NONE_WITHIN_KF089_RELAY_CLOSEOUT
+CURRENT_ONE_GATE=N3W_LIVE_DIRECT_TO_RELAY_FAILOVER_ACCEPTANCE_PRECLAIM
+GATE_STATE=PENDING
 ```
 
-PR #409 is the repository integration vehicle for these closeout/current-authority documents. Its live GitHub merge state must be queried fresh rather than inferred from this file. After PR #409 integration and post-merge CI verification, no further gate remains inside the KF-089 Relay end-to-end closeout itself.
+The next mainline task is to establish a clean live Direct baseline and then separately prove automatic Direct→Relay failover without rebooting the child node. Relay→Direct recovery remains a subsequent independent gate.
 
-## Frozen broader acceptance
+## Execution model
 
 ```text
-FC4_FINAL_PHYSICAL_ACCEPTANCE=FROZEN_PASS
-N3W_THREE_BOARD_R2_RUNTIME_LIVENESS=FROZEN_PASS
-KF089_RELAY_END_TO_END_CLOSEOUT=PASS
+EXECUTION_MODEL=HIGH_LEVEL_MODEL_PLUS_MAC_TERMINAL_EXECUTION
+CODE_AUTHORING_MODEL=HIGH_LEVEL_MODEL_ONLY
+CODEX_ENABLED=false
+EXECUTOR=USER_MAC_TERMINAL
+USER_ROLE=EXACT_COMMAND_EXECUTOR_AND_RAW_RESULT_REPORTER
 ```
 
-Public GitHub stores source, tests, hashes, sanitized closures, architecture decisions, and sanitized runtime alignment. Raw NVS, credentials, private board identities, remote-host details, private paths/addresses, raw Manager logs, and raw Dynamic Security snapshots remain private/local.
+## Required guards
+
+- `esp_now_send(...) == ESP_OK` is submit acceptance, not MAC delivery completion.
+- Wi-Fi/callback task code must not directly mutate normal-loop path state.
+- Actual unicast completion must be destination-bound before affecting the current Relay path.
+- Relay-only physical harnesses must not use connectivity reboot policies that invalidate Relay-only as a steady state.
+- Manager-visible continuity and device-side MAC delivery are distinct observability layers.
+- A successful long-duration Relay window does not prove zero packet loss.
+- Application serial open is not a passive runtime oracle.
+- After a ROM/stub flashing session, a true normal application boot must be proven before T1-only runtime acceptance.
+- `otatool.py`/`parttool.py` invoked outside a fully exported ESP-IDF shell require explicit helper-path and `IDF_PATH` authority; host-tool failure must not be misclassified as board failure.
+- Consumed one-shot physical authorizations are never replayable.
+- USB port is a locator only, not board identity authority.
+- No merge, additional board firmware write, Broker/Manager/Home Assistant/DynSec/credential/TLS mutation is authorized by this documentation synchronization.
