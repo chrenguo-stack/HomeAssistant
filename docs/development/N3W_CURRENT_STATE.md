@@ -1,6 +1,6 @@
 # N3-W Current State
 
-Updated: 2026-09-14
+Updated: 2026-09-15
 Status: `CURRENT_STATE_AUTHORITY`
 
 This is the concise public-safe authority for the current N3-W state. Fresh exact repository, runtime, and physical evidence takes precedence if later evidence proves drift.
@@ -202,6 +202,95 @@ LIVE_RELAY_TO_DIRECT_RECOVERY=NOT_YET_ADJUDICATED
 
 The accepted fresh/cold Relay path must not be re-labelled as proof of a same-session Direct→Relay transition or Relay→Direct recovery.
 
+## 2026-09-15 broader multi-node Relay / Home Assistant continuation
+
+The broader acceptance route continued beyond the KF-089 cold/fresh Relay closeout under:
+
+```text
+NORTH_STAR=N3W_MULTI_NODE_RELAY_AND_RUNTIME_FAILOVER_ACCEPTANCE
+```
+
+Fresh physical execution proved Board B and Board C can simultaneously use Board A as their only Relay gateway while Board A remains Direct:
+
+```text
+WINDOW_ACCEPTED_RELAY_COUNT=82
+WINDOW_REJECTED_RELAY_COUNT=0
+WINDOW_DUPLICATE_RELAY_COUNT=0
+WINDOW_UNIQUE_RELAY_ROUTE_COUNT=2
+WINDOW_UNIQUE_RELAY_NODE_COUNT=2
+WINDOW_UNIQUE_RELAY_GATEWAY_COUNT=1
+BOARD_B_ACCEPTED_RELAY_COUNT=40
+BOARD_C_ACCEPTED_RELAY_COUNT=42
+BOARD_A_DIRECT_DURING_RELAY_COUNT=98
+BOARD_B_DIRECT_DURING_RELAY_COUNT=0
+BOARD_C_DIRECT_DURING_RELAY_COUNT=0
+RELAY_GATEWAY_EQUALS_BOARD_A=true
+BOARD_BC_SIMULTANEOUS_RELAY_VIA_A=PROVEN
+```
+
+Manager, Broker and accepted DynSec state remained stable. No board/T1 mutation or MQTT test publish was used for this proof.
+
+Therefore:
+
+```text
+MAINLINE_ACCEPTANCE_ITEM_1_BOARD_BC_SIMULTANEOUS_RELAY_VIA_A=PASS
+```
+
+The next downstream Home Assistant validation exposed an independent infrastructure blocker rather than a Relay regression. Fresh authority classification proved the current N3-W Home Assistant is the exact FC4 `fc4-homeassistant` runtime in Compose project `n3wfc4`; the independent `homeassistant` project has no A/B/C N3-W entities and is not the current authority.
+
+The FC4 Home Assistant MQTT identity matches the current dedicated DynSec Home Assistant identity and uses the correct TLS listener port. Broker certificate forensic proved the served certificate is valid now, remains valid for the next 30 days, has a valid chain from the FC4 Home Assistant namespace, and has exactly one DNS SAN. The current Home Assistant target and current Manager target both equal that certificate-authoritative DNS identity by public-safe fingerprint:
+
+```text
+TLS_DNS_SAN_SHA256_16=8203b89b390ddffc
+CURRENT_HA_TARGET_SHA256_16=8203b89b390ddffc
+MANAGER_RUNTIME_TARGET_SHA256_16=8203b89b390ddffc
+```
+
+However that certificate-authoritative name is not resolvable inside the FC4 Home Assistant private Docker network. Other Docker-internal Broker names are DNS-resolvable and TCP-connectable on 8883, and their certificate chain validates, but full TLS verification fails with `HOSTNAME_MISMATCH` because those names are not covered by the Broker certificate SAN.
+
+Current root cause:
+
+```text
+ROOT_DOMAIN=INFRASTRUCTURE
+ROOT_CLASS=DOCKER_NETWORK_DNS_TO_TLS_IDENTITY_BINDING
+ROOT_CAUSE_CLASS=BROKER_SHARED_NETWORK_MISSING_ALIAS_FOR_EXISTING_TLS_DNS_SAN
+RELAY_SPECIFIC_FAILURE=false
+HOME_ASSISTANT_MQTT_TARGET_VALUE_CORRECT=true
+HOME_ASSISTANT_MQTT_IDENTITY_CORRECT=true
+BROKER_TLS_CERTIFICATE_VALID=true
+BROKER_CA_CHAIN_VALID=true
+BROKER_TCP_REACHABILITY_FROM_FC4_HA=true
+```
+
+Minimum repair direction:
+
+```text
+REPAIR_DESIGN=ADD_EXISTING_TLS_DNS_SAN_AS_BROKER_SHARED_NETWORK_ALIAS
+HOME_ASSISTANT_MQTT_ENTRY_CHANGE_REQUIRED=false
+BROKER_CERT_ROTATION_REQUIRED=false
+BROKER_CA_ROTATION_REQUIRED=false
+HOME_ASSISTANT_CREDENTIAL_CHANGE_REQUIRED=false
+DYNSEC_MUTATION_REQUIRED=false
+MANAGER_CONFIGURATION_CHANGE_REQUIRED=false
+BROKER_NETWORK_ENDPOINT_MUTATION_REQUIRED=true
+DURABLE_COMPOSE_REPAIR_REQUIRED=true
+```
+
+No live Broker/network mutation is authorized yet. The current repair path must first exact-bind the Compose/network authority, prove the SAN is absent as a Broker alias, prove alias-only intended delta, preserve Broker data/TLS/DynSec, preserve Manager/HA as non-target services, and maintain/verify the accepted 8883 publication after any recreate or endpoint reattach.
+
+Detailed current alignment:
+
+`docs/development/N3W_MULTI_NODE_RELAY_HOME_ASSISTANT_MQTT_PATH_PROGRESS_ALIGNMENT_20260915.md`
+
+Current broader acceptance boundary:
+
+```text
+MAINLINE_ACCEPTANCE_ITEM_1_BOARD_BC_SIMULTANEOUS_RELAY_VIA_A=PASS
+MAINLINE_ACCEPTANCE_ITEM_2_HOME_ASSISTANT_RELAY_ENTITY_UPDATE=BLOCKED_BY_HA_BROKER_TLS_DNS_BINDING
+MAINLINE_ACCEPTANCE_ITEM_3_LIVE_DIRECT_TO_RELAY_FAILOVER=PENDING
+MAINLINE_ACCEPTANCE_ITEM_4_LIVE_RELAY_TO_DIRECT_RECOVERY=PENDING
+```
+
 ## Required guards
 
 - USB port is a locator only and is not board identity authority.
@@ -212,27 +301,41 @@ The accepted fresh/cold Relay path must not be re-labelled as proof of a same-se
 - Historical discovery counts are boot-session cumulative, not exact final RF-window counts.
 - Schema-v4 `esp_now_send(...) == ESP_OK` is submit acceptance, not asynchronous delivery completion; Schema-v5 completion counters are the correct device-side completion oracle.
 - Manager/Broker authority must not be selected by container name alone.
+- Home Assistant authority must not be selected by host-global service-name cardinality; bind the exact current Compose lineage/name/runtime authority.
 - Strict read-only gates must not create temporary files on the target.
 - Current DynSec authority must be derived from the running Broker effective configuration; broad Relay grants remain forbidden.
 - The Manager Relay role must retain exactly the required least-privilege receive contract while default deny remains active.
 - A live in-place ACL repair does not reactivate an existing MQTT subscription by itself; reactivation evidence must be established separately.
 - End-to-end Relay proof requires a bounded fresh traffic window with a clean pre-window baseline or another equally strong attribution oracle.
 - Consumed one-shot authorizations are never replayable.
+- MQTT/Broker target reachability must be validated inside the consuming runtime's own network namespace.
+- TCP reachability is not TLS target validity; full certificate hostname verification remains mandatory.
+- Never disable TLS hostname verification to compensate for Docker DNS/SAN mismatch.
+- Bridge-network Broker naming must preserve a usable intersection between Docker DNS authority and certificate SAN authority.
+- SSH used inside shell read loops must have explicit stdin ownership; read-only SSH that does not require stdin should use a non-consuming stdin contract.
+- Minimal production images must not be assumed to contain diagnostic tools such as `openssl`; helper dependencies must be preflighted.
+- Recorder cursor movement alone is not a generic MQTT delivery oracle for static/diagnostic Home Assistant entities.
 
-## Current ONE gate
+## KF-089 closeout gate (historical scope)
 
-KF-089 no longer requires another physical/T1 gate for its Relay end-to-end acceptance. The code/package integration route is complete, and this closeout/current-authority documentation is merge-ready under the separately granted PR #409 merge-closeout authorization.
+KF-089 no longer requires another physical/T1 gate for its Relay end-to-end acceptance. The code/package integration route is complete, and the final closeout/current-authority documentation was integrated after PR #406→#408.
 
 ```text
 KF089_RELAY_END_TO_END_CLOSEOUT=PASS
 PR406_PR407_PR408_INTEGRATION=PASS
-PR409_MERGE_CLOSEOUT_AUTHORIZATION=GRANTED_2026-09-14
 PHYSICAL_AUTHORIZATION_REQUIRED=false
 T1_AUTHORIZATION_REQUIRED=false
-POST_PR409_NEXT_ONE_GATE=NONE_WITHIN_KF089_RELAY_CLOSEOUT
+POST_KF089_CLOSEOUT_NEXT_ONE_GATE=NONE_WITHIN_KF089_RELAY_CLOSEOUT
 ```
 
-PR #409 is the repository integration vehicle for these closeout/current-authority documents. Its live GitHub merge state must be queried fresh rather than inferred from this file. After PR #409 integration and post-merge CI verification, no further gate remains inside the KF-089 Relay end-to-end closeout itself.
+## Current broader ONE gate
+
+```text
+CURRENT_ONE_GATE=FC4_HOME_ASSISTANT_BROKER_TLS_SAN_NETWORK_ALIAS_REPAIR_PRECLAIM
+MUTATION_AUTHORIZATION_GRANTED=false
+```
+
+The current gate is read-only planning/preclaim work. It does not authorize Broker recreate, endpoint reattach, Docker network mutation, Home Assistant reconfigure, certificate rotation, credential rotation or DynSec mutation.
 
 ## Frozen broader acceptance
 
@@ -240,6 +343,7 @@ PR #409 is the repository integration vehicle for these closeout/current-authori
 FC4_FINAL_PHYSICAL_ACCEPTANCE=FROZEN_PASS
 N3W_THREE_BOARD_R2_RUNTIME_LIVENESS=FROZEN_PASS
 KF089_RELAY_END_TO_END_CLOSEOUT=PASS
+N3W_MULTI_NODE_RELAY_ITEM_1=PASS
 ```
 
-Public GitHub stores source, tests, hashes, sanitized closures, architecture decisions, and sanitized runtime alignment. Raw NVS, credentials, private board identities, remote-host details, private paths/addresses, raw Manager logs, and raw Dynamic Security snapshots remain private/local.
+Public GitHub stores source, tests, hashes, sanitized closures, architecture decisions, and sanitized runtime alignment. Raw NVS, credentials, private board identities, remote-host details, private paths/addresses, raw Manager logs, raw Home Assistant storage contents and raw Dynamic Security snapshots remain private/local.
