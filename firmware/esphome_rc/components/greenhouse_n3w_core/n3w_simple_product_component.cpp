@@ -126,6 +126,7 @@ void SimpleProductComponent::setup() {
 
 void SimpleProductComponent::loop() {
   if (!activation_enabled_ || is_failed()) return;
+  drain_send_completions_();
   drain_radio_();
   if (!pairing_client_.provisioned()) {
     advance_pairing_();
@@ -381,6 +382,22 @@ void SimpleProductComponent::advance_recovery_() {
   (void) runtime_.note_direct_recovery_probe(direct_ready);
 }
 
+void SimpleProductComponent::drain_send_completions_() {
+  if (!runtime_ready_) return;
+  while (true) {
+    const uint8_t read =
+        tx_completion_read_.load(std::memory_order_relaxed);
+    const uint8_t write =
+        tx_completion_write_.load(std::memory_order_acquire);
+    if (read == write) break;
+    const TxCompletionSlot &slot = tx_completion_ring_[read];
+    (void) runtime_.note_relay_delivery_result(slot.destination, slot.success);
+    tx_completion_read_.store(
+        static_cast<uint8_t>((read + 1U) % kTxCompletionRingSlots),
+        std::memory_order_release);
+  }
+}
+
 void SimpleProductComponent::drain_radio_() {
   if (!runtime_ready_) return;
   while (true) {
@@ -432,10 +449,25 @@ void SimpleProductComponent::on_espnow_send_result(
     bool success) {
   if (destination == kEspNowBroadcastMac) {
     diagnostics_.on_broadcast_completion(success, now_ms());
-  } else {
-    // Unicast callback path only enqueues an atomic completion counter.
-    diagnostics_.on_unicast_completion(success, 0);
+    return;
   }
+
+  // ESP-NOW send callbacks run from the Wi-Fi task. Record diagnostics and
+  // enqueue only bounded completion metadata here; path state is owned by the
+  // normal component loop.
+  diagnostics_.on_unicast_completion(success, 0);
+  const uint8_t write =
+      tx_completion_write_.load(std::memory_order_relaxed);
+  const uint8_t next =
+      static_cast<uint8_t>((write + 1U) % kTxCompletionRingSlots);
+  if (next == tx_completion_read_.load(std::memory_order_acquire)) {
+    tx_completion_dropped_.fetch_add(1, std::memory_order_relaxed);
+    return;
+  }
+  TxCompletionSlot &slot = tx_completion_ring_[write];
+  slot.destination = destination;
+  slot.success = success;
+  tx_completion_write_.store(next, std::memory_order_release);
 }
 
 bool SimpleProductComponent::set_radio_channel(uint8_t channel) {
