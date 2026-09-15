@@ -175,6 +175,25 @@ SimpleProductError SimpleProductRuntime::note_direct_recovery_probe(bool success
   return SimpleProductError::NONE;
 }
 
+SimpleProductError SimpleProductRuntime::note_relay_delivery_result(
+    const MacAddress &destination,
+    bool success) {
+  if (!started_) return SimpleProductError::NOT_READY;
+  if (path_.state() != LocalPathState::RELAY_ACTIVE ||
+      !active_relay_.has_value() || destination != active_relay_->mac) {
+    return SimpleProductError::NONE;
+  }
+  const LocalPathState before = path_.state();
+  if (path_.note_relay_result(success) != RadioError::NONE) {
+    return SimpleProductError::STATE_REJECTED;
+  }
+  if (before != path_.state() &&
+      path_.state() == LocalPathState::DISCOVERY) {
+    return leave_relay_for_discovery_();
+  }
+  return SimpleProductError::NONE;
+}
+
 bool SimpleProductRuntime::update_direct_channel_hint(uint8_t channel) {
   if (!started_ || !valid_radio_channel(channel)) return false;
   direct_channel_ = channel;
@@ -218,21 +237,19 @@ SimpleProductError SimpleProductRuntime::send_telemetry(
       CompactTelemetryError::NONE) {
     return SimpleProductError::CRYPTO_FAILED;
   }
-  const bool success = port_->send_encrypted_peer(
-      active_relay_->mac, encoded.data(), encoded.size());
+  const MacAddress relay_destination = active_relay_->mac;
+  const bool submitted = port_->send_encrypted_peer(
+      relay_destination, encoded.data(), encoded.size());
   if (diagnostic_sink_ != nullptr) {
-    diagnostic_sink_->on_relay_telemetry(success, clock_->now_ms());
+    diagnostic_sink_->on_relay_telemetry(submitted, clock_->now_ms());
   }
-  const LocalPathState before = path_.state();
-  if (path_.note_relay_result(success) != RadioError::NONE) {
-    return SimpleProductError::STATE_REJECTED;
+  if (!submitted) {
+    const SimpleProductError state_result =
+        note_relay_delivery_result(relay_destination, false);
+    if (state_result != SimpleProductError::NONE) return state_result;
+    return SimpleProductError::RADIO_FAILED;
   }
-  if (before != path_.state() &&
-      path_.state() == LocalPathState::DISCOVERY) {
-    const SimpleProductError transition = leave_relay_for_discovery_();
-    if (transition != SimpleProductError::NONE) return transition;
-  }
-  return success ? SimpleProductError::NONE : SimpleProductError::RADIO_FAILED;
+  return SimpleProductError::NONE;
 }
 
 SimpleProductError SimpleProductRuntime::on_radio_receive(
