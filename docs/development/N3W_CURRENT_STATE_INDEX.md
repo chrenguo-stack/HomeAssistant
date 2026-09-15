@@ -2,6 +2,7 @@
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
 Current broader multi-node Relay / Home Assistant MQTT-path alignment: `docs/development/N3W_MULTI_NODE_RELAY_HOME_ASSISTANT_MQTT_PATH_PROGRESS_ALIGNMENT_20260915.md`  
+Current open infrastructure guard: `docs/development/N3W_KF091_HOME_ASSISTANT_BROKER_TLS_DNS_BINDING_20260915.md`  
 Current KF-089 Relay end-to-end closeout: `docs/development/N3W_KF089_RELAY_END_TO_END_CLOSEOUT_20260914.md`  
 Current T1 runtime-convergence archive: `docs/development/N3W_KF089_T1_RUNTIME_CONVERGENCE_ISSUES_AND_PROGRESS_ALIGNMENT_20260909.md`  
 Previous detailed KF-089 progress archive: `docs/development/N3W_KF089_RELAY_ACQUISITION_TELEMETRY_OBSERVABILITY_AND_SCHEMA_V5_PROGRESS_ALIGNMENT_20260910.md`  
@@ -139,6 +140,7 @@ The certificate-authoritative target name does not resolve inside the FC4 Home A
 Current root cause and repair direction:
 
 ```text
+KF091_STATUS=OPEN
 ROOT_DOMAIN=INFRASTRUCTURE
 ROOT_CLASS=DOCKER_NETWORK_DNS_TO_TLS_IDENTITY_BINDING
 ROOT_CAUSE_CLASS=BROKER_SHARED_NETWORK_MISSING_ALIAS_FOR_EXISTING_TLS_DNS_SAN
@@ -150,9 +152,10 @@ DYNSEC_MUTATION_REQUIRED=false
 MANAGER_CONFIGURATION_CHANGE_REQUIRED=false
 ```
 
-Detailed authority:
+Detailed authorities:
 
-`docs/development/N3W_MULTI_NODE_RELAY_HOME_ASSISTANT_MQTT_PATH_PROGRESS_ALIGNMENT_20260915.md`
+- `docs/development/N3W_MULTI_NODE_RELAY_HOME_ASSISTANT_MQTT_PATH_PROGRESS_ALIGNMENT_20260915.md`
+- `docs/development/N3W_KF091_HOME_ASSISTANT_BROKER_TLS_DNS_BINDING_20260915.md`
 
 ## Current broader acceptance boundary
 
