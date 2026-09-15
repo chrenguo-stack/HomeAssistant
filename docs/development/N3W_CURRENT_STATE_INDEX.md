@@ -1,6 +1,7 @@
 # N3-W Current State Index
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
+Current broader multi-node Relay / Home Assistant MQTT-path alignment: `docs/development/N3W_MULTI_NODE_RELAY_HOME_ASSISTANT_MQTT_PATH_PROGRESS_ALIGNMENT_20260915.md`  
 Current KF-089 Relay end-to-end closeout: `docs/development/N3W_KF089_RELAY_END_TO_END_CLOSEOUT_20260914.md`  
 Current T1 runtime-convergence archive: `docs/development/N3W_KF089_T1_RUNTIME_CONVERGENCE_ISSUES_AND_PROGRESS_ALIGNMENT_20260909.md`  
 Previous detailed KF-089 progress archive: `docs/development/N3W_KF089_RELAY_ACQUISITION_TELEMETRY_OBSERVABILITY_AND_SCHEMA_V5_PROGRESS_ALIGNMENT_20260910.md`  
@@ -90,27 +91,97 @@ HOST_NVS_WRITE_DURING_ID26=false
 MQTT_TEST_PUBLISH_DURING_ID26=false
 ```
 
-## Boundaries not proven by this closeout
+## Broader multi-node Relay continuation — 2026-09-15
+
+The broader acceptance route has advanced beyond the KF-089 cold/fresh single-child Relay boundary.
+
+Fresh controlled physical validation proved simultaneous Board B + Board C Relay via Board A:
 
 ```text
-HOME_ASSISTANT_ENTITY_UPDATE=NOT_IN_SCOPE
-LIVE_DIRECT_TO_RELAY_FAILOVER=NOT_YET_ADJUDICATED
-LIVE_RELAY_TO_DIRECT_RECOVERY=NOT_YET_ADJUDICATED
+WINDOW_ACCEPTED_RELAY_COUNT=82
+WINDOW_REJECTED_RELAY_COUNT=0
+WINDOW_DUPLICATE_RELAY_COUNT=0
+WINDOW_UNIQUE_RELAY_ROUTE_COUNT=2
+WINDOW_UNIQUE_RELAY_NODE_COUNT=2
+WINDOW_UNIQUE_RELAY_GATEWAY_COUNT=1
+BOARD_B_ACCEPTED_RELAY_COUNT=40
+BOARD_C_ACCEPTED_RELAY_COUNT=42
+BOARD_A_DIRECT_DURING_RELAY_COUNT=98
+BOARD_B_DIRECT_DURING_RELAY_COUNT=0
+BOARD_C_DIRECT_DURING_RELAY_COUNT=0
+RELAY_GATEWAY_EQUALS_BOARD_A=true
+BOARD_BC_SIMULTANEOUS_RELAY_VIA_A=PROVEN
 ```
+
+Therefore:
+
+```text
+MAINLINE_ACCEPTANCE_ITEM_1_BOARD_BC_SIMULTANEOUS_RELAY_VIA_A=PASS
+```
+
+Home Assistant entity-update validation is currently blocked by an infrastructure defect, not by a Relay failure. The current N3-W Home Assistant authority is `fc4-homeassistant` in project `n3wfc4`; the independent legacy `homeassistant` runtime has no A/B/C N3-W entities.
+
+Fresh MQTT/TLS localization proved:
+
+```text
+FC4_HA_MQTT_IDENTITY_CONTRACT_OK=true
+FC4_HA_PORT_MATCHES_BROKER_LISTENER=true
+BROKER_CERT_VALID_NOW=true
+BROKER_CERT_VALID_FOR_NEXT_30D=true
+BROKER_CHAIN_VALID_FROM_HA_WITHOUT_HOSTNAME=true
+TLS_DNS_SAN_SHA256_16=8203b89b390ddffc
+CURRENT_HA_TARGET_SHA256_16=8203b89b390ddffc
+MANAGER_RUNTIME_TARGET_SHA256_16=8203b89b390ddffc
+```
+
+The certificate-authoritative target name does not resolve inside the FC4 Home Assistant Docker namespace, while alternate internal Broker names are TCP-reachable but fail full TLS verification with hostname mismatch.
+
+Current root cause and repair direction:
+
+```text
+ROOT_DOMAIN=INFRASTRUCTURE
+ROOT_CLASS=DOCKER_NETWORK_DNS_TO_TLS_IDENTITY_BINDING
+ROOT_CAUSE_CLASS=BROKER_SHARED_NETWORK_MISSING_ALIAS_FOR_EXISTING_TLS_DNS_SAN
+REPAIR_DESIGN=ADD_EXISTING_TLS_DNS_SAN_AS_BROKER_SHARED_NETWORK_ALIAS
+HOME_ASSISTANT_MQTT_ENTRY_CHANGE_REQUIRED=false
+BROKER_CERT_ROTATION_REQUIRED=false
+HOME_ASSISTANT_CREDENTIAL_CHANGE_REQUIRED=false
+DYNSEC_MUTATION_REQUIRED=false
+MANAGER_CONFIGURATION_CHANGE_REQUIRED=false
+```
+
+Detailed authority:
+
+`docs/development/N3W_MULTI_NODE_RELAY_HOME_ASSISTANT_MQTT_PATH_PROGRESS_ALIGNMENT_20260915.md`
+
+## Current broader acceptance boundary
+
+```text
+MAINLINE_ACCEPTANCE_ITEM_1_BOARD_BC_SIMULTANEOUS_RELAY_VIA_A=PASS
+MAINLINE_ACCEPTANCE_ITEM_2_HOME_ASSISTANT_RELAY_ENTITY_UPDATE=BLOCKED_BY_HA_BROKER_TLS_DNS_BINDING
+MAINLINE_ACCEPTANCE_ITEM_3_LIVE_DIRECT_TO_RELAY_FAILOVER=PENDING
+MAINLINE_ACCEPTANCE_ITEM_4_LIVE_RELAY_TO_DIRECT_RECOVERY=PENDING
+```
+
+The accepted simultaneous Relay result remains valid and must not be reopened merely because the downstream Home Assistant MQTT consumer is blocked by Broker Docker-DNS/TLS-identity binding.
+
+## KF-089 historical closeout boundary
+
+```text
+HOME_ASSISTANT_ENTITY_UPDATE=NOT_IN_SCOPE_OF_KF089_CLOSEOUT
+LIVE_DIRECT_TO_RELAY_FAILOVER=NOT_ADJUDICATED_BY_KF089_CLOSEOUT
+LIVE_RELAY_TO_DIRECT_RECOVERY=NOT_ADJUDICATED_BY_KF089_CLOSEOUT
+```
+
+These statements describe the scope of the KF-089 closeout only; the broader route above is the current authority for later acceptance work.
 
 ## Current ONE gate
 
-The KF-089 Relay end-to-end technical acceptance and code/package integration are complete. PR #409 is the merge vehicle for the final current-state/central-guard documentation, under a separately granted merge-closeout authorization.
-
 ```text
-KF089_RELAY_END_TO_END_CLOSEOUT=PASS
-PR406_PR407_PR408_INTEGRATION=PASS
-PR409_MERGE_CLOSEOUT_AUTHORIZATION=GRANTED_2026-09-14
-PHYSICAL_AUTHORIZATION_REQUIRED=false
-T1_AUTHORIZATION_REQUIRED=false
-POST_PR409_NEXT_ONE_GATE=NONE_WITHIN_KF089_RELAY_CLOSEOUT
+CURRENT_ONE_GATE=FC4_HOME_ASSISTANT_BROKER_TLS_SAN_NETWORK_ALIAS_REPAIR_PRECLAIM
+MUTATION_AUTHORIZATION_GRANTED=false
 ```
 
-PR #409 merge state must be queried fresh from GitHub rather than inferred from this index. After PR #409 integration and post-merge CI verification, no further gate remains within the KF-089 Relay end-to-end closeout.
+The current gate is read-only. It must exact-bind the durable Compose/network authority, prove the existing TLS SAN is absent from the Broker shared-network DNS authority, prove alias-only intended delta, preserve Broker data/TLS/DynSec, preserve Manager/Home Assistant as non-target services, retain the accepted 8883 publication contract, and establish exact rollback before any live mutation authorization is considered.
 
 Historical archives remain historical and are not rewritten solely to erase dated intermediate states. In particular, stale text saying `KF089_END_TO_END_RELAY_TELEMETRY=NOT_PROVEN` remains valid only for the dated archive in which it was recorded, not for the current state after the 2026-09-14 ID26 PASS.
