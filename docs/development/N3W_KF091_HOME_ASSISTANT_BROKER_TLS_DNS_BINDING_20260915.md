@@ -1,16 +1,22 @@
 # KF-091 — FC4 Home Assistant / Broker TLS DNS Binding
 
 Date: 2026-09-15  
-Status: `OPEN`  
+Status: `CLOSED_PASS`  
 Primary domain: `INFRASTRUCTURE`
 
 ## Problem
 
-The current FC4 Home Assistant runtime has the correct dedicated MQTT username/client ID, the correct TLS listener port, and a Broker target whose public-safe fingerprint exactly matches the Broker certificate's sole DNS SAN and the current Manager target.
+The FC4 Home Assistant MQTT target, current Manager Broker target, and Broker certificate's sole DNS SAN were the same authority. The certificate and CA chain were valid, but that certificate-authoritative name was not resolvable from the FC4 Home Assistant Docker namespace. Alternate Docker-internal names were reachable but failed full hostname verification.
 
-However, that certificate-authoritative DNS name is not resolvable from the FC4 Home Assistant private Docker network namespace.
+## Proven root cause
 
-Other Docker-internal Broker names are resolvable and TCP-connectable on 8883, and the Broker certificate chain validates, but full TLS verification fails with `HOSTNAME_MISMATCH` because those internal names are not covered by the certificate SAN.
+```text
+ROOT_DOMAIN=INFRASTRUCTURE
+ROOT_CLASS=DOCKER_NETWORK_DNS_TO_TLS_IDENTITY_BINDING
+ROOT_CAUSE_CLASS=BROKER_SHARED_NETWORK_MISSING_ALIAS_FOR_EXISTING_TLS_DNS_SAN
+```
+
+The durable Broker endpoint on the shared FC4 private network lacked a Docker DNS alias equal to the already-correct TLS DNS SAN.
 
 ## Proven non-causes
 
@@ -19,72 +25,82 @@ RELAY_SPECIFIC_FAILURE=false
 HOME_ASSISTANT_MQTT_TARGET_VALUE_CORRECT=true
 HOME_ASSISTANT_MQTT_IDENTITY_CORRECT=true
 BROKER_TLS_CERTIFICATE_VALID=true
-BROKER_CERT_VALID_FOR_NEXT_30D=true
 BROKER_CA_CHAIN_VALID=true
-BROKER_TCP_REACHABILITY_FROM_FC4_HA=true
 CREDENTIAL_ROTATION_REQUIRED=false
 DYNSEC_MUTATION_REQUIRED=false
+MANAGER_CONFIGURATION_CHANGE_REQUIRED=false
 ```
 
-## Root cause
+## Accepted repair
 
 ```text
-ROOT_DOMAIN=INFRASTRUCTURE
-ROOT_CLASS=DOCKER_NETWORK_DNS_TO_TLS_IDENTITY_BINDING
-ROOT_CAUSE_CLASS=BROKER_SHARED_NETWORK_MISSING_ALIAS_FOR_EXISTING_TLS_DNS_SAN
+AUTHORIZATION=FC4_HOME_ASSISTANT_BROKER_TLS_SAN_ALIAS_REPAIR_MUTATION_20260915_01
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+REPLAY_PERMITTED=false
+RESULT=PASS
 ```
 
-The durable Broker endpoint on the shared FC4 private network does not currently expose a Docker DNS alias equal to the existing TLS certificate DNS SAN.
-
-## Minimum repair direction
+Repair design:
 
 ```text
 REPAIR_DESIGN=ADD_EXISTING_TLS_DNS_SAN_AS_BROKER_SHARED_NETWORK_ALIAS
-HOME_ASSISTANT_MQTT_ENTRY_CHANGE_REQUIRED=false
-BROKER_CERT_ROTATION_REQUIRED=false
-BROKER_CA_ROTATION_REQUIRED=false
-HOME_ASSISTANT_CREDENTIAL_CHANGE_REQUIRED=false
-DYNSEC_MUTATION_REQUIRED=false
-MANAGER_CONFIGURATION_CHANGE_REQUIRED=false
-BROKER_NETWORK_ENDPOINT_MUTATION_REQUIRED=true
-DURABLE_COMPOSE_REPAIR_REQUIRED=true
 ```
 
-Before live repair, exact preclaim must prove:
+The repair changed only the durable Broker network alias and recreated the Broker exactly once.
 
-- raw equality of TLS SAN, current FC4 Home Assistant target and current Manager target;
-- SAN is absent from the Broker shared-network alias/DNS authority;
-- SAN is syntactically safe for Docker DNS alias use;
-- exact current Compose source and network attachment authority;
-- alias-only intended delta;
-- Broker data/TLS/DynSec preservation;
-- Manager and Home Assistant remain non-target services;
-- accepted 8883 host publication/runtime mapping remains present after any recreate or endpoint reattach;
-- exact rollback to the current Broker/network state.
+```text
+COMPOSE_SOURCE_PRE_SHA256=56f004d4b1741ea7e868de7aa5491faa213b56c87864cc19deeadd5f465429db
+COMPOSE_SOURCE_POST_SHA256=d3a2bb681db523d4414e64fd26d49074d76c90ac5265493f18ec760494472f60
+BROKER_RECREATE_COUNT_EXACT=1
+BROKER_IMAGE_UNCHANGED=true
+BROKER_NETWORK_ATTACHMENT_SET_UNCHANGED=true
+BROKER_8883_PUBLICATION_UNCHANGED=true
+BROKER_CA_UNCHANGED=true
+BROKER_CERT_UNCHANGED=true
+DYNSEC_SHA256_UNCHANGED=true
+MANAGER_CONTAINER_ID_UNCHANGED=true
+MANAGER_RESTART_COUNT_UNCHANGED=true
+HOME_ASSISTANT_CONTAINER_ID_UNCHANGED=true
+HOME_ASSISTANT_RESTART_COUNT_UNCHANGED=true
+HOME_ASSISTANT_MQTT_ENTRY_CHANGE=false
+HOME_ASSISTANT_CONFIG_MUTATION=false
+HOME_ASSISTANT_CREDENTIAL_CHANGE=false
+MANAGER_CONFIGURATION_MUTATION=false
+BOARD_MUTATION=false
+```
 
-No live mutation is authorized by this issue record.
+Post-repair proof from the exact FC4 Home Assistant namespace:
+
+```text
+FC4_HA_TLS_SAN_DNS_RESOLVED=true
+FC4_HA_TCP_8883_CONNECTABLE=true
+FC4_HA_TLS_CHAIN_VERIFIED=true
+FC4_HA_TLS_HOSTNAME_VERIFIED=true
+HA_MQTT_8883_SESSION_OBSERVED=true
+MANAGER_8883_SESSION_RECOVERED=true
+```
+
+Therefore the Docker-DNS/TLS-identity blocker is closed.
 
 ## Regression guard
 
-For any service consuming Broker TLS from a container network namespace:
+For Broker TLS consumers in container namespaces:
 
-1. validate Broker target DNS/TCP from the consumer's exact network namespace;
-2. validate the TLS certificate chain independently from hostname verification;
-3. require full TLS hostname verification for the chosen target;
-4. require a non-empty intersection between Docker DNS authority and certificate SAN authority;
-5. never disable hostname verification to compensate for an internal-name/SAN mismatch;
-6. do not rotate credentials, DynSec identity or certificates when the proven defect is only network-name binding;
-7. Broker alias/network changes require exact Compose binding, rollback, non-target continuity and post-recreate publication checks.
+1. validate target DNS/TCP from the exact consumer namespace;
+2. validate CA-chain and hostname verification separately;
+3. require full hostname verification for the chosen target;
+4. require an intersection between Docker DNS authority and certificate SAN authority;
+5. never disable hostname verification to compensate for internal-name/SAN mismatch;
+6. do not rotate credentials, DynSec identity, or certificates when the defect is only network-name binding;
+7. Broker alias/network changes require exact Compose binding, rollback, non-target continuity, and post-recreate publication checks;
+8. distinguish raw-file SHA from any aggregate/meta hash oracle before mutation.
 
-## Related existing guards
+## Closure boundary
 
-The investigation also reproduced existing harness classes and does not allocate new IDs for them:
+KF-091 closure proves Home Assistant/Broker TLS transport recovery. It does not itself prove the broader Relay-only entity-update acceptance item. Subsequent field evidence moved the active blocker to KF-092 firmware Relay delivery feedback.
 
-- KF-071: host-global Home Assistant selector falsely assumed only one running Home Assistant runtime;
-- KF-078: SSH inherited a shell loop's stdin and consumed the remaining candidate row;
-- executor dependency preflight: an early TLS forensic incorrectly assumed the minimal Mosquitto image contained `openssl`;
-- oracle separation: Home Assistant recorder cursor non-advancement alone was insufficient to classify MQTT delivery for static/diagnostic discovery entities.
+Current authority:
 
-Detailed current evidence and broader route alignment:
-
-`docs/development/N3W_MULTI_NODE_RELAY_HOME_ASSISTANT_MQTT_PATH_PROGRESS_ALIGNMENT_20260915.md`
+- `docs/development/N3W_CURRENT_STATE.md`
+- `docs/development/N3W_KF092_RELAY_MAC_DELIVERY_FEEDBACK_SOURCE_DEFECT_20260915.md`
