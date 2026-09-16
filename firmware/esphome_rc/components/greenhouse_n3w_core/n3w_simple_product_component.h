@@ -44,6 +44,9 @@ class SimpleProductComponent : public Component,
   bool provisioned() const { return pairing_client_.provisioned(); }
   bool runtime_ready() const { return runtime_ready_; }
   LocalPathState path_state() const { return runtime_.path_state(); }
+  const N3wLabDiagnostics::LatencySnapshot &latency_diagnostics() const {
+    return diagnostics_.latency_snapshot();
+  }
   const std::string &hardware_id() const { return pairing_client_.hardware_id(); }
   const std::string &pairing_id() const { return pairing_client_.pairing_id(); }
   const std::string &node_id() const { return peer_state_.node_id; }

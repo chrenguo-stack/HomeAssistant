@@ -159,6 +159,9 @@ SimpleProductError SimpleProductRuntime::note_direct_result(bool success) {
   if (result != RadioError::NONE) return SimpleProductError::STATE_REJECTED;
   if (before != path_.state() &&
       path_.state() == LocalPathState::DISCOVERY) {
+    if (diagnostic_sink_ != nullptr) {
+      diagnostic_sink_->on_discovery_enter(clock_->now_ms());
+    }
     return begin_discovery_();
   }
   return SimpleProductError::NONE;
@@ -212,6 +215,9 @@ SimpleProductError SimpleProductRuntime::send_telemetry(
         "gh/v1/" + state_.system_id + "/ingress/node/" + state_.node_id +
         "/telemetry";
     const bool success = port_->publish_direct(topic, telemetry_json);
+    if (diagnostic_sink_ != nullptr) {
+      diagnostic_sink_->on_direct_publish_result(success, clock_->now_ms());
+    }
     const SimpleProductError state_result = note_direct_result(success);
     if (state_result != SimpleProductError::NONE) return state_result;
     return success ? SimpleProductError::NONE : SimpleProductError::MQTT_FAILED;

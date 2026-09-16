@@ -34,6 +34,9 @@ void N3wLabDiagnostics::begin_boot_session() {
   persist_count_ = 0;
   relay_children_ = 0;
   relay_active_ = false;
+  latency_ = LatencySnapshot{};
+  wifi_seen_up_ = false;
+  mqtt_seen_up_ = false;
   pending_broadcast_success_.store(0, std::memory_order_relaxed);
   pending_broadcast_failure_.store(0, std::memory_order_relaxed);
   pending_unicast_success_.store(0, std::memory_order_relaxed);
@@ -76,6 +79,51 @@ void N3wLabDiagnostics::persist_(uint64_t now_ms, bool force) {
   ++persist_count_;
 }
 
+void N3wLabDiagnostics::observe_connectivity(
+    bool wifi_connected,
+    bool mqtt_connected,
+    uint64_t now_ms) {
+  if (!enabled_ || !boot_session_started_) return;
+
+  if (wifi_connected) {
+    wifi_seen_up_ = true;
+  } else if (wifi_seen_up_ && latency_.wifi_down_ms == 0) {
+    latency_.wifi_down_ms = now_ms;
+  }
+
+  if (mqtt_connected) {
+    mqtt_seen_up_ = true;
+  } else if (mqtt_seen_up_ && latency_.mqtt_down_ms == 0) {
+    latency_.mqtt_down_ms = now_ms;
+  }
+}
+
+void N3wLabDiagnostics::note_direct_publish_result(
+    bool success,
+    uint64_t now_ms) {
+  if (!enabled_ || !boot_session_started_) return;
+
+  if (success) {
+    latency_.direct_fail_first_ms = 0;
+    latency_.direct_fail_count = 0;
+    return;
+  }
+
+  if (latency_.direct_fail_count == 0) {
+    latency_.direct_fail_first_ms = now_ms;
+  }
+  if (latency_.direct_fail_count < 0xffffffffU) {
+    ++latency_.direct_fail_count;
+  }
+}
+
+void N3wLabDiagnostics::note_discovery_enter(uint64_t now_ms) {
+  if (!enabled_ || !boot_session_started_) return;
+  if (latency_.discovery_enter_ms == 0) {
+    latency_.discovery_enter_ms = now_ms;
+  }
+}
+
 void N3wLabDiagnostics::note_channel_result(
     uint8_t requested,
     bool success,
@@ -107,6 +155,7 @@ void N3wLabDiagnostics::note_channel_set_result(
 
 void N3wLabDiagnostics::on_scan_attempt(uint8_t requested, uint64_t now_ms) {
   if (!enabled_ || !boot_session_started_) return;
+  if (latency_.first_scan_ms == 0) latency_.first_scan_ms = now_ms;
   snapshot_.last_requested_channel = requested;
   ++snapshot_.scan_attempts;
   const int slot = channel_slot_(requested);
@@ -177,6 +226,9 @@ void N3wLabDiagnostics::note_rx_dropped(uint64_t now_ms) {
 
 void N3wLabDiagnostics::note_relay_telemetry(bool success, uint64_t now_ms) {
   if (!enabled_ || !boot_session_started_) return;
+  if (success && latency_.first_relay_tx_ms == 0) {
+    latency_.first_relay_tx_ms = now_ms;
+  }
   ++snapshot_.relay_telemetry_attempts;
   if (success) ++snapshot_.relay_telemetry_success;
   mark_(now_ms, false);
@@ -294,6 +346,9 @@ void N3wLabDiagnostics::on_discovery_rejected(
 
 void N3wLabDiagnostics::on_discovery_rx(bool accepted, uint64_t now_ms) {
   if (!enabled_ || !boot_session_started_) return;
+  if (accepted && latency_.relay_ad_seen_ms == 0) {
+    latency_.relay_ad_seen_ms = now_ms;
+  }
   ++snapshot_.discovery_rx;
   if (!accepted) ++snapshot_.discovery_rejected;
   mark_(now_ms, false);
@@ -301,6 +356,9 @@ void N3wLabDiagnostics::on_discovery_rx(bool accepted, uint64_t now_ms) {
 
 void N3wLabDiagnostics::on_challenge_tx(bool success, uint64_t now_ms) {
   if (!enabled_ || !boot_session_started_) return;
+  if (success && latency_.challenge_tx_ms == 0) {
+    latency_.challenge_tx_ms = now_ms;
+  }
   ++snapshot_.challenge_tx;
   if (success) ++snapshot_.challenge_tx_success;
   mark_(now_ms, false);
@@ -322,6 +380,9 @@ void N3wLabDiagnostics::on_accept_tx(bool success, uint64_t now_ms) {
 
 void N3wLabDiagnostics::on_accept_rx(bool verified, uint64_t now_ms) {
   if (!enabled_ || !boot_session_started_) return;
+  if (verified && latency_.accept_rx_ms == 0) {
+    latency_.accept_rx_ms = now_ms;
+  }
   ++snapshot_.accept_rx;
   if (verified) ++snapshot_.accept_verify;
   mark_(now_ms, false);
@@ -329,6 +390,9 @@ void N3wLabDiagnostics::on_accept_rx(bool verified, uint64_t now_ms) {
 
 void N3wLabDiagnostics::on_relay_active(uint64_t now_ms) {
   if (!enabled_ || !boot_session_started_) return;
+  if (latency_.relay_active_ms == 0) {
+    latency_.relay_active_ms = now_ms;
+  }
   ++snapshot_.relay_active_count;
   relay_active_ = true;
   mark_(now_ms, true);

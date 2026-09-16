@@ -83,6 +83,40 @@ int main(int argc, char **argv) {
   direct.on_scan_result(1, true, 1, 0, 250);
   assert(direct.snapshot().scan_attempts == 1);
 
+  N3wLabDiagnostics latency;
+  latency.set_enabled(true);
+  latency.begin_boot_session();
+  latency.bind_boot_session(13, 1000);
+
+  latency.observe_connectivity(true, true, 1000);
+  latency.observe_connectivity(false, true, 2000);
+  latency.observe_connectivity(false, false, 2500);
+
+  SimpleProductDiagnosticSink *latency_sink = &latency;
+  latency_sink->on_direct_publish_result(false, 3000);
+  latency_sink->on_direct_publish_result(false, 3500);
+  latency_sink->on_direct_publish_result(false, 4000);
+
+  latency_sink->on_discovery_enter(4000);
+  latency.on_scan_attempt(1, 4010);
+  latency.on_discovery_rx(true, 4200);
+  latency.on_challenge_tx(true, 4210);
+  latency.on_accept_rx(true, 4230);
+  latency.on_relay_active(4240);
+  latency.on_relay_telemetry(true, 5000);
+
+  assert(latency.latency_snapshot().wifi_down_ms == 2000);
+  assert(latency.latency_snapshot().mqtt_down_ms == 2500);
+  assert(latency.latency_snapshot().direct_fail_first_ms == 3000);
+  assert(latency.latency_snapshot().direct_fail_count == 3);
+  assert(latency.latency_snapshot().discovery_enter_ms == 4000);
+  assert(latency.latency_snapshot().first_scan_ms == 4010);
+  assert(latency.latency_snapshot().relay_ad_seen_ms == 4200);
+  assert(latency.latency_snapshot().challenge_tx_ms == 4210);
+  assert(latency.latency_snapshot().accept_rx_ms == 4230);
+  assert(latency.latency_snapshot().relay_active_ms == 4240);
+  assert(latency.latency_snapshot().first_relay_tx_ms == 5000);
+
   N3wLabDiagnostics completions;
   completions.set_enabled(true);
   completions.begin_boot_session();

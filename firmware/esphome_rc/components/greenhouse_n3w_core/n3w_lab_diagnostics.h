@@ -85,6 +85,23 @@ class N3wLabDiagnostics final : public SimpleProductDiagnosticSink {
   };
 #pragma pack(pop)
 
+  // Per-boot Direct -> Relay timing observability.
+  // These fields are RAM-only and intentionally do not change the persisted
+  // gh_n3w_diag/snapshot schema.
+  struct LatencySnapshot {
+    uint64_t wifi_down_ms{0};
+    uint64_t mqtt_down_ms{0};
+    uint64_t direct_fail_first_ms{0};
+    uint32_t direct_fail_count{0};
+    uint64_t discovery_enter_ms{0};
+    uint64_t first_scan_ms{0};
+    uint64_t relay_ad_seen_ms{0};
+    uint64_t challenge_tx_ms{0};
+    uint64_t accept_rx_ms{0};
+    uint64_t relay_active_ms{0};
+    uint64_t first_relay_tx_ms{0};
+  };
+
   void set_enabled(bool enabled) { enabled_ = enabled; }
   bool enabled() const { return enabled_; }
   void begin_boot_session();
@@ -92,6 +109,14 @@ class N3wLabDiagnostics final : public SimpleProductDiagnosticSink {
   bool boot_session_bound() const { return boot_session_bound_; }
   uint32_t persist_count() const { return persist_count_; }
   const Snapshot &snapshot() const { return snapshot_; }
+  const LatencySnapshot &latency_snapshot() const { return latency_; }
+
+  void observe_connectivity(
+      bool wifi_connected,
+      bool mqtt_connected,
+      uint64_t now_ms);
+  void note_direct_publish_result(bool success, uint64_t now_ms);
+  void note_discovery_enter(uint64_t now_ms);
 
   void note_channel_set_result(
       uint8_t requested,
@@ -126,6 +151,12 @@ class N3wLabDiagnostics final : public SimpleProductDiagnosticSink {
       uint8_t observed,
       int32_t raw_error,
       uint64_t now_ms) override;
+  void on_direct_publish_result(bool success, uint64_t now_ms) override {
+    note_direct_publish_result(success, now_ms);
+  }
+  void on_discovery_enter(uint64_t now_ms) override {
+    note_discovery_enter(now_ms);
+  }
   void on_discovery_rx(bool accepted, uint64_t now_ms) override;
   void on_discovery_rejected(
       DiscoveryRejectReason reason,
@@ -165,6 +196,9 @@ class N3wLabDiagnostics final : public SimpleProductDiagnosticSink {
   uint32_t persist_count_{0};
   uint32_t relay_children_{0};
   bool relay_active_{false};
+  LatencySnapshot latency_{};
+  bool wifi_seen_up_{false};
+  bool mqtt_seen_up_{false};
   std::atomic<uint32_t> pending_broadcast_success_{0};
   std::atomic<uint32_t> pending_broadcast_failure_{0};
   std::atomic<uint32_t> pending_unicast_success_{0};
