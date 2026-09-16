@@ -364,6 +364,25 @@ void N3wLabDiagnostics::on_challenge_tx(bool success, uint64_t now_ms) {
   mark_(now_ms, false);
 }
 
+void N3wLabDiagnostics::on_challenge_submit_result(
+    bool attempted,
+    bool success,
+    uint8_t driver_error,
+    int32_t raw_error,
+    uint64_t now_ms) {
+  (void) now_ms;
+  if (!enabled_ || !boot_session_started_ || !attempted || success) return;
+  if (latency_.challenge_submit_failure_count == 0) {
+    latency_.challenge_submit_first_driver_error = driver_error;
+    latency_.challenge_submit_first_error_raw = raw_error;
+  }
+  if (latency_.challenge_submit_failure_count < 0xffffffffU) {
+    ++latency_.challenge_submit_failure_count;
+  }
+  latency_.challenge_submit_last_driver_error = driver_error;
+  latency_.challenge_submit_last_error_raw = raw_error;
+}
+
 void N3wLabDiagnostics::on_challenge_rx(bool verified, uint64_t now_ms) {
   if (!enabled_ || !boot_session_started_) return;
   ++snapshot_.challenge_rx;

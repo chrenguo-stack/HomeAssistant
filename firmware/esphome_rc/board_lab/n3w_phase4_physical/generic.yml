@@ -117,6 +117,16 @@ interval:
               std::to_string(latency.relay_ad_seen_ms) +
               ",\"challenge_tx_ms\":" +
               std::to_string(latency.challenge_tx_ms) +
+              ",\"challenge_submit_failure_count\":" +
+              std::to_string(latency.challenge_submit_failure_count) +
+              ",\"challenge_submit_first_driver_error\":" +
+              std::to_string(latency.challenge_submit_first_driver_error) +
+              ",\"challenge_submit_last_driver_error\":" +
+              std::to_string(latency.challenge_submit_last_driver_error) +
+              ",\"challenge_submit_first_error_raw\":" +
+              std::to_string(latency.challenge_submit_first_error_raw) +
+              ",\"challenge_submit_last_error_raw\":" +
+              std::to_string(latency.challenge_submit_last_error_raw) +
               ",\"accept_rx_ms\":" +
               std::to_string(latency.accept_rx_ms) +
               ",\"relay_active_ms\":" +

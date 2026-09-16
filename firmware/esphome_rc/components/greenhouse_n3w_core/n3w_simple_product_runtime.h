@@ -78,6 +78,8 @@ class SimpleProductPort {
       std::size_t size) = 0;
   virtual uint8_t last_channel_observed() const { return 0; }
   virtual int32_t last_channel_error_raw() const { return 0; }
+  virtual uint8_t last_broadcast_send_error_code() const { return 0; }
+  virtual int32_t last_broadcast_send_error_raw() const { return 0; }
   virtual bool publish_direct(const std::string &topic, const std::string &payload) = 0;
   virtual bool publish_relay(const std::string &topic, const std::string &payload) = 0;
 };
@@ -121,6 +123,18 @@ class SimpleProductDiagnosticSink {
     (void) now_ms;
   }
   virtual void on_challenge_tx(bool success, uint64_t now_ms) = 0;
+  virtual void on_challenge_submit_result(
+      bool attempted,
+      bool success,
+      uint8_t driver_error,
+      int32_t raw_error,
+      uint64_t now_ms) {
+    (void) attempted;
+    (void) success;
+    (void) driver_error;
+    (void) raw_error;
+    (void) now_ms;
+  }
   virtual void on_challenge_rx(bool verified, uint64_t now_ms) = 0;
   virtual void on_accept_tx(bool success, uint64_t now_ms) = 0;
   virtual void on_accept_rx(bool verified, uint64_t now_ms) = 0;
