@@ -138,6 +138,8 @@ void SimpleProductComponent::loop() {
     (void) start_runtime_if_ready_();
     return;
   }
+  diagnostics_.observe_connectivity(
+      wifi_connected(), mqtt_connected(), now_ms());
   runtime_.set_relay_capable(mqtt_connected());
   (void) runtime_.tick();
   diagnostics_.observe_runtime(

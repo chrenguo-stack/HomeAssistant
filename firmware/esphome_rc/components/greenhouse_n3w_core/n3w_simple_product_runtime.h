@@ -102,6 +102,13 @@ class SimpleProductDiagnosticSink {
       uint8_t observed,
       int32_t raw_error,
       uint64_t now_ms) = 0;
+  virtual void on_direct_publish_result(bool success, uint64_t now_ms) {
+    (void) success;
+    (void) now_ms;
+  }
+  virtual void on_discovery_enter(uint64_t now_ms) {
+    (void) now_ms;
+  }
   virtual void on_discovery_rx(bool accepted, uint64_t now_ms) = 0;
   virtual void on_discovery_rejected(
       DiscoveryRejectReason reason,

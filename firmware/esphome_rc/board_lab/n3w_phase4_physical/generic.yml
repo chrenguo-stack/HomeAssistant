@@ -87,6 +87,7 @@ interval:
 
           const uint64_t uptime_ms = static_cast<uint64_t>(millis());
           const auto path_before = id(n3w_phase4_core).path_state();
+          const auto &latency = id(n3w_phase4_core).latency_diagnostics();
           const std::string telemetry =
               "{\"schema\":\"gh.telemetry/1\",\"node_id\":\"" +
               id(n3w_phase4_core).node_id() +
@@ -99,6 +100,30 @@ interval:
               ",\"reset_reason\":\"" +
               std::string(id(n3w_phase4_core).reset_reason_name()) +
               "\"," +
+              "\"n3w_latency\":{" +
+              "\"wifi_down_ms\":" +
+              std::to_string(latency.wifi_down_ms) +
+              ",\"mqtt_down_ms\":" +
+              std::to_string(latency.mqtt_down_ms) +
+              ",\"direct_fail_first_ms\":" +
+              std::to_string(latency.direct_fail_first_ms) +
+              ",\"direct_fail_count\":" +
+              std::to_string(latency.direct_fail_count) +
+              ",\"discovery_enter_ms\":" +
+              std::to_string(latency.discovery_enter_ms) +
+              ",\"first_scan_ms\":" +
+              std::to_string(latency.first_scan_ms) +
+              ",\"relay_ad_seen_ms\":" +
+              std::to_string(latency.relay_ad_seen_ms) +
+              ",\"challenge_tx_ms\":" +
+              std::to_string(latency.challenge_tx_ms) +
+              ",\"accept_rx_ms\":" +
+              std::to_string(latency.accept_rx_ms) +
+              ",\"relay_active_ms\":" +
+              std::to_string(latency.relay_active_ms) +
+              ",\"first_relay_tx_ms\":" +
+              std::to_string(latency.first_relay_tx_ms) +
+              "}," +
               "\"measurements\":{},\"quality\":{}," +
               "\"power\":{\"source\":\"unknown\",\"low\":false}," +
               "\"phase4_lab\":true}";
