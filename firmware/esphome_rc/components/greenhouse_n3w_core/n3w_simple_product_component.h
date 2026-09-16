@@ -49,8 +49,9 @@ class SimpleProductComponent : public Component,
   const std::string &node_id() const { return peer_state_.node_id; }
   std::string pairing_qr_payload() const { return pairing_client_.pairing_qr_payload(); }
 
-  // EspNowEventSink. Receive work is copied into a bounded SPSC ring and
-  // processed from loop(), never from the high-priority Wi-Fi callback.
+  // EspNowEventSink. Receive and unicast-send completion work is copied into
+  // bounded SPSC rings and processed from loop(), never from the high-priority
+  // Wi-Fi callback.
   void on_espnow_receive(
       const MacAddress &source,
       const uint8_t *data,
@@ -111,11 +112,17 @@ class SimpleProductComponent : public Component,
     std::array<uint8_t, kEspNowPhysicalDatagramLimit> data{};
   };
 
+  struct TxCompletionSlot {
+    MacAddress destination{};
+    bool success{false};
+  };
+
   bool read_local_mac_();
   bool load_runtime_state_();
   bool configure_mqtt_();
   bool start_runtime_if_ready_();
   bool derive_pmk_(LinkKey *pmk) const;
+  void drain_send_completions_();
   void drain_radio_();
   void advance_pairing_();
   void advance_recovery_();
@@ -136,6 +143,7 @@ class SimpleProductComponent : public Component,
   }
 
   static constexpr std::size_t kRxRingSlots = 4;
+  static constexpr std::size_t kTxCompletionRingSlots = 8;
   static constexpr uint32_t kPairingRetryMs = 5000;
   static constexpr uint32_t kRecoveryProbeMs = 2000;
   static constexpr uint32_t kInitialDirectGraceMs = 15000;
@@ -164,6 +172,10 @@ class SimpleProductComponent : public Component,
   NvsProvisionedBrokerStoreV2 broker_store_{};
   NvsPendingPairingAckStoreV2 ack_store_{};
   SimplePairingClient pairing_client_;
+  std::array<TxCompletionSlot, kTxCompletionRingSlots> tx_completion_ring_{};
+  std::atomic<uint8_t> tx_completion_write_{0};
+  std::atomic<uint8_t> tx_completion_read_{0};
+  std::atomic<uint32_t> tx_completion_dropped_{0};
   std::array<RxSlot, kRxRingSlots> rx_ring_{};
   std::atomic<uint8_t> rx_write_{0};
   std::atomic<uint8_t> rx_read_{0};

@@ -40,6 +40,7 @@ struct FakePort final : SimpleProductPort {
   std::vector<std::pair<std::string, std::string>> relay;
   bool direct_success{true};
   bool broadcast_success{true};
+  bool encrypted_success{true};
   bool relay_success{true};
 
   bool set_radio_channel(uint8_t value) override {
@@ -66,7 +67,7 @@ struct FakePort final : SimpleProductPort {
       const uint8_t *data,
       std::size_t size) override {
     encrypted.push_back({mac, std::vector<uint8_t>(data, data + size)});
-    return true;
+    return encrypted_success;
   }
   bool publish_direct(const std::string &topic, const std::string &payload) override {
     direct.push_back({topic, payload});
@@ -317,6 +318,7 @@ int main() {
       R"({"schema":"gh.telemetry/1","node_id":"node_child","boot_id":"boot_0000000000000001","seq":5})";
   assert(child.send_telemetry(relay_json, "boot_0000000000000001", 5) ==
          SimpleProductError::NONE);
+  assert(child.path_state() == LocalPathState::RELAY_ACTIVE);
   assert(child_port.encrypted.size() == 1);
   const auto &encoded = child_port.encrypted.back().second;
   assert(relay.on_radio_receive(child_mac, encoded.data(), encoded.size(), 6) ==
@@ -348,8 +350,60 @@ int main() {
   assert(relay_sink.compact_forward_attempts == 2);
   assert(relay_sink.compact_forward_failure == 1);
 
-  assert(child.note_direct_recovery_probe(true) == SimpleProductError::NONE);
+  // KF-092: synchronous submit acceptance is not delivery success. Only an
+  // actual completion for the current Relay destination changes hysteresis.
+  const MacAddress broadcast_mac{0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+  assert(child.note_relay_delivery_result(broadcast_mac, false) ==
+         SimpleProductError::NONE);
   assert(child.path_state() == LocalPathState::RELAY_ACTIVE);
+  assert(child.note_relay_delivery_result(unknown_mac, false) ==
+         SimpleProductError::NONE);
+  assert(child.path_state() == LocalPathState::RELAY_ACTIVE);
+
+  assert(child.note_relay_delivery_result(relay_mac, false) ==
+         SimpleProductError::NONE);
+  assert(child.path_state() == LocalPathState::RELAY_ACTIVE);
+  assert(child.note_relay_delivery_result(relay_mac, true) ==
+         SimpleProductError::NONE);
+  assert(child.path_state() == LocalPathState::RELAY_ACTIVE);
+  assert(child.note_relay_delivery_result(relay_mac, false) ==
+         SimpleProductError::NONE);
+  assert(child.path_state() == LocalPathState::RELAY_ACTIVE);
+
+  // Immediate submit failure counts as the next Relay failure without waiting
+  // for an asynchronous completion.
+  child_port.encrypted_success = false;
+  assert(child.send_telemetry(relay_json, "boot_0000000000000001", 6) ==
+         SimpleProductError::RADIO_FAILED);
+  assert(child.path_state() == LocalPathState::DISCOVERY);
+  assert(!child.active_relay().has_value());
+  child_port.encrypted_success = true;
+
+  // Reacquire the Relay and prove two consecutive actual MAC failures drive
+  // the existing relay_failures_to_discovery hysteresis.
+  relay_clock.value = 4000;
+  assert(relay.tick() == SimpleProductError::NONE);
+  const auto discovery2 = relay_port.broadcasts.back();
+  assert(child.on_radio_receive(relay_mac, discovery2.data(), discovery2.size(), 6) ==
+         SimpleProductError::NONE);
+  const auto challenge2 = child_port.broadcasts.back();
+  assert(relay.on_radio_receive(child_mac, challenge2.data(), challenge2.size(), 6) ==
+         SimpleProductError::NONE);
+  const auto accept2 = relay_port.broadcasts.back();
+  assert(child.on_radio_receive(relay_mac, accept2.data(), accept2.size(), 6) ==
+         SimpleProductError::NONE);
+  assert(child.path_state() == LocalPathState::RELAY_ACTIVE);
+
+  assert(child.note_relay_delivery_result(relay_mac, false) ==
+         SimpleProductError::NONE);
+  assert(child.path_state() == LocalPathState::RELAY_ACTIVE);
+  assert(child.note_relay_delivery_result(relay_mac, false) ==
+         SimpleProductError::NONE);
+  assert(child.path_state() == LocalPathState::DISCOVERY);
+  assert(!child.active_relay().has_value());
+
+  assert(child.note_direct_recovery_probe(true) == SimpleProductError::NONE);
+  assert(child.path_state() == LocalPathState::DISCOVERY);
   assert(child.note_direct_recovery_probe(true) == SimpleProductError::NONE);
   assert(child.path_state() == LocalPathState::DIRECT);
   assert(!child.active_relay().has_value());

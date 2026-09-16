@@ -98,6 +98,15 @@ def test_generic_phase4_target_is_role_neutral_and_first_use_ready() -> None:
     assert "enable_on_boot: false" in config
     assert "broker: 127.0.0.1" in config
     assert 'ssid: "Greenhouse N3-W Setup"' in config
+    wifi_start = config.index("wifi:")
+    captive_portal_start = config.index("captive_portal:", wifi_start)
+    wifi_block = config[wifi_start:captive_portal_start]
+    mqtt_start = config.index("mqtt:")
+    external_components_start = config.index("external_components:", mqtt_start)
+    mqtt_block = config[mqtt_start:external_components_start]
+    assert "reboot_timeout: 0s" in wifi_block
+    assert "reboot_timeout: 0s" in mqtt_block
+    assert config.count("reboot_timeout: 0s") == 2
     forbidden = (
         "node_id:",
         "system_id:",
@@ -129,6 +138,12 @@ def test_phase4_lab_target_exposes_private_pairing_pop_and_synthetic_telemetry()
     assert "measurements" in config
     assert "quality" in config
     assert "power" in config
+    assert "reset_reason_raw" in config
+    assert "reset_reason" in config
+    assert "esp_reset_reason()" in core
+    assert "reset_reason_raw() const" in core
+    assert "reset_reason_name() const" in core
+    assert "reset_reason_name_from_raw_" in core
     assert "std::array<uint8_t, 8> random_boot" not in config
     assert "static uint32_t seq" not in config
     assert "NvsBootSessionStore boot_session_store_{};" in core
@@ -294,3 +309,58 @@ def test_tls_server_name_patch_carrier_is_exact_generated_source_overlay() -> No
     assert "site-packages" not in patch.lower()
     assert "requests." not in patch
     assert "urllib" not in patch
+
+
+def test_relay_mac_delivery_feedback_is_destination_bound_and_loop_owned() -> None:
+    runtime_header = text(CORE / "n3w_simple_product_runtime.h")
+    runtime = text(CORE / "n3w_simple_product_runtime.cpp")
+    component_header = text(CORE / "n3w_simple_product_component.h")
+    component = text(CORE / "n3w_simple_product_component.cpp")
+
+    assert "note_relay_delivery_result(" in runtime_header
+    delivery_start = runtime.index(
+        "SimpleProductError SimpleProductRuntime::note_relay_delivery_result("
+    )
+    delivery_end = runtime.index(
+        "bool SimpleProductRuntime::update_direct_channel_hint", delivery_start
+    )
+    delivery = runtime[delivery_start:delivery_end]
+    assert "path_.state() != LocalPathState::RELAY_ACTIVE" in delivery
+    assert "!active_relay_.has_value()" in delivery
+    assert "destination != active_relay_->mac" in delivery
+    assert "path_.note_relay_result(success)" in delivery
+    assert "leave_relay_for_discovery_()" in delivery
+
+    send_start = runtime.index("SimpleProductError SimpleProductRuntime::send_telemetry(")
+    send_end = runtime.index("SimpleProductError SimpleProductRuntime::on_radio_receive(", send_start)
+    send = runtime[send_start:send_end]
+    assert "const bool submitted = port_->send_encrypted_peer(" in send
+    assert "note_relay_delivery_result(relay_destination, false)" in send
+    assert "path_.note_relay_result(submitted)" not in send
+    assert "path_.note_relay_result(success)" not in send
+
+    assert "struct TxCompletionSlot" in component_header
+    assert "kTxCompletionRingSlots = 8" in component_header
+    assert "tx_completion_ring_" in component_header
+    assert "tx_completion_dropped_" in component_header
+
+    callback_start = component.index("void SimpleProductComponent::on_espnow_send_result(")
+    callback_end = component.index("bool SimpleProductComponent::set_radio_channel", callback_start)
+    callback = component[callback_start:callback_end]
+    assert "destination == kEspNowBroadcastMac" in callback
+    assert "on_unicast_completion(success, 0)" in callback
+    assert "tx_completion_write_.load" in callback
+    assert "tx_completion_read_.load" in callback
+    assert "slot.destination = destination" in callback
+    assert "slot.success = success" in callback
+    assert "runtime_." not in callback
+
+    drain_start = component.index("void SimpleProductComponent::drain_send_completions_()")
+    drain_end = component.index("void SimpleProductComponent::drain_radio_()", drain_start)
+    drain = component[drain_start:drain_end]
+    assert "runtime_.note_relay_delivery_result(slot.destination, slot.success)" in drain
+
+    loop_start = component.index("void SimpleProductComponent::loop()")
+    loop_end = component.index("bool SimpleProductComponent::send_telemetry_json", loop_start)
+    loop = component[loop_start:loop_end]
+    assert loop.index("drain_send_completions_();") < loop.index("drain_radio_();")
