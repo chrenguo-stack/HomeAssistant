@@ -138,6 +138,12 @@ def test_phase4_lab_target_exposes_private_pairing_pop_and_synthetic_telemetry()
     assert "measurements" in config
     assert "quality" in config
     assert "power" in config
+    assert "reset_reason_raw" in config
+    assert "reset_reason" in config
+    assert "esp_reset_reason()" in core
+    assert "reset_reason_raw() const" in core
+    assert "reset_reason_name() const" in core
+    assert "reset_reason_name_from_raw_" in core
     assert "std::array<uint8_t, 8> random_boot" not in config
     assert "static uint32_t seq" not in config
     assert "NvsBootSessionStore boot_session_store_{};" in core

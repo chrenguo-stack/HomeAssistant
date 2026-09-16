@@ -94,6 +94,11 @@ interval:
               "\",\"seq\":" + std::to_string(current_seq) +
               ",\"uptime_ms\":" + std::to_string(uptime_ms) +
               ",\"cap_hash\":\"phase4lab\",\"fw_version\":\"phase4-simple\"," +
+              "\"reset_reason_raw\":" +
+              std::to_string(id(n3w_phase4_core).reset_reason_raw()) +
+              ",\"reset_reason\":\"" +
+              std::string(id(n3w_phase4_core).reset_reason_name()) +
+              "\"," +
               "\"measurements\":{},\"quality\":{}," +
               "\"power\":{\"source\":\"unknown\",\"low\":false}," +
               "\"phase4_lab\":true}";
