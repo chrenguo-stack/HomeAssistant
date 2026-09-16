@@ -82,6 +82,12 @@ class SimpleProductComponent : public Component,
       std::size_t size) override;
   uint8_t last_channel_observed() const override { return last_channel_observed_; }
   int32_t last_channel_error_raw() const override { return last_channel_error_raw_; }
+  uint8_t last_broadcast_send_error_code() const override {
+    return static_cast<uint8_t>(radio_.last_broadcast_send_error());
+  }
+  int32_t last_broadcast_send_error_raw() const override {
+    return radio_.last_broadcast_send_error_raw();
+  }
   bool publish_direct(const std::string &topic, const std::string &payload) override;
   bool publish_relay(const std::string &topic, const std::string &payload) override;
 

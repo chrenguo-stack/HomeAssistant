@@ -98,6 +98,8 @@ DriverError EspNowDriver::initialize(EspNowEventSink *sink, const LinkKey &pmk) 
   sink_ = sink;
   last_channel_error_raw_ = 0;
   last_channel_observed_ = 0;
+  last_broadcast_send_error_ = DriverError::NONE;
+  last_broadcast_send_error_raw_ = 0;
   diagnostic_receive_logs_.store(0, std::memory_order_relaxed);
   diagnostic_broadcast_logs_.store(0, std::memory_order_relaxed);
   if (esp_now_register_recv_cb(&EspNowDriver::recv_cb_) != ESP_OK ||
@@ -264,21 +266,29 @@ DriverError EspNowDriver::send(
 DriverError EspNowDriver::send_broadcast(
     const uint8_t *data,
     std::size_t size) {
+  last_broadcast_send_error_ = DriverError::NONE;
+  last_broadcast_send_error_raw_ = 0;
 #ifndef USE_ESP32
   (void) data;
   (void) size;
-  return DriverError::NOT_INITIALIZED;
+  last_broadcast_send_error_ = DriverError::NOT_INITIALIZED;
+  return last_broadcast_send_error_;
 #else
   if (!initialized_) {
-    return DriverError::NOT_INITIALIZED;
+    last_broadcast_send_error_ = DriverError::NOT_INITIALIZED;
+    return last_broadcast_send_error_;
   }
   if (data == nullptr || size == 0 || size > kEspNowPhysicalDatagramLimit ||
       !esp_now_is_peer_exist(kEspNowBroadcastMac.data())) {
-    return DriverError::INVALID_ARGUMENT;
+    last_broadcast_send_error_ = DriverError::INVALID_ARGUMENT;
+    return last_broadcast_send_error_;
   }
-  return esp_now_send(kEspNowBroadcastMac.data(), data, size) == ESP_OK
-             ? DriverError::NONE
-             : DriverError::SEND_FAILED;
+  const esp_err_t send_result =
+      esp_now_send(kEspNowBroadcastMac.data(), data, size);
+  last_broadcast_send_error_raw_ = static_cast<int32_t>(send_result);
+  last_broadcast_send_error_ =
+      send_result == ESP_OK ? DriverError::NONE : DriverError::SEND_FAILED;
+  return last_broadcast_send_error_;
 #endif
 }
 

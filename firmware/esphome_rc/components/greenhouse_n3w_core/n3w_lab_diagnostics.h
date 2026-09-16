@@ -97,6 +97,11 @@ class N3wLabDiagnostics final : public SimpleProductDiagnosticSink {
     uint64_t first_scan_ms{0};
     uint64_t relay_ad_seen_ms{0};
     uint64_t challenge_tx_ms{0};
+    uint32_t challenge_submit_failure_count{0};
+    uint8_t challenge_submit_first_driver_error{0};
+    uint8_t challenge_submit_last_driver_error{0};
+    int32_t challenge_submit_first_error_raw{0};
+    int32_t challenge_submit_last_error_raw{0};
     uint64_t accept_rx_ms{0};
     uint64_t relay_active_ms{0};
     uint64_t first_relay_tx_ms{0};
@@ -164,6 +169,12 @@ class N3wLabDiagnostics final : public SimpleProductDiagnosticSink {
       uint8_t rx_channel,
       uint64_t now_ms) override;
   void on_challenge_tx(bool success, uint64_t now_ms) override;
+  void on_challenge_submit_result(
+      bool attempted,
+      bool success,
+      uint8_t driver_error,
+      int32_t raw_error,
+      uint64_t now_ms) override;
   void on_challenge_rx(bool verified, uint64_t now_ms) override;
   void on_accept_tx(bool success, uint64_t now_ms) override;
   void on_accept_rx(bool verified, uint64_t now_ms) override;

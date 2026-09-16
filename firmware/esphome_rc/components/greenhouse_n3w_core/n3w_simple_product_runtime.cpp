@@ -395,12 +395,26 @@ SimpleProductError SimpleProductRuntime::handle_discovery_(
     return SimpleProductError::CRYPTO_FAILED;
   }
   std::vector<uint8_t> encoded;
-  const bool challenge_sent =
-      encode_simple_peer_challenge(challenge, &encoded) ==
-          SimpleRuntimeError::NONE &&
-      port_->broadcast_control(encoded.data(), encoded.size());
+  const SimpleRuntimeError encode_result =
+      encode_simple_peer_challenge(challenge, &encoded);
+  bool challenge_sent = false;
+  uint8_t challenge_driver_error = 0;
+  int32_t challenge_raw_error = 0;
+  if (encode_result == SimpleRuntimeError::NONE) {
+    challenge_sent =
+        port_->broadcast_control(encoded.data(), encoded.size());
+    challenge_driver_error = port_->last_broadcast_send_error_code();
+    challenge_raw_error = port_->last_broadcast_send_error_raw();
+  }
   if (diagnostic_sink_ != nullptr) {
-    diagnostic_sink_->on_challenge_tx(challenge_sent, clock_->now_ms());
+    const uint64_t now_ms = clock_->now_ms();
+    diagnostic_sink_->on_challenge_tx(challenge_sent, now_ms);
+    diagnostic_sink_->on_challenge_submit_result(
+        encode_result == SimpleRuntimeError::NONE,
+        challenge_sent,
+        challenge_driver_error,
+        challenge_raw_error,
+        now_ms);
   }
   if (!challenge_sent) {
     return SimpleProductError::RADIO_FAILED;

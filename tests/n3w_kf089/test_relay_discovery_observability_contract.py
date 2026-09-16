@@ -116,10 +116,31 @@ def test_relay_telemetry_observability_contract_is_state_neutral():
     ):
         assert marker in runtime_header or marker in runtime or marker in diagnostics
     assert "on_unicast_completion(success, 0)" in component
-    assert "path_.note_relay_result(success)" in runtime
-    assert runtime.index("on_relay_telemetry(success") < runtime.index(
-        "path_.note_relay_result(success)"
+
+    delivery_start = runtime.index(
+        "SimpleProductError SimpleProductRuntime::note_relay_delivery_result("
     )
+    delivery_end = runtime.index(
+        "bool SimpleProductRuntime::update_direct_channel_hint",
+        delivery_start,
+    )
+    delivery = runtime[delivery_start:delivery_end]
+
+    send_start = runtime.index(
+        "SimpleProductError SimpleProductRuntime::send_telemetry("
+    )
+    send_end = runtime.index(
+        "SimpleProductError SimpleProductRuntime::on_radio_receive(",
+        send_start,
+    )
+    send = runtime[send_start:send_end]
+
+    # Submission observability is state-neutral. Actual Relay delivery feedback
+    # is destination-bound and applied later from the loop-owned completion path.
+    assert "on_relay_telemetry(submitted" in send
+    assert "path_.note_relay_result(success)" not in send
+    assert "path_.note_relay_result(success)" in delivery
+    assert "destination != active_relay_->mac" in delivery
     assert "pending_unicast_success_.fetch_add" in diagnostics
     assert "pending_unicast_failure_.fetch_add" in diagnostics
     assert "nvs_set_blob" not in diagnostics.split(

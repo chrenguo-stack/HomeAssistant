@@ -94,6 +94,12 @@ class EspNowDriver {
 
   int32_t last_channel_error_raw() const { return last_channel_error_raw_; }
   uint8_t last_channel_observed() const { return last_channel_observed_; }
+  DriverError last_broadcast_send_error() const {
+    return last_broadcast_send_error_;
+  }
+  int32_t last_broadcast_send_error_raw() const {
+    return last_broadcast_send_error_raw_;
+  }
 
   bool initialized() const { return initialized_; }
 
@@ -125,6 +131,8 @@ class EspNowDriver {
   bool initialized_{false};
   int32_t last_channel_error_raw_{0};
   uint8_t last_channel_observed_{0};
+  DriverError last_broadcast_send_error_{DriverError::NONE};
+  int32_t last_broadcast_send_error_raw_{0};
 };
 
 }  // namespace esphome::greenhouse_n3w_core
