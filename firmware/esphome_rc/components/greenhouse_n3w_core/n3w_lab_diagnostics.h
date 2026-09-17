@@ -105,6 +105,18 @@ class N3wLabDiagnostics final : public SimpleProductDiagnosticSink {
     uint64_t accept_rx_ms{0};
     uint64_t relay_active_ms{0};
     uint64_t first_relay_tx_ms{0};
+
+    // Lab-only synchronous encrypted-unicast submission evidence. This is kept
+    // RAM-only so diagnosing radio channel ownership does not revise or churn
+    // the durable NVS diagnostic schema.
+    uint32_t unicast_submit_success_count{0};
+    uint32_t unicast_submit_failure_count{0};
+    uint8_t unicast_submit_first_failure_driver_error{0};
+    int32_t unicast_submit_first_failure_error_raw{0};
+    uint8_t unicast_submit_first_failure_current_channel{0};
+    uint8_t unicast_submit_first_failure_peer_channel{0};
+    uint8_t unicast_submit_first_success_current_channel{0};
+    uint8_t unicast_submit_first_success_peer_channel{0};
   };
 
   void set_enabled(bool enabled) { enabled_ = enabled; }
@@ -145,6 +157,37 @@ class N3wLabDiagnostics final : public SimpleProductDiagnosticSink {
   void note_peer_install(bool success, uint64_t now_ms);
   void note_rx_dropped(uint64_t now_ms);
   void note_relay_telemetry(bool success, uint64_t now_ms);
+  void note_unicast_submit(
+      bool success,
+      uint8_t driver_error,
+      int32_t raw_error,
+      uint8_t current_channel,
+      uint8_t peer_channel,
+      uint64_t now_ms) {
+    (void) now_ms;
+    if (!enabled_ || !boot_session_started_) return;
+
+    if (success) {
+      if (latency_.unicast_submit_success_count == 0) {
+        latency_.unicast_submit_first_success_current_channel = current_channel;
+        latency_.unicast_submit_first_success_peer_channel = peer_channel;
+      }
+      if (latency_.unicast_submit_success_count < 0xffffffffU) {
+        ++latency_.unicast_submit_success_count;
+      }
+      return;
+    }
+
+    if (latency_.unicast_submit_failure_count == 0) {
+      latency_.unicast_submit_first_failure_driver_error = driver_error;
+      latency_.unicast_submit_first_failure_error_raw = raw_error;
+      latency_.unicast_submit_first_failure_current_channel = current_channel;
+      latency_.unicast_submit_first_failure_peer_channel = peer_channel;
+    }
+    if (latency_.unicast_submit_failure_count < 0xffffffffU) {
+      ++latency_.unicast_submit_failure_count;
+    }
+  }
   void emit_summary(uint64_t now_ms);
 
   // SimpleProductDiagnosticSink.
