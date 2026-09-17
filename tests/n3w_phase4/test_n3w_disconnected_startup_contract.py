@@ -66,7 +66,7 @@ def test_disconnected_channel_scan_rebinds_broadcast_peer_without_mutating_conne
         "bool SimpleProductComponent::broadcast_control",
     )
 
-    wifi_gate = body.index("if (wifi_connected())")
+    wifi_gate = body.index("wifi_connected()) {")
     same_channel = body.index("return current_channel == channel", wifi_gate)
     driver_switch = body.index("radio_.set_channel(channel)", same_channel)
     broadcast_rebind = body.index("radio_.prepare_broadcast_peer(channel)", driver_switch)
@@ -89,14 +89,24 @@ def test_failed_discovery_channel_switch_has_bounded_retry_deadline() -> None:
 
 def test_direct_recovery_rebinds_broadcast_peer_to_recovered_home_channel() -> None:
     source = text("n3w_simple_product_component.cpp")
-    body = function_body(
+    recovery_body = function_body(
         source,
         "void SimpleProductComponent::advance_recovery_()",
-        "void SimpleProductComponent::drain_radio_()",
+        "bool SimpleProductComponent::claim_relay_radio_()",
+    )
+    prepare_body = function_body(
+        source,
+        "bool SimpleProductComponent::prepare_direct_probe_radio_()",
+        "bool SimpleProductComponent::restore_relay_radio_()",
     )
 
-    observe = body.index("esp_wifi_get_channel")
-    rebind = body.index("radio_.prepare_broadcast_peer(channel)", observe)
-    update_hint = body.index("runtime_.update_direct_channel_hint(channel)", rebind)
-    recovery = body.index("runtime_.note_direct_recovery_probe(direct_ready)", update_hint)
-    assert observe < rebind < update_hint < recovery
+    observe = prepare_body.index("esp_wifi_get_channel")
+    rebind = prepare_body.index("radio_.prepare_broadcast_peer(channel)", observe)
+    update_hint = prepare_body.index("runtime_.update_direct_channel_hint(channel)", rebind)
+    assert observe < rebind < update_hint
+
+    prepare = recovery_body.index("prepare_direct_probe_radio_()")
+    recovery = recovery_body.index(
+        "runtime_.note_direct_recovery_probe(direct_ready)", prepare
+    )
+    assert prepare < recovery

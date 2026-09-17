@@ -193,6 +193,9 @@ class SimpleProductRuntime {
   SimpleProductError note_relay_delivery_result(
       const MacAddress &destination,
       bool success);
+  // Reinstalls the channel and encrypted peer after a bounded Direct recovery
+  // probe temporarily handed the single radio back to ESPHome Wi-Fi.
+  SimpleProductError rebind_radio_state();
   bool update_direct_channel_hint(uint8_t channel);
   SimpleProductError send_telemetry(
       const std::string &telemetry_json,
@@ -216,6 +219,7 @@ class SimpleProductRuntime {
   const std::optional<SimpleProductRelayPeer> &active_relay() const {
     return active_relay_;
   }
+  bool challenge_pending() const { return pending_challenge_.has_value(); }
   std::size_t relay_child_count() const { return relay_children_.size(); }
   const ProvisionedPeerStateV2 &provisioned_state() const { return state_; }
 

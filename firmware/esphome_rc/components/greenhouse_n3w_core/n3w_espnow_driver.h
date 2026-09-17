@@ -75,6 +75,10 @@ class EspNowEventSink {
 class EspNowDriver {
  public:
   DriverError initialize(EspNowEventSink *sink, const LinkKey &pmk);
+  // Starts Wi-Fi in STA-only mode when ESPHome has deliberately stopped its
+  // reconnect state machine. The driver stops only what it starts and leaves
+  // ESPHome's Wi-Fi initialization intact for a later Direct recovery probe.
+  DriverError initialize_standalone(EspNowEventSink *sink, const LinkKey &pmk);
   void shutdown();
 
   DriverError set_channel(uint8_t channel);
@@ -123,7 +127,11 @@ class EspNowDriver {
 
  protected:
 #ifdef USE_ESP32
-  DriverError start_wifi_();
+  DriverError initialize_(
+      EspNowEventSink *sink,
+      const LinkKey &pmk,
+      bool start_standalone_wifi);
+  DriverError start_wifi_(bool start_standalone_wifi);
   void stop_owned_wifi_();
 
   static void recv_cb_(
@@ -140,7 +148,8 @@ class EspNowDriver {
       esp_now_send_status_t status);
 #endif
   static EspNowDriver *active_;
-  bool wifi_owned_{false};
+  bool wifi_initialized_by_driver_{false};
+  bool wifi_started_by_driver_{false};
   std::atomic<uint8_t> diagnostic_receive_logs_{0};
   std::atomic<uint8_t> diagnostic_broadcast_logs_{0};
 #endif
