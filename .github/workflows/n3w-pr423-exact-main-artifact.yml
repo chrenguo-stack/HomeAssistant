@@ -1,0 +1,103 @@
+name: N3W PR423 exact-main Board B artifact
+
+on:
+  push:
+    branches:
+      - build/n3w-pr423-exact-main-artifact-20260917
+
+permissions:
+  contents: read
+
+jobs:
+  build-board-b-artifact:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact merged main
+        uses: actions/checkout@v4
+        with:
+          ref: 35944fa928bb1fcf5527e476fb5dbfcfcdc11ead
+          fetch-depth: 0
+
+      - name: Bind exact source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "35944fa928bb1fcf5527e476fb5dbfcfcdc11ead"
+          test "$(git rev-parse HEAD^{tree})" = "e20f6c7c539ae07fc6a0fef017f2e94ccaf6f49c"
+          git diff --quiet
+          echo "SOURCE_HEAD=$(git rev-parse HEAD)"
+          echo "SOURCE_TREE=$(git rev-parse HEAD^{tree})"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install exact firmware toolchain
+        run: python -m pip install -q "esphome==2026.4.3"
+
+      - name: Compile exact-main generic physical harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd firmware/esphome_rc/board_lab/n3w_phase4_physical
+          esphome config generic.yml
+          esphome compile generic.yml
+
+      - name: Freeze Board B write artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="firmware/esphome_rc/board_lab/n3w_phase4_physical/.esphome/build/gh-n3w-phase4-generic"
+          APP="$ROOT/.pioenvs/gh-n3w-phase4-generic/firmware.bin"
+          OTA="$(find "$ROOT" -type f -name ota_data_initial.bin -print -quit)"
+          test -f "$APP"
+          test -n "$OTA"
+          test -f "$OTA"
+
+          mkdir -p /tmp/n3w-board-b-artifact
+          cp "$APP" /tmp/n3w-board-b-artifact/firmware.bin
+          cp "$OTA" /tmp/n3w-board-b-artifact/ota_data_initial.bin
+
+          APP_SHA="$(sha256sum /tmp/n3w-board-b-artifact/firmware.bin | awk '{print $1}')"
+          OTA_SHA="$(sha256sum /tmp/n3w-board-b-artifact/ota_data_initial.bin | awk '{print $1}')"
+          APP_SIZE="$(stat -c '%s' /tmp/n3w-board-b-artifact/firmware.bin)"
+          OTA_SIZE="$(stat -c '%s' /tmp/n3w-board-b-artifact/ota_data_initial.bin)"
+          ESPHOME_VERSION="$(esphome version | tr '\n' ' ')"
+          PYTHON_VERSION="$(python --version 2>&1)"
+
+          cat > /tmp/n3w-board-b-artifact/MANIFEST.txt <<EOF
+          N3W_BOARD_B_PR423_EXACT_MAIN_ARTIFACT
+          SOURCE_HEAD=35944fa928bb1fcf5527e476fb5dbfcfcdc11ead
+          SOURCE_TREE=e20f6c7c539ae07fc6a0fef017f2e94ccaf6f49c
+          ESPHOME=${ESPHOME_VERSION}
+          PYTHON=${PYTHON_VERSION}
+          APPLICATION_FILE=firmware.bin
+          APPLICATION_SIZE=${APP_SIZE}
+          APPLICATION_SHA256=${APP_SHA}
+          OTADATA_FILE=ota_data_initial.bin
+          OTADATA_SIZE=${OTA_SIZE}
+          OTADATA_SHA256=${OTA_SHA}
+          WRITE_1_OFFSET=0x9000
+          WRITE_1_FILE=ota_data_initial.bin
+          WRITE_2_OFFSET=0x10000
+          WRITE_2_FILE=firmware.bin
+          BOOTLOADER_WRITE=false
+          PARTITION_TABLE_WRITE=false
+          PRODUCT_NVS_WRITE=false
+          FULL_FLASH_ERASE=false
+          FACTORY_IMAGE_WRITE=false
+          EOF
+
+          printf '%s  %s\n' "$APP_SHA" firmware.bin > /tmp/n3w-board-b-artifact/SHA256SUMS
+          printf '%s  %s\n' "$OTA_SHA" ota_data_initial.bin >> /tmp/n3w-board-b-artifact/SHA256SUMS
+          cat /tmp/n3w-board-b-artifact/MANIFEST.txt
+          cat /tmp/n3w-board-b-artifact/SHA256SUMS
+
+      - name: Upload exact-main Board B artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: n3w-board-b-pr423-exact-main-35944fa
+          path: /tmp/n3w-board-b-artifact
+          if-no-files-found: error
+          retention-days: 14
