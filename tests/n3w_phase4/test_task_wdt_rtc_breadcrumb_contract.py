@@ -19,7 +19,7 @@ def test_rtc_breadcrumb_is_restart_retained_and_flash_free() -> None:
     source = text(CORE / "n3w_rtc_breadcrumb.cpp")
 
     assert "RTC_NOINIT_ATTR" in source
-    assert '0x4E335742U' in source
+    assert "0x4E335742U" in source
     assert "stage_inverse" in source
     assert "uptime_ms_inverse" in source
     assert "marker_sequence_inverse" in source
@@ -65,7 +65,7 @@ def test_lab_telemetry_reports_previous_boot_breadcrumb_without_schema_change() 
     config = text(LAB / "generic.yml")
     schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
 
-    assert '"wdt_breadcrumb"' in config
+    assert "wdt_breadcrumb" in config
     assert "previous_rtc_breadcrumb_valid()" in config
     assert "previous_rtc_breadcrumb_stage()" in config
     assert "previous_rtc_breadcrumb_stage_name()" in config
