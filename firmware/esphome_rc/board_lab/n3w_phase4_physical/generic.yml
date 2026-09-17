@@ -73,6 +73,15 @@ interval:
   # without introducing a factory NODE_ID, SYSTEM_ID, peer MAC, LMK, or site secret.
   # boot_id and seq are allocated by the product component from its durable monotonic
   # boot-session state. The harness must never synthesize or randomize those values.
+  #
+  # n3w_u is intentionally compact because encrypted Relay telemetry plaintext is
+  # capped at 1024 bytes. Lab-only key mapping:
+  #   ok = synchronous encrypted-unicast submissions accepted by esp_now_send
+  #   f  = synchronous encrypted-unicast submission failures
+  #   fe = first failure DriverError code
+  #   fr = first failure raw esp_err_t
+  #   fc/fp = Wi-Fi current channel / encrypted peer channel at first failure
+  #   sc/sp = Wi-Fi current channel / encrypted peer channel at first success
   - interval: 5s
     then:
       - lambda: |-
@@ -150,6 +159,23 @@ interval:
               std::to_string(latency.relay_active_ms) +
               ",\"first_relay_tx_ms\":" +
               std::to_string(latency.first_relay_tx_ms) +
+              "},\"n3w_u\":{" +
+              "\"ok\":" +
+              std::to_string(latency.unicast_submit_success_count) +
+              ",\"f\":" +
+              std::to_string(latency.unicast_submit_failure_count) +
+              ",\"fe\":" +
+              std::to_string(latency.unicast_submit_first_failure_driver_error) +
+              ",\"fr\":" +
+              std::to_string(latency.unicast_submit_first_failure_error_raw) +
+              ",\"fc\":" +
+              std::to_string(latency.unicast_submit_first_failure_current_channel) +
+              ",\"fp\":" +
+              std::to_string(latency.unicast_submit_first_failure_peer_channel) +
+              ",\"sc\":" +
+              std::to_string(latency.unicast_submit_first_success_current_channel) +
+              ",\"sp\":" +
+              std::to_string(latency.unicast_submit_first_success_peer_channel) +
               "}," +
               "\"measurements\":{},\"quality\":{}," +
               "\"power\":{\"source\":\"unknown\",\"low\":false}," +
