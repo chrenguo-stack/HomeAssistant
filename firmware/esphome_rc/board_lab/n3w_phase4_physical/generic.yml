@@ -33,12 +33,16 @@ captive_portal:
 
 # MQTT is deliberately inert until gh.pair.credentials/2 has been authenticated,
 # persisted, and acknowledged. The component replaces every runtime Broker field
-# before enabling the client.
+# before enabling the client. Keep IDF network waits off the ESPHome main loop so
+# loss of Direct Wi-Fi cannot starve the task watchdog. Lab logs remain on USB and
+# are not forwarded through the same MQTT path that is disappearing.
 mqtt:
   broker: 127.0.0.1
   enable_on_boot: false
   discovery: false
   reboot_timeout: 0s
+  idf_send_async: true
+  log_topic: null
 
 external_components:
   - source:
