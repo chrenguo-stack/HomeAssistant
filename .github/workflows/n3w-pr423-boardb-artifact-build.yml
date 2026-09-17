@@ -49,7 +49,7 @@ jobs:
           ROOT="$GITHUB_WORKSPACE/firmware/esphome_rc/board_lab/n3w_phase4_physical/.esphome/build/gh-n3w-phase4-generic"
           ENV="$ROOT/.pioenvs/gh-n3w-phase4-generic"
           APP="$ENV/firmware.bin"
-          OTA="$ROOT/ota_data_initial.bin"
+          OTA="$ENV/ota_data_initial.bin"
           test -f "$APP"
           test -f "$OTA"
           mkdir -p "$GITHUB_WORKSPACE/boardb-artifact"
