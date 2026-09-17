@@ -541,7 +541,17 @@ bool SimpleProductComponent::send_encrypted_peer(
     const MacAddress &peer_mac,
     const uint8_t *data,
     std::size_t size) {
-  return radio_.send(peer_mac, data, size) == DriverError::NONE;
+  const DriverError result =
+      radio_.send(peer_mac, data, size, diagnostics_.enabled());
+  const bool success = result == DriverError::NONE;
+  diagnostics_.note_unicast_submit(
+      success,
+      static_cast<uint8_t>(result),
+      radio_.last_unicast_send_error_raw(),
+      radio_.last_unicast_current_channel(),
+      radio_.last_unicast_peer_channel(),
+      now_ms());
+  return success;
 }
 
 bool SimpleProductComponent::publish_direct(
