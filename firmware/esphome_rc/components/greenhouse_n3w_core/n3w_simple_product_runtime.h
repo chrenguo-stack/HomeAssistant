@@ -67,6 +67,15 @@ class SimpleProductPort {
   virtual ~SimpleProductPort() = default;
   virtual bool set_radio_channel(uint8_t channel) = 0;
   virtual bool broadcast_control(const uint8_t *data, std::size_t size) = 0;
+  virtual bool broadcast_control_on_channel(
+      uint8_t channel,
+      const uint8_t *data,
+      std::size_t size,
+      uint32_t wait_time_ms) {
+    (void) channel;
+    (void) wait_time_ms;
+    return broadcast_control(data, size);
+  }
   virtual bool install_encrypted_peer(
       const MacAddress &peer_mac,
       const LinkKey &lmk,

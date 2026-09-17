@@ -402,7 +402,11 @@ SimpleProductError SimpleProductRuntime::handle_discovery_(
   int32_t challenge_raw_error = 0;
   if (encode_result == SimpleRuntimeError::NONE) {
     challenge_sent =
-        port_->broadcast_control(encoded.data(), encoded.size());
+        port_->broadcast_control_on_channel(
+            channel,
+            encoded.data(),
+            encoded.size(),
+            policy_.challenge_timeout_ms);
     challenge_driver_error = port_->last_broadcast_send_error_code();
     challenge_raw_error = port_->last_broadcast_send_error_raw();
   }

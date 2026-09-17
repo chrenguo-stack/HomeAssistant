@@ -91,6 +91,11 @@ class EspNowDriver {
   DriverError send_broadcast(
       const uint8_t *data,
       std::size_t size);
+  DriverError send_broadcast_on_channel(
+      uint8_t channel,
+      const uint8_t *data,
+      std::size_t size,
+      uint32_t wait_time_ms);
 
   int32_t last_channel_error_raw() const { return last_channel_error_raw_; }
   uint8_t last_channel_observed() const { return last_channel_observed_; }

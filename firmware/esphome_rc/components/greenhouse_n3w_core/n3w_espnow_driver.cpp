@@ -1,6 +1,7 @@
 #include "n3w_espnow_driver.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <cstring>
 
 #include "esphome/core/log.h"
@@ -289,6 +290,73 @@ DriverError EspNowDriver::send_broadcast(
   last_broadcast_send_error_ =
       send_result == ESP_OK ? DriverError::NONE : DriverError::SEND_FAILED;
   return last_broadcast_send_error_;
+#endif
+}
+
+
+DriverError EspNowDriver::send_broadcast_on_channel(
+    uint8_t channel,
+    const uint8_t *data,
+    std::size_t size,
+    uint32_t wait_time_ms) {
+  last_broadcast_send_error_ = DriverError::NONE;
+  last_broadcast_send_error_raw_ = 0;
+#ifndef USE_ESP32
+  (void) channel;
+  (void) data;
+  (void) size;
+  (void) wait_time_ms;
+  last_broadcast_send_error_ = DriverError::NOT_INITIALIZED;
+  return last_broadcast_send_error_;
+#else
+  if (!initialized_) {
+    last_broadcast_send_error_ = DriverError::NOT_INITIALIZED;
+    return last_broadcast_send_error_;
+  }
+  if (!valid_radio_channel(channel) || data == nullptr || size == 0 ||
+      size > kEspNowPhysicalDatagramLimit || wait_time_ms == 0 ||
+      !esp_now_is_peer_exist(kEspNowBroadcastMac.data())) {
+    last_broadcast_send_error_ = DriverError::INVALID_ARGUMENT;
+    return last_broadcast_send_error_;
+  }
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
+  const std::size_t allocation_size =
+      sizeof(esp_now_switch_channel_t) + size;
+  auto *config = static_cast<esp_now_switch_channel_t *>(
+      std::calloc(1, allocation_size));
+  if (config == nullptr) {
+    last_broadcast_send_error_ = DriverError::SEND_FAILED;
+    last_broadcast_send_error_raw_ = static_cast<int32_t>(ESP_ERR_NO_MEM);
+    return last_broadcast_send_error_;
+  }
+
+  config->type = WIFI_OFFCHAN_TX_REQ;
+  config->channel = channel;
+  config->sec_channel = WIFI_SECOND_CHAN_NONE;
+  config->wait_time_ms = wait_time_ms;
+  std::memcpy(
+      config->dest_mac,
+      kEspNowBroadcastMac.data(),
+      kEspNowBroadcastMac.size());
+  config->data_len = static_cast<uint16_t>(size);
+  std::memcpy(config->data, data, size);
+
+  // op_id is intentionally left zero-initialized. ESP-IDF supplies the
+  // operation identifier; this path does not issue an explicit cancellation.
+  const esp_err_t send_result = esp_now_switch_channel_tx(config);
+  std::free(config);
+
+  last_broadcast_send_error_raw_ = static_cast<int32_t>(send_result);
+  last_broadcast_send_error_ =
+      send_result == ESP_OK ? DriverError::NONE : DriverError::SEND_FAILED;
+  return last_broadcast_send_error_;
+#else
+  last_broadcast_send_error_ = DriverError::SEND_FAILED;
+  last_broadcast_send_error_raw_ =
+      static_cast<int32_t>(ESP_ERR_NOT_SUPPORTED);
+  return last_broadcast_send_error_;
+#endif
 #endif
 }
 

@@ -71,6 +71,14 @@ class SimpleProductComponent : public Component,
   // SimpleProductPort.
   bool set_radio_channel(uint8_t channel) override;
   bool broadcast_control(const uint8_t *data, std::size_t size) override;
+  bool broadcast_control_on_channel(
+      uint8_t channel,
+      const uint8_t *data,
+      std::size_t size,
+      uint32_t wait_time_ms) override {
+    return radio_.send_broadcast_on_channel(
+               channel, data, size, wait_time_ms) == DriverError::NONE;
+  }
   bool install_encrypted_peer(
       const MacAddress &peer_mac,
       const LinkKey &lmk,
