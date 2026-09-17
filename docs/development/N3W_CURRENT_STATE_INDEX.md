@@ -2,138 +2,116 @@
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
 Current progress alignment: `docs/development/N3W_PROGRESS_ALIGNMENT_20260917.md`  
+Current formal handoff: `docs/development/N3W_PR416_CONTROLLED_CHANNEL_TX_POSTFLASH_DIRECT_BASELINE_NEW_CHAT_HANDOFF_V1.0_20260917.md`  
 Current local-development-environment authority: `docs/development/local-environment-records/2026-09-17-macos-x86_64.json`  
 Current KF-089 Relay end-to-end closeout: `docs/development/N3W_KF089_RELAY_END_TO_END_CLOSEOUT_20260914.md`  
-Current T1 runtime-convergence archive: `docs/development/N3W_KF089_T1_RUNTIME_CONVERGENCE_ISSUES_AND_PROGRESS_ALIGNMENT_20260909.md`  
 Active product-direction authority: `docs/development/N3W_OFFICIAL_ESPNOW_REFERENCE_PRODUCT_DIRECTION_DECISION_20260906.md`
 
-## Repository authority at 2026-09-17 alignment
+## Repository authority at this alignment
 
 ```text
 REPOSITORY=chrenguo-stack/HomeAssistant
-ALIGNMENT_BASE_MAIN=01389807f801341ca2240bcaf5a58e58ce9b9213
+ALIGNMENT_BASE_MAIN=416495ae9532d0d550cef25a949a62bd5242c434
+ALIGNMENT_BASE_TREE=65a3075274a22924dde33879241ecdc87b992bdb
 PRIMARY_TASK=N3W_MULTI_NODE_RELAY_AND_RUNTIME_FAILOVER_ACCEPTANCE
 ```
 
-The SHA above is the exact `main` tip at alignment-branch creation, not a permanent claim about future repository tips. Always fresh-query `main`.
+Always fresh-query `main` in a new conversation; the SHA above is the base used for this documentation alignment, not a permanent future-main claim.
 
-Recent merged route:
+## Recent merged route
 
 ```text
 PR411=MERGED   # Relay MAC async delivery feedback
 PR413=MERGED   # delivery feedback + reset diagnostics + harness reboot policy
 PR414=MERGED   # Direct-to-Relay latency observability
-PR415=MERGED   # Challenge submit raw-error observability
+PR415=MERGED   # Challenge raw-error observability
 PR416=MERGED   # controlled-channel Challenge TX
 PR417=MERGED   # local environment record
-
-PR415_MAIN_MERGE=63808f35fa2534388ec2c45e9ce9e9aa7d5d2e64
-PR416_MAIN_MERGE=11aa3ed3c1c727427e3a67f8764772c3a9fc3398
-PR417_MAIN_MERGE=01389807f801341ca2240bcaf5a58e58ce9b9213
+PR418=MERGED   # current-state alignment
+PR419=MERGED   # handoff-template simplification / plain-language guidance
 ```
 
-Historical PR #410/#412 are superseded stacked/documentation vehicles and are not current source authority.
+Historical PR #410/#412 remain superseded and must not be treated as current source authority.
 
-## Accepted historical baselines
+## Frozen accepted baselines
 
 ```text
 KF089_RELAY_END_TO_END_CLOSEOUT=PASS
-KF089_END_TO_END_RELAY_TELEMETRY=PROVEN
-T1_BROKER_MEDIATED_RELAY_INGRESS=PROVEN
-MANAGER_RELAY_ACCEPTANCE=PROVEN
-
-KF092_SOURCE_REPAIR=PASS
-KF092_REBOOT_POLICY_REPAIR=PASS
-KF092_REBOOT_POLICY_PHYSICAL_FIX=PASS
-KF092_PHYSICAL_CAUSATION_PROVEN=true
-KF092_POSTFIX_PHYSICAL_VALIDATION=PASS
-KF092_ALIGNED_AB_LONG_DURATION_CONTINUITY=PASS
 KF092_STATUS=CLOSED_PASS
-```
-
-KF-092 closure started from an established Relay path and does not itself prove same-session Direct-to-Relay latency acceptance.
-
-## Current same-boot Direct-to-Relay result
-
-```text
-SAME_BOOT_DIRECT_TO_RELAY=PASS
-UNCOMMANDED_REBOOT_DURING_TRANSITION=false
+SAME_BOOT_DIRECT_TO_RELAY_FUNCTIONAL_PATH=PASS
 REBOOT_REQUIRED_FOR_RELAY=false
-MANAGER_VISIBLE_GAP_MS=109007
-MISSING_SEQUENCE_COUNT=21
-TELEMETRY_CONTINUITY_ACCEPTANCE=FAIL
 ```
 
-Functional Direct -> Relay is therefore proven, but the broader acceptance remains open because the accepted-telemetry blackout was still about 109 seconds.
+The older same-boot Direct -> Relay run had a 109.007 s Manager-visible blackout and 21 missing telemetry sequence numbers. Latency acceptance was therefore not closed.
 
-## Current root-cause result
-
-Latency observability showed three failed Challenge submissions before success. The snapshot preserves first/last raw errors:
+## Challenge-delay root cause before PR #416
 
 ```text
+relay_ad_seen_to_successful_challenge_tx_ms=70132
 challenge_submit_failure_count=3
-challenge_submit_first_driver_error=11
-challenge_submit_last_driver_error=11
 challenge_submit_first_error_raw=12397
 challenge_submit_last_error_raw=12397
-relay_ad_seen_to_successful_challenge_tx_ms=70132
 ```
 
-For ESP-IDF 5.5.4, raw `12397` maps to `ESP_ERR_ESPNOW_CHAN`. At least the first and last failed Challenge submissions were therefore synchronous channel-mismatch rejection, not over-air packet loss.
+ESP-IDF 5.5.4 maps raw `12397` to `ESP_ERR_ESPNOW_CHAN`. At least the first and last failed Challenge submissions were rejected because the radio was on the wrong channel at send time.
 
-## Integrated repair / pending physical validation
-
-PR #416 changes the Challenge path to ESP-IDF controlled-channel TX using `esp_now_switch_channel_tx()` while preserving Relay advertisement on the normal broadcast path and preserving existing Direct/Discovery/Relay policy thresholds.
+## PR #416 deployment status
 
 ```text
-PR416_HOST_SOURCE_TESTS=45/45_PASS
-PR416_ESP32C6_BUILD_ONLY=PASS
-PR416_PR_CI=PASS
-PR416_POSTMERGE_CI=PASS
-PR416_PHYSICAL_VALIDATION=PENDING
+CONTROLLED_CHANNEL_TX_SOURCE_INTEGRATION=PASS
+PR416_IDF_SEMANTICS_REVIEW=PASS
+PR416_BOARD_B_DEPLOYMENT=PASS
+PR416_POSTFLASH_DIRECT_BASELINE=PASS
+PR416_PHYSICAL_DIRECT_TO_RELAY_VALIDATION=PENDING
 ```
 
-Before any new Board B flash, perform the source-level ESP-IDF semantics review recorded in `N3W_CURRENT_STATE.md` / `N3W_PROGRESS_ALIGNMENT_20260917.md`.
+Frozen application artifact:
+
+```text
+FIRMWARE_SHA256=a701bf28d54a153f35bba6732c353dab97d3fe877aa75e35e5b57b4297258819
+FIRMWARE_SIZE=1121952
+TARGET=ESP32-C6
+ESP_IDF=5.5.4
+```
+
+Board B deployment wrote only OTA state at `0x9000` and the application at `0x10000`; bootloader, partition table, product NVS, and full-flash erase were not touched.
+
+## Post-flash Direct result
+
+The real remote T1/Manager path accepted a fresh Board B Direct session continuously from sequence 0 through 85 at the normal cadence.
+
+```text
+BOARD_B_POSTFLASH_DIRECT_ACCEPTED_COUNT_AT_LEAST=86
+BOARD_B_POSTFLASH_DIRECT_SEQ_FIRST=0
+BOARD_B_POSTFLASH_DIRECT_SEQ_LAST=85
+BOARD_B_POSTFLASH_INGRESS=direct
+BOARD_B_MQTT_TLS_RECONNECT=PASS
+```
+
+No PR #416 Direct -> Relay movement test has been run yet, so the former ~70 s Challenge delay has not yet been re-measured.
 
 ## Current acceptance matrix
 
 ```text
 DIRECT_BASELINE=PASS
-SAME_BOOT_DIRECT_TO_RELAY_FUNCTIONAL_PATH=PASS
-REBOOT_DEPENDENCY=false
-LATENCY_OBSERVABILITY=PASS
-CHALLENGE_CHANNEL_MISMATCH_ROOT_CAUSE=PROVEN_FOR_FIRST_AND_LAST_FAILED_SUBMISSIONS
-TELEMETRY_CONTINUITY_ACCEPTANCE=FAIL
+SAME_BOOT_DIRECT_TO_RELAY_FUNCTIONAL_PATH=PASS   # historical/pre-PR416 physical proof
 CONTROLLED_CHANNEL_TX_SOURCE_INTEGRATION=PASS
-CONTROLLED_CHANNEL_TX_PHYSICAL_VALIDATION=PENDING
+CONTROLLED_CHANNEL_TX_IDF_SEMANTICS=PASS
+CONTROLLED_CHANNEL_TX_BOARD_B_DEPLOYMENT=PASS
+CONTROLLED_CHANNEL_TX_POSTFLASH_DIRECT_BASELINE=PASS
+CONTROLLED_CHANNEL_TX_PHYSICAL_DIRECT_TO_RELAY_VALIDATION=PENDING
+TELEMETRY_CONTINUITY_ACCEPTANCE=PENDING_RETEST
 LIVE_RELAY_TO_DIRECT_RECOVERY=PENDING
 HOME_ASSISTANT_ENTITY_UPDATE=SEPARATE_OPEN_ITEM
 ```
 
-## Local development environment authority
-
-```text
-RECORD=docs/development/local-environment-records/2026-09-17-macos-x86_64.json
-PROJECT_VENV=~/.venvs/greenhouse-homeassistant-dev
-PYTHON=3.11.9
-PYTEST=8.4.2
-RUFF=0.15.22
-PAHO_MQTT=2.1.0
-ESPHOME=2026.4.3
-ESPHOME_DEPLOYMENT=pipx_isolated
-LOCAL_ENVIRONMENT_STATUS=accepted_for_local_development
-```
-
-Use this record rather than repeatedly rediscovering unchanged Python/ESPHome tooling. Task-specific Git worktree/branch/HEAD remains separate and still requires fresh rebind.
-
 ## Current ONE gate
 
 ```text
-NEXT_ONE_GATE=N3W_CHALLENGE_CONTROLLED_CHANNEL_TX_PREDEPLOY_IDF_SEMANTICS_REVIEW_20260917_01
-PHYSICAL_AUTHORIZATION_REQUIRED=false
-T1_AUTHORIZATION_REQUIRED=false
+NEXT_ONE_GATE=N3W_PR416_CONTROLLED_CHANNEL_TX_SAME_BOOT_DIRECT_TO_RELAY_PHYSICAL_VALIDATION_20260917_01
+PHYSICAL_AUTHORIZATION_REQUIRED=true
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
 ```
 
-After that read-only/source-level review passes, a separate explicit authorization is required for any Board B flash or physical revalidation.
-
-Historical archives remain historical and are not rewritten solely to erase dated intermediate states.
+Next conversation: fresh-check only the minimum live prerequisites, obtain explicit physical-test authorization, establish a battery-powered Direct baseline, then move the same uninterrupted Board B boot to the Relay location and measure the transition. Do not flash again unless later evidence creates a separate explicitly authorized need.
