@@ -662,6 +662,20 @@ bool SimpleProductComponent::set_radio_channel(uint8_t channel) {
     return false;
   }
 
+  // A Direct publish can fail while the STA is still associated (for example,
+  // when only the broker path is unavailable). Once the runtime has entered
+  // Discovery, do not let that association retain channel ownership: stop the
+  // reconnect state machine and hand the radio to standalone ESP-NOW before
+  // the first scan/channel operation.
+  if (radio_ownership_ == RadioOwnership::DIRECT_WIFI &&
+      runtime_.path_state() != LocalPathState::DIRECT &&
+      !claim_relay_radio_()) {
+    last_channel_observed_ = 0;
+    last_channel_error_raw_ = -3;
+    diagnostics_.note_channel_result(channel, false, 0, -3, now_ms());
+    return false;
+  }
+
   if ((radio_ownership_ == RadioOwnership::DIRECT_WIFI ||
        radio_ownership_ == RadioOwnership::DIRECT_PROBE) &&
       wifi_connected()) {

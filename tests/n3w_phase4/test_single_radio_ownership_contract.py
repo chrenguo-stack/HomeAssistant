@@ -52,6 +52,24 @@ def test_relay_mode_disables_sta_reconnect_before_channel_mutation() -> None:
     assert "DIRECT_PROBE" in header
 
 
+def test_discovery_claims_relay_radio_even_while_sta_remains_associated() -> None:
+    source = text("n3w_simple_product_component.cpp")
+    channel_start = source.index(
+        "bool SimpleProductComponent::set_radio_channel(uint8_t channel)"
+    )
+    channel_end = source.index(
+        "bool SimpleProductComponent::broadcast_control", channel_start
+    )
+    channel = source[channel_start:channel_end]
+
+    discovery_gate = channel.index(
+        "runtime_.path_state() != LocalPathState::DIRECT"
+    )
+    forced_claim = channel.index("!claim_relay_radio_()", discovery_gate)
+    associated_sta_gate = channel.index("wifi_connected())", forced_claim)
+    assert discovery_gate < forced_claim < associated_sta_gate
+
+
 def test_direct_probe_pauses_relay_submissions_and_rebinds_on_failure() -> None:
     source = text("n3w_simple_product_component.cpp")
     runtime = text("n3w_simple_product_runtime.cpp")
