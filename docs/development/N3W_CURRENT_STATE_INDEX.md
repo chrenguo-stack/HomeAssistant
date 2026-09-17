@@ -1,116 +1,139 @@
 # N3-W Current State Index
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
+Current progress alignment: `docs/development/N3W_PROGRESS_ALIGNMENT_20260917.md`  
+Current local-development-environment authority: `docs/development/local-environment-records/2026-09-17-macos-x86_64.json`  
 Current KF-089 Relay end-to-end closeout: `docs/development/N3W_KF089_RELAY_END_TO_END_CLOSEOUT_20260914.md`  
 Current T1 runtime-convergence archive: `docs/development/N3W_KF089_T1_RUNTIME_CONVERGENCE_ISSUES_AND_PROGRESS_ALIGNMENT_20260909.md`  
-Previous detailed KF-089 progress archive: `docs/development/N3W_KF089_RELAY_ACQUISITION_TELEMETRY_OBSERVABILITY_AND_SCHEMA_V5_PROGRESS_ALIGNMENT_20260910.md`  
 Active product-direction authority: `docs/development/N3W_OFFICIAL_ESPNOW_REFERENCE_PRODUCT_DIRECTION_DECISION_20260906.md`
 
-## Current repository authority
-
-KF-089 code/package integration baseline after the clean PR #406 → #407 → #408 sequence:
+## Repository authority at 2026-09-17 alignment
 
 ```text
-KF089_CODE_PACKAGE_INTEGRATION_BASE_MAIN=1bbd4f3f1cfbccaa383d326a28bc972ed4ee202b
-KF089_CODE_PACKAGE_INTEGRATION_BASE_TREE=5b9bdc77585f3c1990b4123fccfb84f4d16d281d
+REPOSITORY=chrenguo-stack/HomeAssistant
+ALIGNMENT_BASE_MAIN=01389807f801341ca2240bcaf5a58e58ce9b9213
+PRIMARY_TASK=N3W_MULTI_NODE_RELAY_AND_RUNTIME_FAILOVER_ACCEPTANCE
 ```
 
-Integrated clean stack:
+The SHA above is the exact `main` tip at alignment-branch creation, not a permanent claim about future repository tips. Always fresh-query `main`.
+
+Recent merged route:
 
 ```text
-PR406=MERGED
-PR406_MERGE_COMMIT=d7d9cd9d49f795c71a96c5f28f90cbdd9930c5e2
-PR407=MERGED
-PR407_MERGE_COMMIT=9237e1ad1b4cf1850af40599ce173f07b00ad5cd
-PR408=MERGED
-PR408_MERGE_COMMIT=1bbd4f3f1cfbccaa383d326a28bc972ed4ee202b
-ID23_ID24_ID25_ID26_REPOSITORY_INTEGRATION=PASS
-MANAGER_RELAY_SOURCE_CONTRACT_INTEGRATION=PASS
+PR411=MERGED   # Relay MAC async delivery feedback
+PR413=MERGED   # delivery feedback + reset diagnostics + harness reboot policy
+PR414=MERGED   # Direct-to-Relay latency observability
+PR415=MERGED   # Challenge submit raw-error observability
+PR416=MERGED   # controlled-channel Challenge TX
+PR417=MERGED   # local environment record
+
+PR415_MAIN_MERGE=63808f35fa2534388ec2c45e9ce9e9aa7d5d2e64
+PR416_MAIN_MERGE=11aa3ed3c1c727427e3a67f8764772c3a9fc3398
+PR417_MAIN_MERGE=01389807f801341ca2240bcaf5a58e58ce9b9213
 ```
 
-Historical PR #400 / #403 / #404 remain provenance for the original accepted live package heads. The clean integration path through PR #406→#407→#408 is the repository authority for the KF-089 code/package stack.
+Historical PR #410/#412 are superseded stacked/documentation vehicles and are not current source authority.
 
-The fixed SHA above is the KF-089 code/package integration baseline, not a permanent claim about the current repository tip after documentation-only descendants. Repository `main` must always be queried fresh.
-
-## Current deployed authorities
-
-```text
-BOARD_FIRMWARE_SOURCE_AUTHORITY=5d58727f5040281ee2beb9597f66a6a2da9bac57
-BOARD_FIRMWARE_SHA256=5168a1958669ce06002cc5cb507fda7fc7477ca53294a73dbcf582e5879f383b
-DIAGNOSTIC_SCHEMA_VERSION=5
-DEPLOYED_MANAGER_SOURCE=8fbedc7e0778ce91d146cd5f0772bebdd20ad13a
-LIVE_MANAGER_DYNSEC_REPAIR=PASS
-```
-
-The running T1 Dynamic Security role was repaired in place and the Manager subscription was reactivated with one controlled restart before the final ID26 revalidation. These live-state facts remain distinct from the repository revision of the deployed Manager image. The corrected source contract is now durable in repository `main`.
-
-## KF-089 accepted product boundary
-
-```text
-KF089_STARTUP_GATE_REPAIR=PASS
-KF089_DIRECT_TO_DISCOVERY_TRANSITION=PASS
-KF089_AUTONOMOUS_DISCOVERY_SCAN=PASS
-KF089_A_B_ESPNOW_REACHABILITY=PASS
-SELECTIVE_RF_ZONE_QUALIFIED=PASS
-KF089_RELAY_ADVERTISEMENT_DECODED=PASS
-KF089_RELAY_ADVERTISEMENT_ACCEPTED=PASS
-KF089_AUTHENTICATED_RELAY_ACQUISITION=PASS
-BOARD_SIDE_RELAY_CHAIN=PROVEN
-T1_BROKER_MEDIATED_RELAY_INGRESS=PROVEN
-MANAGER_RELAY_ACCEPTANCE=PROVEN
-KF089_END_TO_END_RELAY_TELEMETRY=PROVEN
-```
-
-Final ID26 attribution window:
-
-```text
-PREWINDOW_ACCEPTED_RELAY_COUNT=0
-WINDOW_ACCEPTED_RELAY_COUNT=38
-WINDOW_REJECTED_RELAY_COUNT=0
-WINDOW_DUPLICATE_RELAY_COUNT=0
-WINDOW_UNIQUE_ACCEPTED_RELAY_ROUTE_COUNT=1
-```
-
-## Current live safety boundary
-
-```text
-ID24_REPAIR_RESULT=PASS
-ID25_REACTIVATION_RESULT=PASS
-ID26_REVALIDATION_RESULT=PASS
-
-ID26_MANAGER_RUNTIME_STABLE=true
-ID26_BROKER_RUNTIME_STABLE=true
-ID26_DYNSEC_STATE_UNCHANGED=true
-
-BOARD_A_USB_ACCESS_DURING_ID26=false
-BOARD_B_USB_ACCESS_DURING_ID26=false
-SERIAL_OPEN_DURING_ID26=false
-FLASH_WRITE_DURING_ID26=false
-HOST_NVS_WRITE_DURING_ID26=false
-MQTT_TEST_PUBLISH_DURING_ID26=false
-```
-
-## Boundaries not proven by this closeout
-
-```text
-HOME_ASSISTANT_ENTITY_UPDATE=NOT_IN_SCOPE
-LIVE_DIRECT_TO_RELAY_FAILOVER=NOT_YET_ADJUDICATED
-LIVE_RELAY_TO_DIRECT_RECOVERY=NOT_YET_ADJUDICATED
-```
-
-## Current ONE gate
-
-The KF-089 Relay end-to-end technical acceptance and code/package integration are complete. PR #409 is the merge vehicle for the final current-state/central-guard documentation, under a separately granted merge-closeout authorization.
+## Accepted historical baselines
 
 ```text
 KF089_RELAY_END_TO_END_CLOSEOUT=PASS
-PR406_PR407_PR408_INTEGRATION=PASS
-PR409_MERGE_CLOSEOUT_AUTHORIZATION=GRANTED_2026-09-14
-PHYSICAL_AUTHORIZATION_REQUIRED=false
-T1_AUTHORIZATION_REQUIRED=false
-POST_PR409_NEXT_ONE_GATE=NONE_WITHIN_KF089_RELAY_CLOSEOUT
+KF089_END_TO_END_RELAY_TELEMETRY=PROVEN
+T1_BROKER_MEDIATED_RELAY_INGRESS=PROVEN
+MANAGER_RELAY_ACCEPTANCE=PROVEN
+
+KF092_SOURCE_REPAIR=PASS
+KF092_REBOOT_POLICY_REPAIR=PASS
+KF092_REBOOT_POLICY_PHYSICAL_FIX=PASS
+KF092_PHYSICAL_CAUSATION_PROVEN=true
+KF092_POSTFIX_PHYSICAL_VALIDATION=PASS
+KF092_ALIGNED_AB_LONG_DURATION_CONTINUITY=PASS
+KF092_STATUS=CLOSED_PASS
 ```
 
-PR #409 merge state must be queried fresh from GitHub rather than inferred from this index. After PR #409 integration and post-merge CI verification, no further gate remains within the KF-089 Relay end-to-end closeout.
+KF-092 closure started from an established Relay path and does not itself prove same-session Direct-to-Relay latency acceptance.
 
-Historical archives remain historical and are not rewritten solely to erase dated intermediate states. In particular, stale text saying `KF089_END_TO_END_RELAY_TELEMETRY=NOT_PROVEN` remains valid only for the dated archive in which it was recorded, not for the current state after the 2026-09-14 ID26 PASS.
+## Current same-boot Direct-to-Relay result
+
+```text
+SAME_BOOT_DIRECT_TO_RELAY=PASS
+UNCOMMANDED_REBOOT_DURING_TRANSITION=false
+REBOOT_REQUIRED_FOR_RELAY=false
+MANAGER_VISIBLE_GAP_MS=109007
+MISSING_SEQUENCE_COUNT=21
+TELEMETRY_CONTINUITY_ACCEPTANCE=FAIL
+```
+
+Functional Direct -> Relay is therefore proven, but the broader acceptance remains open because the accepted-telemetry blackout was still about 109 seconds.
+
+## Current root-cause result
+
+Latency observability showed three failed Challenge submissions before success. The snapshot preserves first/last raw errors:
+
+```text
+challenge_submit_failure_count=3
+challenge_submit_first_driver_error=11
+challenge_submit_last_driver_error=11
+challenge_submit_first_error_raw=12397
+challenge_submit_last_error_raw=12397
+relay_ad_seen_to_successful_challenge_tx_ms=70132
+```
+
+For ESP-IDF 5.5.4, raw `12397` maps to `ESP_ERR_ESPNOW_CHAN`. At least the first and last failed Challenge submissions were therefore synchronous channel-mismatch rejection, not over-air packet loss.
+
+## Integrated repair / pending physical validation
+
+PR #416 changes the Challenge path to ESP-IDF controlled-channel TX using `esp_now_switch_channel_tx()` while preserving Relay advertisement on the normal broadcast path and preserving existing Direct/Discovery/Relay policy thresholds.
+
+```text
+PR416_HOST_SOURCE_TESTS=45/45_PASS
+PR416_ESP32C6_BUILD_ONLY=PASS
+PR416_PR_CI=PASS
+PR416_POSTMERGE_CI=PASS
+PR416_PHYSICAL_VALIDATION=PENDING
+```
+
+Before any new Board B flash, perform the source-level ESP-IDF semantics review recorded in `N3W_CURRENT_STATE.md` / `N3W_PROGRESS_ALIGNMENT_20260917.md`.
+
+## Current acceptance matrix
+
+```text
+DIRECT_BASELINE=PASS
+SAME_BOOT_DIRECT_TO_RELAY_FUNCTIONAL_PATH=PASS
+REBOOT_DEPENDENCY=false
+LATENCY_OBSERVABILITY=PASS
+CHALLENGE_CHANNEL_MISMATCH_ROOT_CAUSE=PROVEN_FOR_FIRST_AND_LAST_FAILED_SUBMISSIONS
+TELEMETRY_CONTINUITY_ACCEPTANCE=FAIL
+CONTROLLED_CHANNEL_TX_SOURCE_INTEGRATION=PASS
+CONTROLLED_CHANNEL_TX_PHYSICAL_VALIDATION=PENDING
+LIVE_RELAY_TO_DIRECT_RECOVERY=PENDING
+HOME_ASSISTANT_ENTITY_UPDATE=SEPARATE_OPEN_ITEM
+```
+
+## Local development environment authority
+
+```text
+RECORD=docs/development/local-environment-records/2026-09-17-macos-x86_64.json
+PROJECT_VENV=~/.venvs/greenhouse-homeassistant-dev
+PYTHON=3.11.9
+PYTEST=8.4.2
+RUFF=0.15.22
+PAHO_MQTT=2.1.0
+ESPHOME=2026.4.3
+ESPHOME_DEPLOYMENT=pipx_isolated
+LOCAL_ENVIRONMENT_STATUS=accepted_for_local_development
+```
+
+Use this record rather than repeatedly rediscovering unchanged Python/ESPHome tooling. Task-specific Git worktree/branch/HEAD remains separate and still requires fresh rebind.
+
+## Current ONE gate
+
+```text
+NEXT_ONE_GATE=N3W_CHALLENGE_CONTROLLED_CHANNEL_TX_PREDEPLOY_IDF_SEMANTICS_REVIEW_20260917_01
+PHYSICAL_AUTHORIZATION_REQUIRED=false
+T1_AUTHORIZATION_REQUIRED=false
+```
+
+After that read-only/source-level review passes, a separate explicit authorization is required for any Board B flash or physical revalidation.
+
+Historical archives remain historical and are not rewritten solely to erase dated intermediate states.
