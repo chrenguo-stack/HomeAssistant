@@ -75,3 +75,13 @@ def test_lab_telemetry_reports_previous_boot_breadcrumb_without_schema_change() 
     # gh.telemetry/1 deliberately permits diagnostic extension fields, so the
     # board-lab breadcrumb does not require a protocol/schema revision.
     assert schema["additionalProperties"] is True
+
+
+def test_physical_harness_mqtt_cannot_block_main_loop_or_forward_lab_logs() -> None:
+    config = text(LAB / "generic.yml")
+
+    # ESP-IDF's synchronous MQTT publish may block the ESPHome main loop for
+    # network timeouts during Direct Wi-Fi loss. Keep publishes on the backend
+    # task and keep lab INFO logs off the disappearing MQTT transport entirely.
+    assert "idf_send_async: true" in config
+    assert "log_topic: null" in config
