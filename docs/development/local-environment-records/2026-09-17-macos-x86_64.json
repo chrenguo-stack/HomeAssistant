@@ -1,0 +1,83 @@
+{
+  "schema": "gh.dev.local-environment-record/1",
+  "record_type": "redacted_local_machine_snapshot",
+  "observed_at": "2026-09-17T01:04:58Z",
+  "repository": {
+    "full_name": "chrenguo-stack/HomeAssistant",
+    "canonical_local_path": "~/HomeAssistant-local-test",
+    "origin": "git@github.com:chrenguo-stack/HomeAssistant.git",
+    "observed_branch": "docs/n3w-f350-codex-rca-archive-20260823-v1",
+    "observed_head": "4e6bd8e113f5982618b964b5a86f77ddfb8dc131",
+    "worktree_changed_path_count": 6,
+    "worktree_changes_in_scope": false
+  },
+  "host": {
+    "system": "Darwin",
+    "architecture": "x86_64",
+    "free_disk_gib_at_observation": 27.22,
+    "minimum_required_free_disk_gib": 15.0,
+    "recommended_free_disk_gib": 30.0
+  },
+  "python": {
+    "project_virtual_environment": "~/.venvs/greenhouse-homeassistant-dev",
+    "version": "3.11.9",
+    "packages": {
+      "paho-mqtt": "2.1.0",
+      "pytest": "8.4.2",
+      "ruff": "0.15.22"
+    },
+    "pip_check": "pass"
+  },
+  "esphome": {
+    "version": "2026.4.3",
+    "deployment": "pipx_isolated",
+    "cli_path": "~/.local/bin/esphome",
+    "environment_path": "~/.local/pipx/venvs/esphome",
+    "shared_project_venv": false,
+    "isolation_reason": "ESPHome 2026.4.3 pins paho-mqtt==1.6.1, while greenhouse-manager and greenhouse-simulator require paho-mqtt>=2.1,<3."
+  },
+  "other_tooling": {
+    "git_identity": "Renguo_CHEN <ch.renguo@gmail.com>",
+    "gh": "2.73.0",
+    "docker": "installed_but_version_query_failed",
+    "pio": "not_installed"
+  },
+  "validation": {
+    "doctor": {
+      "schema": "gh.dev.local-environment-doctor/2",
+      "return_code": 0,
+      "pass": 24,
+      "info": 2,
+      "warn": 4,
+      "fail": 0,
+      "report_sha256": "cf2395f4a0fde205c52d26b0d4b825653843010399029909f61e6400aa559088"
+    },
+    "environment_tool_tests": "10 passed",
+    "greenhouse_manager_tests": "1156 passed, 1 skipped",
+    "greenhouse_simulator_tests": "27 passed",
+    "ruff": "all checks passed"
+  },
+  "local_hardening": {
+    "evidence_directory": "~/HomeAssistant-evidence",
+    "evidence_directory_mode": "0700",
+    "local_config_path": "~/.config/greenhouse-dev/local-environment-v1.json",
+    "local_config_mode": "0600",
+    "pre_commit_guard": "installed",
+    "secret_values_included": false
+  },
+  "execution_boundaries": {
+    "network_checks": false,
+    "production_service_access": false,
+    "broker_access": false,
+    "physical_device_access": false,
+    "firmware_flash_or_reset": false
+  },
+  "known_warnings": [
+    "Free disk is below the 30 GiB recommendation but above the 15 GiB minimum.",
+    "PlatformIO CLI is optional and not installed.",
+    "Docker CLI is present but its version query did not succeed during the audit.",
+    "The observed local worktree already contained 6 unrelated changed or untracked paths; they were preserved."
+  ],
+  "status": "accepted_for_local_development",
+  "maintenance_rule": "Use this record and the versioned local environment doctor as the starting point; rerun the doctor when the host, virtual environment, or toolchain changes."
+}
