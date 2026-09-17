@@ -87,7 +87,8 @@ class EspNowDriver {
   DriverError send(
       const MacAddress &peer_mac,
       const uint8_t *data,
-      std::size_t size);
+      std::size_t size,
+      bool observe_context = false);
   DriverError send_broadcast(
       const uint8_t *data,
       std::size_t size);
@@ -104,6 +105,18 @@ class EspNowDriver {
   }
   int32_t last_broadcast_send_error_raw() const {
     return last_broadcast_send_error_raw_;
+  }
+  DriverError last_unicast_send_error() const {
+    return last_unicast_send_error_;
+  }
+  int32_t last_unicast_send_error_raw() const {
+    return last_unicast_send_error_raw_;
+  }
+  uint8_t last_unicast_current_channel() const {
+    return last_unicast_current_channel_;
+  }
+  uint8_t last_unicast_peer_channel() const {
+    return last_unicast_peer_channel_;
   }
 
   bool initialized() const { return initialized_; }
@@ -138,6 +151,10 @@ class EspNowDriver {
   uint8_t last_channel_observed_{0};
   DriverError last_broadcast_send_error_{DriverError::NONE};
   int32_t last_broadcast_send_error_raw_{0};
+  DriverError last_unicast_send_error_{DriverError::NONE};
+  int32_t last_unicast_send_error_raw_{0};
+  uint8_t last_unicast_current_channel_{0};
+  uint8_t last_unicast_peer_channel_{0};
 };
 
 }  // namespace esphome::greenhouse_n3w_core
