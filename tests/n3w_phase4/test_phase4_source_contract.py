@@ -55,10 +55,11 @@ def test_simplified_port_never_mutates_an_associated_sta_channel() -> None:
     end = source.index("bool SimpleProductComponent::broadcast_control", start)
     body = source[start:end]
 
-    wifi_gate = body.index("if (wifi_connected())")
+    wifi_gate = body.index("RadioOwnership::DIRECT_WIFI ||")
     observe_channel = body.index("esp_wifi_get_channel", wifi_gate)
     same_channel_success = body.index("return current_channel == channel", observe_channel)
-    driver_mutation = body.index("radio_.set_channel(channel)", same_channel_success)
+    ownership_claim = body.index("claim_relay_radio_()", same_channel_success)
+    driver_mutation = body.index("radio_.set_channel(channel)", ownership_claim)
     broadcast_rebind = body.index(
         "radio_.prepare_broadcast_peer(channel)", driver_mutation
     )
@@ -67,6 +68,7 @@ def test_simplified_port_never_mutates_an_associated_sta_channel() -> None:
         wifi_gate
         < observe_channel
         < same_channel_success
+        < ownership_claim
         < driver_mutation
         < broadcast_rebind
     )

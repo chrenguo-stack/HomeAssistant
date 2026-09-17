@@ -24,6 +24,12 @@ class SimpleProductComponent : public Component,
                                public SimpleProductRandom,
                                public SimplePairingClientNetwork,
                                public SimplePairingClientRandom {
+  enum class RadioOwnership : uint8_t {
+    DIRECT_WIFI = 0,
+    RELAY_ESPNOW,
+    DIRECT_PROBE,
+  };
+
  public:
   SimpleProductComponent();
 
@@ -76,7 +82,8 @@ class SimpleProductComponent : public Component,
       const uint8_t *data,
       std::size_t size,
       uint32_t wait_time_ms) override {
-    return radio_.send_broadcast_on_channel(
+    return radio_ownership_ == RadioOwnership::RELAY_ESPNOW &&
+           radio_.send_broadcast_on_channel(
                channel, data, size, wait_time_ms) == DriverError::NONE;
   }
   bool install_encrypted_peer(
@@ -143,6 +150,10 @@ class SimpleProductComponent : public Component,
   void drain_radio_();
   void advance_pairing_();
   void advance_recovery_();
+  bool claim_relay_radio_();
+  bool begin_direct_probe_();
+  bool prepare_direct_probe_radio_();
+  bool restore_relay_radio_();
   bool http_post_(
       const std::string &host,
       uint16_t port,
@@ -163,6 +174,8 @@ class SimpleProductComponent : public Component,
   static constexpr std::size_t kTxCompletionRingSlots = 8;
   static constexpr uint32_t kPairingRetryMs = 5000;
   static constexpr uint32_t kRecoveryProbeMs = 2000;
+  static constexpr uint32_t kRecoveryProbeWindowMs = 15000;
+  static constexpr uint32_t kRecoveryProbeIntervalMs = 60000;
   static constexpr uint32_t kInitialDirectGraceMs = 15000;
   static constexpr uint16_t kDiscoveryPort = 47111;
 
@@ -174,12 +187,14 @@ class SimpleProductComponent : public Component,
   bool runtime_start_grace_started_{false};
   uint64_t next_pairing_attempt_ms_{0};
   uint64_t next_recovery_probe_ms_{0};
+  uint64_t direct_probe_deadline_ms_{0};
   uint64_t last_radio_attempt_ms_{0};
   uint64_t runtime_start_grace_started_ms_{0};
   MacAddress local_mac_{};
   ProvisionedPeerStateV2 peer_state_{};
   ProvisionedBrokerStateV2 broker_state_{};
   EspNowDriver radio_{};
+  RadioOwnership radio_ownership_{RadioOwnership::DIRECT_WIFI};
   uint8_t last_channel_observed_{0};
   int32_t last_channel_error_raw_{0};
   N3wLabDiagnostics diagnostics_{};

@@ -104,6 +104,8 @@ jobs:
         run: pytest -q tests/n3w_phase4/test_task_wdt_rtc_breadcrumb_contract.py
       - name: Phase 4 relay unicast channel observability contracts
         run: pytest -q tests/n3w_phase4/test_relay_unicast_channel_ownership_observability_contract.py
+      - name: Phase 4 single-radio ownership contracts
+        run: pytest -q tests/n3w_phase4/test_single_radio_ownership_contract.py
       - name: Build and run C++ cross-language vectors
         shell: bash
         run: |

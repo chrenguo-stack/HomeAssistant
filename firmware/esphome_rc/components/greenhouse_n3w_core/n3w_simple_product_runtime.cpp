@@ -197,6 +197,27 @@ SimpleProductError SimpleProductRuntime::note_relay_delivery_result(
   return SimpleProductError::NONE;
 }
 
+SimpleProductError SimpleProductRuntime::rebind_radio_state() {
+  if (!started_) return SimpleProductError::NOT_READY;
+
+  uint8_t channel = direct_channel_;
+  if (path_.state() == LocalPathState::DISCOVERY) {
+    channel = scan_.current();
+  } else if (path_.state() == LocalPathState::RELAY_ACTIVE) {
+    if (!active_relay_.has_value()) return SimpleProductError::STATE_REJECTED;
+    channel = active_relay_->channel;
+  }
+  if (!valid_radio_channel(channel) || !port_->set_radio_channel(channel)) {
+    return SimpleProductError::RADIO_FAILED;
+  }
+  if (path_.state() == LocalPathState::RELAY_ACTIVE &&
+      !port_->install_encrypted_peer(
+          active_relay_->mac, active_relay_->lmk, active_relay_->channel)) {
+    return SimpleProductError::RADIO_FAILED;
+  }
+  return SimpleProductError::NONE;
+}
+
 bool SimpleProductRuntime::update_direct_channel_hint(uint8_t channel) {
   if (!started_ || !valid_radio_channel(channel)) return false;
   direct_channel_ = channel;
@@ -428,7 +449,11 @@ SimpleProductError SimpleProductRuntime::handle_discovery_(
   pending.relay_mac = source;
   pending.challenge_nonce = challenge_nonce;
   pending.channel = channel;
-  pending.expires_at_ms = clock_->now_ms() + policy_.challenge_timeout_ms;
+  // esp_now_switch_channel_tx() reports request submission synchronously but
+  // completes asynchronously. Reserve one operation window plus one Accept
+  // window so scan advancement cannot invalidate an in-flight Challenge.
+  pending.expires_at_ms =
+      clock_->now_ms() + (2ULL * policy_.challenge_timeout_ms);
   pending_challenge_ = std::move(pending);
   return SimpleProductError::NONE;
 }

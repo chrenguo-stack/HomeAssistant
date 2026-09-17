@@ -312,6 +312,15 @@ int main() {
   assert(!relay_port.installed.empty());
   assert(child_port.installed.back().lmk == relay_port.installed.back().lmk);
 
+  // A bounded Direct probe tears down concrete ESP-NOW state. Rebinding must
+  // restore both the Relay channel and the authenticated encrypted peer.
+  const std::size_t installed_before_rebind = child_port.installed.size();
+  child_port.channel = 1;
+  assert(child.rebind_radio_state() == SimpleProductError::NONE);
+  assert(child_port.channel == 6);
+  assert(child_port.installed.size() == installed_before_rebind + 1);
+  assert(child_port.installed.back().mac == relay_mac);
+
   relay.set_relay_capable(true);
   child_port.direct_success = true;
   const std::string relay_json =

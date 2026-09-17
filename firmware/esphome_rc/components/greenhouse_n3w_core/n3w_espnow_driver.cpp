@@ -25,10 +25,18 @@ EspNowDriver *EspNowDriver::active_ = nullptr;
 #endif
 
 #ifdef USE_ESP32
-DriverError EspNowDriver::start_wifi_() {
+DriverError EspNowDriver::start_wifi_(bool start_standalone_wifi) {
   wifi_mode_t mode{};
   const esp_err_t mode_error = esp_wifi_get_mode(&mode);
   if (mode_error == ESP_OK) {
+    if (start_standalone_wifi) {
+      if (esp_wifi_set_mode(WIFI_MODE_STA) != ESP_OK ||
+          esp_wifi_start() != ESP_OK) {
+        return DriverError::WIFI_START_FAILED;
+      }
+      wifi_started_by_driver_ = true;
+      return DriverError::NONE;
+    }
     uint8_t channel = 0;
     wifi_second_chan_t secondary = WIFI_SECOND_CHAN_NONE;
     return esp_wifi_get_channel(&channel, &secondary) == ESP_OK
@@ -52,37 +60,63 @@ DriverError EspNowDriver::start_wifi_() {
   if (esp_wifi_init(&config) != ESP_OK) {
     return DriverError::WIFI_INIT_FAILED;
   }
-  wifi_owned_ = true;
+  wifi_initialized_by_driver_ = true;
   if (esp_wifi_set_storage(WIFI_STORAGE_RAM) != ESP_OK ||
       esp_wifi_set_mode(WIFI_MODE_STA) != ESP_OK ||
       esp_wifi_start() != ESP_OK) {
     stop_owned_wifi_();
     return DriverError::WIFI_START_FAILED;
   }
+  wifi_started_by_driver_ = true;
   return DriverError::NONE;
 }
 
 void EspNowDriver::stop_owned_wifi_() {
-  if (!wifi_owned_) return;
-  (void) esp_wifi_stop();
-  (void) esp_wifi_deinit();
-  wifi_owned_ = false;
+  if (wifi_started_by_driver_) {
+    (void) esp_wifi_stop();
+    wifi_started_by_driver_ = false;
+  }
+  if (wifi_initialized_by_driver_) {
+    (void) esp_wifi_deinit();
+    wifi_initialized_by_driver_ = false;
+  }
 }
 #endif
 
 DriverError EspNowDriver::initialize(EspNowEventSink *sink, const LinkKey &pmk) {
-#ifndef USE_ESP32
+#ifdef USE_ESP32
+  return initialize_(sink, pmk, false);
+#else
   (void) sink;
   (void) pmk;
   return DriverError::ESPNOW_INIT_FAILED;
+#endif
+}
+
+DriverError EspNowDriver::initialize_standalone(
+    EspNowEventSink *sink,
+    const LinkKey &pmk) {
+#ifdef USE_ESP32
+  return initialize_(sink, pmk, true);
 #else
+  (void) sink;
+  (void) pmk;
+  return DriverError::ESPNOW_INIT_FAILED;
+#endif
+}
+
+#ifdef USE_ESP32
+DriverError EspNowDriver::initialize_(
+    EspNowEventSink *sink,
+    const LinkKey &pmk,
+    bool start_standalone_wifi) {
   if (sink == nullptr || std::all_of(pmk.begin(), pmk.end(), [](uint8_t b) { return b == 0; })) {
     return DriverError::INVALID_ARGUMENT;
   }
   if (initialized_ || active_ != nullptr) {
     return DriverError::ALREADY_INITIALIZED;
   }
-  const DriverError wifi_error = start_wifi_();
+  const DriverError wifi_error = start_wifi_(start_standalone_wifi);
   if (wifi_error != DriverError::NONE) {
     return wifi_error;
   }
@@ -119,8 +153,8 @@ DriverError EspNowDriver::initialize(EspNowEventSink *sink, const LinkKey &pmk) 
   }
   initialized_ = true;
   return DriverError::NONE;
-#endif
 }
+#endif
 
 void EspNowDriver::shutdown() {
 #ifdef USE_ESP32

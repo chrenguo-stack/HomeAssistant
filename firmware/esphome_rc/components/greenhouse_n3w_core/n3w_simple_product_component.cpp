@@ -126,8 +126,10 @@ void SimpleProductComponent::setup() {
 
 void SimpleProductComponent::loop() {
   if (!activation_enabled_ || is_failed()) return;
-  drain_send_completions_();
-  drain_radio_();
+  if (radio_ownership_ != RadioOwnership::DIRECT_PROBE) {
+    drain_send_completions_();
+    drain_radio_();
+  }
   if (!pairing_client_.provisioned()) {
     advance_pairing_();
     if (!pairing_client_.provisioned()) return;
@@ -140,6 +142,18 @@ void SimpleProductComponent::loop() {
   }
   diagnostics_.observe_connectivity(
       wifi_connected(), mqtt_connected(), now_ms());
+  if (radio_ownership_ == RadioOwnership::DIRECT_PROBE) {
+    advance_recovery_();
+    diagnostics_.observe_runtime(
+        static_cast<uint8_t>(runtime_.path_state()),
+        runtime_.working_channel(),
+        runtime_.direct_channel_hint(),
+        static_cast<uint32_t>(runtime_.relay_child_count()),
+        runtime_.active_relay().has_value(),
+        now_ms());
+    diagnostics_.emit_summary(now_ms());
+    return;
+  }
   runtime_.set_relay_capable(mqtt_connected());
   (void) runtime_.tick();
   diagnostics_.observe_runtime(
@@ -157,7 +171,10 @@ bool SimpleProductComponent::send_telemetry_json(
     const std::string &telemetry_json,
     const std::string &boot_id,
     uint32_t seq) {
-  if (!runtime_ready_) return false;
+  if (!runtime_ready_ ||
+      radio_ownership_ == RadioOwnership::DIRECT_PROBE) {
+    return false;
+  }
   return runtime_.send_telemetry(telemetry_json, boot_id, seq) ==
          SimpleProductError::NONE;
 }
@@ -285,13 +302,38 @@ bool SimpleProductComponent::start_runtime_if_ready_() {
 
   LinkKey pmk{};
   if (!derive_pmk_(&pmk)) return false;
-  DriverError error = radio_.initialize(this, pmk);
+  DriverError error = DriverError::WIFI_START_FAILED;
+  if (start_mode == SimpleProductStartMode::DISCOVERY) {
+#ifdef USE_WIFI
+    if (wifi::global_wifi_component == nullptr) {
+      pmk.fill(0);
+      return false;
+    }
+    wifi::global_wifi_component->disable();
+#endif
+    error = radio_.initialize_standalone(this, pmk);
+    if (error == DriverError::NONE) {
+      radio_ownership_ = RadioOwnership::RELAY_ESPNOW;
+    }
+  } else {
+    error = radio_.initialize(this, pmk);
+    if (error == DriverError::NONE) {
+      radio_ownership_ = RadioOwnership::DIRECT_WIFI;
+    }
+  }
   pmk.fill(0);
   if (error != DriverError::NONE) {
     ESP_LOGW(
         TAG,
         "ESP-NOW initialization failed error=%u",
         static_cast<unsigned>(error));
+#ifdef USE_WIFI
+    if (start_mode == SimpleProductStartMode::DISCOVERY &&
+        wifi::global_wifi_component != nullptr) {
+      wifi::global_wifi_component->enable();
+    }
+#endif
+    radio_ownership_ = RadioOwnership::DIRECT_WIFI;
     return false;
   }
 
@@ -318,11 +360,21 @@ bool SimpleProductComponent::start_runtime_if_ready_() {
         "Simplified N3-W runtime start failed error=%u",
         static_cast<unsigned>(runtime_error));
     radio_.shutdown();
+#ifdef USE_WIFI
+    if (start_mode == SimpleProductStartMode::DISCOVERY &&
+        wifi::global_wifi_component != nullptr) {
+      wifi::global_wifi_component->enable();
+    }
+#endif
+    radio_ownership_ = RadioOwnership::DIRECT_WIFI;
     return false;
   }
   runtime_.set_relay_capable(mqtt_connected());
   runtime_ready_ = true;
-  next_recovery_probe_ms_ = now + kRecoveryProbeMs;
+  next_recovery_probe_ms_ =
+      now + (start_mode == SimpleProductStartMode::DISCOVERY
+                 ? kRecoveryProbeIntervalMs
+                 : kRecoveryProbeMs);
   ESP_LOGI(
       TAG,
       "Simplified N3-W product runtime active node=%s mode=%s direct_channel=%u",
@@ -366,22 +418,139 @@ void SimpleProductComponent::advance_pairing_() {
 }
 
 void SimpleProductComponent::advance_recovery_() {
-  if (!runtime_ready_ || runtime_.path_state() == LocalPathState::DIRECT) return;
+  if (!runtime_ready_ || runtime_.path_state() == LocalPathState::DIRECT) {
+    return;
+  }
   const uint64_t now = now_ms();
+
+  if (radio_ownership_ == RadioOwnership::RELAY_ESPNOW) {
+    if (runtime_.challenge_pending() || now < next_recovery_probe_ms_) {
+      return;
+    }
+    (void) begin_direct_probe_();
+    return;
+  }
+  if (radio_ownership_ != RadioOwnership::DIRECT_PROBE) return;
+
+  if (now >= direct_probe_deadline_ms_) {
+    (void) runtime_.note_direct_recovery_probe(false);
+    (void) restore_relay_radio_();
+    return;
+  }
   if (now < next_recovery_probe_ms_) return;
   next_recovery_probe_ms_ = now + kRecoveryProbeMs;
   bool direct_ready = wifi_connected() && mqtt_connected();
-  if (direct_ready) {
-    uint8_t channel = 0;
-    wifi_second_chan_t secondary = WIFI_SECOND_CHAN_NONE;
-    if (esp_wifi_get_channel(&channel, &secondary) != ESP_OK ||
-        !valid_radio_channel(channel) ||
-        radio_.prepare_broadcast_peer(channel) != DriverError::NONE ||
-        !runtime_.update_direct_channel_hint(channel)) {
-      direct_ready = false;
-    }
+  if (direct_ready) direct_ready = prepare_direct_probe_radio_();
+  const SimpleProductError result =
+      runtime_.note_direct_recovery_probe(direct_ready);
+  if (result == SimpleProductError::NONE &&
+      runtime_.path_state() == LocalPathState::DIRECT) {
+    radio_ownership_ = RadioOwnership::DIRECT_WIFI;
+    direct_probe_deadline_ms_ = 0;
+    ESP_LOGI(TAG, "N3-W Direct recovery probe committed; Wi-Fi owns radio");
   }
-  (void) runtime_.note_direct_recovery_probe(direct_ready);
+}
+
+bool SimpleProductComponent::claim_relay_radio_() {
+  if (radio_ownership_ == RadioOwnership::RELAY_ESPNOW &&
+      radio_.initialized()) {
+    return true;
+  }
+  LinkKey pmk{};
+  if (!derive_pmk_(&pmk)) return false;
+  radio_.shutdown();
+#ifdef USE_WIFI
+  if (wifi::global_wifi_component == nullptr) {
+    pmk.fill(0);
+    return false;
+  }
+  wifi::global_wifi_component->disable();
+#endif
+  const DriverError error = radio_.initialize_standalone(this, pmk);
+  pmk.fill(0);
+  if (error != DriverError::NONE) {
+    ESP_LOGW(
+        TAG,
+        "N3-W failed to claim standalone ESP-NOW radio error=%u",
+        static_cast<unsigned>(error));
+#ifdef USE_WIFI
+    wifi::global_wifi_component->enable();
+#endif
+    radio_ownership_ = RadioOwnership::DIRECT_WIFI;
+    return false;
+  }
+  radio_ownership_ = RadioOwnership::RELAY_ESPNOW;
+  next_recovery_probe_ms_ = now_ms() + kRecoveryProbeIntervalMs;
+  ESP_LOGI(TAG, "N3-W claimed exclusive standalone ESP-NOW radio ownership");
+  return true;
+}
+
+bool SimpleProductComponent::begin_direct_probe_() {
+  if (radio_ownership_ != RadioOwnership::RELAY_ESPNOW ||
+      runtime_.path_state() == LocalPathState::DIRECT ||
+      runtime_.challenge_pending()) {
+    return false;
+  }
+#ifdef USE_WIFI
+  if (wifi::global_wifi_component == nullptr) return false;
+#endif
+  radio_.shutdown();
+#ifdef USE_WIFI
+  wifi::global_wifi_component->enable();
+#endif
+  radio_ownership_ = RadioOwnership::DIRECT_PROBE;
+  const uint64_t now = now_ms();
+  direct_probe_deadline_ms_ = now + kRecoveryProbeWindowMs;
+  next_recovery_probe_ms_ = now;
+  ESP_LOGI(TAG, "N3-W opened bounded Direct recovery probe window");
+  return true;
+}
+
+bool SimpleProductComponent::prepare_direct_probe_radio_() {
+  uint8_t channel = 0;
+  wifi_second_chan_t secondary = WIFI_SECOND_CHAN_NONE;
+  if (esp_wifi_get_channel(&channel, &secondary) != ESP_OK ||
+      !valid_radio_channel(channel)) {
+    return false;
+  }
+  if (!radio_.initialized()) {
+    LinkKey pmk{};
+    if (!derive_pmk_(&pmk)) return false;
+    const DriverError error = radio_.initialize(this, pmk);
+    pmk.fill(0);
+    if (error != DriverError::NONE) return false;
+  }
+  return radio_.prepare_broadcast_peer(channel) == DriverError::NONE &&
+         runtime_.update_direct_channel_hint(channel);
+}
+
+bool SimpleProductComponent::restore_relay_radio_() {
+  radio_.shutdown();
+#ifdef USE_WIFI
+  if (wifi::global_wifi_component == nullptr) return false;
+  wifi::global_wifi_component->disable();
+#endif
+  LinkKey pmk{};
+  if (!derive_pmk_(&pmk)) return false;
+  const DriverError error = radio_.initialize_standalone(this, pmk);
+  pmk.fill(0);
+  if (error != DriverError::NONE) {
+    ESP_LOGW(
+        TAG,
+        "N3-W failed to restore standalone ESP-NOW radio error=%u",
+        static_cast<unsigned>(error));
+    return false;
+  }
+  radio_ownership_ = RadioOwnership::RELAY_ESPNOW;
+  if (runtime_.rebind_radio_state() != SimpleProductError::NONE) {
+    radio_.shutdown();
+    radio_ownership_ = RadioOwnership::DIRECT_PROBE;
+    return false;
+  }
+  direct_probe_deadline_ms_ = 0;
+  next_recovery_probe_ms_ = now_ms() + kRecoveryProbeIntervalMs;
+  ESP_LOGI(TAG, "N3-W restored Relay ESP-NOW channel and encrypted peer");
+  return true;
 }
 
 void SimpleProductComponent::drain_send_completions_() {
@@ -483,10 +652,19 @@ bool SimpleProductComponent::set_radio_channel(uint8_t channel) {
   // While STA is associated, ESP-NOW must share the channel already owned by
   // Wi-Fi. Treat an idempotent request for that channel as success without
   // calling esp_wifi_set_channel(); reject any attempt to move an associated
-  // STA to a different channel. Once STA is disconnected, the N3-W discovery
-  // loop may use the official channel setter and rebind its broadcast peer to
-  // the channel actually being scanned.
-  if (wifi_connected()) {
+  // STA to a different channel. N3-W may call the official channel setter only
+  // after claim_relay_radio_() has stopped ESPHome's reconnect state machine.
+  if (radio_ownership_ == RadioOwnership::DIRECT_PROBE &&
+      !wifi_connected()) {
+    last_channel_observed_ = 0;
+    last_channel_error_raw_ = -2;
+    diagnostics_.note_channel_result(channel, false, 0, -2, now_ms());
+    return false;
+  }
+
+  if ((radio_ownership_ == RadioOwnership::DIRECT_WIFI ||
+       radio_ownership_ == RadioOwnership::DIRECT_PROBE) &&
+      wifi_connected()) {
     uint8_t current_channel = 0;
     wifi_second_chan_t secondary = WIFI_SECOND_CHAN_NONE;
     const esp_err_t get_result = esp_wifi_get_channel(&current_channel, &secondary);
@@ -500,6 +678,13 @@ bool SimpleProductComponent::set_radio_channel(uint8_t channel) {
     diagnostics_.note_channel_result(
         channel, current_channel == channel, current_channel, 0, now_ms());
     return current_channel == channel;
+  }
+
+  if (!claim_relay_radio_()) {
+    last_channel_observed_ = 0;
+    last_channel_error_raw_ = -3;
+    diagnostics_.note_channel_result(channel, false, 0, -3, now_ms());
+    return false;
   }
 
   const DriverError set_result = radio_.set_channel(channel);
