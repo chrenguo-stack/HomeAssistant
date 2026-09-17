@@ -100,6 +100,8 @@ jobs:
         run: pytest -q tests/n3w_phase3/test_phase3_source_contract.py
       - name: Phase 4 source-only activation contracts
         run: pytest -q tests/n3w_phase4/test_phase4_source_contract.py
+      - name: Phase 4 watchdog breadcrumb contracts
+        run: pytest -q tests/n3w_phase4/test_task_wdt_rtc_breadcrumb_contract.py
       - name: Build and run C++ cross-language vectors
         shell: bash
         run: |
