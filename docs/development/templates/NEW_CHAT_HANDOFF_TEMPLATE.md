@@ -3,23 +3,21 @@
 # 新会话交接文档 V<version> — <YYYY-MM-DD>
 
 ```text
-HANDOFF_STANDARD_VERSION=1.0
+HANDOFF_TEMPLATE_VERSION=1.1
 PRIMARY_EXECUTION_PRINCIPLE=ACCURACY_SAFETY_EFFICIENCY_VERIFIABILITY_FIRST
-EXECUTION_MODEL=HIGH_LEVEL_MODEL_PLUS_CODEX_LOW_ORDER_EXECUTION
-EXECUTION_MODEL_IS_DEFAULT_COORDINATION_PATTERN=true
-DSL_EXECUTION_MODEL=true
-PREWRITTEN_EXECUTOR_REQUIRED=false
+COMMUNICATION_STYLE=PLAIN_DIRECT_CONCRETE
+ABSTRACT_TERM_DENSITY=LOW
 NEXT_ONE_GATE_ONLY=true
 ```
 
-> 本文必须符合 `docs/development/NEW_CHAT_HANDOFF_STANDARD.md`。  
-> 如本文与 exact repository/runtime/live evidence 冲突，以更高 authority 为准，并先停止执行、完成 rebind。
+> 如果当前项目指定了 exact handoff standard authority，应按指定 commit 读取并遵守对应标准；不要假定 current `main` 一定包含历史标准文件。  
+> 如本文与 fresh repository/runtime/live evidence 冲突，以最新直接证据为准，并先停止执行、重新确认当前状态。
 
 ---
 
 ## 0. 会话切换结论
 
-说明为什么现在切换会话，以及下一会话从哪里开始。
+说明为什么现在切换会话，以及下一会话从哪里继续。
 
 ```text
 CURRENT_STAGE=
@@ -30,85 +28,50 @@ BOARD_ACCESS_DEFAULT=false
 HANDOFF_READY_FOR_NEW_CHAT=<true|false>
 ```
 
-明确：下一会话不是重新复盘全部历史，而是从 `NEXT_ONE_GATE` 开始。
+下一会话不重新复盘全部历史，先确认当前状态，然后从 `NEXT_ONE_GATE` 继续。
 
 ---
 
-## 1. 执行模式与首要原则
+## 1. 工作原则与表达方式
 
-### 1.0 首要执行原则
+### 1.1 首要原则
 
-所有流程、规则、角色分工和 DSL 设计都服务于同一个目标：**准确、安全、高效、可验证地完成当前任务**。
+所有流程和工具都只服务于一个目标：**准确、安全、高效、可验证地完成当前任务**。
 
 ```text
 PRIMARY_EXECUTION_PRINCIPLE=ACCURACY_SAFETY_EFFICIENCY_VERIFIABILITY_FIRST
 WORKFLOW_CONVENTIONS_ARE_MEANS_NOT_GOALS=true
-ROLE_ALLOCATION_MAY_ADAPT_TO_TASK=true
-DSL_GRANULARITY_MAY_ADAPT_TO_TASK=true
 ```
 
-必须遵守以下解释：
+必须遵守：
 
-- `HIGH_LEVEL_MODEL_PLUS_CODEX_LOW_ORDER_EXECUTION` 是默认协作模式，不是任务本身的目标；
-- 不得为了机械遵守“高阶模型设计 / Codex 低阶执行”而人为增加步骤、重复审计、扩大沟通成本或降低正确性；
-- 当高阶模型直接编写核心代码、Codex 负责落盘/测试/集成更安全高效时，应采用该方式；
-- 当 Codex 直接完成实现更合适且边界明确时，不必人为拆碎任务；
-- 角色可以重叠，但 authority、authorization、mutation scope、rollback、fail-closed 等真正的安全边界仍然是硬约束，不得以“效率”为由绕过；
-- 任何执行方式的选择，都应以减少错误概率、缩短闭环、提高证据质量为判断标准。
+- 不为了流程形式增加没有实际价值的步骤；
+- 不把推测写成事实；
+- 不在没有授权时扩大修改范围；
+- 第一处实质性异常出现后先停止，说明发生了什么，再决定是否继续；
+- 能用更简单的方法得到同样可靠的结果时，优先选简单方法。
 
-### 1.1 高阶模型默认职责
+### 1.2 对话表达规则
 
-- 维护产品路线与架构边界；
-- 维护 exact-main/image/successor/runtime authority；
-- 设计 gate、scope、authorization、rollback；
-- 根据执行结果做 PASS / FAIL / STOP 分类；
-- 区分 product/runtime/infrastructure/CI/physical-harness defect；
-- 防止测试框架复杂度超过产品本身；
-- 对安全关键算法、核心代码或高风险实现，在必要时直接负责设计或实现，而不是机械下放。
-
-### 1.2 Codex 默认职责
-
-- 机械执行 exact DSL contract，或按当前任务合同承担实现/集成职责；
-- 运行必要的 Git/Docker/SSH/Compose/shell/test 命令；
-- 使用已安装工具完成最小解析与 evidence capture；
-- mutation 只能发生在明确授权边界内；
-- 第一处 substantive failure 后 fail-closed STOP；
-- 返回结构化 closure。
-
-Codex 不得自行扩大 scope、修复、重放 consumed authorization、跨越下一 gate，除非当前合同明确重新定义了其职责和允许范围。
-
-### 1.3 DSL execution semantics
+面向用户的回复优先使用直白、具体、容易形成画面的说法。
 
 ```text
-DSL_EXECUTION_MODEL=true
-PREWRITTEN_EXECUTOR_REQUIRED=false
-DSL_COMPILATION_AUTHORIZED=true
-
-DSL_TO_COMMAND_COMPILATION=true
-SCOPE_EXPANSION=false
-REPAIR=false
-DESIGN_CHANGE=false
+COMMUNICATION_STYLE=PLAIN_DIRECT_CONCRETE
+ABSTRACT_TERM_DENSITY=LOW
+EXPLAIN_CAUSE_EFFECT=true
+EXPLAIN_NEXT_ACTION=true
 ```
 
-Codex 必须将 DSL 中的 `inspect / derive / resolve / verify / create bounded snapshot` 等 primitive 机械翻译为最低必要命令执行。除非合同明确要求 exact supplied implementation，否则不得因为缺少预写 Bash/Python executor 而停止。
+具体要求：
 
-若直接提供完整代码、补丁或精确实现比 DSL 更安全高效，可以直接采用；但仍必须保持 scope、authorization、rollback 和 evidence contract 明确。
-
-### 1.4 标准交互循环
-
-默认循环：
-
-```text
-高阶模型：分析 / gate / 最小授权设计
-        ↓
-用户：批准需要 mutation 的 exact authorization
-        ↓
-Codex：执行 DSL / 代码落盘 / 测试 / closure
-        ↓
-高阶模型：复核结果 / 决定下一步
-```
-
-这是默认协作模式，不是强制流程。若另一种分工能在不削弱安全边界的前提下显著提高正确性、效率或可验证性，应采用更合适的方式，并在 handoff 中写清实际职责分配。
+- 先说“现在发生了什么、为什么、下一步做什么”，再给技术细节；
+- 能用普通中文说明时，不连续堆叠 `authority / gate / rebind / contract / closure` 等抽象词；
+- 必须使用专业术语时，第一次出现就紧跟一句白话解释；
+- 不为了显得严谨而重复罗列同一组状态字段；
+- 命令、SHA、路径、错误码等需要精确保留的内容放在代码块里；
+- 解释故障时优先使用具体对象和因果关系，例如“Board B 发 Challenge 时 Wi-Fi 已切到别的信道，所以发送被驱动拒绝”，而不是只给抽象分类名；
+- 除非用户要求详细清单，否则避免把一段解释拆成大量标签和术语列表；
+- 用户需要执行命令前，先用一句话说明是否需要动哪块板、是否会写入或重启。
 
 ---
 
@@ -136,7 +99,7 @@ Codex：执行 DSL / 代码落盘 / 测试 / closure
 
 ## 3. Frozen Authorities
 
-只列下一会话继续所需的 current authorities。
+只列下一会话继续所需的当前权威信息，不把历史资料全部搬进来。
 
 ### 3.1 Repository / exact-main
 
@@ -163,7 +126,7 @@ SUCCESSOR_PATH=
 SUCCESSOR_SHA256=
 ```
 
-如不适用：
+不适用时：
 
 ```text
 SUCCESSOR_AUTHORITY=NOT_APPLICABLE:<reason>
@@ -181,7 +144,7 @@ TARGET_ARCH=
 
 ## 4. Current Live Baseline
 
-记录交接时真正 live 的状态，而不是只引用更早历史。
+记录交接时真正还在运行的状态，而不是只引用旧记录。
 
 ```text
 MANAGER_STATE=
@@ -195,9 +158,6 @@ BROKER_RESTART_STATE=
 HOMEASSISTANT_STATE=
 HOMEASSISTANT_IMAGE_ID=
 
-PAIRING_SERVICE_STATE=
-PAIRING_PORT_OWNER_STATE=
-
 BOARD_ACCESS=false
 USB_ACCESS=false
 SERIAL_OPEN=false
@@ -206,17 +166,17 @@ NVS_MUTATION=false
 RF_EXECUTION=false
 ```
 
-若某项需要新会话开头重新绑定：
+需要下一会话重新读取的项目明确写：
 
 ```text
-<LIVE FACT>_REQUIRES_FRESH_READONLY_REBIND=true
+<LIVE_FACT>_REQUIRES_FRESH_READONLY_RECHECK=true
 ```
 
 ---
 
 ## 5. Proven Current Facts
 
-只列已有 direct evidence 支持的当前事实。
+这里只写已经有直接证据支持的事实。
 
 ```text
 <FACT_1>=
@@ -224,35 +184,31 @@ RF_EXECUTION=false
 ...
 ```
 
-保留重要 evidence/path/hash，但不输出 secret。
+重要的路径、SHA、错误码可以保留，但不要输出 secret。
 
-明确把推断单独标记：
+推断必须单独标记：
 
 ```text
 INFERENCE_<NAME>=
 ```
 
-不得把 inference 写进 proven facts。
+不得把推断混进已证明事实。
 
 ---
 
 ## 6. Current Root Cause / Blockers
 
-只写仍然阻塞当前 product route 的事项。
+只写仍然挡住当前产品路线的问题。
 
 ### Blocker A — <name>
+
+用一两句话先讲白话原因，再保留需要的精确字段：
 
 ```text
 ROOT_CAUSE=
 PROVEN_BY=
 SOURCE_DEFECT_PROVEN=
 RUNTIME_DEFECT_PROVEN=
-```
-
-### Blocker B — <name>
-
-```text
-...
 ```
 
 如果没有 blocker：
@@ -265,7 +221,7 @@ CURRENT_BLOCKER_COUNT=0
 
 ## 7. Closed / Forbidden Routes
 
-除非出现新的 direct counter-evidence，下一会话不得重新进入：
+已经证明不需要再走的路线，除非出现新的直接反证，否则不要重新进入。
 
 ```text
 <CLOSED_ROUTE_1>
@@ -273,7 +229,7 @@ CURRENT_BLOCKER_COUNT=0
 ...
 ```
 
-推荐保留简短原因：
+推荐附简短原因：
 
 ```text
 <ROUTE>=CLOSED:<proof/reason>
@@ -283,7 +239,7 @@ CURRENT_BLOCKER_COUNT=0
 
 ## 8. Authorization Ledger
 
-列出所有仍与当前路线有关的 authorization。
+只记录还会影响后续执行的授权。
 
 ```text
 AUTHORIZATION=<name>
@@ -294,22 +250,22 @@ REPLAY_PERMITTED=
 SUPERSEDED_BY=
 ```
 
-必须显式列出 consumed/superseded 的 replay guard。
+已消费或已被替代的授权必须明确禁止重放。
 
-如果下一 authorization 只是建议：
+下一授权如果只是建议：
 
 ```text
 PROPOSED_AUTHORIZATION=<name>
 GRANTED=false
 ```
 
-`READY_FOR_NEW_AUTHORIZATION=true` 不等于 granted。
+`READY_FOR_NEW_AUTHORIZATION=true` 不等于用户已经授权。
 
 ---
 
 ## 9. Rollback Authority
 
-如下一 gate 可能 mutation，写清：
+下一步如果可能修改系统，写清楚如何退回原状态。
 
 ```text
 ROLLBACK_BASELINE=
@@ -330,14 +286,14 @@ Rollback 顺序：
 → STOP
 ```
 
-Rollback failure：
+Rollback 失败：
 
 ```text
 ROLLBACK_INCOMPLETE=true
 MANUAL_RECOVERY_REQUIRED=true
 ```
 
-若下一 gate 完全只读且不需要 rollback：
+完全只读时：
 
 ```text
 ROLLBACK_AUTHORITY=NOT_APPLICABLE:READONLY_GATE
@@ -353,7 +309,7 @@ NEXT_ONE_GATE=<exact logical gate name>
 
 ### 10.1 Purpose
 
-<one concise paragraph>
+先用一段白话说明：这一步到底要确认什么，为什么现在要做它。
 
 ### 10.2 Frozen inputs
 
@@ -385,13 +341,13 @@ READY_FOR_<NEXT_STAGE>=false
 STOP=true
 ```
 
-执行者不得自动进入下一个 gate。
+执行者不得自动跨到下一个 gate。
 
 ---
 
 ## 11. Hard Allowed / Forbidden Scope
 
-Default：
+默认：
 
 ```text
 LIVE_MUTATION_DEFAULT=false
@@ -410,7 +366,7 @@ BOARD_ACCESS_DEFAULT=false
 - ...
 ```
 
-如允许 bounded evidence/snapshot write：
+如果允许有限范围的 evidence/snapshot 写入：
 
 ```text
 LIVE_RUNTIME_MUTATION=false
@@ -422,42 +378,35 @@ BOUNDED_WRITE_SCOPE=<exact path/scope>
 
 ## 12. Execution Contract
 
-本节必须是 self-contained execution protocol，而不是“参考上一条消息”。
-
-先明确本 gate 的实际角色分配：
+本节写清楚“谁执行、执行什么、什么情况下必须停”。不要依赖固定的模型层级或角色分工。
 
 ```text
-EXECUTION_ROLE_ALLOCATION=
-HIGH_LEVEL_MODEL_RESPONSIBILITY=
-CODEX_RESPONSIBILITY=
+EXECUTOR=
+EXECUTION_METHOD=<chat-tool|mac-terminal|script|manual-physical|other>
 DIRECT_CODE_SUPPLIED=true|false
 DSL_COMPILATION_USED=true|false
 ```
 
-若采用 DSL 执行，起始语义可写：
+如果采用 DSL，可以写：
 
 ```text
 ROLE:
 Task-appropriate executor under the bounded contract below.
 
 This document is an executable DSL protocol.
-A separately supplied Bash/Python executor is NOT required unless
-this protocol explicitly says so.
-
-Mechanically compile this DSL into the minimum necessary commands
-using already-installed tools, then execute exactly the bounded gate.
+Use the minimum necessary commands with already-installed tools.
 
 DSL_TO_COMMAND_COMPILATION=true
 SCOPE_EXPANSION=false
 REPAIR=false
 DESIGN_CHANGE=false
 
-Do not repair.
+Do not repair automatically.
 Do not retry unless explicitly permitted.
 Do not enter the next gate.
 ```
 
-然后写完整编号 DSL / exact implementation contract：
+然后写完整编号步骤：
 
 ```text
 ============================================================
@@ -476,7 +425,7 @@ Do not enter the next gate.
 ...
 
 ============================================================
-3. PRECLAIM / EXECUTION
+3. PRECHECK / EXECUTION
 ============================================================
 ...
 
@@ -486,13 +435,13 @@ N. HARD STOP
 ...
 ```
 
-不要为了遵守固定分工而默认拒绝直接提供高阶模型生成的核心代码；是否提供代码应由当前任务的正确性、安全性、效率和可验证性决定。
+如果直接给一段完整命令或完整代码更清楚、更安全，就直接给，不需要为了流程形式把它拆成很多层。
 
 ---
 
 ## 13. Expected Closure
 
-预先定义执行者最终只返回的结构化字段。
+预先定义最终需要返回的结构化字段。
 
 ```text
 === <GATE NAME> CLOSURE ===
@@ -513,7 +462,7 @@ NEXT_ROUTE=
 === END ===
 ```
 
-Closure 必须足以让高阶模型直接分类，不依赖执行者再次解释 raw log。
+结构化 closure 用来保留精确证据；面向用户的说明仍应先用白话总结结果。
 
 ---
 
@@ -521,7 +470,7 @@ Closure 必须足以让高阶模型直接分类，不依赖执行者再次解释
 
 ### PASS 后
 
-只说明下一阶段名称：
+只说明下一阶段名称，不自动执行：
 
 ```text
 AFTER_PASS_NEXT_STAGE=
@@ -539,14 +488,14 @@ NEW_AUTHORIZATION_REQUIRED=true
 ```text
 AUTO_REPAIR=false
 AUTO_RETRY=false
-RETURN_TO_HIGH_LEVEL_MODEL=true
+STOP_AND_REVIEW=true
 ```
 
 ---
 
 ## 15. KNOWN_FAILURES Updates
 
-本轮新发生的问题：
+本轮如果发现了新的真实问题：
 
 ```text
 KNOWN_FAILURES_UPDATE_REQUIRED=true|false
@@ -563,7 +512,7 @@ FIX_OR_GUARD=
 STATUS=
 ```
 
-根因未证明写 `TBD`。
+根因没证明就写 `TBD`，不要补猜测。
 
 ---
 
@@ -572,11 +521,11 @@ STATUS=
 提供一段可以直接粘贴到新会话的启动文本，至少要求新会话：
 
 - 阅读本 handoff；
-- 阅读 `NEW_CHAT_HANDOFF_STANDARD.md`；
-- 阅读 `KNOWN_FAILURES_AND_REGRESSION_GUARDS.md`；
-- 承认首要执行原则：准确、安全、高效、可验证优先；
-- 将“高阶模型 + Codex low-order execution”视为默认协调模式，而不是必须机械遵守的目标；
-- 根据任务性质选择最合适的角色分工和执行粒度；
+- 如果项目指定 exact handoff standard authority，按指定 commit 读取；
+- 阅读当前状态文档和 `KNOWN_FAILURES_AND_REGRESSION_GUARDS.md`；
+- 准确、安全、高效、可验证优先；
+- 回复少堆抽象术语，优先用直白具体的中文解释；
+- 先说发生了什么、为什么、下一步做什么；
 - 只进入 `NEXT_ONE_GATE`；
 - 默认不 mutation、不访问板卡；
 - 不重放 consumed authorization；
@@ -585,15 +534,18 @@ STATUS=
 建议正文：
 
 ```text
-阅读《<handoff file>》以及：
-- docs/development/NEW_CHAT_HANDOFF_STANDARD.md
+阅读《<handoff file>》，并读取：
+- docs/development/N3W_CURRENT_STATE.md
+- docs/development/N3W_CURRENT_STATE_INDEX.md
 - docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md
+
+如果 handoff 指定了 exact handoff standard authority，再按指定 commit 读取对应标准。
 
 继续“<project>”。
 
-首要执行原则：准确、安全、高效、可验证地完成任务。
-“高阶模型思考 + Codex 低阶模型执行”是默认协作模式，不是目标本身；
-如直接编码、调整角色分工或改变 DSL 粒度能显著提高正确性/效率且不突破安全边界，应采用更合适的方式。
+准确、安全、高效、可验证优先。
+回复时少罗列抽象术语，尽量用直白、具体、容易理解的中文；
+先说明“现在发生了什么、为什么、下一步做什么”，必要时再给精确字段、SHA、错误码和命令。
 
 当前只进入：
 NEXT_ONE_GATE=<...>
@@ -601,7 +553,7 @@ NEXT_ONE_GATE=<...>
 LIVE_MUTATION_DEFAULT=false
 BOARD_ACCESS_DEFAULT=false
 
-先 rebind 当前 authority，再执行该 gate；不要自动跨越下一阶段。
+先确认当前状态，再执行该步骤；不要自动跨越下一阶段。
 ```
 
 ---
@@ -618,35 +570,33 @@ SOURCE_DEFECT_PROVEN=
 CURRENT_BLOCKER=
 
 LIVE_SYSTEM_STATE=
-
 NEXT_ONE_GATE=
 
 PRIMARY_EXECUTION_PRINCIPLE=ACCURACY_SAFETY_EFFICIENCY_VERIFIABILITY_FIRST
-EXECUTION_MODEL_IS_DEFAULT_COORDINATION_PATTERN=true
+COMMUNICATION_STYLE=PLAIN_DIRECT_CONCRETE
+ABSTRACT_TERM_DENSITY=LOW
 
 LIVE_MUTATION_DEFAULT=false
 BOARD_ACCESS_DEFAULT=false
 
-HANDOFF_STANDARD_VERSION=1.0
+HANDOFF_TEMPLATE_VERSION=1.1
 ```
 
 ---
 
 ## 18. Handoff Compliance Audit
 
-正式交接文档结束前必须全部检查。
+正式交接文档结束前逐项检查：
 
 ```text
 === HANDOFF COMPLIANCE AUDIT ===
 
-HANDOFF_STANDARD_VERSION=1.0
+HANDOFF_TEMPLATE_VERSION=1.1
 
 PRIMARY_EXECUTION_PRINCIPLE_EXPLICIT=PASS
-EXECUTION_MODEL_EXPLICIT=PASS
-EXECUTION_MODEL_NOT_TREATED_AS_GOAL=PASS
-ROLE_ALLOCATION_ADAPTIVE=PASS
-HIGH_LEVEL_CODEX_ROLE_BOUNDARY=PASS
-DSL_EXECUTION_SEMANTICS_EXPLICIT=PASS
+COMMUNICATION_STYLE_EXPLICIT=PASS
+PLAIN_LANGUAGE_RULE_PRESENT=PASS
+MODEL_HIERARCHY_REQUIREMENT_ABSENT=PASS
 
 PRODUCT_NORTH_STAR_PRESENT=PASS
 FROZEN_AUTHORITIES_COMPLETE=PASS
@@ -664,6 +614,7 @@ NEXT_ONE_GATE_EXPLICIT=PASS
 NEXT_GATE_SCOPE_BOUNDED=PASS
 
 ALLOWED_FORBIDDEN_SCOPE_EXPLICIT=PASS
+EXECUTION_CONTRACT_SELF_CONTAINED=PASS
 EXPECTED_CLOSURE_PRESENT=PASS
 AFTER_PASS_DOES_NOT_AUTO_EXECUTE=PASS
 
@@ -672,8 +623,6 @@ NEW_CHAT_START_PROMPT_PRESENT=PASS
 FINAL_FROZEN_STATE_PRESENT=PASS
 
 HANDOFF_STATE_COMPLETENESS=PASS
-HANDOFF_EXECUTION_SEMANTICS_COMPLETENESS=PASS
-
 HANDOFF_READY_FOR_NEW_CHAT=true
 
 === END ===
