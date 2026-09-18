@@ -656,6 +656,27 @@ bool SimpleProductComponent::prepare_direct_probe_radio_() {
          runtime_.update_direct_channel_hint(channel);
 }
 
+bool SimpleProductComponent::explicit_bssid_lock_active_() const {
+#ifdef USE_WIFI
+  wifi_config_t config{};
+  if (esp_wifi_get_config(WIFI_IF_STA, &config) != ESP_OK) {
+    // Failing closed here preserves a user-specified BSSID restriction if the
+    // current STA configuration cannot be read reliably.
+    return true;
+  }
+  return config.sta.bssid_set;
+#else
+  return true;
+#endif
+}
+
+void SimpleProductComponent::invalidate_direct_ap_hint_() {
+  direct_ap_bssid_.fill(0);
+  direct_ap_bssid_valid_ = false;
+  direct_ap_channel_ = 0;
+  direct_ap_hint_lease_.clear();
+}
+
 void SimpleProductComponent::refresh_direct_ap_hint_() {
 #ifdef USE_WIFI
   if (radio_ownership_ != RadioOwnership::DIRECT_WIFI || !wifi_connected()) {
@@ -673,6 +694,7 @@ void SimpleProductComponent::refresh_direct_ap_hint_() {
       [](uint8_t value) { return value != 0; });
   if (!direct_ap_bssid_valid_) return;
   direct_ap_channel_ = ap.primary;
+  direct_ap_hint_lease_.observe(now_ms(), explicit_bssid_lock_active_());
   (void) runtime_.update_direct_channel_hint(ap.primary);
 #endif
 }
@@ -703,7 +725,15 @@ SimpleProductComponent::probe_direct_ap_presence_() {
     scan.scan_type = WIFI_SCAN_TYPE_PASSIVE;
     scan.scan_time.passive = kDirectPresenceProbePassiveMs;
 
+    const uint64_t scan_started_ms = now_ms();
     const esp_err_t scan_result = esp_wifi_scan_start(&scan, true);
+    const uint64_t scan_elapsed_ms = now_ms() - scan_started_ms;
+    ESP_LOGI(
+        TAG,
+        "N3-W Direct AP presence scan channel=%u elapsed_ms=%llu result=%ld",
+        static_cast<unsigned>(channel),
+        static_cast<unsigned long long>(scan_elapsed_ms),
+        static_cast<long>(scan_result));
     if (scan_result != ESP_OK) {
       return DirectPresenceProbeResult::ERROR;
     }
@@ -750,6 +780,7 @@ SimpleProductComponent::probe_direct_ap_presence_() {
   if (result == DirectPresenceProbeResult::FOUND &&
       valid_radio_channel(record.primary)) {
     direct_ap_channel_ = record.primary;
+    direct_ap_hint_lease_.note_found(now_ms());
     (void) runtime_.update_direct_channel_hint(record.primary);
   }
 
