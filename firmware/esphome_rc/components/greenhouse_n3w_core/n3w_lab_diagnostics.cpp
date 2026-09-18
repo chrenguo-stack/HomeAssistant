@@ -202,13 +202,15 @@ void N3wLabDiagnostics::observe_runtime(
     bool relay_active,
     uint64_t now_ms) {
   if (!enabled_ || !boot_session_started_) return;
+  // current_channel is reserved for concrete Wi-Fi readback captured by
+  // note_channel_result()/on_scan_result(). runtime working_channel is a
+  // logical state-machine value and must not overwrite that observation oracle.
+  (void) current_channel;
   const bool changed = snapshot_.path_state != path_state ||
-                       snapshot_.current_channel != current_channel ||
                        snapshot_.direct_channel_hint != direct_channel_hint ||
                        relay_children_ != relay_children ||
                        relay_active_ != relay_active;
   snapshot_.path_state = path_state;
-  snapshot_.current_channel = current_channel;
   snapshot_.direct_channel_hint = direct_channel_hint;
   relay_children_ = relay_children;
   relay_active_ = relay_active;
