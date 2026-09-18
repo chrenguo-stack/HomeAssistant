@@ -945,6 +945,46 @@ void SimpleProductComponent::drain_send_completions_() {
         static_cast<uint8_t>((read + 1U) % kTxCompletionRingSlots),
         std::memory_order_release);
   }
+  if (radio_.pending_unicast_sends() == 0U) {
+    pending_unicast_deadline_.on_drained();
+  }
+}
+
+bool SimpleProductComponent::check_pending_unicast_timeout_() {
+  if (radio_.pending_unicast_sends() == 0U) {
+    pending_unicast_deadline_.on_drained();
+    return false;
+  }
+  const uint64_t now = now_ms();
+  if (!pending_unicast_deadline_.timed_out(now)) {
+    return false;
+  }
+  handle_pending_unicast_timeout_(now);
+  return true;
+}
+
+void SimpleProductComponent::clear_tx_completion_ring_() {
+  const uint8_t write =
+      tx_completion_write_.load(std::memory_order_acquire);
+  tx_completion_read_.store(write, std::memory_order_release);
+}
+
+void SimpleProductComponent::handle_pending_unicast_timeout_(uint64_t now) {
+  ++pending_unicast_timeout_count_;
+  ESP_LOGE(
+      TAG,
+      "N3-W ESP-NOW unicast completion timeout pending=%u count=%u; terminating old ESP-NOW session before recovery",
+      static_cast<unsigned>(radio_.pending_unicast_sends()),
+      static_cast<unsigned>(pending_unicast_timeout_count_));
+
+  // Do not clear the pending counter in-place. shutdown() first unregisters
+  // ESP-NOW callbacks and deinitializes the old ESP-NOW session; only after
+  // that teardown does the driver clear its internal pending reservation.
+  radio_.shutdown();
+  pending_unicast_deadline_.on_drained();
+  clear_tx_completion_ring_();
+  begin_relay_restore_(RecoveryExitPolicy::kPendingUnicastQuiesceMs);
+  (void) now;
 }
 
 void SimpleProductComponent::drain_radio_() {
