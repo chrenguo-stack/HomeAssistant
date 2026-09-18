@@ -116,6 +116,10 @@ class GreenhouseN3wCore : public SimpleProductComponent {
     return disposition;
   }
 
+  // Compatibility surface for callers that only need to know whether the
+  // component retained the sample. true includes BUFFERED and must not be used
+  // as evidence that MQTT/ESP-NOW submission already occurred; physical
+  // evidence must use submit_telemetry_json() and its tri-state disposition.
   bool send_telemetry_json(
       const std::string &telemetry_json,
       const std::string &boot_id,
