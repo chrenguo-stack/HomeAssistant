@@ -133,8 +133,9 @@ def test_phase4_lab_target_exposes_private_pairing_pop_and_synthetic_telemetry()
     assert "runtime_ready()" in config
     assert "take_telemetry_identity" in config
     assert "submit_telemetry_json" in config
-    assert "TelemetrySubmitDisposition::REJECTED" in config
-    assert "disposition=%s" in config
+    assert "TelemetrySubmitDisposition::SUBMITTED" in config
+    assert "TelemetrySubmitDisposition::BUFFERED" in config
+    assert "accepted=%s buffered=%s disposition=%s" in config
     assert "disposition_raw=%u" in config
     assert "PHASE4_LAB_TELEMETRY" in config
     assert "phase4_lab" in config
