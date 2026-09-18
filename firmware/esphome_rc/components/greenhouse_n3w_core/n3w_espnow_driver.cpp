@@ -1,4 +1,5 @@
 #include "n3w_espnow_driver.h"
+#include "n3w_recovery_exit_policy.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -219,9 +220,13 @@ bool EspNowDriver::shutdown() {
     }
   }
   const bool wifi_stopped = stop_owned_wifi_();
-  teardown_confirmed_ =
-      espnow_stopped && wifi_stopped && callbacks_idle();
-  keep_initialized = !espnow_stopped;
+  const EspNowTeardownDecision decision =
+      assess_espnow_teardown(
+          espnow_stopped,
+          wifi_stopped,
+          callbacks_idle());
+  teardown_confirmed_ = decision.confirmed;
+  keep_initialized = decision.keep_initialized;
 #else
   teardown_confirmed_ = true;
 #endif
