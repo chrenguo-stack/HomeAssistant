@@ -489,11 +489,25 @@ void EspNowDriver::recv_cb_(
     const esp_now_recv_info_t *info,
     const uint8_t *data,
     int data_len) {
-  if (active_ == nullptr || active_->sink_ == nullptr || info == nullptr ||
-      info->src_addr == nullptr || data == nullptr || data_len <= 0 ||
+  if (info == nullptr || info->src_addr == nullptr || data == nullptr ||
+      data_len <= 0 ||
       static_cast<std::size_t>(data_len) > kEspNowPhysicalDatagramLimit) {
     return;
   }
+
+  EspNowDriver *driver = active_.load(std::memory_order_acquire);
+  if (driver == nullptr) return;
+  driver->callbacks_inflight_.fetch_add(1U, std::memory_order_acq_rel);
+  if (active_.load(std::memory_order_acquire) != driver) {
+    driver->callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
+    return;
+  }
+  EspNowEventSink *sink = driver->sink_.load(std::memory_order_acquire);
+  if (sink == nullptr) {
+    driver->callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
+    return;
+  }
+
   MacAddress source{};
   std::copy_n(info->src_addr, source.size(), source.begin());
   EspNowReceiveMetadata metadata{};
@@ -501,29 +515,41 @@ void EspNowDriver::recv_cb_(
     metadata.rssi_dbm = static_cast<int16_t>(info->rx_ctrl->rssi);
     metadata.channel = static_cast<uint8_t>(info->rx_ctrl->channel);
   }
-  const uint8_t receive_index = active_->diagnostic_receive_logs_.fetch_add(
+  const uint8_t receive_index = driver->diagnostic_receive_logs_.fetch_add(
       1, std::memory_order_relaxed);
   if (receive_index < kDiagnosticLogLimit) {
     ESP_LOGI(TAG, "ESP-NOW diagnostic receive count=%u size=%d channel=%u",
              static_cast<unsigned>(receive_index + 1), data_len,
              static_cast<unsigned>(metadata.channel));
   }
-  active_->sink_->on_espnow_receive_with_metadata(
+  sink->on_espnow_receive_with_metadata(
       source, data, static_cast<std::size_t>(data_len), metadata);
+  driver->callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
 }
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
 void EspNowDriver::send_cb_(
     const esp_now_send_info_t *info,
     esp_now_send_status_t status) {
-  if (active_ == nullptr || active_->sink_ == nullptr || info == nullptr ||
-      info->des_addr == nullptr) {
+  if (info == nullptr || info->des_addr == nullptr) return;
+
+  EspNowDriver *driver = active_.load(std::memory_order_acquire);
+  if (driver == nullptr) return;
+  driver->callbacks_inflight_.fetch_add(1U, std::memory_order_acq_rel);
+  if (active_.load(std::memory_order_acquire) != driver) {
+    driver->callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
     return;
   }
+  EspNowEventSink *sink = driver->sink_.load(std::memory_order_acquire);
+  if (sink == nullptr) {
+    driver->callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
+    return;
+  }
+
   MacAddress destination{};
   std::copy_n(info->des_addr, destination.size(), destination.begin());
   if (destination == kEspNowBroadcastMac) {
-    const uint8_t send_index = active_->diagnostic_broadcast_logs_.fetch_add(
+    const uint8_t send_index = driver->diagnostic_broadcast_logs_.fetch_add(
         1, std::memory_order_relaxed);
     if (send_index < kDiagnosticLogLimit) {
       ESP_LOGI(TAG, "ESP-NOW diagnostic broadcast completion count=%u success=%s",
@@ -531,26 +557,39 @@ void EspNowDriver::send_cb_(
                status == ESP_NOW_SEND_SUCCESS ? "true" : "false");
     }
   }
-  active_->sink_->on_espnow_send_result(
+  sink->on_espnow_send_result(
       destination, status == ESP_NOW_SEND_SUCCESS);
   // Decrement only after the sink has copied completion metadata into its
   // bounded ring. A zero pending count is therefore safe for the component to
   // use as a radio-transition barrier.
   if (destination != kEspNowBroadcastMac) {
-    active_->complete_unicast_send_();
+    driver->complete_unicast_send_();
   }
+  driver->callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
 }
 #else
 void EspNowDriver::send_cb_(
     const uint8_t *mac_addr,
     esp_now_send_status_t status) {
-  if (active_ == nullptr || active_->sink_ == nullptr || mac_addr == nullptr) {
+  if (mac_addr == nullptr) return;
+
+  EspNowDriver *driver = active_.load(std::memory_order_acquire);
+  if (driver == nullptr) return;
+  driver->callbacks_inflight_.fetch_add(1U, std::memory_order_acq_rel);
+  if (active_.load(std::memory_order_acquire) != driver) {
+    driver->callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
     return;
   }
+  EspNowEventSink *sink = driver->sink_.load(std::memory_order_acquire);
+  if (sink == nullptr) {
+    driver->callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
+    return;
+  }
+
   MacAddress destination{};
   std::copy_n(mac_addr, destination.size(), destination.begin());
   if (destination == kEspNowBroadcastMac) {
-    const uint8_t send_index = active_->diagnostic_broadcast_logs_.fetch_add(
+    const uint8_t send_index = driver->diagnostic_broadcast_logs_.fetch_add(
         1, std::memory_order_relaxed);
     if (send_index < kDiagnosticLogLimit) {
       ESP_LOGI(TAG, "ESP-NOW diagnostic broadcast completion count=%u success=%s",
@@ -558,15 +597,17 @@ void EspNowDriver::send_cb_(
                status == ESP_NOW_SEND_SUCCESS ? "true" : "false");
     }
   }
-  active_->sink_->on_espnow_send_result(
+  sink->on_espnow_send_result(
       destination, status == ESP_NOW_SEND_SUCCESS);
   // Decrement only after the sink has copied completion metadata into its
   // bounded ring. A zero pending count is therefore safe for the component to
   // use as a radio-transition barrier.
   if (destination != kEspNowBroadcastMac) {
-    active_->complete_unicast_send_();
+    driver->complete_unicast_send_();
   }
+  driver->callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
 }
+#endif
 #endif
 #endif
 
