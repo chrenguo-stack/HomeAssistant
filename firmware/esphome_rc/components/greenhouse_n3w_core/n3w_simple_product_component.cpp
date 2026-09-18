@@ -12,6 +12,7 @@
 #ifdef USE_WIFI
 #include "esphome/components/wifi/wifi_component.h"
 #endif
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esp_http_client.h"
@@ -658,13 +659,14 @@ bool SimpleProductComponent::prepare_direct_probe_radio_() {
 
 bool SimpleProductComponent::explicit_bssid_lock_active_() const {
 #ifdef USE_WIFI
-  wifi_config_t config{};
-  if (esp_wifi_get_config(WIFI_IF_STA, &config) != ESP_OK) {
-    // Failing closed here preserves a user-specified BSSID restriction if the
-    // current STA configuration cannot be read reliably.
+  if (wifi::global_wifi_component == nullptr) {
     return true;
   }
-  return config.sta.bssid_set;
+  // Read the selected ESPHome Wi-Fi configuration, not the current IDF STA
+  // connection parameters. ESPHome's scan-connect path copies the chosen scan
+  // result BSSID into temporary connection parameters, so IDF bssid_set does
+  // not prove the user configured a BSSID restriction.
+  return wifi::global_wifi_component->get_sta().has_bssid();
 #else
   return true;
 #endif
