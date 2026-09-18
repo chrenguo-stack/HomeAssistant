@@ -528,6 +528,16 @@ RadioError LocalPathController::note_direct_recovery_probe(bool success) {
   return RadioError::NONE;
 }
 
+bool LocalPathController::direct_recovery_would_commit_on_success() const {
+  if (!policy_.valid() ||
+      (state_ != LocalPathState::RELAY_ACTIVE &&
+       state_ != LocalPathState::DISCOVERY)) {
+    return false;
+  }
+  return direct_recoveries_ >=
+         static_cast<uint8_t>(policy_.direct_recoveries_to_direct - 1U);
+}
+
 }  // namespace esphome::greenhouse_n3w_core
 
 #endif  // GREENHOUSE_N3W_ENABLE_LEGACY_RADIO

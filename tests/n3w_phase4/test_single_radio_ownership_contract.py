@@ -124,7 +124,7 @@ def test_direct_probe_pauses_relay_submissions_and_rebinds_on_failure() -> None:
     assert "port_->install_encrypted_peer(" in rebind
 
 
-def test_challenge_pending_window_covers_submit_and_accept_completion() -> None:
+def test_challenge_uses_fixed_owned_channel_and_pending_accept_window() -> None:
     runtime = text("n3w_simple_product_runtime.cpp")
     start = runtime.index("SimpleProductError SimpleProductRuntime::handle_discovery_(")
     end = runtime.index(
@@ -132,6 +132,62 @@ def test_challenge_pending_window_covers_submit_and_accept_completion() -> None:
     )
     challenge = runtime[start:end]
 
-    assert "port_->broadcast_control_on_channel(" in challenge
+    channel_fix = challenge.index("port_->set_radio_channel(channel)")
+    normal_send = challenge.index(
+        "port_->broadcast_control(encoded.data(), encoded.size())", channel_fix
+    )
+    pending = challenge.index("pending_challenge_ = std::move(pending)", normal_send)
+
+    assert channel_fix < normal_send < pending
+    assert "broadcast_control_on_channel" not in challenge
     assert "2ULL * policy_.challenge_timeout_ms" in challenge
-    assert "completes asynchronously" in challenge
+    assert "owns and holds this channel" in challenge
+
+
+def test_direct_failback_commits_only_after_concrete_radio_restore() -> None:
+    runtime = text("n3w_simple_product_runtime.cpp")
+
+    note_start = runtime.index(
+        "SimpleProductError SimpleProductRuntime::note_direct_recovery_probe"
+    )
+    note_end = runtime.index(
+        "SimpleProductError SimpleProductRuntime::note_relay_delivery_result",
+        note_start,
+    )
+    note = runtime[note_start:note_end]
+
+    readiness = note.index("path_.direct_recovery_would_commit_on_success()")
+    restore = note.index("restore_direct_()", readiness)
+    reset_hysteresis = note.index(
+        "path_.note_direct_recovery_probe(false)", restore
+    )
+    logical_commit = note.index(
+        "path_.note_direct_recovery_probe(success)", reset_hysteresis
+    )
+    assert readiness < restore < reset_hysteresis < logical_commit
+
+    restore_start = runtime.index("SimpleProductError SimpleProductRuntime::restore_direct_()")
+    restore_end = runtime.index(
+        "SimpleProductError SimpleProductRuntime::handle_discovery_(", restore_start
+    )
+    restore_body = runtime[restore_start:restore_end]
+
+    radio_first = restore_body.index("port_->set_radio_channel(direct_channel_)")
+    pending_reset = restore_body.index("pending_challenge_.reset()", radio_first)
+    relay_remove = restore_body.index("port_->remove_peer", pending_reset)
+    assert radio_first < pending_reset < relay_remove
+
+
+def test_accept_fixes_relay_channel_before_peer_and_state_commit() -> None:
+    runtime = text("n3w_simple_product_runtime.cpp")
+    start = runtime.index("SimpleProductError SimpleProductRuntime::handle_accept_(")
+    end = runtime.index(
+        "SimpleProductError SimpleProductRuntime::handle_compact_(", start
+    )
+    accept = runtime[start:end]
+
+    channel_fix = accept.index("port_->set_radio_channel(channel)")
+    peer_bind = accept.index("port_->install_encrypted_peer(", channel_fix)
+    state_commit = accept.index("path_.note_authenticated_relay_ready(true)", peer_bind)
+    active_bind = accept.index("active_relay_ = std::move(relay)", state_commit)
+    assert channel_fix < peer_bind < state_commit < active_bind

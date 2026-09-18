@@ -42,10 +42,16 @@ struct FakePort final : SimpleProductPort {
   bool broadcast_success{true};
   bool encrypted_success{true};
   bool relay_success{true};
+  bool channel_success{true};
+  std::vector<uint8_t> channel_set_attempts;
 
   bool set_radio_channel(uint8_t value) override {
+    channel_set_attempts.push_back(value);
+    if (!channel_success || !valid_radio_channel(value)) {
+      return false;
+    }
     channel = value;
-    return valid_radio_channel(value);
+    return true;
   }
   bool broadcast_control(const uint8_t *data, std::size_t size) override {
     broadcasts.emplace_back(data, data + size);
@@ -181,6 +187,22 @@ int main() {
     assert(offline.update_direct_channel_hint(11));
     assert(offline.note_direct_recovery_probe(true) == SimpleProductError::NONE);
     assert(offline.path_state() == LocalPathState::DISCOVERY);
+
+    // The second successful probe would normally commit Direct. A concrete
+    // channel-restore failure must leave the logical path in Discovery rather
+    // than creating DIRECT + DIRECT_PROBE and permanently suppressing sends.
+    offline_port.channel_success = false;
+    assert(
+        offline.note_direct_recovery_probe(true) ==
+        SimpleProductError::RADIO_FAILED);
+    assert(offline.path_state() == LocalPathState::DISCOVERY);
+    assert(offline_port.channel == 6);
+
+    // A failed commit resets Direct-recovery hysteresis; two new successful
+    // probes are required before Direct is committed.
+    offline_port.channel_success = true;
+    assert(offline.note_direct_recovery_probe(true) == SimpleProductError::NONE);
+    assert(offline.path_state() == LocalPathState::DISCOVERY);
     assert(offline.note_direct_recovery_probe(true) == SimpleProductError::NONE);
     assert(offline.path_state() == LocalPathState::DIRECT);
     assert(offline_port.channel == 11);
@@ -304,10 +326,28 @@ int main() {
   assert(!relay_port.broadcasts.empty());
 
   const auto accept = relay_port.broadcasts.back();
+
+  // Accept verification must not commit RelayActive until the concrete radio
+  // can be fixed on the authenticated Relay channel.
+  const std::size_t installed_before_accept = child_port.installed.size();
+  child_port.channel_success = false;
+  assert(child.on_radio_receive(relay_mac, accept.data(), accept.size(), 6) ==
+         SimpleProductError::RADIO_FAILED);
+  assert(child.path_state() == LocalPathState::DISCOVERY);
+  assert(!child.active_relay().has_value());
+  assert(child_port.installed.size() == installed_before_accept);
+
+  child_port.channel_success = true;
+  const std::size_t channel_sets_before_accept =
+      child_port.channel_set_attempts.size();
   assert(child.on_radio_receive(relay_mac, accept.data(), accept.size(), 6) ==
          SimpleProductError::NONE);
   assert(child.path_state() == LocalPathState::RELAY_ACTIVE);
   assert(child.active_relay().has_value());
+  assert(child_port.channel_set_attempts.size() ==
+         channel_sets_before_accept + 1);
+  assert(child_port.channel_set_attempts.back() == 6);
+  assert(child_port.channel == 6);
   assert(!child_port.installed.empty());
   assert(!relay_port.installed.empty());
   assert(child_port.installed.back().lmk == relay_port.installed.back().lmk);

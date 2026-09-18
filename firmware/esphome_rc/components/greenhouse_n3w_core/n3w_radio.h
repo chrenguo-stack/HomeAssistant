@@ -155,6 +155,7 @@ class LocalPathController {
   RadioError note_authenticated_relay_ready(bool ready);
   RadioError note_relay_result(bool success);
   RadioError note_direct_recovery_probe(bool success);
+  bool direct_recovery_would_commit_on_success() const;
 
  protected:
   LocalPathPolicy policy_{};
