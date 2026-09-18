@@ -181,6 +181,7 @@ class SimpleProductComponent : public Component,
   bool check_pending_unicast_timeout_();
   void handle_pending_unicast_timeout_(uint64_t now_ms);
   void clear_tx_completion_ring_();
+  void request_safe_reboot_(const char *reason);
   void advance_pairing_();
   void advance_recovery_();
   bool claim_relay_radio_();
@@ -243,6 +244,7 @@ class SimpleProductComponent : public Component,
   bool runtime_ready_{false};
   bool radio_attempted_{false};
   bool runtime_start_grace_started_{false};
+  bool safe_reboot_requested_{false};
   uint64_t next_pairing_attempt_ms_{0};
   uint64_t next_recovery_probe_ms_{0};
   uint64_t direct_probe_deadline_ms_{0};
