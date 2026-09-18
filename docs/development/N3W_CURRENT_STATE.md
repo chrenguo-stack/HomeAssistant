@@ -11,9 +11,9 @@ Fresh exact repository/runtime/physical evidence takes precedence if later evide
 REPOSITORY=chrenguo-stack/HomeAssistant
 PRIMARY_TASK=N3W_MULTI_NODE_RELAY_AND_RUNTIME_FAILOVER_ACCEPTANCE
 
-ALIGNMENT_BASE_MAIN=f357db25390ffd097e9b8608293870772f9cb16c
-CURRENT_REPOSITORY_MAIN=f357db25390ffd097e9b8608293870772f9cb16c
-CURRENT_REPOSITORY_TREE=3fae2b22b5537e0229b0f7eeacf9f0f3b3aa9a64
+ALIGNMENT_BASE_MAIN=e2390faf2452730264c19687bf4022df974f04bd
+REPOSITORY_MAIN_AT_ARTIFACT_GATE=e2390faf2452730264c19687bf4022df974f04bd
+REPOSITORY_MAIN_TREE_AT_ARTIFACT_GATE=94566c80256db64e8cf4b0cbece9bfd0f1acc417
 
 PR428_SOURCE_HEAD=6cae8ea1a75096aab0e625ae56828d13931f7c57
 PR428_SOURCE_TREE=3fae2b22b5537e0229b0f7eeacf9f0f3b3aa9a64
@@ -23,7 +23,7 @@ FROZEN_DEPLOYED_PRODUCT_SOURCE_HEAD=096528fbf61948d6c69197f1c8994ce8e7d672f4
 FROZEN_DEPLOYED_PRODUCT_SOURCE_TREE=6cfa25f5168fc720590f186871c038e3d4a5307f
 ```
 
-Repository `main` now contains the merged PR #428 KF-096 source repair. Board B has not been updated in this gate and still runs the frozen PR #425 artifact, so repository source authority and deployed physical source authority must remain separate until an exact PR #428 artifact is built, bound, explicitly authorized, and deployed.
+Repository `main` contains the merged PR #428 KF-096 source repair plus later documentation-only alignment. An exact PR #428 artifact is now built and bound, but Board B has not been updated and still runs the frozen PR #425 artifact. Repository source, frozen candidate artifact, and deployed physical source remain separate authorities until an explicitly authorized deployment proves otherwise.
 
 ## Recent integrated route
 
@@ -202,6 +202,15 @@ PR428_POSTMERGE_PUBLIC_REPOSITORY_SAFETY_RUN=35308124872
 PR428_POSTMERGE_GREENHOUSE_MANAGER_CI=PASS
 PR428_POSTMERGE_GREENHOUSE_MANAGER_RUN=35308124851
 
+PR428_EXACT_ARTIFACT_BUILD=PASS
+PR428_EXACT_ARTIFACT_BINDING=PASS
+PR428_ARTIFACT_RUN_ID=35309484471
+PR428_ARTIFACT_ID=10533235759
+PR428_ARTIFACT_NAME=n3w-pr428-boardb-exact-source
+PR428_APPLICATION_SHA256=b3e2311818d539c2abf98e4fa9ff431069b414da6f9993f350e4a7c427929f3a
+PR428_OTADATA_SHA256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
+PR428_ARTIFACT_ZIP_SHA256=ce5f2de1a152bceb746b22b1aaca7364374ed9f91656230359fed4079776a55e
+
 PR428_PHYSICAL_DEPLOYMENT=NOT_EXECUTED
 PR428_PHYSICAL_VALIDATION=NOT_EXECUTED
 KF096_STATUS=OPEN
@@ -210,6 +219,40 @@ KF096_STATUS=OPEN
 The merged repair keeps Relay telemetry in ordered bounded buffering during full Direct verification / Relay restore, uses single-flight ESP-NOW unicast completion ordering, probes the remembered AP BSSID before opening a full Direct verification window, applies 60/120/240/480 s recovery backoff while Relay remains healthy, restores and verifies the concrete Relay channel after presence scanning, and keeps the diagnostic current-channel oracle tied to real Wi-Fi readback rather than logical working-channel state.
 
 This source/CI result does not close KF-096. The deployed Board B remains on PR #425, the historical post-fix `ESP_ERR_ESPNOW_CHAN` elimination still lacks a fresh physical low-level oracle, and Relay -> Direct failback has still not been physically executed on PR #428.
+
+## PR #428 exact artifact binding
+
+```text
+BUILD_BRANCH=build/n3w-pr428-boardb-artifact-20260918
+WORKFLOW_SOURCE_COMMIT=ec256e8b219942d61ecf583ae558e9aef31b0482
+ARTIFACT_RUN_ID=35309484471
+ARTIFACT_ID=10533235759
+ARTIFACT_NAME=n3w-pr428-boardb-exact-source
+ARTIFACT_EXPIRES_AT=2026-09-25T05:09:29Z
+
+SOURCE_HEAD=f357db25390ffd097e9b8608293870772f9cb16c
+SOURCE_TREE=3fae2b22b5537e0229b0f7eeacf9f0f3b3aa9a64
+ESPHOME_VERSION=2026.4.3
+ESP_IDF=5.5.4
+
+APPLICATION_SIZE=1133424
+APPLICATION_SHA256=b3e2311818d539c2abf98e4fa9ff431069b414da6f9993f350e4a7c427929f3a
+
+OTADATA_SIZE=8192
+OTADATA_SHA256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
+
+ARTIFACT_ZIP_SIZE=723298
+ARTIFACT_ZIP_SHA256=ce5f2de1a152bceb746b22b1aaca7364374ed9f91656230359fed4079776a55e
+
+RAM_USED=50648/327680
+FLASH_USED=1133068/3932160
+
+PR428_EXACT_ARTIFACT_BUILD=PASS
+PR428_EXACT_ARTIFACT_BINDING=PASS
+```
+
+This artifact is not a deployed state. KF-084 remains applicable: a later rebuild from the same source must not silently replace the frozen hashes above.
+
 
 
 ## Current acceptance matrix
@@ -226,7 +269,10 @@ PR428_SOURCE_HEAD=6cae8ea1a75096aab0e625ae56828d13931f7c57
 PR428_MERGE=f357db25390ffd097e9b8608293870772f9cb16c
 PR428_PREMERGE_CI=13_OF_13_PASS
 PR428_POSTMERGE_CI=PASS
-PR428_EXACT_ARTIFACT_BUILD=NOT_EXECUTED
+PR428_EXACT_ARTIFACT_BUILD=PASS
+PR428_EXACT_ARTIFACT_BINDING=PASS
+PR428_ARTIFACT_RUN_ID=35309484471
+PR428_ARTIFACT_ID=10533235759
 PR428_BOARD_B_DEPLOYMENT=NOT_EXECUTED
 PR428_PHYSICAL_VALIDATION=NOT_EXECUTED
 
@@ -255,26 +301,27 @@ OVERALL_N3W_FAILOVER_ACCEPTANCE=NOT_CLOSED
 - Do not claim historical `ESP_ERR_ESPNOW_CHAN` eliminated unless post-fix low-level channel/error diagnostics prove it.
 - `ESP_OK` from ESP-NOW submit is not async RF delivery proof.
 - Direct recovery must not achieve failback responsiveness by silently discarding periodic Relay business telemetry.
-- Source/CI success for PR #428 must not be promoted to KF-096 physical closure; exact artifact binding and explicit physical authorization remain separate gates.
+- Source/CI and exact-artifact success for PR #428 must not be promoted to KF-096 physical closure; explicit target preflight, deployment authorization, and physical acceptance remain separate gates.
 - Consumed physical authorizations are never replayable.
 
 ## Current ONE gate
 
 ```text
-NEXT_ONE_GATE=N3W_KF096_PR428_EXACT_ARTIFACT_BUILD_AND_BINDING_20260918_01
+NEXT_ONE_GATE=N3W_KF096_PR428_BOARD_B_WRITE_TARGET_PREFLIGHT_20260918_01
 
-EXACT_SOURCE_REQUIRED=f357db25390ffd097e9b8608293870772f9cb16c
-EXACT_SOURCE_TREE=3fae2b22b5537e0229b0f7eeacf9f0f3b3aa9a64
-BUILD_ONLY=true
-BOARD_ACCESS_REQUIRED=false
-BOARD_MUTATION=false
+BOARD_ACCESS_REQUIRED=true
+PREFLIGHT_READ_ONLY=true
+FLASH_WRITE=false
 SERIAL_OPEN=false
 T1_MUTATION=false
-SOURCE_MUTATION=false
-PHYSICAL_AUTHORIZATION_REQUIRED_LATER=true
+ARTIFACT_MUTATION=false
+PHYSICAL_WRITE_AUTHORIZATION_REQUIRED_LATER=true
+
+FROZEN_APPLICATION_SHA256=b3e2311818d539c2abf98e4fa9ff431069b414da6f9993f350e4a7c427929f3a
+FROZEN_OTADATA_SHA256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
 ```
 
-First objective: build an exact PR #428 artifact from merge commit `f357db25390ffd097e9b8608293870772f9cb16c`, freeze source/tree/toolchain/artifact hashes, and prove that the artifact is bound to the merged source before requesting any Board B mutation authorization.
+First objective: after separate explicit authorization, perform a read-only Board B target preflight and bind the freshly identified target to the frozen PR #428 application/otadata hashes. No flash write is permitted in that preflight gate.
 
 ## Public/private evidence boundary
 
