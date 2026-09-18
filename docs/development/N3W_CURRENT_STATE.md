@@ -319,8 +319,13 @@ PR431_PREMERGE_CI=11_OF_11_PASS
 PR431_POSTMERGE_CI=PASS
 PR431_ASTRA_FINAL_REVIEW=PASS
 PR431_EXACT_ARTIFACT_PREPARATION=PASS
-PR431_EXACT_ARTIFACT_BUILD=NOT_EXECUTED
-PR431_EXACT_ARTIFACT_BINDING=NOT_EXECUTED
+PR431_EXACT_ARTIFACT_BUILD=PASS
+PR431_EXACT_ARTIFACT_BINDING=PASS
+PR431_ARTIFACT_RUN_ID=35339630187
+PR431_ARTIFACT_ID=10544254111
+PR431_APPLICATION_SHA256=c6cdab938a58ac1bc29f3a04a69d157acc23625ab239f8a644841de241af3730
+PR431_OTADATA_SHA256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
+PR431_ARCHIVE_SHA256=94ff922ce50314ed6f3275376eb5b1e71ae27f27f6edd16f9dd0743259dd13b6
 PR431_BOARD_B_DEPLOYMENT=NOT_EXECUTED
 PR431_PHYSICAL_VALIDATION=NOT_EXECUTED
 
@@ -349,37 +354,34 @@ OVERALL_N3W_FAILOVER_ACCEPTANCE=NOT_CLOSED
 - Do not claim historical `ESP_ERR_ESPNOW_CHAN` eliminated unless post-fix low-level channel/error diagnostics prove it.
 - `ESP_OK` from ESP-NOW submit is not async RF delivery proof.
 - Direct recovery must not achieve failback responsiveness by silently discarding periodic Relay business telemetry.
-- PR #428 artifact success is historical evidence only and must not be deployed after the PR #431 successor merge. PR #431 merge/source/CI success must not be promoted to KF-096 physical closure; a new exact PR #431 artifact, exact binding, explicit target preflight, deployment authorization, and physical acceptance remain separate later gates.
+- PR #428 artifact success is historical evidence only and must not be deployed after the PR #431 successor merge. The newly bound PR #431 artifact is the only current physical candidate authority, but artifact binding is not physical validation; explicit target preflight, deployment authorization, and physical acceptance remain separate later gates.
 - Consumed physical authorizations are never replayable.
 
 ## Current ONE gate
 
 ```text
-NEXT_ONE_GATE=N3W_KF096_PR431_EXACT_ARTIFACT_BUILD_AND_BINDING_EXECUTION_20260918_01
+NEXT_ONE_GATE=N3W_KF096_PR431_BOARD_B_WRITE_TARGET_PREFLIGHT_20260918_01
 
 PRODUCT_SOURCE_AUTHORITY=d1b5c3acbd32cca95483743ffe2edba9aa3f904f
-PRODUCT_SOURCE_TREE=3f161c1550e1df48db7cd5a5970db1b11932bef0
-TARGET_CONFIG=firmware/esphome_rc/board_lab/n3w_phase4_physical/generic.yml
-TARGET_GIT_BLOB_SHA=3d13e2197520c375b56d682b37773ef28e194421
+ARTIFACT_ID=10544254111
+ARTIFACT_RUN_ID=35339630187
+APPLICATION_SHA256=c6cdab938a58ac1bc29f3a04a69d157acc23625ab239f8a644841de241af3730
+OTADATA_SHA256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
+ARCHIVE_SHA256=94ff922ce50314ed6f3275376eb5b1e71ae27f27f6edd16f9dd0743259dd13b6
 
-PREPARATION_AUTHORITY=
-docs/development/N3W_KF096_PR431_EXACT_ARTIFACT_BUILD_AND_BINDING_PREPARATION_20260918.md
+BINDING_AUTHORITY=
+docs/development/N3W_KF096_PR431_EXACT_ARTIFACT_BUILD_AND_BINDING_20260918.md
 
-WORKFLOW_TEMPLATE_SHA256=
-5c5313bb627d50ca8337ebea310c588fefc3b32c5eedd08f99d09fa03b6f6bfc
-
-ARTIFACT_BUILD_AUTHORIZATION_REQUIRED=true
-ARTIFACT_BUILD=NOT_EXECUTED
-ARTIFACT_BINDING=NOT_EXECUTED
-
-BOARD_ACCESS_REQUIRED=false
+BOARD_ACCESS_REQUIRED=true
+PREFLIGHT_READ_ONLY=true
 BOARD_ACCESS=false
 SERIAL_OPEN=false
 FLASH_WRITE=false
 T1_MUTATION=false
+PHYSICAL_WRITE_AUTHORIZATION_REQUIRED_LATER=true
 ```
 
-Preparation is complete. The next gate may create the reserved build-only workflow branch and execute the exact-source artifact build only after separate explicit authorization. It must fail closed on source/tree/target/toolchain/template mismatch and must not access Board B, serial, Flash, or T1.
+The next gate is a separately authorized read-only Board B target preflight. It must freshly bind the intended silicon/flash/security state and the exact artifact hashes before any write. This artifact execution gate does not authorize Board B access.
 
 ## Public/private evidence boundary
 

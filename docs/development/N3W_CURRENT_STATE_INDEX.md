@@ -1,7 +1,7 @@
 # N3-W Current State Index
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
-Current progress alignment: `docs/development/N3W_KF096_PR431_EXACT_ARTIFACT_BUILD_AND_BINDING_PREPARATION_20260918.md`  
+Current progress alignment: `docs/development/N3W_KF096_PR431_EXACT_ARTIFACT_BUILD_AND_BINDING_20260918.md`  
 Previous physical alignment: `docs/development/N3W_PR425_PHYSICAL_VALIDATION_AND_PROBE_BLACKOUT_ALIGNMENT_20260918.md`  
 Current merged source repair: PR #431 / `d1b5c3acbd32cca95483743ffe2edba9aa3f904f`  
 Final reviewed PR #431 HEAD: `137303c7b08fff36920d05e77c2f1bcc20b38d1f`  
@@ -69,8 +69,13 @@ PR431_PREMERGE_CI=11_OF_11_PASS
 PR431_POSTMERGE_CI=PASS
 PR431_ASTRA_FINAL_REVIEW=PASS
 PR431_EXACT_ARTIFACT_PREPARATION=PASS
-PR431_EXACT_ARTIFACT_BUILD=NOT_EXECUTED
-PR431_EXACT_ARTIFACT_BINDING=NOT_EXECUTED
+PR431_EXACT_ARTIFACT_BUILD=PASS
+PR431_EXACT_ARTIFACT_BINDING=PASS
+PR431_ARTIFACT_RUN_ID=35339630187
+PR431_ARTIFACT_ID=10544254111
+PR431_APPLICATION_SHA256=c6cdab938a58ac1bc29f3a04a69d157acc23625ab239f8a644841de241af3730
+PR431_OTADATA_SHA256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
+PR431_ARCHIVE_SHA256=94ff922ce50314ed6f3275376eb5b1e71ae27f27f6edd16f9dd0743259dd13b6
 PR431_BOARD_B_DEPLOYMENT=NOT_EXECUTED
 PR431_PHYSICAL_VALIDATION=NOT_EXECUTED
 
@@ -87,25 +92,25 @@ KF095=GUARDED
 KF096=OPEN
 ```
 
-KF-096 remains OPEN. PR #431 is merged and its final source review plus pre/post-merge CI are PASS, but no PR #431 exact artifact has yet been built/bound or deployed. The older PR #428 artifact is historical/non-deployable. Board B still runs PR #425. Relay -> Direct, continuity, timeout/reboot behavior, and the post-fix low-level current/peer-channel oracle remain pending physical evidence.
+KF-096 remains OPEN. PR #431 is merged and its exact artifact is now built and hash-bound, but it has not been deployed or physically validated. The older PR #428 artifact is historical/non-deployable. Board B still runs PR #425. Relay -> Direct, continuity, timeout/reboot behavior, scan impact, FIFO boundaries, and the post-fix low-level current/peer-channel oracle remain pending physical evidence.
 
 ## Current ONE gate
 
 ```text
-NEXT_ONE_GATE=N3W_KF096_PR431_EXACT_ARTIFACT_BUILD_AND_BINDING_EXECUTION_20260918_01
+NEXT_ONE_GATE=N3W_KF096_PR431_BOARD_B_WRITE_TARGET_PREFLIGHT_20260918_01
 PRODUCT_SOURCE_AUTHORITY=d1b5c3acbd32cca95483743ffe2edba9aa3f904f
-PRODUCT_SOURCE_TREE=3f161c1550e1df48db7cd5a5970db1b11932bef0
-TARGET_CONFIG=firmware/esphome_rc/board_lab/n3w_phase4_physical/generic.yml
-TARGET_GIT_BLOB_SHA=3d13e2197520c375b56d682b37773ef28e194421
-WORKFLOW_TEMPLATE_SHA256=5c5313bb627d50ca8337ebea310c588fefc3b32c5eedd08f99d09fa03b6f6bfc
-ARTIFACT_BUILD_AUTHORIZATION_REQUIRED=true
-ARTIFACT_BUILD=NOT_EXECUTED
-ARTIFACT_BINDING=NOT_EXECUTED
-BOARD_ACCESS_REQUIRED=false
+ARTIFACT_ID=10544254111
+ARTIFACT_RUN_ID=35339630187
+APPLICATION_SHA256=c6cdab938a58ac1bc29f3a04a69d157acc23625ab239f8a644841de241af3730
+OTADATA_SHA256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
+ARCHIVE_SHA256=94ff922ce50314ed6f3275376eb5b1e71ae27f27f6edd16f9dd0743259dd13b6
+BOARD_ACCESS_REQUIRED=true
+PREFLIGHT_READ_ONLY=true
 BOARD_ACCESS=false
 SERIAL_OPEN=false
 FLASH_WRITE=false
 T1_MUTATION=false
+PHYSICAL_WRITE_AUTHORIZATION_REQUIRED_LATER=true
 ```
 
-Preparation is complete. A later explicit authorization is required before creating the build-only trigger branch or producing a PR #431 artifact. No physical access is part of that execution gate.
+The next gate is a separately authorized read-only Board B write-target preflight. It must bind the intended board identity/security/flash state to the frozen PR #431 artifact before any write.
