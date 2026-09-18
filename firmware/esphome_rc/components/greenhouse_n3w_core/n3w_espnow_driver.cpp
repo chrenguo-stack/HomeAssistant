@@ -66,7 +66,7 @@ DriverError EspNowDriver::start_wifi_(bool start_standalone_wifi) {
   if (esp_wifi_set_storage(WIFI_STORAGE_RAM) != ESP_OK ||
       esp_wifi_set_mode(WIFI_MODE_STA) != ESP_OK ||
       esp_wifi_start() != ESP_OK) {
-    stop_owned_wifi_();
+    teardown_confirmed_ = stop_owned_wifi_();
     return DriverError::WIFI_START_FAILED;
   }
   wifi_started_by_driver_ = true;
