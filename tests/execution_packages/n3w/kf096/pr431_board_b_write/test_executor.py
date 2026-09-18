@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[6]
+ROOT = Path(__file__).resolve().parents[5]
 MODULE_PATH = (
     ROOT
     / "tools/execution_packages/n3w/kf096/pr431_board_b_write/executor.py"
