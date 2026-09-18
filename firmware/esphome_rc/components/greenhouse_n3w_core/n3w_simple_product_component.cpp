@@ -1240,16 +1240,20 @@ bool SimpleProductComponent::send_encrypted_peer(
     const MacAddress &peer_mac,
     const uint8_t *data,
     std::size_t size) {
+  const uint64_t submit_ms = now_ms();
   const DriverError result =
       radio_.send(peer_mac, data, size, diagnostics_.enabled());
   const bool success = result == DriverError::NONE;
+  if (success) {
+    pending_unicast_deadline_.on_submit(submit_ms);
+  }
   diagnostics_.note_unicast_submit(
       success,
       static_cast<uint8_t>(result),
       radio_.last_unicast_send_error_raw(),
       radio_.last_unicast_current_channel(),
       radio_.last_unicast_peer_channel(),
-      now_ms());
+      submit_ms);
   return success;
 }
 
