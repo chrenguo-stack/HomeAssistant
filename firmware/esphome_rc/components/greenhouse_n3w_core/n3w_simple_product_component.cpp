@@ -637,15 +637,13 @@ void SimpleProductComponent::advance_recovery_() {
 
   if (decision.action ==
       DirectRecoveryAction::REQUEST_CONCRETE_DIRECT_RESTORE) {
-    const SimpleProductError result =
-        runtime_.note_direct_recovery_probe(true);
-    const bool concrete_restored =
-        result == SimpleProductError::NONE &&
-        runtime_.path_state() == LocalPathState::DIRECT;
+    const DirectRecoveryCommitResult commit =
+        runtime_.commit_direct_recovery_before(
+            decision.absolute_deadline_ms);
     const DirectRecoveryDecision final_decision =
         direct_recovery_attempt_.on_concrete_direct_restore(
-            concrete_restored, now);
-    if (concrete_restored &&
+            commit.committed, commit.completed_at_ms);
+    if (commit.committed &&
         final_decision.action == DirectRecoveryAction::COMMIT_DIRECT) {
       radio_ownership_ = RadioOwnership::DIRECT_WIFI;
       recovery_probe_backoff_ms_ = kRecoveryProbeIntervalMs;
