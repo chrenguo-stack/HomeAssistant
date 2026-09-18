@@ -893,22 +893,24 @@ void SimpleProductComponent::advance_relay_restore_() {
   const uint64_t now = now_ms();
   if (now < next_relay_restore_attempt_ms_) return;
 
-  // The timeout path intentionally tears down an ESP-NOW session while a
-  // callback may already be executing on the Wi-Fi task. Do not start the new
-  // session until every callback that captured the old driver has returned.
-  // Purge the completion ring again after this quiesce, not only at teardown,
-  // so a late old completion cannot be consumed as evidence for the new path.
-  if (!radio_.callbacks_idle()) {
-    if (relay_restore_budget_.exhausted(now)) {
-      request_safe_reboot_("ESP-NOW callback quiesce exceeded Relay restore budget");
-      return;
-    }
+  // A Relay restore may follow a clean Direct probe, or an abnormal teardown.
+  // The abnormal case is never allowed to poll callbacks forever or re-use an
+  // unconfirmed old event source.
+  const CallbackQuiesceAction quiesce = callback_quiesce_action(
+      radio_.callbacks_idle(),
+      radio_.teardown_confirmed(),
+      relay_restore_budget_,
+      now);
+  if (quiesce == CallbackQuiesceAction::WAIT) {
     next_relay_restore_attempt_ms_ =
         now + kPendingUnicastDrainRetryMs;
     return;
   }
-  if (!radio_.teardown_confirmed()) {
-    request_safe_reboot_("ESP-NOW old event source stop could not be confirmed");
+  if (quiesce == CallbackQuiesceAction::REBOOT) {
+    request_safe_reboot_(
+        radio_.teardown_confirmed()
+            ? "ESP-NOW callback quiesce exceeded Relay restore budget"
+            : "ESP-NOW old event source stop could not be confirmed");
     return;
   }
   clear_tx_completion_ring_();
