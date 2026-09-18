@@ -162,7 +162,7 @@ class EspNowDriver {
 #endif
 
   std::atomic<EspNowEventSink *> sink_{nullptr};
-  std::atomic<uint16_t> callbacks_inflight_{0};
+  static std::atomic<uint16_t> callbacks_inflight_;
   bool initialized_{false};
   int32_t last_channel_error_raw_{0};
   uint8_t last_channel_observed_{0};
