@@ -20,6 +20,8 @@ static const char *const TAG = "n3w_espnow_driver";
 constexpr uint8_t kDiagnosticLogLimit = 8;
 }
 
+std::atomic<uint16_t> EspNowDriver::callbacks_inflight_{0};
+
 #ifdef USE_ESP32
 std::atomic<EspNowDriver *> EspNowDriver::active_{nullptr};
 #endif
@@ -495,16 +497,15 @@ void EspNowDriver::recv_cb_(
     return;
   }
 
+  callbacks_inflight_.fetch_add(1U, std::memory_order_acq_rel);
   EspNowDriver *driver = active_.load(std::memory_order_acquire);
-  if (driver == nullptr) return;
-  driver->callbacks_inflight_.fetch_add(1U, std::memory_order_acq_rel);
-  if (active_.load(std::memory_order_acquire) != driver) {
-    driver->callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
+  if (driver == nullptr) {
+    callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
     return;
   }
   EspNowEventSink *sink = driver->sink_.load(std::memory_order_acquire);
   if (sink == nullptr) {
-    driver->callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
+    callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
     return;
   }
 
@@ -524,7 +525,7 @@ void EspNowDriver::recv_cb_(
   }
   sink->on_espnow_receive_with_metadata(
       source, data, static_cast<std::size_t>(data_len), metadata);
-  driver->callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
+  callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
 }
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
@@ -533,16 +534,15 @@ void EspNowDriver::send_cb_(
     esp_now_send_status_t status) {
   if (info == nullptr || info->des_addr == nullptr) return;
 
+  callbacks_inflight_.fetch_add(1U, std::memory_order_acq_rel);
   EspNowDriver *driver = active_.load(std::memory_order_acquire);
-  if (driver == nullptr) return;
-  driver->callbacks_inflight_.fetch_add(1U, std::memory_order_acq_rel);
-  if (active_.load(std::memory_order_acquire) != driver) {
-    driver->callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
+  if (driver == nullptr) {
+    callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
     return;
   }
   EspNowEventSink *sink = driver->sink_.load(std::memory_order_acquire);
   if (sink == nullptr) {
-    driver->callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
+    callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
     return;
   }
 
@@ -565,7 +565,7 @@ void EspNowDriver::send_cb_(
   if (destination != kEspNowBroadcastMac) {
     driver->complete_unicast_send_();
   }
-  driver->callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
+  callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
 }
 #else
 void EspNowDriver::send_cb_(
@@ -573,16 +573,15 @@ void EspNowDriver::send_cb_(
     esp_now_send_status_t status) {
   if (mac_addr == nullptr) return;
 
+  callbacks_inflight_.fetch_add(1U, std::memory_order_acq_rel);
   EspNowDriver *driver = active_.load(std::memory_order_acquire);
-  if (driver == nullptr) return;
-  driver->callbacks_inflight_.fetch_add(1U, std::memory_order_acq_rel);
-  if (active_.load(std::memory_order_acquire) != driver) {
-    driver->callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
+  if (driver == nullptr) {
+    callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
     return;
   }
   EspNowEventSink *sink = driver->sink_.load(std::memory_order_acquire);
   if (sink == nullptr) {
-    driver->callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
+    callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
     return;
   }
 
@@ -605,7 +604,7 @@ void EspNowDriver::send_cb_(
   if (destination != kEspNowBroadcastMac) {
     driver->complete_unicast_send_();
   }
-  driver->callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
+  callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
 }
 #endif
 #endif
