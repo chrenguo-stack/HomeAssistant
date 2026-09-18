@@ -130,7 +130,7 @@ class RelayRestoreBudget {
 
 struct EspNowTeardownDecision {
   bool confirmed{false};
-  bool keep_initialized{false};
+  bool keep_espnow_started{false};
 };
 
 inline EspNowTeardownDecision assess_espnow_teardown(
