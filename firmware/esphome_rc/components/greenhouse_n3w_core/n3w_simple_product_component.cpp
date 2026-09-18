@@ -86,7 +86,20 @@ const char *telemetry_submit_disposition_name(
 }
 
 SimpleProductComponent::SimpleProductComponent()
-    : runtime_(this, this, this),
+    : direct_ap_hint_policy_(DirectApHintConfig{
+          RecoveryExitPolicy::kDirectApHintMaxAgeMs,
+          RecoveryExitPolicy::kDirectApHintMissLimit,
+          kDirectApHintScanErrorLimit,
+      }),
+      direct_recovery_attempt_(DirectRecoveryConfig{
+          kDirectRecoveryWifiBudgetMs,
+          kDirectRecoveryMqttBudgetMs,
+          kDirectRecoveryConfirmBudgetMs,
+          kNoRelayDirectRecoveryAbsoluteMs,
+          kHealthyRelayDirectRecoveryAbsoluteMs,
+          kDirectRecoveryConfirmSuccesses,
+      }),
+      runtime_(this, this, this),
       pairing_client_(
           this,
           this,
@@ -505,9 +518,6 @@ void SimpleProductComponent::advance_recovery_() {
   if (radio_ownership_ == RadioOwnership::RELAY_ESPNOW) {
     if (runtime_.challenge_pending()) return;
 
-    // Relay health is the primary continuity signal. If Relay itself has
-    // degraded into Discovery, do not leave Direct recovery buried behind a
-    // long healthy-Relay backoff.
     if (runtime_.path_state() != LocalPathState::RELAY_ACTIVE &&
         recovery_probe_backoff_ms_ > kRecoveryProbeIntervalMs) {
       recovery_probe_backoff_ms_ = kRecoveryProbeIntervalMs;
@@ -526,10 +536,6 @@ void SimpleProductComponent::advance_recovery_() {
       return;
     }
 
-    // Do not tear down or scan away from Relay while an accepted encrypted
-    // unicast still owns a future ESP-NOW completion callback. The driver
-    // decrements this count only after the completion has been copied into the
-    // component ring, so a zero count is a concrete transition barrier.
     if (radio_.pending_unicast_sends() != 0U) {
       next_recovery_probe_ms_ = now + kPendingUnicastDrainRetryMs;
       return;
@@ -543,55 +549,98 @@ void SimpleProductComponent::advance_recovery_() {
         advance_relay_restore_();
         return;
       }
+
+      DirectApScanResult scan_result = DirectApScanResult::ERROR;
+      if (presence == DirectPresenceProbeResult::FOUND) {
+        scan_result = DirectApScanResult::FOUND;
+      } else if (presence == DirectPresenceProbeResult::NOT_FOUND) {
+        scan_result = DirectApScanResult::NOT_FOUND;
+      }
+      const DirectApHintDecision hint_decision =
+          direct_ap_hint_policy_.assess(now, scan_result);
+
       if (presence == DirectPresenceProbeResult::FOUND) {
         direct_ap_hint_lease_.note_found(now);
         (void) begin_direct_probe_();
         return;
       }
-      if (presence == DirectPresenceProbeResult::NOT_FOUND &&
-          direct_ap_hint_lease_.note_not_found(now)) {
+
+      if (presence == DirectPresenceProbeResult::NOT_FOUND) {
+        (void) direct_ap_hint_lease_.note_not_found(now);
+      }
+
+      if (hint_decision.allow_configured_full_direct) {
         ESP_LOGW(
             TAG,
-            "N3-W Direct AP hint expired after misses=%u locked=%s; allowing configured Wi-Fi recovery",
-            static_cast<unsigned>(direct_ap_hint_lease_.misses()),
-            direct_ap_hint_lease_.explicitly_locked() ? "true" : "false");
+            "N3-W Direct AP hint released misses=%u scan_errors=%u locked=%s",
+            static_cast<unsigned>(hint_decision.misses),
+            static_cast<unsigned>(hint_decision.scan_errors),
+            hint_decision.explicit_bssid_lock_preserved ? "true" : "false");
         invalidate_direct_ap_hint_();
         if (begin_direct_probe_()) {
           return;
         }
       }
+
       schedule_recovery_probe_(true);
       return;
     }
 
-    // Nodes that boot outside Wi-Fi coverage have no same-boot BSSID hint.
-    // Preserve eventual failback by allowing a full verification, but the
-    // failure path below backs subsequent attempts off instead of repeating a
-    // 15 s blackout every fixed minute.
     (void) begin_direct_probe_();
     return;
   }
-  if (radio_ownership_ != RadioOwnership::DIRECT_PROBE) return;
 
-  if (now >= direct_probe_deadline_ms_) {
-    (void) runtime_.note_direct_recovery_probe(false);
+  if (radio_ownership_ != RadioOwnership::DIRECT_PROBE) return;
+  if (now < next_recovery_probe_ms_) return;
+  next_recovery_probe_ms_ = now + kRecoveryProbeMs;
+
+  const bool wifi_ready = wifi_connected();
+  const bool mqtt_ready = wifi_ready && mqtt_connected();
+  bool direct_check_success = false;
+  if (wifi_ready && mqtt_ready) {
+    direct_check_success = prepare_direct_probe_radio_();
+  }
+
+  const DirectRecoveryDecision decision =
+      direct_recovery_attempt_.observe(DirectRecoveryObservation{
+          now,
+          wifi_ready,
+          mqtt_ready,
+          direct_check_success,
+      });
+
+  if (decision.action ==
+      DirectRecoveryAction::REQUEST_CONCRETE_DIRECT_RESTORE) {
+    const SimpleProductError result =
+        runtime_.note_direct_recovery_probe(true);
+    const bool concrete_restored =
+        result == SimpleProductError::NONE &&
+        runtime_.path_state() == LocalPathState::DIRECT;
+    const DirectRecoveryDecision final_decision =
+        direct_recovery_attempt_.on_concrete_direct_restore(
+            concrete_restored, now);
+    if (concrete_restored &&
+        final_decision.action == DirectRecoveryAction::COMMIT_DIRECT) {
+      radio_ownership_ = RadioOwnership::DIRECT_WIFI;
+      recovery_probe_backoff_ms_ = kRecoveryProbeIntervalMs;
+      refresh_direct_ap_hint_();
+      ESP_LOGI(TAG, "N3-W Direct recovery committed; Wi-Fi owns radio");
+      return;
+    }
     begin_relay_restore_();
     advance_relay_restore_();
     return;
   }
-  if (now < next_recovery_probe_ms_) return;
-  next_recovery_probe_ms_ = now + kRecoveryProbeMs;
-  bool direct_ready = wifi_connected() && mqtt_connected();
-  if (direct_ready) direct_ready = prepare_direct_probe_radio_();
-  const SimpleProductError result =
-      runtime_.note_direct_recovery_probe(direct_ready);
-  if (result == SimpleProductError::NONE &&
-      runtime_.path_state() == LocalPathState::DIRECT) {
-    radio_ownership_ = RadioOwnership::DIRECT_WIFI;
-    direct_probe_deadline_ms_ = 0;
-    recovery_probe_backoff_ms_ = kRecoveryProbeIntervalMs;
-    refresh_direct_ap_hint_();
-    ESP_LOGI(TAG, "N3-W Direct recovery probe committed; Wi-Fi owns radio");
+
+  if (decision.phase == DirectRecoveryPhase::DIRECT_CONFIRM) {
+    (void) runtime_.note_direct_recovery_probe(direct_check_success);
+  } else {
+    (void) runtime_.note_direct_recovery_probe(false);
+  }
+
+  if (decision.terminal) {
+    begin_relay_restore_();
+    advance_relay_restore_();
   }
 }
 
@@ -645,6 +694,10 @@ bool SimpleProductComponent::begin_direct_probe_() {
 #ifdef USE_WIFI
   if (wifi::global_wifi_component == nullptr) return false;
 #endif
+  const DirectRecoveryMode mode =
+      runtime_.path_state() == LocalPathState::RELAY_ACTIVE
+          ? DirectRecoveryMode::HEALTHY_RELAY
+          : DirectRecoveryMode::NO_RELAY;
   if (!radio_.shutdown()) {
     request_safe_reboot_("ESP-NOW teardown unconfirmed before Direct probe");
     return false;
@@ -654,9 +707,13 @@ bool SimpleProductComponent::begin_direct_probe_() {
 #endif
   radio_ownership_ = RadioOwnership::DIRECT_PROBE;
   const uint64_t now = now_ms();
-  direct_probe_deadline_ms_ = now + kRecoveryProbeWindowMs;
+  (void) runtime_.note_direct_recovery_probe(false);
+  (void) direct_recovery_attempt_.begin(mode, now);
   next_recovery_probe_ms_ = now;
-  ESP_LOGI(TAG, "N3-W opened bounded full Direct verification window");
+  ESP_LOGI(
+      TAG,
+      "N3-W opened phased Direct recovery mode=%u",
+      static_cast<unsigned>(mode));
   return true;
 }
 
@@ -698,6 +755,7 @@ void SimpleProductComponent::invalidate_direct_ap_hint_() {
   direct_ap_bssid_valid_ = false;
   direct_ap_channel_ = 0;
   direct_ap_hint_lease_.clear();
+  direct_ap_hint_policy_.clear();
 }
 
 void SimpleProductComponent::refresh_direct_ap_hint_() {
@@ -717,7 +775,10 @@ void SimpleProductComponent::refresh_direct_ap_hint_() {
       [](uint8_t value) { return value != 0; });
   if (!direct_ap_bssid_valid_) return;
   direct_ap_channel_ = ap.primary;
-  direct_ap_hint_lease_.observe(now_ms(), explicit_bssid_lock_active_());
+  const bool explicitly_locked = explicit_bssid_lock_active_();
+  const uint64_t now = now_ms();
+  direct_ap_hint_lease_.observe(now, explicitly_locked);
+  direct_ap_hint_policy_.observe(now, explicitly_locked);
   (void) runtime_.update_direct_channel_hint(ap.primary);
 #endif
 }
@@ -846,7 +907,6 @@ void SimpleProductComponent::schedule_recovery_probe_(bool increase_backoff) {
 void SimpleProductComponent::begin_relay_restore_(uint32_t initial_delay_ms) {
   const uint64_t now = now_ms();
   radio_ownership_ = RadioOwnership::RELAY_RESTORE;
-  direct_probe_deadline_ms_ = 0;
   relay_restore_budget_.start(now);
   next_relay_restore_attempt_ms_ = now + initial_delay_ms;
 }
@@ -862,11 +922,13 @@ void SimpleProductComponent::begin_direct_probe_after_restore_exit_(uint64_t now
   }
 #endif
   radio_ownership_ = RadioOwnership::DIRECT_PROBE;
-  direct_probe_deadline_ms_ = now + kRecoveryProbeWindowMs;
+  (void) runtime_.note_direct_recovery_probe(false);
+  (void) direct_recovery_attempt_.begin(
+      DirectRecoveryMode::NO_RELAY, now);
   next_recovery_probe_ms_ = now;
   ESP_LOGW(
       TAG,
-      "N3-W Relay restore budget exhausted; opened bounded Direct verification from Discovery");
+      "N3-W Relay restore budget exhausted; opened phased Direct recovery from Discovery");
 }
 
 void SimpleProductComponent::exit_relay_restore_failure_(uint64_t now) {
@@ -931,7 +993,8 @@ void SimpleProductComponent::advance_relay_restore_() {
 
   if (restore_relay_radio_()) {
     relay_restore_budget_.clear();
-    schedule_recovery_probe_(true);
+    schedule_recovery_probe_(
+        runtime_.path_state() == LocalPathState::RELAY_ACTIVE);
     ESP_LOGI(TAG, "N3-W Relay radio restored after Direct verification");
     return;
   }
@@ -1061,7 +1124,6 @@ bool SimpleProductComponent::restore_relay_radio_() {
     return false;
   }
   radio_ownership_ = RadioOwnership::RELAY_ESPNOW;
-  direct_probe_deadline_ms_ = 0;
   ESP_LOGI(TAG, "N3-W restored Relay ESP-NOW channel and encrypted peer");
   return true;
 }
