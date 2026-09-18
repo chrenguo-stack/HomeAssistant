@@ -126,6 +126,7 @@ class EspNowDriver {
   }
 
   bool initialized() const { return initialized_; }
+  bool espnow_started() const { return espnow_started_; }
   uint16_t pending_unicast_sends() const {
     return pending_unicast_sends_.load(std::memory_order_acquire);
   }
@@ -166,6 +167,10 @@ class EspNowDriver {
   std::atomic<EspNowEventSink *> sink_{nullptr};
   static std::atomic<uint16_t> callbacks_inflight_;
   bool initialized_{false};
+  // Tracks whether esp_now_init() succeeded and a matching successful
+  // esp_now_deinit() is still required. This is intentionally independent of
+  // initialized_, which means the full driver setup completed.
+  bool espnow_started_{false};
   bool teardown_confirmed_{true};
   int32_t last_channel_error_raw_{0};
   uint8_t last_channel_observed_{0};
