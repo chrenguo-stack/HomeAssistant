@@ -52,6 +52,27 @@ def test_component_uses_bounded_recovery_exits() -> None:
     assert "direct_ap_hint_lease_.note_not_found(now)" in component
     assert "invalidate_direct_ap_hint_();" in component
 
+    advance_start = component.index("void SimpleProductComponent::advance_recovery_()")
+    advance_end = component.index(
+        "bool SimpleProductComponent::claim_relay_radio_()", advance_start
+    )
+    advance = component[advance_start:advance_end]
+    expiry_check = advance.index("direct_ap_hint_policy_.expired(now)")
+    invalidate = advance.index("invalidate_direct_ap_hint_()", expiry_check)
+    full_direct = advance.index("begin_direct_probe_()", invalidate)
+    scan = advance.index("probe_direct_ap_presence_()", full_direct)
+    assert expiry_check < invalidate < full_direct < scan
+
+    schedule_start = component.index(
+        "void SimpleProductComponent::schedule_recovery_probe_"
+    )
+    schedule_end = component.index(
+        "void SimpleProductComponent::begin_relay_restore_", schedule_start
+    )
+    schedule = component[schedule_start:schedule_end]
+    assert "direct_ap_hint_policy_.active()" in schedule
+    assert "direct_ap_hint_policy_.expires_at_ms()" in schedule
+
     # A missing completion is fenced by teardown and a fresh-boot boundary.
     # It must not return to begin_relay_restore_ in the same boot.
     timeout_start = component.index(
