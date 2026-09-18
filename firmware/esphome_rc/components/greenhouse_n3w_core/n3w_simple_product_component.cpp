@@ -1041,6 +1041,14 @@ bool SimpleProductComponent::check_pending_unicast_timeout_() {
   if (!pending_unicast_deadline_.timed_out(now)) {
     return false;
   }
+  // The callback runs on the Wi-Fi task. Recheck after the deadline decision
+  // so a completion racing with this loop is not unnecessarily converted into
+  // a session abort.
+  if (radio_.pending_unicast_sends() == 0U) {
+    drain_send_completions_();
+    pending_unicast_deadline_.on_drained();
+    return false;
+  }
   handle_pending_unicast_timeout_(now);
   return true;
 }
