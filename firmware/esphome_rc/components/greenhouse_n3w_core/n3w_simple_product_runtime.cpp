@@ -169,13 +169,21 @@ SimpleProductError SimpleProductRuntime::note_direct_result(bool success) {
 
 SimpleProductError SimpleProductRuntime::note_direct_recovery_probe(bool success) {
   if (!started_) return SimpleProductError::NOT_READY;
-  const LocalPathState before = path_.state();
-  const RadioError result = path_.note_direct_recovery_probe(success);
-  if (result != RadioError::NONE) return SimpleProductError::STATE_REJECTED;
-  if (before != path_.state() && path_.state() == LocalPathState::DIRECT) {
-    return restore_direct_();
+
+  // Direct is committed only after the concrete radio has already recovered.
+  // If radio recovery fails, keep the logical path in Relay/Discovery and
+  // reset the recovery hysteresis so the caller can retry or restore Relay.
+  if (success && path_.direct_recovery_would_commit_on_success()) {
+    const SimpleProductError restore_result = restore_direct_();
+    if (restore_result != SimpleProductError::NONE) {
+      (void) path_.note_direct_recovery_probe(false);
+      return restore_result;
+    }
   }
-  return SimpleProductError::NONE;
+
+  const RadioError result = path_.note_direct_recovery_probe(success);
+  return result == RadioError::NONE ? SimpleProductError::NONE
+                                    : SimpleProductError::STATE_REJECTED;
 }
 
 SimpleProductError SimpleProductRuntime::note_relay_delivery_result(
@@ -350,13 +358,15 @@ SimpleProductError SimpleProductRuntime::leave_relay_for_discovery_() {
 }
 
 SimpleProductError SimpleProductRuntime::restore_direct_() {
+  // Make the radio transition first. Do not destroy the current Relay binding
+  // until the Direct channel has been restored successfully.
+  if (!port_->set_radio_channel(direct_channel_)) {
+    return SimpleProductError::RADIO_FAILED;
+  }
   pending_challenge_.reset();
   if (active_relay_.has_value()) {
     (void) port_->remove_peer(active_relay_->mac);
     active_relay_.reset();
-  }
-  if (!port_->set_radio_channel(direct_channel_)) {
-    return SimpleProductError::RADIO_FAILED;
   }
   next_advertisement_ms_ = clock_->now_ms();
   return SimpleProductError::NONE;
@@ -421,13 +431,13 @@ SimpleProductError SimpleProductRuntime::handle_discovery_(
   bool challenge_sent = false;
   uint8_t challenge_driver_error = 0;
   int32_t challenge_raw_error = 0;
-  if (encode_result == SimpleRuntimeError::NONE) {
+  if (encode_result == SimpleRuntimeError::NONE &&
+      port_->set_radio_channel(channel)) {
+    // Discovery already owns the shared radio exclusively. Keep the target
+    // channel fixed and use the normal ESP-NOW send path rather than starting
+    // another temporary off-channel operation.
     challenge_sent =
-        port_->broadcast_control_on_channel(
-            channel,
-            encoded.data(),
-            encoded.size(),
-            policy_.challenge_timeout_ms);
+        port_->broadcast_control(encoded.data(), encoded.size());
     challenge_driver_error = port_->last_broadcast_send_error_code();
     challenge_raw_error = port_->last_broadcast_send_error_raw();
   }
@@ -449,9 +459,9 @@ SimpleProductError SimpleProductRuntime::handle_discovery_(
   pending.relay_mac = source;
   pending.challenge_nonce = challenge_nonce;
   pending.channel = channel;
-  // esp_now_switch_channel_tx() reports request submission synchronously but
-  // completes asynchronously. Reserve one operation window plus one Accept
-  // window so scan advancement cannot invalidate an in-flight Challenge.
+  // Relay owns and holds this channel while the Challenge is pending.
+  // Reserve two timeout windows for TX completion and Accept processing;
+  // maybe_advance_scan_() will not move the channel until pending is cleared.
   pending.expires_at_ms =
       clock_->now_ms() + (2ULL * policy_.challenge_timeout_ms);
   pending_challenge_ = std::move(pending);
@@ -509,6 +519,11 @@ SimpleProductError SimpleProductRuntime::handle_challenge_(
     diagnostic_sink_->on_accept_tx(accept_sent, now);
   }
   if (!accept_sent) {
+    return SimpleProductError::RADIO_FAILED;
+  }
+  // Accept verification alone is not enough to enter RelayActive. Fix and
+  // read back the concrete radio channel first, then bind the encrypted peer.
+  if (!port_->set_radio_channel(channel)) {
     return SimpleProductError::RADIO_FAILED;
   }
   const LinkKey link_key = as_link_key_(lmk);
