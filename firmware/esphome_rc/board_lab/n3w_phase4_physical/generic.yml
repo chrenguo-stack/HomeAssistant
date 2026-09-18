@@ -187,17 +187,25 @@ interval:
           const auto disposition =
               id(n3w_phase4_core).submit_telemetry_json(
                   telemetry, boot_id, current_seq);
+          // Keep the historical accepted field tied to an actual transport
+          // submission. A buffered sample is retained but has not yet been
+          // submitted to MQTT/ESP-NOW, so accepted must remain false until
+          // the queue flushes it.
           const bool accepted =
-              disposition !=
-              esphome::greenhouse_n3w_core::TelemetrySubmitDisposition::REJECTED;
+              disposition ==
+              esphome::greenhouse_n3w_core::TelemetrySubmitDisposition::SUBMITTED;
+          const bool buffered =
+              disposition ==
+              esphome::greenhouse_n3w_core::TelemetrySubmitDisposition::BUFFERED;
           const auto path_after = id(n3w_phase4_core).path_state();
           ESP_LOGI(
               "phase4_lab",
-              "PHASE4_LAB_TELEMETRY seq=%u path_before=%u path_after=%u accepted=%s disposition=%s disposition_raw=%u",
+              "PHASE4_LAB_TELEMETRY seq=%u path_before=%u path_after=%u accepted=%s buffered=%s disposition=%s disposition_raw=%u",
               static_cast<unsigned>(current_seq),
               static_cast<unsigned>(path_before),
               static_cast<unsigned>(path_after),
               accepted ? "true" : "false",
+              buffered ? "true" : "false",
               esphome::greenhouse_n3w_core::telemetry_submit_disposition_name(
                   disposition),
               static_cast<unsigned>(disposition));
