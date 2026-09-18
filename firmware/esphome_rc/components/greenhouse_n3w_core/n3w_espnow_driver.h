@@ -127,6 +127,9 @@ class EspNowDriver {
   uint16_t pending_unicast_sends() const {
     return pending_unicast_sends_.load(std::memory_order_acquire);
   }
+  bool callbacks_idle() const {
+    return callbacks_inflight_.load(std::memory_order_acquire) == 0U;
+  }
 
  protected:
 #ifdef USE_ESP32
@@ -151,14 +154,15 @@ class EspNowDriver {
       const uint8_t *mac_addr,
       esp_now_send_status_t status);
 #endif
-  static EspNowDriver *active_;
+  static std::atomic<EspNowDriver *> active_;
   bool wifi_initialized_by_driver_{false};
   bool wifi_started_by_driver_{false};
   std::atomic<uint8_t> diagnostic_receive_logs_{0};
   std::atomic<uint8_t> diagnostic_broadcast_logs_{0};
 #endif
 
-  EspNowEventSink *sink_{nullptr};
+  std::atomic<EspNowEventSink *> sink_{nullptr};
+  std::atomic<uint16_t> callbacks_inflight_{0};
   bool initialized_{false};
   int32_t last_channel_error_raw_{0};
   uint8_t last_channel_observed_{0};
