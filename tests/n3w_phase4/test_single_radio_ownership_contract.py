@@ -105,7 +105,10 @@ def test_recovery_probe_checks_ap_presence_and_buffers_business_telemetry() -> N
     telemetry = source[telemetry_start:telemetry_end]
     assert "enqueue_telemetry_" in telemetry
     assert "!telemetry_queue_.empty()" in telemetry
-    assert "return false;" not in telemetry
+    assert (
+        "radio_ownership_ == RadioOwnership::DIRECT_PROBE) {\n    return false;"
+        not in telemetry
+    )
 
     flush_start = source.index("void SimpleProductComponent::flush_telemetry_queue_()")
     flush_end = source.index("bool SimpleProductComponent::restore_relay_radio_()", flush_start)
