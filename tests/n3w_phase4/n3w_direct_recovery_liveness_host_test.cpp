@@ -1,5 +1,6 @@
 #include <cassert>
 #include <cstdint>
+#include <initializer_list>
 
 #include "n3w_direct_recovery_policy.h"
 
