@@ -9,7 +9,6 @@ struct RecoveryExitPolicy {
   static constexpr uint8_t kDirectApHintMissLimit = 2;
   static constexpr uint64_t kDirectApHintMaxAgeMs = 300000ULL;
   static constexpr uint32_t kPendingUnicastCompletionTimeoutMs = 2000U;
-  static constexpr uint32_t kPendingUnicastQuiesceMs = 250U;
   static constexpr uint8_t kRelayRestoreMaxAttempts = 10U;
   static constexpr uint32_t kRelayRestoreMaxElapsedMs = 30000U;
 };
@@ -127,5 +126,28 @@ class RelayRestoreBudget {
   uint8_t attempts_{0};
   bool active_{false};
 };
+
+
+enum class CallbackQuiesceAction : uint8_t {
+  PROCEED = 0,
+  WAIT,
+  REBOOT,
+};
+
+inline CallbackQuiesceAction callback_quiesce_action(
+    bool callbacks_idle,
+    bool teardown_confirmed,
+    const RelayRestoreBudget &budget,
+    uint64_t now_ms) {
+  if (!teardown_confirmed) {
+    return CallbackQuiesceAction::REBOOT;
+  }
+  if (callbacks_idle) {
+    return CallbackQuiesceAction::PROCEED;
+  }
+  return budget.exhausted(now_ms)
+             ? CallbackQuiesceAction::REBOOT
+             : CallbackQuiesceAction::WAIT;
+}
 
 }  // namespace esphome::greenhouse_n3w_core
