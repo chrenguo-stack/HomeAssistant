@@ -73,15 +73,21 @@ DriverError EspNowDriver::start_wifi_(bool start_standalone_wifi) {
   return DriverError::NONE;
 }
 
-void EspNowDriver::stop_owned_wifi_() {
+bool EspNowDriver::stop_owned_wifi_() {
+  bool stopped = true;
   if (wifi_started_by_driver_) {
-    (void) esp_wifi_stop();
-    wifi_started_by_driver_ = false;
+    const esp_err_t result = esp_wifi_stop();
+    const bool ok = result == ESP_OK || result == ESP_ERR_WIFI_NOT_INIT;
+    stopped = stopped && ok;
+    if (ok) wifi_started_by_driver_ = false;
   }
   if (wifi_initialized_by_driver_) {
-    (void) esp_wifi_deinit();
-    wifi_initialized_by_driver_ = false;
+    const esp_err_t result = esp_wifi_deinit();
+    const bool ok = result == ESP_OK || result == ESP_ERR_WIFI_NOT_INIT;
+    stopped = stopped && ok;
+    if (ok) wifi_initialized_by_driver_ = false;
   }
+  return stopped;
 }
 #endif
 
@@ -115,6 +121,9 @@ DriverError EspNowDriver::initialize_(
   if (sink == nullptr || std::all_of(pmk.begin(), pmk.end(), [](uint8_t b) { return b == 0; })) {
     return DriverError::INVALID_ARGUMENT;
   }
+  if (!teardown_confirmed_) {
+    return DriverError::ESPNOW_TEARDOWN_UNCONFIRMED;
+  }
   if (initialized_ || active_.load(std::memory_order_acquire) != nullptr ||
       !callbacks_idle()) {
     return DriverError::ALREADY_INITIALIZED;
@@ -124,12 +133,13 @@ DriverError EspNowDriver::initialize_(
     return wifi_error;
   }
   if (esp_now_init() != ESP_OK) {
-    stop_owned_wifi_();
+    teardown_confirmed_ = stop_owned_wifi_();
     return DriverError::ESPNOW_INIT_FAILED;
   }
   if (esp_now_set_pmk(pmk.data()) != ESP_OK) {
-    esp_now_deinit();
-    stop_owned_wifi_();
+    const bool espnow_stopped = esp_now_deinit() == ESP_OK;
+    const bool wifi_stopped = stop_owned_wifi_();
+    teardown_confirmed_ = espnow_stopped && wifi_stopped && callbacks_idle();
     return DriverError::ESPNOW_PMK_FAILED;
   }
   sink_.store(sink, std::memory_order_release);
@@ -151,16 +161,18 @@ DriverError EspNowDriver::initialize_(
     esp_now_unregister_send_cb();
     active_.store(nullptr, std::memory_order_release);
     sink_.store(nullptr, std::memory_order_release);
-    esp_now_deinit();
-    stop_owned_wifi_();
+    const bool espnow_stopped = esp_now_deinit() == ESP_OK;
+    const bool wifi_stopped = stop_owned_wifi_();
+    teardown_confirmed_ = espnow_stopped && wifi_stopped && callbacks_idle();
     return DriverError::ESPNOW_CALLBACK_FAILED;
   }
   initialized_ = true;
+  teardown_confirmed_ = true;
   return DriverError::NONE;
 }
 #endif
 
-void EspNowDriver::shutdown() {
+bool EspNowDriver::shutdown() {
 #ifdef USE_ESP32
   const uint16_t pending =
       pending_unicast_sends_.load(std::memory_order_acquire);
@@ -183,25 +195,40 @@ void EspNowDriver::shutdown() {
       std::memory_order_acquire);
   sink_.store(nullptr, std::memory_order_release);
 
+  bool espnow_stopped = true;
   if (initialized_) {
     const esp_err_t send_unregister = esp_now_unregister_send_cb();
     const esp_err_t recv_unregister = esp_now_unregister_recv_cb();
     const esp_err_t deinit = esp_now_deinit();
-    if (send_unregister != ESP_OK || recv_unregister != ESP_OK ||
-        deinit != ESP_OK) {
-      ESP_LOGW(
+    const bool send_stopped =
+        send_unregister == ESP_OK ||
+        send_unregister == ESP_ERR_ESPNOW_NOT_INIT;
+    const bool recv_stopped =
+        recv_unregister == ESP_OK ||
+        recv_unregister == ESP_ERR_ESPNOW_NOT_INIT;
+    const bool deinit_stopped = deinit == ESP_OK;
+    espnow_stopped = send_stopped && recv_stopped && deinit_stopped;
+    if (!espnow_stopped) {
+      ESP_LOGE(
           TAG,
-          "ESP-NOW shutdown teardown status send_cb=%ld recv_cb=%ld deinit=%ld",
+          "ESP-NOW shutdown could not confirm old event source stopped send_cb=%ld recv_cb=%ld deinit=%ld",
           static_cast<long>(send_unregister),
           static_cast<long>(recv_unregister),
           static_cast<long>(deinit));
     }
   }
-  stop_owned_wifi_();
+  const bool wifi_stopped = stop_owned_wifi_();
+  teardown_confirmed_ =
+      espnow_stopped && wifi_stopped && callbacks_idle();
+#else
+  teardown_confirmed_ = true;
 #endif
   sink_.store(nullptr, std::memory_order_release);
   initialized_ = false;
-  pending_unicast_sends_.store(0, std::memory_order_release);
+  if (teardown_confirmed_) {
+    pending_unicast_sends_.store(0, std::memory_order_release);
+  }
+  return teardown_confirmed_;
 }
 
 void EspNowDriver::complete_unicast_send_() {
