@@ -789,11 +789,57 @@ void SimpleProductComponent::schedule_recovery_probe_(bool increase_backoff) {
   next_recovery_probe_ms_ = now_ms() + recovery_probe_backoff_ms_;
 }
 
-void SimpleProductComponent::begin_relay_restore_() {
+void SimpleProductComponent::begin_relay_restore_(uint32_t initial_delay_ms) {
+  const uint64_t now = now_ms();
   radio_ownership_ = RadioOwnership::RELAY_RESTORE;
   direct_probe_deadline_ms_ = 0;
-  relay_restore_attempts_ = 0;
-  next_relay_restore_attempt_ms_ = now_ms();
+  relay_restore_budget_.start(now);
+  next_relay_restore_attempt_ms_ = now + initial_delay_ms;
+}
+
+void SimpleProductComponent::begin_direct_probe_after_restore_exit_(uint64_t now) {
+  radio_.shutdown();
+#ifdef USE_WIFI
+  if (wifi::global_wifi_component != nullptr) {
+    wifi::global_wifi_component->enable();
+  }
+#endif
+  radio_ownership_ = RadioOwnership::DIRECT_PROBE;
+  direct_probe_deadline_ms_ = now + kRecoveryProbeWindowMs;
+  next_recovery_probe_ms_ = now;
+  ESP_LOGW(
+      TAG,
+      "N3-W Relay restore budget exhausted; opened bounded Direct verification from Discovery");
+}
+
+void SimpleProductComponent::exit_relay_restore_failure_(uint64_t now) {
+  ++relay_restore_exhausted_count_;
+  const uint64_t elapsed =
+      now >= relay_restore_budget_.started_ms()
+          ? now - relay_restore_budget_.started_ms()
+          : 0U;
+  ESP_LOGE(
+      TAG,
+      "N3-W Relay restore budget exhausted attempts=%u elapsed_ms=%llu count=%u; abandoning stale Relay binding",
+      static_cast<unsigned>(relay_restore_budget_.attempts()),
+      static_cast<unsigned long long>(elapsed),
+      static_cast<unsigned>(relay_restore_exhausted_count_));
+
+  // End the failed ESP-NOW session first. Then discard the stale logical Relay
+  // binding and return the runtime to Discovery without claiming a usable path.
+  radio_.shutdown();
+  pending_unicast_deadline_.on_drained();
+  clear_tx_completion_ring_();
+  const SimpleProductError reset_result =
+      runtime_.reset_to_discovery_after_radio_fault();
+  if (reset_result != SimpleProductError::NONE) {
+    ESP_LOGE(
+        TAG,
+        "N3-W failed to reset logical path to Discovery after Relay restore exhaustion code=%u",
+        static_cast<unsigned>(reset_result));
+  }
+  relay_restore_budget_.clear();
+  begin_direct_probe_after_restore_exit_(now);
 }
 
 void SimpleProductComponent::advance_relay_restore_() {
@@ -802,22 +848,27 @@ void SimpleProductComponent::advance_relay_restore_() {
   if (now < next_relay_restore_attempt_ms_) return;
 
   if (restore_relay_radio_()) {
-    relay_restore_attempts_ = 0;
+    relay_restore_budget_.clear();
     schedule_recovery_probe_(true);
     ESP_LOGI(TAG, "N3-W Relay radio restored after Direct verification");
     return;
   }
 
-  if (relay_restore_attempts_ < 255U) ++relay_restore_attempts_;
+  relay_restore_budget_.note_failure();
+  if (relay_restore_budget_.exhausted(now)) {
+    exit_relay_restore_failure_(now);
+    return;
+  }
+
   const uint32_t retry_ms =
-      relay_restore_attempts_ <= kRelayRestoreFastAttempts
+      relay_restore_budget_.attempts() <= kRelayRestoreFastAttempts
           ? kRelayRestoreRetryFastMs
           : kRelayRestoreRetrySlowMs;
   next_relay_restore_attempt_ms_ = now + retry_ms;
   ESP_LOGW(
       TAG,
       "N3-W Relay restore retry deferred attempt=%u delay_ms=%u",
-      static_cast<unsigned>(relay_restore_attempts_),
+      static_cast<unsigned>(relay_restore_budget_.attempts()),
       static_cast<unsigned>(retry_ms));
 }
 
