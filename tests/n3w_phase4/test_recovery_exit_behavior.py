@@ -81,11 +81,17 @@ def test_component_uses_bounded_recovery_exits() -> None:
     assert "ESPNOW_TEARDOWN_UNCONFIRMED" in driver_h
     assert "bool shutdown();" in driver_h
     assert "teardown_confirmed_" in driver_h
+    assert "bool espnow_started_{false};" in driver_h
     init_start = driver.index("DriverError EspNowDriver::initialize_(")
     init_end = driver.index("bool EspNowDriver::shutdown()", init_start)
     init = driver[init_start:init_end]
     assert "!teardown_confirmed_" in init
     assert "DriverError::ESPNOW_TEARDOWN_UNCONFIRMED" in init
+    assert "initialized_ || espnow_started_" in init
+    espnow_init = init.index("esp_now_init()")
+    started = init.index("espnow_started_ = true", espnow_init)
+    pmk = init.index("esp_now_set_pmk", started)
+    assert espnow_init < started < pmk
 
     shutdown_start = driver.index("bool EspNowDriver::shutdown()")
     shutdown_end = driver.index(
@@ -94,11 +100,31 @@ def test_component_uses_bounded_recovery_exits() -> None:
     shutdown_body = driver[shutdown_start:shutdown_end]
     detach = shutdown_body.index("active_.compare_exchange_strong")
     unregister = shutdown_body.index("esp_now_unregister_send_cb", detach)
-    deinit = shutdown_body.index("esp_now_deinit", unregister)
-    confirm = shutdown_body.index("teardown_confirmed_", deinit)
+    sdk_started_gate = shutdown_body.index("if (espnow_started_)", unregister)
+    deinit = shutdown_body.index("esp_now_deinit", sdk_started_gate)
+    clear_started = shutdown_body.index("espnow_started_ = false", deinit)
+    confirm = shutdown_body.index("teardown_confirmed_", clear_started)
     pending_clear = shutdown_body.index("pending_unicast_sends_.store(0", confirm)
-    assert detach < unregister < deinit < confirm < pending_clear
+    assert detach < unregister < sdk_started_gate < deinit < clear_started < confirm < pending_clear
     assert "if (teardown_confirmed_)" in shutdown_body
+
+
+    # Startup failures with an unconfirmed teardown must request the existing
+    # fail-safe reboot immediately instead of falling back to the 1 s retry loop.
+    start_begin = component.index(
+        "bool SimpleProductComponent::start_runtime_if_ready_()"
+    )
+    start_end = component.index(
+        "void SimpleProductComponent::advance_pairing_", start_begin
+    )
+    startup = component[start_begin:start_end]
+    init_failure = startup.index("ESP-NOW initialization failed error=%u teardown_confirmed=%s")
+    teardown_check = startup.index("!radio_.teardown_confirmed()", init_failure)
+    reboot_startup = startup.index("request_safe_reboot_(", teardown_check)
+    return_after_reboot = startup.index("return false;", reboot_startup)
+    assert init_failure < teardown_check < reboot_startup < return_after_reboot
+    assert "ESP-NOW broadcast-peer failure left teardown unconfirmed" in startup
+    assert "N3-W runtime start failure left ESP-NOW teardown unconfirmed" in startup
 
     # Callback entry is counted before active-session lookup. This protects
     # callbacks already entering while teardown detaches the global target.
