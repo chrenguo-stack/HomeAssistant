@@ -21,7 +21,7 @@ constexpr uint8_t kDiagnosticLogLimit = 8;
 }
 
 #ifdef USE_ESP32
-EspNowDriver *EspNowDriver::active_ = nullptr;
+std::atomic<EspNowDriver *> EspNowDriver::active_{nullptr};
 #endif
 
 #ifdef USE_ESP32
@@ -113,7 +113,8 @@ DriverError EspNowDriver::initialize_(
   if (sink == nullptr || std::all_of(pmk.begin(), pmk.end(), [](uint8_t b) { return b == 0; })) {
     return DriverError::INVALID_ARGUMENT;
   }
-  if (initialized_ || active_ != nullptr) {
+  if (initialized_ || active_.load(std::memory_order_acquire) != nullptr ||
+      !callbacks_idle()) {
     return DriverError::ALREADY_INITIALIZED;
   }
   const DriverError wifi_error = start_wifi_(start_standalone_wifi);
@@ -129,8 +130,8 @@ DriverError EspNowDriver::initialize_(
     stop_owned_wifi_();
     return DriverError::ESPNOW_PMK_FAILED;
   }
-  active_ = this;
-  sink_ = sink;
+  sink_.store(sink, std::memory_order_release);
+  active_.store(this, std::memory_order_release);
   last_channel_error_raw_ = 0;
   last_channel_observed_ = 0;
   last_broadcast_send_error_ = DriverError::NONE;
@@ -146,8 +147,8 @@ DriverError EspNowDriver::initialize_(
       esp_now_register_send_cb(&EspNowDriver::send_cb_) != ESP_OK) {
     esp_now_unregister_recv_cb();
     esp_now_unregister_send_cb();
-    active_ = nullptr;
-    sink_ = nullptr;
+    active_.store(nullptr, std::memory_order_release);
+    sink_.store(nullptr, std::memory_order_release);
     esp_now_deinit();
     stop_owned_wifi_();
     return DriverError::ESPNOW_CALLBACK_FAILED;
@@ -168,14 +169,18 @@ void EspNowDriver::shutdown() {
         static_cast<unsigned>(pending));
   }
 
-  // Detach the callback target before unregister/deinit so any callback that
-  // begins after teardown starts is ignored instead of being attributed to a
-  // later ESP-NOW session. The pending reservation is cleared only after the
-  // old callback source has been unregistered and ESP-NOW deinitialized.
-  if (active_ == this) {
-    active_ = nullptr;
-  }
-  sink_ = nullptr;
+  // Detach the global callback target first. Any callback that begins after
+  // this store observes no active driver. A callback that already captured
+  // this driver is tracked by callbacks_inflight_ and must drain before a new
+  // ESP-NOW session may initialize.
+  EspNowDriver *expected = this;
+  (void) active_.compare_exchange_strong(
+      expected,
+      nullptr,
+      std::memory_order_acq_rel,
+      std::memory_order_acquire);
+  sink_.store(nullptr, std::memory_order_release);
+
   if (initialized_) {
     const esp_err_t send_unregister = esp_now_unregister_send_cb();
     const esp_err_t recv_unregister = esp_now_unregister_recv_cb();
@@ -192,7 +197,7 @@ void EspNowDriver::shutdown() {
   }
   stop_owned_wifi_();
 #endif
-  sink_ = nullptr;
+  sink_.store(nullptr, std::memory_order_release);
   initialized_ = false;
   pending_unicast_sends_.store(0, std::memory_order_release);
 }
