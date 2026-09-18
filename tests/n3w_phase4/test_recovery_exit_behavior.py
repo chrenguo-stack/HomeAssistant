@@ -35,35 +35,41 @@ def test_component_uses_bounded_recovery_exits() -> None:
     runtime = (CORE / "n3w_simple_product_runtime.cpp").read_text(encoding="utf-8")
     driver = (CORE / "n3w_espnow_driver.cpp").read_text(encoding="utf-8")
 
+    assert "config.sta.bssid_set" in component
     assert "explicit_bssid_lock_active_()" in component
     assert "direct_ap_hint_lease_.note_not_found(now)" in component
     assert "invalidate_direct_ap_hint_();" in component
 
-    timeout = component.split(
-        "void SimpleProductComponent::handle_pending_unicast_timeout_", 1
-    )[1].split("void SimpleProductComponent::clear_tx_completion_ring_", 1)
-    if len(timeout) == 1:
-        timeout = component.split(
-            "void SimpleProductComponent::handle_pending_unicast_timeout_", 1
-        )[1].split("void SimpleProductComponent::drain_radio_", 1)[0]
-    else:
-        timeout = timeout[0]
+    timeout_start = component.index(
+        "void SimpleProductComponent::handle_pending_unicast_timeout_"
+    )
+    timeout_end = component.index(
+        "void SimpleProductComponent::drain_radio_", timeout_start
+    )
+    timeout = component[timeout_start:timeout_end]
     shutdown = timeout.index("radio_.shutdown()")
     deadline_clear = timeout.index("pending_unicast_deadline_.on_drained()", shutdown)
     restore = timeout.index("begin_relay_restore_", deadline_clear)
     assert shutdown < deadline_clear < restore
 
-    shutdown_body = driver.split("void EspNowDriver::shutdown()", 1)[1].split(
-        "void EspNowDriver::complete_unicast_send_", 1
-    )[0]
-    unregister = shutdown_body.index("esp_now_unregister_send_cb")
+    shutdown_start = driver.index("void EspNowDriver::shutdown()")
+    shutdown_end = driver.index(
+        "void EspNowDriver::complete_unicast_send_", shutdown_start
+    )
+    shutdown_body = driver[shutdown_start:shutdown_end]
+    detach = shutdown_body.index("active_ = nullptr")
+    unregister = shutdown_body.index("esp_now_unregister_send_cb", detach)
     deinit = shutdown_body.index("esp_now_deinit", unregister)
     clear = shutdown_body.index("pending_unicast_sends_.store(0", deinit)
-    assert unregister < deinit < clear
+    assert detach < unregister < deinit < clear
 
     assert "relay_restore_budget_.exhausted(now)" in component
     assert "exit_relay_restore_failure_(now)" in component
     assert "reset_to_discovery_after_radio_fault()" in component
     assert "SimpleProductRuntime::reset_to_discovery_after_radio_fault()" in runtime
+    assert "begin_direct_probe_after_restore_exit_(now)" in component
 
+    # Keep the synchronous scan in scope as an observed boundary, not a hidden
+    # claim of non-blocking behavior.
+    assert "esp_wifi_scan_start(&scan, true)" in component
     assert "Direct AP presence scan channel=%u elapsed_ms=%llu" in component
