@@ -156,6 +156,11 @@ void SimpleProductComponent::loop() {
     (void) start_runtime_if_ready_();
     return;
   }
+  // A missing ESP-NOW completion must not wait until the next scheduled Direct
+  // recovery probe. Evaluate the completion deadline on every component loop.
+  if (check_pending_unicast_timeout_()) {
+    return;
+  }
   diagnostics_.observe_connectivity(
       wifi_connected(), mqtt_connected(), now_ms());
   if (radio_ownership_ == RadioOwnership::DIRECT_WIFI) {
@@ -524,8 +529,21 @@ void SimpleProductComponent::advance_recovery_() {
         return;
       }
       if (presence == DirectPresenceProbeResult::FOUND) {
+        direct_ap_hint_lease_.note_found(now);
         (void) begin_direct_probe_();
         return;
+      }
+      if (presence == DirectPresenceProbeResult::NOT_FOUND &&
+          direct_ap_hint_lease_.note_not_found(now)) {
+        ESP_LOGW(
+            TAG,
+            "N3-W Direct AP hint expired after misses=%u locked=%s; allowing configured Wi-Fi recovery",
+            static_cast<unsigned>(direct_ap_hint_lease_.misses()),
+            direct_ap_hint_lease_.explicitly_locked() ? "true" : "false");
+        invalidate_direct_ap_hint_();
+        if (begin_direct_probe_()) {
+          return;
+        }
       }
       schedule_recovery_probe_(true);
       return;
