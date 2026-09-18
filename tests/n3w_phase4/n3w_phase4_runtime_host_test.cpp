@@ -457,5 +457,39 @@ int main() {
   assert(child.path_state() == LocalPathState::DIRECT);
   assert(!child.active_relay().has_value());
 
+  // KF-096 successor: a bounded Relay restore exhaustion must be able to
+  // abandon a stale Relay binding, enter Discovery, and later recover Direct.
+  child_port.direct_success = false;
+  for (uint32_t seq = 7; seq <= 9; ++seq) {
+    (void) child.send_telemetry(
+        direct_json, "boot_0000000000000001", seq);
+  }
+  assert(child.path_state() == LocalPathState::DISCOVERY);
+
+  relay_clock.value = 6000;
+  assert(relay.tick() == SimpleProductError::NONE);
+  const auto discovery3 = relay_port.broadcasts.back();
+  assert(child.on_radio_receive(relay_mac, discovery3.data(), discovery3.size(), 6) ==
+         SimpleProductError::NONE);
+  const auto challenge3 = child_port.broadcasts.back();
+  assert(relay.on_radio_receive(child_mac, challenge3.data(), challenge3.size(), 6) ==
+         SimpleProductError::NONE);
+  const auto accept3 = relay_port.broadcasts.back();
+  assert(child.on_radio_receive(relay_mac, accept3.data(), accept3.size(), 6) ==
+         SimpleProductError::NONE);
+  assert(child.path_state() == LocalPathState::RELAY_ACTIVE);
+  assert(child.active_relay().has_value());
+
+  assert(child.reset_to_discovery_after_radio_fault() ==
+         SimpleProductError::NONE);
+  assert(child.path_state() == LocalPathState::DISCOVERY);
+  assert(!child.active_relay().has_value());
+
+  child_port.direct_success = true;
+  assert(child.note_direct_recovery_probe(true) == SimpleProductError::NONE);
+  assert(child.path_state() == LocalPathState::DISCOVERY);
+  assert(child.note_direct_recovery_probe(true) == SimpleProductError::NONE);
+  assert(child.path_state() == LocalPathState::DIRECT);
+
   return 0;
 }
