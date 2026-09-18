@@ -251,6 +251,104 @@ void drl_12_concrete_restore_precedes_logical_direct_commit() {
   assert(decision.terminal);
 }
 
+
+void drl_13_late_phase_progress_is_rejected() {
+  DirectRecoveryConfig config = base_config();
+  config.wifi_phase_budget_ms = 20000;
+  config.mqtt_phase_budget_ms = 20000;
+
+  DirectRecoveryAttempt wifi_attempt(config);
+  auto decision = wifi_attempt.begin(DirectRecoveryMode::NO_RELAY, 0);
+  assert(decision.action == DirectRecoveryAction::CONTINUE_DIRECT);
+
+  decision = observe(wifi_attempt, 20001, true, false, false);
+  assert(decision.terminal);
+  assert(decision.phase == DirectRecoveryPhase::FAILED);
+  assert(decision.terminal_reason ==
+         DirectRecoveryTerminalReason::WIFI_TIMEOUT);
+  assert(decision.action ==
+         DirectRecoveryAction::RETURN_TO_RELAY_SEARCH);
+
+  DirectRecoveryAttempt mqtt_attempt(config);
+  decision = mqtt_attempt.begin(DirectRecoveryMode::NO_RELAY, 0);
+  decision = observe(mqtt_attempt, 0, true, false, false);
+  assert(decision.phase == DirectRecoveryPhase::MQTT_RECOVERY);
+
+  decision = observe(mqtt_attempt, 20001, true, true, false);
+  assert(decision.terminal);
+  assert(decision.phase == DirectRecoveryPhase::FAILED);
+  assert(decision.terminal_reason ==
+         DirectRecoveryTerminalReason::MQTT_TIMEOUT);
+  assert(decision.action ==
+         DirectRecoveryAction::RETURN_TO_RELAY_SEARCH);
+}
+
+void drl_14_absolute_deadline_blocks_second_confirm() {
+  DirectRecoveryConfig config = base_config();
+  config.healthy_relay_absolute_budget_ms = 10000;
+  config.confirm_phase_budget_ms = 20000;
+
+  DirectRecoveryAttempt attempt(config);
+  auto decision = attempt.begin(DirectRecoveryMode::HEALTHY_RELAY, 0);
+  decision = observe(attempt, 0, true, false, false);
+  assert(decision.phase == DirectRecoveryPhase::MQTT_RECOVERY);
+
+  decision = observe(attempt, 1000, true, true, false);
+  assert(decision.phase == DirectRecoveryPhase::DIRECT_CONFIRM);
+
+  decision = observe(attempt, 5000, true, true, true);
+  assert(decision.confirm_success_count == 1);
+
+  decision = observe(attempt, 10000, true, true, true);
+  assert(decision.terminal);
+  assert(decision.phase == DirectRecoveryPhase::FAILED);
+  assert(decision.terminal_reason ==
+         DirectRecoveryTerminalReason::ABSOLUTE_TIMEOUT);
+  assert(decision.action ==
+         DirectRecoveryAction::RESTORE_HEALTHY_RELAY);
+}
+
+void drl_15_restore_completion_after_absolute_deadline_cannot_commit() {
+  DirectRecoveryConfig config = base_config();
+  config.healthy_relay_absolute_budget_ms = 10000;
+  config.confirm_phase_budget_ms = 20000;
+
+  DirectRecoveryAttempt attempt(config);
+  auto decision = attempt.begin(DirectRecoveryMode::HEALTHY_RELAY, 0);
+  decision = observe(attempt, 0, true, false, false);
+  decision = observe(attempt, 1000, true, true, false);
+  decision = observe(attempt, 3000, true, true, true);
+  assert(decision.confirm_success_count == 1);
+
+  decision = observe(attempt, 5000, true, true, true);
+  assert(decision.action ==
+         DirectRecoveryAction::REQUEST_CONCRETE_DIRECT_RESTORE);
+  assert(!decision.terminal);
+
+  decision = attempt.on_concrete_direct_restore(true, 10000);
+  assert(decision.terminal);
+  assert(decision.phase == DirectRecoveryPhase::FAILED);
+  assert(decision.terminal_reason ==
+         DirectRecoveryTerminalReason::ABSOLUTE_TIMEOUT);
+  assert(decision.action ==
+         DirectRecoveryAction::RESTORE_HEALTHY_RELAY);
+}
+
+void drl_16_hint_expiry_is_queryable_before_scan() {
+  DirectApHintConfig config;
+  config.max_age_ms = 300000;
+  config.miss_limit = 2;
+  config.scan_error_limit = 3;
+
+  DirectApHintPolicy hint(config);
+  hint.observe(0, false);
+
+  assert(hint.active());
+  assert(hint.expires_at_ms() == 300000);
+  assert(!hint.expired(299999));
+  assert(hint.expired(300000));
+}
+
 }
 
 int main() {
@@ -266,5 +364,9 @@ int main() {
   drl_10_repeated_scan_error_has_bounded_exit();
   drl_11_explicit_bssid_constraint_is_preserved();
   drl_12_concrete_restore_precedes_logical_direct_commit();
+  drl_13_late_phase_progress_is_rejected();
+  drl_14_absolute_deadline_blocks_second_confirm();
+  drl_15_restore_completion_after_absolute_deadline_cannot_commit();
+  drl_16_hint_expiry_is_queryable_before_scan();
   return 0;
 }
