@@ -11,24 +11,26 @@ Fresh exact repository/runtime/physical evidence takes precedence if later evide
 REPOSITORY=chrenguo-stack/HomeAssistant
 PRIMARY_TASK=N3W_MULTI_NODE_RELAY_AND_RUNTIME_FAILOVER_ACCEPTANCE
 
+ALIGNMENT_BASE_MAIN=f6b9f3d60078998cd543d4e0482f5ae30f6d0dc7
 FROZEN_PRODUCT_SOURCE_HEAD=096528fbf61948d6c69197f1c8994ce8e7d672f4
 FROZEN_PRODUCT_SOURCE_TREE=6cfa25f5168fc720590f186871c038e3d4a5307f
 ```
 
-Repository `main` may advance after documentation-only merges. That must not silently redefine the frozen Board B candidate firmware source above.
+Repository `main` may advance after documentation-only merges. That must not silently redefine the product source actually deployed to Board B.
 
 ## Recent integrated route
 
 ```text
 PR420=MERGED   # documentation alignment after PR416 deployment
 PR421=MERGED   # retained RTC watchdog breadcrumb
-PR422=MERGED   # Relay unicast current-channel / peer-channel observability
-PR423=MERGED   # prevent synchronous MQTT/log watchdog stall
+PR422=MERGED   # Relay unicast channel observability
+PR423=MERGED   # async MQTT / disable MQTT log forwarding in physical harness
 PR424=MERGED   # explicit single-radio ownership / bounded Direct probes
 PR425=MERGED   # transactional Direct failback + Relay channel fixation
+PR426=MERGED   # documentation alignment through PR425 artifact preparation
 ```
 
-Exact merge commits:
+Exact product repair merges:
 
 ```text
 PR421_MERGE=fb762e2ccb54393e7610339d05d164b7ea975bba
@@ -47,17 +49,13 @@ KF089_RELAY_END_TO_END_CLOSEOUT=PASS
 KF092_STATUS=CLOSED_PASS
 ```
 
-KF-092 remains closed and is not reopened by the current radio-ownership route.
+KF-092 remains closed and is not reopened by later radio-ownership or failback work.
 
-## Physical defect sequence now established
+## Physical defect / repair sequence
 
-### 1. Task watchdog during Direct loss
+### Task watchdog
 
-RTC breadcrumb + source forensic proved the physical harness could block the ESPHome main loop through synchronous MQTT/log forwarding while Direct Wi-Fi disappeared.
-
-PR #423 changed the lab MQTT path to async backend send and disabled MQTT log forwarding.
-
-Fresh physical retest proved:
+PR #423 repaired the synchronous MQTT/log-forwarding watchdog hazard. Fresh physical retest proved:
 
 ```text
 TASK_WDT_REPRODUCED=false
@@ -66,190 +64,167 @@ PR423_TASK_WDT_REPAIR_PHYSICAL_VALIDATION=PASS
 MANAGER_RESTART_COUNT=0
 ```
 
-### 2. Same-boot Direct -> Relay still had ~110 s blackout
+### Historical single-radio channel conflict
 
-After the watchdog repair, a fresh same-boot run still showed approximately:
-
-```text
-MANAGER_VISIBLE_GAP_MS≈110061
-SAME_BOOT_DIRECT_TO_RELAY=PASS
-```
-
-Relay encrypted unicast observability then captured:
+After the watchdog repair, a same-boot run still had approximately 110.061 s Manager-visible blackout and captured:
 
 ```text
-UNICAST_FAILURE_COUNT=2
-FIRST_FAILURE_CURRENT_CHANNEL=5
-FIRST_FAILURE_PEER_CHANNEL=11
-FIRST_FAILURE_RAW_ERROR=12397
+CURRENT_CHANNEL=5
+PEER_CHANNEL=11
+RAW_ERROR=12397
 RAW_ERROR_12397=ESP_ERR_ESPNOW_CHAN
-LATER_SUCCESS_CURRENT_CHANNEL=11
-LATER_SUCCESS_PEER_CHANNEL=11
 ```
 
-This is direct evidence that the radio and encrypted peer could disagree on channel during failover.
+PR #424 introduced explicit `DIRECT_WIFI / RELAY_ESPNOW / DIRECT_PROBE` ownership. PR #425 then made Direct failback commit ordering transactional and fixed Relay channel before encrypted-peer / RelayActive commit.
 
-### 3. Root source defect
-
-ESPHome Wi-Fi reconnect/scanning and N3-W Relay/Discovery could both control the one ESP32-C6 2.4 GHz radio.
-
-PR #424 introduced explicit ownership states:
+## PR #425 exact Board B artifact
 
 ```text
-DIRECT_WIFI
-RELAY_ESPNOW
-DIRECT_PROBE
-```
-
-Relay/Discovery now disables ESPHome Wi-Fi reconnect before standalone ESP-NOW takes the radio. Failed Direct probes restore Relay state and rebind channel/encrypted peer.
-
-### 4. PR #424 review found a failback commit-order defect
-
-Source review proved a Direct recovery could commit logical `DIRECT` before concrete channel restoration. A restoration failure could therefore leave logical state `DIRECT` while component ownership remained `DIRECT_PROBE`, suppressing telemetry indefinitely.
-
-PR #425 fixes the ordering:
-
-```text
-concrete Direct radio/channel restore
-→ logical DIRECT commit
-```
-
-On failure, Relay/Discovery remains authoritative and Direct recovery hysteresis resets.
-
-PR #425 also fixes Relay channel before encrypted peer installation and before `RelayActive` commit, and uses the already-owned fixed Relay channel for Challenge instead of starting another temporary off-channel operation.
-
-## PR #425 source / CI closure
-
-```text
-PR425_HEAD=253e28b08db8ca7854ad25d72e3270decd02506d
-PR425_MERGE=096528fbf61948d6c69197f1c8994ce8e7d672f4
-
-POST_MERGE_PUBLIC_REPOSITORY_SAFETY_CI=PASS
-POST_MERGE_GREENHOUSE_MANAGER_CI=PASS
-POST_MERGE_GREENHOUSE_MANAGER_RUN=35293249780
-
-PHASE4_SINGLE_RADIO_OWNERSHIP_CONTRACTS=PASS
-PHASE4_SIMPLIFIED_PRODUCT_RUNTIME=PASS
-ESP32C6_CHILD_BUILD=PASS
-ESP32C6_RELAY_BUILD=PASS
-ESP32C6_PHASE4_PHYSICAL_HARNESS_BUILD=PASS
-```
-
-## Frozen PR #425 Board B artifact
-
-Build-only workflow:
-
-```text
-BUILD_BRANCH=build/n3w-pr425-boardb-artifact-20260918
 ARTIFACT_RUN_ID=35294123841
 ARTIFACT_ID=10528055066
 ARTIFACT_NAME=n3w-pr425-boardb-exact-main
-```
-
-Exact source binding:
-
-```text
-SOURCE_HEAD=096528fbf61948d6c69197f1c8994ce8e7d672f4
-SOURCE_TREE=6cfa25f5168fc720590f186871c038e3d4a5307f
 ESPHOME_VERSION=2026.4.3
-```
 
-Frozen write files:
-
-```text
 APPLICATION_SIZE=1128720
 APPLICATION_SHA256=bf3af5490745f1279a4e90d57a8e96b46525ae8debaf6f806ed2ae72180836c0
 
 OTADATA_SIZE=8192
 OTADATA_SHA256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
-
-ARTIFACT_ARCHIVE_SHA256=b69f9f3736eca8da40cafa1b8cc63d8fb901dee99a8f3afb5724e216bffc6c62
 ```
 
-The build-only branch is not product authority and must not be merged merely to preserve the artifact.
+## PR #425 Board B deployment
 
-## Current physical boundary
+The exact artifact was written to the intended ESP32-C6 target.
 
 ```text
-BOARD_B_PR425_FLASH=false
-BOARD_A_MUTATION=false
-SERIAL_OPEN=false
-T1_RUNTIME_MUTATION=false
-BROKER_MANAGER_DYNSEC_MUTATION=false
+BOARD_B_PR425_DEPLOYMENT=PASS
+APPLICATION_WRITE=PASS
+OTADATA_WRITE=PASS
+APPLICATION_HASH_VERIFY=PASS
+OTADATA_HASH_VERIFY=PASS
+
+BOOTLOADER_WRITE=false
+PARTITION_TABLE_WRITE=false
+PRODUCT_NVS_WRITE=false
+FULL_FLASH_ERASE=false
+
+AUTHORIZED_WRITE_CONSUMED=true
+REPLAY_PERMITTED=false
 ```
 
-The Board B artifact exists and is exact-bound, but the target board has not yet been touched for this deployment route.
+## Post-flash and battery Direct baselines
 
-Historical USB paths and board identifiers are not sufficient mutation authority. A future write requires fresh ROM silicon identity and security/flash-state confirmation.
+```text
+BOARD_B_PR425_POSTFLASH_DIRECT_BASELINE=PASS
+BOARD_B_BATTERY_DIRECT_BASELINE=PASS
+DIRECT_TELEMETRY_CONTINUOUS=true
+MANAGER_RUNNING=true
+MANAGER_RESTART_COUNT=0
+```
+
+The battery reboot established a new boot session; the later Direct -> Relay transition was performed without another power cycle.
+
+## PR #425 same-boot Direct -> Relay physical result
+
+```text
+SAME_BOOT_DIRECT_TO_RELAY=PASS
+MANAGER_RELAY_ACCEPTANCE=PASS
+BOARD_A_RELAY_GATEWAY_STABLE=true
+UNCOMMANDED_REBOOT=false
+MANAGER_RESTART_COUNT=0
+
+INITIAL_MANAGER_VISIBLE_GAP_MS=30034
+INITIAL_MISSING_SEQUENCE_COUNT=5
+```
+
+This is materially shorter than the earlier approximately 110.061 s blackout.
+
+The physical window did not include the low-level `n3w_u` / current-channel / peer-channel diagnostic oracle, so it does not prove the historical `ESP_ERR_ESPNOW_CHAN` class impossible. KF-094 therefore remains open conservatively pending stronger low-level confirmation / complete round-trip acceptance.
+
+## KF-096: periodic Relay blackout during Direct recovery probes
+
+Fresh physical evidence after Relay activation repeatedly showed:
+
+```text
+~60 s Relay telemetry
+-> ~15 s telemetry suppression
+-> Relay resumes
+-> repeat
+```
+
+At the current ~5 s telemetry cadence this drops about three business samples per probe window.
+
+Exact deployed source contains:
+
+```text
+kRecoveryProbeIntervalMs=60000
+kRecoveryProbeWindowMs=15000
+kRecoveryProbeMs=2000
+```
+
+and rejects telemetry while ownership is `DIRECT_PROBE`.
+
+Therefore:
+
+```text
+KF096_DOMAIN=PRODUCT
+KF096_STATUS=OPEN
+KF096_ROOT_CAUSE=SOURCE_CONFIRMED_AND_PHYSICAL_TIMING_CONFIRMED
+```
+
+This is not classified as random RF loss, Board A instability, or Manager restart.
 
 ## Current acceptance matrix
 
 ```text
 KF092_STATUS=CLOSED_PASS
-
-PR423_TASK_WDT_REPAIR=PASS
-PR423_PHYSICAL_VALIDATION=PASS
-
-PR424_SINGLE_RADIO_OWNERSHIP_SOURCE_REPAIR=PASS
-PR425_FAILBACK_COMMIT_ORDER_SOURCE_REPAIR=PASS
-PR425_POST_ACCEPT_CHANNEL_FIXATION_SOURCE_REPAIR=PASS
+KF093_TASK_WDT=GUARDED
+KF094_SINGLE_RADIO_CHANNEL_OWNERSHIP=OPEN
+KF095_FAILBACK_COMMIT_ORDER=GUARDED
+KF096_DIRECT_PROBE_TELEMETRY_BLACKOUT=OPEN
 
 PR425_POST_MERGE_CI=PASS
-PR425_EXACT_MAIN_ARTIFACT_BINDING=PASS
+PR425_EXACT_ARTIFACT_BINDING=PASS
+PR425_BOARD_B_DEPLOYMENT=PASS
+PR425_POSTFLASH_DIRECT_BASELINE=PASS
+PR425_BATTERY_DIRECT_BASELINE=PASS
 
-PR425_BOARD_B_DEPLOYMENT=PENDING
-PR425_DIRECT_TO_RELAY_PHYSICAL_VALIDATION=PENDING
-PR425_RELAY_STEADY_STATE_PROBE_GAP_VALIDATION=PENDING
-PR425_RELAY_TO_DIRECT_FAILBACK_VALIDATION=PENDING
-HOME_ASSISTANT_ENTITY_UPDATE=SEPARATE_OPEN_ITEM
+PR425_SAME_BOOT_DIRECT_TO_RELAY_FUNCTIONAL_RESULT=PASS
+PR425_INITIAL_MANAGER_VISIBLE_GAP_MS=30034
+
+PR425_RELAY_STEADY_STATE_CONTINUITY=FAIL
+PR425_RELAY_TO_DIRECT_FAILBACK_VALIDATION=NOT_EXECUTED
+
+OVERALL_N3W_FAILOVER_ACCEPTANCE=NOT_CLOSED
 ```
-
-## Current design note: bounded Direct probes
-
-Relay mode currently schedules bounded Direct recovery probes approximately every 60 s with a probe window up to 15 s. While in `DIRECT_PROBE`, Relay telemetry submission is paused.
-
-This is intentional current source behavior, not yet a proven product-acceptance result. Later physical validation must measure:
-
-- repeated failed probe recovery back to Relay;
-- actual telemetry pause duration;
-- successful Relay -> Direct recovery;
-- a subsequent Direct -> Relay transition;
-- no persistent no-send state if a recovery operation fails.
 
 ## Required guards
 
-- USB path is only a locator; any Board write requires fresh silicon identity.
+- USB path is only a locator; board-targeted write authorization remains explicit and single-use.
 - Do not open application serial as a passive oracle; it can reset the board.
-- Do not mutate Board A, T1 Manager/Broker, DynSec, credentials, or TLS merely to validate Board B firmware.
-- Do not rewrite bootloader, partition table, or product NVS unless a separately justified route explicitly requires it.
-- Keep repository-main authority separate from frozen product-source/artifact authority.
-- Do not attribute the entire historical ~110 s blackout to one channel event; report failover phases separately.
-- `ESP_OK` from an ESP-NOW submit is not async RF delivery proof.
+- Do not mutate Board A, T1 Manager/Broker, DynSec, credentials, or TLS merely to diagnose the current source defect.
+- Keep repository-main authority separate from frozen deployed product-source authority.
+- Do not attribute the entire historical ~110 s or current ~30 s Direct -> Relay gap to a single phase without phase-specific evidence.
+- Do not claim historical `ESP_ERR_ESPNOW_CHAN` eliminated unless post-fix low-level channel/error diagnostics prove it.
+- `ESP_OK` from ESP-NOW submit is not async RF delivery proof.
+- Direct recovery must not achieve failback responsiveness by silently discarding periodic Relay business telemetry.
 - Consumed physical authorizations are never replayable.
 
 ## Current ONE gate
 
 ```text
-NEXT_ONE_GATE=N3W_PR425_BOARD_B_WRITE_TARGET_PREFLIGHT_20260918_01
-BOARD_ACCESS_REQUIRED=true
-PREFLIGHT_READ_ONLY=true
-FLASH_WRITE=false
+NEXT_ONE_GATE=N3W_PR425_RELAY_DIRECT_PROBE_TELEMETRY_BLACKOUT_SOURCE_REPAIR_20260918_01
+
+BOARD_ACCESS_REQUIRED=false
+BOARD_MUTATION=false
 SERIAL_OPEN=false
 T1_MUTATION=false
+SOURCE_REVIEW_REQUIRED=true
+HOST_TEST_REQUIRED=true
 ```
 
-Purpose: before any Board B write, freshly confirm the physically connected target, ESP32-C6 silicon identity, expected flash size, Secure Boot / Flash Encryption state, and bind those facts to the frozen PR #425 artifact.
-
-The actual app+otadata write requires a separate explicit Board B write authorization after this preflight passes.
-
-## Local development environment authority
-
-Current redacted environment authority remains:
-
-`docs/development/local-environment-records/2026-09-17-macos-x86_64.json`
-
-No Mac-local state was accessed by this documentation alignment. This file aligns the current conversation/evidence state to GitHub.
+First objective: redesign the bounded Direct recovery mechanism so Direct restoration can still be detected without deterministic Relay telemetry loss. Compare buffering, shorter probe slices, backoff/adaptive probing, and any ESP-IDF-supported scan/association alternatives against the single-radio ownership contract.
 
 ## Public/private evidence boundary
 
-Public GitHub may store source, tests, public-safe artifact hashes, sanitized timing/acceptance results, and architecture decisions. Do not commit raw credentials, raw NVS, private keys, private host addresses, raw Manager/Broker logs, or private board identity material.
+Public GitHub may store source, tests, artifact hashes, sanitized timing/acceptance results, and architecture decisions. Do not commit raw credentials, setup secrets, private keys, raw NVS, private host addresses, raw Manager/Broker logs, or raw board identity material.
