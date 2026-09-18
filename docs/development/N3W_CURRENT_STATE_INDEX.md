@@ -1,10 +1,10 @@
 # N3-W Current State Index
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
-Current progress alignment: `docs/development/N3W_KF096_PR431_PREMERGE_PROGRESS_ALIGNMENT_20260918.md`  
+Current progress alignment: `docs/development/N3W_KF096_PR431_POSTMERGE_ALIGNMENT_20260918.md`  
 Previous physical alignment: `docs/development/N3W_PR425_PHYSICAL_VALIDATION_AND_PROBE_BLACKOUT_ALIGNMENT_20260918.md`  
-Current merged source repair: PR #428 / `f357db25390ffd097e9b8608293870772f9cb16c`  
-Current review candidate: draft PR #431 / exact HEAD `88812e0cab7103367e02bd89d3e1c0585c188696`  
+Current merged source repair: PR #431 / `d1b5c3acbd32cca95483743ffe2edba9aa3f904f`  
+Final reviewed PR #431 HEAD: `137303c7b08fff36920d05e77c2f1bcc20b38d1f`  
 Previous progress alignment: `docs/development/N3W_PROGRESS_ALIGNMENT_20260918.md`  
 Historical PR #416 handoff: `docs/development/N3W_PR416_CONTROLLED_CHANNEL_TX_POSTFLASH_DIRECT_BASELINE_NEW_CHAT_HANDOFF_V1.0_20260917.md`  
 Current local-development-environment authority: `docs/development/local-environment-records/2026-09-17-macos-x86_64.json`  
@@ -17,8 +17,8 @@ Active product-direction authority: `docs/development/N3W_OFFICIAL_ESPNOW_REFERE
 REPOSITORY=chrenguo-stack/HomeAssistant
 PRIMARY_TASK=N3W_MULTI_NODE_RELAY_AND_RUNTIME_FAILOVER_ACCEPTANCE
 
-ALIGNMENT_BASE_MAIN=dcea3b33d7204679966b88e7fdfad46ae7b54a4b
-REPOSITORY_MAIN_CURRENT=dcea3b33d7204679966b88e7fdfad46ae7b54a4b
+ALIGNMENT_BASE_MAIN=d1b5c3acbd32cca95483743ffe2edba9aa3f904f
+PRODUCT_SOURCE_AUTHORITY=d1b5c3acbd32cca95483743ffe2edba9aa3f904f
 REPOSITORY_MAIN_AT_ARTIFACT_GATE=e2390faf2452730264c19687bf4022df974f04bd
 REPOSITORY_MAIN_TREE_AT_ARTIFACT_GATE=94566c80256db64e8cf4b0cbece9bfd0f1acc417
 
@@ -30,7 +30,7 @@ FROZEN_DEPLOYED_PRODUCT_SOURCE_HEAD=096528fbf61948d6c69197f1c8994ce8e7d672f4
 FROZEN_DEPLOYED_PRODUCT_SOURCE_TREE=6cfa25f5168fc720590f186871c038e3d4a5307f
 ```
 
-Repository `main` includes PR #428 plus later documentation-only alignment. Draft PR #431 is the current finite successor review candidate at exact HEAD `88812e0cab7103367e02bd89d3e1c0585c188696`. The older PR #428 artifact is frozen historical evidence and is not deployment-eligible after the successor source exists. Board B still runs PR #425.
+PR #431 is merged at product-source authority `d1b5c3acbd32cca95483743ffe2edba9aa3f904f`, with final reviewed HEAD `137303c7b08fff36920d05e77c2f1bcc20b38d1f`. Post-merge public-safety and greenhouse-manager CI are PASS. The older PR #428 artifact is frozen historical evidence and is not deployment-eligible. Board B still runs PR #425. Documentation-only main advancement must not redefine the frozen product-source authority.
 
 ## Current physical route summary
 
@@ -62,13 +62,16 @@ PR428_BOARD_B_DEPLOYMENT=NOT_EXECUTED
 PR428_PHYSICAL_VALIDATION=NOT_EXECUTED
 PR428_ARTIFACT_DISPOSITION=FROZEN_HISTORICAL_NOT_FOR_DEPLOYMENT
 
-PR431_STATE=OPEN_DRAFT
-PR431_EXACT_HEAD=88812e0cab7103367e02bd89d3e1c0585c188696
-PR431_CI=11_OF_11_PASS
-PR431_ASTRA_REVIEW_ROUND_1=REQUEST_CHANGES
-PR431_ASTRA_REVIEW_ROUND_1_ITEMS=REPAIRED_IN_CURRENT_HEAD
-PR431_ASTRA_REVIEW_ROUND_2=PENDING
-PR431_MERGED=false
+PR431_STATE=MERGED
+PR431_REVIEW_HEAD=137303c7b08fff36920d05e77c2f1bcc20b38d1f
+PR431_MERGE=d1b5c3acbd32cca95483743ffe2edba9aa3f904f
+PR431_PREMERGE_CI=11_OF_11_PASS
+PR431_POSTMERGE_CI=PASS
+PR431_ASTRA_FINAL_REVIEW=PASS
+PR431_EXACT_ARTIFACT_BUILD=NOT_EXECUTED
+PR431_EXACT_ARTIFACT_BINDING=NOT_EXECUTED
+PR431_BOARD_B_DEPLOYMENT=NOT_EXECUTED
+PR431_PHYSICAL_VALIDATION=NOT_EXECUTED
 
 OVERALL_N3W_FAILOVER_ACCEPTANCE=NOT_CLOSED
 ```
@@ -83,20 +86,20 @@ KF095=GUARDED
 KF096=OPEN
 ```
 
-KF-096 remains OPEN. PR #428 is merged but its artifact is now historical/non-deployable because deterministic recovery defects were found before deployment. Draft PR #431 is the current source candidate; its exact HEAD has 11/11 CI PASS and awaits a second Astra review after the first review's three findings were repaired. Board B still runs PR #425. Relay -> Direct and the post-fix low-level current/peer-channel oracle remain pending.
+KF-096 remains OPEN. PR #431 is merged and its final source review plus pre/post-merge CI are PASS, but no PR #431 exact artifact has yet been built/bound or deployed. The older PR #428 artifact is historical/non-deployable. Board B still runs PR #425. Relay -> Direct, continuity, timeout/reboot behavior, and the post-fix low-level current/peer-channel oracle remain pending physical evidence.
 
 ## Current ONE gate
 
 ```text
-NEXT_ONE_GATE=N3W_KF096_PR431_ASTRA_FINAL_REVIEW_20260918_01
-PR431_EXACT_HEAD=88812e0cab7103367e02bd89d3e1c0585c188696
-PR431_MERGE=false
+NEXT_ONE_GATE=N3W_KF096_PR431_EXACT_ARTIFACT_BUILD_AND_BINDING_PREPARATION_20260918_01
+SOURCE_AUTHORITY=d1b5c3acbd32cca95483743ffe2edba9aa3f904f
+ARTIFACT_BUILD=NOT_EXECUTED
+ARTIFACT_BINDING=NOT_EXECUTED
 BOARD_ACCESS_REQUIRED=false
 BOARD_ACCESS=false
 SERIAL_OPEN=false
 FLASH_WRITE=false
 T1_MUTATION=false
-ARTIFACT_MUTATION=false
 ```
 
-The next gate is source review only. Do not access Board B, open serial, flash firmware, or merge PR #431 as part of this gate. If Astra finds no new merge blocker, merge still requires a separate explicit authorization.
+The next gate is host/GitHub exact-artifact preparation only. Freeze source/tree, target configuration, toolchain, workflow provenance, expected artifact members, and the hash-binding procedure before starting a build. Do not access Board B, open serial, flash firmware, or mutate T1 as part of this gate.
