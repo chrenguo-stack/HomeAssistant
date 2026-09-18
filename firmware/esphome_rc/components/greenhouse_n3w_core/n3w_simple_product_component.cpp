@@ -734,7 +734,19 @@ SimpleProductComponent::probe_direct_ap_presence_() {
 
   // Scanning is a short, planned loan of the radio. Relay ownership is not
   // considered restored until the driver verifies the concrete channel again.
-  if (radio_.set_channel(relay_channel) != DriverError::NONE) {
+  // Feed that concrete readback into the same diagnostic oracle used by normal
+  // runtime channel commits so physical evidence cannot fall back to a logical
+  // requested/working channel.
+  const DriverError restore_result = radio_.set_channel(relay_channel);
+  last_channel_observed_ = radio_.last_channel_observed();
+  last_channel_error_raw_ = radio_.last_channel_error_raw();
+  diagnostics_.note_channel_result(
+      relay_channel,
+      restore_result == DriverError::NONE,
+      last_channel_observed_,
+      last_channel_error_raw_,
+      now_ms());
+  if (restore_result != DriverError::NONE) {
     return DirectPresenceProbeResult::RESTORE_FAILED;
   }
   return result;
