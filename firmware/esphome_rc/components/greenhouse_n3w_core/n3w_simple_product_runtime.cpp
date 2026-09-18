@@ -521,11 +521,6 @@ SimpleProductError SimpleProductRuntime::handle_challenge_(
   if (!accept_sent) {
     return SimpleProductError::RADIO_FAILED;
   }
-  // Accept verification alone is not enough to enter RelayActive. Fix and
-  // read back the concrete radio channel first, then bind the encrypted peer.
-  if (!port_->set_radio_channel(channel)) {
-    return SimpleProductError::RADIO_FAILED;
-  }
   const LinkKey link_key = as_link_key_(lmk);
   if (!port_->install_encrypted_peer(source, link_key, channel)) {
     return SimpleProductError::RADIO_FAILED;
@@ -583,6 +578,11 @@ SimpleProductError SimpleProductRuntime::handle_accept_(
   }
   if (diagnostic_sink_ != nullptr) {
     diagnostic_sink_->on_accept_rx(true, now);
+  }
+  // Accept verification alone is not enough to enter RelayActive. Fix and
+  // read back the concrete radio channel first, then bind the encrypted peer.
+  if (!port_->set_radio_channel(channel)) {
+    return SimpleProductError::RADIO_FAILED;
   }
   const LinkKey link_key = as_link_key_(lmk);
   if (!port_->install_encrypted_peer(source, link_key, channel)) {
