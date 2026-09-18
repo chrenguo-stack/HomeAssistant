@@ -142,6 +142,8 @@ class DirectApHintPolicy {
   uint64_t last_seen_ms() const { return last_seen_ms_; }
   bool explicitly_locked() const { return explicitly_locked_; }
   bool active() const { return active_; }
+  bool expired(uint64_t now_ms) const;
+  uint64_t expires_at_ms() const;
 
  private:
   DirectApHintDecision decision_(
