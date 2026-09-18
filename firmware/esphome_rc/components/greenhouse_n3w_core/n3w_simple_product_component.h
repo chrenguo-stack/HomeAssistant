@@ -13,6 +13,7 @@
 #include "n3w_esp32_runtime_nvs.h"
 #include "n3w_espnow_driver.h"
 #include "n3w_lab_diagnostics.h"
+#include "n3w_recovery_exit_policy.h"
 #include "n3w_simple_pairing_client.h"
 #include "n3w_simple_product_runtime.h"
 
@@ -177,16 +178,23 @@ class SimpleProductComponent : public Component,
   bool derive_pmk_(LinkKey *pmk) const;
   void drain_send_completions_();
   void drain_radio_();
+  bool check_pending_unicast_timeout_();
+  void handle_pending_unicast_timeout_(uint64_t now_ms);
+  void clear_tx_completion_ring_();
   void advance_pairing_();
   void advance_recovery_();
   bool claim_relay_radio_();
   bool begin_direct_probe_();
+  void begin_direct_probe_after_restore_exit_(uint64_t now_ms);
   bool prepare_direct_probe_radio_();
   void refresh_direct_ap_hint_();
+  bool explicit_bssid_lock_active_() const;
+  void invalidate_direct_ap_hint_();
   DirectPresenceProbeResult probe_direct_ap_presence_();
   void schedule_recovery_probe_(bool increase_backoff);
-  void begin_relay_restore_();
+  void begin_relay_restore_(uint32_t initial_delay_ms = 0);
   void advance_relay_restore_();
+  void exit_relay_restore_failure_(uint64_t now_ms);
   bool restore_relay_radio_();
   bool enqueue_telemetry_(
       const std::string &telemetry_json,
@@ -245,11 +253,15 @@ class SimpleProductComponent : public Component,
   uint64_t runtime_start_grace_started_ms_{0};
   uint32_t recovery_probe_backoff_ms_{kRecoveryProbeIntervalMs};
   uint32_t telemetry_queue_dropped_{0};
-  uint8_t relay_restore_attempts_{0};
+  uint32_t pending_unicast_timeout_count_{0};
+  uint32_t relay_restore_exhausted_count_{0};
   MacAddress local_mac_{};
   MacAddress direct_ap_bssid_{};
   bool direct_ap_bssid_valid_{false};
   uint8_t direct_ap_channel_{0};
+  DirectApHintLease direct_ap_hint_lease_{};
+  PendingUnicastDeadline pending_unicast_deadline_{};
+  RelayRestoreBudget relay_restore_budget_{};
   ProvisionedPeerStateV2 peer_state_{};
   ProvisionedBrokerStateV2 broker_state_{};
   EspNowDriver radio_{};
