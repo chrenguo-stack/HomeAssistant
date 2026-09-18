@@ -50,6 +50,7 @@ def test_core_captures_previous_boot_before_writing_current_boot_marker() -> Non
     assert "N3wRtcBreadcrumbStage::TELEMETRY_BEGIN" in core
     assert "N3wRtcBreadcrumbStage::TELEMETRY_OK" in core
     assert "N3wRtcBreadcrumbStage::TELEMETRY_FAIL" in core
+    assert "N3wRtcBreadcrumbStage::TELEMETRY_BUFFERED" in core
     assert "N3wRtcBreadcrumbStage::DIRECT_PUBLISH_BEGIN" in core
     assert "N3wRtcBreadcrumbStage::DIRECT_PUBLISH_OK" in core
     assert "N3wRtcBreadcrumbStage::DIRECT_PUBLISH_FAIL" in core

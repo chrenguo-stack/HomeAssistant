@@ -92,31 +92,78 @@ def test_recovery_probe_checks_ap_presence_and_buffers_business_telemetry() -> N
         "void SimpleProductComponent::schedule_recovery_probe_", probe_start
     )
     probe = source[probe_start:probe_end]
-    scan = probe.index("esp_wifi_scan_start(&scan, true)")
-    restore = probe.index("radio_.set_channel(relay_channel)", scan)
-    assert scan < restore
+    narrow = probe.index("scan_for_bound_bssid(direct_ap_channel_")
+    wide = probe.index("scan_for_bound_bssid(0, &record)", narrow)
+    restore = probe.index("radio_.set_channel(relay_channel)", wide)
+    assert narrow < wide < restore
+    assert "esp_wifi_scan_start(&scan, true)" in probe
     assert "WIFI_SCAN_TYPE_PASSIVE" in probe
     assert "kDirectPresenceProbePassiveMs" in probe
+    assert "kDirectPresenceWideEveryMisses" not in header
 
-    telemetry_start = source.index("bool SimpleProductComponent::send_telemetry_json(")
+    telemetry_start = source.index(
+        "TelemetrySubmitDisposition SimpleProductComponent::submit_telemetry_json("
+    )
     telemetry_end = source.index(
         "bool SimpleProductComponent::read_local_mac_()", telemetry_start
     )
     telemetry = source[telemetry_start:telemetry_end]
+    assert "TelemetrySubmitDisposition::SUBMITTED" in telemetry
+    assert "TelemetrySubmitDisposition::BUFFERED" in telemetry
+    assert "TelemetrySubmitDisposition::REJECTED" in telemetry
     assert "enqueue_telemetry_" in telemetry
     assert "!telemetry_queue_.empty()" in telemetry
-    assert (
-        "radio_ownership_ == RadioOwnership::DIRECT_PROBE) {\n    return false;"
-        not in telemetry
-    )
 
     flush_start = source.index("void SimpleProductComponent::flush_telemetry_queue_()")
     flush_end = source.index("bool SimpleProductComponent::restore_relay_radio_()", flush_start)
     flush = source[flush_start:flush_end]
     assert "telemetry_queue_.front()" in flush
     assert "telemetry_queue_.pop_front()" in flush
+    assert "buffered telemetry submitted" in flush
     assert "kTelemetryQueueCapacity = 8" in header
-    assert "kRecoveryProbeBackoffMaxMs = 600000" in header
+    assert "kRecoveryProbeBackoffMaxMs = 480000" in header
+
+    enqueue_start = source.index("bool SimpleProductComponent::enqueue_telemetry_(")
+    enqueue_end = source.index(
+        "void SimpleProductComponent::flush_telemetry_queue_()", enqueue_start
+    )
+    enqueue = source[enqueue_start:enqueue_end]
+    assert "rejecting newest sample" in enqueue
+    assert "telemetry_queue_.pop_front()" not in enqueue
+
+
+def test_direct_recovery_waits_for_concrete_unicast_completions() -> None:
+    source = text("n3w_simple_product_component.cpp")
+    driver_header = text("n3w_espnow_driver.h")
+    driver = text("n3w_espnow_driver.cpp")
+
+    advance_start = source.index("void SimpleProductComponent::advance_recovery_()")
+    advance_end = source.index(
+        "bool SimpleProductComponent::claim_relay_radio_()", advance_start
+    )
+    advance = source[advance_start:advance_end]
+    pending_gate = advance.index("radio_.pending_unicast_sends() != 0U")
+    drain = advance.index("drain_send_completions_();", pending_gate)
+    presence = advance.index("probe_direct_ap_presence_()", drain)
+    assert pending_gate < drain < presence
+    assert "kPendingUnicastDrainRetryMs = 25" in text(
+        "n3w_simple_product_component.h"
+    )
+
+    send_start = driver.index("DriverError EspNowDriver::send(")
+    send_end = driver.index("DriverError EspNowDriver::send_broadcast(", send_start)
+    send = driver[send_start:send_end]
+    reserve = send.index("pending_unicast_sends_.fetch_add")
+    submit = send.index("esp_now_send(", reserve)
+    rollback = send.index("complete_unicast_send_()", submit)
+    assert reserve < submit < rollback
+
+    assert "pending_unicast_sends() const" in driver_header
+    assert "pending_unicast_sends_" in driver_header
+    callback = driver[driver.index("void EspNowDriver::send_cb_("):]
+    sink_copy = callback.index("on_espnow_send_result(")
+    completion = callback.index("complete_unicast_send_()", sink_copy)
+    assert sink_copy < completion
 
 
 def test_relay_restore_failure_is_rate_limited_and_transactional() -> None:

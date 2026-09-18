@@ -184,13 +184,20 @@ interval:
               "\"measurements\":{},\"quality\":{}," +
               "\"power\":{\"source\":\"unknown\",\"low\":false}," +
               "\"phase4_lab\":true}";
-          const bool accepted = id(n3w_phase4_core).send_telemetry_json(
-              telemetry, boot_id, current_seq);
+          const auto disposition =
+              id(n3w_phase4_core).submit_telemetry_json(
+                  telemetry, boot_id, current_seq);
+          const bool accepted =
+              disposition !=
+              esphome::greenhouse_n3w_core::TelemetrySubmitDisposition::REJECTED;
           const auto path_after = id(n3w_phase4_core).path_state();
           ESP_LOGI(
               "phase4_lab",
-              "PHASE4_LAB_TELEMETRY seq=%u path_before=%u path_after=%u accepted=%s",
+              "PHASE4_LAB_TELEMETRY seq=%u path_before=%u path_after=%u accepted=%s disposition=%s disposition_raw=%u",
               static_cast<unsigned>(current_seq),
               static_cast<unsigned>(path_before),
               static_cast<unsigned>(path_after),
-              accepted ? "true" : "false");
+              accepted ? "true" : "false",
+              esphome::greenhouse_n3w_core::telemetry_submit_disposition_name(
+                  disposition),
+              static_cast<unsigned>(disposition));
