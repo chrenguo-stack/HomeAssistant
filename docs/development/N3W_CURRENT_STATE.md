@@ -11,12 +11,19 @@ Fresh exact repository/runtime/physical evidence takes precedence if later evide
 REPOSITORY=chrenguo-stack/HomeAssistant
 PRIMARY_TASK=N3W_MULTI_NODE_RELAY_AND_RUNTIME_FAILOVER_ACCEPTANCE
 
-ALIGNMENT_BASE_MAIN=f6b9f3d60078998cd543d4e0482f5ae30f6d0dc7
-FROZEN_PRODUCT_SOURCE_HEAD=096528fbf61948d6c69197f1c8994ce8e7d672f4
-FROZEN_PRODUCT_SOURCE_TREE=6cfa25f5168fc720590f186871c038e3d4a5307f
+ALIGNMENT_BASE_MAIN=f357db25390ffd097e9b8608293870772f9cb16c
+CURRENT_REPOSITORY_MAIN=f357db25390ffd097e9b8608293870772f9cb16c
+CURRENT_REPOSITORY_TREE=3fae2b22b5537e0229b0f7eeacf9f0f3b3aa9a64
+
+PR428_SOURCE_HEAD=6cae8ea1a75096aab0e625ae56828d13931f7c57
+PR428_SOURCE_TREE=3fae2b22b5537e0229b0f7eeacf9f0f3b3aa9a64
+PR428_MERGE=f357db25390ffd097e9b8608293870772f9cb16c
+
+FROZEN_DEPLOYED_PRODUCT_SOURCE_HEAD=096528fbf61948d6c69197f1c8994ce8e7d672f4
+FROZEN_DEPLOYED_PRODUCT_SOURCE_TREE=6cfa25f5168fc720590f186871c038e3d4a5307f
 ```
 
-Repository `main` may advance after documentation-only merges. That must not silently redefine the product source actually deployed to Board B.
+Repository `main` now contains the merged PR #428 KF-096 source repair. Board B has not been updated in this gate and still runs the frozen PR #425 artifact, so repository source authority and deployed physical source authority must remain separate until an exact PR #428 artifact is built, bound, explicitly authorized, and deployed.
 
 ## Recent integrated route
 
@@ -28,6 +35,8 @@ PR423=MERGED   # async MQTT / disable MQTT log forwarding in physical harness
 PR424=MERGED   # explicit single-radio ownership / bounded Direct probes
 PR425=MERGED   # transactional Direct failback + Relay channel fixation
 PR426=MERGED   # documentation alignment through PR425 artifact preparation
+PR427=MERGED   # documentation alignment after PR425 physical validation
+PR428=MERGED   # KF-096 Direct recovery continuity source repair
 ```
 
 Exact product repair merges:
@@ -38,6 +47,9 @@ PR422_MERGE=a01725644d9b0b4ee0a461c1579211829f1aa69e
 PR423_MERGE=35944fa928bb1fcf5527e476fb5dbfcfcdc11ead
 PR424_MERGE=664fcbe88bae76bc9fc6e5e240067e3cbae7c649
 PR425_MERGE=096528fbf61948d6c69197f1c8994ce8e7d672f4
+PR427_MERGE=58b6679c5cb8da5c935d581b66ba129b02db4b8a
+PR428_SOURCE_HEAD=6cae8ea1a75096aab0e625ae56828d13931f7c57
+PR428_MERGE=f357db25390ffd097e9b8608293870772f9cb16c
 ```
 
 ## Frozen accepted baselines
@@ -174,6 +186,32 @@ KF096_ROOT_CAUSE=SOURCE_CONFIRMED_AND_PHYSICAL_TIMING_CONFIRMED
 
 This is not classified as random RF loss, Board A instability, or Manager restart.
 
+## PR #428 KF-096 source repair
+
+PR #428 repaired the source-level continuity defect but has not yet been physically deployed or accepted.
+
+```text
+PR428_SOURCE_HEAD=6cae8ea1a75096aab0e625ae56828d13931f7c57
+PR428_SOURCE_TREE=3fae2b22b5537e0229b0f7eeacf9f0f3b3aa9a64
+PR428_MERGE=f357db25390ffd097e9b8608293870772f9cb16c
+MAIN_AFTER_PR428=f357db25390ffd097e9b8608293870772f9cb16c
+
+PR428_PREMERGE_CI=13_OF_13_PASS
+PR428_POSTMERGE_PUBLIC_REPOSITORY_SAFETY_CI=PASS
+PR428_POSTMERGE_PUBLIC_REPOSITORY_SAFETY_RUN=35308124872
+PR428_POSTMERGE_GREENHOUSE_MANAGER_CI=PASS
+PR428_POSTMERGE_GREENHOUSE_MANAGER_RUN=35308124851
+
+PR428_PHYSICAL_DEPLOYMENT=NOT_EXECUTED
+PR428_PHYSICAL_VALIDATION=NOT_EXECUTED
+KF096_STATUS=OPEN
+```
+
+The merged repair keeps Relay telemetry in ordered bounded buffering during full Direct verification / Relay restore, uses single-flight ESP-NOW unicast completion ordering, probes the remembered AP BSSID before opening a full Direct verification window, applies 60/120/240/480 s recovery backoff while Relay remains healthy, restores and verifies the concrete Relay channel after presence scanning, and keeps the diagnostic current-channel oracle tied to real Wi-Fi readback rather than logical working-channel state.
+
+This source/CI result does not close KF-096. The deployed Board B remains on PR #425, the historical post-fix `ESP_ERR_ESPNOW_CHAN` elimination still lacks a fresh physical low-level oracle, and Relay -> Direct failback has still not been physically executed on PR #428.
+
+
 ## Current acceptance matrix
 
 ```text
@@ -182,6 +220,15 @@ KF093_TASK_WDT=GUARDED
 KF094_SINGLE_RADIO_CHANNEL_OWNERSHIP=OPEN
 KF095_FAILBACK_COMMIT_ORDER=GUARDED
 KF096_DIRECT_PROBE_TELEMETRY_BLACKOUT=OPEN
+
+PR428_SOURCE_REPAIR=MERGED
+PR428_SOURCE_HEAD=6cae8ea1a75096aab0e625ae56828d13931f7c57
+PR428_MERGE=f357db25390ffd097e9b8608293870772f9cb16c
+PR428_PREMERGE_CI=13_OF_13_PASS
+PR428_POSTMERGE_CI=PASS
+PR428_EXACT_ARTIFACT_BUILD=NOT_EXECUTED
+PR428_BOARD_B_DEPLOYMENT=NOT_EXECUTED
+PR428_PHYSICAL_VALIDATION=NOT_EXECUTED
 
 PR425_POST_MERGE_CI=PASS
 PR425_EXACT_ARTIFACT_BINDING=PASS
@@ -208,22 +255,26 @@ OVERALL_N3W_FAILOVER_ACCEPTANCE=NOT_CLOSED
 - Do not claim historical `ESP_ERR_ESPNOW_CHAN` eliminated unless post-fix low-level channel/error diagnostics prove it.
 - `ESP_OK` from ESP-NOW submit is not async RF delivery proof.
 - Direct recovery must not achieve failback responsiveness by silently discarding periodic Relay business telemetry.
+- Source/CI success for PR #428 must not be promoted to KF-096 physical closure; exact artifact binding and explicit physical authorization remain separate gates.
 - Consumed physical authorizations are never replayable.
 
 ## Current ONE gate
 
 ```text
-NEXT_ONE_GATE=N3W_PR425_RELAY_DIRECT_PROBE_TELEMETRY_BLACKOUT_SOURCE_REPAIR_20260918_01
+NEXT_ONE_GATE=N3W_KF096_PR428_EXACT_ARTIFACT_BUILD_AND_BINDING_20260918_01
 
+EXACT_SOURCE_REQUIRED=f357db25390ffd097e9b8608293870772f9cb16c
+EXACT_SOURCE_TREE=3fae2b22b5537e0229b0f7eeacf9f0f3b3aa9a64
+BUILD_ONLY=true
 BOARD_ACCESS_REQUIRED=false
 BOARD_MUTATION=false
 SERIAL_OPEN=false
 T1_MUTATION=false
-SOURCE_REVIEW_REQUIRED=true
-HOST_TEST_REQUIRED=true
+SOURCE_MUTATION=false
+PHYSICAL_AUTHORIZATION_REQUIRED_LATER=true
 ```
 
-First objective: redesign the bounded Direct recovery mechanism so Direct restoration can still be detected without deterministic Relay telemetry loss. Compare buffering, shorter probe slices, backoff/adaptive probing, and any ESP-IDF-supported scan/association alternatives against the single-radio ownership contract.
+First objective: build an exact PR #428 artifact from merge commit `f357db25390ffd097e9b8608293870772f9cb16c`, freeze source/tree/toolchain/artifact hashes, and prove that the artifact is bound to the merged source before requesting any Board B mutation authorization.
 
 ## Public/private evidence boundary
 
