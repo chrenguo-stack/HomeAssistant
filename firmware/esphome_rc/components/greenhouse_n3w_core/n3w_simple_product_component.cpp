@@ -554,7 +554,7 @@ void SimpleProductComponent::advance_recovery_() {
     radio_ownership_ = RadioOwnership::DIRECT_WIFI;
     direct_probe_deadline_ms_ = 0;
     recovery_probe_backoff_ms_ = kRecoveryProbeIntervalMs;
-      refresh_direct_ap_hint_();
+    refresh_direct_ap_hint_();
     ESP_LOGI(TAG, "N3-W Direct recovery probe committed; Wi-Fi owns radio");
   }
 }
@@ -819,6 +819,22 @@ void SimpleProductComponent::flush_telemetry_queue_() {
   }
   const uint64_t now = now_ms();
   if (now < next_telemetry_flush_ms_) return;
+
+  // ESP-IDF recommends waiting for the previous ESP-NOW send callback
+  // before submitting the next frame. For buffered Relay telemetry, use the
+  // concrete pending-send counter as that barrier, then process the copied
+  // completion before deciding whether the Relay path is still healthy.
+  if (runtime_.path_state() == LocalPathState::RELAY_ACTIVE) {
+    if (radio_.pending_unicast_sends() != 0U) {
+      next_telemetry_flush_ms_ = now + kPendingUnicastDrainRetryMs;
+      return;
+    }
+    drain_send_completions_();
+    if (runtime_.path_state() != LocalPathState::RELAY_ACTIVE) {
+      next_telemetry_flush_ms_ = now + kTelemetryRetrySpacingMs;
+      return;
+    }
+  }
 
   BufferedTelemetry &item = telemetry_queue_.front();
   const LocalPathState path_before = runtime_.path_state();
