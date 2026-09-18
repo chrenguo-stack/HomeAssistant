@@ -167,13 +167,28 @@ void EspNowDriver::shutdown() {
         "ESP-NOW shutdown with pending unicast completions count=%u",
         static_cast<unsigned>(pending));
   }
-  if (initialized_) {
-    esp_now_unregister_recv_cb();
-    esp_now_unregister_send_cb();
-    esp_now_deinit();
-  }
+
+  // Detach the callback target before unregister/deinit so any callback that
+  // begins after teardown starts is ignored instead of being attributed to a
+  // later ESP-NOW session. The pending reservation is cleared only after the
+  // old callback source has been unregistered and ESP-NOW deinitialized.
   if (active_ == this) {
     active_ = nullptr;
+  }
+  sink_ = nullptr;
+  if (initialized_) {
+    const esp_err_t send_unregister = esp_now_unregister_send_cb();
+    const esp_err_t recv_unregister = esp_now_unregister_recv_cb();
+    const esp_err_t deinit = esp_now_deinit();
+    if (send_unregister != ESP_OK || recv_unregister != ESP_OK ||
+        deinit != ESP_OK) {
+      ESP_LOGW(
+          TAG,
+          "ESP-NOW shutdown teardown status send_cb=%ld recv_cb=%ld deinit=%ld",
+          static_cast<long>(send_unregister),
+          static_cast<long>(recv_unregister),
+          static_cast<long>(deinit));
+    }
   }
   stop_owned_wifi_();
 #endif
