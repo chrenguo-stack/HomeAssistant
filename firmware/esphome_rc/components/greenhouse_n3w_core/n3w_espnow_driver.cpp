@@ -609,6 +609,5 @@ void EspNowDriver::send_cb_(
 }
 #endif
 #endif
-#endif
 
 }  // namespace esphome::greenhouse_n3w_core
