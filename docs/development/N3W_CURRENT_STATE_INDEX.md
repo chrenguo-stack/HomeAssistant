@@ -1,7 +1,7 @@
 # N3-W Current State Index
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
-Current progress alignment: `docs/development/N3W_KF096_PR431_POSTMERGE_ALIGNMENT_20260918.md`  
+Current progress alignment: `docs/development/N3W_KF096_PR431_EXACT_ARTIFACT_BUILD_AND_BINDING_PREPARATION_20260918.md`  
 Previous physical alignment: `docs/development/N3W_PR425_PHYSICAL_VALIDATION_AND_PROBE_BLACKOUT_ALIGNMENT_20260918.md`  
 Current merged source repair: PR #431 / `d1b5c3acbd32cca95483743ffe2edba9aa3f904f`  
 Final reviewed PR #431 HEAD: `137303c7b08fff36920d05e77c2f1bcc20b38d1f`  
@@ -68,6 +68,7 @@ PR431_MERGE=d1b5c3acbd32cca95483743ffe2edba9aa3f904f
 PR431_PREMERGE_CI=11_OF_11_PASS
 PR431_POSTMERGE_CI=PASS
 PR431_ASTRA_FINAL_REVIEW=PASS
+PR431_EXACT_ARTIFACT_PREPARATION=PASS
 PR431_EXACT_ARTIFACT_BUILD=NOT_EXECUTED
 PR431_EXACT_ARTIFACT_BINDING=NOT_EXECUTED
 PR431_BOARD_B_DEPLOYMENT=NOT_EXECUTED
@@ -91,8 +92,13 @@ KF-096 remains OPEN. PR #431 is merged and its final source review plus pre/post
 ## Current ONE gate
 
 ```text
-NEXT_ONE_GATE=N3W_KF096_PR431_EXACT_ARTIFACT_BUILD_AND_BINDING_PREPARATION_20260918_01
-SOURCE_AUTHORITY=d1b5c3acbd32cca95483743ffe2edba9aa3f904f
+NEXT_ONE_GATE=N3W_KF096_PR431_EXACT_ARTIFACT_BUILD_AND_BINDING_EXECUTION_20260918_01
+PRODUCT_SOURCE_AUTHORITY=d1b5c3acbd32cca95483743ffe2edba9aa3f904f
+PRODUCT_SOURCE_TREE=3f161c1550e1df48db7cd5a5970db1b11932bef0
+TARGET_CONFIG=firmware/esphome_rc/board_lab/n3w_phase4_physical/generic.yml
+TARGET_GIT_BLOB_SHA=3d13e2197520c375b56d682b37773ef28e194421
+WORKFLOW_TEMPLATE_SHA256=5c5313bb627d50ca8337ebea310c588fefc3b32c5eedd08f99d09fa03b6f6bfc
+ARTIFACT_BUILD_AUTHORIZATION_REQUIRED=true
 ARTIFACT_BUILD=NOT_EXECUTED
 ARTIFACT_BINDING=NOT_EXECUTED
 BOARD_ACCESS_REQUIRED=false
@@ -102,4 +108,4 @@ FLASH_WRITE=false
 T1_MUTATION=false
 ```
 
-The next gate is host/GitHub exact-artifact preparation only. Freeze source/tree, target configuration, toolchain, workflow provenance, expected artifact members, and the hash-binding procedure before starting a build. Do not access Board B, open serial, flash firmware, or mutate T1 as part of this gate.
+Preparation is complete. A later explicit authorization is required before creating the build-only trigger branch or producing a PR #431 artifact. No physical access is part of that execution gate.

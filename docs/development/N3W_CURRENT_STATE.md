@@ -318,6 +318,7 @@ PR431_MERGE=d1b5c3acbd32cca95483743ffe2edba9aa3f904f
 PR431_PREMERGE_CI=11_OF_11_PASS
 PR431_POSTMERGE_CI=PASS
 PR431_ASTRA_FINAL_REVIEW=PASS
+PR431_EXACT_ARTIFACT_PREPARATION=PASS
 PR431_EXACT_ARTIFACT_BUILD=NOT_EXECUTED
 PR431_EXACT_ARTIFACT_BINDING=NOT_EXECUTED
 PR431_BOARD_B_DEPLOYMENT=NOT_EXECUTED
@@ -354,9 +355,20 @@ OVERALL_N3W_FAILOVER_ACCEPTANCE=NOT_CLOSED
 ## Current ONE gate
 
 ```text
-NEXT_ONE_GATE=N3W_KF096_PR431_EXACT_ARTIFACT_BUILD_AND_BINDING_PREPARATION_20260918_01
+NEXT_ONE_GATE=N3W_KF096_PR431_EXACT_ARTIFACT_BUILD_AND_BINDING_EXECUTION_20260918_01
 
-SOURCE_AUTHORITY=d1b5c3acbd32cca95483743ffe2edba9aa3f904f
+PRODUCT_SOURCE_AUTHORITY=d1b5c3acbd32cca95483743ffe2edba9aa3f904f
+PRODUCT_SOURCE_TREE=3f161c1550e1df48db7cd5a5970db1b11932bef0
+TARGET_CONFIG=firmware/esphome_rc/board_lab/n3w_phase4_physical/generic.yml
+TARGET_GIT_BLOB_SHA=3d13e2197520c375b56d682b37773ef28e194421
+
+PREPARATION_AUTHORITY=
+docs/development/N3W_KF096_PR431_EXACT_ARTIFACT_BUILD_AND_BINDING_PREPARATION_20260918.md
+
+WORKFLOW_TEMPLATE_SHA256=
+5c5313bb627d50ca8337ebea310c588fefc3b32c5eedd08f99d09fa03b6f6bfc
+
+ARTIFACT_BUILD_AUTHORIZATION_REQUIRED=true
 ARTIFACT_BUILD=NOT_EXECUTED
 ARTIFACT_BINDING=NOT_EXECUTED
 
@@ -367,7 +379,7 @@ FLASH_WRITE=false
 T1_MUTATION=false
 ```
 
-First objective: prepare an exact-artifact build/binding gate for the merged PR #431 product source. Freeze exact source/tree, target configuration, ESPHome/ESP-IDF toolchain, workflow provenance, expected artifact members, and hash-binding procedure before starting the build. This documentation alignment does not itself build an artifact and does not authorize physical access or deployment.
+Preparation is complete. The next gate may create the reserved build-only workflow branch and execute the exact-source artifact build only after separate explicit authorization. It must fail closed on source/tree/target/toolchain/template mismatch and must not access Board B, serial, Flash, or T1.
 
 ## Public/private evidence boundary
 
