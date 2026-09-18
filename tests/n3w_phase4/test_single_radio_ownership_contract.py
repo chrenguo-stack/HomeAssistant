@@ -50,6 +50,7 @@ def test_relay_mode_disables_sta_reconnect_before_channel_mutation() -> None:
     assert "DIRECT_WIFI" in header
     assert "RELAY_ESPNOW" in header
     assert "DIRECT_PROBE" in header
+    assert "RELAY_RESTORE" in header
 
 
 def test_discovery_claims_relay_radio_even_while_sta_remains_associated() -> None:
@@ -70,48 +71,73 @@ def test_discovery_claims_relay_radio_even_while_sta_remains_associated() -> Non
     assert discovery_gate < forced_claim < associated_sta_gate
 
 
-def test_direct_probe_pauses_relay_submissions_and_rebinds_on_failure() -> None:
+def test_recovery_probe_checks_ap_presence_and_buffers_business_telemetry() -> None:
     source = text("n3w_simple_product_component.cpp")
-    runtime = text("n3w_simple_product_runtime.cpp")
+    header = text("n3w_simple_product_component.h")
 
-    loop_start = source.index("void SimpleProductComponent::loop()")
-    loop_end = source.index("bool SimpleProductComponent::send_telemetry_json(", loop_start)
-    loop = source[loop_start:loop_end]
-    probe_gate = loop.index(
-        "if (radio_ownership_ == RadioOwnership::DIRECT_PROBE)"
+    advance_start = source.index("void SimpleProductComponent::advance_recovery_()")
+    advance_end = source.index(
+        "bool SimpleProductComponent::claim_relay_radio_()", advance_start
     )
-    recovery = loop.index("advance_recovery_();", probe_gate)
-    probe_return = loop.index("return;", recovery)
-    runtime_tick = loop.index("runtime_.tick()", probe_return)
-    assert probe_gate < recovery < probe_return < runtime_tick
+    advance = source[advance_start:advance_end]
+    presence = advance.index("probe_direct_ap_presence_()")
+    full_verify = advance.index("begin_direct_probe_()", presence)
+    assert presence < full_verify
+    assert "schedule_recovery_probe_(true)" in advance
+
+    probe_start = source.index(
+        "SimpleProductComponent::probe_direct_ap_presence_()"
+    )
+    probe_end = source.index(
+        "void SimpleProductComponent::schedule_recovery_probe_", probe_start
+    )
+    probe = source[probe_start:probe_end]
+    scan = probe.index("esp_wifi_scan_start(&scan, true)")
+    restore = probe.index("radio_.set_channel(relay_channel)", scan)
+    assert scan < restore
+    assert "WIFI_SCAN_TYPE_PASSIVE" in probe
+    assert "kDirectPresenceProbePassiveMs" in probe
 
     telemetry_start = source.index("bool SimpleProductComponent::send_telemetry_json(")
     telemetry_end = source.index(
         "bool SimpleProductComponent::read_local_mac_()", telemetry_start
     )
     telemetry = source[telemetry_start:telemetry_end]
-    assert "RadioOwnership::DIRECT_PROBE" in telemetry
-    assert "runtime_.challenge_pending()" in source
+    assert "enqueue_telemetry_" in telemetry
+    assert "!telemetry_queue_.empty()" in telemetry
+    assert "return false;" not in telemetry
 
-    channel_start = source.index(
-        "bool SimpleProductComponent::set_radio_channel(uint8_t channel)"
+    flush_start = source.index("void SimpleProductComponent::flush_telemetry_queue_()")
+    flush_end = source.index("bool SimpleProductComponent::restore_relay_radio_()", flush_start)
+    flush = source[flush_start:flush_end]
+    assert "telemetry_queue_.front()" in flush
+    assert "telemetry_queue_.pop_front()" in flush
+    assert "kTelemetryQueueCapacity = 8" in header
+    assert "kRecoveryProbeBackoffMaxMs = 600000" in header
+
+
+def test_relay_restore_failure_is_rate_limited_and_transactional() -> None:
+    source = text("n3w_simple_product_component.cpp")
+    runtime = text("n3w_simple_product_runtime.cpp")
+
+    retry_start = source.index("void SimpleProductComponent::advance_relay_restore_()")
+    retry_end = source.index(
+        "bool SimpleProductComponent::enqueue_telemetry_", retry_start
     )
-    channel_end = source.index(
-        "bool SimpleProductComponent::broadcast_control", channel_start
-    )
-    channel = source[channel_start:channel_end]
-    assert "RadioOwnership::DIRECT_PROBE &&\n      !wifi_connected()" in channel
-    assert "radio_ownership_ == RadioOwnership::DIRECT_PROBE) &&\n      wifi_connected()" in channel
+    retry = source[retry_start:retry_end]
+    assert "next_relay_restore_attempt_ms_" in retry
+    assert "kRelayRestoreRetryFastMs" in retry
+    assert "kRelayRestoreRetrySlowMs" in retry
 
     restore_start = source.index("bool SimpleProductComponent::restore_relay_radio_()")
     restore_end = source.index(
         "void SimpleProductComponent::drain_send_completions_()", restore_start
     )
     restore = source[restore_start:restore_end]
-    assert restore.index("global_wifi_component->disable()") < restore.index(
-        "radio_.initialize_standalone"
-    )
-    assert "runtime_.rebind_radio_state()" in restore
+    initialize = restore.index("radio_.initialize_standalone")
+    rebind = restore.index("runtime_.rebind_radio_state()", initialize)
+    ownership = restore.index("RadioOwnership::RELAY_ESPNOW", rebind)
+    assert initialize < rebind < ownership
 
     rebind_start = runtime.index(
         "SimpleProductError SimpleProductRuntime::rebind_radio_state()"
@@ -119,9 +145,26 @@ def test_direct_probe_pauses_relay_submissions_and_rebinds_on_failure() -> None:
     rebind_end = runtime.index(
         "bool SimpleProductRuntime::update_direct_channel_hint", rebind_start
     )
-    rebind = runtime[rebind_start:rebind_end]
-    assert "port_->set_radio_channel(channel)" in rebind
-    assert "port_->install_encrypted_peer(" in rebind
+    rebind_body = runtime[rebind_start:rebind_end]
+    assert "port_->set_radio_channel(channel)" in rebind_body
+    assert "port_->install_encrypted_peer(" in rebind_body
+
+
+def test_channel_commit_requires_readback_and_unknown_is_not_faked() -> None:
+    driver = text("n3w_espnow_driver.cpp")
+    diagnostics = text("n3w_lab_diagnostics.cpp")
+
+    set_start = driver.index("DriverError EspNowDriver::set_channel(uint8_t channel)")
+    set_end = driver.index("DriverError EspNowDriver::prepare_broadcast_peer", set_start)
+    set_body = driver[set_start:set_end]
+    set_call = set_body.index("esp_wifi_set_channel")
+    get_call = set_body.index("esp_wifi_get_channel", set_call)
+    mismatch = set_body.index("observed != channel", get_call)
+    success = set_body.index("return DriverError::NONE", mismatch)
+    assert set_call < get_call < mismatch < success
+
+    assert "snapshot_.current_channel = observed;" in diagnostics
+    assert "observed != 0U ? observed : requested" not in diagnostics
 
 
 def test_challenge_uses_fixed_owned_channel_and_pending_accept_window() -> None:

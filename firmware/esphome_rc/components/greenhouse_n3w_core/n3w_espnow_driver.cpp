@@ -186,16 +186,25 @@ DriverError EspNowDriver::set_channel(uint8_t channel) {
   last_channel_observed_ = 0;
   const esp_err_t set_result =
       esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE);
-  last_channel_error_raw_ = static_cast<int32_t>(set_result);
-  if (set_result == ESP_OK) {
-    wifi_second_chan_t secondary = WIFI_SECOND_CHAN_NONE;
-    uint8_t observed = 0;
-    if (esp_wifi_get_channel(&observed, &secondary) == ESP_OK) {
-      last_channel_observed_ = observed;
-    }
+  if (set_result != ESP_OK) {
+    last_channel_error_raw_ = static_cast<int32_t>(set_result);
+    return DriverError::WIFI_CHANNEL_FAILED;
   }
-  return set_result == ESP_OK ? DriverError::NONE
-                              : DriverError::WIFI_CHANNEL_FAILED;
+
+  wifi_second_chan_t secondary = WIFI_SECOND_CHAN_NONE;
+  uint8_t observed = 0;
+  const esp_err_t get_result = esp_wifi_get_channel(&observed, &secondary);
+  if (get_result != ESP_OK) {
+    last_channel_error_raw_ = static_cast<int32_t>(get_result);
+    return DriverError::WIFI_CHANNEL_FAILED;
+  }
+  last_channel_observed_ = observed;
+  if (observed != channel) {
+    last_channel_error_raw_ = static_cast<int32_t>(ESP_FAIL);
+    return DriverError::WIFI_CHANNEL_FAILED;
+  }
+  last_channel_error_raw_ = 0;
+  return DriverError::NONE;
 #endif
 }
 
