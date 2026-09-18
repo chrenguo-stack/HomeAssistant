@@ -39,6 +39,12 @@ enum class DiscoveryRejectReason : uint8_t {
   CHANNEL_MISMATCH = 6,
 };
 
+struct DirectRecoveryCommitResult {
+  SimpleProductError error{SimpleProductError::NONE};
+  uint64_t completed_at_ms{0};
+  bool committed{false};
+};
+
 struct SimpleProductPolicy {
   LocalPathPolicy path{};
   std::vector<uint8_t> allowed_channels{1, 6, 11};
@@ -190,6 +196,8 @@ class SimpleProductRuntime {
 
   SimpleProductError note_direct_result(bool success);
   SimpleProductError note_direct_recovery_probe(bool success);
+  DirectRecoveryCommitResult commit_direct_recovery_before(
+      uint64_t absolute_deadline_ms);
   SimpleProductError note_relay_delivery_result(
       const MacAddress &destination,
       bool success);
