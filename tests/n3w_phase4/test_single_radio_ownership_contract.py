@@ -117,6 +117,10 @@ def test_recovery_probe_checks_ap_presence_and_buffers_business_telemetry() -> N
     flush_start = source.index("void SimpleProductComponent::flush_telemetry_queue_()")
     flush_end = source.index("bool SimpleProductComponent::restore_relay_radio_()", flush_start)
     flush = source[flush_start:flush_end]
+    pending = flush.index("radio_.pending_unicast_sends() != 0U")
+    drain = flush.index("drain_send_completions_();", pending)
+    submit = flush.index("runtime_.send_telemetry(", drain)
+    assert pending < drain < submit
     assert "telemetry_queue_.front()" in flush
     assert "telemetry_queue_.pop_front()" in flush
     assert "buffered telemetry submitted" in flush
@@ -215,6 +219,14 @@ def test_channel_commit_requires_readback_and_unknown_is_not_faked() -> None:
 
     assert "snapshot_.current_channel = observed;" in diagnostics
     assert "observed != 0U ? observed : requested" not in diagnostics
+
+    observe_start = diagnostics.index("void N3wLabDiagnostics::observe_runtime(")
+    observe_end = diagnostics.index(
+        "void N3wLabDiagnostics::note_peer_install", observe_start
+    )
+    observe = diagnostics[observe_start:observe_end]
+    assert "(void) current_channel;" in observe
+    assert "snapshot_.current_channel = current_channel;" not in observe
 
 
 def test_challenge_uses_fixed_owned_channel_and_pending_accept_window() -> None:
