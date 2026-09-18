@@ -12,23 +12,21 @@ COMPONENT_H = CORE / "n3w_simple_product_component.h"
 RADIO_H = CORE / "n3w_radio.h"
 
 
-def test_challenge_uses_controlled_channel_tx():
+def test_challenge_uses_owned_fixed_channel_tx():
     driver_h = DRIVER_H.read_text(encoding="utf-8")
     driver_cpp = DRIVER_CPP.read_text(encoding="utf-8")
     runtime_h = RUNTIME_H.read_text(encoding="utf-8")
     runtime_cpp = RUNTIME_CPP.read_text(encoding="utf-8")
     component_h = COMPONENT_H.read_text(encoding="utf-8")
 
+    # Keep the lower-level controlled-channel primitive available for bounded
+    # diagnostics/legacy callers, but the active PR424 challenge path must not
+    # start another temporary off-channel operation once Relay owns the radio.
     assert "DriverError send_broadcast_on_channel(" in driver_h
     assert "virtual bool broadcast_control_on_channel(" in runtime_h
     assert "bool broadcast_control_on_channel(" in component_h
     assert "radio_.send_broadcast_on_channel(" in component_h
-
     assert "esp_now_switch_channel_tx(config)" in driver_cpp
-    assert "config->channel = channel;" in driver_cpp
-    assert "config->wait_time_ms = wait_time_ms;" in driver_cpp
-    assert "config->dest_mac" in driver_cpp
-    assert "kEspNowBroadcastMac.data()" in driver_cpp
     assert "config->op_id =" not in driver_cpp
 
     start = runtime_cpp.index(
@@ -40,13 +38,16 @@ def test_challenge_uses_controlled_channel_tx():
     )
     challenge_path = runtime_cpp[start:end]
 
-    assert "port_->broadcast_control_on_channel(" in challenge_path
-    assert "policy_.challenge_timeout_ms" in challenge_path
-    assert "port_->broadcast_control(encoded.data(), encoded.size())" not in challenge_path
+    channel_fix = challenge_path.index("port_->set_radio_channel(channel)")
+    normal_send = challenge_path.index(
+        "port_->broadcast_control(encoded.data(), encoded.size())", channel_fix
+    )
+    failure = challenge_path.index("if (!challenge_sent)", normal_send)
+    pending = challenge_path.index("pending_challenge_ = std::move(pending)", failure)
 
-    failure = challenge_path.index("if (!challenge_sent)")
-    pending = challenge_path.index("pending_challenge_ = std::move(pending)")
-    assert failure < pending
+    assert channel_fix < normal_send < failure < pending
+    assert "broadcast_control_on_channel" not in challenge_path
+    assert "2ULL * policy_.challenge_timeout_ms" in challenge_path
 
 
 def test_relay_advertisement_stays_on_normal_broadcast_path():
