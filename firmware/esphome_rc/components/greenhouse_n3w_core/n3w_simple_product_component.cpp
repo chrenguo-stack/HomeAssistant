@@ -198,9 +198,12 @@ TelemetrySubmitDisposition SimpleProductComponent::submit_telemetry_json(
   // business telemetry in boot_id/seq order instead of silently discarding it.
   // If an older sample is already queued, the new sample must join the queue so
   // Manager never sees a newer seq before an older buffered seq.
+  const bool relay_unicast_busy =
+      runtime_.path_state() == LocalPathState::RELAY_ACTIVE &&
+      radio_.pending_unicast_sends() != 0U;
   if (radio_ownership_ == RadioOwnership::DIRECT_PROBE ||
       radio_ownership_ == RadioOwnership::RELAY_RESTORE ||
-      !telemetry_queue_.empty()) {
+      !telemetry_queue_.empty() || relay_unicast_busy) {
     return enqueue_telemetry_(telemetry_json, boot_id, seq)
                ? TelemetrySubmitDisposition::BUFFERED
                : TelemetrySubmitDisposition::REJECTED;
