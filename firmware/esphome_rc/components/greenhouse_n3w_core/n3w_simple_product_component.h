@@ -13,6 +13,7 @@
 #include "n3w_esp32_runtime_nvs.h"
 #include "n3w_espnow_driver.h"
 #include "n3w_lab_diagnostics.h"
+#include "n3w_direct_recovery_policy.h"
 #include "n3w_recovery_exit_policy.h"
 #include "n3w_simple_pairing_client.h"
 #include "n3w_simple_product_runtime.h"
@@ -222,9 +223,15 @@ class SimpleProductComponent : public Component,
   static constexpr std::size_t kTxCompletionRingSlots = 8;
   static constexpr uint32_t kPairingRetryMs = 5000;
   static constexpr uint32_t kRecoveryProbeMs = 2000;
-  static constexpr uint32_t kRecoveryProbeWindowMs = 15000;
   static constexpr uint32_t kRecoveryProbeIntervalMs = 60000;
   static constexpr uint32_t kRecoveryProbeBackoffMaxMs = 480000;
+  static constexpr uint32_t kDirectRecoveryWifiBudgetMs = 20000;
+  static constexpr uint32_t kDirectRecoveryMqttBudgetMs = 25000;
+  static constexpr uint32_t kDirectRecoveryConfirmBudgetMs = 5000;
+  static constexpr uint32_t kNoRelayDirectRecoveryAbsoluteMs = 50000;
+  static constexpr uint32_t kHealthyRelayDirectRecoveryAbsoluteMs = 30000;
+  static constexpr uint8_t kDirectRecoveryConfirmSuccesses = 2;
+  static constexpr uint8_t kDirectApHintScanErrorLimit = 3;
   static constexpr uint32_t kDirectPresenceProbeQuietGuardMs = 500;
   static constexpr uint16_t kDirectPresenceProbePassiveMs = 120;
   static constexpr uint32_t kPendingUnicastDrainRetryMs = 25;
@@ -247,7 +254,6 @@ class SimpleProductComponent : public Component,
   bool safe_reboot_requested_{false};
   uint64_t next_pairing_attempt_ms_{0};
   uint64_t next_recovery_probe_ms_{0};
-  uint64_t direct_probe_deadline_ms_{0};
   uint64_t next_relay_restore_attempt_ms_{0};
   uint64_t next_telemetry_flush_ms_{0};
   uint64_t last_relay_telemetry_ms_{0};
@@ -262,6 +268,8 @@ class SimpleProductComponent : public Component,
   bool direct_ap_bssid_valid_{false};
   uint8_t direct_ap_channel_{0};
   DirectApHintLease direct_ap_hint_lease_{};
+  DirectApHintPolicy direct_ap_hint_policy_;
+  DirectRecoveryAttempt direct_recovery_attempt_;
   PendingUnicastDeadline pending_unicast_deadline_{};
   RelayRestoreBudget relay_restore_budget_{};
   ProvisionedPeerStateV2 peer_state_{};
