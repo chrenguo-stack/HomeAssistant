@@ -72,5 +72,22 @@ int main() {
         5000 + RecoveryExitPolicy::kRelayRestoreMaxElapsedMs));
   }
 
+  {
+    RelayRestoreBudget quiesce;
+    quiesce.start(1000);
+    assert(callback_quiesce_action(true, true, quiesce, 1000) ==
+           CallbackQuiesceAction::PROCEED);
+    assert(callback_quiesce_action(false, true, quiesce, 2000) ==
+           CallbackQuiesceAction::WAIT);
+    assert(callback_quiesce_action(
+               false,
+               true,
+               quiesce,
+               1000 + RecoveryExitPolicy::kRelayRestoreMaxElapsedMs) ==
+           CallbackQuiesceAction::REBOOT);
+    assert(callback_quiesce_action(true, false, quiesce, 2000) ==
+           CallbackQuiesceAction::REBOOT);
+  }
+
   return 0;
 }
