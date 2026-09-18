@@ -196,6 +196,7 @@ class SimpleProductRuntime {
   // Reinstalls the channel and encrypted peer after a bounded Direct recovery
   // probe temporarily handed the single radio back to ESPHome Wi-Fi.
   SimpleProductError rebind_radio_state();
+  SimpleProductError reset_to_discovery_after_radio_fault();
   bool update_direct_channel_hint(uint8_t channel);
   SimpleProductError send_telemetry(
       const std::string &telemetry_json,
