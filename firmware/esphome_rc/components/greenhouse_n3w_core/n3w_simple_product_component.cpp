@@ -381,8 +381,15 @@ bool SimpleProductComponent::start_runtime_if_ready_() {
   if (error != DriverError::NONE) {
     ESP_LOGW(
         TAG,
-        "ESP-NOW initialization failed error=%u",
-        static_cast<unsigned>(error));
+        "ESP-NOW initialization failed error=%u teardown_confirmed=%s",
+        static_cast<unsigned>(error),
+        radio_.teardown_confirmed() ? "true" : "false");
+    if (error == DriverError::ESPNOW_TEARDOWN_UNCONFIRMED ||
+        !radio_.teardown_confirmed()) {
+      request_safe_reboot_(
+          "ESP-NOW runtime start cannot continue with unconfirmed teardown");
+      return false;
+    }
 #ifdef USE_WIFI
     if (start_mode == SimpleProductStartMode::DISCOVERY &&
         wifi::global_wifi_component != nullptr) {
@@ -402,7 +409,10 @@ bool SimpleProductComponent::start_runtime_if_ready_() {
           TAG,
           "ESP-NOW broadcast peer configuration failed error=%u",
           static_cast<unsigned>(error));
-      radio_.shutdown();
+      if (!radio_.shutdown()) {
+        request_safe_reboot_(
+            "ESP-NOW broadcast-peer failure left teardown unconfirmed");
+      }
       return false;
     }
   }
@@ -415,7 +425,11 @@ bool SimpleProductComponent::start_runtime_if_ready_() {
         TAG,
         "Simplified N3-W runtime start failed error=%u",
         static_cast<unsigned>(runtime_error));
-    radio_.shutdown();
+    if (!radio_.shutdown()) {
+      request_safe_reboot_(
+          "N3-W runtime start failure left ESP-NOW teardown unconfirmed");
+      return false;
+    }
 #ifdef USE_WIFI
     if (start_mode == SimpleProductStartMode::DISCOVERY &&
         wifi::global_wifi_component != nullptr) {
