@@ -878,6 +878,18 @@ void SimpleProductComponent::advance_relay_restore_() {
   const uint64_t now = now_ms();
   if (now < next_relay_restore_attempt_ms_) return;
 
+  // The timeout path intentionally tears down an ESP-NOW session while a
+  // callback may already be executing on the Wi-Fi task. Do not start the new
+  // session until every callback that captured the old driver has returned.
+  // Purge the completion ring again after this quiesce, not only at teardown,
+  // so a late old completion cannot be consumed as evidence for the new path.
+  if (!radio_.callbacks_idle()) {
+    next_relay_restore_attempt_ms_ =
+        now + kPendingUnicastDrainRetryMs;
+    return;
+  }
+  clear_tx_completion_ring_();
+
   if (restore_relay_radio_()) {
     relay_restore_budget_.clear();
     schedule_recovery_probe_(true);
