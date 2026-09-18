@@ -190,6 +190,19 @@ bool DirectApHintPolicy::age_expired_(uint64_t now_ms) const {
          now_ms - last_seen_ms_ >= config_.max_age_ms;
 }
 
+bool DirectApHintPolicy::expired(uint64_t now_ms) const {
+  return age_expired_(now_ms);
+}
+
+uint64_t DirectApHintPolicy::expires_at_ms() const {
+  if (!active_) return 0;
+  if (last_seen_ms_ >
+      std::numeric_limits<uint64_t>::max() - config_.max_age_ms) {
+    return std::numeric_limits<uint64_t>::max();
+  }
+  return last_seen_ms_ + config_.max_age_ms;
+}
+
 void DirectApHintPolicy::disable_internal_hint_() {
   active_ = false;
 }
