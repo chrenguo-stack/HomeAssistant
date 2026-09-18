@@ -139,7 +139,7 @@ void SimpleProductComponent::setup() {
 }
 
 void SimpleProductComponent::loop() {
-  if (!activation_enabled_ || is_failed()) return;
+  if (!activation_enabled_ || is_failed() || safe_reboot_requested_) return;
   const bool recovery_exclusive =
       radio_ownership_ == RadioOwnership::DIRECT_PROBE ||
       radio_ownership_ == RadioOwnership::RELAY_RESTORE;
@@ -589,7 +589,11 @@ bool SimpleProductComponent::claim_relay_radio_() {
   }
   LinkKey pmk{};
   if (!derive_pmk_(&pmk)) return false;
-  radio_.shutdown();
+  if (!radio_.shutdown()) {
+    pmk.fill(0);
+    request_safe_reboot_("ESP-NOW teardown unconfirmed before Relay claim");
+    return false;
+  }
 #ifdef USE_WIFI
   if (wifi::global_wifi_component == nullptr) {
     pmk.fill(0);
@@ -627,7 +631,10 @@ bool SimpleProductComponent::begin_direct_probe_() {
 #ifdef USE_WIFI
   if (wifi::global_wifi_component == nullptr) return false;
 #endif
-  radio_.shutdown();
+  if (!radio_.shutdown()) {
+    request_safe_reboot_("ESP-NOW teardown unconfirmed before Direct probe");
+    return false;
+  }
 #ifdef USE_WIFI
   wifi::global_wifi_component->enable();
 #endif
@@ -831,7 +838,10 @@ void SimpleProductComponent::begin_relay_restore_(uint32_t initial_delay_ms) {
 }
 
 void SimpleProductComponent::begin_direct_probe_after_restore_exit_(uint64_t now) {
-  radio_.shutdown();
+  if (!radio_.shutdown()) {
+    request_safe_reboot_("ESP-NOW teardown unconfirmed after Relay restore exhaustion");
+    return;
+  }
 #ifdef USE_WIFI
   if (wifi::global_wifi_component != nullptr) {
     wifi::global_wifi_component->enable();
@@ -858,9 +868,12 @@ void SimpleProductComponent::exit_relay_restore_failure_(uint64_t now) {
       static_cast<unsigned long long>(elapsed),
       static_cast<unsigned>(relay_restore_exhausted_count_));
 
-  // End the failed ESP-NOW session first. Then discard the stale logical Relay
-  // binding and return the runtime to Discovery without claiming a usable path.
-  radio_.shutdown();
+  // End the failed ESP-NOW session first. An unconfirmed teardown must not
+  // hand the same boot to another radio owner.
+  if (!radio_.shutdown()) {
+    request_safe_reboot_("ESP-NOW teardown unconfirmed after Relay restore exhaustion");
+    return;
+  }
   pending_unicast_deadline_.on_drained();
   clear_tx_completion_ring_();
   const SimpleProductError reset_result =
@@ -886,8 +899,16 @@ void SimpleProductComponent::advance_relay_restore_() {
   // Purge the completion ring again after this quiesce, not only at teardown,
   // so a late old completion cannot be consumed as evidence for the new path.
   if (!radio_.callbacks_idle()) {
+    if (relay_restore_budget_.exhausted(now)) {
+      request_safe_reboot_("ESP-NOW callback quiesce exceeded Relay restore budget");
+      return;
+    }
     next_relay_restore_attempt_ms_ =
         now + kPendingUnicastDrainRetryMs;
+    return;
+  }
+  if (!radio_.teardown_confirmed()) {
+    request_safe_reboot_("ESP-NOW old event source stop could not be confirmed");
     return;
   }
   clear_tx_completion_ring_();
@@ -1001,7 +1022,9 @@ void SimpleProductComponent::flush_telemetry_queue_() {
 }
 
 bool SimpleProductComponent::restore_relay_radio_() {
-  radio_.shutdown();
+  if (!radio_.shutdown()) {
+    return false;
+  }
 #ifdef USE_WIFI
   if (wifi::global_wifi_component == nullptr) return false;
   wifi::global_wifi_component->disable();
@@ -1077,18 +1100,38 @@ void SimpleProductComponent::handle_pending_unicast_timeout_(uint64_t now) {
   ++pending_unicast_timeout_count_;
   ESP_LOGE(
       TAG,
-      "N3-W ESP-NOW unicast completion timeout pending=%u count=%u; terminating old ESP-NOW session before recovery",
+      "N3-W ESP-NOW unicast completion timeout pending=%u count=%u; fencing old ESP-NOW session and rebooting",
       static_cast<unsigned>(radio_.pending_unicast_sends()),
       static_cast<unsigned>(pending_unicast_timeout_count_));
 
-  // Do not clear the pending counter in-place. shutdown() first unregisters
-  // ESP-NOW callbacks and deinitializes the old ESP-NOW session; only after
-  // that teardown does the driver clear its internal pending reservation.
-  radio_.shutdown();
+  // ESP-IDF 5.5.4 exposes unregister/deinit but does not publish a guarantee
+  // that a send event already queued below the user callback boundary cannot
+  // enter after a later same-boot re-registration. Therefore a missing
+  // completion is not recovered by reusing the same ESP-NOW session object.
+  // Detach/unregister/deinit first, then cross a reboot boundary before any new
+  // session can exist.
+  const bool teardown_confirmed = radio_.shutdown();
   pending_unicast_deadline_.on_drained();
   clear_tx_completion_ring_();
-  begin_relay_restore_(RecoveryExitPolicy::kPendingUnicastQuiesceMs);
-  (void) now;
+  ESP_LOGW(
+      TAG,
+      "N3-W timed-out ESP-NOW teardown_confirmed=%s uptime_ms=%llu",
+      teardown_confirmed ? "true" : "false",
+      static_cast<unsigned long long>(now));
+  request_safe_reboot_(
+      teardown_confirmed
+          ? "ESP-NOW completion timeout requires fresh boot session"
+          : "ESP-NOW completion timeout teardown unconfirmed");
+}
+
+void SimpleProductComponent::request_safe_reboot_(const char *reason) {
+  if (safe_reboot_requested_) return;
+  safe_reboot_requested_ = true;
+  ESP_LOGE(
+      TAG,
+      "N3-W fail-safe reboot requested reason=%s",
+      reason != nullptr ? reason : "unspecified");
+  App.safe_reboot();
 }
 
 void SimpleProductComponent::drain_radio_() {
