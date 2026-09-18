@@ -38,6 +38,7 @@ enum class DriverError : uint8_t {
   WIFI_CHANNEL_FAILED,
   ESPNOW_INIT_FAILED,
   ESPNOW_CALLBACK_FAILED,
+  ESPNOW_TEARDOWN_UNCONFIRMED,
   ESPNOW_PMK_FAILED,
   PEER_CONFIG_FAILED,
   SEND_FAILED,
@@ -79,7 +80,8 @@ class EspNowDriver {
   // reconnect state machine. The driver stops only what it starts and leaves
   // ESPHome's Wi-Fi initialization intact for a later Direct recovery probe.
   DriverError initialize_standalone(EspNowEventSink *sink, const LinkKey &pmk);
-  void shutdown();
+  bool shutdown();
+  bool teardown_confirmed() const { return teardown_confirmed_; }
 
   DriverError set_channel(uint8_t channel);
   DriverError prepare_broadcast_peer(uint8_t channel);
@@ -124,8 +126,12 @@ class EspNowDriver {
   }
 
   bool initialized() const { return initialized_; }
+  bool espnow_started() const { return espnow_started_; }
   uint16_t pending_unicast_sends() const {
     return pending_unicast_sends_.load(std::memory_order_acquire);
+  }
+  bool callbacks_idle() const {
+    return callbacks_inflight_.load(std::memory_order_acquire) == 0U;
   }
 
  protected:
@@ -135,7 +141,7 @@ class EspNowDriver {
       const LinkKey &pmk,
       bool start_standalone_wifi);
   DriverError start_wifi_(bool start_standalone_wifi);
-  void stop_owned_wifi_();
+  bool stop_owned_wifi_();
   void complete_unicast_send_();
 
   static void recv_cb_(
@@ -151,15 +157,21 @@ class EspNowDriver {
       const uint8_t *mac_addr,
       esp_now_send_status_t status);
 #endif
-  static EspNowDriver *active_;
+  static std::atomic<EspNowDriver *> active_;
   bool wifi_initialized_by_driver_{false};
   bool wifi_started_by_driver_{false};
   std::atomic<uint8_t> diagnostic_receive_logs_{0};
   std::atomic<uint8_t> diagnostic_broadcast_logs_{0};
 #endif
 
-  EspNowEventSink *sink_{nullptr};
+  std::atomic<EspNowEventSink *> sink_{nullptr};
+  static std::atomic<uint16_t> callbacks_inflight_;
   bool initialized_{false};
+  // Tracks whether esp_now_init() succeeded and a matching successful
+  // esp_now_deinit() is still required. This is intentionally independent of
+  // initialized_, which means the full driver setup completed.
+  bool espnow_started_{false};
+  bool teardown_confirmed_{true};
   int32_t last_channel_error_raw_{0};
   uint8_t last_channel_observed_{0};
   DriverError last_broadcast_send_error_{DriverError::NONE};

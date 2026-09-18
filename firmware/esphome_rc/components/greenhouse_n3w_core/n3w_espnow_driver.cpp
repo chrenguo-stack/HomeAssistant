@@ -1,4 +1,5 @@
 #include "n3w_espnow_driver.h"
+#include "n3w_recovery_exit_policy.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -20,8 +21,10 @@ static const char *const TAG = "n3w_espnow_driver";
 constexpr uint8_t kDiagnosticLogLimit = 8;
 }
 
+std::atomic<uint16_t> EspNowDriver::callbacks_inflight_{0};
+
 #ifdef USE_ESP32
-EspNowDriver *EspNowDriver::active_ = nullptr;
+std::atomic<EspNowDriver *> EspNowDriver::active_{nullptr};
 #endif
 
 #ifdef USE_ESP32
@@ -64,22 +67,28 @@ DriverError EspNowDriver::start_wifi_(bool start_standalone_wifi) {
   if (esp_wifi_set_storage(WIFI_STORAGE_RAM) != ESP_OK ||
       esp_wifi_set_mode(WIFI_MODE_STA) != ESP_OK ||
       esp_wifi_start() != ESP_OK) {
-    stop_owned_wifi_();
+    teardown_confirmed_ = stop_owned_wifi_();
     return DriverError::WIFI_START_FAILED;
   }
   wifi_started_by_driver_ = true;
   return DriverError::NONE;
 }
 
-void EspNowDriver::stop_owned_wifi_() {
+bool EspNowDriver::stop_owned_wifi_() {
+  bool stopped = true;
   if (wifi_started_by_driver_) {
-    (void) esp_wifi_stop();
-    wifi_started_by_driver_ = false;
+    const esp_err_t result = esp_wifi_stop();
+    const bool ok = result == ESP_OK || result == ESP_ERR_WIFI_NOT_INIT;
+    stopped = stopped && ok;
+    if (ok) wifi_started_by_driver_ = false;
   }
   if (wifi_initialized_by_driver_) {
-    (void) esp_wifi_deinit();
-    wifi_initialized_by_driver_ = false;
+    const esp_err_t result = esp_wifi_deinit();
+    const bool ok = result == ESP_OK || result == ESP_ERR_WIFI_NOT_INIT;
+    stopped = stopped && ok;
+    if (ok) wifi_initialized_by_driver_ = false;
   }
+  return stopped;
 }
 #endif
 
@@ -113,7 +122,12 @@ DriverError EspNowDriver::initialize_(
   if (sink == nullptr || std::all_of(pmk.begin(), pmk.end(), [](uint8_t b) { return b == 0; })) {
     return DriverError::INVALID_ARGUMENT;
   }
-  if (initialized_ || active_ != nullptr) {
+  if (!teardown_confirmed_) {
+    return DriverError::ESPNOW_TEARDOWN_UNCONFIRMED;
+  }
+  if (initialized_ || espnow_started_ ||
+      active_.load(std::memory_order_acquire) != nullptr ||
+      !callbacks_idle()) {
     return DriverError::ALREADY_INITIALIZED;
   }
   const DriverError wifi_error = start_wifi_(start_standalone_wifi);
@@ -121,16 +135,28 @@ DriverError EspNowDriver::initialize_(
     return wifi_error;
   }
   if (esp_now_init() != ESP_OK) {
-    stop_owned_wifi_();
+    teardown_confirmed_ = stop_owned_wifi_();
     return DriverError::ESPNOW_INIT_FAILED;
   }
+  espnow_started_ = true;
+
   if (esp_now_set_pmk(pmk.data()) != ESP_OK) {
-    esp_now_deinit();
-    stop_owned_wifi_();
+    const bool espnow_stopped = esp_now_deinit() == ESP_OK;
+    if (espnow_stopped) {
+      espnow_started_ = false;
+    }
+    const bool wifi_stopped = stop_owned_wifi_();
+    const EspNowTeardownDecision decision =
+        assess_espnow_teardown(
+            espnow_stopped,
+            wifi_stopped,
+            callbacks_idle());
+    teardown_confirmed_ = decision.confirmed;
+    espnow_started_ = decision.keep_espnow_started;
     return DriverError::ESPNOW_PMK_FAILED;
   }
-  active_ = this;
-  sink_ = sink;
+  sink_.store(sink, std::memory_order_release);
+  active_.store(this, std::memory_order_release);
   last_channel_error_raw_ = 0;
   last_channel_observed_ = 0;
   last_broadcast_send_error_ = DriverError::NONE;
@@ -146,18 +172,29 @@ DriverError EspNowDriver::initialize_(
       esp_now_register_send_cb(&EspNowDriver::send_cb_) != ESP_OK) {
     esp_now_unregister_recv_cb();
     esp_now_unregister_send_cb();
-    active_ = nullptr;
-    sink_ = nullptr;
-    esp_now_deinit();
-    stop_owned_wifi_();
+    active_.store(nullptr, std::memory_order_release);
+    sink_.store(nullptr, std::memory_order_release);
+    const bool espnow_stopped = esp_now_deinit() == ESP_OK;
+    if (espnow_stopped) {
+      espnow_started_ = false;
+    }
+    const bool wifi_stopped = stop_owned_wifi_();
+    const EspNowTeardownDecision decision =
+        assess_espnow_teardown(
+            espnow_stopped,
+            wifi_stopped,
+            callbacks_idle());
+    teardown_confirmed_ = decision.confirmed;
+    espnow_started_ = decision.keep_espnow_started;
     return DriverError::ESPNOW_CALLBACK_FAILED;
   }
   initialized_ = true;
+  teardown_confirmed_ = true;
   return DriverError::NONE;
 }
 #endif
 
-void EspNowDriver::shutdown() {
+bool EspNowDriver::shutdown() {
 #ifdef USE_ESP32
   const uint16_t pending =
       pending_unicast_sends_.load(std::memory_order_acquire);
@@ -167,19 +204,68 @@ void EspNowDriver::shutdown() {
         "ESP-NOW shutdown with pending unicast completions count=%u",
         static_cast<unsigned>(pending));
   }
+
+  // Detach the global callback target first. Any callback that begins after
+  // this store observes no active driver. A callback that already captured
+  // this driver is tracked by callbacks_inflight_ and must drain before a new
+  // ESP-NOW session may initialize.
+  EspNowDriver *expected = this;
+  (void) active_.compare_exchange_strong(
+      expected,
+      nullptr,
+      std::memory_order_acq_rel,
+      std::memory_order_acquire);
+  sink_.store(nullptr, std::memory_order_release);
+
   if (initialized_) {
-    esp_now_unregister_recv_cb();
-    esp_now_unregister_send_cb();
-    esp_now_deinit();
+    const esp_err_t send_unregister = esp_now_unregister_send_cb();
+    const esp_err_t recv_unregister = esp_now_unregister_recv_cb();
+    if ((send_unregister != ESP_OK &&
+         send_unregister != ESP_ERR_ESPNOW_NOT_INIT) ||
+        (recv_unregister != ESP_OK &&
+         recv_unregister != ESP_ERR_ESPNOW_NOT_INIT)) {
+      ESP_LOGW(
+          TAG,
+          "ESP-NOW callback unregister status send_cb=%ld recv_cb=%ld",
+          static_cast<long>(send_unregister),
+          static_cast<long>(recv_unregister));
+    }
   }
-  if (active_ == this) {
-    active_ = nullptr;
+
+  bool espnow_stopped = !espnow_started_;
+  if (espnow_started_) {
+    const esp_err_t deinit = esp_now_deinit();
+    espnow_stopped = deinit == ESP_OK;
+    if (espnow_stopped) {
+      espnow_started_ = false;
+      initialized_ = false;
+    } else {
+      ESP_LOGE(
+          TAG,
+          "ESP-NOW shutdown could not confirm SDK deinit result=%ld",
+          static_cast<long>(deinit));
+    }
   }
-  stop_owned_wifi_();
-#endif
-  sink_ = nullptr;
+
+  const bool wifi_stopped = stop_owned_wifi_();
+  const EspNowTeardownDecision decision =
+      assess_espnow_teardown(
+          espnow_stopped,
+          wifi_stopped,
+          callbacks_idle());
+  teardown_confirmed_ = decision.confirmed;
+  espnow_started_ = decision.keep_espnow_started;
+#else
+  teardown_confirmed_ = true;
+  espnow_started_ = false;
   initialized_ = false;
-  pending_unicast_sends_.store(0, std::memory_order_release);
+#endif
+  sink_.store(nullptr, std::memory_order_release);
+  if (teardown_confirmed_) {
+    initialized_ = false;
+    pending_unicast_sends_.store(0, std::memory_order_release);
+  }
+  return teardown_confirmed_;
 }
 
 void EspNowDriver::complete_unicast_send_() {
@@ -469,11 +555,24 @@ void EspNowDriver::recv_cb_(
     const esp_now_recv_info_t *info,
     const uint8_t *data,
     int data_len) {
-  if (active_ == nullptr || active_->sink_ == nullptr || info == nullptr ||
-      info->src_addr == nullptr || data == nullptr || data_len <= 0 ||
+  if (info == nullptr || info->src_addr == nullptr || data == nullptr ||
+      data_len <= 0 ||
       static_cast<std::size_t>(data_len) > kEspNowPhysicalDatagramLimit) {
     return;
   }
+
+  callbacks_inflight_.fetch_add(1U, std::memory_order_acq_rel);
+  EspNowDriver *driver = active_.load(std::memory_order_acquire);
+  if (driver == nullptr) {
+    callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
+    return;
+  }
+  EspNowEventSink *sink = driver->sink_.load(std::memory_order_acquire);
+  if (sink == nullptr) {
+    callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
+    return;
+  }
+
   MacAddress source{};
   std::copy_n(info->src_addr, source.size(), source.begin());
   EspNowReceiveMetadata metadata{};
@@ -481,29 +580,40 @@ void EspNowDriver::recv_cb_(
     metadata.rssi_dbm = static_cast<int16_t>(info->rx_ctrl->rssi);
     metadata.channel = static_cast<uint8_t>(info->rx_ctrl->channel);
   }
-  const uint8_t receive_index = active_->diagnostic_receive_logs_.fetch_add(
+  const uint8_t receive_index = driver->diagnostic_receive_logs_.fetch_add(
       1, std::memory_order_relaxed);
   if (receive_index < kDiagnosticLogLimit) {
     ESP_LOGI(TAG, "ESP-NOW diagnostic receive count=%u size=%d channel=%u",
              static_cast<unsigned>(receive_index + 1), data_len,
              static_cast<unsigned>(metadata.channel));
   }
-  active_->sink_->on_espnow_receive_with_metadata(
+  sink->on_espnow_receive_with_metadata(
       source, data, static_cast<std::size_t>(data_len), metadata);
+  callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
 }
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
 void EspNowDriver::send_cb_(
     const esp_now_send_info_t *info,
     esp_now_send_status_t status) {
-  if (active_ == nullptr || active_->sink_ == nullptr || info == nullptr ||
-      info->des_addr == nullptr) {
+  if (info == nullptr || info->des_addr == nullptr) return;
+
+  callbacks_inflight_.fetch_add(1U, std::memory_order_acq_rel);
+  EspNowDriver *driver = active_.load(std::memory_order_acquire);
+  if (driver == nullptr) {
+    callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
     return;
   }
+  EspNowEventSink *sink = driver->sink_.load(std::memory_order_acquire);
+  if (sink == nullptr) {
+    callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
+    return;
+  }
+
   MacAddress destination{};
   std::copy_n(info->des_addr, destination.size(), destination.begin());
   if (destination == kEspNowBroadcastMac) {
-    const uint8_t send_index = active_->diagnostic_broadcast_logs_.fetch_add(
+    const uint8_t send_index = driver->diagnostic_broadcast_logs_.fetch_add(
         1, std::memory_order_relaxed);
     if (send_index < kDiagnosticLogLimit) {
       ESP_LOGI(TAG, "ESP-NOW diagnostic broadcast completion count=%u success=%s",
@@ -511,26 +621,38 @@ void EspNowDriver::send_cb_(
                status == ESP_NOW_SEND_SUCCESS ? "true" : "false");
     }
   }
-  active_->sink_->on_espnow_send_result(
+  sink->on_espnow_send_result(
       destination, status == ESP_NOW_SEND_SUCCESS);
   // Decrement only after the sink has copied completion metadata into its
   // bounded ring. A zero pending count is therefore safe for the component to
   // use as a radio-transition barrier.
   if (destination != kEspNowBroadcastMac) {
-    active_->complete_unicast_send_();
+    driver->complete_unicast_send_();
   }
+  callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
 }
 #else
 void EspNowDriver::send_cb_(
     const uint8_t *mac_addr,
     esp_now_send_status_t status) {
-  if (active_ == nullptr || active_->sink_ == nullptr || mac_addr == nullptr) {
+  if (mac_addr == nullptr) return;
+
+  callbacks_inflight_.fetch_add(1U, std::memory_order_acq_rel);
+  EspNowDriver *driver = active_.load(std::memory_order_acquire);
+  if (driver == nullptr) {
+    callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
     return;
   }
+  EspNowEventSink *sink = driver->sink_.load(std::memory_order_acquire);
+  if (sink == nullptr) {
+    callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
+    return;
+  }
+
   MacAddress destination{};
   std::copy_n(mac_addr, destination.size(), destination.begin());
   if (destination == kEspNowBroadcastMac) {
-    const uint8_t send_index = active_->diagnostic_broadcast_logs_.fetch_add(
+    const uint8_t send_index = driver->diagnostic_broadcast_logs_.fetch_add(
         1, std::memory_order_relaxed);
     if (send_index < kDiagnosticLogLimit) {
       ESP_LOGI(TAG, "ESP-NOW diagnostic broadcast completion count=%u success=%s",
@@ -538,14 +660,15 @@ void EspNowDriver::send_cb_(
                status == ESP_NOW_SEND_SUCCESS ? "true" : "false");
     }
   }
-  active_->sink_->on_espnow_send_result(
+  sink->on_espnow_send_result(
       destination, status == ESP_NOW_SEND_SUCCESS);
   // Decrement only after the sink has copied completion metadata into its
   // bounded ring. A zero pending count is therefore safe for the component to
   // use as a radio-transition barrier.
   if (destination != kEspNowBroadcastMac) {
-    active_->complete_unicast_send_();
+    driver->complete_unicast_send_();
   }
+  callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
 }
 #endif
 #endif

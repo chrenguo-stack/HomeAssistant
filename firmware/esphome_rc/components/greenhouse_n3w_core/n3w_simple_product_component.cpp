@@ -12,6 +12,7 @@
 #ifdef USE_WIFI
 #include "esphome/components/wifi/wifi_component.h"
 #endif
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esp_http_client.h"
@@ -138,7 +139,7 @@ void SimpleProductComponent::setup() {
 }
 
 void SimpleProductComponent::loop() {
-  if (!activation_enabled_ || is_failed()) return;
+  if (!activation_enabled_ || is_failed() || safe_reboot_requested_) return;
   const bool recovery_exclusive =
       radio_ownership_ == RadioOwnership::DIRECT_PROBE ||
       radio_ownership_ == RadioOwnership::RELAY_RESTORE;
@@ -154,6 +155,11 @@ void SimpleProductComponent::loop() {
   if (!mqtt_configured_ && !configure_mqtt_()) return;
   if (!runtime_ready_) {
     (void) start_runtime_if_ready_();
+    return;
+  }
+  // A missing ESP-NOW completion must not wait until the next scheduled Direct
+  // recovery probe. Evaluate the completion deadline on every component loop.
+  if (check_pending_unicast_timeout_()) {
     return;
   }
   diagnostics_.observe_connectivity(
@@ -375,8 +381,15 @@ bool SimpleProductComponent::start_runtime_if_ready_() {
   if (error != DriverError::NONE) {
     ESP_LOGW(
         TAG,
-        "ESP-NOW initialization failed error=%u",
-        static_cast<unsigned>(error));
+        "ESP-NOW initialization failed error=%u teardown_confirmed=%s",
+        static_cast<unsigned>(error),
+        radio_.teardown_confirmed() ? "true" : "false");
+    if (error == DriverError::ESPNOW_TEARDOWN_UNCONFIRMED ||
+        !radio_.teardown_confirmed()) {
+      request_safe_reboot_(
+          "ESP-NOW runtime start cannot continue with unconfirmed teardown");
+      return false;
+    }
 #ifdef USE_WIFI
     if (start_mode == SimpleProductStartMode::DISCOVERY &&
         wifi::global_wifi_component != nullptr) {
@@ -396,7 +409,10 @@ bool SimpleProductComponent::start_runtime_if_ready_() {
           TAG,
           "ESP-NOW broadcast peer configuration failed error=%u",
           static_cast<unsigned>(error));
-      radio_.shutdown();
+      if (!radio_.shutdown()) {
+        request_safe_reboot_(
+            "ESP-NOW broadcast-peer failure left teardown unconfirmed");
+      }
       return false;
     }
   }
@@ -409,7 +425,11 @@ bool SimpleProductComponent::start_runtime_if_ready_() {
         TAG,
         "Simplified N3-W runtime start failed error=%u",
         static_cast<unsigned>(runtime_error));
-    radio_.shutdown();
+    if (!radio_.shutdown()) {
+      request_safe_reboot_(
+          "N3-W runtime start failure left ESP-NOW teardown unconfirmed");
+      return false;
+    }
 #ifdef USE_WIFI
     if (start_mode == SimpleProductStartMode::DISCOVERY &&
         wifi::global_wifi_component != nullptr) {
@@ -524,8 +544,21 @@ void SimpleProductComponent::advance_recovery_() {
         return;
       }
       if (presence == DirectPresenceProbeResult::FOUND) {
+        direct_ap_hint_lease_.note_found(now);
         (void) begin_direct_probe_();
         return;
+      }
+      if (presence == DirectPresenceProbeResult::NOT_FOUND &&
+          direct_ap_hint_lease_.note_not_found(now)) {
+        ESP_LOGW(
+            TAG,
+            "N3-W Direct AP hint expired after misses=%u locked=%s; allowing configured Wi-Fi recovery",
+            static_cast<unsigned>(direct_ap_hint_lease_.misses()),
+            direct_ap_hint_lease_.explicitly_locked() ? "true" : "false");
+        invalidate_direct_ap_hint_();
+        if (begin_direct_probe_()) {
+          return;
+        }
       }
       schedule_recovery_probe_(true);
       return;
@@ -570,7 +603,11 @@ bool SimpleProductComponent::claim_relay_radio_() {
   }
   LinkKey pmk{};
   if (!derive_pmk_(&pmk)) return false;
-  radio_.shutdown();
+  if (!radio_.shutdown()) {
+    pmk.fill(0);
+    request_safe_reboot_("ESP-NOW teardown unconfirmed before Relay claim");
+    return false;
+  }
 #ifdef USE_WIFI
   if (wifi::global_wifi_component == nullptr) {
     pmk.fill(0);
@@ -608,7 +645,10 @@ bool SimpleProductComponent::begin_direct_probe_() {
 #ifdef USE_WIFI
   if (wifi::global_wifi_component == nullptr) return false;
 #endif
-  radio_.shutdown();
+  if (!radio_.shutdown()) {
+    request_safe_reboot_("ESP-NOW teardown unconfirmed before Direct probe");
+    return false;
+  }
 #ifdef USE_WIFI
   wifi::global_wifi_component->enable();
 #endif
@@ -638,6 +678,28 @@ bool SimpleProductComponent::prepare_direct_probe_radio_() {
          runtime_.update_direct_channel_hint(channel);
 }
 
+bool SimpleProductComponent::explicit_bssid_lock_active_() const {
+#ifdef USE_WIFI
+  if (wifi::global_wifi_component == nullptr) {
+    return true;
+  }
+  // Read the selected ESPHome Wi-Fi configuration, not the current IDF STA
+  // connection parameters. ESPHome's scan-connect path copies the chosen scan
+  // result BSSID into temporary connection parameters, so IDF bssid_set does
+  // not prove the user configured a BSSID restriction.
+  return wifi::global_wifi_component->get_sta().has_bssid();
+#else
+  return true;
+#endif
+}
+
+void SimpleProductComponent::invalidate_direct_ap_hint_() {
+  direct_ap_bssid_.fill(0);
+  direct_ap_bssid_valid_ = false;
+  direct_ap_channel_ = 0;
+  direct_ap_hint_lease_.clear();
+}
+
 void SimpleProductComponent::refresh_direct_ap_hint_() {
 #ifdef USE_WIFI
   if (radio_ownership_ != RadioOwnership::DIRECT_WIFI || !wifi_connected()) {
@@ -655,6 +717,7 @@ void SimpleProductComponent::refresh_direct_ap_hint_() {
       [](uint8_t value) { return value != 0; });
   if (!direct_ap_bssid_valid_) return;
   direct_ap_channel_ = ap.primary;
+  direct_ap_hint_lease_.observe(now_ms(), explicit_bssid_lock_active_());
   (void) runtime_.update_direct_channel_hint(ap.primary);
 #endif
 }
@@ -685,7 +748,15 @@ SimpleProductComponent::probe_direct_ap_presence_() {
     scan.scan_type = WIFI_SCAN_TYPE_PASSIVE;
     scan.scan_time.passive = kDirectPresenceProbePassiveMs;
 
+    const uint64_t scan_started_ms = now_ms();
     const esp_err_t scan_result = esp_wifi_scan_start(&scan, true);
+    const uint64_t scan_elapsed_ms = now_ms() - scan_started_ms;
+    ESP_LOGI(
+        TAG,
+        "N3-W Direct AP presence scan channel=%u elapsed_ms=%llu result=%ld",
+        static_cast<unsigned>(channel),
+        static_cast<unsigned long long>(scan_elapsed_ms),
+        static_cast<long>(scan_result));
     if (scan_result != ESP_OK) {
       return DirectPresenceProbeResult::ERROR;
     }
@@ -732,6 +803,7 @@ SimpleProductComponent::probe_direct_ap_presence_() {
   if (result == DirectPresenceProbeResult::FOUND &&
       valid_radio_channel(record.primary)) {
     direct_ap_channel_ = record.primary;
+    direct_ap_hint_lease_.note_found(now_ms());
     (void) runtime_.update_direct_channel_hint(record.primary);
   }
 
@@ -771,11 +843,63 @@ void SimpleProductComponent::schedule_recovery_probe_(bool increase_backoff) {
   next_recovery_probe_ms_ = now_ms() + recovery_probe_backoff_ms_;
 }
 
-void SimpleProductComponent::begin_relay_restore_() {
+void SimpleProductComponent::begin_relay_restore_(uint32_t initial_delay_ms) {
+  const uint64_t now = now_ms();
   radio_ownership_ = RadioOwnership::RELAY_RESTORE;
   direct_probe_deadline_ms_ = 0;
-  relay_restore_attempts_ = 0;
-  next_relay_restore_attempt_ms_ = now_ms();
+  relay_restore_budget_.start(now);
+  next_relay_restore_attempt_ms_ = now + initial_delay_ms;
+}
+
+void SimpleProductComponent::begin_direct_probe_after_restore_exit_(uint64_t now) {
+  if (!radio_.shutdown()) {
+    request_safe_reboot_("ESP-NOW teardown unconfirmed after Relay restore exhaustion");
+    return;
+  }
+#ifdef USE_WIFI
+  if (wifi::global_wifi_component != nullptr) {
+    wifi::global_wifi_component->enable();
+  }
+#endif
+  radio_ownership_ = RadioOwnership::DIRECT_PROBE;
+  direct_probe_deadline_ms_ = now + kRecoveryProbeWindowMs;
+  next_recovery_probe_ms_ = now;
+  ESP_LOGW(
+      TAG,
+      "N3-W Relay restore budget exhausted; opened bounded Direct verification from Discovery");
+}
+
+void SimpleProductComponent::exit_relay_restore_failure_(uint64_t now) {
+  ++relay_restore_exhausted_count_;
+  const uint64_t elapsed =
+      now >= relay_restore_budget_.started_ms()
+          ? now - relay_restore_budget_.started_ms()
+          : 0U;
+  ESP_LOGE(
+      TAG,
+      "N3-W Relay restore budget exhausted attempts=%u elapsed_ms=%llu count=%u; abandoning stale Relay binding",
+      static_cast<unsigned>(relay_restore_budget_.attempts()),
+      static_cast<unsigned long long>(elapsed),
+      static_cast<unsigned>(relay_restore_exhausted_count_));
+
+  // End the failed ESP-NOW session first. An unconfirmed teardown must not
+  // hand the same boot to another radio owner.
+  if (!radio_.shutdown()) {
+    request_safe_reboot_("ESP-NOW teardown unconfirmed after Relay restore exhaustion");
+    return;
+  }
+  pending_unicast_deadline_.on_drained();
+  clear_tx_completion_ring_();
+  const SimpleProductError reset_result =
+      runtime_.reset_to_discovery_after_radio_fault();
+  if (reset_result != SimpleProductError::NONE) {
+    ESP_LOGE(
+        TAG,
+        "N3-W failed to reset logical path to Discovery after Relay restore exhaustion code=%u",
+        static_cast<unsigned>(reset_result));
+  }
+  relay_restore_budget_.clear();
+  begin_direct_probe_after_restore_exit_(now);
 }
 
 void SimpleProductComponent::advance_relay_restore_() {
@@ -783,23 +907,50 @@ void SimpleProductComponent::advance_relay_restore_() {
   const uint64_t now = now_ms();
   if (now < next_relay_restore_attempt_ms_) return;
 
+  // A Relay restore may follow a clean Direct probe, or an abnormal teardown.
+  // The abnormal case is never allowed to poll callbacks forever or re-use an
+  // unconfirmed old event source.
+  const CallbackQuiesceAction quiesce = callback_quiesce_action(
+      radio_.callbacks_idle(),
+      radio_.teardown_confirmed(),
+      relay_restore_budget_,
+      now);
+  if (quiesce == CallbackQuiesceAction::WAIT) {
+    next_relay_restore_attempt_ms_ =
+        now + kPendingUnicastDrainRetryMs;
+    return;
+  }
+  if (quiesce == CallbackQuiesceAction::REBOOT) {
+    request_safe_reboot_(
+        radio_.teardown_confirmed()
+            ? "ESP-NOW callback quiesce exceeded Relay restore budget"
+            : "ESP-NOW old event source stop could not be confirmed");
+    return;
+  }
+  clear_tx_completion_ring_();
+
   if (restore_relay_radio_()) {
-    relay_restore_attempts_ = 0;
+    relay_restore_budget_.clear();
     schedule_recovery_probe_(true);
     ESP_LOGI(TAG, "N3-W Relay radio restored after Direct verification");
     return;
   }
 
-  if (relay_restore_attempts_ < 255U) ++relay_restore_attempts_;
+  relay_restore_budget_.note_failure();
+  if (relay_restore_budget_.exhausted(now)) {
+    exit_relay_restore_failure_(now);
+    return;
+  }
+
   const uint32_t retry_ms =
-      relay_restore_attempts_ <= kRelayRestoreFastAttempts
+      relay_restore_budget_.attempts() <= kRelayRestoreFastAttempts
           ? kRelayRestoreRetryFastMs
           : kRelayRestoreRetrySlowMs;
   next_relay_restore_attempt_ms_ = now + retry_ms;
   ESP_LOGW(
       TAG,
       "N3-W Relay restore retry deferred attempt=%u delay_ms=%u",
-      static_cast<unsigned>(relay_restore_attempts_),
+      static_cast<unsigned>(relay_restore_budget_.attempts()),
       static_cast<unsigned>(retry_ms));
 }
 
@@ -887,7 +1038,9 @@ void SimpleProductComponent::flush_telemetry_queue_() {
 }
 
 bool SimpleProductComponent::restore_relay_radio_() {
-  radio_.shutdown();
+  if (!radio_.shutdown()) {
+    return false;
+  }
 #ifdef USE_WIFI
   if (wifi::global_wifi_component == nullptr) return false;
   wifi::global_wifi_component->disable();
@@ -927,6 +1080,74 @@ void SimpleProductComponent::drain_send_completions_() {
         static_cast<uint8_t>((read + 1U) % kTxCompletionRingSlots),
         std::memory_order_release);
   }
+  if (radio_.pending_unicast_sends() == 0U) {
+    pending_unicast_deadline_.on_drained();
+  }
+}
+
+bool SimpleProductComponent::check_pending_unicast_timeout_() {
+  if (radio_.pending_unicast_sends() == 0U) {
+    pending_unicast_deadline_.on_drained();
+    return false;
+  }
+  const uint64_t now = now_ms();
+  if (!pending_unicast_deadline_.timed_out(now)) {
+    return false;
+  }
+  // The callback runs on the Wi-Fi task. Recheck after the deadline decision
+  // so a completion racing with this loop is not unnecessarily converted into
+  // a session abort.
+  if (radio_.pending_unicast_sends() == 0U) {
+    drain_send_completions_();
+    pending_unicast_deadline_.on_drained();
+    return false;
+  }
+  handle_pending_unicast_timeout_(now);
+  return true;
+}
+
+void SimpleProductComponent::clear_tx_completion_ring_() {
+  const uint8_t write =
+      tx_completion_write_.load(std::memory_order_acquire);
+  tx_completion_read_.store(write, std::memory_order_release);
+}
+
+void SimpleProductComponent::handle_pending_unicast_timeout_(uint64_t now) {
+  ++pending_unicast_timeout_count_;
+  ESP_LOGE(
+      TAG,
+      "N3-W ESP-NOW unicast completion timeout pending=%u count=%u; fencing old ESP-NOW session and rebooting",
+      static_cast<unsigned>(radio_.pending_unicast_sends()),
+      static_cast<unsigned>(pending_unicast_timeout_count_));
+
+  // ESP-IDF 5.5.4 exposes unregister/deinit but does not publish a guarantee
+  // that a send event already queued below the user callback boundary cannot
+  // enter after a later same-boot re-registration. Therefore a missing
+  // completion is not recovered by reusing the same ESP-NOW session object.
+  // Detach/unregister/deinit first, then cross a reboot boundary before any new
+  // session can exist.
+  const bool teardown_confirmed = radio_.shutdown();
+  pending_unicast_deadline_.on_drained();
+  clear_tx_completion_ring_();
+  ESP_LOGW(
+      TAG,
+      "N3-W timed-out ESP-NOW teardown_confirmed=%s uptime_ms=%llu",
+      teardown_confirmed ? "true" : "false",
+      static_cast<unsigned long long>(now));
+  request_safe_reboot_(
+      teardown_confirmed
+          ? "ESP-NOW completion timeout requires fresh boot session"
+          : "ESP-NOW completion timeout teardown unconfirmed");
+}
+
+void SimpleProductComponent::request_safe_reboot_(const char *reason) {
+  if (safe_reboot_requested_) return;
+  safe_reboot_requested_ = true;
+  ESP_LOGE(
+      TAG,
+      "N3-W fail-safe reboot requested reason=%s",
+      reason != nullptr ? reason : "unspecified");
+  App.safe_reboot();
 }
 
 void SimpleProductComponent::drain_radio_() {
@@ -1100,16 +1321,20 @@ bool SimpleProductComponent::send_encrypted_peer(
     const MacAddress &peer_mac,
     const uint8_t *data,
     std::size_t size) {
+  const uint64_t submit_ms = now_ms();
   const DriverError result =
       radio_.send(peer_mac, data, size, diagnostics_.enabled());
   const bool success = result == DriverError::NONE;
+  if (success) {
+    pending_unicast_deadline_.on_submit(submit_ms);
+  }
   diagnostics_.note_unicast_submit(
       success,
       static_cast<uint8_t>(result),
       radio_.last_unicast_send_error_raw(),
       radio_.last_unicast_current_channel(),
       radio_.last_unicast_peer_channel(),
-      now_ms());
+      submit_ms);
   return success;
 }
 

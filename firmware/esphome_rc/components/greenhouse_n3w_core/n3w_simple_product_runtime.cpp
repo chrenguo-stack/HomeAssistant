@@ -226,6 +226,31 @@ SimpleProductError SimpleProductRuntime::rebind_radio_state() {
   return SimpleProductError::NONE;
 }
 
+SimpleProductError SimpleProductRuntime::reset_to_discovery_after_radio_fault() {
+  if (!started_) return SimpleProductError::NOT_READY;
+
+  pending_challenge_.reset();
+  if (active_relay_.has_value()) {
+    (void) port_->remove_peer(active_relay_->mac);
+    active_relay_.reset();
+  }
+  for (const auto &child : relay_children_) {
+    (void) port_->remove_peer(child.mac);
+  }
+  relay_children_.clear();
+
+  if (path_.reset(LocalPathState::DISCOVERY) != RadioError::NONE ||
+      scan_.configure(direct_channel_, policy_.allowed_channels) !=
+          RadioError::NONE) {
+    return SimpleProductError::STATE_REJECTED;
+  }
+  next_scan_switch_ms_ = clock_->now_ms() + policy_.scan_dwell_ms;
+  if (diagnostic_sink_ != nullptr) {
+    diagnostic_sink_->on_discovery_enter(clock_->now_ms());
+  }
+  return SimpleProductError::NONE;
+}
+
 bool SimpleProductRuntime::update_direct_channel_hint(uint8_t channel) {
   if (!started_ || !valid_radio_channel(channel)) return false;
   direct_channel_ = channel;
