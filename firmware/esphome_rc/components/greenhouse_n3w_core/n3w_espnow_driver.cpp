@@ -141,6 +141,7 @@ DriverError EspNowDriver::initialize_(
   last_unicast_peer_channel_ = 0;
   diagnostic_receive_logs_.store(0, std::memory_order_relaxed);
   diagnostic_broadcast_logs_.store(0, std::memory_order_relaxed);
+  pending_unicast_sends_.store(0, std::memory_order_release);
   if (esp_now_register_recv_cb(&EspNowDriver::recv_cb_) != ESP_OK ||
       esp_now_register_send_cb(&EspNowDriver::send_cb_) != ESP_OK) {
     esp_now_unregister_recv_cb();
@@ -158,6 +159,14 @@ DriverError EspNowDriver::initialize_(
 
 void EspNowDriver::shutdown() {
 #ifdef USE_ESP32
+  const uint16_t pending =
+      pending_unicast_sends_.load(std::memory_order_acquire);
+  if (pending != 0U) {
+    ESP_LOGW(
+        TAG,
+        "ESP-NOW shutdown with pending unicast completions count=%u",
+        static_cast<unsigned>(pending));
+  }
   if (initialized_) {
     esp_now_unregister_recv_cb();
     esp_now_unregister_send_cb();
@@ -170,6 +179,19 @@ void EspNowDriver::shutdown() {
 #endif
   sink_ = nullptr;
   initialized_ = false;
+  pending_unicast_sends_.store(0, std::memory_order_release);
+}
+
+void EspNowDriver::complete_unicast_send_() {
+  uint16_t pending =
+      pending_unicast_sends_.load(std::memory_order_acquire);
+  while (pending != 0U &&
+         !pending_unicast_sends_.compare_exchange_weak(
+             pending,
+             static_cast<uint16_t>(pending - 1U),
+             std::memory_order_acq_rel,
+             std::memory_order_acquire)) {
+  }
 }
 
 DriverError EspNowDriver::set_channel(uint8_t channel) {
@@ -331,7 +353,14 @@ DriverError EspNowDriver::send(
     }
   }
 
+  // Increment before esp_now_send(): the Wi-Fi task may run the completion
+  // callback before this function returns. Synchronous submission failures are
+  // the only path that removes the reservation here.
+  pending_unicast_sends_.fetch_add(1U, std::memory_order_acq_rel);
   const esp_err_t send_result = esp_now_send(peer_mac.data(), data, size);
+  if (send_result != ESP_OK) {
+    complete_unicast_send_();
+  }
   last_unicast_send_error_raw_ = static_cast<int32_t>(send_result);
   last_unicast_send_error_ =
       send_result == ESP_OK ? DriverError::NONE : DriverError::SEND_FAILED;
@@ -484,6 +513,12 @@ void EspNowDriver::send_cb_(
   }
   active_->sink_->on_espnow_send_result(
       destination, status == ESP_NOW_SEND_SUCCESS);
+  // Decrement only after the sink has copied completion metadata into its
+  // bounded ring. A zero pending count is therefore safe for the component to
+  // use as a radio-transition barrier.
+  if (destination != kEspNowBroadcastMac) {
+    active_->complete_unicast_send_();
+  }
 }
 #else
 void EspNowDriver::send_cb_(
@@ -505,6 +540,12 @@ void EspNowDriver::send_cb_(
   }
   active_->sink_->on_espnow_send_result(
       destination, status == ESP_NOW_SEND_SUCCESS);
+  // Decrement only after the sink has copied completion metadata into its
+  // bounded ring. A zero pending count is therefore safe for the component to
+  // use as a radio-transition barrier.
+  if (destination != kEspNowBroadcastMac) {
+    active_->complete_unicast_send_();
+  }
 }
 #endif
 #endif

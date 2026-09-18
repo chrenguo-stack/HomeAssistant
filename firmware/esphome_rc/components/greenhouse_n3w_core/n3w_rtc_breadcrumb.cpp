@@ -100,6 +100,8 @@ const char *n3w_rtc_breadcrumb_stage_name(uint32_t stage) {
       return "TELEMETRY_OK";
     case N3wRtcBreadcrumbStage::TELEMETRY_FAIL:
       return "TELEMETRY_FAIL";
+    case N3wRtcBreadcrumbStage::TELEMETRY_BUFFERED:
+      return "TELEMETRY_BUFFERED";
     case N3wRtcBreadcrumbStage::DIRECT_PUBLISH_BEGIN:
       return "DIRECT_PUBLISH_BEGIN";
     case N3wRtcBreadcrumbStage::DIRECT_PUBLISH_OK:

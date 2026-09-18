@@ -18,6 +18,15 @@
 
 namespace esphome::greenhouse_n3w_core {
 
+enum class TelemetrySubmitDisposition : uint8_t {
+  REJECTED = 0,
+  SUBMITTED,
+  BUFFERED,
+};
+
+const char *telemetry_submit_disposition_name(
+    TelemetrySubmitDisposition disposition);
+
 class SimpleProductComponent : public Component,
                                public EspNowEventSink,
                                public SimpleProductPort,
@@ -44,6 +53,10 @@ class SimpleProductComponent : public Component,
   void loop() override;
   float get_setup_priority() const override;
 
+  TelemetrySubmitDisposition submit_telemetry_json(
+      const std::string &telemetry_json,
+      const std::string &boot_id,
+      uint32_t seq);
   bool send_telemetry_json(
       const std::string &telemetry_json,
       const std::string &boot_id,
@@ -202,10 +215,10 @@ class SimpleProductComponent : public Component,
   static constexpr uint32_t kRecoveryProbeMs = 2000;
   static constexpr uint32_t kRecoveryProbeWindowMs = 15000;
   static constexpr uint32_t kRecoveryProbeIntervalMs = 60000;
-  static constexpr uint32_t kRecoveryProbeBackoffMaxMs = 600000;
+  static constexpr uint32_t kRecoveryProbeBackoffMaxMs = 480000;
   static constexpr uint32_t kDirectPresenceProbeQuietGuardMs = 500;
   static constexpr uint16_t kDirectPresenceProbePassiveMs = 120;
-  static constexpr uint8_t kDirectPresenceWideEveryMisses = 4;
+  static constexpr uint32_t kPendingUnicastDrainRetryMs = 25;
   static constexpr uint32_t kRelayRestoreRetryFastMs = 1000;
   static constexpr uint32_t kRelayRestoreRetrySlowMs = 5000;
   static constexpr uint8_t kRelayRestoreFastAttempts = 5;
@@ -231,7 +244,6 @@ class SimpleProductComponent : public Component,
   uint64_t last_radio_attempt_ms_{0};
   uint64_t runtime_start_grace_started_ms_{0};
   uint32_t recovery_probe_backoff_ms_{kRecoveryProbeIntervalMs};
-  uint32_t direct_presence_misses_{0};
   uint32_t telemetry_queue_dropped_{0};
   uint8_t relay_restore_attempts_{0};
   MacAddress local_mac_{};
