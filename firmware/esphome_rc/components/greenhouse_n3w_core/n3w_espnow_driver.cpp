@@ -173,6 +173,7 @@ DriverError EspNowDriver::initialize_(
 #endif
 
 bool EspNowDriver::shutdown() {
+  bool keep_initialized = false;
 #ifdef USE_ESP32
   const uint16_t pending =
       pending_unicast_sends_.load(std::memory_order_acquire);
@@ -220,11 +221,12 @@ bool EspNowDriver::shutdown() {
   const bool wifi_stopped = stop_owned_wifi_();
   teardown_confirmed_ =
       espnow_stopped && wifi_stopped && callbacks_idle();
+  keep_initialized = !espnow_stopped;
 #else
   teardown_confirmed_ = true;
 #endif
   sink_.store(nullptr, std::memory_order_release);
-  initialized_ = false;
+  initialized_ = keep_initialized;
   if (teardown_confirmed_) {
     pending_unicast_sends_.store(0, std::memory_order_release);
   }
