@@ -128,6 +128,21 @@ class RelayRestoreBudget {
 };
 
 
+struct EspNowTeardownDecision {
+  bool confirmed{false};
+  bool keep_initialized{false};
+};
+
+inline EspNowTeardownDecision assess_espnow_teardown(
+    bool espnow_stopped,
+    bool wifi_stopped,
+    bool callbacks_idle) {
+  return EspNowTeardownDecision{
+      espnow_stopped && wifi_stopped && callbacks_idle,
+      !espnow_stopped,
+  };
+}
+
 enum class CallbackQuiesceAction : uint8_t {
   PROCEED = 0,
   WAIT,
