@@ -11,20 +11,22 @@ Fresh exact repository/runtime/physical evidence takes precedence if later evide
 REPOSITORY=chrenguo-stack/HomeAssistant
 PRIMARY_TASK=N3W_MULTI_NODE_RELAY_AND_RUNTIME_FAILOVER_ACCEPTANCE
 
-ALIGNMENT_BASE_MAIN=dcea3b33d7204679966b88e7fdfad46ae7b54a4b
-REPOSITORY_MAIN_CURRENT=dcea3b33d7204679966b88e7fdfad46ae7b54a4b
+ALIGNMENT_BASE_MAIN=d1b5c3acbd32cca95483743ffe2edba9aa3f904f
+PRODUCT_SOURCE_AUTHORITY=d1b5c3acbd32cca95483743ffe2edba9aa3f904f
 REPOSITORY_MAIN_AT_ARTIFACT_GATE=e2390faf2452730264c19687bf4022df974f04bd
 REPOSITORY_MAIN_TREE_AT_ARTIFACT_GATE=94566c80256db64e8cf4b0cbece9bfd0f1acc417
 
 PR428_SOURCE_HEAD=6cae8ea1a75096aab0e625ae56828d13931f7c57
 PR428_SOURCE_TREE=3fae2b22b5537e0229b0f7eeacf9f0f3b3aa9a64
 PR428_MERGE=f357db25390ffd097e9b8608293870772f9cb16c
+PR431_REVIEW_HEAD=137303c7b08fff36920d05e77c2f1bcc20b38d1f
+PR431_MERGE=d1b5c3acbd32cca95483743ffe2edba9aa3f904f
 
 FROZEN_DEPLOYED_PRODUCT_SOURCE_HEAD=096528fbf61948d6c69197f1c8994ce8e7d672f4
 FROZEN_DEPLOYED_PRODUCT_SOURCE_TREE=6cfa25f5168fc720590f186871c038e3d4a5307f
 ```
 
-Repository `main` contains the merged PR #428 KF-096 source repair plus later documentation-only alignment. A later finite successor repair is now under review in draft PR #431 at exact HEAD `88812e0cab7103367e02bd89d3e1c0585c188696`; it is not merged. The earlier PR #428 artifact remains valid historical build/binding evidence but is no longer deployment-eligible because the successor source fixes deterministic recovery defects found before Board B deployment. Board B still runs the frozen PR #425 artifact. Repository source, review candidate source, frozen historical artifact, and deployed physical source remain separate authorities.
+PR #431 is merged at product-source authority `d1b5c3acbd32cca95483743ffe2edba9aa3f904f`, with Astra-approved review HEAD `137303c7b08fff36920d05e77c2f1bcc20b38d1f` as the second merge parent. Post-merge public-safety and greenhouse-manager CI are PASS. The older PR #428 artifact remains historical build/binding evidence only and is not deployment-eligible. Board B still runs the frozen PR #425 artifact. Repository documentation may advance beyond the product-source authority; source, candidate artifact, and deployed physical source remain separate authorities.
 
 ## Recent integrated route
 
@@ -38,6 +40,7 @@ PR425=MERGED   # transactional Direct failback + Relay channel fixation
 PR426=MERGED   # documentation alignment through PR425 artifact preparation
 PR427=MERGED   # documentation alignment after PR425 physical validation
 PR428=MERGED   # KF-096 Direct recovery continuity source repair
+PR431=MERGED   # finite successor: recovery-exit / teardown lifecycle closure
 ```
 
 Exact product repair merges:
@@ -256,37 +259,36 @@ This artifact is not a deployed state. It is now frozen historical evidence and 
 
 
 
-## PR #431 finite successor repair / current review authority
+## PR #431 merged successor / source authority
 
-PR #431 is the current source candidate and remains draft/unmerged.
+PR #431 completed three Astra review rounds and is merged.
 
 ```text
-PR431_STATE=OPEN_DRAFT
-PR431_MERGED=false
-PR431_MERGEABLE=true
-PR431_BASE=dcea3b33d7204679966b88e7fdfad46ae7b54a4b
-PR431_EXACT_HEAD=88812e0cab7103367e02bd89d3e1c0585c188696
+PR431_STATE=MERGED
+PR431_REVIEW_HEAD=137303c7b08fff36920d05e77c2f1bcc20b38d1f
+PR431_MERGE=d1b5c3acbd32cca95483743ffe2edba9aa3f904f
 
-PR431_CI_TOTAL=11
-PR431_CI_SUCCESS=11
-PR431_CI_FAILURE=0
-PR431_CI_INCOMPLETE=0
+PR431_PREMERGE_CI=11_OF_11_PASS
+PR431_POSTMERGE_PUBLIC_REPOSITORY_SAFETY_CI=PASS
+PR431_POSTMERGE_PUBLIC_REPOSITORY_SAFETY_RUN=35321513253
+PR431_POSTMERGE_GREENHOUSE_MANAGER_CI=PASS
+PR431_POSTMERGE_GREENHOUSE_MANAGER_RUN=35321513207
 
-PR431_PHASE4_SIMPLIFIED_PRODUCT_RUNTIME=PASS
-PR431_ESP32_C6_CHILD_COMPILE=PASS
-PR431_ESP32_C6_RELAY_COMPILE=PASS
-PR431_ESP32_C6_PHYSICAL_HARNESS_COMPILE=PASS
+PR431_POSTMERGE_PHASE4_SIMPLIFIED_PRODUCT_RUNTIME=PASS
+PR431_POSTMERGE_ESP32_C6_CHILD_COMPILE=PASS
+PR431_POSTMERGE_ESP32_C6_RELAY_COMPILE=PASS
+PR431_POSTMERGE_ESP32_C6_PHYSICAL_HARNESS_COMPILE=PASS
+
+ASTRA_FINAL_REVIEW=PASS
+A1_PARTIAL_INIT_TEARDOWN=CLOSED
+A2_STARTUP_UNCONFIRMED_EXIT=CLOSED
+REAL_DRIVER_FAULT_INJECTION_COVERAGE=SUFFICIENT
+NO_NEW_MERGE_BLOCKER=true
 ```
 
-Astra review round 1 on prior HEAD `9e134963e6e03386ea0387dc787544a52da0f635` returned `REQUEST_CHANGES`. The current exact HEAD repairs the three review items without redesigning the radio architecture:
+The merged finite repair preserves the existing radio architecture. It fixes BSSID configuration provenance, bounds unicast/restore exits, uses a fresh-boot boundary for abnormal missing completion, tracks partial ESP-NOW initialization with an independent SDK-started state, and reboots rather than indefinitely retrying startup when teardown is unconfirmed.
 
-- explicit BSSID lock authority now comes from ESPHome 2026.4.3 selected configuration via `get_sta().has_bssid()`, not IDF runtime `bssid_set`;
-- callback-quiesce waiting is bounded by the same 30 s Relay restore budget instead of an unlimited 25 ms polling loop;
-- abnormal missing ESP-NOW completion no longer creates a new same-boot ESP-NOW session. It detaches/unregisters/deinitializes the old source, records teardown confirmation, and crosses `App.safe_reboot()` before any new session may exist. Unconfirmed teardown blocks reinitialization.
-
-Current source/CI success does not close KF-096 and does not authorize Board B access or flashing. The next gate is a second Astra review bound to the exact PR #431 HEAD above.
-
-
+Source/CI success does not close KF-096 and does not authorize Board B access or flashing. A new exact artifact must be built and bound from the merged product-source authority before any later physical gate.
 
 ## Current acceptance matrix
 
@@ -310,13 +312,16 @@ PR428_BOARD_B_DEPLOYMENT=NOT_EXECUTED
 PR428_PHYSICAL_VALIDATION=NOT_EXECUTED
 PR428_ARTIFACT_DISPOSITION=FROZEN_HISTORICAL_NOT_FOR_DEPLOYMENT
 
-PR431_SOURCE_REPAIR=OPEN_DRAFT
-PR431_EXACT_HEAD=88812e0cab7103367e02bd89d3e1c0585c188696
-PR431_CI=11_OF_11_PASS
-PR431_ASTRA_REVIEW_ROUND_1=REQUEST_CHANGES
-PR431_ASTRA_REVIEW_ROUND_1_ITEMS=REPAIRED_IN_CURRENT_HEAD
-PR431_ASTRA_REVIEW_ROUND_2=PENDING
-PR431_MERGED=false
+PR431_SOURCE_REPAIR=MERGED
+PR431_REVIEW_HEAD=137303c7b08fff36920d05e77c2f1bcc20b38d1f
+PR431_MERGE=d1b5c3acbd32cca95483743ffe2edba9aa3f904f
+PR431_PREMERGE_CI=11_OF_11_PASS
+PR431_POSTMERGE_CI=PASS
+PR431_ASTRA_FINAL_REVIEW=PASS
+PR431_EXACT_ARTIFACT_BUILD=NOT_EXECUTED
+PR431_EXACT_ARTIFACT_BINDING=NOT_EXECUTED
+PR431_BOARD_B_DEPLOYMENT=NOT_EXECUTED
+PR431_PHYSICAL_VALIDATION=NOT_EXECUTED
 
 PR425_POST_MERGE_CI=PASS
 PR425_EXACT_ARTIFACT_BINDING=PASS
@@ -343,25 +348,26 @@ OVERALL_N3W_FAILOVER_ACCEPTANCE=NOT_CLOSED
 - Do not claim historical `ESP_ERR_ESPNOW_CHAN` eliminated unless post-fix low-level channel/error diagnostics prove it.
 - `ESP_OK` from ESP-NOW submit is not async RF delivery proof.
 - Direct recovery must not achieve failback responsiveness by silently discarding periodic Relay business telemetry.
-- PR #428 artifact success is historical evidence only and must not be deployed after the PR #431 successor source exists. PR #431 source/CI success must not be promoted to KF-096 physical closure; a new exact artifact, explicit target preflight, deployment authorization, and physical acceptance remain separate later gates.
+- PR #428 artifact success is historical evidence only and must not be deployed after the PR #431 successor merge. PR #431 merge/source/CI success must not be promoted to KF-096 physical closure; a new exact PR #431 artifact, exact binding, explicit target preflight, deployment authorization, and physical acceptance remain separate later gates.
 - Consumed physical authorizations are never replayable.
 
 ## Current ONE gate
 
 ```text
-NEXT_ONE_GATE=N3W_KF096_PR431_ASTRA_FINAL_REVIEW_20260918_01
+NEXT_ONE_GATE=N3W_KF096_PR431_EXACT_ARTIFACT_BUILD_AND_BINDING_PREPARATION_20260918_01
 
-PR431_EXACT_HEAD=88812e0cab7103367e02bd89d3e1c0585c188696
-PR431_MERGE=false
+SOURCE_AUTHORITY=d1b5c3acbd32cca95483743ffe2edba9aa3f904f
+ARTIFACT_BUILD=NOT_EXECUTED
+ARTIFACT_BINDING=NOT_EXECUTED
+
 BOARD_ACCESS_REQUIRED=false
 BOARD_ACCESS=false
 SERIAL_OPEN=false
 FLASH_WRITE=false
 T1_MUTATION=false
-ARTIFACT_MUTATION=false
 ```
 
-First objective: obtain a second independent Astra source review strictly bound to PR #431 exact HEAD `88812e0cab7103367e02bd89d3e1c0585c188696`, focused on the repaired BSSID provenance, bounded callback-quiesce exit, and teardown/fresh-boot isolation semantics. No merge or physical action is part of this gate. If no new merge blocker remains, merge still requires a separate explicit authorization.
+First objective: prepare an exact-artifact build/binding gate for the merged PR #431 product source. Freeze exact source/tree, target configuration, ESPHome/ESP-IDF toolchain, workflow provenance, expected artifact members, and hash-binding procedure before starting the build. This documentation alignment does not itself build an artifact and does not authorize physical access or deployment.
 
 ## Public/private evidence boundary
 
