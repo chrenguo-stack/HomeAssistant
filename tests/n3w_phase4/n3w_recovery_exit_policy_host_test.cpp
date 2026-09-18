@@ -89,5 +89,27 @@ int main() {
            CallbackQuiesceAction::REBOOT);
   }
 
+  {
+    const EspNowTeardownDecision clean =
+        assess_espnow_teardown(true, true, true);
+    assert(clean.confirmed);
+    assert(!clean.keep_initialized);
+
+    const EspNowTeardownDecision deinit_failed =
+        assess_espnow_teardown(false, true, true);
+    assert(!deinit_failed.confirmed);
+    assert(deinit_failed.keep_initialized);
+
+    const EspNowTeardownDecision callback_busy =
+        assess_espnow_teardown(true, true, false);
+    assert(!callback_busy.confirmed);
+    assert(!callback_busy.keep_initialized);
+
+    const EspNowTeardownDecision wifi_stop_failed =
+        assess_espnow_teardown(true, false, true);
+    assert(!wifi_stop_failed.confirmed);
+    assert(!wifi_stop_failed.keep_initialized);
+  }
+
   return 0;
 }
