@@ -131,7 +131,9 @@ void N3wLabDiagnostics::note_channel_result(
     int32_t raw_error,
     uint64_t now_ms) {
   if (!enabled_ || !boot_session_started_) return;
-  snapshot_.current_channel = observed != 0U ? observed : requested;
+  // current_channel is an observation oracle. A failed/unknown readback must
+  // remain 0 rather than being replaced by the requested channel.
+  snapshot_.current_channel = observed;
   snapshot_.last_requested_channel = requested;
   snapshot_.last_observed_channel = observed;
   snapshot_.last_driver_error_raw = raw_error;
@@ -170,7 +172,9 @@ void N3wLabDiagnostics::on_scan_result(
     int32_t raw_error,
     uint64_t now_ms) {
   if (!enabled_ || !boot_session_started_) return;
-  snapshot_.current_channel = observed != 0U ? observed : requested;
+  // current_channel is an observation oracle. A failed/unknown readback must
+  // remain 0 rather than being replaced by the requested channel.
+  snapshot_.current_channel = observed;
   snapshot_.last_requested_channel = requested;
   snapshot_.last_observed_channel = observed;
   snapshot_.last_driver_error_raw = raw_error;
@@ -198,13 +202,15 @@ void N3wLabDiagnostics::observe_runtime(
     bool relay_active,
     uint64_t now_ms) {
   if (!enabled_ || !boot_session_started_) return;
+  // current_channel is reserved for concrete Wi-Fi readback captured by
+  // note_channel_result()/on_scan_result(). runtime working_channel is a
+  // logical state-machine value and must not overwrite that observation oracle.
+  (void) current_channel;
   const bool changed = snapshot_.path_state != path_state ||
-                       snapshot_.current_channel != current_channel ||
                        snapshot_.direct_channel_hint != direct_channel_hint ||
                        relay_children_ != relay_children ||
                        relay_active_ != relay_active;
   snapshot_.path_state = path_state;
-  snapshot_.current_channel = current_channel;
   snapshot_.direct_channel_hint = direct_channel_hint;
   relay_children_ = relay_children;
   relay_active_ = relay_active;

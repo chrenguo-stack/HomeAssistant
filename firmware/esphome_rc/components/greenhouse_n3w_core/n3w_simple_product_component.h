@@ -4,6 +4,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <deque>
 #include <string>
 
 #include "esphome/core/component.h"
@@ -17,6 +18,15 @@
 
 namespace esphome::greenhouse_n3w_core {
 
+enum class TelemetrySubmitDisposition : uint8_t {
+  REJECTED = 0,
+  SUBMITTED,
+  BUFFERED,
+};
+
+const char *telemetry_submit_disposition_name(
+    TelemetrySubmitDisposition disposition);
+
 class SimpleProductComponent : public Component,
                                public EspNowEventSink,
                                public SimpleProductPort,
@@ -28,6 +38,7 @@ class SimpleProductComponent : public Component,
     DIRECT_WIFI = 0,
     RELAY_ESPNOW,
     DIRECT_PROBE,
+    RELAY_RESTORE,
   };
 
  public:
@@ -42,6 +53,10 @@ class SimpleProductComponent : public Component,
   void loop() override;
   float get_setup_priority() const override;
 
+  TelemetrySubmitDisposition submit_telemetry_json(
+      const std::string &telemetry_json,
+      const std::string &boot_id,
+      uint32_t seq);
   bool send_telemetry_json(
       const std::string &telemetry_json,
       const std::string &boot_id,
@@ -141,6 +156,20 @@ class SimpleProductComponent : public Component,
     bool success{false};
   };
 
+  enum class DirectPresenceProbeResult : uint8_t {
+    FOUND = 0,
+    NOT_FOUND,
+    ERROR,
+    RESTORE_FAILED,
+  };
+
+  struct BufferedTelemetry {
+    std::string telemetry_json;
+    std::string boot_id;
+    uint32_t seq{0};
+    uint8_t attempts{0};
+  };
+
   bool read_local_mac_();
   bool load_runtime_state_();
   bool configure_mqtt_();
@@ -153,7 +182,17 @@ class SimpleProductComponent : public Component,
   bool claim_relay_radio_();
   bool begin_direct_probe_();
   bool prepare_direct_probe_radio_();
+  void refresh_direct_ap_hint_();
+  DirectPresenceProbeResult probe_direct_ap_presence_();
+  void schedule_recovery_probe_(bool increase_backoff);
+  void begin_relay_restore_();
+  void advance_relay_restore_();
   bool restore_relay_radio_();
+  bool enqueue_telemetry_(
+      const std::string &telemetry_json,
+      const std::string &boot_id,
+      uint32_t seq);
+  void flush_telemetry_queue_();
   bool http_post_(
       const std::string &host,
       uint16_t port,
@@ -176,6 +215,17 @@ class SimpleProductComponent : public Component,
   static constexpr uint32_t kRecoveryProbeMs = 2000;
   static constexpr uint32_t kRecoveryProbeWindowMs = 15000;
   static constexpr uint32_t kRecoveryProbeIntervalMs = 60000;
+  static constexpr uint32_t kRecoveryProbeBackoffMaxMs = 480000;
+  static constexpr uint32_t kDirectPresenceProbeQuietGuardMs = 500;
+  static constexpr uint16_t kDirectPresenceProbePassiveMs = 120;
+  static constexpr uint32_t kPendingUnicastDrainRetryMs = 25;
+  static constexpr uint32_t kRelayRestoreRetryFastMs = 1000;
+  static constexpr uint32_t kRelayRestoreRetrySlowMs = 5000;
+  static constexpr uint8_t kRelayRestoreFastAttempts = 5;
+  static constexpr std::size_t kTelemetryQueueCapacity = 8;
+  static constexpr uint32_t kTelemetryFlushSpacingMs = 100;
+  static constexpr uint32_t kTelemetryRetrySpacingMs = 500;
+  static constexpr uint8_t kTelemetryMaxSendAttempts = 3;
   static constexpr uint32_t kInitialDirectGraceMs = 15000;
   static constexpr uint16_t kDiscoveryPort = 47111;
 
@@ -188,9 +238,18 @@ class SimpleProductComponent : public Component,
   uint64_t next_pairing_attempt_ms_{0};
   uint64_t next_recovery_probe_ms_{0};
   uint64_t direct_probe_deadline_ms_{0};
+  uint64_t next_relay_restore_attempt_ms_{0};
+  uint64_t next_telemetry_flush_ms_{0};
+  uint64_t last_relay_telemetry_ms_{0};
   uint64_t last_radio_attempt_ms_{0};
   uint64_t runtime_start_grace_started_ms_{0};
+  uint32_t recovery_probe_backoff_ms_{kRecoveryProbeIntervalMs};
+  uint32_t telemetry_queue_dropped_{0};
+  uint8_t relay_restore_attempts_{0};
   MacAddress local_mac_{};
+  MacAddress direct_ap_bssid_{};
+  bool direct_ap_bssid_valid_{false};
+  uint8_t direct_ap_channel_{0};
   ProvisionedPeerStateV2 peer_state_{};
   ProvisionedBrokerStateV2 broker_state_{};
   EspNowDriver radio_{};
@@ -204,6 +263,7 @@ class SimpleProductComponent : public Component,
   NvsProvisionedBrokerStoreV2 broker_store_{};
   NvsPendingPairingAckStoreV2 ack_store_{};
   SimplePairingClient pairing_client_;
+  std::deque<BufferedTelemetry> telemetry_queue_{};
   std::array<TxCompletionSlot, kTxCompletionRingSlots> tx_completion_ring_{};
   std::atomic<uint8_t> tx_completion_write_{0};
   std::atomic<uint8_t> tx_completion_read_{0};

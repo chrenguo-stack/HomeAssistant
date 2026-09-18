@@ -124,6 +124,9 @@ class EspNowDriver {
   }
 
   bool initialized() const { return initialized_; }
+  uint16_t pending_unicast_sends() const {
+    return pending_unicast_sends_.load(std::memory_order_acquire);
+  }
 
  protected:
 #ifdef USE_ESP32
@@ -133,6 +136,7 @@ class EspNowDriver {
       bool start_standalone_wifi);
   DriverError start_wifi_(bool start_standalone_wifi);
   void stop_owned_wifi_();
+  void complete_unicast_send_();
 
   static void recv_cb_(
       const esp_now_recv_info_t *info,
@@ -164,6 +168,7 @@ class EspNowDriver {
   int32_t last_unicast_send_error_raw_{0};
   uint8_t last_unicast_current_channel_{0};
   uint8_t last_unicast_peer_channel_{0};
+  std::atomic<uint16_t> pending_unicast_sends_{0};
 };
 
 }  // namespace esphome::greenhouse_n3w_core

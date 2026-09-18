@@ -92,7 +92,7 @@ class GreenhouseN3wCore : public SimpleProductComponent {
     SimpleProductComponent::loop();
   }
 
-  bool send_telemetry_json(
+  TelemetrySubmitDisposition submit_telemetry_json(
       const std::string &telemetry_json,
       const std::string &boot_id,
       uint32_t seq) {
@@ -100,14 +100,32 @@ class GreenhouseN3wCore : public SimpleProductComponent {
         N3wRtcBreadcrumbStage::TELEMETRY_BEGIN,
         static_cast<uint32_t>(path_state()),
         seq);
-    const bool accepted = SimpleProductComponent::send_telemetry_json(
-        telemetry_json, boot_id, seq);
+    const TelemetrySubmitDisposition disposition =
+        SimpleProductComponent::submit_telemetry_json(
+            telemetry_json, boot_id, seq);
+    N3wRtcBreadcrumbStage stage = N3wRtcBreadcrumbStage::TELEMETRY_FAIL;
+    if (disposition == TelemetrySubmitDisposition::SUBMITTED) {
+      stage = N3wRtcBreadcrumbStage::TELEMETRY_OK;
+    } else if (disposition == TelemetrySubmitDisposition::BUFFERED) {
+      stage = N3wRtcBreadcrumbStage::TELEMETRY_BUFFERED;
+    }
     mark_rtc_breadcrumb_(
-        accepted ? N3wRtcBreadcrumbStage::TELEMETRY_OK
-                 : N3wRtcBreadcrumbStage::TELEMETRY_FAIL,
+        stage,
         static_cast<uint32_t>(path_state()),
         seq);
-    return accepted;
+    return disposition;
+  }
+
+  // Compatibility surface for callers that only need to know whether the
+  // component retained the sample. true includes BUFFERED and must not be used
+  // as evidence that MQTT/ESP-NOW submission already occurred; physical
+  // evidence must use submit_telemetry_json() and its tri-state disposition.
+  bool send_telemetry_json(
+      const std::string &telemetry_json,
+      const std::string &boot_id,
+      uint32_t seq) {
+    return submit_telemetry_json(telemetry_json, boot_id, seq) !=
+           TelemetrySubmitDisposition::REJECTED;
   }
 
   bool publish_direct(
