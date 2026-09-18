@@ -516,6 +516,24 @@ void SimpleProductComponent::advance_recovery_() {
   }
 
   if (radio_ownership_ == RadioOwnership::RELAY_ESPNOW) {
+    bool internal_hint_expired = false;
+    if (direct_ap_bssid_valid_ &&
+        valid_radio_channel(direct_ap_channel_) &&
+        direct_ap_hint_policy_.expired(now)) {
+      internal_hint_expired = true;
+      invalidate_direct_ap_hint_();
+      if (next_recovery_probe_ms_ > now) {
+        next_recovery_probe_ms_ = now;
+      }
+    }
+
+    if (direct_ap_hint_policy_.active()) {
+      const uint64_t expires_at = direct_ap_hint_policy_.expires_at_ms();
+      if (expires_at != 0 && next_recovery_probe_ms_ > expires_at) {
+        next_recovery_probe_ms_ = expires_at;
+      }
+    }
+
     if (runtime_.challenge_pending()) return;
 
     if (runtime_.path_state() != LocalPathState::RELAY_ACTIVE &&
@@ -541,6 +559,14 @@ void SimpleProductComponent::advance_recovery_() {
       return;
     }
     drain_send_completions_();
+
+    if (internal_hint_expired) {
+      if (begin_direct_probe_()) {
+        return;
+      }
+      schedule_recovery_probe_(false);
+      return;
+    }
 
     if (direct_ap_bssid_valid_ && valid_radio_channel(direct_ap_channel_)) {
       const DirectPresenceProbeResult presence = probe_direct_ap_presence_();
@@ -901,7 +927,16 @@ void SimpleProductComponent::schedule_recovery_probe_(bool increase_backoff) {
   } else {
     recovery_probe_backoff_ms_ = kRecoveryProbeIntervalMs;
   }
-  next_recovery_probe_ms_ = now_ms() + recovery_probe_backoff_ms_;
+
+  const uint64_t now = now_ms();
+  uint64_t scheduled = now + recovery_probe_backoff_ms_;
+  if (direct_ap_hint_policy_.active()) {
+    const uint64_t expires_at = direct_ap_hint_policy_.expires_at_ms();
+    if (expires_at != 0 && scheduled > expires_at) {
+      scheduled = expires_at;
+    }
+  }
+  next_recovery_probe_ms_ = scheduled;
 }
 
 void SimpleProductComponent::begin_relay_restore_(uint32_t initial_delay_ms) {
