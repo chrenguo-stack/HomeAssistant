@@ -52,16 +52,41 @@ def test_component_uses_bounded_recovery_exits() -> None:
     restore = timeout.index("begin_relay_restore_", deadline_clear)
     assert shutdown < deadline_clear < restore
 
+    header = (CORE / "n3w_espnow_driver.h").read_text(encoding="utf-8")
+    assert "std::atomic<EspNowDriver *> active_" in header
+    assert "std::atomic<EspNowEventSink *> sink_" in header
+    assert "callbacks_inflight_" in header
+    assert "callbacks_idle() const" in header
+
     shutdown_start = driver.index("void EspNowDriver::shutdown()")
     shutdown_end = driver.index(
         "void EspNowDriver::complete_unicast_send_", shutdown_start
     )
     shutdown_body = driver[shutdown_start:shutdown_end]
-    detach = shutdown_body.index("active_ = nullptr")
+    detach = shutdown_body.index("active_.compare_exchange_strong")
     unregister = shutdown_body.index("esp_now_unregister_send_cb", detach)
     deinit = shutdown_body.index("esp_now_deinit", unregister)
     clear = shutdown_body.index("pending_unicast_sends_.store(0", deinit)
     assert detach < unregister < deinit < clear
+
+    callback = driver[driver.index("void EspNowDriver::send_cb_("):]
+    enter = callback.index("callbacks_inflight_.fetch_add")
+    active_recheck = callback.index("active_.load", enter)
+    sink_snapshot = callback.index("sink_.load", active_recheck)
+    leave = callback.index("callbacks_inflight_.fetch_sub", sink_snapshot)
+    assert enter < active_recheck < sink_snapshot < leave
+
+    restore_start = component.index(
+        "void SimpleProductComponent::advance_relay_restore_()"
+    )
+    restore_end = component.index(
+        "bool SimpleProductComponent::enqueue_telemetry_", restore_start
+    )
+    restore = component[restore_start:restore_end]
+    idle = restore.index("radio_.callbacks_idle()")
+    purge = restore.index("clear_tx_completion_ring_()", idle)
+    reinit = restore.index("restore_relay_radio_()", purge)
+    assert idle < purge < reinit
 
     assert "relay_restore_budget_.exhausted(now)" in component
     assert "exit_relay_restore_failure_(now)" in component
