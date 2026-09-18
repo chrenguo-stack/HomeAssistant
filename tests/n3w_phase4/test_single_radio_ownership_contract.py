@@ -95,7 +95,9 @@ def test_recovery_probe_checks_ap_presence_and_buffers_business_telemetry() -> N
     narrow = probe.index("scan_for_bound_bssid(direct_ap_channel_")
     wide = probe.index("scan_for_bound_bssid(0, &record)", narrow)
     restore = probe.index("radio_.set_channel(relay_channel)", wide)
-    assert narrow < wide < restore
+    observed = probe.index("radio_.last_channel_observed()", restore)
+    oracle = probe.index("diagnostics_.note_channel_result(", observed)
+    assert narrow < wide < restore < observed < oracle
     assert "esp_wifi_scan_start(&scan, true)" in probe
     assert "WIFI_SCAN_TYPE_PASSIVE" in probe
     assert "kDirectPresenceProbePassiveMs" in probe
