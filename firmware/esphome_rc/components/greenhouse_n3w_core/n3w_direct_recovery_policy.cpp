@@ -80,6 +80,31 @@ DirectRecoveryDecision DirectRecoveryAttempt::observe(
   }
 
   const uint64_t now = observation.now_ms;
+  if (now >= absolute_deadline_ms_) {
+    return fail_(DirectRecoveryTerminalReason::ABSOLUTE_TIMEOUT);
+  }
+
+  const DirectRecoveryPhase phase_at_entry = phase_;
+  const uint64_t phase_deadline_at_entry = phase_deadline_ms_;
+  const auto fail_phase =
+      [this](DirectRecoveryPhase phase) -> DirectRecoveryDecision {
+    switch (phase) {
+      case DirectRecoveryPhase::WIFI_RECOVERY:
+        return fail_(DirectRecoveryTerminalReason::WIFI_TIMEOUT);
+      case DirectRecoveryPhase::MQTT_RECOVERY:
+        return fail_(DirectRecoveryTerminalReason::MQTT_TIMEOUT);
+      case DirectRecoveryPhase::DIRECT_CONFIRM:
+        return fail_(DirectRecoveryTerminalReason::CONFIRM_TIMEOUT);
+      default:
+        return fail_(DirectRecoveryTerminalReason::ABSOLUTE_TIMEOUT);
+    }
+  };
+
+  if (now > phase_deadline_at_entry) {
+    return fail_phase(phase_at_entry);
+  }
+
+  bool forward_progress = false;
 
   if (phase_ == DirectRecoveryPhase::WIFI_RECOVERY &&
       observation.wifi_ready) {
@@ -87,10 +112,15 @@ DirectRecoveryDecision DirectRecoveryAttempt::observe(
         DirectRecoveryPhase::MQTT_RECOVERY,
         now,
         config_.mqtt_phase_budget_ms);
+    forward_progress = true;
   }
 
   if (phase_ == DirectRecoveryPhase::MQTT_RECOVERY) {
     if (!observation.wifi_ready) {
+      if (now == phase_deadline_at_entry &&
+          phase_at_entry == DirectRecoveryPhase::MQTT_RECOVERY) {
+        return fail_phase(phase_at_entry);
+      }
       confirm_success_count_ = 0;
       enter_phase_(
           DirectRecoveryPhase::WIFI_RECOVERY,
@@ -102,17 +132,26 @@ DirectRecoveryDecision DirectRecoveryAttempt::observe(
           DirectRecoveryPhase::DIRECT_CONFIRM,
           now,
           config_.confirm_phase_budget_ms);
+      forward_progress = true;
     }
   }
 
   if (phase_ == DirectRecoveryPhase::DIRECT_CONFIRM) {
     if (!observation.wifi_ready) {
+      if (now == phase_deadline_at_entry &&
+          phase_at_entry == DirectRecoveryPhase::DIRECT_CONFIRM) {
+        return fail_phase(phase_at_entry);
+      }
       confirm_success_count_ = 0;
       enter_phase_(
           DirectRecoveryPhase::WIFI_RECOVERY,
           now,
           config_.wifi_phase_budget_ms);
     } else if (!observation.mqtt_ready) {
+      if (now == phase_deadline_at_entry &&
+          phase_at_entry == DirectRecoveryPhase::DIRECT_CONFIRM) {
+        return fail_phase(phase_at_entry);
+      }
       confirm_success_count_ = 0;
       enter_phase_(
           DirectRecoveryPhase::MQTT_RECOVERY,
@@ -132,21 +171,9 @@ DirectRecoveryDecision DirectRecoveryAttempt::observe(
     }
   }
 
-  if (now >= phase_deadline_ms_) {
-    switch (phase_) {
-      case DirectRecoveryPhase::WIFI_RECOVERY:
-        return fail_(DirectRecoveryTerminalReason::WIFI_TIMEOUT);
-      case DirectRecoveryPhase::MQTT_RECOVERY:
-        return fail_(DirectRecoveryTerminalReason::MQTT_TIMEOUT);
-      case DirectRecoveryPhase::DIRECT_CONFIRM:
-        return fail_(DirectRecoveryTerminalReason::CONFIRM_TIMEOUT);
-      default:
-        break;
-    }
-  }
-
-  if (now >= absolute_deadline_ms_) {
-    return fail_(DirectRecoveryTerminalReason::ABSOLUTE_TIMEOUT);
+  if (!forward_progress && phase_ == phase_at_entry &&
+      now >= phase_deadline_at_entry) {
+    return fail_phase(phase_at_entry);
   }
 
   return decision_(DirectRecoveryAction::CONTINUE_DIRECT);
@@ -154,9 +181,13 @@ DirectRecoveryDecision DirectRecoveryAttempt::observe(
 
 DirectRecoveryDecision DirectRecoveryAttempt::on_concrete_direct_restore(
     bool success,
-    uint64_t) {
+    uint64_t now_ms) {
   if (!restore_requested_) {
     return decision_(DirectRecoveryAction::NONE);
+  }
+  if (now_ms >= absolute_deadline_ms_) {
+    restore_requested_ = false;
+    return fail_(DirectRecoveryTerminalReason::ABSOLUTE_TIMEOUT);
   }
   restore_requested_ = false;
   if (!success) {
