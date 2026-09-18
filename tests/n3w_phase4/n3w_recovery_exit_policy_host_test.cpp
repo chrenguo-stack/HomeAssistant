@@ -93,22 +93,22 @@ int main() {
     const EspNowTeardownDecision clean =
         assess_espnow_teardown(true, true, true);
     assert(clean.confirmed);
-    assert(!clean.keep_initialized);
+    assert(!clean.keep_espnow_started);
 
     const EspNowTeardownDecision deinit_failed =
         assess_espnow_teardown(false, true, true);
     assert(!deinit_failed.confirmed);
-    assert(deinit_failed.keep_initialized);
+    assert(deinit_failed.keep_espnow_started);
 
     const EspNowTeardownDecision callback_busy =
         assess_espnow_teardown(true, true, false);
     assert(!callback_busy.confirmed);
-    assert(!callback_busy.keep_initialized);
+    assert(!callback_busy.keep_espnow_started);
 
     const EspNowTeardownDecision wifi_stop_failed =
         assess_espnow_teardown(true, false, true);
     assert(!wifi_stop_failed.confirmed);
-    assert(!wifi_stop_failed.keep_initialized);
+    assert(!wifi_stop_failed.keep_espnow_started);
   }
 
   return 0;
