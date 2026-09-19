@@ -1,0 +1,630 @@
+# 温室环境监测系统 N3-W / P5 / M08 Child 部署后无 Host 可见流量与板端只读诊断授权前开发交接文档
+
+- 文档版本：V1.0
+- 交接日期：2026-08-12
+- 项目：温室环境监测系统（ESP32-C6）
+- 开发节点：N3-W / P5
+- 当前矩阵：M08
+- 仓库：`chrenguo-stack/HomeAssistant`
+- 交接时冻结 main：`ffd9d00c0107e4893166c05939183dc702a30f83`
+- 交接时冻结 tree：`b058be3142b04fe27db0c345469370ce85a48b46`
+- 文档性质：公开仓库可归档的脱敏开发交接文档
+- 私有边界：不包含私有密钥、密码、MAC、USB 端口、原始 boot ID、私有证据完整摘要或私有本地路径
+
+---
+
+## 1. 本轮交接结论
+
+本轮完成 M08 Child successor 固件 materialization、Child-first dual-OTA 部署、部署后 host-only/read-only liveness 复核，以及 Direct / Relay ingress / Canonical 三条 host-visible 路径的闭环诊断。
+
+```text
+M08_SOURCE_REPAIR_MERGED=true
+M08_FIRMWARE_MATERIALIZED=true
+M08_FIRMWARE_DEPLOYED=true
+CHILD_IMAGE_DEPLOYED=true
+
+POSTRESET_APPLICATION_BOOT_PROVEN=false
+DEPLOYED_SUCCESSOR_APPLICATION_LIVENESS_PROVEN=false
+
+HOSTONLY_LIVENESS_DIAGNOSTICS_EXHAUSTED=true
+NO_HOST_VISIBLE_POSTDEPLOYMENT_CHILD_TRAFFIC=true
+
+BOARD_READONLY_DIAGNOSTIC_REQUIRED=true
+
+M08_RELAY_DEPLOYMENT_ALLOWED=false
+M08_RELAY_RESTART_EXECUTED=false
+M08_PASS=false
+M08_FAIL=false
+```
+
+证据边界必须保持：可以确认 `NO_HOST_VISIBLE_POSTDEPLOYMENT_CHILD_TRAFFIC=true`；不能确认 `CHILD_APPLICATION_BOOT_FAILED=true`。
+
+因此下一阶段不是 Relay 部署、PATH RELAY、Relay RESTART、RESET、掉电或重新 Flash，而是 Child-only board-readonly liveness diagnostic。
+
+---
+
+## 2. GitHub / exact-main 冻结事实
+
+```text
+CURRENT_MAIN_SHA=ffd9d00c0107e4893166c05939183dc702a30f83
+CURRENT_MAIN_TREE=b058be3142b04fe27db0c345469370ce85a48b46
+```
+
+该 main 包含 PR #305 合并后的 M08 fresh re-Probe recovery state machine 修复。
+
+M08 目标语义仍为：
+
+```text
+Relay RESTART
+→ fresh re-Probe
+→ reassembly recovery
+→ gateway ingress
+→ canonical progression
+→ same NODE_ID
+```
+
+当前尚未执行最终 M08 Relay RESTART 验证。
+
+---
+
+## 3. 上游冻结状态
+
+### M04
+
+```text
+M04_ACCEPTED=true
+M04_TERMINAL=PASS
+M04_RESEND_REPLAY_ALLOWED=false
+SECOND_M04_RESEND_PROHIBITED=true
+```
+
+### M05
+
+```text
+M05_ACCEPTED=true
+M05_TERMINAL=PASS
+M05_REORDER_REPLAY_ALLOWED=false
+SECOND_REORDER_PROHIBITED=true
+```
+
+### M06
+
+```text
+HOSTONLY_EXACT_MAIN_STALE_SEQUENCE_PROOF=PASS
+AUTHORIZATION=D1-N3W-P5-M06-SUCCESSOR-HOSTONLY-STALE-SEQUENCE-PROOF-20260811-01
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+PROOF_ATTEMPT_COUNT=1
+DO_NOT_RERUN=true
+
+M06_PHYSICAL_E2E=DEFERRED
+M06_LIVE_PASS=false
+M06_LIVE_FAIL=false
+M06_TARGET_EXISTENCE=UNKNOWN
+```
+
+不得把 M06 host-only proof 写成 live physical PASS。
+
+### M07
+
+```text
+AUTHORIZATION=D1-N3W-P5-M07-EXACTLY-ONE-CHILD-RESTART-EXECUTION-20260811-01
+M07_ACCEPTED=true
+M07_TERMINAL=PASS
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+M07_CHILD_RESTART_ATTEMPT_COUNT=1
+RESTART_PUBLISH_ATTEMPT_COUNT=1
+M07_CHILD_RESTART_REPLAY_ALLOWED=false
+SECOND_M07_CHILD_RESTART_PROHIBITED=true
+OLD_BOOT_SESSION_REPLACED=true
+NEW_BOOT_SESSION_UNIQUE=true
+NEW_BOOT_SESSION_EXACT_SUCCESSOR=true
+BOOT_SESSION_DELTA=1
+SEQ_RESTART_FROM_ZERO_OBSERVED=true
+POSTRESTART_SEQUENCE_PROGRESS=true
+CANONICAL_NEW_SESSION_OBSERVED=true
+CANONICAL_ROLLBACK=false
+ACTIVE_PATH=direct
+PATH_CHANGED=false
+CANDIDATE_PATH_NONE=true
+NONCE_DOMAIN_DISJOINT=true
+NONCE_REUSE=false
+MANAGER_STABLE=true
+BROKER_STABLE=true
+HOMEASSISTANT_STABLE=true
+TERMINAL=CONSUMED_PASS_M07_EXACTLY_ONE_CHILD_RESTART
+```
+
+M07 原始 boot ID 未进入公开归档。
+
+---
+
+## 4. M08 source repair 与恢复合同
+
+exact-main 修复后的核心合同：
+
+1. Relay 每次应用 boot 后，boot-local Probe gate 初始关闭。
+2. fresh authenticated Probe 才重新建立 Relay ingress 条件并发送 ProbeAck。
+3. gate 未建立时，旧认证上下文不得继续形成有效 Relay telemetry。
+4. Child ReceiptAck retry budget 耗尽后，失效旧 Relay authentication、推进 challenge，并重新 Probe。
+5. `PATH RELAY` 使用统一 Relay authentication invalidation 语义。
+6. 单纯 ESP-NOW async delivery failure 不立即等价于认证失效。
+7. Relay `RESTART` 目标动作是应用层 `esp_restart()`，不是掉电、USB reset、Flash 或 erase。
+
+目标因果链：
+
+```text
+stable Relay path
+→ Relay RESTART
+→ Relay boot probe gate resets
+→ old Relay traffic cannot continue normally
+→ ReceiptAck retry exhaustion
+→ Child invalidates old relay auth / advances challenge
+→ fresh Probe
+→ fresh ProbeAck
+→ Relay gate opens
+→ new Relay telemetry
+→ reassembly
+→ gateway ingress
+→ canonical progression
+```
+
+---
+
+## 5. M08 预条件与固件 materialization
+
+旧 Relay RESTART authorization：
+
+```text
+D1-N3W-P5-M08-EXACTLY-ONE-RELAY-RESTART-EXECUTION-20260811-01
+STATUS=RETIRED_UNCLAIMED_AFTER_AUTHORIZED_PRECONDITION_STATE_CHANGE
+```
+
+禁止再使用。
+
+PATH RELAY setup：
+
+```text
+AUTHORIZATION=D1-N3W-P5-M08-REPROBE-PRECONDITION-EXACTLY-ONE-PATH-RELAY-SETUP-20260811-01
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+POST_ACTIVE_TRANSPORT=relay
+POST_ACTIVE_GATEWAY_ID=n3wp5_relay01
+POST_CANDIDATE_TRANSPORT=None
+```
+
+该 exactly-one PATH RELAY 不得重发。
+
+Materialization successor：
+
+```text
+AUTHORIZATION=D1-N3W-P5-M08-PRIVATE-FIRMWARE-MATERIALIZATION-SUCCESSOR-PUBLIC-SENTINEL-SCOPE-REPAIR-AND-HOSTONLY-EXECUTION-20260811-01
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+M08_FIRMWARE_MATERIALIZED=true
+REUSE_EXISTING_KEYS=true
+KEY_REGEN=false
+PRIVATE_CHILD_RENDER=true
+PRIVATE_RELAY_RENDER=true
+CHILD_CONFIG=PASS
+CHILD_COMPILE=PASS
+RELAY_CONFIG=PASS
+RELAY_COMPILE=PASS
+PREPARED_DEPLOYMENT_ORDER=CHILD_THEN_RELAY
+```
+
+部署顺序冻结：
+
+```text
+Child successor first
+→ Child safe postdeployment baseline
+→ Relay successor
+→ PATH RELAY re-establishment
+→ all-new-version Relay baseline
+→ new exactly-one M08 Relay RESTART authorization
+```
+
+不得 Relay-first。
+
+---
+
+## 6. Child-first dual-OTA 部署闭环
+
+已完成并消费：
+
+```text
+D1-N3W-P5-M08-CHILD-FIRST-PRIVATE-FIRMWARE-PREDEPLOYMENT-READONLY-REBINDING-20260811-01
+D1-N3W-P5-M08-CHILD-ONLY-NO-ERASE-DEPLOYMENT-PLAN-AND-PORT-TARGET-PREEXECUTION-READONLY-20260811-01
+D1-N3W-P5-M08-CHILD-DUAL-OTA-PHYSICAL-EXECUTOR-HOSTONLY-PREPARATION-20260811-01
+D1-N3W-P5-M08-CHILD-DUAL-OTA-PHYSICAL-EXECUTOR-SYSTEM-PROFILER-STDERR-SEPARATION-SUCCESSOR-HOSTONLY-REPAIR-20260812-01
+```
+
+Dual-OTA 冻结合同：
+
+```text
+DUAL_OTA_LAYOUT_CONFIRMED=true
+TARGET_POLICY=NON_RUNNING_OR_INACTIVE_OTA_SLOT_ONLY
+BOOT_SESSION_STORE_PRESERVATION_REQUIRED=true
+FLASH_ERASE_PROHIBITED=true
+NVS_ERASE_PROHIBITED=true
+RAW_HANDCRAFTED_OTADATA_WRITE_AUTHORIZED=false
+```
+
+原 physical authorization：
+
+```text
+D1-N3W-P5-M08-CHILD-ONLY-DUAL-OTA-ATOMIC-INACTIVE-SLOT-DEPLOYMENT-EXECUTION-20260812-01
+```
+
+因 executor `system_profiler` stderr/stdout 合并缺陷在 claim 前退役：
+
+```text
+RETIRED_UNCLAIMED_AFTER_PRECLAIM_EXECUTOR_DEFECT_CONFIRMED
+THIRD_RUN_OF_ORIGINAL_EXECUTOR_PROHIBITED=true
+```
+
+Successor physical execution：
+
+```text
+AUTHORIZATION=D1-N3W-P5-M08-CHILD-ONLY-DUAL-OTA-ATOMIC-INACTIVE-SLOT-DEPLOYMENT-SUCCESSOR-EXECUTION-20260812-01
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+
+TARGET_POLICY=INACTIVE_OTA_SLOT_ONLY
+TARGET_DIFFERS_FROM_SELECTED_SLOT=true
+INACTIVE_APP_WRITTEN=true
+INACTIVE_APP_VERIFIED=true
+OTADATA_CHANGED_SECTOR_COUNT=1
+OTADATA_CHANGED_SECTOR_WRITTEN=true
+OTADATA_CHANGED_SECTOR_VERIFIED=true
+CHIP_ERASE=false
+NVS_ERASE=false
+BOOTLOADER_WRITE=false
+PARTITION_TABLE_WRITE=false
+INTERMEDIATE_APPLICATION_BOOT=false
+FINAL_HARD_RESET_ISSUED=true
+CHILD_IMAGE_DEPLOYED=true
+M08_FIRMWARE_DEPLOYED=true
+POSTRESET_APPLICATION_BOOT_PROVEN=false
+POSTDEPLOYMENT_READONLY_REVALIDATION_REQUIRED=true
+M08_RELAY_RESTART_EXECUTED=false
+M08_PASS=false
+M08_FAIL=false
+DO_NOT_RERUN=true
+```
+
+`POSTRESET_APPLICATION_BOOT_PROVEN=false` 表示证据截止于写入/校验/最终 hard reset 发出，不表示部署失败。
+
+---
+
+## 7. Child postdeployment rebaseline：R1–R4 全部 preclaim STOP
+
+当前 rebaseline authorization：
+
+```text
+D1-N3W-P5-M08-CHILD-POSTDEPLOYMENT-READONLY-BOOT-SESSION-AND-LIVENESS-REBASELINE-20260812-01
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+```
+
+四次 executor variant 均在 claim boundary 前停止：
+
+```text
+R1 STOP_REASON=DEPLOYMENT_PASS_TERMINAL_NOT_BOUND
+R2 STOP_REASON=M07_POST_BOOT_REFERENCE_AMBIGUOUS
+R3 STOP_REASON=M07_POST_BOOT_PRIVATE_HASH_REFERENCE_NOT_UNIQUE
+R4 STOP_REASON=CANONICAL_LIVE_SUBSCRIBE_FAILED_OR_TIMED_OUT
+```
+
+R4 在停止前已确认：
+
+```text
+REMOTE_MAIN_EXACT=true
+DEPLOYMENT_STRUCTURED_BINDING=true
+M07_IMMUTABLE_TERMINAL_BOUND=true
+M07_HASH_RULE_TWO_KNOWN_PLAINTEXT_PAIRS=true
+BROKER_BASELINE_RUNNING=true
+BROKER_BASELINE_HEALTHY=true
+MANAGER_BASELINE_RUNNING=true
+HOMEASSISTANT_BASELINE_RUNNING=true
+```
+
+交接后建议状态：
+
+```text
+CURRENT_REBASELINE_STATUS=SUPERSEDED_OR_DEFERRED_PENDING_BOARD_READONLY_DIAGNOSIS
+```
+
+不得在新对话自行重启该 rebaseline gate。
+
+---
+
+## 8. 最终 host-only/read-only liveness 诊断
+
+### 8.1 Direct + Canonical 观察
+
+```text
+DIRECT_LIVE_VALID_COUNT=0
+CANONICAL_LIVE_VALID_COUNT=0
+RETAINED_CANONICAL_PRESENT=true
+RETAINED_CANONICAL_IS_LIVENESS_PROOF=false
+RETAINED_CANONICAL_SESSION_CLASS=M07_POST_SESSION
+RETAINED_CANONICAL_SEQ=2787
+
+MANAGER_DB_READ=PASS
+MANAGER_DB_QUICK_CHECK=ok
+MANAGER_HIGHEST_SESSION_CLASS=M07_POST_SESSION
+MANAGER_LATEST_SEEN_SESSION_CLASS=M07_POST_SESSION
+MANAGER_CANONICAL_SEQ=2787
+MANAGER_ACTIVE_TRANSPORT=relay
+MANAGER_ACTIVE_GATEWAY_ID=n3wp5_relay01
+MANAGER_CANDIDATE_TRANSPORT=None
+MANAGER_PERSISTED_STATE_IS_CURRENT_LIVENESS_PROOF=false
+
+BROKER_STABLE=true
+MANAGER_STABLE=true
+HOMEASSISTANT_STABLE=true
+```
+
+### 8.2 Direct + Relay ingress + Canonical 三路最终观察
+
+```text
+DIRECT_LIVE_MESSAGE_COUNT=0
+DIRECT_LIVE_JSON_MESSAGE_COUNT=0
+RELAY_LIVE_MESSAGE_COUNT=0
+RELAY_LIVE_JSON_MESSAGE_COUNT=0
+CANONICAL_LIVE_MESSAGE_COUNT=0
+CANONICAL_LIVE_JSON_MESSAGE_COUNT=0
+
+MANAGER_WINDOW_ACCEPTED_DIRECT_COUNT=0
+MANAGER_WINDOW_ACCEPTED_RELAY_COUNT=0
+MANAGER_WINDOW_REJECTED_DIRECT_COUNT=0
+MANAGER_WINDOW_REJECTED_RELAY_COUNT=0
+MANAGER_WINDOW_DIRECT_REJECT_CODES=None
+MANAGER_WINDOW_RELAY_REJECT_CODES=None
+
+BROKER_STABLE=true
+MANAGER_STABLE=true
+HOMEASSISTANT_STABLE=true
+
+ALL_INGRESS_LIVE_CLASSIFICATION=NO_LIVE_DIRECT_RELAY_OR_CANONICAL_OBSERVED
+```
+
+因此：
+
+```text
+HOSTONLY_LIVENESS_DIAGNOSTICS_EXHAUSTED=true
+NO_HOST_VISIBLE_POSTDEPLOYMENT_CHILD_TRAFFIC=true
+```
+
+---
+
+## 9. 当前证据边界与未决状态
+
+现有证据不能区分至少以下情况：
+
+```text
+A. successor application 未实际启动
+B. application 已启动，但 Wi-Fi / ESP-NOW / MQTT 未形成 host-visible 输出
+C. application 进入异常或阻塞状态
+D. post-hard-reset 后 USB/reset-domain 状态异常
+```
+
+所以严禁写成 `CHILD_APPLICATION_BOOT_FAILED=true`。
+
+正确表达：
+
+```text
+POSTRESET_APPLICATION_BOOT_PROVEN=false
+DEPLOYED_SUCCESSOR_APPLICATION_LIVENESS_PROVEN=false
+NO_HOST_VISIBLE_POSTDEPLOYMENT_CHILD_TRAFFIC=true
+```
+
+---
+
+## 10. 交接时 M08 精确状态
+
+```text
+M08_SOURCE_REPAIR_MERGED=true
+M08_FIRMWARE_MATERIALIZED=true
+M08_FIRMWARE_DEPLOYED=true
+CHILD_IMAGE_DEPLOYED=true
+
+POSTRESET_APPLICATION_BOOT_PROVEN=false
+DEPLOYED_SUCCESSOR_APPLICATION_LIVENESS_PROVEN=false
+
+HOSTONLY_LIVENESS_DIAGNOSTICS_EXHAUSTED=true
+NO_HOST_VISIBLE_POSTDEPLOYMENT_CHILD_TRAFFIC=true
+
+CURRENT_REBASELINE_AUTHORIZATION=D1-N3W-P5-M08-CHILD-POSTDEPLOYMENT-READONLY-BOOT-SESSION-AND-LIVENESS-REBASELINE-20260812-01
+CURRENT_REBASELINE_AUTHORIZATION_CLAIMED=false
+CURRENT_REBASELINE_AUTHORIZATION_CONSUMED=false
+CURRENT_REBASELINE_STATUS=SUPERSEDED_OR_DEFERRED_PENDING_BOARD_READONLY_DIAGNOSIS
+
+BOARD_READONLY_DIAGNOSTIC_REQUIRED=true
+BOARD_READONLY_DIAGNOSTIC_AUTHORIZATION=D1-N3W-P5-M08-CHILD-POSTDEPLOYMENT-BOARD-READONLY-LIVENESS-DIAGNOSTIC-20260812-01
+BOARD_READONLY_DIAGNOSTIC_AUTHORIZED=false
+BOARD_READONLY_DIAGNOSTIC_CLAIMED=false
+BOARD_READONLY_DIAGNOSTIC_CONSUMED=false
+
+COLD_POWER_RECOVERY_AUTHORIZED=false
+M08_RELAY_DEPLOYMENT_ALLOWED=false
+M08_RELAY_RESTART_EXECUTED=false
+M08_PASS=false
+M08_FAIL=false
+```
+
+不得跳到 M09。
+
+---
+
+## 11. 下一决策门——仅放到新对话授权
+
+```text
+D1-N3W-P5-M08-CHILD-POSTDEPLOYMENT-BOARD-READONLY-LIVENESS-DIAGNOSTIC-20260812-01
+```
+
+本轮对话仅定义/交接该门，不在本轮授权、不 claim、不执行。
+
+建议合同：
+
+```text
+TARGET=CHILD_ONLY
+PURPOSE=DETERMINE_POSTDEPLOYMENT_APPLICATION_OR_USB_VISIBLE_STATE
+READ_ONLY=true
+MQTT_PUBLISH=false
+PATH_COMMAND=false
+RESTART_COMMAND=false
+FLASH=false
+ERASE=false
+POWER_CHANGE=false
+RESET=false
+RELAY_ACTION=false
+MANAGER_MUTATION=false
+BROKER_MUTATION=false
+HOMEASSISTANT_MUTATION=false
+COLD_POWER_RECOVERY=false
+```
+
+执行分层：
+
+```text
+Stage 1: passive macOS USB enumeration only
+→ 不打开串口
+→ 不运行 esptool
+→ 不发送 USB/JTAG control command
+→ 确认 Child USB descriptor 是否存在且身份唯一
+
+Stage 2:
+只有先证明 monitor 方法不会改变 DTR / RTS / reset / download-mode 状态后
+→ 才允许短窗口 RX-only serial observation
+
+Stage 3:
+分类 application logs present / ROM-download-mode evidence / USB present but no serial output / USB device absent
+```
+
+不得把 `esptool flash-id`、`esptool chip-id`、`esptool read-flash`、普通 `idf.py monitor` 当作 passive read。
+
+---
+
+## 12. Replay-sensitive / 禁止操作清单
+
+不得重放：
+
+```text
+D1-N3W-P5-M07-EXACTLY-ONE-CHILD-RESTART-EXECUTION-20260811-01
+D1-N3W-P5-M08-EXACTLY-ONE-RELAY-RESTART-EXECUTION-20260811-01  # retired
+D1-N3W-P5-M08-REPROBE-PRECONDITION-EXACTLY-ONE-PATH-RELAY-SETUP-20260811-01
+D1-N3W-P5-M08-EXACT-MAIN-PRIVATE-FIRMWARE-MATERIALIZATION-HOSTONLY-20260811-01
+D1-N3W-P5-M08-PRIVATE-FIRMWARE-MATERIALIZATION-SUCCESSOR-PUBLIC-SENTINEL-SCOPE-REPAIR-AND-HOSTONLY-EXECUTION-20260811-01
+D1-N3W-P5-M08-CHILD-FIRST-PRIVATE-FIRMWARE-PREDEPLOYMENT-READONLY-REBINDING-20260811-01
+D1-N3W-P5-M08-CHILD-ONLY-NO-ERASE-DEPLOYMENT-PLAN-AND-PORT-TARGET-PREEXECUTION-READONLY-20260811-01
+D1-N3W-P5-M08-CHILD-DUAL-OTA-PHYSICAL-EXECUTOR-HOSTONLY-PREPARATION-20260811-01
+D1-N3W-P5-M08-CHILD-DUAL-OTA-PHYSICAL-EXECUTOR-SYSTEM-PROFILER-STDERR-SEPARATION-SUCCESSOR-HOSTONLY-REPAIR-20260812-01
+D1-N3W-P5-M08-CHILD-ONLY-DUAL-OTA-ATOMIC-INACTIVE-SLOT-DEPLOYMENT-SUCCESSOR-EXECUTION-20260812-01
+```
+
+原 physical authorization `D1-N3W-P5-M08-CHILD-ONLY-DUAL-OTA-ATOMIC-INACTIVE-SLOT-DEPLOYMENT-EXECUTION-20260812-01` 为 retired/unclaimed executor-defect authorization，不得第三次运行或重新绑定。
+
+当前 postdeployment rebaseline authorization 从未 claim/consume，不列入“已消费不可重放”清单，但新对话不得自行重新启动。
+
+---
+
+## 13. 现场运行合同
+
+```text
+COLIMA_PROFILE=n3wp5r3
+EXPECTED_DOCKER_CONTEXT=colima-n3wp5r3
+COMPOSE_PROJECT=n3wp5r3
+CHILD_CONTROL_TOPIC=gh/p5/n3wp5lab/control/n3wp5_child01
+RELAY_CONTROL_TOPIC=gh/p5/n3wp5lab/control/n3wp5_relay01
+DIRECT_TOPIC=gh/v1/n3wp5lab/ingress/node/n3wp5_child01/telemetry
+RELAY_INGRESS_TOPIC=gh/v1/n3wp5lab/ingress/gateway/n3wp5_relay01/n3wp5_child01/frame
+CANONICAL_TOPIC=gh/v1/n3wp5lab/state/n3wp5_child01/telemetry
+GH_N3W_REPLAY_DB_PATH=/state/n3w/replay.sqlite3
+READONLY_DB_URI=file:/state/n3w/replay.sqlite3?mode=ro
+```
+
+这些仅用于恢复上下文；下一门未授权前不得由此推导出写操作。
+
+---
+
+## 14. 新对话启动/授权提示词
+
+```text
+继续温室环境监测系统（ESP32-C6）N3-W / P5 / M08。
+
+先读取并只读复核本轮交接文档与 GitHub 精确状态。
+
+交接冻结状态：
+- repo: chrenguo-stack/HomeAssistant
+- handoff source main: ffd9d00c0107e4893166c05939183dc702a30f83
+- M08 source repair 已合入 main
+- M08 successor firmware 已 materialize
+- Child successor dual-OTA image + otadata 已成功提交并校验
+- NVS/bootloader/partition table 未写入或擦除
+- 已发出最终 hard reset，但 post-reset application boot 仍未被证明
+- host-only liveness diagnostics 已闭环
+- 最终 45 秒三路观察中：DIRECT live=0；RELAY ingress live=0；CANONICAL live=0
+- Manager durable state 仍停在 M07 post-session / canonical seq 2787
+- Manager durable path lease: active_transport=relay, active_gateway_id=n3wp5_relay01
+- Broker / Manager / Home Assistant 在诊断期间稳定
+- 不得将“无 host-visible traffic”写成“Child application boot failed”
+- 当前 postdeployment rebaseline authorization 从未 claim/consume，现 superseded/deferred pending board-readonly diagnosis
+- 不得重放 M07 Child RESTART
+- 不得重发已消费 PATH RELAY
+- 不得使用旧 M08 Relay RESTART authorization
+- 不得 RESET / power-cycle / Flash / erase
+- 不得部署 Relay
+- 不得进入 M09
+
+先确认：
+1. GitHub main 是否仍为 handoff source main；如有变化，仅复核是否与本交接兼容，不得自动修改现场。
+2. 交接文档是否存在漂移。
+3. 下一门执行器必须先从 passive macOS USB enumeration 开始，不得把 esptool/idf.py monitor 当作 passive read。
+
+在上述只读复核通过后，我授权且仅授权：
+D1-N3W-P5-M08-CHILD-POSTDEPLOYMENT-BOARD-READONLY-LIVENESS-DIAGNOSTIC-20260812-01
+
+授权范围：
+TARGET=CHILD_ONLY
+PURPOSE=DETERMINE_POSTDEPLOYMENT_APPLICATION_OR_USB_VISIBLE_STATE
+READ_ONLY=true
+MQTT_PUBLISH=false
+PATH_COMMAND=false
+RESTART_COMMAND=false
+FLASH=false
+ERASE=false
+POWER_CHANGE=false
+RESET=false
+RELAY_ACTION=false
+MANAGER_MUTATION=false
+BROKER_MUTATION=false
+HOMEASSISTANT_MUTATION=false
+COLD_POWER_RECOVERY=false
+
+执行规则：
+- Stage 1 仅 passive macOS USB enumeration，不打开串口、不调用 esptool、不发送 USB/JTAG control command。
+- 只有先证明 monitor 方法不会改变 DTR/RTS/reset/download-mode 状态后，才允许短窗口 RX-only serial observation。
+- 仅分类 application logs present / ROM-download-mode evidence / USB present but no serial output / USB device absent。
+- 任一需要 RESET、power-cycle、Flash、erase、PATH、RESTART、Relay action 的后续动作必须停止并重新请求授权。
+```
+
+---
+
+## 15. 交接终结
+
+```text
+HANDOFF=READY
+CURRENT_MATRIX=M08
+CHILD_SUCCESSOR_IMAGE_DEPLOYMENT=PASS_IMAGE_AND_OTADATA_COMMITTED
+POSTRESET_APPLICATION_BOOT_PROVEN=false
+HOSTONLY_LIVENESS_DIAGNOSTICS_EXHAUSTED=true
+NO_HOST_VISIBLE_POSTDEPLOYMENT_CHILD_TRAFFIC=true
+NEXT_DECISION_GATE=D1-N3W-P5-M08-CHILD-POSTDEPLOYMENT-BOARD-READONLY-LIVENESS-DIAGNOSTIC-20260812-01
+NEXT_DECISION_GATE_AUTHORIZED_IN_THIS_CHAT=false
+M08_PASS=false
+M08_FAIL=false
+M09_ALLOWED=false
+```
