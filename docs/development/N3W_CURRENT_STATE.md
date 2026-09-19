@@ -14,6 +14,7 @@ PRIMARY_TASK=N3W_MULTI_NODE_RELAY_AND_RUNTIME_FAILOVER_ACCEPTANCE
 ALIGNMENT_BASE_MAIN=d9afc55b04042806ed8b6e1b1ae3553742aba2be
 PRODUCT_SOURCE_AUTHORITY=d1b5c3acbd32cca95483743ffe2edba9aa3f904f
 REPOSITORY_MAIN_AT_ALIGNMENT_START=d9afc55b04042806ed8b6e1b1ae3553742aba2be
+REPOSITORY_MAIN_AFTER_PR439=02efd64312c4b01c19c0a18e6db543145a16ad9c
 
 PR431_REVIEW_HEAD=137303c7b08fff36920d05e77c2f1bcc20b38d1f
 PR431_MERGE=d1b5c3acbd32cca95483743ffe2edba9aa3f904f
@@ -44,6 +45,7 @@ PR428=MERGED   # KF-096 Direct recovery continuity source repair
 PR431=MERGED   # finite successor: recovery-exit / teardown lifecycle closure
 PR436=CLOSED_SUPERSEDED   # historical PR431-bound Board B executor, not valid for PR437
 PR437=OPEN_DRAFT   # current Direct recovery liveness / deadline successor candidate
+PR439=MERGED   # PR437-bound Board B preflight/write executor
 ```
 
 Exact product repair merges:
@@ -329,11 +331,52 @@ PR437_MANIFEST_SHA256=98a6dec323e8057a30d6b1e332d549fe54288f3b45fcbbbf460292871f
 
 PR437_BOARD_B_DEPLOYMENT=NOT_EXECUTED
 PR437_PHYSICAL_VALIDATION=NOT_EXECUTED
+
+PR439_STATE=MERGED
+PR439_REVIEW_HEAD=da6b1e7e364a0125c832e27c62b6c9741bdbfa17
+PR439_MERGE=02efd64312c4b01c19c0a18e6db543145a16ad9c
+PR439_FINAL_SOURCE_REVIEW=PASS
+PR439_CI=12_OF_12_PASS
+PR439_FOCUSED_TESTS=12_PASS
+PR439_A1_SINGLE_USE_WRITE_AUTHORIZATION=CLOSED
+PR439_A2_PARTITION_TABLE_FRESH_BINDING=CLOSED
 ```
 
 Repository hygiene was also aligned: 18 merged recent N3-W branches were deleted, PR #436 was closed as superseded, the PR #437 branch was preserved, and historical artifact build branches were preserved.
 
 The exact PR #437 artifact is the current Board B validation candidate. Artifact binding proves source-to-binary identity only; KF-096 remains OPEN until fresh physical evidence closes the required runtime route.
+
+## PR #439 merged Board B preflight/write executor
+
+PR #439 merged the PR #437-specific fail-closed Board B preflight/write executor after the final post-repair source review.
+
+```text
+PR439_STATE=MERGED
+PR439_REVIEW_HEAD=da6b1e7e364a0125c832e27c62b6c9741bdbfa17
+PR439_MERGE=02efd64312c4b01c19c0a18e6db543145a16ad9c
+
+PR439_FINAL_SOURCE_REVIEW=PASS
+PR439_NEW_SOURCE_BLOCKER_FOUND=false
+PR439_CI=12_OF_12_PASS
+PR439_FOCUSED_CI_RUN=35433539838
+PR439_FOCUSED_TESTS=12_PASS
+
+A1_SINGLE_USE_WRITE_AUTHORIZATION=CLOSED
+A2_PARTITION_TABLE_FRESH_BINDING=CLOSED
+
+BOARD_IDENTITY_GUARD=PASS
+SECURITY_STATE_GUARD=PASS
+PARTITION_TABLE_PREFLIGHT_BINDING=PASS
+PARTITION_TABLE_PREWRITE_REBIND=PASS
+PREFLIGHT_FRESHNESS_GUARD=PASS
+AUTHORIZATION_CLAIM_BEFORE_MUTATION=PASS
+AUTHORIZATION_REPLAY_GUARD=PASS
+MINIMAL_WRITE_SCOPE=PASS
+```
+
+The executor is bound to PR #437 artifact `10575077512`. It performs a fresh read-only partition-table binding at `0x8000` over `0xC00` bytes and requires SHA-256 `6664b08a14a9cdc170e322823db29fbe485d87db9c4ec42759d9372028953dca`. The write scope remains otadata at `0x9000` plus application at `0x10000`; bootloader, partition table, product NVS, and full-chip erase remain forbidden.
+
+PR #439 merge does not authorize Board B Flash mutation. A bounded read-only Board B preflight is the next gate; any later Flash write requires a separate explicit one-shot authorization.
 
 ## Current acceptance matrix
 
@@ -420,7 +463,7 @@ OVERALL_N3W_FAILOVER_ACCEPTANCE=NOT_CLOSED
 ## Current ONE gate
 
 ```text
-NEXT_ONE_GATE=N3W_KF096_PR437_BOARD_B_WRITE_PREFLIGHT_EXECUTOR_PREPARATION_20260919_01
+NEXT_ONE_GATE=N3W_KF096_PR437_BOARD_B_WRITE_PREFLIGHT_20260919_01
 
 MERGED_PRODUCT_SOURCE_AUTHORITY=d1b5c3acbd32cca95483743ffe2edba9aa3f904f
 CURRENT_CANDIDATE_SOURCE_HEAD=cc9ed5ee568a4b6c4a2454fd38bafa8f6e3a527c
@@ -432,18 +475,20 @@ APPLICATION_SHA256=407767b3e1593f4237f650abecd7d29b3873b7b08bf8b5d9fc85a97211972
 OTADATA_SHA256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
 ARCHIVE_SHA256=b06de88b561968627b17bbda45d5d8fd9e53d774a5227237a71343ebc39a3814
 
-BINDING_AUTHORITY=
-docs/development/N3W_KF096_PR437_LOCAL_PROGRESS_ALIGNMENT_20260919.md
+EXECUTOR_MERGE_AUTHORITY=02efd64312c4b01c19c0a18e6db543145a16ad9c
+EXECUTOR_PATH=tools/execution_packages/n3w/kf096/pr437_board_b_write/executor.py
 
-PR436_SUPERSEDED=true
-BOARD_ACCESS_REQUIRED=false
-BOARD_ACCESS=false
+BINDING_AUTHORITY=
+docs/development/N3W_KF096_PR439_POSTMERGE_CURRENT_STATE_ALIGNMENT_20260919.md
+
+BOARD_ACCESS_REQUIRED=true
+PREFLIGHT_READ_ONLY=true
 SERIAL_OPEN=false
 FLASH_WRITE=false
 T1_MUTATION=false
 ```
 
-The next gate prepares a PR #437-specific Board B preflight/write executor bound to the exact artifact above. It must not access Board B or perform a write during preparation.
+The next gate performs only the bounded read-only Board B preflight required by the merged PR #439 executor. Successful preflight does not authorize Flash write; any later mutation requires a separate explicit one-shot authorization.
 
 ## Public/private evidence boundary
 
