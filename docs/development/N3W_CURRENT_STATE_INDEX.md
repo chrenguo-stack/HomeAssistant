@@ -1,6 +1,7 @@
 # N3-W Current State Index
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
+Project long-term working context: `docs/development/N3W_PROJECT_WORKING_CONTEXT.md`  
 Current progress alignment: `docs/development/N3W_KF096_PR437_POSTWRITE_DIRECT_BASELINE_ALIGNMENT_20260919.md`  
 Current new-chat handoff: `docs/development/N3W_KF096_PR437_SAME_BOOT_DIRECT_TO_RELAY_PHYSICAL_VALIDATION_NEW_CHAT_HANDOFF_V1.0_20260919.md`  
 Previous physical alignment: `docs/development/N3W_PR425_PHYSICAL_VALIDATION_AND_PROBE_BLACKOUT_ALIGNMENT_20260918.md`  
