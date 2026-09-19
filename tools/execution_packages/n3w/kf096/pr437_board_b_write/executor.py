@@ -4,6 +4,7 @@ import argparse
 import datetime as dt
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -32,6 +33,9 @@ OTADATA_SIZE = 8192
 OTADATA_SHA256 = "7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f"
 MANIFEST_SIZE = 575
 MANIFEST_SHA256 = "98a6dec323e8057a30d6b1e332d549fe54288f3b45fcbbbf460292871f7a91a0"
+PARTITION_TABLE_OFFSET = 0x8000
+PARTITION_TABLE_SIZE = 0xC00
+PARTITION_TABLE_SHA256 = "6664b08a14a9cdc170e322823db29fbe485d87db9c4ec42759d9372028953dca"
 
 EXPECTED_HARDWARE_ID_SHA256 = "cd90494824273fb6050c29989370690984487f7cdaea89ac4ff8b5eebc4371b0"
 EXPECTED_MEMBERS = {"MANIFEST.txt", "firmware.bin", "ota_data_initial.bin"}
@@ -171,6 +175,29 @@ def verify_image(application: Path) -> None:
         raise StopExecution("firmware.bin is not identified as ESP32-C6 image")
 
 
+def verify_partition_table(port: str) -> str:
+    with tempfile.TemporaryDirectory(prefix="n3w-pr437-partition-") as td:
+        destination = Path(td) / "partition-table.bin"
+        command = esptool_base() + [
+            "--chip",
+            "esp32c6",
+            "--port",
+            port,
+            "--no-stub",
+            "read-flash",
+            hex(PARTITION_TABLE_OFFSET),
+            hex(PARTITION_TABLE_SIZE),
+            str(destination),
+        ]
+        run_capture(command, port=port)
+        if not destination.is_file() or destination.stat().st_size != PARTITION_TABLE_SIZE:
+            raise StopExecution("partition table readback size mismatch")
+        digest = sha256_file(destination)
+        if digest != PARTITION_TABLE_SHA256:
+            raise StopExecution("partition table binding mismatch")
+        return digest
+
+
 def probe_board(port: str) -> dict[str, object]:
     if not port or any(ch.isspace() for ch in port):
         raise StopExecution("serial port locator is empty or contains whitespace")
@@ -209,6 +236,8 @@ def probe_board(port: str) -> dict[str, object]:
     if FLASH_8MB_RE.search(flash) is None:
         raise StopExecution("8MB flash is not proven")
 
+    partition_table_sha256 = verify_partition_table(port)
+
     return {
         "hardware_id_sha256": identity_hash,
         "port_sha256": sha256_bytes(port.encode("utf-8")),
@@ -216,6 +245,9 @@ def probe_board(port: str) -> dict[str, object]:
         "flash_size": "8MB",
         "secure_boot": False,
         "flash_encryption": False,
+        "partition_table_offset": hex(PARTITION_TABLE_OFFSET),
+        "partition_table_size": PARTITION_TABLE_SIZE,
+        "partition_table_sha256": partition_table_sha256,
     }
 
 
@@ -226,6 +258,7 @@ def utc_now() -> dt.datetime:
 def write_json(path: Path, payload: dict[str, object]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.chmod(0o600)
 
 
 def artifact_binding_payload() -> dict[str, object]:
@@ -261,6 +294,9 @@ def run_preflight(args: argparse.Namespace) -> int:
         "board": board,
         "artifact": artifact_binding_payload(),
         "persistent_mutation": False,
+        "authorization_claimed": False,
+        "authorization_consumed": False,
+        "replay_permitted": False,
     }
     write_json(Path(args.output), payload)
     print("PREFLIGHT=PASS")
@@ -269,6 +305,7 @@ def run_preflight(args: argparse.Namespace) -> int:
     print("FLASH_SIZE=8MB")
     print("SECURE_BOOT=false")
     print("FLASH_ENCRYPTION=false")
+    print(f"PARTITION_TABLE_SHA256={board[\'partition_table_sha256\']}")
     print("FLASH_WRITE=false")
     return 0
 
@@ -283,6 +320,12 @@ def load_preflight(path: Path, port: str) -> dict[str, object]:
         raise StopExecution("preflight closure is not PASS")
     if payload.get("artifact") != artifact_binding_payload():
         raise StopExecution("preflight artifact binding drifted")
+    if payload.get("authorization_claimed") is not False:
+        raise StopExecution("preflight authorization is already claimed")
+    if payload.get("authorization_consumed") is not False:
+        raise StopExecution("preflight authorization is already consumed")
+    if payload.get("replay_permitted") is not False:
+        raise StopExecution("preflight replay policy is invalid")
 
     board = payload.get("board")
     if not isinstance(board, dict):
@@ -295,6 +338,12 @@ def load_preflight(path: Path, port: str) -> dict[str, object]:
         raise StopExecution("preflight silicon/flash binding mismatch")
     if board.get("secure_boot") is not False or board.get("flash_encryption") is not False:
         raise StopExecution("preflight security state mismatch")
+    if board.get("partition_table_offset") != hex(PARTITION_TABLE_OFFSET):
+        raise StopExecution("preflight partition table offset mismatch")
+    if board.get("partition_table_size") != PARTITION_TABLE_SIZE:
+        raise StopExecution("preflight partition table size mismatch")
+    if board.get("partition_table_sha256") != PARTITION_TABLE_SHA256:
+        raise StopExecution("preflight partition table binding mismatch")
 
     raw_time = payload.get("created_at")
     if not isinstance(raw_time, str):
@@ -309,6 +358,35 @@ def load_preflight(path: Path, port: str) -> dict[str, object]:
     if age < -30 or age > PREFLIGHT_MAX_AGE_SECONDS:
         raise StopExecution("preflight is stale; rerun preflight before write")
     return payload
+
+
+def claim_preflight(path: Path, port: str) -> tuple[Path, dict[str, object]]:
+    payload = load_preflight(path, port)
+    if path.is_symlink() or not path.is_file():
+        raise StopExecution("preflight closure path is unsafe")
+    claimed = path.with_name("claimed-" + path.name)
+    if claimed.exists() or claimed.is_symlink():
+        raise StopExecution("preflight authorization was already claimed")
+    try:
+        source_inode = path.stat().st_ino
+        os.link(path, claimed, follow_symlinks=False)
+    except OSError as exc:
+        raise StopExecution("preflight authorization claim failed") from exc
+    try:
+        path.unlink()
+    except OSError as exc:
+        claimed.unlink(missing_ok=True)
+        raise StopExecution("preflight authorization claim could not remove source") from exc
+    if path.exists() or not claimed.is_file() or claimed.is_symlink():
+        raise StopExecution("preflight authorization claim verification failed")
+    if claimed.stat().st_ino != source_inode:
+        raise StopExecution("preflight authorization claim inode mismatch")
+    payload["authorization_claimed"] = True
+    payload["authorization_consumed"] = True
+    payload["replay_permitted"] = False
+    payload["consumed_at"] = utc_now().isoformat()
+    write_json(claimed, payload)
+    return claimed, payload
 
 
 def build_write_command(port: str, ota: Path, app: Path) -> list[str]:
@@ -335,7 +413,8 @@ def run_write(args: argparse.Namespace) -> int:
     if args.confirm != WRITE_CONFIRMATION:
         raise StopExecution("write confirmation token mismatch")
 
-    load_preflight(Path(args.preflight), args.port)
+    preflight_path = Path(args.preflight)
+    load_preflight(preflight_path, args.port)
 
     with tempfile.TemporaryDirectory(prefix="n3w-pr437-boardb-write-") as td:
         files = validate_artifact(Path(args.artifact_zip), Path(td))
@@ -344,6 +423,9 @@ def run_write(args: argparse.Namespace) -> int:
         board = probe_board(args.port)
         if board["port_sha256"] != sha256_bytes(args.port.encode("utf-8")):
             raise StopExecution("fresh port binding mismatch")
+        if board["partition_table_sha256"] != PARTITION_TABLE_SHA256:
+            raise StopExecution("fresh partition table binding mismatch")
+        claimed_preflight, _ = claim_preflight(preflight_path, args.port)
         command = build_write_command(args.port, files["otadata"], files["application"])
         run_capture(command, port=args.port)
 
@@ -354,6 +436,12 @@ def run_write(args: argparse.Namespace) -> int:
         "esptool_version": esptool_version,
         "board": board,
         "artifact": artifact_binding_payload(),
+        "authorization": {
+            "claimed": True,
+            "consumed": True,
+            "replay_permitted": False,
+            "claim_file_sha256": sha256_bytes(claimed_preflight.name.encode("utf-8")),
+        },
         "write_scope": {
             "otadata_offset": "0x9000",
             "application_offset": "0x10000",
@@ -368,6 +456,10 @@ def run_write(args: argparse.Namespace) -> int:
     print(f"HARDWARE_ID_SHA256={board['hardware_id_sha256']}")
     print(f"OTADATA_SHA256={OTADATA_SHA256}")
     print(f"APPLICATION_SHA256={APPLICATION_SHA256}")
+    print(f"PARTITION_TABLE_SHA256={board[\'partition_table_sha256\']}")
+    print("AUTHORIZATION_CLAIMED=true")
+    print("AUTHORIZATION_CONSUMED=true")
+    print("REPLAY_PERMITTED=false")
     print("BOOTLOADER_WRITE=false")
     print("PARTITION_TABLE_WRITE=false")
     print("PRODUCT_NVS_WRITE=false")
