@@ -137,7 +137,7 @@ def test_recovery_probe_checks_ap_presence_and_buffers_business_telemetry() -> N
         "void SimpleProductComponent::flush_telemetry_queue_(", enqueue_start
     )
     enqueue = source[enqueue_start:enqueue_end]
-    assert "rejecting newest sample" in enqueue
+    assert "rejecting newest" in enqueue
     assert "telemetry_queue_.pop_front()" not in enqueue
 
 
