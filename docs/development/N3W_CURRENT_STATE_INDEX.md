@@ -1,7 +1,8 @@
 # N3-W Current State Index
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
-Current progress alignment: `docs/development/N3W_KF096_PR439_POSTMERGE_CURRENT_STATE_ALIGNMENT_20260919.md`  
+Current progress alignment: `docs/development/N3W_KF096_PR437_POSTWRITE_DIRECT_BASELINE_ALIGNMENT_20260919.md`  
+Current new-chat handoff: `docs/development/N3W_KF096_PR437_SAME_BOOT_DIRECT_TO_RELAY_PHYSICAL_VALIDATION_NEW_CHAT_HANDOFF_V1.0_20260919.md`  
 Previous physical alignment: `docs/development/N3W_PR425_PHYSICAL_VALIDATION_AND_PROBE_BLACKOUT_ALIGNMENT_20260918.md`  
 Latest merged product-source authority: PR #431 / `d1b5c3acbd32cca95483743ffe2edba9aa3f904f`  
 Current successor candidate: PR #437 / `cc9ed5ee568a4b6c4a2454fd38bafa8f6e3a527c`  
@@ -31,13 +32,13 @@ CURRENT_CANDIDATE_SOURCE_TREE=
 b459fae0a054d45b0d09e60bffae9769e060a5c0
 
 FROZEN_DEPLOYED_PRODUCT_SOURCE_HEAD=
-096528fbf61948d6c69197f1c8994ce8e7d672f4
+cc9ed5ee568a4b6c4a2454fd38bafa8f6e3a527c
 
 FROZEN_DEPLOYED_PRODUCT_SOURCE_TREE=
-6cfa25f5168fc720590f186871c038e3d4a5307f
+b459fae0a054d45b0d09e60bffae9769e060a5c0
 ```
 
-PR #431 remains the latest merged product-source authority. PR #437 is the current draft successor candidate. Board B still runs PR #425.
+PR #431 remains the latest merged product-source authority. PR #437 is the current draft successor candidate and its exact artifact is now deployed on the operator-confirmed Board B target.
 
 ## Current physical route summary
 
@@ -78,8 +79,9 @@ PR437_OTADATA_SIZE=8192
 PR437_OTADATA_SHA256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
 PR437_ARCHIVE_SHA256=b06de88b561968627b17bbda45d5d8fd9e53d774a5227237a71343ebc39a3814
 
-PR437_BOARD_B_DEPLOYMENT=NOT_EXECUTED
-PR437_PHYSICAL_VALIDATION=NOT_EXECUTED
+PR437_BOARD_B_DEPLOYMENT=PASS
+PR437_POSTWRITE_DIRECT_BASELINE=PASS
+PR437_PHYSICAL_VALIDATION=IN_PROGRESS
 
 PR436=CLOSED_SUPERSEDED
 RECENT_MERGED_N3W_BRANCHES_DELETED=18
@@ -92,6 +94,12 @@ PR439_CI=12_OF_12_PASS
 PR439_FOCUSED_TESTS=12_PASS
 PR439_A1_SINGLE_USE_WRITE_AUTHORIZATION=CLOSED
 PR439_A2_PARTITION_TABLE_FRESH_BINDING=CLOSED
+
+PR437_AUTOMATED_BOARD_IDENTITY_MATCH=FAIL
+PR437_OPERATOR_IDENTITY_OVERRIDE=true
+PR437_IDENTITY_OVERRIDE_REUSABLE=false
+PR437_MANAGER_INFO_LOG_ORACLE=FALSE_NEGATIVE
+PR437_CANONICAL_DIRECT_BASELINE=PASS
 
 OVERALL_N3W_FAILOVER_ACCEPTANCE=NOT_CLOSED
 ```
@@ -106,13 +114,13 @@ KF095=GUARDED
 KF096=OPEN
 ```
 
-KF-096 remains OPEN. PR #437 source review and exact-artifact binding are complete, but no Board B deployment or physical validation has occurred. Artifact binding does not prove runtime behavior.
+KF-096 remains OPEN. PR #437 source review, exact-artifact binding, Board B deployment, and post-write Direct baseline are complete. The remaining physical route begins with same-boot Direct -> Relay, followed later by Relay steady-state continuity and Relay -> Direct failback.
 
 ## Current ONE gate
 
 ```text
 NEXT_ONE_GATE=
-N3W_KF096_PR437_BOARD_B_WRITE_PREFLIGHT_20260919_01
+N3W_KF096_PR437_SAME_BOOT_DIRECT_TO_RELAY_PHYSICAL_VALIDATION_20260919_01
 
 CURRENT_CANDIDATE_SOURCE_HEAD=
 cc9ed5ee568a4b6c4a2454fd38bafa8f6e3a527c
@@ -120,23 +128,17 @@ cc9ed5ee568a4b6c4a2454fd38bafa8f6e3a527c
 CURRENT_CANDIDATE_ARTIFACT_ID=
 10575077512
 
-APPLICATION_SHA256=
-407767b3e1593f4237f650abecd7d29b3873b7b08bf8b5d9fc85a972119725bb
+DEPLOYED_BOARD_B_SOURCE_HEAD=
+cc9ed5ee568a4b6c4a2454fd38bafa8f6e3a527c
 
-OTADATA_SHA256=
-7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
+PR437_BOARD_B_DEPLOYMENT=PASS
+PR437_POSTWRITE_DIRECT_BASELINE=PASS
 
-ARCHIVE_SHA256=
-b06de88b561968627b17bbda45d5d8fd9e53d774a5227237a71343ebc39a3814
-
-EXECUTOR_MERGE_AUTHORITY=
-02efd64312c4b01c19c0a18e6db543145a16ad9c
-
-BOARD_ACCESS_REQUIRED=true
-PREFLIGHT_READ_ONLY=true
-SERIAL_OPEN=false
-FLASH_WRITE=false
-T1_MUTATION=false
+BOARD_B_FIRMWARE_FLASH=false
+BOARD_A_MUTATION=false
+APPLICATION_SERIAL_OPEN=false
+T1_RUNTIME_MUTATION=false
+PR437_MERGE=false
 ```
 
-PR #439 is merged and the PR #437-bound executor is now repository authority. The next gate performs only the bounded read-only Board B preflight. Flash mutation remains a separate explicit one-shot gate.
+The next gate is a bounded same-boot Direct -> Relay physical validation on the already deployed PR #437 firmware. It uses a fresh Manager canonical Direct baseline, manual Board B movement with no reboot after baseline, and read-only T1/Manager observation. It stops after Direct -> Relay classification and does not automatically enter Relay steady-state/failback validation.
