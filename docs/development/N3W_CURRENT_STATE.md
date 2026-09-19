@@ -1,6 +1,6 @@
 # N3-W Current State
 
-Updated: 2026-09-18  
+Updated: 2026-09-19  
 Status: `CURRENT_STATE_AUTHORITY`
 
 Fresh exact repository/runtime/physical evidence takes precedence if later evidence proves drift.
@@ -11,22 +11,23 @@ Fresh exact repository/runtime/physical evidence takes precedence if later evide
 REPOSITORY=chrenguo-stack/HomeAssistant
 PRIMARY_TASK=N3W_MULTI_NODE_RELAY_AND_RUNTIME_FAILOVER_ACCEPTANCE
 
-ALIGNMENT_BASE_MAIN=d1b5c3acbd32cca95483743ffe2edba9aa3f904f
+ALIGNMENT_BASE_MAIN=d9afc55b04042806ed8b6e1b1ae3553742aba2be
 PRODUCT_SOURCE_AUTHORITY=d1b5c3acbd32cca95483743ffe2edba9aa3f904f
-REPOSITORY_MAIN_AT_ARTIFACT_GATE=e2390faf2452730264c19687bf4022df974f04bd
-REPOSITORY_MAIN_TREE_AT_ARTIFACT_GATE=94566c80256db64e8cf4b0cbece9bfd0f1acc417
+REPOSITORY_MAIN_AT_ALIGNMENT_START=d9afc55b04042806ed8b6e1b1ae3553742aba2be
 
-PR428_SOURCE_HEAD=6cae8ea1a75096aab0e625ae56828d13931f7c57
-PR428_SOURCE_TREE=3fae2b22b5537e0229b0f7eeacf9f0f3b3aa9a64
-PR428_MERGE=f357db25390ffd097e9b8608293870772f9cb16c
 PR431_REVIEW_HEAD=137303c7b08fff36920d05e77c2f1bcc20b38d1f
 PR431_MERGE=d1b5c3acbd32cca95483743ffe2edba9aa3f904f
+
+CURRENT_CANDIDATE_PR=437
+CURRENT_CANDIDATE_SOURCE_HEAD=cc9ed5ee568a4b6c4a2454fd38bafa8f6e3a527c
+CURRENT_CANDIDATE_SOURCE_TREE=b459fae0a054d45b0d09e60bffae9769e060a5c0
+CURRENT_CANDIDATE_ARTIFACT_ID=10575077512
 
 FROZEN_DEPLOYED_PRODUCT_SOURCE_HEAD=096528fbf61948d6c69197f1c8994ce8e7d672f4
 FROZEN_DEPLOYED_PRODUCT_SOURCE_TREE=6cfa25f5168fc720590f186871c038e3d4a5307f
 ```
 
-PR #431 is merged at product-source authority `d1b5c3acbd32cca95483743ffe2edba9aa3f904f`, with Astra-approved review HEAD `137303c7b08fff36920d05e77c2f1bcc20b38d1f` as the second merge parent. Post-merge public-safety and greenhouse-manager CI are PASS. The older PR #428 artifact remains historical build/binding evidence only and is not deployment-eligible. Board B still runs the frozen PR #425 artifact. Repository documentation may advance beyond the product-source authority; source, candidate artifact, and deployed physical source remain separate authorities.
+PR #431 remains the latest merged product-source authority at `d1b5c3acbd32cca95483743ffe2edba9aa3f904f`. PR #437 is the current unmerged draft successor candidate at exact HEAD `cc9ed5ee568a4b6c4a2454fd38bafa8f6e3a527c`; its final source review and CI passed and its exact artifact is built and hash-bound. Board B still runs the frozen PR #425 artifact. Repository main, merged product source, current physical candidate, and deployed physical source remain separate authorities.
 
 ## Recent integrated route
 
@@ -41,6 +42,8 @@ PR426=MERGED   # documentation alignment through PR425 artifact preparation
 PR427=MERGED   # documentation alignment after PR425 physical validation
 PR428=MERGED   # KF-096 Direct recovery continuity source repair
 PR431=MERGED   # finite successor: recovery-exit / teardown lifecycle closure
+PR436=CLOSED_SUPERSEDED   # historical PR431-bound Board B executor, not valid for PR437
+PR437=OPEN_DRAFT   # current Direct recovery liveness / deadline successor candidate
 ```
 
 Exact product repair merges:
@@ -288,7 +291,49 @@ NO_NEW_MERGE_BLOCKER=true
 
 The merged finite repair preserves the existing radio architecture. It fixes BSSID configuration provenance, bounds unicast/restore exits, uses a fresh-boot boundary for abnormal missing completion, tracks partial ESP-NOW initialization with an independent SDK-started state, and reboots rather than indefinitely retrying startup when teardown is unconfirmed.
 
-Source/CI success does not close KF-096 and does not authorize Board B access or flashing. A new exact artifact must be built and bound from the merged product-source authority before any later physical gate.
+Source/CI success does not close KF-096 and does not authorize Board B access or flashing. PR #431 remains the latest merged product-source authority, but its artifact is historical for the current validation route because the newer unmerged PR #437 candidate now has its own exact artifact.
+
+## PR #437 current successor candidate
+
+Local source review, repair, CI, repository cleanup, and exact-artifact binding are now aligned to GitHub.
+
+```text
+PR437_STATE=OPEN_DRAFT
+PR437_HEAD=cc9ed5ee568a4b6c4a2454fd38bafa8f6e3a527c
+PR437_SOURCE_TREE=b459fae0a054d45b0d09e60bffae9769e060a5c0
+PR437_BASE_MAIN_AT_REPAIR=d9afc55b04042806ed8b6e1b1ae3553742aba2be
+
+PR437_FINAL_SOURCE_REVIEW=PASS
+PR437_NEW_SOURCE_BLOCKER_FOUND=false
+A1_PHASE_DEADLINE_LATE_PROGRESS_BYPASS=CLOSED
+A2_ABSOLUTE_DEADLINE_SUCCESS_PATH_BYPASS=CLOSED
+A3_BSSID_WALLCLOCK_EXPIRY_INTEGRATION_GAP=CLOSED
+DIRECT_COMMIT_AFTER_ABSOLUTE_DEADLINE=CLOSED
+
+PR437_FINAL_GREENHOUSE_MANAGER_CI_RUN=35373202121
+PR437_HEAD_WORKFLOW_COUNT=11
+PR437_HEAD_WORKFLOW_SUCCESS_COUNT=11
+
+PR437_EXACT_ARTIFACT_BUILD=PASS
+PR437_EXACT_ARTIFACT_BINDING=PASS
+PR437_ARTIFACT_RUN_ID=35414060819
+PR437_ARTIFACT_ID=10575077512
+PR437_ARTIFACT_NAME=n3w-pr437-boardb-exact-source
+PR437_ARTIFACT_ZIP_SIZE=727532
+PR437_ARTIFACT_ZIP_SHA256=b06de88b561968627b17bbda45d5d8fd9e53d774a5227237a71343ebc39a3814
+PR437_APPLICATION_SIZE=1139600
+PR437_APPLICATION_SHA256=407767b3e1593f4237f650abecd7d29b3873b7b08bf8b5d9fc85a972119725bb
+PR437_OTADATA_SIZE=8192
+PR437_OTADATA_SHA256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
+PR437_MANIFEST_SHA256=98a6dec323e8057a30d6b1e332d549fe54288f3b45fcbbbf460292871f7a91a0
+
+PR437_BOARD_B_DEPLOYMENT=NOT_EXECUTED
+PR437_PHYSICAL_VALIDATION=NOT_EXECUTED
+```
+
+Repository hygiene was also aligned: 18 merged recent N3-W branches were deleted, PR #436 was closed as superseded, the PR #437 branch was preserved, and historical artifact build branches were preserved.
+
+The exact PR #437 artifact is the current Board B validation candidate. Artifact binding proves source-to-binary identity only; KF-096 remains OPEN until fresh physical evidence closes the required runtime route.
 
 ## Current acceptance matrix
 
@@ -328,6 +373,21 @@ PR431_OTADATA_SHA256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd378
 PR431_ARCHIVE_SHA256=94ff922ce50314ed6f3275376eb5b1e71ae27f27f6edd16f9dd0743259dd13b6
 PR431_BOARD_B_DEPLOYMENT=NOT_EXECUTED
 PR431_PHYSICAL_VALIDATION=NOT_EXECUTED
+PR431_ARTIFACT_DISPOSITION=FROZEN_HISTORICAL_NOT_FOR_CURRENT_PR437_VALIDATION
+
+PR437_SOURCE_REPAIR=OPEN_DRAFT
+PR437_HEAD=cc9ed5ee568a4b6c4a2454fd38bafa8f6e3a527c
+PR437_FINAL_SOURCE_REVIEW=PASS
+PR437_HEAD_CI=11_OF_11_PASS
+PR437_EXACT_ARTIFACT_BUILD=PASS
+PR437_EXACT_ARTIFACT_BINDING=PASS
+PR437_ARTIFACT_RUN_ID=35414060819
+PR437_ARTIFACT_ID=10575077512
+PR437_APPLICATION_SHA256=407767b3e1593f4237f650abecd7d29b3873b7b08bf8b5d9fc85a972119725bb
+PR437_OTADATA_SHA256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
+PR437_ARCHIVE_SHA256=b06de88b561968627b17bbda45d5d8fd9e53d774a5227237a71343ebc39a3814
+PR437_BOARD_B_DEPLOYMENT=NOT_EXECUTED
+PR437_PHYSICAL_VALIDATION=NOT_EXECUTED
 
 PR425_POST_MERGE_CI=PASS
 PR425_EXACT_ARTIFACT_BINDING=PASS
@@ -354,34 +414,36 @@ OVERALL_N3W_FAILOVER_ACCEPTANCE=NOT_CLOSED
 - Do not claim historical `ESP_ERR_ESPNOW_CHAN` eliminated unless post-fix low-level channel/error diagnostics prove it.
 - `ESP_OK` from ESP-NOW submit is not async RF delivery proof.
 - Direct recovery must not achieve failback responsiveness by silently discarding periodic Relay business telemetry.
-- PR #428 artifact success is historical evidence only and must not be deployed after the PR #431 successor merge. The newly bound PR #431 artifact is the only current physical candidate authority, but artifact binding is not physical validation; explicit target preflight, deployment authorization, and physical acceptance remain separate later gates.
+- PR #428 and PR #431 artifacts are historical evidence for the current route. The exact PR #437 artifact `10575077512` is the current Board B validation candidate, but artifact binding is not physical validation; target preflight, deployment authorization, and physical acceptance remain separate later gates.
 - Consumed physical authorizations are never replayable.
 
 ## Current ONE gate
 
 ```text
-NEXT_ONE_GATE=N3W_KF096_PR431_BOARD_B_WRITE_TARGET_PREFLIGHT_20260918_01
+NEXT_ONE_GATE=N3W_KF096_PR437_BOARD_B_WRITE_PREFLIGHT_EXECUTOR_PREPARATION_20260919_01
 
-PRODUCT_SOURCE_AUTHORITY=d1b5c3acbd32cca95483743ffe2edba9aa3f904f
-ARTIFACT_ID=10544254111
-ARTIFACT_RUN_ID=35339630187
-APPLICATION_SHA256=c6cdab938a58ac1bc29f3a04a69d157acc23625ab239f8a644841de241af3730
+MERGED_PRODUCT_SOURCE_AUTHORITY=d1b5c3acbd32cca95483743ffe2edba9aa3f904f
+CURRENT_CANDIDATE_SOURCE_HEAD=cc9ed5ee568a4b6c4a2454fd38bafa8f6e3a527c
+CURRENT_CANDIDATE_SOURCE_TREE=b459fae0a054d45b0d09e60bffae9769e060a5c0
+
+ARTIFACT_ID=10575077512
+ARTIFACT_RUN_ID=35414060819
+APPLICATION_SHA256=407767b3e1593f4237f650abecd7d29b3873b7b08bf8b5d9fc85a972119725bb
 OTADATA_SHA256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
-ARCHIVE_SHA256=94ff922ce50314ed6f3275376eb5b1e71ae27f27f6edd16f9dd0743259dd13b6
+ARCHIVE_SHA256=b06de88b561968627b17bbda45d5d8fd9e53d774a5227237a71343ebc39a3814
 
 BINDING_AUTHORITY=
-docs/development/N3W_KF096_PR431_EXACT_ARTIFACT_BUILD_AND_BINDING_20260918.md
+docs/development/N3W_KF096_PR437_LOCAL_PROGRESS_ALIGNMENT_20260919.md
 
-BOARD_ACCESS_REQUIRED=true
-PREFLIGHT_READ_ONLY=true
+PR436_SUPERSEDED=true
+BOARD_ACCESS_REQUIRED=false
 BOARD_ACCESS=false
 SERIAL_OPEN=false
 FLASH_WRITE=false
 T1_MUTATION=false
-PHYSICAL_WRITE_AUTHORIZATION_REQUIRED_LATER=true
 ```
 
-The next gate is a separately authorized read-only Board B target preflight. It must freshly bind the intended silicon/flash/security state and the exact artifact hashes before any write. This artifact execution gate does not authorize Board B access.
+The next gate prepares a PR #437-specific Board B preflight/write executor bound to the exact artifact above. It must not access Board B or perform a write during preparation.
 
 ## Public/private evidence boundary
 
