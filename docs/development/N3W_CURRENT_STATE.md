@@ -332,7 +332,7 @@ PR437_MANIFEST_SHA256=98a6dec323e8057a30d6b1e332d549fe54288f3b45fcbbbf460292871f
 
 PR437_BOARD_B_DEPLOYMENT=PASS
 PR437_POSTWRITE_DIRECT_BASELINE=PASS
-PR437_PHYSICAL_VALIDATION=IN_PROGRESS
+PR437_PHYSICAL_VALIDATION=PASS
 
 PR439_STATE=MERGED
 PR439_REVIEW_HEAD=da6b1e7e364a0125c832e27c62b6c9741bdbfa17
@@ -448,7 +448,48 @@ PRODUCT_DIRECT_PATH_FAILURE=false
 CANONICAL_DURABLE_EVIDENCE=PASS
 ```
 
-PR #437 physical acceptance remains incomplete. The next physical stage is a same-boot Direct -> Relay transition on the deployed PR #437 firmware; Relay steady-state continuity and Relay -> Direct failback remain later gates.
+PR #437 physical validation is now complete for the KF-096 route. The same deployed Board B boot completed Direct -> Relay, a 600 s Relay steady-state window, and Relay -> Direct failback without board or T1 runtime mutation.
+
+### PR #437 final physical closure
+
+```text
+PR437_SAME_BOOT_DIRECT_TO_RELAY=PASS
+DIRECT_TO_RELAY_MANAGER_VISIBLE_GAP_MS=35087
+DIRECT_TO_RELAY_MISSING_SEQUENCE_COUNT=6
+DIRECT_TO_RELAY_MISSING_SEQUENCE_RANGE=897-902
+
+PR437_RELAY_DATA_CONTINUITY_600S=PASS
+RELAY_STEADY_STATE_SEQ_START=996
+RELAY_STEADY_STATE_SEQ_END=1116
+RELAY_STEADY_STATE_ACCEPTED_ROW_COUNT=121
+RELAY_STEADY_STATE_MISSING_SEQUENCE_COUNT=0
+RELAY_SOURCE_NON_RELAY_OBSERVED=false
+RELAY_BOARD_B_SAME_BOOT=true
+RELAY_MAX_MANAGER_INTERARRIVAL_GAP_MS=20589
+ORDERED_CATCHUP_OBSERVED=true
+BOARD_B_PROBE_FIFO_CAUSE=STRONGLY_SUPPORTED_NOT_YET_CONFIRMED
+
+PR437_RELAY_TO_DIRECT_FAILBACK=PASS
+RELAY_TO_DIRECT_MANAGER_VISIBLE_GAP_MS=10689
+RELAY_TO_DIRECT_MISSING_SEQUENCE_COUNT=0
+RELAY_TO_DIRECT_DATA_CONTINUITY=PASS
+SAME_BOOT_RELAY_TO_DIRECT=true
+RELAY_AFTER_FIRST_DIRECT_OBSERVED=false
+
+MANAGER_RESTART_COUNT_UNCHANGED=true
+BOARD_A_MUTATION=false
+BOARD_B_FLASH_MUTATION=false
+T1_RUNTIME_MUTATION=false
+APPLICATION_SERIAL_OPEN=false
+PR437_MERGE=false
+
+KF096_STATUS=CLOSED_PASS
+OVERALL_N3W_FAILOVER_ACCEPTANCE=NOT_CLOSED
+```
+
+The 20.589 s Relay Manager interarrival gap is retained as a delivery-latency observation, not reclassified as data loss: all 121 durable tuples in seq 996..1116 were present, and the gap was followed by ordered catch-up at 202 ms, 50 ms, and 51 ms intervals before the normal cadence resumed. A follow-up read-only attempt to recover payload `uptime_ms` found no persisted payload history for this target range, so the exact buffering location remains unproven.
+
+KF-096 is closed because the historical periodic Direct-recovery-probe behavior that discarded Relay business telemetry was not reproduced in the 600 s Relay window. This closure does not erase the six missing sequences during the initial Direct -> Relay transition. That transition-loss fact remains open for later N3-W acceptance work and keeps `OVERALL_N3W_FAILOVER_ACCEPTANCE=NOT_CLOSED`.
 
 ## Current acceptance matrix
 
@@ -457,7 +498,7 @@ KF092_STATUS=CLOSED_PASS
 KF093_TASK_WDT=GUARDED
 KF094_SINGLE_RADIO_CHANNEL_OWNERSHIP=OPEN
 KF095_FAILBACK_COMMIT_ORDER=GUARDED
-KF096_DIRECT_PROBE_TELEMETRY_BLACKOUT=OPEN
+KF096_DIRECT_PROBE_TELEMETRY_BLACKOUT=CLOSED_PASS
 
 PR428_SOURCE_REPAIR=MERGED
 PR428_SOURCE_HEAD=6cae8ea1a75096aab0e625ae56828d13931f7c57
@@ -503,7 +544,7 @@ PR437_OTADATA_SHA256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd378
 PR437_ARCHIVE_SHA256=b06de88b561968627b17bbda45d5d8fd9e53d774a5227237a71343ebc39a3814
 PR437_BOARD_B_DEPLOYMENT=PASS
 PR437_POSTWRITE_DIRECT_BASELINE=PASS
-PR437_PHYSICAL_VALIDATION=IN_PROGRESS
+PR437_PHYSICAL_VALIDATION=PASS
 
 PR425_POST_MERGE_CI=PASS
 PR425_EXACT_ARTIFACT_BINDING=PASS
@@ -537,7 +578,7 @@ OVERALL_N3W_FAILOVER_ACCEPTANCE=NOT_CLOSED
 ## Current ONE gate
 
 ```text
-NEXT_ONE_GATE=N3W_KF096_PR437_SAME_BOOT_DIRECT_TO_RELAY_PHYSICAL_VALIDATION_20260919_01
+NEXT_ONE_GATE=N3W_KF096_PR437_PREMERGE_FINAL_REVIEW_20260919_01
 
 MERGED_PRODUCT_SOURCE_AUTHORITY=d1b5c3acbd32cca95483743ffe2edba9aa3f904f
 CURRENT_CANDIDATE_SOURCE_HEAD=cc9ed5ee568a4b6c4a2454fd38bafa8f6e3a527c
@@ -545,14 +586,13 @@ CURRENT_CANDIDATE_SOURCE_TREE=b459fae0a054d45b0d09e60bffae9769e060a5c0
 DEPLOYED_BOARD_B_SOURCE_HEAD=cc9ed5ee568a4b6c4a2454fd38bafa8f6e3a527c
 DEPLOYED_BOARD_B_SOURCE_TREE=b459fae0a054d45b0d09e60bffae9769e060a5c0
 
-ARTIFACT_ID=10575077512
-ARTIFACT_RUN_ID=35414060819
-APPLICATION_SHA256=407767b3e1593f4237f650abecd7d29b3873b7b08bf8b5d9fc85a972119725bb
-OTADATA_SHA256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
-ARCHIVE_SHA256=b06de88b561968627b17bbda45d5d8fd9e53d774a5227237a71343ebc39a3814
-
 PR437_BOARD_B_DEPLOYMENT=PASS
 PR437_POSTWRITE_DIRECT_BASELINE=PASS
+PR437_PHYSICAL_VALIDATION=PASS
+KF096_STATUS=CLOSED_PASS
+
+DIRECT_TO_RELAY_MISSING_SEQUENCE_COUNT=6
+OVERALL_N3W_FAILOVER_ACCEPTANCE=NOT_CLOSED
 
 BOARD_B_FIRMWARE_FLASH=false
 BOARD_A_MUTATION=false
@@ -561,9 +601,7 @@ T1_RUNTIME_MUTATION=false
 PR437_MERGE=false
 ```
 
-The next gate establishes a fresh Direct baseline on the deployed PR #437 firmware, confirms Board A as the stationary Relay gateway, then moves only Board B to the qualified Relay location without a reboot after the baseline. Manager canonical state is the authoritative observation path; zero matching INFO log lines alone must not be classified as product failure.
-
-The gate stops after same-boot Direct -> Relay classification. It must not automatically continue into Relay steady-state continuity, Relay -> Direct failback, source repair, reflashing, or PR #437 merge.
+The next gate is repository-only final review of PR #437 merge readiness. It must preserve the six Direct -> Relay transition losses as an unresolved N3-W acceptance fact, verify the exact PR head/CI/mergeability and documentation alignment, and must not merge PR #437 without a separate explicit merge authorization.
 
 ## Public/private evidence boundary
 
