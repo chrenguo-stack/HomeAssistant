@@ -114,9 +114,9 @@ def test_recovery_probe_checks_ap_presence_and_buffers_business_telemetry() -> N
     assert "TelemetrySubmitDisposition::BUFFERED" in telemetry
     assert "TelemetrySubmitDisposition::REJECTED" in telemetry
     assert "enqueue_telemetry_" in telemetry
-    assert "!telemetry_queue_.empty()" in telemetry
-    assert "radio_.pending_unicast_sends() != 0U" in telemetry
-    assert "relay_unicast_busy" in telemetry
+    assert "flush_telemetry_queue_(" in telemetry
+    assert "TelemetryPathAccounting::RECORD_PATH_RESULT" in telemetry
+    assert "PendingTelemetryState::RELAY_IN_FLIGHT" in telemetry
 
     flush_start = source.index("void SimpleProductComponent::flush_telemetry_queue_()")
     flush_end = source.index("bool SimpleProductComponent::restore_relay_radio_()", flush_start)
