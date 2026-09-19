@@ -15,6 +15,7 @@ ALIGNMENT_BASE_MAIN=d9afc55b04042806ed8b6e1b1ae3553742aba2be
 PRODUCT_SOURCE_AUTHORITY=d1b5c3acbd32cca95483743ffe2edba9aa3f904f
 REPOSITORY_MAIN_AT_ALIGNMENT_START=d9afc55b04042806ed8b6e1b1ae3553742aba2be
 REPOSITORY_MAIN_AFTER_PR439=02efd64312c4b01c19c0a18e6db543145a16ad9c
+REPOSITORY_MAIN_AT_POSTWRITE_ALIGNMENT_START=0ea13c9f9f76fdf7fb79ec82393408ab144b4e18
 
 PR431_REVIEW_HEAD=137303c7b08fff36920d05e77c2f1bcc20b38d1f
 PR431_MERGE=d1b5c3acbd32cca95483743ffe2edba9aa3f904f
@@ -24,11 +25,11 @@ CURRENT_CANDIDATE_SOURCE_HEAD=cc9ed5ee568a4b6c4a2454fd38bafa8f6e3a527c
 CURRENT_CANDIDATE_SOURCE_TREE=b459fae0a054d45b0d09e60bffae9769e060a5c0
 CURRENT_CANDIDATE_ARTIFACT_ID=10575077512
 
-FROZEN_DEPLOYED_PRODUCT_SOURCE_HEAD=096528fbf61948d6c69197f1c8994ce8e7d672f4
-FROZEN_DEPLOYED_PRODUCT_SOURCE_TREE=6cfa25f5168fc720590f186871c038e3d4a5307f
+FROZEN_DEPLOYED_PRODUCT_SOURCE_HEAD=cc9ed5ee568a4b6c4a2454fd38bafa8f6e3a527c
+FROZEN_DEPLOYED_PRODUCT_SOURCE_TREE=b459fae0a054d45b0d09e60bffae9769e060a5c0
 ```
 
-PR #431 remains the latest merged product-source authority at `d1b5c3acbd32cca95483743ffe2edba9aa3f904f`. PR #437 is the current unmerged draft successor candidate at exact HEAD `cc9ed5ee568a4b6c4a2454fd38bafa8f6e3a527c`; its final source review and CI passed and its exact artifact is built and hash-bound. Board B still runs the frozen PR #425 artifact. Repository main, merged product source, current physical candidate, and deployed physical source remain separate authorities.
+PR #431 remains the latest merged product-source authority at `d1b5c3acbd32cca95483743ffe2edba9aa3f904f`. PR #437 remains the current unmerged draft successor candidate at exact HEAD `cc9ed5ee568a4b6c4a2454fd38bafa8f6e3a527c`; its final source review, CI, and exact-artifact binding passed. Board B now runs the exact PR #437 artifact after an operator-confirmed target override of the automated identity mismatch. Repository main, merged product source, PR #437 candidate source, and deployed physical source remain separate authorities.
 
 ## Recent integrated route
 
@@ -329,8 +330,9 @@ PR437_OTADATA_SIZE=8192
 PR437_OTADATA_SHA256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
 PR437_MANIFEST_SHA256=98a6dec323e8057a30d6b1e332d549fe54288f3b45fcbbbf460292871f7a91a0
 
-PR437_BOARD_B_DEPLOYMENT=NOT_EXECUTED
-PR437_PHYSICAL_VALIDATION=NOT_EXECUTED
+PR437_BOARD_B_DEPLOYMENT=PASS
+PR437_POSTWRITE_DIRECT_BASELINE=PASS
+PR437_PHYSICAL_VALIDATION=IN_PROGRESS
 
 PR439_STATE=MERGED
 PR439_REVIEW_HEAD=da6b1e7e364a0125c832e27c62b6c9741bdbfa17
@@ -377,6 +379,76 @@ MINIMAL_WRITE_SCOPE=PASS
 The executor is bound to PR #437 artifact `10575077512`. It performs a fresh read-only partition-table binding at `0x8000` over `0xC00` bytes and requires SHA-256 `6664b08a14a9cdc170e322823db29fbe485d87db9c4ec42759d9372028953dca`. The write scope remains otadata at `0x9000` plus application at `0x10000`; bootloader, partition table, product NVS, and full-chip erase remain forbidden.
 
 PR #439 merge does not authorize Board B Flash mutation. A bounded read-only Board B preflight is the next gate; any later Flash write requires a separate explicit one-shot authorization.
+
+## PR #437 Board B deployment and post-write Direct baseline
+
+The exact PR #437 artifact was written to the operator-confirmed Board B target. The automated frozen Board B hardware-identity comparison failed before write; the operator explicitly confirmed the physical target and authorized a one-time override. Raw identity material is not public evidence, the automated identity check must not be rewritten as PASS, and this override does not carry forward to future board mutations.
+
+```text
+PR437_BOARD_B_DEPLOYMENT=PASS
+
+AUTOMATED_BOARD_IDENTITY_MATCH=FAIL
+OPERATOR_TARGET_CONFIRMATION=PASS
+OPERATOR_IDENTITY_OVERRIDE=true
+RAW_BOARD_IDENTITY_PUBLIC=false
+IDENTITY_OVERRIDE_REUSABLE=false
+
+ARTIFACT_DOWNLOAD=PASS
+ARTIFACT_INNER_BINDING=PASS
+SECURITY_STATE=PASS
+FLASH_SIZE=8MB
+PARTITION_TABLE_BINDING=PASS
+
+APPLICATION_WRITE=PASS
+OTADATA_WRITE=PASS
+APPLICATION_READBACK_HASH_VERIFY=NOT_EXECUTED
+OTADATA_READBACK_HASH_VERIFY=NOT_EXECUTED
+
+BOOTLOADER_WRITE=false
+PARTITION_TABLE_WRITE=false
+PRODUCT_NVS_WRITE=false
+FULL_FLASH_ERASE=false
+
+WRITE_AUTHORIZATION_CLAIMED=true
+WRITE_AUTHORIZATION_CONSUMED=true
+WRITE_AUTHORIZATION_REPLAY_PERMITTED=false
+```
+
+A fresh T1/Manager canonical-cursor observation then proved the written firmware is live on Direct without opening application serial:
+
+```text
+PR437_POSTWRITE_DIRECT_BASELINE=PASS
+OBSERVATION_SECONDS=90
+
+BOARD_B_CANONICAL_CURSOR_BEFORE=FOUND
+BOARD_B_CANONICAL_CURSOR_AFTER=FOUND
+BOARD_B_SOURCE_BEFORE=direct
+BOARD_B_SOURCE_AFTER=direct
+
+BOARD_B_SEQ_BEFORE=1370
+BOARD_B_SEQ_AFTER=1388
+BOARD_B_SEQ_DELTA=18
+
+BOARD_B_SAME_BOOT=true
+BOARD_B_CANONICAL_ADVANCED=true
+BOARD_B_LAST_SOURCE_DIRECT=true
+
+T1_MANAGER_RUNNING=true
+MANAGER_RESTART_COUNT_BEFORE=0
+MANAGER_RESTART_COUNT_AFTER=0
+MANAGER_STARTED_AT_UNCHANGED=true
+MANAGER_RESTART_COUNT_UNCHANGED=true
+```
+
+The earlier bounded Manager log query returned zero matching Direct acceptance INFO lines. Canonical durable state advanced cleanly during the same period, so this is classified under the existing KF-010 logging-oracle guard:
+
+```text
+MANAGER_INFO_LOG_ORACLE=FALSE_NEGATIVE
+PRODUCT_DIRECT_PATH_FAILURE=false
+CANONICAL_DURABLE_EVIDENCE=PASS
+```
+
+PR #437 physical acceptance remains incomplete. The next physical stage is a same-boot Direct -> Relay transition on the deployed PR #437 firmware; Relay steady-state continuity and Relay -> Direct failback remain later gates.
 
 ## Current acceptance matrix
 
@@ -429,8 +501,9 @@ PR437_ARTIFACT_ID=10575077512
 PR437_APPLICATION_SHA256=407767b3e1593f4237f650abecd7d29b3873b7b08bf8b5d9fc85a972119725bb
 PR437_OTADATA_SHA256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
 PR437_ARCHIVE_SHA256=b06de88b561968627b17bbda45d5d8fd9e53d774a5227237a71343ebc39a3814
-PR437_BOARD_B_DEPLOYMENT=NOT_EXECUTED
-PR437_PHYSICAL_VALIDATION=NOT_EXECUTED
+PR437_BOARD_B_DEPLOYMENT=PASS
+PR437_POSTWRITE_DIRECT_BASELINE=PASS
+PR437_PHYSICAL_VALIDATION=IN_PROGRESS
 
 PR425_POST_MERGE_CI=PASS
 PR425_EXACT_ARTIFACT_BINDING=PASS
@@ -457,17 +530,20 @@ OVERALL_N3W_FAILOVER_ACCEPTANCE=NOT_CLOSED
 - Do not claim historical `ESP_ERR_ESPNOW_CHAN` eliminated unless post-fix low-level channel/error diagnostics prove it.
 - `ESP_OK` from ESP-NOW submit is not async RF delivery proof.
 - Direct recovery must not achieve failback responsiveness by silently discarding periodic Relay business telemetry.
-- PR #428 and PR #431 artifacts are historical evidence for the current route. The exact PR #437 artifact `10575077512` is the current Board B validation candidate, but artifact binding is not physical validation; target preflight, deployment authorization, and physical acceptance remain separate later gates.
+- PR #428 and PR #431 artifacts are historical evidence for the current route. The exact PR #437 artifact `10575077512` is now deployed on the operator-confirmed Board B target and has a PASS post-write Direct baseline; full physical acceptance still requires Direct -> Relay, Relay steady-state continuity, and Relay -> Direct failback evidence.
 - Consumed physical authorizations are never replayable.
+- The one-time operator override of the automated Board B identity mismatch is frozen as historical execution evidence only. It does not change the repository identity guard and must not be inherited by any future board mutation.
 
 ## Current ONE gate
 
 ```text
-NEXT_ONE_GATE=N3W_KF096_PR437_BOARD_B_WRITE_PREFLIGHT_20260919_01
+NEXT_ONE_GATE=N3W_KF096_PR437_SAME_BOOT_DIRECT_TO_RELAY_PHYSICAL_VALIDATION_20260919_01
 
 MERGED_PRODUCT_SOURCE_AUTHORITY=d1b5c3acbd32cca95483743ffe2edba9aa3f904f
 CURRENT_CANDIDATE_SOURCE_HEAD=cc9ed5ee568a4b6c4a2454fd38bafa8f6e3a527c
 CURRENT_CANDIDATE_SOURCE_TREE=b459fae0a054d45b0d09e60bffae9769e060a5c0
+DEPLOYED_BOARD_B_SOURCE_HEAD=cc9ed5ee568a4b6c4a2454fd38bafa8f6e3a527c
+DEPLOYED_BOARD_B_SOURCE_TREE=b459fae0a054d45b0d09e60bffae9769e060a5c0
 
 ARTIFACT_ID=10575077512
 ARTIFACT_RUN_ID=35414060819
@@ -475,20 +551,19 @@ APPLICATION_SHA256=407767b3e1593f4237f650abecd7d29b3873b7b08bf8b5d9fc85a97211972
 OTADATA_SHA256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
 ARCHIVE_SHA256=b06de88b561968627b17bbda45d5d8fd9e53d774a5227237a71343ebc39a3814
 
-EXECUTOR_MERGE_AUTHORITY=02efd64312c4b01c19c0a18e6db543145a16ad9c
-EXECUTOR_PATH=tools/execution_packages/n3w/kf096/pr437_board_b_write/executor.py
+PR437_BOARD_B_DEPLOYMENT=PASS
+PR437_POSTWRITE_DIRECT_BASELINE=PASS
 
-BINDING_AUTHORITY=
-docs/development/N3W_KF096_PR439_POSTMERGE_CURRENT_STATE_ALIGNMENT_20260919.md
-
-BOARD_ACCESS_REQUIRED=true
-PREFLIGHT_READ_ONLY=true
-SERIAL_OPEN=false
-FLASH_WRITE=false
-T1_MUTATION=false
+BOARD_B_FIRMWARE_FLASH=false
+BOARD_A_MUTATION=false
+APPLICATION_SERIAL_OPEN=false
+T1_RUNTIME_MUTATION=false
+PR437_MERGE=false
 ```
 
-The next gate performs only the bounded read-only Board B preflight required by the merged PR #439 executor. Successful preflight does not authorize Flash write; any later mutation requires a separate explicit one-shot authorization.
+The next gate establishes a fresh Direct baseline on the deployed PR #437 firmware, confirms Board A as the stationary Relay gateway, then moves only Board B to the qualified Relay location without a reboot after the baseline. Manager canonical state is the authoritative observation path; zero matching INFO log lines alone must not be classified as product failure.
+
+The gate stops after same-boot Direct -> Relay classification. It must not automatically continue into Relay steady-state continuity, Relay -> Direct failback, source repair, reflashing, or PR #437 merge.
 
 ## Public/private evidence boundary
 
