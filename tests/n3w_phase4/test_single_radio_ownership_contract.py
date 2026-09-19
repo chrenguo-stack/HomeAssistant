@@ -118,7 +118,7 @@ def test_recovery_probe_checks_ap_presence_and_buffers_business_telemetry() -> N
     assert "TelemetryPathAccounting::RECORD_PATH_RESULT" in telemetry
     assert "PendingTelemetryState::RELAY_IN_FLIGHT" in telemetry
 
-    flush_start = source.index("void SimpleProductComponent::flush_telemetry_queue_()")
+    flush_start = source.index("void SimpleProductComponent::flush_telemetry_queue_(")
     flush_end = source.index("bool SimpleProductComponent::restore_relay_radio_()", flush_start)
     flush = source[flush_start:flush_end]
     pending = flush.index("radio_.pending_unicast_sends() != 0U")
@@ -134,7 +134,7 @@ def test_recovery_probe_checks_ap_presence_and_buffers_business_telemetry() -> N
 
     enqueue_start = source.index("bool SimpleProductComponent::enqueue_telemetry_(")
     enqueue_end = source.index(
-        "void SimpleProductComponent::flush_telemetry_queue_()", enqueue_start
+        "void SimpleProductComponent::flush_telemetry_queue_(", enqueue_start
     )
     enqueue = source[enqueue_start:enqueue_end]
     assert "rejecting newest sample" in enqueue
