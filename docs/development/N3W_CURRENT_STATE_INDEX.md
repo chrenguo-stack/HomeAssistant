@@ -1,7 +1,7 @@
 # N3-W Current State Index
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
-Current progress alignment: `docs/development/N3W_KF096_PR437_LOCAL_PROGRESS_ALIGNMENT_20260919.md`  
+Current progress alignment: `docs/development/N3W_KF096_PR439_POSTMERGE_CURRENT_STATE_ALIGNMENT_20260919.md`  
 Previous physical alignment: `docs/development/N3W_PR425_PHYSICAL_VALIDATION_AND_PROBE_BLACKOUT_ALIGNMENT_20260918.md`  
 Latest merged product-source authority: PR #431 / `d1b5c3acbd32cca95483743ffe2edba9aa3f904f`  
 Current successor candidate: PR #437 / `cc9ed5ee568a4b6c4a2454fd38bafa8f6e3a527c`  
@@ -18,7 +18,7 @@ Active product-direction authority: `docs/development/N3W_OFFICIAL_ESPNOW_REFERE
 REPOSITORY=chrenguo-stack/HomeAssistant
 PRIMARY_TASK=N3W_MULTI_NODE_RELAY_AND_RUNTIME_FAILOVER_ACCEPTANCE
 
-ALIGNMENT_BASE_MAIN=d9afc55b04042806ed8b6e1b1ae3553742aba2be
+ALIGNMENT_BASE_MAIN=02efd64312c4b01c19c0a18e6db543145a16ad9c
 
 MERGED_PRODUCT_SOURCE_AUTHORITY=
 d1b5c3acbd32cca95483743ffe2edba9aa3f904f
@@ -84,6 +84,15 @@ PR437_PHYSICAL_VALIDATION=NOT_EXECUTED
 PR436=CLOSED_SUPERSEDED
 RECENT_MERGED_N3W_BRANCHES_DELETED=18
 
+PR439_STATE=MERGED
+PR439_REVIEW_HEAD=da6b1e7e364a0125c832e27c62b6c9741bdbfa17
+PR439_MERGE=02efd64312c4b01c19c0a18e6db543145a16ad9c
+PR439_FINAL_SOURCE_REVIEW=PASS
+PR439_CI=12_OF_12_PASS
+PR439_FOCUSED_TESTS=12_PASS
+PR439_A1_SINGLE_USE_WRITE_AUTHORIZATION=CLOSED
+PR439_A2_PARTITION_TABLE_FRESH_BINDING=CLOSED
+
 OVERALL_N3W_FAILOVER_ACCEPTANCE=NOT_CLOSED
 ```
 
@@ -103,7 +112,7 @@ KF-096 remains OPEN. PR #437 source review and exact-artifact binding are comple
 
 ```text
 NEXT_ONE_GATE=
-N3W_KF096_PR437_BOARD_B_WRITE_PREFLIGHT_EXECUTOR_PREPARATION_20260919_01
+N3W_KF096_PR437_BOARD_B_WRITE_PREFLIGHT_20260919_01
 
 CURRENT_CANDIDATE_SOURCE_HEAD=
 cc9ed5ee568a4b6c4a2454fd38bafa8f6e3a527c
@@ -120,11 +129,14 @@ OTADATA_SHA256=
 ARCHIVE_SHA256=
 b06de88b561968627b17bbda45d5d8fd9e53d774a5227237a71343ebc39a3814
 
-BOARD_ACCESS_REQUIRED=false
-BOARD_ACCESS=false
+EXECUTOR_MERGE_AUTHORITY=
+02efd64312c4b01c19c0a18e6db543145a16ad9c
+
+BOARD_ACCESS_REQUIRED=true
+PREFLIGHT_READ_ONLY=true
 SERIAL_OPEN=false
 FLASH_WRITE=false
 T1_MUTATION=false
 ```
 
-The historical PR #436 executor is superseded because it is bound to the PR #431 artifact. The next gate prepares a PR #437-specific preflight/write executor before any Board B access.
+PR #439 is merged and the PR #437-bound executor is now repository authority. The next gate performs only the bounded read-only Board B preflight. Flash mutation remains a separate explicit one-shot gate.

@@ -1,0 +1,144 @@
+# N3-W KF-096 PR #439 Post-Merge Current-State Alignment — 2026-09-19
+
+Status: `CURRENT_PROGRESS_ALIGNMENT`
+
+Fresh exact repository/runtime/physical evidence takes precedence if later evidence proves drift.
+
+## Scope
+
+This record aligns the repository after PR #439 merged the PR #437-specific Board B preflight/write executor.
+
+No Board B access, application serial open, Flash write, T1 access, or PR #437 merge occurred in this alignment.
+
+## Repository authority
+
+```text
+REPOSITORY=chrenguo-stack/HomeAssistant
+PRIMARY_TASK=N3W_MULTI_NODE_RELAY_AND_RUNTIME_FAILOVER_ACCEPTANCE
+
+REPOSITORY_MAIN=
+02efd64312c4b01c19c0a18e6db543145a16ad9c
+
+MERGED_PRODUCT_SOURCE_AUTHORITY=
+d1b5c3acbd32cca95483743ffe2edba9aa3f904f
+
+CURRENT_CANDIDATE_PR=437
+CURRENT_CANDIDATE_SOURCE_HEAD=
+cc9ed5ee568a4b6c4a2454fd38bafa8f6e3a527c
+
+CURRENT_CANDIDATE_SOURCE_TREE=
+b459fae0a054d45b0d09e60bffae9769e060a5c0
+
+FROZEN_DEPLOYED_PRODUCT_SOURCE_HEAD=
+096528fbf61948d6c69197f1c8994ce8e7d672f4
+```
+
+PR #431 remains the latest merged product-source authority. PR #437 remains the current unmerged draft product candidate. Board B still runs the frozen PR #425 artifact.
+
+## PR #439 executor closure
+
+```text
+PR439_STATE=MERGED
+
+PR439_REVIEW_HEAD=
+da6b1e7e364a0125c832e27c62b6c9741bdbfa17
+
+PR439_MERGE=
+02efd64312c4b01c19c0a18e6db543145a16ad9c
+
+PR439_FINAL_SOURCE_REVIEW=PASS
+PR439_NEW_SOURCE_BLOCKER_FOUND=false
+
+PR439_CI=12_OF_12_PASS
+PR439_FOCUSED_CI_RUN=35433539838
+PR439_FOCUSED_TESTS=12_PASS
+
+A1_SINGLE_USE_WRITE_AUTHORIZATION=CLOSED
+A2_PARTITION_TABLE_FRESH_BINDING=CLOSED
+```
+
+The executor is bound to the exact PR #437 artifact and preserves the existing minimal write scope.
+
+## PR #437 exact artifact binding
+
+```text
+PR437_EXACT_ARTIFACT_BUILD=PASS
+PR437_EXACT_ARTIFACT_BINDING=PASS
+
+PR437_ARTIFACT_RUN_ID=35414060819
+PR437_ARTIFACT_ID=10575077512
+PR437_ARTIFACT_NAME=n3w-pr437-boardb-exact-source
+
+PR437_APPLICATION_SIZE=1139600
+PR437_APPLICATION_SHA256=
+407767b3e1593f4237f650abecd7d29b3873b7b08bf8b5d9fc85a972119725bb
+
+PR437_OTADATA_SIZE=8192
+PR437_OTADATA_SHA256=
+7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
+
+PR437_ARCHIVE_SHA256=
+b06de88b561968627b17bbda45d5d8fd9e53d774a5227237a71343ebc39a3814
+```
+
+## Write safety contract now merged
+
+```text
+BOARD_IDENTITY_GUARD=PASS
+SECURITY_STATE_GUARD=PASS
+PARTITION_TABLE_PREFLIGHT_BINDING=PASS
+PARTITION_TABLE_PREWRITE_REBIND=PASS
+PREFLIGHT_FRESHNESS_GUARD=PASS
+AUTHORIZATION_CLAIM_BEFORE_MUTATION=PASS
+AUTHORIZATION_REPLAY_GUARD=PASS
+MINIMAL_WRITE_SCOPE=PASS
+```
+
+The current frozen partition-table binding is:
+
+```text
+PARTITION_TABLE_OFFSET=0x8000
+PARTITION_TABLE_SIZE=0xC00
+PARTITION_TABLE_SHA256=
+6664b08a14a9cdc170e322823db29fbe485d87db9c4ec42759d9372028953dca
+```
+
+The permitted mutation scope remains:
+
+```text
+OTADATA_OFFSET=0x9000
+APPLICATION_OFFSET=0x10000
+BOOTLOADER_WRITE=false
+PARTITION_TABLE_WRITE=false
+PRODUCT_NVS_WRITE=false
+FULL_FLASH_ERASE=false
+```
+
+## Physical boundary
+
+```text
+BOARD_ACCESS=false
+SERIAL_OPEN=false
+FLASH_WRITE=false
+T1_ACCESS=false
+
+PR437_BOARD_B_DEPLOYMENT=NOT_EXECUTED
+PR437_PHYSICAL_VALIDATION=NOT_EXECUTED
+KF096_STATUS=OPEN
+OVERALL_N3W_FAILOVER_ACCEPTANCE=NOT_CLOSED
+```
+
+## Current route
+
+```text
+NEXT_ONE_GATE=
+N3W_KF096_PR437_BOARD_B_WRITE_PREFLIGHT_20260919_01
+
+BOARD_ACCESS_REQUIRED=true
+PREFLIGHT_READ_ONLY=true
+FLASH_WRITE=false
+APPLICATION_SERIAL_OPEN=false
+T1_MUTATION=false
+```
+
+The next gate may perform the bounded ROM/esptool read-only checks required by the merged executor. A successful preflight does not authorize Flash write. Flash mutation remains a separate explicit one-shot gate.
