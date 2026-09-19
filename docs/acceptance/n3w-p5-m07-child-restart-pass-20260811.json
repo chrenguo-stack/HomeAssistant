@@ -1,0 +1,94 @@
+{
+  "schema": "gh.n3w-p5-m07-child-restart-acceptance/1",
+  "date": "2026-08-11",
+  "status": "SANITIZED_M07_CONSUMED_PASS",
+  "github_baseline": {
+    "repository": "chrenguo-stack/HomeAssistant",
+    "main_sha": "9ff26629146fe2c1056f52e269c044a135306772",
+    "main_tree": "5cbe98c4e5838fb64378093691997423e3b65149",
+    "pr303": "existing_draft_incident_archive_not_modified"
+  },
+  "matrix": {
+    "id": "M07",
+    "name": "child_restart",
+    "exact_main_expectation": "new persisted boot session; no nonce reuse"
+  },
+  "execution": {
+    "accepted": true,
+    "terminal": "PASS",
+    "r1": {
+      "classification": "STOP_PRECLAIM_UNCLAIMED",
+      "authorization_claimed": false,
+      "authorization_consumed": false,
+      "restart_publish_attempt_count": 0,
+      "mutating_action_count": 0,
+      "m07_failure": false
+    },
+    "r2": {
+      "classification": "CONSUMED_PASS",
+      "authorization_claimed": true,
+      "authorization_consumed": true,
+      "restart_publish_attempt_count": 1,
+      "publish_process_success": true
+    },
+    "total_restart_publish_attempt_count": 1,
+    "exactly_one_contract_satisfied": true,
+    "replay_allowed": false,
+    "second_m07_child_restart_prohibited": true
+  },
+  "validated_contract": {
+    "new_boot_session_unique": true,
+    "new_boot_session_exact_successor": true,
+    "boot_session_delta_one": true,
+    "sequence_restart_from_zero_observed": true,
+    "postrestart_sequence_progress": true,
+    "canonical_new_session_observed": true,
+    "canonical_rollback": false,
+    "replay_high_water_regression": false,
+    "active_path_remained_direct": true,
+    "candidate_path_present": false,
+    "unexpected_gateway_ingress": false,
+    "nonce_domain_disjoint_by_boot_session": true,
+    "nonce_reuse": false,
+    "manager_stable": true,
+    "broker_stable": true,
+    "homeassistant_stable": true
+  },
+  "claim_boundary": {
+    "node_id_continuity_observed": true,
+    "hardware_id_unchanged_independently_proven_by_m07": false,
+    "ha_device_identity_unchanged_independently_proven_by_m07": false,
+    "identity_continuity_remains_separately_covered_by_later_matrix_scope": true
+  },
+  "private_evidence": {
+    "immutable_evidence_frozen": true,
+    "integrity_verified": true,
+    "exact_readback_verified": true,
+    "read_only_mode_verified": true,
+    "non_overwrite_semantics_verified": true,
+    "digest_published": false,
+    "filesystem_path_published": false,
+    "raw_transcript_published": false
+  },
+  "public_private_boundary": {
+    "raw_device_identifiers_included": false,
+    "raw_boot_or_session_values_included": false,
+    "raw_sequence_or_revision_values_included": false,
+    "credentials_included": false,
+    "private_digests_included": false,
+    "private_filesystem_paths_included": false,
+    "keys_or_session_material_included": false,
+    "authorization_identifier_included": false
+  },
+  "scope_boundary": {
+    "m06_live_physical_pass_claimed": false,
+    "m07_child_restart_replay_allowed": false,
+    "m08_relay_restart_authorized_by_this_archive": false,
+    "board_access": false,
+    "mqtt_publish": false,
+    "service_mutation": false,
+    "main_modified_directly": false,
+    "pr303_modified": false
+  },
+  "terminal": "SANITIZED_M07_CONSUMED_PASS"
+}
