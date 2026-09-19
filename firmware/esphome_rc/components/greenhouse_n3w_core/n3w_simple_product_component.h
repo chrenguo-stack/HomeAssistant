@@ -176,6 +176,8 @@ class SimpleProductComponent : public Component,
     uint32_t seq{0};
     PendingTelemetryState state{PendingTelemetryState::QUEUED};
     MacAddress relay_destination{};
+    TelemetryPathAccounting in_flight_accounting{
+        TelemetryPathAccounting::TRANSPORT_ONLY};
     uint32_t submit_count{0};
     uint32_t transient_failure_count{0};
   };

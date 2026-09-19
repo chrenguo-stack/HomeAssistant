@@ -311,6 +311,7 @@ def test_transition_telemetry_lifecycle_retains_payload_until_release_boundary()
 
     assert "enum class PendingTelemetryState" in header
     assert "RELAY_IN_FLIGHT" in header
+    assert "in_flight_accounting" in header
     assert "std::deque<PendingTelemetry> telemetry_queue_" in header
     assert "kTelemetryQueueCapacity = 24" in header
     assert "kTelemetryMaxSendAttempts" not in header
@@ -340,8 +341,11 @@ def test_transition_telemetry_lifecycle_retains_payload_until_release_boundary()
     relay_inflight = flush_body.index(
         "item.state = PendingTelemetryState::RELAY_IN_FLIGHT"
     )
-    direct_pop = flush_body.index("telemetry_queue_.pop_front()", relay_inflight)
-    assert relay_inflight < direct_pop
+    relay_accounting = flush_body.index(
+        "item.in_flight_accounting = accounting", relay_inflight
+    )
+    direct_pop = flush_body.index("telemetry_queue_.pop_front()", relay_accounting)
+    assert relay_inflight < relay_accounting < direct_pop
     assert "telemetry_error_retryable_(result)" in flush_body
     assert "request_safe_reboot_(\"telemetry permanent/invariant failure\")" in flush_body
     assert "item.attempts" not in flush_body
@@ -354,13 +358,18 @@ def test_transition_telemetry_lifecycle_retains_payload_until_release_boundary()
     )
     drain = source[drain_start:drain_end]
     ownership = drain.index("PendingTelemetryState::RELAY_IN_FLIGHT")
-    note = drain.index("runtime_.note_relay_delivery_result", ownership)
+    accounting_gate = drain.index(
+        "item.in_flight_accounting ==", ownership
+    )
+    note = drain.index("runtime_.note_relay_delivery_result", accounting_gate)
     success = drain.index("if (slot.success)", note)
     pop = drain.index("telemetry_queue_.pop_front()", success)
     failure = drain.index(
         "item.state = PendingTelemetryState::QUEUED", pop
     )
-    assert ownership < note < success < pop < failure
+    assert ownership < accounting_gate < note < success < pop < failure
+    assert "TelemetryPathAccounting::RECORD_PATH_RESULT" in drain
+    assert "TelemetryPathAccounting::TRANSPORT_ONLY" in drain
     assert "telemetry completion missing" in drain
     assert "telemetry completion ownership mismatch" in drain
 
@@ -394,3 +403,65 @@ def test_transition_telemetry_queue_preserves_oldest_on_overflow() -> None:
     assert capacity < reject < push
     assert "telemetry_queue_.pop_front()" not in enqueue
     assert "rejecting newest" in enqueue
+
+
+def test_transition_telemetry_retryable_errors_exclude_state_invariant_failure() -> None:
+    source = text("n3w_simple_product_component.cpp")
+    start = source.index(
+        "bool SimpleProductComponent::telemetry_error_retryable_("
+    )
+    end = source.index(
+        "void SimpleProductComponent::flush_telemetry_queue_(", start
+    )
+    retryable = source[start:end]
+
+    assert "SimpleProductError::NOT_READY" in retryable
+    assert "SimpleProductError::MQTT_FAILED" in retryable
+    assert "SimpleProductError::RADIO_FAILED" in retryable
+    assert "SimpleProductError::STATE_REJECTED" not in retryable
+
+
+def test_relay_completion_preserves_transport_only_accounting() -> None:
+    source = text("n3w_simple_product_component.cpp")
+    header = text("n3w_simple_product_component.h")
+
+    assert "TelemetryPathAccounting in_flight_accounting" in header
+
+    flush_start = source.index(
+        "void SimpleProductComponent::flush_telemetry_queue_("
+    )
+    flush_end = source.index(
+        "bool SimpleProductComponent::restore_relay_radio_()", flush_start
+    )
+    flush = source[flush_start:flush_end]
+    inflight = flush.index(
+        "item.state = PendingTelemetryState::RELAY_IN_FLIGHT"
+    )
+    accounting = flush.index(
+        "item.in_flight_accounting = accounting", inflight
+    )
+    assert inflight < accounting
+
+    drain_start = source.index(
+        "void SimpleProductComponent::drain_send_completions_()"
+    )
+    drain_end = source.index(
+        "bool SimpleProductComponent::check_pending_unicast_timeout_()", drain_start
+    )
+    drain = source[drain_start:drain_end]
+    gate = drain.index(
+        "item.in_flight_accounting =="
+    )
+    record = drain.index(
+        "TelemetryPathAccounting::RECORD_PATH_RESULT", gate
+    )
+    note = drain.index(
+        "runtime_.note_relay_delivery_result", record
+    )
+    reset = drain.index(
+        "item.in_flight_accounting =", note
+    )
+    transport_only = drain.index(
+        "TelemetryPathAccounting::TRANSPORT_ONLY", reset
+    )
+    assert gate < record < note < reset < transport_only

@@ -1081,6 +1081,7 @@ bool SimpleProductComponent::enqueue_telemetry_(
       seq,
       PendingTelemetryState::QUEUED,
       {},
+      TelemetryPathAccounting::TRANSPORT_ONLY,
       0,
       0,
   });
@@ -1098,8 +1099,7 @@ bool SimpleProductComponent::telemetry_error_retryable_(
     SimpleProductError error) {
   return error == SimpleProductError::NOT_READY ||
          error == SimpleProductError::MQTT_FAILED ||
-         error == SimpleProductError::RADIO_FAILED ||
-         error == SimpleProductError::STATE_REJECTED;
+         error == SimpleProductError::RADIO_FAILED;
 }
 
 void SimpleProductComponent::flush_telemetry_queue_(
@@ -1169,6 +1169,7 @@ void SimpleProductComponent::flush_telemetry_queue_(
       }
       item.state = PendingTelemetryState::RELAY_IN_FLIGHT;
       item.relay_destination = active_relay->mac;
+      item.in_flight_accounting = accounting;
       last_relay_telemetry_ms_ = now;
       ESP_LOGI(
           TAG,
@@ -1275,8 +1276,12 @@ void SimpleProductComponent::drain_send_completions_() {
 
     PendingTelemetry &item = telemetry_queue_.front();
     const uint32_t completed_seq = item.seq;
-    const SimpleProductError state_result =
-        runtime_.note_relay_delivery_result(slot.destination, slot.success);
+    SimpleProductError state_result = SimpleProductError::NONE;
+    if (item.in_flight_accounting ==
+        TelemetryPathAccounting::RECORD_PATH_RESULT) {
+      state_result =
+          runtime_.note_relay_delivery_result(slot.destination, slot.success);
+    }
 
     if (slot.success) {
       ESP_LOGI(
@@ -1289,6 +1294,8 @@ void SimpleProductComponent::drain_send_completions_() {
     } else {
       item.state = PendingTelemetryState::QUEUED;
       item.relay_destination.fill(0);
+      item.in_flight_accounting =
+          TelemetryPathAccounting::TRANSPORT_ONLY;
       ++item.transient_failure_count;
       ++telemetry_completion_failures_;
       ++telemetry_transient_retained_;
