@@ -24,6 +24,11 @@ enum class SimpleProductError : uint8_t {
   STATE_REJECTED,
 };
 
+enum class TelemetryPathAccounting : uint8_t {
+  RECORD_PATH_RESULT = 0,
+  TRANSPORT_ONLY,
+};
+
 enum class SimpleProductStartMode : uint8_t {
   DIRECT = 0,
   DISCOVERY,
@@ -37,6 +42,12 @@ enum class DiscoveryRejectReason : uint8_t {
   TRUST_GENERATION_MISMATCH = 4,
   SELF_RELAY = 5,
   CHANNEL_MISMATCH = 6,
+};
+
+struct DirectRecoveryCommitResult {
+  SimpleProductError error{SimpleProductError::NONE};
+  uint64_t completed_at_ms{0};
+  bool committed{false};
 };
 
 struct SimpleProductPolicy {
@@ -190,6 +201,8 @@ class SimpleProductRuntime {
 
   SimpleProductError note_direct_result(bool success);
   SimpleProductError note_direct_recovery_probe(bool success);
+  DirectRecoveryCommitResult commit_direct_recovery_before(
+      uint64_t absolute_deadline_ms);
   SimpleProductError note_relay_delivery_result(
       const MacAddress &destination,
       bool success);
@@ -201,7 +214,9 @@ class SimpleProductRuntime {
   SimpleProductError send_telemetry(
       const std::string &telemetry_json,
       const std::string &boot_id,
-      uint32_t seq);
+      uint32_t seq,
+      TelemetryPathAccounting accounting =
+          TelemetryPathAccounting::RECORD_PATH_RESULT);
 
   SimpleProductError on_radio_receive(
       const MacAddress &source,

@@ -106,6 +106,8 @@ jobs:
         run: pytest -q tests/n3w_phase4/test_relay_unicast_channel_ownership_observability_contract.py
       - name: Phase 4 single-radio ownership contracts
         run: pytest -q tests/n3w_phase4/test_single_radio_ownership_contract.py
+      - name: Phase 4 recovery exit and Direct liveness contracts
+        run: pytest -q tests/n3w_phase4/test_recovery_exit_behavior.py tests/n3w_phase4/test_direct_recovery_liveness_behavior.py
       - name: Build and run C++ cross-language vectors
         shell: bash
         run: |

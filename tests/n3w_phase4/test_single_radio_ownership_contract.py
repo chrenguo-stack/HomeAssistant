@@ -114,11 +114,11 @@ def test_recovery_probe_checks_ap_presence_and_buffers_business_telemetry() -> N
     assert "TelemetrySubmitDisposition::BUFFERED" in telemetry
     assert "TelemetrySubmitDisposition::REJECTED" in telemetry
     assert "enqueue_telemetry_" in telemetry
-    assert "!telemetry_queue_.empty()" in telemetry
-    assert "radio_.pending_unicast_sends() != 0U" in telemetry
-    assert "relay_unicast_busy" in telemetry
+    assert "flush_telemetry_queue_(" in telemetry
+    assert "TelemetryPathAccounting::RECORD_PATH_RESULT" in telemetry
+    assert "PendingTelemetryState::RELAY_IN_FLIGHT" in telemetry
 
-    flush_start = source.index("void SimpleProductComponent::flush_telemetry_queue_()")
+    flush_start = source.index("void SimpleProductComponent::flush_telemetry_queue_(")
     flush_end = source.index("bool SimpleProductComponent::restore_relay_radio_()", flush_start)
     flush = source[flush_start:flush_end]
     pending = flush.index("radio_.pending_unicast_sends() != 0U")
@@ -127,16 +127,17 @@ def test_recovery_probe_checks_ap_presence_and_buffers_business_telemetry() -> N
     assert pending < drain < submit
     assert "telemetry_queue_.front()" in flush
     assert "telemetry_queue_.pop_front()" in flush
-    assert "buffered telemetry submitted" in flush
-    assert "kTelemetryQueueCapacity = 8" in header
+    assert "telemetry Relay in-flight" in flush
+    assert "telemetry Direct submitted" in flush
+    assert "kTelemetryQueueCapacity = 24" in header
     assert "kRecoveryProbeBackoffMaxMs = 480000" in header
 
     enqueue_start = source.index("bool SimpleProductComponent::enqueue_telemetry_(")
     enqueue_end = source.index(
-        "void SimpleProductComponent::flush_telemetry_queue_()", enqueue_start
+        "void SimpleProductComponent::flush_telemetry_queue_(", enqueue_start
     )
     enqueue = source[enqueue_start:enqueue_end]
-    assert "rejecting newest sample" in enqueue
+    assert "rejecting newest" in enqueue
     assert "telemetry_queue_.pop_front()" not in enqueue
 
 
@@ -300,3 +301,96 @@ def test_accept_fixes_relay_channel_before_peer_and_state_commit() -> None:
     state_commit = accept.index("path_.note_authenticated_relay_ready(true)", peer_bind)
     active_bind = accept.index("active_relay_ = std::move(relay)", state_commit)
     assert channel_fix < peer_bind < state_commit < active_bind
+
+
+def test_transition_telemetry_lifecycle_retains_payload_until_release_boundary() -> None:
+    source = text("n3w_simple_product_component.cpp")
+    header = text("n3w_simple_product_component.h")
+    runtime_h = text("n3w_simple_product_runtime.h")
+    runtime = text("n3w_simple_product_runtime.cpp")
+
+    assert "enum class PendingTelemetryState" in header
+    assert "RELAY_IN_FLIGHT" in header
+    assert "std::deque<PendingTelemetry> telemetry_queue_" in header
+    assert "kTelemetryQueueCapacity = 24" in header
+    assert "kTelemetryMaxSendAttempts" not in header
+    assert "TelemetryPathAccounting" in runtime_h
+    assert "TRANSPORT_ONLY" in runtime_h
+
+    submit_start = source.index(
+        "TelemetrySubmitDisposition SimpleProductComponent::submit_telemetry_json("
+    )
+    submit_end = source.index(
+        "bool SimpleProductComponent::send_telemetry_json(", submit_start
+    )
+    submit = source[submit_start:submit_end]
+    admission = submit.index("enqueue_telemetry_(")
+    flush = submit.index("flush_telemetry_queue_(", admission)
+    assert admission < flush
+    assert "TelemetrySubmitDisposition::BUFFERED" in submit
+    assert "telemetry_json.size() > kMaxCiphertextBytes" in submit
+
+    flush_start = source.index(
+        "void SimpleProductComponent::flush_telemetry_queue_("
+    )
+    flush_end = source.index(
+        "bool SimpleProductComponent::restore_relay_radio_()", flush_start
+    )
+    flush_body = source[flush_start:flush_end]
+    relay_inflight = flush_body.index(
+        "item.state = PendingTelemetryState::RELAY_IN_FLIGHT"
+    )
+    direct_pop = flush_body.index("telemetry_queue_.pop_front()", relay_inflight)
+    assert relay_inflight < direct_pop
+    assert "telemetry_error_retryable_(result)" in flush_body
+    assert "request_safe_reboot_(\"telemetry permanent/invariant failure\")" in flush_body
+    assert "item.attempts" not in flush_body
+
+    drain_start = source.index(
+        "void SimpleProductComponent::drain_send_completions_()"
+    )
+    drain_end = source.index(
+        "bool SimpleProductComponent::check_pending_unicast_timeout_()", drain_start
+    )
+    drain = source[drain_start:drain_end]
+    ownership = drain.index("PendingTelemetryState::RELAY_IN_FLIGHT")
+    note = drain.index("runtime_.note_relay_delivery_result", ownership)
+    success = drain.index("if (slot.success)", note)
+    pop = drain.index("telemetry_queue_.pop_front()", success)
+    failure = drain.index(
+        "item.state = PendingTelemetryState::QUEUED", pop
+    )
+    assert ownership < note < success < pop < failure
+    assert "telemetry completion missing" in drain
+    assert "telemetry completion ownership mismatch" in drain
+
+    runtime_send_start = runtime.index(
+        "SimpleProductError SimpleProductRuntime::send_telemetry("
+    )
+    runtime_send_end = runtime.index(
+        "SimpleProductError SimpleProductRuntime::on_radio_receive(",
+        runtime_send_start,
+    )
+    runtime_send = runtime[runtime_send_start:runtime_send_end]
+    assert (
+        "accounting == TelemetryPathAccounting::RECORD_PATH_RESULT"
+        in runtime_send
+    )
+    assert "note_direct_result(success)" in runtime_send
+    assert "note_relay_delivery_result(relay_destination, false)" in runtime_send
+
+
+def test_transition_telemetry_queue_preserves_oldest_on_overflow() -> None:
+    source = text("n3w_simple_product_component.cpp")
+    start = source.index("bool SimpleProductComponent::enqueue_telemetry_(")
+    end = source.index(
+        "bool SimpleProductComponent::telemetry_error_retryable_", start
+    )
+    enqueue = source[start:end]
+
+    capacity = enqueue.index("telemetry_queue_.size() >= kTelemetryQueueCapacity")
+    reject = enqueue.index("return false;", capacity)
+    push = enqueue.index("telemetry_queue_.push_back", reject)
+    assert capacity < reject < push
+    assert "telemetry_queue_.pop_front()" not in enqueue
+    assert "rejecting newest" in enqueue
