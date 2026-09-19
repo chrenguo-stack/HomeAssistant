@@ -24,6 +24,11 @@ enum class SimpleProductError : uint8_t {
   STATE_REJECTED,
 };
 
+enum class TelemetryPathAccounting : uint8_t {
+  RECORD_PATH_RESULT = 0,
+  TRANSPORT_ONLY,
+};
+
 enum class SimpleProductStartMode : uint8_t {
   DIRECT = 0,
   DISCOVERY,
@@ -209,7 +214,9 @@ class SimpleProductRuntime {
   SimpleProductError send_telemetry(
       const std::string &telemetry_json,
       const std::string &boot_id,
-      uint32_t seq);
+      uint32_t seq,
+      TelemetryPathAccounting accounting =
+          TelemetryPathAccounting::RECORD_PATH_RESULT);
 
   SimpleProductError on_radio_receive(
       const MacAddress &source,

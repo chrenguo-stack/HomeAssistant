@@ -521,5 +521,48 @@ int main() {
   assert(timely_commit.completed_at_ms < child_clock.value + 1000);
   assert(child.path_state() == LocalPathState::DIRECT);
 
+
+  // Backlog retries must not compress Direct path hysteresis. TRANSPORT_ONLY
+  // retries preserve the queued payload without counting as fresh business
+  // path-health observations; RECORD_PATH_RESULT keeps the original policy.
+  {
+    FakeClock accounting_clock;
+    FakeRandom accounting_random;
+    FakePort accounting_port;
+    SimpleProductRuntime accounting_runtime(
+        &accounting_port, &accounting_clock, &accounting_random);
+    assert(
+        accounting_runtime.start(
+            make_state("node_accounting", 0x44),
+            MacAddress{0x02, 0x00, 0x00, 0x00, 0x00, 0x44},
+            6,
+            SimpleProductStartMode::DIRECT) == SimpleProductError::NONE);
+    accounting_port.direct_success = false;
+    const std::string accounting_json =
+        R"({"schema":"gh.telemetry/1","seq":1})";
+    for (uint32_t seq = 1; seq <= 5; ++seq) {
+      assert(
+          accounting_runtime.send_telemetry(
+              accounting_json,
+              "boot_0000000000000001",
+              seq,
+              TelemetryPathAccounting::TRANSPORT_ONLY) ==
+          SimpleProductError::MQTT_FAILED);
+      assert(accounting_runtime.path_state() == LocalPathState::DIRECT);
+    }
+    for (uint32_t seq = 6; seq <= 8; ++seq) {
+      const SimpleProductError result =
+          accounting_runtime.send_telemetry(
+              accounting_json,
+              "boot_0000000000000001",
+              seq,
+              TelemetryPathAccounting::RECORD_PATH_RESULT);
+      assert(
+          result == SimpleProductError::MQTT_FAILED ||
+          result == SimpleProductError::NONE);
+    }
+    assert(accounting_runtime.path_state() == LocalPathState::DISCOVERY);
+  }
+
   return 0;
 }

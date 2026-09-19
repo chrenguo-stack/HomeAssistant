@@ -203,7 +203,7 @@ void SimpleProductComponent::loop() {
       runtime_.active_relay().has_value(),
       now_ms());
   diagnostics_.emit_summary(now_ms());
-  flush_telemetry_queue_();
+  flush_telemetry_queue_(TelemetryPathAccounting::TRANSPORT_ONLY);
   advance_recovery_();
 }
 
@@ -213,31 +213,41 @@ TelemetrySubmitDisposition SimpleProductComponent::submit_telemetry_json(
     uint32_t seq) {
   if (!runtime_ready_) return TelemetrySubmitDisposition::REJECTED;
 
-  // A planned Direct verification temporarily owns the single radio. Preserve
-  // business telemetry in boot_id/seq order instead of silently discarding it.
-  // If an older sample is already queued, the new sample must join the queue so
-  // Manager never sees a newer seq before an older buffered seq.
-  const bool relay_unicast_busy =
-      runtime_.path_state() == LocalPathState::RELAY_ACTIVE &&
-      radio_.pending_unicast_sends() != 0U;
-  if (radio_ownership_ == RadioOwnership::DIRECT_PROBE ||
-      radio_ownership_ == RadioOwnership::RELAY_RESTORE ||
-      !telemetry_queue_.empty() || relay_unicast_busy) {
-    return enqueue_telemetry_(telemetry_json, boot_id, seq)
-               ? TelemetrySubmitDisposition::BUFFERED
-               : TelemetrySubmitDisposition::REJECTED;
+  uint64_t boot_session = 0;
+  if (telemetry_json.empty() ||
+      telemetry_json.size() > kMaxCiphertextBytes ||
+      boot_id.empty() ||
+      !parse_boot_id(boot_id, &boot_session) ||
+      boot_session == 0U) {
+    ++telemetry_queue_dropped_;
+    ESP_LOGE(
+        TAG,
+        "N3-W telemetry admission rejected seq=%u size=%u rejected=%u",
+        static_cast<unsigned>(seq),
+        static_cast<unsigned>(telemetry_json.size()),
+        static_cast<unsigned>(telemetry_queue_dropped_));
+    return TelemetrySubmitDisposition::REJECTED;
   }
 
-  const LocalPathState path_before = runtime_.path_state();
-  const SimpleProductError result =
-      runtime_.send_telemetry(telemetry_json, boot_id, seq);
-  if (result == SimpleProductError::NONE &&
-      path_before == LocalPathState::RELAY_ACTIVE) {
-    last_relay_telemetry_ms_ = now_ms();
+  if (!enqueue_telemetry_(telemetry_json, boot_id, seq)) {
+    return TelemetrySubmitDisposition::REJECTED;
   }
-  return result == SimpleProductError::NONE
-             ? TelemetrySubmitDisposition::SUBMITTED
-             : TelemetrySubmitDisposition::REJECTED;
+
+  // Every generated business sample is one path-health observation
+  // opportunity. If older data is pending, that oldest immutable payload owns
+  // the attempt; loop-driven backlog retries use TRANSPORT_ONLY instead.
+  flush_telemetry_queue_(TelemetryPathAccounting::RECORD_PATH_RESULT);
+
+  if (telemetry_queue_.empty()) {
+    return TelemetrySubmitDisposition::SUBMITTED;
+  }
+  const PendingTelemetry &front = telemetry_queue_.front();
+  if (front.seq == seq &&
+      front.boot_id == boot_id &&
+      front.state == PendingTelemetryState::RELAY_IN_FLIGHT) {
+    return TelemetrySubmitDisposition::SUBMITTED;
+  }
+  return TelemetrySubmitDisposition::BUFFERED;
 }
 
 bool SimpleProductComponent::send_telemetry_json(
@@ -1059,78 +1069,151 @@ bool SimpleProductComponent::enqueue_telemetry_(
     ++telemetry_queue_dropped_;
     ESP_LOGW(
         TAG,
-        "N3-W telemetry probe queue full; rejecting newest sample seq=%u rejected=%u",
+        "N3-W telemetry queue overflow; rejecting newest seq=%u depth=%u rejected=%u",
         static_cast<unsigned>(seq),
+        static_cast<unsigned>(telemetry_queue_.size()),
         static_cast<unsigned>(telemetry_queue_dropped_));
     return false;
   }
-  telemetry_queue_.push_back(BufferedTelemetry{
+  telemetry_queue_.push_back(PendingTelemetry{
       telemetry_json,
       boot_id,
       seq,
+      PendingTelemetryState::QUEUED,
+      {},
+      0,
       0,
   });
+  ESP_LOGI(
+      TAG,
+      "N3-W telemetry admitted seq=%u depth=%u path=%u ownership=%u",
+      static_cast<unsigned>(seq),
+      static_cast<unsigned>(telemetry_queue_.size()),
+      static_cast<unsigned>(runtime_.path_state()),
+      static_cast<unsigned>(radio_ownership_));
   return true;
 }
 
-void SimpleProductComponent::flush_telemetry_queue_() {
+bool SimpleProductComponent::telemetry_error_retryable_(
+    SimpleProductError error) {
+  return error == SimpleProductError::NOT_READY ||
+         error == SimpleProductError::MQTT_FAILED ||
+         error == SimpleProductError::RADIO_FAILED ||
+         error == SimpleProductError::STATE_REJECTED;
+}
+
+void SimpleProductComponent::flush_telemetry_queue_(
+    TelemetryPathAccounting accounting) {
   if (telemetry_queue_.empty() ||
       radio_ownership_ == RadioOwnership::DIRECT_PROBE ||
-      radio_ownership_ == RadioOwnership::RELAY_RESTORE) {
+      radio_ownership_ == RadioOwnership::RELAY_RESTORE ||
+      safe_reboot_requested_) {
     return;
   }
+
   const uint64_t now = now_ms();
   if (now < next_telemetry_flush_ms_) return;
 
-  // ESP-IDF recommends waiting for the previous ESP-NOW send callback
-  // before submitting the next frame. For buffered Relay telemetry, use the
-  // concrete pending-send counter as that barrier, then process the copied
-  // completion before deciding whether the Relay path is still healthy.
-  if (runtime_.path_state() == LocalPathState::RELAY_ACTIVE) {
+  if (telemetry_queue_.front().state ==
+      PendingTelemetryState::RELAY_IN_FLIGHT) {
+    return;
+  }
+
+  const LocalPathState current_path = runtime_.path_state();
+  if (current_path != LocalPathState::DIRECT &&
+      current_path != LocalPathState::RELAY_ACTIVE) {
+    next_telemetry_flush_ms_ = now + kTelemetryRetrySpacingMs;
+    return;
+  }
+
+  // ESP-IDF recommends waiting for the previous ESP-NOW send callback before
+  // submitting the next frame. The queue front owns the payload until that
+  // callback is consumed; esp_now_send() success is only an in-flight state.
+  if (current_path == LocalPathState::RELAY_ACTIVE) {
     if (radio_.pending_unicast_sends() != 0U) {
       next_telemetry_flush_ms_ = now + kPendingUnicastDrainRetryMs;
       return;
     }
     drain_send_completions_();
+    if (safe_reboot_requested_ || telemetry_queue_.empty()) return;
+    if (now_ms() < next_telemetry_flush_ms_) return;
+    if (telemetry_queue_.front().state ==
+        PendingTelemetryState::RELAY_IN_FLIGHT) {
+      return;
+    }
     if (runtime_.path_state() != LocalPathState::RELAY_ACTIVE) {
       next_telemetry_flush_ms_ = now + kTelemetryRetrySpacingMs;
       return;
     }
   }
 
-  BufferedTelemetry &item = telemetry_queue_.front();
+  PendingTelemetry &item = telemetry_queue_.front();
   const LocalPathState path_before = runtime_.path_state();
   const SimpleProductError result =
-      runtime_.send_telemetry(item.telemetry_json, item.boot_id, item.seq);
+      runtime_.send_telemetry(
+          item.telemetry_json, item.boot_id, item.seq, accounting);
+  ++item.submit_count;
+
   if (result == SimpleProductError::NONE) {
     if (path_before == LocalPathState::RELAY_ACTIVE) {
+      const auto &active_relay = runtime_.active_relay();
+      if (!active_relay.has_value()) {
+        ++telemetry_invariant_failures_;
+        ESP_LOGE(
+            TAG,
+            "N3-W telemetry invariant failure after Relay submit seq=%u failures=%u",
+            static_cast<unsigned>(item.seq),
+            static_cast<unsigned>(telemetry_invariant_failures_));
+        request_safe_reboot_("telemetry relay submit lost active peer");
+        return;
+      }
+      item.state = PendingTelemetryState::RELAY_IN_FLIGHT;
+      item.relay_destination = active_relay->mac;
       last_relay_telemetry_ms_ = now;
+      ESP_LOGI(
+          TAG,
+          "N3-W telemetry Relay in-flight seq=%u depth=%u submits=%u",
+          static_cast<unsigned>(item.seq),
+          static_cast<unsigned>(telemetry_queue_.size()),
+          static_cast<unsigned>(item.submit_count));
+      return;
     }
+
     ESP_LOGI(
         TAG,
-        "N3-W buffered telemetry submitted seq=%u path=%u remaining=%u",
+        "N3-W telemetry Direct submitted seq=%u depth_after=%u submits=%u",
         static_cast<unsigned>(item.seq),
-        static_cast<unsigned>(path_before),
-        static_cast<unsigned>(telemetry_queue_.size() - 1U));
+        static_cast<unsigned>(telemetry_queue_.size() - 1U),
+        static_cast<unsigned>(item.submit_count));
     telemetry_queue_.pop_front();
     next_telemetry_flush_ms_ = now + kTelemetryFlushSpacingMs;
     return;
   }
 
-  if (result == SimpleProductError::NOT_READY) {
+  if (telemetry_error_retryable_(result)) {
+    ++item.transient_failure_count;
+    ++telemetry_transient_retained_;
+    ESP_LOGW(
+        TAG,
+        "N3-W telemetry transient failure retained seq=%u error=%u depth=%u item_failures=%u retained=%u",
+        static_cast<unsigned>(item.seq),
+        static_cast<unsigned>(result),
+        static_cast<unsigned>(telemetry_queue_.size()),
+        static_cast<unsigned>(item.transient_failure_count),
+        static_cast<unsigned>(telemetry_transient_retained_));
     next_telemetry_flush_ms_ = now + kTelemetryRetrySpacingMs;
     return;
   }
-  if (item.attempts < 255U) ++item.attempts;
-  if (item.attempts >= kTelemetryMaxSendAttempts) {
-    ESP_LOGW(
-        TAG,
-        "N3-W buffered telemetry send failed repeatedly seq=%u; dropping sample",
-        static_cast<unsigned>(item.seq));
-    telemetry_queue_.pop_front();
-    ++telemetry_queue_dropped_;
-  }
-  next_telemetry_flush_ms_ = now + kTelemetryRetrySpacingMs;
+
+  ++telemetry_invariant_failures_;
+  ESP_LOGE(
+      TAG,
+      "N3-W telemetry permanent/invariant failure retained seq=%u error=%u depth=%u failures=%u",
+      static_cast<unsigned>(item.seq),
+      static_cast<unsigned>(result),
+      static_cast<unsigned>(telemetry_queue_.size()),
+      static_cast<unsigned>(telemetry_invariant_failures_));
+  request_safe_reboot_("telemetry permanent/invariant failure");
 }
 
 bool SimpleProductComponent::restore_relay_radio_() {
@@ -1169,14 +1252,84 @@ void SimpleProductComponent::drain_send_completions_() {
     const uint8_t write =
         tx_completion_write_.load(std::memory_order_acquire);
     if (read == write) break;
-    const TxCompletionSlot &slot = tx_completion_ring_[read];
-    (void) runtime_.note_relay_delivery_result(slot.destination, slot.success);
+
+    const TxCompletionSlot slot = tx_completion_ring_[read];
     tx_completion_read_.store(
         static_cast<uint8_t>((read + 1U) % kTxCompletionRingSlots),
         std::memory_order_release);
+
+    if (telemetry_queue_.empty() ||
+        telemetry_queue_.front().state !=
+            PendingTelemetryState::RELAY_IN_FLIGHT ||
+        telemetry_queue_.front().relay_destination != slot.destination) {
+      ++telemetry_invariant_failures_;
+      ESP_LOGE(
+          TAG,
+          "N3-W telemetry completion ownership mismatch success=%s depth=%u failures=%u",
+          slot.success ? "true" : "false",
+          static_cast<unsigned>(telemetry_queue_.size()),
+          static_cast<unsigned>(telemetry_invariant_failures_));
+      request_safe_reboot_("telemetry completion ownership mismatch");
+      break;
+    }
+
+    PendingTelemetry &item = telemetry_queue_.front();
+    const uint32_t completed_seq = item.seq;
+    const SimpleProductError state_result =
+        runtime_.note_relay_delivery_result(slot.destination, slot.success);
+
+    if (slot.success) {
+      ESP_LOGI(
+          TAG,
+          "N3-W telemetry Relay completion success seq=%u depth_after=%u",
+          static_cast<unsigned>(completed_seq),
+          static_cast<unsigned>(telemetry_queue_.size() - 1U));
+      telemetry_queue_.pop_front();
+      next_telemetry_flush_ms_ = now_ms() + kTelemetryFlushSpacingMs;
+    } else {
+      item.state = PendingTelemetryState::QUEUED;
+      item.relay_destination.fill(0);
+      ++item.transient_failure_count;
+      ++telemetry_completion_failures_;
+      ++telemetry_transient_retained_;
+      ESP_LOGW(
+          TAG,
+          "N3-W telemetry Relay completion failure retained seq=%u state_error=%u depth=%u completion_failures=%u",
+          static_cast<unsigned>(completed_seq),
+          static_cast<unsigned>(state_result),
+          static_cast<unsigned>(telemetry_queue_.size()),
+          static_cast<unsigned>(telemetry_completion_failures_));
+      next_telemetry_flush_ms_ = now_ms() + kTelemetryRetrySpacingMs;
+    }
+
+    if (state_result != SimpleProductError::NONE &&
+        !telemetry_error_retryable_(state_result)) {
+      ++telemetry_invariant_failures_;
+      ESP_LOGE(
+          TAG,
+          "N3-W telemetry completion state failure seq=%u error=%u failures=%u",
+          static_cast<unsigned>(completed_seq),
+          static_cast<unsigned>(state_result),
+          static_cast<unsigned>(telemetry_invariant_failures_));
+      request_safe_reboot_("telemetry completion state failure");
+      break;
+    }
   }
+
   if (radio_.pending_unicast_sends() == 0U) {
     pending_unicast_deadline_.on_drained();
+    if (!safe_reboot_requested_ &&
+        !telemetry_queue_.empty() &&
+        telemetry_queue_.front().state ==
+            PendingTelemetryState::RELAY_IN_FLIGHT) {
+      ++telemetry_invariant_failures_;
+      ESP_LOGE(
+          TAG,
+          "N3-W telemetry completion missing for in-flight seq=%u failures=%u",
+          static_cast<unsigned>(telemetry_queue_.front().seq),
+          static_cast<unsigned>(telemetry_invariant_failures_));
+      request_safe_reboot_("telemetry completion missing");
+    }
   }
 }
 

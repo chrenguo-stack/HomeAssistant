@@ -313,7 +313,8 @@ bool SimpleProductRuntime::update_direct_channel_hint(uint8_t channel) {
 SimpleProductError SimpleProductRuntime::send_telemetry(
     const std::string &telemetry_json,
     const std::string &boot_id,
-    uint32_t seq) {
+    uint32_t seq,
+    TelemetryPathAccounting accounting) {
   if (!started_ || telemetry_json.empty()) {
     return SimpleProductError::NOT_READY;
   }
@@ -325,8 +326,10 @@ SimpleProductError SimpleProductRuntime::send_telemetry(
     if (diagnostic_sink_ != nullptr) {
       diagnostic_sink_->on_direct_publish_result(success, clock_->now_ms());
     }
-    const SimpleProductError state_result = note_direct_result(success);
-    if (state_result != SimpleProductError::NONE) return state_result;
+    if (accounting == TelemetryPathAccounting::RECORD_PATH_RESULT) {
+      const SimpleProductError state_result = note_direct_result(success);
+      if (state_result != SimpleProductError::NONE) return state_result;
+    }
     return success ? SimpleProductError::NONE : SimpleProductError::MQTT_FAILED;
   }
   if (path_.state() != LocalPathState::RELAY_ACTIVE ||
@@ -357,9 +360,11 @@ SimpleProductError SimpleProductRuntime::send_telemetry(
     diagnostic_sink_->on_relay_telemetry(submitted, clock_->now_ms());
   }
   if (!submitted) {
-    const SimpleProductError state_result =
-        note_relay_delivery_result(relay_destination, false);
-    if (state_result != SimpleProductError::NONE) return state_result;
+    if (accounting == TelemetryPathAccounting::RECORD_PATH_RESULT) {
+      const SimpleProductError state_result =
+          note_relay_delivery_result(relay_destination, false);
+      if (state_result != SimpleProductError::NONE) return state_result;
+    }
     return SimpleProductError::RADIO_FAILED;
   }
   return SimpleProductError::NONE;
