@@ -1,0 +1,192 @@
+name: H3 N2 Stage2D10 G4 Compile CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d10-g4-compile-ci.yml"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation/**"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g4_activation/**"
+      - "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_h3_profile_isolated_device_g4_activation_compile_20260723_v1.yml"
+      - "protocols/pairing/gh-h3-node-stage2d10-g4-activate-v1.md"
+  push:
+    branches:
+      - main
+      - feature/h3-n2-stage2d10-g4-activate-profile-20260723-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d10-g4-compile-ci.yml"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation/**"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g4_activation/**"
+      - "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_h3_profile_isolated_device_g4_activation_compile_20260723_v1.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  source-boundary:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          show-progress: false
+      - name: Verify locked G4 compile source boundary
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          root = Path("firmware/esphome_rc")
+          component = root / "components/greenhouse_profile_isolated_device_g4_activation"
+          minimal = root / (
+              "board_lab/h3_profile_isolated_device_g4_activation/"
+              "greenhouse_profile_isolated_device_g4_activation_compile_20260723_v1.yml"
+          )
+          product = root / (
+              "f1_0_rc2/"
+              "f1_0_rc2_h3_profile_isolated_device_g4_activation_compile_20260723_v1.yml"
+          )
+
+          def top_level_keys(path: Path) -> set[str]:
+              return {
+                  line.split(":", 1)[0]
+                  for line in path.read_text(encoding="utf-8").splitlines()
+                  if line and not line[0].isspace()
+                  and not line.startswith("#") and ":" in line
+              }
+
+          minimal_keys = top_level_keys(minimal)
+          for prohibited in (
+              "wifi", "api", "ota", "captive_portal", "web_server", "mqtt"
+          ):
+              if prohibited in minimal_keys:
+                  raise SystemExit(f"minimal G4 target contains {prohibited}")
+
+          for path in (minimal, product):
+              text = path.read_text(encoding="utf-8")
+              for required in (
+                  "partition_label: gh2d8_p2d9",
+                  "namespace_name: gh2d8_s2d9",
+                  "execution_gate: LOCKED",
+              ):
+                  if required not in text:
+                      raise SystemExit(f"{path.name} missing {required}")
+              for prohibited in (
+                  "execution_gate: ACTIVATE_PROFILE",
+                  "authorization_id:",
+                  "mqtt_password:",
+                  "wifi_ssid:",
+                  "wifi_password:",
+              ):
+                  if prohibited in text:
+                      raise SystemExit(f"{path.name} exposes {prohibited}")
+
+          init_py = (component / "__init__.py").read_text(encoding="utf-8")
+          for required in (
+              '_STAGE2D10_PARTITION = "gh2d8_p2d9"',
+              '_STAGE2D10_NAMESPACE = "gh2d8_s2d9"',
+              '_LOCKED_GATE = "LOCKED"',
+              "CONF_EXECUTION_GATE",
+          ):
+              if required not in init_py:
+                  raise SystemExit(f"G4 component binding missing {required}")
+
+          coordinator = (
+              component / "stage2d10_g4_activation_coordinator.cpp"
+          ).read_text(encoding="utf-8")
+          for prohibited in (
+              "prepare_candidate(",
+              "cleanup_test_namespace(",
+              "cleanup_test_state(",
+              "esp_efuse",
+              "nvs_erase_all",
+          ):
+              if prohibited in coordinator:
+                  raise SystemExit(f"G4 coordinator exposes {prohibited}")
+          PY
+      - name: Verify protected product and previous-stage paths are unchanged
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          git diff --exit-code "$BASE_SHA"...HEAD -- \
+            firmware/esphome_rc/f1_0_rc2/f1_0_rc2.yml \
+            firmware/esphome_rc/f1_0_rc2/packages \
+            firmware/esphome_rc/components/greenhouse_profile_isolated_device_driver \
+            firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3_prepare \
+            firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3_executor_v69 \
+            firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3_prepare
+
+  esp32-c6-compile:
+    needs: source-boundary
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install pinned ESPHome
+        run: python -m pip install -q "esphome==2026.4.3"
+      - name: Compile dedicated locked Stage 2D-10 G4 target
+        run: |
+          set -o pipefail
+          cd firmware/esphome_rc/board_lab/h3_profile_isolated_device_g4_activation
+          esphome config greenhouse_profile_isolated_device_g4_activation_compile_20260723_v1.yml \
+            2>&1 | tee /tmp/stage2d10-g4-minimal-config-v1.log
+          esphome compile greenhouse_profile_isolated_device_g4_activation_compile_20260723_v1.yml \
+            2>&1 | tee /tmp/stage2d10-g4-minimal-compile-v1.log
+      - name: Compile full RC2 product-board compatibility target
+        run: |
+          set -o pipefail
+          cd firmware/esphome_rc/f1_0_rc2
+          RC2_CONFIG=f1_0_rc2_h3_profile_isolated_device_g4_activation_compile_20260723_v1.yml \
+            bash tools/rc2.sh config 2>&1 | tee /tmp/stage2d10-g4-product-config-v1.log
+          RC2_CONFIG=f1_0_rc2_h3_profile_isolated_device_g4_activation_compile_20260723_v1.yml \
+            bash tools/rc2.sh compile 2>&1 | tee /tmp/stage2d10-g4-product-compile-v1.log
+      - name: Verify compile results and no runtime secrets
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          paths = (
+              "/tmp/stage2d10-g4-minimal-config-v1.log",
+              "/tmp/stage2d10-g4-minimal-compile-v1.log",
+              "/tmp/stage2d10-g4-product-config-v1.log",
+              "/tmp/stage2d10-g4-product-compile-v1.log",
+          )
+          logs = "\n".join(
+              Path(path).read_text(encoding="utf-8", errors="replace")
+              for path in paths
+          )
+          if logs.count("INFO Successfully compiled program.") < 2:
+              raise SystemExit("all Stage2D10 compile targets did not complete")
+          for prohibited in (
+              "BEGIN PRIVATE KEY",
+              "BEGIN CERTIFICATE",
+              "mqtt_password",
+              "authorization_id=D2-",
+              "ACTIVATE_PROFILE ",
+              "CLEANUP_TEST_STATE ",
+              "wifi_password",
+          ):
+              if prohibited in logs:
+                  raise SystemExit(
+                      f"credential-like compile output detected: {prohibited}"
+                  )
+          PY
+      - name: Cleanup generated files
+        if: always()
+        run: |
+          rm -rf \
+            firmware/esphome_rc/board_lab/h3_profile_isolated_device_g4_activation/.esphome \
+            firmware/esphome_rc/f1_0_rc2/.esphome
+          rm -f /tmp/stage2d10-g4-*-v1.log

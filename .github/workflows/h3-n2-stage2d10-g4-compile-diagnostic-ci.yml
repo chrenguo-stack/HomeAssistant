@@ -1,0 +1,81 @@
+name: H3 N2 Stage2D10 G4 Compile Diagnostic CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d10-g4-compile-diagnostic-ci.yml"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation/**"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g4_activation/**"
+  push:
+    branches:
+      - feature/h3-n2-stage2d10-g4-activate-profile-20260723-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d10-g4-compile-diagnostic-ci.yml"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation/**"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g4_activation/**"
+
+permissions:
+  contents: read
+
+jobs:
+  concise-compile-diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install pinned ESPHome
+        run: python -m pip install -q "esphome==2026.4.3"
+      - name: Validate minimal target with concise failure output
+        run: |
+          set -euo pipefail
+          cd firmware/esphome_rc/board_lab/h3_profile_isolated_device_g4_activation
+          if ! esphome config \
+              greenhouse_profile_isolated_device_g4_activation_compile_20260723_v1.yml \
+              > /tmp/stage2d10-g4-config-diagnostic-v2.log 2>&1; then
+            echo 'STAGE2D10_G4_CONFIG=FAIL'
+            grep -Ei 'invalid|error|failed|not found|exception|traceback' \
+              /tmp/stage2d10-g4-config-diagnostic-v2.log | tail -n 120 || \
+              tail -n 120 /tmp/stage2d10-g4-config-diagnostic-v2.log
+            exit 1
+          fi
+          echo 'STAGE2D10_G4_CONFIG=PASS'
+      - name: Compile minimal target with concise failure output
+        run: |
+          set -euo pipefail
+          cd firmware/esphome_rc/board_lab/h3_profile_isolated_device_g4_activation
+          if ! esphome compile \
+              greenhouse_profile_isolated_device_g4_activation_compile_20260723_v1.yml \
+              > /tmp/stage2d10-g4-compile-diagnostic-v2.log 2>&1; then
+            echo 'STAGE2D10_G4_COMPILE=FAIL'
+            grep -Ei 'fatal error:|error:|undefined reference|collect2:|failed|exception|traceback' \
+              /tmp/stage2d10-g4-compile-diagnostic-v2.log | tail -n 160 || \
+              tail -n 160 /tmp/stage2d10-g4-compile-diagnostic-v2.log
+            exit 1
+          fi
+          grep -F 'INFO Successfully compiled program.' \
+            /tmp/stage2d10-g4-compile-diagnostic-v2.log
+          echo 'STAGE2D10_G4_COMPILE=PASS'
+      - name: Upload concise diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage2d10-g4-compile-diagnostic-v2
+          path: |
+            /tmp/stage2d10-g4-config-diagnostic-v2.log
+            /tmp/stage2d10-g4-compile-diagnostic-v2.log
+          if-no-files-found: warn
+          retention-days: 1
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf \
+            firmware/esphome_rc/board_lab/h3_profile_isolated_device_g4_activation/.esphome
+          rm -f \
+            /tmp/stage2d10-g4-config-diagnostic-v2.log \
+            /tmp/stage2d10-g4-compile-diagnostic-v2.log

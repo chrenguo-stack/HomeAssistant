@@ -1,0 +1,65 @@
+{
+  "schema": "gh.h3.n2.stage2d10-g4-private-execution-descriptor/1",
+  "authorization_id": "<D2_AUTHORIZATION_ID>",
+  "source_sha": "<40_LOWERCASE_HEX>",
+  "artifact_sha256": "<64_LOWERCASE_HEX>",
+  "candidate_digest_sha256": "<64_LOWERCASE_HEX>",
+  "board_binding_sha256": "<64_LOWERCASE_HEX>",
+  "serial_path": "<ABSOLUTE_PRIVATE_SERIAL_PATH>",
+  "python_environment_digest": "<64_LOWERCASE_HEX>",
+  "test_partition": {
+    "label": "gh2d8_p2d9",
+    "namespace": "gh2d8_s2d9",
+    "pre_activation_partition_sha256": "<64_LOWERCASE_HEX>"
+  },
+  "wifi": {
+    "profile_digest": "<64_LOWERCASE_HEX>",
+    "ssid": "<PRIVATE_TEST_SSID>",
+    "password": "<PRIVATE_TEST_WIFI_PASSWORD>"
+  },
+  "broker": {
+    "bind_address": "<PRIVATE_ISOLATED_BIND_ADDRESS>",
+    "listener_port": "<PRIVATE_ISOLATED_PORT>",
+    "configuration_sha256": "<64_LOWERCASE_HEX>",
+    "acl_sha256": "<64_LOWERCASE_HEX>",
+    "password_file_sha256": "<64_LOWERCASE_HEX>",
+    "ca_sha256": "<64_LOWERCASE_HEX>",
+    "server_certificate_sha256": "<64_LOWERCASE_HEX>",
+    "server_key_sha256": "<64_LOWERCASE_HEX>",
+    "username": "<PRIVATE_TEST_USERNAME>",
+    "password": "<PRIVATE_TEST_MQTT_PASSWORD>",
+    "client_id": "gh-test-client-<UNIQUE_RUN_ID>"
+  },
+  "identifiers": {
+    "test_run_id": "gh-test-<UNIQUE_RUN_ID>",
+    "system_id": "gh-test-<UNIQUE_SYSTEM_ID>",
+    "node_id": "gh-test-<UNIQUE_NODE_ID>",
+    "topic_root": "gh-test/<UNIQUE_RUN_ID>/node"
+  },
+  "activation_authorization": {
+    "operation": "ACTIVATE_PROFILE",
+    "active_generation": 0,
+    "candidate_generation": 1,
+    "authorization_record_digest": "<64_LOWERCASE_HEX>",
+    "one_shot": true,
+    "replay_permitted": false
+  },
+  "commands": {
+    "activate_command_sha256": "<64_LOWERCASE_HEX>",
+    "verify_command_sha256": "<64_LOWERCASE_HEX>",
+    "activate_command": "<PRIVATE_ACTIVATE_COMMAND>",
+    "verify_command": "<PRIVATE_VERIFY_COMMAND>"
+  },
+  "evidence": {
+    "private_directory": "<ABSOLUTE_PRIVATE_EVIDENCE_DIRECTORY>",
+    "recovery_procedure_sha256": "<64_LOWERCASE_HEX>"
+  },
+  "allowed_counts": {
+    "firmware_flash": 1,
+    "activate_command": 1,
+    "verify_command": 1,
+    "locked_recovery": 1,
+    "cleanup_command": 0
+  },
+  "execution_authorized": false
+}

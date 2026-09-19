@@ -1,0 +1,125 @@
+name: H3 N2 Stage2D10 G4 Execution Controller CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d10-g4-execution-controller-ci.yml"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation/stage2d10_g4_execution_controller.*"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation/stage2d10_g4_command_codec.*"
+      - "tests/h3_n2_stage2d10_activate/stage2d10_g4_execution_controller_fault_matrix_20260723_v1.cpp"
+      - "tests/h3_n2_stage2d10_activate/stage2d10_g4_execution_controller_fault_matrix_runner_20260723_v2.cpp"
+  push:
+    branches:
+      - main
+      - feature/h3-n2-stage2d10-g4-activate-profile-20260723-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d10-g4-execution-controller-ci.yml"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation/stage2d10_g4_execution_controller.*"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation/stage2d10_g4_command_codec.*"
+      - "tests/h3_n2_stage2d10_activate/stage2d10_g4_execution_controller_fault_matrix_20260723_v1.cpp"
+      - "tests/h3_n2_stage2d10_activate/stage2d10_g4_execution_controller_fault_matrix_runner_20260723_v2.cpp"
+
+permissions:
+  contents: read
+
+jobs:
+  execution-controller-fault-matrix:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - name: Compile and run execution controller matrix
+        run: |
+          set -euo pipefail
+          pairing=firmware/esphome_rc/components/greenhouse_pairing_client
+          package=firmware/esphome_rc/components/greenhouse_profile_isolated_acceptance
+          driver=firmware/esphome_rc/components/greenhouse_profile_isolated_device_driver
+          g4=firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation
+          tests=tests/h3_n2_stage2d10_activate
+          test=$tests/stage2d10_g4_execution_controller_fault_matrix_runner_20260723_v2.cpp
+          g++ -std=gnu++20 -Wall -Wextra -Wpedantic -Werror \
+            -I "$pairing" -I "$package" -I "$driver" -I "$g4" -I "$tests" \
+            "$pairing/pairing_client_core.cpp" \
+            "$pairing/secure_pairing_channel.cpp" \
+            "$pairing/secure_pairing_channel_encoding.cpp" \
+            "$pairing/secure_pairing_channel_crypto.cpp" \
+            "$pairing/pairing_ram_credentials.cpp" \
+            "$package/isolated_acceptance_package.cpp" \
+            "$driver/isolated_device_driver.cpp" \
+            "$g4/stage2d10_g4_activation_coordinator.cpp" \
+            "$g4/stage2d10_g4_command_codec.cpp" \
+            "$g4/stage2d10_g4_execution_controller.cpp" \
+            "$test" -lcrypto \
+            -o /tmp/stage2d10-g4-execution-controller-v2
+          /tmp/stage2d10-g4-execution-controller-v2 \
+            | tee /tmp/stage2d10-g4-execution-controller-v2.log
+          grep -Fx 'stage2d10_g4_execution_controller_fault_matrix=pass' \
+            /tmp/stage2d10-g4-execution-controller-v2.log
+      - name: Verify execution boundary and redaction
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          header = Path(
+              "firmware/esphome_rc/components/"
+              "greenhouse_profile_isolated_device_g4_activation/"
+              "stage2d10_g4_execution_controller.h"
+          ).read_text(encoding="utf-8")
+          source = Path(
+              "firmware/esphome_rc/components/"
+              "greenhouse_profile_isolated_device_g4_activation/"
+              "stage2d10_g4_execution_controller.cpp"
+          ).read_text(encoding="utf-8")
+          test = Path(
+              "tests/h3_n2_stage2d10_activate/"
+              "stage2d10_g4_execution_controller_fault_matrix_20260723_v1.cpp"
+          ).read_text(encoding="utf-8")
+
+          for token in (
+              "Stage2D10G4WifiPort",
+              "VERIFY_ACTIVE_READ_ONLY",
+              "ACTIVATED_RESTART_REQUIRED",
+              "cleanup_operation_attempted",
+          ):
+              assert token in header, token
+          for token in (
+              "recover_prepared_read_only",
+              "begin_validation",
+              "grant_activation_authorization",
+              "verify_active_read_only",
+              "quiesce_and_destroy",
+              "candidate_digest",
+          ):
+              assert token in source, token
+          assert "prepare_candidate(" not in source
+          assert "cleanup_test_namespace(" not in source
+          assert "cleanup_test_state(" not in source
+          assert "esp_restart" not in source
+          assert "esp_wifi" not in source
+          assert "homeassistant" not in source.lower()
+          assert "gh/v1/" not in source
+
+          for token in (
+              "test_wifi_failures_are_pre_mqtt_and_prewrite",
+              "test_activate_happy_path_and_secret_destruction",
+              "test_validation_and_activation_failures_do_not_retry",
+              "test_post_restart_verify_is_read_only_and_network_silent",
+              "persistence.prepare_calls == 0",
+              "persistence.cleanup_calls == 0",
+          ):
+              assert token in test, token
+          PY
+          if grep -Eqi \
+              'stage2d10-private-password|gh-stage2d10-test|BEGIN CERTIFICATE|aaaaaaaaaaaaaaaa' \
+              /tmp/stage2d10-g4-execution-controller-v2.log; then
+            echo 'private execution material leaked to output' >&2
+            exit 1
+          fi
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -f \
+            /tmp/stage2d10-g4-execution-controller-v2 \
+            /tmp/stage2d10-g4-execution-controller-v2.log

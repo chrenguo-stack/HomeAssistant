@@ -1,0 +1,31 @@
+# Stage 2D-10 G4 template only. Rendering or running this Broker requires a
+# future exact execution manifest and operator D2 authorization.
+# Replace every angle-bracket placeholder in a private staging directory.
+
+per_listener_settings true
+listener <TEST_LISTENER_PORT> <ISOLATED_BIND_ADDRESS>
+protocol mqtt
+
+allow_anonymous false
+password_file <ABSOLUTE_PRIVATE_PASSWORD_FILE>
+acl_file <ABSOLUTE_PRIVATE_ACL_FILE>
+
+cafile <ABSOLUTE_PRIVATE_CA_FILE>
+certfile <ABSOLUTE_PRIVATE_SERVER_CERT_FILE>
+keyfile <ABSOLUTE_PRIVATE_SERVER_KEY_FILE>
+require_certificate false
+use_identity_as_username false
+
+persistence false
+retain_available false
+allow_zero_length_clientid false
+max_queued_messages 20
+max_inflight_messages 1
+
+connection_messages true
+log_type error
+log_type warning
+log_type notice
+
+# Prohibited: bridge, include_dir, plugin, dynamic security, WebSockets,
+# persistence database, production listener and Home Assistant Discovery.

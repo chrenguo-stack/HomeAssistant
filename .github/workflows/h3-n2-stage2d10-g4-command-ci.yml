@@ -1,0 +1,124 @@
+name: H3 N2 Stage2D10 G4 Command CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d10-g4-command-ci.yml"
+      - "tools/h3_n2_stage2d10_g4_command_protocol_20260723_v1.py"
+      - "tests/h3_n2_stage2d10_activate/test_stage2d10_g4_command_protocol_20260723_v1.py"
+      - "tests/h3_n2_stage2d10_activate/stage2d10_g4_command_codec_fault_matrix_20260723_v1.cpp"
+      - "tests/h3_n2_stage2d10_activate/stage2d10_g4_command_codec_fault_matrix_runner_20260723_v2.cpp"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation/stage2d10_g4_command_codec.*"
+  push:
+    branches:
+      - main
+      - feature/h3-n2-stage2d10-g4-activate-profile-20260723-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d10-g4-command-ci.yml"
+      - "tools/h3_n2_stage2d10_g4_command_protocol_20260723_v1.py"
+      - "tests/h3_n2_stage2d10_activate/test_stage2d10_g4_command_protocol_20260723_v1.py"
+      - "tests/h3_n2_stage2d10_activate/stage2d10_g4_command_codec_fault_matrix_20260723_v1.cpp"
+      - "tests/h3_n2_stage2d10_activate/stage2d10_g4_command_codec_fault_matrix_runner_20260723_v2.cpp"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation/stage2d10_g4_command_codec.*"
+
+permissions:
+  contents: read
+
+jobs:
+  command-fault-matrix:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile Python command parser and tests
+        run: |
+          python -m py_compile \
+            tools/h3_n2_stage2d10_g4_command_protocol_20260723_v1.py \
+            tests/h3_n2_stage2d10_activate/test_stage2d10_g4_command_protocol_20260723_v1.py
+      - name: Run Python command protocol fault matrix
+        run: |
+          set -euo pipefail
+          python tests/h3_n2_stage2d10_activate/test_stage2d10_g4_command_protocol_20260723_v1.py \
+            -v 2>&1 | tee /tmp/stage2d10-g4-command-python-v3.log
+          grep -F 'Ran 9 tests' /tmp/stage2d10-g4-command-python-v3.log
+          grep -F 'OK' /tmp/stage2d10-g4-command-python-v3.log
+      - name: Compile and run C++ command codec fault matrix
+        run: |
+          set -euo pipefail
+          pairing=firmware/esphome_rc/components/greenhouse_pairing_client
+          g4=firmware/esphome_rc/components/greenhouse_profile_isolated_device_g4_activation
+          tests=tests/h3_n2_stage2d10_activate
+          test=$tests/stage2d10_g4_command_codec_fault_matrix_runner_20260723_v2.cpp
+          g++ -std=gnu++20 -Wall -Wextra -Wpedantic -Werror \
+            -I "$pairing" -I "$g4" -I "$tests" \
+            "$pairing/pairing_client_core.cpp" \
+            "$pairing/secure_pairing_channel.cpp" \
+            "$pairing/secure_pairing_channel_encoding.cpp" \
+            "$pairing/secure_pairing_channel_crypto.cpp" \
+            "$pairing/pairing_ram_credentials.cpp" \
+            "$g4/stage2d10_g4_command_codec.cpp" \
+            "$test" -lcrypto \
+            -o /tmp/stage2d10-g4-command-codec-v3
+          /tmp/stage2d10-g4-command-codec-v3 \
+            | tee /tmp/stage2d10-g4-command-cpp-v3.log
+          grep -Fx 'stage2d10_g4_command_codec_fault_matrix=pass' \
+            /tmp/stage2d10-g4-command-cpp-v3.log
+      - name: Verify parsers expose no PREPARE or CLEANUP command
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          python_source = Path(
+              "tools/h3_n2_stage2d10_g4_command_protocol_20260723_v1.py"
+          ).read_text(encoding="utf-8")
+          cpp_header = Path(
+              "firmware/esphome_rc/components/"
+              "greenhouse_profile_isolated_device_g4_activation/"
+              "stage2d10_g4_command_codec.h"
+          ).read_text(encoding="utf-8")
+          cpp_source = Path(
+              "firmware/esphome_rc/components/"
+              "greenhouse_profile_isolated_device_g4_activation/"
+              "stage2d10_g4_command_codec.cpp"
+          ).read_text(encoding="utf-8")
+
+          assert 'ACTIVATE_SCHEMA = "GH2D10_ACTIVATE_V1"' in python_source
+          assert 'VERIFY_SCHEMA = "GH2D10_VERIFY_ACTIVE_V1"' in python_source
+          assert "GH2D10_PREPARE" not in python_source
+          assert "GH2D10_CLEANUP" not in python_source
+          assert '"secret_values_included": False' in python_source
+          assert "hmac.compare_digest" in python_source
+
+          assert 'ACTIVATE_SCHEMA = "GH2D10_ACTIVATE_V1"' in cpp_header
+          assert '"GH2D10_VERIFY_ACTIVE_V1"' in cpp_header
+          assert "GH2D10_PREPARE" not in cpp_header + cpp_source
+          assert "GH2D10_CLEANUP" not in cpp_header + cpp_source
+          assert "constant_equal_" in cpp_source
+          assert "secure_clear" in cpp_source
+          PY
+      - name: Verify command output remains redacted
+        run: |
+          set -euo pipefail
+          cat \
+            /tmp/stage2d10-g4-command-python-v3.log \
+            /tmp/stage2d10-g4-command-cpp-v3.log \
+            > /tmp/stage2d10-g4-command-combined-v3.log
+          if grep -Eqi \
+              'stage2d10-private-password|1111111111111111|2222222222222222|BEGIN CERTIFICATE|gh-stage2d10-test' \
+              /tmp/stage2d10-g4-command-combined-v3.log; then
+            echo 'private command material leaked to test output' >&2
+            exit 1
+          fi
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -f \
+            /tmp/stage2d10-g4-command-python-v3.log \
+            /tmp/stage2d10-g4-command-cpp-v3.log \
+            /tmp/stage2d10-g4-command-combined-v3.log \
+            /tmp/stage2d10-g4-command-codec-v3
