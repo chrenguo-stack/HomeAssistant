@@ -305,7 +305,7 @@ def run_preflight(args: argparse.Namespace) -> int:
     print("FLASH_SIZE=8MB")
     print("SECURE_BOOT=false")
     print("FLASH_ENCRYPTION=false")
-    print(f"PARTITION_TABLE_SHA256={board[\'partition_table_sha256\']}")
+    print(f"PARTITION_TABLE_SHA256={board['partition_table_sha256']}")
     print("FLASH_WRITE=false")
     return 0
 
@@ -456,7 +456,7 @@ def run_write(args: argparse.Namespace) -> int:
     print(f"HARDWARE_ID_SHA256={board['hardware_id_sha256']}")
     print(f"OTADATA_SHA256={OTADATA_SHA256}")
     print(f"APPLICATION_SHA256={APPLICATION_SHA256}")
-    print(f"PARTITION_TABLE_SHA256={board[\'partition_table_sha256\']}")
+    print(f"PARTITION_TABLE_SHA256={board['partition_table_sha256']}")
     print("AUTHORIZATION_CLAIMED=true")
     print("AUTHORIZATION_CONSUMED=true")
     print("REPLAY_PERMITTED=false")
