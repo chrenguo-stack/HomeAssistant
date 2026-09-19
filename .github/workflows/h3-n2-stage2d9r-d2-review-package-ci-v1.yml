@@ -1,0 +1,208 @@
+name: H3 N2 Stage2D9R D2 Review Package CI V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-d2-review-package-ci-v1.yml"
+      - "tools/h3_n2_stage2d9r_d2_review_packager_20260725_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_d2_review_packager_20260725_v1.py"
+      - "docs/acceptance/h3-n2-stage2d9r-private-content-u1-04-success-l1-v1.json"
+  push:
+    branches:
+      - feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-d2-review-package-ci-v1.yml"
+      - "tools/h3_n2_stage2d9r_d2_review_packager_20260725_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_d2_review_packager_20260725_v1.py"
+      - "docs/acceptance/h3-n2-stage2d9r-private-content-u1-04-success-l1-v1.json"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+
+env:
+  EXPECTED_MAIN_SHA: a3a72d75480362999e70e180f33459198b3951b5
+  SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Fail closed on repository and PR drift
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+        run: |
+          set -euo pipefail
+          test "$HEAD_BRANCH" = feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test "$(git ls-remote origin refs/heads/main | awk '{print $1}')" = "$EXPECTED_MAIN_SHA"
+          gh api repos/chrenguo-stack/HomeAssistant/pulls/176 > /tmp/pr-176.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          pr = json.loads(Path('/tmp/pr-176.json').read_text())
+          assert pr['state'] == 'open'
+          assert pr['draft'] is True
+          assert pr['merged'] is False
+          assert pr['head']['ref'] == 'feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1'
+          PY
+          test "$(git status --porcelain)" = ""
+
+      - name: Verify frozen public Artifact bindings
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api repos/chrenguo-stack/HomeAssistant/actions/artifacts/8585140964 > /tmp/immutable.json
+          gh api repos/chrenguo-stack/HomeAssistant/actions/artifacts/8589561310 > /tmp/recovery.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          immutable = json.loads(Path('/tmp/immutable.json').read_text())
+          recovery = json.loads(Path('/tmp/recovery.json').read_text())
+          assert immutable['expired'] is False
+          assert immutable['digest'] == 'sha256:ecc28451499e0d2d934c7e298037ed5ee156c887bf72a9b258101c4aef7e2808'
+          assert immutable['workflow_run']['head_sha'] == 'c9e8447c24b0f09f3eac3f56791f2346e8aa5d61'
+          assert recovery['expired'] is False
+          assert recovery['digest'] == 'sha256:f1654002f894ec136f4b52248a6b0e26ed9dedc7460e8205ec9f852b161d4a6a'
+          assert recovery['workflow_run']['head_sha'] == 'f312f8580d9f4312f4dd1429b2d7755e1c550636'
+          PY
+
+      - name: Verify packager and contract tests
+        run: |
+          set -euo pipefail
+          sha256sum -c <<'SUMS'
+          b36de605041634ab8bde774535f3e7ca4b3b6ffac48bc4d1ddfd073e28a0b7b0  tools/h3_n2_stage2d9r_d2_review_packager_20260725_v1.py
+          ca85065753e24ca21553df545226f3db30e0884ec51b0dd5e6ab4d8df1859d6b  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_d2_review_packager_20260725_v1.py
+          SUMS
+          export PYTHONPYCACHEPREFIX=/tmp/stage2d9r-d2-review-pycache
+          python -m py_compile tools/h3_n2_stage2d9r_d2_review_packager_20260725_v1.py
+          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_d2_review_packager_20260725_v1.py -v 2>&1 | tee /tmp/d2-review-tests.log
+          grep -F 'Ran 4 tests' /tmp/d2-review-tests.log
+          grep -F 'OK' /tmp/d2-review-tests.log
+          test -z "$(find . -type d -name __pycache__ -print -quit)"
+          test -z "$(find . -type f \( -name '*.pyc' -o -name '*.pyo' \) -print -quit)"
+          rm -rf "$PYTHONPYCACHEPREFIX"
+
+      - name: Assemble public-only exact D2 review package
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-d2-review-package-v1
+          PYTHONDONTWRITEBYTECODE=1 python \
+            tools/h3_n2_stage2d9r_d2_review_packager_20260725_v1.py \
+            --output "$root" \
+            --source-sha "$SOURCE_SHA" \
+            --main-sha "$EXPECTED_MAIN_SHA" \
+            | tee /tmp/d2-review-summary.json
+
+      - name: Smoke-test review integrity launcher
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-d2-review-package-v1
+          launcher="$(find "$root" -maxdepth 1 -type f -name 'run_stage2d9r_d2_review_integrity_probe_*.sh' -print -quit)"
+          test -n "$launcher"
+          before="$(mktemp)"
+          after="$(mktemp)"
+          (cd "$root" && find . -type f -print0 | sort -z | xargs -0 sha256sum) > "$before"
+          output="$(PYTHONDONTWRITEBYTECODE=1 "$launcher")"
+          printf '%s\n' "$output"
+          (cd "$root" && find . -type f -print0 | sort -z | xargs -0 sha256sum) > "$after"
+          cmp "$before" "$after"
+          grep -F 'STAGE2D9R_D2_REVIEW_INTEGRITY_PROBE_V1_BEGIN' <<<"$output"
+          grep -F 'state=PENDING_EXACT_D2_REVIEW' <<<"$output"
+          grep -F 'authorization_record_included=false' <<<"$output"
+          grep -F 'authorized_execution_launcher_included=false' <<<"$output"
+          grep -F 'private_content_included=false' <<<"$output"
+          grep -F 'network_operation=false' <<<"$output"
+          grep -F 'board_operation=false' <<<"$output"
+          grep -F 'flash_operation=false' <<<"$output"
+          grep -F 'prepare_executed=false' <<<"$output"
+          grep -F 'verify_executed=false' <<<"$output"
+          grep -F 'STAGE2D9R_D2_REVIEW_INTEGRITY_PROBE_V1_END' <<<"$output"
+          rm -f "$before" "$after"
+
+      - name: Verify complete inventory and redaction boundary
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-d2-review-package-v1
+          (cd "$root" && sha256sum -c SHA256SUMS)
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path('/tmp/stage2d9r-d2-review-package-v1')
+          sums = root / 'SHA256SUMS'
+          covered = {line.split('  ', 1)[1] for line in sums.read_text().splitlines()}
+          observed = {p.name for p in root.iterdir() if p.is_file() and p.name != 'SHA256SUMS'}
+          assert covered == observed, (covered - observed, observed - covered)
+          b = json.loads((root / 'D2_REVIEW_BINDING.json').read_text())
+          assert b['state'] == 'PENDING_EXACT_D2_REVIEW'
+          assert b['source_sha'] == '${{ github.event.pull_request.head.sha || github.sha }}'
+          for key in (
+              'authorization_record_included',
+              'authorized_execution_launcher_included',
+              'private_content_included',
+              'private_paths_included',
+              'secret_values_included',
+              'network_operation',
+              'broker_started',
+              'board_operation',
+              'serial_operation',
+              'flash_operation',
+              'physical_nvs_operation',
+              'prepare_executed',
+              'verify_executed',
+              'activate_executed',
+              'cleanup_executed',
+              'production_operation',
+          ):
+              assert b[key] is False, key
+          PY
+          test -z "$(find "$root" -type f -name '*.authorization.json' -print -quit)"
+          test -z "$(find "$root" -type d -name __pycache__ -print -quit)"
+          test -z "$(find "$root" -type f \( -name '*.pyc' -o -name '*.pyo' \) -print -quit)"
+          ! grep -R -I -n -E 'BEGIN (RSA |EC )?PRIVATE KEY|/Users/|/private/tmp/|unlock-token\.hex|raw_mqtt_password' "$root"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2d9r-d2-review-package-v1
+          path: /tmp/stage2d9r-d2-review-package-v1
+          if-no-files-found: error
+          retention-days: 5
+          compression-level: 0
+
+      - name: Report safe D2 review boundary
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          b = json.loads(Path('/tmp/stage2d9r-d2-review-package-v1/D2_REVIEW_BINDING.json').read_text())
+          for key in ('state', 'd2_request_id', 'main_sha', 'source_sha', 'review_binding_sha256'):
+              print(f'{key}={b[key]}')
+          print('authorization_record_included=false')
+          print('authorized_execution_launcher_included=false')
+          print('private_content_included=false')
+          print('d2_authorized=false')
+          print('physical_execution_authorized=false')
+          PY
+
+      - name: Cleanup
+        if: always()
+        run: rm -rf /tmp/stage2d9r-d2-review-package-v1 /tmp/stage2d9r-d2-review-pycache /tmp/d2-review-tests.log /tmp/d2-review-summary.json /tmp/pr-176.json /tmp/immutable.json /tmp/recovery.json

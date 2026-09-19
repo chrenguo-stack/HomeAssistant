@@ -1,0 +1,116 @@
+name: H3 N2 Stage2D9R Locked Recovery Artifact Contract CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-recovery-artifact-build-a.yml"
+      - ".github/workflows/h3-n2-stage2d9r-recovery-artifact-build-b.yml"
+      - ".github/workflows/h3-n2-stage2d9r-recovery-artifact-build-reusable.yml"
+      - ".github/workflows/h3-n2-stage2d9r-recovery-artifact-freeze.yml"
+      - ".github/workflows/h3-n2-stage2d9r-recovery-artifact-contract-ci.yml"
+      - ".github/workflows/h3-n2-stage2d9r-recovery-artifact-observer-ci.yml"
+      - "tools/h3_n2_stage2d9r_recovery_artifact_packager_20260724_v1.py"
+      - "tools/h3_n2_stage2d9r_recovery_artifact_freeze_20260724_v1.py"
+      - "tools/h3_n2_stage2d9r_recovery_artifact_manifest_gate_20260724_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_recovery_artifact_pipeline_20260724_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_immutable_build_manifest_20260724_v1.json"
+      - "tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_test_partition_recovery_manifest_20260723_v1.json.template"
+      - "docs/development/h3-n2-stage2d9r-test-partition-recovery-contract-20260723-v1.md"
+      - "tools/h3_n2_stage2d9r_test_partition_recovery_gate_20260723_v1.py"
+      - "docs/development/h3-n2-stage2d9r-locked-recovery-artifact-contract-20260724-v1.md"
+  push:
+    branches:
+      - feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-recovery-artifact-build-a.yml"
+      - ".github/workflows/h3-n2-stage2d9r-recovery-artifact-build-b.yml"
+      - ".github/workflows/h3-n2-stage2d9r-recovery-artifact-build-reusable.yml"
+      - ".github/workflows/h3-n2-stage2d9r-recovery-artifact-freeze.yml"
+      - ".github/workflows/h3-n2-stage2d9r-recovery-artifact-contract-ci.yml"
+      - ".github/workflows/h3-n2-stage2d9r-recovery-artifact-observer-ci.yml"
+      - "tools/h3_n2_stage2d9r_recovery_artifact_packager_20260724_v1.py"
+      - "tools/h3_n2_stage2d9r_recovery_artifact_freeze_20260724_v1.py"
+      - "tools/h3_n2_stage2d9r_recovery_artifact_manifest_gate_20260724_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_recovery_artifact_pipeline_20260724_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_immutable_build_manifest_20260724_v1.json"
+      - "tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_test_partition_recovery_manifest_20260723_v1.json.template"
+      - "docs/development/h3-n2-stage2d9r-test-partition-recovery-contract-20260723-v1.md"
+      - "tools/h3_n2_stage2d9r_test_partition_recovery_gate_20260723_v1.py"
+      - "docs/development/h3-n2-stage2d9r-locked-recovery-artifact-contract-20260724-v1.md"
+
+permissions:
+  contents: read
+
+jobs:
+  locked-recovery-artifact-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Verify exact reviewed source digests
+        run: |
+          set -euo pipefail
+          echo '4f100cdfe2586a96485c68bafe8c8e5a11210798cca64a2a4c333258f9953d56  tools/h3_n2_stage2d9r_recovery_artifact_packager_20260724_v1.py' | sha256sum -c -
+          echo '9fc0b6669df6abca72f044b84f3d9a0f9614311b2ef58a832cb5232e4233132d  tools/h3_n2_stage2d9r_recovery_artifact_freeze_20260724_v1.py' | sha256sum -c -
+          echo 'a2dc5dda67224475940f15361568b62adf3360bdeda61f370ff1cd2c65de5779  tools/h3_n2_stage2d9r_recovery_artifact_manifest_gate_20260724_v1.py' | sha256sum -c -
+          echo 'ebf8246875aa610aa17e31113fe24df2812c2f8c015e81abdb4af0c103868e17  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_recovery_artifact_pipeline_20260724_v1.py' | sha256sum -c -
+      - name: Compile recovery Artifact tools and tests
+        run: |
+          python -m py_compile \
+            tools/h3_n2_stage2d9r_recovery_artifact_packager_20260724_v1.py \
+            tools/h3_n2_stage2d9r_recovery_artifact_freeze_20260724_v1.py \
+            tools/h3_n2_stage2d9r_recovery_artifact_manifest_gate_20260724_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_recovery_artifact_pipeline_20260724_v1.py
+      - name: Run deterministic recovery Artifact fault matrix
+        run: |
+          set -euo pipefail
+          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_recovery_artifact_pipeline_20260724_v1.py \
+            -v 2>&1 | tee /tmp/stage2d9r-recovery-artifact-tests.log
+          grep -F 'Ran 6 tests' /tmp/stage2d9r-recovery-artifact-tests.log
+          grep -F 'OK' /tmp/stage2d9r-recovery-artifact-tests.log
+      - name: Validate source-only and authorization-locked boundary
+        run: |
+          set -euo pipefail
+          grep -F 'The package is evidence and reviewed input only.' \
+            docs/development/h3-n2-stage2d9r-locked-recovery-artifact-contract-20260724-v1.md
+          grep -F 'No such values or permission are created by this pipeline.' \
+            docs/development/h3-n2-stage2d9r-locked-recovery-artifact-contract-20260724-v1.md
+          python tools/h3_n2_stage2d9r_test_partition_recovery_gate_20260723_v1.py \
+            --manifest tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_test_partition_recovery_manifest_20260723_v1.json.template \
+            --expect-state LOCKED_TEMPLATE \
+            | tee /tmp/stage2d9r-recovery-template-gate.log
+          grep -Fx 'STAGE2D9R_TEST_PARTITION_RECOVERY_GATE=PASS' /tmp/stage2d9r-recovery-template-gate.log
+          if grep -RIEq \
+            'esptool|erase_flash|write_flash|serial\.Serial|socket\.socket|mosquitto|PREPARE_CANDIDATE|GH2D9R_PREPARE_V1|GH2D9R_VERIFY_V1' \
+            tools/h3_n2_stage2d9r_recovery_artifact_packager_20260724_v1.py \
+            tools/h3_n2_stage2d9r_recovery_artifact_freeze_20260724_v1.py \
+            tools/h3_n2_stage2d9r_recovery_artifact_manifest_gate_20260724_v1.py; then
+            echo 'executable, network or physical recovery operation leaked into locked Artifact tools' >&2
+            exit 1
+          fi
+      - name: Report locked recovery Artifact contract
+        run: |
+          printf '%s\n' \
+            'STAGE2D9R_LOCKED_RECOVERY_ARTIFACT_CONTRACT_CI=PASS' \
+            'CLEAN_BUILD_COUNT_REQUIRED=2' \
+            'PAYLOADS_BYTE_IDENTICAL_REQUIRED=true' \
+            'RECOVERY_AUTHORIZED=false' \
+            'EXECUTION_AUTHORIZED=false' \
+            'BOARD_OPERATION_AUTHORIZED=false' \
+            'SERIAL_OPERATION_AUTHORIZED=false' \
+            'FLASH_OPERATION_AUTHORIZED=false' \
+            'NETWORK_OPERATION_AUTHORIZED=false' \
+            'BROKER_OPERATION_AUTHORIZED=false' \
+            'PREPARE_AUTHORIZED=false' \
+            'VERIFY_AUTHORIZED=false'
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -f \
+            /tmp/stage2d9r-recovery-artifact-tests.log \
+            /tmp/stage2d9r-recovery-template-gate.log

@@ -1,0 +1,107 @@
+{
+  "command_custody": {
+    "private_descriptor_sha256": "cda5b1604200045fec0db45e46f9c441e1bde10f2e5a57f8c98ee2d14b5f9a75",
+    "private_package_sha256": "cc9086c20781007655c498b78ff1ce7af3316db0c02edbae2440d177d7fdfbb5",
+    "public_descriptor_sha256": "91c10168174438fc30b3dce087a6b75e24375b87b4262bafddb5b2822ee16d23",
+    "root_digest_sha256": "ef5f79be168fff686cabcc91fdc4109918d75d3311da1209dd8d0e381804006e",
+    "token_content_read": false,
+    "unlock_digest_sha256": "3650d44f8761f21dc1931fbd9b6ba6a1d9da92ffa469b3d4f98ee5411a6809e3"
+  },
+  "consumed_markers": [
+    {
+      "authorization_id": "U1-H3N2-STAGE2D9R-COMMAND-MATERIAL-20260724-01",
+      "marker_file_sha256": "7461c0396a7be9fc99d1e880fdfc386054f003b4a64f9e758e6b826f93769314",
+      "record_cross_binding": "DEFERRED_REQUIRES_SEPARATE_EXACT_AUTHORIZATION",
+      "record_sha256_shape_valid": true,
+      "status": "CONSUMED_FAILED"
+    },
+    {
+      "authorization_id": "U1-H3N2-STAGE2D9R-COMMAND-MATERIAL-20260724-02",
+      "marker_file_sha256": "1fc51b7338adc56b00b38795173b805b7408e7aafa4e0315e7553dc5898779a9",
+      "record_cross_binding": "DEFERRED_REQUIRES_SEPARATE_EXACT_AUTHORIZATION",
+      "record_sha256_shape_valid": true,
+      "status": "CONSUMED"
+    },
+    {
+      "authorization_id": "U1-H3N2-STAGE2D9R-PRIVATE-PKI-20260723-01",
+      "marker_file_sha256": "fbe03088de17b8db4d8b048e1985d571ca9f54d3add9b9fc3fce1735c9bec261",
+      "record_cross_binding": "DEFERRED_REQUIRES_SEPARATE_EXACT_AUTHORIZATION",
+      "record_sha256_shape_valid": true,
+      "status": "CONSUMED"
+    }
+  ],
+  "disposition": {
+    "d2_authorized": false,
+    "next_action": "run reviewed toolchain preauthorization probe, then request exact one-shot private-content read-only binding authorization",
+    "next_authorization_request_id": "U1-H3N2-STAGE2D9R-PRIVATE-CONTENT-BINDING-20260724-01",
+    "rerun_required": false,
+    "v2_probe_passed": true
+  },
+  "immutable_artifact": {
+    "application_sha256": "7651a6476cd48dda6aa5e400695e126b91141c95fca5b74d879f65f2058d1630",
+    "merged_sha256": "ea6af469ad7ae103d40a551f482fc18d1f2afc9ed75933481f1802f0a7b2916f",
+    "payload_sha256": "5dbe763fe411728533018dd324075f5287ee3542f8351113d54ec80a7042f1d3",
+    "source_sha": "c9e8447c24b0f09f3eac3f56791f2346e8aa5d61"
+  },
+  "pki_custody": {
+    "ca_pem_sha256": "cfcb6638ed61731270f3bf8e9e262c1512fbca8ff34d4b08b62186453233e963",
+    "candidate_digest_sha256": "f22144e37372b883b7a38d07eff2980a865108cf7c8fed9bfdb9f198a030b5c5",
+    "password_database_content_read": false,
+    "private_descriptor_sha256": "59814b825cd2df4ac7f0e3eb137798af4efdbbed4da9d627fe8ad98144be8687",
+    "private_key_content_read": false,
+    "private_package_sha256": "0632b37a70aa2eae416c48ffa9420a8f1e13788c22a7d12e211f77cf6e78a267",
+    "public_descriptor_sha256": "93bb071a5bf6f58472ac9e3891c2330dd9de6f05410824ad2fb51829267b4540",
+    "root_digest_sha256": "4cd43ee4b2df177bd99c32d3904dbe1e1df890aa14c6b6714a6b4f7ae4024868"
+  },
+  "probe_package": {
+    "artifact_expired": false,
+    "artifact_id": 8591197357,
+    "artifact_zip_sha256": "379c0ef0828163775c0f1b0a6734a4bd83263fa9b9a30f6486ada67704e6a061",
+    "run_id": 30079484626
+  },
+  "protected_boundaries": {
+    "activate_executed": false,
+    "board_operation": false,
+    "broker_started": false,
+    "cleanup_executed": false,
+    "flash_operation": false,
+    "network_operation": false,
+    "physical_nvs_operation": false,
+    "prepare_executed": false,
+    "private_content_read": false,
+    "private_paths_included": false,
+    "production_operation": false,
+    "secret_values_included": false,
+    "serial_operation": false,
+    "verify_executed": false
+  },
+  "pull_request": 176,
+  "recovery_artifact": {
+    "erased_sha256": "71189f7fb6aed638640078fba3a35fda6c39c8962e74dcc75935aac948da9063",
+    "manifest_sha256": "fe82c458533953df4c86966d047d1f66b59da15e5299b3953135702236d68690",
+    "payload_sha256": "c1ed8e5f00b17cbe5bab30aec75d2e8637986b9c19b2389b761bebf3fc0b8d8b",
+    "source_sha": "f312f8580d9f4312f4dd1429b2d7755e1c550636"
+  },
+  "repository": "chrenguo-stack/HomeAssistant",
+  "result": "passed_read_only_preauthorization",
+  "schema": "gh.h3.n2.stage2d9r-host-artifact-custody-preauth-probe-l1/2",
+  "source_sha": "856c78091f6adcb93eec9c8383f00e900721fb2a",
+  "stage": "H3/N2 Stage 2D-9R G3R",
+  "toolchain": {
+    "python_executable_sha256": "4e28e811a89aeac6eed668ae641c7f85f5831e42e8dc6cd9a85a3bcc032ec46a",
+    "python_version": "3.11.9"
+  },
+  "v1_disposition": {
+    "board_operation": false,
+    "broker_started": false,
+    "failure_message": "marker record mismatch",
+    "flash_operation": false,
+    "network_operation": false,
+    "private_content_read": false,
+    "private_paths_included": false,
+    "replay_permitted": false,
+    "result": "failed_closed_retired",
+    "secret_values_included": false,
+    "serial_operation": false
+  }
+}

@@ -1,0 +1,30 @@
+name: H3 N2 Stage2D9R Immutable Build A
+
+on:
+  push:
+    branches:
+      - feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-immutable-build-a.yml"
+      - ".github/workflows/h3-n2-stage2d9r-immutable-build-b.yml"
+      - ".github/workflows/h3-n2-stage2d9r-immutable-build-reusable.yml"
+      - ".github/workflows/h3-n2-stage2d9r-immutable-build-freeze.yml"
+      - ".github/workflows/h3-n2-stage2d9r-immutable-build-observer-ci.yml"
+      - "tools/h3_n2_stage2d9r_immutable_build_packager_20260724_v1.py"
+      - "tools/h3_n2_stage2d9r_immutable_build_freeze_20260724_v1.py"
+      - "tools/h3_n2_stage2d9r_immutable_build_manifest_gate_20260723_v1.py"
+      - "firmware/esphome_rc/components/greenhouse_profile_isolated_device_g3r_executor/**"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3r_tls_prepare/greenhouse_profile_isolated_device_g3r_immutable_20260724_v1.yml"
+      - "firmware/esphome_rc/board_lab/h3_profile_isolated_device_g3_prepare/stage2d9_g3_partitions_20260722_v65.csv"
+      - "tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_final_build_binding_20260724_v1.json"
+      - "tests/h3_n2_stage2d9r_tls_candidate/public_command_material_tlsvalid01/public-command-material-descriptor.redacted.json"
+
+permissions:
+  contents: read
+
+jobs:
+  build-a:
+    uses: ./.github/workflows/h3-n2-stage2d9r-immutable-build-reusable.yml
+    with:
+      lane: a
+      artifact_name: stage2d9r-g3r-immutable-locked-v1

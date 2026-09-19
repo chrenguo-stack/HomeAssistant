@@ -1,0 +1,117 @@
+name: H3 N2 Stage2D9R Recovery Contract CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-recovery-contract-ci.yml"
+      - "docs/development/h3-n2-stage2d9r-test-partition-recovery-contract-20260723-v1.md"
+      - "tools/h3_n2_stage2d9r_test_partition_recovery_gate_20260723_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_test_partition_recovery_manifest_20260723_v1.json.template"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_test_partition_recovery_gate_20260723_v1.py"
+  push:
+    branches:
+      - feature/h3-n2-stage2d9r-g3-tls-valid-candidate-20260723-v1
+    paths:
+      - ".github/workflows/h3-n2-stage2d9r-recovery-contract-ci.yml"
+      - "docs/development/h3-n2-stage2d9r-test-partition-recovery-contract-20260723-v1.md"
+      - "tools/h3_n2_stage2d9r_test_partition_recovery_gate_20260723_v1.py"
+      - "tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_test_partition_recovery_manifest_20260723_v1.json.template"
+      - "tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_test_partition_recovery_gate_20260723_v1.py"
+
+permissions:
+  contents: read
+
+jobs:
+  recovery-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile recovery gate and tests
+        run: |
+          python -m py_compile \
+            tools/h3_n2_stage2d9r_test_partition_recovery_gate_20260723_v1.py \
+            tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_test_partition_recovery_gate_20260723_v1.py
+      - name: Run recovery manifest fault matrix
+        run: |
+          set -euo pipefail
+          python tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_test_partition_recovery_gate_20260723_v1.py \
+            -v 2>&1 | tee /tmp/stage2d9r-recovery-tests-v1.log
+          grep -F 'Ran 11 tests' /tmp/stage2d9r-recovery-tests-v1.log
+          grep -F 'OK' /tmp/stage2d9r-recovery-tests-v1.log
+      - name: Validate locked recovery template
+        run: |
+          set -euo pipefail
+          python tools/h3_n2_stage2d9r_test_partition_recovery_gate_20260723_v1.py \
+            --manifest tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_test_partition_recovery_manifest_20260723_v1.json.template \
+            --expect-state LOCKED_TEMPLATE \
+            | tee /tmp/stage2d9r-recovery-gate-v1.log
+          grep -Fx 'STAGE2D9R_TEST_PARTITION_RECOVERY_GATE=PASS' \
+            /tmp/stage2d9r-recovery-gate-v1.log
+          grep -Fx 'STATE=LOCKED_TEMPLATE' \
+            /tmp/stage2d9r-recovery-gate-v1.log
+          grep -Fx 'PARTITION_ADDRESS=0x00400000' \
+            /tmp/stage2d9r-recovery-gate-v1.log
+          grep -Fx 'PARTITION_SIZE=65536' \
+            /tmp/stage2d9r-recovery-gate-v1.log
+          grep -Fx 'FULL_CHIP_ERASE_AUTHORIZED=false' \
+            /tmp/stage2d9r-recovery-gate-v1.log
+          grep -Fx 'FIRMWARE_FLASH_AUTHORIZED=false' \
+            /tmp/stage2d9r-recovery-gate-v1.log
+          grep -Fx 'PREPARE_AUTHORIZED=false' \
+            /tmp/stage2d9r-recovery-gate-v1.log
+      - name: Verify erased image digest and source-only boundary
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          expected = '71189f7fb6aed638640078fba3a35fda6c39c8962e74dcc75935aac948da9063'
+          assert hashlib.sha256(b'\xff' * 65536).hexdigest() == expected
+          manifest = json.loads(Path(
+              'tests/h3_n2_stage2d9r_tls_candidate/'
+              'stage2d9r_test_partition_recovery_manifest_20260723_v1.json.template'
+          ).read_text(encoding='utf-8'))
+          assert manifest['partition']['expected_erased_sha256'] == expected
+          assert manifest['expected_post_state']['partition_sha256'] == expected
+          assert manifest['recovery_authorized'] is False
+          assert manifest['board_operation_authorized'] is False
+          assert manifest['serial_operation_authorized'] is False
+          assert manifest['flash_operation_authorized'] is False
+          for key in (
+              'network_operation_authorized',
+              'broker_operation_authorized',
+              'firmware_flash_authorized',
+              'prepare_authorized',
+              'verify_authorized',
+              'activate_authorized',
+              'cleanup_authorized',
+              'efuse_operation_authorized',
+              'secure_boot_change_authorized',
+              'flash_encryption_change_authorized',
+              'production_operation_authorized',
+          ):
+              assert manifest[key] is False, key
+          PY
+          grep -F 'This document is a source/review contract.' \
+            docs/development/h3-n2-stage2d9r-test-partition-recovery-contract-20260723-v1.md
+          if grep -RIEq \
+              'erase_flash|write_flash|erase_region[[:space:]]+0x|esptool[^`]*--port' \
+              tools/h3_n2_stage2d9r_test_partition_recovery_gate_20260723_v1.py \
+              tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_test_partition_recovery_manifest_20260723_v1.json.template; then
+            echo 'executable recovery command leaked into source-only contract' >&2
+            exit 1
+          fi
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -f \
+            /tmp/stage2d9r-recovery-tests-v1.log \
+            /tmp/stage2d9r-recovery-gate-v1.log

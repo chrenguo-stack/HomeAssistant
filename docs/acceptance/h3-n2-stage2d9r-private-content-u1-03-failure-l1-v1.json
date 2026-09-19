@@ -1,0 +1,46 @@
+{
+  "schema": "gh.h3.n2.stage2d9r-private-content-u1-failure-l1/1",
+  "stage": "H3/N2 Stage 2D-9R G3R",
+  "authorization_id": "U1-H3N2-STAGE2D9R-PRIVATE-CONTENT-BINDING-20260724-03",
+  "result": "consumed_failed_retired",
+  "source_sha": "8e7d0c2d75e8c09de69e07a6147e1ef98e571673",
+  "pull_request": 176,
+  "authorization_record_sha256": "38edfa6ba1d42aea5d0d6d57f0a3157209be3afc6873f957d92d0156fceae0a2",
+  "consumed_marker_sha256": "8aa4a1bcc20f55cf027d1e047286e8289682af7c261d9afb540641427bce15c7",
+  "status": "CONSUMED_FAILED",
+  "failure_stage": "PRIVATE_CONTENT_BINDING",
+  "failure_code": "BROKER_CERTIFICATE_DIGEST_MISMATCH",
+  "root_cause": "V1 verifier compared the raw broker PEM file digest with the public descriptor's canonical DER certificate digest",
+  "one_shot": true,
+  "replay_permitted": false,
+  "automatic_retry_permitted": false,
+  "marker_probe": {
+    "schema": "gh.h3.n2.stage2d9r-private-content-failure-marker-probe/1",
+    "passed": true,
+    "marker_modified": false,
+    "private_content_read": false,
+    "private_paths_included": false,
+    "secret_values_included": false
+  },
+  "protected_boundaries": {
+    "network_operation": false,
+    "broker_started": false,
+    "board_operation": false,
+    "serial_operation": false,
+    "flash_operation": false,
+    "physical_nvs_operation": false,
+    "prepare_executed": false,
+    "verify_executed": false,
+    "activate_executed": false,
+    "cleanup_executed": false,
+    "production_operation": false,
+    "ready_merge_release_authorized": false
+  },
+  "disposition": {
+    "u1_03_retired": true,
+    "u1_03_replay_authorized": false,
+    "future_private_content_read_authorized": false,
+    "next_request_id": "U1-H3N2-STAGE2D9R-PRIVATE-CONTENT-BINDING-20260724-04",
+    "next_request_state": "PENDING_NEW_REVIEW_PACKAGE_AND_EXACT_AUTHORIZATION"
+  }
+}

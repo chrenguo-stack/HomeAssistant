@@ -1,0 +1,78 @@
+{
+  "schema": "gh.h3.n2.stage2d9r-private-pki-u1-generation-l1/1",
+  "stage": "H3/N2 Stage 2D-9R G3R",
+  "authorization_id": "U1-H3N2-STAGE2D9R-PRIVATE-PKI-20260723-01",
+  "result": "passed_consumed_retired",
+  "source_sha": "94f116ec99a7ba8b1da250f93b323f260c7ff5a6",
+  "pull_request": 176,
+  "authorization": {
+    "review_package_sha256": "a86c31b9a60332eeb270d550919cc83ac5a9afede6e6d4b5257a2d8c0feecb3d",
+    "review_binding_sha256": "968e05e2d8fa881f172070c68ed9a562d36812110d6cc85241ef5943d2299456",
+    "command_group_sha256": "aadd24ae3a19384fa2b3908c1d2dd1065140ef653a26266808f8ad3b1749ef2f",
+    "stop_conditions_sha256": "60b6f51cb73600ef7aa4fd1420289e3f81ca2b62abe15107ad67e7e66ff68312",
+    "authorized_execution_package_sha256": "d2646f6bdec22e55b3a1456043f7a63601d58bd5503a609713417e5ac4cc0f87",
+    "authorization_record_sha256": "1764d202e294d4e3125d7f641f2a0068768f38104dfb6273bddfb3789268f770",
+    "authorization_binding_sha256": "546645b4d21bfd7882f22284200582d64abb3a71466f5fcb8e11d43ac8896ad6",
+    "authorized_wrapper_sha256": "2ad574e4986823529f0383dd0769f2c5025f7b1c8df11d24a0026ab2ca4ffa37",
+    "one_shot": true,
+    "consumed": true,
+    "replay_permitted": false,
+    "automatic_retry_permitted": false,
+    "status": "consumed_passed_retired"
+  },
+  "toolchain": {
+    "generator_sha256": "a9be0c96fd58882b3778886515076f6aae5940c0ac195fc629ed1ebe708265d0",
+    "python_executable_sha256": "4e28e811a89aeac6eed668ae641c7f85f5831e42e8dc6cd9a85a3bcc032ec46a",
+    "openssl_executable_sha256": "04ad05ce2e7eaf92116dac99a984cc0e589040a103589f93a9fe452832766973",
+    "mosquitto_passwd_executable_sha256": "d6fdc23fa4bb09198bf74925207aa2b69b1455970e31fefc6157dfe4be2b07ee",
+    "custody_root_selection_rule": "HOME_LOCAL_STATE_STAGE2D9R_PRIVATE_PKI_V1",
+    "custody_root_digest_sha256": "4cd43ee4b2df177bd99c32d3904dbe1e1df890aa14c6b6714a6b4f7ae4024868"
+  },
+  "generated_public_bindings": {
+    "private_package_sha256": "0632b37a70aa2eae416c48ffa9420a8f1e13788c22a7d12e211f77cf6e78a267",
+    "private_descriptor_sha256": "59814b825cd2df4ac7f0e3eb137798af4efdbbed4da9d627fe8ad98144be8687",
+    "public_descriptor_sha256": "93bb071a5bf6f58472ac9e3891c2330dd9de6f05410824ad2fb51829267b4540",
+    "authorization_consumed_marker_sha256": "fbe03088de17b8db4d8b048e1985d571ca9f54d3add9b9fc3fce1735c9bec261",
+    "ca_pem_sha256": "cfcb6638ed61731270f3bf8e9e262c1512fbca8ff34d4b08b62186453233e963",
+    "broker_certificate_sha256": "988b6f82b04b0b3cf13f58a07ecd85e420e5576c167fe01ea0940d4530e20ac7",
+    "broker_spki_sha256": "f034dc2a036f709287f0558773418ee1799e75bee50dcf55e09143a3a9052a03",
+    "candidate_digest_sha256": "f22144e37372b883b7a38d07eff2980a865108cf7c8fed9bfdb9f198a030b5c5"
+  },
+  "offline_proofs": {
+    "private_custody_gate": "passed",
+    "root_ca_role_valid": true,
+    "broker_leaf_role_valid": true,
+    "certificate_chain_valid": true,
+    "hostname_valid": true,
+    "private_modes_valid": true,
+    "public_private_leakage_scan_passed": true
+  },
+  "protected_boundaries": {
+    "board_operation": false,
+    "serial_operation": false,
+    "flash_operation": false,
+    "physical_nvs_operation": false,
+    "network_operation": false,
+    "broker_started": false,
+    "prepare_executed": false,
+    "verify_executed": false,
+    "activate_executed": false,
+    "cleanup_executed": false,
+    "production_operation": false,
+    "ready_merge_release_authorized": false
+  },
+  "privacy": {
+    "private_paths_included": false,
+    "private_keys_included": false,
+    "raw_mqtt_password_included": false,
+    "raw_authorization_record_included": false,
+    "secret_values_included": false
+  },
+  "disposition": {
+    "u1_generation": "passed",
+    "u1_authorization_retired": true,
+    "future_u1_replay_authorized": false,
+    "future_board_action_authorized": false,
+    "next_action": "export and independently validate the public-only certificate and descriptor set before freezing the immutable firmware Artifact and preparing a separate exact D2"
+  }
+}

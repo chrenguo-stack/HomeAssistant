@@ -1,0 +1,139 @@
+name: H3 N2 Stage2D9R Locked Recovery Build Reusable
+
+on:
+  workflow_call:
+    inputs:
+      lane:
+        required: true
+        type: string
+      artifact_name:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  locked-recovery-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Verify reviewed recovery build sources
+        run: |
+          set -euo pipefail
+          echo '4f100cdfe2586a96485c68bafe8c8e5a11210798cca64a2a4c333258f9953d56  tools/h3_n2_stage2d9r_recovery_artifact_packager_20260724_v1.py' | sha256sum -c -
+          echo '9fc0b6669df6abca72f044b84f3d9a0f9614311b2ef58a832cb5232e4233132d  tools/h3_n2_stage2d9r_recovery_artifact_freeze_20260724_v1.py' | sha256sum -c -
+          echo 'a2dc5dda67224475940f15361568b62adf3360bdeda61f370ff1cd2c65de5779  tools/h3_n2_stage2d9r_recovery_artifact_manifest_gate_20260724_v1.py' | sha256sum -c -
+          echo 'ebf8246875aa610aa17e31113fe24df2812c2f8c015e81abdb4af0c103868e17  tests/h3_n2_stage2d9r_tls_candidate/test_h3_n2_stage2d9r_recovery_artifact_pipeline_20260724_v1.py' | sha256sum -c -
+          python -m py_compile \
+            tools/h3_n2_stage2d9r_recovery_artifact_packager_20260724_v1.py \
+            tools/h3_n2_stage2d9r_recovery_artifact_freeze_20260724_v1.py \
+            tools/h3_n2_stage2d9r_recovery_artifact_manifest_gate_20260724_v1.py
+      - name: Validate locked authorization template
+        run: |
+          set -euo pipefail
+          python tools/h3_n2_stage2d9r_test_partition_recovery_gate_20260723_v1.py \
+            --manifest tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_test_partition_recovery_manifest_20260723_v1.json.template \
+            --expect-state LOCKED_TEMPLATE \
+            | tee /tmp/stage2d9r-recovery-template-gate.log
+          grep -Fx 'STAGE2D9R_TEST_PARTITION_RECOVERY_GATE=PASS' /tmp/stage2d9r-recovery-template-gate.log
+          grep -Fx 'STATE=LOCKED_TEMPLATE' /tmp/stage2d9r-recovery-template-gate.log
+      - name: Build deterministic locked recovery payload
+        run: |
+          set -euo pipefail
+          python tools/h3_n2_stage2d9r_recovery_artifact_packager_20260724_v1.py \
+            --immutable-manifest tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_immutable_build_manifest_20260724_v1.json \
+            --recovery-template tests/h3_n2_stage2d9r_tls_candidate/stage2d9r_test_partition_recovery_manifest_20260723_v1.json.template \
+            --recovery-contract docs/development/h3-n2-stage2d9r-test-partition-recovery-contract-20260723-v1.md \
+            --recovery-gate tools/h3_n2_stage2d9r_test_partition_recovery_gate_20260723_v1.py \
+            --output-dir /tmp/stage2d9r-recovery-${{ inputs.lane }} \
+            --lane '${{ inputs.lane }}' \
+            --artifact-name '${{ inputs.artifact_name }}' \
+            --source-sha "$GITHUB_SHA" \
+            --run-id "$GITHUB_RUN_ID" \
+            | tee /tmp/stage2d9r-recovery-${{ inputs.lane }}.log
+          grep -Fx 'STAGE2D9R_LOCKED_RECOVERY_CLEAN_BUILD=PASS' /tmp/stage2d9r-recovery-${{ inputs.lane }}.log
+          grep -Fx 'RECOVERY_AUTHORIZED=false' /tmp/stage2d9r-recovery-${{ inputs.lane }}.log
+          grep -Fx 'EXECUTION_AUTHORIZED=false' /tmp/stage2d9r-recovery-${{ inputs.lane }}.log
+          grep -Fx 'BOARD_OPERATION_AUTHORIZED=false' /tmp/stage2d9r-recovery-${{ inputs.lane }}.log
+          grep -Fx 'NETWORK_OPERATION_AUTHORIZED=false' /tmp/stage2d9r-recovery-${{ inputs.lane }}.log
+      - name: Verify payload integrity and non-executable boundary
+        run: |
+          set -euo pipefail
+          root=/tmp/stage2d9r-recovery-${{ inputs.lane }}
+          test -f "$root/stage2d9r-g3r-recovery-payload-v1.tar"
+          test -f "$root/build-record.json"
+          test -f "$root/payload-tar.sha256"
+          expected="$(cat "$root/payload-tar.sha256")"
+          actual="$(sha256sum "$root/stage2d9r-g3r-recovery-payload-v1.tar" | awk '{print $1}')"
+          test "$actual" = "$expected"
+          python - "$root/stage2d9r-g3r-recovery-payload-v1.tar" <<'PY'
+          import hashlib
+          import json
+          import sys
+          import tarfile
+          from pathlib import Path
+
+          path = Path(sys.argv[1])
+          with tarfile.open(path, 'r') as archive:
+              names = {item.name for item in archive.getmembers()}
+              assert names == {
+                  'RECOVERY_CONTRACT.md',
+                  'SHA256SUMS',
+                  'recovery-artifact-descriptor.json',
+                  'recovery-authorization-manifest.template.json',
+                  'test-partition-erased.bin',
+              }
+              descriptor = json.load(archive.extractfile(
+                  'recovery-artifact-descriptor.json'
+              ))
+              erased = archive.extractfile('test-partition-erased.bin').read()
+          assert hashlib.sha256(erased).hexdigest() == (
+              '71189f7fb6aed638640078fba3a35fda6c39c8962e74dcc75935aac948da9063'
+          )
+          assert erased == b'\xff' * 65536
+          assert descriptor['state'] == 'RECOVERY_ARTIFACT_LOCKED'
+          for key in (
+              'recovery_authorized', 'execution_authorized',
+              'board_operation_authorized', 'serial_operation_authorized',
+              'flash_operation_authorized', 'physical_nvs_operation_authorized',
+              'network_operation_authorized', 'broker_operation_authorized',
+              'firmware_flash_authorized', 'prepare_authorized',
+              'verify_authorized', 'activate_authorized',
+              'cleanup_authorized', 'production_operation_authorized',
+          ):
+              assert descriptor[key] is False, key
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: /tmp/stage2d9r-recovery-${{ inputs.lane }}
+          if-no-files-found: error
+          retention-days: 5
+          compression-level: 0
+      - name: Report locked recovery build boundary
+        run: |
+          printf '%s\n' \
+            'STAGE2D9R_LOCKED_RECOVERY_BUILD_UPLOAD=PASS' \
+            'LANE=${{ inputs.lane }}' \
+            'RECOVERY_AUTHORIZED=false' \
+            'EXECUTION_AUTHORIZED=false' \
+            'BOARD_OPERATION_AUTHORIZED=false' \
+            'SERIAL_OPERATION_AUTHORIZED=false' \
+            'FLASH_OPERATION_AUTHORIZED=false' \
+            'NETWORK_OPERATION_AUTHORIZED=false' \
+            'PREPARE_AUTHORIZED=false' \
+            'VERIFY_AUTHORIZED=false'
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf /tmp/stage2d9r-recovery-${{ inputs.lane }}
+          rm -f \
+            /tmp/stage2d9r-recovery-${{ inputs.lane }}.log \
+            /tmp/stage2d9r-recovery-template-gate.log

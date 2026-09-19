@@ -1,0 +1,81 @@
+{
+  "activate_authorized": false,
+  "artifact": {
+    "canonical_artifact_id": 8589561310,
+    "canonical_artifact_name": "stage2d9r-g3r-recovery-locked-v1",
+    "descriptor_sha256": "36356dffa95db68aa50f792cd02b47dd320a40d36216fdd0617dc4a0d1d3f2a8",
+    "erased_image_sha256": "71189f7fb6aed638640078fba3a35fda6c39c8962e74dcc75935aac948da9063",
+    "manifest_digest_algorithm": "sha256-canonical-json-without-artifact.manifest_sha256-v1",
+    "manifest_sha256": "fe82c458533953df4c86966d047d1f66b59da15e5299b3953135702236d68690",
+    "payload_tar_sha256": "c1ed8e5f00b17cbe5bab30aec75d2e8637986b9c19b2389b761bebf3fc0b8d8b",
+    "repro_artifact_id": 8589560891,
+    "repro_artifact_name": "stage2d9r-g3r-recovery-repro-v1"
+  },
+  "authorization_record_included": false,
+  "board_operation_authorized": false,
+  "broker_operation_authorized": false,
+  "build_run_ids": [
+    30075191850,
+    30075191822
+  ],
+  "candidate_bindings": {
+    "ca_pem_sha256": "cfcb6638ed61731270f3bf8e9e262c1512fbca8ff34d4b08b62186453233e963",
+    "candidate_digest_sha256": "f22144e37372b883b7a38d07eff2980a865108cf7c8fed9bfdb9f198a030b5c5",
+    "unlock_digest_sha256": "3650d44f8761f21dc1931fbd9b6ba6a1d9da92ffa469b3d4f98ee5411a6809e3"
+  },
+  "cleanup_authorized": false,
+  "consumed_marker_included": false,
+  "deployment_authorized": false,
+  "efuse_operation_authorized": false,
+  "execution_authorized": false,
+  "firmware_flash_authorized": false,
+  "flash_encryption_change_authorized": false,
+  "flash_operation_authorized": false,
+  "immutable_firmware_binding": {
+    "application_sha256": "7651a6476cd48dda6aa5e400695e126b91141c95fca5b74d879f65f2058d1630",
+    "artifact_id": 8585140964,
+    "artifact_name": "stage2d9r-g3r-immutable-locked-v1",
+    "artifact_sha256": "5dbe763fe411728533018dd324075f5287ee3542f8351113d54ec80a7042f1d3",
+    "build_binding": "b39f20c55b865ec87eb650d620fd1a82b930c1ad",
+    "merged_image_sha256": "ea6af469ad7ae103d40a551f482fc18d1f2afc9ed75933481f1802f0a7b2916f",
+    "source_sha": "c9e8447c24b0f09f3eac3f56791f2346e8aa5d61"
+  },
+  "merge_authorized": false,
+  "network_operation_authorized": false,
+  "physical_nvs_operation_authorized": false,
+  "prepare_authorized": false,
+  "private_paths_included": false,
+  "private_values_included": false,
+  "production_operation_authorized": false,
+  "ready_authorized": false,
+  "recovery_authorized": false,
+  "recovery_partition": {
+    "address": 4194304,
+    "erased_byte": 255,
+    "erased_image_sha256": "71189f7fb6aed638640078fba3a35fda6c39c8962e74dcc75935aac948da9063",
+    "label": "gh2d8_p2d9",
+    "namespace": "gh2d8_s2d9",
+    "partition_table_sha256": "5afa0f77d5d815f00b14afbcc3b974037c5ba10c9bdcdcffa196b55e403b5cd8",
+    "size_bytes": 65536
+  },
+  "release_authorized": false,
+  "reproducibility": {
+    "clean_build_count": 2,
+    "descriptor_digests_identical": true,
+    "erased_image_digests_identical": true,
+    "payloads_byte_identical": true
+  },
+  "reviewed_inputs": {
+    "immutable_manifest_sha256": "1de4afeb3d29d5112c5b987eec99d15b13639e96c176b6a08c28e6763d514aeb",
+    "recovery_contract_sha256": "a6c9170dfa48e2b19ad589e7a6cbc97deff9edd91f8fe43b3691f6d0d62cb5de",
+    "recovery_gate_sha256": "db039c86bad0bc7b1bed8d08436ac06844231a0e61ec31d5c1bccd5e1a58e0f8",
+    "recovery_template_sha256": "8301e3efd2336b189e528cf49a57c32441fd6b86a4b5244eacbe446486dc6331"
+  },
+  "schema": "gh.h3.n2.stage2d9r-locked-recovery-artifact-manifest/1",
+  "secure_boot_change_authorized": false,
+  "serial_operation_authorized": false,
+  "source_sha": "f312f8580d9f4312f4dd1429b2d7755e1c550636",
+  "stage": "H3/N2 Stage 2D-9R G3R",
+  "state": "RECOVERY_ARTIFACT_FROZEN",
+  "verify_authorized": false
+}

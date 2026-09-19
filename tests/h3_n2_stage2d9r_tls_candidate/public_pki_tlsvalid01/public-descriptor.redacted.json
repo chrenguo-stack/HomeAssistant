@@ -1,0 +1,45 @@
+{
+  "activate_authorized": false,
+  "alias_resolution_allowed": false,
+  "board_operation_authorized": false,
+  "broker_host": "stage2d9r.local",
+  "broker_port": 8883,
+  "broker_tls_server_name": "stage2d9r.local",
+  "candidate_canonicalization": "gh.h3.n2.isolated-candidate-profile/1+sha256-v1",
+  "candidate_generation": 1,
+  "cleanup_authorized": false,
+  "credential_generation": 1,
+  "dns_san": [
+    "stage2d9r.local"
+  ],
+  "execution_authorized": false,
+  "network_operation_authorized": false,
+  "offline_proofs": {
+    "broker_hostname_match": true,
+    "broker_leaf_chain_valid": true,
+    "broker_leaf_role_valid": true,
+    "ca_pem_parseable": true,
+    "ca_role_valid": true
+  },
+  "prepare_authorized": false,
+  "private_values_included": false,
+  "production_material_included": false,
+  "public_material": {
+    "broker_certificate_sha256": "988b6f82b04b0b3cf13f58a07ecd85e420e5576c167fe01ea0940d4530e20ac7",
+    "broker_config_sha256": "8713e2706d36bcfb731ce7e8a8c7589261a4343b78835593138f9e55994253d7",
+    "broker_spki_sha256": "f034dc2a036f709287f0558773418ee1799e75bee50dcf55e09143a3a9052a03",
+    "ca_certificate_sha256": "4b44f00b00dccc7151ff750cfa8c586ead2296cc2f424a904847b079b92886b6",
+    "ca_pem_sha256": "cfcb6638ed61731270f3bf8e9e262c1512fbca8ff34d4b08b62186453233e963",
+    "candidate_digest_sha256": "f22144e37372b883b7a38d07eff2980a865108cf7c8fed9bfdb9f198a030b5c5",
+    "certificate_not_after": "2026-08-22T16:09:29Z",
+    "certificate_not_before": "2026-07-23T16:09:29Z",
+    "mqtt_password_included": false,
+    "private_key_included": false,
+    "private_package_sha256": "0632b37a70aa2eae416c48ffa9420a8f1e13788c22a7d12e211f77cf6e78a267"
+  },
+  "schema": "gh.h3.n2.stage2d9r-tls-candidate-descriptor/1",
+  "stage": "H3/N2 Stage 2D-9R G3R",
+  "state": "TLS_CANDIDATE_FROZEN",
+  "tls_verification_bypass_allowed": false,
+  "verify_authorized": false
+}

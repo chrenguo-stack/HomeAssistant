@@ -1,0 +1,65 @@
+{
+  "schema": "gh.h3.n2.stage2d9r-immutable-build-manifest/1",
+  "stage": "H3/N2 Stage 2D-9R G3R",
+  "state": "LOCKED_SOURCE",
+  "source_sha": "<SOURCE_SHA40>",
+  "build_binding": "<BUILD_BINDING_SHA40>",
+  "esphome_version": "2026.4.3",
+  "python_environment_sha256": "<PYTHON_ENVIRONMENT_SHA256>",
+  "compile_workflow_sha256": "<COMPILE_WORKFLOW_SHA256>",
+  "compile_run_ids": [],
+  "candidate_bindings": {
+    "broker_host": "stage2d9r.local",
+    "broker_tls_server_name": "stage2d9r.local",
+    "ca_pem_sha256": "<CA_PEM_SHA256>",
+    "candidate_digest_sha256": "<CANDIDATE_DIGEST_SHA256>",
+    "unlock_digest_sha256": "<UNLOCK_DIGEST_SHA256>"
+  },
+  "partition": {
+    "table_sha256": "<PARTITION_TABLE_SHA256>",
+    "label": "gh2d8_p2d9",
+    "address": 4194304,
+    "size_bytes": 65536
+  },
+  "firmware": {
+    "bootloader_sha256": "<BOOTLOADER_SHA256>",
+    "partition_table_bin_sha256": "<PARTITION_TABLE_BIN_SHA256>",
+    "application_sha256": "<APPLICATION_SHA256>",
+    "merged_image_sha256": "<MERGED_IMAGE_SHA256>",
+    "merged_image_size": null,
+    "flash_offsets": {
+      "bootloader": 0,
+      "partition_table": 32768,
+      "application": 65536
+    }
+  },
+  "reproducibility": {
+    "clean_build_count": 0,
+    "all_firmware_hashes_identical": false,
+    "all_manifest_hashes_identical": false
+  },
+  "artifact": {
+    "artifact_id": null,
+    "artifact_name": "stage2d9r-g3r-immutable-locked-v1",
+    "artifact_sha256": "<ARTIFACT_SHA256>",
+    "manifest_sha256": "<MANIFEST_SHA256>",
+    "expired": false
+  },
+  "private_values_included": false,
+  "private_paths_included": false,
+  "execution_authorized": false,
+  "board_operation_authorized": false,
+  "serial_operation_authorized": false,
+  "flash_operation_authorized": false,
+  "physical_nvs_operation_authorized": false,
+  "network_operation_authorized": false,
+  "broker_operation_authorized": false,
+  "prepare_authorized": false,
+  "verify_authorized": false,
+  "activate_authorized": false,
+  "cleanup_authorized": false,
+  "production_operation_authorized": false,
+  "ready_authorized": false,
+  "merge_authorized": false,
+  "release_authorized": false
+}
