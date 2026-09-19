@@ -1,7 +1,7 @@
 # N3-W Current State Index
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
-Current progress alignment: `docs/development/N3W_KF096_PR437_POSTWRITE_DIRECT_BASELINE_ALIGNMENT_20260919.md`  
+Current progress alignment: `docs/development/N3W_KF096_PR437_FINAL_PHYSICAL_CLOSURE_ALIGNMENT_20260919.md`  
 Current new-chat handoff: `docs/development/N3W_KF096_PR437_SAME_BOOT_DIRECT_TO_RELAY_PHYSICAL_VALIDATION_NEW_CHAT_HANDOFF_V1.0_20260919.md`  
 Previous physical alignment: `docs/development/N3W_PR425_PHYSICAL_VALIDATION_AND_PROBE_BLACKOUT_ALIGNMENT_20260918.md`  
 Latest merged product-source authority: PR #431 / `d1b5c3acbd32cca95483743ffe2edba9aa3f904f`  
@@ -81,7 +81,24 @@ PR437_ARCHIVE_SHA256=b06de88b561968627b17bbda45d5d8fd9e53d774a5227237a71343ebc39
 
 PR437_BOARD_B_DEPLOYMENT=PASS
 PR437_POSTWRITE_DIRECT_BASELINE=PASS
-PR437_PHYSICAL_VALIDATION=IN_PROGRESS
+PR437_PHYSICAL_VALIDATION=PASS
+
+PR437_SAME_BOOT_DIRECT_TO_RELAY=PASS
+PR437_DIRECT_TO_RELAY_MANAGER_VISIBLE_GAP_MS=35087
+PR437_DIRECT_TO_RELAY_MISSING_SEQUENCE_COUNT=6
+PR437_DIRECT_TO_RELAY_MISSING_SEQUENCE_RANGE=897-902
+
+PR437_RELAY_DATA_CONTINUITY_600S=PASS
+PR437_RELAY_SEQ_RANGE=996-1116
+PR437_RELAY_ACCEPTED_ROW_COUNT=121
+PR437_RELAY_MISSING_SEQUENCE_COUNT=0
+PR437_RELAY_MAX_MANAGER_INTERARRIVAL_GAP_MS=20589
+PR437_ORDERED_CATCHUP_OBSERVED=true
+
+PR437_RELAY_TO_DIRECT_FAILBACK=PASS
+PR437_RELAY_TO_DIRECT_MANAGER_VISIBLE_GAP_MS=10689
+PR437_RELAY_TO_DIRECT_MISSING_SEQUENCE_COUNT=0
+PR437_RELAY_TO_DIRECT_DATA_CONTINUITY=PASS
 
 PR436=CLOSED_SUPERSEDED
 RECENT_MERGED_N3W_BRANCHES_DELETED=18
@@ -111,16 +128,16 @@ KF092=CLOSED_PASS / GUARDED
 KF093=GUARDED
 KF094=OPEN
 KF095=GUARDED
-KF096=OPEN
+KF096=CLOSED_PASS
 ```
 
-KF-096 remains OPEN. PR #437 source review, exact-artifact binding, Board B deployment, and post-write Direct baseline are complete. The remaining physical route begins with same-boot Direct -> Relay, followed later by Relay steady-state continuity and Relay -> Direct failback.
+KF-096 is closed by the exact PR #437 physical route: same-boot Direct -> Relay PASS, 600 s Relay data continuity PASS with no missing seq in 996..1116, ordered catch-up observed after one 20.589 s Manager interarrival gap, and same-boot Relay -> Direct PASS with no transition sequence loss. The initial Direct -> Relay transition still lost seq 897..902; that fact remains open for overall N3-W failover acceptance and is not erased by KF-096 closure.
 
 ## Current ONE gate
 
 ```text
 NEXT_ONE_GATE=
-N3W_KF096_PR437_SAME_BOOT_DIRECT_TO_RELAY_PHYSICAL_VALIDATION_20260919_01
+N3W_KF096_PR437_PREMERGE_FINAL_REVIEW_20260919_01
 
 CURRENT_CANDIDATE_SOURCE_HEAD=
 cc9ed5ee568a4b6c4a2454fd38bafa8f6e3a527c
@@ -133,6 +150,11 @@ cc9ed5ee568a4b6c4a2454fd38bafa8f6e3a527c
 
 PR437_BOARD_B_DEPLOYMENT=PASS
 PR437_POSTWRITE_DIRECT_BASELINE=PASS
+PR437_PHYSICAL_VALIDATION=PASS
+KF096=CLOSED_PASS
+
+DIRECT_TO_RELAY_MISSING_SEQUENCE_COUNT=6
+OVERALL_N3W_FAILOVER_ACCEPTANCE=NOT_CLOSED
 
 BOARD_B_FIRMWARE_FLASH=false
 BOARD_A_MUTATION=false
@@ -141,4 +163,4 @@ T1_RUNTIME_MUTATION=false
 PR437_MERGE=false
 ```
 
-The next gate is a bounded same-boot Direct -> Relay physical validation on the already deployed PR #437 firmware. It uses a fresh Manager canonical Direct baseline, manual Board B movement with no reboot after baseline, and read-only T1/Manager observation. It stops after Direct -> Relay classification and does not automatically enter Relay steady-state/failback validation.
+The next gate is repository-only PR #437 merge-readiness review. It must verify the exact PR head, CI, mergeability, and documentation alignment while preserving the unresolved six-sequence Direct -> Relay transition loss. It must not merge PR #437 without separate explicit authorization.
