@@ -127,8 +127,8 @@ def test_recovery_probe_checks_ap_presence_and_buffers_business_telemetry() -> N
     assert pending < drain < submit
     assert "telemetry_queue_.front()" in flush
     assert "telemetry_queue_.pop_front()" in flush
-    assert "telemetry Relay in-flight" in flush
-    assert "telemetry Direct submitted" in flush
+    assert "telemetry Relay single attempt in-flight" in flush
+    assert "telemetry Direct single attempt submitted" in flush
     assert "kTelemetryQueueCapacity = 24" in header
     assert "kRecoveryProbeBackoffMaxMs = 480000" in header
 
