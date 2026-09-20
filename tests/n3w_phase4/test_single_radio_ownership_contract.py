@@ -115,7 +115,8 @@ def test_recovery_probe_checks_ap_presence_and_buffers_business_telemetry() -> N
     assert "TelemetrySubmitDisposition::REJECTED" in telemetry
     assert "enqueue_telemetry_" in telemetry
     assert "flush_telemetry_queue_(" in telemetry
-    assert "TelemetryPathAccounting::RECORD_PATH_RESULT" in telemetry
+    assert "plan_business_telemetry_admission(" in telemetry
+    assert "admission_plan.front_accounting" in telemetry
     assert "queue_was_empty" in telemetry
 
     flush_start = source.index("TelemetrySubmitDisposition SimpleProductComponent::flush_telemetry_queue_(")
