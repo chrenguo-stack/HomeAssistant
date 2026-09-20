@@ -581,33 +581,54 @@ def test_relay_failback_uses_two_tier_presence_and_full_verify_scheduling() -> N
     assert "FULL_DIRECT_VERIFY" in restore_cause
 
 
-def test_relay_failback_diagnostics_remain_ram_only_and_out_of_telemetry() -> None:
+def test_relay_failback_diagnostics_are_ram_only_and_bounded_in_lab_telemetry() -> None:
     diag_h = text("n3w_lab_diagnostics.h")
     diag_cpp = text("n3w_lab_diagnostics.cpp")
+    component = text("n3w_simple_product_component.cpp")
     config = (
         ROOT
         / "firmware/esphome_rc/board_lab/n3w_phase4_physical/generic.yml"
     ).read_text(encoding="utf-8")
 
-    assert "presence_probe_count" in diag_h
-    assert "full_verify_last_trigger" in diag_h
-    assert "full_verify_last_terminal_reason" in diag_h
-    assert "next_presence_probe_ms" in diag_h
-    assert "next_full_verify_ms" in diag_h
+    required_latency_fields = (
+        "presence_probe_count",
+        "presence_probe_last_result",
+        "full_verify_last_trigger",
+        "full_verify_last_terminal_reason",
+        "relay_restore_last_cause",
+        "relay_restore_last_result",
+        "full_verify_queue_depth_start",
+        "full_verify_queue_depth_end",
+        "full_verify_queue_dropped_start",
+        "full_verify_queue_dropped_end",
+        "full_verify_attempt_failed_dropped_start",
+        "full_verify_attempt_failed_dropped_end",
+        "next_presence_probe_ms",
+        "next_full_verify_ms",
+    )
+    for field in required_latency_fields:
+        assert field in diag_h
 
     snapshot_start = diag_h.index("struct Snapshot")
     snapshot_end = diag_h.index("struct LatencySnapshot", snapshot_start)
     durable = diag_h[snapshot_start:snapshot_end]
-    assert "presence_probe_count" not in durable
-    assert "full_verify_last_trigger" not in durable
+    for field in required_latency_fields:
+        assert field not in durable
 
-    assert "N3W_DIAG_RECOVERY" in diag_cpp
-    assert "presence_last_start_ms" in diag_cpp
-    assert "full_verify_terminal" in diag_cpp
-    assert "next_presence_ms" in diag_cpp
-    assert "next_full_verify_ms" in diag_cpp
+    assert "presence_result=%u" in diag_cpp
+    assert "restore_cause=%u" in diag_cpp
+    assert "restore_result=%u" in diag_cpp
+    assert "queue_drop_start=%u" in diag_cpp
+    assert "attempt_drop_end=%u" in diag_cpp
 
-    # The lab telemetry envelope is already close to the encrypted Relay
-    # plaintext ceiling. Recovery observability must not enlarge every
-    # five-second business frame.
-    assert "\\\"n3w_r\\\"" not in config
+    assert "diagnostics_.note_relay_restore(" in component
+    assert "telemetry_queue_dropped_" in component
+    assert "telemetry_attempt_failed_dropped_" in component
+
+    # The battery/same-boot physical run must recover these diagnostics from
+    # Manager-visible telemetry without enlarging the durable NVS schema.
+    assert "\\\"n3w_r\\\":[1," in config
+    assert "\\\"n3w_l\\\":[1," in config
+    assert "\\\"n3w_latency\\\":{" not in config
+    assert "PHASE4_LAB_TELEMETRY_OVERSIZE" in config
+    assert "kMaxCiphertextBytes -\n                  telemetry_bytes" in config
