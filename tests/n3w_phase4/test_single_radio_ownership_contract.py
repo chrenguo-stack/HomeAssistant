@@ -116,7 +116,7 @@ def test_recovery_probe_checks_ap_presence_and_buffers_business_telemetry() -> N
     assert "enqueue_telemetry_" in telemetry
     assert "flush_telemetry_queue_(" in telemetry
     assert "TelemetryPathAccounting::RECORD_PATH_RESULT" in telemetry
-    assert "PendingTelemetryState::RELAY_IN_FLIGHT" in telemetry
+    assert "queue_was_empty" in telemetry
 
     flush_start = source.index("TelemetrySubmitDisposition SimpleProductComponent::flush_telemetry_queue_(")
     flush_end = source.index("bool SimpleProductComponent::restore_relay_radio_()", flush_start)
