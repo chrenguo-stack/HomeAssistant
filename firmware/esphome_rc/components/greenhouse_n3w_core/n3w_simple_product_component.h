@@ -254,11 +254,18 @@ class SimpleProductComponent : public Component,
   static constexpr uint32_t kDirectPresenceProbeIntervalMs = 60000;
   static constexpr uint32_t kDirectFullVerifyMinSpacingMs = 60000;
   static constexpr uint32_t kDirectFullVerifyBacklogRetryMs = 100;
-  static constexpr uint32_t kDirectRecoveryWifiBudgetMs = 20000;
+  // ESPHome 2026.4.3 allows a Wi-Fi scan fallback of 31 s and a
+  // connection-attempt fallback of 46 s. A shorter N3-W ownership window can
+  // repeatedly disable Wi-Fi before ESPHome finishes a valid reconnect, so the
+  // Direct probe must outlive the upstream Wi-Fi fallback window.
+  static constexpr uint32_t kDirectRecoveryWifiBudgetMs = 50000;
   static constexpr uint32_t kDirectRecoveryMqttBudgetMs = 25000;
   static constexpr uint32_t kDirectRecoveryConfirmBudgetMs = 5000;
-  static constexpr uint32_t kNoRelayDirectRecoveryAbsoluteMs = 50000;
-  static constexpr uint32_t kHealthyRelayDirectRecoveryAbsoluteMs = 30000;
+  // 50 s Wi-Fi + 25 s MQTT + 5 s confirm, plus 10 s scheduling/readback
+  // margin. At the 5 s business cadence this remains below the 24-sample hold
+  // buffer horizon.
+  static constexpr uint32_t kNoRelayDirectRecoveryAbsoluteMs = 90000;
+  static constexpr uint32_t kHealthyRelayDirectRecoveryAbsoluteMs = 90000;
   static constexpr uint8_t kDirectRecoveryConfirmSuccesses = 2;
   static constexpr uint8_t kDirectApHintScanErrorLimit = 3;
   static constexpr uint32_t kDirectPresenceProbeQuietGuardMs = 500;
