@@ -180,20 +180,6 @@ interval:
               std::to_string(latency.unicast_submit_first_success_current_channel) +
               ",\"sp\":" +
               std::to_string(latency.unicast_submit_first_success_peer_channel) +
-              "},\"n3w_r\":{" +
-              "\"ps\":" + std::to_string(latency.presence_probe_count) +
-              ",\"pf\":" + std::to_string(latency.presence_probe_found_count) +
-              ",\"ls\":" + std::to_string(latency.presence_probe_last_start_ms) +
-              ",\"ld\":" + std::to_string(latency.presence_probe_last_duration_ms) +
-              ",\"fv\":" + std::to_string(latency.full_verify_count) +
-              ",\"fs\":" + std::to_string(latency.full_verify_last_start_ms) +
-              ",\"ft\":" + std::to_string(latency.full_verify_last_trigger) +
-              ",\"fr\":" + std::to_string(latency.full_verify_last_terminal_reason) +
-              ",\"df\":" + std::to_string(latency.recovery_probe_deferral_count) +
-              ",\"np\":" + std::to_string(latency.next_presence_probe_ms) +
-              ",\"nf\":" + std::to_string(latency.next_full_verify_ms) +
-              ",\"qs\":" + std::to_string(latency.full_verify_queue_depth_start) +
-              ",\"qe\":" + std::to_string(latency.full_verify_queue_depth_end) +
               "}," +
               "\"measurements\":{},\"quality\":{}," +
               "\"power\":{\"source\":\"unknown\",\"low\":false}," +

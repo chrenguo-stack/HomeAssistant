@@ -577,33 +577,33 @@ def test_relay_failback_uses_two_tier_presence_and_full_verify_scheduling() -> N
     assert "RelayRestoreCause::PRESENCE_SCAN" in header
 
 
-def test_relay_failback_diagnostics_remain_ram_only_and_compact() -> None:
-    diag = text("n3w_lab_diagnostics.h")
+def test_relay_failback_diagnostics_remain_ram_only_and_out_of_telemetry() -> None:
+    diag_h = text("n3w_lab_diagnostics.h")
+    diag_cpp = text("n3w_lab_diagnostics.cpp")
     config = (
         ROOT
         / "firmware/esphome_rc/board_lab/n3w_phase4_physical/generic.yml"
     ).read_text(encoding="utf-8")
 
-    assert "presence_probe_count" in diag
-    assert "full_verify_last_trigger" in diag
-    assert "full_verify_last_terminal_reason" in diag
-    assert "next_presence_probe_ms" in diag
-    assert "next_full_verify_ms" in diag
+    assert "presence_probe_count" in diag_h
+    assert "full_verify_last_trigger" in diag_h
+    assert "full_verify_last_terminal_reason" in diag_h
+    assert "next_presence_probe_ms" in diag_h
+    assert "next_full_verify_ms" in diag_h
 
-    snapshot_start = diag.index("struct Snapshot")
-    snapshot_end = diag.index("struct LatencySnapshot", snapshot_start)
-    durable = diag[snapshot_start:snapshot_end]
+    snapshot_start = diag_h.index("struct Snapshot")
+    snapshot_end = diag_h.index("struct LatencySnapshot", snapshot_start)
+    durable = diag_h[snapshot_start:snapshot_end]
     assert "presence_probe_count" not in durable
     assert "full_verify_last_trigger" not in durable
 
-    assert "\\\"n3w_r\\\"" in config
-    for key in (
-        "\\\"ps\\\"",
-        "\\\"pf\\\"",
-        "\\\"fv\\\"",
-        "\\\"ft\\\"",
-        "\\\"fr\\\"",
-        "\\\"np\\\"",
-        "\\\"nf\\\"",
-    ):
-        assert key in config
+    assert "N3W_DIAG_RECOVERY" in diag_cpp
+    assert "presence_last_start_ms" in diag_cpp
+    assert "full_verify_terminal" in diag_cpp
+    assert "next_presence_ms" in diag_cpp
+    assert "next_full_verify_ms" in diag_cpp
+
+    # The lab telemetry envelope is already close to the encrypted Relay
+    # plaintext ceiling. Recovery observability must not enlarge every
+    # five-second business frame.
+    assert "\\\"n3w_r\\\"" not in config

@@ -280,6 +280,24 @@ void N3wLabDiagnostics::emit_summary(uint64_t now_ms) {
       static_cast<unsigned>(snapshot_.compact_decode_success),
       static_cast<unsigned>(snapshot_.compact_forward_attempts),
       static_cast<unsigned>(snapshot_.compact_forward_submit_success));
+
+  ESP_LOGI(
+      TAG,
+      "N3W_DIAG_RECOVERY presence_count=%u presence_found=%u presence_last_start_ms=%llu presence_last_duration_ms=%u full_verify_count=%u full_verify_last_start_ms=%llu full_verify_trigger=%u full_verify_terminal=%u deferrals=%u deferral_reason=%u next_presence_ms=%llu next_full_verify_ms=%llu queue_start=%u queue_end=%u",
+      static_cast<unsigned>(latency_.presence_probe_count),
+      static_cast<unsigned>(latency_.presence_probe_found_count),
+      static_cast<unsigned long long>(latency_.presence_probe_last_start_ms),
+      static_cast<unsigned>(latency_.presence_probe_last_duration_ms),
+      static_cast<unsigned>(latency_.full_verify_count),
+      static_cast<unsigned long long>(latency_.full_verify_last_start_ms),
+      static_cast<unsigned>(latency_.full_verify_last_trigger),
+      static_cast<unsigned>(latency_.full_verify_last_terminal_reason),
+      static_cast<unsigned>(latency_.recovery_probe_deferral_count),
+      static_cast<unsigned>(latency_.recovery_probe_last_deferral_reason),
+      static_cast<unsigned long long>(latency_.next_presence_probe_ms),
+      static_cast<unsigned long long>(latency_.next_full_verify_ms),
+      static_cast<unsigned>(latency_.full_verify_queue_depth_start),
+      static_cast<unsigned>(latency_.full_verify_queue_depth_end));
 }
 
 void N3wLabDiagnostics::drain_broadcast_completions_(uint64_t now_ms) {
