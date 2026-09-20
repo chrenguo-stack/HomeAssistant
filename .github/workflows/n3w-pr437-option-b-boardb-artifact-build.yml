@@ -1,0 +1,89 @@
+name: N3W PR437 Option B Board B exact-source artifact build
+
+on:
+  push:
+    branches:
+      - build/n3w-pr437-option-b-boardb-artifact-20260920
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR437 Option B source
+        uses: actions/checkout@v4
+        with:
+          ref: ea77b3570325c45cebde6359e173b7bab98ef35d
+          fetch-depth: 1
+
+      - name: Bind exact source and target
+        shell: bash
+        run: |
+          set -euo pipefail
+          TARGET="firmware/esphome_rc/board_lab/n3w_phase4_physical/generic.yml"
+          test "$(git rev-parse HEAD)" = "ea77b3570325c45cebde6359e173b7bab98ef35d"
+          test "$(git rev-parse HEAD^{tree})" = "36b143342caa4797987f724b5bf652151ad11d05"
+          test "$(git hash-object "$TARGET")" = "3d13e2197520c375b56d682b37773ef28e194421"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install exact ESPHome
+        run: python -m pip install --disable-pip-version-check 'esphome==2026.4.3'
+
+      - name: Compile exact-source physical harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd firmware/esphome_rc/board_lab/n3w_phase4_physical
+          python -m esphome compile generic.yml
+
+      - name: Verify ESP-IDF toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION_FILE="$HOME/.platformio/packages/framework-espidf/tools/cmake/version.cmake"
+          test -f "$VERSION_FILE"
+          grep -Eq 'set\(IDF_VERSION_MAJOR[[:space:]]+5\)' "$VERSION_FILE"
+          grep -Eq 'set\(IDF_VERSION_MINOR[[:space:]]+5\)' "$VERSION_FILE"
+          grep -Eq 'set\(IDF_VERSION_PATCH[[:space:]]+4\)' "$VERSION_FILE"
+
+      - name: Freeze Board B write artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/firmware/esphome_rc/board_lab/n3w_phase4_physical/.esphome/build/gh-n3w-phase4-generic"
+          ENV="$ROOT/.pioenvs/gh-n3w-phase4-generic"
+          APP="$ENV/firmware.bin"
+          OTA="$ENV/ota_data_initial.bin"
+          test -f "$APP"
+          test -f "$OTA"
+          mkdir -p "$GITHUB_WORKSPACE/boardb-artifact"
+          cp "$APP" "$GITHUB_WORKSPACE/boardb-artifact/firmware.bin"
+          cp "$OTA" "$GITHUB_WORKSPACE/boardb-artifact/ota_data_initial.bin"
+          {
+            echo 'SOURCE_HEAD=ea77b3570325c45cebde6359e173b7bab98ef35d'
+            echo 'SOURCE_TREE=36b143342caa4797987f724b5bf652151ad11d05'
+            echo 'TARGET_CONFIG=firmware/esphome_rc/board_lab/n3w_phase4_physical/generic.yml'
+            echo 'TARGET_BLOB_SHA=3d13e2197520c375b56d682b37773ef28e194421'
+            echo 'PYTHON_VERSION=3.11'
+            echo 'ESPHOME_VERSION=2026.4.3'
+            echo 'ESP_IDF_VERSION=5.5.4'
+            echo "WORKFLOW_TRIGGER_SHA=$GITHUB_SHA"
+            stat -c 'APPLICATION_SIZE=%s' "$APP"
+            stat -c 'OTADATA_SIZE=%s' "$OTA"
+            sha256sum "$APP" | awk '{print "APPLICATION_SHA256=" $1}'
+            sha256sum "$OTA" | awk '{print "OTADATA_SHA256=" $1}'
+          } | tee "$GITHUB_WORKSPACE/boardb-artifact/MANIFEST.txt"
+
+      - name: Upload exact-source Board B artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: n3w-pr437-option-b-boardb-exact-source
+          path: boardb-artifact/
+          if-no-files-found: error
+          retention-days: 7
