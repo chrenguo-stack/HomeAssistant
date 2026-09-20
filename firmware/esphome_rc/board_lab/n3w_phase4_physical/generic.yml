@@ -104,6 +104,10 @@ interval:
           // Lab-only compact arrays keep the full worst-case payload below the
           // 1024-byte encrypted Relay plaintext ceiling.
           //
+          // wdt_breadcrumb v1 indexes:
+          //  1 valid, 2 stage, 3 stage_name, 4 arg0, 5 arg1,
+          //  6 uptime_ms, 7 marker_sequence.
+          //
           // n3w_l v1 indexes:
           //  1 wifi_down_ms, 2 mqtt_down_ms, 3 direct_fail_first_ms,
           //  4 direct_fail_count, 5 discovery_enter_ms, 6 first_scan_ms,
@@ -133,25 +137,26 @@ interval:
               ",\"cap_hash\":\"phase4lab\",\"fw_version\":\"phase4-simple\"," +
               "\"reset_reason_raw\":" +
               std::to_string(id(n3w_phase4_core).reset_reason_raw()) +
-              ",\"wdt_breadcrumb\":{" +
-              "\"valid\":" +
+              ",\"reset_reason\":\"" +
+              std::string(id(n3w_phase4_core).reset_reason_name()) +
+              "\",\"wdt_breadcrumb\":[1," +
               std::string(id(n3w_phase4_core).previous_rtc_breadcrumb_valid()
                               ? "true"
                               : "false") +
-              ",\"stage\":" +
+              "," +
               std::to_string(id(n3w_phase4_core).previous_rtc_breadcrumb_stage()) +
-              ",\"stage_name\":\"" +
+              ",\"" +
               std::string(id(n3w_phase4_core).previous_rtc_breadcrumb_stage_name()) +
-              "\",\"arg0\":" +
+              "\"," +
               std::to_string(id(n3w_phase4_core).previous_rtc_breadcrumb_arg0()) +
-              ",\"arg1\":" +
+              "," +
               std::to_string(id(n3w_phase4_core).previous_rtc_breadcrumb_arg1()) +
-              ",\"uptime_ms\":" +
+              "," +
               std::to_string(id(n3w_phase4_core).previous_rtc_breadcrumb_uptime_ms()) +
-              ",\"marker_sequence\":" +
+              "," +
               std::to_string(
                   id(n3w_phase4_core).previous_rtc_breadcrumb_marker_sequence()) +
-              "},\"n3w_l\":[1," +
+              "],\"n3w_l\":[1," +
               std::to_string(latency.wifi_down_ms) + "," +
               std::to_string(latency.mqtt_down_ms) + "," +
               std::to_string(latency.direct_fail_first_ms) + "," +
