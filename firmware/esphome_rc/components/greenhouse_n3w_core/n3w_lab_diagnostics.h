@@ -120,18 +120,25 @@ class N3wLabDiagnostics final : public SimpleProductDiagnosticSink {
 
     uint32_t presence_probe_count{0};
     uint32_t presence_probe_found_count{0};
+    uint8_t presence_probe_last_result{0xffU};
     uint64_t presence_probe_last_start_ms{0};
     uint32_t presence_probe_last_duration_ms{0};
     uint32_t full_verify_count{0};
     uint64_t full_verify_last_start_ms{0};
     uint8_t full_verify_last_trigger{0};
     uint8_t full_verify_last_terminal_reason{0};
+    uint8_t relay_restore_last_cause{0};
+    uint8_t relay_restore_last_result{0};
     uint32_t recovery_probe_deferral_count{0};
     uint8_t recovery_probe_last_deferral_reason{0};
     uint64_t next_presence_probe_ms{0};
     uint64_t next_full_verify_ms{0};
     uint8_t full_verify_queue_depth_start{0};
     uint8_t full_verify_queue_depth_end{0};
+    uint32_t full_verify_queue_dropped_start{0};
+    uint32_t full_verify_queue_dropped_end{0};
+    uint32_t full_verify_attempt_failed_dropped_start{0};
+    uint32_t full_verify_attempt_failed_dropped_end{0};
   };
 
   void set_enabled(bool enabled) { enabled_ = enabled; }
@@ -218,13 +225,16 @@ class N3wLabDiagnostics final : public SimpleProductDiagnosticSink {
         latency_.presence_probe_found_count < 0xffffffffU) {
       ++latency_.presence_probe_found_count;
     }
+    latency_.presence_probe_last_result = result;
     latency_.presence_probe_last_start_ms = start_ms;
     latency_.presence_probe_last_duration_ms = duration_ms;
   }
   void note_full_verify_start(
       uint8_t trigger,
       uint64_t now_ms,
-      uint8_t queue_depth) {
+      uint8_t queue_depth,
+      uint32_t queue_dropped,
+      uint32_t attempt_failed_dropped) {
     if (!enabled_ || !boot_session_started_) return;
     if (latency_.full_verify_count < 0xffffffffU) {
       ++latency_.full_verify_count;
@@ -232,13 +242,28 @@ class N3wLabDiagnostics final : public SimpleProductDiagnosticSink {
     latency_.full_verify_last_start_ms = now_ms;
     latency_.full_verify_last_trigger = trigger;
     latency_.full_verify_queue_depth_start = queue_depth;
+    latency_.full_verify_queue_dropped_start = queue_dropped;
+    latency_.full_verify_attempt_failed_dropped_start =
+        attempt_failed_dropped;
   }
   void note_full_verify_terminal(
       uint8_t terminal_reason,
-      uint8_t queue_depth) {
+      uint8_t queue_depth,
+      uint32_t queue_dropped,
+      uint32_t attempt_failed_dropped) {
     if (!enabled_ || !boot_session_started_) return;
     latency_.full_verify_last_terminal_reason = terminal_reason;
     latency_.full_verify_queue_depth_end = queue_depth;
+    latency_.full_verify_queue_dropped_end = queue_dropped;
+    latency_.full_verify_attempt_failed_dropped_end =
+        attempt_failed_dropped;
+  }
+  // Relay restore result: 0=started/none, 1=success, 2=retrying after
+  // concrete restore failure, 3=restore budget exhausted.
+  void note_relay_restore(uint8_t cause, uint8_t result) {
+    if (!enabled_ || !boot_session_started_) return;
+    latency_.relay_restore_last_cause = cause;
+    latency_.relay_restore_last_result = result;
   }
   void note_recovery_probe_deferral(uint8_t reason) {
     if (!enabled_ || !boot_session_started_) return;
