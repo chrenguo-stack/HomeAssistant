@@ -110,7 +110,7 @@ def test_recovery_probe_checks_ap_presence_and_buffers_business_telemetry() -> N
         "bool SimpleProductComponent::read_local_mac_()", telemetry_start
     )
     telemetry = source[telemetry_start:telemetry_end]
-    assert "TelemetrySubmitDisposition::SUBMITTED" in telemetry
+    assert "front_result" in telemetry
     assert "TelemetrySubmitDisposition::BUFFERED" in telemetry
     assert "TelemetrySubmitDisposition::REJECTED" in telemetry
     assert "enqueue_telemetry_" in telemetry
