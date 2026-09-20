@@ -60,25 +60,25 @@ def preflight_payload(
 
 
 def test_pr437_artifact_binding_is_exact() -> None:
-    assert module.PRODUCT_SOURCE == "ea77b3570325c45cebde6359e173b7bab98ef35d"
-    assert module.PRODUCT_TREE == "36b143342caa4797987f724b5bf652151ad11d05"
-    assert module.WORKFLOW_TRIGGER_SHA == "3634fd90845e286e8f1a963cc584cc1aa1a49225"
-    assert module.WORKFLOW_RUN_ID == 35484257650
-    assert module.ARTIFACT_ID == 10597282494
-    assert module.ARTIFACT_NAME == "n3w-pr437-option-b-boardb-exact-source"
-    assert module.ARTIFACT_ZIP_SIZE == 728434
-    assert module.ARTIFACT_ZIP_SHA256 == "512b62c8f65dd3593dd4e6264b04c3243436c8b3ad2b7384243734a0cf2f1648"
-    assert module.APPLICATION_SIZE == 1141680
-    assert module.APPLICATION_SHA256 == "6c473d3a42a4f78c4b6806de0fb7ed036f332c43ce7a94c2f830a496582a3fdc"
+    assert module.PRODUCT_SOURCE == "b289041d1b9a1cb493feb674a57c50660301a69a"
+    assert module.PRODUCT_TREE == "20753f5ccadba60383b88f4bee68b40cc4ff565e"
+    assert module.WORKFLOW_TRIGGER_SHA == "b1bccda2f6b0528da165c1599099dbabe3211b1a"
+    assert module.WORKFLOW_RUN_ID == 35494924449
+    assert module.ARTIFACT_ID == 10599444353
+    assert module.ARTIFACT_NAME == "n3w-pr437-b289041-boardb-exact-source"
+    assert module.ARTIFACT_ZIP_SIZE == 728511
+    assert module.ARTIFACT_ZIP_SHA256 == "6ee0533a27f7d5881f940f55a865d2a66467054f6b0a30d08806c79bdad63c29"
+    assert module.APPLICATION_SIZE == 1141856
+    assert module.APPLICATION_SHA256 == "d035de81b810bd38eda702b9bca94c32e05df967f5932d2c191847646906c907"
     assert module.OTADATA_SIZE == 8192
     assert module.OTADATA_SHA256 == "7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f"
     assert module.MANIFEST_SIZE == 575
-    assert module.MANIFEST_SHA256 == "2991c56262895ef50c55a809b48271ff28854a7997848bb7ab962dc055e3262f"
+    assert module.MANIFEST_SHA256 == "d1a1c892d2929e928d4cfdcee1d87df6cf8324089d22abd9c382a64deb1848cf"
     assert module.PARTITION_TABLE_OFFSET == 0x8000
     assert module.PARTITION_TABLE_SIZE == 0xC00
     assert module.PARTITION_TABLE_SHA256 == "6664b08a14a9cdc170e322823db29fbe485d87db9c4ec42759d9372028953dca"
     assert module.EXPECTED_HARDWARE_ID_SHA256 == "3603345fb73de6f9286dc66db9f246ff73c42382b553af63b8d5813a933b69ee"
-    assert module.WRITE_CONFIRMATION == "PR437_OPTION_B_BOARD_B_WRITE_AUTHORIZED"
+    assert module.WRITE_CONFIRMATION == "PR437_B289041_BOARD_B_WRITE_AUTHORIZED"
 
 
 def test_hardware_id_derivation_matches_product_contract() -> None:
