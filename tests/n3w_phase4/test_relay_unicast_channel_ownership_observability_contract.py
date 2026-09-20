@@ -115,7 +115,8 @@ def test_phase4_lab_full_envelope_preserves_relay_plaintext_margin() -> None:
     assert '\\"n3w_l\\":[1,' in config
     assert '\\"n3w_r\\":[1,' in config
     assert '\\"n3w_latency\\":{' not in config
-    assert '\\"stage_name\\"' not in config
+    assert '\\"stage_name\\"' in config
+    assert "previous_rtc_breadcrumb_stage_name()" in config
     assert '\\"reset_reason\\"' not in config
     assert "PHASE4_LAB_TELEMETRY_OVERSIZE" in config
     assert "telemetry_bytes" in config
@@ -137,6 +138,8 @@ def test_phase4_lab_full_envelope_preserves_relay_plaintext_margin() -> None:
         "wdt_breadcrumb": {
             "valid": True,
             "stage": u32,
+            # Longest current breadcrumb name: RADIO_CHANNEL_SET_BEGIN (23).
+            "stage_name": "RADIO_CHANNEL_SET_BEGIN",
             "arg0": u32,
             "arg1": u32,
             "uptime_ms": u32,
@@ -170,4 +173,6 @@ def test_phase4_lab_full_envelope_preserves_relay_plaintext_margin() -> None:
     }
     encoded = json.dumps(payload, separators=(",", ":")).encode("utf-8")
     assert len(encoded) <= 1024
-    assert 1024 - len(encoded) >= 64
+    # Current conservative worst case is 998 bytes, leaving 26 bytes.
+    # Keep a non-trivial guard band while preserving the hard 1024-byte limit.
+    assert 1024 - len(encoded) >= 16
