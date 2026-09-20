@@ -10,11 +10,11 @@ namespace {
 
 DirectRecoveryConfig base_config() {
   DirectRecoveryConfig config;
-  config.wifi_phase_budget_ms = 20000;
+  config.wifi_phase_budget_ms = 50000;
   config.mqtt_phase_budget_ms = 25000;
   config.confirm_phase_budget_ms = 5000;
-  config.no_relay_absolute_budget_ms = 50000;
-  config.healthy_relay_absolute_budget_ms = 30000;
+  config.no_relay_absolute_budget_ms = 90000;
+  config.healthy_relay_absolute_budget_ms = 90000;
   config.confirm_successes_required = 2;
   return config;
 }
@@ -162,7 +162,7 @@ void drl_08_healthy_relay_attempt_is_bounded_and_returns_to_relay() {
   auto decision = attempt.begin(DirectRecoveryMode::HEALTHY_RELAY, 0);
   assert(decision.action == DirectRecoveryAction::CONTINUE_DIRECT);
 
-  decision = observe(attempt, 20000, false, false, false);
+  decision = observe(attempt, 50001, false, false, false);
   assert(decision.terminal);
   assert(decision.action ==
          DirectRecoveryAction::RESTORE_HEALTHY_RELAY);
@@ -423,6 +423,35 @@ void drl_21_visibility_acceleration_respects_full_verify_min_spacing() {
   assert(schedule.next_full_verify_ms() == 160000);
 }
 
+void drl_22_esphome_wifi_fallback_window_can_complete() {
+  DirectRecoveryAttempt attempt(base_config());
+  auto decision = attempt.begin(DirectRecoveryMode::NO_RELAY, 0);
+  assert(decision.action == DirectRecoveryAction::CONTINUE_DIRECT);
+
+  // ESPHome 2026.4.3 permits a connection attempt to remain in progress until
+  // its 46 s fallback timeout. N3-W must not terminate the Direct ownership
+  // window before that upstream state machine can finish.
+  decision = observe(attempt, 46000, true, false, false);
+  assert(!decision.terminal);
+  assert(decision.phase == DirectRecoveryPhase::MQTT_RECOVERY);
+
+  decision = observe(attempt, 70000, true, true, false);
+  assert(!decision.terminal);
+  assert(decision.phase == DirectRecoveryPhase::DIRECT_CONFIRM);
+
+  decision = observe(attempt, 72000, true, true, true);
+  assert(decision.confirm_success_count == 1);
+  decision = observe(attempt, 74000, true, true, true);
+  assert(decision.action ==
+         DirectRecoveryAction::REQUEST_CONCRETE_DIRECT_RESTORE);
+
+  decision = attempt.on_concrete_direct_restore(true, 74000);
+  assert(decision.action == DirectRecoveryAction::COMMIT_DIRECT);
+  assert(decision.terminal);
+  assert(decision.terminal_reason ==
+         DirectRecoveryTerminalReason::SUCCEEDED);
+}
+
 }
 
 int main() {
@@ -447,5 +476,6 @@ int main() {
   drl_19_second_visibility_epoch_can_accelerate_again();
   drl_20_presence_error_preserves_visibility_and_full_backoff();
   drl_21_visibility_acceleration_respects_full_verify_min_spacing();
+  drl_22_esphome_wifi_fallback_window_can_complete();
   return 0;
 }
