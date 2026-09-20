@@ -381,6 +381,43 @@ def test_transition_telemetry_hold_buffer_preserves_only_not_yet_attempted_sampl
     assert "transient failure retained" not in flush
 
 
+def test_direct_no_mqtt_path_health_precedes_hold_buffer_admission() -> None:
+    source = text("n3w_simple_product_component.cpp")
+
+    submit_start = source.index(
+        "TelemetrySubmitDisposition SimpleProductComponent::submit_telemetry_json("
+    )
+    submit_end = source.index(
+        "bool SimpleProductComponent::send_telemetry_json(", submit_start
+    )
+    submit = source[submit_start:submit_end]
+
+    direct_gate = submit.index(
+        "runtime_.path_state() == LocalPathState::DIRECT && !mqtt_connected()"
+    )
+    path_accounting = submit.index(
+        "runtime_.note_direct_result(false)", direct_gate
+    )
+    enqueue = submit.index("enqueue_telemetry_(", path_accounting)
+    transport_only = submit.index(
+        "TelemetryPathAccounting::TRANSPORT_ONLY", enqueue
+    )
+    record_path = submit.index(
+        "TelemetryPathAccounting::RECORD_PATH_RESULT", transport_only
+    )
+    flush = submit.index("flush_telemetry_queue_(front_accounting)", record_path)
+
+    # The new business sample must advance Direct-failure hysteresis before
+    # queue admission can fail. This prevents a full hold FIFO from pinning
+    # the logical path in DIRECT forever.
+    assert direct_gate < path_accounting < enqueue
+
+    # DIRECT/no-MQTT was already counted once for this business sample; the
+    # subsequent queue operation must be transport-only to avoid double count.
+    assert enqueue < transport_only < record_path < flush
+    assert "telemetry Direct admission path-state failure" in submit
+
+
 def test_transition_telemetry_queue_preserves_oldest_on_overflow() -> None:
     source = text("n3w_simple_product_component.cpp")
     start = source.index("bool SimpleProductComponent::enqueue_telemetry_(")

@@ -229,16 +229,38 @@ TelemetrySubmitDisposition SimpleProductComponent::submit_telemetry_json(
     return TelemetrySubmitDisposition::REJECTED;
   }
 
+  // Path-health accounting belongs to the newly generated business sample,
+  // not to backlog transport polling. In particular, DIRECT without MQTT is
+  // not a transport attempt, but each new sample must still advance the
+  // Direct-failure hysteresis even when the hold FIFO is already full or a
+  // TRANSPORT_ONLY poll recently advanced the queue cooldown.
+  const bool direct_without_mqtt =
+      runtime_.path_state() == LocalPathState::DIRECT && !mqtt_connected();
+  if (direct_without_mqtt) {
+    const SimpleProductError state_result = runtime_.note_direct_result(false);
+    if (state_result != SimpleProductError::NONE &&
+        state_result != SimpleProductError::RADIO_FAILED) {
+      ++telemetry_invariant_failures_;
+      request_safe_reboot_("telemetry Direct admission path-state failure");
+      return TelemetrySubmitDisposition::REJECTED;
+    }
+  }
+
   const bool queue_was_empty = telemetry_queue_.empty();
   if (!enqueue_telemetry_(telemetry_json, boot_id, seq)) {
     return TelemetrySubmitDisposition::REJECTED;
   }
 
   // Option B: the queue owns telemetry only while it has not yet received a
-  // real transport opportunity. A new business sample may contribute one
-  // path-health observation; loop-driven backlog drain is TRANSPORT_ONLY.
+  // real transport opportunity. DIRECT/no-MQTT was already accounted exactly
+  // once above; backlog draining must remain TRANSPORT_ONLY so the held front
+  // sample cannot double-count the same business-cadence failure.
+  const TelemetryPathAccounting front_accounting =
+      direct_without_mqtt
+          ? TelemetryPathAccounting::TRANSPORT_ONLY
+          : TelemetryPathAccounting::RECORD_PATH_RESULT;
   const TelemetrySubmitDisposition front_result =
-      flush_telemetry_queue_(TelemetryPathAccounting::RECORD_PATH_RESULT);
+      flush_telemetry_queue_(front_accounting);
 
   // When older telemetry already owned the FIFO, this new sample is still
   // buffered regardless of the older front item's one-attempt outcome.
