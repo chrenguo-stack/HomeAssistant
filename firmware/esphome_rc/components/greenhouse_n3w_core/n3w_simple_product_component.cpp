@@ -234,9 +234,10 @@ TelemetrySubmitDisposition SimpleProductComponent::submit_telemetry_json(
   // not a transport attempt, but each new sample must still advance the
   // Direct-failure hysteresis even when the hold FIFO is already full or a
   // TRANSPORT_ONLY poll recently advanced the queue cooldown.
-  const bool direct_without_mqtt =
-      runtime_.path_state() == LocalPathState::DIRECT && !mqtt_connected();
-  if (direct_without_mqtt) {
+  const TelemetryAdmissionPlan admission_plan =
+      plan_business_telemetry_admission(
+          runtime_.path_state(), mqtt_connected());
+  if (admission_plan.record_direct_unavailable) {
     const SimpleProductError state_result = runtime_.note_direct_result(false);
     if (state_result != SimpleProductError::NONE &&
         state_result != SimpleProductError::RADIO_FAILED) {
@@ -256,9 +257,7 @@ TelemetrySubmitDisposition SimpleProductComponent::submit_telemetry_json(
   // once above; backlog draining must remain TRANSPORT_ONLY so the held front
   // sample cannot double-count the same business-cadence failure.
   const TelemetryPathAccounting front_accounting =
-      direct_without_mqtt
-          ? TelemetryPathAccounting::TRANSPORT_ONLY
-          : TelemetryPathAccounting::RECORD_PATH_RESULT;
+      admission_plan.front_accounting;
   const TelemetrySubmitDisposition front_result =
       flush_telemetry_queue_(front_accounting);
 

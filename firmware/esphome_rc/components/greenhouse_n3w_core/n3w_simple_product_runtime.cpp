@@ -24,6 +24,19 @@ bool SimpleProductRelayPeer::valid() const {
              lmk.begin(), lmk.end(), [](uint8_t value) { return value != 0; });
 }
 
+TelemetryAdmissionPlan plan_business_telemetry_admission(
+    LocalPathState path_state,
+    bool direct_mqtt_available) {
+  const bool record_direct_unavailable =
+      path_state == LocalPathState::DIRECT && !direct_mqtt_available;
+  return TelemetryAdmissionPlan{
+      record_direct_unavailable,
+      record_direct_unavailable
+          ? TelemetryPathAccounting::TRANSPORT_ONLY
+          : TelemetryPathAccounting::RECORD_PATH_RESULT,
+  };
+}
+
 SimpleProductRuntime::SimpleProductRuntime(
     SimpleProductPort *port,
     SimpleProductClock *clock,
@@ -157,6 +170,12 @@ SimpleProductError SimpleProductRuntime::note_direct_result(bool success) {
   const LocalPathState before = path_.state();
   const RadioError result = path_.note_direct_result(success);
   if (result != RadioError::NONE) return SimpleProductError::STATE_REJECTED;
+  // This diagnostic follows the logical Direct path-health observation, not
+  // merely MQTT publish calls. A new business sample with no MQTT opportunity
+  // therefore advances the same physical timing oracle exactly once.
+  if (diagnostic_sink_ != nullptr) {
+    diagnostic_sink_->on_direct_path_result(success, clock_->now_ms());
+  }
   if (before != path_.state() &&
       path_.state() == LocalPathState::DISCOVERY) {
     if (diagnostic_sink_ != nullptr) {
@@ -323,9 +342,6 @@ SimpleProductError SimpleProductRuntime::send_telemetry(
         "gh/v1/" + state_.system_id + "/ingress/node/" + state_.node_id +
         "/telemetry";
     const bool success = port_->publish_direct(topic, telemetry_json);
-    if (diagnostic_sink_ != nullptr) {
-      diagnostic_sink_->on_direct_publish_result(success, clock_->now_ms());
-    }
     if (accounting == TelemetryPathAccounting::RECORD_PATH_RESULT) {
       const SimpleProductError state_result = note_direct_result(success);
       if (state_result != SimpleProductError::NONE) return state_result;

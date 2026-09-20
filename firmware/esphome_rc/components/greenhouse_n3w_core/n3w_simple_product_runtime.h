@@ -29,6 +29,16 @@ enum class TelemetryPathAccounting : uint8_t {
   TRANSPORT_ONLY,
 };
 
+struct TelemetryAdmissionPlan {
+  bool record_direct_unavailable{false};
+  TelemetryPathAccounting front_accounting{
+      TelemetryPathAccounting::RECORD_PATH_RESULT};
+};
+
+TelemetryAdmissionPlan plan_business_telemetry_admission(
+    LocalPathState path_state,
+    bool direct_mqtt_available);
+
 enum class SimpleProductStartMode : uint8_t {
   DIRECT = 0,
   DISCOVERY,
@@ -124,7 +134,7 @@ class SimpleProductDiagnosticSink {
       uint8_t observed,
       int32_t raw_error,
       uint64_t now_ms) = 0;
-  virtual void on_direct_publish_result(bool success, uint64_t now_ms) {
+  virtual void on_direct_path_result(bool success, uint64_t now_ms) {
     (void) success;
     (void) now_ms;
   }

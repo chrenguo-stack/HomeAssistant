@@ -93,9 +93,9 @@ int main(int argc, char **argv) {
   latency.observe_connectivity(false, false, 2500);
 
   SimpleProductDiagnosticSink *latency_sink = &latency;
-  latency_sink->on_direct_publish_result(false, 3000);
-  latency_sink->on_direct_publish_result(false, 3500);
-  latency_sink->on_direct_publish_result(false, 4000);
+  latency_sink->on_direct_path_result(false, 3000);
+  latency_sink->on_direct_path_result(false, 3500);
+  latency_sink->on_direct_path_result(false, 4000);
 
   latency_sink->on_discovery_enter(4000);
   latency.on_scan_attempt(1, 4010);

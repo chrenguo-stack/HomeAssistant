@@ -94,6 +94,8 @@ struct RecordingDiagnosticSink final : SimpleProductDiagnosticSink {
   uint32_t advertisement_attempts{0};
   uint32_t advertisement_successes{0};
   uint32_t advertisement_failures{0};
+  uint32_t direct_path_successes{0};
+  uint32_t direct_path_failures{0};
   uint32_t compact_rx{0};
   uint32_t compact_state_reject{0};
   uint32_t compact_child_binding_failure{0};
@@ -106,6 +108,13 @@ struct RecordingDiagnosticSink final : SimpleProductDiagnosticSink {
   void on_runtime_start(uint8_t, uint8_t) override {}
   void on_scan_attempt(uint8_t, uint64_t) override {}
   void on_scan_result(uint8_t, bool, uint8_t, int32_t, uint64_t) override {}
+  void on_direct_path_result(bool success, uint64_t) override {
+    if (success) {
+      ++direct_path_successes;
+    } else {
+      ++direct_path_failures;
+    }
+  }
   void on_discovery_rx(bool, uint64_t) override {}
   void on_challenge_tx(bool, uint64_t) override {}
   void on_challenge_rx(bool, uint64_t) override {}
@@ -562,6 +571,71 @@ int main() {
           result == SimpleProductError::NONE);
     }
     assert(accounting_runtime.path_state() == LocalPathState::DISCOVERY);
+  }
+
+  // Regression for PR #437 / physical failure evidence 5747743275.
+  // Model the transition hold FIFO as already full. TRANSPORT_ONLY backlog
+  // work must not advance hysteresis, while each new Direct/no-MQTT business
+  // sample must advance it before queue admission can reject the newest item.
+  {
+    FakeClock liveness_clock;
+    FakeRandom liveness_random;
+    FakePort liveness_port;
+    RecordingDiagnosticSink liveness_sink;
+    SimpleProductRuntime liveness_runtime(
+        &liveness_port, &liveness_clock, &liveness_random);
+    liveness_runtime.set_diagnostic_sink(&liveness_sink);
+    assert(
+        liveness_runtime.start(
+            make_state("node_full_buffer_liveness", 0x55),
+            MacAddress{0x02, 0x00, 0x00, 0x00, 0x00, 0x55},
+            11,
+            SimpleProductStartMode::DIRECT) == SimpleProductError::NONE);
+
+    constexpr std::size_t simulated_hold_capacity = 24;
+    std::size_t simulated_hold_depth = simulated_hold_capacity;
+    liveness_port.direct_success = false;
+    const std::string json =
+        R"({"schema":"gh.telemetry/1","seq":100})";
+
+    for (uint32_t sample = 0; sample < 3; ++sample) {
+      // Background queue service is transport-only. Even repeated failed
+      // transport polls cannot compress the three-business-sample threshold.
+      for (uint32_t poll = 0; poll < 5; ++poll) {
+        assert(
+            liveness_runtime.send_telemetry(
+                json,
+                "boot_0000000000000001",
+                100 + (sample * 10) + poll,
+                TelemetryPathAccounting::TRANSPORT_ONLY) ==
+            SimpleProductError::MQTT_FAILED);
+        assert(liveness_runtime.path_state() == LocalPathState::DIRECT);
+      }
+
+      const TelemetryAdmissionPlan plan =
+          plan_business_telemetry_admission(
+              liveness_runtime.path_state(), false);
+      assert(plan.record_direct_unavailable);
+      assert(
+          plan.front_accounting ==
+          TelemetryPathAccounting::TRANSPORT_ONLY);
+
+      // The queue is intentionally full: admission would reject newest, but
+      // path health is recorded before that capacity decision in the component.
+      assert(simulated_hold_depth == simulated_hold_capacity);
+      assert(
+          liveness_runtime.note_direct_result(false) ==
+          SimpleProductError::NONE);
+      assert(simulated_hold_depth == simulated_hold_capacity);
+
+      if (sample < 2) {
+        assert(liveness_runtime.path_state() == LocalPathState::DIRECT);
+      }
+    }
+
+    assert(liveness_runtime.path_state() == LocalPathState::DISCOVERY);
+    assert(liveness_sink.direct_path_failures == 3);
+    assert(liveness_sink.direct_path_successes == 0);
   }
 
   return 0;

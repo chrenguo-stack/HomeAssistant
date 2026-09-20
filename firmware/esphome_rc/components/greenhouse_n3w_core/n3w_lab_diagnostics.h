@@ -132,6 +132,9 @@ class N3wLabDiagnostics final : public SimpleProductDiagnosticSink {
       bool wifi_connected,
       bool mqtt_connected,
       uint64_t now_ms);
+  // Legacy storage method name; these counters now represent logical Direct
+  // path-health observations that participate in failover hysteresis,
+  // including a new business sample with no MQTT transport opportunity.
   void note_direct_publish_result(bool success, uint64_t now_ms);
   void note_discovery_enter(uint64_t now_ms);
 
@@ -199,7 +202,7 @@ class N3wLabDiagnostics final : public SimpleProductDiagnosticSink {
       uint8_t observed,
       int32_t raw_error,
       uint64_t now_ms) override;
-  void on_direct_publish_result(bool success, uint64_t now_ms) override {
+  void on_direct_path_result(bool success, uint64_t now_ms) override {
     note_direct_publish_result(success, now_ms);
   }
   void on_discovery_enter(uint64_t now_ms) override {

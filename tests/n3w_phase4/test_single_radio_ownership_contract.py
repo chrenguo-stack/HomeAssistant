@@ -392,30 +392,41 @@ def test_direct_no_mqtt_path_health_precedes_hold_buffer_admission() -> None:
     )
     submit = source[submit_start:submit_end]
 
+    plan = submit.index("plan_business_telemetry_admission(")
     direct_gate = submit.index(
-        "runtime_.path_state() == LocalPathState::DIRECT && !mqtt_connected()"
+        "admission_plan.record_direct_unavailable", plan
     )
     path_accounting = submit.index(
         "runtime_.note_direct_result(false)", direct_gate
     )
     enqueue = submit.index("enqueue_telemetry_(", path_accounting)
-    transport_only = submit.index(
-        "TelemetryPathAccounting::TRANSPORT_ONLY", enqueue
+    front_accounting = submit.index(
+        "admission_plan.front_accounting", enqueue
     )
-    record_path = submit.index(
-        "TelemetryPathAccounting::RECORD_PATH_RESULT", transport_only
+    flush = submit.index(
+        "flush_telemetry_queue_(front_accounting)", front_accounting
     )
-    flush = submit.index("flush_telemetry_queue_(front_accounting)", record_path)
 
-    # The new business sample must advance Direct-failure hysteresis before
-    # queue admission can fail. This prevents a full hold FIFO from pinning
-    # the logical path in DIRECT forever.
-    assert direct_gate < path_accounting < enqueue
+    # The production admission policy is evaluated and the new business sample
+    # advances Direct-failure hysteresis before queue capacity can reject it.
+    assert plan < direct_gate < path_accounting < enqueue
 
-    # DIRECT/no-MQTT was already counted once for this business sample; the
-    # subsequent queue operation must be transport-only to avoid double count.
-    assert enqueue < transport_only < record_path < flush
+    # DIRECT/no-MQTT already records path health before admission; queue service
+    # consumes the production plan's TRANSPORT_ONLY accounting and cannot
+    # double-count the same business-cadence failure.
+    assert enqueue < front_accounting < flush
     assert "telemetry Direct admission path-state failure" in submit
+
+
+def test_business_admission_policy_is_production_runtime_code() -> None:
+    runtime_h = text("n3w_simple_product_runtime.h")
+    runtime = text("n3w_simple_product_runtime.cpp")
+
+    assert "struct TelemetryAdmissionPlan" in runtime_h
+    assert "plan_business_telemetry_admission(" in runtime_h
+    assert "plan_business_telemetry_admission(" in runtime
+    assert "record_direct_unavailable" in runtime
+    assert "TelemetryPathAccounting::TRANSPORT_ONLY" in runtime
 
 
 def test_transition_telemetry_queue_preserves_oldest_on_overflow() -> None:
