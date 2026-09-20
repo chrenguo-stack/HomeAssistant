@@ -77,6 +77,7 @@ def test_pr437_artifact_binding_is_exact() -> None:
     assert module.PARTITION_TABLE_OFFSET == 0x8000
     assert module.PARTITION_TABLE_SIZE == 0xC00
     assert module.PARTITION_TABLE_SHA256 == "6664b08a14a9cdc170e322823db29fbe485d87db9c4ec42759d9372028953dca"
+    assert module.EXPECTED_HARDWARE_ID_SHA256 == "3603345fb73de6f9286dc66db9f246ff73c42382b553af63b8d5813a933b69ee"
     assert module.WRITE_CONFIRMATION == "PR437_OPTION_B_BOARD_B_WRITE_AUTHORIZED"
 
 
