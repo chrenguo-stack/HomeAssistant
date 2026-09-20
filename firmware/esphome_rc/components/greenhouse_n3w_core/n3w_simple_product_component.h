@@ -254,18 +254,18 @@ class SimpleProductComponent : public Component,
   static constexpr uint32_t kDirectPresenceProbeIntervalMs = 60000;
   static constexpr uint32_t kDirectFullVerifyMinSpacingMs = 60000;
   static constexpr uint32_t kDirectFullVerifyBacklogRetryMs = 100;
-  // ESPHome 2026.4.3 allows a Wi-Fi scan fallback of 31 s and a
-  // connection-attempt fallback of 46 s. A shorter N3-W ownership window can
-  // repeatedly disable Wi-Fi before ESPHome finishes a valid reconnect, so the
-  // Direct probe must outlive the upstream Wi-Fi fallback window.
-  static constexpr uint32_t kDirectRecoveryWifiBudgetMs = 50000;
+  // ESPHome 2026.4.3 can spend up to 31 s in scan fallback and then
+  // up to 46 s in a connection-attempt fallback. Keep enough NO_RELAY Wi-Fi
+  // ownership time for that sequential path plus loop/scheduler margin.
+  static constexpr uint32_t kDirectRecoveryWifiBudgetMs = 85000;
   static constexpr uint32_t kDirectRecoveryMqttBudgetMs = 25000;
   static constexpr uint32_t kDirectRecoveryConfirmBudgetMs = 5000;
-  // 50 s Wi-Fi + 25 s MQTT + 5 s confirm, plus 10 s scheduling/readback
-  // margin. At the 5 s business cadence this remains below the 24-sample hold
-  // buffer horizon.
-  static constexpr uint32_t kNoRelayDirectRecoveryAbsoluteMs = 90000;
-  static constexpr uint32_t kHealthyRelayDirectRecoveryAbsoluteMs = 90000;
+  // NO_RELAY has no working alternate transport, so allow the full upstream
+  // reconnect lifecycle to complete. HEALTHY_RELAY retains the pre-existing
+  // 30 s hard ownership ceiling so a failback probe cannot monopolize the
+  // single radio for a long interval while Relay is already carrying data.
+  static constexpr uint32_t kNoRelayDirectRecoveryAbsoluteMs = 120000;
+  static constexpr uint32_t kHealthyRelayDirectRecoveryAbsoluteMs = 30000;
   static constexpr uint8_t kDirectRecoveryConfirmSuccesses = 2;
   static constexpr uint8_t kDirectApHintScanErrorLimit = 3;
   static constexpr uint32_t kDirectPresenceProbeQuietGuardMs = 500;
