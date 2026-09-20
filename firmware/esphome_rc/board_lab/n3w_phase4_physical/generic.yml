@@ -140,7 +140,9 @@ interval:
                               : "false") +
               ",\"stage\":" +
               std::to_string(id(n3w_phase4_core).previous_rtc_breadcrumb_stage()) +
-              ",\"arg0\":" +
+              ",\"stage_name\":\"" +
+              std::string(id(n3w_phase4_core).previous_rtc_breadcrumb_stage_name()) +
+              "\",\"arg0\":" +
               std::to_string(id(n3w_phase4_core).previous_rtc_breadcrumb_arg0()) +
               ",\"arg1\":" +
               std::to_string(id(n3w_phase4_core).previous_rtc_breadcrumb_arg1()) +
