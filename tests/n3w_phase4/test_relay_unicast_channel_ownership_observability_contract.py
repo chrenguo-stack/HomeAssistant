@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -106,3 +107,67 @@ def test_physical_lab_telemetry_exports_bounded_compact_unicast_evidence() -> No
         '"fr":-2147483648,"fc":14,"fp":14,"sc":14,"sp":14}'
     )
     assert len(worst_case.encode("utf-8")) <= 104
+
+
+def test_phase4_lab_full_envelope_preserves_relay_plaintext_margin() -> None:
+    config = text(LAB / "generic.yml")
+
+    assert '\\"n3w_l\\":[1,' in config
+    assert '\\"n3w_r\\":[1,' in config
+    assert '\\"n3w_latency\\":{' not in config
+    assert '\\"stage_name\\"' not in config
+    assert '\\"reset_reason\\"' not in config
+    assert "PHASE4_LAB_TELEMETRY_OVERSIZE" in config
+    assert "telemetry_bytes" in config
+
+    # Mirror the lab-only compact layout with conservative maxima. NODE_ID is
+    # allowed up to 64 characters; millis()-derived times fit in 32 bits, while
+    # scheduled due times may extend by the 480 s recovery backoff.
+    u32 = 4294967295
+    due_max = u32 + 480000
+    payload = {
+        "schema": "gh.telemetry/1",
+        "node_id": "n" * 64,
+        "boot_id": "boot_ffffffffffffffff",
+        "seq": u32,
+        "uptime_ms": u32,
+        "cap_hash": "phase4lab",
+        "fw_version": "phase4-simple",
+        "reset_reason_raw": -2147483648,
+        "wdt_breadcrumb": {
+            "valid": True,
+            "stage": u32,
+            "arg0": u32,
+            "arg1": u32,
+            "uptime_ms": u32,
+            "marker_sequence": u32,
+        },
+        "n3w_l": [
+            1,
+            u32, u32, u32, u32, u32, u32, u32, u32, u32,
+            255, 255, -2147483648, -2147483648, u32, u32, u32,
+        ],
+        "n3w_u": {
+            "ok": u32,
+            "f": u32,
+            "fe": 255,
+            "fr": -2147483648,
+            "fc": 14,
+            "fp": 14,
+            "sc": 14,
+            "sp": 14,
+        },
+        "n3w_r": [
+            1,
+            u32, u32, 255, u32, u32, u32, u32, 255, 255, 255,
+            255, 255, u32, u32, u32, u32, u32, u32, 255,
+            due_max, due_max,
+        ],
+        "measurements": {},
+        "quality": {},
+        "power": {"source": "unknown", "low": False},
+        "phase4_lab": True,
+    }
+    encoded = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    assert len(encoded) <= 1024
+    assert 1024 - len(encoded) >= 64
