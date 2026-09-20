@@ -165,6 +165,19 @@ class SimpleProductComponent : public Component,
     RESTORE_FAILED,
   };
 
+  enum class DirectFullVerifyTrigger : uint8_t {
+    BACKOFF = 0,
+    AP_BECAME_VISIBLE,
+    NO_RELAY,
+    HINT_RELEASED,
+  };
+
+  enum class RelayRestoreCause : uint8_t {
+    NONE = 0,
+    PRESENCE_SCAN,
+    FULL_DIRECT_VERIFY,
+  };
+
   enum class PendingTelemetryState : uint8_t {
     QUEUED = 0,
     RELAY_IN_FLIGHT,
@@ -195,15 +208,17 @@ class SimpleProductComponent : public Component,
   void advance_pairing_();
   void advance_recovery_();
   bool claim_relay_radio_();
-  bool begin_direct_probe_();
+  bool begin_direct_probe_(DirectFullVerifyTrigger trigger);
   void begin_direct_probe_after_restore_exit_(uint64_t now_ms);
   bool prepare_direct_probe_radio_();
   void refresh_direct_ap_hint_();
   bool explicit_bssid_lock_active_() const;
-  void invalidate_direct_ap_hint_();
+  void release_direct_ap_hint_authority_();
   DirectPresenceProbeResult probe_direct_ap_presence_();
-  void schedule_recovery_probe_(bool increase_backoff);
-  void begin_relay_restore_(uint32_t initial_delay_ms = 0);
+  void schedule_full_direct_verify_(bool increase_backoff);
+  void begin_relay_restore_(
+      RelayRestoreCause cause,
+      uint32_t initial_delay_ms = 0);
   void advance_relay_restore_();
   void exit_relay_restore_failure_(uint64_t now_ms);
   bool restore_relay_radio_();
@@ -236,6 +251,9 @@ class SimpleProductComponent : public Component,
   static constexpr uint32_t kRecoveryProbeMs = 2000;
   static constexpr uint32_t kRecoveryProbeIntervalMs = 60000;
   static constexpr uint32_t kRecoveryProbeBackoffMaxMs = 480000;
+  static constexpr uint32_t kDirectPresenceProbeIntervalMs = 60000;
+  static constexpr uint32_t kDirectFullVerifyMinSpacingMs = 60000;
+  static constexpr uint32_t kDirectFullVerifyBacklogRetryMs = 100;
   static constexpr uint32_t kDirectRecoveryWifiBudgetMs = 20000;
   static constexpr uint32_t kDirectRecoveryMqttBudgetMs = 25000;
   static constexpr uint32_t kDirectRecoveryConfirmBudgetMs = 5000;
@@ -269,7 +287,6 @@ class SimpleProductComponent : public Component,
   uint64_t last_relay_telemetry_ms_{0};
   uint64_t last_radio_attempt_ms_{0};
   uint64_t runtime_start_grace_started_ms_{0};
-  uint32_t recovery_probe_backoff_ms_{kRecoveryProbeIntervalMs};
   uint32_t telemetry_queue_dropped_{0};
   uint32_t telemetry_attempt_failed_dropped_{0};
   uint32_t telemetry_completion_failures_{0};
@@ -282,9 +299,21 @@ class SimpleProductComponent : public Component,
   uint8_t direct_ap_channel_{0};
   DirectApHintLease direct_ap_hint_lease_{};
   DirectApHintPolicy direct_ap_hint_policy_;
+  RelayDirectRecoverySchedule recovery_schedule_{
+      RelayDirectRecoveryScheduleConfig{
+          kDirectPresenceProbeIntervalMs,
+          kRecoveryProbeIntervalMs,
+          kDirectFullVerifyMinSpacingMs,
+          kRecoveryProbeBackoffMaxMs,
+      }};
   DirectRecoveryAttempt direct_recovery_attempt_;
   PendingUnicastDeadline pending_unicast_deadline_{};
   RelayRestoreBudget relay_restore_budget_{};
+  RelayRestoreCause relay_restore_cause_{RelayRestoreCause::NONE};
+  DirectFullVerifyTrigger active_full_verify_trigger_{
+      DirectFullVerifyTrigger::BACKOFF};
+  bool pending_ap_visible_acceleration_{false};
+  bool pending_hint_release_acceleration_{false};
   ProvisionedPeerStateV2 peer_state_{};
   ProvisionedBrokerStateV2 broker_state_{};
   EspNowDriver radio_{};

@@ -349,6 +349,80 @@ void drl_16_hint_expiry_is_queryable_before_scan() {
   assert(hint.expired(300000));
 }
 
+
+void drl_17_relay_schedule_backoff_caps_and_visible_edge_accelerates() {
+  RelayDirectRecoverySchedule schedule(
+      RelayDirectRecoveryScheduleConfig{60000, 60000, 60000, 480000});
+  schedule.reset(0);
+  schedule.note_full_verify_start(60000);
+  schedule.note_full_verify_failure(70000, true);
+  assert(schedule.full_verify_backoff_ms() == 120000);
+  schedule.note_full_verify_start(190000);
+  schedule.note_full_verify_failure(200000, true);
+  assert(schedule.full_verify_backoff_ms() == 240000);
+  schedule.note_full_verify_start(440000);
+  schedule.note_full_verify_failure(450000, true);
+  assert(schedule.full_verify_backoff_ms() == 480000);
+  assert(schedule.next_full_verify_ms() == 930000);
+  assert(!schedule.note_presence(500000, false));
+  assert(schedule.note_presence(560000, true));
+  assert(schedule.next_full_verify_ms() == 560000);
+}
+
+void drl_18_continuously_visible_ap_does_not_retrigger_full_verify() {
+  RelayDirectRecoverySchedule schedule(
+      RelayDirectRecoveryScheduleConfig{60000, 60000, 60000, 480000});
+  schedule.reset(0);
+  assert(schedule.note_presence(60000, true));
+  schedule.note_full_verify_start(60000);
+  schedule.note_full_verify_failure(70000, true);
+  assert(schedule.next_full_verify_ms() == 190000);
+  assert(!schedule.note_presence(120000, true));
+  assert(schedule.next_full_verify_ms() == 190000);
+  assert(!schedule.note_presence(180000, true));
+  assert(schedule.next_full_verify_ms() == 190000);
+}
+
+void drl_19_second_visibility_epoch_can_accelerate_again() {
+  RelayDirectRecoverySchedule schedule(
+      RelayDirectRecoveryScheduleConfig{60000, 60000, 60000, 480000});
+  schedule.reset(0);
+  assert(schedule.note_presence(60000, true));
+  schedule.note_full_verify_start(60000);
+  schedule.note_full_verify_failure(70000, true);
+  assert(schedule.next_full_verify_ms() == 190000);
+  assert(!schedule.note_presence(120000, false));
+  assert(schedule.note_presence(180000, true));
+  assert(schedule.next_full_verify_ms() == 180000);
+}
+
+void drl_20_presence_error_preserves_visibility_and_full_backoff() {
+  RelayDirectRecoverySchedule schedule(
+      RelayDirectRecoveryScheduleConfig{60000, 60000, 60000, 480000});
+  schedule.reset(0);
+  assert(schedule.note_presence(60000, true));
+  schedule.note_full_verify_start(60000);
+  schedule.note_full_verify_failure(70000, true);
+  const uint64_t due = schedule.next_full_verify_ms();
+  schedule.note_presence_error(120000);
+  assert(schedule.presence_state() == RelayDirectPresenceState::VISIBLE);
+  assert(schedule.next_full_verify_ms() == due);
+  assert(!schedule.note_presence(180000, true));
+  assert(schedule.next_full_verify_ms() == due);
+}
+
+void drl_21_visibility_acceleration_respects_full_verify_min_spacing() {
+  RelayDirectRecoverySchedule schedule(
+      RelayDirectRecoveryScheduleConfig{60000, 60000, 60000, 480000});
+  schedule.reset(0);
+  schedule.note_full_verify_start(100000);
+  schedule.note_full_verify_failure(110000, true);
+  assert(schedule.next_full_verify_ms() == 230000);
+  assert(!schedule.note_presence(120000, false));
+  assert(schedule.note_presence(130000, true));
+  assert(schedule.next_full_verify_ms() == 160000);
+}
+
 }
 
 int main() {
@@ -368,5 +442,10 @@ int main() {
   drl_14_absolute_deadline_blocks_second_confirm();
   drl_15_restore_completion_after_absolute_deadline_cannot_commit();
   drl_16_hint_expiry_is_queryable_before_scan();
+  drl_17_relay_schedule_backoff_caps_and_visible_edge_accelerates();
+  drl_18_continuously_visible_ap_does_not_retrigger_full_verify();
+  drl_19_second_visibility_epoch_can_accelerate_again();
+  drl_20_presence_error_preserves_visibility_and_full_backoff();
+  drl_21_visibility_acceleration_respects_full_verify_min_spacing();
   return 0;
 }

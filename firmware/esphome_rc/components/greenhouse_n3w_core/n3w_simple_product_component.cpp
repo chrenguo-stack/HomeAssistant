@@ -482,11 +482,11 @@ bool SimpleProductComponent::start_runtime_if_ready_() {
   }
   runtime_.set_relay_capable(mqtt_connected());
   runtime_ready_ = true;
-  recovery_probe_backoff_ms_ = kRecoveryProbeIntervalMs;
-  next_recovery_probe_ms_ =
-      now + (start_mode == SimpleProductStartMode::DISCOVERY
-                 ? recovery_probe_backoff_ms_
-                 : kRecoveryProbeMs);
+  recovery_schedule_.reset(now);
+  diagnostics_.note_recovery_schedule(
+      recovery_schedule_.next_presence_ms(),
+      recovery_schedule_.next_full_verify_ms());
+  next_recovery_probe_ms_ = now + kRecoveryProbeMs;
   if (start_mode == SimpleProductStartMode::DIRECT) {
     refresh_direct_ap_hint_();
   }
@@ -533,9 +533,7 @@ void SimpleProductComponent::advance_pairing_() {
 }
 
 void SimpleProductComponent::advance_recovery_() {
-  if (!runtime_ready_ || runtime_.path_state() == LocalPathState::DIRECT) {
-    return;
-  }
+  if (!runtime_ready_ || runtime_.path_state() == LocalPathState::DIRECT) return;
   const uint64_t now = now_ms();
 
   if (radio_ownership_ == RadioOwnership::RELAY_RESTORE) {
@@ -544,62 +542,68 @@ void SimpleProductComponent::advance_recovery_() {
   }
 
   if (radio_ownership_ == RadioOwnership::RELAY_ESPNOW) {
-    bool internal_hint_expired = false;
     if (direct_ap_bssid_valid_ &&
         valid_radio_channel(direct_ap_channel_) &&
         direct_ap_hint_policy_.expired(now)) {
-      internal_hint_expired = true;
-      invalidate_direct_ap_hint_();
-      if (next_recovery_probe_ms_ > now) {
-        next_recovery_probe_ms_ = now;
-      }
-    }
-
-    if (direct_ap_hint_policy_.active()) {
-      const uint64_t expires_at = direct_ap_hint_policy_.expires_at_ms();
-      if (expires_at != 0 && next_recovery_probe_ms_ > expires_at) {
-        next_recovery_probe_ms_ = expires_at;
-      }
+      release_direct_ap_hint_authority_();
+      pending_hint_release_acceleration_ = true;
+      recovery_schedule_.request_full_verify(now);
+      recovery_schedule_.defer_presence(now, 0);
     }
 
     if (runtime_.challenge_pending()) return;
 
     if (runtime_.path_state() != LocalPathState::RELAY_ACTIVE &&
-        recovery_probe_backoff_ms_ > kRecoveryProbeIntervalMs) {
-      recovery_probe_backoff_ms_ = kRecoveryProbeIntervalMs;
-      const uint64_t accelerated = now + kRecoveryProbeIntervalMs;
-      if (next_recovery_probe_ms_ > accelerated) {
-        next_recovery_probe_ms_ = accelerated;
-      }
-    }
-    if (now < next_recovery_probe_ms_) return;
-
-    if (runtime_.path_state() == LocalPathState::RELAY_ACTIVE &&
-        last_relay_telemetry_ms_ != 0 &&
-        now - last_relay_telemetry_ms_ < kDirectPresenceProbeQuietGuardMs) {
-      next_recovery_probe_ms_ =
-          last_relay_telemetry_ms_ + kDirectPresenceProbeQuietGuardMs;
-      return;
+        recovery_schedule_.full_verify_backoff_ms() >
+            kRecoveryProbeIntervalMs) {
+      recovery_schedule_.accelerate_to_initial(now);
     }
 
-    if (radio_.pending_unicast_sends() != 0U) {
-      next_recovery_probe_ms_ = now + kPendingUnicastDrainRetryMs;
-      return;
-    }
-    drain_send_completions_();
-
-    if (internal_hint_expired) {
-      if (begin_direct_probe_()) {
+    if (direct_ap_bssid_valid_ &&
+        valid_radio_channel(direct_ap_channel_) &&
+        recovery_schedule_.presence_due(now)) {
+      if (runtime_.path_state() == LocalPathState::RELAY_ACTIVE &&
+          last_relay_telemetry_ms_ != 0 &&
+          now - last_relay_telemetry_ms_ <
+              kDirectPresenceProbeQuietGuardMs) {
+        recovery_schedule_.defer_presence(
+            now, kDirectPresenceProbeQuietGuardMs);
+        diagnostics_.note_recovery_probe_deferral(1U);
+        diagnostics_.note_recovery_schedule(
+            recovery_schedule_.next_presence_ms(),
+            recovery_schedule_.next_full_verify_ms());
         return;
       }
-      schedule_recovery_probe_(false);
-      return;
-    }
 
-    if (direct_ap_bssid_valid_ && valid_radio_channel(direct_ap_channel_)) {
-      const DirectPresenceProbeResult presence = probe_direct_ap_presence_();
+      if (radio_.pending_unicast_sends() != 0U) {
+        recovery_schedule_.defer_presence(
+            now, kPendingUnicastDrainRetryMs);
+        diagnostics_.note_recovery_probe_deferral(2U);
+        diagnostics_.note_recovery_schedule(
+            recovery_schedule_.next_presence_ms(),
+            recovery_schedule_.next_full_verify_ms());
+        return;
+      }
+      drain_send_completions_();
+
+      const uint64_t presence_started_ms = now_ms();
+      const DirectPresenceProbeResult presence =
+          probe_direct_ap_presence_();
+      const uint64_t presence_finished_ms = now_ms();
+      diagnostics_.note_presence_probe(
+          presence_started_ms,
+          static_cast<uint32_t>(
+              presence_finished_ms >= presence_started_ms
+                  ? presence_finished_ms - presence_started_ms
+                  : 0U),
+          static_cast<uint8_t>(presence));
+
       if (presence == DirectPresenceProbeResult::RESTORE_FAILED) {
-        begin_relay_restore_();
+        recovery_schedule_.note_presence_error(now);
+        diagnostics_.note_recovery_schedule(
+            recovery_schedule_.next_presence_ms(),
+            recovery_schedule_.next_full_verify_ms());
+        begin_relay_restore_(RelayRestoreCause::PRESENCE_SCAN);
         advance_relay_restore_();
         return;
       }
@@ -610,37 +614,116 @@ void SimpleProductComponent::advance_recovery_() {
       } else if (presence == DirectPresenceProbeResult::NOT_FOUND) {
         scan_result = DirectApScanResult::NOT_FOUND;
       }
-      const DirectApHintDecision hint_decision =
-          direct_ap_hint_policy_.assess(now, scan_result);
+
+      DirectApHintDecision hint_decision{};
+      const bool hint_was_active = direct_ap_hint_policy_.active();
+      if (hint_was_active) {
+        hint_decision =
+            direct_ap_hint_policy_.assess(now, scan_result);
+      }
 
       if (presence == DirectPresenceProbeResult::FOUND) {
         direct_ap_hint_lease_.note_found(now);
-        (void) begin_direct_probe_();
-        return;
-      }
-
-      if (presence == DirectPresenceProbeResult::NOT_FOUND) {
+        if (recovery_schedule_.note_presence(now, true)) {
+          pending_ap_visible_acceleration_ = true;
+        }
+      } else if (presence == DirectPresenceProbeResult::NOT_FOUND) {
         (void) direct_ap_hint_lease_.note_not_found(now);
+        (void) recovery_schedule_.note_presence(now, false);
+      } else {
+        recovery_schedule_.note_presence_error(now);
       }
 
-      if (hint_decision.allow_configured_full_direct) {
+      if (hint_was_active &&
+          hint_decision.allow_configured_full_direct) {
         ESP_LOGW(
             TAG,
-            "N3-W Direct AP hint released misses=%u scan_errors=%u locked=%s",
+            "N3-W Direct AP hint authority released misses=%u scan_errors=%u locked=%s; retaining scan locator",
             static_cast<unsigned>(hint_decision.misses),
             static_cast<unsigned>(hint_decision.scan_errors),
             hint_decision.explicit_bssid_lock_preserved ? "true" : "false");
-        invalidate_direct_ap_hint_();
-        if (begin_direct_probe_()) {
-          return;
-        }
+        release_direct_ap_hint_authority_();
+        pending_hint_release_acceleration_ = true;
+        recovery_schedule_.request_full_verify(now);
       }
 
-      schedule_recovery_probe_(true);
+      diagnostics_.note_recovery_schedule(
+          recovery_schedule_.next_presence_ms(),
+          recovery_schedule_.next_full_verify_ms());
+    }
+
+    const bool healthy_relay =
+        runtime_.path_state() == LocalPathState::RELAY_ACTIVE;
+    const bool locator_can_gate_full_verify =
+        healthy_relay &&
+        direct_ap_bssid_valid_ &&
+        valid_radio_channel(direct_ap_channel_) &&
+        direct_ap_hint_policy_.active();
+
+    if (locator_can_gate_full_verify &&
+        recovery_schedule_.presence_state() !=
+            RelayDirectPresenceState::VISIBLE &&
+        !pending_hint_release_acceleration_) {
       return;
     }
 
-    (void) begin_direct_probe_();
+    if (!recovery_schedule_.full_verify_due(now)) return;
+
+    if (healthy_relay &&
+        last_relay_telemetry_ms_ != 0 &&
+        now - last_relay_telemetry_ms_ <
+            kDirectPresenceProbeQuietGuardMs) {
+      recovery_schedule_.defer_full_verify(
+          now, kDirectPresenceProbeQuietGuardMs);
+      diagnostics_.note_recovery_probe_deferral(3U);
+      diagnostics_.note_recovery_schedule(
+          recovery_schedule_.next_presence_ms(),
+          recovery_schedule_.next_full_verify_ms());
+      return;
+    }
+
+    if (radio_.pending_unicast_sends() != 0U) {
+      recovery_schedule_.defer_full_verify(
+          now, kPendingUnicastDrainRetryMs);
+      diagnostics_.note_recovery_probe_deferral(4U);
+      diagnostics_.note_recovery_schedule(
+          recovery_schedule_.next_presence_ms(),
+          recovery_schedule_.next_full_verify_ms());
+      return;
+    }
+    drain_send_completions_();
+
+    if (healthy_relay && !telemetry_queue_.empty()) {
+      recovery_schedule_.defer_full_verify(
+          now, kDirectFullVerifyBacklogRetryMs);
+      diagnostics_.note_recovery_probe_deferral(5U);
+      diagnostics_.note_recovery_schedule(
+          recovery_schedule_.next_presence_ms(),
+          recovery_schedule_.next_full_verify_ms());
+      return;
+    }
+
+    DirectFullVerifyTrigger trigger =
+        healthy_relay ? DirectFullVerifyTrigger::BACKOFF
+                      : DirectFullVerifyTrigger::NO_RELAY;
+    if (pending_ap_visible_acceleration_) {
+      trigger = DirectFullVerifyTrigger::AP_BECAME_VISIBLE;
+    } else if (pending_hint_release_acceleration_) {
+      trigger = DirectFullVerifyTrigger::HINT_RELEASED;
+    }
+
+    if (begin_direct_probe_(trigger)) {
+      pending_ap_visible_acceleration_ = false;
+      pending_hint_release_acceleration_ = false;
+      return;
+    }
+
+    recovery_schedule_.defer_full_verify(
+        now, kPendingUnicastDrainRetryMs);
+    diagnostics_.note_recovery_probe_deferral(6U);
+    diagnostics_.note_recovery_schedule(
+        recovery_schedule_.next_presence_ms(),
+        recovery_schedule_.next_full_verify_ms());
     return;
   }
 
@@ -657,29 +740,35 @@ void SimpleProductComponent::advance_recovery_() {
 
   const DirectRecoveryDecision decision =
       direct_recovery_attempt_.observe(DirectRecoveryObservation{
-          now,
-          wifi_ready,
-          mqtt_ready,
-          direct_check_success,
-      });
+          now, wifi_ready, mqtt_ready, direct_check_success});
 
   if (decision.action ==
       DirectRecoveryAction::REQUEST_CONCRETE_DIRECT_RESTORE) {
     const DirectRecoveryCommitResult commit =
-        runtime_.commit_direct_recovery_before(
-            decision.absolute_deadline_ms);
+        runtime_.commit_direct_recovery_before(decision.absolute_deadline_ms);
     const DirectRecoveryDecision final_decision =
         direct_recovery_attempt_.on_concrete_direct_restore(
             commit.committed, commit.completed_at_ms);
     if (commit.committed &&
         final_decision.action == DirectRecoveryAction::COMMIT_DIRECT) {
       radio_ownership_ = RadioOwnership::DIRECT_WIFI;
-      recovery_probe_backoff_ms_ = kRecoveryProbeIntervalMs;
+      recovery_schedule_.note_full_verify_success(commit.completed_at_ms);
+      diagnostics_.note_full_verify_terminal(
+          static_cast<uint8_t>(DirectRecoveryTerminalReason::SUCCEEDED),
+          static_cast<uint8_t>(
+              std::min<std::size_t>(telemetry_queue_.size(), 255U)));
+      diagnostics_.note_recovery_schedule(
+          recovery_schedule_.next_presence_ms(),
+          recovery_schedule_.next_full_verify_ms());
       refresh_direct_ap_hint_();
       ESP_LOGI(TAG, "N3-W Direct recovery committed; Wi-Fi owns radio");
       return;
     }
-    begin_relay_restore_();
+    diagnostics_.note_full_verify_terminal(
+        static_cast<uint8_t>(final_decision.terminal_reason),
+        static_cast<uint8_t>(
+            std::min<std::size_t>(telemetry_queue_.size(), 255U)));
+    begin_relay_restore_(RelayRestoreCause::FULL_DIRECT_VERIFY);
     advance_relay_restore_();
     return;
   }
@@ -691,7 +780,11 @@ void SimpleProductComponent::advance_recovery_() {
   }
 
   if (decision.terminal) {
-    begin_relay_restore_();
+    diagnostics_.note_full_verify_terminal(
+        static_cast<uint8_t>(decision.terminal_reason),
+        static_cast<uint8_t>(
+            std::min<std::size_t>(telemetry_queue_.size(), 255U)));
+    begin_relay_restore_(RelayRestoreCause::FULL_DIRECT_VERIFY);
     advance_relay_restore_();
   }
 }
@@ -699,9 +792,7 @@ void SimpleProductComponent::advance_recovery_() {
 bool SimpleProductComponent::claim_relay_radio_() {
   if ((radio_ownership_ == RadioOwnership::RELAY_ESPNOW ||
        radio_ownership_ == RadioOwnership::RELAY_RESTORE) &&
-      radio_.initialized()) {
-    return true;
-  }
+      radio_.initialized()) return true;
   LinkKey pmk{};
   if (!derive_pmk_(&pmk)) return false;
   if (!radio_.shutdown()) {
@@ -730,19 +821,22 @@ bool SimpleProductComponent::claim_relay_radio_() {
     return false;
   }
   radio_ownership_ = RadioOwnership::RELAY_ESPNOW;
-  recovery_probe_backoff_ms_ = kRecoveryProbeIntervalMs;
-  next_recovery_probe_ms_ = now_ms() + recovery_probe_backoff_ms_;
+  recovery_schedule_.reset(now_ms());
+  pending_ap_visible_acceleration_ = false;
+  pending_hint_release_acceleration_ = false;
+  diagnostics_.note_recovery_schedule(
+      recovery_schedule_.next_presence_ms(),
+      recovery_schedule_.next_full_verify_ms());
   ESP_LOGI(TAG, "N3-W claimed exclusive standalone ESP-NOW radio ownership");
   return true;
 }
 
-bool SimpleProductComponent::begin_direct_probe_() {
+bool SimpleProductComponent::begin_direct_probe_(
+    DirectFullVerifyTrigger trigger) {
   if (radio_ownership_ != RadioOwnership::RELAY_ESPNOW ||
       runtime_.path_state() == LocalPathState::DIRECT ||
       runtime_.challenge_pending() ||
-      radio_.pending_unicast_sends() != 0U) {
-    return false;
-  }
+      radio_.pending_unicast_sends() != 0U) return false;
 #ifdef USE_WIFI
   if (wifi::global_wifi_component == nullptr) return false;
 #endif
@@ -759,13 +853,24 @@ bool SimpleProductComponent::begin_direct_probe_() {
 #endif
   radio_ownership_ = RadioOwnership::DIRECT_PROBE;
   const uint64_t now = now_ms();
+  active_full_verify_trigger_ = trigger;
+  recovery_schedule_.note_full_verify_start(now);
+  diagnostics_.note_full_verify_start(
+      static_cast<uint8_t>(trigger),
+      now,
+      static_cast<uint8_t>(
+          std::min<std::size_t>(telemetry_queue_.size(), 255U)));
+  diagnostics_.note_recovery_schedule(
+      recovery_schedule_.next_presence_ms(),
+      recovery_schedule_.next_full_verify_ms());
   (void) runtime_.note_direct_recovery_probe(false);
   (void) direct_recovery_attempt_.begin(mode, now);
   next_recovery_probe_ms_ = now;
   ESP_LOGI(
       TAG,
-      "N3-W opened phased Direct recovery mode=%u",
-      static_cast<unsigned>(mode));
+      "N3-W opened phased Direct recovery mode=%u trigger=%u",
+      static_cast<unsigned>(mode),
+      static_cast<unsigned>(trigger));
   return true;
 }
 
@@ -802,10 +907,7 @@ bool SimpleProductComponent::explicit_bssid_lock_active_() const {
 #endif
 }
 
-void SimpleProductComponent::invalidate_direct_ap_hint_() {
-  direct_ap_bssid_.fill(0);
-  direct_ap_bssid_valid_ = false;
-  direct_ap_channel_ = 0;
+void SimpleProductComponent::release_direct_ap_hint_authority_() {
   direct_ap_hint_lease_.clear();
   direct_ap_hint_policy_.clear();
 }
@@ -916,7 +1018,6 @@ SimpleProductComponent::probe_direct_ap_presence_() {
   if (result == DirectPresenceProbeResult::FOUND &&
       valid_radio_channel(record.primary)) {
     direct_ap_channel_ = record.primary;
-    direct_ap_hint_lease_.note_found(now_ms());
     (void) runtime_.update_direct_channel_hint(record.primary);
   }
 
@@ -943,50 +1044,46 @@ SimpleProductComponent::probe_direct_ap_presence_() {
 #endif
 }
 
-void SimpleProductComponent::schedule_recovery_probe_(bool increase_backoff) {
-  if (increase_backoff) {
-    const uint64_t doubled =
-        static_cast<uint64_t>(recovery_probe_backoff_ms_) * 2ULL;
-    recovery_probe_backoff_ms_ = static_cast<uint32_t>(std::min<uint64_t>(
-        kRecoveryProbeBackoffMaxMs,
-        std::max<uint64_t>(kRecoveryProbeIntervalMs, doubled)));
-  } else {
-    recovery_probe_backoff_ms_ = kRecoveryProbeIntervalMs;
-  }
-
+void SimpleProductComponent::schedule_full_direct_verify_(
+    bool increase_backoff) {
   const uint64_t now = now_ms();
-  uint64_t scheduled = now + recovery_probe_backoff_ms_;
-  if (direct_ap_hint_policy_.active()) {
-    const uint64_t expires_at = direct_ap_hint_policy_.expires_at_ms();
-    if (expires_at != 0 && scheduled > expires_at) {
-      scheduled = expires_at;
-    }
-  }
-  next_recovery_probe_ms_ = scheduled;
+  recovery_schedule_.note_full_verify_failure(now, increase_backoff);
+  diagnostics_.note_recovery_schedule(
+      recovery_schedule_.next_presence_ms(),
+      recovery_schedule_.next_full_verify_ms());
 }
 
-void SimpleProductComponent::begin_relay_restore_(uint32_t initial_delay_ms) {
+void SimpleProductComponent::begin_relay_restore_(
+    RelayRestoreCause cause,
+    uint32_t initial_delay_ms) {
   const uint64_t now = now_ms();
   radio_ownership_ = RadioOwnership::RELAY_RESTORE;
+  relay_restore_cause_ = cause;
   relay_restore_budget_.start(now);
   next_relay_restore_attempt_ms_ = now + initial_delay_ms;
 }
 
-void SimpleProductComponent::begin_direct_probe_after_restore_exit_(uint64_t now) {
+void SimpleProductComponent::begin_direct_probe_after_restore_exit_(
+    uint64_t now) {
   if (!radio_.shutdown()) {
     request_safe_reboot_("ESP-NOW teardown unconfirmed after Relay restore exhaustion");
     return;
   }
 #ifdef USE_WIFI
-  if (wifi::global_wifi_component != nullptr) {
-    wifi::global_wifi_component->enable();
-  }
+  if (wifi::global_wifi_component != nullptr) wifi::global_wifi_component->enable();
 #endif
   radio_ownership_ = RadioOwnership::DIRECT_PROBE;
+  active_full_verify_trigger_ = DirectFullVerifyTrigger::NO_RELAY;
+  recovery_schedule_.note_full_verify_start(now);
+  diagnostics_.note_full_verify_start(
+      static_cast<uint8_t>(DirectFullVerifyTrigger::NO_RELAY),
+      now,
+      static_cast<uint8_t>(
+          std::min<std::size_t>(telemetry_queue_.size(), 255U)));
   (void) runtime_.note_direct_recovery_probe(false);
-  (void) direct_recovery_attempt_.begin(
-      DirectRecoveryMode::NO_RELAY, now);
+  (void) direct_recovery_attempt_.begin(DirectRecoveryMode::NO_RELAY, now);
   next_recovery_probe_ms_ = now;
+  relay_restore_cause_ = RelayRestoreCause::NONE;
   ESP_LOGW(
       TAG,
       "N3-W Relay restore budget exhausted; opened phased Direct recovery from Discovery");
@@ -1053,10 +1150,21 @@ void SimpleProductComponent::advance_relay_restore_() {
   clear_tx_completion_ring_();
 
   if (restore_relay_radio_()) {
+    const RelayRestoreCause completed_cause = relay_restore_cause_;
+    relay_restore_cause_ = RelayRestoreCause::NONE;
     relay_restore_budget_.clear();
-    schedule_recovery_probe_(
-        runtime_.path_state() == LocalPathState::RELAY_ACTIVE);
-    ESP_LOGI(TAG, "N3-W Relay radio restored after Direct verification");
+    if (completed_cause == RelayRestoreCause::FULL_DIRECT_VERIFY) {
+      schedule_full_direct_verify_(
+          runtime_.path_state() == LocalPathState::RELAY_ACTIVE);
+    } else {
+      diagnostics_.note_recovery_schedule(
+          recovery_schedule_.next_presence_ms(),
+          recovery_schedule_.next_full_verify_ms());
+    }
+    ESP_LOGI(
+        TAG,
+        "N3-W Relay radio restored after recovery cause=%u",
+        static_cast<unsigned>(completed_cause));
     return;
   }
 

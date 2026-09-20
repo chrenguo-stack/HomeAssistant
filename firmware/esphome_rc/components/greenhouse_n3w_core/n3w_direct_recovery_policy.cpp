@@ -1,5 +1,6 @@
 #include "n3w_direct_recovery_policy.h"
 
+#include <algorithm>
 #include <limits>
 
 namespace esphome::greenhouse_n3w_core {
@@ -302,6 +303,128 @@ void DirectApHintPolicy::clear() {
   scan_errors_ = 0;
   explicitly_locked_ = false;
   active_ = false;
+}
+
+
+uint64_t RelayDirectRecoverySchedule::add_delay_(
+    uint64_t now_ms,
+    uint32_t delay_ms) const {
+  const uint64_t delay = static_cast<uint64_t>(delay_ms);
+  if (now_ms > std::numeric_limits<uint64_t>::max() - delay) {
+    return std::numeric_limits<uint64_t>::max();
+  }
+  return now_ms + delay;
+}
+
+uint64_t RelayDirectRecoverySchedule::earliest_full_verify_ms_(
+    uint64_t now_ms) const {
+  if (last_full_verify_start_ms_ == 0U) return now_ms;
+  const uint64_t spaced =
+      add_delay_(
+          last_full_verify_start_ms_,
+          config_.full_verify_min_spacing_ms);
+  return spaced > now_ms ? spaced : now_ms;
+}
+
+void RelayDirectRecoverySchedule::reset(uint64_t now_ms) {
+  presence_state_ = RelayDirectPresenceState::UNKNOWN;
+  full_verify_backoff_ms_ = config_.full_verify_initial_ms;
+  last_full_verify_start_ms_ = 0;
+  next_presence_ms_ =
+      add_delay_(now_ms, config_.presence_interval_ms);
+  next_full_verify_ms_ =
+      add_delay_(now_ms, full_verify_backoff_ms_);
+}
+
+bool RelayDirectRecoverySchedule::presence_due(uint64_t now_ms) const {
+  return next_presence_ms_ != 0U && now_ms >= next_presence_ms_;
+}
+
+bool RelayDirectRecoverySchedule::full_verify_due(uint64_t now_ms) const {
+  return next_full_verify_ms_ != 0U &&
+         now_ms >= next_full_verify_ms_;
+}
+
+bool RelayDirectRecoverySchedule::note_presence(
+    uint64_t now_ms,
+    bool visible) {
+  const RelayDirectPresenceState previous = presence_state_;
+  presence_state_ =
+      visible ? RelayDirectPresenceState::VISIBLE
+              : RelayDirectPresenceState::NOT_VISIBLE;
+  next_presence_ms_ =
+      add_delay_(now_ms, config_.presence_interval_ms);
+
+  const bool became_visible =
+      visible && previous != RelayDirectPresenceState::VISIBLE;
+  if (became_visible) {
+    request_full_verify(now_ms);
+  }
+  return became_visible;
+}
+
+void RelayDirectRecoverySchedule::note_presence_error(uint64_t now_ms) {
+  next_presence_ms_ =
+      add_delay_(now_ms, config_.presence_interval_ms);
+}
+
+void RelayDirectRecoverySchedule::note_full_verify_start(uint64_t now_ms) {
+  last_full_verify_start_ms_ = now_ms;
+}
+
+void RelayDirectRecoverySchedule::note_full_verify_failure(
+    uint64_t now_ms,
+    bool increase_backoff) {
+  if (increase_backoff) {
+    const uint64_t doubled =
+        static_cast<uint64_t>(full_verify_backoff_ms_) * 2ULL;
+    full_verify_backoff_ms_ = static_cast<uint32_t>(
+        std::min<uint64_t>(
+            config_.full_verify_backoff_max_ms,
+            std::max<uint64_t>(
+                config_.full_verify_initial_ms, doubled)));
+  } else {
+    full_verify_backoff_ms_ = config_.full_verify_initial_ms;
+  }
+  next_full_verify_ms_ =
+      add_delay_(now_ms, full_verify_backoff_ms_);
+}
+
+void RelayDirectRecoverySchedule::note_full_verify_success(
+    uint64_t now_ms) {
+  full_verify_backoff_ms_ = config_.full_verify_initial_ms;
+  next_full_verify_ms_ =
+      add_delay_(now_ms, full_verify_backoff_ms_);
+}
+
+void RelayDirectRecoverySchedule::defer_presence(
+    uint64_t now_ms,
+    uint32_t delay_ms) {
+  next_presence_ms_ = add_delay_(now_ms, delay_ms);
+}
+
+void RelayDirectRecoverySchedule::defer_full_verify(
+    uint64_t now_ms,
+    uint32_t delay_ms) {
+  next_full_verify_ms_ = add_delay_(now_ms, delay_ms);
+}
+
+void RelayDirectRecoverySchedule::request_full_verify(uint64_t now_ms) {
+  const uint64_t eligible = earliest_full_verify_ms_(now_ms);
+  if (next_full_verify_ms_ == 0U ||
+      next_full_verify_ms_ > eligible) {
+    next_full_verify_ms_ = eligible;
+  }
+}
+
+void RelayDirectRecoverySchedule::accelerate_to_initial(uint64_t now_ms) {
+  full_verify_backoff_ms_ = config_.full_verify_initial_ms;
+  const uint64_t accelerated =
+      add_delay_(now_ms, config_.full_verify_initial_ms);
+  if (next_full_verify_ms_ == 0U ||
+      next_full_verify_ms_ > accelerated) {
+    next_full_verify_ms_ = accelerated;
+  }
 }
 
 }

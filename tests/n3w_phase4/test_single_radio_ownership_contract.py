@@ -132,6 +132,10 @@ def test_recovery_probe_checks_ap_presence_and_buffers_business_telemetry() -> N
     assert "telemetry Direct single attempt submitted" in flush
     assert "kTelemetryQueueCapacity = 24" in header
     assert "kRecoveryProbeBackoffMaxMs = 480000" in header
+    assert "kDirectPresenceProbeIntervalMs = 60000" in header
+    assert "kDirectFullVerifyMinSpacingMs = 60000" in header
+    assert "next_presence_ms" in text("n3w_direct_recovery_policy.h")
+    assert "next_full_verify_ms" in text("n3w_direct_recovery_policy.h")
 
     enqueue_start = source.index("bool SimpleProductComponent::enqueue_telemetry_(")
     enqueue_end = source.index(
@@ -516,3 +520,90 @@ def test_option_b_has_no_post_failure_periodic_retry_path() -> None:
     assert "SimpleProductError::RADIO_FAILED" in flush
     assert "telemetry_queue_.pop_front()" in flush
     assert "not resending" in flush
+
+
+def test_relay_failback_uses_two_tier_presence_and_full_verify_scheduling() -> None:
+    source = text("n3w_simple_product_component.cpp")
+    header = text("n3w_simple_product_component.h")
+    policy_h = text("n3w_direct_recovery_policy.h")
+    policy_cpp = text("n3w_direct_recovery_policy.cpp")
+
+    assert "RelayDirectRecoverySchedule" in policy_h
+    assert "presence_due" in policy_cpp
+    assert "full_verify_due" in policy_cpp
+    assert "request_full_verify" in policy_cpp
+    assert "note_full_verify_failure" in policy_cpp
+
+    release_start = source.index(
+        "void SimpleProductComponent::release_direct_ap_hint_authority_()"
+    )
+    release_end = source.index(
+        "void SimpleProductComponent::refresh_direct_ap_hint_()", release_start
+    )
+    release = source[release_start:release_end]
+    assert "direct_ap_hint_policy_.clear()" in release
+    assert "direct_ap_hint_lease_.clear()" in release
+    assert "direct_ap_bssid_.fill" not in release
+    assert "direct_ap_bssid_valid_ = false" not in release
+    assert "direct_ap_channel_ = 0" not in release
+
+    advance_start = source.index("void SimpleProductComponent::advance_recovery_()")
+    advance_end = source.index(
+        "bool SimpleProductComponent::claim_relay_radio_()", advance_start
+    )
+    advance = source[advance_start:advance_end]
+    presence = advance.index("recovery_schedule_.presence_due(now)")
+    scan = advance.index("probe_direct_ap_presence_()", presence)
+    full_due = advance.index("recovery_schedule_.full_verify_due(now)", scan)
+    backlog = advance.index("!telemetry_queue_.empty()", full_due)
+    full_probe = advance.index("begin_direct_probe_(trigger)", backlog)
+    assert presence < scan < full_due < backlog < full_probe
+
+    assert "pending_ap_visible_acceleration_" in advance
+    assert "pending_hint_release_acceleration_" in advance
+    assert "RelayDirectPresenceState::VISIBLE" in advance
+    assert "kDirectFullVerifyBacklogRetryMs" in advance
+    assert "radio_.pending_unicast_sends() != 0U" in advance
+
+    restore_start = source.index(
+        "void SimpleProductComponent::advance_relay_restore_()"
+    )
+    restore_end = source.index(
+        "bool SimpleProductComponent::enqueue_telemetry_", restore_start
+    )
+    restore = source[restore_start:restore_end]
+    assert "RelayRestoreCause::FULL_DIRECT_VERIFY" in restore
+    assert "schedule_full_direct_verify_(" in restore
+    assert "RelayRestoreCause::PRESENCE_SCAN" in header
+
+
+def test_relay_failback_diagnostics_remain_ram_only_and_compact() -> None:
+    diag = text("n3w_lab_diagnostics.h")
+    config = (
+        ROOT
+        / "firmware/esphome_rc/board_lab/n3w_phase4_physical/generic.yml"
+    ).read_text(encoding="utf-8")
+
+    assert "presence_probe_count" in diag
+    assert "full_verify_last_trigger" in diag
+    assert "full_verify_last_terminal_reason" in diag
+    assert "next_presence_probe_ms" in diag
+    assert "next_full_verify_ms" in diag
+
+    snapshot_start = diag.index("struct Snapshot")
+    snapshot_end = diag.index("struct LatencySnapshot", snapshot_start)
+    durable = diag[snapshot_start:snapshot_end]
+    assert "presence_probe_count" not in durable
+    assert "full_verify_last_trigger" not in durable
+
+    assert "\\\"n3w_r\\\"" in config
+    for key in (
+        "\\\"ps\\\"",
+        "\\\"pf\\\"",
+        "\\\"fv\\\"",
+        "\\\"ft\\\"",
+        "\\\"fr\\\"",
+        "\\\"np\\\"",
+        "\\\"nf\\\"",
+    ):
+        assert key in config

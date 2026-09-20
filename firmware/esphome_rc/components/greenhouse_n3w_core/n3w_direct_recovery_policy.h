@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <limits>
 
 namespace esphome::greenhouse_n3w_core {
 
@@ -159,6 +160,64 @@ class DirectApHintPolicy {
   uint8_t scan_errors_{0};
   bool explicitly_locked_{false};
   bool active_{false};
+};
+
+
+enum class RelayDirectPresenceState : uint8_t {
+  UNKNOWN = 0,
+  NOT_VISIBLE,
+  VISIBLE,
+};
+
+struct RelayDirectRecoveryScheduleConfig {
+  uint32_t presence_interval_ms{60000};
+  uint32_t full_verify_initial_ms{60000};
+  uint32_t full_verify_min_spacing_ms{60000};
+  uint32_t full_verify_backoff_max_ms{480000};
+};
+
+class RelayDirectRecoverySchedule {
+ public:
+  explicit RelayDirectRecoverySchedule(
+      const RelayDirectRecoveryScheduleConfig &config)
+      : config_(config) {}
+
+  void reset(uint64_t now_ms);
+  bool presence_due(uint64_t now_ms) const;
+  bool full_verify_due(uint64_t now_ms) const;
+  bool note_presence(uint64_t now_ms, bool visible);
+  void note_presence_error(uint64_t now_ms);
+  void note_full_verify_start(uint64_t now_ms);
+  void note_full_verify_failure(uint64_t now_ms, bool increase_backoff);
+  void note_full_verify_success(uint64_t now_ms);
+  void defer_presence(uint64_t now_ms, uint32_t delay_ms);
+  void defer_full_verify(uint64_t now_ms, uint32_t delay_ms);
+  void request_full_verify(uint64_t now_ms);
+  void accelerate_to_initial(uint64_t now_ms);
+
+  RelayDirectPresenceState presence_state() const {
+    return presence_state_;
+  }
+  uint64_t next_presence_ms() const { return next_presence_ms_; }
+  uint64_t next_full_verify_ms() const { return next_full_verify_ms_; }
+  uint64_t last_full_verify_start_ms() const {
+    return last_full_verify_start_ms_;
+  }
+  uint32_t full_verify_backoff_ms() const {
+    return full_verify_backoff_ms_;
+  }
+
+ private:
+  uint64_t add_delay_(uint64_t now_ms, uint32_t delay_ms) const;
+  uint64_t earliest_full_verify_ms_(uint64_t now_ms) const;
+
+  RelayDirectRecoveryScheduleConfig config_{};
+  RelayDirectPresenceState presence_state_{
+      RelayDirectPresenceState::UNKNOWN};
+  uint64_t next_presence_ms_{0};
+  uint64_t next_full_verify_ms_{0};
+  uint64_t last_full_verify_start_ms_{0};
+  uint32_t full_verify_backoff_ms_{0};
 };
 
 }

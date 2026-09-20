@@ -117,6 +117,21 @@ class N3wLabDiagnostics final : public SimpleProductDiagnosticSink {
     uint8_t unicast_submit_first_failure_peer_channel{0};
     uint8_t unicast_submit_first_success_current_channel{0};
     uint8_t unicast_submit_first_success_peer_channel{0};
+
+    uint32_t presence_probe_count{0};
+    uint32_t presence_probe_found_count{0};
+    uint64_t presence_probe_last_start_ms{0};
+    uint32_t presence_probe_last_duration_ms{0};
+    uint32_t full_verify_count{0};
+    uint64_t full_verify_last_start_ms{0};
+    uint8_t full_verify_last_trigger{0};
+    uint8_t full_verify_last_terminal_reason{0};
+    uint32_t recovery_probe_deferral_count{0};
+    uint8_t recovery_probe_last_deferral_reason{0};
+    uint64_t next_presence_probe_ms{0};
+    uint64_t next_full_verify_ms{0};
+    uint8_t full_verify_queue_depth_start{0};
+    uint8_t full_verify_queue_depth_end{0};
   };
 
   void set_enabled(bool enabled) { enabled_ = enabled; }
@@ -191,6 +206,55 @@ class N3wLabDiagnostics final : public SimpleProductDiagnosticSink {
       ++latency_.unicast_submit_failure_count;
     }
   }
+  void note_presence_probe(
+      uint64_t start_ms,
+      uint32_t duration_ms,
+      uint8_t result) {
+    if (!enabled_ || !boot_session_started_) return;
+    if (latency_.presence_probe_count < 0xffffffffU) {
+      ++latency_.presence_probe_count;
+    }
+    if (result == 0U &&
+        latency_.presence_probe_found_count < 0xffffffffU) {
+      ++latency_.presence_probe_found_count;
+    }
+    latency_.presence_probe_last_start_ms = start_ms;
+    latency_.presence_probe_last_duration_ms = duration_ms;
+  }
+  void note_full_verify_start(
+      uint8_t trigger,
+      uint64_t now_ms,
+      uint8_t queue_depth) {
+    if (!enabled_ || !boot_session_started_) return;
+    if (latency_.full_verify_count < 0xffffffffU) {
+      ++latency_.full_verify_count;
+    }
+    latency_.full_verify_last_start_ms = now_ms;
+    latency_.full_verify_last_trigger = trigger;
+    latency_.full_verify_queue_depth_start = queue_depth;
+  }
+  void note_full_verify_terminal(
+      uint8_t terminal_reason,
+      uint8_t queue_depth) {
+    if (!enabled_ || !boot_session_started_) return;
+    latency_.full_verify_last_terminal_reason = terminal_reason;
+    latency_.full_verify_queue_depth_end = queue_depth;
+  }
+  void note_recovery_probe_deferral(uint8_t reason) {
+    if (!enabled_ || !boot_session_started_) return;
+    if (latency_.recovery_probe_deferral_count < 0xffffffffU) {
+      ++latency_.recovery_probe_deferral_count;
+    }
+    latency_.recovery_probe_last_deferral_reason = reason;
+  }
+  void note_recovery_schedule(
+      uint64_t next_presence_ms,
+      uint64_t next_full_verify_ms) {
+    if (!enabled_ || !boot_session_started_) return;
+    latency_.next_presence_probe_ms = next_presence_ms;
+    latency_.next_full_verify_ms = next_full_verify_ms;
+  }
+
   void emit_summary(uint64_t now_ms);
 
   // SimpleProductDiagnosticSink.
