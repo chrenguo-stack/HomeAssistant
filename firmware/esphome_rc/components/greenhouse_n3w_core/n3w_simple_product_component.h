@@ -179,7 +179,6 @@ class SimpleProductComponent : public Component,
     TelemetryPathAccounting in_flight_accounting{
         TelemetryPathAccounting::TRANSPORT_ONLY};
     uint32_t submit_count{0};
-    uint32_t transient_failure_count{0};
   };
 
   bool read_local_mac_();
@@ -212,10 +211,9 @@ class SimpleProductComponent : public Component,
       const std::string &telemetry_json,
       const std::string &boot_id,
       uint32_t seq);
-  void flush_telemetry_queue_(
+  TelemetrySubmitDisposition flush_telemetry_queue_(
       TelemetryPathAccounting accounting =
           TelemetryPathAccounting::TRANSPORT_ONLY);
-  static bool telemetry_error_retryable_(SimpleProductError error);
   bool http_post_(
       const std::string &host,
       uint16_t port,
@@ -253,7 +251,7 @@ class SimpleProductComponent : public Component,
   static constexpr uint8_t kRelayRestoreFastAttempts = 5;
   static constexpr std::size_t kTelemetryQueueCapacity = 24;
   static constexpr uint32_t kTelemetryFlushSpacingMs = 100;
-  static constexpr uint32_t kTelemetryRetrySpacingMs = 500;
+  static constexpr uint32_t kTelemetryHoldPollMs = 500;
   static constexpr uint32_t kInitialDirectGraceMs = 15000;
   static constexpr uint16_t kDiscoveryPort = 47111;
 
@@ -273,7 +271,7 @@ class SimpleProductComponent : public Component,
   uint64_t runtime_start_grace_started_ms_{0};
   uint32_t recovery_probe_backoff_ms_{kRecoveryProbeIntervalMs};
   uint32_t telemetry_queue_dropped_{0};
-  uint32_t telemetry_transient_retained_{0};
+  uint32_t telemetry_attempt_failed_dropped_{0};
   uint32_t telemetry_completion_failures_{0};
   uint32_t telemetry_invariant_failures_{0};
   uint32_t pending_unicast_timeout_count_{0};

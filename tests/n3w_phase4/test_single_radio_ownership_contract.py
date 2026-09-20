@@ -118,7 +118,7 @@ def test_recovery_probe_checks_ap_presence_and_buffers_business_telemetry() -> N
     assert "TelemetryPathAccounting::RECORD_PATH_RESULT" in telemetry
     assert "PendingTelemetryState::RELAY_IN_FLIGHT" in telemetry
 
-    flush_start = source.index("void SimpleProductComponent::flush_telemetry_queue_(")
+    flush_start = source.index("TelemetrySubmitDisposition SimpleProductComponent::flush_telemetry_queue_(")
     flush_end = source.index("bool SimpleProductComponent::restore_relay_radio_()", flush_start)
     flush = source[flush_start:flush_end]
     pending = flush.index("radio_.pending_unicast_sends() != 0U")
@@ -134,7 +134,7 @@ def test_recovery_probe_checks_ap_presence_and_buffers_business_telemetry() -> N
 
     enqueue_start = source.index("bool SimpleProductComponent::enqueue_telemetry_(")
     enqueue_end = source.index(
-        "void SimpleProductComponent::flush_telemetry_queue_(", enqueue_start
+        "TelemetrySubmitDisposition SimpleProductComponent::flush_telemetry_queue_(", enqueue_start
     )
     enqueue = source[enqueue_start:enqueue_end]
     assert "rejecting newest" in enqueue
@@ -303,18 +303,20 @@ def test_accept_fixes_relay_channel_before_peer_and_state_commit() -> None:
     assert channel_fix < peer_bind < state_commit < active_bind
 
 
-def test_transition_telemetry_lifecycle_retains_payload_until_release_boundary() -> None:
+def test_transition_telemetry_hold_buffer_preserves_only_not_yet_attempted_samples() -> None:
     source = text("n3w_simple_product_component.cpp")
     header = text("n3w_simple_product_component.h")
     runtime_h = text("n3w_simple_product_runtime.h")
-    runtime = text("n3w_simple_product_runtime.cpp")
 
     assert "enum class PendingTelemetryState" in header
     assert "RELAY_IN_FLIGHT" in header
     assert "in_flight_accounting" in header
     assert "std::deque<PendingTelemetry> telemetry_queue_" in header
     assert "kTelemetryQueueCapacity = 24" in header
-    assert "kTelemetryMaxSendAttempts" not in header
+    assert "kTelemetryHoldPollMs = 500" in header
+    assert "kTelemetryRetrySpacingMs" not in header
+    assert "transient_failure_count" not in header
+    assert "telemetry_error_retryable_" not in header
     assert "TelemetryPathAccounting" in runtime_h
     assert "TRANSPORT_ONLY" in runtime_h
 
@@ -325,75 +327,66 @@ def test_transition_telemetry_lifecycle_retains_payload_until_release_boundary()
         "bool SimpleProductComponent::send_telemetry_json(", submit_start
     )
     submit = source[submit_start:submit_end]
-    admission = submit.index("enqueue_telemetry_(")
-    flush = submit.index("flush_telemetry_queue_(", admission)
-    assert admission < flush
+    assert "const bool queue_was_empty = telemetry_queue_.empty()" in submit
+    assert "enqueue_telemetry_(" in submit
+    assert "front_result" in submit
+    assert "queue_was_empty" in submit
     assert "TelemetrySubmitDisposition::BUFFERED" in submit
-    assert "telemetry_json.size() > kMaxCiphertextBytes" in submit
 
     flush_start = source.index(
-        "void SimpleProductComponent::flush_telemetry_queue_("
+        "TelemetrySubmitDisposition SimpleProductComponent::flush_telemetry_queue_("
     )
     flush_end = source.index(
         "bool SimpleProductComponent::restore_relay_radio_()", flush_start
     )
-    flush_body = source[flush_start:flush_end]
-    relay_inflight = flush_body.index(
-        "item.state = PendingTelemetryState::RELAY_IN_FLIGHT"
+    flush = source[flush_start:flush_end]
+
+    no_path = flush.index(
+        "current_path != LocalPathState::DIRECT"
     )
-    relay_accounting = flush_body.index(
+    direct_no_mqtt = flush.index(
+        "current_path == LocalPathState::DIRECT && !mqtt_connected()", no_path
+    )
+    direct_accounting = flush.index(
+        "runtime_.note_direct_result(false)", direct_no_mqtt
+    )
+    held = flush.index(
+        "TelemetrySubmitDisposition::BUFFERED", direct_accounting
+    )
+    submit_attempt = flush.index("runtime_.send_telemetry(", held)
+    assert no_path < direct_no_mqtt < direct_accounting < held < submit_attempt
+
+    relay_inflight = flush.index(
+        "item.state = PendingTelemetryState::RELAY_IN_FLIGHT", submit_attempt
+    )
+    relay_accounting = flush.index(
         "item.in_flight_accounting = accounting", relay_inflight
     )
-    direct_pop = flush_body.index("telemetry_queue_.pop_front()", relay_accounting)
-    assert relay_inflight < relay_accounting < direct_pop
-    assert "telemetry_error_retryable_(result)" in flush_body
-    assert "request_safe_reboot_(\"telemetry permanent/invariant failure\")" in flush_body
-    assert "item.attempts" not in flush_body
+    assert relay_inflight < relay_accounting
+    assert "telemetry Direct single attempt submitted" in flush
+    assert "telemetry Relay single attempt in-flight" in flush
 
-    drain_start = source.index(
-        "void SimpleProductComponent::drain_send_completions_()"
+    failed_once = flush.index(
+        "result == SimpleProductError::MQTT_FAILED", relay_accounting
     )
-    drain_end = source.index(
-        "bool SimpleProductComponent::check_pending_unicast_timeout_()", drain_start
+    radio_failed = flush.index(
+        "result == SimpleProductError::RADIO_FAILED", failed_once
     )
-    drain = source[drain_start:drain_end]
-    ownership = drain.index("PendingTelemetryState::RELAY_IN_FLIGHT")
-    accounting_gate = drain.index(
-        "item.in_flight_accounting ==", ownership
+    drop = flush.index("telemetry_queue_.pop_front()", radio_failed)
+    rejected = flush.index(
+        "TelemetrySubmitDisposition::REJECTED", drop
     )
-    note = drain.index("runtime_.note_relay_delivery_result", accounting_gate)
-    success = drain.index("if (slot.success)", note)
-    pop = drain.index("telemetry_queue_.pop_front()", success)
-    failure = drain.index(
-        "item.state = PendingTelemetryState::QUEUED", pop
-    )
-    assert ownership < accounting_gate < note < success < pop < failure
-    assert "TelemetryPathAccounting::RECORD_PATH_RESULT" in drain
-    assert "TelemetryPathAccounting::TRANSPORT_ONLY" in drain
-    assert "telemetry completion missing" in drain
-    assert "telemetry completion ownership mismatch" in drain
-
-    runtime_send_start = runtime.index(
-        "SimpleProductError SimpleProductRuntime::send_telemetry("
-    )
-    runtime_send_end = runtime.index(
-        "SimpleProductError SimpleProductRuntime::on_radio_receive(",
-        runtime_send_start,
-    )
-    runtime_send = runtime[runtime_send_start:runtime_send_end]
-    assert (
-        "accounting == TelemetryPathAccounting::RECORD_PATH_RESULT"
-        in runtime_send
-    )
-    assert "note_direct_result(success)" in runtime_send
-    assert "note_relay_delivery_result(relay_destination, false)" in runtime_send
+    assert failed_once < radio_failed < drop < rejected
+    assert "not resending" in flush
+    assert "transient failure retained" not in flush
 
 
 def test_transition_telemetry_queue_preserves_oldest_on_overflow() -> None:
     source = text("n3w_simple_product_component.cpp")
     start = source.index("bool SimpleProductComponent::enqueue_telemetry_(")
     end = source.index(
-        "bool SimpleProductComponent::telemetry_error_retryable_", start
+        "TelemetrySubmitDisposition SimpleProductComponent::flush_telemetry_queue_(",
+        start,
     )
     enqueue = source[start:end]
 
@@ -402,33 +395,17 @@ def test_transition_telemetry_queue_preserves_oldest_on_overflow() -> None:
     push = enqueue.index("telemetry_queue_.push_back", reject)
     assert capacity < reject < push
     assert "telemetry_queue_.pop_front()" not in enqueue
-    assert "rejecting newest" in enqueue
+    assert "hold buffer overflow; rejecting newest" in enqueue
 
 
-def test_transition_telemetry_retryable_errors_exclude_state_invariant_failure() -> None:
-    source = text("n3w_simple_product_component.cpp")
-    start = source.index(
-        "bool SimpleProductComponent::telemetry_error_retryable_("
-    )
-    end = source.index(
-        "void SimpleProductComponent::flush_telemetry_queue_(", start
-    )
-    retryable = source[start:end]
-
-    assert "SimpleProductError::NOT_READY" in retryable
-    assert "SimpleProductError::MQTT_FAILED" in retryable
-    assert "SimpleProductError::RADIO_FAILED" in retryable
-    assert "SimpleProductError::STATE_REJECTED" not in retryable
-
-
-def test_relay_completion_preserves_transport_only_accounting() -> None:
+def test_relay_completion_ends_single_attempt_without_resend() -> None:
     source = text("n3w_simple_product_component.cpp")
     header = text("n3w_simple_product_component.h")
 
     assert "TelemetryPathAccounting in_flight_accounting" in header
 
     flush_start = source.index(
-        "void SimpleProductComponent::flush_telemetry_queue_("
+        "TelemetrySubmitDisposition SimpleProductComponent::flush_telemetry_queue_("
     )
     flush_end = source.index(
         "bool SimpleProductComponent::restore_relay_radio_()", flush_start
@@ -449,19 +426,44 @@ def test_relay_completion_preserves_transport_only_accounting() -> None:
         "bool SimpleProductComponent::check_pending_unicast_timeout_()", drain_start
     )
     drain = source[drain_start:drain_end]
-    gate = drain.index(
-        "item.in_flight_accounting =="
-    )
+
+    accounting_gate = drain.index("item.in_flight_accounting ==")
     record = drain.index(
-        "TelemetryPathAccounting::RECORD_PATH_RESULT", gate
+        "TelemetryPathAccounting::RECORD_PATH_RESULT", accounting_gate
     )
     note = drain.index(
         "runtime_.note_relay_delivery_result", record
     )
-    reset = drain.index(
-        "item.in_flight_accounting =", note
+    failure = drain.index("if (slot.success)", note)
+    no_resend = drain.index("not resending", failure)
+    pop = drain.index("telemetry_queue_.pop_front()", no_resend)
+    assert accounting_gate < record < note < failure < no_resend < pop
+    assert "item.state = PendingTelemetryState::QUEUED" not in drain
+    assert "telemetry completion missing" in drain
+    assert "telemetry completion ownership mismatch" in drain
+
+
+def test_option_b_has_no_post_failure_periodic_retry_path() -> None:
+    source = text("n3w_simple_product_component.cpp")
+    header = text("n3w_simple_product_component.h")
+
+    assert "telemetry_error_retryable_" not in source
+    assert "telemetry_error_retryable_" not in header
+    assert "telemetry_transient_retained_" not in header
+    assert "telemetry_attempt_failed_dropped_" in header
+    assert "kTelemetryRetrySpacingMs" not in header
+    assert "kTelemetryHoldPollMs" in header
+
+    flush_start = source.index(
+        "TelemetrySubmitDisposition SimpleProductComponent::flush_telemetry_queue_("
     )
-    transport_only = drain.index(
-        "TelemetryPathAccounting::TRANSPORT_ONLY", reset
+    flush_end = source.index(
+        "bool SimpleProductComponent::restore_relay_radio_()", flush_start
     )
-    assert gate < record < note < reset < transport_only
+    flush = source[flush_start:flush_end]
+    assert "SimpleProductError::NOT_READY" in flush
+    assert "TelemetrySubmitDisposition::BUFFERED" in flush
+    assert "SimpleProductError::MQTT_FAILED" in flush
+    assert "SimpleProductError::RADIO_FAILED" in flush
+    assert "telemetry_queue_.pop_front()" in flush
+    assert "not resending" in flush
