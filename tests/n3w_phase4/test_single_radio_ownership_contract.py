@@ -574,7 +574,11 @@ def test_relay_failback_uses_two_tier_presence_and_full_verify_scheduling() -> N
     restore = source[restore_start:restore_end]
     assert "RelayRestoreCause::FULL_DIRECT_VERIFY" in restore
     assert "schedule_full_direct_verify_(" in restore
-    assert "RelayRestoreCause::PRESENCE_SCAN" in header
+    restore_cause_start = header.index("enum class RelayRestoreCause")
+    restore_cause_end = header.index("};", restore_cause_start)
+    restore_cause = header[restore_cause_start:restore_cause_end]
+    assert "PRESENCE_SCAN" in restore_cause
+    assert "FULL_DIRECT_VERIFY" in restore_cause
 
 
 def test_relay_failback_diagnostics_remain_ram_only_and_out_of_telemetry() -> None:
