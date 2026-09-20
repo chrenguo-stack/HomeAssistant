@@ -101,6 +101,29 @@ interval:
           const uint64_t uptime_ms = static_cast<uint64_t>(millis());
           const auto path_before = id(n3w_phase4_core).path_state();
           const auto &latency = id(n3w_phase4_core).latency_diagnostics();
+          // Lab-only compact arrays keep the full worst-case payload below the
+          // 1024-byte encrypted Relay plaintext ceiling.
+          //
+          // n3w_l v1 indexes:
+          //  1 wifi_down_ms, 2 mqtt_down_ms, 3 direct_fail_first_ms,
+          //  4 direct_fail_count, 5 discovery_enter_ms, 6 first_scan_ms,
+          //  7 relay_ad_seen_ms, 8 challenge_tx_ms,
+          //  9 challenge_submit_failure_count,
+          // 10/11 first/last challenge DriverError,
+          // 12/13 first/last challenge raw esp_err_t,
+          // 14 accept_rx_ms, 15 relay_active_ms, 16 first_relay_tx_ms.
+          //
+          // n3w_r v1 indexes:
+          //  1 presence_count, 2 presence_found_count, 3 last_presence_result,
+          //  4 last_presence_start_ms, 5 last_presence_duration_ms,
+          //  6 full_verify_count, 7 last_full_verify_start_ms,
+          //  8 full_verify_trigger, 9 full_verify_terminal,
+          // 10 relay_restore_cause, 11 relay_restore_result,
+          // 12/13 queue depth start/end,
+          // 14/15 queue-overflow drops start/end,
+          // 16/17 attempted-transport drops start/end,
+          // 18 deferral_count, 19 deferral_reason,
+          // 20 next_presence_ms, 21 next_full_verify_ms.
           const std::string telemetry =
               "{\"schema\":\"gh.telemetry/1\",\"node_id\":\"" +
               id(n3w_phase4_core).node_id() +
@@ -110,18 +133,14 @@ interval:
               ",\"cap_hash\":\"phase4lab\",\"fw_version\":\"phase4-simple\"," +
               "\"reset_reason_raw\":" +
               std::to_string(id(n3w_phase4_core).reset_reason_raw()) +
-              ",\"reset_reason\":\"" +
-              std::string(id(n3w_phase4_core).reset_reason_name()) +
-              "\",\"wdt_breadcrumb\":{" +
+              ",\"wdt_breadcrumb\":{" +
               "\"valid\":" +
               std::string(id(n3w_phase4_core).previous_rtc_breadcrumb_valid()
                               ? "true"
                               : "false") +
               ",\"stage\":" +
               std::to_string(id(n3w_phase4_core).previous_rtc_breadcrumb_stage()) +
-              ",\"stage_name\":\"" +
-              std::string(id(n3w_phase4_core).previous_rtc_breadcrumb_stage_name()) +
-              "\",\"arg0\":" +
+              ",\"arg0\":" +
               std::to_string(id(n3w_phase4_core).previous_rtc_breadcrumb_arg0()) +
               ",\"arg1\":" +
               std::to_string(id(n3w_phase4_core).previous_rtc_breadcrumb_arg1()) +
@@ -130,40 +149,24 @@ interval:
               ",\"marker_sequence\":" +
               std::to_string(
                   id(n3w_phase4_core).previous_rtc_breadcrumb_marker_sequence()) +
-              "},\"n3w_latency\":{" +
-              "\"wifi_down_ms\":" +
-              std::to_string(latency.wifi_down_ms) +
-              ",\"mqtt_down_ms\":" +
-              std::to_string(latency.mqtt_down_ms) +
-              ",\"direct_fail_first_ms\":" +
-              std::to_string(latency.direct_fail_first_ms) +
-              ",\"direct_fail_count\":" +
-              std::to_string(latency.direct_fail_count) +
-              ",\"discovery_enter_ms\":" +
-              std::to_string(latency.discovery_enter_ms) +
-              ",\"first_scan_ms\":" +
-              std::to_string(latency.first_scan_ms) +
-              ",\"relay_ad_seen_ms\":" +
-              std::to_string(latency.relay_ad_seen_ms) +
-              ",\"challenge_tx_ms\":" +
-              std::to_string(latency.challenge_tx_ms) +
-              ",\"challenge_submit_failure_count\":" +
-              std::to_string(latency.challenge_submit_failure_count) +
-              ",\"challenge_submit_first_driver_error\":" +
-              std::to_string(latency.challenge_submit_first_driver_error) +
-              ",\"challenge_submit_last_driver_error\":" +
-              std::to_string(latency.challenge_submit_last_driver_error) +
-              ",\"challenge_submit_first_error_raw\":" +
-              std::to_string(latency.challenge_submit_first_error_raw) +
-              ",\"challenge_submit_last_error_raw\":" +
-              std::to_string(latency.challenge_submit_last_error_raw) +
-              ",\"accept_rx_ms\":" +
-              std::to_string(latency.accept_rx_ms) +
-              ",\"relay_active_ms\":" +
-              std::to_string(latency.relay_active_ms) +
-              ",\"first_relay_tx_ms\":" +
+              "},\"n3w_l\":[1," +
+              std::to_string(latency.wifi_down_ms) + "," +
+              std::to_string(latency.mqtt_down_ms) + "," +
+              std::to_string(latency.direct_fail_first_ms) + "," +
+              std::to_string(latency.direct_fail_count) + "," +
+              std::to_string(latency.discovery_enter_ms) + "," +
+              std::to_string(latency.first_scan_ms) + "," +
+              std::to_string(latency.relay_ad_seen_ms) + "," +
+              std::to_string(latency.challenge_tx_ms) + "," +
+              std::to_string(latency.challenge_submit_failure_count) + "," +
+              std::to_string(latency.challenge_submit_first_driver_error) + "," +
+              std::to_string(latency.challenge_submit_last_driver_error) + "," +
+              std::to_string(latency.challenge_submit_first_error_raw) + "," +
+              std::to_string(latency.challenge_submit_last_error_raw) + "," +
+              std::to_string(latency.accept_rx_ms) + "," +
+              std::to_string(latency.relay_active_ms) + "," +
               std::to_string(latency.first_relay_tx_ms) +
-              "},\"n3w_u\":{" +
+              "],\"n3w_u\":{" +
               "\"ok\":" +
               std::to_string(latency.unicast_submit_success_count) +
               ",\"f\":" +
@@ -180,10 +183,44 @@ interval:
               std::to_string(latency.unicast_submit_first_success_current_channel) +
               ",\"sp\":" +
               std::to_string(latency.unicast_submit_first_success_peer_channel) +
-              "}," +
+              "},\"n3w_r\":[1," +
+              std::to_string(latency.presence_probe_count) + "," +
+              std::to_string(latency.presence_probe_found_count) + "," +
+              std::to_string(latency.presence_probe_last_result) + "," +
+              std::to_string(latency.presence_probe_last_start_ms) + "," +
+              std::to_string(latency.presence_probe_last_duration_ms) + "," +
+              std::to_string(latency.full_verify_count) + "," +
+              std::to_string(latency.full_verify_last_start_ms) + "," +
+              std::to_string(latency.full_verify_last_trigger) + "," +
+              std::to_string(latency.full_verify_last_terminal_reason) + "," +
+              std::to_string(latency.relay_restore_last_cause) + "," +
+              std::to_string(latency.relay_restore_last_result) + "," +
+              std::to_string(latency.full_verify_queue_depth_start) + "," +
+              std::to_string(latency.full_verify_queue_depth_end) + "," +
+              std::to_string(latency.full_verify_queue_dropped_start) + "," +
+              std::to_string(latency.full_verify_queue_dropped_end) + "," +
+              std::to_string(latency.full_verify_attempt_failed_dropped_start) + "," +
+              std::to_string(latency.full_verify_attempt_failed_dropped_end) + "," +
+              std::to_string(latency.recovery_probe_deferral_count) + "," +
+              std::to_string(latency.recovery_probe_last_deferral_reason) + "," +
+              std::to_string(latency.next_presence_probe_ms) + "," +
+              std::to_string(latency.next_full_verify_ms) +
+              "]," +
               "\"measurements\":{},\"quality\":{}," +
               "\"power\":{\"source\":\"unknown\",\"low\":false}," +
               "\"phase4_lab\":true}";
+          const std::size_t telemetry_bytes = telemetry.size();
+          if (telemetry_bytes >
+              esphome::greenhouse_n3w_core::kMaxCiphertextBytes) {
+            ESP_LOGE(
+                "phase4_lab",
+                "PHASE4_LAB_TELEMETRY_OVERSIZE seq=%u bytes=%u limit=%u",
+                static_cast<unsigned>(current_seq),
+                static_cast<unsigned>(telemetry_bytes),
+                static_cast<unsigned>(
+                    esphome::greenhouse_n3w_core::kMaxCiphertextBytes));
+            return;
+          }
           const auto disposition =
               id(n3w_phase4_core).submit_telemetry_json(
                   telemetry, boot_id, current_seq);
@@ -200,7 +237,7 @@ interval:
           const auto path_after = id(n3w_phase4_core).path_state();
           ESP_LOGI(
               "phase4_lab",
-              "PHASE4_LAB_TELEMETRY seq=%u path_before=%u path_after=%u accepted=%s buffered=%s disposition=%s disposition_raw=%u",
+              "PHASE4_LAB_TELEMETRY seq=%u path_before=%u path_after=%u accepted=%s buffered=%s disposition=%s disposition_raw=%u bytes=%u margin=%u",
               static_cast<unsigned>(current_seq),
               static_cast<unsigned>(path_before),
               static_cast<unsigned>(path_after),
@@ -208,4 +245,8 @@ interval:
               buffered ? "true" : "false",
               esphome::greenhouse_n3w_core::telemetry_submit_disposition_name(
                   disposition),
-              static_cast<unsigned>(disposition));
+              static_cast<unsigned>(disposition),
+              static_cast<unsigned>(telemetry_bytes),
+              static_cast<unsigned>(
+                  esphome::greenhouse_n3w_core::kMaxCiphertextBytes -
+                  telemetry_bytes));
