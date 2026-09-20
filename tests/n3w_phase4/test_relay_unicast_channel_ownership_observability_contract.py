@@ -115,9 +115,9 @@ def test_phase4_lab_full_envelope_preserves_relay_plaintext_margin() -> None:
     assert '\\"n3w_l\\":[1,' in config
     assert '\\"n3w_r\\":[1,' in config
     assert '\\"n3w_latency\\":{' not in config
-    assert '\\"stage_name\\"' in config
+    assert '\\"wdt_breadcrumb\\":[1,' in config
     assert "previous_rtc_breadcrumb_stage_name()" in config
-    assert '\\"reset_reason\\"' not in config
+    assert '\\"reset_reason\\\":\\"' in config
     assert "PHASE4_LAB_TELEMETRY_OVERSIZE" in config
     assert "telemetry_bytes" in config
 
@@ -135,16 +135,21 @@ def test_phase4_lab_full_envelope_preserves_relay_plaintext_margin() -> None:
         "cap_hash": "phase4lab",
         "fw_version": "phase4-simple",
         "reset_reason_raw": -2147483648,
-        "wdt_breadcrumb": {
-            "valid": True,
-            "stage": u32,
+        # Longest current reset name: UNAVAILABLE (11).
+        "reset_reason": "UNAVAILABLE",
+        # Versioned compact breadcrumb keeps all existing values while
+        # reclaiming enough Relay plaintext budget for reset_reason.
+        "wdt_breadcrumb": [
+            1,
+            True,
+            u32,
             # Longest current breadcrumb name: RADIO_CHANNEL_SET_BEGIN (23).
-            "stage_name": "RADIO_CHANNEL_SET_BEGIN",
-            "arg0": u32,
-            "arg1": u32,
-            "uptime_ms": u32,
-            "marker_sequence": u32,
-        },
+            "RADIO_CHANNEL_SET_BEGIN",
+            u32,
+            u32,
+            u32,
+            u32,
+        ],
         "n3w_l": [
             1,
             u32, u32, u32, u32, u32, u32, u32, u32, u32,
@@ -173,6 +178,6 @@ def test_phase4_lab_full_envelope_preserves_relay_plaintext_margin() -> None:
     }
     encoded = json.dumps(payload, separators=(",", ":")).encode("utf-8")
     assert len(encoded) <= 1024
-    # Current conservative worst case is 998 bytes, leaving 26 bytes.
-    # Keep a non-trivial guard band while preserving the hard 1024-byte limit.
-    assert 1024 - len(encoded) >= 16
+    # Current conservative worst case is 956 bytes, leaving 68 bytes.
+    # Keep a useful guard band while preserving the hard 1024-byte limit.
+    assert 1024 - len(encoded) >= 64
