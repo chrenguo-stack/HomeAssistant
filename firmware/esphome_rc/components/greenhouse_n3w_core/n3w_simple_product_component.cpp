@@ -756,7 +756,9 @@ void SimpleProductComponent::advance_recovery_() {
       diagnostics_.note_full_verify_terminal(
           static_cast<uint8_t>(DirectRecoveryTerminalReason::SUCCEEDED),
           static_cast<uint8_t>(
-              std::min<std::size_t>(telemetry_queue_.size(), 255U)));
+              std::min<std::size_t>(telemetry_queue_.size(), 255U)),
+          telemetry_queue_dropped_,
+          telemetry_attempt_failed_dropped_);
       diagnostics_.note_recovery_schedule(
           recovery_schedule_.next_presence_ms(),
           recovery_schedule_.next_full_verify_ms());
@@ -765,9 +767,11 @@ void SimpleProductComponent::advance_recovery_() {
       return;
     }
     diagnostics_.note_full_verify_terminal(
-        static_cast<uint8_t>(final_decision.terminal_reason),
-        static_cast<uint8_t>(
-            std::min<std::size_t>(telemetry_queue_.size(), 255U)));
+          static_cast<uint8_t>(final_decision.terminal_reason),
+          static_cast<uint8_t>(
+              std::min<std::size_t>(telemetry_queue_.size(), 255U)),
+          telemetry_queue_dropped_,
+          telemetry_attempt_failed_dropped_);
     begin_relay_restore_(RelayRestoreCause::FULL_DIRECT_VERIFY);
     advance_relay_restore_();
     return;
@@ -781,9 +785,11 @@ void SimpleProductComponent::advance_recovery_() {
 
   if (decision.terminal) {
     diagnostics_.note_full_verify_terminal(
-        static_cast<uint8_t>(decision.terminal_reason),
-        static_cast<uint8_t>(
-            std::min<std::size_t>(telemetry_queue_.size(), 255U)));
+          static_cast<uint8_t>(decision.terminal_reason),
+          static_cast<uint8_t>(
+              std::min<std::size_t>(telemetry_queue_.size(), 255U)),
+          telemetry_queue_dropped_,
+          telemetry_attempt_failed_dropped_);
     begin_relay_restore_(RelayRestoreCause::FULL_DIRECT_VERIFY);
     advance_relay_restore_();
   }
@@ -859,7 +865,9 @@ bool SimpleProductComponent::begin_direct_probe_(
       static_cast<uint8_t>(trigger),
       now,
       static_cast<uint8_t>(
-          std::min<std::size_t>(telemetry_queue_.size(), 255U)));
+          std::min<std::size_t>(telemetry_queue_.size(), 255U)),
+      telemetry_queue_dropped_,
+      telemetry_attempt_failed_dropped_);
   diagnostics_.note_recovery_schedule(
       recovery_schedule_.next_presence_ms(),
       recovery_schedule_.next_full_verify_ms());
@@ -1060,6 +1068,7 @@ void SimpleProductComponent::begin_relay_restore_(
   radio_ownership_ = RadioOwnership::RELAY_RESTORE;
   relay_restore_cause_ = cause;
   relay_restore_budget_.start(now);
+  diagnostics_.note_relay_restore(static_cast<uint8_t>(cause), 0U);
   next_relay_restore_attempt_ms_ = now + initial_delay_ms;
 }
 
@@ -1079,7 +1088,9 @@ void SimpleProductComponent::begin_direct_probe_after_restore_exit_(
       static_cast<uint8_t>(DirectFullVerifyTrigger::NO_RELAY),
       now,
       static_cast<uint8_t>(
-          std::min<std::size_t>(telemetry_queue_.size(), 255U)));
+          std::min<std::size_t>(telemetry_queue_.size(), 255U)),
+      telemetry_queue_dropped_,
+      telemetry_attempt_failed_dropped_);
   (void) runtime_.note_direct_recovery_probe(false);
   (void) direct_recovery_attempt_.begin(DirectRecoveryMode::NO_RELAY, now);
   next_recovery_probe_ms_ = now;
@@ -1151,6 +1162,8 @@ void SimpleProductComponent::advance_relay_restore_() {
 
   if (restore_relay_radio_()) {
     const RelayRestoreCause completed_cause = relay_restore_cause_;
+    diagnostics_.note_relay_restore(
+        static_cast<uint8_t>(completed_cause), 1U);
     relay_restore_cause_ = RelayRestoreCause::NONE;
     relay_restore_budget_.clear();
     if (completed_cause == RelayRestoreCause::FULL_DIRECT_VERIFY) {
@@ -1169,7 +1182,11 @@ void SimpleProductComponent::advance_relay_restore_() {
   }
 
   relay_restore_budget_.note_failure();
+  diagnostics_.note_relay_restore(
+      static_cast<uint8_t>(relay_restore_cause_), 2U);
   if (relay_restore_budget_.exhausted(now)) {
+    diagnostics_.note_relay_restore(
+        static_cast<uint8_t>(relay_restore_cause_), 3U);
     exit_relay_restore_failure_(now);
     return;
   }
