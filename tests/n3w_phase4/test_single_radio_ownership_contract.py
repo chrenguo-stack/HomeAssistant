@@ -28,7 +28,7 @@ def test_relay_mode_disables_sta_reconnect_before_channel_mutation() -> None:
     header = text("n3w_simple_product_component.h")
 
     claim_start = source.index("bool SimpleProductComponent::claim_relay_radio_()")
-    claim_end = source.index("bool SimpleProductComponent::begin_direct_probe_()")
+    claim_end = source.index("bool SimpleProductComponent::begin_direct_probe_(")
     claim = source[claim_start:claim_end]
     disable = claim.index("global_wifi_component->disable()")
     standalone = claim.index("radio_.initialize_standalone", disable)
@@ -81,15 +81,15 @@ def test_recovery_probe_checks_ap_presence_and_buffers_business_telemetry() -> N
     )
     advance = source[advance_start:advance_end]
     presence = advance.index("probe_direct_ap_presence_()")
-    full_verify = advance.index("begin_direct_probe_()", presence)
+    full_verify = advance.index("begin_direct_probe_(trigger)", presence)
     assert presence < full_verify
-    assert "schedule_recovery_probe_(true)" in advance
+    assert "recovery_schedule_.full_verify_due(now)" in advance
 
     probe_start = source.index(
         "SimpleProductComponent::probe_direct_ap_presence_()"
     )
     probe_end = source.index(
-        "void SimpleProductComponent::schedule_recovery_probe_", probe_start
+        "void SimpleProductComponent::schedule_full_direct_verify_", probe_start
     )
     probe = source[probe_start:probe_end]
     narrow = probe.index("scan_for_bound_bssid(direct_ap_channel_")
