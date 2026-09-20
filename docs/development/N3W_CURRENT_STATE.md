@@ -1,9 +1,85 @@
 # N3-W Current State
 
-Updated: 2026-09-19  
+Updated: 2026-09-21  
 Status: `CURRENT_STATE_AUTHORITY`
 
 Fresh exact repository/runtime/physical evidence takes precedence if later evidence proves drift.
+
+## 2026-09-21 PR #437 superseding alignment
+
+This section supersedes older PR #437 / KF-096 values later in this file wherever they conflict. Historical sections remain for chronology only.
+
+```text
+REPOSITORY_MAIN=f9df51171d3fac20d64ccff5202faf43926f26f6
+REPOSITORY_MAIN_TREE=015addcccf773d8460e96d3f948de6d4f2795dd2
+
+CURRENT_CANDIDATE_PR=437
+CURRENT_CANDIDATE_STATE=OPEN_DRAFT
+CURRENT_CANDIDATE_SOURCE_HEAD=4270f24a92a87dd5239d781ebba624c2f34b7fc2
+CURRENT_CANDIDATE_SOURCE_TREE=a2f445bf2ea60ba9994a7a467f6492975d399c4f
+CURRENT_CANDIDATE_CI=11_OF_11_PASS
+CURRENT_CANDIDATE_SOURCE_REVIEW=PASS
+
+CURRENT_CANDIDATE_EXACT_ARTIFACT=NOT_BUILT
+EXACT_ARTIFACT_READY=true
+PR437_MERGE_READY=false
+KF096_STATUS=OPEN
+```
+
+The current exact source repaired the newly isolated Wi-Fi recovery-window defect:
+
+```text
+NO_RELAY_WIFI_RECOVERY_BUDGET_MS=85000
+NO_RELAY_ABSOLUTE_RECOVERY_BUDGET_MS=120000
+HEALTHY_RELAY_ABSOLUTE_RECOVERY_BUDGET_MS=30000
+MQTT_RECOVERY_BUDGET_MS=25000
+DIRECT_CONFIRM_BUDGET_MS=5000
+```
+
+Source review found and closed two blockers before this exact head:
+
+- `SR-B1`: a 50 s Wi-Fi phase did not cover ESPHome 2026.4.3's sequential 31 s scan fallback plus 46 s connection fallback;
+- `SR-B2`: an earlier 90 s healthy-Relay absolute window unnecessarily widened single-radio ownership away from an already-working Relay path.
+
+The exact-head host regression now models Wi-Fi becoming ready only after the sequential 77 s fallback path, while healthy Relay retains the pre-existing 30 s hard ownership ceiling.
+
+Current deployed Board B is still bound to the earlier exact artifact/source, not to `4270f24...`:
+
+```text
+DEPLOYED_SOURCE_HEAD=177468e290a207f2fb7f6c554aedf60b61373b4d
+DEPLOYED_SOURCE_TREE=a50ff98887b14b70cf9d278c6f8b7edf536eae88
+DEPLOYED_ARTIFACT_ID=10607030747
+DEPLOYED_APPLICATION_SHA256=74f6b111d3af3b1247e6f367d3da10957846dbe6103e74fc507bc26e43065093
+DEPLOYED_APPLICATION_READBACK=PASS
+```
+
+Post-write runtime evidence on that deployed artifact remains a FAIL baseline:
+
+```text
+POSTWRITE_DIRECT_BASELINE=FAIL
+LAST_MANAGER_CANONICAL_SEQ=49
+LAST_MANAGER_CANONICAL_SOURCE=direct
+EXACT_BOARD_B_MQTT_DISCONNECT=PROVEN
+LATE_BROKER_RECONNECT_OBSERVED=false
+
+DIRECT_RECOVERY_WINDOW_SECONDS=150
+DIRECT_RECOVERY_PING_SAMPLE_COUNT=25
+DIRECT_RECOVERY_PING_SUCCESS_COUNT=0
+DIRECT_RECOVERY_NEIGHBOR_STATE=INCOMPLETE_FOR_ALL_25_SAMPLES
+
+BOARD_B_USB_ENUMERATION_LAST_OBSERVED=PASS
+LOCAL_SERIAL_OWNER_LAST_OBSERVED=0
+MANAGER_CONTINUITY_DURING_FORENSIC=PASS
+BROKER_CONTINUITY_DURING_FORENSIC=PASS
+```
+
+The physical symptom is consistent with the confirmed source integration defect, but unique causation is not yet proven because `4270f24...` has not been built, flashed, or physically revalidated.
+
+```text
+NEXT_ROUTE=N3W_PR437_4270F24_EXACT_ARTIFACT_BUILD_AND_BINDING
+BOARD_B_REFLASH=false
+PR437_MERGE=false
+```
 
 ## Repository / product source authority
 
