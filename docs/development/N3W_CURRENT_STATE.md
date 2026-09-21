@@ -5,6 +5,41 @@ Status: `CURRENT_STATE_AUTHORITY`
 
 Fresh exact repository/runtime/physical evidence takes precedence if later evidence proves drift.
 
+## 2026-09-21 PR #437 post-merge closure
+
+This section supersedes all older PR #437 candidate/merge-state fields below wherever they conflict.
+
+```text
+PR437_STATE=MERGED
+PR437_DRAFT=false
+PR437_MERGED=true
+PR437_SOURCE_HEAD=4270f24a92a87dd5239d781ebba624c2f34b7fc2
+PR437_SOURCE_TREE=a2f445bf2ea60ba9994a7a467f6492975d399c4f
+PR437_MERGE_COMMIT=b9acaaad50b17c9cdb51c219330e612c383628f0
+MAIN_AFTER_PR437=b9acaaad50b17c9cdb51c219330e612c383628f0
+
+PR437_CURRENT_HEAD_CI=11_OF_11_PASS
+PR437_EXACT_ARTIFACT_BINDING=PASS
+PR437_BOARD_B_DEPLOYMENT=PASS
+PR437_TWO_RUN_PHYSICAL_REVALIDATION=PASS
+KF096_STATUS=CLOSED_PASS
+KNOWN_FAILURE_KF096=GUARDED
+
+DIRECT_TO_RELAY_FUNCTIONAL_SWITCH=REPEATABLE_PASS
+DIRECT_TO_RELAY_ZERO_LOSS=NOT_GUARANTEED
+DIRECT_TO_RELAY_BOUNDARY_LOSS=REPEATABLE
+RELAY_CONTINUITY_600S=REPEATABLE_PASS
+RELAY_TO_DIRECT_FAILBACK=REPEATABLE_PASS
+SAME_BOOT_FULL_ROUND_TRIP=REPEATABLE_PASS
+
+POSTMERGE_SOURCE_INTEGRITY=PASS
+POSTMERGE_PUSH_CI=NOT_OBSERVED_BY_PR_ONLY_WORKFLOW_WRAPPER
+```
+
+The merge used an exact-head guard against `4270f24...`. Fresh comparison from the frozen physical source head to the merge commit shows only the already-existing main-side repository/documentation/execution-package changes; none of the PR #437 product-source or PR-owned test files changed relative to the physically validated source head. Therefore the merged product source remains exactly attributable to the tested `4270f24...` revision.
+
+The available workflow-run wrapper is PR-event-only and returns no merge-SHA push runs; this is an observability limitation, not evidence that post-merge CI did not run.
+
 ## 2026-09-21 two-run final alignment and merge authorization
 
 This section supersedes all older PR #437 / KF-096 current-state fields below wherever they conflict.

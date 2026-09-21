@@ -5,14 +5,36 @@ Current progress alignment: `docs/development/N3W_PR437_4270F24_TWO_RUN_FINAL_AL
 Current new-chat handoff: `docs/development/N3W_PR437_WIFI_RECOVERY_BUDGET_SOURCE_REPAIR_NEW_CHAT_HANDOFF_V1.1_20260921.md`  
 Long-term working context: `docs/development/N3W_PROJECT_WORKING_CONTEXT.md`  
 Current handoff template: `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` v1.2  
-Latest merged product-source authority: PR #431 / `d1b5c3acbd32cca95483743ffe2edba9aa3f904f`  
-Current successor candidate: PR #437 / `4270f24a92a87dd5239d781ebba624c2f34b7fc2`  
+Latest merged product-source authority: PR #437 / merge `b9acaaad50b17c9cdb51c219330e612c383628f0` / frozen physical source `4270f24a92a87dd5239d781ebba624c2f34b7fc2`  
+Current successor candidate: none; PR #437 is merged  
 Current candidate tree: `a2f445bf2ea60ba9994a7a467f6492975d399c4f`  
 Current candidate exact artifact: artifact `10619047221` independently bound, deployed, and physically route-validated PASS  
 Current artifact binding authority: `docs/development/N3W_PR437_4270F24_EXACT_ARTIFACT_BUILD_AND_BINDING_EXECUTION_20260921.md`  
 Currently deployed Board B source: `4270f24a92a87dd5239d781ebba624c2f34b7fc2`  
 Current local-development-environment authority: `docs/development/local-environment-records/2026-09-17-macos-x86_64.json`  
 Active product-direction authority: `docs/development/N3W_OFFICIAL_ESPNOW_REFERENCE_PRODUCT_DIRECTION_DECISION_20260906.md`
+
+## 2026-09-21 PR #437 merged snapshot
+
+```text
+PR437_STATE=MERGED
+PR437_MERGED=true
+PR437_SOURCE_HEAD=4270f24a92a87dd5239d781ebba624c2f34b7fc2
+PR437_SOURCE_TREE=a2f445bf2ea60ba9994a7a467f6492975d399c4f
+PR437_MERGE_COMMIT=b9acaaad50b17c9cdb51c219330e612c383628f0
+MAIN_AFTER_PR437=b9acaaad50b17c9cdb51c219330e612c383628f0
+POSTMERGE_SOURCE_INTEGRITY=PASS
+
+PR437_TWO_RUN_PHYSICAL_REVALIDATION=PASS
+DIRECT_TO_RELAY_BOUNDARY_LOSS=REPEATABLE
+RELAY_CONTINUITY_600S=REPEATABLE_PASS
+RELAY_TO_DIRECT_FAILBACK=REPEATABLE_PASS
+
+KF096_STATUS=CLOSED_PASS
+KNOWN_FAILURE_KF096=GUARDED
+```
+
+The merged source is the same frozen `4270f24...` product revision used for the exact artifact and two-run physical validation. Option B remains a latest-state design and does not guarantee zero-loss Direct -> Relay transition delivery.
 
 ## 2026-09-21 two-run final merge snapshot
 
