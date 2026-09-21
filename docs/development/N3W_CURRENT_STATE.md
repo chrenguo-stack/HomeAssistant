@@ -5,6 +5,47 @@ Status: `CURRENT_STATE_AUTHORITY`
 
 Fresh exact repository/runtime/physical evidence takes precedence if later evidence proves drift.
 
+## 2026-09-21 post-convergence exact artifact build update
+
+This section supersedes the repository-main and current-artifact fields in the older 2026-09-21 source-repair header below.
+
+```text
+REPOSITORY_MAIN=0f712709bff98b9288cb1b8425605a875f45d241
+REPOSITORY_MAIN_TREE=592a359e0c7655c2a80318dc8bd283a4811a2760
+REPOSITORY_CONVERGENCE=CLOSED_PASS
+OPEN_PR_COUNT=2
+WORKFLOW_FILE_COUNT=37
+
+CURRENT_CANDIDATE_PR=437
+CURRENT_CANDIDATE_STATE=OPEN_DRAFT
+CURRENT_CANDIDATE_SOURCE_HEAD=4270f24a92a87dd5239d781ebba624c2f34b7fc2
+CURRENT_CANDIDATE_SOURCE_TREE=a2f445bf2ea60ba9994a7a467f6492975d399c4f
+CURRENT_CANDIDATE_CI=11_OF_11_PASS
+CURRENT_CANDIDATE_SOURCE_REVIEW=PASS
+
+CURRENT_CANDIDATE_EXACT_ARTIFACT_BUILD=PASS
+CURRENT_CANDIDATE_EXACT_ARTIFACT_BINDING=PARTIAL_PENDING_INDEPENDENT_VERIFY
+ARTIFACT_RUN_ID=35553142523
+ARTIFACT_ID=10619047221
+ARTIFACT_NAME=n3w-pr437-4270f24-boardb-exact-source
+GITHUB_ARTIFACT_DIGEST_SHA256=33895089cf861a211f3f5569cd8f3e6729b0938787cda0d4a30d498ce0264895
+APPLICATION_SIZE=1145984
+APPLICATION_SHA256=b7836f041e8b0f68809980d516a9d9cd5c4a94f862f7d3a27515ae85d55d6843
+OTADATA_SIZE=8192
+OTADATA_SHA256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
+
+PR437_MERGE_READY=false
+KF096_STATUS=OPEN
+
+NEXT_ROUTE=N3W_PR437_4270F24_EXACT_ARTIFACT_BUILD_AND_BINDING_EXECUTION_20260921_01
+RESUME_POINT=INDEPENDENT_ARTIFACT_DOWNLOAD_AND_BINDING
+BOARD_B_REFLASH=false
+```
+
+Run `35553142523` checked out exact PR #437 source, matched source tree and target blob, compiled with ESPHome 2026.4.3 / ESP-IDF 5.5.4, froze the application/OTA-data files, and uploaded artifact `10619047221`. Independent archive/member/hash verification is still required before this artifact becomes the bound candidate for any Board preflight.
+
+Board B remains on the earlier deployed artifact/source recorded below. Artifact-build success is not physical validation.
+
 ## 2026-09-21 PR #437 superseding alignment
 
 This section supersedes older PR #437 / KF-096 values later in this file wherever they conflict. Historical sections remain for chronology only.
