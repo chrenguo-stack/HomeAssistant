@@ -18,7 +18,6 @@ namespace esphome::greenhouse_n3w_core {
 
 namespace {
 static const char *const TAG = "n3w_espnow_driver";
-constexpr uint8_t kDiagnosticLogLimit = 8;
 }
 
 std::atomic<uint16_t> EspNowDriver::callbacks_inflight_{0};
@@ -163,10 +162,6 @@ DriverError EspNowDriver::initialize_(
   last_broadcast_send_error_raw_ = 0;
   last_unicast_send_error_ = DriverError::NONE;
   last_unicast_send_error_raw_ = 0;
-  last_unicast_current_channel_ = 0;
-  last_unicast_peer_channel_ = 0;
-  diagnostic_receive_logs_.store(0, std::memory_order_relaxed);
-  diagnostic_broadcast_logs_.store(0, std::memory_order_relaxed);
   pending_unicast_sends_.store(0, std::memory_order_release);
   if (esp_now_register_recv_cb(&EspNowDriver::recv_cb_) != ESP_OK ||
       esp_now_register_send_cb(&EspNowDriver::send_cb_) != ESP_OK) {
@@ -399,17 +394,13 @@ DriverError EspNowDriver::remove_peer(const MacAddress &peer_mac) {
 DriverError EspNowDriver::send(
     const MacAddress &peer_mac,
     const uint8_t *data,
-    std::size_t size,
-    bool observe_context) {
+    std::size_t size) {
   last_unicast_send_error_ = DriverError::NONE;
   last_unicast_send_error_raw_ = 0;
-  last_unicast_current_channel_ = 0;
-  last_unicast_peer_channel_ = 0;
 #ifndef USE_ESP32
   (void) peer_mac;
   (void) data;
   (void) size;
-  (void) observe_context;
   last_unicast_send_error_ = DriverError::NOT_INITIALIZED;
   return last_unicast_send_error_;
 #else
@@ -421,22 +412,6 @@ DriverError EspNowDriver::send(
       !esp_now_is_peer_exist(peer_mac.data())) {
     last_unicast_send_error_ = DriverError::INVALID_ARGUMENT;
     return last_unicast_send_error_;
-  }
-
-  // Lab-only observation is requested by the product component. These reads do
-  // not mutate Wi-Fi/ESP-NOW state and occur immediately before esp_now_send(),
-  // so a synchronous ESP_ERR_ESPNOW_CHAN can be bound to both the actual radio
-  // channel and the configured encrypted-peer channel.
-  if (observe_context) {
-    esp_now_peer_info_t peer{};
-    if (esp_now_get_peer(peer_mac.data(), &peer) == ESP_OK) {
-      last_unicast_peer_channel_ = peer.channel;
-    }
-    uint8_t current_channel = 0;
-    wifi_second_chan_t secondary = WIFI_SECOND_CHAN_NONE;
-    if (esp_wifi_get_channel(&current_channel, &secondary) == ESP_OK) {
-      last_unicast_current_channel_ = current_channel;
-    }
   }
 
   // Increment before esp_now_send(): the Wi-Fi task may run the completion
@@ -580,13 +555,6 @@ void EspNowDriver::recv_cb_(
     metadata.rssi_dbm = static_cast<int16_t>(info->rx_ctrl->rssi);
     metadata.channel = static_cast<uint8_t>(info->rx_ctrl->channel);
   }
-  const uint8_t receive_index = driver->diagnostic_receive_logs_.fetch_add(
-      1, std::memory_order_relaxed);
-  if (receive_index < kDiagnosticLogLimit) {
-    ESP_LOGI(TAG, "ESP-NOW diagnostic receive count=%u size=%d channel=%u",
-             static_cast<unsigned>(receive_index + 1), data_len,
-             static_cast<unsigned>(metadata.channel));
-  }
   sink->on_espnow_receive_with_metadata(
       source, data, static_cast<std::size_t>(data_len), metadata);
   callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
@@ -612,15 +580,6 @@ void EspNowDriver::send_cb_(
 
   MacAddress destination{};
   std::copy_n(info->des_addr, destination.size(), destination.begin());
-  if (destination == kEspNowBroadcastMac) {
-    const uint8_t send_index = driver->diagnostic_broadcast_logs_.fetch_add(
-        1, std::memory_order_relaxed);
-    if (send_index < kDiagnosticLogLimit) {
-      ESP_LOGI(TAG, "ESP-NOW diagnostic broadcast completion count=%u success=%s",
-               static_cast<unsigned>(send_index + 1),
-               status == ESP_NOW_SEND_SUCCESS ? "true" : "false");
-    }
-  }
   sink->on_espnow_send_result(
       destination, status == ESP_NOW_SEND_SUCCESS);
   // Decrement only after the sink has copied completion metadata into its
@@ -651,15 +610,6 @@ void EspNowDriver::send_cb_(
 
   MacAddress destination{};
   std::copy_n(mac_addr, destination.size(), destination.begin());
-  if (destination == kEspNowBroadcastMac) {
-    const uint8_t send_index = driver->diagnostic_broadcast_logs_.fetch_add(
-        1, std::memory_order_relaxed);
-    if (send_index < kDiagnosticLogLimit) {
-      ESP_LOGI(TAG, "ESP-NOW diagnostic broadcast completion count=%u success=%s",
-               static_cast<unsigned>(send_index + 1),
-               status == ESP_NOW_SEND_SUCCESS ? "true" : "false");
-    }
-  }
   sink->on_espnow_send_result(
       destination, status == ESP_NOW_SEND_SUCCESS);
   // Decrement only after the sink has copied completion metadata into its
