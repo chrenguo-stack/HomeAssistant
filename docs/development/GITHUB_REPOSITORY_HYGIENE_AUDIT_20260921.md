@@ -69,6 +69,7 @@ tmp-do-not-use-5
 This hygiene branch retires only one-off, stage-bound workflow files whose associated execution chains are already historical/closed:
 
 ```text
+.github/workflows/h3-n2-stage2d7-2d8-g2-integration-ci.yml
 .github/workflows/h3-n2-stage2d8-dedicated-board-g2-v64-ci.yml
 .github/workflows/h3-n2-stage2d9-g3-v67-artifact-ci.yml
 .github/workflows/h3-n2-stage2d9-g3-v68-artifact-ci.yml
@@ -80,6 +81,8 @@ This hygiene branch retires only one-off, stage-bound workflow files whose assoc
 .github/workflows/n3w-kf089-id25-manager-relay-subscription-reactivation-ci.yml
 .github/workflows/n3w-kf089-id26-minimal-end-to-end-relay-revalidation-ci.yml
 ```
+
+The Stage2D7-2D8 integration gate was added to the retirement set after the first PR #448 CI run proved it is tied to frozen July ancestry. Its first step requires historical evidence/union commits to be ancestors of the current PR merge commit; current main does not contain those frozen branch commits, so it is not a valid long-lived current-main check.
 
 Historical workflow runs and commits remain in Git history.
 
