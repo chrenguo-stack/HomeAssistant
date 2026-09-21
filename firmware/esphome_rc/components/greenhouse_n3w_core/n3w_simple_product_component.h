@@ -13,6 +13,7 @@
 #include "n3w_esp32_runtime_nvs.h"
 #include "n3w_espnow_driver.h"
 #include "n3w_lab_diagnostics.h"
+#include "n3w_direct_recovery_policy.h"
 #include "n3w_recovery_exit_policy.h"
 #include "n3w_simple_pairing_client.h"
 #include "n3w_simple_product_runtime.h"
@@ -164,11 +165,33 @@ class SimpleProductComponent : public Component,
     RESTORE_FAILED,
   };
 
-  struct BufferedTelemetry {
+  enum class DirectFullVerifyTrigger : uint8_t {
+    BACKOFF = 0,
+    AP_BECAME_VISIBLE,
+    NO_RELAY,
+    HINT_RELEASED,
+  };
+
+  enum class RelayRestoreCause : uint8_t {
+    NONE = 0,
+    PRESENCE_SCAN,
+    FULL_DIRECT_VERIFY,
+  };
+
+  enum class PendingTelemetryState : uint8_t {
+    QUEUED = 0,
+    RELAY_IN_FLIGHT,
+  };
+
+  struct PendingTelemetry {
     std::string telemetry_json;
     std::string boot_id;
     uint32_t seq{0};
-    uint8_t attempts{0};
+    PendingTelemetryState state{PendingTelemetryState::QUEUED};
+    MacAddress relay_destination{};
+    TelemetryPathAccounting in_flight_accounting{
+        TelemetryPathAccounting::TRANSPORT_ONLY};
+    uint32_t submit_count{0};
   };
 
   bool read_local_mac_();
@@ -185,15 +208,17 @@ class SimpleProductComponent : public Component,
   void advance_pairing_();
   void advance_recovery_();
   bool claim_relay_radio_();
-  bool begin_direct_probe_();
+  bool begin_direct_probe_(DirectFullVerifyTrigger trigger);
   void begin_direct_probe_after_restore_exit_(uint64_t now_ms);
   bool prepare_direct_probe_radio_();
   void refresh_direct_ap_hint_();
   bool explicit_bssid_lock_active_() const;
-  void invalidate_direct_ap_hint_();
+  void release_direct_ap_hint_authority_();
   DirectPresenceProbeResult probe_direct_ap_presence_();
-  void schedule_recovery_probe_(bool increase_backoff);
-  void begin_relay_restore_(uint32_t initial_delay_ms = 0);
+  void schedule_full_direct_verify_(bool increase_backoff);
+  void begin_relay_restore_(
+      RelayRestoreCause cause,
+      uint32_t initial_delay_ms = 0);
   void advance_relay_restore_();
   void exit_relay_restore_failure_(uint64_t now_ms);
   bool restore_relay_radio_();
@@ -201,7 +226,9 @@ class SimpleProductComponent : public Component,
       const std::string &telemetry_json,
       const std::string &boot_id,
       uint32_t seq);
-  void flush_telemetry_queue_();
+  TelemetrySubmitDisposition flush_telemetry_queue_(
+      TelemetryPathAccounting accounting =
+          TelemetryPathAccounting::TRANSPORT_ONLY);
   bool http_post_(
       const std::string &host,
       uint16_t port,
@@ -222,19 +249,34 @@ class SimpleProductComponent : public Component,
   static constexpr std::size_t kTxCompletionRingSlots = 8;
   static constexpr uint32_t kPairingRetryMs = 5000;
   static constexpr uint32_t kRecoveryProbeMs = 2000;
-  static constexpr uint32_t kRecoveryProbeWindowMs = 15000;
   static constexpr uint32_t kRecoveryProbeIntervalMs = 60000;
   static constexpr uint32_t kRecoveryProbeBackoffMaxMs = 480000;
+  static constexpr uint32_t kDirectPresenceProbeIntervalMs = 60000;
+  static constexpr uint32_t kDirectFullVerifyMinSpacingMs = 60000;
+  static constexpr uint32_t kDirectFullVerifyBacklogRetryMs = 100;
+  // ESPHome 2026.4.3 can spend up to 31 s in scan fallback and then
+  // up to 46 s in a connection-attempt fallback. Keep enough NO_RELAY Wi-Fi
+  // ownership time for that sequential path plus loop/scheduler margin.
+  static constexpr uint32_t kDirectRecoveryWifiBudgetMs = 85000;
+  static constexpr uint32_t kDirectRecoveryMqttBudgetMs = 25000;
+  static constexpr uint32_t kDirectRecoveryConfirmBudgetMs = 5000;
+  // NO_RELAY has no working alternate transport, so allow the full upstream
+  // reconnect lifecycle to complete. HEALTHY_RELAY retains the pre-existing
+  // 30 s hard ownership ceiling so a failback probe cannot monopolize the
+  // single radio for a long interval while Relay is already carrying data.
+  static constexpr uint32_t kNoRelayDirectRecoveryAbsoluteMs = 120000;
+  static constexpr uint32_t kHealthyRelayDirectRecoveryAbsoluteMs = 30000;
+  static constexpr uint8_t kDirectRecoveryConfirmSuccesses = 2;
+  static constexpr uint8_t kDirectApHintScanErrorLimit = 3;
   static constexpr uint32_t kDirectPresenceProbeQuietGuardMs = 500;
   static constexpr uint16_t kDirectPresenceProbePassiveMs = 120;
   static constexpr uint32_t kPendingUnicastDrainRetryMs = 25;
   static constexpr uint32_t kRelayRestoreRetryFastMs = 1000;
   static constexpr uint32_t kRelayRestoreRetrySlowMs = 5000;
   static constexpr uint8_t kRelayRestoreFastAttempts = 5;
-  static constexpr std::size_t kTelemetryQueueCapacity = 8;
+  static constexpr std::size_t kTelemetryQueueCapacity = 24;
   static constexpr uint32_t kTelemetryFlushSpacingMs = 100;
-  static constexpr uint32_t kTelemetryRetrySpacingMs = 500;
-  static constexpr uint8_t kTelemetryMaxSendAttempts = 3;
+  static constexpr uint32_t kTelemetryHoldPollMs = 500;
   static constexpr uint32_t kInitialDirectGraceMs = 15000;
   static constexpr uint16_t kDiscoveryPort = 47111;
 
@@ -247,14 +289,15 @@ class SimpleProductComponent : public Component,
   bool safe_reboot_requested_{false};
   uint64_t next_pairing_attempt_ms_{0};
   uint64_t next_recovery_probe_ms_{0};
-  uint64_t direct_probe_deadline_ms_{0};
   uint64_t next_relay_restore_attempt_ms_{0};
   uint64_t next_telemetry_flush_ms_{0};
   uint64_t last_relay_telemetry_ms_{0};
   uint64_t last_radio_attempt_ms_{0};
   uint64_t runtime_start_grace_started_ms_{0};
-  uint32_t recovery_probe_backoff_ms_{kRecoveryProbeIntervalMs};
   uint32_t telemetry_queue_dropped_{0};
+  uint32_t telemetry_attempt_failed_dropped_{0};
+  uint32_t telemetry_completion_failures_{0};
+  uint32_t telemetry_invariant_failures_{0};
   uint32_t pending_unicast_timeout_count_{0};
   uint32_t relay_restore_exhausted_count_{0};
   MacAddress local_mac_{};
@@ -262,8 +305,22 @@ class SimpleProductComponent : public Component,
   bool direct_ap_bssid_valid_{false};
   uint8_t direct_ap_channel_{0};
   DirectApHintLease direct_ap_hint_lease_{};
+  DirectApHintPolicy direct_ap_hint_policy_;
+  RelayDirectRecoverySchedule recovery_schedule_{
+      RelayDirectRecoveryScheduleConfig{
+          kDirectPresenceProbeIntervalMs,
+          kRecoveryProbeIntervalMs,
+          kDirectFullVerifyMinSpacingMs,
+          kRecoveryProbeBackoffMaxMs,
+      }};
+  DirectRecoveryAttempt direct_recovery_attempt_;
   PendingUnicastDeadline pending_unicast_deadline_{};
   RelayRestoreBudget relay_restore_budget_{};
+  RelayRestoreCause relay_restore_cause_{RelayRestoreCause::NONE};
+  DirectFullVerifyTrigger active_full_verify_trigger_{
+      DirectFullVerifyTrigger::BACKOFF};
+  bool pending_ap_visible_acceleration_{false};
+  bool pending_hint_release_acceleration_{false};
   ProvisionedPeerStateV2 peer_state_{};
   ProvisionedBrokerStateV2 broker_state_{};
   EspNowDriver radio_{};
@@ -277,7 +334,7 @@ class SimpleProductComponent : public Component,
   NvsProvisionedBrokerStoreV2 broker_store_{};
   NvsPendingPairingAckStoreV2 ack_store_{};
   SimplePairingClient pairing_client_;
-  std::deque<BufferedTelemetry> telemetry_queue_{};
+  std::deque<PendingTelemetry> telemetry_queue_{};
   std::array<TxCompletionSlot, kTxCompletionRingSlots> tx_completion_ring_{};
   std::atomic<uint8_t> tx_completion_write_{0};
   std::atomic<uint8_t> tx_completion_read_{0};

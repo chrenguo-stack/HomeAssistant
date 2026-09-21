@@ -24,6 +24,19 @@ bool SimpleProductRelayPeer::valid() const {
              lmk.begin(), lmk.end(), [](uint8_t value) { return value != 0; });
 }
 
+TelemetryAdmissionPlan plan_business_telemetry_admission(
+    LocalPathState path_state,
+    bool direct_mqtt_available) {
+  const bool record_direct_unavailable =
+      path_state == LocalPathState::DIRECT && !direct_mqtt_available;
+  return TelemetryAdmissionPlan{
+      record_direct_unavailable,
+      record_direct_unavailable
+          ? TelemetryPathAccounting::TRANSPORT_ONLY
+          : TelemetryPathAccounting::RECORD_PATH_RESULT,
+  };
+}
+
 SimpleProductRuntime::SimpleProductRuntime(
     SimpleProductPort *port,
     SimpleProductClock *clock,
@@ -157,6 +170,12 @@ SimpleProductError SimpleProductRuntime::note_direct_result(bool success) {
   const LocalPathState before = path_.state();
   const RadioError result = path_.note_direct_result(success);
   if (result != RadioError::NONE) return SimpleProductError::STATE_REJECTED;
+  // This diagnostic follows the logical Direct path-health observation, not
+  // merely MQTT publish calls. A new business sample with no MQTT opportunity
+  // therefore advances the same physical timing oracle exactly once.
+  if (diagnostic_sink_ != nullptr) {
+    diagnostic_sink_->on_direct_path_result(success, clock_->now_ms());
+  }
   if (before != path_.state() &&
       path_.state() == LocalPathState::DISCOVERY) {
     if (diagnostic_sink_ != nullptr) {
@@ -184,6 +203,59 @@ SimpleProductError SimpleProductRuntime::note_direct_recovery_probe(bool success
   const RadioError result = path_.note_direct_recovery_probe(success);
   return result == RadioError::NONE ? SimpleProductError::NONE
                                     : SimpleProductError::STATE_REJECTED;
+}
+
+DirectRecoveryCommitResult SimpleProductRuntime::commit_direct_recovery_before(
+    uint64_t absolute_deadline_ms) {
+  DirectRecoveryCommitResult result;
+  result.completed_at_ms = clock_ != nullptr ? clock_->now_ms() : 0;
+
+  if (!started_ || clock_ == nullptr || port_ == nullptr) {
+    result.error = SimpleProductError::NOT_READY;
+    return result;
+  }
+
+  if (!path_.direct_recovery_would_commit_on_success()) {
+    result.error = SimpleProductError::STATE_REJECTED;
+    return result;
+  }
+
+  if (result.completed_at_ms >= absolute_deadline_ms) {
+    (void) path_.note_direct_recovery_probe(false);
+    result.error = SimpleProductError::STATE_REJECTED;
+    return result;
+  }
+
+  if (!port_->set_radio_channel(direct_channel_)) {
+    (void) path_.note_direct_recovery_probe(false);
+    result.completed_at_ms = clock_->now_ms();
+    result.error = SimpleProductError::RADIO_FAILED;
+    return result;
+  }
+
+  result.completed_at_ms = clock_->now_ms();
+  if (result.completed_at_ms >= absolute_deadline_ms) {
+    (void) path_.note_direct_recovery_probe(false);
+    result.error = SimpleProductError::STATE_REJECTED;
+    return result;
+  }
+
+  const RadioError path_result = path_.note_direct_recovery_probe(true);
+  if (path_result != RadioError::NONE ||
+      path_.state() != LocalPathState::DIRECT) {
+    (void) path_.note_direct_recovery_probe(false);
+    result.error = SimpleProductError::STATE_REJECTED;
+    return result;
+  }
+
+  pending_challenge_.reset();
+  if (active_relay_.has_value()) {
+    (void) port_->remove_peer(active_relay_->mac);
+    active_relay_.reset();
+  }
+  next_advertisement_ms_ = result.completed_at_ms;
+  result.committed = true;
+  return result;
 }
 
 SimpleProductError SimpleProductRuntime::note_relay_delivery_result(
@@ -260,7 +332,8 @@ bool SimpleProductRuntime::update_direct_channel_hint(uint8_t channel) {
 SimpleProductError SimpleProductRuntime::send_telemetry(
     const std::string &telemetry_json,
     const std::string &boot_id,
-    uint32_t seq) {
+    uint32_t seq,
+    TelemetryPathAccounting accounting) {
   if (!started_ || telemetry_json.empty()) {
     return SimpleProductError::NOT_READY;
   }
@@ -269,11 +342,10 @@ SimpleProductError SimpleProductRuntime::send_telemetry(
         "gh/v1/" + state_.system_id + "/ingress/node/" + state_.node_id +
         "/telemetry";
     const bool success = port_->publish_direct(topic, telemetry_json);
-    if (diagnostic_sink_ != nullptr) {
-      diagnostic_sink_->on_direct_publish_result(success, clock_->now_ms());
+    if (accounting == TelemetryPathAccounting::RECORD_PATH_RESULT) {
+      const SimpleProductError state_result = note_direct_result(success);
+      if (state_result != SimpleProductError::NONE) return state_result;
     }
-    const SimpleProductError state_result = note_direct_result(success);
-    if (state_result != SimpleProductError::NONE) return state_result;
     return success ? SimpleProductError::NONE : SimpleProductError::MQTT_FAILED;
   }
   if (path_.state() != LocalPathState::RELAY_ACTIVE ||
@@ -304,9 +376,11 @@ SimpleProductError SimpleProductRuntime::send_telemetry(
     diagnostic_sink_->on_relay_telemetry(submitted, clock_->now_ms());
   }
   if (!submitted) {
-    const SimpleProductError state_result =
-        note_relay_delivery_result(relay_destination, false);
-    if (state_result != SimpleProductError::NONE) return state_result;
+    if (accounting == TelemetryPathAccounting::RECORD_PATH_RESULT) {
+      const SimpleProductError state_result =
+          note_relay_delivery_result(relay_destination, false);
+      if (state_result != SimpleProductError::NONE) return state_result;
+    }
     return SimpleProductError::RADIO_FAILED;
   }
   return SimpleProductError::NONE;

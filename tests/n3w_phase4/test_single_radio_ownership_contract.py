@@ -28,7 +28,7 @@ def test_relay_mode_disables_sta_reconnect_before_channel_mutation() -> None:
     header = text("n3w_simple_product_component.h")
 
     claim_start = source.index("bool SimpleProductComponent::claim_relay_radio_()")
-    claim_end = source.index("bool SimpleProductComponent::begin_direct_probe_()")
+    claim_end = source.index("bool SimpleProductComponent::begin_direct_probe_(")
     claim = source[claim_start:claim_end]
     disable = claim.index("global_wifi_component->disable()")
     standalone = claim.index("radio_.initialize_standalone", disable)
@@ -81,15 +81,15 @@ def test_recovery_probe_checks_ap_presence_and_buffers_business_telemetry() -> N
     )
     advance = source[advance_start:advance_end]
     presence = advance.index("probe_direct_ap_presence_()")
-    full_verify = advance.index("begin_direct_probe_()", presence)
+    full_verify = advance.index("begin_direct_probe_(trigger)", presence)
     assert presence < full_verify
-    assert "schedule_recovery_probe_(true)" in advance
+    assert "recovery_schedule_.full_verify_due(now)" in advance
 
     probe_start = source.index(
         "SimpleProductComponent::probe_direct_ap_presence_()"
     )
     probe_end = source.index(
-        "void SimpleProductComponent::schedule_recovery_probe_", probe_start
+        "void SimpleProductComponent::schedule_full_direct_verify_", probe_start
     )
     probe = source[probe_start:probe_end]
     narrow = probe.index("scan_for_bound_bssid(direct_ap_channel_")
@@ -110,15 +110,16 @@ def test_recovery_probe_checks_ap_presence_and_buffers_business_telemetry() -> N
         "bool SimpleProductComponent::read_local_mac_()", telemetry_start
     )
     telemetry = source[telemetry_start:telemetry_end]
-    assert "TelemetrySubmitDisposition::SUBMITTED" in telemetry
+    assert "front_result" in telemetry
     assert "TelemetrySubmitDisposition::BUFFERED" in telemetry
     assert "TelemetrySubmitDisposition::REJECTED" in telemetry
     assert "enqueue_telemetry_" in telemetry
-    assert "!telemetry_queue_.empty()" in telemetry
-    assert "radio_.pending_unicast_sends() != 0U" in telemetry
-    assert "relay_unicast_busy" in telemetry
+    assert "flush_telemetry_queue_(" in telemetry
+    assert "plan_business_telemetry_admission(" in telemetry
+    assert "admission_plan.front_accounting" in telemetry
+    assert "queue_was_empty" in telemetry
 
-    flush_start = source.index("void SimpleProductComponent::flush_telemetry_queue_()")
+    flush_start = source.index("TelemetrySubmitDisposition SimpleProductComponent::flush_telemetry_queue_(")
     flush_end = source.index("bool SimpleProductComponent::restore_relay_radio_()", flush_start)
     flush = source[flush_start:flush_end]
     pending = flush.index("radio_.pending_unicast_sends() != 0U")
@@ -127,16 +128,21 @@ def test_recovery_probe_checks_ap_presence_and_buffers_business_telemetry() -> N
     assert pending < drain < submit
     assert "telemetry_queue_.front()" in flush
     assert "telemetry_queue_.pop_front()" in flush
-    assert "buffered telemetry submitted" in flush
-    assert "kTelemetryQueueCapacity = 8" in header
+    assert "telemetry Relay single attempt in-flight" in flush
+    assert "telemetry Direct single attempt submitted" in flush
+    assert "kTelemetryQueueCapacity = 24" in header
     assert "kRecoveryProbeBackoffMaxMs = 480000" in header
+    assert "kDirectPresenceProbeIntervalMs = 60000" in header
+    assert "kDirectFullVerifyMinSpacingMs = 60000" in header
+    assert "next_presence_ms" in text("n3w_direct_recovery_policy.h")
+    assert "next_full_verify_ms" in text("n3w_direct_recovery_policy.h")
 
     enqueue_start = source.index("bool SimpleProductComponent::enqueue_telemetry_(")
     enqueue_end = source.index(
-        "void SimpleProductComponent::flush_telemetry_queue_()", enqueue_start
+        "TelemetrySubmitDisposition SimpleProductComponent::flush_telemetry_queue_(", enqueue_start
     )
     enqueue = source[enqueue_start:enqueue_end]
-    assert "rejecting newest sample" in enqueue
+    assert "rejecting newest" in enqueue
     assert "telemetry_queue_.pop_front()" not in enqueue
 
 
@@ -300,3 +306,329 @@ def test_accept_fixes_relay_channel_before_peer_and_state_commit() -> None:
     state_commit = accept.index("path_.note_authenticated_relay_ready(true)", peer_bind)
     active_bind = accept.index("active_relay_ = std::move(relay)", state_commit)
     assert channel_fix < peer_bind < state_commit < active_bind
+
+
+def test_transition_telemetry_hold_buffer_preserves_only_not_yet_attempted_samples() -> None:
+    source = text("n3w_simple_product_component.cpp")
+    header = text("n3w_simple_product_component.h")
+    runtime_h = text("n3w_simple_product_runtime.h")
+
+    assert "enum class PendingTelemetryState" in header
+    assert "RELAY_IN_FLIGHT" in header
+    assert "in_flight_accounting" in header
+    assert "std::deque<PendingTelemetry> telemetry_queue_" in header
+    assert "kTelemetryQueueCapacity = 24" in header
+    assert "kTelemetryHoldPollMs = 500" in header
+    assert "kTelemetryRetrySpacingMs" not in header
+    assert "transient_failure_count" not in header
+    assert "telemetry_error_retryable_" not in header
+    assert "TelemetryPathAccounting" in runtime_h
+    assert "TRANSPORT_ONLY" in runtime_h
+
+    submit_start = source.index(
+        "TelemetrySubmitDisposition SimpleProductComponent::submit_telemetry_json("
+    )
+    submit_end = source.index(
+        "bool SimpleProductComponent::send_telemetry_json(", submit_start
+    )
+    submit = source[submit_start:submit_end]
+    assert "const bool queue_was_empty = telemetry_queue_.empty()" in submit
+    assert "enqueue_telemetry_(" in submit
+    assert "front_result" in submit
+    assert "queue_was_empty" in submit
+    assert "TelemetrySubmitDisposition::BUFFERED" in submit
+
+    flush_start = source.index(
+        "TelemetrySubmitDisposition SimpleProductComponent::flush_telemetry_queue_("
+    )
+    flush_end = source.index(
+        "bool SimpleProductComponent::restore_relay_radio_()", flush_start
+    )
+    flush = source[flush_start:flush_end]
+
+    no_path = flush.index(
+        "current_path != LocalPathState::DIRECT"
+    )
+    direct_no_mqtt = flush.index(
+        "current_path == LocalPathState::DIRECT && !mqtt_connected()", no_path
+    )
+    direct_accounting = flush.index(
+        "runtime_.note_direct_result(false)", direct_no_mqtt
+    )
+    held = flush.index(
+        "TelemetrySubmitDisposition::BUFFERED", direct_accounting
+    )
+    submit_attempt = flush.index("runtime_.send_telemetry(", held)
+    assert no_path < direct_no_mqtt < direct_accounting < held < submit_attempt
+
+    relay_inflight = flush.index(
+        "item.state = PendingTelemetryState::RELAY_IN_FLIGHT", submit_attempt
+    )
+    relay_accounting = flush.index(
+        "item.in_flight_accounting = accounting", relay_inflight
+    )
+    assert relay_inflight < relay_accounting
+    assert "telemetry Direct single attempt submitted" in flush
+    assert "telemetry Relay single attempt in-flight" in flush
+
+    failed_once = flush.index(
+        "result == SimpleProductError::MQTT_FAILED", relay_accounting
+    )
+    radio_failed = flush.index(
+        "result == SimpleProductError::RADIO_FAILED", failed_once
+    )
+    drop = flush.index("telemetry_queue_.pop_front()", radio_failed)
+    rejected = flush.index(
+        "TelemetrySubmitDisposition::REJECTED", drop
+    )
+    assert failed_once < radio_failed < drop < rejected
+    assert "not resending" in flush
+    assert "transient failure retained" not in flush
+
+
+def test_direct_no_mqtt_path_health_precedes_hold_buffer_admission() -> None:
+    source = text("n3w_simple_product_component.cpp")
+
+    submit_start = source.index(
+        "TelemetrySubmitDisposition SimpleProductComponent::submit_telemetry_json("
+    )
+    submit_end = source.index(
+        "bool SimpleProductComponent::send_telemetry_json(", submit_start
+    )
+    submit = source[submit_start:submit_end]
+
+    plan = submit.index("plan_business_telemetry_admission(")
+    direct_gate = submit.index(
+        "admission_plan.record_direct_unavailable", plan
+    )
+    path_accounting = submit.index(
+        "runtime_.note_direct_result(false)", direct_gate
+    )
+    enqueue = submit.index("enqueue_telemetry_(", path_accounting)
+    front_accounting = submit.index(
+        "admission_plan.front_accounting", enqueue
+    )
+    flush = submit.index(
+        "flush_telemetry_queue_(front_accounting)", front_accounting
+    )
+
+    # The production admission policy is evaluated and the new business sample
+    # advances Direct-failure hysteresis before queue capacity can reject it.
+    assert plan < direct_gate < path_accounting < enqueue
+
+    # DIRECT/no-MQTT already records path health before admission; queue service
+    # consumes the production plan's TRANSPORT_ONLY accounting and cannot
+    # double-count the same business-cadence failure.
+    assert enqueue < front_accounting < flush
+    assert "telemetry Direct admission path-state failure" in submit
+
+
+def test_business_admission_policy_is_production_runtime_code() -> None:
+    runtime_h = text("n3w_simple_product_runtime.h")
+    runtime = text("n3w_simple_product_runtime.cpp")
+
+    assert "struct TelemetryAdmissionPlan" in runtime_h
+    assert "plan_business_telemetry_admission(" in runtime_h
+    assert "plan_business_telemetry_admission(" in runtime
+    assert "record_direct_unavailable" in runtime
+    assert "TelemetryPathAccounting::TRANSPORT_ONLY" in runtime
+
+
+def test_transition_telemetry_queue_preserves_oldest_on_overflow() -> None:
+    source = text("n3w_simple_product_component.cpp")
+    start = source.index("bool SimpleProductComponent::enqueue_telemetry_(")
+    end = source.index(
+        "TelemetrySubmitDisposition SimpleProductComponent::flush_telemetry_queue_(",
+        start,
+    )
+    enqueue = source[start:end]
+
+    capacity = enqueue.index("telemetry_queue_.size() >= kTelemetryQueueCapacity")
+    reject = enqueue.index("return false;", capacity)
+    push = enqueue.index("telemetry_queue_.push_back", reject)
+    assert capacity < reject < push
+    assert "telemetry_queue_.pop_front()" not in enqueue
+    assert "hold buffer overflow; rejecting newest" in enqueue
+
+
+def test_relay_completion_ends_single_attempt_without_resend() -> None:
+    source = text("n3w_simple_product_component.cpp")
+    header = text("n3w_simple_product_component.h")
+
+    assert "TelemetryPathAccounting in_flight_accounting" in header
+
+    flush_start = source.index(
+        "TelemetrySubmitDisposition SimpleProductComponent::flush_telemetry_queue_("
+    )
+    flush_end = source.index(
+        "bool SimpleProductComponent::restore_relay_radio_()", flush_start
+    )
+    flush = source[flush_start:flush_end]
+    inflight = flush.index(
+        "item.state = PendingTelemetryState::RELAY_IN_FLIGHT"
+    )
+    accounting = flush.index(
+        "item.in_flight_accounting = accounting", inflight
+    )
+    assert inflight < accounting
+
+    drain_start = source.index(
+        "void SimpleProductComponent::drain_send_completions_()"
+    )
+    drain_end = source.index(
+        "bool SimpleProductComponent::check_pending_unicast_timeout_()", drain_start
+    )
+    drain = source[drain_start:drain_end]
+
+    accounting_gate = drain.index("item.in_flight_accounting ==")
+    record = drain.index(
+        "TelemetryPathAccounting::RECORD_PATH_RESULT", accounting_gate
+    )
+    note = drain.index(
+        "runtime_.note_relay_delivery_result", record
+    )
+    failure = drain.index("if (slot.success)", note)
+    no_resend = drain.index("not resending", failure)
+    pop = drain.index("telemetry_queue_.pop_front()", no_resend)
+    assert accounting_gate < record < note < failure < no_resend < pop
+    assert "item.state = PendingTelemetryState::QUEUED" not in drain
+    assert "telemetry completion missing" in drain
+    assert "telemetry completion ownership mismatch" in drain
+
+
+def test_option_b_has_no_post_failure_periodic_retry_path() -> None:
+    source = text("n3w_simple_product_component.cpp")
+    header = text("n3w_simple_product_component.h")
+
+    assert "telemetry_error_retryable_" not in source
+    assert "telemetry_error_retryable_" not in header
+    assert "telemetry_transient_retained_" not in header
+    assert "telemetry_attempt_failed_dropped_" in header
+    assert "kTelemetryRetrySpacingMs" not in header
+    assert "kTelemetryHoldPollMs" in header
+
+    flush_start = source.index(
+        "TelemetrySubmitDisposition SimpleProductComponent::flush_telemetry_queue_("
+    )
+    flush_end = source.index(
+        "bool SimpleProductComponent::restore_relay_radio_()", flush_start
+    )
+    flush = source[flush_start:flush_end]
+    assert "SimpleProductError::NOT_READY" in flush
+    assert "TelemetrySubmitDisposition::BUFFERED" in flush
+    assert "SimpleProductError::MQTT_FAILED" in flush
+    assert "SimpleProductError::RADIO_FAILED" in flush
+    assert "telemetry_queue_.pop_front()" in flush
+    assert "not resending" in flush
+
+
+def test_relay_failback_uses_two_tier_presence_and_full_verify_scheduling() -> None:
+    source = text("n3w_simple_product_component.cpp")
+    header = text("n3w_simple_product_component.h")
+    policy_h = text("n3w_direct_recovery_policy.h")
+    policy_cpp = text("n3w_direct_recovery_policy.cpp")
+
+    assert "RelayDirectRecoverySchedule" in policy_h
+    assert "presence_due" in policy_cpp
+    assert "full_verify_due" in policy_cpp
+    assert "request_full_verify" in policy_cpp
+    assert "note_full_verify_failure" in policy_cpp
+
+    release_start = source.index(
+        "void SimpleProductComponent::release_direct_ap_hint_authority_()"
+    )
+    release_end = source.index(
+        "void SimpleProductComponent::refresh_direct_ap_hint_()", release_start
+    )
+    release = source[release_start:release_end]
+    assert "direct_ap_hint_policy_.clear()" in release
+    assert "direct_ap_hint_lease_.clear()" in release
+    assert "direct_ap_bssid_.fill" not in release
+    assert "direct_ap_bssid_valid_ = false" not in release
+    assert "direct_ap_channel_ = 0" not in release
+
+    advance_start = source.index("void SimpleProductComponent::advance_recovery_()")
+    advance_end = source.index(
+        "bool SimpleProductComponent::claim_relay_radio_()", advance_start
+    )
+    advance = source[advance_start:advance_end]
+    presence = advance.index("recovery_schedule_.presence_due(now)")
+    scan = advance.index("probe_direct_ap_presence_()", presence)
+    full_due = advance.index("recovery_schedule_.full_verify_due(now)", scan)
+    backlog = advance.index("!telemetry_queue_.empty()", full_due)
+    full_probe = advance.index("begin_direct_probe_(trigger)", backlog)
+    assert presence < scan < full_due < backlog < full_probe
+
+    assert "pending_ap_visible_acceleration_" in advance
+    assert "pending_hint_release_acceleration_" in advance
+    assert "RelayDirectPresenceState::VISIBLE" in advance
+    assert "kDirectFullVerifyBacklogRetryMs" in advance
+    assert "radio_.pending_unicast_sends() != 0U" in advance
+
+    restore_start = source.index(
+        "void SimpleProductComponent::advance_relay_restore_()"
+    )
+    restore_end = source.index(
+        "bool SimpleProductComponent::enqueue_telemetry_", restore_start
+    )
+    restore = source[restore_start:restore_end]
+    assert "RelayRestoreCause::FULL_DIRECT_VERIFY" in restore
+    assert "schedule_full_direct_verify_(" in restore
+    restore_cause_start = header.index("enum class RelayRestoreCause")
+    restore_cause_end = header.index("};", restore_cause_start)
+    restore_cause = header[restore_cause_start:restore_cause_end]
+    assert "PRESENCE_SCAN" in restore_cause
+    assert "FULL_DIRECT_VERIFY" in restore_cause
+
+
+def test_relay_failback_diagnostics_are_ram_only_and_bounded_in_lab_telemetry() -> None:
+    diag_h = text("n3w_lab_diagnostics.h")
+    diag_cpp = text("n3w_lab_diagnostics.cpp")
+    component = text("n3w_simple_product_component.cpp")
+    config = (
+        ROOT
+        / "firmware/esphome_rc/board_lab/n3w_phase4_physical/generic.yml"
+    ).read_text(encoding="utf-8")
+
+    required_latency_fields = (
+        "presence_probe_count",
+        "presence_probe_last_result",
+        "full_verify_last_trigger",
+        "full_verify_last_terminal_reason",
+        "relay_restore_last_cause",
+        "relay_restore_last_result",
+        "full_verify_queue_depth_start",
+        "full_verify_queue_depth_end",
+        "full_verify_queue_dropped_start",
+        "full_verify_queue_dropped_end",
+        "full_verify_attempt_failed_dropped_start",
+        "full_verify_attempt_failed_dropped_end",
+        "next_presence_probe_ms",
+        "next_full_verify_ms",
+    )
+    for field in required_latency_fields:
+        assert field in diag_h
+
+    snapshot_start = diag_h.index("struct Snapshot")
+    snapshot_end = diag_h.index("struct LatencySnapshot", snapshot_start)
+    durable = diag_h[snapshot_start:snapshot_end]
+    for field in required_latency_fields:
+        assert field not in durable
+
+    assert "presence_result=%u" in diag_cpp
+    assert "restore_cause=%u" in diag_cpp
+    assert "restore_result=%u" in diag_cpp
+    assert "queue_drop_start=%u" in diag_cpp
+    assert "attempt_drop_end=%u" in diag_cpp
+
+    assert "diagnostics_.note_relay_restore(" in component
+    assert "telemetry_queue_dropped_" in component
+    assert "telemetry_attempt_failed_dropped_" in component
+
+    # The battery/same-boot physical run must recover these diagnostics from
+    # Manager-visible telemetry without enlarging the durable NVS schema.
+    assert "\\\"n3w_r\\\":[1," in config
+    assert "\\\"n3w_l\\\":[1," in config
+    assert "\\\"n3w_latency\\\":{" not in config
+    assert "PHASE4_LAB_TELEMETRY_OVERSIZE" in config
+    assert "kMaxCiphertextBytes -\n                  telemetry_bytes" in config

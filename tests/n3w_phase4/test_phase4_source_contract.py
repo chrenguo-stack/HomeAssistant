@@ -144,8 +144,9 @@ def test_phase4_lab_target_exposes_private_pairing_pop_and_synthetic_telemetry()
     assert "measurements" in config
     assert "quality" in config
     assert "power" in config
-    assert "reset_reason_raw" in config
-    assert "reset_reason" in config
+    assert "\\\"reset_reason_raw\\\":" in config
+    assert "\\\"reset_reason\\\":\\\"" in config
+    assert "std::string(id(n3w_phase4_core).reset_reason_name())" in config
     assert "esp_reset_reason()" in core
     assert "reset_reason_raw() const" in core
     assert "reset_reason_name() const" in core

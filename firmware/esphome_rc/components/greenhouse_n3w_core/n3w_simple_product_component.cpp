@@ -86,7 +86,20 @@ const char *telemetry_submit_disposition_name(
 }
 
 SimpleProductComponent::SimpleProductComponent()
-    : runtime_(this, this, this),
+    : direct_ap_hint_policy_(DirectApHintConfig{
+          RecoveryExitPolicy::kDirectApHintMaxAgeMs,
+          RecoveryExitPolicy::kDirectApHintMissLimit,
+          kDirectApHintScanErrorLimit,
+      }),
+      direct_recovery_attempt_(DirectRecoveryConfig{
+          kDirectRecoveryWifiBudgetMs,
+          kDirectRecoveryMqttBudgetMs,
+          kDirectRecoveryConfirmBudgetMs,
+          kNoRelayDirectRecoveryAbsoluteMs,
+          kHealthyRelayDirectRecoveryAbsoluteMs,
+          kDirectRecoveryConfirmSuccesses,
+      }),
+      runtime_(this, this, this),
       pairing_client_(
           this,
           this,
@@ -190,7 +203,7 @@ void SimpleProductComponent::loop() {
       runtime_.active_relay().has_value(),
       now_ms());
   diagnostics_.emit_summary(now_ms());
-  flush_telemetry_queue_();
+  (void) flush_telemetry_queue_(TelemetryPathAccounting::TRANSPORT_ONLY);
   advance_recovery_();
 }
 
@@ -200,31 +213,59 @@ TelemetrySubmitDisposition SimpleProductComponent::submit_telemetry_json(
     uint32_t seq) {
   if (!runtime_ready_) return TelemetrySubmitDisposition::REJECTED;
 
-  // A planned Direct verification temporarily owns the single radio. Preserve
-  // business telemetry in boot_id/seq order instead of silently discarding it.
-  // If an older sample is already queued, the new sample must join the queue so
-  // Manager never sees a newer seq before an older buffered seq.
-  const bool relay_unicast_busy =
-      runtime_.path_state() == LocalPathState::RELAY_ACTIVE &&
-      radio_.pending_unicast_sends() != 0U;
-  if (radio_ownership_ == RadioOwnership::DIRECT_PROBE ||
-      radio_ownership_ == RadioOwnership::RELAY_RESTORE ||
-      !telemetry_queue_.empty() || relay_unicast_busy) {
-    return enqueue_telemetry_(telemetry_json, boot_id, seq)
-               ? TelemetrySubmitDisposition::BUFFERED
-               : TelemetrySubmitDisposition::REJECTED;
+  uint64_t boot_session = 0;
+  if (telemetry_json.empty() ||
+      telemetry_json.size() > kMaxCiphertextBytes ||
+      boot_id.empty() ||
+      !parse_boot_id(boot_id, &boot_session) ||
+      boot_session == 0U) {
+    ++telemetry_queue_dropped_;
+    ESP_LOGE(
+        TAG,
+        "N3-W telemetry admission rejected seq=%u size=%u rejected=%u",
+        static_cast<unsigned>(seq),
+        static_cast<unsigned>(telemetry_json.size()),
+        static_cast<unsigned>(telemetry_queue_dropped_));
+    return TelemetrySubmitDisposition::REJECTED;
   }
 
-  const LocalPathState path_before = runtime_.path_state();
-  const SimpleProductError result =
-      runtime_.send_telemetry(telemetry_json, boot_id, seq);
-  if (result == SimpleProductError::NONE &&
-      path_before == LocalPathState::RELAY_ACTIVE) {
-    last_relay_telemetry_ms_ = now_ms();
+  // Path-health accounting belongs to the newly generated business sample,
+  // not to backlog transport polling. In particular, DIRECT without MQTT is
+  // not a transport attempt, but each new sample must still advance the
+  // Direct-failure hysteresis even when the hold FIFO is already full or a
+  // TRANSPORT_ONLY poll recently advanced the queue cooldown.
+  const TelemetryAdmissionPlan admission_plan =
+      plan_business_telemetry_admission(
+          runtime_.path_state(), mqtt_connected());
+  if (admission_plan.record_direct_unavailable) {
+    const SimpleProductError state_result = runtime_.note_direct_result(false);
+    if (state_result != SimpleProductError::NONE &&
+        state_result != SimpleProductError::RADIO_FAILED) {
+      ++telemetry_invariant_failures_;
+      request_safe_reboot_("telemetry Direct admission path-state failure");
+      return TelemetrySubmitDisposition::REJECTED;
+    }
   }
-  return result == SimpleProductError::NONE
-             ? TelemetrySubmitDisposition::SUBMITTED
-             : TelemetrySubmitDisposition::REJECTED;
+
+  const bool queue_was_empty = telemetry_queue_.empty();
+  if (!enqueue_telemetry_(telemetry_json, boot_id, seq)) {
+    return TelemetrySubmitDisposition::REJECTED;
+  }
+
+  // Option B: the queue owns telemetry only while it has not yet received a
+  // real transport opportunity. DIRECT/no-MQTT was already accounted exactly
+  // once above; backlog draining must remain TRANSPORT_ONLY so the held front
+  // sample cannot double-count the same business-cadence failure.
+  const TelemetryPathAccounting front_accounting =
+      admission_plan.front_accounting;
+  const TelemetrySubmitDisposition front_result =
+      flush_telemetry_queue_(front_accounting);
+
+  // When older telemetry already owned the FIFO, this new sample is still
+  // buffered regardless of the older front item's one-attempt outcome.
+  return queue_was_empty
+             ? front_result
+             : TelemetrySubmitDisposition::BUFFERED;
 }
 
 bool SimpleProductComponent::send_telemetry_json(
@@ -441,11 +482,11 @@ bool SimpleProductComponent::start_runtime_if_ready_() {
   }
   runtime_.set_relay_capable(mqtt_connected());
   runtime_ready_ = true;
-  recovery_probe_backoff_ms_ = kRecoveryProbeIntervalMs;
-  next_recovery_probe_ms_ =
-      now + (start_mode == SimpleProductStartMode::DISCOVERY
-                 ? recovery_probe_backoff_ms_
-                 : kRecoveryProbeMs);
+  recovery_schedule_.reset(now);
+  diagnostics_.note_recovery_schedule(
+      recovery_schedule_.next_presence_ms(),
+      recovery_schedule_.next_full_verify_ms());
+  next_recovery_probe_ms_ = now + kRecoveryProbeMs;
   if (start_mode == SimpleProductStartMode::DIRECT) {
     refresh_direct_ap_hint_();
   }
@@ -492,9 +533,7 @@ void SimpleProductComponent::advance_pairing_() {
 }
 
 void SimpleProductComponent::advance_recovery_() {
-  if (!runtime_ready_ || runtime_.path_state() == LocalPathState::DIRECT) {
-    return;
-  }
+  if (!runtime_ready_ || runtime_.path_state() == LocalPathState::DIRECT) return;
   const uint64_t now = now_ms();
 
   if (radio_ownership_ == RadioOwnership::RELAY_RESTORE) {
@@ -503,104 +542,263 @@ void SimpleProductComponent::advance_recovery_() {
   }
 
   if (radio_ownership_ == RadioOwnership::RELAY_ESPNOW) {
+    if (direct_ap_bssid_valid_ &&
+        valid_radio_channel(direct_ap_channel_) &&
+        direct_ap_hint_policy_.expired(now)) {
+      release_direct_ap_hint_authority_();
+      pending_hint_release_acceleration_ = true;
+      recovery_schedule_.request_full_verify(now);
+      recovery_schedule_.defer_presence(now, 0);
+    }
+
     if (runtime_.challenge_pending()) return;
 
-    // Relay health is the primary continuity signal. If Relay itself has
-    // degraded into Discovery, do not leave Direct recovery buried behind a
-    // long healthy-Relay backoff.
     if (runtime_.path_state() != LocalPathState::RELAY_ACTIVE &&
-        recovery_probe_backoff_ms_ > kRecoveryProbeIntervalMs) {
-      recovery_probe_backoff_ms_ = kRecoveryProbeIntervalMs;
-      const uint64_t accelerated = now + kRecoveryProbeIntervalMs;
-      if (next_recovery_probe_ms_ > accelerated) {
-        next_recovery_probe_ms_ = accelerated;
-      }
+        recovery_schedule_.full_verify_backoff_ms() >
+            kRecoveryProbeIntervalMs) {
+      recovery_schedule_.accelerate_to_initial(now);
     }
-    if (now < next_recovery_probe_ms_) return;
 
-    if (runtime_.path_state() == LocalPathState::RELAY_ACTIVE &&
-        last_relay_telemetry_ms_ != 0 &&
-        now - last_relay_telemetry_ms_ < kDirectPresenceProbeQuietGuardMs) {
-      next_recovery_probe_ms_ =
-          last_relay_telemetry_ms_ + kDirectPresenceProbeQuietGuardMs;
+    if (direct_ap_bssid_valid_ &&
+        valid_radio_channel(direct_ap_channel_) &&
+        recovery_schedule_.presence_due(now)) {
+      if (runtime_.path_state() == LocalPathState::RELAY_ACTIVE &&
+          last_relay_telemetry_ms_ != 0 &&
+          now - last_relay_telemetry_ms_ <
+              kDirectPresenceProbeQuietGuardMs) {
+        recovery_schedule_.defer_presence(
+            now, kDirectPresenceProbeQuietGuardMs);
+        diagnostics_.note_recovery_probe_deferral(1U);
+        diagnostics_.note_recovery_schedule(
+            recovery_schedule_.next_presence_ms(),
+            recovery_schedule_.next_full_verify_ms());
+        return;
+      }
+
+      if (radio_.pending_unicast_sends() != 0U) {
+        recovery_schedule_.defer_presence(
+            now, kPendingUnicastDrainRetryMs);
+        diagnostics_.note_recovery_probe_deferral(2U);
+        diagnostics_.note_recovery_schedule(
+            recovery_schedule_.next_presence_ms(),
+            recovery_schedule_.next_full_verify_ms());
+        return;
+      }
+      drain_send_completions_();
+
+      const uint64_t presence_started_ms = now_ms();
+      const DirectPresenceProbeResult presence =
+          probe_direct_ap_presence_();
+      const uint64_t presence_finished_ms = now_ms();
+      diagnostics_.note_presence_probe(
+          presence_started_ms,
+          static_cast<uint32_t>(
+              presence_finished_ms >= presence_started_ms
+                  ? presence_finished_ms - presence_started_ms
+                  : 0U),
+          static_cast<uint8_t>(presence));
+
+      if (presence == DirectPresenceProbeResult::RESTORE_FAILED) {
+        recovery_schedule_.note_presence_error(now);
+        diagnostics_.note_recovery_schedule(
+            recovery_schedule_.next_presence_ms(),
+            recovery_schedule_.next_full_verify_ms());
+        begin_relay_restore_(RelayRestoreCause::PRESENCE_SCAN);
+        advance_relay_restore_();
+        return;
+      }
+
+      DirectApScanResult scan_result = DirectApScanResult::ERROR;
+      if (presence == DirectPresenceProbeResult::FOUND) {
+        scan_result = DirectApScanResult::FOUND;
+      } else if (presence == DirectPresenceProbeResult::NOT_FOUND) {
+        scan_result = DirectApScanResult::NOT_FOUND;
+      }
+
+      DirectApHintDecision hint_decision{};
+      const bool hint_was_active = direct_ap_hint_policy_.active();
+      if (hint_was_active) {
+        hint_decision =
+            direct_ap_hint_policy_.assess(now, scan_result);
+      }
+
+      if (presence == DirectPresenceProbeResult::FOUND) {
+        direct_ap_hint_lease_.note_found(now);
+        if (recovery_schedule_.note_presence(now, true)) {
+          pending_ap_visible_acceleration_ = true;
+        }
+      } else if (presence == DirectPresenceProbeResult::NOT_FOUND) {
+        (void) direct_ap_hint_lease_.note_not_found(now);
+        (void) recovery_schedule_.note_presence(now, false);
+      } else {
+        recovery_schedule_.note_presence_error(now);
+      }
+
+      if (hint_was_active &&
+          hint_decision.allow_configured_full_direct) {
+        ESP_LOGW(
+            TAG,
+            "N3-W Direct AP hint authority released misses=%u scan_errors=%u locked=%s; retaining scan locator",
+            static_cast<unsigned>(hint_decision.misses),
+            static_cast<unsigned>(hint_decision.scan_errors),
+            hint_decision.explicit_bssid_lock_preserved ? "true" : "false");
+        release_direct_ap_hint_authority_();
+        pending_hint_release_acceleration_ = true;
+        recovery_schedule_.request_full_verify(now);
+      }
+
+      diagnostics_.note_recovery_schedule(
+          recovery_schedule_.next_presence_ms(),
+          recovery_schedule_.next_full_verify_ms());
+    }
+
+    const bool healthy_relay =
+        runtime_.path_state() == LocalPathState::RELAY_ACTIVE;
+    const bool locator_can_gate_full_verify =
+        healthy_relay &&
+        direct_ap_bssid_valid_ &&
+        valid_radio_channel(direct_ap_channel_) &&
+        direct_ap_hint_policy_.active();
+
+    if (locator_can_gate_full_verify &&
+        recovery_schedule_.presence_state() !=
+            RelayDirectPresenceState::VISIBLE &&
+        !pending_hint_release_acceleration_) {
       return;
     }
 
-    // Do not tear down or scan away from Relay while an accepted encrypted
-    // unicast still owns a future ESP-NOW completion callback. The driver
-    // decrements this count only after the completion has been copied into the
-    // component ring, so a zero count is a concrete transition barrier.
+    if (!recovery_schedule_.full_verify_due(now)) return;
+
+    if (healthy_relay &&
+        last_relay_telemetry_ms_ != 0 &&
+        now - last_relay_telemetry_ms_ <
+            kDirectPresenceProbeQuietGuardMs) {
+      recovery_schedule_.defer_full_verify(
+          now, kDirectPresenceProbeQuietGuardMs);
+      diagnostics_.note_recovery_probe_deferral(3U);
+      diagnostics_.note_recovery_schedule(
+          recovery_schedule_.next_presence_ms(),
+          recovery_schedule_.next_full_verify_ms());
+      return;
+    }
+
     if (radio_.pending_unicast_sends() != 0U) {
-      next_recovery_probe_ms_ = now + kPendingUnicastDrainRetryMs;
+      recovery_schedule_.defer_full_verify(
+          now, kPendingUnicastDrainRetryMs);
+      diagnostics_.note_recovery_probe_deferral(4U);
+      diagnostics_.note_recovery_schedule(
+          recovery_schedule_.next_presence_ms(),
+          recovery_schedule_.next_full_verify_ms());
       return;
     }
     drain_send_completions_();
 
-    if (direct_ap_bssid_valid_ && valid_radio_channel(direct_ap_channel_)) {
-      const DirectPresenceProbeResult presence = probe_direct_ap_presence_();
-      if (presence == DirectPresenceProbeResult::RESTORE_FAILED) {
-        begin_relay_restore_();
-        advance_relay_restore_();
-        return;
-      }
-      if (presence == DirectPresenceProbeResult::FOUND) {
-        direct_ap_hint_lease_.note_found(now);
-        (void) begin_direct_probe_();
-        return;
-      }
-      if (presence == DirectPresenceProbeResult::NOT_FOUND &&
-          direct_ap_hint_lease_.note_not_found(now)) {
-        ESP_LOGW(
-            TAG,
-            "N3-W Direct AP hint expired after misses=%u locked=%s; allowing configured Wi-Fi recovery",
-            static_cast<unsigned>(direct_ap_hint_lease_.misses()),
-            direct_ap_hint_lease_.explicitly_locked() ? "true" : "false");
-        invalidate_direct_ap_hint_();
-        if (begin_direct_probe_()) {
-          return;
-        }
-      }
-      schedule_recovery_probe_(true);
+    if (healthy_relay && !telemetry_queue_.empty()) {
+      recovery_schedule_.defer_full_verify(
+          now, kDirectFullVerifyBacklogRetryMs);
+      diagnostics_.note_recovery_probe_deferral(5U);
+      diagnostics_.note_recovery_schedule(
+          recovery_schedule_.next_presence_ms(),
+          recovery_schedule_.next_full_verify_ms());
       return;
     }
 
-    // Nodes that boot outside Wi-Fi coverage have no same-boot BSSID hint.
-    // Preserve eventual failback by allowing a full verification, but the
-    // failure path below backs subsequent attempts off instead of repeating a
-    // 15 s blackout every fixed minute.
-    (void) begin_direct_probe_();
+    DirectFullVerifyTrigger trigger =
+        healthy_relay ? DirectFullVerifyTrigger::BACKOFF
+                      : DirectFullVerifyTrigger::NO_RELAY;
+    if (pending_ap_visible_acceleration_) {
+      trigger = DirectFullVerifyTrigger::AP_BECAME_VISIBLE;
+    } else if (pending_hint_release_acceleration_) {
+      trigger = DirectFullVerifyTrigger::HINT_RELEASED;
+    }
+
+    if (begin_direct_probe_(trigger)) {
+      pending_ap_visible_acceleration_ = false;
+      pending_hint_release_acceleration_ = false;
+      return;
+    }
+
+    recovery_schedule_.defer_full_verify(
+        now, kPendingUnicastDrainRetryMs);
+    diagnostics_.note_recovery_probe_deferral(6U);
+    diagnostics_.note_recovery_schedule(
+        recovery_schedule_.next_presence_ms(),
+        recovery_schedule_.next_full_verify_ms());
     return;
   }
-  if (radio_ownership_ != RadioOwnership::DIRECT_PROBE) return;
 
-  if (now >= direct_probe_deadline_ms_) {
-    (void) runtime_.note_direct_recovery_probe(false);
-    begin_relay_restore_();
+  if (radio_ownership_ != RadioOwnership::DIRECT_PROBE) return;
+  if (now < next_recovery_probe_ms_) return;
+  next_recovery_probe_ms_ = now + kRecoveryProbeMs;
+
+  const bool wifi_ready = wifi_connected();
+  const bool mqtt_ready = wifi_ready && mqtt_connected();
+  bool direct_check_success = false;
+  if (wifi_ready && mqtt_ready) {
+    direct_check_success = prepare_direct_probe_radio_();
+  }
+
+  const DirectRecoveryDecision decision =
+      direct_recovery_attempt_.observe(DirectRecoveryObservation{
+          now, wifi_ready, mqtt_ready, direct_check_success});
+
+  if (decision.action ==
+      DirectRecoveryAction::REQUEST_CONCRETE_DIRECT_RESTORE) {
+    const DirectRecoveryCommitResult commit =
+        runtime_.commit_direct_recovery_before(decision.absolute_deadline_ms);
+    const DirectRecoveryDecision final_decision =
+        direct_recovery_attempt_.on_concrete_direct_restore(
+            commit.committed, commit.completed_at_ms);
+    if (commit.committed &&
+        final_decision.action == DirectRecoveryAction::COMMIT_DIRECT) {
+      radio_ownership_ = RadioOwnership::DIRECT_WIFI;
+      recovery_schedule_.note_full_verify_success(commit.completed_at_ms);
+      diagnostics_.note_full_verify_terminal(
+          static_cast<uint8_t>(DirectRecoveryTerminalReason::SUCCEEDED),
+          static_cast<uint8_t>(
+              std::min<std::size_t>(telemetry_queue_.size(), 255U)),
+          telemetry_queue_dropped_,
+          telemetry_attempt_failed_dropped_);
+      diagnostics_.note_recovery_schedule(
+          recovery_schedule_.next_presence_ms(),
+          recovery_schedule_.next_full_verify_ms());
+      refresh_direct_ap_hint_();
+      ESP_LOGI(TAG, "N3-W Direct recovery committed; Wi-Fi owns radio");
+      return;
+    }
+    diagnostics_.note_full_verify_terminal(
+          static_cast<uint8_t>(final_decision.terminal_reason),
+          static_cast<uint8_t>(
+              std::min<std::size_t>(telemetry_queue_.size(), 255U)),
+          telemetry_queue_dropped_,
+          telemetry_attempt_failed_dropped_);
+    begin_relay_restore_(RelayRestoreCause::FULL_DIRECT_VERIFY);
     advance_relay_restore_();
     return;
   }
-  if (now < next_recovery_probe_ms_) return;
-  next_recovery_probe_ms_ = now + kRecoveryProbeMs;
-  bool direct_ready = wifi_connected() && mqtt_connected();
-  if (direct_ready) direct_ready = prepare_direct_probe_radio_();
-  const SimpleProductError result =
-      runtime_.note_direct_recovery_probe(direct_ready);
-  if (result == SimpleProductError::NONE &&
-      runtime_.path_state() == LocalPathState::DIRECT) {
-    radio_ownership_ = RadioOwnership::DIRECT_WIFI;
-    direct_probe_deadline_ms_ = 0;
-    recovery_probe_backoff_ms_ = kRecoveryProbeIntervalMs;
-    refresh_direct_ap_hint_();
-    ESP_LOGI(TAG, "N3-W Direct recovery probe committed; Wi-Fi owns radio");
+
+  if (decision.phase == DirectRecoveryPhase::DIRECT_CONFIRM) {
+    (void) runtime_.note_direct_recovery_probe(direct_check_success);
+  } else {
+    (void) runtime_.note_direct_recovery_probe(false);
+  }
+
+  if (decision.terminal) {
+    diagnostics_.note_full_verify_terminal(
+          static_cast<uint8_t>(decision.terminal_reason),
+          static_cast<uint8_t>(
+              std::min<std::size_t>(telemetry_queue_.size(), 255U)),
+          telemetry_queue_dropped_,
+          telemetry_attempt_failed_dropped_);
+    begin_relay_restore_(RelayRestoreCause::FULL_DIRECT_VERIFY);
+    advance_relay_restore_();
   }
 }
 
 bool SimpleProductComponent::claim_relay_radio_() {
   if ((radio_ownership_ == RadioOwnership::RELAY_ESPNOW ||
        radio_ownership_ == RadioOwnership::RELAY_RESTORE) &&
-      radio_.initialized()) {
-    return true;
-  }
+      radio_.initialized()) return true;
   LinkKey pmk{};
   if (!derive_pmk_(&pmk)) return false;
   if (!radio_.shutdown()) {
@@ -629,22 +827,29 @@ bool SimpleProductComponent::claim_relay_radio_() {
     return false;
   }
   radio_ownership_ = RadioOwnership::RELAY_ESPNOW;
-  recovery_probe_backoff_ms_ = kRecoveryProbeIntervalMs;
-  next_recovery_probe_ms_ = now_ms() + recovery_probe_backoff_ms_;
+  recovery_schedule_.reset(now_ms());
+  pending_ap_visible_acceleration_ = false;
+  pending_hint_release_acceleration_ = false;
+  diagnostics_.note_recovery_schedule(
+      recovery_schedule_.next_presence_ms(),
+      recovery_schedule_.next_full_verify_ms());
   ESP_LOGI(TAG, "N3-W claimed exclusive standalone ESP-NOW radio ownership");
   return true;
 }
 
-bool SimpleProductComponent::begin_direct_probe_() {
+bool SimpleProductComponent::begin_direct_probe_(
+    DirectFullVerifyTrigger trigger) {
   if (radio_ownership_ != RadioOwnership::RELAY_ESPNOW ||
       runtime_.path_state() == LocalPathState::DIRECT ||
       runtime_.challenge_pending() ||
-      radio_.pending_unicast_sends() != 0U) {
-    return false;
-  }
+      radio_.pending_unicast_sends() != 0U) return false;
 #ifdef USE_WIFI
   if (wifi::global_wifi_component == nullptr) return false;
 #endif
+  const DirectRecoveryMode mode =
+      runtime_.path_state() == LocalPathState::RELAY_ACTIVE
+          ? DirectRecoveryMode::HEALTHY_RELAY
+          : DirectRecoveryMode::NO_RELAY;
   if (!radio_.shutdown()) {
     request_safe_reboot_("ESP-NOW teardown unconfirmed before Direct probe");
     return false;
@@ -654,9 +859,26 @@ bool SimpleProductComponent::begin_direct_probe_() {
 #endif
   radio_ownership_ = RadioOwnership::DIRECT_PROBE;
   const uint64_t now = now_ms();
-  direct_probe_deadline_ms_ = now + kRecoveryProbeWindowMs;
+  active_full_verify_trigger_ = trigger;
+  recovery_schedule_.note_full_verify_start(now);
+  diagnostics_.note_full_verify_start(
+      static_cast<uint8_t>(trigger),
+      now,
+      static_cast<uint8_t>(
+          std::min<std::size_t>(telemetry_queue_.size(), 255U)),
+      telemetry_queue_dropped_,
+      telemetry_attempt_failed_dropped_);
+  diagnostics_.note_recovery_schedule(
+      recovery_schedule_.next_presence_ms(),
+      recovery_schedule_.next_full_verify_ms());
+  (void) runtime_.note_direct_recovery_probe(false);
+  (void) direct_recovery_attempt_.begin(mode, now);
   next_recovery_probe_ms_ = now;
-  ESP_LOGI(TAG, "N3-W opened bounded full Direct verification window");
+  ESP_LOGI(
+      TAG,
+      "N3-W opened phased Direct recovery mode=%u trigger=%u",
+      static_cast<unsigned>(mode),
+      static_cast<unsigned>(trigger));
   return true;
 }
 
@@ -693,11 +915,9 @@ bool SimpleProductComponent::explicit_bssid_lock_active_() const {
 #endif
 }
 
-void SimpleProductComponent::invalidate_direct_ap_hint_() {
-  direct_ap_bssid_.fill(0);
-  direct_ap_bssid_valid_ = false;
-  direct_ap_channel_ = 0;
+void SimpleProductComponent::release_direct_ap_hint_authority_() {
   direct_ap_hint_lease_.clear();
+  direct_ap_hint_policy_.clear();
 }
 
 void SimpleProductComponent::refresh_direct_ap_hint_() {
@@ -717,7 +937,10 @@ void SimpleProductComponent::refresh_direct_ap_hint_() {
       [](uint8_t value) { return value != 0; });
   if (!direct_ap_bssid_valid_) return;
   direct_ap_channel_ = ap.primary;
-  direct_ap_hint_lease_.observe(now_ms(), explicit_bssid_lock_active_());
+  const bool explicitly_locked = explicit_bssid_lock_active_();
+  const uint64_t now = now_ms();
+  direct_ap_hint_lease_.observe(now, explicitly_locked);
+  direct_ap_hint_policy_.observe(now, explicitly_locked);
   (void) runtime_.update_direct_channel_hint(ap.primary);
 #endif
 }
@@ -803,7 +1026,6 @@ SimpleProductComponent::probe_direct_ap_presence_() {
   if (result == DirectPresenceProbeResult::FOUND &&
       valid_radio_channel(record.primary)) {
     direct_ap_channel_ = record.primary;
-    direct_ap_hint_lease_.note_found(now_ms());
     (void) runtime_.update_direct_channel_hint(record.primary);
   }
 
@@ -830,43 +1052,52 @@ SimpleProductComponent::probe_direct_ap_presence_() {
 #endif
 }
 
-void SimpleProductComponent::schedule_recovery_probe_(bool increase_backoff) {
-  if (increase_backoff) {
-    const uint64_t doubled =
-        static_cast<uint64_t>(recovery_probe_backoff_ms_) * 2ULL;
-    recovery_probe_backoff_ms_ = static_cast<uint32_t>(std::min<uint64_t>(
-        kRecoveryProbeBackoffMaxMs,
-        std::max<uint64_t>(kRecoveryProbeIntervalMs, doubled)));
-  } else {
-    recovery_probe_backoff_ms_ = kRecoveryProbeIntervalMs;
-  }
-  next_recovery_probe_ms_ = now_ms() + recovery_probe_backoff_ms_;
+void SimpleProductComponent::schedule_full_direct_verify_(
+    bool increase_backoff) {
+  const uint64_t now = now_ms();
+  recovery_schedule_.note_full_verify_failure(now, increase_backoff);
+  diagnostics_.note_recovery_schedule(
+      recovery_schedule_.next_presence_ms(),
+      recovery_schedule_.next_full_verify_ms());
 }
 
-void SimpleProductComponent::begin_relay_restore_(uint32_t initial_delay_ms) {
+void SimpleProductComponent::begin_relay_restore_(
+    RelayRestoreCause cause,
+    uint32_t initial_delay_ms) {
   const uint64_t now = now_ms();
   radio_ownership_ = RadioOwnership::RELAY_RESTORE;
-  direct_probe_deadline_ms_ = 0;
+  relay_restore_cause_ = cause;
   relay_restore_budget_.start(now);
+  diagnostics_.note_relay_restore(static_cast<uint8_t>(cause), 0U);
   next_relay_restore_attempt_ms_ = now + initial_delay_ms;
 }
 
-void SimpleProductComponent::begin_direct_probe_after_restore_exit_(uint64_t now) {
+void SimpleProductComponent::begin_direct_probe_after_restore_exit_(
+    uint64_t now) {
   if (!radio_.shutdown()) {
     request_safe_reboot_("ESP-NOW teardown unconfirmed after Relay restore exhaustion");
     return;
   }
 #ifdef USE_WIFI
-  if (wifi::global_wifi_component != nullptr) {
-    wifi::global_wifi_component->enable();
-  }
+  if (wifi::global_wifi_component != nullptr) wifi::global_wifi_component->enable();
 #endif
   radio_ownership_ = RadioOwnership::DIRECT_PROBE;
-  direct_probe_deadline_ms_ = now + kRecoveryProbeWindowMs;
+  active_full_verify_trigger_ = DirectFullVerifyTrigger::NO_RELAY;
+  recovery_schedule_.note_full_verify_start(now);
+  diagnostics_.note_full_verify_start(
+      static_cast<uint8_t>(DirectFullVerifyTrigger::NO_RELAY),
+      now,
+      static_cast<uint8_t>(
+          std::min<std::size_t>(telemetry_queue_.size(), 255U)),
+      telemetry_queue_dropped_,
+      telemetry_attempt_failed_dropped_);
+  (void) runtime_.note_direct_recovery_probe(false);
+  (void) direct_recovery_attempt_.begin(DirectRecoveryMode::NO_RELAY, now);
   next_recovery_probe_ms_ = now;
+  relay_restore_cause_ = RelayRestoreCause::NONE;
   ESP_LOGW(
       TAG,
-      "N3-W Relay restore budget exhausted; opened bounded Direct verification from Discovery");
+      "N3-W Relay restore budget exhausted; opened phased Direct recovery from Discovery");
 }
 
 void SimpleProductComponent::exit_relay_restore_failure_(uint64_t now) {
@@ -930,14 +1161,32 @@ void SimpleProductComponent::advance_relay_restore_() {
   clear_tx_completion_ring_();
 
   if (restore_relay_radio_()) {
+    const RelayRestoreCause completed_cause = relay_restore_cause_;
+    diagnostics_.note_relay_restore(
+        static_cast<uint8_t>(completed_cause), 1U);
+    relay_restore_cause_ = RelayRestoreCause::NONE;
     relay_restore_budget_.clear();
-    schedule_recovery_probe_(true);
-    ESP_LOGI(TAG, "N3-W Relay radio restored after Direct verification");
+    if (completed_cause == RelayRestoreCause::FULL_DIRECT_VERIFY) {
+      schedule_full_direct_verify_(
+          runtime_.path_state() == LocalPathState::RELAY_ACTIVE);
+    } else {
+      diagnostics_.note_recovery_schedule(
+          recovery_schedule_.next_presence_ms(),
+          recovery_schedule_.next_full_verify_ms());
+    }
+    ESP_LOGI(
+        TAG,
+        "N3-W Relay radio restored after recovery cause=%u",
+        static_cast<unsigned>(completed_cause));
     return;
   }
 
   relay_restore_budget_.note_failure();
+  diagnostics_.note_relay_restore(
+      static_cast<uint8_t>(relay_restore_cause_), 2U);
   if (relay_restore_budget_.exhausted(now)) {
+    diagnostics_.note_relay_restore(
+        static_cast<uint8_t>(relay_restore_cause_), 3U);
     exit_relay_restore_failure_(now);
     return;
   }
@@ -963,78 +1212,186 @@ bool SimpleProductComponent::enqueue_telemetry_(
     ++telemetry_queue_dropped_;
     ESP_LOGW(
         TAG,
-        "N3-W telemetry probe queue full; rejecting newest sample seq=%u rejected=%u",
+        "N3-W telemetry hold buffer overflow; rejecting newest seq=%u depth=%u rejected=%u",
         static_cast<unsigned>(seq),
+        static_cast<unsigned>(telemetry_queue_.size()),
         static_cast<unsigned>(telemetry_queue_dropped_));
     return false;
   }
-  telemetry_queue_.push_back(BufferedTelemetry{
+  telemetry_queue_.push_back(PendingTelemetry{
       telemetry_json,
       boot_id,
       seq,
+      PendingTelemetryState::QUEUED,
+      {},
+      TelemetryPathAccounting::TRANSPORT_ONLY,
       0,
   });
+  ESP_LOGI(
+      TAG,
+      "N3-W telemetry held seq=%u depth=%u path=%u ownership=%u",
+      static_cast<unsigned>(seq),
+      static_cast<unsigned>(telemetry_queue_.size()),
+      static_cast<unsigned>(runtime_.path_state()),
+      static_cast<unsigned>(radio_ownership_));
   return true;
 }
 
-void SimpleProductComponent::flush_telemetry_queue_() {
-  if (telemetry_queue_.empty() ||
-      radio_ownership_ == RadioOwnership::DIRECT_PROBE ||
+TelemetrySubmitDisposition SimpleProductComponent::flush_telemetry_queue_(
+    TelemetryPathAccounting accounting) {
+  if (telemetry_queue_.empty() || safe_reboot_requested_) {
+    return TelemetrySubmitDisposition::BUFFERED;
+  }
+  if (radio_ownership_ == RadioOwnership::DIRECT_PROBE ||
       radio_ownership_ == RadioOwnership::RELAY_RESTORE) {
-    return;
+    return TelemetrySubmitDisposition::BUFFERED;
   }
+
   const uint64_t now = now_ms();
-  if (now < next_telemetry_flush_ms_) return;
-
-  // ESP-IDF recommends waiting for the previous ESP-NOW send callback
-  // before submitting the next frame. For buffered Relay telemetry, use the
-  // concrete pending-send counter as that barrier, then process the copied
-  // completion before deciding whether the Relay path is still healthy.
-  if (runtime_.path_state() == LocalPathState::RELAY_ACTIVE) {
-    if (radio_.pending_unicast_sends() != 0U) {
-      next_telemetry_flush_ms_ = now + kPendingUnicastDrainRetryMs;
-      return;
-    }
-    drain_send_completions_();
-    if (runtime_.path_state() != LocalPathState::RELAY_ACTIVE) {
-      next_telemetry_flush_ms_ = now + kTelemetryRetrySpacingMs;
-      return;
-    }
+  if (now < next_telemetry_flush_ms_) {
+    return TelemetrySubmitDisposition::BUFFERED;
   }
 
-  BufferedTelemetry &item = telemetry_queue_.front();
-  const LocalPathState path_before = runtime_.path_state();
-  const SimpleProductError result =
-      runtime_.send_telemetry(item.telemetry_json, item.boot_id, item.seq);
-  if (result == SimpleProductError::NONE) {
-    if (path_before == LocalPathState::RELAY_ACTIVE) {
-      last_relay_telemetry_ms_ = now;
+  if (telemetry_queue_.front().state ==
+      PendingTelemetryState::RELAY_IN_FLIGHT) {
+    return TelemetrySubmitDisposition::BUFFERED;
+  }
+
+  const LocalPathState current_path = runtime_.path_state();
+  if (current_path != LocalPathState::DIRECT &&
+      current_path != LocalPathState::RELAY_ACTIVE) {
+    next_telemetry_flush_ms_ = now + kTelemetryHoldPollMs;
+    return TelemetrySubmitDisposition::BUFFERED;
+  }
+
+  // DIRECT without a connected MQTT client is not a transport attempt.
+  // Keep the oldest sample held. A newly generated business sample may still
+  // record one path-health failure so failover can progress to Discovery.
+  if (current_path == LocalPathState::DIRECT && !mqtt_connected()) {
+    SimpleProductError state_result = SimpleProductError::NONE;
+    if (accounting == TelemetryPathAccounting::RECORD_PATH_RESULT) {
+      state_result = runtime_.note_direct_result(false);
     }
     ESP_LOGI(
         TAG,
-        "N3-W buffered telemetry submitted seq=%u path=%u remaining=%u",
+        "N3-W telemetry held without Direct MQTT opportunity seq=%u depth=%u state_result=%u",
+        static_cast<unsigned>(telemetry_queue_.front().seq),
+        static_cast<unsigned>(telemetry_queue_.size()),
+        static_cast<unsigned>(state_result));
+    next_telemetry_flush_ms_ = now + kTelemetryHoldPollMs;
+    if (state_result != SimpleProductError::NONE &&
+        state_result != SimpleProductError::RADIO_FAILED) {
+      ++telemetry_invariant_failures_;
+      request_safe_reboot_("telemetry Direct hold path-state failure");
+      return TelemetrySubmitDisposition::REJECTED;
+    }
+    return TelemetrySubmitDisposition::BUFFERED;
+  }
+
+  // ESP-IDF recommends waiting for the previous ESP-NOW send callback before
+  // submitting the next frame. Synchronous submit success is only an
+  // in-flight state; MAC completion is the end of the single Relay attempt.
+  if (current_path == LocalPathState::RELAY_ACTIVE) {
+    if (radio_.pending_unicast_sends() != 0U) {
+      next_telemetry_flush_ms_ = now + kPendingUnicastDrainRetryMs;
+      return TelemetrySubmitDisposition::BUFFERED;
+    }
+    drain_send_completions_();
+    if (safe_reboot_requested_ || telemetry_queue_.empty()) {
+      return safe_reboot_requested_
+                 ? TelemetrySubmitDisposition::REJECTED
+                 : TelemetrySubmitDisposition::BUFFERED;
+    }
+    if (now_ms() < next_telemetry_flush_ms_) {
+      return TelemetrySubmitDisposition::BUFFERED;
+    }
+    if (telemetry_queue_.front().state ==
+        PendingTelemetryState::RELAY_IN_FLIGHT) {
+      return TelemetrySubmitDisposition::BUFFERED;
+    }
+    if (runtime_.path_state() != LocalPathState::RELAY_ACTIVE) {
+      next_telemetry_flush_ms_ = now + kTelemetryHoldPollMs;
+      return TelemetrySubmitDisposition::BUFFERED;
+    }
+  }
+
+  PendingTelemetry &item = telemetry_queue_.front();
+  const LocalPathState path_before = runtime_.path_state();
+  const SimpleProductError result =
+      runtime_.send_telemetry(
+          item.telemetry_json, item.boot_id, item.seq, accounting);
+  ++item.submit_count;
+
+  if (result == SimpleProductError::NONE) {
+    if (path_before == LocalPathState::RELAY_ACTIVE) {
+      const auto &active_relay = runtime_.active_relay();
+      if (!active_relay.has_value()) {
+        ++telemetry_invariant_failures_;
+        ESP_LOGE(
+            TAG,
+            "N3-W telemetry invariant failure after Relay submit seq=%u failures=%u",
+            static_cast<unsigned>(item.seq),
+            static_cast<unsigned>(telemetry_invariant_failures_));
+        request_safe_reboot_("telemetry relay submit lost active peer");
+        return TelemetrySubmitDisposition::REJECTED;
+      }
+      item.state = PendingTelemetryState::RELAY_IN_FLIGHT;
+      item.relay_destination = active_relay->mac;
+      item.in_flight_accounting = accounting;
+      last_relay_telemetry_ms_ = now;
+      ESP_LOGI(
+          TAG,
+          "N3-W telemetry Relay single attempt in-flight seq=%u depth=%u",
+          static_cast<unsigned>(item.seq),
+          static_cast<unsigned>(telemetry_queue_.size()));
+      return TelemetrySubmitDisposition::SUBMITTED;
+    }
+
+    ESP_LOGI(
+        TAG,
+        "N3-W telemetry Direct single attempt submitted seq=%u depth_after=%u",
         static_cast<unsigned>(item.seq),
-        static_cast<unsigned>(path_before),
         static_cast<unsigned>(telemetry_queue_.size() - 1U));
     telemetry_queue_.pop_front();
     next_telemetry_flush_ms_ = now + kTelemetryFlushSpacingMs;
-    return;
+    return TelemetrySubmitDisposition::SUBMITTED;
   }
 
+  // NOT_READY means the runtime did not obtain a real transport opportunity.
+  // Preserve the sample for a later path rather than converting it into a
+  // resend after a failed transport attempt.
   if (result == SimpleProductError::NOT_READY) {
-    next_telemetry_flush_ms_ = now + kTelemetryRetrySpacingMs;
-    return;
+    next_telemetry_flush_ms_ = now + kTelemetryHoldPollMs;
+    return TelemetrySubmitDisposition::BUFFERED;
   }
-  if (item.attempts < 255U) ++item.attempts;
-  if (item.attempts >= kTelemetryMaxSendAttempts) {
+
+  // Under the accepted latest-state contract, a real Direct/Relay transport
+  // attempt is performed at most once per ordinary periodic sample.
+  if (result == SimpleProductError::MQTT_FAILED ||
+      result == SimpleProductError::RADIO_FAILED) {
+    const uint32_t failed_seq = item.seq;
+    ++telemetry_attempt_failed_dropped_;
+    telemetry_queue_.pop_front();
+    next_telemetry_flush_ms_ = now + kTelemetryFlushSpacingMs;
     ESP_LOGW(
         TAG,
-        "N3-W buffered telemetry send failed repeatedly seq=%u; dropping sample",
-        static_cast<unsigned>(item.seq));
-    telemetry_queue_.pop_front();
-    ++telemetry_queue_dropped_;
+        "N3-W telemetry single attempt failed; not resending seq=%u error=%u dropped=%u",
+        static_cast<unsigned>(failed_seq),
+        static_cast<unsigned>(result),
+        static_cast<unsigned>(telemetry_attempt_failed_dropped_));
+    return TelemetrySubmitDisposition::REJECTED;
   }
-  next_telemetry_flush_ms_ = now + kTelemetryRetrySpacingMs;
+
+  ++telemetry_invariant_failures_;
+  ESP_LOGE(
+      TAG,
+      "N3-W telemetry permanent/invariant failure retained seq=%u error=%u depth=%u failures=%u",
+      static_cast<unsigned>(item.seq),
+      static_cast<unsigned>(result),
+      static_cast<unsigned>(telemetry_queue_.size()),
+      static_cast<unsigned>(telemetry_invariant_failures_));
+  request_safe_reboot_("telemetry permanent/invariant failure");
+  return TelemetrySubmitDisposition::REJECTED;
 }
 
 bool SimpleProductComponent::restore_relay_radio_() {
@@ -1061,7 +1418,6 @@ bool SimpleProductComponent::restore_relay_radio_() {
     return false;
   }
   radio_ownership_ = RadioOwnership::RELAY_ESPNOW;
-  direct_probe_deadline_ms_ = 0;
   ESP_LOGI(TAG, "N3-W restored Relay ESP-NOW channel and encrypted peer");
   return true;
 }
@@ -1074,14 +1430,89 @@ void SimpleProductComponent::drain_send_completions_() {
     const uint8_t write =
         tx_completion_write_.load(std::memory_order_acquire);
     if (read == write) break;
-    const TxCompletionSlot &slot = tx_completion_ring_[read];
-    (void) runtime_.note_relay_delivery_result(slot.destination, slot.success);
+
+    const TxCompletionSlot slot = tx_completion_ring_[read];
     tx_completion_read_.store(
         static_cast<uint8_t>((read + 1U) % kTxCompletionRingSlots),
         std::memory_order_release);
+
+    if (telemetry_queue_.empty() ||
+        telemetry_queue_.front().state !=
+            PendingTelemetryState::RELAY_IN_FLIGHT ||
+        telemetry_queue_.front().relay_destination != slot.destination) {
+      ++telemetry_invariant_failures_;
+      ESP_LOGE(
+          TAG,
+          "N3-W telemetry completion ownership mismatch success=%s depth=%u failures=%u",
+          slot.success ? "true" : "false",
+          static_cast<unsigned>(telemetry_queue_.size()),
+          static_cast<unsigned>(telemetry_invariant_failures_));
+      request_safe_reboot_("telemetry completion ownership mismatch");
+      break;
+    }
+
+    PendingTelemetry &item = telemetry_queue_.front();
+    const uint32_t completed_seq = item.seq;
+    SimpleProductError state_result = SimpleProductError::NONE;
+    if (item.in_flight_accounting ==
+        TelemetryPathAccounting::RECORD_PATH_RESULT) {
+      state_result =
+          runtime_.note_relay_delivery_result(slot.destination, slot.success);
+    }
+
+    if (slot.success) {
+      ESP_LOGI(
+          TAG,
+          "N3-W telemetry Relay single attempt completed seq=%u depth_after=%u",
+          static_cast<unsigned>(completed_seq),
+          static_cast<unsigned>(telemetry_queue_.size() - 1U));
+    } else {
+      ++telemetry_completion_failures_;
+      ++telemetry_attempt_failed_dropped_;
+      ESP_LOGW(
+          TAG,
+          "N3-W telemetry Relay single attempt failed; not resending seq=%u state_error=%u dropped=%u",
+          static_cast<unsigned>(completed_seq),
+          static_cast<unsigned>(state_result),
+          static_cast<unsigned>(telemetry_attempt_failed_dropped_));
+    }
+
+    // Either completion outcome ends this ordinary periodic sample's one Relay
+    // transport attempt. Do not convert MAC failure into application resend.
+    telemetry_queue_.pop_front();
+    next_telemetry_flush_ms_ = now_ms() + kTelemetryFlushSpacingMs;
+
+    // A RADIO_FAILED result can be produced while Relay failure accounting
+    // moves the path into Discovery and its first channel setup also fails.
+    // Recovery owns that fault. Other state errors are invariants.
+    if (state_result != SimpleProductError::NONE &&
+        state_result != SimpleProductError::RADIO_FAILED) {
+      ++telemetry_invariant_failures_;
+      ESP_LOGE(
+          TAG,
+          "N3-W telemetry completion state failure seq=%u error=%u failures=%u",
+          static_cast<unsigned>(completed_seq),
+          static_cast<unsigned>(state_result),
+          static_cast<unsigned>(telemetry_invariant_failures_));
+      request_safe_reboot_("telemetry completion state failure");
+      break;
+    }
   }
+
   if (radio_.pending_unicast_sends() == 0U) {
     pending_unicast_deadline_.on_drained();
+    if (!safe_reboot_requested_ &&
+        !telemetry_queue_.empty() &&
+        telemetry_queue_.front().state ==
+            PendingTelemetryState::RELAY_IN_FLIGHT) {
+      ++telemetry_invariant_failures_;
+      ESP_LOGE(
+          TAG,
+          "N3-W telemetry completion missing for in-flight seq=%u failures=%u",
+          static_cast<unsigned>(telemetry_queue_.front().seq),
+          static_cast<unsigned>(telemetry_invariant_failures_));
+      request_safe_reboot_("telemetry completion missing");
+    }
   }
 }
 

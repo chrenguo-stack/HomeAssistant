@@ -43,6 +43,8 @@ struct FakePort final : SimpleProductPort {
   bool encrypted_success{true};
   bool relay_success{true};
   bool channel_success{true};
+  FakeClock *channel_clock{nullptr};
+  uint64_t channel_advance_ms{0};
   std::vector<uint8_t> channel_set_attempts;
 
   bool set_radio_channel(uint8_t value) override {
@@ -51,6 +53,9 @@ struct FakePort final : SimpleProductPort {
       return false;
     }
     channel = value;
+    if (channel_clock != nullptr) {
+      channel_clock->value += channel_advance_ms;
+    }
     return true;
   }
   bool broadcast_control(const uint8_t *data, std::size_t size) override {
@@ -89,6 +94,8 @@ struct RecordingDiagnosticSink final : SimpleProductDiagnosticSink {
   uint32_t advertisement_attempts{0};
   uint32_t advertisement_successes{0};
   uint32_t advertisement_failures{0};
+  uint32_t direct_path_successes{0};
+  uint32_t direct_path_failures{0};
   uint32_t compact_rx{0};
   uint32_t compact_state_reject{0};
   uint32_t compact_child_binding_failure{0};
@@ -101,6 +108,13 @@ struct RecordingDiagnosticSink final : SimpleProductDiagnosticSink {
   void on_runtime_start(uint8_t, uint8_t) override {}
   void on_scan_attempt(uint8_t, uint64_t) override {}
   void on_scan_result(uint8_t, bool, uint8_t, int32_t, uint64_t) override {}
+  void on_direct_path_result(bool success, uint64_t) override {
+    if (success) {
+      ++direct_path_successes;
+    } else {
+      ++direct_path_failures;
+    }
+  }
   void on_discovery_rx(bool, uint64_t) override {}
   void on_challenge_tx(bool, uint64_t) override {}
   void on_challenge_rx(bool, uint64_t) override {}
@@ -352,6 +366,25 @@ int main() {
   assert(!relay_port.installed.empty());
   assert(child_port.installed.back().lmk == relay_port.installed.back().lmk);
 
+  assert(child.update_direct_channel_hint(11));
+  assert(child.note_direct_recovery_probe(true) == SimpleProductError::NONE);
+  assert(child.path_state() == LocalPathState::RELAY_ACTIVE);
+  child_port.channel_clock = &child_clock;
+  child_port.channel_advance_ms = 2;
+  const uint64_t commit_deadline = child_clock.value + 1;
+  const auto late_commit =
+      child.commit_direct_recovery_before(commit_deadline);
+  assert(!late_commit.committed);
+  assert(late_commit.error == SimpleProductError::STATE_REJECTED);
+  assert(late_commit.completed_at_ms >= commit_deadline);
+  assert(child.path_state() == LocalPathState::RELAY_ACTIVE);
+  assert(child.active_relay().has_value());
+  assert(child_port.channel == 11);
+  child_port.channel_advance_ms = 0;
+  assert(child.rebind_radio_state() == SimpleProductError::NONE);
+  assert(child_port.channel == 6);
+  assert(child.active_relay().has_value());
+
   // A bounded Direct probe tears down concrete ESP-NOW state. Rebinding must
   // restore both the Relay channel and the authenticated encrypted peer.
   const std::size_t installed_before_rebind = child_port.installed.size();
@@ -488,8 +521,122 @@ int main() {
   child_port.direct_success = true;
   assert(child.note_direct_recovery_probe(true) == SimpleProductError::NONE);
   assert(child.path_state() == LocalPathState::DISCOVERY);
-  assert(child.note_direct_recovery_probe(true) == SimpleProductError::NONE);
+  child_port.channel_clock = &child_clock;
+  child_port.channel_advance_ms = 0;
+  const auto timely_commit =
+      child.commit_direct_recovery_before(child_clock.value + 1000);
+  assert(timely_commit.error == SimpleProductError::NONE);
+  assert(timely_commit.committed);
+  assert(timely_commit.completed_at_ms < child_clock.value + 1000);
   assert(child.path_state() == LocalPathState::DIRECT);
+
+
+  // Backlog retries must not compress Direct path hysteresis. TRANSPORT_ONLY
+  // retries preserve the queued payload without counting as fresh business
+  // path-health observations; RECORD_PATH_RESULT keeps the original policy.
+  {
+    FakeClock accounting_clock;
+    FakeRandom accounting_random;
+    FakePort accounting_port;
+    SimpleProductRuntime accounting_runtime(
+        &accounting_port, &accounting_clock, &accounting_random);
+    assert(
+        accounting_runtime.start(
+            make_state("node_accounting", 0x44),
+            MacAddress{0x02, 0x00, 0x00, 0x00, 0x00, 0x44},
+            6,
+            SimpleProductStartMode::DIRECT) == SimpleProductError::NONE);
+    accounting_port.direct_success = false;
+    const std::string accounting_json =
+        R"({"schema":"gh.telemetry/1","seq":1})";
+    for (uint32_t seq = 1; seq <= 5; ++seq) {
+      assert(
+          accounting_runtime.send_telemetry(
+              accounting_json,
+              "boot_0000000000000001",
+              seq,
+              TelemetryPathAccounting::TRANSPORT_ONLY) ==
+          SimpleProductError::MQTT_FAILED);
+      assert(accounting_runtime.path_state() == LocalPathState::DIRECT);
+    }
+    for (uint32_t seq = 6; seq <= 8; ++seq) {
+      const SimpleProductError result =
+          accounting_runtime.send_telemetry(
+              accounting_json,
+              "boot_0000000000000001",
+              seq,
+              TelemetryPathAccounting::RECORD_PATH_RESULT);
+      assert(
+          result == SimpleProductError::MQTT_FAILED ||
+          result == SimpleProductError::NONE);
+    }
+    assert(accounting_runtime.path_state() == LocalPathState::DISCOVERY);
+  }
+
+  // Regression for PR #437 / physical failure evidence 5747743275.
+  // Model the transition hold FIFO as already full. TRANSPORT_ONLY backlog
+  // work must not advance hysteresis, while each new Direct/no-MQTT business
+  // sample must advance it before queue admission can reject the newest item.
+  {
+    FakeClock liveness_clock;
+    FakeRandom liveness_random;
+    FakePort liveness_port;
+    RecordingDiagnosticSink liveness_sink;
+    SimpleProductRuntime liveness_runtime(
+        &liveness_port, &liveness_clock, &liveness_random);
+    liveness_runtime.set_diagnostic_sink(&liveness_sink);
+    assert(
+        liveness_runtime.start(
+            make_state("node_full_buffer_liveness", 0x55),
+            MacAddress{0x02, 0x00, 0x00, 0x00, 0x00, 0x55},
+            11,
+            SimpleProductStartMode::DIRECT) == SimpleProductError::NONE);
+
+    constexpr std::size_t simulated_hold_capacity = 24;
+    std::size_t simulated_hold_depth = simulated_hold_capacity;
+    liveness_port.direct_success = false;
+    const std::string json =
+        R"({"schema":"gh.telemetry/1","seq":100})";
+
+    for (uint32_t sample = 0; sample < 3; ++sample) {
+      // Background queue service is transport-only. Even repeated failed
+      // transport polls cannot compress the three-business-sample threshold.
+      for (uint32_t poll = 0; poll < 5; ++poll) {
+        assert(
+            liveness_runtime.send_telemetry(
+                json,
+                "boot_0000000000000001",
+                100 + (sample * 10) + poll,
+                TelemetryPathAccounting::TRANSPORT_ONLY) ==
+            SimpleProductError::MQTT_FAILED);
+        assert(liveness_runtime.path_state() == LocalPathState::DIRECT);
+      }
+
+      const TelemetryAdmissionPlan plan =
+          plan_business_telemetry_admission(
+              liveness_runtime.path_state(), false);
+      assert(plan.record_direct_unavailable);
+      assert(
+          plan.front_accounting ==
+          TelemetryPathAccounting::TRANSPORT_ONLY);
+
+      // The queue is intentionally full: admission would reject newest, but
+      // path health is recorded before that capacity decision in the component.
+      assert(simulated_hold_depth == simulated_hold_capacity);
+      assert(
+          liveness_runtime.note_direct_result(false) ==
+          SimpleProductError::NONE);
+      assert(simulated_hold_depth == simulated_hold_capacity);
+
+      if (sample < 2) {
+        assert(liveness_runtime.path_state() == LocalPathState::DIRECT);
+      }
+    }
+
+    assert(liveness_runtime.path_state() == LocalPathState::DISCOVERY);
+    assert(liveness_sink.direct_path_failures == 3);
+    assert(liveness_sink.direct_path_successes == 0);
+  }
 
   return 0;
 }

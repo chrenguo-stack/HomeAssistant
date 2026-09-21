@@ -43,14 +43,46 @@ def test_component_uses_bounded_recovery_exits() -> None:
         "bool SimpleProductComponent::explicit_bssid_lock_active_() const"
     )
     bssid_end = component.index(
-        "void SimpleProductComponent::invalidate_direct_ap_hint_", bssid_start
+        "void SimpleProductComponent::release_direct_ap_hint_authority_",
+        bssid_start,
     )
     bssid = component[bssid_start:bssid_end]
     assert "global_wifi_component->get_sta().has_bssid()" in bssid
     assert "esp_wifi_get_config" not in bssid
     assert "config.sta.bssid_set" not in bssid
     assert "direct_ap_hint_lease_.note_not_found(now)" in component
-    assert "invalidate_direct_ap_hint_();" in component
+    assert "release_direct_ap_hint_authority_();" in component
+
+    advance_start = component.index("void SimpleProductComponent::advance_recovery_()")
+    advance_end = component.index(
+        "bool SimpleProductComponent::claim_relay_radio_()", advance_start
+    )
+    advance = component[advance_start:advance_end]
+    expiry_check = advance.index("direct_ap_hint_policy_.expired(now)")
+    release = advance.index(
+        "release_direct_ap_hint_authority_()", expiry_check
+    )
+    accelerate = advance.index(
+        "recovery_schedule_.request_full_verify(now)", release
+    )
+    presence_due = advance.index(
+        "recovery_schedule_.presence_due(now)", accelerate
+    )
+    scan = advance.index("probe_direct_ap_presence_()", presence_due)
+    full_due = advance.index(
+        "recovery_schedule_.full_verify_due(now)", scan
+    )
+    assert expiry_check < release < accelerate < presence_due < scan < full_due
+
+    schedule_start = component.index(
+        "void SimpleProductComponent::schedule_full_direct_verify_"
+    )
+    schedule_end = component.index(
+        "void SimpleProductComponent::begin_relay_restore_", schedule_start
+    )
+    schedule = component[schedule_start:schedule_end]
+    assert "recovery_schedule_.note_full_verify_failure" in schedule
+    assert "diagnostics_.note_recovery_schedule" in schedule
 
     # A missing completion is fenced by teardown and a fresh-boot boundary.
     # It must not return to begin_relay_restore_ in the same boot.
