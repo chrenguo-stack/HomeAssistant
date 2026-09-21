@@ -1,0 +1,46 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome.components.esp32 import (
+    add_extra_script,
+    add_idf_sdkconfig_option,
+    include_builtin_idf_component,
+)
+from esphome.const import CONF_ID
+
+DEPENDENCIES = ["esp32"]
+AUTO_LOAD = ["json"]
+
+CONF_PRODUCT_RUNTIME = "product_runtime"
+
+greenhouse_n3w_core_ns = cg.esphome_ns.namespace("greenhouse_n3w_core")
+GreenhouseN3wCore = greenhouse_n3w_core_ns.class_("GreenhouseN3wCore", cg.Component)
+
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(GreenhouseN3wCore),
+        cv.Optional(CONF_PRODUCT_RUNTIME, default=False): cv.boolean,
+    }
+).extend(cv.COMPONENT_SCHEMA)
+
+
+async def to_code(config: dict) -> None:
+    add_extra_script(
+        "pre",
+        "n3w_tls_server_name_patch.py",
+        Path(__file__).with_name("n3w_tls_server_name_patch.py.script"),
+    )
+    add_idf_sdkconfig_option("CONFIG_MBEDTLS_HKDF_C", True)
+    include_builtin_idf_component("nvs_flash")
+    include_builtin_idf_component("esp_event")
+    include_builtin_idf_component("esp_netif")
+    include_builtin_idf_component("esp_wifi")
+    include_builtin_idf_component("esp_http_client")
+    include_builtin_idf_component("mbedtls")
+    cg.add_build_flag('-DMBEDTLS_CONFIG_FILE=\\"mbedtls/esp_config.h\\"')
+    var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
+    cg.add(var.set_product_runtime_enabled(config[CONF_PRODUCT_RUNTIME]))
