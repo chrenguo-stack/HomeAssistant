@@ -48,8 +48,12 @@ class SimpleProductComponent : public Component,
 
   void set_activation_enabled(bool enabled) { activation_enabled_ = enabled; }
   void set_lab_diagnostics_enabled(bool enabled) {
+#ifdef GREENHOUSE_N3W_ENABLE_PHASE4_LAB
     diagnostics_.set_enabled(enabled);
     runtime_.set_diagnostic_sink(enabled ? &diagnostics_ : nullptr);
+#else
+    (void) enabled;
+#endif
   }
   void setup() override;
   void loop() override;
