@@ -1,6 +1,6 @@
 # greenhouse_n3w_product_core provenance
 
-Status: SOURCE_FORK_STAGE_A
+Status: SOURCE_FORK_STAGE_B
 
 This component is an independent production successor forked from the merged
 PR #437 product source. The frozen PR #437 lab component remains unchanged at
@@ -24,14 +24,31 @@ zero-log compatibility surface for instrumentation calls still present in the
 frozen product state-machine source. It is not an NVS/logging diagnostic
 implementation.
 
-## Stage-A scope
+## Stage-B embedded diagnostic prune
+
+The production successor now also removes the ESP-NOW observations that existed
+only to support physical-session debugging:
+
+- bounded `ESP-NOW diagnostic receive` logs;
+- bounded broadcast-completion diagnostic logs;
+- the diagnostic receive/broadcast log counters;
+- pre-send current-channel / encrypted-peer-channel readback controlled by
+  `observe_context`;
+- component-side ESP-NOW diagnostic hooks for receive drops, peer install,
+  broadcast/unicast completion, and unicast submit context.
+
+The ESP-NOW business behavior remains present: receive metadata still carries
+RSSI/channel to the product runtime, MAC completion ownership remains intact,
+pending-unicast accounting remains intact, and synchronous send success/failure
+continues to drive the existing product state machine.
+
+## Still outside this stage
 
 This fork does **not** yet:
-- remove the limited diagnostic logging/readback embedded in `n3w_espnow_driver.*`;
 - integrate F1.0-RC2 sensors or telemetry;
 - define the final production firmware target;
-- claim binary de-harness proof;
+- prove the final binary is de-harnessed;
 - modify the frozen PR #437 component or Phase-4 physical harness.
 
 Unchanged product files are copied by exact Git blob identity from the source
-authority wherever no Stage-A adapter change is required.
+authority wherever no production adapter or diagnostic-prune change is required.
