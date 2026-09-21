@@ -1,0 +1,39 @@
+name: N3W production binary de-harness proof
+
+on:
+  pull_request:
+    paths:
+      - "firmware/esphome_rc/f1_0_rc2/**"
+      - "firmware/esphome_rc/components/greenhouse_n3w_product_core/**"
+      - "tools/n3w_production_binary_deharness_proof.py"
+      - ".github/workflows/n3w-production-binary-deharness-proof.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  binary-deharness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install ESPHome
+        run: python -m pip install --upgrade "esphome==2026.4.3"
+
+      - name: Compile exact production target
+        working-directory: firmware/esphome_rc/f1_0_rc2
+        env:
+          RC2_CONFIG: f1_0_rc2_n3w_target.yml
+        run: bash tools/rc2.sh compile
+
+      - name: Prove production binary is de-harnessed
+        run: |
+          python tools/n3w_production_binary_deharness_proof.py \
+            --build-root firmware/esphome_rc/f1_0_rc2/.esphome/build
