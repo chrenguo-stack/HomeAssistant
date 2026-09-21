@@ -1,11 +1,87 @@
 # N3-W Current State
 
-Updated: 2026-09-19  
+Updated: 2026-09-21  
 Status: `CURRENT_STATE_AUTHORITY`
 
 Fresh exact repository/runtime/physical evidence takes precedence if later evidence proves drift.
 
-## Repository / product source authority
+## 2026-09-21 PR #437 superseding alignment
+
+This section supersedes older PR #437 / KF-096 values later in this file wherever they conflict. Historical sections remain for chronology only.
+
+```text
+REPOSITORY_MAIN=a5a4dc06e86374287348bb8718e7f7fb7d6c42d2
+REPOSITORY_MAIN_TREE=291cd078000d82e811a65d44ae782aa0b044bda9
+
+CURRENT_CANDIDATE_PR=437
+CURRENT_CANDIDATE_STATE=OPEN_DRAFT
+CURRENT_CANDIDATE_SOURCE_HEAD=4270f24a92a87dd5239d781ebba624c2f34b7fc2
+CURRENT_CANDIDATE_SOURCE_TREE=a2f445bf2ea60ba9994a7a467f6492975d399c4f
+CURRENT_CANDIDATE_CI=11_OF_11_PASS
+CURRENT_CANDIDATE_SOURCE_REVIEW=PASS
+
+CURRENT_CANDIDATE_EXACT_ARTIFACT=NOT_BUILT
+EXACT_ARTIFACT_READY=true
+PR437_MERGE_READY=false
+KF096_STATUS=OPEN
+```
+
+The current exact source repaired the newly isolated Wi-Fi recovery-window defect:
+
+```text
+NO_RELAY_WIFI_RECOVERY_BUDGET_MS=85000
+NO_RELAY_ABSOLUTE_RECOVERY_BUDGET_MS=120000
+HEALTHY_RELAY_ABSOLUTE_RECOVERY_BUDGET_MS=30000
+MQTT_RECOVERY_BUDGET_MS=25000
+DIRECT_CONFIRM_BUDGET_MS=5000
+```
+
+Source review found and closed two blockers before this exact head:
+
+- `SR-B1`: a 50 s Wi-Fi phase did not cover ESPHome 2026.4.3's sequential 31 s scan fallback plus 46 s connection fallback;
+- `SR-B2`: an earlier 90 s healthy-Relay absolute window unnecessarily widened single-radio ownership away from an already-working Relay path.
+
+The exact-head host regression now models Wi-Fi becoming ready only after the sequential 77 s fallback path, while healthy Relay retains the pre-existing 30 s hard ownership ceiling.
+
+Current deployed Board B is still bound to the earlier exact artifact/source, not to `4270f24...`:
+
+```text
+DEPLOYED_SOURCE_HEAD=177468e290a207f2fb7f6c554aedf60b61373b4d
+DEPLOYED_SOURCE_TREE=a50ff98887b14b70cf9d278c6f8b7edf536eae88
+DEPLOYED_ARTIFACT_ID=10607030747
+DEPLOYED_APPLICATION_SHA256=74f6b111d3af3b1247e6f367d3da10957846dbe6103e74fc507bc26e43065093
+DEPLOYED_APPLICATION_READBACK=PASS
+```
+
+Post-write runtime evidence on that deployed artifact remains a FAIL baseline:
+
+```text
+POSTWRITE_DIRECT_BASELINE=FAIL
+LAST_MANAGER_CANONICAL_SEQ=49
+LAST_MANAGER_CANONICAL_SOURCE=direct
+EXACT_BOARD_B_MQTT_DISCONNECT=PROVEN
+LATE_BROKER_RECONNECT_OBSERVED=false
+
+DIRECT_RECOVERY_WINDOW_SECONDS=150
+DIRECT_RECOVERY_PING_SAMPLE_COUNT=25
+DIRECT_RECOVERY_PING_SUCCESS_COUNT=0
+DIRECT_RECOVERY_NEIGHBOR_STATE=INCOMPLETE_FOR_ALL_25_SAMPLES
+
+BOARD_B_USB_ENUMERATION_LAST_OBSERVED=PASS
+LOCAL_SERIAL_OWNER_LAST_OBSERVED=0
+MANAGER_CONTINUITY_DURING_FORENSIC=PASS
+BROKER_CONTINUITY_DURING_FORENSIC=PASS
+```
+
+The physical symptom is consistent with the confirmed source integration defect, but unique causation is not yet proven because `4270f24...` has not been built, flashed, or physically revalidated.
+
+```text
+NEXT_ROUTE=N3W_PR437_4270F24_EXACT_ARTIFACT_BUILD_AND_BINDING
+BOARD_B_REFLASH=false
+PR437_MERGE=false
+```
+
+## Historical repository / product source snapshot (superseded by 2026-09-21 header)
 
 ```text
 REPOSITORY=chrenguo-stack/HomeAssistant
@@ -296,7 +372,7 @@ The merged finite repair preserves the existing radio architecture. It fixes BSS
 
 Source/CI success does not close KF-096 and does not authorize Board B access or flashing. PR #431 remains the latest merged product-source authority, but its artifact is historical for the current validation route because the newer unmerged PR #437 candidate now has its own exact artifact.
 
-## PR #437 current successor candidate
+## Historical PR #437 successor snapshot (`cc9ed5ee...`)
 
 Local source review, repair, CI, repository cleanup, and exact-artifact binding are now aligned to GitHub.
 
@@ -380,7 +456,7 @@ The executor is bound to PR #437 artifact `10575077512`. It performs a fresh rea
 
 PR #439 merge does not authorize Board B Flash mutation. A bounded read-only Board B preflight is the next gate; any later Flash write requires a separate explicit one-shot authorization.
 
-## PR #437 Board B deployment and post-write Direct baseline
+## Historical PR #437 Board B deployment and post-write Direct baseline
 
 The exact PR #437 artifact was written to the operator-confirmed Board B target. The automated frozen Board B hardware-identity comparison failed before write; the operator explicitly confirmed the physical target and authorized a one-time override. Raw identity material is not public evidence, the automated identity check must not be rewritten as PASS, and this override does not carry forward to future board mutations.
 
@@ -491,7 +567,7 @@ The 20.589 s Relay Manager interarrival gap is retained as a delivery-latency ob
 
 KF-096 is closed because the historical periodic Direct-recovery-probe behavior that discarded Relay business telemetry was not reproduced in the 600 s Relay window. This closure does not erase the six missing sequences during the initial Direct -> Relay transition. That transition-loss fact remains open for later N3-W acceptance work and keeps `OVERALL_N3W_FAILOVER_ACCEPTANCE=NOT_CLOSED`.
 
-## Current acceptance matrix
+## Historical acceptance matrix snapshot
 
 ```text
 KF092_STATUS=CLOSED_PASS
@@ -575,7 +651,7 @@ OVERALL_N3W_FAILOVER_ACCEPTANCE=NOT_CLOSED
 - Consumed physical authorizations are never replayable.
 - The one-time operator override of the automated Board B identity mismatch is frozen as historical execution evidence only. It does not change the repository identity guard and must not be inherited by any future board mutation.
 
-## Current ONE gate
+## Historical ONE gate snapshot
 
 ```text
 NEXT_ONE_GATE=N3W_KF096_PR437_PREMERGE_FINAL_REVIEW_20260919_01

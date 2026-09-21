@@ -1,19 +1,48 @@
 # N3-W Current State Index
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
-Current progress alignment: `docs/development/N3W_KF096_PR437_FINAL_PHYSICAL_CLOSURE_ALIGNMENT_20260919.md`  
-Current new-chat handoff: `docs/development/N3W_KF096_PR437_SAME_BOOT_DIRECT_TO_RELAY_PHYSICAL_VALIDATION_NEW_CHAT_HANDOFF_V1.0_20260919.md`  
-Previous physical alignment: `docs/development/N3W_PR425_PHYSICAL_VALIDATION_AND_PROBE_BLACKOUT_ALIGNMENT_20260918.md`  
+Current progress alignment: `docs/development/N3W_PR437_WIFI_RECOVERY_BUDGET_SOURCE_REPAIR_ALIGNMENT_20260921.md`  
+Current new-chat handoff: `docs/development/N3W_PR437_WIFI_RECOVERY_BUDGET_SOURCE_REPAIR_NEW_CHAT_HANDOFF_V1.0_20260921.md`  
+Long-term working context: `docs/development/N3W_PROJECT_WORKING_CONTEXT.md`  
+Current handoff template: `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` v1.2  
 Latest merged product-source authority: PR #431 / `d1b5c3acbd32cca95483743ffe2edba9aa3f904f`  
-Current successor candidate: PR #437 / `cc9ed5ee568a4b6c4a2454fd38bafa8f6e3a527c`  
-Current exact artifact: `n3w-pr437-boardb-exact-source` / artifact `10575077512`  
-Previous progress alignment: `docs/development/N3W_KF096_PR431_EXACT_ARTIFACT_BUILD_AND_BINDING_20260918.md`  
-Historical PR #416 handoff: `docs/development/N3W_PR416_CONTROLLED_CHANNEL_TX_POSTFLASH_DIRECT_BASELINE_NEW_CHAT_HANDOFF_V1.0_20260917.md`  
+Current successor candidate: PR #437 / `4270f24a92a87dd5239d781ebba624c2f34b7fc2`  
+Current candidate tree: `a2f445bf2ea60ba9994a7a467f6492975d399c4f`  
+Current candidate exact artifact: `NOT_BUILT`  
+Currently deployed Board B source: `177468e290a207f2fb7f6c554aedf60b61373b4d`  
 Current local-development-environment authority: `docs/development/local-environment-records/2026-09-17-macos-x86_64.json`  
-Current KF-089 Relay end-to-end closeout: `docs/development/N3W_KF089_RELAY_END_TO_END_CLOSEOUT_20260914.md`  
 Active product-direction authority: `docs/development/N3W_OFFICIAL_ESPNOW_REFERENCE_PRODUCT_DIRECTION_DECISION_20260906.md`
 
-## Repository / deployed product authority
+## 2026-09-21 superseding snapshot
+
+```text
+REPOSITORY=chrenguo-stack/HomeAssistant
+PRIMARY_TASK=N3W_MULTI_NODE_RELAY_AND_RUNTIME_FAILOVER_ACCEPTANCE
+
+REPOSITORY_MAIN=a5a4dc06e86374287348bb8718e7f7fb7d6c42d2
+REPOSITORY_MAIN_TREE=291cd078000d82e811a65d44ae782aa0b044bda9
+
+CURRENT_CANDIDATE_PR=437
+CURRENT_CANDIDATE_STATE=OPEN_DRAFT
+CURRENT_CANDIDATE_SOURCE_HEAD=4270f24a92a87dd5239d781ebba624c2f34b7fc2
+CURRENT_CANDIDATE_SOURCE_TREE=a2f445bf2ea60ba9994a7a467f6492975d399c4f
+CURRENT_CANDIDATE_SOURCE_REVIEW=PASS
+CURRENT_CANDIDATE_CI=11_OF_11_PASS
+CURRENT_CANDIDATE_EXACT_ARTIFACT=NOT_BUILT
+
+FROZEN_DEPLOYED_PRODUCT_SOURCE_HEAD=177468e290a207f2fb7f6c554aedf60b61373b4d
+FROZEN_DEPLOYED_PRODUCT_SOURCE_TREE=a50ff98887b14b70cf9d278c6f8b7edf536eae88
+FROZEN_DEPLOYED_ARTIFACT_ID=10607030747
+FROZEN_DEPLOYED_APPLICATION_SHA256=74f6b111d3af3b1247e6f367d3da10957846dbe6103e74fc507bc26e43065093
+
+POSTWRITE_DIRECT_BASELINE=FAIL
+KF096_STATUS=OPEN
+PR437_MERGE_READY=false
+NEXT_ONE_GATE=N3W_PR437_4270F24_EXACT_ARTIFACT_BUILD_AND_BINDING_PREPARATION_20260921_01
+```
+
+Older sections below are historical snapshots. Where they conflict with this header, this 2026-09-21 snapshot and fresh exact evidence take precedence.
+## Historical repository / deployed product authority snapshot (superseded by 2026-09-21 header)
 
 ```text
 REPOSITORY=chrenguo-stack/HomeAssistant
@@ -40,7 +69,7 @@ b459fae0a054d45b0d09e60bffae9769e060a5c0
 
 PR #431 remains the latest merged product-source authority. PR #437 is the current draft successor candidate and its exact artifact is now deployed on the operator-confirmed Board B target.
 
-## Current physical route summary
+## Historical physical route summary (superseded by 2026-09-21 header)
 
 ```text
 PR425_EXACT_ARTIFACT_BUILD=PASS
@@ -121,7 +150,7 @@ PR437_CANONICAL_DIRECT_BASELINE=PASS
 OVERALL_N3W_FAILOVER_ACCEPTANCE=NOT_CLOSED
 ```
 
-## Current known-failure disposition
+## Historical known-failure disposition
 
 ```text
 KF092=CLOSED_PASS / GUARDED
@@ -133,7 +162,7 @@ KF096=CLOSED_PASS
 
 KF-096 is closed by the exact PR #437 physical route: same-boot Direct -> Relay PASS, 600 s Relay data continuity PASS with no missing seq in 996..1116, ordered catch-up observed after one 20.589 s Manager interarrival gap, and same-boot Relay -> Direct PASS with no transition sequence loss. The initial Direct -> Relay transition still lost seq 897..902; that fact remains open for overall N3-W failover acceptance and is not erased by KF-096 closure.
 
-## Current ONE gate
+## Historical ONE gate snapshot
 
 ```text
 NEXT_ONE_GATE=
