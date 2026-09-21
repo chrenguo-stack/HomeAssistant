@@ -147,3 +147,130 @@ PR450_PREMERGE_CI=11_OF_11_PASS
 ```
 
 The remaining 37 workflows were reclassified after PR #450. No further workflow deletion is proposed by name or age alone: the remaining older H3/N2 Stage2C/Stage2D1-6 workflows still target pairing, persistence, activation, lifecycle, firmware or other code paths that remain present in the repository, and several current workflows provide required `protect-main` status contexts. Further reduction therefore requires overlap/coverage analysis rather than historical cleanup.
+
+
+## Remaining CI overlap / coverage audit
+
+Read-only coverage review was completed after PR #451 at:
+
+```text
+MAIN_AFTER_PR451=85a9b9e8e48508350659afc7b748bd22117df9ca
+WORKFLOW_FILES=37
+OPEN_PRS=5
+PR451_PREMERGE_CI=11_OF_11_PASS
+```
+
+### Required `protect-main` coverage
+
+The active `protect-main` ruleset requires 13 status contexts. They are produced by 11 workflow files and must not be removed without an explicit ruleset migration:
+
+```text
+c07-node-retirement-ci.yml
+  -> isolated-retirement
+
+greenhouse-manager-ci.yml
+  -> test
+
+h3-n2-stage2b3-pairing-runtime-ci.yml
+  -> isolated-runtime
+
+m0-vertical-slice-ci.yml
+  -> simulator-unit
+  -> compose-integration
+
+m2-dynsec-ci.yml
+  -> dynsec-integration
+
+m2-manager-runtime-secret-ownership-ci.yml
+  -> ownership-gate
+
+m2-node-auth-board-lab-ci.yml
+  -> validate
+  -> esp32-c6-board-targets
+
+m2-node-auth-board-lab-native-ci.yml
+  -> native-board-lab
+
+m2-node-auth-isolated-lab-ci.yml
+  -> isolated-broker-matrix
+
+m2-private-mosquitto-ci.yml
+  -> private-mosquitto
+
+public-repository-safety-ci.yml
+  -> tracked-content-safety
+```
+
+These 11 workflows are the reason a documentation-only PR still reports the full protected status set. Their presence is currently a branch-protection contract, not historical clutter.
+
+### Non-required workflows retained after coverage review
+
+The other 26 workflow files are not part of the required status-context set, but this audit did not find a high-confidence delete candidate among them.
+
+They fall into these groups:
+
+```text
+C06 history / Home Assistant projection
+  c06-history-replay-ci.yml
+  c06b1-history-projection-ci.yml
+  c06b2a-ha-target-ledger-ci.yml
+  c06b2b-runtime-wiring-ci.yml
+
+Firmware targets
+  f1-0-rc2-ci.yml
+  n1-firmware-ci.yml
+
+Initialization / identity governance
+  h0h1-init-portable-restore-ci.yml
+  project-roadmap-v07-c07-identity-ci.yml
+
+H3/N2 pairing and lifecycle focused regressions
+  h3-n2-stage2c1-node-pairing-core-ci.yml
+  h3-n2-stage2c2-node-secure-transport-ci.yml
+  h3-n2-stage2c3-async-persistence-ci.yml
+  h3-n2-stage2d1-crypto-output-safety-ci.yml
+  h3-n2-stage2d1-nvs-persistence-ci.yml
+  h3-n2-stage2d2-candidate-mqtt-validator-ci.yml
+  h3-n2-stage2d3-activation-transaction-ci.yml
+  h3-n2-stage2d4-profile-lifecycle-integration-ci.yml
+  h3-n2-stage2d5-production-adapters-ci.yml
+  h3-n2-stage2d6-lifecycle-assembly-ci.yml
+
+Developer / M2 focused regressions
+  local-dev-environment-tooling-ci.yml
+  m2-esphome-node-auth-adapter-ci.yml
+  m2-manager-failure-diagnostic-ci.yml
+
+N3-W focused regressions / execution tooling
+  n3w-boot-session-recovery-helper-ci.yml
+  n3w-esp32c6-frame-boot-keystate-core-ci.yml
+  n3w-kf096-pr437-boardb-write-executor-ci.yml
+  n3w-manager-replay-registry-ci.yml
+  n3w-single-hop-contract-ci.yml
+```
+
+### Important overlap findings
+
+The audit found overlap, but not semantic duplication:
+
+- `f1-0-rc2-ci.yml` and `n1-firmware-ci.yml` watch the same firmware tree, but build different configurations. The first uses `tools/rc2.sh` with the default `f1_0_rc2.yml`; the second prepares N1 CI secrets and uses `tools/n1.sh`, which binds `RC2_CONFIG=f1_0_rc2_n1.yml`.
+- `h0h1-init-portable-restore-ci.yml` and `project-roadmap-v07-c07-identity-ci.yml` overlap on Manager / identity files, but the former runs initialization, portable-restore, persistence-migration and legacy-adoption harnesses while the latter enforces roadmap / retirement governance and identity-lifecycle tests.
+- the Stage2C / Stage2D1-6 workflows share ESPHome setup and some source trees, but each owns a different focused contract, board-lab target or fault matrix. Consolidation is possible only by preserving those distinct checks in a matrix or reusable-workflow design.
+- N3-W boot-session recovery and frame/keystate workflows share `greenhouse_n3w_core` source paths but validate different contracts and test suites.
+- `n3w-kf096-pr437-boardb-write-executor-ci.yml` is intentionally task-specific and should be reconsidered only after PR #437 reaches final disposition.
+
+### Third-pass decision
+
+```text
+THIRD_PASS_BLIND_WORKFLOW_DELETION=STOP
+HIGH_CONFIDENCE_ADDITIONAL_DELETE_CANDIDATES=0
+CURRENT_WORKFLOW_COUNT=37
+REQUIRED_CONTEXT_WORKFLOWS=11
+NON_REQUIRED_BUT_DISTINCT_WORKFLOWS=26
+```
+
+The repository has therefore reached the safe limit of name/age-based workflow cleanup.
+
+Any further CI reduction should be an engineering refactor, not archival deletion. The most promising future direction is to consolidate repeated setup/compile scaffolding through reusable workflows while preserving the existing focused tests and, for protected checks, preserving or deliberately migrating the 13 required status contexts.
+
+Branch-ref cleanup remains separately blocked by the current GitHub connector because it exposes branch creation/update but no safe remote-ref deletion operation. No force-update substitute should be used.
