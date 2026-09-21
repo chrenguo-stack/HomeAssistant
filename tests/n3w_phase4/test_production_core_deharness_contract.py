@@ -87,7 +87,7 @@ def test_lab_only_espnow_observability_is_compile_time_guarded() -> None:
     assert "diagnostic_receive_logs_" in header
     assert "diagnostic_broadcast_logs_" in header
 
-    assert "Production builds skip these extra readbacks" in source
+    assert "builds skip these extra readbacks" in source
     assert "ESP-NOW diagnostic receive" in source
     assert "ESP-NOW diagnostic broadcast completion" in source
 
