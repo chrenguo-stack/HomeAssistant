@@ -134,3 +134,16 @@ PR449_MERGE_COMMIT=4bdaa9e347709da9f1307bfd3ba22d46913c15f1
 ```
 
 The first PR #448 run exposed one stale July integration gate; after retiring that gate, the exact PR head `10e8fde28f28f54cf124ddeb2bc0b36d4498eff9` completed 11/11 CI successfully before merge.
+
+
+## Second-pass merge verification
+
+```text
+PR450_MERGED=true
+PR450_MERGE_COMMIT=e369a14544c0d5ba7d3e6e01e4af38c06892a3a7
+WORKFLOW_FILES_AFTER_PR450=37
+OPEN_PRS_AFTER_PR450=5
+PR450_PREMERGE_CI=11_OF_11_PASS
+```
+
+The remaining 37 workflows were reclassified after PR #450. No further workflow deletion is proposed by name or age alone: the remaining older H3/N2 Stage2C/Stage2D1-6 workflows still target pairing, persistence, activation, lifecycle, firmware or other code paths that remain present in the repository, and several current workflows provide required `protect-main` status contexts. Further reduction therefore requires overlap/coverage analysis rather than historical cleanup.
