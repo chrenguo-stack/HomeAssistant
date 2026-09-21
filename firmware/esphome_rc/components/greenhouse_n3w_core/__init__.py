@@ -14,9 +14,12 @@ from esphome.const import CONF_ID
 DEPENDENCIES = ["esp32"]
 AUTO_LOAD = ["json"]
 
+CONF_PRODUCT_RUNTIME = "product_runtime"
 CONF_PHASE4_SOURCE_HARNESS = "phase4_source_harness"
 CONF_PHASE4_PRODUCT_RUNTIME = "phase4_product_runtime"
 CONF_PHASE4_LAB_DIAGNOSTICS = "phase4_lab_diagnostics"
+
+LAB_BUILD_FLAG = "GREENHOUSE_N3W_ENABLE_PHASE4_LAB"
 
 greenhouse_n3w_core_ns = cg.esphome_ns.namespace("greenhouse_n3w_core")
 GreenhouseN3wCore = greenhouse_n3w_core_ns.class_("GreenhouseN3wCore", cg.Component)
@@ -24,6 +27,7 @@ GreenhouseN3wCore = greenhouse_n3w_core_ns.class_("GreenhouseN3wCore", cg.Compon
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(GreenhouseN3wCore),
+        cv.Optional(CONF_PRODUCT_RUNTIME, default=False): cv.boolean,
         cv.Optional(CONF_PHASE4_SOURCE_HARNESS, default=False): cv.boolean,
         cv.Optional(CONF_PHASE4_PRODUCT_RUNTIME, default=False): cv.boolean,
         cv.Optional(CONF_PHASE4_LAB_DIAGNOSTICS, default=False): cv.boolean,
@@ -45,8 +49,23 @@ async def to_code(config: dict) -> None:
     include_builtin_idf_component("esp_http_client")
     include_builtin_idf_component("mbedtls")
     cg.add_build_flag('-DMBEDTLS_CONFIG_FILE=\\"mbedtls/esp_config.h\\"')
+
+    lab_enabled = (
+        config[CONF_PHASE4_SOURCE_HARNESS]
+        or config[CONF_PHASE4_LAB_DIAGNOSTICS]
+    )
+    if lab_enabled:
+        cg.add_build_flag(f"-D{LAB_BUILD_FLAG}=1")
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    cg.add(var.set_phase4_source_harness_enabled(config[CONF_PHASE4_SOURCE_HARNESS]))
-    cg.add(var.set_phase4_product_runtime_enabled(config[CONF_PHASE4_PRODUCT_RUNTIME]))
-    cg.add(var.set_phase4_lab_diagnostics_enabled(config[CONF_PHASE4_LAB_DIAGNOSTICS]))
+
+    if config[CONF_PHASE4_SOURCE_HARNESS]:
+        cg.add(var.set_phase4_source_harness_enabled(True))
+    if config[CONF_PHASE4_LAB_DIAGNOSTICS]:
+        cg.add(var.set_phase4_lab_diagnostics_enabled(True))
+
+    product_runtime_enabled = (
+        config[CONF_PRODUCT_RUNTIME] or config[CONF_PHASE4_PRODUCT_RUNTIME]
+    )
+    cg.add(var.set_phase4_product_runtime_enabled(product_runtime_enabled))
