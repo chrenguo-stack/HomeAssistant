@@ -1,18 +1,57 @@
 # N3-W Current State Index
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
-Current progress alignment: `docs/development/N3W_PR437_4270F24_TWO_RUN_FINAL_ALIGNMENT_AND_MERGE_REVIEW_20260921.md`  
+Current progress alignment: `docs/development/N3W_PRODUCTION_DEHARNESS_AND_EXACT_ARTIFACT_PROGRESS_ALIGNMENT_20260921.md`  
 Current new-chat handoff: `docs/development/N3W_PR437_WIFI_RECOVERY_BUDGET_SOURCE_REPAIR_NEW_CHAT_HANDOFF_V1.1_20260921.md`  
 Long-term working context: `docs/development/N3W_PROJECT_WORKING_CONTEXT.md`  
 Current handoff template: `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` v1.2  
 Latest merged product-source authority: PR #437 / merge `b9acaaad50b17c9cdb51c219330e612c383628f0` / frozen physical source `4270f24a92a87dd5239d781ebba624c2f34b7fc2`  
-Current successor candidate: none; PR #437 is merged  
-Current candidate tree: `a2f445bf2ea60ba9994a7a467f6492975d399c4f`  
-Current candidate exact artifact: artifact `10619047221` independently bound, deployed, and physically route-validated PASS  
-Current artifact binding authority: `docs/development/N3W_PR437_4270F24_EXACT_ARTIFACT_BUILD_AND_BINDING_EXECUTION_20260921.md`  
-Currently deployed Board B source: `4270f24a92a87dd5239d781ebba624c2f34b7fc2`  
+Current production successor source: unmerged branch `feature/n3w-production-telemetry-bridge-20260921` @ `c1b3d9d016d06c21c9ff7070c0043163739565ca`  
+Current production successor tree: `0c857fb0f830239717a2e937d176903a6acae8ac`  
+Current production successor exact artifact: artifact `10644667734`, exact binding PASS, not deployed  
+Current production release bundle SHA-256: `93d830368b74e0dae904a9f5c4450378694575c68b917e749b480455662ff065`  
+Current production firmware.bin SHA-256: `8bcd89aaf0be64188f8f98a64795fe78d573ae82dd2dd360c7ff459f80e58efa`  
+Current production artifact binding authority: `docs/development/N3W_PRODUCTION_DEHARNESS_AND_EXACT_ARTIFACT_PROGRESS_ALIGNMENT_20260921.md`  
+Currently deployed Board B source: `4270f24a92a87dd5239d781ebba624c2f34b7fc2` / artifact `10619047221`  
 Current local-development-environment authority: `docs/development/local-environment-records/2026-09-17-macos-x86_64.json`  
 Active product-direction authority: `docs/development/N3W_OFFICIAL_ESPNOW_REFERENCE_PRODUCT_DIRECTION_DECISION_20260906.md`
+
+## 2026-09-21 production successor snapshot
+
+```text
+PRODUCTION_SUCCESSOR_MERGED=false
+PRODUCTION_SUCCESSOR_SOURCE_HEAD=c1b3d9d016d06c21c9ff7070c0043163739565ca
+PRODUCTION_SUCCESSOR_SOURCE_TREE=0c857fb0f830239717a2e937d176903a6acae8ac
+
+PRODUCT_CORE_DEHARNESS=PASS
+F1RC2_TARGET_CONFIG=PASS
+REAL_SENSOR_TELEMETRY_BRIDGE=PASS
+FULL_FIRMWARE_COMPILE=PASS
+BINARY_DEHARNESS_PROOF=PASS
+EXACT_ARTIFACT_BUILD=PASS
+EXACT_ARTIFACT_BINDING=PASS
+
+PR463=OPEN_CI_PASS
+PR464=OPEN_CI_PASS
+PR465=OPEN_CI_PASS
+PR466=OPEN_CI_PASS
+PR467=OPEN_CI_PASS
+
+EXACT_ARTIFACT_RUN_ID=35612622035
+EXACT_ARTIFACT_ID=10644667734
+EXACT_ARTIFACT_NAME=n3w-production-f1rc2-c1b3d9d-exact-source
+GITHUB_ARTIFACT_SHA256=02fbe69f78511f33dec150dee635925dd4decf81048de3adfc6db8af4acc7a72
+RELEASE_BUNDLE_SHA256=93d830368b74e0dae904a9f5c4450378694575c68b917e749b480455662ff065
+FIRMWARE_BIN_SHA256=8bcd89aaf0be64188f8f98a64795fe78d573ae82dd2dd360c7ff459f80e58efa
+FIRMWARE_FACTORY_BIN_SHA256=434a3996ea8dc74c4a356f54d8a9405202f17b500680a66f5d49a2089cf67774
+
+PRODUCTION_SUCCESSOR_BOARD_B_DEPLOYMENT=NOT_EXECUTED
+PRODUCTION_SUCCESSOR_PHYSICAL_ACCEPTANCE=NOT_EXECUTED
+NEXT_CANDIDATE_GATE=N3W_PRODUCTION_BOARD_B_WRITE_TARGET_PREFLIGHT_20260921_01
+NEXT_GATE_AUTHORIZED=false
+```
+
+The exact production artifact is the only current physical-write candidate. Same-source rebuilds are not interchangeable with it. The frozen flat bundle's `flash_args` still uses build-tree-relative paths, so the later write gate must review the flash procedure before mutation.
 
 ## 2026-09-21 PR #437 merged snapshot
 
