@@ -1,5 +1,7 @@
 #include "n3w_rtc_breadcrumb.h"
 
+#ifdef GREENHOUSE_N3W_ENABLE_PHASE4_LAB
+
 #ifdef USE_ESP32
 #include "esp_attr.h"
 #endif
@@ -126,3 +128,5 @@ const char *n3w_rtc_breadcrumb_stage_name(uint32_t stage) {
 }
 
 }  // namespace esphome::greenhouse_n3w_core
+
+#endif  // GREENHOUSE_N3W_ENABLE_PHASE4_LAB
