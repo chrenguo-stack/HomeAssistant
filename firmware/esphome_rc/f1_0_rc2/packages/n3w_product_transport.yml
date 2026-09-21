@@ -1,0 +1,18 @@
+# N3-W production transport integration only.
+#
+# This package deliberately does not build or submit telemetry yet. Its only job
+# is to attach the de-harnessed product runtime to the F1.0-RC2 whole-device
+# baseline and provide the inert MQTT client that the runtime will reconfigure
+# after authenticated Manager pairing.
+mqtt:
+  id: n3w_mqtt_client
+  broker: 127.0.0.1
+  enable_on_boot: false
+  discovery: false
+  reboot_timeout: 0s
+  idf_send_async: true
+  log_topic: null
+
+greenhouse_n3w_product_core:
+  id: n3w_product_core
+  product_runtime: true
