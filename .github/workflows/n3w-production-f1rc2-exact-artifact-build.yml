@@ -1,0 +1,211 @@
+name: N3W production F1RC2 c1b3d9d exact-source artifact build
+
+on:
+  push:
+    branches:
+      - build/n3w-production-f1rc2-c1b3d9d-artifact-20260921
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout exact production source
+        uses: actions/checkout@v4
+        with:
+          ref: c1b3d9d016d06c21c9ff7070c0043163739565ca
+          fetch-depth: 1
+
+      - name: Bind exact source and production target
+        shell: bash
+        run: |
+          set -euo pipefail
+          TARGET="firmware/esphome_rc/f1_0_rc2/f1_0_rc2_n3w_target.yml"
+          BRIDGE="firmware/esphome_rc/f1_0_rc2/packages/n3w_product_telemetry.yml"
+          TRANSPORT="firmware/esphome_rc/f1_0_rc2/packages/n3w_product_transport.yml"
+          CORE_INIT="firmware/esphome_rc/components/greenhouse_n3w_product_core/__init__.py"
+
+          test "$(git rev-parse HEAD)" = "c1b3d9d016d06c21c9ff7070c0043163739565ca"
+          test "$(git rev-parse HEAD^{tree})" = "0c857fb0f830239717a2e937d176903a6acae8ac"
+          test "$(git hash-object "$TARGET")" = "32a2b3cb29be4e1bce46807d8825b6a4c37999ec"
+          test "$(git hash-object "$BRIDGE")" = "ce16f2389d146f9b25e95cbb628547e11ce36bd6"
+          test "$(git hash-object "$TRANSPORT")" = "aa39d4b083f2db1b30a76efb1afef156db355a35"
+          test "$(git hash-object "$CORE_INIT")" = "7e86aa2f3fb1bff6f5813e431da501970263e33a"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install exact ESPHome
+        run: python -m pip install --disable-pip-version-check "esphome==2026.4.3"
+
+      - name: Compile exact production target
+        shell: bash
+        working-directory: firmware/esphome_rc/f1_0_rc2
+        env:
+          RC2_CONFIG: f1_0_rc2_n3w_target.yml
+        run: |
+          set -euo pipefail
+          bash tools/rc2.sh compile
+
+      - name: Verify ESP-IDF toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION_FILE="$HOME/.platformio/packages/framework-espidf/tools/cmake/version.cmake"
+          test -f "$VERSION_FILE"
+          grep -Eq 'set\(IDF_VERSION_MAJOR[[:space:]]+5\)' "$VERSION_FILE"
+          grep -Eq 'set\(IDF_VERSION_MINOR[[:space:]]+5\)' "$VERSION_FILE"
+          grep -Eq 'set\(IDF_VERSION_PATCH[[:space:]]+4\)' "$VERSION_FILE"
+
+      - name: Prove exact binary is de-harnessed
+        shell: bash
+        run: |
+          set -euo pipefail
+          ENV="$GITHUB_WORKSPACE/firmware/esphome_rc/f1_0_rc2/.esphome/build/gh/.pioenvs/gh"
+          APP="$ENV/firmware.bin"
+          FACTORY="$ENV/firmware.factory.bin"
+          ELF="$ENV/firmware.elf"
+          MAP="$ENV/firmware.map"
+
+          test -f "$APP"
+          test -f "$FACTORY"
+          test -f "$ELF"
+          test -f "$MAP"
+
+          NM="$(find "$HOME/.platformio/packages" -type f -name riscv32-esp-elf-nm -print -quit)"
+          test -n "$NM"
+          test -x "$NM"
+
+          "$NM" -C "$ELF" > /tmp/n3w-symbols.txt
+          strings -a "$APP" > /tmp/n3w-app-strings.txt
+          strings -a "$FACTORY" > /tmp/n3w-factory-strings.txt
+
+          forbidden=(
+            Phase4PhysicalHarness
+            N3wLabDiagnostics
+            N3wRtcBreadcrumb
+            n3w_phase4_physical_harness
+            n3w_lab_diagnostics
+            n3w_rtc_breadcrumb
+            n3w_rtc_breadcrumb_
+            gh_n3w_diag
+            N3W_DIAG_DISCOVERY
+            PHASE4_LAB_TELEMETRY
+            phase4_source_harness
+            phase4_lab_diagnostics
+          )
+
+          for marker in "${forbidden[@]}"; do
+            ! grep -Fq "$marker" /tmp/n3w-symbols.txt
+            ! grep -Fq "$marker" "$MAP"
+            ! grep -Fq "$marker" /tmp/n3w-app-strings.txt
+            ! grep -Fq "$marker" /tmp/n3w-factory-strings.txt
+          done
+
+          grep -Fq "GreenhouseN3wCore" /tmp/n3w-symbols.txt
+          grep -Fq "SimpleProductComponent" /tmp/n3w-symbols.txt
+          grep -Fq "gh.telemetry/1" /tmp/n3w-app-strings.txt
+          grep -Fq "air_temperature_c" /tmp/n3w-app-strings.txt
+
+          echo "N3W_PRODUCTION_BINARY_DEHARNESS_PROOF=PASS"
+          echo "FORBIDDEN_MARKER_COUNT=${#forbidden[@]}"
+          echo "PHASE4_HARNESS_PRESENT=false"
+          echo "LAB_DIAGNOSTICS_PRESENT=false"
+          echo "RTC_BREADCRUMB_PRESENT=false"
+
+      - name: Freeze exact production release bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/firmware/esphome_rc/f1_0_rc2/.esphome/build/gh"
+          ENV="$ROOT/.pioenvs/gh"
+          MEMBERS="$GITHUB_WORKSPACE/release-members"
+          OUT="$GITHUB_WORKSPACE/release-artifact"
+          BUNDLE="n3w-production-f1rc2-c1b3d9d-exact-source.zip"
+
+          mkdir -p "$MEMBERS" "$OUT"
+
+          files=(
+            firmware.bin
+            firmware.ota.bin
+            firmware.factory.bin
+            bootloader.bin
+            partitions.bin
+            ota_data_initial.bin
+            flash_args
+          )
+
+          for name in "${files[@]}"; do
+            test -f "$ENV/$name"
+            cp "$ENV/$name" "$MEMBERS/$name"
+          done
+
+          {
+            echo "BINDING_SCHEMA=N3W_PRODUCTION_EXACT_ARTIFACT_V1"
+            echo "SOURCE_HEAD=c1b3d9d016d06c21c9ff7070c0043163739565ca"
+            echo "SOURCE_TREE=0c857fb0f830239717a2e937d176903a6acae8ac"
+            echo "TARGET_CONFIG=firmware/esphome_rc/f1_0_rc2/f1_0_rc2_n3w_target.yml"
+            echo "TARGET_BLOB_SHA=32a2b3cb29be4e1bce46807d8825b6a4c37999ec"
+            echo "TELEMETRY_BRIDGE_BLOB_SHA=ce16f2389d146f9b25e95cbb628547e11ce36bd6"
+            echo "TRANSPORT_BLOB_SHA=aa39d4b083f2db1b30a76efb1afef156db355a35"
+            echo "PRODUCT_CORE_INIT_BLOB_SHA=7e86aa2f3fb1bff6f5813e431da501970263e33a"
+            echo "PYTHON_VERSION=3.11"
+            echo "ESPHOME_VERSION=2026.4.3"
+            echo "ESP_IDF_VERSION=5.5.4"
+            echo "WORKFLOW_TRIGGER_SHA=$GITHUB_SHA"
+            echo "WORKFLOW_RUN_ID=$GITHUB_RUN_ID"
+            echo "BINARY_DEHARNESS_PROOF=PASS"
+            echo "PHASE4_HARNESS_PRESENT=false"
+            echo "LAB_DIAGNOSTICS_PRESENT=false"
+            echo "RTC_BREADCRUMB_PRESENT=false"
+            for name in "${files[@]}"; do
+              key="$(printf '%s' "$name" | tr '[:lower:].' '[:upper:]_')"
+              size="$(stat -c '%s' "$MEMBERS/$name")"
+              digest="$(sha256sum "$MEMBERS/$name" | awk '{print $1}')"
+              echo "${key}_SIZE=${size}"
+              echo "${key}_SHA256=${digest}"
+            done
+          } | tee "$MEMBERS/MANIFEST.txt"
+
+          python - "$MEMBERS" "$OUT/$BUNDLE" <<'PY'
+          import sys
+          import zipfile
+          from pathlib import Path
+
+          source = Path(sys.argv[1])
+          target = Path(sys.argv[2])
+          names = sorted(p.name for p in source.iterdir() if p.is_file())
+
+          with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_STORED) as archive:
+              for name in names:
+                  info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+                  info.create_system = 3
+                  info.external_attr = 0o100644 << 16
+                  info.compress_type = zipfile.ZIP_STORED
+                  archive.writestr(info, (source / name).read_bytes())
+          PY
+
+          BUNDLE_SIZE="$(stat -c '%s' "$OUT/$BUNDLE")"
+          BUNDLE_SHA256="$(sha256sum "$OUT/$BUNDLE" | awk '{print $1}')"
+          printf '%s  %s\n' "$BUNDLE_SHA256" "$BUNDLE" > "$OUT/$BUNDLE.sha256"
+
+          echo "RELEASE_BUNDLE=$BUNDLE"
+          echo "RELEASE_BUNDLE_SIZE=$BUNDLE_SIZE"
+          echo "RELEASE_BUNDLE_SHA256=$BUNDLE_SHA256"
+          echo "RELEASE_MEMBER_COUNT=$(find "$MEMBERS" -maxdepth 1 -type f | wc -l)"
+          sha256sum "$MEMBERS"/*
+
+      - name: Upload exact production release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: n3w-production-f1rc2-c1b3d9d-exact-source
+          path: release-artifact/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
