@@ -21,7 +21,7 @@ def test_lab_target_keeps_pr437_observability_contract() -> None:
     assert "phase4_lab_diagnostics: true" in lab
     assert "PHASE4_PAIRING_QR_PAYLOAD" in lab
     assert "PHASE4_LAB_TELEMETRY" in lab
-    assert '"phase4_lab":true' in lab
+    assert '\\"phase4_lab\\":true' in lab
 
 
 def test_production_compile_probe_has_no_phase4_lab_switch_or_synthetic_telemetry() -> None:
