@@ -1,0 +1,42 @@
+# Production N3-W transport package.
+#
+# MQTT starts inert. greenhouse_n3w_core replaces broker/TLS/client credentials
+# only after authenticated pairing material has been persisted and acknowledged.
+mqtt:
+  id: n3w_mqtt_client
+  broker: 127.0.0.1
+  enable_on_boot: false
+  discovery: false
+  reboot_timeout: 0s
+  idf_send_async: true
+  log_topic: null
+
+greenhouse_n3w_core:
+  id: n3w_product_core
+  product_runtime: true
+
+# Real product telemetry only. No synthetic Phase-4 payload is generated here.
+greenhouse_n3w_production_telemetry:
+  id: n3w_product_telemetry
+  n3w_core_id: n3w_product_core
+  update_interval: ${n3w_publish_interval}
+  cap_hash: ${n3w_cap_hash}
+  fw_version: ${project_version}
+
+  air_temperature_id: air_temp
+  air_humidity_id: air_humidity
+  co2_id: scd30_co2
+  illuminance_id: illuminance
+  soil_temperature_id: soil_temperature
+  soil_moisture_id: soil_moisture
+  soil_ec_id: soil_ec
+  vpd_id: vpd
+  dew_point_id: dew_point
+  absolute_humidity_id: absolute_humidity
+  ppfd_id: ppfd
+  dli_today_id: dli_today_sensor
+  dli_yesterday_id: dli_yesterday_sensor
+  battery_voltage_id: battery_voltage
+  battery_level_id: battery_level
+  main_power_id: main_power
+  low_battery_id: low_battery_status
