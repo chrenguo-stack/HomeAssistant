@@ -24,7 +24,7 @@ logger:
 wifi:
   reboot_timeout: 0s
   ap:
-    ssid: "Greenhouse N3-W Production Compile"
+    ssid: "GH N3W Production Compile"
 
 captive_portal:
 
