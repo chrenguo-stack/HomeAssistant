@@ -8,10 +8,37 @@ Current handoff template: `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.
 Latest merged product-source authority: PR #431 / `d1b5c3acbd32cca95483743ffe2edba9aa3f904f`  
 Current successor candidate: PR #437 / `4270f24a92a87dd5239d781ebba624c2f34b7fc2`  
 Current candidate tree: `a2f445bf2ea60ba9994a7a467f6492975d399c4f`  
-Current candidate exact artifact: artifact `10619047221` built/uploaded; independent binding pending  
+Current candidate exact artifact: artifact `10619047221` independently bound PASS  
 Currently deployed Board B source: `177468e290a207f2fb7f6c554aedf60b61373b4d`  
 Current local-development-environment authority: `docs/development/local-environment-records/2026-09-17-macos-x86_64.json`  
 Active product-direction authority: `docs/development/N3W_OFFICIAL_ESPNOW_REFERENCE_PRODUCT_DIRECTION_DECISION_20260906.md`
+
+## 2026-09-21 artifact binding closure snapshot
+
+```text
+REPOSITORY_MAIN_AT_BINDING=d0ec0520d251035cf03e710418d92e5dfc7e1690
+CURRENT_CANDIDATE_PR=437
+CURRENT_CANDIDATE_STATE=OPEN_DRAFT
+CURRENT_CANDIDATE_SOURCE_HEAD=4270f24a92a87dd5239d781ebba624c2f34b7fc2
+CURRENT_CANDIDATE_SOURCE_TREE=a2f445bf2ea60ba9994a7a467f6492975d399c4f
+CURRENT_CANDIDATE_CI=11_OF_11_PASS
+
+CURRENT_CANDIDATE_EXACT_ARTIFACT_BUILD=PASS
+CURRENT_CANDIDATE_EXACT_ARTIFACT_BINDING=PASS
+CURRENT_CANDIDATE_ARTIFACT_ID=10619047221
+CURRENT_CANDIDATE_ARCHIVE_SHA256=33895089cf861a211f3f5569cd8f3e6729b0938787cda0d4a30d498ce0264895
+CURRENT_CANDIDATE_MANIFEST_SHA256=485ca57b6dd718afd004c71952ade4e21b9dfa1f65a30a488414d9c1d3e598a3
+CURRENT_CANDIDATE_APPLICATION_SHA256=b7836f041e8b0f68809980d516a9d9cd5c4a94f862f7d3a27515ae85d55d6843
+CURRENT_CANDIDATE_OTADATA_SHA256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
+
+KF096_STATUS=OPEN
+PR437_MERGE_READY=false
+NEXT_ONE_GATE=N3W_PR437_4270F24_BOARD_B_WRITE_TARGET_PREFLIGHT_20260921_01
+AUTO_EXECUTE_NEXT_GATE=false
+NEW_PHYSICAL_AUTHORIZATION_REQUIRED=true
+```
+
+This snapshot supersedes the older pending-binding fields immediately below. No Board access or runtime mutation occurred during binding.
 
 ## 2026-09-21 superseding snapshot
 
