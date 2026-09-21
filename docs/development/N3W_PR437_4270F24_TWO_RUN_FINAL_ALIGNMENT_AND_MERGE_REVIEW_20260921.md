@@ -1,7 +1,7 @@
 # N3-W PR #437 two-run final alignment and merge-condition review
 
 Updated: 2026-09-21  
-Status: `PREMERGE_FINAL_REVIEW_PASS`
+Status: `POSTMERGE_CLOSED_PASS`
 
 ## Authority
 
@@ -132,3 +132,21 @@ PR437_MERGE_READY=true
 ```
 
 The operator explicitly authorized completion of this review followed by merging PR #437. The merge must still use an exact-head guard so any head movement fails closed.
+
+
+## Post-merge closure
+
+```text
+PR437_STATE=MERGED
+PR437_MERGED=true
+PR437_MERGE_COMMIT=b9acaaad50b17c9cdb51c219330e612c383628f0
+MAIN_AFTER_PR437=b9acaaad50b17c9cdb51c219330e612c383628f0
+MERGED_PHYSICAL_SOURCE_HEAD=4270f24a92a87dd5239d781ebba624c2f34b7fc2
+POSTMERGE_SOURCE_INTEGRITY=PASS
+```
+
+The merge was executed only after a fresh read-back showed `state=open`, `draft=false`, `merged=false`, `mergeable=true`, and exact head `4270f24...`. The merge API was guarded with that exact head and returned merge commit `b9acaaad...`.
+
+A fresh Git compare from `4270f24...` to the merge commit reports the PR source head as an ancestor and shows only main-side repository hygiene, documentation, workflow-retirement, and Board-B writer-package files. None of the PR #437 product-source/test files differ from the physically validated head, so merge integration did not alter the validated product source.
+
+The available GitHub workflow wrapper only returns pull-request-triggered runs and therefore cannot prove or disprove merge-SHA push CI. This remains `NOT_OBSERVED`, not `FAIL`.
