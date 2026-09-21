@@ -1616,7 +1616,6 @@ void SimpleProductComponent::on_espnow_receive_with_metadata(
   const uint8_t next = static_cast<uint8_t>((write + 1U) % kRxRingSlots);
   if (next == rx_read_.load(std::memory_order_acquire)) {
     rx_dropped_.fetch_add(1, std::memory_order_relaxed);
-    diagnostics_.note_rx_dropped(now_ms());
     return;
   }
   RxSlot &slot = rx_ring_[write];
@@ -1631,14 +1630,11 @@ void SimpleProductComponent::on_espnow_send_result(
     const MacAddress &destination,
     bool success) {
   if (destination == kEspNowBroadcastMac) {
-    diagnostics_.on_broadcast_completion(success, now_ms());
     return;
   }
 
-  // ESP-NOW send callbacks run from the Wi-Fi task. Record diagnostics and
-  // enqueue only bounded completion metadata here; path state is owned by the
-  // normal component loop.
-  diagnostics_.on_unicast_completion(success, 0);
+  // ESP-NOW send callbacks run from the Wi-Fi task. Enqueue only bounded
+  // completion metadata here; path state is owned by the normal component loop.
   const uint8_t write =
       tx_completion_write_.load(std::memory_order_relaxed);
   const uint8_t next =
@@ -1738,10 +1734,8 @@ bool SimpleProductComponent::install_encrypted_peer(
     const MacAddress &peer_mac,
     const LinkKey &lmk,
     uint8_t channel) {
-  const bool success = radio_.add_encrypted_peer(peer_mac, lmk, channel) ==
-                       DriverError::NONE;
-  diagnostics_.note_peer_install(success, now_ms());
-  return success;
+  return radio_.add_encrypted_peer(peer_mac, lmk, channel) ==
+         DriverError::NONE;
 }
 
 bool SimpleProductComponent::remove_peer(const MacAddress &peer_mac) {
@@ -1753,19 +1747,11 @@ bool SimpleProductComponent::send_encrypted_peer(
     const uint8_t *data,
     std::size_t size) {
   const uint64_t submit_ms = now_ms();
-  const DriverError result =
-      radio_.send(peer_mac, data, size, diagnostics_.enabled());
+  const DriverError result = radio_.send(peer_mac, data, size);
   const bool success = result == DriverError::NONE;
   if (success) {
     pending_unicast_deadline_.on_submit(submit_ms);
   }
-  diagnostics_.note_unicast_submit(
-      success,
-      static_cast<uint8_t>(result),
-      radio_.last_unicast_send_error_raw(),
-      radio_.last_unicast_current_channel(),
-      radio_.last_unicast_peer_channel(),
-      submit_ms);
   return success;
 }
 
