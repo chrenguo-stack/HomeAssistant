@@ -69,7 +69,7 @@ b459fae0a054d45b0d09e60bffae9769e060a5c0
 
 PR #431 remains the latest merged product-source authority. PR #437 is the current draft successor candidate and its exact artifact is now deployed on the operator-confirmed Board B target.
 
-## Current physical route summary
+## Historical physical route summary (superseded by 2026-09-21 header)
 
 ```text
 PR425_EXACT_ARTIFACT_BUILD=PASS
@@ -150,7 +150,7 @@ PR437_CANONICAL_DIRECT_BASELINE=PASS
 OVERALL_N3W_FAILOVER_ACCEPTANCE=NOT_CLOSED
 ```
 
-## Current known-failure disposition
+## Historical known-failure disposition
 
 ```text
 KF092=CLOSED_PASS / GUARDED
@@ -162,7 +162,7 @@ KF096=CLOSED_PASS
 
 KF-096 is closed by the exact PR #437 physical route: same-boot Direct -> Relay PASS, 600 s Relay data continuity PASS with no missing seq in 996..1116, ordered catch-up observed after one 20.589 s Manager interarrival gap, and same-boot Relay -> Direct PASS with no transition sequence loss. The initial Direct -> Relay transition still lost seq 897..902; that fact remains open for overall N3-W failover acceptance and is not erased by KF-096 closure.
 
-## Current ONE gate
+## Historical ONE gate snapshot
 
 ```text
 NEXT_ONE_GATE=
