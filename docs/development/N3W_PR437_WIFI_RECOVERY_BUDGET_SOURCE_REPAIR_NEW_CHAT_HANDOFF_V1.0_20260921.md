@@ -59,8 +59,8 @@ DEFERRED_OR_OUT_OF_SCOPE=Option-C durable every-sample delivery architecture; PR
 
 ```text
 REPOSITORY=chrenguo-stack/HomeAssistant
-MAIN=f9df51171d3fac20d64ccff5202faf43926f26f6
-TREE=015addcccf773d8460e96d3f948de6d4f2795dd2
+MAIN=a5a4dc06e86374287348bb8718e7f7fb7d6c42d2
+TREE=291cd078000d82e811a65d44ae782aa0b044bda9
 
 CANDIDATE_REF=test/n3w-kf096-direct-recovery-liveness-red-20260918
 CANDIDATE_HEAD=4270f24a92a87dd5239d781ebba624c2f34b7fc2
