@@ -16,7 +16,7 @@ REMOTE_BRANCHES=494
 WORKFLOW_FILES_BEFORE=53
 ```
 
-The main branch reported `protected=true`, but enforcement/required status checks were not enabled in the observed branch metadata.
+The main branch is protected by the active repository ruleset `protect-main` (ruleset ID `20514758`) targeting the default branch. It blocks deletion and non-fast-forward updates, requires pull requests, requires review-thread resolution, allows merge commits, and requires 13 named CI status checks. The classic branch-protection endpoint is not readable through the current GitHub App connection, so ruleset data is the authoritative protection evidence used here.
 
 ## Pull-request cleanup completed
 
@@ -96,8 +96,20 @@ The following require a separate focused review rather than blind deletion:
 - remaining H3/N2/M2 long-lived regression workflows;
 - `docs/development` historical document consolidation;
 - repository setting `delete_branch_on_merge`;
-- enforceable main-branch protection / required CI checks.
+- periodic review of the active `protect-main` ruleset and its 13 required CI checks as CI is consolidated.
 
 ## Safety rule
 
 Repository cleanup must not change the current PR #437 source/physical authority, rebuild or flash firmware, or delete unique unmerged product source merely to reduce branch/PR counts.
+
+
+## Post-merge verification
+
+```text
+PR448_MERGED=true
+PR448_MERGE_COMMIT=5afdd83c022585a2fb04b46d71e9114a46d35e07
+WORKFLOW_FILES_AFTER_PR448=42
+OPEN_PRS_AFTER_PR448=5
+```
+
+The first PR #448 run exposed one stale July integration gate; after retiring that gate, the exact PR head `10e8fde28f28f54cf124ddeb2bc0b36d4498eff9` completed 11/11 CI successfully before merge.
