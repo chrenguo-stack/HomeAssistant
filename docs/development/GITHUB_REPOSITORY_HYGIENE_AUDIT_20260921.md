@@ -64,9 +64,9 @@ tmp-do-not-use-4
 tmp-do-not-use-5
 ```
 
-## Workflow cleanup in this PR
+## Workflow cleanup — first pass
 
-This hygiene branch retires only one-off, stage-bound workflow files whose associated execution chains are already historical/closed:
+PR #448 retired one-off, stage-bound workflow files whose associated execution chains are already historical/closed:
 
 ```text
 .github/workflows/h3-n2-stage2d7-2d8-g2-integration-ci.yml
@@ -84,16 +84,35 @@ This hygiene branch retires only one-off, stage-bound workflow files whose assoc
 
 The Stage2D7-2D8 integration gate was added to the retirement set after the first PR #448 CI run proved it is tied to frozen July ancestry. Its first step requires historical evidence/union commits to be ancestors of the current PR merge commit; current main does not contain those frozen branch commits, so it is not a valid long-lived current-main check.
 
-Historical workflow runs and commits remain in Git history.
+## Workflow cleanup — second pass
 
-Long-lived regression workflows are deliberately not removed in this pass.
+The second read-only classification found another small high-confidence historical set:
+
+```text
+.github/workflows/h3-n2-stage2d7-isolated-acceptance-ci.yml
+.github/workflows/h3-n2-stage2d8-isolated-device-driver-ci.yml
+.github/workflows/h3-n2-stage2d9-g3-compile-ci.yml
+.github/workflows/h3-n2-stage2d9-g3-prepare-ci.yml
+.github/workflows/m401a-mosquitto-relay.yml
+```
+
+Reasons:
+
+- the Stage2D7/8/9 workflows target July-only isolated lab components, board-lab YAMLs, historical acceptance documents, and stage-specific tools/tests;
+- repository search did not show those isolated Stage2D7/8/9 components in current product runtime configuration;
+- none of these workflow job contexts is one of the 13 required checks in the active `protect-main` ruleset;
+- `m401a-mosquitto-relay.yml` is a manual-only workflow that creates the historical acceptance-only `m401a-mosquitto-relay-20260720` ARM64 archive/release.
+
+The underlying source, tests, documents, releases, workflow-run history, and Git commits remain preserved. This pass removes only the active workflow entry points.
+
+Long-lived path-specific regression workflows for current pairing, persistence, lifecycle, firmware, Manager, N3-W, identity, and public-safety code remain in place.
 
 ## Deferred cleanup
 
 The following require a separate focused review rather than blind deletion:
 
 - branch refs;
-- remaining H3/N2/M2 long-lived regression workflows;
+- deeper consolidation of overlapping long-lived CI rather than deletion by name/age;
 - `docs/development` historical document consolidation;
 - repository setting `delete_branch_on_merge`;
 - periodic review of the active `protect-main` ruleset and its 13 required CI checks as CI is consolidated.
@@ -102,7 +121,6 @@ The following require a separate focused review rather than blind deletion:
 
 Repository cleanup must not change the current PR #437 source/physical authority, rebuild or flash firmware, or delete unique unmerged product source merely to reduce branch/PR counts.
 
-
 ## Post-merge verification
 
 ```text
@@ -110,6 +128,9 @@ PR448_MERGED=true
 PR448_MERGE_COMMIT=5afdd83c022585a2fb04b46d71e9114a46d35e07
 WORKFLOW_FILES_AFTER_PR448=42
 OPEN_PRS_AFTER_PR448=5
+
+PR449_MERGED=true
+PR449_MERGE_COMMIT=4bdaa9e347709da9f1307bfd3ba22d46913c15f1
 ```
 
 The first PR #448 run exposed one stale July integration gate; after retiring that gate, the exact PR head `10e8fde28f28f54cf124ddeb2bc0b36d4498eff9` completed 11/11 CI successfully before merge.
