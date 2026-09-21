@@ -1,5 +1,7 @@
 #include "n3w_lab_diagnostics.h"
 
+#ifdef GREENHOUSE_N3W_ENABLE_PHASE4_LAB
+
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP32
@@ -538,3 +540,5 @@ void N3wLabDiagnostics::on_compact_forward_submit(bool success, uint64_t now_ms)
 }
 
 }  // namespace esphome::greenhouse_n3w_core
+
+#endif  // GREENHOUSE_N3W_ENABLE_PHASE4_LAB
