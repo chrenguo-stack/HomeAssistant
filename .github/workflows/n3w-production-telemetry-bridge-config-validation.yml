@@ -1,0 +1,38 @@
+name: N3W production telemetry bridge config validation
+
+on:
+  pull_request:
+    paths:
+      - "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_n3w_target.yml"
+      - "firmware/esphome_rc/f1_0_rc2/packages/n3w_product_telemetry.yml"
+      - "firmware/esphome_rc/components/greenhouse_n3w_product_core/**"
+      - "tests/n3w_production/test_f1rc2_telemetry_bridge_contract.py"
+      - ".github/workflows/n3w-production-telemetry-bridge-config-validation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install validation dependencies
+        run: python -m pip install --upgrade "pytest>=8,<9" "esphome==2026.4.3"
+
+      - name: Run telemetry bridge source contract
+        run: pytest -q tests/n3w_production/test_f1rc2_telemetry_bridge_contract.py
+
+      - name: Validate F1.0-RC2 N3-W telemetry target
+        working-directory: firmware/esphome_rc/f1_0_rc2
+        env:
+          RC2_CONFIG: f1_0_rc2_n3w_target.yml
+        run: bash tools/rc2.sh config
