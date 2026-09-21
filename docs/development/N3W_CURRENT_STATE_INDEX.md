@@ -9,6 +9,7 @@ Latest merged product-source authority: PR #431 / `d1b5c3acbd32cca95483743ffe2ed
 Current successor candidate: PR #437 / `4270f24a92a87dd5239d781ebba624c2f34b7fc2`  
 Current candidate tree: `a2f445bf2ea60ba9994a7a467f6492975d399c4f`  
 Current candidate exact artifact: artifact `10619047221` independently bound PASS  
+Current artifact binding authority: `docs/development/N3W_PR437_4270F24_EXACT_ARTIFACT_BUILD_AND_BINDING_EXECUTION_20260921.md`  
 Currently deployed Board B source: `177468e290a207f2fb7f6c554aedf60b61373b4d`  
 Current local-development-environment authority: `docs/development/local-environment-records/2026-09-17-macos-x86_64.json`  
 Active product-direction authority: `docs/development/N3W_OFFICIAL_ESPNOW_REFERENCE_PRODUCT_DIRECTION_DECISION_20260906.md`
