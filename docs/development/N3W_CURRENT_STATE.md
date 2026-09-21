@@ -5,6 +5,55 @@ Status: `CURRENT_STATE_AUTHORITY`
 
 Fresh exact repository/runtime/physical evidence takes precedence if later evidence proves drift.
 
+## 2026-09-21 two-run final alignment and merge authorization
+
+This section supersedes all older PR #437 / KF-096 current-state fields below wherever they conflict.
+
+```text
+REPOSITORY_MAIN_AT_FINAL_REVIEW=3fa4cbe05b74847e6998bd43f4ffe062eb5ae4ee
+CURRENT_CANDIDATE_PR=437
+CURRENT_CANDIDATE_STATE=OPEN_DRAFT
+CURRENT_CANDIDATE_MERGED=false
+CURRENT_CANDIDATE_SOURCE_HEAD=4270f24a92a87dd5239d781ebba624c2f34b7fc2
+CURRENT_CANDIDATE_SOURCE_TREE=a2f445bf2ea60ba9994a7a467f6492975d399c4f
+CURRENT_CANDIDATE_SOURCE_REVIEW=PASS
+CURRENT_CANDIDATE_CI=11_OF_11_PASS
+CURRENT_CANDIDATE_EXACT_ARTIFACT_BINDING=PASS
+CURRENT_CANDIDATE_BOARD_B_WRITE=PASS
+
+PHYSICAL_RUN_1_FULL_ROUND_TRIP=PASS
+PHYSICAL_RUN_1_D2R_MISSING=1
+PHYSICAL_RUN_1_D2R_MISSING_RANGE=73
+PHYSICAL_RUN_1_RELAY_600S=PASS
+PHYSICAL_RUN_1_RELAY_MISSING=0
+PHYSICAL_RUN_1_R2D_MISSING=0
+
+PHYSICAL_RUN_2_FULL_ROUND_TRIP=PASS
+PHYSICAL_RUN_2_D2R_MISSING=3
+PHYSICAL_RUN_2_D2R_MISSING_RANGE=815-817
+PHYSICAL_RUN_2_RELAY_600S=PASS
+PHYSICAL_RUN_2_RELAY_MISSING=0
+PHYSICAL_RUN_2_R2D_MISSING=0
+
+DIRECT_TO_RELAY_FUNCTIONAL_SWITCH=REPEATABLE_PASS
+DIRECT_TO_RELAY_ZERO_LOSS=NOT_GUARANTEED
+DIRECT_TO_RELAY_BOUNDARY_LOSS=REPEATABLE
+RELAY_CONTINUITY_600S=REPEATABLE_PASS
+RELAY_TO_DIRECT_FAILBACK=REPEATABLE_PASS
+SAME_BOOT_FULL_ROUND_TRIP=REPEATABLE_PASS
+MANAGER_RUNTIME_STABILITY=REPEATABLE_PASS
+
+KF096_STATUS=CLOSED_PASS
+PR437_MERGE_CONDITION_REVIEW=PASS
+PR437_MERGE_READY=true
+PR437_MERGE_AUTHORIZED=true
+NEXT_ACTION=MERGE_PR437_WITH_EXACT_HEAD_GUARD
+```
+
+Two independent current-head physical routes now show the same product boundary: Direct -> Relay switching is functionally reliable but not zero-loss under the accepted Option-B latest-state contract, while Relay steady-state continuity and Relay -> Direct failback were lossless in both measured routes. The repeated Direct-boundary loss is retained as an explicit product characteristic, not hidden as an anomaly and not reclassified as an Option-B contract failure.
+
+Final authority: `docs/development/N3W_PR437_4270F24_TWO_RUN_FINAL_ALIGNMENT_AND_MERGE_REVIEW_20260921.md`.
+
 ## 2026-09-21 current-head physical closure and pre-merge review
 
 This section supersedes all older PR #437 / KF-096 current-state fields below wherever they conflict.
