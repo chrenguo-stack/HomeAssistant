@@ -1,18 +1,56 @@
 # N3-W Current State Index
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
-Current progress alignment: `docs/development/N3W_PR437_WIFI_RECOVERY_BUDGET_SOURCE_REPAIR_ALIGNMENT_20260921.md`  
+Current progress alignment: `docs/development/N3W_PR437_4270F24_FINAL_PHYSICAL_CLOSURE_AND_PREMERGE_REVIEW_20260921.md`  
 Current new-chat handoff: `docs/development/N3W_PR437_WIFI_RECOVERY_BUDGET_SOURCE_REPAIR_NEW_CHAT_HANDOFF_V1.1_20260921.md`  
 Long-term working context: `docs/development/N3W_PROJECT_WORKING_CONTEXT.md`  
 Current handoff template: `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` v1.2  
 Latest merged product-source authority: PR #431 / `d1b5c3acbd32cca95483743ffe2edba9aa3f904f`  
 Current successor candidate: PR #437 / `4270f24a92a87dd5239d781ebba624c2f34b7fc2`  
 Current candidate tree: `a2f445bf2ea60ba9994a7a467f6492975d399c4f`  
-Current candidate exact artifact: artifact `10619047221` independently bound PASS  
+Current candidate exact artifact: artifact `10619047221` independently bound, deployed, and physically route-validated PASS  
 Current artifact binding authority: `docs/development/N3W_PR437_4270F24_EXACT_ARTIFACT_BUILD_AND_BINDING_EXECUTION_20260921.md`  
-Currently deployed Board B source: `177468e290a207f2fb7f6c554aedf60b61373b4d`  
+Currently deployed Board B source: `4270f24a92a87dd5239d781ebba624c2f34b7fc2`  
 Current local-development-environment authority: `docs/development/local-environment-records/2026-09-17-macos-x86_64.json`  
 Active product-direction authority: `docs/development/N3W_OFFICIAL_ESPNOW_REFERENCE_PRODUCT_DIRECTION_DECISION_20260906.md`
+
+## 2026-09-21 current-head physical closure snapshot
+
+```text
+REPOSITORY_MAIN_AT_REVIEW=327b833de9e933efa0cbe8e6963cd63b9c69587d
+CURRENT_CANDIDATE_PR=437
+CURRENT_CANDIDATE_STATE=OPEN_DRAFT
+CURRENT_CANDIDATE_MERGED=false
+CURRENT_CANDIDATE_SOURCE_HEAD=4270f24a92a87dd5239d781ebba624c2f34b7fc2
+CURRENT_CANDIDATE_SOURCE_TREE=a2f445bf2ea60ba9994a7a467f6492975d399c4f
+CURRENT_CANDIDATE_SOURCE_REVIEW=PASS
+CURRENT_CANDIDATE_CI=11_OF_11_PASS
+CURRENT_CANDIDATE_ARTIFACT_ID=10619047221
+CURRENT_CANDIDATE_EXACT_ARTIFACT_BINDING=PASS
+CURRENT_CANDIDATE_BOARD_B_WRITE=PASS
+CURRENT_CANDIDATE_PHYSICAL_ROUTE=PASS
+
+DIRECT_LONG_BASELINE=PASS
+DIRECT_TO_RELAY_FUNCTIONAL=PASS
+DIRECT_TO_RELAY_MISSING_SEQUENCE_COUNT=1
+DIRECT_TO_RELAY_MISSING_SEQUENCE_RANGE=73
+RELAY_CONTINUITY_600S=PASS
+RELAY_CONTINUITY_MISSING_SEQUENCE_COUNT=0
+RELAY_TO_DIRECT_FAILBACK=PASS
+RELAY_TO_DIRECT_MISSING_SEQUENCE_COUNT=0
+SAME_BOOT_ROUND_TRIP=PASS
+TRANSITION_HOLD_BUFFER_PHYSICAL_EFFECTIVENESS=PASS
+MANAGER_RUNTIME_STABILITY=PASS
+
+KF096_STATUS=CLOSED_PASS
+PR437_MERGE_READY=true
+PR437_MERGE_AUTHORIZED=false
+NEXT_ONE_GATE=N3W_PR437_EXPLICIT_MERGE_DECISION_20260921_01
+```
+
+Authority: `docs/development/N3W_PR437_4270F24_FINAL_PHYSICAL_CLOSURE_AND_PREMERGE_REVIEW_20260921.md`.
+
+Seq 73 is retained as an Option-B-allowed loss diagnostic; it does not establish end-to-end every-sample delivery. PR #437 remains draft/open/unmerged.
 
 ## 2026-09-21 artifact binding closure snapshot
 
