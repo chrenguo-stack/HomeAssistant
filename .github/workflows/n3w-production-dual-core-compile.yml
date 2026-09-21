@@ -1,0 +1,44 @@
+name: N3W production dual-core compile
+
+on:
+  pull_request:
+    paths:
+      - "firmware/esphome_rc/components/greenhouse_n3w_product_core/**"
+      - "firmware/esphome_rc/board_lab/n3w_production_core_compile/**"
+      - ".github/workflows/n3w-production-dual-core-compile.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  dual-core-compile:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install ESPHome
+        run: python -m pip install -q "esphome==2026.4.3"
+
+      - name: Compile frozen PR437 Phase4 lab target
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd firmware/esphome_rc/board_lab/n3w_phase4_physical
+          esphome config generic.yml
+          esphome compile generic.yml
+
+      - name: Compile production-core probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd firmware/esphome_rc/board_lab/n3w_production_core_compile
+          esphome config generic.yml
+          esphome compile generic.yml

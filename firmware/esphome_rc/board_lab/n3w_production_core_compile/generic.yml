@@ -1,0 +1,48 @@
+esphome:
+  name: gh-n3w-prod-core-probe
+  friendly_name: N3W Production Core Probe
+  min_version: 2026.4.3
+
+esp32:
+  board: esp32-c6-devkitm-1
+  variant: ESP32C6
+  flash_size: 8MB
+  framework:
+    type: esp-idf
+    advanced:
+      include_builtin_idf_components:
+        - nvs_flash
+        - esp_event
+        - esp_netif
+        - esp_wifi
+        - esp_http_client
+
+logger:
+  level: INFO
+  hardware_uart: USB_SERIAL_JTAG
+
+wifi:
+  reboot_timeout: 0s
+  ap:
+    ssid: "GH N3W Prod Probe"
+
+captive_portal:
+
+mqtt:
+  broker: 127.0.0.1
+  enable_on_boot: false
+  discovery: false
+  reboot_timeout: 0s
+  idf_send_async: true
+  log_topic: null
+
+external_components:
+  - source:
+      type: local
+      path: ../../components
+    components:
+      - greenhouse_n3w_product_core
+
+greenhouse_n3w_product_core:
+  id: n3w_product_core_probe
+  product_runtime: true
