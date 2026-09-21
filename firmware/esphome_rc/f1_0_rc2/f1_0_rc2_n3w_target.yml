@@ -1,9 +1,12 @@
 substitutions:
   project_version: "F1.0-RC2-N3W-TARGET-0.1"
+  n3w_telemetry_interval: 60s
+  n3w_cap_hash: "sha256:fed2dec764f4146d"
 
 packages:
   f1_rc2_base: !include f1_0_rc2.yml
   n3w_transport: !include packages/n3w_product_transport.yml
+  n3w_telemetry: !include packages/n3w_product_telemetry.yml
 
 # Keep the existing F1.0-RC2 hardware baseline intact and add the independent
 # production N3-W successor beside the existing RS485 echo-filter component.
