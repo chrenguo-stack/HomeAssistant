@@ -93,8 +93,7 @@ class EspNowDriver {
   DriverError send(
       const MacAddress &peer_mac,
       const uint8_t *data,
-      std::size_t size,
-      bool observe_context = false);
+      std::size_t size);
   DriverError send_broadcast(
       const uint8_t *data,
       std::size_t size);
@@ -117,12 +116,6 @@ class EspNowDriver {
   }
   int32_t last_unicast_send_error_raw() const {
     return last_unicast_send_error_raw_;
-  }
-  uint8_t last_unicast_current_channel() const {
-    return last_unicast_current_channel_;
-  }
-  uint8_t last_unicast_peer_channel() const {
-    return last_unicast_peer_channel_;
   }
 
   bool initialized() const { return initialized_; }
@@ -160,8 +153,6 @@ class EspNowDriver {
   static std::atomic<EspNowDriver *> active_;
   bool wifi_initialized_by_driver_{false};
   bool wifi_started_by_driver_{false};
-  std::atomic<uint8_t> diagnostic_receive_logs_{0};
-  std::atomic<uint8_t> diagnostic_broadcast_logs_{0};
 #endif
 
   std::atomic<EspNowEventSink *> sink_{nullptr};
@@ -178,8 +169,6 @@ class EspNowDriver {
   int32_t last_broadcast_send_error_raw_{0};
   DriverError last_unicast_send_error_{DriverError::NONE};
   int32_t last_unicast_send_error_raw_{0};
-  uint8_t last_unicast_current_channel_{0};
-  uint8_t last_unicast_peer_channel_{0};
   std::atomic<uint16_t> pending_unicast_sends_{0};
 };
 
