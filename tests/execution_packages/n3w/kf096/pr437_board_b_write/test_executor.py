@@ -62,6 +62,7 @@ def preflight_payload(
 def test_pr437_artifact_binding_is_exact() -> None:
     assert module.PRODUCT_SOURCE == "4270f24a92a87dd5239d781ebba624c2f34b7fc2"
     assert module.PRODUCT_TREE == "a2f445bf2ea60ba9994a7a467f6492975d399c4f"
+    assert module.TARGET_BLOB == "37654481747b21ca51ccecc246bf84ca437ab7a9"
     assert module.WORKFLOW_TRIGGER_SHA == "6c519314e4b95f6ba3806328994daa7eced5e427"
     assert module.WORKFLOW_RUN_ID == 35553142523
     assert module.ARTIFACT_ID == 10619047221
