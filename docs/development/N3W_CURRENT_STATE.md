@@ -5,6 +5,68 @@ Status: `CURRENT_STATE_AUTHORITY`
 
 Fresh exact repository/runtime/physical evidence takes precedence if later evidence proves drift.
 
+## 2026-09-21 production successor de-harness and exact-artifact closure
+
+This section supersedes older current-successor / next-route fields below wherever they conflict. PR #437 remains the latest merged and physically validated product source; the production successor described here is still unmerged and has not been flashed to Board B.
+
+```text
+REPOSITORY_MAIN_AT_ALIGNMENT_START=8165cc441abd45f4d46f7439fa57edee1470c917
+
+MERGED_PRODUCT_SOURCE_AUTHORITY=PR437
+PR437_SOURCE_HEAD=4270f24a92a87dd5239d781ebba624c2f34b7fc2
+PR437_SOURCE_TREE=a2f445bf2ea60ba9994a7a467f6492975d399c4f
+
+PRODUCTION_SUCCESSOR_MERGED=false
+PRODUCTION_SUCCESSOR_SOURCE_BRANCH=feature/n3w-production-telemetry-bridge-20260921
+PRODUCTION_SUCCESSOR_SOURCE_HEAD=c1b3d9d016d06c21c9ff7070c0043163739565ca
+PRODUCTION_SUCCESSOR_SOURCE_TREE=0c857fb0f830239717a2e937d176903a6acae8ac
+
+PRODUCT_CORE_DEHARNESS=PASS
+FROZEN_PR437_COMPONENT_MODIFIED=false
+F1RC2_PRODUCTION_TARGET=PASS
+REAL_SENSOR_TELEMETRY_BRIDGE=PASS
+FULL_PRODUCTION_FIRMWARE_COMPILE=PASS
+BINARY_DEHARNESS_PROOF=PASS
+
+PR463_DUAL_CORE_COMPILE=12_OF_12_SUCCESS
+PR464_F1RC2_TARGET_CONFIG=12_OF_12_SUCCESS
+PR465_TELEMETRY_BRIDGE_CONFIG=12_OF_12_SUCCESS
+PR466_FULL_FIRMWARE_COMPILE=12_OF_12_SUCCESS
+PR467_BINARY_DEHARNESS=12_OF_12_SUCCESS
+
+EXACT_ARTIFACT_BUILD_BRANCH_HEAD=433b91c19bf436a832021d821bda53261b7e3532
+EXACT_ARTIFACT_RUN_ID=35612622035
+EXACT_ARTIFACT_BUILD=PASS
+EXACT_ARTIFACT_BINDING=PASS
+
+PRODUCTION_ARTIFACT_ID=10644667734
+PRODUCTION_ARTIFACT_NAME=n3w-production-f1rc2-c1b3d9d-exact-source
+GITHUB_ARTIFACT_SHA256=02fbe69f78511f33dec150dee635925dd4decf81048de3adfc6db8af4acc7a72
+
+PRODUCTION_RELEASE_BUNDLE=n3w-production-f1rc2-c1b3d9d-exact-source.zip
+PRODUCTION_RELEASE_BUNDLE_SHA256=93d830368b74e0dae904a9f5c4450378694575c68b917e749b480455662ff065
+PRODUCTION_FIRMWARE_BIN_SHA256=8bcd89aaf0be64188f8f98a64795fe78d573ae82dd2dd360c7ff459f80e58efa
+PRODUCTION_FACTORY_BIN_SHA256=434a3996ea8dc74c4a356f54d8a9405202f17b500680a66f5d49a2089cf67774
+
+PHASE4_HARNESS_PRESENT=false
+LAB_DIAGNOSTICS_PRESENT=false
+RTC_BREADCRUMB_PRESENT=false
+
+PRODUCTION_SUCCESSOR_BOARD_B_DEPLOYMENT=NOT_EXECUTED
+PRODUCTION_SUCCESSOR_PHYSICAL_ACCEPTANCE=NOT_EXECUTED
+CURRENTLY_DEPLOYED_BOARD_B_SOURCE=4270f24a92a87dd5239d781ebba624c2f34b7fc2
+CURRENTLY_DEPLOYED_BOARD_B_ARTIFACT_ID=10619047221
+
+NEXT_CANDIDATE_GATE=N3W_PRODUCTION_BOARD_B_WRITE_TARGET_PREFLIGHT_20260921_01
+NEXT_GATE_AUTHORIZED=false
+```
+
+The production candidate must be referred to by artifact ID and frozen release-bundle SHA, not by a same-source rebuild. Three same-source CI builds produced different application SHA-256 values, so KF-084 remains an active reproducibility guard.
+
+The flat release bundle also contains an ESPHome-generated `flash_args` whose paths still refer to the original build-tree layout. A later physical write gate must not execute it blindly; it must use a separately reviewed `firmware.factory.bin` procedure or independently normalize and verify the multi-image mapping before any flash write.
+
+Current production alignment authority: `docs/development/N3W_PRODUCTION_DEHARNESS_AND_EXACT_ARTIFACT_PROGRESS_ALIGNMENT_20260921.md`.
+
 ## 2026-09-21 PR #437 post-merge closure
 
 This section supersedes all older PR #437 candidate/merge-state fields below wherever they conflict.
