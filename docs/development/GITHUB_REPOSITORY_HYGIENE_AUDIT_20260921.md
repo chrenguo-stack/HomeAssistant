@@ -32,7 +32,7 @@ Closed groups:
 - KF-089 historical execution/acceptance chain #389–#405.
 - Historical/superseded PRs #178, #179, #182, #216, #355, #361, #367, #387.
 
-Remaining open PRs after cleanup:
+Remaining open PRs after the first cleanup pass:
 
 ```text
 #447 docs(n3w): align PR437 Wi-Fi recovery repair and working context
@@ -42,7 +42,7 @@ Remaining open PRs after cleanup:
 #127 docs(m3): define host golden image and firstboot provisioning
 ```
 
-These remain open because they still represent current work, a current process candidate, unresolved follow-up, or a future product track.
+At that checkpoint these remained open because they still represented current work, a process candidate, unresolved follow-up, or a future product track. Later disposition is recorded below.
 
 ## Branch cleanup status
 
@@ -274,3 +274,36 @@ The repository has therefore reached the safe limit of name/age-based workflow c
 Any further CI reduction should be an engineering refactor, not archival deletion. The most promising future direction is to consolidate repeated setup/compile scaffolding through reusable workflows while preserving the existing focused tests and, for protected checks, preserving or deliberately migrating the 13 required status contexts.
 
 Branch-ref cleanup remains separately blocked by the current GitHub connector because it exposes branch creation/update but no safe remote-ref deletion operation. No force-update substitute should be used.
+
+
+## Final open-PR disposition pass
+
+After PR #452 merged, the three non-current-source candidates were reviewed against current main rather than closed by age alone.
+
+```text
+PR451_MERGED=true
+PR451_MERGE_COMMIT=85a9b9e8e48508350659afc7b748bd22117df9ca
+PR451_PREMERGE_CI=11_OF_11_PASS
+
+PR452_MERGED=true
+PR452_MERGE_COMMIT=3c03e4db0c77d7260d8fd7b9d0637a1ff0050d91
+PR452_PREMERGE_CI=11_OF_11_PASS
+```
+
+Disposition:
+
+- PR #388 was closed as a superseded process candidate. Its strict frozen model split (`HIGH_LEVEL_MODEL_ONLY`, `CODEX_CODE_AUTHORING=false`, DSL execution disabled) conflicts with the current main handoff template v1.1, which deliberately uses task-appropriate execution and does not require a fixed model hierarchy. Useful principles remain represented by current team-workspace/process files and repository-versioned execution packages. Branch and Git history are preserved.
+- PR #385 was closed as historical/superseded recovery-tool work. It explicitly remained incomplete at the post-mutation `flash_finish` / reconnect boundary, and its `tools/n3w_ota_guard*.py` implementation is not part of current main. Current Board-write work uses repository-versioned execution packages, including the PR #437 Board B write executor with later partition-table binding and physical/write evidence. PR #385 branch/history remain preserved.
+- PR #127 remains open. Its M3 golden-image / firstboot architecture is a future product track not otherwise present as an equivalent current architecture document. Later H0/H1 initialization and portable-restore work overlaps with only part of its scope, so archival closure would discard a still-distinct productization design candidate.
+
+Current active PR queue after this pass:
+
+```text
+OPEN_PRS=3
+
+#437 fix(n3w): harden KF-096 Direct recovery liveness and deadline commit
+#447 docs(n3w): align PR437 Wi-Fi recovery repair and working context
+#127 docs(m3): define host golden image and firstboot provisioning
+```
+
+Repository-hygiene cleanup should now stop changing PR #437/#447 until the N3-W source/documentation route is deliberately resumed. PR #127 should be handled as a future architecture decision, not as stale clutter.
