@@ -1,0 +1,198 @@
+# F1.0-RC2 real-sensor -> N3-W gh.telemetry/1 bridge.
+#
+# Source semantics are inherited from packages/mqtt_n1.yml. The N3-W transport
+# owns boot_id/seq and the Direct/Relay submission decision.
+script:
+  - id: publish_n3w_telemetry
+    mode: single
+    then:
+      - lambda: |-
+          if (!id(n3w_product_core).runtime_ready()) return;
+
+          std::string boot_id;
+          uint32_t seq = 0;
+          if (!id(n3w_product_core).take_telemetry_identity(&boot_id, &seq)) {
+            return;
+          }
+
+          const bool startup_warming = millis() < 120000UL;
+          const char *normal_missing = startup_warming ? "warming" : "fault";
+          const char *soil_missing = id(soil_cycle_active)
+                                         ? "warming"
+                                         : (startup_warming ? "warming" : "stale");
+
+          const bool battery_present =
+              id(battery_voltage).has_state() &&
+              std::isfinite(id(battery_voltage).state) &&
+              id(battery_voltage).state > 0.5f;
+
+          auto rounded = [](float value, float scale) -> float {
+            return roundf(value * scale) / scale;
+          };
+
+          auto build_payload =
+              [&](bool include_fw_version,
+                  bool include_power_battery) -> std::string {
+            return esphome::json::build_json([&](JsonObject root) {
+              root["schema"] = "gh.telemetry/1";
+              root["node_id"] = id(n3w_product_core).node_id();
+              root["boot_id"] = boot_id;
+              root["seq"] = seq;
+              root["uptime_ms"] = static_cast<uint32_t>(millis());
+              root["cap_hash"] = "${n3w_cap_hash}";
+              if (include_fw_version) {
+                root["fw_version"] = "${project_version}";
+              }
+
+              JsonObject measurements =
+                  root["measurements"].to<JsonObject>();
+              JsonObject quality = root["quality"].to<JsonObject>();
+
+              auto add_sensor =
+                  [&](const char *key,
+                      auto *sensor,
+                      const char *missing_quality,
+                      float scale) {
+                if (sensor != nullptr && sensor->has_state() &&
+                    std::isfinite(sensor->state)) {
+                  measurements[key] = rounded(sensor->state, scale);
+                  quality[key] = "ok";
+                } else {
+                  // Omit a missing numeric value rather than serializing null.
+                  // The quality key preserves the same warming/stale/fault
+                  // semantics as the existing F1.0-RC2 MQTT N1 builder while
+                  // keeping one Relay plaintext below the 1024-byte ceiling.
+                  quality[key] = missing_quality;
+                }
+              };
+
+              add_sensor(
+                  "air_temperature_c", id(air_temp), normal_missing, 10.0f);
+              add_sensor(
+                  "air_humidity_pct", id(air_humidity), normal_missing, 10.0f);
+              add_sensor("co2_ppm", id(scd30_co2), normal_missing, 1.0f);
+              add_sensor(
+                  "illuminance_lx", id(illuminance), normal_missing, 1.0f);
+              add_sensor(
+                  "soil_temperature_c",
+                  id(soil_temperature),
+                  soil_missing,
+                  10.0f);
+              add_sensor(
+                  "soil_moisture_pct",
+                  id(soil_moisture),
+                  soil_missing,
+                  10.0f);
+              add_sensor(
+                  "soil_ec_us_cm", id(soil_ec), soil_missing, 1.0f);
+              add_sensor("vpd_kpa", id(vpd), normal_missing, 100.0f);
+              add_sensor(
+                  "dew_point_c", id(dew_point), normal_missing, 10.0f);
+              add_sensor(
+                  "absolute_humidity_g_m3",
+                  id(absolute_humidity),
+                  normal_missing,
+                  10.0f);
+              add_sensor(
+                  "ppfd_umol_m2_s", id(ppfd), normal_missing, 1.0f);
+
+              if (std::isfinite(id(dli_today_ram)) &&
+                  id(dli_today_ram) >= 0.0f) {
+                measurements["dli_today_mol_m2_d"] =
+                    rounded(id(dli_today_ram), 100.0f);
+                quality["dli_today_mol_m2_d"] = "ok";
+              } else {
+                quality["dli_today_mol_m2_d"] = normal_missing;
+              }
+
+              if (std::isfinite(id(dli_yesterday)) &&
+                  id(dli_yesterday) >= 0.0f) {
+                measurements["dli_yesterday_mol_m2_d"] =
+                    rounded(id(dli_yesterday), 100.0f);
+                quality["dli_yesterday_mol_m2_d"] = "ok";
+              } else {
+                quality["dli_yesterday_mol_m2_d"] = "fault";
+              }
+
+              if (battery_present) {
+                measurements["battery_v"] =
+                    rounded(id(battery_voltage).state, 100.0f);
+                quality["battery_v"] = "ok";
+                if (id(battery_level).has_state() &&
+                    std::isfinite(id(battery_level).state)) {
+                  measurements["battery_pct"] =
+                      rounded(id(battery_level).state, 1.0f);
+                  quality["battery_pct"] = "ok";
+                } else {
+                  quality["battery_pct"] = normal_missing;
+                }
+              } else {
+                quality["battery_v"] = "not_present";
+                quality["battery_pct"] = "not_present";
+              }
+
+              JsonObject power = root["power"].to<JsonObject>();
+              power["source"] =
+                  id(main_power).state ? "main" : "battery";
+              power["low"] = id(low_battery_mode);
+
+              if (include_power_battery) {
+                if (battery_present) {
+                  power["battery_v"] =
+                      rounded(id(battery_voltage).state, 100.0f);
+                  if (id(battery_level).has_state() &&
+                      std::isfinite(id(battery_level).state)) {
+                    power["battery_pct"] =
+                        rounded(id(battery_level).state, 1.0f);
+                  } else {
+                    power["battery_pct"] = nullptr;
+                  }
+                } else {
+                  power["battery_v"] = nullptr;
+                  power["battery_pct"] = nullptr;
+                }
+              }
+            });
+          };
+
+          // Preserve the existing MQTT-N1 semantics when they fit. If the
+          // message approaches the single-frame Relay ceiling, first remove
+          // duplicated battery values from power, then the optional fw_version.
+          std::string telemetry = build_payload(true, true);
+          if (telemetry.size() >
+              esphome::greenhouse_n3w_core::kMaxCiphertextBytes) {
+            telemetry = build_payload(true, false);
+          }
+          if (telemetry.size() >
+              esphome::greenhouse_n3w_core::kMaxCiphertextBytes) {
+            telemetry = build_payload(false, false);
+          }
+          if (telemetry.empty() ||
+              telemetry.size() >
+                  esphome::greenhouse_n3w_core::kMaxCiphertextBytes) {
+            ESP_LOGE(
+                "n3w_product_telemetry",
+                "Telemetry payload rejected before N3-W submit seq=%u bytes=%u limit=%u",
+                static_cast<unsigned>(seq),
+                static_cast<unsigned>(telemetry.size()),
+                static_cast<unsigned>(
+                    esphome::greenhouse_n3w_core::kMaxCiphertextBytes));
+            return;
+          }
+
+          const auto disposition =
+              id(n3w_product_core).submit_telemetry_json(
+                  telemetry, boot_id, seq);
+          if (disposition ==
+              esphome::greenhouse_n3w_core::TelemetrySubmitDisposition::REJECTED) {
+            ESP_LOGW(
+                "n3w_product_telemetry",
+                "N3-W rejected telemetry seq=%u bytes=%u",
+                static_cast<unsigned>(seq),
+                static_cast<unsigned>(telemetry.size()));
+          }
+
+interval:
+  - interval: ${n3w_telemetry_interval}
+    then:
+      - script.execute: publish_n3w_telemetry
