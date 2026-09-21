@@ -160,8 +160,10 @@ class EspNowDriver {
   static std::atomic<EspNowDriver *> active_;
   bool wifi_initialized_by_driver_{false};
   bool wifi_started_by_driver_{false};
+#ifdef GREENHOUSE_N3W_ENABLE_PHASE4_LAB
   std::atomic<uint8_t> diagnostic_receive_logs_{0};
   std::atomic<uint8_t> diagnostic_broadcast_logs_{0};
+#endif
 #endif
 
   std::atomic<EspNowEventSink *> sink_{nullptr};
