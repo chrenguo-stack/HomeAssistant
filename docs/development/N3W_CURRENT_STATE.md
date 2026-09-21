@@ -10,8 +10,8 @@ Fresh exact repository/runtime/physical evidence takes precedence if later evide
 This section supersedes older PR #437 / KF-096 values later in this file wherever they conflict. Historical sections remain for chronology only.
 
 ```text
-REPOSITORY_MAIN=f9df51171d3fac20d64ccff5202faf43926f26f6
-REPOSITORY_MAIN_TREE=015addcccf773d8460e96d3f948de6d4f2795dd2
+REPOSITORY_MAIN=a5a4dc06e86374287348bb8718e7f7fb7d6c42d2
+REPOSITORY_MAIN_TREE=291cd078000d82e811a65d44ae782aa0b044bda9
 
 CURRENT_CANDIDATE_PR=437
 CURRENT_CANDIDATE_STATE=OPEN_DRAFT
