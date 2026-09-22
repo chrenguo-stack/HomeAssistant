@@ -2,6 +2,8 @@
 
 Status: `PREPHYSICAL_PREPARATION`
 
+Canonical board-write procedure: `docs/development/N3W_ESP32C6_EXACT_ARTIFACT_BOARD_WRITE_RUNBOOK_V1.0_20260922.md`
+
 ## Purpose
 
 Synchronize Board A to the exact physical-harness firmware already used for the final Board B PR #437 physical runs, then test the opposite role assignment:
@@ -54,7 +56,7 @@ PRODUCT_NVS_WRITE=false
 FULL_FLASH_ERASE=false
 ```
 
-Post-write readback must match both exact artifact hashes and the partition table must remain unchanged.
+Post-write application readback must match the exact firmware artifact hash and the partition table must remain unchanged. Post-boot OTA-data byte equality is explicitly not a valid verifier because the firmware legitimately updates the OTA-data partition after boot.
 
 ## Target-safety sequence
 
@@ -71,7 +73,7 @@ The Board-A executor therefore uses:
 7. fresh identity re-read;
 8. single-use authorization claim;
 9. minimal app + OTA-data write;
-10. exact post-write readback.
+10. exact application + partition-table post-write readback; post-boot OTA-data is observation-only and is never compared byte-for-byte with the initial OTA-data image.
 
 A preflight older than 15 minutes cannot be used for the write.
 
