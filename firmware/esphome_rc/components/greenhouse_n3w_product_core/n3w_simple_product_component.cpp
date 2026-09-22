@@ -551,7 +551,7 @@ void SimpleProductComponent::advance_recovery_() {
       recovery_schedule_.defer_presence(now, 0);
     }
 
-    if (runtime_.challenge_pending()) return;
+    if (runtime_.gateway_selection_busy()) return;
 
     if (runtime_.path_state() != LocalPathState::RELAY_ACTIVE &&
         recovery_schedule_.full_verify_backoff_ms() >
@@ -841,7 +841,7 @@ bool SimpleProductComponent::begin_direct_probe_(
     DirectFullVerifyTrigger trigger) {
   if (radio_ownership_ != RadioOwnership::RELAY_ESPNOW ||
       runtime_.path_state() == LocalPathState::DIRECT ||
-      runtime_.challenge_pending() ||
+      runtime_.gateway_selection_busy() ||
       radio_.pending_unicast_sends() != 0U) return false;
 #ifdef USE_WIFI
   if (wifi::global_wifi_component == nullptr) return false;
@@ -1589,7 +1589,11 @@ void SimpleProductComponent::drain_radio_() {
     if (read == write) break;
     const RxSlot &slot = rx_ring_[read];
     (void) runtime_.on_radio_receive(
-        slot.source, slot.data.data(), slot.size, slot.channel);
+        slot.source,
+        slot.data.data(),
+        slot.size,
+        slot.channel,
+        slot.rssi_dbm);
     rx_read_.store(
         static_cast<uint8_t>((read + 1U) % kRxRingSlots),
         std::memory_order_release);
@@ -1621,6 +1625,7 @@ void SimpleProductComponent::on_espnow_receive_with_metadata(
   RxSlot &slot = rx_ring_[write];
   slot.source = source;
   slot.size = static_cast<uint16_t>(size);
+  slot.rssi_dbm = metadata.rssi_dbm;
   slot.channel = metadata.channel;
   std::copy_n(data, size, slot.data.begin());
   rx_write_.store(next, std::memory_order_release);
