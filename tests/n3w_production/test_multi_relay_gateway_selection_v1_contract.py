@@ -306,7 +306,10 @@ def test_r2_local_fault_classification_is_narrow_and_component_consumes_it() -> 
     assert "gateway_selection_local_fault_requires_restore(" in consume
     assert "RadioOwnership::RELAY_ESPNOW" in consume
     assert "LocalPathState::DISCOVERY" in consume
-    assert "begin_relay_restore_(" in consume
+    shutdown = consume.index("radio_.shutdown()")
+    clear_rx = consume.index("clear_rx_ring_()", shutdown)
+    begin_restore = consume.index("begin_relay_restore_(", clear_rx)
+    assert shutdown < clear_rx < begin_restore
     assert "RelayRestoreCause::GATEWAY_SELECTION_LOCAL_FAULT" in consume
 
 
