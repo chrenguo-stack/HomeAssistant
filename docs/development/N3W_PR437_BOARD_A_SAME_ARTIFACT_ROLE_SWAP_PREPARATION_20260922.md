@@ -338,3 +338,37 @@ The same boot session established by this baseline is the current Board A physic
 NEXT_ONE_GATE=N3W_PR437_BOARD_B_GATEWAY_DIRECT_BASELINE_20260922_01
 AUTO_EXECUTE_NEXT_GATE=false
 ```
+
+
+## 2026-09-22 Board B gateway-side Direct baseline entry
+
+Fresh PR #471 read-back before entry:
+
+```text
+PR471_STATE=OPEN_DRAFT
+PR471_MERGEABLE=true
+PR471_HEAD=dd4be940c241b94adc5b3dc4029f9d216aaecd19
+PR471_CI=12_OF_12_PASS
+```
+
+Board A same-boot acceptance session remains established from the immediately preceding PASS baseline.
+
+The Board B gateway-side baseline is read-only with respect to T1 and both boards. It does not reset or access Board B physically. Runtime binding uses current Manager canonical state:
+
+- the already-bound Board A public-safe node hash must be present as fresh Direct on the expected same boot;
+- exactly one other fresh Direct canonical node must be present;
+- that unique other node becomes the Board B candidate for this gate;
+- both A and B must remain Direct, same-boot and advancing through a 90-second observation;
+- Manager restart count and StartedAt must remain unchanged.
+
+```text
+BOARD_A_EXPECTED_NODE_SHA256=7ad414b84b17eef4de09cd71ccd676fcf5bb43eb72649939fc6423851d8a5eb5
+BOARD_A_EXPECTED_BOOT_SHA256=50197d0358be1b2a8f6595f72e64ef9d77b0926925a0cd74fd3ebe87a9f24776
+BOARD_B_PHYSICAL_RESET=false
+BOARD_B_FLASH_WRITE=false
+BOARD_A_RESET=false
+T1_RUNTIME_MUTATION=false
+OBSERVATION_SECONDS=90
+```
+
+If there is not exactly one fresh Direct node besides Board A, the observer must stop without guessing Board B identity.
