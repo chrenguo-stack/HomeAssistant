@@ -192,10 +192,11 @@ Shell options must not leak into the user's interactive zsh after the command fi
 ```text
 SHELL_OPTION_SIDE_EFFECTS_SCOPED=true
 INTERACTIVE_SHELL_GLOBAL_SET_U=false
-PASTE_READY_COMMANDS_USE_SUBSHELL_WHEN_STRICT_MODE_NEEDED=true
+OPERATOR_FACING_SET_U_FORBIDDEN=true
+PASTE_READY_COMMANDS_USE_EXPLICIT_CHECKS=true
 ```
 
-If strict shell mode is useful, wrap the executable body in a subshell so `set -euo pipefail` is discarded when that block exits.
+For operator-facing macOS/zsh command blocks, do not use `set -u` at all, even inside a subshell. Use explicit variable checks and command-result checks instead. A cleanup line such as `unsetopt nounset 2>/dev/null || true` may be given separately when an earlier command already contaminated the interactive shell.
 
 ## Stop policy
 
@@ -305,3 +306,42 @@ For physical runtime acceptance, bind the connected board to Manager canonical s
 2. an exact boot-session correlation between the board's read-only lab diagnostic snapshot and Manager `n3w_canonical_cursors`.
 
 A zero-row Manager registration lookup by fresh ROM hardware hash is an observer mismatch until proven otherwise; it is not by itself a product Direct-path failure.
+
+
+## Current-only canonical cursor / reset-race rule
+
+Do not try to identify a running board by reading a pre-reset lab-diagnostic boot session and then looking for that same boot session in Manager `n3w_canonical_cursors` after the read operation has reset the board.
+
+The Manager canonical table is current-state storage, not historical boot-session storage:
+
+```text
+n3w_canonical_cursors.node_id=PRIMARY_KEY
+ONE_CURRENT_CURSOR_PER_NODE=true
+OLD_BOOT_CURSOR_RETAINED=false
+```
+
+When a new boot for the same `node_id` advances canonical state, the row is updated in place to the new `boot_session_hex`. The replay registry similarly advances its highest session and removes old-session replay rows. Therefore an esptool/NVS read that causes a reset can erase the very old-session lookup key that an observer intended to use.
+
+```text
+PRE_RESET_DIAG_BOOT_TO_POST_RESET_CURRENT_CURSOR_JOIN=INVALID_RACY_ORACLE
+ZERO_MATCH_AFTER_RESET_IS_NOT_PRODUCT_FAILURE=true
+CURRENT_CURSOR_IS_LIVENESS_AUTHORITY_NOT_BOOT_HISTORY=true
+```
+
+Correct runtime identity binding for an already-provisioned live board should use a controlled transition observed from both sides:
+
+1. take a read-only Manager canonical snapshot before touching the board;
+2. issue one bounded, non-persistent reset to the operator-confirmed board;
+3. observe which current canonical node changes to a new boot session and resumes fresh Direct telemetry;
+4. require exactly one matching node transition;
+5. bind that public-safe node hash for the remainder of the physical gate;
+6. start the same-boot acceptance window only after that post-reset Direct baseline is established.
+
+This method does not depend on current application bytes, historical A/B labels, or a ROM-hardware-hash-to-registration join.
+
+```text
+RUNTIME_IDENTITY_BINDING_METHOD=PRE_SNAPSHOT_PLUS_CONTROLLED_RESET_PLUS_CANONICAL_BOOT_CHANGE
+EXACT_ONE_NODE_BOOT_CHANGE_REQUIRED=true
+PERSISTENT_MUTATION=false
+SAME_BOOT_WINDOW_STARTS_AFTER_CONTROLLED_RESET=true
+```
