@@ -196,6 +196,7 @@ class SimpleProductComponent : public Component,
   bool derive_pmk_(LinkKey *pmk) const;
   void drain_send_completions_();
   bool drain_radio_();
+  void clear_rx_ring_();
   bool consume_gateway_selection_runtime_result_(
       SimpleProductError result,
       bool selection_busy_before);
