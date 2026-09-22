@@ -48,7 +48,7 @@ On the first admissible Relay discovery:
 
 - create selection epoch state;
 - insert/update that Relay candidate;
-- set `candidate_window_deadline_ms = now + 4500`;
+- set `candidate_window_deadline_ms = now + 6500`;
 - continue normal scan rotation across all allowed channels;
 - do **not** send Challenge yet.
 
@@ -59,7 +59,7 @@ This avoids expiring a candidate window before any Relay is actually observed.
 Freeze:
 
 ```text
-CANDIDATE_WINDOW_MS=4500
+CANDIDATE_WINDOW_MS=6500
 ```
 
 Rationale using the frozen source defaults:
@@ -67,15 +67,18 @@ Rationale using the frozen source defaults:
 - three channels × 250 ms dwell = 750 ms scan cycle;
 - Relay advertisement period = 2000 ms;
 - advertisement phase relative to a 750 ms scan cycle shifts by 500 ms on each advertisement;
-- across three advertisement opportunities, the phase visits all three 250 ms dwell regions;
-- therefore a healthy fixed-channel Relay has an opportunity to overlap its channel dwell within at most about 4 seconds in the ideal no-loss case;
-- 4500 ms adds one extra 500 ms scheduling/processing margin without turning selection into a long recovery backoff.
+- after the first candidate starts the window, a different Relay may have its next advertisement almost 2000 ms later;
+- in the worst phase alignment, up to three advertisement opportunities are needed to cover all three 250 ms channel dwell regions;
+- the third opportunity can therefore arrive just under 6000 ms after the window starts;
+- 6500 ms adds 500 ms scheduling/loop margin without turning selection into a long recovery backoff.
+
+The earlier 6500 ms draft was insufficient for the worst-case phase offset of a second Relay and is superseded by this 6500 ms value.
 
 This is a bounded collection policy, not a packet-delivery guarantee. RF loss can still prevent a Relay from entering the candidate set.
 
 ### 3.3 Candidate identity / dedup
 
-Freeze the candidate key as:
+Freeze the logical candidate key as:
 
 ```text
 CANDIDATE_DEDUP_KEY=relay_node_id
@@ -85,20 +88,22 @@ Each candidate record contains at least:
 
 - `relay_node_id`
 - source MAC
-- channel
+- current channel
 - RSSI sum
 - RSSI sample count
 - first-seen timestamp
 - last-seen timestamp
 - attempted-in-current-epoch flag
 
-For the same `relay_node_id` within one selection epoch:
+Within one selection epoch:
 
-- updates are accepted only when source MAC and channel match the first accepted binding;
-- a conflicting MAC or channel does not overwrite the candidate and is rejected/diagnosed;
-- this prevents one logical candidate from silently changing its transport binding during ranking.
+- a new `relay_node_id` creates one candidate binding;
+- the same `relay_node_id` from the same MAC and same channel updates the RSSI aggregate;
+- the same `relay_node_id` from the same MAC on a different valid channel is treated as a channel refresh: update to the latest channel and reset the RSSI aggregate to the new-channel sample, so stale RSSI from the old channel is not mixed with the new channel;
+- the same `relay_node_id` from a different MAC is an identity conflict and must not overwrite the existing candidate;
+- the same MAC claiming a different `relay_node_id` in the same epoch is also an identity conflict and must not create a second logical candidate.
 
-Candidate state is RAM-only and is cleared whenever selection ends, Direct is restored, Relay becomes active, runtime stops, or a new discovery epoch begins.
+Candidate state is RAM-only and is cleared whenever selection ends, Direct is restored, Relay becomes active, runtime stops, a radio-fault reset occurs, or a fresh Discovery epoch begins.
 
 ## 4. RSSI update and comparison
 
@@ -112,26 +117,47 @@ CANDIDATE_RSSI_UPDATE_RULE=ARITHMETIC_MEAN_OF_ALL_VALID_DISCOVERY_RSSI_SAMPLES_I
 
 Implementation should store integer `rssi_sum` and `sample_count`; it should not repeatedly round an average.
 
-### 4.2 Exact comparison
+### 4.2 Exact mean comparison
 
 For candidates A and B, compare mean RSSI without division:
 
 ```text
-delta_num =
-  abs(A.rssi_sum * B.sample_count -
-      B.rssi_sum * A.sample_count)
-
-equivalent iff:
-delta_num <= 3 * A.sample_count * B.sample_count
+A_mean > B_mean iff:
+A.rssi_sum * B.sample_count >
+B.rssi_sum * A.sample_count
 ```
 
 Use a sufficiently wide signed integer for the cross-products.
 
-If the mean RSSI difference is greater than 3 dB, the less-negative / stronger mean RSSI wins.
+### 4.3 The <=3 dB band is anchored to the strongest candidate
 
-If it is at most 3 dB, both are equal-quality and the stable hash rule decides.
+Do **not** use a pairwise “within 3 dB” comparator as a sort comparator, because that relation is not transitive.
 
-This makes the decision independent of integer rounding and less sensitive to one instantaneous RSSI sample.
+For every pick from the unattempted candidate set:
+
+1. find the strongest mean RSSI candidate `S`;
+2. form the equivalent-quality band containing every unattempted candidate `C` satisfying:
+
+```text
+S_mean - C_mean <= 3 dB
+```
+
+without division:
+
+```text
+S.rssi_sum * C.sample_count -
+C.rssi_sum * S.sample_count
+<=
+3 * S.sample_count * C.sample_count
+```
+
+3. if the band has one candidate, select it;
+4. if the band has multiple candidates, select among that band using the stable hash rule in section 5;
+5. after a candidate-specific timeout failure, mark that candidate attempted and repeat the same procedure over the remaining candidates.
+
+Example: means `-60 / -62 / -64 dBm` produce an initial equivalent band of `-60 / -62`; `-64` is not pulled into the first band merely because it is within 3 dB of `-62`.
+
+This gives a deterministic total fallback sequence without using a non-transitive comparator.
 
 ## 5. Stable hash tie-break
 
@@ -168,53 +194,87 @@ This length-prefixed encoding preserves the approved semantic `HASH(C.NODE_ID ||
 
 The hash is used only inside the <=3 dB equivalent-quality band. It is not a load metric and does not cause roaming.
 
-## 6. End-of-window selection
+## 6. End-of-window selection and radio-ownership guard
 
 At `candidate_window_deadline_ms`:
 
-- if no candidate remains, clear selection epoch state and continue ordinary Discovery scanning;
-- otherwise rank candidates using the frozen RSSI/hash rules;
-- select exactly one candidate;
+- freeze the collected candidate set for the current epoch;
+- if the set is empty, clear selection state and continue ordinary Discovery scanning;
+- otherwise choose one candidate using the strongest-anchored RSSI band plus stable hash rule;
 - set radio to that candidate channel;
 - build/send the existing Challenge;
-- only then create `pending_challenge_`.
+- only after a successful Challenge submit create `pending_challenge_`.
 
 No second active Relay or parallel handshake is introduced.
 
+### 6.1 Do not let Direct recovery cut through an active selection epoch
+
+The component currently suppresses Direct recovery while `runtime_.challenge_pending()` is true. Gateway Selection V1 must extend that guard to the whole bounded selection transaction.
+
+Freeze a runtime query equivalent to:
+
+```text
+gateway_selection_busy =
+    candidate_window_active
+    OR pending_challenge
+    OR frozen_candidate_fallback_in_progress
+```
+
+While this is true, `SimpleProductComponent::advance_recovery_()` must not start a Direct presence/full-verify probe. This defers an already-scheduled Direct recovery probe only for the bounded candidate/handshake transaction; it does not change the existing Direct-recovery backoff policy.
+
+Any explicit runtime reset/radio-fault reset clears selection state before a fresh Discovery epoch.
+
 ## 7. Challenge / Accept failure behavior
 
-### 7.1 Immediate Challenge build/send/channel failure
+The design distinguishes **candidate-specific non-response** from **local radio/crypto/state failure**. Only the former falls through to the next ranked candidate.
 
-If the chosen candidate cannot be challenged because nonce generation, encoding, channel set, or Challenge submit fails:
+### 7.1 Challenge preparation or local submit failure
 
-- mark that candidate attempted/failed for the current selection epoch;
-- do not promote it to active Relay;
-- choose the next-best unattempted candidate from the already-collected candidate set immediately;
-- if none remains, clear the candidate set/window and return to ordinary Discovery scanning, where the next valid discovery starts a fresh 4500 ms window.
+If nonce generation, packet construction, encoding, channel fixation, or Challenge submit fails:
 
-A source-level radio failure that already requires existing fail-safe handling must retain that existing stronger error path; Gateway Selection V1 must not downgrade a radio fault into an ordinary candidate miss.
+- do not activate the candidate;
+- do not reinterpret the failure as “that Relay is bad”;
+- preserve the existing `CRYPTO_FAILED` / `RADIO_FAILED` / state-fault classification;
+- clear/fail the current selection transaction through the existing safe Discovery/radio-fault route;
+- do **not** immediately try another candidate on a local radio/crypto path that is already known to be unhealthy.
 
-### 7.2 Challenge timeout
+### 7.2 Challenge timeout — candidate-specific failure
 
-When `pending_challenge_->expires_at_ms` is reached:
+A Challenge that was successfully submitted retains the existing bounded pending timeout:
 
-- clear pending challenge;
-- mark the selected candidate failed for this selection epoch;
-- immediately attempt the next-best unattempted collected candidate;
-- if none remains, clear the selection epoch and resume normal Discovery scanning until a new first candidate starts a new window.
+```text
+PENDING_CHALLENGE_TIMEOUT_MS = 2 * challenge_timeout_ms = 3000 ms
+```
 
-Do not start another 4500 ms collection window merely because one already-ranked candidate timed out.
+If no valid authenticated Accept is received by that deadline:
 
-### 7.3 Invalid or failed Accept
+- clear `pending_challenge_`;
+- mark the selected candidate attempted/failed for the frozen epoch;
+- choose the next candidate by repeating the section 4.3 selection procedure over the remaining unattempted candidates;
+- do not open a new 6500 ms collection window while already-collected candidates remain;
+- if all collected candidates are exhausted, clear the epoch and return to ordinary Discovery scanning; the next admissible discovery starts a fresh 6500 ms window.
 
-If Accept is from the wrong source/channel/Relay identity, has wrong trust generation/nonce, fails authentication, or cannot complete peer install/path promotion:
+### 7.3 Invalid or unauthenticated Accept does not force an early switch
 
-- never activate that candidate;
-- preserve existing packet/radio error classification;
-- for an ordinary candidate-specific rejection, mark candidate failed and try the next ranked candidate;
-- for a concrete radio-state failure, keep the existing radio-fault recovery/fail-safe route.
+If an Accept has the wrong source/channel/Relay identity, wrong trust generation/nonce, or fails authentication:
 
-### 7.4 Success
+- reject that packet exactly as today;
+- keep the current candidate pending until a valid Accept arrives or the 3000 ms deadline expires;
+- do not mark the candidate failed immediately merely because one invalid packet was received.
+
+This prevents an unrelated or spoofed invalid Accept from forcing deterministic fallback.
+
+### 7.4 Authenticated Accept followed by local radio/state failure
+
+If Accept authentication succeeds but concrete channel fixation, encrypted-peer installation, or path promotion fails:
+
+- never activate the candidate;
+- preserve the existing local radio/state failure classification;
+- remove any partially installed peer when required by the existing path;
+- abandon the current selection epoch and use the existing safe radio-fault/fresh-Discovery route;
+- do not immediately try the next candidate on a possibly inconsistent local radio state.
+
+### 7.5 Success
 
 Only the existing fully verified Accept path may set:
 
@@ -232,17 +292,23 @@ The implementation must keep these invariants:
 1. Candidate collection and ranking code is reachable only when `path_.state() == DISCOVERY`.
 2. `handle_discovery_` continues to reject discovery while `DIRECT` or `RELAY_ACTIVE`.
 3. No RSSI comparison is executed against `active_relay_`.
-4. `active_relay_` can be cleared by the existing Direct recovery path, runtime stop/reset, radio-fault reset, or active Relay failure path; a stronger advertisement is not a clearing condition.
-5. Direct recovery scheduling remains owned by the existing recovery code and is not changed by Gateway Selection V1.
-6. Ordinary Option-B telemetry queue and one-attempt delivery semantics are unchanged.
+4. A stronger/new Relay advertisement while `RELAY_ACTIVE` is ignored/rejected by state and cannot start a candidate window.
+5. The existing active-Relay health rule remains authoritative: `relay_failures_to_discovery=2`. Two qualifying failed delivery results drive the existing `RELAY_ACTIVE -> DISCOVERY` transition.
+6. Only after that transition (or an existing reset/radio-fault route) may a fresh candidate-selection epoch start.
+7. Direct recovery scheduling remains owned by the existing recovery code. Gateway Selection V1 adds only the bounded “selection busy” deferral so a probe cannot cut through candidate collection/handshake.
+8. Ordinary Option-B telemetry queue and one-attempt delivery semantics are unchanged.
 
 Therefore:
 
 ```text
 ACTIVE_RELAY_HEALTHY => NO_GATEWAY_RESELECTION
 STRONGER_RELAY_DISCOVERED_WHILE_ACTIVE => IGNORED/STATE_REJECTED
-ACTIVE_RELAY_FAILED => EXISTING_RETURN_TO_DISCOVERY => NEW_SELECTION_EPOCH
+ACTIVE_RELAY_FAILED_BY_EXISTING_THRESHOLD
+  => EXISTING_RETURN_TO_DISCOVERY
+  => NEW_SELECTION_EPOCH
 ```
+
+Direct failback to Wi-Fi remains an existing independent product behavior; it is not Relay-to-Relay proactive roaming.
 
 ## 9. Source changed-file allowlist for the later SOURCE_REPAIR gate
 
@@ -257,42 +323,51 @@ firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_simple_product_co
 
 Expected purpose:
 
-- runtime h/cpp: candidate state, deterministic ranking, failure fallback, RSSI-aware receive signature;
-- component h/cpp: retain RSSI in `RxSlot` and pass it from queued metadata into runtime.
+- runtime h/cpp: candidate epoch/state, RSSI aggregate, deterministic strongest-band/hash selection, timeout fallback, RSSI-aware receive signature, selection-busy query;
+- component h/cpp: retain RSSI in `RxSlot`, pass it into runtime, and extend the existing Direct-recovery guard across the bounded selection transaction.
 
-The ESP-NOW driver already captures RSSI and therefore is **not** in the initial source allowlist.
+The ESP-NOW driver already captures RSSI and therefore is **not** in the initial source allowlist. The frozen PR #437 lab component is not in the allowlist and must remain unchanged.
 
 Test-file allowlist:
 
 ```text
 tests/n3w_phase4/n3w_phase4_runtime_host_test.cpp
 tests/n3w_phase4/test_phase4_source_contract.py
+tests/n3w_kf089/test_relay_discovery_observability_contract.py
 tests/n3w_phase4/test_multi_relay_gateway_selection_v1_contract.py   # new
 ```
 
-If implementation proves another product file is required, SOURCE_REPAIR must stop and expand the allowlist explicitly rather than editing opportunistically.
+The KF-089 observability test is explicitly included because its current host helper assumes the first discovery immediately creates `pending_challenge_`; that assertion becomes stale once the candidate window is introduced.
+
+If implementation proves another product or test file is required, SOURCE_REPAIR must stop and expand the allowlist explicitly rather than editing opportunistically.
 
 ## 10. Regression matrix
 
 The later SOURCE_REPAIR gate must prove at least:
 
-1. **Single Relay**: one valid Relay is collected, waits only the bounded window, handshakes and becomes active.
-2. **Two Relays, clear RSSI winner**: mean RSSI difference >3 dB; stronger candidate wins regardless of advertisement arrival order.
+1. **Single Relay**: one valid Relay starts a 6500 ms collection window, then handshakes and becomes active.
+2. **Two Relays, clear RSSI winner**: strongest mean is >3 dB above the other; stronger candidate wins regardless of advertisement arrival order.
 3. **Two Relays, within 3 dB**: stable hash decides.
 4. **Exact mean RSSI tie**: stable hash decides.
 5. **Hash collision fallback**: injected/mock equal digest uses Relay NODE_ID lexical order.
-6. **Order invariance**: the same candidate samples in different advertisement order produce the same winner.
-7. **Repeated advertisement update**: multiple RSSI samples update arithmetic mean correctly and conflicting MAC/channel for the same NODE_ID is rejected.
-8. **Selected Relay Challenge submit failure**: next-ranked collected candidate is attempted without a new 4500 ms window.
-9. **Selected Relay Challenge timeout**: next-ranked collected candidate is attempted; exhaustion returns to ordinary Discovery.
-10. **Selected Relay invalid Accept/auth failure**: no activation; fallback/exhaustion behavior is correct.
-11. **Healthy active Relay + stronger new advertisement**: active Relay remains unchanged; no new Challenge is sent.
-12. **Active Relay delivery failure threshold reached**: existing path returns to Discovery; a new selection epoch can choose a different Relay.
-13. **Direct recovery**: existing Direct probe/commit behavior is unchanged.
-14. **Option-B telemetry**: queue ordering, single-attempt completion ownership, and no-resend policy are unchanged.
-15. **A/B role symmetry**: the same runtime permits either node to be Relay when Direct+MQTT and the other to be Child after losing Direct.
-16. **Three-node scenario**: A and B both Direct/relay-capable; C in Discovery chooses according to RSSI/hash rules, not first advertisement.
-17. **RSSI plumbing**: driver metadata RSSI survives RX ring queueing and reaches runtime unchanged.
+6. **Strongest-anchored band**: e.g. `-60/-62/-64 dBm` does not create a transitive three-candidate tie.
+7. **Order invariance**: the same candidate samples in different advertisement order produce the same winner.
+8. **Repeated advertisement update**: multiple same-channel RSSI samples update the arithmetic mean correctly.
+9. **Channel refresh**: same NODE_ID+MAC on a new valid channel replaces channel and resets that candidate's RSSI aggregate to the new-channel sample.
+10. **Identity conflict**: same NODE_ID with a different MAC, or same MAC with a different NODE_ID, cannot overwrite/create an ambiguous candidate.
+11. **Challenge local submit/radio failure**: does not get misclassified as a candidate miss and does not blindly try the next Relay.
+12. **Selected Relay Challenge timeout**: next-ranked collected candidate is attempted without a new 6500 ms window; exhaustion returns to ordinary Discovery.
+13. **Invalid/unauthenticated Accept**: no activation and no early candidate switch; pending remains until valid Accept or timeout.
+14. **Authenticated Accept + peer/channel/state failure**: no activation; local fault route is preserved; no immediate next-candidate attempt.
+15. **Selection busy guard**: scheduled Direct recovery does not cut through candidate collection or pending Challenge.
+16. **Healthy active Relay + stronger new advertisement**: active Relay remains unchanged; no candidate window/Challenge starts.
+17. **Active Relay delivery failure threshold reached**: existing two-failure path returns to Discovery; a new selection epoch can choose a different Relay.
+18. **Direct recovery**: existing Direct probe/commit behavior is unchanged apart from bounded deferral during selection.
+19. **Option-B telemetry**: queue ordering, single-attempt completion ownership, and no-resend policy are unchanged.
+20. **A/B role symmetry**: the same runtime permits either node to be Relay when Direct+MQTT and the other to be Child after losing Direct.
+21. **Three-node scenario**: A and B both Direct/relay-capable; C in Discovery chooses according to RSSI/hash rules, not first advertisement.
+22. **RSSI plumbing**: driver metadata RSSI survives RX ring queueing and reaches runtime unchanged.
+23. **Candidate-window timing**: second Relay with worst-case advertisement phase is still collectible inside 6500 ms under the frozen 250/2000 ms timing model.
 
 ## 11. Later physical acceptance outline
 
@@ -328,7 +403,7 @@ Gateway Selection V1 does not repair, merge, or otherwise mutate PR #469.
 ```text
 N3W_PRODUCTION_MULTI_RELAY_GATEWAY_SELECTION_V1_SOURCE_DESIGN=PASS
 
-CANDIDATE_WINDOW_MS=4500
+CANDIDATE_WINDOW_MS=6500
 CANDIDATE_DEDUP_KEY=relay_node_id
 CANDIDATE_RSSI_UPDATE_RULE=ARITHMETIC_MEAN
 RSSI_EQUIVALENT_BAND_DB=3
