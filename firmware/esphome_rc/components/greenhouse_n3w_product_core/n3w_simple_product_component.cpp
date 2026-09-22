@@ -158,7 +158,7 @@ void SimpleProductComponent::loop() {
       radio_ownership_ == RadioOwnership::RELAY_RESTORE;
   if (!recovery_exclusive) {
     drain_send_completions_();
-    drain_radio_();
+    if (drain_radio_()) return;
   }
   if (!pairing_client_.provisioned()) {
     advance_pairing_();
@@ -194,7 +194,13 @@ void SimpleProductComponent::loop() {
     return;
   }
   runtime_.set_relay_capable(mqtt_connected());
-  (void) runtime_.tick();
+  const bool selection_busy_before_tick =
+      runtime_.gateway_selection_busy();
+  const SimpleProductError tick_result = runtime_.tick();
+  if (consume_gateway_selection_runtime_result_(
+          tick_result, selection_busy_before_tick)) {
+    return;
+  }
   diagnostics_.observe_runtime(
       static_cast<uint8_t>(runtime_.path_state()),
       runtime_.working_channel(),
@@ -1159,6 +1165,10 @@ void SimpleProductComponent::advance_relay_restore_() {
     return;
   }
   clear_tx_completion_ring_();
+  if (relay_restore_cause_ ==
+      RelayRestoreCause::GATEWAY_SELECTION_LOCAL_FAULT) {
+    clear_rx_ring_();
+  }
 
   if (restore_relay_radio_()) {
     const RelayRestoreCause completed_cause = relay_restore_cause_;
@@ -1581,14 +1591,16 @@ void SimpleProductComponent::request_safe_reboot_(const char *reason) {
   App.safe_reboot();
 }
 
-void SimpleProductComponent::drain_radio_() {
-  if (!runtime_ready_) return;
+bool SimpleProductComponent::drain_radio_() {
+  if (!runtime_ready_) return false;
   while (true) {
     const uint8_t read = rx_read_.load(std::memory_order_relaxed);
     const uint8_t write = rx_write_.load(std::memory_order_acquire);
     if (read == write) break;
     const RxSlot &slot = rx_ring_[read];
-    (void) runtime_.on_radio_receive(
+    const bool selection_busy_before =
+        runtime_.gateway_selection_busy();
+    const SimpleProductError result = runtime_.on_radio_receive(
         slot.source,
         slot.data.data(),
         slot.size,
@@ -1597,7 +1609,53 @@ void SimpleProductComponent::drain_radio_() {
     rx_read_.store(
         static_cast<uint8_t>((read + 1U) % kRxRingSlots),
         std::memory_order_release);
+    if (consume_gateway_selection_runtime_result_(
+            result, selection_busy_before)) {
+      return true;
+    }
   }
+  return false;
+}
+
+void SimpleProductComponent::clear_rx_ring_() {
+  rx_read_.store(
+      rx_write_.load(std::memory_order_acquire),
+      std::memory_order_release);
+}
+
+bool SimpleProductComponent::consume_gateway_selection_runtime_result_(
+    SimpleProductError result,
+    bool selection_busy_before) {
+  const bool selection_busy_after =
+      runtime_.gateway_selection_busy();
+  if (!gateway_selection_local_fault_requires_restore(
+          result,
+          selection_busy_before,
+          selection_busy_after)) {
+    return false;
+  }
+
+  if (radio_ownership_ != RadioOwnership::RELAY_ESPNOW ||
+      runtime_.path_state() != LocalPathState::DISCOVERY) {
+    ESP_LOGE(
+        TAG,
+        "N3-W Gateway selection local fault escaped expected ownership/state result=%u ownership=%u path=%u",
+        static_cast<unsigned>(result),
+        static_cast<unsigned>(radio_ownership_),
+        static_cast<unsigned>(runtime_.path_state()));
+    request_safe_reboot_(
+        "Gateway selection local fault escaped Relay Discovery ownership");
+    return true;
+  }
+
+  ESP_LOGE(
+      TAG,
+      "N3-W Gateway selection local fault entering bounded Relay restore result=%u",
+      static_cast<unsigned>(result));
+  begin_relay_restore_(
+      RelayRestoreCause::GATEWAY_SELECTION_LOCAL_FAULT,
+      0);
+  return true;
 }
 
 void SimpleProductComponent::on_espnow_receive(
