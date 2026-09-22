@@ -58,10 +58,6 @@ def preflight_payload(
         "esptool_version": "5.1.0",
         "board": board_payload(port, hardware_hash),
         "artifact": module.artifact_binding_payload(),
-        "prewrite": {
-            "application_window_sha256": "a" * 64,
-            "otadata_sha256": "b" * 64,
-        },
         "persistent_mutation": False,
         "authorization_claimed": False,
         "authorization_consumed": False,
@@ -86,16 +82,11 @@ def test_exact_board_b_physical_artifact_is_frozen() -> None:
     assert module.TARGET_CONFIG.endswith("n3w_phase4_physical/generic.yml")
 
 
-def test_probe_rejects_known_board_b_identity(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_probe_accepts_fresh_silicon_identity_without_prior_board_label(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     raw = synthetic_mac()
-    board_b_hash = module.public_identity_sha256(raw)
-    partition = synthetic_partition()
-    monkeypatch.setattr(module, "FORBIDDEN_BOARD_B_HARDWARE_ID_SHA256", board_b_hash)
-    monkeypatch.setattr(
-        module,
-        "PARTITION_TABLE_SHA256",
-        hashlib.sha256(partition).hexdigest(),
-    )
+    expected_hash = module.public_identity_sha256(raw)
 
     def fake_run(args: list[str], *, port: str | None = None) -> str:
         if args[-1] == "get-security-info":
@@ -104,11 +95,19 @@ def test_probe_rejects_known_board_b_identity(monkeypatch: pytest.MonkeyPatch) -
                 + raw
                 + "\nSecure Boot: Disabled\nFlash Encryption: Disabled\n"
             )
+        if args[-1] == "flash-id":
+            return "Detected flash size: 8 MB\n"
         raise AssertionError(args)
 
     monkeypatch.setattr(module, "run_capture", fake_run)
-    with pytest.raises(module.StopExecution, match="Board B identity"):
-        module.probe_board("/dev/cu.synthetic")
+    monkeypatch.setattr(
+        module,
+        "read_flash_hash",
+        lambda *args, **kwargs: module.PARTITION_TABLE_SHA256,
+    )
+
+    board = module.probe_board("/dev/cu.synthetic")
+    assert board["hardware_id_sha256"] == expected_hash
 
 
 def test_write_command_is_only_otadata_plus_application() -> None:
@@ -148,7 +147,6 @@ def test_preflight_is_bound_to_port_and_single_use(
 ) -> None:
     raw = synthetic_mac("0b")
     hardware_hash = module.public_identity_sha256(raw)
-    monkeypatch.setattr(module, "FORBIDDEN_BOARD_B_HARDWARE_ID_SHA256", "f" * 64)
     now = dt.datetime(2026, 9, 22, 3, 0, tzinfo=dt.timezone.utc)
     monkeypatch.setattr(module, "utc_now", lambda: now)
 
@@ -179,7 +177,6 @@ def test_stale_preflight_is_rejected(
 ) -> None:
     raw = synthetic_mac("0c")
     hardware_hash = module.public_identity_sha256(raw)
-    monkeypatch.setattr(module, "FORBIDDEN_BOARD_B_HARDWARE_ID_SHA256", "f" * 64)
     now = dt.datetime(2026, 9, 22, 3, 0, tzinfo=dt.timezone.utc)
     monkeypatch.setattr(module, "utc_now", lambda: now)
 
@@ -205,3 +202,10 @@ def test_postboot_otadata_is_not_used_as_exact_equality_oracle() -> None:
     assert 'OTADATA_POSTBOOT_BYTE_EQUALITY_ORACLE=false' in source
     assert 'APPLICATION_POSTWRITE_READBACK=PASS' in source
     assert 'PARTITION_TABLE_POSTWRITE_READBACK=PASS' in source
+
+
+def test_preflight_does_not_require_existing_application_hash() -> None:
+    source = MODULE_PATH.read_text(encoding="utf-8")
+    assert "prewrite_application_window_sha256" not in source
+    assert '"application_window_sha256"' not in source
+    assert '"prewrite"' not in source
