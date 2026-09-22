@@ -269,7 +269,16 @@ script.
 
 ## 7. Next board preflight contract
 
-The next physical-facing gate is read-only.
+The next physical-facing gate is read-only with respect to persistent storage.
+
+Important: a ROM/bootloader-level silicon or partition-table read may require a
+temporary reset or bootloader entry on ESP32-C6. That is not a Flash/NVS mutation,
+but it is still a physical state disturbance and must be explicitly authorized in
+that later preflight gate if the selected read method requires it.
+
+The preflight should prefer a proven no-write/no-erase method and must report whether
+a reset or ROM/bootloader entry actually occurred.
+
 
 It must inspect A, B, and C separately and bind each physical board to an operator
 label before any write.
@@ -754,7 +763,9 @@ BOARD_C_PREFLIGHT=
 RAW_BOARD_IDENTITIES_PUBLIC=false
 RAW_NVS_PUBLIC=false
 FLASH_WRITE=false
-BOARD_RESET_FOR_APPLICATION=false
+PERSISTENT_BOARD_MUTATION=false
+ROM_OR_BOOTLOADER_ENTRY_OCCURRED=
+APPLICATION_RESET_OCCURRED=
 T1_ACCESS=false
 
 THREE_BOARD_WRITE_TARGET_PREFLIGHT=
@@ -818,10 +829,14 @@ EXPECTED_PARTITION_TABLE_SHA256=
 
 BOARD_ACCESS_REQUIRED=true
 PREFLIGHT_READ_ONLY=true
+PERSISTENT_BOARD_MUTATION=false
 FLASH_WRITE=false
 NVS_WRITE=false
 T1_ACCESS=false
 PHYSICAL_RF_EXECUTION=false
+
+ROM_OR_BOOTLOADER_ENTRY_MAY_REQUIRE_RESET=true
+EPHEMERAL_RESET_IF_REQUIRED_MUST_BE_EXPLICITLY_AUTHORIZED=true
 
 EXPLICIT_AUTHORIZATION_REQUIRED=true
 ```
