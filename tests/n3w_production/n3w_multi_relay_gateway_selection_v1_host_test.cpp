@@ -626,5 +626,32 @@ int main() {
     assert(last_challenge(port).relay_node_id == "node_relay_b");
   }
 
+  // 18. The receive path enforces the deadline itself because the component
+  // drains queued radio frames before runtime.tick(). A Relay first observed
+  // at the exact deadline must not slip into the frozen candidate set.
+  {
+    FakeClock clock;
+    FakeRandom random;
+    FakePort port;
+    SimpleProductRuntime runtime(&port, &clock, &random);
+    const MacAddress child_mac{0x02, 0x00, 0x00, 0x00, 0x00, 0xC1};
+    assert(
+        runtime.start(
+            make_state("node_child"),
+            child_mac,
+            0,
+            SimpleProductStartMode::DISCOVERY) ==
+        SimpleProductError::NONE);
+    assert(
+        feed_discovery(runtime, mac_a, "node_relay_a", 1, -80) ==
+        SimpleProductError::NONE);
+    clock.value = 7500;
+    assert(
+        feed_discovery(runtime, mac_b, "node_relay_b", 1, -20) ==
+        SimpleProductError::STATE_REJECTED);
+    assert(runtime.tick() == SimpleProductError::NONE);
+    assert(last_challenge(port).relay_node_id == "node_relay_a");
+  }
+
   return 0;
 }
