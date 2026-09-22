@@ -248,15 +248,6 @@ MERGE=false
 === N3W PRODUCTION MULTI RELAY GATEWAY SELECTION V1 EXACT ARTIFACT BINDING ===
 
 SOURCE_HEAD=
-8c445f2bdd60d9ac3bea28eb450433cfdbd13790
-```
-
-The line above is intentionally invalid and must never be used as authority.
-
-The correct source authority is:
-
-```text
-SOURCE_HEAD=
 8c445f2bdd60d9ac3a33fe7c20a01965360a3b1c
 
 SOURCE_TREE=
