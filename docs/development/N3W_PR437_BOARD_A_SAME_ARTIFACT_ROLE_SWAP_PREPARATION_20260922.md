@@ -562,3 +562,32 @@ BOARD_B_MOVE=false
 BOARD_B_RESET=false
 APPLICATION_SERIAL_OPEN=false
 ```
+
+
+## 2026-09-22 battery-power transition rebaseline requirement
+
+Before the authorized Board A same-boot Direct -> Relay movement, the operator reported that Board A must be switched from USB power to battery power and that this power-source change necessarily causes one reboot.
+
+Therefore the previously established Board A same-boot baseline is no longer admissible as the transition starting session once the battery switch occurs.
+
+```text
+BATTERY_SWITCH_REQUIRES_REBOOT=true
+PREVIOUS_BOARD_A_BOOT_SESSION_VALID_FOR_ROLE_SWAP_AFTER_BATTERY_SWITCH=false
+PREVIOUS_BOARD_A_DIRECT_BASELINE_REQUIRES_REBASE=true
+BOARD_B_GATEWAY_BASELINE_REUSE_ALLOWED_IF_BOARD_B_BOOT_UNCHANGED=true
+```
+
+The correct execution order is:
+
+1. keep Board B stationary and powered in the validated Direct/Gateway position;
+2. switch Board A to battery power, accepting exactly one reboot;
+3. do not move Board A to the Relay-child location yet;
+4. from Manager canonical durable state, prove Board A appears on a new boot session and resumes fresh Direct telemetry;
+5. prove Board B remains on its existing boot session and remains fresh Direct;
+6. observe both for a new bounded Direct baseline;
+7. define the new Board A battery boot as the same-boot origin for the subsequent Direct -> Relay movement.
+
+```text
+NEXT_ONE_GATE=N3W_PR437_BOARD_A_BATTERY_DIRECT_REBASELINE_20260922_01
+AUTO_EXECUTE_ROLE_SWAP_AFTER_REBASELINE=false
+```
