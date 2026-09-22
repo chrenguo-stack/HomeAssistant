@@ -1,6 +1,6 @@
 # N3-W PR #437 Board A same-artifact role-swap preparation — 2026-09-22
 
-Status: `PREPHYSICAL_PREPARATION`
+Status: `BOARD_A_SAME_ARTIFACT_WRITE_PASS; ROLE_SWAP_PHYSICAL_PENDING`
 
 Canonical board-write procedure: `docs/development/N3W_ESP32C6_EXACT_ARTIFACT_BOARD_WRITE_RUNBOOK_V1.0_20260922.md`
 
@@ -137,14 +137,19 @@ After the role-symmetry result is captured, moving Board A back into Direct cove
 
 ## Current stop point
 
-Repository preparation and CI may proceed without board access.
-
-Physical execution must stop after readonly preflight until the operator confirms that the connected target is Board A.
+Board A exact-artifact synchronization has completed successfully.
 
 ```text
-BOARD_ACCESS_NOT_YET_PERFORMED=true
-FLASH_WRITE_NOT_YET_PERFORMED=true
-NEXT_PHYSICAL_STOP=BOARD_A_READONLY_PREFLIGHT_THEN_OPERATOR_TARGET_CONFIRMATION
+BOARD_A_PREFLIGHT=PASS
+BOARD_A_WRITE=PASS
+APPLICATION_POSTWRITE_READBACK=PASS
+PARTITION_TABLE_POSTWRITE_READBACK=PASS
+PRODUCT_NVS_WRITE=false
+AUTHORIZATION_CONSUMED=true
+REPLAY_PERMITTED=false
+ROLE_SWAP_PHYSICAL_ACCEPTANCE=NOT_YET_EXECUTED
+NEXT_ONE_GATE=N3W_PR437_BOARD_A_POSTWRITE_DIRECT_BASELINE_20260922_01
+AUTO_EXECUTE_NEXT_GATE=false
 ```
 
 
@@ -177,3 +182,37 @@ FRESH_SILICON_REREAD_BEFORE_WRITE=true
 ```
 
 This supports both existing boards with arbitrary older firmware and future boards whose application region is initially unknown. A blank board with an incompatible or missing partition table remains a separate factory-provisioning case.
+
+
+## 2026-09-22 Board A write closure
+
+The corrected preflight and one-shot write completed against the operator-confirmed Board A.
+
+```text
+BOARD_A_PREFLIGHT=PASS
+FRESH_SILICON_IDENTITY_BOUND=true
+HARDWARE_ID_SHA256=3603345fb73de6f9286dc66db9f246ff73c42382b553af63b8d5813a933b69ee
+
+BOARD_A_WRITE=PASS
+APPLICATION_SHA256=b7836f041e8b0f68809980d516a9d9cd5c4a94f862f7d3a27515ae85d55d6843
+APPLICATION_POSTWRITE_READBACK=PASS
+
+OTADATA_INITIAL_SHA256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
+OTADATA_POSTBOOT_SHA256=8ba3b110139f45443d4f268d1a3373ef99a1718b71d51664531b83ee2d4b91a3
+OTADATA_POSTBOOT_BYTE_EQUALITY_ORACLE=false
+
+PARTITION_TABLE_POSTWRITE_READBACK=PASS
+PRODUCT_NVS_WRITE=false
+
+AUTHORIZATION_CONSUMED=true
+REPLAY_PERMITTED=false
+```
+
+The differing post-boot OTA-data hash is expected and is not a failure signal. The application readback and unchanged partition-table readback are the exact post-write byte-level acceptance oracles.
+
+This closes only the Board A firmware synchronization step. It does not yet prove Board A Direct runtime liveness or the B-as-Gateway/A-as-Child role-swap path.
+
+```text
+NEXT_ONE_GATE=N3W_PR437_BOARD_A_POSTWRITE_DIRECT_BASELINE_20260922_01
+AUTO_EXECUTE_NEXT_GATE=false
+```
