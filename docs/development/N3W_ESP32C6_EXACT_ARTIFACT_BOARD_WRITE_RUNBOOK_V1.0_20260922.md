@@ -273,3 +273,25 @@ WRITE_REQUIRES_FRESH_SILICON_REREAD=true
 ```
 
 The earlier STOP remains valid as a fail-closed event, but its hard-exclusion rule is superseded by this corrected binding model.
+
+
+## Runtime observer identity rule
+
+Do not assume that the fresh ROM-silicon-derived hardware hash can always be joined directly to the Manager registration table to identify an already-provisioned runtime node.
+
+The product runtime derives a hardware ID from the current STA MAC during pairing, but an already-provisioned runtime loads its persisted peer/broker state and operates under the persisted `node_id`. Historical provisioning, board-label correction, or copied/restored NVS can therefore make a direct silicon-hash -> current Manager-registration join an invalid observation oracle.
+
+```text
+ROM_SILICON_HASH_IS_WRITE_TARGET_BINDING=true
+ROM_SILICON_HASH_IS_ALWAYS_RUNTIME_NODE_LOOKUP_KEY=false
+PREWRITE_APPLICATION_HASH_IS_RUNTIME_NODE_LOOKUP_KEY=false
+PROVISIONED_NODE_ID_IS_RUNTIME_IDENTITY_AUTHORITY=true
+MANAGER_CANONICAL_CURSOR_IS_RUNTIME_LIVENESS_AUTHORITY=true
+```
+
+For physical runtime acceptance, bind the connected board to Manager canonical state through a runtime identity that the board actually uses. Preferred public-safe methods are:
+
+1. exact persisted `node_id` from a read-only product-state authority, emitted only as a hash; or
+2. an exact boot-session correlation between the board's read-only lab diagnostic snapshot and Manager `n3w_canonical_cursors`.
+
+A zero-row Manager registration lookup by fresh ROM hardware hash is an observer mismatch until proven otherwise; it is not by itself a product Direct-path failure.
