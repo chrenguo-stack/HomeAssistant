@@ -164,6 +164,29 @@ A physical command package must either:
 
 A bare `git fetch` without first proving the working directory is a repository is forbidden in future physical instructions.
 
+
+## Terminal command formatting rule
+
+All terminal command blocks supplied for physical execution must be directly pasteable into the user's shell.
+
+Requirements:
+
+```text
+INLINE_SHELL_COMMENT_LINES=false
+HASH_COMMENT_LINES_IN_COMMAND_BLOCKS=false
+PASTE_READY_COMMAND_BLOCKS=true
+```
+
+Do not place `# ...` comment lines inside terminal command blocks. Explanations must be written outside the code block.
+
+This rule exists because the user's current shell execution path treated an inline `#` comment line as a command and stopped with:
+
+```text
+zsh: command not found: #
+```
+
+A command block that is intended for direct execution must therefore contain executable shell syntax only.
+
 ## Stop policy
 
 Stop before board mutation on any of:
