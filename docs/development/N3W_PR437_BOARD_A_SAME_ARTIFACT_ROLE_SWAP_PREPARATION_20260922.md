@@ -145,3 +145,31 @@ BOARD_ACCESS_NOT_YET_PERFORMED=true
 FLASH_WRITE_NOT_YET_PERFORMED=true
 NEXT_PHYSICAL_STOP=BOARD_A_READONLY_PREFLIGHT_THEN_OPERATOR_TARGET_CONFIRMATION
 ```
+
+
+## 2026-09-22 identity preflight stop
+
+The first fresh Board A preflight reached the silicon identity check and stopped before any flash mutation.
+
+```text
+ARTIFACT_SIZE_MATCH=PASS
+ARTIFACT_SHA256_MATCH=PASS
+BOARD_A_PREFLIGHT=STOP
+STOP_REASON=connected target matches frozen Board B identity
+FLASH_WRITE=false
+PRODUCT_NVS_WRITE=false
+AUTHORIZATION_CONSUMED=false
+```
+
+This does not prove that the operator connected the wrong board. Repository history contains a later PR #445 Board-B identity rebind and an older Board-B identity authority, while the September mapping-alignment record states that historical A/B labels were corrected and USB paths are locator-only.
+
+Therefore the physical gate is now fail-closed on identity authority:
+
+```text
+PHYSICAL_WRITE_READY=false
+IDENTITY_AUTHORITY_RECONCILIATION_REQUIRED=true
+AUTO_REBIND_EXPECTED_HASH=false
+AUTO_WRITE=false
+```
+
+No Board A/B writer constant may be changed until the current physical labels are reconciled against fresh ROM silicon evidence and the corrected board mapping.
