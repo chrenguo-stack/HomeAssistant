@@ -435,3 +435,29 @@ RAW_NODE_ID_PUBLIC=false
 ```
 
 If a frozen public-safe node hash is available and matches one fresh canonical row exactly, it is a stronger runtime-role discriminator than "unique other row" counting alone.
+
+
+## Dual-Direct role-swap baseline pattern
+
+Before moving one board into a Relay-child location, prove both the future Child and the future Gateway are concurrently healthy Direct nodes on stable boot sessions.
+
+Validated 2026-09-22 pattern:
+
+```text
+OBSERVATION_SECONDS=90
+
+FUTURE_CHILD_SOURCE_BEFORE=direct
+FUTURE_CHILD_SOURCE_AFTER=direct
+FUTURE_CHILD_SEQ_DELTA=18
+FUTURE_CHILD_SAME_BOOT=true
+
+FUTURE_GATEWAY_SOURCE_BEFORE=direct
+FUTURE_GATEWAY_SOURCE_AFTER=direct
+FUTURE_GATEWAY_SEQ_DELTA=19
+FUTURE_GATEWAY_SAME_BOOT=true
+
+MANAGER_RESTART_COUNT_UNCHANGED=true
+DUAL_DIRECT_BASELINE=PASS
+```
+
+This separates later movement-induced path changes from pre-existing liveness problems. After a dual-Direct baseline passes, any reset or power cycle of either participant invalidates the same-boot role-swap starting condition and requires re-baselining.
