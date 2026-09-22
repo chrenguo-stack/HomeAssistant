@@ -216,3 +216,32 @@ This closes only the Board A firmware synchronization step. It does not yet prov
 NEXT_ONE_GATE=N3W_PR437_BOARD_A_POSTWRITE_DIRECT_BASELINE_20260922_01
 AUTO_EXECUTE_NEXT_GATE=false
 ```
+
+
+## 2026-09-22 Direct baseline observer stop
+
+The first post-write Direct-baseline observer stopped before the 90-second observation because it attempted to map the connected board's fresh ROM-silicon hardware hash directly through Manager `registrations.hardware_id`.
+
+```text
+T1_MANAGER_RUNNING_BEFORE=true
+MANAGER_RESTART_COUNT_BEFORE=0
+TARGET_MAPPING_COUNT=0
+BASELINE_OBSERVATION_STARTED=false
+T1_MANAGER_RUNNING_AFTER=true
+MANAGER_RESTART_COUNT_AFTER=0
+T1_RUNTIME_MUTATION=false
+BOARD_MUTATION=false
+```
+
+This is classified as an observer-assumption failure, not a Direct-path product failure.
+
+The source review shows that an already-provisioned node loads persisted peer/broker state and operates under its persisted `node_id`. Therefore fresh ROM hardware hash is valid for write-target binding but is not guaranteed to be the correct lookup key for current Manager canonical runtime state.
+
+Corrected observation route:
+
+```text
+RUNTIME_NODE_BINDING=BOOT_SESSION_CORRELATION_OR_PERSISTED_NODE_ID
+ROM_HARDWARE_HASH_TO_REGISTRATION_DIRECT_JOIN=FORBIDDEN_AS_SOLE_ORACLE
+MANAGER_CANONICAL_DURABLE_STATE=AUTHORITATIVE
+NEXT_ACTION=CORRECT_OBSERVER_WITHOUT_PRODUCT_MUTATION
+```
