@@ -1652,6 +1652,17 @@ bool SimpleProductComponent::consume_gateway_selection_runtime_result_(
       TAG,
       "N3-W Gateway selection local fault entering bounded Relay restore result=%u",
       static_cast<unsigned>(result));
+
+  // Existing Relay-restore quiesce logic assumes the old ESP-NOW event source
+  // has already been stopped. Gateway-selection faults happen while Relay
+  // ownership is still live, so establish the same teardown precondition
+  // before entering RELAY_RESTORE.
+  if (!radio_.shutdown()) {
+    request_safe_reboot_(
+        "ESP-NOW teardown unconfirmed after Gateway selection local fault");
+    return true;
+  }
+  clear_rx_ring_();
   begin_relay_restore_(
       RelayRestoreCause::GATEWAY_SELECTION_LOCAL_FAULT,
       0);
