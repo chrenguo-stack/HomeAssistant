@@ -62,6 +62,7 @@ jobs:
             "$core/n3w_simple_state_host.cpp" \
             "$core/n3w_simple_product_runtime.cpp" \
             tests/n3w_production/n3w_multi_relay_gateway_selection_v1_host_test.cpp \
+            -Wl,--wrap=mbedtls_md \
             -lmbedcrypto \
             -o /tmp/n3w-gateway-selection-v1-host-test
           /tmp/n3w-gateway-selection-v1-host-test
