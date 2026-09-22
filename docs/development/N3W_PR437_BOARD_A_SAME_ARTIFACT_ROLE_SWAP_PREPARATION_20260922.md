@@ -245,3 +245,34 @@ ROM_HARDWARE_HASH_TO_REGISTRATION_DIRECT_JOIN=FORBIDDEN_AS_SOLE_ORACLE
 MANAGER_CANONICAL_DURABLE_STATE=AUTHORITATIVE
 NEXT_ACTION=CORRECT_OBSERVER_WITHOUT_PRODUCT_MUTATION
 ```
+
+
+## 2026-09-22 boot-session correlation race stop
+
+The corrected observer next read the schema-v5 lab diagnostic snapshot and obtained a valid pre-reset boot-session hash, but the subsequent Manager lookup returned zero rows for that boot session.
+
+```text
+DIAG_SCHEMA=5
+PRE_RESET_BOOT_SESSION_SHA256=8591214425ac4cbb8326f797151e898ba77608d290677417929ff51573d5501b
+PRE_RESET_SNAPSHOT_UPTIME_MS=1275797
+NVS_FLASH_WRITE=false
+
+T1_MANAGER_RUNNING_BEFORE=true
+MANAGER_RESTART_COUNT_BEFORE=0
+BOOT_SESSION_MAPPING_COUNT=0
+T1_MANAGER_RUNNING_AFTER=true
+MANAGER_RESTART_COUNT_AFTER=0
+```
+
+Source review shows why this lookup is intrinsically racy: `n3w_canonical_cursors` stores one current row per `node_id`. The esptool NVS read resets the board; if fresh telemetry from the new boot reaches Manager before the old-session lookup runs, the canonical row is overwritten with the new boot session. The replay registry also discards old-session rows when the high-water advances.
+
+Therefore:
+
+```text
+PRODUCT_DIRECT_FAILURE_PROVEN=false
+OBSERVER_FAILURE_CLASS=CURRENT_ONLY_CURSOR_RESET_RACE
+PRE_RESET_BOOT_SESSION_LOOKUP_AFTER_RESET=FORBIDDEN
+NEXT_OBSERVER=PRE_SNAPSHOT_CONTROLLED_RESET_BOOT_CHANGE_CORRELATION
+```
+
+The next attempt must snapshot Manager first, then deliberately reset only the operator-confirmed Board A, require exactly one canonical node to change boot session and resume fresh Direct telemetry, and only then begin the 90-second same-boot Direct baseline.
