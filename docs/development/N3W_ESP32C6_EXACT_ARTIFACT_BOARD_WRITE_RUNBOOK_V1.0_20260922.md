@@ -187,6 +187,16 @@ zsh: command not found: #
 
 A command block that is intended for direct execution must therefore contain executable shell syntax only.
 
+Shell options must not leak into the user's interactive zsh after the command finishes. In particular, `set -u` can break macOS shell-session save hooks when they reference unset parameters.
+
+```text
+SHELL_OPTION_SIDE_EFFECTS_SCOPED=true
+INTERACTIVE_SHELL_GLOBAL_SET_U=false
+PASTE_READY_COMMANDS_USE_SUBSHELL_WHEN_STRICT_MODE_NEEDED=true
+```
+
+If strict shell mode is useful, wrap the executable body in a subshell so `set -euo pipefail` is discarded when that block exits.
+
 ## Stop policy
 
 Stop before board mutation on any of:
