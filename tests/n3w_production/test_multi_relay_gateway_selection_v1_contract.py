@@ -188,3 +188,179 @@ def test_source_scope_does_not_claim_real_sensor_physical_acceptance() -> None:
     source = text(CORE / "n3w_simple_product_runtime.cpp")
     assert "send_telemetry(" in source
     assert "gateway_selection" in source
+
+
+def test_r2_candidate_capacity_and_transaction_budget_are_frozen() -> None:
+    header = text(CORE / "n3w_simple_product_runtime.h")
+    source = text(CORE / "n3w_simple_product_runtime.cpp")
+
+    assert "uint32_t gateway_selection_transaction_max_ms{30000};" in header
+    assert "std::size_t max_gateway_candidates{8};" in header
+    assert "uint64_t transaction_deadline_ms{0};" in header
+    assert "CANDIDATE_CAPACITY = 10" in header
+
+    assert "epoch.candidates.reserve(policy_.max_gateway_candidates);" in source
+    assert (
+        "epoch.transaction_deadline_ms =\n"
+        "        now + policy_.gateway_selection_transaction_max_ms;"
+    ) in source
+    assert (
+        "gateway_selection_epoch_->candidates.size() >=\n"
+        "            policy_.max_gateway_candidates"
+    ) in source
+    assert "DiscoveryRejectReason::CANDIDATE_CAPACITY" in source
+
+
+def test_r2_whole_transaction_deadline_precedes_candidate_timeout_fallback() -> None:
+    source = text(CORE / "n3w_simple_product_runtime.cpp")
+    tick = function_body(
+        source,
+        "SimpleProductError SimpleProductRuntime::tick()",
+        "SimpleProductError SimpleProductRuntime::note_direct_result",
+    )
+
+    transaction_check = tick.index(
+        "now >= gateway_selection_epoch_->transaction_deadline_ms"
+    )
+    pending_timeout = tick.index("now >= pending_challenge_->expires_at_ms")
+    assert transaction_check < pending_timeout
+    assert "return begin_discovery_();" in tick
+
+    attempt = function_body(
+        source,
+        "SimpleProductError SimpleProductRuntime::attempt_next_gateway_candidate_()",
+        "SimpleProductError SimpleProductRuntime::start_challenge_for_candidate_",
+    )
+    assert "transaction_deadline_ms" in attempt
+    assert attempt.count("return begin_discovery_();") >= 2
+
+
+def test_r2_accept_deadline_is_checked_before_crypto_or_radio_side_effects() -> None:
+    source = text(CORE / "n3w_simple_product_runtime.cpp")
+    accept = function_body(
+        source,
+        "SimpleProductError SimpleProductRuntime::handle_accept_(",
+        "SimpleProductError SimpleProductRuntime::handle_compact_(",
+    )
+
+    pending_expiry = accept.index("now >= pending.expires_at_ms")
+    transaction_expiry = accept.index(
+        "now >= gateway_selection_epoch_->transaction_deadline_ms"
+    )
+    verify = accept.index("verify_simple_peer_accept(")
+    set_channel = accept.index("port_->set_radio_channel(channel)")
+    install_peer = accept.index("port_->install_encrypted_peer(")
+
+    assert pending_expiry < verify
+    assert transaction_expiry < verify
+    assert verify < set_channel < install_peer
+    assert (
+        "return SimpleProductError::PACKET_REJECTED;" in
+        accept[pending_expiry:verify]
+    )
+
+
+def test_r2_local_fault_classification_is_narrow_and_component_consumes_it() -> None:
+    runtime_source = text(CORE / "n3w_simple_product_runtime.cpp")
+    component_header = text(CORE / "n3w_simple_product_component.h")
+    component_source = text(CORE / "n3w_simple_product_component.cpp")
+
+    helper = function_body(
+        runtime_source,
+        "bool gateway_selection_local_fault_requires_restore(",
+        "SimpleProductRuntime::SimpleProductRuntime(",
+    )
+    assert "!selection_busy_before || selection_busy_after" in helper
+    assert "SimpleProductError::RADIO_FAILED" in helper
+    assert "SimpleProductError::CRYPTO_FAILED" in helper
+    assert "SimpleProductError::STATE_REJECTED" in helper
+    assert "SimpleProductError::PACKET_REJECTED" not in helper
+
+    assert "GATEWAY_SELECTION_LOCAL_FAULT" in component_header
+    assert "bool drain_radio_();" in component_header
+    assert "bool consume_gateway_selection_runtime_result_(" in component_header
+
+    loop = function_body(
+        component_source,
+        "void SimpleProductComponent::loop()",
+        "TelemetrySubmitDisposition SimpleProductComponent::submit_telemetry_json(",
+    )
+    assert "if (drain_radio_()) return;" in loop
+    assert "selection_busy_before_tick" in loop
+    assert "consume_gateway_selection_runtime_result_(" in loop
+
+    drain = function_body(
+        component_source,
+        "bool SimpleProductComponent::drain_radio_()",
+        "void SimpleProductComponent::clear_rx_ring_()",
+    )
+    assert "selection_busy_before" in drain
+    assert "consume_gateway_selection_runtime_result_(" in drain
+    assert "return true;" in drain
+
+    consume = function_body(
+        component_source,
+        "bool SimpleProductComponent::consume_gateway_selection_runtime_result_(",
+        "void SimpleProductComponent::on_espnow_receive(",
+    )
+    assert "gateway_selection_local_fault_requires_restore(" in consume
+    assert "RadioOwnership::RELAY_ESPNOW" in consume
+    assert "LocalPathState::DISCOVERY" in consume
+    assert "begin_relay_restore_(" in consume
+    assert "RelayRestoreCause::GATEWAY_SELECTION_LOCAL_FAULT" in consume
+
+
+def test_r2_local_fault_restore_drops_stale_rx_after_quiesce() -> None:
+    source = text(CORE / "n3w_simple_product_component.cpp")
+    restore = function_body(
+        source,
+        "void SimpleProductComponent::advance_relay_restore_()",
+        "bool SimpleProductComponent::enqueue_telemetry_(",
+    )
+
+    clear_tx = restore.index("clear_tx_completion_ring_();")
+    local_fault = restore.index(
+        "RelayRestoreCause::GATEWAY_SELECTION_LOCAL_FAULT"
+    )
+    clear_rx = restore.index("clear_rx_ring_();", local_fault)
+    restore_radio = restore.index("restore_relay_radio_()", clear_rx)
+
+    assert clear_tx < local_fault < clear_rx < restore_radio
+
+
+def test_r2_scan_failure_during_selection_aborts_transaction_for_restore() -> None:
+    source = text(CORE / "n3w_simple_product_runtime.cpp")
+    tick = function_body(
+        source,
+        "SimpleProductError SimpleProductRuntime::tick()",
+        "SimpleProductError SimpleProductRuntime::note_direct_result",
+    )
+
+    assert "const SimpleProductError scan_result = maybe_advance_scan_(now);" in tick
+    assert "gateway_selection_epoch_.has_value()" in tick
+    assert "pending_challenge_.reset();" in tick
+    assert "clear_gateway_selection_();" in tick
+
+
+def test_r2_normal_exhaustion_realigns_discovery_before_busy_clears() -> None:
+    source = text(CORE / "n3w_simple_product_runtime.cpp")
+    attempt = function_body(
+        source,
+        "SimpleProductError SimpleProductRuntime::attempt_next_gateway_candidate_()",
+        "SimpleProductError SimpleProductRuntime::start_challenge_for_candidate_",
+    )
+
+    assert (
+        "candidate_index >= gateway_selection_epoch_->candidates.size()" in attempt
+    )
+    assert "return begin_discovery_();" in attempt
+
+    begin = function_body(
+        source,
+        "SimpleProductError SimpleProductRuntime::begin_discovery_()",
+        "SimpleProductError SimpleProductRuntime::leave_relay_for_discovery_()",
+    )
+    assert "clear_gateway_selection_();" in begin
+    assert "scan_.configure(" in begin
+    assert "port_->set_radio_channel(channel)" in begin
+    assert "next_scan_switch_ms_" in begin
