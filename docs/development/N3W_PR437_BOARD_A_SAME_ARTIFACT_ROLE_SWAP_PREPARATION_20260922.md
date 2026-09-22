@@ -402,3 +402,47 @@ OBSERVER_BINDING_AMBIGUOUS
 ```
 
 No Board-B reset, movement, flash/NVS access or identity guess is allowed until this inventory is classified.
+
+
+## 2026-09-22 Board B canonical inventory resolution
+
+The read-only canonical inventory resolved the earlier zero-fresh-peer stop without any board reset or runtime mutation.
+
+```text
+CANONICAL_NODE_COUNT=3
+
+FRESH_BOARD_B_CANDIDATE_NODE_SHA256=dad9009b72b0c58a45d9041072d99eb3f1b8db9e520e1b844ff30cac2c8a0a59
+FRESH_BOARD_B_CANDIDATE_SOURCE=direct
+FRESH_BOARD_B_CANDIDATE_SEQ=59
+FRESH_BOARD_B_CANDIDATE_BOOT_SESSION_SHA256=45a08a743fda98fc778118c46d2872538e78c79029c0323215a8cdf3acce78f2
+FRESH_BOARD_B_CANDIDATE_AGE_SECONDS=4.7
+
+BOARD_A_NODE_SHA256=7ad414b84b17eef4de09cd71ccd676fcf5bb43eb72649939fc6423851d8a5eb5
+BOARD_A_SOURCE=direct
+BOARD_A_SEQ=224
+BOARD_A_BOOT_SESSION_SHA256=50197d0358be1b2a8f6595f72e64ef9d77b0926925a0cd74fd3ebe87a9f24776
+BOARD_A_EXPECTED_BOOT_MATCH=true
+
+STALE_OTHER_NODE_SHA256=73cd4e91562d425ec90acd114b622ee448680b5e011742744eb15fe54e9dd497
+STALE_OTHER_NODE_SOURCE=direct
+STALE_OTHER_NODE_AGE_SECONDS=595750.1
+
+T1_RUNTIME_MUTATION=false
+BOARD_A_MUTATION=false
+BOARD_B_MUTATION=false
+```
+
+The fresh non-A node hash exactly matches the repository-frozen public-safe Board B node hash from the historical Board B closeout. The third canonical node is stale by roughly 6.9 days and is excluded from the live role-assignment set.
+
+```text
+BOARD_B_RUNTIME_BINDING=PASS
+BOARD_B_RUNTIME_BINDING_METHOD=FROZEN_PUBLIC_NODE_HASH_PLUS_FRESH_CANONICAL_STATE
+STALE_NODE_EXCLUDED_FROM_LIVE_ROLE_SET=true
+PRODUCT_FAILURE=false
+```
+
+The earlier `OTHER_FRESH_DIRECT_COUNT=0` remains a transient observer stop with no proven root cause. It must not be rewritten as a Board-B failure.
+
+```text
+NEXT_ACTION=90_SECOND_DUAL_DIRECT_BASELINE_WITH_BOUND_BOARD_B
+```
