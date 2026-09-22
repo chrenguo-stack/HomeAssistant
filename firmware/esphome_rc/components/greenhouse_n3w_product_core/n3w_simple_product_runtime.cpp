@@ -571,7 +571,11 @@ SimpleProductError SimpleProductRuntime::handle_discovery_(
   } else if (!valid_discovery_rssi_(rssi_dbm)) {
     reject_reason = DiscoveryRejectReason::RSSI_INVALID;
   } else if (gateway_selection_epoch_.has_value() &&
-             gateway_selection_epoch_->frozen) {
+             (gateway_selection_epoch_->frozen ||
+              now >= gateway_selection_epoch_->deadline_ms)) {
+    // drain_radio_ runs before tick(), so enforce the deadline here as well.
+    // A queued discovery received after the 6500 ms window must not enter the
+    // candidate set merely because tick() has not frozen the epoch yet.
     reject_reason = DiscoveryRejectReason::SELECTION_FROZEN;
   } else if (gateway_selection_epoch_.has_value()) {
     RelayCandidate *same_node =
