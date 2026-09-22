@@ -221,3 +221,45 @@ AD_HOC_FLASH_COMMANDS_FORBIDDEN=true
 SYSTEM_CURL_PRIMARY_ARTIFACT_TRANSPORT=false
 POSTBOOT_OTADATA_BYTE_EQUALITY_ORACLE=false
 ```
+
+
+## Board label / silicon identity conflict rule
+
+A USB port name and an operator label are not sufficient mutation authority.
+
+If a freshly read ROM-silicon-derived public identity hash conflicts with the intended Board A/B role, the executor must STOP before mutation.
+
+```text
+USB_PORT_IS_LOCATOR_ONLY=true
+OPERATOR_LABEL_ALONE_IS_NOT_MUTATION_AUTHORITY=true
+FRESH_ROM_SILICON_BINDING_REQUIRED=true
+IDENTITY_CONFLICT_FAIL_CLOSED=true
+AUTO_REBIND_ON_CONFLICT=false
+FLASH_WRITE_ON_CONFLICT=false
+```
+
+Do not work around an identity conflict by changing the expected hash, swapping labels in code, or bypassing the guard.
+
+The correct next step is a read-only identity-authority reconciliation using historical board mapping records plus fresh silicon evidence. Only after the physical Board A/B mapping is explicitly re-established may the writer binding be changed.
+
+### 2026-09-22 observed conflict
+
+The intended Board A preflight observed a ROM-silicon-derived public identity that matched the current PR #437 Board-B writer authority:
+
+```text
+INTENDED_TARGET=BOARD_A
+FRESH_PREFLIGHT_RESULT=STOP
+STOP_REASON=CONNECTED_TARGET_MATCHES_FROZEN_BOARD_B_IDENTITY
+FLASH_WRITE=false
+AUTHORIZATION_CONSUMED=false
+```
+
+Repository history also contains an older Board-B public identity authority that differs from the later PR #445 Board-B rebind. Because the project previously corrected A/B mapping labels and explicitly treats USB paths as locators only, this is an identity-authority conflict, not permission to guess which label is correct.
+
+Until reconciled:
+
+```text
+BOARD_A_WRITE=BLOCKED
+BOARD_B_WRITE=BLOCKED_FOR_THIS_GATE
+NEXT_ACTION=READONLY_IDENTITY_AUTHORITY_RECONCILIATION
+```
