@@ -942,3 +942,49 @@ AUTO_EXECUTE_NEXT_GATE=false
 ```
 
 Keep Board A at the Relay-child location and Board B at the Direct/Gateway location until the failback gate is explicitly entered. Do not reset or power-cycle either board.
+
+
+## 2026-09-22 Board A same-boot Relay -> Direct failback gate entry
+
+Fresh entry state:
+
+```text
+PR471_HEAD_BEFORE_ENTRY=3ee3df2e941f0c72491577a45104890853cb6c8a
+PR471_CI_BEFORE_ENTRY=12_OF_12_PASS
+PR471_STATE=OPEN_DRAFT
+PR471_MERGEABLE=true
+
+BOARD_A_NODE_ID_SHA256=7ad414b84b17eef4de09cd71ccd676fcf5bb43eb72649939fc6423851d8a5eb5
+BOARD_A_BATTERY_BOOT_SESSION_SHA256=51382692150b4a9feb6f49587fa24825b55036723b1aa5fc67a82a82201a56b1
+BOARD_A_CURRENT_ROLE=RELAY_CHILD
+BOARD_A_RELAY_CONTINUITY_600S=PASS
+
+BOARD_B_NODE_ID_SHA256=dad9009b72b0c58a45d9041072d99eb3f1b8db9e520e1b844ff30cac2c8a0a59
+BOARD_B_BOOT_SESSION_SHA256=45a08a743fda98fc778118c46d2872538e78c79029c0323215a8cdf3acce78f2
+BOARD_B_CURRENT_ROLE=DIRECT_GATEWAY
+
+AUTHORIZED_GATE=N3W_PR437_BOARD_A_SAME_BOOT_RELAY_TO_DIRECT_FAILBACK_20260922_01
+PHYSICAL_MOVEMENT_AUTHORIZED=true
+```
+
+Execution contract:
+
+```text
+BOARD_A_MOVE_ONLY=true
+BOARD_A_POWER_CYCLE=false
+BOARD_A_RESET=false
+BOARD_B_MOVE=false
+BOARD_B_POWER_CYCLE=false
+BOARD_B_RESET=false
+APPLICATION_SERIAL_OPEN=false
+T1_RUNTIME_MUTATION=false
+
+FAILBACK_TIMEOUT_SECONDS=180
+DIRECT_CONFIRM_REQUIRED_SEQ_DELTA=2
+BOARD_A_SAME_BOOT_REQUIRED=true
+BOARD_B_SAME_BOOT_REQUIRED=true
+BOARD_B_SOURCE_MUST_REMAIN_DIRECT=true
+RELAY_AFTER_FIRST_DIRECT_NOT_ALLOWED=true
+```
+
+The operator moves Board A from the Relay-child location back into the previously validated Wi-Fi/Direct coverage area while keeping battery power uninterrupted. Manager canonical durable state is the failback authority. The observer must require first Direct acceptance and at least two further Direct sequence advances, preserve same-boot continuity, and stop without entering another test automatically.
