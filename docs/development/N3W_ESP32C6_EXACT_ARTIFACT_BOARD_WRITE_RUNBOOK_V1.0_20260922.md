@@ -382,3 +382,25 @@ PRE_RESET_BOOT_HISTORY_NOT_REQUIRED=true
 ```
 
 Once a physical-acceptance same-boot baseline has been established through this method, later role-transition gates must preserve that boot session. Any reset or power cycle invalidates the baseline and requires a new baseline before claiming same-boot transition evidence.
+
+
+## Fresh-peer discovery before role assignment
+
+When one board is already runtime-bound, do not assume that exactly one other fresh Direct canonical node will already be visible and then interpret zero matches as a board failure.
+
+Use a two-stage observer:
+
+1. enumerate the complete current canonical inventory with public-safe node hashes, source, boot hash, sequence and cursor age;
+2. classify presence/freshness/path before assigning a physical role.
+
+```text
+ZERO_OTHER_FRESH_DIRECT_IS_NOT_PRODUCT_FAILURE=true
+CANONICAL_INVENTORY_FIRST=true
+ROLE_ASSIGNMENT_AFTER_INVENTORY=true
+RAW_NODE_ID_PUBLIC=false
+RAW_BOOT_ID_PUBLIC=false
+```
+
+A missing fresh peer can mean the peer is powered off, stale, currently Relay, outside network coverage, not yet canonical after a recent boot, or otherwise not visible to the current Manager observer. The observer must classify these states before requesting physical intervention.
+
+Do not reset a peer merely to make identification easier when the physical gate is intended to preserve an existing same-boot session on another board.
