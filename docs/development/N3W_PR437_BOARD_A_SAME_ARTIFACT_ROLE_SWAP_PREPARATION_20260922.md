@@ -1,6 +1,6 @@
 # N3-W PR #437 Board A same-artifact role-swap preparation — 2026-09-22
 
-Status: `BOARD_A_SAME_ARTIFACT_WRITE_PASS; BOARD_A_BATTERY_DIRECT_REBASELINE_PASS; BOARD_A_TO_BOARD_B_ROLE_SWAP_PASS; RELAY_CONTINUITY_PENDING`
+Status: `BOARD_A_SAME_ARTIFACT_WRITE_PASS; BOARD_A_BATTERY_DIRECT_REBASELINE_PASS; BOARD_A_TO_BOARD_B_ROLE_SWAP_PASS; BOARD_A_RELAY_CONTINUITY_600S_PASS; FAILBACK_PENDING`
 
 Canonical board-write procedure: `docs/development/N3W_ESP32C6_EXACT_ARTIFACT_BOARD_WRITE_RUNBOOK_V1.0_20260922.md`
 
@@ -872,3 +872,73 @@ REPLAY_SEQUENCE_CONTINUITY_REQUIRED=true
 The observer may use Manager canonical durable state plus the replay registry. The replay registry proves sequence presence within the current boot; the canonical cursor proves the currently visible path and gateway. Because replay rows do not store ingress source, the gate must report source observations accurately and must not claim per-row Relay provenance beyond what the canonical observer proves.
 
 On PASS, stop with Board A still at the Relay-child location and Board B still at the Direct/Gateway location. Do not auto-execute Relay -> Direct failback.
+
+
+## 2026-09-22 Board A Relay continuity 600 s closure
+
+The reversed-role topology remained unchanged for the full 600-second observation:
+
+```text
+BOARD_A_ROLE=RELAY_CHILD
+BOARD_B_ROLE=DIRECT_GATEWAY
+OBSERVATION_SECONDS=600
+
+BOARD_A_SEQ_START=258
+BOARD_A_SEQ_END=378
+BOARD_A_SEQ_DELTA=120
+BOARD_A_SOURCE_START=relay
+BOARD_A_SOURCE_END=relay
+BOARD_A_SAME_BATTERY_BOOT=true
+BOARD_A_RELAY_GATEWAY_IS_BOARD_B_START=true
+BOARD_A_RELAY_GATEWAY_IS_BOARD_B_END=true
+
+BOARD_B_SEQ_START=970
+BOARD_B_SEQ_END=1090
+BOARD_B_SEQ_DELTA=120
+BOARD_B_SOURCE_START=direct
+BOARD_B_SOURCE_END=direct
+BOARD_B_SAME_BOOT=true
+BOARD_B_DIRECT_REMAINS_HEALTHY=true
+
+EXPECTED_ROW_COUNT=121
+ACCEPTED_ROW_COUNT=121
+MISSING_SEQUENCE_COUNT=0
+MISSING_SEQUENCE_RANGE=NONE
+
+MAX_MANAGER_INTERARRIVAL_SECONDS=31.542
+MAX_BOARD_A_CURSOR_AGE_SECONDS=31.521
+MAX_BOARD_B_CURSOR_AGE_SECONDS=5.019
+
+SOURCE_NON_RELAY_OBSERVED=false
+GATEWAY_MISMATCH_OBSERVED=false
+
+BOARD_A_RELAY_DATA_CONTINUITY_600S=PASS
+BOARD_A_RELAY_MISSING_SEQUENCE_COUNT=0
+BOARD_A_RELAY_GATEWAY_STABLE=true
+BOARD_B_DIRECT_REMAINS_HEALTHY_600S=true
+
+MANAGER_RESTART_COUNT_BEFORE=0
+MANAGER_RESTART_COUNT_AFTER=0
+MANAGER_STARTED_AT_UNCHANGED=true
+
+BOARD_A_MUTATION=false
+BOARD_B_MUTATION=false
+T1_RUNTIME_MUTATION=false
+APPLICATION_SERIAL_OPEN=false
+
+N3W_PR437_BOARD_A_RELAY_CONTINUITY_600S=PASS
+RELAY_CONTINUITY_GATE_RESULT=PASS
+```
+
+The 31.542 s maximum Manager interarrival is a latency/buffering observation, not data loss: every expected replay tuple from seq 258 through 378 is present.
+
+```text
+REVERSED_ROLE_RELAY_STEADY_STATE=PASS
+REVERSED_ROLE_RELAY_ZERO_MISSING_600S=PASS
+ROLE_SYMMETRY_STEADY_STATE_EVIDENCE=PASS
+
+NEXT_ONE_GATE=N3W_PR437_BOARD_A_SAME_BOOT_RELAY_TO_DIRECT_FAILBACK_20260922_01
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+Keep Board A at the Relay-child location and Board B at the Direct/Gateway location until the failback gate is explicitly entered. Do not reset or power-cycle either board.
