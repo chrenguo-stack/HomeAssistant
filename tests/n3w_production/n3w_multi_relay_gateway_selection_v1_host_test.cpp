@@ -71,6 +71,7 @@ struct FakePort final : SimpleProductPort {
   bool channel_success{true};
   bool broadcast_success{true};
   bool install_success{true};
+  bool remove_success{true};
   bool encrypted_success{true};
   bool direct_success{true};
   bool relay_success{true};
@@ -97,7 +98,7 @@ struct FakePort final : SimpleProductPort {
   }
   bool remove_peer(const MacAddress &mac) override {
     removed.push_back(mac);
-    return true;
+    return remove_success;
   }
   bool send_encrypted_peer(
       const MacAddress &,
@@ -238,6 +239,96 @@ std::string select_after_window(const std::vector<Sample> &samples) {
   assert(runtime.tick() == SimpleProductError::NONE);
   assert(runtime.challenge_pending());
   return last_challenge(port).relay_node_id;
+}
+
+struct AcceptTimingOutcome {
+  SimpleProductError receive_result{SimpleProductError::NONE};
+  LocalPathState path{LocalPathState::DIRECT};
+  bool challenge_pending{false};
+  bool selection_busy{false};
+};
+
+AcceptTimingOutcome run_valid_accept_at(
+    uint64_t accept_time_ms,
+    bool tick_before_receive) {
+  FakeClock child_clock;
+  FakeClock relay_clock;
+  FakeRandom child_random;
+  FakeRandom relay_random;
+  FakePort child_port;
+  FakePort relay_port;
+  SimpleProductRuntime child(&child_port, &child_clock, &child_random);
+  SimpleProductRuntime relay(&relay_port, &relay_clock, &relay_random);
+  const MacAddress child_mac{0x02, 0x00, 0x00, 0x00, 0x02, 0xC1};
+  const MacAddress relay_mac{0x02, 0x00, 0x00, 0x00, 0x02, 0xA1};
+
+  assert(
+      child.start(
+          make_state("node_child", 0x52),
+          child_mac,
+          0,
+          SimpleProductStartMode::DISCOVERY) ==
+      SimpleProductError::NONE);
+  assert(
+      relay.start(
+          make_state("node_relay_a", 0x52),
+          relay_mac,
+          1,
+          SimpleProductStartMode::DIRECT) ==
+      SimpleProductError::NONE);
+  relay.set_relay_capable(true);
+  assert(relay.tick() == SimpleProductError::NONE);
+  const auto discovery = relay_port.broadcasts.back();
+  assert(
+      child.on_radio_receive(
+          relay_mac, discovery.data(), discovery.size(), 1, -60) ==
+      SimpleProductError::NONE);
+
+  child_clock.value = 7500;
+  assert(child.tick() == SimpleProductError::NONE);
+  const auto challenge = child_port.broadcasts.back();
+  assert(
+      relay.on_radio_receive(
+          child_mac, challenge.data(), challenge.size(), 1, -55) ==
+      SimpleProductError::NONE);
+  const auto accept = relay_port.broadcasts.back();
+
+  child_clock.value = accept_time_ms;
+  if (tick_before_receive) {
+    assert(child.tick() == SimpleProductError::NONE);
+  }
+  const SimpleProductError receive_result =
+      child.on_radio_receive(
+          relay_mac, accept.data(), accept.size(), 1, -60);
+  if (!tick_before_receive &&
+      receive_result != SimpleProductError::NONE) {
+    assert(child.tick() == SimpleProductError::NONE);
+  }
+
+  return AcceptTimingOutcome{
+      receive_result,
+      child.path_state(),
+      child.challenge_pending(),
+      child.gateway_selection_busy(),
+  };
+}
+
+bool worst_phase_candidate_is_collectible(
+    uint16_t advertisement_phase_ms,
+    uint8_t relay_channel) {
+  static constexpr std::array<uint8_t, 3> channels{1, 6, 11};
+  static constexpr uint32_t dwell_ms = 250;
+  static constexpr uint32_t advertisement_period_ms = 2000;
+  static constexpr uint32_t candidate_window_ms = 6500;
+
+  for (uint32_t advertisement_ms = advertisement_phase_ms;
+       advertisement_ms < candidate_window_ms;
+       advertisement_ms += advertisement_period_ms) {
+    const std::size_t channel_index =
+        (advertisement_ms / dwell_ms) % channels.size();
+    if (channels[channel_index] == relay_channel) return true;
+  }
+  return false;
 }
 
 bool role_pair_works(
