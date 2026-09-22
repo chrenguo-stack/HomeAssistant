@@ -331,15 +331,21 @@ The ESP-NOW driver already captures RSSI and therefore is **not** in the initial
 Test-file allowlist:
 
 ```text
-tests/n3w_phase4/n3w_phase4_runtime_host_test.cpp
-tests/n3w_phase4/test_phase4_source_contract.py
-tests/n3w_kf089/test_relay_discovery_observability_contract.py
-tests/n3w_phase4/test_multi_relay_gateway_selection_v1_contract.py   # new
+tests/n3w_production/n3w_multi_relay_gateway_selection_v1_host_test.cpp      # new
+tests/n3w_production/test_multi_relay_gateway_selection_v1_contract.py       # new
 ```
 
-The KF-089 observability test is explicitly included because its current host helper assumes the first discovery immediately creates `pending_challenge_`; that assertion becomes stale once the candidate window is introduced.
+The existing `tests/n3w_phase4/**` and `tests/n3w_kf089/**` suites remain bound to the frozen lab component `greenhouse_n3w_core`; Gateway Selection V1 changes the independent production fork `greenhouse_n3w_product_core`, so those frozen-lab tests must not be edited just to make the production fork pass.
 
-If implementation proves another product or test file is required, SOURCE_REPAIR must stop and expand the allowlist explicitly rather than editing opportunistically.
+CI-file allowlist:
+
+```text
+.github/workflows/n3w-production-multi-relay-gateway-selection-v1-ci.yml     # new
+```
+
+The dedicated workflow must run the production host contract/behavior test and compile the current F1.0-RC2 N3-W target against `greenhouse_n3w_product_core`. This is required because the current frozen Phase4/KF-089 CI paths exercise `greenhouse_n3w_core`, while the normal F1.0-RC2 workflow path filter does not cover changes made only under `firmware/esphome_rc/components/greenhouse_n3w_product_core/**`.
+
+If implementation proves another product, test, or CI file is required, SOURCE_REPAIR must stop and expand the allowlist explicitly rather than editing opportunistically.
 
 ## 10. Regression matrix
 
