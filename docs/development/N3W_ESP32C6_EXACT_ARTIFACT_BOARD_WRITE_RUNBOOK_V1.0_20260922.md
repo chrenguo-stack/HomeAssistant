@@ -526,3 +526,23 @@ ROLE_SWAP_FUNCTIONAL_RESULT=PASS
 ```
 
 This adds opposite-direction role-symmetry evidence to the historical Board-B-as-Child runs. It does not change the frozen Option-B reliability boundary: Direct -> Relay transition loss can occur, while Relay steady-state zero-loss continuity is a separate gate.
+
+
+## Validated reversed-role Relay steady-state pattern
+
+The 2026-09-22 Board-A-as-Child / Board-B-as-Gateway run completed a 600-second Relay continuity window with zero missing replay sequence.
+
+```text
+OBSERVATION_SECONDS=600
+RELAY_START_SEQ=258
+RELAY_END_SEQ=378
+EXPECTED_ROW_COUNT=121
+ACCEPTED_ROW_COUNT=121
+MISSING_SEQUENCE_COUNT=0
+SOURCE_NON_RELAY_OBSERVED=false
+GATEWAY_MISMATCH_OBSERVED=false
+MAX_MANAGER_INTERARRIVAL_SECONDS=31.542
+RELAY_DATA_CONTINUITY_600S=PASS
+```
+
+A long Manager-visible interarrival can coexist with complete ordered delivery. Treat replay tuple completeness as the loss oracle and the interarrival maximum as a separate latency/buffering metric.
