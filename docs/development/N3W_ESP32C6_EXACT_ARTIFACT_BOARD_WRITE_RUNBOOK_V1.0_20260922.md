@@ -461,3 +461,28 @@ DUAL_DIRECT_BASELINE=PASS
 ```
 
 This separates later movement-induced path changes from pre-existing liveness problems. After a dual-Direct baseline passes, any reset or power cycle of either participant invalidates the same-boot role-swap starting condition and requires re-baselining.
+
+
+## Power-source changes and same-boot acceptance
+
+A same-boot physical transition claim cannot span an intentional power-source change that reboots the board.
+
+If a board must switch from USB power to battery power before movement:
+
+```text
+POWER_SOURCE_CHANGE_REBOOTS_BOARD=true
+OLD_SAME_BOOT_BASELINE_INVALID_AFTER_POWER_CHANGE=true
+NEW_BASELINE_REQUIRED=true
+```
+
+The accepted pattern is:
+
+1. complete the power-source change before physical path movement;
+2. allow exactly the expected reboot;
+3. keep the board in the Direct/Wi-Fi location;
+4. bind the new boot from Manager canonical durable state;
+5. prove Direct advancement on that new boot;
+6. only then begin the movement gate;
+7. require no further reboot or power cycle during Direct -> Relay.
+
+The same-boot interval begins at the post-power-change Direct baseline, not at an earlier USB-powered baseline.
