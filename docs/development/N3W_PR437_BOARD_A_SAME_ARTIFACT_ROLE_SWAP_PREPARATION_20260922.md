@@ -65,15 +65,16 @@ The current Board-B writer cannot be reused unchanged because it deliberately ha
 The Board-A executor therefore uses:
 
 1. fresh ROM identity read;
-2. hard rejection if the connected target equals the frozen Board B public-safe identity hash;
-3. ESP32-C6 / 8 MB / security-state / partition-table verification;
-4. read-only prewrite application-window and OTA-data hashes;
-5. `STOP_PENDING_OPERATOR` after showing the public-safe connected hardware hash;
-6. explicit operator confirmation that the connected target is Board A;
-7. fresh identity re-read;
-8. single-use authorization claim;
-9. minimal app + OTA-data write;
-10. exact application + partition-table post-write readback; post-boot OTA-data is observation-only and is never compared byte-for-byte with the initial OTA-data image.
+2. ESP32-C6 / 8 MB / security-state / partition-table verification;
+3. emit the public-safe fresh silicon hash;
+4. explicit operator confirmation that the connected physical target is Board A;
+5. require the exact fresh silicon hash to be echoed into the write command;
+6. fresh identity re-read immediately before mutation;
+7. single-use authorization claim;
+8. minimal app + OTA-data write;
+9. exact application + partition-table post-write readback; post-boot OTA-data is observation-only and is never compared byte-for-byte with the initial OTA-data image.
+
+The current application contents are deliberately not read or used to distinguish Board A from Board B. Unknown or older pre-write application state is allowed.
 
 A preflight older than 15 minutes cannot be used for the write.
 
@@ -147,29 +148,32 @@ NEXT_PHYSICAL_STOP=BOARD_A_READONLY_PREFLIGHT_THEN_OPERATOR_TARGET_CONFIRMATION
 ```
 
 
-## 2026-09-22 identity preflight stop
+## 2026-09-22 preflight correction
 
-The first fresh Board A preflight reached the silicon identity check and stopped before any flash mutation.
+The first fresh Board-A preflight reached the silicon identity guard and stopped before any flash mutation.
 
 ```text
 ARTIFACT_SIZE_MATCH=PASS
 ARTIFACT_SHA256_MATCH=PASS
 BOARD_A_PREFLIGHT=STOP
-STOP_REASON=connected target matches frozen Board B identity
+STOP_REASON=historical Board-B hash used as hard exclusion
 FLASH_WRITE=false
 PRODUCT_NVS_WRITE=false
 AUTHORIZATION_CONSUMED=false
 ```
 
-This does not prove that the operator connected the wrong board. Repository history contains a later PR #445 Board-B identity rebind and an older Board-B identity authority, while the September mapping-alignment record states that historical A/B labels were corrected and USB paths are locator-only.
+The stop itself was safe. The admission rule was then reviewed and corrected.
 
-Therefore the physical gate is now fail-closed on identity authority:
+Current rule:
 
 ```text
-PHYSICAL_WRITE_READY=false
-IDENTITY_AUTHORITY_RECONCILIATION_REQUIRED=true
-AUTO_REBIND_EXPECTED_HASH=false
-AUTO_WRITE=false
+PREWRITE_APPLICATION_HASH_REQUIRED=false
+PREWRITE_APPLICATION_HASH_USED_FOR_BOARD_IDENTITY=false
+HISTORICAL_BOARD_B_HASH_AS_HARD_EXCLUSION=false
+FRESH_ROM_SILICON_HASH_CAPTURE_REQUIRED=true
+OPERATOR_TARGET_CONFIRMATION_REQUIRED=true
+WRITE_MUST_ECHO_PREFLIGHT_HARDWARE_HASH=true
+FRESH_SILICON_REREAD_BEFORE_WRITE=true
 ```
 
-No Board A/B writer constant may be changed until the current physical labels are reconciled against fresh ROM silicon evidence and the corrected board mapping.
+This supports both existing boards with arbitrary older firmware and future boards whose application region is initially unknown. A blank board with an incompatible or missing partition table remains a separate factory-provisioning case.
