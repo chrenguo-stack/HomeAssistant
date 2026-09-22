@@ -40,6 +40,11 @@ TelemetryAdmissionPlan plan_business_telemetry_admission(
     LocalPathState path_state,
     bool direct_mqtt_available);
 
+bool gateway_selection_local_fault_requires_restore(
+    SimpleProductError result,
+    bool selection_busy_before,
+    bool selection_busy_after);
+
 enum class SimpleProductStartMode : uint8_t {
   DIRECT = 0,
   DISCOVERY,
@@ -56,6 +61,7 @@ enum class DiscoveryRejectReason : uint8_t {
   IDENTITY_CONFLICT = 7,
   RSSI_INVALID = 8,
   SELECTION_FROZEN = 9,
+  CANDIDATE_CAPACITY = 10,
 };
 
 struct DirectRecoveryCommitResult {
@@ -71,6 +77,8 @@ struct SimpleProductPolicy {
   uint32_t challenge_timeout_ms{1500};
   uint32_t relay_advertisement_interval_ms{2000};
   uint32_t candidate_window_ms{6500};
+  uint32_t gateway_selection_transaction_max_ms{30000};
+  std::size_t max_gateway_candidates{8};
   std::size_t max_relay_children{8};
 
   bool valid() const;
@@ -284,6 +292,7 @@ class SimpleProductRuntime {
   struct GatewaySelectionEpoch {
     std::vector<RelayCandidate> candidates{};
     uint64_t deadline_ms{0};
+    uint64_t transaction_deadline_ms{0};
     bool frozen{false};
   };
 
