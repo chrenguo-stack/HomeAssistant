@@ -78,7 +78,7 @@ Before any write, the target-specific executor must prove:
 - artifact ZIP size/hash and exact member set;
 - manifest source/tree/config/toolchain/hash binding;
 - firmware image is for ESP32-C6;
-- exact intended board identity or an explicit fail-closed board discriminator;
+- fresh ROM-silicon identity capture bound to the operator-confirmed physical target;
 - 8 MB flash;
 - Secure Boot state expected by the route;
 - Flash Encryption state expected by the route;
@@ -207,59 +207,69 @@ Do not "try another command" after such a stop until the failure class is unders
 
 PR #471 adapts the same method to Board A while reusing the exact Board-B physical artifact.
 
-The Board-A writer adds:
+The Board-A writer uses:
 
-- hard rejection of the frozen Board-B identity;
-- explicit operator confirmation that the connected target is Board A;
+- fresh ROM-silicon identity capture;
+- explicit operator confirmation that the connected physical target is Board A;
+- binding of the write to the exact fresh silicon hash, exact serial-port locator and a single-use 15-minute preflight;
 - exact application readback after write;
 - partition-table readback after write;
 - post-boot OTA-data observation for evidence only, never equality-gated.
 
+The current contents of the application partition are not an identity authority and are not a preflight admission requirement.
+
 ```text
 HISTORICAL_BOARD_B_METHOD_REUSED=true
+PREWRITE_APPLICATION_HASH_REQUIRED=false
+PREWRITE_APPLICATION_HASH_USED_FOR_IDENTITY=false
+FRESH_ROM_SILICON_IDENTITY_REQUIRED=true
+OPERATOR_PHYSICAL_TARGET_CONFIRMATION_REQUIRED=true
 AD_HOC_FLASH_COMMANDS_FORBIDDEN=true
 SYSTEM_CURL_PRIMARY_ARTIFACT_TRANSPORT=false
 POSTBOOT_OTADATA_BYTE_EQUALITY_ORACLE=false
 ```
 
 
-## Board label / silicon identity conflict rule
+## Board identity and unknown prewrite firmware rule
 
-A USB port name and an operator label are not sufficient mutation authority.
+Board identity and existing application contents are separate concerns.
 
-If a freshly read ROM-silicon-derived public identity hash conflicts with the intended Board A/B role, the executor must STOP before mutation.
+A board may be new, blank, factory-programmed, running an older test image, or running an unknown application. None of those states should prevent an application refresh merely because the pre-write application hash is not known.
 
 ```text
+APPLICATION_HASH_IS_BOARD_IDENTITY=false
+PREWRITE_APPLICATION_HASH_REQUIRED=false
+UNKNOWN_PREWRITE_APPLICATION_ALLOWED=true
+FRESH_ROM_SILICON_IDENTITY_CAPTURE=true
+WRITE_BOUND_TO_FRESH_SILICON_HASH=true
 USB_PORT_IS_LOCATOR_ONLY=true
-OPERATOR_LABEL_ALONE_IS_NOT_MUTATION_AUTHORITY=true
-FRESH_ROM_SILICON_BINDING_REQUIRED=true
-IDENTITY_CONFLICT_FAIL_CLOSED=true
-AUTO_REBIND_ON_CONFLICT=false
-FLASH_WRITE_ON_CONFLICT=false
 ```
 
-Do not work around an identity conflict by changing the expected hash, swapping labels in code, or bypassing the guard.
+For a board that does not yet have a trusted logical A/B inventory entry, the safe binding is established at preflight time:
 
-The correct next step is a read-only identity-authority reconciliation using historical board mapping records plus fresh silicon evidence. Only after the physical Board A/B mapping is explicitly re-established may the writer binding be changed.
+1. the operator identifies the physical target;
+2. the executor reads the ROM-silicon identity;
+3. the preflight records the public-safe silicon hash and serial-port hash;
+4. the write command must repeat that exact silicon hash explicitly;
+5. the executor re-reads the silicon immediately before mutation and requires equality with the preflight.
 
-### 2026-09-22 observed conflict
+An old application hash may be collected for diagnostics, but it must never be required to distinguish Board A from Board B or to admit a new board into the write path.
 
-The intended Board A preflight observed a ROM-silicon-derived public identity that matched the current PR #437 Board-B writer authority:
+A truly blank/new board may still require a different factory-provisioning route if its bootloader, partition table, or product provisioning state is absent or incompatible. That is a separate concern from application identity.
+
+### 2026-09-22 correction
+
+The first Board-A preflight stopped because the executor treated a historical Board-B silicon hash as a permanent exclusion rule. That was too strict for a project whose A/B labels had previously been corrected and is not a general solution for new boards.
+
+The replacement contract is:
 
 ```text
-INTENDED_TARGET=BOARD_A
-FRESH_PREFLIGHT_RESULT=STOP
-STOP_REASON=CONNECTED_TARGET_MATCHES_FROZEN_BOARD_B_IDENTITY
-FLASH_WRITE=false
-AUTHORIZATION_CONSUMED=false
+HISTORICAL_OTHER_BOARD_HASH_AS_HARD_EXCLUSION=false
+FRESH_SILICON_HASH_AS_CURRENT_WRITE_BINDING=true
+EXISTING_APPLICATION_HASH_AS_DISCRIMINATOR=false
+OPERATOR_TARGET_CONFIRMATION=true
+WRITE_REQUIRES_PREFLIGHT_HASH_ECHO=true
+WRITE_REQUIRES_FRESH_SILICON_REREAD=true
 ```
 
-Repository history also contains an older Board-B public identity authority that differs from the later PR #445 Board-B rebind. Because the project previously corrected A/B mapping labels and explicitly treats USB paths as locators only, this is an identity-authority conflict, not permission to guess which label is correct.
-
-Until reconciled:
-
-```text
-BOARD_A_WRITE=BLOCKED
-BOARD_B_WRITE=BLOCKED_FOR_THIS_GATE
-NEXT_ACTION=READONLY_IDENTITY_AUTHORITY_RECONCILIATION
-```
+The earlier STOP remains valid as a fail-closed event, but its hard-exclusion rule is superseded by this corrected binding model.
