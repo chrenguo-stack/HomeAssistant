@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -52,6 +53,9 @@ enum class DiscoveryRejectReason : uint8_t {
   TRUST_GENERATION_MISMATCH = 4,
   SELF_RELAY = 5,
   CHANNEL_MISMATCH = 6,
+  IDENTITY_CONFLICT = 7,
+  RSSI_INVALID = 8,
+  SELECTION_FROZEN = 9,
 };
 
 struct DirectRecoveryCommitResult {
@@ -66,6 +70,7 @@ struct SimpleProductPolicy {
   uint32_t scan_dwell_ms{250};
   uint32_t challenge_timeout_ms{1500};
   uint32_t relay_advertisement_interval_ms{2000};
+  uint32_t candidate_window_ms{6500};
   std::size_t max_relay_children{8};
 
   bool valid() const;
@@ -232,7 +237,8 @@ class SimpleProductRuntime {
       const MacAddress &source,
       const uint8_t *data,
       std::size_t size,
-      uint8_t channel);
+      uint8_t channel,
+      int16_t rssi_dbm);
 
   void set_relay_capable(bool value) { relay_capable_ = value; }
   void set_diagnostic_sink(SimpleProductDiagnosticSink *sink) {
@@ -246,6 +252,10 @@ class SimpleProductRuntime {
     return active_relay_;
   }
   bool challenge_pending() const { return pending_challenge_.has_value(); }
+  bool gateway_selection_busy() const {
+    return gateway_selection_epoch_.has_value() ||
+           pending_challenge_.has_value();
+  }
   std::size_t relay_child_count() const { return relay_children_.size(); }
   const ProvisionedPeerStateV2 &provisioned_state() const { return state_; }
 
@@ -260,13 +270,47 @@ class SimpleProductRuntime {
     uint64_t expires_at_ms{0};
   };
 
+  struct RelayCandidate {
+    std::string relay_node_id;
+    MacAddress mac{};
+    uint8_t channel{0};
+    int64_t rssi_sum{0};
+    uint32_t rssi_sample_count{0};
+    uint64_t first_seen_ms{0};
+    uint64_t last_seen_ms{0};
+    bool attempted{false};
+  };
+
+  struct GatewaySelectionEpoch {
+    std::vector<RelayCandidate> candidates{};
+    uint64_t deadline_ms{0};
+    bool frozen{false};
+  };
+
   SimpleProductError begin_discovery_();
   SimpleProductError leave_relay_for_discovery_();
   SimpleProductError restore_direct_();
   SimpleProductError handle_discovery_(
       const MacAddress &source,
       const SimpleRelayDiscovery &packet,
-      uint8_t channel);
+      uint8_t channel,
+      int16_t rssi_dbm);
+  void clear_gateway_selection_();
+  SimpleProductError add_or_update_gateway_candidate_(
+      const MacAddress &source,
+      const SimpleRelayDiscovery &packet,
+      uint8_t channel,
+      int16_t rssi_dbm,
+      uint64_t now_ms);
+  SimpleProductError attempt_next_gateway_candidate_();
+  SimpleProductError start_challenge_for_candidate_(
+      const RelayCandidate &candidate);
+  SimpleProductError select_next_gateway_candidate_(
+      std::size_t *candidate_index) const;
+  RelayCandidate *find_gateway_candidate_by_node_(
+      const std::string &relay_node_id);
+  RelayCandidate *find_gateway_candidate_by_mac_(const MacAddress &mac);
+  static bool valid_discovery_rssi_(int16_t rssi_dbm);
   SimpleProductError handle_challenge_(
       const MacAddress &source,
       const SimplePeerChallenge &packet,
@@ -303,6 +347,7 @@ class SimpleProductRuntime {
   bool started_{false};
   bool relay_capable_{true};
   std::optional<PendingChallenge> pending_challenge_{};
+  std::optional<GatewaySelectionEpoch> gateway_selection_epoch_{};
   std::optional<SimpleProductRelayPeer> active_relay_{};
   std::vector<SimpleProductRelayPeer> relay_children_{};
   SimpleProductDiagnosticSink *diagnostic_sink_{nullptr};
