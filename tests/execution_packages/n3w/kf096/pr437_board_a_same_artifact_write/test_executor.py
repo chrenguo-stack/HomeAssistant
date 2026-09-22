@@ -196,3 +196,12 @@ def test_stale_preflight_is_rejected(
     )
     with pytest.raises(module.StopExecution, match="stale"):
         module.load_preflight(path, "/dev/cu.synthetic-a")
+
+
+def test_postboot_otadata_is_not_used_as_exact_equality_oracle() -> None:
+    source = MODULE_PATH.read_text(encoding="utf-8")
+    assert 'post-write OTA-data readback mismatch' not in source
+    assert 'otadata_postboot_byte_equality_oracle": False' in source
+    assert 'OTADATA_POSTBOOT_BYTE_EQUALITY_ORACLE=false' in source
+    assert 'APPLICATION_POSTWRITE_READBACK=PASS' in source
+    assert 'PARTITION_TABLE_POSTWRITE_READBACK=PASS' in source
