@@ -57,7 +57,9 @@ bool gateway_selection_digest(
 bool SimpleProductPolicy::valid() const {
   if (!path.valid() || allowed_channels.empty() || scan_dwell_ms == 0 ||
       challenge_timeout_ms == 0 || relay_advertisement_interval_ms == 0 ||
-      candidate_window_ms == 0 || max_relay_children == 0) {
+      candidate_window_ms == 0 ||
+      gateway_selection_transaction_max_ms <= candidate_window_ms ||
+      max_gateway_candidates == 0 || max_relay_children == 0) {
     return false;
   }
   return std::all_of(
@@ -84,6 +86,16 @@ TelemetryAdmissionPlan plan_business_telemetry_admission(
           ? TelemetryPathAccounting::TRANSPORT_ONLY
           : TelemetryPathAccounting::RECORD_PATH_RESULT,
   };
+}
+
+bool gateway_selection_local_fault_requires_restore(
+    SimpleProductError result,
+    bool selection_busy_before,
+    bool selection_busy_after) {
+  if (!selection_busy_before || selection_busy_after) return false;
+  return result == SimpleProductError::RADIO_FAILED ||
+         result == SimpleProductError::CRYPTO_FAILED ||
+         result == SimpleProductError::STATE_REJECTED;
 }
 
 SimpleProductRuntime::SimpleProductRuntime(
@@ -206,6 +218,11 @@ SimpleProductError SimpleProductRuntime::tick() {
     return maybe_advertise_relay_(now);
   }
   if (path_.state() == LocalPathState::DISCOVERY) {
+    if (gateway_selection_epoch_.has_value() &&
+        now >= gateway_selection_epoch_->transaction_deadline_ms) {
+      return begin_discovery_();
+    }
+
     if (pending_challenge_.has_value() &&
         now >= pending_challenge_->expires_at_ms) {
       if (gateway_selection_epoch_.has_value()) {
@@ -230,7 +247,14 @@ SimpleProductError SimpleProductRuntime::tick() {
       if (selection != SimpleProductError::NONE) return selection;
       if (gateway_selection_busy()) return SimpleProductError::NONE;
     }
-    return maybe_advance_scan_(now);
+
+    const SimpleProductError scan_result = maybe_advance_scan_(now);
+    if (scan_result != SimpleProductError::NONE &&
+        gateway_selection_epoch_.has_value()) {
+      pending_challenge_.reset();
+      clear_gateway_selection_();
+    }
+    return scan_result;
   }
   return SimpleProductError::NONE;
 }
@@ -585,6 +609,11 @@ SimpleProductError SimpleProductRuntime::handle_discovery_(
         (same_mac != nullptr &&
          same_mac->relay_node_id != packet.relay_node_id)) {
       reject_reason = DiscoveryRejectReason::IDENTITY_CONFLICT;
+    } else if (
+        same_node == nullptr &&
+        gateway_selection_epoch_->candidates.size() >=
+            policy_.max_gateway_candidates) {
+      reject_reason = DiscoveryRejectReason::CANDIDATE_CAPACITY;
     }
   }
 
@@ -606,7 +635,10 @@ SimpleProductError SimpleProductRuntime::handle_discovery_(
 
   if (!gateway_selection_epoch_.has_value()) {
     GatewaySelectionEpoch epoch;
+    epoch.candidates.reserve(policy_.max_gateway_candidates);
     epoch.deadline_ms = now + policy_.candidate_window_ms;
+    epoch.transaction_deadline_ms =
+        now + policy_.gateway_selection_transaction_max_ms;
     gateway_selection_epoch_ = std::move(epoch);
   }
   return add_or_update_gateway_candidate_(
@@ -639,6 +671,10 @@ SimpleProductError SimpleProductRuntime::add_or_update_gateway_candidate_(
   }
 
   if (same_node == nullptr) {
+    if (gateway_selection_epoch_->candidates.size() >=
+        policy_.max_gateway_candidates) {
+      return SimpleProductError::PACKET_REJECTED;
+    }
     RelayCandidate candidate;
     candidate.relay_node_id = packet.relay_node_id;
     candidate.mac = source;
@@ -733,6 +769,11 @@ SimpleProductError SimpleProductRuntime::attempt_next_gateway_candidate_() {
     return SimpleProductError::STATE_REJECTED;
   }
 
+  if (clock_->now_ms() >=
+      gateway_selection_epoch_->transaction_deadline_ms) {
+    return begin_discovery_();
+  }
+
   std::size_t candidate_index = 0;
   const SimpleProductError select_result =
       select_next_gateway_candidate_(&candidate_index);
@@ -742,8 +783,7 @@ SimpleProductError SimpleProductRuntime::attempt_next_gateway_candidate_() {
   }
   if (!gateway_selection_epoch_.has_value() ||
       candidate_index >= gateway_selection_epoch_->candidates.size()) {
-    clear_gateway_selection_();
-    return SimpleProductError::NONE;
+    return begin_discovery_();
   }
 
   const RelayCandidate candidate =
@@ -931,7 +971,21 @@ SimpleProductError SimpleProductRuntime::handle_accept_(
     }
     return SimpleProductError::STATE_REJECTED;
   }
+  if (!gateway_selection_epoch_.has_value()) {
+    pending_challenge_.reset();
+    if (diagnostic_sink_ != nullptr) {
+      diagnostic_sink_->on_accept_rx(false, now);
+    }
+    return SimpleProductError::STATE_REJECTED;
+  }
   const PendingChallenge &pending = *pending_challenge_;
+  if (now >= pending.expires_at_ms ||
+      now >= gateway_selection_epoch_->transaction_deadline_ms) {
+    if (diagnostic_sink_ != nullptr) {
+      diagnostic_sink_->on_accept_rx(false, now);
+    }
+    return SimpleProductError::PACKET_REJECTED;
+  }
   if (source != pending.relay_mac || channel != pending.channel ||
       packet.relay_node_id != pending.relay_node_id ||
       packet.child_node_id != state_.node_id ||
