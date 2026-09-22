@@ -607,6 +607,50 @@ int main() {
     assert(port.broadcasts.empty());
   }
 
+  // R2 local-fault classification is narrow: only an error that aborts an
+  // active selection transaction requests component-level Relay restore.
+  assert(gateway_selection_local_fault_requires_restore(
+      SimpleProductError::RADIO_FAILED, true, false));
+  assert(gateway_selection_local_fault_requires_restore(
+      SimpleProductError::CRYPTO_FAILED, true, false));
+  assert(gateway_selection_local_fault_requires_restore(
+      SimpleProductError::STATE_REJECTED, true, false));
+  assert(!gateway_selection_local_fault_requires_restore(
+      SimpleProductError::STATE_REJECTED, true, true));
+  assert(!gateway_selection_local_fault_requires_restore(
+      SimpleProductError::PACKET_REJECTED, true, false));
+  assert(!gateway_selection_local_fault_requires_restore(
+      SimpleProductError::RADIO_FAILED, false, false));
+
+  // A scan-channel failure during an active candidate window now aborts the
+  // transaction, so the component can consume it as a local selection fault.
+  {
+    FakeClock clock;
+    FakeRandom random;
+    FakePort port;
+    SimpleProductRuntime runtime(&port, &clock, &random);
+    const MacAddress child_mac{0x02, 0x00, 0x00, 0x00, 0x03, 0xC1};
+    assert(
+        runtime.start(
+            make_state("node_child"),
+            child_mac,
+            0,
+            SimpleProductStartMode::DISCOVERY) ==
+        SimpleProductError::NONE);
+    assert(
+        feed_discovery(runtime, mac_a, "node_relay_a", 1, -60) ==
+        SimpleProductError::NONE);
+    assert(runtime.gateway_selection_busy());
+    port.channel_success = false;
+    clock.value = 1250;
+    const bool busy_before = runtime.gateway_selection_busy();
+    const SimpleProductError result = runtime.tick();
+    assert(result == SimpleProductError::RADIO_FAILED);
+    assert(!runtime.gateway_selection_busy());
+    assert(gateway_selection_local_fault_requires_restore(
+        result, busy_before, runtime.gateway_selection_busy()));
+  }
+
   // 13/14. An invalid Accept does not force fallback. A valid authenticated
   // Accept followed by a local channel failure aborts the epoch without trying
   // the next candidate.
