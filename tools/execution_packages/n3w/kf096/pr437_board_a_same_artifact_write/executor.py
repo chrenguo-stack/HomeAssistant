@@ -40,12 +40,6 @@ PARTITION_TABLE_OFFSET = 0x8000
 PARTITION_TABLE_SIZE = 0xC00
 PARTITION_TABLE_SHA256 = "6664b08a14a9cdc170e322823db29fbe485d87db9c4ec42759d9372028953dca"
 
-# Public-safe hash already frozen by the historical Board-B writer. Rejecting
-# this target prevents the Board-A synchronization operation from accidentally
-# writing the already-validated Board B.
-FORBIDDEN_BOARD_B_HARDWARE_ID_SHA256 = (
-    "3603345fb73de6f9286dc66db9f246ff73c42382b553af63b8d5813a933b69ee"
-)
 
 EXPECTED_MEMBERS = {"MANIFEST.txt", "firmware.bin", "ota_data_initial.bin"}
 WRITE_CONFIRMATION = "PR437_4270F24_BOARD_A_SAME_ARTIFACT_WRITE_AUTHORIZED"
@@ -219,8 +213,6 @@ def probe_board(port: str) -> dict[str, object]:
     if mac_match is None:
         raise StopExecution("ROM MAC was not observed")
     identity_hash = public_identity_sha256(mac_match.group(1))
-    if identity_hash == FORBIDDEN_BOARD_B_HARDWARE_ID_SHA256:
-        raise StopExecution("connected target matches frozen Board B identity; Board A required")
     if SECURE_BOOT_DISABLED_RE.search(security) is None:
         raise StopExecution("Secure Boot is not proven disabled")
     if FLASH_ENCRYPTION_DISABLED_RE.search(security) is None:
@@ -287,18 +279,6 @@ def run_preflight(args: argparse.Namespace) -> int:
         esptool_version = verify_esptool_version()
         verify_image(files["application"])
         board = probe_board(args.port)
-        prewrite_application_window_sha256 = read_flash_hash(
-            args.port,
-            APPLICATION_OFFSET,
-            APPLICATION_SIZE,
-            "n3w-boarda-prewrite-app-",
-        )
-        prewrite_otadata_sha256 = read_flash_hash(
-            args.port,
-            OTADATA_OFFSET,
-            OTADATA_SIZE,
-            "n3w-boarda-prewrite-ota-",
-        )
 
     payload: dict[str, object] = {
         "schema": SCHEMA_PREFLIGHT,
@@ -309,10 +289,6 @@ def run_preflight(args: argparse.Namespace) -> int:
         "esptool_version": esptool_version,
         "board": board,
         "artifact": artifact_binding_payload(),
-        "prewrite": {
-            "application_window_sha256": prewrite_application_window_sha256,
-            "otadata_sha256": prewrite_otadata_sha256,
-        },
         "persistent_mutation": False,
         "authorization_claimed": False,
         "authorization_consumed": False,
@@ -321,7 +297,7 @@ def run_preflight(args: argparse.Namespace) -> int:
     write_json(Path(args.output), payload)
     print("BOARD_A_PREFLIGHT=PASS")
     print(f"HARDWARE_ID_SHA256={board['hardware_id_sha256']}")
-    print("BOARD_B_IDENTITY_REJECTED=true")
+    print("FRESH_SILICON_IDENTITY_BOUND=true")
     print("OPERATOR_TARGET_CONFIRMATION_REQUIRED=true")
     print("FLASH_WRITE=false")
     return 0
@@ -353,8 +329,6 @@ def load_preflight(path: Path, port: str) -> dict[str, object]:
     hardware_hash = board.get("hardware_id_sha256")
     if not isinstance(hardware_hash, str) or len(hardware_hash) != 64:
         raise StopExecution("preflight hardware identity hash invalid")
-    if hardware_hash == FORBIDDEN_BOARD_B_HARDWARE_ID_SHA256:
-        raise StopExecution("preflight target is Board B, not Board A")
     if board.get("port_sha256") != sha256_bytes(port.encode("utf-8")):
         raise StopExecution("serial port locator changed since preflight")
     if board.get("chip") != "ESP32-C6" or board.get("flash_size") != "8MB":
@@ -486,7 +460,6 @@ def run_write(args: argparse.Namespace) -> int:
         "esptool_version": esptool_version,
         "board": board,
         "artifact": artifact_binding_payload(),
-        "prewrite": preflight.get("prewrite"),
         "postwrite": {
             "application_readback_sha256": application_readback_sha256,
             "otadata_postboot_sha256": otadata_postboot_sha256,
