@@ -431,3 +431,27 @@ READY_FOR_GATEWAY_SELECTION_V1_SOURCE_REPAIR=true
 AUTO_EXECUTE_SOURCE_REPAIR=false
 STOP=true
 ```
+
+
+## 14. Independent review closure
+
+A fresh post-design review found one substantive documentation-boundary defect in the first draft: the proposed test allowlist included Phase4/KF-089 tests that are bound to the frozen lab component `greenhouse_n3w_core`, while Gateway Selection V1 modifies the independent production fork `greenhouse_n3w_product_core`. Editing those frozen-lab tests would have weakened the frozen PR #437 boundary and still would not have provided a dedicated production-fork CI path.
+
+The design has been corrected to use new production-specific host/contract tests and one dedicated production selection CI workflow. No product source was changed by this correction.
+
+```text
+SOURCE_DESIGN_REVIEW=PASS_AFTER_DOC_CORRECTION
+ORIGINAL_TEST_ALLOWLIST_BOUNDARY=FAIL
+CORRECTED_TEST_TARGET=greenhouse_n3w_product_core
+FROZEN_LAB_COMPONENT_CHANGED=false
+FROZEN_LAB_TESTS_CHANGED=false
+DEDICATED_PRODUCTION_SELECTION_CI_REQUIRED=true
+CANDIDATE_WINDOW_MS=6500
+RSSI_SELECTION_SEMANTICS_REVIEW=PASS
+HASH_ENCODING_REVIEW=PASS
+CHALLENGE_ACCEPT_FAILURE_POLICY_REVIEW=PASS
+NO_PROACTIVE_ROAMING_REVIEW=PASS
+SOURCE_REPAIR_ALLOWLIST_REVIEW=PASS_AFTER_CORRECTION
+READY_FOR_GATEWAY_SELECTION_V1_SOURCE_REPAIR=true
+AUTO_EXECUTE_SOURCE_REPAIR=false
+```
