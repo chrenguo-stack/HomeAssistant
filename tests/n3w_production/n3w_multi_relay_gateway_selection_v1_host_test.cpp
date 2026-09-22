@@ -11,6 +11,37 @@
 
 #include "n3w_simple_product_runtime.h"
 
+namespace {
+bool g_force_selection_hash_collision = false;
+}
+
+extern "C" int __real_mbedtls_md(
+    const mbedtls_md_info_t *md_info,
+    const unsigned char *input,
+    size_t ilen,
+    unsigned char *output);
+
+extern "C" int __wrap_mbedtls_md(
+    const mbedtls_md_info_t *md_info,
+    const unsigned char *input,
+    size_t ilen,
+    unsigned char *output) {
+  static constexpr char kDomain[] = "N3W-GWSEL-V1";
+  if (g_force_selection_hash_collision &&
+      input != nullptr &&
+      output != nullptr &&
+      ilen >= sizeof(kDomain) &&
+      std::equal(
+          kDomain,
+          kDomain + sizeof(kDomain) - 1U,
+          reinterpret_cast<const char *>(input)) &&
+      input[sizeof(kDomain) - 1U] == 0) {
+    std::fill(output, output + 32, static_cast<unsigned char>(0x5a));
+    return 0;
+  }
+  return __real_mbedtls_md(md_info, input, ilen, output);
+}
+
 using namespace esphome::greenhouse_n3w_core;
 
 namespace {
@@ -325,7 +356,17 @@ int main() {
           {mac_b, "node_relay_b", 1, -61},
       }) == hash_winner);
 
-  // 5. The quality band is anchored to the strongest candidate, so -64 dBm is
+  // 5. An exact SHA-256 digest collision falls back to Relay NODE_ID lexical
+  // order, as required by the frozen deterministic tie contract.
+  g_force_selection_hash_collision = true;
+  assert(
+      select_after_window({
+          {mac_b, "node_relay_b", 1, -61},
+          {mac_a, "node_relay_a", 1, -61},
+      }) == "node_relay_a");
+  g_force_selection_hash_collision = false;
+
+  // 6. The quality band is anchored to the strongest candidate, so -64 dBm is
   // not pulled into a transitive tie with -60/-62.
   const std::string anchored_winner =
       expected_hash_winner("node_child", "node_relay_a", "node_relay_b");
@@ -336,7 +377,7 @@ int main() {
           {mac_c, "node_relay_c", 1, -64},
       }) == anchored_winner);
 
-  // 6. Advertisement order does not change the result.
+  // 7. Advertisement order does not change the result.
   const std::string order_one =
       select_after_window({
           {mac_a, "node_relay_a", 1, -60},
@@ -349,7 +390,7 @@ int main() {
       });
   assert(order_one == order_two);
 
-  // 7. Repeated same-channel samples use the arithmetic mean, not first/last
+  // 8. Repeated same-channel samples use the arithmetic mean, not first/last
   // advertisement wins.
   assert(
       select_after_window({
@@ -358,7 +399,7 @@ int main() {
           {mac_b, "node_relay_b", 1, -65},
       }) == "node_relay_b");
 
-  // 8. A channel refresh resets the old-channel RSSI aggregate.
+  // 9. A channel refresh resets the old-channel RSSI aggregate.
   assert(
       select_after_window({
           {mac_a, "node_relay_a", 1, -40},
@@ -366,7 +407,7 @@ int main() {
           {mac_b, "node_relay_b", 6, -70},
       }) == "node_relay_b");
 
-  // 9. Logical identity conflicts are rejected and cannot create a second
+  // 10. Logical identity conflicts are rejected and cannot create a second
   // candidate.
   {
     FakeClock clock;
@@ -395,7 +436,7 @@ int main() {
     assert(last_challenge(port).relay_node_id == "node_relay_a");
   }
 
-  // 10. A submitted Challenge that times out falls through to the next
+  // 11. A submitted Challenge that times out falls through to the next
   // already-collected candidate without opening another 6500 ms window.
   {
     FakeClock clock;
@@ -428,7 +469,7 @@ int main() {
     assert(runtime.gateway_selection_busy());
   }
 
-  // 11. A local Challenge submit failure aborts the transaction instead of
+  // 12. A local Challenge submit failure aborts the transaction instead of
   // falsely blaming that candidate and blindly trying another Relay.
   {
     FakeClock clock;
@@ -456,7 +497,7 @@ int main() {
     assert(port.broadcasts.empty());
   }
 
-  // 12/13. An invalid Accept does not force fallback. A valid authenticated
+  // 13/14. An invalid Accept does not force fallback. A valid authenticated
   // Accept followed by a local channel failure aborts the epoch without trying
   // the next candidate.
   {
@@ -517,7 +558,7 @@ int main() {
     assert(!child.active_relay().has_value());
   }
 
-  // 14/15. A healthy active Relay is sticky even if a stronger Relay appears.
+  // 15/16. A healthy active Relay is sticky even if a stronger Relay appears.
   // Only the existing two-failure path returns to Discovery, where a fresh
   // selection epoch may choose another Relay.
   {
@@ -592,14 +633,14 @@ int main() {
     assert(last_challenge(child_port).relay_node_id == "node_relay_b");
   }
 
-  // 16. The same production runtime remains role-neutral: either board can be
+  // 17. The same production runtime remains role-neutral: either board can be
   // Child or Relay with no node-specific source behavior.
   const MacAddress role_a{0x02, 0x00, 0x00, 0x00, 0x01, 0xA1};
   const MacAddress role_b{0x02, 0x00, 0x00, 0x00, 0x01, 0xB1};
   assert(role_pair_works("node_a", "node_b", role_a, role_b));
   assert(role_pair_works("node_b", "node_a", role_b, role_a));
 
-  // 17. Worst-edge timing: a second Relay arriving 1 ms before the 6500 ms
+  // 18. Worst-edge timing: a second Relay arriving 1 ms before the 6500 ms
   // deadline still participates and may win.
   {
     FakeClock clock;
@@ -626,7 +667,7 @@ int main() {
     assert(last_challenge(port).relay_node_id == "node_relay_b");
   }
 
-  // 18. The receive path enforces the deadline itself because the component
+  // 19. The receive path enforces the deadline itself because the component
   // drains queued radio frames before runtime.tick(). A Relay first observed
   // at the exact deadline must not slip into the frozen candidate set.
   {
