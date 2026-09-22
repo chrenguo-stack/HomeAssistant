@@ -459,16 +459,17 @@ def run_write(args: argparse.Namespace) -> int:
             APPLICATION_SIZE,
             "n3w-boarda-postwrite-app-",
         )
-        otadata_readback_sha256 = read_flash_hash(
+        # Do not compare post-boot OTA-data bytes with ota_data_initial.bin.
+        # The booted firmware legitimately updates this partition. Historical
+        # Board-B evidence proved byte equality here is an invalid verifier.
+        otadata_postboot_sha256 = read_flash_hash(
             args.port,
             OTADATA_OFFSET,
             OTADATA_SIZE,
-            "n3w-boarda-postwrite-ota-",
+            "n3w-boarda-postwrite-ota-observation-",
         )
         if application_readback_sha256 != APPLICATION_SHA256:
             raise StopExecution("post-write application readback mismatch")
-        if otadata_readback_sha256 != OTADATA_SHA256:
-            raise StopExecution("post-write OTA-data readback mismatch")
         if read_flash_hash(
             args.port,
             PARTITION_TABLE_OFFSET,
@@ -488,7 +489,8 @@ def run_write(args: argparse.Namespace) -> int:
         "prewrite": preflight.get("prewrite"),
         "postwrite": {
             "application_readback_sha256": application_readback_sha256,
-            "otadata_readback_sha256": otadata_readback_sha256,
+            "otadata_postboot_sha256": otadata_postboot_sha256,
+            "otadata_postboot_byte_equality_oracle": False,
             "partition_table_sha256": PARTITION_TABLE_SHA256,
         },
         "authorization": {
@@ -510,8 +512,11 @@ def run_write(args: argparse.Namespace) -> int:
     print("BOARD_A_WRITE=PASS")
     print(f"HARDWARE_ID_SHA256={board['hardware_id_sha256']}")
     print(f"APPLICATION_SHA256={APPLICATION_SHA256}")
-    print(f"OTADATA_SHA256={OTADATA_SHA256}")
-    print("POSTWRITE_READBACK=PASS")
+    print(f"OTADATA_INITIAL_SHA256={OTADATA_SHA256}")
+    print(f"OTADATA_POSTBOOT_SHA256={otadata_postboot_sha256}")
+    print("OTADATA_POSTBOOT_BYTE_EQUALITY_ORACLE=false")
+    print("APPLICATION_POSTWRITE_READBACK=PASS")
+    print("PARTITION_TABLE_POSTWRITE_READBACK=PASS")
     print("PRODUCT_NVS_WRITE=false")
     print("AUTHORIZATION_CONSUMED=true")
     print("REPLAY_PERMITTED=false")
