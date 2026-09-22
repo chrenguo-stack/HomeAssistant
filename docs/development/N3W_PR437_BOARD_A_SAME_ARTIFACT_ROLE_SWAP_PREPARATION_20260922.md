@@ -591,3 +591,40 @@ The correct execution order is:
 NEXT_ONE_GATE=N3W_PR437_BOARD_A_BATTERY_DIRECT_REBASELINE_20260922_01
 AUTO_EXECUTE_ROLE_SWAP_AFTER_REBASELINE=false
 ```
+
+
+## 2026-09-22 Board A battery-powered Direct rebaseline entry
+
+Operator-confirmed physical state:
+
+```text
+BOARD_A_BATTERY_POWERED=true
+BOARD_A_REBOOT_COMPLETED=true
+BOARD_A_STILL_IN_WIFI_COVERAGE=true
+BOARD_B_UNCHANGED=true
+```
+
+Fresh repository gate state:
+
+```text
+PR471_HEAD=1ba4fc70872bfae47f7de2ae2d3d46b571601d96
+PR471_CI=12_OF_12_PASS
+PR471_STATE=OPEN_DRAFT
+PR471_MERGEABLE=true
+```
+
+The previous USB-powered Board A boot session is intentionally invalidated for the upcoming same-boot role-swap claim.
+
+This gate must:
+
+- bind the new battery-powered Board A boot from Manager canonical durable state;
+- require fresh Direct telemetry on that new boot;
+- preserve Board B's previously bound boot/session and Direct path;
+- observe both for 90 seconds;
+- perform no board/T1 persistent mutation;
+- stop after the new battery Direct baseline is established.
+
+```text
+NEXT_ONE_GATE=N3W_PR437_BOARD_A_BATTERY_DIRECT_REBASELINE_20260922_01
+AUTO_EXECUTE_ROLE_SWAP_AFTER_PASS=false
+```
