@@ -170,6 +170,7 @@ class SimpleProductComponent : public Component,
     NONE = 0,
     PRESENCE_SCAN,
     FULL_DIRECT_VERIFY,
+    GATEWAY_SELECTION_LOCAL_FAULT,
   };
 
   enum class PendingTelemetryState : uint8_t {
@@ -194,7 +195,10 @@ class SimpleProductComponent : public Component,
   bool start_runtime_if_ready_();
   bool derive_pmk_(LinkKey *pmk) const;
   void drain_send_completions_();
-  void drain_radio_();
+  bool drain_radio_();
+  bool consume_gateway_selection_runtime_result_(
+      SimpleProductError result,
+      bool selection_busy_before);
   bool check_pending_unicast_timeout_();
   void handle_pending_unicast_timeout_(uint64_t now_ms);
   void clear_tx_completion_ring_();
