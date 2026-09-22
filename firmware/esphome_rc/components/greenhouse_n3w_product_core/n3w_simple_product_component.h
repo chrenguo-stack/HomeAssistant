@@ -142,6 +142,7 @@ class SimpleProductComponent : public Component,
   struct RxSlot {
     MacAddress source{};
     uint16_t size{0};
+    int16_t rssi_dbm{-127};
     uint8_t channel{0};
     std::array<uint8_t, kEspNowPhysicalDatagramLimit> data{};
   };
