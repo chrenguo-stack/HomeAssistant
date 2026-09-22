@@ -345,3 +345,40 @@ EXACT_ONE_NODE_BOOT_CHANGE_REQUIRED=true
 PERSISTENT_MUTATION=false
 SAME_BOOT_WINDOW_STARTS_AFTER_CONTROLLED_RESET=true
 ```
+
+
+## Validated controlled-reset runtime binding pattern
+
+The 2026-09-22 Board A post-write Direct baseline physically validated the current-cursor binding method.
+
+Observed result:
+
+```text
+CONTROLLED_RESET=PASS
+PERSISTENT_MUTATION=false
+UNIQUE_CANONICAL_BOOT_CHANGE=PASS
+BOUND_NODE_PUBLIC_SHA256=7ad414b84b17eef4de09cd71ccd676fcf5bb43eb72649939fc6423851d8a5eb5
+
+DIRECT_SEQ_BEFORE=0
+DIRECT_SEQ_AFTER=19
+DIRECT_SEQ_DELTA=19
+OBSERVATION_SECONDS=90
+SAME_BOOT=true
+FINAL_SOURCE=direct
+
+MANAGER_RESTART_COUNT_UNCHANGED=true
+DIRECT_BASELINE=PASS
+```
+
+Operational lesson:
+
+```text
+PREFERRED_ALREADY_PROVISIONED_RUNTIME_BINDING=
+MANAGER_PRE_SNAPSHOT + ONE_CONTROLLED_BOARD_RESET + UNIQUE_FRESH_CANONICAL_BOOT_CHANGE
+
+APPLICATION_HASH_NOT_REQUIRED=true
+ROM_HASH_TO_REGISTRATION_JOIN_NOT_REQUIRED=true
+PRE_RESET_BOOT_HISTORY_NOT_REQUIRED=true
+```
+
+Once a physical-acceptance same-boot baseline has been established through this method, later role-transition gates must preserve that boot session. Any reset or power cycle invalidates the baseline and requires a new baseline before claiming same-boot transition evidence.
