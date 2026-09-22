@@ -1,0 +1,145 @@
+# N3-W PR #437 Board A same-artifact role-swap preparation — 2026-09-22
+
+Status: `PREPHYSICAL_PREPARATION`
+
+## Purpose
+
+Synchronize Board A to the exact physical-harness firmware already used for the final Board B PR #437 physical runs, then test the opposite role assignment:
+
+```text
+Board B = Direct / Gateway
+Board A = Relay Child after Direct loss
+```
+
+This route is independent of Gateway Selection V1 source implementation. It tests the current PR #437 role symmetry with the exact already-validated harness artifact.
+
+## Exact firmware authority
+
+```text
+SOURCE_HEAD=4270f24a92a87dd5239d781ebba624c2f34b7fc2
+SOURCE_TREE=a2f445bf2ea60ba9994a7a467f6492975d399c4f
+TARGET_CONFIG=firmware/esphome_rc/board_lab/n3w_phase4_physical/generic.yml
+TARGET_BLOB=37654481747b21ca51ccecc246bf84ca437ab7a9
+
+WORKFLOW_RUN_ID=35553142523
+ARTIFACT_ID=10619047221
+ARTIFACT_NAME=n3w-pr437-4270f24-boardb-exact-source
+ARTIFACT_ZIP_SHA256=33895089cf861a211f3f5569cd8f3e6729b0938787cda0d4a30d498ce0264895
+
+APPLICATION_SIZE=1145984
+APPLICATION_SHA256=b7836f041e8b0f68809980d516a9d9cd5c4a94f862f7d3a27515ae85d55d6843
+OTADATA_SIZE=8192
+OTADATA_SHA256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
+```
+
+Fresh GitHub metadata on 2026-09-22 shows artifact `10619047221` is still available and expires at `2026-09-28T02:12:40Z`.
+
+Despite the historical artifact name containing `boardb`, the payload was compiled from the generic Phase4 physical target. The board-specific identity and credentials remain in product NVS and are not replaced by this write route.
+
+## Write scope
+
+Only:
+
+```text
+0x9000  <- ota_data_initial.bin
+0x10000 <- firmware.bin
+```
+
+Explicitly excluded:
+
+```text
+BOOTLOADER_WRITE=false
+PARTITION_TABLE_WRITE=false
+PRODUCT_NVS_WRITE=false
+FULL_FLASH_ERASE=false
+```
+
+Post-write readback must match both exact artifact hashes and the partition table must remain unchanged.
+
+## Target-safety sequence
+
+The current Board-B writer cannot be reused unchanged because it deliberately hard-binds the historical Board B identity.
+
+The Board-A executor therefore uses:
+
+1. fresh ROM identity read;
+2. hard rejection if the connected target equals the frozen Board B public-safe identity hash;
+3. ESP32-C6 / 8 MB / security-state / partition-table verification;
+4. read-only prewrite application-window and OTA-data hashes;
+5. `STOP_PENDING_OPERATOR` after showing the public-safe connected hardware hash;
+6. explicit operator confirmation that the connected target is Board A;
+7. fresh identity re-read;
+8. single-use authorization claim;
+9. minimal app + OTA-data write;
+10. exact post-write readback.
+
+A preflight older than 15 minutes cannot be used for the write.
+
+## Role-swap physical sequence after write
+
+Do not move both boards simultaneously.
+
+### P0 — post-write Board A baseline
+
+- boot Board A normally;
+- prove Manager-visible Board A Direct telemetry is advancing;
+- prove Board B remains healthy;
+- keep both in Wi-Fi/Direct coverage long enough to establish a clean baseline.
+
+### P1 — establish Board B as the Gateway side first
+
+- place/keep Board B in the previously validated Direct/Wi-Fi position;
+- require stable Board B Direct telemetry before moving Board A;
+- no Board B flash, reset, NVS change, or T1 mutation.
+
+### P2 — move Board A to the previous Relay-child position
+
+Keep Board A in the same boot session:
+
+```text
+NO_REBOOT=true
+NO_POWER_CYCLE=true
+NO_USB_REQUIRED=true
+```
+
+Move Board A from Direct coverage to the prior remote/no-Wi-Fi test position.
+
+Acceptance:
+
+```text
+BOARD_B_SOURCE=direct
+BOARD_A_TRANSITION_TO_RELAY=PASS
+BOARD_A_RELAY_GATEWAY=BOARD_B
+BOARD_A_BOOT_SESSION_UNCHANGED=true
+```
+
+Direct -> Relay boundary loss remains allowed by the frozen Option-B contract and must be reported rather than hidden.
+
+### P3 — Relay steady-state
+
+Observe 600 seconds after stable Relay entry.
+
+Required:
+
+```text
+BOARD_A_RELAY_600S=PASS
+BOARD_A_STEADY_RELAY_MISSING_SEQUENCE_COUNT=0
+BOARD_B_DIRECT_REMAINS_HEALTHY=true
+MANAGER_RUNTIME_STABLE=true
+```
+
+### P4 — optional same-boot return
+
+After the role-symmetry result is captured, moving Board A back into Direct coverage may be used to re-prove Relay -> Direct failback, but it is a separate acceptance sub-step and must not be used to hide a failed B-as-Gateway/A-as-Child result.
+
+## Current stop point
+
+Repository preparation and CI may proceed without board access.
+
+Physical execution must stop after readonly preflight until the operator confirms that the connected target is Board A.
+
+```text
+BOARD_ACCESS_NOT_YET_PERFORMED=true
+FLASH_WRITE_NOT_YET_PERFORMED=true
+NEXT_PHYSICAL_STOP=BOARD_A_READONLY_PREFLIGHT_THEN_OPERATOR_TARGET_CONFIRMATION
+```
