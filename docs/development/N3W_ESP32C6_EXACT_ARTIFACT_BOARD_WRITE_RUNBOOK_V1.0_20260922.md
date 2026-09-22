@@ -404,3 +404,34 @@ RAW_BOOT_ID_PUBLIC=false
 A missing fresh peer can mean the peer is powered off, stale, currently Relay, outside network coverage, not yet canonical after a recent boot, or otherwise not visible to the current Manager observer. The observer must classify these states before requesting physical intervention.
 
 Do not reset a peer merely to make identification easier when the physical gate is intended to preserve an existing same-boot session on another board.
+
+
+## Fresh/stale canonical inventory classification
+
+A Manager canonical inventory can legitimately contain stale historical nodes alongside currently active nodes. Role assignment must therefore separate "present in the table" from "currently live".
+
+Validated 2026-09-22 example:
+
+```text
+CANONICAL_NODE_COUNT=3
+ACTIVE_BOARD_A_COUNT=1
+ACTIVE_BOARD_B_COUNT=1
+STALE_OTHER_NODE_COUNT=1
+```
+
+The Board B live binding was established by combining:
+
+1. a repository-frozen public-safe Board-B node hash;
+2. fresh current canonical source=direct;
+3. current cursor age within the live threshold;
+4. exclusion of a separate stale node.
+
+```text
+TABLE_PRESENCE_IS_LIVENESS=false
+FRESHNESS_REQUIRED_FOR_LIVE_ROLE_ASSIGNMENT=true
+STALE_CANONICAL_ROWS_MUST_NOT_CAUSE_ROLE_AMBIGUITY=true
+FROZEN_PUBLIC_NODE_HASH_MAY_DISAMBIGUATE_RUNTIME_ROLE=true
+RAW_NODE_ID_PUBLIC=false
+```
+
+If a frozen public-safe node hash is available and matches one fresh canonical row exactly, it is a stronger runtime-role discriminator than "unique other row" counting alone.
