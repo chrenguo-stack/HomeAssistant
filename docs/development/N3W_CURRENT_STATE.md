@@ -2,6 +2,12 @@
 
 ## 2026-09-22 A/B Relay role-swap physical acceptance closure
 
+```text
+CURRENT_NEW_CHAT_HANDOFF=docs/development/N3W_PRODUCTION_MULTI_RELAY_GATEWAY_SELECTION_V1_SOURCE_REPAIR_NEW_CHAT_HANDOFF_V1.0_20260922.md
+CURRENT_NEW_CHAT_HANDOFF_COMMIT=fce166c6b4ac9c0bd57e51502c7af6d4eb680e79
+```
+
+
 This section supersedes older statements that the reverse role direction was unproven.
 
 ```text
