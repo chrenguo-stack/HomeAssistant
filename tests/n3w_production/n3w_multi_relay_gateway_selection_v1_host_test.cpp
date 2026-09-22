@@ -848,5 +848,266 @@ int main() {
     assert(last_challenge(port).relay_node_id == "node_relay_a");
   }
 
+  // R2 frozen production bounds.
+  {
+    const SimpleProductPolicy policy{};
+    assert(policy.max_gateway_candidates == 8U);
+    assert(policy.gateway_selection_transaction_max_ms == 30000U);
+  }
+
+  // Candidate memory is bounded at eight distinct Relay identities. Existing
+  // retained candidates still update while a ninth distinct identity is
+  // rejected.
+  {
+    FakeClock clock;
+    FakeRandom random;
+    FakePort port;
+    SimpleProductRuntime runtime(&port, &clock, &random);
+    const MacAddress child_mac{0x02, 0x00, 0x00, 0x00, 0x04, 0xC1};
+    assert(
+        runtime.start(
+            make_state("node_child"),
+            child_mac,
+            0,
+            SimpleProductStartMode::DISCOVERY) ==
+        SimpleProductError::NONE);
+
+    std::array<MacAddress, 8> candidate_macs{};
+    for (std::size_t i = 0; i < candidate_macs.size(); ++i) {
+      candidate_macs[i] =
+          MacAddress{0x02, 0x00, 0x00, 0x00, 0x04,
+                     static_cast<uint8_t>(0x10U + i)};
+      assert(
+          feed_discovery(
+              runtime,
+              candidate_macs[i],
+              "node_relay_" + std::to_string(i),
+              1,
+              static_cast<int16_t>(-80 - static_cast<int>(i))) ==
+          SimpleProductError::NONE);
+    }
+
+    // Existing retained candidate may still improve its mean at capacity.
+    assert(
+        feed_discovery(
+            runtime,
+            candidate_macs[0],
+            "node_relay_0",
+            1,
+            -10) == SimpleProductError::NONE);
+
+    const MacAddress ninth_mac{0x02, 0x00, 0x00, 0x00, 0x04, 0x30};
+    assert(
+        feed_discovery(
+            runtime,
+            ninth_mac,
+            "node_relay_8",
+            1,
+            -5) == SimpleProductError::PACKET_REJECTED);
+
+    clock.value = 7500;
+    assert(runtime.tick() == SimpleProductError::NONE);
+    assert(last_challenge(port).relay_node_id == "node_relay_0");
+  }
+
+  // Eight non-responsive candidates cannot suppress Direct recovery beyond
+  // the 30 s absolute selection budget. The last pending Challenge is cut
+  // short at the transaction deadline and ordinary Discovery is re-aligned.
+  {
+    FakeClock clock;
+    FakeRandom random;
+    FakePort port;
+    SimpleProductRuntime runtime(&port, &clock, &random);
+    const MacAddress child_mac{0x02, 0x00, 0x00, 0x00, 0x05, 0xC1};
+    assert(
+        runtime.start(
+            make_state("node_child", 0x61),
+            child_mac,
+            0,
+            SimpleProductStartMode::DISCOVERY) ==
+        SimpleProductError::NONE);
+
+    std::array<MacAddress, 8> candidate_macs{};
+    for (std::size_t i = 0; i < candidate_macs.size(); ++i) {
+      candidate_macs[i] =
+          MacAddress{0x02, 0x00, 0x00, 0x00, 0x05,
+                     static_cast<uint8_t>(0x10U + i)};
+      assert(
+          feed_discovery(
+              runtime,
+              candidate_macs[i],
+              "budget_relay_" + std::to_string(i),
+              1,
+              static_cast<int16_t>(-40 - 10 * static_cast<int>(i))) ==
+          SimpleProductError::NONE);
+    }
+
+    const std::array<uint64_t, 8> challenge_times{
+        7500, 10500, 13500, 16500,
+        19500, 22500, 25500, 28500,
+    };
+    for (std::size_t i = 0; i < challenge_times.size(); ++i) {
+      clock.value = challenge_times[i];
+      assert(runtime.tick() == SimpleProductError::NONE);
+      assert(runtime.challenge_pending());
+      assert(
+          last_challenge(port).relay_node_id ==
+          "budget_relay_" + std::to_string(i));
+    }
+    assert(port.broadcasts.size() == 8U);
+    assert(runtime.gateway_selection_busy());
+
+    // Produce a valid Accept for the final candidate. It is still inside that
+    // candidate's 3000 ms timeout at 31000 ms, but the absolute transaction
+    // deadline wins and must reject it before any peer/channel side effect.
+    FakeClock relay_clock;
+    FakeRandom relay_random;
+    FakePort relay_port;
+    SimpleProductRuntime last_relay(
+        &relay_port, &relay_clock, &relay_random);
+    assert(
+        last_relay.start(
+            make_state("budget_relay_7", 0x61),
+            candidate_macs[7],
+            1,
+            SimpleProductStartMode::DIRECT) ==
+        SimpleProductError::NONE);
+    last_relay.set_relay_capable(true);
+    const auto final_challenge = port.broadcasts.back();
+    assert(
+        last_relay.on_radio_receive(
+            child_mac,
+            final_challenge.data(),
+            final_challenge.size(),
+            1,
+            -55) == SimpleProductError::NONE);
+    const auto final_accept = relay_port.broadcasts.back();
+
+    clock.value = 31000;
+    assert(
+        runtime.on_radio_receive(
+            candidate_macs[7],
+            final_accept.data(),
+            final_accept.size(),
+            1,
+            -60) == SimpleProductError::PACKET_REJECTED);
+    assert(runtime.challenge_pending());
+    assert(runtime.active_relay().has_value() == false);
+
+    assert(runtime.tick() == SimpleProductError::NONE);
+    assert(!runtime.challenge_pending());
+    assert(!runtime.gateway_selection_busy());
+    assert(runtime.path_state() == LocalPathState::DISCOVERY);
+    assert(port.channel == runtime.working_channel());
+  }
+
+  // Pending Accept expiry is order invariant. Equality is expired.
+  {
+    const AcceptTimingOutcome before =
+        run_valid_accept_at(10499, false);
+    assert(before.receive_result == SimpleProductError::NONE);
+    assert(before.path == LocalPathState::RELAY_ACTIVE);
+    assert(!before.challenge_pending);
+    assert(!before.selection_busy);
+
+    const AcceptTimingOutcome exact_rx_first =
+        run_valid_accept_at(10500, false);
+    assert(
+        exact_rx_first.receive_result ==
+        SimpleProductError::PACKET_REJECTED);
+    assert(exact_rx_first.path == LocalPathState::DISCOVERY);
+    assert(!exact_rx_first.challenge_pending);
+    assert(!exact_rx_first.selection_busy);
+
+    const AcceptTimingOutcome exact_tick_first =
+        run_valid_accept_at(10500, true);
+    assert(
+        exact_tick_first.receive_result ==
+        SimpleProductError::STATE_REJECTED);
+    assert(exact_tick_first.path == exact_rx_first.path);
+    assert(
+        exact_tick_first.challenge_pending ==
+        exact_rx_first.challenge_pending);
+    assert(
+        exact_tick_first.selection_busy ==
+        exact_rx_first.selection_busy);
+
+    const AcceptTimingOutcome after =
+        run_valid_accept_at(10501, false);
+    assert(
+        after.receive_result ==
+        SimpleProductError::PACKET_REJECTED);
+    assert(after.path == LocalPathState::DISCOVERY);
+    assert(!after.challenge_pending);
+    assert(!after.selection_busy);
+  }
+
+  // Peer-install failure remains a local fault even when best-effort cleanup
+  // itself cannot be confirmed. Component-level bounded restore is therefore
+  // still required.
+  {
+    FakeClock child_clock;
+    FakeClock relay_clock;
+    FakeRandom child_random;
+    FakeRandom relay_random;
+    FakePort child_port;
+    FakePort relay_port;
+    SimpleProductRuntime child(&child_port, &child_clock, &child_random);
+    SimpleProductRuntime relay(&relay_port, &relay_clock, &relay_random);
+    const MacAddress child_mac{0x02, 0x00, 0x00, 0x00, 0x06, 0xC1};
+    const MacAddress relay_mac{0x02, 0x00, 0x00, 0x00, 0x06, 0xA1};
+
+    assert(
+        child.start(
+            make_state("node_child", 0x62),
+            child_mac,
+            0,
+            SimpleProductStartMode::DISCOVERY) ==
+        SimpleProductError::NONE);
+    assert(
+        relay.start(
+            make_state("cleanup_relay", 0x62),
+            relay_mac,
+            1,
+            SimpleProductStartMode::DIRECT) ==
+        SimpleProductError::NONE);
+    relay.set_relay_capable(true);
+    assert(relay.tick() == SimpleProductError::NONE);
+    const auto discovery = relay_port.broadcasts.back();
+    assert(
+        child.on_radio_receive(
+            relay_mac, discovery.data(), discovery.size(), 1, -60) ==
+        SimpleProductError::NONE);
+    child_clock.value = 7500;
+    assert(child.tick() == SimpleProductError::NONE);
+    const auto challenge = child_port.broadcasts.back();
+    assert(
+        relay.on_radio_receive(
+            child_mac, challenge.data(), challenge.size(), 1, -55) ==
+        SimpleProductError::NONE);
+    const auto accept = relay_port.broadcasts.back();
+
+    child_port.install_success = false;
+    child_port.remove_success = false;
+    const bool busy_before = child.gateway_selection_busy();
+    const SimpleProductError result =
+        child.on_radio_receive(
+            relay_mac, accept.data(), accept.size(), 1, -60);
+    assert(result == SimpleProductError::RADIO_FAILED);
+    assert(!child.gateway_selection_busy());
+    assert(!child_port.removed.empty());
+    assert(gateway_selection_local_fault_requires_restore(
+        result, busy_before, child.gateway_selection_busy()));
+  }
+
+  // Host timing model for SOURCE_DESIGN case 23. Across all advertisement
+  // phases in one 2000 ms period and each of the three 250 ms scan dwells, a
+  // second Relay has at least one collectible advertisement inside 6500 ms.
+  for (uint16_t phase_ms = 0; phase_ms < 2000; ++phase_ms) {
+    assert(worst_phase_candidate_is_collectible(phase_ms, 1));
+    assert(worst_phase_candidate_is_collectible(phase_ms, 6));
+    assert(worst_phase_candidate_is_collectible(phase_ms, 11));
+  }
+
   return 0;
 }
