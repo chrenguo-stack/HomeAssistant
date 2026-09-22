@@ -486,3 +486,22 @@ The accepted pattern is:
 7. require no further reboot or power cycle during Direct -> Relay.
 
 The same-boot interval begins at the post-power-change Direct baseline, not at an earlier USB-powered baseline.
+
+
+## Validated battery-power rebaseline pattern
+
+The 2026-09-22 Board A battery-power transition physically validated the rule that a planned power-source reboot must occur before the same-boot movement window begins.
+
+```text
+BATTERY_POWER_REBOOT=EXPECTED
+OLD_USB_BOOT_INVALIDATED=true
+POST_REBOOT_DIRECT_REBASELINE_SECONDS=90
+BATTERY_BOOT_DIRECT_SEQ_DELTA=19
+GATEWAY_BOARD_DIRECT_SEQ_DELTA=19
+BATTERY_BOOT_STABLE=true
+GATEWAY_BOOT_STABLE=true
+MANAGER_RESTART_COUNT_UNCHANGED=true
+BATTERY_DIRECT_REBASELINE=PASS
+```
+
+Operationally, the new battery boot becomes the sole same-boot authority for the subsequent Direct -> Relay movement. Any further reboot or power cycle of the moving board invalidates that transition gate and requires another Direct rebaseline.
