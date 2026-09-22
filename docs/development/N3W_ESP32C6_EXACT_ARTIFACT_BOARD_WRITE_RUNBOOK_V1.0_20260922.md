@@ -546,3 +546,23 @@ RELAY_DATA_CONTINUITY_600S=PASS
 ```
 
 A long Manager-visible interarrival can coexist with complete ordered delivery. Treat replay tuple completeness as the loss oracle and the interarrival maximum as a separate latency/buffering metric.
+
+
+## Validated reversed-role Relay -> Direct failback pattern
+
+The 2026-09-22 reversed-role failback completed on the same Board A battery boot:
+
+```text
+LAST_RELAY_SEQ=483
+FIRST_DIRECT_SEQ=484
+POST_DIRECT_LAST_SEQ=486
+POST_DIRECT_SEQ_DELTA=2
+MOVE_START_TO_FIRST_OBSERVED_DIRECT_MS=65835
+MANAGER_VISIBLE_FAILBACK_GAP_MS=17252
+MISSING_SEQUENCE_COUNT=0
+RELAY_AFTER_FIRST_DIRECT_OBSERVED=false
+SAME_BOOT_RELAY_TO_DIRECT=true
+FAILBACK_RESULT=PASS
+```
+
+Combined with the preceding Direct -> Relay and 600-second Relay continuity gates, this proves the reverse A/B role assignment completes the full same-boot Direct -> Relay -> Direct physical round trip.
