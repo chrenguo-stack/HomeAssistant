@@ -826,3 +826,49 @@ BOARD_B_REBOOT=false
 NEXT_ONE_GATE=N3W_PR437_BOARD_A_RELAY_CONTINUITY_600S_20260922_01
 AUTO_EXECUTE_NEXT_GATE=false
 ```
+
+
+## 2026-09-22 Board A Relay continuity 600 s gate entry
+
+Fresh entry state:
+
+```text
+PR471_HEAD_BEFORE_ENTRY=e67b08631b7af8b19fd03103a7592d76f2e27b9c
+PR471_CI_BEFORE_ENTRY=12_OF_12_PASS
+
+BOARD_A_NODE_ID_SHA256=7ad414b84b17eef4de09cd71ccd676fcf5bb43eb72649939fc6423851d8a5eb5
+BOARD_A_BATTERY_BOOT_SESSION_SHA256=51382692150b4a9feb6f49587fa24825b55036723b1aa5fc67a82a82201a56b1
+BOARD_A_CURRENT_ROLE=RELAY_CHILD
+
+BOARD_B_NODE_ID_SHA256=dad9009b72b0c58a45d9041072d99eb3f1b8db9e520e1b844ff30cac2c8a0a59
+BOARD_B_BOOT_SESSION_SHA256=45a08a743fda98fc778118c46d2872538e78c79029c0323215a8cdf3acce78f2
+BOARD_B_CURRENT_ROLE=DIRECT_GATEWAY
+
+PRIOR_ROLE_SWAP_GATE=CLOSED_PASS
+AUTHORIZED_GATE=N3W_PR437_BOARD_A_RELAY_CONTINUITY_600S_20260922_01
+```
+
+Execution contract:
+
+```text
+OBSERVATION_SECONDS=600
+BOARD_A_MOVE=false
+BOARD_A_RESET=false
+BOARD_A_POWER_CYCLE=false
+BOARD_B_MOVE=false
+BOARD_B_RESET=false
+BOARD_B_POWER_CYCLE=false
+APPLICATION_SERIAL_OPEN=false
+T1_RUNTIME_MUTATION=false
+
+BOARD_A_SOURCE_MUST_REMAIN_RELAY=true
+BOARD_A_GATEWAY_MUST_REMAIN_BOARD_B=true
+BOARD_A_SAME_BOOT_REQUIRED=true
+BOARD_B_SOURCE_MUST_REMAIN_DIRECT=true
+BOARD_B_SAME_BOOT_REQUIRED=true
+REPLAY_SEQUENCE_CONTINUITY_REQUIRED=true
+```
+
+The observer may use Manager canonical durable state plus the replay registry. The replay registry proves sequence presence within the current boot; the canonical cursor proves the currently visible path and gateway. Because replay rows do not store ingress source, the gate must report source observations accurately and must not claim per-row Relay provenance beyond what the canonical observer proves.
+
+On PASS, stop with Board A still at the Relay-child location and Board B still at the Direct/Gateway location. Do not auto-execute Relay -> Direct failback.
