@@ -1,0 +1,75 @@
+name: N3W production multi-relay gateway selection V1 CI
+
+on:
+  pull_request:
+    paths:
+      - "firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_simple_product_runtime.h"
+      - "firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_simple_product_runtime.cpp"
+      - "firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_simple_product_component.h"
+      - "firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_simple_product_component.cpp"
+      - "tests/n3w_production/n3w_multi_relay_gateway_selection_v1_host_test.cpp"
+      - "tests/n3w_production/test_multi_relay_gateway_selection_v1_contract.py"
+      - ".github/workflows/n3w-production-multi-relay-gateway-selection-v1-ci.yml"
+  push:
+    branches:
+      - "fix/n3w-production-multi-relay-gateway-selection-v1-source-repair-*"
+    paths:
+      - "firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_simple_product_runtime.h"
+      - "firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_simple_product_runtime.cpp"
+      - "firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_simple_product_component.h"
+      - "firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_simple_product_component.cpp"
+      - "tests/n3w_production/n3w_multi_relay_gateway_selection_v1_host_test.cpp"
+      - "tests/n3w_production/test_multi_relay_gateway_selection_v1_contract.py"
+      - ".github/workflows/n3w-production-multi-relay-gateway-selection-v1-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  gateway-selection:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install host and ESP32-C6 dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libmbedtls-dev
+          python -m pip install -q "pytest>=8,<9" "esphome==2026.4.3"
+
+      - name: Gateway Selection V1 source contract
+        run: pytest -q tests/n3w_production/test_multi_relay_gateway_selection_v1_contract.py
+
+      - name: Build and run Gateway Selection V1 host behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          core=firmware/esphome_rc/components/greenhouse_n3w_product_core
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror \
+            -I"$core" \
+            "$core/n3w_core.cpp" \
+            "$core/n3w_radio.cpp" \
+            "$core/n3w_simple_crypto.cpp" \
+            "$core/n3w_compact_telemetry.cpp" \
+            "$core/n3w_simple_runtime.cpp" \
+            "$core/n3w_simple_state_host.cpp" \
+            "$core/n3w_simple_product_runtime.cpp" \
+            tests/n3w_production/n3w_multi_relay_gateway_selection_v1_host_test.cpp \
+            -lmbedcrypto \
+            -o /tmp/n3w-gateway-selection-v1-host-test
+          /tmp/n3w-gateway-selection-v1-host-test
+
+      - name: Validate F1.0-RC2 production N3-W target
+        working-directory: firmware/esphome_rc/f1_0_rc2
+        run: RC2_CONFIG=f1_0_rc2_n3w_target.yml bash tools/rc2.sh config
+
+      - name: Compile F1.0-RC2 production N3-W target
+        working-directory: firmware/esphome_rc/f1_0_rc2
+        run: RC2_CONFIG=f1_0_rc2_n3w_target.yml bash tools/rc2.sh compile
