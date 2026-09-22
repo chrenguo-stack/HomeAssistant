@@ -505,3 +505,24 @@ BATTERY_DIRECT_REBASELINE=PASS
 ```
 
 Operationally, the new battery boot becomes the sole same-boot authority for the subsequent Direct -> Relay movement. Any further reboot or power cycle of the moving board invalidates that transition gate and requires another Direct rebaseline.
+
+
+## Validated reversed-role Direct -> Relay transition pattern
+
+The 2026-09-22 reversed-role physical run validated Board B as Direct/Gateway and Board A as Relay Child on one continuous Board A battery boot.
+
+```text
+MOVING_CHILD=BOARD_A
+STATIONARY_GATEWAY=BOARD_B
+SAME_BOOT_DIRECT_TO_RELAY=true
+RELAY_GATEWAY_MATCH=true
+POST_RELAY_SEQ_ADVANCEMENT=2
+MOVE_START_TO_FIRST_OBSERVED_RELAY_MS=47144
+MANAGER_VISIBLE_GAP_MS=27652
+TRANSITION_MISSING_SEQUENCE_COUNT=2
+TRANSITION_MISSING_SEQUENCE_RANGE=179-180
+BOARD_B_DIRECT_REMAINS_HEALTHY=true
+ROLE_SWAP_FUNCTIONAL_RESULT=PASS
+```
+
+This adds opposite-direction role-symmetry evidence to the historical Board-B-as-Child runs. It does not change the frozen Option-B reliability boundary: Direct -> Relay transition loss can occur, while Relay steady-state zero-loss continuity is a separate gate.
