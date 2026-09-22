@@ -513,3 +513,52 @@ No reset, power cycle, flash/NVS access, application-serial access, or T1 runtim
 NEXT_ONE_GATE=N3W_PR437_BOARD_A_SAME_BOOT_DIRECT_TO_RELAY_ROLE_SWAP_20260922_01
 AUTO_EXECUTE_NEXT_GATE=false
 ```
+
+
+## 2026-09-22 Board A same-boot Direct -> Relay role-swap authorization
+
+Fresh entry authority:
+
+```text
+PR471_HEAD=48d540e62539519453dc05edb20575bb46da41ed
+PR471_CI=12_OF_12_PASS
+PR471_STATE=OPEN_DRAFT
+PR471_MERGEABLE=true
+
+BOARD_A_NODE_ID_SHA256=7ad414b84b17eef4de09cd71ccd676fcf5bb43eb72649939fc6423851d8a5eb5
+BOARD_A_BOOT_SESSION_SHA256=50197d0358be1b2a8f6595f72e64ef9d77b0926925a0cd74fd3ebe87a9f24776
+
+BOARD_B_NODE_ID_SHA256=dad9009b72b0c58a45d9041072d99eb3f1b8db9e520e1b844ff30cac2c8a0a59
+BOARD_B_BOOT_SESSION_SHA256=45a08a743fda98fc778118c46d2872538e78c79029c0323215a8cdf3acce78f2
+
+BOARD_A_POSTWRITE_DIRECT_BASELINE=PASS
+BOARD_B_GATEWAY_DIRECT_BASELINE=PASS
+DUAL_DIRECT_ROLE_SWAP_STARTING_CONDITION=PASS
+
+AUTHORIZED_GATE=N3W_PR437_BOARD_A_SAME_BOOT_DIRECT_TO_RELAY_ROLE_SWAP_20260922_01
+PHYSICAL_MOVEMENT_AUTHORIZED=true
+AUTO_EXECUTE_RELAY_600S=false
+AUTO_EXECUTE_RELAY_TO_DIRECT=false
+```
+
+Execution boundary:
+
+- Board B remains stationary in the validated Direct/Wi-Fi position;
+- Board A alone is moved to the previously validated no-Wi-Fi / Relay-child position;
+- Board A must not reboot or lose power;
+- application serial remains closed;
+- no Flash/NVS/T1/Broker/Manager/DynSec mutation;
+- Manager canonical durable state is the transition authority;
+- the first accepted Board A Relay cursor must name the bound Board B node as gateway;
+- after first Relay acceptance, require at least two additional Board A Relay sequence advances before PASS;
+- stop after Direct -> Relay classification. Do not automatically enter the 600-second Relay continuity gate.
+
+```text
+TRANSITION_TIMEOUT_SECONDS=240
+POST_RELAY_REQUIRED_SEQ_ADVANCE=2
+BOARD_A_POWER_CYCLE=false
+BOARD_A_RESET=false
+BOARD_B_MOVE=false
+BOARD_B_RESET=false
+APPLICATION_SERIAL_OPEN=false
+```
