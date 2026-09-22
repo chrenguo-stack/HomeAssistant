@@ -1,0 +1,89 @@
+name: N3W Production GWSEL V1 R2 exact-source artifact build
+
+on:
+  push:
+    branches:
+      - build/n3w-production-gwsel-v1-r2-artifact-20260922
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact R2 source
+        uses: actions/checkout@v4
+        with:
+          ref: 8c445f2bdd60d9ac3a33fe7c20a01965360a3b1c
+          fetch-depth: 1
+
+      - name: Bind exact source and target
+        shell: bash
+        run: |
+          set -euo pipefail
+          TARGET="firmware/esphome_rc/board_lab/n3w_phase4_physical/generic.yml"
+          test "$(git rev-parse HEAD)" = "8c445f2bdd60d9ac3a33fe7c20a01965360a3b1c"
+          test "$(git rev-parse HEAD^{tree})" = "e9c0216c4a25e99038ff81e54036455cb32b4181"
+          test "$(git hash-object "$TARGET")" = "37654481747b21ca51ccecc246bf84ca437ab7a9"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install exact ESPHome
+        run: python -m pip install --disable-pip-version-check 'esphome==2026.4.3'
+
+      - name: Compile exact-source physical harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd firmware/esphome_rc/board_lab/n3w_phase4_physical
+          python -m esphome compile generic.yml
+
+      - name: Verify ESP-IDF toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION_FILE="$HOME/.platformio/packages/framework-espidf/tools/cmake/version.cmake"
+          test -f "$VERSION_FILE"
+          grep -Eq 'set\(IDF_VERSION_MAJOR[[:space:]]+5\)' "$VERSION_FILE"
+          grep -Eq 'set\(IDF_VERSION_MINOR[[:space:]]+5\)' "$VERSION_FILE"
+          grep -Eq 'set\(IDF_VERSION_PATCH[[:space:]]+4\)' "$VERSION_FILE"
+
+      - name: Freeze exact candidate artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/firmware/esphome_rc/board_lab/n3w_phase4_physical/.esphome/build/gh-n3w-phase4-generic"
+          ENV="$ROOT/.pioenvs/gh-n3w-phase4-generic"
+          APP="$ENV/firmware.bin"
+          OTA="$ENV/ota_data_initial.bin"
+          test -f "$APP"
+          test -f "$OTA"
+          mkdir -p "$GITHUB_WORKSPACE/n3w-artifact"
+          cp "$APP" "$GITHUB_WORKSPACE/n3w-artifact/firmware.bin"
+          cp "$OTA" "$GITHUB_WORKSPACE/n3w-artifact/ota_data_initial.bin"
+          {
+            echo 'SOURCE_HEAD=8c445f2bdd60d9ac3a33fe7c20a01965360a3b1c'
+            echo 'SOURCE_TREE=e9c0216c4a25e99038ff81e54036455cb32b4181'
+            echo 'TARGET_CONFIG=firmware/esphome_rc/board_lab/n3w_phase4_physical/generic.yml'
+            echo 'TARGET_BLOB_SHA=37654481747b21ca51ccecc246bf84ca437ab7a9'
+            echo 'PYTHON_VERSION=3.11'
+            echo 'ESPHOME_VERSION=2026.4.3'
+            echo 'ESP_IDF_VERSION=5.5.4'
+            echo "WORKFLOW_TRIGGER_SHA=$GITHUB_SHA"
+            stat -c 'APPLICATION_SIZE=%s' "$APP"
+            stat -c 'OTADATA_SIZE=%s' "$OTA"
+            sha256sum "$APP" | awk '{print "APPLICATION_SHA256=" $1}'
+            sha256sum "$OTA" | awk '{print "OTADATA_SHA256=" $1}'
+          } | tee "$GITHUB_WORKSPACE/n3w-artifact/MANIFEST.txt"
+
+      - name: Upload exact-source artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: n3w-production-gwsel-v1-r2-exact-source
+          path: n3w-artifact/
+          if-no-files-found: error
+          retention-days: 7
