@@ -447,6 +447,25 @@ int main() {
           {mac_b, "node_relay_b", 1, -61},
       }) == hash_winner);
 
+  // Exact 3 dB remains inside the equivalent-quality band.
+  assert(
+      select_after_window({
+          {mac_a, "node_relay_a", 1, -60},
+          {mac_b, "node_relay_b", 1, -63},
+      }) == hash_winner);
+
+  // Independent known vector for the frozen byte encoding:
+  // "N3W-GWSEL-V1" NUL u16be(10) "node_child"
+  // u16be(12) "node_relay_a".
+  const std::array<uint8_t, 32> known_selection_digest{
+      0x7b, 0xa1, 0x21, 0xf8, 0x33, 0xbc, 0x62, 0xce,
+      0x59, 0x64, 0x6e, 0x80, 0x09, 0xdd, 0xd4, 0x4d,
+      0xd0, 0xa1, 0x3e, 0x04, 0x0a, 0x81, 0x84, 0x79,
+      0xa0, 0x79, 0x48, 0x50, 0x72, 0xea, 0xa9, 0xe2,
+  };
+  assert(selection_digest("node_child", "node_relay_a") ==
+         known_selection_digest);
+
   // 5. An exact SHA-256 digest collision falls back to Relay NODE_ID lexical
   // order, as required by the frozen deterministic tie contract.
   g_force_selection_hash_collision = true;
