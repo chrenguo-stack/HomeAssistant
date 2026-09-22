@@ -353,7 +353,9 @@ SimpleProductError SimpleProductRuntime::rebind_radio_state() {
 
   uint8_t channel = direct_channel_;
   if (path_.state() == LocalPathState::DISCOVERY) {
-    channel = scan_.current();
+    channel = pending_challenge_.has_value()
+                  ? pending_challenge_->channel
+                  : scan_.current();
   } else if (path_.state() == LocalPathState::RELAY_ACTIVE) {
     if (!active_relay_.has_value()) return SimpleProductError::STATE_REJECTED;
     channel = active_relay_->channel;
@@ -1089,6 +1091,7 @@ SimpleProductError SimpleProductRuntime::maybe_advance_scan_(uint64_t now_ms) {
 uint8_t SimpleProductRuntime::working_channel() const {
   if (active_relay_.has_value()) return active_relay_->channel;
   if (path_.state() == LocalPathState::DIRECT) return direct_channel_;
+  if (pending_challenge_.has_value()) return pending_challenge_->channel;
   return scan_.current();
 }
 
