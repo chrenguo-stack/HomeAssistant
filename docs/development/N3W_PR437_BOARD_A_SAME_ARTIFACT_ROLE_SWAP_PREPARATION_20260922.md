@@ -372,3 +372,33 @@ OBSERVATION_SECONDS=90
 ```
 
 If there is not exactly one fresh Direct node besides Board A, the observer must stop without guessing Board B identity.
+
+
+## 2026-09-22 Board B gateway baseline candidate-discovery stop
+
+The first Board-B gateway-side observer required exactly one fresh Direct canonical node other than the already-bound Board A. It stopped safely because no such node was present.
+
+```text
+T1_MANAGER_RUNNING_BEFORE=true
+MANAGER_RESTART_COUNT_BEFORE=0
+OTHER_FRESH_DIRECT_COUNT=0
+BOARD_A_RESET=false
+BOARD_B_RESET=false
+BOARD_A_MUTATION=false
+BOARD_B_MUTATION=false
+T1_RUNTIME_MUTATION=false
+```
+
+This does not prove a Board-B product failure. It proves only that the observation precondition "one other fresh Direct node already visible right now" was not satisfied.
+
+The next observer must enumerate the current canonical inventory before classifying cause. Public output should include only node-id SHA-256, source, sequence, boot-session SHA-256 and cursor age. It must distinguish:
+
+```text
+BOARD_B_NOT_PRESENT
+BOARD_B_STALE
+BOARD_B_PRESENT_NON_DIRECT
+MULTIPLE_OTHER_NODES
+OBSERVER_BINDING_AMBIGUOUS
+```
+
+No Board-B reset, movement, flash/NVS access or identity guess is allowed until this inventory is classified.
