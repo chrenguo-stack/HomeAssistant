@@ -1,6 +1,25 @@
 # N3-W Production Multi-Relay Gateway Selection V1
 ## Exact Artifact Build and Binding — 2026-09-22
 
+> **Physical-use correction — 2026-09-22**
+>
+> Subsequent physical-validation preparation proved that artifact `10691518958`
+> compiled `firmware/esphome_rc/board_lab/n3w_phase4_physical/generic.yml`,
+> which loads the historical `greenhouse_n3w_core`, not the R2-modified
+> `greenhouse_n3w_product_core`.
+>
+> Therefore the archive/hash binding below remains valid as a record of what was
+> built, but the artifact is **not valid for Gateway Selection V1 physical use**.
+>
+> ```text
+> INTENDED_PRODUCT_TARGET_BINDING=FAIL
+> ARTIFACT_10691518958_PHYSICAL_USE=FORBIDDEN
+> CORRECT_TARGET=firmware/esphome_rc/f1_0_rc2/f1_0_rc2_n3w_target.yml
+> ```
+>
+> Authoritative correction:
+> `docs/development/N3W_PRODUCTION_MULTI_RELAY_GATEWAY_SELECTION_V1_PHYSICAL_VALIDATION_PREPARATION_20260922.md`
+
 Status: `ARTIFACT_BINDING_AUTHORITY`
 
 ## Scope
