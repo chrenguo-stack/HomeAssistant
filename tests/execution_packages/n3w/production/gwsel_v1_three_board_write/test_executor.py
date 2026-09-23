@@ -27,6 +27,16 @@ def _mac_text(parts: tuple[int, ...]) -> str:
     return ":".join(f"{value:02x}" for value in parts)
 
 
+def _postreset_otadata_bytes() -> bytes:
+    data = bytearray(b"\xff" * module.OTADATA_SIZE)
+    struct.pack_into("<I", data, 0, module.OTADATA_POSTRESET_OTA_SEQ)
+    struct.pack_into("<I", data, 24, module.OTADATA_POSTRESET_STATE_VALID)
+    struct.pack_into("<I", data, 28, module.OTADATA_POSTRESET_CRC)
+    result = bytes(data)
+    assert hashlib.sha256(result).hexdigest() == module.OTADATA_POSTRESET_RUNTIME_SHA256
+    return result
+
+
 def _partition_bytes() -> bytes:
     result = bytearray(b"\xff" * module.PARTITION_TABLE_SIZE)
     for index, (label, part_type, subtype, offset, size, flags) in enumerate(
@@ -64,6 +74,17 @@ def test_exact_artifact_and_board_bindings() -> None:
     assert module.APPLICATION_OFFSET == 0x10000
     assert module.OTADATA_SIZE == 0x2000
     assert module.APPLICATION_SIZE == 1392960
+    assert (
+        module.OTADATA_INITIAL_SHA256
+        == "7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f"
+    )
+    assert (
+        module.OTADATA_POSTRESET_RUNTIME_SHA256
+        == "8ba3b110139f45443d4f268d1a3373ef99a1718b71d51664531b83ee2d4b91a3"
+    )
+    assert module.OTADATA_POSTRESET_OTA_SEQ == 1
+    assert module.OTADATA_POSTRESET_STATE_VALID == 2
+    assert module.OTADATA_POSTRESET_CRC == 0x4743989A
     assert set(module.BOARD_PROFILES) == {"A", "B", "C"}
 
     for profile in module.BOARD_PROFILES.values():
@@ -177,6 +198,7 @@ def test_write_command_contains_only_otadata_and_application() -> None:
         "0x790000",
     }
     assert forbidden.isdisjoint(tail)
+    assert command[command.index("--after") + 1] == "hard-reset"
 
 
 def test_identity_mismatch_stops_before_flash_id_or_flash_read(
@@ -269,10 +291,32 @@ def test_probe_is_read_only_and_raw_mac_is_not_published(
     assert "erase-region" not in flat
 
 
-def test_postwrite_readback_verifies_all_three_regions(
+def test_postreset_otadata_runtime_contract_matches_esp_idf_first_boot() -> None:
+    runtime = _postreset_otadata_bytes()
+    result = module.validate_postreset_otadata(runtime)
+
+    assert result == {
+        "sha256": module.OTADATA_POSTRESET_RUNTIME_SHA256,
+        "ota_seq": 1,
+        "ota_state": "VALID",
+        "ota_state_raw": 2,
+        "crc": "0x4743989a",
+    }
+
+
+def test_postreset_validator_rejects_initial_all_ff_otadata() -> None:
+    initial = b"\xff" * module.OTADATA_SIZE
+    assert hashlib.sha256(initial).hexdigest() == module.OTADATA_INITIAL_SHA256
+
+    with pytest.raises(module.StopExecution, match="ota_seq mismatch"):
+        module.validate_postreset_otadata(initial)
+
+
+def test_postwrite_readback_verifies_runtime_otadata_and_other_regions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     seen: list[tuple[int, int]] = []
+    runtime_otadata = _postreset_otadata_bytes()
 
     def fake_read(
         port: str,
@@ -282,7 +326,8 @@ def test_postwrite_readback_verifies_all_three_regions(
     ) -> str:
         seen.append((offset, size))
         if offset == module.OTADATA_OFFSET:
-            return module.OTADATA_SHA256
+            destination.write_bytes(runtime_otadata)
+            return module.OTADATA_POSTRESET_RUNTIME_SHA256
         if offset == module.APPLICATION_OFFSET:
             return module.APPLICATION_SHA256
         if offset == module.PARTITION_TABLE_OFFSET:
@@ -294,7 +339,11 @@ def test_postwrite_readback_verifies_all_three_regions(
     result = module.verify_postwrite_readback("/dev/cu.synthetic")
 
     assert result == {
-        "otadata_sha256": module.OTADATA_SHA256,
+        "otadata_sha256": module.OTADATA_POSTRESET_RUNTIME_SHA256,
+        "otadata_runtime_ota_seq": 1,
+        "otadata_runtime_state": "VALID",
+        "otadata_runtime_state_raw": 2,
+        "otadata_runtime_crc": "0x4743989a",
         "application_sha256": module.APPLICATION_SHA256,
         "partition_table_sha256": module.PARTITION_TABLE_SHA256,
     }
