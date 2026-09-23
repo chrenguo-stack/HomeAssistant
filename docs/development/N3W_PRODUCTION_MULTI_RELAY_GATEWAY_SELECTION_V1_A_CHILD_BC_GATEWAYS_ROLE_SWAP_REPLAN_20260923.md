@@ -79,3 +79,15 @@ BOARD_FLASH_WRITE=false
 BOARD_NVS_WRITE=false
 T1_RUNTIME_MUTATION=false
 ```
+
+## Physical handling clarification
+
+```text
+BOARD_C_POWER_MODE=FIXED_STABLE_POWER
+BOARD_C_MOVEMENT_POLICY=STATIONARY
+BOARD_A_MOVEMENT_POLICY=MOVABLE
+BOARD_B_MOVEMENT_POLICY=MOVABLE
+```
+
+This clarification changes only the physical execution plan. It does not change product source,
+artifact binding, Gateway-selection policy, or the acceptance oracle.
