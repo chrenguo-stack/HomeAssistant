@@ -130,15 +130,34 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def hardware_id_from_mac(raw_mac: str) -> str:
-    compact = raw_mac.replace(":", "").lower()
+def canonical_base_mac(security_output: str) -> str:
+    direct = BASE_MAC_RE.search(security_output)
+    if direct is not None:
+        return direct.group(1).lower()
+
+    extended = EUI64_MAC_RE.search(security_output)
+    if extended is not None:
+        parts = extended.group(1).lower().split(":")
+        if parts[3:5] != ["ff", "fe"]:
+            raise StopExecution("unsupported ESP32-C6 EUI-64 format")
+        return ":".join(parts[:3] + parts[5:])
+
+    legacy = MAC48_RE.search(security_output)
+    if legacy is not None:
+        return legacy.group(1).lower()
+
+    raise StopExecution("ROM base MAC was not observed")
+
+
+def hardware_id_from_mac(base_mac: str) -> str:
+    compact = base_mac.replace(":", "").lower()
     if not re.fullmatch(r"[0-9a-f]{12}", compact):
-        raise StopExecution("invalid ROM MAC format")
+        raise StopExecution("invalid base MAC format")
     return "ghw-c6-" + compact
 
 
-def public_identity_sha256(raw_mac: str) -> str:
-    return sha256_bytes(hardware_id_from_mac(raw_mac).encode("utf-8"))
+def public_identity_sha256(base_mac: str) -> str:
+    return sha256_bytes(hardware_id_from_mac(base_mac).encode("utf-8"))
 
 
 def parse_manifest(text: str) -> dict[str, str]:
@@ -282,10 +301,8 @@ def probe_board(port: str) -> dict[str, object]:
     if "ESP32-C6" not in security.upper():
         raise StopExecution("connected target is not reported as ESP32-C6")
 
-    mac_match = MAC_RE.search(security)
-    if mac_match is None:
-        raise StopExecution("ROM MAC was not observed")
-    identity_hash = public_identity_sha256(mac_match.group(1))
+    base_mac = canonical_base_mac(security)
+    identity_hash = public_identity_sha256(base_mac)
 
     if SECURE_BOOT_DISABLED_RE.search(security) is None:
         raise StopExecution("Secure Boot is not proven disabled")
