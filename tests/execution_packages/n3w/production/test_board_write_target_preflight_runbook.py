@@ -20,6 +20,12 @@ def test_runbook_identity_contract_and_fail_closed_rules() -> None:
         "MALFORMED_EUI64_FAILS_CLOSED=TESTED",
         "RAW_MAC_NOT_PUBLISHED=TESTED",
         "historical first-six-byte parser is forbidden",
+        "Post-reset OTA-data validation guard",
+        "OTADATA_POSTRESET_OTA_SEQ=1",
+        "OTADATA_POSTRESET_STATE=VALID",
+        "OTADATA_POSTRESET_CRC=0x4743989a",
+        "8ba3b110139f45443d4f268d1a3373ef99a1718b71d51664531b83ee2d4b91a3",
+        "post-reset comparison against the initial all-erased OTA-data image is not a",
     )
 
     for statement in required:
