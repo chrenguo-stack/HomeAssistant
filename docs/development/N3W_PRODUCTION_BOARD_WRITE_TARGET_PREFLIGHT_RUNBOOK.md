@@ -214,3 +214,70 @@ For interactive zsh execution:
 
 This rule applies to all future A/B/C preflight, identity-check and write-gate
 operator commands.
+
+
+## 12. Exact firmware-write gate
+
+A successful static or fresh preflight is not a write authorization.
+
+For an exact production firmware mutation:
+
+- require a board-specific explicit write authorization after the fresh read-only
+  preflight has passed;
+- the preflight used by the write executor must be no older than 900 seconds;
+- immediately before mutation, revalidate the exact artifact, ROM silicon identity,
+  chip type, flash size, security state and partition-table binding;
+- consume the preflight authorization before the first `write-flash` command;
+- once authorization is claimed, any command failure, disconnect, readback mismatch,
+  or unexpected reset is a hard stop and must not be retried automatically;
+- do not reinterpret a failed or partial write as permission to erase, migrate
+  partitions, rewrite NVS, write a bootloader, use a factory image, or full-erase;
+- after a successful write command, read back every intentionally written region
+  and the partition table and verify their frozen SHA-256 values;
+- stop after the current board is adjudicated.
+
+For Production Gateway Selection V1 artifact `10693728323`, the exact minimal
+route is frozen as:
+
+```text
+WRITE 0x9000  ota_data_initial.bin
+WRITE 0x10000 firmware.bin
+
+BOOTLOADER_WRITE=false
+PARTITION_TABLE_WRITE=false
+PRODUCT_NVS_WRITE=false
+FACTORY_IMAGE_WRITE=false
+FULL_FLASH_ERASE=false
+```
+
+This route is valid only while fresh target checks prove the expected 8 MiB
+ESP32-C6 security state and the exact partition-table SHA-256:
+
+```text
+6664b08a14a9cdc170e322823db29fbe485d87db9c4ec42759d9372028953dca
+```
+
+The artifact's bundled `flash_args` is evidence for the build layout, not an
+operator command. It contains build-directory filenames that are not the flat
+release filenames, so blind execution of that file is forbidden.
+
+Post-write acceptance requires:
+
+```text
+OTADATA_READBACK_SHA256=
+7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
+
+APPLICATION_READBACK_SHA256=
+c98010719f37af69142a0ee318ff1577a064215e580b5182dc98556b11560a5a
+
+PARTITION_TABLE_READBACK_SHA256=
+6664b08a14a9cdc170e322823db29fbe485d87db9c4ec42759d9372028953dca
+```
+
+For the three-board Gateway Selection V1 deployment, mutation remains sequential:
+
+```text
+A -> STOP -> B -> STOP -> C -> STOP
+```
+
+No board inherits another board's reset, preflight or write authorization.
