@@ -30,7 +30,9 @@ jobs:
 
       - name: Run Board A, Board B and RUNBOOK contract tests
         run: |
-          python -m pytest -q             tests/execution_packages/n3w/production/gwsel_v1_board_a_preflight/test_executor.py             tests/execution_packages/n3w/production/gwsel_v1_board_b_preflight/test_executor.py             tests/execution_packages/n3w/production/test_board_write_target_preflight_runbook.py
+          python -m pytest -q tests/execution_packages/n3w/production/gwsel_v1_board_a_preflight/test_executor.py
+          python -m pytest -q tests/execution_packages/n3w/production/gwsel_v1_board_b_preflight/test_executor.py
+          python -m pytest -q tests/execution_packages/n3w/production/test_board_write_target_preflight_runbook.py
 
       - name: Enforce parser repair contract
         run: |
