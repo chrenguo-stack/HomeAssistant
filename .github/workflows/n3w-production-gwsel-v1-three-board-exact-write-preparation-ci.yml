@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - exec/n3w-production-gwsel-v1-three-board-exact-write-preparation-20260923
+      - fix/n3w-production-gwsel-v1-otadata-postreset-validator-20260923
 
 permissions:
   contents: read
@@ -101,6 +102,11 @@ jobs:
               'parts[3:5] != ["ff", "fe"]',
               '"write-flash"',
               'verify_postwrite_readback',
+              'validate_postreset_otadata',
+              'OTADATA_POSTRESET_RUNTIME_SHA256',
+              'OTADATA_POSTRESET_OTA_SEQ = 1',
+              'OTADATA_POSTRESET_STATE_VALID = 2',
+              'OTADATA_POSTRESET_CRC = 0x4743989A',
               '"bootloader_write": False',
               '"partition_table_write": False',
               '"product_nvs_write": False',
