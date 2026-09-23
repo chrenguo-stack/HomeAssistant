@@ -12,7 +12,8 @@ import zipfile
 from pathlib import Path
 from typing import Iterable
 
-SCHEMA_PREFLIGHT = "n3w.production.gwsel-v1.board-a-preflight/1"\nBOARD_LABEL = "A"
+SCHEMA_PREFLIGHT = "n3w.production.gwsel-v1.board-a-preflight/1"
+BOARD_LABEL = "A"
 
 # Exact production successor / artifact authority.
 PRODUCT_SOURCE = "8c445f2bdd60d9ac3a33fe7c20a01965360a3b1c"
@@ -72,7 +73,8 @@ EXPECTED_MANIFEST = {
     "ESP_IDF_VERSION": "5.5.4",
     "WORKFLOW_TRIGGER_SHA": WORKFLOW_TRIGGER_SHA,
     "WORKFLOW_RUN_ID": str(WORKFLOW_RUN_ID),
-    "BINARY_DEHARNESS_PROOF": "PASS",\n    "GATEWAY_SELECTION_R2_LINK_PROOF": "PASS",
+    "BINARY_DEHARNESS_PROOF": "PASS",
+    "GATEWAY_SELECTION_R2_LINK_PROOF": "PASS",
     "PHASE4_HARNESS_PRESENT": "false",
     "LAB_DIAGNOSTICS_PRESENT": "false",
     "RTC_BREADCRUMB_PRESENT": "false",
