@@ -27,6 +27,13 @@ f7c7ac703e6b23040235020c92e480f08c602076d32afa18c8a37e5da3882598
 
 BOARD_A_IDENTITY_BINDING=PASS
 BOARD_A_STATIC_WRITE_TARGET_COMPATIBILITY=PASS
+BOARD_A_FRESH_EXACT_WRITE_PREFLIGHT=PASS
+BOARD_A_FRESH_PARTITION_BINDING=PASS
+BOARD_A_FRESH_SECURITY_BINDING=PASS
+BOARD_A_EXACT_ARTIFACT_BINDING=PASS
+BOARD_A_MINIMAL_WRITE_ROUTE_BINDING=PASS
+BOARD_A_CURRENT_OTADATA_SHA256=
+8ba3b110139f45443d4f268d1a3373ef99a1718b71d51664531b83ee2d4b91a3
 
 BOARD_B_IDENTITY_BINDING=PASS
 BOARD_B_STATIC_WRITE_TARGET_COMPATIBILITY=PASS
@@ -61,16 +68,18 @@ NVS_WRITE=false
 WRITE_AUTHORIZATION_GRANTED=false
 
 NEXT_ONE_GATE=
-N3W_PRODUCTION_GWSEL_V1_BOARD_A_EXACT_WRITE_PREFLIGHT_20260923_01
+N3W_PRODUCTION_GWSEL_V1_BOARD_A_EXACT_WRITE_20260923_01
 ```
 
-The exact Gateway Selection V1 write route and generic A/B/C executor are now
-prepared and exact-head CI validated. No board access or firmware mutation occurred
-during preparation. The next gate is Board A fresh exact-write preflight and remains
-read-only; firmware write still requires a separate explicit Board A authorization.
+The exact Gateway Selection V1 write route and generic A/B/C executor are prepared
+and exact-head CI validated. Board A has now completed a fresh exact-write read-only
+preflight with identity, security, partition and artifact bindings all PASS. No
+firmware write occurred. The next gate is the separately authorized Board A exact
+write; the local single-use preflight remains subject to its 900-second freshness
+window.
 
 Current authority:
-`docs/development/N3W_PRODUCTION_GWSEL_V1_THREE_BOARD_EXACT_ARTIFACT_WRITE_PREPARATION_CLOSURE_20260923.md`.
+`docs/development/N3W_PRODUCTION_GWSEL_V1_BOARD_A_EXACT_WRITE_PREFLIGHT_CLOSURE_20260923.md`.
 
 ## 2026-09-21 PR #437 post-merge closure
 
