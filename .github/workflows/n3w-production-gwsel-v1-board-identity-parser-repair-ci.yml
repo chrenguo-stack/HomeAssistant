@@ -1,0 +1,62 @@
+name: N3W GWSEL V1 board identity parser repair CI
+
+on:
+  push:
+    branches:
+      - fix/n3w-gwsel-v1-board-identity-parser-repair-20260923
+
+permissions:
+  contents: read
+
+jobs:
+  identity-parser-repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compile Board A and Board B executors
+        run: |
+          python -m py_compile tools/execution_packages/n3w/production/gwsel_v1_board_a_preflight/executor.py
+          python -m py_compile tools/execution_packages/n3w/production/gwsel_v1_board_b_preflight/executor.py
+
+      - name: Install focused test dependency
+        run: python -m pip install "pytest==8.4.2"
+
+      - name: Run Board A, Board B and RUNBOOK contract tests
+        run: |
+          python -m pytest -q             tests/execution_packages/n3w/production/gwsel_v1_board_a_preflight/test_executor.py             tests/execution_packages/n3w/production/gwsel_v1_board_b_preflight/test_executor.py             tests/execution_packages/n3w/production/test_board_write_target_preflight_runbook.py
+
+      - name: Enforce parser repair contract
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          paths = [
+              Path("tools/execution_packages/n3w/production/gwsel_v1_board_a_preflight/executor.py"),
+              Path("tools/execution_packages/n3w/production/gwsel_v1_board_b_preflight/executor.py"),
+          ]
+
+          for path in paths:
+              source = path.read_text(encoding="utf-8")
+              for token in (
+                  "BASE_MAC_RE",
+                  "EUI64_MAC_RE",
+                  "MAC48_RE",
+                  "canonical_base_mac",
+                  'parts[3:5] != ["ff", "fe"]',
+                  'return "ghw-c6-" + compact',
+              ):
+                  assert token in source, (path, token)
+              assert 'MAC_RE = re.compile(r"\\bMAC:' not in source
+              assert '"write-flash"' not in source
+              assert '"erase-flash"' not in source
+          PY
+
+      - name: Public repository safety
+        run: python tools/check_public_repository_safety.py
