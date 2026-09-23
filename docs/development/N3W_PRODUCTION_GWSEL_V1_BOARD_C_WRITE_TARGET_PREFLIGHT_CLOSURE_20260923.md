@@ -1,0 +1,194 @@
+# N3-W Production Gateway Selection V1
+## Board C Write-Target Preflight Closure — 2026-09-23
+
+Status: `CLOSED_PASS`
+
+## Gate
+
+```text
+TASK=N3W_PRODUCTION_GWSEL_V1_BOARD_C_WRITE_TARGET_PREFLIGHT_20260923_01
+BOARD_LABEL=C
+READ_ONLY=true
+FLASH_WRITE=false
+NVS_WRITE=false
+PERSISTENT_BOARD_MUTATION=false
+```
+
+## Exact executor authority
+
+```text
+EXECUTOR_BRANCH=
+exec/n3w-production-gwsel-v1-board-c-readonly-preflight-20260923
+
+EXECUTOR_HEAD=
+1b5f776a9be98fd53e80de54cc39ac2f6ba2ee59
+
+EXECUTOR_TREE=
+e1fa8e0a5594688a32babaaee5ce746e53fa0e90
+
+EXECUTOR_CI_RUN=
+35817174982
+
+EXECUTOR_CI_RESULT=SUCCESS
+```
+
+## Exact artifact authority
+
+```text
+ARTIFACT_ID=
+10693728323
+
+ARTIFACT_OUTER_SHA256=
+e57f71c8c2a4f3c722bde88fe7bfdde64fa48be8a11284009358990882286814
+
+RELEASE_SHA256=
+f7c7ac703e6b23040235020c92e480f08c602076d32afa18c8a37e5da3882598
+
+PRODUCT_SOURCE=
+8c445f2bdd60d9ac3a33fe7c20a01965360a3b1c
+
+PRODUCT_TREE=
+e9c0216c4a25e99038ff81e54036455cb32b4181
+```
+
+Artifact outer binding passed before Board C ROM access.
+
+## Physical preflight evidence
+
+```text
+BOARD_C_SINGLE_USB_TARGET=PASS
+BOARD_C_TEMPORARY_RESET_READONLY_AUTHORIZATION=true
+
+BOARD_C_WRITE_TARGET_PREFLIGHT=PASS
+BOARD_LABEL=C
+
+HARDWARE_ID_SHA256=
+d6ef3f98a35f06a5a8b8e7716a015e17336242128b314a1b3244b114fc6f72e2
+
+BOARD_C_FROZEN_IDENTITY_MATCH=PASS
+HISTORICAL_IDENTITY_MATCH=true
+HISTORICAL_IDENTITY_OVERRIDE_REUSED=false
+
+CHIP=ESP32-C6
+FLASH_SIZE=8MB
+SECURE_BOOT=false
+FLASH_ENCRYPTION=false
+
+PARTITION_TABLE_SHA256=
+6664b08a14a9cdc170e322823db29fbe485d87db9c4ec42759d9372028953dca
+
+OTADATA_READBACK_SHA256=
+b7e293bb607d3bddb99b7f38a7a45afd5823c0c61e3216e67858bbc759535282
+
+CANDIDATE_ARTIFACT_ID=
+10693728323
+
+CANDIDATE_RELEASE_SHA256=
+f7c7ac703e6b23040235020c92e480f08c602076d32afa18c8a37e5da3882598
+
+BOARD_C_PREFLIGHT_OUTPUT_CONTRACT=PASS
+BOARD_C_STATIC_WRITE_TARGET_COMPATIBILITY=PASS
+BOARD_C_PREFLIGHT_EXIT_CODE=0
+```
+
+The raw ROM MAC and private USB device path were not published.
+
+## OTA-data interpretation
+
+The current OTA-data digest differs from the earlier A/B readback value. This is not
+an identity mismatch and is not evidence of product failure.
+
+```text
+OTADATA_IS_MUTABLE_BOOT_SELECTION_STATE=true
+OTADATA_USED_AS_SILICON_IDENTITY=false
+OTADATA_DIFFERENCE_BLOCKS_STATIC_COMPATIBILITY=false
+```
+
+The partition table, not the mutable OTA-data contents, is the relevant static
+layout binding for this gate.
+
+## Mutation boundary
+
+```text
+ROM_READ_ONLY_ACCESS_EXECUTED=true
+FLASH_READ=true
+FLASH_WRITE=false
+NVS_WRITE=false
+PARTITION_TABLE_WRITE=false
+BOOTLOADER_WRITE=false
+FULL_FLASH_ERASE=false
+PERSISTENT_BOARD_MUTATION=false
+WRITE_AUTHORIZATION_GRANTED=false
+```
+
+The flash reads were limited to the preflight's read-only partition-table and
+OTA-data regions.
+
+## Board C adjudication
+
+```text
+BOARD_C_IDENTITY_BINDING=PASS
+BOARD_C_CHIP_COMPATIBILITY=PASS
+BOARD_C_FLASH_SIZE_COMPATIBILITY=PASS
+BOARD_C_SECURITY_COMPATIBILITY=PASS
+BOARD_C_PARTITION_BINDING=PASS
+BOARD_C_ARTIFACT_AUTHORITY_BINDING=PASS
+BOARD_C_STATIC_WRITE_TARGET_COMPATIBILITY=PASS
+```
+
+This is compatibility evidence only and is not authorization to write firmware.
+
+## Three-board static preflight state
+
+With the repaired A/B identity rechecks and this Board C full preflight:
+
+```text
+BOARD_A_IDENTITY_BINDING=PASS
+BOARD_A_STATIC_WRITE_TARGET_COMPATIBILITY=PASS
+
+BOARD_B_IDENTITY_BINDING=PASS
+BOARD_B_STATIC_WRITE_TARGET_COMPATIBILITY=PASS
+
+BOARD_C_IDENTITY_BINDING=PASS
+BOARD_C_STATIC_WRITE_TARGET_COMPATIBILITY=PASS
+
+THREE_BOARD_STATIC_WRITE_TARGET_COMPATIBILITY=PASS
+```
+
+The A/B/C checks were performed sequentially, one board at a time, under the RUNBOOK.
+
+These results are not a permanent time-valid write token. Any later firmware
+mutation must perform the fresh pre-write checks required by its exact execution
+gate.
+
+## Closure
+
+```text
+N3W_PRODUCTION_GWSEL_V1_BOARD_C_WRITE_TARGET_PREFLIGHT=CLOSED_PASS
+
+BOARD_A_STATIC_WRITE_TARGET_COMPATIBILITY=PASS
+BOARD_B_STATIC_WRITE_TARGET_COMPATIBILITY=PASS
+BOARD_C_STATIC_WRITE_TARGET_COMPATIBILITY=PASS
+
+THREE_BOARD_STATIC_WRITE_TARGET_COMPATIBILITY=PASS
+
+FLASH_WRITE=false
+NVS_WRITE=false
+WRITE_AUTHORIZATION_GRANTED=false
+
+STOP=true
+```
+
+## Proposed next ONE gate
+
+```text
+NEXT_ONE_GATE=
+N3W_PRODUCTION_GWSEL_V1_THREE_BOARD_WRITE_TARGET_PREFLIGHT_SUMMARY_20260923_01
+
+BOARD_ACCESS=false
+DOCUMENTATION_AND_GATE_ALIGNMENT_ONLY=true
+AUTO_EXECUTE=false
+```
+
+That summary gate should freeze the exact A/B/C authorities and determine the next
+separate firmware-write gate without performing board access.
