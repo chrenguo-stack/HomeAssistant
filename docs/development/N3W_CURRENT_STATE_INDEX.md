@@ -13,6 +13,7 @@ Current exact write route: `0x9000 ota_data_initial.bin + 0x10000 firmware.bin`;
 Current Board A exact write: `PASS_AFTER_READONLY_FORENSIC`; reflash not required  
 Current OTA post-reset validator repair: `CLOSED_PASS`  
 Current next gate: `N3W_PRODUCTION_MULTI_RELAY_GATEWAY_SELECTION_V1_BOARD_C_N3W_REPROVISION_20260923_01`  
+Deferred production follow-up: `N3W_PRODUCTION_RELAY_DISCOVERY_FULL_CHANNEL_FALLBACK_V1` — after current Multi-Relay V1 physical acceptance and before next production artifact freeze  
 Current new-chat handoff: `docs/development/N3W_PRODUCTION_GWSEL_V1_BOARD_B_EXACT_WRITE_PREFLIGHT_NEW_CHAT_HANDOFF_V1.0_20260923.md`  
 Long-term working context: `docs/development/N3W_PROJECT_WORKING_CONTEXT.md`  
 Current handoff template: `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` v1.2  
