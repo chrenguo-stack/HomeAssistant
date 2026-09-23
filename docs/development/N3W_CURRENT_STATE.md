@@ -1,5 +1,36 @@
 # N3-W Current State
 
+## 2026-09-23 new-chat handoff freeze — Board C N3-W reprovision
+
+```text
+CURRENT_ROUTE=N3W_PRODUCTION_MULTI_RELAY_GATEWAY_SELECTION_V1
+CURRENT_TEST_PLAN=UNCHANGED
+CHILD_UNDER_TEST=A
+GATEWAY_CANDIDATES=B,C
+BOARD_C_POWER_MODE=FIXED_STABLE_POWER
+
+BOARD_C_APP1_STALE_IMAGE_ERASE=CLOSED_PASS
+BOARD_C_WIFI_REPROVISION=CLOSED_PASS
+BOARD_C_N3W_PROVISIONING_STATE=UNPROVISIONED
+BOARD_C_N3W_REPROVISION_REQUIRED=true
+
+NEXT_ONE_GATE=N3W_PRODUCTION_MULTI_RELAY_GATEWAY_SELECTION_V1_BOARD_C_N3W_REPROVISION_20260923_01
+
+CHANNEL_COVERAGE_BLIND_SPOT=KNOWN_DEFERRED
+CHANNEL_COVERAGE_FOLLOWUP=N3W_PRODUCTION_RELAY_DISCOVERY_FULL_CHANNEL_FALLBACK_V1
+CHANNEL_COVERAGE_FOLLOWUP_TIMING=AFTER_CURRENT_MULTI_RELAY_V1_PHYSICAL_ACCEPTANCE
+CHANNEL_COVERAGE_FIX_DURING_CURRENT_ACCEPTANCE=false
+
+CURRENT_DOC_BRANCH=docs/n3w-production-gwsel-v1-p0-direct-baseline-20260923
+MAIN_PROGRESS_ALIGNMENT=DEFERRED_UNTIL_CURRENT_MULTI_RELAY_V1_CLOSURE
+```
+
+The next chat must keep the already-approved A-as-Child / B+C-as-Gateways physical acceptance
+plan unchanged. Board C N3-W reprovision is a recovery prerequisite only; it is not a redesign of
+the Multi-Relay acceptance route. The Relay Discovery channel-coverage blind spot remains a
+registered deferred production follow-up and must not be silently fixed inside the current exact
+artifact acceptance.
+
 ## 2026-09-23 Relay Discovery channel-coverage decision
 
 ```text
