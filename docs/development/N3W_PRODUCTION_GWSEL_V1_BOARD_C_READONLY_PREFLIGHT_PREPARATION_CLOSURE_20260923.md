@@ -1,0 +1,134 @@
+# N3-W Production Gateway Selection V1
+## Board C Read-Only Preflight Preparation Closure — 2026-09-23
+
+Status: `CLOSED_PASS`
+
+## Gate
+
+```text
+TASK=N3W_PRODUCTION_GWSEL_V1_BOARD_C_READONLY_PREFLIGHT_PREPARATION_20260923_01
+BOARD_C_ACCESS=false
+SOURCE_AND_EXECUTOR_PREPARATION_ONLY=true
+AUTO_EXECUTE=false
+```
+
+## Exact preparation authority
+
+```text
+BRANCH=
+exec/n3w-production-gwsel-v1-board-c-readonly-preflight-20260923
+
+HEAD=
+1b5f776a9be98fd53e80de54cc39ac2f6ba2ee59
+
+TREE=
+e1fa8e0a5594688a32babaaee5ce746e53fa0e90
+
+CI_RUN_ID=
+35817174982
+
+CI_RESULT=SUCCESS
+```
+
+CI passed:
+
+```text
+COMPILE_EXECUTOR=PASS
+BOARD_C_FOCUSED_TESTS=PASS
+RUNBOOK_CONTRACT_TESTS=PASS
+READONLY_IDENTITY_ARTIFACT_CONTRACT=PASS
+PUBLIC_REPOSITORY_SAFETY=PASS
+```
+
+## Prepared Board C contract
+
+The executor is bound to the exact production artifact:
+
+```text
+PRODUCT_SOURCE=
+8c445f2bdd60d9ac3a33fe7c20a01965360a3b1c
+
+PRODUCT_TREE=
+e9c0216c4a25e99038ff81e54036455cb32b4181
+
+ARTIFACT_ID=
+10693728323
+
+ARTIFACT_OUTER_SHA256=
+e57f71c8c2a4f3c722bde88fe7bfdde64fa48be8a11284009358990882286814
+
+RELEASE_SHA256=
+f7c7ac703e6b23040235020c92e480f08c602076d32afa18c8a37e5da3882598
+```
+
+Board C frozen identity authority:
+
+```text
+EXPECTED_BOARD_C_HARDWARE_ID_SHA256=
+d6ef3f98a35f06a5a8b8e7716a015e17336242128b314a1b3244b114fc6f72e2
+```
+
+The future physical execution requires a fresh ROM identity read and fails closed
+before flash identification or flash readback if the identity does not match.
+
+## RUNBOOK inheritance
+
+The prepared executor inherits:
+
+```text
+FULL_EUI64_PARSE=true
+EXPLICIT_BASE_MAC_PREFERRED=true
+EUI64_FF_FE_RECOVERY=true
+LEGACY_MAC48_FALLBACK=true
+MALFORMED_EUI64_FAIL_CLOSED=true
+OTADATA_NOT_USED_AS_IDENTITY=true
+ZSH_PASTE_READY_COMMENT_RULE=ACTIVE
+```
+
+## Mutation boundary
+
+No Board C physical operation occurred in this preparation.
+
+```text
+BOARD_C_ACCESS=false
+ROM_ACCESS=false
+TEMPORARY_RESET=false
+FLASH_READ=false
+FLASH_WRITE=false
+NVS_READ=false
+NVS_WRITE=false
+PERSISTENT_BOARD_MUTATION=false
+WRITE_AUTHORIZATION_GRANTED=false
+```
+
+## Closure
+
+```text
+BOARD_C_READONLY_PREFLIGHT_PREPARATION=CLOSED_PASS
+BOARD_C_EXECUTOR_READY=true
+BOARD_C_PHYSICAL_PREFLIGHT_EXECUTED=false
+
+BOARD_A_STATIC_WRITE_TARGET_COMPATIBILITY=PASS
+BOARD_B_STATIC_WRITE_TARGET_COMPATIBILITY=PASS
+BOARD_C_STATIC_WRITE_TARGET_COMPATIBILITY=NOT_YET_PROVEN
+
+STOP=true
+```
+
+## Proposed next ONE gate
+
+```text
+NEXT_ONE_GATE=
+N3W_PRODUCTION_GWSEL_V1_BOARD_C_WRITE_TARGET_PREFLIGHT_20260923_01
+
+BOARD_C_ACCESS_REQUIRED=true
+BOARD_C_CONNECTED_CONFIRMATION_REQUIRED=true
+BOARD_C_TEMPORARY_RESET_READONLY_AUTHORIZATION_REQUIRED=true
+
+READ_ONLY=true
+FLASH_WRITE=false
+NVS_WRITE=false
+AUTO_EXECUTE=false
+```
+
+This closure itself does not authorize Board C access.
