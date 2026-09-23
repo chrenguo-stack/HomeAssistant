@@ -107,7 +107,9 @@ OTADATA_SIZE = 0x2000
 TARGET_CONFIRMATION = "BOARD_A_CONNECTED_FOR_GWSEL_V1_READONLY_PREFLIGHT"
 PREFLIGHT_MAX_AGE_SECONDS = 900
 
-MAC_RE = re.compile(r"\bMAC:\s*([0-9a-fA-F]{2}(?::[0-9a-fA-F]{2}){5})\b")
+BASE_MAC_RE = re.compile(r"\bBASE MAC:\s*([0-9a-fA-F]{2}(?::[0-9a-fA-F]{2}){5})\b", re.I)
+EUI64_MAC_RE = re.compile(r"\bMAC:\s*([0-9a-fA-F]{2}(?::[0-9a-fA-F]{2}){7})\b", re.I)
+MAC48_RE = re.compile(r"\bMAC:\s*([0-9a-fA-F]{2}(?::[0-9a-fA-F]{2}){5})\b", re.I)
 ESPTOOL_VERSION_RE = re.compile(r"\besptool(?:\.py)?\s+v?(\d+)\.(\d+)\.(\d+)\b", re.I)
 FLASH_8MB_RE = re.compile(r"Detected flash size:\s*8\s*MB\b", re.I)
 SECURE_BOOT_DISABLED_RE = re.compile(r"Secure Boot:\s*Disabled\b", re.I)
