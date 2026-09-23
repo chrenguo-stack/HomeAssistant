@@ -81,6 +81,47 @@ def test_all_frozen_sha256_bindings_are_full_length() -> None:
     )
 
 
+
+def _mac_text(parts: tuple[int, ...]) -> str:
+    return ":".join(f"{value:02x}" for value in parts)
+
+
+def test_esp32c6_eui64_is_reduced_to_base_mac_without_truncation() -> None:
+    base_a = (2, 0, 0, 16, 32, 48)
+    base_b = (2, 0, 0, 16, 32, 49)
+    eui_a = base_a[:3] + (255, 254) + base_a[3:]
+    eui_b = base_b[:3] + (255, 254) + base_b[3:]
+
+    security_a = f"MAC: {_mac_text(eui_a)}\n"
+    security_b = f"MAC: {_mac_text(eui_b)}\n"
+
+    canonical_a = module.canonical_base_mac(security_a)
+    canonical_b = module.canonical_base_mac(security_b)
+
+    assert canonical_a == _mac_text(base_a)
+    assert canonical_b == _mac_text(base_b)
+    assert module.public_identity_sha256(canonical_a) != module.public_identity_sha256(canonical_b)
+
+
+def test_explicit_base_mac_is_preferred_over_eui64_line() -> None:
+    base = (2, 0, 0, 85, 102, 119)
+    different_base = (2, 0, 0, 85, 102, 120)
+    eui = different_base[:3] + (255, 254) + different_base[3:]
+    security = (
+        f"MAC: {_mac_text(eui)}\n"
+        f"BASE MAC: {_mac_text(base)}\n"
+        "MAC_EXT: ff:fe\n"
+    )
+
+    assert module.canonical_base_mac(security) == _mac_text(base)
+
+
+def test_eui64_without_fffe_marker_fails_closed() -> None:
+    invalid = (2, 0, 0, 1, 2, 3, 4, 5)
+    with pytest.raises(module.StopExecution, match="unsupported ESP32-C6 EUI-64"):
+        module.canonical_base_mac(f"MAC: {_mac_text(invalid)}\n")
+
+
 def test_wrong_target_artifact_is_not_referenced() -> None:
     source = MODULE_PATH.read_text(encoding="utf-8")
     assert "10691518958" not in source
