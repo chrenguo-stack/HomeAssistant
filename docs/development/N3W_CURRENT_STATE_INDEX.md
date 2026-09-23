@@ -1,7 +1,10 @@
 # N3-W Current State Index
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
-Current progress alignment: `docs/development/N3W_PR437_4270F24_TWO_RUN_FINAL_ALIGNMENT_AND_MERGE_REVIEW_20260921.md`  
+Current progress alignment: `docs/development/N3W_PRODUCTION_GWSEL_V1_THREE_BOARD_WRITE_TARGET_PREFLIGHT_SUMMARY_20260923.md`  
+Current Gateway Selection V1 artifact: `10693728323` / release SHA-256 `f7c7ac703e6b23040235020c92e480f08c602076d32afa18c8a37e5da3882598`  
+Current three-board static write-target compatibility: `PASS`  
+Current next gate: `N3W_PRODUCTION_GWSEL_V1_THREE_BOARD_EXACT_ARTIFACT_WRITE_PREPARATION_20260923_01`  
 Current new-chat handoff: `docs/development/N3W_PR437_WIFI_RECOVERY_BUDGET_SOURCE_REPAIR_NEW_CHAT_HANDOFF_V1.1_20260921.md`  
 Long-term working context: `docs/development/N3W_PROJECT_WORKING_CONTEXT.md`  
 Current handoff template: `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` v1.2  
@@ -13,6 +16,30 @@ Current artifact binding authority: `docs/development/N3W_PR437_4270F24_EXACT_AR
 Currently deployed Board B source: `4270f24a92a87dd5239d781ebba624c2f34b7fc2`  
 Current local-development-environment authority: `docs/development/local-environment-records/2026-09-17-macos-x86_64.json`  
 Active product-direction authority: `docs/development/N3W_OFFICIAL_ESPNOW_REFERENCE_PRODUCT_DIRECTION_DECISION_20260906.md`
+
+## 2026-09-23 Gateway Selection V1 three-board preflight snapshot
+
+```text
+CURRENT_ROUTE=N3W_PRODUCTION_MULTI_RELAY_GATEWAY_SELECTION_V1
+CURRENT_EXACT_ARTIFACT_ID=10693728323
+
+BOARD_A_STATIC_WRITE_TARGET_COMPATIBILITY=PASS
+BOARD_B_STATIC_WRITE_TARGET_COMPATIBILITY=PASS
+BOARD_C_STATIC_WRITE_TARGET_COMPATIBILITY=PASS
+THREE_BOARD_STATIC_WRITE_TARGET_COMPATIBILITY=PASS
+
+GWSEL_V1_EXACT_WRITE_EXECUTOR_READY=false
+GWSEL_V1_EXACT_WRITE_ROUTE_FROZEN=false
+
+NEXT_ONE_GATE=
+N3W_PRODUCTION_GWSEL_V1_THREE_BOARD_EXACT_ARTIFACT_WRITE_PREPARATION_20260923_01
+
+BOARD_ACCESS=false
+FLASH_WRITE=false
+NVS_WRITE=false
+```
+
+Authority: `docs/development/N3W_PRODUCTION_GWSEL_V1_THREE_BOARD_WRITE_TARGET_PREFLIGHT_SUMMARY_20260923.md`.
 
 ## 2026-09-21 PR #437 merged snapshot
 
