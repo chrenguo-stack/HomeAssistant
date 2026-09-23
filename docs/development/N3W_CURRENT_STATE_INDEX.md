@@ -1,7 +1,7 @@
 # N3-W Current State Index
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
-Current progress alignment: `docs/development/N3W_PRODUCTION_MULTI_RELAY_GATEWAY_SELECTION_V1_P1_GATEWAY_B_OPERATOR_REBOOT_REBASELINE_20260923.md`  
+Current progress alignment: `docs/development/N3W_PRODUCTION_MULTI_RELAY_GATEWAY_SELECTION_V1_P1_GATEWAY_B_REBOOT_DURING_QUALIFICATION_20260923.md`  
 Current Board A write closure: `docs/development/N3W_PRODUCTION_GWSEL_V1_BOARD_A_POSTWRITE_READONLY_FORENSIC_CLOSURE_20260923.md`  
 Current Gateway Selection V1 artifact: `10693728323` / release SHA-256 `f7c7ac703e6b23040235020c92e480f08c602076d32afa18c8a37e5da3882598`  
 Current three-board static write-target compatibility: `PASS`  
@@ -12,7 +12,7 @@ Current exact write executor: `9c83c66de9fb64609e27437e1b392c2dd6f2f37f` / CI `3
 Current exact write route: `0x9000 ota_data_initial.bin + 0x10000 firmware.bin`; bootloader/partition/NVS/factory/full erase forbidden  
 Current Board A exact write: `PASS_AFTER_READONLY_FORENSIC`; reflash not required  
 Current OTA post-reset validator repair: `CLOSED_PASS`  
-Current next gate: `N3W_PRODUCTION_MULTI_RELAY_GATEWAY_SELECTION_V1_P1_GATEWAY_B_REBASELINE_AND_QUALIFICATION_20260923_02`  
+Current next gate: `N3W_PRODUCTION_MULTI_RELAY_GATEWAY_SELECTION_V1_P1_GATEWAY_B_REBOOT_CAUSE_REVIEW_20260923_01`  
 Current new-chat handoff: `docs/development/N3W_PRODUCTION_GWSEL_V1_BOARD_B_EXACT_WRITE_PREFLIGHT_NEW_CHAT_HANDOFF_V1.0_20260923.md`  
 Long-term working context: `docs/development/N3W_PROJECT_WORKING_CONTEXT.md`  
 Current handoff template: `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` v1.2  
