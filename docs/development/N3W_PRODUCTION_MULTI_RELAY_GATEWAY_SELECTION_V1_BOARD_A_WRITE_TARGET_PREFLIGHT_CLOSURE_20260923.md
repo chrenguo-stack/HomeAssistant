@@ -289,3 +289,42 @@ T1_ACCESS=false
 TEMPORARY_RESET_ROM_ENTRY_REQUIRES_EXPLICIT_AUTHORIZATION=true
 AUTO_EXECUTE=false
 ```
+
+
+## 11. 2026-09-23 identity parser correction
+
+The original Board A preflight used a parser that accepted only the first six bytes
+after a generic `MAC:` label. On ESP32-C6, esptool may present the built-in address
+as an eight-byte EUI-64 value with an inserted `ff:fe` extension. Truncating the
+first six bytes discards the board-specific tail and can produce false identity
+collisions.
+
+Therefore the identity-only claims from this closure are superseded:
+
+```text
+BOARD_A_FRESH_ROM_IDENTITY_HASH=SUPERSEDED_BY_PARSER_REPAIR
+ORIGINAL_BOARD_A_HARDWARE_ID_SHA256=INVALID_AS_SILICON_IDENTITY
+```
+
+The following independently observed results remain valid because their read paths
+did not depend on the defective identity parser:
+
+```text
+BOARD_A_CHIP_BINDING=PASS
+BOARD_A_FLASH_SIZE_BINDING=PASS
+BOARD_A_SECURE_BOOT_COMPATIBILITY=PASS
+BOARD_A_FLASH_ENCRYPTION_COMPATIBILITY=PASS
+BOARD_A_PARTITION_TABLE_BINDING=PASS
+BOARD_A_ARTIFACT_AUTHORITY_BINDING=PASS
+PERSISTENT_MUTATION=false
+FLASH_WRITE=false
+```
+
+The corrected reusable authority is:
+
+```text
+docs/development/N3W_PRODUCTION_BOARD_WRITE_TARGET_PREFLIGHT_RUNBOOK.md
+```
+
+A future identity recheck must use the repaired parser and the existing project
+hardware-ID normalization contract.
