@@ -55,7 +55,10 @@ jobs:
                   'return "ghw-c6-" + compact',
               ):
                   assert token in source, (path, token)
-              assert 'MAC_RE = re.compile(r"\\bMAC:' not in source
+              assert not any(
+                  line.startswith("MAC_RE =")
+                  for line in source.splitlines()
+              )
               assert '"write-flash"' not in source
               assert '"erase-flash"' not in source
           PY
