@@ -55,7 +55,7 @@ MEMBER_BINDINGS = {
     "firmware.factory.bin": (1458496, "d8aa60082eca0482fe14806d8f4445223d3ccd4f87ba05d433b3ef31c187d304"),
     "firmware.ota.bin": (1392960, "c98010719f37af69142a0ee318ff1577a064215e580b5182dc98556b11560a5a"),
     "flash_args": (167, "5dc4c4f6d568812713266e2604197cf4b68f87f49f8c6e9f7d28c84390faf713"),
-    "ota_data_initial.bin": (8192, "7d2c7ac4888bfd75cd5f56c876732fd3782c62f"),
+    "ota_data_initial.bin": (8192, "7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f"),
     "partitions.bin": (3072, "6664b08a14a9cdc170e322823db29fbe485d87db9c4ec42759d9372028953dca"),
 }
 
