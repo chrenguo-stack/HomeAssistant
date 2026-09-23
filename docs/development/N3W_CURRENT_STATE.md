@@ -1,9 +1,65 @@
 # N3-W Current State
 
-Updated: 2026-09-21  
+Updated: 2026-09-23  
 Status: `CURRENT_STATE_AUTHORITY`
 
 Fresh exact repository/runtime/physical evidence takes precedence if later evidence proves drift.
+
+## 2026-09-23 Production Multi-Relay Gateway Selection V1 three-board preflight summary
+
+This section supersedes older candidate/deployment fields below wherever they
+conflict with the current Production Multi-Relay Gateway Selection V1 route.
+
+```text
+CURRENT_ROUTE=N3W_PRODUCTION_MULTI_RELAY_GATEWAY_SELECTION_V1
+
+PRODUCT_SOURCE=
+8c445f2bdd60d9ac3a33fe7c20a01965360a3b1c
+
+PRODUCT_TREE=
+e9c0216c4a25e99038ff81e54036455cb32b4181
+
+CURRENT_EXACT_ARTIFACT_ID=10693728323
+CURRENT_EXACT_ARTIFACT_OUTER_SHA256=
+e57f71c8c2a4f3c722bde88fe7bfdde64fa48be8a11284009358990882286814
+CURRENT_EXACT_RELEASE_SHA256=
+f7c7ac703e6b23040235020c92e480f08c602076d32afa18c8a37e5da3882598
+
+BOARD_A_IDENTITY_BINDING=PASS
+BOARD_A_STATIC_WRITE_TARGET_COMPATIBILITY=PASS
+
+BOARD_B_IDENTITY_BINDING=PASS
+BOARD_B_STATIC_WRITE_TARGET_COMPATIBILITY=PASS
+
+BOARD_C_IDENTITY_BINDING=PASS
+BOARD_C_STATIC_WRITE_TARGET_COMPATIBILITY=PASS
+
+THREE_BOARD_STATIC_WRITE_TARGET_COMPATIBILITY=PASS
+
+IDENTITY_PARSER_REPAIR=CLOSED_PASS
+BOARD_B_PREVIOUS_IDENTITY_CONFLICT=SUPERSEDED_FALSE_POSITIVE
+
+GWSEL_V1_EXACT_WRITE_EXECUTOR_READY=false
+GWSEL_V1_EXACT_WRITE_ROUTE_FROZEN=false
+
+BOARD_ACCESS=false
+FLASH_WRITE=false
+NVS_WRITE=false
+WRITE_AUTHORIZATION_GRANTED=false
+
+NEXT_ONE_GATE=
+N3W_PRODUCTION_GWSEL_V1_THREE_BOARD_EXACT_ARTIFACT_WRITE_PREPARATION_20260923_01
+```
+
+The three-board compatibility closure does not itself authorize a write. The next
+gate is repository-only preparation of an exact Gateway Selection V1 write route
+and executor. Historical N3-W minimal writes used OTA-data plus application only,
+but that historical pattern is not promoted to current Gateway Selection V1 write
+authority until the exact current artifact is independently inspected and the route
+is frozen.
+
+Current authority:
+`docs/development/N3W_PRODUCTION_GWSEL_V1_THREE_BOARD_WRITE_TARGET_PREFLIGHT_SUMMARY_20260923.md`.
 
 ## 2026-09-21 PR #437 post-merge closure
 
