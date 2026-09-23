@@ -1,0 +1,49 @@
+name: N3W GWSEL V1 Board B readonly preflight CI
+
+on:
+  push:
+    branches:
+      - exec/n3w-production-gwsel-v1-board-b-readonly-preflight-20260923
+
+permissions:
+  contents: read
+
+jobs:
+  preflight-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compile executor
+        run: python -m py_compile tools/execution_packages/n3w/production/gwsel_v1_board_b_preflight/executor.py
+
+      - name: Install focused test dependency
+        run: python -m pip install "pytest==8.4.2"
+
+      - name: Run focused preflight tests
+        run: python -m pytest -q tests/execution_packages/n3w/production/gwsel_v1_board_b_preflight/test_executor.py
+
+      - name: Enforce read-only source contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          F=tools/execution_packages/n3w/production/gwsel_v1_board_b_preflight/executor.py
+          grep -Fq 'ARTIFACT_ID = 10693728323' "$F"
+          grep -Fq 'BOARD_LABEL = "B"' "$F"
+          grep -Fq 'PARTITION_TABLE_OFFSET = 0x8000' "$F"
+          grep -Fq 'OTADATA_OFFSET = 0x9000' "$F"
+          grep -Fq '"--no-stub"' "$F"
+          grep -Fq '7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f' "$F"
+          ! grep -Fq '"write-flash"' "$F"
+          ! grep -Fq '"erase-flash"' "$F"
+          ! grep -Fq '"erase-region"' "$F"
+          ! grep -Fq '10691518958' "$F"
+
+      - name: Public repository safety
+        run: python tools/check_public_repository_safety.py
