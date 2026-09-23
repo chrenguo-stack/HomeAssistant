@@ -39,8 +39,21 @@ THREE_BOARD_STATIC_WRITE_TARGET_COMPATIBILITY=PASS
 IDENTITY_PARSER_REPAIR=CLOSED_PASS
 BOARD_B_PREVIOUS_IDENTITY_CONFLICT=SUPERSEDED_FALSE_POSITIVE
 
-GWSEL_V1_EXACT_WRITE_EXECUTOR_READY=false
-GWSEL_V1_EXACT_WRITE_ROUTE_FROZEN=false
+GWSEL_V1_EXACT_WRITE_EXECUTOR_READY=true
+GWSEL_V1_EXACT_WRITE_ROUTE_FROZEN=true
+GWSEL_V1_EXACT_WRITE_EXECUTOR_HEAD=
+33e6658244146d890887876ba18f32dd61a879b5
+GWSEL_V1_EXACT_WRITE_EXECUTOR_CI_RUN=35819186201
+GWSEL_V1_EXACT_WRITE_EXECUTOR_CI=PASS
+
+FROZEN_MINIMAL_WRITE_ROUTE=
+0x9000:ota_data_initial.bin,0x10000:firmware.bin
+
+BOOTLOADER_WRITE=false
+PARTITION_TABLE_WRITE=false
+PRODUCT_NVS_WRITE=false
+FACTORY_IMAGE_WRITE=false
+FULL_FLASH_ERASE=false
 
 BOARD_ACCESS=false
 FLASH_WRITE=false
@@ -48,18 +61,16 @@ NVS_WRITE=false
 WRITE_AUTHORIZATION_GRANTED=false
 
 NEXT_ONE_GATE=
-N3W_PRODUCTION_GWSEL_V1_THREE_BOARD_EXACT_ARTIFACT_WRITE_PREPARATION_20260923_01
+N3W_PRODUCTION_GWSEL_V1_BOARD_A_EXACT_WRITE_PREFLIGHT_20260923_01
 ```
 
-The three-board compatibility closure does not itself authorize a write. The next
-gate is repository-only preparation of an exact Gateway Selection V1 write route
-and executor. Historical N3-W minimal writes used OTA-data plus application only,
-but that historical pattern is not promoted to current Gateway Selection V1 write
-authority until the exact current artifact is independently inspected and the route
-is frozen.
+The exact Gateway Selection V1 write route and generic A/B/C executor are now
+prepared and exact-head CI validated. No board access or firmware mutation occurred
+during preparation. The next gate is Board A fresh exact-write preflight and remains
+read-only; firmware write still requires a separate explicit Board A authorization.
 
 Current authority:
-`docs/development/N3W_PRODUCTION_GWSEL_V1_THREE_BOARD_WRITE_TARGET_PREFLIGHT_SUMMARY_20260923.md`.
+`docs/development/N3W_PRODUCTION_GWSEL_V1_THREE_BOARD_EXACT_ARTIFACT_WRITE_PREPARATION_CLOSURE_20260923.md`.
 
 ## 2026-09-21 PR #437 post-merge closure
 
