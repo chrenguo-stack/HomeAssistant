@@ -1,0 +1,130 @@
+name: N3W GWSEL V1 three-board exact write preparation CI
+
+on:
+  push:
+    branches:
+      - exec/n3w-production-gwsel-v1-three-board-exact-write-preparation-20260923
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  exact-write-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compile exact write executor
+        run: python -m py_compile tools/execution_packages/n3w/production/gwsel_v1_three_board_write/executor.py
+
+      - name: Install focused test dependency
+        run: python -m pip install "pytest==8.4.2"
+
+      - name: Run exact write executor tests
+        run: python -m pytest -q tests/execution_packages/n3w/production/gwsel_v1_three_board_write/test_executor.py
+
+      - name: Run reusable preflight RUNBOOK tests
+        run: python -m pytest -q tests/execution_packages/n3w/production/test_board_write_target_preflight_runbook.py
+
+      - name: Download exact production artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api             -H "Accept: application/vnd.github+json"             /repos/chrenguo-stack/HomeAssistant/actions/artifacts/10693728323/zip             > /tmp/n3w-gwsel-v1-artifact.zip
+          test "$(stat -c '%s' /tmp/n3w-gwsel-v1-artifact.zip)" = "4281423"
+          test "$(sha256sum /tmp/n3w-gwsel-v1-artifact.zip | awk '{print $1}')" = "e57f71c8c2a4f3c722bde88fe7bfdde64fa48be8a11284009358990882286814"
+
+      - name: Validate exact artifact and frozen minimal write route
+        run: |
+          python - <<'PY'
+          import importlib.util
+          import tempfile
+          from pathlib import Path
+
+          module_path = Path(
+              "tools/execution_packages/n3w/production/"
+              "gwsel_v1_three_board_write/executor.py"
+          )
+          spec = importlib.util.spec_from_file_location("gwsel_exact_write", module_path)
+          assert spec is not None and spec.loader is not None
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+
+          with tempfile.TemporaryDirectory() as td:
+              files = module.validate_artifact(
+                  Path("/tmp/n3w-gwsel-v1-artifact.zip"),
+                  Path(td),
+              )
+              assert files["application"].stat().st_size == 1392960
+              assert files["otadata"].stat().st_size == 8192
+              assert module.parse_partition_table(
+                  files["partition_table"].read_bytes()
+              ) == module.EXPECTED_PARTITIONS
+
+          assert module.OTADATA_OFFSET == 0x9000
+          assert module.APPLICATION_OFFSET == 0x10000
+          assert module.artifact_binding_payload()["bootloader_write"] is False
+          assert module.artifact_binding_payload()["partition_table_write"] is False
+          assert module.artifact_binding_payload()["product_nvs_write"] is False
+          assert module.artifact_binding_payload()["factory_image_write"] is False
+          assert module.artifact_binding_payload()["full_flash_erase"] is False
+          print("EXACT_ARTIFACT_WRITE_ROUTE=PASS")
+          PY
+
+      - name: Enforce source write-scope contract
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path(
+              "tools/execution_packages/n3w/production/"
+              "gwsel_v1_three_board_write/executor.py"
+          )
+          source = path.read_text(encoding="utf-8")
+
+          required = (
+              'ARTIFACT_ID = 10693728323',
+              'OTADATA_OFFSET = 0x9000',
+              'APPLICATION_OFFSET = 0x10000',
+              'BASE_MAC_RE',
+              'EUI64_MAC_RE',
+              'MAC48_RE',
+              'canonical_base_mac',
+              'parts[3:5] != ["ff", "fe"]',
+              '"write-flash"',
+              'verify_postwrite_readback',
+              '"bootloader_write": False',
+              '"partition_table_write": False',
+              '"product_nvs_write": False',
+              '"factory_image_write": False',
+              '"full_flash_erase": False',
+          )
+          for token in required:
+              assert token in source, token
+
+          forbidden = (
+              '"erase-flash"',
+              '"erase-region"',
+              '"write-mem"',
+              '"write-flash-status"',
+              '10691518958',
+          )
+          for token in forbidden:
+              assert token not in source, token
+
+          assert not any(
+              line.startswith("MAC_RE =")
+              for line in source.splitlines()
+          )
+          PY
+
+      - name: Public repository safety
+        run: python tools/check_public_repository_safety.py
