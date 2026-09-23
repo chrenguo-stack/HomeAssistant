@@ -5,10 +5,10 @@ Status: `CURRENT_STATE_AUTHORITY`
 
 Fresh exact repository/runtime/physical evidence takes precedence if later evidence proves drift.
 
-## 2026-09-23 Production Multi-Relay Gateway Selection V1 three-board preflight summary
+## 2026-09-23 Production Multi-Relay Gateway Selection V1 Board A write + validator repair
 
-This section supersedes older candidate/deployment fields below wherever they
-conflict with the current Production Multi-Relay Gateway Selection V1 route.
+This section supersedes older Gateway Selection V1 write/preflight fields below wherever
+they conflict.
 
 ```text
 CURRENT_ROUTE=N3W_PRODUCTION_MULTI_RELAY_GATEWAY_SELECTION_V1
@@ -27,13 +27,19 @@ f7c7ac703e6b23040235020c92e480f08c602076d32afa18c8a37e5da3882598
 
 BOARD_A_IDENTITY_BINDING=PASS
 BOARD_A_STATIC_WRITE_TARGET_COMPATIBILITY=PASS
-BOARD_A_FRESH_EXACT_WRITE_PREFLIGHT=PASS
-BOARD_A_FRESH_PARTITION_BINDING=PASS
-BOARD_A_FRESH_SECURITY_BINDING=PASS
-BOARD_A_EXACT_ARTIFACT_BINDING=PASS
-BOARD_A_MINIMAL_WRITE_ROUTE_BINDING=PASS
-BOARD_A_CURRENT_OTADATA_SHA256=
+BOARD_A_EXACT_WRITE_PHYSICAL_RESULT=PASS_AFTER_READONLY_FORENSIC
+BOARD_A_EXACT_ARTIFACT_APPLICATION_BINDING=PASS
+BOARD_A_PARTITION_TABLE_PRESERVED=PASS
+BOARD_A_BOOT_SELECTION_STATE=VALID_OTA0
+BOARD_A_REFLASH_REQUIRED=false
+
+BOARD_A_APPLICATION_READBACK_SHA256=
+c98010719f37af69142a0ee318ff1577a064215e580b5182dc98556b11560a5a
+BOARD_A_OTADATA_RUNTIME_SHA256=
 8ba3b110139f45443d4f268d1a3373ef99a1718b71d51664531b83ee2d4b91a3
+BOARD_A_OTADATA_OTA_SEQ=1
+BOARD_A_OTADATA_STATE=VALID
+BOARD_A_OTADATA_CRC=0x4743989a
 
 BOARD_B_IDENTITY_BINDING=PASS
 BOARD_B_STATIC_WRITE_TARGET_COMPATIBILITY=PASS
@@ -44,17 +50,23 @@ BOARD_C_STATIC_WRITE_TARGET_COMPATIBILITY=PASS
 THREE_BOARD_STATIC_WRITE_TARGET_COMPATIBILITY=PASS
 
 IDENTITY_PARSER_REPAIR=CLOSED_PASS
-BOARD_B_PREVIOUS_IDENTITY_CONFLICT=SUPERSEDED_FALSE_POSITIVE
+OTADATA_POSTRESET_VALIDATOR_SOURCE_REPAIR=CLOSED_PASS
 
-GWSEL_V1_EXACT_WRITE_EXECUTOR_READY=true
 GWSEL_V1_EXACT_WRITE_ROUTE_FROZEN=true
-GWSEL_V1_EXACT_WRITE_EXECUTOR_HEAD=
-33e6658244146d890887876ba18f32dd61a879b5
-GWSEL_V1_EXACT_WRITE_EXECUTOR_CI_RUN=35819186201
-GWSEL_V1_EXACT_WRITE_EXECUTOR_CI=PASS
-
 FROZEN_MINIMAL_WRITE_ROUTE=
 0x9000:ota_data_initial.bin,0x10000:firmware.bin
+
+GWSEL_V1_EXACT_WRITE_EXECUTOR_HEAD=
+9c83c66de9fb64609e27437e1b392c2dd6f2f37f
+GWSEL_V1_EXACT_WRITE_EXECUTOR_TREE=
+65b6e3c1465c49b40098154695d92370741ef487
+GWSEL_V1_EXACT_WRITE_EXECUTOR_CI_RUN=35829956273
+GWSEL_V1_EXACT_WRITE_EXECUTOR_CI=PASS
+
+OTADATA_POSTRESET_RUNTIME_CONTRACT=
+ota_seq=1,state=VALID,crc=0x4743989a
+OTADATA_POSTRESET_RUNTIME_SHA256=
+8ba3b110139f45443d4f268d1a3373ef99a1718b71d51664531b83ee2d4b91a3
 
 BOOTLOADER_WRITE=false
 PARTITION_TABLE_WRITE=false
@@ -67,19 +79,25 @@ FLASH_WRITE=false
 NVS_WRITE=false
 WRITE_AUTHORIZATION_GRANTED=false
 
+BOARD_A_RUNTIME_DIRECT_BASELINE=NOT_EXECUTED
+
 NEXT_ONE_GATE=
-N3W_PRODUCTION_GWSEL_V1_BOARD_A_EXACT_WRITE_20260923_01
+N3W_PRODUCTION_GWSEL_V1_BOARD_B_EXACT_WRITE_PREFLIGHT_20260923_01
 ```
 
-The exact Gateway Selection V1 write route and generic A/B/C executor are prepared
-and exact-head CI validated. Board A has now completed a fresh exact-write read-only
-preflight with identity, security, partition and artifact bindings all PASS. No
-firmware write occurred. The next gate is the separately authorized Board A exact
-write; the local single-use preflight remains subject to its 900-second freshness
-window.
+Board A's exact application bytes and partition table were independently read back after
+the write and match the frozen artifact. The prior executor failure was a false negative:
+the old validator compared post-reset OTA-data against the initial all-erased image even
+though the hard-reset boot legitimately materializes OTA0 runtime state.
 
-Current authority:
-`docs/development/N3W_PRODUCTION_GWSEL_V1_BOARD_A_EXACT_WRITE_PREFLIGHT_CLOSURE_20260923.md`.
+The repaired executor and regression tests are exact-head CI validated at
+`9c83c66...`. The write route itself is unchanged. Board B remains unmodified by this
+closure and requires its own fresh read-only preflight and separate write authorization.
+
+Current authorities:
+
+- `docs/development/N3W_PRODUCTION_GWSEL_V1_BOARD_A_POSTWRITE_READONLY_FORENSIC_CLOSURE_20260923.md`
+- `docs/development/N3W_PRODUCTION_GWSEL_V1_EXACT_WRITE_OTADATA_POSTRESET_VALIDATOR_SOURCE_REPAIR_CLOSURE_20260923.md`
 
 ## 2026-09-21 PR #437 post-merge closure
 
