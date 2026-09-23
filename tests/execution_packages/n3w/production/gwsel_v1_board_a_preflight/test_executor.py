@@ -47,6 +47,40 @@ def test_exact_r2_production_artifact_binding() -> None:
     assert module.EXPECTED_MANIFEST["GATEWAY_SELECTION_R2_LINK_PROOF"] == "PASS"
 
 
+def test_all_frozen_sha256_bindings_are_full_length() -> None:
+    digests = [
+        module.ARTIFACT_ZIP_SHA256,
+        module.RELEASE_BUNDLE_SHA256,
+        module.PRODUCT_SOURCE,
+        module.PRODUCT_TREE,
+        module.TARGET_BLOB,
+        module.TELEMETRY_BRIDGE_BLOB,
+        module.TRANSPORT_BLOB,
+        module.PRODUCT_CORE_INIT_BLOB,
+        module.PARTITION_TABLE_SHA256,
+        *(digest for _size, digest in module.MEMBER_BINDINGS.values()),
+    ]
+    for digest in digests:
+        assert len(digest) in {40, 64}
+        if digest in {
+            module.PRODUCT_SOURCE,
+            module.PRODUCT_TREE,
+            module.TARGET_BLOB,
+            module.TELEMETRY_BRIDGE_BLOB,
+            module.TRANSPORT_BLOB,
+            module.PRODUCT_CORE_INIT_BLOB,
+        }:
+            assert len(digest) == 40
+        else:
+            assert len(digest) == 64
+        int(digest, 16)
+
+    assert (
+        module.MEMBER_BINDINGS["ota_data_initial.bin"][1]
+        == "7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f"
+    )
+
+
 def test_wrong_target_artifact_is_not_referenced() -> None:
     source = MODULE_PATH.read_text(encoding="utf-8")
     assert "10691518958" not in source
