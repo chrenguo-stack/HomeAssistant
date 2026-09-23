@@ -1,7 +1,7 @@
 # N3-W Production Multi-Relay Gateway Selection V1
 ## Board B Identity Conflict — 2026-09-23
 
-Status: `STOP_IDENTITY_CONFLICT`
+Status: `SUPERSEDED_FALSE_POSITIVE_IDENTITY_CONFLICT`
 
 ```text
 TASK=N3W_PRODUCTION_MULTI_RELAY_GATEWAY_SELECTION_V1_THREE_BOARD_WRITE_TARGET_PREFLIGHT_20260923_01
@@ -44,3 +44,42 @@ AUTO_PROCEED=false
 BOARD_C_ACCESS=false
 STOP=true
 ```
+
+
+## 2026-09-23 supersession
+
+This stop was caused by an executor parser defect, not by proof that the operator
+connected the same physical board twice.
+
+The affected parser captured only six bytes after a generic `MAC:` label. For the
+ESP32-C6 EUI-64 form this retained the common prefix and discarded the
+board-specific tail. The resulting equal public identity digests were therefore a
+false collision produced by software.
+
+The equal OTA-data digests were also not valid supporting identity evidence.
+OTA-data is mutable boot-selection state and may legitimately be byte-identical on
+different boards.
+
+```text
+BOARD_B_IDENTITY_CONFLICT=FALSE_POSITIVE
+OPERATOR_BOARD_B_LABEL_DOUBT=WITHDRAWN
+OTADATA_AS_IDENTITY_EVIDENCE=FORBIDDEN
+
+CHIP_CHECK=PASS
+FLASH_SIZE_CHECK=PASS
+SECURITY_STATE_CHECK=PASS
+PARTITION_TABLE_CHECK=PASS
+ARTIFACT_BINDING=PASS
+
+ORIGINAL_BOARD_B_HARDWARE_ID_SHA256=INVALID_AS_SILICON_IDENTITY
+```
+
+The corrected reusable authority is:
+
+```text
+docs/development/N3W_PRODUCTION_BOARD_WRITE_TARGET_PREFLIGHT_RUNBOOK.md
+```
+
+The Board B identity should be re-read with the repaired parser. The other
+independent read-only preflight evidence above does not need to be repeated solely
+because of this identity-parser defect.
