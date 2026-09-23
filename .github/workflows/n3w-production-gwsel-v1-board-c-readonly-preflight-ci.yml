@@ -1,0 +1,85 @@
+name: N3W GWSEL V1 Board C readonly preflight CI
+
+on:
+  push:
+    branches:
+      - exec/n3w-production-gwsel-v1-board-c-readonly-preflight-20260923
+
+permissions:
+  contents: read
+
+jobs:
+  preflight-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compile executor
+        run: python -m py_compile tools/execution_packages/n3w/production/gwsel_v1_board_c_preflight/executor.py
+
+      - name: Install focused test dependency
+        run: python -m pip install "pytest==8.4.2"
+
+      - name: Run focused Board C preflight tests
+        run: python -m pytest -q tests/execution_packages/n3w/production/gwsel_v1_board_c_preflight/test_executor.py
+
+      - name: Run reusable RUNBOOK contract tests
+        run: python -m pytest -q tests/execution_packages/n3w/production/test_board_write_target_preflight_runbook.py
+
+      - name: Enforce read-only identity and artifact contract
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path(
+              "tools/execution_packages/n3w/production/"
+              "gwsel_v1_board_c_preflight/executor.py"
+          )
+          source = path.read_text(encoding="utf-8")
+
+          required = (
+              'BOARD_LABEL = "C"',
+              'ARTIFACT_ID = 10693728323',
+              'PARTITION_TABLE_OFFSET = 0x8000',
+              'OTADATA_OFFSET = 0x9000',
+              '"--no-stub"',
+              'BASE_MAC_RE',
+              'EUI64_MAC_RE',
+              'MAC48_RE',
+              'canonical_base_mac',
+              'parts[3:5] != ["ff", "fe"]',
+              'EXPECTED_HARDWARE_ID_SHA256 = '
+              '"d6ef3f98a35f06a5a8b8e7716a015e17336242128b314a1b3244b114fc6f72e2"',
+              'connected target does not match frozen Board C identity',
+              '7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f',
+          )
+
+          for token in required:
+              assert token in source, token
+
+          forbidden = (
+              '"write-flash"',
+              '"erase-flash"',
+              '"erase-region"',
+              '"write-mem"',
+              '"write-flash-status"',
+              '10691518958',
+          )
+
+          for token in forbidden:
+              assert token not in source, token
+
+          assert not any(
+              line.startswith("MAC_RE =")
+              for line in source.splitlines()
+          )
+          PY
+
+      - name: Public repository safety
+        run: python tools/check_public_repository_safety.py
