@@ -1,12 +1,13 @@
 # N3-W Current State Index
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
-Current progress alignment: `docs/development/N3W_PRODUCTION_GWSEL_V1_THREE_BOARD_EXACT_ARTIFACT_WRITE_PREPARATION_CLOSURE_20260923.md`  
+Current progress alignment: `docs/development/N3W_PRODUCTION_GWSEL_V1_BOARD_A_EXACT_WRITE_PREFLIGHT_CLOSURE_20260923.md`  
 Current Gateway Selection V1 artifact: `10693728323` / release SHA-256 `f7c7ac703e6b23040235020c92e480f08c602076d32afa18c8a37e5da3882598`  
 Current three-board static write-target compatibility: `PASS`  
 Current exact write executor: `33e6658244146d890887876ba18f32dd61a879b5` / CI `35819186201` PASS  
 Current exact write route: `0x9000 ota_data_initial.bin + 0x10000 firmware.bin`; bootloader/partition/NVS/factory/full erase forbidden  
-Current next gate: `N3W_PRODUCTION_GWSEL_V1_BOARD_A_EXACT_WRITE_PREFLIGHT_20260923_01`  
+Current Board A exact-write preflight: `PASS`; local single-use preflight freshness `900s`  
+Current next gate: `N3W_PRODUCTION_GWSEL_V1_BOARD_A_EXACT_WRITE_20260923_01`  
 Current new-chat handoff: `docs/development/N3W_PR437_WIFI_RECOVERY_BUDGET_SOURCE_REPAIR_NEW_CHAT_HANDOFF_V1.1_20260921.md`  
 Long-term working context: `docs/development/N3W_PROJECT_WORKING_CONTEXT.md`  
 Current handoff template: `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` v1.2  
@@ -36,15 +37,19 @@ GWSEL_V1_EXACT_WRITE_EXECUTOR_HEAD=
 33e6658244146d890887876ba18f32dd61a879b5
 GWSEL_V1_EXACT_WRITE_EXECUTOR_CI=PASS
 
+BOARD_A_FRESH_EXACT_WRITE_PREFLIGHT=PASS
+BOARD_A_EXACT_ARTIFACT_BINDING=PASS
+BOARD_A_MINIMAL_WRITE_ROUTE_BINDING=PASS
+
 NEXT_ONE_GATE=
-N3W_PRODUCTION_GWSEL_V1_BOARD_A_EXACT_WRITE_PREFLIGHT_20260923_01
+N3W_PRODUCTION_GWSEL_V1_BOARD_A_EXACT_WRITE_20260923_01
 
 BOARD_ACCESS=false
 FLASH_WRITE=false
 NVS_WRITE=false
 ```
 
-Authority: `docs/development/N3W_PRODUCTION_GWSEL_V1_THREE_BOARD_EXACT_ARTIFACT_WRITE_PREPARATION_CLOSURE_20260923.md`.
+Authority: `docs/development/N3W_PRODUCTION_GWSEL_V1_BOARD_A_EXACT_WRITE_PREFLIGHT_CLOSURE_20260923.md`.
 
 ## 2026-09-21 PR #437 merged snapshot
 
