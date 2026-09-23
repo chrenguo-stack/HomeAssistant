@@ -195,3 +195,22 @@ OTADATA_NOT_USED_AS_IDENTITY=REQUIRED
 The historical first-six-byte parser is forbidden for new production-board
 preflight executors and must not be copied into future Board C or replacement-board
 execution packages.
+
+
+## 11. Paste-ready operator shell command safety
+
+When an instruction is intended to be copied directly into the operator's interactive
+shell, the executable code block must be paste-safe for that shell.
+
+For interactive zsh execution:
+
+- do not place shell comment lines beginning with `#` inside a paste-ready command block;
+- do not assume `INTERACTIVE_COMMENTS` is enabled;
+- keep explanatory comments outside the executable block;
+- if inline shell comments are operationally necessary, explicitly wrap the script
+  in a non-interactive shell invocation whose parsing behavior is controlled;
+- a command-generation error must fail before ROM access or persistent mutation
+  whenever possible.
+
+This rule applies to all future A/B/C preflight, identity-check and write-gate
+operator commands.
