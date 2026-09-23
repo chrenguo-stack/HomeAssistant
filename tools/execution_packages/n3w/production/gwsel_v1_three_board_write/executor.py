@@ -108,10 +108,22 @@ PARTITION_TABLE_SIZE = 0xC00
 PARTITION_TABLE_SHA256 = MEMBER_BINDINGS["partitions.bin"][1]
 OTADATA_OFFSET = 0x9000
 OTADATA_SIZE = 0x2000
+OTADATA_SECTOR_SIZE = 0x1000
 APPLICATION_OFFSET = 0x10000
 APPLICATION_SIZE = MEMBER_BINDINGS["firmware.bin"][0]
 APPLICATION_SHA256 = MEMBER_BINDINGS["firmware.bin"][1]
-OTADATA_SHA256 = MEMBER_BINDINGS["ota_data_initial.bin"][1]
+
+OTADATA_INITIAL_SHA256 = MEMBER_BINDINGS["ota_data_initial.bin"][1]
+OTADATA_POSTRESET_RUNTIME_SHA256 = (
+    "8ba3b110139f45443d4f268d1a3373ef99a1718b71d51664531b83ee2d4b91a3"
+)
+OTADATA_POSTRESET_OTA_SEQ = 1
+OTADATA_POSTRESET_STATE_VALID = 2
+OTADATA_POSTRESET_CRC = 0x4743989A
+
+# Backward-compatible artifact-image name.  Post-reset readback must use the
+# runtime contract above because the bootloader legitimately materializes OTA0.
+OTADATA_SHA256 = OTADATA_INITIAL_SHA256
 
 EXPECTED_PARTITIONS = (
     ("otadata", 0x01, 0x00, 0x9000, 0x2000, 0),
@@ -236,6 +248,47 @@ def parse_partition_table(data: bytes) -> tuple[tuple[str, int, int, int, int, i
         raise StopExecution("unsupported partition table entry")
 
     return tuple(entries)
+
+
+def validate_postreset_otadata(data: bytes) -> dict[str, object]:
+    """Validate the deterministic OTA0 runtime state after the write hard-reset.
+
+    The exact artifact writes an all-0xFF ota_data_initial.bin.  This product has
+    OTA app slots but no factory app partition, so ESP-IDF's bootloader selects
+    OTA0 on the first boot and persists a valid ota_seq=1 record before the
+    executor performs its post-write readback.
+    """
+    if len(data) != OTADATA_SIZE:
+        raise StopExecution("post-reset OTA-data size mismatch")
+
+    ota_seq = struct.unpack_from("<I", data, 0)[0]
+    seq_label = data[4:24]
+    ota_state = struct.unpack_from("<I", data, 24)[0]
+    crc = struct.unpack_from("<I", data, 28)[0]
+    digest = sha256_bytes(data)
+
+    if ota_seq != OTADATA_POSTRESET_OTA_SEQ:
+        raise StopExecution("post-reset OTA-data ota_seq mismatch")
+    if seq_label != b"\xff" * 20:
+        raise StopExecution("post-reset OTA-data seq_label mismatch")
+    if ota_state != OTADATA_POSTRESET_STATE_VALID:
+        raise StopExecution("post-reset OTA-data state is not VALID")
+    if crc != OTADATA_POSTRESET_CRC:
+        raise StopExecution("post-reset OTA-data CRC mismatch")
+    if data[32:OTADATA_SECTOR_SIZE] != b"\xff" * (OTADATA_SECTOR_SIZE - 32):
+        raise StopExecution("post-reset OTA-data first sector tail mismatch")
+    if data[OTADATA_SECTOR_SIZE:OTADATA_SIZE] != b"\xff" * OTADATA_SECTOR_SIZE:
+        raise StopExecution("post-reset OTA-data second sector is not initial")
+    if digest != OTADATA_POSTRESET_RUNTIME_SHA256:
+        raise StopExecution("post-reset OTA-data runtime SHA256 mismatch")
+
+    return {
+        "sha256": digest,
+        "ota_seq": ota_seq,
+        "ota_state": "VALID",
+        "ota_state_raw": ota_state,
+        "crc": f"0x{crc:08x}",
+    }
 
 
 def _safe_exact_members(zf: zipfile.ZipFile, expected: set[str], label: str) -> None:
@@ -482,7 +535,12 @@ def artifact_binding_payload() -> dict[str, object]:
         "application_sha256": APPLICATION_SHA256,
         "otadata_offset": hex(OTADATA_OFFSET),
         "otadata_size": OTADATA_SIZE,
-        "otadata_sha256": OTADATA_SHA256,
+        "otadata_sha256": OTADATA_INITIAL_SHA256,
+        "otadata_initial_sha256": OTADATA_INITIAL_SHA256,
+        "otadata_postreset_runtime_sha256": OTADATA_POSTRESET_RUNTIME_SHA256,
+        "otadata_postreset_ota_seq": OTADATA_POSTRESET_OTA_SEQ,
+        "otadata_postreset_state": "VALID",
+        "otadata_postreset_crc": f"0x{OTADATA_POSTRESET_CRC:08x}",
         "partition_table_sha256": PARTITION_TABLE_SHA256,
         "product_source": PRODUCT_SOURCE,
         "product_tree": PRODUCT_TREE,
@@ -673,14 +731,14 @@ def build_write_command(port: str, otadata: Path, application: Path) -> list[str
     ]
 
 
-def verify_postwrite_readback(port: str) -> dict[str, str]:
+def verify_postwrite_readback(port: str) -> dict[str, object]:
     with tempfile.TemporaryDirectory(prefix="n3w-gwsel-v1-postwrite-readback-") as td:
         root = Path(td)
         otadata = root / "otadata.bin"
         application = root / "application.bin"
         partition = root / "partition-table.bin"
 
-        otadata_sha = read_flash_region(port, OTADATA_OFFSET, OTADATA_SIZE, otadata)
+        read_flash_region(port, OTADATA_OFFSET, OTADATA_SIZE, otadata)
         application_sha = read_flash_region(
             port,
             APPLICATION_OFFSET,
@@ -694,15 +752,19 @@ def verify_postwrite_readback(port: str) -> dict[str, str]:
             partition,
         )
 
-    if otadata_sha != OTADATA_SHA256:
-        raise StopExecution("post-write OTA-data readback SHA256 mismatch")
+        otadata_runtime = validate_postreset_otadata(otadata.read_bytes())
+
     if application_sha != APPLICATION_SHA256:
         raise StopExecution("post-write application readback SHA256 mismatch")
     if partition_sha != PARTITION_TABLE_SHA256:
         raise StopExecution("post-write partition table readback SHA256 mismatch")
 
     return {
-        "otadata_sha256": otadata_sha,
+        "otadata_sha256": otadata_runtime["sha256"],
+        "otadata_runtime_ota_seq": otadata_runtime["ota_seq"],
+        "otadata_runtime_state": otadata_runtime["ota_state"],
+        "otadata_runtime_state_raw": otadata_runtime["ota_state_raw"],
+        "otadata_runtime_crc": otadata_runtime["crc"],
         "application_sha256": application_sha,
         "partition_table_sha256": partition_sha,
     }
@@ -768,9 +830,12 @@ def run_write(args: argparse.Namespace) -> int:
     print(f"N3W_PRODUCTION_GWSEL_V1_BOARD_{args.board}_EXACT_WRITE=PASS")
     print(f"BOARD_LABEL={args.board}")
     print(f"HARDWARE_ID_SHA256={fresh_board['hardware_id_sha256']}")
-    print(f"OTADATA_WRITE_SHA256={OTADATA_SHA256}")
+    print(f"OTADATA_WRITE_SHA256={OTADATA_INITIAL_SHA256}")
     print(f"APPLICATION_WRITE_SHA256={APPLICATION_SHA256}")
     print(f"OTADATA_READBACK_SHA256={readback['otadata_sha256']}")
+    print(f"OTADATA_POSTRESET_OTA_SEQ={readback['otadata_runtime_ota_seq']}")
+    print(f"OTADATA_POSTRESET_STATE={readback['otadata_runtime_state']}")
+    print(f"OTADATA_POSTRESET_CRC={readback['otadata_runtime_crc']}")
     print(f"APPLICATION_READBACK_SHA256={readback['application_sha256']}")
     print(f"PARTITION_TABLE_READBACK_SHA256={readback['partition_table_sha256']}")
     print("AUTHORIZATION_CLAIMED=true")
