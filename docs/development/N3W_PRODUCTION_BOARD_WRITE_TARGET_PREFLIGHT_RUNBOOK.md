@@ -281,3 +281,29 @@ A -> STOP -> B -> STOP -> C -> STOP
 ```
 
 No board inherits another board's reset, preflight or write authorization.
+
+
+## 13. Post-reset OTA-data validation guard
+
+For artifact `10693728323`, the bytes written at `0x9000` are the initial
+OTA-data image with SHA-256
+`7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f`.
+
+The exact write command performs a hard reset. With the frozen layout
+(`app0` / `app1`, no factory app), ESP-IDF materializes the OTA0 boot record
+during that first boot. Post-reset validation must therefore check the runtime
+record rather than require equality with the initial image.
+
+Current exact runtime contract:
+
+```text
+OTADATA_POSTRESET_OTA_SEQ=1
+OTADATA_POSTRESET_STATE=VALID
+OTADATA_POSTRESET_CRC=0x4743989a
+OTADATA_POSTRESET_RUNTIME_SHA256=
+8ba3b110139f45443d4f268d1a3373ef99a1718b71d51664531b83ee2d4b91a3
+```
+
+Application and partition-table readback remain exact SHA-256 checks. A
+post-reset comparison against the initial all-erased OTA-data image is not a
+valid acceptance rule for this route.
