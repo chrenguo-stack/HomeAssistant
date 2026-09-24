@@ -1,0 +1,45 @@
+substitutions:
+  device_name: gh
+  project_version: "F1.0-RC2-N3W-PROD-0.1"
+  soil_read_interval: 20min
+  soil_warmup_time: 15s
+  scd30_update_interval: 30s
+  battery_divider_ratio: "2.0"
+  battery_calibration_factor: "1.000"
+  battery_low_threshold: "3.00"
+  battery_recovery_threshold: "3.50"
+  n3w_publish_interval: 5s
+  n3w_cap_hash: "n3w-prod-v1"
+
+external_components:
+  - source:
+      type: local
+      path: ../15_1_2_rs485_modbus_echo_filter/my_components
+    components:
+      - echo_filtered_modbus
+
+  - source:
+      type: local
+      path: ../components
+    components:
+      - greenhouse_n3w_core
+      - greenhouse_n3w_production_telemetry
+
+packages:
+  core: !include packages/core.yml
+  control: !include packages/control.yml
+  buses: !include packages/buses.yml
+  sensors: !include packages/sensors.yml
+  display: !include packages/display.yml
+  n3w_transport: !include packages/n3w_production.yml
+
+# Production target intentionally does not enable any Phase-4 source harness,
+# lab diagnostics, synthetic telemetry, pairing-PoP logger, or RTC breadcrumb.
+# The N3-W product runtime is enabled through product_runtime only.
+logger:
+  level: INFO
+  hardware_uart: USB_CDC
+  logs:
+    modbus: WARN
+    modbus_controller: WARN
+    echo_filtered_modbus: WARN
