@@ -298,6 +298,49 @@ REWRITE_REQUIRED=false
 AUTO_ERASE_REQUIRED=false
 ```
 
+## Validated replacement-board first boot — 2026-09-24
+
+The replacement Board C first normal boot after the verified exact first-write produced a fresh unprovisioned N3-W state:
+
+```text
+HARDWARE_ID_SHA256=f972633ca16463c8324a6921b60a2916c71bc9cab102333049d56449005b636b
+POSTBOOT_NVS_CHANGED_FROM_BLANK=true
+POSTBOOT_NVS_NON_FF_BYTE_COUNT=5242
+N3W_NAMESPACE_PRESENT=true
+SETUP_SECRET_KEY_PRESENT=true
+PAIRING_INTENT_KEY_PRESENT=true
+PROVISIONED_PEER_KEY_PRESENT=false
+PROVISIONED_BROKER_KEY_PRESENT=false
+OLD_BOARD_C_IDENTITY_REUSE=false
+RESULT=PASS_NEW_BOARD_C_UNPROVISIONED_FIRST_BOOT
+```
+
+This validates the intended fresh-silicon transition:
+
+```text
+EXACT_FIRST_WRITE
+-> VERIFIED_FACTORY_RANGE
+-> NORMAL_APPLICATION_BOOT
+-> NEW_SETUP_SECRET_AND_PAIRING_INTENT
+-> UNPROVISIONED
+```
+
+No old logical node identity or broker credentials were inherited.
+
+### Fresh-board onboarding display boundary
+
+For the frozen Production Gateway Selection V1 target, the LCD provisioning QR is the ESPHome Wi-Fi fallback-AP QR generated from `App.get_name()`. It is not the N3-W `GHN3W2` pairing payload.
+
+The product component exposes `pairing_qr_payload()` internally and logs the unprovisioned hardware/pairing identifiers, but the production target does not wire the secret-bearing N3-W pairing payload to the LCD or a public log.
+
+```text
+LCD_QR_PURPOSE=WIFI_PROVISIONING_ONLY
+LCD_QR_IS_N3W_SETUP_SECRET_PAYLOAD=false
+RAW_SETUP_SECRET_PUBLIC_LOG_ALLOWED=false
+```
+
+Therefore fresh-board onboarding must keep Wi-Fi provisioning and N3-W Setup-Secret transfer as separate steps and preserve the private-secret boundary.
+
 ## Stop policy
 
 Stop before board mutation on any of:
