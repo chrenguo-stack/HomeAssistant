@@ -267,6 +267,37 @@ When several adjacent written regions together form the exact factory image, one
 
 If the readback command itself fails, preserve the successful write as an unverified mutation and stop. Do not replay the write authorization.
 
+## Validated fresh-stub readback recovery — 2026-09-24
+
+The replacement Board C readback recovery physically validated the preceding guard.
+
+Observed result:
+
+```text
+READBACK_COMMAND=PASS
+READBACK_SIZE=1458496
+FACTORY_RANGE_EXACT_MATCH=true
+BOOTLOADER_READBACK_MATCH=true
+PARTITION_TABLE_READBACK_MATCH=true
+OTADATA_INITIAL_READBACK_MATCH=true
+APPLICATION_READBACK_MATCH=true
+RESULT=PASS_NEW_BOARD_C_POSTWRITE_EXACT_READBACK
+```
+
+The contiguous factory-range SHA-256 matched the frozen `firmware.factory.bin`:
+
+```text
+d8aa60082eca0482fe14806d8f4445223d3ccd4f87ba05d433b3ef31c187d304
+```
+
+This proves the earlier four post-write failures were readback-procedure failures, not write-content failures.
+
+```text
+FIRST_WRITE_CONTENT_VERIFIED=true
+REWRITE_REQUIRED=false
+AUTO_ERASE_REQUIRED=false
+```
+
 ## Stop policy
 
 Stop before board mutation on any of:
