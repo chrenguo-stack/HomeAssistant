@@ -341,6 +341,39 @@ RAW_SETUP_SECRET_PUBLIC_LOG_ALLOWED=false
 
 Therefore fresh-board onboarding must keep Wi-Fi provisioning and N3-W Setup-Secret transfer as separate steps and preserve the private-secret boundary.
 
+## Validated fresh-board private pairing handoff materialization — 2026-09-24
+
+For the replacement Board C, the first-boot private NVS readback was parsed offline and the exact fresh pairing handoff was materialized without reopening the board or contacting T1.
+
+Observed public-safe result:
+
+```text
+SOURCE_NVS_SHA256=5619374bab10ad2b942e1315a006331b588eaa6daec256f0d92ed82b9f1cb28f
+HARDWARE_ID_SHA256=f972633ca16463c8324a6921b60a2916c71bc9cab102333049d56449005b636b
+PAIRING_ID_SHA256=d9f6431ff0e81a21f10d87271244d6727cbe1c8dc24c6f542018131b32c53e72
+SETUP_SECRET_ENCODED_LENGTH=43
+PRIVATE_HANDOFF_SHA256=2ea35936f075de5d919b60009b977f43df66a3739b52b1fbf5068e532fa35b03
+PRIVATE_HANDOFF_MODE=0600
+PAIRING_ID_RAW_EXPOSED=false
+SETUP_SECRET_EXPOSED=false
+BOARD_ACCESS=false
+T1_ACCESS=false
+RESULT=PASS_NEW_BOARD_C_PRIVATE_PAIRING_HANDOFF_MATERIALIZATION
+```
+
+Operational ordering guard for fresh-board first registration:
+
+```text
+CAPTURE_PRIVATE_HANDOFF_BEFORE_WIFI_PAIRING_WINDOW=true
+RAW_SETUP_SECRET_PUBLIC_OUTPUT=false
+PAIRING_ID_PUBLIC_OUTPUT_HASH_ONLY=true
+PRIVATE_HANDOFF_MODE_REQUIRED=0600
+```
+
+Reason: the Manager pending/session lifetime is bounded. When possible, materialize and bind the private handoff before the board is placed on the production LAN so operator time is not consumed extracting the secret inside the live pairing window.
+
+The private handoff must remain local/private until the exact fresh Manager registration for the same hardware and pairing identity is observed as pending and the delivery TTL/precondition gate is ready. Do not deliver a secret merely because the board obtained Wi-Fi.
+
 ## Stop policy
 
 Stop before board mutation on any of:
