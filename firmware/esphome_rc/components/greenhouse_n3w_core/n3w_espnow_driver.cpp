@@ -18,7 +18,9 @@ namespace esphome::greenhouse_n3w_core {
 
 namespace {
 static const char *const TAG = "n3w_espnow_driver";
+#ifdef GREENHOUSE_N3W_ENABLE_PHASE4_LAB
 constexpr uint8_t kDiagnosticLogLimit = 8;
+#endif
 }
 
 std::atomic<uint16_t> EspNowDriver::callbacks_inflight_{0};
@@ -165,8 +167,10 @@ DriverError EspNowDriver::initialize_(
   last_unicast_send_error_raw_ = 0;
   last_unicast_current_channel_ = 0;
   last_unicast_peer_channel_ = 0;
+#ifdef GREENHOUSE_N3W_ENABLE_PHASE4_LAB
   diagnostic_receive_logs_.store(0, std::memory_order_relaxed);
   diagnostic_broadcast_logs_.store(0, std::memory_order_relaxed);
+#endif
   pending_unicast_sends_.store(0, std::memory_order_release);
   if (esp_now_register_recv_cb(&EspNowDriver::recv_cb_) != ESP_OK ||
       esp_now_register_send_cb(&EspNowDriver::send_cb_) != ESP_OK) {
@@ -423,10 +427,9 @@ DriverError EspNowDriver::send(
     return last_unicast_send_error_;
   }
 
-  // Lab-only observation is requested by the product component. These reads do
-  // not mutate Wi-Fi/ESP-NOW state and occur immediately before esp_now_send(),
-  // so a synchronous ESP_ERR_ESPNOW_CHAN can be bound to both the actual radio
-  // channel and the configured encrypted-peer channel.
+#ifdef GREENHOUSE_N3W_ENABLE_PHASE4_LAB
+  // Lab-only observation is requested by the diagnostic harness. Production
+  // builds skip these extra readbacks immediately before esp_now_send().
   if (observe_context) {
     esp_now_peer_info_t peer{};
     if (esp_now_get_peer(peer_mac.data(), &peer) == ESP_OK) {
@@ -438,6 +441,9 @@ DriverError EspNowDriver::send(
       last_unicast_current_channel_ = current_channel;
     }
   }
+#else
+  (void) observe_context;
+#endif
 
   // Increment before esp_now_send(): the Wi-Fi task may run the completion
   // callback before this function returns. Synchronous submission failures are
@@ -580,6 +586,7 @@ void EspNowDriver::recv_cb_(
     metadata.rssi_dbm = static_cast<int16_t>(info->rx_ctrl->rssi);
     metadata.channel = static_cast<uint8_t>(info->rx_ctrl->channel);
   }
+#ifdef GREENHOUSE_N3W_ENABLE_PHASE4_LAB
   const uint8_t receive_index = driver->diagnostic_receive_logs_.fetch_add(
       1, std::memory_order_relaxed);
   if (receive_index < kDiagnosticLogLimit) {
@@ -587,6 +594,7 @@ void EspNowDriver::recv_cb_(
              static_cast<unsigned>(receive_index + 1), data_len,
              static_cast<unsigned>(metadata.channel));
   }
+#endif
   sink->on_espnow_receive_with_metadata(
       source, data, static_cast<std::size_t>(data_len), metadata);
   callbacks_inflight_.fetch_sub(1U, std::memory_order_acq_rel);
@@ -612,6 +620,7 @@ void EspNowDriver::send_cb_(
 
   MacAddress destination{};
   std::copy_n(info->des_addr, destination.size(), destination.begin());
+#ifdef GREENHOUSE_N3W_ENABLE_PHASE4_LAB
   if (destination == kEspNowBroadcastMac) {
     const uint8_t send_index = driver->diagnostic_broadcast_logs_.fetch_add(
         1, std::memory_order_relaxed);
@@ -621,6 +630,7 @@ void EspNowDriver::send_cb_(
                status == ESP_NOW_SEND_SUCCESS ? "true" : "false");
     }
   }
+#endif
   sink->on_espnow_send_result(
       destination, status == ESP_NOW_SEND_SUCCESS);
   // Decrement only after the sink has copied completion metadata into its
@@ -651,6 +661,7 @@ void EspNowDriver::send_cb_(
 
   MacAddress destination{};
   std::copy_n(mac_addr, destination.size(), destination.begin());
+#ifdef GREENHOUSE_N3W_ENABLE_PHASE4_LAB
   if (destination == kEspNowBroadcastMac) {
     const uint8_t send_index = driver->diagnostic_broadcast_logs_.fetch_add(
         1, std::memory_order_relaxed);
@@ -660,6 +671,7 @@ void EspNowDriver::send_cb_(
                status == ESP_NOW_SEND_SUCCESS ? "true" : "false");
     }
   }
+#endif
   sink->on_espnow_send_result(
       destination, status == ESP_NOW_SEND_SUCCESS);
   // Decrement only after the sink has copied completion metadata into its
