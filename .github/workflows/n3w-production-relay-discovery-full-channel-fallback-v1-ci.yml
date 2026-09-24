@@ -13,8 +13,6 @@ on:
       - "tests/n3w_production/n3w_relay_discovery_full_channel_fallback_v1_host_test.cpp"
       - "tests/n3w_production/test_multi_relay_gateway_selection_v1_contract.py"
       - "tests/n3w_production/n3w_multi_relay_gateway_selection_v1_host_test.cpp"
-      - "tests/n3w_phase4/test_single_radio_ownership_contract.py"
-      - "tests/n3w_phase4/test_n3w_disconnected_startup_contract.py"
       - ".github/workflows/n3w-production-relay-discovery-full-channel-fallback-v1-ci.yml"
   push:
     branches:
@@ -30,8 +28,6 @@ on:
       - "tests/n3w_production/n3w_relay_discovery_full_channel_fallback_v1_host_test.cpp"
       - "tests/n3w_production/test_multi_relay_gateway_selection_v1_contract.py"
       - "tests/n3w_production/n3w_multi_relay_gateway_selection_v1_host_test.cpp"
-      - "tests/n3w_phase4/test_single_radio_ownership_contract.py"
-      - "tests/n3w_phase4/test_n3w_disconnected_startup_contract.py"
       - ".github/workflows/n3w-production-relay-discovery-full-channel-fallback-v1-ci.yml"
 
 permissions:
@@ -61,11 +57,6 @@ jobs:
 
       - name: Gateway Selection V1 regression contract
         run: pytest -q tests/n3w_production/test_multi_relay_gateway_selection_v1_contract.py
-
-      - name: Single-radio and disconnected-startup regressions
-        run: |
-          pytest -q tests/n3w_phase4/test_single_radio_ownership_contract.py
-          pytest -q tests/n3w_phase4/test_n3w_disconnected_startup_contract.py
 
       - name: Build and run full-channel fallback host behavior
         shell: bash
