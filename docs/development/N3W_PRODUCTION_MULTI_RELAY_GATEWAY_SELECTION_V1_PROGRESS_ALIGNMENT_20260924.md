@@ -85,42 +85,74 @@ FIRMWARE_REWRITE_REQUIRED=false
 
 Durable `approved` registration state is authoritative. Do not replay uncertain sensitive operations merely to reconstruct which earlier executor invocation completed them.
 
-## Physical handoff before three-board baseline
+## Superseding physical-acceptance authority
 
-Board C may be disconnected from Mac USB and moved to the intended independent test power source before the three-board Direct baseline.
-
-```text
-BOARD_C_USB_DISCONNECT_BEFORE_BASELINE=ALLOWED
-BOARD_C_POWER_SOURCE_CHANGE_BEFORE_BASELINE=ALLOWED
-POST_POWER_CHANGE_REBOOT_BEFORE_BASELINE=ALLOWED
-```
-
-The post-power-change boot is the only acceptable same-boot authority for the subsequent physical transition route.
-
-After the three-board Direct baseline passes:
+The earlier alignment text below was written before the later frozen R0-R7 operator plan was recovered. Where the two conflict, this section and the frozen plan below are authoritative.
 
 ```text
-BOARD_C_POWER_CYCLE_DURING_ROUTE=FORBIDDEN
-BOARD_C_RESET_DURING_ROUTE=FORBIDDEN
-BOARD_C_USB_RECONNECT_DURING_ROUTE=FORBIDDEN
+PHYSICAL_PLAN_AUTHORITY=
+docs/development/N3W_PRODUCTION_MULTI_RELAY_GATEWAY_SELECTION_V1_PHYSICAL_ACCEPTANCE_R0_R7_FROZEN_PLAN_20260923.md
+
+BOARD_A_ROLE=CHILD_UNDER_TEST
+BOARD_B_ROLE=RELAY_GATEWAY_CANDIDATE
+BOARD_C_ROLE=RELAY_GATEWAY_CANDIDATE
+
+BOARD_C_POWER=FIXED_STABLE
+BOARD_C_MOVEMENT=STATIONARY
+BOARD_A_MOVABLE=true
+BOARD_B_MOVABLE=true
+
+R0_R7_ORDER_FROZEN=true
 ```
 
-The same rule applies to whichever participating board's boot is bound by the baseline.
+The 90-second A/B/C Direct run completed on 2026-09-24 is precheck-only:
 
-## Next gate
+```text
+THREE_BOARD_DIRECT_90S_PRECHECK=PASS
+FORMAL_R0_PASS=false
+R0_FROZEN_ACCEPTANCE=NOT_YET_EXECUTED
+
+R0_OBSERVATION_SECONDS=180
+R0_MIN_CANONICAL_SEQ_ADVANCEMENT_PER_BOARD=2
+```
+
+The previously written Board-C-as-Child next route is superseded and must not be executed.
+
+## Physical handoff before formal R0
+
+Board C has already been moved from Mac USB to the intended independent stable test power before the formal R0 baseline. That planned power transition is complete.
+
+Do not move any board during R0.
+
+```text
+BOARD_C_USB_DISCONNECTED=true
+BOARD_C_STABLE_POWER_REQUIRED=true
+BOARD_C_STATIONARY_REQUIRED=true
+
+R0_PHYSICAL_MOVEMENT=false
+R0_BOARD_MUTATION=false
+R0_T1_MUTATION=false
+R0_DATABASE_MUTATION=false
+R0_SERVICE_RESTART=false
+```
+
+## Correct next gate
 
 ```text
 CURRENT_PRODUCT_ROUTE=N3W_PRODUCTION_MULTI_RELAY_GATEWAY_SELECTION_V1
-NEXT_ONE_GATE=N3W_PRODUCTION_MULTI_RELAY_GATEWAY_SELECTION_V1_THREE_BOARD_DIRECT_BASELINE_PREFLIGHT_20260924_01
+NEXT_ONE_GATE=N3W_PRODUCTION_MULTI_RELAY_GATEWAY_SELECTION_V1_R0_THREE_BOARD_DIRECT_180S_BASELINE_20260924_01
 NEXT_GATE_AUTHORIZED=true
-
-NEXT_GATE_BOARD_MUTATION=false
-NEXT_GATE_T1_MUTATION=false
-NEXT_GATE_DATABASE_MUTATION=false
-NEXT_GATE_SERVICE_RESTART=false
-NEXT_GATE_PHYSICAL_MOVEMENT=false
 ```
 
-The next gate only proves A/B/replacement-C are concurrently healthy Direct nodes over a 90-second Manager-side observation. No board is moved until that baseline passes.
+After formal R0 PASS, continue exactly in frozen order:
 
-If it passes, the next physical phase is replacement Board C as Relay Child with Boards A/B concurrently available as Gateway candidates, followed by sticky-selection / no-proactive-roaming and active-Gateway-loss reselection validation.
+```text
+R1=A_CHILD_B_ONLY_GATEWAY
+R2=A_CHILD_C_ONLY_GATEWAY
+R3=A_CHILD_B_AND_C_CANDIDATES_B_CLEARLY_STRONGER
+R4=A_CHILD_B_AND_C_CANDIDATES_C_CLEARLY_STRONGER
+R5=HEALTHY_ACTIVE_GATEWAY_STICKY_NO_PROACTIVE_ROAM
+R6=ACTIVE_GATEWAY_FAILURE_RESELECT_SURVIVOR
+R7=SAME_BOOT_RELAY_TO_DIRECT
+```
+
