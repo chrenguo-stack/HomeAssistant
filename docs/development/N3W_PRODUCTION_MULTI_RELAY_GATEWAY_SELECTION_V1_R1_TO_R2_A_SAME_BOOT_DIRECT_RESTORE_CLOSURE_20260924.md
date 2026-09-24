@@ -1,0 +1,63 @@
+# N3-W Production Multi-Relay Gateway Selection V1 — R1 to R2 Same-Boot Direct Restore Closure
+
+Date: 2026-09-24
+
+## Result
+
+```text
+R1_TO_R2_BRIDGE=PASS
+
+BOARD_A_SOURCE_BEFORE=relay
+BOARD_A_SEQ_BEFORE=56
+BOARD_A_ACTIVE_GATEWAY=BOARD_B
+
+BOARD_B_SOURCE_BEFORE=direct
+BOARD_B_SEQ_BEFORE=56
+
+BOARD_C_SOURCE_BEFORE=direct
+BOARD_C_SEQ_BEFORE=55
+
+MOVE_BOARD_A_TO_DIRECT_COVERAGE=true
+MOVE_BOARD_B=false
+MOVE_BOARD_C=false
+BOARD_C_POWER_CHANGE=false
+
+FIRST_DIRECT_OBSERVED=true
+FIRST_DIRECT_SEQ=58
+MOVE_TO_FIRST_DIRECT_MS=67383
+POST_DIRECT_ADVANCE_COUNT=2
+
+BOARD_A_FINAL_SOURCE=direct
+BOARD_A_FINAL_SEQ=60
+BOARD_A_FINAL_GATEWAY_NONE=true
+
+BOARD_B_FINAL_SOURCE=direct
+BOARD_C_FINAL_SOURCE=direct
+
+BOARD_A_R0_BOOT_PRESERVED=true
+BOARD_B_R0_BOOT_PRESERVED=true
+BOARD_C_R0_BOOT_PRESERVED=true
+
+MANAGER_RESTART_COUNT_BEFORE=0
+MANAGER_RESTART_COUNT_AFTER=0
+MANAGER_RESTART_COUNT_UNCHANGED=true
+
+T1_MUTATION=false
+DATABASE_MUTATION=false
+SERVICE_RESTART=false
+FLASH_MUTATION=false
+NVS_MUTATION=false
+
+RESULT=PASS_R1_TO_R2_A_SAME_BOOT_DIRECT_RESTORE
+```
+
+This is a bridge/setup closure, not a separate acceptance round.
+
+## Next gate
+
+```text
+NEXT_ONE_GATE=N3W_PRODUCTION_MULTI_RELAY_GATEWAY_SELECTION_V1_R2_A_CHILD_C_ONLY_GATEWAY_PREFLIGHT_20260924_01
+NEXT_GATE_AUTHORIZED=true
+```
+
+R2 keeps Board A as the Child under test and Board C as the only viable Relay Gateway for the round. Board C remains stationary on fixed stable power. Board B may be repositioned without reboot so that it remains Direct but is not viable as a Relay Gateway for A at the R2 relay test location.

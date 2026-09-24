@@ -1,0 +1,73 @@
+# N3-W PR #437 Board A same-artifact write closure — 2026-09-22
+
+Status: `CLOSED_PASS`
+
+## Scope
+
+Synchronize the operator-confirmed Board A to the exact PR #437 physical-harness artifact previously used for the final Board B physical validation.
+
+This closure covers only the write gate. It does not claim the subsequent Direct baseline or A/B role-swap acceptance.
+
+## Exact artifact
+
+```text
+SOURCE_HEAD=4270f24a92a87dd5239d781ebba624c2f34b7fc2
+SOURCE_TREE=a2f445bf2ea60ba9994a7a467f6492975d399c4f
+WORKFLOW_RUN_ID=35553142523
+ARTIFACT_ID=10619047221
+ARTIFACT_ZIP_SIZE=731019
+ARTIFACT_ZIP_SHA256=33895089cf861a211f3f5569cd8f3e6729b0938787cda0d4a30d498ce0264895
+APPLICATION_SHA256=b7836f041e8b0f68809980d516a9d9cd5c4a94f862f7d3a27515ae85d55d6843
+OTADATA_INITIAL_SHA256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
+```
+
+## Preflight
+
+```text
+BOARD_A_PREFLIGHT=PASS
+FRESH_SILICON_IDENTITY_BOUND=true
+HARDWARE_ID_SHA256=3603345fb73de6f9286dc66db9f246ff73c42382b553af63b8d5813a933b69ee
+OPERATOR_TARGET_CONFIRMATION_REQUIRED=true
+FLASH_WRITE=false
+```
+
+The preflight deliberately did not require or use the existing application hash as board identity.
+
+## Write result
+
+```text
+BOARD_A_WRITE=PASS
+APPLICATION_POSTWRITE_READBACK=PASS
+PARTITION_TABLE_POSTWRITE_READBACK=PASS
+PRODUCT_NVS_WRITE=false
+
+OTADATA_POSTBOOT_SHA256=8ba3b110139f45443d4f268d1a3373ef99a1718b71d51664531b83ee2d4b91a3
+OTADATA_POSTBOOT_BYTE_EQUALITY_ORACLE=false
+
+AUTHORIZATION_CONSUMED=true
+REPLAY_PERMITTED=false
+```
+
+The post-boot OTA-data partition differs from the initial OTA-data image as expected. That byte difference is observation only and is not used as a failure oracle.
+
+## Mutation boundary
+
+```text
+OTADATA_WRITE_OFFSET=0x9000
+APPLICATION_WRITE_OFFSET=0x10000
+BOOTLOADER_WRITE=false
+PARTITION_TABLE_WRITE=false
+PRODUCT_NVS_WRITE=false
+FULL_FLASH_ERASE=false
+```
+
+## Disposition
+
+```text
+BOARD_A_SAME_ARTIFACT_SYNCHRONIZATION=CLOSED_PASS
+BOARD_A_POSTWRITE_DIRECT_BASELINE=NOT_EXECUTED
+B_AS_GATEWAY_A_AS_CHILD_ROLE_SWAP=NOT_EXECUTED
+
+NEXT_ONE_GATE=N3W_PR437_BOARD_A_POSTWRITE_DIRECT_BASELINE_20260922_01
+AUTO_EXECUTE_NEXT_GATE=false
+```

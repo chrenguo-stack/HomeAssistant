@@ -1,0 +1,63 @@
+# N3-W Production Multi-Relay Gateway Selection V1 — R4 Attempt 2 Same-Boot Direct Restore Closure
+
+Date: 2026-09-24
+
+## Result
+
+```text
+R4_ATTEMPT2_DIRECT_RESTORE=PASS
+
+BOARD_A_SOURCE_BEFORE=relay
+BOARD_A_SEQ_BEFORE=30
+BOARD_A_ACTIVE_GATEWAY=BOARD_B
+
+BOARD_B_SOURCE_BEFORE=direct
+BOARD_B_SEQ_BEFORE=30
+
+BOARD_C_SOURCE_BEFORE=direct
+BOARD_C_SEQ_BEFORE=166
+
+MOVE_BOARD_A_TO_DIRECT_COVERAGE=true
+MOVE_BOARD_B=false
+MOVE_BOARD_C=false
+
+FIRST_DIRECT_OBSERVED=true
+FIRST_DIRECT_SEQ=31
+MOVE_TO_FIRST_DIRECT_MS=14983
+POST_DIRECT_ADVANCE_COUNT=2
+
+BOARD_A_FINAL_SOURCE=direct
+BOARD_A_FINAL_SEQ=33
+BOARD_A_FINAL_GATEWAY_NONE=true
+
+BOARD_B_FINAL_SOURCE=direct
+BOARD_C_FINAL_SOURCE=direct
+
+BOARD_A_BOOT_PRESERVED=true
+BOARD_B_BOOT_PRESERVED=true
+BOARD_C_BOOT_PRESERVED=true
+
+MANAGER_RESTART_COUNT_BEFORE=0
+MANAGER_RESTART_COUNT_AFTER=0
+MANAGER_RESTART_COUNT_UNCHANGED=true
+
+T1_MUTATION=false
+DATABASE_MUTATION=false
+SERVICE_RESTART=false
+FLASH_MUTATION=false
+NVS_MUTATION=false
+
+RESULT=PASS_R4_ATTEMPT2_A_SAME_BOOT_DIRECT_RESTORE
+```
+
+## Next gate
+
+R4 Attempt 2 must create a much larger RF separation than Attempt 1.
+
+Board C remains fixed and powered unchanged. Board B must remain Wi-Fi Direct and remain viable as a Relay Gateway for A, but B->A RF should be intentionally made much weaker than C->A so that the intended C advantage is clearly beyond the <=3 dB equivalent-quality band.
+
+```text
+NEXT_ONE_GATE=
+N3W_PRODUCTION_MULTI_RELAY_GATEWAY_SELECTION_V1_R4_ATTEMPT2_C_CLEARLY_STRONGER_SELECTION_EXECUTION_20260924_01
+NEXT_GATE_AUTHORIZED=true
+```
