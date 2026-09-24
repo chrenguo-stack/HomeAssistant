@@ -24,7 +24,7 @@ def test_layered_discovery_policy_is_frozen() -> None:
     assert "uint32_t gateway_selection_transaction_max_ms{30000};" in header
     assert "uint32_t full_scan_dwell_ms{2250};" in header
     assert "uint32_t full_scan_schedule_margin_ms{2000};" in header
-    assert "uint32_t full_handshake_max_ms{24000};" in header
+    assert "uint32_t full_handshake_max_ms{26000};" in header
     assert "uint32_t full_scan_total_max_ms{60000};" in header
     assert "HINT" in header
     assert "FAST" in header
@@ -261,3 +261,87 @@ def test_product_disconnected_start_enters_owned_standalone_discovery() -> None:
     )
     runtime_start = start.index("runtime_.start(", relay_owner)
     assert disable < standalone < relay_owner < runtime_start
+
+
+def test_scan_dwell_starts_after_channel_set_completes() -> None:
+    source = text(CORE / "n3w_simple_product_runtime.cpp")
+
+    scan = function_body(
+        source,
+        "SimpleProductError SimpleProductRuntime::set_scan_channel_(",
+        "SimpleProductError SimpleProductRuntime::start_fast_scan_(",
+    )
+    set_channel = scan.index("port_->set_radio_channel(channel)")
+    ready_clock = scan.index("const uint64_t ready_ms = clock_->now_ms()", set_channel)
+    dwell_deadline = scan.index("next_scan_switch_ms_ = ready_ms + dwell_ms", ready_clock)
+    assert set_channel < ready_clock < dwell_deadline
+    assert "next_scan_switch_ms_ = now_ms + dwell_ms" not in scan
+
+
+def test_discovery_restore_restarts_scan_state_instead_of_rebinding_stale_full() -> None:
+    runtime = text(CORE / "n3w_simple_product_runtime.cpp")
+    component = text(CORE / "n3w_simple_product_component.cpp")
+
+    reset = function_body(
+        runtime,
+        "SimpleProductError SimpleProductRuntime::reset_to_discovery_after_radio_fault()",
+        "SimpleProductError SimpleProductRuntime::restart_discovery_after_radio_fault()",
+    )
+    assert "full_scan_in_progress_ = false;" in reset
+    assert "discovery_radio_ready_ = false;" in reset
+    assert "legal_channels_.clear();" in reset
+    assert "begin_discovery_()" not in reset
+
+    restart = function_body(
+        runtime,
+        "SimpleProductError SimpleProductRuntime::restart_discovery_after_radio_fault()",
+        "bool SimpleProductRuntime::update_direct_channel_hint",
+    )
+    assert "reset_to_discovery_after_radio_fault()" in restart
+    assert "return begin_discovery_();" in restart
+
+    restore = function_body(
+        component,
+        "bool SimpleProductComponent::restore_relay_radio_()",
+        "void SimpleProductComponent::drain_send_completions_()",
+    )
+    cause = restore.index("RelayRestoreCause::GATEWAY_SELECTION_LOCAL_FAULT")
+    restart_call = restore.index("runtime_.restart_discovery_after_radio_fault()", cause)
+    rebind_call = restore.index("runtime_.rebind_radio_state()", restart_call)
+    assert cause < restart_call < rebind_call
+
+
+def test_failed_discovery_restart_consumes_existing_restore_budget() -> None:
+    component = text(CORE / "n3w_simple_product_component.cpp")
+
+    restore_loop = function_body(
+        component,
+        "void SimpleProductComponent::advance_relay_restore_()",
+        "bool SimpleProductComponent::enqueue_telemetry_(",
+    )
+    restore_attempt = restore_loop.index("if (restore_relay_radio_())")
+    success_clear = restore_loop.index("relay_restore_budget_.clear();", restore_attempt)
+    failure_note = restore_loop.index("relay_restore_budget_.note_failure();", success_clear)
+    exhausted = restore_loop.index("relay_restore_budget_.exhausted(now)", failure_note)
+    assert restore_attempt < success_clear < failure_note < exhausted
+    assert "begin_relay_restore_(" not in restore_loop[failure_note:exhausted]
+
+    exit_path = function_body(
+        component,
+        "void SimpleProductComponent::exit_relay_restore_failure_(uint64_t now)",
+        "void SimpleProductComponent::advance_relay_restore_()",
+    )
+    assert "runtime_.reset_to_discovery_after_radio_fault()" in exit_path
+    assert "runtime_.restart_discovery_after_radio_fault()" not in exit_path
+
+
+def test_full_budget_leaves_scheduler_margin_for_eight_candidates() -> None:
+    header = text(CORE / "n3w_simple_product_runtime.h")
+
+    assert "uint32_t full_scan_dwell_ms{2250};" in header
+    assert "uint32_t full_scan_schedule_margin_ms{2000};" in header
+    assert "uint32_t full_handshake_max_ms{26000};" in header
+    assert "uint32_t full_scan_total_max_ms{60000};" in header
+
+    assert 14 * 2250 + 2000 + 26000 == 59500
+    assert 59500 < 60000
