@@ -3,6 +3,8 @@ name: N3W production multi-relay gateway selection V1 CI
 on:
   pull_request:
     paths:
+      - "firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_radio.h"
+      - "firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_radio.cpp"
       - "firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_simple_product_runtime.h"
       - "firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_simple_product_runtime.cpp"
       - "firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_simple_product_component.h"
@@ -14,6 +16,8 @@ on:
     branches:
       - "fix/n3w-production-multi-relay-gateway-selection-v1-source-repair-*"
     paths:
+      - "firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_radio.h"
+      - "firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_radio.cpp"
       - "firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_simple_product_runtime.h"
       - "firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_simple_product_runtime.cpp"
       - "firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_simple_product_component.h"
