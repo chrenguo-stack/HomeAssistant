@@ -154,7 +154,7 @@ bool cyclic_scan_hears(
   return false;
 }
 
-}  // namespace
+}
 
 int main() {
   const MacAddress child_mac{0x02, 0x00, 0x00, 0x00, 0x10, 0xC1};
@@ -220,7 +220,7 @@ int main() {
     assert(last_challenge(port).relay_node_id == "relay_b");
 
     const std::vector<uint8_t> expected{
-        1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+        1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 8};
     assert(port.channel_history == expected);
   }
 
