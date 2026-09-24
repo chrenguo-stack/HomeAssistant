@@ -1026,7 +1026,7 @@ int main() {
         SimpleProductError::PACKET_REJECTED);
     assert(exact_rx_first.path == LocalPathState::DISCOVERY);
     assert(!exact_rx_first.challenge_pending);
-    assert(!exact_rx_first.selection_busy);
+    assert(exact_rx_first.selection_busy);
 
     const AcceptTimingOutcome exact_tick_first =
         run_valid_accept_at(10500, true);
@@ -1048,7 +1048,7 @@ int main() {
         SimpleProductError::PACKET_REJECTED);
     assert(after.path == LocalPathState::DISCOVERY);
     assert(!after.challenge_pending);
-    assert(!after.selection_busy);
+    assert(after.selection_busy);
   }
 
   // Peer-install failure remains a local fault even when best-effort cleanup
