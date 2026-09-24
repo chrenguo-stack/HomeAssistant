@@ -75,6 +75,8 @@ struct FakePort final : SimpleProductPort {
   bool encrypted_success{true};
   bool direct_success{true};
   bool relay_success{true};
+  bool legal_channels_success{true};
+  std::vector<uint8_t> legal_channels{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
   std::vector<std::vector<uint8_t>> broadcasts;
   std::vector<InstalledPeer> installed;
   std::vector<MacAddress> removed;
@@ -82,6 +84,11 @@ struct FakePort final : SimpleProductPort {
   bool set_radio_channel(uint8_t value) override {
     if (!channel_success || !valid_radio_channel(value)) return false;
     channel = value;
+    return true;
+  }
+  bool current_legal_channels(std::vector<uint8_t> *channels) override {
+    if (!legal_channels_success || channels == nullptr) return false;
+    *channels = legal_channels;
     return true;
   }
   bool broadcast_control(const uint8_t *data, std::size_t size) override {
@@ -996,8 +1003,9 @@ int main() {
 
     assert(runtime.tick() == SimpleProductError::NONE);
     assert(!runtime.challenge_pending());
-    assert(!runtime.gateway_selection_busy());
+    assert(runtime.gateway_selection_busy());
     assert(runtime.path_state() == LocalPathState::DISCOVERY);
+    assert(runtime.discovery_scan_stage() == DiscoveryScanStage::FULL);
     assert(port.channel == runtime.working_channel());
   }
 
