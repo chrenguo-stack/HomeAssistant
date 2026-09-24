@@ -53,14 +53,14 @@ tests/execution_packages/n3w/kf096/pr437_board_b_write/test_executor.py
 
 ## Canonical write scope
 
-Only these two partitions are written:
+For an **already provisioned board whose bootloader and partition table have been freshly proven compatible with the exact artifact**, only these two partitions are written:
 
 ```text
 0x9000  <- ota_data_initial.bin
 0x10000 <- firmware.bin
 ```
 
-The following are never part of this physical-validation write:
+For that existing-board physical-validation route:
 
 ```text
 BOOTLOADER_WRITE=false
@@ -70,6 +70,8 @@ FULL_FLASH_ERASE=false
 ```
 
 This preserves board-specific provisioned identity and credentials stored outside the application/OTA-data write scope.
+
+This two-region route is **not** a generic fresh-silicon rule. A replacement/new board must first prove that its bootloader and partition table are already compatible before inheriting the existing-board delta-write method.
 
 ## Canonical preflight
 
@@ -152,6 +154,36 @@ gh api repos/<owner>/<repo>/actions/artifacts/<artifact-id>/zip > exact-artifact
 ```
 
 Then verify exact size and SHA-256 against the bound artifact authority.
+
+## macOS esptool invocation and serial-open guard — 2026-09-24
+
+A standalone `esptool` executable and `python3 -m esptool` are not assumed to use the same Python/`pyserial` environment.
+
+The 2026-09-24 replacement-board preflight observed the following exact host-side sequence:
+
+```text
+STANDALONE_ESPTOOL_RESOURCE_BUSY=OBSERVED_REPEATEDLY
+LSOF_VISIBLE_OWNER=false
+CU_POSIX_OPEN=PASS
+TTY_POSIX_OPEN=PASS
+PYTHON_MODULE_ESPTOOL_VERSION=5.3.1
+PYTHON_MODULE_PYSERIAL_VERSION=3.5
+PYTHON_MODULE_ROM_READ_MAC=PASS
+PYTHON_MODULE_GET_SECURITY_INFO=PASS
+PYTHON_MODULE_FLASH_ID=PASS
+```
+
+Therefore, for operator-facing macOS ESP32-C6 work:
+
+- prefer the verified interpreter/module form `python3 -m esptool`;
+- record the actual `esptool` and `pyserial` versions when host-tool ambiguity matters;
+- treat `Resource busy` that occurs before the serial port is successfully opened as a host/toolchain access failure, not proof of an ESP32-C6, ROM, Flash or application failure;
+- check both `/dev/cu.usbmodem*` and `/dev/tty.usbmodem*`;
+- if `lsof` shows no owner, a no-data POSIX open/close probe can distinguish a generally openable serial node from an `esptool`/`pyserial` path problem;
+- do not repeatedly retry `esptool` against a persistent open failure before classifying the host-side failure;
+- on interactive zsh, do not use a bare unmatched wildcard as the sole USB-target count oracle because zero matches can terminate the command with `no matches found`; use a zero-match-safe enumeration method.
+
+The USB device path remains a temporary locator only. Fresh ROM silicon evidence, not the path, is the board-identity authority.
 
 ## Host working-directory rule
 
@@ -267,6 +299,65 @@ For a board that does not yet have a trusted logical A/B inventory entry, the sa
 An old application hash may be collected for diagnostics, but it must never be required to distinguish Board A from Board B or to admit a new board into the write path.
 
 A truly blank/new board may still require a different factory-provisioning route if its bootloader, partition table, or product provisioning state is absent or incompatible. That is a separate concern from application identity.
+
+## Fresh-silicon first-write artifact-layout guard — 2026-09-24
+
+A new/replacement ESP32-C6 must not inherit the historical existing-board `0x9000 + 0x10000` write route merely because the chip family and Flash size match.
+
+The frozen Production Gateway Selection V1 R2 artifact was independently inspected on 2026-09-24:
+
+```text
+SOURCE_HEAD=8c445f2bdd60d9ac3a33fe7c20a01965360a3b1c
+ARTIFACT_ID=10693728323
+OUTER_ARTIFACT_SHA256=e57f71c8c2a4f3c722bde88fe7bfdde64fa48be8a11284009358990882286814
+RELEASE_BUNDLE_SHA256=f7c7ac703e6b23040235020c92e480f08c602076d32afa18c8a37e5da3882598
+
+FLASH_MODE=dio
+FLASH_FREQ=80m
+FLASH_SIZE=8MB
+
+0x00000000 bootloader.bin
+0x00008000 partitions.bin
+0x00009000 ota_data_initial.bin
+0x00010000 firmware.bin
+```
+
+Bound hashes:
+
+```text
+BOOTLOADER_SHA256=de9616925b2a868feb7c616762d9173899e5b947d0de5da7117268872c8297d1
+PARTITION_TABLE_SHA256=6664b08a14a9cdc170e322823db29fbe485d87db9c4ec42759d9372028953dca
+OTADATA_INITIAL_SHA256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
+APPLICATION_SHA256=c98010719f37af69142a0ee318ff1577a064215e580b5182dc98556b11560a5a
+FACTORY_IMAGE_SHA256=d8aa60082eca0482fe14806d8f4445223d3ccd4f87ba05d433b3ef31c187d304
+```
+
+The bundled `firmware.factory.bin` was checked byte-for-byte at the four required offsets and matches the corresponding release files:
+
+```text
+FACTORY_BOOTLOADER_0x0_MATCH=true
+FACTORY_PARTITION_TABLE_0x8000_MATCH=true
+FACTORY_OTADATA_0x9000_MATCH=true
+FACTORY_APPLICATION_0x10000_MATCH=true
+```
+
+Operational rule:
+
+```text
+EXISTING_BOARD_DELTA_WRITE_POLICY_TRANSFER_TO_FRESH_SILICON=false
+FRESH_SILICON_FULL_ERASE_DEFAULT=false
+FRESH_SILICON_BOOTLOADER_PARTITION_COMPATIBILITY_REQUIRED=true
+EXACT_ARTIFACT_LAYOUT_REQUIRED_BEFORE_FIRST_WRITE=true
+```
+
+For a fresh/replacement board, the write gate must choose one of two proven routes:
+
+1. **Delta write allowed** only after read-only evidence proves the existing bootloader and partition table are already compatible with the frozen artifact and the current security state permits the route.
+2. **First-write/factory layout** when compatibility is absent or unproven, using the exact artifact-defined bootloader/partition/OTA/application layout after explicit review and authorization.
+
+Do not perform a whole-chip erase merely because the board is new or assumed blank. Do not write bootloader or partition table speculatively. The first-write route must be derived from the exact artifact and the target's fresh security/Flash evidence.
+
+The artifact's bundled `flash_args` records build-layout authority, but it uses build-directory filenames. It must not be blindly pasted as an operator command; release-file names and hashes must be rebound explicitly.
 
 ### 2026-09-22 correction
 
