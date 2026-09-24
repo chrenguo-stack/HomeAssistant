@@ -36,6 +36,8 @@ struct FakePort final : SimpleProductPort {
   bool legal_success{true};
   bool broadcast_success{true};
   bool install_success{true};
+  FakeClock *clock{nullptr};
+  uint32_t channel_delay_ms{0};
   uint8_t channel{0};
   std::vector<uint8_t> legal_channels{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
   std::vector<uint8_t> channel_history;
@@ -50,6 +52,9 @@ struct FakePort final : SimpleProductPort {
     }
     channel = value;
     channel_history.push_back(value);
+    if (clock != nullptr) {
+      clock->value += channel_delay_ms;
+    }
     return true;
   }
 
@@ -304,6 +309,126 @@ int main() {
     assert(runtime.tick() == SimpleProductError::RADIO_FAILED);
     assert(!runtime.gateway_selection_busy());
     assert(!runtime.discovery_radio_ready());
+
+    assert(
+        runtime.restart_discovery_after_radio_fault() ==
+        SimpleProductError::NONE);
+    assert(runtime.discovery_scan_stage() == DiscoveryScanStage::FAST);
+    assert(runtime.discovery_radio_ready());
+    const std::size_t restart_history = port.channel_history.size();
+    clock.value += 250;
+    assert(runtime.tick() == SimpleProductError::NONE);
+    assert(port.channel_history.size() == restart_history + 1U);
+
+    port.legal_success = false;
+    assert(
+        runtime.restart_discovery_after_radio_fault() ==
+        SimpleProductError::RADIO_FAILED);
+    assert(!runtime.discovery_radio_ready());
+    port.legal_success = true;
+    assert(
+        runtime.restart_discovery_after_radio_fault() ==
+        SimpleProductError::NONE);
+    assert(runtime.discovery_radio_ready());
+  }
+
+  {
+    FakeClock clock;
+    FakeRandom random;
+    FakePort port;
+    port.clock = &clock;
+    SimpleProductRuntime runtime(&port, &clock, &random);
+    assert(
+        runtime.start(
+            make_state("node_child"),
+            child_mac,
+            0,
+            SimpleProductStartMode::DISCOVERY) ==
+        SimpleProductError::NONE);
+
+    clock.value = 7500;
+    port.channel_delay_ms = 300;
+    assert(runtime.tick() == SimpleProductError::NONE);
+    assert(clock.value == 7800);
+    assert(runtime.discovery_scan_stage() == DiscoveryScanStage::FULL);
+    assert(runtime.working_channel() == 1);
+
+    clock.value = 10049;
+    assert(runtime.tick() == SimpleProductError::NONE);
+    assert(runtime.working_channel() == 1);
+
+    clock.value = 10050;
+    assert(runtime.tick() == SimpleProductError::NONE);
+    assert(clock.value == 10350);
+    assert(runtime.working_channel() == 2);
+
+    for (uint64_t at : {
+             12600ULL,
+             15150ULL,
+             17700ULL,
+             20250ULL,
+             22800ULL,
+             25350ULL,
+             27900ULL,
+             30450ULL,
+             33000ULL}) {
+      clock.value = at;
+      assert(runtime.tick() == SimpleProductError::NONE);
+    }
+    assert(runtime.working_channel() == 11);
+    clock.value = 34250;
+    assert(runtime.tick() == SimpleProductError::RADIO_FAILED);
+    assert(!runtime.gateway_selection_busy());
+    assert(!runtime.discovery_radio_ready());
+  }
+
+  {
+    FakeClock clock;
+    FakeRandom random;
+    FakePort port;
+    SimpleProductRuntime runtime(&port, &clock, &random);
+    assert(
+        runtime.start(
+            make_state("node_child"),
+            child_mac,
+            0,
+            SimpleProductStartMode::DISCOVERY) ==
+        SimpleProductError::NONE);
+    clock.value = 7500;
+    assert(runtime.tick() == SimpleProductError::NONE);
+    clock.value = 9750;
+    assert(runtime.tick() == SimpleProductError::NONE);
+    assert(
+        feed_discovery(runtime, relay_a, "relay_a", 2, -50) ==
+        SimpleProductError::NONE);
+    for (uint64_t at : {
+             12000ULL,
+             14250ULL,
+             16500ULL,
+             18750ULL,
+             21000ULL,
+             23250ULL,
+             25500ULL,
+             27750ULL,
+             30000ULL}) {
+      clock.value = at;
+      assert(runtime.tick() == SimpleProductError::NONE);
+    }
+    port.broadcast_success = false;
+    clock.value = 32250;
+    assert(runtime.tick() == SimpleProductError::RADIO_FAILED);
+    assert(!runtime.gateway_selection_busy());
+
+    port.broadcast_success = true;
+    assert(
+        runtime.restart_discovery_after_radio_fault() ==
+        SimpleProductError::NONE);
+    assert(runtime.discovery_scan_stage() == DiscoveryScanStage::FAST);
+    assert(runtime.discovery_radio_ready());
+    const std::size_t restart_history = port.channel_history.size();
+    clock.value += 250;
+    assert(runtime.tick() == SimpleProductError::NONE);
+    assert(port.channel_history.size() == restart_history + 1U);
   }
 
   {
@@ -314,7 +439,12 @@ int main() {
     assert(policy.gateway_selection_transaction_max_ms == 30000U);
     assert(policy.full_scan_dwell_ms == 2250U);
     assert(policy.full_scan_schedule_margin_ms == 2000U);
-    assert(policy.full_handshake_max_ms == 24000U);
+    assert(policy.full_handshake_max_ms == 26000U);
+    assert(
+        14ULL * policy.full_scan_dwell_ms +
+            policy.full_scan_schedule_margin_ms +
+            policy.full_handshake_max_ms <=
+        policy.full_scan_total_max_ms);
     assert(policy.full_scan_total_max_ms == 60000U);
   }
 
