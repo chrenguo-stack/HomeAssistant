@@ -216,3 +216,48 @@ def test_full_scan_does_not_add_proactive_roaming() -> None:
         "void SimpleProductRuntime::clear_gateway_selection_()",
     )
     assert "path_.state() != LocalPathState::DISCOVERY" in discovery
+
+
+def test_product_single_radio_ownership_is_preserved() -> None:
+    source = text(CORE / "n3w_simple_product_component.cpp")
+
+    claim = function_body(
+        source,
+        "bool SimpleProductComponent::claim_relay_radio_()",
+        "bool SimpleProductComponent::begin_direct_probe_(",
+    )
+    shutdown = claim.index("radio_.shutdown()")
+    disable = claim.index("wifi::global_wifi_component->disable()", shutdown)
+    standalone = claim.index("radio_.initialize_standalone(this, pmk)", disable)
+    ownership = claim.index(
+        "radio_ownership_ = RadioOwnership::RELAY_ESPNOW", standalone
+    )
+    assert shutdown < disable < standalone < ownership
+
+    set_channel = function_body(
+        source,
+        "bool SimpleProductComponent::set_radio_channel(uint8_t channel)",
+        "bool SimpleProductComponent::broadcast_control(",
+    )
+    assert "wifi_connected())" in set_channel
+    assert "return current_channel == channel;" in set_channel
+    assert "runtime_.path_state() != LocalPathState::DIRECT" in set_channel
+    assert "claim_relay_radio_()" in set_channel
+
+
+def test_product_disconnected_start_enters_owned_standalone_discovery() -> None:
+    source = text(CORE / "n3w_simple_product_component.cpp")
+
+    start = function_body(
+        source,
+        "bool SimpleProductComponent::start_runtime_if_ready_()",
+        "void SimpleProductComponent::advance_pairing_()",
+    )
+    assert "SimpleProductStartMode::DISCOVERY" in start
+    disable = start.index("wifi::global_wifi_component->disable()")
+    standalone = start.index("radio_.initialize_standalone(this, pmk)", disable)
+    relay_owner = start.index(
+        "radio_ownership_ = RadioOwnership::RELAY_ESPNOW", standalone
+    )
+    runtime_start = start.index("runtime_.start(", relay_owner)
+    assert disable < standalone < relay_owner < runtime_start
