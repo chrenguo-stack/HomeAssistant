@@ -653,8 +653,9 @@ int main() {
     const bool busy_before = runtime.gateway_selection_busy();
     const SimpleProductError result = runtime.tick();
     assert(result == SimpleProductError::RADIO_FAILED);
-    assert(!runtime.gateway_selection_busy());
-    assert(gateway_selection_local_fault_requires_restore(
+    assert(runtime.gateway_selection_busy());
+    assert(!runtime.discovery_radio_ready());
+    assert(!gateway_selection_local_fault_requires_restore(
         result, busy_before, runtime.gateway_selection_busy()));
   }
 
