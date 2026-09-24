@@ -224,7 +224,8 @@ def test_r2_whole_transaction_deadline_precedes_candidate_timeout_fallback() -> 
     )
     pending_timeout = tick.index("now >= pending_challenge_->expires_at_ms")
     assert transaction_check < pending_timeout
-    assert "return begin_discovery_();" in tick
+    assert "start_full_scan_(now, false)" in tick
+    assert "begin_discovery_()" in tick
 
     attempt = function_body(
         source,
@@ -232,7 +233,8 @@ def test_r2_whole_transaction_deadline_precedes_candidate_timeout_fallback() -> 
         "SimpleProductError SimpleProductRuntime::start_challenge_for_candidate_",
     )
     assert "transaction_deadline_ms" in attempt
-    assert attempt.count("return begin_discovery_();") >= 2
+    assert "start_full_scan_(clock_->now_ms(), false)" in attempt
+    assert "begin_discovery_()" in attempt
 
 
 def test_r2_accept_deadline_is_checked_before_crypto_or_radio_side_effects() -> None:
@@ -331,21 +333,32 @@ def test_r2_local_fault_restore_drops_stale_rx_after_quiesce() -> None:
     assert clear_tx < local_fault < clear_rx < restore_radio
 
 
-def test_r2_scan_failure_during_selection_aborts_transaction_for_restore() -> None:
-    source = text(CORE / "n3w_simple_product_runtime.cpp")
-    tick = function_body(
-        source,
-        "SimpleProductError SimpleProductRuntime::tick()",
-        "SimpleProductError SimpleProductRuntime::note_direct_result",
+def test_r2_scan_failure_remains_visible_to_component_restore() -> None:
+    runtime_header = text(CORE / "n3w_simple_product_runtime.h")
+    runtime_source = text(CORE / "n3w_simple_product_runtime.cpp")
+    component_source = text(CORE / "n3w_simple_product_component.cpp")
+
+    assert "bool discovery_radio_ready() const" in runtime_header
+    scan = function_body(
+        runtime_source,
+        "SimpleProductError SimpleProductRuntime::set_scan_channel_(",
+        "SimpleProductError SimpleProductRuntime::start_fast_scan_(",
     )
+    assert "discovery_radio_ready_ = false;" in scan
+    assert "return SimpleProductError::RADIO_FAILED;" in scan
+    assert "discovery_radio_ready_ = true;" in scan
 
-    assert "const SimpleProductError scan_result = maybe_advance_scan_(now);" in tick
-    assert "gateway_selection_epoch_.has_value()" in tick
-    assert "pending_challenge_.reset();" in tick
-    assert "clear_gateway_selection_();" in tick
+    consume = function_body(
+        component_source,
+        "bool SimpleProductComponent::consume_gateway_selection_runtime_result_(",
+        "void SimpleProductComponent::on_espnow_receive(",
+    )
+    assert "result == SimpleProductError::RADIO_FAILED" in consume
+    assert "!runtime_.discovery_radio_ready()" in consume
+    assert "begin_relay_restore_(" in consume
 
 
-def test_r2_normal_exhaustion_realigns_discovery_before_busy_clears() -> None:
+def test_r2_fast_exhaustion_falls_back_before_full_exhaustion_realigns() -> None:
     source = text(CORE / "n3w_simple_product_runtime.cpp")
     attempt = function_body(
         source,
@@ -356,14 +369,16 @@ def test_r2_normal_exhaustion_realigns_discovery_before_busy_clears() -> None:
     assert (
         "candidate_index >= gateway_selection_epoch_->candidates.size()" in attempt
     )
-    assert "return begin_discovery_();" in attempt
+    assert "full_collection" in attempt
+    assert "start_full_scan_(clock_->now_ms(), false)" in attempt
+    assert "begin_discovery_()" in attempt
 
     begin = function_body(
         source,
         "SimpleProductError SimpleProductRuntime::begin_discovery_()",
-        "SimpleProductError SimpleProductRuntime::leave_relay_for_discovery_()",
+        "SimpleProductError SimpleProductRuntime::refresh_legal_channels_()",
     )
     assert "clear_gateway_selection_();" in begin
-    assert "scan_.configure(" in begin
-    assert "port_->set_radio_channel(channel)" in begin
-    assert "next_scan_switch_ms_" in begin
+    assert "refresh_legal_channels_()" in begin
+    assert "scan_.configure_ordered(hints)" in begin
+    assert "set_scan_channel_(" in begin
