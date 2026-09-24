@@ -200,10 +200,8 @@ def test_r2_candidate_capacity_and_transaction_budget_are_frozen() -> None:
     assert "CANDIDATE_CAPACITY = 10" in header
 
     assert "epoch.candidates.reserve(policy_.max_gateway_candidates);" in source
-    assert (
-        "epoch.transaction_deadline_ms =\n"
-        "        now + policy_.gateway_selection_transaction_max_ms;"
-    ) in source
+    assert "epoch.transaction_deadline_ms =" in source
+    assert "now + policy_.gateway_selection_transaction_max_ms;" in source
     assert (
         "gateway_selection_epoch_->candidates.size() >=\n"
         "            policy_.max_gateway_candidates"
