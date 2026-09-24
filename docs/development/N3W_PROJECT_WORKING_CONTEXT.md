@@ -1,7 +1,7 @@
 # N3W_PROJECT_WORKING_CONTEXT
 
 > Status: durable public project working context  
-> Version: `N3W_PROJECT_WORKING_CONTEXT_VERSION=1.1`  
+> Version: `N3W_PROJECT_WORKING_CONTEXT_VERSION=1.0`  
 > Scope: N3-W development for the greenhouse monitoring system  
 > Repository: `chrenguo-stack/HomeAssistant`
 
@@ -183,30 +183,6 @@ DEPENDENCY_ISOLATION_PRESERVED=true
 TARGET_HOST_TOOL_INSTALL_DEFAULT=false
 ```
 
-### 5.1 macOS ESP32-C6 serial / esptool guard
-
-For physical ESP32-C6 work on macOS, keep the host serial/toolchain diagnosis separate from board diagnosis.
-
-```text
-MACOS_ESPTOOL_DEFAULT_INVOCATION=python3 -m esptool
-USB_SERIAL_PATH_IS_LOCATOR_NOT_IDENTITY=true
-RESOURCE_BUSY_BEFORE_PORT_OPEN_IS_NOT_BOARD_FAILURE=true
-BLIND_ESPTOOL_RETRY_AFTER_RESOURCE_BUSY=false
-```
-
-Stable rules:
-
-- prefer the project/current Python interpreter with `python3 -m esptool` instead of assuming a standalone `esptool` executable uses the same Python and `pyserial` environment;
-- before relying on a board-tool result, confirm the selected interpreter can import both `esptool` and `serial`, and record their versions in private evidence when toolchain ambiguity matters;
-- if `esptool` reports `Resource busy` before successfully opening the port, classify it first as a host/toolchain access failure; it does not prove ROM communication, Flash access, or a board hardware defect;
-- check both `/dev/cu.usbmodem*` and `/dev/tty.usbmodem*`; an empty `lsof` result alone is not enough to blame DriverKit or the board;
-- if no owner is visible, use a non-data-writing POSIX open/close probe on both device nodes. If POSIX open succeeds, inspect the Python/`pyserial`/standalone-wrapper path before USB re-enumeration or board-level recovery;
-- do not repeatedly run `esptool` against a persistent open failure. Classify the host failure first, then perform at most the bounded retry allowed by the current gate;
-- on zsh, do not use a bare unmatched wildcard as a device-count oracle because `no matches found` can terminate the command. Use Python `pathlib/glob`, zsh null-glob syntax, or another zero-match-safe enumeration method;
-- a USB pathname is only a locator. Bind physical identity from fresh silicon evidence, keep raw identity private, and expose only a public-safe hash when needed.
-
-These rules are about host/tooling correctness. They must not be used to infer application runtime health.
-
 ---
 
 ## 6. Default physical roles
@@ -306,28 +282,6 @@ STOP_AND_REVIEW=true
 ```
 
 unless the exact current contract explicitly permits a bounded retry.
-
-### 8.1 Fresh-silicon / replacement-board flash guard
-
-A new or replacement ESP32-C6 must not inherit an existing board's write procedure merely because the hardware family is the same.
-
-```text
-FRESH_SILICON_REQUIRES_READONLY_IDENTITY_PREFLIGHT=true
-EXISTING_BOARD_DELTA_WRITE_POLICY_TRANSFER=false
-VIRGIN_BOARD_FULL_ERASE_DEFAULT=false
-EXACT_ARTIFACT_FLASH_LAYOUT_REQUIRED_BEFORE_FIRST_WRITE=true
-```
-
-Before the first persistent write to fresh silicon:
-
-- confirm chip family, public-safe silicon identity hash, silicon revision when available, Flash size, Secure Boot state, and Flash Encryption state with the minimum read-only ROM-level queries required by the gate;
-- keep raw MAC / hardware identity in private evidence only;
-- prove the exact artifact's first-write layout from artifact/provisioning authority. The evidence must establish the required bootloader, partition-table, OTA-data, application, factory-image, or equivalent `flash_args` relationship and exact offsets/hashes as applicable;
-- do not reuse an existing-board partial write such as “OTA data + application only” unless the artifact authority explicitly proves it is valid for the fresh board;
-- do not perform whole-chip erase merely because a board is new or assumed blank;
-- keep artifact-specific offsets, hashes, and image names in the stage handoff/current-state evidence rather than in this durable runbook.
-
-A successful source build or existing-board deployment does not by itself prove fresh-silicon provisioning compatibility.
 
 ---
 
@@ -481,7 +435,7 @@ Those belong in current state, progress alignment, known failures, or the curren
 A change to this file should explain the durable process need it addresses and should update the handoff template when the change affects new-chat continuation.
 
 ```text
-N3W_PROJECT_WORKING_CONTEXT_VERSION=1.1
+N3W_PROJECT_WORKING_CONTEXT_VERSION=1.0
 STABLE_CONVENTIONS_ONLY=true
 STAGE_SPECIFIC_VALUES_PROHIBITED=true
 HANDOFF_TEMPLATE_EXPECTED_TO_REFERENCE_THIS_FILE=true
