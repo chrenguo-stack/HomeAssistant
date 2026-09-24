@@ -1,5 +1,35 @@
 # N3-W Current State
 
+## 2026-09-24 R0 three-board Direct 180s baseline closure
+
+This section supersedes earlier R0-not-executed fields below wherever they conflict.
+
+```text
+R0_FROZEN_ACCEPTANCE=PASS
+R0_OBSERVATION_SECONDS=180
+R0_MIN_CANONICAL_SEQ_ADVANCEMENT_PER_BOARD=2
+
+R0_BOARD_A_SEQ_ADVANCEMENT=3
+R0_BOARD_B_SEQ_ADVANCEMENT=3
+R0_BOARD_C_SEQ_ADVANCEMENT=3
+
+R0_BOARD_A_BOOT_SHA256=3415ac0fcf7c4469b6c6f28af102b681f18918acde4be2bc3a93589c901afc53
+R0_BOARD_B_BOOT_SHA256=a533d36f010238f978f6e6aed7b1505143e6e21e578e2e7b05c1332017cff5a3
+R0_BOARD_C_BOOT_SHA256=000f6f4ade1994bef54e26f1e2086872e8e49e1fc61d6a67cdf9b53f8cf9fb34
+
+DIRECT_CONTINUOUS_THROUGHOUT_180S=true
+MANAGER_RESTART_COUNT_UNCHANGED=true
+
+NEXT_ONE_GATE=
+N3W_PRODUCTION_MULTI_RELAY_GATEWAY_SELECTION_V1_R1_A_CHILD_B_ONLY_GATEWAY_PREFLIGHT_20260924_01
+NEXT_GATE_AUTHORIZED=true
+```
+
+Authority:
+`docs/development/N3W_PRODUCTION_MULTI_RELAY_GATEWAY_SELECTION_V1_R0_THREE_BOARD_DIRECT_180S_BASELINE_CLOSURE_20260924.md`
+Commit:
+`7e7b4353c4dd97bcc0ed9a583fc7dc4bfb5d4732`
+
 ## 2026-09-24 frozen R0-R7 physical-acceptance authority recovery
 
 This section supersedes the previously written Board-C-as-Child route and the earlier classification of the 90-second three-board observation as formal R0.
