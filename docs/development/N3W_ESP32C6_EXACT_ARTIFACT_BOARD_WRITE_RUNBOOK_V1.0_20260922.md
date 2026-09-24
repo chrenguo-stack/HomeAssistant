@@ -801,3 +801,70 @@ FAILBACK_RESULT=PASS
 ```
 
 Combined with the preceding Direct -> Relay and 600-second Relay continuity gates, this proves the reverse A/B role assignment completes the full same-boot Direct -> Relay -> Direct physical round trip.
+
+## Validated replacement Board C first-registration closure — 2026-09-24
+
+The replacement Board C completed fresh first registration without reusing the retired Board C identity.
+
+Public-safe identity and registration result:
+
+```text
+NEW_BOARD_C_HARDWARE_ID_SHA256=f972633ca16463c8324a6921b60a2916c71bc9cab102333049d56449005b636b
+NEW_BOARD_C_NODE_ID_SHA256=a205b76cfbb7db6816ce476432e024fb796f5a2f1ba698d3ec8616a79b419f09
+OLD_BOARD_C_NODE_ID_SHA256=73cd4e91562d425ec90acd114b622ee448680b5e011742744eb15fe54e9dd497
+OLD_BOARD_C_NODE_ID_REUSED=false
+REGISTRATION_STATE=approved
+NODE_ID_ASSIGNED=true
+```
+
+Read-only post-registration closure:
+
+```text
+CURRENT_CREDENTIAL_ASSIGNMENT_COUNT=1
+CREDENTIAL_STATE=active
+CREDENTIAL_ACTIVE_GENERATION=1
+CREDENTIAL_PENDING_GENERATION=NONE
+CREDENTIAL_NODE_MATCH=true
+CREDENTIAL_PAIRING_MATCH=true
+
+APPLICATION_KEY_NODE_ROW_COUNT=1
+APPLICATION_KEY_NODE_ACTIVE=true
+APPLICATION_KEY_EPOCH_ROW_COUNT=1
+APPLICATION_KEY_ACTIVE_COUNT=1
+APPLICATION_KEY_GRACE_COUNT=0
+APPLICATION_KEY_STAGED_COUNT=0
+APPLICATION_KEY_MAX_EPOCH=1
+
+OBSERVATION_SECONDS=60
+CANONICAL_SEQ_BEFORE=15
+CANONICAL_SEQ_AFTER=16
+CANONICAL_SAME_BOOT=true
+CANONICAL_CURSOR_ADVANCED=true
+CANONICAL_LAST_SOURCE_DIRECT=true
+DIRECT_GATEWAY_ID_NONE=true
+REGISTRATION_STABLE_AFTER_60S=true
+
+MANAGER_RESTART_COUNT_BEFORE=0
+MANAGER_RESTART_COUNT_AFTER=0
+MANAGER_RESTART_COUNT_UNCHANGED=true
+
+RESULT=PASS_NEW_BOARD_C_POST_REGISTRATION_READONLY_CLOSURE
+```
+
+The closure was Manager-side read-only:
+
+```text
+SERIAL_OPEN=false
+BOARD_ACCESS=false
+T1_MUTATION=false
+DATABASE_MUTATION=false
+SERVICE_RESTART=false
+PAIRING_SERIAL_QUIESCENCE=NOT_TESTED
+```
+
+The Setup Secret delivery route re-encountered already-known harness classes before durable approval was observed: pending-window exhaustion / successor timing (KF-044/KF-061), SSH / remote-Python transport framing (KF-062/KF-078), and uncertain execution-state handling requiring durable-state readback rather than replay (KF-072). No new product defect is established by those executor incidents.
+
+Once durable state is `approved`, do not replay Setup Secret import merely to reconstruct which prior executor attempt completed the transaction. Continue from the durable registration/credential/application-key/runtime state.
+
+The replacement Board C is therefore eligible for subsequent multi-board Direct/Relay acceptance using its new stable NODE_ID. Pairing-serial quiescence remains unclaimed because no serial port was opened in this closure.
+
