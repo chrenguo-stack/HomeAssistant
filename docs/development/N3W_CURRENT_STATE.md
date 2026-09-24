@@ -1,5 +1,34 @@
 # N3-W Current State
 
+## 2026-09-24 three-board Direct baseline closure
+
+This section supersedes older next-gate fields below wherever they conflict.
+
+```text
+THREE_BOARD_DIRECT_BASELINE=PASS
+THREE_BOARD_DIRECT_OBSERVATION_SECONDS=90
+
+BOARD_A_BOOT_SHA256=3415ac0fcf7c4469b6c6f28af102b681f18918acde4be2bc3a93589c901afc53
+BOARD_A_DIRECT_STABLE=true
+
+BOARD_B_BOOT_SHA256=a533d36f010238f978f6e6aed7b1505143e6e21e578e2e7b05c1332017cff5a3
+BOARD_B_DIRECT_STABLE=true
+
+BOARD_C_BOOT_SHA256=000f6f4ade1994bef54e26f1e2086872e8e49e1fc61d6a67cdf9b53f8cf9fb34
+BOARD_C_DIRECT_STABLE=true
+
+MANAGER_RESTART_COUNT_UNCHANGED=true
+
+NEXT_ONE_GATE=N3W_PRODUCTION_MULTI_RELAY_GATEWAY_SELECTION_V1_BOARD_C_DUAL_GATEWAY_DIRECT_TO_RELAY_PREFLIGHT_20260924_01
+NEXT_GATE_AUTHORIZED=true
+```
+
+Authority:
+`docs/development/N3W_PRODUCTION_MULTI_RELAY_GATEWAY_SELECTION_V1_THREE_BOARD_DIRECT_BASELINE_CLOSURE_20260924.md`
+Commit:
+`8343321730223a5e9f2457f6492110205d862cbf`
+
+
 ## 2026-09-24 replacement Board C onboarding closure / three-board baseline handoff
 
 This section supersedes older current-route / next-gate fields below wherever they conflict.
