@@ -83,7 +83,7 @@ struct SimpleProductPolicy {
   uint32_t fast_search_budget_ms{6500};
   uint32_t full_scan_dwell_ms{2250};
   uint32_t full_scan_schedule_margin_ms{2000};
-  uint32_t full_handshake_max_ms{24000};
+  uint32_t full_handshake_max_ms{26000};
   uint32_t full_scan_total_max_ms{60000};
   uint32_t challenge_timeout_ms{1500};
   uint32_t relay_advertisement_interval_ms{2000};
@@ -245,6 +245,7 @@ class SimpleProductRuntime {
   // probe temporarily handed the single radio back to ESPHome Wi-Fi.
   SimpleProductError rebind_radio_state();
   SimpleProductError reset_to_discovery_after_radio_fault();
+  SimpleProductError restart_discovery_after_radio_fault();
   bool update_direct_channel_hint(uint8_t channel);
   SimpleProductError send_telemetry(
       const std::string &telemetry_json,
