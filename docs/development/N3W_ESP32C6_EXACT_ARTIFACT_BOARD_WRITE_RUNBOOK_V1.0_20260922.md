@@ -230,6 +230,43 @@ PASTE_READY_COMMANDS_USE_EXPLICIT_CHECKS=true
 
 For operator-facing macOS/zsh command blocks, do not use `set -u` at all, even inside a subshell. Use explicit variable checks and command-result checks instead. A cleanup line such as `unsetopt nounset 2>/dev/null || true` may be given separately when an earlier command already contaminated the interactive shell.
 
+## ESP32-C6 post-write readback state guard — 2026-09-24
+
+A successful `write-flash` followed by failed `read-flash` commands is not automatically a failed write.
+
+The replacement Board C first-write run produced:
+
+```text
+FLASH_WRITE_COMMAND=PASS
+POSTWRITE_READBACK_COMMAND_COUNT=4
+POSTWRITE_READBACK_COMMAND_SUCCESS_COUNT=0
+READBACK_HASH_MISMATCH_PROVEN=false
+```
+
+Every failed readback still connected to the ESP32-C6 over USB-Serial/JTAG, then stopped with:
+
+```text
+Failed to configure SPI flash pins
+C000: Bad data length
+```
+
+The failed readback shape used `--no-stub --before no-reset` immediately after a write session that had run the flasher stub. This proves a readback-procedure failure, not a content mismatch.
+
+Operational guard:
+
+```text
+READBACK_COMMAND_FAILURE_IS_NOT_HASH_MISMATCH=true
+AUTO_REWRITE_AFTER_READBACK_COMMAND_FAILURE=false
+AUTO_ERASE_AFTER_READBACK_COMMAND_FAILURE=false
+FRESH_STUB_READBACK_RECOVERY_REQUIRED=true
+```
+
+For ESP32-C6 post-write verification, prefer a fresh connection with the normal esptool flasher stub for `read-flash`. Do not carry a `--no-stub --before no-reset` readback sequence forward from a prior stub-backed write session without a separately proven reason.
+
+When several adjacent written regions together form the exact factory image, one contiguous readback may be used and compared against the frozen factory-image hash. This reduces reconnect/state transitions and still verifies every byte in the written range.
+
+If the readback command itself fails, preserve the successful write as an unverified mutation and stop. Do not replay the write authorization.
+
 ## Stop policy
 
 Stop before board mutation on any of:
