@@ -410,11 +410,31 @@ SimpleProductError SimpleProductRuntime::reset_to_discovery_after_radio_fault() 
 
   pending_challenge_.reset();
   clear_gateway_selection_();
+  active_relay_.reset();
+  relay_children_.clear();
+  legal_channels_.clear();
+  discovery_scan_stage_ = DiscoveryScanStage::HINT;
+  next_scan_switch_ms_ = 0;
+  fast_search_deadline_ms_ = 0;
+  full_scan_started_ms_ = 0;
+  full_scan_hard_deadline_ms_ = 0;
+  full_scan_total_deadline_ms_ = 0;
+  full_scan_in_progress_ = false;
+  discovery_radio_ready_ = false;
   if (path_.reset(LocalPathState::DISCOVERY) != RadioError::NONE) {
     return SimpleProductError::STATE_REJECTED;
   }
   if (diagnostic_sink_ != nullptr) {
     diagnostic_sink_->on_discovery_enter(clock_->now_ms());
+  }
+  return SimpleProductError::NONE;
+}
+
+SimpleProductError SimpleProductRuntime::restart_discovery_after_radio_fault() {
+  const SimpleProductError reset_result =
+      reset_to_discovery_after_radio_fault();
+  if (reset_result != SimpleProductError::NONE) {
+    return reset_result;
   }
   return begin_discovery_();
 }
@@ -606,19 +626,20 @@ SimpleProductError SimpleProductRuntime::set_scan_channel_(
   }
   const bool channel_set =
       valid_radio_channel(channel) && port_->set_radio_channel(channel);
+  const uint64_t ready_ms = clock_->now_ms();
   if (diagnostic_sink_ != nullptr) {
     diagnostic_sink_->on_scan_result(
         channel,
         channel_set,
         port_->last_channel_observed(),
         port_->last_channel_error_raw(),
-        clock_->now_ms());
+        ready_ms);
   }
   if (!channel_set) {
     return SimpleProductError::RADIO_FAILED;
   }
   discovery_radio_ready_ = true;
-  next_scan_switch_ms_ = now_ms + dwell_ms;
+  next_scan_switch_ms_ = ready_ms + dwell_ms;
   return SimpleProductError::NONE;
 }
 
