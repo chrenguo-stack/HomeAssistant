@@ -29,7 +29,7 @@ def _published_port(value: object) -> int | None:
 
 
 def _ipv4_wildcard(value: object) -> bool:
-    return value in {None, "", BROKER_IPV4_WILDCARD}
+    return value is None or value == BROKER_IPV4_WILDCARD
 
 
 def validate_compose_document(
@@ -79,13 +79,20 @@ def validate_compose_document(
         for item in broker_ports
         if isinstance(item, Mapping)
         and item.get("protocol") == "tcp"
-        and _published_port(item.get("target")) == BROKER_TLS_PORT
-        and _published_port(item.get("published")) == BROKER_TLS_PORT
+        and (
+            _published_port(item.get("target")) == BROKER_TLS_PORT
+            or _published_port(item.get("published")) == BROKER_TLS_PORT
+        )
     ]
     if len(broker_tls_publications) != 1:
         raise DeploymentContractError("broker_tls_publication_count_invalid")
 
     publication = broker_tls_publications[0]
+    if (
+        _published_port(publication.get("target")) != BROKER_TLS_PORT
+        or _published_port(publication.get("published")) != BROKER_TLS_PORT
+    ):
+        raise DeploymentContractError("broker_tls_publication_port_mismatch")
     if not _ipv4_wildcard(publication.get("host_ip")):
         raise DeploymentContractError("broker_wildcard_tls_publication_missing")
 
