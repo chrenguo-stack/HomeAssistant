@@ -345,3 +345,90 @@ def test_full_budget_leaves_scheduler_margin_for_eight_candidates() -> None:
 
     assert 14 * 2250 + 2000 + 26000 == 59500
     assert 59500 < 60000
+
+
+def test_stale_discovery_plan_is_marked_and_cannot_be_rebound() -> None:
+    header = text(CORE / "n3w_simple_product_runtime.h")
+    runtime = text(CORE / "n3w_simple_product_runtime.cpp")
+    component = text(CORE / "n3w_simple_product_component.cpp")
+
+    assert "bool discovery_restart_required() const" in header
+    assert "bool discovery_restart_required_{false};" in header
+
+    reset = function_body(
+        runtime,
+        "SimpleProductError SimpleProductRuntime::reset_to_discovery_after_radio_fault()",
+        "SimpleProductError SimpleProductRuntime::restart_discovery_after_radio_fault()",
+    )
+    assert "discovery_restart_required_ = true;" in reset
+
+    rebind = function_body(
+        runtime,
+        "SimpleProductError SimpleProductRuntime::rebind_radio_state()",
+        "SimpleProductError SimpleProductRuntime::reset_to_discovery_after_radio_fault()",
+    )
+    guard = rebind.index("if (discovery_restart_required_)")
+    failure = rebind.index("return SimpleProductError::RADIO_FAILED;", guard)
+    stale_channel = rebind.index("scan_.current()", failure)
+    assert guard < failure < stale_channel
+
+    begin = function_body(
+        runtime,
+        "SimpleProductError SimpleProductRuntime::begin_discovery_()",
+        "SimpleProductError SimpleProductRuntime::refresh_legal_channels_()",
+    )
+    assert begin.index("discovery_restart_required_ = true;") < begin.index(
+        "refresh_legal_channels_()"
+    )
+    assert "discovery_restart_required_ = false;" in begin
+
+    restore = function_body(
+        component,
+        "bool SimpleProductComponent::restore_relay_radio_()",
+        "void SimpleProductComponent::drain_send_completions_()",
+    )
+    assert "discovery_restore_requires_restart(" in restore
+    assert "runtime_.path_state()" in restore
+    assert "runtime_.discovery_restart_required()" in restore
+    assert "RelayRestoreCause::GATEWAY_SELECTION_LOCAL_FAULT" in restore
+    assert "runtime_.restart_discovery_after_radio_fault()" in restore
+    assert "runtime_.rebind_radio_state()" in restore
+
+
+def test_logical_reset_then_direct_failure_routes_back_to_fresh_discovery() -> None:
+    runtime = text(CORE / "n3w_simple_product_runtime.cpp")
+    component = text(CORE / "n3w_simple_product_component.cpp")
+
+    policy = function_body(
+        runtime,
+        "bool discovery_restore_requires_restart(",
+        "SimpleProductRuntime::SimpleProductRuntime(",
+    )
+    assert "path_state == LocalPathState::DISCOVERY" in policy
+    assert "discovery_restart_required || gateway_selection_local_fault" in policy
+
+    exit_path = function_body(
+        component,
+        "void SimpleProductComponent::exit_relay_restore_failure_(uint64_t now)",
+        "void SimpleProductComponent::advance_relay_restore_()",
+    )
+    reset = exit_path.index("runtime_.reset_to_discovery_after_radio_fault()")
+    direct = exit_path.index("begin_direct_probe_after_restore_exit_(now)", reset)
+    assert reset < direct
+    assert "runtime_.restart_discovery_after_radio_fault()" not in exit_path
+
+    recovery = function_body(
+        component,
+        "void SimpleProductComponent::advance_recovery_()",
+        "bool SimpleProductComponent::claim_relay_radio_()",
+    )
+    assert "begin_relay_restore_(RelayRestoreCause::FULL_DIRECT_VERIFY)" in recovery
+
+    restore = function_body(
+        component,
+        "bool SimpleProductComponent::restore_relay_radio_()",
+        "void SimpleProductComponent::drain_send_completions_()",
+    )
+    route = restore.index("discovery_restore_requires_restart(")
+    restart = restore.index("runtime_.restart_discovery_after_radio_fault()", route)
+    assert route < restart
