@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <deque>
 #include <string>
+#include <vector>
 
 #include "esphome/core/component.h"
 
@@ -86,6 +87,7 @@ class SimpleProductComponent : public Component,
 
   // SimpleProductPort.
   bool set_radio_channel(uint8_t channel) override;
+  bool current_legal_channels(std::vector<uint8_t> *channels) override;
   bool broadcast_control(const uint8_t *data, std::size_t size) override;
   bool broadcast_control_on_channel(
       uint8_t channel,
@@ -207,6 +209,8 @@ class SimpleProductComponent : public Component,
   void advance_pairing_();
   void advance_recovery_();
   bool claim_relay_radio_();
+  bool read_current_legal_channels_(std::vector<uint8_t> *channels);
+  bool current_country_allows_channel_(uint8_t channel);
   bool begin_direct_probe_(DirectFullVerifyTrigger trigger);
   void begin_direct_probe_after_restore_exit_(uint64_t now_ms);
   bool prepare_direct_probe_radio_();

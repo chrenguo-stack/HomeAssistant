@@ -56,6 +56,9 @@ bool gateway_selection_digest(
 
 bool SimpleProductPolicy::valid() const {
   if (!path.valid() || allowed_channels.empty() || scan_dwell_ms == 0 ||
+      fast_search_budget_ms == 0 || full_scan_dwell_ms == 0 ||
+      full_scan_schedule_margin_ms == 0 || full_handshake_max_ms == 0 ||
+      full_scan_total_max_ms <= full_handshake_max_ms ||
       challenge_timeout_ms == 0 || relay_advertisement_interval_ms == 0 ||
       candidate_window_ms == 0 ||
       gateway_selection_transaction_max_ms <= candidate_window_ms ||
@@ -96,6 +99,14 @@ bool gateway_selection_local_fault_requires_restore(
   return result == SimpleProductError::RADIO_FAILED ||
          result == SimpleProductError::CRYPTO_FAILED ||
          result == SimpleProductError::STATE_REJECTED;
+}
+
+bool discovery_restore_requires_restart(
+    LocalPathState path_state,
+    bool discovery_restart_required,
+    bool gateway_selection_local_fault) {
+  return path_state == LocalPathState::DISCOVERY &&
+         (discovery_restart_required || gateway_selection_local_fault);
 }
 
 SimpleProductRuntime::SimpleProductRuntime(
@@ -142,9 +153,7 @@ SimpleProductError SimpleProductRuntime::start(
   }
   const LocalPathState initial_path =
       direct_start ? LocalPathState::DIRECT : LocalPathState::DISCOVERY;
-  if (path_.reset(initial_path) != RadioError::NONE ||
-      scan_.configure(direct_channel_, policy_.allowed_channels) !=
-          RadioError::NONE) {
+  if (path_.reset(initial_path) != RadioError::NONE) {
     stop();
     return SimpleProductError::RADIO_FAILED;
   }
@@ -154,27 +163,15 @@ SimpleProductError SimpleProductRuntime::start(
       stop();
       return SimpleProductError::RADIO_FAILED;
     }
+    discovery_radio_ready_ = false;
+    discovery_restart_required_ = false;
     next_advertisement_ms_ = now;
   } else {
-    const uint8_t channel = scan_.current();
-    if (diagnostic_sink_ != nullptr) {
-      diagnostic_sink_->on_scan_attempt(channel, now);
-    }
-    const bool channel_set =
-        valid_radio_channel(channel) && port_->set_radio_channel(channel);
-    if (diagnostic_sink_ != nullptr) {
-      diagnostic_sink_->on_scan_result(
-          channel,
-          channel_set,
-          port_->last_channel_observed(),
-          port_->last_channel_error_raw(),
-          clock_->now_ms());
-    }
-    if (!channel_set) {
+    const SimpleProductError discovery_result = begin_discovery_();
+    if (discovery_result != SimpleProductError::NONE) {
       stop();
-      return SimpleProductError::RADIO_FAILED;
+      return discovery_result;
     }
-    next_scan_switch_ms_ = now + policy_.scan_dwell_ms;
   }
   started_ = true;
   if (diagnostic_sink_ != nullptr) {
@@ -205,8 +202,18 @@ void SimpleProductRuntime::stop() {
   local_endpoint_.mac.fill(0);
   local_boot_nonce_.fill(0);
   direct_channel_ = 0;
+  cached_gateway_channel_ = 0;
+  legal_channels_.clear();
+  discovery_scan_stage_ = DiscoveryScanStage::HINT;
   next_scan_switch_ms_ = 0;
+  fast_search_deadline_ms_ = 0;
+  full_scan_started_ms_ = 0;
+  full_scan_hard_deadline_ms_ = 0;
+  full_scan_total_deadline_ms_ = 0;
   next_advertisement_ms_ = 0;
+  full_scan_in_progress_ = false;
+  discovery_radio_ready_ = false;
+  discovery_restart_required_ = false;
   (void) path_.reset(LocalPathState::DIRECT);
   started_ = false;
 }
@@ -220,7 +227,13 @@ SimpleProductError SimpleProductRuntime::tick() {
   if (path_.state() == LocalPathState::DISCOVERY) {
     if (gateway_selection_epoch_.has_value() &&
         now >= gateway_selection_epoch_->transaction_deadline_ms) {
-      return begin_discovery_();
+      const bool full_collection =
+          gateway_selection_epoch_->full_scan_collection;
+      pending_challenge_.reset();
+      clear_gateway_selection_();
+      return full_collection
+                 ? begin_discovery_()
+                 : start_full_scan_(now, false);
     }
 
     if (pending_challenge_.has_value() &&
@@ -240,6 +253,7 @@ SimpleProductError SimpleProductRuntime::tick() {
     }
 
     if (gateway_selection_epoch_.has_value() &&
+        !gateway_selection_epoch_->full_scan_collection &&
         !gateway_selection_epoch_->frozen &&
         now >= gateway_selection_epoch_->deadline_ms) {
       gateway_selection_epoch_->frozen = true;
@@ -248,13 +262,7 @@ SimpleProductError SimpleProductRuntime::tick() {
       if (gateway_selection_busy()) return SimpleProductError::NONE;
     }
 
-    const SimpleProductError scan_result = maybe_advance_scan_(now);
-    if (scan_result != SimpleProductError::NONE &&
-        gateway_selection_epoch_.has_value()) {
-      pending_challenge_.reset();
-      clear_gateway_selection_();
-    }
-    return scan_result;
+    return maybe_advance_scan_(now);
   }
   return SimpleProductError::NONE;
 }
@@ -344,6 +352,12 @@ DirectRecoveryCommitResult SimpleProductRuntime::commit_direct_recovery_before(
 
   pending_challenge_.reset();
   clear_gateway_selection_();
+  full_scan_in_progress_ = false;
+  discovery_radio_ready_ = false;
+  fast_search_deadline_ms_ = 0;
+  full_scan_started_ms_ = 0;
+  full_scan_hard_deadline_ms_ = 0;
+  full_scan_total_deadline_ms_ = 0;
   if (active_relay_.has_value()) {
     (void) port_->remove_peer(active_relay_->mac);
     active_relay_.reset();
@@ -377,6 +391,10 @@ SimpleProductError SimpleProductRuntime::rebind_radio_state() {
 
   uint8_t channel = direct_channel_;
   if (path_.state() == LocalPathState::DISCOVERY) {
+    if (discovery_restart_required_) {
+      discovery_radio_ready_ = false;
+      return SimpleProductError::RADIO_FAILED;
+    }
     channel = pending_challenge_.has_value()
                   ? pending_challenge_->channel
                   : scan_.current();
@@ -385,7 +403,13 @@ SimpleProductError SimpleProductRuntime::rebind_radio_state() {
     channel = active_relay_->channel;
   }
   if (!valid_radio_channel(channel) || !port_->set_radio_channel(channel)) {
+    if (path_.state() == LocalPathState::DISCOVERY) {
+      discovery_radio_ready_ = false;
+    }
     return SimpleProductError::RADIO_FAILED;
+  }
+  if (path_.state() == LocalPathState::DISCOVERY) {
+    discovery_radio_ready_ = true;
   }
   if (path_.state() == LocalPathState::RELAY_ACTIVE &&
       !port_->install_encrypted_peer(
@@ -400,25 +424,34 @@ SimpleProductError SimpleProductRuntime::reset_to_discovery_after_radio_fault() 
 
   pending_challenge_.reset();
   clear_gateway_selection_();
-  if (active_relay_.has_value()) {
-    (void) port_->remove_peer(active_relay_->mac);
-    active_relay_.reset();
-  }
-  for (const auto &child : relay_children_) {
-    (void) port_->remove_peer(child.mac);
-  }
+  active_relay_.reset();
   relay_children_.clear();
-
-  if (path_.reset(LocalPathState::DISCOVERY) != RadioError::NONE ||
-      scan_.configure(direct_channel_, policy_.allowed_channels) !=
-          RadioError::NONE) {
+  legal_channels_.clear();
+  discovery_scan_stage_ = DiscoveryScanStage::HINT;
+  next_scan_switch_ms_ = 0;
+  fast_search_deadline_ms_ = 0;
+  full_scan_started_ms_ = 0;
+  full_scan_hard_deadline_ms_ = 0;
+  full_scan_total_deadline_ms_ = 0;
+  full_scan_in_progress_ = false;
+  discovery_radio_ready_ = false;
+  discovery_restart_required_ = true;
+  if (path_.reset(LocalPathState::DISCOVERY) != RadioError::NONE) {
     return SimpleProductError::STATE_REJECTED;
   }
-  next_scan_switch_ms_ = clock_->now_ms() + policy_.scan_dwell_ms;
   if (diagnostic_sink_ != nullptr) {
     diagnostic_sink_->on_discovery_enter(clock_->now_ms());
   }
   return SimpleProductError::NONE;
+}
+
+SimpleProductError SimpleProductRuntime::restart_discovery_after_radio_fault() {
+  const SimpleProductError reset_result =
+      reset_to_discovery_after_radio_fault();
+  if (reset_result != SimpleProductError::NONE) {
+    return reset_result;
+  }
+  return begin_discovery_();
 }
 
 bool SimpleProductRuntime::update_direct_channel_hint(uint8_t channel) {
@@ -514,6 +547,7 @@ SimpleProductError SimpleProductRuntime::on_radio_receive(
 }
 
 SimpleProductError SimpleProductRuntime::begin_discovery_() {
+  discovery_restart_required_ = true;
   pending_challenge_.reset();
   clear_gateway_selection_();
   if (active_relay_.has_value()) {
@@ -524,28 +558,213 @@ SimpleProductError SimpleProductRuntime::begin_discovery_() {
     (void) port_->remove_peer(child.mac);
   }
   relay_children_.clear();
-  if (scan_.configure(direct_channel_, policy_.allowed_channels) !=
-      RadioError::NONE) {
+
+  full_scan_in_progress_ = false;
+  discovery_radio_ready_ = false;
+  fast_search_deadline_ms_ = 0;
+  full_scan_started_ms_ = 0;
+  full_scan_hard_deadline_ms_ = 0;
+  full_scan_total_deadline_ms_ = 0;
+
+  const SimpleProductError legal_result = refresh_legal_channels_();
+  if (legal_result != SimpleProductError::NONE) {
+    return legal_result;
+  }
+
+  std::vector<uint8_t> hints;
+  const auto append_hint = [this, &hints](uint8_t channel) {
+    if (channel == 0 || !legal_channel_(channel)) return;
+    if (std::find(hints.begin(), hints.end(), channel) == hints.end()) {
+      hints.push_back(channel);
+    }
+  };
+  append_hint(direct_channel_);
+  append_hint(cached_gateway_channel_);
+
+  const uint64_t now = clock_->now_ms();
+  SimpleProductError start_result = SimpleProductError::NONE;
+  if (hints.empty()) {
+    start_result = start_fast_scan_(now, false);
+  } else {
+    if (scan_.configure_ordered(hints) != RadioError::NONE) {
+      return SimpleProductError::RADIO_FAILED;
+    }
+    discovery_scan_stage_ = DiscoveryScanStage::HINT;
+    start_result =
+        set_scan_channel_(scan_.current(), policy_.scan_dwell_ms, now);
+  }
+  if (start_result == SimpleProductError::NONE) {
+    discovery_restart_required_ = false;
+  }
+  return start_result;
+}
+
+SimpleProductError SimpleProductRuntime::refresh_legal_channels_() {
+  std::vector<uint8_t> channels;
+  if (!port_->current_legal_channels(&channels) || channels.empty()) {
+    discovery_radio_ready_ = false;
+    legal_channels_.clear();
     return SimpleProductError::RADIO_FAILED;
   }
-  const uint8_t channel = scan_.current();
-  if (diagnostic_sink_ != nullptr) {
-    diagnostic_sink_->on_scan_attempt(channel, clock_->now_ms());
+  if (!std::all_of(
+          channels.begin(),
+          channels.end(),
+          [](uint8_t channel) { return valid_radio_channel(channel); })) {
+    discovery_radio_ready_ = false;
+    legal_channels_.clear();
+    return SimpleProductError::RADIO_FAILED;
   }
-  const bool channel_set = port_->set_radio_channel(channel);
+  std::sort(channels.begin(), channels.end());
+  channels.erase(std::unique(channels.begin(), channels.end()), channels.end());
+  if (channels.empty()) {
+    discovery_radio_ready_ = false;
+    legal_channels_.clear();
+    return SimpleProductError::RADIO_FAILED;
+  }
+  legal_channels_ = std::move(channels);
+  return SimpleProductError::NONE;
+}
+
+bool SimpleProductRuntime::legal_channel_(uint8_t channel) const {
+  return std::find(
+             legal_channels_.begin(), legal_channels_.end(), channel) !=
+         legal_channels_.end();
+}
+
+bool SimpleProductRuntime::fast_channel_(uint8_t channel) const {
+  return legal_channel_(channel) &&
+         std::find(
+             policy_.allowed_channels.begin(),
+             policy_.allowed_channels.end(),
+             channel) != policy_.allowed_channels.end();
+}
+
+SimpleProductError SimpleProductRuntime::set_scan_channel_(
+    uint8_t channel,
+    uint32_t dwell_ms,
+    uint64_t now_ms) {
+  discovery_radio_ready_ = false;
+  if (diagnostic_sink_ != nullptr) {
+    diagnostic_sink_->on_scan_attempt(channel, now_ms);
+  }
+  const bool channel_set =
+      valid_radio_channel(channel) && port_->set_radio_channel(channel);
+  const uint64_t ready_ms = clock_->now_ms();
   if (diagnostic_sink_ != nullptr) {
     diagnostic_sink_->on_scan_result(
         channel,
         channel_set,
         port_->last_channel_observed(),
         port_->last_channel_error_raw(),
-        clock_->now_ms());
+        ready_ms);
   }
   if (!channel_set) {
     return SimpleProductError::RADIO_FAILED;
   }
-  next_scan_switch_ms_ = clock_->now_ms() + policy_.scan_dwell_ms;
+  discovery_radio_ready_ = true;
+  next_scan_switch_ms_ = ready_ms + dwell_ms;
   return SimpleProductError::NONE;
+}
+
+SimpleProductError SimpleProductRuntime::start_fast_scan_(
+    uint64_t now_ms,
+    bool preserve_selection) {
+  if (!preserve_selection) {
+    pending_challenge_.reset();
+    clear_gateway_selection_();
+  }
+  std::vector<uint8_t> fast_channels;
+  for (uint8_t channel : policy_.allowed_channels) {
+    if (legal_channel_(channel) &&
+        std::find(
+            fast_channels.begin(), fast_channels.end(), channel) ==
+            fast_channels.end()) {
+      fast_channels.push_back(channel);
+    }
+  }
+  if (fast_channels.empty()) {
+    return start_full_scan_(now_ms, preserve_selection);
+  }
+  if (scan_.configure_ordered(fast_channels) != RadioError::NONE) {
+    return SimpleProductError::RADIO_FAILED;
+  }
+  discovery_scan_stage_ = DiscoveryScanStage::FAST;
+  full_scan_in_progress_ = false;
+  fast_search_deadline_ms_ = now_ms + policy_.fast_search_budget_ms;
+  if (gateway_selection_epoch_.has_value()) {
+    gateway_selection_epoch_->full_scan_collection = false;
+  }
+  return set_scan_channel_(
+      scan_.current(), policy_.scan_dwell_ms, now_ms);
+}
+
+SimpleProductError SimpleProductRuntime::start_full_scan_(
+    uint64_t now_ms,
+    bool preserve_selection) {
+  if (!preserve_selection) {
+    pending_challenge_.reset();
+    clear_gateway_selection_();
+  }
+  full_scan_in_progress_ = true;
+  discovery_radio_ready_ = false;
+  const SimpleProductError legal_result = refresh_legal_channels_();
+  if (legal_result != SimpleProductError::NONE) {
+    full_scan_in_progress_ = false;
+    return legal_result;
+  }
+  if (scan_.configure_ordered(legal_channels_) != RadioError::NONE) {
+    full_scan_in_progress_ = false;
+    return SimpleProductError::RADIO_FAILED;
+  }
+
+  discovery_scan_stage_ = DiscoveryScanStage::FULL;
+  full_scan_started_ms_ = now_ms;
+  full_scan_hard_deadline_ms_ =
+      now_ms +
+      static_cast<uint64_t>(legal_channels_.size()) *
+          policy_.full_scan_dwell_ms +
+      policy_.full_scan_schedule_margin_ms;
+  full_scan_total_deadline_ms_ =
+      now_ms + policy_.full_scan_total_max_ms;
+  fast_search_deadline_ms_ = 0;
+
+  if (gateway_selection_epoch_.has_value()) {
+    gateway_selection_epoch_->full_scan_collection = true;
+    gateway_selection_epoch_->frozen = false;
+    gateway_selection_epoch_->deadline_ms = full_scan_hard_deadline_ms_;
+    gateway_selection_epoch_->transaction_deadline_ms =
+        full_scan_total_deadline_ms_;
+  }
+
+  const SimpleProductError result =
+      set_scan_channel_(
+          scan_.current(), policy_.full_scan_dwell_ms, now_ms);
+  if (result != SimpleProductError::NONE) {
+    full_scan_in_progress_ = false;
+    pending_challenge_.reset();
+    clear_gateway_selection_();
+  }
+  return result;
+}
+
+SimpleProductError SimpleProductRuntime::finish_full_scan_(uint64_t now_ms) {
+  full_scan_in_progress_ = false;
+  if (!gateway_selection_epoch_.has_value()) {
+    return begin_discovery_();
+  }
+
+  gateway_selection_epoch_->frozen = true;
+  gateway_selection_epoch_->deadline_ms = now_ms;
+  const uint64_t handshake_deadline =
+      now_ms + policy_.full_handshake_max_ms;
+  gateway_selection_epoch_->transaction_deadline_ms =
+      std::min(full_scan_total_deadline_ms_, handshake_deadline);
+  if (gateway_selection_epoch_->transaction_deadline_ms <= now_ms) {
+    pending_challenge_.reset();
+    clear_gateway_selection_();
+    return begin_discovery_();
+  }
+  return attempt_next_gateway_candidate_();
 }
 
 SimpleProductError SimpleProductRuntime::leave_relay_for_discovery_() {
@@ -557,13 +776,17 @@ SimpleProductError SimpleProductRuntime::leave_relay_for_discovery_() {
 }
 
 SimpleProductError SimpleProductRuntime::restore_direct_() {
-  // Make the radio transition first. Do not destroy the current Relay binding
-  // until the Direct channel has been restored successfully.
   if (!port_->set_radio_channel(direct_channel_)) {
     return SimpleProductError::RADIO_FAILED;
   }
   pending_challenge_.reset();
   clear_gateway_selection_();
+  full_scan_in_progress_ = false;
+  discovery_radio_ready_ = false;
+  fast_search_deadline_ms_ = 0;
+  full_scan_started_ms_ = 0;
+  full_scan_hard_deadline_ms_ = 0;
+  full_scan_total_deadline_ms_ = 0;
   if (active_relay_.has_value()) {
     (void) port_->remove_peer(active_relay_->mac);
     active_relay_.reset();
@@ -597,9 +820,6 @@ SimpleProductError SimpleProductRuntime::handle_discovery_(
   } else if (gateway_selection_epoch_.has_value() &&
              (gateway_selection_epoch_->frozen ||
               now >= gateway_selection_epoch_->deadline_ms)) {
-    // drain_radio_ runs before tick(), so enforce the deadline here as well.
-    // A queued discovery received after the 6500 ms window must not enter the
-    // candidate set merely because tick() has not frozen the epoch yet.
     reject_reason = DiscoveryRejectReason::SELECTION_FROZEN;
   } else if (gateway_selection_epoch_.has_value()) {
     RelayCandidate *same_node =
@@ -636,13 +856,42 @@ SimpleProductError SimpleProductRuntime::handle_discovery_(
   if (!gateway_selection_epoch_.has_value()) {
     GatewaySelectionEpoch epoch;
     epoch.candidates.reserve(policy_.max_gateway_candidates);
-    epoch.deadline_ms = now + policy_.candidate_window_ms;
-    epoch.transaction_deadline_ms =
-        now + policy_.gateway_selection_transaction_max_ms;
+    const bool hint_requires_full =
+        discovery_scan_stage_ == DiscoveryScanStage::HINT &&
+        !fast_channel_(channel);
+    epoch.full_scan_collection =
+        discovery_scan_stage_ == DiscoveryScanStage::FULL ||
+        hint_requires_full;
+    if (epoch.full_scan_collection) {
+      epoch.deadline_ms =
+          full_scan_in_progress_
+              ? full_scan_hard_deadline_ms_
+              : now + policy_.full_scan_total_max_ms;
+      epoch.transaction_deadline_ms =
+          full_scan_in_progress_
+              ? full_scan_total_deadline_ms_
+              : now + policy_.full_scan_total_max_ms;
+    } else {
+      epoch.deadline_ms = now + policy_.candidate_window_ms;
+      epoch.transaction_deadline_ms =
+          now + policy_.gateway_selection_transaction_max_ms;
+    }
     gateway_selection_epoch_ = std::move(epoch);
   }
-  return add_or_update_gateway_candidate_(
-      source, packet, channel, rssi_dbm, now);
+
+  const SimpleProductError candidate_result =
+      add_or_update_gateway_candidate_(
+          source, packet, channel, rssi_dbm, now);
+  if (candidate_result != SimpleProductError::NONE) {
+    return candidate_result;
+  }
+
+  if (discovery_scan_stage_ == DiscoveryScanStage::HINT) {
+    return gateway_selection_epoch_->full_scan_collection
+               ? start_full_scan_(now, true)
+               : start_fast_scan_(now, true);
+  }
+  return SimpleProductError::NONE;
 }
 
 void SimpleProductRuntime::clear_gateway_selection_() {
@@ -769,9 +1018,15 @@ SimpleProductError SimpleProductRuntime::attempt_next_gateway_candidate_() {
     return SimpleProductError::STATE_REJECTED;
   }
 
+  const bool full_collection =
+      gateway_selection_epoch_->full_scan_collection;
   if (clock_->now_ms() >=
       gateway_selection_epoch_->transaction_deadline_ms) {
-    return begin_discovery_();
+    pending_challenge_.reset();
+    clear_gateway_selection_();
+    return full_collection
+               ? begin_discovery_()
+               : start_full_scan_(clock_->now_ms(), false);
   }
 
   std::size_t candidate_index = 0;
@@ -783,7 +1038,10 @@ SimpleProductError SimpleProductRuntime::attempt_next_gateway_candidate_() {
   }
   if (!gateway_selection_epoch_.has_value() ||
       candidate_index >= gateway_selection_epoch_->candidates.size()) {
-    return begin_discovery_();
+    clear_gateway_selection_();
+    return full_collection
+               ? begin_discovery_()
+               : start_full_scan_(clock_->now_ms(), false);
   }
 
   const RelayCandidate candidate =
@@ -1035,6 +1293,9 @@ SimpleProductError SimpleProductRuntime::handle_accept_(
     return SimpleProductError::STATE_REJECTED;
   }
   active_relay_ = std::move(relay);
+  cached_gateway_channel_ = channel;
+  full_scan_in_progress_ = false;
+  discovery_radio_ready_ = false;
   pending_challenge_.reset();
   clear_gateway_selection_();
   if (diagnostic_sink_ != nullptr) {
@@ -1122,27 +1383,55 @@ SimpleProductError SimpleProductRuntime::maybe_advertise_relay_(
 }
 
 SimpleProductError SimpleProductRuntime::maybe_advance_scan_(uint64_t now_ms) {
-  if (pending_challenge_.has_value() || now_ms < next_scan_switch_ms_) {
+  if (pending_challenge_.has_value()) {
     return SimpleProductError::NONE;
   }
-  next_scan_switch_ms_ = now_ms + policy_.scan_dwell_ms;
-  const uint8_t channel = scan_.advance();
-  if (diagnostic_sink_ != nullptr) {
-    diagnostic_sink_->on_scan_attempt(channel, now_ms);
+
+  if (discovery_scan_stage_ == DiscoveryScanStage::FAST &&
+      !gateway_selection_epoch_.has_value() &&
+      now_ms >= fast_search_deadline_ms_) {
+    return start_full_scan_(now_ms, false);
   }
-  const bool channel_set =
-      valid_radio_channel(channel) && port_->set_radio_channel(channel);
-  if (diagnostic_sink_ != nullptr) {
-    diagnostic_sink_->on_scan_result(
-        channel,
-        channel_set,
-        port_->last_channel_observed(),
-        port_->last_channel_error_raw(),
-        clock_->now_ms());
-  }
-  if (!channel_set) {
+
+  if (discovery_scan_stage_ == DiscoveryScanStage::FULL &&
+      full_scan_in_progress_ &&
+      now_ms >= full_scan_hard_deadline_ms_) {
+    full_scan_in_progress_ = false;
+    discovery_radio_ready_ = false;
+    pending_challenge_.reset();
+    clear_gateway_selection_();
     return SimpleProductError::RADIO_FAILED;
   }
+
+  if (now_ms < next_scan_switch_ms_) {
+    return SimpleProductError::NONE;
+  }
+
+  if (discovery_scan_stage_ == DiscoveryScanStage::HINT) {
+    const uint8_t channel = scan_.advance_bounded();
+    if (channel == 0) {
+      return start_fast_scan_(now_ms, false);
+    }
+    return set_scan_channel_(
+        channel, policy_.scan_dwell_ms, now_ms);
+  }
+
+  if (discovery_scan_stage_ == DiscoveryScanStage::FAST) {
+    const uint8_t channel = scan_.advance();
+    return set_scan_channel_(
+        channel, policy_.scan_dwell_ms, now_ms);
+  }
+
+  if (discovery_scan_stage_ == DiscoveryScanStage::FULL &&
+      full_scan_in_progress_) {
+    const uint8_t channel = scan_.advance_bounded();
+    if (channel == 0) {
+      return finish_full_scan_(now_ms);
+    }
+    return set_scan_channel_(
+        channel, policy_.full_scan_dwell_ms, now_ms);
+  }
+
   return SimpleProductError::NONE;
 }
 
