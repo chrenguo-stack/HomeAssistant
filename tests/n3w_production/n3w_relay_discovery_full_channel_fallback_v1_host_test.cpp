@@ -432,6 +432,69 @@ int main() {
   }
 
   {
+    FakeClock clock;
+    FakeRandom random;
+    FakePort port;
+    port.legal_channels = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13};
+    SimpleProductRuntime runtime(&port, &clock, &random);
+    assert(
+        runtime.start(
+            make_state("node_child"),
+            child_mac,
+            13,
+            SimpleProductStartMode::DISCOVERY) ==
+        SimpleProductError::NONE);
+    assert(runtime.working_channel() == 13);
+    assert(!runtime.discovery_restart_required());
+
+    assert(
+        runtime.reset_to_discovery_after_radio_fault() ==
+        SimpleProductError::NONE);
+    assert(runtime.discovery_restart_required());
+    assert(runtime.legal_channel_count() == 0U);
+    assert(!runtime.discovery_radio_ready());
+
+    port.legal_channels = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+    const std::size_t stale_history = port.channel_history.size();
+    assert(
+        discovery_restore_requires_restart(
+            runtime.path_state(),
+            runtime.discovery_restart_required(),
+            false));
+    assert(
+        runtime.rebind_radio_state() ==
+        SimpleProductError::RADIO_FAILED);
+    assert(port.channel_history.size() == stale_history);
+
+    port.legal_success = false;
+    assert(
+        runtime.restart_discovery_after_radio_fault() ==
+        SimpleProductError::RADIO_FAILED);
+    assert(runtime.discovery_restart_required());
+
+    port.legal_success = true;
+    assert(
+        discovery_restore_requires_restart(
+            runtime.path_state(),
+            runtime.discovery_restart_required(),
+            false));
+    assert(
+        runtime.restart_discovery_after_radio_fault() ==
+        SimpleProductError::NONE);
+    assert(!runtime.discovery_restart_required());
+    assert(runtime.legal_channel_count() == 11U);
+    assert(runtime.working_channel() == 1);
+    assert(!discovery_restore_requires_restart(
+        runtime.path_state(),
+        runtime.discovery_restart_required(),
+        false));
+    assert(!discovery_restore_requires_restart(
+        LocalPathState::RELAY_ACTIVE,
+        true,
+        false));
+  }
+
+  {
     const SimpleProductPolicy policy{};
     assert(policy.scan_dwell_ms == 250U);
     assert(policy.fast_search_budget_ms == 6500U);
