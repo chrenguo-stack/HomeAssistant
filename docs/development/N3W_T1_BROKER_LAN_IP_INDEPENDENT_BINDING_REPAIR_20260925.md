@@ -36,6 +36,8 @@ That assumption is invalid for a production product because the T1 address is as
 
 A source fix must therefore remove all concrete customer-LAN IPv4 dependency from the Broker TLS publication contract.
 
+This intentionally supersedes only the old KF-035 static publication requirement that tied TLS 8883 to one resolved loopback `host_ip`. KF-035's stronger runtime authority remains: Manager-to-Broker reachability must still be proven from the exact host-network Manager namespace with TCP+TLS server-name validation, and Broker network attachments/runtime mappings must still be checked after recreate/reboot.
+
 ## Frozen repair direction
 
 The repaired deployment contract is:
