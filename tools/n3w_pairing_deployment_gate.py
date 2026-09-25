@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the rendered Compose UDP publication used by N3-W discovery."""
+"""Validate the rendered N3-W Manager/Broker deployment contract."""
 
 from __future__ import annotations
 
@@ -11,13 +11,14 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import TextIO
 
-SCHEMA = "gh.n3w-pairing-deployment-gate/1"
+SCHEMA = "gh.n3w-pairing-deployment-gate/2"
 DISCOVERY_PORT = 47111
 BROKER_TLS_PORT = 8883
+BROKER_IPV4_WILDCARD = "0.0.0.0"
 
 
 class DeploymentContractError(ValueError):
-    """Rendered deployment does not preserve limited-broadcast discovery."""
+    """Rendered deployment does not preserve N3-W network portability."""
 
 
 def _published_port(value: object) -> int | None:
@@ -25,6 +26,10 @@ def _published_port(value: object) -> int | None:
         return int(value)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return None
+
+
+def _ipv4_wildcard(value: object) -> bool:
+    return value in {None, "", BROKER_IPV4_WILDCARD}
 
 
 def validate_compose_document(
@@ -58,26 +63,31 @@ def validate_compose_document(
         loopback = ipaddress.ip_address(broker_loopback_ip)
     except ValueError as error:
         raise DeploymentContractError("broker_loopback_ip_invalid") from error
-    if not loopback.is_loopback:
+    if loopback.version != 4 or not loopback.is_loopback:
         raise DeploymentContractError("broker_loopback_ip_not_loopback")
 
     broker = services.get(broker_service_name)
     if not isinstance(broker, Mapping):
         raise DeploymentContractError("broker_service_missing")
+
     broker_ports = broker.get("ports", [])
     if not isinstance(broker_ports, list):
         raise DeploymentContractError("broker_ports_invalid")
-    broker_loopback_matches = [
+
+    broker_tls_publications = [
         item
         for item in broker_ports
         if isinstance(item, Mapping)
         and item.get("protocol") == "tcp"
         and _published_port(item.get("target")) == BROKER_TLS_PORT
         and _published_port(item.get("published")) == BROKER_TLS_PORT
-        and item.get("host_ip") == broker_loopback_ip
     ]
-    if len(broker_loopback_matches) != 1:
-        raise DeploymentContractError("broker_resolved_loopback_publication_missing")
+    if len(broker_tls_publications) != 1:
+        raise DeploymentContractError("broker_tls_publication_count_invalid")
+
+    publication = broker_tls_publications[0]
+    if not _ipv4_wildcard(publication.get("host_ip")):
+        raise DeploymentContractError("broker_wildcard_tls_publication_missing")
 
     return {
         "schema": SCHEMA,
@@ -88,8 +98,10 @@ def validate_compose_document(
         "docker_udp_publication": False,
         "broker_service": broker_service_name,
         "broker_tls_port": BROKER_TLS_PORT,
-        "broker_loopback_ip": broker_loopback_ip,
-        "broker_resolved_loopback_publication": True,
+        "broker_ipv4_wildcard_publication": True,
+        "broker_concrete_lan_ip_dependency": False,
+        "broker_manager_loopback_ip": broker_loopback_ip,
+        "broker_manager_loopback_runtime_probe_required": True,
         "secret_values_included": False,
     }
 
@@ -97,8 +109,8 @@ def validate_compose_document(
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Validate a `docker compose config --format json` document "
-            "for N3-W UDP discovery."
+            "Validate a docker compose config --format json document "
+            "for host-network N3-W discovery and LAN-IP-independent Broker TLS."
         )
     )
     parser.add_argument(
@@ -120,8 +132,8 @@ def _parser() -> argparse.ArgumentParser:
         "--broker-loopback-ip",
         required=True,
         help=(
-            "Loopback IPv4/IPv6 address resolved for the broker hostname from "
-            "the host-network Manager runtime"
+            "IPv4 loopback endpoint reserved for the host-network Manager "
+            "runtime connectivity probe"
         ),
     )
     return parser
