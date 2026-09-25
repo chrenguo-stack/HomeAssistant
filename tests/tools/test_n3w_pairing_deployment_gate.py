@@ -27,7 +27,7 @@ def rendered_compose(
     *,
     network_mode: str | None = "host",
     udp_host_ip: str | None = None,
-    broker_loopback_ip: str = "127.0.1.1",
+    broker_host_ip: str | None = "0.0.0.0",
     broker_published_port: str = "8883",
 ) -> dict:
     manager: dict = {}
@@ -43,25 +43,27 @@ def rendered_compose(
                 "protocol": "udp",
             }
         ]
+
+    broker_port = {
+        "mode": "ingress",
+        "target": 8883,
+        "published": broker_published_port,
+        "protocol": "tcp",
+    }
+    if broker_host_ip is not None:
+        broker_port["host_ip"] = broker_host_ip
+
     return {
         "services": {
             "manager": manager,
             "broker": {
-                "ports": [
-                    {
-                        "host_ip": broker_loopback_ip,
-                        "mode": "ingress",
-                        "target": 8883,
-                        "published": broker_published_port,
-                        "protocol": "tcp",
-                    }
-                ]
+                "ports": [broker_port]
             },
         }
     }
 
 
-def test_accepts_host_network_without_docker_udp_publication() -> None:
+def test_accepts_host_network_and_ipv4_wildcard_broker_publication() -> None:
     tool = load_tool()
 
     result = tool.validate_compose_document(
@@ -74,9 +76,25 @@ def test_accepts_host_network_without_docker_udp_publication() -> None:
     assert result["status"] == "PASS"
     assert result["network_mode"] == "host"
     assert result["docker_udp_publication"] is False
-    assert result["broker_resolved_loopback_publication"] is True
-    assert result["broker_loopback_ip"] == "127.0.1.1"
+    assert result["broker_ipv4_wildcard_publication"] is True
+    assert result["broker_concrete_lan_ip_dependency"] is False
+    assert result["broker_manager_loopback_ip"] == "127.0.1.1"
+    assert result["broker_manager_loopback_runtime_probe_required"] is True
     assert result["secret_values_included"] is False
+
+
+def test_accepts_implicit_ipv4_wildcard_broker_publication() -> None:
+    tool = load_tool()
+
+    result = tool.validate_compose_document(
+        rendered_compose(broker_host_ip=None),
+        service_name="manager",
+        broker_service_name="broker",
+        broker_loopback_ip="127.0.0.1",
+    )
+
+    assert result["status"] == "PASS"
+    assert result["broker_ipv4_wildcard_publication"] is True
 
 
 @pytest.mark.parametrize(
@@ -143,15 +161,25 @@ def test_rejects_non_host_network_without_udp_publication(
         )
 
 
-def test_rejects_broker_publication_on_different_loopback_address() -> None:
+@pytest.mark.parametrize(
+    "broker_host_ip",
+    [
+        "127.0.0.1",
+        "127.0.1.1",
+        "192.0.2.10",
+        "10.168.1.194",
+        "192.168.68.194",
+    ],
+)
+def test_rejects_concrete_broker_host_binding(broker_host_ip: str) -> None:
     tool = load_tool()
 
     with pytest.raises(
         tool.DeploymentContractError,
-        match="broker_resolved_loopback_publication_missing",
+        match="broker_wildcard_tls_publication_missing",
     ):
         tool.validate_compose_document(
-            rendered_compose(broker_loopback_ip="127.0.0.1"),
+            rendered_compose(broker_host_ip=broker_host_ip),
             service_name="manager",
             broker_service_name="broker",
             broker_loopback_ip="127.0.1.1",
@@ -163,7 +191,7 @@ def test_rejects_broker_publication_with_wrong_published_port() -> None:
 
     with pytest.raises(
         tool.DeploymentContractError,
-        match="broker_resolved_loopback_publication_missing",
+        match="broker_tls_publication_count_invalid",
     ):
         tool.validate_compose_document(
             rendered_compose(broker_published_port="1883"),
@@ -173,7 +201,32 @@ def test_rejects_broker_publication_with_wrong_published_port() -> None:
         )
 
 
-def test_rejects_non_loopback_broker_address() -> None:
+def test_rejects_duplicate_tls_publications() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["services"]["broker"]["ports"].append(
+        {
+            "host_ip": "192.0.2.10",
+            "mode": "ingress",
+            "target": 8883,
+            "published": "8883",
+            "protocol": "tcp",
+        }
+    )
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="broker_tls_publication_count_invalid",
+    ):
+        tool.validate_compose_document(
+            document,
+            service_name="manager",
+            broker_service_name="broker",
+            broker_loopback_ip="127.0.1.1",
+        )
+
+
+def test_rejects_non_loopback_manager_broker_address() -> None:
     tool = load_tool()
 
     with pytest.raises(
@@ -181,7 +234,7 @@ def test_rejects_non_loopback_broker_address() -> None:
         match="broker_loopback_ip_not_loopback",
     ):
         tool.validate_compose_document(
-            rendered_compose(broker_loopback_ip="192.0.2.10"),
+            rendered_compose(),
             service_name="manager",
             broker_service_name="broker",
             broker_loopback_ip="192.0.2.10",
@@ -215,7 +268,7 @@ def test_cli_failure_is_structured_and_secret_free() -> None:
     report = json.loads(output.getvalue())
     assert status == 3
     assert report == {
-        "schema": "gh.n3w-pairing-deployment-gate/1",
+        "schema": "gh.n3w-pairing-deployment-gate/2",
         "status": "FAIL",
         "reason": "discovery_udp_requires_host_network",
         "secret_values_included": False,
