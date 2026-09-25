@@ -167,8 +167,8 @@ def test_rejects_non_host_network_without_udp_publication(
         "127.0.0.1",
         "127.0.1.1",
         "192.0.2.10",
-        "10.168.1.194",
-        "192.168.68.194",
+        "198.51.100.10",
+        "203.0.113.10",
     ],
 )
 def test_rejects_concrete_broker_host_binding(broker_host_ip: str) -> None:
