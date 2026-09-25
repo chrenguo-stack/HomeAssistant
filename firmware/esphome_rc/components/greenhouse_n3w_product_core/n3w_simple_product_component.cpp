@@ -1434,9 +1434,13 @@ bool SimpleProductComponent::restore_relay_radio_() {
         static_cast<unsigned>(error));
     return false;
   }
-  const SimpleProductError runtime_restore =
+  const bool restart_discovery = discovery_restore_requires_restart(
+      runtime_.path_state(),
+      runtime_.discovery_restart_required(),
       relay_restore_cause_ ==
-              RelayRestoreCause::GATEWAY_SELECTION_LOCAL_FAULT
+          RelayRestoreCause::GATEWAY_SELECTION_LOCAL_FAULT);
+  const SimpleProductError runtime_restore =
+      restart_discovery
           ? runtime_.restart_discovery_after_radio_fault()
           : runtime_.rebind_radio_state();
   if (runtime_restore != SimpleProductError::NONE) {
