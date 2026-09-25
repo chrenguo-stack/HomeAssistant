@@ -95,7 +95,7 @@ Regression coverage:
 - accepts Compose implicit wildcard publication;
 - rejects concrete loopback publication;
 - rejects concrete LAN publication;
-- rejects predecessor and current lab-style fixed LAN addresses;
+- rejects representative concrete non-loopback host bindings;
 - rejects duplicate 8883 publications;
 - preserves the host-network Manager UDP discovery guard;
 - preserves secret-free structured CLI failure output.
