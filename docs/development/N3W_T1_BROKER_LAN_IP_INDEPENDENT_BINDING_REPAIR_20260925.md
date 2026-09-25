@@ -100,6 +100,10 @@ Regression coverage:
 - preserves the host-network Manager UDP discovery guard;
 - preserves secret-free structured CLI failure output.
 
+Dedicated CI:
+
+- `.github/workflows/n3w-t1-deployment-gate-ci.yml` runs the focused deployment-gate regression on every relevant pull request and main update.
+
 ## Live repair boundary
 
 No T1 runtime mutation has been performed by this source repair.
