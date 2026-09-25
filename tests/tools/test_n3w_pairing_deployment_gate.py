@@ -186,15 +186,55 @@ def test_rejects_concrete_broker_host_binding(broker_host_ip: str) -> None:
         )
 
 
+def test_rejects_empty_broker_host_binding() -> None:
+    tool = load_tool()
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="broker_wildcard_tls_publication_missing",
+    ):
+        tool.validate_compose_document(
+            rendered_compose(broker_host_ip=""),
+            service_name="manager",
+            broker_service_name="broker",
+            broker_loopback_ip="127.0.1.1",
+        )
+
+
 def test_rejects_broker_publication_with_wrong_published_port() -> None:
     tool = load_tool()
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="broker_tls_publication_port_mismatch",
+    ):
+        tool.validate_compose_document(
+            rendered_compose(broker_published_port="1883"),
+            service_name="manager",
+            broker_service_name="broker",
+            broker_loopback_ip="127.0.1.1",
+        )
+
+
+def test_rejects_extra_misdirected_tls_publication() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["services"]["broker"]["ports"].append(
+        {
+            "host_ip": "0.0.0.0",
+            "mode": "ingress",
+            "target": 8883,
+            "published": "18883",
+            "protocol": "tcp",
+        }
+    )
 
     with pytest.raises(
         tool.DeploymentContractError,
         match="broker_tls_publication_count_invalid",
     ):
         tool.validate_compose_document(
-            rendered_compose(broker_published_port="1883"),
+            document,
             service_name="manager",
             broker_service_name="broker",
             broker_loopback_ip="127.0.1.1",
