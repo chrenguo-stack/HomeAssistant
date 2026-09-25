@@ -45,6 +45,11 @@ bool gateway_selection_local_fault_requires_restore(
     bool selection_busy_before,
     bool selection_busy_after);
 
+bool discovery_restore_requires_restart(
+    LocalPathState path_state,
+    bool discovery_restart_required,
+    bool gateway_selection_local_fault);
+
 enum class SimpleProductStartMode : uint8_t {
   DIRECT = 0,
   DISCOVERY,
@@ -279,6 +284,9 @@ class SimpleProductRuntime {
            pending_challenge_.has_value();
   }
   bool discovery_radio_ready() const { return discovery_radio_ready_; }
+  bool discovery_restart_required() const {
+    return discovery_restart_required_;
+  }
   DiscoveryScanStage discovery_scan_stage() const {
     return discovery_scan_stage_;
   }
@@ -393,6 +401,7 @@ class SimpleProductRuntime {
   uint64_t next_advertisement_ms_{0};
   bool full_scan_in_progress_{false};
   bool discovery_radio_ready_{false};
+  bool discovery_restart_required_{false};
   bool started_{false};
   bool relay_capable_{true};
   std::optional<PendingChallenge> pending_challenge_{};
