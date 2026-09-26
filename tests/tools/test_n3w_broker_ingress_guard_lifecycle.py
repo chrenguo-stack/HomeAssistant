@@ -78,11 +78,36 @@ def test_dispatcher_only_handles_eth0_and_bounded_network_events() -> None:
         assert action in script
     assert "is-active docker.service || exit 0" in script
     assert "/usr/bin/timeout 20s" in script
-    assert "reload n3wfc4-broker-ingress-guard.service" in script
-    assert "restart n3wfc4-broker-ingress-guard.service" not in script
+    assert (
+        "reload-or-restart n3wfc4-broker-ingress-guard.service"
+        in script
+    )
+    assert "systemctl reload n3wfc4-broker-ingress-guard.service" not in script
+    assert "systemctl restart n3wfc4-broker-ingress-guard.service" not in script
 
 
-def test_dispatcher_guard_failure_stops_broker_activation_owner() -> None:
+def test_dispatcher_recovers_broker_after_guard_recovers() -> None:
+    script = read(DISPATCHER)
+    guard = (
+        "/usr/bin/timeout 20s /usr/bin/systemctl reload-or-restart "
+        "n3wfc4-broker-ingress-guard.service"
+    )
+    start = (
+        "/usr/bin/timeout 30s /usr/bin/systemctl start "
+        "n3wfc4-broker-activation.service"
+    )
+    stop = (
+        "/usr/bin/timeout 30s /usr/bin/systemctl stop "
+        "n3wfc4-broker-activation.service"
+    )
+
+    assert guard in script
+    assert start in script
+    assert stop in script
+    assert script.index(guard) < script.index(start) < script.index(stop)
+
+
+def test_dispatcher_guard_or_broker_start_failure_stops_activation_owner() -> None:
     script = read(DISPATCHER)
 
     assert (
