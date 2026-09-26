@@ -2,6 +2,7 @@
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
 Current progress alignment: `docs/development/N3W_T1_BROKER_NETWORK_INDEPENDENCE_PROGRESS_ALIGNMENT_20260926.md`  
+Current T1 Broker architecture decisions: `docs/development/N3W_T1_BROKER_NETWORK_INDEPENDENCE_ARCHITECTURE_DECISIONS_20260926.md`  
 Current new-chat handoff: `docs/development/N3W_T1_BROKER_8883_DYNAMIC_INGRESS_GUARD_SOURCE_DESIGN_NEW_CHAT_HANDOFF_V1.0_20260926.md`  
 Long-term working context: `docs/development/N3W_PROJECT_WORKING_CONTEXT.md`  
 Current handoff template: `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` v1.2  
