@@ -15,21 +15,75 @@ SCHEMA = "gh.n3w-pairing-deployment-gate/2"
 DISCOVERY_PORT = 47111
 BROKER_TLS_PORT = 8883
 BROKER_IPV4_WILDCARD = "0.0.0.0"
+EXPECTED_BROKER_NETWORKS = frozenset(
+    {
+        "n3wfc4-private",
+        "n3wfc4-services",
+    }
+)
 
 
 class DeploymentContractError(ValueError):
     """Rendered deployment does not preserve N3-W network portability."""
 
 
-def _published_port(value: object) -> int | None:
-    try:
-        return int(value)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
+def _port_span(value: object) -> tuple[int, int] | None:
+    if isinstance(value, bool) or value is None:
         return None
 
+    if isinstance(value, int):
+        if 1 <= value <= 65535:
+            return value, value
+        return None
 
-def _ipv4_wildcard(value: object) -> bool:
-    return value is None or value == BROKER_IPV4_WILDCARD
+    if not isinstance(value, str):
+        return None
+
+    token = value.strip()
+    if token.isdigit():
+        port = int(token)
+        if 1 <= port <= 65535:
+            return port, port
+        return None
+
+    if token.count("-") != 1:
+        return None
+
+    start_text, end_text = token.split("-", 1)
+    if not start_text.isdigit() or not end_text.isdigit():
+        return None
+
+    start = int(start_text)
+    end = int(end_text)
+    if not (1 <= start <= end <= 65535):
+        return None
+    return start, end
+
+
+def _port_spec_includes(value: object, port: int) -> bool:
+    span = _port_span(value)
+    return span is not None and span[0] <= port <= span[1]
+
+
+def _exact_port(value: object, port: int) -> bool:
+    return _port_span(value) == (port, port)
+
+
+def _broker_network_names(value: object) -> frozenset[str]:
+    if isinstance(value, Mapping):
+        raw_names = list(value.keys())
+    elif isinstance(value, list):
+        raw_names = list(value)
+    else:
+        raise DeploymentContractError("broker_networks_invalid")
+
+    if (
+        not raw_names
+        or any(not isinstance(name, str) or not name for name in raw_names)
+    ):
+        raise DeploymentContractError("broker_networks_invalid")
+
+    return frozenset(raw_names)
 
 
 def validate_compose_document(
@@ -70,30 +124,46 @@ def validate_compose_document(
     if not isinstance(broker, Mapping):
         raise DeploymentContractError("broker_service_missing")
 
+    broker_networks = _broker_network_names(broker.get("networks"))
+    if broker_networks != EXPECTED_BROKER_NETWORKS:
+        raise DeploymentContractError("broker_network_attachment_set_invalid")
+
     broker_ports = broker.get("ports", [])
     if not isinstance(broker_ports, list):
         raise DeploymentContractError("broker_ports_invalid")
 
-    broker_tls_publications = [
-        item
-        for item in broker_ports
-        if isinstance(item, Mapping)
-        and item.get("protocol") == "tcp"
-        and (
-            _published_port(item.get("target")) == BROKER_TLS_PORT
-            or _published_port(item.get("published")) == BROKER_TLS_PORT
-        )
-    ]
+    broker_tls_publications: list[Mapping[object, object]] = []
+    for item in broker_ports:
+        if not isinstance(item, Mapping):
+            raise DeploymentContractError("broker_port_entry_invalid")
+
+        protocol = item.get("protocol", "tcp")
+        if not isinstance(protocol, str):
+            raise DeploymentContractError("broker_port_protocol_invalid")
+        if protocol != "tcp":
+            continue
+
+        target = item.get("target")
+        published = item.get("published")
+        if _port_span(target) is None or _port_span(published) is None:
+            raise DeploymentContractError("broker_port_spec_invalid")
+
+        if (
+            _port_spec_includes(target, BROKER_TLS_PORT)
+            or _port_spec_includes(published, BROKER_TLS_PORT)
+        ):
+            broker_tls_publications.append(item)
+
     if len(broker_tls_publications) != 1:
         raise DeploymentContractError("broker_tls_publication_count_invalid")
 
     publication = broker_tls_publications[0]
     if (
-        _published_port(publication.get("target")) != BROKER_TLS_PORT
-        or _published_port(publication.get("published")) != BROKER_TLS_PORT
+        not _exact_port(publication.get("target"), BROKER_TLS_PORT)
+        or not _exact_port(publication.get("published"), BROKER_TLS_PORT)
     ):
         raise DeploymentContractError("broker_tls_publication_port_mismatch")
-    if not _ipv4_wildcard(publication.get("host_ip")):
+    if publication.get("host_ip") != BROKER_IPV4_WILDCARD:
         raise DeploymentContractError("broker_wildcard_tls_publication_missing")
 
     return {
@@ -107,8 +177,11 @@ def validate_compose_document(
         "broker_tls_port": BROKER_TLS_PORT,
         "broker_ipv4_wildcard_publication": True,
         "broker_concrete_lan_ip_dependency": False,
+        "broker_networks": sorted(broker_networks),
+        "broker_network_attachment_set_verified": True,
         "broker_manager_loopback_ip": broker_loopback_ip,
         "broker_manager_loopback_runtime_probe_required": True,
+        "broker_ingress_runtime_probe_required": True,
         "secret_values_included": False,
     }
 
