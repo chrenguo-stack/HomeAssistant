@@ -55,6 +55,7 @@ def test_broker_activation_is_runtime_supervisor() -> None:
         "n3wfc4-broker-ingress-guard.service"
         in unit
     )
+    assert unit.count("--project-name ${N3WFC4_COMPOSE_PROJECT_NAME}") == 2
     assert "up --no-deps --no-log-prefix --exit-code-from broker broker" in unit
     assert "up -d" not in unit
     assert "stop broker" in unit
