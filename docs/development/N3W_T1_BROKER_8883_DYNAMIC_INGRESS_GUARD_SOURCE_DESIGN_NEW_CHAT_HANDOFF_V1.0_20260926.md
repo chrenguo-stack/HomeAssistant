@@ -93,7 +93,7 @@ ARTIFACT_SHA256=NOT_APPLICABLE:T1 deployment design gate
 DEPLOYED_SOURCE_HEAD=NOT_APPLICABLE:T1 deployment design gate
 DEPLOYED_SOURCE_TREE=NOT_APPLICABLE:T1 deployment design gate
 
-OTHER_REQUIRED_AUTHORITY=docs/development/N3W_T1_BROKER_NETWORK_INDEPENDENCE_PROGRESS_ALIGNMENT_20260926.md
+OTHER_REQUIRED_AUTHORITY=docs/development/N3W_T1_BROKER_NETWORK_INDEPENDENCE_PROGRESS_ALIGNMENT_20260926.md; docs/development/N3W_T1_BROKER_NETWORK_INDEPENDENCE_ARCHITECTURE_DECISIONS_20260926.md
 ```
 
 ---
@@ -420,8 +420,9 @@ The exact copyable prompt is intentionally delivered separately to the user. The
 4. docs/development/N3W_CURRENT_STATE_INDEX.md
 5. docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md
 6. docs/development/N3W_T1_BROKER_NETWORK_INDEPENDENCE_PROGRESS_ALIGNMENT_20260926.md
-7. PR #475 exact head and current state
-8. PR #474 only for frozen source/physical-defer context
+7. docs/development/N3W_T1_BROKER_NETWORK_INDEPENDENCE_ARCHITECTURE_DECISIONS_20260926.md
+8. PR #475 exact head and current state
+9. PR #474 only for frozen source/physical-defer context
 ```
 
 It must then fresh-rebind the minimum repository state and enter only the specified next gate.
