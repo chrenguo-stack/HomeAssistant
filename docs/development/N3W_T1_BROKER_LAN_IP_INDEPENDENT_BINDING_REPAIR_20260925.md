@@ -94,11 +94,11 @@ Changed contract:
 Regression coverage:
 
 - accepts explicit `0.0.0.0` publication;
-- accepts Compose implicit wildcard publication;
-- rejects concrete loopback publication;
-- rejects concrete LAN publication;
-- rejects representative concrete non-loopback host bindings;
-- rejects duplicate 8883 publications;
+- rejects Compose implicit wildcard publication;
+- rejects IPv6 wildcard, concrete loopback, concrete LAN, and empty host bindings;
+- rejects duplicate 8883 publications and TCP ranges overlapping 8883;
+- rejects malformed TCP port specifications;
+- requires the exact frozen two-network Broker attachment set;
 - preserves the host-network Manager UDP discovery guard;
 - preserves secret-free structured CLI failure output.
 
@@ -115,12 +115,14 @@ Before any live Broker recreate:
 1. source review and CI must pass;
 2. current T1 Compose authority must be rebound read-only;
 3. rollback material for Broker/Manager state must remain valid;
-4. rendered Compose must pass deployment gate v2;
-5. the live repair must replace the concrete TLS host binding with wildcard semantics only;
-6. after recreate, verify actual Docker runtime mapping;
-7. verify Manager loopback TCP+TLS connectivity from the exact Manager runtime namespace;
-8. verify canonical node Broker hostname resolves to the current T1 LAN address;
-9. only then resume Board B Direct telemetry and dual-Gateway physical acceptance.
+4. rendered Compose must pass deployment gate v2, including the exact two-network Broker attachment set;
+5. before wildcard activation, prove an effective TCP 8883 ingress policy for the intended trusted LAN/interface and fail closed if prohibited ingress cannot be excluded;
+6. the live repair must replace the concrete TLS host binding with one explicit `0.0.0.0` publication only;
+7. after recreate, verify actual Docker runtime mapping and exact Broker network attachments;
+8. verify Manager loopback TCP+TLS connectivity from the exact Manager runtime namespace;
+9. verify allowed LAN ingress is reachable and prohibited ingress is not reachable;
+10. verify canonical node Broker hostname resolves to the current T1 LAN address;
+11. only then resume Board B Direct telemetry and dual-Gateway physical acceptance.
 
 ## Current disposition
 
