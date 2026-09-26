@@ -2,7 +2,7 @@
 
 Status: `CURRENT_PROGRESS_ALIGNMENT`
 
-This document aligns the current local-chat progress with GitHub before a new-chat handoff. It is public-safe: private T1 locators, private LAN addresses, raw credentials, and raw board identities are intentionally omitted.
+This document aligns the current local-chat progress with GitHub before a new-chat handoff. Architecture decisions already made for B1/B2/B3 are archived separately in `docs/development/N3W_T1_BROKER_NETWORK_INDEPENDENCE_ARCHITECTURE_DECISIONS_20260926.md`. It is public-safe: private T1 locators, private LAN addresses, raw credentials, and raw board identities are intentionally omitted.
 
 ## 1. Repository and active PR authorities
 
