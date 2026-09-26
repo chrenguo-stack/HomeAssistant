@@ -69,6 +69,41 @@ def _exact_port(value: object, port: int) -> bool:
     return _port_span(value) == (port, port)
 
 
+def _host_tcp_port_owners(
+    services: Mapping[object, object],
+    port: int,
+) -> tuple[str, ...]:
+    owners: list[str] = []
+    for service_name, raw_service in services.items():
+        if not isinstance(service_name, str) or not service_name:
+            raise DeploymentContractError("compose_service_name_invalid")
+        if not isinstance(raw_service, Mapping):
+            raise DeploymentContractError("compose_service_invalid")
+
+        ports = raw_service.get("ports", [])
+        if not isinstance(ports, list):
+            raise DeploymentContractError("compose_service_ports_invalid")
+
+        for item in ports:
+            if not isinstance(item, Mapping):
+                raise DeploymentContractError("compose_port_entry_invalid")
+
+            protocol = item.get("protocol", "tcp")
+            if not isinstance(protocol, str):
+                raise DeploymentContractError("compose_port_protocol_invalid")
+            if protocol != "tcp":
+                continue
+
+            target = item.get("target")
+            published = item.get("published")
+            if _port_span(target) is None or _port_span(published) is None:
+                raise DeploymentContractError("compose_tcp_port_spec_invalid")
+            if _port_spec_includes(published, port):
+                owners.append(service_name)
+
+    return tuple(owners)
+
+
 def _broker_network_names(value: object) -> frozenset[str]:
     if isinstance(value, Mapping):
         raw_names = list(value.keys())
@@ -203,6 +238,10 @@ def validate_compose_document(
     if publication.get("host_ip") != BROKER_IPV4_WILDCARD:
         raise DeploymentContractError("broker_wildcard_tls_publication_missing")
 
+    host_tls_owners = _host_tcp_port_owners(services, BROKER_TLS_PORT)
+    if host_tls_owners != (broker_service_name,):
+        raise DeploymentContractError("broker_host_tls_publication_owner_invalid")
+
     return {
         "schema": SCHEMA,
         "status": "PASS",
@@ -213,6 +252,7 @@ def validate_compose_document(
         "broker_service": broker_service_name,
         "broker_restart_policy": "no",
         "broker_tls_port": BROKER_TLS_PORT,
+        "broker_host_tls_publication_exclusive": True,
         "broker_ipv4_wildcard_publication": True,
         "broker_concrete_lan_ip_dependency": False,
         "broker_network_keys": sorted(broker_network_keys),
