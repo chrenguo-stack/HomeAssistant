@@ -1,0 +1,15 @@
+[Unit]
+Description=N3W FC4 Broker TCP 8883 ingress guard
+Requires=docker.service
+After=docker.service
+Before=n3wfc4-broker-activation.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/n3w-broker-ingress-guard --apply
+RemainAfterExit=yes
+TimeoutStartSec=20
+
+[Install]
+WantedBy=docker.service

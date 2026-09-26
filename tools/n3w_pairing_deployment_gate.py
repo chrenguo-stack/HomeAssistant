@@ -148,6 +148,8 @@ def validate_compose_document(
     broker = services.get(broker_service_name)
     if not isinstance(broker, Mapping):
         raise DeploymentContractError("broker_service_missing")
+    if broker.get("restart") != "no":
+        raise DeploymentContractError("broker_restart_policy_not_no")
 
     broker_network_keys = _broker_network_names(broker.get("networks"))
     if broker_network_keys != EXPECTED_BROKER_NETWORKS:
@@ -209,6 +211,7 @@ def validate_compose_document(
         "discovery_udp_port": DISCOVERY_PORT,
         "docker_udp_publication": False,
         "broker_service": broker_service_name,
+        "broker_restart_policy": "no",
         "broker_tls_port": BROKER_TLS_PORT,
         "broker_ipv4_wildcard_publication": True,
         "broker_concrete_lan_ip_dependency": False,

@@ -5,6 +5,8 @@ on:
     paths:
       - "tools/n3w_broker_ingress_guard.py"
       - "tests/tools/test_n3w_broker_ingress_guard.py"
+      - "tests/tools/test_n3w_broker_ingress_guard_lifecycle.py"
+      - "infra/n3w-t1/**"
       - ".github/workflows/n3w-broker-ingress-guard-ci.yml"
   push:
     branches:
@@ -12,6 +14,8 @@ on:
     paths:
       - "tools/n3w_broker_ingress_guard.py"
       - "tests/tools/test_n3w_broker_ingress_guard.py"
+      - "tests/tools/test_n3w_broker_ingress_guard_lifecycle.py"
+      - "infra/n3w-t1/**"
       - ".github/workflows/n3w-broker-ingress-guard-ci.yml"
 
 concurrency:
@@ -30,4 +34,4 @@ jobs:
         with:
           python-version: "3.11"
       - run: python -m pip install "pytest>=8,<9"
-      - run: python -m pytest -q tests/tools/test_n3w_broker_ingress_guard.py
+      - run: python -m pytest -q tests/tools/test_n3w_broker_ingress_guard.py tests/tools/test_n3w_broker_ingress_guard_lifecycle.py

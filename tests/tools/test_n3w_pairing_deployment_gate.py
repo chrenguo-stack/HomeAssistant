@@ -34,6 +34,7 @@ def rendered_compose(
     broker_host_ip: str | None = "0.0.0.0",
     broker_published_port: str = "8883",
     broker_networks: tuple[str, ...] = EXPECTED_BROKER_NETWORKS,
+    broker_restart: str | None = "no",
 ) -> dict:
     manager: dict = {}
     if network_mode is not None:
@@ -58,16 +59,20 @@ def rendered_compose(
     if broker_host_ip is not None:
         broker_port["host_ip"] = broker_host_ip
 
+    broker: dict = {
+        "ports": [broker_port],
+        "networks": {
+            network: None
+            for network in broker_networks
+        },
+    }
+    if broker_restart is not None:
+        broker["restart"] = broker_restart
+
     return {
         "services": {
             "manager": manager,
-            "broker": {
-                "ports": [broker_port],
-                "networks": {
-                    network: None
-                    for network in broker_networks
-                },
-            },
+            "broker": broker,
         },
         "networks": {
             network: {"name": network}
@@ -90,6 +95,7 @@ def test_accepts_host_network_ipv4_wildcard_and_exact_networks() -> None:
     assert result["network_mode"] == "host"
     assert result["docker_udp_publication"] is False
     assert result["broker_ipv4_wildcard_publication"] is True
+    assert result["broker_restart_policy"] == "no"
     assert result["broker_concrete_lan_ip_dependency"] is False
     assert result["broker_network_keys"] == [
         "n3wfc4-private",
@@ -105,6 +111,27 @@ def test_accepts_host_network_ipv4_wildcard_and_exact_networks() -> None:
     assert result["broker_manager_loopback_runtime_probe_required"] is True
     assert result["broker_ingress_runtime_probe_required"] is True
     assert result["secret_values_included"] is False
+
+
+@pytest.mark.parametrize(
+    "restart_policy",
+    [None, "always", "unless-stopped", "on-failure"],
+)
+def test_rejects_broker_restart_policy_that_can_bypass_guard(
+    restart_policy: str | None,
+) -> None:
+    tool = load_tool()
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="broker_restart_policy_not_no",
+    ):
+        tool.validate_compose_document(
+            rendered_compose(broker_restart=restart_policy),
+            service_name="manager",
+            broker_service_name="broker",
+            broker_loopback_ip="127.0.1.1",
+        )
 
 
 def test_rejects_implicit_broker_host_binding() -> None:
