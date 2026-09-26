@@ -150,6 +150,59 @@ def test_trusted_restore_payload_returns_before_terminal_drop() -> None:
     assert "ACCEPT" not in payload
 
 
+def test_first_install_restore_payload_creates_chain_in_transaction() -> None:
+    tool = load_tool()
+
+    payload = tool.build_restore_payload(None, create_chain=True)
+
+    assert f":{tool.CUSTOM_CHAIN} - [0:0]" in payload
+    assert f"-F {tool.CUSTOM_CHAIN}" not in payload
+    assert " -N " not in payload
+    assert tool._owned_drop_rule() in payload
+
+
+def test_existing_chain_restore_payload_refreshes_only_owned_chain() -> None:
+    tool = load_tool()
+
+    payload = tool.build_restore_payload(None)
+
+    assert f"-F {tool.CUSTOM_CHAIN}" in payload
+    assert f":{tool.CUSTOM_CHAIN} - [0:0]" not in payload
+    assert "-F DOCKER-USER" not in payload
+    assert "-F FORWARD" not in payload
+
+
+def test_first_install_uses_one_restore_transaction(monkeypatch) -> None:
+    tool = load_tool()
+    inventory = tool.FirewallInventory(
+        docker_user_present=True,
+        custom_chain_present=False,
+        docker_user_rules=(),
+        custom_chain_rules=(),
+        anchor_positions=(),
+        ambiguous_owned_rules=(),
+        foreign_custom_chain_refs=(),
+    )
+    calls: list[tuple[list[str], str | None]] = []
+    monkeypatch.setattr(tool, "_binary", lambda name: name)
+    monkeypatch.setattr(
+        tool,
+        "_run",
+        lambda argv, **kwargs: calls.append(
+            (list(argv), kwargs.get("input_text"))
+        ) or "",
+    )
+
+    tool._apply_custom_chain_transaction(inventory, None)
+
+    assert len(calls) == 1
+    argv, payload = calls[0]
+    assert argv == ["iptables-restore", "--noflush"]
+    assert payload is not None
+    assert f":{tool.CUSTOM_CHAIN} - [0:0]" in payload
+    assert "iptables -N" not in payload
+
+
 def test_inventory_recognizes_exact_anchor_and_preserves_foreign_rule() -> None:
     tool = load_tool()
     payload = "\n".join(
@@ -170,6 +223,33 @@ def test_inventory_recognizes_exact_anchor_and_preserves_foreign_rule() -> None:
     assert inventory.ambiguous_owned_rules == ()
     assert inventory.foreign_custom_chain_refs == ()
     assert inventory.docker_user_rules[1].endswith("-j DROP")
+
+
+def test_exact_anchor_rejects_swapped_option_values() -> None:
+    tool = load_tool()
+    swapped = (
+        "-A DOCKER-USER -p tcp -m conntrack "
+        "--ctdir ORIGINAL --ctorigdstport 8883 -m comment "
+        f"--comment {tool.CUSTOM_CHAIN} "
+        f"-j {tool.ANCHOR_COMMENT}"
+    )
+
+    assert tool._is_exact_anchor(swapped) is False
+
+
+def test_rule_match_accepts_option_reordering_but_preserves_pairs() -> None:
+    tool = load_tool()
+    subnet = ipaddress.ip_network("192.0.2.0/24")
+    reordered = (
+        f"-A {tool.CUSTOM_CHAIN} -s {subnet} "
+        f"-i {tool.INTERFACE} -m comment "
+        f"--comment {tool.ANCHOR_COMMENT} -j RETURN"
+    )
+
+    assert tool._rule_matches(
+        reordered,
+        tool._owned_allow_rule(subnet),
+    )
 
 
 def test_inventory_rejects_same_comment_with_different_semantics() -> None:

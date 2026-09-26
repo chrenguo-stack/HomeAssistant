@@ -172,11 +172,14 @@ def _owned_drop_rule() -> str:
 
 def build_restore_payload(
     trusted_subnet: ipaddress.IPv4Network | None,
+    *,
+    create_chain: bool = False,
 ) -> str:
-    lines = [
-        "*filter",
-        f"-F {CUSTOM_CHAIN}",
-    ]
+    lines = ["*filter"]
+    if create_chain:
+        lines.append(f":{CUSTOM_CHAIN} - [0:0]")
+    else:
+        lines.append(f"-F {CUSTOM_CHAIN}")
     if trusted_subnet is not None:
         lines.append(_owned_allow_rule(trusted_subnet))
     lines.extend(
@@ -220,12 +223,62 @@ def _anchor_insert_argv() -> list[str]:
     ]
 
 
-def _rule_tokens(line: str) -> Counter[str]:
-    return Counter(shlex.split(line))
+def _parse_rule_semantics(
+    line: str,
+) -> tuple[str, Counter[tuple[str, str]]] | None:
+    try:
+        tokens = shlex.split(line)
+    except ValueError:
+        return None
+    if len(tokens) < 2 or tokens[0] != "-A":
+        return None
+
+    aliases = {
+        "-p": "protocol",
+        "--protocol": "protocol",
+        "-m": "match",
+        "--match": "match",
+        "--ctdir": "ctdir",
+        "--ctorigdstport": "ctorigdstport",
+        "-i": "in_interface",
+        "--in-interface": "in_interface",
+        "-s": "source",
+        "--source": "source",
+        "--comment": "comment",
+        "-j": "jump",
+        "--jump": "jump",
+    }
+
+    semantics: Counter[tuple[str, str]] = Counter()
+    index = 2
+    while index < len(tokens):
+        token = tokens[index]
+        key = aliases.get(token)
+        if key is None or index + 1 >= len(tokens):
+            return None
+        value = tokens[index + 1]
+        if key == "source":
+            try:
+                source = ipaddress.ip_network(value, strict=False)
+            except ValueError:
+                return None
+            if not isinstance(source, ipaddress.IPv4Network):
+                return None
+            value = str(source)
+        semantics[(key, value)] += 1
+        index += 2
+
+    return tokens[1], semantics
 
 
 def _rule_matches(line: str, expected: str) -> bool:
-    return _rule_tokens(line) == _rule_tokens(expected)
+    actual_semantics = _parse_rule_semantics(line)
+    expected_semantics = _parse_rule_semantics(expected)
+    return (
+        actual_semantics is not None
+        and expected_semantics is not None
+        and actual_semantics == expected_semantics
+    )
 
 
 def _is_exact_anchor(line: str) -> bool:
@@ -358,18 +411,16 @@ def validate_applied_state(
             raise GuardError("custom_chain_rule_semantics_invalid")
 
 
-def _ensure_custom_chain(inventory: FirewallInventory) -> None:
-    if inventory.custom_chain_present:
-        return
-    _run([_binary("iptables"), "-N", CUSTOM_CHAIN])
-
-
-def _replace_custom_chain(
+def _apply_custom_chain_transaction(
+    inventory: FirewallInventory,
     trusted_subnet: ipaddress.IPv4Network | None,
 ) -> None:
     _run(
         [_binary("iptables-restore"), "--noflush"],
-        input_text=build_restore_payload(trusted_subnet),
+        input_text=build_restore_payload(
+            trusted_subnet,
+            create_chain=not inventory.custom_chain_present,
+        ),
     )
 
 
@@ -438,8 +489,10 @@ def apply_guard(decision: NetworkDecision) -> FirewallInventory:
 
         inventory = parse_firewall_inventory(_save_filter_table())
         _validate_prestate(inventory)
-        _ensure_custom_chain(inventory)
-        _replace_custom_chain(decision.trusted_subnet)
+        _apply_custom_chain_transaction(
+            inventory,
+            decision.trusted_subnet,
+        )
         _ensure_single_first_anchor()
 
         final_inventory = parse_firewall_inventory(_save_filter_table())
