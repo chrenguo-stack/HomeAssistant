@@ -4,6 +4,7 @@ import importlib.util
 import io
 import ipaddress
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -20,6 +21,7 @@ def load_tool():
     assert specification is not None
     assert specification.loader is not None
     module = importlib.util.module_from_spec(specification)
+    sys.modules[specification.name] = module
     specification.loader.exec_module(module)
     return module
 
