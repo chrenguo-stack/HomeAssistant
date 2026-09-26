@@ -1,6 +1,6 @@
 # N3-W T1 Broker 8883 Dynamic Ingress Guard — Source Repair
 
-Status: `SOURCE_REPAIR_CANDIDATE_COMPLETE_CI_PENDING`  
+Status: `SOURCE_REPAIR_CLOSED_PASS`  
 Date: 2026-09-26  
 Gate: `N3W_T1_BROKER_8883_DYNAMIC_INGRESS_GUARD_SOURCE_REPAIR_20260926_01`
 
@@ -13,6 +13,9 @@ PR478=478
 PR478_BRANCH=fix/n3w-t1-broker-8883-dynamic-ingress-guard-20260926
 DESIGN_PR476_HEAD=290e27ad5dfb28d57f0c6504e5d3cd629d8f1927
 DESIGN_PATH=docs/development/N3W_T1_BROKER_8883_DYNAMIC_INGRESS_GUARD_SOURCE_DESIGN_20260926.md
+SOURCE_REVIEW_R3_HEAD=1a2d1d27602ef9f9deeb590eb4847ce6780da4c9
+SOURCE_REVIEW_R3_CI=13_OF_13_PASS
+SOURCE_REVIEW_R3=PASS
 ```
 
 PR #478 is intentionally stacked on PR #475 because the ingress guard depends on the LAN-IP-independent wildcard publication contract in PR #475.
@@ -50,7 +53,10 @@ FOREIGN_RULE_MUTATION=false
 REFRESH=atomic owned-chain replacement
 BOOT_ORDER=Docker -> guard -> Broker activation
 BROKER_RESTART_POLICY=no
-NETWORK_CHANGE=NetworkManager dispatcher -> fresh state reread
+NETWORK_CHANGE=NetworkManager dispatcher -> guard reload-or-restart -> fresh state reread
+BROKER_RECOVERY=guard success -> ensure Broker activation owner started
+RULE_MATCHING=option/value semantic pairs, not unordered token bag
+FIRST_CHAIN_INSTALL=single iptables-restore --noflush transaction
 HOST_TCP_8883_OWNER=Broker only across rendered Compose
 ```
 
@@ -73,6 +79,9 @@ Source/host tests cover:
 - systemd Docker→guard→Broker ordering;
 - bounded NetworkManager dispatcher;
 - guard failure stopping Broker activation owner;
+- automatic Broker activation recovery after guard recovery;
+- option/value-preserving firewall semantic matching;
+- single-transaction first creation of the owned firewall chain;
 - Broker `restart: no`;
 - explicit IPv4 wildcard 8883 mapping;
 - frozen two-network mapping;
@@ -82,18 +91,18 @@ Source/host tests cover:
 
 ## Evidence boundary
 
-The first two source-repair steps passed their PR CI at exact HEAD:
+The final independent source review is bound to the exact source HEAD below:
 
 ```text
-STEP2_HEAD=3614bedefee07e66a967942f9afa49f1e8d0a514
-STEP2_CI=13_OF_13_PASS
+SOURCE_REVIEW_R3_HEAD=1a2d1d27602ef9f9deeb590eb4847ce6780da4c9
+SOURCE_REVIEW_R3_CI=13_OF_13_PASS
+SOURCE_REVIEW_R3=PASS
+SOURCE_BLOCKER_COUNT=0
 ```
 
-This document is part of the final source candidate and therefore cannot claim final CI for its own commit before that CI finishes.
+This documentation closure is intentionally documentation-only. Its commit will advance the PR HEAD, but it does not change the reviewed source behavior above. Future live execution must keep the reviewed source authority separate from the documentation-only repository tip.
 
 ```text
-FINAL_SOURCE_CANDIDATE_CI=PENDING
-INDEPENDENT_SOURCE_REVIEW=PENDING
 T1_RUNTIME_MUTATION=false
 FIREWALL_LIVE_MUTATION=false
 BROKER_MUTATION=false
@@ -131,7 +140,11 @@ DEPLOYMENT_SOURCE_PACKAGE_ARCHIVED=true
 KNOWN_FAILURES_ALIGNED=true
 UNARCHIVED_CRITICAL_KNOWLEDGE=0
 
-SOURCE_REPAIR_RESULT=PENDING_FINAL_CI_AND_SOURCE_REVIEW
+SOURCE_REPAIR_RESULT=CLOSED_PASS
+SOURCE_REVIEW_R3=PASS
+SOURCE_BLOCKER_COUNT=0
+T1_LIVE_GATE=NOT_YET_EXECUTED
+KF097=OPEN
 AUTO_EXECUTE_LIVE=false
-STOP_AFTER_FINAL_CI=true
+STOP_AFTER_DOCUMENTATION_CLOSURE=true
 ```
