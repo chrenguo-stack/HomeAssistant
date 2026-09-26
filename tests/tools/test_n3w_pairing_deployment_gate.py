@@ -9,6 +9,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 TOOL = ROOT / "tools/n3w_pairing_deployment_gate.py"
+EXPECTED_COMPOSE_PROJECT_NAME = "n3wfc4"
 EXPECTED_BROKER_NETWORKS = (
     "n3wfc4-private",
     "n3wfc4-services",
@@ -34,6 +35,8 @@ def rendered_compose(
     broker_host_ip: str | None = "0.0.0.0",
     broker_published_port: str = "8883",
     broker_networks: tuple[str, ...] = EXPECTED_BROKER_NETWORKS,
+    broker_restart: str | None = "no",
+    compose_project_name: str | None = EXPECTED_COMPOSE_PROJECT_NAME,
 ) -> dict:
     manager: dict = {}
     if network_mode is not None:
@@ -58,16 +61,21 @@ def rendered_compose(
     if broker_host_ip is not None:
         broker_port["host_ip"] = broker_host_ip
 
+    broker: dict = {
+        "ports": [broker_port],
+        "networks": {
+            network: None
+            for network in broker_networks
+        },
+    }
+    if broker_restart is not None:
+        broker["restart"] = broker_restart
+
     return {
+        "name": compose_project_name,
         "services": {
             "manager": manager,
-            "broker": {
-                "ports": [broker_port],
-                "networks": {
-                    network: None
-                    for network in broker_networks
-                },
-            },
+            "broker": broker,
         },
         "networks": {
             network: {"name": network}
@@ -87,9 +95,13 @@ def test_accepts_host_network_ipv4_wildcard_and_exact_networks() -> None:
     )
 
     assert result["status"] == "PASS"
+    assert result["compose_project_name"] == "n3wfc4"
+    assert result["compose_project_identity_verified"] is True
     assert result["network_mode"] == "host"
     assert result["docker_udp_publication"] is False
     assert result["broker_ipv4_wildcard_publication"] is True
+    assert result["broker_restart_policy"] == "no"
+    assert result["broker_host_tls_publication_exclusive"] is True
     assert result["broker_concrete_lan_ip_dependency"] is False
     assert result["broker_network_keys"] == [
         "n3wfc4-private",
@@ -105,6 +117,45 @@ def test_accepts_host_network_ipv4_wildcard_and_exact_networks() -> None:
     assert result["broker_manager_loopback_runtime_probe_required"] is True
     assert result["broker_ingress_runtime_probe_required"] is True
     assert result["secret_values_included"] is False
+
+
+@pytest.mark.parametrize("project_name", [None, "", "recipes", "other-project"])
+def test_rejects_compose_project_identity_drift(
+    project_name: str | None,
+) -> None:
+    tool = load_tool()
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="compose_project_identity_invalid",
+    ):
+        tool.validate_compose_document(
+            rendered_compose(compose_project_name=project_name),
+            service_name="manager",
+            broker_service_name="broker",
+            broker_loopback_ip="127.0.1.1",
+        )
+
+
+@pytest.mark.parametrize(
+    "restart_policy",
+    [None, "always", "unless-stopped", "on-failure"],
+)
+def test_rejects_broker_restart_policy_that_can_bypass_guard(
+    restart_policy: str | None,
+) -> None:
+    tool = load_tool()
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="broker_restart_policy_not_no",
+    ):
+        tool.validate_compose_document(
+            rendered_compose(broker_restart=restart_policy),
+            service_name="manager",
+            broker_service_name="broker",
+            broker_loopback_ip="127.0.1.1",
+        )
 
 
 def test_rejects_implicit_broker_host_binding() -> None:
@@ -528,3 +579,129 @@ def test_cli_failure_is_structured_and_secret_free() -> None:
         "reason": "discovery_udp_requires_host_network",
         "secret_values_included": False,
     }
+
+
+def test_rejects_other_service_publishing_tcp_8883() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["services"]["other"] = {
+        "ports": [
+            {
+                "host_ip": "0.0.0.0",
+                "target": 9443,
+                "published": "8883",
+                "protocol": "tcp",
+            }
+        ]
+    }
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="broker_host_tls_publication_owner_invalid",
+    ):
+        tool.validate_compose_document(
+            document,
+            service_name="manager",
+            broker_service_name="broker",
+            broker_loopback_ip="127.0.1.1",
+        )
+
+
+def test_rejects_other_service_tcp_range_covering_8883() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["services"]["other"] = {
+        "ports": [
+            {
+                "host_ip": "0.0.0.0",
+                "target": "9000-9010",
+                "published": "8880-8890",
+                "protocol": "tcp",
+            }
+        ]
+    }
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="broker_host_tls_publication_owner_invalid",
+    ):
+        tool.validate_compose_document(
+            document,
+            service_name="manager",
+            broker_service_name="broker",
+            broker_loopback_ip="127.0.1.1",
+        )
+
+
+def test_allows_other_service_udp_8883() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["services"]["other"] = {
+        "ports": [
+            {
+                "host_ip": "0.0.0.0",
+                "target": 8883,
+                "published": "8883",
+                "protocol": "udp",
+            }
+        ]
+    }
+
+    result = tool.validate_compose_document(
+        document,
+        service_name="manager",
+        broker_service_name="broker",
+        broker_loopback_ip="127.0.1.1",
+    )
+
+    assert result["broker_host_tls_publication_exclusive"] is True
+
+
+def test_allows_other_service_target_8883_on_different_host_port() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["services"]["other"] = {
+        "ports": [
+            {
+                "host_ip": "0.0.0.0",
+                "target": 8883,
+                "published": "18883",
+                "protocol": "tcp",
+            }
+        ]
+    }
+
+    result = tool.validate_compose_document(
+        document,
+        service_name="manager",
+        broker_service_name="broker",
+        broker_loopback_ip="127.0.1.1",
+    )
+
+    assert result["broker_host_tls_publication_exclusive"] is True
+
+
+def test_rejects_unparseable_other_service_tcp_publication() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["services"]["other"] = {
+        "ports": [
+            {
+                "host_ip": "0.0.0.0",
+                "target": 9443,
+                "published": "dynamic",
+                "protocol": "tcp",
+            }
+        ]
+    }
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="compose_tcp_port_spec_invalid",
+    ):
+        tool.validate_compose_document(
+            document,
+            service_name="manager",
+            broker_service_name="broker",
+            broker_loopback_ip="127.0.1.1",
+        )
