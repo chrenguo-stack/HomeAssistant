@@ -98,7 +98,7 @@ Regression coverage:
 - rejects IPv6 wildcard, concrete loopback, concrete LAN, and empty host bindings;
 - rejects duplicate 8883 publications and TCP ranges overlapping 8883;
 - rejects malformed TCP port specifications;
-- requires the exact frozen two-network Broker attachment set;
+- requires the exact frozen two-network Broker service keys and rendered effective Docker network names;
 - preserves the host-network Manager UDP discovery guard;
 - preserves secret-free structured CLI failure output.
 
@@ -115,7 +115,7 @@ Before any live Broker recreate:
 1. source review and CI must pass;
 2. current T1 Compose authority must be rebound read-only;
 3. rollback material for Broker/Manager state must remain valid;
-4. rendered Compose must pass deployment gate v2, including the exact two-network Broker attachment set;
+4. rendered Compose must pass deployment gate v2, including both the exact Broker service network keys and the exact rendered effective Docker network names;
 5. before wildcard activation, prove an effective TCP 8883 ingress policy for the intended trusted LAN/interface and fail closed if prohibited ingress cannot be excluded;
 6. the live repair must replace the concrete TLS host binding with one explicit `0.0.0.0` publication only;
 7. after recreate, verify actual Docker runtime mapping and exact Broker network attachments;
