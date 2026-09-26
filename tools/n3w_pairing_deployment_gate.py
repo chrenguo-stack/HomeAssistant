@@ -15,6 +15,7 @@ SCHEMA = "gh.n3w-pairing-deployment-gate/2"
 DISCOVERY_PORT = 47111
 BROKER_TLS_PORT = 8883
 BROKER_IPV4_WILDCARD = "0.0.0.0"
+EXPECTED_COMPOSE_PROJECT_NAME = "n3wfc4"
 EXPECTED_BROKER_NETWORKS = frozenset(
     {
         "n3wfc4-private",
@@ -156,6 +157,10 @@ def validate_compose_document(
     if not isinstance(document, Mapping):
         raise DeploymentContractError("compose_document_invalid")
 
+    compose_project_name = document.get("name")
+    if compose_project_name != EXPECTED_COMPOSE_PROJECT_NAME:
+        raise DeploymentContractError("compose_project_identity_invalid")
+
     services = document.get("services")
     if not isinstance(services, Mapping):
         raise DeploymentContractError("compose_services_invalid")
@@ -245,6 +250,8 @@ def validate_compose_document(
     return {
         "schema": SCHEMA,
         "status": "PASS",
+        "compose_project_name": compose_project_name,
+        "compose_project_identity_verified": True,
         "service": service_name,
         "network_mode": "host",
         "discovery_udp_port": DISCOVERY_PORT,
