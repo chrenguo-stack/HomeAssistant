@@ -33,7 +33,7 @@ mode=0600
 owner=root:root
 ```
 
-`broker-activation.env` 只允许保存 Compose 文件路径和 env-file 路径，不允许保存 Broker、Manager、TLS 或其他生产凭据。
+`broker-activation.env` 只允许保存 Compose 文件路径、env-file 路径和固定 Compose project identity；不得保存 Broker、Manager、TLS 或其他生产凭据。
 
 ## Required rendered-Compose contract
 
@@ -48,6 +48,7 @@ tools/n3w_pairing_deployment_gate.py
 ```text
 Manager network_mode=host
 Manager ports absent
+Compose project name=n3wfc4
 Broker restart=no
 Broker host publication=0.0.0.0:8883 -> 8883/tcp
 host TCP/8883 publication owner=Broker only
@@ -56,7 +57,7 @@ effective network names exact-match
 Manager loopback endpoint is IPv4 loopback
 ```
 
-客户 LAN IPv4 或 subnet 不得进入 Compose、systemd unit、dispatcher 或 activation env。
+客户 LAN IPv4 或 subnet 不得进入 Compose、systemd unit、dispatcher 或 activation env。Broker activation 的 Compose project identity 必须显式冻结为 `n3wfc4`；不得依赖 Compose 文件所在目录名推导 project name。
 
 ## Runtime ownership
 
