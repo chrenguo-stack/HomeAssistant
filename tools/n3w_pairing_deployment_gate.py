@@ -86,6 +86,31 @@ def _broker_network_names(value: object) -> frozenset[str]:
     return frozenset(raw_names)
 
 
+def _effective_broker_network_names(
+    document: Mapping[object, object],
+    network_keys: frozenset[str],
+) -> frozenset[str]:
+    networks = document.get("networks")
+    if not isinstance(networks, Mapping):
+        raise DeploymentContractError("compose_networks_invalid")
+
+    effective_names: set[str] = set()
+    for key in network_keys:
+        network = networks.get(key)
+        if not isinstance(network, Mapping):
+            raise DeploymentContractError(
+                "broker_network_definition_missing"
+            )
+        name = network.get("name")
+        if not isinstance(name, str) or not name:
+            raise DeploymentContractError(
+                "broker_effective_network_name_invalid"
+            )
+        effective_names.add(name)
+
+    return frozenset(effective_names)
+
+
 def validate_compose_document(
     document: object,
     *,
@@ -124,9 +149,16 @@ def validate_compose_document(
     if not isinstance(broker, Mapping):
         raise DeploymentContractError("broker_service_missing")
 
-    broker_networks = _broker_network_names(broker.get("networks"))
-    if broker_networks != EXPECTED_BROKER_NETWORKS:
+    broker_network_keys = _broker_network_names(broker.get("networks"))
+    if broker_network_keys != EXPECTED_BROKER_NETWORKS:
         raise DeploymentContractError("broker_network_attachment_set_invalid")
+
+    broker_networks = _effective_broker_network_names(
+        document,
+        broker_network_keys,
+    )
+    if broker_networks != EXPECTED_BROKER_NETWORKS:
+        raise DeploymentContractError("broker_effective_network_set_invalid")
 
     broker_ports = broker.get("ports", [])
     if not isinstance(broker_ports, list):
@@ -177,8 +209,10 @@ def validate_compose_document(
         "broker_tls_port": BROKER_TLS_PORT,
         "broker_ipv4_wildcard_publication": True,
         "broker_concrete_lan_ip_dependency": False,
+        "broker_network_keys": sorted(broker_network_keys),
         "broker_networks": sorted(broker_networks),
         "broker_network_attachment_set_verified": True,
+        "broker_effective_network_names_verified": True,
         "broker_manager_loopback_ip": broker_loopback_ip,
         "broker_manager_loopback_runtime_probe_required": True,
         "broker_ingress_runtime_probe_required": True,
