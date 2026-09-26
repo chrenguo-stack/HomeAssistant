@@ -98,7 +98,7 @@ Regression coverage:
 - rejects IPv6 wildcard, concrete loopback, concrete LAN, and empty host bindings;
 - rejects duplicate 8883 publications and TCP ranges overlapping 8883;
 - rejects malformed TCP port specifications;
-- requires the exact frozen two-network Broker service keys and rendered effective Docker network names;
+- requires the exact frozen one-to-one Broker service-key -> effective Docker network-name mapping;
 - preserves the host-network Manager UDP discovery guard;
 - preserves secret-free structured CLI failure output.
 
