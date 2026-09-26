@@ -16,7 +16,7 @@ esac
 
 /usr/bin/systemctl --quiet is-active docker.service || exit 0
 
-if /usr/bin/timeout 20s /usr/bin/systemctl restart n3wfc4-broker-ingress-guard.service; then
+if /usr/bin/timeout 20s /usr/bin/systemctl reload n3wfc4-broker-ingress-guard.service; then
     exit 0
 fi
 

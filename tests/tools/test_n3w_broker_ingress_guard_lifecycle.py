@@ -28,12 +28,17 @@ def test_guard_unit_orders_after_docker_before_broker_activation() -> None:
         "ExecStart=/usr/local/sbin/n3w-broker-ingress-guard --apply"
         in unit
     )
+    assert (
+        "ExecReload=/usr/local/sbin/n3w-broker-ingress-guard --apply"
+        in unit
+    )
     assert "network-online.target" not in unit
 
 
-def test_broker_activation_requires_successful_guard_ordering() -> None:
+def test_broker_activation_is_runtime_supervisor() -> None:
     unit = read(ACTIVATION_UNIT)
 
+    assert "Type=simple" in unit
     assert (
         "Requires=docker.service n3wfc4-broker-ingress-guard.service"
         in unit
@@ -45,8 +50,17 @@ def test_broker_activation_requires_successful_guard_ordering() -> None:
     assert "PartOf=docker.service" in unit
     assert "WantedBy=docker.service" in unit
     assert "EnvironmentFile=/etc/n3wfc4/broker-activation.env" in unit
-    assert "up -d --no-deps broker" in unit
+    assert (
+        "ExecStartPre=/usr/bin/systemctl reload "
+        "n3wfc4-broker-ingress-guard.service"
+        in unit
+    )
+    assert "up --no-deps --no-log-prefix --exit-code-from broker broker" in unit
+    assert "up -d" not in unit
     assert "stop broker" in unit
+    assert "Restart=always" in unit
+    assert "RestartSec=5" in unit
+    assert "RemainAfterExit=yes" not in unit
 
 
 def test_dispatcher_only_handles_eth0_and_bounded_network_events() -> None:
@@ -64,10 +78,8 @@ def test_dispatcher_only_handles_eth0_and_bounded_network_events() -> None:
         assert action in script
     assert "is-active docker.service || exit 0" in script
     assert "/usr/bin/timeout 20s" in script
-    assert (
-        "restart n3wfc4-broker-ingress-guard.service"
-        in script
-    )
+    assert "reload n3wfc4-broker-ingress-guard.service" in script
+    assert "restart n3wfc4-broker-ingress-guard.service" not in script
 
 
 def test_dispatcher_guard_failure_stops_broker_activation_owner() -> None:

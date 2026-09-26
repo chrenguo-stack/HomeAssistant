@@ -8,6 +8,7 @@ PartOf=docker.service
 [Service]
 Type=oneshot
 ExecStart=/usr/local/sbin/n3w-broker-ingress-guard --apply
+ExecReload=/usr/local/sbin/n3w-broker-ingress-guard --apply
 RemainAfterExit=yes
 TimeoutStartSec=20
 
