@@ -68,7 +68,11 @@ def rendered_compose(
                     for network in broker_networks
                 },
             },
-        }
+        },
+        "networks": {
+            network: {"name": network}
+            for network in broker_networks
+        },
     }
 
 
@@ -87,11 +91,16 @@ def test_accepts_host_network_ipv4_wildcard_and_exact_networks() -> None:
     assert result["docker_udp_publication"] is False
     assert result["broker_ipv4_wildcard_publication"] is True
     assert result["broker_concrete_lan_ip_dependency"] is False
+    assert result["broker_network_keys"] == [
+        "n3wfc4-private",
+        "n3wfc4-services",
+    ]
     assert result["broker_networks"] == [
         "n3wfc4-private",
         "n3wfc4-services",
     ]
     assert result["broker_network_attachment_set_verified"] is True
+    assert result["broker_effective_network_names_verified"] is True
     assert result["broker_manager_loopback_ip"] == "127.0.1.1"
     assert result["broker_manager_loopback_runtime_probe_required"] is True
     assert result["broker_ingress_runtime_probe_required"] is True
@@ -394,6 +403,75 @@ def test_rejects_missing_broker_networks() -> None:
     with pytest.raises(
         tool.DeploymentContractError,
         match="broker_networks_invalid",
+    ):
+        tool.validate_compose_document(
+            document,
+            service_name="manager",
+            broker_service_name="broker",
+            broker_loopback_ip="127.0.1.1",
+        )
+
+
+def test_rejects_broker_effective_network_name_drift() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["networks"]["n3wfc4-services"]["name"] = "replacement-network"
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="broker_effective_network_set_invalid",
+    ):
+        tool.validate_compose_document(
+            document,
+            service_name="manager",
+            broker_service_name="broker",
+            broker_loopback_ip="127.0.1.1",
+        )
+
+
+def test_rejects_swapped_broker_effective_network_names() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["networks"]["n3wfc4-private"]["name"] = "n3wfc4-services"
+    document["networks"]["n3wfc4-services"]["name"] = "n3wfc4-private"
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="broker_effective_network_set_invalid",
+    ):
+        tool.validate_compose_document(
+            document,
+            service_name="manager",
+            broker_service_name="broker",
+            broker_loopback_ip="127.0.1.1",
+        )
+
+
+def test_rejects_missing_top_level_broker_network_definition() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["networks"].pop("n3wfc4-services")
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="broker_network_definition_missing",
+    ):
+        tool.validate_compose_document(
+            document,
+            service_name="manager",
+            broker_service_name="broker",
+            broker_loopback_ip="127.0.1.1",
+        )
+
+
+def test_rejects_missing_effective_network_name() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["networks"]["n3wfc4-services"].pop("name")
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="broker_effective_network_name_invalid",
     ):
         tool.validate_compose_document(
             document,
