@@ -89,12 +89,12 @@ def _broker_network_names(value: object) -> frozenset[str]:
 def _effective_broker_network_names(
     document: Mapping[object, object],
     network_keys: frozenset[str],
-) -> frozenset[str]:
+) -> dict[str, str]:
     networks = document.get("networks")
     if not isinstance(networks, Mapping):
         raise DeploymentContractError("compose_networks_invalid")
 
-    effective_names: set[str] = set()
+    effective_names: dict[str, str] = {}
     for key in network_keys:
         network = networks.get(key)
         if not isinstance(network, Mapping):
@@ -106,9 +106,9 @@ def _effective_broker_network_names(
             raise DeploymentContractError(
                 "broker_effective_network_name_invalid"
             )
-        effective_names.add(name)
+        effective_names[key] = name
 
-    return frozenset(effective_names)
+    return effective_names
 
 
 def validate_compose_document(
@@ -157,7 +157,10 @@ def validate_compose_document(
         document,
         broker_network_keys,
     )
-    if broker_networks != EXPECTED_BROKER_NETWORKS:
+    if any(
+        broker_networks.get(key) != key
+        for key in EXPECTED_BROKER_NETWORKS
+    ):
         raise DeploymentContractError("broker_effective_network_set_invalid")
 
     broker_ports = broker.get("ports", [])
@@ -210,7 +213,7 @@ def validate_compose_document(
         "broker_ipv4_wildcard_publication": True,
         "broker_concrete_lan_ip_dependency": False,
         "broker_network_keys": sorted(broker_network_keys),
-        "broker_networks": sorted(broker_networks),
+        "broker_networks": sorted(broker_networks.values()),
         "broker_network_attachment_set_verified": True,
         "broker_effective_network_names_verified": True,
         "broker_manager_loopback_ip": broker_loopback_ip,
