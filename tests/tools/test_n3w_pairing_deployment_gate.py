@@ -9,6 +9,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 TOOL = ROOT / "tools/n3w_pairing_deployment_gate.py"
+EXPECTED_COMPOSE_PROJECT_NAME = "n3wfc4"
 EXPECTED_BROKER_NETWORKS = (
     "n3wfc4-private",
     "n3wfc4-services",
@@ -35,6 +36,7 @@ def rendered_compose(
     broker_published_port: str = "8883",
     broker_networks: tuple[str, ...] = EXPECTED_BROKER_NETWORKS,
     broker_restart: str | None = "no",
+    compose_project_name: str | None = EXPECTED_COMPOSE_PROJECT_NAME,
 ) -> dict:
     manager: dict = {}
     if network_mode is not None:
@@ -70,6 +72,7 @@ def rendered_compose(
         broker["restart"] = broker_restart
 
     return {
+        "name": compose_project_name,
         "services": {
             "manager": manager,
             "broker": broker,
@@ -92,6 +95,8 @@ def test_accepts_host_network_ipv4_wildcard_and_exact_networks() -> None:
     )
 
     assert result["status"] == "PASS"
+    assert result["compose_project_name"] == "n3wfc4"
+    assert result["compose_project_identity_verified"] is True
     assert result["network_mode"] == "host"
     assert result["docker_udp_publication"] is False
     assert result["broker_ipv4_wildcard_publication"] is True
@@ -112,6 +117,24 @@ def test_accepts_host_network_ipv4_wildcard_and_exact_networks() -> None:
     assert result["broker_manager_loopback_runtime_probe_required"] is True
     assert result["broker_ingress_runtime_probe_required"] is True
     assert result["secret_values_included"] is False
+
+
+@pytest.mark.parametrize("project_name", [None, "", "recipes", "other-project"])
+def test_rejects_compose_project_identity_drift(
+    project_name: str | None,
+) -> None:
+    tool = load_tool()
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="compose_project_identity_invalid",
+    ):
+        tool.validate_compose_document(
+            rendered_compose(compose_project_name=project_name),
+            service_name="manager",
+            broker_service_name="broker",
+            broker_loopback_ip="127.0.1.1",
+        )
 
 
 @pytest.mark.parametrize(
