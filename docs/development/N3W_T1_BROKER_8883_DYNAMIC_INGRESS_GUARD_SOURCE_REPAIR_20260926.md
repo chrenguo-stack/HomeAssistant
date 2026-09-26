@@ -1,6 +1,6 @@
 # N3-W T1 Broker 8883 Dynamic Ingress Guard — Source Repair
 
-Status: `SOURCE_REPAIR_CLOSED_PASS`  
+Status: `SOURCE_REPAIR_REOPENED_R4_LIVE_BLOCKER`  
 Date: 2026-09-26  
 Gate: `N3W_T1_BROKER_8883_DYNAMIC_INGRESS_GUARD_SOURCE_REPAIR_20260926_01`
 
@@ -113,6 +113,27 @@ PR475_MERGE=false
 PR478_MERGE=false
 ```
 
+## Live R3 blocker discovered
+
+The first guarded Broker activation on T1 invalidated the R3 source closure for the activation lifecycle.
+
+```text
+R3_REVIEWED_SOURCE_HEAD=1a2d1d27602ef9f9deeb590eb4847ce6780da4c9
+LIVE_GUARD_APPLY=PASS
+LIVE_COMPOSE_CUTOVER=PASS
+BROKER_ACTIVATION=FAIL_SOURCE_CONTRACT
+ROOT_CAUSE=COMPOSE_PROJECT_IDENTITY_NOT_FROZEN
+EXPECTED_RUNTIME_PROJECT=n3wfc4
+OBSERVED_ACTIVATION_PROJECT=recipes
+OBSERVED_SECOND_BROKER_CONTAINER=recipes-broker-1
+R3_SOURCE_CLOSURE=REOPENED
+R4_SOURCE_REPAIR_REQUIRED=true
+```
+
+The activation unit passed `--env-file` and `-f` but did not pass an explicit Compose project name. Docker Compose therefore derived the project identity from the Compose working-directory basename. The live activation created a second Broker under a different Compose project instead of recreating the existing `n3wfc4` Broker. This is a source/deployment-contract defect, not a T1 operator error.
+
+R4 freezes `N3WFC4_COMPOSE_PROJECT_NAME=n3wfc4`, passes it explicitly to activation `ExecStart` and `ExecStop`, and makes the rendered-Compose deployment gate reject any project identity other than `n3wfc4`.
+
 ## Live acceptance remains separate
 
 Source/CI success cannot prove:
@@ -140,11 +161,11 @@ DEPLOYMENT_SOURCE_PACKAGE_ARCHIVED=true
 KNOWN_FAILURES_ALIGNED=true
 UNARCHIVED_CRITICAL_KNOWLEDGE=0
 
-SOURCE_REPAIR_RESULT=CLOSED_PASS
-SOURCE_REVIEW_R3=PASS
-SOURCE_BLOCKER_COUNT=0
-T1_LIVE_GATE=NOT_YET_EXECUTED
+SOURCE_REPAIR_RESULT=REOPENED_R4_SOURCE_REPAIR
+SOURCE_REVIEW_R3=SUPERSEDED_BY_LIVE_BLOCKER
+SOURCE_BLOCKER_COUNT=1
+T1_LIVE_GATE=PAUSED_FAIL_CLOSED
 KF097=OPEN
 AUTO_EXECUTE_LIVE=false
-STOP_AFTER_DOCUMENTATION_CLOSURE=true
+STOP_AFTER_R4_SOURCE_REPAIR_AND_REVIEW=true
 ```
