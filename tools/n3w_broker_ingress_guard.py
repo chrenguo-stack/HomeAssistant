@@ -157,6 +157,19 @@ def read_network_decision() -> NetworkDecision:
     )
 
 
+def _owned_allow_rule(trusted_subnet: ipaddress.IPv4Network) -> str:
+    return (
+        f"-A {CUSTOM_CHAIN} -i {INTERFACE} -s {trusted_subnet} "
+        f"-m comment --comment {ANCHOR_COMMENT} -j RETURN"
+    )
+
+
+def _owned_drop_rule() -> str:
+    return (
+        f"-A {CUSTOM_CHAIN} -m comment --comment {ANCHOR_COMMENT} -j DROP"
+    )
+
+
 def build_restore_payload(
     trusted_subnet: ipaddress.IPv4Network | None,
 ) -> str:
@@ -165,12 +178,10 @@ def build_restore_payload(
         f"-F {CUSTOM_CHAIN}",
     ]
     if trusted_subnet is not None:
-        lines.append(
-            f"-A {CUSTOM_CHAIN} -i {INTERFACE} -s {trusted_subnet} -j RETURN"
-        )
+        lines.append(_owned_allow_rule(trusted_subnet))
     lines.extend(
         [
-            f"-A {CUSTOM_CHAIN} -j DROP",
+            _owned_drop_rule(),
             "COMMIT",
             "",
         ]
@@ -213,8 +224,45 @@ def _rule_tokens(line: str) -> Counter[str]:
     return Counter(shlex.split(line))
 
 
+def _rule_matches(line: str, expected: str) -> bool:
+    return _rule_tokens(line) == _rule_tokens(expected)
+
+
 def _is_exact_anchor(line: str) -> bool:
-    return _rule_tokens(line) == _rule_tokens(_anchor_rule())
+    return _rule_matches(line, _anchor_rule())
+
+
+def _owned_custom_chain_rules(
+    rules: Sequence[str],
+) -> bool:
+    if len(rules) == 1:
+        return _rule_matches(rules[0], _owned_drop_rule())
+    if len(rules) != 2:
+        return False
+
+    tokens = shlex.split(rules[0])
+    source_indexes = [
+        index
+        for index, token in enumerate(tokens[:-1])
+        if token in {"-s", "--source"}
+    ]
+    if len(source_indexes) != 1:
+        return False
+
+    try:
+        source = ipaddress.ip_network(
+            tokens[source_indexes[0] + 1],
+            strict=False,
+        )
+    except ValueError:
+        return False
+    if not isinstance(source, ipaddress.IPv4Network):
+        return False
+
+    return (
+        _rule_matches(rules[0], _owned_allow_rule(source))
+        and _rule_matches(rules[1], _owned_drop_rule())
+    )
 
 
 def parse_firewall_inventory(payload: str) -> FirewallInventory:
@@ -271,17 +319,14 @@ def _save_filter_table() -> str:
 def _validate_prestate(inventory: FirewallInventory) -> None:
     if not inventory.docker_user_present:
         raise GuardError("docker_user_chain_missing")
+    if inventory.custom_chain_present and not _owned_custom_chain_rules(
+        inventory.custom_chain_rules
+    ):
+        raise GuardError("custom_chain_ownership_unproven")
     if inventory.ambiguous_owned_rules:
         raise GuardError("owned_anchor_semantics_ambiguous")
     if inventory.foreign_custom_chain_refs:
         raise GuardError("custom_chain_foreign_reference")
-
-
-def _rule_matches(
-    line: str,
-    expected: str,
-) -> bool:
-    return _rule_tokens(line) == _rule_tokens(expected)
 
 
 def validate_applied_state(
@@ -293,12 +338,12 @@ def validate_applied_state(
     if not inventory.custom_chain_present:
         raise GuardError("custom_chain_missing")
 
-    expected_drop = f"-A {CUSTOM_CHAIN} -j DROP"
+    expected_drop = _owned_drop_rule()
     if trusted_subnet is None:
         expected_rules = (expected_drop,)
     else:
         expected_rules = (
-            f"-A {CUSTOM_CHAIN} -i {INTERFACE} -s {trusted_subnet} -j RETURN",
+            _owned_allow_rule(trusted_subnet),
             expected_drop,
         )
 
@@ -333,23 +378,14 @@ def _ensure_single_first_anchor() -> None:
     _validate_prestate(inventory)
     if inventory.anchor_positions == (1,):
         return
+    if inventory.anchor_positions:
+        raise GuardError("owned_anchor_not_unique_first")
 
     _run(_anchor_insert_argv())
     inventory = parse_firewall_inventory(_save_filter_table())
     _validate_prestate(inventory)
-
-    for position in sorted(
-        (value for value in inventory.anchor_positions if value != 1),
-        reverse=True,
-    ):
-        _run(
-            [
-                _binary("iptables"),
-                "-D",
-                "DOCKER-USER",
-                str(position),
-            ]
-        )
+    if inventory.anchor_positions != (1,):
+        raise GuardError("owned_anchor_insert_verification_failed")
 
 
 def _network_sha256(network: ipaddress.IPv4Network | None) -> str | None:

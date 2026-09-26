@@ -129,7 +129,10 @@ def test_drop_only_restore_payload_does_not_flush_global_chains() -> None:
     payload = tool.build_restore_payload(None)
 
     assert f"-F {tool.CUSTOM_CHAIN}" in payload
-    assert f"-A {tool.CUSTOM_CHAIN} -j DROP" in payload
+    assert (
+        f"-A {tool.CUSTOM_CHAIN} -m comment --comment "
+        f"{tool.ANCHOR_COMMENT} -j DROP"
+    ) in payload
     assert "ACCEPT" not in payload
     assert "-F DOCKER-USER" not in payload
     assert "-F FORWARD" not in payload
@@ -140,11 +143,8 @@ def test_trusted_restore_payload_returns_before_terminal_drop() -> None:
     subnet = ipaddress.ip_network("192.0.2.0/24")
 
     payload = tool.build_restore_payload(subnet)
-    allow = (
-        f"-A {tool.CUSTOM_CHAIN} -i {tool.INTERFACE} "
-        f"-s {subnet} -j RETURN"
-    )
-    drop = f"-A {tool.CUSTOM_CHAIN} -j DROP"
+    allow = tool._owned_allow_rule(subnet)
+    drop = tool._owned_drop_rule()
 
     assert payload.index(allow) < payload.index(drop)
     assert "ACCEPT" not in payload
@@ -159,7 +159,7 @@ def test_inventory_recognizes_exact_anchor_and_preserves_foreign_rule() -> None:
             f":{tool.CUSTOM_CHAIN} - [0:0]",
             tool._anchor_rule(),
             "-A DOCKER-USER -s 203.0.113.0/24 -j DROP",
-            f"-A {tool.CUSTOM_CHAIN} -j DROP",
+            tool._owned_drop_rule(),
             "COMMIT",
         ]
     )
@@ -184,7 +184,7 @@ def test_inventory_rejects_same_comment_with_different_semantics() -> None:
                 f"--ctdir ORIGINAL --ctorigdstport 8883 -m comment "
                 f"--comment {tool.ANCHOR_COMMENT} -j {tool.CUSTOM_CHAIN}"
             ),
-            f"-A {tool.CUSTOM_CHAIN} -j DROP",
+            tool._owned_drop_rule(),
             "COMMIT",
         ]
     )
@@ -203,7 +203,7 @@ def test_inventory_detects_foreign_custom_chain_reference() -> None:
             ":DOCKER-USER - [0:0]",
             f":{tool.CUSTOM_CHAIN} - [0:0]",
             f"-A FORWARD -j {tool.CUSTOM_CHAIN}",
-            f"-A {tool.CUSTOM_CHAIN} -j DROP",
+            tool._owned_drop_rule(),
             "COMMIT",
         ]
     )
@@ -226,9 +226,10 @@ def test_validate_applied_state_accepts_trusted_chain() -> None:
             tool._anchor_rule(),
             (
                 f"-A {tool.CUSTOM_CHAIN} -s {subnet} "
-                f"-i {tool.INTERFACE} -j RETURN"
+                f"-i {tool.INTERFACE} -m comment "
+                f"--comment {tool.ANCHOR_COMMENT} -j RETURN"
             ),
-            f"-A {tool.CUSTOM_CHAIN} -j DROP",
+            tool._owned_drop_rule(),
             "COMMIT",
         ]
     )
@@ -246,7 +247,7 @@ def test_validate_applied_state_accepts_drop_only_chain() -> None:
             ":DOCKER-USER - [0:0]",
             f":{tool.CUSTOM_CHAIN} - [0:0]",
             tool._anchor_rule(),
-            f"-A {tool.CUSTOM_CHAIN} -j DROP",
+            tool._owned_drop_rule(),
             "COMMIT",
         ]
     )
@@ -299,3 +300,131 @@ def test_apply_failure_is_structured_and_secret_free(monkeypatch) -> None:
     assert result["reason"] == "synthetic_failure"
     assert result["raw_customer_subnet_in_public_output"] is False
     assert str(subnet) not in error.getvalue()
+
+
+def test_existing_unknown_same_name_chain_is_not_owned() -> None:
+    tool = load_tool()
+    payload = "\n".join(
+        [
+            "*filter",
+            ":DOCKER-USER - [0:0]",
+            f":{tool.CUSTOM_CHAIN} - [0:0]",
+            f"-A {tool.CUSTOM_CHAIN} -j DROP",
+            "COMMIT",
+        ]
+    )
+    inventory = tool.parse_firewall_inventory(payload)
+
+    with pytest.raises(
+        tool.GuardError,
+        match="custom_chain_ownership_unproven",
+    ):
+        tool._validate_prestate(inventory)
+
+
+def test_existing_owned_drop_only_chain_is_accepted() -> None:
+    tool = load_tool()
+    payload = "\n".join(
+        [
+            "*filter",
+            ":DOCKER-USER - [0:0]",
+            f":{tool.CUSTOM_CHAIN} - [0:0]",
+            tool._owned_drop_rule(),
+            "COMMIT",
+        ]
+    )
+    inventory = tool.parse_firewall_inventory(payload)
+
+    tool._validate_prestate(inventory)
+
+
+@pytest.mark.parametrize(
+    "positions",
+    [(2,), (1, 3), (2, 4)],
+)
+def test_anchor_repair_never_deletes_by_numeric_position(
+    monkeypatch,
+    positions: tuple[int, ...],
+) -> None:
+    tool = load_tool()
+    inventory = tool.FirewallInventory(
+        docker_user_present=True,
+        custom_chain_present=True,
+        docker_user_rules=(),
+        custom_chain_rules=(tool._owned_drop_rule(),),
+        anchor_positions=positions,
+        ambiguous_owned_rules=(),
+        foreign_custom_chain_refs=(),
+    )
+    monkeypatch.setattr(
+        tool,
+        "_save_filter_table",
+        lambda: "unused",
+    )
+    monkeypatch.setattr(
+        tool,
+        "parse_firewall_inventory",
+        lambda _payload: inventory,
+    )
+    calls: list[list[str]] = []
+    monkeypatch.setattr(
+        tool,
+        "_run",
+        lambda argv, **_kwargs: calls.append(list(argv)) or "",
+    )
+
+    with pytest.raises(
+        tool.GuardError,
+        match="owned_anchor_not_unique_first",
+    ):
+        tool._ensure_single_first_anchor()
+
+    assert calls == []
+
+
+def test_missing_anchor_is_inserted_once_and_verified(monkeypatch) -> None:
+    tool = load_tool()
+    before = tool.FirewallInventory(
+        docker_user_present=True,
+        custom_chain_present=True,
+        docker_user_rules=(),
+        custom_chain_rules=(tool._owned_drop_rule(),),
+        anchor_positions=(),
+        ambiguous_owned_rules=(),
+        foreign_custom_chain_refs=(),
+    )
+    after = tool.FirewallInventory(
+        docker_user_present=True,
+        custom_chain_present=True,
+        docker_user_rules=(tool._anchor_rule(),),
+        custom_chain_rules=(tool._owned_drop_rule(),),
+        anchor_positions=(1,),
+        ambiguous_owned_rules=(),
+        foreign_custom_chain_refs=(),
+    )
+    inventories = iter((before, after))
+    monkeypatch.setattr(
+        tool,
+        "_save_filter_table",
+        lambda: "unused",
+    )
+    monkeypatch.setattr(
+        tool,
+        "parse_firewall_inventory",
+        lambda _payload: next(inventories),
+    )
+    calls: list[list[str]] = []
+    monkeypatch.setattr(
+        tool,
+        "_anchor_insert_argv",
+        lambda: ["iptables", "-I", "DOCKER-USER", "1"],
+    )
+    monkeypatch.setattr(
+        tool,
+        "_run",
+        lambda argv, **_kwargs: calls.append(list(argv)) or "",
+    )
+
+    tool._ensure_single_first_anchor()
+
+    assert calls == [["iptables", "-I", "DOCKER-USER", "1"]]
