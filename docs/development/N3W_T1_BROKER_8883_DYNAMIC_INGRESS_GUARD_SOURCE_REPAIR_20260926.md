@@ -1,6 +1,6 @@
 # N3-W T1 Broker 8883 Dynamic Ingress Guard — Source Repair
 
-Status: `SOURCE_REPAIR_REOPENED_R4_LIVE_BLOCKER`  
+Status: `SOURCE_REPAIR_R4_CLOSED_PASS_LIVE_REVALIDATION_PENDING`  
 Date: 2026-09-26  
 Gate: `N3W_T1_BROKER_8883_DYNAMIC_INGRESS_GUARD_SOURCE_REPAIR_20260926_01`
 
@@ -134,6 +134,29 @@ The activation unit passed `--env-file` and `-f` but did not pass an explicit Co
 
 R4 freezes `N3WFC4_COMPOSE_PROJECT_NAME=n3wfc4`, passes it explicitly to activation `ExecStart` and `ExecStop`, and makes the rendered-Compose deployment gate reject any project identity other than `n3wfc4`.
 
+## R4 independent source review
+
+The R4 review is bound to the exact source authority below. Later documentation-only commits do not change this reviewed source.
+
+```text
+R4_SOURCE_REVIEW_HEAD=54342e8807308582f0a61454386645821ce5ef2b
+R4_SOURCE_REVIEW_TREE=f1b420e53b40cc05921cf15b0bab9da74a386c27
+R4_SOURCE_REVIEW_CI=13_OF_13_PASS
+R4_SOURCE_REVIEW=PASS
+R4_SOURCE_BLOCKER_COUNT=0
+```
+
+Focused review scope was limited to the live blocker discovered during the first guarded activation. The review confirmed:
+
+- Broker activation start and stop both pass an explicit Compose project identity;
+- the source package defines the frozen project identity as `n3wfc4`;
+- the deployment gate rejects missing, empty, `recipes`, and other project identities;
+- the positive deployment contract reports project identity verification;
+- lifecycle regression requires the explicit project option on both start and stop;
+- R4 does not change the already-reviewed firewall guard, NetworkManager trusted-subnet logic, Broker wildcard publication contract, or B2/B3 scope.
+
+The live finding that created `recipes-broker-1` is therefore closed at source level. It is not yet closed at T1 runtime level. T1 must materialize this exact R4 source, update the installed activation unit/environment authority, and repeat guarded Broker activation before live acceptance can continue.
+
 ## Live acceptance remains separate
 
 Source/CI success cannot prove:
@@ -161,11 +184,13 @@ DEPLOYMENT_SOURCE_PACKAGE_ARCHIVED=true
 KNOWN_FAILURES_ALIGNED=true
 UNARCHIVED_CRITICAL_KNOWLEDGE=0
 
-SOURCE_REPAIR_RESULT=REOPENED_R4_SOURCE_REPAIR
+SOURCE_REPAIR_RESULT=R4_CLOSED_PASS
 SOURCE_REVIEW_R3=SUPERSEDED_BY_LIVE_BLOCKER
-SOURCE_BLOCKER_COUNT=1
-T1_LIVE_GATE=PAUSED_FAIL_CLOSED
+SOURCE_REVIEW_R4=PASS
+SOURCE_REVIEW_R4_HEAD=54342e8807308582f0a61454386645821ce5ef2b
+SOURCE_BLOCKER_COUNT=0
+T1_LIVE_GATE=PAUSED_FAIL_CLOSED_R4_REDEPLOY_PENDING
 KF097=OPEN
 AUTO_EXECUTE_LIVE=false
-STOP_AFTER_R4_SOURCE_REPAIR_AND_REVIEW=true
+STOP_AFTER_R4_SOURCE_REVIEW_CLOSURE=true
 ```
