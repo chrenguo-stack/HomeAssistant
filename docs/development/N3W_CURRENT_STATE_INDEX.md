@@ -1,8 +1,9 @@
 # N3-W Current State Index
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
-Current progress alignment: `docs/development/N3W_PRODUCTION_DEHARNESS_AND_EXACT_ARTIFACT_PROGRESS_ALIGNMENT_20260921.md`  
-Current new-chat handoff: `docs/development/N3W_PR437_WIFI_RECOVERY_BUDGET_SOURCE_REPAIR_NEW_CHAT_HANDOFF_V1.1_20260921.md`  
+Current progress alignment: `docs/development/N3W_T1_BROKER_NETWORK_INDEPENDENCE_PROGRESS_ALIGNMENT_20260926.md`  
+Current T1 Broker architecture decisions: `docs/development/N3W_T1_BROKER_NETWORK_INDEPENDENCE_ARCHITECTURE_DECISIONS_20260926.md`  
+Current new-chat handoff: `docs/development/N3W_T1_BROKER_8883_DYNAMIC_INGRESS_GUARD_SOURCE_DESIGN_NEW_CHAT_HANDOFF_V1.0_20260926.md`  
 Long-term working context: `docs/development/N3W_PROJECT_WORKING_CONTEXT.md`  
 Current handoff template: `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` v1.2  
 Latest merged product-source authority: PR #437 / merge `b9acaaad50b17c9cdb51c219330e612c383628f0` / frozen physical source `4270f24a92a87dd5239d781ebba624c2f34b7fc2`  
@@ -15,6 +16,38 @@ Current production artifact binding authority: `docs/development/N3W_PRODUCTION_
 Currently deployed Board B source: `4270f24a92a87dd5239d781ebba624c2f34b7fc2` / artifact `10619047221`  
 Current local-development-environment authority: `docs/development/local-environment-records/2026-09-17-macos-x86_64.json`  
 Active product-direction authority: `docs/development/N3W_OFFICIAL_ESPNOW_REFERENCE_PRODUCT_DIRECTION_DECISION_20260906.md`
+
+
+## 2026-09-26 T1 Broker network-independence snapshot
+
+```text
+REPOSITORY_MAIN=b32878682ab4981fd38b8982caefed95ba3e204d
+
+PR475_STATE=OPEN_DRAFT
+PR475_HEAD=c070cc50c72cbbd261e8e8ba6e70d00aa4ef5fd6
+PR475_SOURCE_REVIEW_R3=PASS
+PR475_CI=12_OF_12_PASS
+PR475_B1_SOURCE_STAGE=CLOSED_PASS
+PR475_MERGE=false
+
+PR474_STATE=OPEN_DRAFT
+PR474_HEAD=d3c158b4376ca0577e4a3a45a18a6c5c6e994e75
+PR474_SOURCE_REVIEW=PASS
+PR474_PHYSICAL_VALIDATION=PENDING
+
+LIVE_BROKER=EXITED_BIND_FAILURE
+LIVE_MANAGER=RESTARTING
+NETWORK_AUTHORITY=NetworkManager
+DOCKER_FIREWALL_BACKEND=iptables
+CURRENT_8883_INGRESS_GUARD=ABSENT
+KF035_PREBIND=PASS
+
+NEXT_ONE_GATE=N3W_T1_BROKER_8883_DYNAMIC_INGRESS_GUARD_SOURCE_DESIGN_20260926_01
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+```
+
+PR #475 closes the fixed-LAN Docker publication source contract through R3, but wildcard activation remains blocked until a durable trusted-LAN ingress guard is designed and reviewed. B2 stable naming/TLS identity and B3 existing-node address migration remain separate open routes. PR #474 physical validation remains deferred until T1 recovery is safe.
 
 ## 2026-09-21 production successor snapshot
 

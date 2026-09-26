@@ -1,9 +1,73 @@
 # N3-W Current State
 
-Updated: 2026-09-21  
+Updated: 2026-09-26  
 Status: `CURRENT_STATE_AUTHORITY`
 
 Fresh exact repository/runtime/physical evidence takes precedence if later evidence proves drift.
+
+
+## 2026-09-26 T1 Broker customer-LAN portability / live-recovery blocker
+
+This section supersedes older next-route fields wherever they conflict. It is public-safe; private T1 locators and private LAN addresses remain outside the public repository.
+
+```text
+REPOSITORY_MAIN=b32878682ab4981fd38b8982caefed95ba3e204d
+
+PR474_STATE=OPEN_DRAFT
+PR474_HEAD=d3c158b4376ca0577e4a3a45a18a6c5c6e994e75
+PR474_SOURCE_REVIEW=PASS
+PR474_PHYSICAL_VALIDATION=PENDING
+PR474_MERGE=false
+
+PR475_STATE=OPEN_DRAFT
+PR475_BASE=b32878682ab4981fd38b8982caefed95ba3e204d
+PR475_HEAD=c070cc50c72cbbd261e8e8ba6e70d00aa4ef5fd6
+PR475_SOURCE_REVIEW_R3=PASS
+PR475_MERGE_BLOCKER_COUNT=0
+PR475_CI=12_OF_12_PASS
+PR475_MERGE=false
+
+PR475_B1_SOURCE_STAGE=CLOSED_PASS
+LIVE_T1_RECOVERY=NOT_STARTED
+```
+
+Fresh T1 read-only rebind proves the live Broker is still unable to start because its Docker host publication retains a predecessor concrete customer-LAN IPv4. The Manager remains host-networked and restarts while the Broker is unavailable. The exact Manager runtime resolves `armbian` first to IPv4 loopback and then IPv6 loopback; the Broker certificate remains valid for `DNS:armbian`. The Mosquitto listener itself is already `8883 0.0.0.0`, so the B1 repair belongs to Docker host publication and deployment lifecycle rather than Mosquitto listener configuration.
+
+The fresh host-network facts are:
+
+```text
+NETWORK_AUTHORITY=NetworkManager
+WIRED_INTERFACE=eth0
+WIRED_ADDRESS_MODE=DHCP
+DOCKER_FIREWALL_BACKEND=iptables
+DOCKER_USER_CHAIN_PRESENT=true
+DOCKER_USER_CUSTOM_RULE_COUNT=0
+CURRENT_8883_INGRESS_GUARD=ABSENT
+NFTABLES_SERVICE=disabled/inactive
+FC4_SYSTEMD_DEPLOYMENT_UNIT=ABSENT
+
+KF035_PREBIND=PASS
+POST_RECREATE_TCP_TLS=NOT_YET_PROVEN
+A6_WILDCARD_INGRESS_SECURITY=LIVE_BLOCKER
+```
+
+A direct `0.0.0.0:8883` Broker recreate is therefore not authorized yet. The next bounded route is to design a durable, fail-closed ingress guard that derives the current trusted wired-LAN IPv4 subnet from NetworkManager/runtime state rather than persisting a customer-specific subnet.
+
+```text
+NEXT_ONE_GATE=N3W_T1_BROKER_8883_DYNAMIC_INGRESS_GUARD_SOURCE_DESIGN_20260926_01
+
+B2_STABLE_T1_NAME_TLS_IDENTITY=OPEN_OUT_OF_SCOPE
+B3_EXISTING_NODE_ADDRESS_MIGRATION=OPEN_OUT_OF_SCOPE
+PR474_PHYSICAL_VALIDATION=DEFERRED_UNTIL_T1_ROUTE_RECOVERY
+T1_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+```
+
+Current detailed progress authority:
+`docs/development/N3W_T1_BROKER_NETWORK_INDEPENDENCE_PROGRESS_ALIGNMENT_20260926.md`
+
+Current new-chat handoff:
+`docs/development/N3W_T1_BROKER_8883_DYNAMIC_INGRESS_GUARD_SOURCE_DESIGN_NEW_CHAT_HANDOFF_V1.0_20260926.md`
 
 ## 2026-09-21 production successor de-harness and exact-artifact closure
 
