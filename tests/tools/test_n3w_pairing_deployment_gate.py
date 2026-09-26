@@ -9,6 +9,10 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 TOOL = ROOT / "tools/n3w_pairing_deployment_gate.py"
+EXPECTED_BROKER_NETWORKS = (
+    "n3wfc4-private",
+    "n3wfc4-services",
+)
 
 
 def load_tool():
@@ -27,8 +31,9 @@ def rendered_compose(
     *,
     network_mode: str | None = "host",
     udp_host_ip: str | None = None,
-    broker_loopback_ip: str = "127.0.1.1",
+    broker_host_ip: str | None = "0.0.0.0",
     broker_published_port: str = "8883",
+    broker_networks: tuple[str, ...] = EXPECTED_BROKER_NETWORKS,
 ) -> dict:
     manager: dict = {}
     if network_mode is not None:
@@ -43,25 +48,35 @@ def rendered_compose(
                 "protocol": "udp",
             }
         ]
+
+    broker_port = {
+        "mode": "ingress",
+        "target": 8883,
+        "published": broker_published_port,
+        "protocol": "tcp",
+    }
+    if broker_host_ip is not None:
+        broker_port["host_ip"] = broker_host_ip
+
     return {
         "services": {
             "manager": manager,
             "broker": {
-                "ports": [
-                    {
-                        "host_ip": broker_loopback_ip,
-                        "mode": "ingress",
-                        "target": 8883,
-                        "published": broker_published_port,
-                        "protocol": "tcp",
-                    }
-                ]
+                "ports": [broker_port],
+                "networks": {
+                    network: None
+                    for network in broker_networks
+                },
             },
-        }
+        },
+        "networks": {
+            network: {"name": network}
+            for network in broker_networks
+        },
     }
 
 
-def test_accepts_host_network_without_docker_udp_publication() -> None:
+def test_accepts_host_network_ipv4_wildcard_and_exact_networks() -> None:
     tool = load_tool()
 
     result = tool.validate_compose_document(
@@ -74,9 +89,37 @@ def test_accepts_host_network_without_docker_udp_publication() -> None:
     assert result["status"] == "PASS"
     assert result["network_mode"] == "host"
     assert result["docker_udp_publication"] is False
-    assert result["broker_resolved_loopback_publication"] is True
-    assert result["broker_loopback_ip"] == "127.0.1.1"
+    assert result["broker_ipv4_wildcard_publication"] is True
+    assert result["broker_concrete_lan_ip_dependency"] is False
+    assert result["broker_network_keys"] == [
+        "n3wfc4-private",
+        "n3wfc4-services",
+    ]
+    assert result["broker_networks"] == [
+        "n3wfc4-private",
+        "n3wfc4-services",
+    ]
+    assert result["broker_network_attachment_set_verified"] is True
+    assert result["broker_effective_network_names_verified"] is True
+    assert result["broker_manager_loopback_ip"] == "127.0.1.1"
+    assert result["broker_manager_loopback_runtime_probe_required"] is True
+    assert result["broker_ingress_runtime_probe_required"] is True
     assert result["secret_values_included"] is False
+
+
+def test_rejects_implicit_broker_host_binding() -> None:
+    tool = load_tool()
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="broker_wildcard_tls_publication_missing",
+    ):
+        tool.validate_compose_document(
+            rendered_compose(broker_host_ip=None),
+            service_name="manager",
+            broker_service_name="broker",
+            broker_loopback_ip="127.0.0.1",
+        )
 
 
 @pytest.mark.parametrize(
@@ -143,15 +186,43 @@ def test_rejects_non_host_network_without_udp_publication(
         )
 
 
-def test_rejects_broker_publication_on_different_loopback_address() -> None:
+@pytest.mark.parametrize(
+    "broker_host_ip",
+    [
+        "127.0.0.1",
+        "127.0.1.1",
+        "192.0.2.10",
+        "198.51.100.10",
+        "203.0.113.10",
+        "::",
+    ],
+)
+def test_rejects_non_ipv4_wildcard_broker_host_binding(
+    broker_host_ip: str,
+) -> None:
     tool = load_tool()
 
     with pytest.raises(
         tool.DeploymentContractError,
-        match="broker_resolved_loopback_publication_missing",
+        match="broker_wildcard_tls_publication_missing",
     ):
         tool.validate_compose_document(
-            rendered_compose(broker_loopback_ip="127.0.0.1"),
+            rendered_compose(broker_host_ip=broker_host_ip),
+            service_name="manager",
+            broker_service_name="broker",
+            broker_loopback_ip="127.0.1.1",
+        )
+
+
+def test_rejects_empty_broker_host_binding() -> None:
+    tool = load_tool()
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="broker_wildcard_tls_publication_missing",
+    ):
+        tool.validate_compose_document(
+            rendered_compose(broker_host_ip=""),
             service_name="manager",
             broker_service_name="broker",
             broker_loopback_ip="127.0.1.1",
@@ -163,7 +234,7 @@ def test_rejects_broker_publication_with_wrong_published_port() -> None:
 
     with pytest.raises(
         tool.DeploymentContractError,
-        match="broker_resolved_loopback_publication_missing",
+        match="broker_tls_publication_port_mismatch",
     ):
         tool.validate_compose_document(
             rendered_compose(broker_published_port="1883"),
@@ -173,7 +244,244 @@ def test_rejects_broker_publication_with_wrong_published_port() -> None:
         )
 
 
-def test_rejects_non_loopback_broker_address() -> None:
+def test_rejects_extra_misdirected_tls_publication() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["services"]["broker"]["ports"].append(
+        {
+            "host_ip": "0.0.0.0",
+            "mode": "ingress",
+            "target": 8883,
+            "published": "18883",
+            "protocol": "tcp",
+        }
+    )
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="broker_tls_publication_count_invalid",
+    ):
+        tool.validate_compose_document(
+            document,
+            service_name="manager",
+            broker_service_name="broker",
+            broker_loopback_ip="127.0.1.1",
+        )
+
+
+def test_rejects_duplicate_tls_publications() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["services"]["broker"]["ports"].append(
+        {
+            "host_ip": "192.0.2.10",
+            "mode": "ingress",
+            "target": 8883,
+            "published": "8883",
+            "protocol": "tcp",
+        }
+    )
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="broker_tls_publication_count_invalid",
+    ):
+        tool.validate_compose_document(
+            document,
+            service_name="manager",
+            broker_service_name="broker",
+            broker_loopback_ip="127.0.1.1",
+        )
+
+
+def test_rejects_published_range_overlapping_8883() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["services"]["broker"]["ports"].append(
+        {
+            "host_ip": "192.0.2.10",
+            "mode": "ingress",
+            "target": 1883,
+            "published": "8880-8890",
+            "protocol": "tcp",
+        }
+    )
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="broker_tls_publication_count_invalid",
+    ):
+        tool.validate_compose_document(
+            document,
+            service_name="manager",
+            broker_service_name="broker",
+            broker_loopback_ip="127.0.1.1",
+        )
+
+
+def test_rejects_target_range_overlapping_8883() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["services"]["broker"]["ports"].append(
+        {
+            "host_ip": "192.0.2.10",
+            "mode": "ingress",
+            "target": "8880-8890",
+            "published": "18880-18890",
+            "protocol": "tcp",
+        }
+    )
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="broker_tls_publication_count_invalid",
+    ):
+        tool.validate_compose_document(
+            document,
+            service_name="manager",
+            broker_service_name="broker",
+            broker_loopback_ip="127.0.1.1",
+        )
+
+
+def test_rejects_unparseable_tcp_port_spec() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["services"]["broker"]["ports"].append(
+        {
+            "host_ip": "192.0.2.10",
+            "mode": "ingress",
+            "target": 1883,
+            "published": "dynamic",
+            "protocol": "tcp",
+        }
+    )
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="broker_port_spec_invalid",
+    ):
+        tool.validate_compose_document(
+            document,
+            service_name="manager",
+            broker_service_name="broker",
+            broker_loopback_ip="127.0.1.1",
+        )
+
+
+@pytest.mark.parametrize(
+    "broker_networks",
+    [
+        ("n3wfc4-private",),
+        ("n3wfc4-services",),
+        ("n3wfc4-private", "replacement-network"),
+        ("n3wfc4-private", "n3wfc4-services", "unexpected-network"),
+    ],
+)
+def test_rejects_incorrect_broker_network_attachment_set(
+    broker_networks: tuple[str, ...],
+) -> None:
+    tool = load_tool()
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="broker_network_attachment_set_invalid",
+    ):
+        tool.validate_compose_document(
+            rendered_compose(broker_networks=broker_networks),
+            service_name="manager",
+            broker_service_name="broker",
+            broker_loopback_ip="127.0.1.1",
+        )
+
+
+def test_rejects_missing_broker_networks() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["services"]["broker"].pop("networks")
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="broker_networks_invalid",
+    ):
+        tool.validate_compose_document(
+            document,
+            service_name="manager",
+            broker_service_name="broker",
+            broker_loopback_ip="127.0.1.1",
+        )
+
+
+def test_rejects_broker_effective_network_name_drift() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["networks"]["n3wfc4-services"]["name"] = "replacement-network"
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="broker_effective_network_set_invalid",
+    ):
+        tool.validate_compose_document(
+            document,
+            service_name="manager",
+            broker_service_name="broker",
+            broker_loopback_ip="127.0.1.1",
+        )
+
+
+def test_rejects_swapped_broker_effective_network_names() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["networks"]["n3wfc4-private"]["name"] = "n3wfc4-services"
+    document["networks"]["n3wfc4-services"]["name"] = "n3wfc4-private"
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="broker_effective_network_set_invalid",
+    ):
+        tool.validate_compose_document(
+            document,
+            service_name="manager",
+            broker_service_name="broker",
+            broker_loopback_ip="127.0.1.1",
+        )
+
+
+def test_rejects_missing_top_level_broker_network_definition() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["networks"].pop("n3wfc4-services")
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="broker_network_definition_missing",
+    ):
+        tool.validate_compose_document(
+            document,
+            service_name="manager",
+            broker_service_name="broker",
+            broker_loopback_ip="127.0.1.1",
+        )
+
+
+def test_rejects_missing_effective_network_name() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["networks"]["n3wfc4-services"].pop("name")
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="broker_effective_network_name_invalid",
+    ):
+        tool.validate_compose_document(
+            document,
+            service_name="manager",
+            broker_service_name="broker",
+            broker_loopback_ip="127.0.1.1",
+        )
+
+
+def test_rejects_non_loopback_manager_broker_address() -> None:
     tool = load_tool()
 
     with pytest.raises(
@@ -181,7 +489,7 @@ def test_rejects_non_loopback_broker_address() -> None:
         match="broker_loopback_ip_not_loopback",
     ):
         tool.validate_compose_document(
-            rendered_compose(broker_loopback_ip="192.0.2.10"),
+            rendered_compose(),
             service_name="manager",
             broker_service_name="broker",
             broker_loopback_ip="192.0.2.10",
@@ -215,7 +523,7 @@ def test_cli_failure_is_structured_and_secret_free() -> None:
     report = json.loads(output.getvalue())
     assert status == 3
     assert report == {
-        "schema": "gh.n3w-pairing-deployment-gate/1",
+        "schema": "gh.n3w-pairing-deployment-gate/2",
         "status": "FAIL",
         "reason": "discovery_udp_requires_host_network",
         "secret_values_included": False,
