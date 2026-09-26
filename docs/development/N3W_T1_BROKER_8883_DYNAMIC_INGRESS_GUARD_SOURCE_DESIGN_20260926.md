@@ -168,6 +168,8 @@ The product owns exactly one tagged jump from `DOCKER-USER` into that chain.
 
 The jump is inserted before Docker's terminal return behavior. The guard must not flush or rebuild `DOCKER-USER`.
 
+Before taking ownership, the helper must inspect the existing chain namespace and references. If `N3WFC4-BROKER-INGRESS` already exists but cannot be proven to be this product's chain, or if it is referenced by anything other than the exact owned `DOCKER-USER` jump, the helper must fail closed and must not flush, reuse or delete that chain. Chain-name collision is an enforcement failure, not an invitation to take over unrelated rules.
+
 ### 4.2 Bounded chain replacement
 
 The custom chain is rebuilt with `iptables-restore --noflush`.
@@ -310,6 +312,8 @@ The Broker container must not retain a Docker restart policy that can auto-start
 
 The later source repair must define one runtime owner for Broker restart. It must not leave both Docker restart policy and systemd independently racing to start the same Broker.
 
+`n3wfc4-broker.service` must be a long-running lifecycle owner, not a one-shot `docker compose up -d` launcher with no remaining restart owner. The concrete implementation may use attached Compose/container supervision, but systemd must be able to observe Broker exit and perform the single intended restart policy.
+
 ### 7.4 Docker restart
 
 A Docker service restart must cause:
@@ -356,6 +360,8 @@ The implementation must not:
 - persist a customer subnet;
 - change Manager network mode;
 - change PR #474 radio/product source.
+
+The source/host preflight must also prove that Docker direct-routing/trusted-host-interface settings do not create an alternate externally reachable path to the Broker container that bypasses the DNAT publication contract. If such a path is enabled for the Broker networks, the guard must report enforcement as unproven and Broker startup remains blocked until that route has its own reviewed policy.
 
 Before and after a source/host integration test, unrelated iptables-save content must compare equal except for the exact owned chain and one exact owned jump.
 
@@ -409,7 +415,9 @@ Tests must prove:
 - Broker lifecycle depends on guard;
 - Broker cannot use an independent Docker auto-restart path;
 - guard runs after Docker;
-- Docker restart propagates through guard before Broker restart.
+- Docker restart propagates through guard before Broker restart;
+- the Broker lifecycle unit remains the single runtime restart owner rather than a one-shot detached launcher;
+- a pre-existing chain-name collision or foreign reference fails closed instead of being overwritten.
 
 ### 10.6 Existing deployment gate integration
 
@@ -432,6 +440,8 @@ IPTABLES_RESTORE_TEST=PASS
 CUSTOM_CHAIN_REBUILD=PASS
 OWNED_JUMP_EXACTLY_ONE=PASS
 UNRELATED_RULE_PRESERVATION=PASS
+CHAIN_OWNERSHIP_COLLISION_GUARD=PASS
+DOCKER_DIRECT_ROUTING_BYPASS_ABSENT=PASS
 SECOND_APPLY_IDEMPOTENT=PASS
 DENY_ALL_RECONCILIATION=PASS
 TRUSTED_SUBNET_RECONCILIATION=PASS
