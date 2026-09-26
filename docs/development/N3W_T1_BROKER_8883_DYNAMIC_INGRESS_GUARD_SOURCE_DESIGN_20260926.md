@@ -1,7 +1,7 @@
 # N3-W T1 Broker TCP/8883 Dynamic Ingress Guard
 # Source Design — 2026-09-26
 
-Status: `SOURCE_DESIGN_CANDIDATE`
+Status: `SOURCE_DESIGN_PASS`
 
 ```text
 TASK=N3W_T1_BROKER_8883_DYNAMIC_INGRESS_GUARD_SOURCE_DESIGN_20260926_01
@@ -601,3 +601,35 @@ LIVE_ACCEPTANCE_PLAN=defined
 Design PASS requires source review to confirm no narrower issue remains in the packet selector, lifecycle ordering, rollback model or test oracle.
 
 No source implementation or T1 mutation is authorized by this document.
+
+
+## 17. Gate closure
+
+```text
+=== N3W_T1_BROKER_8883_DYNAMIC_INGRESS_GUARD_SOURCE_DESIGN_20260926_01 CLOSURE ===
+
+EXECUTION_ID=20260926_SOURCE_DESIGN_01
+AUTHORIZATION=SOURCE_DESIGN_CONTINUATION
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+
+DESIGN_AUTHORITY=docs/development/N3W_T1_BROKER_8883_DYNAMIC_INGRESS_GUARD_SOURCE_DESIGN_20260926.md
+DOCKER_FILTER_HOOK=DOCKER-USER
+TRUSTED_SUBNET_AUTHORITY=fresh NetworkManager eth0 runtime state
+NETWORK_CHANGE_REFRESH_AUTHORITY=NetworkManager dispatcher -> fresh helper reconcile
+BOOT_ORDERING=Docker -> guard -> Broker
+FAIL_CLOSED_BEHAVIOR=DENY_ALL_8883 when trusted subnet is absent/ambiguous; Broker blocked when guard enforcement is unproven
+RULE_IDEMPOTENCE=one owned chain + one owned tagged jump + bounded iptables-restore --noflush rebuild
+ROLLBACK_MODEL=stop wildcard Broker before guard removal; restore exact prechange deployment authority
+SOURCE_TEST_PLAN=DEFINED
+LIVE_ACCEPTANCE_PLAN=DEFINED
+
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+
+SOURCE_DESIGN_RESULT=PASS
+NEXT_ROUTE=N3W_T1_BROKER_8883_DYNAMIC_INGRESS_GUARD_SOURCE_REPAIR_20260926_01
+STOP=true
+
+=== END ===
+```
