@@ -10,6 +10,7 @@ DISPATCHER = (
     INFRA
     / "NetworkManager/dispatcher.d/90-n3wfc4-broker-ingress-guard"
 )
+PERSISTENCE_INSTALLER = INFRA / "install-systemd-persistence.sh"
 
 
 def read(path: Path) -> str:
@@ -132,3 +133,24 @@ def test_dispatcher_does_not_accept_event_subnet_as_authority() -> None:
     )
     for value in forbidden:
         assert value not in script
+
+
+def test_systemd_persistence_installer_enables_both_units_without_starting_them() -> None:
+    script = read(PERSISTENCE_INSTALLER)
+
+    enable = '/usr/bin/systemctl enable "$GUARD" "$ACTIVATION"'
+    guard_check = '/usr/bin/systemctl is-enabled "$GUARD"'
+    activation_check = '/usr/bin/systemctl is-enabled "$ACTIVATION"'
+
+    assert enable in script
+    assert guard_check in script
+    assert activation_check in script
+    assert script.index(enable) < script.index(guard_check)
+    assert script.index(enable) < script.index(activation_check)
+    assert '"$guard_state" = "enabled"' in script
+    assert '"$activation_state" = "enabled"' in script
+    assert "SYSTEMD_PERSISTENCE_INSTALL=PASS" in script
+    assert "enable --now" not in script
+    assert "restart " not in script
+    assert "start " not in script
+    assert "stop " not in script
