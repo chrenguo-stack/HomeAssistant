@@ -181,6 +181,36 @@ The observed Docker-bridge namespace connection to the host LAN address did not 
 
 R5 must close this coverage gap or explicitly redefine the accepted threat model before live ingress acceptance can close. Dispatcher installation remains blocked until that decision is implemented and reviewed.
 
+## R5 design frozen
+
+R5 design is frozen in:
+
+`docs/development/N3W_T1_BROKER_8883_HOST_LOCAL_INGRESS_COVERAGE_R5_DESIGN_20260927.md`
+
+The design keeps the R4 `DOCKER-USER` original-destination TCP/8883 guard and adds one exact TCP/8883 anchor at the filter `INPUT` hook for host-local `docker-proxy` traffic. Both hooks use the same project-owned policy chain.
+
+The R5 chain contract is:
+
+```text
+trusted state:
+  lo + 127.0.0.0/8 -> RETURN
+  eth0 + current unique subnet -> RETURN
+  everything else -> DROP
+
+zero/ambiguous subnet:
+  lo + 127.0.0.0/8 -> RETURN
+  everything else -> DROP
+```
+
+R5 source repair must support an exact R4 -> R5 migration without deleting the working R4 guard first. Dispatcher installation remains blocked until R5 source review and live acceptance pass.
+
+```text
+R5_DESIGN=COMPLETE
+R5_SOURCE_REPAIR=NOT_YET_EXECUTED
+R5_T1_MUTATION=false
+NEXT_REQUIRED_STAGE=R5_SOURCE_REPAIR
+```
+
 ## Live acceptance remains separate
 
 Source/CI success cannot prove:
