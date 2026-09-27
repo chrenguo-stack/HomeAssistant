@@ -1,0 +1,29 @@
+name: N3W T1 deployment gate CI
+
+on:
+  pull_request:
+    paths:
+      - "tools/n3w_pairing_deployment_gate.py"
+      - "tests/tools/test_n3w_pairing_deployment_gate.py"
+      - ".github/workflows/n3w-t1-deployment-gate-ci.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "tools/n3w_pairing_deployment_gate.py"
+      - "tests/tools/test_n3w_pairing_deployment_gate.py"
+      - ".github/workflows/n3w-t1-deployment-gate-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install "pytest>=8,<9"
+      - run: python -m pytest -q tests/tools/test_n3w_pairing_deployment_gate.py
