@@ -427,10 +427,7 @@ class Settings:
                 except ValueError:
                     advertised_ip = None
 
-                if (
-                    advertised_ip is not None
-                    and advertised_ip.version == 4
-                ):
+                if advertised_ip is not None:
                     raise ValueError(
                         "GH_N3W_PAIRING_ADVERTISED_HOST "
                         "must be auto or a hostname"
