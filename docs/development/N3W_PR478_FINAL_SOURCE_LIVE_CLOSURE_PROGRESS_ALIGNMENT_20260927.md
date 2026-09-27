@@ -169,6 +169,9 @@ No raw customer LAN address, SSH locator, credential, TLS private material, or r
 TEAM_SHARED_WORKSPACE=GITHUB
 IMPORTANT_CHAT_ONLY_ARTIFACT_COUNT=0
 TEAM_SHARE_COMPLETENESS=PASS
+PRIVATE_RAW_EVIDENCE_EXTERNAL_COUNT=1
+PRIVATE_RAW_REBOOT_COLLECTION_SHA256=ee0eb75d100bf60b7ff9e32c1af1599c3a772b2ff7cd27b107cbd42b60ddea4c
+PUBLIC_REPOSITORY_RAW_PRIVATE_EVIDENCE=false
 ```
 
 The raw reboot collection remains outside the public repository because it contains live runtime/network evidence. Its SHA-256 is recorded above so the private artifact can be integrity-bound without publishing the raw log. All public-safe conclusions from that evidence are durably recorded in GitHub.
