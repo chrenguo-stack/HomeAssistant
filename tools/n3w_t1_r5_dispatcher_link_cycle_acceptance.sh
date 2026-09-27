@@ -20,6 +20,7 @@ MANAGER_RESTART_BEFORE=
 FOREIGN_COUNT_BEFORE=
 FOREIGN_SHA_BEFORE=
 
+: > "$RESULT"
 exec > >(tee -a "$RESULT") 2>&1
 
 blob_sha() {
@@ -57,6 +58,20 @@ while [ "$SECONDS" -lt "$deadline" ]; do
     state="$(nmcli -t -f GENERAL.STATE device show eth0 2>/dev/null || true)"
     addresses="$(nmcli -g IP4.ADDRESS device show eth0 2>/dev/null || true)"
     if printf '%s\n' "$state" | grep -q '^GENERAL.STATE:100' && [ -n "$addresses" ]; then
+        return 0
+    fi
+    sleep 1
+done
+return 1
+}
+
+wait_guard_event_status() {
+local since_epoch="$1"
+local status="$2"
+local deadline=$((SECONDS + 70))
+while [ "$SECONDS" -lt "$deadline" ]; do
+    if journalctl -u "$GUARD" --since "@$since_epoch" --no-pager -o cat 2>/dev/null |
+        grep -q "\"status\":\"$status\",\"applied\":true"; then
         return 0
     fi
     sleep 1
@@ -178,8 +193,6 @@ fi
 trap 'on_error $?' ERR
 trap on_exit EXIT
 
-: > "$RESULT"
-
 echo "=== PRECHECK ==="
 [ "$(id -u)" = "0" ]
 [ "$(blob_sha "$LIVE_GUARD")" = "$EXPECTED_GUARD_BLOB" ]
@@ -229,7 +242,7 @@ echo "EVENT_START_UTC=$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 echo "=== LINK DOWN ==="
 nmcli connection down uuid "$CONN_UUID"
 wait_disconnected
-sleep 15
+wait_guard_event_status "$EVENT_EPOCH" "FAIL_CLOSED"
 
 echo "ETH0_STATE_DOWN=$(nmcli -t -f GENERAL.STATE device show eth0 || true)"
 echo "ETH0_IPV4_DOWN=$(nmcli -g IP4.ADDRESS device show eth0 | tr '\n' ',' || true)"
@@ -262,7 +275,7 @@ echo "=== LINK UP ==="
 UP_EPOCH="$(date +%s)"
 nmcli connection up uuid "$CONN_UUID" ifname eth0
 wait_connected
-sleep 20
+wait_guard_event_status "$UP_EPOCH" "PASS"
 
 echo "ETH0_STATE_AFTER=$(nmcli -t -f GENERAL.STATE device show eth0)"
 echo "ETH0_IPV4_AFTER=$(nmcli -g IP4.ADDRESS device show eth0)"
