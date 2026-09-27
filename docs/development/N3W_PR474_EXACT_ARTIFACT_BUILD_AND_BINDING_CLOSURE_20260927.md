@@ -1,7 +1,7 @@
 # N3-W PR #474 exact artifact build and binding closure
 
 Updated: 2026-09-27  
-Status: `CLOSED_PASS_FOR_PHYSICAL_PREFLIGHT`
+Status: `CLOSED_PASS_FOR_POSTWRITE_DIRECT_BASELINE`
 
 ## Source / PR binding
 
@@ -209,22 +209,68 @@ The current target partition table exactly matches the bound production artifact
 
 This preserves the already-matching bootloader/partition table and the NVS region. The broader factory-image-at-0x0 path remains valid as a layout proof, but is not preferred when the live partition table is already exact.
 
+## Board B exact write and readonly forensic closure
+
+The authorized Board B write used only the already-reviewed narrow scope:
+
+```text
+0x9000  ota_data_initial.bin
+0x10000 firmware.bin
+```
+
+esptool 5.3.1 reported write-time hash verification for both regions and then performed the authorized hard reset.
+
+The first post-write script stopped on `POST_OTADATA_MISMATCH`. Fresh repository review confirmed that this was the same invalid post-boot OTA-data byte-equality oracle previously documented on the PR #437 physical route: after application boot, the bootloader may legitimately update OTA selection metadata, so the post-boot OTA-data sector is not required to remain byte-identical to `ota_data_initial.bin`.
+
+No replay or supplemental write was performed. The consumed write authorization remained single-use.
+
+A separate readonly forensic readback then proved:
+
+```text
+PARTITION_TABLE_SHA256=6664b08a14a9cdc170e322823db29fbe485d87db9c4ec42759d9372028953dca
+POSTBOOT_OTADATA_SHA256=8ba3b110139f45443d4f268d1a3373ef99a1718b71d51664531b83ee2d4b91a3
+INITIAL_OTADATA_SHA256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
+OTADATA_CHANGED_BYTE_COUNT=12
+APPLICATION_SHA256=4d6bef5b6f5c9ac18686f514d5c3e767b70fb9fce45076bc2a8df67e59b3bb6b
+
+PARTITION_TABLE_UNCHANGED=true
+APPLICATION_READBACK=PASS
+ESPTOOL_WRITE_VERIFY=PASS
+OTADATA_WRITE_VERIFY_AT_WRITE_TIME=PASS
+OTADATA_POSTBOOT_BYTE_EQUALITY_ORACLE=NOT_APPLICABLE
+NVS_DIRECT_FLASH_WRITE=false
+REFLASH_REQUIRED=false
+AUTHORIZED_WRITE_CONSUMED=true
+REPLAY_PERMITTED=false
+POSTWRITE_FORENSIC=PASS
+```
+
+The write command did not target the NVS partition. Because the application was allowed to boot after reset, this evidence does not claim that NVS bytes were unchanged by normal application runtime activity.
+
+```text
+BOARD_B_PR474_DEPLOYMENT=PASS
+BOARD_B_APPLICATION_EXACT_READBACK=PASS
+BOARD_B_REFLASH_REQUIRED=false
+READY_FOR_POST_WRITE_DIRECT_BASELINE=true
+```
+
 ## Disposition
 
 ```text
 EXACT_ARTIFACT_BUILD=PASS
 EXACT_ARTIFACT_BINDING=PASS
-READY_FOR_BOARD_WRITE_TARGET_PREFLIGHT=false
 BOARD_B_WRITE_TARGET_PREFLIGHT=PASS
-READY_FOR_BOARD_WRITE_AUTHORIZATION=true
+BOARD_B_PR474_DEPLOYMENT=PASS
+BOARD_B_APPLICATION_EXACT_READBACK=PASS
+READY_FOR_POST_WRITE_DIRECT_BASELINE=true
 
-BOARD_ACCESS=false
-USB_ACCESS=false
-FLASH_WRITE=false
+BOARD_ACCESS_EXECUTED=true
+USB_ACCESS_EXECUTED=true
+FLASH_WRITE_EXECUTED=true
 RF_EXECUTION=false
 T1_MUTATION=false
 PR474_SOURCE_MUTATION=false
 PR474_MERGE=false
 
-NEXT_ONE_GATE=N3W_PR474_BOARD_B_EXACT_ARTIFACT_WRITE_AUTHORIZATION_20260927_01
+NEXT_ONE_GATE=N3W_PR474_BOARD_B_POSTWRITE_DIRECT_BASELINE_AUTHORIZATION_20260927_01
 ```
