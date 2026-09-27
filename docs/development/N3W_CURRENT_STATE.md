@@ -5,6 +5,44 @@ Status: `CURRENT_STATE_AUTHORITY`
 
 Fresh exact repository/runtime/physical evidence takes precedence if later evidence proves drift.
 
+## 2026-09-27 PR #474 exact artifact binding
+
+This section supersedes the earlier PR #474 physical-validation-pending state only with respect to artifact readiness. PR #474 remains open/draft/unmerged and no board access has occurred. Full binding evidence is in `docs/development/N3W_PR474_EXACT_ARTIFACT_BUILD_AND_BINDING_CLOSURE_20260927.md`.
+
+```text
+PR474_STATE=OPEN_DRAFT
+PR474_HEAD=d3c158b4376ca0577e4a3a45a18a6c5c6e994e75
+PR474_SOURCE_TREE=5916ae2dfa45b02c9d5369c5312930c7b2bee59e
+PR474_BASE_HEAD=8c445f2bdd60d9ac3a33fe7c20a01965360a3b1c
+PR474_SOURCE_REVIEW=PASS
+PR474_HEAD_CI=13_OF_13_PASS
+PR474_MERGEABLE=true
+
+PR474_EXACT_ARTIFACT_RUN_ID=36316340016
+PR474_EXACT_ARTIFACT_ID=10930753742
+PR474_EXACT_ARTIFACT_NAME=n3w-pr474-d3c158b-exact-source
+PR474_GITHUB_ARTIFACT_SHA256=54709a7bcd7c63ebd705e3152fed27692f2624b27d5b7549ef9fbc3aafc9ffba
+PR474_RELEASE_BUNDLE_SHA256=60044a56516d822c32796b16a3b6f0993a32d32ae69a7db23159ce796eac5875
+PR474_MANIFEST_SHA256=e326b615ac84052fa9aeb9453d79cfd3a9c0403ce5caa74fed7f152484a8d11d
+
+PR474_FIRMWARE_BIN_SHA256=4d6bef5b6f5c9ac18686f514d5c3e767b70fb9fce45076bc2a8df67e59b3bb6b
+PR474_FIRMWARE_FACTORY_BIN_SHA256=eee71ec6a5b3f2f07f1b0288870583918ed1aef1b2c63a1f3c47c55b4b2928bb
+
+EXACT_ARTIFACT_BUILD=PASS
+EXACT_ARTIFACT_BINDING=PASS
+FLASH_ARGS_BLIND_EXECUTION=FORBIDDEN
+READY_FOR_BOARD_WRITE_TARGET_PREFLIGHT=true
+
+BOARD_ACCESS=false
+FLASH_WRITE=false
+RF_EXECUTION=false
+PR474_MERGE=false
+
+NEXT_ONE_GATE=N3W_PR474_PHYSICAL_RF_VALIDATION_BOARD_WRITE_TARGET_PREFLIGHT_20260927_01
+```
+
+PR #474 remains on the unmerged production-successor chain rather than current main. Fresh disposition found no T1-infrastructure overlap requiring a source rebase before physical validation. The flat bundle's generated `flash_args` still references build-tree-relative paths, so it must not be executed blindly.
+
 ## 2026-09-27 PR #480 T1 maintenance live closure
 
 This section supersedes the earlier open-maintenance status for the Compose orphan warning and Mosquitto `per_listener_settings` deprecation. Full public-safe evidence is in `docs/development/N3W_PR480_T1_MAINTENANCE_LIVE_CLOSURE_20260927.md`.
