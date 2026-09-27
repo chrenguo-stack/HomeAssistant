@@ -174,7 +174,7 @@ HOST_8883_LISTENER=docker-proxy
 PACKET_PATH_CLASS=HOST_LOCAL_DOCKER_PROXY_PATH
 R4_PROJECT_IDENTITY_RUNTIME_FIX=PASS
 R5_INGRESS_COVERAGE_REPAIR_REQUIRED=true
-T1_LIVE_GATE=PAUSED_FAIL_CLOSED_R5_SOURCE_REPAIR_PENDING
+T1_LIVE_GATE=PAUSED_GUARD_PARTIAL_COVERAGE_R5_SOURCE_REPAIR_PENDING
 ```
 
 The observed Docker-bridge namespace connection to the host LAN address did not traverse the current `DOCKER-USER` original-destination anchor. The host listener is `docker-proxy`, so the current guard proves the forwarded/DNAT path but does not cover this host-local listener path. External untrusted `eth0` ingress is not proven to bypass the guard by this evidence; the newly proven blocker is the uncovered host-local Docker-origin path.
@@ -251,7 +251,7 @@ SOURCE_REVIEW_R4_HEAD=54342e8807308582f0a61454386645821ce5ef2b
 R5_SOURCE_REPAIR_HEAD=6b48104d13f77e4866f02b0825515472b8853cb4
 R5_SOURCE_REVIEW=NOT_YET_EXECUTED
 SOURCE_BLOCKER_COUNT=0
-T1_LIVE_GATE=PAUSED_FAIL_CLOSED_R5_SOURCE_REVIEW_PENDING
+T1_LIVE_GATE=PAUSED_GUARD_PARTIAL_COVERAGE_R5_SOURCE_REVIEW_PENDING
 KF097=OPEN
 AUTO_EXECUTE_LIVE=false
 STOP_AFTER_R4_SOURCE_REVIEW_CLOSURE=true
