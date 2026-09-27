@@ -2,7 +2,7 @@
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
 Current progress alignment: `docs/development/N3W_PR478_FINAL_SOURCE_LIVE_CLOSURE_PROGRESS_ALIGNMENT_20260927.md`  
-Current new-chat handoff: `docs/development/N3W_PR478_FINAL_SOURCE_LIVE_CLOSURE_NEW_CHAT_HANDOFF_V1.0_20260927.md`  
+Current new-chat handoff: `docs/development/N3W_PR475_PR478_POSTMERGE_MAIN_ALIGNMENT_NEW_CHAT_HANDOFF_V1.0_20260927.md`  
 Long-term working context: `docs/development/N3W_PROJECT_WORKING_CONTEXT.md`  
 Current handoff template: `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` v1.2  
 Latest merged product-source authority: PR #437 / merge `b9acaaad50b17c9cdb51c219330e612c383628f0` / frozen physical source `4270f24a92a87dd5239d781ebba624c2f34b7fc2`  
@@ -20,13 +20,18 @@ Active product-direction authority: `docs/development/N3W_OFFICIAL_ESPNOW_REFERE
 
 ```text
 CURRENT_INFRA_CANDIDATE_PR=478
-CURRENT_INFRA_CANDIDATE_STATE=OPEN_DRAFT
-CURRENT_INFRA_CANDIDATE_BASE_SHA=c070cc50c72cbbd261e8e8ba6e70d00aa4ef5fd6
+CURRENT_INFRA_CANDIDATE_STATE=MERGED
+CURRENT_INFRA_SOURCE_HEAD=c80202632f9799149df9d1f6641a39441647e7c5
 CURRENT_INFRA_FINAL_REVIEW_HEAD=7cd007c99677a772cf2874b4a776fcc34f2d24d6
-CURRENT_INFRA_CLOSURE_DOCS_HEAD=c5f1051ee2f344798351dc692442a24b60439ba9
-CURRENT_INFRA_CLOSURE_DOCS_CI=13_OF_13_PASS
-CURRENT_INFRA_MERGED=false
-CURRENT_INFRA_MERGEABLE=true
+CURRENT_INFRA_MERGED=true
+CURRENT_INFRA_MERGE_COMMIT=525513e4501a242fa8f8b2ed1a83e92ac6345105
+CURRENT_INFRA_POSTMERGE_PUSH_CI=3_OF_3_PASS
+
+PR475_MERGED=true
+PR475_MERGE_COMMIT=5eb1279660abf934300b281d2b589c2ad7e14486
+PR475_POSTMERGE_PUSH_CI=2_OF_2_PASS
+
+MAIN_AFTER_PR478=525513e4501a242fa8f8b2ed1a83e92ac6345105
 
 KF097_STATUS=GUARDED
 PR478_FINAL_SOURCE_LIVE_CLOSURE=PASS
@@ -52,7 +57,7 @@ TEAM_SHARE_COMPLETENESS=PASS
 
 Current authority for this route: `docs/development/N3W_PR478_FINAL_SOURCE_LIVE_CLOSURE_PROGRESS_ALIGNMENT_20260927.md`.
 
-No merge is authorized. PR #478 remains stacked on the open PR #475 head. The two maintenance warnings remain separate from the accepted R5 source/live closure.
+PR #475 and PR #478 are merged into `main` in dependency order using merge commits. The two maintenance warnings remain separate from the accepted R5 source/live closure, and the external physical negative plus B2/B3 remain explicitly unresolved.
 
 ## 2026-09-21 production successor snapshot
 
