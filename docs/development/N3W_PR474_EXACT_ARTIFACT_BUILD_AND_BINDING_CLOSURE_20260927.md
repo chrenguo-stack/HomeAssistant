@@ -116,6 +116,40 @@ FLASH_ARGS_SHA256=5dc4c4f6d568812713266e2604197cf4b68f87f49f8c6e9f7d28c84390faf7
 
 All independently extracted member sizes and SHA-256 values exactly matched the manifest.
 
+## Factory image mapping proof
+
+The frozen `firmware.factory.bin` was independently decomposed against the bundle members:
+
+```text
+0x00000 bootloader.bin        BYTE_FOR_BYTE_MATCH
+0x08000 partitions.bin        BYTE_FOR_BYTE_MATCH
+0x09000 ota_data_initial.bin  BYTE_FOR_BYTE_MATCH
+0x10000 firmware.bin          BYTE_FOR_BYTE_MATCH
+
+FACTORY_EXACT_MERGE_MATCH=PASS
+FACTORY_IMAGE_SIZE=1462672
+FACTORY_IMAGE_END=0x165190
+```
+
+The bound partition table decodes to:
+
+```text
+otadata   offset=0x009000 size=0x002000
+phy_init  offset=0x00b000 size=0x001000
+app0      offset=0x010000 size=0x3c0000
+app1      offset=0x3d0000 size=0x3c0000
+nvs       offset=0x790000 size=0x070000
+```
+
+Therefore the exact factory image ends far below the NVS partition:
+
+```text
+FACTORY_IMAGE_OVERLAPS_NVS=false
+FACTORY_WRITE_AT_0X0_PRESERVES_NVS_REGION=true
+```
+
+This proves the artifact layout only. A later physical gate must still fresh-bind the target board and exact local artifact before write.
+
 ## Flash-procedure guard
 
 The frozen bundle is flat, but its generated `flash_args` still references build-tree paths such as:
