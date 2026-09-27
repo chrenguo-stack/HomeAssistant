@@ -157,6 +157,30 @@ Focused review scope was limited to the live blocker discovered during the first
 
 The live finding that created `recipes-broker-1` is therefore closed at source level. It is not yet closed at T1 runtime level. T1 must materialize this exact R4 source, update the installed activation unit/environment authority, and repeat guarded Broker activation before live acceptance can continue.
 
+## Live R5 ingress-coverage blocker discovered
+
+The trusted-LAN positive ingress probe passed, but the non-trusted negative probe exposed a separate packet-path gap after the R4 Compose-project fix.
+
+```text
+TRUSTED_LAN_ETH0_TLS=PASS
+TRUSTED_ALLOW_COUNTER_ADVANCED=true
+NONTRUSTED_SOURCE=DOCKER_BRIDGE_NAMESPACE
+NONTRUSTED_SOURCE_IN_TRUSTED_SUBNET=false
+NONTRUSTED_TCP_8883_CONNECT=SUCCESS
+DOCKER_USER_ANCHOR_COUNTER_CHANGED=false
+CUSTOM_CHAIN_DROP_COUNTER_CHANGED=false
+DOCKER_NAT_8883_COUNTER_CHANGED=false
+HOST_8883_LISTENER=docker-proxy
+PACKET_PATH_CLASS=HOST_LOCAL_DOCKER_PROXY_PATH
+R4_PROJECT_IDENTITY_RUNTIME_FIX=PASS
+R5_INGRESS_COVERAGE_REPAIR_REQUIRED=true
+T1_LIVE_GATE=PAUSED_FAIL_CLOSED_R5_SOURCE_REPAIR_PENDING
+```
+
+The observed Docker-bridge namespace connection to the host LAN address did not traverse the current `DOCKER-USER` original-destination anchor. The host listener is `docker-proxy`, so the current guard proves the forwarded/DNAT path but does not cover this host-local listener path. External untrusted `eth0` ingress is not proven to bypass the guard by this evidence; the newly proven blocker is the uncovered host-local Docker-origin path.
+
+R5 must close this coverage gap or explicitly redefine the accepted threat model before live ingress acceptance can close. Dispatcher installation remains blocked until that decision is implemented and reviewed.
+
 ## Live acceptance remains separate
 
 Source/CI success cannot prove:
@@ -189,7 +213,7 @@ SOURCE_REVIEW_R3=SUPERSEDED_BY_LIVE_BLOCKER
 SOURCE_REVIEW_R4=PASS
 SOURCE_REVIEW_R4_HEAD=54342e8807308582f0a61454386645821ce5ef2b
 SOURCE_BLOCKER_COUNT=0
-T1_LIVE_GATE=PAUSED_FAIL_CLOSED_R4_REDEPLOY_PENDING
+T1_LIVE_GATE=PAUSED_FAIL_CLOSED_R5_SOURCE_REPAIR_PENDING
 KF097=OPEN
 AUTO_EXECUTE_LIVE=false
 STOP_AFTER_R4_SOURCE_REVIEW_CLOSURE=true
