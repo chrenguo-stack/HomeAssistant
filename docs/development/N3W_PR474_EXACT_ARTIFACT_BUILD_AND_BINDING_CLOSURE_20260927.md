@@ -169,12 +169,54 @@ PHYSICAL_WRITE_PROCEDURE_REVIEW_REQUIRED=true
 
 A later Board write gate must use a separately reviewed exact procedure, such as a correctly validated factory-image path, or an independently normalized multi-image mapping. Artifact binding alone does not authorize a flash.
 
+## Board B readonly write-target preflight
+
+The operator executed the bounded macOS ROM/Flash preflight against the intended Board B target.
+
+```text
+PREFLIGHT=PASS
+TARGET=BOARD_B
+CHIP=ESP32-C6
+FLASH_SIZE=8MB
+SECURE_BOOT=false
+FLASH_ENCRYPTION=false
+
+HARDWARE_ID_SHA256=3603345fb73de6f9286dc66db9f246ff73c42382b553af63b8d5813a933b69ee
+PORT_SHA256=3dbd58fb2a751780ce45dab2216fc0ffbcb9e70e8ff0a6fe00c85bd0055420b5
+PARTITION_TABLE_SHA256=6664b08a14a9cdc170e322823db29fbe485d87db9c4ec42759d9372028953dca
+
+ARTIFACT_RELEASE_BUNDLE_SHA256=60044a56516d822c32796b16a3b6f0993a32d32ae69a7db23159ce796eac5875
+TARGET_APPLICATION_SHA256=4d6bef5b6f5c9ac18686f514d5c3e767b70fb9fce45076bc2a8df67e59b3bb6b
+TARGET_FACTORY_SHA256=eee71ec6a5b3f2f07f1b0288870583918ed1aef1b2c63a1f3c47c55b4b2928bb
+
+ARTIFACT_BINDING=PASS
+BOARD_IDENTITY_BINDING=PASS
+PARTITION_BINDING=PASS
+
+FLASH_WRITE=false
+ERASE=false
+NVS_MUTATION=false
+PERSISTENT_MUTATION=false
+READY_FOR_WRITE_AUTHORIZATION=true
+```
+
+The current target partition table exactly matches the bound production artifact. Therefore the preferred later write scope is the narrower existing production pattern:
+
+```text
+0x9000  ota_data_initial.bin
+0x10000 firmware.bin
+```
+
+This preserves the already-matching bootloader/partition table and the NVS region. The broader factory-image-at-0x0 path remains valid as a layout proof, but is not preferred when the live partition table is already exact.
+
 ## Disposition
 
 ```text
 EXACT_ARTIFACT_BUILD=PASS
 EXACT_ARTIFACT_BINDING=PASS
-READY_FOR_BOARD_WRITE_TARGET_PREFLIGHT=true
+READY_FOR_BOARD_WRITE_TARGET_PREFLIGHT=false
+BOARD_B_WRITE_TARGET_PREFLIGHT=PASS
+READY_FOR_BOARD_WRITE_AUTHORIZATION=true
 
 BOARD_ACCESS=false
 USB_ACCESS=false
@@ -184,5 +226,5 @@ T1_MUTATION=false
 PR474_SOURCE_MUTATION=false
 PR474_MERGE=false
 
-NEXT_ONE_GATE=N3W_PR474_PHYSICAL_RF_VALIDATION_BOARD_WRITE_TARGET_PREFLIGHT_20260927_01
+NEXT_ONE_GATE=N3W_PR474_BOARD_B_EXACT_ARTIFACT_WRITE_AUTHORIZATION_20260927_01
 ```
