@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import ipaddress
 import json
 import re
+import socket
 import socketserver
-from dataclasses import asdict, dataclass
+from collections.abc import Callable
+from dataclasses import asdict, dataclass, replace
 from typing import Any
 
 from .pairing_discovery import (
@@ -80,6 +83,73 @@ class SimplifiedDiscoveryResponse:
         }
 
 
+def _validated_dynamic_ipv4(
+    source_ip: str,
+    selected_ip: str,
+) -> str:
+    try:
+        source = ipaddress.ip_address(source_ip)
+        selected = ipaddress.ip_address(selected_ip)
+    except ValueError as error:
+        raise DiscoveryRejected(
+            "dynamic advertised host is invalid"
+        ) from error
+
+    if (
+        source.version != 4
+        or selected.version != 4
+        or selected.is_unspecified
+        or selected.is_multicast
+        or (
+            selected.is_loopback
+            and not source.is_loopback
+        )
+    ):
+        raise DiscoveryRejected(
+            "dynamic advertised host is invalid"
+        )
+
+    return str(selected)
+
+
+def resolve_route_selected_ipv4(source_ip: str) -> str:
+    try:
+        source = ipaddress.ip_address(source_ip)
+    except ValueError as error:
+        raise DiscoveryRejected(
+            "discovery source address is invalid"
+        ) from error
+
+    if source.version != 4:
+        raise DiscoveryRejected(
+            "discovery source address is invalid"
+        )
+
+    try:
+        with socket.socket(
+            socket.AF_INET,
+            socket.SOCK_DGRAM,
+        ) as probe:
+            probe.connect(
+                (
+                    str(source),
+                    9,
+                )
+            )
+            selected_ip = str(
+                probe.getsockname()[0]
+            )
+    except OSError as error:
+        raise DiscoveryRejected(
+            "dynamic advertised host unavailable"
+        ) from error
+
+    return _validated_dynamic_ipv4(
+        str(source),
+        selected_ip,
+    )
+
+
 def build_simplified_udp_discovery_response(
     payload: bytes,
     *,
@@ -110,10 +180,13 @@ class _SimplifiedUDPHandler(socketserver.BaseRequestHandler):
             return
         payload, transport = self.request
         try:
+            source_ip = self.client_address[0]
             response = build_simplified_udp_discovery_response(
                 payload,
-                source_ip=self.client_address[0],
-                candidate=server.candidate,
+                source_ip=source_ip,
+                candidate=server.candidate_for(
+                    source_ip
+                ),
                 rate_limiter=server.rate_limiter,
             )
         except (DiscoveryRejected, DiscoveryRateLimited, ValueError, json.JSONDecodeError):
@@ -130,10 +203,43 @@ class SimplifiedPairingUDPServer(socketserver.UDPServer):
         *,
         candidate: SimplifiedManagerCandidate,
         rate_limiter: SlidingWindowRateLimiter | None = None,
+        advertised_host_resolver: Callable[[str], str]
+        = resolve_route_selected_ipv4,
     ) -> None:
         self.candidate = candidate
         self.rate_limiter = rate_limiter or SlidingWindowRateLimiter(
             limit=12,
             window_s=60,
         )
+        self.advertised_host_resolver = (
+            advertised_host_resolver
+        )
         super().__init__(server_address, _SimplifiedUDPHandler)
+
+    def candidate_for(
+        self,
+        source_ip: str,
+    ) -> SimplifiedManagerCandidate:
+        if self.candidate.host != "auto":
+            return self.candidate
+
+        try:
+            selected_ip = (
+                self.advertised_host_resolver(
+                    source_ip
+                )
+            )
+        except DiscoveryRejected:
+            raise
+        except (OSError, ValueError) as error:
+            raise DiscoveryRejected(
+                "dynamic advertised host unavailable"
+            ) from error
+
+        return replace(
+            self.candidate,
+            host=_validated_dynamic_ipv4(
+                source_ip,
+                selected_ip,
+            ),
+        )
