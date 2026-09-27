@@ -32,13 +32,20 @@ def rendered_compose(
     *,
     network_mode: str | None = "host",
     udp_host_ip: str | None = None,
+    pairing_advertised_host: str = "auto",
     broker_host_ip: str | None = "0.0.0.0",
     broker_published_port: str = "8883",
     broker_networks: tuple[str, ...] = EXPECTED_BROKER_NETWORKS,
     broker_restart: str | None = "no",
     compose_project_name: str | None = EXPECTED_COMPOSE_PROJECT_NAME,
 ) -> dict:
-    manager: dict = {}
+    manager: dict = {
+        "environment": {
+            "GH_N3W_PAIRING_ADVERTISED_HOST": (
+                pairing_advertised_host
+            )
+        }
+    }
     if network_mode is not None:
         manager["network_mode"] = network_mode
     if udp_host_ip is not None:
@@ -99,6 +106,8 @@ def test_accepts_host_network_ipv4_wildcard_and_exact_networks() -> None:
     assert result["compose_project_identity_verified"] is True
     assert result["network_mode"] == "host"
     assert result["docker_udp_publication"] is False
+    assert result["pairing_advertised_host_mode"] == "auto"
+    assert result["pairing_concrete_ipv4_dependency"] is False
     assert result["broker_ipv4_wildcard_publication"] is True
     assert result["broker_restart_policy"] == "no"
     assert result["broker_host_tls_publication_exclusive"] is True
@@ -117,6 +126,83 @@ def test_accepts_host_network_ipv4_wildcard_and_exact_networks() -> None:
     assert result["broker_manager_loopback_runtime_probe_required"] is True
     assert result["broker_ingress_runtime_probe_required"] is True
     assert result["secret_values_included"] is False
+
+
+def test_accepts_pairing_hostname_without_ipv4_dependency() -> None:
+    tool = load_tool()
+
+    result = tool.validate_compose_document(
+        rendered_compose(
+            pairing_advertised_host=(
+                "greenhouse-manager.local"
+            ),
+        ),
+        service_name="manager",
+        broker_service_name="broker",
+        broker_loopback_ip="127.0.1.1",
+    )
+
+    assert (
+        result["pairing_advertised_host_mode"]
+        == "hostname"
+    )
+    assert (
+        result["pairing_concrete_ipv4_dependency"]
+        is False
+    )
+
+
+@pytest.mark.parametrize(
+    "advertised_host",
+    [
+        "192.0.2.10",
+        "198.51.100.10",
+        "127.0.0.1",
+    ],
+)
+def test_rejects_pairing_concrete_ipv4_dependency(
+    advertised_host: str,
+) -> None:
+    tool = load_tool()
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match=(
+            "pairing_advertised_host_"
+            "ipv4_literal_forbidden"
+        ),
+    ):
+        tool.validate_compose_document(
+            rendered_compose(
+                pairing_advertised_host=(
+                    advertised_host
+                ),
+            ),
+            service_name="manager",
+            broker_service_name="broker",
+            broker_loopback_ip="127.0.1.1",
+        )
+
+
+def test_rejects_missing_pairing_advertised_host() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["services"]["manager"][
+        "environment"
+    ].pop(
+        "GH_N3W_PAIRING_ADVERTISED_HOST"
+    )
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="pairing_advertised_host_missing",
+    ):
+        tool.validate_compose_document(
+            document,
+            service_name="manager",
+            broker_service_name="broker",
+            broker_loopback_ip="127.0.1.1",
+        )
 
 
 @pytest.mark.parametrize("project_name", [None, "", "recipes", "other-project"])

@@ -147,6 +147,77 @@ def _effective_broker_network_names(
     return effective_names
 
 
+def _service_environment_value(
+    service: Mapping[object, object],
+    name: str,
+) -> str:
+    environment = service.get("environment")
+
+    if isinstance(environment, Mapping):
+        value = environment.get(name)
+        if not isinstance(value, str) or not value:
+            raise DeploymentContractError(
+                "pairing_advertised_host_missing"
+            )
+        return value
+
+    if isinstance(environment, list):
+        matches = []
+        for item in environment:
+            if not isinstance(item, str):
+                raise DeploymentContractError(
+                    "pairing_environment_invalid"
+                )
+            prefix = name + "="
+            if item.startswith(prefix):
+                matches.append(
+                    item[len(prefix):]
+                )
+
+        if len(matches) != 1 or not matches[0]:
+            raise DeploymentContractError(
+                "pairing_advertised_host_missing"
+            )
+
+        return matches[0]
+
+    raise DeploymentContractError(
+        "pairing_environment_invalid"
+    )
+
+
+def _pairing_advertised_host_mode(
+    service: Mapping[object, object],
+) -> str:
+    value = _service_environment_value(
+        service,
+        "GH_N3W_PAIRING_ADVERTISED_HOST",
+    )
+
+    if value == "auto":
+        return "auto"
+
+    if any(
+        character.isspace()
+        for character in value
+    ):
+        raise DeploymentContractError(
+            "pairing_advertised_host_invalid"
+        )
+
+    try:
+        address = ipaddress.ip_address(value)
+    except ValueError:
+        return "hostname"
+
+    if address.version == 4:
+        raise DeploymentContractError(
+            "pairing_advertised_host_ipv4_literal_forbidden"
+        )
+
+    return "hostname"
+
+
 def validate_compose_document(
     document: object,
     *,
@@ -177,6 +248,12 @@ def validate_compose_document(
         raise DeploymentContractError("discovery_udp_requires_host_network")
     if ports:
         raise DeploymentContractError("host_network_manager_ports_must_be_absent")
+
+    pairing_advertised_host_mode = (
+        _pairing_advertised_host_mode(
+            service
+        )
+    )
 
     try:
         loopback = ipaddress.ip_address(broker_loopback_ip)
@@ -256,6 +333,10 @@ def validate_compose_document(
         "network_mode": "host",
         "discovery_udp_port": DISCOVERY_PORT,
         "docker_udp_publication": False,
+        "pairing_advertised_host_mode": (
+            pairing_advertised_host_mode
+        ),
+        "pairing_concrete_ipv4_dependency": False,
         "broker_service": broker_service_name,
         "broker_restart_policy": "no",
         "broker_tls_port": BROKER_TLS_PORT,

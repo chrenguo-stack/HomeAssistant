@@ -5,6 +5,8 @@ import time
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 import greenhouse_manager.runtime.n3w_manager_runtime_wiring as wiring
 from greenhouse_manager.runtime.config import Settings
 
@@ -61,7 +63,7 @@ def test_settings_read_product_pairing_without_network(
     )
     monkeypatch.setenv(
         "GH_N3W_PAIRING_ADVERTISED_HOST",
-        "192.0.2.10",
+        "auto",
     )
     monkeypatch.setenv(
         "GH_N3W_PROVISIONING_USERNAME",
@@ -160,6 +162,74 @@ def test_settings_read_product_pairing_without_network(
         settings,
         "n3w_setup_secret_inbox_dir",
     )
+
+
+def _product_pairing_settings(
+    tmp_path: Path,
+    advertised_host: str,
+) -> Settings:
+    ca = tmp_path / (
+        "node-ca-"
+        + advertised_host.replace(".", "-")
+        + ".pem"
+    )
+    ca.write_text(
+        (
+            "-----BEGIN CERTIFICATE-----\n"
+            "TEST\n"
+            "-----END CERTIFICATE-----\n"
+        ),
+        encoding="utf-8",
+    )
+
+    return Settings(
+        system_id="lab",
+        n3w_runtime_enabled=True,
+        n3w_product_pairing_enabled=True,
+        n3w_pairing_manager_id="manager_lab_01",
+        n3w_pairing_advertised_host=advertised_host,
+        n3w_provisioning_username="provisioner",
+        n3w_provisioning_password="private-password",
+        n3w_provisioning_client_id="provisioner-client",
+        n3w_node_broker_ca_file=str(ca),
+    )
+
+
+@pytest.mark.parametrize(
+    "advertised_host",
+    [
+        "auto",
+        "greenhouse-manager.local",
+    ],
+)
+def test_product_pairing_accepts_portable_advertised_host(
+    tmp_path,
+    advertised_host,
+) -> None:
+    settings = _product_pairing_settings(
+        tmp_path,
+        advertised_host,
+    )
+
+    settings.validate()
+
+
+def test_product_pairing_rejects_durable_ipv4_advertised_host(
+    tmp_path,
+) -> None:
+    settings = _product_pairing_settings(
+        tmp_path,
+        "192.0.2.10",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "GH_N3W_PAIRING_ADVERTISED_HOST "
+            "must be auto or a hostname"
+        ),
+    ):
+        settings.validate()
 
 
 def test_product_selector_uses_product_manager(
