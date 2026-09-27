@@ -498,3 +498,41 @@ NETWORK_EVENT_ACCEPTANCE_REAPPLY=PASS
 ```
 
 A stronger link-down/up event and reboot/persistence acceptance remain separate and are not claimed by this reapply gate.
+
+
+## R5 dispatcher link down/up acceptance preparation
+
+The live preparation gate for the stronger link down/up acceptance passed without executing the link cycle.
+
+```text
+EXECUTOR_COMMIT=2224a3216012c162ccc0b04b2d2a35b7c14ec996
+EXECUTOR_BLOB=206cf5f492570689de7e1d3189439dcd27ff74d3
+
+EXECUTOR_LOCAL_SYNTAX=PASS
+READONLY_PREPARATION_PREFLIGHT=PASS
+EXECUTOR_TARGET_BLOB=206cf5f492570689de7e1d3189439dcd27ff74d3
+EXECUTOR_TARGET_MODE=0700
+EXECUTOR_TARGET_OWNER=root:root
+EXECUTOR_TARGET_SYNTAX=PASS
+
+NETWORKMANAGER_ACTIVE=active
+DOCKER_ACTIVE=active
+GUARD_ACTIVE=active
+ACTIVATION_ACTIVE=active
+BROKER_STATE=running
+MANAGER_STATE=running
+MANAGER_RESTART_COUNT=1846
+
+IPV4_METHOD=auto
+AUTOCONNECT=yes
+MAC_ARMBIAN_RESOLUTION=PASS
+
+TRANSIENT_UNIT_PRESENT=false
+RESULT_FILE_PRESENT=false
+LINK_DOWN_EXECUTED=false
+LINK_UP_EXECUTED=false
+EXECUTOR_STARTED=false
+PREPARATION_GATE=PASS
+```
+
+The executor is staged on T1 and exact-source verified. No NetworkManager link-down or link-up event has been executed by this gate. The next separate stage is the controlled T1-local link down/up acceptance execution and result collection.
