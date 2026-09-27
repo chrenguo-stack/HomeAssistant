@@ -536,3 +536,54 @@ PREPARATION_GATE=PASS
 ```
 
 The executor is staged on T1 and exact-source verified. No NetworkManager link-down or link-up event has been executed by this gate. The next separate stage is the controlled T1-local link down/up acceptance execution and result collection.
+
+
+## R5 dispatcher link down/up acceptance execution
+
+The controlled T1-local NetworkManager link down/up acceptance completed successfully. The executor ran independently of the SSH session, forced the live Ethernet connection down, observed the dispatcher-driven R5 fail-closed policy, restored the same connection, and observed trusted-policy restoration.
+
+```text
+EXECUTOR_COMMIT=2224a3216012c162ccc0b04b2d2a35b7c14ec996
+EXECUTOR_BLOB=206cf5f492570689de7e1d3189439dcd27ff74d3
+
+PRECHECK=PASS
+IPV4_METHOD=auto
+AUTOCONNECT=yes
+
+LINK_DOWN_STATE=disconnected
+LINK_DOWN_TRUSTED_NETWORK_PRESENT=false
+LINK_DOWN_NETWORK_DECISION_REASON=interface_not_connected
+DOWN_FAIL_CLOSED_APPLY_COUNT=1
+DOWN_FAIL_CLOSED=PASS
+
+LINK_UP_STATE=connected
+LINK_UP_NETWORK_DECISION_REASON=unique_ipv4_subnet
+UP_PASS_APPLY_COUNT=2
+UP_GUARD_ERROR_COUNT=0
+
+FOREIGN_RULE_COUNT_BEFORE=28
+FOREIGN_RULE_COUNT_AFTER=28
+FOREIGN_FIREWALL_STATE_PRESERVED=PASS
+
+DOCKER_USER_ANCHOR_POSITION=1
+INPUT_ANCHOR_POSITION=1
+R5_POLICY_EXACT=true
+
+BROKER_STATE_AFTER=running
+MANAGER_STATE_AFTER=running
+MANAGER_RESTART_COUNT_AFTER=1846
+GUARD_ACTIVE=active
+ACTIVATION_ACTIVE=active
+TCP_8883_LISTEN_COUNT=1
+
+LINK_DOWN_FAIL_CLOSED=PASS
+LINK_UP_TRUSTED_POLICY_RESTORED=PASS
+BROKER_RUNTIME_CONTINUITY=PASS
+MANAGER_RUNTIME_CONTINUITY=PASS
+RECOVERY_EXECUTED=false
+PHASE_RESULT=PASS
+```
+
+The post-run live collection confirmed the Ethernet link was connected again and NetworkManager, the guard, activation service, Broker listener, and Manager were all healthy. No executor recovery path was needed.
+
+This gate proves live dispatcher behavior for an actual link-down/link-up cycle. Reboot/persistence acceptance remains separate and is not claimed here.
