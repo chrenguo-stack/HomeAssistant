@@ -648,3 +648,52 @@ SYSTEMD_PERSISTENCE_INSTALL=PASS
 ```
 
 The lifecycle regression test requires both units to be enabled and verifies that the persistence installer does not start, stop, or restart live services. Reboot persistence acceptance remains a separate live gate and must not proceed unless both units report `enabled`.
+
+
+## R5 dispatcher reboot persistence acceptance execution
+
+The controlled T1 reboot persistence acceptance completed successfully after the systemd persistence install contract repair.
+
+```text
+BOOT_ID_CHANGED=true
+
+NETWORKMANAGER_ACTIVE=active
+DOCKER_ACTIVE=active
+GUARD_ACTIVE=active
+ACTIVATION_ACTIVE=active
+
+NETWORKMANAGER_ENABLED=enabled
+DOCKER_ENABLED=enabled
+GUARD_ENABLED=enabled
+ACTIVATION_ENABLED=enabled
+
+GUARD_APPLIED_TRUE_COUNT=2
+GUARD_PASS_APPLY_COUNT=2
+GUARD_FAIL_CLOSED_APPLY_COUNT=0
+GUARD_ERROR_COUNT=0
+
+NETWORKMANAGER_DISPATCHER_START_COUNT=1
+DISPATCHER_OWNERSHIP_UNAMBIGUOUS=PASS
+
+BOOT_ORDER_DOCKER_GUARD_ACTIVATION=PASS
+
+BROKER_STATE=running
+BROKER_RESTART_POLICY=no
+MANAGER_STATE=running
+TCP_8883_LISTEN_COUNT=1
+RECIPES_BROKER_RUNNING_COUNT=0
+
+R5_POLICY_EXACT=true
+DOCKER_USER_ANCHOR_POSITION=1
+INPUT_ANCHOR_POSITION=1
+
+POSTBOOT_REBOOT_PERSISTENCE=PASS
+COLLECTION_RESULT=PASS
+COLLECT_EXIT_CODE=0
+```
+
+The postboot guard started first, applied the exact trusted-subnet R5 policy, was reloaded successfully, and the guarded Broker activation then started. NetworkManager dispatcher also ran in the new boot. The Broker and Manager returned to running state and TCP/8883 was listening.
+
+The Manager restart counter changed across the host reboot and is not used as a cross-reboot continuity oracle. The relevant reboot acceptance evidence is the changed boot identifier, preserved container identity, running postboot state, successful TLS client reconnects, and successful guard/activation ordering.
+
+Two non-blocking runtime warnings were observed during Broker startup: Compose reported an existing orphan container in the project, and Mosquitto reported that `per_listener_settings` is deprecated for a future major version. Neither warning caused this reboot-persistence gate to fail; they are follow-up maintenance items rather than R5 acceptance blockers.
