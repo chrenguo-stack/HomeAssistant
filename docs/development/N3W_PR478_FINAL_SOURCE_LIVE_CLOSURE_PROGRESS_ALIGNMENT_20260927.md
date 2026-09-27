@@ -11,25 +11,25 @@ This document captures the public-safe durable state reached in the PR #478 sour
 REPOSITORY=chrenguo-stack/HomeAssistant
 
 PR474_STATE=OPEN_DRAFT
+PR474_HEAD=d3c158b4376ca0577e4a3a45a18a6c5c6e994e75
 PR474_MERGED=false
 
-PR475_STATE=OPEN_DRAFT
+PR475_STATE=MERGED
 PR475_HEAD=c070cc50c72cbbd261e8e8ba6e70d00aa4ef5fd6
-PR475_MERGED=false
+PR475_MERGE_COMMIT=5eb1279660abf934300b281d2b589c2ad7e14486
+PR475_POSTMERGE_PUSH_CI=2_OF_2_PASS
 
-PR478_STATE=OPEN_DRAFT
-PR478_BASE=fix/n3w-t1-broker-lan-ip-independent-binding-20260925
-PR478_BASE_SHA=c070cc50c72cbbd261e8e8ba6e70d00aa4ef5fd6
+PR478_STATE=MERGED
+PR478_SOURCE_HEAD=c80202632f9799149df9d1f6641a39441647e7c5
 PR478_FINAL_REVIEW_HEAD=7cd007c99677a772cf2874b4a776fcc34f2d24d6
-PR478_CLOSURE_DOCS_HEAD=c5f1051ee2f344798351dc692442a24b60439ba9
-PR478_MERGED=false
-PR478_MERGEABLE=true
-PR478_FINAL_REVIEW_HEAD_CI=13_OF_13_PASS
-PR478_CLOSURE_DOCS_HEAD_CI=13_OF_13_PASS
-MERGE_AUTHORIZED=false
+PR478_MERGE_COMMIT=525513e4501a242fa8f8b2ed1a83e92ac6345105
+PR478_POSTMERGE_PUSH_CI=3_OF_3_PASS
+
+MAIN_AFTER_PR478=525513e4501a242fa8f8b2ed1a83e92ac6345105
+MERGE_CLOSURE=PASS
 ```
 
-PR #478 is stacked on the current PR #475 head. The closure review does not authorize merging PR #474, #475, or #478.
+PR #475 and PR #478 were subsequently merged into `main` in dependency order using merge commits and exact-head guards. PR #475 post-merge push CI passed 2/2 and PR #478 post-merge push CI passed 3/3. PR #474 remains an independent open Draft route.
 
 ## Exact R5 runtime/source authority
 
@@ -130,8 +130,8 @@ B2_STABLE_T1_HOSTNAME_TLS_IDENTITY=OPEN_OUT_OF_SCOPE
 B3_ALREADY_PROVISIONED_NODE_LITERAL_BROKER_IP_MIGRATION=OPEN_OUT_OF_SCOPE
 
 PR474_MERGED=false
-PR475_MERGED=false
-PR478_MERGED=false
+PR475_MERGED=true
+PR478_MERGED=true
 ```
 
 The host-local Docker non-trusted negative probe must not be represented as an external-untrusted physical eth0 test.
