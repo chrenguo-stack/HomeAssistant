@@ -171,6 +171,8 @@ IMPORTANT_CHAT_ONLY_ARTIFACT_COUNT=0
 TEAM_SHARE_COMPLETENESS=PASS
 ```
 
+The raw reboot collection remains outside the public repository because it contains live runtime/network evidence. Its SHA-256 is recorded above so the private artifact can be integrity-bound without publishing the raw log. All public-safe conclusions from that evidence are durably recorded in GitHub.
+
 The durable repository authorities for this closure are this alignment document together with:
 
 ```text
