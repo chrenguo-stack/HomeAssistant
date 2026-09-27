@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ipaddress
 import os
 import re
 from dataclasses import dataclass
@@ -417,6 +418,23 @@ class Settings:
                     "GH_N3W_PAIRING_ADVERTISED_HOST "
                     "must be non-empty"
                 )
+
+            if self.n3w_pairing_advertised_host != "auto":
+                try:
+                    advertised_ip = ipaddress.ip_address(
+                        self.n3w_pairing_advertised_host
+                    )
+                except ValueError:
+                    advertised_ip = None
+
+                if (
+                    advertised_ip is not None
+                    and advertised_ip.version == 4
+                ):
+                    raise ValueError(
+                        "GH_N3W_PAIRING_ADVERTISED_HOST "
+                        "must be auto or a hostname"
+                    )
 
             for name, port in (
                 (
