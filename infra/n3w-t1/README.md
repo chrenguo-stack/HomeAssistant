@@ -31,9 +31,34 @@ infra/n3w-t1/broker-activation.env.example
 → operator-created /etc/n3wfc4/broker-activation.env
 mode=0600
 owner=root:root
+
+infra/n3w-t1/install-systemd-persistence.sh
+→ /usr/local/sbin/n3w-broker-systemd-persistence-install
+mode=0755
+owner=root:root
 ```
 
 `broker-activation.env` 只允许保存 Compose 文件路径、env-file 路径和固定 Compose project identity；不得保存 Broker、Manager、TLS 或其他生产凭据。
+
+## Required systemd persistence install contract
+
+两个 systemd unit 写入 `/etc/systemd/system` 并完成 `daemon-reload` 后，正式安装流程必须执行：
+
+```text
+/usr/local/sbin/n3w-broker-systemd-persistence-install
+```
+
+该步骤只执行 `systemctl enable`，不允许使用 `enable --now`，不得因为建立开机持久化而 restart/start/stop 当前 live service。
+
+安装完成后的部署验收必须同时得到：
+
+```text
+GUARD_ENABLED=enabled
+ACTIVATION_ENABLED=enabled
+SYSTEMD_PERSISTENCE_INSTALL=PASS
+```
+
+仅 `active` 不能替代 `enabled`。如果任一 unit 为 `disabled`，不得进入 reboot persistence acceptance。
 
 ## Required rendered-Compose contract
 
