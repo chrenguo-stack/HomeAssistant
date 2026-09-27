@@ -1,6 +1,6 @@
 # N3-W T1 Broker 8883 Dynamic Ingress Guard — Source Repair
 
-Status: `SOURCE_REPAIR_R5_COMPLETE_SOURCE_REVIEW_PENDING`  
+Status: `SOURCE_REVIEW_R5_FAIL_REGRESSION_COVERAGE_INCOMPLETE`  
 Date: 2026-09-26  
 Gate: `N3W_T1_BROKER_8883_DYNAMIC_INGRESS_GUARD_SOURCE_REPAIR_20260926_01`
 
@@ -97,7 +97,7 @@ The final independent source review is bound to the exact source HEAD below:
 SOURCE_REVIEW_R3_HEAD=1a2d1d27602ef9f9deeb590eb4847ce6780da4c9
 SOURCE_REVIEW_R3_CI=13_OF_13_PASS
 SOURCE_REVIEW_R3=PASS
-SOURCE_BLOCKER_COUNT=0
+SOURCE_BLOCKER_COUNT=1
 ```
 
 This documentation closure is intentionally documentation-only. Its commit will advance the PR HEAD, but it does not change the reviewed source behavior above. Future live execution must keep the reviewed source authority separate from the documentation-only repository tip.
@@ -212,10 +212,47 @@ R5_SOURCE_REPAIR_TREE=ffc32e1b97e522670dccb4a97336eaefd2d87d25
 R5_GUARD_BLOB=795903b06c7ee93a0602649e478bc070723ab8c0
 R5_TEST_BLOB=6f9509463225f15c0e6697327d9183206be8f2ba
 R5_CI=13_OF_13_PASS
-R5_SOURCE_REVIEW=NOT_YET_EXECUTED
+R5_SOURCE_REVIEW=FAIL
 R5_T1_MUTATION=false
 NEXT_REQUIRED_STAGE=R5_SOURCE_REVIEW
 ```
+
+## R5 focused source review
+
+The focused R5 review is bound to the exact source authority below:
+
+```text
+R5_SOURCE_REVIEW_BASE=268c2e89b4d491fa442d59b383a7dfd4e56781f6
+R5_SOURCE_REVIEW_HEAD=6b48104d13f77e4866f02b0825515472b8853cb4
+R5_SOURCE_REVIEW_TREE=ffc32e1b97e522670dccb4a97336eaefd2d87d25
+R5_SOURCE_REVIEW_CI=13_OF_13_PASS
+R5_SOURCE_REVIEW=FAIL
+R5_SOURCE_BLOCKER_COUNT=1
+```
+
+The implementation logic is directionally consistent with the frozen R5 design: it adds an exact INPUT TCP/8883 anchor, keeps the DOCKER-USER original-destination anchor, uses one shared policy chain, preserves the loopback-before-trusted-before-DROP order, accepts exact R4 state as migration input, and installs the R5 chain before inserting the new INPUT anchor.
+
+The review found one closure blocker in regression coverage rather than a proven runtime/source-logic defect.
+
+```text
+R5-B1=IDEMPOTENT_RELOAD_AND_FOREIGN_STATE_REGRESSION_MISSING
+SEVERITY=SOURCE_CLOSURE_BLOCKER
+RUNTIME_DEFECT_PROVEN=false
+```
+
+The frozen design requires regression proof that idempotent reload preserves normalized foreign INPUT/DOCKER-USER firewall state. The current tests only prove that foreign rules are parsed/preserved in the inventory representation; they do not execute an R5 apply/reload twice against a state containing foreign INPUT and DOCKER-USER rules and verify that those rules are unchanged and no duplicate owned anchor is created.
+
+A focused repair must add an apply/reload state-machine regression covering at least:
+
+- exact R4 -> R5 migration with foreign INPUT and DOCKER-USER rules present;
+- second R5 apply/reload idempotence;
+- foreign-rule content/order preserved after both passes;
+- exactly one first-position DOCKER-USER owned anchor;
+- exactly one first-position INPUT owned anchor;
+- exact final R5 policy chain after both passes;
+- no global INPUT/DOCKER-USER flush or foreign delete/rewrite.
+
+T1 deployment remains blocked. This review does not invalidate the already-proven R4 project-identity runtime fix, Broker recreate, Manager loopback TLS, or trusted-LAN positive ingress evidence.
 
 ## Live acceptance remains separate
 
@@ -244,14 +281,14 @@ DEPLOYMENT_SOURCE_PACKAGE_ARCHIVED=true
 KNOWN_FAILURES_ALIGNED=true
 UNARCHIVED_CRITICAL_KNOWLEDGE=0
 
-SOURCE_REPAIR_RESULT=R5_COMPLETE_SOURCE_REVIEW_PENDING
+SOURCE_REPAIR_RESULT=R5_REPAIR_R2_REQUIRED
 SOURCE_REVIEW_R3=SUPERSEDED_BY_LIVE_BLOCKER
 SOURCE_REVIEW_R4=PASS
 SOURCE_REVIEW_R4_HEAD=54342e8807308582f0a61454386645821ce5ef2b
 R5_SOURCE_REPAIR_HEAD=6b48104d13f77e4866f02b0825515472b8853cb4
 R5_SOURCE_REVIEW=NOT_YET_EXECUTED
 SOURCE_BLOCKER_COUNT=0
-T1_LIVE_GATE=PAUSED_GUARD_PARTIAL_COVERAGE_R5_SOURCE_REVIEW_PENDING
+T1_LIVE_GATE=PAUSED_GUARD_PARTIAL_COVERAGE_R5_REPAIR_R2_PENDING
 KF097=OPEN
 AUTO_EXECUTE_LIVE=false
 STOP_AFTER_R4_SOURCE_REVIEW_CLOSURE=true
