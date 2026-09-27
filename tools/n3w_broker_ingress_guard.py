@@ -20,6 +20,8 @@ from typing import TextIO
 
 SCHEMA = "gh.n3w-broker-ingress-guard/1"
 INTERFACE = "eth0"
+LOOPBACK_INTERFACE = "lo"
+LOOPBACK_NETWORK = ipaddress.ip_network("127.0.0.0/8")
 BROKER_TLS_PORT = 8883
 CUSTOM_CHAIN = "N3WFC4-BROKER-INGRESS"
 ANCHOR_COMMENT = "n3wfc4-broker-ingress-v1"
@@ -51,6 +53,10 @@ class FirewallInventory:
     anchor_positions: tuple[int, ...]
     ambiguous_owned_rules: tuple[str, ...]
     foreign_custom_chain_refs: tuple[str, ...]
+    input_present: bool = False
+    input_rules: tuple[str, ...] = ()
+    input_anchor_positions: tuple[int, ...] = ()
+    ambiguous_owned_input_rules: tuple[str, ...] = ()
 
 
 def _binary(name: str) -> str:
@@ -157,6 +163,13 @@ def read_network_decision() -> NetworkDecision:
     )
 
 
+def _owned_loopback_rule() -> str:
+    return (
+        f"-A {CUSTOM_CHAIN} -i {LOOPBACK_INTERFACE} -s {LOOPBACK_NETWORK} "
+        f"-m comment --comment {ANCHOR_COMMENT} -j RETURN"
+    )
+
+
 def _owned_allow_rule(trusted_subnet: ipaddress.IPv4Network) -> str:
     return (
         f"-A {CUSTOM_CHAIN} -i {INTERFACE} -s {trusted_subnet} "
@@ -180,6 +193,7 @@ def build_restore_payload(
         lines.append(f":{CUSTOM_CHAIN} - [0:0]")
     else:
         lines.append(f"-F {CUSTOM_CHAIN}")
+    lines.append(_owned_loopback_rule())
     if trusted_subnet is not None:
         lines.append(_owned_allow_rule(trusted_subnet))
     lines.extend(
@@ -223,6 +237,34 @@ def _anchor_insert_argv() -> list[str]:
     ]
 
 
+def _input_anchor_rule() -> str:
+    return (
+        f"-A INPUT -p tcp -m tcp --dport {BROKER_TLS_PORT} "
+        f"-m comment --comment {ANCHOR_COMMENT} -j {CUSTOM_CHAIN}"
+    )
+
+
+def _input_anchor_insert_argv() -> list[str]:
+    return [
+        _binary("iptables"),
+        "-I",
+        "INPUT",
+        "1",
+        "-p",
+        "tcp",
+        "-m",
+        "tcp",
+        "--dport",
+        str(BROKER_TLS_PORT),
+        "-m",
+        "comment",
+        "--comment",
+        ANCHOR_COMMENT,
+        "-j",
+        CUSTOM_CHAIN,
+    ]
+
+
 def _parse_rule_semantics(
     line: str,
 ) -> tuple[str, Counter[tuple[str, str]]] | None:
@@ -240,6 +282,8 @@ def _parse_rule_semantics(
         "--match": "match",
         "--ctdir": "ctdir",
         "--ctorigdstport": "ctorigdstport",
+        "--dport": "destination_port",
+        "--destination-port": "destination_port",
         "-i": "in_interface",
         "--in-interface": "in_interface",
         "-s": "source",
@@ -285,7 +329,30 @@ def _is_exact_anchor(line: str) -> bool:
     return _rule_matches(line, _anchor_rule())
 
 
-def _owned_custom_chain_rules(
+def _is_exact_input_anchor(line: str) -> bool:
+    return _rule_matches(line, _input_anchor_rule())
+
+
+def _extract_allow_source(rule: str) -> ipaddress.IPv4Network | None:
+    tokens = shlex.split(rule)
+    source_indexes = [
+        index
+        for index, token in enumerate(tokens[:-1])
+        if token in {"-s", "--source"}
+    ]
+    if len(source_indexes) != 1:
+        return None
+    try:
+        source = ipaddress.ip_network(
+            tokens[source_indexes[0] + 1],
+            strict=False,
+        )
+    except ValueError:
+        return None
+    return source if isinstance(source, ipaddress.IPv4Network) else None
+
+
+def _r4_owned_custom_chain_rules(
     rules: Sequence[str],
 ) -> bool:
     if len(rules) == 1:
@@ -293,28 +360,40 @@ def _owned_custom_chain_rules(
     if len(rules) != 2:
         return False
 
-    tokens = shlex.split(rules[0])
-    source_indexes = [
-        index
-        for index, token in enumerate(tokens[:-1])
-        if token in {"-s", "--source"}
-    ]
-    if len(source_indexes) != 1:
-        return False
-
-    try:
-        source = ipaddress.ip_network(
-            tokens[source_indexes[0] + 1],
-            strict=False,
-        )
-    except ValueError:
-        return False
-    if not isinstance(source, ipaddress.IPv4Network):
-        return False
-
+    source = _extract_allow_source(rules[0])
     return (
-        _rule_matches(rules[0], _owned_allow_rule(source))
+        source is not None
+        and _rule_matches(rules[0], _owned_allow_rule(source))
         and _rule_matches(rules[1], _owned_drop_rule())
+    )
+
+
+def _r5_owned_custom_chain_rules(
+    rules: Sequence[str],
+) -> bool:
+    if len(rules) == 2:
+        return (
+            _rule_matches(rules[0], _owned_loopback_rule())
+            and _rule_matches(rules[1], _owned_drop_rule())
+        )
+    if len(rules) != 3:
+        return False
+
+    source = _extract_allow_source(rules[1])
+    return (
+        _rule_matches(rules[0], _owned_loopback_rule())
+        and source is not None
+        and _rule_matches(rules[1], _owned_allow_rule(source))
+        and _rule_matches(rules[2], _owned_drop_rule())
+    )
+
+
+def _owned_custom_chain_rules(
+    rules: Sequence[str],
+) -> bool:
+    return (
+        _r4_owned_custom_chain_rules(rules)
+        or _r5_owned_custom_chain_rules(rules)
     )
 
 
@@ -326,8 +405,12 @@ def parse_firewall_inventory(payload: str) -> FirewallInventory:
     custom_chain_present = any(
         line.startswith(f":{CUSTOM_CHAIN} ") for line in lines
     )
+    input_present = any(line.startswith(":INPUT ") for line in lines)
     docker_user_rules = tuple(
         line for line in lines if line.startswith("-A DOCKER-USER ")
+    )
+    input_rules = tuple(
+        line for line in lines if line.startswith("-A INPUT ")
     )
     custom_chain_rules = tuple(
         line for line in lines if line.startswith(f"-A {CUSTOM_CHAIN} ")
@@ -344,6 +427,17 @@ def parse_firewall_inventory(payload: str) -> FirewallInventory:
         else:
             ambiguous_owned_rules.append(line)
 
+    input_anchor_positions: list[int] = []
+    ambiguous_owned_input_rules: list[str] = []
+    for position, line in enumerate(input_rules, start=1):
+        tokens = shlex.split(line)
+        if ANCHOR_COMMENT not in tokens:
+            continue
+        if _is_exact_input_anchor(line):
+            input_anchor_positions.append(position)
+        else:
+            ambiguous_owned_input_rules.append(line)
+
     foreign_custom_chain_refs: list[str] = []
     for line in lines:
         if not line.startswith("-A "):
@@ -351,7 +445,7 @@ def parse_firewall_inventory(payload: str) -> FirewallInventory:
         tokens = shlex.split(line)
         for index, token in enumerate(tokens[:-1]):
             if token in {"-j", "--jump"} and tokens[index + 1] == CUSTOM_CHAIN:
-                if not _is_exact_anchor(line):
+                if not _is_exact_anchor(line) and not _is_exact_input_anchor(line):
                     foreign_custom_chain_refs.append(line)
 
     return FirewallInventory(
@@ -362,6 +456,10 @@ def parse_firewall_inventory(payload: str) -> FirewallInventory:
         anchor_positions=tuple(anchor_positions),
         ambiguous_owned_rules=tuple(ambiguous_owned_rules),
         foreign_custom_chain_refs=tuple(foreign_custom_chain_refs),
+        input_present=input_present,
+        input_rules=input_rules,
+        input_anchor_positions=tuple(input_anchor_positions),
+        ambiguous_owned_input_rules=tuple(ambiguous_owned_input_rules),
     )
 
 
@@ -372,12 +470,20 @@ def _save_filter_table() -> str:
 def _validate_prestate(inventory: FirewallInventory) -> None:
     if not inventory.docker_user_present:
         raise GuardError("docker_user_chain_missing")
+    if not inventory.input_present:
+        raise GuardError("input_chain_missing")
     if inventory.custom_chain_present and not _owned_custom_chain_rules(
         inventory.custom_chain_rules
     ):
         raise GuardError("custom_chain_ownership_unproven")
     if inventory.ambiguous_owned_rules:
         raise GuardError("owned_anchor_semantics_ambiguous")
+    if inventory.ambiguous_owned_input_rules:
+        raise GuardError("owned_input_anchor_semantics_ambiguous")
+    if inventory.anchor_positions not in ((), (1,)):
+        raise GuardError("owned_anchor_not_unique_first")
+    if inventory.input_anchor_positions not in ((), (1,)):
+        raise GuardError("owned_input_anchor_not_unique_first")
     if inventory.foreign_custom_chain_refs:
         raise GuardError("custom_chain_foreign_reference")
 
@@ -388,14 +494,20 @@ def validate_applied_state(
 ) -> None:
     if inventory.anchor_positions != (1,):
         raise GuardError("owned_anchor_not_unique_first")
+    if inventory.input_anchor_positions != (1,):
+        raise GuardError("owned_input_anchor_not_unique_first")
     if not inventory.custom_chain_present:
         raise GuardError("custom_chain_missing")
 
     expected_drop = _owned_drop_rule()
     if trusted_subnet is None:
-        expected_rules = (expected_drop,)
+        expected_rules = (
+            _owned_loopback_rule(),
+            expected_drop,
+        )
     else:
         expected_rules = (
+            _owned_loopback_rule(),
             _owned_allow_rule(trusted_subnet),
             expected_drop,
         )
@@ -439,6 +551,21 @@ def _ensure_single_first_anchor() -> None:
         raise GuardError("owned_anchor_insert_verification_failed")
 
 
+def _ensure_single_first_input_anchor() -> None:
+    inventory = parse_firewall_inventory(_save_filter_table())
+    _validate_prestate(inventory)
+    if inventory.input_anchor_positions == (1,):
+        return
+    if inventory.input_anchor_positions:
+        raise GuardError("owned_input_anchor_not_unique_first")
+
+    _run(_input_anchor_insert_argv())
+    inventory = parse_firewall_inventory(_save_filter_table())
+    _validate_prestate(inventory)
+    if inventory.input_anchor_positions != (1,):
+        raise GuardError("owned_input_anchor_insert_verification_failed")
+
+
 def _network_sha256(network: ipaddress.IPv4Network | None) -> str | None:
     if network is None:
         return None
@@ -471,6 +598,16 @@ def _result(
             if inventory is not None and inventory.anchor_positions
             else None
         ),
+        "input_anchor_count": (
+            len(inventory.input_anchor_positions)
+            if inventory is not None
+            else None
+        ),
+        "input_anchor_position": (
+            inventory.input_anchor_positions[0]
+            if inventory is not None and inventory.input_anchor_positions
+            else None
+        ),
         "rule_generation": hashlib.sha256(
             build_restore_payload(trusted).encode("utf-8")
         ).hexdigest(),
@@ -493,7 +630,16 @@ def apply_guard(decision: NetworkDecision) -> FirewallInventory:
             inventory,
             decision.trusted_subnet,
         )
+
+        post_chain_inventory = parse_firewall_inventory(_save_filter_table())
+        _validate_prestate(post_chain_inventory)
+        if not _r5_owned_custom_chain_rules(
+            post_chain_inventory.custom_chain_rules
+        ):
+            raise GuardError("custom_chain_r5_required")
+
         _ensure_single_first_anchor()
+        _ensure_single_first_input_anchor()
 
         final_inventory = parse_firewall_inventory(_save_filter_table())
         _validate_prestate(final_inventory)
