@@ -84,11 +84,13 @@ N3WFC4-BROKER-INGRESS chain
 
 ```text
 unique current eth0 IPv4 subnet
+→ allow lo + 127.0.0.0/8
 → allow eth0 + current subnet
 → terminal DROP
 
 no valid subnet / disconnected / multiple different subnets
-→ terminal DROP only
+→ allow lo + 127.0.0.0/8
+→ terminal DROP
 
 firewall apply/readback failure
 → error
