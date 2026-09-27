@@ -27,7 +27,7 @@ def test_transform_preserves_global_security_semantics() -> None:
 
     assert "per_listener_settings" not in repaired
     assert "global_plugin /usr/lib/mosquitto_dynamic_security.so" in repaired
-    assert "plugin /usr/lib/mosquitto_dynamic_security.so\n" not in repaired
+    assert "plugin /usr/lib/mosquitto_dynamic_security.so" not in repaired.splitlines()
     assert "allow_anonymous false" in repaired
     assert "listener 8883 0.0.0.0" in repaired
     assert "cafile /mosquitto/tls/ca.pem" in repaired
