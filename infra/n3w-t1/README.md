@@ -84,6 +84,19 @@ Manager loopback endpoint is IPv4 loopback
 
 客户 LAN IPv4 或 subnet 不得进入 Compose、systemd unit、dispatcher 或 activation env。Broker activation 的 Compose project identity 必须显式冻结为 `n3wfc4`；不得依赖 Compose 文件所在目录名推导 project name。
 
+
+## Intentional split Compose ownership
+
+生产 T1 已证明同一个 `n3wfc4` project 下存在由另一份 Compose authority 管理的 `fc4-homeassistant`，而 Broker activation 使用的 Compose authority 只声明 Broker/Manager。该 Home Assistant 不是可自动删除的废弃容器。
+
+Broker activation 因此显式设置：
+
+```text
+COMPOSE_IGNORE_ORPHANS=true
+```
+
+该设置只关闭当前 Broker Compose 调用对同 project 其他 authority 容器的 orphan 检测，不改变 project identity，不删除、不停止、不重建 Home Assistant，也不得替换为 `--remove-orphans`。
+
 ## Runtime ownership
 
 规则生命周期：
