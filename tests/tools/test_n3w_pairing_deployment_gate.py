@@ -156,7 +156,7 @@ def test_accepts_pairing_hostname_without_ipv4_dependency() -> None:
     "advertised_host",
     [
         "192.0.2.10",
-        "10.0.0.5",
+        "198.51.100.10",
         "127.0.0.1",
     ],
 )
