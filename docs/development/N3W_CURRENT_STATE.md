@@ -31,14 +31,15 @@ PR474_FIRMWARE_FACTORY_BIN_SHA256=eee71ec6a5b3f2f07f1b0288870583918ed1aef1b2c63a
 EXACT_ARTIFACT_BUILD=PASS
 EXACT_ARTIFACT_BINDING=PASS
 FLASH_ARGS_BLIND_EXECUTION=FORBIDDEN
-READY_FOR_BOARD_WRITE_TARGET_PREFLIGHT=true
+BOARD_B_WRITE_TARGET_PREFLIGHT=PASS
+READY_FOR_BOARD_WRITE_AUTHORIZATION=true
 
 BOARD_ACCESS=false
 FLASH_WRITE=false
 RF_EXECUTION=false
 PR474_MERGE=false
 
-NEXT_ONE_GATE=N3W_PR474_PHYSICAL_RF_VALIDATION_BOARD_WRITE_TARGET_PREFLIGHT_20260927_01
+NEXT_ONE_GATE=N3W_PR474_BOARD_B_EXACT_ARTIFACT_WRITE_AUTHORIZATION_20260927_01
 ```
 
 PR #474 remains on the unmerged production-successor chain rather than current main. Fresh disposition found no T1-infrastructure overlap requiring a source rebase before physical validation. The flat bundle's generated `flash_args` still references build-tree-relative paths, so it must not be executed blindly.
