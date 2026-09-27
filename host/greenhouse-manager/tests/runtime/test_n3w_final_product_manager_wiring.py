@@ -214,12 +214,21 @@ def test_product_pairing_accepts_portable_advertised_host(
     settings.validate()
 
 
-def test_product_pairing_rejects_durable_ipv4_advertised_host(
+@pytest.mark.parametrize(
+    "advertised_host",
+    [
+        "192.0.2.10",
+        "::1",
+        "2001:db8::10",
+    ],
+)
+def test_product_pairing_rejects_durable_ip_advertised_host(
     tmp_path,
+    advertised_host,
 ) -> None:
     settings = _product_pairing_settings(
         tmp_path,
-        "192.0.2.10",
+        advertised_host,
     )
 
     with pytest.raises(
