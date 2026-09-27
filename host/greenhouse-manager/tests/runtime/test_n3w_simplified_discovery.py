@@ -266,3 +266,122 @@ def test_rate_limit_is_preserved() -> None:
             ),
             rate_limiter=limiter,
         )
+
+
+def test_same_runtime_response_tracks_route_change() -> None:
+    routes = {
+        "192.168.1.20": "192.168.1.2",
+        "10.10.0.20": "10.10.0.2",
+    }
+
+    server = SimplifiedPairingUDPServer(
+        ("127.0.0.1", 0),
+        candidate=_candidate("auto"),
+        advertised_host_resolver=routes.__getitem__,
+    )
+    limiter = SlidingWindowRateLimiter(
+        limit=4,
+        window_s=60,
+    )
+
+    try:
+        first = json.loads(
+            build_simplified_udp_discovery_response(
+                _query(),
+                source_ip="192.168.1.20",
+                candidate=server.candidate,
+                candidate_resolver=server.candidate_for,
+                rate_limiter=limiter,
+            ).decode("utf-8")
+        )
+        second = json.loads(
+            build_simplified_udp_discovery_response(
+                _query(),
+                source_ip="10.10.0.20",
+                candidate=server.candidate,
+                candidate_resolver=server.candidate_for,
+                rate_limiter=limiter,
+            ).decode("utf-8")
+        )
+    finally:
+        server.server_close()
+
+    assert first["candidate"]["host"] == "192.168.1.2"
+    assert second["candidate"]["host"] == "10.10.0.2"
+
+
+def test_untrusted_source_is_rejected_before_route_resolution() -> None:
+    calls = []
+
+    def resolver(source_ip: str) -> str:
+        calls.append(source_ip)
+        return "192.168.1.2"
+
+    server = SimplifiedPairingUDPServer(
+        ("127.0.0.1", 0),
+        candidate=_candidate("auto"),
+        advertised_host_resolver=resolver,
+    )
+
+    try:
+        with pytest.raises(
+            DiscoveryRejected,
+            match="outside the local network",
+        ):
+            build_simplified_udp_discovery_response(
+                _query(),
+                source_ip="203.0.113.20",
+                candidate=server.candidate,
+                candidate_resolver=server.candidate_for,
+                rate_limiter=SlidingWindowRateLimiter(
+                    limit=2,
+                    window_s=60,
+                ),
+            )
+    finally:
+        server.server_close()
+
+    assert calls == []
+
+
+def test_rate_limit_is_checked_before_route_resolution() -> None:
+    calls = []
+
+    def resolver(source_ip: str) -> str:
+        calls.append(source_ip)
+        return "192.168.1.2"
+
+    server = SimplifiedPairingUDPServer(
+        ("127.0.0.1", 0),
+        candidate=_candidate("auto"),
+        advertised_host_resolver=resolver,
+    )
+    limiter = SlidingWindowRateLimiter(
+        limit=1,
+        window_s=60,
+    )
+
+    try:
+        build_simplified_udp_discovery_response(
+            _query(),
+            source_ip="192.168.1.20",
+            candidate=server.candidate,
+            candidate_resolver=server.candidate_for,
+            rate_limiter=limiter,
+        )
+
+        with pytest.raises(
+            DiscoveryRateLimited,
+            match="rate limit",
+        ):
+            build_simplified_udp_discovery_response(
+                _query(),
+                source_ip="192.168.1.20",
+                candidate=server.candidate,
+                candidate_resolver=server.candidate_for,
+                rate_limiter=limiter,
+            )
+    finally:
+        server.server_close()
+
+    assert calls == ["192.168.1.20"]
