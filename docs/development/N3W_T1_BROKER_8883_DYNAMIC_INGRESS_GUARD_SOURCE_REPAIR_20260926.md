@@ -625,3 +625,26 @@ REBOOT_PREPARATION_GATE=PASS
 ```
 
 The preboot boot identifier and runtime identities are stored only in the T1 root-owned preparation file for post-reboot comparison. This gate did not reboot T1. The next separate stage is the controlled reboot execution followed by postboot collection.
+
+
+## Systemd reboot persistence install contract repair
+
+Reboot-persistence preparation found a real deployment-contract gap: both repository-owned systemd units were active on the live T1 but remained disabled for boot persistence. No reboot was executed while this gap was open.
+
+The live T1 was repaired with `systemctl enable` for both units, without service restart, NetworkManager reload, or Broker/Manager interruption. The repository deployment contract was then repaired so future installs cannot treat `active` as sufficient proof of reboot persistence.
+
+Repository repair:
+
+```text
+PERSISTENCE_INSTALLER=infra/n3w-t1/install-systemd-persistence.sh
+PERSISTENCE_ACTION=systemctl enable
+ENABLE_NOW_FORBIDDEN=true
+SERVICE_RESTART_FOR_PERSISTENCE_FORBIDDEN=true
+
+REQUIRED_POSTINSTALL_EVIDENCE:
+GUARD_ENABLED=enabled
+ACTIVATION_ENABLED=enabled
+SYSTEMD_PERSISTENCE_INSTALL=PASS
+```
+
+The lifecycle regression test requires both units to be enabled and verifies that the persistence installer does not start, stop, or restart live services. Reboot persistence acceptance remains a separate live gate and must not proceed unless both units report `enabled`.
