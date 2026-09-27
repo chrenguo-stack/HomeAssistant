@@ -1,6 +1,6 @@
 # N3-W T1 Broker 8883 Dynamic Ingress Guard — Source Repair
 
-Status: `SOURCE_REVIEW_R5_FAIL_REGRESSION_COVERAGE_INCOMPLETE`  
+Status: `SOURCE_REPAIR_R5_R2_IMPLEMENTED_CI_PENDING`  
 Date: 2026-09-26  
 Gate: `N3W_T1_BROKER_8883_DYNAMIC_INGRESS_GUARD_SOURCE_REPAIR_20260926_01`
 
@@ -212,9 +212,9 @@ R5_SOURCE_REPAIR_TREE=ffc32e1b97e522670dccb4a97336eaefd2d87d25
 R5_GUARD_BLOB=795903b06c7ee93a0602649e478bc070723ab8c0
 R5_TEST_BLOB=6f9509463225f15c0e6697327d9183206be8f2ba
 R5_CI=13_OF_13_PASS
-R5_SOURCE_REVIEW=FAIL
+R5_SOURCE_REVIEW=FAIL_R2_REPAIR_IMPLEMENTED
 R5_T1_MUTATION=false
-NEXT_REQUIRED_STAGE=R5_SOURCE_REPAIR_R2
+NEXT_REQUIRED_STAGE=R5_R2_FULL_CI_THEN_SOURCE_REVIEW
 ```
 
 ## R5 focused source review
@@ -227,7 +227,7 @@ R5_SOURCE_REVIEW_HEAD=6b48104d13f77e4866f02b0825515472b8853cb4
 R5_SOURCE_REVIEW_TREE=ffc32e1b97e522670dccb4a97336eaefd2d87d25
 R5_SOURCE_REVIEW_CI=13_OF_13_PASS
 R5_SOURCE_REVIEW=FAIL
-R5_SOURCE_BLOCKER_COUNT=1
+R5_SOURCE_BLOCKER_COUNT=0_PENDING_FULL_CI
 ```
 
 The implementation logic is directionally consistent with the frozen R5 design: it adds an exact INPUT TCP/8883 anchor, keeps the DOCKER-USER original-destination anchor, uses one shared policy chain, preserves the loopback-before-trusted-before-DROP order, accepts exact R4 state as migration input, and installs the R5 chain before inserting the new INPUT anchor.
@@ -253,6 +253,32 @@ A focused repair must add an apply/reload state-machine regression covering at l
 - no global INPUT/DOCKER-USER flush or foreign delete/rewrite.
 
 T1 deployment remains blocked. This review does not invalidate the already-proven R4 project-identity runtime fix, Broker recreate, Manager loopback TLS, or trusted-LAN positive ingress evidence.
+
+## R5 source repair R2
+
+The focused R2 repair closes the regression-coverage blocker from the first R5 source review without changing the guard implementation.
+
+```text
+R5_R2_SOURCE_HEAD=0796fc524d20fbef4af2f45152f8058486ae1b05
+R5_R2_SOURCE_TREE=a60fcc72bd3a88d8c40915d59509d57279658fc1
+R5_R2_TEST_BLOB=ed8e8a435dc7e98ec3ac76c4d1385b89ed2958ac
+R5_R2_GUARD_SOURCE_CHANGED=false
+R5_R2_TEST_ONLY_CHANGE=true
+R5_R2_CI=12_OF_13_PASS_1_QUEUED
+R5_R2_T1_MUTATION=false
+```
+
+The new state-machine regression executes the exact R4 -> R5 apply path and then executes a second R5 apply/reload against the resulting state. It verifies that:
+
+- foreign INPUT rules remain unchanged and in the same relative order;
+- foreign DOCKER-USER rules remain unchanged and in the same relative order;
+- the owned INPUT anchor is inserted exactly once;
+- the owned DOCKER-USER anchor remains unique and first;
+- the final R5 policy chain is exact after both passes;
+- the complete normalized simulated filter state is identical after the first and second R5 pass;
+- the helper never emits INPUT/DOCKER-USER flush or delete operations in the simulated command path.
+
+One associated workflow is still queued, so R5 R2 source closure and the follow-up source review remain pending.
 
 ## Live acceptance remains separate
 
@@ -281,15 +307,15 @@ DEPLOYMENT_SOURCE_PACKAGE_ARCHIVED=true
 KNOWN_FAILURES_ALIGNED=true
 UNARCHIVED_CRITICAL_KNOWLEDGE=0
 
-SOURCE_REPAIR_RESULT=R5_REPAIR_R2_REQUIRED
+SOURCE_REPAIR_RESULT=R5_R2_IMPLEMENTED_CI_PENDING
 SOURCE_REVIEW_R3=SUPERSEDED_BY_LIVE_BLOCKER
 SOURCE_REVIEW_R4=PASS
 SOURCE_REVIEW_R4_HEAD=54342e8807308582f0a61454386645821ce5ef2b
 R5_SOURCE_REPAIR_HEAD=6b48104d13f77e4866f02b0825515472b8853cb4
 R5_SOURCE_REVIEW=FAIL
-R5_SOURCE_BLOCKER_COUNT=1
+R5_SOURCE_BLOCKER_COUNT=0_PENDING_FULL_CI
 SOURCE_BLOCKER_COUNT=1
-T1_LIVE_GATE=PAUSED_GUARD_PARTIAL_COVERAGE_R5_REPAIR_R2_PENDING
+T1_LIVE_GATE=PAUSED_GUARD_PARTIAL_COVERAGE_R5_R2_CI_PENDING
 KF097=OPEN
 AUTO_EXECUTE_LIVE=false
 STOP_AFTER_R4_SOURCE_REVIEW_CLOSURE=true
