@@ -416,3 +416,36 @@ DISPATCHER_INSTALL_READY=true
 DISPATCHER_INSTALLED=false
 NEXT_REQUIRED_STAGE=R5_DISPATCHER_INSTALL
 ```
+
+
+## R5 dispatcher live install
+
+```text
+DISPATCHER_SOURCE_BLOB=f733f5a1cfc936f77d1fabc383ccf262264e33d2
+DISPATCHER_TARGET_BLOB=f733f5a1cfc936f77d1fabc383ccf262264e33d2
+DISPATCHER_TARGET_MODE=0755
+DISPATCHER_TARGET_OWNER=root:root
+
+DISPATCHER_INSTALL_READBACK=PASS
+DISPATCHER_INSTALL=PASS
+DISPATCHER_INSTALLED=true
+
+NETWORKMANAGER_ACTIVE=active
+DOCKER_ACTIVE=active
+GUARD_ACTIVE=active
+ACTIVATION_ACTIVE=active
+BROKER_STATE=running
+MANAGER_STATE=running
+MANAGER_RESTART_COUNT=1846
+TCP_8883_LISTEN_COUNT=1
+
+NETWORKMANAGER_RELOAD_EXECUTED=false
+HARNESS_NETWORK_EVENT_TRIGGERED=false
+MANUAL_DISPATCHER_EXECUTION=false
+NETWORK_EVENT_ACCEPTANCE=NOT_TESTED
+REBOOT_ACCEPTANCE=NOT_TESTED
+
+NEXT_REQUIRED_STAGE=R5_DISPATCHER_NETWORK_EVENT_ACCEPTANCE
+```
+
+The dispatcher was installed from the exact reviewed source and read back byte-identical. Installation itself did not reload NetworkManager, manually execute the dispatcher, trigger a network event, change the R5 firewall policy, restart the Manager, or interrupt the Broker listener. Runtime event acceptance and reboot/persistence acceptance remain separate gates.
