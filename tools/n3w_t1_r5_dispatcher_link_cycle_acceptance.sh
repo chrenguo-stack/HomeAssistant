@@ -136,8 +136,13 @@ fi
 RECOVERY_EXECUTED=true
 echo "=== RECOVERY START ==="
 if [ -n "$CONN_UUID" ]; then
-    nmcli connection up uuid "$CONN_UUID" ifname eth0 >/dev/null 2>&1 || true
-    wait_connected || true
+    for attempt in 1 2 3; do
+        nmcli connection up uuid "$CONN_UUID" ifname eth0 >/dev/null 2>&1 || true
+        if wait_connected; then
+            echo "RECOVERY_LINK_ATTEMPT=$attempt"
+            break
+        fi
+    done
 fi
 systemctl reload-or-restart "$GUARD" >/dev/null 2>&1 || true
 systemctl start "$ACTIVATION" >/dev/null 2>&1 || true
