@@ -65,14 +65,14 @@ def test_explicit_host_candidate_is_unchanged() -> None:
         ("127.0.0.1", 0),
         candidate=candidate,
         advertised_host_resolver=lambda source: (
-            "192.168.1.10"
+            "192.0.2.10"
         ),
     )
 
     try:
         assert (
             server.candidate_for(
-                "192.168.1.20"
+                "192.0.2.20"
             )
             is candidate
         )
@@ -86,8 +86,8 @@ def test_auto_host_is_resolved_per_request_without_cache() -> None:
     def resolver(source_ip: str) -> str:
         observed.append(source_ip)
         return {
-            "192.168.1.20": "192.168.1.2",
-            "10.10.0.20": "10.10.0.2",
+            "192.0.2.20": "192.0.2.2",
+            "198.51.100.20": "198.51.100.2",
         }[source_ip]
 
     server = SimplifiedPairingUDPServer(
@@ -98,29 +98,29 @@ def test_auto_host_is_resolved_per_request_without_cache() -> None:
 
     try:
         first = server.candidate_for(
-            "192.168.1.20"
+            "192.0.2.20"
         )
         second = server.candidate_for(
-            "10.10.0.20"
+            "198.51.100.20"
         )
     finally:
         server.server_close()
 
-    assert first.host == "192.168.1.2"
-    assert second.host == "10.10.0.2"
+    assert first.host == "192.0.2.2"
+    assert second.host == "198.51.100.2"
     assert observed == [
-        "192.168.1.20",
-        "10.10.0.20",
+        "192.0.2.20",
+        "198.51.100.20",
     ]
 
 
 @pytest.mark.parametrize(
     ("source_ip", "selected_ip"),
     [
-        ("192.168.1.20", "0.0.0.0"),
-        ("192.168.1.20", "224.0.0.1"),
-        ("192.168.1.20", "127.0.0.1"),
-        ("192.168.1.20", "not-an-ip"),
+        ("192.0.2.20", "0.0.0.0"),
+        ("192.0.2.20", "224.0.0.1"),
+        ("192.0.2.20", "127.0.0.1"),
+        ("192.0.2.20", "not-an-ip"),
     ],
 )
 def test_auto_host_rejects_invalid_route_selection(
@@ -194,9 +194,9 @@ def test_response_keeps_request_binding_and_dynamic_host() -> None:
     response = json.loads(
         build_simplified_udp_discovery_response(
             payload,
-            source_ip="192.168.1.20",
+            source_ip="127.0.0.2",
             candidate=_candidate(
-                "192.168.1.2"
+                "192.0.2.2"
             ),
             rate_limiter=(
                 SlidingWindowRateLimiter(
@@ -214,7 +214,7 @@ def test_response_keeps_request_binding_and_dynamic_host() -> None:
     assert response["nonce"] == request["nonce"]
     assert (
         response["candidate"]["host"]
-        == "192.168.1.2"
+        == "192.0.2.2"
     )
 
 
@@ -247,7 +247,7 @@ def test_rate_limit_is_preserved() -> None:
 
     build_simplified_udp_discovery_response(
         payload,
-        source_ip="192.168.1.20",
+        source_ip="127.0.0.2",
         candidate=_candidate(
             "greenhouse-manager.local"
         ),
@@ -260,7 +260,7 @@ def test_rate_limit_is_preserved() -> None:
     ):
         build_simplified_udp_discovery_response(
             payload,
-            source_ip="192.168.1.20",
+            source_ip="127.0.0.2",
             candidate=_candidate(
                 "greenhouse-manager.local"
             ),
@@ -270,8 +270,8 @@ def test_rate_limit_is_preserved() -> None:
 
 def test_same_runtime_response_tracks_route_change() -> None:
     routes = {
-        "192.168.1.20": "192.168.1.2",
-        "10.10.0.20": "10.10.0.2",
+        "127.0.0.2": "127.0.0.4",
+        "127.0.0.3": "127.0.0.5",
     }
 
     server = SimplifiedPairingUDPServer(
@@ -288,7 +288,7 @@ def test_same_runtime_response_tracks_route_change() -> None:
         first = json.loads(
             build_simplified_udp_discovery_response(
                 _query(),
-                source_ip="192.168.1.20",
+                source_ip="127.0.0.2",
                 candidate=server.candidate,
                 candidate_resolver=server.candidate_for,
                 rate_limiter=limiter,
@@ -297,7 +297,7 @@ def test_same_runtime_response_tracks_route_change() -> None:
         second = json.loads(
             build_simplified_udp_discovery_response(
                 _query(),
-                source_ip="10.10.0.20",
+                source_ip="127.0.0.3",
                 candidate=server.candidate,
                 candidate_resolver=server.candidate_for,
                 rate_limiter=limiter,
@@ -306,8 +306,8 @@ def test_same_runtime_response_tracks_route_change() -> None:
     finally:
         server.server_close()
 
-    assert first["candidate"]["host"] == "192.168.1.2"
-    assert second["candidate"]["host"] == "10.10.0.2"
+    assert first["candidate"]["host"] == "127.0.0.4"
+    assert second["candidate"]["host"] == "127.0.0.5"
 
 
 def test_untrusted_source_is_rejected_before_route_resolution() -> None:
@@ -315,7 +315,7 @@ def test_untrusted_source_is_rejected_before_route_resolution() -> None:
 
     def resolver(source_ip: str) -> str:
         calls.append(source_ip)
-        return "192.168.1.2"
+        return "192.0.2.2"
 
     server = SimplifiedPairingUDPServer(
         ("127.0.0.1", 0),
@@ -349,7 +349,7 @@ def test_rate_limit_is_checked_before_route_resolution() -> None:
 
     def resolver(source_ip: str) -> str:
         calls.append(source_ip)
-        return "192.168.1.2"
+        return "127.0.0.4"
 
     server = SimplifiedPairingUDPServer(
         ("127.0.0.1", 0),
@@ -364,7 +364,7 @@ def test_rate_limit_is_checked_before_route_resolution() -> None:
     try:
         build_simplified_udp_discovery_response(
             _query(),
-            source_ip="192.168.1.20",
+            source_ip="127.0.0.2",
             candidate=server.candidate,
             candidate_resolver=server.candidate_for,
             rate_limiter=limiter,
@@ -376,7 +376,7 @@ def test_rate_limit_is_checked_before_route_resolution() -> None:
         ):
             build_simplified_udp_discovery_response(
                 _query(),
-                source_ip="192.168.1.20",
+                source_ip="127.0.0.2",
                 candidate=server.candidate,
                 candidate_resolver=server.candidate_for,
                 rate_limiter=limiter,
@@ -384,4 +384,4 @@ def test_rate_limit_is_checked_before_route_resolution() -> None:
     finally:
         server.server_close()
 
-    assert calls == ["192.168.1.20"]
+    assert calls == ["127.0.0.2"]
