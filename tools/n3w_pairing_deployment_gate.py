@@ -206,16 +206,13 @@ def _pairing_advertised_host_mode(
         )
 
     try:
-        address = ipaddress.ip_address(value)
+        ipaddress.ip_address(value)
     except ValueError:
         return "hostname"
 
-    if address.version == 4:
-        raise DeploymentContractError(
-            "pairing_advertised_host_ipv4_literal_forbidden"
-        )
-
-    return "hostname"
+    raise DeploymentContractError(
+        "pairing_advertised_host_ip_literal_forbidden"
+    )
 
 
 def validate_compose_document(
