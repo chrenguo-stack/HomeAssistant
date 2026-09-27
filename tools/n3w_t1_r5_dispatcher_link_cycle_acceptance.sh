@@ -70,8 +70,9 @@ local since_epoch="$1"
 local status="$2"
 local deadline=$((SECONDS + 70))
 while [ "$SECONDS" -lt "$deadline" ]; do
-    if journalctl -u "$GUARD" --since "@$since_epoch" --no-pager -o cat 2>/dev/null |
-        grep -q "\"status\":\"$status\",\"applied\":true"; then
+    local log
+    log="$(journalctl -u "$GUARD" --since "@$since_epoch" --no-pager -o cat 2>/dev/null || true)"
+    if grep -Fq -- "\"status\":\"$status\",\"applied\":true" <<< "$log"; then
         return 0
     fi
     sleep 1
