@@ -188,7 +188,7 @@ def make_settings(
             "127.0.0.1"
         ),
         n3w_pairing_advertised_host=(
-            "192.0.2.10"
+            "auto"
         ),
         n3w_provisioning_username=(
             "ghs_lab_provisioning"
