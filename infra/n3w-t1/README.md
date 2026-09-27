@@ -74,11 +74,12 @@ NetworkManager dispatcher 只负责在 `eth0` 的相关事件发生后重新调�
 guard 只拥有：
 
 ```text
-DOCKER-USER 中 comment=n3wfc4-broker-ingress-v1 的 exact anchor
+DOCKER-USER 中 original-destination TCP/8883 的 exact anchor
+INPUT 中 host TCP destination 8883 的 exact anchor
 N3WFC4-BROKER-INGRESS chain
 ```
 
-不得 flush 或重写其他 Docker/管理员 firewall state。
+两个 anchor 都必须唯一且位于各自 hook 第一条；不得 flush INPUT、DOCKER-USER 或重写其他 Docker/管理员 firewall state。R4→R5 升级必须先把自有 chain 更新为含 loopback allow 的 R5 规则，再插入 INPUT anchor。
 
 ## Fail-closed
 
