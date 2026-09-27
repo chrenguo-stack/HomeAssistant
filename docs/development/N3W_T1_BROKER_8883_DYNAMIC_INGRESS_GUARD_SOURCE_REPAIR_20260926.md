@@ -449,3 +449,52 @@ NEXT_REQUIRED_STAGE=R5_DISPATCHER_NETWORK_EVENT_ACCEPTANCE
 ```
 
 The dispatcher was installed from the exact reviewed source and read back byte-identical. Installation itself did not reload NetworkManager, manually execute the dispatcher, trigger a network event, change the R5 firewall policy, restart the Manager, or interrupt the Broker listener. Runtime event acceptance and reboot/persistence acceptance remain separate gates.
+
+
+## R5 dispatcher NetworkManager reapply acceptance
+
+A real NetworkManager reapply event was executed on live `eth0` and then reviewed with corrected evidence criteria.
+
+```text
+REAL_NM_REAPPLY_EVENT=PASS
+DISPATCHER_SERVICE_START_COUNT=1
+GUARD_APPLIED_TRUE_COUNT=1
+GUARD_ERROR_COUNT=0
+
+DISPATCHER_OWNERSHIP_UNAMBIGUOUS=PASS
+N3W_GUARD_DISPATCHER_REFERENCE_COUNT=1
+
+NETWORK_STATE_PRESERVED=PASS
+TRUSTED_NETWORK_SHA256=cca31c98b5dc7d8e962d0333cab83e0b533f3d26e2f7c62d13a3250f048f47b6
+
+R5_FIREWALL_EVENT_REFRESH=PASS
+FOREIGN_FIREWALL_STATE_PRESERVED=PASS
+DOCKER_USER_ANCHOR_POSITION=1
+INPUT_ANCHOR_POSITION=1
+R5_POLICY_EXACT=true
+
+BROKER_STATE=running
+MANAGER_STATE=running
+MANAGER_RESTART_COUNT=1846
+GUARD_ACTIVE=active
+ACTIVATION_ACTIVE=active
+TCP_8883_LISTEN_COUNT=1
+
+DISPATCHER_INVOCATION=PASS
+DISPATCHER_GUARD_REFRESH=PASS
+R5_FIREWALL_CONTINUITY=PASS
+BROKER_RUNTIME_CONTINUITY=PASS
+MANAGER_RUNTIME_CONTINUITY=PASS
+```
+
+The initial harness result for this same event was a false failure because it required `ActiveEnterTimestampMonotonic` to remain nonzero after the transient dispatcher service had already exited. Journal evidence proved the dispatcher service started and the guard reloaded during the event window. The corrected acceptance therefore uses event-scoped journal evidence plus post-event state validation instead of the transient systemd monotonic property.
+
+```text
+PHASE_5B_PRODUCT_RESULT=PASS
+PHASE_5B_INITIAL_HARNESS_RESULT=FALSE_FAIL
+HARNESS_ORACLE_DEFECT=ActiveEnterTimestampMonotonic
+HARNESS_ORACLE_CORRECTION=PASS
+NETWORK_EVENT_ACCEPTANCE_REAPPLY=PASS
+```
+
+A stronger link-down/up event and reboot/persistence acceptance remain separate and are not claimed by this reapply gate.
