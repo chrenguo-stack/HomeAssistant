@@ -566,6 +566,120 @@ def test_apply_migrates_chain_before_input_anchor(
     assert inventory.input_anchor_positions == (1,)
 
 
+def test_r4_to_r5_then_reload_is_idempotent_and_preserves_foreign_state(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    subnet = ipaddress.ip_network("192.0.2.0/24")
+    foreign_input_rules = [
+        "-A INPUT -p icmp -j ACCEPT",
+        "-A INPUT -s 198.51.100.0/24 -j DROP",
+    ]
+    foreign_docker_rules = [
+        "-A DOCKER-USER -s 203.0.113.0/24 -j DROP",
+        "-A DOCKER-USER -p udp --dport 9999 -j RETURN",
+    ]
+
+    state = {
+        "input": list(foreign_input_rules),
+        "docker": [tool._anchor_rule(), *foreign_docker_rules],
+        "custom": [
+            tool._owned_allow_rule(subnet),
+            tool._owned_drop_rule(),
+        ],
+    }
+    restore_payloads: list[str] = []
+    mutation_calls: list[list[str]] = []
+
+    def save_filter() -> str:
+        lines = [
+            "*filter",
+            ":INPUT ACCEPT [0:0]",
+            ":DOCKER-USER - [0:0]",
+            f":{tool.CUSTOM_CHAIN} - [0:0]",
+            *state["input"],
+            *state["docker"],
+            *state["custom"],
+            "COMMIT",
+            "",
+        ]
+        return "\n".join(lines)
+
+    def fake_run(argv, *, input_text=None, timeout=tool.COMMAND_TIMEOUT_SECONDS):
+        del timeout
+        command = list(argv)
+        if command == ["iptables-save", "-t", "filter"]:
+            return save_filter()
+        if command == ["iptables-restore", "--noflush"]:
+            assert input_text is not None
+            assert "-F INPUT" not in input_text
+            assert "-F DOCKER-USER" not in input_text
+            assert "-D INPUT" not in input_text
+            assert "-D DOCKER-USER" not in input_text
+            restore_payloads.append(input_text)
+            state["custom"] = [
+                line
+                for line in input_text.splitlines()
+                if line.startswith(f"-A {tool.CUSTOM_CHAIN} ")
+            ]
+            return ""
+        if command[:4] == ["iptables", "-I", "INPUT", "1"]:
+            mutation_calls.append(command)
+            state["input"].insert(0, tool._input_anchor_rule())
+            return ""
+        raise AssertionError(f"unexpected command: {command}")
+
+    monkeypatch.setattr(tool.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(tool, "LOCK_PATH", tmp_path / "guard.lock")
+    monkeypatch.setattr(tool, "_binary", lambda name: name)
+    monkeypatch.setattr(tool, "_run", fake_run)
+
+    decision = tool.NetworkDecision(subnet, 1, "unique_ipv4_subnet")
+
+    first = tool.apply_guard(decision)
+    first_state = save_filter()
+
+    assert first.anchor_positions == (1,)
+    assert first.input_anchor_positions == (1,)
+    assert state["input"] == [
+        tool._input_anchor_rule(),
+        *foreign_input_rules,
+    ]
+    assert state["docker"] == [
+        tool._anchor_rule(),
+        *foreign_docker_rules,
+    ]
+    assert state["custom"] == [
+        tool._owned_loopback_rule(),
+        tool._owned_allow_rule(subnet),
+        tool._owned_drop_rule(),
+    ]
+
+    second = tool.apply_guard(decision)
+    second_state = save_filter()
+
+    assert second.anchor_positions == (1,)
+    assert second.input_anchor_positions == (1,)
+    assert state["input"] == [
+        tool._input_anchor_rule(),
+        *foreign_input_rules,
+    ]
+    assert state["docker"] == [
+        tool._anchor_rule(),
+        *foreign_docker_rules,
+    ]
+    assert state["custom"] == [
+        tool._owned_loopback_rule(),
+        tool._owned_allow_rule(subnet),
+        tool._owned_drop_rule(),
+    ]
+    assert first_state == second_state
+    assert len(restore_payloads) == 2
+    assert len(mutation_calls) == 1
+    assert mutation_calls[0][:4] == ["iptables", "-I", "INPUT", "1"]
+
+
 def test_dry_run_output_does_not_expose_raw_subnet(monkeypatch) -> None:
     tool = load_tool()
     subnet = ipaddress.ip_network("192.0.2.0/24")
