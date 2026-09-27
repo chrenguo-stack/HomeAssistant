@@ -156,6 +156,11 @@ def build_simplified_udp_discovery_response(
     source_ip: str,
     candidate: SimplifiedManagerCandidate,
     rate_limiter: SlidingWindowRateLimiter,
+    candidate_resolver: Callable[
+        [str],
+        SimplifiedManagerCandidate,
+    ]
+    | None = None,
 ) -> bytes:
     if not is_local_source(source_ip):
         raise DiscoveryRejected("discovery source is outside the local network")
@@ -164,11 +169,18 @@ def build_simplified_udp_discovery_response(
     query = DiscoveryQuery.from_document(decode_json_datagram(payload))
     if SIMPLE_PAIRING_PROTOCOL not in query.protocols:
         raise DiscoveryRejected("no supported simplified pairing protocol")
+
+    response_candidate = (
+        candidate_resolver(source_ip)
+        if candidate_resolver is not None
+        else candidate
+    )
+
     response = SimplifiedDiscoveryResponse(
         schema=DISCOVERY_RESPONSE_SCHEMA,
         request_id=query.request_id,
         nonce=query.nonce,
-        candidate=candidate,
+        candidate=response_candidate,
     )
     return encode_json_datagram(response.to_document())
 
@@ -184,10 +196,9 @@ class _SimplifiedUDPHandler(socketserver.BaseRequestHandler):
             response = build_simplified_udp_discovery_response(
                 payload,
                 source_ip=source_ip,
-                candidate=server.candidate_for(
-                    source_ip
-                ),
+                candidate=server.candidate,
                 rate_limiter=server.rate_limiter,
+                candidate_resolver=server.candidate_for,
             )
         except (DiscoveryRejected, DiscoveryRateLimited, ValueError, json.JSONDecodeError):
             return
