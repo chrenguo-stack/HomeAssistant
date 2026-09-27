@@ -347,3 +347,72 @@ KF097=OPEN
 AUTO_EXECUTE_LIVE=false
 STOP_AFTER_R4_SOURCE_REVIEW_CLOSURE=true
 ```
+
+
+## R5 live acceptance and dispatcher preinstall preflight
+
+Exact live R5 source authority:
+
+```text
+R5_LIVE_SOURCE_HEAD=0796fc524d20fbef4af2f45152f8058486ae1b05
+R5_LIVE_GUARD_BLOB=795903b06c7ee93a0602649e478bc070723ab8c0
+R5_LIVE_SOURCE_CI=13_OF_13_PASS
+```
+
+Live T1 revalidation completed in bounded phases:
+
+```text
+R4_TO_R5_LIVE_GUARD_REPLACE=PASS
+R4_TO_R5_FIREWALL_MIGRATION=PASS
+FOREIGN_FIREWALL_PRESERVATION=PASS
+
+MANAGER_LOOPBACK_TLS_CONTINUITY=PASS
+INPUT_LOOPBACK_POLICY_COUNTER_EVIDENCE=PASS
+MANAGER_RESTART_STABILITY=PASS
+
+TRUSTED_LAN_POSITIVE_INGRESS=PASS
+TRUSTED_SUBNET_RETURN_COUNTER_EVIDENCE=PASS
+
+HOST_LOCAL_DOCKER_UNTRUSTED_BLOCK=PASS
+INPUT_DROP_COUNTER_EVIDENCE=PASS
+
+R5_RELOAD_IDEMPOTENCE=PASS
+FOREIGN_FIREWALL_STATE_PRESERVED_AFTER_RELOADS=PASS
+OWNED_ANCHOR_UNIQUENESS=PASS
+
+BROKER_RUNTIME_CONTINUITY=PASS
+MANAGER_RUNTIME_CONTINUITY=PASS
+MANAGER_RESTART_COUNT=1846
+```
+
+The host-local Docker negative probe used source `172.21.0.2`, outside the trusted customer subnet and outside loopback. The connection to host TCP/8883 timed out. During the probe the R5 INPUT anchor advanced by 5 packets, terminal DROP advanced by 4 packets, DOCKER-USER did not advance, and trusted-LAN RETURN did not advance. This closes the live host-local ingress coverage defect that opened R5.
+
+The trusted Mac positive probe used source `192.168.68.61` to T1 `192.168.68.194:8883`; TLS 1.3 with server name `armbian` and CA verification passed. The trusted subnet RETURN counter advanced.
+
+Dispatcher preinstall source/live preflight also passed:
+
+```text
+DISPATCHER_SOURCE_BLOB=f733f5a1cfc936f77d1fabc383ccf262264e33d2
+GUARD_UNIT_BLOB=b68d7d71ee43b26cb0481f0b278cf5739f3a2911
+ACTIVATION_UNIT_BLOB=c170c87d035b5c0d28c440514d40b5df360328d2
+
+DISPATCHER_PREINSTALL_SOURCE_REVIEW=PASS
+DISPATCHER_PREINSTALL_LIVE_PREFLIGHT=PASS
+NETWORKMANAGER_ACTIVE=active
+DOCKER_ACTIVE=active
+GUARD_ACTIVE=active
+ACTIVATION_ACTIVE=active
+DISPATCHER_TARGET_PRESENT=false
+DISPATCHER_INSTALLED=false
+R5_FIREWALL_PREFLIGHT=PASS
+```
+
+The dispatcher has not been installed yet. No NetworkManager event acceptance, persistence, or reboot acceptance is claimed here. External-untrusted-eth0 physical negative testing also remains unproven because no second external physical subnet was available.
+
+```text
+R5_LIVE_FIREWALL_ACCEPTANCE=PASS
+R5_LIVE_FIREWALL_BLOCKER_COUNT=0
+DISPATCHER_INSTALL_READY=true
+DISPATCHER_INSTALLED=false
+NEXT_REQUIRED_STAGE=R5_DISPATCHER_INSTALL
+```
