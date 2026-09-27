@@ -199,7 +199,11 @@ jobs:
           )
           print(json.dumps(manifest, indent=2, sort_keys=True))
           PY
-          sha256sum "$OUT/manifest.json" > "$OUT/manifest.sha256"
+          (
+            cd "$OUT"
+            sha256sum manifest.json > manifest.sha256
+            sha256sum -c manifest.sha256
+          )
 
       - name: Upload exact Manager artifact
         id: upload
