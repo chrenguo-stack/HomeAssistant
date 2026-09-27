@@ -385,9 +385,9 @@ MANAGER_RUNTIME_CONTINUITY=PASS
 MANAGER_RESTART_COUNT=1846
 ```
 
-The host-local Docker negative probe used source `172.21.0.2`, outside the trusted customer subnet and outside loopback. The connection to host TCP/8883 timed out. During the probe the R5 INPUT anchor advanced by 5 packets, terminal DROP advanced by 4 packets, DOCKER-USER did not advance, and trusted-LAN RETURN did not advance. This closes the live host-local ingress coverage defect that opened R5.
+The host-local Docker negative probe used a Docker-bridge source outside the trusted customer subnet and outside loopback. The connection to host TCP/8883 timed out. During the probe the R5 INPUT anchor advanced by 5 packets, terminal DROP advanced by 4 packets, DOCKER-USER did not advance, and trusted-LAN RETURN did not advance. This closes the live host-local ingress coverage defect that opened R5.
 
-The trusted Mac positive probe used source `192.168.68.61` to T1 `192.168.68.194:8883`; TLS 1.3 with server name `armbian` and CA verification passed. The trusted subnet RETURN counter advanced.
+The trusted Mac positive probe used a source inside the current trusted customer subnet to the T1 Broker TCP/8883 endpoint; TLS 1.3 with server name `armbian` and CA verification passed. The trusted subnet RETURN counter advanced.
 
 Dispatcher preinstall source/live preflight also passed:
 
