@@ -46,6 +46,34 @@ manager_restart() {
 docker inspect greenhouse-manager --format '{{.RestartCount}}'
 }
 
+wait_postboot_ready() {
+local deadline=$((SECONDS + 180))
+while [ "$SECONDS" -lt "$deadline" ]; do
+    local nm
+    local docker_state
+    local guard_state
+    local activation_state
+    local eth0_state
+    local addresses
+    nm="$(systemctl is-active NetworkManager 2>/dev/null || true)"
+    docker_state="$(systemctl is-active docker 2>/dev/null || true)"
+    guard_state="$(systemctl is-active "$GUARD" 2>/dev/null || true)"
+    activation_state="$(systemctl is-active "$ACTIVATION" 2>/dev/null || true)"
+    eth0_state="$(nmcli -t -f GENERAL.STATE device show eth0 2>/dev/null || true)"
+    addresses="$(nmcli -g IP4.ADDRESS device show eth0 2>/dev/null || true)"
+    if [ "$nm" = "active" ] &&
+       [ "$docker_state" = "active" ] &&
+       [ "$guard_state" = "active" ] &&
+       [ "$activation_state" = "active" ] &&
+       printf '%s\n' "$eth0_state" | grep -q '^GENERAL.STATE:100' &&
+       [ -n "$addresses" ]; then
+        return 0
+    fi
+    sleep 2
+done
+return 1
+}
+
 guard_snapshot() {
 python3 - "$LIVE_GUARD" <<'PY'
 import runpy
@@ -197,6 +225,7 @@ test ! -e "$RESULT"
 exec > >(tee -a "$RESULT") 2>&1
 
 common_exact_check
+wait_postboot_ready
 
 PREBOOT_BOOT_ID="$(get_pre PREBOOT_BOOT_ID)"
 PREBOOT_BROKER_ID="$(get_pre PREBOOT_BROKER_ID)"
@@ -236,8 +265,10 @@ printf '%s\n' "$SNAPSHOT"
 
 GUARD_LOG="$(journalctl -b -u "$GUARD" --no-pager -o cat)"
 ACTIVATION_LOG="$(journalctl -b -u "$ACTIVATION" --no-pager -o cat)"
+DISPATCHER_LOG="$(journalctl -b -u NetworkManager-dispatcher.service --no-pager -o cat)"
 printf '%s\n' "$GUARD_LOG"
 printf '%s\n' "$ACTIVATION_LOG"
+printf '%s\n' "$DISPATCHER_LOG"
 
 GUARD_APPLY_COUNT="$(printf '%s\n' "$GUARD_LOG" | grep -c '"applied":true' || true)"
 GUARD_PASS_COUNT="$(printf '%s\n' "$GUARD_LOG" | grep -c '"status":"PASS","applied":true' || true)"
@@ -247,6 +278,21 @@ GUARD_ERROR_COUNT="$(printf '%s\n' "$GUARD_LOG" | grep -c '"status":"ERROR"' || 
 [ "$GUARD_APPLY_COUNT" -ge 1 ]
 [ "$GUARD_PASS_COUNT" -ge 1 ]
 [ "$GUARD_ERROR_COUNT" = "0" ]
+
+DISPATCHER_START_COUNT="$(printf '%s\n' "$DISPATCHER_LOG" | grep -c 'Started NetworkManager-dispatcher.service' || true)"
+DISPATCHER_OWNER_MATCHES="$(
+grep -RIl 'n3wfc4-broker-ingress-guard.service' /etc/NetworkManager/dispatcher.d 2>/dev/null || true
+)"
+DISPATCHER_OWNER_COUNT="$(
+printf '%s\n' "$DISPATCHER_OWNER_MATCHES" |
+sed '/^$/d' |
+wc -l |
+tr -d ' '
+)"
+
+[ "$DISPATCHER_START_COUNT" -ge 1 ]
+[ "$DISPATCHER_OWNER_COUNT" = "1" ]
+[ "$DISPATCHER_OWNER_MATCHES" = "$DISPATCHER" ]
 
 DOCKER_MONO="$(systemctl show docker.service -p ActiveEnterTimestampMonotonic --value)"
 GUARD_MONO="$(systemctl show "$GUARD" -p ActiveEnterTimestampMonotonic --value)"
@@ -295,6 +341,8 @@ echo "GUARD_APPLIED_TRUE_COUNT=$GUARD_APPLY_COUNT"
 echo "GUARD_PASS_APPLY_COUNT=$GUARD_PASS_COUNT"
 echo "GUARD_FAIL_CLOSED_APPLY_COUNT=$GUARD_FAIL_CLOSED_COUNT"
 echo "GUARD_ERROR_COUNT=$GUARD_ERROR_COUNT"
+echo "NETWORKMANAGER_DISPATCHER_START_COUNT=$DISPATCHER_START_COUNT"
+echo "DISPATCHER_OWNERSHIP_UNAMBIGUOUS=PASS"
 echo "DOCKER_ACTIVE_MONO=$DOCKER_MONO"
 echo "GUARD_ACTIVE_MONO=$GUARD_MONO"
 echo "ACTIVATION_ACTIVE_MONO=$ACTIVATION_MONO"
