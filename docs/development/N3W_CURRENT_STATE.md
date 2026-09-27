@@ -5,6 +5,45 @@ Status: `CURRENT_STATE_AUTHORITY`
 
 Fresh exact repository/runtime/physical evidence takes precedence if later evidence proves drift.
 
+## 2026-09-27 PR #480 T1 maintenance live closure
+
+This section supersedes the earlier open-maintenance status for the Compose orphan warning and Mosquitto `per_listener_settings` deprecation. Full public-safe evidence is in `docs/development/N3W_PR480_T1_MAINTENANCE_LIVE_CLOSURE_20260927.md`.
+
+```text
+PR480_STATE=MERGED
+PR480_SOURCE_HEAD=1749800677f8c5ecb846edb3bad2550382de78d5
+PR480_SOURCE_CI=12_OF_12_PASS
+PR480_MERGE_COMMIT=20153019301e323c71b861b46f3f818a8fe3f1c2
+MAIN_AFTER_PR480=20153019301e323c71b861b46f3f818a8fe3f1c2
+PR480_POSTMERGE_PUSH_CI=NOT_OBSERVED_BY_AVAILABLE_WORKFLOW_RUN_QUERY
+
+COMPOSE_FC4_HOMEASSISTANT_ORPHAN_OWNERSHIP=CLOSED_PASS
+MOSQUITTO_PER_LISTENER_SETTINGS_DEPRECATION=CLOSED_PASS
+PR480_LIVE_REPAIR=CLOSED_PASS
+FINAL_LIVE_ACCEPTANCE=PASS
+
+COMPOSE_IGNORE_ORPHANS_EFFECTIVE=true
+COMPOSE_ORPHAN_WARNING=ABSENT
+PER_LISTENER_SETTINGS_WARNING=ABSENT
+
+BROKER_RUNNING=true
+TCP_8883_LISTEN_COUNT=1
+MANAGER_LOOPBACK_TLS_MQTT_CONTINUITY=PASS
+AUTHENTICATED_MQTT_RUNTIME_PATH=PASS
+DYNAMIC_SECURITY_CONTINUITY=PASS
+HOMEASSISTANT_CONTINUITY=PASS
+R5_FIREWALL_CONTINUITY=PASS
+AUTOMATIC_ROLLBACK_TRIGGERED=false
+
+EXTERNAL_UNTRUSTED_ETH0_PHYSICAL_NEGATIVE=NOT_PROVEN
+B2_STABLE_T1_HOSTNAME_TLS_IDENTITY=OPEN_OUT_OF_SCOPE
+B3_ALREADY_PROVISIONED_NODE_LITERAL_BROKER_IP_MIGRATION=OPEN_OUT_OF_SCOPE
+
+NEXT_ONE_GATE=N3W_PR474_POST_INFRA_CLOSURE_DISPOSITION_READONLY_REVIEW_20260927_01
+```
+
+The two maintenance warnings are now closed by fresh live evidence. The repair preserved the Dynamic Security state, one Broker/TCP-8883 listener, Manager authenticated loopback continuity, both Home Assistant runtimes, and the accepted R5 firewall anchors/policy. No `--remove-orphans`, firewall redesign, board access, B2 execution, or B3 execution occurred.
+
 ## 2026-09-27 PR #478 Broker ingress guard source/live closure
 
 This section supersedes older PR #478 / KF-097 live-pending statements below wherever they conflict. Full public-safe evidence is in `docs/development/N3W_PR478_FINAL_SOURCE_LIVE_CLOSURE_PROGRESS_ALIGNMENT_20260927.md`.
