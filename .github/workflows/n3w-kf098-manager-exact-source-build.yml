@@ -1,0 +1,225 @@
+name: N3W KF098 Manager exact-source build
+
+on:
+  push:
+    branches:
+      - build/n3w-kf098-manager-exact-source-575ce642-20260927
+    paths:
+      - ".github/workflows/n3w-kf098-manager-exact-source-build.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    env:
+      SOURCE_SHA: 575ce642e372961e21de14a36eba5877082de3cf
+      IMAGE_TAG: local/greenhouse-manager:kf098-575ce642
+      ARTIFACT_NAME: n3w-kf098-manager-exact-source-575ce642
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 575ce642e372961e21de14a36eba5877082de3cf
+          fetch-depth: 0
+
+      - name: Verify exact source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          git diff --quiet
+          git diff --cached --quiet
+          printf 'SOURCE_SHA=%s\n' "$SOURCE_SHA"
+          printf 'SOURCE_TREE=%s\n' "$(git rev-parse "$SOURCE_SHA^{tree}")"
+
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build exact ARM64 Manager image
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/n3w-kf098-manager"
+          docker buildx build             --platform linux/arm64             --file host/greenhouse-manager/Dockerfile             --tag "$IMAGE_TAG"             --output "type=docker,dest=$RUNNER_TEMP/n3w-kf098-manager/greenhouse-manager-arm64.tar"             host/greenhouse-manager
+          docker load -i "$RUNNER_TEMP/n3w-kf098-manager/greenhouse-manager-arm64.tar"
+
+      - name: Bind image runtime contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/n3w-kf098-manager"
+          docker image inspect "$IMAGE_TAG" > "$OUT/image-inspect.json"
+          python - "$OUT/image-inspect.json" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          document = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          if not isinstance(document, list) or len(document) != 1:
+              raise SystemExit("IMAGE_INSPECT_COUNT_INVALID")
+          image = document[0]
+          if image.get("Architecture") != "arm64":
+              raise SystemExit("IMAGE_ARCHITECTURE_INVALID")
+          config = image.get("Config")
+          if not isinstance(config, dict):
+              raise SystemExit("IMAGE_CONFIG_INVALID")
+          if config.get("Entrypoint") != ["greenhouse-manager"]:
+              raise SystemExit("IMAGE_ENTRYPOINT_INVALID")
+          if config.get("User") != "greenhouse":
+              raise SystemExit("IMAGE_USER_INVALID")
+          image_id = image.get("Id")
+          if not isinstance(image_id, str) or not image_id.startswith("sha256:"):
+              raise SystemExit("IMAGE_ID_INVALID")
+          print(f"IMAGE_ID={image_id}")
+          print("IMAGE_ARCHITECTURE=arm64")
+          print("PRODUCT_ENTRYPOINT=greenhouse-manager")
+          print("IMAGE_USER=greenhouse")
+          PY
+          docker run --rm             --platform linux/arm64             --entrypoint sh             "$IMAGE_TAG"             -c 'printf "RUNTIME_UID=%s\nRUNTIME_GID=%s\n" "$(id -u)" "$(id -g)"'             > "$OUT/runtime-identity.txt"
+          grep -qx 'RUNTIME_UID=999' "$OUT/runtime-identity.txt"
+          grep -qx 'RUNTIME_GID=999' "$OUT/runtime-identity.txt"
+
+      - name: Verify installed KF098 source bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/n3w-kf098-manager"
+          printf 'config.py %s\n' "$(sha256sum host/greenhouse-manager/src/greenhouse_manager/runtime/config.py | awk '{print $1}')" > "$OUT/source-core-hashes.txt"
+          printf 'n3w_simplified_discovery.py %s\n' "$(sha256sum host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_simplified_discovery.py | awk '{print $1}')" >> "$OUT/source-core-hashes.txt"
+          docker run --rm             --platform linux/arm64             --entrypoint python             "$IMAGE_TAG"             -c 'import hashlib; from pathlib import Path; import greenhouse_manager.runtime.config as c; import greenhouse_manager.runtime.n3w_simplified_discovery as d; print("config.py", hashlib.sha256(Path(c.__file__).read_bytes()).hexdigest()); print("n3w_simplified_discovery.py", hashlib.sha256(Path(d.__file__).read_bytes()).hexdigest())'             > "$OUT/image-core-hashes.txt"
+          diff -u "$OUT/source-core-hashes.txt" "$OUT/image-core-hashes.txt"
+
+      - name: Create exact source archive and manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/n3w-kf098-manager"
+          git archive --format=tar "$SOURCE_SHA" host/greenhouse-manager tools/n3w_pairing_deployment_gate.py tests/tools/test_n3w_pairing_deployment_gate.py | gzip -n > "$OUT/exact-source.tar.gz"
+          python - "$OUT" <<'PY'
+          import hashlib
+          import json
+          import os
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          out = Path(sys.argv[1])
+          source_sha = os.environ["SOURCE_SHA"]
+
+          def run(*args: str) -> str:
+              return subprocess.check_output(args, text=True).strip()
+
+          def file_record(name: str) -> dict[str, object]:
+              path = out / name
+              data = path.read_bytes()
+              return {
+                  "name": name,
+                  "size": len(data),
+                  "sha256": hashlib.sha256(data).hexdigest(),
+              }
+
+          image_inspect = json.loads((out / "image-inspect.json").read_text(encoding="utf-8"))[0]
+          runtime_identity = dict(
+              line.split("=", 1)
+              for line in (out / "runtime-identity.txt").read_text(encoding="utf-8").splitlines()
+              if "=" in line
+          )
+          source_hashes = dict(
+              line.split(" ", 1)
+              for line in (out / "source-core-hashes.txt").read_text(encoding="utf-8").splitlines()
+              if " " in line
+          )
+          image_hashes = dict(
+              line.split(" ", 1)
+              for line in (out / "image-core-hashes.txt").read_text(encoding="utf-8").splitlines()
+              if " " in line
+          )
+
+          manifest = {
+              "schema": "gh.n3w-manager-exact-source-artifact/1",
+              "purpose": "KF-098 pairing advertised-host dynamic Manager live-candidate binding",
+              "source": {
+                  "repository": "chrenguo-stack/HomeAssistant",
+                  "commit": source_sha,
+                  "tree": run("git", "rev-parse", f"{source_sha}^{{tree}}"),
+                  "dockerfile_blob": run(
+                      "git",
+                      "rev-parse",
+                      f"{source_sha}:host/greenhouse-manager/Dockerfile",
+                  ),
+                  "pyproject_blob": run(
+                      "git",
+                      "rev-parse",
+                      f"{source_sha}:host/greenhouse-manager/pyproject.toml",
+                  ),
+              },
+              "image": {
+                  "tag": os.environ["IMAGE_TAG"],
+                  "id": image_inspect["Id"],
+                  "architecture": image_inspect["Architecture"],
+                  "os": image_inspect["Os"],
+                  "entrypoint": image_inspect["Config"]["Entrypoint"],
+                  "user": image_inspect["Config"]["User"],
+                  "runtime_uid": runtime_identity["RUNTIME_UID"],
+                  "runtime_gid": runtime_identity["RUNTIME_GID"],
+              },
+              "core_source_byte_binding": {
+                  "repository": source_hashes,
+                  "image": image_hashes,
+                  "equal": source_hashes == image_hashes,
+              },
+              "files": [
+                  file_record("greenhouse-manager-arm64.tar"),
+                  file_record("exact-source.tar.gz"),
+                  file_record("image-inspect.json"),
+                  file_record("runtime-identity.txt"),
+                  file_record("source-core-hashes.txt"),
+                  file_record("image-core-hashes.txt"),
+              ],
+              "github": {
+                  "run_id": os.environ["GITHUB_RUN_ID"],
+                  "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+                  "workflow_sha": os.environ["GITHUB_SHA"],
+              },
+              "live_mutation": False,
+              "t1_access": False,
+              "board_access": False,
+          }
+
+          if not manifest["core_source_byte_binding"]["equal"]:
+              raise SystemExit("CORE_SOURCE_BYTE_BINDING_FAILED")
+
+          (out / "manifest.json").write_text(
+              json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(manifest, indent=2, sort_keys=True))
+          PY
+          sha256sum "$OUT/manifest.json" > "$OUT/manifest.sha256"
+
+      - name: Upload exact Manager artifact
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ runner.temp }}/n3w-kf098-manager/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Publish binding summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            printf 'SOURCE_SHA=%s\n' "$SOURCE_SHA"
+            printf 'ARTIFACT_NAME=%s\n' "$ARTIFACT_NAME"
+            printf 'ARTIFACT_ID=%s\n' "${{ steps.upload.outputs.artifact-id }}"
+            printf 'ARTIFACT_DIGEST=%s\n' "${{ steps.upload.outputs.artifact-digest }}"
+            printf 'ARTIFACT_URL=%s\n' "${{ steps.upload.outputs.artifact-url }}"
+            cat "$RUNNER_TEMP/n3w-kf098-manager/runtime-identity.txt"
+          } >> "$GITHUB_STEP_SUMMARY"
