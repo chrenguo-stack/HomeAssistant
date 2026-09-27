@@ -587,3 +587,41 @@ PHASE_RESULT=PASS
 The post-run live collection confirmed the Ethernet link was connected again and NetworkManager, the guard, activation service, Broker listener, and Manager were all healthy. No executor recovery path was needed.
 
 This gate proves live dispatcher behavior for an actual link-down/link-up cycle. Reboot/persistence acceptance remains separate and is not claimed here.
+
+
+## R5 dispatcher reboot persistence acceptance preparation
+
+The reboot-persistence preparation gate initially stopped before baseline creation because the guard and guarded Broker activation units were active but not enabled for boot persistence. No reboot occurred and runtime remained healthy.
+
+The persistence gap was then closed by enabling both units under `docker.service`. This created the intended boot-time dependency links without restarting the services, reloading NetworkManager, or interrupting the Broker/Manager runtime.
+
+A second exact-source preparation run then passed and created the root-only preboot baseline file.
+
+```text
+PERSISTENCE_ENABLEMENT=PASS
+GUARD_ENABLED=enabled
+ACTIVATION_ENABLED=enabled
+
+SERVICE_RESTART_EXECUTED=false
+NETWORKMANAGER_RELOAD_EXECUTED=false
+REBOOT_EXECUTED=false
+
+PREPARE_RETRY_PRECHECK=PASS
+NETWORK_DECISION_REASON=unique_ipv4_subnet
+DOCKER_USER_ANCHOR_POSITION=1
+INPUT_ANCHOR_POSITION=1
+R5_POLICY_EXACT=true
+
+NETWORKMANAGER_ENABLED=enabled
+DOCKER_ENABLED=enabled
+BROKER_RESTART_POLICY=no
+PRE_FILE_MODE=0600
+PRE_FILE_OWNER=root:root
+PREPARATION_RESULT=PASS
+
+PRE_FILE_PRESENT=true
+RESULT_FILE_PRESENT=false
+REBOOT_PREPARATION_GATE=PASS
+```
+
+The preboot boot identifier and runtime identities are stored only in the T1 root-owned preparation file for post-reboot comparison. This gate did not reboot T1. The next separate stage is the controlled reboot execution followed by postboot collection.
