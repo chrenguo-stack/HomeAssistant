@@ -51,6 +51,7 @@ def test_broker_activation_is_runtime_supervisor() -> None:
     assert "PartOf=docker.service" in unit
     assert "WantedBy=docker.service" in unit
     assert "EnvironmentFile=/etc/n3wfc4/broker-activation.env" in unit
+    assert "Environment=COMPOSE_IGNORE_ORPHANS=true" in unit
     assert (
         "ExecStartPre=/usr/bin/systemctl reload "
         "n3wfc4-broker-ingress-guard.service"
@@ -60,6 +61,7 @@ def test_broker_activation_is_runtime_supervisor() -> None:
     assert "up --no-deps --no-log-prefix --exit-code-from broker broker" in unit
     assert "up -d" not in unit
     assert "stop broker" in unit
+    assert "--remove-orphans" not in unit
     assert "Restart=always" in unit
     assert "RestartSec=5" in unit
     assert "RemainAfterExit=yes" not in unit
