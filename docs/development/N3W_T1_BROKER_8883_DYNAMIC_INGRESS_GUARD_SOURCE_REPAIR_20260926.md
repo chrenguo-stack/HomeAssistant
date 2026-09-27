@@ -697,3 +697,61 @@ The postboot guard started first, applied the exact trusted-subnet R5 policy, wa
 The Manager restart counter changed across the host reboot and is not used as a cross-reboot continuity oracle. The relevant reboot acceptance evidence is the changed boot identifier, preserved container identity, running postboot state, successful TLS client reconnects, and successful guard/activation ordering.
 
 Two non-blocking runtime warnings were observed during Broker startup: Compose reported an existing orphan container in the project, and Mosquitto reported that `per_listener_settings` is deprecated for a future major version. Neither warning caused this reboot-persistence gate to fail; they are follow-up maintenance items rather than R5 acceptance blockers.
+
+
+## PR #478 final source/live closure review
+
+Final closure review was performed against the exact PR #478 repository tip and the accumulated live R5 evidence.
+
+```text
+FINAL_REVIEW_HEAD=7cd007c99677a772cf2874b4a776fcc34f2d24d6
+FINAL_REVIEW_BASE=c070cc50c72cbbd261e8e8ba6e70d00aa4ef5fd6
+FINAL_REVIEW_BASE_IS_PR475_HEAD=true
+
+PR478_STATE=OPEN_DRAFT
+PR478_MERGED=false
+PR478_MERGEABLE=true
+FINAL_REVIEW_HEAD_CI=13_OF_13_PASS
+OPEN_REVIEW_THREAD_COUNT=0
+
+LIVE_GUARD_BLOB=795903b06c7ee93a0602649e478bc070723ab8c0
+LIVE_GUARD_UNIT_BLOB=b68d7d71ee43b26cb0481f0b278cf5739f3a2911
+LIVE_ACTIVATION_UNIT_BLOB=c170c87d035b5c0d28c440514d40b5df360328d2
+LIVE_DISPATCHER_BLOB=f733f5a1cfc936f77d1fabc383ccf262264e33d2
+
+R5_SOURCE_REVIEW_R2=PASS
+R5_LIVE_FIREWALL_ACCEPTANCE=PASS
+R5_RELOAD_IDEMPOTENCE=PASS
+R5_REAL_NM_REAPPLY_ACCEPTANCE=PASS
+R5_REAL_LINK_DOWN_UP_ACCEPTANCE=PASS
+R5_FAIL_CLOSED_ON_LINK_LOSS=PASS
+R5_SYSTEMD_PERSISTENCE_INSTALL_CONTRACT=PASS
+R5_REBOOT_PERSISTENCE_ACCEPTANCE=PASS
+
+PR478_FINAL_SOURCE_LIVE_CLOSURE=PASS
+FINAL_SOURCE_LIVE_BLOCKER_COUNT=0
+MERGE_AUTHORIZED=false
+```
+
+The final source comparison confirms that the production guard implementation, guard unit, activation unit, and NetworkManager dispatcher did not drift after the focused R5 R2 source closure. Their repository blobs still match the exact live blobs used by the accepted T1 runtime.
+
+Post-R2 repository changes are limited to acceptance tooling, documentation, and the systemd persistence install contract plus its lifecycle regression. The persistence installer only enables the two repository-owned units, verifies their enabled state, and does not use `enable --now` or start/stop/restart live services.
+
+The live acceptance evidence now covers exact R5 firewall state, trusted ingress, host-local non-trusted rejection, idempotent reload with foreign firewall preservation, real NetworkManager reapply, real link down/up fail-closed and restoration, and a real host reboot with correct Docker -> guard -> activation ordering and Broker/Manager/TCP-8883 recovery.
+
+The following limits remain explicit and are not converted into closure claims:
+
+```text
+EXTERNAL_UNTRUSTED_ETH0_PHYSICAL_NEGATIVE=NOT_PROVEN
+B2_STABLE_T1_HOSTNAME_TLS_IDENTITY=OPEN_OUT_OF_SCOPE
+B3_ALREADY_PROVISIONED_NODE_LITERAL_BROKER_IP_MIGRATION=OPEN_OUT_OF_SCOPE
+PR474_MERGED=false
+PR475_MERGED=false
+PR478_MERGED=false
+```
+
+The external-untrusted physical negative test remains unproven because no second external physical subnet was available; this review does not substitute the host-local Docker negative probe for that physical test.
+
+The reboot log also exposed two non-blocking maintenance items: Compose orphan ownership for the existing Home Assistant container and Mosquitto `per_listener_settings` deprecation. They remain separate maintenance work and are not R5 source/live closure blockers.
+
+This section records the closure review only. It does not authorize merging PR #478.
