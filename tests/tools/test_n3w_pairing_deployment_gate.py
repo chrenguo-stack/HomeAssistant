@@ -158,9 +158,11 @@ def test_accepts_pairing_hostname_without_ipv4_dependency() -> None:
         "192.0.2.10",
         "198.51.100.10",
         "127.0.0.1",
+        "::1",
+        "2001:db8::10",
     ],
 )
-def test_rejects_pairing_concrete_ipv4_dependency(
+def test_rejects_pairing_concrete_ip_dependency(
     advertised_host: str,
 ) -> None:
     tool = load_tool()
@@ -169,7 +171,7 @@ def test_rejects_pairing_concrete_ipv4_dependency(
         tool.DeploymentContractError,
         match=(
             "pairing_advertised_host_"
-            "ipv4_literal_forbidden"
+            "ip_literal_forbidden"
         ),
     ):
         tool.validate_compose_document(
