@@ -1,9 +1,63 @@
 # N3-W Current State
 
-Updated: 2026-09-21  
+Updated: 2026-09-27  
 Status: `CURRENT_STATE_AUTHORITY`
 
 Fresh exact repository/runtime/physical evidence takes precedence if later evidence proves drift.
+
+## 2026-09-27 PR #478 Broker ingress guard source/live closure
+
+This section supersedes older PR #478 / KF-097 live-pending statements below wherever they conflict. Full public-safe evidence is in `docs/development/N3W_PR478_FINAL_SOURCE_LIVE_CLOSURE_PROGRESS_ALIGNMENT_20260927.md`.
+
+```text
+PR475_STATE=OPEN_DRAFT
+PR475_HEAD=c070cc50c72cbbd261e8e8ba6e70d00aa4ef5fd6
+PR475_MERGED=false
+
+PR478_STATE=OPEN_DRAFT
+PR478_BASE_SHA=c070cc50c72cbbd261e8e8ba6e70d00aa4ef5fd6
+PR478_FINAL_REVIEW_HEAD=7cd007c99677a772cf2874b4a776fcc34f2d24d6
+PR478_CLOSURE_DOCS_HEAD=c5f1051ee2f344798351dc692442a24b60439ba9
+PR478_FINAL_REVIEW_HEAD_CI=13_OF_13_PASS
+PR478_CLOSURE_DOCS_HEAD_CI=13_OF_13_PASS
+PR478_MERGED=false
+PR478_MERGEABLE=true
+MERGE_AUTHORIZED=false
+
+R5_R2_SOURCE_REVIEW=PASS
+R5_SOURCE_BLOCKER_COUNT=0
+R5_LIVE_FIREWALL_ACCEPTANCE=PASS
+R5_RELOAD_IDEMPOTENCE=PASS
+R5_REAL_NM_REAPPLY_ACCEPTANCE=PASS
+R5_REAL_LINK_DOWN_UP_ACCEPTANCE=PASS
+R5_FAIL_CLOSED_ON_LINK_LOSS=PASS
+R5_TRUSTED_POLICY_RESTORE_ON_LINK_RECOVERY=PASS
+R5_SYSTEMD_PERSISTENCE_INSTALL_CONTRACT=PASS
+R5_REBOOT_PERSISTENCE_ACCEPTANCE=PASS
+PR478_FINAL_SOURCE_LIVE_CLOSURE=PASS
+FINAL_SOURCE_LIVE_BLOCKER_COUNT=0
+
+KF097_STATUS=GUARDED
+
+EXTERNAL_UNTRUSTED_ETH0_PHYSICAL_NEGATIVE=NOT_PROVEN
+B2_STABLE_T1_HOSTNAME_TLS_IDENTITY=OPEN_OUT_OF_SCOPE
+B3_ALREADY_PROVISIONED_NODE_LITERAL_BROKER_IP_MIGRATION=OPEN_OUT_OF_SCOPE
+
+COMPOSE_FC4_HOMEASSISTANT_ORPHAN_WARNING=OPEN_MAINTENANCE
+MOSQUITTO_PER_LISTENER_SETTINGS_DEPRECATION=OPEN_MAINTENANCE
+```
+
+Reboot preparation exposed one real deployment-contract defect: the guard and activation units were active but not enabled. The live T1 was repaired with `systemctl enable` only, and the repository now contains a persistence installer plus regression coverage that requires both services to be enabled without using `enable --now` or restarting live services.
+
+A real host reboot then proved a changed boot identity, correct Docker -> guard -> activation ordering, NetworkManager dispatcher execution, R5 policy restoration, Broker/Manager recovery, and one TCP/8883 listener. The Manager restart counter changed across the host reboot and is not treated as a cross-reboot continuity oracle.
+
+The Compose orphan warning for the existing Home Assistant container and the Mosquitto `per_listener_settings` deprecation are maintenance items, not R5 acceptance blockers. Do not use `--remove-orphans` blindly.
+
+```text
+TEAM_SHARED_WORKSPACE=GITHUB
+IMPORTANT_CHAT_ONLY_ARTIFACT_COUNT=0
+TEAM_SHARE_COMPLETENESS=PASS
+```
 
 ## 2026-09-21 production successor de-harness and exact-artifact closure
 

@@ -1,0 +1,37 @@
+name: N3W Broker ingress guard CI
+
+on:
+  pull_request:
+    paths:
+      - "tools/n3w_broker_ingress_guard.py"
+      - "tests/tools/test_n3w_broker_ingress_guard.py"
+      - "tests/tools/test_n3w_broker_ingress_guard_lifecycle.py"
+      - "infra/n3w-t1/**"
+      - ".github/workflows/n3w-broker-ingress-guard-ci.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "tools/n3w_broker_ingress_guard.py"
+      - "tests/tools/test_n3w_broker_ingress_guard.py"
+      - "tests/tools/test_n3w_broker_ingress_guard_lifecycle.py"
+      - "infra/n3w-t1/**"
+      - ".github/workflows/n3w-broker-ingress-guard-ci.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install "pytest>=8,<9"
+      - run: python -m pytest -q tests/tools/test_n3w_broker_ingress_guard.py tests/tools/test_n3w_broker_ingress_guard_lifecycle.py

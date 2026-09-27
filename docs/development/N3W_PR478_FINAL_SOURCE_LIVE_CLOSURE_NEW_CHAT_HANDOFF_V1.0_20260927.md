@@ -1,0 +1,541 @@
+# 温室环境监测系统（ESP32-C6） / N3-W
+# PR #478 source/live closure → post-closure route selection
+# 新会话交接文档 V1.0 — 2026-09-27
+
+```text
+HANDOFF_TEMPLATE_VERSION=1.2
+PROJECT_WORKING_CONTEXT_VERSION=1.0
+PROJECT_WORKING_CONTEXT=docs/development/N3W_PROJECT_WORKING_CONTEXT.md
+NEXT_ONE_GATE_ONLY=true
+TEAM_SHARED_WORKSPACE=GITHUB
+```
+
+本文只保存本轮 PR #478 source/live closure 的阶段增量。长期工作规则继续以 `N3W_PROJECT_WORKING_CONTEXT.md` 为准。任何 fresh repository/runtime/live evidence 与本文冲突时，以 fresh 直接证据为准并停止自动推进。
+
+---
+
+## 0. 会话切换结论
+
+```text
+CURRENT_STAGE=PR478_FINAL_SOURCE_LIVE_CLOSURE_COMPLETE
+CURRENT_STOP_POINT=PR478_POST_CLOSURE_ROUTE_SELECTION
+NEXT_ONE_GATE=N3W_PR478_POST_CLOSURE_REBIND_AND_NEXT_ROUTE_SELECTION_20260927_01
+
+PR478_FINAL_SOURCE_LIVE_CLOSURE=PASS
+FINAL_SOURCE_LIVE_BLOCKER_COUNT=0
+
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+HANDOFF_READY_FOR_NEW_CHAT=true
+```
+
+本轮已经完成 PR #478 的 source/live closure。新会话先做最小 fresh 只读 rebind，只选择一个后续路线，不把未收口任务串成一条长执行链。
+
+---
+
+## 1. 长期上下文引用与本阶段例外
+
+```text
+PROJECT_WORKING_CONTEXT_LOADED=true
+PROJECT_WORKING_CONTEXT_VERSION=1.0
+LONG_TERM_RULES_REPEATED_IN_HANDOFF=false
+
+STAGE_SPECIFIC_OVERRIDE_COUNT=5
+STAGE_OVERRIDES=
+1.RESPONSE_PREFIX_REQUIRED
+2.LONG_CHAIN_TASKS_MUST_BE_SPLIT_INTO_SHORT_PHASES
+3.GITHUB_OPERATIONS_MUST_HAVE_CLEAR_STOP_POINTS
+4.DO_NOT_REPEATEDLY_POLL_LONG_CI
+5.DO_NOT_AUTO_ADVANCE_TO_MUTATION_OR_MERGE
+```
+
+新会话每次回复必须先写：
+
+```text
+主线任务：N3W_MULTI_NODE_RELAY_AND_RUNTIME_FAILOVER_ACCEPTANCE
+支线任务：T1 Broker LAN-IP-independent binding / 8883 dynamic ingress guard post-closure
+当前任务：N3W_PR478_POST_CLOSURE_REBIND_AND_NEXT_ROUTE_SELECTION_20260927_01
+```
+
+长链路任务按短阶段执行，每阶段有明确停止点。GitHub 长 CI 不反复轮询；需要等待时给出当前状态/链接后停止。
+
+---
+
+## 2. Product North Star
+
+```text
+CURRENT_PRODUCT_ROUTE=N3W_MULTI_NODE_RELAY_AND_RUNTIME_FAILOVER_ACCEPTANCE
+FINAL_ACCEPTANCE_TARGET=LAN-portable T1 Broker + fail-closed dynamic 8883 ingress lifecycle with verified recovery
+DEFERRED_OR_OUT_OF_SCOPE=B2/B3 + external-untrusted physical negative + maintenance warnings + PR merge decisions
+```
+
+---
+
+## 3. Frozen Authorities
+
+```text
+REPOSITORY=chrenguo-stack/HomeAssistant
+
+PR475_STATE=OPEN_DRAFT
+PR475_HEAD=c070cc50c72cbbd261e8e8ba6e70d00aa4ef5fd6
+PR475_BASE=main
+PR475_MERGED=false
+
+PR478_STATE=OPEN_DRAFT
+PR478_BASE=fix/n3w-t1-broker-lan-ip-independent-binding-20260925
+PR478_BASE_SHA=c070cc50c72cbbd261e8e8ba6e70d00aa4ef5fd6
+
+PR478_FINAL_REVIEW_HEAD=7cd007c99677a772cf2874b4a776fcc34f2d24d6
+PR478_FINAL_REVIEW_HEAD_CI=13_OF_13_PASS
+
+PR478_CONVERSATION_SYNC_HEAD=511d8062019253fc52db81e99cb5598597be340e
+PR478_CONVERSATION_SYNC_HEAD_CI=13_OF_13_PASS
+PR478_MERGED=false
+PR478_MERGEABLE=true
+
+LIVE_GUARD_BLOB=795903b06c7ee93a0602649e478bc070723ab8c0
+LIVE_GUARD_UNIT_BLOB=b68d7d71ee43b26cb0481f0b278cf5739f3a2911
+LIVE_ACTIVATION_UNIT_BLOB=c170c87d035b5c0d28c440514d40b5df360328d2
+LIVE_DISPATCHER_BLOB=f733f5a1cfc936f77d1fabc383ccf262264e33d2
+
+PRIVATE_RAW_REBOOT_COLLECTION_SHA256=ee0eb75d100bf60b7ff9e32c1af1599c3a772b2ff7cd27b107cbd42b60ddea4c
+```
+
+PR #478 在本 handoff / index 文档提交后可能出现 docs-only tip advancement。新会话不得把这里的旧 tip 当成 fresh authority，必须先 read-back 当前 PR head/state/CI。
+
+PR #474 是另一条独立未合并路线：
+
+```text
+PR474_STATE=OPEN_DRAFT
+PR474_HEAD=d3c158b4376ca0577e4a3a45a18a6c5c6e994e75
+PR474_MERGED=false
+```
+
+本 handoff 不授权 PR #474/#475/#478 合并。
+
+---
+
+## 4. Current Live Baseline
+
+最近一次 accepted live baseline 来自真实 T1 reboot 后的 postboot collection：
+
+```text
+LAST_ACCEPTED_T1_BOOT_REBOOT=PASS
+BOOT_ID_CHANGED=true
+
+NETWORKMANAGER_ACTIVE=active
+DOCKER_ACTIVE=active
+GUARD_ACTIVE=active
+ACTIVATION_ACTIVE=active
+
+NETWORKMANAGER_ENABLED=enabled
+DOCKER_ENABLED=enabled
+GUARD_ENABLED=enabled
+ACTIVATION_ENABLED=enabled
+
+BROKER_STATE=running
+BROKER_RESTART_POLICY=no
+MANAGER_STATE=running
+TCP_8883_LISTEN_COUNT=1
+RECIPES_BROKER_RUNNING_COUNT=0
+
+R5_POLICY_EXACT=true
+DOCKER_USER_ANCHOR_POSITION=1
+INPUT_ANCHOR_POSITION=1
+```
+
+这是已接受的最后现场证据，不等于新会话时刻的 fresh state：
+
+```text
+HANDOFF_TIME_T1_LIVE_STATE=UNKNOWN_FRESH
+T1_LIVE_STATE_REQUIRES_FRESH_READONLY_RECHECK=true
+APPLICATION_SERIAL_OPEN=false
+FLASH_MUTATION=false
+NVS_MUTATION=false
+T1_RUNTIME_MUTATION=false
+```
+
+---
+
+## 5. Proven Current Facts
+
+```text
+R5_R2_SOURCE_REVIEW=PASS
+R5_SOURCE_BLOCKER_COUNT=0
+
+R5_LIVE_FIREWALL_ACCEPTANCE=PASS
+R5_RELOAD_IDEMPOTENCE=PASS
+R5_REAL_NM_REAPPLY_ACCEPTANCE=PASS
+R5_REAL_LINK_DOWN_UP_ACCEPTANCE=PASS
+R5_FAIL_CLOSED_ON_LINK_LOSS=PASS
+R5_TRUSTED_POLICY_RESTORE_ON_LINK_RECOVERY=PASS
+
+R5_SYSTEMD_PERSISTENCE_INSTALL_CONTRACT=PASS
+R5_REBOOT_PERSISTENCE_ACCEPTANCE=PASS
+
+PR478_FINAL_SOURCE_LIVE_CLOSURE=PASS
+FINAL_SOURCE_LIVE_BLOCKER_COUNT=0
+
+KF097_STATUS=GUARDED
+```
+
+Reboot preparation 实际发现了一个部署契约缺口：guard / activation 两个 systemd unit 当时 active 但 disabled。现场使用 bounded `systemctl enable` 修复，没有 restart service、没有 NetworkManager reload；仓库随后增加正式 persistence installer 和 regression，明确禁止用 `enable --now` 或 start/stop/restart 来冒充持久化安装。
+
+真实 host reboot 后已经证明 Docker → guard → activation 启动顺序正确，NetworkManager dispatcher 在新 boot 中实际运行，Broker / Manager / TCP 8883 恢复。
+
+Manager `RestartCount` 在 host reboot 前后变化，不作为跨主机 reboot continuity oracle。
+
+---
+
+## 6. Current Root Cause / Blockers
+
+对 PR #478 R5 source/live closure：
+
+```text
+CURRENT_BLOCKER_COUNT=0
+CURRENT_BLOCKER=NONE_FOR_PR478_R5_SOURCE_LIVE_CLOSURE
+SOURCE_DEFECT_PROVEN=false
+RUNTIME_DEFECT_PROVEN=false
+```
+
+### 6A. 本轮未完成收口任务
+
+这些任务必须在新会话中继续明确保留，不能因为 PR #478 closure PASS 而自动视为完成：
+
+```text
+OPEN_1=EXTERNAL_UNTRUSTED_ETH0_PHYSICAL_NEGATIVE
+STATUS_1=NOT_PROVEN
+NOTE_1=没有第二个外部物理网段；host-local Docker negative 不能冒充 physical eth0 negative
+
+OPEN_2=B2_STABLE_T1_HOSTNAME_TLS_IDENTITY
+STATUS_2=OPEN_OUT_OF_SCOPE
+NOTE_2=稳定 hostname / TLS identity 是独立路线
+
+OPEN_3=B3_ALREADY_PROVISIONED_NODE_LITERAL_BROKER_IP_MIGRATION
+STATUS_3=OPEN_OUT_OF_SCOPE
+NOTE_3=已经部署节点中的旧 literal Broker IP 迁移是独立路线
+
+OPEN_4=COMPOSE_FC4_HOMEASSISTANT_ORPHAN_OWNERSHIP
+STATUS_4=OPEN_MAINTENANCE
+NOTE_4=先做只读 ownership forensic；禁止盲目 --remove-orphans
+
+OPEN_5=MOSQUITTO_PER_LISTENER_SETTINGS_DEPRECATION
+STATUS_5=OPEN_MAINTENANCE
+NOTE_5=先绑定 production effective config 和 running Mosquitto version，再设计最小修复
+
+OPEN_6=PR475_AND_PR478_MERGE_DISPOSITION
+STATUS_6=NOT_AUTHORIZED_NOT_EXECUTED
+NOTE_6=PR478 stacked on PR475；合并必须另行 fresh review + explicit authorization
+
+OPEN_7=PR474_DISPOSITION
+STATUS_7=OPEN_DRAFT_OUTSIDE_CURRENT_PR478_ROUTE
+NOTE_7=不因本轮 closure 自动合并/关闭
+```
+
+另有历史 wrong-project `recipes-broker-1` 已证明当前 reboot 后 running count=0；清理不是本轮授权内容，不自动执行。
+
+---
+
+## 7. Closed / Forbidden Routes
+
+```text
+PR478_R5_SOURCE_LIVE_CLOSURE=CLOSED_PASS
+R5_REAPPLY_ACCEPTANCE=CLOSED_PASS
+R5_LINK_DOWN_UP_ACCEPTANCE=CLOSED_PASS
+R5_REBOOT_PERSISTENCE_ACCEPTANCE=CLOSED_PASS
+
+BLIND_REMOVE_ORPHANS=FORBIDDEN
+REOPEN_PR478_R5_WITHOUT_NEW_EVIDENCE=FORBIDDEN
+CLAIM_EXTERNAL_UNTRUSTED_ETH0_PHYSICAL_NEGATIVE_PASS=FORBIDDEN
+AUTO_MERGE_PR474_PR475_PR478=FORBIDDEN
+AUTO_CLEANUP_RECIPES_BROKER=FORBIDDEN
+```
+
+---
+
+## 8. Authorization Ledger
+
+```text
+PR478_LIVE_REAPPLY_AUTHORIZATION=CONSUMED
+PR478_LINK_DOWN_UP_AUTHORIZATION=CONSUMED
+PR478_REBOOT_AUTHORIZATION=CONSUMED
+
+CONSUMED_AUTHORIZATION_REPLAY=false
+
+PR474_MERGE_AUTHORIZED=false
+PR475_MERGE_AUTHORIZED=false
+PR478_MERGE_AUTHORIZED=false
+
+NEXT_ROUTE_MUTATION_AUTHORIZED=false
+```
+
+新会话的下一 gate 是只读 rebind / route selection，不包含现场 mutation。
+
+---
+
+## 9. Rollback Authority
+
+```text
+ROLLBACK_AUTHORITY=NOT_APPLICABLE:READONLY_NEXT_GATE
+```
+
+若后续选择任何 live mutation 路线，必须重新做 fresh prechange baseline 和对应 rollback authority，不复用本轮已消费的 live authorization。
+
+---
+
+## 10. Next ONE Gate
+
+```text
+NEXT_ONE_GATE=N3W_PR478_POST_CLOSURE_REBIND_AND_NEXT_ROUTE_SELECTION_20260927_01
+```
+
+### Purpose
+
+只做三件事：
+
+1. fresh read-back PR #474/#475/#478 当前 state/head/base/mergeability；
+2. fresh read-back current state / index / KF-097 / PR #478 alignment；
+3. 在未收口任务中只选择一个下一阶段 gate，然后 STOP。
+
+这一步不证明任何新的 live runtime 状态，不修改 T1，不修改板卡，不 merge PR。
+
+### Inputs
+
+```text
+HANDOFF=docs/development/N3W_PR478_FINAL_SOURCE_LIVE_CLOSURE_NEW_CHAT_HANDOFF_V1.0_20260927.md
+ALIGNMENT=docs/development/N3W_PR478_FINAL_SOURCE_LIVE_CLOSURE_PROGRESS_ALIGNMENT_20260927.md
+CURRENT_STATE=docs/development/N3W_CURRENT_STATE.md
+CURRENT_STATE_INDEX=docs/development/N3W_CURRENT_STATE_INDEX.md
+KNOWN_FAILURES=docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md
+```
+
+### Operations
+
+```text
+1. GitHub fresh read-only rebind
+2. Verify no source/live closure drift
+3. Re-list all OPEN/NOT_PROVEN follow-ups
+4. Recommend exactly one next gate
+5. STOP
+```
+
+### PASS / FAIL / STOP
+
+```text
+PASS_IF=repository authority readable + unresolved routes explicit + exactly one next gate selected
+FAIL_IF=PR/source/docs authority conflict or important closure evidence missing
+STOP_BOUNDARY=after next-gate selection; no execution of selected gate
+
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+---
+
+## 11. Hard Allowed / Forbidden Scope
+
+```text
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+```
+
+### ALLOWED
+
+```text
+- GitHub read-only PR/state/CI/file inspection
+- public-safe authority comparison
+- select one next gate
+```
+
+### FORBIDDEN
+
+```text
+- T1 mutation
+- NetworkManager mutation
+- Docker/Broker/Manager mutation
+- board access / flash / NVS
+- PR merge / close
+- blind orphan cleanup
+- Mosquitto config edit
+- B2/B3 implementation
+- external physical negative execution
+- automatic execution of the selected next gate
+```
+
+---
+
+## 12. Execution Contract
+
+```text
+EXECUTOR=NOT_REQUIRED
+EXECUTION_METHOD=chat-tool
+DIRECT_CODE_SUPPLIED=false
+DSL_COMPILATION_USED=false
+
+GITHUB_OPERATION_MODEL=PHASED_SHORT_CALLS
+LONG_CHAIN_TASKS_SPLIT=true
+EACH_PHASE_HAS_STOP=true
+REPEATED_LONG_CI_POLLING=false
+```
+
+每一步只做当前阶段所需的最小调用。长 CI 如果未完成，报告状态/链接后停止，等待用户下一次检查，不连续轮询。
+
+---
+
+## 13. Expected Closure
+
+```text
+=== N3W_PR478_POST_CLOSURE_REBIND_AND_NEXT_ROUTE_SELECTION_20260927_01 CLOSURE ===
+
+PR474_FRESH_STATE=
+PR475_FRESH_STATE=
+PR478_FRESH_STATE=
+PR478_FRESH_HEAD=
+PR478_FRESH_CI=
+
+PR478_SOURCE_LIVE_CLOSURE_DRIFT=
+OPEN_FOLLOWUP_COUNT=
+SELECTED_NEXT_ONE_GATE=
+
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+PR_MERGE=false
+
+GATE_RESULT=
+STOP=true
+
+=== END ===
+```
+
+---
+
+## 14. After PASS / FAIL
+
+```text
+AFTER_PASS_NEXT_STAGE=WAIT_FOR_USER_AUTHORIZATION_OF_SELECTED_GATE
+AUTO_EXECUTE_AFTER_PASS=false
+NEW_AUTHORIZATION_REQUIRED=true
+
+AUTO_REPAIR_AFTER_FAIL=false
+AUTO_RETRY_AFTER_FAIL=false
+STOP_AND_REVIEW_AFTER_FAIL=true
+```
+
+---
+
+## 15. KNOWN_FAILURES Updates
+
+```text
+KNOWN_FAILURES_UPDATE_REQUIRED=false_for_initial_readonly_rebind
+EXISTING_KF_GUARD_USED=KF-097
+NEW_KF_REQUIRED=false
+```
+
+只有 future forensic 证明新的独立根因时，才讨论新增/调整 KF。
+
+---
+
+## 16. New Chat Start Prompt
+
+```text
+阅读《N3W_PR478_FINAL_SOURCE_LIVE_CLOSURE_NEW_CHAT_HANDOFF_V1.0_20260927.md》。
+
+同时读取：
+- docs/development/N3W_PROJECT_WORKING_CONTEXT.md
+- docs/development/N3W_CURRENT_STATE.md
+- docs/development/N3W_CURRENT_STATE_INDEX.md
+- docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md
+- docs/development/N3W_PR478_FINAL_SOURCE_LIVE_CLOSURE_PROGRESS_ALIGNMENT_20260927.md
+- docs/development/N3W_T1_BROKER_8883_DYNAMIC_INGRESS_GUARD_SOURCE_REPAIR_20260926.md
+
+继续“温室环境监测系统（ESP32-C6）”项目 N3-W。
+
+每次回复先写：
+主线任务：N3W_MULTI_NODE_RELAY_AND_RUNTIME_FAILOVER_ACCEPTANCE
+支线任务：T1 Broker LAN-IP-independent binding / 8883 dynamic ingress guard post-closure
+当前任务：N3W_PR478_POST_CLOSURE_REBIND_AND_NEXT_ROUTE_SELECTION_20260927_01
+
+长链路任务拆成短阶段执行，GitHub 操作使用短调用，每一步有明确停止点；长 CI 不反复轮询。
+
+先做最小 fresh 只读 rebind，然后只进入：
+
+NEXT_ONE_GATE=N3W_PR478_POST_CLOSURE_REBIND_AND_NEXT_ROUTE_SELECTION_20260927_01
+
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+
+不得重放 consumed live authorization，不得自动 merge PR #474/#475/#478，不得把 host-local Docker negative 冒充 external-untrusted physical eth0 negative，不得自动清理 orphan/recipes container，不得自动进入 B2/B3 或 maintenance mutation。
+
+完成 rebind 后，只选择一个下一 gate 并 STOP。
+```
+
+---
+
+## 17. Final Frozen State
+
+```text
+CURRENT_STAGE=PR478_FINAL_SOURCE_LIVE_CLOSURE_COMPLETE
+CURRENT_STOP_POINT=POST_CLOSURE_NEXT_ROUTE_SELECTION
+CURRENT_BLOCKER=NONE_FOR_PR478_R5_CLOSURE
+LIVE_SYSTEM_STATE=LAST_ACCEPTED_POSTBOOT_PASS_BUT_REQUIRES_FRESH_READONLY_RECHECK
+
+NEXT_ONE_GATE=N3W_PR478_POST_CLOSURE_REBIND_AND_NEXT_ROUTE_SELECTION_20260927_01
+
+TEAM_SHARED_WORKSPACE=GITHUB
+IMPORTANT_CHAT_ONLY_ARTIFACT_COUNT=0
+TEAM_SHARE_COMPLETENESS=PASS
+
+PRIVATE_RAW_EVIDENCE_EXTERNAL_COUNT=1
+PRIVATE_RAW_REBOOT_COLLECTION_SHA256=ee0eb75d100bf60b7ff9e32c1af1599c3a772b2ff7cd27b107cbd42b60ddea4c
+
+PROJECT_WORKING_CONTEXT_VERSION=1.0
+HANDOFF_TEMPLATE_VERSION=1.2
+
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+```
+
+原始 reboot collection 保留在公开仓库之外；其 public-safe conclusions 与完整性 hash 已同步 GitHub。
+
+---
+
+## 18. Handoff Compliance Audit
+
+```text
+=== HANDOFF COMPLIANCE AUDIT ===
+
+HANDOFF_TEMPLATE_VERSION=1.2
+PROJECT_WORKING_CONTEXT_VERSION=1.0
+
+PROJECT_WORKING_CONTEXT_REFERENCED=PASS
+LONG_TERM_RULE_DUPLICATION_MINIMIZED=PASS
+STAGE_SPECIFIC_OVERRIDES_EXPLICIT=PASS
+PRIVATE_CONTEXT_EXCLUDED_FROM_PUBLIC_HANDOFF=PASS
+
+PRODUCT_NORTH_STAR_PRESENT=PASS
+FROZEN_AUTHORITIES_COMPLETE=PASS
+CURRENT_LIVE_BASELINE_COMPLETE=PASS
+PROVEN_FACTS_SEPARATED_FROM_INFERENCE=PASS
+CURRENT_BLOCKERS_EXPLICIT=PASS
+CLOSED_ROUTES_EXPLICIT=PASS
+
+AUTHORIZATION_LEDGER_COMPLETE=PASS
+CONSUMED_AUTH_REPLAY_GUARD=PASS
+ROLLBACK_AUTHORITY_EXPLICIT=PASS
+
+NEXT_ONE_GATE_EXPLICIT=PASS
+NEXT_GATE_SCOPE_BOUNDED=PASS
+ALLOWED_FORBIDDEN_SCOPE_EXPLICIT=PASS
+EXECUTION_CONTRACT_SELF_CONTAINED=PASS
+EXPECTED_CLOSURE_PRESENT=PASS
+AFTER_PASS_DOES_NOT_AUTO_EXECUTE=PASS
+
+KNOWN_FAILURES_UPDATE_CLASSIFIED=PASS
+NEW_CHAT_START_PROMPT_PRESENT=PASS
+TEAM_WORKSPACE_STATUS_PRESENT=PASS
+FINAL_FROZEN_STATE_PRESENT=PASS
+
+HANDOFF_STATE_COMPLETENESS=PASS
+HANDOFF_READY_FOR_NEW_CHAT=true
+
+=== END ===
+```

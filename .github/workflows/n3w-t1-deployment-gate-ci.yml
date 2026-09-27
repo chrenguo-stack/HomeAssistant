@@ -14,6 +14,10 @@ on:
       - "tests/tools/test_n3w_pairing_deployment_gate.py"
       - ".github/workflows/n3w-t1-deployment-gate-ci.yml"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 
