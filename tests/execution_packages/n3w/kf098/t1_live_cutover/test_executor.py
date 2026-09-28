@@ -645,3 +645,69 @@ def test_bootstrap_private_root_rejects_loose_mode(
     root.chmod(0o755)
     with pytest.raises(bootstrap.StopExecution):
         bootstrap.ensure_private_root(root)
+
+
+def test_record_timeout_becomes_structured_stop(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "evidence"
+    root.mkdir(mode=0o700)
+
+    def fake_run(*args, **kwargs):
+        raise host.subprocess.TimeoutExpired(
+            cmd=["ssh"],
+            timeout=30,
+            output=b"partial-out",
+            stderr=b"partial-err",
+        )
+
+    monkeypatch.setattr(host.subprocess, "run", fake_run)
+
+    with pytest.raises(host.StopExecution) as error:
+        host.record(
+            root,
+            1,
+            "target_preflight",
+            ["ssh"],
+            timeout=30,
+        )
+
+    assert "timed out after 30 seconds" in str(error.value)
+    result = json.loads(
+        (root / "op_01_target_preflight/result.json")
+        .read_text(encoding="utf-8")
+    )
+    assert result["timed_out"] is True
+    assert result["timeout_seconds"] == 30
+    assert (
+        root / "op_01_target_preflight/stdout.bin"
+    ).read_bytes() == b"partial-out"
+    assert (
+        root / "op_01_target_preflight/stderr.bin"
+    ).read_bytes() == b"partial-err"
+
+
+def test_target_preflight_has_inner_and_outer_timeout_contract() -> None:
+    source = (PACKAGE / "executor.py").read_text(
+        encoding="utf-8"
+    )
+    assert 'timeout=10,' in source
+    assert '"docker_probe": docker_probe' in source
+    assert '"target_preflight",' in source
+    assert 'timeout=30,' in source
+
+
+def test_remote_phase_has_phase_specific_timeout_budget() -> None:
+    source = (PACKAGE / "executor.py").read_text(
+        encoding="utf-8"
+    )
+    assert '"preflight": 180' in source
+    assert '"apply": 900' in source
+    assert '"rollback": 600' in source
+
+
+def test_ssh_uses_server_alive_bounds() -> None:
+    argv = host.ssh_argv("root@t1", "true")
+    assert "ServerAliveInterval=5" in argv
+    assert "ServerAliveCountMax=2" in argv
