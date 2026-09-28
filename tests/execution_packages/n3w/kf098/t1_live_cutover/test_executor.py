@@ -296,3 +296,112 @@ def test_manual_rollback_requires_private_prestate_authority() -> None:
     )
     assert 'rollback prestate authority is missing' in source
     assert 'rollback prestate authority is incomplete' in source
+
+
+def test_rollback_preconditions_reject_unknown_manager_image(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    compose = tmp_path / "docker-compose.yml"
+    manager_env = tmp_path / "manager.env"
+    service_env = tmp_path / "service-identities.env"
+    compose.write_text("services:\n  manager:\n", encoding="utf-8")
+    manager_env.write_text(
+        "GH_ALPHA=one\n"
+        "GH_N3W_PAIRING_ADVERTISED_HOST=auto\n",
+        encoding="utf-8",
+    )
+    service_env.write_text("GH_ALPHA=one\n", encoding="utf-8")
+
+    monkeypatch.setattr(remote, "COMPOSE", compose)
+    monkeypatch.setattr(remote, "MANAGER_ENV", manager_env)
+    monkeypatch.setattr(remote, "SERVICE_ENV", service_env)
+    monkeypatch.setattr(
+        remote,
+        "EXPECTED_COMPOSE_SHA256",
+        remote.sha256_file(compose),
+    )
+    monkeypatch.setattr(
+        remote,
+        "EXPECTED_SERVICE_ENV_SHA256",
+        remote.sha256_file(service_env),
+    )
+    monkeypatch.setattr(
+        remote,
+        "EXPECTED_MANAGER_ENV_EXCLUDING_PAIRING_SHA256",
+        remote.env_without_target_hash(manager_env),
+    )
+
+    def fake_run(args, *, timeout=30):
+        if args[:3] == ["docker", "inspect", remote.MANAGER_NAME]:
+            return type(
+                "Result",
+                (),
+                {
+                    "returncode": 0,
+                    "stdout": json.dumps(
+                        [{"Image": "sha256:" + "f" * 64}]
+                    ),
+                    "stderr": "",
+                },
+            )()
+        raise AssertionError(args)
+
+    monkeypatch.setattr(remote, "run", fake_run)
+
+    with pytest.raises(remote.StopExecution) as error:
+        remote.rollback_preconditions()
+    assert "not transaction-owned" in str(error.value)
+
+
+def test_rollback_preconditions_accept_transaction_candidate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    compose = tmp_path / "docker-compose.yml"
+    manager_env = tmp_path / "manager.env"
+    service_env = tmp_path / "service-identities.env"
+    compose.write_text("services:\n  manager:\n", encoding="utf-8")
+    manager_env.write_text(
+        "GH_ALPHA=one\n"
+        "GH_N3W_PAIRING_ADVERTISED_HOST=auto\n",
+        encoding="utf-8",
+    )
+    service_env.write_text("GH_ALPHA=one\n", encoding="utf-8")
+
+    monkeypatch.setattr(remote, "COMPOSE", compose)
+    monkeypatch.setattr(remote, "MANAGER_ENV", manager_env)
+    monkeypatch.setattr(remote, "SERVICE_ENV", service_env)
+    monkeypatch.setattr(
+        remote,
+        "EXPECTED_COMPOSE_SHA256",
+        remote.sha256_file(compose),
+    )
+    monkeypatch.setattr(
+        remote,
+        "EXPECTED_SERVICE_ENV_SHA256",
+        remote.sha256_file(service_env),
+    )
+    monkeypatch.setattr(
+        remote,
+        "EXPECTED_MANAGER_ENV_EXCLUDING_PAIRING_SHA256",
+        remote.env_without_target_hash(manager_env),
+    )
+
+    def fake_run(args, *, timeout=30):
+        if args[:3] == ["docker", "inspect", remote.MANAGER_NAME]:
+            return type(
+                "Result",
+                (),
+                {
+                    "returncode": 0,
+                    "stdout": json.dumps(
+                        [{"Image": remote.NEW_IMAGE_ID}]
+                    ),
+                    "stderr": "",
+                },
+            )()
+        raise AssertionError(args)
+
+    monkeypatch.setattr(remote, "run", fake_run)
+    remote.rollback_preconditions()
