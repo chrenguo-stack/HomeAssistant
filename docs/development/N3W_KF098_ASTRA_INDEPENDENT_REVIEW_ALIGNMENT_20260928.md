@@ -56,6 +56,8 @@ The three review follow-ups were accepted for immediate cleanup rather than bein
 
 Public-safe evidence authority: `docs/development/N3W_KF098_PRIVATE_EVIDENCE_TRACEABILITY_ALIGNMENT_20260928.md`.
 
+The traceability capture also exposed a client-side control-flow defect outside the original KF-098 address root cause: firmware treated `status=rejected + transaction_disposition=continue` as immediate permission to call `/begin`. PR #500 repairs this by mapping rejected/continue to a wait-and-retry action that preserves the pairing ID and suppresses `/begin` until a later hello is accepted.
+
 ## Final disposition
 
 ```text
