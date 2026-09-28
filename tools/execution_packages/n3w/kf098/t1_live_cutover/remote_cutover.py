@@ -36,9 +36,12 @@ PAIRING_KEY = "GH_N3W_PAIRING_ADVERTISED_HOST"
 SOURCE_SHA = "575ce642e372961e21de14a36eba5877082de3cf"
 SOURCE_TREE = "7f1641827b75668aa220832b7663bf81d98633ba"
 ARTIFACT_ID = 10935052471
-NEW_IMAGE_ID = "sha256:49c9fcc0a17d47678b0667c48a06f9a9475609a757e510ca148983b53ed537e3"
+NEW_IMAGE_CONFIG_DIGEST = "sha256:49c9fcc0a17d47678b0667c48a06f9a9475609a757e510ca148983b53ed537e3"
+NEW_IMAGE_MANIFEST_DIGEST = "sha256:b806e7c8b97cc757965161a989f954df09427aa7d2700a6503e56e49cc8f9e4f"
+NEW_IMAGE_ID = NEW_IMAGE_CONFIG_DIGEST
 NEW_IMAGE_TAG = "local/greenhouse-manager:kf098-575ce642"
 NEW_IMAGE_TAR_SHA256 = "6392b8c9bb87d95404346583d6f44967bd4e20fcc092be393c45f75a4ca7a5b2"
+EXPECTED_NEW_ROOTFS_LAYERS_SHA256 = "97dd9fb029f1678a4589148d1874c95cd1d26439efa89ee833d5d734b70d42d6"
 OLD_IMAGE_ID = "sha256:271cd87c88c041f0ef7fa55f6c223615edf42388b8e05a7445862e2b700cdfb5"
 ROLLBACK_IMAGE_TAG = "local/greenhouse-manager:kf098-precutover-271cd87c"
 EXPECTED_COMPOSE_SHA256 = "2c9c28c582a9c01e18a2e54a4c0b2bbddc75192ed377a701ed2f661f15cd5a8a"
@@ -190,6 +193,84 @@ def docker_inspect(name: str) -> dict[str, Any]:
     if not isinstance(item, dict):
         raise StopExecution(f"docker inspect item invalid for {name}")
     return item
+
+
+def image_inspect(reference: str) -> dict[str, Any]:
+    raw = require_ok(
+        run(["docker", "image", "inspect", reference]),
+        f"docker image inspect failed for {reference}",
+    )
+    value = json.loads(raw)
+    if not isinstance(value, list) or len(value) != 1:
+        raise StopExecution(
+            f"docker image inspect shape invalid for {reference}"
+        )
+    item = value[0]
+    if not isinstance(item, dict):
+        raise StopExecution(
+            f"docker image inspect item invalid for {reference}"
+        )
+    return item
+
+
+def accepted_new_runtime_image_ids() -> set[str]:
+    return {
+        NEW_IMAGE_CONFIG_DIGEST,
+        NEW_IMAGE_MANIFEST_DIGEST,
+    }
+
+
+def rootfs_layers_fingerprint(item: dict[str, Any]) -> str:
+    rootfs = item.get("RootFS")
+    rootfs = rootfs if isinstance(rootfs, dict) else {}
+    layers = rootfs.get("Layers")
+    layers = layers if isinstance(layers, list) else []
+    return normalized_hash(layers)
+
+
+def verify_loaded_exact_image() -> dict[str, Any]:
+    item = image_inspect(NEW_IMAGE_TAG)
+    runtime_id = item.get("Id")
+    if runtime_id not in accepted_new_runtime_image_ids():
+        raise StopExecution(
+            "loaded Manager runtime image identity is not artifact-owned"
+        )
+    if item.get("Architecture") != "arm64":
+        raise StopExecution("loaded Manager architecture mismatch")
+    if item.get("Os") != "linux":
+        raise StopExecution("loaded Manager OS mismatch")
+    config = item.get("Config")
+    config = config if isinstance(config, dict) else {}
+    if config.get("Entrypoint") != ["greenhouse-manager"]:
+        raise StopExecution("loaded Manager entrypoint mismatch")
+    if config.get("User") != "greenhouse":
+        raise StopExecution("loaded Manager user mismatch")
+    rootfs_hash = rootfs_layers_fingerprint(item)
+    if rootfs_hash != EXPECTED_NEW_ROOTFS_LAYERS_SHA256:
+        raise StopExecution("loaded Manager RootFS layer binding mismatch")
+    return {
+        "runtime_image_id": runtime_id,
+        "config_digest": NEW_IMAGE_CONFIG_DIGEST,
+        "manifest_digest": NEW_IMAGE_MANIFEST_DIGEST,
+        "rootfs_layers_sha256": rootfs_hash,
+    }
+
+
+def ensure_loaded_exact_image() -> dict[str, Any]:
+    existing = run(
+        ["docker", "image", "inspect", NEW_IMAGE_TAG],
+    )
+    if existing.returncode == 0:
+        result = verify_loaded_exact_image()
+        result["load_action"] = "reused_existing_exact_tag"
+        return result
+    require_ok(
+        run(["docker", "load", "-i", str(IMAGE_TAR)], timeout=180),
+        "exact Manager image load failed",
+    )
+    result = verify_loaded_exact_image()
+    result["load_action"] = "loaded_exact_tar"
+    return result
 
 
 def manager_mount_fingerprint(item: dict[str, Any]) -> tuple[int, str]:
@@ -398,8 +479,8 @@ def verify_stage_artifact() -> dict[str, Any]:
         raise StopExecution("manifest source/image binding missing")
     if source.get("commit") != SOURCE_SHA or source.get("tree") != SOURCE_TREE:
         raise StopExecution("manifest source binding mismatch")
-    if image.get("id") != NEW_IMAGE_ID:
-        raise StopExecution("manifest image ID mismatch")
+    if image.get("id") != NEW_IMAGE_CONFIG_DIGEST:
+        raise StopExecution("manifest image config digest mismatch")
     if image.get("architecture") != "arm64":
         raise StopExecution("manifest image architecture mismatch")
     if image.get("entrypoint") != ["greenhouse-manager"]:
@@ -407,7 +488,8 @@ def verify_stage_artifact() -> dict[str, Any]:
     return {
         "artifact_id": ARTIFACT_ID,
         "source_sha": SOURCE_SHA,
-        "image_id": NEW_IMAGE_ID,
+        "image_config_digest": NEW_IMAGE_CONFIG_DIGEST,
+        "image_manifest_digest": NEW_IMAGE_MANIFEST_DIGEST,
         "image_tar_sha256": NEW_IMAGE_TAR_SHA256,
     }
 
@@ -586,7 +668,7 @@ def validate_shadow_manager(
     item: dict[str, Any],
     prestate: dict[str, Any],
     *,
-    expected_image: str,
+    expected_image: str | set[str],
     expected_pairing: list[str],
     label: str,
 ) -> None:
@@ -598,7 +680,12 @@ def validate_shadow_manager(
     host = host if isinstance(host, dict) else {}
     if state.get("Running") is True:
         raise StopExecution(f"{label} shadow unexpectedly running")
-    if item.get("Image") != expected_image:
+    expected_images = (
+        {expected_image}
+        if isinstance(expected_image, str)
+        else expected_image
+    )
+    if item.get("Image") not in expected_images:
         raise StopExecution(f"{label} shadow image mismatch")
     if host.get("NetworkMode") != "host":
         raise StopExecution(f"{label} shadow network mode mismatch")
@@ -687,7 +774,9 @@ def compose_shadow(
     return shadow
 
 
-def shadow_preflight(prestate: dict[str, Any]) -> dict[str, bool]:
+def shadow_preflight(
+    prestate: dict[str, Any],
+) -> dict[str, bool]:
     stale_pairing = env_values(MANAGER_ENV, PAIRING_KEY)
     if len(stale_pairing) != 1:
         raise StopExecution("shadow preflight stale pairing authority invalid")
@@ -720,7 +809,7 @@ def shadow_preflight(prestate: dict[str, Any]) -> dict[str, bool]:
     validate_shadow_manager(
         new_shadow,
         prestate,
-        expected_image=NEW_IMAGE_ID,
+        expected_image=accepted_new_runtime_image_ids(),
         expected_pairing=["auto"],
         label="new",
     )
@@ -793,8 +882,13 @@ def rollback_preconditions() -> None:
         if not isinstance(value, list) or len(value) != 1:
             raise StopExecution("rollback current Manager inspect shape invalid")
         image_id = value[0].get("Image")
-        if image_id not in {OLD_IMAGE_ID, NEW_IMAGE_ID}:
-            raise StopExecution("rollback current Manager image is not transaction-owned")
+        if (
+            image_id != OLD_IMAGE_ID
+            and image_id not in accepted_new_runtime_image_ids()
+        ):
+            raise StopExecution(
+                "rollback current Manager image is not transaction-owned"
+            )
 
 
 def rollback(prestate: dict[str, Any]) -> dict[str, Any]:
@@ -876,7 +970,9 @@ def rollback(prestate: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def postcheck(prestate: dict[str, Any]) -> dict[str, Any]:
+def postcheck(
+    prestate: dict[str, Any],
+) -> dict[str, Any]:
     manager = docker_inspect(MANAGER_NAME)
     state = manager.get("State")
     state = state if isinstance(state, dict) else {}
@@ -886,8 +982,9 @@ def postcheck(prestate: dict[str, Any]) -> dict[str, Any]:
     host = host if isinstance(host, dict) else {}
     if state.get("Running") is not True:
         raise StopExecution("new Manager is not running")
-    if manager.get("Image") != NEW_IMAGE_ID:
-        raise StopExecution("new Manager image mismatch")
+    observed_image = manager.get("Image")
+    if observed_image not in accepted_new_runtime_image_ids():
+        raise StopExecution("new Manager runtime image mismatch")
     if host.get("NetworkMode") != "host":
         raise StopExecution("new Manager network mode mismatch")
     if config.get("Entrypoint") != ["greenhouse-manager"]:
@@ -928,6 +1025,7 @@ def postcheck(prestate: dict[str, Any]) -> dict[str, Any]:
         raise StopExecution("R5 firewall state changed")
     return {
         "manager_exact_image": True,
+        "manager_runtime_image_id": observed_image,
         "manager_pairing_auto": True,
         "manager_mounts_preserved": True,
         "manager_health": "PASS",
@@ -936,27 +1034,52 @@ def postcheck(prestate: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def prepare_transaction_snapshot(
+    prestate: dict[str, Any],
+) -> dict[str, Any]:
+    if not ROLLBACK_ROOT.exists():
+        ROLLBACK_ROOT.mkdir(mode=0o700)
+        shutil.copy2(MANAGER_ENV, MANAGER_ENV_BACKUP)
+        os.chmod(MANAGER_ENV_BACKUP, 0o600)
+        if sha256_file(MANAGER_ENV_BACKUP) != EXPECTED_MANAGER_ENV_SHA256:
+            raise StopExecution("manager.env snapshot mismatch")
+        write_private_json(PRESTATE_JSON, prestate)
+        return {"snapshot": "created"}
+
+    if ROLLBACK_ROOT.stat().st_mode & 0o777 != 0o700:
+        raise StopExecution("existing rollback root mode mismatch")
+    if ROLLBACK_ROOT.stat().st_uid != 0:
+        raise StopExecution("existing rollback root owner mismatch")
+    if not MANAGER_ENV_BACKUP.is_file() or not PRESTATE_JSON.is_file():
+        raise StopExecution("existing rollback snapshot is incomplete")
+    if sha256_file(MANAGER_ENV_BACKUP) != EXPECTED_MANAGER_ENV_SHA256:
+        raise StopExecution("existing manager.env backup mismatch")
+    try:
+        saved = json.loads(PRESTATE_JSON.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise StopExecution("existing prestate JSON is invalid") from exc
+    if saved != prestate:
+        raise StopExecution("existing pretransaction snapshot no longer matches live prestate")
+    for path in (
+        OVERLAY,
+        ROLLBACK_OVERLAY,
+        SHADOW_OLD_OVERLAY,
+        SHADOW_NEW_OVERLAY,
+    ):
+        if path.exists():
+            raise StopExecution(
+                f"existing transaction overlay requires manual classification: {path.name}"
+            )
+    return {"snapshot": "reused_verified_pretransaction"}
+
+
 def apply() -> dict[str, Any]:
     artifact = verify_stage_artifact()
     prestate = base_preflight()
-    if ROLLBACK_ROOT.exists():
-        raise StopExecution("rollback root already exists")
-    ROLLBACK_ROOT.mkdir(mode=0o700)
-    shutil.copy2(MANAGER_ENV, MANAGER_ENV_BACKUP)
-    os.chmod(MANAGER_ENV_BACKUP, 0o600)
-    if sha256_file(MANAGER_ENV_BACKUP) != EXPECTED_MANAGER_ENV_SHA256:
-        raise StopExecution("manager.env snapshot mismatch")
-    write_private_json(PRESTATE_JSON, prestate)
+    snapshot = prepare_transaction_snapshot(prestate)
     mutation_started = False
     try:
-        require_ok(
-            run(["docker", "load", "-i", str(IMAGE_TAR)], timeout=180),
-            "exact Manager image load failed",
-        )
-        require_ok(
-            run(["docker", "image", "inspect", NEW_IMAGE_ID]),
-            "exact Manager image ID unavailable after load",
-        )
+        loaded = ensure_loaded_exact_image()
         require_ok(
             run(["docker", "tag", OLD_IMAGE_ID, ROLLBACK_IMAGE_TAG]),
             "cannot bind rollback image tag",
@@ -982,6 +1105,8 @@ def apply() -> dict[str, Any]:
         return {
             "result": "PASS",
             "artifact": artifact,
+            "loaded_image": loaded,
+            "transaction_snapshot": snapshot,
             "shadow_preflight": shadow,
             "poststate": post,
             "rollback_attempted": False,

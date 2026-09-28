@@ -19,6 +19,7 @@ ARTIFACT_NAME = "n3w-kf098-manager-exact-source-575ce642"
 IMAGE_TAR_SHA256 = "6392b8c9bb87d95404346583d6f44967bd4e20fcc092be393c45f75a4ca7a5b2"
 SOURCE_SHA = "575ce642e372961e21de14a36eba5877082de3cf"
 IMAGE_ID = "sha256:49c9fcc0a17d47678b0667c48a06f9a9475609a757e510ca148983b53ed537e3"
+EXPECTED_MANAGER_ENV_SHA256 = "f454c6e886ee286192a3c3683a87c33d98e79428de0a6d0c9d2a6e0a19a9d6a6"
 PLACEHOLDERS = (
     "placeholder",
     "example",
@@ -298,17 +299,76 @@ def stage(
     artifact_dir: Path,
 ) -> int:
     remote_sha = sha256_file(REMOTE_EXECUTOR)
+    classifier_script = """
+from pathlib import Path
+import hashlib
+import os
+
+r = Path("__STAGE_ROOT__")
+base = {
+    "greenhouse-manager-arm64.tar",
+    "manifest.json",
+    "manifest.sha256",
+    "remote_cutover.py",
+}
+forbidden = {
+    "manager-kf098-overlay.yml",
+    "manager-kf098-rollback-overlay.yml",
+    "manager-kf098-shadow-old-overlay.yml",
+    "manager-kf098-shadow-new-overlay.yml",
+}
+if not r.exists():
+    print("STAGE_CLASS=ABSENT")
+    raise SystemExit(0)
+
+existing = {p.name for p in r.iterdir()}
+if existing & forbidden:
+    print("STAGE_CLASS=UNKNOWN_NONEMPTY")
+    raise SystemExit(2)
+
+extra = existing - base - {"rollback"}
+if extra:
+    print("STAGE_CLASS=UNKNOWN_NONEMPTY")
+    raise SystemExit(2)
+
+rb = r / "rollback"
+if not rb.exists():
+    print("STAGE_CLASS=REUSABLE_OR_EMPTY")
+    raise SystemExit(0)
+
+if not rb.is_dir():
+    print("STAGE_CLASS=UNKNOWN_NONEMPTY")
+    raise SystemExit(2)
+st = rb.stat()
+if (st.st_mode & 0o777) != 0o700 or st.st_uid != 0:
+    print("STAGE_CLASS=UNKNOWN_NONEMPTY")
+    raise SystemExit(2)
+children = {p.name for p in rb.iterdir()}
+if children != {"manager.env.before", "manager-prestate.json"}:
+    print("STAGE_CLASS=UNKNOWN_NONEMPTY")
+    raise SystemExit(2)
+backup = rb / "manager.env.before"
+prestate = rb / "manager-prestate.json"
+if not backup.is_file() or not prestate.is_file():
+    print("STAGE_CLASS=UNKNOWN_NONEMPTY")
+    raise SystemExit(2)
+digest = hashlib.sha256(backup.read_bytes()).hexdigest()
+if digest != "__MANAGER_ENV_SHA__":
+    print("STAGE_CLASS=UNKNOWN_NONEMPTY")
+    raise SystemExit(2)
+print("STAGE_CLASS=REUSABLE_PRETRANSACTION_SNAPSHOT")
+raise SystemExit(0)
+""".strip()
+    classifier_script = classifier_script.replace(
+        "__STAGE_ROOT__",
+        STAGE_ROOT,
+    ).replace(
+        "__MANAGER_ENV_SHA__",
+        EXPECTED_MANAGER_ENV_SHA256,
+    )
     classifier = (
         "python3 -c "
-        + shlex.quote(
-            "from pathlib import Path;"
-            f"r=Path('{STAGE_ROOT}');"
-            "known={'greenhouse-manager-arm64.tar','manifest.json','manifest.sha256','remote_cutover.py'};"
-            "existing=set(p.name for p in r.iterdir()) if r.exists() else set();"
-            "bad=bool(existing-known or ('rollback' in existing) or ('manager-kf098-overlay.yml' in existing) or ('manager-kf098-rollback-overlay.yml' in existing));"
-            "print('STAGE_CLASS=UNKNOWN_NONEMPTY' if bad else ('STAGE_CLASS=REUSABLE_OR_EMPTY' if r.exists() else 'STAGE_CLASS=ABSENT'));"
-            "raise SystemExit(2 if bad else 0)"
-        )
+        + shlex.quote(classifier_script)
     )
     require_ok(
         record(
