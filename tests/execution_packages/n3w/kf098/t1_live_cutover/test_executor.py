@@ -241,11 +241,11 @@ def test_runtime_security_fingerprint_detects_security_drift() -> None:
         pairing="192.0.2.10",
     )
     same = manager_fixture(
-        image=remote.NEW_IMAGE_ID,
+        image=remote.NEW_IMAGE_MANIFEST_DIGEST,
         pairing="auto",
     )
     drift = manager_fixture(
-        image=remote.NEW_IMAGE_ID,
+        image=remote.NEW_IMAGE_MANIFEST_DIGEST,
         pairing="auto",
     )
     drift["HostConfig"]["ReadonlyRootfs"] = False
@@ -279,7 +279,7 @@ def test_shadow_contract_accepts_only_exact_reproduction() -> None:
     remote.validate_shadow_manager(
         candidate,
         prestate,
-        expected_image=remote.NEW_IMAGE_ID,
+        expected_image=remote.NEW_IMAGE_MANIFEST_DIGEST,
         expected_pairing=["auto"],
         label="new",
     )
@@ -288,7 +288,7 @@ def test_shadow_contract_accepts_only_exact_reproduction() -> None:
         remote.validate_shadow_manager(
             candidate,
             prestate,
-            expected_image=remote.NEW_IMAGE_ID,
+            expected_image=remote.NEW_IMAGE_MANIFEST_DIGEST,
             expected_pairing=["auto"],
             label="new",
         )
@@ -400,7 +400,7 @@ def test_rollback_preconditions_accept_transaction_candidate(
                 {
                     "returncode": 0,
                     "stdout": json.dumps(
-                        [{"Image": remote.NEW_IMAGE_ID}]
+                        [{"Image": remote.NEW_IMAGE_MANIFEST_DIGEST}]
                     ),
                     "stderr": "",
                 },
@@ -502,7 +502,7 @@ def test_apply_preserves_fail_rolled_back_terminal_result(
     monkeypatch.setattr(
         remote,
         "shadow_preflight",
-        lambda _prestate: {"shadow": "PASS"},
+        lambda _prestate, _runtime_id: {"shadow": "PASS"},
     )
     monkeypatch.setattr(
         remote,
@@ -530,7 +530,7 @@ def test_apply_preserves_fail_rolled_back_terminal_result(
     monkeypatch.setattr(
         remote,
         "postcheck",
-        lambda _prestate: (_ for _ in ()).throw(
+        lambda _prestate, _runtime_id: (_ for _ in ()).throw(
             remote.StopExecution("forced postcheck failure")
         ),
     )
@@ -711,3 +711,162 @@ def test_ssh_uses_server_alive_bounds() -> None:
     argv = host.ssh_argv("root@t1", "true")
     assert "ServerAliveInterval=5" in argv
     assert "ServerAliveCountMax=2" in argv
+
+
+def test_new_image_accepts_classic_and_containerd_runtime_ids() -> None:
+    assert remote.accepted_new_runtime_image_ids() == {
+        remote.NEW_IMAGE_CONFIG_DIGEST,
+        remote.NEW_IMAGE_MANIFEST_DIGEST,
+    }
+
+
+@pytest.mark.parametrize(
+    "runtime_id",
+    (
+        remote.NEW_IMAGE_CONFIG_DIGEST,
+        remote.NEW_IMAGE_MANIFEST_DIGEST,
+    ),
+)
+def test_verify_loaded_exact_image_accepts_store_specific_id(
+    runtime_id: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    item = {
+        "Id": runtime_id,
+        "Architecture": "arm64",
+        "Os": "linux",
+        "Config": {
+            "Entrypoint": ["greenhouse-manager"],
+            "User": "greenhouse",
+        },
+        "RootFS": {
+            "Layers": [
+                "sha256:a",
+                "sha256:b",
+            ]
+        },
+    }
+    expected_rootfs = remote.normalized_hash(
+        item["RootFS"]["Layers"]
+    )
+    monkeypatch.setattr(
+        remote,
+        "EXPECTED_NEW_ROOTFS_LAYERS_SHA256",
+        expected_rootfs,
+    )
+    monkeypatch.setattr(
+        remote,
+        "image_inspect",
+        lambda _reference: item,
+    )
+    result = remote.verify_loaded_exact_image()
+    assert result["runtime_image_id"] == runtime_id
+    assert (
+        result["config_digest"]
+        == remote.NEW_IMAGE_CONFIG_DIGEST
+    )
+    assert (
+        result["manifest_digest"]
+        == remote.NEW_IMAGE_MANIFEST_DIGEST
+    )
+
+
+def test_verify_loaded_exact_image_rejects_unknown_runtime_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        remote,
+        "image_inspect",
+        lambda _reference: {
+            "Id": "sha256:" + "f" * 64,
+            "Architecture": "arm64",
+            "Os": "linux",
+            "Config": {
+                "Entrypoint": ["greenhouse-manager"],
+                "User": "greenhouse",
+            },
+            "RootFS": {"Layers": []},
+        },
+    )
+    with pytest.raises(remote.StopExecution):
+        remote.verify_loaded_exact_image()
+
+
+def test_prepare_transaction_snapshot_reuses_exact_pretransaction_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manager_env = tmp_path / "manager.env"
+    manager_env.write_text("GH_ALPHA=one\n", encoding="utf-8")
+    expected_env_sha = remote.sha256_file(manager_env)
+    rollback_root = tmp_path / "rollback"
+    rollback_root.mkdir(mode=0o700)
+    backup = rollback_root / "manager.env.before"
+    backup.write_bytes(manager_env.read_bytes())
+    prestate_path = rollback_root / "manager-prestate.json"
+    prestate = {
+        "manager_image_id": remote.OLD_IMAGE_ID,
+        "manager_mount_count": 6,
+        "manager_mount_hash": "m",
+        "manager_gh_env_hash": "e",
+        "manager_runtime_security_hash": "s",
+        "broker_id": "b",
+        "broker_restart_count": 0,
+        "firewall": {"x": 1},
+    }
+    prestate_path.write_text(
+        json.dumps(prestate),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(remote, "ROLLBACK_ROOT", rollback_root)
+    monkeypatch.setattr(remote, "MANAGER_ENV_BACKUP", backup)
+    monkeypatch.setattr(remote, "PRESTATE_JSON", prestate_path)
+    monkeypatch.setattr(remote, "EXPECTED_MANAGER_ENV_SHA256", expected_env_sha)
+    for name in (
+        "OVERLAY",
+        "ROLLBACK_OVERLAY",
+        "SHADOW_OLD_OVERLAY",
+        "SHADOW_NEW_OVERLAY",
+    ):
+        monkeypatch.setattr(
+            remote,
+            name,
+            tmp_path / f"{name}.yml",
+        )
+
+    original_stat = remote.Path.stat
+
+    def fake_stat(path_self):
+        result = original_stat(path_self)
+        if path_self == rollback_root:
+            values = list(result)
+            values[4] = 0
+            return os.stat_result(values)
+        return result
+
+    monkeypatch.setattr(remote.Path, "stat", fake_stat)
+    result = remote.prepare_transaction_snapshot(prestate)
+    assert result == {
+        "snapshot": "reused_verified_pretransaction"
+    }
+
+
+def test_source_binds_containerd_manifest_and_rootfs() -> None:
+    source = (PACKAGE / "remote_cutover.py").read_text(
+        encoding="utf-8"
+    )
+    assert remote.NEW_IMAGE_MANIFEST_DIGEST in source
+    assert remote.NEW_IMAGE_CONFIG_DIGEST in source
+    assert remote.EXPECTED_NEW_ROOTFS_LAYERS_SHA256 in source
+    assert "verify_loaded_exact_image" in source
+    assert "reused_verified_pretransaction" in source
+
+
+def test_stage_classifier_allows_only_verified_pretransaction_snapshot() -> None:
+    source = (PACKAGE / "executor.py").read_text(
+        encoding="utf-8"
+    )
+    assert "REUSABLE_PRETRANSACTION_SNAPSHOT" in source
+    assert "manager.env.before" in source
+    assert "manager-prestate.json" in source
+    assert host.EXPECTED_MANAGER_ENV_SHA256 in source
