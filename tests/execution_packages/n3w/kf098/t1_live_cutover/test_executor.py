@@ -1066,6 +1066,197 @@ def test_postcheck_waits_for_health_before_listener_assertions() -> None:
     )
 
 
+
+def _postcheck_fixture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> dict:
+    manager_env = tmp_path / "manager.env"
+    manager_env.write_text(
+        "GH_ALPHA=one\n"
+        "GH_N3W_PAIRING_ADVERTISED_HOST=auto\n",
+        encoding="utf-8",
+    )
+    manager = manager_fixture(
+        image=remote.NEW_IMAGE_MANIFEST_DIGEST,
+        pairing="auto",
+        running=True,
+    )
+    count, mount_hash = remote.manager_mount_fingerprint(manager)
+    prestate = {
+        "manager_mount_count": count,
+        "manager_mount_hash": mount_hash,
+        "manager_gh_env_hash": remote.gh_env_fingerprint(manager),
+        "manager_all_env_hash":
+            remote.all_env_fingerprint_excluding_pairing(manager),
+        "manager_runtime_security_hash":
+            remote.manager_runtime_security_fingerprint(manager),
+        "broker_id": "broker",
+        "broker_restart_count": 0,
+        "firewall": {"r5": "ok"},
+    }
+
+    monkeypatch.setattr(remote, "MANAGER_ENV", manager_env)
+    monkeypatch.setattr(
+        remote,
+        "EXPECTED_MANAGER_ENV_EXCLUDING_PAIRING_SHA256",
+        remote.env_without_target_hash(manager_env),
+    )
+    monkeypatch.setattr(
+        remote,
+        "docker_inspect",
+        lambda _name: manager,
+    )
+    monkeypatch.setattr(
+        remote,
+        "broker_inspect",
+        lambda: {
+            "Id": "broker",
+            "RestartCount": 0,
+        },
+    )
+    monkeypatch.setattr(
+        remote,
+        "firewall_state",
+        lambda: {"r5": "ok"},
+    )
+    return prestate
+
+
+def test_postcheck_rejects_health_failure_before_listener_checks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prestate = _postcheck_fixture(
+        tmp_path,
+        monkeypatch,
+    )
+    listener_calls = []
+
+    def fail_health() -> None:
+        raise remote.StopExecution(
+            "Manager simplified health did not recover"
+        )
+
+    def count_listener(protocol: str, port: int) -> int:
+        listener_calls.append((protocol, port))
+        return 1
+
+    monkeypatch.setattr(remote, "wait_health", fail_health)
+    monkeypatch.setattr(
+        remote,
+        "socket_port_count",
+        count_listener,
+    )
+
+    with pytest.raises(
+        remote.StopExecution,
+        match="simplified health did not recover",
+    ):
+        remote.postcheck(prestate)
+
+    assert listener_calls == []
+
+
+def test_postcheck_rejects_missing_tcp47112_after_health(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prestate = _postcheck_fixture(
+        tmp_path,
+        monkeypatch,
+    )
+    monkeypatch.setattr(
+        remote,
+        "wait_health",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        remote,
+        "socket_port_count",
+        lambda protocol, port: (
+            0
+            if (protocol, port) == ("tcp", 47112)
+            else 1
+        ),
+    )
+
+    with pytest.raises(
+        remote.StopExecution,
+        match="TCP 47112 listener did not recover",
+    ):
+        remote.postcheck(prestate)
+
+
+def test_postcheck_rejects_missing_udp47111_after_health(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prestate = _postcheck_fixture(
+        tmp_path,
+        monkeypatch,
+    )
+    monkeypatch.setattr(
+        remote,
+        "wait_health",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        remote,
+        "socket_port_count",
+        lambda protocol, port: (
+            0
+            if (protocol, port) == ("udp", 47111)
+            else 1
+        ),
+    )
+
+    with pytest.raises(
+        remote.StopExecution,
+        match="UDP 47111 listener did not recover",
+    ):
+        remote.postcheck(prestate)
+
+
+def test_manifest_uses_live_container_recreate_authority() -> None:
+    document = json.loads(
+        (PACKAGE / "manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    cutover = document["cutover_contract"]
+    rollback = document["rollback_contract"]
+
+    assert "temporary_overlay_only" not in cutover
+    assert (
+        "shadow_old_compose_reproduction_required"
+        not in cutover
+    )
+    assert (
+        cutover[
+            "shadow_old_live_container_contract_reproduction_required"
+        ]
+        is True
+    )
+    assert (
+        cutover[
+            "live_container_contract_used_for_old_shadow"
+        ]
+        is True
+    )
+    assert (
+        "rollback_reuses_live_compose_authority"
+        not in rollback
+    )
+    assert (
+        rollback[
+            "live_container_contract_used_for_rollback"
+        ]
+        is True
+    )
+
+
+
 def test_preflight_accepts_original_or_rollback_restart_count() -> None:
     source = (PACKAGE / "remote_cutover.py").read_text(
         encoding="utf-8"
