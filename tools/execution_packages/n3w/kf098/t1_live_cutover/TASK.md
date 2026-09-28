@@ -93,8 +93,10 @@ is universal.
 After `docker load`, the executor inspects the exact tag and accepts only one
 of the two artifact-owned runtime IDs above. It then requires ARM64/Linux,
 the frozen entrypoint/user contract and the exact RootFS-layer fingerprint.
-The runtime ID actually returned by the live Docker store is carried forward
-into shadow validation and post-cutover container validation.
+Shadow and post-cutover container validation accept only the two
+artifact-owned identities above. This avoids assuming that image-inspect and
+container-inspect must expose the same identity representation on every Docker
+image store.
 
 The Docker API `Config` object is not used as a cross-image-store byte
 oracle; different stores may synthesize that API object differently even when
