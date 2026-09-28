@@ -266,6 +266,8 @@ def test_shadow_contract_accepts_only_exact_reproduction() -> None:
         "manager_mount_count": count,
         "manager_mount_hash": mount_hash,
         "manager_gh_env_hash": remote.gh_env_fingerprint(current),
+        "manager_all_env_hash":
+            remote.all_env_fingerprint_excluding_pairing(current),
         "manager_runtime_security_hash":
             remote.manager_runtime_security_fingerprint(current),
     }
@@ -408,23 +410,14 @@ def test_rollback_preconditions_accept_transaction_candidate(
     remote.rollback_preconditions()
 
 
-def test_shadow_uses_supported_no_start_compose_path() -> None:
+def test_shadow_uses_direct_create_not_compose() -> None:
     source = (PACKAGE / "remote_cutover.py").read_text(
         encoding="utf-8"
     )
-    assert '"up",' in source
-    assert '"--no-start",' in source
-    assert '"--no-deps",' in source
-    assert '"create",\n                    "--no-deps"' not in source
-    assert '"down",' in source
-    assert "shadow Compose cleanup failed" in source
-
-
-def test_live_recreate_preserves_pr480_orphan_policy() -> None:
-    source = (PACKAGE / "remote_cutover.py").read_text(
-        encoding="utf-8"
-    )
-    assert '"COMPOSE_IGNORE_ORPHANS=true"' in source
+    assert "direct_shadow(" in source
+    assert '"docker",\n        "create"' in source
+    assert '"--no-start"' not in source
+    assert '"COMPOSE_IGNORE_ORPHANS=true"' not in source
     assert '"--remove-orphans"' not in source
 
 
@@ -507,6 +500,11 @@ def test_apply_preserves_fail_rolled_back_terminal_result(
         remote,
         "base_preflight",
         lambda: {"prestate": "PASS"},
+    )
+    monkeypatch.setattr(
+        remote,
+        "cleanup_known_pretransaction_residual",
+        lambda: "none",
     )
     monkeypatch.setattr(
         remote,
