@@ -184,7 +184,16 @@ Before stopping Manager it:
 2. records private Manager/Broker/R5 prestate;
 3. loads the exact ARM64 image tar;
 4. verifies the exact immutable image ID;
-5. binds the old Manager image to a deterministic local rollback tag.
+5. binds the old Manager image to a deterministic local rollback tag;
+6. creates a stopped old-image shadow Manager from the frozen live Compose and
+   proves mounts, non-target GH environment and runtime/security settings match
+   the current live Manager;
+7. creates a stopped new-image shadow Manager with only the pairing host
+   overridden to `auto` and proves the same runtime/security contract;
+8. removes both stopped shadow containers.
+
+The live Manager remains running throughout the shadow proof. Only after both
+shadow contracts pass does the transaction begin.
 
 It then starts the transaction:
 
@@ -221,16 +230,30 @@ Board receives the new dynamic discovery response.
 
 After the transaction begins, any failed postcondition triggers rollback.
 
-Rollback:
+Rollback is valid only while the live state still belongs to this exact
+transaction. Before removing anything it requires the frozen live Compose and
+service-identity authorities, a recognized `manager.env` state (the exact
+prestate or this transaction's `auto` state), and—if a Manager container
+exists—either the exact old or exact new image ID. Any later/unknown Manager
+revision is refused.
 
-1. removes only the candidate Manager container;
+Rollback then:
+
+1. removes only the transaction-owned candidate/old Manager container;
 2. restores the exact pre-cutover `manager.env`;
 3. rebinds the exact old Manager image by immutable image ID;
 4. recreates only Manager through the same live Compose authority plus a
    Manager-only rollback overlay;
-5. requires the old image ID, host networking, six-mount fingerprint and
-   simplified health endpoint to recover;
-6. requires Broker identity/restart count to remain unchanged.
+5. requires the old image ID, host networking, entrypoint, user, six-mount
+   fingerprint, non-target GH environment and runtime/security fingerprint to
+   recover;
+6. requires the stale pairing runtime to match the restored env authority;
+7. requires UDP/47111, TCP/47112 and simplified health to recover;
+8. requires Broker identity/restart count and TCP/8883 to remain unchanged;
+9. requires the R5 firewall snapshot to remain unchanged.
+
+Manual rollback additionally requires the private pre-cutover transaction
+snapshot. Missing or incomplete prestate fails closed.
 
 If rollback cannot be proven, the result is fail-closed and no automatic retry
 is permitted.
