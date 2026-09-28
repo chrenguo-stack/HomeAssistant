@@ -910,6 +910,169 @@ def test_prepare_transaction_snapshot_reuses_exact_pretransaction_state(
     }
 
 
+def test_postrollback_reacquire_accepts_only_lifecycle_and_docker_defaults() -> None:
+    before = manager_fixture(
+        image=remote.OLD_IMAGE_ID,
+        pairing="192.0.2.10",
+    )
+    after = manager_fixture(
+        image=remote.OLD_IMAGE_ID,
+        pairing="192.0.2.10",
+    )
+    before["HostConfig"]["Dns"] = []
+    before["HostConfig"]["OomKillDisable"] = None
+    after["HostConfig"]["Dns"] = None
+    after["HostConfig"]["OomKillDisable"] = False
+
+    common = {
+        "manager_image_id": remote.OLD_IMAGE_ID,
+        "manager_mount_count": 6,
+        "manager_mount_hash": "m",
+        "manager_gh_env_hash": "e",
+        "manager_all_env_hash": "a",
+        "manager_runtime_security_hash":
+            remote.manager_runtime_security_fingerprint(before),
+        "broker_id": "b",
+        "broker_restart_count": 0,
+        "firewall": {"x": 1},
+        "current_eth0_ipv4_sha256": "ip",
+    }
+    saved = {
+        **common,
+        "manager_started_at": "2026-09-28T01:01:03Z",
+        "manager_restart_count": 1,
+        "manager_recreate_contract":
+            remote.manager_recreate_contract(before),
+    }
+    current = {
+        **common,
+        "manager_started_at": "2026-09-28T03:53:13Z",
+        "manager_restart_count": 0,
+        "manager_recreate_contract":
+            remote.manager_recreate_contract(after),
+    }
+
+    assert remote.verified_postrollback_reacquire(saved, current)
+
+    drift = dict(current)
+    drift["broker_restart_count"] = 1
+    assert not remote.verified_postrollback_reacquire(saved, drift)
+
+
+def test_prepare_transaction_snapshot_reacquires_verified_postrollback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manager_env = tmp_path / "manager.env"
+    manager_env.write_text("GH_ALPHA=one\n", encoding="utf-8")
+    expected_env_sha = remote.sha256_file(manager_env)
+    rollback_root = tmp_path / "rollback"
+    rollback_root.mkdir(mode=0o700)
+    backup = rollback_root / "manager.env.before"
+    backup.write_bytes(manager_env.read_bytes())
+    prestate_path = rollback_root / "manager-prestate.json"
+
+    before = manager_fixture(
+        image=remote.OLD_IMAGE_ID,
+        pairing="192.0.2.10",
+    )
+    after = manager_fixture(
+        image=remote.OLD_IMAGE_ID,
+        pairing="192.0.2.10",
+    )
+    before["HostConfig"]["Dns"] = []
+    before["HostConfig"]["OomKillDisable"] = None
+    after["HostConfig"]["Dns"] = None
+    after["HostConfig"]["OomKillDisable"] = False
+
+    common = {
+        "manager_image_id": remote.OLD_IMAGE_ID,
+        "manager_mount_count": 6,
+        "manager_mount_hash": "m",
+        "manager_gh_env_hash": "e",
+        "manager_all_env_hash": "a",
+        "manager_runtime_security_hash":
+            remote.manager_runtime_security_fingerprint(before),
+        "broker_id": "b",
+        "broker_restart_count": 0,
+        "firewall": {"x": 1},
+        "current_eth0_ipv4_sha256": "ip",
+    }
+    saved = {
+        **common,
+        "manager_started_at": "2026-09-28T01:01:03Z",
+        "manager_restart_count": 1,
+        "manager_recreate_contract":
+            remote.manager_recreate_contract(before),
+    }
+    current = {
+        **common,
+        "manager_started_at": "2026-09-28T03:53:13Z",
+        "manager_restart_count": 0,
+        "manager_recreate_contract":
+            remote.manager_recreate_contract(after),
+    }
+    prestate_path.write_text(
+        json.dumps(saved),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(remote, "ROLLBACK_ROOT", rollback_root)
+    monkeypatch.setattr(remote, "MANAGER_ENV_BACKUP", backup)
+    monkeypatch.setattr(remote, "PRESTATE_JSON", prestate_path)
+    monkeypatch.setattr(
+        remote,
+        "EXPECTED_MANAGER_ENV_SHA256",
+        expected_env_sha,
+    )
+    monkeypatch.setattr(
+        remote,
+        "cleanup_known_pretransaction_residual",
+        lambda: "none",
+    )
+
+    original_stat = remote.Path.stat
+
+    def fake_stat(path_self):
+        result = original_stat(path_self)
+        if path_self == rollback_root:
+            values = list(result)
+            values[4] = 0
+            return os.stat_result(values)
+        return result
+
+    monkeypatch.setattr(remote.Path, "stat", fake_stat)
+    result = remote.prepare_transaction_snapshot(current)
+    assert result == {
+        "snapshot": "upgraded_verified_pretransaction",
+        "snapshot_migration": "post-rollback-live-reacquire",
+        "residual_cleanup": "none",
+    }
+    assert json.loads(
+        prestate_path.read_text(encoding="utf-8")
+    ) == current
+
+
+def test_postcheck_waits_for_health_before_listener_assertions() -> None:
+    source = (PACKAGE / "remote_cutover.py").read_text(
+        encoding="utf-8"
+    )
+    block = source[
+        source.index("def postcheck("):
+        source.index("LEGACY_PRESTATE_KEYS")
+    ]
+    assert block.index("wait_health()") < block.index(
+        'socket_port_count("tcp", 47112)'
+    )
+
+
+def test_preflight_accepts_original_or_rollback_restart_count() -> None:
+    source = (PACKAGE / "remote_cutover.py").read_text(
+        encoding="utf-8"
+    )
+    assert 'manager.get("RestartCount") not in (0, 1)' in source
+
+
 def test_prepare_transaction_snapshot_upgrades_pre493_snapshot(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
