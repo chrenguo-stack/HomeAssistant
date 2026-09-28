@@ -721,11 +721,17 @@ def main() -> int:
         if stage_mode != 0o700 or STAGE_ROOT.stat().st_uid != 0:
             raise StopExecution("stage root authority invalid")
         if args.phase == "preflight":
+            prestate = base_preflight()
             result = {
                 "result": "PASS",
                 "phase": "preflight",
                 "artifact": verify_stage_artifact(),
-                "prestate": base_preflight(),
+                "manager_image_id": prestate["manager_image_id"],
+                "manager_restart_count": prestate["manager_restart_count"],
+                "manager_mount_count": prestate["manager_mount_count"],
+                "manager_mount_hash": prestate["manager_mount_hash"],
+                "broker_restart_count": prestate["broker_restart_count"],
+                "r5_firewall": prestate["firewall"],
                 "t1_mutation": False,
             }
         elif args.phase == "apply":
