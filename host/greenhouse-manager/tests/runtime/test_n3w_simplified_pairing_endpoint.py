@@ -103,6 +103,89 @@ def test_http_hello_maps_registration_observe_result(tmp_path) -> None:
     }
 
 
+
+def test_blocked_registered_repair_begin_reports_setup_secret_unavailable(
+    tmp_path,
+) -> None:
+    repair_pairing_id = "7e0a9e6d-5b62-4de8-9d90-f1a8dd5774c9"
+
+    with RegistrationRegistry(
+        tmp_path / "registration.sqlite3"
+    ) as registry:
+        registry.observe_hello(_hello(), now=NOW)
+        registry.approve(
+            HARDWARE_ID,
+            PAIRING_ID,
+            node_id="node_endpoint_01",
+            now=NOW,
+        )
+        app = SimplifiedPairingEndpointApp(
+            SimplifiedPairingCoordinator(
+                registry,
+                UnusedStager(),
+                manager_id="manager_lab_01",
+            ),
+            clock=lambda: NOW + timedelta(seconds=1),
+        )
+
+        repair_hello = _hello()
+        repair_hello["pairing_id"] = repair_pairing_id
+        blocked = app.handle(
+            method="POST",
+            path="/v2/pairing/hello",
+            headers={},
+            body=json.dumps(
+                repair_hello,
+                separators=(",", ":"),
+            ).encode("utf-8"),
+            client_ip="127.0.0.1",
+        )
+        blocked_document = json.loads(
+            blocked.body.decode("utf-8")
+        )
+
+        begin = app.handle(
+            method="POST",
+            path="/v2/pairing/begin",
+            headers={},
+            body=json.dumps(
+                {
+                    "schema": "gh.pair.simple-begin/1",
+                    "hardware_id": HARDWARE_ID,
+                    "pairing_id": repair_pairing_id,
+                    "node_nonce": _b64(
+                        bytes([0x32]) * 16
+                    ),
+                },
+                separators=(",", ":"),
+            ).encode("utf-8"),
+            client_ip="127.0.0.1",
+        )
+        begin_document = json.loads(
+            begin.body.decode("utf-8")
+        )
+        current = registry.get(HARDWARE_ID)
+
+    assert blocked.status == HTTPStatus.OK
+    assert blocked_document["status"] == "rejected"
+    assert (
+        blocked_document["reason"]
+        == "repair_intent_required"
+    )
+    assert (
+        blocked_document["transaction_disposition"]
+        == "continue"
+    )
+    assert begin.status == HTTPStatus.FORBIDDEN
+    assert begin_document == {
+        "schema": "gh.pair.simple-error/1",
+        "error": "setup_secret_unavailable",
+    }
+    assert current.pairing_id == PAIRING_ID
+    assert current.state.value == "approved"
+
+
+
 def test_http_hello_marks_terminal_replay_for_pairing_id_renewal(tmp_path) -> None:
     with RegistrationRegistry(tmp_path / "registration.sqlite3") as registry:
         registry.observe_hello(_hello(), now=NOW)
