@@ -90,13 +90,41 @@ def record(
         directory / "command.json",
         json.dumps({"argv": argv}, indent=2, sort_keys=True) + "\n",
     )
-    completed = subprocess.run(
-        argv,
-        stdin=subprocess.DEVNULL,
-        capture_output=True,
-        check=False,
-        timeout=timeout,
-    )
+    try:
+        completed = subprocess.run(
+            argv,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            check=False,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        stdout = exc.stdout or b""
+        stderr = exc.stderr or b""
+        if isinstance(stdout, str):
+            stdout = stdout.encode()
+        if isinstance(stderr, str):
+            stderr = stderr.encode()
+        write_private_bytes(directory / "stdout.bin", stdout)
+        write_private_bytes(directory / "stderr.bin", stderr)
+        write_private_text(
+            directory / "result.json",
+            json.dumps(
+                {
+                    "returncode": None,
+                    "timed_out": True,
+                    "timeout_seconds": timeout,
+                    "stdout_bytes": len(stdout),
+                    "stderr_bytes": len(stderr),
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+        )
+        raise StopExecution(
+            f"{name} timed out after {timeout} seconds"
+        ) from exc
     write_private_bytes(directory / "stdout.bin", completed.stdout)
     write_private_bytes(directory / "stderr.bin", completed.stderr)
     write_private_text(
@@ -104,6 +132,8 @@ def record(
         json.dumps(
             {
                 "returncode": completed.returncode,
+                "timed_out": False,
+                "timeout_seconds": timeout,
                 "stdout_bytes": len(completed.stdout),
                 "stderr_bytes": len(completed.stderr),
             },
@@ -137,6 +167,10 @@ def ssh_argv(target: str, command: str) -> list[str]:
         "ConnectTimeout=10",
         "-o",
         "ConnectionAttempts=1",
+        "-o",
+        "ServerAliveInterval=5",
+        "-o",
+        "ServerAliveCountMax=2",
         target,
         command,
     ]
@@ -193,26 +227,64 @@ def target_preflight(
     index: int,
     target: str,
 ) -> int:
-    command = (
-        "python3 -c "
-        + shlex.quote(
-            "import json,os,platform,subprocess;"
-            "u=os.geteuid();"
-            "a=platform.machine();"
-            "p=subprocess.run(['docker','info','--format','{{.Architecture}}'],"
-            "text=True,capture_output=True);"
-            "d=p.stdout.strip();"
-            "ok=(u==0 and a in {'aarch64','arm64'} and d in {'aarch64','arm64'});"
-            "print(json.dumps({'root':u==0,'host_arch':a,'docker_arch':d,'pass':ok},sort_keys=True));"
-            "raise SystemExit(0 if ok else 2)"
-        )
+    probe = """
+import json
+import os
+import platform
+import subprocess
+
+root_ok = os.geteuid() == 0
+host_arch = platform.machine()
+docker_arch = ""
+docker_probe = "not_run"
+
+try:
+    result = subprocess.run(
+        ["docker", "info", "--format", "{{.Architecture}}"],
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=10,
     )
+    docker_arch = result.stdout.strip()
+    docker_probe = (
+        "ok"
+        if result.returncode == 0
+        else "failed"
+    )
+except subprocess.TimeoutExpired:
+    docker_probe = "timeout"
+
+arch_ok = (
+    host_arch in {"aarch64", "arm64"}
+    and docker_arch in {"aarch64", "arm64"}
+)
+ok = root_ok and docker_probe == "ok" and arch_ok
+
+print(
+    json.dumps(
+        {
+            "root": root_ok,
+            "host_arch": host_arch,
+            "docker_arch": docker_arch,
+            "docker_probe": docker_probe,
+            "pass": ok,
+        },
+        sort_keys=True,
+    )
+)
+raise SystemExit(0 if ok else 2)
+""".strip()
     require_ok(
         record(
             root,
             index,
             "target_preflight",
-            ssh_argv(target, command),
+            ssh_argv(
+                target,
+                "python3 -c " + shlex.quote(probe),
+            ),
+            timeout=30,
         ),
         "T1 host/architecture preflight failed",
     )
@@ -331,13 +403,22 @@ def remote_phase(
         + " "
         + shlex.quote(phase)
     )
+    phase_timeout = {
+        "preflight": 180,
+        "apply": 900,
+        "rollback": 600,
+    }.get(phase)
+    if phase_timeout is None:
+        raise StopExecution(
+            f"unsupported remote phase timeout contract: {phase}"
+        )
     raw = require_ok(
         record(
             root,
             index,
             f"remote_{phase}",
             ssh_argv(target, command),
-            timeout=240,
+            timeout=phase_timeout,
         ),
         f"remote {phase} failed",
     )
