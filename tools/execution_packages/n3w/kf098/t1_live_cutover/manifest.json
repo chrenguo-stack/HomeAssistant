@@ -53,7 +53,6 @@
     "manager_env_target_value": "auto",
     "manager_env_non_target_bytes_preserved": true,
     "live_compose_file_mutated": false,
-    "temporary_overlay_only": true,
     "new_manager_image_exact": true,
     "manager_network_mode_preserved": true,
     "manager_mount_binding_preserved": true,
@@ -63,7 +62,6 @@
     "service_identities_env_mutated": false,
     "board_access": false,
     "pr474_source_change": false,
-    "shadow_old_compose_reproduction_required": true,
     "shadow_new_candidate_contract_required": true,
     "shadow_containers_started": false,
     "runtime_security_fingerprint_preserved": true,
@@ -75,7 +73,8 @@
     "current_compose_used_for_manager_recreate": false,
     "live_container_contract_used_for_old_shadow": true,
     "live_container_contract_used_for_new_shadow": true,
-    "live_container_contract_used_for_candidate": true
+    "live_container_contract_used_for_candidate": true,
+    "shadow_old_live_container_contract_reproduction_required": true
   },
   "rollback_contract": {
     "manager_env_exact_backup_before_mutation": true,
@@ -83,7 +82,6 @@
     "candidate_failure_triggers_rollback": true,
     "rollback_restores_manager_env": true,
     "rollback_restores_old_manager_image": true,
-    "rollback_reuses_live_compose_authority": true,
     "broker_not_restarted": true,
     "r5_not_mutated": true,
     "transaction_owned_state_required": true,
