@@ -1000,17 +1000,12 @@ def apply() -> dict[str, Any]:
             if rollback_error is None
             else "FAIL_ROLLBACK_INCOMPLETE"
         )
-        raise StopExecution(
-            json.dumps(
-                {
-                    "result": status,
-                    "failure": f"{type(exc).__name__}:{exc}",
-                    "rollback": rollback_result,
-                    "rollback_error": rollback_error,
-                },
-                sort_keys=True,
-            )
-        ) from exc
+        return {
+            "result": status,
+            "failure": f"{type(exc).__name__}:{exc}",
+            "rollback": rollback_result,
+            "rollback_error": rollback_error,
+        }
 
 
 def main() -> int:
