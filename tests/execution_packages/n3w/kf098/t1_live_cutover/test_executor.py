@@ -997,3 +997,113 @@ def test_ensure_loaded_exact_image_loads_when_tag_absent(
     result = remote.ensure_loaded_exact_image()
     assert result["load_action"] == "loaded_exact_tar"
     assert calls[1][1] == 180
+
+
+def test_pairing_replaced_env_changes_only_target() -> None:
+    before = [
+        "GH_ALPHA=one",
+        "GH_N3W_PAIRING_ADVERTISED_HOST=192.0.2.10",
+        "PATH=/usr/bin",
+    ]
+    assert remote.pairing_replaced_env(before, "auto") == [
+        "GH_ALPHA=one",
+        "GH_N3W_PAIRING_ADVERTISED_HOST=auto",
+        "PATH=/usr/bin",
+    ]
+
+
+def test_manager_create_argv_uses_live_runtime_contract(
+    tmp_path: Path,
+) -> None:
+    contract = {
+        "env": [
+            "GH_ALPHA=one",
+            "GH_N3W_PAIRING_ADVERTISED_HOST=192.0.2.10",
+        ],
+        "mounts": [
+            {
+                "Type": "bind",
+                "Source": f"/state/{i}",
+                "Destination": f"/target/{i}",
+                "RW": i % 2 == 0,
+                "Propagation": "rprivate",
+            }
+            for i in range(6)
+        ],
+        "labels": {},
+        "entrypoint": ["greenhouse-manager"],
+        "cmd": None,
+        "user": "greenhouse",
+        "working_dir": "/app",
+        "healthcheck": None,
+        "stop_signal": None,
+        "stop_timeout": None,
+        "open_stdin": False,
+        "stdin_once": False,
+        "tty": False,
+        "host": {
+            "AutoRemove": False,
+            "CapAdd": None,
+            "CapDrop": None,
+            "CgroupnsMode": "private",
+            "DeviceRequests": None,
+            "Devices": [],
+            "Dns": [],
+            "ExtraHosts": None,
+            "Init": None,
+            "IpcMode": "private",
+            "LogConfig": {
+                "Type": "json-file",
+                "Config": {"max-file": "3", "max-size": "10m"},
+            },
+            "Memory": 0,
+            "MemorySwap": 0,
+            "NanoCpus": 0,
+            "NetworkMode": "host",
+            "OomKillDisable": False,
+            "PidMode": "",
+            "PidsLimit": None,
+            "PortBindings": {},
+            "Privileged": False,
+            "ReadonlyRootfs": True,
+            "RestartPolicy": {
+                "Name": "unless-stopped",
+                "MaximumRetryCount": 0,
+            },
+            "SecurityOpt": None,
+            "ShmSize": 67108864,
+            "Tmpfs": {"/tmp": "size=16m,mode=1777"},
+            "Ulimits": None,
+        },
+    }
+    argv = remote.manager_create_argv(
+        contract,
+        image=remote.NEW_IMAGE_TAG,
+        name="candidate",
+        env_file=tmp_path / "runtime.env",
+    )
+    assert argv[:2] == ["docker", "create"]
+    assert argv.count("--mount") == 6
+    assert "--network" in argv and "host" in argv
+    assert "--read-only" in argv
+    assert "--tmpfs" in argv
+    assert "--log-driver" in argv
+    assert argv[-1] == remote.NEW_IMAGE_TAG
+
+
+def test_source_no_longer_uses_compose_for_manager_recreate() -> None:
+    source = (PACKAGE / "remote_cutover.py").read_text(
+        encoding="utf-8"
+    )
+    assert "create_manager_from_contract" in source
+    assert "compose_up(" not in source
+    assert "compose_shadow(" not in source
+    assert "docker\", \"compose" not in source
+
+
+def test_stage_classifier_knows_failed_shadow_residual() -> None:
+    source = (PACKAGE / "executor.py").read_text(
+        encoding="utf-8"
+    )
+    assert "manager-kf098-shadow-old-overlay.yml" in source
+    assert host.STALE_SHADOW_OLD_OVERLAY_SHA256 in source
