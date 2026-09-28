@@ -5,6 +5,41 @@ Status: `CURRENT_STATE_AUTHORITY`
 
 Fresh exact repository/runtime/physical evidence takes precedence if later evidence proves drift.
 
+## 2026-09-28 KF-099 rejected-hello client control-flow source repair
+
+A fresh passive traceability capture after KF-098 closure identified a separate client control-flow defect. This does not reopen KF-098.
+
+```text
+KF099_SOURCE_DEFECT_CONFIRMED=true
+
+HELLO_STATUS=rejected
+HELLO_REASON=repair_intent_required
+HELLO_TRANSACTION_DISPOSITION=continue
+PRE_REPAIR_BOARD_SENT_BEGIN=true
+PRE_REPAIR_BEGIN_HTTP_STATUS=403
+PRE_REPAIR_BEGIN_ERROR=setup_secret_unavailable
+
+KF099_SOURCE_REPAIR=IN_REVIEW
+KF099_REPAIR_PR=500
+KF099_REJECTED_CONTINUE_ACTION=WAIT
+KF099_WAIT_PRESERVES_PAIRING_ID=true
+KF099_WAIT_SUPPRESSES_BEGIN=true
+KF099_TERMINAL_RENEW_BEHAVIOR_PRESERVED=true
+
+KF099_MANAGER_SECURITY_BOUNDARY=UNCHANGED
+KF099_BOARD_FLASH_MUTATION=false
+KF099_PHYSICAL_VALIDATION=PENDING
+KF099_KNOWN_FAILURE_STATUS=OPEN
+
+KF098_REOPEN=false
+KF098_ROUTE_STATUS=CLOSED_PASS
+```
+
+The Manager rejection remains fail-closed. The defect was that Board firmware treated every `transaction_disposition=continue` as permission to call `/begin`. PR #500 changes the local interpretation so `rejected + continue` returns to the bounded retry loop without begin and without renewing the pairing ID.
+
+Authority: `docs/development/N3W_KF099_REJECTED_HELLO_CONTROL_FLOW_SOURCE_REPAIR_20260928.md`.
+
+
 ## 2026-09-28 KF-098 independent Astra review PASS
 
 Astra independently reviewed the current KF-098 source, deployment executor, tests and archived live evidence at `main=5e695213866258457096f3b1a584997e1ffb3aa0`. The review did not access T1 or rerun the physical flow.

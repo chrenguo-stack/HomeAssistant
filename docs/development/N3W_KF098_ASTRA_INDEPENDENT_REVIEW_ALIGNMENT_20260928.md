@@ -48,11 +48,15 @@ These isolated checks were not represented as a full project CI rerun or a real 
 
 ## Non-blocking follow-ups
 
-The review identified three follow-ups. None reopens KF-098:
+The three review follow-ups were accepted for immediate cleanup rather than being left as long-term debt:
 
-1. promote the same-request-source route-change/no-stale-fallback scenario and readiness failure paths into formal regression tests;
-2. clean stale manifest wording such as `temporary_overlay_only`, `shadow_old_compose_reproduction_required`, and `rollback_reuses_live_compose_authority` where those fields no longer describe the active execution path;
-3. improve private raw-capture traceability with file digest, observation window and Board binding, and record the specific `/v2/pairing/begin` internal error reason rather than inferring it from HTTP 403.
+1. formal regression coverage was added for the same request source across success -> route-resolution failure -> changed-address success, proving no stale-address reuse, and for postcheck rejection on health/TCP47112/UDP47111 failure;
+2. stale manifest wording that implied Compose/temporary-overlay recreate authority was removed or replaced by the live-container-contract authority;
+3. a fresh private passive capture was bound by SHA-256, byte count, UTC observation window, hashed Board/pairing identity, and exact Manager image. The application payload explicitly reported `error=setup_secret_unavailable` for the observed `/v2/pairing/begin` 403, so the reason is no longer inferred from HTTP status alone.
+
+Public-safe evidence authority: `docs/development/N3W_KF098_PRIVATE_EVIDENCE_TRACEABILITY_ALIGNMENT_20260928.md`.
+
+The traceability capture also exposed a client-side control-flow defect outside the original KF-098 address root cause: firmware treated `status=rejected + transaction_disposition=continue` as immediate permission to call `/begin`. PR #500 repairs this by mapping rejected/continue to a wait-and-retry action that preserves the pairing ID and suppresses `/begin` until a later hello is accepted.
 
 ## Final disposition
 

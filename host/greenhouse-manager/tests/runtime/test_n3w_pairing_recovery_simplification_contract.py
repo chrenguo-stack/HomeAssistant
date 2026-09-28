@@ -79,7 +79,7 @@ def test_terminal_pairing_transaction_renews_random_id_without_epoch_counter() -
     endpoint = source(RUNTIME / "n3w_simplified_pairing_endpoint.py")
 
     assert "transaction_disposition" in client
-    assert "HelloTransactionDisposition::TERMINAL" in client
+    assert "HelloNextAction::RENEW" in client
     assert "renew_pairing_intent_()" in client
     assert "SimplePairingClientError::TRANSACTION_RENEWED" in client
     assert "next_pairing_id == pairing_id_" in client
@@ -100,7 +100,7 @@ def test_transient_hello_failures_do_not_renew_pairing_transaction() -> None:
         client.index("SimplePairingClient::send_hello_"),
     )
     terminal_branch = client.index(
-        "HelloTransactionDisposition::TERMINAL",
+        "HelloNextAction::RENEW",
         client.index("SimplePairingClient::send_hello_"),
     )
     renewal = client.index(
@@ -109,6 +109,65 @@ def test_transient_hello_failures_do_not_renew_pairing_transaction() -> None:
     )
 
     assert http_failure < terminal_branch < renewal
+
+
+def test_rejected_continue_waits_before_begin_without_renewing_pairing_id() -> None:
+    client = source(FIRMWARE / "n3w_simple_pairing_client.cpp")
+
+    parser_start = client.index("bool parse_hello_result(")
+    parser_end = client.index("}  // namespace", parser_start)
+    parser = client[parser_start:parser_end]
+
+    assert 'disposition_text == "continue"' in parser
+    assert 'status == "rejected"' in parser
+    assert "HelloNextAction::WAIT" in parser
+    assert "HelloNextAction::PROCEED" in parser
+    assert "HelloNextAction::RENEW" in parser
+
+    hello_start = client.index(
+        "SimplePairingClient::send_hello_"
+    )
+    hello_end = client.index(
+        "SimplePairingClient::pair_with_",
+        hello_start,
+    )
+    hello = client[hello_start:hello_end]
+
+    wait_branch = hello.index(
+        "action == HelloNextAction::WAIT"
+    )
+    wait_return = hello.index(
+        "return SimplePairingClientError::NOT_READY;",
+        wait_branch,
+    )
+    renew_branch = hello.index(
+        "action == HelloNextAction::RENEW"
+    )
+
+    assert wait_branch < wait_return < renew_branch
+
+    run_start = client.index(
+        "SimplePairingClient::run_once"
+    )
+    run_end = client.index(
+        "SimplePairingClient::resume_pending_ack",
+        run_start,
+    )
+    run_once = client[run_start:run_end]
+
+    hello_call = run_once.index(
+        "result = send_hello_(candidate);"
+    )
+    stop_on_wait = run_once.index(
+        "if (result != SimplePairingClientError::NONE) return result;",
+        hello_call,
+    )
+    begin_call = run_once.index(
+        "return pair_with_(candidate);",
+        stop_on_wait,
+    )
+
+    assert hello_call < stop_on_wait < begin_call
 
 def test_registered_pairing_never_implicitly_rotates_credential_or_application_key() -> None:
     coordinator = source(RUNTIME / "n3w_simplified_pairing.py")

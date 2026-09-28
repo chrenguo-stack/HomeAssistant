@@ -94,6 +94,14 @@ KF098_KNOWN_FAILURE_STATUS=GUARDED
 KF-098 is closed. The next pairing-identity recovery activity, if needed, must use its own explicit identity-preserving repair gate and must not be represented as unfinished KF-098 work.
 
 
+## Post-closure clarification: KF-099
+
+The archived KF-098 physical evidence remains valid for the discovery/address defect and KF-098 stays `CLOSED_PASS`.
+
+A later traceability capture showed that the subsequent `/v2/pairing/begin -> 403 setup_secret_unavailable` was not the desired client control flow. The Manager rejection was fail-closed, but Board firmware should have stopped after the rejected hello and retried the same pairing transaction instead of entering `/begin`.
+
+That separate client defect is tracked as KF-099 and repaired in PR #500. This clarification does not reopen the KF-098 address-discovery closure.
+
 ## Independent Astra review
 
 Astra independently reviewed the source, repository-versioned deployment executor, tests, and archived live evidence at `main=5e695213866258457096f3b1a584997e1ffb3aa0`.

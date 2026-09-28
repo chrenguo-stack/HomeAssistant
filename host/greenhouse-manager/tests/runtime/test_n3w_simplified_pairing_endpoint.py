@@ -103,6 +103,8 @@ def test_http_hello_maps_registration_observe_result(tmp_path) -> None:
     }
 
 
+
+
 def test_http_hello_marks_terminal_replay_for_pairing_id_renewal(tmp_path) -> None:
     with RegistrationRegistry(tmp_path / "registration.sqlite3") as registry:
         registry.observe_hello(_hello(), now=NOW)
