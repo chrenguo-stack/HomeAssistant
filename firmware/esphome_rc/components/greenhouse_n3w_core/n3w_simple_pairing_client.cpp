@@ -272,17 +272,18 @@ bool parse_bundle(
   return peer->valid() && broker->valid();
 }
 
-enum class HelloTransactionDisposition : uint8_t {
-  CONTINUE = 0,
-  TERMINAL,
+enum class HelloNextAction : uint8_t {
+  PROCEED = 0,
+  WAIT,
+  RENEW,
 };
 
 bool parse_hello_result(
     const std::string &response,
     const std::string &hardware_id,
     const std::string &pairing_id,
-    HelloTransactionDisposition *disposition) {
-  if (disposition == nullptr) return false;
+    HelloNextAction *action) {
+  if (action == nullptr) return false;
 
   JsonDocument document = json::parse_json(response);
   JsonObjectConst root = document.as<JsonObjectConst>();
@@ -306,7 +307,21 @@ bool parse_hello_result(
   }
 
   if (disposition_text == "continue") {
-    *disposition = HelloTransactionDisposition::CONTINUE;
+    if (status == "rejected") {
+      std::string reason;
+      if (!read_string(root, "reason", &reason) || reason.empty()) {
+        return false;
+      }
+      *action = HelloNextAction::WAIT;
+      return true;
+    }
+    if (status != "created" &&
+        status != "duplicate" &&
+        status != "superseded" &&
+        status != "repaired_after_retirement") {
+      return false;
+    }
+    *action = HelloNextAction::PROCEED;
     return true;
   }
 
@@ -317,7 +332,7 @@ bool parse_hello_result(
         (reason != "expired" && reason != "replay_detected")) {
       return false;
     }
-    *disposition = HelloTransactionDisposition::TERMINAL;
+    *action = HelloNextAction::RENEW;
     return true;
   }
 
@@ -523,16 +538,20 @@ SimplePairingClientError SimplePairingClient::send_hello_(
     return SimplePairingClientError::HTTP_FAILED;
   }
 
-  HelloTransactionDisposition disposition = HelloTransactionDisposition::CONTINUE;
+  HelloNextAction action = HelloNextAction::PROCEED;
   if (!parse_hello_result(
           response,
           hardware_id_,
           pairing_id_,
-          &disposition)) {
+          &action)) {
     return SimplePairingClientError::RESPONSE_REJECTED;
   }
 
-  if (disposition == HelloTransactionDisposition::TERMINAL) {
+  if (action == HelloNextAction::WAIT) {
+    return SimplePairingClientError::NOT_READY;
+  }
+
+  if (action == HelloNextAction::RENEW) {
     const SimplePairingClientError renewed = renew_pairing_intent_();
     return renewed == SimplePairingClientError::NONE
                ? SimplePairingClientError::TRANSACTION_RENEWED
