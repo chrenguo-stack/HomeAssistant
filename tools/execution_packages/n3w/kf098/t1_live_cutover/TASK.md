@@ -164,6 +164,22 @@ to:
 The package uses `ssh -n` and `scp -B`; no nested heredoc owns SSH stdin.
 Unknown non-empty staging state fails closed.
 
+## Transport timeout contract
+
+Host-side transport failures must fail closed before they are confused with a
+product/runtime failure.
+
+- T1 host/architecture preflight has a 30 second outer SSH budget.
+- The Docker daemon probe inside that preflight has its own 10 second timeout.
+- SSH uses bounded server-alive detection.
+- A host subprocess timeout is recorded into private evidence as
+  `timed_out=true` and converted to a structured STOP instead of escaping as a
+  Python traceback.
+- Remote phase budgets are phase-specific: preflight 180 seconds, apply 900
+  seconds, rollback 600 seconds. Apply and rollback are intentionally larger
+  than the old shared 240 second budget so the bounded remote transaction and
+  rollback path are not cut off by the Mac wrapper.
+
 ## Phases
 
 ### local-preflight
