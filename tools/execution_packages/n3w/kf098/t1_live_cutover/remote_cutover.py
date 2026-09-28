@@ -273,6 +273,30 @@ def ensure_loaded_exact_image() -> dict[str, Any]:
     return result
 
 
+def bind_old_rollback_image() -> dict[str, Any]:
+    source = image_inspect(OLD_IMAGE_ID)
+    require_ok(
+        run(["docker", "tag", OLD_IMAGE_ID, ROLLBACK_IMAGE_TAG]),
+        "cannot bind rollback image tag",
+    )
+    tagged = image_inspect(ROLLBACK_IMAGE_TAG)
+    source_rootfs = rootfs_layers_fingerprint(source)
+    tagged_rootfs = rootfs_layers_fingerprint(tagged)
+    if source_rootfs != tagged_rootfs:
+        raise StopExecution("rollback image RootFS binding mismatch")
+    if source.get("Architecture") != tagged.get("Architecture"):
+        raise StopExecution("rollback image architecture drift")
+    if source.get("Os") != tagged.get("Os"):
+        raise StopExecution("rollback image OS drift")
+    runtime_id = tagged.get("Id")
+    if not isinstance(runtime_id, str) or not runtime_id.startswith("sha256:"):
+        raise StopExecution("rollback runtime image ID invalid")
+    return {
+        "runtime_image_id": runtime_id,
+        "rootfs_layers_sha256": tagged_rootfs,
+    }
+
+
 def manager_mount_fingerprint(item: dict[str, Any]) -> tuple[int, str]:
     mounts = [
         {
@@ -1037,6 +1061,7 @@ def direct_shadow(
 
 def shadow_preflight(
     prestate: dict[str, Any],
+    old_runtime_image_id: str,
 ) -> dict[str, bool]:
     stale_pairing = env_values(MANAGER_ENV, PAIRING_KEY)
     if len(stale_pairing) != 1:
@@ -1050,7 +1075,7 @@ def shadow_preflight(
     validate_shadow_manager(
         old_shadow,
         prestate,
-        expected_image=OLD_IMAGE_ID,
+        expected_image={OLD_IMAGE_ID, old_runtime_image_id},
         expected_pairing=stale_pairing,
         label="old",
     )
@@ -1149,10 +1174,7 @@ def rollback(prestate: dict[str, Any]) -> dict[str, Any]:
         run(["docker", "image", "inspect", OLD_IMAGE_ID]),
         "old Manager image is unavailable",
     )
-    require_ok(
-        run(["docker", "tag", OLD_IMAGE_ID, ROLLBACK_IMAGE_TAG]),
-        "cannot bind rollback image tag",
-    )
+    old_binding = bind_old_rollback_image()
     if run(["docker", "inspect", MANAGER_NAME]).returncode == 0:
         require_ok(
             run(["docker", "rm", "-f", MANAGER_NAME], timeout=60),
@@ -1183,7 +1205,10 @@ def rollback(prestate: dict[str, Any]) -> dict[str, Any]:
     mount_count, mount_hash = manager_mount_fingerprint(manager)
     if state.get("Running") is not True:
         raise StopExecution("rollback Manager is not running")
-    if manager.get("Image") != OLD_IMAGE_ID:
+    if manager.get("Image") not in {
+        OLD_IMAGE_ID,
+        old_binding["runtime_image_id"],
+    }:
         raise StopExecution("rollback Manager image mismatch")
     if host.get("NetworkMode") != "host":
         raise StopExecution("rollback Manager network mode mismatch")
@@ -1416,11 +1441,11 @@ def apply() -> dict[str, Any]:
     mutation_started = False
     try:
         loaded = ensure_loaded_exact_image()
-        require_ok(
-            run(["docker", "tag", OLD_IMAGE_ID, ROLLBACK_IMAGE_TAG]),
-            "cannot bind rollback image tag",
+        old_binding = bind_old_rollback_image()
+        shadow = shadow_preflight(
+            prestate,
+            old_binding["runtime_image_id"],
         )
-        shadow = shadow_preflight(prestate)
         mutation_started = True
         rewrite_pairing_env_to_auto(MANAGER_ENV)
         if env_values(MANAGER_ENV, PAIRING_KEY) != ["auto"]:
@@ -1450,6 +1475,7 @@ def apply() -> dict[str, Any]:
             "result": "PASS",
             "artifact": artifact,
             "loaded_image": loaded,
+            "rollback_image": old_binding,
             "transaction_snapshot": snapshot,
             "shadow_preflight": shadow,
             "poststate": post,
