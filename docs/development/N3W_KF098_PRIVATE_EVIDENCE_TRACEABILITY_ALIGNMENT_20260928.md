@@ -68,7 +68,9 @@ The exact observed sequence is:
 
 The `403` is no longer interpreted from status code alone. The observed application error is explicitly `setup_secret_unavailable`.
 
-This is consistent with the existing-identity protection boundary: the fresh pairing identity was not accepted because no matching one-shot repair intent existed, and no Setup Secret had been imported for that blocked transaction. The durable approved registration remained outside the scope of this read-only observation.
+The Manager-side rejection is fail-closed and correctly preserves the existing durable identity. The capture also exposed an unnecessary client control-flow step: the firmware treated every wire-level `transaction_disposition=continue` as permission to enter `/begin`, even when `status=rejected`. That produced a predictable `setup_secret_unavailable` request before a repair transaction had been accepted.
+
+PR #500 repairs the client interpretation without changing the Manager wire schema: a `rejected + continue` hello keeps the same pairing ID and returns the firmware to its bounded retry loop without calling `/begin`; successful non-rejected `continue` results may proceed; terminal `expired` or `replay_detected` results still renew the random pairing ID.
 
 ## Follow-up closure
 
@@ -79,6 +81,8 @@ OBSERVATION_WINDOW_RECORDED=true
 BOARD_BINDING_HASH_RECORDED=true
 MANAGER_IMAGE_BINDING_RECORDED=true
 BEGIN_EXACT_ERROR_RECORDED=true
+REJECTED_CONTINUE_CLIENT_FLOW_DEFECT_IDENTIFIED=true
+REJECTED_CONTINUE_CLIENT_FLOW_REPAIR_PR=500
 
 KF098_REOPEN=false
 KF098_ROUTE_STATUS=CLOSED_PASS
