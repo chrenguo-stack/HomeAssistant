@@ -101,5 +101,16 @@
     "board_access": true,
     "pr474_mutation": true,
     "merge": true
+  },
+  "host_bootstrap_contract": {
+    "cwd_independent": true,
+    "existing_git_worktree_required": false,
+    "exact_package_commit_required": true,
+    "exact_package_files_hash_bound": true,
+    "exact_manager_artifact_reused": true,
+    "private_work_root_mode": "0700",
+    "git_status_used": false,
+    "git_fetch_used": false,
+    "git_checkout_used": false
   }
 }
