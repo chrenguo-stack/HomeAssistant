@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -273,7 +274,7 @@ def test_shadow_contract_accepts_only_exact_reproduction() -> None:
             remote.manager_runtime_security_fingerprint(current),
     }
     candidate = manager_fixture(
-        image=remote.NEW_IMAGE_ID,
+        image=remote.NEW_IMAGE_MANIFEST_DIGEST,
         pairing="auto",
     )
     remote.validate_shadow_manager(
@@ -493,6 +494,19 @@ def test_apply_preserves_fail_rolled_back_terminal_result(
         remote,
         "verify_stage_artifact",
         lambda: {"artifact": "PASS"},
+    )
+    monkeypatch.setattr(
+        remote,
+        "verify_loaded_exact_image",
+        lambda: {
+            "runtime_image_id":
+                remote.NEW_IMAGE_MANIFEST_DIGEST,
+            "config_digest":
+                remote.NEW_IMAGE_CONFIG_DIGEST,
+            "manifest_digest":
+                remote.NEW_IMAGE_MANIFEST_DIGEST,
+            "rootfs_layers_sha256": "rootfs",
+        },
     )
     monkeypatch.setattr(
         remote,
