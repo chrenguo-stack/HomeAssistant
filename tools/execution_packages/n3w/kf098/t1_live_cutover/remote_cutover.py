@@ -30,7 +30,7 @@ SHADOW_OLD_OVERLAY = STAGE_ROOT / "manager-kf098-shadow-old-overlay.yml"
 SHADOW_NEW_OVERLAY = STAGE_ROOT / "manager-kf098-shadow-new-overlay.yml"
 SHADOW_OLD_NAME = "greenhouse-manager-kf098-shadow-old"
 SHADOW_NEW_NAME = "greenhouse-manager-kf098-shadow-new"
-SHADOW_PROJECT = "n3wfc4-kf098-shadow"
+STALE_SHADOW_OLD_OVERLAY_SHA256 = "aeab3dafd4edceca69bd3e17964d7fc670c7ef50ee079d80e984f8dd2cabeff8"
 
 PAIRING_KEY = "GH_N3W_PAIRING_ADVERTISED_HOST"
 SOURCE_SHA = "575ce642e372961e21de14a36eba5877082de3cf"
@@ -310,6 +310,113 @@ def gh_env_fingerprint(item: dict[str, Any]) -> str:
     return normalized_hash(selected)
 
 
+def all_env_fingerprint_excluding_pairing(
+    item: dict[str, Any],
+) -> str:
+    config = item.get("Config")
+    config = config if isinstance(config, dict) else {}
+    env = config.get("Env")
+    env = env if isinstance(env, list) else []
+    selected = sorted(
+        value
+        for value in env
+        if isinstance(value, str)
+        and not value.startswith(PAIRING_KEY + "=")
+    )
+    return normalized_hash(selected)
+
+
+def manager_recreate_contract(
+    item: dict[str, Any],
+) -> dict[str, Any]:
+    config = item.get("Config")
+    config = config if isinstance(config, dict) else {}
+    host = item.get("HostConfig")
+    host = host if isinstance(host, dict) else {}
+    env = config.get("Env")
+    env = env if isinstance(env, list) else []
+    if not all(isinstance(value, str) and "=" in value for value in env):
+        raise StopExecution("Manager environment shape is unsupported")
+    mounts = []
+    for entry in item.get("Mounts", []):
+        if not isinstance(entry, dict):
+            raise StopExecution("Manager mount entry is invalid")
+        if entry.get("Type") != "bind":
+            raise StopExecution("Manager non-bind mount is unsupported")
+        source = entry.get("Source")
+        destination = entry.get("Destination")
+        if not isinstance(source, str) or not source:
+            raise StopExecution("Manager mount source is invalid")
+        if not isinstance(destination, str) or not destination:
+            raise StopExecution("Manager mount destination is invalid")
+        mounts.append(
+            {
+                "Type": "bind",
+                "Source": source,
+                "Destination": destination,
+                "RW": entry.get("RW") is True,
+                "Propagation": entry.get("Propagation") or "rprivate",
+            }
+        )
+    mounts.sort(
+        key=lambda value: (
+            value["Destination"],
+            value["Source"],
+        )
+    )
+    labels = config.get("Labels")
+    if labels is None:
+        labels = {}
+    if not isinstance(labels, dict):
+        raise StopExecution("Manager labels shape is unsupported")
+    return {
+        "env": list(env),
+        "mounts": mounts,
+        "labels": dict(sorted(labels.items())),
+        "entrypoint": config.get("Entrypoint"),
+        "cmd": config.get("Cmd"),
+        "user": config.get("User"),
+        "working_dir": config.get("WorkingDir"),
+        "healthcheck": config.get("Healthcheck"),
+        "stop_signal": config.get("StopSignal"),
+        "stop_timeout": config.get("StopTimeout"),
+        "open_stdin": config.get("OpenStdin"),
+        "stdin_once": config.get("StdinOnce"),
+        "tty": config.get("Tty"),
+        "host": {
+            key: host.get(key)
+            for key in (
+                "AutoRemove",
+                "CapAdd",
+                "CapDrop",
+                "CgroupnsMode",
+                "DeviceRequests",
+                "Devices",
+                "Dns",
+                "ExtraHosts",
+                "Init",
+                "IpcMode",
+                "LogConfig",
+                "Memory",
+                "MemorySwap",
+                "NanoCpus",
+                "NetworkMode",
+                "OomKillDisable",
+                "PidMode",
+                "PidsLimit",
+                "PortBindings",
+                "Privileged",
+                "ReadonlyRootfs",
+                "RestartPolicy",
+                "SecurityOpt",
+                "ShmSize",
+                "Tmpfs",
+                "Ulimits",
+            )
+        },
+    }
+
+
 def manager_runtime_security_fingerprint(
     item: dict[str, Any],
 ) -> str:
@@ -495,17 +602,6 @@ def verify_stage_artifact() -> dict[str, Any]:
 
 
 def base_preflight() -> dict[str, Any]:
-    compose_help = require_ok(
-        run(["docker", "compose", "up", "--help"]),
-        "docker compose up help unavailable",
-    )
-    for option in ("--no-start", "--no-deps", "--force-recreate"):
-        if option not in compose_help:
-            raise StopExecution(
-                f"docker compose up lacks required option {option}"
-            )
-    if sha256_file(COMPOSE) != EXPECTED_COMPOSE_SHA256:
-        raise StopExecution("live Compose SHA256 drift")
     if sha256_file(MANAGER_ENV) != EXPECTED_MANAGER_ENV_SHA256:
         raise StopExecution("manager.env SHA256 drift")
     if env_without_target_hash(MANAGER_ENV) != EXPECTED_MANAGER_ENV_EXCLUDING_PAIRING_SHA256:
@@ -605,7 +701,12 @@ def base_preflight() -> dict[str, Any]:
         "manager_mount_count": mount_count,
         "manager_mount_hash": mount_hash,
         "manager_gh_env_hash": gh_env_fingerprint(manager),
-        "manager_runtime_security_hash": manager_runtime_security_fingerprint(manager),
+        "manager_all_env_hash":
+            all_env_fingerprint_excluding_pairing(manager),
+        "manager_runtime_security_hash":
+            manager_runtime_security_fingerprint(manager),
+        "manager_recreate_contract":
+            manager_recreate_contract(manager),
         "broker_id": broker.get("Id"),
         "broker_restart_count": broker.get("RestartCount"),
         "firewall": firewall,
@@ -613,55 +714,231 @@ def base_preflight() -> dict[str, Any]:
     }
 
 
-def make_overlay(
-    path: Path,
-    image: str,
-    *,
-    container_name: str = MANAGER_NAME,
-    pairing_value: str | None = None,
-) -> None:
-    lines = [
-        "services:",
-        "  manager:",
-        f"    image: {image}",
-        f"    container_name: {container_name}",
-        "    pull_policy: never",
-    ]
-    if pairing_value is not None:
-        lines.extend(
-            (
-                "    environment:",
-                f"      {PAIRING_KEY}: {pairing_value}",
-            )
+def pairing_replaced_env(
+    values: list[str],
+    pairing_value: str,
+) -> list[str]:
+    result = []
+    replaced = 0
+    for value in values:
+        if "\n" in value or "\r" in value or "\x00" in value:
+            raise StopExecution("Manager environment contains unsupported bytes")
+        name, current = value.split("=", 1)
+        if name == PAIRING_KEY:
+            result.append(f"{PAIRING_KEY}={pairing_value}")
+            replaced += 1
+        else:
+            result.append(value)
+    if replaced != 1:
+        raise StopExecution(
+            f"runtime pairing environment count={replaced}, expected 1"
         )
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return result
+
+
+def validate_recreate_contract(
+    contract: dict[str, Any],
+) -> None:
+    host = contract.get("host")
+    host = host if isinstance(host, dict) else {}
+    if contract.get("entrypoint") != ["greenhouse-manager"]:
+        raise StopExecution("recreate entrypoint contract unsupported")
+    if contract.get("cmd") not in (None, []):
+        raise StopExecution("recreate command contract unsupported")
+    if contract.get("user") != "greenhouse":
+        raise StopExecution("recreate user contract unsupported")
+    if contract.get("working_dir") != "/app":
+        raise StopExecution("recreate working directory unsupported")
+    if contract.get("healthcheck") not in (None, {}):
+        raise StopExecution("recreate healthcheck contract unsupported")
+    if contract.get("stop_signal") is not None:
+        raise StopExecution("recreate stop signal contract unsupported")
+    if contract.get("stop_timeout") is not None:
+        raise StopExecution("recreate stop timeout contract unsupported")
+    if contract.get("open_stdin") not in (False, None):
+        raise StopExecution("recreate stdin contract unsupported")
+    if contract.get("stdin_once") not in (False, None):
+        raise StopExecution("recreate stdin-once contract unsupported")
+    if contract.get("tty") not in (False, None):
+        raise StopExecution("recreate TTY contract unsupported")
+    if host.get("NetworkMode") != "host":
+        raise StopExecution("recreate network mode unsupported")
+    restart = host.get("RestartPolicy")
+    if restart != {
+        "Name": "unless-stopped",
+        "MaximumRetryCount": 0,
+    }:
+        raise StopExecution("recreate restart policy unsupported")
+    if host.get("ReadonlyRootfs") is not True:
+        raise StopExecution("recreate read-only-rootfs contract unsupported")
+    if host.get("Privileged") is not False:
+        raise StopExecution("recreate privileged contract unsupported")
+    if host.get("PortBindings") not in ({}, None):
+        raise StopExecution("recreate port binding contract unsupported")
+    if host.get("DeviceRequests") not in (None, []):
+        raise StopExecution("recreate device-request contract unsupported")
+    if host.get("Devices") not in (None, []):
+        raise StopExecution("recreate device contract unsupported")
+    if host.get("Ulimits") not in (None, []):
+        raise StopExecution("recreate ulimit contract unsupported")
+    if host.get("NanoCpus") not in (None, 0):
+        raise StopExecution("recreate CPU limit contract unsupported")
+
+
+def write_runtime_env_file(
+    path: Path,
+    values: list[str],
+) -> None:
+    path.write_text("\n".join(values) + "\n", encoding="utf-8")
     os.chmod(path, 0o600)
 
 
-def compose_up(overlay: Path) -> None:
-    require_ok(
-        run(
-            [
-                "env",
-                "COMPOSE_IGNORE_ORPHANS=true",
-                "docker",
-                "compose",
-                "--project-name",
-                BROKER_PROJECT,
-                "-f",
-                str(COMPOSE),
-                "-f",
-                str(overlay),
-                "up",
-                "-d",
-                "--no-deps",
-                "--force-recreate",
-                "manager",
-            ],
-            timeout=120,
-        ),
-        "Manager compose recreate failed",
-    )
+def manager_create_argv(
+    contract: dict[str, Any],
+    *,
+    image: str,
+    name: str,
+    env_file: Path,
+) -> list[str]:
+    validate_recreate_contract(contract)
+    host = contract["host"]
+    argv = [
+        "docker",
+        "create",
+        "--name",
+        name,
+        "--network",
+        "host",
+        "--restart",
+        "unless-stopped",
+        "--read-only",
+        "--user",
+        "greenhouse",
+        "--workdir",
+        "/app",
+        "--entrypoint",
+        "greenhouse-manager",
+        "--env-file",
+        str(env_file),
+    ]
+    shm_size = host.get("ShmSize")
+    if isinstance(shm_size, int) and shm_size > 0:
+        argv.extend(["--shm-size", str(shm_size)])
+    tmpfs = host.get("Tmpfs")
+    if isinstance(tmpfs, dict):
+        for destination, options in sorted(tmpfs.items()):
+            value = destination
+            if options:
+                value += ":" + str(options)
+            argv.extend(["--tmpfs", value])
+    log_config = host.get("LogConfig")
+    if isinstance(log_config, dict):
+        driver = log_config.get("Type")
+        if driver:
+            argv.extend(["--log-driver", str(driver)])
+        options = log_config.get("Config")
+        if isinstance(options, dict):
+            for key, value in sorted(options.items()):
+                argv.extend(["--log-opt", f"{key}={value}"])
+    cap_add = host.get("CapAdd")
+    if isinstance(cap_add, list):
+        for value in cap_add:
+            argv.extend(["--cap-add", str(value)])
+    cap_drop = host.get("CapDrop")
+    if isinstance(cap_drop, list):
+        for value in cap_drop:
+            argv.extend(["--cap-drop", str(value)])
+    security_opt = host.get("SecurityOpt")
+    if isinstance(security_opt, list):
+        for value in security_opt:
+            argv.extend(["--security-opt", str(value)])
+    if host.get("Init") is True:
+        argv.append("--init")
+    memory = host.get("Memory")
+    if isinstance(memory, int) and memory > 0:
+        argv.extend(["--memory", str(memory)])
+    memory_swap = host.get("MemorySwap")
+    if isinstance(memory_swap, int) and memory_swap != 0:
+        argv.extend(["--memory-swap", str(memory_swap)])
+    pids_limit = host.get("PidsLimit")
+    if isinstance(pids_limit, int):
+        argv.extend(["--pids-limit", str(pids_limit)])
+    if host.get("OomKillDisable") is True:
+        argv.append("--oom-kill-disable")
+    ipc_mode = host.get("IpcMode")
+    if ipc_mode not in (None, "", "private"):
+        argv.extend(["--ipc", str(ipc_mode)])
+    pid_mode = host.get("PidMode")
+    if pid_mode not in (None, ""):
+        argv.extend(["--pid", str(pid_mode)])
+    dns = host.get("Dns")
+    if isinstance(dns, list):
+        for value in dns:
+            argv.extend(["--dns", str(value)])
+    extra_hosts = host.get("ExtraHosts")
+    if isinstance(extra_hosts, list):
+        for value in extra_hosts:
+            argv.extend(["--add-host", str(value)])
+    labels = contract.get("labels")
+    if isinstance(labels, dict):
+        for key, value in sorted(labels.items()):
+            if value is None:
+                argv.extend(["--label", str(key)])
+            else:
+                argv.extend(["--label", f"{key}={value}"])
+    mounts = contract.get("mounts")
+    if not isinstance(mounts, list) or len(mounts) != 6:
+        raise StopExecution("recreate mount contract count mismatch")
+    for mount in mounts:
+        source = mount["Source"]
+        destination = mount["Destination"]
+        propagation = mount.get("Propagation") or "rprivate"
+        spec = (
+            f"type=bind,src={source},dst={destination},"
+            f"bind-propagation={propagation}"
+        )
+        if mount.get("RW") is not True:
+            spec += ",readonly"
+        argv.extend(["--mount", spec])
+    argv.append(image)
+    return argv
+
+
+def create_manager_from_contract(
+    prestate: dict[str, Any],
+    *,
+    image: str,
+    name: str,
+    pairing_value: str,
+) -> dict[str, Any]:
+    contract = prestate.get("manager_recreate_contract")
+    if not isinstance(contract, dict):
+        raise StopExecution("Manager recreate contract is missing")
+    env = contract.get("env")
+    if not isinstance(env, list):
+        raise StopExecution("Manager recreate environment is missing")
+    values = pairing_replaced_env(env, pairing_value)
+    env_file = STAGE_ROOT / f".{name}.env"
+    if env_file.exists():
+        raise StopExecution(f"private runtime env file already exists: {name}")
+    try:
+        write_runtime_env_file(env_file, values)
+        require_ok(
+            run(
+                manager_create_argv(
+                    contract,
+                    image=image,
+                    name=name,
+                    env_file=env_file,
+                ),
+                timeout=120,
+            ),
+            f"cannot create Manager container {name}",
+        )
+        return docker_inspect(name)
+    finally:
+        if env_file.exists():
+            env_file.unlink()
 
 
 def validate_shadow_manager(
@@ -701,6 +978,11 @@ def validate_shadow_manager(
     if gh_env_fingerprint(item) != prestate["manager_gh_env_hash"]:
         raise StopExecution(f"{label} shadow non-target GH env drift")
     if (
+        all_env_fingerprint_excluding_pairing(item)
+        != prestate["manager_all_env_hash"]
+    ):
+        raise StopExecution(f"{label} shadow non-target env drift")
+    if (
         manager_runtime_security_fingerprint(item)
         != prestate["manager_runtime_security_hash"]
     ):
@@ -709,57 +991,34 @@ def validate_shadow_manager(
         raise StopExecution(f"{label} shadow pairing environment mismatch")
 
 
-def compose_shadow(
-    overlay: Path,
+def direct_shadow(
+    prestate: dict[str, Any],
+    *,
+    image: str,
     container_name: str,
+    pairing_value: str,
 ) -> dict[str, Any]:
     if run(["docker", "inspect", container_name]).returncode == 0:
         raise StopExecution(f"shadow container already exists: {container_name}")
-    compose_prefix = [
-        "docker",
-        "compose",
-        "--project-name",
-        SHADOW_PROJECT,
-        "-f",
-        str(COMPOSE),
-        "-f",
-        str(overlay),
-    ]
-    created = False
-    shadow: dict[str, Any] | None = None
     primary_error: Exception | None = None
+    shadow: dict[str, Any] | None = None
     try:
-        require_ok(
-            run(
-                [
-                    *compose_prefix,
-                    "up",
-                    "--no-start",
-                    "--no-deps",
-                    "--force-recreate",
-                    "manager",
-                ],
-                timeout=120,
-            ),
-            f"cannot create shadow Manager {container_name}",
+        shadow = create_manager_from_contract(
+            prestate,
+            image=image,
+            name=container_name,
+            pairing_value=pairing_value,
         )
-        created = True
-        shadow = docker_inspect(container_name)
     except Exception as exc:
         primary_error = exc
     cleanup = run(
-        [
-            *compose_prefix,
-            "down",
-            "--timeout",
-            "0",
-        ],
-        timeout=120,
+        ["docker", "rm", "-f", container_name],
+        timeout=60,
     )
-    if cleanup.returncode != 0:
+    if cleanup.returncode not in (0, 1):
         detail = cleanup.stderr.strip() or cleanup.stdout.strip()
         raise StopExecution(
-            f"shadow Compose cleanup failed for {container_name}: {detail[:800]}"
+            f"shadow cleanup failed for {container_name}: {detail[:800]}"
         ) from primary_error
     if run(["docker", "inspect", container_name]).returncode == 0:
         raise StopExecution(
@@ -767,10 +1026,8 @@ def compose_shadow(
         )
     if primary_error is not None:
         raise primary_error
-    if not created or shadow is None:
-        raise StopExecution(
-            f"shadow Manager result missing: {container_name}"
-        )
+    if shadow is None:
+        raise StopExecution(f"shadow Manager result missing: {container_name}")
     return shadow
 
 
@@ -780,14 +1037,11 @@ def shadow_preflight(
     stale_pairing = env_values(MANAGER_ENV, PAIRING_KEY)
     if len(stale_pairing) != 1:
         raise StopExecution("shadow preflight stale pairing authority invalid")
-    make_overlay(
-        SHADOW_OLD_OVERLAY,
-        ROLLBACK_IMAGE_TAG,
+    old_shadow = direct_shadow(
+        prestate,
+        image=ROLLBACK_IMAGE_TAG,
         container_name=SHADOW_OLD_NAME,
-    )
-    old_shadow = compose_shadow(
-        SHADOW_OLD_OVERLAY,
-        SHADOW_OLD_NAME,
+        pairing_value=stale_pairing[0],
     )
     validate_shadow_manager(
         old_shadow,
@@ -796,15 +1050,11 @@ def shadow_preflight(
         expected_pairing=stale_pairing,
         label="old",
     )
-    make_overlay(
-        SHADOW_NEW_OVERLAY,
-        NEW_IMAGE_TAG,
+    new_shadow = direct_shadow(
+        prestate,
+        image=NEW_IMAGE_TAG,
         container_name=SHADOW_NEW_NAME,
         pairing_value="auto",
-    )
-    new_shadow = compose_shadow(
-        SHADOW_NEW_OVERLAY,
-        SHADOW_NEW_NAME,
     )
     validate_shadow_manager(
         new_shadow,
@@ -814,7 +1064,7 @@ def shadow_preflight(
         label="new",
     )
     return {
-        "old_compose_reproduction": True,
+        "old_live_contract_reproduction": True,
         "new_candidate_contract": True,
     }
 
@@ -860,8 +1110,6 @@ def restore_manager_env() -> None:
 
 
 def rollback_preconditions() -> None:
-    if sha256_file(COMPOSE) != EXPECTED_COMPOSE_SHA256:
-        raise StopExecution("rollback live Compose authority drift")
     if sha256_file(SERVICE_ENV) != EXPECTED_SERVICE_ENV_SHA256:
         raise StopExecution("rollback service-identities authority drift")
     if env_without_target_hash(MANAGER_ENV) != EXPECTED_MANAGER_ENV_EXCLUDING_PAIRING_SHA256:
@@ -907,8 +1155,19 @@ def rollback(prestate: dict[str, Any]) -> dict[str, Any]:
             "cannot remove candidate Manager",
         )
     restore_manager_env()
-    make_overlay(ROLLBACK_OVERLAY, ROLLBACK_IMAGE_TAG)
-    compose_up(ROLLBACK_OVERLAY)
+    stale_pairing = env_values(MANAGER_ENV, PAIRING_KEY)
+    if len(stale_pairing) != 1:
+        raise StopExecution("rollback pairing env count mismatch before create")
+    create_manager_from_contract(
+        prestate,
+        image=ROLLBACK_IMAGE_TAG,
+        name=MANAGER_NAME,
+        pairing_value=stale_pairing[0],
+    )
+    require_ok(
+        run(["docker", "start", MANAGER_NAME], timeout=60),
+        "cannot start rollback Manager",
+    )
     wait_health()
     manager = docker_inspect(MANAGER_NAME)
     state = manager.get("State")
@@ -1091,7 +1350,6 @@ def apply() -> dict[str, Any]:
             raise StopExecution("manager.env auto rewrite failed")
         if env_without_target_hash(MANAGER_ENV) != EXPECTED_MANAGER_ENV_EXCLUDING_PAIRING_SHA256:
             raise StopExecution("manager.env non-target drift after rewrite")
-        make_overlay(OVERLAY, NEW_IMAGE_TAG)
         require_ok(
             run(["docker", "stop", "-t", "20", MANAGER_NAME], timeout=40),
             "cannot stop old Manager",
@@ -1100,7 +1358,16 @@ def apply() -> dict[str, Any]:
             run(["docker", "rm", MANAGER_NAME]),
             "cannot remove old Manager",
         )
-        compose_up(OVERLAY)
+        create_manager_from_contract(
+            prestate,
+            image=NEW_IMAGE_TAG,
+            name=MANAGER_NAME,
+            pairing_value="auto",
+        )
+        require_ok(
+            run(["docker", "start", MANAGER_NAME], timeout=60),
+            "cannot start new Manager",
+        )
         post = postcheck(prestate)
         return {
             "result": "PASS",
