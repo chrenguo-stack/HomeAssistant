@@ -498,6 +498,14 @@ def test_apply_preserves_fail_rolled_back_terminal_result(
     )
     monkeypatch.setattr(
         remote,
+        "bind_old_rollback_image",
+        lambda: {
+            "runtime_image_id": remote.OLD_IMAGE_ID,
+            "rootfs_layers_sha256": "old-rootfs",
+        },
+    )
+    monkeypatch.setattr(
+        remote,
         "base_preflight",
         lambda: {"prestate": "PASS"},
     )
@@ -509,7 +517,7 @@ def test_apply_preserves_fail_rolled_back_terminal_result(
     monkeypatch.setattr(
         remote,
         "shadow_preflight",
-        lambda _prestate: {"shadow": "PASS"},
+        lambda _prestate, _old_runtime_id: {"shadow": "PASS"},
     )
     monkeypatch.setattr(
         remote,
@@ -884,6 +892,8 @@ def test_shadow_accepts_either_artifact_owned_new_image_id() -> None:
         "manager_mount_count": count,
         "manager_mount_hash": mount_hash,
         "manager_gh_env_hash": remote.gh_env_fingerprint(current),
+        "manager_all_env_hash":
+            remote.all_env_fingerprint_excluding_pairing(current),
         "manager_runtime_security_hash":
             remote.manager_runtime_security_fingerprint(current),
     }
