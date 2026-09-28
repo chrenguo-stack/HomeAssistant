@@ -60,7 +60,7 @@ def preflight_payload(
     }
 
 
-def test_pr437_artifact_binding_is_exact() -> None:
+def test_kf099_artifact_binding_is_exact() -> None:
     assert module.PRODUCT_SOURCE == "c578bcb2e31f50771b6b08c231704da6bf36b729"
     assert module.PRODUCT_TREE == "1678c7fa571db9b8f47b7b8a03dbd332620d1e19"
     assert module.TARGET_BLOB == "37654481747b21ca51ccecc246bf84ca437ab7a9"
