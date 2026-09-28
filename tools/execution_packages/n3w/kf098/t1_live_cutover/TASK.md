@@ -106,6 +106,32 @@ by the current live Manager Compose service. It is read-only authority in this
 gate and is intentionally not mutated. That avoids expanding this cutover into
 a second deployment-authority migration.
 
+## Mac bootstrap authority
+
+The live execution entrypoint must not assume that the current Terminal
+directory is a Git worktree and must not depend on an existing local clone.
+
+`bootstrap_runner.py` is the only supported Mac entrypoint for this gate. It
+requires an exact 40-character package commit SHA, verifies that commit through
+GitHub, downloads the exact execution-package files from that commit, records
+their SHA-256 values in a private local authority file, downloads the already
+bound exact Manager artifact by workflow run/name, and then invokes the cached
+`executor.py` by absolute path.
+
+The private work root is:
+
+```text
+~/.local/share/n3w-kf098-20260928
+```
+
+It must be mode `0700`. Package, artifact and evidence files are kept private.
+The bootstrap works from any Mac Terminal working directory and does not issue
+`git status`, `git fetch`, `git checkout` or `git rev-parse`.
+
+A cached package is reusable only when its recorded repository, exact package
+SHA and every file SHA-256 still match. A cached artifact is reusable only when
+the exact image tar and portable manifest checks still pass.
+
 ## Artifact transport
 
 T1 must not depend on GitHub connectivity.
