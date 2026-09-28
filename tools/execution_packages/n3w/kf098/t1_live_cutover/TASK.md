@@ -118,6 +118,62 @@ The stage classifier may preserve this exact pretransaction snapshot while
 refreshing the execution package. Any other rollback/overlay shape fails
 closed. No manual deletion is required or permitted.
 
+## Live Manager recreation authority
+
+The current running Manager is not reproducible from the current
+`/opt/greenhouse-fc4-95c42fa5/runtime/docker-compose.yml`.
+
+Fresh live evidence established:
+
+```text
+LIVE_MANAGER_MOUNT_COUNT=6
+CURRENT_COMPOSE_MANAGER_MOUNT_COUNT=3
+OLD_IMAGE_DECLARED_VOLUME_COUNT=0
+LIVE_MANAGER_COMPOSE_LABEL_COUNT=0
+```
+
+The live and Compose mount targets differ materially, including the current
+Manager's N3-W state and secret bindings. Therefore the current Compose file is
+not a Manager recreate authority for this cutover and must not be used to
+create the old shadow, new shadow, candidate Manager, or rollback Manager.
+
+For this cutover, the running Manager container inspect is the runtime
+recreation authority. The private prestate captures:
+
+- the exact current Config.Env array;
+- the six live bind-mount source/target/RW/propagation bindings;
+- entrypoint, command, user and working directory;
+- labels and selected container Config controls;
+- host networking, restart policy, read-only rootfs, tmpfs, logging,
+  resource, capability, security, IPC/PID and device controls.
+
+The executor writes the environment to a root-only temporary env file and
+constructs `docker create` directly from the captured live contract. Mount
+source paths and environment values remain private on T1 and are not emitted
+in public result JSON.
+
+Before the live Manager is stopped:
+
+1. the exact old image is bound to a rollback tag;
+2. a stopped old-image shadow is created from the captured live contract;
+3. that shadow must reproduce the six mount bindings, complete non-pairing
+   environment fingerprint and runtime/security fingerprint;
+4. a stopped new-image shadow is created from the same live contract with only
+   the pairing host changed to `auto`;
+5. the new shadow must pass the same contract checks and exact-image identity
+   checks;
+6. both shadows are removed.
+
+Only after both shadows pass may the live `manager.env` change and the live
+Manager be replaced. The final candidate and rollback Manager use the same
+direct-create contract. Broker, Home Assistant and R5 are not recreated.
+
+A known failed pre-mutation attempt may leave only the historical
+`manager-kf098-shadow-old-overlay.yml`. It is removable automatically only
+when its SHA-256 equals the frozen failed-attempt value, no shadow container is
+present, no other transaction overlay exists, and the live prestate still
+matches. Any other residual fails closed.
+
 ## Cutover design
 
 The current live Compose file is not edited.

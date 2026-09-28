@@ -132,19 +132,15 @@ def test_remote_env_rewrite_rejects_duplicate_target(
         remote.rewrite_pairing_env_to_auto(path)
 
 
-def test_remote_overlay_changes_only_manager_image_and_name(
-    tmp_path: Path,
-) -> None:
-    path = tmp_path / "overlay.yml"
-    remote.make_overlay(path, remote.NEW_IMAGE_TAG)
-    text = path.read_text(encoding="utf-8")
-    assert "services:" in text
-    assert "manager:" in text
-    assert f"image: {remote.NEW_IMAGE_TAG}" in text
-    assert "container_name: greenhouse-manager" in text
-    assert "pull_policy: never" in text
-    assert "broker:" not in text
-    assert "--remove-orphans" not in text
+def test_remote_recreate_uses_live_contract_not_compose() -> None:
+    source = (PACKAGE / "remote_cutover.py").read_text(
+        encoding="utf-8"
+    )
+    assert "manager_recreate_contract" in source
+    assert '"docker",\n        "create"' in source
+    assert "compose_up(" not in source
+    assert "compose_shadow(" not in source
+    assert "--remove-orphans" not in source
 
 
 def test_remote_uses_current_pr480_activation_blob() -> None:
@@ -270,6 +266,8 @@ def test_shadow_contract_accepts_only_exact_reproduction() -> None:
         "manager_mount_count": count,
         "manager_mount_hash": mount_hash,
         "manager_gh_env_hash": remote.gh_env_fingerprint(current),
+        "manager_all_env_hash":
+            remote.all_env_fingerprint_excluding_pairing(current),
         "manager_runtime_security_hash":
             remote.manager_runtime_security_fingerprint(current),
     }
@@ -412,23 +410,14 @@ def test_rollback_preconditions_accept_transaction_candidate(
     remote.rollback_preconditions()
 
 
-def test_shadow_uses_supported_no_start_compose_path() -> None:
+def test_shadow_uses_direct_create_not_compose() -> None:
     source = (PACKAGE / "remote_cutover.py").read_text(
         encoding="utf-8"
     )
-    assert '"up",' in source
-    assert '"--no-start",' in source
-    assert '"--no-deps",' in source
-    assert '"create",\n                    "--no-deps"' not in source
-    assert '"down",' in source
-    assert "shadow Compose cleanup failed" in source
-
-
-def test_live_recreate_preserves_pr480_orphan_policy() -> None:
-    source = (PACKAGE / "remote_cutover.py").read_text(
-        encoding="utf-8"
-    )
-    assert '"COMPOSE_IGNORE_ORPHANS=true"' in source
+    assert "direct_shadow(" in source
+    assert '"docker",\n        "create"' in source
+    assert '"--no-start"' not in source
+    assert '"COMPOSE_IGNORE_ORPHANS=true"' not in source
     assert '"--remove-orphans"' not in source
 
 
@@ -479,7 +468,6 @@ def test_apply_preserves_fail_rolled_back_terminal_result(
         "PRESTATE_JSON",
         rollback_root / "manager-prestate.json",
     )
-    monkeypatch.setattr(remote, "OVERLAY", tmp_path / "overlay.yml")
     monkeypatch.setattr(
         remote,
         "EXPECTED_MANAGER_ENV_SHA256",
@@ -510,23 +498,31 @@ def test_apply_preserves_fail_rolled_back_terminal_result(
     )
     monkeypatch.setattr(
         remote,
+        "bind_old_rollback_image",
+        lambda: {
+            "runtime_image_id": remote.OLD_IMAGE_ID,
+            "rootfs_layers_sha256": "old-rootfs",
+        },
+    )
+    monkeypatch.setattr(
+        remote,
         "base_preflight",
         lambda: {"prestate": "PASS"},
     )
     monkeypatch.setattr(
         remote,
+        "cleanup_known_pretransaction_residual",
+        lambda: "none",
+    )
+    monkeypatch.setattr(
+        remote,
         "shadow_preflight",
-        lambda _prestate: {"shadow": "PASS"},
+        lambda _prestate, _old_runtime_id: {"shadow": "PASS"},
     )
     monkeypatch.setattr(
         remote,
-        "make_overlay",
-        lambda *args, **kwargs: None,
-    )
-    monkeypatch.setattr(
-        remote,
-        "compose_up",
-        lambda _overlay: None,
+        "create_manager_from_contract",
+        lambda *args, **kwargs: {},
     )
 
     def fake_rewrite(path: Path) -> None:
@@ -823,7 +819,12 @@ def test_prepare_transaction_snapshot_reuses_exact_pretransaction_state(
         "manager_mount_count": 6,
         "manager_mount_hash": "m",
         "manager_gh_env_hash": "e",
+        "manager_all_env_hash": "a",
         "manager_runtime_security_hash": "s",
+        "manager_recreate_contract": {
+            "env": [],
+            "mounts": [],
+        },
         "broker_id": "b",
         "broker_restart_count": 0,
         "firewall": {"x": 1},
@@ -836,17 +837,11 @@ def test_prepare_transaction_snapshot_reuses_exact_pretransaction_state(
     monkeypatch.setattr(remote, "MANAGER_ENV_BACKUP", backup)
     monkeypatch.setattr(remote, "PRESTATE_JSON", prestate_path)
     monkeypatch.setattr(remote, "EXPECTED_MANAGER_ENV_SHA256", expected_env_sha)
-    for name in (
-        "OVERLAY",
-        "ROLLBACK_OVERLAY",
-        "SHADOW_OLD_OVERLAY",
-        "SHADOW_NEW_OVERLAY",
-    ):
-        monkeypatch.setattr(
-            remote,
-            name,
-            tmp_path / f"{name}.yml",
-        )
+    monkeypatch.setattr(
+        remote,
+        "cleanup_known_pretransaction_residual",
+        lambda: "none",
+    )
 
     original_stat = remote.Path.stat
 
@@ -861,7 +856,8 @@ def test_prepare_transaction_snapshot_reuses_exact_pretransaction_state(
     monkeypatch.setattr(remote.Path, "stat", fake_stat)
     result = remote.prepare_transaction_snapshot(prestate)
     assert result == {
-        "snapshot": "reused_verified_pretransaction"
+        "snapshot": "reused_verified_pretransaction",
+        "residual_cleanup": "none",
     }
 
 
@@ -896,6 +892,8 @@ def test_shadow_accepts_either_artifact_owned_new_image_id() -> None:
         "manager_mount_count": count,
         "manager_mount_hash": mount_hash,
         "manager_gh_env_hash": remote.gh_env_fingerprint(current),
+        "manager_all_env_hash":
+            remote.all_env_fingerprint_excluding_pairing(current),
         "manager_runtime_security_hash":
             remote.manager_runtime_security_fingerprint(current),
     }
@@ -1007,3 +1005,113 @@ def test_ensure_loaded_exact_image_loads_when_tag_absent(
     result = remote.ensure_loaded_exact_image()
     assert result["load_action"] == "loaded_exact_tar"
     assert calls[1][1] == 180
+
+
+def test_pairing_replaced_env_changes_only_target() -> None:
+    before = [
+        "GH_ALPHA=one",
+        "GH_N3W_PAIRING_ADVERTISED_HOST=192.0.2.10",
+        "PATH=/usr/bin",
+    ]
+    assert remote.pairing_replaced_env(before, "auto") == [
+        "GH_ALPHA=one",
+        "GH_N3W_PAIRING_ADVERTISED_HOST=auto",
+        "PATH=/usr/bin",
+    ]
+
+
+def test_manager_create_argv_uses_live_runtime_contract(
+    tmp_path: Path,
+) -> None:
+    contract = {
+        "env": [
+            "GH_ALPHA=one",
+            "GH_N3W_PAIRING_ADVERTISED_HOST=192.0.2.10",
+        ],
+        "mounts": [
+            {
+                "Type": "bind",
+                "Source": f"/state/{i}",
+                "Destination": f"/target/{i}",
+                "RW": i % 2 == 0,
+                "Propagation": "rprivate",
+            }
+            for i in range(6)
+        ],
+        "labels": {},
+        "entrypoint": ["greenhouse-manager"],
+        "cmd": None,
+        "user": "greenhouse",
+        "working_dir": "/app",
+        "healthcheck": None,
+        "stop_signal": None,
+        "stop_timeout": None,
+        "open_stdin": False,
+        "stdin_once": False,
+        "tty": False,
+        "host": {
+            "AutoRemove": False,
+            "CapAdd": None,
+            "CapDrop": None,
+            "CgroupnsMode": "private",
+            "DeviceRequests": None,
+            "Devices": [],
+            "Dns": [],
+            "ExtraHosts": None,
+            "Init": None,
+            "IpcMode": "private",
+            "LogConfig": {
+                "Type": "json-file",
+                "Config": {"max-file": "3", "max-size": "10m"},
+            },
+            "Memory": 0,
+            "MemorySwap": 0,
+            "NanoCpus": 0,
+            "NetworkMode": "host",
+            "OomKillDisable": False,
+            "PidMode": "",
+            "PidsLimit": None,
+            "PortBindings": {},
+            "Privileged": False,
+            "ReadonlyRootfs": True,
+            "RestartPolicy": {
+                "Name": "unless-stopped",
+                "MaximumRetryCount": 0,
+            },
+            "SecurityOpt": None,
+            "ShmSize": 67108864,
+            "Tmpfs": {"/tmp": "size=16m,mode=1777"},
+            "Ulimits": None,
+        },
+    }
+    argv = remote.manager_create_argv(
+        contract,
+        image=remote.NEW_IMAGE_TAG,
+        name="candidate",
+        env_file=tmp_path / "runtime.env",
+    )
+    assert argv[:2] == ["docker", "create"]
+    assert argv.count("--mount") == 6
+    assert "--network" in argv and "host" in argv
+    assert "--read-only" in argv
+    assert "--tmpfs" in argv
+    assert "--log-driver" in argv
+    assert argv[-1] == remote.NEW_IMAGE_TAG
+
+
+def test_source_no_longer_uses_compose_for_manager_recreate() -> None:
+    source = (PACKAGE / "remote_cutover.py").read_text(
+        encoding="utf-8"
+    )
+    assert "create_manager_from_contract" in source
+    assert "compose_up(" not in source
+    assert "compose_shadow(" not in source
+    assert "docker\", \"compose" not in source
+
+
+def test_stage_classifier_knows_failed_shadow_residual() -> None:
+    source = (PACKAGE / "executor.py").read_text(
+        encoding="utf-8"
+    )
+    assert "manager-kf098-shadow-old-overlay.yml" in source
+    assert host.STALE_SHADOW_OLD_OVERLAY_SHA256 in source

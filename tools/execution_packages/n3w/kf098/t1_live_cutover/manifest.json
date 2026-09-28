@@ -71,7 +71,11 @@
     "loaded_runtime_id_must_be_artifact_owned": true,
     "loaded_rootfs_layers_exact": true,
     "shadow_and_postcheck_accept_only_artifact_owned_image_ids": true,
-    "existing_exact_tag_reused_without_reload": true
+    "existing_exact_tag_reused_without_reload": true,
+    "current_compose_used_for_manager_recreate": false,
+    "live_container_contract_used_for_old_shadow": true,
+    "live_container_contract_used_for_new_shadow": true,
+    "live_container_contract_used_for_candidate": true
   },
   "rollback_contract": {
     "manager_env_exact_backup_before_mutation": true,
@@ -90,7 +94,10 @@
     "tcp_8883_preserved": true,
     "r5_firewall_snapshot_preserved": true,
     "pretransaction_snapshot_resume_supported": true,
-    "resume_requires_exact_snapshot_and_no_overlays": true
+    "resume_requires_exact_snapshot_and_no_overlays": true,
+    "live_container_contract_used_for_rollback": true,
+    "known_failed_shadow_old_overlay_sha256": "aeab3dafd4edceca69bd3e17964d7fc670c7ef50ee079d80e984f8dd2cabeff8",
+    "legacy_prestate_upgrade_requires_exact_projection": true
   },
   "execution_phases": {
     "local-preflight": "Mac only, no T1 access",
@@ -133,5 +140,19 @@
     "timeout_evidence_recorded": true,
     "ssh_server_alive_interval_seconds": 5,
     "ssh_server_alive_count_max": 2
+  },
+  "live_manager_recreate_authority": {
+    "authority": "running_manager_container_inspect",
+    "current_compose_recreate_authority": false,
+    "live_mount_count": 6,
+    "current_compose_mount_count": 3,
+    "old_image_declared_volume_count": 0,
+    "compose_labels_on_live_manager": 0,
+    "private_env_values_preserved": true,
+    "private_mount_sources_preserved": true,
+    "direct_docker_create": true,
+    "broker_recreated": false,
+    "homeassistant_recreated": false,
+    "r5_mutated": false
   }
 }
