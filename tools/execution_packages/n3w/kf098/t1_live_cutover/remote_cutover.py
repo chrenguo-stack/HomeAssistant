@@ -26,6 +26,11 @@ MANAGER_ENV_BACKUP = ROLLBACK_ROOT / "manager.env.before"
 PRESTATE_JSON = ROLLBACK_ROOT / "manager-prestate.json"
 OVERLAY = STAGE_ROOT / "manager-kf098-overlay.yml"
 ROLLBACK_OVERLAY = STAGE_ROOT / "manager-kf098-rollback-overlay.yml"
+SHADOW_OLD_OVERLAY = STAGE_ROOT / "manager-kf098-shadow-old-overlay.yml"
+SHADOW_NEW_OVERLAY = STAGE_ROOT / "manager-kf098-shadow-new-overlay.yml"
+SHADOW_OLD_NAME = "greenhouse-manager-kf098-shadow-old"
+SHADOW_NEW_NAME = "greenhouse-manager-kf098-shadow-new"
+SHADOW_PROJECT = "n3wfc4-kf098-shadow"
 
 PAIRING_KEY = "GH_N3W_PAIRING_ADVERTISED_HOST"
 SOURCE_SHA = "575ce642e372961e21de14a36eba5877082de3cf"
@@ -517,15 +522,28 @@ def base_preflight() -> dict[str, Any]:
     }
 
 
-def make_overlay(path: Path, image: str) -> None:
-    payload = (
-        "services:\n"
-        "  manager:\n"
-        f"    image: {image}\n"
-        "    container_name: greenhouse-manager\n"
-        "    pull_policy: never\n"
-    )
-    path.write_text(payload, encoding="utf-8")
+def make_overlay(
+    path: Path,
+    image: str,
+    *,
+    container_name: str = MANAGER_NAME,
+    pairing_value: str | None = None,
+) -> None:
+    lines = [
+        "services:",
+        "  manager:",
+        f"    image: {image}",
+        f"    container_name: {container_name}",
+        "    pull_policy: never",
+    ]
+    if pairing_value is not None:
+        lines.extend(
+            (
+                "    environment:",
+                f"      {PAIRING_KEY}: {pairing_value}",
+            )
+        )
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     os.chmod(path, 0o600)
 
 
@@ -551,6 +569,120 @@ def compose_up(overlay: Path) -> None:
         ),
         "Manager compose recreate failed",
     )
+
+
+def validate_shadow_manager(
+    item: dict[str, Any],
+    prestate: dict[str, Any],
+    *,
+    expected_image: str,
+    expected_pairing: list[str],
+    label: str,
+) -> None:
+    state = item.get("State")
+    state = state if isinstance(state, dict) else {}
+    config = item.get("Config")
+    config = config if isinstance(config, dict) else {}
+    host = item.get("HostConfig")
+    host = host if isinstance(host, dict) else {}
+    if state.get("Running") is True:
+        raise StopExecution(f"{label} shadow unexpectedly running")
+    if item.get("Image") != expected_image:
+        raise StopExecution(f"{label} shadow image mismatch")
+    if host.get("NetworkMode") != "host":
+        raise StopExecution(f"{label} shadow network mode mismatch")
+    if config.get("Entrypoint") != ["greenhouse-manager"]:
+        raise StopExecution(f"{label} shadow entrypoint mismatch")
+    if config.get("User") != "greenhouse":
+        raise StopExecution(f"{label} shadow user mismatch")
+    mount_count, mount_hash = manager_mount_fingerprint(item)
+    if mount_count != prestate["manager_mount_count"]:
+        raise StopExecution(f"{label} shadow mount count mismatch")
+    if mount_hash != prestate["manager_mount_hash"]:
+        raise StopExecution(f"{label} shadow mount binding mismatch")
+    if gh_env_fingerprint(item) != prestate["manager_gh_env_hash"]:
+        raise StopExecution(f"{label} shadow non-target GH env drift")
+    if (
+        manager_runtime_security_fingerprint(item)
+        != prestate["manager_runtime_security_hash"]
+    ):
+        raise StopExecution(f"{label} shadow runtime/security contract drift")
+    if runtime_pairing_values(item) != expected_pairing:
+        raise StopExecution(f"{label} shadow pairing environment mismatch")
+
+
+def compose_shadow(
+    overlay: Path,
+    container_name: str,
+) -> dict[str, Any]:
+    if run(["docker", "inspect", container_name]).returncode == 0:
+        raise StopExecution(f"shadow container already exists: {container_name}")
+    try:
+        require_ok(
+            run(
+                [
+                    "docker",
+                    "compose",
+                    "--project-name",
+                    SHADOW_PROJECT,
+                    "-f",
+                    str(COMPOSE),
+                    "-f",
+                    str(overlay),
+                    "create",
+                    "--no-deps",
+                    "manager",
+                ],
+                timeout=120,
+            ),
+            f"cannot create shadow Manager {container_name}",
+        )
+        return docker_inspect(container_name)
+    finally:
+        run(["docker", "rm", "-f", container_name], timeout=60)
+
+
+def shadow_preflight(prestate: dict[str, Any]) -> dict[str, bool]:
+    stale_pairing = env_values(MANAGER_ENV, PAIRING_KEY)
+    if len(stale_pairing) != 1:
+        raise StopExecution("shadow preflight stale pairing authority invalid")
+    make_overlay(
+        SHADOW_OLD_OVERLAY,
+        ROLLBACK_IMAGE_TAG,
+        container_name=SHADOW_OLD_NAME,
+    )
+    old_shadow = compose_shadow(
+        SHADOW_OLD_OVERLAY,
+        SHADOW_OLD_NAME,
+    )
+    validate_shadow_manager(
+        old_shadow,
+        prestate,
+        expected_image=OLD_IMAGE_ID,
+        expected_pairing=stale_pairing,
+        label="old",
+    )
+    make_overlay(
+        SHADOW_NEW_OVERLAY,
+        NEW_IMAGE_TAG,
+        container_name=SHADOW_NEW_NAME,
+        pairing_value="auto",
+    )
+    new_shadow = compose_shadow(
+        SHADOW_NEW_OVERLAY,
+        SHADOW_NEW_NAME,
+    )
+    validate_shadow_manager(
+        new_shadow,
+        prestate,
+        expected_image=NEW_IMAGE_ID,
+        expected_pairing=["auto"],
+        label="new",
+    )
+    return {
+        "old_compose_reproduction": True,
+        "new_candidate_contract": True,
+    }
 
 
 def wait_health(timeout_seconds: int = 30) -> None:
@@ -756,6 +888,7 @@ def apply() -> dict[str, Any]:
             run(["docker", "tag", OLD_IMAGE_ID, ROLLBACK_IMAGE_TAG]),
             "cannot bind rollback image tag",
         )
+        shadow = shadow_preflight(prestate)
         mutation_started = True
         rewrite_pairing_env_to_auto(MANAGER_ENV)
         if env_values(MANAGER_ENV, PAIRING_KEY) != ["auto"]:
@@ -776,6 +909,7 @@ def apply() -> dict[str, Any]:
         return {
             "result": "PASS",
             "artifact": artifact,
+            "shadow_preflight": shadow,
             "poststate": post,
             "rollback_attempted": False,
         }
