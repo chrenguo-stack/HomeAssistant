@@ -743,7 +743,7 @@ def base_preflight() -> dict[str, Any]:
         raise StopExecution("Manager is not running")
     if manager.get("Image") != OLD_IMAGE_ID:
         raise StopExecution("Manager image ID drift")
-    if manager.get("RestartCount") != 1:
+    if manager.get("RestartCount") not in (0, 1):
         raise StopExecution("Manager restart count drift")
     if host.get("NetworkMode") != "host":
         raise StopExecution("Manager network mode drift")
@@ -1391,11 +1391,11 @@ def postcheck(
         raise StopExecution("manager.env pairing host is not auto")
     if env_without_target_hash(MANAGER_ENV) != EXPECTED_MANAGER_ENV_EXCLUDING_PAIRING_SHA256:
         raise StopExecution("manager.env non-target content changed")
+    wait_health()
     if socket_port_count("tcp", 47112) != 1:
         raise StopExecution("TCP 47112 listener did not recover")
     if socket_port_count("udp", 47111) != 1:
         raise StopExecution("UDP 47111 listener did not recover")
-    wait_health()
     broker = broker_inspect()
     if broker.get("Id") != prestate["broker_id"]:
         raise StopExecution("Broker identity changed")
@@ -1471,6 +1471,61 @@ def cleanup_known_pretransaction_residual() -> str:
     return "known_failed_shadow_old_overlay_removed"
 
 
+def normalized_recreate_contract_defaults(
+    value: Any,
+) -> Any:
+    if not isinstance(value, dict):
+        return value
+    normalized = dict(value)
+    host = normalized.get("host")
+    if isinstance(host, dict):
+        normalized_host = dict(host)
+        if normalized_host.get("Dns") is None:
+            normalized_host["Dns"] = []
+        if normalized_host.get("OomKillDisable") is None:
+            normalized_host["OomKillDisable"] = False
+        normalized["host"] = normalized_host
+    return normalized
+
+
+def verified_postrollback_reacquire(
+    saved: dict[str, Any],
+    prestate: dict[str, Any],
+) -> bool:
+    if set(saved) != PRE495_PRESTATE_KEYS:
+        return False
+    if set(prestate) != PRE495_PRESTATE_KEYS:
+        return False
+    if saved.get("manager_restart_count") != 1:
+        return False
+    if prestate.get("manager_restart_count") != 0:
+        return False
+    saved_started = saved.get("manager_started_at")
+    current_started = prestate.get("manager_started_at")
+    if (
+        not isinstance(saved_started, str)
+        or not isinstance(current_started, str)
+        or saved_started == current_started
+    ):
+        return False
+    ignored = {
+        "manager_started_at",
+        "manager_restart_count",
+        "manager_recreate_contract",
+    }
+    for key in PRE495_PRESTATE_KEYS - ignored:
+        if saved.get(key) != prestate.get(key):
+            return False
+    return (
+        normalized_recreate_contract_defaults(
+            saved.get("manager_recreate_contract")
+        )
+        == normalized_recreate_contract_defaults(
+            prestate.get("manager_recreate_contract")
+        )
+    )
+
+
 def prepare_transaction_snapshot(
     prestate: dict[str, Any],
 ) -> dict[str, Any]:
@@ -1508,6 +1563,14 @@ def prepare_transaction_snapshot(
     if saved == prestate:
         return {
             "snapshot": "reused_verified_pretransaction",
+            "residual_cleanup": residual,
+        }
+
+    if verified_postrollback_reacquire(saved, prestate):
+        write_private_json(PRESTATE_JSON, prestate)
+        return {
+            "snapshot": "upgraded_verified_pretransaction",
+            "snapshot_migration": "post-rollback-live-reacquire",
             "residual_cleanup": residual,
         }
 
