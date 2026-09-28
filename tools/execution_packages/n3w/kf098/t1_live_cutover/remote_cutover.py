@@ -224,6 +224,61 @@ def gh_env_fingerprint(item: dict[str, Any]) -> str:
     return normalized_hash(selected)
 
 
+def manager_runtime_security_fingerprint(
+    item: dict[str, Any],
+) -> str:
+    config = item.get("Config")
+    config = config if isinstance(config, dict) else {}
+    host = item.get("HostConfig")
+    host = host if isinstance(host, dict) else {}
+    config_keys = (
+        "Healthcheck",
+        "OpenStdin",
+        "StdinOnce",
+        "StopSignal",
+        "StopTimeout",
+        "Tty",
+        "WorkingDir",
+    )
+    host_keys = (
+        "AutoRemove",
+        "CapAdd",
+        "CapDrop",
+        "CgroupnsMode",
+        "DeviceRequests",
+        "Devices",
+        "Init",
+        "IpcMode",
+        "LogConfig",
+        "Memory",
+        "MemorySwap",
+        "NanoCpus",
+        "NetworkMode",
+        "OomKillDisable",
+        "PidMode",
+        "PidsLimit",
+        "PortBindings",
+        "Privileged",
+        "ReadonlyRootfs",
+        "RestartPolicy",
+        "SecurityOpt",
+        "ShmSize",
+        "Tmpfs",
+        "Ulimits",
+    )
+    contract = {
+        "config": {
+            key: config.get(key)
+            for key in config_keys
+        },
+        "host": {
+            key: host.get(key)
+            for key in host_keys
+        },
+    }
+    return normalized_hash(contract)
+
+
 def runtime_pairing_values(item: dict[str, Any]) -> list[str]:
     config = item.get("Config")
     config = config if isinstance(config, dict) else {}
@@ -454,6 +509,7 @@ def base_preflight() -> dict[str, Any]:
         "manager_mount_count": mount_count,
         "manager_mount_hash": mount_hash,
         "manager_gh_env_hash": gh_env_fingerprint(manager),
+        "manager_runtime_security_hash": manager_runtime_security_fingerprint(manager),
         "broker_id": broker.get("Id"),
         "broker_restart_count": broker.get("RestartCount"),
         "firewall": firewall,
@@ -537,7 +593,7 @@ def restore_manager_env() -> None:
         raise StopExecution("manager.env rollback verification failed")
 
 
-def rollback(prestate: dict[str, Any] | None) -> dict[str, Any]:
+def rollback(prestate: dict[str, Any]) -> dict[str, Any]:
     require_ok(
         run(["docker", "image", "inspect", OLD_IMAGE_ID]),
         "old Manager image is unavailable",
@@ -556,26 +612,62 @@ def rollback(prestate: dict[str, Any] | None) -> dict[str, Any]:
     compose_up(ROLLBACK_OVERLAY)
     wait_health()
     manager = docker_inspect(MANAGER_NAME)
+    state = manager.get("State")
+    state = state if isinstance(state, dict) else {}
+    config = manager.get("Config")
+    config = config if isinstance(config, dict) else {}
     host = manager.get("HostConfig")
     host = host if isinstance(host, dict) else {}
     mount_count, mount_hash = manager_mount_fingerprint(manager)
+    if state.get("Running") is not True:
+        raise StopExecution("rollback Manager is not running")
     if manager.get("Image") != OLD_IMAGE_ID:
         raise StopExecution("rollback Manager image mismatch")
     if host.get("NetworkMode") != "host":
         raise StopExecution("rollback Manager network mode mismatch")
-    if mount_count != 6 or mount_hash != EXPECTED_MANAGER_MOUNT_SHA256:
+    if config.get("Entrypoint") != ["greenhouse-manager"]:
+        raise StopExecution("rollback Manager entrypoint mismatch")
+    if config.get("User") != "greenhouse":
+        raise StopExecution("rollback Manager user mismatch")
+    if mount_count != prestate["manager_mount_count"]:
+        raise StopExecution("rollback Manager mount count mismatch")
+    if mount_hash != prestate["manager_mount_hash"]:
         raise StopExecution("rollback Manager mount binding mismatch")
+    if gh_env_fingerprint(manager) != prestate["manager_gh_env_hash"]:
+        raise StopExecution("rollback Manager non-target GH env drift")
+    if (
+        manager_runtime_security_fingerprint(manager)
+        != prestate["manager_runtime_security_hash"]
+    ):
+        raise StopExecution("rollback Manager runtime/security contract drift")
+    stale_pairing = env_values(MANAGER_ENV, PAIRING_KEY)
+    if len(stale_pairing) != 1:
+        raise StopExecution("rollback pairing env count mismatch")
+    if sha256_file(MANAGER_ENV) != EXPECTED_MANAGER_ENV_SHA256:
+        raise StopExecution("rollback manager.env SHA256 mismatch")
+    if runtime_pairing_values(manager) != stale_pairing:
+        raise StopExecution("rollback Manager pairing runtime mismatch")
+    if socket_port_count("tcp", 47112) != 1:
+        raise StopExecution("rollback TCP 47112 listener mismatch")
+    if socket_port_count("udp", 47111) != 1:
+        raise StopExecution("rollback UDP 47111 listener mismatch")
     broker = broker_inspect()
-    if prestate is not None:
-        if broker.get("Id") != prestate.get("broker_id"):
-            raise StopExecution("Broker identity changed during rollback")
-        if broker.get("RestartCount") != prestate.get("broker_restart_count"):
-            raise StopExecution("Broker restart count changed during rollback")
+    if broker.get("Id") != prestate["broker_id"]:
+        raise StopExecution("Broker identity changed during rollback")
+    if broker.get("RestartCount") != prestate["broker_restart_count"]:
+        raise StopExecution("Broker restart count changed during rollback")
+    if socket_port_count("tcp", 8883) != 1:
+        raise StopExecution("rollback TCP 8883 listener mismatch")
+    if firewall_state() != prestate["firewall"]:
+        raise StopExecution("R5 firewall state changed during rollback")
     return {
         "rollback_result": "PASS",
         "manager_env_restored": True,
         "manager_image_restored": True,
+        "manager_runtime_security_restored": True,
+        "manager_pairing_runtime_restored": True,
         "broker_preserved": True,
+        "r5_preserved": True,
     }
 
 
@@ -604,6 +696,11 @@ def postcheck(prestate: dict[str, Any]) -> dict[str, Any]:
         raise StopExecution("new Manager mount binding mismatch")
     if gh_env_fingerprint(manager) != prestate["manager_gh_env_hash"]:
         raise StopExecution("new Manager non-target GH env drift")
+    if (
+        manager_runtime_security_fingerprint(manager)
+        != prestate["manager_runtime_security_hash"]
+    ):
+        raise StopExecution("new Manager runtime/security contract drift")
     if runtime_pairing_values(manager) != ["auto"]:
         raise StopExecution("new Manager runtime pairing host is not auto")
     if env_values(MANAGER_ENV, PAIRING_KEY) != ["auto"]:
@@ -737,12 +834,23 @@ def main() -> int:
         elif args.phase == "apply":
             result = apply()
         else:
-            prestate = None
-            if PRESTATE_JSON.is_file():
-                value = json.loads(PRESTATE_JSON.read_text(encoding="utf-8"))
-                if isinstance(value, dict):
-                    prestate = value
-            result = rollback(prestate)
+            if not PRESTATE_JSON.is_file():
+                raise StopExecution("rollback prestate authority is missing")
+            value = json.loads(PRESTATE_JSON.read_text(encoding="utf-8"))
+            if not isinstance(value, dict):
+                raise StopExecution("rollback prestate authority is invalid")
+            required = {
+                "manager_mount_count",
+                "manager_mount_hash",
+                "manager_gh_env_hash",
+                "manager_runtime_security_hash",
+                "broker_id",
+                "broker_restart_count",
+                "firewall",
+            }
+            if not required.issubset(value):
+                raise StopExecution("rollback prestate authority is incomplete")
+            result = rollback(value)
         result.pop("manager_id", None)
         result.pop("broker_id", None)
         print(json.dumps(result, sort_keys=True))
