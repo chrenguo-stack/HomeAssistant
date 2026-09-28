@@ -310,6 +310,85 @@ def test_same_runtime_response_tracks_route_change() -> None:
     assert second["candidate"]["host"] == "127.0.0.5"
 
 
+
+def test_same_client_same_runtime_does_not_reuse_stale_host_after_failure() -> None:
+    outcomes = [
+        "127.0.0.4",
+        OSError("route unavailable"),
+        "127.0.0.5",
+    ]
+    observed = []
+
+    def resolver(source_ip: str) -> str:
+        observed.append(source_ip)
+        outcome = outcomes[len(observed) - 1]
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    server = SimplifiedPairingUDPServer(
+        ("127.0.0.1", 0),
+        candidate=_candidate("auto"),
+        advertised_host_resolver=resolver,
+        rate_limiter=SlidingWindowRateLimiter(
+            limit=6,
+            window_s=60,
+        ),
+    )
+    client = socket.socket(
+        socket.AF_INET,
+        socket.SOCK_DGRAM,
+    )
+    client.bind(("127.0.0.2", 0))
+    client.settimeout(0.2)
+
+    def exchange() -> bytes:
+        worker = threading.Thread(
+            target=server.handle_request,
+            daemon=True,
+        )
+        worker.start()
+        client.sendto(
+            _query(),
+            server.server_address,
+        )
+        payload, _ = client.recvfrom(4096)
+        worker.join(timeout=1)
+        assert worker.is_alive() is False
+        return payload
+
+    try:
+        first = json.loads(
+            exchange().decode("utf-8")
+        )
+
+        worker = threading.Thread(
+            target=server.handle_request,
+            daemon=True,
+        )
+        worker.start()
+        client.sendto(
+            _query(),
+            server.server_address,
+        )
+        with pytest.raises(TimeoutError):
+            client.recvfrom(4096)
+        worker.join(timeout=1)
+        assert worker.is_alive() is False
+
+        third = json.loads(
+            exchange().decode("utf-8")
+        )
+    finally:
+        client.close()
+        server.server_close()
+
+    assert first["candidate"]["host"] == "127.0.0.4"
+    assert third["candidate"]["host"] == "127.0.0.5"
+    assert observed == ["127.0.0.2"] * 3
+
+
+
 def test_untrusted_source_is_rejected_before_route_resolution() -> None:
     calls = []
 
