@@ -112,5 +112,16 @@
     "git_status_used": false,
     "git_fetch_used": false,
     "git_checkout_used": false
+  },
+  "transport_timeout_contract": {
+    "target_preflight_ssh_seconds": 30,
+    "target_preflight_docker_probe_seconds": 10,
+    "remote_preflight_seconds": 180,
+    "apply_seconds": 900,
+    "rollback_seconds": 600,
+    "timeout_is_structured_stop": true,
+    "timeout_evidence_recorded": true,
+    "ssh_server_alive_interval_seconds": 5,
+    "ssh_server_alive_count_max": 2
   }
 }
