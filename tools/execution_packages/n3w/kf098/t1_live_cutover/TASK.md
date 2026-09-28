@@ -71,6 +71,51 @@ The current PR #480 activation unit blob is
 `5033b7475f4fafb1409ed277425197a93fd0d5a5`. The older PR #478 blob must not
 be used as the live preflight oracle.
 
+## Cross-image-store exact image identity
+
+The exact artifact carries two immutable OCI identities for the same image:
+
+```text
+IMAGE_CONFIG_DIGEST=sha256:49c9fcc0a17d47678b0667c48a06f9a9475609a757e510ca148983b53ed537e3
+IMAGE_MANIFEST_DIGEST=sha256:b806e7c8b97cc757965161a989f954df09427aa7d2700a6503e56e49cc8f9e4f
+ROOTFS_LAYERS_SHA256=97dd9fb029f1678a4589148d1874c95cd1d26439efa89ee833d5d734b70d42d6
+```
+
+The Docker-tar `manifest.json` points its Config field at the config digest.
+The OCI `index.json` points at the manifest digest, and that manifest points
+back to the exact config digest.
+
+Docker's classic image store may expose the config digest as image `.Id`.
+Docker with the containerd image store may expose the OCI manifest digest as
+image `.Id`. Therefore the live executor must not assume one representation
+is universal.
+
+After `docker load`, the executor inspects the exact tag and accepts only one
+of the two artifact-owned runtime IDs above. It then requires ARM64/Linux,
+the frozen entrypoint/user contract and the exact RootFS-layer fingerprint.
+The runtime ID actually returned by the live Docker store is carried forward
+into shadow validation and post-cutover container validation.
+
+The Docker API `Config` object is not used as a cross-image-store byte
+oracle; different stores may synthesize that API object differently even when
+the underlying OCI config and RootFS are the same.
+
+## Interrupted pretransaction resume
+
+A failed attempt before `manager.env` mutation may leave only the private
+rollback snapshot. That state is resumable only when all of the following are
+true:
+
+- the rollback directory is root-owned mode 0700;
+- it contains exactly `manager.env.before` and `manager-prestate.json`;
+- the manager.env backup has the exact frozen prestate SHA-256;
+- no live, rollback or shadow overlay exists;
+- a fresh base preflight produces exactly the same private prestate.
+
+The stage classifier may preserve this exact pretransaction snapshot while
+refreshing the execution package. Any other rollback/overlay shape fails
+closed. No manual deletion is required or permitted.
+
 ## Cutover design
 
 The current live Compose file is not edited.
