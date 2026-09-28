@@ -166,3 +166,133 @@ def test_git_blob_hash_uses_canonical_nul_header(
     path.write_bytes(b"hello")
     expected = hashlib.sha1(b"blob 5\0hello").hexdigest()
     assert remote.git_blob_hash(path) == expected
+
+
+def manager_fixture(
+    *,
+    image: str,
+    pairing: str,
+    running: bool = False,
+) -> dict:
+    return {
+        "Image": image,
+        "RestartCount": 0,
+        "Config": {
+            "Entrypoint": ["greenhouse-manager"],
+            "User": "greenhouse",
+            "Env": [
+                "GH_ALPHA=one",
+                f"{remote.PAIRING_KEY}={pairing}",
+            ],
+            "Healthcheck": None,
+            "OpenStdin": False,
+            "StdinOnce": False,
+            "StopSignal": None,
+            "StopTimeout": None,
+            "Tty": False,
+            "WorkingDir": "/app",
+        },
+        "HostConfig": {
+            "AutoRemove": False,
+            "CapAdd": None,
+            "CapDrop": ["ALL"],
+            "CgroupnsMode": "private",
+            "DeviceRequests": None,
+            "Devices": [],
+            "Init": True,
+            "IpcMode": "private",
+            "LogConfig": {"Type": "json-file", "Config": {}},
+            "Memory": 100663296,
+            "MemorySwap": 201326592,
+            "NanoCpus": 0,
+            "NetworkMode": "host",
+            "OomKillDisable": False,
+            "PidMode": "",
+            "PidsLimit": 64,
+            "PortBindings": {},
+            "Privileged": False,
+            "ReadonlyRootfs": True,
+            "RestartPolicy": {"Name": "unless-stopped", "MaximumRetryCount": 0},
+            "SecurityOpt": ["no-new-privileges"],
+            "ShmSize": 67108864,
+            "Tmpfs": {"/tmp": "size=16777216,mode=1777"},
+            "Ulimits": None,
+        },
+        "Mounts": [
+            {
+                "Type": "bind",
+                "Source": "/state",
+                "Destination": "/state",
+                "RW": True,
+                "Propagation": "rprivate",
+            }
+        ],
+        "State": {"Running": running},
+    }
+
+
+def test_runtime_security_fingerprint_detects_security_drift() -> None:
+    current = manager_fixture(
+        image=remote.OLD_IMAGE_ID,
+        pairing="192.0.2.10",
+    )
+    same = manager_fixture(
+        image=remote.NEW_IMAGE_ID,
+        pairing="auto",
+    )
+    drift = manager_fixture(
+        image=remote.NEW_IMAGE_ID,
+        pairing="auto",
+    )
+    drift["HostConfig"]["ReadonlyRootfs"] = False
+    assert (
+        remote.manager_runtime_security_fingerprint(current)
+        == remote.manager_runtime_security_fingerprint(same)
+    )
+    assert (
+        remote.manager_runtime_security_fingerprint(current)
+        != remote.manager_runtime_security_fingerprint(drift)
+    )
+
+
+def test_shadow_contract_accepts_only_exact_reproduction() -> None:
+    current = manager_fixture(
+        image=remote.OLD_IMAGE_ID,
+        pairing="192.0.2.10",
+    )
+    count, mount_hash = remote.manager_mount_fingerprint(current)
+    prestate = {
+        "manager_mount_count": count,
+        "manager_mount_hash": mount_hash,
+        "manager_gh_env_hash": remote.gh_env_fingerprint(current),
+        "manager_runtime_security_hash":
+            remote.manager_runtime_security_fingerprint(current),
+    }
+    candidate = manager_fixture(
+        image=remote.NEW_IMAGE_ID,
+        pairing="auto",
+    )
+    remote.validate_shadow_manager(
+        candidate,
+        prestate,
+        expected_image=remote.NEW_IMAGE_ID,
+        expected_pairing=["auto"],
+        label="new",
+    )
+    candidate["HostConfig"]["Privileged"] = True
+    with pytest.raises(remote.StopExecution):
+        remote.validate_shadow_manager(
+            candidate,
+            prestate,
+            expected_image=remote.NEW_IMAGE_ID,
+            expected_pairing=["auto"],
+            label="new",
+        )
+
+
+def test_manual_rollback_requires_private_prestate_authority() -> None:
+    source = (PACKAGE / "remote_cutover.py").read_text(
+        encoding="utf-8"
+    )
+    assert 'rollback prestate authority is missing' in source
+    assert 'rollback prestate authority is incomplete' in source
