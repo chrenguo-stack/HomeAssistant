@@ -405,3 +405,23 @@ def test_rollback_preconditions_accept_transaction_candidate(
 
     monkeypatch.setattr(remote, "run", fake_run)
     remote.rollback_preconditions()
+
+
+def test_shadow_uses_supported_no_start_compose_path() -> None:
+    source = (PACKAGE / "remote_cutover.py").read_text(
+        encoding="utf-8"
+    )
+    assert '"up",' in source
+    assert '"--no-start",' in source
+    assert '"--no-deps",' in source
+    assert '"create",\n                    "--no-deps"' not in source
+    assert '"down",' in source
+    assert "shadow Compose cleanup failed" in source
+
+
+def test_live_recreate_preserves_pr480_orphan_policy() -> None:
+    source = (PACKAGE / "remote_cutover.py").read_text(
+        encoding="utf-8"
+    )
+    assert '"COMPOSE_IGNORE_ORPHANS=true"' in source
+    assert '"--remove-orphans"' not in source
