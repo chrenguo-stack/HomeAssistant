@@ -27,6 +27,10 @@ remote = load_module(
     "kf098_remote_cutover",
     PACKAGE / "remote_cutover.py",
 )
+bootstrap = load_module(
+    "kf098_bootstrap_runner",
+    PACKAGE / "bootstrap_runner.py",
+)
 
 
 def sha256(data: bytes) -> str:
@@ -550,3 +554,94 @@ def test_apply_preserves_fail_rolled_back_terminal_result(
     assert result["result"] == "FAIL_ROLLED_BACK"
     assert result["rollback"]["rollback_result"] == "PASS"
     assert result["rollback_error"] is None
+
+
+def test_bootstrap_requires_exact_commit_sha() -> None:
+    bootstrap.validate_ref("a" * 40)
+    with pytest.raises(bootstrap.StopExecution):
+        bootstrap.validate_ref("main")
+    with pytest.raises(bootstrap.StopExecution):
+        bootstrap.validate_ref("A" * 40)
+
+
+def test_bootstrap_has_no_git_worktree_dependency() -> None:
+    source = (PACKAGE / "bootstrap_runner.py").read_text(
+        encoding="utf-8"
+    )
+    assert "git status" not in source
+    assert "git fetch" not in source
+    assert "git checkout" not in source
+    assert "git rev-parse" not in source
+    assert "gh" in source
+    assert "ARTIFACT_RUN_ID" in source
+
+
+def test_bootstrap_cached_package_is_hash_bound(
+    tmp_path: Path,
+) -> None:
+    package_ref = "a" * 40
+    package_dir = tmp_path / f"package-{package_ref[:12]}"
+    package_dir.mkdir(mode=0o700)
+    hashes = {}
+    for name in bootstrap.PACKAGE_FILES:
+        payload = f"{name}\n".encode()
+        path = package_dir / name
+        path.write_bytes(payload)
+        path.chmod(0o600)
+        hashes[name] = hashlib.sha256(payload).hexdigest()
+    authority = {
+        "repository": bootstrap.REPOSITORY,
+        "package_ref": package_ref,
+        "files": hashes,
+    }
+    authority_path = package_dir / "package-authority.json"
+    authority_path.write_text(
+        json.dumps(authority),
+        encoding="utf-8",
+    )
+    authority_path.chmod(0o600)
+
+    assert (
+        bootstrap.verify_cached_package(package_dir, package_ref)
+        == hashes
+    )
+
+    (package_dir / "executor.py").write_text(
+        "drift\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(bootstrap.StopExecution):
+        bootstrap.verify_cached_package(
+            package_dir,
+            package_ref,
+        )
+
+
+def test_bootstrap_evidence_path_is_work_root_relative(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "private-root"
+    root.mkdir(mode=0o700)
+    path = bootstrap.evidence_root(
+        root,
+        "local-preflight",
+        1,
+    )
+    assert path == root / "evidence-local-preflight-01"
+    assert path.stat().st_mode & 0o777 == 0o700
+    with pytest.raises(bootstrap.StopExecution):
+        bootstrap.evidence_root(
+            root,
+            "local-preflight",
+            1,
+        )
+
+
+def test_bootstrap_private_root_rejects_loose_mode(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "root"
+    root.mkdir(mode=0o755)
+    root.chmod(0o755)
+    with pytest.raises(bootstrap.StopExecution):
+        bootstrap.ensure_private_root(root)

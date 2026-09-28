@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   focused:
@@ -21,9 +22,31 @@ jobs:
           python-version: "3.11"
       - name: Compile executors
         run: |
+          python -m py_compile tools/execution_packages/n3w/kf098/t1_live_cutover/bootstrap_runner.py
           python -m py_compile tools/execution_packages/n3w/kf098/t1_live_cutover/executor.py
           python -m py_compile tools/execution_packages/n3w/kf098/t1_live_cutover/remote_cutover.py
       - name: Install focused test dependency
         run: python -m pip install pytest==8.4.2
       - name: Focused tests
         run: python -m pytest -q tests/execution_packages/n3w/kf098/t1_live_cutover/test_executor.py
+
+  bootstrap-macos:
+    runs-on: macos-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PACKAGE_REF: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run bootstrap from non-repository directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          BOOTSTRAP="$GITHUB_WORKSPACE/tools/execution_packages/n3w/kf098/t1_live_cutover/bootstrap_runner.py"
+          WORK_ROOT="$RUNNER_TEMP/n3w-kf098-bootstrap"
+          mkdir -p "$RUNNER_TEMP/non-repository-cwd"
+          cd "$RUNNER_TEMP/non-repository-cwd"
+          test ! -e .git
+          python3 "$BOOTSTRAP"             --package-ref "$PACKAGE_REF"             --phase local-preflight             --work-root "$WORK_ROOT"
