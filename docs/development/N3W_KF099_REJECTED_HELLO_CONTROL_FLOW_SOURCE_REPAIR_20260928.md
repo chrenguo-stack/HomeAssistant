@@ -1,6 +1,6 @@
 # N3-W KF-099 Rejected-Hello Control-Flow Source Repair — 2026-09-28
 
-Status: `SOURCE_REPAIR_IN_REVIEW`
+Status: `SOURCE_REPAIR_MERGED_PHYSICAL_VALIDATION_PENDING`
 
 ## Problem
 
@@ -46,7 +46,7 @@ As a result, `rejected + continue` was treated the same as `created/superseded +
 
 ## Source repair
 
-PR #500 changes only the client interpretation. It does not change the Manager wire schema or weaken repair authorization.
+PR #500 is merged at `c578bcb2e31f50771b6b08c231704da6bf36b729` with 14/14 CI PASS. It changes only the client interpretation. It does not change the Manager wire schema or weaken repair authorization.
 
 The local decision becomes:
 
@@ -98,11 +98,13 @@ The temporary test that would have frozen the old `repair_intent_required -> /be
 
 ```text
 KF099_SOURCE_DEFECT_CONFIRMED=true
-KF099_SOURCE_REPAIR=IN_REVIEW
+KF099_SOURCE_REPAIR=PASS
 KF099_MANAGER_SECURITY_BOUNDARY=UNCHANGED
 KF099_REGISTRATION_MUTATION=false
 KF099_REPAIR_AUTHORIZATION=false
 KF099_BOARD_FLASH_MUTATION=false
+KF099_REPAIR_MERGE_COMMIT=c578bcb2e31f50771b6b08c231704da6bf36b729
+KF099_SOURCE_CI=14_OF_14_PASS
 KF099_PHYSICAL_VALIDATION=PENDING
 KF099_KNOWN_FAILURE_STATUS=OPEN
 
