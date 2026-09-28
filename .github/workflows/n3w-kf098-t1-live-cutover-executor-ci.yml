@@ -21,6 +21,7 @@ jobs:
           python-version: "3.11"
       - name: Compile executors
         run: |
+          python -m py_compile tools/execution_packages/n3w/kf098/t1_live_cutover/bootstrap_runner.py
           python -m py_compile tools/execution_packages/n3w/kf098/t1_live_cutover/executor.py
           python -m py_compile tools/execution_packages/n3w/kf098/t1_live_cutover/remote_cutover.py
       - name: Install focused test dependency
