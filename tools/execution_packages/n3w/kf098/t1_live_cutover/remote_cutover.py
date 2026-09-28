@@ -500,6 +500,61 @@ def manager_runtime_security_fingerprint(
     return normalized_hash(contract)
 
 
+def pre493_runtime_security_fingerprint(
+    item: dict[str, Any],
+) -> str:
+    config = item.get("Config")
+    config = config if isinstance(config, dict) else {}
+    host = item.get("HostConfig")
+    host = host if isinstance(host, dict) else {}
+    config_keys = (
+        "Healthcheck",
+        "OpenStdin",
+        "StdinOnce",
+        "StopSignal",
+        "StopTimeout",
+        "Tty",
+        "WorkingDir",
+    )
+    host_keys = (
+        "AutoRemove",
+        "CapAdd",
+        "CapDrop",
+        "CgroupnsMode",
+        "DeviceRequests",
+        "Devices",
+        "Init",
+        "IpcMode",
+        "LogConfig",
+        "Memory",
+        "MemorySwap",
+        "NanoCpus",
+        "NetworkMode",
+        "OomKillDisable",
+        "PidMode",
+        "PidsLimit",
+        "PortBindings",
+        "Privileged",
+        "ReadonlyRootfs",
+        "RestartPolicy",
+        "SecurityOpt",
+        "ShmSize",
+        "Tmpfs",
+        "Ulimits",
+    )
+    contract = {
+        "config": {
+            key: config.get(key)
+            for key in config_keys
+        },
+        "host": {
+            key: host.get(key)
+            for key in host_keys
+        },
+    }
+    return normalized_hash(contract)
+
+
 def runtime_pairing_values(item: dict[str, Any]) -> list[str]:
     config = item.get("Config")
     config = config if isinstance(config, dict) else {}
@@ -1345,6 +1400,11 @@ LEGACY_PRESTATE_KEYS = {
     "firewall",
 }
 
+PRE493_PRESTATE_KEYS = (
+    LEGACY_PRESTATE_KEYS
+    | {"current_eth0_ipv4_sha256"}
+)
+
 
 def cleanup_known_pretransaction_residual() -> str:
     for name in (SHADOW_OLD_NAME, SHADOW_NEW_NAME):
@@ -1414,18 +1474,39 @@ def prepare_transaction_snapshot(
             "residual_cleanup": residual,
         }
 
+    historical_keys: set[str] | None = None
+    historical_label = ""
     if set(saved) == LEGACY_PRESTATE_KEYS:
-        projection = {
-            key: prestate.get(key)
-            for key in LEGACY_PRESTATE_KEYS
-        }
-        if saved != projection:
+        historical_keys = LEGACY_PRESTATE_KEYS
+        historical_label = "legacy"
+    elif set(saved) == PRE493_PRESTATE_KEYS:
+        historical_keys = PRE493_PRESTATE_KEYS
+        historical_label = "pre-PR493"
+
+    if historical_keys is not None:
+        stable_keys = (
+            historical_keys
+            - {"manager_runtime_security_hash"}
+        )
+        for key in stable_keys:
+            if saved.get(key) != prestate.get(key):
+                raise StopExecution(
+                    f"{historical_label} pretransaction snapshot "
+                    f"no longer matches live prestate: {key}"
+                )
+        manager = docker_inspect(MANAGER_NAME)
+        if (
+            saved.get("manager_runtime_security_hash")
+            != pre493_runtime_security_fingerprint(manager)
+        ):
             raise StopExecution(
-                "legacy pretransaction snapshot no longer matches live prestate"
+                f"{historical_label} pretransaction runtime/security "
+                "snapshot no longer matches live prestate"
             )
         write_private_json(PRESTATE_JSON, prestate)
         return {
             "snapshot": "upgraded_verified_pretransaction",
+            "snapshot_migration": historical_label,
             "residual_cleanup": residual,
         }
 
