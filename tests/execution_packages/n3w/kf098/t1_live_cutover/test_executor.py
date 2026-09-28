@@ -861,6 +861,117 @@ def test_prepare_transaction_snapshot_reuses_exact_pretransaction_state(
     }
 
 
+def test_prepare_transaction_snapshot_upgrades_pre493_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manager_env = tmp_path / "manager.env"
+    manager_env.write_text("GH_ALPHA=one\n", encoding="utf-8")
+    expected_env_sha = remote.sha256_file(manager_env)
+    rollback_root = tmp_path / "rollback"
+    rollback_root.mkdir(mode=0o700)
+    backup = rollback_root / "manager.env.before"
+    backup.write_bytes(manager_env.read_bytes())
+    prestate_path = rollback_root / "manager-prestate.json"
+
+    current = manager_fixture(
+        image=remote.OLD_IMAGE_ID,
+        pairing="192.0.2.10",
+    )
+    current["Config"]["Labels"] = {}
+    current["HostConfig"]["Dns"] = []
+    current["HostConfig"]["ExtraHosts"] = []
+
+    prestate = {
+        "manager_started_at": "2026-09-28T00:00:00Z",
+        "manager_restart_count": 1,
+        "manager_image_id": remote.OLD_IMAGE_ID,
+        "manager_mount_count": 6,
+        "manager_mount_hash": "m",
+        "manager_gh_env_hash": "e",
+        "manager_all_env_hash": "a",
+        "manager_runtime_security_hash":
+            remote.manager_runtime_security_fingerprint(current),
+        "manager_recreate_contract": {
+            "env": [],
+            "mounts": [],
+        },
+        "broker_id": "b",
+        "broker_restart_count": 0,
+        "firewall": {"x": 1},
+        "current_eth0_ipv4_sha256": "ip",
+    }
+    saved = {
+        key: prestate[key]
+        for key in remote.PRE493_PRESTATE_KEYS
+    }
+    saved["manager_runtime_security_hash"] = (
+        remote.pre493_runtime_security_fingerprint(current)
+    )
+    assert (
+        saved["manager_runtime_security_hash"]
+        != prestate["manager_runtime_security_hash"]
+    )
+    prestate_path.write_text(
+        json.dumps(saved),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(remote, "ROLLBACK_ROOT", rollback_root)
+    monkeypatch.setattr(remote, "MANAGER_ENV_BACKUP", backup)
+    monkeypatch.setattr(remote, "PRESTATE_JSON", prestate_path)
+    monkeypatch.setattr(
+        remote,
+        "EXPECTED_MANAGER_ENV_SHA256",
+        expected_env_sha,
+    )
+    monkeypatch.setattr(
+        remote,
+        "cleanup_known_pretransaction_residual",
+        lambda: "none",
+    )
+    monkeypatch.setattr(
+        remote,
+        "docker_inspect",
+        lambda _name: current,
+    )
+
+    original_stat = remote.Path.stat
+
+    def fake_stat(path_self):
+        result = original_stat(path_self)
+        if path_self == rollback_root:
+            values = list(result)
+            values[4] = 0
+            return os.stat_result(values)
+        return result
+
+    monkeypatch.setattr(remote.Path, "stat", fake_stat)
+    result = remote.prepare_transaction_snapshot(prestate)
+    assert result == {
+        "snapshot": "upgraded_verified_pretransaction",
+        "snapshot_migration": "pre-PR493",
+        "residual_cleanup": "none",
+    }
+    assert json.loads(
+        prestate_path.read_text(encoding="utf-8")
+    ) == prestate
+
+
+def test_pre493_runtime_security_fingerprint_matches_old_contract() -> None:
+    current = manager_fixture(
+        image=remote.OLD_IMAGE_ID,
+        pairing="192.0.2.10",
+    )
+    current["Config"]["Labels"] = {}
+    current["HostConfig"]["Dns"] = []
+    current["HostConfig"]["ExtraHosts"] = []
+    assert (
+        remote.pre493_runtime_security_fingerprint(current)
+        != remote.manager_runtime_security_fingerprint(current)
+    )
+
+
 def test_source_binds_containerd_manifest_and_rootfs() -> None:
     source = (PACKAGE / "remote_cutover.py").read_text(
         encoding="utf-8"
