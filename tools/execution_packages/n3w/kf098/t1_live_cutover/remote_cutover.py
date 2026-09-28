@@ -1194,6 +1194,11 @@ def rollback(prestate: dict[str, Any]) -> dict[str, Any]:
     if gh_env_fingerprint(manager) != prestate["manager_gh_env_hash"]:
         raise StopExecution("rollback Manager non-target GH env drift")
     if (
+        all_env_fingerprint_excluding_pairing(manager)
+        != prestate["manager_all_env_hash"]
+    ):
+        raise StopExecution("rollback Manager non-target env drift")
+    if (
         manager_runtime_security_fingerprint(manager)
         != prestate["manager_runtime_security_hash"]
     ):
@@ -1258,6 +1263,11 @@ def postcheck(
     if gh_env_fingerprint(manager) != prestate["manager_gh_env_hash"]:
         raise StopExecution("new Manager non-target GH env drift")
     if (
+        all_env_fingerprint_excluding_pairing(manager)
+        != prestate["manager_all_env_hash"]
+    ):
+        raise StopExecution("new Manager non-target env drift")
+    if (
         manager_runtime_security_fingerprint(manager)
         != prestate["manager_runtime_security_hash"]
     ):
@@ -1293,9 +1303,52 @@ def postcheck(
     }
 
 
+LEGACY_PRESTATE_KEYS = {
+    "manager_started_at",
+    "manager_restart_count",
+    "manager_image_id",
+    "manager_mount_count",
+    "manager_mount_hash",
+    "manager_gh_env_hash",
+    "manager_runtime_security_hash",
+    "broker_id",
+    "broker_restart_count",
+    "firewall",
+}
+
+
+def cleanup_known_pretransaction_residual() -> str:
+    for name in (SHADOW_OLD_NAME, SHADOW_NEW_NAME):
+        if run(["docker", "inspect", name]).returncode == 0:
+            raise StopExecution(
+                f"unexpected residual shadow container: {name}"
+            )
+    for path in (
+        OVERLAY,
+        ROLLBACK_OVERLAY,
+        SHADOW_NEW_OVERLAY,
+    ):
+        if path.exists():
+            raise StopExecution(
+                f"unexpected transaction overlay: {path.name}"
+            )
+    if not SHADOW_OLD_OVERLAY.exists():
+        return "none"
+    if (
+        sha256_file(SHADOW_OLD_OVERLAY)
+        != STALE_SHADOW_OLD_OVERLAY_SHA256
+    ):
+        raise StopExecution(
+            "stale shadow-old overlay does not match known failed attempt"
+        )
+    SHADOW_OLD_OVERLAY.unlink()
+    return "known_failed_shadow_old_overlay_removed"
+
+
 def prepare_transaction_snapshot(
     prestate: dict[str, Any],
 ) -> dict[str, Any]:
+    residual = cleanup_known_pretransaction_residual()
     if not ROLLBACK_ROOT.exists():
         ROLLBACK_ROOT.mkdir(mode=0o700)
         shutil.copy2(MANAGER_ENV, MANAGER_ENV_BACKUP)
@@ -1303,12 +1356,18 @@ def prepare_transaction_snapshot(
         if sha256_file(MANAGER_ENV_BACKUP) != EXPECTED_MANAGER_ENV_SHA256:
             raise StopExecution("manager.env snapshot mismatch")
         write_private_json(PRESTATE_JSON, prestate)
-        return {"snapshot": "created"}
+        return {
+            "snapshot": "created",
+            "residual_cleanup": residual,
+        }
 
     if ROLLBACK_ROOT.stat().st_mode & 0o777 != 0o700:
         raise StopExecution("existing rollback root mode mismatch")
     if ROLLBACK_ROOT.stat().st_uid != 0:
         raise StopExecution("existing rollback root owner mismatch")
+    children = {path.name for path in ROLLBACK_ROOT.iterdir()}
+    if children != {"manager.env.before", "manager-prestate.json"}:
+        raise StopExecution("existing rollback snapshot shape is not pretransaction")
     if not MANAGER_ENV_BACKUP.is_file() or not PRESTATE_JSON.is_file():
         raise StopExecution("existing rollback snapshot is incomplete")
     if sha256_file(MANAGER_ENV_BACKUP) != EXPECTED_MANAGER_ENV_SHA256:
@@ -1317,19 +1376,33 @@ def prepare_transaction_snapshot(
         saved = json.loads(PRESTATE_JSON.read_text(encoding="utf-8"))
     except Exception as exc:
         raise StopExecution("existing prestate JSON is invalid") from exc
-    if saved != prestate:
-        raise StopExecution("existing pretransaction snapshot no longer matches live prestate")
-    for path in (
-        OVERLAY,
-        ROLLBACK_OVERLAY,
-        SHADOW_OLD_OVERLAY,
-        SHADOW_NEW_OVERLAY,
-    ):
-        if path.exists():
+    if not isinstance(saved, dict):
+        raise StopExecution("existing prestate JSON shape is invalid")
+
+    if saved == prestate:
+        return {
+            "snapshot": "reused_verified_pretransaction",
+            "residual_cleanup": residual,
+        }
+
+    if set(saved) == LEGACY_PRESTATE_KEYS:
+        projection = {
+            key: prestate.get(key)
+            for key in LEGACY_PRESTATE_KEYS
+        }
+        if saved != projection:
             raise StopExecution(
-                f"existing transaction overlay requires manual classification: {path.name}"
+                "legacy pretransaction snapshot no longer matches live prestate"
             )
-    return {"snapshot": "reused_verified_pretransaction"}
+        write_private_json(PRESTATE_JSON, prestate)
+        return {
+            "snapshot": "upgraded_verified_pretransaction",
+            "residual_cleanup": residual,
+        }
+
+    raise StopExecution(
+        "existing pretransaction snapshot no longer matches live prestate"
+    )
 
 
 def apply() -> dict[str, Any]:
@@ -1437,7 +1510,9 @@ def main() -> int:
                 "manager_mount_count",
                 "manager_mount_hash",
                 "manager_gh_env_hash",
+                "manager_all_env_hash",
                 "manager_runtime_security_hash",
+                "manager_recreate_contract",
                 "broker_id",
                 "broker_restart_count",
                 "firewall",
