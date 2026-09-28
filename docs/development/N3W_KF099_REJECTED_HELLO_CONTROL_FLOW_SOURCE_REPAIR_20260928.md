@@ -1,6 +1,8 @@
 # N3-W KF-099 Rejected-Hello Control-Flow Source Repair — 2026-09-28
 
-Status: `SOURCE_REPAIR_MERGED_PHYSICAL_VALIDATION_PENDING`
+Status: `SOURCE_REPAIR_MERGED_PHYSICAL_VALIDATION_PASS`
+
+The source-repair-stage facts below are preserved as historical gate evidence. The current KF-099 closure authority is `docs/development/N3W_KF099_PHYSICAL_VALIDATION_CLOSURE_20260928.md`, which records the later exact-firmware Board B deployment and physical PASS.
 
 ## Problem
 
@@ -100,22 +102,30 @@ The temporary test that would have frozen the old `repair_intent_required -> /be
 KF099_SOURCE_DEFECT_CONFIRMED=true
 KF099_SOURCE_REPAIR=PASS
 KF099_MANAGER_SECURITY_BOUNDARY=UNCHANGED
-KF099_REGISTRATION_MUTATION=false
-KF099_REPAIR_AUTHORIZATION=false
-KF099_BOARD_FLASH_MUTATION=false
+SOURCE_REPAIR_GATE_REGISTRATION_MUTATION=false
+SOURCE_REPAIR_GATE_REPAIR_AUTHORIZATION=false
+SOURCE_REPAIR_GATE_BOARD_FLASH_MUTATION=false
 KF099_REPAIR_MERGE_COMMIT=c578bcb2e31f50771b6b08c231704da6bf36b729
 KF099_SOURCE_CI=14_OF_14_PASS
-KF099_PHYSICAL_VALIDATION=PENDING
-KF099_KNOWN_FAILURE_STATUS=OPEN
 
+KF099_EXACT_ARTIFACT_BINDING=PASS
+KF099_BOARD_B_WRITE=PASS
+KF099_PHYSICAL_VALIDATION=PASS
+KF099_ROUTE_STATUS=CLOSED_PASS
+KF099_KNOWN_FAILURE_STATUS=GUARDED
+KF099_FINAL_CLOSURE_AUTHORITY=docs/development/N3W_KF099_PHYSICAL_VALIDATION_CLOSURE_20260928.md
+
+PAIRING_REPAIR_AUTHORIZATION=false
 KF098_REOPEN=false
 KF098_ROUTE_STATUS=CLOSED_PASS
 ```
 
-KF-099 may move to `GUARDED` only after the source repair is merged and an exact repaired firmware is physically validated to show:
+The five required physical conditions were subsequently satisfied by the exact repaired firmware on Board B:
 
-1. hello still reaches the Manager;
-2. Manager still returns `repair_intent_required` without authorization;
-3. the Board does not issue `/v2/pairing/begin` while the hello remains rejected;
-4. the Board preserves the same pairing transaction rather than generating a new pairing ID;
-5. no durable registration/credential mutation occurs.
+1. hello reached the Manager;
+2. the Manager returned `repair_intent_required` without authorization;
+3. the Board issued no `/v2/pairing/begin` while hello remained rejected;
+4. the Board preserved one pairing transaction across retries;
+5. the target registration and credential state remained unchanged.
+
+KF-099 is therefore `CLOSED_PASS / GUARDED`. The detailed public-safe physical evidence is recorded in `docs/development/N3W_KF099_PHYSICAL_VALIDATION_CLOSURE_20260928.md`.
