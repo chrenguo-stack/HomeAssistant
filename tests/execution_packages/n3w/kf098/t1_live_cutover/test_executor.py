@@ -813,7 +813,12 @@ def test_prepare_transaction_snapshot_reuses_exact_pretransaction_state(
         "manager_mount_count": 6,
         "manager_mount_hash": "m",
         "manager_gh_env_hash": "e",
+        "manager_all_env_hash": "a",
         "manager_runtime_security_hash": "s",
+        "manager_recreate_contract": {
+            "env": [],
+            "mounts": [],
+        },
         "broker_id": "b",
         "broker_restart_count": 0,
         "firewall": {"x": 1},
@@ -826,17 +831,11 @@ def test_prepare_transaction_snapshot_reuses_exact_pretransaction_state(
     monkeypatch.setattr(remote, "MANAGER_ENV_BACKUP", backup)
     monkeypatch.setattr(remote, "PRESTATE_JSON", prestate_path)
     monkeypatch.setattr(remote, "EXPECTED_MANAGER_ENV_SHA256", expected_env_sha)
-    for name in (
-        "OVERLAY",
-        "ROLLBACK_OVERLAY",
-        "SHADOW_OLD_OVERLAY",
-        "SHADOW_NEW_OVERLAY",
-    ):
-        monkeypatch.setattr(
-            remote,
-            name,
-            tmp_path / f"{name}.yml",
-        )
+    monkeypatch.setattr(
+        remote,
+        "cleanup_known_pretransaction_residual",
+        lambda: "none",
+    )
 
     original_stat = remote.Path.stat
 
@@ -851,7 +850,8 @@ def test_prepare_transaction_snapshot_reuses_exact_pretransaction_state(
     monkeypatch.setattr(remote.Path, "stat", fake_stat)
     result = remote.prepare_transaction_snapshot(prestate)
     assert result == {
-        "snapshot": "reused_verified_pretransaction"
+        "snapshot": "reused_verified_pretransaction",
+        "residual_cleanup": "none",
     }
 
 
