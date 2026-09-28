@@ -1,7 +1,7 @@
 # N3-W Current State Index
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
-Current progress alignment: `docs/development/N3W_KF098_ASTRA_INDEPENDENT_REVIEW_ALIGNMENT_20260928.md`  
+Current progress alignment: `docs/development/N3W_KF099_REJECTED_HELLO_CONTROL_FLOW_SOURCE_REPAIR_20260928.md`  
 Current new-chat handoff: `docs/development/N3W_PR475_PR478_POSTMERGE_MAIN_ALIGNMENT_NEW_CHAT_HANDOFF_V1.0_20260927.md`  
 Long-term working context: `docs/development/N3W_PROJECT_WORKING_CONTEXT.md`  
 Current handoff template: `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` v1.2  
@@ -15,6 +15,29 @@ Current production artifact binding authority: `docs/development/N3W_PRODUCTION_
 Currently deployed Board B source: `4270f24a92a87dd5239d781ebba624c2f34b7fc2` / artifact `10619047221`  
 Current local-development-environment authority: `docs/development/local-environment-records/2026-09-17-macos-x86_64.json`  
 Active product-direction authority: `docs/development/N3W_OFFICIAL_ESPNOW_REFERENCE_PRODUCT_DIRECTION_DECISION_20260906.md`
+
+## 2026-09-28 KF-099 rejected-hello control-flow snapshot
+
+```text
+KF099_SOURCE_DEFECT_CONFIRMED=true
+KF099_SOURCE_REPAIR=IN_REVIEW
+KF099_REPAIR_PR=500
+
+KF099_REJECTED_CONTINUE_ACTION=WAIT
+KF099_WAIT_PRESERVES_PAIRING_ID=true
+KF099_WAIT_SUPPRESSES_BEGIN=true
+KF099_TERMINAL_RENEW_BEHAVIOR_PRESERVED=true
+
+KF099_BOARD_FLASH_MUTATION=false
+KF099_PHYSICAL_VALIDATION=PENDING
+KF099_KNOWN_FAILURE_STATUS=OPEN
+
+KF098_REOPEN=false
+KF098_ROUTE_STATUS=CLOSED_PASS
+```
+
+Authority: `docs/development/N3W_KF099_REJECTED_HELLO_CONTROL_FLOW_SOURCE_REPAIR_20260928.md`.
+
 
 ## 2026-09-28 KF-098 independent review snapshot
 
