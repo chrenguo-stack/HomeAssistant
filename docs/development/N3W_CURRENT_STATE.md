@@ -5,6 +5,48 @@ Status: `CURRENT_STATE_AUTHORITY`
 
 Fresh exact repository/runtime/physical evidence takes precedence if later evidence proves drift.
 
+## 2026-09-28 KF-098 real Board discovery/HTTP acceptance CLOSED_PASS
+
+This section supersedes the earlier 2026-09-28 KF-098 `real Board acceptance pending` state. Full public-safe closure evidence is in `docs/development/N3W_KF098_DYNAMIC_DISCOVERY_REAL_TRAFFIC_ACCEPTANCE_CLOSURE_20260928.md`.
+
+```text
+REPOSITORY_MAIN_BEFORE_CLOSURE_DOC=5344b93df5cf259dfd93a63e7a1e0af1e1586c4f
+
+KF098_SOURCE_REPAIR=PASS
+KF098_T1_LIVE_CUTOVER=PASS
+KF098_MANAGER_RUNTIME=PASS
+KF098_REAL_BOARD_DISCOVERY_ACCEPTANCE=PASS
+KF098_REAL_BOARD_HTTP47112_ACCEPTANCE=PASS
+KF098_EXPECTED_NEXT_PAIRING_DISPOSITION=PASS
+
+DISCOVERY_QUERY_OBSERVED=true
+DISCOVERY_RESPONSE_OBSERVED=true
+CANDIDATE_HOST_EQUALS_ROUTE_SELECTED_T1_IPV4=true
+CANDIDATE_HOST_DIFFERS_FROM_PREDECESSOR=true
+BOARD_TO_CURRENT_T1_TCP47112_OBSERVED=true
+TCP47112_HANDSHAKE_OBSERVED=true
+
+PAIRING_HELLO_HTTP_STATUS=200
+PAIRING_HELLO_SCHEMA=gh.pair.simple-hello-result/1
+PAIRING_HELLO_STATUS=rejected
+PAIRING_HELLO_REASON=repair_intent_required
+PAIRING_HELLO_TRANSACTION_DISPOSITION=continue
+PAIRING_BEGIN_HTTP_STATUS=403
+
+PAIRING_REPAIR_AUTHORIZATION=false
+REGISTRATION_DATABASE_MUTATION=false
+BOARD_FLASH_MUTATION=false
+BOARD_NVS_MUTATION=false
+
+KF098_ROUTE_STATUS=CLOSED_PASS
+KF098_KNOWN_FAILURE_STATUS=GUARDED
+```
+
+The prior zero-traffic observation was explained by Board B being powered off. After Board B was powered by USB, a fresh passive observation saw repeated UDP discovery requests and matching Manager responses, with the advertised candidate host equal to the route-selected current T1 IPv4. The Board then opened TCP/47112 to that same current T1 and completed the TCP connection.
+
+The final pairing disposition also matched the existing-identity safety boundary. The Manager accepted the HTTP transport, returned a simplified hello result with `repair_intent_required`, and did not authorize identity replacement. The subsequent begin request was rejected with HTTP 403. This closes KF-098 because the discovery/HTTP target path is now correct; any identity-preserving repair is a separate later gate and is not required for KF-098 closure.
+
+
 ## 2026-09-28 KF-098 source repair + T1 exact live cutover PASS; real Board acceptance pending
 
 This section supersedes older KF-098 statements that source repair or live cutover are still pending. Full public-safe alignment is in `docs/development/N3W_KF098_T1_LIVE_CUTOVER_PROGRESS_ALIGNMENT_20260928.md`.
