@@ -413,6 +413,15 @@ def verify_stage_artifact() -> dict[str, Any]:
 
 
 def base_preflight() -> dict[str, Any]:
+    compose_help = require_ok(
+        run(["docker", "compose", "up", "--help"]),
+        "docker compose up help unavailable",
+    )
+    for option in ("--no-start", "--no-deps", "--force-recreate"):
+        if option not in compose_help:
+            raise StopExecution(
+                f"docker compose up lacks required option {option}"
+            )
     if sha256_file(COMPOSE) != EXPECTED_COMPOSE_SHA256:
         raise StopExecution("live Compose SHA256 drift")
     if sha256_file(MANAGER_ENV) != EXPECTED_MANAGER_ENV_SHA256:
