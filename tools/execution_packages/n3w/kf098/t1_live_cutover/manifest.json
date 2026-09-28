@@ -1,0 +1,105 @@
+{
+  "package_schema_version": 1,
+  "project": "n3w",
+  "stage": "kf098",
+  "gate_id": "t1_live_cutover",
+  "preparation_gate": "N3W_KF098_PAIRING_ADVERTISED_HOST_DYNAMIC_T1_LIVE_CUTOVER_PREPARATION_20260928_01",
+  "authority": {
+    "repository": "chrenguo-stack/HomeAssistant",
+    "source_sha": "575ce642e372961e21de14a36eba5877082de3cf",
+    "source_tree": "7f1641827b75668aa220832b7663bf81d98633ba",
+    "exact_artifact_run_id": 36329597775,
+    "exact_artifact_id": 10935052471,
+    "exact_artifact_digest": "sha256:41dde2129aa64623746257814e7568f8a8d6948ad299766d7a1b1ea7f3bdf9a5",
+    "exact_image_id": "sha256:49c9fcc0a17d47678b0667c48a06f9a9475609a757e510ca148983b53ed537e3",
+    "exact_image_tar_sha256": "6392b8c9bb87d95404346583d6f44967bd4e20fcc092be393c45f75a4ca7a5b2"
+  },
+  "live_preflight_authority": {
+    "compose_path": "/opt/greenhouse-fc4-95c42fa5/runtime/docker-compose.yml",
+    "compose_sha256": "2c9c28c582a9c01e18a2e54a4c0b2bbddc75192ed377a701ed2f661f15cd5a8a",
+    "manager_env_path": "/opt/greenhouse-fc4-95c42fa5/runtime/manager/manager.env",
+    "manager_env_sha256": "f454c6e886ee286192a3c3683a87c33d98e79428de0a6d0c9d2a6e0a19a9d6a6",
+    "manager_env_excluding_pairing_sha256": "568c4302f2986e5f52b030ccd9cd96862213bfdfa65f31f5da54a20296bce89e",
+    "service_identities_sha256": "1b4e4ecb44505aa8a8ede0159c173df9478dda2532caa5b7c202330dde18bf7c",
+    "stale_pairing_value_sha256": "fd81bc85606fef9be0fef1ebeda6c00dcab38fe80440939ec413442894216534",
+    "old_manager_image_id": "sha256:271cd87c88c041f0ef7fa55f6c223615edf42388b8e05a7445862e2b700cdfb5",
+    "old_manager_restart_count": 1,
+    "manager_network_mode": "host",
+    "manager_mount_count": 6,
+    "manager_mount_binding_sha256": "6cb94ab6b78e0a68df458e5dc4d9240cc91c225a1b44bc7eba9454325821bffc",
+    "broker_restart_count": 0,
+    "tcp_8883_listener_count": 1,
+    "tcp_47112_listener_count": 1,
+    "udp_47111_listener_count": 1
+  },
+  "r5_authority": {
+    "guard_blob": "795903b06c7ee93a0602649e478bc070723ab8c0",
+    "guard_unit_blob": "b68d7d71ee43b26cb0481f0b278cf5739f3a2911",
+    "activation_unit_blob": "5033b7475f4fafb1409ed277425197a93fd0d5a5",
+    "dispatcher_blob": "f733f5a1cfc936f77d1fabc383ccf262264e33d2",
+    "docker_user_anchor_positions": [
+      1
+    ],
+    "input_anchor_positions": [
+      1
+    ],
+    "owned_chain_rule_count": 3
+  },
+  "cutover_contract": {
+    "manager_env_target_key": "GH_N3W_PAIRING_ADVERTISED_HOST",
+    "manager_env_target_value": "auto",
+    "manager_env_non_target_bytes_preserved": true,
+    "live_compose_file_mutated": false,
+    "temporary_overlay_only": true,
+    "new_manager_image_exact": true,
+    "manager_network_mode_preserved": true,
+    "manager_mount_binding_preserved": true,
+    "broker_container_preserved": true,
+    "broker_restart_count_preserved": true,
+    "r5_firewall_preserved": true,
+    "service_identities_env_mutated": false,
+    "board_access": false,
+    "pr474_source_change": false,
+    "shadow_old_compose_reproduction_required": true,
+    "shadow_new_candidate_contract_required": true,
+    "shadow_containers_started": false,
+    "runtime_security_fingerprint_preserved": true
+  },
+  "rollback_contract": {
+    "manager_env_exact_backup_before_mutation": true,
+    "old_manager_image_exact_local_tag_before_stop": true,
+    "candidate_failure_triggers_rollback": true,
+    "rollback_restores_manager_env": true,
+    "rollback_restores_old_manager_image": true,
+    "rollback_reuses_live_compose_authority": true,
+    "broker_not_restarted": true,
+    "r5_not_mutated": true,
+    "transaction_owned_state_required": true,
+    "private_prestate_required": true,
+    "manager_runtime_security_restored": true,
+    "udp_47111_recovered": true,
+    "tcp_47112_recovered": true,
+    "tcp_8883_preserved": true,
+    "r5_firewall_snapshot_preserved": true
+  },
+  "execution_phases": {
+    "local-preflight": "Mac only, no T1 access",
+    "stage": "T1 durable file staging only, no live runtime mutation",
+    "remote-preflight": "T1 read-only exact authority rebind",
+    "apply": "separately authorized Manager cutover with bounded automatic rollback",
+    "rollback": "manual recovery entry only when explicitly directed"
+  },
+  "preparation_forbidden": {
+    "t1_access": true,
+    "t1_file_write": true,
+    "docker_image_load": true,
+    "manager_env_mutation": true,
+    "manager_stop": true,
+    "manager_recreate": true,
+    "broker_mutation": true,
+    "firewall_mutation": true,
+    "board_access": true,
+    "pr474_mutation": true,
+    "merge": true
+  }
+}
