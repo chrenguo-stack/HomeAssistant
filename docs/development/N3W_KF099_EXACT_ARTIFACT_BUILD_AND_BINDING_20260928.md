@@ -1,6 +1,8 @@
 # N3-W KF-099 Exact Artifact Build and Binding — 2026-09-28
 
-Status: `ARTIFACT_BINDING_PASS_PHYSICAL_VALIDATION_PENDING`
+Status: `ARTIFACT_BINDING_PASS_PHYSICAL_VALIDATION_PASS`
+
+This document preserves the artifact-binding gate as historical evidence. The later Board B write and physical-validation result are finalized by `docs/development/N3W_KF099_PHYSICAL_VALIDATION_CLOSURE_20260928.md`.
 
 ## Scope
 
@@ -126,27 +128,34 @@ EXACT_ARTIFACT_BINDING=PASS
 ## Physical boundary
 
 ```text
-BOARD_ACCESS=false
-SERIAL_OPEN=false
-BOARD_RESET=false
-FLASH_WRITE=false
-NVS_WRITE=false
-T1_RUNTIME_MUTATION=false
-PAIRING_REPAIR_AUTHORIZATION=false
+ARTIFACT_BINDING_GATE_BOARD_ACCESS=false
+ARTIFACT_BINDING_GATE_SERIAL_OPEN=false
+ARTIFACT_BINDING_GATE_BOARD_RESET=false
+ARTIFACT_BINDING_GATE_FLASH_WRITE=false
+ARTIFACT_BINDING_GATE_NVS_WRITE=false
+ARTIFACT_BINDING_GATE_T1_RUNTIME_MUTATION=false
+ARTIFACT_BINDING_GATE_PAIRING_REPAIR_AUTHORIZATION=false
 
 KF099_SOURCE_REPAIR=PASS
 KF099_EXACT_ARTIFACT_BUILD=PASS
 KF099_EXACT_ARTIFACT_BINDING=PASS
-KF099_PHYSICAL_VALIDATION=PENDING
-KF099_KNOWN_FAILURE_STATUS=OPEN
+KF099_BOARD_B_WRITE=PASS
+KF099_PHYSICAL_VALIDATION=PASS
+KF099_ROUTE_STATUS=CLOSED_PASS
+KF099_KNOWN_FAILURE_STATUS=GUARDED
+KF099_FINAL_CLOSURE_AUTHORITY=docs/development/N3W_KF099_PHYSICAL_VALIDATION_CLOSURE_20260928.md
+PAIRING_REPAIR_AUTHORIZATION=false
 ```
 
-## Next gate
+## Historical next gate
+
+The next gate recorded at artifact-binding time was subsequently completed.
 
 ```text
-NEXT_ONE_GATE=N3W_KF099_BOARD_B_WRITE_TARGET_PREFLIGHT_20260928_01
+HISTORICAL_NEXT_ONE_GATE=N3W_KF099_BOARD_B_WRITE_TARGET_PREFLIGHT_20260928_01
+HISTORICAL_NEXT_ONE_GATE_STATUS=COMPLETED
 PREFLIGHT_READ_ONLY=true
-FLASH_WRITE=false
+ARTIFACT_BINDING_GATE_FLASH_WRITE=false
 ```
 
-The next gate must bind the currently connected physical board to Board B before any write.
+The later write bound the exact artifact to the frozen Board B target and passed. The subsequent 90-second passive physical validation also passed, so this predecessor document has no remaining open KF-099 gate. Current authority: `docs/development/N3W_KF099_PHYSICAL_VALIDATION_CLOSURE_20260928.md`.
