@@ -725,7 +725,35 @@ def restore_manager_env() -> None:
         raise StopExecution("manager.env rollback verification failed")
 
 
+def rollback_preconditions() -> None:
+    if sha256_file(COMPOSE) != EXPECTED_COMPOSE_SHA256:
+        raise StopExecution("rollback live Compose authority drift")
+    if sha256_file(SERVICE_ENV) != EXPECTED_SERVICE_ENV_SHA256:
+        raise StopExecution("rollback service-identities authority drift")
+    if env_without_target_hash(MANAGER_ENV) != EXPECTED_MANAGER_ENV_EXCLUDING_PAIRING_SHA256:
+        raise StopExecution("rollback manager.env non-target drift")
+    manager_env_sha = sha256_file(MANAGER_ENV)
+    pairing = env_values(MANAGER_ENV, PAIRING_KEY)
+    known_old = (
+        manager_env_sha == EXPECTED_MANAGER_ENV_SHA256
+        and len(pairing) == 1
+        and sha256_bytes(pairing[0].encode()) == EXPECTED_STALE_PAIRING_SHA256
+    )
+    known_candidate = pairing == ["auto"]
+    if not known_old and not known_candidate:
+        raise StopExecution("rollback manager.env state is not transaction-owned")
+    current = run(["docker", "inspect", MANAGER_NAME])
+    if current.returncode == 0:
+        value = json.loads(current.stdout)
+        if not isinstance(value, list) or len(value) != 1:
+            raise StopExecution("rollback current Manager inspect shape invalid")
+        image_id = value[0].get("Image")
+        if image_id not in {OLD_IMAGE_ID, NEW_IMAGE_ID}:
+            raise StopExecution("rollback current Manager image is not transaction-owned")
+
+
 def rollback(prestate: dict[str, Any]) -> dict[str, Any]:
+    rollback_preconditions()
     require_ok(
         run(["docker", "image", "inspect", OLD_IMAGE_ID]),
         "old Manager image is unavailable",
