@@ -1,7 +1,7 @@
 # N3-W Current State Index
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
-Current progress alignment: `docs/development/N3W_KF098_T1_LIVE_CUTOVER_PROGRESS_ALIGNMENT_20260928.md`  
+Current progress alignment: `docs/development/N3W_KF098_DYNAMIC_DISCOVERY_REAL_TRAFFIC_ACCEPTANCE_CLOSURE_20260928.md`  
 Current new-chat handoff: `docs/development/N3W_PR475_PR478_POSTMERGE_MAIN_ALIGNMENT_NEW_CHAT_HANDOFF_V1.0_20260927.md`  
 Long-term working context: `docs/development/N3W_PROJECT_WORKING_CONTEXT.md`  
 Current handoff template: `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` v1.2  
@@ -15,6 +15,34 @@ Current production artifact binding authority: `docs/development/N3W_PRODUCTION_
 Currently deployed Board B source: `4270f24a92a87dd5239d781ebba624c2f34b7fc2` / artifact `10619047221`  
 Current local-development-environment authority: `docs/development/local-environment-records/2026-09-17-macos-x86_64.json`  
 Active product-direction authority: `docs/development/N3W_OFFICIAL_ESPNOW_REFERENCE_PRODUCT_DIRECTION_DECISION_20260906.md`
+
+## 2026-09-28 KF-098 real Board acceptance closure snapshot
+
+```text
+KF098_SOURCE_REPAIR=PASS
+KF098_T1_LIVE_CUTOVER=PASS
+KF098_MANAGER_RUNTIME=PASS
+KF098_REAL_BOARD_DISCOVERY_ACCEPTANCE=PASS
+KF098_REAL_BOARD_HTTP47112_ACCEPTANCE=PASS
+KF098_EXPECTED_NEXT_PAIRING_DISPOSITION=PASS
+
+CANDIDATE_HOST_EQUALS_ROUTE_SELECTED_T1_IPV4=true
+CANDIDATE_HOST_DIFFERS_FROM_PREDECESSOR=true
+BOARD_TO_CURRENT_T1_TCP47112_OBSERVED=true
+TCP47112_HANDSHAKE_OBSERVED=true
+
+PAIRING_HELLO_STATUS=rejected
+PAIRING_HELLO_REASON=repair_intent_required
+PAIRING_HELLO_TRANSACTION_DISPOSITION=continue
+PAIRING_BEGIN_HTTP_STATUS=403
+
+KF098_ROUTE_STATUS=CLOSED_PASS
+KF098_KNOWN_FAILURE_STATUS=GUARDED
+PAIRING_REPAIR_AUTHORIZATION=false
+```
+
+Authority: `docs/development/N3W_KF098_DYNAMIC_DISCOVERY_REAL_TRAFFIC_ACCEPTANCE_CLOSURE_20260928.md`.
+
 
 ## 2026-09-28 KF-098 T1 live cutover snapshot
 
