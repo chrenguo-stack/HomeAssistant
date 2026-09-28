@@ -132,19 +132,15 @@ def test_remote_env_rewrite_rejects_duplicate_target(
         remote.rewrite_pairing_env_to_auto(path)
 
 
-def test_remote_overlay_changes_only_manager_image_and_name(
-    tmp_path: Path,
-) -> None:
-    path = tmp_path / "overlay.yml"
-    remote.make_overlay(path, remote.NEW_IMAGE_TAG)
-    text = path.read_text(encoding="utf-8")
-    assert "services:" in text
-    assert "manager:" in text
-    assert f"image: {remote.NEW_IMAGE_TAG}" in text
-    assert "container_name: greenhouse-manager" in text
-    assert "pull_policy: never" in text
-    assert "broker:" not in text
-    assert "--remove-orphans" not in text
+def test_remote_recreate_uses_live_contract_not_compose() -> None:
+    source = (PACKAGE / "remote_cutover.py").read_text(
+        encoding="utf-8"
+    )
+    assert "manager_recreate_contract" in source
+    assert '"docker",\n        "create"' in source
+    assert "compose_up(" not in source
+    assert "compose_shadow(" not in source
+    assert "--remove-orphans" not in source
 
 
 def test_remote_uses_current_pr480_activation_blob() -> None:
@@ -479,7 +475,6 @@ def test_apply_preserves_fail_rolled_back_terminal_result(
         "PRESTATE_JSON",
         rollback_root / "manager-prestate.json",
     )
-    monkeypatch.setattr(remote, "OVERLAY", tmp_path / "overlay.yml")
     monkeypatch.setattr(
         remote,
         "EXPECTED_MANAGER_ENV_SHA256",
@@ -520,13 +515,8 @@ def test_apply_preserves_fail_rolled_back_terminal_result(
     )
     monkeypatch.setattr(
         remote,
-        "make_overlay",
-        lambda *args, **kwargs: None,
-    )
-    monkeypatch.setattr(
-        remote,
-        "compose_up",
-        lambda _overlay: None,
+        "create_manager_from_contract",
+        lambda *args, **kwargs: {},
     )
 
     def fake_rewrite(path: Path) -> None:
