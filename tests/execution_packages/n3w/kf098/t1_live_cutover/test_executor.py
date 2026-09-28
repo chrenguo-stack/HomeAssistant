@@ -497,7 +497,7 @@ def test_apply_preserves_fail_rolled_back_terminal_result(
     )
     monkeypatch.setattr(
         remote,
-        "verify_loaded_exact_image",
+        "ensure_loaded_exact_image",
         lambda: {
             "runtime_image_id":
                 remote.NEW_IMAGE_MANIFEST_DIGEST,
@@ -516,7 +516,7 @@ def test_apply_preserves_fail_rolled_back_terminal_result(
     monkeypatch.setattr(
         remote,
         "shadow_preflight",
-        lambda _prestate, _runtime_id: {"shadow": "PASS"},
+        lambda _prestate: {"shadow": "PASS"},
     )
     monkeypatch.setattr(
         remote,
@@ -544,7 +544,7 @@ def test_apply_preserves_fail_rolled_back_terminal_result(
     monkeypatch.setattr(
         remote,
         "postcheck",
-        lambda _prestate, _runtime_id: (_ for _ in ()).throw(
+        lambda _prestate: (_ for _ in ()).throw(
             remote.StopExecution("forced postcheck failure")
         ),
     )
@@ -884,3 +884,126 @@ def test_stage_classifier_allows_only_verified_pretransaction_snapshot() -> None
     assert "manager.env.before" in source
     assert "manager-prestate.json" in source
     assert host.EXPECTED_MANAGER_ENV_SHA256 in source
+
+
+def test_shadow_accepts_either_artifact_owned_new_image_id() -> None:
+    current = manager_fixture(
+        image=remote.OLD_IMAGE_ID,
+        pairing="192.0.2.10",
+    )
+    count, mount_hash = remote.manager_mount_fingerprint(current)
+    prestate = {
+        "manager_mount_count": count,
+        "manager_mount_hash": mount_hash,
+        "manager_gh_env_hash": remote.gh_env_fingerprint(current),
+        "manager_runtime_security_hash":
+            remote.manager_runtime_security_fingerprint(current),
+    }
+    for runtime_id in (
+        remote.NEW_IMAGE_CONFIG_DIGEST,
+        remote.NEW_IMAGE_MANIFEST_DIGEST,
+    ):
+        candidate = manager_fixture(
+            image=runtime_id,
+            pairing="auto",
+        )
+        remote.validate_shadow_manager(
+            candidate,
+            prestate,
+            expected_image=remote.accepted_new_runtime_image_ids(),
+            expected_pairing=["auto"],
+            label="new",
+        )
+
+
+def test_ensure_loaded_exact_image_reuses_existing_exact_tag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(args, *, timeout=30):
+        assert args == [
+            "docker",
+            "image",
+            "inspect",
+            remote.NEW_IMAGE_TAG,
+        ]
+        return remote.subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout="[]",
+            stderr="",
+        )
+
+    monkeypatch.setattr(remote, "run", fake_run)
+    monkeypatch.setattr(
+        remote,
+        "verify_loaded_exact_image",
+        lambda: {
+            "runtime_image_id":
+                remote.NEW_IMAGE_MANIFEST_DIGEST,
+            "config_digest":
+                remote.NEW_IMAGE_CONFIG_DIGEST,
+            "manifest_digest":
+                remote.NEW_IMAGE_MANIFEST_DIGEST,
+            "rootfs_layers_sha256":
+                remote.EXPECTED_NEW_ROOTFS_LAYERS_SHA256,
+        },
+    )
+    result = remote.ensure_loaded_exact_image()
+    assert result["load_action"] == "reused_existing_exact_tag"
+    assert (
+        result["runtime_image_id"]
+        == remote.NEW_IMAGE_MANIFEST_DIGEST
+    )
+
+
+def test_ensure_loaded_exact_image_loads_when_tag_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = []
+
+    def fake_run(args, *, timeout=30):
+        calls.append((args, timeout))
+        if args == [
+            "docker",
+            "image",
+            "inspect",
+            remote.NEW_IMAGE_TAG,
+        ]:
+            return remote.subprocess.CompletedProcess(
+                args=args,
+                returncode=1,
+                stdout="",
+                stderr="missing",
+            )
+        if args == [
+            "docker",
+            "load",
+            "-i",
+            str(remote.IMAGE_TAR),
+        ]:
+            return remote.subprocess.CompletedProcess(
+                args=args,
+                returncode=0,
+                stdout="loaded",
+                stderr="",
+            )
+        raise AssertionError(args)
+
+    monkeypatch.setattr(remote, "run", fake_run)
+    monkeypatch.setattr(
+        remote,
+        "verify_loaded_exact_image",
+        lambda: {
+            "runtime_image_id":
+                remote.NEW_IMAGE_CONFIG_DIGEST,
+            "config_digest":
+                remote.NEW_IMAGE_CONFIG_DIGEST,
+            "manifest_digest":
+                remote.NEW_IMAGE_MANIFEST_DIGEST,
+            "rootfs_layers_sha256":
+                remote.EXPECTED_NEW_ROOTFS_LAYERS_SHA256,
+        },
+    )
+    result = remote.ensure_loaded_exact_image()
+    assert result["load_action"] == "loaded_exact_tar"
+    assert calls[1][1] == 180
