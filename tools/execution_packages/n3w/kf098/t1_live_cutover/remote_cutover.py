@@ -425,7 +425,9 @@ def manager_runtime_security_fingerprint(
     host = item.get("HostConfig")
     host = host if isinstance(host, dict) else {}
     config_keys = (
+        "Cmd",
         "Healthcheck",
+        "Labels",
         "OpenStdin",
         "StdinOnce",
         "StopSignal",
@@ -440,6 +442,8 @@ def manager_runtime_security_fingerprint(
         "CgroupnsMode",
         "DeviceRequests",
         "Devices",
+        "Dns",
+        "ExtraHosts",
         "Init",
         "IpcMode",
         "LogConfig",
