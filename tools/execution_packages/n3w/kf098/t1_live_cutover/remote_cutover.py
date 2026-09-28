@@ -551,6 +551,8 @@ def compose_up(overlay: Path) -> None:
     require_ok(
         run(
             [
+                "env",
+                "COMPOSE_IGNORE_ORPHANS=true",
                 "docker",
                 "compose",
                 "--project-name",
@@ -617,18 +619,24 @@ def compose_shadow(
 ) -> dict[str, Any]:
     if run(["docker", "inspect", container_name]).returncode == 0:
         raise StopExecution(f"shadow container already exists: {container_name}")
+    compose_prefix = [
+        "docker",
+        "compose",
+        "--project-name",
+        SHADOW_PROJECT,
+        "-f",
+        str(COMPOSE),
+        "-f",
+        str(overlay),
+    ]
+    created = False
+    shadow: dict[str, Any] | None = None
+    primary_error: Exception | None = None
     try:
         require_ok(
             run(
                 [
-                    "docker",
-                    "compose",
-                    "--project-name",
-                    SHADOW_PROJECT,
-                    "-f",
-                    str(COMPOSE),
-                    "-f",
-                    str(overlay),
+                    *compose_prefix,
                     "up",
                     "--no-start",
                     "--no-deps",
@@ -639,9 +647,35 @@ def compose_shadow(
             ),
             f"cannot create shadow Manager {container_name}",
         )
-        return docker_inspect(container_name)
-    finally:
-        run(["docker", "rm", "-f", container_name], timeout=60)
+        created = True
+        shadow = docker_inspect(container_name)
+    except Exception as exc:
+        primary_error = exc
+    cleanup = run(
+        [
+            *compose_prefix,
+            "down",
+            "--timeout",
+            "0",
+        ],
+        timeout=120,
+    )
+    if cleanup.returncode != 0:
+        detail = cleanup.stderr.strip() or cleanup.stdout.strip()
+        raise StopExecution(
+            f"shadow Compose cleanup failed for {container_name}: {detail[:800]}"
+        ) from primary_error
+    if run(["docker", "inspect", container_name]).returncode == 0:
+        raise StopExecution(
+            f"shadow container remains after cleanup: {container_name}"
+        )
+    if primary_error is not None:
+        raise primary_error
+    if not created or shadow is None:
+        raise StopExecution(
+            f"shadow Manager result missing: {container_name}"
+        )
+    return shadow
 
 
 def shadow_preflight(prestate: dict[str, Any]) -> dict[str, bool]:
