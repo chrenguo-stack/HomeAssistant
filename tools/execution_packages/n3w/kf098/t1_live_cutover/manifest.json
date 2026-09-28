@@ -12,7 +12,10 @@
     "exact_artifact_id": 10935052471,
     "exact_artifact_digest": "sha256:41dde2129aa64623746257814e7568f8a8d6948ad299766d7a1b1ea7f3bdf9a5",
     "exact_image_id": "sha256:49c9fcc0a17d47678b0667c48a06f9a9475609a757e510ca148983b53ed537e3",
-    "exact_image_tar_sha256": "6392b8c9bb87d95404346583d6f44967bd4e20fcc092be393c45f75a4ca7a5b2"
+    "exact_image_tar_sha256": "6392b8c9bb87d95404346583d6f44967bd4e20fcc092be393c45f75a4ca7a5b2",
+    "exact_image_config_digest": "sha256:49c9fcc0a17d47678b0667c48a06f9a9475609a757e510ca148983b53ed537e3",
+    "exact_image_manifest_digest": "sha256:b806e7c8b97cc757965161a989f954df09427aa7d2700a6503e56e49cc8f9e4f",
+    "exact_rootfs_layers_sha256": "97dd9fb029f1678a4589148d1874c95cd1d26439efa89ee833d5d734b70d42d6"
   },
   "live_preflight_authority": {
     "compose_path": "/opt/greenhouse-fc4-95c42fa5/runtime/docker-compose.yml",
@@ -63,7 +66,11 @@
     "shadow_old_compose_reproduction_required": true,
     "shadow_new_candidate_contract_required": true,
     "shadow_containers_started": false,
-    "runtime_security_fingerprint_preserved": true
+    "runtime_security_fingerprint_preserved": true,
+    "cross_image_store_identity_supported": true,
+    "loaded_runtime_id_must_be_artifact_owned": true,
+    "loaded_rootfs_layers_exact": true,
+    "runtime_image_id_propagated_to_shadow_and_postcheck": true
   },
   "rollback_contract": {
     "manager_env_exact_backup_before_mutation": true,
@@ -80,7 +87,9 @@
     "udp_47111_recovered": true,
     "tcp_47112_recovered": true,
     "tcp_8883_preserved": true,
-    "r5_firewall_snapshot_preserved": true
+    "r5_firewall_snapshot_preserved": true,
+    "pretransaction_snapshot_resume_supported": true,
+    "resume_requires_exact_snapshot_and_no_overlays": true
   },
   "execution_phases": {
     "local-preflight": "Mac only, no T1 access",
