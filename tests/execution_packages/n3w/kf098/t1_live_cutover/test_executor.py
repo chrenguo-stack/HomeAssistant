@@ -256,6 +256,55 @@ def test_runtime_security_fingerprint_detects_security_drift() -> None:
     )
 
 
+def test_runtime_security_fingerprint_normalizes_docker_default_forms() -> None:
+    live = manager_fixture(
+        image=remote.OLD_IMAGE_ID,
+        pairing="192.0.2.10",
+    )
+    shadow = manager_fixture(
+        image=remote.OLD_IMAGE_ID,
+        pairing="192.0.2.10",
+    )
+    live["HostConfig"]["Dns"] = []
+    live["HostConfig"]["OomKillDisable"] = None
+    shadow["HostConfig"]["Dns"] = None
+    shadow["HostConfig"]["OomKillDisable"] = False
+
+    assert (
+        remote.pre495_runtime_security_fingerprint(live)
+        != remote.pre495_runtime_security_fingerprint(shadow)
+    )
+    assert (
+        remote.manager_runtime_security_fingerprint(live)
+        == remote.manager_runtime_security_fingerprint(shadow)
+    )
+
+
+def test_runtime_security_fingerprint_keeps_nondefault_drift_visible() -> None:
+    current = manager_fixture(
+        image=remote.OLD_IMAGE_ID,
+        pairing="192.0.2.10",
+    )
+    dns_drift = manager_fixture(
+        image=remote.OLD_IMAGE_ID,
+        pairing="192.0.2.10",
+    )
+    oom_drift = manager_fixture(
+        image=remote.OLD_IMAGE_ID,
+        pairing="192.0.2.10",
+    )
+    current["HostConfig"]["Dns"] = []
+    current["HostConfig"]["OomKillDisable"] = None
+    dns_drift["HostConfig"]["Dns"] = ["192.0.2.53"]
+    dns_drift["HostConfig"]["OomKillDisable"] = False
+    oom_drift["HostConfig"]["Dns"] = None
+    oom_drift["HostConfig"]["OomKillDisable"] = True
+
+    baseline = remote.manager_runtime_security_fingerprint(current)
+    assert baseline != remote.manager_runtime_security_fingerprint(dns_drift)
+    assert baseline != remote.manager_runtime_security_fingerprint(oom_drift)
+
+
 def test_shadow_contract_accepts_only_exact_reproduction() -> None:
     current = manager_fixture(
         image=remote.OLD_IMAGE_ID,
@@ -951,6 +1000,102 @@ def test_prepare_transaction_snapshot_upgrades_pre493_snapshot(
     assert result == {
         "snapshot": "upgraded_verified_pretransaction",
         "snapshot_migration": "pre-PR493",
+        "residual_cleanup": "none",
+    }
+    assert json.loads(
+        prestate_path.read_text(encoding="utf-8")
+    ) == prestate
+
+
+def test_prepare_transaction_snapshot_upgrades_pre495_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manager_env = tmp_path / "manager.env"
+    manager_env.write_text("GH_ALPHA=one\n", encoding="utf-8")
+    expected_env_sha = remote.sha256_file(manager_env)
+    rollback_root = tmp_path / "rollback"
+    rollback_root.mkdir(mode=0o700)
+    backup = rollback_root / "manager.env.before"
+    backup.write_bytes(manager_env.read_bytes())
+    prestate_path = rollback_root / "manager-prestate.json"
+
+    current = manager_fixture(
+        image=remote.OLD_IMAGE_ID,
+        pairing="192.0.2.10",
+    )
+    current["Config"]["Labels"] = {}
+    current["HostConfig"]["Dns"] = []
+    current["HostConfig"]["ExtraHosts"] = []
+    current["HostConfig"]["OomKillDisable"] = None
+
+    prestate = {
+        "manager_started_at": "2026-09-28T00:00:00Z",
+        "manager_restart_count": 1,
+        "manager_image_id": remote.OLD_IMAGE_ID,
+        "manager_mount_count": 6,
+        "manager_mount_hash": "m",
+        "manager_gh_env_hash": "e",
+        "manager_all_env_hash": "a",
+        "manager_runtime_security_hash":
+            remote.manager_runtime_security_fingerprint(current),
+        "manager_recreate_contract": {
+            "env": [],
+            "mounts": [],
+        },
+        "broker_id": "b",
+        "broker_restart_count": 0,
+        "firewall": {"x": 1},
+        "current_eth0_ipv4_sha256": "ip",
+    }
+    saved = dict(prestate)
+    saved["manager_runtime_security_hash"] = (
+        remote.pre495_runtime_security_fingerprint(current)
+    )
+    assert set(saved) == remote.PRE495_PRESTATE_KEYS
+    assert (
+        saved["manager_runtime_security_hash"]
+        != prestate["manager_runtime_security_hash"]
+    )
+    prestate_path.write_text(
+        json.dumps(saved),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(remote, "ROLLBACK_ROOT", rollback_root)
+    monkeypatch.setattr(remote, "MANAGER_ENV_BACKUP", backup)
+    monkeypatch.setattr(remote, "PRESTATE_JSON", prestate_path)
+    monkeypatch.setattr(
+        remote,
+        "EXPECTED_MANAGER_ENV_SHA256",
+        expected_env_sha,
+    )
+    monkeypatch.setattr(
+        remote,
+        "cleanup_known_pretransaction_residual",
+        lambda: "none",
+    )
+    monkeypatch.setattr(
+        remote,
+        "docker_inspect",
+        lambda _name: current,
+    )
+
+    original_stat = remote.Path.stat
+
+    def fake_stat(path_self):
+        result = original_stat(path_self)
+        if path_self == rollback_root:
+            values = list(result)
+            values[4] = 0
+            return os.stat_result(values)
+        return result
+
+    monkeypatch.setattr(remote.Path, "stat", fake_stat)
+    result = remote.prepare_transaction_snapshot(prestate)
+    assert result == {
+        "snapshot": "upgraded_verified_pretransaction",
+        "snapshot_migration": "pre-PR495-runtime-normalization",
         "residual_cleanup": "none",
     }
     assert json.loads(

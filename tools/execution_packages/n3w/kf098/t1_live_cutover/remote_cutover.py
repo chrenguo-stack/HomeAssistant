@@ -441,9 +441,11 @@ def manager_recreate_contract(
     }
 
 
-def manager_runtime_security_fingerprint(
+def runtime_security_contract(
     item: dict[str, Any],
-) -> str:
+    *,
+    normalize_docker_defaults: bool,
+) -> dict[str, Any]:
     config = item.get("Config")
     config = config if isinstance(config, dict) else {}
     host = item.get("HostConfig")
@@ -487,17 +489,44 @@ def manager_runtime_security_fingerprint(
         "Tmpfs",
         "Ulimits",
     )
-    contract = {
+    host_contract = {
+        key: host.get(key)
+        for key in host_keys
+    }
+    if normalize_docker_defaults:
+        if host_contract["Dns"] is None:
+            host_contract["Dns"] = []
+        if host_contract["OomKillDisable"] is None:
+            host_contract["OomKillDisable"] = False
+    return {
         "config": {
             key: config.get(key)
             for key in config_keys
         },
-        "host": {
-            key: host.get(key)
-            for key in host_keys
-        },
+        "host": host_contract,
     }
-    return normalized_hash(contract)
+
+
+def manager_runtime_security_fingerprint(
+    item: dict[str, Any],
+) -> str:
+    return normalized_hash(
+        runtime_security_contract(
+            item,
+            normalize_docker_defaults=True,
+        )
+    )
+
+
+def pre495_runtime_security_fingerprint(
+    item: dict[str, Any],
+) -> str:
+    return normalized_hash(
+        runtime_security_contract(
+            item,
+            normalize_docker_defaults=False,
+        )
+    )
 
 
 def pre493_runtime_security_fingerprint(
@@ -1405,6 +1434,14 @@ PRE493_PRESTATE_KEYS = (
     | {"current_eth0_ipv4_sha256"}
 )
 
+PRE495_PRESTATE_KEYS = (
+    PRE493_PRESTATE_KEYS
+    | {
+        "manager_all_env_hash",
+        "manager_recreate_contract",
+    }
+)
+
 
 def cleanup_known_pretransaction_residual() -> str:
     for name in (SHADOW_OLD_NAME, SHADOW_NEW_NAME):
@@ -1476,12 +1513,19 @@ def prepare_transaction_snapshot(
 
     historical_keys: set[str] | None = None
     historical_label = ""
+    historical_fingerprint = None
     if set(saved) == LEGACY_PRESTATE_KEYS:
         historical_keys = LEGACY_PRESTATE_KEYS
         historical_label = "legacy"
+        historical_fingerprint = pre493_runtime_security_fingerprint
     elif set(saved) == PRE493_PRESTATE_KEYS:
         historical_keys = PRE493_PRESTATE_KEYS
         historical_label = "pre-PR493"
+        historical_fingerprint = pre493_runtime_security_fingerprint
+    elif set(saved) == PRE495_PRESTATE_KEYS:
+        historical_keys = PRE495_PRESTATE_KEYS
+        historical_label = "pre-PR495-runtime-normalization"
+        historical_fingerprint = pre495_runtime_security_fingerprint
 
     if historical_keys is not None:
         stable_keys = (
@@ -1496,8 +1540,9 @@ def prepare_transaction_snapshot(
                 )
         manager = docker_inspect(MANAGER_NAME)
         if (
-            saved.get("manager_runtime_security_hash")
-            != pre493_runtime_security_fingerprint(manager)
+            historical_fingerprint is None
+            or saved.get("manager_runtime_security_hash")
+            != historical_fingerprint(manager)
         ):
             raise StopExecution(
                 f"{historical_label} pretransaction runtime/security "
