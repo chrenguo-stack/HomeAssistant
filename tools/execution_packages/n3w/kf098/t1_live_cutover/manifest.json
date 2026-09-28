@@ -70,7 +70,8 @@
     "cross_image_store_identity_supported": true,
     "loaded_runtime_id_must_be_artifact_owned": true,
     "loaded_rootfs_layers_exact": true,
-    "runtime_image_id_propagated_to_shadow_and_postcheck": true
+    "shadow_and_postcheck_accept_only_artifact_owned_image_ids": true,
+    "existing_exact_tag_reused_without_reload": true
   },
   "rollback_contract": {
     "manager_env_exact_backup_before_mutation": true,
