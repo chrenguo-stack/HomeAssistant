@@ -20,6 +20,7 @@ IMAGE_TAR_SHA256 = "6392b8c9bb87d95404346583d6f44967bd4e20fcc092be393c45f75a4ca7
 SOURCE_SHA = "575ce642e372961e21de14a36eba5877082de3cf"
 IMAGE_ID = "sha256:49c9fcc0a17d47678b0667c48a06f9a9475609a757e510ca148983b53ed537e3"
 EXPECTED_MANAGER_ENV_SHA256 = "f454c6e886ee286192a3c3683a87c33d98e79428de0a6d0c9d2a6e0a19a9d6a6"
+STALE_SHADOW_OLD_OVERLAY_SHA256 = "aeab3dafd4edceca69bd3e17964d7fc670c7ef50ee079d80e984f8dd2cabeff8"
 PLACEHOLDERS = (
     "placeholder",
     "example",
@@ -314,9 +315,9 @@ base = {
 forbidden = {
     "manager-kf098-overlay.yml",
     "manager-kf098-rollback-overlay.yml",
-    "manager-kf098-shadow-old-overlay.yml",
     "manager-kf098-shadow-new-overlay.yml",
 }
+known_residual = "manager-kf098-shadow-old-overlay.yml"
 if not r.exists():
     print("STAGE_CLASS=ABSENT")
     raise SystemExit(0)
@@ -326,7 +327,17 @@ if existing & forbidden:
     print("STAGE_CLASS=UNKNOWN_NONEMPTY")
     raise SystemExit(2)
 
-extra = existing - base - {"rollback"}
+if known_residual in existing:
+    residual = r / known_residual
+    if (
+        not residual.is_file()
+        or hashlib.sha256(residual.read_bytes()).hexdigest()
+        != "__STALE_SHADOW_OLD_SHA__"
+    ):
+        print("STAGE_CLASS=UNKNOWN_NONEMPTY")
+        raise SystemExit(2)
+
+extra = existing - base - {"rollback", known_residual}
 if extra:
     print("STAGE_CLASS=UNKNOWN_NONEMPTY")
     raise SystemExit(2)
@@ -365,6 +376,9 @@ raise SystemExit(0)
     ).replace(
         "__MANAGER_ENV_SHA__",
         EXPECTED_MANAGER_ENV_SHA256,
+    ).replace(
+        "__STALE_SHADOW_OLD_SHA__",
+        STALE_SHADOW_OLD_OVERLAY_SHA256,
     )
     classifier = (
         "python3 -c "
