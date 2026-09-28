@@ -449,3 +449,104 @@ def test_host_rejects_existing_nonprivate_evidence_root(
     root.chmod(0o755)
     with pytest.raises(host.StopExecution):
         host.validate_evidence_root(root)
+
+
+def test_apply_preserves_fail_rolled_back_terminal_result(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manager_env = tmp_path / "manager.env"
+    manager_env.write_text(
+        "GH_ALPHA=one\n"
+        "GH_N3W_PAIRING_ADVERTISED_HOST=192.0.2.10\n",
+        encoding="utf-8",
+    )
+    rollback_root = tmp_path / "rollback"
+    monkeypatch.setattr(remote, "MANAGER_ENV", manager_env)
+    monkeypatch.setattr(remote, "ROLLBACK_ROOT", rollback_root)
+    monkeypatch.setattr(
+        remote,
+        "MANAGER_ENV_BACKUP",
+        rollback_root / "manager.env.before",
+    )
+    monkeypatch.setattr(
+        remote,
+        "PRESTATE_JSON",
+        rollback_root / "manager-prestate.json",
+    )
+    monkeypatch.setattr(remote, "OVERLAY", tmp_path / "overlay.yml")
+    monkeypatch.setattr(
+        remote,
+        "EXPECTED_MANAGER_ENV_SHA256",
+        remote.sha256_file(manager_env),
+    )
+    monkeypatch.setattr(
+        remote,
+        "EXPECTED_MANAGER_ENV_EXCLUDING_PAIRING_SHA256",
+        remote.env_without_target_hash(manager_env),
+    )
+    monkeypatch.setattr(
+        remote,
+        "verify_stage_artifact",
+        lambda: {"artifact": "PASS"},
+    )
+    monkeypatch.setattr(
+        remote,
+        "base_preflight",
+        lambda: {"prestate": "PASS"},
+    )
+    monkeypatch.setattr(
+        remote,
+        "shadow_preflight",
+        lambda _prestate: {"shadow": "PASS"},
+    )
+    monkeypatch.setattr(
+        remote,
+        "make_overlay",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        remote,
+        "compose_up",
+        lambda _overlay: None,
+    )
+
+    def fake_rewrite(path: Path) -> None:
+        path.write_text(
+            "GH_ALPHA=one\n"
+            "GH_N3W_PAIRING_ADVERTISED_HOST=auto\n",
+            encoding="utf-8",
+        )
+
+    monkeypatch.setattr(
+        remote,
+        "rewrite_pairing_env_to_auto",
+        fake_rewrite,
+    )
+    monkeypatch.setattr(
+        remote,
+        "postcheck",
+        lambda _prestate: (_ for _ in ()).throw(
+            remote.StopExecution("forced postcheck failure")
+        ),
+    )
+    monkeypatch.setattr(
+        remote,
+        "rollback",
+        lambda _prestate: {"rollback_result": "PASS"},
+    )
+
+    def fake_run(args, *, timeout=30):
+        return remote.subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout="",
+            stderr="",
+        )
+
+    monkeypatch.setattr(remote, "run", fake_run)
+
+    result = remote.apply()
+    assert result["result"] == "FAIL_ROLLED_BACK"
+    assert result["rollback"]["rollback_result"] == "PASS"
+    assert result["rollback_error"] is None
