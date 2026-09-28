@@ -53,9 +53,27 @@ def validate_target(target: str) -> None:
 
 
 def validate_evidence_root(path: Path) -> None:
-    if path.exists() and any(path.iterdir()):
-        raise StopExecution("evidence root exists and is non-empty")
-    path.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        if not path.is_dir():
+            raise StopExecution("evidence root is not a directory")
+        if any(path.iterdir()):
+            raise StopExecution("evidence root exists and is non-empty")
+        if path.stat().st_mode & 0o777 != 0o700:
+            raise StopExecution("evidence root mode must be 0700")
+    else:
+        path.mkdir(parents=True, mode=0o700)
+    if path.stat().st_mode & 0o777 != 0o700:
+        raise StopExecution("evidence root mode must be 0700")
+
+
+def write_private_text(path: Path, value: str) -> None:
+    path.write_text(value, encoding="utf-8")
+    os.chmod(path, 0o600)
+
+
+def write_private_bytes(path: Path, value: bytes) -> None:
+    path.write_bytes(value)
+    os.chmod(path, 0o600)
 
 
 def record(
@@ -67,10 +85,10 @@ def record(
     timeout: int = 180,
 ) -> subprocess.CompletedProcess[bytes]:
     directory = root / f"op_{index:02d}_{name}"
-    directory.mkdir(parents=True, exist_ok=False)
-    (directory / "command.json").write_text(
+    directory.mkdir(parents=True, mode=0o700, exist_ok=False)
+    write_private_text(
+        directory / "command.json",
         json.dumps({"argv": argv}, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
     )
     completed = subprocess.run(
         argv,
@@ -79,9 +97,10 @@ def record(
         check=False,
         timeout=timeout,
     )
-    (directory / "stdout.bin").write_bytes(completed.stdout)
-    (directory / "stderr.bin").write_bytes(completed.stderr)
-    (directory / "result.json").write_text(
+    write_private_bytes(directory / "stdout.bin", completed.stdout)
+    write_private_bytes(directory / "stderr.bin", completed.stderr)
+    write_private_text(
+        directory / "result.json",
         json.dumps(
             {
                 "returncode": completed.returncode,
@@ -92,7 +111,6 @@ def record(
             sort_keys=True,
         )
         + "\n",
-        encoding="utf-8",
     )
     return completed
 
@@ -413,9 +431,9 @@ def main() -> int:
                         "rollback",
                     }
 
-        (args.evidence_root / "closure.json").write_text(
+        write_private_text(
+            args.evidence_root / "closure.json",
             json.dumps(closure, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
         )
         print(json.dumps(closure, sort_keys=True))
         return 0 if closure["result"] in {"PASS", "FAIL_ROLLED_BACK"} else 2
@@ -429,9 +447,9 @@ def main() -> int:
             "image_id": IMAGE_ID,
         }
         if args.evidence_root.exists():
-            (args.evidence_root / "closure.json").write_text(
+            write_private_text(
+                args.evidence_root / "closure.json",
                 json.dumps(failure, indent=2, sort_keys=True) + "\n",
-                encoding="utf-8",
             )
         print(json.dumps(failure, sort_keys=True))
         return 2
