@@ -425,3 +425,27 @@ def test_live_recreate_preserves_pr480_orphan_policy() -> None:
     )
     assert '"COMPOSE_IGNORE_ORPHANS=true"' in source
     assert '"--remove-orphans"' not in source
+
+
+def test_host_evidence_root_and_files_are_private(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "evidence"
+    host.validate_evidence_root(root)
+    assert root.stat().st_mode & 0o777 == 0o700
+    text_path = root / "text.txt"
+    bytes_path = root / "bytes.bin"
+    host.write_private_text(text_path, "value\n")
+    host.write_private_bytes(bytes_path, b"value")
+    assert text_path.stat().st_mode & 0o777 == 0o600
+    assert bytes_path.stat().st_mode & 0o777 == 0o600
+
+
+def test_host_rejects_existing_nonprivate_evidence_root(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "evidence"
+    root.mkdir(mode=0o755)
+    root.chmod(0o755)
+    with pytest.raises(host.StopExecution):
+        host.validate_evidence_root(root)
