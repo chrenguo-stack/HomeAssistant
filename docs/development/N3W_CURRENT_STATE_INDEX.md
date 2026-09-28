@@ -1,22 +1,22 @@
 # N3-W Current State Index
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
-Current progress alignment: `docs/development/N3W_KF099_REJECTED_HELLO_CONTROL_FLOW_SOURCE_REPAIR_20260928.md`  
+Current progress alignment: `docs/development/N3W_KF099_PHYSICAL_VALIDATION_CLOSURE_20260928.md`  
 Current new-chat handoff: `docs/development/N3W_PR475_PR478_POSTMERGE_MAIN_ALIGNMENT_NEW_CHAT_HANDOFF_V1.0_20260927.md`  
 Long-term working context: `docs/development/N3W_PROJECT_WORKING_CONTEXT.md`  
 Current handoff template: `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` v1.2  
-Latest merged product-source authority: PR #437 / merge `b9acaaad50b17c9cdb51c219330e612c383628f0` / frozen physical source `4270f24a92a87dd5239d781ebba624c2f34b7fc2`  
+Latest merged product-source authority: PR #500 / merge `c578bcb2e31f50771b6b08c231704da6bf36b729` / exact physical artifact `10959875986`  
 Current production successor source: unmerged branch `feature/n3w-production-telemetry-bridge-20260921` @ `c1b3d9d016d06c21c9ff7070c0043163739565ca`  
 Current production successor tree: `0c857fb0f830239717a2e937d176903a6acae8ac`  
 Current production successor exact artifact: artifact `10644667734`, exact binding PASS, not deployed  
 Current production release bundle SHA-256: `93d830368b74e0dae904a9f5c4450378694575c68b917e749b480455662ff065`  
 Current production firmware.bin SHA-256: `8bcd89aaf0be64188f8f98a64795fe78d573ae82dd2dd360c7ff459f80e58efa`  
 Current production artifact binding authority: `docs/development/N3W_PRODUCTION_DEHARNESS_AND_EXACT_ARTIFACT_PROGRESS_ALIGNMENT_20260921.md`  
-Currently deployed Board B source: `4270f24a92a87dd5239d781ebba624c2f34b7fc2` / artifact `10619047221`  
+Currently deployed Board B source: `c578bcb2e31f50771b6b08c231704da6bf36b729` / artifact `10959875986` / application SHA-256 `d0875ca692f7bd4349fd7d8bcdab69318e6c8b737b69a48f667b6e72cb89cb60`  
 Current local-development-environment authority: `docs/development/local-environment-records/2026-09-17-macos-x86_64.json`  
 Active product-direction authority: `docs/development/N3W_OFFICIAL_ESPNOW_REFERENCE_PRODUCT_DIRECTION_DECISION_20260906.md`
 
-## 2026-09-28 KF-099 rejected-hello control-flow snapshot
+## 2026-09-28 KF-099 physical validation closure snapshot
 
 ```text
 KF099_SOURCE_DEFECT_CONFIRMED=true
@@ -25,20 +25,33 @@ KF099_REPAIR_PR=500
 KF099_REPAIR_MERGE_COMMIT=c578bcb2e31f50771b6b08c231704da6bf36b729
 KF099_SOURCE_CI=14_OF_14_PASS
 
-KF099_REJECTED_CONTINUE_ACTION=WAIT
-KF099_WAIT_PRESERVES_PAIRING_ID=true
-KF099_WAIT_SUPPRESSES_BEGIN=true
-KF099_TERMINAL_RENEW_BEHAVIOR_PRESERVED=true
+KF099_EXACT_ARTIFACT_BUILD=PASS
+KF099_EXACT_ARTIFACT_BINDING=PASS
+KF099_ARTIFACT_ID=10959875986
+BOARD_B_WRITE=PASS
 
-KF099_BOARD_FLASH_MUTATION=false
-KF099_PHYSICAL_VALIDATION=PENDING
-KF099_KNOWN_FAILURE_STATUS=OPEN
+KF099_PHYSICAL_VALIDATION=PASS
+TARGET_HELLO_COUNT=18
+REPAIR_INTENT_REQUIRED_RESULT_COUNT=18
+TARGET_HELLO_PAIRING_ID_UNIQUE_COUNT=1
+TARGET_HELLO_DISTINCT_NONCE_COUNT=18
+TARGET_BEGIN_COUNT=0
+GLOBAL_BEGIN_PATH_COUNT=0
+RAW_BEGIN_STREAM_COUNT=0
+CLIENT_CAPTURE_COMPLETE=true
+
+REGISTRATION_TARGET_UNCHANGED=true
+CREDENTIAL_TARGET_UNCHANGED=true
+PAIRING_REPAIR_AUTHORIZATION=false
+
+KF099_ROUTE_STATUS=CLOSED_PASS
+KF099_KNOWN_FAILURE_STATUS=GUARDED
 
 KF098_REOPEN=false
 KF098_ROUTE_STATUS=CLOSED_PASS
 ```
 
-Authority: `docs/development/N3W_KF099_REJECTED_HELLO_CONTROL_FLOW_SOURCE_REPAIR_20260928.md`.
+Authority: `docs/development/N3W_KF099_PHYSICAL_VALIDATION_CLOSURE_20260928.md`.
 
 
 ## 2026-09-28 KF-098 independent review snapshot

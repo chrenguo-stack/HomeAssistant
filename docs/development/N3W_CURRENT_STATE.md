@@ -5,41 +5,62 @@ Status: `CURRENT_STATE_AUTHORITY`
 
 Fresh exact repository/runtime/physical evidence takes precedence if later evidence proves drift.
 
-## 2026-09-28 KF-099 rejected-hello client control-flow source repair
+## 2026-09-28 KF-099 exact repaired firmware physical validation CLOSED_PASS
 
-A fresh passive traceability capture after KF-098 closure identified a separate client control-flow defect. This does not reopen KF-098.
+This section supersedes the earlier KF-099 physical-validation-pending state. Full public-safe closure evidence is in `docs/development/N3W_KF099_PHYSICAL_VALIDATION_CLOSURE_20260928.md`.
 
 ```text
+REPOSITORY_MAIN_BEFORE_CLOSURE=3c51f60ef7ddcd8ad4ea7c984e01bf5886ed159d
+
 KF099_SOURCE_DEFECT_CONFIRMED=true
-
-HELLO_STATUS=rejected
-HELLO_REASON=repair_intent_required
-HELLO_TRANSACTION_DISPOSITION=continue
-PRE_REPAIR_BOARD_SENT_BEGIN=true
-PRE_REPAIR_BEGIN_HTTP_STATUS=403
-PRE_REPAIR_BEGIN_ERROR=setup_secret_unavailable
-
 KF099_SOURCE_REPAIR=PASS
 KF099_REPAIR_PR=500
 KF099_REPAIR_MERGE_COMMIT=c578bcb2e31f50771b6b08c231704da6bf36b729
 KF099_SOURCE_CI=14_OF_14_PASS
-KF099_REJECTED_CONTINUE_ACTION=WAIT
-KF099_WAIT_PRESERVES_PAIRING_ID=true
-KF099_WAIT_SUPPRESSES_BEGIN=true
-KF099_TERMINAL_RENEW_BEHAVIOR_PRESERVED=true
 
-KF099_MANAGER_SECURITY_BOUNDARY=UNCHANGED
-KF099_BOARD_FLASH_MUTATION=false
-KF099_PHYSICAL_VALIDATION=PENDING
-KF099_KNOWN_FAILURE_STATUS=OPEN
+KF099_EXACT_ARTIFACT_BUILD=PASS
+KF099_EXACT_ARTIFACT_BINDING=PASS
+KF099_ARTIFACT_ID=10959875986
+KF099_APPLICATION_SHA256=d0875ca692f7bd4349fd7d8bcdab69318e6c8b737b69a48f667b6e72cb89cb60
+KF099_OTADATA_SHA256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
+BOARD_B_WRITE=PASS
+BOARD_B_ROM_IDENTITY_SHA256=3603345fb73de6f9286dc66db9f246ff73c42382b553af63b8d5813a933b69ee
+
+KF099_PHYSICAL_VALIDATION=PASS
+TARGET_HELLO_COUNT=18
+TARGET_HELLO_DISTINCT_NONCE_COUNT=18
+TARGET_HELLO_PAIRING_ID_UNIQUE_COUNT=1
+PAIRING_ID_SHA256=142d1e0c9fc035645ce38e4681add39ba3ed5b3b0d60e14a4a1dfa398ab2472e
+REPAIR_INTENT_REQUIRED_RESULT_COUNT=18
+OTHER_TARGET_HELLO_RESULT_COUNT=0
+
+TARGET_BEGIN_COUNT=0
+GLOBAL_BEGIN_PATH_COUNT=0
+RAW_BEGIN_STREAM_COUNT=0
+CLIENT_CAPTURE_COMPLETE=true
+
+MANAGER_RUNNING=true
+MANAGER_CONTINUITY=true
+MANAGER_EXACT_IMAGE=true
+REGISTRATION_TARGET_UNCHANGED=true
+CREDENTIAL_TARGET_UNCHANGED=true
+
+PAIRING_REPAIR_AUTHORIZATION=false
+T1_RUNTIME_MUTATION=false
+OBSERVATION_BOARD_MUTATION=false
+
+KF099_ROUTE_STATUS=CLOSED_PASS
+KF099_KNOWN_FAILURE_STATUS=GUARDED
 
 KF098_REOPEN=false
 KF098_ROUTE_STATUS=CLOSED_PASS
 ```
 
-The Manager rejection remains fail-closed. The defect was that Board firmware treated every `transaction_disposition=continue` as permission to call `/begin`. PR #500 changes the local interpretation so `rejected + continue` returns to the bounded retry loop without begin and without renewing the pairing ID.
+The repaired Board remained on one pairing transaction across 18 rejected hello retries, used a fresh nonce on every hello, received `repair_intent_required` 18 times, and issued no `/v2/pairing/begin`. The 90-second capture had no client stream gaps or incomplete requests. Read-only before/after Manager database snapshots showed no target registration or credential change.
 
-Authority: `docs/development/N3W_KF099_REJECTED_HELLO_CONTROL_FLOW_SOURCE_REPAIR_20260928.md`.
+This closes only the rejected-hello control-flow defect. No repair authorization was granted and no authorized identity-repair transaction was exercised.
+
+Authority: `docs/development/N3W_KF099_PHYSICAL_VALIDATION_CLOSURE_20260928.md`.
 
 
 ## 2026-09-28 KF-098 independent Astra review PASS
