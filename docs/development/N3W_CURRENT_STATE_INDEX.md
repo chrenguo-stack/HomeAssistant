@@ -1,7 +1,7 @@
 # N3-W Current State Index
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
-Current progress alignment: `docs/development/N3W_PR480_T1_MAINTENANCE_LIVE_CLOSURE_20260927.md`  
+Current progress alignment: `docs/development/N3W_KF098_T1_LIVE_CUTOVER_PROGRESS_ALIGNMENT_20260928.md`  
 Current new-chat handoff: `docs/development/N3W_PR475_PR478_POSTMERGE_MAIN_ALIGNMENT_NEW_CHAT_HANDOFF_V1.0_20260927.md`  
 Long-term working context: `docs/development/N3W_PROJECT_WORKING_CONTEXT.md`  
 Current handoff template: `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` v1.2  
@@ -15,6 +15,38 @@ Current production artifact binding authority: `docs/development/N3W_PRODUCTION_
 Currently deployed Board B source: `4270f24a92a87dd5239d781ebba624c2f34b7fc2` / artifact `10619047221`  
 Current local-development-environment authority: `docs/development/local-environment-records/2026-09-17-macos-x86_64.json`  
 Active product-direction authority: `docs/development/N3W_OFFICIAL_ESPNOW_REFERENCE_PRODUCT_DIRECTION_DECISION_20260906.md`
+
+## 2026-09-28 KF-098 T1 live cutover snapshot
+
+```text
+REPOSITORY_MAIN_AT_CUTOVER=88e9d140e5baddba543a961f003d12f7ce563ed2
+
+KF098_SOURCE_REPAIR=PASS
+KF098_T1_LIVE_CUTOVER=PASS
+KF098_MANAGER_RUNTIME=PASS
+KF098_STATUS=OPEN
+
+MANAGER_PRODUCT_SOURCE=575ce642e372961e21de14a36eba5877082de3cf
+MANAGER_ARTIFACT_ID=10935052471
+FINAL_APPLY_RESULT=PASS
+ROLLBACK_ATTEMPTED=false
+
+MANAGER_EXACT_IMAGE=true
+MANAGER_PAIRING_AUTO=true
+MANAGER_MOUNTS_PRESERVED=true
+MANAGER_HEALTH=PASS
+BROKER_PRESERVED=true
+R5_PRESERVED=true
+
+KF098_REAL_BOARD_DISCOVERY_ACCEPTANCE=PENDING
+KF098_REAL_BOARD_HTTP47112_ACCEPTANCE=PENDING
+BOARD_B_CURRENT_RUNTIME_LIVENESS=NOT_PROVEN
+
+NEXT_ONE_GATE=N3W_KF098_DYNAMIC_DISCOVERY_REAL_TRAFFIC_ACCEPTANCE_20260928_01
+```
+
+Authority: `docs/development/N3W_KF098_T1_LIVE_CUTOVER_PROGRESS_ALIGNMENT_20260928.md`.
+
 
 ## 2026-09-27 PR #480 T1 maintenance live closure snapshot
 

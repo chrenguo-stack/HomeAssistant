@@ -1,9 +1,59 @@
 # N3-W Current State
 
-Updated: 2026-09-27  
+Updated: 2026-09-28  
 Status: `CURRENT_STATE_AUTHORITY`
 
 Fresh exact repository/runtime/physical evidence takes precedence if later evidence proves drift.
+
+## 2026-09-28 KF-098 source repair + T1 exact live cutover PASS; real Board acceptance pending
+
+This section supersedes older KF-098 statements that source repair or live cutover are still pending. Full public-safe alignment is in `docs/development/N3W_KF098_T1_LIVE_CUTOVER_PROGRESS_ALIGNMENT_20260928.md`.
+
+```text
+REPOSITORY_MAIN_AT_CUTOVER=88e9d140e5baddba543a961f003d12f7ce563ed2
+
+KF098_SOURCE_REPAIR=PASS
+KF098_T1_LIVE_CUTOVER=PASS
+KF098_MANAGER_RUNTIME=PASS
+KF098_STATUS=OPEN
+
+PR493_MERGED=true
+PR494_MERGED=true
+PR495_MERGED=true
+PR496_MERGED=true
+PR495_MAIN_AFTER_MERGE=0e043fd50204b2200b80ea6fe9171a15b0061c22
+PR496_MERGE_COMMIT=88e9d140e5baddba543a961f003d12f7ce563ed2
+PR496_POSTMERGE_PUBLIC_SAFETY_CI=PASS
+PR496_POSTMERGE_PUBLIC_SAFETY_RUN_ID=36377968076
+
+MANAGER_PRODUCT_SOURCE=575ce642e372961e21de14a36eba5877082de3cf
+MANAGER_ARTIFACT_ID=10935052471
+MANAGER_ARTIFACT_RUN_ID=36329597775
+MANAGER_IMAGE_TAR_SHA256=6392b8c9bb87d95404346583d6f44967bd4e20fcc092be393c45f75a4ca7a5b2
+CUTOVER_REMOTE_EXECUTOR_SHA256=c7ad3052dfbbda59513bb87f3ce8bceec0f11062c54eec839d7c58f9ef77ef86
+
+FINAL_APPLY_RESULT=PASS
+ROLLBACK_ATTEMPTED=false
+MANAGER_EXACT_IMAGE=true
+MANAGER_PAIRING_AUTO=true
+MANAGER_MOUNTS_PRESERVED=true
+MANAGER_HEALTH=PASS
+BROKER_PRESERVED=true
+R5_PRESERVED=true
+
+KF098_REAL_BOARD_DISCOVERY_ACCEPTANCE=PENDING
+KF098_REAL_BOARD_HTTP47112_ACCEPTANCE=PENDING
+BOARD_B_CURRENT_RUNTIME_LIVENESS=NOT_PROVEN
+
+NEXT_ONE_GATE=N3W_KF098_DYNAMIC_DISCOVERY_REAL_TRAFFIC_ACCEPTANCE_20260928_01
+```
+
+The first PR #495 live apply did cross the live-mutation boundary and then failed at the candidate TCP/47112 readiness check. Automatic rollback completed successfully and restored the old Manager contract, original manager.env authority, Broker continuity and R5 state. This was not a no-mutation failure.
+
+Read-only post-rollback forensics and PR #496 then repaired the executor contract: verified post-rollback snapshot reacquire, Docker default normalization limited to proven-equivalent fields, acceptance of the rollback-created Manager lifecycle state, and health-before-listener postcheck ordering. The next exact apply passed without rollback.
+
+The remaining KF-098 boundary is physical traffic acceptance, not another T1 cutover. A post-cutover packet-capture self-test proved T1 capture and local TCP/47112 health, while the observation window contained zero external UDP/47111 and zero external TCP/47112. The target registration remains historically approved, but its canonical cursor did not advance during a fresh 30 s read-only window and its last durable update predates this cutover. Therefore current Board B liveness is `NOT_PROVEN`; the absence of pairing traffic is not classified as a new T1, Board, Broker, or PR #474 failure.
+
 
 ## 2026-09-27 PR #480 T1 maintenance live closure
 
