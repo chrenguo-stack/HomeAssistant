@@ -256,6 +256,23 @@ def verify_loaded_exact_image() -> dict[str, Any]:
     }
 
 
+def ensure_loaded_exact_image() -> dict[str, Any]:
+    existing = run(
+        ["docker", "image", "inspect", NEW_IMAGE_TAG],
+    )
+    if existing.returncode == 0:
+        result = verify_loaded_exact_image()
+        result["load_action"] = "reused_existing_exact_tag"
+        return result
+    require_ok(
+        run(["docker", "load", "-i", str(IMAGE_TAR)], timeout=180),
+        "exact Manager image load failed",
+    )
+    result = verify_loaded_exact_image()
+    result["load_action"] = "loaded_exact_tar"
+    return result
+
+
 def manager_mount_fingerprint(item: dict[str, Any]) -> tuple[int, str]:
     mounts = [
         {
@@ -651,7 +668,7 @@ def validate_shadow_manager(
     item: dict[str, Any],
     prestate: dict[str, Any],
     *,
-    expected_image: str,
+    expected_image: str | set[str],
     expected_pairing: list[str],
     label: str,
 ) -> None:
@@ -663,7 +680,12 @@ def validate_shadow_manager(
     host = host if isinstance(host, dict) else {}
     if state.get("Running") is True:
         raise StopExecution(f"{label} shadow unexpectedly running")
-    if item.get("Image") != expected_image:
+    expected_images = (
+        {expected_image}
+        if isinstance(expected_image, str)
+        else expected_image
+    )
+    if item.get("Image") not in expected_images:
         raise StopExecution(f"{label} shadow image mismatch")
     if host.get("NetworkMode") != "host":
         raise StopExecution(f"{label} shadow network mode mismatch")
@@ -754,7 +776,6 @@ def compose_shadow(
 
 def shadow_preflight(
     prestate: dict[str, Any],
-    new_runtime_image_id: str,
 ) -> dict[str, bool]:
     stale_pairing = env_values(MANAGER_ENV, PAIRING_KEY)
     if len(stale_pairing) != 1:
@@ -788,7 +809,7 @@ def shadow_preflight(
     validate_shadow_manager(
         new_shadow,
         prestate,
-        expected_image=new_runtime_image_id,
+        expected_image=accepted_new_runtime_image_ids(),
         expected_pairing=["auto"],
         label="new",
     )
@@ -951,7 +972,6 @@ def rollback(prestate: dict[str, Any]) -> dict[str, Any]:
 
 def postcheck(
     prestate: dict[str, Any],
-    new_runtime_image_id: str,
 ) -> dict[str, Any]:
     manager = docker_inspect(MANAGER_NAME)
     state = manager.get("State")
@@ -962,7 +982,8 @@ def postcheck(
     host = host if isinstance(host, dict) else {}
     if state.get("Running") is not True:
         raise StopExecution("new Manager is not running")
-    if manager.get("Image") != new_runtime_image_id:
+    observed_image = manager.get("Image")
+    if observed_image not in accepted_new_runtime_image_ids():
         raise StopExecution("new Manager runtime image mismatch")
     if host.get("NetworkMode") != "host":
         raise StopExecution("new Manager network mode mismatch")
@@ -1004,6 +1025,7 @@ def postcheck(
         raise StopExecution("R5 firewall state changed")
     return {
         "manager_exact_image": True,
+        "manager_runtime_image_id": observed_image,
         "manager_pairing_auto": True,
         "manager_mounts_preserved": True,
         "manager_health": "PASS",
@@ -1057,20 +1079,12 @@ def apply() -> dict[str, Any]:
     snapshot = prepare_transaction_snapshot(prestate)
     mutation_started = False
     try:
-        require_ok(
-            run(["docker", "load", "-i", str(IMAGE_TAR)], timeout=180),
-            "exact Manager image load failed",
-        )
-        loaded = verify_loaded_exact_image()
-        new_runtime_image_id = loaded["runtime_image_id"]
+        loaded = ensure_loaded_exact_image()
         require_ok(
             run(["docker", "tag", OLD_IMAGE_ID, ROLLBACK_IMAGE_TAG]),
             "cannot bind rollback image tag",
         )
-        shadow = shadow_preflight(
-            prestate,
-            new_runtime_image_id,
-        )
+        shadow = shadow_preflight(prestate)
         mutation_started = True
         rewrite_pairing_env_to_auto(MANAGER_ENV)
         if env_values(MANAGER_ENV, PAIRING_KEY) != ["auto"]:
@@ -1087,10 +1101,7 @@ def apply() -> dict[str, Any]:
             "cannot remove old Manager",
         )
         compose_up(OVERLAY)
-        post = postcheck(
-            prestate,
-            new_runtime_image_id,
-        )
+        post = postcheck(prestate)
         return {
             "result": "PASS",
             "artifact": artifact,
