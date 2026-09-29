@@ -9,6 +9,7 @@ import ipaddress
 import json
 import os
 import re
+import shlex
 import shutil
 import stat
 import subprocess
@@ -238,8 +239,16 @@ def run_capture(argv: list[str], timeout: int = 60) -> str:
 
 def remote_python(target: str, source: str, args: list[str], timeout: int = 60) -> str:
     payload = base64.b64encode(source.encode("utf-8")).decode("ascii")
-    launcher = "import base64;exec(base64.b64decode(" + repr(payload) + "))"
-    return run_capture(ssh_base(target) + ["python3", "-c", launcher, *args], timeout=timeout)
+    args_payload = base64.b64encode(
+        json.dumps(args, separators=(",", ":")).encode("utf-8")
+    ).decode("ascii")
+    launcher = (
+        "import base64,json,sys;"
+        "sys.argv=['remote']+json.loads(base64.b64decode(" + repr(args_payload) + "));"
+        "exec(base64.b64decode(" + repr(payload) + "))"
+    )
+    remote_command = "python3 -c " + shlex.quote(launcher)
+    return run_capture(ssh_base(target) + [remote_command], timeout=timeout)
 
 
 REMOTE_PREFLIGHT = r"""
@@ -392,7 +401,20 @@ def run_preflight(args: argparse.Namespace) -> int:
     validate_target(args.t1)
     bundle = validate_bundle(Path(args.bundle))
     profile = bundle["profile"]
-    raw = remote_python(args.t1, REMOTE_PREFLIGHT, [json.dumps(profile, separators=(",", ":")), CONTAINER_NAME], timeout=60)
+    public_profile = {
+        "interface": profile["interface"],
+        "restore_host": profile["restore_host"],
+        "prefixlen": profile["prefixlen"],
+        "live_alias": profile["live_alias"],
+        "blackhole_ip": profile["blackhole_ip"],
+        "broker_port": profile["broker_port"],
+    }
+    raw = remote_python(
+        args.t1,
+        REMOTE_PREFLIGHT,
+        [json.dumps(public_profile, separators=(",", ":")), CONTAINER_NAME],
+        timeout=60,
+    )
     remote = parse_single_json(raw)
     if remote.get("status") != "PASS":
         raise StopExecution("T1 lab read-only preflight did not PASS")
@@ -496,6 +518,58 @@ if os.path.exists(root):
     raise SystemExit("remote lab root already exists")
 os.makedirs(root, mode=0o700)
 os.chmod(root, 0o700)
+"""
+
+
+REMOTE_ABORT = r"""
+import json
+import os
+import shutil
+import subprocess
+import sys
+
+root, container_name, app_hash = sys.argv[1:4]
+
+
+def run(argv):
+    return subprocess.run(argv, text=True, capture_output=True, check=False, timeout=30)
+
+
+if os.geteuid() != 0:
+    raise RuntimeError("root SSH required")
+if root != "/run/n3w-gate-a-77b0fd6a":
+    raise RuntimeError("unexpected remote lab root")
+
+p = run(["docker", "inspect", container_name])
+if p.returncode == 0:
+    doc = json.loads(p.stdout)[0]
+    labels = doc.get("Config", {}).get("Labels", {}) or {}
+    if labels.get("gh.n3w.gate-a") == "1" and labels.get("gh.n3w.gate-a.bundle") == app_hash:
+        run(["docker", "rm", "-f", container_name])
+
+profile_path = os.path.join(root, "profile.json")
+if os.path.isfile(profile_path):
+    try:
+        with open(profile_path, "r", encoding="utf-8") as handle:
+            profile = json.load(handle)
+        p = run(["ip", "-j", "-4", "addr", "show", "dev", profile["interface"]])
+        if p.returncode == 0:
+            doc = json.loads(p.stdout)
+            if any(
+                x.get("local") == profile["live_alias"]
+                and int(x.get("prefixlen")) == int(profile["prefixlen"])
+                for x in doc[0].get("addr_info", [])
+            ):
+                run([
+                    "ip", "addr", "del",
+                    profile["live_alias"] + "/" + str(profile["prefixlen"]),
+                    "dev", profile["interface"],
+                ])
+    except Exception:
+        pass
+
+if os.path.isdir(root):
+    shutil.rmtree(root, ignore_errors=True)
 """
 
 
@@ -752,9 +826,11 @@ def run_activate(args: argparse.Namespace) -> int:
     preflight = load_preflight(preflight_path, args.t1, bundle)
     claim_preflight(preflight_path, args.t1, bundle)
 
-    remote_python(args.t1, REMOTE_PREPARE, [REMOTE_ROOT], timeout=30)
     holder, staging = make_staging(bundle)
+    mutation_started = False
     try:
+        remote_python(args.t1, REMOTE_PREPARE, [REMOTE_ROOT], timeout=30)
+        mutation_started = True
         copy_staging(args.t1, staging)
         raw = remote_python(
             args.t1,
@@ -769,6 +845,18 @@ def run_activate(args: argparse.Namespace) -> int:
             ],
             timeout=120,
         )
+    except Exception:
+        if mutation_started:
+            try:
+                remote_python(
+                    args.t1,
+                    REMOTE_ABORT,
+                    [REMOTE_ROOT, CONTAINER_NAME, APPLICATION_SHA256],
+                    timeout=60,
+                )
+            except Exception:
+                pass
+        raise
     finally:
         holder.cleanup()
     remote = parse_single_json(raw)
