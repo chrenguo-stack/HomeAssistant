@@ -22,6 +22,9 @@ ISOLATED_FIXTURE_SOURCE_REPAIR=IMPLEMENTED
 ISOLATED_FIXTURE_CI_PENDING=false
 ISOLATED_FIXTURE_CI=PASS
 PRIVATE_BUILD_EXECUTOR_CI=PASS
+PRIVATE_BUILD_LOCAL_FAILURE_1_ROOT_CAUSE=INTEL_MACOS_CBOR2_6_NO_PREBUILT_X86_64_WHEEL_AND_NO_RUST
+PRIVATE_BUILD_LOCAL_FAILURE_1_SOURCE_DEFECT=false
+PRIVATE_BUILD_LOCAL_FAILURE_1_REPAIR=REUSE_EXISTING_EXACT_ESPHOME_FIRST
 RUNTIME_BOUNDED_CANCEL_PROVEN=false
 FULL_AUTO_FALLBACK_IMPLEMENTATION_ALLOWED=false
 BOARD_ACCESS=true
@@ -99,6 +102,20 @@ ESP-IDF 5.5.4 对应 esp-mqtt：
 - 实板时使用独立临时 TLS MQTT lab broker。
 
 这样 Gate A 只测当前真正要回答的问题：ESPHome/ESP-IDF MQTT client 在连接中和重连等待中，能否在既有 25 秒预算内完成 runtime retarget。
+
+## 3.2 2026-09-29 本地私有构建失败与修补
+
+首次 Mac 私有构建在安装 ESPHome 依赖时停止，未进入固件编译。Python 3.11 本身正常；失败点是 `cbor2 6.1.4` 在 Intel macOS / CPython 3.11 上没有匹配的预编译 wheel，pip 因而退回源码构建，而该版本从 6.0 起使用 Rust，当前 Mac 没有 Rust toolchain。
+
+这不是 Gate A firmware/source failure，也没有 Board/T1 mutation。
+
+执行器现改为：
+
+1. 优先复用本机已经安装且版本**精确等于 2026.4.3** 的 ESPHome CLI；
+2. 其次检查当前 Python module 是否正好是 2026.4.3；
+3. 只有没有 exact local ESPHome 时才建立私有 venv；
+4. 对 Intel macOS 且没有 Rust 的情况 fail closed，不自动安装持久 Rust toolchain；
+5. 私有 venv 路径仍先升级 pip/setuptools/wheel，再安装 exact ESPHome。
 
 ## 4. 当前 STOP 点
 
