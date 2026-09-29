@@ -42,7 +42,13 @@ PUBLIC_REPOSITORY_SAFETY_CI_RUN=36516146186
 PUBLIC_REPOSITORY_SAFETY_CI=PASS
 SOURCE_REVIEW_HEAD_PR_WORKFLOWS=12_OF_12_PASS
 
-CURRENT_FC4_CA_PRIVATE_KEY_RUNTIME_AUTHORITY=UNPROVEN
+CURRENT_FC4_CA_PRIVATE_KEY_RUNTIME_AUTHORITY=PROVEN
+CURRENT_FC4_CA_CERT_KEY_MATCH=PASS
+CURRENT_FC4_CA_PRIVATE_KEY_PERMISSION_AUTHORITY=PASS
+CURRENT_FC4_CA_PRIVATE_KEY_UNIQUE_MATCH=PASS
+KF100_CA_KEY_READONLY_PREFLIGHT=PASS
+KF100_CA_KEY_PROBE_SCHEMA=gh.n3w-broker-ca-private-key-authority-probe/2
+KF100_CA_KEY_PROBE_RC=0
 LIVE_CERTIFICATE_MUTATION=false
 LIVE_TIMER_ENABLEMENT=false
 KF100_KNOWN_FAILURE_STATUS=OPEN
@@ -50,9 +56,13 @@ KF100_KNOWN_FAILURE_STATUS=OPEN
 
 The source repair keeps the current FC4 CA and Broker server private key for ordinary V1 server-certificate renewal, validates certificate/key authority fail-closed, performs an atomic certificate replacement, then restarts only the existing Broker activation owner because the current TLS files are single-file bind mounts. The new endpoint must present the expected new certificate under normal CA/hostname/time verification; failure triggers restoration of the old certificate and a second Broker activation check. FC4 CA and H0/H1 System CA are monitoring-only and remain separate controlled rollover problems.
 
-The source/test review is complete. Production activation is intentionally not claimed: the exact FC4 CA private-key runtime authority must be established by a future read-only T1 preflight before any timer enablement or live renewal test.
+The source/test review is complete. A fresh read-only T1 preflight subsequently proved one exact root-owned mode-0600 FC4 CA private-key match for the active Broker CA, with no second matching key in the bounded production authority roots. Production activation is still intentionally not claimed: no certificate mutation or timer enablement has occurred.
 
-Authority: `docs/development/N3W_T1_BROKER_CERTIFICATE_LIFECYCLE_SOURCE_REPAIR_REVIEW_20260929.md`.
+Authority: `docs/development/N3W_KF100_FC4_CA_PRIVATE_KEY_AUTHORITY_READONLY_EXECUTION_20260929.md`.
+
+```text
+NEXT_ONE_GATE=N3W_KF100_BROKER_CERTIFICATE_LIFECYCLE_PRODUCTION_DEPLOYMENT_PREPARATION_20260929_01
+```
 
 
 ## 2026-09-28 KF-099 exact repaired firmware physical validation CLOSED_PASS
