@@ -1,7 +1,7 @@
 # N3-W Current State Index
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
-Current progress alignment: `docs/development/N3W_KF100_FC4_CA_PRIVATE_KEY_AUTHORITY_READONLY_EXECUTION_20260929.md`  
+Current progress alignment: `docs/development/N3W_KF100_BROKER_CERTIFICATE_LIFECYCLE_PRODUCTION_DEPLOYMENT_READONLY_PREFLIGHT_20260929.md`  
 Current new-chat handoff: `docs/development/N3W_PR475_PR478_POSTMERGE_MAIN_ALIGNMENT_NEW_CHAT_HANDOFF_V1.0_20260927.md`  
 Long-term working context: `docs/development/N3W_PROJECT_WORKING_CONTEXT.md`  
 Current handoff template: `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` v1.2  
@@ -15,6 +15,33 @@ Current production artifact binding authority: `docs/development/N3W_PRODUCTION_
 Currently deployed Board B source: `c578bcb2e31f50771b6b08c231704da6bf36b729` / artifact `10959875986` / application SHA-256 `d0875ca692f7bd4349fd7d8bcdab69318e6c8b737b69a48f667b6e72cb89cb60`  
 Current local-development-environment authority: `docs/development/local-environment-records/2026-09-17-macos-x86_64.json`  
 Active product-direction authority: `docs/development/N3W_OFFICIAL_ESPNOW_REFERENCE_PRODUCT_DIRECTION_DECISION_20260906.md`
+
+
+## 2026-09-29 KF-100 production deployment preparation snapshot
+
+```text
+KF100_DEPLOYMENT_PREPARATION_PR=507
+KF100_DEPLOYMENT_PREFLIGHT_SOURCE_TEST_HEAD=4b3d77e83f16c91cd73eabf543c02e1a40158c44
+KF100_DEPLOYMENT_PREFLIGHT_SOURCE_REVIEW=PASS
+KF100_DEPLOYMENT_PREFLIGHT_TESTS=PASS
+KF100_DEPLOYMENT_PREFLIGHT_SOURCE_CI=12_OF_12_PASS
+
+T1_MUTATION=false
+CERTIFICATE_MUTATION=false
+TIMER_ENABLEMENT=false
+LIFECYCLE_INSTALLATION=false
+
+KF100_DEPLOYMENT_READONLY_PREFLIGHT=PASS
+SERVER_KEY_OWNER_MATCHES_BROKER=true
+LIVE_TLS_VERIFIED=true
+LIFECYCLE_TIMER_ENABLED=not-found
+DEPLOYMENT_TARGET_PRESENT_COUNT=0
+
+NEXT_ONE_GATE=N3W_KF100_BROKER_CERTIFICATE_LIFECYCLE_PRODUCTION_INSTALLATION_20260929_01
+```
+
+Authority: `docs/development/N3W_KF100_BROKER_CERTIFICATE_LIFECYCLE_PRODUCTION_DEPLOYMENT_PREFLIGHT_REVIEW_20260929.md`.
+
 
 
 ## 2026-09-29 KF-100 Broker certificate lifecycle source repair snapshot
