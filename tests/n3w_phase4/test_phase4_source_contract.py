@@ -421,12 +421,30 @@ def test_auto_safe_fallback_gate_a_fixture_is_lab_only_and_runtime_ephemeral() -
         / "firmware/esphome_rc/board_lab/n3w_auto_safe_fallback_gate_a/generic.yml"
     )
 
-    assert "!env_var N3W_GATE_A_LIVE_ALIAS" in fixture
-    assert "!env_var N3W_GATE_A_BLACKHOLE_IP" in fixture
-    assert "!env_var N3W_GATE_A_RESTORE_HOST" in fixture
-    assert "!env_var N3W_GATE_A_BROKER_PORT" in fixture
-    assert "phase4_product_runtime: true" in fixture
-    assert "phase4_lab_diagnostics: true" in fixture
+    for name in (
+        "N3W_GATE_A_LIVE_ALIAS",
+        "N3W_GATE_A_BLACKHOLE_IP",
+        "N3W_GATE_A_RESTORE_HOST",
+        "N3W_GATE_A_BROKER_PORT",
+        "N3W_GATE_A_TLS_SERVER_NAME",
+        "N3W_GATE_A_CA_PEM_ESCAPED",
+        "N3W_GATE_A_MQTT_USERNAME",
+        "N3W_GATE_A_MQTT_PASSWORD",
+        "N3W_GATE_A_MQTT_CLIENT_ID",
+    ):
+        assert f"!env_var {name}" in fixture
+
+    assert "phase4_product_runtime: false" in fixture
+    assert "phase4_lab_diagnostics: false" in fixture
+    assert "runtime_ready()" not in fixture
+    assert "GATE_A_EPHEMERAL_MQTT_CONFIG_APPLIED" in fixture
+    assert "set_broker_address(restore_host)" in fixture
+    assert "set_broker_port(broker_port)" in fixture
+    assert "set_tls_server_name(tls_server_name)" in fixture
+    assert "set_ca_certificate(ca_pem.c_str())" in fixture
+    assert "set_username(mqtt_username)" in fixture
+    assert "set_password(mqtt_password)" in fixture
+    assert "set_client_id(mqtt_client_id)" in fixture
     assert "n3w_runtime_retarget_server" in fixture
     assert "n3w_runtime_request_disconnect" in fixture
     assert "n3w_runtime_request_reconnect" in fixture
@@ -434,5 +452,3 @@ def test_auto_safe_fallback_gate_a_fixture_is_lab_only_and_runtime_ephemeral() -
     assert "GATE_A_FAIL" in fixture
     assert "save(" not in fixture
     assert "NvsProvisionedBrokerStoreV2" not in fixture
-    assert "mqtt_username" not in fixture
-    assert "mqtt_password" not in fixture
