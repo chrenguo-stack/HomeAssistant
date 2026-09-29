@@ -119,3 +119,55 @@ Source review can close only after that exact implementation test run completes 
 ```text
 NEXT_ONE_GATE=N3W_KF100_BROKER_CERTIFICATE_LIFECYCLE_PRODUCTION_INSTALLATION_EXECUTION_20260929_01
 ```
+
+
+## CI failure forensic and repair
+
+The focused CI failure was reproduced from run `36524006163`.
+
+Observed failing tests:
+
+```text
+test_installation_only_success
+test_daemon_reload_failure_rolls_back
+```
+
+The failure was not caused by T1 state and not by the production installation policy.
+
+Root cause:
+
+```text
+TEST_FIXTURE_STATUS_PARENT_MISSING=true
+TEST_STATUS_PATH=<tmp>/installed/var/lib/n3wfc4-certificate-lifecycle
+TEST_CREATED_PARENT=<tmp>/installed/var/lib = false
+
+PRODUCTION_STATUS_PARENT=/var/lib
+PRODUCTION_STATUS_PARENT_EXISTS=true
+```
+
+The executor correctly uses a one-level `mkdir` for the private status authority and does not recursively create arbitrary production parent directories. The host test fixture failed to model the existing production `/var/lib` parent, so installation stopped during `install_files`. In the synthetic daemon-reload test, that early stop also caused the mocked rollback reload to fail on its first invocation, producing the secondary unexpected return code.
+
+Repair:
+
+- the test fixture now explicitly creates the modeled `var/lib` parent;
+- production source now explicitly validates that the status parent already exists, is a real directory, and is root-owned before mutation.
+
+```text
+CLASSIFICATION=HOST_TEST_FIXTURE_DEFECT_PLUS_PRECONDITION_HARDENING
+PRODUCT_RUNTIME_DEFECT=false
+T1_EXECUTION_OCCURRED=false
+T1_MUTATION=false
+```
+
+Corrected source/test head:
+
+```text
+d301da66013f878dd9bf4ba0752e8f9b3f5fed71
+```
+
+Fresh focused CI run:
+
+```text
+N3W_BROKER_INGRESS_GUARD_CI_RUN=36527867856
+STATUS=QUEUED_AT_LAST_CHECK
+```
