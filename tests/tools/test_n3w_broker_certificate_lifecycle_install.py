@@ -320,3 +320,58 @@ def test_source_has_no_enable_start_restart_commands() -> None:
     for token in forbidden:
         assert token not in source
     assert "systemctl", "daemon-reload" in source
+
+
+def test_atomic_write_directory_fsync_failure_removes_replaced_target(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    target = tmp_path / "target"
+    monkeypatch.setattr(tool.os, "chown", lambda *_args, **_kwargs: None)
+    calls = 0
+    original_fsync = tool.os.fsync
+
+    def fail_second_fsync(fd: int):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise OSError("synthetic directory fsync failure")
+        return original_fsync(fd)
+
+    monkeypatch.setattr(tool.os, "fsync", fail_second_fsync)
+
+    with pytest.raises(OSError, match="synthetic directory fsync failure"):
+        tool._write_atomic(target, b"payload", 0o600)
+
+    assert not target.exists()
+
+
+def test_status_directory_owner_failure_rolls_back_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    runtime = prepare_runtime(tmp_path, tool, monkeypatch)
+
+    def fail_status_chown(path, uid, gid):
+        if Path(path) == tool.STATUS_DIR:
+            raise OSError("synthetic status chown failure")
+
+    monkeypatch.setattr(tool.os, "chown", fail_status_chown)
+
+    document, code = tool.install(
+        runtime["lifecycle"],
+        runtime["service"],
+        runtime["timer"],
+        runtime["preflight"],
+    )
+
+    assert code == 2
+    assert document["result"] == "STOP"
+    assert document["installation_rollback"] == "PASS"
+    assert not tool.STATUS_DIR.exists()
+    assert not tool.LIFECYCLE_TARGET.exists()
+    assert not tool.SERVICE_TARGET.exists()
+    assert not tool.TIMER_TARGET.exists()
+    assert not tool.ENV_TARGET.exists()
