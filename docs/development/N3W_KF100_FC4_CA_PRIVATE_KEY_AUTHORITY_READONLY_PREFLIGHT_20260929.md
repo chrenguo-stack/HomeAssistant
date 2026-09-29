@@ -3,9 +3,9 @@
 Status: `PREEXECUTION_READY`  
 Repair PR: `#506`  
 Repair branch: `fix/n3w-t1-broker-certificate-lifecycle-20260929`  
-Probe/test verified head: `9ba45af986cbf0612fd4c4cc4707016fc7ecdc34`  
+Probe/test verified head: `14ed473b49c2b926fea7b2c56607febb6bd39ae3`  
 Probe source: `tools/n3w_broker_ca_private_key_authority_probe.py`  
-Focused CI: `N3W Broker ingress guard CI` run `36516955029` = `PASS`
+Focused CI: `N3W Broker ingress guard CI` run `36517861607` = `PASS`
 
 ## Purpose
 
@@ -140,3 +140,25 @@ If it returns STOP because multiple matching copies exist, the next gate must cl
 ```text
 NEXT_ONE_GATE=N3W_KF100_FC4_CA_PRIVATE_KEY_AUTHORITY_READONLY_EXECUTION_20260929_01
 ```
+
+
+## 2026-09-29 execution-code review correction
+
+The first live invocation was stopped because it could remain silent for a long time. Source review found two probe defects before any T1 result was accepted:
+
+```text
+DEFECT_1=every bounded small file was passed to openssl pkey
+DEFECT_2=stdout/stderr had no progress marker until final completion
+DEFECT_3=search authority covered only the active FC4 persistent tree and could miss the current private-materialization root
+LIVE_MUTATION_OCCURRED=false
+```
+
+Probe schema V2 fixes this by:
+
+- reading only a small prefix of each bounded file first and invoking OpenSSL only for private-key-looking candidates;
+- reducing per-candidate OpenSSL timeout;
+- emitting public-safe progress stages immediately;
+- scanning both the active FC4 persistent root and bounded `/root/n3w-fc4-private-materialization.*` roots;
+- preserving the same no-write/no-service-mutation contract.
+
+Focused regression at exact V2 source/test head `14ed473b49c2b926fea7b2c56607febb6bd39ae3` passed in N3W Broker ingress guard CI run `36517861607`.
