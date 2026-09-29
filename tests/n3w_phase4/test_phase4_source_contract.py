@@ -413,3 +413,26 @@ def test_runtime_mqtt_retarget_probe_is_address_only_and_fail_closed() -> None:
     assert "set_username" not in client
     assert "set_password" not in client
     assert "set_client_id" not in client
+
+
+def test_auto_safe_fallback_gate_a_fixture_is_lab_only_and_runtime_ephemeral() -> None:
+    fixture = text(
+        ROOT
+        / "firmware/esphome_rc/board_lab/n3w_auto_safe_fallback_gate_a/generic.yml"
+    )
+
+    assert "!env_var N3W_GATE_A_LIVE_ALIAS" in fixture
+    assert "!env_var N3W_GATE_A_BLACKHOLE_IP" in fixture
+    assert "!env_var N3W_GATE_A_RESTORE_HOST" in fixture
+    assert "!env_var N3W_GATE_A_BROKER_PORT" in fixture
+    assert "phase4_product_runtime: true" in fixture
+    assert "phase4_lab_diagnostics: true" in fixture
+    assert "n3w_runtime_retarget_server" in fixture
+    assert "n3w_runtime_request_disconnect" in fixture
+    assert "n3w_runtime_request_reconnect" in fixture
+    assert "GATE_A_PHYSICAL_SEQUENCE_PASS" in fixture
+    assert "GATE_A_FAIL" in fixture
+    assert "save(" not in fixture
+    assert "NvsProvisionedBrokerStoreV2" not in fixture
+    assert "mqtt_username" not in fixture
+    assert "mqtt_password" not in fixture
