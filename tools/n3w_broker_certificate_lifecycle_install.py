@@ -123,6 +123,7 @@ def _write_atomic(path: Path, payload: bytes, mode: int) -> None:
     parent = path.parent
     temporary = parent / f".{path.name}.{secrets.token_hex(8)}.tmp"
     descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, mode)
+    replaced = False
     try:
         with os.fdopen(descriptor, "wb") as stream:
             stream.write(payload)
@@ -131,6 +132,7 @@ def _write_atomic(path: Path, payload: bytes, mode: int) -> None:
         os.chmod(temporary, mode)
         os.chown(temporary, 0, 0)
         os.replace(temporary, path)
+        replaced = True
         directory = os.open(parent, os.O_RDONLY)
         try:
             os.fsync(directory)
@@ -138,6 +140,8 @@ def _write_atomic(path: Path, payload: bytes, mode: int) -> None:
             os.close(directory)
     except Exception:
         temporary.unlink(missing_ok=True)
+        if replaced:
+            path.unlink(missing_ok=True)
         raise
 
 
@@ -288,9 +292,9 @@ def install(
             raise InstallError("environment_parent_owner_invalid")
 
         STATUS_DIR.mkdir(mode=0o700)
+        status_created = True
         os.chown(STATUS_DIR, 0, 0)
         os.chmod(STATUS_DIR, 0o700)
-        status_created = True
 
         _copy_atomic(lifecycle_source, LIFECYCLE_TARGET, 0o755)
         created.append(LIFECYCLE_TARGET)
