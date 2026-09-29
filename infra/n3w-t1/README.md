@@ -36,6 +36,26 @@ infra/n3w-t1/install-systemd-persistence.sh
 → /usr/local/sbin/n3w-broker-systemd-persistence-install
 mode=0755
 owner=root:root
+
+tools/n3w_broker_certificate_lifecycle.py
+→ /usr/local/sbin/n3w-broker-certificate-lifecycle
+mode=0755
+owner=root:root
+
+infra/n3w-t1/systemd/n3wfc4-broker-certificate-lifecycle.service
+→ /etc/systemd/system/n3wfc4-broker-certificate-lifecycle.service
+mode=0644
+owner=root:root
+
+infra/n3w-t1/systemd/n3wfc4-broker-certificate-lifecycle.timer
+→ /etc/systemd/system/n3wfc4-broker-certificate-lifecycle.timer
+mode=0644
+owner=root:root
+
+infra/n3w-t1/broker-certificate-lifecycle.env.example
+→ operator-created /etc/n3wfc4/broker-certificate-lifecycle.env
+mode=0600
+owner=root:root
 ```
 
 `broker-activation.env` 只允许保存 Compose 文件路径、env-file 路径和固定 Compose project identity；不得保存 Broker、Manager、TLS 或其他生产凭据。
@@ -55,6 +75,7 @@ owner=root:root
 ```text
 GUARD_ENABLED=enabled
 ACTIVATION_ENABLED=enabled
+CERTIFICATE_LIFECYCLE_TIMER_ENABLED=enabled
 SYSTEMD_PERSISTENCE_INSTALL=PASS
 ```
 
@@ -143,3 +164,31 @@ firewall apply/readback failure
 安装时不能先启用 wildcard Broker 再补 guard。必须先证明 fail-closed guard 已存在，再进入 Broker recreate/activation。
 
 rollback 也必须先停止或撤销 wildcard Broker publication，证明 host TCP/8883 wildcard 已关闭，然后才能删除项目自有 anchor/chain。若 wildcard 是否关闭无法证明，保留 DROP guard。
+
+
+## Broker certificate lifecycle source contract
+
+当前证书生命周期源码把普通 Broker 服务端证书续签与 CA 换代明确分离：
+
+```text
+Broker server certificate
+→ daily expiry audit
+→ warning at 90 days
+→ automatic renewal due at 60 days
+→ critical at 30 days
+→ same FC4 CA
+→ same Broker server private key in V1
+→ atomic certificate replacement
+→ mandatory Broker activation restart
+→ verified loopback TLS postcheck
+→ automatic old-certificate rollback on postcheck failure
+
+FC4 private CA / H0-H1 System CA
+→ expiry monitoring only
+→ no automatic replacement
+→ controlled trust rollover remains a separate future gate
+```
+
+Broker TLS 文件当前采用 single-file bind mount，因此宿主机证书原子替换后必须经过现有 `n3wfc4-broker-activation.service` 重启/重建，并以实际 TLS endpoint 呈现的新证书指纹作为生效证据。Manager 与 Home Assistant 不因普通服务端证书续签而重启，已配对节点不更换 trust anchor，也不重新配对。
+
+`broker-certificate-lifecycle.env` 是私有部署配置，不得提交真实生产路径或 CA 私钥位置。源码示例只使用非生产占位路径。自动续签真正启用前，live gate 必须先只读证明当前 FC4 CA 私钥的真实 authority、权限和 cert/key match；当前 GitHub source repair 不等于 live 自动续签授权。
