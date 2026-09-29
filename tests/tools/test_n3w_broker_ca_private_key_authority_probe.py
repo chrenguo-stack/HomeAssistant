@@ -115,6 +115,11 @@ def prepare_probe_tree(tmp_path: Path) -> tuple[Path, Path, Path]:
 
 def patch_runtime(tool, monkeypatch: pytest.MonkeyPatch, cert: Path, root: Path) -> None:
     monkeypatch.setattr(tool.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(
+        tool,
+        "EXPECTED_CA_SHA256_FINGERPRINT",
+        tool._certificate_fingerprint(cert),
+    )
     monkeypatch.setattr(tool, "_running_broker_container", lambda: "container-id")
     monkeypatch.setattr(
         tool,
@@ -300,3 +305,31 @@ def test_main_rejects_invalid_limits_without_probe(
     document = json.loads(capsys.readouterr().out)
     assert document["result"] == "STOP"
     assert document["reason"] == "max_files_invalid"
+
+
+def test_active_ca_fingerprint_drift_stops(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    root, cert, _key = prepare_probe_tree(tmp_path)
+    monkeypatch.setattr(tool.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(tool, "_running_broker_container", lambda: "container-id")
+    monkeypatch.setattr(
+        tool,
+        "_broker_inspect",
+        lambda _container_id: broker_inspect(cert),
+    )
+    monkeypatch.setattr(tool, "_active_ca_source", lambda _inspect: cert)
+    monkeypatch.setattr(tool, "_derived_search_root", lambda _ca_source: root)
+    monkeypatch.setattr(
+        tool,
+        "EXPECTED_CA_SHA256_FINGERPRINT",
+        "0" * 64,
+    )
+
+    with pytest.raises(
+        tool.ProbeError,
+        match="active_broker_ca_fingerprint_drift",
+    ):
+        tool.probe(max_files=100, max_depth=8)
