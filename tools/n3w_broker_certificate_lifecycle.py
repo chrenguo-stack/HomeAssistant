@@ -140,7 +140,7 @@ def _validated_file(
 
 
 def _validate_dns_name(value: str) -> str:
-    name = value.strip()
+    name = value.strip().rstrip(".")
     if not name or len(name) > 253 or "/" in name or "\x00" in name:
         raise LifecycleError("server_name_invalid")
     labels = name.rstrip(".").split(".")
@@ -716,8 +716,7 @@ def _fsync_directory(path: Path) -> None:
         os.close(descriptor)
 
 
-def _replace_from_candidate(
-    active: Path,
+def _prepare_candidate_for_replace(
     candidate: Path,
     original_stat: os.stat_result,
 ) -> None:
@@ -731,8 +730,6 @@ def _replace_from_candidate(
         os.chown(candidate, original_stat.st_uid, original_stat.st_gid)
     with candidate.open("rb") as stream:
         os.fsync(stream.fileno())
-    os.replace(candidate, active)
-    _fsync_directory(active.parent)
 
 
 def _restore_bytes(
@@ -868,12 +865,13 @@ def auto_renew(
             stream.write(original_bytes)
             stream.flush()
             os.fsync(stream.fileno())
-        _replace_from_candidate(
-            config.server_cert,
+        _prepare_candidate_for_replace(
             candidate,
             original_stat,
         )
+        os.replace(candidate, config.server_cert)
         replaced = True
+        _fsync_directory(config.server_cert.parent)
         _restart_activation(config.activation_unit)
         observed = _probe_verified(
             config.probe_host,
