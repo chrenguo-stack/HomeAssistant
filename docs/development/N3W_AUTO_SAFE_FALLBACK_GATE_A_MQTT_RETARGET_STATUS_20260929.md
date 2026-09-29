@@ -34,6 +34,11 @@ PRIVATE_BUILD_SERVER_KEY_SHA256=29ee45ca617fb5e4e854081e77a9ae4c468c3b07fb1d206c
 PRIVATE_BUILD_ESPHOME_SOURCE=existing_exact_cli
 T1_ISOLATED_LAB_EXECUTOR=IMPLEMENTED
 T1_ISOLATED_LAB_EXECUTOR_CI_PENDING=true
+BOARD_B_GATE_A_WRITE_EXECUTOR=IMPLEMENTED
+BOARD_B_GATE_A_WRITE_EXECUTOR_CI_PENDING=true
+KF099_ROLLBACK_ARTIFACT_AVAILABLE=true
+KF099_ROLLBACK_ARTIFACT_ID=10959875986
+KF099_ROLLBACK_ARTIFACT_EXPIRES_AT=2026-10-05T08:48:09Z
 RUNTIME_BOUNDED_CANCEL_PROVEN=false
 FULL_AUTO_FALLBACK_IMPLEMENTATION_ALLOWED=false
 BOARD_ACCESS=true
@@ -139,6 +144,19 @@ Gate A 现已冻结到本次私有构建的 application / otadata / CA / server 
 - `cleanup`：只清理带 exact label 的临时容器、exact live alias 和 exact `/run` 目录；
 - 生产 Broker、Manager、DynSec、HA、Compose authority、Board B 均不属于该 T1 lab transaction 的修改范围。
 
+## 3.4 Board B exact write gate 已准备
+
+Board B Gate A writer 已加入仓库，但尚未执行。它冻结到本次私有 application / otadata 哈希和 Board B / partition-table identity。
+
+写入范围只允许：
+
+- `0x9000` otadata；
+- `0x10000` application。
+
+bootloader、partition table、product NVS 和 full erase 均明确禁止。写入前必须重新做不超过 15 分钟的 read-only Board preflight，并消费一次性授权。
+
+KF-099 rollback artifact 已 fresh 检查，当前仍未过期且 GitHub digest 与冻结 SHA256 一致。历史 KF-099 写入授权不可复用；回退仍需要新的独立授权。
+
 ## 4. 当前 STOP 点
 
 源码层最小接口、源码合同测试和 ESP32-C6 编译已经通过，但现在还不能称为 Gate A PASS。
@@ -152,6 +170,8 @@ source-contract test PASS
 -> T1 isolated-lab package CI PENDING
 -> fresh T1 read-only lab preflight PENDING
 -> explicit T1 mutation authorization PENDING
+-> Board B exact write package CI PENDING
+-> Board B read-only preflight PENDING
 -> Board B write authorization PENDING
 -> 实板 timing gate PENDING
 ```
