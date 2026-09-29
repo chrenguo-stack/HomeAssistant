@@ -1,10 +1,11 @@
 # N3-W KF-100 FC4 CA Private-Key Authority Read-Only Preflight — 2026-09-29
 
-Status: `PREEXECUTION_READY_CI_PENDING`  
+Status: `PREEXECUTION_READY`  
 Repair PR: `#506`  
 Repair branch: `fix/n3w-t1-broker-certificate-lifecycle-20260929`  
-Probe source commit: `55940571661333b304bc8e71844d296219623b11`  
-Probe source: `tools/n3w_broker_ca_private_key_authority_probe.py`
+Probe/test verified head: `9ba45af986cbf0612fd4c4cc4707016fc7ecdc34`  
+Probe source: `tools/n3w_broker_ca_private_key_authority_probe.py`  
+Focused CI: `N3W Broker ingress guard CI` run `36516955029` = `PASS`
 
 ## Purpose
 
