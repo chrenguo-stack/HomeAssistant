@@ -15,6 +15,7 @@ SCHEMA = "gh.n3w-broker-ca-private-key-authority-probe/1"
 EXPECTED_PROJECT = "n3wfc4"
 EXPECTED_SERVICE = "broker"
 EXPECTED_CA_TARGET = "/mosquitto/tls/ca.pem"
+EXPECTED_CA_SHA256_FINGERPRINT = "b305f61656a0e795bc5dcc5388ba63bc77d824dc3329cf07b744ad9c91c66351"
 MAX_FILE_BYTES = 65536
 DEFAULT_MAX_FILES = 5000
 DEFAULT_MAX_DEPTH = 8
@@ -309,6 +310,8 @@ def probe(*, max_files: int, max_depth: int) -> dict[str, object]:
     inspect = _broker_inspect(container_id)
     ca_source = _active_ca_source(inspect)
     fingerprint = _certificate_fingerprint(ca_source)
+    if fingerprint != EXPECTED_CA_SHA256_FINGERPRINT:
+        raise ProbeError("active_broker_ca_fingerprint_drift")
     if not _certificate_is_ca(ca_source):
         raise ProbeError("active_broker_certificate_not_ca")
     ca_public = _certificate_public_key_der(ca_source)
