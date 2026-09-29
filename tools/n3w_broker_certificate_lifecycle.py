@@ -417,7 +417,7 @@ def _base_status(
 
 def _status_parent(path: Path) -> Path:
     absolute = Path(os.path.abspath(os.fspath(path.expanduser())))
-    parent = absolute.parent
+    parent = _absolute_without_symlink(absolute.parent, must_exist=False)
     parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     parent = _absolute_without_symlink(parent, must_exist=True)
     if parent.stat().st_mode & 0o077:
@@ -534,9 +534,10 @@ def _probe_verified(
     timeout: float = 10.0,
 ) -> str:
     try:
-        context = ssl.create_default_context(cafile=str(ca_certificate))
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         context.check_hostname = True
         context.verify_mode = ssl.CERT_REQUIRED
+        context.load_verify_locations(cafile=str(ca_certificate))
         with socket.create_connection((host, port), timeout=timeout) as raw:
             with context.wrap_socket(raw, server_hostname=server_name) as wrapped:
                 der = wrapped.getpeercert(binary_form=True)
@@ -1011,6 +1012,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         parent = _status_parent(config.status_file)
         lock_path = parent / ".certificate-lifecycle.lock"
         descriptor = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+        if os.fstat(descriptor).st_mode & 0o077:
+            os.close(descriptor)
+            raise LifecycleError("lifecycle_lock_permissions_unsafe")
         with os.fdopen(descriptor, "r+") as lock_stream:
             try:
                 fcntl.flock(lock_stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
