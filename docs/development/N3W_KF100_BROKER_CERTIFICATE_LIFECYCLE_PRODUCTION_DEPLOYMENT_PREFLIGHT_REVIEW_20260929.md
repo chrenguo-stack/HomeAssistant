@@ -188,3 +188,30 @@ TIMER_ENABLEMENT=false
 
 NEXT_ONE_GATE=N3W_KF100_BROKER_CERTIFICATE_LIFECYCLE_PRODUCTION_DEPLOYMENT_READONLY_PREFLIGHT_20260929_01
 ```
+
+
+## Post-review live correction
+
+The first real T1 read-only execution exposed one review assumption error:
+
+```text
+OLD_ASSUMPTION=server.key must be root-owned
+LIVE_FACT=running Mosquitto effective UID/GID is 1883:1883
+LIVE_FACT=server.key UID/GID is 1883:1883
+LIVE_FACT=server.key mode is 0600
+LIVE_FACT=container-visible server.key UID/GID/mode is 1883:1883/0600
+LIVE_FACT=server cert/key public-key match PASS
+CLASSIFICATION=PREFLIGHT_HARNESS_DEFECT
+PRODUCT_TLS_DEFECT=false
+```
+
+The corrected contract binds server-key ownership to the running Broker process effective UID/GID instead of root. This is stricter and more accurate for the actual runtime because it proves that the least-privilege Mosquitto process is the intended reader.
+
+The FC4 CA signing key remains independently required to be root-owned and mode-safe.
+
+The corrected source adds regression coverage for:
+
+- non-root Broker UID/GID with exact server-key owner match = PASS;
+- server-key owner not matching running Broker UID/GID = STOP.
+
+A fresh source/test review must bind the corrected commit and CI before the live read-only preflight is repeated.
