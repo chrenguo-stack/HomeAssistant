@@ -371,3 +371,45 @@ def test_relay_mac_delivery_feedback_is_destination_bound_and_loop_owned() -> No
     loop_end = component.index("bool SimpleProductComponent::send_telemetry_json", loop_start)
     loop = component[loop_start:loop_end]
     assert loop.index("drain_send_completions_();") < loop.index("drain_radio_();")
+
+
+def test_runtime_mqtt_retarget_probe_is_address_only_and_fail_closed() -> None:
+    patch = text(CORE / "n3w_tls_server_name_patch.py.script")
+
+    assert "n3w_runtime_retarget_server" in patch
+    assert "n3w_runtime_request_disconnect" in patch
+    assert "n3w_runtime_request_reconnect" in patch
+    assert "esp_mqtt_client_set_uri" in patch
+    assert "esp_mqtt_client_disconnect" in patch
+    assert "esp_mqtt_client_reconnect" in patch
+
+    retarget_start = patch.index(
+        '"  bool n3w_runtime_retarget_server(const std::string &host, uint16_t port) {\\n"'
+    )
+    retarget_end = patch.index(
+        '"  bool n3w_runtime_request_disconnect() {\\n"',
+        retarget_start,
+    )
+    retarget = patch[retarget_start:retarget_end]
+
+    assert '"mqtts://"' in retarget
+    assert '"mqtt://"' in retarget
+    assert "esp_mqtt_client_set_uri" in retarget
+    assert "set_tls_server_name" not in retarget
+    assert "set_ca_certificate" not in retarget
+    assert "set_credentials" not in retarget
+    assert "set_client_id" not in retarget
+    assert "esp_mqtt_client_stop" not in retarget
+    assert "esp_mqtt_client_destroy" not in retarget
+
+    client_start = patch.index(
+        '"  bool n3w_runtime_retarget_server(const std::string &address, uint16_t port) {\\n"'
+    )
+    client_end = patch.index('"#endif\\n"', client_start)
+    client = patch[client_start:client_end]
+
+    assert "this->credentials_.address = address" in client
+    assert "this->credentials_.port = port" in client
+    assert "set_username" not in client
+    assert "set_password" not in client
+    assert "set_client_id" not in client
