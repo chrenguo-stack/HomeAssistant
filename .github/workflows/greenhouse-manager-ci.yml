@@ -163,3 +163,16 @@ jobs:
           cd firmware/esphome_rc/board_lab/n3w_phase4_physical
           esphome config generic.yml
           esphome compile generic.yml
+
+      - name: Compile auto safe fallback Gate A fixture
+        shell: bash
+        env:
+          N3W_GATE_A_LIVE_ALIAS: 192.0.2.20
+          N3W_GATE_A_BLACKHOLE_IP: 192.0.2.21
+          N3W_GATE_A_RESTORE_HOST: 192.0.2.22
+          N3W_GATE_A_BROKER_PORT: "8883"
+        run: |
+          set -euo pipefail
+          cd firmware/esphome_rc/board_lab/n3w_auto_safe_fallback_gate_a
+          esphome config generic.yml
+          esphome compile generic.yml
