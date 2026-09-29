@@ -155,3 +155,23 @@ Live execution remains blocked until the exact current PR head passes the focuse
 ```text
 NEXT_ONE_GATE=N3W_KF100_BROKER_CERTIFICATE_LIFECYCLE_FIRST_AUDIT_EXECUTION_20260929_01
 ```
+
+
+## CI status at reviewed PR head
+
+At PR head `b838bc107bd1c8522d6ad333e772fec0b268ace5`:
+
+```text
+N3W_BROKER_INGRESS_GUARD_CI_RUN=36530328800
+N3W_BROKER_INGRESS_GUARD_CI=PASS
+
+PUBLIC_REPOSITORY_SAFETY_CI_RUN=36530328791
+PUBLIC_REPOSITORY_SAFETY_CI=PASS
+
+PR_WORKFLOWS_COMPLETED_PASS=11
+PR_WORKFLOWS_STILL_IN_PROGRESS=1
+IN_PROGRESS_WORKFLOW=M2 manager runtime secret ownership CI
+IN_PROGRESS_RUN=36530328785
+```
+
+The focused first-audit regression suite has passed. Live execution remains blocked until the final unrelated PR workflow also completes successfully.
