@@ -169,8 +169,8 @@ Therefore audit status creation is separated from renewal and Broker activation 
 
 ```text
 tools/n3w_broker_certificate_lifecycle_first_audit.py
-source head=7e2d5af707b487117ba52e06094b8e3d09d5f363
-git blob=a1d181c00d82fa455356b6f18f514788030e7dd0
+source head=f185018e333107e24a368339cfd06a62be8d6a3f
+git blob=3c800633b557c0b1b22eb3ee5be129b69500c4df
 ```
 
 Regression coverage includes:
@@ -178,6 +178,7 @@ Regression coverage includes:
 - direct audit command contains no private-key arguments and no `auto-renew`;
 - successful first audit;
 - existing status blocks execution;
+- any unexpected pre-audit status-directory entry blocks execution;
 - unexpected audit document blocks acceptance;
 - environment exact-key-set validation;
 - source-level no service/timer activation commands.
