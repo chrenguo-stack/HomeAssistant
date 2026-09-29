@@ -36,6 +36,9 @@ T1_ISOLATED_LAB_EXECUTOR=IMPLEMENTED
 T1_ISOLATED_LAB_EXECUTOR_CI_PENDING=true
 BOARD_B_GATE_A_WRITE_EXECUTOR=IMPLEMENTED
 BOARD_B_GATE_A_WRITE_EXECUTOR_CI_PENDING=true
+KF099_ROLLBACK_EXECUTOR=IMPLEMENTED
+KF099_ROLLBACK_EXECUTOR_CI_PENDING=true
+KF099_HISTORICAL_WRITE_AUTH_REPLAY=false
 KF099_ROLLBACK_ARTIFACT_AVAILABLE=true
 KF099_ROLLBACK_ARTIFACT_ID=10959875986
 KF099_ROLLBACK_ARTIFACT_EXPIRES_AT=2026-10-05T08:48:09Z
@@ -157,6 +160,12 @@ bootloader、partition table、product NVS 和 full erase 均明确禁止。写�
 
 KF-099 rollback artifact 已 fresh 检查，当前仍未过期且 GitHub digest 与冻结 SHA256 一致。历史 KF-099 写入授权不可复用；回退仍需要新的独立授权。
 
+## 3.5 Fresh KF-099 rollback gate 已准备
+
+为了避免复用已经消费的历史 KF-099 写入授权，Gate A 分支新增独立 rollback package。它接受同一个冻结 rollback artifact，但使用新的 preflight schema 和新的单次授权 token。
+
+回退写入范围同样只允许 `0x9000` 与 `0x10000`。回退后的正确基线定义为已知的 KF-099 pairing WAIT / `repair_intent_required`，不把“正常 Direct MQTT”误当作回退成功条件。
+
 ## 4. 当前 STOP 点
 
 源码层最小接口、源码合同测试和 ESP32-C6 编译已经通过，但现在还不能称为 Gate A PASS。
@@ -174,6 +183,8 @@ source-contract test PASS
 -> Board B read-only preflight PENDING
 -> Board B write authorization PENDING
 -> 实板 timing gate PENDING
+-> fresh KF099 rollback preflight PENDING
+-> fresh KF099 rollback write authorization PENDING
 ```
 
 实板 timing gate 至少要测：
