@@ -128,6 +128,9 @@ def _broker_inspect(container_id: str) -> dict[str, object]:
     state = item.get("State")
     if not isinstance(state, dict) or state.get("Running") is not True:
         raise PreflightError("broker_not_running")
+    pid = state.get("Pid")
+    if not isinstance(pid, int) or pid <= 0:
+        raise PreflightError("broker_pid_invalid")
     config = item.get("Config")
     labels = config.get("Labels") if isinstance(config, dict) else None
     if not isinstance(labels, dict):
@@ -270,13 +273,33 @@ def _private_public_key_der(path: Path) -> bytes | None:
     return result.stdout
 
 
-def _key_mode(path: Path) -> tuple[bool, bool, str]:
+def _key_mode(path: Path) -> tuple[int, int, bool, str]:
     file_stat = path.stat()
     return (
-        file_stat.st_uid == 0,
+        file_stat.st_uid,
+        file_stat.st_gid,
         (file_stat.st_mode & 0o077) == 0,
         format(stat.S_IMODE(file_stat.st_mode), "04o"),
     )
+
+
+def _broker_effective_identity(inspect: dict[str, object]) -> tuple[int, int]:
+    state = inspect.get("State")
+    if not isinstance(state, dict):
+        raise PreflightError("broker_state_invalid")
+    pid = state.get("Pid")
+    if not isinstance(pid, int) or pid <= 0:
+        raise PreflightError("broker_pid_invalid")
+    status_path = Path(f"/proc/{pid}/status")
+    try:
+        content = status_path.read_text(encoding="utf-8")
+    except OSError as error:
+        raise PreflightError("broker_process_status_unreadable") from error
+    uid_match = re.search(r"^Uid:\s+\d+\s+(\d+)\s+", content, flags=re.MULTILINE)
+    gid_match = re.search(r"^Gid:\s+\d+\s+(\d+)\s+", content, flags=re.MULTILINE)
+    if uid_match is None or gid_match is None:
+        raise PreflightError("broker_process_identity_missing")
+    return int(uid_match.group(1)), int(gid_match.group(1))
 
 
 def _persistent_root(ca_source: Path) -> Path:
@@ -413,8 +436,13 @@ def preflight(*, max_files: int, max_depth: int) -> dict[str, object]:
     server_key_public = _private_public_key_der(server_key)
     if server_key_public is None or server_key_public != server_public:
         raise PreflightError("server_key_mismatch")
-    server_key_root, server_key_safe, server_key_mode = _key_mode(server_key)
-    if not server_key_root or not server_key_safe:
+    broker_uid, broker_gid = _broker_effective_identity(inspect)
+    server_key_uid, server_key_gid, server_key_safe, server_key_mode = _key_mode(server_key)
+    if (
+        server_key_uid != broker_uid
+        or server_key_gid != broker_gid
+        or not server_key_safe
+    ):
         raise PreflightError("server_key_permissions_invalid")
 
     endpoint_fp = _tls_endpoint_fingerprint(ca_cert, EXPECTED_SERVER_NAME)
@@ -445,8 +473,8 @@ def preflight(*, max_files: int, max_depth: int) -> dict[str, object]:
     if len(matches) != 1:
         raise PreflightError("ca_private_key_not_unique")
     match_index, ca_key = matches[0]
-    ca_key_root, ca_key_safe, ca_key_mode = _key_mode(ca_key)
-    if not ca_key_root or not ca_key_safe:
+    ca_key_uid, ca_key_gid, ca_key_safe, ca_key_mode = _key_mode(ca_key)
+    if ca_key_uid != 0 or not ca_key_safe:
         raise PreflightError("ca_private_key_permissions_invalid")
 
     _progress("check_systemd")
@@ -486,7 +514,13 @@ def preflight(*, max_files: int, max_depth: int) -> dict[str, object]:
         "system_ca_not_after": _not_after(SYSTEM_CA_PATH),
         "server_name": EXPECTED_SERVER_NAME,
         "server_certificate_key_match": True,
-        "server_key_root_owned": server_key_root,
+        "broker_effective_uid": broker_uid,
+        "broker_effective_gid": broker_gid,
+        "server_key_uid": server_key_uid,
+        "server_key_gid": server_key_gid,
+        "server_key_owner_matches_broker": (
+            server_key_uid == broker_uid and server_key_gid == broker_gid
+        ),
         "server_key_mode_safe": server_key_safe,
         "server_key_mode": server_key_mode,
         "live_tls_verified": True,
@@ -497,7 +531,9 @@ def preflight(*, max_files: int, max_depth: int) -> dict[str, object]:
         "private_key_candidate_count": len(candidates),
         "parseable_private_key_count": parseable,
         "ca_private_key_match_count": 1,
-        "ca_private_key_root_owned": ca_key_root,
+        "ca_private_key_uid": ca_key_uid,
+        "ca_private_key_gid": ca_key_gid,
+        "ca_private_key_root_owned": ca_key_uid == 0,
         "ca_private_key_mode_safe": ca_key_safe,
         "ca_private_key_mode": ca_key_mode,
         "ca_private_key_path_token": _path_token(ca_key, roots[match_index], match_index),
