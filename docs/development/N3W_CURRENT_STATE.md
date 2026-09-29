@@ -1,9 +1,59 @@
 # N3-W Current State
 
-Updated: 2026-09-28  
+Updated: 2026-09-29  
 Status: `CURRENT_STATE_AUTHORITY`
 
 Fresh exact repository/runtime/physical evidence takes precedence if later evidence proves drift.
+
+
+## 2026-09-29 KF-100 T1 Broker certificate lifecycle source repair PASS
+
+Read-only production inventory established the current X.509 lifecycle authority, then PR #506 implemented and reviewed the source-only repair. Full baseline, design and source review are archived in:
+
+- `docs/development/N3W_T1_BROKER_CERTIFICATE_LIFECYCLE_RUNTIME_BASELINE_20260929.md`
+- `docs/development/N3W_T1_BROKER_CERTIFICATE_LIFECYCLE_REPAIR_DESIGN_20260929.md`
+- `docs/development/N3W_T1_BROKER_CERTIFICATE_LIFECYCLE_REPAIR_DESIGN_REVIEW_20260929.md`
+- `docs/development/N3W_T1_BROKER_CERTIFICATE_LIFECYCLE_SOURCE_REPAIR_REVIEW_20260929.md`
+
+```text
+KF100_REPAIR_PR=506
+KF100_PR_STATE=OPEN_DRAFT
+KF100_BRANCH=fix/n3w-t1-broker-certificate-lifecycle-20260929
+KF100_SOURCE_TEST_HEAD=e3d51c7de58e66c772443202e7bd290a047302c3
+
+CURRENT_TLS_RUNTIME=HEALTHY
+BROKER_SERVER_CERT_NOT_AFTER=2028-11-22T04:18:40Z
+FC4_PRIVATE_CA_NOT_AFTER=2036-08-17T04:18:39Z
+SYSTEM_CA_NOT_AFTER=2036-07-30T15:32:24Z
+
+ACTIVE_MANAGER_NODE_CA_EQUALS_BROKER_CA=true
+FOURTH_INDEPENDENT_PRODUCTION_X509_CERTIFICATE_FOUND=false
+
+BROKER_SERVER_CERTIFICATE_RENEWAL_SOURCE=IMPLEMENTED
+CERTIFICATE_EXPIRY_STATUS_SOURCE=IMPLEMENTED
+DAILY_CERTIFICATE_LIFECYCLE_TIMER_SOURCE=IMPLEMENTED
+FC4_CA_AUTO_REPLACEMENT=false
+SYSTEM_CA_AUTO_REPLACEMENT=false
+NODE_REPAIRING_REQUIRED_FOR_SERVER_RENEWAL=false
+
+N3W_BROKER_INGRESS_GUARD_CI_RUN=36516146163
+N3W_BROKER_INGRESS_GUARD_CI=PASS
+PUBLIC_REPOSITORY_SAFETY_CI_RUN=36516146186
+PUBLIC_REPOSITORY_SAFETY_CI=PASS
+SOURCE_REVIEW_HEAD_PR_WORKFLOWS=12_OF_12_PASS
+
+CURRENT_FC4_CA_PRIVATE_KEY_RUNTIME_AUTHORITY=UNPROVEN
+LIVE_CERTIFICATE_MUTATION=false
+LIVE_TIMER_ENABLEMENT=false
+KF100_KNOWN_FAILURE_STATUS=OPEN
+```
+
+The source repair keeps the current FC4 CA and Broker server private key for ordinary V1 server-certificate renewal, validates certificate/key authority fail-closed, performs an atomic certificate replacement, then restarts only the existing Broker activation owner because the current TLS files are single-file bind mounts. The new endpoint must present the expected new certificate under normal CA/hostname/time verification; failure triggers restoration of the old certificate and a second Broker activation check. FC4 CA and H0/H1 System CA are monitoring-only and remain separate controlled rollover problems.
+
+The source/test review is complete. Production activation is intentionally not claimed: the exact FC4 CA private-key runtime authority must be established by a future read-only T1 preflight before any timer enablement or live renewal test.
+
+Authority: `docs/development/N3W_T1_BROKER_CERTIFICATE_LIFECYCLE_SOURCE_REPAIR_REVIEW_20260929.md`.
+
 
 ## 2026-09-28 KF-099 exact repaired firmware physical validation CLOSED_PASS
 
