@@ -250,6 +250,11 @@ def install(
 
     if STATUS_DIR.exists():
         raise InstallError("status_authority_already_present")
+    if not STATUS_DIR.parent.is_dir() or STATUS_DIR.parent.is_symlink():
+        raise InstallError("status_parent_invalid")
+    status_parent_uid, status_parent_gid, _status_parent_mode = _owner_mode(STATUS_DIR.parent)
+    if status_parent_uid != 0 or status_parent_gid != 0:
+        raise InstallError("status_parent_owner_invalid")
 
     broker_before, started_before = _container_identity(preflight)
     inspect = preflight._broker_inspect(broker_before)
