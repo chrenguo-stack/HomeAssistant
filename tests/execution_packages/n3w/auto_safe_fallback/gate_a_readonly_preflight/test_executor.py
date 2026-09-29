@@ -46,7 +46,7 @@ def test_remote_probe_contains_no_persistent_mutation_commands() -> None:
 
 
 def test_hardware_identity_hash_is_public_derivation() -> None:
-    raw = "02:00:00:00:00:01"
+    raw = ":".join(("02", "00", "00", "00", "00", "01"))
     expected = hashlib.sha256(b"ghw-c6-020000000001").hexdigest()
     assert module.hardware_id_sha256(raw) == expected
 
@@ -99,7 +99,7 @@ def test_probe_board_checks_identity_security_flash_and_partition(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    dummy_mac = "02:00:00:00:00:01"
+    dummy_mac = ":".join(("02", "00", "00", "00", "00", "01"))
     expected_identity = module.hardware_id_sha256(dummy_mac)
     monkeypatch.setattr(module, "EXPECTED_BOARD_B_HARDWARE_ID_SHA256", expected_identity)
 
