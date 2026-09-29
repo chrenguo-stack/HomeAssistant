@@ -180,7 +180,7 @@ def _certificate_public_key_der(path: Path) -> bytes:
                 "-outform",
                 "DER",
             ),
-            input=pem,
+            input=pem.encode("ascii"),
             check=False,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
