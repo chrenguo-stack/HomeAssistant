@@ -1,6 +1,6 @@
 # N3-W KF-100 Broker Certificate Lifecycle Timer Runtime Activation Execution — 2026-09-29
 
-Status: `PREEXECUTION_READY_PENDING_POSTMERGE_CI`  
+Status: `PREEXECUTION_READY`  
 Base main: `a363962a118e823f97022a6c398383e9e43fc830`  
 Predecessor PR: `#514` merged  
 Execution branch: `exec/n3w-kf100-broker-certificate-lifecycle-timer-runtime-activation-execution-20260929`
@@ -31,10 +31,10 @@ Post-merge push CI at preparation time:
 
 ```text
 Public repository safety CI run 36535555874 = PASS
-N3W Broker ingress guard CI run 36535555955 = IN_PROGRESS
+N3W Broker ingress guard CI run 36535555955 = PASS
 ```
 
-Live execution remains blocked until the focused post-merge N3W CI returns PASS.
+Post-merge focused CI is PASS. Live execution is now authorized by the current gate.
 
 ## Live mutation boundary
 
