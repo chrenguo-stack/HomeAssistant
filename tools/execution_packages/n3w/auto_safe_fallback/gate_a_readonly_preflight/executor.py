@@ -27,6 +27,7 @@ REMOTE_PROBE = r"""
 import ipaddress
 import json
 import os
+import re
 import socket
 import struct
 import subprocess
