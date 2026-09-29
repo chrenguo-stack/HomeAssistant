@@ -135,16 +135,18 @@ Before any candidate write or service action:
 2. certificate/key path parents satisfy the configured safety root;
 3. current server certificate parses;
 4. FC4 CA certificate parses and has `CA:TRUE`;
-5. current server certificate verifies against the supplied FC4 CA;
-6. current server certificate verifies for the configured TLS server name;
+5. current server certificate verifies against the supplied FC4 CA and configured TLS server name with certificate-time checking disabled, so an otherwise-valid expired certificate can still enter controlled renewal;
+6. if the current server certificate is not expired, normal time-valid CA + hostname verification also passes;
 7. current server certificate public key matches the current server private key;
 8. FC4 CA certificate public key matches the supplied FC4 CA private key;
 9. FC4 CA has enough remaining lifetime for a complete V1 server certificate plus the safety margin;
 10. existing target certificate metadata, mode, UID and GID are captured for exact restoration;
 11. the current Broker activation unit is active before renewal;
-12. a pre-change loopback TLS probe succeeds and presents the current expected certificate.
+12. a pre-change loopback probe binds the certificate actually presented by the running Broker to the expected current certificate fingerprint; when the current certificate is not expired, the same endpoint must also pass normal CA + hostname + time verification.
 
 Any failure before mutation returns a nonzero result and leaves the certificate and Broker untouched.
+
+An expired current server certificate is therefore not automatically unrecoverable after a long powered-off interval. Expiry classification is separated from trust/hostname/key binding: an expired certificate may enter controlled renewal only when its stored certificate still validates against the configured CA and hostname with time checking disabled, its key binding is correct, and the running endpoint presents that exact certificate. The replacement certificate must pass full time-valid verification after activation.
 
 ## 7. Candidate generation
 
