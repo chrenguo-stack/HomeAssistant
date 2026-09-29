@@ -28,6 +28,11 @@ def test_ssh_transport_is_bounded_and_noninteractive() -> None:
     assert "ServerAliveCountMax=2" in argv
 
 
+def test_remote_probe_python_compiles() -> None:
+    compile(module.REMOTE_PROBE, "<gate-a-remote-probe>", "exec")
+    assert "import re" in module.REMOTE_PROBE
+
+
 def test_remote_probe_contains_no_persistent_mutation_commands() -> None:
     source = module.REMOTE_PROBE
     forbidden = (
