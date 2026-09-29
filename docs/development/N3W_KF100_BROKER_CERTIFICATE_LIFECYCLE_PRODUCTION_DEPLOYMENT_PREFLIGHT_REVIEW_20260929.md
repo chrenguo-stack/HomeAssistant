@@ -215,3 +215,27 @@ The corrected source adds regression coverage for:
 - server-key owner not matching running Broker UID/GID = STOP.
 
 A fresh source/test review must bind the corrected commit and CI before the live read-only preflight is repeated.
+
+
+## Corrected source/test closure
+
+The ownership correction is closed at exact source/test head:
+
+```text
+CORRECTED_SOURCE_TEST_HEAD=dadc698f25fdb47d9553876dcbe05874cfc7f95b
+CORRECTED_PREFLIGHT_GIT_BLOB_SHA1=8f3a09fee5cdad1d60dd76406e3dd03c7aa510ed
+
+PR_WORKFLOWS=12_OF_12_PASS
+N3W_BROKER_INGRESS_GUARD_CI_RUN=36522237488
+N3W_BROKER_INGRESS_GUARD_CI=PASS
+PUBLIC_REPOSITORY_SAFETY_CI_RUN=36522237545
+PUBLIC_REPOSITORY_SAFETY_CI=PASS
+
+SERVER_KEY_OWNER_POLICY=RUNNING_BROKER_EFFECTIVE_UID_GID
+SERVER_KEY_MODE_POLICY=NO_GROUP_OR_OTHER_BITS
+FC4_CA_KEY_OWNER_POLICY=ROOT
+FC4_CA_KEY_MODE_POLICY=NO_GROUP_OR_OTHER_BITS
+
+LIVE_REPEAT_PREFLIGHT_AUTHORIZED=true
+LIVE_MUTATION=false
+```
