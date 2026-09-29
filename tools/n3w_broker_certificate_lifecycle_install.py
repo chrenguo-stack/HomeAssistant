@@ -193,6 +193,15 @@ def _hash_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _owner_mode(path: Path) -> tuple[int, int, int]:
+    file_stat = path.stat()
+    return (
+        file_stat.st_uid,
+        file_stat.st_gid,
+        stat.S_IMODE(file_stat.st_mode),
+    )
+
+
 def _rollback(created: list[Path], status_created: bool) -> bool:
     ok = True
     for path in reversed(created):
@@ -334,10 +343,10 @@ def install(
             (ENV_TARGET, 0o600),
             (STATUS_DIR, 0o700),
         ):
-            file_stat = path.stat()
-            if file_stat.st_uid != 0 or file_stat.st_gid != 0:
+            uid, gid, mode = _owner_mode(path)
+            if uid != 0 or gid != 0:
                 raise InstallError("installed_owner_invalid")
-            if stat.S_IMODE(file_stat.st_mode) != expected_mode:
+            if mode != expected_mode:
                 raise InstallError("installed_mode_invalid")
 
         broker_after, started_after = _container_identity(preflight)
