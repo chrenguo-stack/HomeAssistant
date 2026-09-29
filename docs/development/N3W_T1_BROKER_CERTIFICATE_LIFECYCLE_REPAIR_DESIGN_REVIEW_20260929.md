@@ -73,6 +73,12 @@ The source repair requires an explicit CA certificate/private-key pair and valid
 
 Implementation must use an explicit random positive serial for each new server certificate and must not depend on an unmanaged OpenSSL `.srl` side file.
 
+### A6b. Expired-certificate recovery boundary
+
+The design refinement separates expiry from identity/trust binding. An expired current server certificate is eligible for renewal only if CA/hostname verification succeeds with time checking disabled, key binding remains correct, and the running endpoint presents the exact expected fingerprint. Non-expired current certificates must additionally pass ordinary time-valid TLS verification.
+
+This prevents a long powered-off interval from permanently disabling automatic recovery while still rejecting an untrusted, hostname-mismatched or unexpected certificate. Every replacement certificate must pass full CA + hostname + time verification after activation.
+
 ### A7. Replacement and rollback
 
 The design has distinct pre-mutation, post-replace and post-activation boundaries.
@@ -149,7 +155,8 @@ The source implementation shall additionally enforce:
 - status output uses normalized reason codes rather than raw subprocess stderr;
 - renewal lock prevents concurrent timer/manual runs;
 - audit mode never requires or reads the CA private key;
-- source tests must prove that healthy/warning audit paths do not invoke signing, restart or replacement.
+- source tests must prove that healthy/warning audit paths do not invoke signing, restart or replacement;
+- expired-certificate recovery must use no-check-time verification only for binding the old certificate before renewal; full time-valid verification is mandatory for the new certificate.
 
 ## Review disposition
 
