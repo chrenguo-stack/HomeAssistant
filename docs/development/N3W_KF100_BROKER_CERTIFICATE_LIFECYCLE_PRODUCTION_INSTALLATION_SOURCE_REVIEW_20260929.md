@@ -3,7 +3,7 @@
 Status: `SOURCE_REVIEW_PASS_PENDING_CI`  
 PR: `#508`  
 Installation branch: `exec/n3w-kf100-broker-certificate-lifecycle-production-installation-20260929`  
-Reviewed implementation head before evidence-only updates: `a7565f968ce26a750c25c02265c91ecc395cfb30`  
+Reviewed implementation/source-test head: `c88034a7ec957610552841794f39cedcbc22dd38`  
 Base main: `bc13f7c21a4441ef06261f69b08cb7937e2ab613`
 
 ## Review result
@@ -16,6 +16,8 @@ A4_INSTALLATION_ONLY_BOUNDARY=PASS
 A5_TIMER_DORMANCY=PASS
 A6_BROKER_AND_TLS_CONTINUITY=PASS
 A7_ROLLBACK=PASS
+A7B_POST_REPLACE_FAILURE_BOUNDARY=PASS
+A7C_STATUS_DIRECTORY_FAILURE_BOUNDARY=PASS
 A8_PUBLIC_SAFE_OUTPUT=PASS
 A9_NO_CERTIFICATE_MUTATION=PASS
 
@@ -81,6 +83,13 @@ All lifecycle deployment targets were previously proven absent.
 If a failure occurs after installation begins, the executor removes only newly created lifecycle files/status authority and performs a second daemon-reload.
 
 Rollback is reported PASS only when cleanup and daemon-reload succeed; otherwise the result remains UNPROVEN.
+
+The implementation additionally closes two partial-mutation edges found during source review:
+
+- if an atomic target replace succeeds but the subsequent parent-directory fsync fails, the just-created target is removed inside the atomic-write helper before the error propagates;
+- the status-directory mutation flag is set immediately after mkdir, before owner/mode operations, so a later chown/chmod failure still removes the newly created directory.
+
+Focused host tests cover both boundaries.
 
 ## A8. Public-safe output
 
