@@ -620,3 +620,104 @@ def test_existing_activation_and_guard_ordering_is_unchanged() -> None:
     assert "After=docker.service n3wfc4-broker-ingress-guard.service" in activation
     assert "ExecStartPre=/usr/bin/systemctl reload n3wfc4-broker-ingress-guard.service" in activation
     assert "Before=n3wfc4-broker-activation.service" in guard
+
+
+def test_expired_inspect_uses_no_check_time_only(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    server_path = tmp_path / "server.pem"
+    ca_path = tmp_path / "ca.pem"
+    server_path.write_text("placeholder", encoding="utf-8")
+    ca_path.write_text("placeholder", encoding="utf-8")
+    now = datetime(2026, 9, 29, tzinfo=UTC)
+    server = tool.CertificateInfo(
+        not_before=now - timedelta(days=100),
+        not_after=now - timedelta(days=1),
+        fingerprint="3" * 64,
+        serial="03",
+        subject="server",
+        issuer="ca",
+        san_dns=("broker.test",),
+        is_ca=False,
+        server_auth=True,
+    )
+    ca = tool.CertificateInfo(
+        not_before=now - timedelta(days=100),
+        not_after=now + timedelta(days=2000),
+        fingerprint="4" * 64,
+        serial="04",
+        subject="ca",
+        issuer="ca",
+        san_dns=(),
+        is_ca=True,
+        server_auth=False,
+    )
+    infos = iter((server, ca))
+    calls: list[bool] = []
+    monkeypatch.setattr(tool, "_certificate_info", lambda _path: next(infos))
+    monkeypatch.setattr(
+        tool,
+        "_verify_certificate",
+        lambda *_args, no_check_time, **_kwargs: calls.append(no_check_time),
+    )
+    status_dir = tmp_path / "status"
+    status_dir.mkdir(mode=0o700)
+    config = tool.LifecycleConfig(
+        server_cert=server_path,
+        ca_cert=ca_path,
+        server_name="broker.test",
+        status_file=status_dir / "status.json",
+        allowed_roots=(tmp_path,),
+    )
+    inspected_server, _, _ = tool._inspect(config, now=now)
+    assert inspected_server.not_after < now
+    assert calls == [True]
+
+
+def test_directory_fsync_failure_after_replace_enters_rollback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    material = make_material(tmp_path, server_days=20)
+    config = config_for(tool, tmp_path, material)
+    old_bytes = material["server_cert"].read_bytes()
+    fsync_calls = 0
+    restarts: list[str] = []
+
+    monkeypatch.setattr(tool, "_unit_is_active", lambda _unit: True)
+    monkeypatch.setattr(
+        tool,
+        "_probe_unverified",
+        lambda *_args, **_kwargs: tool._certificate_info(config.server_cert).fingerprint,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_probe_verified",
+        lambda *_args, **_kwargs: tool._certificate_info(config.server_cert).fingerprint,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_restart_activation",
+        lambda unit: restarts.append(unit),
+    )
+
+    original_fsync = tool._fsync_directory
+
+    def fail_first_directory_fsync(path: Path):
+        nonlocal fsync_calls
+        fsync_calls += 1
+        if fsync_calls == 1:
+            raise OSError("synthetic fsync failure")
+        return original_fsync(path)
+
+    monkeypatch.setattr(tool, "_fsync_directory", fail_first_directory_fsync)
+
+    document, code = tool.auto_renew(config)
+    assert code == 2
+    assert document["result"] == "renewal_failed_rolled_back"
+    assert document["rollback_attempted"] is True
+    assert material["server_cert"].read_bytes() == old_bytes
+    assert restarts == [tool.EXPECTED_ACTIVATION_UNIT]
