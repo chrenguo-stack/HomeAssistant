@@ -41,6 +41,31 @@ def test_readonly_preflight_has_no_runtime_mutation_commands() -> None:
         assert token not in source
 
 
+def test_ssh_remote_python_uses_single_quoted_remote_command() -> None:
+    source = MODULE_PATH.read_text(encoding="utf-8")
+    region = source[source.index("def remote_python") : source.index("REMOTE_PREFLIGHT")]
+    assert "shlex.quote(launcher)" in region
+    assert 'ssh_base(target) + [remote_command]' in region
+    assert "args_payload" in region
+
+
+def test_readonly_preflight_does_not_send_mqtt_secrets() -> None:
+    source = MODULE_PATH.read_text(encoding="utf-8")
+    region = source[source.index("def run_preflight") : source.index("def load_preflight")]
+    assert '"mqtt_username"' not in region
+    assert '"mqtt_password"' not in region
+    assert '"mqtt_client_id"' not in region
+    assert "public_profile" in region
+
+
+def test_activation_has_best_effort_abort_after_remote_mutation_begins() -> None:
+    source = MODULE_PATH.read_text(encoding="utf-8")
+    region = source[source.index("def run_activate") : source.index("def load_active")]
+    assert "mutation_started = False" in region
+    assert "REMOTE_ABORT" in region
+    assert "if mutation_started:" in region
+
+
 def test_activation_is_isolated_from_production_broker() -> None:
     source = module.REMOTE_ACTIVATE
     assert '"--network", "host"' in source
