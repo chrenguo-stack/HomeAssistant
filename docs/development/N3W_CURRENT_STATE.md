@@ -6,6 +6,41 @@ Status: `CURRENT_STATE_AUTHORITY`
 Fresh exact repository/runtime/physical evidence takes precedence if later evidence proves drift.
 
 
+## 2026-09-29 KF-100 production installation source prepared; live installation pending
+
+PR #508 prepares the installation-only executor for the already-merged lifecycle source.
+
+```text
+KF100_INSTALLATION_PR=508
+KF100_INSTALLATION_BRANCH=exec/n3w-kf100-broker-certificate-lifecycle-production-installation-20260929
+KF100_INSTALLATION_SOURCE_TEST_HEAD=c88034a7ec957610552841794f39cedcbc22dd38
+
+INSTALLATION_ONLY=true
+FRESH_PREMUTATION_PREFLIGHT_REQUIRED=true
+EXACT_MERGED_SOURCE_BLOB_BINDING=true
+PRIVATE_ENV_MATERIALIZATION_ON_T1=true
+STATUS_DIRECTORY_CREATE_ONLY=true
+
+SYSTEMD_DAEMON_RELOAD_ALLOWED=true
+TIMER_ENABLEMENT=false
+TIMER_START=false
+LIFECYCLE_SERVICE_START=false
+BROKER_RESTART=false
+CERTIFICATE_MUTATION=false
+AUTO_RENEW_START=false
+
+LIVE_INSTALLATION=false
+SOURCE_CI=PENDING
+
+NEXT_ONE_GATE=N3W_KF100_BROKER_CERTIFICATE_LIFECYCLE_PRODUCTION_INSTALLATION_EXECUTION_20260929_01
+```
+
+The executor re-runs the exact production deployment preflight immediately before the first write, installs only the lifecycle executable/unit/env/status authority, keeps the timer and service dormant, proves Broker/TLS continuity after installation, and rolls back newly created lifecycle files on failure.
+
+Authority: `docs/development/N3W_KF100_BROKER_CERTIFICATE_LIFECYCLE_PRODUCTION_INSTALLATION_SOURCE_REVIEW_20260929.md`.
+
+
+
 ## 2026-09-29 KF-100 production deployment preparation source PASS; live read-only preflight pending
 
 PR #507 prepares the production deployment route for the already-merged PR #506 lifecycle source. No T1 mutation has occurred in this gate.
