@@ -116,6 +116,11 @@ def prepare_runtime(tmp_path: Path, tool, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(tool, "_systemctl_state", lambda mode, unit: states[(mode, unit)])
     monkeypatch.setattr(tool, "_systemctl_daemon_reload", lambda: None)
     monkeypatch.setattr(tool.os, "chown", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        tool,
+        "_owner_mode",
+        lambda path: (0, 0, stat.S_IMODE(path.stat().st_mode)),
+    )
 
     return {
         "lifecycle": lifecycle,
