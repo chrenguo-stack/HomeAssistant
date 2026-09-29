@@ -107,6 +107,30 @@ def test_lab_profile_is_private_and_uses_no_production_identity(tmp_path: Path) 
     assert len(profile["mqtt_password"]) >= 24
 
 
+
+
+def test_resolve_esphome_reuses_existing_exact_cli(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(module.shutil, "which", lambda name: "/usr/local/bin/esphome" if name == "esphome" else None)
+    monkeypatch.setattr(module, "_probe_exact_esphome", lambda command: command == ["/usr/local/bin/esphome"])
+    command, source = module.resolve_esphome_command(tmp_path)
+    assert command == ["/usr/local/bin/esphome"]
+    assert source == "existing_exact_cli"
+    assert not (tmp_path / "venv").exists()
+
+
+def test_resolve_esphome_fails_closed_on_intel_macos_without_rust(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(module.shutil, "which", lambda name: None)
+    monkeypatch.setattr(module, "_probe_exact_esphome", lambda command: False)
+    monkeypatch.setattr(module.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(module.platform, "machine", lambda: "x86_64")
+    with pytest.raises(module.StopExecution, match="no Rust toolchain"):
+        module.resolve_esphome_command(tmp_path)
+    assert not (tmp_path / "venv").exists()
+
 def test_executor_has_no_board_or_t1_mutation_transport() -> None:
     source = MODULE_PATH.read_text(encoding="utf-8")
     forbidden = (
