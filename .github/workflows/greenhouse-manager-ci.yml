@@ -48,7 +48,7 @@ jobs:
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
           fi
-          if grep -Eq '^(firmware/esphome_rc/components/greenhouse_n3w_core/|firmware/esphome_rc/board_lab/n3w_phase3_simple/|firmware/esphome_rc/board_lab/n3w_phase4_physical/|tests/n3w_phase3/|tests/n3w_phase4/|\.github/workflows/greenhouse-manager-ci\.yml$)' "$RUNNER_TEMP/changed-files.txt"; then
+          if grep -Eq '^(firmware/esphome_rc/components/greenhouse_n3w_core/|firmware/esphome_rc/board_lab/n3w_phase3_simple/|firmware/esphome_rc/board_lab/n3w_phase4_physical/|firmware/esphome_rc/board_lab/n3w_auto_safe_fallback_gate_a/|tests/n3w_phase3/|tests/n3w_phase4/|\.github/workflows/greenhouse-manager-ci\.yml$)' "$RUNNER_TEMP/changed-files.txt"; then
             echo "phase3=true" >> "$GITHUB_OUTPUT"
           else
             echo "phase3=false" >> "$GITHUB_OUTPUT"
