@@ -135,7 +135,7 @@ def make_material(root: Path, *, server_name: str = "armbian") -> dict[str, Path
 
 def inspect_for(material: dict[str, Path]) -> dict[str, object]:
     return {
-        "State": {"Running": True},
+        "State": {"Running": True, "Pid": 4242},
         "Config": {
             "Labels": {
                 "com.docker.compose.project": "n3wfc4",
@@ -201,9 +201,15 @@ def patch_happy_runtime(
     monkeypatch.setattr(tool, "_search_roots", lambda _ca: (tmp_path,))
     monkeypatch.setattr(
         tool,
+        "_broker_effective_identity",
+        lambda _inspect: (1883, 1883),
+    )
+    monkeypatch.setattr(
+        tool,
         "_key_mode",
         lambda path: (
-            True,
+            (1883 if path == material["server_key"] else 0),
+            (1883 if path == material["server_key"] else 0),
             (path.stat().st_mode & 0o077) == 0,
             format(path.stat().st_mode & 0o7777, "04o"),
         ),
@@ -239,6 +245,12 @@ def test_happy_preflight_is_read_only_pass(
     assert document["certificate_mutation"] is False
     assert document["timer_enablement"] is False
     assert document["server_certificate_key_match"] is True
+    assert document["broker_effective_uid"] == 1883
+    assert document["broker_effective_gid"] == 1883
+    assert document["server_key_uid"] == 1883
+    assert document["server_key_gid"] == 1883
+    assert document["server_key_owner_matches_broker"] is True
+    assert document["server_key_mode_safe"] is True
     assert document["live_tls_verified"] is True
     assert document["ca_private_key_match_count"] == 1
     assert document["ca_private_key_root_owned"] is True
@@ -357,3 +369,43 @@ def test_invalid_limit_stops_before_preflight(
     )
     assert tool.main(["--max-files", "0"]) == 2
     assert json.loads(capsys.readouterr().out)["reason"] == "limit_invalid"
+
+
+def test_server_key_owned_by_running_broker_uid_is_accepted(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    material = make_material(tmp_path / "broker")
+    patch_happy_runtime(tool, monkeypatch, tmp_path, material)
+
+    document = tool.preflight(max_files=200, max_depth=8)
+
+    assert document["broker_effective_uid"] == 1883
+    assert document["broker_effective_gid"] == 1883
+    assert document["server_key_uid"] == 1883
+    assert document["server_key_gid"] == 1883
+    assert document["server_key_owner_matches_broker"] is True
+    assert document["server_key_mode"] == "0600"
+
+
+def test_server_key_owner_not_matching_broker_stops(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    material = make_material(tmp_path / "broker")
+    patch_happy_runtime(tool, monkeypatch, tmp_path, material)
+
+    original = tool._key_mode
+
+    def mismatched(path: Path):
+        uid, gid, safe, mode = original(path)
+        if path == material["server_key"]:
+            return (0, 0, safe, mode)
+        return (uid, gid, safe, mode)
+
+    monkeypatch.setattr(tool, "_key_mode", mismatched)
+
+    with pytest.raises(tool.PreflightError, match="server_key_permissions_invalid"):
+        tool.preflight(max_files=200, max_depth=8)
