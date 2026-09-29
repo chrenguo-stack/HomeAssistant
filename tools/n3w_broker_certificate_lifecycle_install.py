@@ -272,8 +272,11 @@ def install(
     status_created = False
     try:
         _progress("install_files")
-        ENV_TARGET.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
-        os.chown(ENV_TARGET.parent, 0, 0)
+        if not ENV_TARGET.parent.is_dir() or ENV_TARGET.parent.is_symlink():
+            raise InstallError("environment_parent_invalid")
+        env_parent_stat = ENV_TARGET.parent.stat()
+        if env_parent_stat.st_uid != 0 or env_parent_stat.st_gid != 0:
+            raise InstallError("environment_parent_owner_invalid")
 
         STATUS_DIR.mkdir(mode=0o700)
         os.chown(STATUS_DIR, 0, 0)
