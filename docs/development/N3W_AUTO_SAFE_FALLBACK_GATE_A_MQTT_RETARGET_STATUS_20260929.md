@@ -15,9 +15,15 @@ EXACT_ESP32C6_COMPILE_PENDING=false
 EXACT_ESP32C6_COMPILE_PASS=true
 PR_HEAD_CI_ALL_PASS=true
 PR_HEAD_CI_RUN_COUNT=11
+READONLY_T1_BOARD_PREFLIGHT=PASS
+BOARD_B_PRODUCT_PROVISIONING_ASSUMED=false
+GATE_A_MQTT_PROFILE=EPHEMERAL_ISOLATED_TLS_LAB
+ISOLATED_FIXTURE_SOURCE_REPAIR=IMPLEMENTED
+ISOLATED_FIXTURE_CI_PENDING=true
 RUNTIME_BOUNDED_CANCEL_PROVEN=false
 FULL_AUTO_FALLBACK_IMPLEMENTATION_ALLOWED=false
-BOARD_ACCESS=false
+BOARD_ACCESS=true
+BOARD_FLASH=false
 LIVE_T1_MUTATION=false
 MERGE=false
 ```
@@ -75,6 +81,22 @@ ESP-IDF 5.5.4 对应 esp-mqtt：
 - peer trust。
 
 也没有使用 `esp_mqtt_client_stop()` 或 destroy 来伪造“已经安全退出”。
+
+## 3.1 实板前提修正
+
+只读预检已经通过，但 KF-099 的既有实板证据表明 Board B 当前处于 pairing WAIT / repair-intent-required 路径，不能假设它持有完整、可直接启动 Direct MQTT 的产品 Broker NVS。
+
+因此 Gate A 已去掉 `runtime_ready()` 前提，并把 MQTT 连接资料改为**测试专用、临时、非持久** profile：
+
+- 产品 pairing/runtime 保持关闭；
+- 测试固件只在 RAM 中配置 ESPHome MQTT client；
+- TLS server name、CA、用户名、密码、client ID 由私有本地构建输入提供；
+- 不读取或覆盖 Board B 的产品 Broker NVS；
+- 不使用生产 Broker 节点凭据；
+- 不修改生产 Manager / DynSec；
+- 实板时使用独立临时 TLS MQTT lab broker。
+
+这样 Gate A 只测当前真正要回答的问题：ESPHome/ESP-IDF MQTT client 在连接中和重连等待中，能否在既有 25 秒预算内完成 runtime retarget。
 
 ## 4. 当前 STOP 点
 
