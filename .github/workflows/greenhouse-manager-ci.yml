@@ -112,7 +112,7 @@ jobs:
       - name: Phase 4 recovery exit and Direct liveness contracts
         run: pytest -q tests/n3w_phase4/test_recovery_exit_behavior.py tests/n3w_phase4/test_direct_recovery_liveness_behavior.py
       - name: Auto safe fallback Gate A execution package contracts
-        run: pytest -q tests/execution_packages/n3w/auto_safe_fallback/gate_a_readonly_preflight/test_executor.py tests/execution_packages/n3w/auto_safe_fallback/gate_a_private_build/test_gate_a_private_build_executor.py
+        run: pytest -q tests/execution_packages/n3w/auto_safe_fallback/gate_a_readonly_preflight/test_executor.py tests/execution_packages/n3w/auto_safe_fallback/gate_a_private_build/test_gate_a_private_build_executor.py tests/execution_packages/n3w/auto_safe_fallback/gate_a_t1_lab/test_gate_a_t1_lab_executor.py
       - name: Build and run C++ cross-language vectors
         shell: bash
         run: |
