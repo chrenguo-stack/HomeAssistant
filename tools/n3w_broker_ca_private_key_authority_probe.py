@@ -9,9 +9,9 @@ import re
 import stat
 import subprocess
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Sequence
 
-SCHEMA = "gh.n3w-broker-ca-private-key-authority-probe/1"
+SCHEMA = "gh.n3w-broker-ca-private-key-authority-probe/2"
 EXPECTED_PROJECT = "n3wfc4"
 EXPECTED_SERVICE = "broker"
 EXPECTED_CA_TARGET = "/mosquitto/tls/ca.pem"
@@ -19,12 +19,24 @@ EXPECTED_CA_SHA256_FINGERPRINT = "b305f61656a0e795bc5dcc5388ba63bc77d824dc3329cf
 MAX_FILE_BYTES = 65536
 DEFAULT_MAX_FILES = 5000
 DEFAULT_MAX_DEPTH = 8
+PRIVATE_MATERIALIZATION_GLOB = "/root/n3w-fc4-private-materialization.*"
+PRIVATE_KEY_PEM_RE = re.compile(rb"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----")
+KEYLIKE_SUFFIXES = {".key", ".priv", ".p8", ".pk8"}
 
 
 class ProbeError(RuntimeError):
     def __init__(self, code: str) -> None:
         super().__init__(code)
         self.code = code
+
+
+def _progress(stage: str, **fields: object) -> None:
+    payload = {"stage": stage, **fields}
+    print(
+        "KF100_PROBE " + json.dumps(payload, sort_keys=True, separators=(",", ":")),
+        file=os.sys.stderr,
+        flush=True,
+    )
 
 
 def _run(argv: Sequence[str], *, timeout: int = 20) -> str:
@@ -185,7 +197,7 @@ def _certificate_public_key_der(path: Path) -> bytes:
             check=False,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
-            timeout=20,
+            timeout=10,
         )
     except (OSError, subprocess.TimeoutExpired) as error:
         raise ProbeError("openssl_public_key_unavailable") from error
@@ -212,7 +224,7 @@ def _private_public_key_der(path: Path) -> bytes | None:
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
-            timeout=5,
+            timeout=2,
         )
     except (OSError, subprocess.TimeoutExpired):
         return None
@@ -221,7 +233,7 @@ def _private_public_key_der(path: Path) -> bytes | None:
     return result.stdout
 
 
-def _derived_search_root(ca_source: Path) -> Path:
+def _persistent_search_root(ca_source: Path) -> Path:
     root = ca_source.parent
     for _ in range(2):
         if root.parent == root:
@@ -238,50 +250,101 @@ def _derived_search_root(ca_source: Path) -> Path:
     return root
 
 
+def _private_materialization_roots() -> tuple[Path, ...]:
+    parent = Path(PRIVATE_MATERIALIZATION_GLOB).parent
+    pattern = Path(PRIVATE_MATERIALIZATION_GLOB).name
+    try:
+        candidates = tuple(sorted(parent.glob(pattern)))
+    except OSError:
+        return ()
+    roots: list[Path] = []
+    for candidate in candidates:
+        try:
+            file_stat = candidate.stat()
+        except OSError:
+            continue
+        if candidate.is_symlink() or not stat.S_ISDIR(file_stat.st_mode):
+            continue
+        roots.append(candidate)
+    return tuple(roots)
+
+
+def _search_roots(ca_source: Path) -> tuple[Path, ...]:
+    roots = [_persistent_search_root(ca_source), *_private_materialization_roots()]
+    unique: list[Path] = []
+    seen: set[tuple[int, int]] = set()
+    for root in roots:
+        try:
+            file_stat = root.stat()
+        except OSError:
+            continue
+        identity = (file_stat.st_dev, file_stat.st_ino)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        unique.append(root)
+    if not unique:
+        raise ProbeError("search_root_missing")
+    return tuple(unique)
+
+
 def _walk_files(
-    root: Path,
+    roots: Sequence[Path],
     *,
     max_files: int,
     max_depth: int,
-) -> tuple[list[Path], int]:
-    files: list[Path] = []
+) -> tuple[list[tuple[int, Path]], int]:
+    files: list[tuple[int, Path]] = []
     skipped_large = 0
-    root_depth = len(root.parts)
-    stack = [root]
-    while stack:
-        directory = stack.pop()
-        depth = len(directory.parts) - root_depth
-        if depth > max_depth:
-            continue
-        try:
-            entries = list(os.scandir(directory))
-        except (OSError, PermissionError):
-            continue
-        for entry in entries:
+    for root_index, root in enumerate(roots):
+        root_depth = len(root.parts)
+        stack = [root]
+        while stack:
+            directory = stack.pop()
+            depth = len(directory.parts) - root_depth
+            if depth > max_depth:
+                continue
             try:
-                if entry.is_symlink():
-                    continue
-                if entry.is_dir(follow_symlinks=False):
-                    if depth < max_depth:
-                        stack.append(Path(entry.path))
-                    continue
-                if not entry.is_file(follow_symlinks=False):
-                    continue
-                file_stat = entry.stat(follow_symlinks=False)
+                entries = list(os.scandir(directory))
             except (OSError, PermissionError):
                 continue
-            if file_stat.st_size > MAX_FILE_BYTES:
-                skipped_large += 1
-                continue
-            files.append(Path(entry.path))
-            if len(files) > max_files:
-                raise ProbeError("search_file_limit_exceeded")
+            for entry in entries:
+                try:
+                    if entry.is_symlink():
+                        continue
+                    if entry.is_dir(follow_symlinks=False):
+                        if depth < max_depth:
+                            stack.append(Path(entry.path))
+                        continue
+                    if not entry.is_file(follow_symlinks=False):
+                        continue
+                    file_stat = entry.stat(follow_symlinks=False)
+                except (OSError, PermissionError):
+                    continue
+                if file_stat.st_size > MAX_FILE_BYTES:
+                    skipped_large += 1
+                    continue
+                files.append((root_index, Path(entry.path)))
+                if len(files) > max_files:
+                    raise ProbeError("search_file_limit_exceeded")
     return files, skipped_large
 
 
-def _path_token(path: Path, root: Path) -> str:
+def _looks_like_private_key(path: Path) -> bool:
+    name = path.name.lower()
+    suffix_likely = path.suffix.lower() in KEYLIKE_SUFFIXES or "private-key" in name
+    try:
+        with path.open("rb") as stream:
+            prefix = stream.read(8192)
+    except (OSError, PermissionError):
+        return False
+    return PRIVATE_KEY_PEM_RE.search(prefix) is not None or suffix_likely
+
+
+def _path_token(path: Path, root: Path, root_index: int) -> str:
     relative = path.relative_to(root).as_posix().encode("utf-8")
-    return hashlib.sha256(relative).hexdigest()
+    framing = str(root_index).encode("ascii") + b"\0" + relative
+    return hashlib.sha256(framing).hexdigest()
 
 
 def _mode_safe(path: Path) -> tuple[bool, int, int, str]:
@@ -306,6 +369,8 @@ def _relative_to_active_tls(path: Path, ca_source: Path) -> bool:
 def probe(*, max_files: int, max_depth: int) -> dict[str, object]:
     if os.geteuid() != 0:
         raise ProbeError("root_required")
+
+    _progress("bind_runtime")
     container_id = _running_broker_container()
     inspect = _broker_inspect(container_id)
     ca_source = _active_ca_source(inspect)
@@ -315,40 +380,59 @@ def probe(*, max_files: int, max_depth: int) -> dict[str, object]:
     if not _certificate_is_ca(ca_source):
         raise ProbeError("active_broker_certificate_not_ca")
     ca_public = _certificate_public_key_der(ca_source)
-    root = _derived_search_root(ca_source)
+    _progress("runtime_bound")
+
+    roots = _search_roots(ca_source)
+    _progress("scan_files", search_root_count=len(roots))
     files, skipped_large = _walk_files(
-        root,
+        roots,
         max_files=max_files,
         max_depth=max_depth,
     )
 
+    candidates = [
+        (root_index, path)
+        for root_index, path in files
+        if _looks_like_private_key(path)
+    ]
+    _progress(
+        "classify_candidates",
+        search_file_count=len(files),
+        private_key_candidate_count=len(candidates),
+    )
+
     parseable_keys = 0
-    matches: list[Path] = []
-    for path in files:
+    matches: list[tuple[int, Path]] = []
+    for root_index, path in candidates:
         public = _private_public_key_der(path)
         if public is None:
             continue
         parseable_keys += 1
         if public == ca_public:
-            matches.append(path)
+            matches.append((root_index, path))
 
     safe_matches = 0
     root_owned_matches = 0
     active_tls_tree_matches = 0
     match_tokens: list[str] = []
     match_modes: list[str] = []
-    for path in matches:
+    for root_index, path in matches:
         safe, uid, _gid, mode = _mode_safe(path)
         safe_matches += int(safe)
         root_owned_matches += int(uid == 0)
         active_tls_tree_matches += int(_relative_to_active_tls(path, ca_source))
-        match_tokens.append(_path_token(path, root))
+        match_tokens.append(_path_token(path, roots[root_index], root_index))
         match_modes.append(mode)
 
     exact_authority = (
         len(matches) == 1
         and safe_matches == 1
         and root_owned_matches == 1
+    )
+    _progress(
+        "complete",
+        match_count=len(matches),
+        result="PASS" if exact_authority else "STOP",
     )
 
     return {
@@ -365,11 +449,10 @@ def probe(*, max_files: int, max_depth: int) -> dict[str, object]:
         "broker_ca_certificate_parseable": True,
         "broker_ca_certificate_is_ca": True,
         "broker_ca_sha256_fingerprint": fingerprint,
-        "derived_search_root_token": hashlib.sha256(
-            root.as_posix().encode("utf-8")
-        ).hexdigest(),
+        "search_root_count": len(roots),
         "search_file_count": len(files),
         "search_skipped_large_file_count": skipped_large,
+        "private_key_candidate_count": len(candidates),
         "parseable_private_key_count": parseable_keys,
         "ca_private_key_match_count": len(matches),
         "ca_private_key_safe_permission_match_count": safe_matches,
@@ -413,9 +496,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             "result": "STOP",
             "reason": error.code,
         }
-        print(json.dumps(document, sort_keys=True, separators=(",", ":")))
+        print(json.dumps(document, sort_keys=True, separators=(",", ":")), flush=True)
         return 2
-    print(json.dumps(document, sort_keys=True, separators=(",", ":")))
+    print(json.dumps(document, sort_keys=True, separators=(",", ":")), flush=True)
     return 0 if document["result"] == "PASS" else 2
 
 
