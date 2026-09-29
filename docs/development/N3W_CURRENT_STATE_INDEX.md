@@ -1,7 +1,7 @@
 # N3-W Current State Index
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
-Current progress alignment: `docs/development/N3W_KF100_BROKER_CERTIFICATE_LIFECYCLE_TIMER_ENABLEMENT_EXECUTION_RESULT_20260929.md`  
+Current progress alignment: `docs/development/N3W_KF100_BROKER_CERTIFICATE_LIFECYCLE_TIMER_RUNTIME_ACTIVATION_SOURCE_REVIEW_20260929.md`  
 Current new-chat handoff: `docs/development/N3W_PR475_PR478_POSTMERGE_MAIN_ALIGNMENT_NEW_CHAT_HANDOFF_V1.0_20260927.md`  
 Long-term working context: `docs/development/N3W_PROJECT_WORKING_CONTEXT.md`  
 Current handoff template: `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` v1.2  
@@ -15,6 +15,27 @@ Current production artifact binding authority: `docs/development/N3W_PRODUCTION_
 Currently deployed Board B source: `c578bcb2e31f50771b6b08c231704da6bf36b729` / artifact `10959875986` / application SHA-256 `d0875ca692f7bd4349fd7d8bcdab69318e6c8b737b69a48f667b6e72cb89cb60`  
 Current local-development-environment authority: `docs/development/local-environment-records/2026-09-17-macos-x86_64.json`  
 Active product-direction authority: `docs/development/N3W_OFFICIAL_ESPNOW_REFERENCE_PRODUCT_DIRECTION_DECISION_20260906.md`
+
+
+## 2026-09-29 KF-100 timer runtime activation preparation snapshot
+
+```text
+KF100_TIMER_RUNTIME_ACTIVATION_SOURCE_TEST_HEAD=1d2f6ee2bc6c4f027583cdb8fddc7066077f083c
+KF100_TIMER_RUNTIME_ACTIVATION_EXECUTOR_BLOB=61e54cd3d27a615b56db913ef7b4ac0916c6a9ab
+
+EXPECTED_MUTATION=systemctl_start_timer
+PERSISTENT_CATCHUP_POSSIBLE=true
+BROKER_RESTART=false
+CERTIFICATE_MUTATION=false
+
+LIVE_TIMER_RUNTIME_ACTIVATION=false
+SOURCE_REVIEW=PASS_PENDING_CI
+
+NEXT_ONE_GATE=N3W_KF100_BROKER_CERTIFICATE_LIFECYCLE_TIMER_RUNTIME_ACTIVATION_EXECUTION_20260929_01
+```
+
+Authority: `docs/development/N3W_KF100_BROKER_CERTIFICATE_LIFECYCLE_TIMER_RUNTIME_ACTIVATION_SOURCE_REVIEW_20260929.md`.
+
 
 
 ## 2026-09-29 KF-100 timer enablement preparation snapshot
