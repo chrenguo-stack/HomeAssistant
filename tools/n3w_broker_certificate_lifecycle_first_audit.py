@@ -256,6 +256,12 @@ def _validate_prestate(env: dict[str, str]) -> dict[str, object]:
         raise AuditGateError("first_audit_status_already_present")
     if LOCK_FILE.exists() or LOCK_FILE.is_symlink():
         raise AuditGateError("first_audit_lock_already_present")
+    try:
+        status_entries = tuple(STATUS_DIR.iterdir())
+    except OSError as error:
+        raise AuditGateError("status_directory_unreadable") from error
+    if status_entries:
+        raise AuditGateError("first_audit_status_directory_not_empty")
 
     if _systemctl_state("is-active", LIFECYCLE_SERVICE) == "active":
         raise AuditGateError("lifecycle_service_already_active")
@@ -344,6 +350,9 @@ def _validate_audit_document(document: dict[str, object]) -> None:
         "system_ca_state": "HEALTHY",
         "renewal_attempted": False,
         "rollback_attempted": False,
+        "server_not_after": "2028-11-22T04:18:40Z",
+        "ca_not_after": "2036-08-17T04:18:39Z",
+        "system_ca_not_after": "2036-07-30T15:32:24Z",
         "server_sha256_fingerprint": EXPECTED_SERVER_FINGERPRINT,
         "ca_sha256_fingerprint": EXPECTED_CA_FINGERPRINT,
         "system_ca_sha256_fingerprint": EXPECTED_SYSTEM_CA_FINGERPRINT,
@@ -367,6 +376,12 @@ def _validate_poststate(
         uid, gid, mode = _owner_mode(path)
         if uid != 0 or gid != 0 or mode != 0o600:
             raise AuditGateError("audit_state_permissions_invalid")
+    try:
+        entry_names = {path.name for path in STATUS_DIR.iterdir()}
+    except OSError as error:
+        raise AuditGateError("status_directory_unreadable") from error
+    if entry_names != {STATUS_FILE.name, LOCK_FILE.name}:
+        raise AuditGateError("audit_status_directory_unexpected_entries")
 
     raw = STATUS_FILE.read_text(encoding="utf-8")
     try:
