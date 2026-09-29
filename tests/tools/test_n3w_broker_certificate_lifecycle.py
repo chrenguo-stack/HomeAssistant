@@ -596,6 +596,11 @@ def test_systemd_timer_and_service_contract() -> None:
     ).read_text(encoding="utf-8")
 
     assert "Type=oneshot" in service
+    assert (
+        "After=docker.service n3wfc4-broker-ingress-guard.service "
+        "n3wfc4-broker-activation.service"
+        in service
+    )
     assert "auto-renew" in service
     assert "n3wfc4-broker-activation.service" in service
     assert "Restart=always" not in service
