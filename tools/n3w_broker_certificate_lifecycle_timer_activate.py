@@ -406,18 +406,27 @@ def _post_activation(
     before: dict[str, object],
     before_status_sha256: str,
 ) -> dict[str, object]:
-    properties = _timer_properties()
-    if properties["ActiveState"] != "active":
+    initial_properties = _timer_properties()
+    if initial_properties["ActiveState"] != "active":
         raise TimerActivationError("timer_not_active")
-    if properties["UnitFileState"] != "enabled":
+    if initial_properties["UnitFileState"] != "enabled":
         raise TimerActivationError("timer_not_enabled_after_start")
-    next_elapse = properties["NextElapseUSecRealtime"]
-    if next_elapse in {"", "0", "n/a", "infinity"}:
+    initial_next_elapse = initial_properties["NextElapseUSecRealtime"]
+    if initial_next_elapse in {"", "0", "n/a", "infinity"}:
         raise TimerActivationError("timer_next_elapse_missing")
 
     service_state = _wait_service_quiescent()
     if service_state != "inactive":
         raise TimerActivationError("lifecycle_service_not_inactive")
+
+    properties = _timer_properties()
+    if properties["ActiveState"] != "active":
+        raise TimerActivationError("timer_not_active_after_settle")
+    if properties["UnitFileState"] != "enabled":
+        raise TimerActivationError("timer_not_enabled_after_settle")
+    next_elapse = properties["NextElapseUSecRealtime"]
+    if next_elapse in {"", "0", "n/a", "infinity"}:
+        raise TimerActivationError("timer_next_elapse_missing_after_settle")
 
     status, _raw, after_status_sha256 = _status_document()
     status_changed = after_status_sha256 != before_status_sha256
