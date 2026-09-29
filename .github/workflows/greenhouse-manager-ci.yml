@@ -15,6 +15,8 @@ on:
       - "firmware/esphome_rc/board_lab/n3w_auto_safe_fallback_gate_a/**"
       - "tests/n3w_phase3/**"
       - "tests/n3w_phase4/**"
+      - "tests/execution_packages/n3w/auto_safe_fallback/**"
+      - "tools/execution_packages/n3w/auto_safe_fallback/**"
       - ".github/workflows/greenhouse-manager-ci.yml"
 
 permissions:
@@ -43,7 +45,7 @@ jobs:
             exit 0
           fi
           git diff --name-only "$BASE_SHA" "$HEAD_SHA" > "$RUNNER_TEMP/changed-files.txt"
-          if grep -Eq '^(host/greenhouse-manager/|protocols/mqtt/|protocols/pairing/|firmware/esphome_rc/components/greenhouse_n3w_core/|firmware/esphome_rc/board_lab/n3w_phase3_simple/|firmware/esphome_rc/board_lab/n3w_phase4_physical/|firmware/esphome_rc/board_lab/n3w_auto_safe_fallback_gate_a/|tests/n3w_phase3/|tests/n3w_phase4/|\.github/workflows/greenhouse-manager-ci\.yml$)' "$RUNNER_TEMP/changed-files.txt"; then
+          if grep -Eq '^(host/greenhouse-manager/|protocols/mqtt/|protocols/pairing/|firmware/esphome_rc/components/greenhouse_n3w_core/|firmware/esphome_rc/board_lab/n3w_phase3_simple/|firmware/esphome_rc/board_lab/n3w_phase4_physical/|firmware/esphome_rc/board_lab/n3w_auto_safe_fallback_gate_a/|tests/n3w_phase3/|tests/n3w_phase4/|tests/execution_packages/n3w/auto_safe_fallback/|tools/execution_packages/n3w/auto_safe_fallback/|\.github/workflows/greenhouse-manager-ci\.yml$)' "$RUNNER_TEMP/changed-files.txt"; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
@@ -109,6 +111,8 @@ jobs:
         run: pytest -q tests/n3w_phase4/test_single_radio_ownership_contract.py
       - name: Phase 4 recovery exit and Direct liveness contracts
         run: pytest -q tests/n3w_phase4/test_recovery_exit_behavior.py tests/n3w_phase4/test_direct_recovery_liveness_behavior.py
+      - name: Auto safe fallback Gate A read-only preflight contracts
+        run: pytest -q tests/execution_packages/n3w/auto_safe_fallback/gate_a_readonly_preflight/test_executor.py
       - name: Build and run C++ cross-language vectors
         shell: bash
         run: |
