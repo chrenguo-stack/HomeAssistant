@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[6]
+ROOT = Path(__file__).resolve().parents[5]
 MODULE_PATH = (
     ROOT
     / "tools/execution_packages/n3w/auto_safe_fallback/gate_a_readonly_preflight/executor.py"
