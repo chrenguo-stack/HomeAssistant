@@ -25,6 +25,15 @@ PRIVATE_BUILD_EXECUTOR_CI=PASS
 PRIVATE_BUILD_LOCAL_FAILURE_1_ROOT_CAUSE=INTEL_MACOS_CBOR2_6_NO_PREBUILT_X86_64_WHEEL_AND_NO_RUST
 PRIVATE_BUILD_LOCAL_FAILURE_1_SOURCE_DEFECT=false
 PRIVATE_BUILD_LOCAL_FAILURE_1_REPAIR=REUSE_EXISTING_EXACT_ESPHOME_FIRST
+PRIVATE_BUILD_LOCAL=PASS
+PRIVATE_BUILD_APPLICATION_SHA256=77b0fd6a98c3e837d3543eebdd30b86354790847d0c78cdab7e96f0d7d66a8ad
+PRIVATE_BUILD_OTADATA_SHA256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
+PRIVATE_BUILD_CA_CERT_SHA256=66ca928aaab07eaef6aebf0a7dec9b8a0e0fac9a9d719f4e1354ea575eed0a66
+PRIVATE_BUILD_SERVER_CERT_SHA256=c33bdac940da24cff4de772ff0478f0f069a3ab956dc03b1557738c4f640af4e
+PRIVATE_BUILD_SERVER_KEY_SHA256=29ee45ca617fb5e4e854081e77a9ae4c468c3b07fb1d206cb0d61d86d8cbee61
+PRIVATE_BUILD_ESPHOME_SOURCE=existing_exact_cli
+T1_ISOLATED_LAB_EXECUTOR=IMPLEMENTED
+T1_ISOLATED_LAB_EXECUTOR_CI_PENDING=true
 RUNTIME_BOUNDED_CANCEL_PROVEN=false
 FULL_AUTO_FALLBACK_IMPLEMENTATION_ALLOWED=false
 BOARD_ACCESS=true
@@ -117,6 +126,19 @@ ESP-IDF 5.5.4 对应 esp-mqtt：
 4. 对 Intel macOS 且没有 Rust 的情况 fail closed，不自动安装持久 Rust toolchain；
 5. 私有 venv 路径仍先升级 pip/setuptools/wheel，再安装 exact ESPHome。
 
+## 3.3 私有 exact build 已通过
+
+Mac 本地 exact build 已完成，使用本机现有的 ESPHome 2026.4.3，没有安装 Rust，也没有访问 Board 或修改 T1。
+
+公开记录只保存 source / firmware / TLS 文件哈希，不保存 LAN 地址、MQTT 用户名/密码/client ID、TLS 私钥内容或私有 bundle 路径。
+
+Gate A 现已冻结到本次私有构建的 application / otadata / CA / server cert / server key 哈希。随后新增 T1 isolated lab transaction package：
+
+- `preflight`：只读检查 T1 当前网络、生产 Broker/Manager 连续性、TCP/18883 空闲、live alias / blackhole 仍未占用；
+- `activate`：只有得到单次明确授权后，才创建临时 `/run` 私有目录、临时 TLS Mosquitto 18883 和 live alias；
+- `cleanup`：只清理带 exact label 的临时容器、exact live alias 和 exact `/run` 目录；
+- 生产 Broker、Manager、DynSec、HA、Compose authority、Board B 均不属于该 T1 lab transaction 的修改范围。
+
 ## 4. 当前 STOP 点
 
 源码层最小接口、源码合同测试和 ESP32-C6 编译已经通过，但现在还不能称为 Gate A PASS。
@@ -126,6 +148,11 @@ ESP-IDF 5.5.4 对应 esp-mqtt：
 ```text
 source-contract test PASS
 -> exact ESP32-C6 compile PASS
+-> private exact build PASS
+-> T1 isolated-lab package CI PENDING
+-> fresh T1 read-only lab preflight PENDING
+-> explicit T1 mutation authorization PENDING
+-> Board B write authorization PENDING
 -> 实板 timing gate PENDING
 ```
 
