@@ -392,8 +392,8 @@ def test_runtime_mqtt_retarget_probe_is_address_only_and_fail_closed() -> None:
     )
     retarget = patch[retarget_start:retarget_end]
 
-    assert '"mqtts://"' in retarget
-    assert '"mqtt://"' in retarget
+    assert '\\"mqtts://\\"' in retarget
+    assert '\\"mqtt://\\"' in retarget
     assert "esp_mqtt_client_set_uri" in retarget
     assert "set_tls_server_name" not in retarget
     assert "set_ca_certificate" not in retarget
