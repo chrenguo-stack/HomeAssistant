@@ -3,11 +3,43 @@ substitutions:
   gate_a_blackhole_ip: !env_var N3W_GATE_A_BLACKHOLE_IP
   gate_a_restore_host: !env_var N3W_GATE_A_RESTORE_HOST
   gate_a_broker_port: !env_var N3W_GATE_A_BROKER_PORT
+  gate_a_tls_server_name: !env_var N3W_GATE_A_TLS_SERVER_NAME
+  gate_a_ca_pem_escaped: !env_var N3W_GATE_A_CA_PEM_ESCAPED
+  gate_a_mqtt_username: !env_var N3W_GATE_A_MQTT_USERNAME
+  gate_a_mqtt_password: !env_var N3W_GATE_A_MQTT_PASSWORD
+  gate_a_mqtt_client_id: !env_var N3W_GATE_A_MQTT_CLIENT_ID
 
 esphome:
   name: gh-n3w-phase4-generic
   friendly_name: Greenhouse N3-W Auto Safe Fallback Gate A
   min_version: 2026.4.3
+  on_boot:
+    - priority: -100.0
+      then:
+        - lambda: |-
+            auto *client = esphome::mqtt::global_mqtt_client;
+            if (client == nullptr) {
+              ESP_LOGE("gate_a", "GATE_A_FAIL stage=ephemeral_mqtt_missing");
+              return;
+            }
+            const std::string restore_host = "${gate_a_restore_host}";
+            const std::string tls_server_name = "${gate_a_tls_server_name}";
+            const std::string ca_pem = "${gate_a_ca_pem_escaped}";
+            const std::string mqtt_username = "${gate_a_mqtt_username}";
+            const std::string mqtt_password = "${gate_a_mqtt_password}";
+            const std::string mqtt_client_id = "${gate_a_mqtt_client_id}";
+            const uint16_t broker_port =
+                static_cast<uint16_t>(${gate_a_broker_port});
+            client->set_broker_address(restore_host);
+            client->set_broker_port(broker_port);
+            client->set_username(mqtt_username);
+            client->set_password(mqtt_password);
+            client->set_client_id(mqtt_client_id);
+            client->set_tls_server_name(tls_server_name);
+            client->set_ca_certificate(ca_pem.c_str());
+            client->set_enable_on_boot(true);
+            client->enable();
+            ESP_LOGI("gate_a", "GATE_A_EPHEMERAL_MQTT_CONFIG_APPLIED");
 
 esp32:
   board: esp32-c6-devkitm-1
@@ -52,8 +84,8 @@ external_components:
 greenhouse_n3w_core:
   id: n3w_phase4_core
   phase4_source_harness: true
-  phase4_product_runtime: true
-  phase4_lab_diagnostics: true
+  phase4_product_runtime: false
+  phase4_lab_diagnostics: false
 
 interval:
   - interval: 250ms
@@ -77,7 +109,7 @@ interval:
           const std::string restore_host = "${gate_a_restore_host}";
 
           if (stage == 0) {
-            if (!id(n3w_phase4_core).runtime_ready() || !client->is_connected()) {
+            if (!client->is_connected()) {
               return;
             }
             ESP_LOGI("gate_a", "GATE_A_BASELINE_CONNECTED");
