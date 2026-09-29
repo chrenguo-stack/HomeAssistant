@@ -287,8 +287,8 @@ def install(
         _progress("install_files")
         if not ENV_TARGET.parent.is_dir() or ENV_TARGET.parent.is_symlink():
             raise InstallError("environment_parent_invalid")
-        env_parent_stat = ENV_TARGET.parent.stat()
-        if env_parent_stat.st_uid != 0 or env_parent_stat.st_gid != 0:
+        env_parent_uid, env_parent_gid, _env_parent_mode = _owner_mode(ENV_TARGET.parent)
+        if env_parent_uid != 0 or env_parent_gid != 0:
             raise InstallError("environment_parent_owner_invalid")
 
         STATUS_DIR.mkdir(mode=0o700)
