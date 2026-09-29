@@ -11,7 +11,10 @@ ESP_IDF_VERSION=5.5.4
 ESP_MQTT_SUBMODULE=6af4446a48ea7fa54948edc4e62277ed70abb6e1
 SOURCE_ADAPTER_IMPLEMENTED=true
 SOURCE_CONTRACT_TEST_ADDED=true
-EXACT_ESP32C6_COMPILE_PENDING=true
+EXACT_ESP32C6_COMPILE_PENDING=false
+EXACT_ESP32C6_COMPILE_PASS=true
+PR_HEAD_CI_ALL_PASS=true
+PR_HEAD_CI_RUN_COUNT=11
 RUNTIME_BOUNDED_CANCEL_PROVEN=false
 FULL_AUTO_FALLBACK_IMPLEMENTATION_ALLOWED=false
 BOARD_ACCESS=false
@@ -75,15 +78,14 @@ ESP-IDF 5.5.4 对应 esp-mqtt：
 
 ## 4. 当前 STOP 点
 
-源码层最小接口已经准备好，但现在还不能称为 Gate A PASS。
+源码层最小接口、源码合同测试和 ESP32-C6 编译已经通过，但现在还不能称为 Gate A PASS。
 
 下一步顺序：
 
 ```text
-source-contract test
--> exact ESP32-C6 compile
--> 若都 PASS
--> 实板 timing gate
+source-contract test PASS
+-> exact ESP32-C6 compile PASS
+-> 实板 timing gate PENDING
 ```
 
 实板 timing gate 至少要测：
@@ -98,3 +100,22 @@ source-contract test
 
 若黑洞连接期间 `set_uri()` 因内部锁长期阻塞，Gate A 判 FAIL，停止完整 auto 回退实现，
 改换更底层的有界连接所有权方案，不通过延长 30 秒预算解决。
+
+
+## 5. PR #516 CI 对齐
+
+```text
+PR=516
+PR_HEAD=42d8344a7680fc71b4233af4ccd402b0e3d4ad11
+WORKFLOW_RUN_COUNT=11
+WORKFLOW_SUCCESS_COUNT=11
+WORKFLOW_FAILURE_COUNT=0
+GREENHOUSE_MANAGER_RUN=36539288878
+PHASE4_SOURCE_CONTRACT=PASS
+PHASE4_RUNTIME_HOST_TEST=PASS
+ESP32C6_CHILD_COMPILE=PASS
+ESP32C6_RELAY_COMPILE=PASS
+ESP32C6_PHYSICAL_HARNESS_COMPILE=PASS
+```
+
+因此 Gate A 已经从“源码可行性”推进到“实板时序验证”。下一步只验证运行中换址和失败连接退出时延，不提前接入完整 auto discovery。
