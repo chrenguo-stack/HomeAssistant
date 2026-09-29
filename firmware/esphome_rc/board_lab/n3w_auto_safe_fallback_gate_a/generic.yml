@@ -1,0 +1,293 @@
+substitutions:
+  gate_a_live_alias: !env_var N3W_GATE_A_LIVE_ALIAS
+  gate_a_blackhole_ip: !env_var N3W_GATE_A_BLACKHOLE_IP
+  gate_a_restore_host: !env_var N3W_GATE_A_RESTORE_HOST
+  gate_a_broker_port: !env_var N3W_GATE_A_BROKER_PORT
+
+esphome:
+  name: gh-n3w-phase4-generic
+  friendly_name: Greenhouse N3-W Auto Safe Fallback Gate A
+  min_version: 2026.4.3
+
+esp32:
+  board: esp32-c6-devkitm-1
+  variant: ESP32C6
+  flash_size: 8MB
+  framework:
+    type: esp-idf
+    advanced:
+      include_builtin_idf_components:
+        - nvs_flash
+        - esp_event
+        - esp_netif
+        - esp_wifi
+        - esp_http_client
+
+logger:
+  level: INFO
+  hardware_uart: USB_SERIAL_JTAG
+
+wifi:
+  reboot_timeout: 0s
+  ap:
+    ssid: "Greenhouse N3-W Setup"
+
+captive_portal:
+
+mqtt:
+  broker: 127.0.0.1
+  enable_on_boot: false
+  discovery: false
+  reboot_timeout: 0s
+  idf_send_async: true
+  log_topic: null
+
+external_components:
+  - source:
+      type: local
+      path: ../../components
+    components:
+      - greenhouse_n3w_core
+
+greenhouse_n3w_core:
+  id: n3w_phase4_core
+  phase4_source_harness: true
+  phase4_product_runtime: true
+  phase4_lab_diagnostics: true
+
+interval:
+  - interval: 250ms
+    then:
+      - lambda: |-
+          static uint8_t stage = 0;
+          static uint32_t stage_started_ms = 0;
+          static uint32_t disconnect_seen_ms = 0;
+          static uint32_t attempt_started_ms = 0;
+          static uint32_t last_api_duration_ms = 0;
+          static bool saw_disconnect = false;
+
+          auto *client = esphome::mqtt::global_mqtt_client;
+          if (client == nullptr) return;
+
+          const uint32_t now = millis();
+          const uint16_t broker_port =
+              static_cast<uint16_t>(${gate_a_broker_port});
+          const std::string live_alias = "${gate_a_live_alias}";
+          const std::string blackhole_ip = "${gate_a_blackhole_ip}";
+          const std::string restore_host = "${gate_a_restore_host}";
+
+          if (stage == 0) {
+            if (!id(n3w_phase4_core).runtime_ready() || !client->is_connected()) {
+              return;
+            }
+            ESP_LOGI("gate_a", "GATE_A_BASELINE_CONNECTED");
+            stage = 1;
+            stage_started_ms = now;
+            return;
+          }
+
+          if (stage == 1) {
+            if (now - stage_started_ms < 5000U) return;
+            const uint32_t retarget_started_us = micros();
+            const bool retarget_ok =
+                client->n3w_runtime_retarget_server(live_alias, broker_port);
+            const uint32_t retarget_duration_ms =
+                (micros() - retarget_started_us) / 1000U;
+            const uint32_t disconnect_started_us = micros();
+            const bool disconnect_ok =
+                client->n3w_runtime_request_disconnect();
+            const uint32_t disconnect_duration_ms =
+                (micros() - disconnect_started_us) / 1000U;
+            ESP_LOGI(
+                "gate_a",
+                "GATE_A_LIVE_RETARGET_REQUEST retarget_ok=%s disconnect_ok=%s retarget_ms=%u disconnect_ms=%u",
+                retarget_ok ? "true" : "false",
+                disconnect_ok ? "true" : "false",
+                static_cast<unsigned>(retarget_duration_ms),
+                static_cast<unsigned>(disconnect_duration_ms));
+            if (!retarget_ok || !disconnect_ok) {
+              ESP_LOGE("gate_a", "GATE_A_FAIL stage=live_request");
+              stage = 99;
+              return;
+            }
+            stage = 2;
+            attempt_started_ms = now;
+            saw_disconnect = false;
+            return;
+          }
+
+          if (stage == 2) {
+            if (!client->is_connected() && !saw_disconnect) {
+              saw_disconnect = true;
+              disconnect_seen_ms = now;
+              ESP_LOGI("gate_a", "GATE_A_LIVE_DISCONNECTED");
+            }
+            if (client->is_connected() && saw_disconnect) {
+              const uint32_t total_ms = now - attempt_started_ms;
+              ESP_LOGI(
+                  "gate_a",
+                  "GATE_A_LIVE_RECONNECTED total_ms=%u",
+                  static_cast<unsigned>(total_ms));
+              if (total_ms > 25000U) {
+                ESP_LOGE("gate_a", "GATE_A_FAIL stage=live_budget");
+                stage = 99;
+                return;
+              }
+              stage = 3;
+              stage_started_ms = now;
+              return;
+            }
+            if (now - attempt_started_ms > 25000U) {
+              ESP_LOGE("gate_a", "GATE_A_FAIL stage=live_timeout");
+              stage = 99;
+            }
+            return;
+          }
+
+          if (stage == 3) {
+            if (now - stage_started_ms < 5000U) return;
+            const bool retarget_ok =
+                client->n3w_runtime_retarget_server(blackhole_ip, broker_port);
+            const bool disconnect_ok =
+                client->n3w_runtime_request_disconnect();
+            ESP_LOGI(
+                "gate_a",
+                "GATE_A_BLACKHOLE_ACTIVE_START retarget_ok=%s disconnect_ok=%s",
+                retarget_ok ? "true" : "false",
+                disconnect_ok ? "true" : "false");
+            if (!retarget_ok || !disconnect_ok) {
+              ESP_LOGE("gate_a", "GATE_A_FAIL stage=active_start");
+              stage = 99;
+              return;
+            }
+            stage = 4;
+            attempt_started_ms = now;
+            saw_disconnect = false;
+            return;
+          }
+
+          if (stage == 4) {
+            if (!client->is_connected() && !saw_disconnect) {
+              saw_disconnect = true;
+              disconnect_seen_ms = now;
+              ESP_LOGI("gate_a", "GATE_A_BLACKHOLE_ACTIVE_DISCONNECTED");
+            }
+            if (!saw_disconnect || now - disconnect_seen_ms < 7000U) return;
+            const uint32_t api_started_us = micros();
+            const bool retarget_ok =
+                client->n3w_runtime_retarget_server(restore_host, broker_port);
+            last_api_duration_ms = (micros() - api_started_us) / 1000U;
+            const bool reconnect_ok =
+                client->n3w_runtime_request_reconnect();
+            ESP_LOGI(
+                "gate_a",
+                "GATE_A_BLACKHOLE_ACTIVE_RETARGET retarget_ok=%s reconnect_ok=%s api_ms=%u",
+                retarget_ok ? "true" : "false",
+                reconnect_ok ? "true" : "false",
+                static_cast<unsigned>(last_api_duration_ms));
+            if (!retarget_ok) {
+              ESP_LOGE("gate_a", "GATE_A_FAIL stage=active_retarget");
+              stage = 99;
+              return;
+            }
+            stage = 5;
+            stage_started_ms = now;
+            return;
+          }
+
+          if (stage == 5) {
+            if (client->is_connected()) {
+              const uint32_t total_ms = now - attempt_started_ms;
+              ESP_LOGI(
+                  "gate_a",
+                  "GATE_A_BLACKHOLE_ACTIVE_RECOVERED total_ms=%u api_ms=%u",
+                  static_cast<unsigned>(total_ms),
+                  static_cast<unsigned>(last_api_duration_ms));
+              if (total_ms > 25000U) {
+                ESP_LOGE("gate_a", "GATE_A_FAIL stage=active_budget");
+                stage = 99;
+                return;
+              }
+              stage = 6;
+              stage_started_ms = now;
+              return;
+            }
+            if (now - attempt_started_ms > 25000U) {
+              ESP_LOGE("gate_a", "GATE_A_FAIL stage=active_timeout");
+              stage = 99;
+            }
+            return;
+          }
+
+          if (stage == 6) {
+            if (now - stage_started_ms < 5000U) return;
+            const bool retarget_ok =
+                client->n3w_runtime_retarget_server(blackhole_ip, broker_port);
+            const bool disconnect_ok =
+                client->n3w_runtime_request_disconnect();
+            ESP_LOGI(
+                "gate_a",
+                "GATE_A_BLACKHOLE_WAIT_START retarget_ok=%s disconnect_ok=%s",
+                retarget_ok ? "true" : "false",
+                disconnect_ok ? "true" : "false");
+            if (!retarget_ok || !disconnect_ok) {
+              ESP_LOGE("gate_a", "GATE_A_FAIL stage=wait_start");
+              stage = 99;
+              return;
+            }
+            stage = 7;
+            attempt_started_ms = now;
+            saw_disconnect = false;
+            return;
+          }
+
+          if (stage == 7) {
+            if (!client->is_connected() && !saw_disconnect) {
+              saw_disconnect = true;
+              disconnect_seen_ms = now;
+              ESP_LOGI("gate_a", "GATE_A_BLACKHOLE_WAIT_DISCONNECTED");
+            }
+            if (!saw_disconnect || now - disconnect_seen_ms < 12000U) return;
+            const uint32_t api_started_us = micros();
+            const bool retarget_ok =
+                client->n3w_runtime_retarget_server(restore_host, broker_port);
+            last_api_duration_ms = (micros() - api_started_us) / 1000U;
+            const bool reconnect_ok =
+                client->n3w_runtime_request_reconnect();
+            ESP_LOGI(
+                "gate_a",
+                "GATE_A_BLACKHOLE_WAIT_RETARGET retarget_ok=%s reconnect_ok=%s api_ms=%u",
+                retarget_ok ? "true" : "false",
+                reconnect_ok ? "true" : "false",
+                static_cast<unsigned>(last_api_duration_ms));
+            if (!retarget_ok) {
+              ESP_LOGE("gate_a", "GATE_A_FAIL stage=wait_retarget");
+              stage = 99;
+              return;
+            }
+            stage = 8;
+            return;
+          }
+
+          if (stage == 8) {
+            if (client->is_connected()) {
+              const uint32_t total_ms = now - attempt_started_ms;
+              ESP_LOGI(
+                  "gate_a",
+                  "GATE_A_BLACKHOLE_WAIT_RECOVERED total_ms=%u api_ms=%u",
+                  static_cast<unsigned>(total_ms),
+                  static_cast<unsigned>(last_api_duration_ms));
+              if (total_ms > 25000U) {
+                ESP_LOGE("gate_a", "GATE_A_FAIL stage=wait_budget");
+                stage = 99;
+                return;
+              }
+              ESP_LOGI("gate_a", "GATE_A_PHYSICAL_SEQUENCE_PASS");
+              stage = 100;
+              return;
+            }
+            if (now - attempt_started_ms > 25000U) {
+              ESP_LOGE("gate_a", "GATE_A_FAIL stage=wait_timeout");
+              stage = 99;
+            }
+          }
