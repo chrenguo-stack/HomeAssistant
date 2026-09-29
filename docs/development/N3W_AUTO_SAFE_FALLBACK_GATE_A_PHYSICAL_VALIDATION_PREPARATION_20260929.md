@@ -8,8 +8,10 @@ PR：#516
 ```text
 TASK=N3W_AUTO_SAFE_FALLBACK_V1_GATE_A_PHYSICAL_VALIDATION_PREPARATION_20260929
 BOARD_TARGET=BOARD_B
-BOARD_ACCESS=false
+BOARD_ACCESS=true
+BOARD_READONLY_PREFLIGHT=PASS
 BOARD_FLASH=false
+T1_READONLY_PREFLIGHT=PASS
 T1_MUTATION=false
 BROKER_MUTATION=false
 PAIRING_MUTATION=false
@@ -27,6 +29,43 @@ MERGE=false
 
 这三项通过以后，才允许把自动发现接进 Direct/Relay 恢复状态机。
 
+## 1.1 2026-09-29 只读预检结果
+
+本轮已经完成 T1 + Board B 只读预检。公共仓库只记录脱敏结论，不记录局域网实际地址。
+
+```text
+T1_DEFAULT_ROUTE_INTERFACE_PRESENT=true
+T1_IPV4_PREFIX_BOUND=true
+T1_TWO_UNUSED_SAME_SUBNET_CANDIDATES=PASS
+BROKER_IPV4_WILDCARD_8883=true
+MANAGER_RUNNING=true
+MANAGER_RESTART_COUNT=0
+
+BOARD_B_ROM_IDENTITY_MATCH=PASS
+BOARD_B_FLASH_SIZE_8MB=PASS
+BOARD_B_SECURE_BOOT_DISABLED=PASS
+BOARD_B_FLASH_ENCRYPTION_DISABLED=PASS
+BOARD_B_PARTITION_TABLE_BINDING=PASS
+
+BOARD_FLASH=false
+T1_MUTATION=false
+```
+
+KF-099 的实板闭环同时证明 Board B 当前走的是未完成 provision 的 pairing WAIT 路径，而不是已加载 durable Broker profile 的正常 Direct MQTT 路径。因此 Gate A 不能再把“Board B 已有可用产品 MQTT NVS”作为前提；否则测试固件可能永远停在等待 `runtime_ready()`，这不是 MQTT retarget 能力本身的结果。
+
+为隔离这个无关变量，Gate A fixture 已调整为：
+
+```text
+phase4_product_runtime=false
+production_pairing_state_not_required=true
+mqtt_profile_source=ephemeral_lab_only
+durable_broker_nvs_write=false
+production_broker_credentials_used=false
+production_dynsec_mutation=false
+```
+
+实板 timing gate 后续改用独立的临时 TLS MQTT lab profile。临时 profile 只存在于测试固件应用镜像和私有本地/T1 临时目录；测试结束后连同测试固件一起清除，不写入 product NVS，也不修改生产 Broker / Manager / DynSec。
+
 ## 2. 为什么使用临时 T1 地址别名
 
 Gate A 不需要真的改 DHCP。
@@ -39,7 +78,7 @@ Gate A 不需要真的改 DHCP。
 同网段确认未占用地址 = blackhole address
 ```
 
-Broker 当前应继续使用单一 IPv4 wildcard 监听 8883。这样同一份证书、同一账号、同一 Broker 进程同时可通过两个地址访问。
+生产 Broker 的 IPv4 wildcard 8883 预检已通过，但 Gate A 不再复用生产账号。后续使用独立的临时 TLS MQTT lab broker/profile，并让同一个临时 Broker 同时可通过 restore host 与 live alias 访问。这样仍然能验证“TCP 目标改变、TLS 身份不变”的核心行为，同时不要求 Board B 已经完成产品 provisioning。
 
 测试结束后删除临时地址别名即可，不修改：
 
@@ -164,9 +203,10 @@ T1_ADDRESS_ALIAS_ADD=false
 fixture CI PASS
 -> T1/Board B read-only preflight
 -> 冻结 live alias / blackhole / restore host
--> 构建 exact Gate A firmware
--> artifact binding
+-> 构建 private exact Gate A firmware + isolated TLS lab bundle
+-> private artifact binding
 -> Board B write
+-> 启动临时 isolated TLS lab broker
 -> live alias temporary add
 -> Gate A physical sequence
 -> live alias remove
