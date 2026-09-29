@@ -127,7 +127,16 @@ def patch_runtime(tool, monkeypatch: pytest.MonkeyPatch, cert: Path, root: Path)
         lambda _container_id: broker_inspect(cert),
     )
     monkeypatch.setattr(tool, "_active_ca_source", lambda _inspect: cert)
-    monkeypatch.setattr(tool, "_derived_search_root", lambda _ca_source: root)
+    monkeypatch.setattr(tool, "_search_roots", lambda _ca_source: (root,))
+
+
+def root_owner_mode(tool, path: Path):
+    return (
+        (path.stat().st_mode & 0o077) == 0,
+        0,
+        path.stat().st_gid,
+        format(path.stat().st_mode & 0o7777, "04o"),
+    )
 
 
 def test_unique_root_owned_safe_key_is_pass(
@@ -137,23 +146,15 @@ def test_unique_root_owned_safe_key_is_pass(
     tool = load_tool()
     root, cert, key = prepare_probe_tree(tmp_path)
     patch_runtime(tool, monkeypatch, cert, root)
-    key_stat = key.stat()
-    monkeypatch.setattr(
-        tool,
-        "_mode_safe",
-        lambda path: (
-            (path.stat().st_mode & 0o077) == 0,
-            0 if path == key else path.stat().st_uid,
-            path.stat().st_gid,
-            format(path.stat().st_mode & 0o7777, "04o"),
-        ),
-    )
+    monkeypatch.setattr(tool, "_mode_safe", lambda path: root_owner_mode(tool, path))
 
     document = tool.probe(max_files=100, max_depth=8)
 
     assert document["result"] == "PASS"
     assert document["read_only"] is True
     assert document["t1_mutation"] is False
+    assert document["search_root_count"] == 1
+    assert document["private_key_candidate_count"] >= 1
     assert document["ca_private_key_match_count"] == 1
     assert document["ca_private_key_safe_permission_match_count"] == 1
     assert document["ca_private_key_root_owned_match_count"] == 1
@@ -174,16 +175,7 @@ def test_duplicate_matching_key_stops(
     duplicate.write_bytes(key.read_bytes())
     os.chmod(duplicate, 0o600)
     patch_runtime(tool, monkeypatch, cert, root)
-    monkeypatch.setattr(
-        tool,
-        "_mode_safe",
-        lambda path: (
-            True,
-            0,
-            path.stat().st_gid,
-            "0600",
-        ),
-    )
+    monkeypatch.setattr(tool, "_mode_safe", lambda path: root_owner_mode(tool, path))
 
     document = tool.probe(max_files=100, max_depth=8)
 
@@ -201,16 +193,7 @@ def test_unsafe_permissions_stop(
     root, cert, key = prepare_probe_tree(tmp_path)
     os.chmod(key, 0o640)
     patch_runtime(tool, monkeypatch, cert, root)
-    monkeypatch.setattr(
-        tool,
-        "_mode_safe",
-        lambda path: (
-            (path.stat().st_mode & 0o077) == 0,
-            0,
-            path.stat().st_gid,
-            format(path.stat().st_mode & 0o7777, "04o"),
-        ),
-    )
+    monkeypatch.setattr(tool, "_mode_safe", lambda path: root_owner_mode(tool, path))
 
     document = tool.probe(max_files=100, max_depth=8)
 
@@ -225,21 +208,12 @@ def test_nonmatching_private_key_is_not_authority(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     tool = load_tool()
-    root, cert, key = prepare_probe_tree(tmp_path)
+    root, cert, _key = prepare_probe_tree(tmp_path)
     other_dir = root / "other"
     other_dir.mkdir()
     _other_cert, other_key = make_ca(other_dir, stem="other")
     patch_runtime(tool, monkeypatch, cert, root)
-    monkeypatch.setattr(
-        tool,
-        "_mode_safe",
-        lambda path: (
-            True,
-            0,
-            path.stat().st_gid,
-            "0600",
-        ),
-    )
+    monkeypatch.setattr(tool, "_mode_safe", lambda path: root_owner_mode(tool, path))
 
     document = tool.probe(max_files=100, max_depth=8)
 
@@ -249,12 +223,40 @@ def test_nonmatching_private_key_is_not_authority(
     assert str(other_key) not in json.dumps(document)
 
 
+def test_irrelevant_files_are_prefiltered_before_openssl(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    root, cert, _key = prepare_probe_tree(tmp_path)
+    for index in range(40):
+        (root / f"state-{index}.json").write_text(
+            '{"value":"not a key"}',
+            encoding="utf-8",
+        )
+    patch_runtime(tool, monkeypatch, cert, root)
+    monkeypatch.setattr(tool, "_mode_safe", lambda path: root_owner_mode(tool, path))
+    calls: list[Path] = []
+    original = tool._private_public_key_der
+
+    def counted(path: Path):
+        calls.append(path)
+        return original(path)
+
+    monkeypatch.setattr(tool, "_private_public_key_der", counted)
+    document = tool.probe(max_files=100, max_depth=8)
+
+    assert document["search_file_count"] >= 40
+    assert len(calls) == document["private_key_candidate_count"]
+    assert len(calls) < document["search_file_count"]
+
+
 def test_file_limit_fails_closed(tmp_path: Path) -> None:
     tool = load_tool()
     for index in range(3):
         (tmp_path / f"file-{index}").write_text("x", encoding="utf-8")
     with pytest.raises(tool.ProbeError, match="search_file_limit_exceeded"):
-        tool._walk_files(tmp_path, max_files=2, max_depth=2)
+        tool._walk_files((tmp_path,), max_files=2, max_depth=2)
 
 
 def test_active_ca_mount_must_be_read_only(tmp_path: Path) -> None:
@@ -266,10 +268,34 @@ def test_active_ca_mount_must_be_read_only(tmp_path: Path) -> None:
         tool._active_ca_source(inspect)
 
 
-def test_derived_search_root_never_becomes_filesystem_root() -> None:
+def test_persistent_search_root_never_becomes_filesystem_root() -> None:
     tool = load_tool()
     with pytest.raises(tool.ProbeError, match="derived_search_root_too_broad"):
-        tool._derived_search_root(Path("/ca.pem"))
+        tool._persistent_search_root(Path("/ca.pem"))
+
+
+def test_search_roots_can_include_private_materialization(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    durable, cert, _key = prepare_probe_tree(tmp_path)
+    private_root = tmp_path / "private-materialization"
+    private_root.mkdir()
+    monkeypatch.setattr(
+        tool,
+        "_persistent_search_root",
+        lambda _ca_source: durable,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_private_materialization_roots",
+        lambda: (private_root,),
+    )
+
+    roots = tool._search_roots(cert)
+
+    assert roots == (durable, private_root)
 
 
 def test_source_has_no_write_or_mutation_commands() -> None:
@@ -321,7 +347,7 @@ def test_active_ca_fingerprint_drift_stops(
         lambda _container_id: broker_inspect(cert),
     )
     monkeypatch.setattr(tool, "_active_ca_source", lambda _inspect: cert)
-    monkeypatch.setattr(tool, "_derived_search_root", lambda _ca_source: root)
+    monkeypatch.setattr(tool, "_search_roots", lambda _ca_source: (root,))
     monkeypatch.setattr(
         tool,
         "EXPECTED_CA_SHA256_FINGERPRINT",
