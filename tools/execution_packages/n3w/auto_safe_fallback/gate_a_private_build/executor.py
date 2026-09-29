@@ -6,6 +6,7 @@ import hashlib
 import ipaddress
 import json
 import os
+import platform
 import re
 import secrets
 import shutil
@@ -312,7 +313,48 @@ def verify_idf_version() -> None:
             raise StopExecution("ESP-IDF version is not exact 5.5.4")
 
 
-def create_venv(root: Path) -> Path:
+def _probe_exact_esphome(command: list[str]) -> bool:
+    try:
+        completed = subprocess.run(
+            [*command, "version"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    if completed.returncode != 0:
+        return False
+    return re.search(
+        rf"(?<![0-9.]){re.escape(ESPHOME_VERSION)}(?![0-9.])",
+        completed.stdout or "",
+    ) is not None
+
+
+def resolve_esphome_command(root: Path) -> tuple[list[str], str]:
+    existing = shutil.which("esphome")
+    if existing is not None and _probe_exact_esphome([existing]):
+        return [existing], "existing_exact_cli"
+
+    if _probe_exact_esphome([sys.executable, "-m", "esphome"]):
+        return [sys.executable, "-m", "esphome"], "existing_exact_python_module"
+
+    if (
+        platform.system() == "Darwin"
+        and platform.machine() in {"x86_64", "AMD64"}
+        and shutil.which("cargo") is None
+        and shutil.which("rustc") is None
+    ):
+        raise StopExecution(
+            "exact ESPHome 2026.4.3 is not already installed; "
+            "this Intel macOS host has no Rust toolchain, while the required "
+            "cbor2>=6 dependency has no compatible prebuilt wheel for this host. "
+            "Refusing to install a persistent Rust toolchain automatically."
+        )
+
     venv = root / "venv"
     run([sys.executable, "-m", "venv", str(venv)], timeout=120)
     python = venv / "bin" / "python"
@@ -325,19 +367,35 @@ def create_venv(root: Path) -> Path:
             "-m",
             "pip",
             "install",
+            "--upgrade",
+            "pip",
+            "setuptools",
+            "wheel",
+        ],
+        timeout=300,
+        stdout_path=pip_log,
+    )
+    run(
+        [
+            str(python),
+            "-m",
+            "pip",
+            "install",
             "--disable-pip-version-check",
             f"esphome=={ESPHOME_VERSION}",
         ],
-        timeout=600,
+        timeout=900,
         stdout_path=pip_log,
     )
-    return python
+    if not _probe_exact_esphome([str(python), "-m", "esphome"]):
+        raise StopExecution("private ESPHome environment is not exact 2026.4.3")
+    return [str(python), "-m", "esphome"], "private_venv"
 
 
 def compile_firmware(
     root: Path,
     source: Path,
-    python: Path,
+    esphome_command: list[str],
     preflight: dict[str, Any],
     profile: dict[str, str],
 ) -> dict[str, Any]:
@@ -360,14 +418,14 @@ def compile_firmware(
     config_log = root / "esphome-config.log"
     compile_log = root / "esphome-compile.log"
     run(
-        [str(python), "-m", "esphome", "config", "generic.yml"],
+        [*esphome_command, "config", "generic.yml"],
         cwd=target_dir,
         env=env,
         timeout=180,
         stdout_path=config_log,
     )
     run(
-        [str(python), "-m", "esphome", "compile", "generic.yml"],
+        [*esphome_command, "compile", "generic.yml"],
         cwd=target_dir,
         env=env,
         timeout=1200,
@@ -424,8 +482,10 @@ def build(args: argparse.Namespace) -> int:
         tls = generate_tls(root)
         profile = create_lab_profile(root, preflight)
         source = clone_exact_source(root)
-        python = create_venv(root)
-        firmware = compile_firmware(root, source, python, preflight, profile)
+        esphome_command, esphome_source = resolve_esphome_command(root)
+        firmware = compile_firmware(
+            root, source, esphome_command, preflight, profile
+        )
         manifest = {
             "schema": "n3w.auto-safe-fallback.gate-a-private-build/1",
             "status": "PASS",
@@ -438,6 +498,7 @@ def build(args: argparse.Namespace) -> int:
                 "patch_blob": PATCH_BLOB,
                 "esphome_version": ESPHOME_VERSION,
                 "esp_idf_version": ESP_IDF_VERSION,
+                "esphome_source": esphome_source,
             },
             "board": {
                 "hardware_id_sha256": EXPECTED_BOARD_B_HARDWARE_ID_SHA256,
@@ -473,6 +534,7 @@ def build(args: argparse.Namespace) -> int:
         print(f"SOURCE_TREE={SOURCE_TREE}")
         print(f"TARGET_BLOB={TARGET_BLOB}")
         print(f"PATCH_BLOB={PATCH_BLOB}")
+        print(f"ESPHOME_SOURCE={esphome_source}")
         print(f"APPLICATION_SIZE={firmware['application_size']}")
         print(f"APPLICATION_SHA256={firmware['application_sha256']}")
         print(f"OTADATA_SIZE={firmware['otadata_size']}")
