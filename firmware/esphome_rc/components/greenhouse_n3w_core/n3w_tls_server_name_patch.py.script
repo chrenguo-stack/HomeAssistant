@@ -38,6 +38,9 @@ CLIENT_NEW = (
     "  bool n3w_runtime_request_disconnect() {\n"
     "    return this->mqtt_backend_.n3w_runtime_request_disconnect();\n"
     "  }\n"
+    "  bool n3w_runtime_request_reconnect() {\n"
+    "    return this->mqtt_backend_.n3w_runtime_request_reconnect();\n"
+    "  }\n"
     "#endif\n"
 )
 
@@ -73,6 +76,10 @@ BACKEND_SETTER_NEW = (
     "  bool n3w_runtime_request_disconnect() {\n"
     "    if (!this->is_initalized_) return true;\n"
     "    return esp_mqtt_client_disconnect(this->handler_.get()) == ESP_OK;\n"
+    "  }\n"
+    "  bool n3w_runtime_request_reconnect() {\n"
+    "    if (!this->is_initalized_) return false;\n"
+    "    return esp_mqtt_client_reconnect(this->handler_.get()) == ESP_OK;\n"
     "  }\n"
 )
 
