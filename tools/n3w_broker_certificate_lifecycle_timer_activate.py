@@ -160,7 +160,11 @@ def _parse_env() -> dict[str, str]:
         raise TimerActivationError("environment_file_permissions_invalid")
 
     values: dict[str, str] = {}
-    for line in ENV_FILE.read_text(encoding="utf-8").splitlines():
+    try:
+        lines = ENV_FILE.read_text(encoding="utf-8").splitlines()
+    except OSError as error:
+        raise TimerActivationError("environment_file_unreadable") from error
+    for line in lines:
         if not line or line.lstrip().startswith("#"):
             continue
         if "=" not in line:
@@ -270,7 +274,10 @@ def _status_document() -> tuple[dict[str, object], str, str]:
     if uid != 0 or gid != 0 or mode != 0o700:
         raise TimerActivationError("status_directory_permissions_invalid")
 
-    names = {path.name for path in STATUS_DIR.iterdir()}
+    try:
+        names = {path.name for path in STATUS_DIR.iterdir()}
+    except OSError as error:
+        raise TimerActivationError("status_directory_unreadable") from error
     if names != {STATUS_FILE.name, LOCK_FILE.name}:
         raise TimerActivationError("status_directory_unexpected_entries")
 
@@ -281,7 +288,10 @@ def _status_document() -> tuple[dict[str, object], str, str]:
         if uid != 0 or gid != 0 or mode != 0o600:
             raise TimerActivationError("status_authority_permissions_invalid")
 
-    raw = STATUS_FILE.read_text(encoding="utf-8")
+    try:
+        raw = STATUS_FILE.read_text(encoding="utf-8")
+    except OSError as error:
+        raise TimerActivationError("status_file_unreadable") from error
     try:
         document = json.loads(raw)
     except json.JSONDecodeError as error:
