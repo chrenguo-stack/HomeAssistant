@@ -176,6 +176,11 @@ jobs:
           N3W_GATE_A_BLACKHOLE_IP: 192.0.2.21
           N3W_GATE_A_RESTORE_HOST: 192.0.2.22
           N3W_GATE_A_BROKER_PORT: "8883"
+          N3W_GATE_A_TLS_SERVER_NAME: gate-a.invalid
+          N3W_GATE_A_CA_PEM_ESCAPED: CI_CA
+          N3W_GATE_A_MQTT_USERNAME: ci_gate_a
+          N3W_GATE_A_MQTT_PASSWORD: ""
+          N3W_GATE_A_MQTT_CLIENT_ID: ci_gate_a
         run: |
           set -euo pipefail
           cd firmware/esphome_rc/board_lab/n3w_auto_safe_fallback_gate_a
