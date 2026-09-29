@@ -1,7 +1,7 @@
 # N3-W Current State Index
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
-Current progress alignment: `docs/development/N3W_KF100_BROKER_CERTIFICATE_LIFECYCLE_PRODUCTION_INSTALLATION_EXECUTION_RESULT_20260929.md`  
+Current progress alignment: `docs/development/N3W_KF100_BROKER_CERTIFICATE_LIFECYCLE_FIRST_AUDIT_SOURCE_REVIEW_20260929.md`  
 Current new-chat handoff: `docs/development/N3W_PR475_PR478_POSTMERGE_MAIN_ALIGNMENT_NEW_CHAT_HANDOFF_V1.0_20260927.md`  
 Long-term working context: `docs/development/N3W_PROJECT_WORKING_CONTEXT.md`  
 Current handoff template: `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` v1.2  
@@ -15,6 +15,30 @@ Current production artifact binding authority: `docs/development/N3W_PRODUCTION_
 Currently deployed Board B source: `c578bcb2e31f50771b6b08c231704da6bf36b729` / artifact `10959875986` / application SHA-256 `d0875ca692f7bd4349fd7d8bcdab69318e6c8b737b69a48f667b6e72cb89cb60`  
 Current local-development-environment authority: `docs/development/local-environment-records/2026-09-17-macos-x86_64.json`  
 Active product-direction authority: `docs/development/N3W_OFFICIAL_ESPNOW_REFERENCE_PRODUCT_DIRECTION_DECISION_20260906.md`
+
+
+## 2026-09-29 KF-100 first audit preparation snapshot
+
+```text
+KF100_FIRST_AUDIT_PR=510
+KF100_FIRST_AUDIT_SOURCE_TEST_HEAD=f185018e333107e24a368339cfd06a62be8d6a3f
+KF100_FIRST_AUDIT_EXECUTOR_BLOB=3c800633b557c0b1b22eb3ee5be129b69500c4df
+
+FIRST_AUDIT_MODE=audit
+PRIVATE_KEY_ARGUMENTS_USED=false
+AUTO_RENEW_INVOCATION=false
+TIMER_ENABLEMENT=false
+BROKER_RESTART=false
+CERTIFICATE_MUTATION=false
+
+LIVE_FIRST_AUDIT=false
+SOURCE_REVIEW=PASS_PENDING_CI
+
+NEXT_ONE_GATE=N3W_KF100_BROKER_CERTIFICATE_LIFECYCLE_FIRST_AUDIT_EXECUTION_20260929_01
+```
+
+Authority: `docs/development/N3W_KF100_BROKER_CERTIFICATE_LIFECYCLE_FIRST_AUDIT_SOURCE_REVIEW_20260929.md`.
+
 
 
 ## 2026-09-29 KF-100 production installation execution snapshot
