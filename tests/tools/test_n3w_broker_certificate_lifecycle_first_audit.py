@@ -307,3 +307,15 @@ def test_source_contains_no_service_or_timer_activation() -> None:
     )
     for token in forbidden:
         assert token not in source
+
+
+def test_unknown_status_directory_entry_stops_first_audit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    prepare_runtime(tmp_path, tool, monkeypatch)
+    (tool.STATUS_DIR / "unexpected").write_text("x", encoding="utf-8")
+
+    with pytest.raises(tool.AuditGateError, match="first_audit_status_directory_not_empty"):
+        tool.first_audit()
