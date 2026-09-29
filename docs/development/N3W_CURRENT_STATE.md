@@ -6,6 +6,36 @@ Status: `CURRENT_STATE_AUTHORITY`
 Fresh exact repository/runtime/physical evidence takes precedence if later evidence proves drift.
 
 
+## 2026-09-29 KF-100 production deployment preparation source PASS; live read-only preflight pending
+
+PR #507 prepares the production deployment route for the already-merged PR #506 lifecycle source. No T1 mutation has occurred in this gate.
+
+```text
+KF100_DEPLOYMENT_PREPARATION_PR=507
+KF100_DEPLOYMENT_PREPARATION_BRANCH=exec/n3w-kf100-broker-certificate-lifecycle-production-deployment-preparation-20260929
+KF100_DEPLOYMENT_PREFLIGHT_SOURCE_TEST_HEAD=4b3d77e83f16c91cd73eabf543c02e1a40158c44
+KF100_DEPLOYMENT_PREFLIGHT_GIT_BLOB_SHA1=5740c6e30a867e8f32f8745e20b5135f23fb5a1e
+
+KF100_DEPLOYMENT_PREFLIGHT_SOURCE_REVIEW=PASS
+KF100_DEPLOYMENT_PREFLIGHT_TESTS=PASS
+KF100_DEPLOYMENT_PREFLIGHT_SOURCE_CI=12_OF_12_PASS
+N3W_BROKER_INGRESS_GUARD_CI_RUN=36521261740
+PUBLIC_REPOSITORY_SAFETY_CI_RUN=36521261775
+
+T1_MUTATION=false
+CERTIFICATE_MUTATION=false
+TIMER_ENABLEMENT=false
+LIFECYCLE_INSTALLATION=false
+
+NEXT_ONE_GATE=N3W_KF100_BROKER_CERTIFICATE_LIFECYCLE_PRODUCTION_DEPLOYMENT_READONLY_PREFLIGHT_20260929_01
+```
+
+The read-only preflight rebinds the active Broker CA/server certificate/server key from the running Compose Broker, proves server cert/key equality and the live TLS/8883 endpoint, re-proves the unique FC4 CA private-key authority, checks System CA identity, confirms ingress guard and Broker activation readiness, requires the lifecycle timer to remain not enabled, and stops if any lifecycle deployment target already exists.
+
+Authority: `docs/development/N3W_KF100_BROKER_CERTIFICATE_LIFECYCLE_PRODUCTION_DEPLOYMENT_PREFLIGHT_REVIEW_20260929.md`.
+
+
+
 ## 2026-09-29 KF-100 T1 Broker certificate lifecycle source repair PASS
 
 Read-only production inventory established the current X.509 lifecycle authority, then PR #506 implemented and reviewed the source-only repair. Full baseline, design and source review are archived in:
