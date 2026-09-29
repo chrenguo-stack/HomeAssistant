@@ -1,7 +1,7 @@
 [Unit]
 Description=N3W FC4 Broker certificate lifecycle
 Requires=docker.service n3wfc4-broker-ingress-guard.service
-After=docker.service n3wfc4-broker-ingress-guard.service
+After=docker.service n3wfc4-broker-ingress-guard.service n3wfc4-broker-activation.service
 
 [Service]
 Type=oneshot
