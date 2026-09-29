@@ -16,6 +16,8 @@ on:
       - "tests/tools/test_n3w_broker_certificate_lifecycle_install.py"
       - "tools/n3w_broker_certificate_lifecycle_first_audit.py"
       - "tests/tools/test_n3w_broker_certificate_lifecycle_first_audit.py"
+      - "tools/n3w_broker_certificate_lifecycle_timer_enable.py"
+      - "tests/tools/test_n3w_broker_certificate_lifecycle_timer_enable.py"
       - "tools/n3w_broker_ca_private_key_authority_probe.py"
       - "tests/tools/test_n3w_broker_ca_private_key_authority_probe.py"
       - "infra/n3w-t1/**"
@@ -50,4 +52,4 @@ jobs:
         with:
           python-version: "3.11"
       - run: python -m pip install "pytest>=8,<9"
-      - run: python -m pytest -q tests/tools/test_n3w_broker_ingress_guard.py tests/tools/test_n3w_broker_ingress_guard_lifecycle.py tests/tools/test_n3w_mosquitto_21_deprecation_repair.py tests/tools/test_n3w_broker_certificate_lifecycle.py tests/tools/test_n3w_broker_ca_private_key_authority_probe.py tests/tools/test_n3w_broker_certificate_lifecycle_deployment_preflight.py tests/tools/test_n3w_broker_certificate_lifecycle_install.py tests/tools/test_n3w_broker_certificate_lifecycle_first_audit.py
+      - run: python -m pytest -q tests/tools/test_n3w_broker_ingress_guard.py tests/tools/test_n3w_broker_ingress_guard_lifecycle.py tests/tools/test_n3w_mosquitto_21_deprecation_repair.py tests/tools/test_n3w_broker_certificate_lifecycle.py tests/tools/test_n3w_broker_ca_private_key_authority_probe.py tests/tools/test_n3w_broker_certificate_lifecycle_deployment_preflight.py tests/tools/test_n3w_broker_certificate_lifecycle_install.py tests/tools/test_n3w_broker_certificate_lifecycle_first_audit.py tests/tools/test_n3w_broker_certificate_lifecycle_timer_enable.py
