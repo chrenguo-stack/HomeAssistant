@@ -6,6 +6,46 @@ Status: `CURRENT_STATE_AUTHORITY`
 Fresh exact repository/runtime/physical evidence takes precedence if later evidence proves drift.
 
 
+## 2026-09-29 KF-100 first audit source prepared; live first audit pending
+
+PR #510 prepares the first production lifecycle audit after the installation-only PASS.
+
+```text
+KF100_FIRST_AUDIT_PR=510
+KF100_FIRST_AUDIT_BRANCH=exec/n3w-kf100-broker-certificate-lifecycle-first-audit-preparation-20260929
+KF100_FIRST_AUDIT_SOURCE_TEST_HEAD=f185018e333107e24a368339cfd06a62be8d6a3f
+KF100_FIRST_AUDIT_EXECUTOR_BLOB=3c800633b557c0b1b22eb3ee5be129b69500c4df
+
+FIRST_AUDIT_MODE=audit
+PRIVATE_KEY_ARGUMENTS_USED=false
+AUTO_RENEW_INVOCATION=false
+LIFECYCLE_SERVICE_START=false
+TIMER_ENABLEMENT=false
+TIMER_START=false
+BROKER_RESTART=false
+CERTIFICATE_MUTATION=false
+
+FIRST_AUDIT_STATUS_PRESTATE=ABSENT
+FIRST_AUDIT_LOCK_PRESTATE=ABSENT
+FIRST_AUDIT_STATUS_DIRECTORY_EXPECTED_EMPTY=true
+
+EXPECTED_SERVER_STATE=HEALTHY
+EXPECTED_CA_STATE=HEALTHY
+EXPECTED_SYSTEM_CA_STATE=HEALTHY
+EXPECTED_AUDIT_RESULT=ok
+
+LIVE_FIRST_AUDIT=false
+SOURCE_REVIEW=PASS_PENDING_CI
+
+NEXT_ONE_GATE=N3W_KF100_BROKER_CERTIFICATE_LIFECYCLE_FIRST_AUDIT_EXECUTION_20260929_01
+```
+
+The first-audit executor invokes the installed lifecycle CLI directly in `audit` mode, deliberately omits both private-key arguments, creates only the lifecycle lock/status authority, and requires Broker/TLS/certificate continuity after the audit.
+
+Authority: `docs/development/N3W_KF100_BROKER_CERTIFICATE_LIFECYCLE_FIRST_AUDIT_SOURCE_REVIEW_20260929.md`.
+
+
+
 ## 2026-09-29 KF-100 production installation CLOSED_PASS
 
 PR #508 prepared and merged the installation-only executor. The production T1 installation-only execution has now completed successfully.
