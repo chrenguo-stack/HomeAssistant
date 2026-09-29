@@ -225,3 +225,68 @@ TIMER_ENABLEMENT=false
 
 NEXT_ONE_GATE=N3W_KF100_BROKER_CERTIFICATE_LIFECYCLE_PRODUCTION_DEPLOYMENT_READONLY_PREFLIGHT_20260929_01
 ```
+
+
+## 11. First live read-only preflight result and harness correction
+
+The first live read-only execution stopped before any mutation:
+
+```text
+RESULT=STOP
+REASON=server_key_permissions_invalid
+PREFLIGHT_RC=2
+
+T1_MUTATION=false
+CERTIFICATE_MUTATION=false
+TIMER_ENABLEMENT=false
+```
+
+A targeted follow-up read-only inspection established the actual Broker privilege contract:
+
+```text
+BROKER_CONFIG_USER=EMPTY
+BROKER_PROCESS_EFFECTIVE_UID=1883
+BROKER_PROCESS_EFFECTIVE_GID=1883
+
+SERVER_KEY_HOST_UID=1883
+SERVER_KEY_HOST_GID=1883
+SERVER_KEY_HOST_MODE=0600
+
+SERVER_KEY_CONTAINER_UID=1883
+SERVER_KEY_CONTAINER_GID=1883
+SERVER_KEY_CONTAINER_MODE=0600
+
+SERVER_KEY_PARENT_UID=1883
+SERVER_KEY_PARENT_GID=1883
+SERVER_KEY_PARENT_MODE=0700
+
+SERVER_CERT_KEY_MATCH=PASS
+```
+
+This is not a product TLS defect. The preflight incorrectly required the server private key to be root-owned.
+
+The current runtime shows the correct least-privilege relationship:
+
+```text
+server.key owner == running Mosquitto effective UID/GID
+server.key mode == 0600
+server certificate/public key == server private key/public key
+```
+
+The lifecycle service itself runs as root and can read the existing mode-0600 server key when a future renewal becomes due. V1 does not replace or rotate `server.key`.
+
+The preflight source is therefore repaired to require:
+
+```text
+SERVER_KEY_UID == BROKER_EFFECTIVE_UID
+SERVER_KEY_GID == BROKER_EFFECTIVE_GID
+SERVER_KEY_GROUP_OTHER_BITS == 0
+```
+
+The FC4 CA private-key rule remains different: the CA signing key is host lifecycle authority and must remain root-owned with no group/other access.
+
+```text
+FIRST_PREFLIGHT_PRODUCT_FAILURE=false
+FIRST_PREFLIGHT_HARNESS_ASSUMPTION_FAILURE=true
+LIVE_MUTATION_OCCURRED=false
+```
