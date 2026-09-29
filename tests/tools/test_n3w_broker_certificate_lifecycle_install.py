@@ -57,7 +57,7 @@ def prepare_runtime(tmp_path: Path, tool, monkeypatch: pytest.MonkeyPatch):
     systemd = install_root / "etc/systemd/system"
     etc_n3wfc4 = install_root / "etc/n3wfc4"
     status = install_root / "var/lib/n3wfc4-certificate-lifecycle"
-    for directory in (sbin, systemd, etc_n3wfc4):
+    for directory in (sbin, systemd, etc_n3wfc4, status.parent):
         directory.mkdir(parents=True)
     monkeypatch.setattr(tool, "LIFECYCLE_TARGET", sbin / "n3w-broker-certificate-lifecycle")
     monkeypatch.setattr(tool, "SERVICE_TARGET", systemd / "n3wfc4-broker-certificate-lifecycle.service")
