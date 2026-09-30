@@ -6,6 +6,32 @@ Status: `CURRENT_STATE_AUTHORITY`
 Fresh exact repository/runtime/physical evidence takes precedence if later evidence proves drift.
 
 
+## 2026-09-30 FC4 CA rollover workstream CLOSED_NOT_PLANNED
+
+The FC4 CA rollover / dual-trust migration workstream is intentionally closed for this product generation.
+
+```text
+FC4_PRIVATE_CA_NOT_BEFORE=2026-08-20T04:18:39Z
+FC4_PRIVATE_CA_NOT_AFTER=2036-08-17T04:18:39Z
+FC4_PRIVATE_CA_VALIDITY_DAYS=3650
+
+PRODUCT_EXPECTED_RETIREMENT_BEFORE_FC4_CA_EXPIRY=true
+
+FC4_CA_ROLLOVER_WORKSTREAM=CLOSED_NOT_PLANNED
+FC4_CA_DUAL_TRUST_MIGRATION=NOT_IMPLEMENTED
+FC4_CA_AGE_BASED_ROLLOVER_TESTING=NOT_PLANNED
+
+FC4_CA_EXPIRY_MONITORING=ENABLED
+KF100_ROUTE_STATUS=CLOSED_PASS
+KF100_REOPEN=false
+```
+
+Reopen only if product service life is extended, units are intentionally reused beyond the current service life, the FC4 CA private key is lost/exposed/suspected compromised, security policy requires earlier replacement, or another non-age-related event forces CA replacement.
+
+Authority: `docs/development/N3W_FC4_CA_ROLLOVER_PRODUCT_LIFECYCLE_DECISION_20260930.md`.
+
+
+
 ## 2026-09-30 KF-100 short-lived automatic renewal lab R2 CLOSED_PASS
 
 The post-closure production-fidelity lab completed both the real renewal path and the forced rollback path using the exact installed production lifecycle executable against isolated temporary TLS material.
@@ -137,7 +163,7 @@ CERTIFICATE_MUTATION=false
 BROKER_RESTART=false
 ```
 
-The production path is now proven from source repair through installation, first audit, timer enablement, current-boot timer activation, and the first autonomous scheduled firing. Future FC4/System CA rollover and the eventual real leaf renewal are separate lifecycle work, not blockers for KF-100 closure.
+The production path is now proven from source repair through installation, first audit, timer enablement, current-boot timer activation, and the first autonomous scheduled firing. FC4 CA age-based rollover is now CLOSED_NOT_PLANNED by product-lifecycle decision; the H0/H1 System CA remains a separate authority. The real server-certificate renewal path has already been proven in the isolated T1 short-lived-certificate lab.
 
 Authority: `docs/development/N3W_KF100_BROKER_CERTIFICATE_LIFECYCLE_FIRST_SCHEDULED_TRIGGER_ACCEPTANCE_CLOSURE_20260930.md`.
 
@@ -477,7 +503,7 @@ LIVE_TIMER_ENABLEMENT=false
 KF100_KNOWN_FAILURE_STATUS=OPEN
 ```
 
-The source repair keeps the current FC4 CA and Broker server private key for ordinary V1 server-certificate renewal, validates certificate/key authority fail-closed, performs an atomic certificate replacement, then restarts only the existing Broker activation owner because the current TLS files are single-file bind mounts. The new endpoint must present the expected new certificate under normal CA/hostname/time verification; failure triggers restoration of the old certificate and a second Broker activation check. FC4 CA and H0/H1 System CA are monitoring-only and remain separate controlled rollover problems.
+The source repair keeps the current FC4 CA and Broker server private key for ordinary V1 server-certificate renewal, validates certificate/key authority fail-closed, performs an atomic certificate replacement, then restarts only the existing Broker activation owner because the current TLS files are single-file bind mounts. The new endpoint must present the expected new certificate under normal CA/hostname/time verification; failure triggers restoration of the old certificate and a second Broker activation check. FC4 CA and H0/H1 System CA remain monitoring-only in KF-100. FC4 CA age-based rollover is now CLOSED_NOT_PLANNED by product-lifecycle decision; H0/H1 System CA remains separate.
 
 The source/test review is complete. A fresh read-only T1 preflight subsequently proved one exact root-owned mode-0600 FC4 CA private-key match for the active Broker CA, with no second matching key in the bounded production authority roots. Production activation is still intentionally not claimed: no certificate mutation or timer enablement has occurred.
 
