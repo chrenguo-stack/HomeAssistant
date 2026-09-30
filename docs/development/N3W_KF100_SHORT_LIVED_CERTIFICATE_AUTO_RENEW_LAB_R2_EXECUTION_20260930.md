@@ -1,6 +1,6 @@
 # N3-W KF-100 Short-Lived Certificate Auto-Renew Lab R2 Execution — 2026-09-30
 
-Status: `PREEXECUTION_READY_PENDING_POSTMERGE_CI`  
+Status: `PREEXECUTION_READY`  
 Base main: `d30c1631fb0be17f8263ded46217666a1f4e8cc7`  
 Predecessor PR: `#519` merged  
 Execution branch: `exec/n3w-kf100-short-lived-certificate-auto-renew-lab-r2-execution-20260930`
@@ -29,11 +29,11 @@ d30c1631fb0be17f8263ded46217666a1f4e8cc7
 Post-merge push CI at preparation time:
 
 ```text
-Public repository safety CI run 36651818583 = PENDING
-N3W Broker ingress guard CI run 36651818625 = PENDING
+Public repository safety CI run 36651818583 = PASS
+N3W Broker ingress guard CI run 36651818625 = PASS
 ```
 
-Live R2 execution remains blocked until both post-merge checks return PASS.
+Both post-merge checks are PASS. Live R2 execution is now released.
 
 ## R2 lab boundary
 
