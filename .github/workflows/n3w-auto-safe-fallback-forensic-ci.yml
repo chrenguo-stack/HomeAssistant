@@ -1,0 +1,22 @@
+name: N3W auto safe fallback forensic CI
+
+on:
+  pull_request:
+    paths:
+      - "tools/execution_packages/n3w/auto_safe_fallback/gate_a_t1_lab_permission_forensic/**"
+      - "tests/execution_packages/n3w/auto_safe_fallback/gate_a_t1_lab_permission_forensic/**"
+      - ".github/workflows/n3w-auto-safe-fallback-forensic-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Gate A Broker runtime user forensic contract
+        run: pytest -q tests/execution_packages/n3w/auto_safe_fallback/gate_a_t1_lab_permission_forensic/test_executor.py
