@@ -6,6 +6,35 @@ Status: `CURRENT_STATE_AUTHORITY`
 Fresh exact repository/runtime/physical evidence takes precedence if later evidence proves drift.
 
 
+## 2026-09-30 KF-100 short-lived automatic renewal lab prepared
+
+KF-100 remains CLOSED_PASS. This is a post-closure production-fidelity lab to exercise the real renewal and rollback paths without touching production TLS material.
+
+```text
+KF100_ROUTE_STATUS=CLOSED_PASS
+KF100_REOPEN=false
+
+SHORT_LIVED_RENEWAL_LAB_BRANCH=lab/n3w-kf100-short-lived-certificate-auto-renew-20260930
+SHORT_LIVED_RENEWAL_LAB_SOURCE_TEST_HEAD=49497128e451a5d1648cabba4427227a8bb087fb
+SHORT_LIVED_RENEWAL_LAB_EXECUTOR_BLOB=16c1d1f3afedf18580a1096e92357f62380f2a53
+
+LAB_CASE_A=SUCCESSFUL_AUTO_RENEW
+LAB_CASE_B=FORCED_POSTRENEW_MISMATCH_AND_ROLLBACK
+
+PRODUCTION_CERTIFICATE_MUTATION=false
+PRODUCTION_BROKER_RESTART=false
+PRODUCTION_TIMER_MUTATION=false
+LIVE_LAB=false
+
+SOURCE_REVIEW=PASS_PENDING_CI
+
+NEXT_ONE_GATE=N3W_KF100_SHORT_LIVED_CERTIFICATE_AUTO_RENEW_LAB_EXECUTION_20260930_01
+```
+
+Authority: `docs/development/N3W_KF100_SHORT_LIVED_CERTIFICATE_AUTO_RENEW_LAB_SOURCE_REVIEW_20260930.md`.
+
+
+
 ## 2026-09-30 KF-100 Broker certificate lifecycle CLOSED_PASS
 
 The first real scheduled lifecycle timer firing completed successfully and refreshed the durable status without renewal or Broker/TLS disruption.
