@@ -1,9 +1,50 @@
 # N3-W Current State
 
-Updated: 2026-09-29  
+Updated: 2026-09-30  
 Status: `CURRENT_STATE_AUTHORITY`
 
 Fresh exact repository/runtime/physical evidence takes precedence if later evidence proves drift.
+
+
+## 2026-09-30 KF-100 Broker certificate lifecycle CLOSED_PASS
+
+The first real scheduled lifecycle timer firing completed successfully and refreshed the durable status without renewal or Broker/TLS disruption.
+
+```text
+KF100_ROUTE_STATUS=CLOSED_PASS
+KF100_KNOWN_FAILURE_STATUS=GUARDED
+
+FIRST_SCHEDULED_TRIGGER=PASS
+TIMER_ENABLED=enabled
+TIMER_ACTIVE=active
+TIMER_RESULT=success
+
+LAST_TRIGGER_USEC=Wed 2026-09-30 00:51:14 CST
+STATUS_CHECKED_AT=2026-09-29T16:51:15Z
+NEXT_ELAPSE_US_REALTIME=Thu 2026-10-01 00:15:17 CST
+LIFECYCLE_SERVICE_ACTIVE=inactive
+
+SERVER_STATE=HEALTHY
+CA_STATE=HEALTHY
+SYSTEM_CA_STATE=HEALTHY
+RENEWAL_ATTEMPTED=false
+ROLLBACK_ATTEMPTED=false
+
+BROKER_RUNNING=true
+BROKER_STARTED_AT=2026-09-28T01:01:04.972986724Z
+SERVER_CERT_SHA256=299a4cbece174692ecc9d82b92f1a98699847fece79543c8f8e565c04a07e917
+SERVER_KEY_SHA256=e01403140603d0281661cc6103ff6df791ebadacce128e8a27bf093f6b27ac43
+CA_CERT_SHA256=11ff133cdab8bf5f3093f6b488f8fa7e2579a1b5e383d066b1a1da56ad5dae9f
+LIVE_TLS_VERIFIED=true
+
+CERTIFICATE_MUTATION=false
+BROKER_RESTART=false
+```
+
+The production path is now proven from source repair through installation, first audit, timer enablement, current-boot timer activation, and the first autonomous scheduled firing. Future FC4/System CA rollover and the eventual real leaf renewal are separate lifecycle work, not blockers for KF-100 closure.
+
+Authority: `docs/development/N3W_KF100_BROKER_CERTIFICATE_LIFECYCLE_FIRST_SCHEDULED_TRIGGER_ACCEPTANCE_CLOSURE_20260930.md`.
+
 
 
 ## 2026-09-29 KF-100 timer runtime activation CLOSED_PASS
