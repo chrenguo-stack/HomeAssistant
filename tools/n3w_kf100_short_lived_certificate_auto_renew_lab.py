@@ -43,9 +43,10 @@ EXPECTED_PRODUCTION_SERVER_FINGERPRINT = (
 
 
 class LabError(RuntimeError):
-    def __init__(self, code: str) -> None:
+    def __init__(self, code: str, details: dict[str, object] | None = None) -> None:
         super().__init__(code)
         self.code = code
+        self.details = details or {}
 
 
 def _progress(stage: str, **fields: object) -> None:
@@ -492,53 +493,55 @@ def _mosquitto_binary(production_container: str) -> str:
     return value
 
 
-def _start_lab_container(
+def _allocate_loopback_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = int(probe.getsockname()[1])
+    if not 1 <= port <= 65535:
+        raise LabError("lab_host_port_invalid")
+    return port
+
+
+def _container_run_args(
     name: str,
     image: str,
     mosquitto_binary: str,
     config: Path,
     pki: dict[str, Path],
-) -> int:
-    _run(
-        (
-            "docker",
-            "run",
-            "-d",
-            "--name",
-            name,
-            "--label",
-            "gh.n3w.kf100-renewal-lab=true",
-            "-p",
-            f"127.0.0.1::{LAB_INTERNAL_PORT}",
-            "-v",
-            f"{config}:/mosquitto/config/mosquitto.conf:ro",
-            "-v",
-            f"{pki['ca_cert']}:/mosquitto/tls/ca.pem:ro",
-            "-v",
-            f"{pki['server_cert']}:/mosquitto/tls/server.pem:ro",
-            "-v",
-            f"{pki['server_key']}:/mosquitto/tls/server.key:ro",
-            "--entrypoint",
-            mosquitto_binary,
-            image,
-            "-c",
-            "/mosquitto/config/mosquitto.conf",
-        ),
-        timeout=60,
-    )
-    result = _run(("docker", "port", name, f"{LAB_INTERNAL_PORT}/tcp"))
-    ports: list[int] = []
-    for line in result.stdout.splitlines():
-        match = re.search(r"127\.0\.0\.1:(\d+)$", line.strip())
-        if match:
-            ports.append(int(match.group(1)))
-    if len(ports) != 1:
-        raise LabError("lab_host_port_unresolved")
-    return ports[0]
+    port: int,
+) -> list[str]:
+    return [
+        "docker",
+        "run",
+        "-d",
+        "--name",
+        name,
+        "--label",
+        "gh.n3w.kf100-renewal-lab=true",
+        "-p",
+        f"127.0.0.1:{port}:{LAB_INTERNAL_PORT}",
+        "-v",
+        f"{config}:/mosquitto/config/mosquitto.conf:ro",
+        "-v",
+        f"{pki['ca_cert']}:/mosquitto/tls/ca.pem:ro",
+        "-v",
+        f"{pki['server_cert']}:/mosquitto/tls/server.pem:ro",
+        "-v",
+        f"{pki['server_key']}:/mosquitto/tls/server.key:ro",
+        "--entrypoint",
+        mosquitto_binary,
+        image,
+        "-c",
+        "/mosquitto/config/mosquitto.conf",
+    ]
+
+
+def _start_lab_container(run_args: Sequence[str]) -> None:
+    _run(tuple(run_args), timeout=60)
 
 
 def _wait_lab_tls(port: int, ca_cert: Path, expected_fingerprint: str) -> None:
-    deadline = time.monotonic() + 20
+    deadline = time.monotonic() + 30
     last: Exception | None = None
     while time.monotonic() < deadline:
         try:
@@ -562,13 +565,15 @@ def _write_systemctl_shim(
     container: str,
     port: int,
     mode: str,
+    run_args: Sequence[str],
 ) -> Path:
     shim = pki["bin"] / "systemctl"
     restart_counter = pki["tls"] / "restart.count"
     code = f"""#!/usr/bin/env python3
-import os
+import hashlib
 import shutil
 import socket
+import ssl
 import subprocess
 import sys
 import time
@@ -581,6 +586,8 @@ MODE = {mode!r}
 ACTIVE_CERT = Path({str(pki["server_cert"])!r})
 DECOY_CERT = Path({str(pki["decoy_cert"])!r})
 COUNTER = Path({str(restart_counter)!r})
+RUN_ARGS = {list(run_args)!r}
+SERVER_NAME = {LAB_SERVER_NAME!r}
 
 
 def running():
@@ -594,14 +601,39 @@ def running():
     return result.returncode == 0 and result.stdout.strip() == "true"
 
 
-def wait_port():
-    deadline = time.monotonic() + 15
+def file_fingerprint():
+    result = subprocess.run(
+        ["openssl", "x509", "-in", str(ACTIVE_CERT), "-outform", "DER"],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    )
+    if result.returncode != 0 or not result.stdout:
+        return None
+    return hashlib.sha256(result.stdout).hexdigest()
+
+
+def live_fingerprint():
+    context = ssl._create_unverified_context()
+    try:
+        with socket.create_connection(("127.0.0.1", PORT), timeout=1) as raw:
+            with context.wrap_socket(raw, server_hostname=SERVER_NAME) as wrapped:
+                der = wrapped.getpeercert(binary_form=True)
+    except (OSError, ssl.SSLError):
+        return None
+    if not der:
+        return None
+    return hashlib.sha256(der).hexdigest()
+
+
+def wait_tls_matches_file():
+    deadline = time.monotonic() + 30
     while time.monotonic() < deadline:
-        try:
-            with socket.create_connection(("127.0.0.1", PORT), timeout=1):
-                return True
-        except OSError:
-            time.sleep(0.25)
+        expected = file_fingerprint()
+        observed = live_fingerprint()
+        if expected is not None and observed == expected:
+            return True
+        time.sleep(0.25)
     return False
 
 
@@ -614,16 +646,24 @@ if args == ["restart", UNIT]:
     if COUNTER.exists():
         count = int(COUNTER.read_text(encoding="utf-8").strip()) + 1
     COUNTER.write_text(str(count), encoding="utf-8")
+
     if MODE == "force_mismatch" and count == 1:
         shutil.copyfile(DECOY_CERT, ACTIVE_CERT)
+
+    subprocess.run(
+        ["docker", "rm", "-f", CONTAINER],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
     result = subprocess.run(
-        ["docker", "restart", CONTAINER],
+        RUN_ARGS,
         check=False,
         text=True,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
-    if result.returncode != 0 or not wait_port():
+    if result.returncode != 0 or not wait_tls_matches_file():
         raise SystemExit(1)
     raise SystemExit(0)
 
@@ -631,7 +671,6 @@ raise SystemExit(64)
 """
     _write(shim, code, 0o755)
     return shim
-
 
 def _parse_lifecycle_output(result: subprocess.CompletedProcess[str]) -> dict[str, object]:
     lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
@@ -666,17 +705,19 @@ def _run_case(
     initial_ca_sha256 = _sha256(pki["ca_cert"])
 
     container = f"n3w-kf100-renew-lab-{case_name}-{os.getpid()}"
-    port = 0
+    port = _allocate_loopback_port()
+    run_args = _container_run_args(
+        container,
+        str(production["image"]),
+        mosquitto_binary,
+        config,
+        pki,
+        port,
+    )
     try:
-        port = _start_lab_container(
-            container,
-            str(production["image"]),
-            mosquitto_binary,
-            config,
-            pki,
-        )
+        _start_lab_container(run_args)
         _wait_lab_tls(port, pki["ca_cert"], initial_fingerprint)
-        _write_systemctl_shim(pki, container, port, mode)
+        _write_systemctl_shim(pki, container, port, mode, run_args)
 
         status_file = pki["status"] / "status.json"
         env = dict(os.environ)
@@ -706,26 +747,24 @@ def _run_case(
                 "--probe-port",
                 str(port),
             ),
-            timeout=180,
+            timeout=240,
             env=env,
             allow_failure=True,
         )
         document = _parse_lifecycle_output(result)
+        diagnostic = {
+            "lifecycle_rc": result.returncode,
+            "lifecycle_result": document.get("result"),
+            "renewal_attempted": document.get("renewal_attempted"),
+            "rollback_attempted": document.get("rollback_attempted"),
+        }
 
         final_fingerprint = _certificate_fingerprint(pki["server_cert"])
         final_not_after = _certificate_not_after(pki["server_cert"])
-        live_fingerprint = _live_tls_fingerprint(
-            "127.0.0.1",
-            port,
-            LAB_SERVER_NAME,
-            pki["ca_cert"],
-        )
         key_unchanged = _sha256(pki["server_key"]) == initial_key_sha256
         ca_unchanged = _sha256(pki["ca_cert"]) == initial_ca_sha256
 
         if mode == "success":
-            if result.returncode != 0:
-                raise LabError("success_case_lifecycle_rc")
             expected = {
                 "result": "renewed",
                 "action": "renew_server_certificate",
@@ -733,17 +772,18 @@ def _run_case(
                 "rollback_attempted": False,
                 "server_state": "HEALTHY",
             }
+            if result.returncode != 0:
+                raise LabError("success_case_lifecycle_rc", diagnostic)
             for key, value in expected.items():
                 if document.get(key) != value:
-                    raise LabError(f"success_case_{key}_unexpected")
+                    raise LabError(f"success_case_{key}_unexpected", diagnostic)
+            _wait_lab_tls(port, pki["ca_cert"], final_fingerprint)
             if final_fingerprint == initial_fingerprint:
-                raise LabError("success_case_certificate_not_replaced")
-            if live_fingerprint != final_fingerprint:
-                raise LabError("success_case_live_tls_not_new_certificate")
+                raise LabError("success_case_certificate_not_replaced", diagnostic)
             if final_not_after == initial_not_after:
-                raise LabError("success_case_validity_not_extended")
+                raise LabError("success_case_validity_not_extended", diagnostic)
             if not key_unchanged or not ca_unchanged:
-                raise LabError("success_case_key_or_ca_changed")
+                raise LabError("success_case_key_or_ca_changed", diagnostic)
             return {
                 "result": "PASS",
                 "lifecycle_result": document.get("result"),
@@ -755,28 +795,28 @@ def _run_case(
                 "server_key_unchanged": True,
                 "ca_certificate_unchanged": True,
                 "live_tls_uses_new_certificate": True,
+                "activation_recreate_count": 1,
                 "initial_not_after": initial_not_after,
                 "renewed_not_after": final_not_after,
             }
 
         if mode == "force_mismatch":
-            if result.returncode != 2:
-                raise LabError("rollback_case_lifecycle_rc")
             expected = {
                 "result": "renewal_failed_rolled_back",
                 "action": "renew_server_certificate",
                 "renewal_attempted": True,
                 "rollback_attempted": True,
             }
+            if result.returncode != 2:
+                raise LabError("rollback_case_lifecycle_rc", diagnostic)
             for key, value in expected.items():
                 if document.get(key) != value:
-                    raise LabError(f"rollback_case_{key}_unexpected")
+                    raise LabError(f"rollback_case_{key}_unexpected", diagnostic)
+            _wait_lab_tls(port, pki["ca_cert"], initial_fingerprint)
             if final_fingerprint != initial_fingerprint:
-                raise LabError("rollback_case_original_certificate_not_restored")
-            if live_fingerprint != initial_fingerprint:
-                raise LabError("rollback_case_live_tls_not_restored")
+                raise LabError("rollback_case_original_certificate_not_restored", diagnostic)
             if not key_unchanged or not ca_unchanged:
-                raise LabError("rollback_case_key_or_ca_changed")
+                raise LabError("rollback_case_key_or_ca_changed", diagnostic)
             return {
                 "result": "PASS",
                 "lifecycle_result": document.get("result"),
@@ -788,15 +828,14 @@ def _run_case(
                 "server_key_unchanged": True,
                 "ca_certificate_unchanged": True,
                 "live_tls_restored_to_original_certificate": True,
+                "activation_recreate_count": 2,
                 "initial_not_after": initial_not_after,
                 "restored_not_after": final_not_after,
             }
 
-        raise LabError("case_mode_invalid")
+        raise LabError("case_mode_invalid", diagnostic)
     finally:
-        if container:
-            _run(("docker", "rm", "-f", container), timeout=30, allow_failure=True)
-
+        _run(("docker", "rm", "-f", container), timeout=30, allow_failure=True)
 
 def main() -> int:
     if os.geteuid() != 0:
@@ -871,6 +910,7 @@ def main() -> int:
                     "schema": SCHEMA,
                     "result": "STOP",
                     "reason": error.code,
+                    "diagnostic": error.details,
                     "production_preserved": production_preserved,
                     "production_certificate_mutation": False,
                     "production_broker_restart": False,

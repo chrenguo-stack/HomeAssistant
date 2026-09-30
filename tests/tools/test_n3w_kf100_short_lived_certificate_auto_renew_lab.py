@@ -50,7 +50,7 @@ def test_lab_uses_isolated_loopback_dynamic_port_and_unique_container() -> None:
     source = TOOL.read_text(encoding="utf-8")
 
     assert '"gh.n3w.kf100-renewal-lab=true"' in source
-    assert 'f"127.0.0.1::{LAB_INTERNAL_PORT}"' in source
+    assert 'f"127.0.0.1:{port}:{LAB_INTERNAL_PORT}"' in source
     assert 'n3w-kf100-renew-lab-' in source
     assert '"docker", "rm", "-f", container' in source
 
@@ -72,7 +72,10 @@ def test_lab_routes_activation_unit_through_private_systemctl_shim() -> None:
     assert 'pki["bin"] / "systemctl"' in source
     assert 'env["PATH"] = str(pki["bin"])' in source
     assert 'EXPECTED_ACTIVATION_UNIT = "n3wfc4-broker-activation.service"' in source
-    assert '["docker", "restart", CONTAINER]' in source
+    assert '["docker", "rm", "-f", CONTAINER]' in source
+    assert "RUN_ARGS = " in source
+    assert "wait_tls_matches_file" in source
+    assert '["docker", "restart", CONTAINER]' not in source
 
 
 def test_lab_never_invokes_production_timer_or_service_mutation() -> None:
@@ -117,6 +120,7 @@ def test_public_result_does_not_emit_private_paths_or_private_keys() -> None:
         "original_certificate_restored",
         "live_tls_restored_to_original_certificate",
         "restored_not_after",
+        "activation_recreate_count",
     }
     sample = {
         "result": "PASS",
@@ -124,3 +128,22 @@ def test_public_result_does_not_emit_private_paths_or_private_keys() -> None:
         "renewal_attempted": True,
     }
     assert set(json.loads(json.dumps(sample))) <= public_keys
+
+
+def test_lab_failure_reports_public_safe_lifecycle_diagnostic() -> None:
+    source = TOOL.read_text(encoding="utf-8")
+
+    assert '"diagnostic": error.details' in source
+    assert '"lifecycle_rc": result.returncode' in source
+    assert '"lifecycle_result": document.get("result")' in source
+    assert '"renewal_attempted": document.get("renewal_attempted")' in source
+    assert '"rollback_attempted": document.get("rollback_attempted")' in source
+
+
+def test_lab_activation_recreates_container_to_rebind_single_file_mounts() -> None:
+    source = TOOL.read_text(encoding="utf-8")
+
+    assert 'subprocess.run(\n        ["docker", "rm", "-f", CONTAINER]' in source
+    assert "result = subprocess.run(\n        RUN_ARGS," in source
+    assert "live_fingerprint()" in source
+    assert "file_fingerprint()" in source
