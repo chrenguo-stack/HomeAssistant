@@ -42,6 +42,13 @@ T1_ISOLATED_LAB_BLACKHOLE_UNASSIGNED=true
 T1_ISOLATED_LAB_BROKER_RESTART_COUNT=0
 T1_ISOLATED_LAB_MANAGER_RESTART_COUNT=0
 T1_ISOLATED_LAB_MUTATION=false
+T1_ISOLATED_LAB_ACTIVATION_ATTEMPT_1=FAIL
+T1_ISOLATED_LAB_ACTIVATION_ATTEMPT_1_STAGE=REMOTE_ACTIVATE
+T1_ISOLATED_LAB_ACTIVATION_ATTEMPT_1_FAILURE_DETAIL=TRUNCATED_REMOTE_TRACEBACK
+T1_ISOLATED_LAB_PREFLIGHT_1_CONSUMED=true
+T1_ISOLATED_LAB_RESIDUE_STATE=UNPROVEN
+T1_ISOLATED_LAB_FAILURE_FORENSIC=IMPLEMENTED
+T1_ISOLATED_LAB_FAILURE_FORENSIC_CI_PENDING=true
 BOARD_B_GATE_A_WRITE_EXECUTOR=IMPLEMENTED
 BOARD_B_GATE_A_WRITE_EXECUTOR_CI_PENDING=true
 KF099_ROLLBACK_EXECUTOR=IMPLEMENTED
@@ -190,6 +197,14 @@ KF-099 rollback artifact 已 fresh 检查，当前仍未过期且 GitHub digest 
 公共记录不保存具体 LAN 地址。
 
 因此仓库和只读运行时前提均已满足。下一步首次进入 live T1 mutation：启动临时 TLS Mosquitto 18883 并添加绑定的临时 live alias。该动作必须使用一次性明确授权。
+
+## 3.7 首次 T1 lab activation 未完成
+
+首次 live activation 已获得单次授权并进入 `REMOTE_ACTIVATE`，随后远端 Python 返回非零。Mac 端执行器只保留了截断后的 traceback，因此当前不能把具体根因写死为 Mosquitto、权限、TLS 或 Docker 问题。
+
+该次 preflight 已按一次性规则消费，禁止重放。执行器设计会在 activation 异常后尝试删除 exact lab container、live alias 和 `/run` 私有目录，但由于本次返回信息被截断，**不能仅凭代码意图宣称 cleanup 已成功**。
+
+已新增只读 `failure-forensic`：只读取生产 Broker/Manager 连续性、TCP/18883、Gate A container/alias/root 残留、最近 Docker die exit code，以及生产 Broker image/container user。该 forensic 不执行任何 cleanup 或其他 mutation。
 
 ## 4. 当前 STOP 点
 
