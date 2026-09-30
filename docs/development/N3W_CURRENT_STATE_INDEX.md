@@ -1,7 +1,7 @@
 # N3-W Current State Index
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
-Current progress alignment: `docs/development/N3W_KF100_SHORT_LIVED_CERTIFICATE_AUTO_RENEW_LAB_R2_EXECUTION_RESULT_20260930.md`  
+Current progress alignment: `docs/development/N3W_FC4_CA_ROLLOVER_PRODUCT_LIFECYCLE_DECISION_20260930.md`  
 Current new-chat handoff: `docs/development/N3W_PR475_PR478_POSTMERGE_MAIN_ALIGNMENT_NEW_CHAT_HANDOFF_V1.0_20260927.md`  
 Long-term working context: `docs/development/N3W_PROJECT_WORKING_CONTEXT.md`  
 Current handoff template: `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` v1.2  
@@ -15,6 +15,25 @@ Current production artifact binding authority: `docs/development/N3W_PRODUCTION_
 Currently deployed Board B source: `c578bcb2e31f50771b6b08c231704da6bf36b729` / artifact `10959875986` / application SHA-256 `d0875ca692f7bd4349fd7d8bcdab69318e6c8b737b69a48f667b6e72cb89cb60`  
 Current local-development-environment authority: `docs/development/local-environment-records/2026-09-17-macos-x86_64.json`  
 Active product-direction authority: `docs/development/N3W_OFFICIAL_ESPNOW_REFERENCE_PRODUCT_DIRECTION_DECISION_20260906.md`
+
+
+## 2026-09-30 FC4 CA rollover closure snapshot
+
+```text
+FC4_CA_EXPIRES=2036-08-17T04:18:39Z
+FC4_CA_VALIDITY_DAYS=3650
+PRODUCT_EXPECTED_RETIREMENT_BEFORE_FC4_CA_EXPIRY=true
+
+FC4_CA_ROLLOVER_WORKSTREAM=CLOSED_NOT_PLANNED
+FC4_CA_DUAL_TRUST_MIGRATION=NOT_REQUIRED_FOR_CURRENT_PRODUCT_LIFECYCLE
+FC4_CA_EXPIRY_MONITORING=ENABLED
+
+KF100_ROUTE_STATUS=CLOSED_PASS
+KF100_REOPEN=false
+```
+
+Authority: `docs/development/N3W_FC4_CA_ROLLOVER_PRODUCT_LIFECYCLE_DECISION_20260930.md`.
+
 
 
 ## 2026-09-30 KF-100 short-lived renewal lab R2 snapshot
