@@ -33,7 +33,15 @@ PRIVATE_BUILD_SERVER_CERT_SHA256=c33bdac940da24cff4de772ff0478f0f069a3ab956dc03b
 PRIVATE_BUILD_SERVER_KEY_SHA256=29ee45ca617fb5e4e854081e77a9ae4c468c3b07fb1d206cb0d61d86d8cbee61
 PRIVATE_BUILD_ESPHOME_SOURCE=existing_exact_cli
 T1_ISOLATED_LAB_EXECUTOR=IMPLEMENTED
-T1_ISOLATED_LAB_EXECUTOR_CI_PENDING=true
+T1_ISOLATED_LAB_EXECUTOR_CI_PENDING=false
+T1_ISOLATED_LAB_EXECUTOR_CI=PASS
+T1_ISOLATED_LAB_PREFLIGHT=PASS
+T1_ISOLATED_LAB_PORT_18883_FREE=true
+T1_ISOLATED_LAB_LIVE_ALIAS_UNASSIGNED=true
+T1_ISOLATED_LAB_BLACKHOLE_UNASSIGNED=true
+T1_ISOLATED_LAB_BROKER_RESTART_COUNT=0
+T1_ISOLATED_LAB_MANAGER_RESTART_COUNT=0
+T1_ISOLATED_LAB_MUTATION=false
 BOARD_B_GATE_A_WRITE_EXECUTOR=IMPLEMENTED
 BOARD_B_GATE_A_WRITE_EXECUTOR_CI_PENDING=true
 KF099_ROLLBACK_EXECUTOR=IMPLEMENTED
@@ -166,6 +174,23 @@ KF-099 rollback artifact 已 fresh 检查，当前仍未过期且 GitHub digest 
 
 回退写入范围同样只允许 `0x9000` 与 `0x10000`。回退后的正确基线定义为已知的 KF-099 pairing WAIT / `repair_intent_required`，不把“正常 Direct MQTT”误当作回退成功条件。
 
+## 3.6 T1 isolated-lab fresh read-only preflight 已通过
+
+2026-09-30 fresh preflight 证明：
+
+- TCP/18883 当前空闲；
+- live alias 当前未分配；
+- blackhole 地址当前未分配；
+- production Broker restart_count=0；
+- Manager restart_count=0；
+- 本轮没有 T1 mutation；
+- 没有 production Broker mutation；
+- 没有 Board access。
+
+公共记录不保存具体 LAN 地址。
+
+因此仓库和只读运行时前提均已满足。下一步首次进入 live T1 mutation：启动临时 TLS Mosquitto 18883 并添加绑定的临时 live alias。该动作必须使用一次性明确授权。
+
 ## 4. 当前 STOP 点
 
 源码层最小接口、源码合同测试和 ESP32-C6 编译已经通过，但现在还不能称为 Gate A PASS。
@@ -177,7 +202,7 @@ source-contract test PASS
 -> exact ESP32-C6 compile PASS
 -> private exact build PASS
 -> T1 isolated-lab package CI PENDING
--> fresh T1 read-only lab preflight PENDING
+-> fresh T1 read-only lab preflight PASS
 -> explicit T1 mutation authorization PENDING
 -> Board B exact write package CI PENDING
 -> Board B read-only preflight PENDING
