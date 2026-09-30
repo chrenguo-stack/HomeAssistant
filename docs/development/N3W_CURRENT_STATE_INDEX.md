@@ -1,7 +1,7 @@
 # N3-W Current State Index
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
-Current progress alignment: `docs/development/N3W_KF100_BROKER_CERTIFICATE_LIFECYCLE_TIMER_RUNTIME_ACTIVATION_EXECUTION_RESULT_20260929.md`  
+Current progress alignment: `docs/development/N3W_KF100_BROKER_CERTIFICATE_LIFECYCLE_FIRST_SCHEDULED_TRIGGER_ACCEPTANCE_CLOSURE_20260930.md`  
 Current new-chat handoff: `docs/development/N3W_PR475_PR478_POSTMERGE_MAIN_ALIGNMENT_NEW_CHAT_HANDOFF_V1.0_20260927.md`  
 Long-term working context: `docs/development/N3W_PROJECT_WORKING_CONTEXT.md`  
 Current handoff template: `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` v1.2  
@@ -15,6 +15,36 @@ Current production artifact binding authority: `docs/development/N3W_PRODUCTION_
 Currently deployed Board B source: `c578bcb2e31f50771b6b08c231704da6bf36b729` / artifact `10959875986` / application SHA-256 `d0875ca692f7bd4349fd7d8bcdab69318e6c8b737b69a48f667b6e72cb89cb60`  
 Current local-development-environment authority: `docs/development/local-environment-records/2026-09-17-macos-x86_64.json`  
 Active product-direction authority: `docs/development/N3W_OFFICIAL_ESPNOW_REFERENCE_PRODUCT_DIRECTION_DECISION_20260906.md`
+
+
+## 2026-09-30 KF-100 closure snapshot
+
+```text
+KF100_ROUTE_STATUS=CLOSED_PASS
+KF100_KNOWN_FAILURE_STATUS=GUARDED
+
+FIRST_SCHEDULED_TRIGGER=PASS
+TIMER_ENABLED=enabled
+TIMER_ACTIVE=active
+TIMER_RESULT=success
+LAST_TRIGGER_USEC=Wed 2026-09-30 00:51:14 CST
+STATUS_CHECKED_AT=2026-09-29T16:51:15Z
+NEXT_ELAPSE_US_REALTIME=Thu 2026-10-01 00:15:17 CST
+
+SERVER_STATE=HEALTHY
+CA_STATE=HEALTHY
+SYSTEM_CA_STATE=HEALTHY
+RENEWAL_ATTEMPTED=false
+ROLLBACK_ATTEMPTED=false
+
+BROKER_RUNNING=true
+LIVE_TLS_VERIFIED=true
+CERTIFICATE_MUTATION=false
+BROKER_RESTART=false
+```
+
+Authority: `docs/development/N3W_KF100_BROKER_CERTIFICATE_LIFECYCLE_FIRST_SCHEDULED_TRIGGER_ACCEPTANCE_CLOSURE_20260930.md`.
+
 
 
 ## 2026-09-29 KF-100 timer runtime activation preparation snapshot
