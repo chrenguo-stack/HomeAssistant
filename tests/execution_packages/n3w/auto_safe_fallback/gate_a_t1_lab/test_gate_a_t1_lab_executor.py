@@ -66,6 +66,38 @@ def test_activation_has_best_effort_abort_after_remote_mutation_begins() -> None
     assert "if mutation_started:" in region
 
 
+def test_failure_forensic_is_readonly_and_reports_residue() -> None:
+    source = module.REMOTE_FAILURE_FORENSIC
+    assert '"docker", "events"' in source
+    assert '"docker", "image", "inspect"' in source
+    assert '"ss", "-H", "-ltn4"' in source
+    assert '"ip", "-j", "-4", "addr"' in source
+    forbidden = (
+        '"docker", "rm"',
+        '"docker", "run"',
+        '"ip", "addr", "add"',
+        '"ip", "addr", "del"',
+        '"systemctl"',
+        '"docker", "restart"',
+    )
+    for token in forbidden:
+        assert token not in source
+
+
+def test_failure_forensic_public_output_has_no_private_addresses_or_secrets() -> None:
+    source = MODULE_PATH.read_text(encoding="utf-8")
+    region = source[source.index("def run_failure_forensic") : source.index("def run_activate")]
+    for token in (
+        "mqtt_username",
+        "mqtt_password",
+        "mqtt_client_id",
+        "restore_host",
+        "live_alias",
+        "blackhole_ip",
+    ):
+        assert token not in region
+
+
 def test_activation_is_isolated_from_production_broker() -> None:
     source = module.REMOTE_ACTIVATE
     assert '"--network", "host"' in source
