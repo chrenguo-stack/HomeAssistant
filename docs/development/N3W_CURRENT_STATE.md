@@ -6,6 +6,35 @@ Status: `CURRENT_STATE_AUTHORITY`
 Fresh exact repository/runtime/physical evidence takes precedence if later evidence proves drift.
 
 
+## 2026-09-30 KF-100 short-lived renewal lab R1 stopped; R2 source prepared
+
+The first live isolated renewal lab stopped in the success-path case with `tls_probe_failed`. Production continuity remained proven and KF-100 stays CLOSED_PASS.
+
+```text
+R1_RESULT=STOP
+R1_REASON=tls_probe_failed
+R1_PRODUCTION_PRESERVED=true
+R1_PRODUCT_DEFECT_CONFIRMED=false
+R1_REPLAY=false
+
+R2_BRANCH=fix/n3w-kf100-short-lived-renewal-lab-r2-20260930
+R2_EXECUTOR_BLOB=c9b156f0f0f51d9a22fb3902fff2ee7c7a0acb22
+
+R2_FIX_1=REPORT_LIFECYCLE_RESULT_BEFORE_FINAL_TLS_ACCEPTANCE
+R2_FIX_2=RECREATE_ISOLATED_BROKER_FOR_SINGLE_FILE_BIND_REBIND
+R2_FIX_3=WAIT_FOR_TLS_FINGERPRINT_MATCH_NOT_ONLY_TCP_READY
+
+PRODUCTION_CERTIFICATE_MUTATION=false
+PRODUCTION_BROKER_RESTART=false
+PRODUCTION_TIMER_MUTATION=false
+
+NEXT_ONE_GATE=N3W_KF100_SHORT_LIVED_CERTIFICATE_AUTO_RENEW_LAB_R2_EXECUTION_20260930_01
+```
+
+Authority: `docs/development/N3W_KF100_SHORT_LIVED_CERTIFICATE_AUTO_RENEW_LAB_R2_SOURCE_REVIEW_20260930.md`.
+
+
+
 ## 2026-09-30 KF-100 short-lived automatic renewal lab prepared
 
 KF-100 remains CLOSED_PASS. This is a post-closure production-fidelity lab to exercise the real renewal and rollback paths without touching production TLS material.
