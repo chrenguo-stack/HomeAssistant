@@ -505,6 +505,121 @@ def claim_preflight(path: Path, target: str, bundle: dict[str, Any]) -> dict[str
     return doc
 
 
+REMOTE_FAILURE_FORENSIC = r"""
+import json
+import os
+import subprocess
+import sys
+
+root, container_name = sys.argv[1:3]
+
+
+def run(argv, timeout=15):
+    p = subprocess.run(argv, text=True, capture_output=True, check=False, timeout=timeout)
+    return p.returncode, p.stdout, p.stderr
+
+
+def load_json(argv):
+    rc, out, err = run(argv)
+    if rc != 0:
+        raise RuntimeError((err or out)[:250])
+    return json.loads(out)
+
+
+if os.geteuid() != 0:
+    raise RuntimeError("root SSH required")
+
+broker_ids_rc, broker_ids_out, _ = run([
+    "docker", "ps", "--filter", "label=com.docker.compose.project=n3wfc4",
+    "--filter", "label=com.docker.compose.service=broker", "--format", "{{.ID}}"
+])
+broker_ids = [x for x in broker_ids_out.splitlines() if x.strip()] if broker_ids_rc == 0 else []
+if len(broker_ids) != 1:
+    raise RuntimeError("production Broker ownership not unique")
+broker = load_json(["docker", "inspect", broker_ids[0]])[0]
+manager = load_json(["docker", "inspect", "greenhouse-manager"])[0]
+image_id = broker.get("Image")
+if not isinstance(image_id, str) or not image_id.startswith("sha256:"):
+    raise RuntimeError("production Broker image ID unavailable")
+image = load_json(["docker", "image", "inspect", image_id])[0]
+
+rc, lab_out, _ = run(["docker", "inspect", container_name])
+lab_exists = rc == 0
+lab_running = False
+lab_status = "absent"
+lab_exit_code = None
+if lab_exists:
+    lab = json.loads(lab_out)[0]
+    lab_running = lab.get("State", {}).get("Running") is True
+    lab_status = str(lab.get("State", {}).get("Status") or "unknown")
+    value = lab.get("State", {}).get("ExitCode")
+    if isinstance(value, int):
+        lab_exit_code = value
+
+rc, addr_out, _ = run(["ip", "-j", "-4", "addr"])
+alias_active = False
+if rc == 0:
+    try:
+        for interface in json.loads(addr_out):
+            for item in interface.get("addr_info", []):
+                if item.get("label", "").endswith(":gatea"):
+                    alias_active = True
+    except Exception:
+        pass
+
+rc, ss_out, _ = run(["ss", "-H", "-ltn4"])
+port_18883 = False
+if rc == 0:
+    port_18883 = any(
+        len(line.split()) >= 4 and line.split()[3].endswith(":18883")
+        for line in ss_out.splitlines()
+    )
+
+rc, events_out, _ = run([
+    "docker", "events", "--since", "30m", "--until", "0s",
+    "--filter", "container=" + container_name,
+    "--format", "{{json .}}"
+], timeout=20)
+latest_die_exit = None
+event_count = 0
+if rc == 0:
+    for line in events_out.splitlines():
+        if not line.strip():
+            continue
+        try:
+            event = json.loads(line)
+        except Exception:
+            continue
+        event_count += 1
+        if event.get("Action") == "die":
+            attrs = event.get("Actor", {}).get("Attributes", {}) or {}
+            raw = attrs.get("exitCode")
+            try:
+                latest_die_exit = int(raw)
+            except (TypeError, ValueError):
+                pass
+
+print(json.dumps({
+    "status": "PASS",
+    "remote_root_exists": os.path.isdir(root),
+    "lab_container_exists": lab_exists,
+    "lab_container_running": lab_running,
+    "lab_container_status": lab_status,
+    "lab_container_exit_code": lab_exit_code,
+    "lab_alias_active": alias_active,
+    "port_18883_listening": port_18883,
+    "docker_event_count": event_count,
+    "latest_die_exit_code": latest_die_exit,
+    "broker_running": broker.get("State", {}).get("Running") is True,
+    "broker_restart_count": int(broker.get("RestartCount", 0)),
+    "broker_container_user": str(broker.get("Config", {}).get("User") or ""),
+    "broker_image_user": str(image.get("Config", {}).get("User") or ""),
+    "manager_running": manager.get("State", {}).get("Running") is True,
+    "manager_restart_count": int(manager.get("RestartCount", 0)),
+}, sort_keys=True))
+"""
+
+
 REMOTE_PREPARE = r"""
 import os
 import shutil
@@ -817,6 +932,38 @@ def copy_staging(target: str, root: Path) -> None:
         run_capture(scp_base() + [str(root / name), f"{target}:{REMOTE_ROOT}/{name}"], timeout=30)
 
 
+def run_failure_forensic(args: argparse.Namespace) -> int:
+    validate_target(args.t1)
+    raw = remote_python(
+        args.t1,
+        REMOTE_FAILURE_FORENSIC,
+        [REMOTE_ROOT, CONTAINER_NAME],
+        timeout=45,
+    )
+    remote = parse_single_json(raw)
+    if remote.get("status") != "PASS":
+        raise StopExecution("T1 lab failure forensic did not PASS")
+    if remote.get("broker_running") is not True or remote.get("manager_running") is not True:
+        raise StopExecution("production runtime continuity is not healthy")
+    print("GATE_A_T1_LAB_FAILURE_FORENSIC=PASS")
+    print(f"REMOTE_ROOT_EXISTS={str(bool(remote.get('remote_root_exists'))).lower()}")
+    print(f"LAB_CONTAINER_EXISTS={str(bool(remote.get('lab_container_exists'))).lower()}")
+    print(f"LAB_CONTAINER_RUNNING={str(bool(remote.get('lab_container_running'))).lower()}")
+    print(f"LAB_CONTAINER_STATUS={remote.get('lab_container_status')}")
+    print(f"LAB_CONTAINER_EXIT_CODE={remote.get('lab_container_exit_code')}")
+    print(f"LIVE_ALIAS_ACTIVE={str(bool(remote.get('lab_alias_active'))).lower()}")
+    print(f"PORT_18883_LISTENING={str(bool(remote.get('port_18883_listening'))).lower()}")
+    print(f"DOCKER_EVENT_COUNT={remote.get('docker_event_count')}")
+    print(f"LATEST_DIE_EXIT_CODE={remote.get('latest_die_exit_code')}")
+    print(f"BROKER_CONTAINER_USER={remote.get('broker_container_user')}")
+    print(f"BROKER_IMAGE_USER={remote.get('broker_image_user')}")
+    print(f"BROKER_RESTART_COUNT={remote.get('broker_restart_count')}")
+    print(f"MANAGER_RESTART_COUNT={remote.get('manager_restart_count')}")
+    print("T1_MUTATION=false")
+    print("BOARD_ACCESS=false")
+    return 0
+
+
 def run_activate(args: argparse.Namespace) -> int:
     if args.confirm != ACTIVATE_CONFIRMATION:
         raise StopExecution("T1 lab activation confirmation token mismatch")
@@ -953,6 +1100,10 @@ def parser() -> argparse.ArgumentParser:
     pre.add_argument("--bundle", required=True)
     pre.add_argument("--output", required=True)
     pre.set_defaults(func=run_preflight)
+
+    forensic = sub.add_parser("failure-forensic")
+    forensic.add_argument("--t1", required=True)
+    forensic.set_defaults(func=run_failure_forensic)
 
     act = sub.add_parser("activate")
     act.add_argument("--t1", required=True)
