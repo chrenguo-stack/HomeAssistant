@@ -5,6 +5,8 @@ on:
     paths:
       - "tools/execution_packages/n3w/auto_safe_fallback/gate_a_t1_lab_permission_forensic/**"
       - "tests/execution_packages/n3w/auto_safe_fallback/gate_a_t1_lab_permission_forensic/**"
+      - "tools/execution_packages/n3w/auto_safe_fallback/gate_a_manager_restart_forensic/**"
+      - "tests/execution_packages/n3w/auto_safe_fallback/gate_a_manager_restart_forensic/**"
       - ".github/workflows/n3w-auto-safe-fallback-forensic-ci.yml"
 
 permissions:
@@ -22,3 +24,5 @@ jobs:
         run: python -m pip install -q "pytest>=8,<9"
       - name: Gate A Broker runtime user forensic contract
         run: python -m pytest -q tests/execution_packages/n3w/auto_safe_fallback/gate_a_t1_lab_permission_forensic/test_executor.py
+      - name: Gate A Manager restart forensic contract
+        run: python -m pytest -q tests/execution_packages/n3w/auto_safe_fallback/gate_a_manager_restart_forensic/test_executor.py
