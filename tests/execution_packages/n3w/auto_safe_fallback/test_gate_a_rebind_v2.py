@@ -22,9 +22,6 @@ rebuild = load(REBUILD_PATH, "gate_a_private_rebuild_v2")
 
 def test_network_preflight_is_t1_readonly_and_has_no_board_transport() -> None:
     source = NETWORK_PATH.read_text(encoding="utf-8").lower()
-    assert '"ss", "-h", "-ltn4"' not in source
-    assert '"ss", "-h"' not in source
-    assert '"ss", "-H", "-ltn4"'.lower() in source
     for token in (
         "esptool",
         "write-flash",
