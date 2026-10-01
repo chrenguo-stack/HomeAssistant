@@ -3,7 +3,7 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[5]
+ROOT = Path(__file__).resolve().parents[4]
 NETWORK_PATH = ROOT / "tools/execution_packages/n3w/auto_safe_fallback/gate_a_t1_network_preflight_v2/executor.py"
 REBUILD_PATH = ROOT / "tools/execution_packages/n3w/auto_safe_fallback/gate_a_private_rebuild_v2/executor.py"
 
