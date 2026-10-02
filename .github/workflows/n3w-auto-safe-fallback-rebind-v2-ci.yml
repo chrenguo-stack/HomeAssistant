@@ -5,7 +5,9 @@ on:
     paths:
       - "tools/execution_packages/n3w/auto_safe_fallback/gate_a_t1_network_preflight_v2/**"
       - "tools/execution_packages/n3w/auto_safe_fallback/gate_a_private_rebuild_v2/**"
+      - "tools/execution_packages/n3w/auto_safe_fallback/gate_a_t1_lab_v2/**"
       - "tests/execution_packages/n3w/auto_safe_fallback/test_gate_a_rebind_v2.py"
+      - "tests/execution_packages/n3w/auto_safe_fallback/test_gate_a_t1_lab_v2.py"
       - ".github/workflows/n3w-auto-safe-fallback-rebind-v2-ci.yml"
 
 permissions:
@@ -22,4 +24,4 @@ jobs:
       - name: Install test dependency
         run: python -m pip install -q "pytest>=8,<9"
       - name: Gate A rebind V2 contracts
-        run: python -m pytest -q tests/execution_packages/n3w/auto_safe_fallback/test_gate_a_rebind_v2.py
+        run: python -m pytest -q tests/execution_packages/n3w/auto_safe_fallback/test_gate_a_rebind_v2.py tests/execution_packages/n3w/auto_safe_fallback/test_gate_a_t1_lab_v2.py
