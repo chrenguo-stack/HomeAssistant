@@ -13,6 +13,13 @@ inline constexpr std::size_t kManagerDiscoveryMaxParsedDatagrams = 8;
 inline constexpr std::size_t kManagerDiscoveryMaxRetainedCandidates = 3;
 inline constexpr std::size_t kManagerDiscoveryMaxAttemptCandidates = 2;
 
+enum class SimpleManagerDiscoveryError : uint8_t {
+  NONE = 0,
+  NOT_READY,
+  IO_FAILED,
+  DISCOVERY_FAILED,
+};
+
 struct SimpleManagerCandidateV2 {
   std::string manager_id;
   std::string system_id;
@@ -37,6 +44,40 @@ struct SimpleDiscoveryFilterContext {
 struct SimpleBrokerRecoveryTarget {
   std::string host;
   uint16_t port{0};
+};
+
+class SimpleManagerDiscoveryNetwork {
+ public:
+  virtual ~SimpleManagerDiscoveryNetwork() = default;
+  virtual bool collect_manager_discovery(
+      const std::string &request_json,
+      std::size_t max_datagrams,
+      std::vector<SimpleDiscoveryDatagram> *datagrams) = 0;
+};
+
+class SimpleManagerDiscoveryRandom {
+ public:
+  virtual ~SimpleManagerDiscoveryRandom() = default;
+  virtual bool fill_discovery_random(uint8_t *data, std::size_t size) = 0;
+};
+
+class SimpleManagerDiscovery {
+ public:
+  SimpleManagerDiscovery(
+      SimpleManagerDiscoveryNetwork *network,
+      SimpleManagerDiscoveryRandom *random)
+      : network_(network), random_(random) {}
+
+  SimpleManagerDiscoveryError discover(
+      const std::string &hardware_id,
+      const SimpleDiscoveryFilterContext &context,
+      std::vector<SimpleManagerCandidateV2> *candidates);
+
+ private:
+  bool fill_(uint8_t *data, std::size_t size);
+
+  SimpleManagerDiscoveryNetwork *network_{nullptr};
+  SimpleManagerDiscoveryRandom *random_{nullptr};
 };
 
 bool build_simple_discovery_query(
