@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdio>
+#include <utility>
 #include <vector>
 
 #include "esphome/components/json/json_util.h"
@@ -70,6 +71,62 @@ bool SimpleManagerCandidateV2::valid() const {
          !host.empty() && host.size() <= 253U && port > 0U &&
          !pairing_path.empty() && pairing_path.size() <= 255U &&
          pairing_path.front() == '/';
+}
+
+bool SimpleManagerDiscovery::fill_(uint8_t *data, std::size_t size) {
+  if (data == nullptr || size == 0U || random_ == nullptr ||
+      !random_->fill_discovery_random(data, size)) {
+    return false;
+  }
+  return std::any_of(data, data + size, [](uint8_t value) { return value != 0U; });
+}
+
+SimpleManagerDiscoveryError SimpleManagerDiscovery::discover(
+    const std::string &hardware_id,
+    const SimpleDiscoveryFilterContext &context,
+    std::vector<SimpleManagerCandidateV2> *candidates) {
+  if (network_ == nullptr || random_ == nullptr || candidates == nullptr ||
+      context.expected_system_id.empty() || context.local_ipv4.empty() ||
+      context.subnet_mask.empty()) {
+    return SimpleManagerDiscoveryError::NOT_READY;
+  }
+  candidates->clear();
+
+  std::array<uint8_t, 16> request_random{};
+  std::array<uint8_t, 32> nonce_random{};
+  if (!fill_(request_random.data(), request_random.size()) ||
+      !fill_(nonce_random.data(), nonce_random.size())) {
+    return SimpleManagerDiscoveryError::IO_FAILED;
+  }
+
+  std::string request_id;
+  std::string nonce_text;
+  std::string request_json;
+  if (!build_simple_discovery_query(
+          hardware_id,
+          request_random,
+          nonce_random,
+          &request_id,
+          &nonce_text,
+          &request_json)) {
+    return SimpleManagerDiscoveryError::IO_FAILED;
+  }
+
+  std::vector<SimpleDiscoveryDatagram> datagrams;
+  if (!network_->collect_manager_discovery(
+          request_json,
+          kManagerDiscoveryMaxParsedDatagrams,
+          &datagrams)) {
+    return SimpleManagerDiscoveryError::DISCOVERY_FAILED;
+  }
+  *candidates = parse_filter_simple_discovery_datagrams(
+      datagrams,
+      request_id,
+      nonce_text,
+      context);
+  return candidates->empty()
+             ? SimpleManagerDiscoveryError::DISCOVERY_FAILED
+             : SimpleManagerDiscoveryError::NONE;
 }
 
 bool build_simple_discovery_query(
