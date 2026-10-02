@@ -2,7 +2,7 @@
 
 This document tracks the staged Gate A validation for the N3-W auto safe fallback design.
 
-## 1. Frozen source and design authority
+## Frozen source authority
 
 ```text
 SOURCE_HEAD=8210cf7b53e9ec934d145f1c15e9619579c923be
@@ -14,174 +14,107 @@ ESP_IDF_VERSION=5.5.4
 ```
 
 Design authority:
-
 `docs/development/N3W_AUTO_SAFE_FALLBACK_DEVELOPMENT_TEST_PLAN_V1_20260929.md`
 
-## 2. Gate A purpose
+## Gate A acceptance state
 
-Gate A does not implement the full fallback feature. It only proves whether the existing ESPHome/ESP-IDF MQTT backend can safely switch the runtime TCP/TLS address while keeping the original TLS identity and MQTT identity unchanged.
-
-The required physical sequence is:
-
-1. connected -> live alias retarget;
-2. blackhole connection attempt -> restore host;
-3. reconnect-wait window -> restore host.
-
-Each blackhole recovery must return to MQTT-connected state within 25 seconds.
-
-Until that physical timing gate passes:
+Gate A proves only whether the existing MQTT backend can retarget the runtime TCP/TLS address while preserving TLS and MQTT identity. Full auto fallback remains blocked until physical timing acceptance passes.
 
 ```text
 RUNTIME_BOUNDED_CANCEL_PROVEN=false
 FULL_AUTO_FALLBACK_IMPLEMENTATION_ALLOWED=false
+PHYSICAL_ACCEPTANCE_COMPLETE=false
+MERGE=false
 ```
 
-## 3. Repository and build state
+## First T1 isolated-lab attempt
+
+The first activation entered live mutation and failed. Subsequent read-only forensic proved automatic cleanup completed with no lab container, alias, TCP/18883 listener or remote private root left behind. Production Broker restart_count remained 0.
+
+Exact runtime-user forensic then proved:
 
 ```text
-GATE_A_SOURCE_ADAPTER_IMPLEMENTED=true
-GATE_A_SOURCE_CONTRACT_TEST_ADDED=true
-GATE_A_BASELINE_CI=PASS
-GATE_A_FIXTURE_CI=PASS
-GATE_A_READONLY_PREFLIGHT_EXECUTOR_CI=PASS
-PRIVATE_BUILD_EXECUTOR_CI=PASS
-PRIVATE_BUILD_LOCAL_FAILURE_1_ROOT_CAUSE=INTEL_MACOS_CBOR2_6_NO_PREBUILT_X86_64_WHEEL_AND_NO_RUST
-PRIVATE_BUILD_LOCAL_FAILURE_1_SOURCE_DEFECT=false
-PRIVATE_BUILD_LOCAL_FAILURE_1_REPAIR=REUSE_EXISTING_EXACT_ESPHOME_FIRST
-PRIVATE_BUILD_LOCAL=PASS
-PRIVATE_BUILD_APPLICATION_SHA256=77b0fd6a98c3e837d3543eebdd30b86354790847d0c78cdab7e96f0d7d66a8ad
-PRIVATE_BUILD_OTADATA_SHA256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
-PRIVATE_BUILD_CA_CERT_SHA256=66ca928aaab07eaef6aebf0a7dec9b8a0e0fac9a9d719f4e1354ea575eed0a66
-PRIVATE_BUILD_SERVER_CERT_SHA256=c33bdac940da24cff4de772ff0478f0f069a3ab956dc03b1557738c4f640af4e
-PRIVATE_BUILD_SERVER_KEY_SHA256=29ee45ca617fb5e4e854081e77a9ae4c468c3b07fb1d206cb0d61d86d8cbee61
-PRIVATE_BUILD_ESPHOME_SOURCE=existing_exact_cli
-T1_ISOLATED_LAB_EXECUTOR=IMPLEMENTED
-T1_ISOLATED_LAB_EXECUTOR_CI_PENDING=false
-T1_ISOLATED_LAB_EXECUTOR_CI=PASS
-BOARD_B_GATE_A_WRITE_EXECUTOR=IMPLEMENTED
-BOARD_B_GATE_A_WRITE_EXECUTOR_CI_PENDING=false
-BOARD_B_GATE_A_WRITE_EXECUTOR_CI=PASS
-KF099_ROLLBACK_EXECUTOR=IMPLEMENTED
-KF099_ROLLBACK_EXECUTOR_CI_PENDING=false
-KF099_ROLLBACK_EXECUTOR_CI=PASS
-KF099_HISTORICAL_WRITE_AUTH_REPLAY=false
-KF099_ROLLBACK_ARTIFACT_AVAILABLE=true
-KF099_ROLLBACK_ARTIFACT_ID=10959875986
-KF099_ROLLBACK_ARTIFACT_EXPIRES_AT=2026-10-05T08:48:09Z
+BROKER_PID1_UID=1883
+BROKER_PID1_GID=1883
+MOSQUITTO_ACCOUNT_UID=1883
+MOSQUITTO_ACCOUNT_GID=1883
+BROKER_PROCESS_IS_MOSQUITTO_ACCOUNT=true
 ```
 
-### 3.1 Private-build CI repair
-
-The first private-build CI attempt failed because two pytest files in different directories shared the basename `test_executor.py`. Pytest imported one under the other module name and stopped collection.
-
-This was a CI/test-layout defect, not a firmware or Gate A source failure. The private-build test was renamed to a unique module name and the exact source/tooling CI passed.
-
-### 3.2 2026-09-29 local private build failure and repair
-
-The first Mac private build stopped while installing ESPHome dependencies. Python 3.11 itself was valid. On Intel macOS / CPython 3.11, `cbor2 6.1.4` had no matching prebuilt wheel, so pip fell back to a Rust source build while the Mac had no Rust toolchain.
-
-This was not a Gate A firmware/source failure and did not access Board B or mutate T1.
-
-The private-build executor now prefers an already installed exact ESPHome 2026.4.3 CLI and fails closed instead of automatically installing a persistent Rust toolchain on Intel macOS.
-
-### 3.3 Private exact build passed
-
-The Mac exact build completed using the existing ESPHome 2026.4.3 installation. Public repository evidence records only source, firmware and TLS-file hashes; it does not record LAN addresses, MQTT credentials, TLS private-key contents or the private bundle path.
-
-### 3.4 Board B exact write gate prepared
-
-The Board B Gate A writer is bound to the private application/otadata hashes, frozen Board B public identity hash and frozen partition-table hash.
-
-It permits writes only to:
-
-- `0x9000` otadata;
-- `0x10000` application.
-
-Bootloader, partition-table, product NVS and full-chip erase remain prohibited. A fresh read-only board preflight and a new one-shot authorization are required before any write.
-
-### 3.5 Fresh KF-099 rollback gate prepared
-
-Gate A uses a separate rollback package so that the already consumed historical KF-099 write authorization cannot be replayed. The expected restored state is the known KF-099 pairing WAIT / `repair_intent_required` baseline, not an assumed Direct MQTT baseline.
-
-### 3.6 T1 isolated-lab fresh read-only preflight passed
-
-2026-09-30 fresh preflight proved:
-
-- TCP/18883 free;
-- live alias unassigned;
-- blackhole address unassigned;
-- production Broker restart_count=0;
-- Manager restart_count=0;
-- no T1 mutation;
-- no production Broker mutation;
-- no Board access.
-
-Public repository evidence does not store the concrete LAN addresses.
-
-### 3.7 First T1 lab activation failed, cleanup later proved complete
-
-The first live activation had a fresh one-shot authorization and entered `REMOTE_ACTIVATE`, then the remote Python process returned non-zero. The Mac-side exception retained only a truncated traceback, so the exact root cause was not proven from that failure output.
-
-That activation preflight was consumed and must not be replayed.
-
-A subsequent read-only failure forensic proved the executor's failure cleanup had completed:
-
-```text
-REMOTE_ROOT_EXISTS=false
-LAB_CONTAINER_EXISTS=false
-LAB_CONTAINER_RUNNING=false
-LIVE_ALIAS_ACTIVE=false
-PORT_18883_LISTENING=false
-BROKER_RESTART_COUNT=0
-MANAGER_RESTART_COUNT=0
-T1_MUTATION=false
-BOARD_ACCESS=false
-```
-
-Therefore:
+The first activation staged a root-only mode-0700 directory and root-only mode-0600 Broker files. This is incompatible with the proven 1883:1883 Broker runtime identity.
 
 ```text
 T1_ISOLATED_LAB_ACTIVATION_ATTEMPT_1=FAIL
 T1_ISOLATED_LAB_PREFLIGHT_1_CONSUMED=true
 T1_ISOLATED_LAB_FAILURE_CLEANUP=PASS
 T1_ISOLATED_LAB_RESIDUE_STATE=CLEAN
-PRODUCTION_RUNTIME_CONTINUITY=PASS
+T1_ISOLATED_LAB_PERMISSION_ROOT_CAUSE_PROVEN=true
 ```
 
-The first forensic occurred after the short Docker-event retention window used by the helper and therefore did not preserve the failed temporary container's exit code.
+## T1 restart and address change
 
-A second read-only forensic package has now been added to verify the exact production Broker image identity, PID1 effective UID/GID and the `mosquitto` account UID/GID. The current working hypothesis is a lab-file ownership/mode mismatch: the activation staged a root-owned mode-0700 directory with mode-0600 TLS/password files, while the official Mosquitto image is expected to execute the Broker under its `mosquitto` account. This remains a hypothesis until the exact T1 runtime-user forensic passes.
+The user intentionally restarted T1 after moving to a different network while travelling. The observed Manager restart_count=1 and T1 address change are therefore expected consequences of that user-initiated transition and are not classified as Gate A failures.
+
+The previous Gate A private application embedded the previous restore-host IPv4 and is superseded.
+
+## Rebind V2
+
+A T1-only network preflight was added so address rebinding does not require live Board B access.
+
+The read-only V2 preflight passed with:
 
 ```text
-T1_ISOLATED_LAB_PERMISSION_FORENSIC=IMPLEMENTED
-T1_ISOLATED_LAB_PERMISSION_FORENSIC_CI_PENDING=true
-T1_ISOLATED_LAB_PERMISSION_ROOT_CAUSE_PROVEN=false
+T1_NETWORK_PREFLIGHT_V2=PASS
+BROKER_RESTART_COUNT=0
+MANAGER_RESTART_COUNT=1
+PORT_18883_FREE=true
+BROKER_IPV4_WILDCARD_8883=true
+T1_MUTATION=false
+BOARD_ACCESS=false
+DHCP_POOL_EXCLUSION=PASS
 ```
 
-## 4. Current STOP point
+The active router DHCP allocation pool ends below the two private Gate A candidate addresses. The concrete LAN candidates are intentionally not stored in the public repository.
 
-The next sequence is:
+## Private exact rebuild V2
+
+The private exact rebuild completed on the Mac using the existing exact ESPHome CLI. The rebuilt firmware is bound to the current T1 restore-host address.
 
 ```text
-source-contract test PASS
--> exact ESP32-C6 compile PASS
--> private exact build PASS
--> T1 isolated-lab package CI PASS
--> first fresh T1 read-only lab preflight PASS
--> first T1 activation FAIL / automatic cleanup PASS
--> exact Broker runtime-user forensic CI PENDING
--> exact Broker runtime-user forensic PENDING
--> root-cause repair PENDING
--> new fresh T1 read-only lab preflight PENDING
--> new explicit T1 mutation authorization PENDING
--> Board B exact write package CI PASS
--> Board B read-only preflight PENDING
--> Board B write authorization PENDING
--> physical timing gate PENDING
--> fresh KF099 rollback preflight PENDING
--> fresh KF099 rollback write authorization PENDING
+PRIVATE_EXACT_REBUILD_V2=PASS
+APPLICATION_SIZE=1140352
+APPLICATION_SHA256=95a5be58688d5d96a54dbeed0ce0c9e41edbf6d891e6b93763beaae738ca759c
+OTADATA_SIZE=8192
+OTADATA_SHA256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
+CA_CERT_SHA256=59b5ac189ded12aad5e34347d8b9fa9daa4f1544eb8c5c8d72bfa41a1fb63ecd
+SERVER_CERT_SHA256=2740a8fd7a649ed297517bd488e83e837abadc2af0375999fe603b6bb7252ee6
+SERVER_KEY_SHA256=69961a59147d50e48ddd39fd86b94327c0ccd8bcbdda0b45ae3c3689602ae9e4
+BROKER_PORT=18883
+TLS_SERVER_NAME=n3w-gate-a.invalid
+RESTORE_HOST_REBOUND=true
+BOARD_ACCESS=false
+BOARD_FLASH=false
+T1_MUTATION=false
 ```
 
-Do not replay the consumed first activation preflight or its authorization.
+The private bundle path, LAN addresses, MQTT credentials and TLS private material remain outside GitHub.
 
-Do not write Board B until the T1 isolated lab is successfully activated under a new fresh preflight and new explicit authorization.
+## Current STOP point
+
+The next live sequence is intentionally blocked until a permission-repaired T1 lab executor is bound to the refreshed private build and a new fresh T1 lab preflight passes.
+
+Required order:
+
+```text
+permission-repaired T1 lab executor binding
+-> fresh T1 lab read-only preflight
+-> new explicit T1 activation authorization
+-> isolated T1 lab activation
+-> fresh Board B read-only preflight
+-> Board B write authorization
+-> physical timing gate
+-> cleanup
+-> rollback as required
+```
+
+Do not replay the consumed first activation preflight or authorization. Do not use the superseded private application. Do not write Board B before successful isolated-lab activation under a new fresh preflight and new authorization.
