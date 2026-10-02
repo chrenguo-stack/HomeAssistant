@@ -14,8 +14,6 @@
 namespace esphome::greenhouse_n3w_core {
 namespace {
 
-constexpr char kSimplePairingProtocol[] = "gh-n3w-simple-pairing/1";
-
 std::string base64url_encode(const uint8_t *data, std::size_t size) {
   if (data == nullptr || size == 0) return {};
   std::vector<uint8_t> encoded(((size + 2U) / 3U) * 4U + 1U, 0);
@@ -107,37 +105,6 @@ bool read_string(JsonObjectConst object, const char *key, std::string *value) {
   if (raw == nullptr || raw[0] == '\0') return false;
   *value = raw;
   return true;
-}
-
-bool parse_candidate(
-    const std::string &response,
-    const std::string &request_id,
-    const std::string &nonce,
-    SimpleManagerCandidateV2 *candidate) {
-  if (candidate == nullptr) return false;
-  JsonDocument document = json::parse_json(response);
-  JsonObjectConst root = document.as<JsonObjectConst>();
-  if (root.isNull() || std::string(root["schema"] | "") != "gh.discovery.response/1" ||
-      std::string(root["request_id"] | "") != request_id ||
-      std::string(root["nonce"] | "") != nonce || !root["candidate"].is<JsonObjectConst>()) {
-    return false;
-  }
-  JsonObjectConst value = root["candidate"].as<JsonObjectConst>();
-  std::string schema;
-  std::string protocol;
-  std::string scheme;
-  if (!read_string(value, "schema", &schema) || schema != "gh.manager.candidate/1" ||
-      !read_string(value, "protocol", &protocol) || protocol != kSimplePairingProtocol ||
-      !read_string(value, "scheme", &scheme) || scheme != "http" ||
-      !read_string(value, "manager_id", &candidate->manager_id) ||
-      !read_string(value, "system_id", &candidate->system_id) ||
-      !read_string(value, "host", &candidate->host) ||
-      !read_string(value, "pairing_path", &candidate->pairing_path) ||
-      !value["port"].is<uint16_t>()) {
-    return false;
-  }
-  candidate->port = value["port"].as<uint16_t>();
-  return candidate->valid();
 }
 
 bool parse_offer(
@@ -341,12 +308,6 @@ bool parse_hello_result(
 
 }  // namespace
 
-bool SimpleManagerCandidateV2::valid() const {
-  return valid_simple_identity_v2(manager_id) && valid_simple_identity_v2(system_id) &&
-         !host.empty() && host.size() <= 253 && port > 0 && !pairing_path.empty() &&
-         pairing_path.size() <= 255 && pairing_path.front() == '/';
-}
-
 SimplePairingClient::SimplePairingClient(
     SimplePairingClientNetwork *network,
     SimplePairingClientRandom *random,
@@ -430,9 +391,6 @@ SimplePairingClientError SimplePairingClient::prepare_bootstrap_() {
 }
 
 SimplePairingClientError SimplePairingClient::renew_pairing_intent_() {
-  // A transaction ID is random state, not a distributed generation counter.
-  // Keep the old durable intent unless a distinct replacement is generated
-  // and successfully committed to NVS.
   for (uint8_t attempt = 0; attempt < 4; ++attempt) {
     std::array<uint8_t, 16> pairing_random{};
     if (!fill_(pairing_random.data(), pairing_random.size())) {
@@ -497,19 +455,22 @@ SimplePairingClientError SimplePairingClient::discover_(SimpleManagerCandidateV2
       !fill_(nonce.data(), nonce.size())) {
     return SimplePairingClientError::IO_FAILED;
   }
-  const std::string request_id = uuid_from_random(request_random);
-  const std::string nonce_text = base64url_encode(nonce);
-  const std::string request = json::build_json([&](JsonObject root) {
-    root["schema"] = "gh.discovery.query/1";
-    root["request_id"] = request_id;
-    root["nonce"] = nonce_text;
-    root["hardware_id"] = hardware_id_;
-    JsonArray protocols = root["protocols"].to<JsonArray>();
-    protocols.add(kSimplePairingProtocol);
-  });
+  std::string request_id;
+  std::string nonce_text;
+  std::string request;
+  if (!build_simple_discovery_query(
+          hardware_id_,
+          request_random,
+          nonce,
+          &request_id,
+          &nonce_text,
+          &request)) {
+    return SimplePairingClientError::DISCOVERY_FAILED;
+  }
   std::string response;
   if (!network_->discover_manager(request, &response) ||
-      !parse_candidate(response, request_id, nonce_text, candidate)) {
+      !parse_simple_discovery_response(
+          response, request_id, nonce_text, candidate)) {
     return SimplePairingClientError::DISCOVERY_FAILED;
   }
   return SimplePairingClientError::NONE;
