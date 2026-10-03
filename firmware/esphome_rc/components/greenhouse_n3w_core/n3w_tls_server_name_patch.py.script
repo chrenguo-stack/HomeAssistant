@@ -94,9 +94,105 @@ BACKEND_STORAGE_NEW = (
     "  uint16_t port_;\n"
 )
 
+CLIENT_BARRIER_OLD = (
+    "  bool n3w_runtime_request_disconnect() {\n"
+    "    return this->mqtt_backend_.n3w_runtime_request_disconnect();\n"
+    "  }\n"
+    "  bool n3w_runtime_request_reconnect() {\n"
+    "    return this->mqtt_backend_.n3w_runtime_request_reconnect();\n"
+    "  }\n"
+)
+
+CLIENT_BARRIER_NEW = (
+    "  bool n3w_runtime_request_disconnect() {\n"
+    "    return this->mqtt_backend_.n3w_runtime_request_disconnect();\n"
+    "  }\n"
+    "  bool n3w_runtime_request_reconnect() {\n"
+    "    return this->mqtt_backend_.n3w_runtime_request_reconnect();\n"
+    "  }\n"
+    "  void n3w_runtime_fence_old_events() {\n"
+    "    this->mqtt_backend_.n3w_runtime_fence_old_events();\n"
+    "    this->state_ = MQTT_CLIENT_CONNECTING;\n"
+    "    this->connect_begin_ = millis();\n"
+    "    this->disconnect_reason_.reset();\n"
+    "  }\n"
+)
+
+BACKEND_BARRIER_INCLUDE_OLD = (
+    "#include <string>\n"
+    "#include <cstring>\n"
+)
+
+BACKEND_BARRIER_INCLUDE_NEW = (
+    "#include <atomic>\n"
+    "#include <string>\n"
+    "#include <cstring>\n"
+)
+
+BACKEND_BARRIER_EVENT_OLD = (
+    "  esp_mqtt_error_codes_t error_handle{};\n"
+    "\n"
+    "  // Populate from esp_mqtt_event_t\n"
+    "  // Copies pointer-based data to owned storage for safe cross-thread transfer\n"
+    "  void populate(const esp_mqtt_event_t &event) {\n"
+    "    this->event_id = event.event_id;\n"
+)
+
+BACKEND_BARRIER_EVENT_NEW = (
+    "  esp_mqtt_error_codes_t error_handle{};\n"
+    "  uint64_t generation{0};\n"
+    "\n"
+    "  // Populate from esp_mqtt_event_t\n"
+    "  // Copies pointer-based data to owned storage for safe cross-thread transfer\n"
+    "  void populate(const esp_mqtt_event_t &event, uint64_t generation) {\n"
+    "    this->generation = generation;\n"
+    "    this->event_id = event.event_id;\n"
+)
+
+BACKEND_BARRIER_METHOD_OLD = (
+    "  bool n3w_runtime_request_disconnect() {\n"
+    "    if (!this->is_initalized_) return true;\n"
+    "    return esp_mqtt_client_disconnect(this->handler_.get()) == ESP_OK;\n"
+    "  }\n"
+    "  bool n3w_runtime_request_reconnect() {\n"
+    "    if (!this->is_initalized_) return false;\n"
+    "    return esp_mqtt_client_reconnect(this->handler_.get()) == ESP_OK;\n"
+    "  }\n"
+)
+
+BACKEND_BARRIER_METHOD_NEW = (
+    "  bool n3w_runtime_request_disconnect() {\n"
+    "    if (!this->is_initalized_) return true;\n"
+    "    return esp_mqtt_client_disconnect(this->handler_.get()) == ESP_OK;\n"
+    "  }\n"
+    "  bool n3w_runtime_request_reconnect() {\n"
+    "    if (!this->is_initalized_) return false;\n"
+    "    return esp_mqtt_client_reconnect(this->handler_.get()) == ESP_OK;\n"
+    "  }\n"
+    "  void n3w_runtime_fence_old_events() {\n"
+    "    const uint64_t current = this->connection_generation_.load();\n"
+    "    this->minimum_event_generation_.store(current + 1U);\n"
+    "    this->is_connected_ = false;\n"
+    "  }\n"
+)
+
+BACKEND_BARRIER_STORAGE_OLD = (
+    "  bool is_connected_{false};\n"
+    "  bool is_initalized_{false};\n"
+)
+
+BACKEND_BARRIER_STORAGE_NEW = (
+    "  bool is_connected_{false};\n"
+    "  bool is_initalized_{false};\n"
+    "  std::atomic<uint64_t> connection_generation_{0};\n"
+    "  std::atomic<uint64_t> minimum_event_generation_{0};\n"
+)
+
+
 def git_blob_sha1(data: bytes) -> str:
     header = f"blob {len(data)}\0".encode("ascii")
     return hashlib.sha1(header + data).hexdigest()
+
 
 def unpatch_and_verify(text: str, expected_blob: str, replacements) -> bool:
     candidate = text
@@ -106,7 +202,17 @@ def unpatch_and_verify(text: str, expected_blob: str, replacements) -> bool:
         candidate = candidate.replace(new, old, 1)
     return git_blob_sha1(candidate.encode("utf-8")) == expected_blob
 
-def patch_exact(path: Path, expected_blob: str, replacements) -> str:
+
+def reverse_replacements(text: str, replacements) -> str | None:
+    candidate = text
+    for old, new in reversed(replacements):
+        if candidate.count(new) != 1:
+            return None
+        candidate = candidate.replace(new, old, 1)
+    return candidate
+
+
+def patch_exact(path: Path, expected_blob: str, replacements, composed_replacements=()) -> str:
     raw = path.read_bytes()
     current_blob = git_blob_sha1(raw)
     text = raw.decode("utf-8")
@@ -137,9 +243,17 @@ def patch_exact(path: Path, expected_blob: str, replacements) -> str:
     if unpatch_and_verify(text, expected_blob, replacements):
         return "ALREADY_EXACT"
 
+    if composed_replacements:
+        tls_postimage = reverse_replacements(text, composed_replacements)
+        if tls_postimage is not None and unpatch_and_verify(
+            tls_postimage, expected_blob, replacements
+        ):
+            return "ALREADY_COMPOSED"
+
     raise RuntimeError(
         f"{path.name}: unknown upstream source; refusing generated-source patch"
     )
+
 
 def main() -> None:
     project_src = Path(env.subst("$PROJECT_SRC_DIR"))
@@ -168,6 +282,7 @@ def main() -> None:
         targets["mqtt_client.h"],
         EXPECTED_MQTT_CLIENT_H_BLOB,
         ((CLIENT_OLD, CLIENT_NEW),),
+        ((CLIENT_BARRIER_OLD, CLIENT_BARRIER_NEW),),
     )
     backend_state = patch_exact(
         targets["mqtt_backend_esp32.h"],
@@ -176,6 +291,12 @@ def main() -> None:
             (BACKEND_SETTER_OLD, BACKEND_SETTER_NEW),
             (BACKEND_STORAGE_OLD, BACKEND_STORAGE_NEW),
         ),
+        (
+            (BACKEND_BARRIER_INCLUDE_OLD, BACKEND_BARRIER_INCLUDE_NEW),
+            (BACKEND_BARRIER_EVENT_OLD, BACKEND_BARRIER_EVENT_NEW),
+            (BACKEND_BARRIER_METHOD_OLD, BACKEND_BARRIER_METHOD_NEW),
+            (BACKEND_BARRIER_STORAGE_OLD, BACKEND_BARRIER_STORAGE_NEW),
+        ),
     )
 
     print(
@@ -183,5 +304,6 @@ def main() -> None:
         f"mqtt_client_h={client_state} "
         f"mqtt_backend_esp32_h={backend_state}"
     )
+
 
 main()
