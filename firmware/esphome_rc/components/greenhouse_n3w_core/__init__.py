@@ -37,6 +37,11 @@ async def to_code(config: dict) -> None:
         "n3w_tls_server_name_patch.py",
         Path(__file__).with_name("n3w_tls_server_name_patch.py.script"),
     )
+    add_extra_script(
+        "pre",
+        "n3w_mqtt_retarget_barrier_patch.py",
+        Path(__file__).with_name("n3w_mqtt_retarget_barrier_patch.py.script"),
+    )
     add_idf_sdkconfig_option("CONFIG_MBEDTLS_HKDF_C", True)
     include_builtin_idf_component("nvs_flash")
     include_builtin_idf_component("esp_event")
