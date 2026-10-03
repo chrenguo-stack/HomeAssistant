@@ -7,6 +7,7 @@ TASK=N3W_AUTO_SAFE_FALLBACK_GATE_B_DISCOVERY_PAIRING_DECOUPLING_SOURCE_REPAIR_20
 BRANCH=fix/n3w-auto-safe-fallback-v1-20260929
 PR=516
 SOURCE_HEAD_BEFORE_PROGRESS_DOC=0e7053286794979878fe07687f60151d10937ddc
+GATE_B_CLOSURE_SOURCE_HEAD=a448af7a3c3db22de23b649d724fe1f97c8859a0
 MAIN_REBIND=d423211b6196c2f2f0f01dff072c4f877fbe58ee
 MERGE_BASE=a363962a118e823f97022a6c398383e9e43fc830
 PRODUCT_SOURCE_DRIFT_ON_MAIN_SINCE_MERGE_BASE=false
@@ -17,8 +18,9 @@ BOARD_ACCESS=false
 MERGE=false
 AUTO_EXECUTE_GATE_C=false
 GATE_B_SOURCE_IMPLEMENTATION=COMPLETE
-GATE_B_CI=WAITING_FINAL_CONFIRMATION
-GATE_B_CLOSED=false
+GATE_B_SOURCE_REVIEW=PASS
+GATE_B_CI=PASS
+GATE_B_CLOSED=CLOSED_PASS
 GATE_C_ENTERED=false
 ```
 
@@ -87,27 +89,52 @@ Gate A 保持 `CLOSED_PASS`，本轮没有重进 Gate A，没有重复物理测�
 - UDP 多响应收集和 source IP 捕获；
 - discovery 源码不得出现 trust、credential 或 NVS mutation。
 
-## 5. CI 当前状态
+## 5. CI 与 closure 结果
 
-本轮第一次 CI 暴露 `tracked-content-safety`：host test 使用了私网示例地址，被仓库公开内容扫描器拦截。该问题不属于产品逻辑失败，测试地址随后改为 RFC 文档示例网段。
+第一次 CI 曾暴露 `tracked-content-safety`：host test 使用私网示例地址，被仓库公开内容扫描器拦截。该问题不属于产品逻辑失败，测试地址随后改为 RFC 文档示例网段。
 
-按本项目长链路规则，本轮 GitHub workflow 已进行三次状态检查，之后停止继续轮询。最后一次检查时，没有观察到当前代码 head 的明确失败，但主测试、cross-language 和若干 contract/scope job 仍处于 queued / in-progress，因此本文件不得把 Gate B 标记为 `CLOSED_PASS`。
+随后在 `61761d049c591bac3a4064a8253196bcb0bb0860` 上确认完整 CI 全绿，但复核发现 Gate B 新增专用测试没有被 workflow 明确执行，因此没有提前关闭 Gate B。
 
-当前 PR：
+只修改 `.github/workflows/greenhouse-manager-ci.yml` 接入：
 
-https://github.com/chrenguo-stack/HomeAssistant/pull/516
+- `Auto safe fallback Gate B discovery contracts`
+- `Build and run Gate B discovery policy host test`
 
-## 6. 当前停止点
+形成 Gate B closure source head：
+
+`a448af7a3c3db22de23b649d724fe1f97c8859a0`
+
+`61761d... -> a448af7...` 只有 workflow 文件变化，没有产品源码变化。
+
+`a448af7...` 的 pull-request workflow 共 13 个，全部 `completed/success`。其中 `greenhouse-manager CI` run `37082266384`：
+
+- `scope`: PASS
+- `test`: PASS
+- `n3w-phase3-cross-language`: PASS
+- `Auto safe fallback Gate B discovery contracts`: PASS
+- `Build and run Gate B discovery policy host test`: PASS
+- generic ESP32-C6 Child / Relay / Phase4 physical harness compile: PASS
+- auto safe fallback Gate A fixture compile: PASS
+
+因此 Gate B 停止条件已经满足。
+
+## 6. closure authority
+
+正式收口记录：
+
+`docs/development/N3W_AUTO_SAFE_FALLBACK_GATE_B_SOURCE_CLOSURE_20261003.md`
+
+当前结论：
 
 ```text
 GATE_B_SOURCE_IMPLEMENTATION=COMPLETE
-GATE_B_SOURCE_REVIEW=PASS_WITH_CI_PENDING
-GATE_B_CI=WAITING_FINAL_CONFIRMATION
-GATE_B_CLOSED=false
+GATE_B_SOURCE_REVIEW=PASS
+GATE_B_CI=PASS
+GATE_B_CLOSED=CLOSED_PASS
 GATE_C_ENTERED=false
 LIVE_MUTATION=false
 BOARD_ACCESS=false
 MERGE=false
 ```
 
-下一次继续时先 fresh rebind PR #516 最新 head 和 CI 结果。如果最终 CI 全部通过，再做 Gate B closure 记录；不要自动进入 Gate C。
+Gate B closure 不构成 Gate C 自动授权。下一阶段如继续，必须先 fresh rebind，再按执行计划单独进入 Gate C。
