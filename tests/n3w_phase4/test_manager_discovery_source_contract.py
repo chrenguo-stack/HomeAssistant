@@ -58,6 +58,20 @@ def test_gate_b_discovery_protocol_correlates_request_id_and_nonce() -> None:
     assert 'std::string(root["nonce"] | "") != nonce_text' in discovery
 
 
+def test_gate_b_udp_adapter_collects_multiple_responses_with_source_ip() -> None:
+    adapter = text("n3w_esp32_manager_discovery.cpp")
+
+    assert "std::min(max_datagrams, kManagerDiscoveryMaxParsedDatagrams)" in adapter
+    assert "datagrams->size() < limit" in adapter
+    assert "kDiscoveryCollectWindowMs = 1000" in adapter
+    assert "::sendto(" in adapter
+    assert "::select(" in adapter
+    assert "::recvfrom(" in adapter
+    assert "::inet_ntop(" in adapter
+    assert "source.sin_addr" in adapter
+    assert "SimpleDiscoveryDatagram{" in adapter
+
+
 def test_gate_b_bounded_candidate_contract_is_frozen() -> None:
     header = text("n3w_manager_discovery.h")
     policy = text("n3w_manager_discovery_policy.cpp")
@@ -97,6 +111,8 @@ def test_gate_b_discovery_has_no_trust_identity_or_nvs_mutation() -> None:
             text("n3w_manager_discovery.h"),
             text("n3w_manager_discovery.cpp"),
             text("n3w_manager_discovery_policy.cpp"),
+            text("n3w_esp32_manager_discovery.h"),
+            text("n3w_esp32_manager_discovery.cpp"),
         ]
     )
 
