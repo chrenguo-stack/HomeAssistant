@@ -1,0 +1,50 @@
+name: N3W Gate C harness diagnostic CI
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  physical-harness-diagnostic:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install ESPHome
+        run: python -m pip install -q "esphome==2026.4.3"
+      - name: Compile physical harness and capture focused error log
+        id: compile
+        shell: bash
+        run: |
+          set +e
+          cd firmware/esphome_rc/board_lab/n3w_phase4_physical
+          esphome config generic.yml > "$RUNNER_TEMP/harness-config.log" 2>&1
+          config_status=$?
+          if [[ $config_status -ne 0 ]]; then
+            cp "$RUNNER_TEMP/harness-config.log" "$RUNNER_TEMP/harness-error.log"
+            exit $config_status
+          fi
+          esphome compile generic.yml > "$RUNNER_TEMP/harness-compile.log" 2>&1
+          status=$?
+          if [[ $status -ne 0 ]]; then
+            {
+              grep -n -B 8 -A 16 -E '(^|[^[:alpha:]])(error:|fatal error:|undefined reference|collect2:|FAILED:|ninja: build stopped)' "$RUNNER_TEMP/harness-compile.log" || true
+              echo '--- tail ---'
+              tail -n 120 "$RUNNER_TEMP/harness-compile.log"
+            } > "$RUNNER_TEMP/harness-error.log"
+          else
+            echo 'PHYSICAL_HARNESS_EXACT_COMPILE=PASS' > "$RUNNER_TEMP/harness-error.log"
+          fi
+          exit $status
+      - name: Upload focused harness compile result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: n3w-gate-c-harness-focused-log
+          path: ${{ runner.temp }}/harness-error.log
+          if-no-files-found: error
