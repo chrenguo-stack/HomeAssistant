@@ -96,25 +96,22 @@ bool SimpleProductComponent::retarget_runtime_broker_(
     return false;
   }
   auto *client = mqtt::global_mqtt_client;
-  if (!reconnect) {
-    return client->n3w_runtime_retarget_server(
-        host, broker_state_.broker_port);
-  }
-  if (!client->n3w_runtime_stop_and_clear_events()) return false;
   if (!client->n3w_runtime_retarget_server(
           host, broker_state_.broker_port)) {
-    if (!stable_runtime_broker_host_.empty()) {
-      (void) client->n3w_runtime_retarget_server(
-          stable_runtime_broker_host_, broker_state_.broker_port);
-      (void) client->n3w_runtime_start();
-    }
     return false;
   }
-  if (client->n3w_runtime_start()) return true;
-  if (!stable_runtime_broker_host_.empty()) {
-    (void) client->n3w_runtime_retarget_server(
-        stable_runtime_broker_host_, broker_state_.broker_port);
-    (void) client->n3w_runtime_start();
+  if (!reconnect) return true;
+
+  client->n3w_runtime_fence_old_events();
+  if (client->n3w_runtime_request_reconnect()) return true;
+
+  if (!stable_runtime_broker_host_.empty() &&
+      client->n3w_runtime_retarget_server(
+          stable_runtime_broker_host_, broker_state_.broker_port)) {
+    client->n3w_runtime_fence_old_events();
+    if (!client->n3w_runtime_request_reconnect()) {
+      (void) client->n3w_runtime_request_disconnect();
+    }
   }
   return false;
 #else
@@ -126,9 +123,27 @@ bool SimpleProductComponent::retarget_runtime_broker_(
 
 void SimpleProductComponent::rollback_broker_candidate_() {
   broker_discovery_session_.reset();
-  if (broker_candidate_active_ || !pending_broker_candidate_host_.empty()) {
-    const bool restored =
-        retarget_runtime_broker_(stable_runtime_broker_host_, true);
+  const bool had_candidate =
+      broker_candidate_active_ ||
+      !pending_broker_candidate_host_.empty() ||
+      broker_relocation_target_index_ != 0U;
+  bool restored = true;
+#ifdef USE_MQTT
+  if (had_candidate && broker_relocation_initialized_ &&
+      !stable_runtime_broker_host_.empty() && broker_state_.valid() &&
+      mqtt::global_mqtt_client != nullptr) {
+    auto *client = mqtt::global_mqtt_client;
+    restored = client->n3w_runtime_retarget_server(
+        stable_runtime_broker_host_, broker_state_.broker_port);
+    if (restored) {
+      client->n3w_runtime_fence_old_events();
+      if (!client->n3w_runtime_request_reconnect()) {
+        (void) client->n3w_runtime_request_disconnect();
+      }
+    }
+  }
+#endif
+  if (had_candidate) {
     ESP_LOGI(
         TAG,
         "N3-W Broker candidate rolled back restored=%s",
@@ -247,7 +262,7 @@ bool SimpleProductComponent::start_next_broker_candidate_() {
     }
     if (!retarget_runtime_broker_(target.host, true)) {
       broker_relocation_target_index_ = broker_relocation_targets_.size();
-      ESP_LOGW(TAG, "N3-W Broker candidate isolated reconnect failed");
+      ESP_LOGW(TAG, "N3-W Broker candidate bounded reconnect request failed");
       return false;
     }
     pending_broker_candidate_host_ = target.host;
@@ -276,8 +291,14 @@ void SimpleProductComponent::advance_broker_relocation_() {
   if (broker_candidate_active_) {
     if (broker_candidate_deadline_ms_ != 0U &&
         now >= broker_candidate_deadline_ms_) {
-      rollback_broker_candidate_();
-      (void) start_next_broker_candidate_();
+      broker_candidate_active_ = false;
+      broker_candidate_verified_ = false;
+      broker_candidate_started_ms_ = 0;
+      broker_candidate_deadline_ms_ = 0;
+      pending_broker_candidate_host_.clear();
+      if (!start_next_broker_candidate_()) {
+        rollback_broker_candidate_();
+      }
     }
     return;
   }
@@ -287,7 +308,9 @@ void SimpleProductComponent::advance_broker_relocation_() {
         broker_discovery_session_.poll(now);
     if (status == Esp32ManagerDiscoverySessionStatus::IN_PROGRESS) return;
     if (status == Esp32ManagerDiscoverySessionStatus::COMPLETE &&
-        finish_broker_discovery_() && start_next_broker_candidate_()) {
+        finish_broker_discovery_()) {
+      if (start_next_broker_candidate_()) return;
+      rollback_broker_candidate_();
       return;
     }
     broker_discovery_session_.reset();
