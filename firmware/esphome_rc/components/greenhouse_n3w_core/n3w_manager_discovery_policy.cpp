@@ -51,7 +51,7 @@ bool same_candidate_host(
   return left.host == right.host;
 }
 
-}  // namespace
+}
 
 bool simple_discovery_candidate_allowed(
     const SimpleManagerCandidateV2 &candidate,
@@ -131,4 +131,4 @@ std::vector<SimpleBrokerRecoveryTarget> make_simple_broker_recovery_targets(
   return targets;
 }
 
-}  // namespace esphome::greenhouse_n3w_core
+}
