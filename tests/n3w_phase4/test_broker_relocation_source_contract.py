@@ -78,7 +78,7 @@ def test_gate_c_candidate_is_promoted_only_after_direct_commit() -> None:
     assert "rollback_broker_candidate_();" in component[commit:promote]
 
 
-def test_gate_c_candidate_attempt_uses_generation_fence_before_reconnect() -> None:
+def test_gate_c_candidate_attempt_fences_then_requests_bounded_cancel_and_reconnect() -> None:
     component = text("n3w_simple_product_component_broker_relocation.cpp")
 
     retarget = component.index("bool SimpleProductComponent::retarget_runtime_broker_")
@@ -86,23 +86,24 @@ def test_gate_c_candidate_attempt_uses_generation_fence_before_reconnect() -> No
     block = component[retarget:rollback]
     switched = block.index("n3w_runtime_retarget_server")
     fenced = block.index("n3w_runtime_fence_old_events", switched)
-    reconnected = block.index("n3w_runtime_request_reconnect", fenced)
-    assert switched < fenced < reconnected
+    disconnect = block.index("n3w_runtime_request_disconnect", fenced)
+    reconnect = block.index("n3w_runtime_request_reconnect", disconnect)
+    assert switched < fenced < disconnect < reconnect
+    assert "disconnect_requested || reconnect_requested" in block
     assert "n3w_runtime_stop_and_clear_events" not in block
     assert "n3w_runtime_start" not in block
 
 
-def test_gate_c_reconnect_failure_restores_stable_target_without_blocking_stop() -> None:
+def test_gate_c_candidate_retries_reconnect_until_candidate_deadline() -> None:
     component = text("n3w_simple_product_component_broker_relocation.cpp")
 
-    retarget = component.index("bool SimpleProductComponent::retarget_runtime_broker_")
-    rollback = component.index("void SimpleProductComponent::rollback_broker_candidate_", retarget)
-    helper = component[retarget:rollback]
-    reconnect_failure = helper.index("if (client->n3w_runtime_request_reconnect()) return true;")
-    restored = helper.index("stable_runtime_broker_host_", reconnect_failure)
-    fenced = helper.index("n3w_runtime_fence_old_events", restored)
-    assert reconnect_failure < restored < fenced
-    assert "esp_mqtt_client_stop" not in helper
+    advance = component.index("void SimpleProductComponent::advance_broker_relocation_")
+    probe = component.index("void SimpleProductComponent::on_direct_recovery_probe_tick", advance)
+    block = component[advance:probe]
+    active = block.index("if (broker_candidate_active_)")
+    retry = block.index("n3w_runtime_request_reconnect", active)
+    timeout = block.index("now >= broker_candidate_deadline_ms_", retry)
+    assert active < retry < timeout
 
 
 def test_gate_c_candidate_timeout_can_advance_to_second_candidate() -> None:
@@ -116,6 +117,21 @@ def test_gate_c_candidate_timeout_can_advance_to_second_candidate() -> None:
     next_candidate = block.index("start_next_broker_candidate_()", cleared)
     rollback = block.index("rollback_broker_candidate_();", next_candidate)
     assert timeout < cleared < next_candidate < rollback
+
+
+def test_gate_c_rollback_restores_stable_target_without_blocking_stop() -> None:
+    component = text("n3w_simple_product_component_broker_relocation.cpp")
+
+    rollback = component.index("void SimpleProductComponent::rollback_broker_candidate_")
+    end = component.index("bool SimpleProductComponent::start_broker_discovery_", rollback)
+    block = component[rollback:end]
+    restored = block.index("stable_runtime_broker_host_")
+    switched = block.index("n3w_runtime_retarget_server", restored)
+    fenced = block.index("n3w_runtime_fence_old_events", switched)
+    disconnect = block.index("n3w_runtime_request_disconnect", fenced)
+    reconnect = block.index("n3w_runtime_request_reconnect", disconnect)
+    assert restored < switched < fenced < disconnect < reconnect
+    assert "esp_mqtt_client_stop" not in block
 
 
 def test_gate_c_rejects_candidate_if_wifi_network_changed_after_discovery() -> None:
