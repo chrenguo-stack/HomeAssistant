@@ -1,0 +1,1021 @@
+name: N3W auto safe fallback Gate C source repair
+
+on:
+  push:
+    branches:
+      - fix/n3w-auto-safe-fallback-v1-20260929
+    paths:
+      - .github/workflows/n3w-auto-safe-fallback-gate-c-source-repair.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/n3w-auto-safe-fallback-v1-20260929
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Apply exact Gate C source repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          ROOT = Path.cwd()
+
+          def replace_once(path, old, new):
+              p = ROOT / path
+              text = p.read_text(encoding="utf-8")
+              if text.count(old) != 1:
+                  raise SystemExit(f"{path}: expected exactly one preimage, found {text.count(old)}")
+              p.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          def write(path, content):
+              p = ROOT / path
+              p.parent.mkdir(parents=True, exist_ok=True)
+              p.write_text(content, encoding="utf-8")
+
+          replace_once(
+              "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_direct_recovery_policy.h",
+              "  DirectRecoveryMode mode() const { return mode_; }\n  DirectRecoveryPhase phase() const { return phase_; }\n",
+              "  DirectRecoveryMode mode() const { return mode_; }\n  DirectRecoveryPhase phase() const { return phase_; }\n  uint64_t phase_deadline_ms() const { return phase_deadline_ms_; }\n  uint64_t absolute_deadline_ms() const { return absolute_deadline_ms_; }\n",
+          )
+
+          replace_once(
+              "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_simple_product_runtime.h",
+              "  virtual bool publish_direct(const std::string &topic, const std::string &payload) = 0;\n  virtual bool publish_relay(const std::string &topic, const std::string &payload) = 0;\n};\n",
+              "  virtual bool publish_direct(const std::string &topic, const std::string &payload) = 0;\n  virtual bool publish_relay(const std::string &topic, const std::string &payload) = 0;\n  virtual void on_direct_recovery_probe_tick(bool success) { (void) success; }\n  virtual void on_direct_recovery_commit_result(bool committed) { (void) committed; }\n};\n",
+          )
+
+          replace_once(
+              "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_simple_product_runtime.cpp",
+              "SimpleProductError SimpleProductRuntime::note_direct_recovery_probe(bool success) {\n  if (!started_) return SimpleProductError::NOT_READY;\n\n  // Direct is committed only after the concrete radio has already recovered.\n",
+              "SimpleProductError SimpleProductRuntime::note_direct_recovery_probe(bool success) {\n  if (!started_) return SimpleProductError::NOT_READY;\n  if (port_ != nullptr) port_->on_direct_recovery_probe_tick(success);\n\n  // Direct is committed only after the concrete radio has already recovered.\n",
+          )
+
+          old_commit = '''DirectRecoveryCommitResult SimpleProductRuntime::commit_direct_recovery_before(
+    uint64_t absolute_deadline_ms) {
+  DirectRecoveryCommitResult result;
+  result.completed_at_ms = clock_ != nullptr ? clock_->now_ms() : 0;
+
+  if (!started_ || clock_ == nullptr || port_ == nullptr) {
+    result.error = SimpleProductError::NOT_READY;
+    return result;
+  }
+
+  if (!path_.direct_recovery_would_commit_on_success()) {
+    result.error = SimpleProductError::STATE_REJECTED;
+    return result;
+  }
+
+  if (result.completed_at_ms >= absolute_deadline_ms) {
+    (void) path_.note_direct_recovery_probe(false);
+    result.error = SimpleProductError::STATE_REJECTED;
+    return result;
+  }
+
+  if (!port_->set_radio_channel(direct_channel_)) {
+    (void) path_.note_direct_recovery_probe(false);
+    result.completed_at_ms = clock_->now_ms();
+    result.error = SimpleProductError::RADIO_FAILED;
+    return result;
+  }
+
+  result.completed_at_ms = clock_->now_ms();
+  if (result.completed_at_ms >= absolute_deadline_ms) {
+    (void) path_.note_direct_recovery_probe(false);
+    result.error = SimpleProductError::STATE_REJECTED;
+    return result;
+  }
+
+  const RadioError path_result = path_.note_direct_recovery_probe(true);
+  if (path_result != RadioError::NONE ||
+      path_.state() != LocalPathState::DIRECT) {
+    (void) path_.note_direct_recovery_probe(false);
+    result.error = SimpleProductError::STATE_REJECTED;
+    return result;
+  }
+
+  pending_challenge_.reset();
+  if (active_relay_.has_value()) {
+    (void) port_->remove_peer(active_relay_->mac);
+    active_relay_.reset();
+  }
+  next_advertisement_ms_ = result.completed_at_ms;
+  result.committed = true;
+  return result;
+}
+'''
+          new_commit = '''DirectRecoveryCommitResult SimpleProductRuntime::commit_direct_recovery_before(
+    uint64_t absolute_deadline_ms) {
+  DirectRecoveryCommitResult result;
+  result.completed_at_ms = clock_ != nullptr ? clock_->now_ms() : 0;
+  const auto finish = [&](bool committed) {
+    if (port_ != nullptr) port_->on_direct_recovery_commit_result(committed);
+  };
+
+  if (!started_ || clock_ == nullptr || port_ == nullptr) {
+    result.error = SimpleProductError::NOT_READY;
+    finish(false);
+    return result;
+  }
+
+  if (!path_.direct_recovery_would_commit_on_success()) {
+    result.error = SimpleProductError::STATE_REJECTED;
+    finish(false);
+    return result;
+  }
+
+  if (result.completed_at_ms >= absolute_deadline_ms) {
+    (void) path_.note_direct_recovery_probe(false);
+    result.error = SimpleProductError::STATE_REJECTED;
+    finish(false);
+    return result;
+  }
+
+  if (!port_->set_radio_channel(direct_channel_)) {
+    (void) path_.note_direct_recovery_probe(false);
+    result.completed_at_ms = clock_->now_ms();
+    result.error = SimpleProductError::RADIO_FAILED;
+    finish(false);
+    return result;
+  }
+
+  result.completed_at_ms = clock_->now_ms();
+  if (result.completed_at_ms >= absolute_deadline_ms) {
+    (void) path_.note_direct_recovery_probe(false);
+    result.error = SimpleProductError::STATE_REJECTED;
+    finish(false);
+    return result;
+  }
+
+  const RadioError path_result = path_.note_direct_recovery_probe(true);
+  if (path_result != RadioError::NONE ||
+      path_.state() != LocalPathState::DIRECT) {
+    (void) path_.note_direct_recovery_probe(false);
+    result.error = SimpleProductError::STATE_REJECTED;
+    finish(false);
+    return result;
+  }
+
+  pending_challenge_.reset();
+  if (active_relay_.has_value()) {
+    (void) port_->remove_peer(active_relay_->mac);
+    active_relay_.reset();
+  }
+  next_advertisement_ms_ = result.completed_at_ms;
+  result.committed = true;
+  finish(true);
+  return result;
+}
+'''
+          replace_once(
+              "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_simple_product_runtime.cpp",
+              old_commit,
+              new_commit,
+          )
+
+          replace_once(
+              "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_manager_discovery.h",
+              "inline constexpr std::size_t kManagerDiscoveryMaxAttemptCandidates = 2;\n",
+              "inline constexpr std::size_t kManagerDiscoveryMaxAttemptCandidates = 2;\ninline constexpr uint16_t kManagerDiscoveryMaxCandidateTtlSeconds = 120;\n",
+          )
+          replace_once(
+              "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_manager_discovery.h",
+              "  std::string pairing_path;\n\n  bool valid() const;\n",
+              "  std::string pairing_path;\n  uint16_t ttl_s{0};\n\n  bool valid() const;\n",
+          )
+          replace_once(
+              "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_manager_discovery.h",
+              "struct SimpleBrokerRecoveryTarget {\n  std::string host;\n  uint16_t port{0};\n};\n",
+              "struct SimpleBrokerRecoveryTarget {\n  std::string host;\n  uint16_t port{0};\n  uint16_t ttl_s{0};\n};\n",
+          )
+          replace_once(
+              "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_manager_discovery.cpp",
+              "  parsed.port = value[\"port\"].as<uint16_t>();\n  if (!parsed.valid()) return false;\n",
+              "  parsed.port = value[\"port\"].as<uint16_t>();\n  if (value[\"ttl_s\"].is<uint16_t>()) {\n    parsed.ttl_s = value[\"ttl_s\"].as<uint16_t>();\n  }\n  if (!parsed.valid()) return false;\n",
+          )
+          replace_once(
+              "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_manager_discovery_policy.cpp",
+              "      !valid_unicast_ipv4(source) ||\n      advertised != source ||\n      (advertised & mask) != (local & mask)) {\n",
+              "      !valid_unicast_ipv4(source) ||\n      advertised == local ||\n      advertised != source ||\n      candidate.ttl_s == 0U ||\n      candidate.ttl_s > kManagerDiscoveryMaxCandidateTtlSeconds ||\n      (advertised & mask) != (local & mask)) {\n",
+          )
+          replace_once(
+              "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_manager_discovery_policy.cpp",
+              "    targets.push_back(SimpleBrokerRecoveryTarget{\n        candidates[index].host,\n        durable_broker_port,\n    });\n",
+              "    targets.push_back(SimpleBrokerRecoveryTarget{\n        candidates[index].host,\n        durable_broker_port,\n        candidates[index].ttl_s,\n    });\n",
+          )
+
+          write(
+              "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_broker_relocation_policy.h",
+              '''#pragma once
+
+#include <cstdint>
+
+namespace esphome::greenhouse_n3w_core {
+
+inline constexpr uint32_t kBrokerRelocationMqttFailureTriggerMs = 10000;
+inline constexpr uint32_t kBrokerRelocationDiscoveryBudgetMs = 1000;
+inline constexpr uint32_t kBrokerRelocationCandidateBudgetMs = 6000;
+inline constexpr uint32_t kBrokerRelocationCleanupReserveMs = 2000;
+inline constexpr uint32_t kBrokerRelocationDiscoveryMinIntervalMs = 60000;
+
+bool broker_relocation_trigger_due(uint64_t started_ms, uint64_t now_ms);
+bool broker_relocation_discovery_can_start(
+    uint64_t now_ms,
+    uint64_t mqtt_phase_deadline_ms,
+    uint64_t absolute_deadline_ms,
+    uint32_t direct_confirm_reserve_ms);
+uint64_t broker_relocation_candidate_deadline(
+    uint64_t now_ms,
+    uint64_t mqtt_phase_deadline_ms,
+    uint64_t absolute_deadline_ms,
+    uint32_t direct_confirm_reserve_ms);
+
+}
+''',
+          )
+
+          write(
+              "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_broker_relocation_policy.cpp",
+              '''#include "n3w_broker_relocation_policy.h"
+
+#include <algorithm>
+#include <limits>
+
+namespace esphome::greenhouse_n3w_core {
+namespace {
+
+bool has_room(uint64_t now_ms, uint64_t deadline_ms, uint64_t required_ms) {
+  return deadline_ms > now_ms && deadline_ms - now_ms >= required_ms;
+}
+
+uint64_t add_saturated(uint64_t value, uint64_t delta) {
+  if (value > std::numeric_limits<uint64_t>::max() - delta) {
+    return std::numeric_limits<uint64_t>::max();
+  }
+  return value + delta;
+}
+
+}
+
+bool broker_relocation_trigger_due(uint64_t started_ms, uint64_t now_ms) {
+  return started_ms != 0U && now_ms >= started_ms &&
+         now_ms - started_ms >= kBrokerRelocationMqttFailureTriggerMs;
+}
+
+bool broker_relocation_discovery_can_start(
+    uint64_t now_ms,
+    uint64_t mqtt_phase_deadline_ms,
+    uint64_t absolute_deadline_ms,
+    uint32_t direct_confirm_reserve_ms) {
+  const uint64_t mqtt_required =
+      static_cast<uint64_t>(kBrokerRelocationDiscoveryBudgetMs) +
+      kBrokerRelocationCandidateBudgetMs +
+      kBrokerRelocationCleanupReserveMs;
+  const uint64_t absolute_required =
+      mqtt_required + static_cast<uint64_t>(direct_confirm_reserve_ms);
+  return has_room(now_ms, mqtt_phase_deadline_ms, mqtt_required) &&
+         has_room(now_ms, absolute_deadline_ms, absolute_required);
+}
+
+uint64_t broker_relocation_candidate_deadline(
+    uint64_t now_ms,
+    uint64_t mqtt_phase_deadline_ms,
+    uint64_t absolute_deadline_ms,
+    uint32_t direct_confirm_reserve_ms) {
+  if (!has_room(now_ms, mqtt_phase_deadline_ms, kBrokerRelocationCleanupReserveMs) ||
+      !has_room(
+          now_ms,
+          absolute_deadline_ms,
+          static_cast<uint64_t>(kBrokerRelocationCleanupReserveMs) +
+              direct_confirm_reserve_ms)) {
+    return 0U;
+  }
+  const uint64_t candidate_cap =
+      add_saturated(now_ms, kBrokerRelocationCandidateBudgetMs);
+  const uint64_t mqtt_cap =
+      mqtt_phase_deadline_ms - kBrokerRelocationCleanupReserveMs;
+  const uint64_t absolute_cap =
+      absolute_deadline_ms - kBrokerRelocationCleanupReserveMs -
+      direct_confirm_reserve_ms;
+  const uint64_t deadline = std::min({candidate_cap, mqtt_cap, absolute_cap});
+  return deadline > now_ms ? deadline : 0U;
+}
+
+}
+''',
+          )
+
+          write(
+              "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_esp32_manager_discovery_session.h",
+              '''#pragma once
+
+#include <cstddef>
+#include <cstdint>
+#include <string>
+#include <vector>
+
+#include "n3w_manager_discovery.h"
+
+namespace esphome::greenhouse_n3w_core {
+
+enum class Esp32ManagerDiscoverySessionStatus : uint8_t {
+  IDLE = 0,
+  IN_PROGRESS,
+  COMPLETE,
+  FAILED,
+};
+
+class Esp32ManagerDiscoverySession {
+ public:
+  ~Esp32ManagerDiscoverySession();
+
+  bool begin(const std::string &request_json, uint64_t now_ms);
+  Esp32ManagerDiscoverySessionStatus poll(uint64_t now_ms);
+  void reset();
+
+  bool active() const {
+    return status_ == Esp32ManagerDiscoverySessionStatus::IN_PROGRESS;
+  }
+  Esp32ManagerDiscoverySessionStatus status() const { return status_; }
+  const std::vector<SimpleDiscoveryDatagram> &datagrams() const {
+    return datagrams_;
+  }
+
+ private:
+  void close_socket_();
+
+  int fd_{-1};
+  uint64_t started_ms_{0};
+  Esp32ManagerDiscoverySessionStatus status_{
+      Esp32ManagerDiscoverySessionStatus::IDLE};
+  std::vector<SimpleDiscoveryDatagram> datagrams_{};
+};
+
+}
+''',
+          )
+
+          write(
+              "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_esp32_manager_discovery_session.cpp",
+              '''#include "n3w_esp32_manager_discovery_session.h"
+
+#include <array>
+#include <cerrno>
+
+#include "lwip/inet.h"
+#include "lwip/sockets.h"
+
+namespace esphome::greenhouse_n3w_core {
+namespace {
+
+constexpr uint16_t kDiscoveryPort = 47111;
+constexpr uint64_t kDiscoveryCollectWindowMs = 1000;
+constexpr std::size_t kDiscoveryDatagramMaxBytes = 1400;
+constexpr std::size_t kDiscoveryPollDatagramLimit = 2;
+
+}
+
+Esp32ManagerDiscoverySession::~Esp32ManagerDiscoverySession() {
+  reset();
+}
+
+void Esp32ManagerDiscoverySession::close_socket_() {
+  if (fd_ >= 0) {
+    ::close(fd_);
+    fd_ = -1;
+  }
+}
+
+void Esp32ManagerDiscoverySession::reset() {
+  close_socket_();
+  started_ms_ = 0;
+  status_ = Esp32ManagerDiscoverySessionStatus::IDLE;
+  datagrams_.clear();
+}
+
+bool Esp32ManagerDiscoverySession::begin(
+    const std::string &request_json,
+    uint64_t now_ms) {
+  reset();
+  if (request_json.empty()) return false;
+
+  fd_ = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  if (fd_ < 0) {
+    status_ = Esp32ManagerDiscoverySessionStatus::FAILED;
+    return false;
+  }
+
+  int broadcast = 1;
+  if (::setsockopt(
+          fd_,
+          SOL_SOCKET,
+          SO_BROADCAST,
+          &broadcast,
+          sizeof(broadcast)) != 0) {
+    close_socket_();
+    status_ = Esp32ManagerDiscoverySessionStatus::FAILED;
+    return false;
+  }
+
+  sockaddr_in target{};
+  target.sin_family = AF_INET;
+  target.sin_port = htons(kDiscoveryPort);
+  target.sin_addr.s_addr = htonl(INADDR_BROADCAST);
+  const ssize_t sent = ::sendto(
+      fd_,
+      request_json.data(),
+      request_json.size(),
+      0,
+      reinterpret_cast<sockaddr *>(&target),
+      sizeof(target));
+  if (sent != static_cast<ssize_t>(request_json.size())) {
+    close_socket_();
+    status_ = Esp32ManagerDiscoverySessionStatus::FAILED;
+    return false;
+  }
+
+  started_ms_ = now_ms;
+  status_ = Esp32ManagerDiscoverySessionStatus::IN_PROGRESS;
+  return true;
+}
+
+Esp32ManagerDiscoverySessionStatus Esp32ManagerDiscoverySession::poll(
+    uint64_t now_ms) {
+  if (status_ != Esp32ManagerDiscoverySessionStatus::IN_PROGRESS) {
+    return status_;
+  }
+
+  for (std::size_t count = 0;
+       count < kDiscoveryPollDatagramLimit &&
+       datagrams_.size() < kManagerDiscoveryMaxParsedDatagrams;
+       ++count) {
+    std::array<char, kDiscoveryDatagramMaxBytes + 1U> buffer{};
+    sockaddr_in source{};
+    socklen_t source_size = sizeof(source);
+    const ssize_t received = ::recvfrom(
+        fd_,
+        buffer.data(),
+        kDiscoveryDatagramMaxBytes,
+        MSG_DONTWAIT,
+        reinterpret_cast<sockaddr *>(&source),
+        &source_size);
+    if (received < 0) {
+      if (errno == EAGAIN || errno == EWOULDBLOCK) break;
+      close_socket_();
+      status_ = Esp32ManagerDiscoverySessionStatus::FAILED;
+      return status_;
+    }
+    if (received == 0) break;
+    if (source.sin_family != AF_INET) continue;
+
+    std::array<char, INET_ADDRSTRLEN> source_text{};
+    if (::inet_ntop(
+            AF_INET,
+            &source.sin_addr,
+            source_text.data(),
+            source_text.size()) == nullptr) {
+      continue;
+    }
+    datagrams_.push_back(SimpleDiscoveryDatagram{
+        std::string(buffer.data(), static_cast<std::size_t>(received)),
+        std::string(source_text.data()),
+    });
+  }
+
+  const uint64_t elapsed_ms =
+      now_ms >= started_ms_
+          ? now_ms - started_ms_
+          : std::numeric_limits<uint64_t>::max();
+  if (datagrams_.size() >= kManagerDiscoveryMaxParsedDatagrams ||
+      elapsed_ms >= kDiscoveryCollectWindowMs) {
+    close_socket_();
+    status_ = Esp32ManagerDiscoverySessionStatus::COMPLETE;
+  }
+  return status_;
+}
+
+}
+'''.replace('#include <cerrno>\n', '#include <cerrno>\n#include <limits>\n'),
+          )
+
+          header = "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_simple_product_component.h"
+          replace_once(
+              header,
+              "#include <deque>\n#include <string>\n",
+              "#include <deque>\n#include <string>\n#include <vector>\n",
+          )
+          replace_once(
+              header,
+              "#include \"n3w_esp32_pairing_nvs.h\"\n",
+              "#include \"n3w_broker_relocation_policy.h\"\n#include \"n3w_esp32_manager_discovery.h\"\n#include \"n3w_esp32_manager_discovery_session.h\"\n#include \"n3w_esp32_pairing_nvs.h\"\n",
+          )
+          replace_once(
+              header,
+              "  bool publish_direct(const std::string &topic, const std::string &payload) override;\n  bool publish_relay(const std::string &topic, const std::string &payload) override;\n\n  // Clocks/randomness.\n",
+              "  bool publish_direct(const std::string &topic, const std::string &payload) override;\n  bool publish_relay(const std::string &topic, const std::string &payload) override;\n  void on_direct_recovery_probe_tick(bool success) override;\n  void on_direct_recovery_commit_result(bool committed) override;\n\n  // Clocks/randomness.\n",
+          )
+          replace_once(
+              header,
+              "  bool restore_relay_radio_();\n  bool enqueue_telemetry_(\n",
+              "  bool restore_relay_radio_();\n  void reset_broker_relocation_attempt_();\n  void advance_broker_relocation_();\n  bool start_broker_discovery_();\n  bool finish_broker_discovery_();\n  bool start_next_broker_candidate_();\n  bool retarget_runtime_broker_(const std::string &host, bool reconnect);\n  void rollback_broker_candidate_();\n  bool current_wifi_ipv4_(\n      std::string *local_ipv4,\n      std::string *subnet_mask) const;\n  bool enqueue_telemetry_(\n",
+          )
+          replace_once(
+              header,
+              "  uint32_t relay_restore_exhausted_count_{0};\n  MacAddress local_mac_{};\n",
+              "  uint32_t relay_restore_exhausted_count_{0};\n  bool broker_relocation_initialized_{false};\n  bool broker_discovery_attempted_{false};\n  bool broker_discovery_ever_started_{false};\n  bool broker_candidate_active_{false};\n  bool broker_candidate_verified_{false};\n  uint64_t broker_mqtt_failure_started_ms_{0};\n  uint64_t broker_candidate_started_ms_{0};\n  uint64_t broker_candidate_deadline_ms_{0};\n  uint64_t broker_discovery_completed_ms_{0};\n  uint64_t last_broker_discovery_started_ms_{0};\n  std::string stable_runtime_broker_host_{};\n  std::string pending_broker_candidate_host_{};\n  std::string broker_discovery_request_id_{};\n  std::string broker_discovery_nonce_{};\n  std::string broker_discovery_local_ipv4_{};\n  std::string broker_discovery_subnet_mask_{};\n  std::vector<SimpleBrokerRecoveryTarget> broker_relocation_targets_{};\n  std::size_t broker_relocation_target_index_{0};\n  Esp32ManagerDiscoverySession broker_discovery_session_{};\n  Esp32ManagerDiscoveryRandom broker_discovery_random_{};\n  MacAddress local_mac_{};\n",
+          )
+
+          write(
+              "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_simple_product_component_broker_relocation.cpp",
+              '''#include "n3w_simple_product_component.h"
+
+#include <algorithm>
+#include <array>
+
+#ifdef USE_MQTT
+#include "esphome/components/mqtt/mqtt_client.h"
+#endif
+#include "esphome/core/log.h"
+#include "esp_netif.h"
+#include "lwip/inet.h"
+
+namespace esphome::greenhouse_n3w_core {
+namespace {
+
+static const char *const TAG = "n3w_broker_relocation";
+
+}
+
+bool SimpleProductComponent::current_wifi_ipv4_(
+    std::string *local_ipv4,
+    std::string *subnet_mask) const {
+  if (local_ipv4 == nullptr || subnet_mask == nullptr) return false;
+  esp_netif_t *netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+  if (netif == nullptr) return false;
+  esp_netif_ip_info_t info{};
+  if (esp_netif_get_ip_info(netif, &info) != ESP_OK ||
+      info.ip.addr == 0U || info.netmask.addr == 0U) {
+    return false;
+  }
+  std::array<char, INET_ADDRSTRLEN> ip_text{};
+  std::array<char, INET_ADDRSTRLEN> mask_text{};
+  if (::inet_ntop(AF_INET, &info.ip.addr, ip_text.data(), ip_text.size()) == nullptr ||
+      ::inet_ntop(
+          AF_INET,
+          &info.netmask.addr,
+          mask_text.data(),
+          mask_text.size()) == nullptr) {
+    return false;
+  }
+  *local_ipv4 = ip_text.data();
+  *subnet_mask = mask_text.data();
+  return true;
+}
+
+void SimpleProductComponent::reset_broker_relocation_attempt_() {
+  broker_discovery_session_.reset();
+  broker_discovery_attempted_ = false;
+  broker_candidate_active_ = false;
+  broker_candidate_verified_ = false;
+  broker_mqtt_failure_started_ms_ = 0;
+  broker_candidate_started_ms_ = 0;
+  broker_candidate_deadline_ms_ = 0;
+  broker_discovery_completed_ms_ = 0;
+  pending_broker_candidate_host_.clear();
+  broker_discovery_request_id_.clear();
+  broker_discovery_nonce_.clear();
+  broker_discovery_local_ipv4_.clear();
+  broker_discovery_subnet_mask_.clear();
+  broker_relocation_targets_.clear();
+  broker_relocation_target_index_ = 0;
+  if (!broker_relocation_initialized_ && broker_state_.valid()) {
+    stable_runtime_broker_host_ = broker_state_.broker_host;
+    broker_relocation_initialized_ = true;
+  }
+}
+
+bool SimpleProductComponent::retarget_runtime_broker_(
+    const std::string &host,
+    bool reconnect) {
+#ifdef USE_MQTT
+  if (host.empty() || !broker_state_.valid() ||
+      mqtt::global_mqtt_client == nullptr) {
+    return false;
+  }
+  auto *client = mqtt::global_mqtt_client;
+  if (!client->n3w_runtime_retarget_server(host, broker_state_.broker_port)) {
+    return false;
+  }
+  return !reconnect || client->n3w_runtime_request_reconnect();
+#else
+  (void) host;
+  (void) reconnect;
+  return false;
+#endif
+}
+
+void SimpleProductComponent::rollback_broker_candidate_() {
+  broker_discovery_session_.reset();
+  if (broker_candidate_active_ || !pending_broker_candidate_host_.empty()) {
+    const bool restored =
+        retarget_runtime_broker_(stable_runtime_broker_host_, false);
+#ifdef USE_MQTT
+    if (mqtt::global_mqtt_client != nullptr) {
+      (void) mqtt::global_mqtt_client->n3w_runtime_request_disconnect();
+    }
+#endif
+    ESP_LOGI(
+        TAG,
+        "N3-W Broker candidate rolled back restored=%s",
+        restored ? "true" : "false");
+  }
+  broker_candidate_active_ = false;
+  broker_candidate_verified_ = false;
+  broker_candidate_started_ms_ = 0;
+  broker_candidate_deadline_ms_ = 0;
+  pending_broker_candidate_host_.clear();
+}
+
+bool SimpleProductComponent::start_broker_discovery_() {
+  if (!pairing_client_.provisioned() || !peer_state_.valid() ||
+      !broker_state_.valid() || !wifi_connected() || mqtt_connected()) {
+    return false;
+  }
+  std::string local_ipv4;
+  std::string subnet_mask;
+  if (!current_wifi_ipv4_(&local_ipv4, &subnet_mask)) return false;
+
+  std::array<uint8_t, 16> request_random{};
+  std::array<uint8_t, 32> nonce_random{};
+  if (!broker_discovery_random_.fill_discovery_random(
+          request_random.data(), request_random.size()) ||
+      !broker_discovery_random_.fill_discovery_random(
+          nonce_random.data(), nonce_random.size())) {
+    return false;
+  }
+
+  std::string request_json;
+  if (!build_simple_discovery_query(
+          pairing_client_.hardware_id(),
+          request_random,
+          nonce_random,
+          &broker_discovery_request_id_,
+          &broker_discovery_nonce_,
+          &request_json)) {
+    return false;
+  }
+
+  const uint64_t now = now_ms();
+  if (!broker_discovery_session_.begin(request_json, now)) return false;
+  broker_discovery_attempted_ = true;
+  broker_discovery_ever_started_ = true;
+  last_broker_discovery_started_ms_ = now;
+  broker_discovery_local_ipv4_ = std::move(local_ipv4);
+  broker_discovery_subnet_mask_ = std::move(subnet_mask);
+  ESP_LOGI(TAG, "N3-W Broker relocation discovery started");
+  return true;
+}
+
+bool SimpleProductComponent::finish_broker_discovery_() {
+  const SimpleDiscoveryFilterContext context{
+      peer_state_.system_id,
+      broker_discovery_local_ipv4_,
+      broker_discovery_subnet_mask_,
+  };
+  const auto candidates = parse_filter_simple_discovery_datagrams(
+      broker_discovery_session_.datagrams(),
+      broker_discovery_request_id_,
+      broker_discovery_nonce_,
+      context);
+  broker_relocation_targets_ =
+      make_simple_broker_recovery_targets(candidates, broker_state_.broker_port);
+  broker_relocation_targets_.erase(
+      std::remove_if(
+          broker_relocation_targets_.begin(),
+          broker_relocation_targets_.end(),
+          [&](const SimpleBrokerRecoveryTarget &target) {
+            return target.host == stable_runtime_broker_host_;
+          }),
+      broker_relocation_targets_.end());
+  broker_relocation_target_index_ = 0;
+  broker_discovery_completed_ms_ = now_ms();
+  broker_discovery_session_.reset();
+  ESP_LOGI(
+      TAG,
+      "N3-W Broker relocation discovery retained=%u",
+      static_cast<unsigned>(broker_relocation_targets_.size()));
+  return !broker_relocation_targets_.empty();
+}
+
+bool SimpleProductComponent::start_next_broker_candidate_() {
+  const uint64_t now = now_ms();
+  const uint64_t deadline = broker_relocation_candidate_deadline(
+      now,
+      direct_recovery_attempt_.phase_deadline_ms(),
+      direct_recovery_attempt_.absolute_deadline_ms(),
+      kDirectRecoveryConfirmBudgetMs);
+  if (deadline == 0U) return false;
+
+  while (broker_relocation_target_index_ < broker_relocation_targets_.size()) {
+    const SimpleBrokerRecoveryTarget target =
+        broker_relocation_targets_[broker_relocation_target_index_++];
+    if (target.host.empty() || target.host == stable_runtime_broker_host_ ||
+        target.ttl_s == 0U) {
+      continue;
+    }
+    const uint64_t ttl_ms = static_cast<uint64_t>(target.ttl_s) * 1000U;
+    if (broker_discovery_completed_ms_ == 0U ||
+        now < broker_discovery_completed_ms_ ||
+        now - broker_discovery_completed_ms_ >= ttl_ms) {
+      continue;
+    }
+    if (!retarget_runtime_broker_(target.host, true)) {
+      (void) retarget_runtime_broker_(stable_runtime_broker_host_, false);
+      continue;
+    }
+    pending_broker_candidate_host_ = target.host;
+    broker_candidate_active_ = true;
+    broker_candidate_verified_ = false;
+    broker_candidate_started_ms_ = now;
+    broker_candidate_deadline_ms_ = deadline;
+    ESP_LOGI(TAG, "N3-W Broker relocation candidate attempt started");
+    return true;
+  }
+  return false;
+}
+
+void SimpleProductComponent::advance_broker_relocation_() {
+  if (!wifi_connected() || mqtt_connected() ||
+      direct_recovery_attempt_.phase() != DirectRecoveryPhase::MQTT_RECOVERY) {
+    return;
+  }
+
+  const uint64_t now = now_ms();
+  if (broker_mqtt_failure_started_ms_ == 0U) {
+    broker_mqtt_failure_started_ms_ = now;
+    return;
+  }
+
+  if (broker_candidate_active_) {
+    if (broker_candidate_deadline_ms_ != 0U &&
+        now >= broker_candidate_deadline_ms_) {
+      broker_candidate_active_ = false;
+      pending_broker_candidate_host_.clear();
+      if (!start_next_broker_candidate_()) rollback_broker_candidate_();
+    }
+    return;
+  }
+
+  if (broker_discovery_session_.active()) {
+    const Esp32ManagerDiscoverySessionStatus status =
+        broker_discovery_session_.poll(now);
+    if (status == Esp32ManagerDiscoverySessionStatus::IN_PROGRESS) return;
+    if (status == Esp32ManagerDiscoverySessionStatus::COMPLETE &&
+        finish_broker_discovery_() && start_next_broker_candidate_()) {
+      return;
+    }
+    broker_discovery_session_.reset();
+    return;
+  }
+
+  if (broker_discovery_attempted_ ||
+      !broker_relocation_trigger_due(broker_mqtt_failure_started_ms_, now)) {
+    return;
+  }
+  if (broker_discovery_ever_started_ &&
+      now >= last_broker_discovery_started_ms_ &&
+      now - last_broker_discovery_started_ms_ <
+          kBrokerRelocationDiscoveryMinIntervalMs) {
+    return;
+  }
+  if (!broker_relocation_discovery_can_start(
+          now,
+          direct_recovery_attempt_.phase_deadline_ms(),
+          direct_recovery_attempt_.absolute_deadline_ms(),
+          kDirectRecoveryConfirmBudgetMs)) {
+    return;
+  }
+  (void) start_broker_discovery_();
+}
+
+void SimpleProductComponent::on_direct_recovery_probe_tick(bool success) {
+  if (!runtime_ready_ || radio_ownership_ != RadioOwnership::DIRECT_PROBE ||
+      !broker_state_.valid()) {
+    return;
+  }
+  if (!broker_relocation_initialized_) {
+    stable_runtime_broker_host_ = broker_state_.broker_host;
+    broker_relocation_initialized_ = true;
+  }
+
+  const DirectRecoveryPhase phase = direct_recovery_attempt_.phase();
+  if (phase == DirectRecoveryPhase::IDLE) {
+    reset_broker_relocation_attempt_();
+    return;
+  }
+  if (phase == DirectRecoveryPhase::FAILED) {
+    rollback_broker_candidate_();
+    return;
+  }
+  if (broker_candidate_active_ && mqtt_connected()) {
+    broker_candidate_verified_ = true;
+  }
+  if (phase == DirectRecoveryPhase::MQTT_RECOVERY && !success) {
+    advance_broker_relocation_();
+  }
+}
+
+void SimpleProductComponent::on_direct_recovery_commit_result(bool committed) {
+  if (!broker_relocation_initialized_) return;
+  if (!committed) {
+    rollback_broker_candidate_();
+    return;
+  }
+  if (broker_candidate_active_ && broker_candidate_verified_ &&
+      !pending_broker_candidate_host_.empty()) {
+    stable_runtime_broker_host_ = pending_broker_candidate_host_;
+    ESP_LOGI(TAG, "N3-W Broker relocation candidate promoted for this boot");
+  }
+  reset_broker_relocation_attempt_();
+}
+
+}
+''',
+          )
+
+          replace_once(
+              "tests/n3w_phase4/n3w_manager_discovery_policy_host_test.cpp",
+              "      port,\n      \"/v2/pairing\",\n  };\n",
+              "      port,\n      \"/v2/pairing\",\n      30,\n  };\n",
+          )
+          replace_once(
+              "tests/n3w_phase4/n3w_manager_discovery_policy_host_test.cpp",
+              "  assert(!simple_discovery_candidate_allowed(\n      candidate(\"198.51.100.30\"), \"198.51.100.31\", filter_context));\n",
+              "  assert(!simple_discovery_candidate_allowed(\n      candidate(\"198.51.100.30\"), \"198.51.100.31\", filter_context));\n  assert(!simple_discovery_candidate_allowed(\n      candidate(\"198.51.100.20\"), \"198.51.100.20\", filter_context));\n  auto zero_ttl = candidate(\"198.51.100.34\");\n  zero_ttl.ttl_s = 0;\n  assert(!simple_discovery_candidate_allowed(\n      zero_ttl, \"198.51.100.34\", filter_context));\n  auto long_ttl = candidate(\"198.51.100.35\");\n  long_ttl.ttl_s = 121;\n  assert(!simple_discovery_candidate_allowed(\n      long_ttl, \"198.51.100.35\", filter_context));\n",
+          )
+
+          write(
+              "tests/n3w_phase4/n3w_broker_relocation_policy_host_test.cpp",
+              '''#include <cassert>
+#include <cstdint>
+#include <limits>
+
+#include "n3w_broker_relocation_policy.h"
+
+using namespace esphome::greenhouse_n3w_core;
+
+int main() {
+  assert(!broker_relocation_trigger_due(1000U, 10999U));
+  assert(broker_relocation_trigger_due(1000U, 11000U));
+
+  const uint64_t now = 1000U;
+  assert(!broker_relocation_discovery_can_start(
+      now, now + 8999U, now + 20000U, 5000U));
+  assert(!broker_relocation_discovery_can_start(
+      now, now + 9000U, now + 13999U, 5000U));
+  assert(broker_relocation_discovery_can_start(
+      now, now + 9000U, now + 14000U, 5000U));
+
+  assert(broker_relocation_candidate_deadline(
+             now, now + 20000U, now + 30000U, 5000U) ==
+         now + 6000U);
+  assert(broker_relocation_candidate_deadline(
+             now, now + 7000U, now + 30000U, 5000U) ==
+         now + 5000U);
+  assert(broker_relocation_candidate_deadline(
+             now, now + 2000U, now + 30000U, 5000U) == 0U);
+  assert(broker_relocation_candidate_deadline(
+             now, now + 20000U, now + 7000U, 5000U) == 0U);
+
+  const uint64_t near_max = std::numeric_limits<uint64_t>::max() - 1000U;
+  const uint64_t deadline = broker_relocation_candidate_deadline(
+      near_max,
+      std::numeric_limits<uint64_t>::max(),
+      std::numeric_limits<uint64_t>::max(),
+      0U);
+  assert(deadline == std::numeric_limits<uint64_t>::max() - 2000U);
+  return 0;
+}
+''',
+          )
+
+          write(
+              "tests/n3w_phase4/test_broker_relocation_source_contract.py",
+              '''from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+CORE = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_core"
+
+
+def text(name: str) -> str:
+    return (CORE / name).read_text(encoding="utf-8")
+
+
+def test_gate_c_uses_existing_direct_recovery_state_machine() -> None:
+    runtime = text("n3w_simple_product_runtime.cpp")
+    component = text("n3w_simple_product_component_broker_relocation.cpp")
+    header = text("n3w_simple_product_component.h")
+
+    assert "on_direct_recovery_probe_tick" in runtime
+    assert "on_direct_recovery_commit_result" in runtime
+    assert "DirectRecoveryPhase::MQTT_RECOVERY" in component
+    assert "RadioOwnership::DIRECT_PROBE" in component
+    assert "kHealthyRelayDirectRecoveryAbsoluteMs = 30000" in header
+    assert "kNoRelayDirectRecoveryAbsoluteMs = 120000" in header
+    assert "kDirectRecoveryMqttBudgetMs = 25000" in header
+    assert "kDirectRecoveryConfirmBudgetMs = 5000" in header
+
+
+def test_gate_c_discovery_is_nonblocking_and_bounded() -> None:
+    session = text("n3w_esp32_manager_discovery_session.cpp")
+    policy = text("n3w_broker_relocation_policy.h")
+    component = text("n3w_simple_product_component_broker_relocation.cpp")
+
+    assert "MSG_DONTWAIT" in session
+    assert "kDiscoveryPollDatagramLimit = 2" in session
+    assert "kDiscoveryCollectWindowMs = 1000" in session
+    assert "kManagerDiscoveryMaxParsedDatagrams" in session
+    assert "kBrokerRelocationMqttFailureTriggerMs = 10000" in policy
+    assert "kBrokerRelocationCandidateBudgetMs = 6000" in policy
+    assert "kBrokerRelocationCleanupReserveMs = 2000" in policy
+    assert "kBrokerRelocationDiscoveryMinIntervalMs = 60000" in policy
+    assert "broker_relocation_discovery_can_start" in component
+    assert "direct_recovery_attempt_.phase_deadline_ms()" in component
+    assert "direct_recovery_attempt_.absolute_deadline_ms()" in component
+
+
+def test_gate_c_preserves_identity_and_durable_broker_state() -> None:
+    component = text("n3w_simple_product_component_broker_relocation.cpp")
+
+    assert "broker_state_.broker_port" in component
+    assert "peer_state_.system_id" in component
+    assert "stable_runtime_broker_host_" in component
+    assert "pending_broker_candidate_host_" in component
+    assert "SimplePairingClient::run_once" not in component
+    for forbidden in (
+        "set_ca_certificate",
+        "set_tls_server_name",
+        "set_username",
+        "set_password",
+        "set_client_id",
+        ".save(",
+        ".erase(",
+        "NvsProvisionedBrokerStoreV2",
+    ):
+        assert forbidden not in component
+
+
+def test_gate_c_candidate_is_promoted_only_after_direct_commit() -> None:
+    component = text("n3w_simple_product_component_broker_relocation.cpp")
+
+    commit = component.index("on_direct_recovery_commit_result")
+    promote = component.index(
+        "stable_runtime_broker_host_ = pending_broker_candidate_host_", commit
+    )
+    assert promote > commit
+    assert "broker_candidate_verified_" in component[commit:promote]
+    assert "rollback_broker_candidate_();" in component[commit:promote]
+
+
+def test_gate_c_filter_rejects_self_and_unbounded_ttl() -> None:
+    policy = text("n3w_manager_discovery_policy.cpp")
+    header = text("n3w_manager_discovery.h")
+
+    assert "advertised == local" in policy
+    assert "candidate.ttl_s == 0U" in policy
+    assert "candidate.ttl_s > kManagerDiscoveryMaxCandidateTtlSeconds" in policy
+    assert "kManagerDiscoveryMaxCandidateTtlSeconds = 120" in header
+''',
+          )
+
+          workflow = ROOT / ".github/workflows/n3w-auto-safe-fallback-gate-c-source-repair.yml"
+          workflow.unlink()
+          PY
+      - name: Run Gate C source checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -q "pytest>=8,<9"
+          pytest -q tests/n3w_phase4/test_broker_relocation_source_contract.py tests/n3w_phase4/test_manager_discovery_policy_behavior.py
+          core=firmware/esphome_rc/components/greenhouse_n3w_core
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror -I"$core" "$core/n3w_broker_relocation_policy.cpp" tests/n3w_phase4/n3w_broker_relocation_policy_host_test.cpp -o /tmp/n3w-broker-relocation-policy-host-test
+          /tmp/n3w-broker-relocation-policy-host-test
+          git diff --check
+      - name: Commit Gate C source repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Renguo_CHEN"
+          git config user.email "ch.renguo@gmail.com"
+          git add -A
+          git commit -m "feat(n3w): integrate bounded broker relocation into Direct recovery"
+          git push origin HEAD:fix/n3w-auto-safe-fallback-v1-20260929
