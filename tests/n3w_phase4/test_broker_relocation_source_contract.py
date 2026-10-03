@@ -39,6 +39,7 @@ def test_gate_c_discovery_is_nonblocking_and_bounded() -> None:
     assert "broker_relocation_discovery_can_start" in component
     assert "direct_recovery_attempt_.phase_deadline_ms()" in component
     assert "direct_recovery_attempt_.absolute_deadline_ms()" in component
+    assert "now < last_broker_discovery_started_ms_" in component
 
 
 def test_gate_c_preserves_identity_and_durable_broker_state() -> None:
@@ -75,6 +76,24 @@ def test_gate_c_candidate_is_promoted_only_after_direct_commit() -> None:
     assert promote > commit
     assert "broker_candidate_verified_" in component[commit:promote]
     assert "rollback_broker_candidate_();" in component[commit:promote]
+
+
+def test_gate_c_candidate_reconnect_failure_restores_stable_target() -> None:
+    component = text("n3w_simple_product_component_broker_relocation.cpp")
+
+    start = component.index("bool SimpleProductComponent::start_next_broker_candidate_")
+    end = component.index("void SimpleProductComponent::advance_broker_relocation_", start)
+    block = component[start:end]
+    failed = block.index("if (!retarget_runtime_broker_(target.host, true))")
+    restored = block.index(
+        "retarget_runtime_broker_(stable_runtime_broker_host_, false)", failed
+    )
+    disconnected = block.index("request_runtime_mqtt_disconnect();", restored)
+    stopped = block.index(
+        "broker_relocation_target_index_ = broker_relocation_targets_.size();",
+        disconnected,
+    )
+    assert failed < restored < disconnected < stopped
 
 
 def test_gate_c_filter_rejects_self_and_unbounded_ttl() -> None:
