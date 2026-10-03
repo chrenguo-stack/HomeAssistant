@@ -31,6 +31,7 @@ bool broker_relocation_discovery_can_start(
     uint32_t direct_confirm_reserve_ms) {
   const uint64_t mqtt_required =
       static_cast<uint64_t>(kBrokerRelocationDiscoveryBudgetMs) +
+      kBrokerRelocationPrepareQuietMs +
       kBrokerRelocationCandidateBudgetMs +
       kBrokerRelocationCleanupReserveMs;
   const uint64_t absolute_required =
@@ -46,10 +47,10 @@ uint64_t broker_relocation_candidate_deadline(
     uint32_t direct_confirm_reserve_ms) {
   if (!has_room(now_ms, mqtt_phase_deadline_ms, kBrokerRelocationCleanupReserveMs) ||
       !has_room(
-now_ms,
-absolute_deadline_ms,
-static_cast<uint64_t>(kBrokerRelocationCleanupReserveMs) +
-    direct_confirm_reserve_ms)) {
+          now_ms,
+          absolute_deadline_ms,
+          static_cast<uint64_t>(kBrokerRelocationCleanupReserveMs) +
+              direct_confirm_reserve_ms)) {
     return 0U;
   }
   const uint64_t candidate_cap =
