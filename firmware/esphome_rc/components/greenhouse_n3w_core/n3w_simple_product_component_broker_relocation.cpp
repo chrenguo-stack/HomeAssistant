@@ -37,14 +37,6 @@ bool broker_wifi_connected() {
 #endif
 }
 
-void request_runtime_mqtt_disconnect() {
-#ifdef USE_MQTT
-  if (mqtt::global_mqtt_client != nullptr) {
-    (void) mqtt::global_mqtt_client->n3w_runtime_request_disconnect();
-  }
-#endif
-}
-
 }
 
 bool SimpleProductComponent::current_wifi_ipv4_(
@@ -104,10 +96,27 @@ bool SimpleProductComponent::retarget_runtime_broker_(
     return false;
   }
   auto *client = mqtt::global_mqtt_client;
-  if (!client->n3w_runtime_retarget_server(host, broker_state_.broker_port)) {
+  if (!reconnect) {
+    return client->n3w_runtime_retarget_server(
+        host, broker_state_.broker_port);
+  }
+  if (!client->n3w_runtime_stop_and_clear_events()) return false;
+  if (!client->n3w_runtime_retarget_server(
+          host, broker_state_.broker_port)) {
+    if (!stable_runtime_broker_host_.empty()) {
+      (void) client->n3w_runtime_retarget_server(
+          stable_runtime_broker_host_, broker_state_.broker_port);
+      (void) client->n3w_runtime_start();
+    }
     return false;
   }
-  return !reconnect || client->n3w_runtime_request_reconnect();
+  if (client->n3w_runtime_start()) return true;
+  if (!stable_runtime_broker_host_.empty()) {
+    (void) client->n3w_runtime_retarget_server(
+        stable_runtime_broker_host_, broker_state_.broker_port);
+    (void) client->n3w_runtime_start();
+  }
+  return false;
 #else
   (void) host;
   (void) reconnect;
@@ -119,8 +128,7 @@ void SimpleProductComponent::rollback_broker_candidate_() {
   broker_discovery_session_.reset();
   if (broker_candidate_active_ || !pending_broker_candidate_host_.empty()) {
     const bool restored =
-        retarget_runtime_broker_(stable_runtime_broker_host_, false);
-    request_runtime_mqtt_disconnect();
+        retarget_runtime_broker_(stable_runtime_broker_host_, true);
     ESP_LOGI(
         TAG,
         "N3-W Broker candidate rolled back restored=%s",
@@ -214,6 +222,16 @@ bool SimpleProductComponent::start_next_broker_candidate_() {
       kDirectRecoveryConfirmBudgetMs);
   if (deadline == 0U) return false;
 
+  std::string current_ipv4;
+  std::string current_mask;
+  if (!current_wifi_ipv4_(&current_ipv4, &current_mask) ||
+      current_ipv4 != broker_discovery_local_ipv4_ ||
+      current_mask != broker_discovery_subnet_mask_) {
+    broker_relocation_target_index_ = broker_relocation_targets_.size();
+    ESP_LOGW(TAG, "N3-W Broker relocation network changed after discovery");
+    return false;
+  }
+
   while (broker_relocation_target_index_ < broker_relocation_targets_.size()) {
     const SimpleBrokerRecoveryTarget target =
         broker_relocation_targets_[broker_relocation_target_index_++];
@@ -228,14 +246,8 @@ bool SimpleProductComponent::start_next_broker_candidate_() {
       continue;
     }
     if (!retarget_runtime_broker_(target.host, true)) {
-      const bool restored =
-          retarget_runtime_broker_(stable_runtime_broker_host_, false);
-      request_runtime_mqtt_disconnect();
       broker_relocation_target_index_ = broker_relocation_targets_.size();
-      ESP_LOGW(
-          TAG,
-          "N3-W Broker candidate reconnect request failed restored=%s",
-          restored ? "true" : "false");
+      ESP_LOGW(TAG, "N3-W Broker candidate isolated reconnect failed");
       return false;
     }
     pending_broker_candidate_host_ = target.host;
@@ -343,4 +355,4 @@ void SimpleProductComponent::on_direct_recovery_commit_result(bool committed) {
   reset_broker_relocation_attempt_();
 }
 
-}
+}  // namespace esphome::greenhouse_n3w_core
