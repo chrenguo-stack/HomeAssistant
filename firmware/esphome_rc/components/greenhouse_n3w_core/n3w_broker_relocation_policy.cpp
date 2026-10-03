@@ -31,7 +31,6 @@ bool broker_relocation_discovery_can_start(
     uint32_t direct_confirm_reserve_ms) {
   const uint64_t mqtt_required =
       static_cast<uint64_t>(kBrokerRelocationDiscoveryBudgetMs) +
-      kBrokerRelocationPrepareQuietMs +
       kBrokerRelocationCandidateBudgetMs +
       kBrokerRelocationCleanupReserveMs;
   const uint64_t absolute_required =
