@@ -17,10 +17,8 @@ body = []
 for line in lines[start:end]:
     if line.startswith(prefix):
         body.append(line[len(prefix):])
-    elif not line.strip():
-        body.append("")
     else:
-        raise SystemExit(f"unexpected executor indentation: {line!r}")
+        body.append(line)
 code = "\n".join(body) + "\n"
 
 code = code.replace(
