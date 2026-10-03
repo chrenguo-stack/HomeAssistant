@@ -37,6 +37,14 @@ bool broker_wifi_connected() {
 #endif
 }
 
+void request_runtime_mqtt_disconnect() {
+#ifdef USE_MQTT
+  if (mqtt::global_mqtt_client != nullptr) {
+    (void) mqtt::global_mqtt_client->n3w_runtime_request_disconnect();
+  }
+#endif
+}
+
 }
 
 bool SimpleProductComponent::current_wifi_ipv4_(
@@ -54,10 +62,10 @@ bool SimpleProductComponent::current_wifi_ipv4_(
   std::array<char, INET_ADDRSTRLEN> mask_text{};
   if (::inet_ntop(AF_INET, &info.ip.addr, ip_text.data(), ip_text.size()) == nullptr ||
       ::inet_ntop(
-AF_INET,
-&info.netmask.addr,
-mask_text.data(),
-mask_text.size()) == nullptr) {
+          AF_INET,
+          &info.netmask.addr,
+          mask_text.data(),
+          mask_text.size()) == nullptr) {
     return false;
   }
   *local_ipv4 = ip_text.data();
@@ -112,11 +120,7 @@ void SimpleProductComponent::rollback_broker_candidate_() {
   if (broker_candidate_active_ || !pending_broker_candidate_host_.empty()) {
     const bool restored =
         retarget_runtime_broker_(stable_runtime_broker_host_, false);
-#ifdef USE_MQTT
-    if (mqtt::global_mqtt_client != nullptr) {
-      (void) mqtt::global_mqtt_client->n3w_runtime_request_disconnect();
-    }
-#endif
+    request_runtime_mqtt_disconnect();
     ESP_LOGI(
         TAG,
         "N3-W Broker candidate rolled back restored=%s",
@@ -131,7 +135,8 @@ void SimpleProductComponent::rollback_broker_candidate_() {
 
 bool SimpleProductComponent::start_broker_discovery_() {
   if (!pairing_client_.provisioned() || !peer_state_.valid() ||
-      !broker_state_.valid() || !broker_wifi_connected() || broker_mqtt_connected()) {
+      !broker_state_.valid() || !broker_wifi_connected() ||
+      broker_mqtt_connected()) {
     return false;
   }
   std::string local_ipv4;
@@ -141,20 +146,20 @@ bool SimpleProductComponent::start_broker_discovery_() {
   std::array<uint8_t, 16> request_random{};
   std::array<uint8_t, 32> nonce_random{};
   if (!broker_discovery_random_.fill_discovery_random(
-request_random.data(), request_random.size()) ||
+          request_random.data(), request_random.size()) ||
       !broker_discovery_random_.fill_discovery_random(
-nonce_random.data(), nonce_random.size())) {
+          nonce_random.data(), nonce_random.size())) {
     return false;
   }
 
   std::string request_json;
   if (!build_simple_discovery_query(
-pairing_client_.hardware_id(),
-request_random,
-nonce_random,
-&broker_discovery_request_id_,
-&broker_discovery_nonce_,
-&request_json)) {
+          pairing_client_.hardware_id(),
+          request_random,
+          nonce_random,
+          &broker_discovery_request_id_,
+          &broker_discovery_nonce_,
+          &request_json)) {
     return false;
   }
 
@@ -184,11 +189,11 @@ bool SimpleProductComponent::finish_broker_discovery_() {
       make_simple_broker_recovery_targets(candidates, broker_state_.broker_port);
   broker_relocation_targets_.erase(
       std::remove_if(
-broker_relocation_targets_.begin(),
-broker_relocation_targets_.end(),
-[&](const SimpleBrokerRecoveryTarget &target) {
-  return target.host == stable_runtime_broker_host_;
-}),
+          broker_relocation_targets_.begin(),
+          broker_relocation_targets_.end(),
+          [&](const SimpleBrokerRecoveryTarget &target) {
+            return target.host == stable_runtime_broker_host_;
+          }),
       broker_relocation_targets_.end());
   broker_relocation_target_index_ = 0;
   broker_discovery_completed_ms_ = now_ms();
@@ -223,8 +228,15 @@ bool SimpleProductComponent::start_next_broker_candidate_() {
       continue;
     }
     if (!retarget_runtime_broker_(target.host, true)) {
-      (void) retarget_runtime_broker_(stable_runtime_broker_host_, false);
-      continue;
+      const bool restored =
+          retarget_runtime_broker_(stable_runtime_broker_host_, false);
+      request_runtime_mqtt_disconnect();
+      broker_relocation_target_index_ = broker_relocation_targets_.size();
+      ESP_LOGW(
+          TAG,
+          "N3-W Broker candidate reconnect request failed restored=%s",
+          restored ? "true" : "false");
+      return false;
     }
     pending_broker_candidate_host_ = target.host;
     broker_candidate_active_ = true;
@@ -275,16 +287,16 @@ void SimpleProductComponent::advance_broker_relocation_() {
     return;
   }
   if (broker_discovery_ever_started_ &&
-      now >= last_broker_discovery_started_ms_ &&
-      now - last_broker_discovery_started_ms_ <
-kBrokerRelocationDiscoveryMinIntervalMs) {
+      (now < last_broker_discovery_started_ms_ ||
+       now - last_broker_discovery_started_ms_ <
+           kBrokerRelocationDiscoveryMinIntervalMs)) {
     return;
   }
   if (!broker_relocation_discovery_can_start(
-now,
-direct_recovery_attempt_.phase_deadline_ms(),
-direct_recovery_attempt_.absolute_deadline_ms(),
-kDirectRecoveryConfirmBudgetMs)) {
+          now,
+          direct_recovery_attempt_.phase_deadline_ms(),
+          direct_recovery_attempt_.absolute_deadline_ms(),
+          kDirectRecoveryConfirmBudgetMs)) {
     return;
   }
   (void) start_broker_discovery_();
