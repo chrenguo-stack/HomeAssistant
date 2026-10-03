@@ -1,7 +1,7 @@
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[6]
+ROOT = Path(__file__).resolve().parents[5]
 EXECUTOR = ROOT / "tools/execution_packages/n3w/auto_safe_fallback/gate_f_board_b_preflight/executor.py"
 
 spec = spec_from_file_location("gate_f_board_b_preflight", EXECUTOR)
