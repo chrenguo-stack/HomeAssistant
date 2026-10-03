@@ -141,7 +141,7 @@ def git_blob_sha1(data: bytes) -> str:
 
 def patch_postimage(path: Path, replacements) -> str:
     text = path.read_text(encoding="utf-8")
-    already = all(text.count(new) == 1 and old not in text for old, new in replacements)
+    already = all(text.count(new) == 1 for _, new in replacements)
     if already:
         return "ALREADY_EXACT"
     patched = text
