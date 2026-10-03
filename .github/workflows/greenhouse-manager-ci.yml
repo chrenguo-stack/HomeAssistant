@@ -113,6 +113,19 @@ jobs:
         run: pytest -q tests/n3w_phase4/test_recovery_exit_behavior.py tests/n3w_phase4/test_direct_recovery_liveness_behavior.py
       - name: Auto safe fallback Gate A execution package contracts
         run: pytest -q tests/execution_packages/n3w/auto_safe_fallback/gate_a_readonly_preflight/test_executor.py tests/execution_packages/n3w/auto_safe_fallback/gate_a_private_build/test_gate_a_private_build_executor.py tests/execution_packages/n3w/auto_safe_fallback/gate_a_t1_lab/test_gate_a_t1_lab_executor.py tests/execution_packages/n3w/auto_safe_fallback/gate_a_board_b_write/test_gate_a_board_b_write_executor.py tests/execution_packages/n3w/auto_safe_fallback/gate_a_kf099_rollback/test_gate_a_kf099_rollback_executor.py
+      - name: Auto safe fallback Gate B discovery contracts
+        run: pytest -q tests/n3w_phase4/test_manager_discovery_policy_behavior.py tests/n3w_phase4/test_manager_discovery_source_contract.py
+      - name: Build and run Gate B discovery policy host test
+        shell: bash
+        run: |
+          set -euo pipefail
+          core=firmware/esphome_rc/components/greenhouse_n3w_core
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror \
+            -I"$core" \
+            "$core/n3w_manager_discovery_policy.cpp" \
+            tests/n3w_phase4/n3w_manager_discovery_policy_host_test.cpp \
+            -o /tmp/n3w-manager-discovery-policy-host-test
+          /tmp/n3w-manager-discovery-policy-host-test
       - name: Build and run C++ cross-language vectors
         shell: bash
         run: |
