@@ -3,6 +3,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 CORE = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_product_core"
 TARGET = ROOT / "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_n3w_target.yml"
+TRANSPORT = ROOT / "firmware/esphome_rc/f1_0_rc2/packages/n3w_product_transport.yml"
 
 
 def text(name: str) -> str:
@@ -11,8 +12,11 @@ def text(name: str) -> str:
 
 def test_production_target_uses_product_core() -> None:
     target = TARGET.read_text(encoding="utf-8")
+    transport = TRANSPORT.read_text(encoding="utf-8")
     assert "greenhouse_n3w_product_core" in target
-    assert "product_runtime: true" in target
+    assert "packages/n3w_product_transport.yml" in target
+    assert "greenhouse_n3w_product_core:" in transport
+    assert "product_runtime: true" in transport
 
 
 def test_production_core_has_auto_fallback_support_files() -> None:
