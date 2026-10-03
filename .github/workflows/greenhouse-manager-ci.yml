@@ -126,6 +126,19 @@ jobs:
             tests/n3w_phase4/n3w_manager_discovery_policy_host_test.cpp \
             -o /tmp/n3w-manager-discovery-policy-host-test
           /tmp/n3w-manager-discovery-policy-host-test
+      - name: Auto safe fallback Gate C recovery contracts
+        run: pytest -q tests/n3w_phase4/test_broker_relocation_source_contract.py
+      - name: Build and run Gate C relocation budget host test
+        shell: bash
+        run: |
+          set -euo pipefail
+          core=firmware/esphome_rc/components/greenhouse_n3w_core
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror \
+            -I"$core" \
+            "$core/n3w_broker_relocation_policy.cpp" \
+            tests/n3w_phase4/n3w_broker_relocation_policy_host_test.cpp \
+            -o /tmp/n3w-broker-relocation-policy-host-test
+          /tmp/n3w-broker-relocation-policy-host-test
       - name: Build and run C++ cross-language vectors
         shell: bash
         run: |
