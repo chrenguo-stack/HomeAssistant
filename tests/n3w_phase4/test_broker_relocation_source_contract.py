@@ -78,32 +78,44 @@ def test_gate_c_candidate_is_promoted_only_after_direct_commit() -> None:
     assert "rollback_broker_candidate_();" in component[commit:promote]
 
 
-def test_gate_c_candidate_attempt_uses_stop_clear_start_barrier() -> None:
+def test_gate_c_candidate_attempt_uses_generation_fence_before_reconnect() -> None:
     component = text("n3w_simple_product_component_broker_relocation.cpp")
 
     retarget = component.index("bool SimpleProductComponent::retarget_runtime_broker_")
     rollback = component.index("void SimpleProductComponent::rollback_broker_candidate_", retarget)
     block = component[retarget:rollback]
-    stopped = block.index("n3w_runtime_stop_and_clear_events")
-    switched = block.index("n3w_runtime_retarget_server", stopped)
-    started = block.index("n3w_runtime_start", switched)
-    assert stopped < switched < started
-    assert "n3w_runtime_request_disconnect" not in block
-    assert "n3w_runtime_request_reconnect" not in block
+    switched = block.index("n3w_runtime_retarget_server")
+    fenced = block.index("n3w_runtime_fence_old_events", switched)
+    reconnected = block.index("n3w_runtime_request_reconnect", fenced)
+    assert switched < fenced < reconnected
+    assert "n3w_runtime_stop_and_clear_events" not in block
+    assert "n3w_runtime_start" not in block
 
 
-def test_gate_c_candidate_failure_and_rollback_restore_stable_target() -> None:
+def test_gate_c_reconnect_failure_restores_stable_target_without_blocking_stop() -> None:
     component = text("n3w_simple_product_component_broker_relocation.cpp")
 
     retarget = component.index("bool SimpleProductComponent::retarget_runtime_broker_")
     rollback = component.index("void SimpleProductComponent::rollback_broker_candidate_", retarget)
     helper = component[retarget:rollback]
-    assert helper.count("stable_runtime_broker_host_") >= 2
-    assert helper.count("n3w_runtime_start") >= 3
+    reconnect_failure = helper.index("if (client->n3w_runtime_request_reconnect()) return true;")
+    restored = helper.index("stable_runtime_broker_host_", reconnect_failure)
+    fenced = helper.index("n3w_runtime_fence_old_events", restored)
+    assert reconnect_failure < restored < fenced
+    assert "esp_mqtt_client_stop" not in helper
 
-    rollback_end = component.index("bool SimpleProductComponent::start_broker_discovery_", rollback)
-    rollback_block = component[rollback:rollback_end]
-    assert "retarget_runtime_broker_(stable_runtime_broker_host_, true)" in rollback_block
+
+def test_gate_c_candidate_timeout_can_advance_to_second_candidate() -> None:
+    component = text("n3w_simple_product_component_broker_relocation.cpp")
+
+    advance = component.index("void SimpleProductComponent::advance_broker_relocation_")
+    probe = component.index("void SimpleProductComponent::on_direct_recovery_probe_tick", advance)
+    block = component[advance:probe]
+    timeout = block.index("now >= broker_candidate_deadline_ms_")
+    cleared = block.index("pending_broker_candidate_host_.clear();", timeout)
+    next_candidate = block.index("start_next_broker_candidate_()", cleared)
+    rollback = block.index("rollback_broker_candidate_();", next_candidate)
+    assert timeout < cleared < next_candidate < rollback
 
 
 def test_gate_c_rejects_candidate_if_wifi_network_changed_after_discovery() -> None:
@@ -118,20 +130,23 @@ def test_gate_c_rejects_candidate_if_wifi_network_changed_after_discovery() -> N
     assert "network changed after discovery" in block
 
 
-def test_gate_c_mqtt_overlay_stops_source_before_clearing_old_events() -> None:
+def test_gate_c_mqtt_overlay_filters_old_generation_without_blocking_stop() -> None:
     patch = text("n3w_mqtt_retarget_barrier_patch.py.script")
     component_init = text("__init__.py")
 
     tls_pos = component_init.index("n3w_tls_server_name_patch.py.script")
     barrier_pos = component_init.index("n3w_mqtt_retarget_barrier_patch.py.script")
     assert tls_pos < barrier_pos
-    assert "esp_mqtt_client_stop(this->handler_.get())" in patch
-    assert "mqtt_event_queue_.pop()" in patch
-    assert "mqtt_event_pool_.release(event)" in patch
-    assert "esp_mqtt_client_start(this->handler_.get())" in patch
-    assert "this->is_connected_ = false" in patch
+    assert "EXPECTED_MQTT_BACKEND_ESP32_CPP_BLOB" in patch
+    assert "connection_generation_" in patch
+    assert "minimum_event_generation_" in patch
+    assert "MQTT_EVENT_BEFORE_CONNECT" in patch
+    assert "event->generation >= minimum_generation" in patch
+    assert "n3w_runtime_fence_old_events" in patch
     assert "this->state_ = MQTT_CLIENT_CONNECTING" in patch
     assert "this->connect_begin_ = millis()" in patch
+    assert "esp_mqtt_client_stop" not in patch
+    assert "portMAX_DELAY" not in patch
 
 
 def test_gate_c_filter_rejects_self_and_unbounded_ttl() -> None:
