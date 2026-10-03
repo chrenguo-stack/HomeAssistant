@@ -148,6 +148,7 @@ def test_gate_c_rejects_candidate_if_wifi_network_changed_after_discovery() -> N
 
 def test_gate_c_mqtt_overlay_filters_old_generation_without_blocking_stop() -> None:
     patch = text("n3w_mqtt_retarget_barrier_patch.py.script")
+    tls_patch = text("n3w_tls_server_name_patch.py.script")
     component_init = text("__init__.py")
 
     tls_pos = component_init.index("n3w_tls_server_name_patch.py.script")
@@ -163,6 +164,13 @@ def test_gate_c_mqtt_overlay_filters_old_generation_without_blocking_stop() -> N
     assert "this->connect_begin_ = millis()" in patch
     assert "esp_mqtt_client_stop" not in patch
     assert "portMAX_DELAY" not in patch
+    assert "reverse_replacements" in tls_patch
+    assert "composed_replacements" in tls_patch
+    assert 'return "ALREADY_COMPOSED"' in tls_patch
+    assert "CLIENT_BARRIER_NEW" in tls_patch
+    assert "BACKEND_BARRIER_EVENT_NEW" in tls_patch
+    assert "BACKEND_BARRIER_METHOD_NEW" in tls_patch
+    assert "BACKEND_BARRIER_STORAGE_NEW" in tls_patch
 
 
 def test_gate_c_filter_rejects_self_and_unbounded_ttl() -> None:
