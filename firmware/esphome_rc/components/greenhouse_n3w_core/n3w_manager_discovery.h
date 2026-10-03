@@ -115,4 +115,4 @@ std::vector<SimpleBrokerRecoveryTarget> make_simple_broker_recovery_targets(
     const std::vector<SimpleManagerCandidateV2> &candidates,
     uint16_t durable_broker_port);
 
-}  // namespace esphome::greenhouse_n3w_core
+}
