@@ -72,6 +72,10 @@ code = code.replace(
     "assert(deadline == std::numeric_limits<uint64_t>::max() - 2000U);",
     "assert(deadline == 0U);",
 )
+code = code.replace(
+    '        ".erase(",\n',
+    '        "broker_store_.save(",\n        "broker_store_.erase(",\n        "peer_store_.save(",\n        "peer_store_.erase(",\n',
+)
 
 executor = Path("/tmp/gate-c-executor.py")
 executor.write_text(code, encoding="utf-8")
