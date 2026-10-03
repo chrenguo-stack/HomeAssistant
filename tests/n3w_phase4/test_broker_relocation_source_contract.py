@@ -164,6 +164,8 @@ def test_gate_c_mqtt_overlay_filters_old_generation_without_blocking_stop() -> N
     assert "this->connect_begin_ = millis()" in patch
     assert "esp_mqtt_client_stop" not in patch
     assert "portMAX_DELAY" not in patch
+    assert "already = all(text.count(new) == 1 for _, new in replacements)" in patch
+    assert "old not in text" not in patch
     assert "reverse_replacements" in tls_patch
     assert "composed_replacements" in tls_patch
     assert 'return "ALREADY_COMPOSED"' in tls_patch
