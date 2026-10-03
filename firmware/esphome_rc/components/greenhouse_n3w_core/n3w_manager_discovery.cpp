@@ -64,7 +64,7 @@ bool read_string(JsonObjectConst object, const char *key, std::string *value) {
   return true;
 }
 
-}  // namespace
+}
 
 bool SimpleManagerCandidateV2::valid() const {
   return valid_simple_identity_v2(manager_id) && valid_simple_identity_v2(system_id) &&
@@ -225,4 +225,4 @@ std::vector<SimpleManagerCandidateV2> parse_filter_simple_discovery_datagrams(
   return filter_simple_discovery_candidates(candidates, source_ipv4s, context);
 }
 
-}  // namespace esphome::greenhouse_n3w_core
+}
