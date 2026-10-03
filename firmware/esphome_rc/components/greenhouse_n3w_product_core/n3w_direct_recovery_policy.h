@@ -82,6 +82,8 @@ class DirectRecoveryAttempt {
   bool active() const;
   DirectRecoveryMode mode() const { return mode_; }
   DirectRecoveryPhase phase() const { return phase_; }
+  uint64_t phase_deadline_ms() const { return phase_deadline_ms_; }
+  uint64_t absolute_deadline_ms() const { return absolute_deadline_ms_; }
 
  private:
   uint64_t add_budget_(uint64_t now_ms, uint32_t budget_ms) const;
