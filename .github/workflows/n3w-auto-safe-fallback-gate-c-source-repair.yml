@@ -6,6 +6,7 @@ on:
       - fix/n3w-auto-safe-fallback-v1-20260929
     paths:
       - ".github/workflows/n3w-auto-safe-fallback-gate-c-source-repair.yml"
+      - "tools/execution_packages/n3w/auto_safe_fallback/gate_c_source_repair/**"
 
 permissions:
   contents: write
@@ -21,7 +22,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Apply exact Gate C source repair
+      - name: Apply exact Gate C source repair R2
         run: python tools/execution_packages/n3w/auto_safe_fallback/gate_c_source_repair/bootstrap_executor.py
       - name: Run Gate C source checks
         shell: bash
