@@ -17,86 +17,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: fix/n3w-auto-safe-fallback-v1-20260929
-          fetch-depth: 2
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Recover and harden exact executor
-        shell: bash
-        run: |
-          set -euo pipefail
-          git show HEAD^:.github/workflows/n3w-auto-safe-fallback-gate-c-source-repair.yml > /tmp/gate-c-old.yml
-          python - <<'EXTRACT'
-          from pathlib import Path
-
-          source = Path('/tmp/gate-c-old.yml').read_text(encoding='utf-8').splitlines()
-          start = next(i for i, line in enumerate(source) if line.strip() == "python - <<'PY'") + 1
-          end = next(i for i in range(start, len(source)) if source[i].strip() == 'PY')
-          prefix = '          '
-          body = []
-          for line in source[start:end]:
-              if line.startswith(prefix):
-                  body.append(line[len(prefix):])
-              elif not line.strip():
-                  body.append('')
-              else:
-                  raise SystemExit(f'unexpected executor indentation: {line!r}')
-          code = '\n'.join(body) + '\n'
-
-          code = code.replace(
-              '#include <algorithm>\n#include <array>\n\n#ifdef USE_MQTT',
-              '#include <algorithm>\n#include <array>\n#include <utility>\n\n#ifdef USE_MQTT',
-          )
-          code = code.replace(
-              '#endif\n#include "esphome/core/log.h"',
-              '#endif\n#ifdef USE_WIFI\n#include "esphome/components/wifi/wifi_component.h"\n#endif\n#include "esphome/core/log.h"',
-          )
-          code = code.replace(
-              'static const char *const TAG = "n3w_broker_relocation";\n\n}',
-              '''static const char *const TAG = "n3w_broker_relocation";
-
-bool broker_mqtt_connected() {
-#ifdef USE_MQTT
-  return mqtt::global_mqtt_client != nullptr &&
-         mqtt::global_mqtt_client->is_connected();
-#else
-  return false;
-#endif
-}
-
-bool broker_wifi_connected() {
-#ifdef USE_WIFI
-  return wifi::global_wifi_component != nullptr &&
-         wifi::global_wifi_component->is_connected();
-#else
-  return false;
-#endif
-}
-
-}''',
-          )
-          code = code.replace('wifi_connected()', 'broker_wifi_connected()')
-          code = code.replace('mqtt_connected()', 'broker_mqtt_connected()')
-          code = code.replace(
-              '''    if (broker_candidate_deadline_ms_ != 0U &&
-        now >= broker_candidate_deadline_ms_) {
-      broker_candidate_active_ = false;
-      pending_broker_candidate_host_.clear();
-      if (!start_next_broker_candidate_()) rollback_broker_candidate_();
-    }''',
-              '''    if (broker_candidate_deadline_ms_ != 0U &&
-        now >= broker_candidate_deadline_ms_) {
-      rollback_broker_candidate_();
-      (void) start_next_broker_candidate_();
-    }''',
-          )
-          code = code.replace(
-              'assert(deadline == std::numeric_limits<uint64_t>::max() - 2000U);',
-              'assert(deadline == 0U);',
-          )
-          Path('/tmp/gate-c-executor.py').write_text(code, encoding='utf-8')
-          EXTRACT
-          python /tmp/gate-c-executor.py
+      - name: Apply exact Gate C source repair
+        run: python tools/execution_packages/n3w/auto_safe_fallback/gate_c_source_repair/bootstrap_executor.py
       - name: Run Gate C source checks
         shell: bash
         run: |
@@ -111,6 +37,7 @@ bool broker_wifi_connected() {
         shell: bash
         run: |
           set -euo pipefail
+          rm -f tools/execution_packages/n3w/auto_safe_fallback/gate_c_source_repair/bootstrap_executor.py
           git config user.name "Renguo_CHEN"
           git config user.email "ch.renguo@gmail.com"
           git add -A
