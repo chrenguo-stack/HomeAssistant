@@ -12,6 +12,7 @@ inline constexpr char kSimplePairingProtocol[] = "gh-n3w-simple-pairing/1";
 inline constexpr std::size_t kManagerDiscoveryMaxParsedDatagrams = 8;
 inline constexpr std::size_t kManagerDiscoveryMaxRetainedCandidates = 3;
 inline constexpr std::size_t kManagerDiscoveryMaxAttemptCandidates = 2;
+inline constexpr uint16_t kManagerDiscoveryMaxCandidateTtlSeconds = 120;
 
 enum class SimpleManagerDiscoveryError : uint8_t {
   NONE = 0,
@@ -26,6 +27,7 @@ struct SimpleManagerCandidateV2 {
   std::string host;
   uint16_t port{0};
   std::string pairing_path;
+  uint16_t ttl_s{0};
 
   bool valid() const;
 };
@@ -44,6 +46,7 @@ struct SimpleDiscoveryFilterContext {
 struct SimpleBrokerRecoveryTarget {
   std::string host;
   uint16_t port{0};
+  uint16_t ttl_s{0};
 };
 
 class SimpleManagerDiscoveryNetwork {

@@ -25,6 +25,7 @@ SimpleManagerCandidateV2 candidate(
       host,
       port,
       "/v2/pairing",
+      30,
   };
 }
 
@@ -54,6 +55,16 @@ int main() {
       candidate("203.0.113.30"), "203.0.113.30", filter_context));
   assert(!simple_discovery_candidate_allowed(
       candidate("198.51.100.30"), "198.51.100.31", filter_context));
+  assert(!simple_discovery_candidate_allowed(
+      candidate("198.51.100.20"), "198.51.100.20", filter_context));
+  auto zero_ttl = candidate("198.51.100.34");
+  zero_ttl.ttl_s = 0;
+  assert(!simple_discovery_candidate_allowed(
+      zero_ttl, "198.51.100.34", filter_context));
+  auto long_ttl = candidate("198.51.100.35");
+  long_ttl.ttl_s = 121;
+  assert(!simple_discovery_candidate_allowed(
+      long_ttl, "198.51.100.35", filter_context));
   assert(!simple_discovery_candidate_allowed(
       candidate("224.0.0.1"), "224.0.0.1", filter_context));
   assert(!simple_discovery_candidate_allowed(

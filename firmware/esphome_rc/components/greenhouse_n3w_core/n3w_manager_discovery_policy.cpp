@@ -74,7 +74,10 @@ bool simple_discovery_candidate_allowed(
       !valid_unicast_ipv4(local) ||
       !valid_unicast_ipv4(advertised) ||
       !valid_unicast_ipv4(source) ||
+      advertised == local ||
       advertised != source ||
+      candidate.ttl_s == 0U ||
+      candidate.ttl_s > kManagerDiscoveryMaxCandidateTtlSeconds ||
       (advertised & mask) != (local & mask)) {
     return false;
   }
@@ -126,6 +129,7 @@ std::vector<SimpleBrokerRecoveryTarget> make_simple_broker_recovery_targets(
     targets.push_back(SimpleBrokerRecoveryTarget{
         candidates[index].host,
         durable_broker_port,
+        candidates[index].ttl_s,
     });
   }
   return targets;

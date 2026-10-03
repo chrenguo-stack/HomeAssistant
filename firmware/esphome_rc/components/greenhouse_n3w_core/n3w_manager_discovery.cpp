@@ -191,6 +191,9 @@ bool parse_simple_discovery_response(
     return false;
   }
   parsed.port = value["port"].as<uint16_t>();
+  if (value["ttl_s"].is<uint16_t>()) {
+    parsed.ttl_s = value["ttl_s"].as<uint16_t>();
+  }
   if (!parsed.valid()) return false;
   *candidate = std::move(parsed);
   return true;
