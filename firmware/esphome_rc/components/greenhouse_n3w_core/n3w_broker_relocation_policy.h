@@ -6,7 +6,6 @@ namespace esphome::greenhouse_n3w_core {
 
 inline constexpr uint32_t kBrokerRelocationMqttFailureTriggerMs = 10000;
 inline constexpr uint32_t kBrokerRelocationDiscoveryBudgetMs = 1000;
-inline constexpr uint32_t kBrokerRelocationPrepareQuietMs = 1000;
 inline constexpr uint32_t kBrokerRelocationCandidateBudgetMs = 6000;
 inline constexpr uint32_t kBrokerRelocationCleanupReserveMs = 2000;
 inline constexpr uint32_t kBrokerRelocationDiscoveryMinIntervalMs = 60000;
