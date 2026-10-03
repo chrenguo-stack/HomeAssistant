@@ -105,17 +105,11 @@ bool SimpleProductComponent::retarget_runtime_broker_(
   if (!reconnect) return true;
 
   client->n3w_runtime_fence_old_events();
-  if (client->n3w_runtime_request_reconnect()) return true;
-
-  if (!stable_runtime_broker_host_.empty() &&
-      client->n3w_runtime_retarget_server(
-          stable_runtime_broker_host_, broker_state_.broker_port)) {
-    client->n3w_runtime_fence_old_events();
-    if (!client->n3w_runtime_request_reconnect()) {
-      (void) client->n3w_runtime_request_disconnect();
-    }
-  }
-  return false;
+  const bool disconnect_requested =
+      client->n3w_runtime_request_disconnect();
+  const bool reconnect_requested =
+      client->n3w_runtime_request_reconnect();
+  return disconnect_requested || reconnect_requested;
 #else
   (void) host;
   (void) reconnect;
@@ -139,9 +133,11 @@ void SimpleProductComponent::rollback_broker_candidate_() {
         stable_runtime_broker_host_, broker_state_.broker_port);
     if (restored) {
       client->n3w_runtime_fence_old_events();
-      if (!client->n3w_runtime_request_reconnect()) {
-        (void) client->n3w_runtime_request_disconnect();
-      }
+      const bool disconnect_requested =
+          client->n3w_runtime_request_disconnect();
+      const bool reconnect_requested =
+          client->n3w_runtime_request_reconnect();
+      restored = disconnect_requested || reconnect_requested;
     }
   }
 #endif
@@ -264,7 +260,7 @@ bool SimpleProductComponent::start_next_broker_candidate_() {
     }
     if (!retarget_runtime_broker_(target.host, true)) {
       broker_relocation_target_index_ = broker_relocation_targets_.size();
-      ESP_LOGW(TAG, "N3-W Broker candidate bounded reconnect request failed");
+      ESP_LOGW(TAG, "N3-W Broker candidate bounded reconnect setup failed");
       return false;
     }
     pending_broker_candidate_host_ = target.host;
@@ -291,6 +287,11 @@ void SimpleProductComponent::advance_broker_relocation_() {
   }
 
   if (broker_candidate_active_) {
+#ifdef USE_MQTT
+    if (mqtt::global_mqtt_client != nullptr) {
+      (void) mqtt::global_mqtt_client->n3w_runtime_request_reconnect();
+    }
+#endif
     if (broker_candidate_deadline_ms_ != 0U &&
         now >= broker_candidate_deadline_ms_) {
       broker_candidate_active_ = false;
