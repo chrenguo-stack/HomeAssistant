@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdio>
 #include <utility>
 
 #ifdef USE_MQTT
@@ -12,7 +13,7 @@
 #endif
 #include "esphome/core/log.h"
 #include "esp_netif.h"
-#include "lwip/inet.h"
+#include "esp_netif_ip_addr.h"
 
 namespace esphome::greenhouse_n3w_core {
 namespace {
@@ -50,14 +51,15 @@ bool SimpleProductComponent::current_wifi_ipv4_(
       info.ip.addr == 0U || info.netmask.addr == 0U) {
     return false;
   }
-  std::array<char, INET_ADDRSTRLEN> ip_text{};
-  std::array<char, INET_ADDRSTRLEN> mask_text{};
-  if (::inet_ntop(AF_INET, &info.ip.addr, ip_text.data(), ip_text.size()) == nullptr ||
-      ::inet_ntop(
-          AF_INET,
-          &info.netmask.addr,
-          mask_text.data(),
-          mask_text.size()) == nullptr) {
+  std::array<char, IP4ADDR_STRLEN_MAX> ip_text{};
+  std::array<char, IP4ADDR_STRLEN_MAX> mask_text{};
+  const int ip_written = std::snprintf(
+      ip_text.data(), ip_text.size(), IPSTR, IP2STR(&info.ip));
+  const int mask_written = std::snprintf(
+      mask_text.data(), mask_text.size(), IPSTR, IP2STR(&info.netmask));
+  if (ip_written <= 0 || mask_written <= 0 ||
+      static_cast<std::size_t>(ip_written) >= ip_text.size() ||
+      static_cast<std::size_t>(mask_written) >= mask_text.size()) {
     return false;
   }
   *local_ipv4 = ip_text.data();
