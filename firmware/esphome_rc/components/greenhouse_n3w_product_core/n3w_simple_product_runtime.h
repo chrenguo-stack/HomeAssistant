@@ -136,6 +136,8 @@ class SimpleProductPort {
       const MacAddress &peer_mac,
       const uint8_t *data,
       std::size_t size) = 0;
+  virtual void on_direct_recovery_probe_tick(bool success) { (void) success; }
+  virtual void on_direct_recovery_commit_result(bool committed) { (void) committed; }
   virtual uint8_t last_channel_observed() const { return 0; }
   virtual int32_t last_channel_error_raw() const { return 0; }
   virtual uint8_t last_broadcast_send_error_code() const { return 0; }
