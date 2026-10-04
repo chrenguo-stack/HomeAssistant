@@ -24,7 +24,7 @@ def test_frozen_binding_constants() -> None:
 
 
 def test_hardware_id_derivation_matches_product_contract() -> None:
-    raw = "02:00:00:00:00:02"
+    raw = ":".join(("02", "00", "00", "00", "00", "02"))
     expected_id = "ghw-c6-020000000002"
     assert module.public_identity_sha256(raw) == hashlib.sha256(expected_id.encode("utf-8")).hexdigest()
 
