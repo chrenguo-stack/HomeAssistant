@@ -4,9 +4,9 @@ Date: 2026-10-04
 
 ## Status
 
-R2 stale-Broker recovery is physically proven through Broker discovery, runtime Broker retarget, MQTT reconnect, candidate promotion, production telemetry generation, queue admission, and Direct MQTT publish submission.
+R2 stale-Broker recovery is physically proven through Broker discovery, runtime Broker retarget, MQTT reconnect, candidate promotion, production telemetry generation, queue admission, Direct MQTT publish submission, Broker delivery, and Manager Direct ingress receipt.
 
-The end-to-end acceptance is not closed because the Manager canonical cursor does not advance. Live T1 evidence now proves the Direct ingress messages reach Manager but are rejected as `stale_boot_session` once per production telemetry interval.
+The end-to-end canonical acceptance is blocked by a pre-existing boot-session compatibility gap, not by the R2 Broker fallback implementation.
 
 ## Exact-source review
 
@@ -18,28 +18,24 @@ Production telemetry bridge:
 
 - `firmware/esphome_rc/f1_0_rc2/packages/n3w_product_telemetry.yml`
 - interval: `${n3w_telemetry_interval}`; production value is 60 seconds
-- bridge exits only when N3-W runtime is not ready or telemetry identity/payload construction fails
 - accepted telemetry is passed to `submit_telemetry_json()`
 
 N3-W transport source:
 
 - `firmware/esphome_rc/components/greenhouse_n3w_core/n3w_simple_product_component.cpp`
-- admission first enqueues telemetry and emits a `telemetry held` log
-- Direct + MQTT transport invokes runtime Direct publish and emits `telemetry Direct single attempt submitted` on local MQTT publish acceptance
-
-Runtime Direct topic:
-
-- `gh/v1/<system_id>/ingress/node/<node_id>/telemetry`
+- Direct path publishes to `gh/v1/<system_id>/ingress/node/<node_id>/telemetry`
+- `N3-W telemetry Direct single attempt submitted` means the local MQTT publish call accepted the message
 
 Boot-session source:
 
 - `GreenhouseN3wCore` owns telemetry identity through `NvsBootSessionStore` + `BootSessionManager`
-- normal boot-session start loads the durable counter, increments it, saves and verifies before issuing the session
+- normal boot-session start loads the durable counter, increments it, persists it, verifies it, then issues the new session
+- NVS namespace/key remain `gh_n3w/boot_state`
 - Manager replay/canonical high-water remains fail-closed: a lower session is rejected as `stale_boot_session`
 
 ## Physical evidence
 
-One controlled 90-second boot showed:
+A controlled boot proved:
 
 - stale Broker connection failure
 - Broker relocation discovery
@@ -51,39 +47,64 @@ One controlled 90-second boot showed:
 - `N3-W telemetry held seq=0`
 - `N3-W telemetry Direct single attempt submitted seq=0`
 
-The Manager canonical cursor still remained on the historical Direct cursor.
+T1 evidence then proved:
 
-Subsequent T1 read-only evidence proved the missing canonical update is not a Broker/ACL/subscription loss:
+- Manager Direct subscription active on `gh/v1/greenhouse/ingress/node/+/telemetry`
+- Broker accepted the Board client on TLS MQTT 8883 using the expected node identity
+- Manager received Direct ingress once per production telemetry interval
+- every received message was rejected with `code=stale_boot_session`
+- Manager/Broker remained running
 
-- Manager Direct subscription is active on `gh/v1/greenhouse/ingress/node/+/telemetry`
-- Manager receives the target node's Direct ingress every production telemetry interval
-- each received message is rejected with `code=stale_boot_session`
-- Broker accepts the Board client on TLS MQTT 8883 using the expected node client ID and username
-- no Board/T1 mutation occurred during the forensic read
+## Root-cause comparison
 
-## Current failure classification
-
-The current open failure domain is no longer Broker relocation or MQTT transport.
+Read-only Manager replay state:
 
 ```text
-BROKER_RELOCATION=PASS
-MQTT_RECONNECT=PASS
-PRODUCTION_TELEMETRY_GENERATION=PASS
-DIRECT_MQTT_LOCAL_SUBMISSION=PASS
-BROKER_TO_MANAGER_DELIVERY=PASS
-MANAGER_DIRECT_SUBSCRIPTION=PASS
-MANAGER_INGRESS_RESULT=REJECTED_STALE_BOOT_SESSION
-CANONICAL_ADVANCE=FAIL
+MANAGER_HIGHEST_SESSION_HEX=dc40c82e1467cf88
+MANAGER_HIGHEST_SESSION_DECIMAL=15870905187090026376
 ```
 
-This matches the safety semantics of the historical KF-050 boot-session contract: Manager must reject a candidate boot session lower than its durable high-water. Do not relax Manager replay protection and do not clear replay/canonical high-water as a shortcut.
+Read-only Board B NVS dump of the exact `gh_n3w/boot_state` record format found a monotonic historical sequence from 0 through 17. The highest valid persisted record in the dump was:
 
-The next forensic action is read-only comparison of:
+```text
+BOARD_BOOT_STATE_MAX_HEX=0000000000000011
+BOARD_BOOT_STATE_MAX_DECIMAL=17
+```
 
-1. Manager durable highest boot-session for this node; and
-2. Board B durable `gh_n3w/boot_state` counter.
+The esptool read itself reset the Board after the dump, so the normal firmware may advance the counter again on the next telemetry identity allocation. That does not affect the classification because the Board counter remains many orders of magnitude below the Manager durable high-water.
 
-Only after that comparison should a recovery-floor or source-repair decision be made.
+The relation is therefore proven:
+
+```text
+BOARD_DURABLE_BOOT_COUNTER << MANAGER_DURABLE_BOOT_HIGH_WATER
+```
+
+This is the historical KF-050 compatibility-migration condition: a legacy/random historical boot-session high-water remains on Manager while the repaired product now uses a small monotonic durable counter on the Board.
+
+## Root-cause classification
+
+```text
+R2_BROKER_FALLBACK=PASS
+R2_MQTT_RECOVERY=PASS
+R2_TELEMETRY_GENERATION=PASS
+R2_DIRECT_PUBLISH_PATH=PASS
+BROKER_TO_MANAGER_DELIVERY=PASS
+MANAGER_DIRECT_SUBSCRIPTION=PASS
+MANAGER_REPLAY_REJECTION=EXPECTED_SAFE_BEHAVIOR
+KF050_COMPATIBILITY_MIGRATION_GAP=CONFIRMED
+R2_SOURCE_DEFECT=false
+MANAGER_DEFECT=false
+BOOT_SESSION_RECOVERY_FLOOR_REQUIRED=true
+CANONICAL_ADVANCE=BLOCKED_BY_STALE_BOOT_SESSION
+```
+
+## Safety boundary
+
+Do not repair this by deleting or lowering Manager replay/canonical high-water. Do not relax `stale_boot_session` rejection semantics.
+
+The safe repair direction is the existing KF-050 recovery-floor path: establish a Board durable boot-session floor at or above the Manager high-water through the guarded migration flow, with the required successor pairing/credential lifecycle, then return to normal product firmware and prove the next boot session is strictly greater than the Manager high-water.
+
+No recovery-floor mutation was executed by this forensic step.
 
 ## Boundary
 
@@ -92,3 +113,5 @@ GATE_F=CANNOT_CLOSE
 R3_MUTATION=false
 MANAGER_REPLAY_RELAXATION=false
 MANAGER_HIGH_WATER_CLEAR=false
+KF050_COMPATIBILITY_MIGRATION_GAP=CONFIRMED
+BOOT_SESSION_RECOVERY_FLOOR_REQUIRED=true
