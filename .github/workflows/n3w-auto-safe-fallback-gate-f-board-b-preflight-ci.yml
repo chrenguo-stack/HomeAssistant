@@ -25,9 +25,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Compile executor
-        run: python -m py_compile tools/execution_packages/n3w/auto_safe_fallback/gate_f_board_b_preflight/executor.py
+      - name: Compile executors
+        run: |
+          python -m py_compile tools/execution_packages/n3w/auto_safe_fallback/gate_f_board_b_preflight/executor.py
+          python -m py_compile tools/execution_packages/n3w/auto_safe_fallback/gate_f_board_b_preflight/write_executor.py
       - name: Install pytest
         run: python -m pip install pytest==8.4.2
       - name: Run focused tests
-        run: python -m pytest -q tests/execution_packages/n3w/auto_safe_fallback/gate_f_board_b_preflight/test_executor.py
+        run: |
+          python -m pytest -q tests/execution_packages/n3w/auto_safe_fallback/gate_f_board_b_preflight/test_executor.py
+          python -m pytest -q tests/execution_packages/n3w/auto_safe_fallback/gate_f_board_b_preflight/test_write_executor.py
