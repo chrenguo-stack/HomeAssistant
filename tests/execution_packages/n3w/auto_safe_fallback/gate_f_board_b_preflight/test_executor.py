@@ -1,3 +1,4 @@
+import hashlib
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 
@@ -19,10 +20,14 @@ def test_frozen_binding_constants() -> None:
     assert module.APPLICATION_SHA256 == "474e738068fc894b20cfe5f647a6112b66c141aa86c873d414d8ed183679e43c"
     assert module.OTADATA_SHA256 == "7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f"
     assert module.PARTITION_TABLE_SHA256 == "6664b08a14a9cdc170e322823db29fbe485d87db9c4ec42759d9372028953dca"
+    assert module.EXPECTED_HARDWARE_ID_SHA256 == "3603345fb73de6f9286dc66db9f246ff73c42382b553af63b8d5813a933b69ee"
 
 
-def test_board_b_identity_binding() -> None:
-    assert module.public_identity_sha256("98:A3:16:A9:F4:5C") == module.EXPECTED_HARDWARE_ID_SHA256
+def test_hardware_id_derivation_matches_product_contract() -> None:
+    raw = "02:00:00:00:00:02"
+    expected_id = "ghw-c6-020000000002"
+    assert module.hardware_id_from_mac(raw) == expected_id
+    assert module.public_identity_sha256(raw) == hashlib.sha256(expected_id.encode("utf-8")).hexdigest()
 
 
 def test_preflight_is_read_only() -> None:
