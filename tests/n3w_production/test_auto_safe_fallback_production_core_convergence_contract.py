@@ -54,6 +54,51 @@ def test_production_gate_c_uses_existing_direct_recovery_state_machine() -> None
     assert "absolute_deadline_ms() const" in policy
 
 
+def test_direct_mqtt_relocation_trigger_is_business_cadence_independent() -> None:
+    product = text("greenhouse_n3w_product_core.h")
+    telemetry = (
+        ROOT
+        / "firmware/esphome_rc/f1_0_rc2/packages/n3w_product_telemetry.yml"
+    ).read_text(encoding="utf-8")
+
+    loop_start = product.index("void loop() override")
+    loop_end = product.index("bool provision_boot_session_repair_recovery", loop_start)
+    loop_block = product[loop_start:loop_end]
+    assert "SimpleProductComponent::loop();" in loop_block
+    assert "advance_direct_mqtt_broker_relocation_();" in loop_block
+
+    helper_start = product.index("void advance_direct_mqtt_broker_relocation_()")
+    helper_end = product.index("bool persisted_runtime_state_present_()", helper_start)
+    helper = product[helper_start:helper_end]
+    assert "runtime_.path_state() == LocalPathState::DIRECT" in helper
+    assert "direct_wifi_connected_()" in helper
+    assert "direct_mqtt_connected_()" in helper
+    assert "broker_relocation_trigger_due(direct_mqtt_failure_started_ms_, now)" in helper
+    assert "kBrokerRelocationDiscoveryMinIntervalMs" in helper
+    assert "start_broker_discovery_()" in helper
+    assert "start_next_direct_broker_candidate_()" in helper
+    assert "runtime_.note_direct_result" not in helper
+    assert "submit_telemetry_json" not in helper
+    assert "n3w_telemetry_interval" not in helper
+    assert "interval: ${n3w_telemetry_interval}" in telemetry
+
+
+def test_direct_mqtt_relocation_candidate_window_is_bounded() -> None:
+    product = text("greenhouse_n3w_product_core.h")
+    helper_start = product.index("bool start_next_direct_broker_candidate_()")
+    helper_end = product.index("void advance_direct_mqtt_broker_relocation_()", helper_start)
+    helper = product[helper_start:helper_end]
+    assert "kBrokerRelocationCandidateBudgetMs" in helper
+    assert "kBrokerRelocationCleanupReserveMs" in helper
+    assert "broker_relocation_candidate_deadline" in helper
+    assert "broker_discovery_completed_ms_" in helper
+    assert "current_wifi_ipv4_(&current_ipv4, &current_mask)" in helper
+    assert "current_ipv4 != broker_discovery_local_ipv4_" in helper
+    assert "current_mask != broker_discovery_subnet_mask_" in helper
+    assert "target.ttl_s == 0U" in helper
+    assert "retarget_runtime_broker_(target.host, true)" in helper
+
+
 def test_production_discovery_is_nonblocking_and_bounded() -> None:
     session = text("n3w_esp32_manager_discovery_session.cpp")
     policy = text("n3w_broker_relocation_policy.h")
@@ -73,6 +118,7 @@ def test_production_discovery_is_nonblocking_and_bounded() -> None:
 
 def test_production_relocation_preserves_identity_and_durable_state() -> None:
     component = text("n3w_simple_product_component_broker_relocation.cpp")
+    product = text("greenhouse_n3w_product_core.h")
 
     assert "broker_state_.broker_port" in component
     assert "peer_state_.system_id" in component
@@ -93,6 +139,22 @@ def test_production_relocation_preserves_identity_and_durable_state() -> None:
         "NvsProvisionedBrokerStoreV2",
     ):
         assert forbidden not in component
+
+    direct_start = product.index("bool start_next_direct_broker_candidate_()")
+    direct_end = product.index("bool persisted_runtime_state_present_()", direct_start)
+    direct = product[direct_start:direct_end]
+    for forbidden in (
+        "set_ca_certificate",
+        "set_tls_server_name",
+        "set_username",
+        "set_password",
+        "set_client_id",
+        "broker_store_.save(",
+        "broker_store_.erase(",
+        "peer_store_.save(",
+        "peer_store_.erase(",
+    ):
+        assert forbidden not in direct
 
 
 def test_production_candidate_commit_and_rollback_are_fail_closed() -> None:
