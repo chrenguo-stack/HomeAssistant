@@ -1,6 +1,6 @@
 # N3-W Auto Safe Fallback Gate F Physical Oracle Correction — 2026-10-04
 
-Status: `GATE_F_BASELINE_FAILURE_CONFIRMED_DIAGNOSIS_OPEN`
+Status: `GATE_F_BASELINE_PREREQUISITE_REPAIR_PREPARED_EXECUTION_NOT_STARTED`
 
 ## Correction notice
 
@@ -21,7 +21,7 @@ TELEMETRY_INTERVAL_SECONDS=60
 
 The telemetry bridge submits only when `id(n3w_product_core).runtime_ready()` is true. It obtains boot/sequence identity from the product core and calls `submit_telemetry_json()`.
 
-## Physical evidence
+## Initial physical evidence
 
 After the exact artifact was written to Board B, a 90-second Manager canonical-cursor observation showed no advance:
 
@@ -48,7 +48,128 @@ BROKER_8883_PUBLICATION=0.0.0.0:8883
 BOARD_B_TO_BROKER_8883_CONNTRACK_PRESENT=false
 ```
 
-A 30-second passive packet window also observed no Board B traffic on TCP/8883, TCP/47112, or UDP/47111. The short packet window by itself is not sufficient to exclude an idle long-lived connection, but the host connection/conntrack evidence did not establish a Board B 8883 session.
+## Direct serial diagnosis
+
+A 30-second passive USB-CDC capture on Board B produced repeated:
+
+```text
+Simplified pairing waiting code=1
+```
+
+At the validated production source, `SimplePairingClientError::NOT_READY == 1`. The repaired KF-099 client maps Manager `status=rejected + transaction_disposition=continue` to WAIT/NOT_READY and preserves the current pairing transaction without calling `/begin`.
+
+This is consistent with the prior KF-099 physical validation where Board B was intentionally left waiting on `repair_intent_required` and no repair authorization was granted.
+
+Therefore the Gate F baseline failure is not evidence that auto-safe-fallback broke a healthy paired node. The stronger classification is:
+
+```text
+GATE_F_PREREQUISITE_HEALTHY_PAIRED_BASELINE=false
+BOARD_B_ENTERED_GATE_F_WITH_KF099_REPAIR_WAIT_STATE=true
+AUTO_SAFE_FALLBACK_REGRESSION_PROVEN=false
+```
+
+## Registration and credential prerequisite audit
+
+A read-only Manager audit matched exactly one active Board B registration and one current credential assignment:
+
+```text
+REGISTRATION_MATCH_COUNT=1
+REGISTRATION_ACTIVE=true
+PAIRING_EPOCH=7
+NODE_ID_SHA256=dad9009b72b0c58a45d9041072d99eb3f1b8db9e520e1b844ff30cac2c8a0a59
+PAIRING_SESSION_FOUND=true
+PAIRING_SESSION_STATE=approved
+CREDENTIAL_HISTORY_COUNT=1
+CURRENT_CREDENTIAL_COUNT=1
+CREDENTIAL_STATE=active
+ACTIVE_GENERATION=2
+PENDING_GENERATION=None
+CREDENTIAL_NODE_ID_SHA256=dad9009b72b0c58a45d9041072d99eb3f1b8db9e520e1b844ff30cac2c8a0a59
+REGISTRATION_CREDENTIAL_NODE_MATCH=true
+PAIRING_PREREQUISITE_AUDIT=PASS
+```
+
+The Manager-side durable identity and credential lineage are therefore healthy. No database reset or registration deletion is required.
+
+## Live repair transaction binding
+
+A passive T1 raw-socket capture of Board B TCP/47112 traffic established one exact current pairing transaction:
+
+```text
+TCP47112_PAYLOAD_PACKET_COUNT=24
+TCP47112_PAYLOAD_BYTES=2028
+LIVE_HARDWARE_ID_COUNT=1
+LIVE_PAIRING_ID_COUNT=1
+LIVE_HARDWARE_ID_SHA256=cd90494824273fb6050c29989370690984487f7cdaea89ac4ff8b5eebc4371b0
+LIVE_HARDWARE_ID_MATCH=true
+LIVE_PAIRING_ID_SHA256=142d1e0c9fc035645ce38e4681add39ba3ed5b3b0d60e14a4a1dfa398ab2472e
+PAIRING_EQUALS_OLD_REGISTRATION=false
+PAIRING_EQUALS_OLD_CREDENTIAL=false
+LIVE_REPAIR_TRANSACTION_BIND=PASS
+```
+
+No raw hardware ID or pairing ID is recorded in this document.
+
+## Setup Secret read-only recovery
+
+The production source stores the Setup Secret as a 72-byte `PersistedSetupSecret` record in NVS namespace/key:
+
+```text
+namespace=gh_n3w_v2
+key=setup
+```
+
+Record layout:
+
+```text
+uint32 magic
+uint16 version
+uint16 reserved
+uint8 secret[32]
+uint8 check[32]
+```
+
+The check is SHA-256 over the bytes preceding `check`.
+
+Board B NVS was read using esptool in read-only mode from the discovered NVS partition:
+
+```text
+NVS_OFFSET=0x790000
+NVS_SIZE=0x70000
+BOARD_FLASH_WRITE=false
+```
+
+The existing record decoded and validated successfully:
+
+```text
+SETUP_RECORD_COUNT=1
+SETUP_RECORD_BYTES=72
+SETUP_MAGIC_VALID=true
+SETUP_VERSION=1
+SETUP_RESERVED=0
+SETUP_RECORD_CHECK_VALID=true
+SETUP_SECRET_BYTES=32
+SETUP_SECRET_NONZERO=true
+SETUP_SECRET_SHA256=9f82618077f22f64d467fe8080457b9c16cf2e9647cae6299218dba19f1f366d
+SETUP_SECRET_LOCAL_FILE_PRESENT=true
+SETUP_SECRET_FILE_MODE=600
+SETUP_RECORD_DECODE=PASS
+RAW_NVS_ARTIFACTS_REMOVED=true
+```
+
+The raw Setup Secret is intentionally not archived in GitHub or chat. Only its SHA-256 is recorded. The secret remains only in a local mode-0600 temporary file on the Mac for the controlled recovery transaction.
+
+## Correct recovery path
+
+Source review confirms that ordinary `authorize-repair` is insufficient for this exact existing-identity recovery. Product recovery requires the explicit existing-identity credential-recovery path:
+
+```text
+authorize-credential-recovery
++ matching live hardware_id/pairing_id
++ matching Setup Secret import
+```
+
+The Manager then preserves the stable node identity and uses credential lifecycle staging. Broker credential mutation is deferred until the Board receipt/ACK commits the staged recovery. An aborted recovery before receipt preserves the previous active generation.
 
 ## Correct identity boundary
 
@@ -59,8 +180,6 @@ BOARD_B_ROM_IDENTITY_SHA256=3603345fb73de6f9286dc66db9f246ff73c42382b553af63b8d5
 PAIRING_PROTOCOL_HARDWARE_ID_SHA256=cd90494824273fb6050c29989370690984487f7cdaea89ac4ff8b5eebc4371b0
 ```
 
-The first is the esptool/write-time physical-board identity. The second is the application-layer pairing/registration hardware identity. Read-only registration lookup using the pairing-protocol identity matched exactly one active Board B registration and a canonical cursor.
-
 ## Gate F disposition
 
 ```text
@@ -70,20 +189,17 @@ BOARD_B_RUNTIME_OTADATA_KNOWN_STATE_MATCH=PASS
 BOARD_B_REGISTRATION_IDENTITY_BIND=PASS
 BOARD_B_WIFI_LAN_REACHABILITY=PASS
 USB_DIRECT_BASELINE=FAIL
-BOARD_B_BROKER_8883_CONNECTIVITY=NOT_PROVEN
-PRODUCTION_RUNTIME_FAILURE_DIAGNOSIS_OPEN=true
+GATE_F_PREREQUISITE_HEALTHY_PAIRED_BASELINE=false
+KF099_REPAIR_WAIT_STATE_CONFIRMED=true
+MANAGER_IDENTITY_AND_CREDENTIAL_LINEAGE=PASS
+LIVE_REPAIR_TRANSACTION_BIND=PASS
+SETUP_SECRET_RECORD_DECODE=PASS
+CREDENTIAL_RECOVERY_EXECUTION_NOT_STARTED=true
 T1_ADDRESS_MUTATION_NOT_STARTED=true
 GATE_F_PHYSICAL_ACCEPTANCE_COMPLETE=false
 MERGE=false
 ```
 
-## Next diagnostic boundary
+## Next boundary
 
-Do not change the T1 address yet. The next read-only evidence must determine where Board B stops in the production startup path:
-
-1. pairing client initialization / `ALREADY_PROVISIONED` recognition;
-2. durable peer/broker state load and validation;
-3. runtime MQTT reconfiguration and enable;
-4. runtime readiness / telemetry submission.
-
-Preferred next evidence is Board B boot/runtime serial logging while leaving Flash, NVS, T1, Broker, and Manager unchanged.
+Do not change the T1 address yet. First restore Board B to a healthy paired baseline through the exact live existing-identity credential-recovery transaction, then re-establish MQTT/TLS and canonical telemetry. Only after that baseline passes may the formal Gate F T1-address-change test begin.
