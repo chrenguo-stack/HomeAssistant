@@ -77,6 +77,7 @@ def test_direct_mqtt_relocation_trigger_is_business_cadence_independent() -> Non
     assert "kBrokerRelocationDiscoveryMinIntervalMs" in helper
     assert "start_broker_discovery_()" in helper
     assert "start_next_direct_broker_candidate_()" in helper
+    assert "direct_recovery_attempt_.phase() != DirectRecoveryPhase::IDLE" in helper
     assert "runtime_.note_direct_result" not in helper
     assert "submit_telemetry_json" not in helper
     assert "n3w_telemetry_interval" not in helper
@@ -97,6 +98,25 @@ def test_direct_mqtt_relocation_candidate_window_is_bounded() -> None:
     assert "current_mask != broker_discovery_subnet_mask_" in helper
     assert "target.ttl_s == 0U" in helper
     assert "retarget_runtime_broker_(target.host, true)" in helper
+
+
+def test_direct_mqtt_relocation_setup_failure_rolls_back_fail_closed() -> None:
+    product = text("greenhouse_n3w_product_core.h")
+
+    reset_start = product.index("void reset_direct_broker_relocation_(bool rollback)")
+    reset_end = product.index("bool start_next_direct_broker_candidate_()", reset_start)
+    reset = product[reset_start:reset_end]
+    assert "if (rollback)" in reset
+    assert "rollback_broker_candidate_();" in reset
+    assert "rollback && broker_candidate_active_" not in reset
+
+    candidate_start = product.index("bool start_next_direct_broker_candidate_()")
+    candidate_end = product.index("void advance_direct_mqtt_broker_relocation_()", candidate_start)
+    candidate = product[candidate_start:candidate_end]
+    retarget = candidate.index("retarget_runtime_broker_(target.host, true)")
+    rollback = candidate.index("rollback_broker_candidate_();", retarget)
+    failed = candidate.index("stable Broker restored", rollback)
+    assert retarget < rollback < failed
 
 
 def test_production_discovery_is_nonblocking_and_bounded() -> None:
