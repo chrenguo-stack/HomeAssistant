@@ -273,7 +273,7 @@ class GreenhouseN3wCore : public SimpleProductComponent {
   }
 
   void reset_direct_broker_relocation_(bool rollback) {
-    if (rollback && broker_candidate_active_) {
+    if (rollback) {
       rollback_broker_candidate_();
     } else {
       broker_discovery_session_.reset();
@@ -320,9 +320,10 @@ class GreenhouseN3wCore : public SimpleProductComponent {
       }
       if (!retarget_runtime_broker_(target.host, true)) {
         broker_relocation_target_index_ = broker_relocation_targets_.size();
+        rollback_broker_candidate_();
         ESP_LOGW(
             "n3w_broker_relocation",
-            "N3-W standalone Broker candidate reconnect setup failed");
+            "N3-W standalone Broker candidate reconnect setup failed; stable Broker restored");
         return false;
       }
       pending_broker_candidate_host_ = target.host;
@@ -339,7 +340,8 @@ class GreenhouseN3wCore : public SimpleProductComponent {
   }
 
   void advance_direct_mqtt_broker_relocation_() {
-    if (!product_runtime_enabled_ || !runtime_ready() || safe_reboot_requested_) {
+    if (!product_runtime_enabled_ || !runtime_ready() || safe_reboot_requested_ ||
+        direct_recovery_attempt_.phase() != DirectRecoveryPhase::IDLE) {
       direct_mqtt_failure_started_ms_ = 0;
       if (direct_broker_relocation_owned_) {
         reset_direct_broker_relocation_(true);
