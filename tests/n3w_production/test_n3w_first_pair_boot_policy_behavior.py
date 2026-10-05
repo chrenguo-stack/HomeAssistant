@@ -17,7 +17,7 @@ def test_first_pair_boot_policy_behavior(tmp_path: Path) -> None:
 
     test_source = (
         ROOT
-        / "tests/n3w_phase4/n3w_first_pair_boot_policy_host_test.cpp"
+        / "tests/n3w_production/n3w_first_pair_boot_policy_host_test.cpp"
     )
     executable = tmp_path / "n3w-first-pair-boot-policy-host-test"
 
