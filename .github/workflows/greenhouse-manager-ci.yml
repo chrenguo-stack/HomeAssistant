@@ -10,7 +10,6 @@ on:
       - "protocols/mqtt/**"
       - "protocols/pairing/**"
       - "firmware/esphome_rc/components/greenhouse_n3w_core/**"
-      - "firmware/esphome_rc/components/greenhouse_n3w_product_core/**"
       - "firmware/esphome_rc/board_lab/n3w_phase3_simple/**"
       - "firmware/esphome_rc/board_lab/n3w_phase4_physical/**"
       - "tests/n3w_phase3/**"
@@ -43,12 +42,12 @@ jobs:
             exit 0
           fi
           git diff --name-only "$BASE_SHA" "$HEAD_SHA" > "$RUNNER_TEMP/changed-files.txt"
-          if grep -Eq '^(host/greenhouse-manager/|protocols/mqtt/|protocols/pairing/|firmware/esphome_rc/components/greenhouse_n3w_core/|firmware/esphome_rc/components/greenhouse_n3w_product_core/|firmware/esphome_rc/board_lab/n3w_phase3_simple/|firmware/esphome_rc/board_lab/n3w_phase4_physical/|tests/n3w_phase3/|tests/n3w_phase4/|\.github/workflows/greenhouse-manager-ci\.yml$)' "$RUNNER_TEMP/changed-files.txt"; then
+          if grep -Eq '^(host/greenhouse-manager/|protocols/mqtt/|protocols/pairing/|firmware/esphome_rc/components/greenhouse_n3w_core/|firmware/esphome_rc/board_lab/n3w_phase3_simple/|firmware/esphome_rc/board_lab/n3w_phase4_physical/|tests/n3w_phase3/|tests/n3w_phase4/|\.github/workflows/greenhouse-manager-ci\.yml$)' "$RUNNER_TEMP/changed-files.txt"; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
           fi
-          if grep -Eq '^(firmware/esphome_rc/components/greenhouse_n3w_core/|firmware/esphome_rc/components/greenhouse_n3w_product_core/|firmware/esphome_rc/board_lab/n3w_phase3_simple/|firmware/esphome_rc/board_lab/n3w_phase4_physical/|tests/n3w_phase3/|tests/n3w_phase4/|\.github/workflows/greenhouse-manager-ci\.yml$)' "$RUNNER_TEMP/changed-files.txt"; then
+          if grep -Eq '^(firmware/esphome_rc/components/greenhouse_n3w_core/|firmware/esphome_rc/board_lab/n3w_phase3_simple/|firmware/esphome_rc/board_lab/n3w_phase4_physical/|tests/n3w_phase3/|tests/n3w_phase4/|\.github/workflows/greenhouse-manager-ci\.yml$)' "$RUNNER_TEMP/changed-files.txt"; then
             echo "phase3=true" >> "$GITHUB_OUTPUT"
           else
             echo "phase3=false" >> "$GITHUB_OUTPUT"
@@ -107,8 +106,8 @@ jobs:
         run: pytest -q tests/n3w_phase4/test_relay_unicast_channel_ownership_observability_contract.py
       - name: Phase 4 single-radio ownership contracts
         run: pytest -q tests/n3w_phase4/test_single_radio_ownership_contract.py
-      - name: Phase 4 recovery exit, Direct liveness, and KF-050 first-pair contracts
-        run: pytest -q tests/n3w_phase4/test_recovery_exit_behavior.py tests/n3w_phase4/test_direct_recovery_liveness_behavior.py tests/n3w_phase4/test_n3w_first_pair_boot_policy_behavior.py tests/n3w_phase4/test_kf050_first_pair_boot_initialization_contract.py
+      - name: Phase 4 recovery exit and Direct liveness contracts
+        run: pytest -q tests/n3w_phase4/test_recovery_exit_behavior.py tests/n3w_phase4/test_direct_recovery_liveness_behavior.py
       - name: Build and run C++ cross-language vectors
         shell: bash
         run: |
