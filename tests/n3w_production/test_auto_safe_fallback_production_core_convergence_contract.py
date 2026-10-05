@@ -68,7 +68,10 @@ def test_direct_mqtt_relocation_trigger_is_business_cadence_independent() -> Non
     assert "advance_direct_mqtt_broker_relocation_();" in loop_block
 
     helper_start = product.index("void advance_direct_mqtt_broker_relocation_()")
-    helper_end = product.index("bool persisted_runtime_state_present_()", helper_start)
+    helper_end = product.index(
+        "static StartupIdentityRecordState startup_identity_record_state_(",
+        helper_start,
+    )
     helper = product[helper_start:helper_end]
     assert "runtime_.path_state() == LocalPathState::DIRECT" in helper
     assert "direct_wifi_connected_()" in helper
@@ -161,7 +164,10 @@ def test_production_relocation_preserves_identity_and_durable_state() -> None:
         assert forbidden not in component
 
     direct_start = product.index("bool start_next_direct_broker_candidate_()")
-    direct_end = product.index("bool persisted_runtime_state_present_()", direct_start)
+    direct_end = product.index(
+        "static StartupIdentityRecordState startup_identity_record_state_(",
+        direct_start,
+    )
     direct = product[direct_start:direct_end]
     for forbidden in (
         "set_ca_certificate",
