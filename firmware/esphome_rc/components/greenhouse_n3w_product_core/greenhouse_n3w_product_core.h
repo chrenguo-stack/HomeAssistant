@@ -18,6 +18,7 @@
 #include "n3w_esp32_pairing_nvs.h"
 #include "n3w_esp32_runtime_nvs.h"
 #include "n3w_esp32_simple_nvs.h"
+#include "n3w_first_pair_boot_policy.h"
 #include "n3w_simple_crypto.h"
 #include "n3w_simple_pairing_client.h"
 #include "n3w_simple_product_component.h"
@@ -34,7 +35,35 @@ class GreenhouseN3wCore : public SimpleProductComponent {
   }
 
   void setup() override {
-    fresh_identity_candidate_ = !persisted_runtime_state_present_();
+    if (!product_runtime_enabled_) {
+      SimpleProductComponent::setup();
+      return;
+    }
+
+    const StartupProductIdentityState startup_identity =
+        classify_startup_product_identity_();
+    if (startup_identity == StartupProductIdentityState::INVALID_OR_PARTIAL) {
+      ESP_LOGE(
+          "n3w_boot_session",
+          "Startup product identity state is partial, corrupt, or contradictory");
+      mark_failed();
+      return;
+    }
+
+    if (startup_identity == StartupProductIdentityState::PROVEN_FRESH) {
+      const CoreError floor_result =
+          prepare_initial_boot_floor(
+              &boot_session_manager_, &boot_session_store_);
+      if (floor_result != CoreError::NONE) {
+        ESP_LOGE(
+            "n3w_boot_session",
+            "Initial boot-session floor preparation failed code=%u",
+            static_cast<unsigned>(floor_result));
+        mark_failed();
+        return;
+      }
+    }
+
     SimpleProductComponent::setup();
   }
 
@@ -439,54 +468,51 @@ class GreenhouseN3wCore : public SimpleProductComponent {
     reset_direct_broker_relocation_(false);
   }
 
-  bool persisted_runtime_state_present_() {
+  static StartupIdentityRecordState startup_identity_record_state_(
+      SimpleNvsStatus status,
+      bool valid) {
+    if (status == SimpleNvsStatus::MISSING) {
+      return StartupIdentityRecordState::MISSING;
+    }
+    if (status == SimpleNvsStatus::OK && valid) {
+      return StartupIdentityRecordState::VALID;
+    }
+    return StartupIdentityRecordState::INVALID;
+  }
+
+  StartupProductIdentityState classify_startup_product_identity_() {
     ProvisionedPeerStateV2 peer;
     ProvisionedBrokerStateV2 broker;
-    const bool present =
-        peer_store_.load(&peer) == SimpleNvsStatus::OK &&
-        broker_store_.load(&broker) == SimpleNvsStatus::OK && peer.valid() &&
-        broker.valid() && peer.system_id == broker.system_id &&
+    PendingPairingAckV2 pending;
+
+    const SimpleNvsStatus peer_status = peer_store_.load(&peer);
+    const SimpleNvsStatus broker_status = broker_store_.load(&broker);
+    const SimpleNvsStatus ack_status = ack_store_.load(&pending);
+
+    const bool peer_valid =
+        peer_status == SimpleNvsStatus::OK && peer.valid();
+    const bool broker_valid =
+        broker_status == SimpleNvsStatus::OK && broker.valid();
+    const bool ack_valid =
+        ack_status == SimpleNvsStatus::OK && pending.valid();
+    const bool peer_broker_match =
+        peer_valid && broker_valid && peer.system_id == broker.system_id &&
         peer.node_id == broker.node_id;
+
+    const StartupProductIdentityState state = classify_startup_product_identity(
+        startup_identity_record_state_(peer_status, peer_valid),
+        startup_identity_record_state_(broker_status, broker_valid),
+        peer_broker_match,
+        startup_identity_record_state_(ack_status, ack_valid));
+
     peer.clear();
     broker.clear();
-    return present;
+    pending.clear();
+    return state;
   }
 
   bool begin_boot_session_if_needed_() {
     if (boot_session_manager_.ready()) return true;
-
-    uint64_t last_session = 0;
-    StoreStatus store_status = boot_session_store_.load(&last_session);
-    if (store_status == StoreStatus::MISSING) {
-      // Only a device that had no persisted product identity when this process
-      // started may establish the initial zero floor. A provisioned identity
-      // with a missing counter is a rollback/recovery condition and fails closed.
-      if (!fresh_identity_candidate_ || !provisioned()) {
-        ESP_LOGE(
-            "n3w_boot_session",
-            "Provisioned identity has no durable boot-session counter");
-        mark_failed();
-        return false;
-      }
-      const CoreError provision_result =
-          boot_session_manager_.provision_recovery_floor(
-              &boot_session_store_, 0);
-      if (provision_result != CoreError::NONE) {
-        ESP_LOGE(
-            "n3w_boot_session",
-            "Initial boot-session floor persistence failed code=%u",
-            static_cast<unsigned>(provision_result));
-        mark_failed();
-        return false;
-      }
-    } else if (store_status != StoreStatus::OK) {
-      ESP_LOGE(
-          "n3w_boot_session",
-          "Durable boot-session counter unavailable status=%u",
-          static_cast<unsigned>(store_status));
-      mark_failed();
-      return false;
-    }
 
     const CoreError begin_result =
         boot_session_manager_.begin(&boot_session_store_, 0);
@@ -503,7 +529,6 @@ class GreenhouseN3wCore : public SimpleProductComponent {
   }
 
   bool product_runtime_enabled_{false};
-  bool fresh_identity_candidate_{false};
   bool direct_broker_relocation_owned_{false};
   uint64_t direct_mqtt_failure_started_ms_{0};
   NvsBootSessionStore boot_session_store_{};
