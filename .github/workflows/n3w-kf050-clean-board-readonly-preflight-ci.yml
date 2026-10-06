@@ -1,0 +1,31 @@
+name: N3W KF050 clean-board readonly preflight CI
+
+on:
+  push:
+    branches:
+      - fix/n3w-auto-safe-fallback-production-core-convergence-20261003
+    paths:
+      - tools/execution_packages/n3w/auto_safe_fallback/clean_board_eligibility_readonly_preflight/**
+      - tests/execution_packages/n3w/auto_safe_fallback/clean_board_eligibility_readonly_preflight/**
+      - .github/workflows/n3w-kf050-clean-board-readonly-preflight-ci.yml
+  pull_request:
+    paths:
+      - tools/execution_packages/n3w/auto_safe_fallback/clean_board_eligibility_readonly_preflight/**
+      - tests/execution_packages/n3w/auto_safe_fallback/clean_board_eligibility_readonly_preflight/**
+      - .github/workflows/n3w-kf050-clean-board-readonly-preflight-ci.yml
+
+permissions:
+  contents: read
+
+jobs:
+  readonly-preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install --disable-pip-version-check pytest
+      - run: python -m py_compile tools/execution_packages/n3w/auto_safe_fallback/clean_board_eligibility_readonly_preflight/executor.py
+      - run: python -m pytest -q tests/execution_packages/n3w/auto_safe_fallback/clean_board_eligibility_readonly_preflight/test_executor.py
