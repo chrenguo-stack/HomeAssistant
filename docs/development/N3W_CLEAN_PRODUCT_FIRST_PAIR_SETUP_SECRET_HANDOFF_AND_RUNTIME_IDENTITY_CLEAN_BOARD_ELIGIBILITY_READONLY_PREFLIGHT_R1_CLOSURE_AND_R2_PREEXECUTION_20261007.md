@@ -600,3 +600,63 @@ R2_AUTHORIZATION_STILL_AVAILABLE=true
 Do not run board-targeted esptool yet. The next discriminator should be a
 host-only event/log capture around one transition, correlating USB interface and
 serial-client attach/detach messages. No serial open is needed.
+
+
+## 17. R2 direct-interface inventory result and next disposition
+
+The direct IOUSBHostInterface sample produced three public-safe states:
+
+```text
+STATE_A=parent:1,interfaces:4,ioserial:1,cu:1,tty:1
+STATE_B=parent:1,interfaces:3,ioserial:1,cu:1,tty:1
+STATE_C=parent:1,interfaces:4,ioserial:0,cu:1,tty:1
+
+USB_PARENT_ALWAYS_PRESENT=true
+USB_INTERFACE_ALWAYS_PRESENT=true
+R2_INTERFACE_INVENTORY_RESULT=NONCONSTANT_3_4
+IOSERIAL_ALWAYS_PRESENT=false
+CU_ALWAYS_PRESENT=true
+TTY_ALWAYS_PRESENT=true
+
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+BOARD_TARGETED_ESPTOOL=false
+STOP=true
+```
+
+The individual host queries within each sample are sequential, not atomic.
+Therefore `ioserial:0` together with still-present BSD device nodes is treated
+as a transition/race observation, not a persistent orphan-node condition.
+However, the direct interface-service inventory itself was not constant (3/4)
+while the USB parent remained present.
+
+Current bounded interpretation:
+
+```text
+USB_PARENT_STABLE=true
+USB_INTERFACE_SERVICE_INVENTORY_STABLE=false
+SERIAL_PUBLICATION_INTERMITTENT=true
+FULL_USB_DEVICE_DISCONNECT_OBSERVED=false
+EXACT_ROOT_CAUSE=TBD
+PRODUCT_DEFECT=false
+```
+
+Espressif documentation states that USB Serial/JTAG becomes unusable during
+light/deep sleep and can appear disconnected to the host; application-side
+pin/controller changes can also make it disappear. This makes current
+factory/application runtime behavior a plausible device-side explanation, but
+it is not yet proven.
+
+Repository history also contains KF-088: controlled RESET can transiently sample
+GPIO9 low and place ESP32-C6 in ROM Download Mode. Therefore a reset/BOOT action
+must not be introduced casually as an untracked diagnostic. If the next step
+deliberately enters ROM Download Mode to isolate the running application from
+the USB-serial instability, it must be treated as an explicit physical-harness
+step with its own recorded authorization boundary and post-action mode proof.
+
+```text
+R2_AUTHORIZATION_STILL_AVAILABLE=true
+R2_BOARD_PROBE_NOT_STARTED=true
+NEXT_DISPOSITION=PREPARE_CONTROLLED_ROM_DOWNLOAD_MODE_ISOLATION_STEP
+AUTO_EXECUTE=false
+```
