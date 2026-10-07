@@ -52,8 +52,25 @@ HISTORICAL_RUNTIME_FILES = {
 }
 
 RETIRED_PRODUCT_COMPONENTS = {
-    "greenhouse_n3w_product_core",
     "greenhouse_n3w_product_runtime",
+}
+
+PRODUCTION_SUCCESSOR_COMPONENT = "greenhouse_n3w_product_core"
+PRODUCTION_SUCCESSOR_PROVENANCE_MARKERS = {
+    "independent production successor",
+    "merged PR #437 product source",
+}
+RETIRED_PRODUCT_CORE_FILES = {
+    "n3w_product_core.cpp",
+    "n3w_product_core.h",
+}
+PURE_LAB_PRODUCT_FILES = {
+    "n3w_lab_diagnostics.cpp",
+    "n3w_lab_diagnostics.h",
+    "n3w_phase4_physical_harness.cpp",
+    "n3w_phase4_physical_harness.h",
+    "n3w_rtc_breadcrumb.cpp",
+    "n3w_rtc_breadcrumb.h",
 }
 
 RETIRED_PRODUCT_WORKFLOWS = {
@@ -145,18 +162,48 @@ def test_retired_product_components_are_absent() -> None:
     assert RETIRED_PRODUCT_COMPONENTS.isdisjoint(present)
 
 
+def test_production_successor_is_present_and_provenanced() -> None:
+    component = COMPONENT_ROOT / PRODUCTION_SUCCESSOR_COMPONENT
+    provenance = component / "PROVENANCE.md"
+
+    assert component.is_dir()
+    assert provenance.is_file()
+
+    provenance_text = provenance.read_text(encoding="utf-8")
+    for marker in PRODUCTION_SUCCESSOR_PROVENANCE_MARKERS:
+        assert marker in provenance_text
+
+    present_files = {path.name for path in component.iterdir() if path.is_file()}
+    assert RETIRED_PRODUCT_CORE_FILES.isdisjoint(present_files)
+    assert PURE_LAB_PRODUCT_FILES.isdisjoint(present_files)
+
+
 def test_retired_product_workflows_are_absent() -> None:
     present = {path.name for path in WORKFLOW_ROOT.glob("*.yml")}
     assert RETIRED_PRODUCT_WORKFLOWS.isdisjoint(present)
 
 
-def test_normal_rc2_does_not_select_retired_product_runtime() -> None:
+def test_normal_rc2_does_not_select_n3w_product_runtime() -> None:
     rc2 = (
         REPO_ROOT / "firmware" / "esphome_rc" / "f1_0_rc2" / "f1_0_rc2.yml"
     ).read_text(encoding="utf-8")
-    assert "greenhouse_n3w_product_core" not in rc2
+    assert PRODUCTION_SUCCESSOR_COMPONENT not in rc2
     assert "greenhouse_n3w_product_runtime" not in rc2
     assert "GREENHOUSE_N3W_ENABLE_LEGACY_RADIO" not in rc2
+
+
+def test_n3w_product_target_selects_only_current_successor() -> None:
+    target = (
+        REPO_ROOT
+        / "firmware"
+        / "esphome_rc"
+        / "f1_0_rc2"
+        / "f1_0_rc2_n3w_target.yml"
+    ).read_text(encoding="utf-8")
+
+    assert f"- {PRODUCTION_SUCCESSOR_COMPONENT}" in target
+    assert "greenhouse_n3w_product_runtime" not in target
+    assert "GREENHOUSE_N3W_ENABLE_LEGACY_RADIO" not in target
 
 
 def test_legacy_radio_is_explicit_opt_in_only() -> None:
