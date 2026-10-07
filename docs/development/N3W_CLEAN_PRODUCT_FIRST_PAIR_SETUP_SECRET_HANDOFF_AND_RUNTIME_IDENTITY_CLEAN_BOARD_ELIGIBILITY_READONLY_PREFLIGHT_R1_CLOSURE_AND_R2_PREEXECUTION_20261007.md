@@ -687,3 +687,51 @@ The existing P1 R2 read-only board-probe authorization remains separately
 granted but unclaimed/unconsumed. It is not consumed by the host-only
 post-ROM observation. The ROM-isolation authorization becomes claimed/consumed
 when the operator performs the authorized BOOT+RESET action.
+
+
+## 19. R2 ROM Download Mode USB stability result
+
+After the explicitly authorized BOOT+RESET isolation action, the same candidate
+was observed for 10 seconds using host-only USB/serial publication checks.
+
+```text
+ROM_DOWNLOAD_MODE_ISOLATION_AUTHORIZATION_CLAIMED=true
+ROM_DOWNLOAD_MODE_ISOLATION_AUTHORIZATION_CONSUMED=true
+
+ROM_DOWNLOAD_MODE_USB_STABILITY=PASS
+OBSERVATION_SECONDS=10
+SAMPLE_COUNT=20
+DISTINCT_STATE_COUNT=1
+
+USB_PARENT_ALWAYS_PRESENT=true
+IOSERIAL_ALWAYS_PRESENT=true
+CU_ALWAYS_PRESENT=true
+TTY_ALWAYS_PRESENT=true
+
+OBSERVED_STATE=parent:1,ioserial:1,cu:1,tty:1
+
+P1_R2_AUTHORIZATION_CLAIMED=false
+P1_R2_AUTHORIZATION_CONSUMED=false
+BOARD_TARGETED_ESPTOOL=false
+FLASH_WRITE=false
+FLASH_ERASE=false
+NVS_WRITE=false
+STOP=true
+```
+
+This is strong discriminator evidence that the earlier serial-publication
+instability is associated with the previous running-board state rather than a
+persistent loss of the physical USB parent/device path. It does not prove the
+exact mechanism inside the previous application/runtime.
+
+```text
+PREVIOUS_RUNTIME_ASSOCIATION=STRONGLY_SUPPORTED
+EXACT_RUNTIME_MECHANISM=TBD
+MACOS_PERSISTENT_USB_FAILURE_NOT_SUPPORTED_BY_ROM_OBSERVATION=true
+PRODUCT_DEFECT=false
+```
+
+The already-granted P1 R2 read-only board-probe authorization remains available.
+Before its first board-targeted command, the executor must repeat the two
+zero-owner preclaim checks. The first successful attempt to invoke read-only
+`get-security-info` is the R2 authorization claim/consume boundary.
