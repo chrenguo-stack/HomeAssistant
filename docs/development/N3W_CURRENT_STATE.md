@@ -1,3 +1,37 @@
+## 2026-10-08 P2 R3 explicit-T1 SSH successor authorization
+
+```text
+P1_R2_CLEAN_BOARD_ELIGIBILITY=CLOSED_PASS
+P2_INITIAL_AUTHORIZATION_CONSUMED=true
+P2_R2_AUTHORIZATION_CONSUMED=true
+P2_R3_EXPLICIT_T1_AUTHORIZATION_GRANTED=true
+P2_R3_AUTHORIZATION_CLAIMED=false
+P2_R3_AUTHORIZATION_CONSUMED=false
+P2_R3_PROGRESS=AUTHORIZED_AWAITING_SSH_PROBE
+NEXT_ONE_GATE=N3W_CLEAN_PRODUCT_FIRST_PAIR_P2_R3_EXPLICIT_T1_SSH_READONLY_SUCCESSOR
+
+P2_R3_SSH_TARGET=OPERATOR_PROVEN_EXPLICIT_ROOT_T1
+P2_R3_SSH_ALIAS_t1=NOT_USED
+P2_MANAGER_PREBOOT_SNAPSHOT_CREATED=false
+READY_FOR_P2_READONLY_BASELINE=false
+
+BOARD_ACCESS=false
+BOARD_WRITE=false
+MANAGER_RESTART=false
+BROKER_RESTART=false
+T1_CONFIGURATION_MUTATION=false
+MANAGER_DB_WRITE=false
+MANAGER_REPLAY_MUTATION=false
+MANAGER_HIGH_WATER_CLEAR=false
+AUTO_P3=false
+STOP=true
+```
+
+R3 allows exactly one bounded SSH connectivity test to the operator-proven
+explicit root target followed, only on success, by the preauthorized read-only
+P2 baseline and preboot identity snapshot. No failure retry. The two
+previous SSH grants remain consumed and never replayed.
+
 ## 2026-10-08 P2 SSH alias discrepancy confirmed locally
 
 ```text
