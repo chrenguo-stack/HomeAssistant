@@ -473,3 +473,53 @@ while IOSerial disappears, the fault is below USB-interface enumeration and in
 serial-driver/client publication. If the matching USB interface set changes,
 the instability is at the device-interface/re-enumeration layer even though the
 parent USB device remains present.
+
+
+## 14. R2 USB-interface vs IOSerial diagnosis
+
+The next host-only observation again proved that the Espressif USB parent
+remained present while the macOS serial client and both BSD serial nodes
+disappeared.
+
+```text
+OBSERVATION_SECONDS=10
+SAMPLE_COUNT=20
+DISTINCT_STATE_COUNT=2
+
+USB_PARENT_ALWAYS_PRESENT=true
+IOSERIAL_ALWAYS_PRESENT=false
+CU_ALWAYS_PRESENT=false
+TTY_ALWAYS_PRESENT=false
+
+STATE_A=parent:1,ioserial:1,cu:1,tty:1
+STATE_B=parent:1,ioserial:0,cu:0,tty:0
+
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+BOARD_TARGETED_ESPTOOL=false
+STOP=true
+```
+
+The attempted USB-interface discriminator did **not** produce usable interface
+evidence: both sampled states returned an empty `interfaces` list. Therefore
+`USB_INTERFACE_SET_STABLE=true` is a vacuous result from the diagnostic
+parser and must not be treated as proof that the matching USB interface set
+actually remained stable.
+
+```text
+R2_USB_INTERFACE_DIAGNOSIS=INCONCLUSIVE_EMPTY_INTERFACE_SET
+USB_INTERFACE_SET_STABILITY=NOT_PROVEN
+USB_PARENT_DEVICE_STABLE=true
+IOSERIALBSDCLIENT_PUBLICATION_UNSTABLE=true
+BSD_SERIAL_NODE_PUBLICATION_UNSTABLE=true
+FULL_USB_DEVICE_DISCONNECT_OBSERVED=false
+
+DOMAIN=PHYSICAL_HARNESS
+EXACT_ROOT_CAUSE=TBD
+PRODUCT_DEFECT=false
+R2_AUTHORIZATION_STILL_AVAILABLE=true
+```
+
+The next diagnostic must remain host-only and use a direct
+`IOUSBHostInterface` service query rather than inferring child interface
+objects from the USB-parent plist tree.
