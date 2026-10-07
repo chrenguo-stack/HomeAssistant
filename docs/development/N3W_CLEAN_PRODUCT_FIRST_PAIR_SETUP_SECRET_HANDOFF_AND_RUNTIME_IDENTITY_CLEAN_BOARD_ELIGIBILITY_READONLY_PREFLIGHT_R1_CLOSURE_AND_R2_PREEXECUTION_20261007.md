@@ -275,3 +275,19 @@ LIVE_MUTATION=false
 NEXT_ACTION=REQUEST_EXPLICIT_R2_READONLY_BOARD_AUTHORIZATION
 STOP=true
 ```
+
+
+## 9. R2 operator authorization grant
+
+```text
+R2_AUTHORIZATION_GRANT_RECORDED=true
+AUTHORIZATION_CLASS=NEW_CANDIDATE_BOARD_READONLY_ACCESS_R2
+AUTHORIZATION_GRANTED=true
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+CANDIDATE_BOARD=same genuinely new candidate from R1
+BOARD_TARGETED_ESPTOOL=false
+NEXT_ACTION=HOST_ONLY_USB_OWNERSHIP_PRECLAIM
+```
+
+The operator explicitly authorized P1 R2 read-only access and confirmed continued use of the same genuinely new candidate board. Per the R2 contract, authorization is not claimed or consumed until the first board-targeted `esptool get-security-info` invocation begins after both zero-owner preclaim checks pass.
