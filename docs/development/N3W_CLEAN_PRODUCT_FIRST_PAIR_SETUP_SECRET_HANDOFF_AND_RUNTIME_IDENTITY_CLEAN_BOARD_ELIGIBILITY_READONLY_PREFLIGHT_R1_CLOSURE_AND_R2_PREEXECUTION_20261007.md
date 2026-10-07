@@ -423,3 +423,53 @@ R2_AUTHORIZATION_STILL_AVAILABLE=true
 Do not run board-targeted esptool yet. The next diagnostic should remain
 host-only and inspect the macOS IOSerialBSDClient / USB-interface publication
 state and recent USB/serial kernel log events across the same transition.
+
+
+## 13. R2 macOS IOSerial publication diagnosis
+
+The next host-only observation sampled `IOSerialBSDClient` together with both
+BSD serial device-node classes for 10 seconds. No serial device was opened.
+
+```text
+R2_IOSERIAL_PUBLICATION_RESULT=UNSTABLE
+OBSERVATION_SECONDS=10
+SAMPLE_COUNT=20
+DISTINCT_STATE_COUNT=2
+
+STATE_A=cu:1,tty:1,ioserial:true
+STATE_B=cu:0,tty:0,ioserial:false
+
+CU_ALWAYS_PRESENT=false
+TTY_ALWAYS_PRESENT=false
+IOSERIAL_ALWAYS_PRESENT=false
+
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+BOARD_TARGETED_ESPTOOL=false
+STOP=true
+```
+
+Combined with the previous observation that the Espressif USB parent and
+USB-JTAG/Serial PID remained continuously present, this localizes the observed
+instability above the USB parent-device layer and at or below the macOS serial
+client publication layer.
+
+```text
+USB_PARENT_DEVICE_STABLE=true
+IOSERIALBSDCLIENT_PUBLICATION_UNSTABLE=true
+BSD_SERIAL_NODE_PUBLICATION_UNSTABLE=true
+FULL_USB_DEVICE_DISCONNECT_OBSERVED=false
+
+DOMAIN=PHYSICAL_HARNESS
+EXACT_ROOT_CAUSE=TBD
+PRODUCT_DEFECT=false
+R2_AUTHORIZATION_STILL_AVAILABLE=true
+```
+
+Do not invoke board-targeted esptool. The next host-only discriminator is to
+sample the matching Espressif USB device's child `IOUSBHostInterface` objects
+at the same time as `IOSerialBSDClient`. If the USB interfaces remain stable
+while IOSerial disappears, the fault is below USB-interface enumeration and in
+serial-driver/client publication. If the matching USB interface set changes,
+the instability is at the device-interface/re-enumeration layer even though the
+parent USB device remains present.
