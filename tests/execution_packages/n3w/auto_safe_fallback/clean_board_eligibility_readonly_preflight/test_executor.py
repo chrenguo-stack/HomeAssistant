@@ -120,7 +120,7 @@ def test_executor_has_no_esptool_mutation_subcommands():
 
 def test_rom_mac_is_only_a_silicon_binding():
     module = load_module()
-    binding = module.silicon_binding_from_rom_mac("11:22:33:44:55:66")
+    binding = module.silicon_binding_from_rom_mac("112233445566")
     assert binding == "rom-c6-112233445566"
     assert module.public_binding_sha256(binding)
     assert module.SCHEMA.endswith("/2")
