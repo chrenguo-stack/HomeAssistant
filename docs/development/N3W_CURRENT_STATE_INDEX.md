@@ -1,18 +1,47 @@
 # N3-W Current State Index
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
-Current progress alignment: `docs/development/N3W_PR437_4270F24_TWO_RUN_FINAL_ALIGNMENT_AND_MERGE_REVIEW_20260921.md`  
-Current new-chat handoff: `docs/development/N3W_PR437_WIFI_RECOVERY_BUDGET_SOURCE_REPAIR_NEW_CHAT_HANDOFF_V1.1_20260921.md`  
+Current progress alignment: `docs/development/N3W_CLEAN_PRODUCT_FIRST_PAIR_HANDOFF_AND_IDENTITY_PROGRESS_ALIGNMENT_20261007.md`  
+Current new-chat handoff: `docs/development/N3W_CLEAN_PRODUCT_FIRST_PAIR_SETUP_SECRET_HANDOFF_AND_RUNTIME_IDENTITY_CLEAN_BOARD_ELIGIBILITY_READONLY_PREFLIGHT_NEW_CHAT_HANDOFF_V1.0_20261007.md`  
 Long-term working context: `docs/development/N3W_PROJECT_WORKING_CONTEXT.md`  
-Current handoff template: `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` v1.2  
-Latest merged product-source authority: PR #437 / merge `b9acaaad50b17c9cdb51c219330e612c383628f0` / frozen physical source `4270f24a92a87dd5239d781ebba624c2f34b7fc2`  
-Current successor candidate: none; PR #437 is merged  
-Current candidate tree: `a2f445bf2ea60ba9994a7a467f6492975d399c4f`  
-Current candidate exact artifact: artifact `10619047221` independently bound, deployed, and physically route-validated PASS  
-Current artifact binding authority: `docs/development/N3W_PR437_4270F24_EXACT_ARTIFACT_BUILD_AND_BINDING_EXECUTION_20260921.md`  
-Currently deployed Board B source: `4270f24a92a87dd5239d781ebba624c2f34b7fc2`  
+Exact handoff standard authority: `4300890dff0ce63d5a547df21426e287d084d9ee` / `HANDOFF_STANDARD_VERSION=1.0`  
+Current handoff template: `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` at exact authority above  
+Repository main at alignment: `d423211b6196c2f2f0f01dff072c4f877fbe58ee`  
+Current candidate PR: PR #522 / OPEN / DRAFT / UNMERGED  
+Current product-source authority: `629f096a32e087087ea32d30707dcc3cd6295e5d`  
+Current product-source tree: `0b97a97a63d7e251ed92cc96507386b454709161`  
+Current replacement exact artifact: artifact `11469977052` / build run `37594598870` / binding PASS  
+Current replacement release ZIP SHA256: `55155717f7d8cbe1eb7cd856d42ffd2ac937b364fbbd80d52f1d37b47a46856c`  
+Current replacement firmware SHA256: `4e4442808fdff7fc3ca16eb379bd06741a9eea3364e31f1365be5e6bee325c65`  
+Current artifact binding authority: `docs/development/N3W_CLEAN_PRODUCT_FIRST_PAIR_SETUP_SECRET_HANDOFF_AND_RUNTIME_IDENTITY_REPLACEMENT_EXACT_ARTIFACT_BUILD_AND_BINDING_20261007.md`  
+Current physical-acceptance plan: `docs/development/N3W_CLEAN_PRODUCT_FIRST_PAIR_SETUP_SECRET_HANDOFF_AND_RUNTIME_IDENTITY_CLEAN_BOARD_PHYSICAL_ACCEPTANCE_PREEXECUTION_20261007.md`  
 Current local-development-environment authority: `docs/development/local-environment-records/2026-09-17-macos-x86_64.json`  
 Active product-direction authority: `docs/development/N3W_OFFICIAL_ESPNOW_REFERENCE_PRODUCT_DIRECTION_DECISION_20260906.md`
+
+## 2026-10-07 clean-product P1 handoff snapshot
+
+```text
+FIRST_PAIR_HANDOFF_AND_IDENTITY_SOURCE_REPAIR=CLOSED_PASS
+REPLACEMENT_EXACT_ARTIFACT_BUILD_AND_BINDING=CLOSED_PASS
+CLEAN_BOARD_PHYSICAL_ACCEPTANCE_PREEXECUTION=PASS
+
+NEW_CLEAN_CANDIDATE_SELECTED=false
+BOARD_ACCESS=false
+FLASH_ERASE=false
+FLASH_WRITE=false
+T1_MUTATION=false
+MERGE=false
+
+PREFLIGHT_EXECUTOR_ARTIFACT_BINDING=STALE
+PREWRITTEN_EXECUTOR_REQUIRED=false
+NEXT_GATE_EXECUTION_AUTHORITY=FORMAL_HANDOFF_DSL_PLUS_REPLACEMENT_ARTIFACT_BINDING
+
+NEXT_ONE_GATE=N3W_CLEAN_PRODUCT_FIRST_PAIR_SETUP_SECRET_HANDOFF_AND_RUNTIME_IDENTITY_CLEAN_BOARD_ELIGIBILITY_READONLY_PREFLIGHT_20261007_01
+```
+
+The existing repository preflight helper still binds the superseded `157448b...` artifact and must not be used as exact artifact authority. The formal handoff DSL is self-contained and may be mechanically compiled with already-installed tools; no new executor is required merely to start P1.
+
+Older index sections below are historical snapshots. Where they conflict with this header, the 2026-10-07 header and fresh exact evidence take precedence.
 
 ## 2026-09-21 PR #437 merged snapshot
 
