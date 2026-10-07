@@ -9,13 +9,13 @@ font:
     id: f10
     size: 10
     bpp: 1
-    glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~℃°µ³手机相扫码配置节点如需重网络请快速断电启次今日昨较池即将耗尽及时充查找主添加等待对离线"
+    glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~℃°µ³手机相扫码配置节点如需重网络请快速断电启次今日昨较池即将耗尽及时充添加等待对"
 
   - file: "fonts/fusion-pixel-12px-monospaced-zh_hans.bdf"
     id: f12
     size: 12
     bpp: 1
-    glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~℃°µ二氧化碳气温湿度光照土壤盐传感器失联请检查接线项故障配扫码点置网正启重断电三次进入当前址成功在已连络手机相或动蒸压差露绝对累积今日昨如需快速充设备中量低查找主添加等待对离线"
+    glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~℃°µ二氧化碳气温湿度光照土壤盐传感器失联请检查接线项故障配扫码点置网正启重断电三次进入当前址成功在已连络手机相或动蒸压差露绝对累积今日昨如需快速充设备中量低离添加节等待找主"
 
   - file: "fonts/ark-pixel-16px-monospaced-zh_cn.bdf"
     id: f16
