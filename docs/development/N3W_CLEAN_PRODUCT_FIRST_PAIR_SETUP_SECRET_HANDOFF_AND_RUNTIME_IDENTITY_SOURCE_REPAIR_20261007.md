@@ -4,7 +4,7 @@
 TASK=N3W_CLEAN_PRODUCT_FIRST_PAIR_SETUP_SECRET_HANDOFF_AND_RUNTIME_IDENTITY_SOURCE_REPAIR_20261007_01
 STATUS=IMPLEMENTED_CI_PENDING
 DESIGN_BASE=6cf5f31daefa84a98b3c6711dcb19455a78a1014
-SOURCE_REPAIR_CODE_HEAD=fa99a2c1efff8b29793718c299b53aa20f218957
+SOURCE_REPAIR_CODE_HEAD=8085e6d50ca4d0e9fb7342e5fbffe437857f5d06
 BOARD_ACCESS=false
 T1_MUTATION=false
 MANAGER_REPLAY_MUTATION=false
@@ -99,18 +99,18 @@ New or extended coverage includes:
 - silicon-binding versus runtime-product-identity semantics;
 - full F1.0-RC2 N3-W target configuration and compile.
 
-Source delta from design authority to the code head changes 14 files and adds focused tests without touching board/T1 runtime state.
+Source repair plus CI-only follow-up remains source-only and adds focused tests without touching board/T1 runtime state.
 
 ## 6. CI binding
 
-At the time this document was created, the following code-head runs were queued:
+After the CI-only repair follow-up, the following final-head runs were queued:
 
 ```text
-SOURCE_REPAIR_CODE_HEAD=fa99a2c1efff8b29793718c299b53aa20f218957
-PRODUCTION_CONVERGENCE_RUN=37558355655
-CLEAN_BOARD_PREFLIGHT_RUN=37558355679
-GREENHOUSE_MANAGER_RUN=37558355638
-F1_RC2_FIRMWARE_RUN=37558355622
+SOURCE_REPAIR_CODE_HEAD=8085e6d50ca4d0e9fb7342e5fbffe437857f5d06
+PRODUCTION_CONVERGENCE_RUN=37570672418
+CLEAN_BOARD_PREFLIGHT_RUN=37570672324
+GREENHOUSE_MANAGER_RUN=37570672481
+F1_RC2_FIRMWARE_RUN=37570672403
 CI_STATUS=PENDING
 ```
 
