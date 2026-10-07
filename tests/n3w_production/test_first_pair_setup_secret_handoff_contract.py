@@ -20,6 +20,11 @@ MANAGER_HISTORY = (
     / "tools/execution_packages/n3w/auto_safe_fallback/"
     "clean_board_eligibility_readonly_preflight/manager_history_readonly.py"
 )
+RUNTIME_IDENTITY_BINDING = (
+    ROOT
+    / "tools/execution_packages/n3w/auto_safe_fallback/"
+    "clean_board_eligibility_readonly_preflight/runtime_identity_binding_readonly.py"
+)
 
 
 def test_pairing_qr_is_gated_by_successful_hello() -> None:
@@ -59,11 +64,13 @@ def test_lcd_page_five_has_three_product_states() -> None:
     assert '"扫码添加节点"' in display
     assert '"正在查找主机"' in display
     assert '"网络离线"' in display
-    assert "const int scale = 1;" in display
+    assert "const int qr_size = id(pairing_qr).get_size();" in display
+    assert "qr_size * 2 <= 60 ? 2 : 1" in display
 
     assert "pairing_handoff_ready()" in transport
     assert "pairing_qr_payload()" in transport
-    assert "id(setup_qr).set_value(payload);" in transport
+    assert "id(pairing_qr).set_value(payload);" in transport
+    assert 'value: "GHN3W2:pending"' in display
     assert "ESP_LOG" not in transport
     assert "GHN3W2:" not in transport
 
@@ -74,6 +81,8 @@ def test_complete_pairing_payload_uses_existing_manager_socket() -> None:
     assert '"import-payload"' in cli
     assert '"--payload-stdin"' in cli
     assert "PAIRING_PAYLOAD_RE.fullmatch" in cli
+    assert "base64.b64decode" in cli
+    assert "len(decoded_secret) != 32" in cli
     assert "import_setup_secret_over_socket(" in cli
     assert "setup_secret=setup_secret" in cli
     assert "print(PAYLOAD" not in cli
@@ -94,3 +103,12 @@ def test_clean_board_preflight_does_not_claim_product_identity_from_rom_mac() ->
     assert "--product-hardware-id-sha256" in history
     assert "RUNTIME_QR_EQUALS_MANAGER_PENDING" in history
     assert "--hardware-id-sha256" not in history
+
+    binding = RUNTIME_IDENTITY_BINDING.read_text(encoding="utf-8")
+    assert '"snapshot"' in binding
+    assert '"verify"' in binding
+    assert "new pending product identity is not unique" in binding
+    assert "LCD product identity does not match new pending identity" in binding
+    assert "LCD pairing identity does not match new pending transaction" in binding
+    assert '"manager_mutation": False' in binding
+    assert '"manager_replay_mutation": False' in binding
