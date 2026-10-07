@@ -377,3 +377,49 @@ Do not invoke board-targeted esptool until the host can prove a stable USB
 device/serial-interface presence. The next diagnostic remains host-only and
 must compare USB-device presence with both `/dev/cu.usbmodem*` and
 `/dev/tty.usbmodem*` presence over the same bounded window.
+
+
+## 12. R2 USB parent vs serial-interface diagnosis
+
+The follow-up host-only observation sampled both the USB parent device and
+macOS serial device nodes for 10 seconds without opening either serial device.
+
+```text
+R2_USB_PARENT_STABLE_SERIAL_INTERFACE_UNSTABLE=true
+OBSERVATION_SECONDS=10
+SAMPLE_COUNT=20
+DISTINCT_STATE_COUNT=2
+
+ESPRESSIF_USB_ALWAYS_PRESENT=true
+USB_JTAG_SERIAL_PID_ALWAYS_PRESENT=true
+
+CU_ALWAYS_PRESENT=false
+TTY_ALWAYS_PRESENT=false
+
+OBSERVED_STATE_A=cu:1,tty:1,EspressifVID:1,USB-JTAG-SerialPID:1
+OBSERVED_STATE_B=cu:0,tty:0,EspressifVID:1,USB-JTAG-SerialPID:1
+
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+BOARD_TARGETED_ESPTOOL=false
+STOP=true
+```
+
+This rules against a complete loss of the USB parent device during the sampled
+window. The failure is now localized below the parent USB-device layer and at
+or above the macOS serial-interface publication layer: the Espressif USB
+device with the expected USB-JTAG/Serial PID remains present while both
+`/dev/cu.usbmodem*` and `/dev/tty.usbmodem*` disappear.
+
+```text
+DOMAIN=PHYSICAL_HARNESS
+FULL_USB_DEVICE_DISCONNECT_OBSERVED=false
+SERIAL_BSD_NODE_PUBLICATION_UNSTABLE=true
+EXACT_ROOT_CAUSE=TBD
+PRODUCT_DEFECT=false
+R2_AUTHORIZATION_STILL_AVAILABLE=true
+```
+
+Do not run board-targeted esptool yet. The next diagnostic should remain
+host-only and inspect the macOS IOSerialBSDClient / USB-interface publication
+state and recent USB/serial kernel log events across the same transition.
