@@ -84,7 +84,7 @@ jobs:
         run: PYTHONPATH=host/greenhouse-manager/src pytest -q host/greenhouse-manager/tests/ops/test_n3w_pairing_cli.py
 
       - name: Clean-board identity semantics regression
-        run: pytest -q tests/execution_packages/n3w/auto_safe_fallback/clean_board_eligibility_readonly_preflight/test_executor.py tests/execution_packages/n3w/auto_safe_fallback/clean_board_eligibility_readonly_preflight/test_manager_history_readonly.py
+        run: pytest -q tests/execution_packages/n3w/auto_safe_fallback/clean_board_eligibility_readonly_preflight/test_executor.py tests/execution_packages/n3w/auto_safe_fallback/clean_board_eligibility_readonly_preflight/test_manager_history_readonly.py tests/execution_packages/n3w/auto_safe_fallback/clean_board_eligibility_readonly_preflight/test_runtime_identity_binding_readonly.py
 
       - name: PR474 full-channel regression contract
         run: pytest -q tests/n3w_production/test_relay_discovery_full_channel_fallback_v1_contract.py
