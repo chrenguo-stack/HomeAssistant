@@ -170,8 +170,9 @@ def test_production_successor_is_present_and_provenanced() -> None:
     assert provenance.is_file()
 
     provenance_text = provenance.read_text(encoding="utf-8")
+    normalized_provenance = " ".join(provenance_text.split())
     for marker in PRODUCTION_SUCCESSOR_PROVENANCE_MARKERS:
-        assert marker in provenance_text
+        assert marker in normalized_provenance
 
     present_files = {path.name for path in component.iterdir() if path.is_file()}
     assert RETIRED_PRODUCT_CORE_FILES.isdisjoint(present_files)
