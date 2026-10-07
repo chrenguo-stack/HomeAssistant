@@ -35,16 +35,16 @@ FLASH_ARGS_SHA256 = "5dc4c4f6d568812713266e2604197cf4b68f87f49f8c6e9f7d28c84390f
 PARTITION_TABLE_OFFSET = 0x8000
 PARTITION_TABLE_READ_SIZE = 0x1000
 FLASH_SIZE_BYTES = 8 * 1024 * 1024
-KNOWN_BOARD_HARDWARE_IDS = {
-    "ghw-c6-98a316a9f350",
-    "ghw-c6-98a316a9f45c",
+KNOWN_BOARD_SILICON_BINDINGS = {
+    "rom-c6-98a316a9f350",
+    "rom-c6-98a316a9f45c",
 }
 TARGET_NAMESPACES = {
     "gh_n3w_v2": {"peer", "broker", "pair_ack", "pair_intent", "setup", "pair_epoch"},
     "gh_n3w": {"boot_state"},
 }
 DISTINCTIVE_KEYS = {"pair_ack", "pair_intent", "pair_epoch", "boot_state"}
-SCHEMA = "n3w.kf050.clean-board-eligibility-readonly-preflight/1"
+SCHEMA = "n3w.kf050.clean-board-eligibility-readonly-preflight/2"
 
 MAC_RE = re.compile(r"\bMAC:\s*([0-9a-fA-F]{2}(?::[0-9a-fA-F]{2}){5})\b")
 ESPTOOL_VERSION_RE = re.compile(r"\besptool(?:\.py)?\s+v?(\d+)\.(\d+)\.(\d+)\b", re.I)
@@ -79,17 +79,17 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def hardware_id_from_mac(raw_mac: str) -> str:
+def silicon_binding_from_rom_mac(raw_mac: str) -> str:
     compact = raw_mac.replace(":", "").lower()
     if not re.fullmatch(r"[0-9a-f]{12}", compact):
         raise StopExecution("invalid ROM MAC format")
-    return "ghw-c6-" + compact
+    return "rom-c6-" + compact
 
 
-def public_identity_sha256(hardware_id: str) -> str:
-    if not re.fullmatch(r"ghw-c6-[0-9a-f]{12}", hardware_id):
-        raise StopExecution("invalid hardware id format")
-    return sha256_bytes(hardware_id.encode("ascii"))
+def public_binding_sha256(silicon_binding: str) -> str:
+    if not re.fullmatch(r"rom-c6-[0-9a-f]{12}", silicon_binding):
+        raise StopExecution("invalid silicon binding format")
+    return sha256_bytes(silicon_binding.encode("ascii"))
 
 
 def run_capture(args: list[str], port: str | None = None) -> str:
@@ -287,7 +287,7 @@ def read_flash_region(port: str, offset: int, size: int, destination: Path) -> N
         raise StopExecution("flash read size mismatch")
 
 
-def probe_security_and_identity(port: str) -> tuple[str, str]:
+def probe_security_and_silicon_binding(port: str) -> tuple[str, str]:
     security = run_capture(
         esptool_base()
         + ["--chip", "esp32c6", "--port", port, "--no-stub", "get-security-info"],
@@ -308,10 +308,10 @@ def probe_security_and_identity(port: str) -> tuple[str, str]:
     )
     if FLASH_8MB_RE.search(flash) is None:
         raise StopExecution("8MB flash not proven")
-    hardware_id = hardware_id_from_mac(mac_match.group(1))
-    if hardware_id in KNOWN_BOARD_HARDWARE_IDS:
+    silicon_binding = silicon_binding_from_rom_mac(mac_match.group(1))
+    if silicon_binding in KNOWN_BOARD_SILICON_BINDINGS:
         raise StopExecution("candidate matches historical Board A or Board B")
-    return hardware_id, mac_match.group(1).lower()
+    return silicon_binding, mac_match.group(1).lower()
 
 
 def write_json_private(path: Path, payload: dict[str, object]) -> None:
@@ -340,8 +340,8 @@ def main() -> int:
         private_dir.mkdir(parents=True, exist_ok=True)
         os.chmod(private_dir, 0o700)
 
-        hardware_id, raw_mac = probe_security_and_identity(port)
-        identity_hash = public_identity_sha256(hardware_id)
+        silicon_binding, raw_mac = probe_security_and_silicon_binding(port)
+        silicon_binding_hash = public_binding_sha256(silicon_binding)
 
         partition_path = private_dir / "partition-table-read.bin"
         read_flash_region(port, PARTITION_TABLE_OFFSET, PARTITION_TABLE_READ_SIZE, partition_path)
@@ -370,7 +370,7 @@ def main() -> int:
             "created_at": dt.datetime.now(dt.timezone.utc).isoformat(),
             "port": port,
             "raw_mac": raw_mac,
-            "hardware_id": hardware_id,
+            "silicon_binding": silicon_binding,
             "release_zip": str(release_path),
             "partition_table_file": str(partition_path),
             "nvs_files": [str(path) for path in sorted(private_dir.glob("nvs-*.bin"))],
@@ -386,8 +386,10 @@ def main() -> int:
                 "flash_size": "8MB",
                 "secure_boot": False,
                 "flash_encryption": False,
-                "hardware_id_sha256": identity_hash,
-                "hardware_id_unique_vs_board_a_b": True,
+                "silicon_binding_sha256": silicon_binding_hash,
+                "silicon_binding_unique_vs_board_a_b": True,
+                "product_hardware_id_sha256": None,
+                "product_identity_status": "DEFERRED_UNTIL_RUNTIME_QR_MANAGER_BINDING",
                 "partition_table_state": partition_state,
                 "partition_table_read_sha256": sha256_bytes(partition_raw),
                 "nvs_partition_count": len(nvs_results),
@@ -432,7 +434,8 @@ def main() -> int:
             return 3
 
         print("CLEAN_BOARD_ELIGIBILITY_LOCAL=PASS")
-        print(f"HARDWARE_ID_SHA256={identity_hash}")
+        print(f"SILICON_BINDING_SHA256={silicon_binding_hash}")
+        print("PRODUCT_HARDWARE_ID_SHA256=DEFERRED")
         print("CHIP=ESP32-C6")
         print("FLASH_SIZE=8MB")
         print("SECURE_BOOT=false")
@@ -445,7 +448,7 @@ def main() -> int:
         print("T1_MUTATION=false")
         print(f"PUBLIC_OUTPUT={public_output}")
         print(f"PRIVATE_EVIDENCE_DIR={private_dir}")
-        print("NEXT_CHECK=MANAGER_HISTORY_READONLY")
+        print("NEXT_CHECK=PRODUCT_RUNTIME_IDENTITY_BINDING_AFTER_FIRST_BOOT")
         return 0
     except StopExecution as exc:
         print(f"STOP={exc}", file=sys.stderr)
