@@ -105,5 +105,6 @@ def test_script_contains_no_sql_mutation_statements():
     for statement in ("INSERT INTO", "UPDATE ", "DELETE FROM", "DROP TABLE", "ALTER TABLE"):
         assert statement not in source
     assert "PRAGMA QUERY_ONLY=ON" in source
-    assert "--HARDWARE-ID-SHA256" in source
-    assert "--HARDWARE-ID\"" not in source
+    assert "--PRODUCT-HARDWARE-ID-SHA256" in source
+    assert "--HARDWARE-ID-SHA256" not in source
+    assert "RUNTIME_QR_EQUALS_MANAGER_PENDING" in source
