@@ -660,3 +660,30 @@ R2_BOARD_PROBE_NOT_STARTED=true
 NEXT_DISPOSITION=PREPARE_CONTROLLED_ROM_DOWNLOAD_MODE_ISOLATION_STEP
 AUTO_EXECUTE=false
 ```
+
+
+## 18. R2 ROM Download Mode isolation authorization
+
+The operator explicitly authorized one deliberate BOOT+RESET transition on the
+same genuinely new candidate board for USB-stability isolation only.
+
+```text
+ROM_DOWNLOAD_MODE_ISOLATION_AUTHORIZATION_GRANTED=true
+ROM_DOWNLOAD_MODE_ISOLATION_AUTHORIZATION_CLAIMED=false
+ROM_DOWNLOAD_MODE_ISOLATION_AUTHORIZATION_CONSUMED=false
+
+ALLOWED_PHYSICAL_ACTION=one BOOT+RESET sequence to enter ESP32-C6 ROM Download Mode
+FLASH_WRITE=false
+FLASH_ERASE=false
+NVS_WRITE=false
+APPLICATION_SERIAL_OPEN=false
+BOARD_TARGETED_ESPTOOL=false
+POST_ACTION_SCOPE=host-only USB/serial publication observation
+AUTO_P1_PROBE=false
+AUTO_P2=false
+```
+
+The existing P1 R2 read-only board-probe authorization remains separately
+granted but unclaimed/unconsumed. It is not consumed by the host-only
+post-ROM observation. The ROM-isolation authorization becomes claimed/consumed
+when the operator performs the authorized BOOT+RESET action.
