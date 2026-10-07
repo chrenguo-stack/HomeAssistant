@@ -501,3 +501,61 @@ P2_R3_SERVICE_MUTATION=false
 P2_R3_DATABASE_MUTATION=false
 P2_R3_AUTO_P3=false
 ```
+
+
+## 15. P2 R3 explicit-T1 SSH read-only successor — operator authorization
+
+The operator explicitly approved P2 R3 under the following bounded scope,
+distinct from consumed P2 initial and P2 R2 SSH grants.
+
+```text
+NEXT_ONE_GATE=N3W_CLEAN_PRODUCT_FIRST_PAIR_P2_R3_EXPLICIT_T1_SSH_READONLY_SUCCESSOR
+P2_R3_EXPLICIT_T1_AUTHORIZATION_GRANTED=true
+P2_R3_AUTHORIZATION_CLAIMED=false
+P2_R3_AUTHORIZATION_CONSUMED=false
+P2_INITIAL_AUTHORIZATION_CONSUMED=true
+P2_R2_AUTHORIZATION_CONSUMED=true
+P2_PREDECESSOR_AUTHORIZATION_REPLAY=false
+
+STEP1=ONE_BOUNDED_EXPLICIT_ROOT_T1_SSH_CONNECTIVITY_PROBE
+AFTER_STEP1_PASS=CONTINUE_P2_MANAGER_BROKER_READONLY_BASELINE_AND_PREBOOT_IDENTITY_SNAPSHOT
+ANY_FAILURE=STOP_NO_RETRY
+
+TARGET_AUTHORITY=OPERATOR_PROVEN_EXPLICIT_ROOT_PRIVATE_IPV4
+DO_NOT_USE=ssh_t1_alias
+SSH_STRICT_HOST_KEY_VERIFICATION=true
+OPERATOR_INTERACTIVE_AUTH_IF_REQUIRED=true
+AUTO_RETRY=false
+
+BOARD_ACCESS=false
+BOARD_WRITE=false
+BROKER_RESTART=false
+MANAGER_RESTART=false
+T1_CONFIGURATION_MUTATION=false
+MANAGER_DB_WRITE=false
+MANAGER_REPLAY_MUTATION=false
+MANAGER_HIGH_WATER_CLEAR=false
+AUTO_P3=false
+MERGE=false
+```
+
+Preclaim guard must verify an explicit root@private IPv4 target, effective
+SSH `HostName` equals that exact operator-supplied private IPv4 (with no
+proxy), SSH user root, port 22, and private Mac evidence directory absent.
+Target comparison with the stale `ssh t1` alias is not an authority.
+
+First actual SSH connection claims and consumes R3. Do not classify an
+interactive password prompt as failure: the operator's proven manual SSH
+session may depend on interactive authentication. Use one bounded SSH
+command with StrictHostKeyChecking=yes, ConnectTimeout, no multiplexing,
+and at most one prompt; keep raw diagnostics private. No password is ever
+captured by the script and no SSH target/address is printed publicly.
+
+Successful proof is a remote sentinel under exit code 0. Only then
+continue the **same R3 authorization** with P2 read-only Broker/Manager
+snapshots; one consumed grant is not replayable upon failure.
+```text
+P2_R3_PROGRESS=AUTHORIZED_AWAITING_SSH_PROBE
+NEXT_ACTION=P2_R3_EXPLICIT_T1_SSH_MINIMAL_PROBE
+STOP=true
+```
