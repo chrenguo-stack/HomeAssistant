@@ -2,6 +2,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 CORE = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_product_core"
+PRODUCT_COMPONENT = CORE / "n3w_simple_product_component.cpp"
 RC2 = ROOT / "firmware/esphome_rc/f1_0_rc2"
 DISPLAY = RC2 / "packages/display.yml"
 BASE_CORE = RC2 / "packages/core.yml"
@@ -70,9 +71,18 @@ def test_lcd_page_five_has_three_product_states() -> None:
     assert "pairing_handoff_ready()" in transport
     assert "pairing_qr_payload()" in transport
     assert "id(pairing_qr).set_value(payload);" in transport
+    assert "payload != last_pairing_payload" in transport
+    assert "last_pairing_payload = payload" in transport
     assert 'value: "GHN3W2:pending"' in display
     assert "ESP_LOG" not in transport
     assert "GHN3W2:" not in transport
+
+
+def test_product_logs_do_not_emit_pairing_identity() -> None:
+    source = PRODUCT_COMPONENT.read_text(encoding="utf-8")
+    assert "pairing_id=%s" not in source
+    assert "hardware_id=%s pairing_id=%s" not in source
+    assert '"Unprovisioned N3-W node ready for local pairing"' in source
 
 
 def test_complete_pairing_payload_uses_existing_manager_socket() -> None:
