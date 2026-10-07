@@ -289,3 +289,55 @@ read-only remote `true` command. First verify the intended current T1 SSH
 locator rather than treating `ssh -G t1` as destination authority. Do not
 automatically replay the failed multi-step snapshot, contact the board, restart
 services, or attempt P3.
+
+
+## 11. P2 R2 successor SSH and read-only preparation authorization
+
+The operator explicitly granted a **new successor authorization**, distinct
+from the consumed first P2 attempt:
+
+```text
+SUCCESSOR_GATE=N3W_CLEAN_PRODUCT_FIRST_PAIR_SETUP_SECRET_HANDOFF_AND_RUNTIME_IDENTITY_T1_HEALTHY_BROKER_A_AND_MANAGER_PREBOOT_IDENTITY_SNAPSHOT_PREPARATION_R2_20261008_01
+P2_R2_SUCCESSOR_SSH_READONLY_AUTHORIZATION_GRANTED=true
+P2_R2_AUTHORIZATION_CLAIMED=false
+P2_R2_AUTHORIZATION_CONSUMED=false
+PREDECESSOR_P2_AUTHORIZATION_CONSUMED=true
+PREDECESSOR_P2_AUTHORIZATION_REPLAY=false
+
+ALLOWED=host-only SSH target verification
+ALLOWED=one bounded SSH connectivity check
+ALLOWED_AFTER_SSH_PASS=P2 read-only T1/Broker-A/Manager baseline and identity snapshot
+FAILURE_POLICY=STOP_IMMEDIATELY_NO_RETRY
+BOARD_ACCESS=false
+BOARD_WRITE=false
+MANAGER_RESTART=false
+BROKER_RESTART=false
+BROKER_MUTATION=false
+MANAGER_DB_WRITE=false
+MANAGER_REPLAY_MUTATION=false
+MANAGER_HIGH_WATER_CLEAR=false
+AUTO_P3=false
+MERGE=false
+```
+
+First perform a host-only effective SSH config check. Compare its hostname
+SHA-256 with the prior frozen SSH alias target hash
+`628b49d96dcde97a430dd4f597705899e09a968f793491e4b704cae33a40dc02`,
+and require port 22 and no ProxyJump/ProxyCommand. A matching hash proves
+only alias consistency with the previous attempt; it does **not** independently
+prove that the resolved address is the intended live T1. That further binding
+requires strict trusted SSH host-key verification and, later, an exact
+read-only Docker/Manager/Broker authority check.
+
+Only after those local checks PASS, claim/consume the successor authorization
+immediately before the first actual SSH network connection. Run one bounded
+SSH probe with BatchMode, StrictHostKeyChecking=yes, connection attempts=1,
+disabled connection multiplexing, and private verbose diagnostics. On any
+failure STOP without a second connection, without retrying the previous P2
+snapshot, and without any service or board mutation.
+
+```text
+P2_R2_NEXT_ONE_ACTION=LOCAL_SSH_TARGET_GUARD_THEN_ONE_BOUNDED_SSH_PROBE
+AUTO_CONTINUE_AFTER_FAILURE=false
+STOP=true
+```
