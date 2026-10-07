@@ -1,3 +1,34 @@
+## 2026-10-08 P2 SSH alias discrepancy confirmed locally
+
+```text
+P1_R2_CLEAN_BOARD_ELIGIBILITY=CLOSED_PASS
+P2_R2_SSH_ALIAS_CONFIGURATION_COMPARISON=DIFFERENT_HOST_AND_USER
+ALIAS_CONFIG_PASS=true
+DIRECT_CONFIG_PASS=true
+HOSTNAME_CONFIG_EQUAL=false
+SSH_USER_EQUAL=false
+SSH_PORT_EQUAL=true
+T1_NETWORK_ACCESS_FOR_COMPARISON=false
+
+OPERATOR_DIRECT_ROOT_T1_LOGIN=PASS
+P2_R2_ALIAS_FAILURE_CAUSE=LIKELY_ALIAS_CONFIG_MISMATCH_NOT_PROVEN
+P2_R2_AUTHORIZATION_CONSUMED=true
+P2_R2_AUTHORIZATION_REPLAY=false
+READY_FOR_P2_READONLY_BASELINE=false
+P2_MANAGER_PREBOOT_SNAPSHOT_CREATED=false
+
+NEXT_ONE_GATE=N3W_CLEAN_PRODUCT_FIRST_PAIR_P2_R3_EXPLICIT_T1_SSH_READONLY_SUCCESSOR
+P2_R3_AUTHORIZATION_GRANTED=false
+AUTO_RETRY=false
+AUTO_P3=false
+STOP=true
+```
+
+Do not retry `ssh t1`. The alias uses a different effective hostname
+and user from the operator-proven explicit T1 root login. Any additional
+remote SSH probe requires a new successor authorization, bound to the
+operator-confirmed target without publishing private LAN details.
+
 ## 2026-10-08 direct T1 login corrects alias-based SSH interpretation
 
 ```text
