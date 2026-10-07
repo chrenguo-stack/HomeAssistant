@@ -1,5 +1,33 @@
 # N3-W Current State
 
+## 2026-10-07 P1 R2 host-only USB stability finding
+
+```text
+R2_USB_ENUMERATION_STABILITY_RESULT=FAIL
+OBSERVATION_SECONDS=10
+SAMPLE_COUNT=20
+DISTINCT_ENUMERATION_STATE_COUNT=2
+OBSERVED_USB_MODEM_COUNTS=1,0
+ALL_SAMPLES_SINGLE_DEVICE=false
+LOCATOR_STABLE=false
+
+AUTHORIZATION_GRANTED=true
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+BOARD_TARGETED_ESPTOOL=false
+
+DOMAIN=PHYSICAL_HARNESS
+OBSERVED_CAUSE=USB_MODEM_ENUMERATION_DROPS_TO_ZERO
+EXACT_ROOT_CAUSE=TBD
+PRODUCT_DEFECT=false
+BOARD_ACCESS=false
+READY_FOR_P2=false
+STOP=true
+```
+
+R2 remains authorized but unclaimed. Do not issue board-targeted esptool until
+host-only diagnostics prove stable USB-device and serial-interface presence.
+
 ## 2026-10-07 clean-product P1 R1 port-busy closure / R2 preexecution
 
 ```text
