@@ -214,3 +214,78 @@ Before requesting successor T1 access, perform a host-only SSH configuration and
 saved-stderr refinement check. It may inspect `ssh -G t1`, local key-file
 existence/permissions, and the already-saved stderr, but must not initiate a
 network connection.
+
+
+## 10. Corrected SSH transport classification: early KEX connection closed
+
+A further host-only refinement examined the saved stderr alongside the local
+OpenSSH effective configuration without contacting T1.
+
+```text
+STAGE=P2_SSH_HOST_ONLY_REFINEMENT
+T1_NETWORK_ACCESS=false
+AUTHORIZATION_REPLAY=false
+SAVED_STDERR_SHA256=626faaaadb4524a710d54414338a51055982e5abb53a770851b3bfcd32e3cac6
+
+SSH_CONFIG_RC=0
+SSH_CONFIG_PARSED=true
+SSH_PORT=22
+SSH_TARGET_HOST_SHA256=628b49d96dcde97a430dd4f597705899e09a968f793491e4b704cae33a40dc02
+PROXYCOMMAND_CONFIGURED=false
+PROXYJUMP_CONFIGURED=false
+IDENTITYFILE_DECLARED_COUNT=7
+IDENTITYFILE_EXISTING_COUNT=1
+SSH_AGENT_STATE=NO_KEYS
+
+KEX_EXCHANGE_IDENTIFICATION_PRESENT=true
+CONNECTION_CLOSED_TEXT=true
+RESET_BY_PEER_TEXT=false
+BANNER_EXCHANGE_PRESENT=false
+PERMISSION_DENIED_TEXT=false
+HOST_KEY_FAILURE_TEXT=false
+
+P2_SSH_FAILURE_REFINED_CLASS=EARLY_KEX_CONNECTION_CLOSED
+SSH_AUTHENTICATION_REACHED=NOT_PROVEN
+EXACT_ROOT_CAUSE=TBD
+PRODUCT_DEFECT=NOT_PROVEN
+```
+
+**Correction to the preliminary Section 9 label:** the saved stderr contains
+`Connection closed` and a `kex_exchange_identification` marker, but **does
+not contain `Connection reset`**. The earlier `CONNECTION_RESET` label
+was an over-broad classifier result and is superseded by the refined
+`EARLY_KEX_CONNECTION_CLOSED` label. This identifies a pre-authentication
+SSH transport failure symptom rather than proving an SSH daemon, host,
+network, Manager, or Broker root cause.
+
+The empty SSH agent alone is not a demonstrated authentication defect: an
+identity file exists, and the observed failure precedes proof of
+authentication. The effective SSH host is only represented here by its hash;
+it has **not** been fresh-verified as the intended current T1 endpoint.
+
+```text
+P2_STEP1_RESULT=INVALID_SSH_TRANSPORT_FAILURE_RC255
+P2_AUTHORIZATION_CLAIMED=true
+P2_AUTHORIZATION_CONSUMED=true
+P2_AUTHORIZATION_REPLAY=false
+P2_SUCCESSOR_AUTHORIZATION_GRANTED=false
+P2_MANAGER_PREBOOT_SNAPSHOT_CREATED=false
+READY_FOR_P2_STEP2=false
+NEXT_ACTION=REQUEST_P2_SUCCESSOR_MINIMAL_SSH_READONLY_AUTHORIZATION
+BOARD_ACCESS=false
+BOARD_WRITE=false
+MANAGER_RESTART=false
+BROKER_RESTART=false
+MANAGER_DB_WRITE=false
+MANAGER_REPLAY_MUTATION=false
+MANAGER_HIGH_WATER_CLEAR=false
+AUTO_RETRY=false
+STOP=true
+```
+
+Under a **new, explicit** successor authorization only, the next probe should
+perform one bounded SSH connection with private `-vv` evidence and a harmless
+read-only remote `true` command. First verify the intended current T1 SSH
+locator rather than treating `ssh -G t1` as destination authority. Do not
+automatically replay the failed multi-step snapshot, contact the board, restart
+services, or attempt P3.
