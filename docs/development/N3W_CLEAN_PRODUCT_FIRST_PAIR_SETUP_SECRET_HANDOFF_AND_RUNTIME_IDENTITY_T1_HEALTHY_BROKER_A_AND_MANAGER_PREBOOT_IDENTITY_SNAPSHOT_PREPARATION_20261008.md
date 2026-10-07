@@ -559,3 +559,46 @@ P2_R3_PROGRESS=AUTHORIZED_AWAITING_SSH_PROBE
 NEXT_ACTION=P2_R3_EXPLICIT_T1_SSH_MINIMAL_PROBE
 STOP=true
 ```
+
+
+## 16. P2 R3 host-only target-config preclaim STOP — authorization intact
+
+The first P2 R3 script stopped **before SSH access** on its local `ssh -G`
+effective-configuration predicate. The operator returned only a sanitized
+result, so no single failed predicate has yet been proven.
+
+```text
+STAGE=P2_R3_EXPLICIT_T1_SSH_CONNECTIVITY
+P2_R3_HOST_ONLY_PRECLAIM_RESULT=SSH_TARGET_CONFIG_MISMATCH
+AUTHORIZATION_GRANTED=true
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+PREDECESSOR_AUTHORIZATION_REPLAY=false
+SSH_TARGET_PREFLIGHT_PASS=false
+SSH_CONNECTION_ATTEMPTED=false
+SSH_CONNECTION_PASS=false
+
+P2_R3_TYPED_TARGET_SHA256=2b149655aab07a3941fa76d0fd03e6b632e628077d5cddcf4eafa0e2c9e313fd
+
+BOARD_ACCESS=false
+BOARD_WRITE=false
+BROKER_RESTART=false
+MANAGER_RESTART=false
+MANAGER_DB_WRITE=false
+AUTO_RETRY=false
+AUTO_P3=false
+STOP=true
+```
+
+Likely harness-side compatibility issue to check: OpenSSH `ssh -G` may
+normalize the effective value of `StrictHostKeyChecking=yes` to `true`.
+The R3 guard compared it to the literal string `yes`. This explanation
+is **hypothesis only** until each guard's Boolean result is independently
+reported.
+
+Next stage must be purely Mac local: rerun `ssh -G` for the operator-proven
+explicit root target, compare one Boolean for each guard and only emit
+sanitized classifications. This is permitted without another remote
+authorization because R3 remains unclaimed and unconsumed. Do not manually
+change global SSH configuration or weaken host-key validation to satisfy
+an incorrect harness check.
