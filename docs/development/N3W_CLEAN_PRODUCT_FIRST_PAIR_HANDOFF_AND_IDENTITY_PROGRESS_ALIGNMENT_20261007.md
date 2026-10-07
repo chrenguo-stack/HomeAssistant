@@ -1,5 +1,32 @@
 # N3-W Clean Product First-Pair Handoff and Runtime Identity — Progress Alignment — 2026-10-07
 
+## 0. 2026-10-07 P1 R1 invalid closure / R2 successor
+
+```text
+P1_R1_RESULT=INVALID_PORT_BUSY
+P1_R1_DOMAIN=PHYSICAL_HARNESS
+P1_R1_OBSERVED_CAUSE=SERIAL_PORT_OPEN_FAILED_RESOURCE_BUSY
+P1_R1_EXACT_ROOT_CAUSE=TBD
+P1_R1_PRODUCT_DEFECT=false
+P1_R1_BOARD_STATE_CHANGED=false
+P1_R1_AUTHORIZATION_CONSUMED=true
+P1_R1_REPLAY_PERMITTED=false
+
+POSTFAIL_USB_MODEM_COUNT=1
+POSTFAIL_PORT_OWNER=NONE_OBSERVED
+
+R2_PREEXECUTION_DESIGN=PASS
+R2_NEW_GUARD=USB_SERIAL_OWNERSHIP_PRECLAIM
+R2_AUTHORIZATION_GRANTED=false
+R2_BOARD_ACCESS=false
+READY_FOR_P2=false
+
+R2_PREEXECUTION_AUTHORITY=docs/development/N3W_CLEAN_PRODUCT_FIRST_PAIR_SETUP_SECRET_HANDOFF_AND_RUNTIME_IDENTITY_CLEAN_BOARD_ELIGIBILITY_READONLY_PREFLIGHT_R1_CLOSURE_AND_R2_PREEXECUTION_20261007.md
+NEXT_ONE_GATE=N3W_CLEAN_PRODUCT_FIRST_PAIR_SETUP_SECRET_HANDOFF_AND_RUNTIME_IDENTITY_CLEAN_BOARD_ELIGIBILITY_READONLY_PREFLIGHT_R2_20261007_01
+```
+
+R2 preserves the original clean-board eligibility contract. The only design change is to require two zero-owner checks before crossing the one-shot authorization claim boundary. A preclaim ownership failure stops without consuming the R2 execution authorization; the first board-targeted `esptool` command remains the claim boundary.
+
 ```text
 STATUS=CURRENT_PROGRESS_ALIGNMENT
 REPOSITORY=chrenguo-stack/HomeAssistant
