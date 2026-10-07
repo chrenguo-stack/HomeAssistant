@@ -341,3 +341,62 @@ P2_R2_NEXT_ONE_ACTION=LOCAL_SSH_TARGET_GUARD_THEN_ONE_BOUNDED_SSH_PROBE
 AUTO_CONTINUE_AFTER_FAILURE=false
 STOP=true
 ```
+
+
+## 12. P2 R2 successor minimal SSH probe failed
+
+The authorized single bounded SSH connectivity probe was attempted from Mac
+after local configuration verification. It returned exit code 255 and did not
+produce the expected remote sentinel. No Manager/Broker/DB read-only baseline
+was executed in this successor attempt.
+
+```text
+STAGE=P2_R2_SSH_TARGET_AND_CONNECTIVITY
+P2_R2_SSH_PROBE_RESULT=FAILED_RC255
+SSH_CONFIG_PASS=true
+SSH_TARGET_HASH_MATCH=true
+SSH_TARGET_HOST_SHA256=628b49d96dcde97a430dd4f597705899e09a968f793491e4b704cae33a40dc02
+SSH_PORT=22
+SSH_PROXY_COMMAND_NONE=true
+SSH_PROXY_JUMP_NONE=true
+SSH_IDENTITYFILE_EXISTING_COUNT=1
+SSH_CONNECTION_ATTEMPTED=true
+SSH_CONNECTION_PASS=false
+SSH_RETURN_CODE=255
+SSH_STDERR_SHA256=27e0e401451462d210c9884a6092dd719afd4a2483d6511576c59473d5dc0714
+
+P2_R2_AUTHORIZATION_CLAIMED=true
+P2_R2_AUTHORIZATION_CONSUMED=true
+PREDECESSOR_AUTHORIZATION_REPLAY=false
+AUTO_RETRY=false
+READY_FOR_P2_READONLY_BASELINE=false
+
+BOARD_ACCESS=false
+BOARD_WRITE=false
+BROKER_RESTART=false
+MANAGER_RESTART=false
+MANAGER_DB_WRITE=false
+AUTO_P3=false
+STOP=true
+```
+
+The SSH config hash is a consistency check against the prior local alias,
+**not proof that the live target is T1**. The RC255 alone cannot prove the
+specific SSH failure phase this time. Do not assume the previous
+`EARLY_KEX_CONNECTION_CLOSED` classification is reproduced until the newly
+saved `probe.stderr.txt` is locally classified. Remote service health is
+not proved or disproved.
+
+```text
+P2_R2_SSH_ERROR_DOMAIN=SSH_TRANSPORT_OR_ENDPOINT_UNDETERMINED
+EXACT_ROOT_CAUSE=TBD
+P2_R2_REMOTE_RUNTIME_EVIDENCE=NOT_COLLECTED
+P2_MANAGER_PREBOOT_SNAPSHOT_CREATED=false
+P2_R2_AUTHORIZATION_REPLAY=false
+NEXT_ACTION=HOST_ONLY_CLASSIFY_SAVED_R2_VERBOSE_SSH_LOG
+SUCCESSOR_REMOTE_AUTHORIZATION_REQUIRED_FOR_FURTHER_SSH=true
+```
+
+The next action must read only the private Mac evidence and emit sanitized
+phase booleans. Do not paste the verbose SSH log, SSH target, private key
+paths, remote identifiers, or host-key material into public project records.
