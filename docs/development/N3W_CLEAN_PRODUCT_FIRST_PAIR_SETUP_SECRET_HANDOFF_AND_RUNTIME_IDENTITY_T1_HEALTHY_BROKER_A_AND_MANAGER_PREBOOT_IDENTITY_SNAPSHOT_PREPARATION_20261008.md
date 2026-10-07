@@ -142,3 +142,45 @@ P2_EXECUTION_NOT_STARTED=true
 NEXT_ACTION=P2_STEP_1_T1_MANAGER_BROKER_RUNTIME_AND_PREBOOT_IDENTITY_SNAPSHOT
 STOP=true
 ```
+
+
+## 8. First P2 Step-1 execution result
+
+The first authorized P2 Step-1 attempt crossed the T1 SSH access boundary but
+failed before any successful remote probe result was returned.
+
+```text
+P2_STEP1_RESULT=INVALID_SSH_TRANSPORT_FAILURE_RC255
+AUTHORIZATION_GRANTED=true
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+
+T1_ACCESSED=true
+SSH_RETURN_CODE=255
+READY_FOR_P2_STEP2=false
+STOP=true
+
+BOARD_ACCESS=false
+BOARD_WRITE=false
+BROKER_RESTART=false
+MANAGER_RESTART=false
+MANAGER_DB_WRITE=false
+MANAGER_REPLAY_MUTATION=false
+MANAGER_HIGH_WATER_CLEAR=false
+```
+
+No successful remote JSON was produced, so none of the required T1/Broker/
+Manager readiness predicates or the preboot identity snapshot are proven by
+this attempt.
+
+The exact SSH failure class is not yet proven from the public-safe output.
+Do not replay the consumed P2 authorization. The next action is a host-only
+classification of the already-saved private `remote.stderr.txt`; that action
+must not open a new SSH connection.
+
+```text
+EXACT_ROOT_CAUSE=TBD
+PRODUCT_DEFECT=false
+P2_AUTHORIZATION_REPLAY=false
+NEXT_ACTION=HOST_ONLY_CLASSIFY_SAVED_SSH_STDERR
+```
