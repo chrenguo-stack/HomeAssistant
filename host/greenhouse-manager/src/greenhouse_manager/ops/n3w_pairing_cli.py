@@ -13,7 +13,6 @@ from greenhouse_manager.runtime.n3w_pairing_local_ipc import (
     import_setup_secret_over_socket,
 )
 
-
 PAIRING_PAYLOAD_RE = re.compile(
     r"GHN3W2:"
     r"([A-Za-z0-9._-]{1,128}):"
