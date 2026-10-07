@@ -1,3 +1,32 @@
+## 2026-10-08 direct T1 login corrects alias-based SSH interpretation
+
+```text
+EXPLICIT_T1_SSH_LOGIN_OBSERVED=true
+EXPLICIT_T1_SSH_LOGIN_ACCOUNT=root
+EXPLICIT_T1_SSH_LOGIN_PROMPT=root@armbian
+T1_SSH_SERVICE_UNAVAILABLE=false
+
+FAILED_EXECUTOR_TARGET=ssh t1
+FAILED_EXECUTOR_TARGET_MATCHES_EXPLICIT_T1=NOT_PROVEN
+SSH_ALIAS_TARGET_MISMATCH=HYPOTHESIS_NOT_PROVEN
+P2_R2_AUTHORIZATION_CONSUMED=true
+P2_MANAGER_PREBOOT_SNAPSHOT_CREATED=false
+READY_FOR_P2_READONLY_BASELINE=false
+
+NEXT_ACTION=HOST_ONLY_COMPARE_SSH_T1_ALIAS_WITH_EXPLICIT_TARGET
+AUTO_RETRY=false
+BOARD_WRITE=false
+MANAGER_RESTART=false
+BROKER_RESTART=false
+MANAGER_DB_WRITE=false
+STOP=true
+```
+
+The operator successfully logged in with an explicit root@private IPv4
+address, reaching root@armbian. The two failed alias-based probes do not
+establish T1 general unreachability. Compare effective SSH target settings
+locally, preserving private network details. Do not replay consumed grants.
+
 ## 2026-10-08 P2 R2 SSH successor stopped
 
 ```text
