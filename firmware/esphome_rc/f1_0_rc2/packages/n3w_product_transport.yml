@@ -45,5 +45,9 @@ interval:
             return;
           }
 
-          id(pairing_qr).set_value(payload);
+          static std::string last_pairing_payload;
+          if (payload != last_pairing_payload) {
+            id(pairing_qr).set_value(payload);
+            last_pairing_payload = payload;
+          }
           id(n3w_pairing_display_ready) = true;
