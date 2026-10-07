@@ -391,6 +391,7 @@ SimplePairingClientError SimplePairingClient::prepare_bootstrap_() {
 }
 
 SimplePairingClientError SimplePairingClient::renew_pairing_intent_() {
+  handoff_ready_ = false;
   for (uint8_t attempt = 0; attempt < 4; ++attempt) {
     std::array<uint8_t, 16> pairing_random{};
     if (!fill_(pairing_random.data(), pairing_random.size())) {
@@ -509,6 +510,7 @@ SimplePairingClientError SimplePairingClient::send_hello_(
   }
 
   if (action == HelloNextAction::WAIT) {
+    handoff_ready_ = false;
     return SimplePairingClientError::NOT_READY;
   }
 
@@ -519,6 +521,7 @@ SimplePairingClientError SimplePairingClient::send_hello_(
                : renewed;
   }
 
+  handoff_ready_ = true;
   return SimplePairingClientError::NONE;
 }
 
@@ -679,6 +682,7 @@ SimplePairingClientError SimplePairingClient::acknowledge_(const PendingPairingA
   }
   setup_secret_.fill(0);
   setup_secret_ready_ = false;
+  handoff_ready_ = false;
   provisioned_ = true;
   return SimplePairingClientError::NONE;
 }
