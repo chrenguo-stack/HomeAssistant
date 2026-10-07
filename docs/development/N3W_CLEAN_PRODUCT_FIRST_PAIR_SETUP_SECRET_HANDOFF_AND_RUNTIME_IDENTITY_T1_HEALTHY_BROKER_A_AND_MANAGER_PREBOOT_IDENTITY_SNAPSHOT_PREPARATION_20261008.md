@@ -184,3 +184,33 @@ PRODUCT_DEFECT=false
 P2_AUTHORIZATION_REPLAY=false
 NEXT_ACTION=HOST_ONLY_CLASSIFY_SAVED_SSH_STDERR
 ```
+
+
+## 9. Host-only classification of consumed P2 Step-1 SSH failure
+
+The already-saved Mac-side `remote.stderr.txt` was classified without opening
+a new SSH connection.
+
+```text
+STAGE=P2_SSH_FAILURE_HOST_ONLY_CLASSIFICATION
+PRIVATE_STDERR_PRESENT=true
+SSH_FAILURE_CLASS=CONNECTION_RESET
+T1_NETWORK_ACCESS=false
+AUTHORIZATION_REPLAY=false
+STOP=true
+```
+
+This narrows the failure from generic SSH rc=255 to a connection-reset class,
+but does not yet prove whether the reset occurred before SSH authentication,
+during key exchange, or after session establishment.
+
+```text
+EXACT_ROOT_CAUSE=TBD
+PRODUCT_DEFECT=false
+P2_SUCCESSOR_T1_ACCESS_NOT_YET_AUTHORIZED=true
+```
+
+Before requesting successor T1 access, perform a host-only SSH configuration and
+saved-stderr refinement check. It may inspect `ssh -G t1`, local key-file
+existence/permissions, and the already-saved stderr, but must not initiate a
+network connection.
