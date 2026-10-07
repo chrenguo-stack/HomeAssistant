@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import binascii
 import json
 import os
 import re
@@ -15,9 +17,9 @@ from greenhouse_manager.runtime.n3w_pairing_local_ipc import (
 
 PAIRING_PAYLOAD_RE = re.compile(
     r"GHN3W2:"
-    r"([A-Za-z0-9._-]{1,128}):"
-    r"([A-Za-z0-9._-]{1,128}):"
-    r"([A-Za-z0-9_-]{1,128})"
+    r"(ghw-c6-[0-9a-f]{12}):"
+    r"([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}):"
+    r"([A-Za-z0-9_-]{43})"
 )
 MAX_PAIRING_PAYLOAD_CHARS = 512
 
@@ -32,14 +34,25 @@ def _parse_pairing_payload(value: str) -> tuple[str, str, str]:
     match = PAIRING_PAYLOAD_RE.fullmatch(value)
     if match is None:
         raise PairingPayloadError("pairing_payload_invalid")
-    return match.group(1), match.group(2), match.group(3)
+    setup_secret = match.group(3)
+    try:
+        decoded_secret = base64.b64decode(
+            setup_secret + "=",
+            altchars=b"-_",
+            validate=True,
+        )
+    except (binascii.Error, ValueError) as error:
+        raise PairingPayloadError("pairing_payload_invalid") from error
+    if len(decoded_secret) != 32:
+        raise PairingPayloadError("pairing_payload_invalid")
+    return match.group(1), match.group(2), setup_secret
 
 
 def _read_pairing_payload_stdin() -> str:
     raw = sys.stdin.read(MAX_PAIRING_PAYLOAD_CHARS + 1)
     if len(raw) > MAX_PAIRING_PAYLOAD_CHARS:
         raise PairingPayloadError("pairing_payload_too_large")
-    value = raw.rstrip("\r\n")
+    value = raw.strip()
     if "\n" in value or "\r" in value:
         raise PairingPayloadError("pairing_payload_multiple_lines")
     return value
