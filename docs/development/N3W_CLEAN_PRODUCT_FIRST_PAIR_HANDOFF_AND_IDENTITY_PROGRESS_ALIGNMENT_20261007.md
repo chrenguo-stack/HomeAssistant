@@ -131,3 +131,23 @@ PR522_MERGE=false
 ```
 
 PR #522 remains intentionally unmerged pending physical acceptance and the separate full-channel fallback physical RF axis.
+
+
+## 6.1 Read-only preflight executor drift
+
+Fresh source readback found that the existing repository helper:
+
+`tools/execution_packages/n3w/auto_safe_fallback/clean_board_eligibility_readonly_preflight/executor.py`
+
+still hard-codes the superseded `157448b...` source and artifact `11320812037`.
+
+```text
+PREFLIGHT_EXECUTOR_ARTIFACT_BINDING=STALE
+PRODUCT_DEFECT=false
+PHYSICAL_PRODUCT_BLOCKER=false
+PREWRITTEN_EXECUTOR_REQUIRED=false
+NEXT_GATE_DSL_EXECUTION_PERMITTED=true
+```
+
+The next session must not use that stale helper as artifact authority and must not stop merely because the helper is stale. Under the formal DSL execution model, mechanically execute the bounded read-only preflight from the frozen replacement-artifact inputs in the handoff using already-installed tools. Do not patch or replace the helper inside the physical read-only gate unless a separate tooling change is explicitly authorized.
+
