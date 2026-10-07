@@ -152,6 +152,19 @@ globals:
     restore_value: false
     initial_value: 'false'
 
+  - id: n3w_pairing_display_enabled
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: n3w_pairing_display_ready
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: n3w_product_provisioned
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+
   - id: soil_query_count
     type: int
     restore_value: false
