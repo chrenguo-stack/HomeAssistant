@@ -1,3 +1,32 @@
+## 2026-10-08 P2 R3 host-only SSH config guard stopped
+
+```text
+P2_R3_HOST_ONLY_PRECLAIM_RESULT=SSH_TARGET_CONFIG_MISMATCH
+P2_R3_AUTHORIZATION_GRANTED=true
+P2_R3_AUTHORIZATION_CLAIMED=false
+P2_R3_AUTHORIZATION_CONSUMED=false
+P2_R3_SSH_CONNECTION_ATTEMPTED=false
+P2_R3_SSH_CONFIGURATION_GUARD_ROOT_CAUSE=NOT_PROVEN
+
+NEXT_ACTION=HOST_ONLY_IDENTIFY_EXACT_SSH_GUARD_PREDICATE
+P2_MANAGER_PREBOOT_SNAPSHOT_CREATED=false
+READY_FOR_P2_READONLY_BASELINE=false
+
+BOARD_ACCESS=false
+BOARD_WRITE=false
+MANAGER_RESTART=false
+BROKER_RESTART=false
+MANAGER_DB_WRITE=false
+AUTO_RETRY=false
+AUTO_P3=false
+STOP=true
+```
+
+No SSH attempt occurred, and the P2 R3 successor authorization remains valid.
+The previous SSH configuration guard may reject valid OpenSSH-normalized
+boolean forms; identify its exact failed predicate locally before attempting
+remote access.
+
 ## 2026-10-08 P2 R3 explicit-T1 SSH successor authorization
 
 ```text
