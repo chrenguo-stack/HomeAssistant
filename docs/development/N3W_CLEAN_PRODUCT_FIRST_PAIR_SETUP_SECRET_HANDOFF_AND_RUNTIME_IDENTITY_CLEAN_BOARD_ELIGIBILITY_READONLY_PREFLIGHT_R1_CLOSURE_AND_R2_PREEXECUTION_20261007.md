@@ -291,3 +291,44 @@ NEXT_ACTION=HOST_ONLY_USB_OWNERSHIP_PRECLAIM
 ```
 
 The operator explicitly authorized P1 R2 read-only access and confirmed continued use of the same genuinely new candidate board. Per the R2 contract, authorization is not claimed or consumed until the first board-targeted `esptool get-security-info` invocation begins after both zero-owner preclaim checks pass.
+
+
+## 10. R2 first ownership preclaim result
+
+Operator public-safe output from the first R2 preclaim:
+
+```text
+R2_PRECLAIM_RESULT=STOP_LOCATOR_UNSTABLE
+USB_MODEM_COUNT_INITIAL=1
+CHECK_1_OWNER_COUNT=0
+SAME_LOCATOR=false
+CHECK_2_OWNER_COUNT=NOT_REACHED
+READY_FOR_BOARD_PROBE=false
+
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+BOARD_TARGETED_ESPTOOL=false
+FLASH_WRITE=false
+FLASH_ERASE=false
+NVS_WRITE=false
+T1_MUTATION=false
+STOP=true
+```
+
+The preclaim correctly failed closed before any serial open or board-targeted
+`esptool` command. This does not establish whether the device temporarily
+disappeared, re-enumerated under a different locator, or a second locator
+appeared. Exact root cause remains `TBD`.
+
+```text
+PRODUCT_DEFECT=false
+R2_AUTHORIZATION_STILL_AVAILABLE=true
+AUTO_BOARD_RETRY=false
+NEXT_ACTION=HOST_ONLY_USB_ENUMERATION_STABILITY_DIAGNOSIS
+```
+
+The next diagnostic must remain host-only: sample the `/dev/cu.usbmodem*`
+candidate set over a bounded observation window without opening any serial
+device. Only after a stable single-locator observation may the existing granted,
+still-unclaimed R2 authorization proceed to a fresh ownership preclaim and then
+the first board-targeted read-only probe.
