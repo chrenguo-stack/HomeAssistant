@@ -444,3 +444,60 @@ the raw IP or credentials. No new T1 connection is necessary for this comparison
 Do not replay the two consumed authorizations. Any further automated T1 access
 requires a new explicitly scoped successor authorization with the successful
 T1 target bound first.
+
+
+## 14. Local SSH effective-target comparison: confirmed configuration discrepancy
+
+The operator executed an additional host-only `ssh -G` comparison between
+the failed scripted alias `t1` and the successfully used explicit-root
+T1 login target. This **did not open a T1 connection**.
+
+```text
+STAGE=P2_SSH_ALIAS_LOCAL_COMPARISON
+ALIAS_CONFIG_PASS=true
+DIRECT_CONFIG_PASS=true
+HOSTNAME_CONFIG_EQUAL=false
+SSH_USER_EQUAL=false
+SSH_PORT_EQUAL=true
+T1_NETWORK_ACCESS=false
+STOP=true
+
+P2_R2_SSH_ALIAS_CONFIGURATION_COMPARISON=DIFFERENT_HOST_AND_USER
+P2_R2_ALIAS_EQUALS_SUCCESSFUL_LOGIN_CONFIGURATION=false
+P2_R2_FAILURE_CAUSED_BY_ALIAS_DIFFERENCE=LIKELY_NOT_YET_PROVEN
+P2_R2_AUTHORIZATION_CONSUMED=true
+P2_R2_AUTHORIZATION_REPLAY=false
+
+P2_MANAGER_PREBOOT_SNAPSHOT_CREATED=false
+READY_FOR_P2_READONLY_BASELINE=false
+BOARD_ACCESS=false
+BOARD_WRITE=false
+BROKER_RESTART=false
+MANAGER_RESTART=false
+MANAGER_DB_WRITE=false
+AUTO_RETRY=false
+STOP=true
+```
+
+This proves that the repeated `ssh t1` tests did not reproduce the
+operator's successful SSH target/user configuration. The two hostnames
+might still resolve to the same endpoint, but the effective SSH user is
+definitely different. No further remote diagnostic work should focus on
+Manager, Broker, or the ESP32-C6 board before the executor target is corrected.
+
+For the **next separate authorized successor**, bind SSH to the
+operator-confirmed explicit T1 root target (kept private), with strict
+host-key checking, a single bounded connection attempt and fail-closed
+behavior. A passed SSH probe may then proceed within that successor grant
+to the P2 read-only runtime checks and a fresh preboot identity snapshot,
+and must not repeat the expired prior grant. A local-only comparison
+does not itself authorize another SSH attempt.
+
+```text
+NEXT_ONE_GATE=N3W_CLEAN_PRODUCT_FIRST_PAIR_P2_R3_EXPLICIT_T1_SSH_READONLY_SUCCESSOR
+P2_R3_AUTHORIZATION_GRANTED=false
+P2_R3_BOARD_ACCESS=false
+P2_R3_SERVICE_MUTATION=false
+P2_R3_DATABASE_MUTATION=false
+P2_R3_AUTO_P3=false
+```
