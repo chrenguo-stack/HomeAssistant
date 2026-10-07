@@ -1,3 +1,28 @@
+## 2026-10-07 P1 R2 ROM-mode USB isolation PASS
+
+```text
+ROM_DOWNLOAD_MODE_USB_STABILITY=PASS
+OBSERVATION_SECONDS=10
+SAMPLE_COUNT=20
+DISTINCT_STATE_COUNT=1
+USB_PARENT_ALWAYS_PRESENT=true
+IOSERIAL_ALWAYS_PRESENT=true
+CU_ALWAYS_PRESENT=true
+TTY_ALWAYS_PRESENT=true
+
+ROM_DOWNLOAD_MODE_ISOLATION_AUTHORIZATION_CONSUMED=true
+P1_R2_AUTHORIZATION_GRANTED=true
+P1_R2_AUTHORIZATION_CLAIMED=false
+P1_R2_AUTHORIZATION_CONSUMED=false
+BOARD_TARGETED_ESPTOOL=false
+READY_FOR_P2=false
+```
+
+The earlier serial-publication instability is strongly associated with the
+previous running-board state, but its exact runtime mechanism remains TBD. The
+next step is the already-authorized P1 R2 first read-only board probe, preceded
+by the two zero-owner preclaim checks.
+
 # N3-W Current State
 
 ## 2026-10-07 P1 R2 host-only USB stability finding
