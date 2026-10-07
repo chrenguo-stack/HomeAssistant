@@ -118,6 +118,23 @@ def test_executor_has_no_esptool_mutation_subcommands():
         assert marker not in source
 
 
+def test_rom_mac_is_only_a_silicon_binding():
+    module = load_module()
+    binding = module.silicon_binding_from_rom_mac("11:22:33:44:55:66")
+    assert binding == "rom-c6-112233445566"
+    assert module.public_binding_sha256(binding)
+    assert module.SCHEMA.endswith("/2")
+
+
+def test_public_contract_defers_runtime_product_identity():
+    source = EXECUTOR.read_text(encoding="utf-8")
+    assert '"silicon_binding_sha256": silicon_binding_hash' in source
+    assert '"product_hardware_id_sha256": None' in source
+    assert "DEFERRED_UNTIL_RUNTIME_QR_MANAGER_BINDING" in source
+    assert "HARDWARE_ID_SHA256={identity_hash}" not in source
+    assert "NEXT_CHECK=PRODUCT_RUNTIME_IDENTITY_BINDING_AFTER_FIRST_BOOT" in source
+
+
 def test_frozen_release_binding():
     module = load_module()
     assert module.SOURCE_HEAD == "157448b621f288c5ac5038e7a1ac906cf2575a7f"
