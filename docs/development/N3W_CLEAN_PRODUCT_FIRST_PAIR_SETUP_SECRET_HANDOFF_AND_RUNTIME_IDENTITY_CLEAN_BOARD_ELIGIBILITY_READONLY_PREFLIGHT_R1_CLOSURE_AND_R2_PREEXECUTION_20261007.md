@@ -735,3 +735,50 @@ The already-granted P1 R2 read-only board-probe authorization remains available.
 Before its first board-targeted command, the executor must repeat the two
 zero-owner preclaim checks. The first successful attempt to invoke read-only
 `get-security-info` is the R2 authorization claim/consume boundary.
+
+
+## 20. P1 R2 first board-targeted read-only probe
+
+After two fresh zero-owner checks and stable locator confirmation, the already
+granted P1 R2 authorization crossed its claim boundary and executed exactly one
+read-only `get-security-info` command in ROM Download Mode.
+
+```text
+R2_FIRST_BOARD_PROBE=PASS
+AUTHORIZATION_GRANTED=true
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+AUTHORIZATION_REPLAY=false
+
+PRECLAIM_PASS=true
+USB_MODEM_COUNT=1
+CHECK_1_OWNER_COUNT=0
+CHECK_2_OWNER_COUNT=0
+SAME_LOCATOR=true
+
+ESPTOOL_VERSION_MAJOR=5
+SECURITY_COMMAND_RC=0
+CHIP=ESP32-C6
+SECURE_BOOT=false
+FLASH_ENCRYPTION=false
+SECURITY_OUTPUT_SHA256=650681d9231b2e1308ad6ea4adda6689841b11cabad44920d9dc6316bb2d5d7f
+
+SILICON_BINDING_SHA256=f9c00d136f84d1fdabb1e296608702539ed674271021b28cff2d4a23e4cd2bf7
+HISTORICAL_BOARD_A_MATCH=false
+HISTORICAL_BOARD_B_MATCH=false
+BLOCKED_P4_BOARD_MATCH=false
+SILICON_BINDING_UNIQUE=true
+
+READY_FOR_NEXT_P1_READS=true
+FLASH_WRITE=false
+FLASH_ERASE=false
+NVS_WRITE=false
+T1_MUTATION=false
+```
+
+The silicon binding differs from all three frozen historical board bindings.
+This is a successful continuation point inside the already consumed R2
+authorization, not a new authorization and not a replay. The remaining allowed
+P1 operations are `flash-id`, partition-table `read-flash`, complete reads
+of every discovered NVS partition, offline residue inspection, and public-safe
+closure. No P2 execution is authorized.
