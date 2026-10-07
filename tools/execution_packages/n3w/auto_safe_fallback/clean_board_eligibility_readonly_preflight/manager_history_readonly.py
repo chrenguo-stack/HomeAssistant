@@ -12,7 +12,7 @@ from pathlib import Path, PurePosixPath
 DEFAULT_REGISTRATION = "/var/lib/greenhouse-manager/registration.sqlite3"
 DEFAULT_CREDENTIAL = "/var/lib/greenhouse-manager/n3w/credential-lifecycle.sqlite3"
 DEFAULT_REPLAY = "/var/lib/greenhouse-manager/n3w/replay.sqlite3"
-SCHEMA = "n3w.kf050.clean-board-manager-history-readonly/1"
+SCHEMA = "n3w.kf050.clean-board-manager-history-readonly/2"
 HARDWARE_HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -183,11 +183,11 @@ def replay_history(path: Path, node_ids: set[str]) -> tuple[int, int]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--hardware-id-sha256", required=True)
+    parser.add_argument("--product-hardware-id-sha256", required=True)
     parser.add_argument("--container", default="greenhouse-manager")
     args = parser.parse_args()
     try:
-        target_hash = args.hardware_id_sha256.lower()
+        target_hash = args.product_hardware_id_sha256.lower()
         if HARDWARE_HASH_RE.fullmatch(target_hash) is None:
             raise StopExecution("hardware id SHA256 format invalid")
         documents = run_json(["docker", "inspect", "--type", "container", args.container])
@@ -224,7 +224,8 @@ def main() -> int:
         payload = {
             "schema": SCHEMA,
             "status": "PASS" if clean else "FAIL",
-            "hardware_id_sha256": target_hash,
+            "product_hardware_id_sha256": target_hash,
+            "identity_authority": "RUNTIME_QR_EQUALS_MANAGER_PENDING",
             "manager_container_running": True,
             "registration_history_counts": registration_counts,
             "registration_history_total": registration_total,
@@ -240,7 +241,7 @@ def main() -> int:
             "manager_replay_mutation": False,
         }
         print(json.dumps(payload, indent=2, sort_keys=True))
-        print("MANAGER_HISTORY_READONLY=" + payload["status"])
+        print("PRODUCT_IDENTITY_MANAGER_HISTORY_READONLY=" + payload["status"])
         print("MANAGER_MUTATION=false")
         print("MANAGER_REPLAY_MUTATION=false")
         return 0 if clean else 2
