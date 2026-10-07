@@ -70,6 +70,7 @@ class SimplePairingClient {
 
   bool provisioned() const { return provisioned_; }
   bool setup_secret_ready() const { return setup_secret_ready_; }
+  bool handoff_ready() const { return handoff_ready_; }
   const std::string &hardware_id() const { return hardware_id_; }
   const std::string &pairing_id() const { return pairing_id_; }
   std::string setup_secret_base64url() const;
@@ -104,6 +105,7 @@ class SimplePairingClient {
   std::string pairing_id_{};
   bool initialized_{false};
   bool setup_secret_ready_{false};
+  bool handoff_ready_{false};
   bool provisioned_{false};
 };
 
