@@ -400,3 +400,47 @@ SUCCESSOR_REMOTE_AUTHORIZATION_REQUIRED_FOR_FURTHER_SSH=true
 The next action must read only the private Mac evidence and emit sanitized
 phase booleans. Do not paste the verbose SSH log, SSH target, private key
 paths, remote identifiers, or host-key material into public project records.
+
+
+## 13. Operator-confirmed direct T1 SSH login — alias authority mismatch investigation
+
+After the two `ssh t1` failures, the operator independently reported a
+successful interactive SSH login using an explicit `root@<private T1 IPv4>`
+target, reaching the expected `root@armbian` shell.
+
+```text
+EXPLICIT_T1_SSH_LOGIN_OBSERVED=true
+EXPLICIT_T1_SSH_LOGIN_ACCOUNT=root
+EXPLICIT_T1_SSH_LOGIN_PROMPT=root@armbian
+DIRECT_T1_SSH_TRANSPORT_SUCCESS=true
+
+FAILED_EXECUTOR_SSH_TARGET=t1
+FAILED_EXECUTOR_SSH_TARGET_EQUALS_SUCCESSFUL_EXPLICIT_TARGET=NOT_PROVEN
+SSH_ALIAS_TARGET_MISMATCH=HYPOTHESIS_NOT_PROVEN
+T1_SSH_SERVICE_UNAVAILABLE=false
+T1_BROKER_MANAGER_RUNTIME_HEALTH=NOT_TESTED
+P2_MANAGER_PREBOOT_SNAPSHOT_CREATED=false
+
+P2_R2_AUTHORIZATION_CONSUMED=true
+AUTO_RETRY=false
+BOARD_ACCESS=false
+BOARD_WRITE=false
+MANAGER_RESTART=false
+BROKER_RESTART=false
+MANAGER_DB_WRITE=false
+STOP=true
+```
+
+Correction: the previous repeated `ssh t1` failures establish only a failure
+of that alias-based route under the executor's options. They do **not** establish
+general unreachability of T1. A fresh successful explicit-root login proves
+that the operator's SSH transport to the expected T1 shell works, but it does
+not prove the alias points to that destination. Root cause remains unproven.
+
+Next perform a **host-only** effective SSH configuration comparison between
+`ssh -G t1` and the operator's successfully used explicit SSH target. Compare
+resolved HostName, User, Port, and relevant connection settings without logging
+the raw IP or credentials. No new T1 connection is necessary for this comparison.
+Do not replay the two consumed authorizations. Any further automated T1 access
+requires a new explicitly scoped successor authorization with the successful
+T1 target bound first.
