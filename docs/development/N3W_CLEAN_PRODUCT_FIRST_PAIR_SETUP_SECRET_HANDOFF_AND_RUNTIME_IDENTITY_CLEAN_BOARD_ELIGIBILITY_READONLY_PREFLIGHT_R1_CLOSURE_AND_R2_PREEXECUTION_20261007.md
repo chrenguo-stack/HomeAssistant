@@ -523,3 +523,28 @@ R2_AUTHORIZATION_STILL_AVAILABLE=true
 The next diagnostic must remain host-only and use a direct
 `IOUSBHostInterface` service query rather than inferring child interface
 objects from the USB-parent plist tree.
+
+
+## 15. External USB Serial/JTAG reference note
+
+Espressif's USB Serial/JTAG programming guide documents two device-side
+conditions that can make the host serial function disappear even while the
+physical USB cable remains connected:
+
+- application reconfiguration of the USB pins or disabling the USB Serial/JTAG
+  controller;
+- sleep entry, where the USB Serial/JTAG controller is not usable and the host
+  may report the serial function disconnected or erroneous.
+
+This external reference is consistent with the observed symptom class but does
+not prove that either condition occurred on the current new candidate.
+
+```text
+ESPRESSIF_USB_SERIAL_JTAG_REFERENCE_REVIEW=NOTED
+DEVICE_SIDE_SLEEP_OR_USJ_DISABLE=PLAUSIBLE_NOT_PROVEN
+MACOS_SERIAL_PUBLICATION_DEFECT=PLAUSIBLE_NOT_PROVEN
+EXACT_ROOT_CAUSE=TBD
+```
+
+The current P1 route therefore continues to require evidence rather than
+assigning either host or device root cause.
