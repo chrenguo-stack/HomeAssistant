@@ -1,3 +1,34 @@
+## 2026-10-08 P2 Step-1 SSH transport stop
+
+```text
+P2_STEP1_RESULT=INVALID_SSH_TRANSPORT_FAILURE_RC255
+P2_AUTHORIZATION_GRANTED=true
+P2_AUTHORIZATION_CLAIMED=true
+P2_AUTHORIZATION_CONSUMED=true
+P2_AUTHORIZATION_REPLAY=false
+
+SSH_RETURN_CODE=255
+READY_FOR_P2_STEP2=false
+EXACT_ROOT_CAUSE=TBD
+PRODUCT_DEFECT=false
+
+BOARD_ACCESS=false
+BOARD_WRITE=false
+BROKER_RESTART=false
+MANAGER_RESTART=false
+MANAGER_DB_WRITE=false
+MANAGER_REPLAY_MUTATION=false
+MANAGER_HIGH_WATER_CLEAR=false
+
+NEXT_ACTION=HOST_ONLY_CLASSIFY_SAVED_SSH_STDERR
+STOP=true
+```
+
+No T1/Broker/Manager readiness predicate or Manager preboot identity snapshot
+is proven by the failed attempt. Do not rerun the consumed P2 authorization
+until the saved SSH failure is classified and a successor authorization is
+defined if another T1 access is required.
+
 ## 2026-10-08 P2 read-only preparation authorized
 
 ```text
