@@ -548,3 +548,55 @@ EXACT_ROOT_CAUSE=TBD
 
 The current P1 route therefore continues to require evidence rather than
 assigning either host or device root cause.
+
+
+## 16. R2 direct IOUSBHostInterface observation
+
+The direct host-only query observed the Espressif USB parent continuously and at
+least one matching IOUSBHostInterface continuously, but the number of matching
+interfaces varied and IOSerial visibility differed from the BSD node snapshot
+within one sequential sample.
+
+```text
+R2_DIRECT_IOUSBHOSTINTERFACE_RESULT=MIXED_NONATOMIC_TRANSITION
+OBSERVATION_SECONDS=10
+SAMPLE_COUNT=20
+DISTINCT_STATE_COUNT=3
+
+USB_PARENT_ALWAYS_PRESENT=true
+USB_INTERFACE_ALWAYS_PRESENT=true
+MATCHING_USB_INTERFACE_COUNTS=3,4
+
+IOSERIAL_ALWAYS_PRESENT=false
+CU_ALWAYS_PRESENT=true
+TTY_ALWAYS_PRESENT=true
+
+STATE_A=parent:1,interfaces:4,ioserial:1,cu:1,tty:1
+STATE_B=parent:1,interfaces:3,ioserial:1,cu:1,tty:1
+STATE_C=parent:1,interfaces:4,ioserial:0,cu:1,tty:1
+
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+BOARD_TARGETED_ESPTOOL=false
+STOP=true
+```
+
+Interpretation is intentionally bounded. The host queries are sequential rather
+than atomic, so `ioserial:0` with `cu:1,tty:1` can represent a transition
+caught between observations and must not be classified as a persistent orphan
+device-node state. Likewise, a 3/4 matching-interface count establishes that
+the matching interface-service inventory was not constant under this query, but
+does not by itself identify which exact interface detached or why.
+
+```text
+USB_PARENT_DEVICE_STABLE=true
+MATCHING_USB_INTERFACE_INVENTORY_CONSTANT=false
+SERIAL_PUBLICATION_INTERMITTENT=true
+EXACT_ROOT_CAUSE=TBD
+PRODUCT_DEFECT=false
+R2_AUTHORIZATION_STILL_AVAILABLE=true
+```
+
+Do not run board-targeted esptool yet. The next discriminator should be a
+host-only event/log capture around one transition, correlating USB interface and
+serial-client attach/detach messages. No serial open is needed.
