@@ -332,3 +332,48 @@ candidate set over a bounded observation window without opening any serial
 device. Only after a stable single-locator observation may the existing granted,
 still-unclaimed R2 authorization proceed to a fresh ownership preclaim and then
 the first board-targeted read-only probe.
+
+
+## 11. R2 host-only USB enumeration stability diagnosis
+
+The bounded 10-second host-only observation sampled the USB modem locator set
+20 times without opening any serial device or invoking board-targeted esptool.
+
+```text
+R2_USB_ENUMERATION_STABILITY_RESULT=FAIL
+OBSERVATION_SECONDS=10
+SAMPLE_COUNT=20
+DISTINCT_ENUMERATION_STATE_COUNT=2
+STATE_A_USB_MODEM_COUNT=1
+STATE_B_USB_MODEM_COUNT=0
+ALL_SAMPLES_SINGLE_DEVICE=false
+LOCATOR_STABLE=false
+
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+BOARD_TARGETED_ESPTOOL=false
+FLASH_WRITE=false
+FLASH_ERASE=false
+NVS_WRITE=false
+T1_MUTATION=false
+STOP=true
+```
+
+This is stronger evidence than the earlier one-shot `Resource busy` symptom:
+the macOS serial locator itself is disappearing during an observation window.
+The current evidence does not distinguish physical USB disconnect/power reset,
+USB-device re-enumeration, native USB interface reset, or another host-side
+USB-stack cause.
+
+```text
+DOMAIN=PHYSICAL_HARNESS
+OBSERVED_CAUSE=USB_MODEM_ENUMERATION_DROPS_TO_ZERO
+EXACT_ROOT_CAUSE=TBD
+PRODUCT_DEFECT=false
+R2_AUTHORIZATION_STILL_AVAILABLE=true
+```
+
+Do not invoke board-targeted esptool until the host can prove a stable USB
+device/serial-interface presence. The next diagnostic remains host-only and
+must compare USB-device presence with both `/dev/cu.usbmodem*` and
+`/dev/tty.usbmodem*` presence over the same bounded window.
