@@ -7,7 +7,6 @@ import pytest
 
 from greenhouse_manager.ops import n3w_pairing_cli as cli
 
-
 HARDWARE_ID = "ghw-c6-112233445566"
 PAIRING_ID = "123e4567-e89b-42d3-a456-426614174000"
 SETUP_SECRET = "A" * 43
