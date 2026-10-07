@@ -958,3 +958,18 @@ The next gate is repository-only final review of PR #437 merge readiness. It mus
 ## Public/private evidence boundary
 
 Public GitHub may store source, tests, artifact hashes, sanitized timing/acceptance results, and architecture decisions. Do not commit raw credentials, setup secrets, private keys, raw NVS, private host addresses, raw Manager/Broker logs, or raw board identity material.
+
+
+### 2026-10-07 read-only preflight tooling note
+
+Fresh readback after the current snapshot found that `clean_board_eligibility_readonly_preflight/executor.py` still binds the superseded source `157448b...` and artifact `11320812037`.
+
+```text
+PREFLIGHT_EXECUTOR_ARTIFACT_BINDING=STALE
+PRODUCT_DEFECT=false
+PREWRITTEN_EXECUTOR_REQUIRED=false
+NEXT_GATE_EXECUTION_AUTHORITY=FORMAL_HANDOFF_DSL_PLUS_REPLACEMENT_ARTIFACT_BINDING
+```
+
+Do not run the stale helper as exact artifact authority. The next read-only physical gate may be mechanically compiled from the formal DSL using the replacement artifact; tooling repair is not a prerequisite unless separately authorized.
+
