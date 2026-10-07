@@ -126,7 +126,7 @@ PUBLIC_SAFETY_RUN=37590822136
 CI_STATUS=PASS
 ```
 
-All required runs completed successfully. Exact-source readback confirmed that the final product-code authority is 629f096a32e087087ea32d30707dcc3cd6295e5d and that subsequent 9dd268d84c7b37a426fc05a66cd09af7781705fd changed only this documentation file.
+All required runs completed successfully. Exact-source readback confirmed that the final product-code authority is 629f096a32e087087ea32d30707dcc3cd6295e5d and that all later commits through the closure documentation head changed only this documentation file.
 
 ## 7. Boundary
 
