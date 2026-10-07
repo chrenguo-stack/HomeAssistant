@@ -4,7 +4,7 @@
 TASK=N3W_CLEAN_PRODUCT_FIRST_PAIR_SETUP_SECRET_HANDOFF_AND_RUNTIME_IDENTITY_SOURCE_REPAIR_20261007_01
 STATUS=IMPLEMENTED_CI_PENDING
 DESIGN_BASE=6cf5f31daefa84a98b3c6711dcb19455a78a1014
-SOURCE_REPAIR_CODE_HEAD=8085e6d50ca4d0e9fb7342e5fbffe437857f5d06
+SOURCE_REPAIR_CODE_HEAD=629f096a32e087087ea32d30707dcc3cd6295e5d
 BOARD_ACCESS=false
 T1_MUTATION=false
 MANAGER_REPLAY_MUTATION=false
@@ -101,16 +101,28 @@ New or extended coverage includes:
 
 Source repair plus CI-only follow-up remains source-only and adds focused tests without touching board/T1 runtime state.
 
+## 5.1 Exact-review follow-up
+
+The final source review found and repaired four design-contract gaps before closure:
+
+- scanned Setup Secret parsing now requires the exact 43-character unpadded base64url form and a decoded length of 32 bytes;
+- clean-product acceptance now has a read-only pre-boot Manager identity snapshot plus post-boot unique-new-pending hardware/pairing identity binding;
+- the LCD uses a dedicated dynamic pairing QR object and rebuilds it only when the exact payload changes;
+- the production readiness log no longer prints raw pairing identity material.
+
+These changes remain source-only. No board, T1, Manager replay/high-water or live product state was mutated.
+
 ## 6. CI binding
 
-After the CI-only repair follow-up, the following final-head runs were queued:
+After the exact-review follow-up, the following final-candidate-head runs were queued:
 
 ```text
-SOURCE_REPAIR_CODE_HEAD=8085e6d50ca4d0e9fb7342e5fbffe437857f5d06
-PRODUCTION_CONVERGENCE_RUN=37570672418
-CLEAN_BOARD_PREFLIGHT_RUN=37570672324
-GREENHOUSE_MANAGER_RUN=37570672481
-F1_RC2_FIRMWARE_RUN=37570672403
+SOURCE_REPAIR_CODE_HEAD=629f096a32e087087ea32d30707dcc3cd6295e5d
+PRODUCTION_CONVERGENCE_RUN=37590822231
+CLEAN_BOARD_PREFLIGHT_RUN=37590822050
+GREENHOUSE_MANAGER_RUN=37590822088
+F1_RC2_FIRMWARE_RUN=37590822280
+PUBLIC_SAFETY_RUN=37590822136
 CI_STATUS=PENDING
 ```
 
