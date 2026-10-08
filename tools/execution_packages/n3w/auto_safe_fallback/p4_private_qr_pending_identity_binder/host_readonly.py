@@ -28,6 +28,13 @@ FORBIDDEN_REMOTE_SOURCE = (
     "docker exec -i", "GHN3W2",
 )
 EXPECTED_REMOTE_SCHEMA = "n3w.p4.pending-identity-projection/1"
+EXPECTED_BRIDGE_GIT_BLOB = "e277949c3db5675bd460124832a382d6a2765539"
+EXPECTED_REMOTE_PROBE_GIT_BLOB = "7b3ba146583b61271b41390736b67207c8d4c14e"
+
+
+def _git_blob(content: str) -> str:
+    encoded = content.encode("utf-8")
+    return hashlib.sha1(f"blob {len(encoded)}\\0".encode() + encoded).hexdigest()
 
 
 def private_preboot_baseline(path: Path = PRIVATE_BASELINE) -> frozenset[str]:
@@ -73,6 +80,11 @@ def build_remote_program(
     *,
     snapshot_path: Path = PRIVATE_BASELINE,
 ) -> str:
+    if (
+        _git_blob(bridge_source) != EXPECTED_BRIDGE_GIT_BLOB
+        or _git_blob(probe_source) != EXPECTED_REMOTE_PROBE_GIT_BLOB
+    ):
+        raise ValueError("READONLY_SOURCE_BLOB_DRIFT")
     baseline = private_preboot_baseline(snapshot_path)
     probe = ast.parse(probe_source)
     if any(
