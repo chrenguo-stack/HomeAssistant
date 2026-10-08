@@ -111,7 +111,7 @@ class BridgeTests(unittest.TestCase):
         bound=b.bind_qr(QR,self.projection(),self.baseline,NOW)
         importer=b.OneShotImporter()
         denied=b.ImportPermission(bound.hardware_sha256,bound.pairing_sha256,False,False)
-        self.stopped('IMPORT_NOT_AUTHORIZED',lambda:importer.import_once(QR,bound,denied,lambda _:b'',NOW))
+        self.stopped('IMPORT_DISABLED_PENDING_VERIFIED_FIELD_ORCHESTRATOR',lambda:importer.import_once(QR,bound,denied,lambda _:b'',NOW))
         self.stopped('IMPORT_ALREADY_CONSUMED',lambda:importer.import_once(QR,bound,denied,lambda _:b'',NOW))
 
     def live_binding(self):
@@ -122,7 +122,7 @@ class BridgeTests(unittest.TestCase):
     def test_synthetic_binding_cannot_import_even_with_permission(self):
         binding=b.bind_qr(QR,self.projection(),self.baseline,NOW)
         permission=b.ImportPermission(binding.hardware_sha256,binding.pairing_sha256,True,True)
-        self.stopped('IMPORT_LIVE_AUTHORITY_REQUIRED',lambda:b.OneShotImporter().import_once(QR,binding,permission,lambda _:b'',NOW))
+        self.stopped('IMPORT_DISABLED_PENDING_VERIFIED_FIELD_ORCHESTRATOR',lambda:b.OneShotImporter().import_once(QR,binding,permission,lambda _:b'',NOW))
 
     def test_stale_live_projection_rejected(self):
         projection=self.projection()
@@ -133,42 +133,57 @@ class BridgeTests(unittest.TestCase):
         bound=self.live_binding()
         perm=b.ImportPermission(bound.hardware_sha256,bound.pairing_sha256,True,True)
         consumed=[]
-        def fake_pipe(data):consumed.append(data);return json.dumps({'schema':b.RESULT_SCHEMA,'accepted':True,'code':'accepted'}).encode()
+        def fake_pipe(data):
+            consumed.append(data)
+            return json.dumps({'schema':b.RESULT_SCHEMA,'accepted':True,'code':'accepted'}).encode()
         imp=b.OneShotImporter()
-        result=imp.import_once(QR,bound,perm,fake_pipe,NOW)
-        self.assertTrue(result['import_accepted'])
-        self.assertFalse(result['manager_commit_proven'])
-        self.assertEqual(consumed,[QR.encode()+b'\n'])
-        self.stopped('IMPORT_ALREADY_CONSUMED',lambda:imp.import_once(QR,bound,perm,fake_pipe,NOW))
+        self.stopped(
+            'IMPORT_DISABLED_PENDING_VERIFIED_FIELD_ORCHESTRATOR',
+            lambda:imp.import_once(QR,bound,perm,fake_pipe,NOW),
+        )
+        self.assertEqual(consumed,[])
+        self.stopped(
+            'IMPORT_ALREADY_CONSUMED',
+            lambda:imp.import_once(QR,bound,perm,fake_pipe,NOW),
+        )
 
     def test_import_denied_mismatch(self):
         bound=self.live_binding()
         perm=b.ImportPermission('0'*64,bound.pairing_sha256,True,True)
-        self.stopped('IMPORT_AUTHORITY_MISMATCH',lambda:b.OneShotImporter().import_once(QR,bound,perm,lambda _:b'',NOW))
+        self.stopped('IMPORT_DISABLED_PENDING_VERIFIED_FIELD_ORCHESTRATOR',lambda:b.OneShotImporter().import_once(QR,bound,perm,lambda _:b'',NOW))
 
     def test_import_expired(self):
         bound=self.live_binding()
         perm=b.ImportPermission(bound.hardware_sha256,bound.pairing_sha256,True,True)
-        self.stopped('IMPORT_EXPIRED',lambda:b.OneShotImporter().import_once(QR,bound,perm,lambda _:b'',NOW+timedelta(seconds=111)))
+        self.stopped('IMPORT_DISABLED_PENDING_VERIFIED_FIELD_ORCHESTRATOR',lambda:b.OneShotImporter().import_once(QR,bound,perm,lambda _:b'',NOW+timedelta(seconds=111)))
 
     def test_response_invalid(self):
         bound=self.live_binding()
         perm=b.ImportPermission(bound.hardware_sha256,bound.pairing_sha256,True,True)
-        self.stopped('IMPORT_RESPONSE_INVALID',lambda:b.OneShotImporter().import_once(QR,bound,perm,lambda _:b'{"raw_secret":"oops"}',NOW))
+        self.stopped('IMPORT_DISABLED_PENDING_VERIFIED_FIELD_ORCHESTRATOR',lambda:b.OneShotImporter().import_once(QR,bound,perm,lambda _:b'{"raw_secret":"oops"}',NOW))
 
-    def test_ssh_not_called_for_target_mismatch(self):
+    def test_ssh_import_source_only_path_disabled(self):
         with patch.object(b.subprocess,'run') as run:
-            self.stopped('IMPORT_TARGET_MISMATCH',lambda:b.ssh_manager_stdin_transport('root@10.0.0.2',b'fake',expected_target_sha256='0'*64))
+            self.stopped(
+                'IMPORT_DISABLED_PENDING_VERIFIED_FIELD_ORCHESTRATOR',
+                lambda:b.ssh_manager_stdin_transport(
+                    'root@10.0.0.2',QR.encode(),
+                    expected_target_sha256=b.sha('root@10.0.0.2'),
+                ),
+            )
             run.assert_not_called()
 
-    def test_ssh_argv_has_no_qr(self):
-        with patch.object(b.subprocess,'run') as run:
-            run.return_value.returncode=0;run.return_value.stdout=b'{}'
-            b.ssh_manager_stdin_transport('root@10.0.0.2', QR.encode(),expected_target_sha256=b.sha('root@10.0.0.2'))
-            args=run.call_args.args[0]
-            self.assertNotIn(SECRET,str(args))
-            self.assertEqual(run.call_args.kwargs['input'],QR.encode())
-            self.assertIn('import-payload',args)
+    def test_forged_binding_and_permission_still_cannot_import(self):
+        bound=b.Binding(b.sha(HARD),b.sha(PAIR),NOW+timedelta(seconds=90),True)
+        perm=b.ImportPermission(bound.hardware_sha256,bound.pairing_sha256,True,True)
+        transport=[]
+        self.stopped(
+            'IMPORT_DISABLED_PENDING_VERIFIED_FIELD_ORCHESTRATOR',
+            lambda:b.OneShotImporter().import_once(
+                QR,bound,perm,lambda data:transport.append(data) or b'',NOW,
+            ),
+        )
+        self.assertEqual(transport,[])
 
     def test_snapshot_no_db_write(self):
         import hashlib
