@@ -1,0 +1,133 @@
+# N3-W Auto Safe Fallback Gate F — Exact Artifact Build and Binding — 2026-10-03
+
+Status: `PASS`
+
+## Frozen production source
+
+```text
+PRODUCT_SOURCE_HEAD=b2419d17c198a85b7b50d9c1771544c2e3a0ab6b
+PRODUCT_SOURCE_TREE=c138ac3efa9b23b4d083f0cb5248089fef493416
+TARGET_CONFIG=firmware/esphome_rc/f1_0_rc2/f1_0_rc2_n3w_target.yml
+TARGET_BLOB_SHA=32a2b3cb29be4e1bce46807d8825b6a4c37999ec
+TELEMETRY_BRIDGE_BLOB_SHA=ce16f2389d146f9b25e95cbb628547e11ce36bd6
+TRANSPORT_BLOB_SHA=aa39d4b083f2db1b30a76efb1afef156db355a35
+PRODUCT_CORE_INIT_BLOB_SHA=75949b916144383ae57ebe90ece41e9f248b8cbe
+PYTHON_VERSION=3.11
+ESPHOME_VERSION=2026.4.3
+ESP_IDF_VERSION=5.5.4
+```
+
+## Build-only branch
+
+```text
+BUILD_BRANCH=build/n3w-auto-safe-fallback-f1rc2-b2419d1-artifact-20261003
+BUILD_BRANCH_HEAD=5aac64e93380916e440eee740d0aca281999de5f
+BUILD_BRANCH_PARENT=b2419d17c198a85b7b50d9c1771544c2e3a0ab6b
+PRODUCT_SOURCE_CHANGED=false
+```
+
+The build branch is exactly one workflow commit above the frozen product source.
+
+## Workflow
+
+```text
+WORKFLOW_RUN_ID=37123365844
+WORKFLOW_RESULT=SUCCESS
+ARTIFACT_ID=11273613346
+ARTIFACT_NAME=n3w-auto-safe-fallback-f1rc2-b2419d1-exact-source
+ARTIFACT_SIZE=4327764
+ARTIFACT_CREATED_AT=2026-10-03T12:39:52Z
+ARTIFACT_EXPIRES_AT=2026-11-02T12:39:51Z
+GITHUB_ARTIFACT_SHA256=57465f56362404b269f80adb21994a22ec0d1acdcc724f9a163c84b6df3eea4d
+```
+
+All workflow stages passed:
+
+```text
+SOURCE_BINDING=PASS
+F1_0_RC2_COMPILE=PASS
+ESP_IDF_5_5_4_BINDING=PASS
+BINARY_DEHARNESS_PROOF=PASS
+RELEASE_BUNDLE_FREEZE=PASS
+ARTIFACT_UPLOAD=PASS
+```
+
+## Independent artifact download and binding
+
+The uploaded GitHub artifact was independently downloaded and hashed outside the workflow.
+
+```text
+INDEPENDENT_OUTER_SHA256=57465f56362404b269f80adb21994a22ec0d1acdcc724f9a163c84b6df3eea4d
+OUTER_DIGEST_MATCH_GITHUB_METADATA=PASS
+
+RELEASE_BUNDLE=n3w-auto-safe-fallback-f1rc2-b2419d1-exact-source.zip
+RELEASE_BUNDLE_SIZE=4327212
+RELEASE_BUNDLE_SHA256=7bf9980e50d2baa26459ca020002e8947d8038409dcb564a0101131be1799a6a
+INNER_SHA256_SIDECAR_MATCH=PASS
+RELEASE_MEMBER_COUNT=8
+```
+
+Release member set:
+
+```text
+MANIFEST.txt
+bootloader.bin
+firmware.bin
+firmware.factory.bin
+firmware.ota.bin
+flash_args
+ota_data_initial.bin
+partitions.bin
+```
+
+Independent member sizes and hashes:
+
+```text
+MANIFEST_SIZE=1555
+MANIFEST_SHA256=d95461f0011abe5c7882e2af3a8c3a10d60b69617b938ea3b2450d464bc6a9e0
+
+FIRMWARE_BIN_SIZE=1408416
+FIRMWARE_BIN_SHA256=474e738068fc894b20cfe5f647a6112b66c141aa86c873d414d8ed183679e43c
+
+FIRMWARE_OTA_BIN_SIZE=1408416
+FIRMWARE_OTA_BIN_SHA256=474e738068fc894b20cfe5f647a6112b66c141aa86c873d414d8ed183679e43c
+
+FIRMWARE_FACTORY_BIN_SIZE=1473952
+FIRMWARE_FACTORY_BIN_SHA256=88d5a45628ccfad0f535bfc34a3fee407777bbf18836e8eb75a40a3d5e9ba418
+
+BOOTLOADER_BIN_SIZE=22576
+BOOTLOADER_BIN_SHA256=0587af10f3cb0d67894f66468d531a4d51d8a5b12e8d259d16d281fd6f720cf7
+
+PARTITIONS_BIN_SIZE=3072
+PARTITIONS_BIN_SHA256=6664b08a14a9cdc170e322823db29fbe485d87db9c4ec42759d9372028953dca
+
+OTADATA_SIZE=8192
+OTADATA_SHA256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
+
+FLASH_ARGS_SIZE=167
+FLASH_ARGS_SHA256=5dc4c4f6d568812713266e2604197cf4b68f87f49f8c6e9f7d28c84390faf713
+```
+
+The independent hashes match the embedded MANIFEST exactly.
+
+```text
+MANIFEST_SOURCE_BINDING_MATCH=PASS
+MANIFEST_MEMBER_SIZE_HASH_MATCH=PASS
+N3W_AUTO_SAFE_FALLBACK_EXACT_ARTIFACT_BUILD=PASS
+N3W_AUTO_SAFE_FALLBACK_EXACT_ARTIFACT_BINDING=PASS
+```
+
+## Physical boundary
+
+This gate did not access or mutate a board or T1.
+
+```text
+BOARD_ACCESS=false
+FLASH_WRITE=false
+T1_LIVE_MUTATION=false
+PHYSICAL_ACCEPTANCE_COMPLETE=false
+B3_CLOSED=false
+MERGE=false
+```
+
+The next gate is a fresh Board B read-only write-target preflight using this exact artifact binding. Do not use the historical `flash_args` file directly from the flat release bundle. The write route must use a separately reviewed factory-image procedure or an independently normalized multi-image mapping.

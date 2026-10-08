@@ -1,0 +1,152 @@
+name: N3W auto safe fallback production core convergence CI
+
+on:
+  pull_request:
+    paths:
+      - "firmware/esphome_rc/components/greenhouse_n3w_product_core/**"
+      - "tests/n3w_production/test_auto_safe_fallback_production_core_convergence_contract.py"
+      - "tests/n3w_production/n3w_auto_safe_fallback_broker_relocation_policy_host_test.cpp"
+      - "tests/n3w_production/test_relay_discovery_full_channel_fallback_v1_contract.py"
+      - "tests/n3w_production/n3w_relay_discovery_full_channel_fallback_v1_host_test.cpp"
+      - "tests/n3w_production/test_multi_relay_gateway_selection_v1_contract.py"
+      - "tests/n3w_production/n3w_multi_relay_gateway_selection_v1_host_test.cpp"
+      - "tests/n3w_production/n3w_first_pair_boot_policy_host_test.cpp"
+      - "tests/n3w_production/test_n3w_first_pair_boot_policy_behavior.py"
+      - "tests/n3w_production/test_kf050_first_pair_boot_initialization_contract.py"
+      - "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_n3w_target.yml"
+      - "firmware/esphome_rc/f1_0_rc2/packages/core.yml"
+      - "firmware/esphome_rc/f1_0_rc2/packages/display.yml"
+      - "firmware/esphome_rc/f1_0_rc2/packages/n3w_product_transport.yml"
+      - "host/greenhouse-manager/src/greenhouse_manager/ops/n3w_pairing_cli.py"
+      - "host/greenhouse-manager/tests/ops/test_n3w_pairing_cli.py"
+      - "tools/execution_packages/n3w/auto_safe_fallback/clean_board_eligibility_readonly_preflight/**"
+      - "tests/execution_packages/n3w/auto_safe_fallback/clean_board_eligibility_readonly_preflight/**"
+      - "tests/n3w_production/test_first_pair_setup_secret_handoff_contract.py"
+      - ".github/workflows/n3w-auto-safe-fallback-production-core-convergence-ci.yml"
+  push:
+    branches:
+      - "fix/n3w-auto-safe-fallback-production-core-convergence-20261003"
+    paths:
+      - "firmware/esphome_rc/components/greenhouse_n3w_product_core/**"
+      - "tests/n3w_production/test_auto_safe_fallback_production_core_convergence_contract.py"
+      - "tests/n3w_production/n3w_auto_safe_fallback_broker_relocation_policy_host_test.cpp"
+      - "tests/n3w_production/test_relay_discovery_full-channel-fallback-v1-contract.py"
+      - "tests/n3w_production/test_relay_discovery_full_channel_fallback_v1_contract.py"
+      - "tests/n3w_production/n3w_relay_discovery_full_channel_fallback_v1_host_test.cpp"
+      - "tests/n3w_production/test_multi_relay_gateway_selection_v1_contract.py"
+      - "tests/n3w_production/n3w_multi_relay_gateway_selection_v1_host_test.cpp"
+      - "tests/n3w_production/n3w_first_pair_boot_policy_host_test.cpp"
+      - "tests/n3w_production/test_n3w_first_pair_boot_policy_behavior.py"
+      - "tests/n3w_production/test_kf050_first_pair_boot_initialization_contract.py"
+      - "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_n3w_target.yml"
+      - "firmware/esphome_rc/f1_0_rc2/packages/core.yml"
+      - "firmware/esphome_rc/f1_0_rc2/packages/display.yml"
+      - "firmware/esphome_rc/f1_0_rc2/packages/n3w_product_transport.yml"
+      - "host/greenhouse-manager/src/greenhouse_manager/ops/n3w_pairing_cli.py"
+      - "host/greenhouse-manager/tests/ops/test_n3w_pairing_cli.py"
+      - "tools/execution_packages/n3w/auto_safe_fallback/clean_board_eligibility_readonly_preflight/**"
+      - "tests/execution_packages/n3w/auto_safe_fallback/clean_board_eligibility_readonly_preflight/**"
+      - "tests/n3w_production/test_first_pair_setup_secret_handoff_contract.py"
+      - ".github/workflows/n3w-auto-safe-fallback-production-core-convergence-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  production-convergence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install host and ESP32-C6 dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libmbedtls-dev
+          python -m pip install -q "pytest>=8,<9" "esphome==2026.4.3"
+
+      - name: Auto fallback production convergence source contract
+        run: pytest -q tests/n3w_production/test_auto_safe_fallback_production_core_convergence_contract.py
+
+      - name: KF-050 first-pair boot-session regression
+        run: pytest -q tests/n3w_production/test_n3w_first_pair_boot_policy_behavior.py tests/n3w_production/test_kf050_first_pair_boot_initialization_contract.py
+
+      - name: Clean-product first-pair handoff source contract
+        run: pytest -q tests/n3w_production/test_first_pair_setup_secret_handoff_contract.py
+
+      - name: Manager complete pairing payload CLI regression
+        run: PYTHONPATH=host/greenhouse-manager/src pytest -q host/greenhouse-manager/tests/ops/test_n3w_pairing_cli.py
+
+      - name: Clean-board identity semantics regression
+        run: pytest -q tests/execution_packages/n3w/auto_safe_fallback/clean_board_eligibility_readonly_preflight/test_executor.py tests/execution_packages/n3w/auto_safe_fallback/clean_board_eligibility_readonly_preflight/test_manager_history_readonly.py tests/execution_packages/n3w/auto_safe_fallback/clean_board_eligibility_readonly_preflight/test_runtime_identity_binding_readonly.py
+
+      - name: PR474 full-channel regression contract
+        run: pytest -q tests/n3w_production/test_relay_discovery_full_channel_fallback_v1_contract.py
+
+      - name: Gateway Selection V1 regression contract
+        run: pytest -q tests/n3w_production/test_multi_relay_gateway_selection_v1_contract.py
+
+      - name: Build and run broker relocation policy host test
+        shell: bash
+        run: |
+          set -euo pipefail
+          core=firmware/esphome_rc/components/greenhouse_n3w_product_core
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror \
+            -I"$core" \
+            "$core/n3w_broker_relocation_policy.cpp" \
+            tests/n3w_production/n3w_auto_safe_fallback_broker_relocation_policy_host_test.cpp \
+            -o /tmp/n3w-auto-safe-fallback-broker-relocation-policy-host-test
+          /tmp/n3w-auto-safe-fallback-broker-relocation-policy-host-test
+
+      - name: Build and run PR474 full-channel host regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          core=firmware/esphome_rc/components/greenhouse_n3w_product_core
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror \
+            -I"$core" \
+            "$core/n3w_core.cpp" \
+            "$core/n3w_radio.cpp" \
+            "$core/n3w_simple_crypto.cpp" \
+            "$core/n3w_compact_telemetry.cpp" \
+            "$core/n3w_simple_runtime.cpp" \
+            "$core/n3w_simple_state_host.cpp" \
+            "$core/n3w_simple_product_runtime.cpp" \
+            tests/n3w_production/n3w_relay_discovery_full_channel_fallback_v1_host_test.cpp \
+            -lmbedcrypto \
+            -o /tmp/n3w-full-channel-fallback-v1-host-test
+          /tmp/n3w-full-channel-fallback-v1-host-test
+
+      - name: Build and run Gateway Selection V1 host regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          core=firmware/esphome_rc/components/greenhouse_n3w_product_core
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror \
+            -I"$core" \
+            "$core/n3w_core.cpp" \
+            "$core/n3w_radio.cpp" \
+            "$core/n3w_simple_crypto.cpp" \
+            "$core/n3w_compact_telemetry.cpp" \
+            "$core/n3w_simple_runtime.cpp" \
+            "$core/n3w_simple_state_host.cpp" \
+            "$core/n3w_simple_product_runtime.cpp" \
+            tests/n3w_production/n3w_multi_relay_gateway_selection_v1_host_test.cpp \
+            -Wl,--wrap=mbedtls_md \
+            -lmbedcrypto \
+            -o /tmp/n3w-gateway-selection-v1-host-test
+          /tmp/n3w-gateway-selection-v1-host-test
+
+      - name: Validate F1.0-RC2 production N3-W target
+        working-directory: firmware/esphome_rc/f1_0_rc2
+        run: RC2_CONFIG=f1_0_rc2_n3w_target.yml bash tools/rc2.sh config
+
+      - name: Compile F1.0-RC2 production N3-W target
+        working-directory: firmware/esphome_rc/f1_0_rc2
+        run: RC2_CONFIG=f1_0_rc2_n3w_target.yml bash tools/rc2.sh compile

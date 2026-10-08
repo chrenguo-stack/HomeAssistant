@@ -10,6 +10,9 @@
 
 #include "esphome/core/component.h"
 
+#include "n3w_broker_relocation_policy.h"
+#include "n3w_esp32_manager_discovery.h"
+#include "n3w_esp32_manager_discovery_session.h"
 #include "n3w_esp32_pairing_nvs.h"
 #include "n3w_esp32_runtime_nvs.h"
 #include "n3w_espnow_driver.h"
@@ -62,6 +65,7 @@ class SimpleProductComponent : public Component,
       uint32_t seq);
 
   bool provisioned() const { return pairing_client_.provisioned(); }
+  bool pairing_handoff_ready() const { return pairing_client_.handoff_ready(); }
   bool runtime_ready() const { return runtime_ready_; }
   LocalPathState path_state() const { return runtime_.path_state(); }
   const std::string &hardware_id() const { return pairing_client_.hardware_id(); }
@@ -107,6 +111,8 @@ class SimpleProductComponent : public Component,
       const MacAddress &peer_mac,
       const uint8_t *data,
       std::size_t size) override;
+  void on_direct_recovery_probe_tick(bool success) override;
+  void on_direct_recovery_commit_result(bool committed) override;
   uint8_t last_channel_observed() const override { return last_channel_observed_; }
   int32_t last_channel_error_raw() const override { return last_channel_error_raw_; }
   uint8_t last_broadcast_send_error_code() const override {
@@ -232,6 +238,16 @@ class SimpleProductComponent : public Component,
   TelemetrySubmitDisposition flush_telemetry_queue_(
       TelemetryPathAccounting accounting =
           TelemetryPathAccounting::TRANSPORT_ONLY);
+  void reset_broker_relocation_attempt_();
+  void advance_broker_relocation_();
+  bool start_broker_discovery_();
+  bool finish_broker_discovery_();
+  bool start_next_broker_candidate_();
+  bool retarget_runtime_broker_(const std::string &host, bool reconnect);
+  void rollback_broker_candidate_();
+  bool current_wifi_ipv4_(
+      std::string *local_ipv4,
+      std::string *subnet_mask) const;
   bool http_post_(
       const std::string &host,
       uint16_t port,
@@ -318,6 +334,26 @@ class SimpleProductComponent : public Component,
   bool pending_hint_release_acceleration_{false};
   ProvisionedPeerStateV2 peer_state_{};
   ProvisionedBrokerStateV2 broker_state_{};
+  bool broker_relocation_initialized_{false};
+  bool broker_discovery_attempted_{false};
+  bool broker_discovery_ever_started_{false};
+  bool broker_candidate_active_{false};
+  bool broker_candidate_verified_{false};
+  uint64_t broker_mqtt_failure_started_ms_{0};
+  uint64_t broker_candidate_started_ms_{0};
+  uint64_t broker_candidate_deadline_ms_{0};
+  uint64_t broker_discovery_completed_ms_{0};
+  uint64_t last_broker_discovery_started_ms_{0};
+  std::string stable_runtime_broker_host_{};
+  std::string pending_broker_candidate_host_{};
+  std::string broker_discovery_request_id_{};
+  std::string broker_discovery_nonce_{};
+  std::string broker_discovery_local_ipv4_{};
+  std::string broker_discovery_subnet_mask_{};
+  std::vector<SimpleBrokerRecoveryTarget> broker_relocation_targets_{};
+  std::size_t broker_relocation_target_index_{0};
+  Esp32ManagerDiscoverySession broker_discovery_session_{};
+  Esp32ManagerDiscoveryRandom broker_discovery_random_{};
   EspNowDriver radio_{};
   RadioOwnership radio_ownership_{RadioOwnership::DIRECT_WIFI};
   uint8_t last_channel_observed_{0};

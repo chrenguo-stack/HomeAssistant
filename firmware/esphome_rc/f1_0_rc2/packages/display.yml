@@ -9,13 +9,13 @@ font:
     id: f10
     size: 10
     bpp: 1
-    glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~℃°µ³手机相扫码配置节点如需重网络请快速断电启次今日昨较池即将耗尽及时充"
+    glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~℃°µ³手机相扫码配置节点如需重网络请快速断电启次今日昨较池即将耗尽及时充添加等待对"
 
   - file: "fonts/fusion-pixel-12px-monospaced-zh_hans.bdf"
     id: f12
     size: 12
     bpp: 1
-    glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~℃°µ二氧化碳气温湿度光照土壤盐传感器失联请检查接线项故障配扫码点置网正启重断电三次进入当前址成功在已连络手机相或动蒸压差露绝对累积今日昨如需快速充设备中量低"
+    glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~℃°µ二氧化碳气温湿度光照土壤盐传感器失联请检查接线项故障配扫码点置网正启重断电三次进入当前址成功在已连络手机相或动蒸压差露绝对累积今日昨如需快速充设备中量低离添加节等待找主"
 
   - file: "fonts/ark-pixel-16px-monospaced-zh_cn.bdf"
     id: f16
@@ -26,6 +26,10 @@ font:
 qr_code:
   - id: setup_qr
     value: "WIFI:T:nopass;S:gh;;"
+    ecc: LOW
+
+  - id: pairing_qr
+    value: "GHN3W2:pending"
     ecc: LOW
 
 display:
@@ -241,15 +245,30 @@ display:
         it.printf(38, 104, id(f10), "g/m³");
       }
 
-      // ─── PAGE 4：配网二维码 / 已联网状态 ───
+      // ─── PAGE 4：配网 / 首次配对 / 已联网状态 ───
       if (page == 4) {
         if (!id(wifi_component).is_connected()) {
-          const int scale = 2;
-          const int qr_render = id(setup_qr).get_size() * scale;
-          it.qr_code((64 - qr_render) / 2, 14, id(setup_qr), COLOR_ON, scale);
-          it.printf(32, 68, id(f10), TextAlign::TOP_CENTER, "手机相机扫码");
-          it.printf(32, 84, id(f10), TextAlign::TOP_CENTER, "配置节点网络");
-          it.printf(32, 100, id(f10), TextAlign::TOP_CENTER, "%s", App.get_name().c_str());
+          if (id(n3w_pairing_display_enabled) && id(n3w_product_provisioned)) {
+            it.printf(32, 42, id(f12), TextAlign::TOP_CENTER, "网络离线");
+          } else {
+            const int scale = 2;
+            const int qr_render = id(setup_qr).get_size() * scale;
+            it.qr_code((64 - qr_render) / 2, 14, id(setup_qr), COLOR_ON, scale);
+            it.printf(32, 68, id(f10), TextAlign::TOP_CENTER, "手机相机扫码");
+            it.printf(32, 84, id(f10), TextAlign::TOP_CENTER, "配置节点网络");
+            it.printf(32, 100, id(f10), TextAlign::TOP_CENTER, "%s", App.get_name().c_str());
+          }
+        } else if (id(n3w_pairing_display_enabled) && !id(n3w_product_provisioned)) {
+          if (id(n3w_pairing_display_ready)) {
+            const int qr_size = id(pairing_qr).get_size();
+            const int scale = qr_size * 2 <= 60 ? 2 : 1;
+            const int qr_render = qr_size * scale;
+            it.qr_code((64 - qr_render) / 2, 14, id(pairing_qr), COLOR_ON, scale);
+            it.printf(32, 62, id(f10), TextAlign::TOP_CENTER, "扫码添加节点");
+            it.printf(32, 78, id(f10), TextAlign::TOP_CENTER, "等待配对");
+          } else {
+            it.printf(32, 44, id(f12), TextAlign::TOP_CENTER, "正在查找主机");
+          }
         } else {
           static const uint32_t link_icon[14] = {
             0b0011111111110000111111111100,

@@ -144,11 +144,7 @@ void SimpleProductComponent::setup() {
     mark_failed();
     return;
   }
-  ESP_LOGI(
-      TAG,
-      "Unprovisioned N3-W node ready for local pairing hardware_id=%s pairing_id=%s",
-      pairing_client_.hardware_id().c_str(),
-      pairing_client_.pairing_id().c_str());
+  ESP_LOGI(TAG, "Unprovisioned N3-W node ready for local pairing");
 }
 
 void SimpleProductComponent::loop() {
