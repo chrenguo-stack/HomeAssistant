@@ -1,3 +1,23 @@
+## 2026-10-08 P3 wrong-board repeat confirmed
+
+```text
+P3_WRONG_BOARD_REPEAT_SAME_HASH=true
+P3_CONNECTED_OTHER_BOARD_SHA256=4b004ce3931dda3dda770c1ecfc9b0d4b7a88377d2c4f876185b82c056a2a4cc
+P3_EXPECTED_CLEAN_CANDIDATE_SHA256=f9c00d136f84d1fdabb1e296608702539ed674271021b28cff2d4a23e4cd2bf7
+P3_AUTHORIZATION_GRANTED=true
+P3_AUTHORIZATION_CLAIMED=false
+P3_AUTHORIZATION_CONSUMED=false
+BOARD_WRITE=false
+FLASH_ERASE=false
+READY_TO_RESUME_P3=false
+NEXT_ACTION=PHYSICALLY_RECONNECT_P1_R2_CLEAN_CANDIDATE
+STOP=true
+```
+
+A repository search found no prior project record for the current OTHER_BOARD
+hash. Do not keep rerunning P3 against this board; physically reconnect the
+P1 R2 clean candidate first.
+
 ## 2026-10-08 P3 wrong-board classification confirmed
 
 ```text
