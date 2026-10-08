@@ -1,3 +1,33 @@
+## 2026-10-08 P3 wrong-board classification confirmed
+
+```text
+P3_AUTHORIZATION_GRANTED=true
+P3_AUTHORIZATION_CLAIMED=false
+P3_AUTHORIZATION_CONSUMED=false
+
+P3_EXPECTED_CLEAN_CANDIDATE_SHA256=f9c00d136f84d1fdabb1e296608702539ed674271021b28cff2d4a23e4cd2bf7
+P3_CONNECTED_OTHER_BOARD_SHA256=4b004ce3931dda3dda770c1ecfc9b0d4b7a88377d2c4f876185b82c056a2a4cc
+BOARD_CLASSIFICATION=OTHER_BOARD
+EXPECTED_P1_CANDIDATE_MATCH=false
+
+FLASH_SIZE_8MB=true
+SECURE_BOOT_DISABLED=true
+FLASH_ENCRYPTION_DISABLED=true
+PARTITION_WINDOW_BLANK=true
+
+CURRENT_OTHER_BOARD_MUTATION_AUTHORIZED=false
+READY_TO_RESUME_P3=false
+NEXT_ACTION=RECONNECT_P1_R2_CLEAN_CANDIDATE_THEN_REPEAT_PRECLAIM
+AUTO_RETRY=false
+AUTO_P4=false
+STOP=true
+```
+
+The current board is physically distinct from the P1 R2 candidate. P3 remains
+authorized but unclaimed/unconsumed. Do not delete prior P3 private evidence;
+use a fresh private evidence directory when preclaim is repeated on the correct
+board.
+
 ## 2026-10-08 P3 preclaim stopped on silicon mismatch
 
 ```text
