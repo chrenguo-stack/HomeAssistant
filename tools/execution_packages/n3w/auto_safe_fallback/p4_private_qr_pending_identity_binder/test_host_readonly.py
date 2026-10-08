@@ -46,8 +46,16 @@ class HostTests(unittest.TestCase):
         bridge=(ROOT/'bridge_handoff.py').read_text()
         mutated=bridge.replace('PRAGMA query_only=ON','DELETE FROM registrations')
         with patch.object(h,'private_preboot_baseline',return_value=BASE):
-            with self.assertRaisesRegex(ValueError,'REMOTE_SQL_MUTATION'):
-                h.build_remote_program(mutated,(ROOT/'remote_projection.py').read_text())
+            with patch.object(h,'EXPECTED_BRIDGE_GIT_BLOB',h._git_blob(mutated)):
+                with self.assertRaisesRegex(ValueError,'REMOTE_SQL_MUTATION'):
+                    h.build_remote_program(mutated,(ROOT/'remote_projection.py').read_text())
+
+    def test_source_sha_drift_rejected_before_private_read(self):
+        changed=(ROOT/'bridge_handoff.py').read_text()+'\\n'
+        with patch.object(h,'private_preboot_baseline') as get_baseline:
+            with self.assertRaisesRegex(ValueError,'READONLY_SOURCE_BLOB_DRIFT'):
+                h.build_remote_program(changed,(ROOT/'remote_projection.py').read_text())
+            get_baseline.assert_not_called()
 
     def test_happy_remote_readonly_pipe_with_mock(self):
         args=[]
