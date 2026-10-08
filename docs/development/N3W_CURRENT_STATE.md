@@ -1,3 +1,32 @@
+## 2026-10-08 P2 preboot runtime refreeze authorized and executor bound
+
+```text
+CURRENT_CLEAN_CANDIDATE_SILICON_BINDING_SHA256=4b004ce3931dda3dda770c1ecfc9b0d4b7a88377d2c4f876185b82c056a2a4cc
+P1_SUCCESSOR_STATUS=CLOSED_PASS
+
+P2_REFREEZE_AUTHORIZATION_GRANTED=true
+P2_REFREEZE_AUTHORIZATION_CLAIMED=false
+P2_REFREEZE_AUTHORIZATION_CONSUMED=false
+P2_REFREEZE_PREEXECUTION=docs/development/N3W_CLEAN_PRODUCT_FIRST_PAIR_P2_PREBOOT_RUNTIME_REFREEZE_PREEXECUTION_20261008.md
+P2_REFREEZE_EXECUTOR_PATH=tools/execution_packages/n3w/auto_safe_fallback/p2_preboot_runtime_refreeze/executor.py
+P2_REFREEZE_EXECUTOR_BLOB_SHA=4b27e6174be45a5fc250d81b4f292ede5009e7d3
+
+P3_AUTHORIZATION_GRANTED=true
+P3_AUTHORIZATION_CLAIMED=false
+P3_AUTHORIZATION_CONSUMED=false
+READY_FOR_P3=false
+
+BOARD_ACCESS=false
+BOARD_WRITE=false
+AUTO_P3=false
+NEXT_ONE_GATE=P2_PREBOOT_RUNTIME_REFREEZE_FOR_CURRENT_CLEAN_CANDIDATE
+STOP=true
+```
+
+The operator instructed continuation. P2 refreeze is read-only and must STOP
+after its public-safe result. On PASS, the already granted/unclaimed P3
+authorization remains available for the next stage.
+
 ## 2026-10-08 current-board P1 successor CLOSED_PASS
 
 ```text
