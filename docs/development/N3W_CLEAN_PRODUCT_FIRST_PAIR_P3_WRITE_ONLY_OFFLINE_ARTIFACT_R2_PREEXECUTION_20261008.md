@@ -1,12 +1,16 @@
 # N3-W Clean Product First-Pair — P3 Write-Only Offline Exact-Artifact R2 Preexecution — 2026-10-08
 
 ```text
-STATUS=PREPARED_NOT_AUTHORIZED
+STATUS=AUTHORIZED_NOT_EXECUTED
 NEXT_ONE_GATE=N3W_CLEAN_PRODUCT_FIRST_PAIR_P3_WRITE_ONLY_OFFLINE_ARTIFACT_R2_20261008_01
 ORIGINAL_P3_WRITE_ONLY_AUTHORIZATION_GRANTED=true
 ORIGINAL_P3_WRITE_ONLY_AUTHORIZATION_CLAIMED=false
 ORIGINAL_P3_WRITE_ONLY_AUTHORIZATION_CONSUMED=false
-OFFLINE_R2_PHYSICAL_AUTHORIZATION_GRANTED=false
+ORIGINAL_P3_WRITE_ONLY_AUTHORIZATION_SUPERSEDED=true
+ORIGINAL_P3_WRITE_ONLY_AUTHORIZATION_REPLAY=false
+OFFLINE_R2_PHYSICAL_AUTHORIZATION_GRANTED=true
+OFFLINE_R2_AUTHORIZATION_CLAIMED=false
+OFFLINE_R2_AUTHORIZATION_CONSUMED=false
 BOARD_ACCESS=false
 FLASH_ERASE=false
 FLASH_WRITE=false
@@ -68,7 +72,9 @@ EXECUTOR_BLOB_SHA=d6c8d63e20a53b3c8a626bd9d7d23f36b3fa24fc
 EXECUTOR_STATIC_SCOPE_CHECK=PASS
 EXECUTOR_LOCAL_PYTHON_COMPILE=NOT_YET_EXECUTED
 EXECUTOR_PHYSICAL_EXECUTION=false
-OFFLINE_R2_PHYSICAL_AUTHORIZATION_GRANTED=false
+OFFLINE_R2_PHYSICAL_AUTHORIZATION_GRANTED=true
+OFFLINE_R2_AUTHORIZATION_CLAIMED=false
+OFFLINE_R2_AUTHORIZATION_CONSUMED=false
 ```
 
 Only the host-side artifact source is changed relative to the original exact write-only executor. Instead of issuing `gh run download`, the new executor requires `--outer-artifact` pointing at the locally downloaded **exact original outer ZIP**. Before any board access it requires matching outer exact size/SHA256, the exact two outer ZIP members, exact inner release size/SHA256, the sidecar digest, and all the existing frozen manifest/binary checks.
@@ -94,12 +100,14 @@ P3_R3_STATUS=CLOSED_PASS
 
 ## 4. Authorization / execution stop
 
-The previous authorization is still **unclaimed and unconsumed** because all failures occurred before board access and before its write claim boundary. However, the previous approval was bound to executor blob `481a...`. Since this offline R2 executor has a different exact blob, it must **not** be silently treated as already approved.
+The previous authorization is still **unclaimed and unconsumed** because all failures occurred before board access and before its write claim boundary. However, the previous approval was bound to executor blob `481a...`. Since this offline R2 executor has a different exact blob, the operator explicitly approved the new blob in the current project chat. The former original executor authorization remains unclaimed/unconsumed but is now superseded and must not be used or replayed.
 
 ```text
 NEXT_ONE_GATE=N3W_CLEAN_PRODUCT_FIRST_PAIR_P3_WRITE_ONLY_OFFLINE_ARTIFACT_R2_20261008_01
-NEXT_GATE_TYPE=SEPARATE_EXACT_EXECUTOR_REBIND_AND_OPERATOR_AUTHORIZATION
-OFFLINE_R2_PHYSICAL_AUTHORIZATION_GRANTED=false
+NEXT_GATE_TYPE=EXACT_EXECUTOR_REBIND_THEN_ONE_SHOT_OPERATOR_AUTHORIZED_EXECUTION
+OFFLINE_R2_PHYSICAL_AUTHORIZATION_GRANTED=true
+OFFLINE_R2_AUTHORIZATION_CLAIMED=false
+OFFLINE_R2_AUTHORIZATION_CONSUMED=false
 AUTO_EXECUTE=false
 AUTO_RETRY=false
 AUTO_ERASE=false
@@ -107,4 +115,34 @@ AUTO_P4=false
 STOP=true
 ```
 
-After explicit approval, the Mac must first save the known original outer ZIP locally and verify its SHA256, then fetch this exact executor blob, compile, and run it once with the expected silicon and `--outer-artifact`. On any mismatch or local failure before claim, return for review without board write. No success is claimed until actual four-region readbacks pass.
+Following explicit approval, the Mac must first save the known original outer ZIP locally and verify its SHA256, then fetch this exact executor blob, compile, and run it once with the expected silicon and `--outer-artifact`. On any mismatch or local failure before claim, return for review without board write. No success is claimed until actual four-region readbacks pass.
+
+
+## 5. Explicit offline R2 authorization — 2026-10-08
+
+The operator confirmed transfer to the exact offline artifact executor after the earlier host-only artifact download failure. **The original authorized executor's unclaimed status is not reused as a second active permission; the original permission is superseded, not consumed.**
+
+```text
+OFFLINE_R2_AUTHORIZATION_GRANTED=true
+OFFLINE_R2_AUTHORIZATION_CLAIMED=false
+OFFLINE_R2_AUTHORIZATION_CONSUMED=false
+ORIGINAL_WRITE_ONLY_AUTHORIZATION_SUPERSEDED=true
+ORIGINAL_WRITE_ONLY_AUTHORIZATION_CLAIMED=false
+ORIGINAL_WRITE_ONLY_AUTHORIZATION_CONSUMED=false
+ORIGINAL_WRITE_ONLY_AUTHORIZATION_REPLAY=false
+
+EXACT_EXECUTOR_BLOB_SHA=d6c8d63e20a53b3c8a626bd9d7d23f36b3fa24fc
+EXPECTED_SILICON_SHA256=4b004ce3931dda3dda770c1ecfc9b0d4b7a88377d2c4f876185b82c056a2a4cc
+EXPECTED_OUTER_ARTIFACT_SHA256=8587c7bf130f2f17e81b4e4f7652780f372f6a61697cc240e72a6af7392a7dc8
+
+ALLOWED=ONE_EXACT_STUB_FOUR_REGION_WRITE_AND_FOUR_EXACT_LENGTH_SHA256_READBACK
+FULL_CHIP_ERASE_AGAIN=FORBIDDEN
+AUTO_RETRY=false
+AUTO_ERASE=false
+AUTO_WRITE=false
+AUTO_P4=false
+PRODUCT_NORMAL_BOOT=false
+STOP=true
+```
+
+Current product board still has not been accessed by the offline executor. Actual local ZIP presence, ZIP bytes, exact executor Git blob, Python syntax, serial port ownership, silicon identity, 8 MB flash and 4096-byte blank preclaim must be checked in that order before the new write claim. Any preclaim failure leaves the new authorization unclaimed; any failure after claim consumes the one-shot authorization. No automatic re-execution or P4 authorization is implied.
