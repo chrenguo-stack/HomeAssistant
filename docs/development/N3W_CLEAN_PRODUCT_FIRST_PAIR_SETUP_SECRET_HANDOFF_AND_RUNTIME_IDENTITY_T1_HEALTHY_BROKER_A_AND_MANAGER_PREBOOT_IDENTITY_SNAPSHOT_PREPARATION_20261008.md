@@ -602,3 +602,52 @@ sanitized classifications. This is permitted without another remote
 authorization because R3 remains unclaimed and unconsumed. Do not manually
 change global SSH configuration or weaken host-key validation to satisfy
 an incorrect harness check.
+
+
+## 17. P2 R3 SSH target guard defect proven — authorization preserved
+
+A final Mac-only `ssh -G` examination of the **same explicit T1 root target**
+proved that the preclaim STOP was caused solely by OpenSSH boolean value
+normalization. The script had required a literal `yes`; the same effective
+`StrictHostKeyChecking=yes` setting is reported by OpenSSH as `true`.
+
+```text
+STAGE=P2_R3_SSH_LOCAL_GUARD_DIAGNOSIS
+TARGET_MATCHES_PREVIOUS_INPUT=true
+SSH_CONFIG_RC=0
+HOSTNAME_MATCH=true
+SSH_USER_ROOT=true
+SSH_PORT_22=true
+PROXYCOMMAND_NONE=true
+PROXYJUMP_NONE=true
+REMOTE_COMMAND_NONE=true
+STRICT_HOST_KEY_EFFECTIVE=true
+STRICT_CHECK_OLD_SCRIPT_PASS=false
+STRICT_CHECK_CORRECTED_PASS=true
+
+P2_R3_STRICT_CHECK_NORMALIZATION_ROOT_CAUSE=PROVEN
+FAILURE_CLASS=EXECUTOR_PRECLAIM_FALSE_NEGATIVE
+T1_NETWORK_ACCESS=false
+P2_R3_AUTHORIZATION_CLAIMED=false
+P2_R3_AUTHORIZATION_CONSUMED=false
+```
+
+The corrected preclaim must accept both `true` and `yes` as strict
+host-key-checking **enabled**, and reject all disabled/permissive values
+(`false`, `no`, `ask`, `accept-new`). Preserve the exact successful
+operator-proven explicit-root private T1 target, one bounded SSH attempt,
+private diagnostic evidence, and STOP on any failure. This is not a request
+to modify local SSH configuration.
+
+```text
+P2_R3_NEXT_ACTION=CORRECTED_ONE_TIME_SSH_PROBE
+P2_R3_AUTHORIZATION_REPLAY=false
+BOARD_ACCESS=false
+BOARD_WRITE=false
+MANAGER_RESTART=false
+BROKER_RESTART=false
+MANAGER_DB_WRITE=false
+AUTO_RETRY=false
+AUTO_P3=false
+STOP=true
+```
