@@ -255,3 +255,6 @@
 ```
 
 详细证据继续放在对应 PR、交接文档、decision/status 文档、CI 或 private evidence 中。
+
+
+**P2 executor live-authority guard**：Mac→T1 执行器不得把方便的 SSH alias 当成 live target authority；必须先私有绑定操作者已证明可用的 exact target/user，再消费远端授权。解析 `ssh -G` 等 CLI 输出时必须按语义归一化等价值（例如 `StrictHostKeyChecking=yes` 可被规范化为 `true`），禁止按单一展示字符串硬比较。Broker runtime identity 不得写死 generated container name（例如 `mosquitto`）；当前 authority 必须要求唯一 running container 同时匹配 `com.docker.compose.project=n3wfc4` 与 `com.docker.compose.service=broker`。执行器在 early-stop 前尚未检查的字段必须输出 `UNKNOWN/NOT_PROVEN`，不得用初始化 `false` 冒充负向现场证据。target authority 与 mutation boundary 已证明后，优先使用一次 bounded consolidated read-only collector 收集 runtime/image/network/TLS/config/database/discovery 证据，避免把同一只读目标拆成多轮授权与单事实远端探针。2026-10-08 P2 事故归档：`docs/development/N3W_P2_EXECUTOR_AUTHORITY_AND_RUNTIME_BINDING_INCIDENT_20261008.md`。
