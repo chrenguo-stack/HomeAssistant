@@ -141,3 +141,18 @@ negative runtime state from unexecuted default booleans.
 NEXT_ACTION=EXECUTE_P3_FULL_EXACT_FLASH_NO_BOOT
 STOP=true
 ```
+
+
+## 6. Versioned executor binding
+
+```text
+EXECUTOR_PATH=tools/execution_packages/n3w/auto_safe_fallback/p3_full_exact_flash_no_boot/executor.py
+EXECUTOR_BLOB_SHA=660d367a65e5eecf78d20982f42ead5832d28ed7
+EXECUTOR_COMMIT=135280d291b4830d506168ad18bc3ee6e59ad01c
+REPOSITORY_BRANCH=fix/n3w-auto-safe-fallback-production-core-convergence-20261003
+REPOSITORY_VERSIONED_EXECUTOR=true
+```
+
+The Mac bootstrap must fetch this exact GitHub Contents API blob and reject any
+different blob SHA before Python compile/execute. The executor itself rebinds
+the exact artifact and clean candidate before the P3 authorization claim.
