@@ -124,7 +124,22 @@ H3_HISTORICAL_CI_LOGS_DELETED=false
 
 同时验证原 H3 配置及源判定脚本的 Git blob 与修补前完全一致（except 3 workflow filter YAML）；验证 PR #523 的原有两条无线 CI `concurrency` 改动与 H3 修改互不冲突。
 
-## 5. 当前执行与 STOP
+## 5. 规则集只读预检和精确触发模拟补充（2026-10-08）
+
+本次通过 GitHub 官方只读接口确认：
+
+- Repo ruleset list 返回一条仓库规则集 `protect-main`（ID `20514758`），`enforcement=active`，`conditions.ref_name.include=["~DEFAULT_BRANCH"]`；因此可见的该规则集只绑定默认分支，而非 PR #522 的上游修复分支。
+- 该规则集的 `required_status_checks` 列表里**没有** H3 Stage2D2/Stage2D3/Stage2D4 的 `host-fault-matrix` 或 `esp32-c6-compile` 专项名称；它要求的是其他如 `tracked-content-safety`、`esp32-c6-board-targets`、`validate`、`test` 等检查。没有权限读取 `branches/main/protection` 端点（GitHub 返回 403）；因此仍须防范组织级规则或其他未暴露的保护状态，不得仅据此批准合并。
+- 对 PR #522 当前 **141** 条确切 changed paths 模拟三条 H3 工作流 `pull_request.paths` 触发：D2 / D3 / D4 的原始匹配项都**只有** `firmware/esphome_rc/f1_0_rc2/packages/**`；移除该项后均为 **0 个匹配**。各自另外仍保留 8 个以上相关 H3 源/测试/lab 路径匹配规则。
+- 这是**源级静态模拟**，不是 GitHub 上实际触发规则修补后的 CI 结果；三个 H3 工作流尚未修改。
+
+实施前需特别处理一个自触发边界：
+
+修改这三条 H3 workflow 文件本身，会命中它们原有 `pull_request.paths` 里的 workflow 自身路径，即便 `packages/**` 已移除。因此一个仅更改工作流触发配置的独立 PR 仍可能因 H3 `REQUIRED_PATHS` 精确源码集合缺失而出现源范围 FAIL。这是旧阶段合同所导致的**预期安全告警**，不能通过伪造通过、跳过 gate 或将 `REQUIRED_PATHS` 放宽解决。必须在合并前明确建立独立人工源审核/版本绑定证据，确认三份 gate Python blob **原样未动**、仅 YAML 条件改变，并确保需要的分支保护不要求该旧阶段范围门强制绿灯。若审查机制不能安全接受这一情况，则暂停方案 A 并考虑单独对旧阶段工作流开展正式策略版本升级，而不是静默绕过。
+
+此外，PR #522 当前完整 N3-W 产品收敛和 RC2 编译 CI 的最新 HEAD 结论应在未来执行点重新读取；单次之前的成功不可替代新 HEAD 的核验。
+
+## 6. 当前执行与 STOP
 
 ```text
 STAGE=H3_SCOPE_DISPOSITION_DESIGN
