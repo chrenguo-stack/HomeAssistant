@@ -289,3 +289,33 @@ AFTER_P2_REFREEZE_PASS=P3_FULL_EXACT_FLASH_NO_BOOT
 
 P3 target selection must bind to the **latest successful P1 closure authority**
 rather than a silicon digest permanently hard-coded into an executor.
+
+
+## 10. P3 executor authority correction
+
+The initial P3 executor hard-coded the first P1 R2 silicon digest. That was
+too restrictive for a legitimate fresh successor candidate.
+
+An intermediate edit at commit `e3a552e1d02a6c53df3213af99be2cb90ea8de12`
+was incomplete and is explicitly **invalid for execution**.
+
+The repaired executor accepts the expected silicon binding as an explicit
+argument supplied from the latest P1 closure authority.
+
+```text
+P3_EXECUTOR_TARGET_BINDING_METHOD=LATEST_P1_AUTHORITY_PARAMETER
+P3_HARDCODED_FIRST_P1_SILICON=false
+
+CURRENT_EXECUTOR_PATH=tools/execution_packages/n3w/auto_safe_fallback/p3_full_exact_flash_no_boot/executor.py
+CURRENT_EXECUTOR_COMMIT=9a5f33fada8df8df0f4c4f6874455f6d4d367a7f
+CURRENT_EXECUTOR_BLOB_SHA=00b0f24d90124a32e2cbb5e932fb0f2aa81bf0d9
+
+SUPERSEDED_EXECUTOR_BLOB_SHA=660d367a65e5eecf78d20982f42ead5832d28ed7
+INVALID_INTERMEDIATE_EXECUTOR_COMMIT=e3a552e1d02a6c53df3213af99be2cb90ea8de12
+```
+
+Before any P3 mutation, the bootstrap must pass:
+
+`--expected-silicon-sha256 <latest successful P1 silicon-binding SHA256>`
+
+and the executor must require the live ROM-derived binding to equal that value.
