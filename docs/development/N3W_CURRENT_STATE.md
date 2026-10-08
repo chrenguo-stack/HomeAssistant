@@ -1,3 +1,33 @@
+## 2026-10-08 P2 R3 local SSH guard false negative proven
+
+```text
+P2_R3_STRICT_CHECK_NORMALIZATION_ROOT_CAUSE=PROVEN
+STRICT_HOST_KEY_EFFECTIVE=true
+STRICT_CHECK_OLD_SCRIPT_PASS=false
+STRICT_CHECK_CORRECTED_PASS=true
+P2_R3_AUTHORIZATION_GRANTED=true
+P2_R3_AUTHORIZATION_CLAIMED=false
+P2_R3_AUTHORIZATION_CONSUMED=false
+SSH_CONNECTION_ATTEMPTED_IN_R3=false
+
+NEXT_ACTION=P2_R3_CORRECTED_ONE_TIME_SSH_PROBE
+P2_MANAGER_PREBOOT_SNAPSHOT_CREATED=false
+READY_FOR_P2_READONLY_BASELINE=false
+BOARD_ACCESS=false
+BOARD_WRITE=false
+MANAGER_RESTART=false
+BROKER_RESTART=false
+MANAGER_DB_WRITE=false
+AUTO_RETRY=false
+AUTO_P3=false
+STOP=true
+```
+
+The `ssh -G` strict-host-key value is normalized to `true`, not
+the executor's prior literal `yes`; all other local target guards passed.
+No T1 connection was attempted under R3, so its grant remains available
+for exactly one bounded SSH probe to the confirmed explicit T1 root target.
+
 ## 2026-10-08 P2 R3 host-only SSH config guard stopped
 
 ```text
