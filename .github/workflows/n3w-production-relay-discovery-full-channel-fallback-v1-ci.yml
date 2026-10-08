@@ -1,4 +1,4 @@
-name: N3W production multi-relay gateway selection V1 CI
+name: N3W production relay discovery full-channel fallback V1 CI
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
@@ -13,12 +13,14 @@ on:
       - "firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_simple_product_runtime.cpp"
       - "firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_simple_product_component.h"
       - "firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_simple_product_component.cpp"
-      - "tests/n3w_production/n3w_multi_relay_gateway_selection_v1_host_test.cpp"
+      - "tests/n3w_production/test_relay_discovery_full_channel_fallback_v1_contract.py"
+      - "tests/n3w_production/n3w_relay_discovery_full_channel_fallback_v1_host_test.cpp"
       - "tests/n3w_production/test_multi_relay_gateway_selection_v1_contract.py"
-      - ".github/workflows/n3w-production-multi-relay-gateway-selection-v1-ci.yml"
+      - "tests/n3w_production/n3w_multi_relay_gateway_selection_v1_host_test.cpp"
+      - ".github/workflows/n3w-production-relay-discovery-full-channel-fallback-v1-ci.yml"
   push:
     branches:
-      - "fix/n3w-production-multi-relay-gateway-selection-v1-source-repair-*"
+      - "fix/n3w-production-relay-discovery-full-channel-fallback-v1-source-repair-*"
     paths:
       - "firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_radio.h"
       - "firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_radio.cpp"
@@ -26,15 +28,17 @@ on:
       - "firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_simple_product_runtime.cpp"
       - "firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_simple_product_component.h"
       - "firmware/esphome_rc/components/greenhouse_n3w_product_core/n3w_simple_product_component.cpp"
-      - "tests/n3w_production/n3w_multi_relay_gateway_selection_v1_host_test.cpp"
+      - "tests/n3w_production/test_relay_discovery_full_channel_fallback_v1_contract.py"
+      - "tests/n3w_production/n3w_relay_discovery_full_channel_fallback_v1_host_test.cpp"
       - "tests/n3w_production/test_multi_relay_gateway_selection_v1_contract.py"
-      - ".github/workflows/n3w-production-multi-relay-gateway-selection-v1-ci.yml"
+      - "tests/n3w_production/n3w_multi_relay_gateway_selection_v1_host_test.cpp"
+      - ".github/workflows/n3w-production-relay-discovery-full-channel-fallback-v1-ci.yml"
 
 permissions:
   contents: read
 
 jobs:
-  gateway-selection:
+  full-channel-fallback:
     runs-on: ubuntu-latest
     timeout-minutes: 35
 
@@ -52,27 +56,26 @@ jobs:
           sudo apt-get install -y -qq libmbedtls-dev
           python -m pip install -q "pytest>=8,<9" "esphome==2026.4.3"
 
-      - name: Gateway Selection V1 source contract
+      - name: Full-channel fallback source contract
+        run: pytest -q tests/n3w_production/test_relay_discovery_full_channel_fallback_v1_contract.py
+
+      - name: Gateway Selection V1 regression contract
         run: pytest -q tests/n3w_production/test_multi_relay_gateway_selection_v1_contract.py
 
-      - name: Build and run Gateway Selection V1 host behavior
+      - name: Build and run full-channel fallback host behavior
         shell: bash
         run: |
           set -euo pipefail
           core=firmware/esphome_rc/components/greenhouse_n3w_product_core
-          g++ -std=c++17 -O2 -Wall -Wextra -Werror \
-            -I"$core" \
-            "$core/n3w_core.cpp" \
-            "$core/n3w_radio.cpp" \
-            "$core/n3w_simple_crypto.cpp" \
-            "$core/n3w_compact_telemetry.cpp" \
-            "$core/n3w_simple_runtime.cpp" \
-            "$core/n3w_simple_state_host.cpp" \
-            "$core/n3w_simple_product_runtime.cpp" \
-            tests/n3w_production/n3w_multi_relay_gateway_selection_v1_host_test.cpp \
-            -Wl,--wrap=mbedtls_md \
-            -lmbedcrypto \
-            -o /tmp/n3w-gateway-selection-v1-host-test
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror             -I"$core"             "$core/n3w_core.cpp"             "$core/n3w_radio.cpp"             "$core/n3w_simple_crypto.cpp"             "$core/n3w_compact_telemetry.cpp"             "$core/n3w_simple_runtime.cpp"             "$core/n3w_simple_state_host.cpp"             "$core/n3w_simple_product_runtime.cpp"             tests/n3w_production/n3w_relay_discovery_full_channel_fallback_v1_host_test.cpp             -lmbedcrypto             -o /tmp/n3w-full-channel-fallback-v1-host-test
+          /tmp/n3w-full-channel-fallback-v1-host-test
+
+      - name: Build and run Gateway Selection V1 host regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          core=firmware/esphome_rc/components/greenhouse_n3w_product_core
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror             -I"$core"             "$core/n3w_core.cpp"             "$core/n3w_radio.cpp"             "$core/n3w_simple_crypto.cpp"             "$core/n3w_compact_telemetry.cpp"             "$core/n3w_simple_runtime.cpp"             "$core/n3w_simple_state_host.cpp"             "$core/n3w_simple_product_runtime.cpp"             tests/n3w_production/n3w_multi_relay_gateway_selection_v1_host_test.cpp             -Wl,--wrap=mbedtls_md             -lmbedcrypto             -o /tmp/n3w-gateway-selection-v1-host-test
           /tmp/n3w-gateway-selection-v1-host-test
 
       - name: Validate F1.0-RC2 production N3-W target

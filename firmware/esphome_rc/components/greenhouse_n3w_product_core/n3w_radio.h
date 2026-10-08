@@ -122,8 +122,11 @@ class ChannelScanPlan {
   RadioError configure(
       uint8_t last_direct_channel,
       const std::vector<uint8_t> &allowed_channels);
+  RadioError configure_ordered(const std::vector<uint8_t> &channels);
   uint8_t current() const;
   uint8_t advance();
+  uint8_t advance_bounded();
+  bool at_end() const;
   std::size_t size() const { return channels_.size(); }
 
  protected:
