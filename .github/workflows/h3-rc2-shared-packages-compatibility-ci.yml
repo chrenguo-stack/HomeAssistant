@@ -1,0 +1,64 @@
+name: H3 RC2 shared package compatibility CI
+
+on:
+  pull_request:
+    paths:
+      - "firmware/esphome_rc/f1_0_rc2/packages/core.yml"
+      - "firmware/esphome_rc/f1_0_rc2/packages/control.yml"
+      - "firmware/esphome_rc/f1_0_rc2/packages/buses.yml"
+      - "firmware/esphome_rc/f1_0_rc2/packages/sensors.yml"
+      - "firmware/esphome_rc/f1_0_rc2/packages/display.yml"
+      - ".github/workflows/h3-rc2-shared-packages-compatibility-ci.yml"
+      - "tools/h3_rc2_shared_packages_compatibility.py"
+      - "tests/h3_compat/test_h3_rc2_shared_packages_compatibility.py"
+  push:
+    branches: [main]
+    paths:
+      - "firmware/esphome_rc/f1_0_rc2/packages/core.yml"
+      - "firmware/esphome_rc/f1_0_rc2/packages/control.yml"
+      - "firmware/esphome_rc/f1_0_rc2/packages/buses.yml"
+      - "firmware/esphome_rc/f1_0_rc2/packages/sensors.yml"
+      - "firmware/esphome_rc/f1_0_rc2/packages/display.yml"
+      - ".github/workflows/h3-rc2-shared-packages-compatibility-ci.yml"
+      - "tools/h3_rc2_shared_packages_compatibility.py"
+      - "tests/h3_compat/test_h3_rc2_shared_packages_compatibility.py"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  source-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - name: Validate exact H3 target mappings and CI trigger policy
+        run: python -m unittest discover -s tests/h3_compat -p "test_*.py" -v
+
+  stage-compatibility:
+    needs: source-contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        stage: [d2, d3, d4]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install original pinned ESPHome
+        run: python -m pip install -q "esphome==2026.4.3"
+      - name: Run host fault matrix and both original ESP32-C6 targets
+        run: python tools/h3_rc2_shared_packages_compatibility.py --stage "${{ matrix.stage }}"
