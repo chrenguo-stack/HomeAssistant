@@ -1,3 +1,36 @@
+## 2026-10-08 P2 R4 Docker runtime diagnosis authorized
+
+```text
+P1_R2_CLEAN_BOARD_ELIGIBILITY=CLOSED_PASS
+P2_R3_SSH=PASS
+P2_R3_BASELINE_RESULT=DOCKER_INSPECT_FAILED
+P2_R3_AUTHORIZATION_CONSUMED=true
+P2_R3_AUTHORIZATION_REPLAY=false
+
+P2_R4_AUTHORIZATION_GRANTED=true
+P2_R4_AUTHORIZATION_CLAIMED=false
+P2_R4_AUTHORIZATION_CONSUMED=false
+NEXT_ONE_GATE=N3W_CLEAN_PRODUCT_FIRST_PAIR_P2_R4_DOCKER_RUNTIME_IDENTITY_READONLY_DIAGNOSIS
+
+P2_R4_SCOPE=DOCKER_RUNTIME_IDENTITY_READONLY_ONLY
+P2_R4_FULL_BASELINE=false
+P2_R4_IDENTITY_SNAPSHOT=false
+P2_R4_DISCOVERY_PROBE=false
+
+BOARD_ACCESS=false
+BOARD_WRITE=false
+MANAGER_RESTART=false
+BROKER_RESTART=false
+MANAGER_DB_WRITE=false
+AUTO_RETRY=false
+AUTO_P3=false
+STOP=true
+```
+
+R4 permits one bounded SSH connection to the already proven explicit T1 root
+target solely to classify Docker runtime availability and identify the live
+Manager/Broker containers. Raw inventory remains private.
+
 ## 2026-10-08 P2 R3 read-only baseline stopped at Docker inspect
 
 ```text
