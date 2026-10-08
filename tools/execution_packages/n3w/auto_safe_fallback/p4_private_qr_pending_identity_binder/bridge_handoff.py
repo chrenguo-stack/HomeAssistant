@@ -220,16 +220,11 @@ class OneShotImporter:
         reject("IMPORT_DISABLED_PENDING_VERIFIED_FIELD_ORCHESTRATOR")
 
 
-def ssh_manager_stdin_transport(target: str, data: bytes, *, expected_target_sha256: str, timeout: int = 12) -> bytes:
+def ssh_manager_stdin_transport(
+    target: str,
+    data: bytes,
+    *,
+    expected_target_sha256: str,
+    timeout: int = 12,
+) -> bytes:
     reject("IMPORT_DISABLED_PENDING_VERIFIED_FIELD_ORCHESTRATOR")
-    if sha(target) != expected_target_sha256 or not re.fullmatch(r"root@(?:[0-9]{1,3}\.){3}[0-9]{1,3}", target):
-        reject("IMPORT_TARGET_MISMATCH")
-    cmd = ["ssh", "-T", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", "-o", "ConnectTimeout=5", target,
-           "docker", "exec", "-i", "greenhouse-manager", "greenhouse-manager-pairing", "import-payload", "--payload-stdin"]
-    try:
-        result = subprocess.run(cmd, input=data, capture_output=True, timeout=timeout, check=False)
-    except (OSError, subprocess.TimeoutExpired):
-        reject("IMPORT_TRANSPORT_UNAVAILABLE")
-    if result.returncode != 0:
-        reject("IMPORT_TRANSPORT_REJECTED")
-    return result.stdout
