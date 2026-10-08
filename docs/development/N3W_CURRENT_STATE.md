@@ -1,3 +1,17 @@
+## 2026-10-08 P3 versioned executor bound
+
+```text
+P3_AUTHORIZATION_GRANTED=true
+P3_EXECUTOR_PATH=tools/execution_packages/n3w/auto_safe_fallback/p3_full_exact_flash_no_boot/executor.py
+P3_EXECUTOR_BLOB_SHA=660d367a65e5eecf78d20982f42ead5832d28ed7
+P3_EXECUTOR_COMMIT=135280d291b4830d506168ad18bc3ee6e59ad01c
+P3_EXECUTOR_FETCH_MUST_MATCH_BLOB=true
+P3_EXECUTOR_PYTHON_COMPILE_BEFORE_RUN=true
+P3_NORMAL_PRODUCT_BOOT=false
+AUTO_P4=false
+STOP=true
+```
+
 ## 2026-10-08 P2 executor incident archived / P3 full exact flash authorized
 
 ```text
