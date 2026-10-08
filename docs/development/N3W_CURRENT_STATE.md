@@ -1,3 +1,34 @@
+## 2026-10-08 P3 preclaim stopped on silicon mismatch
+
+```text
+P1_R2_CLEAN_BOARD_ELIGIBILITY=CLOSED_PASS
+P2_STATUS=CLOSED_PASS
+
+P3_AUTHORIZATION_GRANTED=true
+P3_AUTHORIZATION_CLAIMED=false
+P3_AUTHORIZATION_CONSUMED=false
+P3_PRECLAIM_RESULT=SILICON_BINDING_MISMATCH
+
+ARTIFACT_BINDING_PASS=true
+BOARD_PRECLAIM_PASS=false
+FULL_CHIP_ERASE=false
+FOUR_REGION_WRITE=false
+PRODUCT_FIRMWARE_NORMAL_BOOT_STARTED=false
+
+P3_EXPECTED_SILICON_BINDING_SHA256=f9c00d136f84d1fdabb1e296608702539ed674271021b28cff2d4a23e4cd2bf7
+P3_CURRENT_CONNECTED_SILICON_BINDING_SHA256=NOT_YET_REPORTED
+P3_SILICON_ALGORITHM_DRIFT=NOT_PROVEN
+
+NEXT_ACTION=READONLY_CLASSIFY_CURRENT_CONNECTED_SILICON_BINDING
+AUTO_RETRY=false
+AUTO_P4=false
+STOP=true
+```
+
+The P3 guard stopped before claim and before any flash write. P1 and P3 source
+use the same public silicon-binding algorithm, so first classify the currently
+connected board rather than weakening the guard or retrying the mutation.
+
 ## 2026-10-08 P3 versioned executor bound
 
 ```text
