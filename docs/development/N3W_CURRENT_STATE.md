@@ -1,3 +1,36 @@
+## 2026-10-08 P2 R3 explicit-root SSH transport passed
+
+```text
+P1_R2_CLEAN_BOARD_ELIGIBILITY=CLOSED_PASS
+P2_R3_CORRECTED_EXPLICIT_T1_SSH_CONNECTION_PASS=true
+P2_R3_SSH_RETURN_CODE=0
+P2_R3_SSH_STDERR_SHA256=262df7d6c4418978ef7cf3787b4cbb1bcc74daa93fcecf611190765a40d16b50
+P2_R3_AUTHORIZATION_GRANTED=true
+P2_R3_AUTHORIZATION_CLAIMED=true
+P2_R3_AUTHORIZATION_CONSUMED=true
+P2_R3_PREDECESSOR_AUTHORIZATION_REPLAY=false
+
+READY_FOR_P2_READONLY_BASELINE=true
+P2_R3_BASELINE_COMPLETED=false
+P2_R3_PREBOOT_IDENTITY_SNAPSHOT_CREATED=false
+P2_R3_DISCOVERY_AUTO_SOURCE_A=NOT_PROVEN
+
+NEXT_ACTION=T1_MANAGER_BROKER_READONLY_BASELINE_AND_PREBOOT_IDENTITY_SNAPSHOT
+BOARD_ACCESS=false
+BOARD_WRITE=false
+MANAGER_RESTART=false
+BROKER_RESTART=false
+MANAGER_DB_WRITE=false
+AUTO_RETRY=false
+AUTO_P3=false
+STOP=true
+```
+
+The successful probe demonstrates SSH transport to the operator-proven
+explicit T1 root target. The existing R3 grant permits its specified
+read-only baseline continuation, but no retry following a failure and
+no P3/board mutation.
+
 ## 2026-10-08 P2 R3 local SSH guard false negative proven
 
 ```text
