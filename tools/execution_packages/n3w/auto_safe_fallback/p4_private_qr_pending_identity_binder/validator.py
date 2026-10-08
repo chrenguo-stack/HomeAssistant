@@ -153,6 +153,23 @@ def _hardware_union(reg: sqlite3.Connection, cred: sqlite3.Connection) -> frozen
     return frozenset(digest(value) for value in values)
 
 
+def _binding_state(reg: sqlite3.Connection, cred: sqlite3.Connection, hardware_id: str) -> tuple:
+    selections = (
+        (reg, "registrations", "hardware_id,current_pairing_id,pairing_epoch,node_id,retired_at"),
+        (reg, "pairing_sessions", "hardware_id,pairing_id,pairing_epoch,state,expires_at"),
+        (reg, "registration_events", "hardware_id,pairing_id,node_id,event"),
+        (reg, "registration_node_history", "hardware_id,node_id"),
+        (reg, "node_id_leases", "hardware_id,node_id"),
+        (reg, "retirement_outbox", "hardware_id,pairing_id,node_id"),
+        (cred, "credential_assignments", "hardware_id,pairing_id,node_id,last_node_id,state"),
+    )
+    result = []
+    for connection, table, columns in selections:
+        rows = _fetch(connection, `SELECT ${columns} FROM ${table} WHERE hardware_id=?`, (hardware_id,))
+        result.append((table, tuple(sorted((tuple(row) for row in rows), key=repr))))
+    return tuple(result)
+
+
 def verify_sqlite_pairing(
     registration_path: Path,
     credential_path: Path,
@@ -180,6 +197,7 @@ def verify_sqlite_pairing(
                 _check_schema(reg, REGISTRATION_TABLES)
                 _check_schema(cred, ("credential_assignments",))
                 _check_schema(replay, ("n3w_replay_state",))
+                binding_start = _binding_state(reg, cred, hardware_id)
                 postboot = _hardware_union(reg, cred)
                 if not baseline.issubset(postboot):
                     _reject("INVALID_SNAPSHOT_DRIFT")
@@ -219,6 +237,8 @@ def verify_sqlite_pairing(
                     _reject("INVALID_PRIOR_HISTORY")
                 if _hardware_union(reg, cred) != postboot:
                     _reject("INVALID_SNAPSHOT_DRIFT")
+                if _binding_state(reg, cred, hardware_id) != binding_start:
+                    _reject("INVALID_BINDING_STATE_DRIFT")
                 return {
                     "status": "BINDER_PASS_NO_IMPORT",
                     "product_hardware_id_sha256": digest(hardware_id),
