@@ -1,3 +1,33 @@
+## 2026-10-08 P4 private IPC prestage — Mac 3-layer syntax PASS
+
+```text
+P3_RESULT=CLOSED_PASS
+P4_PREBOOT_RESULT=CLOSED_PASS
+CURRENT_BOARD_STATE=FOUR_REGIONS_WRITTEN_AND_EXACT_READBACK_PASS_NO_PRODUCT_BOOT
+
+P4_PRIVATE_PRESTAGE_REPAIR=docs/development/N3W_CLEAN_PRODUCT_FIRST_PAIR_P4_PRIVATE_PAIRING_READONLY_HOST_SYNTAX_STOP_AND_REPAIR_20261008.md
+P4_PRIVATE_PRESTAGE_EXECUTOR_PATH=tools/execution_packages/n3w/auto_safe_fallback/p4_private_pairing_prestage_readonly/executor.py
+P4_PRIVATE_PRESTAGE_EXECUTOR_BLOB_SHA=58959cc509a4e88dae9bb20fda7a14d7d4e6f938
+
+LOCAL_MODULE_SYNTAX_PASS=true
+REMOTE_SCRIPT_SYNTAX_PASS=true
+IPC_SCRIPT_SYNTAX_PASS=true
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+T1_READONLY_RESULT=PENDING
+
+P4_FIRST_BOOT_AUTHORIZATION_GRANTED=false
+PRODUCT_FIRMWARE_NORMAL_BOOT_STARTED=false
+BOARD_ACCESS=false
+MANAGER_MUTATION=false
+AUTO_P4=false
+
+NEXT_ONE_GATE=N3W_CLEAN_PRODUCT_FIRST_PAIR_P4_PRIVATE_PAIRING_IPC_AND_SNAPSHOT_READONLY_PRESTAGE_20261008_01_R1
+STOP=true
+```
+
+The operator Mac verified the exact corrected source at three parsing levels. Only the host-only T1 read-only acceptance remains pending. The earlier syntax error is not product failure and did not consume the read-only execution authorization.
+
 ## 2026-10-08 P4 private pairing host Python syntax STOP / minimal corrected exact executor
 
 ```text
