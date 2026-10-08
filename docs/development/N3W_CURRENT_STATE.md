@@ -1,3 +1,38 @@
+## 2026-10-08 P2 R5 consolidated read-only completion authorized
+
+```text
+P1_R2_CLEAN_BOARD_ELIGIBILITY=CLOSED_PASS
+P2_R3_SSH=PASS
+P2_R4_RESULT=PASS_UNIQUE_ALTERNATE_BROKER
+P2_R4_AUTHORIZATION_CONSUMED=true
+P2_R4_AUTHORIZATION_REPLAY=false
+
+P2_R5_AUTHORIZATION_GRANTED=true
+P2_R5_AUTHORIZATION_CLAIMED=false
+P2_R5_AUTHORIZATION_CONSUMED=false
+NEXT_ONE_GATE=N3W_CLEAN_PRODUCT_FIRST_PAIR_P2_R5_CONSOLIDATED_READONLY_BASELINE_AND_EXTERNAL_DISCOVERY
+
+P2_R5_REMOTE_SCOPE=runtime/image/network/TLS/config/mounts/preboot-identity-snapshot
+P2_R5_BROKER_SELECTOR=unique Compose n3wfc4/broker labels
+P2_R5_MANAGER_SELECTOR=greenhouse-manager
+P2_R5_EXTERNAL_DISCOVERY=one Mac-origin UDP/47111 query after remote PASS
+
+BOARD_ACCESS=false
+BOARD_WRITE=false
+BROKER_RESTART=false
+MANAGER_RESTART=false
+MANAGER_DB_WRITE=false
+MANAGER_REPLAY_MUTATION=false
+MANAGER_HIGH_WATER_CLEAR=false
+AUTO_RETRY=false
+AUTO_P3=false
+STOP=true
+```
+
+R5 is intended to finish all remaining P2 read-only evidence in one execution.
+Raw private network, identity, credential and DB path values remain local
+private evidence.
+
 ## 2026-10-08 P2 R4 Docker runtime diagnosis closed
 
 ```text
