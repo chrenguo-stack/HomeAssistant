@@ -820,3 +820,87 @@ The R4 result must distinguish:
 P2_R4_NEXT_ACTION=ONE_BOUNDED_DOCKER_RUNTIME_READONLY_DIAGNOSIS
 STOP=true
 ```
+
+
+## 21. P2 R4 Docker runtime identity diagnosis PASSED
+
+The authorized bounded R4 read-only diagnosis reached the proven T1 target,
+confirmed Docker CLI and daemon health, enumerated the live running containers,
+and uniquely classified both Manager and Broker without mutating any service.
+
+```text
+STAGE=P2_R4_DOCKER_RUNTIME_IDENTITY_READONLY
+P2_R4_RESULT=PASS_UNIQUE_ALTERNATE_BROKER
+AUTHORIZATION_GRANTED=true
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+PREDECESSOR_AUTHORIZATION_REPLAY=false
+
+T1_ACCESSED=true
+SSH_RETURN_CODE=0
+DOCKER_CLI_PRESENT=true
+DOCKER_DAEMON_ACCESSIBLE=true
+RUNNING_CONTAINER_COUNT=4
+
+EXPECTED_MANAGER_NAME_PRESENT=true
+EXPECTED_MANAGER_INSPECT_COMMAND_PASS=true
+MANAGER_CANDIDATE_COUNT=1
+MANAGER_BINDING_CLASS=EXPECTED_NAME
+MANAGER_CONTAINER_NAME_SHA256=15d2963bcff63450f06251542b886b829af3e54b5cbfc8e2183c07864fe66658
+
+EXPECTED_BROKER_NAME_PRESENT=false
+BROKER_CANDIDATE_COUNT=1
+BROKER_BINDING_CLASS=UNIQUE_ALTERNATE
+BROKER_CONTAINER_NAME_SHA256=5db063676159883f173d231e0a879ba9e1c5d69baf1030d894247d0395167077
+
+PRIOR_R3_FAILURE_LIKELY_POINT=BROKER_CONTAINER_NAME
+RUNTIME_BINDING_PRIVATE_SHA256=dd6a8bdc3cd14c28266429c85d3c1611d9c64d3d04df202b674843406315d78e
+READY_FOR_P2_R5_BASELINE=true
+
+BOARD_ACCESS=false
+BOARD_WRITE=false
+BROKER_RESTART=false
+MANAGER_RESTART=false
+MANAGER_DB_WRITE=false
+AUTO_RETRY=false
+AUTO_P3=false
+STOP=true
+```
+
+This result proves that R3 did **not** fail because Docker was unavailable.
+Manager still uses its exact expected live name. Broker does not use the
+literal container name `mosquitto`, but there is exactly one live Broker
+candidate.
+
+Fresh source review on the current branch corroborates that authoritative
+Broker discovery already exists elsewhere in the project by Docker Compose
+labels rather than exact container name:
+
+```text
+SOURCE_PATH=tools/execution_packages/n3w/kf089/id23_t1_dynsec_relay_acl_readonly_forensic/executor.py
+SOURCE_BLOB=f50c8c0afa4b9b040d469aec1295f7823f959551
+BROKER_PROJECT=n3wfc4
+BROKER_SERVICE=broker
+BROKER_RUNTIME_SELECTOR=com.docker.compose.project + com.docker.compose.service
+```
+
+Therefore the R3 hard-coded `docker inspect ... mosquitto` assumption was an
+executor defect. It should be replaced by a fail-closed unique live Broker
+binding using the Compose project/service labels, while Manager may continue
+to bind to exact `greenhouse-manager`.
+
+```text
+P2_R4_ROOT_CAUSE=R3_EXECUTOR_HARDCODED_BROKER_CONTAINER_NAME
+PRODUCT_BROKER_FAILURE=false
+DOCKER_FAILURE=false
+MANAGER_FAILURE=false
+P2_R4_AUTHORIZATION_REPLAY=false
+
+NEXT_ONE_GATE=N3W_CLEAN_PRODUCT_FIRST_PAIR_P2_R5_MANAGER_BROKER_READONLY_BASELINE_WITH_LABEL_BOUND_BROKER
+P2_R5_AUTHORIZATION_GRANTED=false
+P2_R5_REQUIRED_BROKER_SELECTOR=UNIQUE_LABEL_BOUND_n3wfc4_broker
+P2_R5_SERVICE_MUTATION=false
+P2_R5_DATABASE_MUTATION=false
+P2_R5_BOARD_ACCESS=false
+P2_R5_AUTO_P3=false
+```
