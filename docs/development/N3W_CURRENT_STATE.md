@@ -1,3 +1,40 @@
+## 2026-10-08 P4 private QR / pinned Manager readonly bridge / stdin importer source prepared
+
+```text
+P3_EXACT_FLASH_READBACK_RESULT=CLOSED_PASS
+P4_PREBOOT_READONLY_RESULT=CLOSED_PASS
+P4_PAIRING_IPC_READONLY_PRESTAGE_RESULT=CLOSED_PASS
+P4_QR_BINDER_R2_SOURCE_RESULT=SOURCE_ONLY_CLOSED_PASS
+
+P4_PRIVATE_QR_BRIDGE_IMPORTER_SOURCE_PREPARATION_CLOSURE=docs/development/N3W_CLEAN_PRODUCT_FIRST_PAIR_P4_PRIVATE_QR_PENDING_BINDER_LIVE_READONLY_BRIDGE_AND_IMPORTER_SOURCE_PREPARATION_CLOSURE_20261008.md
+P4_PRIVATE_QR_BRIDGE_IMPORTER_SOURCE_RESULT=SOURCE_PREPARED_SYNTHETIC_PASS
+P4_SOURCE_PACKAGE_FOLDER=tools/execution_packages/n3w/auto_safe_fallback/p4_private_qr_pending_identity_binder/
+P4_BRIDGE_HANDOFF_BLOB_SHA=70673b3fbfe4eb822e410c927139bac285dd2bbd
+P4_HOST_READONLY_BLOB_SHA=bb54cfdbc867b3a776c951c622573accf2092dae
+P4_REMOTE_PROJECTION_BLOB_SHA=7b3ba146583b61271b41390736b67207c8d4c14e
+P4_TEST_BRIDGE_HANDOFF_BLOB_SHA=843bf0b16cb1d6947bc40cdd378b209f6172723e
+P4_TEST_HOST_READONLY_BLOB_SHA=ad818a3b434df099e56dd80d4a40fd7feb184019
+P4_ADDITIONAL_SYNTHETIC_TESTS=32_PASS
+P4_SOURCE_FILE_EXACT_GITHUB_BINDING=5_OF_5
+
+CURRENT_BOARD_STATE=FOUR_REGIONS_WRITTEN_AND_EXACT_READBACK_PASS_NO_PRODUCT_BOOT
+P4_FIRST_NORMAL_BOOT_AUTHORIZATION_GRANTED=false
+P4_SETUP_SECRET_IMPORT_AUTHORIZATION_GRANTED=false
+P4_T1_LIVE_READONLY_PROBE_EXECUTED=false
+P4_SETUP_SECRET_IMPORT_EXECUTED=false
+P4_MAC_FIELD_ORCHESTRATOR_READY=false
+BOARD_ACCESS=false
+T1_ACCESS=false
+MANAGER_DB_WRITE=false
+BROKER_RESTART=false
+AUTO_P4=false
+
+NEXT_ONE_GATE=N3W_CLEAN_PRODUCT_FIRST_PAIR_P4_PRIVATE_QR_PENDING_BINDER_AND_IMPORTER_R2_INDEPENDENT_SOURCE_REVIEW_AND_HOST_ONLY_PREFLIGHT_DESIGN_20261008_01
+STOP=true
+```
+
+The new source package contains a private no-echo QR reader, a pinned T1 Docker/SQLite/TLS read-only projection design, and a separately gated one-shot standard-input Manager importer. Thirty-two additional local synthetic tests passed. All five source/test Git blobs exactly match local tested versions. **No live T1 read-only attestation, actual QR capture, Manager import, or physical first normal boot has occurred.** Final Mac field orchestrator, independent review and runtime bind are required before authorizing physical P4. Earlier source-only binder R2 closure remains valid and unchanged.
+
 ## 2026-10-08 P4 QR/pending identity binder independent R2 repair and test closure
 
 ```text
