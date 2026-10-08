@@ -904,3 +904,53 @@ P2_R5_DATABASE_MUTATION=false
 P2_R5_BOARD_ACCESS=false
 P2_R5_AUTO_P3=false
 ```
+
+
+## 22. P2 R5 consolidated read-only baseline + external discovery authorization
+
+The operator explicitly approved a consolidated successor gate to finish the
+remaining P2 read-only evidence in one execution.
+
+```text
+NEXT_ONE_GATE=N3W_CLEAN_PRODUCT_FIRST_PAIR_P2_R5_CONSOLIDATED_READONLY_BASELINE_AND_EXTERNAL_DISCOVERY
+P2_R5_AUTHORIZATION_GRANTED=true
+P2_R5_AUTHORIZATION_CLAIMED=false
+P2_R5_AUTHORIZATION_CONSUMED=false
+
+P2_R4_AUTHORIZATION_CONSUMED=true
+P2_R4_AUTHORIZATION_REPLAY=false
+
+ALLOWED=one bounded explicit-root T1 SSH read-only baseline
+ALLOWED=bind exact live Manager container and unique label-bound Broker
+ALLOWED=read runtime/image/network/TLS/config/mount metadata
+ALLOWED=SQLite mode=ro + query_only preboot identity snapshot
+ALLOWED_AFTER_REMOTE_BASELINE_PASS=one Mac-origin UDP/47111 discovery query
+FAILURE_POLICY=STOP_IMMEDIATELY_NO_RETRY
+
+BROKER_SELECTOR=com.docker.compose.project=n3wfc4 + com.docker.compose.service=broker
+MANAGER_SELECTOR=exact container name greenhouse-manager
+
+BOARD_ACCESS=false
+BOARD_WRITE=false
+BROKER_RESTART=false
+MANAGER_RESTART=false
+T1_CONFIGURATION_MUTATION=false
+MANAGER_DB_WRITE=false
+MANAGER_REPLAY_MUTATION=false
+MANAGER_HIGH_WATER_CLEAR=false
+AUTO_RETRY=false
+AUTO_P3=false
+MERGE=false
+```
+
+Public output may include the actual Broker container name because the operator
+explicitly requested it. Raw T1 IPv4, container IDs, database host paths,
+hardware IDs, pairing identities, credentials and setup secrets remain private.
+The Mac-origin discovery query must use a fresh synthetic hardware_id, UUID
+request_id and fresh nonce, and must not begin HTTP pairing or write Manager
+state.
+
+```text
+P2_R5_NEXT_ACTION=RUN_CONSOLIDATED_READONLY_BASELINE_THEN_EXTERNAL_DISCOVERY
+STOP=true
+```
