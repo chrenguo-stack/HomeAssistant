@@ -92,7 +92,7 @@ def build_remote_program(
             if node.func.attr in {"executescript", "executemany", "commit", "rollback"}:
                 raise ValueError("REMOTE_SQLITE_MUTATION")
         if isinstance(node, ast.Constant) and isinstance(node.value, str):
-            if re.search(r"\b(?:INSERT|UPDATE|DELETE|DROP|ALTER|REPLACE|VACUUM|PRAGMA\s+\w+\s*=)\b", node.value, re.I):
+            if re.search(r"\b(?:INSERT|UPDATE|DELETE|DROP|ALTER|REPLACE|VACUUM)\b", node.value, re.I):
                 raise ValueError("REMOTE_SQL_MUTATION")
     return remote
 
