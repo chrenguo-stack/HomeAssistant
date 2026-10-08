@@ -206,34 +206,22 @@ class OneShotImporter:
     def __init__(self):
         self._consumed = False
 
-    def import_once(self, payload: str, binding: Binding, permission: ImportPermission, transport: Callable[[bytes], bytes], now: datetime) -> dict[str, object]:
+    def import_once(
+        self,
+        payload: str,
+        binding: Binding,
+        permission: ImportPermission,
+        transport: Callable[[bytes], bytes],
+        now: datetime,
+    ) -> dict[str, object]:
         if self._consumed:
             reject("IMPORT_ALREADY_CONSUMED")
         self._consumed = True
-        hardware,pairing = parse_qr(payload)
-        if not permission.separately_authorized or not permission.operator_continue:
-            reject("IMPORT_NOT_AUTHORIZED")
-        if not binding.live_attested:
-            reject("IMPORT_LIVE_AUTHORITY_REQUIRED")
-        if permission.exact_hardware_sha256 != binding.hardware_sha256 or permission.exact_pairing_sha256 != binding.pairing_sha256:
-            reject("IMPORT_AUTHORITY_MISMATCH")
-        if sha(hardware) != binding.hardware_sha256 or sha(pairing) != binding.pairing_sha256:
-            reject("IMPORT_PAYLOAD_MISMATCH")
-        if now.tzinfo is None or (binding.expires_at - now.astimezone(UTC)).total_seconds() < 1:
-            reject("IMPORT_EXPIRED")
-        try:
-            response = transport((payload+"\n").encode("ascii"))
-            if len(response) > 4096:
-                reject("IMPORT_RESPONSE_INVALID")
-            parsed = json.loads(response)
-        except (UnicodeError, ValueError, TypeError):
-            reject("IMPORT_RESPONSE_INVALID")
-        if not isinstance(parsed, dict) or set(parsed) != {"schema","accepted","code"} or parsed.get("schema") != RESULT_SCHEMA or type(parsed.get("accepted")) is not bool or not isinstance(parsed.get("code"),str):
-            reject("IMPORT_RESPONSE_INVALID")
-        return {"import_accepted":parsed["accepted"], "import_result_code":parsed["code"], "manager_commit_proven":False, "stop":True}
+        reject("IMPORT_DISABLED_PENDING_VERIFIED_FIELD_ORCHESTRATOR")
 
 
 def ssh_manager_stdin_transport(target: str, data: bytes, *, expected_target_sha256: str, timeout: int = 12) -> bytes:
+    reject("IMPORT_DISABLED_PENDING_VERIFIED_FIELD_ORCHESTRATOR")
     if sha(target) != expected_target_sha256 or not re.fullmatch(r"root@(?:[0-9]{1,3}\.){3}[0-9]{1,3}", target):
         reject("IMPORT_TARGET_MISMATCH")
     cmd = ["ssh", "-T", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", "-o", "ConnectTimeout=5", target,
