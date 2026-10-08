@@ -359,7 +359,7 @@ try:
         "/run/greenhouse-manager/pairing.sock",
     )
     require(ipc_path.startswith("/"), "PAIRING_IPC_PATH_NOT_ABSOLUTE")
-    ipc_probe = """import json, os, shutil, stat
+    ipc_probe = '''import json, os, shutil, stat
 from pathlib import Path
 p = Path(os.environ.get("GH_N3W_PAIRING_SOCKET_PATH", "/run/greenhouse-manager/pairing.sock"))
 parent = p.parent
@@ -377,7 +377,7 @@ if safe:
     except OSError:
         safe = False
 print(json.dumps({"uds_secure": bool(safe), "cli_present": bool(shutil.which("greenhouse-manager-pairing"))}))
-"""
+'''
     raw_ipc = run(
         ["docker", "exec", "greenhouse-manager", "python3", "-c", ipc_probe],
         "MANAGER_IPC_READONLY_INSPECT_FAILED",
