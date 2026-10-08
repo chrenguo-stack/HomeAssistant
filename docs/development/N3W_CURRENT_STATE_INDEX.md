@@ -1,3 +1,36 @@
+## 2026-10-08 P4 QR↔pending identity binder independent R2 source repair PASS
+
+```text
+TASK=N3W_CLEAN_PRODUCT_FIRST_PAIR_P4_PRIVATE_QR_PENDING_IDENTITY_BINDER_SOURCE_REPAIR_AND_TEST_20261008_01
+TASK_RESULT=SOURCE_ONLY_CLOSED_PASS
+P4_BINDER_R2_CLOSURE=docs/development/N3W_CLEAN_PRODUCT_FIRST_PAIR_P4_PRIVATE_QR_PENDING_IDENTITY_BINDER_SOURCE_R2_REVIEW_AND_TEST_CLOSURE_20261008.md
+P4_BINDER_R2_SOURCE=tools/execution_packages/n3w/auto_safe_fallback/p4_private_qr_pending_identity_binder/validator.py
+P4_BINDER_R2_SOURCE_BLOB_SHA=3b7dc0d085dcda52fda0334840d75d5f8678bc1b
+P4_BINDER_R2_TEST=tools/execution_packages/n3w/auto_safe_fallback/p4_private_qr_pending_identity_binder/test_validator.py
+P4_BINDER_R2_TEST_BLOB_SHA=4f626fbacfd4a64e36d46e5e396a610df64526ee
+P4_BINDER_R2_SYNTHETIC_TESTS=24_PASS
+P4_BINDER_R2_STALE_PAIRING_STATE_GAP=CLOSED_BY_SECOND_SELECTED_LIFECYCLE_READ
+
+P3_RESULT=CLOSED_PASS
+P4_PREBOOT_RESULT=CLOSED_PASS
+P4_PRIVATE_IPC_PRESTAGE_RESULT=CLOSED_PASS
+CURRENT_BOARD_STATE=FOUR_REGIONS_WRITTEN_AND_EXACT_READBACK_PASS_NO_PRODUCT_BOOT
+
+P4_LIVE_MANAGER_READONLY_BINDER_READY=false
+P4_PRIVATE_QR_CAPTURE_READY=false
+P4_ONE_SHOT_MANAGER_IMPORTER_READY=false
+P4_FIRST_NORMAL_BOOT_AUTHORIZATION_GRANTED=false
+P4_SECRET_IMPORT_AUTHORIZATION_GRANTED=false
+P4_REAL_PRODUCT_FIRST_PAIR_EXECUTED=false
+BOARD_ACCESS=false
+T1_MUTATION=false
+
+NEXT_ONE_GATE=N3W_CLEAN_PRODUCT_FIRST_PAIR_P4_PRIVATE_QR_PENDING_BINDER_LIVE_READONLY_BRIDGE_AND_IMPORTER_SOURCE_PREPARATION_20261008_01
+STOP=true
+```
+
+The R2 verifier rejects a concurrent pending-state or lifecycle change even when hardware identity hashes remain constant. Twenty-four exact-source synthetic tests passed. The prior twenty-test closure below is historical and does not supersede this revised source blob. Subsequent actual Manager import must still independently reject expired or changed pending sessions.
+
 ## 2026-10-08 P4 optical QR↔pending identity binder source-only synthetic PASS
 
 ```text
