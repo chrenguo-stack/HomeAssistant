@@ -156,3 +156,55 @@ REPOSITORY_VERSIONED_EXECUTOR=true
 The Mac bootstrap must fetch this exact GitHub Contents API blob and reject any
 different blob SHA before Python compile/execute. The executor itself rebinds
 the exact artifact and clean candidate before the P3 authorization claim.
+
+
+## 7. First P3 execution stopped safely before claim
+
+The first authorized P3 execution downloaded and verified the exact artifact,
+then performed the board preclaim. It stopped before authorization claim and
+before any flash mutation because the live board silicon binding did not match
+the P1 R2 clean-candidate binding.
+
+```text
+STAGE=P3_FULL_EXACT_FLASH_NO_PRODUCT_BOOT
+P3_PRECLAIM_RESULT=SILICON_BINDING_MISMATCH
+
+ARTIFACT_BINDING_PASS=true
+ARTIFACT_ID=11469977052
+BUILD_RUN_ID=37594598870
+RELEASE_ZIP_SHA256=55155717f7d8cbe1eb7cd856d42ffd2ac937b364fbbd80d52f1d37b47a46856c
+ESPTOOL_VERSION=5.3.1
+
+AUTHORIZATION_GRANTED=true
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+
+BOARD_PRECLAIM_PASS=false
+FULL_CHIP_ERASE=false
+FOUR_REGION_WRITE=false
+READBACK_VERIFY_BOOTLOADER=false
+READBACK_VERIFY_PARTITIONS=false
+READBACK_VERIFY_OTADATA=false
+READBACK_VERIFY_FIRMWARE=false
+PRODUCT_FIRMWARE_NORMAL_BOOT_STARTED=false
+P3_PASS=false
+READY_FOR_P4=false
+
+T1_MUTATION=false
+MANAGER_RESTART=false
+BROKER_RESTART=false
+STOP=true
+```
+
+Fresh source review confirms P1 and P3 use the same silicon-binding algorithm:
+lowercase ROM MAC without separators, prefixed by `rom-c6-`, then SHA-256.
+Therefore no algorithm drift is currently proven. The live connected board must
+be classified read-only before P3 is resumed.
+
+```text
+P3_AUTHORIZATION_REMAINS_GRANTED=true
+P3_AUTHORIZATION_CLAIMED=false
+P3_AUTHORIZATION_CONSUMED=false
+NEXT_ACTION=READONLY_CLASSIFY_CURRENT_CONNECTED_SILICON_BINDING
+AUTO_RETRY=false
+```
