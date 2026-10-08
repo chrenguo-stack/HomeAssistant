@@ -63,7 +63,7 @@ class HostTests(unittest.TestCase):
         def runner(cmd,**kw):
             args.append((cmd,kw))
             return SimpleNamespace(returncode=0,stdout=json.dumps(GOOD).encode())
-        result=h.remote_snapshot_once('root@10.0.0.2',hashlib.sha256(b'root@10.0.0.2').hexdigest(),self.script(),runner=runner)
+        result=h.remote_snapshot_once('root@192.0.2.10',hashlib.sha256(b'root@192.0.2.10').hexdigest(),self.script(),runner=runner)
         self.assertEqual(result,GOOD)
         self.assertNotIn('GHN3W2:',str(args))
         self.assertIn('python3',args[0][0])
@@ -72,20 +72,20 @@ class HostTests(unittest.TestCase):
     def test_target_mismatch_does_not_call_ssh(self):
         with patch.object(h.subprocess,'run') as runner:
             with self.assertRaises(ValueError):
-                h.remote_snapshot_once('root@10.0.0.2','0'*64,self.script(),runner=runner)
+                h.remote_snapshot_once('root@192.0.2.10','0'*64,self.script(),runner=runner)
             runner.assert_not_called()
 
     def test_tls_reprobe_missing_fails_closed(self):
         wrong=dict(GOOD,tls_live_reprobe_pass=False)
         r=lambda *_args,**_kw:SimpleNamespace(returncode=0,stdout=json.dumps(wrong).encode())
         with self.assertRaises(ValueError):
-            h.remote_snapshot_once('root@10.0.0.2',hashlib.sha256(b'root@10.0.0.2').hexdigest(),self.script(),runner=r)
+            h.remote_snapshot_once('root@192.0.2.10',hashlib.sha256(b'root@192.0.2.10').hexdigest(),self.script(),runner=r)
 
     def test_container_continuity_false_fails(self):
         wrong=dict(GOOD,container_continuity_pass=False)
         r=lambda *_args,**_kw:SimpleNamespace(returncode=0,stdout=json.dumps(wrong).encode())
         with self.assertRaises(ValueError):
-            h.remote_snapshot_once('root@10.0.0.2',hashlib.sha256(b'root@10.0.0.2').hexdigest(),self.script(),runner=r)
+            h.remote_snapshot_once('root@192.0.2.10',hashlib.sha256(b'root@192.0.2.10').hexdigest(),self.script(),runner=r)
 
     def test_t1_remote_entry_with_simulated_source(self):
         with patch.object(rp,'_assert_runtime') as attest, patch.object(rp,'project_readonly',create=True) as project:
@@ -102,7 +102,7 @@ class HostTests(unittest.TestCase):
 
     def test_remote_stop_on_nonzero_exit(self):
         r=lambda *_a,**_kw:SimpleNamespace(returncode=2,stdout=b'{}')
-        with self.assertRaises(ValueError):h.remote_snapshot_once('root@10.0.0.2',hashlib.sha256(b'root@10.0.0.2').hexdigest(),self.script(),runner=r)
+        with self.assertRaises(ValueError):h.remote_snapshot_once('root@192.0.2.10',hashlib.sha256(b'root@192.0.2.10').hexdigest(),self.script(),runner=r)
 
     def test_runtime_contract_has_broker_ca_and_leaf(self):
         txt=(ROOT/'remote_projection.py').read_text()

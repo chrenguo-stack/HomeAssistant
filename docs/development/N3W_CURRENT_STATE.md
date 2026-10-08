@@ -1,3 +1,26 @@
+## 2026-10-08 PR #523 reviewed; PR #522 four CI failures classified and public-safety test literals repaired
+```text
+PR523_SOURCE_REVIEW=SOURCE_SCOPE_PASS
+PR523_HEAD=4c943f072230a47de9f7a7a535a7b5ccacfd91e3
+PR523_CI=13_OF_13_PASS
+PR523_MERGE=false
+PR522_PRE_FIX_CI=24_PASS_4_FAIL
+PR522_P4_R3_SYNTHETIC_CI=PASS
+PR522_H3_2D2_2D3_2D4_FAIL_CLASS=STACKED_PR_PROTECTED_SOURCE_SCOPE
+PR522_H3_GUARDS_DISABLED=false
+PR522_PUBLIC_SAFETY_OLD_FAILURE=PRIVATE_IP_LITERALS_IN_SYNTHETIC_TESTS
+PR522_PUBLIC_SAFETY_TARGETED_FIX=DOC_TEST_NET_IP_TEST_FILES_ONLY
+PR522_POST_FIX_CI=NOT_YET_VERIFIED
+CI_SOURCE_EVIDENCE=docs/development/N3W_PR522_PR523_CI_FINAL_REVIEW_H3_BOUNDARY_AND_PUBLIC_SAFETY_FIX_20261008.md
+BOARD_ACCESS=false
+T1_ACCESS=false
+REAL_SECRET_IMPORT=false
+PR522_MERGE=false
+P4_FIRST_NORMAL_BOOT_AUTHORIZED=false
+STOP=true
+```
+PR #523's narrow concurrency controls passed independent review, but are unmerged. The three H3 failures are expected source scope guard rejections of PR #522's 140-file stacked diff; do not bypass those guards. Public-safety synthetic test literals were replaced without modifying scan rules. New PR #522 head CI remains unverified until fresh workflow completion; prior R3 synthetic PASS is from the previous head only.
+
 ## 2026-10-08 R3 P4 private QR / importer source repair staged; synthetic CI queued
 
 ```text

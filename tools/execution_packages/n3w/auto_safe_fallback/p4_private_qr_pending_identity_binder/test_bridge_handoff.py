@@ -167,8 +167,8 @@ class BridgeTests(unittest.TestCase):
             self.stopped(
                 'IMPORT_DISABLED_PENDING_VERIFIED_FIELD_ORCHESTRATOR',
                 lambda:b.ssh_manager_stdin_transport(
-                    'root@10.0.0.2',QR.encode(),
-                    expected_target_sha256=b.sha('root@10.0.0.2'),
+                    'root@192.0.2.10',QR.encode(),
+                    expected_target_sha256=b.sha('root@192.0.2.10'),
                 ),
             )
             run.assert_not_called()
