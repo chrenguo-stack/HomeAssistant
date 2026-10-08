@@ -16,7 +16,8 @@ GOOD={"schema":"n3w.p4.pending-identity-projection/1","hardware_sha256":"a"*64,"
 
 class HostTests(unittest.TestCase):
     def script(self):
-        return h.build_remote_program((ROOT/'bridge_handoff.py').read_text(),(ROOT/'remote_projection.py').read_text(),BASE)
+        with patch.object(h, 'private_preboot_baseline', return_value=BASE):
+            return h.build_remote_program((ROOT/'bridge_handoff.py').read_text(),(ROOT/'remote_projection.py').read_text())
 
     def test_combined_script_syntax(self):
         import ast
@@ -26,7 +27,27 @@ class HostTests(unittest.TestCase):
 
     def test_wrong_baseline(self):
         with self.assertRaises(ValueError):
-            h.build_remote_program('','',frozenset({'a'}))
+            h.private_preboot_baseline(ROOT / 'not-the-frozen-private-snapshot.json')
+
+    def test_missing_readonly_functions_rejected(self):
+        with patch.object(h, 'private_preboot_baseline', return_value=BASE):
+            with self.assertRaisesRegex(ValueError, 'READONLY_CORE_MISSING'):
+                h.build_remote_program('print(1)', (ROOT/'remote_projection.py').read_text())
+
+    def test_remote_code_excludes_importer_even_if_bridge_contains_it(self):
+        script=self.script()
+        self.assertNotIn('OneShotImporter', script)
+        self.assertNotIn('ssh_manager_stdin_transport', script)
+        self.assertNotIn('import-payload', script)
+        self.assertNotIn('capture_private_qr', script)
+        self.assertNotIn('setup_secret', script)
+
+    def test_mutating_sql_in_readonly_extract_stops(self):
+        bridge=(ROOT/'bridge_handoff.py').read_text()
+        mutated=bridge.replace('PRAGMA query_only=ON','DELETE FROM registrations')
+        with patch.object(h,'private_preboot_baseline',return_value=BASE):
+            with self.assertRaisesRegex(ValueError,'REMOTE_SQL_MUTATION'):
+                h.build_remote_program(mutated,(ROOT/'remote_projection.py').read_text())
 
     def test_happy_remote_readonly_pipe_with_mock(self):
         args=[]
