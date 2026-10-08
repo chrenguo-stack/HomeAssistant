@@ -1,3 +1,41 @@
+## 2026-10-08 P2 R3 read-only baseline stopped at Docker inspect
+
+```text
+P1_R2_CLEAN_BOARD_ELIGIBILITY=CLOSED_PASS
+P2_R3_SSH=PASS
+P2_R3_BASELINE_RESULT=DOCKER_INSPECT_FAILED
+T1_ACCESSED=true
+P2_R3_AUTHORIZATION_CONSUMED=true
+P2_R3_AUTHORIZATION_REPLAY=false
+
+P2_READONLY_BASELINE_PASS=false
+P2_MANAGER_PREBOOT_SNAPSHOT_CREATED=false
+READY_FOR_P2_DISCOVERY_PROBE=false
+
+FAILED_BOOLEAN_DEFAULTS_ARE_NOT_NEGATIVE_RUNTIME_EVIDENCE=true
+EXACT_DOCKER_FAILURE_TARGET=NOT_PROVEN
+LIVE_MANAGER_CONTAINER_NAME=NOT_PROVEN
+LIVE_BROKER_CONTAINER_NAME=NOT_PROVEN
+DOCKER_CLI_DAEMON_HEALTH=NOT_PROVEN
+
+NEXT_ONE_GATE=N3W_CLEAN_PRODUCT_FIRST_PAIR_P2_R4_DOCKER_RUNTIME_IDENTITY_READONLY_DIAGNOSIS
+P2_R4_AUTHORIZATION_GRANTED=false
+
+BOARD_ACCESS=false
+BOARD_WRITE=false
+MANAGER_RESTART=false
+BROKER_RESTART=false
+MANAGER_DB_WRITE=false
+AUTO_RETRY=false
+AUTO_P3=false
+STOP=true
+```
+
+Current source assumptions still use `greenhouse-manager` for the Manager
+snapshot authority and `mosquitto` in the Broker production preflight, but
+their exact live T1 bindings have not been freshly proved. A separate R4
+read-only authorization is required before any new remote SSH access.
+
 ## 2026-10-08 P2 R3 explicit-root SSH transport passed
 
 ```text
