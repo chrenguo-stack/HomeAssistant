@@ -1,3 +1,30 @@
+## 2026-10-08 P3 Write-Only one-shot physical authorization GRANTED, execution pending
+
+```text
+AUTHORIZATION_SOURCE=EXPLICIT_OPERATOR_APPROVAL_IN_PROJECT_CHAT
+NEXT_ONE_GATE=N3W_CLEAN_PRODUCT_FIRST_PAIR_P3_WRITE_ONLY_SUCCESSOR_20261008_01
+WRITE_ONLY_PREEXECUTION=docs/development/N3W_CLEAN_PRODUCT_FIRST_PAIR_P3_WRITE_ONLY_SUCCESSOR_PREEXECUTION_20261008.md
+WRITE_ONLY_EXECUTOR_PATH=tools/execution_packages/n3w/auto_safe_fallback/p3_write_only_successor/executor.py
+WRITE_ONLY_EXECUTOR_BLOB_SHA=481a368f1879e1e9f86bfc70ff36912128a8aaaa
+EXPECTED_CURRENT_SILICON_SHA256=4b004ce3931dda3dda770c1ecfc9b0d4b7a88377d2c4f876185b82c056a2a4cc
+WRITE_ONLY_AUTHORIZATION_GRANTED=true
+WRITE_ONLY_AUTHORIZATION_CLAIMED=false
+WRITE_ONLY_AUTHORIZATION_CONSUMED=false
+WRITE_ONLY_EXECUTION_RESULT=NOT_YET_EXECUTED
+BOARD_ACCESS_FOR_WRITE_ONLY=false
+FLASH_WRITE_ATTEMPTED=false
+FOUR_REGION_WRITE=false
+PRODUCT_FIRMWARE_NORMAL_BOOT_STARTED=false
+FULL_CHIP_ERASE_AGAIN=FORBIDDEN
+AUTO_RETRY=false
+AUTO_ERASE=false
+AUTO_P4=false
+P4_AUTHORIZATION_GRANTED=false
+STOP=true
+```
+
+The fresh exact GitHub rebind found PR #522 open/draft/unmerged, unchanged executor blob, R3 CLOSED_PASS, and no newer board execution evidence. The operator authorized one four-region exact write with independent stub-based exact-length SHA256 readback, but no Mac/board operation has occurred in this authorization turn. The Mac bootstrap must revalidate the exact executor blob and Python syntax before any board access and fail closed on any preclaim mismatch.
+
 ## 2026-10-08 P3 write-only no-erase successor prepared, physical authorization NOT granted
 
 ```text
