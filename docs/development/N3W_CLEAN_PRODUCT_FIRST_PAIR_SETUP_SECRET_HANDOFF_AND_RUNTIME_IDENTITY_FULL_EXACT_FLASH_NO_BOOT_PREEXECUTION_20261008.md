@@ -208,3 +208,43 @@ P3_AUTHORIZATION_CONSUMED=false
 NEXT_ACTION=READONLY_CLASSIFY_CURRENT_CONNECTED_SILICON_BINDING
 AUTO_RETRY=false
 ```
+
+
+## 8. Read-only board classification after first P3 preclaim stop
+
+A host-only/ROM read-only classification of the currently connected board
+confirmed that the P3 silicon mismatch was real, not a binding-algorithm
+difference.
+
+```text
+STAGE=P3_CURRENT_BOARD_READONLY_CLASSIFICATION
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+BOARD_WRITE=false
+FLASH_ERASE=false
+
+P3_CONNECTED_OTHER_BOARD_SHA256=4b004ce3931dda3dda770c1ecfc9b0d4b7a88377d2c4f876185b82c056a2a4cc
+P3_EXPECTED_CLEAN_CANDIDATE_SHA256=f9c00d136f84d1fdabb1e296608702539ed674271021b28cff2d4a23e4cd2bf7
+BOARD_CLASSIFICATION=OTHER_BOARD
+EXPECTED_P1_CANDIDATE_MATCH=false
+
+FLASH_SIZE_8MB=true
+SECURE_BOOT_DISABLED=true
+FLASH_ENCRYPTION_DISABLED=true
+PARTITION_WINDOW_BLANK=true
+READY_TO_RESUME_P3=false
+STOP=true
+```
+
+This proves the current USB-attached board is a different blank/security-open
+ESP32-C6, but it is **not authorized as the P1 R2 clean candidate**. It must
+not be adopted as a substitute P3 target without separately re-running the
+clean-board eligibility route for that silicon.
+
+```text
+P3_AUTHORIZATION_REMAINS_GRANTED=true
+P3_AUTHORIZATION_CLAIMED=false
+P3_AUTHORIZATION_CONSUMED=false
+NEXT_ACTION=RECONNECT_P1_R2_CLEAN_CANDIDATE_THEN_REPEAT_PRECLAIM
+CURRENT_OTHER_BOARD_MUTATION_AUTHORIZED=false
+```
