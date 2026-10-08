@@ -25,6 +25,29 @@ AUTO_P4=false
 STOP=true
 ```
 
+## 0. 2026-10-08 original executor host syntax STOP and exact repaired successor
+
+```text
+PRIOR_EXECUTOR_BLOB_SHA=58959cc509a4e88dae9bb20fda7a14d7d4e6f938
+PRIOR_EXECUTOR_RESULT=INVALID_HOST_PYTHON_SYNTAX
+PY_COMPILE_SYNTAX_ERROR_LINE=362
+EXECUTOR_STARTED=false
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+T1_ACCESSED=false
+BOARD_ACCESS=false
+
+REPAIR_CLOSURE=docs/development/N3W_CLEAN_PRODUCT_FIRST_PAIR_P4_PRIVATE_PAIRING_READONLY_HOST_SYNTAX_STOP_AND_REPAIR_20261008.md
+REPAIRED_EXECUTOR_BLOB_SHA=58959cc509a4e88dae9bb20fda7a14d7d4e6f938
+REPAIRED_EXECUTOR_MAC_COMPILE=PENDING
+REPAIRED_EXECUTOR_EMBEDDED_SCRIPT_AST_VALIDATION=PENDING
+T1_RUNTIME_CHECK=PENDING
+P4_FIRST_BOOT_AUTHORIZATION_GRANTED=false
+STOP=true
+```
+
+The unexecuted original source had nested triple-double-quote terminators. The repair modifies only two inner delimiters; the corrected executor is not yet proven by Mac compilation. The earlier authorization was not claimed, and the malformed executor must not be replayed. The Mac next must validate module and both nested remote scripts before running the repaired source once.
+
 ## 1. Frozen product/physical authority
 
 ```text
@@ -110,7 +133,7 @@ A versioned read-only gate has been prepared from the previously accepted P4 pre
 NEXT_ONE_GATE=N3W_CLEAN_PRODUCT_FIRST_PAIR_P4_PRIVATE_PAIRING_IPC_AND_SNAPSHOT_READONLY_PRESTAGE_20261008_01
 EXECUTOR_PATH=tools/execution_packages/n3w/auto_safe_fallback/p4_private_pairing_prestage_readonly/executor.py
 EXECUTOR_BLOB_SHA=95b95d1586adb856415dd23565f345ed9753acc4
-EXECUTOR_STATIC_SCOPE_CHECK=PASS
+EXECUTOR_STATIC_SCOPE_CHECK=PASS_POST_SYNTAX_REPAIR
 EXECUTOR_MAC_PYTHON_COMPILE=REQUIRED
 EXECUTOR_LIVE_HOST_RESULT=PENDING
 
@@ -141,7 +164,7 @@ The future QR/unique-new-pending binder and one-shot import executor must be sep
 
 ```text
 CURRENT_STAGE=P4_PRIVATE_PAIRING_IPC_AND_SNAPSHOT_READONLY_PRESTAGE
-CURRENT_STATUS=PREPARED_AWAITING_MAC_HOST_ONLY_RESULT
+CURRENT_STATUS=SYNTAX_REPAIRED_AWAITING_MAC_THREE_STAGE_COMPILE_AND_HOST_ONLY_RESULT
 P4_FIRST_NORMAL_BOOT_AUTHORIZATION_GRANTED=false
 P4_PRIVATE_IDENTITY_BINDER_READY=false
 P4_SECRET_IMPORT_EXECUTOR_READY=false
