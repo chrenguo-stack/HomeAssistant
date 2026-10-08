@@ -79,3 +79,26 @@ AUTO_WRITE=false
 AUTO_P4=false
 STOP=true
 ```
+
+
+## Authorization and versioned executor binding
+
+```text
+P3_R3_AUTHORIZATION_GRANTED=true
+P3_R3_AUTHORIZATION_CLAIMED=false
+P3_R3_AUTHORIZATION_CONSUMED=false
+
+EXECUTOR_PATH=tools/execution_packages/n3w/auto_safe_fallback/p3_r3_post_erase_stub_readonly_probe/executor.py
+EXECUTOR_COMMIT=1a756826b4799e560ce67e8788a6e4df420b42ad
+EXECUTOR_BLOB_SHA=08adc3bb346e026dcd3b3b9cd192194c8cceae02
+
+FLASH_ERASE=false
+FLASH_WRITE=false
+AUTO_WRITE=false
+AUTO_P4=false
+```
+
+Static source checks confirm the executor contains no erase-flash/erase-region
+or write-flash command. It binds the current silicon using ROM/no-stub
+get-security-info, then permits esptool to upload the flasher stub into RAM for
+one read-flash of 0x8000/0x1000.
