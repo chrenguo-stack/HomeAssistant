@@ -34,7 +34,7 @@ EXPECTED_REMOTE_PROBE_GIT_BLOB = "7b3ba146583b61271b41390736b67207c8d4c14e"
 
 def _git_blob(content: str) -> str:
     encoded = content.encode("utf-8")
-    return hashlib.sha1(f"blob {len(encoded)}\\0".encode() + encoded).hexdigest()
+    return hashlib.sha1(f"blob {len(encoded)}".encode() + bytes([0]) + encoded).hexdigest()
 
 
 def private_preboot_baseline(path: Path = PRIVATE_BASELINE) -> frozenset[str]:
