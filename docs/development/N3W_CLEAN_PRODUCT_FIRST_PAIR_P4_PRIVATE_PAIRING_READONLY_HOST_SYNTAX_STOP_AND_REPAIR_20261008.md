@@ -1,3 +1,29 @@
+## 0. 2026-10-08 Mac three-layer syntax preflight now PASS
+
+The operator supplied the following exact outputs after running the previous host-only verification command with the repaired exact Git blob. The command stopped after parsing and did not execute the executor.
+
+```text
+LOCAL_MODULE_SYNTAX_PASS=true
+REMOTE_SCRIPT_SYNTAX_PASS=true
+IPC_SCRIPT_SYNTAX_PASS=true
+STOP=true
+
+REPAIRED_EXECUTOR_BLOB_SHA=58959cc509a4e88dae9bb20fda7a14d7d4e6f938
+REPAIRED_MAC_PYTHON_COMPILE=PASS
+REMOTE_EMBEDDED_AST=PASS
+IPC_EMBEDDED_AST=PASS
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+T1_ACCESSED=false
+BOARD_ACCESS=false
+BOARD_WRITE=false
+MANAGER_MUTATION=false
+P4_FIRST_NORMAL_BOOT_AUTHORIZATION_GRANTED=false
+REPAIRED_EXECUTOR_T1_LIVE_RESULT=PENDING
+```
+
+The repair is now verified on the operator Mac at three source levels, not merely source-reviewed on GitHub. No execution attempt is implied. The same previously granted host-only read authorization remains unclaimed. Next one-shot run shall use the exact corrected blob and fresh OPEN/DRAFT PR authority; any error must STOP without automatic replay.
+
 # N3-W P4 private pairing read-only prestage — Mac syntax STOP and exact source repair — 2026-10-08
 
 ```text
