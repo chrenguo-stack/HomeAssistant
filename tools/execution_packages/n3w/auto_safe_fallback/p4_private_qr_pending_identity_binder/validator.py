@@ -217,8 +217,6 @@ def verify_sqlite_pairing(
                         _reject("INVALID_PRIOR_HISTORY")
                 if _fetch(cred, "SELECT 1 FROM credential_assignments WHERE hardware_id=? LIMIT 1", (hardware_id,)):
                     _reject("INVALID_PRIOR_HISTORY")
-                if _fetch(replay, "SELECT 1 FROM n3w_replay_state LIMIT 1") and record["node_id"] is not None:
-                    _reject("INVALID_PRIOR_HISTORY")
                 if _hardware_union(reg, cred) != postboot:
                     _reject("INVALID_SNAPSHOT_DRIFT")
                 return {
