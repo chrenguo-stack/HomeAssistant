@@ -1,3 +1,43 @@
+## 2026-10-08 P4 private QR-to-pending identity binder core synthetic PASS
+
+```text
+P3_RESULT=CLOSED_PASS
+P4_PREBOOT_HOST_RESULT=CLOSED_PASS
+P4_PRIVATE_IPC_READONLY_PRESTAGE_RESULT=CLOSED_PASS
+
+P4_BINDER_SOURCE_TEST_CLOSURE=docs/development/N3W_CLEAN_PRODUCT_FIRST_PAIR_P4_PRIVATE_QR_PENDING_IDENTITY_BINDER_SOURCE_TEST_CLOSURE_20261008.md
+P4_BINDER_CORE=tools/execution_packages/n3w/auto_safe_fallback/p4_private_qr_pending_identity_binder/validator.py
+P4_BINDER_CORE_BLOB_SHA=7d3d67944fb997eb7b9eea96c69a7d224557306e
+P4_BINDER_SYNTHETIC_TEST=tools/execution_packages/n3w/auto_safe_fallback/p4_private_qr_pending_identity_binder/test_validator.py
+P4_BINDER_TEST_BLOB_SHA=1dbd50bf9a58f6e316b6deda08faa448aa97a980
+P4_BINDER_SOURCE_ONLY_RESULT=PASS
+P4_BINDER_SYNTHETIC_TESTS_PASS=20
+P4_BINDER_SYNTHETIC_TESTS_FAIL=0
+P4_BINDER_LOCAL_READONLY_DB_HASH_UNCHANGED=PASS
+P4_BINDER_NO_NETWORK_NO_SECRET_IMPORT_STATIC=PASS
+
+P4_PRIVATE_OPTICAL_CAPTURE_IMPLEMENTED=false
+P4_LIVE_T1_SQLITE_READONLY_BRIDGE_IMPLEMENTED=false
+P4_PRIVATE_STDIN_IMPORTER_IMPLEMENTED=false
+P4_PHYSICAL_PRECLAIM_READY=false
+
+CURRENT_BOARD_STATE=FOUR_REGIONS_WRITTEN_AND_EXACT_READBACK_PASS_NO_PRODUCT_BOOT
+PRODUCT_NORMAL_BOOT_STARTED=false
+P4_FIRST_NORMAL_BOOT_AUTHORIZATION_GRANTED=false
+P4_SECRET_IMPORT_AUTHORIZATION_GRANTED=false
+P4_SETUP_SECRET_IMPORTED=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+MANAGER_MUTATION=false
+AUTO_P4=false
+
+NEXT_ONE_GATE=N3W_CLEAN_PRODUCT_FIRST_PAIR_P4_PRIVATE_QR_PENDING_BINDER_LIVE_READONLY_BRIDGE_AND_IMPORTER_SOURCE_PREPARATION_20261008_01
+NEXT_SCOPE=SOURCE_ONLY_NO_BOARD_NO_T1_MUTATION
+STOP=true
+```
+
+The QR↔Manager pending identity **local binder core** has passed 20 synthetic tests against source-derived tables and the valid `hello_created` lifecycle. The exact tested source and test blobs are committed. The runtime bridge, optical secret-safe input, one-shot imported secret path and live authority evidence remain unimplemented, so this **does not** authorize or establish readiness for first product boot. Previous design state below remains historical.
+
 ## 2026-10-08 P4 private QR-to-pending identity binder exact source design prepared
 
 ```text
