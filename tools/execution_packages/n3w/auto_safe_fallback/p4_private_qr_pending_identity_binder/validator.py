@@ -165,7 +165,7 @@ def _binding_state(reg: sqlite3.Connection, cred: sqlite3.Connection, hardware_i
     )
     result = []
     for connection, table, columns in selections:
-        rows = _fetch(connection, `SELECT ${columns} FROM ${table} WHERE hardware_id=?`, (hardware_id,))
+        rows = _fetch(connection, f"SELECT {columns} FROM {table} WHERE hardware_id=?", (hardware_id,))
         result.append((table, tuple(sorted((tuple(row) for row in rows), key=repr))))
     return tuple(result)
 
