@@ -120,6 +120,18 @@ class BinderTest(unittest.TestCase):
         self.insert(self.reg, "INSERT INTO retirement_outbox VALUES (?,'p','node')", (NEW,))
         self.code("INVALID_PRIOR_HISTORY")
 
+    def test_old_replay_state_is_not_a_new_product_identity(self):
+        self.insert(self.replay, "INSERT INTO n3w_replay_state VALUES ('node-1')")
+        self.assertEqual(self.verify()["status"], "BINDER_PASS_NO_IMPORT")
+
+    def test_multiple_hello_events(self):
+        self.insert(self.reg, "INSERT INTO registration_events VALUES (?,?,NULL,'hello_created')", (NEW, PAIR))
+        self.code("INVALID_PRIOR_HISTORY")
+
+    def test_historical_assignment_active(self):
+        self.insert(self.cred, "INSERT INTO credential_assignments VALUES (?,?,'node-stale','node-stale','active')", (NEW, PAIR))
+        self.code("INVALID_PRIOR_HISTORY")
+
     def test_hello_repair_event(self):
         self.insert(self.reg, "UPDATE registration_events SET event='hello_superseded' WHERE hardware_id=?", (NEW,))
         self.code("INVALID_PRIOR_HISTORY")
