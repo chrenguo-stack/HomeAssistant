@@ -103,3 +103,17 @@ STOP=true
 ```
 
 No board command is part of this P2 gate.
+
+
+## 5. Versioned executor binding
+
+```text
+EXECUTOR_PATH=tools/execution_packages/n3w/auto_safe_fallback/p2_preboot_runtime_refreeze/executor.py
+EXECUTOR_COMMIT=88ebc85693fb15f334b4d505ce5c08bfc45095e5
+EXECUTOR_BLOB_SHA=4b27e6174be45a5fc250d81b4f292ede5009e7d3
+REPOSITORY_VERSIONED_EXECUTOR=true
+```
+
+The Mac bootstrap must fetch this exact GitHub blob, require the exact blob SHA,
+compile it locally, and only then execute it. No board command is present in
+this executor.
