@@ -16,3 +16,38 @@ mqtt:
 greenhouse_n3w_product_core:
   id: n3w_product_core
   product_runtime: true
+
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          id(n3w_pairing_display_enabled) = true;
+          const bool provisioned = id(n3w_product_core).provisioned();
+          id(n3w_product_provisioned) = provisioned;
+
+          if (!id(wifi_component).is_connected()) {
+            id(n3w_pairing_display_ready) = false;
+            if (!provisioned) {
+              const std::string ap_ssid = App.get_name();
+              id(setup_qr).set_value("WIFI:T:nopass;S:" + ap_ssid + ";;");
+            }
+            return;
+          }
+
+          if (provisioned || !id(n3w_product_core).pairing_handoff_ready()) {
+            id(n3w_pairing_display_ready) = false;
+            return;
+          }
+
+          const std::string payload = id(n3w_product_core).pairing_qr_payload();
+          if (payload.empty()) {
+            id(n3w_pairing_display_ready) = false;
+            return;
+          }
+
+          static std::string last_pairing_payload;
+          if (payload != last_pairing_payload) {
+            id(pairing_qr).set_value(payload);
+            last_pairing_payload = payload;
+          }
+          id(n3w_pairing_display_ready) = true;

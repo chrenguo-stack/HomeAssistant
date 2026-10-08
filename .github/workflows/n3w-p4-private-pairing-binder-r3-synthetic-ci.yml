@@ -1,0 +1,31 @@
+name: N3W P4 private pairing binder R3 synthetic regression
+
+on:
+  push:
+    branches:
+      - fix/n3w-auto-safe-fallback-production-core-convergence-20261003
+    paths:
+      - tools/execution_packages/n3w/auto_safe_fallback/p4_private_qr_pending_identity_binder/**
+      - .github/workflows/n3w-p4-private-pairing-binder-r3-synthetic-ci.yml
+  pull_request:
+    paths:
+      - tools/execution_packages/n3w/auto_safe_fallback/p4_private_qr_pending_identity_binder/**
+      - .github/workflows/n3w-p4-private-pairing-binder-r3-synthetic-ci.yml
+
+permissions:
+  contents: read
+
+jobs:
+  source-only-synthetic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: R3 host-only Python syntax verification
+        run: python3 -m compileall -q tools/execution_packages/n3w/auto_safe_fallback/p4_private_qr_pending_identity_binder
+      - name: R3 all synthetic fixtures; no physical access
+        working-directory: tools/execution_packages/n3w/auto_safe_fallback/p4_private_qr_pending_identity_binder
+        run: python3 -m unittest discover -p 'test_*.py' -v
