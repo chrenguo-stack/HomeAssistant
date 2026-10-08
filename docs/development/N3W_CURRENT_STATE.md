@@ -1,3 +1,33 @@
+## 2026-10-08 P3 silicon mismatch interpretation corrected
+
+```text
+P3_SILICON_MISMATCH_INTERPRETATION_CORRECTION=true
+
+CURRENT_CONNECTED_SILICON_SHA256=4b004ce3931dda3dda770c1ecfc9b0d4b7a88377d2c4f876185b82c056a2a4cc
+PRIOR_P1_R2_SILICON_SHA256=f9c00d136f84d1fdabb1e296608702539ed674271021b28cff2d4a23e4cd2bf7
+
+DIFFERENT_SILICON=true
+CURRENT_BOARD_NOT_NEW=false
+CURRENT_BOARD_DIRTY=false
+CURRENT_BOARD_CLEAN_ELIGIBILITY=NOT_YET_FORMALLY_CLOSED
+
+P3_AUTHORIZATION_GRANTED=true
+P3_AUTHORIZATION_CLAIMED=false
+P3_AUTHORIZATION_CONSUMED=false
+BOARD_WRITE=false
+FLASH_ERASE=false
+
+NEXT_ONE_GATE=P1_FRESH_SUCCESSOR_CLEAN_BOARD_ELIGIBILITY_FOR_CURRENT_SILICON
+AFTER_P1_PASS=P2_PREBOOT_RUNTIME_REFREEZE
+AFTER_P2_REFREEZE_PASS=P3_FULL_EXACT_FLASH_NO_BOOT
+STOP=true
+```
+
+The prior "wrong board" wording is superseded. A silicon mismatch only proves
+that the current board differs from the prior P1 R2 candidate. The operator
+states the current board is brand new and unused. It may become the new formal
+candidate after a fresh P1 read-only eligibility closure.
+
 ## 2026-10-08 P3 wrong-board repeat confirmed
 
 ```text
