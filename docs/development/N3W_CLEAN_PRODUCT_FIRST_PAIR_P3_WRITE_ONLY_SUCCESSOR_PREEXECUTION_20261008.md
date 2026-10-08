@@ -1,10 +1,10 @@
 # N3-W Clean Product First-Pair — P3 Write-Only Successor Preexecution — 2026-10-08
 
 ```text
-STATUS=PREPARED_NOT_AUTHORIZED
+STATUS=AUTHORIZED_NOT_EXECUTED
 STAGE=P3_WRITE_ONLY_SUCCESSOR_NO_PRODUCT_BOOT
 NEXT_ONE_GATE=N3W_CLEAN_PRODUCT_FIRST_PAIR_P3_WRITE_ONLY_SUCCESSOR_20261008_01
-P3_WRITE_ONLY_SUCCESSOR_AUTHORIZATION_GRANTED=false
+P3_WRITE_ONLY_SUCCESSOR_AUTHORIZATION_GRANTED=true
 FLASH_ERASE=false
 FLASH_WRITE=false
 BOARD_ACCESS_FOR_SUCCESSOR=false
@@ -15,7 +15,7 @@ MERGE=false
 STOP=true
 ```
 
-This is a **design and executor-preparation record only**, not a grant to run the executor or to write flash.
+The operator explicitly granted this exact bounded physical write-only successor on 2026-10-08. Execution has not yet started. Fresh host, exact-artifact, and board preclaims remain mandatory before the write authorization is claimed.
 
 ## 1. Closed predecessor and current board
 
@@ -82,7 +82,7 @@ FIRMWARE_SHA256=4e4442808fdff7fc3ca16eb379bd06741a9eea3364e31f1365be5e6bee325c65
 
 All four files are exact frozen release members. Do not use firmware.factory.bin, firmware.ota.bin or a newly rebuilt application as a substitute. No full-chip erase or erase-region may be issued.
 
-## 3. New exact executor authority (prepared only)
+## 3. New exact executor authority (authorized, not executed)
 
 ```text
 EXECUTOR_PATH=tools/execution_packages/n3w/auto_safe_fallback/p3_write_only_successor/executor.py
@@ -91,7 +91,7 @@ EXECUTOR_REQUIRED_ESPTool_VERSION=5.3.1
 EXECUTOR_SOURCE_STATIC_SCOPE_CHECK=PASS
 EXECUTOR_LOCAL_PYTHON_COMPILE=REQUIRED_AT_NEXT_HOST_PREFLIGHT_NOT_YET_PERFORMED
 EXECUTOR_PHYSICAL_EXECUTION=false
-P3_WRITE_ONLY_SUCCESSOR_AUTHORIZATION_GRANTED=false
+P3_WRITE_ONLY_SUCCESSOR_AUTHORIZATION_GRANTED=true
 ```
 
 The executor reuses the bounded exact-release member verification, silicon-binding policy, fresh USB ownership checks, private evidence and per-region SHA256 readback from R2. It makes a narrowly scoped modification to avoid the proven ROM/no-stub SPI flash-access failure: only ROM `get-security-info` uses no-stub; flash-id, preclaim blank read, write-flash and each read-flash use the flasher stub in volatile RAM.
@@ -114,7 +114,7 @@ Any preclaim failure is immediate STOP **before** writing or consuming the new w
 
 ## 5. One-shot write and readback
 
-Only after separate explicit operator authorization and all preclaims pass:
+Only after the explicit 2026-10-08 operator authorization and all preclaims pass:
 
 ```text
 AUTHORIZATION_CLAIMED=true
@@ -194,7 +194,28 @@ STOP=true
 
 ```text
 NEXT_ONE_GATE=N3W_CLEAN_PRODUCT_FIRST_PAIR_P3_WRITE_ONLY_SUCCESSOR_20261008_01
-CURRENT_STATUS=PREPARED_NOT_AUTHORIZED
-REQUEST_NEW_PHYSICAL_WRITE_AUTHORIZATION=true
-DO_NOT_EXECUTE_UNTIL_GRANTED=true
+CURRENT_STATUS=AUTHORIZED_NOT_EXECUTED
+PHYSICAL_WRITE_AUTHORIZATION_GRANTED=true
+DO_NOT_EXECUTE_UNTIL_PREFLIGHT_PASS=true
 ```
+
+
+## 8. Operator authorization update (2026-10-08)
+
+```text
+AUTHORIZED_GATE=N3W_CLEAN_PRODUCT_FIRST_PAIR_P3_WRITE_ONLY_SUCCESSOR_20261008_01
+AUTHORIZATION_SOURCE=EXPLICIT_OPERATOR_APPROVAL_IN_PROJECT_CHAT
+AUTHORIZATION_GRANTED=true
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+AUTHORIZE_ONLY_EXACT_EXECUTOR_BLOB_SHA=481a368f1879e1e9f86bfc70ff36912128a8aaaa
+AUTHORIZE_ONLY_EXPECTED_SILICON_SHA256=4b004ce3931dda3dda770c1ecfc9b0d4b7a88377d2c4f876185b82c056a2a4cc
+ALLOW_AFTER_FRESH_PREFLIGHT=ONE_FOUR_REGION_EXACT_WRITE_AND_FOUR_EXACT_LENGTH_SHA256_READBACK
+FULL_CHIP_ERASE=false
+NORMAL_PRODUCT_BOOT=false
+AUTO_P4=false
+AUTO_RETRY=false
+STOP=true
+```
+
+The operator's approval is for this gate only. Before the first board-targeted action, the exact executor must be downloaded and Git-blob verified and locally Python-compiled; all firmware and silicon preclaims are fail-closed. Authorization is claimed/consumed only at the executor's explicit mutation boundary. Once claimed, no rerun is allowed even if the flash write or readback fails.
