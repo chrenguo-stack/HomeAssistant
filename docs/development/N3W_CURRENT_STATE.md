@@ -1,3 +1,28 @@
+## 2026-10-08 P3 R3 post-erase stub read-only probe authorized
+
+```text
+CURRENT_BOARD_STATE=ERASED_UNWRITTEN
+FULL_CHIP_ERASE=true
+FOUR_REGION_WRITE=false
+PRODUCT_FIRMWARE_NORMAL_BOOT_STARTED=false
+
+P3_R2_AUTHORIZATION_CONSUMED=true
+P3_R2_REPLAY=false
+
+P3_R3_AUTHORIZATION_GRANTED=true
+P3_R3_AUTHORIZATION_CLAIMED=false
+P3_R3_AUTHORIZATION_CONSUMED=false
+P3_R3_EXECUTOR_PATH=tools/execution_packages/n3w/auto_safe_fallback/p3_r3_post_erase_stub_readonly_probe/executor.py
+P3_R3_EXECUTOR_BLOB_SHA=08adc3bb346e026dcd3b3b9cd192194c8cceae02
+
+FLASH_ERASE=false
+FLASH_WRITE=false
+AUTO_WRITE=false
+AUTO_P4=false
+NEXT_ONE_GATE=N3W_CLEAN_PRODUCT_FIRST_PAIR_P3_R3_POST_ERASE_STUB_READONLY_PROBE_20261008_01
+STOP=true
+```
+
 ## 2026-10-08 P3 R1 stopped on proven no-stub erase executor defect
 
 ```text
