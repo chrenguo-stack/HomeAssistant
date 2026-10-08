@@ -138,7 +138,7 @@ def silicon_sha256_from_security(output: str) -> str:
     return sha256_bytes(binding.encode("ascii"))
 
 
-def fresh_board_preclaim(port: str) -> dict[str, str]:
+def fresh_board_preclaim(port: str, expected_silicon_sha256: str) -> dict[str, str]:
     security = require_command(
         esptool_base(port) + ["get-security-info"],
         "SECURITY_INFO_FAILED",
@@ -359,8 +359,8 @@ def main() -> int:
 
         port = ensure_single_port()
         public["SERIAL_PORT_SHA256"] = sha256_bytes(port.encode("utf-8"))
-        board = fresh_board_preclaim(port)
-        public["SILICON_BINDING_SHA256"] = board["silicon_sha256"]
+        board = fresh_board_preclaim(port, expected_silicon_sha256)
+        public["SILICON_BINDING_SHA256"] = board["silicon_sha256"]\n        public["EXPECTED_SILICON_BINDING_SHA256"] = expected_silicon_sha256
         public["BOARD_PRECLAIM_PASS"] = True
         public["FLASH_SIZE"] = "8MB"
         public["SECURE_BOOT"] = False
@@ -372,7 +372,7 @@ def main() -> int:
             "authorization_granted": True,
             "authorization_claimed": True,
             "authorization_consumed": True,
-            "silicon_binding_sha256": board["silicon_sha256"],
+            "silicon_binding_sha256": board["silicon_sha256"],\n            "expected_silicon_binding_sha256": expected_silicon_sha256,
             "security_output_sha256": board["security_output_sha256"],
             "flash_id_output_sha256": board["flash_id_output_sha256"],
             "release_zip_sha256": RELEASE_ZIP_SHA256,
