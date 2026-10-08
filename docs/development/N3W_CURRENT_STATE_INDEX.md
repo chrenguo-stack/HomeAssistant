@@ -1,3 +1,22 @@
+## 2026-10-08 current P2 closure route
+
+```text
+CURRENT_P2_CLOSURE=docs/development/N3W_CLEAN_PRODUCT_FIRST_PAIR_SETUP_SECRET_HANDOFF_AND_RUNTIME_IDENTITY_T1_HEALTHY_BROKER_A_AND_MANAGER_PREBOOT_IDENTITY_SNAPSHOT_CLOSURE_20261008.md
+P2_STATUS=CLOSED_PASS
+P2_R5_PASS=true
+MANAGER_DISCOVERY_AUTO_SOURCE_A=true
+MANAGER_PREBOOT_IDENTITY_SNAPSHOT_SHA256=81a4601421d0f85a6295a8d901fa91692e61c27306c36bc673796f856bbd1e0c
+READY_FOR_P3=true
+P3_AUTHORIZATION_GRANTED=false
+P3_BOARD_WRITE_AUTHORIZED=false
+AUTO_EXECUTE_NEXT_GATE=false
+NEW_PHYSICAL_AUTHORIZATION_REQUIRED=true
+```
+
+P2 closure supersedes the earlier preparation entry at the top of the
+historical index. The next stage is Stage P3 full exact flash with no normal
+product boot until readback verification passes.
+
 ## 2026-10-08 current P2 route
 
 ```text
