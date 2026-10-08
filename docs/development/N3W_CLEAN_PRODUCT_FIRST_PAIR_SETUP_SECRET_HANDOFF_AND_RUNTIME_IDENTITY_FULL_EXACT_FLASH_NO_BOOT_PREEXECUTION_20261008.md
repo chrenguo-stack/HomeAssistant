@@ -248,3 +248,44 @@ P3_AUTHORIZATION_CONSUMED=false
 NEXT_ACTION=RECONNECT_P1_R2_CLEAN_CANDIDATE_THEN_REPEAT_PRECLAIM
 CURRENT_OTHER_BOARD_MUTATION_AUTHORIZED=false
 ```
+
+
+## 9. Silicon-mismatch interpretation correction
+
+The earlier wording that classified the connected silicon as a "wrong board"
+was too strong and is superseded by this section.
+
+The physical-acceptance authority requires **one genuinely clean candidate
+before write**. It does not make the first successful P1 silicon digest a
+permanent product-wide board identity. A different silicon may be used only
+after that silicon independently passes a fresh P1 clean-board eligibility
+gate.
+
+```text
+P3_SILICON_MISMATCH_INTERPRETATION_CORRECTION=true
+
+OBSERVED_CURRENT_SILICON_SHA256=4b004ce3931dda3dda770c1ecfc9b0d4b7a88377d2c4f876185b82c056a2a4cc
+PRIOR_P1_R2_SILICON_SHA256=f9c00d136f84d1fdabb1e296608702539ed674271021b28cff2d4a23e4cd2bf7
+
+DIFFERENT_SILICON=true
+CURRENT_BOARD_NOT_NEW=false
+CURRENT_BOARD_DIRTY=false
+CURRENT_BOARD_CLEAN_ELIGIBILITY=NOT_YET_FORMALLY_CLOSED
+```
+
+The operator explicitly states that the currently connected board is brand new
+and unused. Existing read-only observations already show 8MB flash, Secure Boot
+disabled, Flash Encryption disabled and a blank partition-table window. Those
+facts are consistent with a clean successor candidate but do not replace the
+formal P1 closure.
+
+Correct successor route:
+
+```text
+NEXT_ONE_GATE=P1_FRESH_SUCCESSOR_CLEAN_BOARD_ELIGIBILITY_FOR_CURRENT_SILICON
+AFTER_P1_PASS=P2_PREBOOT_RUNTIME_REFREEZE
+AFTER_P2_REFREEZE_PASS=P3_FULL_EXACT_FLASH_NO_BOOT
+```
+
+P3 target selection must bind to the **latest successful P1 closure authority**
+rather than a silicon digest permanently hard-coded into an executor.
