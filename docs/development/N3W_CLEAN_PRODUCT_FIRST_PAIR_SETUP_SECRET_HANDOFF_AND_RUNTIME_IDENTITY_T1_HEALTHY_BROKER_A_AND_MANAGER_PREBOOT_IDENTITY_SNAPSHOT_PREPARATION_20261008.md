@@ -651,3 +651,55 @@ AUTO_RETRY=false
 AUTO_P3=false
 STOP=true
 ```
+
+
+## 18. Corrected P2 R3 explicit-target SSH physical probe PASSED
+
+The operator ran the **corrected** one-time SSH probe against the
+operator-confirmed explicit-root T1 target. The effective target guard passed,
+SSH returned exit code 0, and the expected remote sentinel was observed.
+This is fresh direct evidence of a working authenticated T1 SSH command
+transport using the corrected target and options.
+
+```text
+STAGE=P2_R3_CORRECTED_EXPLICIT_T1_SSH
+P2_R3_CORRECTED_EXPLICIT_T1_SSH_CONNECTION_PASS=true
+SSH_TARGET_PREFLIGHT_PASS=true
+SSH_CONNECTION_ATTEMPTED=true
+SSH_CONNECTION_PASS=true
+SSH_RETURN_CODE=0
+SSH_STDERR_SHA256=262df7d6c4418978ef7cf3787b4cbb1bcc74daa93fcecf611190765a40d16b50
+
+AUTHORIZATION_GRANTED=true
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+PREDECESSOR_AUTHORIZATION_REPLAY=false
+READY_FOR_P2_READONLY_BASELINE=true
+
+BOARD_ACCESS=false
+BOARD_WRITE=false
+MANAGER_RESTART=false
+BROKER_RESTART=false
+MANAGER_DB_WRITE=false
+AUTO_RETRY=false
+AUTO_P3=false
+```
+
+The P2 R3 grant is **consumed for the SSH connectivity probe**, but the
+explicit operator scope permits continuing to read the current Broker/
+Manager runtime and generate the Manager preboot identity snapshot **within
+this same successful R3 workflow**. It does not permit retrying failed
+remote steps, entering P3, or flashing the clean candidate board.
+
+The SSH proof is **not** itself proof that Broker A TLS, current Manager
+configuration, all SQLite history, or preboot identity snapshot has passed.
+Those remain the next strictly read-only gate.
+
+```text
+P2_R3_NEXT_ACTION=T1_MANAGER_BROKER_READONLY_BASELINE_AND_PREBOOT_IDENTITY_SNAPSHOT
+P2_R3_BASELINE_COMPLETED=false
+P2_R3_PREBOOT_IDENTITY_SNAPSHOT_CREATED=false
+P2_R3_DISCOVERY_AUTO_SOURCE_A=NOT_PROVEN
+P2_R3_AUTO_RETRY=false
+STOP=true
+```
