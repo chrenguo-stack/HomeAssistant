@@ -703,3 +703,69 @@ P2_R3_DISCOVERY_AUTO_SOURCE_A=NOT_PROVEN
 P2_R3_AUTO_RETRY=false
 STOP=true
 ```
+
+
+## 19. P2 R3 read-only baseline stopped at Docker inspect
+
+After the corrected SSH transport PASS, the authorized R3 read-only baseline
+entered T1 and stopped on the first generic Docker-inspect failure emitted by
+the executor.
+
+```text
+STAGE=P2_R3_T1_MANAGER_BROKER_PREBOOT_READONLY
+P2_R3_BASELINE_RESULT=DOCKER_INSPECT_FAILED
+T1_ACCESSED=true
+SSH_PREVIOUS_PROBE_BOUND=true
+SSH_RETURN_CODE=2
+P2_READONLY_BASELINE_PASS=false
+MANAGER_PREBOOT_SNAPSHOT_CREATED=false
+READY_FOR_P2_DISCOVERY_PROBE=false
+
+AUTHORIZATION_GRANTED=true
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+PREDECESSOR_AUTHORIZATION_REPLAY=false
+AUTO_RETRY=false
+
+BOARD_ACCESS=false
+BOARD_WRITE=false
+BROKER_RESTART=false
+MANAGER_RESTART=false
+MANAGER_DB_WRITE=false
+MANAGER_REPLAY_MUTATION=false
+MANAGER_HIGH_WATER_CLEAR=false
+AUTO_P3=false
+STOP=true
+```
+
+The remaining public result fields stayed at their initial false defaults because
+the executor stopped before those checks. They are therefore **not negative
+runtime evidence** for Manager, Broker, TLS, listeners, or identity state.
+
+The R3 executor used a generic `DOCKER_INSPECT_FAILED` error for both:
+`docker inspect --type container greenhouse-manager` and
+`docker inspect --type container mosquitto`. The saved public result does
+not prove which inspect failed, nor whether Docker CLI/daemon access itself
+failed.
+
+Fresh source review shows:
+- the exact runtime identity snapshot authority defaults Manager container to
+  `greenhouse-manager` (blob
+  `ad4d70266c8628d138170a0e86b62e1e891a01c7`);
+- the current Broker production preflight source inspects `mosquitto`
+  (blob `f8b604221b28e6b717a7f5919feafdcaa8e15ca3`).
+
+Thus the executor names match current source assumptions, but live-T1 name
+binding and Docker availability remain unproven.
+
+```text
+P2_R3_AUTHORIZATION_REPLAY=false
+P2_R4_AUTHORIZATION_GRANTED=false
+NEXT_ONE_GATE=N3W_CLEAN_PRODUCT_FIRST_PAIR_P2_R4_DOCKER_RUNTIME_IDENTITY_READONLY_DIAGNOSIS
+R4_REQUIRED_SCOPE=one bounded explicit-T1 SSH read-only Docker runtime diagnosis
+R4_AUTO_RETRY=false
+R4_SERVICE_MUTATION=false
+R4_DATABASE_MUTATION=false
+R4_BOARD_ACCESS=false
+R4_AUTO_P3=false
+```
