@@ -1,3 +1,34 @@
+## 2026-10-08 P3 Write-Only host download failure / offline exact artifact successor
+
+```text
+P3_WRITE_ONLY_RESULT=ARTIFACT_DOWNLOAD_FAILED_BEFORE_CLAIM
+P3_WRITE_ONLY_AUTHORIZATION_GRANTED=true
+P3_WRITE_ONLY_AUTHORIZATION_CLAIMED=false
+P3_WRITE_ONLY_AUTHORIZATION_CONSUMED=false
+BOARD_ACCESS=false
+FLASH_ERASE=false
+FLASH_WRITE=false
+FULL_CHIP_ERASE_AGAIN=FORBIDDEN
+PRODUCT_FIRMWARE_NORMAL_BOOT_STARTED=false
+
+ARTIFACT_11469977052_EXISTS=true
+ARTIFACT_11469977052_EXPIRED=false
+OUTER_ARTIFACT_VERIFIED_SHA256=8587c7bf130f2f17e81b4e4f7652780f372f6a61697cc240e72a6af7392a7dc8
+
+OFFLINE_R2_PREEXECUTION=docs/development/N3W_CLEAN_PRODUCT_FIRST_PAIR_P3_WRITE_ONLY_OFFLINE_ARTIFACT_R2_PREEXECUTION_20261008.md
+OFFLINE_R2_EXECUTOR=tools/execution_packages/n3w/auto_safe_fallback/p3_write_only_offline_artifact_r2/executor.py
+OFFLINE_R2_EXECUTOR_BLOB_SHA=d6c8d63e20a53b3c8a626bd9d7d23f36b3fa24fc
+OFFLINE_R2_PHYSICAL_AUTHORIZATION_GRANTED=false
+
+NEXT_ONE_GATE=N3W_CLEAN_PRODUCT_FIRST_PAIR_P3_WRITE_ONLY_OFFLINE_ARTIFACT_R2_20261008_01
+NEXT_ONE_GATE_STATUS=PREPARED_NOT_AUTHORIZED
+AUTO_RETRY=false
+AUTO_P4=false
+STOP=true
+```
+
+The previously approved blob remains unclaimed but is not silently transferred to the new offline-input executor. Current authority is the offline R2 preparation document and latest current-state entry.
+
 ## 2026-10-08 P3 Write-Only authorization now GRANTED / pending Mac execution
 
 ```text
