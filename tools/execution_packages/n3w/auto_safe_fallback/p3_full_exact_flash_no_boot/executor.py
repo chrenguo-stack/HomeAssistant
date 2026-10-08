@@ -23,7 +23,6 @@ RELEASE_ZIP_SIZE = 4340810
 RELEASE_ZIP_SHA256 = "55155717f7d8cbe1eb7cd856d42ffd2ac937b364fbbd80d52f1d37b47a46856c"
 SOURCE_HEAD = "629f096a32e087087ea32d30707dcc3cd6295e5d"
 SOURCE_TREE = "0b97a97a63d7e251ed92cc96507386b454709161"
-EXPECTED_SILICON_SHA256 = "f9c00d136f84d1fdabb1e296608702539ed674271021b28cff2d4a23e4cd2bf7"
 EXPECTED_MEMBERS = {
     "MANIFEST.txt": None,
     "bootloader.bin": (22576, "985d0e0c5029d55d6cfab66470fe367200fd3e4e367e6a69ef1b557704c89fd5"),
@@ -149,7 +148,7 @@ def fresh_board_preclaim(port: str, expected_silicon_sha256: str) -> dict[str, s
     if FLASH_ENCRYPTION_DISABLED_RE.search(security) is None:
         raise StopExecution("FLASH_ENCRYPTION_DISABLED_NOT_PROVEN")
     silicon_sha = silicon_sha256_from_security(security)
-    if silicon_sha != EXPECTED_SILICON_SHA256:
+    if silicon_sha != expected_silicon_sha256:
         raise StopExecution("SILICON_BINDING_MISMATCH")
     flash_id = require_command(
         esptool_base(port) + ["flash-id"],
@@ -303,6 +302,7 @@ def readback(
 
 def main() -> int:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--expected-silicon-sha256", required=True)
     parser.add_argument(
         "--private-dir",
         default=str(
@@ -312,6 +312,23 @@ def main() -> int:
         ),
     )
     args = parser.parse_args()
+    expected_silicon_sha256 = args.expected_silicon_sha256.strip().lower()
+    if re.fullmatch(r"[0-9a-f]{64}", expected_silicon_sha256) is None:
+        print(
+            json.dumps(
+                {
+                    "STAGE": "P3_FULL_EXACT_FLASH_NO_PRODUCT_BOOT",
+                    "ERROR": "EXPECTED_SILICON_SHA256_INVALID",
+                    "AUTHORIZATION_CLAIMED": False,
+                    "AUTHORIZATION_CONSUMED": False,
+                    "STOP": True,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 2
+
 
     public: dict[str, object] = {
         "STAGE": "P3_FULL_EXACT_FLASH_NO_PRODUCT_BOOT",
@@ -360,7 +377,8 @@ def main() -> int:
         port = ensure_single_port()
         public["SERIAL_PORT_SHA256"] = sha256_bytes(port.encode("utf-8"))
         board = fresh_board_preclaim(port, expected_silicon_sha256)
-        public["SILICON_BINDING_SHA256"] = board["silicon_sha256"]\n        public["EXPECTED_SILICON_BINDING_SHA256"] = expected_silicon_sha256
+        public["SILICON_BINDING_SHA256"] = board["silicon_sha256"]
+        public["EXPECTED_SILICON_BINDING_SHA256"] = expected_silicon_sha256
         public["BOARD_PRECLAIM_PASS"] = True
         public["FLASH_SIZE"] = "8MB"
         public["SECURE_BOOT"] = False
@@ -372,7 +390,8 @@ def main() -> int:
             "authorization_granted": True,
             "authorization_claimed": True,
             "authorization_consumed": True,
-            "silicon_binding_sha256": board["silicon_sha256"],\n            "expected_silicon_binding_sha256": expected_silicon_sha256,
+            "silicon_binding_sha256": board["silicon_sha256"],
+            "expected_silicon_binding_sha256": expected_silicon_sha256,
             "security_output_sha256": board["security_output_sha256"],
             "flash_id_output_sha256": board["flash_id_output_sha256"],
             "release_zip_sha256": RELEASE_ZIP_SHA256,
