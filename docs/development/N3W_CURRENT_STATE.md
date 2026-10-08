@@ -1,3 +1,41 @@
+## 2026-10-08 P4 private QR / pending identity / Setup Secret host-side prestage prepared
+
+```text
+P3_WRITE_ONLY_OFFLINE_R2_RESULT=CLOSED_PASS
+P4_PREBOOT_READONLY_RESULT=CLOSED_PASS
+CURRENT_BOARD_STATE=FOUR_REGIONS_WRITTEN_AND_EXACT_READBACK_PASS_NO_PRODUCT_BOOT
+
+P4_PRIVATE_PRESTAGE_DESIGN=docs/development/N3W_CLEAN_PRODUCT_FIRST_PAIR_P4_PRIVATE_IDENTITY_AND_SETUP_SECRET_HANDOFF_PRESTAGE_20261008.md
+P4_PRIVATE_PRESTAGE_READONLY_EXECUTOR=tools/execution_packages/n3w/auto_safe_fallback/p4_private_pairing_prestage_readonly/executor.py
+P4_PRIVATE_PRESTAGE_READONLY_EXECUTOR_BLOB_SHA=95b95d1586adb856415dd23565f345ed9753acc4
+P4_PRIVATE_PRESTAGE_EXECUTOR_STATIC_SCOPE_CHECK=PASS
+P4_PRIVATE_PRESTAGE_MAC_PY_COMPILE=NOT_YET_PERFORMED
+P4_PRIVATE_PRESTAGE_T1_LIVE_RESULT=PENDING
+
+P4_FROZEN_MANAGER_PREBOOT_IDENTITY_COUNT=5
+P4_FROZEN_MANAGER_PREBOOT_IDENTITY_SNAPSHOT_SHA256=81a4601421d0f85a6295a8d901fa91692e61c27306c36bc673796f856bbd1e0c
+
+P4_PRIVATE_PENDING_IDENTITY_BINDER_READY=false
+P4_SETUP_SECRET_IMPORT_EXECUTOR_READY=false
+P4_SETUP_SECRET_IMPORT_AUTHORIZATION_GRANTED=false
+
+BOARD_ACCESS=false
+FLASH_ERASE=false
+FLASH_WRITE=false
+PRODUCT_FIRMWARE_NORMAL_BOOT_STARTED=false
+P4_FIRST_NORMAL_BOOT_AUTHORIZATION_GRANTED=false
+MANAGER_MUTATION=false
+BROKER_MUTATION=false
+AUTO_PAIRING=false
+AUTO_P4=false
+
+NEXT_ONE_GATE=N3W_CLEAN_PRODUCT_FIRST_PAIR_P4_PRIVATE_PAIRING_IPC_AND_SNAPSHOT_READONLY_PRESTAGE_20261008_01
+NEXT_ONE_GATE_STATUS=PREPARED_AWAITING_MAC_HOST_ONLY_RESULT
+STOP=true
+```
+
+The frozen product/source review confirms the Manager-owned `greenhouse-manager-pairing import-payload --payload-stdin` command and real `GHN3W2` payload grammar. A 120-second default pending TTL means socket/CLI, original five-identity snapshot and future binder/import tooling must be ready before first normal product boot. The host-only prestage executor **does not** intake QR/secret or mutate T1. A successful socket readiness result is not itself permission to boot or evidence of pending identity matching. Earlier P4 preboot status remains CLOSED_PASS; new prestage runtime result is pending.
+
 ## 2026-10-08 P4 preboot runtime continuity read-only CLOSED_PASS
 
 ```text
