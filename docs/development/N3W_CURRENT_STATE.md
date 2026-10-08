@@ -1,3 +1,37 @@
+## 2026-10-08 P4 QR/pending identity binder independent R2 repair and test closure
+
+```text
+N3W_CLEAN_PRODUCT_FIRST_PAIR_P4_PRIVATE_QR_PENDING_IDENTITY_BINDER_SOURCE_REPAIR_AND_TEST_20261008_01=SOURCE_ONLY_CLOSED_PASS
+P4_BINDER_INDEPENDENT_R2_CLOSURE=docs/development/N3W_CLEAN_PRODUCT_FIRST_PAIR_P4_PRIVATE_QR_PENDING_IDENTITY_BINDER_SOURCE_R2_REVIEW_AND_TEST_CLOSURE_20261008.md
+P4_BINDER_R2_REPAIRED_SOURCE=tools/execution_packages/n3w/auto_safe_fallback/p4_private_qr_pending_identity_binder/validator.py
+P4_BINDER_R2_REPAIRED_SOURCE_BLOB_SHA=3b7dc0d085dcda52fda0334840d75d5f8678bc1b
+P4_BINDER_R2_REPAIRED_TEST=tools/execution_packages/n3w/auto_safe_fallback/p4_private_qr_pending_identity_binder/test_validator.py
+P4_BINDER_R2_REPAIRED_TEST_BLOB_SHA=4f626fbacfd4a64e36d46e5e396a610df64526ee
+P4_BINDER_R2_INDEPENDENT_SYNTHETIC_TESTS=24_PASS
+P4_BINDER_R2_CONCURRENT_STATE_DRIFT_REJECTED=true
+P4_BINDER_R2_STATIC_SCOPE=NO_NETWORK_NO_SECRET_IMPORT_NO_SUBPROCESS
+P4_BINDER_SOURCE_ONLY_STATUS=CLOSED_PASS
+
+P3_RESULT=CLOSED_PASS
+P4_PREBOOT_HOST_RESULT=CLOSED_PASS
+P4_PRIVATE_IPC_READONLY_PRESTAGE_RESULT=CLOSED_PASS
+CURRENT_BOARD_STATE=FOUR_REGIONS_WRITTEN_AND_EXACT_READBACK_PASS_NO_PRODUCT_BOOT
+P4_REAL_LCD_QR_CAPTURED=false
+P4_T1_LIVE_READONLY_BINDER_READY=false
+P4_ONE_SHOT_IMPORTER_READY=false
+P4_FIRST_NORMAL_BOOT_AUTHORIZATION_GRANTED=false
+P4_SETUP_SECRET_IMPORT_AUTHORIZATION_GRANTED=false
+BOARD_ACCESS=false
+T1_ACCESS_IN_R2=false
+MANAGER_MUTATION=false
+AUTO_P4=false
+
+NEXT_ONE_GATE=N3W_CLEAN_PRODUCT_FIRST_PAIR_P4_PRIVATE_QR_PENDING_BINDER_LIVE_READONLY_BRIDGE_AND_IMPORTER_SOURCE_PREPARATION_20261008_01
+STOP=true
+```
+
+Independent local replay reproduced the original stale pairing-state gap: a session changed to rejected while the identity union stayed constant and the original binder returned PASS. This R2 detects selected lifecycle-row drift by a second read and passed 24 synthetic tests; the Git blobs match the exact local tested files. This is a source-only result, not runtime identity attestation. The future Manager import must still atomically validate its transaction because state may change after this read-only gate. All older PASS entries below refer to previous exact source and are superseded by the R2 Git blobs above.
+
 ## 2026-10-08 P4 private QR-to-pending identity binder core synthetic PASS
 
 ```text
