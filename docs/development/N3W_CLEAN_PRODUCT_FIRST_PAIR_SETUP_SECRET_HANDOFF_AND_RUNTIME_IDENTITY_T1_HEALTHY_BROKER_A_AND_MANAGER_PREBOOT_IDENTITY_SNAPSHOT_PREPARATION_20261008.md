@@ -769,3 +769,54 @@ R4_DATABASE_MUTATION=false
 R4_BOARD_ACCESS=false
 R4_AUTO_P3=false
 ```
+
+
+## 20. P2 R4 Docker runtime identity read-only diagnosis — operator authorization
+
+The operator explicitly approved a new successor gate after the consumed R3
+baseline stopped at a generic Docker inspect failure.
+
+```text
+NEXT_ONE_GATE=N3W_CLEAN_PRODUCT_FIRST_PAIR_P2_R4_DOCKER_RUNTIME_IDENTITY_READONLY_DIAGNOSIS
+P2_R4_AUTHORIZATION_GRANTED=true
+P2_R4_AUTHORIZATION_CLAIMED=false
+P2_R4_AUTHORIZATION_CONSUMED=false
+
+P2_R3_AUTHORIZATION_CONSUMED=true
+P2_R3_AUTHORIZATION_REPLAY=false
+
+ALLOWED=one bounded explicit-root T1 SSH connection
+ALLOWED=read-only Docker CLI/daemon health check
+ALLOWED=read-only running-container inventory and classification
+ALLOWED=private evidence on operator Mac only
+
+DO_NOT_RUN=full P2 baseline
+DO_NOT_RUN=identity snapshot
+DO_NOT_RUN=Manager discovery probe
+DO_NOT_RESTART=Manager
+DO_NOT_RESTART=Broker
+DO_NOT_MUTATE=database
+DO_NOT_ACCESS=board
+DO_NOT_ENTER=P3
+FAILURE_POLICY=STOP_IMMEDIATELY_NO_RETRY
+AUTO_RETRY=false
+MERGE=false
+```
+
+The R4 executor must not assume the live container names. It may enumerate
+running containers read-only, inspect their names/images/Compose labels in
+memory, and emit only sanitized classifications publicly. Raw container
+inventory and raw container IDs remain private evidence.
+
+The R4 result must distinguish:
+1. Docker CLI unavailable;
+2. Docker daemon inaccessible;
+3. expected Manager name present/absent;
+4. expected Broker name present/absent;
+5. uniquely classifiable Manager/Broker candidates by image/Compose labels;
+6. ambiguous/no candidate.
+
+```text
+P2_R4_NEXT_ACTION=ONE_BOUNDED_DOCKER_RUNTIME_READONLY_DIAGNOSIS
+STOP=true
+```
