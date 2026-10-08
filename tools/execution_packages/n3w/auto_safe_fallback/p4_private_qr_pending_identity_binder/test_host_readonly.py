@@ -31,8 +31,9 @@ class HostTests(unittest.TestCase):
 
     def test_missing_readonly_functions_rejected(self):
         with patch.object(h, 'private_preboot_baseline', return_value=BASE):
-            with self.assertRaisesRegex(ValueError, 'READONLY_CORE_MISSING'):
-                h.build_remote_program('print(1)', (ROOT/'remote_projection.py').read_text())
+            with patch.object(h, 'EXPECTED_BRIDGE_GIT_BLOB', h._git_blob('print(1)')):
+                with self.assertRaisesRegex(ValueError, 'READONLY_CORE_MISSING'):
+                    h.build_remote_program('print(1)', (ROOT/'remote_projection.py').read_text())
 
     def test_remote_code_excludes_importer_even_if_bridge_contains_it(self):
         script=self.script()
