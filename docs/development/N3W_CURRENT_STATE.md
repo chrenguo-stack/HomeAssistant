@@ -1,3 +1,41 @@
+## 2026-10-08 P3 R1 stopped on proven no-stub erase executor defect
+
+```text
+P1_SUCCESSOR_STATUS=CLOSED_PASS
+CURRENT_CLEAN_CANDIDATE_SILICON_BINDING_SHA256=4b004ce3931dda3dda770c1ecfc9b0d4b7a88377d2c4f876185b82c056a2a4cc
+P2_REFREEZE_PASS=true
+
+P3_R1_AUTHORIZATION_CLAIMED=true
+P3_R1_AUTHORIZATION_CONSUMED=true
+P3_R1_REPLAY=false
+P3_R1_EXECUTOR_NO_STUB_ERASE_DEFECT=PROVEN
+
+ARTIFACT_BINDING_PASS=true
+BOARD_PRECLAIM_PASS=true
+FULL_CHIP_ERASE=false
+FOUR_REGION_WRITE=false
+PRODUCT_FIRMWARE_NORMAL_BOOT_STARTED=false
+
+PRODUCT_DEFECT=false
+BOARD_DEFECT=false
+ARTIFACT_DEFECT=false
+
+P3_R2_PREEXECUTION=docs/development/N3W_CLEAN_PRODUCT_FIRST_PAIR_P3_R2_STUB_AWARE_FULL_EXACT_FLASH_PREEXECUTION_20261008.md
+P3_R2_EXECUTOR_PATH=tools/execution_packages/n3w/auto_safe_fallback/p3_full_exact_flash_no_boot_r2/executor.py
+P3_R2_EXECUTOR_BLOB_SHA=6c269d730d5bde72fc0e9a02b1babd408f6bd7da
+P3_R2_AUTHORIZATION_GRANTED=false
+
+NEXT_ONE_GATE=N3W_CLEAN_PRODUCT_FIRST_PAIR_P3_R2_STUB_AWARE_FULL_EXACT_FLASH_20261008_01
+AUTO_RETRY=false
+AUTO_P4=false
+STOP=true
+```
+
+P3 R1 globally forced `--no-stub`; esptool 5.3.1 full-chip erase is stub-only.
+The successor executor keeps ROM/no-stub for preclaim/write/readback but uses
+the flasher stub only for full-chip erase, with `--after no-reset` returning
+to ROM bootloader and no product boot.
+
 ## 2026-10-08 P2 preboot runtime refreeze authorized and executor bound
 
 ```text
