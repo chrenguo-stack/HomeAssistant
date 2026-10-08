@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location("validator", Path(__file__).with_name("validator.py"))
 validator = importlib.util.module_from_spec(spec)
@@ -135,6 +136,50 @@ class BinderTest(unittest.TestCase):
     def test_hello_repair_event(self):
         self.insert(self.reg, "UPDATE registration_events SET event='hello_superseded' WHERE hardware_id=?", (NEW,))
         self.code("INVALID_PRIOR_HISTORY")
+
+    def assert_change_is_detected(self, path, sql, params=()):
+        original = validator._hardware_union
+        counter = [0]
+
+        def concurrent_mutation(registration, credential):
+            result = original(registration, credential)
+            counter[0] += 1
+            if counter[0] == 2:
+                with sqlite3.connect(path) as db:
+                    db.execute(sql, params)
+            return result
+
+        with patch.object(validator, "_hardware_union", concurrent_mutation):
+            self.code("INVALID_BINDING_STATE_DRIFT")
+        self.assertEqual(counter[0], 2)
+
+    def test_concurrent_pairing_rejected_after_first_read(self):
+        self.assert_change_is_detected(
+            self.reg,
+            "UPDATE pairing_sessions SET state='rejected' WHERE hardware_id=?",
+            (NEW,),
+        )
+
+    def test_concurrent_pairing_deadline_shrinks_after_first_read(self):
+        self.assert_change_is_detected(
+            self.reg,
+            "UPDATE pairing_sessions SET expires_at=? WHERE hardware_id=?",
+            ((NOW - timedelta(seconds=1)).isoformat(), NEW),
+        )
+
+    def test_concurrent_credential_assignment_after_first_read(self):
+        self.assert_change_is_detected(
+            self.cred,
+            "INSERT INTO credential_assignments VALUES (?,'old',NULL,'old','revoked')",
+            (NEW,),
+        )
+
+    def test_concurrent_node_lease_after_first_read(self):
+        self.assert_change_is_detected(
+            self.reg,
+            "INSERT INTO node_id_leases VALUES (?,'old-node')",
+            (NEW,),
+        )
 
     def test_qr_invalid_and_multiline(self):
         self.code("INVALID_QR_FORMAT", QR + "\nmore")
