@@ -1024,3 +1024,59 @@ NEW_MANAGER_DEPLOYMENT=false
 BOARD_FIRST_BOOT=false
 NEXT_ACTION=ONLY_EXACT_SOURCE_REBIND_AND_READONLY_CONTROLLED_WINDOW_PREFLIGHT
 ```
+
+## 20. R3 现场预检 PASS；R4 独立 systemd 失败恢复准备（2026-10-09）
+
+操作者在 T1 已经执行过 exact PR #540 R3 工具绑定和双只读预检，实际结果：
+
+```text
+REVIEWED_BACKUP_SOURCE_BINDING=PASS
+ORIGINAL_MANAGER_STOP_RECOVERY_PREFLIGHT=PASS
+BROKER_PERSISTENCE_PREFLIGHT=PASS
+MANAGER_STOP_NOT_EXECUTED=true
+CURRENT_MANAGER_IDENTITY_AND_MOUNTS=PASS
+BROKER_RUNNING=PASS
+OTHER_RUNNING_CONTAINER_WRITERS=NONE_DETECTED
+COLD_BACKUP=NOT_STARTED
+REVIEWED_BACKUP_PREFLIGHT=PASS
+CONSISTENT_DATA_BACKUP=NOT_STARTED
+```
+
+因此 R3 的源版本绑定、旧容器原状、Broker 与其它运行容器可写重叠安全门都已 PASS；但真实跨库快照与隔离恢复尚未发生。
+
+源代码风险复核发现：原 `controlled_window.py` 的 `finally` 在当前 Python 进程被 SIGKILL / SSH 会话异常杀死时可能无法执行，必须独立于执行进程有保障恢复的系统组件。Draft #540 增加两份源文件：
+
+- `emergency_resume.py`：独立进程以 root 私有原容器 inspect 和 live Docker ID/image/config 判定，仅在匹配时对**原 Manager 容器**执行条件性恢复，验证多次 stable-running 和 Broker 不变。
+- `systemd_recovery_unit.py`：按照 root-only stage 和本机 Python 实际可执行文件在内存渲染 systemd **一次性 unit**；主入口调用受控停写-复制-恢复，`ExecStopPost` 调用独立恢复进程，unit `TimeoutStartSec=240` / `TimeoutStopSec=90`，不含任何 `[Install]` 项，避免开机自动执行误操作；当前不会写入/启用任何 systemd unit。
+
+此机制在 SSH 链路中断或主进程被 systemd 超时结束时可尝试恢复原 Manager，但不承诺克服主机断电、Docker daemon 不可达或系统服务故障，须有明确手工恢复与业务指标验收步骤。当前不允许进入停机。
+
+### 20.1 下一唯一现场动作：R4 完整版本只读绑定和 systemd 能力探测
+
+最新 PR #540 HEAD 必须在运行前再检查，并从该确切 Git SHA 一次性绑定四份 R4 文件到现有私有备份根目录的新子目录，保留 R3 文件不覆盖。验证四个 git blob 完整哈希、0600/0700 权限、Python 无字节码模式下两种 preflight，检测宿主机 `docker.service`、`systemd-analyze` 以及 unit 的内存 render；绝对不安装、不 enable、不 start 单元，不写生产 DB、不停止 Manager。
+
+预计输出：
+
+```text
+R4_RECOVERY_FILES_EXACT_BINDING=PASS
+R4_ORIGINAL_MANAGER_RECOVERY_PREFLIGHT=PASS
+R4_SYSTEMD_SERVICE_RECOVERY_TEMPLATE=PASS
+R4_BROKER_UNCHANGED=PASS
+MANAGER_STOP_NOT_EXECUTED=true
+COLD_BACKUP=NOT_STARTED
+```
+
+**真实冷备份前仍阻断的事项**：确认其它宿主进程写者、业务上旧五身份与 credential/replay 高水位、基于实际 unit 的 `systemd-analyze verify` 与安装/超时触发失败注入模拟、人工失效恢复计划、单服务停写窗口时长。要求 Broker 双网络与旧 Manager 原始 Docker metadata、旧镜像归档全部仍然在 T1 私有 root 范围，证据仅安全状态写入 GitHub。
+
+```text
+PR540_R3_T1_READONLY_PREFLIGHT=PASS
+PR540_R4_INDEPENDENT_RECOVERY_SOURCE=SOURCE_ONLY
+SYSTEMD_RECOVERY_UNIT_INSTALLED=false
+SYSTEMD_RECOVERY_UNIT_STARTED=false
+OLD_MANAGER_STOP=false
+CONSISTENT_COLD_COPY=false
+ISOLATED_RESTORE_REAL_DATA=false
+CANDIDATE_MANAGER_PRODUCTION_REPLACEMENT=false
+FIRST_BOARD_NORMAL_BOOT=false
+REAL_SETUP_SECRET_IMPORT=false
+```
