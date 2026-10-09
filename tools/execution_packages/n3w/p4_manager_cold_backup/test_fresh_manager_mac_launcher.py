@@ -24,6 +24,28 @@ class FakeResponse:
 
 
 class LauncherTests(unittest.TestCase):
+    def test_successor_immutable_source_and_second_private_stage_are_bound(self):
+        self.assertEqual(
+            launcher.SOURCE_HEAD,
+            "fd98c06d02037cba4f18043afeac62cd75893108",
+        )
+        self.assertEqual(
+            launcher.EXPECTED["fresh_manager_deploy.py"],
+            "d07e119f83ed6c76789f6c4de277e33b65b80dad",
+        )
+        self.assertEqual(
+            launcher.EXPECTED["fresh_manager_systemd_unit.py"],
+            "4a7a5950aff578382db09846f41cecbc0262a5cb",
+        )
+        self.assertIn(
+            'STAGE_NAME = "p4-fresh-manager-deploy-r2"',
+            launcher.REMOTE_CODE,
+        )
+        self.assertNotIn(
+            'STAGE_NAME = "p4-fresh-manager-deploy-r1"',
+            launcher.REMOTE_CODE,
+        )
+
     def test_remote_program_is_syntactically_valid(self):
         source = launcher.REMOTE_CODE.replace("__EXPECTED__", repr(launcher.EXPECTED))
         compile(source, "remote_t1_stager", "exec")
