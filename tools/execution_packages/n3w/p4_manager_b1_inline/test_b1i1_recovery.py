@@ -5,6 +5,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from b1i1_contract import GateStop
 from b1i1_journal import Journal
@@ -139,6 +140,70 @@ class SafetyTests(unittest.TestCase):
         self.assertEqual(result.status, "FAIL_ROLLBACK_INCOMPLETE")
         self.assertNotIn("quarantine", ops.calls)
         self.assertFalse(ops.original_running)
+
+    def test_partial_journal_write_failure_freezes_all_future_mutations(self):
+        import b1i1_journal as journal_module
+        state = self.sample()
+        real_write = journal_module._write
+
+        def write_then_uncertain(path, doc, *, create):
+            real_write(path, doc, create=create)
+            if not create:
+                raise OSError("fsync completion uncertain")
+
+        with patch.object(journal_module, "_write", side_effect=write_then_uncertain):
+            with self.assertRaisesRegex(GateStop, "JOURNAL_DURABILITY_UNKNOWN_FROZEN"):
+                state.intent("OLD_STOP_INTENT")
+        self.assertTrue(state.uncertain)
+        self.assertEqual(state.doc["phase"], "PREPARE_INTENT")
+        self.assertEqual(Journal.load(self.root).doc["phase"], "OLD_STOP_INTENT")
+        with self.assertRaisesRegex(GateStop, "JOURNAL_DURABILITY_UNKNOWN_FROZEN"):
+            state.intent("OLD_PARK_INTENT")
+        ops = FakeOps()
+        self.assertEqual(
+            read_only_reconcile(state, authority(), ops).status,
+            "UNKNOWN_FROZEN",
+        )
+        with self.assertRaisesRegex(GateStop, "JOURNAL_DURABILITY_UNKNOWN_FROZEN"):
+            controlled_recovery(state, authority(), ops, exact_recovery_authorized=True)
+        self.assertEqual(ops.calls, [])
+
+    def test_post_stop_journal_failure_does_not_attempt_unsafe_inline_rollback(self):
+        import b1i1_journal as journal_module
+        original = journal_module._write
+        ops = FakeOps()
+        def broken_after_old_stop(path, doc, *, create):
+            original(path, doc, create=create)
+            if doc.get("phase") == "OLD_PARK_INTENT":
+                raise OSError("record persisted but fsync unknown")
+        with patch.object(journal_module, "_write", side_effect=broken_after_old_stop):
+            result = execute(
+                self.root, authority(), ops, budget(),
+                transaction_token="c" * 48,
+            )
+        self.assertEqual(result.status, "UNKNOWN_FROZEN")
+        self.assertEqual(result.reason, "JOURNAL_DURABILITY_UNKNOWN_FROZEN")
+        self.assertFalse(ops.original_running)
+        self.assertNotIn("restore", ops.calls)
+        self.assertNotIn("quarantine", ops.calls)
+        self.assertEqual(Journal.load(self.root).doc["phase"], "OLD_PARK_INTENT")
+
+    def test_prepare_journal_failure_does_not_claim_normal_stop(self):
+        import b1i1_journal as journal_module
+        original = journal_module._write
+        ops = FakeOps("prepare")
+        def broken_prepare(path, doc, *, create):
+            original(path, doc, create=create)
+            if doc.get("phase") == "PREPARE_STOP":
+                raise OSError("write report lost after replace")
+        with patch.object(journal_module, "_write", side_effect=broken_prepare):
+            result = execute(
+                self.root, authority(), ops, budget(),
+                transaction_token="c" * 48,
+            )
+        self.assertEqual(result.status, "UNKNOWN_FROZEN")
+        self.assertTrue(ops.original_running)
+        self.assertNotIn("stop_old", ops.calls)
 
     def test_source_only_no_docker_or_ssh_entrypoint(self):
         import b1i1_transaction
