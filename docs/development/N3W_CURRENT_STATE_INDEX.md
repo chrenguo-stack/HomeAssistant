@@ -1,3 +1,37 @@
+## 2026-10-09 P4 Manager isolated R3 transaction authorized, R2 forensic seal guarded
+
+```text
+CURRENT_GATE=N3W_P4_T1_R2_FORENSIC_SEAL_AND_R3_RESUME
+USER_NEW_EXACT_R3_LIVE_AUTHORIZATION=GRANTED_ONCE
+R2_ORIGINAL_RUNNING=true
+R2_BROKER_UNCHANGED=true
+R2_ROLLBACK_RESULT=PASS
+R2_LAST_PHASE=FRESH_SOURCES_PREPARED_EMPTY
+R2_SHADOW_STOPPED_PRESERVED=true
+R2_PRIVATE_R5_BACKUP_OLD_ROOTS=KEEP
+R2_TRANSACTIONS_OR_SYSTEMD_REPLAY=false
+R3_NEW_STAGE=p4-fresh-manager-deploy-r3
+R3_NEW_TRANSACTION=fresh-manager-r3-deploy-state-private.json
+R3_NEW_FRESH_RW_BASE=fresh-manager-r3-runtime-state
+R3_NEW_SHADOW=greenhouse-manager-p4-r3-shadow
+R3_NEW_SYSTEMD_UNIT=n3w-p4-fresh-manager-r3-deploy.service
+R3_AUTHORIZATION_ID=N3W_P4_T1_FRESH_MANAGER_ONE_SHOT_LIVE_DEPLOY_R3
+R3_EXACT_10_SOURCE_REF=9441a73658d21566f981e7986b0e0de9093d14da
+R3_MAC_LAUNCHER_CODE_COMMIT=db06a02d8fd19de142728267e0dcb94661044cf7
+R3_MAC_LAUNCHER_BLOB_SHA1=b97c3ba606fbb6ee093b3abe3e398b00be392287
+R3_LIVE_EXECUTION=NOT_YET_OBSERVED
+CURRENT_REVIEW=SOURCE_TEST_ONLY
+MASTER_AUTHORITY=docs/development/N3W_P4_T1_R2_FORENSIC_SEAL_R3_INDEPENDENT_ONE_SHOT_PRODUCTION_AUTHORITY_20261009.md
+BROKER_MUTATION=false
+BOARD_FIRST_NORMAL_BOOT=false
+SETUP_SECRET_IMPORT=false
+MERGE=false
+```
+
+A new user approval authorizes exactly one R3 production Manager-only cutover **after** strict R2 journal/shadow/original-state verification and R2 forensic SHA seal, all while preserving R2 failed state. The actual operator entry now uses the guarded final-check rollback path. Only ten SHA-pinned scripts run, fresh three RW roots are independent and original RO secrets unchanged. No live R3 action has yet been proven. One STOP is terminal; no automatic retries or private state deletion.
+
+---
+
 ## 2026-10-09 R2 OOM kill default parity root cause — 111-pass source-only closure
 
 ```text
