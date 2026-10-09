@@ -111,6 +111,16 @@ def validate_runtime(original: dict[str, Any], broker_saved: dict[str, Any], pha
     require(current.get("Image") == original.get("Image"), "MANAGER_IMAGE_CHANGED")
     for key in ("Config", "HostConfig"):
         require(current.get(key) == original.get(key), "MANAGER_CREATE_CONFIG_DRIFT")
+    def bind_contract(document: dict[str, Any]) -> list[tuple[str, str, bool, str]]:
+        return sorted(
+            (m.get("Destination"), m.get("Source"), m.get("RW"), m.get("Type"))
+            for m in document.get("Mounts", [])
+        )
+    require(
+        bind_contract(current) == bind_contract(original),
+        "MANAGER_MOUNTS_DIFFER_FROM_SAVED_PRIVATE_CONFIG",
+    )
+    require(broker.get("Image") == broker_saved.get("Image"), "BROKER_IMAGE_DRIFT")
     require(broker.get("Id") == broker_saved.get("Id"), "BROKER_CONTAINER_CHANGED")
     require(broker.get("State", {}).get("Running") is True, "BROKER_NOT_RUNNING")
     running = current.get("State", {}).get("Running")
@@ -241,6 +251,7 @@ def run() -> None:
     parser.add_argument("--private-root", required=True)
     parser.add_argument("--permit-cold-copy", action="store_true")
     args = parser.parse_args()
+    os.umask(0o077)
     private = private_root(args.private_root)
     manager_file = private / "manager-inspect-private.json"
     broker_file = private / "broker-inspect-private.json"
