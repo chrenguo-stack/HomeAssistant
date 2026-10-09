@@ -27,7 +27,7 @@ class LauncherTests(unittest.TestCase):
     def test_r4_immutable_source_and_forensic_seal_private_stage_are_bound(self):
         self.assertEqual(
             launcher.SOURCE_HEAD,
-            "2d9ee7999d525e0812774a106863e2e6bf55d5ec",
+            "938ff0686a02e3633f96d6e421789ecdd4cabefd",
         )
         self.assertEqual(
             launcher.EXPECTED["fresh_manager_deploy.py"],
@@ -49,7 +49,7 @@ class LauncherTests(unittest.TestCase):
         self.assertIn("r3_forensic_seal.py", launcher.EXPECTED)
         self.assertEqual(launcher.EXPECTED["r3_forensic_seal.py"], "97b6128dd79e9c66bd5fc51b08f7104d5702f6aa")
         self.assertEqual(len(launcher.EXPECTED), 11)
-        self.assertEqual(launcher.EXPECTED["r4_shadow_stable_fingerprint.py"], "b647286e52779767324a8b2c4b94f2d05fe25332")
+        self.assertEqual(launcher.EXPECTED["r4_shadow_stable_fingerprint.py"], "8e4a6f5505c01b655ce991a46947485c791b0598")
         self.assertIn(
             'AUTH = "N3W_P4_T1_FRESH_MANAGER_ONE_SHOT_LIVE_DEPLOY_R4"',
             launcher.REMOTE_CODE,
