@@ -13,7 +13,13 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from bridge_handoff import Binding, GateStop, bind_terminal_projection
-from terminal_pairing import (\n    _private_claim,\n    _require_authorization,\n    _write_authorization,\n    authorize,\n    once,\n)
+from terminal_pairing import (
+    _private_claim,
+    _require_authorization,
+    _write_authorization,
+    authorize,
+    once,
+)
 
 NOW = datetime(2026, 10, 9, 8, 0, tzinfo=UTC)
 HARDWARE = "ghw-c6-00000000ff00"
