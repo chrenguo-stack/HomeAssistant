@@ -51,6 +51,47 @@ class ColdSnapshotSyntheticTests(unittest.TestCase):
             "synthetic-not-secret",
         )
 
+    def test_reject_source_change_during_copy(self) -> None:
+        original_copy = tool.copy_data
+
+        def copy_and_mutate(sources: dict, dest: Path) -> None:
+            original_copy(sources, dest)
+            (self.sources[tool.RW["n3w"]] / "state.bin").write_bytes(b"changed")
+
+        with patch.object(tool, "no_open_db_files", return_value=None):
+            with patch.object(tool, "copy_data", side_effect=copy_and_mutate):
+                with self.assertRaisesRegex(
+                    tool.Stop, "SOURCE_CHANGED_DURING_COLD_COPY"
+                ):
+                    tool.capture(self.sources, self.root)
+
+    def test_db_occupancy_checks_wal_and_shm(self) -> None:
+        database = self.sources[tool.RW["registration"]] / "registration.sqlite3"
+        Path(str(database) + "-wal").write_bytes(b"synthetic")
+        Path(str(database) + "-shm").write_bytes(b"synthetic")
+        with patch.object(tool.shutil, "which", return_value="/usr/bin/fuser"):
+            with patch.object(tool.subprocess, "run") as run:
+                run.return_value.returncode = 1
+                tool.no_open_db_files(self.sources)
+        probed = [
+            args[0][2] for args in (call.args for call in run.call_args_list)
+        ]
+        self.assertIn(str(database), probed)
+        self.assertIn(str(database) + "-wal", probed)
+        self.assertIn(str(database) + "-shm", probed)
+
+    def test_db_busy_wal_fails_closed(self) -> None:
+        database = self.sources[tool.RW["registration"]] / "registration.sqlite3"
+        Path(str(database) + "-wal").write_bytes(b"synthetic")
+        import subprocess
+        def fake_probe(args: tuple, **kwargs: object) -> subprocess.CompletedProcess:
+            rc = 0 if str(args[2]).endswith("-wal") else 1
+            return subprocess.CompletedProcess(args, rc)
+        with patch.object(tool.shutil, "which", return_value="/usr/bin/fuser"):
+            with patch.object(tool.subprocess, "run", side_effect=fake_probe):
+                with self.assertRaisesRegex(tool.Stop, "DB_FILE_BUSY_OR_PROBE_FAILED"):
+                    tool.no_open_db_files(self.sources)
+
     def test_refuse_existing_backup_directory(self) -> None:
         (self.root / "cold-snapshot").mkdir()
         with patch.object(tool, "no_open_db_files", return_value=None):
