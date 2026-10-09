@@ -51,11 +51,16 @@ B1I1_T1_LIVE_PRECHECK=NOT_EXECUTED
 B1I1_T1_REAL_DEPLOY=NOT_EXECUTED
 B1I1_SIMULATION_PRELIM_RUN=37956691590
 B1I1_SIMULATION_PRELIM_TESTS=44_PASS
+B1I1_FINAL_VERIFIED_CI_RUN=37956994371
+B1I1_FINAL_VERIFIED_CI=44_PASS
+B1I1_FINAL_MANAGER_CI_RUN=37956994315_PASS
+B1I1_FINAL_PUBLIC_SAFETY_CI_RUN=37956994368_PASS
+B1I1_FINAL_R4_SYNTHETIC_CI_RUN=37956994345_PASS
 B1I1_GITHUB_PR=540_OPEN_DRAFT
 PR_MERGE=false
 ```
 
-Results above belong solely to simulated source logic, not production readiness. Latest branch-head CI must be checked separately after documentation update.
+Results above belong solely to simulated source logic, not production readiness. The code and latest checked documentation-head B1I1 synthetic, Manager, Public Safety, and prior R4 synthetic CI runs were all successful; this is source-only evidence.
 
 ## 3. Open gates and independent review blockers
 
@@ -82,7 +87,7 @@ Results above belong solely to simulated source logic, not production readiness.
 
 ```text
 CURRENT_ONE_GATE=N3W_P4_T1_B1I1_INLINE_TRANSACTION_AND_RECOVERY_SOURCE_IMPLEMENTATION_WITH_SYNTHETIC_TESTS
-SOURCE_CORE_RESULT=PASS_PENDING_LAST_CI
+SOURCE_CORE_RESULT=CLOSED_PASS_SOURCE_ONLY
 PRODUCTION_EXECUTOR_RESULT=NOT_COMPLETE
 LIVE_PREEXECUTION_DECISION=NO_GO
 NEXT_ONE_GATE=N3W_P4_T1_B1I1_CORE_INDEPENDENT_REVIEW_AND_LIVE_ADAPTER_SOURCE_CONTRACT
