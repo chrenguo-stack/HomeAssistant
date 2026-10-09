@@ -40,6 +40,25 @@ def _hash(value: str) -> str:
     return hashlib.sha256(value.encode("ascii")).hexdigest()
 
 
+def _file_state(path: Path) -> tuple:
+    states = []
+    for suffix in ("", "-wal", "-shm"):
+        item = Path(str(path) + suffix)
+        try:
+            info = item.lstat()
+        except FileNotFoundError:
+            states.append(None)
+            continue
+        except OSError as error:
+            raise PendingReadonlyError("P4_PENDING_READONLY_INVALID") from error
+        if not stat.S_ISREG(info.st_mode) or item.is_symlink():
+            _stop()
+        states.append((info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns))
+    if states[0] is None or (states[1] is None) != (states[2] is None):
+        _stop()
+    return tuple(states)
+
+
 def _open_ro(path: Path) -> sqlite3.Connection:
     if not path.is_absolute() or path.is_symlink():
         _stop()
@@ -193,6 +212,7 @@ def read_pending(
     paths = (registration_path, credential_path, replay_path)
     if len({str(path.resolve()) for path in paths}) != 3:
         _stop()
+    before = tuple(_file_state(path) for path in paths)
     with ExitStack() as stack:
         connections = [
             stack.enter_context(closing(_open_ro(path)))
@@ -200,11 +220,14 @@ def read_pending(
         ]
         try:
             first = _projection(*connections)
+            middle = tuple(_file_state(path) for path in paths)
             second = _projection(*connections)
         except (sqlite3.Error, KeyError, IndexError, TypeError, UnicodeError) as error:
             raise PendingReadonlyError("P4_PENDING_READONLY_INVALID") from error
-        if first != second:
+        if first != second or before != middle:
             _stop()
+    if tuple(_file_state(path) for path in paths) != before:
+        _stop()
     observed = now if now is not None else datetime.now(UTC)
     if observed.tzinfo is None:
         _stop()
