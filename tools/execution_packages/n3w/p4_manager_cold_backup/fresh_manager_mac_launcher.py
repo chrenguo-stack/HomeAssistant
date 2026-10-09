@@ -25,7 +25,7 @@ EXPECTED = {
     "r3_forensic_seal.py": "97b6128dd79e9c66bd5fc51b08f7104d5702f6aa",
     "r4_shadow_stable_fingerprint.py": "8e4a6f5505c01b655ce991a46947485c791b0598",
 }
-MAX_REMOTE_SECONDS = 600
+MAX_REMOTE_SECONDS = 920
 
 REMOTE_CODE = r"""
 import hashlib
@@ -48,6 +48,8 @@ NEEDED = {
     "cold-snapshot-manifest-private.json",
     "p4-business-restore-evidence-private.json",
 }
+REMOTE_PREFLIGHT_SECONDS = 120
+REMOTE_EXECUTE_SECONDS = 660
 STAGE_NAME = "p4-fresh-manager-deploy-r4"
 AUTH = "N3W_P4_T1_FRESH_MANAGER_ONE_SHOT_LIVE_DEPLOY_R4"
 
@@ -196,13 +198,13 @@ def main():
     finally:
         os.close(directory_fd)
     operator = stage / "fresh_manager_operator.py"
-    preflight = run_operator(operator, private, ["preflight"], 120)
+    preflight = run_operator(operator, private, ["preflight"], REMOTE_PREFLIGHT_SECONDS)
     if "FRESH_MANAGER_PRECHECKS=PASS" not in preflight or "LIVE_MANAGER_REPLACEMENT_NOT_STARTED=true" not in preflight:
         stop("PREFLIGHT_RESULT_INCOMPLETE")
     outcome = run_operator(
         operator, private,
         ["execute", "--authorization-id", AUTH, "--permit-live-manager-replacement"],
-        530,
+        REMOTE_EXECUTE_SECONDS,
     )
     if "FRESH_MANAGER_ONE_SHOT_DEPLOYMENT=PASS" not in outcome:
         stop("EXECUTION_PASS_NOT_PROVEN")
