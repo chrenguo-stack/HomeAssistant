@@ -18,13 +18,13 @@ import controlled_window as window
 import cutover_contract as contract
 import fresh_state_contract as fresh
 
-AUTHORIZATION_ID = "N3W_P4_T1_FRESH_MANAGER_ONE_SHOT_LIVE_DEPLOY"
-STATE_FILE = "fresh-manager-deploy-state-private.json"
-FRESH_BASE = "fresh-manager-runtime-state"
-ENV_FILE = "fresh-manager-env-private"
-SHADOW_NAME = "greenhouse-manager-p4-shadow"
-PARKED_NAME = "greenhouse-manager-p4-rollback"
-FAILED_NAME = "greenhouse-manager-p4-failed"
+AUTHORIZATION_ID = "N3W_P4_T1_FRESH_MANAGER_ONE_SHOT_LIVE_DEPLOY_R3"
+STATE_FILE = "fresh-manager-r3-deploy-state-private.json"
+FRESH_BASE = "fresh-manager-r3-runtime-state"
+ENV_FILE = "fresh-manager-r3-env-private"
+SHADOW_NAME = "greenhouse-manager-p4-r3-shadow"
+PARKED_NAME = "greenhouse-manager-p4-r3-rollback"
+FAILED_NAME = "greenhouse-manager-p4-r3-failed"
 STOP_TIMEOUT_SECONDS = 30
 START_TIMEOUT_SECONDS = 45
 POSTFLIGHT_TIMEOUT_SECONDS = 60
@@ -428,6 +428,8 @@ class LiveOps:
         self.fresh_sources: dict[str, str] = {}
 
     def preflight(self) -> DeployContext:
+        import r3_forensic_seal as r3_seal
+        r3_seal.require_r3_seal(self.private)
         verify_r5_rollback_authority(self.private)
         origin, broker_origin = window.get_private_origin(self.private)
         window.check_old_running(origin, broker_origin)
