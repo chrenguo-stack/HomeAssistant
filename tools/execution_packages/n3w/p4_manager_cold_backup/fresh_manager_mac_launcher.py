@@ -9,7 +9,7 @@ import sys
 import tarfile
 import urllib.request
 
-SOURCE_HEAD = "5bc6c5cf116708ebf47f76b9b2d0c71ab570da6e"
+SOURCE_HEAD = "fd98c06d02037cba4f18043afeac62cd75893108"
 REPO = "chrenguo-stack/HomeAssistant"
 DIRECTORY = "tools/execution_packages/n3w/p4_manager_cold_backup"
 EXPECTED = {
@@ -18,10 +18,10 @@ EXPECTED = {
     "controlled_window.py": "dc9e9b4658d8cf4d265b31c27a90ff9d143d77de",
     "cutover_contract.py": "810f785378dbe4f928ab84aa1a18d3b754dabcac",
     "fresh_state_contract.py": "f05e54644b954087544e99c15e030d3aefea7b8f",
-    "fresh_manager_deploy.py": "f2dcff3767e9831f3bb12a867210e71b715801f6",
+    "fresh_manager_deploy.py": "d07e119f83ed6c76789f6c4de277e33b65b80dad",
     "fresh_manager_recovery.py": "28426a313ed53d4a3fa6cc9f4bbd5fa618e08ab3",
     "fresh_manager_operator.py": "97232c7df5fe14c61ffed8facfe522ad4a3d802c",
-    "fresh_manager_systemd_unit.py": "ce86bd0bd119215cce327d8674fd60eded7d8714",
+    "fresh_manager_systemd_unit.py": "4a7a5950aff578382db09846f41cecbc0262a5cb",
 }
 MAX_REMOTE_SECONDS = 600
 
@@ -46,7 +46,7 @@ NEEDED = {
     "cold-snapshot-manifest-private.json",
     "p4-business-restore-evidence-private.json",
 }
-STAGE_NAME = "p4-fresh-manager-deploy-r1"
+STAGE_NAME = "p4-fresh-manager-deploy-r2"
 AUTH = "N3W_P4_T1_FRESH_MANAGER_ONE_SHOT_LIVE_DEPLOY"
 
 def stop(code):
