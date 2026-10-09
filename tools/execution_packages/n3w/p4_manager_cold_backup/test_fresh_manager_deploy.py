@@ -133,6 +133,30 @@ class FreshManagerDeployTests(unittest.TestCase):
                     state = json.loads((private / deploy.STATE_FILE).read_text())
                     self.assertFalse(state["committed"])
 
+    def test_pre_stop_timeout_guard_preserves_old_manager_and_rollback_state(self) -> None:
+        from unittest.mock import patch
+        ops = FakeOps()
+        with patch.object(deploy.time, "monotonic", side_effect=(0.0, 161.0)):
+            with self.assertRaisesRegex(
+                deploy.DeployStop, "CUTOVER_TIME_BUDGET_TOO_LOW_BEFORE_OLD_STOP"
+            ):
+                deploy.execute_transaction(self.private, ops)
+        self.assertEqual(
+            ops.calls, ["preflight", "prepare_fresh", "shadow"]
+        )
+        state = json.loads((self.private / deploy.STATE_FILE).read_text())
+        self.assertFalse(state["committed"])
+        self.assertEqual(state["phase"], "SHADOW_CREATE_AND_COMPARE_STOPPED")
+        self.assertIsNone(state["candidate_id"])
+
+    def test_cutover_guard_accepts_exact_safe_pre_stop_boundary(self) -> None:
+        from unittest.mock import patch
+        ops = FakeOps()
+        with patch.object(deploy.time, "monotonic", side_effect=(0.0, 160.0)):
+            state = deploy.execute_transaction(self.private, ops)
+        self.assertTrue(state.document["committed"])
+        self.assertIn("stop_old", ops.calls)
+
     def test_preflight_failure_creates_no_transaction_state(self) -> None:
         with self.assertRaisesRegex(deploy.DeployStop, "INJECTED_preflight"):
             deploy.execute_transaction(self.private, FakeOps("preflight"))
