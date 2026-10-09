@@ -11,6 +11,9 @@ from pathlib import Path
 import cold_snapshot as snapshot
 import fresh_manager_deploy as deploy
 
+SYSTEMD_START_TIMEOUT_SECONDS = 420
+SYSTEMD_STOP_POST_TIMEOUT_SECONDS = 120
+
 UNIT_NAME = "n3w-p4-fresh-manager-r4-deploy.service"
 UNIT_DEST = Path("/run/systemd/system") / UNIT_NAME
 STAGE_DIR = "p4-fresh-manager-deploy-r4"
@@ -72,8 +75,8 @@ def render_unit(private: Path, stage: Path, python: Path) -> str:
         "Type=oneshot\n"
         "User=root\n"
         "Group=root\n"
-        "TimeoutStartSec=300\n"
-        "TimeoutStopSec=120\n"
+        f"TimeoutStartSec={SYSTEMD_START_TIMEOUT_SECONDS}\n"
+        f"TimeoutStopSec={SYSTEMD_STOP_POST_TIMEOUT_SECONDS}\n"
         "KillMode=control-group\n"
         "SendSIGKILL=yes\n"
         "Restart=no\n"
