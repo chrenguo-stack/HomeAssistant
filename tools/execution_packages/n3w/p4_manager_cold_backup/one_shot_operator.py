@@ -127,6 +127,11 @@ def check_db_openers_owned_by_old_manager(current: dict[str, Any], sources: dict
                 )
 
 
+def check_unused_unit_name() -> None:
+    existing = invoke(("systemctl", "show", UNIT_NAME, "--property=LoadState", "--value"))
+    check(existing.returncode == 0 and existing.stdout.strip() == "not-found", "ONE_SHOT_UNIT_NAME_COLLISION")
+
+
 def check_non_mutating_preflight(directory: Path) -> str:
     manager, broker = window.get_private_origin(directory)
     window.check_old_running(manager, broker)
@@ -155,8 +160,7 @@ def check_non_mutating_preflight(directory: Path) -> str:
     check(shutil.which("systemd-analyze") is not None, "SYSTEMD_ANALYZE_NOT_FOUND")
     checked(("systemctl", "is-active", "--quiet", "docker.service"), "DOCKER_SYSTEMD_NOT_ACTIVE")
     check(not UNIT_DEST.exists() and not UNIT_DEST.is_symlink(), "ONE_SHOT_SERVICE_ALREADY_INSTALLED")
-    existing = invoke(("systemctl", "show", UNIT_NAME, "--property=LoadState", "--value"))
-    check(existing.returncode == 0 and existing.stdout.strip() == "not-found", "ONE_SHOT_UNIT_NAME_COLLISION")
+    check_unused_unit_name()
     sources = snapshot.mount_sources(live_manager)
     check_db_openers_owned_by_old_manager(live_manager, sources)
     total_bytes = 0
