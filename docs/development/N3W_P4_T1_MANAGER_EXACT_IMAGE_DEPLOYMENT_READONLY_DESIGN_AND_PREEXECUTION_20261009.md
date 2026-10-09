@@ -1080,3 +1080,31 @@ CANDIDATE_MANAGER_PRODUCTION_REPLACEMENT=false
 FIRST_BOARD_NORMAL_BOOT=false
 REAL_SETUP_SECRET_IMPORT=false
 ```
+
+## 21. T1 R4 GitHub TLS 中断后单次恢复下载成功（2026-10-09）
+
+第一次从 T1 执行 R4 GitHub fetch 时返回 `GnuTLS recv error (-110)`，因为 `set -e` 在 fetch 失败后直接退出，未创建 R4 私有 stage、未停 Manager、未备份数据库。随后操作者使用一次 `HTTP/1.1`、60 秒上限的 git fetch 重试，得到：
+
+```text
+R4_SOURCE_FETCH=PASS
+R4_EXACT_HEAD=PASS
+MANAGER_RUNNING=true MANAGER_RESTARTS=0
+BROKER_RUNNING=true BROKER_RESTARTS=0
+MANAGER_STOP_NOT_EXECUTED=true
+DATABASE_BACKUP=NOT_STARTED
+```
+
+本次恢复成功的固定源码提交仍为 `cc33283fbc3b905a039270bbc62584e3756788b8`；T1 已在原工作树 FETCH_HEAD 获得相应版本。后续**不得再进行无必要的 fetch**。新 R4 操作只需在 root 私有既有备份目录下新建 `p4-reviewed-controlled-backup-r4`，对 `cold_snapshot.py`、`controlled_window.py`、`emergency_resume.py`、`systemd_recovery_unit.py` 四文件依次 `git show`、git blob hash 完整比对、权限固定为 0600，并运行三条仅只读 `preflight`，最后比较 Manager/Broker 的 image、StartedAt、RestartCount、Running 均不变。
+
+```text
+GIT_TRANSPORT_INCIDENT=CLOSED_RETRY_SUCCESS
+PINNED_R4_FETCH_HEAD=PASS
+R4_PRIVATE_STAGE=PENDING
+R4_SYSTEMD_UNIT_INSTALL=false
+R4_SYSTEMD_UNIT_START=false
+REAL_COLD_SNAPSHOT=false
+PRODUCTION_MANAGER_REPLACEMENT=false
+BROKER_RESTART=false
+BOARD_FIRST_BOOT=false
+NEXT=ONLY_LOCAL_GIT_SHOW_R4_STAGE_AND_THREE_READONLY_PREFLIGHTS
+```
