@@ -387,3 +387,90 @@ BOARD_FIRST_BOOT=false
 REAL_SECRET_IMPORT=false
 STOP_AT_PLATFORM_CAPABILITY_CHECK=true
 ```
+
+## 11. GitHub Actions 原生 ARM64 构建产物闭环与 Mac SSH 离线交付（2026-10-09）
+
+**纠正 Mac 检查结果解释**：`MAC_DOCKER=READY ARCH=` 紧接着 `MAC_DOCKER=UNAVAILABLE`，条件分支最终没有通过，不能把 Mac Docker 当作可用。T1 原生产容器镜像经只读确认运行在 `linux/arm64`，`python:3.11-slim` 已缓存，但并不证明 T1 离线构建可下载全部 pip 依赖。上一轮已通过的 T1 Git exact checkout 不再重新执行。
+
+已在 PR #539 新增独立 `push` workflow：
+`.github/workflows/n3w-p4-manager-arm64-offline-image-ci.yml`
+
+```text
+WORKFLOW_RUN_ID=37894571429
+WORKFLOW_RESULT=COMPLETED_SUCCESS
+WORKFLOW_URL=https://github.com/chrenguo-stack/HomeAssistant/actions/runs/37894571429
+WORKFLOW_SOURCE_SHA=3d86d6bfaf361dc3a3d7295d046f541a544d552d
+WORKFLOW_BUILD_PLATFORM=linux/arm64
+WORKFLOW_RUNNER=ubuntu-24.04-arm
+SYNTHETIC_CLI_AND_PENDING_GUARD_GATES=PASS
+IMAGE_TAG=n3w-p4-manager:3d86d6bfaf361dc3a3d7295d046f541a544d552d
+ARTIFACT_ID=11599534020
+ARTIFACT_NAME=n3w-p4-manager-linux-arm64-3d86d6bf
+ARTIFACT_ZIP_SIZE_BYTES=65067601
+ARTIFACT_EXPIRES_AT=2026-10-16T06:38:42Z
+ARTIFACT_T1_IMPORTED=false
+MANAGER_LIVE_DEPLOYED=false
+BROKER_RESTART=false
+P4_BOARD_FIRST_BOOT=false
+SETUP_SECRET_IMPORT=false
+```
+
+该 workflow 从 GitHub exact #538 HEAD 独立 checkout，而非构建运行中 T1 的任何镜像/容器；原生 ARM64 build 后做 `--network none`、无 DB/secret mounts 的 CLI 与 pending TTL 守卫检查，再 `docker save | gzip` 输出文件及 SHA256 manifest。**镜像已经在 GitHub 构建完成、合成测试通过；尚未部署到 T1**。本构建并非依赖完全锁定/基础层完全固定的可重现构建，最终传输镜像必须以校验后的本次 artifact 为 authority。
+
+### 11.1 Mac 浏览器下载
+
+打开上述 workflow URL，滚动到 `Artifacts`，下载 `n3w-p4-manager-linux-arm64-3d86d6bf`（约 65 MB），保存至 Mac `~/Downloads/n3w-p4-manager-linux-arm64-3d86d6bf.zip`。下载受 GitHub 认证与 artifact 保留期控制。Mac 不需要 Docker 引擎，也不需要重新构建代码。ZIP 是 GitHub 上传产物的包装层，内含 `n3w-p4-manager-linux-arm64-3d86d6bf.tar.gz` 及 `.sha256` 校验文件。
+
+### 11.2 Mac 校验并 SSH 离线导入（独立镜像，不替换生产容器）
+
+在 Mac Terminal 执行：
+
+```bash
+(
+set -e
+set -o pipefail
+NAME=n3w-p4-manager-linux-arm64-3d86d6bf
+ZIP="$HOME/Downloads/$NAME.zip"
+DIR="$HOME/Downloads/$NAME-verified"
+test -f "$ZIP" || { echo ARTIFACT_ZIP_MISSING_STOP=true; exit 11; }
+test ! -e "$DIR" || { echo VERIFIED_DIRECTORY_ALREADY_EXISTS_STOP=true; exit 12; }
+umask 077
+mkdir "$DIR"
+unzip -q "$ZIP" -d "$DIR"
+cd "$DIR"
+test -f "$NAME.tar.gz"
+test -f "$NAME.tar.gz.sha256"
+shasum -a 256 -c "$NAME.tar.gz.sha256"
+gzip -t "$NAME.tar.gz"
+echo MAC_ARCHIVE_INTEGRITY=PASS
+printf 'T1 SSH 目标：'
+IFS= read -r T1_SSH
+TAG=n3w-p4-manager:3d86d6bfaf361dc3a3d7295d046f541a544d552d
+BEFORE=$(ssh -T "$T1_SSH" 'docker inspect --type container --format "{{.Image}}|{{.State.StartedAt}}|{{.RestartCount}}" greenhouse-manager')
+ssh -T "$T1_SSH" 'set -eu
+TAG=n3w-p4-manager:3d86d6bfaf361dc3a3d7295d046f541a544d552d
+if docker image inspect "$TAG" >/dev/null 2>&1; then echo CANDIDATE_TAG_ALREADY_PRESENT_STOP=true; exit 13; fi
+test "$(docker inspect --type container --format "{{.State.Running}}" greenhouse-manager)" = "true"
+echo T1_IMPORT_PREFLIGHT=PASS'
+gzip -dc "$NAME.tar.gz" | ssh -T "$T1_SSH" 'docker load'
+ssh -T "$T1_SSH" 'set -eu
+TAG=n3w-p4-manager:3d86d6bfaf361dc3a3d7295d046f541a544d552d
+test "$(docker image inspect --format "{{.Os}}/{{.Architecture}}" "$TAG")" = "linux/arm64"
+test "$(docker image inspect --format "{{index .Config.Labels \"org.opencontainers.image.revision\"}}" "$TAG")" = "3d86d6bfaf361dc3a3d7295d046f541a544d552d"
+docker run --rm --network none --read-only --entrypoint greenhouse-manager-registration "$TAG" p4-pending-readonly --help >/dev/null
+docker run --rm --network none --read-only --entrypoint greenhouse-manager-pairing "$TAG" import-payload --help >/dev/null
+docker image inspect --format "T1_IMPORTED_IMAGE_ID={{.Id}} T1_IMPORTED_IMAGE_BYTES={{.Size}}" "$TAG"
+echo T1_OFFLINE_IMPORT_AND_CLI=PASS'
+AFTER=$(ssh -T "$T1_SSH" 'docker inspect --type container --format "{{.Image}}|{{.State.StartedAt}}|{{.RestartCount}}" greenhouse-manager')
+test "$BEFORE" = "$AFTER" || { echo LIVE_MANAGER_CHANGED_STOP=true; exit 14; }
+echo PRODUCTION_MANAGER_IDENTITY_UNCHANGED=PASS
+echo BROKER_RESTART_REQUESTED=false
+echo P4_FIRST_NORMAL_BOOT=false
+)
+```
+
+上述命令只向 T1 `docker load` 新镜像和短暂运行**无网络、无持久卷**的 CLI 功能探测。不会触碰 T1 当前运行的 Manager 容器或 Broker 网络，不读取真实数据库，禁止真实 QR/secret 输入。遇到 sha256 校验错误、已有同名候选镜像、SSH 失败、import 失败、架构/来源漂移、隔离探测失败或 Manager 状态变更时立即 STOP，不自动清理镜像、重启容器或重试。失败可能已经导入候选镜像，但不会按此步骤部署到生产 Manager。
+
+### 11.3 剩余生产部署前阻断条件
+
+真实替换前需另行实现：T1 当前容器完整私有 create config、nested binds/Env/secrets/UID/tmpfs/read-only 的版本化离线复制；旧镜像可恢复性；三数据库加 relay-keys 全部持久内容在受控无写入者窗口下做一致备份；还原到隔离数据根目录并验证 schema/五身份/回退；Broker 网络及 loopback TLS 不变；Manager 单服务替换与失败回退脚本。单凭本镜像已导入+CLI --help PASS **不准**直接重建生产 Manager，不准启动 P3 干净实板。
