@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import ipaddress
 import json
 import os
 import re
@@ -26,12 +25,10 @@ Runner = Callable[..., subprocess.CompletedProcess]
 
 
 def _target(value: str) -> str:
-    try:
-        user, host = value.split("@", 1)
-        address = ipaddress.IPv4Address(host)
-        if user != "root" or not address.is_private or address.is_loopback:
-            reject("TARGET_INVALID")
-    except (ValueError, AttributeError):
+    if not isinstance(value, str) or not re.fullmatch(
+        r"(?:[A-Za-z_][A-Za-z0-9_-]{0,31}@)?[A-Za-z0-9][A-Za-z0-9_.-]{0,252}",
+        value,
+    ):
         reject("TARGET_INVALID")
     return value
 
@@ -227,7 +224,9 @@ def _private_claim(directory: Path, hardware: str, pairing: str, now: datetime) 
                 "claimed_at": now.astimezone(UTC).isoformat(),
                 "state": "CLAIMED",
             }
-            os.write(fd, json.dumps(doc, sort_keys=True).encode("ascii"))
+            encoded = json.dumps(doc, sort_keys=True).encode("ascii")
+            if os.write(fd, encoded) != len(encoded):
+                reject("IMPORT_CLAIM_WRITE_INCOMPLETE")
             os.fsync(fd)
         finally:
             os.close(fd)
