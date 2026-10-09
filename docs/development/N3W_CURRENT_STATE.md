@@ -1,3 +1,32 @@
+## 2026-10-09 P4 Manager R1 preflight STOP after read-only recovery, R2 logging-preserving successor
+
+```text
+T1_R1_RESULT=STOP_LOG_OPTIONS_UNSUPPORTED
+T1_OLD_MANAGER_RUNNING_READONLY=true
+T1_BROKER_RUNNING_READONLY=true
+T1_LOG_DRIVER=json-file
+T1_LOG_MAX_SIZE=10m
+T1_LOG_MAX_FILE=3
+T1_PARKED_FAILED_SHADOW_CONTAINERS=ABSENT
+R1_TRANSACTION_CLAIM=false
+R1_LIVE_MANAGER_STOP=false
+R1_PRIVATE_STAGE=RETAIN_NO_REPLAY
+R2_LOG_PRESERVATION_CODE_REF=fd98c06d02037cba4f18043afeac62cd75893108
+R2_ONE_SHOT_MAC_LAUNCHER_COMMIT=56471330eabb67470bf28f4ad5ddb6721d509c0f
+R2_MAC_LAUNCHER_BLOB=fcc9409ecee61265dc1e3d8f341caf91ba3ba509
+R2_STAGING_DIR=p4-fresh-manager-deploy-r2
+R2_AUTHORIZATION_SCOPE=ORIGINAL_ONE_LIVE_MANAGER_REPLACEMENT_UNCLAIMED_BY_R1
+R2_PRODUCTION_EXECUTION=NOT_YET_OBSERVED
+SOURCE_AND_TESTS_ONLY=PASS
+FIRST_NORMAL_BOARD_BOOT=false
+SETUP_SECRET_IMPORT=false
+NEXT_ONE_GATE=N3W_P4_T1_FRESH_MANAGER_ONE_SHOT_LIVE_DEPLOY_R2
+```
+
+Source repair, exact R2 entrypoint and read-only evidence: `docs/development/N3W_P4_T1_FRESH_MANAGER_LOG_OPTIONS_R2_LIVE_RESUME_AUTHORITY_20261009.md`. The read-only host confirms Manager/Broker remain running; none of the old rollback, failed candidate or shadow container names exists. R2 retains R1 staging and R5 backup; no historical database migration, Broker reset, board power or Setup Secret import.
+
+---
+
 ## 2026-10-09 P4 one-shot first live preflight STOP — Docker logging parity
 
 ```text
