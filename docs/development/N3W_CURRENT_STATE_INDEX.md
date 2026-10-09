@@ -1,3 +1,29 @@
+## 2026-10-09 P4 R2 real shadow HostConfig mismatch — old Manager safe, live attempt stopped
+
+```text
+CURRENT_GATE=N3W_P4_T1_R2_SHADOW_HOSTCONFIG_PARITY_READONLY_FORENSIC
+PREVIOUS_R2_LIVE_EXECUTION=FAILED_STOP
+EXACT_SOURCE=fd98c06d02037cba4f18043afeac62cd75893108
+R2_TRANSACTION_PHASE=FRESH_SOURCES_PREPARED_EMPTY
+ROOT_CAUSE_CLASS=STOPPED_SHADOW_HOSTCONFIG_PARITY_MISMATCH
+EXACT_MISMATCH_FIELD=AWAITING_READONLY_DIFF
+OLD_MANAGER_STOP_REACHED=false
+OLD_MANAGER_ORIGINAL_ID_AND_RUNNING=true
+BROKER_UNCHANGED_RUNNING=true
+ROLLBACK_RESULT=PASS
+SHADOW_CONTAINER=EXISTS_STOPPED_PRESERVE
+CANDIDATE_ID_RECORDED=false
+NEW_MANAGER_DEPLOYED=false
+NEXT=SANITIZED_READONLY_OLD_VS_SHADOW_HOST_COMPARE_DIFF
+THIRD_LIVE_ATTEMPT_AUTHORIZED=false
+NO_AUTO_RETRY=true
+SOURCE_AUTHORITY=docs/development/N3W_P4_T1_R2_SHADOW_HOST_SECURITY_PARITY_STOP_AND_ROLLBACK_FORENSIC_20261009.md
+```
+
+The source-only forensic follow-up must not confuse `ROLLBACK_RESULT=PASS` with an old Manager restart: the original container was never stopped. Do not remove the stopped shadow, original RW data, R5 backup, or fresh private state. No Broker change, board boot, Setup Secret import or next live deployment.
+
+---
+
 ## 2026-10-09 P4 fresh Manager source repair R2 — live entry pending
 
 ```text
