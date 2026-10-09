@@ -273,9 +273,7 @@ def validate_create_contract(old: dict[str, Any]) -> None:
     require(host.get("CapAdd") in (None, []), "CAP_ADD_UNSUPPORTED")
     require(host.get("CapDrop") in (None, []), "CAP_DROP_UNSUPPORTED")
     require(host.get("SecurityOpt") in (None, []), "SECURITY_OPT_UNSUPPORTED")
-    log = host.get("LogConfig") or {}
-    require(log.get("Type") in (None, "", "json-file"), "LOG_DRIVER_UNSUPPORTED")
-    require(log.get("Config") in (None, {}), "LOG_OPTIONS_UNSUPPORTED")
+    _logging_contract(host)
 
 
 def _write_env_file(private: Path, env: list[str]) -> Path:
