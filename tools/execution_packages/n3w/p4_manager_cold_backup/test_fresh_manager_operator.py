@@ -3,6 +3,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+import inspect
 from unittest import mock
 from unittest.mock import patch
 
@@ -45,6 +46,34 @@ class SupervisedManagerGateTests(unittest.TestCase):
                                 operator.main()
                             seal.assert_not_called()
                             guarded.assert_not_called()
+
+    def test_time_budget_hierarchy_includes_recovery_and_preflight(self):
+        import re
+        import fresh_manager_mac_launcher as launcher
+        self.assertEqual(unit.SYSTEMD_START_TIMEOUT_SECONDS, deploy.SYSTEMD_START_TIMEOUT_SECONDS)
+        self.assertEqual(unit.SYSTEMD_START_TIMEOUT_SECONDS, 420)
+        self.assertEqual(unit.SYSTEMD_STOP_POST_TIMEOUT_SECONDS, 120)
+        self.assertEqual(deploy.MAX_PRE_STOP_SECONDS, 160)
+        self.assertGreaterEqual(
+            unit.SYSTEMD_START_TIMEOUT_SECONDS - deploy.MAX_PRE_STOP_SECONDS,
+            240,
+        )
+        self.assertGreaterEqual(
+            operator.WAIT_LIMIT_SECONDS,
+            unit.SYSTEMD_START_TIMEOUT_SECONDS
+            + unit.SYSTEMD_STOP_POST_TIMEOUT_SECONDS + 30,
+        )
+        remote = launcher.REMOTE_CODE
+        preflight = int(re.search(r"REMOTE_PREFLIGHT_SECONDS = (\\d+)", remote).group(1))
+        execute = int(re.search(r"REMOTE_EXECUTE_SECONDS = (\\d+)", remote).group(1))
+        self.assertGreaterEqual(execute, operator.WAIT_LIMIT_SECONDS + 60)
+        self.assertGreaterEqual(
+            launcher.MAX_REMOTE_SECONDS, preflight + execute + 120
+        )
+        rendered = unit.render_unit
+        self.assertIsNotNone(rendered)
+        self.assertIn("TimeoutStartSec=", inspect.getsource(unit.render_unit))
+        self.assertIn("Restart=no", inspect.getsource(unit.render_unit))
 
     def test_systemd_never_claims_success_without_started_job(self):
         values = {
