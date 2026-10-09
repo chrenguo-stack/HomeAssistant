@@ -331,6 +331,7 @@ if __name__ == "__main__":
         snapshot.Stop,
         window.WindowStop,
         contract.CutoverStop,
+        r3_seal.SealStop,
         OSError,
         ValueError,
         KeyError,
@@ -338,7 +339,7 @@ if __name__ == "__main__":
     ) as error:
         if isinstance(
             error,
-            (OperatorStop, deploy.DeployStop, recovery.RecoveryStop, snapshot.Stop, window.WindowStop, contract.CutoverStop),
+            (OperatorStop, deploy.DeployStop, recovery.RecoveryStop, snapshot.Stop, window.WindowStop, contract.CutoverStop, r3_seal.SealStop),
         ):
             code = str(error)
         else:
