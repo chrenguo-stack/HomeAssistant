@@ -1,5 +1,7 @@
 # N3-W P4 — T1 Manager 单次受监督切换与原版回退设计（2026-10-09）
 
+> **2026-10-09 路线变更（优先执行，覆盖本文件此前的旧数据迁移策略）：** 用户已明确放弃旧 Manager 中历史设备配对关系。新版改用**三个独立空白 RW 数据目录**，不再复制注册、credential、replay 或 relay-key 旧内容。本文件 §3–§6 中“复制旧状态至 clone、迁移五身份、replay 高水位”仅保留为历史设计，**不得按其执行生产切换**。新权威：`docs/development/N3W_P4_T1_CLEAN_STATE_MANAGER_DEPLOYMENT_SIMPLIFICATION_PROPOSAL_20261009.md` 与 `fresh_state_contract.py`。原容器和原数据仍保留回退；Broker/HA/证书不做出厂重置。真正生产部署依然需要新授权。
+
 ## 1. 本门任务及明确限制
 
 ```text
