@@ -5,13 +5,14 @@ import re
 import sqlite3
 import threading
 import uuid
+from contextlib import contextmanager
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from importlib.resources import files
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Iterator, Protocol
 
 from jsonschema import Draft202012Validator, FormatChecker
 
@@ -961,6 +962,26 @@ class RegistrationRegistry:
             if row is None:
                 raise KeyError(hardware_id)
             return self._row_to_record(row, row["node_id"])
+
+    @contextmanager
+    def pending_import_guard(
+        self,
+        hardware_id: str,
+        pairing_id: str,
+        *,
+        now: datetime | None = None,
+    ) -> Iterator[RegistrationRecord]:
+        with self._lock:
+            record = self.get(hardware_id)
+            if (
+                record.pairing_id != pairing_id
+                or record.state is not RegistrationState.PENDING
+            ):
+                raise RegistrationConflict("registration_not_pending")
+            observed_at = _utc(now if now is not None else datetime.now(UTC))
+            if observed_at >= record.expires_at:
+                raise RegistrationConflict("registration_expired")
+            yield record
 
     def list_current(self) -> tuple[RegistrationRecord, ...]:
         with self._lock:
