@@ -1535,3 +1535,38 @@ P4_NEW_MANAGER_DEPLOYMENT=NOT_STARTED
 P4_CLEAN_PRODUCT_BOARD_NORMAL_BOOT=NOT_STARTED
 T1_PRIVATE_BACKUP_CONTENT_PUBLICATION=false
 ```
+
+## 28. 旧 Manager 原版恢复后 MQTT 业务连续性：一次性只读观察设计（2026-10-09）
+
+上阶段真实 T1 R5 冷备份 / 隔离恢复 / 原容器重启由操作者回传统一 `FINAL_COLD_BACKUP_RESULT=PASS`，证据已归档 §27。用户同意继续下一阶段，但**没有批准新的生产停机、候选镜像替换、Broker 重启、板卡移动或初次正常启动**。
+
+### 28.1 当前唯一新门
+
+```text
+NEXT_ONE_GATE=N3W_P4_T1_OLD_MANAGER_POST_BACKUP_MQTT_BUSINESS_READONLY_ACCEPTANCE_20261009_01
+SCOPE=ONE_OPERATOR_MAC_TERMINAL_SINGLE_90S_READONLY_PROBE
+R5_COLD_BACKUP=ALREADY_CLOSED_PASS_DO_NOT_REPEAT
+MANAGER_MUTATION=false
+BROKER_MUTATION=false
+BOARD_ACCESS=false
+GITHUB_AUTHORITATIVE_RECORD=true
+```
+
+用 90 秒 single-shot 只读观察，检查：
+
+1. `greenhouse-manager` 和 `n3wfc4-broker-1` Docker 当前仍在运行，窗口前后 exact 容器 ID、镜像 ID、`StartedAt`、`RestartCount` 都一致；不重复原先早已通过的多轮源目录/备份验证。
+2. 当前 Manager 主进程在宿主机拥有到 Broker TLS TCP 8883 的 ESTABLISHED 连接。只打印 `CONNECTED=true/false`，不会打印 IP、PID、socket endpoint、MQTT credential、真实 NODE_ID。**TCP 建立本身不证明 MQTT 身份鉴权或应用数据已收到。**
+3. 从**原 Manager 容器命名空间**只读打开 `/var/lib/greenhouse-manager/n3w/replay.sqlite3`，SQLite URI `mode=ro` + `PRAGMA query_only=ON`，窗口两端只取 `n3w_replay_seen` 总计数；输出增量而不是节点身份。**严格要求增量正值**才宣称观察到了新的持久化节点遥测处理记录。旧版本可能缺少容器 Python；此时只作为观测工具不可用，不能判定运行系统失败。
+4. 观察期间 Manager/Broker 容器身份与启动时刻不变，TCP 连接存在且 replay 条目增加，则判定 `PASS_LIVE_CANONICAL_INGRESS`。TCP 建立而 replay 无增量时标记 `INCONCLUSIVE_NO_FRESH_TELEMETRY`，不得误归类为 Broker/Manager 产品故障（现场节点可能未上电/没有业务数据）。只有真实容器停机或容器重启等直接状态证据才属于 `FAIL_RUNTIME_CHANGED`。
+5. 全过程不执行 `docker stop/start`、`systemctl start/stop`、任何数据库写入、任何网络发布或主动配对。不在 GitHub 提交真实数据库/密码/私有地址/身份。
+
+### 28.2 数据与验收边界
+
+已有 R5 验收仅证明冷备份和原容器恢复运行；当前 90 秒检查用于补足恢复后 Manager 能否实际继续接收及提交节点遥测的业务证明。如果没有实时节点，短窗口无法凭空制造数据，因此 `INCONCLUSIVE` 是有效证据，并不触发重复备份或重启设备。报告至少包含容器未重启、TCP 连接状态、replay delta，以及是否是真正新数据。最终新 P4 Manager 镜像替换和首次板级配对仍须另行授权与独立准入。
+
+```text
+P4_OLD_MANAGER_COLD_BACKUP=CLOSED_PASS
+P4_POST_BACKUP_MQTT_RUNTIME_ACCEPTANCE=PENDING_SINGLE_LIVE_READONLY_OBSERVATION
+P4_NEW_MANAGER_DEPLOYMENT=NOT_AUTHORIZED
+P4_BOARD_FIRST_NORMAL_BOOT=NOT_AUTHORIZED
+```
