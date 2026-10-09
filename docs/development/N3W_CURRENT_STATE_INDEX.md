@@ -1,3 +1,31 @@
+## 2026-10-10 T1 deployment direction changed to full clean OS installation
+
+```text
+CURRENT_ONE_GATE=N3W_T1_FULL_FRESH_INSTALL_PREPARATION_AND_INSTALLATION_BLUEPRINT
+USER_DIRECTION=STOP_ROLLBACK_ENGINEERING_DEPLOY_T1_FROM_ZERO
+PR540_R4_B1I1=SUPERSEDED_STOP_SOURCE_WORK
+NEW_BRANCH=plan/n3w-t1-full-fresh-install-from-zero-20261010
+DEPLOY_TARGET=COMPLETE_FRESH_T1_OS_AND_N3W_STACK
+OLD_OS_DOCKER_BROKER_MANAGER_HA_BUSINESS_DATA_MIGRATION=false
+OLD_CA_DYNSEC_SESSION_TRUST_STATE_REUSE=false
+HOME_ASSISTANT_REINSTALL=true
+BROKER_FRESH_CA_TLS_DYNSEC=true
+MANAGER_FRESH_DB_0_0_0_AND_EMPTY_RELAY_KEYS=true
+N3W_BOARD_PAIRING_AFTER_T1_ACCEPTANCE=true
+ROLLBACK_MODEL=NOT_IN_NEW_PLAN
+T1_HOST_DISK_IDENTIFICATION=NOT_YET_PERFORMED
+T1_MUTATION=false
+TARGET_DISK_WIPE_AUTHORIZED=false
+F0_PRECHECK=READ_ONLY_PENDING
+CURRENT_DIRECTION_DOC=docs/development/N3W_T1_FULL_FRESH_INSTALL_DIRECTION_AND_EXECUTION_PLAN_20261010.md
+F0_SCOPE_DOC=docs/development/N3W_T1_FULL_FRESH_INSTALL_F0_READONLY_HOST_INVENTORY_AND_ERASE_SCOPE_20261010.md
+NEXT_ONE_GATE=N3W_T1_FULL_FRESH_INSTALL_F0_READONLY_EVIDENCE_AND_F1_INSTALL_PACKAGE_PREPARATION
+```
+
+User explicitly abandoned the old Manager rollback R4/B1I1 direction. All new engineering effort goes toward installing a verified clean T1 OS and then fresh Broker TLS/DynSec, Manager with zero business state, independent Home Assistant, persistence, and board first pairing. No T1 host or disk has been examined in this GitHub planning turn, no wiping has occurred, and no irreversible operation will be attempted without identifying the exact target device/disk and acknowledging full host data loss. Historical GitHub design records remain archived rather than being used as new deployment prerequisites.
+
+---
+
 # N3-W Current State Index
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
