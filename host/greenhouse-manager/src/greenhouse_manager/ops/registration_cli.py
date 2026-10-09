@@ -16,6 +16,7 @@ from ..runtime.credential_lifecycle import (
     CredentialLifecycleStore,
 )
 from ..runtime.n3w_auto_node_id import AutomaticNodeIdApprover
+from .n3w_p4_pending_readonly import PendingReadonlyError, read_pending
 from ..runtime.registration import RegistrationConflict, RegistrationRecord, RegistrationRegistry
 from ..runtime.replay_registry import ReplayRegistry, ReplayRegistryUnavailable
 
@@ -132,6 +133,25 @@ def _parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     subparsers.add_parser("list", help="list current registration records")
+
+    p4_query = subparsers.add_parser(
+        "p4-pending-readonly",
+        help="inspect exactly one clean first P4 pending session without database writes",
+    )
+    p4_query.add_argument(
+        "--credential-db",
+        default=os.getenv(
+            "GH_N3W_CREDENTIAL_LIFECYCLE_DB_PATH",
+            "/var/lib/greenhouse-manager/n3w/credential-lifecycle.sqlite3",
+        ),
+    )
+    p4_query.add_argument(
+        "--replay-db",
+        default=os.getenv(
+            "GH_N3W_REPLAY_DB_PATH",
+            "/var/lib/greenhouse-manager/n3w/replay.sqlite3",
+        ),
+    )
 
     events = subparsers.add_parser("events", help="list secret-free audit events")
     events.add_argument("--hardware-id")
@@ -284,6 +304,21 @@ def main(
     output = stdout or sys.stdout
     error_output = stderr or sys.stderr
     args = _parser().parse_args(argv)
+
+    if args.command == "p4-pending-readonly":
+        try:
+            _write(
+                output,
+                read_pending(
+                    Path(args.db),
+                    Path(args.credential_db),
+                    Path(args.replay_db),
+                ),
+            )
+        except (PendingReadonlyError, OSError):
+            print("P4_PENDING_READONLY=FAIL", file=error_output)
+            return 3
+        return 0
 
     if args.command in {"n3w-replay-audit", "n3w-replay-inspect"}:
         return _run_replay_command(args, output=output, error_output=error_output)
