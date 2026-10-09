@@ -88,7 +88,23 @@ class Journal:
         require(isinstance(doc, dict) and doc.get("schema") == SCHEMA, "JOURNAL_SCHEMA_INVALID")
         require(isinstance(doc.get("transaction_token"), str) and len(doc["transaction_token"]) >= 32, "JOURNAL_TOKEN_INVALID")
         require(doc.get("committed") is True or doc.get("committed") is False, "JOURNAL_COMMIT_INVALID")
-        require(isinstance(doc.get("phase"), str), "JOURNAL_PHASE_INVALID")
+        require(
+            doc.get("phase") in (
+                "PREPARE_INTENT", "PREPARE_STOP", "OLD_STOP_INTENT",
+                "OLD_PARK_INTENT", "CANDIDATE_CREATE_INTENT",
+                "CANDIDATE_START_INTENT", "POSTFLIGHT_INTENT",
+                "COMMIT_INTENT", "CANDIDATE_VERIFIED", "FINALIZED",
+                "FAIL_ROLLED_BACK", "FAIL_ROLLBACK_INCOMPLETE",
+            ),
+            "JOURNAL_PHASE_INVALID",
+        )
+        if doc["phase"] in ("CANDIDATE_VERIFIED", "FINALIZED"):
+            require(doc["committed"] is True, "JOURNAL_COMMIT_PHASE_MISMATCH")
+            require(bool(doc.get("candidate_id")), "COMMITTED_CANDIDATE_NOT_BOUND")
+        if doc["phase"] in ("FAIL_ROLLED_BACK", "FAIL_ROLLBACK_INCOMPLETE"):
+            require(doc["committed"] is False, "JOURNAL_ROLLBACK_COMMIT_DRIFT")
+            expected = "PASS" if doc["phase"] == "FAIL_ROLLED_BACK" else "INCOMPLETE"
+            require(doc.get("rollback_result") == expected, "JOURNAL_ROLLBACK_RESULT_DRIFT")
         return cls(root, doc)
 
     def save(self, **changes: Any) -> None:
