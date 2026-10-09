@@ -57,7 +57,7 @@ class Authority:
         require(type(self.broker_restart_count) is int and self.broker_restart_count >= 0, "BROKER_COUNT_INVALID")
         require(self.fresh_mounts == FRESH_RW, "FRESH_RW_MOUNT_DRIFT")
         require(self.ro_mounts == EXISTING_RO, "RO_SECRET_MOUNT_DRIFT")
-        require(self.old_image != self.candidate_image_id or bool(self.source_ref), "SOURCE_REF_REQUIRED")
+        require(re.fullmatch(r"[0-9a-f]{40}", self.source_ref) is not None, "SOURCE_REF_NOT_EXACT_SHA")
 
 
 class Operations(Protocol):
