@@ -1,3 +1,30 @@
+## 2026-10-09 R4 independent exact-source prelive review — one blocking volatility bug, NO GO
+
+```text
+CURRENT_GATE=N3W_P4_T1_R4_EXACT_SOURCE_INDEPENDENT_REVIEW_AND_PRELIVE_GATE
+REVIEW_EXACT_SOURCE_REF=2d9ee7999d525e0812774a106863e2e6bf55d5ec
+REVIEW_PR=540_OPEN_DRAFT
+INDEPENDENT_REVIEW_RESULT=STOP_OPEN_BLOCKER
+A1_R4_SEALED_LEGACY_INSPECT_MISMATCH_BOOLEAN=OPEN_BLOCKER
+A2_R4_TRANSACTION_ISOLATION=CLOSED_SOURCE
+A3_SUPERVISED_FINAL_ROLLBACK=CLOSED_SOURCE
+A4_SIX_MOUNTS_NETWORK_LOGGING_OOM=CLOSED_SOURCE
+A5_IMMUTABLE_11_SCRIPT_LAUNCHER=CLOSED_BINDING
+A6_SYSTEMD_300S_VS_OPERATOR_430S_TIMEOUT=OPEN_NONBLOCKING_NOTE
+PREVIOUS_CI=132_SYNTHETIC_PASS_MANAGER_PASS_PUBLIC_SAFETY_PASS
+R4_LIVE_AUTHORIZATION=false
+R4_LIVE_EXECUTION=false
+T1_MUTATIONS_THIS_REVIEW=false
+GITHUB_SOURCE_CODE_MODIFIED_IN_THIS_REVIEW=false
+R2_R3_PRIVATE_HISTORY_R5_OLD_RW=KEEP
+NEXT_ONE_GATE=N3W_P4_T1_R4_LEGACY_DIGEST_VOLATILITY_SOURCE_REPAIR_AND_REGRESSION_TEST
+REVIEW_DOC=docs/development/N3W_P4_T1_R4_EXACT_SOURCE_INDEPENDENT_REVIEW_AND_PRELIVE_GATE_20261009.md
+```
+
+The R4 new SHA seal stores `r3_legacy_digest_mismatch_classified` derived from a reread of the R3 **whole-Docker-inspect** SHA comparison, then requires saved-vs-recomputed equality. Even with unchanged protected shadow fingerprint, this volatile historical equality flag can flip true/false and reproduce a pre-transaction false STOP. Keep R2/R3 originals and all safety checks; repair this one sealed volatility dependency with two-way flip regression, rerun CI before any live authorization. Timing mismatch remains a separate nonblocking review note.
+
+---
+
 ## 2026-10-09 R4 independent protected forensic seal/transaction — source-only gate PASS
 
 ```text
