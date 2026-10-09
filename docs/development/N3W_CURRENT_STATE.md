@@ -1,3 +1,32 @@
+## 2026-10-10 Full-clean T1 F0 real host read-only evidence — board boot-media check next
+
+```text
+CURRENT_ONE_GATE=N3W_T1_FULL_FRESH_INSTALL_F0_BOOT_MEDIA_PREFLIGHT
+F0_USER_UPLOADED_REPORT=2026-10-10_075411+0800_READ_ONLY
+T1_OS=ARMbian_26.05.0_resolute
+T1_ARCH=ARM64
+T1_BOOT_DEVICE=/dev/mmcblk2p1_vfat
+T1_ROOT_DEVICE=/dev/mmcblk2p2_ext4
+T1_DISK=/dev/mmcblk2_14.6G
+T1_VISIBLE_EXTRA_DATA_DISKS=NONE_IN_LSBLK
+T1_MANAGER_BROKER_AND_HOME_ASSISTANT=RUNNING_AT_F0_OBSERVATION
+T1_SSH_REMOTE_WIPE_OF_RUNNING_ROOT=FORBIDDEN
+T1_EXACT_SOC_BOARD_MODEL=UNKNOWN
+MMC_STORAGE_TYPE=NEEDS_SYSFS_CONFIRMATION
+EXTERNAL_BOOT_REINSTALL_ACCESS=NOT_YET_VERIFIED
+NEXT_USER_BOOT_REPORT=N3W_T1_BOOT_PREFLIGHT_*.txt
+OLD_PR540=CLOSED_UNMERGED_SUPERSEDED
+NEW_PR541=OPEN_DRAFT
+T1_DISK_ERASE=false
+T1_SERVICE_RESTART=false
+NEXT_ONE_GATE=N3W_T1_FULL_FRESH_INSTALL_F0_BOOT_MEDIA_PREFLIGHT
+AUTHORITY_DOC=docs/development/N3W_T1_FULL_FRESH_INSTALL_F0_LIVE_READONLY_EVIDENCE_20261010.md
+```
+
+F0 output shows active OS and /boot on partitions of the same ~14.6G MMC device /dev/mmcblk2. Machine model, supported external installer/console and reliable post-reinstall access remain unknown; continue read-only board-compatibility checks before any system-disk erase. User is to execute Mac Terminal SSH boot media preflight and upload the report; no service mutations or T1 wipe performed.
+
+---
+
 ## 2026-10-10 T1 deployment direction changed to full clean OS installation
 
 ```text
