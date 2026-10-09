@@ -31,6 +31,8 @@ def owned_candidate_id(state: Journal, authority: Authority, ops: Operations) ->
 
 
 def read_only_reconcile(state: Journal, authority: Authority, ops: Operations) -> RecoveryResult:
+    if state.uncertain:
+        return RecoveryResult("UNKNOWN_FROZEN", "JOURNAL_DURABILITY_UNKNOWN_FROZEN")
     state.check_authority(authority)
     if state.doc.get("committed") is True:
         candidate_id = state.doc.get("candidate_id")
@@ -51,6 +53,7 @@ def read_only_reconcile(state: Journal, authority: Authority, ops: Operations) -
 
 
 def restore_original(state: Journal, authority: Authority, ops: Operations) -> RecoveryResult:
+    require(not state.uncertain, "JOURNAL_DURABILITY_UNKNOWN_FROZEN")
     state.check_authority(authority)
     require(state.doc.get("committed") is False, "COMMITTED_NEVER_AUTO_ROLLBACK")
     try:
