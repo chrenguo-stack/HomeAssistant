@@ -152,3 +152,39 @@ R3 结果对当时版本有效，但**不等于已安装独立恢复保障**。�
 下阶段仅允许：从 PR #540 的**新固定 HEAD** 把 `cold_snapshot.py`、`controlled_window.py`、`emergency_resume.py`、`systemd_recovery_unit.py` 精确绑定到同一个 **r4 root 私有新目录**，通过 `python3 -B ... systemd_recovery_unit.py preflight`、`controlled_window.py preflight`、`cold_snapshot.py preflight`，再从 systemctl 只读确认 `docker.service`/systemd 可用。禁止在这一步安装、启动单元或停止 Manager。
 
 若后续真要执行旧 Manager 备份窗口，必须**先**独立复核 unit 的时序、写入者排除、业务身份/replay 高水位基线，明确短暂 Manager 服务中断预算和失败恢复时的人工操作路径。任何 `docker stop`、`systemctl start ...cold-backup.service`、`cold_snapshot.py capture` 仍是下一道独立现场控制门，不受这里的只读预检授权。
+
+## 2026-10-09 R5：将全部人机检查收敛为单次作业
+
+本阶段用户明确要求停止此前“一项检查就回到 Mac Terminal 操作一次”的方式。在 R4 只读检查的真实 T1 结果均 PASS 后，将其自动化为 **R5 一次入口、一个摘要**。
+
+新增：
+
+- `business_snapshot.py`：只在**已完成冷拷贝及隔离恢复的两份副本**上读取 SQLite，检查必要表、历史硬件身份记录至少五个、credential 非空与最高代际、replay 非空与最高序号；逐表带类型的数据指纹与计数一一比对。数据与指纹只写到 root-private 0600 文件，不上传 GitHub。不能把此业务断言解释成 MQTT 实时链路恢复通过。
+- `one_shot_operator.py`：统一执行前的文件 SHA 归档、来源、挂载、空间、旧 Manager 进程打开者及 Broker 状态检查；任何失败均在**停止 Manager 之前**阻断。检查通过后，安装但不启用开机自启动的 **单次** systemd 运行单元，使用 `systemctl start --no-block` 触发原 Manager 止写→三个独立 RW 来源冷拷贝→冷副本/隔离恢复 SQLite 和业务状态校验→原 Manager 恢复，并等待有实际启动时间戳的 systemd 成功结束，检查两份 private evidence、旧 Manager ID、Broker 未重启，最后清理已完成单次 unit。
+- `systemd_recovery_unit.py` 的私有 staging 版本升级为 `p4-reviewed-controlled-backup-r5`，保护所有六份源码文件；其中 systemd `ExecStopPost` 是独立恢复路径，即使 SSH 断开，只要 systemd/Docker 仍可工作便能尝试恢复原 Manager。
+
+**权限与操作界限**
+
+- R5 开发、模拟 CI、GitHub 文档、已有 T1 R4 只读状态：均无真实 Manager 停写授权。当前不运行 `one_shot_operator.py execute`。
+- 真正的生产入口需要同时提供明确的 `execute` 和 `--permit-manager-stop`，此前要有用户单次明确授权（Manager 可能短暂不可提供节点转发服务，Broker 不动）。
+- 生产执行命令在获得授权后由同一 Mac Terminal 一次投递。入口内部固定版本、检查、运行及回退，无需反复回传中间结果。网络或前置条件失败则在服务停止**之前**停止作业。
+- 总执行等待预算保守约 390s；内部旧 Manager 停写窗口目标不超过 150s，systemd 运行超时 240s 并另预留 90s 独立恢复。全部日志和目录原件留在 root-private，终端只输出 PASS/STOP 摘要。
+- 若执行过程失败，**不能保证必然成功自动恢复**（例如整机断电、Docker/systemd 失效）；程序会尽可能通过 Python finally 与独立 `ExecStopPost` 复原原容器，并保留状态给人工应急。不能因此自动开始 P4 升级。
+- systemd 配置**不做**开机 enable；正常结束后单次 unit 删除并 reload；失败保留现场便于排查。
+- 原容器稳定运行与 Broker 未重启属于“容器运行层”恢复证据，尚不能充当业务层 MQTT 数据持续接收证明。真正新 Manager 升级前依旧需要另一个窗口的业务验收。
+- 宿主机未来可能运行的定时写者不能仅凭一次 `fuser` 彻底排除；执行包复制前后全目录哈希，若发生数据变化必须拒绝 PASS 并恢复原服务。该机制检测变化，不是数据库事务锁。
+
+**禁止提前执行：** 现有 R4 目录中的旧脚本、手动 `docker stop`、直接旧版 `t1_backup.py`、直接 `cold_snapshot.py capture`、`systemctl enable`、Broker 停机、新 Manager 镜像生产替换、首次实板正常启动。
+
+**验收证据边界**：
+
+```text
+R5_SYNTHETIC_SOURCE_AND_TESTS=PASS_WHEN_CURRENT_HEAD_CI_GREEN
+R5_T1_PRODUCTION_EXECUTION=NOT_STARTED
+R5_REAL_OLD_MANAGER_STOP=false
+R5_THREE_DB_CONSISTENT_SNAPSHOT=false
+R5_REAL_ISOLATED_RESTORE=false
+R5_REAL_OLD_MANAGER_RESUMPTION=false
+BROKER_RESTART=false
+P4_NEW_MANAGER_UPGRADE=false
+```
