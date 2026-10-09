@@ -11,9 +11,9 @@ from pathlib import Path
 import cold_snapshot as snapshot
 import fresh_manager_deploy as deploy
 
-UNIT_NAME = "n3w-p4-fresh-manager-deploy.service"
+UNIT_NAME = "n3w-p4-fresh-manager-r3-deploy.service"
 UNIT_DEST = Path("/run/systemd/system") / UNIT_NAME
-STAGE_DIR = "p4-fresh-manager-deploy-r2"
+STAGE_DIR = "p4-fresh-manager-deploy-r3"
 PROTECTED_SCRIPTS = (
     "cold_snapshot.py",
     "business_snapshot.py",
@@ -24,6 +24,7 @@ PROTECTED_SCRIPTS = (
     "fresh_manager_recovery.py",
     "fresh_manager_operator.py",
     "fresh_manager_systemd_unit.py",
+    "r3_forensic_seal.py",
 )
 SAFE_ABSOLUTE = re.compile(r"^/[A-Za-z0-9_./+-]+$")
 
