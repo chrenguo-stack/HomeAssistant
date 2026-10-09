@@ -1408,3 +1408,48 @@ ISOLATED_RESTORE=false
 MANAGER_STOP=false
 UNIT_INSTALLED=false
 ```
+
+## 25. 使用者要求：终止逐项人工预检，收敛为单次可恢复冷备份执行包（2026-10-09）
+
+用户明确反馈：前面一项一条 Mac Terminal 检查、反复提交结果的工作方式过于繁杂、浪费时间，要求尽可能一次验证完成。本节为**后续执行方式冻结要求**，优先于 §1–§24 中仍残留的多次人工 preflight 建议；旧章节保留为历史证据而非未来反复命令指令。
+
+最新已完成 T1 只读证据：
+
+```text
+DB_REGISTRATION_OPENERS_COUNT=1
+DB_REGISTRATION_MANAGER_PROCESS_TREE_OPENERS=1
+DB_REGISTRATION_OTHER_OR_UNCLASSIFIED_OPENERS=0
+DB_CREDENTIAL_OPENERS_COUNT=1
+DB_CREDENTIAL_MANAGER_PROCESS_TREE_OPENERS=1
+DB_CREDENTIAL_OTHER_OR_UNCLASSIFIED_OPENERS=0
+DB_REPLAY_OPENERS_COUNT=1
+DB_REPLAY_MANAGER_PROCESS_TREE_OPENERS=1
+DB_REPLAY_OTHER_OR_UNCLASSIFIED_OPENERS=0
+THREE_DB_CURRENT_OPENER_OWNERSHIP_PREFLIGHT=PASS
+MANAGER_BROKER_UNCHANGED=PASS
+CONSISTENT_DATA_BACKUP=NOT_STARTED
+```
+
+这只证明**观测瞬间** 3 个 SQLite 主库各有一个打开者且都属于旧 Manager 进程树；不证明后续绝对不存在系统级周期写者。当前已通过的原始 Docker 保存、旧镜像 SHA256、私有权限、六 mounts、其他容器 RW 重叠、Host Python/磁盘、原 Manager restart policy、R4 四文件 exact bind、CI、R4 systemd 静态 verify **不再安排重复人工检查**；必要的即时重检自动纳入一次性脚本内部。
+
+### 25.1 采用一个 NEXT_ONE_GATE，两个不可混淆的边界
+
+```text
+NEXT_ONE_GATE=N3W_P4_T1_MANAGER_ONE_SHOT_COLD_BACKUP_WITH_OLD_MANAGER_RESTORE_DESIGN_AND_EXECUTOR
+PRIMARY_GOAL=ONE_OPERATOR_LAUNCH_ONE_FINAL_EVIDENCE_REPORT
+SOURCE_PREPARATION=HOST_ONLY_GITHUB_ONLY
+LIVE_T1_PRECHECKS=EMBEDDED_IN_SAME_EXECUTION
+MANAGER_STOP_APPROVAL=REQUIRED_BEFORE_ANY_REAL_STOP
+BROKER_MUTATION=false
+CANDIDATE_MANAGER_DEPLOYMENT=false
+FIRST_BOARD_NORMAL_BOOT=false
+```
+
+1. **执行包源码/模拟验收（无 T1 人工操作）**：在 Draft #540 扩充并整合原 `cold_snapshot.py`、`controlled_window.py`、`emergency_resume.py`、`systemd_recovery_unit.py`，消除中间人机往返；一次安装/部署路径必须仅作用于 P4 独立的临时 systemd 单次任务，不能自动 enable 也不能碰 Broker。合成环境覆盖成功、stop 失败、capture 失败、服务终止、时限超出、源目录变化、WAL/SHM、新增宿主写者、原容器恢复错误。不可把模拟成功当作 T1 故障注入验收。
+2. **真实操作前唯一一次重大授权**：明确告知旧 Manager 将短暂停止、Broker 仍运行、观察预算与人工恢复方案；不默认为现有源码准备授权等于停写授权。
+3. **用户仅执行一次经校验入口**：入口内部先做即时身份/配置、盘空间、文件、非容器进程写者可见性、监督 unit 状态；不满足直接 STOP（没有 service mutation）。通过后调用受监督旧 Manager stop → 检查数据库全部主/sidecar 无占用 → 三处 RW 冷拷贝 → 源副本与隔离恢复 hashes/permissions/3 SQLite integrity → 同一冷快照中检查历史已配对身份/凭据代际/replay 高水位 → 恢复**原 Manager** → Broker 未重启/Manager 稳定观察 → 单份摘要。
+4. **失败恢复不可夸大**：systemd `ExecStopPost` + Python `finally` 为分层救援，不能应对停电、Docker 守护进程不可用和整机宕机。若旧 Manager 不能恢复，必须以 FAILED_STOP 保存现场，而不是输出 PASS 或继续候选升级。只有一个受控 STOP 点——原 Manager 必须确认已恢复并且业务验收成功，否则不得进入新镜像升级。
+
+**尚未实现/必须在单次真实执行前补齐**：业务身份、credential generation、replay high-water 在一致冷备份与恢复副本中的只读断言；独立 systemd 单次执行任务的部署/回收方式及仅执行一次保护；受监督服务停止超时配置和人工恢复预案；对宿主定时/其他写入者的尽力排除；真实业务读取的隐私保护。不得跳过这些要求直接执行现有 `controlled_window.py execute`。
+
+后续答复原则：无需继续索取重复的 `fuser`、`stat`、`git fetch`、`docker inspect` 手工结果；只有新的真实 blocker 才单独索取最低必要证据。以 GitHub 状态和单次任务证据为准，不依赖聊天记录完成验收。
