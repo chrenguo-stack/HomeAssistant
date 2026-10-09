@@ -1,3 +1,38 @@
+## 2026-10-10 B1I1 KF098-inline source core and synthetic regressions — separate real adapter remains NO GO
+
+```text
+CURRENT_ONE_GATE=N3W_P4_T1_B1I1_INLINE_TRANSACTION_AND_RECOVERY_SOURCE_IMPLEMENTATION_WITH_SYNTHETIC_TESTS
+GATE_SOURCE_CORE=IMPLEMENTED
+SOURCE_MODULES=8
+SOURCE_TEST_MODULES=4
+B1I1_DEDICATED_SYNTHETIC_WORKFLOW=.github/workflows/n3w-p4-b1i1-inline-synthetic-ci.yml
+B1I1_CORE_SYNTHETIC_TESTS=44_PASS
+B1I1_EVIDENCE_RUN=37956691590
+B1I1_GIT_BRANCH=tools/n3w-p4-manager-consistent-cold-backup-20261009
+PR_540=OPEN_DRAFT
+B1I1_INDEPENDENT_SOURCE_REVIEW=NOT_YET_PERFORMED
+B1I1_DOCKER_OPS_ADAPTER=NOT_IMPLEMENTED
+B1I1_HOST_OWNED_SYSTEMD_UNIT=NOT_IMPLEMENTED
+B1I1_FULL_TIMEOUT_AND_CRASH_SUPERVISOR=NOT_IMPLEMENTED
+B1I1_EXACT_RELEASE_ARTIFACT_LAUNCHER=NOT_BUILT
+T1_LIVE_PRECHECK=NOT_EXECUTED
+T1_MANAGER_REPLACEMENT=NOT_EXECUTED
+B1I1_PRELIVE_DECISION=NO_GO
+R4_EXISTING_PRODUCTION_AUTHORIZATION=NOT_REUSABLE
+R2_R3_R4_PRIVATE_FAILURE_EVIDENCE=KEEP
+R5_COLD_BACKUP_AND_OLD_MANAGER_3_RW=KEEP
+BROKER_HA_DYNSEC_TLS_R5_MUTATION=false
+BOARD_NVS_SETUP_SECRET_ACTION=false
+PR_MERGE=false
+NEXT_ONE_GATE=N3W_P4_T1_B1I1_CORE_INDEPENDENT_REVIEW_AND_LIVE_ADAPTER_SOURCE_CONTRACT
+NEXT_GATE=SOURCE_ONLY
+AUTHORITY_DOC=docs/development/N3W_P4_T1_B1I1_INLINE_TRANSACTION_AND_RECOVERY_SOURCE_IMPLEMENTATION_WITH_SYNTHETIC_TESTS_20261010.md
+```
+
+New B1I1 core uses independent 0600 no-replay journal, durable mutation intent, inline exception rollback by verified old/candidate identity, distinct recovery for killed process/unknown SSH outcome, and strict six mount/new business zero-state pure guards. Simulated tests include after-side-effect failure and candidate-created-but-ID-unrecorded crash. It is **not wired to real Docker or systemd**, and synthetic CI never executes a live Manager replacement. Next gate is independent core review and trusted adapter/host supervisor source contract; production still requires later live authorization.
+
+---
+
 ## 2026-10-09 B1I1 KF098 inline cutover executor exact source design and risk review — completed design only
 
 ```text
