@@ -126,3 +126,29 @@ CONSISTENT_DATA_BACKUP=NOT_STARTED
 **当前状态：脚本只存于 GitHub Draft PR #540；尚未在 T1 执行更新后的停写 wrapper；生产当前运行状态未改变。** 下一动作仅限下载并绑定 exact 工具源到原私有目录的新子目录，执行 `controlled_window.py preflight` 只读检查。不得运行 `execute`、`--permit-manager-stop`、任何 `docker stop/start/rm` 或真实数据冷复制。
 
 正式受控窗口在 PR #540 源码独立复核通过、全部 CI 通过、旧容器原状恢复计划经过测试且有现场明确执行窗口后方可授权。
+
+## 2026-10-09：R4 独立 systemd 失败恢复保护（源码及模拟测试）
+
+T1 操作者已在此前 R3 两个脚本上完成真实只读预检：
+
+```text
+REVIEWED_BACKUP_SOURCE_BINDING=PASS
+ORIGINAL_MANAGER_STOP_RECOVERY_PREFLIGHT=PASS
+BROKER_PERSISTENCE_PREFLIGHT=PASS
+CURRENT_MANAGER_IDENTITY_AND_MOUNTS=PASS
+BROKER_RUNNING=PASS
+OTHER_RUNNING_CONTAINER_WRITERS=NONE_DETECTED
+REVIEWED_BACKUP_PREFLIGHT=PASS
+MANAGER_STOP_NOT_EXECUTED=true
+CONSISTENT_DATA_BACKUP=NOT_STARTED
+```
+
+R3 结果对当时版本有效，但**不等于已安装独立恢复保障**。补充：
+- `emergency_resume.py`：另一个独立 Python 进程，使用 root 私有原 Docker inspect 严格比对当前容器 ID、原镜像、原配置，才允许检查或尝试 `docker start` **原来的 Manager**。运行后必须连续观察多次原容器运行，并复核 Broker 没有重启。禁止创建/删除/重命名容器、禁止更改 Broker。
+- `systemd_recovery_unit.py`：仅在内存生成可复核的 systemd 单次执行 unit 文字，`preflight` 只显示状态和 SHA256，**不会在 /etc 写文件，也不会注册/启动服务**。
+- Unit `ExecStart` 调用受控旧 Manager 停写窗口，`ExecStopPost` 独立调用恢复脚本；`TimeoutStartSec=240`，`TimeoutStopSec=90`，`Restart=no`，无 `[Install]` 区段以防误设开机自动执行。只在外部批准的操作窗口以手动一次性启动方式运行；**不得** `systemctl enable`。
+- 此组合可在 SSH 断开或主脚本被 systemd 超时结束后尝试恢复原容器；仍不能承诺处理掉电、Docker 守护进程不可用、systemd PID 1 异常、磁盘损坏，也不能取代明确的人工恢复指引与必要时现场检查。
+
+下阶段仅允许：从 PR #540 的**新固定 HEAD** 把 `cold_snapshot.py`、`controlled_window.py`、`emergency_resume.py`、`systemd_recovery_unit.py` 精确绑定到同一个 **r4 root 私有新目录**，通过 `python3 -B ... systemd_recovery_unit.py preflight`、`controlled_window.py preflight`、`cold_snapshot.py preflight`，再从 systemctl 只读确认 `docker.service`/systemd 可用。禁止在这一步安装、启动单元或停止 Manager。
+
+若后续真要执行旧 Manager 备份窗口，必须**先**独立复核 unit 的时序、写入者排除、业务身份/replay 高水位基线，明确短暂 Manager 服务中断预算和失败恢复时的人工操作路径。任何 `docker stop`、`systemctl start ...cold-backup.service`、`cold_snapshot.py capture` 仍是下一道独立现场控制门，不受这里的只读预检授权。
