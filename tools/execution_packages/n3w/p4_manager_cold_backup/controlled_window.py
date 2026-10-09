@@ -173,6 +173,7 @@ def main() -> None:
     def capture(value: Path) -> None:
         sources = snapshot.validate_runtime(manager, broker, "capture")
         snapshot.capture(sources, value)
+        snapshot.validate_runtime(manager, broker, "capture")
 
     run_window(
         directory,
