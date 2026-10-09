@@ -27,12 +27,13 @@ class LauncherTests(unittest.TestCase):
     def test_r3_immutable_source_and_forensic_seal_private_stage_are_bound(self):
         self.assertEqual(
             launcher.SOURCE_HEAD,
-            "b476b7dd0acce292576825550a72b6db7372606e",
+            "9441a73658d21566f981e7986b0e0de9093d14da",
         )
         self.assertEqual(
             launcher.EXPECTED["fresh_manager_deploy.py"],
             "79721bf24671469c551e7f169144d07d58b98bd4",
         )
+        self.assertEqual(launcher.EXPECTED["fresh_manager_operator.py"], "6d8339d5fa4d3b9004f60eea246593b1036d29cc")
         self.assertEqual(
             launcher.EXPECTED["fresh_manager_systemd_unit.py"],
             "d5d77d3198f34a18abf997c19a12e6b556748f1e",
