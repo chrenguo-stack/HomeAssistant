@@ -57,6 +57,7 @@ class Journal:
     def __init__(self, root: Path, doc: dict[str, Any]):
         self.path = private_root(root) / JOURNAL_NAME
         self.doc = doc
+        self.uncertain = False
 
     @classmethod
     def create(cls, root: Path, authority: Authority, token: str) -> "Journal":
@@ -108,13 +109,15 @@ class Journal:
         return cls(root, doc)
 
     def save(self, **changes: Any) -> None:
+        require(not self.uncertain, "JOURNAL_DURABILITY_UNKNOWN_FROZEN")
         before = dict(self.doc)
         self.doc.update(changes)
         try:
             _write(self.path, self.doc, create=False)
-        except Exception:
+        except Exception as error:
             self.doc = before
-            raise
+            self.uncertain = True
+            raise GateStop("JOURNAL_DURABILITY_UNKNOWN_FROZEN") from error
 
     def intent(self, phase: str) -> None:
         require(phase.endswith("_INTENT"), "NOT_DURABLE_INTENT")
