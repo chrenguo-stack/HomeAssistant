@@ -7,6 +7,7 @@ import json
 import re
 import subprocess
 from pathlib import Path
+from datetime import UTC, datetime
 
 from validator import read_private_baseline
 
@@ -109,55 +110,121 @@ def build_remote_program(
     return remote
 
 
-def remote_snapshot_once(
-    target: str,
-    expected_target_sha: str,
-    program: str,
-    *,
-    runner=subprocess.run,
-) -> dict:
-    try:
-        user, ip = target.split("@", 1)
-        addr = ipaddress.IPv4Address(ip)
-    except (ValueError, TypeError):
-        raise ValueError("INVALID_TARGET")
-    if (
-        user != "root"
-        or addr.is_loopback
-        or not addr.is_private
-        or hashlib.sha256(target.encode()).hexdigest() != expected_target_sha
-    ):
-        raise ValueError("TARGET_BINDING_INVALID")
-    if any(token.lower() in program.lower() for token in FORBIDDEN_REMOTE_SOURCE):
-        raise ValueError("REMOTE_SOURCE_UNSAFE")
-    cmd = [
-        "ssh", "-T", "-o", "BatchMode=yes",
-        "-o", "StrictHostKeyChecking=yes", "-o", "ConnectTimeout=5",
-        target, "python3", "-",
-    ]
-    result = runner(
-        cmd, input=program.encode(), capture_output=True,
-        timeout=15, check=False,
+def _trusted_target_digest(probe_source: str) -> str:
+    match = re.search(
+        r'^EXPECTED_T1_IP_SHA = "([0-9a-f]{64})"$',
+        probe_source,
+        flags=re.MULTILINE,
     )
-    if result.returncode != 0 or len(result.stdout) > 8192:
-        raise ValueError("REMOTE_READONLY_STOP")
-    try:
-        data = json.loads(result.stdout)
-    except (ValueError, UnicodeError):
-        raise ValueError("REMOTE_RESPONSE_INVALID")
+    if match is None:
+        raise ValueError("TARGET_AUTHORITY_MISSING")
+    return match.group(1)
+
+
+def _bound_sources() -> tuple[str, str]:
+    root = Path(__file__).resolve().parent
+    sources = []
+    for filename in ("bridge_handoff.py", "remote_projection.py"):
+        path = root / filename
+        if path.is_symlink() or not path.is_file():
+            raise ValueError("READONLY_SOURCE_UNAVAILABLE")
+        try:
+            sources.append(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError):
+            raise ValueError("READONLY_SOURCE_UNAVAILABLE") from None
+    return sources[0], sources[1]
+
+
+def _validate_readonly_result(data: object, baseline: frozenset[str]) -> dict:
     required = {
         "schema", "hardware_sha256", "pairing_sha256",
         "expires_at", "preboot_count", "preboot_hashes",
         "new_count", "read_at", "container_continuity_pass",
         "manager_socket_pass", "tls_live_reprobe_pass",
     }
+    if not isinstance(data, dict) or set(data) != required:
+        raise ValueError("REMOTE_RESPONSE_INVALID")
     if (
-        not isinstance(data, dict)
-        or set(data) != required
-        or data["schema"] != EXPECTED_REMOTE_SCHEMA
+        data["schema"] != EXPECTED_REMOTE_SCHEMA
         or data["container_continuity_pass"] is not True
         or data["manager_socket_pass"] is not True
         or data["tls_live_reprobe_pass"] is not True
+        or type(data["preboot_count"]) is not int
+        or data["preboot_count"] != 5
+        or type(data["new_count"]) is not int
+        or data["new_count"] != 1
+        or type(data["preboot_hashes"]) is not list
+        or data["preboot_hashes"] != sorted(baseline)
     ):
-        raise ValueError("REMOTE_AUTHORITY_INVALID")
+        raise ValueError("REMOTE_RESPONSE_INVALID")
+    for key in ("hardware_sha256", "pairing_sha256"):
+        if not isinstance(data[key], str) or not re.fullmatch(r"[0-9a-f]{64}", data[key]):
+            raise ValueError("REMOTE_RESPONSE_INVALID")
+    if data["hardware_sha256"] in baseline:
+        raise ValueError("REMOTE_RESPONSE_INVALID")
+    try:
+        now = datetime.now(UTC)
+        observed = datetime.fromisoformat(data["read_at"].replace("Z", "+00:00"))
+        expires = datetime.fromisoformat(data["expires_at"].replace("Z", "+00:00"))
+        if observed.tzinfo is None or expires.tzinfo is None:
+            raise ValueError()
+        age = (now - observed.astimezone(UTC)).total_seconds()
+        remaining = (expires.astimezone(UTC) - now).total_seconds()
+    except (AttributeError, TypeError, ValueError):
+        raise ValueError("REMOTE_RESPONSE_INVALID") from None
+    if age < 0 or age > 10 or remaining < 60:
+        raise ValueError("REMOTE_PENDING_STALE_OR_SHORT")
     return data
+
+
+def remote_snapshot_once(
+    target: str,
+    *,
+    snapshot_path: Path = PRIVATE_BASELINE,
+) -> dict:
+    bridge_source, probe_source = _bound_sources()
+    program = build_remote_program(
+        bridge_source, probe_source, snapshot_path=snapshot_path
+    )
+    baseline = private_preboot_baseline(snapshot_path)
+    try:
+        user, ip = target.split("@", 1)
+        address = ipaddress.IPv4Address(ip)
+    except (AttributeError, TypeError, ValueError):
+        raise ValueError("INVALID_TARGET") from None
+    if (
+        user != "root"
+        or str(address) != ip
+        or address.is_loopback
+        or not address.is_private
+        or hashlib.sha256(ip.encode("ascii")).hexdigest()
+        != _trusted_target_digest(probe_source)
+    ):
+        raise ValueError("TARGET_BINDING_INVALID")
+    cmd = [
+        "ssh", "-F", "/dev/null", "-T",
+        "-o", "BatchMode=yes",
+        "-o", "StrictHostKeyChecking=yes",
+        "-o", "PasswordAuthentication=no",
+        "-o", "KbdInteractiveAuthentication=no",
+        "-o", "ConnectTimeout=5",
+        "--", target, "python3", "-",
+    ]
+    try:
+        result = subprocess.run(
+            cmd, input=program.encode("utf-8"), capture_output=True,
+            timeout=15, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        raise ValueError("REMOTE_READONLY_STOP") from None
+    if (
+        result.returncode != 0
+        or len(result.stdout) > 8192
+        or len(result.stderr) > 8192
+    ):
+        raise ValueError("REMOTE_READONLY_STOP")
+    try:
+        data = json.loads(result.stdout)
+    except (ValueError, UnicodeError):
+        raise ValueError("REMOTE_RESPONSE_INVALID") from None
+    return _validate_readonly_result(data, baseline)
