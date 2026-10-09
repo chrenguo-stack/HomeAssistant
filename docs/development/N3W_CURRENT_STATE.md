@@ -1,3 +1,28 @@
+## 2026-10-09 P4 one-shot first live preflight STOP — Docker logging parity
+
+```text
+CURRENT_GATE=N3W_P4_T1_FRESH_MANAGER_ONE_SHOT_LIVE_DEPLOY
+FIRST_LIVE_OPERATOR_RESULT=STOP_LOG_OPTIONS_UNSUPPORTED
+STAGE=R1_CREATED_ROOT_PRIVATE
+DOCKER_STOP_PHASE_REACHED=false
+TRANSACTION_CLAIM_REACHED=false
+MANAGER_RUNNING_FRESH_REBIND=PENDING_READONLY_T1_CHECK
+BROKER_RUNNING_FRESH_REBIND=PENDING_READONLY_T1_CHECK
+SOURCE_REPAIR_HEAD=fd98c06d02037cba4f18043afeac62cd75893108
+SOURCE_SYNTHETIC_TESTS=107_PASS
+SOURCE_SYNTHETIC_CI_RUN=37938973508
+PUBLIC_SAFETY_CI_RUN=37938973771
+NEXT_ACTION=SANITIZED_SINGLE_T1_READONLY_LOGCONFIG_AND_SERVICE_STATE_CHECK
+OLD_MAC_LAUNCHER_REPLAY=FORBIDDEN
+LIVE_MANAGER_REPLACEMENT_COMPLETED=false
+BOARD_ACCESS=false
+SETUP_SECRET_IMPORT=false
+```
+
+Exact public-safe diagnosis/source-repair record: `docs/development/N3W_P4_T1_FRESH_MANAGER_LOG_OPTIONS_PREFLIGHT_STOP_AND_SOURCE_REPAIR_20261009.md`. The old launcher rejected nonempty Docker LogConfig options before Manager stop; repair now forwards safe json-file log options and validates shadow parity, using successor private stage R2. No second live execution yet; never reuse the first command.
+
+---
+
 ## 2026-10-09 P4 Fresh Manager live production replacement — user authorized, waiting for operator execution
 
 ```text
