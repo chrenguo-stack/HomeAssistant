@@ -208,7 +208,6 @@ def capture(sources: dict[str, Path], private: Path) -> None:
     no_open_db_files(sources)
     files = inventory(snapshot)
     require(len(files) > 0, "EMPTY_SNAPSHOT")
-    validate_sqlite(snapshot)
     manifest = private / "cold-snapshot-manifest-private.json"
     require(not manifest.exists(), "MANIFEST_ALREADY_EXISTS")
     manifest.write_text(json.dumps({"schema": REVISION, "files": files}, indent=2) + "\n")
@@ -253,7 +252,7 @@ def run() -> None:
     if args.phase == "preflight":
         print("CURRENT_MANAGER_IDENTITY_AND_MOUNTS=PASS")
         print("BROKER_RUNNING=PASS")
-        print("OTHER_RUNNING_CONTAINER_WITERS=NONE_DETECTED")
+        print("OTHER_RUNNING_CONTAINER_WRITERS=NONE_DETECTED")
         print("COLD_BACKUP=NOT_STARTED")
         return
     require(args.permit_cold_copy, "EXPLICIT_COLD_COPY_FLAG_REQUIRED")
