@@ -27,7 +27,7 @@ class SupervisedManagerGateTests(unittest.TestCase):
         with mock.patch("sys.argv", argv):
             with patch.object(operator.snapshot, "private_root", return_value=self.private):
                 with patch.object(operator, "non_mutating_preflight", return_value="verified-unit"):
-                    with patch.object(operator.r3_seal, "seal_r2", side_effect=lambda p: actions.append("seal")) as seal:
+                    with patch.object(operator.r4_seal, "seal_r3_for_r4", side_effect=lambda p: actions.append("seal")) as seal:
                         with patch.object(operator, "execute", side_effect=lambda p, text: actions.append("guarded-execute")) as guarded:
                             operator.main()
                             seal.assert_called_once_with(self.private)
@@ -39,7 +39,7 @@ class SupervisedManagerGateTests(unittest.TestCase):
         with mock.patch("sys.argv", argv):
             with patch.object(operator.snapshot, "private_root", return_value=self.private):
                 with patch.object(operator, "non_mutating_preflight", return_value="verified-unit"):
-                    with patch.object(operator.r3_seal, "seal_r2") as seal:
+                    with patch.object(operator.r4_seal, "seal_r3_for_r4") as seal:
                         with patch.object(operator, "execute") as guarded:
                             with self.assertRaisesRegex(operator.OperatorStop, "AUTHORIZATION_ID_MISMATCH"):
                                 operator.main()
