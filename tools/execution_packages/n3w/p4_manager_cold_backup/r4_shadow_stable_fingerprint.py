@@ -145,7 +145,6 @@ def r4_authority_document(private: Path) -> dict[str, Any]:
         "r2_shadow_container_id": review["r2_shadow_container_id"],
         "r2_original_manager_id": review["r2_original_manager_id"],
         "r2_broker_container_id": review["r2_broker_container_id"],
-        "r3_legacy_digest_mismatch_classified": review["legacy_full_inspect_digest_mismatch"],
         "r2_full_contract_reverified": True,
         "r3_no_cutover_or_fresh_state": True,
         "r2_r3_history_untouched": True,
