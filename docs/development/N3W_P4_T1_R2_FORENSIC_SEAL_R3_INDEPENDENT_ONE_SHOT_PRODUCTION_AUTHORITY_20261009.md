@@ -49,14 +49,14 @@ R3 deliberately does **not clean or overwrite R2**. Instead it:
 ```text
 NINE_PLUS_SEAL_SOURCE_COUNT=10
 EXACT_TEN_SCRIPT_SOURCE_REF=9441a73658d21566f981e7986b0e0de9093d14da
-R3_LAUNCHER_CODE_COMMIT=db06a02d8fd19de142728267e0dcb94661044cf7
+R3_LAUNCHER_CODE_COMMIT=7ea25db9e9cd810f96279f8b2aa97a0f5522a1ed
 R3_MAC_LAUNCHER_FILE_BLOB=b97c3ba606fbb6ee093b3abe3e398b00be392287
 R3_REAL_PRODUCTION_COMMAND=ONE_MAC_TERMINAL_COMMAND
 THIRD_R3_LIVE_DEPLOY_ATTEMPT_STATUS=PENDING_MAC_OUTPUT
 NO_AUTO_RETRY=true
 ```
 
-R3 package preserved under PR #540 draft branch `tools/n3w-p4-manager-consistent-cold-backup-20261009`. A separate final launcher commit improves sanitized failure classification without changing those ten protected scripts. The launcher pins exact ten Git blob hashes and R3 authorization ID; stops on a preexisting R3 stage or journal. Its startup may produce a private forensic seal file prior to running systemd. Source CI success alone is not production PASS. The final R3 launch contract has **121+** passing source-only tests; final head-level CI status must be independently checked before any real execution.
+R3 package preserved under PR #540 draft branch `tools/n3w-p4-manager-consistent-cold-backup-20261009`. A separate final launcher commit improves sanitized failure classification without changing those ten protected scripts. The launcher pins exact ten Git blob hashes and R3 authorization ID; stops on a preexisting R3 stage or journal. Its startup may produce a private forensic seal file prior to running systemd. Source CI success alone is not production PASS. The final R3 launch contract passed **123 source-only tests** (CI run 37944572328), public repository safety CI (37944572498), and Manager CI (37944572370), all SUCCESS at source/documentation head 74777b28ce037b431fafbaf9ef3e41ea33b7ee00. These checks do not establish real T1 deployment success.
 
 ## Required outcome evaluation and STOP
 
