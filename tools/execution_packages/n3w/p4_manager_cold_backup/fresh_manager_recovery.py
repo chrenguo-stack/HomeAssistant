@@ -164,6 +164,17 @@ def supervised_stop_post(private: Path) -> None:
     raise RecoveryStop("POST_COMMIT_SUPERVISOR_VERIFICATION_FAILED_ROLLED_BACK")
 
 
+def rollback_after_operator_final_check_failure(private: Path) -> None:
+    state = load_state(private)
+    require(state is not None and state.get("committed") is True,
+            "FINAL_CHECK_ROLLBACK_STATE_NOT_COMMITTED")
+    state = dict(state)
+    state["committed"] = False
+    state["operator_final_check_failed"] = True
+    deploy._atomic_json(private / deploy.STATE_FILE, state)
+    recover_original(private)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--private-root", required=True)
