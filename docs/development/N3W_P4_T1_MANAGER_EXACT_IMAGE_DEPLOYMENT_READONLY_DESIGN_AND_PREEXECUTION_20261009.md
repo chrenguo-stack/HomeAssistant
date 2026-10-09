@@ -932,3 +932,47 @@ RESTORE_REHEARSAL=false
 PRODUCTION_MANAGER_UPGRADE=false
 STOP_AT_READONLY_WRITER_PREFLIGHT=true
 ```
+
+## 18. T1 其他容器可写来源排查闭环与冷备份源码执行包（2026-10-09）
+
+操作者最新的实际 T1 只读输出：
+
+```text
+THREE_RW_BIND_SOURCE_PATHS_PRESENT=PASS
+RELAY_KEYS_SOURCE_NESTED_IN_N3W_SOURCE=false
+OTHER_RUNNING_CONTAINER_RW_PATH_OVERLAPS=0
+TAR_AVAILABLE=PASS
+SHA256_AVAILABLE=PASS
+FUSER_AVAILABLE=true
+MANAGER_RUNNING=true
+MANAGER_RESTARTS=0
+BROKER_RUNNING=true
+BROKER_RESTARTS=0
+CONSISTENT_DATA_BACKUP=NOT_STARTED
+```
+
+中继密钥的**容器内目的地**是 N3W 状态目录之下，但**宿主机真实 bind Source** 是另一个不嵌套的独立目录，三处 RW 数据根分别备份是必须的。当前其他运行容器 RW Source 重叠计数为 0，但不足以排除宿主机非容器进程、远程挂载别名、未来写者。不能直接进入在线主库 cp。
+
+后续源代码安全门已建立独立 Draft #540：
+
+- `tools/execution_packages/n3w/p4_manager_cold_backup/cold_snapshot.py`
+- `tools/execution_packages/n3w/p4_manager_cold_backup/test_cold_snapshot.py`
+- `tools/execution_packages/n3w/p4_manager_cold_backup/README.md`
+- `.github/workflows/n3w-p4-manager-cold-backup-synthetic-ci.yml`
+
+第一阶段 `preflight` 只检查已保存 Manager 配置/挂载与真实运行状态、Broker 运行及网络/端口不变、其它容器可写源，**不复制生产 DB**。第二阶段 `capture --permit-cold-copy` 要求原 Manager **已经由外部独立受控流程停止**，不允许脚本自己停止或重启任何容器；再进行对三处实际 RW Source 的全目录冷拷贝、SHA256/权限/UID/GID 私有清单校验，以及独立恢复副本的 SQLite 完整性测试。源码/合成 CI PASS 不能当成真实 T1 冷备份、旧五身份业务契约与数据恢复 PASS。
+
+运行态替换前还必须：原 Manager 恢复运行的方法独立核实与模拟演练、Broker TLS/双网络不变、Manager 短暂停写预算、宿主机非容器进程写入排除、身份数量和重放高水位业务语义校验、异常回退流程。不得把只保留容器 JSON 和镜像 tar 当作可直接从零重建原有数据库的证明。
+
+```text
+THREE_INDEPENDENT_HOST_RW_SOURCES=PASS
+RUNNING_CONTAINER_RW_SOURCE_OVERLAP=0
+SOURCE_ONLY_DRAFT_PR540=CREATED
+SYNTHETIC_BACKUP_RESTORE_CI=RUNNING_OR_PASS_DEPENDS_ON_FRESH_CI
+COLD_BACKUP_REAL_T1=false
+RESTORE_REHEARSAL_REAL_T1=false
+MANAGER_LIVE_DEPLOYMENT=false
+FIRST_NORMAL_BOARD_BOOT=false
+SECRET_IMPORT=false
+NEXT=PR540_SOURCE_REVIEW_THEN_READONLY_PREP
+```
