@@ -11,8 +11,15 @@ from pathlib import Path
 import cold_snapshot as snapshot
 
 UNIT_NAME = "n3w-p4-manager-cold-backup.service"
-STAGE_DIR = "p4-reviewed-controlled-backup-r4"
-PROTECTED_SCRIPTS = ("cold_snapshot.py", "controlled_window.py", "emergency_resume.py")
+STAGE_DIR = "p4-reviewed-controlled-backup-r5"
+PROTECTED_SCRIPTS = (
+    "cold_snapshot.py",
+    "controlled_window.py",
+    "emergency_resume.py",
+    "business_snapshot.py",
+    "one_shot_operator.py",
+    "systemd_recovery_unit.py",
+)
 SAFE_ABSOLUTE = re.compile(r"^/[A-Za-z0-9_./+-]+$")
 
 
