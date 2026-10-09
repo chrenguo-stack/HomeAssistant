@@ -109,6 +109,11 @@ def _atomic_json(path: Path, value: dict[str, Any], *, create: bool = False) -> 
             require(not path.exists() and not path.is_symlink(), "TRANSACTION_ALREADY_EXISTS_NO_REPLAY")
         os.replace(temp, path)
         path.chmod(0o600)
+        directory_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
     except BaseException:
         if temp.exists():
             temp.unlink()
