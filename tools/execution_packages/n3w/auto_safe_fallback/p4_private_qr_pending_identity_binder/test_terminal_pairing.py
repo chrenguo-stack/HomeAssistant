@@ -5,13 +5,14 @@ import hashlib
 import json
 import os
 import subprocess
+import threading
 import tempfile
 import unittest
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from bridge_handoff import GateStop, bind_terminal_projection
-from terminal_pairing import once
+from terminal_pairing import _private_claim, once
 
 NOW = datetime(2026, 10, 9, 8, 0, tzinfo=UTC)
 HARDWARE = "ghw-c6-00000000ff00"
@@ -173,6 +174,35 @@ class TerminalFlowTest(unittest.TestCase):
             }).encode(), b"")
 
         self.assertEqual(self.invoke(runner=rejected), "IMPORT_REJECTED_STOP")
+
+    def test_parallel_claim_cannot_create_two_import_attempts(self):
+        outcomes = []
+        go = threading.Barrier(2)
+
+        def claim():
+            go.wait(3)
+            try:
+                _private_claim(self.private, digest(HARDWARE), digest(PAIRING), NOW)
+                outcomes.append("claimed")
+            except GateStop:
+                outcomes.append("stopped")
+
+        first = threading.Thread(target=claim)
+        second = threading.Thread(target=claim)
+        first.start()
+        second.start()
+        first.join(4)
+        second.join(4)
+        self.assertFalse(first.is_alive())
+        self.assertFalse(second.is_alive())
+        self.assertEqual(sorted(outcomes), ["claimed", "stopped"])
+        self.assertEqual(len(list(self.private.glob("p4-attempt-*.json"))), 1)
+
+    def test_private_claim_directory_permissions_fail_closed(self):
+        os.chmod(self.private, 0o755)
+        with self.assertRaises(GateStop):
+            _private_claim(self.private, digest(HARDWARE), digest(PAIRING), NOW)
+        self.assertEqual(list(self.private.glob("p4-attempt-*.json")), [])
 
     def test_current_ip_can_change_without_frozen_hash(self):
         from terminal_pairing import _command
