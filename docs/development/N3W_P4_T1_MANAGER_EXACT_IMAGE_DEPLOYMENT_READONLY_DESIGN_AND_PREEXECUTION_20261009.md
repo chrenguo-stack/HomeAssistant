@@ -251,3 +251,64 @@ BOARD_NORMAL_BOOT=false
 NEXT_ACTION=MAC_TERMINAL_READONLY_SQLITE_FILES_AND_CAPACITY
 STOP=true
 ```
+
+## 9. P4 三个数据库与工具链预检（2026-10-09）
+
+操作者 Mac Terminal 实际只读证据：
+
+```text
+REGISTRATION_DB_MAIN_BYTES=675840
+CREDENTIAL_LIFECYCLE_DB_MAIN_BYTES=28672
+REPLAY_DB_MAIN_BYTES=8134656
+PYTHON_SQLITE_RUNTIME_VERSION=3.46.1
+DOCKER_DISK_AVAILABLE_KIB=6153948
+PAIRING_SOCKET_PRESENT=true
+WAL_SHM_SIDE_CARS=NOT_YET_INVENTORIED
+OTHER_MANAGER_PERSISTENT_FILES=NOT_YET_INVENTORIED
+T1_SQLITE_BACKUP_CREATION=false
+T1_SERVICE_MUTATION=false
+MANAGER_IMAGE_BUILD=false
+MANAGER_IMAGE_DEPLOY=false
+BOARD_NORMAL_BOOT=false
+REAL_SETUP_SECRET_IMPORT=false
+```
+
+上述数据是三个 **主库文件** 的大小，不包括任何在用 WAL/SHM、其他数据库、密钥或状态文件；磁盘可用空间为 T1 Docker 数据目录所在文件系统可用量，不证明所有目标备份目录有同等容量。`PAIRING_SOCKET_PRESENT=true` 只说明 Unix socket 存在，不证明新 P4 导入子命令部署或其正确处理逻辑。
+
+### 9.1 备份设计与保证边界
+
+- **禁止**直接把三个运行中 SQLite 主库依次 `cp` 或 `docker cp` 当作共同一致、可回退的备份；不得单独运行 WAL checkpoint/VACUUM 改写生产状态。
+- SQLite 单库 `Connection.backup` 能产生单库一致快照，**不提供独立三个数据库跨库的原子一致性**；新镜像的升级回退不能仅凭各库单独 `backup()` 判定 PASS。
+- 默认设计优先使用有明确停写边界的**一次 Manager 受控停机窗口**，在容器确已停止且无其他写入者的条件下备份全部相关持久目录（含 registration 独立挂载、N3W 挂载与嵌套 relay-keys 挂载、必要证书/Secret 的原始私有源；Broker 独立服务不得停机/重建）。停机后的只读完整性验证及隔离恢复演练均通过后，才进行新版容器替换；如果有其他写入者或旧容器不可重新启动，应 STOP 而非冒险更新。**停机是后续部署动作，本门没有执行或授权。**
+- 原始 `docker inspect` 中 Env/HostConfig/Mounts 可能包含敏感信息；后续授权部署包应将完整可复现容器配置以 mode-0600 保存在 T1 本地受保护区域，不上传 GitHub/聊天，公开日志仅记 hash/条件结果。旧镜像的本地可用性已证实，不代表完整回退已证明。
+
+### 9.2 下一组无数据库读写、无服务重启的联合检查
+
+直接在 Mac Terminal 运行：
+
+```bash
+printf 'T1 SSH 目标：'
+IFS= read -r T1_SSH
+ssh -T "$T1_SSH" 'docker exec greenhouse-manager sh -c '"'"'for p in /var/lib/greenhouse-manager-registration/registration.sqlite3 /var/lib/greenhouse-manager/n3w/credential-lifecycle.sqlite3 /var/lib/greenhouse-manager/n3w/replay.sqlite3; do b=${p##*/}; for ext in "" -wal -shm; do f="$p$ext"; if test -f "$f"; then stat -c "DB_SIDECAR=$b$ext STATUS=present BYTES=%s" "$f" || exit 1; else printf "DB_SIDECAR=%s STATUS=absent\n" "$b$ext"; fi; done; done'"'"''
+ssh -T "$T1_SSH" 'command -v git >/dev/null 2>&1 && git --version || echo T1_GIT=NOT_AVAILABLE'
+ssh -T "$T1_SSH" 'docker buildx version >/dev/null 2>&1 && echo T1_DOCKER_BUILDX=AVAILABLE || echo T1_DOCKER_BUILDX=NOT_AVAILABLE'
+ssh -T "$T1_SSH" 'df -Pk /var/lib/greenhouse-manager-registration /var/lib/greenhouse-manager/n3w 2>/dev/null | awk "NR>1 {print \"DB_FS_AVAILABLE_KIB=\"\$4}"'
+```
+
+命令只执行 `stat`、`git --version`、`docker buildx version` 和 `df`；没有 SQLite connection、数据库写入、服务停机、镜像构建或拉取。它只识别现有 WAL/SHM 的大小与备份目标所在文件系统余量。不存在 WAL/SHM **不构成产品故障**；由新镜像升级前可验证备份设计判断。若某个命令取证失败，仅记录没有证据，不把 Manager 判为失败。
+
+这组输出通过后直接实施**源代码层面的** P4 私有备份/镜像构建执行包与合成测试，随后才请求 Mac 现场运行隔离构建/备份演练，不把源码 CI 当成真实回退证据。
+
+```text
+THREE_MAIN_SQLITE_DATABASES_PRESENT=true
+SQLITE_PYTHON_RUNTIME_AVAILABLE=true
+SOCKET_FILE_PRESENT=true
+DISK_CAPACITY_BASIC=AVAILABLE_NOT_BACKUP_GUARANTEE
+BACKUP_ISOLATION_PLAN=SOURCE_DESIGN_ONLY
+WAL_SHM_INVENTORY=WAITING
+EXACT_IMAGE_BUILD_TOOLCHAIN=WAITING
+ACTUAL_ROLLBACK_REHEARSAL=false
+T1_MANAGER_MUTATION=false
+P4_BOARD_FIRST_NORMAL_BOOT=false
+STOP_AT_FRESH_INPUT=true
+```
