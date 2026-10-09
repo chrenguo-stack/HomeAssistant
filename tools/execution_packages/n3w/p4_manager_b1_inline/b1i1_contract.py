@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Protocol
+import re
 
 SCHEMA = "gh.n3w.p4.b1i1.inline/1"
 JOURNAL_NAME = "b1i1-private-transaction.json"
