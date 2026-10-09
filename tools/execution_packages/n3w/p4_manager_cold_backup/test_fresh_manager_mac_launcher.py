@@ -48,6 +48,11 @@ class LauncherTests(unittest.TestCase):
         self.assertIn("r3_forensic_seal.py", launcher.EXPECTED)
         self.assertEqual(launcher.EXPECTED["r3_forensic_seal.py"], "97b6128dd79e9c66bd5fc51b08f7104d5702f6aa")
         self.assertEqual(len(launcher.EXPECTED), 10)
+        self.assertIn(
+            'AUTH = "N3W_P4_T1_FRESH_MANAGER_ONE_SHOT_LIVE_DEPLOY_R3"',
+            launcher.REMOTE_CODE,
+        )
+        self.assertIn("safe_r3_failure_evidence(private)", launcher.REMOTE_CODE)
 
     def test_remote_program_is_syntactically_valid(self):
         source = launcher.REMOTE_CODE.replace("__EXPECTED__", repr(launcher.EXPECTED))
@@ -110,6 +115,25 @@ class LauncherTests(unittest.TestCase):
         with patch.object(launcher.subprocess, "run", return_value=result):
             self.assertEqual(launcher.execute("t1", b"archive"),
                              "T1_FRESH_MANAGER=STOP:SSH_OR_SUDO_FAILED_NO_RETRY")
+
+    def test_remote_stop_includes_only_sanitized_r3_evidence(self):
+        result = subprocess.CompletedProcess(
+            args=[], returncode=1,
+            stdout=(
+                b"R3_TRANSACTION_PHASE=SHADOW_CREATE_AND_COMPARE_STOPPED\n"
+                b"R3_ROLLBACK_RESULT=PASS\n"
+                b"PRIVATE_PATH=/root/do-not-expose\n"
+                b"T1_FRESH_MANAGER=STOP:FRESH_MANAGER_SYSTEMD_TRANSACTION_FAILED\n"
+            ),
+            stderr=b"secret-value-will-not-be-exposed",
+        )
+        with patch.object(launcher.subprocess, "run", return_value=result):
+            safe = launcher.execute("t1", b"archive")
+        self.assertIn("R3_TRANSACTION_PHASE=SHADOW_CREATE_AND_COMPARE_STOPPED", safe)
+        self.assertIn("R3_ROLLBACK_RESULT=PASS", safe)
+        self.assertTrue(safe.endswith("T1_FRESH_MANAGER=STOP:FRESH_MANAGER_SYSTEMD_TRANSACTION_FAILED"))
+        self.assertNotIn("PRIVATE_PATH", safe)
+        self.assertNotIn("secret-value", safe)
 
     def test_remote_stop_keeps_safe_reason(self):
         result = subprocess.CompletedProcess(args=[], returncode=1,
