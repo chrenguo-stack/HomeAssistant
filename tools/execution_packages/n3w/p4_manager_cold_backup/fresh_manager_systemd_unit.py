@@ -81,7 +81,7 @@ def render_unit(private: Path, stage: Path, python: Path) -> str:
         f"--authorization-id {deploy.AUTHORIZATION_ID} "
         "--permit-live-manager-replacement --systemd-supervised\n"
         f"ExecStopPost={python} -B {stage / 'fresh_manager_recovery.py'} "
-        f"--private-root {private}\n"
+        f"--private-root {private} --systemd-stop-post\n"
         "\n"
     )
 
