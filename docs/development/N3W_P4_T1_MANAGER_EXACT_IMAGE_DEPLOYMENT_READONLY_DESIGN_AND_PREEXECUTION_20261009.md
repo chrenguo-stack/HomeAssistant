@@ -146,3 +146,54 @@ MANAGER_DEPLOYMENT=false
 BOARD_FIRST_BOOT=false
 STOP_AT_NEXT_READONLY_EVIDENCE=true
 ```
+
+## 7. 第三轮 Broker 现场结果及 Manager 升级前的恢复来源检查（2026-10-09）
+
+操作者最新的**实际只读输出**：
+
+```text
+BROKER_RUNNING=true
+BROKER_RESTARTS=0
+BROKER_NETWORK_MODE=n3wfc4-private
+BROKER_NETWORK_COUNT=2
+BROKER_NETWORK_NAMES=n3wfc4-private,n3wfc4-services
+BROKER_TCP_8883_PUBLICATIONS=1
+BROKER_PUBLISHED_PORT_KEYS=8883/tcp
+BROKER_ACTIVATION_SERVICE=active/running
+BROKER_INGRESS_GUARD_SERVICE=active/exited
+BROKER_CURRENT_TLS_HANDSHAKE=NOT_RECHECKED
+BROKER_8883_HOST_BIND_ADDRESS=NOT_YET_CLASSIFIED
+MANAGER_RUNTIME_MUTATION=false
+BROKER_RUNTIME_MUTATION=false
+BOARD_FIRST_NORMAL_BOOT=false
+```
+
+**证据解释：** Broker 运行、重启次数和精确的双网络连接已核对；8883/tcp 映射数量为 1，但目前尚不知道绑定的 HostIp 是否为 IPv4 wildcard，也未重做当前 TLS server-name 验证。`active/exited` 的 ingress-guard 可以是正常的 oneshot 服务状态，**不是**系统故障证据，也**不等于**该守护规则的当前功能验收。Manager 替换不能重建或重启 Broker，不得按仓库旧 Compose 重新布线。
+
+实际 Manager 则是 `greenhouse` 用户、host 网络、零 ports、readonly rootfs、`/tmp` 16 MiB tmpfs、`unless-stopped`，未发现 Compose label。旧 image ID 必须在现场私有证据中保留，不能假设镜像 tag 可以再次拉取。当前最小只读下一步只确认旧 image 是否仍存在于本地镜像存储、实际 entrypoint/Cmd 的*参数数量*，并将 Broker 8883 的 `HostIp` 分类输出而**不输出具体地址**。
+
+Mac Terminal 可直接执行：
+
+```bash
+printf 'T1 SSH 目标：'
+IFS= read -r T1_SSH
+ssh -T "$T1_SSH" 'img=$(docker inspect --type container --format "{{.Image}}" greenhouse-manager) || exit 1; docker image inspect --format "OLD_IMAGE_AVAILABLE=true OLD_IMAGE_BYTES={{.Size}} OLD_IMAGE_REVISION={{index .Config.Labels \"org.opencontainers.image.revision\"}}" "$img"'
+ssh -T "$T1_SSH" 'docker inspect --type container --format "{{json .Config.Entrypoint}}" greenhouse-manager' | python3 -c 'import json,sys; v=json.load(sys.stdin) or []; print("MANAGER_ENTRYPOINT_ARGS="+str(len(v)))'
+ssh -T "$T1_SSH" 'docker inspect --type container --format "{{json .Config.Cmd}}" greenhouse-manager' | python3 -c 'import json,sys; v=json.load(sys.stdin) or []; print("MANAGER_CMD_ARGS="+str(len(v)))'
+ssh -T "$T1_SSH" 'docker inspect --type container --format "{{json .HostConfig.PortBindings}}" n3wfc4-broker-1' | python3 -c 'import json,sys,ipaddress; d=json.load(sys.stdin) or {}; entries=d.get("8883/tcp",[]); print("BROKER_8883_ENTRY_COUNT="+str(len(entries))); print("BROKER_8883_HOSTIP_TYPES="+",".join("wildcard" if e.get("HostIp","") in ("","0.0.0.0") else ("loopback" if ipaddress.ip_address(e.get("HostIp")).is_loopback else "specific") for e in entries))'
+```
+
+**失败处理：** 命令失败只代表没有取得对应证据，不代表服务故障。若本机找不到正在运行的旧镜像，或 Broker 绑定类型异常，停止升级方案，不停止正在运行的服务。即便以上均满足，镜像构建、在线/停机一致备份、回退演练和服务替换仍需独立的操作包，不能直接按本只读输出开始。
+
+```text
+BROKER_RUNNING=PASS
+BROKER_DUAL_NETWORK=PASS
+BROKER_SINGLE_8883_TCP_PUBLICATION=PASS
+BROKER_TLS_HANDSHAKE=NOT_RECHECKED
+MANAGER_BACKUP_RESTORE=NOT_YET_VALIDATED
+MANAGER_EXACT_IMAGE_BUILD=NOT_STARTED
+MANAGER_LIVE_DEPLOYMENT=NOT_STARTED
+P4_FIRST_NORMAL_BOOT=false
+NEXT_ACTION=READONLY_OLD_IMAGE_PRESENCE_AND_8883_BIND_CLASSIFICATION
+STOP=true
+```
