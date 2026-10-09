@@ -67,7 +67,7 @@ class TerminalFlowTest(unittest.TestCase):
         self.assertTrue(capture_output)
         self.assertFalse(check)
         self.assertEqual(cmd[0:1], ["ssh"])
-        self.assertEqual(cmd[7], "root@192.168.20.31")
+        self.assertEqual(cmd[6], "root@192.168.20.31")
         self.assertNotIn(SECRET, " ".join(cmd))
         self.calls += 1
         if "p4-pending-readonly" in cmd:
