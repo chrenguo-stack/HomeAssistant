@@ -83,6 +83,13 @@ def test_cli_does_not_construct_writable_registry_or_change_databases(dbs, monke
         raise AssertionError("WRITABLE_REGISTRY_FORBIDDEN")
 
     monkeypatch.setattr(registration_cli, "RegistrationRegistry", forbidden)
+    monkeypatch.setattr(
+        registration_cli,
+        "read_pending",
+        lambda reg, cred, replay: read_pending(
+            reg, cred, replay, now=NOW + timedelta(seconds=1)
+        ),
+    )
     output = io.StringIO()
     error = io.StringIO()
     status = registration_cli.main(
