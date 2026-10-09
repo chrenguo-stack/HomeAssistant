@@ -143,6 +143,7 @@ def test_setup_secret_pairing_auto_assigns_node_and_encrypts_complete_bundle(
             HARDWARE_ID,
             PAIRING_ID,
             setup_secret=SETUP_SECRET,
+            now=NOW,
         )
         offer = coordinator.begin(
             HARDWARE_ID,
@@ -237,6 +238,7 @@ def test_registered_pairing_requires_explicit_credential_recovery_before_staging
             HARDWARE_ID,
             repair_pairing_id,
             setup_secret=SETUP_SECRET,
+            now=NOW,
         )
 
         offer = coordinator.begin(
@@ -298,6 +300,7 @@ def test_invalid_node_proof_never_allocates_node_id_or_stages_credentials(
             HARDWARE_ID,
             PAIRING_ID,
             setup_secret=SETUP_SECRET,
+            now=NOW,
         )
         offer = coordinator.begin(
             HARDWARE_ID,
@@ -359,6 +362,7 @@ def test_stage_failure_rolls_automatic_approval_back_to_pending(
             HARDWARE_ID,
             PAIRING_ID,
             setup_secret=SETUP_SECRET,
+            now=NOW,
         )
 
         offer = coordinator.begin(
@@ -453,6 +457,7 @@ def test_abort_after_credentials_issued_rolls_registration_back(
             HARDWARE_ID,
             PAIRING_ID,
             setup_secret=SETUP_SECRET,
+            now=NOW,
         )
 
         offer = coordinator.begin(
