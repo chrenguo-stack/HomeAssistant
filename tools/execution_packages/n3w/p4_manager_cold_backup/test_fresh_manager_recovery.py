@@ -123,6 +123,44 @@ class RecoveryFailureTests(unittest.TestCase):
             recovery.recover_original(self.private)
         self.assertEqual(self.current.actions, [])
 
+    def test_supervisor_timeout_before_old_stop_has_no_docker_mutation(self):
+        self.txn = transaction(candidate_id=None, phase="SHADOW_CREATE_AND_COMPARE_STOPPED")
+        self.current.containers["greenhouse-manager"] = self.current.containers.pop(deploy.PARKED_NAME)
+        self.current.containers["greenhouse-manager"]["State"]["Running"] = True
+        recovery.supervised_stop_post(self.private)
+        self.assertEqual(self.current.actions, [])
+        self.assertEqual(self.current.containers["greenhouse-manager"]["Id"], "old-id")
+        self.assertEqual(self.current.broker_current["RestartCount"], 0)
+        self.assertEqual(
+            json.loads((self.private / deploy.STATE_FILE).read_text())["rollback_result"],
+            "PASS",
+        )
+
+    def test_supervisor_timeout_after_old_stop_before_park_restores_original(self):
+        self.txn = transaction(candidate_id=None, phase="OLD_MANAGER_STOP")
+        self.current.containers["greenhouse-manager"] = self.current.containers.pop(deploy.PARKED_NAME)
+        self.current.containers["greenhouse-manager"]["State"]["Running"] = False
+        recovery.supervised_stop_post(self.private)
+        self.assertEqual(self.current.actions, [])
+        self.assertTrue(self.current.containers["greenhouse-manager"]["State"]["Running"])
+        self.assertEqual(self.current.broker_current["Id"], "broker-id")
+
+    def test_supervisor_timeout_after_park_restores_original(self):
+        self.txn = transaction(candidate_id=None, phase="OLD_MANAGER_PARKED_NOT_DELETED")
+        del self.current.containers["greenhouse-manager"]
+        recovery.supervised_stop_post(self.private)
+        self.assertEqual([action[0] for action in self.current.actions], ["rename"])
+        self.assertEqual(self.current.containers["greenhouse-manager"]["Id"], "old-id")
+        self.assertTrue(self.current.containers["greenhouse-manager"]["State"]["Running"])
+
+    def test_supervisor_timeout_rollback_docker_failure_not_pass(self):
+        self.txn = transaction(phase="NEW_MANAGER_STARTED")
+        self.current.fail_action = "stop"
+        with self.assertRaisesRegex(recovery.RecoveryStop, "INJECTED_DOCKER_FAILURE"):
+            recovery.supervised_stop_post(self.private)
+        self.assertFalse((self.private / deploy.STATE_FILE).exists())
+        self.assertEqual(self.current.containers["greenhouse-manager"]["Id"], "new-id")
+
     def test_candidate_stop_failure_fails_closed(self):
         self.current.fail_action = "stop"
         with self.assertRaisesRegex(recovery.RecoveryStop, "INJECTED_DOCKER_FAILURE"):
