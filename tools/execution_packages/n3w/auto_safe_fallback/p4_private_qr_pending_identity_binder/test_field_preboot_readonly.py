@@ -250,25 +250,29 @@ class FieldPrebootTests(unittest.TestCase):
             cred = Path(tmp) / "credential.sqlite3"
             with sqlite3.connect(reg) as db:
                 for table in ("registrations", "pairing_sessions", "registration_events", "registration_node_history", "node_id_leases", "retirement_outbox"):
-                    if table == "pairing_sessions":
-                        db.execute("CREATE TABLE pairing_sessions (hardware_id TEXT, state TEXT)")
-                    else:
-                        db.execute("CREATE TABLE " + table + " (hardware_id TEXT)")
+                    fields = sorted(namespace["REQUIRED_COLUMNS"][table])
+                    db.execute("CREATE TABLE " + table + " (" + ", ".join(col + " TEXT" for col in fields) + ")")
                 for i in range(5):
-                    db.execute("INSERT INTO registrations VALUES (?)", ("synthetic-node-" + str(i),))
+                    db.execute("INSERT INTO registrations (hardware_id) VALUES (?)", ("synthetic-node-" + str(i),))
             with sqlite3.connect(cred) as db:
-                db.execute("CREATE TABLE credential_assignments (hardware_id TEXT)")
+                fields = sorted(namespace["REQUIRED_COLUMNS"]["credential_assignments"])
+                db.execute("CREATE TABLE credential_assignments (" + ", ".join(col + " TEXT" for col in fields) + ")")
             expected = frozenset(hashlib.sha256(("synthetic-node-" + str(i)).encode()).hexdigest() for i in range(5))
             self.assertEqual(namespace["_five_identity_snapshot"](reg, cred, expected), expected)
             with sqlite3.connect(reg) as db:
-                db.execute("INSERT INTO pairing_sessions VALUES (?, ?)", ("synthetic-node-5", "pending"))
+                db.execute("INSERT INTO pairing_sessions (hardware_id, state) VALUES (?, ?)", ("synthetic-node-5", "pending"))
             with self.assertRaisesRegex(Exception, "PREBOOT_PENDING_PRESENT"):
                 namespace["_five_identity_snapshot"](reg, cred, expected)
             with sqlite3.connect(reg) as db:
                 db.execute("DELETE FROM pairing_sessions")
-                db.execute("INSERT INTO registrations VALUES (?)", ("synthetic-node-5",))
+                db.execute("INSERT INTO registrations (hardware_id) VALUES (?)", ("synthetic-node-5",))
             with self.assertRaisesRegex(Exception, "PREBOOT_IDENTITY_CHANGED"):
                 namespace["_five_identity_snapshot"](reg, cred, expected)
+            missing = Path(tmp) / "missing.sqlite3"
+            with sqlite3.connect(missing) as db:
+                db.execute("CREATE TABLE registrations (hardware_id TEXT)")
+            with self.assertRaisesRegex(Exception, "PREBOOT_SCHEMA_INVALID"):
+                namespace["_five_identity_snapshot"](missing, cred, expected)
 
 
 if __name__ == "__main__":
