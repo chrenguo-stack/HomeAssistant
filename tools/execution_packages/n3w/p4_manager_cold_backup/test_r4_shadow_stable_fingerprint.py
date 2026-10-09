@@ -15,6 +15,66 @@ def fixture_shadow():
 
 
 class R4StableFingerprintTests(unittest.TestCase):
+    def _synthetic_r4_review(self):
+        return {
+            "r3_seal_file_sha256": "a" * 64,
+            "r2_journal_sha256": "b" * 64,
+            "r2_stable_shadow_sha256": "c" * 64,
+            "r2_shadow_container_id": "r2-shadow-id",
+            "r2_original_manager_id": "original-manager-id",
+            "r2_broker_container_id": "broker-id",
+            "legacy_full_inspect_digest_mismatch": True,
+        }
+
+    def test_r4_seal_cannot_be_overwritten_and_revalidation_rejects_drift(self):
+        with tempfile.TemporaryDirectory() as path:
+            private = Path(path)
+            review = self._synthetic_r4_review()
+            with patch.object(fingerprint, "verify_r3_no_cutover_and_history_intact"):
+                with patch.object(fingerprint, "verify_legacy_r3_seal_readonly", return_value=review):
+                    fingerprint.seal_r3_for_r4(private)
+                    saved_path = private / fingerprint.R4_SEAL_FILE
+                    original = saved_path.read_bytes()
+                    self.assertEqual(saved_path.stat().st_mode & 0o777, 0o600)
+                    fingerprint.require_r4_seal(private)
+                    with self.assertRaisesRegex(fingerprint.FingerprintStop, "R4_FORENSIC_SEAL_ALREADY_EXISTS_NO_REPLAY"):
+                        fingerprint.seal_r3_for_r4(private)
+                    self.assertEqual(original, saved_path.read_bytes())
+                new_review = dict(review, r2_stable_shadow_sha256="d" * 64)
+                with patch.object(fingerprint, "verify_legacy_r3_seal_readonly", return_value=new_review):
+                    with self.assertRaisesRegex(fingerprint.FingerprintStop, "R4_SEAL_PROTECTED_STATE_DRIFT"):
+                        fingerprint.require_r4_seal(private)
+                altered_history = dict(review, r3_seal_file_sha256="e" * 64)
+                with patch.object(fingerprint, "verify_legacy_r3_seal_readonly", return_value=altered_history):
+                    with self.assertRaisesRegex(fingerprint.FingerprintStop, "R4_SEAL_PROTECTED_STATE_DRIFT"):
+                        fingerprint.require_r4_seal(private)
+                self.assertEqual(original, saved_path.read_bytes())
+
+    def test_missing_r4_seal_never_allows_deployment_preflight(self):
+        with tempfile.TemporaryDirectory() as path:
+            private = Path(path)
+            with self.assertRaisesRegex(fingerprint.FingerprintStop, "R4_SEAL_NOT_PRESENT_OR_INSECURE"):
+                fingerprint.require_r4_seal(private)
+
+    def test_r3_cutover_residue_blocks_r4_with_no_mutation(self):
+        with tempfile.TemporaryDirectory() as path:
+            private = Path(path)
+            stage = private / fingerprint.R3_STAGE
+            stage.mkdir(mode=0o700)
+            with patch.object(fingerprint.deploy, "container_exists", return_value=False):
+                fingerprint.verify_r3_no_cutover_and_history_intact(private)
+                (private / fingerprint.R3_TRANSACTION_FILE).write_text("historical")
+                with self.assertRaisesRegex(fingerprint.FingerprintStop, "R3_HISTORICAL_TRANSACTION_OR_DATA_UNEXPECTED"):
+                    fingerprint.verify_r3_no_cutover_and_history_intact(private)
+                (private / fingerprint.R3_TRANSACTION_FILE).unlink()
+                (private / fingerprint.R3_FRESH_BASE).mkdir()
+                with self.assertRaisesRegex(fingerprint.FingerprintStop, "R3_HISTORICAL_TRANSACTION_OR_DATA_UNEXPECTED"):
+                    fingerprint.verify_r3_no_cutover_and_history_intact(private)
+                (private / fingerprint.R3_FRESH_BASE).rmdir()
+            with patch.object(fingerprint.deploy, "container_exists", side_effect=lambda name: name == fingerprint.R3_FAILED):
+                with self.assertRaisesRegex(fingerprint.FingerprintStop, "R3_HISTORICAL_DEPLOYMENT_CONTAINER_EXISTS"):
+                    fingerprint.verify_r3_no_cutover_and_history_intact(private)
+
     def test_dynamic_docker_inspect_fields_do_not_change_fingerprint(self):
         shadow = fixture_shadow()
         before = fingerprint.stable_shadow_sha256(shadow)
