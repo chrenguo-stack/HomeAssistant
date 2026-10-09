@@ -16,6 +16,7 @@ import cold_snapshot as snapshot
 import controlled_window as window
 import cutover_contract as contract
 import fresh_manager_deploy as deploy
+import fresh_manager_recovery as recovery
 import fresh_manager_systemd_unit as unit
 
 WAIT_LIMIT_SECONDS = 430
@@ -226,8 +227,19 @@ def execute(private: Path) -> None:
     )
     print("FRESH_MANAGER_TRANSACTION_SUBMITTED=true")
     wait_for_unit()
-    verify_success(private)
-    remove_success_unit()
+    try:
+        verify_success(private)
+        remove_success_unit()
+    except (OperatorStop, deploy.DeployStop, recovery.RecoveryStop,
+            snapshot.Stop, window.WindowStop, contract.CutoverStop,
+            OSError, ValueError, KeyError, subprocess.TimeoutExpired) as error:
+        try:
+            recovery.rollback_after_operator_final_check_failure(private)
+        except (OperatorStop, deploy.DeployStop, recovery.RecoveryStop,
+                snapshot.Stop, window.WindowStop, contract.CutoverStop,
+                OSError, ValueError, KeyError, subprocess.TimeoutExpired) as rollback_error:
+            raise OperatorStop("FINAL_VERIFICATION_FAILED_ROLLBACK_INCOMPLETE") from rollback_error
+        raise OperatorStop("FINAL_VERIFICATION_FAILED_OLD_MANAGER_RESTORED") from error
     print("FRESH_MANAGER_ONE_SHOT_DEPLOYMENT=PASS")
     print("FRESH_MANAGER_PREBOOT_BASELINE=0_0_0_AND_EMPTY_RELAY_KEYS")
     print("BROKER_RESTARTED=false")
@@ -312,6 +324,7 @@ if __name__ == "__main__":
     except (
         OperatorStop,
         deploy.DeployStop,
+        recovery.RecoveryStop,
         snapshot.Stop,
         window.WindowStop,
         contract.CutoverStop,
@@ -322,7 +335,7 @@ if __name__ == "__main__":
     ) as error:
         if isinstance(
             error,
-            (OperatorStop, deploy.DeployStop, snapshot.Stop, window.WindowStop, contract.CutoverStop),
+            (OperatorStop, deploy.DeployStop, recovery.RecoveryStop, snapshot.Stop, window.WindowStop, contract.CutoverStop),
         ):
             code = str(error)
         else:
