@@ -54,7 +54,9 @@ def test_import_still_accepts_exact_pending_before_expiry(ready):
 def test_import_rejects_at_or_after_expiry_without_secret_mutation(ready, seconds):
     _, coordinator = ready
     with pytest.raises(SimplifiedPairingConflict, match="registration_expired"):
-        coordinator.import_setup_secret(HARDWARE, PAIR, setup_secret=SECRET, now=NOW + timedelta(seconds=seconds))
+        coordinator.import_setup_secret(
+            HARDWARE, PAIR, setup_secret=SECRET, now=NOW + timedelta(seconds=seconds)
+        )
     assert coordinator._setup == {}
 
 
@@ -92,7 +94,9 @@ def test_conflicting_import_is_not_replaced(ready):
     _, coordinator = ready
     coordinator.import_setup_secret(HARDWARE, PAIR, setup_secret=SECRET, now=NOW + timedelta(seconds=1))
     with pytest.raises(SimplifiedPairingConflict, match="setup_secret_conflicting_import"):
-        coordinator.import_setup_secret(HARDWARE, PAIR, setup_secret=bytes([4]) * 32, now=NOW + timedelta(seconds=2))
+        coordinator.import_setup_secret(
+            HARDWARE, PAIR, setup_secret=bytes([4]) * 32, now=NOW + timedelta(seconds=2)
+        )
     assert bytes(coordinator._setup[(HARDWARE, PAIR)]) == SECRET
 
 
