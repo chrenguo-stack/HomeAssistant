@@ -1277,3 +1277,134 @@ LIVE_COLD_SNAPSHOT=false
 ISOLATED_RESTORE_REAL_DATA=false
 MANAGER_UPGRADE=false
 ```
+
+## 24. 生产三库元数据已核实；核对文件打开者是否属于原 Manager 进程树（2026-10-09）
+
+T1 操作者现场返回：
+
+```text
+DB_REGISTRATION_MAIN=PASS
+DB_REGISTRATION_MAIN_PRESENT=true
+DB_REGISTRATION_MAIN_OPEN_BY_PROCESS=true
+DB_REGISTRATION_MAIN_SIZE_KIB=660
+DB_REGISTRATION_WAL_PRESENT=false
+DB_REGISTRATION_SHM_PRESENT=false
+DB_CREDENTIAL_MAIN=PASS
+DB_CREDENTIAL_MAIN_PRESENT=true
+DB_CREDENTIAL_MAIN_OPEN_BY_PROCESS=true
+DB_CREDENTIAL_MAIN_SIZE_KIB=28
+DB_CREDENTIAL_WAL_PRESENT=false
+DB_CREDENTIAL_SHM_PRESENT=false
+DB_REPLAY_MAIN=PASS
+DB_REPLAY_MAIN_PRESENT=true
+DB_REPLAY_MAIN_OPEN_BY_PROCESS=true
+DB_REPLAY_MAIN_SIZE_KIB=7944
+DB_REPLAY_WAL_PRESENT=false
+DB_REPLAY_SHM_PRESENT=false
+THREE_PRODUCTION_DB_METADATA_PREFLIGHT=PASS
+BUSINESS_IDENTITY_COUNTS=NOT_READ
+CONSISTENT_DATA_BACKUP=NOT_STARTED
+```
+
+结论：三个主数据库都存在，被某些进程打开，全部 -wal/-shm 当前不存在。**不意味着数据库损坏或复制失败**；并不表示 manager 一定是唯一打开者、也不表示 SQLite 同一时间点快照已经存在。WAL/SHM 可能动态出现。暂时不能单凭 `OPEN_BY_PROCESS=true` 断定打开者身份。
+
+### 24.1 下一步只读打开者归属检查（不输出 PID 和真实 Host Source）
+
+从 Docker metadata 取 Manager 的**宿主机 PID**和三 DB 对应宿主机 Source，使用 `fuser` 返回的 PID，经 `/proc/<pid>/status` 的 PPid 链确定是否属于 Manager 进程树。当前仍不打开 SQLite 数据库（`fuser` 和 `stat` 仅检查进程与元数据）、不读取真实身份/凭据/高水位、不修改任何生产服务、不向 stdout 输出任何 PID、Host Source、环境秘密或数据库内容。若 PID 在观测窗口已消失或归属不明确，立即 STOP，不归类为产品故障。此检查只能确认**当前观察到的文件打开者**，不能排除未来定时启动的宿主写入者；正式受控停写窗口需再次确认零打开者并进行源稳定性前后对比。
+
+Mac Terminal：
+
+```bash
+printf 'T1 SSH 目标：'
+IFS= read -r T1_SSH
+ssh -T "$T1_SSH" 'python3 -B -' <<'PY'
+import json
+import re
+import subprocess
+from pathlib import Path
+
+def docker_state(name):
+    p = subprocess.run(
+        ["docker", "inspect", "--type", "container", name],
+        capture_output=True, text=True, check=True, timeout=10,
+    )
+    x = json.loads(p.stdout)[0]
+    return x, (x["Id"], x["Image"], x["State"]["StartedAt"], x["RestartCount"], x["State"]["Running"])
+
+manager, old_manager = docker_state("greenhouse-manager")
+broker, old_broker = docker_state("n3wfc4-broker-1")
+if not old_manager[-1] or not old_broker[-1]:
+    raise SystemExit("PRODUCTION_CONTAINER_NOT_RUNNING_STOP=true")
+
+root_pid = int(manager["State"]["Pid"])
+if root_pid <= 1:
+    raise SystemExit("MANAGER_HOST_PID_INVALID_STOP=true")
+
+mounts = {m["Destination"]: Path(m["Source"]) for m in manager["Mounts"]}
+specs = (
+    ("REGISTRATION", "/var/lib/greenhouse-manager-registration", "registration.sqlite3"),
+    ("CREDENTIAL", "/var/lib/greenhouse-manager/n3w", "credential-lifecycle.sqlite3"),
+    ("REPLAY", "/var/lib/greenhouse-manager/n3w", "replay.sqlite3"),
+)
+
+def belongs_to_manager(pid):
+    visited = set()
+    for _ in range(128):
+        if pid == root_pid:
+            return True
+        if pid <= 1 or pid in visited:
+            return False
+        visited.add(pid)
+        status = Path("/proc") / str(pid) / "status"
+        try:
+            data = status.read_text()
+        except OSError:
+            raise SystemExit("PROCESS_IDENTITY_RACE_STOP=true")
+        match = re.search(r"^PPid:\s*(\d+)\s*$", data, flags=re.MULTILINE)
+        if match is None:
+            raise SystemExit("PROCESS_PARENT_UNREADABLE_STOP=true")
+        pid = int(match.group(1))
+    raise SystemExit("PROCESS_PARENT_DEPTH_STOP=true")
+
+for label, dest, name in specs:
+    db = mounts[dest] / name
+    if not db.is_file() or db.is_symlink():
+        raise SystemExit("DB_MAIN_LAYOUT_DRIFT_STOP=" + label)
+    p = subprocess.run(["fuser", str(db)], capture_output=True, text=True, timeout=10)
+    tokens = p.stdout.split()
+    if p.returncode not in (0, 1) or (p.returncode == 0 and not tokens) or (p.returncode == 1 and tokens):
+        raise SystemExit("FUSER_RESULT_UNCERTAIN_STOP=" + label)
+    if any(not token.isdecimal() for token in tokens):
+        raise SystemExit("FUSER_PID_FORMAT_UNEXPECTED_STOP=" + label)
+    pids = {int(token) for token in tokens}
+    owned = sum(belongs_to_manager(pid) for pid in pids)
+    unknown = len(pids) - owned
+    print(f"DB_{label}_OPENERS_COUNT={len(pids)}")
+    print(f"DB_{label}_MANAGER_PROCESS_TREE_OPENERS={owned}")
+    print(f"DB_{label}_OTHER_OR_UNCLASSIFIED_OPENERS={unknown}")
+    if unknown:
+        raise SystemExit("OTHER_OR_UNCLASSIFIED_DB_OPENER_STOP=" + label)
+
+_, new_manager = docker_state("greenhouse-manager")
+_, new_broker = docker_state("n3wfc4-broker-1")
+if old_manager != new_manager or old_broker != new_broker:
+    raise SystemExit("CONTAINER_STATE_DRIFT_STOP=true")
+print("THREE_DB_CURRENT_OPENER_OWNERSHIP_PREFLIGHT=PASS")
+print("MANAGER_BROKER_UNCHANGED=PASS")
+print("CONSISTENT_DATA_BACKUP=NOT_STARTED")
+PY
+```
+
+三份 DB 当前已经报告 `OPEN_BY_PROCESS=true`，预期每个 `OPENERS_COUNT` 大于 0，全部归属于当前 Manager 进程树，`OTHER_OR_UNCLASSIFIED_OPENERS=0`。如果观察进程在检查中自然退出而触发 `PROCESS_IDENTITY_RACE_STOP`，保留失败证据并复核命令条件；不自动修改 Docker 或数据库。即使所有打开者均属于 Manager，**也不代表系统中不会有未打开文件的定时写入程序**，更不授权停机。下一阶段需要与恢复窗口/业务库语义快照一起复核。
+
+```text
+THREE_LIVE_DB_MAIN_METADATA=PASS
+LIVE_WAL_SHM_PRESENT=false
+LIVE_THREE_DB_OPENERS=OBSERVED
+OPENER_OWNERSHIP_CLASSIFICATION=PENDING
+BUSINESS_IDENTITY_AND_REPLAY_HIGH_WATER=NOT_CHECKED
+COLD_SNAPSHOT=false
+ISOLATED_RESTORE=false
+MANAGER_STOP=false
+UNIT_INSTALLED=false
+```
