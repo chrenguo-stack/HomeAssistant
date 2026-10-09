@@ -146,12 +146,34 @@ def recover_original(private: Path) -> None:
     print("AUTO_RETRY=false")
 
 
+def supervised_stop_post(private: Path) -> None:
+    state = load_state(private)
+    if state is None or state.get("committed") is not True:
+        recover_original(private)
+        return
+    try:
+        recover_original(private)
+        return
+    except (RecoveryStop, deploy.DeployStop, contract.CutoverStop, snapshot.Stop,
+            window.WindowStop, OSError, ValueError, KeyError):
+        interrupted = dict(state)
+        interrupted["committed"] = False
+        interrupted["supervised_post_commit_verification_failed"] = True
+        deploy._atomic_json(private / deploy.STATE_FILE, interrupted)
+    recover_original(private)
+    raise RecoveryStop("POST_COMMIT_SUPERVISOR_VERIFICATION_FAILED_ROLLED_BACK")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--private-root", required=True)
+    parser.add_argument("--systemd-stop-post", action="store_true")
     args = parser.parse_args()
     private = snapshot.private_root(args.private_root)
-    recover_original(private)
+    if args.systemd_stop_post:
+        supervised_stop_post(private)
+    else:
+        recover_original(private)
 
 
 if __name__ == "__main__":
