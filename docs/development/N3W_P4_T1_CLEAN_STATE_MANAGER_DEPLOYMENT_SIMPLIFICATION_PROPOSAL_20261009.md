@@ -1,10 +1,10 @@
-# N3-W P4 — 使用空白业务数据部署新版 Manager 的简化备选方案（2026-10-09）
+# N3-W P4 — 使用空白业务数据部署新版 Manager 的已批准技术路线（2026-10-09）
 
 ## 背景与状态
 
 用户提出：当前旧 Manager 数据可能已没有继续保留于新系统的价值，是否可以**全新部署**以尽快继续首次配对，而不做历史配对/凭据/replay 迁移。
 
-本文件为**方案建议，不是弃用历史身份的最终授权，也不是生产停止、清库或部署授权**。此前生产 R5 三来源冷备份、隔离恢复和原版 Manager 恢复仍然 CLOSED_PASS，不重复执行。所有 ESP32-C6 已长期断电且没有接入传感器；静默遥测检查不再阻断部署计划。
+用户已明确同意**新 Manager 不继承旧设备历史配对关系**；本文件现为已选定技术方向，**不是生产停止、删除旧库、清理 Broker 或部署授权**。此前生产 R5 三来源冷备份、隔离恢复和原版 Manager 恢复仍然 CLOSED_PASS，不重复执行。所有 ESP32-C6 已长期断电且没有接入传感器；静默遥测检查不再阻断部署计划。
 
 ## 核心结论
 
@@ -29,18 +29,18 @@
 - 不必在新的部署窗口为了迁移再次暂停旧 Manager 复制三库并比对业务状态。
 - **仍必须保留**：旧容器/配置归档、候选 exact image 与 6 mount binding、独立数据目录、Broker 不变、自动 STOP/原版恢复、第一次新库初始化及新基线检查。
 
-## 尚需确认的唯一业务决策
+## 已确认的业务决策
 
-旧版已经配对的节点是否允许将来**重新作为新设备配对**，而不保留它们在旧 Manager 的 NODE_ID 和旧 MQTT credentials？若用户同意，Manager-only 空白状态方案可取代旧数据迁移方案。真实 T1 替换操作仍需要单独明确授权。
+用户确认允许放弃旧版 Manager 的历史配对关系。今后如果使用旧设备，需要执行独立授权的重新配对流程，不继承旧的 NODE_ID 和 MQTT credentials；历史上不符合 clean-board 资格的板子不能冒充全新产品板。真正替换 T1 Manager 仍需单独批准。
 
 ```text
-PROPOSAL=CLEAN_MANAGER_STATE_FRESH_DEPLOY
-LEGACY_PAIRED_NODES_IN_NEW_MANAGER=DISCARDED_IF_USER_AGREES
+DECISION=CLEAN_MANAGER_STATE_FRESH_DEPLOY_APPROVED
+LEGACY_PAIRED_NODES_IN_NEW_MANAGER=DISCARDED_BY_USER_DECISION
 BROKER_AND_T1_INFRASTRUCTURE=KEEP
 OLD_MANAGER_AND_R5_BACKUP=KEEP_ROOT_PRIVATE
 OLD_IDENTITY_PREBOOT_BINDING=REBASE_AFTER_FRESH_MANAGER
 CANDIDATE_SOURCE=3d86d6bfaf361dc3a3d7295d046f541a544d552d
-PRODUCT_RUNTIME_CLEAN_DEPLOY_SOURCE_DESIGN=PENDING_CONFIRMATION
+PRODUCT_RUNTIME_CLEAN_DEPLOY_SOURCE_DESIGN=SOURCE_CONTRACT_READY_EXECUTOR_PENDING
 LIVE_MANAGER_REPLACEMENT_AUTHORIZED=false
 BROKER_MUTATION=false
 ESP32_FIRST_BOOT=false
@@ -71,3 +71,5 @@ LIVE_MANAGER_REPLACEMENT_AUTHORIZED=false
 **注意**：新产品 Manager 即使空白，既有 Broker DynSec 账号/ACL/retained 消息仍然存在。若未来重新使用历史板，其设备侧的旧配对配置并不会自动失效；必须通过单独授权和真实清理/重新配对流程处理，不能默默复用旧身份。原有 clean-board eligibility 合同（不能重用曾被禁止的历史 P4 板冒充干净板）继续有效。
 
 下一实施门：编写精确候选镜像和原运行配置复制的**一次性 Manager-only 空白部署与旧容器原状态回退执行器**，完成 synthetic fail/recovery tests 后再唯一一次请求生产替换授权。不得将早期“三库历史迁移克隆”设计当作有效执行路线。
+
+新 QR↔PENDING 绑定接口的兼容修改已在 `bridge_handoff.py` 中支持**显式零身份基线**，由 `bind_clean_terminal_projection` 拒绝带旧五身份历史集的快照。其原有五身份路径仍可用于只读历史测试，但不得复用在新 Manager。新增 3 个源端合成回归验证零身份绑定有效、旧五身份不能误入和假造历史数量被拦截；真实部署后的新空库基线仍必须绑定运行中唯一 Manager 的新只读快照并重新计算私有哈希，不能复用旧版五身份文件或凭据。
