@@ -21,7 +21,7 @@ from .n3w_simple_pairing_crypto import (
     verify_setup_proof,
 )
 from .n3w_simplified_credentials import SimplifiedProductCredentialBundle
-from .registration import RegistrationRegistry, RegistrationState
+from .registration import RegistrationConflict, RegistrationRegistry, RegistrationState
 
 
 def _b64(value: bytes) -> str:
