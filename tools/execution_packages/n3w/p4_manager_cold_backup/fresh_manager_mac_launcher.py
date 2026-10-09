@@ -246,7 +246,10 @@ def main() -> None:
         archive = pack_files(fetch_scripts())
         print("SOURCE_EXACT_NINE_FILES=PASS", flush=True)
         print("R5_PRIVATE_AND_LIVE_PREFLIGHT=AUTOMATED", flush=True)
-        print(execute(target, archive), flush=True)
+        outcome = execute(target, archive)
+        print(outcome, flush=True)
+        if outcome != "T1_FRESH_MANAGER=PASS":
+            raise SystemExit(1)
     except (RuntimeError, OSError, ValueError, urllib.error.URLError):
         print("T1_FRESH_MANAGER=STOP:MAC_SOURCE_OR_TARGET_PREFLIGHT_FAILED", flush=True)
         raise SystemExit(1)
