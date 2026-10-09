@@ -79,6 +79,7 @@ def controlled_recovery(
     exact_recovery_authorized: bool
 ) -> RecoveryResult:
     require(exact_recovery_authorized is True, "RECOVERY_NOT_AUTHORIZED")
+    require(not state.uncertain, "JOURNAL_DURABILITY_UNKNOWN_FROZEN")
     result = read_only_reconcile(state, authority, ops)
     if result.status != "UNKNOWN_FROZEN":
         return result
