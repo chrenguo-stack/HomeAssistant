@@ -21,7 +21,7 @@ from .n3w_simple_pairing_crypto import (
     verify_setup_proof,
 )
 from .n3w_simplified_credentials import SimplifiedProductCredentialBundle
-from .registration import RegistrationRegistry, RegistrationState
+from .registration import RegistrationConflict, RegistrationRegistry, RegistrationState
 
 
 def _b64(value: bytes) -> str:
@@ -196,22 +196,26 @@ class SimplifiedPairingCoordinator:
         pairing_id: str,
         *,
         setup_secret: bytes,
+        now: datetime | None = None,
     ) -> None:
         if not isinstance(setup_secret, bytes) or len(setup_secret) != 32:
             raise SimplifiedPairingRejected("setup_secret_invalid")
-        record = self.registry.get(hardware_id)
-        if record.pairing_id != pairing_id or record.state is not RegistrationState.PENDING:
-            raise SimplifiedPairingConflict("registration_not_pending")
         key = (hardware_id, pairing_id)
         with self._lock:
-            existing = self._setup.get(key)
-            if existing is not None:
-                if secrets.compare_digest(bytes(existing), setup_secret):
-                    return
-                raise SimplifiedPairingConflict(
-                    "setup_secret_conflicting_import"
-                )
-            self._setup[key] = bytearray(setup_secret)
+            try:
+                with self.registry.pending_import_guard(
+                    hardware_id, pairing_id, now=now
+                ):
+                    existing = self._setup.get(key)
+                    if existing is not None:
+                        if secrets.compare_digest(bytes(existing), setup_secret):
+                            return
+                        raise SimplifiedPairingConflict(
+                            "setup_secret_conflicting_import"
+                        )
+                    self._setup[key] = bytearray(setup_secret)
+            except RegistrationConflict as error:
+                raise SimplifiedPairingConflict(str(error)) from error
 
     def authorize_repair(
         self,

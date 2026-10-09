@@ -312,6 +312,7 @@ def test_epoch3_registered_recovery_stops_before_staging_and_preserves_identity(
             HARDWARE_ID,
             PAIRING_3,
             setup_secret=SETUP_SECRET,
+            now=NOW + timedelta(seconds=74),
         )
         node_nonce = bytes([0x71]) * 16
         offer = coordinator.begin(
