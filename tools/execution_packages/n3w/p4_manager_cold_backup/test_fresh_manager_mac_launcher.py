@@ -27,16 +27,16 @@ class LauncherTests(unittest.TestCase):
     def test_r4_immutable_source_and_forensic_seal_private_stage_are_bound(self):
         self.assertEqual(
             launcher.SOURCE_HEAD,
-            "938ff0686a02e3633f96d6e421789ecdd4cabefd",
+            "1528ae970974fd711f8a8a6441c29817a118d825",
         )
         self.assertEqual(
             launcher.EXPECTED["fresh_manager_deploy.py"],
-            "d7aa3775a6a15c42db53f3283a8d4159c5811ee7",
+            "e8dba98e0688a227234d39b5fb5b56087d6d4f46",
         )
-        self.assertEqual(launcher.EXPECTED["fresh_manager_operator.py"], "5527b38e28ac7f92ba533a06da9ed3042f6ff962")
+        self.assertEqual(launcher.EXPECTED["fresh_manager_operator.py"], "1c4a3f4cc5b0f5ef39546e84b3bfa92755ddf138")
         self.assertEqual(
             launcher.EXPECTED["fresh_manager_systemd_unit.py"],
-            "c73fa07dbbf0239e7e40c2e20af902dcb156c392",
+            "4a5f84cad7616e9783141eafd1736203c5357e31",
         )
         self.assertIn(
             'STAGE_NAME = "p4-fresh-manager-deploy-r4"',
@@ -55,6 +55,9 @@ class LauncherTests(unittest.TestCase):
             launcher.REMOTE_CODE,
         )
         self.assertIn("safe_r4_failure_evidence(private)", launcher.REMOTE_CODE)
+        self.assertEqual(launcher.MAX_REMOTE_SECONDS, 920)
+        self.assertIn("REMOTE_PREFLIGHT_SECONDS = 120", launcher.REMOTE_CODE)
+        self.assertIn("REMOTE_EXECUTE_SECONDS = 660", launcher.REMOTE_CODE)
 
     def test_remote_program_is_syntactically_valid(self):
         source = launcher.REMOTE_CODE.replace("__EXPECTED__", repr(launcher.EXPECTED))
