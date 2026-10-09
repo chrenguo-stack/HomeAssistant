@@ -10,6 +10,8 @@ import os
 import re
 import stat
 import subprocess
+import tempfile
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -28,7 +30,7 @@ PRIVATE_BASELINE = (
     / "N3W_CLEAN_PRODUCT_FIRST_PAIR_P4_PREBOOT_RUNTIME_CONTINUITY_READONLY_20261008_01"
     / "manager_preboot_identity_snapshot.json"
 )
-APPROVED_R5A_SOURCE_GIT_BLOB = ""
+FIELD_H2_LIVE_EXECUTION_ENABLED = False
 APPROVED_KNOWN_HOSTS_SHA256 = ""
 APPROVED_T1_HOST_KEY_FINGERPRINT = ""
 READONLY_RUNTIME_FUNCTIONS = ("_cmd", "_container", "_env", "_path", "_assert_runtime")
@@ -274,7 +276,8 @@ def _trusted_target(target: str, probe: bytes) -> str:
     return ip
 
 
-def _host_key_check(ip: str, known_hosts_path: Path) -> None:
+@contextmanager
+def _verified_known_hosts(ip: str, known_hosts_path: Path):
     if not APPROVED_KNOWN_HOSTS_SHA256 or not APPROVED_T1_HOST_KEY_FINGERPRINT:
         raise ValueError("HOST_KEY_AUTHORITY_NOT_FROZEN")
     path = known_hosts_path
@@ -286,35 +289,48 @@ def _host_key_check(ip: str, known_hosts_path: Path) -> None:
             raise ValueError("HOST_KEY_FILE_INVALID")
     except OSError:
         raise ValueError("HOST_KEY_FILE_INVALID") from None
-    _regular_pinned(path, APPROVED_KNOWN_HOSTS_SHA256, git=False)
-    try:
-        found = subprocess.run(
-            ["ssh-keygen", "-F", ip, "-f", str(path)],
-            capture_output=True, check=False, timeout=5,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        raise ValueError("HOST_KEY_LOOKUP_FAILED") from None
-    if found.returncode != 0 or len(found.stdout) > 8192 or len(found.stderr) > 8192:
-        raise ValueError("HOST_KEY_LOOKUP_FAILED")
-    lines = [line.split() for line in found.stdout.decode("ascii").splitlines() if line and not line.startswith("#")]
-    if len(lines) != 1 or len(lines[0]) < 3 or lines[0][1] not in (
-        "ssh-ed25519", "ecdsa-sha2-nistp256", "ssh-rsa",
-    ):
-        raise ValueError("HOST_KEY_NOT_UNIQUE")
-    try:
-        key = base64.b64decode(lines[0][2], validate=True)
-        fingerprint = "SHA256:" + base64.b64encode(hashlib.sha256(key).digest()).decode("ascii").rstrip("=")
-    except (ValueError, UnicodeError):
-        raise ValueError("HOST_KEY_INVALID") from None
-    if not hmac.compare_digest(fingerprint, APPROVED_T1_HOST_KEY_FINGERPRINT):
-        raise ValueError("HOST_KEY_MISMATCH")
+    original_bytes = _regular_pinned(path, APPROVED_KNOWN_HOSTS_SHA256, git=False)
+    with tempfile.TemporaryFile(mode="w+b") as snapshot:
+        snapshot.write(original_bytes)
+        snapshot.flush()
+        snapshot.seek(0)
+        fd = snapshot.fileno()
+        verified_fd_path = "/dev/fd/" + str(fd)
+        try:
+            found = subprocess.run(
+                ["ssh-keygen", "-F", ip, "-f", verified_fd_path],
+                capture_output=True, check=False, timeout=5, pass_fds=(fd,),
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            raise ValueError("HOST_KEY_LOOKUP_FAILED") from None
+        if found.returncode != 0 or len(found.stdout) > 8192 or len(found.stderr) > 8192:
+            raise ValueError("HOST_KEY_LOOKUP_FAILED")
+        try:
+            lines = [
+                line.split() for line in found.stdout.decode("ascii").splitlines()
+                if line and not line.startswith("#")
+            ]
+            if len(lines) != 1 or len(lines[0]) < 3 or lines[0][1] not in (
+                "ssh-ed25519", "ecdsa-sha2-nistp256", "ssh-rsa",
+            ):
+                raise ValueError("HOST_KEY_NOT_UNIQUE")
+            key = base64.b64decode(lines[0][2], validate=True)
+            fingerprint = "SHA256:" + base64.b64encode(
+                hashlib.sha256(key).digest()
+            ).decode("ascii").rstrip("=")
+        except (ValueError, UnicodeError):
+            raise ValueError("HOST_KEY_INVALID") from None
+        if not hmac.compare_digest(fingerprint, APPROVED_T1_HOST_KEY_FINGERPRINT):
+            raise ValueError("HOST_KEY_MISMATCH")
+        snapshot.seek(0)
+        yield verified_fd_path, fd
 
+
+def _host_key_check(ip: str, known_hosts_path: Path) -> None:
+    with _verified_known_hosts(ip, known_hosts_path):
+        return None
 
 def mac_static_preflight(target: str, known_hosts_path: Path) -> tuple[str, frozenset[str], str]:
-    if not APPROVED_R5A_SOURCE_GIT_BLOB:
-        raise ValueError("R5A_SOURCE_NOT_INDEPENDENTLY_PINNED")
-    root = _source_root()
-    _regular_pinned(root / "field_preboot_readonly.py", APPROVED_R5A_SOURCE_GIT_BLOB, git=True)
     sources = _source_bytes()
     baseline = _private_snapshot()
     ip = _trusted_target(target, sources["remote_projection.py"])
@@ -361,23 +377,26 @@ def _validate_preboot_response(data: object, baseline: frozenset[str]) -> dict:
 
 
 def preboot_host_once(target: str, known_hosts_path: Path) -> dict:
-    program, baseline, _ = mac_static_preflight(target, known_hosts_path)
-    cmd = [
-        "ssh", "-F", "/dev/null", "-T",
-        "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes",
-        "-o", "UpdateHostKeys=no", "-o", "GlobalKnownHostsFile=/dev/null",
-        "-o", "UserKnownHostsFile=" + str(known_hosts_path),
-        "-o", "PasswordAuthentication=no", "-o", "KbdInteractiveAuthentication=no",
-        "-o", "ProxyCommand=none", "-o", "ProxyJump=none",
-        "-o", "ConnectTimeout=5", "--", target, "python3", "-",
-    ]
-    try:
-        result = subprocess.run(
-            cmd, input=program.encode("utf-8"), capture_output=True,
-            timeout=15, check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        raise ValueError("PREBOOT_SSH_UNKNOWN_STOP") from None
+    if FIELD_H2_LIVE_EXECUTION_ENABLED is not True:
+        raise ValueError("H2_LIVE_EXECUTION_DISABLED_UNTIL_SEPARATE_AUTHORIZATION")
+    program, baseline, ip = mac_static_preflight(target, known_hosts_path)
+    with _verified_known_hosts(ip, known_hosts_path) as (trusted_fd_path, trusted_fd):
+        cmd = [
+            "ssh", "-F", "/dev/null", "-T",
+            "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes",
+            "-o", "UpdateHostKeys=no", "-o", "GlobalKnownHostsFile=/dev/null",
+            "-o", "UserKnownHostsFile=" + trusted_fd_path,
+            "-o", "PasswordAuthentication=no", "-o", "KbdInteractiveAuthentication=no",
+            "-o", "ProxyCommand=none", "-o", "ProxyJump=none",
+            "-o", "ConnectTimeout=5", "--", target, "python3", "-",
+        ]
+        try:
+            result = subprocess.run(
+                cmd, input=program.encode("utf-8"), capture_output=True,
+                timeout=15, check=False, pass_fds=(trusted_fd,),
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            raise ValueError("PREBOOT_SSH_UNKNOWN_STOP") from None
     if (
         result.returncode != 0 or len(result.stdout) > 8192 or len(result.stderr) > 8192
     ):
