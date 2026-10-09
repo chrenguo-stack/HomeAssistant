@@ -474,3 +474,71 @@ echo P4_FIRST_NORMAL_BOOT=false
 ### 11.3 剩余生产部署前阻断条件
 
 真实替换前需另行实现：T1 当前容器完整私有 create config、nested binds/Env/secrets/UID/tmpfs/read-only 的版本化离线复制；旧镜像可恢复性；三数据库加 relay-keys 全部持久内容在受控无写入者窗口下做一致备份；还原到隔离数据根目录并验证 schema/五身份/回退；Broker 网络及 loopback TLS 不变；Manager 单服务替换与失败回退脚本。单凭本镜像已导入+CLI --help PASS **不准**直接重建生产 Manager，不准启动 P3 干净实板。
+
+## 12. T1 本地候选镜像构建实际成功：暂停离线导入路径（2026-10-09）
+
+操作者在 T1 完成 §10 原始镜像构建指令，随后执行独立只读查验：
+
+```text
+SOURCE_EXACT_HEAD_PREVIOUS=PASS
+CANDIDATE_IMAGE_PRESENT=true
+CANDIDATE_IMAGE_PLATFORM=linux/arm64
+CANDIDATE_IMAGE_BYTES=59097093
+CANDIDATE_IMAGE_REVISION=PASS
+CANDIDATE_SOURCE_SHA=3d86d6bfaf361dc3a3d7295d046f541a544d552d
+MANAGER_RUNNING=true
+MANAGER_RESTARTS=0
+BROKER_RUNTIME_MUTATION=NO_EVIDENCE_OF_CHANGE
+LIVE_MANAGER_IMAGE_REPLACEMENT=false
+T1_LOCAL_CANDIDATE_IMAGE=SELECTED
+GITHUB_ACTIONS_ARM64_ARTIFACT=SUCCESS_BUT_NOT_NEEDED
+P4_BOARD_FIRST_BOOT=false
+SECRET_IMPORT=false
+```
+
+这里应以**实际观察**为准：T1 先前成功拉取精确 GitHub 源码，且确实已构建本地候选 ARM64 镜像，不能再将“无法从 T1 访问 GitHub”作为已证明的持续阻断条件。但已完成 Git fetch 和 docker image build **不证明**所有网络目的地长期可用，也不证明当前 live Manager 已升级。GitHub Actions 的另一个 ARM64 成品仍保留为备用，**不在现有候选标签上执行重复 `docker load`**。避免用来源不同的两份镜像覆盖同一 tag。
+
+### 12.1 下一唯一现场动作：新镜像无网络、无真实 DB 的 CLI 和源码守卫检查
+
+Mac Terminal 可以直接执行以下程序；无需 Git 下载、构建或导入镜像。它会只创建短暂 `docker run --rm` 容器用于隔离测试（本命令没有 host path binds、真实秘密、MQTT 或 Wi-Fi/实板访问），且在前后对比真实 Manager/Broker 容器状态。若 test exit nonzero 不得继续生产部署，也不得自行删除当前容器或镜像。
+
+```bash
+printf 'T1 SSH 目标：'
+IFS= read -r T1_SSH
+(
+set -e
+set -o pipefail
+BEFORE_MANAGER=$(ssh -T "$T1_SSH" 'docker inspect --type container --format "{{.Image}}|{{.State.StartedAt}}|{{.RestartCount}}|{{.State.Running}}" greenhouse-manager')
+BEFORE_BROKER=$(ssh -T "$T1_SSH" 'docker inspect --type container --format "{{.Image}}|{{.State.StartedAt}}|{{.RestartCount}}|{{.State.Running}}" n3wfc4-broker-1')
+ssh -T "$T1_SSH" 'set -eu
+TAG=n3w-p4-manager:3d86d6bfaf361dc3a3d7295d046f541a544d552d
+test "$(docker image inspect --format "{{.Os}}/{{.Architecture}}" "$TAG")" = "linux/arm64"
+test "$(docker image inspect --format "{{index .Config.Labels \"org.opencontainers.image.revision\"}}" "$TAG")" = "3d86d6bfaf361dc3a3d7295d046f541a544d552d"
+docker run --rm --network none --read-only --entrypoint greenhouse-manager-registration "$TAG" p4-pending-readonly --help >/dev/null
+echo P4_READONLY_CLI_IN_IMAGE=PASS
+docker run --rm --network none --read-only --entrypoint greenhouse-manager-pairing "$TAG" import-payload --help >/dev/null
+echo QR_PAYLOAD_IMPORT_CLI_IN_IMAGE=PASS
+docker run --rm --network none --read-only --entrypoint python "$TAG" -c '"'"'import inspect; from greenhouse_manager.runtime.registration import RegistrationRegistry; from greenhouse_manager.runtime.n3w_simplified_pairing import SimplifiedPairingCoordinator; assert callable(getattr(RegistrationRegistry,"pending_import_guard",None)); assert "pending_import_guard" in inspect.getsource(SimplifiedPairingCoordinator.import_setup_secret); print("PENDING_EXPIRY_GUARD_IN_IMAGE=PASS")'"'"'
+echo T1_CANDIDATE_SYNTHETIC_TESTS=PASS'
+AFTER_MANAGER=$(ssh -T "$T1_SSH" 'docker inspect --type container --format "{{.Image}}|{{.State.StartedAt}}|{{.RestartCount}}|{{.State.Running}}" greenhouse-manager')
+AFTER_BROKER=$(ssh -T "$T1_SSH" 'docker inspect --type container --format "{{.Image}}|{{.State.StartedAt}}|{{.RestartCount}}|{{.State.Running}}" n3wfc4-broker-1')
+test "$BEFORE_MANAGER" = "$AFTER_MANAGER" || { echo LIVE_MANAGER_IDENTITY_CHANGED_STOP=true; exit 31; }
+test "$BEFORE_BROKER" = "$AFTER_BROKER" || { echo BROKER_IDENTITY_CHANGED_STOP=true; exit 32; }
+echo LIVE_MANAGER_AND_BROKER_UNCHANGED=PASS
+)
+```
+
+**防止误判：** 此命令检查的是“候选镜像内部能力”，不是 live Manager 是否已经有新 CLI；不连接实际 Unix socket、不读取秘密、不证明真实 P4 import + COMMIT + canonical。命令失败只证明某个隔离检查未通过，不代表正在运行的 Manager 或 Broker 发生故障。
+
+后续需先完成带有确切生效配置的私有备份和跨三库一致恢复演练；尚不允许替换生产 Manager 或启动 P3 干净实板。
+
+```text
+T1_SOURCE_AND_NEW_IMAGE_BUILT=PASS
+T1_ISOLATED_CLI_GATES=PENDING_OPERATOR
+MAC_ACTIONS_DOWNLOAD_AND_DOCKER_LOAD=SKIP_UNNECESSARY
+MANAGER_LIVE_DEPLOYMENT=false
+BROKER_RESTART=false
+DB_MUTATION=false
+BOARD_FIRST_NORMAL_BOOT=false
+STOP_AFTER_SYNTHETIC_PROOF=true
+```
