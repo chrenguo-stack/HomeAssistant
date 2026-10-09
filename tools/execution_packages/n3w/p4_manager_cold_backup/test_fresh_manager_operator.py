@@ -3,6 +3,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 from unittest.mock import patch
 
 import fresh_manager_deploy as deploy
@@ -15,6 +16,35 @@ class SupervisedManagerGateTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.private = Path(self.temp.name)
+
+    def test_authorized_main_reaches_guarded_final_check_and_seals_first(self):
+        argv = [
+            "operator", "execute", "--private-root", str(self.private),
+            "--authorization-id", deploy.AUTHORIZATION_ID,
+            "--permit-live-manager-replacement",
+        ]
+        actions = []
+        with mock.patch("sys.argv", argv):
+            with patch.object(operator.snapshot, "private_root", return_value=self.private):
+                with patch.object(operator, "non_mutating_preflight", return_value="verified-unit"):
+                    with patch.object(operator.r3_seal, "seal_r2", side_effect=lambda p: actions.append("seal")) as seal:
+                        with patch.object(operator, "execute", side_effect=lambda p, text: actions.append("guarded-execute")) as guarded:
+                            operator.main()
+                            seal.assert_called_once_with(self.private)
+                            guarded.assert_called_once_with(self.private, text="verified-unit")
+        self.assertEqual(actions, ["seal", "guarded-execute"])
+
+    def test_unauthorized_main_never_seals_or_executes(self):
+        argv = ["operator", "execute", "--private-root", str(self.private)]
+        with mock.patch("sys.argv", argv):
+            with patch.object(operator.snapshot, "private_root", return_value=self.private):
+                with patch.object(operator, "non_mutating_preflight", return_value="verified-unit"):
+                    with patch.object(operator.r3_seal, "seal_r2") as seal:
+                        with patch.object(operator, "execute") as guarded:
+                            with self.assertRaisesRegex(operator.OperatorStop, "AUTHORIZATION_ID_MISMATCH"):
+                                operator.main()
+                            seal.assert_not_called()
+                            guarded.assert_not_called()
 
     def test_systemd_never_claims_success_without_started_job(self):
         values = {
