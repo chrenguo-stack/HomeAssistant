@@ -19,7 +19,7 @@ RO_TARGETS = frozenset({
 })
 ALL_TARGETS = RW_TARGETS | RO_TARGETS
 CONFIG_COMPARE = (
-    "Env", "User", "Entrypoint", "Cmd", "WorkingDir",
+    "User", "Entrypoint", "Cmd", "WorkingDir",
     "Healthcheck", "StopSignal", "OpenStdin", "StdinOnce", "Tty",
 )
 HOST_COMPARE = (
@@ -31,13 +31,13 @@ HOST_COMPARE = (
 )
 TRANSACTION_PHASES = (
     "PRECHECK_OLD_MANAGER_RUNNING",
+    "FRESH_SOURCES_PREPARED_EMPTY",
     "SHADOW_CREATE_AND_COMPARE_STOPPED",
     "OLD_MANAGER_STOP",
-    "FRESH_THREE_SOURCE_COLD_COPY",
-    "CLONED_STATE_BUSINESS_PROOF",
     "OLD_MANAGER_PARKED_NOT_DELETED",
-    "NEW_MANAGER_CREATED_WITH_ONLY_CLONED_RW_STATE",
-    "NEW_MANAGER_RUN_AND_RUNTIME_PROOF",
+    "NEW_MANAGER_CREATED_WITH_ONLY_FRESH_RW_STATE",
+    "NEW_MANAGER_STARTED",
+    "NEW_MANAGER_HOST_POSTFLIGHT_ZERO_BASELINE",
     "SUCCESS_COMMIT_KEEP_ORIGINAL_FOR_ROLLBACK",
 )
 
@@ -62,6 +62,18 @@ def _same_or_nested(a: str, b: str) -> bool:
     pa = PurePosixPath(a)
     pb = PurePosixPath(b)
     return pa == pb or pa in pb.parents or pb in pa.parents
+
+
+def _env_map(value: object) -> dict[str, str]:
+    require(isinstance(value, list), "MANAGER_ENV_INVALID")
+    result: dict[str, str] = {}
+    for item in value:
+        require(isinstance(item, str) and "=" in item and "\n" not in item and "\x00" not in item,
+                "MANAGER_ENV_INVALID")
+        key, val = item.split("=", 1)
+        require(bool(key) and key not in result, "MANAGER_ENV_DUPLICATE_OR_EMPTY")
+        result[key] = val
+    return result
 
 
 def _mounts(item: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -101,24 +113,24 @@ def validate_source_authority(manager: dict[str, Any], broker: dict[str, Any],
     require(isinstance(image.get("Id"), str) and image["Id"].startswith("sha256:"),
             "CANDIDATE_IMAGE_UNBOUND")
     _mounts(manager)
-    require(len(manager.get("Config", {}).get("Env", [])) > 0, "MANAGER_ENV_MISSING")
+    require(bool(_env_map(manager.get("Config", {}).get("Env", []))), "MANAGER_ENV_MISSING")
 
 
 def plan_isolated_bindings(manager: dict[str, Any],
-                           clones: dict[str, str]) -> dict[str, dict[str, Any]]:
+                           fresh_sources: dict[str, str]) -> dict[str, dict[str, Any]]:
     original = _mounts(manager)
-    require(set(clones) == RW_TARGETS, "CLONE_BINDING_SET_MISMATCH")
-    resolved = {key: _absolute(value) for key, value in clones.items()}
+    require(set(fresh_sources) == RW_TARGETS, "FRESH_BINDING_SET_MISMATCH")
+    resolved = {key: _absolute(value) for key, value in fresh_sources.items()}
     orig_sources = [_absolute(m["Source"]) for m in original.values()]
     for dst, src in resolved.items():
         require(src != original[dst]["Source"], "CANDIDATE_MUST_NOT_WRITE_OLD_STATE")
         require(not any(_same_or_nested(src, existing) for existing in orig_sources),
-                "CLONE_OVERLAPS_ORIGINAL_STATE")
+                "FRESH_SOURCE_OVERLAPS_ORIGINAL_STATE")
     vals = list(resolved.values())
     for i, a in enumerate(vals):
         for other in vals[i + 1:]:
-            require(not _same_or_nested(a, other), "CLONE_SOURCE_OVERLAP")
-    result = {}
+            require(not _same_or_nested(a, other), "FRESH_SOURCE_OVERLAP")
+    result: dict[str, dict[str, Any]] = {}
     for dest, mount in original.items():
         x = dict(mount)
         if dest in RW_TARGETS:
@@ -127,40 +139,72 @@ def plan_isolated_bindings(manager: dict[str, Any],
     return result
 
 
-def verify_stopped_shadow_matches_origin(
+def _verify_candidate_matches_origin(
     old: dict[str, Any],
     new: dict[str, Any],
     image_id: str,
-    clones: dict[str, str],
+    fresh_sources: dict[str, str],
+    *,
+    running: bool,
+    restart_policy: str,
 ) -> None:
-    require(new.get("State", {}).get("Running") is False, "SHADOW_MUST_BE_STOPPED")
-    require(new.get("Image") == image_id, "SHADOW_WRONG_IMAGE")
-    expected = plan_isolated_bindings(old, clones)
+    require(new.get("State", {}).get("Running") is running,
+            "CANDIDATE_RUNNING_STATE_MISMATCH")
+    require(new.get("Image") == image_id, "CANDIDATE_WRONG_IMAGE")
+    expected = plan_isolated_bindings(old, fresh_sources)
     actual = _mounts(new)
     for dest in ALL_TARGETS:
         for attr in ("Type", "Source", "Destination", "RW", "Propagation"):
             require(actual[dest].get(attr) == expected[dest].get(attr),
-                    "SHADOW_MOUNT_PARITY_FAILED")
+                    "CANDIDATE_MOUNT_PARITY_FAILED")
     old_config = old.get("Config", {})
     new_config = new.get("Config", {})
+    require(_env_map(new_config.get("Env", [])) == _env_map(old_config.get("Env", [])),
+            "CANDIDATE_ENV_PARITY_FAILED")
     for name in CONFIG_COMPARE:
-        require(new_config.get(name) == old_config.get(name), "SHADOW_CONFIG_PARITY_FAILED")
+        require(new_config.get(name) == old_config.get(name), "CANDIDATE_CONFIG_PARITY_FAILED")
     old_labels = dict(old_config.get("Labels") or {})
     new_labels = dict(new_config.get("Labels") or {})
     old_labels.pop("org.opencontainers.image.revision", None)
     new_labels.pop("org.opencontainers.image.revision", None)
-    require(new_labels == old_labels, "SHADOW_NONREVISION_LABEL_DRIFT")
+    require(new_labels == old_labels, "CANDIDATE_NONREVISION_LABEL_DRIFT")
     require(
         (new_config.get("Labels") or {}).get("org.opencontainers.image.revision")
-        == CANDIDATE_SOURCE, "SHADOW_CANDIDATE_REVISION_MISMATCH",
+        == CANDIDATE_SOURCE, "CANDIDATE_REVISION_MISMATCH",
     )
     old_host = old.get("HostConfig", {})
     new_host = new.get("HostConfig", {})
     for name in HOST_COMPARE:
         require(new_host.get(name) == old_host.get(name),
-                "SHADOW_HOST_SECURITY_PARITY_FAILED")
-    require(new_host.get("RestartPolicy", {}).get("Name") == "no",
-            "SHADOW_AUTORESTART_FORBIDDEN")
+                "CANDIDATE_HOST_SECURITY_PARITY_FAILED")
+    require(new_host.get("RestartPolicy", {}).get("Name") == restart_policy,
+            "CANDIDATE_RESTART_POLICY_MISMATCH")
+
+
+def verify_stopped_shadow_matches_origin(
+    old: dict[str, Any],
+    new: dict[str, Any],
+    image_id: str,
+    fresh_sources: dict[str, str],
+) -> None:
+    _verify_candidate_matches_origin(
+        old, new, image_id, fresh_sources,
+        running=False, restart_policy="no",
+    )
+
+
+def verify_running_candidate_matches_origin(
+    old: dict[str, Any],
+    new: dict[str, Any],
+    image_id: str,
+    fresh_sources: dict[str, str],
+    *,
+    restart_policy: str = "no",
+) -> None:
+    _verify_candidate_matches_origin(
+        old, new, image_id, fresh_sources,
+        running=True, restart_policy=restart_policy,
+    )
 
 
 def assert_cutover_sequence(phases: list[str]) -> None:
@@ -168,7 +212,7 @@ def assert_cutover_sequence(phases: list[str]) -> None:
 
 
 def classify_staged_result(manager_ok: bool, broker_unchanged: bool,
-                           clone_verified: bool, secret_gate_pass: bool) -> str:
-    if not manager_ok or not broker_unchanged or not clone_verified or not secret_gate_pass:
+                           fresh_state_verified: bool, secret_gate_pass: bool) -> str:
+    if not manager_ok or not broker_unchanged or not fresh_state_verified or not secret_gate_pass:
         return "STOP_RESCUE_OLD_MANAGER"
     return "RUNTIME_READY_NO_NODE_TRAFFIC_EXPECTED"
