@@ -95,3 +95,34 @@ B. 单次旧 Manager 冷备份窗口（尚未授权）：先固定一次真实�
 C. 独立的新 Manager 升级窗口（尚未授权）：先有可逆的 exact original container create spec 重建方案与演练、候选 P4 镜像的同一绑定、业务层历史身份/replay 高水位回归检测、Broker 连接与健康观察预算，才能替换生产 Manager。**绝不将 B 阶段成功视为 C 阶段已经授权或完成。**
 
 阶段 A 仍可继续只读执行；阶段 B/C 需要额外的外部脚本与批准，任何原 Manager 的 `docker stop`、`docker rm`、`docker rename`、`docker start` 都由受控执行包负责，不应依赖手动拼接命令。
+
+## 2026-10-09：T1 主机预检通过与受控停写窗口源码
+
+最新 T1 操作者真实结果：
+
+```text
+HOST_PYTHON_VERSION=3.14.4
+HOST_PYTHON_SQLITE=PASS
+PRIVATE_BACKUP_FREE_KIB=5966748
+MANAGER_RESTART_POLICY=unless-stopped
+RELATED_SERVICE_UNIT=n3wfc4-broker-activation.service
+RELATED_SERVICE_UNIT=n3wfc4-broker-certificate-lifecycle.service
+RELATED_SERVICE_UNIT=n3wfc4-broker-ingress-guard.service
+RELATED_SERVICE_UNIT_COUNT=3
+MANAGER_RUNNING=true
+MANAGER_RESTARTS=0
+BROKER_RUNNING=true
+BROKER_RESTARTS=0
+MANAGER_STOP_NOT_EXECUTED=true
+CONSISTENT_DATA_BACKUP=NOT_STARTED
+```
+
+**含义**：T1 宿主 Python 版本满足 3.11+；根分区空间足以继续本轮候选小数据集检查；Manager 原容器带 `unless-stopped`，明确人为 `docker stop` 后可从 `docker start` 恢复原容器；通过此前数据检查确认其他正在运行的容器无 RW Source 重叠。列出的 3 个 systemd 单元属于 Broker，不能由此证明“没有任何其它宿主机进程写库”，也不能据此自行停止 Manager。
+
+此次额外加入了 `controlled_window.py`：源码层两阶段 `preflight` 和需要显式标志的 `execute`。它只控制**原来的** Manager 容器：先精确比对 T1 私有 Docker inspect 与 Manager 镜像、挂载、Manager 原 restart policy、Broker 双网络端口；停止原 Manager 后运行新版 `cold_snapshot.py`，发生复制异常或 Docker stop 部分失败时会尝试在 `finally` 恢复**原容器**，核对原 Manager 连续运行及 Broker StartedAt/重启计数未变化。绝不 `docker rm` 原容器，不操作 Broker。还会在复制结束后检查 Manager 仍处于停止状态，防止异常监督程序抢先重启。
+
+注意：`finally` 对进程存活期间抛出的异常有用，但**无法对断电、内核崩溃、SIGKILL、Docker 守护进程停摆等事件承诺自动恢复**。因此正式停写执行前还须配置能独立于 SSH 存活的系统任务和失败监测，以及手工恢复的独立只读核查/操作计划；不能把 Python `finally` 当作全部事故应急机制。
+
+**当前状态：脚本只存于 GitHub Draft PR #540；尚未在 T1 执行更新后的停写 wrapper；生产当前运行状态未改变。** 下一动作仅限下载并绑定 exact 工具源到原私有目录的新子目录，执行 `controlled_window.py preflight` 只读检查。不得运行 `execute`、`--permit-manager-stop`、任何 `docker stop/start/rm` 或真实数据冷复制。
+
+正式受控窗口在 PR #540 源码独立复核通过、全部 CI 通过、旧容器原状恢复计划经过测试且有现场明确执行窗口后方可授权。
