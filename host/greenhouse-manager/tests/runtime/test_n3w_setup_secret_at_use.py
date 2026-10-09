@@ -7,6 +7,10 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from greenhouse_manager.runtime.n3w_pairing_local_ipc import (
+    ManagerOwnedPairingSocket,
+    import_setup_secret_over_socket,
+)
 from greenhouse_manager.runtime.n3w_simplified_pairing import (
     SimplifiedPairingConflict,
     SimplifiedPairingCoordinator,
@@ -152,3 +156,44 @@ def test_registry_expiry_cannot_run_between_import_check_and_storage(ready, monk
     assert updater_done.is_set()
     assert bytes(coordinator._setup[(HARDWARE, PAIR)]) == SECRET
     assert registry.get(HARDWARE).state is RegistrationState.EXPIRED
+
+
+def test_actual_local_manager_ipc_rejects_expired_pending(tmp_path, ready):
+    _, coordinator = ready
+    socket_path = tmp_path / "pairing.sock"
+    tmp_path.chmod(0o700)
+    server = ManagerOwnedPairingSocket(coordinator, socket_path)
+    server.start()
+    try:
+        result = import_setup_secret_over_socket(
+            socket_path,
+            hardware_id=HARDWARE,
+            pairing_id=PAIR,
+            setup_secret=base64.urlsafe_b64encode(SECRET).rstrip(b"=").decode(),
+        )
+    finally:
+        server.stop()
+    assert result["accepted"] is False
+    assert coordinator._setup == {}
+
+
+def test_actual_local_manager_ipc_accepts_fresh_pending(tmp_path):
+    now = datetime.now(UTC)
+    tmp_path.chmod(0o700)
+    with RegistrationRegistry(tmp_path / "current.sqlite3", pending_ttl_s=120) as registry:
+        registry.observe_hello(hello(), now=now)
+        coordinator = SimplifiedPairingCoordinator(registry, object(), manager_id="manager_lab_01")
+        socket_path = tmp_path / "pairing.sock"
+        server = ManagerOwnedPairingSocket(coordinator, socket_path)
+        server.start()
+        try:
+            result = import_setup_secret_over_socket(
+                socket_path,
+                hardware_id=HARDWARE,
+                pairing_id=PAIR,
+                setup_secret=base64.urlsafe_b64encode(SECRET).rstrip(b"=").decode(),
+            )
+        finally:
+            server.stop()
+        assert result["accepted"] is True
+        assert bytes(coordinator._setup[(HARDWARE, PAIR)]) == SECRET
