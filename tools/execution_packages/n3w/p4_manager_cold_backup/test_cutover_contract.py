@@ -23,11 +23,12 @@ def old_manager():
             "Propagation": "rprivate",
         })
     return {
+        "Id": "old-manager-id",
         "Name": "/greenhouse-manager",
         "Image": OLD_ID,
         "State": {"Running": True},
         "Config": {
-            "Env": ["GH_MQTT_TLS=1", "GH_SECRET=not-to-print"],
+            "Env": ["GH_MQTT_TLS=1", "GH_SECRET=not-to-print", "GH_MQTT_PORT=8883"],
             "User": "greenhouse",
             "Entrypoint": ["greenhouse-manager"],
             "Cmd": [],
