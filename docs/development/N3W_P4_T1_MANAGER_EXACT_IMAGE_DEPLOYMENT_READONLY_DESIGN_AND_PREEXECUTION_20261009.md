@@ -1618,3 +1618,24 @@ BROKER_MUTATION=false
 P4_NEW_MANAGER_DEPLOYMENT=NOT_AUTHORIZED
 P4_BOARD_FIRST_NORMAL_BOOT=NOT_AUTHORIZED
 ```
+
+## 30. 无传感器不等于无遥测：P4 数据验收适用范围澄清（2026-10-09）
+
+使用者说明：**当前 ESP32-C6 没有接入传感器**。本条仅更新这一事实；不能从中推断是否有板上电、是否运行哪个固件版本、或者是否应向 Manager 定期上报。
+
+已经核实 `main` 的 `firmware/esphome_rc/board_lab/n3w_phase4_physical/generic.yml`：该 **Phase4 实验夹具目标**在 `runtime_ready()` 条件下每 5 秒执行一次合成遥测投递，JSON 包含 `"measurements":{}`、`"quality":{}` 和 `"phase4_lab":true`。这证明项目曾能在**没有传感器**的条件下测试 Wi-Fi/ESP-NOW/MQTT/Manager 传输，不代表新的产品固件在未连接传感器时也自动发送相同报文。测试夹具行为不得冒充 P4 产品默认行为。
+
+因此 90 秒 R5 恢复后观测 `n3w_replay_seen 475→475` 保持 `INCONCLUSIVE_NO_FRESH_TELEMETRY`：未得到在线、运行实验夹具、应有定期新 tuple 的板级证据，不允许将 `delta=0` 归因为传感器未连接，更不得直接判故障。需要先**仅问一个条件**：观察期间是否有任何 ESP32-C6 已上电、运行旧 Phase4 通信测试固件（或其它明确会周期发送的程序）。
+
+后续分流：若无上电且周期发报的节点，不进行重复静默观察；P4 T1 Manager 候选部署**设计/源码检查/隔离测试**可继续，之后将新产品实板正常启动及虚拟测量/真实传感器验收分开。若有明确的周期发报节点，再设计一轮有发送端及 Manager 持久记录两侧证据的单次定向通信观察，不能再仅凭 TCP 或 INFO 行。
+
+```text
+CURRENT_ESP32_C6_SENSOR_CONNECTED=false
+ACTIVE_POWERED_TELEMETRY_SOURCE=UNKNOWN
+LAB_HARNESS_SUPPORTS_EMPTY_MEASUREMENTS=true
+P4_PRODUCT_RUNTIME_AUTOSENDS_WITHOUT_SENSORS=NOT_ESTABLISHED
+POST_BACKUP_APP_TELEMETRY_ACCEPTANCE=INCONCLUSIVE
+R5_COLD_SNAPSHOT_AND_OLD_MANAGER_RESTORE=CLOSED_PASS
+NO_NEW_T1_OR_BOARD_OPERATION=true
+NEXT=VERIFY_WHETHER_ANY_BOARD_WAS_POWERED_AND_EXPECTED_TO_PERIODICALLY_SEND
+```
