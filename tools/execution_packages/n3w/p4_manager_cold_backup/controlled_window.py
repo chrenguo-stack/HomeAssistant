@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 import cold_snapshot as snapshot
+import business_snapshot as business
 
 MANAGER = "greenhouse-manager"
 BROKER = "n3wfc4-broker-1"
@@ -176,6 +177,7 @@ def main() -> None:
     def capture(value: Path) -> None:
         sources = snapshot.validate_runtime(manager, broker, "capture")
         snapshot.capture(sources, value)
+        business.validate_cold_and_isolated(value)
         snapshot.validate_runtime(manager, broker, "capture")
 
     run_window(
