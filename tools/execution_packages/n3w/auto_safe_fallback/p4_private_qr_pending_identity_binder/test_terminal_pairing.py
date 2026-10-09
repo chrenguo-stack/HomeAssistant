@@ -12,8 +12,14 @@ import unittest
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from bridge_handoff import GateStop, bind_terminal_projection
-from terminal_pairing import _private_claim, once
+from bridge_handoff import Binding, GateStop, bind_terminal_projection
+from terminal_pairing import (
+    _private_claim,
+    _require_authorization,
+    _write_authorization,
+    authorize,
+    once,
+)
 
 NOW = datetime(2026, 10, 9, 8, 0, tzinfo=UTC)
 HARDWARE = "ghw-c6-00000000ff00"
@@ -66,6 +72,8 @@ class TerminalFlowTest(unittest.TestCase):
         }
         self.sent = []
         self.calls = 0
+        self.binding = Binding(digest(HARDWARE), digest(PAIRING), NOW + timedelta(seconds=120))
+        _write_authorization(self.private, self.binding, "greenhouse-manager", NOW)
 
     def runner(self, cmd, *, capture_output, timeout, check, input=None):
         self.assertTrue(capture_output)
@@ -206,6 +214,73 @@ class TerminalFlowTest(unittest.TestCase):
         with self.assertRaises(GateStop):
             _private_claim(self.private, digest(HARDWARE), digest(PAIRING), NOW)
         self.assertEqual(list(self.private.glob("p4-attempt-*.json")), [])
+
+    def test_import_requires_preexisting_separate_authorization(self):
+        self.grant_file = next(self.private.glob("p4-authorization-*.json"))
+        self.grant_file.unlink()
+        with self.assertRaises(GateStop):
+            self.invoke()
+        self.assertEqual(self.sent, [])
+        self.assertEqual(list(self.private.glob("p4-attempt-*.json")), [])
+
+    def test_separate_authorize_phase_creates_exact_grant_without_import(self):
+        grant = next(self.private.glob("p4-authorization-*.json"))
+        grant.unlink()
+        self.assertEqual(
+            authorize(
+                TARGET_A, "greenhouse-manager", self.snapshot, self.snapshot_sha,
+                self.private, runner=self.runner, read_qr=lambda: QR,
+                confirm=lambda _: True, clock=lambda: NOW,
+            ),
+            "AUTHORIZATION_RECORDED_NOT_IMPORTED",
+        )
+        self.assertEqual(self.sent, [])
+        doc = json.loads(grant.read_text())
+        self.assertEqual(doc["hardware_sha256"], digest(HARDWARE))
+        self.assertEqual(doc["pairing_sha256"], digest(PAIRING))
+        self.assertEqual(doc["state"], "AUTHORIZED")
+        self.assertNotIn(SECRET, grant.read_text())
+        self.assertEqual(self.invoke(), "IMPORT_ACCEPTED_NOT_COMMITTED")
+
+    def test_separate_authorize_declined_creates_no_grant(self):
+        grant = next(self.private.glob("p4-authorization-*.json"))
+        grant.unlink()
+        with self.assertRaises(GateStop):
+            authorize(
+                TARGET_A, "greenhouse-manager", self.snapshot, self.snapshot_sha,
+                self.private, runner=self.runner, read_qr=lambda: QR,
+                confirm=lambda _: False, clock=lambda: NOW,
+            )
+        self.assertFalse(grant.exists())
+        self.assertEqual(self.sent, [])
+
+    def test_wrong_grant_identity_cannot_authorize_import(self):
+        grant = next(self.private.glob("p4-authorization-*.json"))
+        document = json.loads(grant.read_text())
+        document["hardware_sha256"] = "a" * 64
+        grant.write_text(json.dumps(document))
+        with self.assertRaises(GateStop):
+            self.invoke()
+        self.assertEqual(self.sent, [])
+
+    def test_grant_binds_selected_manager_container(self):
+        grant = next(self.private.glob("p4-authorization-*.json"))
+        document = json.loads(grant.read_text())
+        document["manager_container"] = "another-container"
+        grant.write_text(json.dumps(document))
+        with self.assertRaises(GateStop):
+            self.invoke()
+        self.assertEqual(self.sent, [])
+
+    def test_old_grant_is_rejected_even_with_unexpired_pairing(self):
+        self.binding = Binding(
+            digest(HARDWARE), digest(PAIRING), NOW + timedelta(seconds=600)
+        )
+        with self.assertRaises(GateStop):
+            _require_authorization(
+                self.private, self.binding, "greenhouse-manager",
+                NOW + timedelta(seconds=121),
+            )
 
     def test_current_ip_can_change_without_frozen_hash(self):
         from terminal_pairing import _command

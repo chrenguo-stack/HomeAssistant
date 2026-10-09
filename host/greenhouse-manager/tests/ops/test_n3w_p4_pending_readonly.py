@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from greenhouse_manager.ops import registration_cli
+from greenhouse_manager.ops import n3w_p4_pending_readonly, registration_cli
 from greenhouse_manager.ops.n3w_p4_pending_readonly import (
     PendingReadonlyError,
     read_pending,
@@ -176,3 +176,64 @@ def test_multiple_sessions_on_new_identity_fail_closed(dbs):
         )
     with pytest.raises(PendingReadonlyError):
         read_pending(*dbs, now=NOW)
+
+
+def test_wal_and_shm_existing_sidecars_are_not_modified_by_readonly_query(dbs):
+    with sqlite3.connect(dbs[0]) as writer:
+        assert writer.execute("PRAGMA journal_mode=WAL").fetchone()[0] == "wal"
+        writer.execute(
+            "UPDATE registrations SET pairing_epoch=pairing_epoch WHERE hardware_id=?",
+            (NEW,),
+        )
+        writer.commit()
+        wal = type(dbs[0])(str(dbs[0]) + "-wal")
+        shm = type(dbs[0])(str(dbs[0]) + "-shm")
+        assert wal.is_file() and shm.is_file()
+        paths = (*dbs, wal, shm)
+        before = [(path.read_bytes(), path.stat().st_mtime_ns) for path in paths]
+        result = read_pending(*dbs, now=NOW + timedelta(seconds=1))
+        assert result["new_count"] == 1
+        assert [(path.read_bytes(), path.stat().st_mtime_ns) for path in paths] == before
+
+
+def test_missing_shm_with_existing_wal_stops_without_creating_shm(dbs):
+    wal = type(dbs[0])(str(dbs[0]) + "-wal")
+    shm = type(dbs[0])(str(dbs[0]) + "-shm")
+    assert not shm.exists()
+    wal.write_bytes(b"synthetic-wal-sidecar-without-index")
+    with pytest.raises(PendingReadonlyError):
+        read_pending(*dbs, now=NOW)
+    assert not shm.exists()
+    assert wal.read_bytes() == b"synthetic-wal-sidecar-without-index"
+
+
+def test_concurrent_wal_writer_state_change_is_rejected(dbs, monkeypatch):
+    writer = sqlite3.connect(dbs[0])
+    try:
+        assert writer.execute("PRAGMA journal_mode=WAL").fetchone()[0] == "wal"
+        original = n3w_p4_pending_readonly._projection
+        calls = []
+
+        def projection(*connections):
+            observed = original(*connections)
+            calls.append(observed)
+            if len(calls) == 1:
+                writer.execute(
+                    "INSERT INTO registration_events(hardware_id,pairing_id,event,occurred_at) "
+                    "VALUES (?,?,?,?)",
+                    (
+                        "ghw-c6-000000000000",
+                        "11111111-1111-4111-8111-000000000000",
+                        "hello_created",
+                        NOW.isoformat(),
+                    ),
+                )
+                writer.commit()
+            return observed
+
+        monkeypatch.setattr(n3w_p4_pending_readonly, "_projection", projection)
+        with pytest.raises(PendingReadonlyError):
+            read_pending(*dbs, now=NOW + timedelta(seconds=1))
+        assert len(calls) == 2
+    finally:
+        writer.close()
