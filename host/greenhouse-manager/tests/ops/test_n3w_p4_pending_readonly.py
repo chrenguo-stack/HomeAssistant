@@ -234,6 +234,6 @@ def test_concurrent_wal_writer_state_change_is_rejected(dbs, monkeypatch):
         monkeypatch.setattr(n3w_p4_pending_readonly, "_projection", projection)
         with pytest.raises(PendingReadonlyError):
             read_pending(*dbs, now=NOW + timedelta(seconds=1))
-        assert len(calls) == 1
+        assert len(calls) == 2
     finally:
         writer.close()
