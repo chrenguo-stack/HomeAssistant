@@ -1,4 +1,5 @@
 import base64
+from contextlib import contextmanager
 import hashlib
 import json
 import os
@@ -139,19 +140,19 @@ class FieldPrebootTests(unittest.TestCase):
             with self.subTest(invalid=invalid), self.assertRaises(ValueError):
                 f._trusted_target(invalid, probe)
 
-    def test_missing_frozen_self_sha_stops_before_any_ssh(self):
+    def test_default_h2_disabled_before_any_ssh(self):
         with patch.object(f.subprocess, "run") as runner:
-            with self.assertRaisesRegex(ValueError, "R5A_SOURCE_NOT_INDEPENDENTLY_PINNED"):
+            with self.assertRaisesRegex(ValueError, "H2_LIVE_EXECUTION_DISABLED"):
                 f.preboot_host_once(TARGET, Path("/dev/null"))
             runner.assert_not_called()
 
-    def test_h1_checks_source_before_build_and_ssh(self):
-        with patch.object(f, "APPROVED_R5A_SOURCE_GIT_BLOB", "0" * 40):
-            with patch.object(f, "_source_bytes") as sources:
+    def test_h1_checks_source_before_private_authority_and_ssh(self):
+        with patch.object(f, "_source_bytes", side_effect=ValueError("SOURCE_OR_AUTHORITY_DRIFT")):
+            with patch.object(f, "_private_snapshot") as snap:
                 with patch.object(f.subprocess, "run") as runner:
                     with self.assertRaisesRegex(ValueError, "SOURCE_OR_AUTHORITY_DRIFT"):
                         f.mac_static_preflight(TARGET, Path("/dev/null"))
-                    sources.assert_not_called()
+                    snap.assert_not_called()
                     runner.assert_not_called()
 
     def test_source_path_mismatch_stops(self):
@@ -210,36 +211,55 @@ class FieldPrebootTests(unittest.TestCase):
                 f.preboot_host_once(TARGET, Path("/dev/null"), program="print(1)")
             runner.assert_not_called()
 
+    @staticmethod
+    @contextmanager
+    def synthetic_pinned_host_key(ip, path):
+        yield "/dev/fd/99", 99
+
     def test_preboot_runner_uses_exact_generated_stdin_only(self):
         program = f.build_preboot_program(f._source_bytes(), BASE)
-        with patch.object(f, "mac_static_preflight", return_value=(program, BASE, "192.0.2.10")):
-            with patch.object(f.subprocess, "run") as runner:
-                runner.return_value = SimpleNamespace(returncode=0, stdout=json.dumps(response()).encode(), stderr=b"")
-                out = f.preboot_host_once(TARGET, Path("/dev/null"))
-                self.assertEqual(out["status"], "PASS_READONLY_NO_PAIRING")
-                argv = runner.call_args[0][0]
-                self.assertEqual(argv[-4:], ["--", TARGET, "python3", "-"])
-                self.assertIn("StrictHostKeyChecking=yes", argv)
-                self.assertIn("UpdateHostKeys=no", argv)
-                self.assertEqual(runner.call_args.kwargs["input"], program.encode())
-                self.assertEqual(runner.call_args.kwargs["timeout"], 15)
+        with (
+            patch.object(f, "FIELD_H2_LIVE_EXECUTION_ENABLED", True),
+            patch.object(f, "mac_static_preflight", return_value=(program, BASE, "192.0.2.10")),
+            patch.object(f, "_verified_known_hosts", self.synthetic_pinned_host_key),
+            patch.object(f.subprocess, "run") as runner,
+        ):
+            runner.return_value = SimpleNamespace(returncode=0, stdout=json.dumps(response()).encode(), stderr=b"")
+            out = f.preboot_host_once(TARGET, Path("/dev/null"))
+            self.assertEqual(out["status"], "PASS_READONLY_NO_PAIRING")
+            argv = runner.call_args[0][0]
+            self.assertEqual(argv[-4:], ["--", TARGET, "python3", "-"])
+            self.assertIn("StrictHostKeyChecking=yes", argv)
+            self.assertIn("UpdateHostKeys=no", argv)
+            self.assertIn("UserKnownHostsFile=/dev/fd/99", argv)
+            self.assertEqual(runner.call_args.kwargs["input"], program.encode())
+            self.assertEqual(runner.call_args.kwargs["timeout"], 15)
+            self.assertEqual(runner.call_args.kwargs["pass_fds"], (99,))
 
     def test_ssh_timeout_consumes_one_attempt(self):
-        with patch.object(f, "mac_static_preflight", return_value=("print(1)", BASE, "192.0.2.10")):
-            with patch.object(f.subprocess, "run", side_effect=subprocess.TimeoutExpired("ssh", 15)) as runner:
-                with self.assertRaisesRegex(ValueError, "PREBOOT_SSH_UNKNOWN_STOP"):
-                    f.preboot_host_once(TARGET, Path("/dev/null"))
-                runner.assert_called_once()
+        with (
+            patch.object(f, "FIELD_H2_LIVE_EXECUTION_ENABLED", True),
+            patch.object(f, "mac_static_preflight", return_value=("print(1)", BASE, "192.0.2.10")),
+            patch.object(f, "_verified_known_hosts", self.synthetic_pinned_host_key),
+            patch.object(f.subprocess, "run", side_effect=subprocess.TimeoutExpired("ssh", 15)) as runner,
+        ):
+            with self.assertRaisesRegex(ValueError, "PREBOOT_SSH_UNKNOWN_STOP"):
+                f.preboot_host_once(TARGET, Path("/dev/null"))
+            runner.assert_called_once()
 
     def test_remote_bad_json_and_bad_rc_stop(self):
-        with patch.object(f, "mac_static_preflight", return_value=("print(1)", BASE, "192.0.2.10")):
-            with patch.object(f.subprocess, "run") as runner:
-                runner.return_value = SimpleNamespace(returncode=0, stdout=b"{", stderr=b"")
-                with self.assertRaisesRegex(ValueError, "PREBOOT_RESPONSE_INVALID"):
-                    f.preboot_host_once(TARGET, Path("/dev/null"))
-                runner.return_value = SimpleNamespace(returncode=255, stdout=b"", stderr=b"host key verification failed")
-                with self.assertRaisesRegex(ValueError, "PREBOOT_REMOTE_STOP"):
-                    f.preboot_host_once(TARGET, Path("/dev/null"))
+        with (
+            patch.object(f, "FIELD_H2_LIVE_EXECUTION_ENABLED", True),
+            patch.object(f, "mac_static_preflight", return_value=("print(1)", BASE, "192.0.2.10")),
+            patch.object(f, "_verified_known_hosts", self.synthetic_pinned_host_key),
+            patch.object(f.subprocess, "run") as runner,
+        ):
+            runner.return_value = SimpleNamespace(returncode=0, stdout=b"{", stderr=b"")
+            with self.assertRaisesRegex(ValueError, "PREBOOT_RESPONSE_INVALID"):
+                f.preboot_host_once(TARGET, Path("/dev/null"))
+            runner.return_value = SimpleNamespace(returncode=255, stdout=b"", stderr=b"host key verification failed")
+            with self.assertRaisesRegex(ValueError, "PREBOOT_REMOTE_STOP"):
+                f.preboot_host_once(TARGET, Path("/dev/null"))
 
     def test_generated_preboot_sqlite_has_exact_five_baseline(self):
         src = f.build_preboot_program(f._source_bytes(), BASE)
