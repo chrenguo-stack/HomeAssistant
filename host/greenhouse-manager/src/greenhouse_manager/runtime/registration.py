@@ -5,14 +5,14 @@ import re
 import sqlite3
 import threading
 import uuid
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
-from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from importlib.resources import files
 from pathlib import Path
-from typing import Any, Iterator, Protocol
+from typing import Any, Protocol
 
 from jsonschema import Draft202012Validator, FormatChecker
 
