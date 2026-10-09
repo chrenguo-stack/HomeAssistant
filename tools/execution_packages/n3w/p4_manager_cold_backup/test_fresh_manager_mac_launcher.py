@@ -24,27 +24,30 @@ class FakeResponse:
 
 
 class LauncherTests(unittest.TestCase):
-    def test_successor_immutable_source_and_second_private_stage_are_bound(self):
+    def test_r3_immutable_source_and_forensic_seal_private_stage_are_bound(self):
         self.assertEqual(
             launcher.SOURCE_HEAD,
-            "fd98c06d02037cba4f18043afeac62cd75893108",
+            "b476b7dd0acce292576825550a72b6db7372606e",
         )
         self.assertEqual(
             launcher.EXPECTED["fresh_manager_deploy.py"],
-            "d07e119f83ed6c76789f6c4de277e33b65b80dad",
+            "79721bf24671469c551e7f169144d07d58b98bd4",
         )
         self.assertEqual(
             launcher.EXPECTED["fresh_manager_systemd_unit.py"],
-            "4a7a5950aff578382db09846f41cecbc0262a5cb",
+            "d5d77d3198f34a18abf997c19a12e6b556748f1e",
         )
         self.assertIn(
-            'STAGE_NAME = "p4-fresh-manager-deploy-r2"',
+            'STAGE_NAME = "p4-fresh-manager-deploy-r3"',
             launcher.REMOTE_CODE,
         )
         self.assertNotIn(
-            'STAGE_NAME = "p4-fresh-manager-deploy-r1"',
+            'STAGE_NAME = "p4-fresh-manager-deploy-r2"',
             launcher.REMOTE_CODE,
         )
+        self.assertIn("r3_forensic_seal.py", launcher.EXPECTED)
+        self.assertEqual(launcher.EXPECTED["r3_forensic_seal.py"], "97b6128dd79e9c66bd5fc51b08f7104d5702f6aa")
+        self.assertEqual(len(launcher.EXPECTED), 10)
 
     def test_remote_program_is_syntactically_valid(self):
         source = launcher.REMOTE_CODE.replace("__EXPECTED__", repr(launcher.EXPECTED))
