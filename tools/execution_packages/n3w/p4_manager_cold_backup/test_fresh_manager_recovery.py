@@ -99,7 +99,6 @@ class RecoveryFailureTests(unittest.TestCase):
             [action[0] for action in self.current.actions],
             ["stop", "rename", "rename"],
         )
-        recorded = recovery.load_state.__wrapped__ if hasattr(recovery.load_state, "__wrapped__") else None
         self.assertTrue((self.private / deploy.STATE_FILE).is_file())
 
     def test_candidate_image_identity_mismatch_blocks_any_mutation(self):
@@ -141,10 +140,20 @@ class RecoveryFailureTests(unittest.TestCase):
         self.assertTrue(self.current.containers["greenhouse-manager"]["State"]["Running"])
 
     def test_old_manager_restart_failure_never_produces_pass(self):
-        with patch.object(recovery.window, "resume_original_manager", side_effect=RuntimeError("synthetic restart")):
-            with self.assertRaises(RuntimeError):
+        with patch.object(recovery.window, "resume_original_manager", side_effect=recovery.window.WindowStop("synthetic restart")):
+            with self.assertRaisesRegex(recovery.RecoveryStop, "OLD_MANAGER_RESTART_FAILED"):
                 recovery.recover_original(self.private)
         self.assertFalse((self.private / deploy.STATE_FILE).exists())
+
+    def test_committed_candidate_crash_in_supervised_stop_post_restores_old(self):
+        self.txn["committed"] = True
+        self.current.containers["greenhouse-manager"]["State"]["Running"] = False
+        with self.assertRaisesRegex(recovery.RecoveryStop, "POST_COMMIT_SUPERVISOR_VERIFICATION_FAILED_ROLLED_BACK"):
+            recovery.supervised_stop_post(self.private)
+        self.assertEqual(self.current.containers["greenhouse-manager"]["Id"], "old-id")
+        self.assertTrue(self.current.containers["greenhouse-manager"]["State"]["Running"])
+        self.assertFalse(self.txn.get("supervised_post_commit_verification_failed", False))
+        self.assertTrue((self.private / deploy.STATE_FILE).exists())
 
     def test_committed_candidate_is_not_rolled_back(self):
         self.txn["committed"] = True
