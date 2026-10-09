@@ -9,19 +9,20 @@ import sys
 import tarfile
 import urllib.request
 
-SOURCE_HEAD = "fd98c06d02037cba4f18043afeac62cd75893108"
+SOURCE_HEAD = "b476b7dd0acce292576825550a72b6db7372606e"
 REPO = "chrenguo-stack/HomeAssistant"
 DIRECTORY = "tools/execution_packages/n3w/p4_manager_cold_backup"
 EXPECTED = {
     "cold_snapshot.py": "8d779dbde033a2f2630a4fdec67570e35aeffc01",
     "business_snapshot.py": "b25940257ce4bdca6612085c71a5b1a1c9307bdc",
     "controlled_window.py": "dc9e9b4658d8cf4d265b31c27a90ff9d143d77de",
-    "cutover_contract.py": "810f785378dbe4f928ab84aa1a18d3b754dabcac",
+    "cutover_contract.py": "203cdbb09014b5bb77fb3e67effee2fbc9900166",
     "fresh_state_contract.py": "f05e54644b954087544e99c15e030d3aefea7b8f",
-    "fresh_manager_deploy.py": "d07e119f83ed6c76789f6c4de277e33b65b80dad",
+    "fresh_manager_deploy.py": "79721bf24671469c551e7f169144d07d58b98bd4",
     "fresh_manager_recovery.py": "28426a313ed53d4a3fa6cc9f4bbd5fa618e08ab3",
-    "fresh_manager_operator.py": "97232c7df5fe14c61ffed8facfe522ad4a3d802c",
-    "fresh_manager_systemd_unit.py": "4a7a5950aff578382db09846f41cecbc0262a5cb",
+    "fresh_manager_operator.py": "63cc87fc367cd22c471a32f21c20b886e4bf8f90",
+    "fresh_manager_systemd_unit.py": "d5d77d3198f34a18abf997c19a12e6b556748f1e",
+    "r3_forensic_seal.py": "97b6128dd79e9c66bd5fc51b08f7104d5702f6aa",
 }
 MAX_REMOTE_SECONDS = 600
 
@@ -46,7 +47,7 @@ NEEDED = {
     "cold-snapshot-manifest-private.json",
     "p4-business-restore-evidence-private.json",
 }
-STAGE_NAME = "p4-fresh-manager-deploy-r2"
+STAGE_NAME = "p4-fresh-manager-deploy-r3"
 AUTH = "N3W_P4_T1_FRESH_MANAGER_ONE_SHOT_LIVE_DEPLOY"
 
 def stop(code):
@@ -244,7 +245,7 @@ def main() -> None:
             sys.argv[1] if len(sys.argv) == 2 else input("T1 SSH 目标 (user@host 或已配置的别名): ").strip()
         )
         archive = pack_files(fetch_scripts())
-        print("SOURCE_EXACT_NINE_FILES=PASS", flush=True)
+        print("SOURCE_EXACT_TEN_FILES=PASS", flush=True)
         print("R5_PRIVATE_AND_LIVE_PREFLIGHT=AUTOMATED", flush=True)
         outcome = execute(target, archive)
         print(outcome, flush=True)
