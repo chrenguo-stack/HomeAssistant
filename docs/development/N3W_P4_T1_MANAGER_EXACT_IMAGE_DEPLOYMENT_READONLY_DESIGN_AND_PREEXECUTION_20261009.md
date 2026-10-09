@@ -341,101 +341,49 @@ MANAGER_IMAGE_UPGRADE=false
 
 三库 `-wal/-shm` 当时不存在不能推出未来不会产生，也不能把运行中数据库复制当作共同一致备份。磁盘余量约 5.9 GiB，足以考虑候选镜像**独立准备**，但首次构建实际占用无法事先证明；构建一旦接近磁盘最低余量，必须中断，不能为了腾空间执行 `docker system prune` 或移除现有镜像/容器。
 
-### 10.1 下一步：仅将 #538 精确源码冻结到 T1 独立工作目录
+### 10.1 2026-10-09 网络限制修正：先停止上一版 T1 在线构建步骤
 
-使用当前 T1 SSH 登录；来源固定公开 GitHub 分支 `fix/n3w-pr537-terminal-claim-write-ssh-target-minimal-20261009`，要求 checkout HEAD **精确匹配** `3d86d6bfaf361dc3a3d7295d046f541a544d552d`。这只创建 Git 工作目录，**不**启动、停止、重建 Docker 容器，不触碰现有 DB/secret/board。此时并不构建镜像。
+现场新增限制：**T1 不能直接访问 GitHub**。因此上一版由 T1 执行 `git fetch` 的命令在该网络条件下不可执行；**上一版 §10.1—10.3 的 T1 在线获取源码与直接 buildx 命令全部撤销，禁止继续执行。**
+
+不仅 `git fetch` 需要 GitHub：现有 `host/greenhouse-manager/Dockerfile` 以 `python:3.11-slim` 为基础，并包含 `python -m pip install --upgrade pip` 和 `python -m pip install .`。如果 T1 没有全部基础层与 Python 依赖缓存，`docker buildx build` 还会需要 Docker Hub / Python 包站点；Dockerfile 并不支持可靠的无网络构建。**无需将 T1 无 GitHub 误判为 Manager、Broker 或 Docker 故障。**
+
+推荐离线部署准备路线：
+
+1. 在 **Mac** （前提是其能访问 GitHub 与构建依赖）取得 PR #538 exact commit，严格校验 SHA：`3d86d6bfaf361dc3a3d7295d046f541a544d552d`。
+2. 在 Mac 上，若有可用的 Docker Desktop/Buildx，按 T1 当前生产镜像的实际 `linux/<架构>` 构建 **单架构** 候选镜像，打独立标签与 revision 标签；记录候选完整 image ID 及依赖构建来源。**不要**根据 Mac 芯片架构猜 T1 的架构。
+3. 在 Mac 上以 `docker save` 输出候选镜像流，通过已有 SSH 输入送给 T1 `docker load`，不需要 T1 访问任何外网。该操作仅把独立候选镜像添加到 T1 镜像存储，**不会**替换或重启 `greenhouse-manager` 和 Broker。检查镜像 ID、OS/architecture、revision 后做 `--network none`、无实际数据库/秘密挂载的 CLI 和源码 guard 隔离检查。
+4. Mac 没有 Docker/Buildx 或不能构建 T1 目标架构时，使用 GitHub Actions 创建明确绑定 exact SHA 的镜像构建产物、通过能访问 GitHub 的 Mac 下载后传送 T1；禁止因为缺少 Mac Docker 就退回 T1 不可用的网络步骤。任何公网构建不得上传 T1 的私有数据库、证书、密码、真实二维码或机器身份快照。
+5. 这些步骤仅构建/传送/隔离验证候选镜像。**生产 Manager 单服务替换仍须先通过真实容器配置与三数据库一致备份、离线恢复演练和旧五身份保留审核**；Broker 不重建，P3 实板不启动/不重刷。
+
+### 10.2 下一次 Mac Terminal **只读能力检查**
+
+当前不应直接发送构建指令，因为还未确认 Mac 上有可用 Docker 引擎以及 T1 是 amd64 还是 arm64。下面只读取版本、平台和 Mac 对 GitHub 的基本可达性，不克隆源码、不构建、不传镜像、不操作生产服务。
 
 ```bash
 printf 'T1 SSH 目标：'
 IFS= read -r T1_SSH
-ssh -T "$T1_SSH" 'set -eu
-SHA=3d86d6bfaf361dc3a3d7295d046f541a544d552d
-BRANCH=fix/n3w-pr537-terminal-claim-write-ssh-target-minimal-20261009
-DIR=/var/tmp/n3w-p4-manager-source-${SHA}
-umask 077
-if test -e "$DIR"; then echo SOURCE_WORKDIR_ALREADY_EXISTS_STOP=true; exit 11; fi
-mkdir -m 700 "$DIR"
-git -C "$DIR" init -q
-git -C "$DIR" remote add origin https://github.com/chrenguo-stack/HomeAssistant.git
-git -C "$DIR" fetch -q --depth 1 origin "$BRANCH"
-git -C "$DIR" checkout -q --detach FETCH_HEAD
-ACTUAL=$(git -C "$DIR" rev-parse HEAD)
-if test "$ACTUAL" != "$SHA"; then echo SOURCE_EXACT_HEAD_MISMATCH_STOP=true; exit 12; fi
-test -f "$DIR/host/greenhouse-manager/Dockerfile"
-test -f "$DIR/host/greenhouse-manager/pyproject.toml"
-echo SOURCE_EXACT_HEAD=PASS
-echo SOURCE_CONTAINER_BUILD_CONTEXT=READY
-echo EXISTING_MANAGER_NOT_TOUCHED=true'
+printf 'MAC_CPU_ARCH='
+uname -m
+git --version
+if command -v docker >/dev/null 2>&1 && docker info --format 'MAC_DOCKER_ENGINE_OS={{.OSType}} MAC_DOCKER_ENGINE_ARCH={{.Architecture}}' 2>/dev/null; then echo MAC_DOCKER_ENGINE=READY; else echo MAC_DOCKER_ENGINE=UNAVAILABLE; fi
+if command -v docker >/dev/null 2>&1 && docker buildx version >/dev/null 2>&1; then echo MAC_BUILDX=READY; else echo MAC_BUILDX=UNAVAILABLE; fi
+curl -L -sS --connect-timeout 5 --max-time 12 -o /dev/null -w 'MAC_GITHUB_HTTP=%{http_code}\n' https://github.com/chrenguo-stack/HomeAssistant
+ssh -T "$T1_SSH" 'img=$(docker inspect --type container --format "{{.Image}}" greenhouse-manager) || exit 1; docker image inspect --format "T1_MANAGER_IMAGE_PLATFORM={{.Os}}/{{.Architecture}}" "$img"'
 ```
 
-失败即 STOP：不删除旧镜像、不清理 Git 目录、不自动降级到 main 或漂移的 branch HEAD。需要按确切失败原因诊断，不能进入镜像构建。
-
-### 10.2 后续镜像构建与合成无网验证的边界
-
-收到 `SOURCE_EXACT_HEAD=PASS` 后，下一阶段可使用该**独立目录**运行 `docker buildx build --load`，以从源码 sha 派生的**新标签**和 OCI `org.opencontainers.image.revision` 标签绑定新镜像；**禁止复用当前 Manager 镜像 ID 或覆盖旧镜像标签**。Dockerfile 的 `python:3.11-slim` 与 pip 依赖范围尚未锁定，构建结果并非天然逐位可重现：仍需记录最终镜像 ID、基础层与实际包版本并隔离检验 `p4-pending-readonly`、`import-payload` 和 #534 管理器锁内期限检查。独立镜像构建可能占用 T1 资源或拉取依赖；不应将此描述为“完全无风险的只读操作”。后续在明确磁盘容量门槛下单独执行，不自动触发运行中的 Manager 部署。
-
-正式生产部署仍要求重新核对全部秘密配置/绑定、带停止写入边界的多数据库一致备份、隔离恢复演练，以及 Broker 原双网络与 TLS 连续性。缺失任何条件均不允许替换运行中的 Manager，也不得启动已 P3 写入的干净板。
+`MAC_GITHUB_HTTP` 为基本 HTTPS 探测，不代表 Git fetch 或 PyPI/Docker Hub 可访问；后续以精确 `git fetch` 和构建返回值为准。如果平台或 Mac Docker 引擎未知，STOP，在现有服务不变条件下改走 GitHub Actions 镜像产物路径。不得为了诊断网络而更改 T1 的 DNS/证书、安装代理或重启服务。
 
 ```text
-WAL_SHM_CHECK=CURRENT_ALL_ABSENT
-GIT_AVAILABLE=true
-BUILDX_AVAILABLE=true
-SOURCE_ONLY_FETCH_READY=true
-CANDIDATE_IMAGE_BUILT=false
-MANAGER_IMAGE_DEPLOYED=false
-THREE_DB_SNAPSHOT_VALIDATED=false
-BOARD_FIRST_NORMAL_BOOT=false
-NEXT_ACTION=GIT_EXACT_HEAD_STAGING_ONLY
-STOP_AFTER_SOURCE_BINDING=true
-```
-
-### 10.3 新镜像构建与隔离检查的现场命令
-
-**仅在 §10.1 精确源码绑定成功后执行。** 本步骤会写入 **新的、独立的 Docker 镜像及构建缓存**，可能占用 CPU、网络和磁盘，不是只读；但是不启动或替换生产 Manager/Broker，不装载真实数据库或秘密文件。要求 Docker 根目录执行前仍至少有 4 GiB 空闲（工程保护阈值，不是保证不会耗尽）。拒绝覆盖已有新标签，拒绝 source drift，绝不使用 `docker system prune`。
-
-```bash
-ssh -T "$T1_SSH" 'set -eu
-SHA=3d86d6bfaf361dc3a3d7295d046f541a544d552d
-DIR=/var/tmp/n3w-p4-manager-source-${SHA}
-TAG=n3w-p4-manager:3d86d6bfaf361dc3a3d7295d046f541a544d552d
-test -d "$DIR/.git"
-test "$(git -C "$DIR" rev-parse HEAD)" = "$SHA"
-if docker image inspect "$TAG" >/dev/null 2>&1; then echo CANDIDATE_TAG_ALREADY_EXISTS_STOP=true; exit 21; fi
-ROOT=$(docker info --format "{{.DockerRootDir}}")
-FREE=$(df -Pk "$ROOT" | awk "NR==2 {print \$4}")
-if test "$FREE" -lt 4194304; then echo INSUFFICIENT_DOCKER_DISK_STOP=true; exit 22; fi
-echo SOURCE_BINDING=PASS
-echo BUILD_FREE_DISK_KIB="$FREE"
-docker buildx build --load --label org.opencontainers.image.revision="$SHA" --tag "$TAG" --file "$DIR/host/greenhouse-manager/Dockerfile" "$DIR/host/greenhouse-manager"
-test "$(docker image inspect --format "{{index .Config.Labels \"org.opencontainers.image.revision\"}}" "$TAG")" = "$SHA"
-docker image inspect --format "CANDIDATE_IMAGE_ID={{.Id}} CANDIDATE_IMAGE_BYTES={{.Size}}" "$TAG"
-echo CANDIDATE_IMAGE_BUILT=true
-echo PRODUCTION_MANAGER_UNCHANGED=true'
-```
-
-这段构建命令的退出码非 0 就 **STOP**，保留现场输出，不删除正在运行的服务或旧镜像、不盲目重试。构建产物尚未授予生产部署资格。
-
-下面是隔离、无网络、无持久卷的功能检查。不发送任何 QR/秘密：
-
-```bash
-ssh -T "$T1_SSH" 'set -eu
-TAG=n3w-p4-manager:3d86d6bfaf361dc3a3d7295d046f541a544d552d
-docker run --rm --network none --read-only --entrypoint greenhouse-manager-registration "$TAG" p4-pending-readonly --help >/dev/null
-echo P4_READONLY_CLI_IN_IMAGE=PASS
-docker run --rm --network none --read-only --entrypoint greenhouse-manager-pairing "$TAG" import-payload --help >/dev/null
-echo QR_PAYLOAD_IMPORT_CLI_IN_IMAGE=PASS
-docker run --rm --network none --read-only --entrypoint python "$TAG" -c '"'"'import inspect; from greenhouse_manager.runtime.registration import RegistrationRegistry; from greenhouse_manager.runtime.n3w_simplified_pairing import SimplifiedPairingCoordinator; assert callable(getattr(RegistrationRegistry,"pending_import_guard",None)); assert "pending_import_guard" in inspect.getsource(SimplifiedPairingCoordinator.import_setup_secret); print("PENDING_EXPIRY_AT_USE_SOURCE_IN_IMAGE=PASS")'"'"'
-echo NO_LIVE_MANAGER_MUTATION=true'
-```
-
-该检查只证明候选镜像中存在相应 CLI 和源码保护入口，**不能替代**运行真实 pending/SQLite/IPC 的隔离集成测试，也不证明 T1 正在运行候选镜像。Dockerfile 的底层镜像 tag、依赖范围仍可漂移；必须保留本次构建产物的完整 image ID 与受控镜像快照，并补做备份恢复演练才能申请 Manager service-only 部署。
-
-```text
-BUILD_SCOPE=NEW_IMAGE_ONLY
-DEPLOY_SCOPE=NONE
-REAL_DATABASE_MOUNTS=NONE
-REAL_SECRET_MOUNTS=NONE
-REAL_BROKER_RECREATE=false
-P4_REAL_BOARD_FIRST_BOOT=false
-STOP_AFTER_SYNTHETIC_IMAGE_PROBE=true
+T1_GITHUB_DIRECT=UNAVAILABLE_USER_REPORTED
+PREVIOUS_T1_GIT_FETCH_INSTRUCTIONS=CANCELLED
+PREVIOUS_T1_ONLINE_BUILDX_INSTRUCTIONS=CANCELLED
+NEW_ROUTE=MAC_OR_CI_BUILD_SAME_ARCH_IMAGE_THEN_SSH_DOCKER_LOAD
+MAC_DOCKER_ENGINE=UNVERIFIED
+T1_TARGET_PLATFORM=UNVERIFIED
+MANAGER_RESTART=false
+BROKER_RESTART=false
+THREE_DB_BACKUP=NOT_YET_MADE
+BOARD_FIRST_BOOT=false
+REAL_SECRET_IMPORT=false
+STOP_AT_PLATFORM_CAPABILITY_CHECK=true
 ```
