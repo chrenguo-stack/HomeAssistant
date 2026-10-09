@@ -9,7 +9,7 @@ import sys
 import tarfile
 import urllib.request
 
-SOURCE_HEAD = "2d9ee7999d525e0812774a106863e2e6bf55d5ec"
+SOURCE_HEAD = "938ff0686a02e3633f96d6e421789ecdd4cabefd"
 REPO = "chrenguo-stack/HomeAssistant"
 DIRECTORY = "tools/execution_packages/n3w/p4_manager_cold_backup"
 EXPECTED = {
@@ -23,7 +23,7 @@ EXPECTED = {
     "fresh_manager_operator.py": "5527b38e28ac7f92ba533a06da9ed3042f6ff962",
     "fresh_manager_systemd_unit.py": "c73fa07dbbf0239e7e40c2e20af902dcb156c392",
     "r3_forensic_seal.py": "97b6128dd79e9c66bd5fc51b08f7104d5702f6aa",
-    "r4_shadow_stable_fingerprint.py": "b647286e52779767324a8b2c4b94f2d05fe25332",
+    "r4_shadow_stable_fingerprint.py": "8e4a6f5505c01b655ce991a46947485c791b0598",
 }
 MAX_REMOTE_SECONDS = 600
 
