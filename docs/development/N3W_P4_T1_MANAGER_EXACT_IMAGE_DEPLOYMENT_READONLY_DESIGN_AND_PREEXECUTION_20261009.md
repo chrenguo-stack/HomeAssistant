@@ -1639,3 +1639,28 @@ R5_COLD_SNAPSHOT_AND_OLD_MANAGER_RESTORE=CLOSED_PASS
 NO_NEW_T1_OR_BOARD_OPERATION=true
 NEXT=VERIFY_WHETHER_ANY_BOARD_WAS_POWERED_AND_EXPECTED_TO_PERIODICALLY_SEND
 ```
+
+## 31. 终止静默遥测复验：所有 ESP32-C6 已长期断电，直接转入 P4 Manager 部署准备（2026-10-09）
+
+用户明确确认：**ESP32-C6 已全部断电很长时间**，当前亦未接入传感器；并明确要求停止繁琐、重复的验证流程，尽快推进主线。此前观测的 Manager/Broker 90 秒稳定、MQTT TCP 8883 两次 established，`n3w_replay_seen 475→475`，在设备长期断电、无预期真实上报源的条件下，不具备检验业务 telemetry 接收的前提。**不得将零增长判为 Manager 故障，也不得把无现场上报的业务链路验收标记为 PASS。**
+
+本阶段直接收敛：
+
+- `P4_R5_OLD_MANAGER_COLD_BACKUP_AND_ISOLATED_RESTORE=CLOSED_PASS`；原版 Manager 原容器恢复、Broker 未变均已真实执行器 PASS。
+- `P4_OLD_MANAGER_POST_RESTART_CONTAINER_STABILITY=PASS`，`P4_MQTT_TCP_SESSION_ESTABLISHED=PASS`。
+- `P4_LIVE_TELEMETRY_ACCEPTANCE=DEFERRED_NO_POWERED_NODE`（不适用当前现场条件，既不是 FAIL 也不是产品全链路 PASS）。
+- `CURRENT_ESP32_C6_POWERED=false`（根据用户现场确认）；`CURRENT_SENSOR_CONNECTED=false`。
+- `REPEATED_90S_PROBES=false`、`REPEAT_COLD_BACKUP=false`、`MANUAL_PRECHECK_CHECKLISTS=false`。
+- `NEXT_ONE_GATE=N3W_P4_T1_CANDIDATE_MANAGER_DEPLOYMENT_PREPARATION_AND_SINGLE_CONTROLLED_CUTOVER_DESIGN`：复用原已证明的旧镜像、旧容器定义、三数据源冷备份/隔离恢复证据；源代码层只检查候选镜像是否满足 P4 所需功能及新旧容器对等、安全回退、单次执行入口，不重新让用户逐项执行 Mac Terminal 命令。
+- 真正更换生产 Manager 是**另一项服务修改**，之前授权仅覆盖“停止旧 Manager 做一次冷备份并恢复原 Manager”，不能据此自动部署新版本。部署需在内容、影响和失败回退方案明确后再取得单次授权。
+- 首次产品板正常启动/配对以及实际端到端遥测验收应放到新版部署后的**明确受控现场阶段**；不因无传感器就要求提前接入硬件，实验夹具数据不能等同产品原生行为。
+
+```text
+N3W_P4_BACKUP_AND_OLD_MANAGER_RESTORE=CLOSED_PASS
+N3W_P4_POST_BACKUP_CONTAINER_TCP_CHECK=CLOSED_PASS
+N3W_P4_POST_BACKUP_LIVE_TELEMETRY=DEFERRED_NO_ONLINE_NODE
+N3W_P4_REPEATED_VALIDATION=STOPPED
+N3W_P4_CANDIDATE_MANAGER_DEPLOYMENT=NOT_STARTED
+N3W_P4_BOARD_BOOT=NOT_STARTED
+NEXT_ONE_GATE=N3W_P4_T1_CANDIDATE_MANAGER_DEPLOYMENT_PREPARATION_AND_SINGLE_CONTROLLED_CUTOVER_DESIGN
+```
