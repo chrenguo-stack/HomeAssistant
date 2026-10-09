@@ -27,11 +27,21 @@ CREDENTIAL_DB = "credential-lifecycle.sqlite3"
 REPLAY_DB = "replay.sqlite3"
 
 
-def _safe_directory(path: Path) -> None:
+def _safe_directory(
+    path: Path,
+    *,
+    expected_uid: int | None = None,
+    expected_gid: int | None = None,
+) -> None:
     require(path.is_absolute() and path.is_dir() and not path.is_symlink(),
             "FRESH_DIRECTORY_UNSAFE")
-    require(stat.S_IMODE(path.stat().st_mode) == 0o700,
+    metadata = path.stat()
+    require(stat.S_IMODE(metadata.st_mode) == 0o700,
             "FRESH_DIRECTORY_MODE_UNSAFE")
+    if expected_uid is not None:
+        require(metadata.st_uid == expected_uid, "FRESH_DIRECTORY_UID_MISMATCH")
+    if expected_gid is not None:
+        require(metadata.st_gid == expected_gid, "FRESH_DIRECTORY_GID_MISMATCH")
     for ancestor in path.parents:
         require(not ancestor.is_symlink(), "FRESH_DIRECTORY_ANCESTOR_SYMLINK")
 
@@ -39,11 +49,18 @@ def _safe_directory(path: Path) -> None:
 def validate_fresh_sources(
     old_manager: dict[str, Any],
     sources: dict[str, str],
+    *,
+    expected_uid: int | None = None,
+    expected_gid: int | None = None,
 ) -> dict[str, dict[str, Any]]:
     mounts = plan_isolated_bindings(old_manager, sources)
     for dest in RW_TARGETS:
         root = Path(sources[dest])
-        _safe_directory(root)
+        _safe_directory(
+            root,
+            expected_uid=expected_uid,
+            expected_gid=expected_gid,
+        )
         require(not any(root.iterdir()), "FRESH_ROOT_NOT_EMPTY")
     return mounts
 
@@ -71,11 +88,20 @@ def _zero_table_rows(path: Path, tables: tuple[str, ...]) -> None:
         connection.close()
 
 
-def validate_initialized_fresh_state(sources: dict[str, str]) -> None:
+def validate_initialized_fresh_state(
+    sources: dict[str, str],
+    *,
+    expected_uid: int | None = None,
+    expected_gid: int | None = None,
+) -> None:
     require(set(sources) == RW_TARGETS, "FRESH_ROOT_SET_INCOMPLETE")
     roots = {key: Path(val) for key, val in sources.items()}
     for root in roots.values():
-        _safe_directory(root)
+        _safe_directory(
+            root,
+            expected_uid=expected_uid,
+            expected_gid=expected_gid,
+        )
     _zero_table_rows(
         roots["/var/lib/greenhouse-manager-registration"] / REGISTRATION_DB,
         REGISTRATION_TABLES,
