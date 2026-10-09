@@ -47,7 +47,12 @@ def execute(
         ops.verify_pre_stop(authority)
         deadline.before_old_stop()
     except Exception as error:
-        state.save(phase="PREPARE_STOP", failure_code=_error_code(error))
+        if state.uncertain:
+            return Result("UNKNOWN_FROZEN", "JOURNAL_DURABILITY_UNKNOWN_FROZEN")
+        try:
+            state.save(phase="PREPARE_STOP", failure_code=_error_code(error))
+        except Exception:
+            return Result("UNKNOWN_FROZEN", "JOURNAL_DURABILITY_UNKNOWN_FROZEN")
         return Result("STOP_PREPARE", _error_code(error))
 
     try:
@@ -89,6 +94,8 @@ def execute(
         ops.verify_finalized(authority, candidate_id)
         state.save(phase="CANDIDATE_VERIFIED", committed=True)
     except Exception as error:
+        if state.uncertain:
+            return Result("UNKNOWN_FROZEN", "JOURNAL_DURABILITY_UNKNOWN_FROZEN")
         deadline.enter_rollback()
         try:
             rollback = restore_original(state, authority, ops)
