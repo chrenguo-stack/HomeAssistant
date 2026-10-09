@@ -178,6 +178,26 @@ class CutoverContractTests(unittest.TestCase):
                 self.old, shadow, NEW_ID, fresh_sources()
             )
 
+    def test_shadow_rejects_unreviewed_host_security_drift(self):
+        shadow = stopped_shadow(self.old)
+        shadow["HostConfig"]["PublishAllPorts"] = True
+        with self.assertRaisesRegex(
+            contract.CutoverStop, "CANDIDATE_HOST_SECURITY_PARITY_FAILED"
+        ):
+            contract.verify_stopped_shadow_matches_origin(
+                self.old, shadow, NEW_ID, fresh_sources()
+            )
+
+    def test_shadow_rejects_extra_network_config_drift(self):
+        shadow = stopped_shadow(self.old)
+        shadow["Config"]["NetworkDisabled"] = True
+        with self.assertRaisesRegex(
+            contract.CutoverStop, "CANDIDATE_CONFIG_PARITY_FAILED"
+        ):
+            contract.verify_stopped_shadow_matches_origin(
+                self.old, shadow, NEW_ID, fresh_sources()
+            )
+
     def test_candidate_shadow_must_preserve_existing_secrets(self):
         shadow = stopped_shadow(self.old)
         shadow["Config"]["Env"][1] = "GH_SECRET=changed"
