@@ -689,3 +689,92 @@ SECRET_IMPORT=false
 NEXT_ACTION=SAVE_PRIVATE_INSPECT_AND_OLD_IMAGE_WITHOUT_SERVICE_MUTATION
 STOP_ON_FAILURE=true
 ```
+
+## 15. Phase A 私有运行定义与旧镜像归档已完成；进入数据备份安全门（2026-10-09）
+
+操作者从 Mac Terminal 提供的**真实 T1 输出**：
+
+```text
+PRIVATE_MANAGER_CONFIG_SAVED=PASS
+OLD_MANAGER_IMAGE_ARCHIVE_SAVED=PASS
+LIVE_MANAGER_BROKER_UNCHANGED=PASS
+T1_PRIVATE_ROLLBACK_PREP_DIR=CREATED_ROOT_PRIVATE_NOT_PUBLISHED
+DATABASE_BACKUP=NOT_STARTED
+MANAGER_FIRST_P4_REPLACEMENT=false
+P3_BOARD_FIRST_BOOT=false
+SETUP_SECRET_IMPORT=false
+```
+
+已保存当前 Manager 与 Broker 的原始 Docker inspect 以及旧 Manager 镜像 tar+SHA256 manifest，运行中的 Manager/Broker 未改变。备份位于操作者 T1 `/root/n3w-p4-manager-rollback-prep-*` 私有目录；**GitHub 不保留实际目录随机尾部、不发布文件本体、真实 Source 路径、镜像 ID、Env/密码/证书/身份详情**。
+
+**结论边界：**旧镜像及容器配置归档并不等于 DB/秘钥可以恢复；旧镜像 tar 校验尚待现场独立验证，真实生产部署仍阻断于完整 RW 持久数据快照、非 Manager 其他写入者证据、SQLite 跨库一致窗口、旧五身份和重放高水位复核、隔离恢复演练。
+
+### 15.1 下一门只读预检：验证归档与真实宿主机挂载源
+
+只执行文件校验和 stat，绝不打印存档 JSON、宿主机 Source 路径或秘密值。Mac Terminal：
+
+```bash
+printf 'T1 SSH 目标：'
+IFS= read -r T1_SSH
+ssh -T "$T1_SSH" 'set -eu
+DIR=/root/n3w-p4-manager-rollback-prep-NtbRSddP
+test -d "$DIR"
+test "$(stat -c %a "$DIR")" = 700
+for item in manager-inspect-private.json broker-inspect-private.json old-manager-image.tar old-manager-image.tar.sha256; do
+  test -s "$DIR/$item"
+  test "$(stat -c %a "$DIR/$item")" = 600
+done
+sha256sum -c --status "$DIR/old-manager-image.tar.sha256"
+echo PRIVATE_OLD_IMAGE_ARCHIVE_HASH=PASS
+echo PRIVATE_INSPECT_FILES_PROTECTED=PASS
+test "$(docker inspect --type container --format "{{len .Mounts}}" greenhouse-manager)" = 6
+docker inspect --type container --format "{{range .Mounts}}{{.Destination}}|{{.Source}}|{{.RW}}{{println}}{{end}}" greenhouse-manager |
+{
+  count=0
+  while IFS="|" read -r dest src rw; do
+    count=$((count+1))
+    test ! -L "$src" || { echo SOURCE_SYMLINK_STOP=true; exit 31; }
+    case "$dest:$rw" in
+      /var/lib/greenhouse-manager-registration:true|/var/lib/greenhouse-manager/n3w:true|/var/lib/greenhouse-manager/n3w/relay-keys:true)
+        test -d "$src" || { echo RW_SOURCE_NOT_DIRECTORY_STOP=true; exit 32; }
+        ;;
+      /run/secrets/provisioning_password:false|/run/secrets/broker-ca.pem:false|/run/secrets/gh_manager_mqtt_password:false)
+        test -f "$src" || { echo RO_SECRET_SOURCE_NOT_FILE_STOP=true; exit 33; }
+        ;;
+      *)
+        echo UNEXPECTED_MOUNT_LAYOUT_STOP=true
+        exit 34
+        ;;
+    esac
+    printf "MOUNT_DEST=%s RW=%s HOST_SOURCE_TYPE=PASS\n" "$dest" "$rw"
+  done
+  test "$count" -eq 6 || { echo MOUNT_COUNT_DRIFT_STOP=true; exit 35; }
+}
+echo PRIVATE_BACKUP_SOURCE_LAYOUT=PASS
+docker inspect --type container --format "MANAGER_RUNNING={{.State.Running}} MANAGER_RESTARTS={{.RestartCount}}" greenhouse-manager
+docker inspect --type container --format "BROKER_RUNNING={{.State.Running}} BROKER_RESTARTS={{.RestartCount}}" n3wfc4-broker-1
+echo PRODUCTION_DATABASE_BACKUP=NOT_STARTED'
+```
+
+上述 4 个私有文件校验只是 Stage A 校验。任何一条 STOP 立即停止，保留目录，**不删除、不覆盖、不重建旧镜像，不停生产 Manager/Broker**。如果某个 Source 是有意的符号链接，先作为未解决的可恢复路径风险复核，而不是就地修复文件系统。输出只含 mount Destination/RW 与类型判定，不含 private Source 值。该命令不复制当前三个 SQLite DB，也不提供一致性数据备份。
+
+### 15.2 后续执行包必须满足的单次停写与恢复合格条件
+
+- 先有包含安全 STOP/失败恢复路径的经独立验证的部署执行包，复制目的地与所有权限在 T1 root-private space；配置秘密不进入 stdout 或 GitHub。
+- 从 **保存的旧配置**与 fresh Docker metadata 一一核对三个 distinct RW host source，以及三个 RO secret host source；避免父级 n3w 和 nested relay-keys 混淆，使用 `tar --one-file-system` 时必须明确 nested bind 会被单独捕获。
+- 单一受控停写窗口（Manager 止写、其他写入者确认不存在或已协调）后备份整个三个 RW 来源，包含 DB 主库、可能在那时重新出现的 `-wal/-shm`、relay keys、未列名持久状态、UID/GID/mode；冷备份的主库须用隔离连接读取 integrity（不能在 live source 上以 `PRAGMA integrity_check` 代替原子快照）。
+- 必须先完成隔离恢复演练及原始镜像/原始 Docker 参数重建可能性验证，再允许用独立 `linux/arm64` 候选镜像启动**生产 Manager-only**；Broker 双网络与 TLS 不变。若任何不可恢复状态未知，停止升级并保留旧 Manager/old DB。
+- 任何停机/回退必须有明确窗口和新旧状态对比；当前阶段**没有授权执行停机命令，亦没有执行部署**。
+
+```text
+PHASE_A_CONTAINER_SPEC_ARCHIVE=PASS
+PHASE_A_OLD_IMAGE_TAR_CREATED=PASS
+PHASE_A_TAR_SHA256_RECHECK=PENDING
+HOST_BIND_SOURCES_FRESH_TYPE_CHECK=PENDING
+CONSISTENT_DATA_SNAPSHOT=false
+COLD_RESTORE_DRILL=false
+MANAGER_RUNTIME_REPLACEMENT=false
+BROKER_RESTART=false
+FIRST_BOARD_NORMAL_BOOT=false
+STOP_AT_ARCHIVE_HASH_AND_SOURCE_LAYOUT_PREFLIGHT=true
+```
