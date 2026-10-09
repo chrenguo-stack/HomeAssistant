@@ -1,3 +1,40 @@
+## 2026-10-09 R3 forensic whole-inspect digest mismatch — 129-pass source-only stable contract
+
+```text
+CURRENT_ONE_GATE=N3W_P4_T1_R3_FULL_INSPECT_HASH_DRIFT_SOURCE_REVIEW
+R3_REAL_STOP=R3_FORENSIC_SEAL_INVALID
+R3_JOURNAL_EXISTS=false
+R3_PRIVATE_SEAL_EXISTS=true
+R3_PRIVATE_SEAL_MODE=0600
+R3_R2_LIVE_REVERIFY=PASS
+R3_SAVED_VS_CURRENT_SEAL_DIFF_COUNT=1
+R3_SAVED_VS_CURRENT_SEAL_DIFF_FIELD=r2_shadow_inspect_sha256
+R3_SAVED_SEAL_EXTRA_FIELDS=0
+R3_OLD_MANAGER_RUNNING_BY_ORIGINAL_ID=true
+R3_BROKER_ID_START_RESTART=UNCHANGED
+SOURCE_DIAGNOSIS=WHOLE_DOCKER_INSPECT_DIGEST_OVERSCOPED
+EXACT_NESTED_DOCKER_FIELD_CHANGED=UNKNOWN
+SOURCE_ONLY_STABLE_SHADOW_PROTOTYPE_COMMIT=52360b8557ebdf475f12aec454b6ebab0dc4440a
+SOURCE_REGRESSION_TEST_COMMIT=a69c4f9aa19b4ef92f22e254f3e26f516fc7ccd5
+SOURCE_SYNTHETIC_TESTS=129_PASS
+SOURCE_TEST_CI_RUN=37946798766
+MANAGER_CI_RUN=37946798817
+PUBLIC_SAFETY_CI_RUN=37946798831
+SOURCE_ONLY_STATUS=CLOSED_PASS
+R4_STAGED_DEPLOYER=NOT_BUILT
+R4_LIVE_AUTHORIZATION=false
+NEXT_ONE_GATE=N3W_P4_T1_R3_LEGACY_SEAL_R4_INDEPENDENT_TRANSACTION_DESIGN_SOURCE_ONLY
+R2_R3_PRIVATE_EVIDENCE=KEEP
+BROKER_MUTATION=false
+BOARD_BOOT=false
+SETUP_SECRET_IMPORT=false
+SOURCE_AUTHORITY=docs/development/N3W_P4_T1_R3_FORENSIC_SEAL_FULL_INSPECT_HASH_DRIFT_SOURCE_REVIEW_AND_R4_BOUNDARY_20261009.md
+```
+
+R3's sealed `r2_shadow_inspect_sha256` SHA over the **entire** stopped-shadow Docker inspect JSON changed; read-only R2 live security/rollback verification still passed and every other saved-seal field matched. Exact inner inspect drift cannot be recovered from SHA alone. Source-only code computes a stable fingerprint of the security/identity/mount/log contract, retaining the original raw seal as immutable evidence and rejecting any protected historic-seal field drift. Neither R3 nor R4 live deployment is authorized to be replayed; do not clean R2/R3 state or touch original Manager/Broker.
+
+---
+
 ## 2026-10-09 R3 real live run — forensic-seal preflight STOP, old Manager/Broker intact
 
 ```text
