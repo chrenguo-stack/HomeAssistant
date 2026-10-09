@@ -542,3 +542,69 @@ DB_MUTATION=false
 BOARD_FIRST_NORMAL_BOOT=false
 STOP_AFTER_SYNTHETIC_PROOF=true
 ```
+
+## 13. T1 本地候选镜像隔离验收闭环及真实数据备份设计（2026-10-09）
+
+操作者提供本地构建镜像的真实隔离验收输出：
+
+```text
+P4_READONLY_CLI_IN_IMAGE=PASS
+QR_PAYLOAD_IMPORT_CLI_IN_IMAGE=PASS
+PENDING_EXPIRY_GUARD_IN_IMAGE=PASS
+T1_CANDIDATE_SYNTHETIC_TESTS=PASS
+LIVE_MANAGER_AND_BROKER_UNCHANGED=PASS
+SOURCE_EXACT_SHA=3d86d6bfaf361dc3a3d7295d046f541a544d552d
+LOCAL_CANDIDATE_TARGET=linux/arm64
+IMAGE_ALREADY_BUILT_AND_AVAILABLE=true
+GITHUB_ACTIONS_IMAGE_IMPORT=UNNECESSARY
+PRODUCTION_MANAGER_UPGRADE=false
+PRODUCT_BOARD_FIRST_NORMAL_BOOT=false
+REAL_SETUP_SECRET_IMPORT=false
+```
+
+**结论**：构建与镜像内命令、源代码保护入口的隔离检查已经通过，不需要重新编译、反复访问 GitHub、再次下载 CI 镜像、或重复现有基础 Broker 检查。上述 PASS **不是**真实 P4 配对状态迁移的验收，不能代替同一快照内的 SQLite/Relay/identity 数据保护，也不能据此停止当前 Manager。
+
+### 13.1 正式备份必须具备的保护范围
+
+此前真正的 T1 Manager 运行状态检查发现了 **六个 bind mount**：
+
+- 只读 `/run/secrets/provisioning_password`
+- 可写 `/var/lib/greenhouse-manager-registration`：registration 主 SQLite DB、以及将来可能存在的 -wal/-shm
+- 可写 `/var/lib/greenhouse-manager/n3w`：replay/credential 等 SQLite DB、以及其他持久状态
+- 可写 `/var/lib/greenhouse-manager/n3w/relay-keys`：**嵌套独立 bind mount**，不能只复制父目录就认定保留了真实 key 数据
+- 只读 `/run/secrets/broker-ca.pem`
+- 只读 `/run/secrets/gh_manager_mqtt_password`
+
+完整回退还依赖当前私有的 Manager Docker create 配置（镜像 ID、entrypoint、User、host network、restart policy、readonly rootfs、tmpfs、Env 的全部原值、每条挂载的真实 Source/Destination/RW、可能存在的特权/安全选项等），以及 Broker 的不变性验证。公开 GitHub 只能存不含秘密的命令、状态证据和 hash；**真实 Host Source、私有 Env、证书密码和备份本体均须只存在于 T1 本地受限目录**。
+
+由于生产状态分布于三个 SQLite 库和其他密钥文件，独立 `sqlite3.backup` 只提供**各库内部一致性**，不能假定三库在同一时间点，亦不能保护 relay keys。预定的安全路径：先构建可恢复的**私有容器配置存档**与旧镜像保留策略，明确当前所有持久挂载和其他写入者；随后在**一次受控的 Manager 停写窗口**（不得停止或重建 Broker）复制三个主库及附属 sidecars、完整的两个持久源目录和嵌套的第三个独立源目录，包含权限与所有权；校验内容清单和 SQLite integrity、身份数/高水位/replay 连续性；在隔离目录完成恢复演练；最后才允许部署新版本并做运行态验证。遇到失败，先判断旧镜像和旧数据能否在安全原状下启动，不能自动擦库或清空身份。
+
+### 13.2 现场下一动作：持久挂载与文件数量只读检查
+
+Mac Terminal 执行以下命令，无文件内容、真实 host source、真实 Env、真实身份值输出：
+
+```bash
+printf 'T1 SSH 目标：'
+IFS= read -r T1_SSH
+ssh -T "$T1_SSH" 'docker inspect --type container --format "{{range .Mounts}}MOUNT_DEST={{.Destination}} TYPE={{.Type}} RW={{.RW}}{{println}}{{end}}" greenhouse-manager'
+ssh -T "$T1_SSH" 'docker exec greenhouse-manager sh -c '"'"'for d in /var/lib/greenhouse-manager-registration /var/lib/greenhouse-manager/n3w /var/lib/greenhouse-manager/n3w/relay-keys; do if test ! -d "$d"; then printf "PERSIST_DIR=%s STATUS=missing\n" "$d"; exit 21; fi; count=$(find "$d" -type f | wc -l); size=$(du -sk "$d" | cut -f1); printf "PERSIST_DIR=%s FILE_COUNT=%s SIZE_KIB=%s\n" "$d" "$count" "$size"; done'"'"''
+ssh -T "$T1_SSH" 'docker inspect --type container --format "MANAGER_RUNNING={{.State.Running}} MANAGER_RESTARTS={{.RestartCount}} MANAGER_NETWORK={{.HostConfig.NetworkMode}}" greenhouse-manager'
+ssh -T "$T1_SSH" 'docker inspect --type container --format "BROKER_RUNNING={{.State.Running}} BROKER_RESTARTS={{.RestartCount}}" n3wfc4-broker-1'
+```
+
+注意，`du` 针对 `/var/lib/greenhouse-manager/n3w` 的统计会包含内嵌 relay-keys 文件，不允许将相邻统计简单相加作为真实备份大小；真正备份必须按每一个 bind source 单独取源，不能跨嵌套路径误拷贝。任何 `missing` 或命令失败先归类取证错误并 STOP，不直接判定产品故障。
+
+**此操作不会创建备份、不会停止/重启现有 Manager、不会访问实板或导入真实 Setup Secret。** 结果回来后应准备独立源码及测试可审的备份/回退执行包，而不是直接执行容器停止和不安全的活库拷贝。
+
+```text
+P4_CANDIDATE_ISOLATED_GATES=PASS
+RUNNING_MANAGER_UNCHANGED=PASS
+RUNNING_BROKER_UNCHANGED=PASS
+PERSISTENT_MOUNTS=NEEDS_FRESH_RUNTIME_LAYOUT_CONFIRMATION
+ALL_PERSISTENT_STATE_BACKUP=NOT_YET_EXECUTED
+ISOLATED_RESTORE_DRILL=NOT_YET_EXECUTED
+MANAGER_REPLACEMENT=false
+BOARD_FIRST_BOOT=false
+NEXT_ACTION=MOUNT_AND_PERSIST_DIR_READONLY_INVENTORY
+STOP_ON_LAYOUT_DRIFT=true
+```
