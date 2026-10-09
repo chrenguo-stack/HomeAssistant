@@ -223,6 +223,17 @@ class CutoverContractTests(unittest.TestCase):
                 self.old, shadow, NEW_ID, fresh_sources()
             )
 
+    def test_shadow_log_configuration_drift_is_rejected(self):
+        shadow = stopped_shadow(self.old)
+        self.old["HostConfig"]["LogConfig"]["Config"] = {"max-size": "10m", "max-file": "3"}
+        shadow["HostConfig"]["LogConfig"]["Config"] = {"max-size": "20m", "max-file": "3"}
+        with self.assertRaisesRegex(
+            contract.CutoverStop, "CANDIDATE_HOST_SECURITY_PARITY_FAILED"
+        ):
+            contract.verify_stopped_shadow_matches_origin(
+                self.old, shadow, NEW_ID, fresh_sources()
+            )
+
     def test_shadow_revision_only_label_change(self):
         shadow = stopped_shadow(self.old)
         shadow["Config"]["Labels"]["extra"] = "injected"
