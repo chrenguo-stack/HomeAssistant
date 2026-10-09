@@ -63,6 +63,14 @@ def execute(
         candidate_id = ops.create_candidate(authority, token)
         require(isinstance(candidate_id, str) and bool(candidate_id), "CANDIDATE_ID_NOT_RETURNED")
         state.bind_candidate(candidate_id)
+        require(
+            ops.inspect_candidate(authority, token) == candidate_id,
+            "CANDIDATE_CREATE_INSPECT_ID_MISMATCH",
+        )
+        require(
+            ops.verify_candidate_ownership(authority, token, candidate_id) is True,
+            "CANDIDATE_CREATE_OWNERSHIP_UNVERIFIED",
+        )
 
         state.intent("CANDIDATE_START_INTENT")
         deadline.require_forward()
