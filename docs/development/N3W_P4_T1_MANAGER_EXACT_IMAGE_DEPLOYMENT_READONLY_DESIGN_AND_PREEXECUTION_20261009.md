@@ -1664,3 +1664,25 @@ N3W_P4_CANDIDATE_MANAGER_DEPLOYMENT=NOT_STARTED
 N3W_P4_BOARD_BOOT=NOT_STARTED
 NEXT_ONE_GATE=N3W_P4_T1_CANDIDATE_MANAGER_DEPLOYMENT_PREPARATION_AND_SINGLE_CONTROLLED_CUTOVER_DESIGN
 ```
+
+## 32. P4 新 Manager 单窗口切换方案和原数据独立回退合同：SOURCE-ONLY（2026-10-09）
+
+使用者要求直接推进下一任务，终止逐项人工验证。本阶段已从此前完整记录复用 T1 本地 `linux/arm64` P4 候选镜像精确源码 `3d86d6bfaf361dc3a3d7295d046f541a544d552d`、候选 CLI/expiry guard 离线 PASS、R5 三独立 RW 数据源真实冷备份/隔离恢复/原版恢复 PASS；原 Manager 六条真实 bind 与历史 Compose 三条 bind 不一致，故严禁直接从该 Compose 重建。
+
+新设计文档：`docs/development/N3W_P4_T1_MANAGER_SINGLE_WINDOW_CUTOVER_DESIGN_20261009.md`。配套纯函数检查合同：`tools/execution_packages/n3w/p4_manager_cold_backup/cutover_contract.py`；14 个合成场景：`test_cutover_contract.py`。合同明确：
+
+1. 候选新容器**只使用在同一受控停写窗口中新复制的三个独立 RW source**；旧版 Manager、旧版原始数据库和密钥完整保留。三个 RO secrets 继续绑定原 Source，只读；host network、无 ports、只读 rootfs、用户/Entrypoint、其他环境及安全配置保持对等。
+2. 按真实运行中 Manager 的 Docker inspect 做完整 create contract；不可使用旧 Compose（3 mounts）、不能删除原 Manager 以换新版，更不可让新版直接改原始 SQLite。
+3. 自动 host-only preflight + stopped shadow 校验在任何停机前完成。短暂停止旧 Manager 后冷复制最新持久文件到独立 clone，确认元数据、身份和 replay，然后将已停止原容器 parked，创建/启动新候选容器。失败先使唯一新候选停止并移走，再恢复保留的原容器及**始终未经新版改动**的原 RW Source。以独立 systemd rescue 和原子状态阶段保护。
+4. 现场已确认所有 ESP32-C6 长期断电，所以新容器最终 runtime gate 不把 5 秒遥测作为停机窗口必要前提；只验证 host-side 运行、Broker/TLS TCP、P4 health/read-only CLI、原历史身份/文件不变，实板数据等首次上电后另行验收。
+5. 当前本门交付是**设计+源合同+模拟测试**，不是完整一键实操脚本，也不带 T1 服务修改权限。下一门须实现完整 one-shot cutover executor、失败恢复模拟及独立审阅；通过后再询问唯一一次真实生产 Manager 新版替换授权。
+
+```text
+N3W_P4_CANDIDATE_CUTOVER_DESIGN=COMPLETE
+PRODUCTION_ONE_SHOT_EXECUTOR=NOT_YET_IMPLEMENTED
+SOURCE_ONLY_CONTRACT_CHECKS=CREATED
+R5_OLD_MANAGER_BACKUP_AND_RESTORE=CLOSED_PASS
+REAL_NEW_MANAGER_DEPLOYMENT=NOT_STARTED
+CURRENT_MANAGER_BROKER=UNCHANGED_BY_THIS_TASK
+NEXT_ONE_GATE=N3W_P4_T1_CANDIDATE_MANAGER_ONE_SHOT_CUTOVER_EXECUTOR_AND_FAILURE_RECOVERY_TEST
+```
