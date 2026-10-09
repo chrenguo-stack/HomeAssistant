@@ -1570,3 +1570,51 @@ P4_POST_BACKUP_MQTT_RUNTIME_ACCEPTANCE=PENDING_SINGLE_LIVE_READONLY_OBSERVATION
 P4_NEW_MANAGER_DEPLOYMENT=NOT_AUTHORIZED
 P4_BOARD_FIRST_NORMAL_BOOT=NOT_AUTHORIZED
 ```
+
+## 29. 旧 Manager 冷备份恢复后 90 秒只读 MQTT 观察：稳定、无新 replay，业务仍未闭环（2026-10-09）
+
+### 29.1 现场真实观测
+
+操作者按 §28 单条 Mac Terminal 命令，使用 90 秒的只读窗口，提供以下**去除私有 T1 地址**的输出：
+
+```text
+OBSERVATION_WINDOW=90_SECONDS
+OBSERVATION_REMAINING_SECONDS=90
+OBSERVATION_REMAINING_SECONDS=60
+OBSERVATION_REMAINING_SECONDS=30
+MANAGER_BROKER_RUNTIME_STABLE=true
+MQTT_TCP_CONNECTED_BOTH_SAMPLES=true
+REPLAY_TUPLES_BEFORE=475
+REPLAY_TUPLES_AFTER=475
+REPLAY_TUPLES_DELTA=0
+POST_BACKUP_RUNTIME_ACCEPTANCE=INCONCLUSIVE_NO_FRESH_TELEMETRY
+PRODUCTION_MUTATION=false
+```
+
+### 29.2 确切判定：不把无流量当成故障
+
+- **PASS**：旧原版 Manager 与 Broker 在观察窗口内的容器 ID、image、StartedAt、RestartCount 和 Running 均保持不变；Manager 到 TLS Broker 的 TCP 会话两端均观察为 established。
+- **INCONCLUSIVE，不是 FAIL**：持久化 `n3w_replay_seen` 表的行数从 475 保持到 475。只能证明窗口内没有观测到**新增的独立 replay tuple**；不能直接证明没有 MQTT 消息、不能证明配对节点正上报或旧 Manager 完整应用层收发失效。重复或被拒绝的数据也可能不会增加该表行数。
+- **环境事实未知**：本轮证据没有提供任意已上电节点持续上报/业务发布的同期可靠观测，也没有采样到 Manager 对具体新数据的持久化接受证据。不能编造有在线节点或推断运行异常。
+- **之前的 P4 R5 冷备份、隔离恢复及原容器恢复 CLOSED_PASS 不回退**。不再盲目重复 90s 静默观察、不重启/断电/重刷板、不重复冷备份、不执行 Broker 或 Manager 变更。
+
+### 29.3 最小后续决策
+
+下一步只需一次确认现场是否**本来就应有正在发数据的在线节点**。如果没有，停止当前 live-telemetry 接受检查，按受控 P4 首次产品板联机之后的实测业务数据闭环；这不阻碍先进行 host-only / source-only 的**候选 Manager 部署方案设计**，但不授权生产替换。如果现场确认存在持续发报节点，则应先设计**一个**新的有明确真实消息来源/权威接收证据、有限窗口、只读的端到端测试，不得再使用单独 `INFO` 行或 `replay delta=0` 宣称设备故障。
+
+```text
+P4_R5_REAL_COLD_BACKUP_AND_RESTORE=CLOSED_PASS
+P4_OLD_MANAGER_RUNTIME_STABILITY_POST_RESTART=PASS
+P4_MQTT_TCP_ESTABLISHED_TWO_SAMPLES=PASS
+P4_REPLAY_TUPLES_BEFORE=475
+P4_REPLAY_TUPLES_AFTER=475
+P4_REPLAY_TUPLES_DELTA=0
+P4_POST_RESTART_APP_MQTT_BUSINESS=INCONCLUSIVE_NO_FRESH_TELEMETRY
+P4_LIVE_NODE_TRAFFIC_PRESENT=UNKNOWN
+REPEAT_SILENT_PROBE=false
+PRODUCT_DEFECT_PROVEN=false
+MANAGER_STOP_OR_RESTART=false
+BROKER_MUTATION=false
+P4_NEW_MANAGER_DEPLOYMENT=NOT_AUTHORIZED
+P4_BOARD_FIRST_NORMAL_BOOT=NOT_AUTHORIZED
+```
