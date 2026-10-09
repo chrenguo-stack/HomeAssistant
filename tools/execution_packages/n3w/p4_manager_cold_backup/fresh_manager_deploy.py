@@ -331,6 +331,11 @@ def create_command(
     host = old["HostConfig"]
     args: list[str] = ["docker", "create", "--name", name, "--network", "host"]
     args.extend(("--restart", "no", "--read-only", "--env-file", str(env_file)))
+    log_driver, log_options = _logging_contract(host)
+    if log_driver:
+        args.extend(("--log-driver", log_driver))
+    for key in sorted(log_options):
+        args.extend(("--log-opt", key + "=" + log_options[key]))
     user = config.get("User")
     if user:
         args.extend(("--user", str(user)))
