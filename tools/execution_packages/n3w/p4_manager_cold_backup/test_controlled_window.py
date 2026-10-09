@@ -95,13 +95,26 @@ class ControlledBackupWindowSyntheticTests(unittest.TestCase):
     def test_unchanged_original_manager_is_restarted(self) -> None:
         stopped = {"Id": "old-manager", "State": {"Running": False}}
         running = {"Id": "old-manager", "State": {"Running": True}}
-        with patch.object(window.snapshot, "inspect", side_effect=[stopped, running]) as inspected:
+        with patch.object(window.snapshot, "inspect", side_effect=[stopped, running, running, running, self.broker]) as inspected:
             with patch.object(window, "run_docker") as run:
-                with patch.object(window.snapshot, "validate_runtime") as checked:
-                    window.resume_original_manager(self.origin, self.broker)
+                with patch.object(window.time, "sleep"):
+                    with patch.object(window.snapshot, "validate_runtime") as checked:
+                        window.resume_original_manager(self.origin, self.broker)
         run.assert_called_once()
         checked.assert_called_once_with(self.origin, self.broker, "preflight")
-        self.assertEqual(inspected.call_count, 2)
+        self.assertEqual(inspected.call_count, 5)
+
+    def test_broker_changed_during_recovery_fails_closed(self) -> None:
+        stopped = {"Id": "old-manager", "State": {"Running": False}}
+        running = {"Id": "old-manager", "State": {"Running": True}}
+        old_broker = {"State": {"StartedAt": "original"}, "RestartCount": 0}
+        new_broker = {"State": {"StartedAt": "changed"}, "RestartCount": 1}
+        with patch.object(window.snapshot, "inspect", side_effect=[stopped, running, running, running, new_broker]):
+            with patch.object(window, "run_docker"):
+                with patch.object(window.time, "sleep"):
+                    with patch.object(window.snapshot, "validate_runtime"):
+                        with self.assertRaisesRegex(window.WindowStop, "BROKER_STARTED_AT_CHANGED"):
+                            window.resume_original_manager(self.origin, old_broker)
 
 
 if __name__ == "__main__":
