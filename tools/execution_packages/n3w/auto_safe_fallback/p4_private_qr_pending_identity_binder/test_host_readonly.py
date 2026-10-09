@@ -12,7 +12,7 @@ import remote_projection as rp
 
 ROOT = pathlib.Path(__file__).parent
 BASE = frozenset(f"{i:064x}" for i in range(1, 6))
-TARGET = "root@192.168.50.23"
+TARGET = "root@192.0.2.10"
 
 
 def valid_response():
@@ -167,11 +167,11 @@ class HostTests(unittest.TestCase):
     def test_r4_wrong_target_no_ssh(self):
         with (
             patch.object(h, "private_preboot_baseline", return_value=BASE),
-            patch.object(h, "_trusted_target_digest", return_value=hashlib.sha256(b"192.168.50.23").hexdigest()),
+            patch.object(h, "_trusted_target_digest", return_value=hashlib.sha256(b"192.0.2.10").hexdigest()),
             patch.object(h.subprocess, "run") as runner,
         ):
             with self.assertRaisesRegex(ValueError, "TARGET_BINDING_INVALID"):
-                h.remote_snapshot_once("root@192.168.50.24")
+                h.remote_snapshot_once("root@192.0.2.11")
             runner.assert_not_called()
 
     def test_r4_public_target_no_ssh(self):
@@ -241,7 +241,7 @@ class HostTests(unittest.TestCase):
     def test_r4_ssh_timeout_one_attempt_only(self):
         with (
             patch.object(h, "private_preboot_baseline", return_value=BASE),
-            patch.object(h, "_trusted_target_digest", return_value=hashlib.sha256(b"192.168.50.23").hexdigest()),
+            patch.object(h, "_trusted_target_digest", return_value=hashlib.sha256(b"192.0.2.10").hexdigest()),
             patch.object(h.subprocess, "run", side_effect=subprocess.TimeoutExpired("ssh", 15)) as runner,
         ):
             with self.assertRaisesRegex(ValueError, "REMOTE_READONLY_STOP"):
@@ -251,7 +251,7 @@ class HostTests(unittest.TestCase):
     def test_r4_missing_ssh_host_key_is_a_stop(self):
         with (
             patch.object(h, "private_preboot_baseline", return_value=BASE),
-            patch.object(h, "_trusted_target_digest", return_value=hashlib.sha256(b"192.168.50.23").hexdigest()),
+            patch.object(h, "_trusted_target_digest", return_value=hashlib.sha256(b"192.0.2.10").hexdigest()),
             patch.object(h.subprocess, "run") as runner,
         ):
             runner.return_value = SimpleNamespace(
