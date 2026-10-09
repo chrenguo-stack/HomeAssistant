@@ -91,6 +91,53 @@ def locate_private():
         stop("R5_PRIVATE_AUTHORITY_NOT_UNIQUE")
     return matches[0]
 
+def safe_r3_failure_evidence(private):
+    try:
+        state = private / "fresh-manager-r3-deploy-state-private.json"
+        if state.is_file() and not state.is_symlink():
+            data = json.loads(state.read_text())
+            for key in ("phase", "rollback_result"):
+                val = data.get(key)
+                if isinstance(val, str) and re.fullmatch(r"[A-Z0-9_]+", val):
+                    print("R3_" + key.upper() + "=" + val, flush=True)
+            print("R3_TRANSACTION_COMMITTED=" + str(data.get("committed") is True).lower(), flush=True)
+        else:
+            print("R3_TRANSACTION_STATE=ABSENT", flush=True)
+        original = json.loads((private / "manager-inspect-private.json").read_text())[0]
+        saved_broker = json.loads((private / "broker-inspect-private.json").read_text())[0]
+        for label, name, original_data in (
+            ("MANAGER", "greenhouse-manager", original),
+            ("BROKER", "n3wfc4-broker-1", saved_broker),
+        ):
+            proc = subprocess.run(
+                ("docker", "inspect", "--type", "container", name),
+                capture_output=True, text=True, timeout=12, check=False,
+            )
+            if proc.returncode != 0:
+                print("R3_" + label + "_STATE=UNAVAILABLE", flush=True)
+                continue
+            current = json.loads(proc.stdout)[0]
+            print("R3_" + label + "_RUNNING=" + str(current.get("State", {}).get("Running") is True).lower(), flush=True)
+            print("R3_" + label + "_ORIGINAL_ID=" + str(current.get("Id") == original_data.get("Id")).lower(), flush=True)
+            if label == "BROKER":
+                unchanged = (
+                    current.get("State", {}).get("StartedAt") == original_data.get("State", {}).get("StartedAt")
+                    and current.get("RestartCount") == original_data.get("RestartCount")
+                )
+                print("R3_BROKER_START_RESTART_UNCHANGED=" + str(unchanged).lower(), flush=True)
+        logs = subprocess.run(
+            ("journalctl", "-b", "-u", "n3w-p4-fresh-manager-r3-deploy.service",
+             "-n", "150", "--no-pager", "-o", "cat"),
+            capture_output=True, text=True, timeout=12, check=False,
+        )
+        if logs.returncode == 0:
+            codes = re.findall(r"P4_FRESH_MANAGER_DEPLOY=STOP:([A-Z0-9_]+)", logs.stdout)
+            if codes:
+                print("R3_DEPLOY_STOP_CODE=" + codes[-1], flush=True)
+    except (OSError, ValueError, KeyError, IndexError, subprocess.TimeoutExpired):
+        print("R3_FORENSIC_SUMMARY=UNAVAILABLE", flush=True)
+
+
 def run_operator(script, private, args, seconds):
     command = [sys.executable, "-B", str(script), *args, "--private-root", str(private)]
     try:
@@ -105,6 +152,7 @@ def run_operator(script, private, args, seconds):
     except subprocess.TimeoutExpired:
         stop("OPERATOR_TIMEOUT_STATE_UNKNOWN_NO_RETRY")
     if result.returncode != 0:
+        safe_r3_failure_evidence(private)
         found = re.findall(r"P4_FRESH_MANAGER_OPERATOR=STOP:([A-Z0-9_]+)", result.stderr)
         stop(found[-1] if found else "OPERATOR_ERROR_CHECK_ROOT_PRIVATE_STATUS_NO_RETRY")
     return result.stdout
@@ -233,7 +281,15 @@ def execute(target: str, archive: bytes) -> str:
     if result.returncode == 0 and match and match[-1] == "T1_FRESH_MANAGER=PASS":
         return "T1_FRESH_MANAGER=PASS"
     if match:
-        return match[-1]
+        details = [
+            line.strip()
+            for line in output.splitlines()
+            if re.fullmatch(
+                r"R3_[A-Z0-9_]+=(?:[A-Z0-9_]+|true|false)",
+                line.strip(),
+            )
+        ]
+        return "\\n".join(details[:12] + [match[-1]]) if details else match[-1]
     return "T1_FRESH_MANAGER=STOP:SSH_OR_SUDO_FAILED_NO_RETRY"
 
 
