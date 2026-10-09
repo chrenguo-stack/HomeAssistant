@@ -9,7 +9,7 @@ import sys
 import tarfile
 import urllib.request
 
-SOURCE_HEAD = "938ff0686a02e3633f96d6e421789ecdd4cabefd"
+SOURCE_HEAD = "1528ae970974fd711f8a8a6441c29817a118d825"
 REPO = "chrenguo-stack/HomeAssistant"
 DIRECTORY = "tools/execution_packages/n3w/p4_manager_cold_backup"
 EXPECTED = {
@@ -18,10 +18,10 @@ EXPECTED = {
     "controlled_window.py": "dc9e9b4658d8cf4d265b31c27a90ff9d143d77de",
     "cutover_contract.py": "203cdbb09014b5bb77fb3e67effee2fbc9900166",
     "fresh_state_contract.py": "f05e54644b954087544e99c15e030d3aefea7b8f",
-    "fresh_manager_deploy.py": "d7aa3775a6a15c42db53f3283a8d4159c5811ee7",
+    "fresh_manager_deploy.py": "e8dba98e0688a227234d39b5fb5b56087d6d4f46",
     "fresh_manager_recovery.py": "28426a313ed53d4a3fa6cc9f4bbd5fa618e08ab3",
-    "fresh_manager_operator.py": "5527b38e28ac7f92ba533a06da9ed3042f6ff962",
-    "fresh_manager_systemd_unit.py": "c73fa07dbbf0239e7e40c2e20af902dcb156c392",
+    "fresh_manager_operator.py": "1c4a3f4cc5b0f5ef39546e84b3bfa92755ddf138",
+    "fresh_manager_systemd_unit.py": "4a5f84cad7616e9783141eafd1736203c5357e31",
     "r3_forensic_seal.py": "97b6128dd79e9c66bd5fc51b08f7104d5702f6aa",
     "r4_shadow_stable_fingerprint.py": "8e4a6f5505c01b655ce991a46947485c791b0598",
 }
