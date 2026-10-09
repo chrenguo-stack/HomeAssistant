@@ -50,6 +50,72 @@ class R4StableFingerprintTests(unittest.TestCase):
                         fingerprint.require_r4_seal(private)
                 self.assertEqual(original, saved_path.read_bytes())
 
+    def test_legacy_full_inspect_flip_both_directions_keeps_r4_seal_valid(self):
+        shadow = fixture_shadow()
+        saved_r3 = {
+            "schema": "gh.n3w.p4.r3-r2-forensic-seal/1",
+            "r2_journal_sha256": "1" * 64,
+            "r2_shadow_inspect_sha256": "2" * 64,
+            "r2_shadow_container_id": "shadow-id",
+            "r2_original_manager_id": "manager-id",
+            "r2_broker_container_id": "broker-id",
+            "r2_original_manager_still_running": True,
+            "r2_rollback_result": "PASS",
+            "r2_phase": "FRESH_SOURCES_PREPARED_EMPTY",
+            "r2_shadow_stopped": True,
+            "r3_fresh_state_must_be_independent": True,
+        }
+        for before_hash, after_hash in (
+            ("3" * 64, "2" * 64),
+            ("2" * 64, "3" * 64),
+        ):
+            with self.subTest(before=before_hash == saved_r3["r2_shadow_inspect_sha256"]):
+                with tempfile.TemporaryDirectory() as root:
+                    private = Path(root)
+                    original_reader = fingerprint.r3._private_json
+
+                    def safe_r3_reader(path):
+                        if path == private / fingerprint.r3.R3_SEAL_FILE:
+                            return dict(saved_r3), b"immutable-legacy-r3-seal"
+                        return original_reader(path)
+
+                    verified_snapshots = [
+                        dict(saved_r3, r2_shadow_inspect_sha256=before_hash),
+                        dict(saved_r3, r2_shadow_inspect_sha256=after_hash),
+                    ]
+                    with patch.object(fingerprint, "verify_r3_no_cutover_and_history_intact"):
+                        with patch.object(fingerprint.r3, "_private_json", side_effect=safe_r3_reader):
+                            with patch.object(fingerprint.r3, "verify_r2", side_effect=verified_snapshots) as verify:
+                                with patch.object(fingerprint.deploy, "docker_json", return_value=shadow):
+                                    fingerprint.seal_r3_for_r4(private)
+                                    file = private / fingerprint.R4_SEAL_FILE
+                                    original_bytes = file.read_bytes()
+                                    self.assertNotIn(
+                                        "r3_legacy_digest_mismatch_classified",
+                                        fingerprint.json.loads(original_bytes),
+                                    )
+                                    fingerprint.require_r4_seal(private)
+                                    self.assertEqual(file.read_bytes(), original_bytes)
+                                    self.assertEqual(verify.call_count, 2)
+
+    def test_legacy_hash_flip_does_not_allow_other_protected_seal_changes(self):
+        review = self._synthetic_r4_review()
+        with tempfile.TemporaryDirectory() as root:
+            private = Path(root)
+            with patch.object(fingerprint, "verify_r3_no_cutover_and_history_intact"):
+                with patch.object(fingerprint, "verify_legacy_r3_seal_readonly", return_value=review):
+                    fingerprint.seal_r3_for_r4(private)
+                changed = dict(
+                    review,
+                    legacy_full_inspect_digest_mismatch=False,
+                    r2_original_manager_id="unexpected-original-manager",
+                )
+                with patch.object(fingerprint, "verify_legacy_r3_seal_readonly", return_value=changed):
+                    with self.assertRaisesRegex(
+                        fingerprint.FingerprintStop, "R4_SEAL_PROTECTED_STATE_DRIFT"
+                    ):
+                        fingerprint.require_r4_seal(private)
+
     def test_missing_r4_seal_never_allows_deployment_preflight(self):
         with tempfile.TemporaryDirectory() as path:
             private = Path(path)
