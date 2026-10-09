@@ -169,7 +169,7 @@ class ColdSnapshotSyntheticTests(unittest.TestCase):
             self.sources[tool.RW["relay_keys"]] / "key.synth"
         )
         with patch.object(tool, "no_open_db_files", return_value=None):
-            with self.assertRaisesRegex(tool.Stop, "SOURCE_SYMLINK_INSIDE"):
+            with self.assertRaisesRegex(tool.Stop, "SYMLINK_IN_PERSISTENT_DATA"):
                 tool.capture(self.sources, self.root)
 
 
