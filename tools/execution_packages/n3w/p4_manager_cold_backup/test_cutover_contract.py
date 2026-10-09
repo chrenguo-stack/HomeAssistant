@@ -8,7 +8,7 @@ import cutover_contract as contract
 OLD_ID = "sha256:" + "a" * 64
 NEW_ID = "sha256:" + "b" * 64
 OLD_BASE = "/srv/original"
-NEW_BASE = "/srv/p4-clone"
+NEW_BASE = "/srv/p4-fresh"
 EXPECTED_DESTS = tuple(sorted(contract.ALL_TARGETS))
 
 
@@ -32,6 +32,11 @@ def old_manager():
             "Entrypoint": ["greenhouse-manager"],
             "Cmd": [],
             "WorkingDir": "/app",
+            "Healthcheck": None,
+            "StopSignal": None,
+            "OpenStdin": False,
+            "StdinOnce": False,
+            "Tty": False,
             "Labels": {"org.opencontainers.image.revision": "old"},
         },
         "HostConfig": {
@@ -39,8 +44,27 @@ def old_manager():
             "PortBindings": {},
             "ReadonlyRootfs": True,
             "RestartPolicy": {"Name": "unless-stopped"},
-            "SecurityOpt": ["no-new-privileges"],
+            "SecurityOpt": None,
             "Tmpfs": {"/tmp": "rw,nosuid,size=16777216"},
+            "CapAdd": None,
+            "CapDrop": None,
+            "Privileged": False,
+            "LogConfig": {"Type": "json-file", "Config": {}},
+            "Devices": [],
+            "DeviceRequests": None,
+            "PidsLimit": None,
+            "Memory": 0,
+            "MemorySwap": 0,
+            "NanoCpus": 0,
+            "Ulimits": None,
+            "IpcMode": "private",
+            "PidMode": "",
+            "ShmSize": 67108864,
+            "CgroupnsMode": "private",
+            "Dns": [],
+            "ExtraHosts": None,
+            "Init": None,
+            "OomKillDisable": None,
         },
         "Mounts": mounts,
     }
@@ -55,9 +79,11 @@ def image():
     }
 
 
-def clones():
-    return {dest: NEW_BASE + "/mount" + str(i)
-            for i, dest in enumerate(sorted(contract.RW_TARGETS))}
+def fresh_sources():
+    return {
+        dest: NEW_BASE + "/mount" + str(i)
+        for i, dest in enumerate(sorted(contract.RW_TARGETS))
+    }
 
 
 def stopped_shadow(old):
@@ -66,7 +92,7 @@ def stopped_shadow(old):
     new["Image"] = NEW_ID
     new["Config"]["Labels"]["org.opencontainers.image.revision"] = contract.CANDIDATE_SOURCE
     new["HostConfig"]["RestartPolicy"] = {"Name": "no"}
-    desired = contract.plan_isolated_bindings(old, clones())
+    desired = contract.plan_isolated_bindings(old, fresh_sources())
     new["Mounts"] = list(desired.values())
     return new
 
@@ -81,11 +107,11 @@ class CutoverContractTests(unittest.TestCase):
         contract.validate_source_authority(self.old, self.broker, self.image)
         shadow = stopped_shadow(self.old)
         contract.verify_stopped_shadow_matches_origin(
-            self.old, shadow, NEW_ID, clones()
+            self.old, shadow, NEW_ID, fresh_sources()
         )
 
-    def test_candidate_rw_mounts_are_clones_and_ro_secrets_preserved(self):
-        mounted = contract.plan_isolated_bindings(self.old, clones())
+    def test_candidate_rw_mounts_are_fresh_and_ro_secrets_preserved(self):
+        mounted = contract.plan_isolated_bindings(self.old, fresh_sources())
         original = {m["Destination"]: m for m in self.old["Mounts"]}
         for dst in contract.RW_TARGETS:
             self.assertNotEqual(mounted[dst]["Source"], original[dst]["Source"])
@@ -115,54 +141,100 @@ class CutoverContractTests(unittest.TestCase):
 
     def test_candidate_must_not_write_original_state(self):
         dest = next(iter(sorted(contract.RW_TARGETS)))
-        bad = clones()
-        bad[dest] = next(m["Source"] for m in self.old["Mounts"]
-                         if m["Destination"] == dest)
-        with self.assertRaisesRegex(contract.CutoverStop, "CANDIDATE_MUST_NOT_WRITE_OLD_STATE"):
+        bad = fresh_sources()
+        bad[dest] = next(
+            m["Source"] for m in self.old["Mounts"]
+            if m["Destination"] == dest
+        )
+        with self.assertRaisesRegex(
+            contract.CutoverStop, "CANDIDATE_MUST_NOT_WRITE_OLD_STATE"
+        ):
             contract.plan_isolated_bindings(self.old, bad)
 
-    def test_candidate_must_not_overwrite_any_original_tree(self):
-        bad = clones()
+    def test_candidate_must_not_overlap_any_original_tree(self):
+        bad = fresh_sources()
         dest = next(iter(sorted(contract.RW_TARGETS)))
         bad[dest] = OLD_BASE + "/mount0/accidental-nested"
-        with self.assertRaisesRegex(contract.CutoverStop, "CLONE_OVERLAPS_ORIGINAL_STATE"):
+        with self.assertRaisesRegex(
+            contract.CutoverStop, "FRESH_SOURCE_OVERLAPS_ORIGINAL_STATE"
+        ):
             contract.plan_isolated_bindings(self.old, bad)
 
-    def test_candidate_clones_must_not_overlap(self):
-        bad = clones()
+    def test_candidate_fresh_sources_must_not_overlap(self):
+        bad = fresh_sources()
         a, b = sorted(contract.RW_TARGETS)[:2]
         bad[b] = bad[a] + "/nested"
-        with self.assertRaisesRegex(contract.CutoverStop, "CLONE_SOURCE_OVERLAP"):
+        with self.assertRaisesRegex(contract.CutoverStop, "FRESH_SOURCE_OVERLAP"):
             contract.plan_isolated_bindings(self.old, bad)
 
     def test_candidate_shadow_must_preserve_security(self):
         shadow = stopped_shadow(self.old)
         shadow["HostConfig"]["ReadonlyRootfs"] = False
-        with self.assertRaisesRegex(contract.CutoverStop, "SHADOW_HOST_SECURITY_PARITY_FAILED"):
-            contract.verify_stopped_shadow_matches_origin(self.old, shadow, NEW_ID, clones())
+        with self.assertRaisesRegex(
+            contract.CutoverStop, "CANDIDATE_HOST_SECURITY_PARITY_FAILED"
+        ):
+            contract.verify_stopped_shadow_matches_origin(
+                self.old, shadow, NEW_ID, fresh_sources()
+            )
 
     def test_candidate_shadow_must_preserve_existing_secrets(self):
         shadow = stopped_shadow(self.old)
         shadow["Config"]["Env"][1] = "GH_SECRET=changed"
-        with self.assertRaisesRegex(contract.CutoverStop, "SHADOW_CONFIG_PARITY_FAILED"):
-            contract.verify_stopped_shadow_matches_origin(self.old, shadow, NEW_ID, clones())
+        with self.assertRaisesRegex(contract.CutoverStop, "CANDIDATE_ENV_PARITY_FAILED"):
+            contract.verify_stopped_shadow_matches_origin(
+                self.old, shadow, NEW_ID, fresh_sources()
+            )
+
+    def test_environment_order_does_not_change_contract(self):
+        shadow = stopped_shadow(self.old)
+        shadow["Config"]["Env"] = list(reversed(shadow["Config"]["Env"]))
+        contract.verify_stopped_shadow_matches_origin(
+            self.old, shadow, NEW_ID, fresh_sources()
+        )
+
+    def test_duplicate_environment_key_is_forbidden(self):
+        shadow = stopped_shadow(self.old)
+        shadow["Config"]["Env"].append("GH_MQTT_TLS=1")
+        with self.assertRaisesRegex(
+            contract.CutoverStop, "MANAGER_ENV_DUPLICATE_OR_EMPTY"
+        ):
+            contract.verify_stopped_shadow_matches_origin(
+                self.old, shadow, NEW_ID, fresh_sources()
+            )
 
     def test_shadow_revision_only_label_change(self):
         shadow = stopped_shadow(self.old)
         shadow["Config"]["Labels"]["extra"] = "injected"
-        with self.assertRaisesRegex(contract.CutoverStop, "SHADOW_NONREVISION_LABEL_DRIFT"):
-            contract.verify_stopped_shadow_matches_origin(self.old, shadow, NEW_ID, clones())
+        with self.assertRaisesRegex(
+            contract.CutoverStop, "CANDIDATE_NONREVISION_LABEL_DRIFT"
+        ):
+            contract.verify_stopped_shadow_matches_origin(
+                self.old, shadow, NEW_ID, fresh_sources()
+            )
 
     def test_shadow_stays_stopped_until_cutover(self):
         shadow = stopped_shadow(self.old)
         shadow["State"]["Running"] = True
-        with self.assertRaisesRegex(contract.CutoverStop, "SHADOW_MUST_BE_STOPPED"):
-            contract.verify_stopped_shadow_matches_origin(self.old, shadow, NEW_ID, clones())
+        with self.assertRaisesRegex(
+            contract.CutoverStop, "CANDIDATE_RUNNING_STATE_MISMATCH"
+        ):
+            contract.verify_stopped_shadow_matches_origin(
+                self.old, shadow, NEW_ID, fresh_sources()
+            )
 
-    def test_transaction_order_cannot_drop_backup_before_rename(self):
+    def test_running_candidate_contract_passes_before_commit(self):
+        candidate = stopped_shadow(self.old)
+        candidate["State"]["Running"] = True
+        contract.verify_running_candidate_matches_origin(
+            self.old, candidate, NEW_ID, fresh_sources()
+        )
+
+    def test_transaction_order_has_no_legacy_cold_copy(self):
         contract.assert_cutover_sequence(list(contract.TRANSACTION_PHASES))
+        self.assertNotIn("FRESH_THREE_SOURCE_COLD_COPY", contract.TRANSACTION_PHASES)
+        self.assertNotIn("CLONED_STATE_BUSINESS_PROOF", contract.TRANSACTION_PHASES)
         bad = list(contract.TRANSACTION_PHASES)
-        bad.remove("FRESH_THREE_SOURCE_COLD_COPY")
+        bad.remove("FRESH_SOURCES_PREPARED_EMPTY")
         with self.assertRaisesRegex(contract.CutoverStop, "CUTOVER_SEQUENCE_UNSAFE"):
             contract.assert_cutover_sequence(bad)
 
