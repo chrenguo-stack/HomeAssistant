@@ -20,7 +20,8 @@ RO_TARGETS = frozenset({
 ALL_TARGETS = RW_TARGETS | RO_TARGETS
 CONFIG_COMPARE = (
     "User", "Entrypoint", "Cmd", "WorkingDir",
-    "Healthcheck", "StopSignal", "OpenStdin", "StdinOnce", "Tty",
+    "Healthcheck", "StopSignal", "StopTimeout", "OpenStdin", "StdinOnce", "Tty",
+    "AttachStdin", "AttachStdout", "AttachStderr", "NetworkDisabled",
 )
 HOST_COMPARE = (
     "NetworkMode", "PortBindings", "ReadonlyRootfs", "Tmpfs",
@@ -28,6 +29,9 @@ HOST_COMPARE = (
     "Devices", "DeviceRequests", "PidsLimit", "Memory", "MemorySwap",
     "NanoCpus", "Ulimits", "IpcMode", "PidMode", "ShmSize",
     "CgroupnsMode", "Dns", "ExtraHosts", "Init", "OomKillDisable",
+    "AutoRemove", "PublishAllPorts", "Runtime", "Sysctls", "UsernsMode",
+    "UTSMode", "ReadonlyPaths", "MaskedPaths", "GroupAdd", "DnsOptions",
+    "DnsSearch", "StorageOpt", "OomScoreAdj", "CgroupParent",
 )
 TRANSACTION_PHASES = (
     "PRECHECK_OLD_MANAGER_RUNNING",
@@ -179,6 +183,9 @@ def _verify_candidate_matches_origin(
                 "CANDIDATE_HOST_SECURITY_PARITY_FAILED")
     require(new_host.get("RestartPolicy", {}).get("Name") == restart_policy,
             "CANDIDATE_RESTART_POLICY_MISMATCH")
+    require(new_host.get("RestartPolicy", {}).get("MaximumRetryCount", 0)
+            == old_host.get("RestartPolicy", {}).get("MaximumRetryCount", 0),
+            "CANDIDATE_RESTART_POLICY_PARAMETERS_MISMATCH")
 
 
 def verify_stopped_shadow_matches_origin(
