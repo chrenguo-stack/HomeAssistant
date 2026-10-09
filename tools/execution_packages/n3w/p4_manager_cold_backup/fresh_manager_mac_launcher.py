@@ -9,7 +9,7 @@ import sys
 import tarfile
 import urllib.request
 
-SOURCE_HEAD = "9441a73658d21566f981e7986b0e0de9093d14da"
+SOURCE_HEAD = "2d9ee7999d525e0812774a106863e2e6bf55d5ec"
 REPO = "chrenguo-stack/HomeAssistant"
 DIRECTORY = "tools/execution_packages/n3w/p4_manager_cold_backup"
 EXPECTED = {
@@ -18,11 +18,12 @@ EXPECTED = {
     "controlled_window.py": "dc9e9b4658d8cf4d265b31c27a90ff9d143d77de",
     "cutover_contract.py": "203cdbb09014b5bb77fb3e67effee2fbc9900166",
     "fresh_state_contract.py": "f05e54644b954087544e99c15e030d3aefea7b8f",
-    "fresh_manager_deploy.py": "79721bf24671469c551e7f169144d07d58b98bd4",
+    "fresh_manager_deploy.py": "d7aa3775a6a15c42db53f3283a8d4159c5811ee7",
     "fresh_manager_recovery.py": "28426a313ed53d4a3fa6cc9f4bbd5fa618e08ab3",
-    "fresh_manager_operator.py": "6d8339d5fa4d3b9004f60eea246593b1036d29cc",
-    "fresh_manager_systemd_unit.py": "d5d77d3198f34a18abf997c19a12e6b556748f1e",
+    "fresh_manager_operator.py": "5527b38e28ac7f92ba533a06da9ed3042f6ff962",
+    "fresh_manager_systemd_unit.py": "c73fa07dbbf0239e7e40c2e20af902dcb156c392",
     "r3_forensic_seal.py": "97b6128dd79e9c66bd5fc51b08f7104d5702f6aa",
+    "r4_shadow_stable_fingerprint.py": "b647286e52779767324a8b2c4b94f2d05fe25332",
 }
 MAX_REMOTE_SECONDS = 600
 
@@ -47,8 +48,8 @@ NEEDED = {
     "cold-snapshot-manifest-private.json",
     "p4-business-restore-evidence-private.json",
 }
-STAGE_NAME = "p4-fresh-manager-deploy-r3"
-AUTH = "N3W_P4_T1_FRESH_MANAGER_ONE_SHOT_LIVE_DEPLOY_R3"
+STAGE_NAME = "p4-fresh-manager-deploy-r4"
+AUTH = "N3W_P4_T1_FRESH_MANAGER_ONE_SHOT_LIVE_DEPLOY_R4"
 
 def stop(code):
     print("T1_FRESH_MANAGER=STOP:" + code, flush=True)
@@ -91,18 +92,18 @@ def locate_private():
         stop("R5_PRIVATE_AUTHORITY_NOT_UNIQUE")
     return matches[0]
 
-def safe_r3_failure_evidence(private):
+def safe_r4_failure_evidence(private):
     try:
-        state = private / "fresh-manager-r3-deploy-state-private.json"
+        state = private / "fresh-manager-r4-deploy-state-private.json"
         if state.is_file() and not state.is_symlink():
             data = json.loads(state.read_text())
             for key in ("phase", "rollback_result"):
                 val = data.get(key)
                 if isinstance(val, str) and re.fullmatch(r"[A-Z0-9_]+", val):
-                    print("R3_" + key.upper() + "=" + val, flush=True)
-            print("R3_TRANSACTION_COMMITTED=" + str(data.get("committed") is True).lower(), flush=True)
+                    print("R4_" + key.upper() + "=" + val, flush=True)
+            print("R4_TRANSACTION_COMMITTED=" + str(data.get("committed") is True).lower(), flush=True)
         else:
-            print("R3_TRANSACTION_STATE=ABSENT", flush=True)
+            print("R4_TRANSACTION_STATE=ABSENT", flush=True)
         original = json.loads((private / "manager-inspect-private.json").read_text())[0]
         saved_broker = json.loads((private / "broker-inspect-private.json").read_text())[0]
         for label, name, original_data in (
@@ -114,28 +115,28 @@ def safe_r3_failure_evidence(private):
                 capture_output=True, text=True, timeout=12, check=False,
             )
             if proc.returncode != 0:
-                print("R3_" + label + "_STATE=UNAVAILABLE", flush=True)
+                print("R4_" + label + "_STATE=UNAVAILABLE", flush=True)
                 continue
             current = json.loads(proc.stdout)[0]
-            print("R3_" + label + "_RUNNING=" + str(current.get("State", {}).get("Running") is True).lower(), flush=True)
-            print("R3_" + label + "_ORIGINAL_ID=" + str(current.get("Id") == original_data.get("Id")).lower(), flush=True)
+            print("R4_" + label + "_RUNNING=" + str(current.get("State", {}).get("Running") is True).lower(), flush=True)
+            print("R4_" + label + "_ORIGINAL_ID=" + str(current.get("Id") == original_data.get("Id")).lower(), flush=True)
             if label == "BROKER":
                 unchanged = (
                     current.get("State", {}).get("StartedAt") == original_data.get("State", {}).get("StartedAt")
                     and current.get("RestartCount") == original_data.get("RestartCount")
                 )
-                print("R3_BROKER_START_RESTART_UNCHANGED=" + str(unchanged).lower(), flush=True)
+                print("R4_BROKER_START_RESTART_UNCHANGED=" + str(unchanged).lower(), flush=True)
         logs = subprocess.run(
-            ("journalctl", "-b", "-u", "n3w-p4-fresh-manager-r3-deploy.service",
+            ("journalctl", "-b", "-u", "n3w-p4-fresh-manager-r4-deploy.service",
              "-n", "150", "--no-pager", "-o", "cat"),
             capture_output=True, text=True, timeout=12, check=False,
         )
         if logs.returncode == 0:
             codes = re.findall(r"P4_FRESH_MANAGER_DEPLOY=STOP:([A-Z0-9_]+)", logs.stdout)
             if codes:
-                print("R3_DEPLOY_STOP_CODE=" + codes[-1], flush=True)
+                print("R4_DEPLOY_STOP_CODE=" + codes[-1], flush=True)
     except (OSError, ValueError, KeyError, IndexError, subprocess.TimeoutExpired):
-        print("R3_FORENSIC_SUMMARY=UNAVAILABLE", flush=True)
+        print("R4_FORENSIC_SUMMARY=UNAVAILABLE", flush=True)
 
 
 def run_operator(script, private, args, seconds):
@@ -152,7 +153,7 @@ def run_operator(script, private, args, seconds):
     except subprocess.TimeoutExpired:
         stop("OPERATOR_TIMEOUT_STATE_UNKNOWN_NO_RETRY")
     if result.returncode != 0:
-        safe_r3_failure_evidence(private)
+        safe_r4_failure_evidence(private)
         found = re.findall(r"P4_FRESH_MANAGER_OPERATOR=STOP:([A-Z0-9_]+)", result.stderr)
         stop(found[-1] if found else "OPERATOR_ERROR_CHECK_ROOT_PRIVATE_STATUS_NO_RETRY")
     return result.stdout
@@ -285,7 +286,7 @@ def execute(target: str, archive: bytes) -> str:
             line.strip()
             for line in output.splitlines()
             if re.fullmatch(
-                r"R3_[A-Z0-9_]+=(?:[A-Z0-9_]+|true|false)",
+                r"R4_[A-Z0-9_]+=(?:[A-Z0-9_]+|true|false)",
                 line.strip(),
             )
         ]
@@ -301,7 +302,7 @@ def main() -> None:
             sys.argv[1] if len(sys.argv) == 2 else input("T1 SSH 目标 (user@host 或已配置的别名): ").strip()
         )
         archive = pack_files(fetch_scripts())
-        print("SOURCE_EXACT_TEN_FILES=PASS", flush=True)
+        print("SOURCE_EXACT_ELEVEN_FILES=PASS", flush=True)
         print("R5_PRIVATE_AND_LIVE_PREFLIGHT=AUTOMATED", flush=True)
         outcome = execute(target, archive)
         print(outcome, flush=True)
