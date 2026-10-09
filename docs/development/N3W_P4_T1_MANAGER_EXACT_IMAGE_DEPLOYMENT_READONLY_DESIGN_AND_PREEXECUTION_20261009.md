@@ -89,3 +89,60 @@ PRODUCT_FIRST_NORMAL_BOOT=false
 SETUP_SECRET_IMPORT=false
 STOP=true
 ```
+
+## 6. 现场第二轮只读取证及 Broker 命令修正（2026-10-09）
+
+操作者从 Mac Terminal 实际读取、未修改 T1：
+
+```text
+MANAGER_RUNNING=true
+MANAGER_RESTARTS=0
+MANAGER_STARTED_AT=2026-10-06T15:08:36.478286093Z
+MANAGER_NETWORK=host
+MANAGER_PORTS=EMPTY
+MANAGER_USER=greenhouse
+MANAGER_RESTART_POLICY=unless-stopped
+MANAGER_READONLY_ROOTFS=true
+MANAGER_INIT=nil
+MANAGER_AUTO_REMOVE=false
+MANAGER_TMPFS=/tmp:size=16m,mode=1777
+MANAGER_CAP_DROP=null
+MANAGER_SECURITY_OPT=null
+MANAGER_COMPOSE_LABELS=MISSING
+BROKER_NETWORK_COMMAND=INVALID_GO_TEMPLATE_NO_BROKER_RESULT
+SYSTEMD_N3W_BROKER_ACTIVATION_UNIT=enabled
+SYSTEMD_N3W_BROKER_CERTIFICATE_LIFECYCLE_UNIT=static
+SYSTEMD_N3W_BROKER_INGRESS_GUARD_UNIT=enabled
+REAL_IP_FULL_IMAGE_DIGEST_HOST_SOURCE_HASHES=PRIVATE_NOT_COPIED
+T1_MUTATION=false
+BOARD_ACCESS=false
+SECRET_IMPORT=false
+```
+
+**命令错误与责任：**此前提供的 Docker 格式模板中 `range $name,$network := .NetworkSettings.Networks` 触发 `template parsing error: unexpected "," in range`。这是工具命令语法失败，**Broker 容器健康、重启次数、网络连接数量和名称均未获得有效本轮输出**，不能记 Broker FAIL。后续不再使用 Go template 多变量循环，改用 `docker inspect --format '{{json ...}}'`，在 **Mac 本地** Python 只解析公开的非秘密网络名称，不向远程 T1 发送 Python 代码，也不创建新信任检查。
+
+**下一次可直接运行的 Mac Terminal 只读命令：**
+
+```bash
+printf 'T1 SSH 目标：'
+IFS= read -r T1_SSH
+ssh -T "$T1_SSH" 'docker inspect --type container --format "BROKER_RUNNING={{.State.Running}} BROKER_RESTARTS={{.RestartCount}} BROKER_NETWORK_MODE={{.HostConfig.NetworkMode}}" n3wfc4-broker-1'
+ssh -T "$T1_SSH" 'docker inspect --type container --format "{{json .NetworkSettings.Networks}}" n3wfc4-broker-1' | python3 -c 'import json,sys; obj=json.load(sys.stdin); print("BROKER_NETWORK_COUNT="+str(len(obj))); print("BROKER_NETWORK_NAMES="+",".join(sorted(obj)))'
+ssh -T "$T1_SSH" 'docker inspect --type container --format "{{json .HostConfig.PortBindings}}" n3wfc4-broker-1' | python3 -c 'import json,sys; obj=json.load(sys.stdin) or {}; print("BROKER_TCP_8883_PUBLICATIONS="+str(len(obj.get("8883/tcp",[])))); print("BROKER_PUBLISHED_PORT_KEYS="+",".join(sorted(obj)))'
+ssh -T "$T1_SSH" 'systemctl show n3wfc4-broker-activation.service n3wfc4-broker-ingress-guard.service -p Id -p ActiveState -p SubState --no-pager'
+```
+
+前面三条仅读取 Docker 元数据，第 4 条只读取 systemd 状态；不输出真实网络地址、证书、密码、数据库文件、Secret 或绑定宿主机路径。若 `docker inspect` 失败或 Python 解析报错应分类为取证失败，不得臆断 Broker 本身失败或因此自动重启。预期应保留原先 Broker 的完整双网络连接集合，但网络名称与映射必须用当次现场输出决定。因为 systemd 有 Broker activation/ingress guard，绝对禁止在 Manager 单服务升级中隐式重建或更改 Broker。
+
+下一阶段仍需核对 Manager 进程环境、配置/挂载和备份源，在隔离镜像与快照上演练回退，不得凭这一次元数据检查直接修改运行中的服务。
+
+```text
+BROKER_NETWORK_CURRENT=UNVERIFIED_BAD_QUERY
+BROKER_HEALTH_CURRENT=UNVERIFIED_BAD_QUERY
+MANAGER_CREATE_OPTIONS=OBSERVED_READONLY
+MANAGER_SOURCE_MATCH=OLD_IMAGE
+P4_PRECLAIM_READY=false
+MANAGER_DEPLOYMENT=false
+BOARD_FIRST_BOOT=false
+STOP_AT_NEXT_READONLY_EVIDENCE=true
+```
