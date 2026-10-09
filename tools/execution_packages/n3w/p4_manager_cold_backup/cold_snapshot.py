@@ -122,6 +122,16 @@ def validate_runtime(original: dict[str, Any], broker_saved: dict[str, Any], pha
     )
     require(broker.get("Image") == broker_saved.get("Image"), "BROKER_IMAGE_DRIFT")
     require(broker.get("Id") == broker_saved.get("Id"), "BROKER_CONTAINER_CHANGED")
+    require(
+        set(broker.get("NetworkSettings", {}).get("Networks", {}))
+        == set(broker_saved.get("NetworkSettings", {}).get("Networks", {})),
+        "BROKER_NETWORK_ATTACHMENTS_DRIFT",
+    )
+    require(
+        broker.get("HostConfig", {}).get("PortBindings")
+        == broker_saved.get("HostConfig", {}).get("PortBindings"),
+        "BROKER_PORT_PUBLICATIONS_DRIFT",
+    )
     require(broker.get("State", {}).get("Running") is True, "BROKER_NOT_RUNNING")
     running = current.get("State", {}).get("Running")
     require(running is (phase == "preflight"), "MANAGER_RUNNING_STATE_BLOCKS_PHASE")
