@@ -852,3 +852,81 @@ MANAGER_DEPLOYMENT=false
 BROKER_RESTART=false
 FIRST_BOARD_NORMAL_BOOT=false
 ```
+
+## 17. 六挂载类型来源复核已闭环；生产一致快照前检查其他运行容器写入（2026-10-09）
+
+操作者 Mac Terminal 最新实际结果：
+
+```text
+MOUNT_DEST=/run/secrets/gh_manager_mqtt_password RW=false HOST_SOURCE_TYPE=PASS
+MOUNT_DEST=/run/secrets/provisioning_password RW=false HOST_SOURCE_TYPE=PASS
+MOUNT_DEST=/var/lib/greenhouse-manager-registration RW=true HOST_SOURCE_TYPE=PASS
+MOUNT_DEST=/var/lib/greenhouse-manager/n3w RW=true HOST_SOURCE_TYPE=PASS
+MOUNT_DEST=/var/lib/greenhouse-manager/n3w/relay-keys RW=true HOST_SOURCE_TYPE=PASS
+MOUNT_DEST=/run/secrets/broker-ca.pem RW=false HOST_SOURCE_TYPE=PASS
+PRIVATE_BACKUP_SOURCE_LAYOUT=PASS
+MANAGER_RUNNING=true MANAGER_RESTARTS=0
+BROKER_RUNNING=true BROKER_RESTARTS=0
+DATABASE_BACKUP=NOT_STARTED
+```
+
+旧镜像私有归档 `sha256sum -c` 和文件权限此前已经 PASS；此处只读检查关闭了上一轮换行解析假阳性。候选本地 `linux/arm64` Manager 已编译并完成 P4 命令隔离验证。**不能因为预检通过而宣称数据备份/回退完成。**
+
+### 17.1 下一步：排查其他容器是否共享可写数据源（只读）
+
+下一条 Mac Terminal 命令检查当前 Manager 自身三个 RW bind 的确切 Host Source，判断是否有其他**正在运行的容器**以可写挂载指向相同或父子路径，同时检查 `tar`、`sha256sum` 与 `fuser` 能否用于后续冷备份。Host Source、Env、secret 不会输出；只输出数量、分类和 PASS/STOP。
+
+```bash
+printf 'T1 SSH 目标：'
+IFS= read -r T1_SSH
+ssh -T "$T1_SSH" 'set -eu
+MGR=$(docker inspect --type container --format "{{.Id}}" greenhouse-manager)
+REG=$(docker inspect --type container --format "{{range .Mounts}}{{if eq .Destination \"/var/lib/greenhouse-manager-registration\"}}{{.Source}}{{end}}{{end}}" greenhouse-manager)
+N3W=$(docker inspect --type container --format "{{range .Mounts}}{{if eq .Destination \"/var/lib/greenhouse-manager/n3w\"}}{{.Source}}{{end}}{{end}}" greenhouse-manager)
+KEYS=$(docker inspect --type container --format "{{range .Mounts}}{{if eq .Destination \"/var/lib/greenhouse-manager/n3w/relay-keys\"}}{{.Source}}{{end}}{{end}}" greenhouse-manager)
+for p in "$REG" "$N3W" "$KEYS"; do
+  test -n "$p" && test -d "$p" && test ! -L "$p" || { echo RW_HOST_SOURCE_INVALID_STOP=true; exit 30; }
+done
+test "$REG" != "$N3W" && test "$REG" != "$KEYS" && test "$N3W" != "$KEYS" || { echo RW_HOST_SOURCE_DUPLICATE_STOP=true; exit 31; }
+echo THREE_RW_BIND_SOURCE_PATHS_PRESENT=PASS
+case "$KEYS/" in "$N3W/"*) echo RELAY_KEYS_SOURCE_NESTED_IN_N3W_SOURCE=true;; *) echo RELAY_KEYS_SOURCE_NESTED_IN_N3W_SOURCE=false;; esac
+COUNT=0
+for cid in $(docker ps -q --no-trunc); do
+  if test "$cid" = "$MGR"; then continue; fi
+  mounts=$(docker inspect --type container --format "{{range .Mounts}}{{if .RW}}{{.Source}}{{println}}{{end}}{{end}}" "$cid") || { echo OTHER_CONTAINER_INSPECT_ERROR_STOP=true; exit 32; }
+  oldifs=$IFS
+  IFS="
+"
+  for other in $mounts; do
+    test -n "$other" || continue
+    for src in "$REG" "$N3W" "$KEYS"; do
+      if test "$src" = "$other"; then COUNT=$((COUNT+1)); continue; fi
+      case "$src/" in "$other/"*) COUNT=$((COUNT+1)); continue;; esac
+      case "$other/" in "$src/"*) COUNT=$((COUNT+1)); continue;; esac
+    done
+  done
+  IFS=$oldifs
+done
+printf "OTHER_RUNNING_CONTAINER_RW_PATH_OVERLAPS=%s\n" "$COUNT"
+test "$COUNT" -eq 0 || { echo OTHER_CONTAINER_WRITER_RISK_STOP=true; exit 33; }
+command -v tar >/dev/null && echo TAR_AVAILABLE=PASS
+command -v sha256sum >/dev/null && echo SHA256_AVAILABLE=PASS
+if command -v fuser >/dev/null 2>&1; then echo FUSER_AVAILABLE=true; else echo FUSER_AVAILABLE=false; fi
+docker inspect --type container --format "MANAGER_RUNNING={{.State.Running}} MANAGER_RESTARTS={{.RestartCount}}" greenhouse-manager
+docker inspect --type container --format "BROKER_RUNNING={{.State.Running}} BROKER_RESTARTS={{.RestartCount}}" n3wfc4-broker-1
+echo CONSISTENT_DATA_BACKUP=NOT_STARTED'
+```
+
+检查的局限：输出 `OTHER_RUNNING_CONTAINER_RW_PATH_OVERLAPS=0` 只能排除当前 Docker 元数据可见的**运行中容器**共享可写来源，不能排除宿主机上的 systemd 服务、脚本、未来新进程或间接访问。因此后续**受控停写**还必须确认 Manager 已不再写库和实际文件描述符占用，不得把本预检当作跨三个数据库的原子备份证据。如果另一个容器的 RW source 是父目录（或共享源的子目录），此脚本会报重叠；若另有符号链接、bind 别名、不同 realpath，同样不能据此保证零重叠，应在受控执行包中进一步检查。
+
+**没有授权** `docker stop`、`docker compose up`、清理/替换镜像、真实 SQLite copy、Broker 重启、实板首次正常启动、Setup Secret 导入。
+
+```text
+ARCHIVE_SHA256_AND_PRIVATE_MODE=PASS
+SIX_MOUNT_TYPES=PASS
+OTHER_WRITER_DOCKER_PRECHECK=PENDING
+DB_CONSISTENT_COLD_SNAPSHOT=false
+RESTORE_REHEARSAL=false
+PRODUCTION_MANAGER_UPGRADE=false
+STOP_AT_READONLY_WRITER_PREFLIGHT=true
+```
