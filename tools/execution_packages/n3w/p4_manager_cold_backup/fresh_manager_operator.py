@@ -220,8 +220,9 @@ def remove_success_unit() -> None:
     checked(("systemctl", "daemon-reload"), "SYSTEMD_CLEANUP_RELOAD_FAILED")
 
 
-def execute(private: Path) -> None:
-    text = non_mutating_preflight(private)
+def execute(private: Path, *, text: str | None = None) -> None:
+    if text is None:
+        text = non_mutating_preflight(private)
     install_unit(text)
     checked(
         ("systemctl", "start", "--no-block", unit.UNIT_NAME),
@@ -304,21 +305,7 @@ def main() -> None:
             "LIVE_MANAGER_REPLACEMENT_NOT_AUTHORIZED",
         )
         r3_seal.seal_r2(private)
-        install_unit(text)
-        checked(
-            ("systemctl", "start", "--no-block", unit.UNIT_NAME),
-            "SYSTEMD_TRANSACTION_START_FAILED",
-        )
-        print("FRESH_MANAGER_TRANSACTION_SUBMITTED=true")
-        wait_for_unit()
-        verify_success(private)
-        remove_success_unit()
-        print("FRESH_MANAGER_ONE_SHOT_DEPLOYMENT=PASS")
-        print("FRESH_MANAGER_PREBOOT_BASELINE=0_0_0_AND_EMPTY_RELAY_KEYS")
-        print("BROKER_RESTARTED=false")
-        print("OLD_MANAGER_PARKED_FOR_ROLLBACK=true")
-        print("BOARD_FIRST_BOOT=false")
-        print("SETUP_SECRET_IMPORT=false")
+        execute(private, text=text)
 
 
 if __name__ == "__main__":
