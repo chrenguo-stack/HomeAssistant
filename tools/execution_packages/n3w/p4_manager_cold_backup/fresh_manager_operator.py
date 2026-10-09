@@ -17,6 +17,7 @@ import controlled_window as window
 import cutover_contract as contract
 import fresh_manager_deploy as deploy
 import fresh_manager_recovery as recovery
+import r3_forensic_seal as r3_seal
 import fresh_manager_systemd_unit as unit
 
 WAIT_LIMIT_SECONDS = 430
@@ -89,6 +90,7 @@ def _private_json(path: Path) -> Any:
 
 def non_mutating_preflight(private: Path) -> str:
     deploy.verify_r5_rollback_authority(private)
+    r3_seal.verify_r2(private)
     origin, broker_origin = window.get_private_origin(private)
     window.check_old_running(origin, broker_origin)
     old = deploy.docker_json("container", contract.MANAGER_NAME)
@@ -301,6 +303,7 @@ def main() -> None:
             args.permit_live_manager_replacement,
             "LIVE_MANAGER_REPLACEMENT_NOT_AUTHORIZED",
         )
+        r3_seal.seal_r2(private)
         install_unit(text)
         checked(
             ("systemctl", "start", "--no-block", unit.UNIT_NAME),
