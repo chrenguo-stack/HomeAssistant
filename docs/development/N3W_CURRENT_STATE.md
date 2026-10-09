@@ -1,3 +1,35 @@
+## 2026-10-09 R3 real live run — forensic-seal preflight STOP, old Manager/Broker intact
+
+```text
+CURRENT_ONE_GATE=N3W_P4_T1_R3_FORENSIC_SEAL_READONLY_DIFF
+R3_REAL_RESULT=STOP_R3_FORENSIC_SEAL_INVALID
+R3_FINAL_MAC_STOP_CODE=TRUNCATED_IN_USER_PASTE
+R3_SOURCE_CODE=9441a73658d21566f981e7986b0e0de9093d14da
+R3_TRANSACTION_STATE=ABSENT
+R3_MANAGER_RUNNING=true
+R3_MANAGER_ID=ORIGINAL
+R3_BROKER_RUNNING=true
+R3_BROKER_ID=ORIGINAL
+R3_BROKER_START_RESTART=UNCHANGED
+R3_OLD_MANAGER_STOP_REACHED=false
+R3_NEW_MANAGER_DEPLOYED=false
+R3_SEAL_SAVED_VS_LIVE_MISMATCH=UNKNOWN_PENDING_READONLY_PROBE
+R3_PREVIOUS_STAGE_OR_SEAL=KEEP
+R2_JOURNAL_SHADOW_FRESH_ROOTS=KEEP
+R5_BACKUP_ORIGINAL_MANAGER_RW_ROOTS=KEEP
+NEXT=READONLY_R3_SEAL_SAVED_VS_VERIFY_R2_FIELD_DIFFERENCE
+R3_AUTO_RETRY=false
+FOURTH_PRODUCTION_ATTEMPT_AUTHORIZED=false
+BROKER_MUTATION=false
+BOARD_BOOT=false
+SETUP_SECRET_IMPORT=false
+AUTHORITY_DOC=docs/development/N3W_P4_T1_R3_FORENSIC_SEAL_LIVE_PREFLIGHT_STOP_20261009.md
+```
+
+Real sanitized operator evidence shows R3 systemd reported `R3_FORENSIC_SEAL_INVALID` inside `LiveOps.preflight`, before creating R3 transaction state or stopping original Manager. Original Manager/Broker both running and identities intact; do not assume exact inner `SealStop` class without next read-only probe. Never replay R3 or clear R2/R3 evidence.
+
+---
+
 ## 2026-10-09 P4 Manager isolated R3 transaction authorized, R2 forensic seal guarded
 
 ```text
