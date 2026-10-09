@@ -20,7 +20,7 @@ import fresh_manager_recovery as recovery
 import r4_shadow_stable_fingerprint as r4_seal
 import fresh_manager_systemd_unit as unit
 
-WAIT_LIMIT_SECONDS = 430
+WAIT_LIMIT_SECONDS = 580
 
 
 class OperatorStop(RuntimeError):
