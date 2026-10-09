@@ -64,6 +64,39 @@ class SupervisedManagerGateTests(unittest.TestCase):
                     install.assert_not_called()
                     checked.assert_not_called()
 
+    def test_final_operator_failure_attempts_rollback_and_never_reports_pass(self):
+        with patch.object(operator, "non_mutating_preflight", return_value="unit"):
+            with patch.object(operator, "install_unit"):
+                with patch.object(operator, "checked"):
+                    with patch.object(operator, "wait_for_unit"):
+                        with patch.object(operator, "verify_success",
+                                          side_effect=operator.OperatorStop("INJECTED_FINAL_CHECK")):
+                            with patch.object(operator.recovery, "rollback_after_operator_final_check_failure") as rollback:
+                                with self.assertRaisesRegex(
+                                    operator.OperatorStop,
+                                    "FINAL_VERIFICATION_FAILED_OLD_MANAGER_RESTORED",
+                                ):
+                                    operator.execute(self.private)
+                                rollback.assert_called_once_with(self.private)
+
+    def test_final_operator_failure_with_failed_rollback_is_manual_stop(self):
+        with patch.object(operator, "non_mutating_preflight", return_value="unit"):
+            with patch.object(operator, "install_unit"):
+                with patch.object(operator, "checked"):
+                    with patch.object(operator, "wait_for_unit"):
+                        with patch.object(operator, "verify_success",
+                                          side_effect=operator.OperatorStop("INJECTED_FINAL_CHECK")):
+                            with patch.object(
+                                operator.recovery,
+                                "rollback_after_operator_final_check_failure",
+                                side_effect=operator.recovery.RecoveryStop("SYNTHETIC_RESCUE_FAILURE"),
+                            ):
+                                with self.assertRaisesRegex(
+                                    operator.OperatorStop,
+                                    "FINAL_VERIFICATION_FAILED_ROLLBACK_INCOMPLETE",
+                                ):
+                                    operator.execute(self.private)
+
     def test_postflight_rejects_uncommitted_state(self):
         with patch.object(operator, "_private_json", return_value={"committed": False}):
             with self.assertRaisesRegex(operator.OperatorStop, "TRANSACTION_STATE_NOT_COMMITTED"):
