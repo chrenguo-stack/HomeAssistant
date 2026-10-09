@@ -24,36 +24,37 @@ class FakeResponse:
 
 
 class LauncherTests(unittest.TestCase):
-    def test_r3_immutable_source_and_forensic_seal_private_stage_are_bound(self):
+    def test_r4_immutable_source_and_forensic_seal_private_stage_are_bound(self):
         self.assertEqual(
             launcher.SOURCE_HEAD,
-            "9441a73658d21566f981e7986b0e0de9093d14da",
+            "2d9ee7999d525e0812774a106863e2e6bf55d5ec",
         )
         self.assertEqual(
             launcher.EXPECTED["fresh_manager_deploy.py"],
-            "79721bf24671469c551e7f169144d07d58b98bd4",
+            "d7aa3775a6a15c42db53f3283a8d4159c5811ee7",
         )
-        self.assertEqual(launcher.EXPECTED["fresh_manager_operator.py"], "6d8339d5fa4d3b9004f60eea246593b1036d29cc")
+        self.assertEqual(launcher.EXPECTED["fresh_manager_operator.py"], "5527b38e28ac7f92ba533a06da9ed3042f6ff962")
         self.assertEqual(
             launcher.EXPECTED["fresh_manager_systemd_unit.py"],
-            "d5d77d3198f34a18abf997c19a12e6b556748f1e",
+            "c73fa07dbbf0239e7e40c2e20af902dcb156c392",
         )
         self.assertIn(
-            'STAGE_NAME = "p4-fresh-manager-deploy-r3"',
+            'STAGE_NAME = "p4-fresh-manager-deploy-r4"',
             launcher.REMOTE_CODE,
         )
         self.assertNotIn(
-            'STAGE_NAME = "p4-fresh-manager-deploy-r2"',
+            'STAGE_NAME = "p4-fresh-manager-deploy-r3"',
             launcher.REMOTE_CODE,
         )
         self.assertIn("r3_forensic_seal.py", launcher.EXPECTED)
         self.assertEqual(launcher.EXPECTED["r3_forensic_seal.py"], "97b6128dd79e9c66bd5fc51b08f7104d5702f6aa")
-        self.assertEqual(len(launcher.EXPECTED), 10)
+        self.assertEqual(len(launcher.EXPECTED), 11)
+        self.assertEqual(launcher.EXPECTED["r4_shadow_stable_fingerprint.py"], "b647286e52779767324a8b2c4b94f2d05fe25332")
         self.assertIn(
-            'AUTH = "N3W_P4_T1_FRESH_MANAGER_ONE_SHOT_LIVE_DEPLOY_R3"',
+            'AUTH = "N3W_P4_T1_FRESH_MANAGER_ONE_SHOT_LIVE_DEPLOY_R4"',
             launcher.REMOTE_CODE,
         )
-        self.assertIn("safe_r3_failure_evidence(private)", launcher.REMOTE_CODE)
+        self.assertIn("safe_r4_failure_evidence(private)", launcher.REMOTE_CODE)
 
     def test_remote_program_is_syntactically_valid(self):
         source = launcher.REMOTE_CODE.replace("__EXPECTED__", repr(launcher.EXPECTED))
@@ -121,8 +122,8 @@ class LauncherTests(unittest.TestCase):
         result = subprocess.CompletedProcess(
             args=[], returncode=1,
             stdout=(
-                b"R3_TRANSACTION_PHASE=SHADOW_CREATE_AND_COMPARE_STOPPED\n"
-                b"R3_ROLLBACK_RESULT=PASS\n"
+                b"R4_TRANSACTION_PHASE=SHADOW_CREATE_AND_COMPARE_STOPPED\n"
+                b"R4_ROLLBACK_RESULT=PASS\n"
                 b"PRIVATE_PATH=/root/do-not-expose\n"
                 b"T1_FRESH_MANAGER=STOP:FRESH_MANAGER_SYSTEMD_TRANSACTION_FAILED\n"
             ),
@@ -130,8 +131,8 @@ class LauncherTests(unittest.TestCase):
         )
         with patch.object(launcher.subprocess, "run", return_value=result):
             safe = launcher.execute("t1", b"archive")
-        self.assertIn("R3_TRANSACTION_PHASE=SHADOW_CREATE_AND_COMPARE_STOPPED", safe)
-        self.assertIn("R3_ROLLBACK_RESULT=PASS", safe)
+        self.assertIn("R4_TRANSACTION_PHASE=SHADOW_CREATE_AND_COMPARE_STOPPED", safe)
+        self.assertIn("R4_ROLLBACK_RESULT=PASS", safe)
         self.assertTrue(safe.endswith("T1_FRESH_MANAGER=STOP:FRESH_MANAGER_SYSTEMD_TRANSACTION_FAILED"))
         self.assertNotIn("PRIVATE_PATH", safe)
         self.assertNotIn("secret-value", safe)
