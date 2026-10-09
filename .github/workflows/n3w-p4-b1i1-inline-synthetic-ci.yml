@@ -1,0 +1,31 @@
+name: N3W P4 B1I1 inline transaction synthetic CI
+
+on:
+  push:
+    branches:
+      - tools/n3w-p4-manager-consistent-cold-backup-20261009
+    paths:
+      - 'tools/execution_packages/n3w/p4_manager_b1_inline/**'
+      - '.github/workflows/n3w-p4-b1i1-inline-synthetic-ci.yml'
+  pull_request:
+    paths:
+      - 'tools/execution_packages/n3w/p4_manager_b1_inline/**'
+      - '.github/workflows/n3w-p4-b1i1-inline-synthetic-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Syntax compile
+        run: python -m compileall -q tools/execution_packages/n3w/p4_manager_b1_inline
+      - name: B1I1 fail-closed fault injection
+        run: python -m unittest discover -s tools/execution_packages/n3w/p4_manager_b1_inline -p 'test_*.py' -v
