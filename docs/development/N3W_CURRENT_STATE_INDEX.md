@@ -1,3 +1,24 @@
+## 2026-10-09 P4 Fresh Manager live gate authorized (awaiting terminal result)
+
+```text
+CURRENT_ONE_GATE=N3W_P4_T1_FRESH_MANAGER_ONE_SHOT_LIVE_DEPLOY
+USER_AUTHORIZATION=GRANTED_ONE_PRODUCTION_MANAGER_REPLACEMENT
+LIVE_EXECUTION_RESULT=AWAITING_MAC_OPERATOR_OUTPUT
+AUTHORITY_DOC=docs/development/N3W_P4_T1_FRESH_MANAGER_LIVE_DEPLOY_AUTHORIZATION_AND_ONE_SHOT_BINDING_20261009.md
+MAC_LAUNCHER_COMMIT=0a0e163e8cc13ad8ecf8717a399f29dac0192369
+NINE_FILES_CODE_COMMIT=5bc6c5cf116708ebf47f76b9b2d0c71ab570da6e
+SYNTHETIC_TESTS=104_PASS
+CI_RUN=37937707160
+BROKER_MUTATION=false
+BOARD_ACCESS=false
+P4_SETUP_SECRET_IMPORT_AUTHORIZED=false
+OLD_MANAGER_AND_R5_BACKUP=RETAIN
+```
+
+Do not confuse user approval with actual T1 deployment PASS. Await single-entry Mac Terminal result and do not replay this grant after transaction claim.
+
+---
+
 ## 2026-10-09 P4 Fresh Manager one-shot executor — source-only closure
 
 ```text
