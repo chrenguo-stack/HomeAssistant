@@ -64,8 +64,8 @@ class SupervisedManagerGateTests(unittest.TestCase):
             + unit.SYSTEMD_STOP_POST_TIMEOUT_SECONDS + 30,
         )
         remote = launcher.REMOTE_CODE
-        preflight = int(re.search(r"REMOTE_PREFLIGHT_SECONDS = (\\d+)", remote).group(1))
-        execute = int(re.search(r"REMOTE_EXECUTE_SECONDS = (\\d+)", remote).group(1))
+        preflight = int(re.search(r"REMOTE_PREFLIGHT_SECONDS = (\d+)", remote).group(1))
+        execute = int(re.search(r"REMOTE_EXECUTE_SECONDS = (\d+)", remote).group(1))
         self.assertGreaterEqual(execute, operator.WAIT_LIMIT_SECONDS + 60)
         self.assertGreaterEqual(
             launcher.MAX_REMOTE_SECONDS, preflight + execute + 120
