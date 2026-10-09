@@ -976,3 +976,51 @@ FIRST_NORMAL_BOARD_BOOT=false
 SECRET_IMPORT=false
 NEXT=PR540_SOURCE_REVIEW_THEN_READONLY_PREP
 ```
+
+## 19. 宿主 Python/磁盘/守护服务检查 PASS，进入可恢复停写执行包只读预检（2026-10-09）
+
+T1 操作者现场返回：
+
+```text
+HOST_PYTHON_VERSION=3.14.4
+HOST_PYTHON_SQLITE=PASS
+PRIVATE_BACKUP_FREE_KIB=5966748
+MANAGER_RESTART_POLICY=unless-stopped
+RELATED_SERVICE_UNIT=n3wfc4-broker-activation.service
+RELATED_SERVICE_UNIT=n3wfc4-broker-certificate-lifecycle.service
+RELATED_SERVICE_UNIT=n3wfc4-broker-ingress-guard.service
+RELATED_SERVICE_UNIT_COUNT=3
+MANAGER_RUNNING=true
+MANAGER_RESTARTS=0
+BROKER_RUNNING=true
+BROKER_RESTARTS=0
+MANAGER_STOP_NOT_EXECUTED=true
+CONSISTENT_DATA_BACKUP=NOT_STARTED
+```
+
+检查说明：Python 版本满足要求；`/root` 有约 5.97 GiB 的剩余空间，足以覆盖目前观察到约几 MiB 的三个持久目录及隔离恢复副本（正式冷备份仍以现场计算的源文件实际总大小和保守空间门槛为准）。Manager 的 `unless-stopped` 和当前运行状态与旧版配置相符。列出的三个 systemd units 是 Broker 专属单元，不能据此前置的名称过滤检索证明不存在其它管理/写入者。
+
+PR #540 已新增独立 `controlled_window.py` 和模拟测试：
+- 默认仅支持只读 `preflight`，`execute` 要求显式停写标志。
+- 运行时以 root 私有 JSON 的旧 Manager 容器 id、image、host 配置、六个 binds 为锚点；只允许原 Manager 停止和原 Manager 启动，Broker 不执行 stop/restart。
+- 在旧 Manager 已停止且所有前置关卡通过后，以同版本 `cold_snapshot.py` 在三个真实 RW 来源做整个目录冷拷贝和异地隔离恢复；全部文件校验及三个 SQLite 库验证合格；再启动**原旧 Manager**。
+- 发生停止、复制、空间、哈希、WAL/SHM、恢复等异常时会在当前 Python 进程存活范围内进入 `finally` 尝试恢复原 Manager，严禁删除旧容器和替换生产数据；如果恢复失败，进入 STOP 保留现场。
+- 不断开 SSH 的前提下已做源码/模拟测试，但 Python `finally` 不能防止掉电、SIGKILL 或宿主机故障。真实停写需独立的 systemd 监督启动/超时处理与失败时人工恢复 Runbook，以及写入者排除和历史身份/重放高水位证据；未具备这些条件时不执行 `execute`。
+
+**本阶段只允许** T1 获取 exact PR #540 源码至其现有 Git 工作目录，在已经保护的 /root 私有归档目录下建立新的工具子目录，对 `controlled_window.py preflight` 及 `cold_snapshot.py preflight` 做无写操作的源版本绑定和验证；**不能**覆盖早期工具文件，也不允许直接执行 `capture`、`execute` 或 `docker stop/start`。
+
+```text
+BACKUP_HOST_ENVIRONMENT_PREFLIGHT=PASS
+OLD_CONTAINER_AUTO_RESTART_POLICY=unless-stopped
+BROKER_SYSTEMD_UNITS_OBSERVED=3
+REVIEWED_CONTROLLED_WINDOW_SOURCE_CREATED=true
+SYNTHETIC_WINDOW_RECOVERY_TESTS=CI_VALIDATED
+NEW_EXACT_T1_EXECUTOR_BIND=PENDING
+HOST_NONCONTAINER_WRITERS_STILL_NOT_EXHAUSTIVELY_EXCLUDED=true
+COLD_SNAPSHOT_PRODUCTION=false
+ISOLATED_RESTORE_PRODUCTION=false
+OLD_MANAGER_STOP=false
+NEW_MANAGER_DEPLOYMENT=false
+BOARD_FIRST_BOOT=false
+NEXT_ACTION=ONLY_EXACT_SOURCE_REBIND_AND_READONLY_CONTROLLED_WINDOW_PREFLIGHT
+```
