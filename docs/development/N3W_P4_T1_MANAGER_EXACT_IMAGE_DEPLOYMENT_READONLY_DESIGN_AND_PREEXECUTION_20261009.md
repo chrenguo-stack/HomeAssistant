@@ -197,3 +197,57 @@ P4_FIRST_NORMAL_BOOT=false
 NEXT_ACTION=READONLY_OLD_IMAGE_PRESENCE_AND_8883_BIND_CLASSIFICATION
 STOP=true
 ```
+
+## 8. 旧镜像回退基础及 Broker 8883 绑定取证闭环（2026-10-09）
+
+操作者最新只读输出：
+
+```text
+OLD_IMAGE_AVAILABLE=true
+OLD_IMAGE_BYTES=59124574
+MANAGER_ENTRYPOINT_ARGS=1
+MANAGER_CMD_ARGS=0
+BROKER_8883_ENTRY_COUNT=1
+BROKER_8883_HOSTIP_TYPES=ipv4_wildcard
+BROKER_RUNNING_PREVIOUS=true
+BROKER_RESTARTS_PREVIOUS=0
+BROKER_NETWORKS_PREVIOUS=n3wfc4-private,n3wfc4-services
+MANAGER_STOP=false
+MANAGER_DEPLOY=false
+BROKER_RESTART=false
+P4_BOARD_FIRST_BOOT=false
+SECRET_IMPORT=false
+```
+
+旧 Manager image 仍可通过本地 Docker image store 读到，构成以后回退的**必要但不充分**条件。完成回退还需将相同的容器启动参数、网络、环境变量的**私有完整源**和独立挂载精确重建，最关键是保护已经存在的数据库；不能把旧镜像存在等同回退已准备完成。Broker 唯一 8883/TCP publication 使用 IPv4 wildcard，连同上一轮双网络证明当前基本架构满足预期；但本门未重新验证 TLS handshake、Manager 实际对 Broker 的端到端连接。
+
+**审阅代码后的备份补充发现：** `host/greenhouse-manager/src/greenhouse_manager/ops/t1_backup.py` 的 `COPY_SOURCES` 指向 `mosquitto` 和 `greenhouse-manager:/var/lib/greenhouse-manager`，并通过 `docker cp --archive` 复制。当前 P4 真实注册数据库却是单独的 `/var/lib/greenhouse-manager-registration/registration.sqlite3`，N3W 数据与 relay-keys 又分别绑定在不同位置。该旧备份程序**不适合此运行态**，不能宣称覆盖 P4 三个数据库或保证多个运行中 SQLite/WAL 的一致性。不得依赖未经演练的 `docker cp` / `tar` 拷贝活库作为可靠回退。
+
+**接下来要执行的只读取证：** 先检查三个数据库现存及大小、容器 SQLite 运行库、宿主机 Docker 路径可用磁盘空间。数据库查询与文件复制不在此步骤；不对活数据库运行备份、checkpoint、VACUUM、pragma 写操作。若任何数据库路径不存在，立即标记工具/布局预检失败而非 Manager 产品故障。
+
+Mac Terminal：
+
+```bash
+printf 'T1 SSH 目标：'
+IFS= read -r T1_SSH
+ssh -T "$T1_SSH" 'docker exec greenhouse-manager stat -c "SQLITE_FILE_BYTES=%s" /var/lib/greenhouse-manager-registration/registration.sqlite3 /var/lib/greenhouse-manager/n3w/credential-lifecycle.sqlite3 /var/lib/greenhouse-manager/n3w/replay.sqlite3'
+ssh -T "$T1_SSH" "docker exec greenhouse-manager python3 -c 'import sqlite3; print(\"SQLITE_RUNTIME_VERSION=\"+sqlite3.sqlite_version)'"
+ssh -T "$T1_SSH" 'd=$(docker info --format "{{.DockerRootDir}}") || exit 1; df -Pk "$d" | awk "NR==2 {print \"DOCKER_DISK_AVAILABLE_KIB=\"\$4}"'
+ssh -T "$T1_SSH" 'docker exec greenhouse-manager sh -c "test -S /tmp/greenhouse-manager/pairing.sock && echo PAIRING_SOCKET_PRESENT=true || echo PAIRING_SOCKET_PRESENT=false"'
+```
+
+后续必须在 T1 **实际容器配置**基础上设计私有、完整的 service-only replacement 与一致性备份方式，包括 source + destination + readonly 标记、旧镜像私有 ID、DB 与 WAL/SHM、嵌套 relay key mount、Broker/TLS 证书权限、Manager env 值的秘密保护和旧五身份快照。跨三个不同 SQLite 库的原子性不能靠独立逐库在线 backup 假设；优先设计可以验证的单写入者停写窗口，并证明服务关闭后数据完整、可恢复，再重新启用 Manager。部署时仍不可重建 Broker。受控停写/服务替换是**后续另行定义**的变更，不由此只读文档执行。
+
+```text
+RUNTIME_BROKER_BASIC=PASS
+OLD_IMAGE_AVAILABLE=PASS
+ROLLBACK_COMPLETE=false
+OLD_GENERIC_T1_BACKUP_SUITABLE=false
+BACKUP_SOURCE_DB_EXISTS=PENDING
+SQLITE_RUNTIME_TOOLING=PENDING
+DISK_CAPACITY=PENDING
+MANAGER_LIVE_DEPLOYMENT=false
+BOARD_NORMAL_BOOT=false
+NEXT_ACTION=MAC_TERMINAL_READONLY_SQLITE_FILES_AND_CAPACITY
+STOP=true
+```
