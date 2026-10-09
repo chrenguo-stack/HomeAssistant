@@ -11,6 +11,7 @@ import tempfile
 import unittest
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from unittest.mock import patch
 
 from bridge_handoff import Binding, GateStop, bind_terminal_projection
 from terminal_pairing import (
@@ -281,6 +282,32 @@ class TerminalFlowTest(unittest.TestCase):
                 self.private, self.binding, "greenhouse-manager",
                 NOW + timedelta(seconds=121),
             )
+
+    def test_partial_claim_write_stops_before_secret_send(self):
+        original = os.write
+
+        def partial(fd, payload):
+            return original(fd, payload[:7])
+
+        with patch("terminal_pairing.os.write", side_effect=partial):
+            with self.assertRaises(GateStop):
+                self.invoke()
+        self.assertEqual(self.sent, [])
+        self.assertEqual(len(list(self.private.glob("p4-attempt-*.json"))), 1)
+        with self.assertRaises(GateStop):
+            self.invoke()
+        self.assertEqual(self.sent, [])
+
+    def test_ordinary_configured_ssh_target_no_root_constraint(self):
+        from terminal_pairing import _command
+
+        by_name = _command("operator@t1.local", "greenhouse-manager", importer=False)
+        selected_ip = _command("operator@203.0.113.7", "greenhouse-manager", importer=False)
+        self.assertIn("operator@t1.local", by_name)
+        self.assertIn("operator@203.0.113.7", selected_ip)
+        for bad in ("-oProxyCommand=unexpected", "operator@host name", "bad;command"):
+            with self.assertRaises(GateStop):
+                _command(bad, "greenhouse-manager", importer=True)
 
     def test_current_ip_can_change_without_frozen_hash(self):
         from terminal_pairing import _command
