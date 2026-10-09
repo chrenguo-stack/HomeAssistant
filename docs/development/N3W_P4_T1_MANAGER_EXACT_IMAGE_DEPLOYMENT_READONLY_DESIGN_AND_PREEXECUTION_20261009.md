@@ -1108,3 +1108,93 @@ BROKER_RESTART=false
 BOARD_FIRST_BOOT=false
 NEXT=ONLY_LOCAL_GIT_SHOW_R4_STAGE_AND_THREE_READONLY_PREFLIGHTS
 ```
+
+## 22. R4 T1 完整只读预检 PASS 与 systemd 文件级验证 STOP（2026-10-09）
+
+T1 操作者最新从 Mac SSH 上报：
+
+```text
+R4_RECOVERY_FILES_EXACT_BINDING=PASS
+ORIGINAL_MANAGER_STOP_RECOVERY_PREFLIGHT=PASS
+BROKER_PERSISTENCE_PREFLIGHT=PASS
+MANAGER_STOP_NOT_EXECUTED=true
+CURRENT_MANAGER_IDENTITY_AND_MOUNTS=PASS
+BROKER_RUNNING=PASS
+OTHER_RUNNING_CONTAINER_WRITERS=NONE_DETECTED
+COLD_BACKUP=NOT_STARTED
+T1_SYSTEMD_SERVICE_RECOVERY_TEMPLATE=PASS
+UNIT_CONTENT_SHA256=be7f6dea3991a24fcca51a9c32bb6abffc5f82dd8f1728b189dbbbcbce7de5b6
+T1_SYSTEMD_SERVICE_INSTALLED=false
+R4_MANAGER_BROKER_UNCHANGED=PASS
+SYSTEMD_RECOVERY_UNIT_INSTALLED=false
+CONSISTENT_DATA_BACKUP=NOT_STARTED
+```
+
+四份 R4 `cold_snapshot.py`、`controlled_window.py`、`emergency_resume.py`、`systemd_recovery_unit.py` 已从固定源码 `cc33283fbc3b905a039270bbc62584e3756788b8` 在 T1 root-only 新 staging 下经 Git blob 校验成功。该阶段 *仅* 生成内存 unit 模板，未进行真实 systemd parser 校验、未安装 unit，亦没有制造真实数据库快照。不能将 `T1_SYSTEMD_SERVICE_RECOVERY_TEMPLATE=PASS` 等同于系统服务已具备运行态故障恢复保障。
+
+### 22.1 下一唯一动作：生成私有 unit 文件并调用 systemd-analyze verify
+
+Mac Terminal 使用 `ssh -T ... 'bash -se' <<'REMOTE'` 只在 T1 已存在的 root 私有备份目录内创建单个 mode 0600 的 `n3w-p4-manager-cold-backup.service`，用已绑定 R4 同版本渲染函数生成实际文本，独立 SHA256 与上述已观察哈希比对，再 `timeout 20s systemd-analyze verify`。输出只含安全 PASS 状态；验证日志仅留在 root 私有目录，不打印 unit 文本、备份 JSON、secret 或真实 host bind Source。不将 unit 复制到 `/etc/systemd/system` 或 `/run/systemd/system`，不 `daemon-reload`、`enable`、`start`，也不执行任何 `docker stop` 或 `capture`。
+
+```bash
+printf 'T1 SSH 目标：'
+IFS= read -r T1_SSH
+ssh -T "$T1_SSH" 'bash -se' <<'REMOTE'
+set -eu
+umask 077
+set -- /root/n3w-p4-manager-rollback-prep-*
+test "$#" -eq 1 && test -d "$1" || { echo PRIVATE_DIRECTORY_AMBIGUOUS_STOP=true; exit 21; }
+DIR=$1
+STAGE="$DIR/p4-reviewed-controlled-backup-r4"
+UNIT="$DIR/n3w-p4-manager-cold-backup.service"
+LOG="$DIR/n3w-p4-manager-unit-verify-private.log"
+test -d "$STAGE" && test "$(stat -c %a "$STAGE")" = 700
+test ! -e "$UNIT" && test ! -L "$UNIT" || { echo PRIVATE_UNIT_ALREADY_EXISTS_STOP=true; exit 22; }
+test ! -e "$LOG" && test ! -L "$LOG" || { echo PRIVATE_UNIT_LOG_ALREADY_EXISTS_STOP=true; exit 23; }
+BEFORE_MANAGER=$(docker inspect --type container --format '{{.Image}}|{{.State.StartedAt}}|{{.RestartCount}}|{{.State.Running}}' greenhouse-manager)
+BEFORE_BROKER=$(docker inspect --type container --format '{{.Image}}|{{.State.StartedAt}}|{{.RestartCount}}|{{.State.Running}}' n3wfc4-broker-1)
+python3 -B - "$DIR" "$STAGE" "$UNIT" <<'PY'
+import hashlib
+import os
+import sys
+from pathlib import Path
+private, stage, output = map(Path, sys.argv[1:])
+sys.path.insert(0, str(stage))
+import systemd_recovery_unit as unit
+content = unit.render_unit(private, stage, Path(sys.executable).resolve())
+require_hash = "be7f6dea3991a24fcca51a9c32bb6abffc5f82dd8f1728b189dbbbcbce7de5b6"
+if hashlib.sha256(content.encode()).hexdigest() != require_hash:
+    raise SystemExit("UNIT_CONTENT_DRIFT_STOP=true")
+with output.open("x", encoding="utf-8") as handle:
+    handle.write(content)
+os.chmod(output, 0o600)
+print("PRIVATE_SYSTEMD_UNIT_HASH=PASS")
+PY
+if timeout 20s systemd-analyze verify "$UNIT" >"$LOG" 2>&1; then
+  echo SYSTEMD_UNIT_FILE_VERIFICATION=PASS
+else
+  echo SYSTEMD_UNIT_FILE_VERIFICATION_STOP=true
+  exit 24
+fi
+test "$BEFORE_MANAGER" = "$(docker inspect --type container --format '{{.Image}}|{{.State.StartedAt}}|{{.RestartCount}}|{{.State.Running}}' greenhouse-manager)" || { echo MANAGER_DRIFT_STOP=true; exit 25; }
+test "$BEFORE_BROKER" = "$(docker inspect --type container --format '{{.Image}}|{{.State.StartedAt}}|{{.RestartCount}}|{{.State.Running}}' n3wfc4-broker-1)" || { echo BROKER_DRIFT_STOP=true; exit 26; }
+echo R4_MANAGER_BROKER_UNCHANGED=PASS
+echo UNIT_INSTALLED_BY_THIS_STEP=false
+echo UNIT_STARTED_BY_THIS_STEP=false
+echo MANAGER_STOP_NOT_EXECUTED=true
+echo CONSISTENT_DATA_BACKUP=NOT_STARTED
+REMOTE
+```
+
+即使本节 `systemd-analyze verify` PASS，也只说明语法及引用路径在本机可被 systemd 静态识别，并非真实启动与 stop-timeout/ExecStopPost 故障注入。独立恢复的部署、真实 Manager 窗口与手工故障恢复契约仍须单独审查，尤其应验证系统服务管理单元的命令路径与安全边界，不得使用模板 PASS 授权生产停写。
+
+```text
+R4_EXACT_SOURCE_STAGED=PASS
+R4_T1_PREFLIGHT=PASS
+SYSTEMD_UNIT_IN_MEMORY_HASH=PASS
+SYSTEMD_UNIT_FILE_VERIFY=AWAITING_OPERATOR
+RECOVERY_UNIT_INSTALLED=false
+RECOVERY_UNIT_STARTED=false
+MANAGER_STOP=false
+COLD_BACKUP=false
+```
