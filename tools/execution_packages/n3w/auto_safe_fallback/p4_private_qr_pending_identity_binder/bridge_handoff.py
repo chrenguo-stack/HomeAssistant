@@ -194,6 +194,67 @@ def bind_qr(payload: str, projection: dict[str, object], preboot: frozenset[str]
     return Binding(sha(hardware),sha(pairing),expires,verified)
 
 
+
+TERMINAL_READONLY_SCHEMA = "n3w.p4.terminal-pending-readonly/1"
+TERMINAL_KEYS = {
+    "schema", "historical_count", "historical_hardware_hashes", "new_count",
+    "hardware_sha256", "pairing_sha256", "expires_at", "pending_state",
+    "first_registration_no_history", "credential_history_clear",
+    "replay_linkage_clear", "read_only", "read_at",
+}
+
+
+def bind_terminal_projection(
+    payload: str,
+    document: dict[str, object],
+    baseline: frozenset[str],
+    now: datetime,
+) -> Binding:
+    if not isinstance(document, dict) or set(document) != TERMINAL_KEYS:
+        reject("TERMINAL_PENDING_INVALID")
+    if (
+        document["schema"] != TERMINAL_READONLY_SCHEMA
+        or document["historical_count"] != 5
+        or document["historical_hardware_hashes"] != sorted(baseline)
+        or len(baseline) != 5
+        or document["new_count"] != 1
+        or document["pending_state"] != "pending"
+        or any(
+            document[key] is not True
+            for key in (
+                "first_registration_no_history",
+                "credential_history_clear",
+                "replay_linkage_clear",
+                "read_only",
+            )
+        )
+        or not isinstance(document["hardware_sha256"], str)
+        or not isinstance(document["pairing_sha256"], str)
+        or not isinstance(document["expires_at"], str)
+        or not isinstance(document["read_at"], str)
+        or now.tzinfo is None
+    ):
+        reject("TERMINAL_PENDING_INVALID")
+    try:
+        read_at = datetime.fromisoformat(document["read_at"])
+        if read_at.tzinfo is None:
+            reject("TERMINAL_PENDING_INVALID")
+        elapsed = (now.astimezone(UTC) - read_at.astimezone(UTC)).total_seconds()
+        if elapsed < 0 or elapsed > 10:
+            reject("TERMINAL_PENDING_STALE")
+    except ValueError:
+        reject("TERMINAL_PENDING_INVALID")
+    projection = {
+        "schema": SCHEMA,
+        "new_count": 1,
+        "preboot_count": 5,
+        "preboot_hashes": sorted(baseline),
+        "hardware_sha256": document["hardware_sha256"],
+        "pairing_sha256": document["pairing_sha256"],
+        "expires_at": document["expires_at"],
+    }
+    return bind_qr(payload, projection, baseline, now)
+
 @dataclass(frozen=True)
 class ImportPermission:
     exact_hardware_sha256: str
