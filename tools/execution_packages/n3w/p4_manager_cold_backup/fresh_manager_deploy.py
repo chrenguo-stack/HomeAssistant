@@ -18,13 +18,13 @@ import controlled_window as window
 import cutover_contract as contract
 import fresh_state_contract as fresh
 
-AUTHORIZATION_ID = "N3W_P4_T1_FRESH_MANAGER_ONE_SHOT_LIVE_DEPLOY_R3"
-STATE_FILE = "fresh-manager-r3-deploy-state-private.json"
-FRESH_BASE = "fresh-manager-r3-runtime-state"
-ENV_FILE = "fresh-manager-r3-env-private"
-SHADOW_NAME = "greenhouse-manager-p4-r3-shadow"
-PARKED_NAME = "greenhouse-manager-p4-r3-rollback"
-FAILED_NAME = "greenhouse-manager-p4-r3-failed"
+AUTHORIZATION_ID = "N3W_P4_T1_FRESH_MANAGER_ONE_SHOT_LIVE_DEPLOY_R4"
+STATE_FILE = "fresh-manager-r4-deploy-state-private.json"
+FRESH_BASE = "fresh-manager-r4-runtime-state"
+ENV_FILE = "fresh-manager-r4-env-private"
+SHADOW_NAME = "greenhouse-manager-p4-r4-shadow"
+PARKED_NAME = "greenhouse-manager-p4-r4-rollback"
+FAILED_NAME = "greenhouse-manager-p4-r4-failed"
 STOP_TIMEOUT_SECONDS = 30
 START_TIMEOUT_SECONDS = 45
 POSTFLIGHT_TIMEOUT_SECONDS = 60
@@ -428,11 +428,11 @@ class LiveOps:
         self.fresh_sources: dict[str, str] = {}
 
     def preflight(self) -> DeployContext:
-        import r3_forensic_seal as r3_seal
+        import r4_shadow_stable_fingerprint as r4_seal
         try:
-            r3_seal.require_r3_seal(self.private)
-        except r3_seal.SealStop as error:
-            raise DeployStop("R3_FORENSIC_SEAL_INVALID") from error
+            r4_seal.require_r4_seal(self.private)
+        except r4_seal.FingerprintStop as error:
+            raise DeployStop("R4_FORENSIC_SEAL_INVALID") from error
         verify_r5_rollback_authority(self.private)
         origin, broker_origin = window.get_private_origin(self.private)
         window.check_old_running(origin, broker_origin)
