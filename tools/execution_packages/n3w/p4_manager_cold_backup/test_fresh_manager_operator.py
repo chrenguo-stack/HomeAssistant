@@ -80,7 +80,7 @@ class SupervisedManagerGateTests(unittest.TestCase):
             "LoadState": "loaded", "ActiveState": "inactive",
             "Result": "success", "ExecMainStartTimestampMonotonic": "0",
         }
-        times = iter([0, 0, 430, 431])
+        times = iter([0, 0, operator.WAIT_LIMIT_SECONDS, operator.WAIT_LIMIT_SECONDS + 1])
         with patch.object(operator, "unit_status", return_value=values):
             with self.assertRaisesRegex(operator.OperatorStop, "SYSTEMD_TRANSACTION_WAIT_TIMEOUT"):
                 operator.wait_for_unit(now=lambda: next(times), sleep=lambda _: None)
