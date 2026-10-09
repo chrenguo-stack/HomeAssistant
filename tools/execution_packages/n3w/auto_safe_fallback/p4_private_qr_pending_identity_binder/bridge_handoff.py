@@ -214,9 +214,8 @@ def bind_terminal_projection(
         reject("TERMINAL_PENDING_INVALID")
     if (
         document["schema"] != TERMINAL_READONLY_SCHEMA
-        or document["historical_count"] != 5
+        or document["historical_count"] != len(baseline)
         or document["historical_hardware_hashes"] != sorted(baseline)
-        or len(baseline) != 5
         or document["new_count"] != 1
         or document["pending_state"] != "pending"
         or any(
@@ -247,13 +246,25 @@ def bind_terminal_projection(
     projection = {
         "schema": SCHEMA,
         "new_count": 1,
-        "preboot_count": 5,
+        "preboot_count": len(baseline),
         "preboot_hashes": sorted(baseline),
         "hardware_sha256": document["hardware_sha256"],
         "pairing_sha256": document["pairing_sha256"],
         "expires_at": document["expires_at"],
     }
     return bind_qr(payload, projection, baseline, now)
+
+
+def bind_clean_terminal_projection(
+    payload: str,
+    document: dict[str, object],
+    baseline: frozenset[str],
+    now: datetime,
+) -> Binding:
+    if not isinstance(baseline, frozenset) or baseline:
+        reject("CLEAN_PREBOOT_NOT_EMPTY")
+    return bind_terminal_projection(payload, document, baseline, now)
+
 
 @dataclass(frozen=True)
 class ImportPermission:
