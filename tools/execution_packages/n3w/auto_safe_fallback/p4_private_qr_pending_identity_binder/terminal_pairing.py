@@ -40,19 +40,16 @@ def _command(target: str, container: str, *, importer: bool) -> list[str]:
     _target(target)
     if not CONTAINER.fullmatch(container):
         reject("MANAGER_CONTAINER_INVALID")
-    return [
+    common = [
         "ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "-T", target,
-        "docker", "exec", "-i" if importer else "--",
-        container,
-        "greenhouse-manager-pairing" if importer else "greenhouse-manager-registration",
-        "import-payload" if importer else "p4-pending-readonly",
-        "--payload-stdin" if importer else "",
-    ] if importer else [
-        "ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "-T", target,
-        "docker", "exec", container,
-        "greenhouse-manager-registration", "p4-pending-readonly",
+        "docker", "exec",
     ]
-
+    if importer:
+        return [
+            *common, "-i", container, "greenhouse-manager-pairing",
+            "import-payload", "--payload-stdin",
+        ]
+    return [*common, container, "greenhouse-manager-registration", "p4-pending-readonly"]
 
 def _read_pending(target: str, container: str, runner: Runner) -> dict:
     try:
