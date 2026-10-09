@@ -46,8 +46,18 @@ class Deadline:
             "INSUFFICIENT_ROLLBACK_BUDGET",
         )
 
+    def forward_cutoff(self) -> float:
+        self.require_forward()
+        return self.end - self.budget.rollback_reserve - self.budget.evidence_reserve
+
     def enter_rollback(self) -> None:
         self.in_rollback = True
+
+    def rollback_cutoff(self) -> float:
+        require(self.in_rollback, "ROLLBACK_NOT_STARTED")
+        cutoff = self.end - self.budget.evidence_reserve
+        require(cutoff > self.now(), "ROLLBACK_TIME_BUDGET_EXHAUSTED")
+        return cutoff
 
     def rollback_time_remaining(self) -> float:
         require(self.in_rollback, "ROLLBACK_NOT_STARTED")
