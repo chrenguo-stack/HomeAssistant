@@ -178,6 +178,45 @@ class CutoverContractTests(unittest.TestCase):
                 self.old, shadow, NEW_ID, fresh_sources()
             )
 
+    def test_shadow_accepts_oom_kill_disable_default_none_vs_false_only(self):
+        for original, candidate in ((None, False), (False, None), (None, None), (False, False)):
+            with self.subTest(original=original, candidate=candidate):
+                old = old_manager()
+                old["HostConfig"]["OomKillDisable"] = original
+                shadow = stopped_shadow(old)
+                shadow["HostConfig"]["OomKillDisable"] = candidate
+                contract.verify_stopped_shadow_matches_origin(
+                    old, shadow, NEW_ID, fresh_sources()
+                )
+                shadow["State"]["Running"] = True
+                contract.verify_running_candidate_matches_origin(
+                    old, shadow, NEW_ID, fresh_sources()
+                )
+
+    def test_shadow_rejects_oom_kill_disable_true_even_if_matching(self):
+        for original, candidate in ((None, True), (False, True), (True, False), (True, True)):
+            with self.subTest(original=original, candidate=candidate):
+                old = old_manager()
+                old["HostConfig"]["OomKillDisable"] = original
+                shadow = stopped_shadow(old)
+                shadow["HostConfig"]["OomKillDisable"] = candidate
+                with self.assertRaisesRegex(
+                    contract.CutoverStop, "CANDIDATE_HOST_SECURITY_PARITY_FAILED"
+                ):
+                    contract.verify_stopped_shadow_matches_origin(
+                        old, shadow, NEW_ID, fresh_sources()
+                    )
+
+    def test_shadow_rejects_oom_kill_disable_unexpected_numeric_value(self):
+        shadow = stopped_shadow(self.old)
+        shadow["HostConfig"]["OomKillDisable"] = 0
+        with self.assertRaisesRegex(
+            contract.CutoverStop, "CANDIDATE_HOST_SECURITY_PARITY_FAILED"
+        ):
+            contract.verify_stopped_shadow_matches_origin(
+                self.old, shadow, NEW_ID, fresh_sources()
+            )
+
     def test_shadow_rejects_unreviewed_host_security_drift(self):
         shadow = stopped_shadow(self.old)
         shadow["HostConfig"]["PublishAllPorts"] = True
