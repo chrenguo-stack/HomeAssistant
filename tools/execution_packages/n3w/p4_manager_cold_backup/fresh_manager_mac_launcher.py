@@ -48,7 +48,7 @@ NEEDED = {
     "p4-business-restore-evidence-private.json",
 }
 STAGE_NAME = "p4-fresh-manager-deploy-r3"
-AUTH = "N3W_P4_T1_FRESH_MANAGER_ONE_SHOT_LIVE_DEPLOY"
+AUTH = "N3W_P4_T1_FRESH_MANAGER_ONE_SHOT_LIVE_DEPLOY_R3"
 
 def stop(code):
     print("T1_FRESH_MANAGER=STOP:" + code, flush=True)
