@@ -711,13 +711,15 @@ SETUP_SECRET_IMPORT=false
 
 ### 15.1 下一门只读预检：验证归档与真实宿主机挂载源
 
-只执行文件校验和 stat，绝不打印存档 JSON、宿主机 Source 路径或秘密值。Mac Terminal：
+只执行文件校验和 stat，绝不打印存档 JSON、宿主机 Source 路径或秘密值。以下程序仅当 T1 `/root` 下匹配 **唯一** 的上一阶段私有目录时继续；若有多个历史目录则先 STOP、不要猜用哪个。Mac Terminal：
 
 ```bash
 printf 'T1 SSH 目标：'
 IFS= read -r T1_SSH
 ssh -T "$T1_SSH" 'set -eu
-DIR=/root/n3w-p4-manager-rollback-prep-NtbRSddP
+set -- /root/n3w-p4-manager-rollback-prep-*
+test "$#" -eq 1 || { echo ROLLBACK_PREP_DIR_NOT_UNIQUE_STOP=true; exit 20; }
+DIR=$1
 test -d "$DIR"
 test "$(stat -c %a "$DIR")" = 700
 for item in manager-inspect-private.json broker-inspect-private.json old-manager-image.tar old-manager-image.tar.sha256; do
