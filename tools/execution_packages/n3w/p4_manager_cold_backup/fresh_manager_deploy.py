@@ -276,6 +276,25 @@ def validate_create_contract(old: dict[str, Any]) -> None:
     _logging_contract(host)
 
 
+def _logging_contract(host: dict[str, Any]) -> tuple[str, dict[str, str]]:
+    log = host.get("LogConfig") or {}
+    require(isinstance(log, dict), "LOG_CONFIG_INVALID")
+    driver = log.get("Type") or ""
+    require(driver in ("", "json-file"), "LOG_DRIVER_UNSUPPORTED")
+    options = log.get("Config") or {}
+    require(isinstance(options, dict), "LOG_OPTIONS_UNSUPPORTED")
+    for key, value in options.items():
+        require(
+            isinstance(key, str)
+            and re.fullmatch(r"[a-z][a-z0-9-]{0,63}", key) is not None
+            and isinstance(value, str)
+            and len(value) <= 1024
+            and not any(ord(char) < 32 or ord(char) == 127 for char in value),
+            "LOG_OPTIONS_UNSUPPORTED",
+        )
+    return driver, options
+
+
 def _write_env_file(private: Path, env: list[str]) -> Path:
     path = private / ENV_FILE
     require(not path.exists() and not path.is_symlink(), "PRIVATE_ENV_FILE_COLLISION")
