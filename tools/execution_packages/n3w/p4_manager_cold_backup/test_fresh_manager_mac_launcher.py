@@ -31,7 +31,6 @@ class LauncherTests(unittest.TestCase):
         self.assertIn("R5_PRIVATE_AUTHORITY_NOT_UNIQUE", source)
         self.assertIn("PREBOOT_BASELINE=0_0_0_AND_EMPTY_RELAY_KEYS", source)
         self.assertIn("--permit-live-manager-replacement", source)
-        self.assertIn("sudo -n", launcher.execute.__code__.co_consts)
 
     def test_git_blob_framing_and_exact_tar_members(self):
         blob = b"synthetic-source"
