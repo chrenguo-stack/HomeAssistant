@@ -608,3 +608,84 @@ BOARD_FIRST_BOOT=false
 NEXT_ACTION=MOUNT_AND_PERSIST_DIR_READONLY_INVENTORY
 STOP_ON_LAYOUT_DRIFT=true
 ```
+
+## 14. 六挂载与持久目录现场收敛；第一阶段仅备份旧镜像与容器配置（2026-10-09）
+
+用户从 T1 Mac SSH 实际报告：
+
+```text
+MOUNT_DEST=/var/lib/greenhouse-manager/n3w TYPE=bind RW=true
+MOUNT_DEST=/var/lib/greenhouse-manager/n3w/relay-keys TYPE=bind RW=true
+MOUNT_DEST=/run/secrets/broker-ca.pem TYPE=bind RW=false
+MOUNT_DEST=/run/secrets/gh_manager_mqtt_password TYPE=bind RW=false
+MOUNT_DEST=/run/secrets/provisioning_password TYPE=bind RW=false
+MOUNT_DEST=/var/lib/greenhouse-manager-registration TYPE=bind RW=true
+REGISTRATION_DIR_FILE_COUNT=1
+REGISTRATION_DIR_SIZE_KIB=664
+N3W_DIR_FILE_COUNT_WITH_NESTED_MOUNT=11
+N3W_DIR_SIZE_KIB_WITH_NESTED_MOUNT=8056
+RELAY_KEYS_DIR_FILE_COUNT=5
+RELAY_KEYS_DIR_SIZE_KIB=24
+MANAGER_RUNNING=true
+MANAGER_RESTARTS=0
+MANAGER_NETWORK=host
+BROKER_RUNNING=true
+BROKER_RESTARTS=0
+```
+
+N3W 父目录统计已经包含嵌套 relay-keys 挂载，不要将这两个空间数字直接相加后称为去重后的大小；5 个 relay key 目录文件**不是**对历史已配对身份数量的重新取证。多个独立 bind sources 必须分别保护。三个只读秘密挂载也需要在真正回退时以原始 host source、文件权限、存续条件验证，但**不能复制或上传真实秘密到 GitHub**。
+
+### 14.1 安全的阶段 A：在 T1 本地私有目录冻结运行定义和原版 Manager 镜像
+
+与正式数据库备份分离，先行保存**完整私有 Docker inspect 与旧镜像本体**。实际 Manager 运行不停止，不触及注册库、replay/credential、relay keys、Broker 网络。创建的只是 T1 的 root 私有文件，可能包含秘密配置信息，绝对不可上传 GitHub、不贴终端文件内容。Docker inspect 不具备秘密值自动脱敏，故只能写入 `0700` 私有目录，禁止在终端输出本体。给出 Mac Terminal 命令：
+
+```bash
+printf 'T1 SSH 目标：'
+IFS= read -r T1_SSH
+ssh -T "$T1_SSH" 'set -eu
+umask 077
+FREE=$(df -Pk /root | awk "NR==2 {print \$4}")
+if test -z "$FREE" || test "$FREE" -lt 524288; then echo ROOT_BACKUP_SPACE_LOW_STOP=true; exit 21; fi
+BEFORE_MANAGER=$(docker inspect --type container --format "{{.Image}}|{{.State.StartedAt}}|{{.RestartCount}}|{{.State.Running}}" greenhouse-manager)
+BEFORE_BROKER=$(docker inspect --type container --format "{{.Image}}|{{.State.StartedAt}}|{{.RestartCount}}|{{.State.Running}}" n3wfc4-broker-1)
+test "$(docker inspect --type container --format "{{.State.Running}}" greenhouse-manager)" = "true"
+test "$(docker inspect --type container --format "{{.State.Running}}" n3wfc4-broker-1)" = "true"
+OLD_IMAGE=$(docker inspect --type container --format "{{.Image}}" greenhouse-manager)
+docker image inspect "$OLD_IMAGE" >/dev/null
+DIR=$(mktemp -d /root/n3w-p4-manager-rollback-prep-XXXXXXXX)
+docker inspect --type container greenhouse-manager > "$DIR/manager-inspect-private.json"
+docker inspect --type container n3wfc4-broker-1 > "$DIR/broker-inspect-private.json"
+docker image save --output "$DIR/old-manager-image.tar" "$OLD_IMAGE"
+sha256sum "$DIR/old-manager-image.tar" > "$DIR/old-manager-image.tar.sha256"
+chmod 600 "$DIR"/*
+test -s "$DIR/manager-inspect-private.json"
+test -s "$DIR/broker-inspect-private.json"
+test -s "$DIR/old-manager-image.tar"
+test "$BEFORE_MANAGER" = "$(docker inspect --type container --format "{{.Image}}|{{.State.StartedAt}}|{{.RestartCount}}|{{.State.Running}}" greenhouse-manager)"
+test "$BEFORE_BROKER" = "$(docker inspect --type container --format "{{.Image}}|{{.State.StartedAt}}|{{.RestartCount}}|{{.State.Running}}" n3wfc4-broker-1)"
+echo PRIVATE_MANAGER_CONFIG_SAVED=PASS
+echo OLD_MANAGER_IMAGE_ARCHIVE_SAVED=PASS
+echo LIVE_MANAGER_BROKER_UNCHANGED=PASS
+printf "T1_PRIVATE_ROLLBACK_PREP_DIR=%s\n" "$DIR"
+echo DATABASE_BACKUP=NOT_STARTED'
+```
+
+本阶段需要 root /root 目录有至少 512MiB 余量（仅作保护阈值，不保证文件最终大小）；产生约旧镜像体积量级的 tar，以及含秘密的 JSON。失败按错误路径停止，不重复盲跑、不自动删除旧私有目录、不删除旧 Docker 镜像或清理缓存。真实备份/恢复尚不可宣称通过。
+
+### 14.2 真正的数据快照仍需第二阶段的受控停写
+
+当前 3 个可写挂载实际数据根目录位于宿主机上不同 bind Source，原始 Source 和文件所有权权限应从私有 inspect 记录解析，不向 GitHub 或聊天传播。下一阶段必须先准备与审查确切恢复动作，并确保有单写入者的受控停写窗口；仅在 Manager 的唯一写入者已经停止且 Broker 保持运行时，对三个独立 host source 各做完整文件/属性/必要 SQLite -wal/-shm 拷贝，并验证 db integrity、旧五身份、高水位及 credentials/replay、全部 relay keys、secrets source 可读性，再在隔离目录演练恢复和回退。若其他进程也能写相同 DB，仍需额外协调；不能靠 `docker stop` 假设全局无写入者。不能直接使用历史 `t1_backup.py`。
+
+```text
+P4_NEW_IMAGE_SYNTHETIC=PASS
+T1_SIX_MOUNTS_READONLY_INVENTORY=PASS
+ROOT_LOCAL_PRIVATE_RUNTIME_CONFIG_BACKUP=AWAITING_OPERATOR
+ROOT_LOCAL_OLD_IMAGE_ARCHIVE=AWAITING_OPERATOR
+THREE_DB_CONSISTENT_BACKUP=false
+ISOLATED_RESTORE_DRILL=false
+LIVE_MANAGER_REPLACEMENT=false
+BOARD_FIRST_NORMAL_BOOT=false
+SECRET_IMPORT=false
+NEXT_ACTION=SAVE_PRIVATE_INSPECT_AND_OLD_IMAGE_WITHOUT_SERVICE_MUTATION
+STOP_ON_FAILURE=true
+```
