@@ -1,3 +1,17 @@
+## 2026-10-09 Fresh Manager 新会话交接冻结
+
+```text
+CURRENT_HANDOFF=docs/development/N3W_P4_T1_FRESH_MANAGER_ONE_SHOT_DEPLOY_EXECUTOR_NEW_CHAT_HANDOFF_V1.0_20261009.md
+HANDOFF_STANDARD_VERSION=1.0
+HANDOFF_READY_FOR_NEW_CHAT=true
+CURRENT_STAGE=N3W_P4_T1_CLEAN_MANAGER_STATE_FRESH_DEPLOYMENT_SOURCE_PREPARATION
+NEXT_ONE_GATE=N3W_P4_T1_FRESH_MANAGER_ONE_SHOT_DEPLOY_EXECUTOR_AND_ROLLBACK_TEST
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+```
+
+用户已批准放弃旧 Manager 历史配对关系；新路线为 exact P4 Manager + 三个全新空白 RW 数据源。旧 Manager/R5 私有备份保留，Broker/TLS/网络/system identity 保留。后续新会话不得重做 R5 冷备份、无在线节点的 90 秒 telemetry probe 或旧 5 身份迁移。
+
 ## 2026-10-09 用户批准 Manager 空白业务状态部署方向（PR #540 Draft）
 
 ```text
