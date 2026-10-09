@@ -44,6 +44,9 @@ def _five_identity_snapshot(registration, credential, original):
         with contextlib.closing(_ro(credential)) as cred:
             for conn, tables in ((reg, TABLES), (cred, ("credential_assignments",))):
                 for table in tables:
+                    columns = {row[1] for row in _query(conn, "PRAGMA table_info(" + table + ")")}
+                    if not REQUIRED_COLUMNS[table].issubset(columns):
+                        reject("PREBOOT_SCHEMA_INVALID")
                     rows = _query(conn, "SELECT DISTINCT hardware_id FROM " + table + " WHERE hardware_id IS NOT NULL")
                     for row in rows:
                         if not isinstance(row[0], str) or not row[0]:
@@ -206,6 +209,11 @@ def build_preboot_program(source_bytes: dict[str, bytes], baseline: frozenset[st
         raise ValueError("PREBOOT_BASELINE_INVALID")
     bridge = source_bytes["bridge_handoff.py"].decode("utf-8")
     probe = source_bytes["remote_projection.py"].decode("utf-8")
+    validator_tree = ast.parse(source_bytes["validator.py"].decode("utf-8"))
+    column_nodes = [node for node in validator_tree.body if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "REQUIRED_COLUMNS" for t in node.targets)]
+    if len(column_nodes) != 1:
+        raise ValueError("VALIDATOR_SCHEMA_MISSING")
+    required_columns = ast.get_source_segment(source_bytes["validator.py"].decode("utf-8"), column_nodes[0])
     tree = ast.parse(bridge)
     names = {}
     for node in tree.body:
@@ -226,7 +234,7 @@ def build_preboot_program(source_bytes: dict[str, bytes], baseline: frozenset[st
             "registrations", "pairing_sessions", "registration_events",
             "registration_node_history", "node_id_leases", "retirement_outbox",
         ))
-        + "\n\n" + core + "\n\n"
+        + "\n\n" + required_columns + "\n\n" + core + "\n\n"
         + _runtime_source(probe)
         + "\nBASELINE_HASHES = " + json.dumps(sorted(baseline)) + "\n"
         + PREBOOT_REMOTE_BODY
