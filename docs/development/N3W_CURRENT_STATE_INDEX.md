@@ -1,3 +1,43 @@
+## 2026-10-09 R4 A6 exact-source independent prelive review — NO GO, stop-post maximum recovery time not bounded
+
+```text
+CURRENT_ONE_GATE=N3W_P4_T1_R4_A6_TIMEOUT_REPAIR_EXACT_SOURCE_INDEPENDENT_REVIEW_AND_PRELIVE_DECISION
+INDEPENDENT_REVIEW_RESULT=NO_GO
+PR=540_OPEN_DRAFT
+EXACT_PROTECTED_11_SOURCE_REF=1528ae970974fd711f8a8a6441c29817a118d825
+EXACT_MAC_LAUNCHER_COMMIT=c5d8b0137a509d1b4a80bd03208d1232b01ae84b
+EXACT_MAC_LAUNCHER_BLOB=d66b7735e80550e2f6df6281978330edd3566d78
+ALL_11_SCRIPT_BLOBS_MATCH=true
+A1_FULL_INSPECT_LEGACY_SHA_VOLATILITY=CLOSED_SOURCE
+A2_R4_TRANSACTION_ISOLATION=CLOSED_SOURCE
+A3_SUPERVISED_RECOVERY_EXISTS=SOURCE_CONFIRMED
+A4_SECURITY_SIX_MOUNTS_LOGGING_PARITY=CLOSED_SOURCE
+A5_EXACT_SOURCE_BINDING=CLOSED_PASS
+A6_PRESTOP_160_SEC_BUDGET_GUARD=CLOSED_SOURCE
+A6_1_SYSTEMD_STOPPOST_BUDGET=120_SECONDS
+A6_1_CANDIDATE_ACTIVE_WORST_DECLARED_RECOVERY_WAITS=AT_LEAST_180_SECONDS
+A6_1_STATUS=OPEN_PRELIVE_BLOCKER
+A6_2_SYSTEMD_420_SECOND_START_TIMEOUT_PLUS_TERMINATION_GRACE_AND_EXECSTOPPOST_NOT_BOUNDED_BY_OPERATOR_580=OPEN_PRELIVE_BLOCKER
+SOURCE_CI=37951380611_141_PASS
+MANAGER_CI=37951380893_PASS
+PUBLIC_SAFETY_CI=37951380962_PASS
+R4_PRELIVE_GO=false
+R4_LIVE_AUTHORIZATION=false
+R4_LIVE_EXECUTION=false
+T1_READ_OR_WRITE_THIS_REVIEW=false
+BROKER_MUTATION=false
+BOARD_BOOT=false
+SETUP_SECRET_IMPORT=false
+R2_R3_HISTORY_R5_AND_OLD_MANAGER_RW=KEEP
+MERGE=false
+NEXT_ONE_GATE=N3W_P4_T1_R4_A6_STOPPOST_RECOVERY_WORST_CASE_AND_SYSTEMD_SHUTDOWN_BUDGET_SOURCE_REPAIR
+REVIEW_AUTHORITY=docs/development/N3W_P4_T1_R4_A6_TIMEOUT_REPAIR_EXACT_SOURCE_INDEPENDENT_REVIEW_AND_PRELIVE_DECISION_20261009.md
+```
+
+Independent review verified that R4 systemd Type=oneshot 420s start and 120s stop-post, operator 580s, remote preflight 120s, execute 660s and SSH 920s, with pre-stop 160s refusal, are wired to the intended pinned source and 141 passing synthetic tests. However, the real rollback source permits 45s candidate stop + 30s candidate rename + 30s old rename + 30s old docker start + 45s stable observation = 180s, excluding inspect and Broker checks. 120s systemd stop budget cannot be claimed to cover that path. Default systemd TimeoutStartFailureMode terminate may add a SIGTERM grace before ExecStopPost, so 580s operator cannot be asserted safe from arithmetic alone. No real T1 runtime or rollback verification was performed. Do not issue production command or erase R2/R3 evidence.
+
+---
+
 ## 2026-10-09 R4 A6 supervised timeout hierarchy source repair — 141 tests PASS, T1 untouched
 
 ```text
