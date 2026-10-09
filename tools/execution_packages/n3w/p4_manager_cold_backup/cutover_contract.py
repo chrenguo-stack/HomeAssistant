@@ -19,7 +19,7 @@ RO_TARGETS = frozenset({
 })
 ALL_TARGETS = RW_TARGETS | RO_TARGETS
 CONFIG_COMPARE = (
-    "Env", "User", "Entrypoint", "Cmd", "WorkingDir", "Labels",
+    "Env", "User", "Entrypoint", "Cmd", "WorkingDir",
     "Healthcheck", "StopSignal", "OpenStdin", "StdinOnce", "Tty",
 )
 HOST_COMPARE = (
@@ -145,6 +145,15 @@ def verify_stopped_shadow_matches_origin(
     new_config = new.get("Config", {})
     for name in CONFIG_COMPARE:
         require(new_config.get(name) == old_config.get(name), "SHADOW_CONFIG_PARITY_FAILED")
+    old_labels = dict(old_config.get("Labels") or {})
+    new_labels = dict(new_config.get("Labels") or {})
+    old_labels.pop("org.opencontainers.image.revision", None)
+    new_labels.pop("org.opencontainers.image.revision", None)
+    require(new_labels == old_labels, "SHADOW_NONREVISION_LABEL_DRIFT")
+    require(
+        (new_config.get("Labels") or {}).get("org.opencontainers.image.revision")
+        == CANDIDATE_SOURCE, "SHADOW_CANDIDATE_REVISION_MISMATCH",
+    )
     old_host = old.get("HostConfig", {})
     new_host = new.get("HostConfig", {})
     for name in HOST_COMPARE:
