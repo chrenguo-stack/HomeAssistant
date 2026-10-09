@@ -45,10 +45,12 @@ class FakeOps:
     def step(self, name):
         self.calls.append(name)
         if self.failure == name and not self.after_side_effect:
+            self.failure = None
             raise GateStop("INJECTED_" + name.upper())
 
     def end(self, name):
         if self.failure == name and self.after_side_effect:
+            self.failure = None
             raise GateStop("INJECTED_" + name.upper())
 
     def preflight(self, a):
