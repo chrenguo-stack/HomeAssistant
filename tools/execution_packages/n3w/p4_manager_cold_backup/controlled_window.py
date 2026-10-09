@@ -156,7 +156,8 @@ def main() -> None:
         signal.signal(sig, interrupt)
 
     def capture(value: Path) -> None:
-        snapshot.run_capture_after_stop(value)
+        sources = snapshot.validate_runtime(manager, broker, "capture")
+        snapshot.capture(sources, value)
 
     run_window(
         directory,
