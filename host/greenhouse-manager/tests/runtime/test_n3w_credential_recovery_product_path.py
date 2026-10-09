@@ -190,6 +190,7 @@ def _open_authenticated_repair_session(
         HARDWARE_ID,
         PAIRING_2,
         setup_secret=SETUP_SECRET,
+        now=NOW + timedelta(seconds=3),
     )
     node_nonce = bytes([0x61]) * 16
     offer = coordinator.begin(
