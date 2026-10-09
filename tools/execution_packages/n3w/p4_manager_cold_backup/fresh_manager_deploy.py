@@ -196,15 +196,10 @@ def verify_r5_rollback_authority(private: Path) -> None:
     )
 
 
-def broker_unchanged(before: dict[str, Any], after: dict[str, Any]) -> None:
+def broker_static_authority(before: dict[str, Any], after: dict[str, Any]) -> None:
     require(after.get("Id") == before.get("Id"), "BROKER_CONTAINER_CHANGED")
     require(after.get("Image") == before.get("Image"), "BROKER_IMAGE_CHANGED")
     require(after.get("State", {}).get("Running") is True, "BROKER_NOT_RUNNING")
-    require(
-        after.get("State", {}).get("StartedAt") == before.get("State", {}).get("StartedAt"),
-        "BROKER_STARTED_AT_CHANGED",
-    )
-    require(after.get("RestartCount") == before.get("RestartCount"), "BROKER_RESTART_COUNT_CHANGED")
     require(
         set(after.get("NetworkSettings", {}).get("Networks", {}))
         == set(before.get("NetworkSettings", {}).get("Networks", {})),
@@ -215,6 +210,15 @@ def broker_unchanged(before: dict[str, Any], after: dict[str, Any]) -> None:
         == before.get("HostConfig", {}).get("PortBindings"),
         "BROKER_PORT_BINDINGS_CHANGED",
     )
+
+
+def broker_unchanged(before: dict[str, Any], after: dict[str, Any]) -> None:
+    broker_static_authority(before, after)
+    require(
+        after.get("State", {}).get("StartedAt") == before.get("State", {}).get("StartedAt"),
+        "BROKER_STARTED_AT_CHANGED",
+    )
+    require(after.get("RestartCount") == before.get("RestartCount"), "BROKER_RESTART_COUNT_CHANGED")
 
 
 def _read_numeric(args: tuple[str, ...], code: str) -> int:
@@ -405,7 +409,7 @@ class LiveOps:
         image = docker_json("image", contract.CANDIDATE_TAG)
         require(old.get("Id") == origin.get("Id"), "OLD_MANAGER_NOT_R5_ORIGIN")
         require(old.get("Image") == origin.get("Image"), "OLD_MANAGER_IMAGE_DRIFT")
-        broker_unchanged(broker_origin, broker)
+        broker_static_authority(broker_origin, broker)
         contract.validate_source_authority(old, broker, image)
         validate_create_contract(old)
         require(shutil.which("ss") is not None, "SS_TOOL_REQUIRED")
