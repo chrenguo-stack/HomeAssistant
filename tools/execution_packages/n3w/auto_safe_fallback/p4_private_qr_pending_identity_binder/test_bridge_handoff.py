@@ -185,6 +185,44 @@ class BridgeTests(unittest.TestCase):
         )
         self.assertEqual(transport,[])
 
+    def clean_terminal_document(self):
+        return {
+            "schema": b.TERMINAL_READONLY_SCHEMA,
+            "historical_count": 0,
+            "historical_hardware_hashes": [],
+            "new_count": 1,
+            "hardware_sha256": b.sha(HARD),
+            "pairing_sha256": b.sha(PAIR),
+            "expires_at": (NOW + timedelta(seconds=100)).isoformat(),
+            "pending_state": "pending",
+            "first_registration_no_history": True,
+            "credential_history_clear": True,
+            "replay_linkage_clear": True,
+            "read_only": True,
+            "read_at": NOW.isoformat(),
+        }
+
+    def test_clean_zero_preboot_terminal_binding(self):
+        document = self.clean_terminal_document()
+        binding = b.bind_clean_terminal_projection(QR, document, frozenset(), NOW)
+        self.assertEqual(binding.hardware_sha256, b.sha(HARD))
+        self.assertFalse(binding.live_attested)
+
+    def test_clean_binder_refuses_historical_five_baseline(self):
+        document = self.clean_terminal_document()
+        self.stopped(
+            "CLEAN_PREBOOT_NOT_EMPTY",
+            lambda: b.bind_clean_terminal_projection(QR, document, self.baseline, NOW),
+        )
+
+    def test_clean_binder_refuses_nonzero_claim_with_zero_baseline(self):
+        document = self.clean_terminal_document()
+        document["historical_count"] = 5
+        self.stopped(
+            "TERMINAL_PENDING_INVALID",
+            lambda: b.bind_clean_terminal_projection(QR, document, frozenset(), NOW),
+        )
+
     def test_snapshot_no_db_write(self):
         import hashlib
         def h():return [hashlib.sha256(x.read_bytes()).hexdigest() for x in (self.reg,self.cred)]
