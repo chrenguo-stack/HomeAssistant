@@ -59,8 +59,9 @@ class FakeOps:
     def park_old(self):
         self._step("park_old")
 
-    def create_candidate(self):
+    def create_candidate(self, persist):
         self._step("create_candidate")
+        persist("candidate-id")
         return "candidate-id"
 
     def start_candidate(self, candidate_id: str):
@@ -107,6 +108,7 @@ class FreshManagerDeployTests(unittest.TestCase):
         )
         stored = json.loads((self.private / deploy.STATE_FILE).read_text())
         self.assertTrue(stored["committed"])
+        self.assertEqual(stored["candidate_id"], "candidate-id")
         self.assertEqual(
             stored["phase"],
             "SUCCESS_COMMIT_KEEP_ORIGINAL_FOR_ROLLBACK",
