@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -80,7 +81,10 @@ class RecoveryFailureTests(unittest.TestCase):
         self.txn = transaction()
         patches = [
             patch.object(recovery.window, "get_private_origin", return_value=(origin(), broker())),
-            patch.object(recovery, "load_state", side_effect=lambda _: self.txn),
+            patch.object(recovery, "load_state", side_effect=lambda _: (
+                json.loads((self.private / deploy.STATE_FILE).read_text())
+                if (self.private / deploy.STATE_FILE).exists() else self.txn
+            )),
             patch.object(recovery.deploy, "container_exists", side_effect=self.current.exists),
             patch.object(recovery.deploy, "docker_json", side_effect=self.current.inspect),
             patch.object(recovery, "_run_docker", side_effect=self.current.action),
@@ -152,8 +156,10 @@ class RecoveryFailureTests(unittest.TestCase):
             recovery.supervised_stop_post(self.private)
         self.assertEqual(self.current.containers["greenhouse-manager"]["Id"], "old-id")
         self.assertTrue(self.current.containers["greenhouse-manager"]["State"]["Running"])
-        self.assertFalse(self.txn.get("supervised_post_commit_verification_failed", False))
-        self.assertTrue((self.private / deploy.STATE_FILE).exists())
+        saved = json.loads((self.private / deploy.STATE_FILE).read_text())
+        self.assertFalse(saved["committed"])
+        self.assertTrue(saved["supervised_post_commit_verification_failed"])
+        self.assertEqual(saved["rollback_result"], "PASS")
 
     def test_committed_candidate_is_not_rolled_back(self):
         self.txn["committed"] = True
