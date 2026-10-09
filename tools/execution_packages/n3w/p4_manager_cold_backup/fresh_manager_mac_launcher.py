@@ -289,7 +289,7 @@ def execute(target: str, archive: bytes) -> str:
                 line.strip(),
             )
         ]
-        return "\\n".join(details[:12] + [match[-1]]) if details else match[-1]
+        return "\n".join(details[:12] + [match[-1]]) if details else match[-1]
     return "T1_FRESH_MANAGER=STOP:SSH_OR_SUDO_FAILED_NO_RETRY"
 
 
