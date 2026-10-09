@@ -188,7 +188,10 @@ class FreshManagerDeployTests(unittest.TestCase):
         with self.assertRaisesRegex(deploy.DeployStop, "MANAGER_MQTT_TLS_NOT_ENABLED"):
             deploy._tls_port_contract(old)
         old = old_manager()
-        old["Config"]["Env"].append("GH_MQTT_PORT=1883")
+        old["Config"]["Env"] = [
+            "GH_MQTT_PORT=1883" if item.startswith("GH_MQTT_PORT=") else item
+            for item in old["Config"]["Env"]
+        ]
         with self.assertRaisesRegex(deploy.DeployStop, "MANAGER_MQTT_PORT_NOT_8883"):
             deploy._tls_port_contract(old)
 
