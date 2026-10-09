@@ -29,8 +29,11 @@ EXPECTED = {
 def _rows_and_fingerprint(connection: sqlite3.Connection, table: str) -> tuple[int, str]:
     digest = hashlib.sha256()
     count = 0
-    for row in connection.execute('SELECT * FROM "' + table + '"'):
-        values = [None if item is None else str(item) for item in row]
+    for row in connection.execute('SELECT * FROM "' + table + '" ORDER BY rowid'):
+        values = [
+            {"type": type(item).__name__, "value": item.hex() if isinstance(item, bytes) else item}
+            for item in row
+        ]
         digest.update(json.dumps(values, ensure_ascii=True, separators=(",", ":")).encode())
         digest.update(b"\n")
         count += 1
