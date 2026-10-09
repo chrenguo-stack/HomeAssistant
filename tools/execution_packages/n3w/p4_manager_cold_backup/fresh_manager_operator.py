@@ -17,7 +17,7 @@ import controlled_window as window
 import cutover_contract as contract
 import fresh_manager_deploy as deploy
 import fresh_manager_recovery as recovery
-import r3_forensic_seal as r3_seal
+import r4_shadow_stable_fingerprint as r4_seal
 import fresh_manager_systemd_unit as unit
 
 WAIT_LIMIT_SECONDS = 430
@@ -90,7 +90,7 @@ def _private_json(path: Path) -> Any:
 
 def non_mutating_preflight(private: Path) -> str:
     deploy.verify_r5_rollback_authority(private)
-    r3_seal.verify_r2(private)
+    r4_seal.verify_legacy_r3_seal_readonly(private)
     origin, broker_origin = window.get_private_origin(private)
     window.check_old_running(origin, broker_origin)
     old = deploy.docker_json("container", contract.MANAGER_NAME)
@@ -304,7 +304,7 @@ def main() -> None:
             args.permit_live_manager_replacement,
             "LIVE_MANAGER_REPLACEMENT_NOT_AUTHORIZED",
         )
-        r3_seal.seal_r2(private)
+        r4_seal.seal_r3_for_r4(private)
         execute(private, text=text)
 
 
@@ -318,7 +318,7 @@ if __name__ == "__main__":
         snapshot.Stop,
         window.WindowStop,
         contract.CutoverStop,
-        r3_seal.SealStop,
+        r4_seal.FingerprintStop,
         OSError,
         ValueError,
         KeyError,
@@ -326,7 +326,7 @@ if __name__ == "__main__":
     ) as error:
         if isinstance(
             error,
-            (OperatorStop, deploy.DeployStop, recovery.RecoveryStop, snapshot.Stop, window.WindowStop, contract.CutoverStop, r3_seal.SealStop),
+            (OperatorStop, deploy.DeployStop, recovery.RecoveryStop, snapshot.Stop, window.WindowStop, contract.CutoverStop, r4_seal.FingerprintStop),
         ):
             code = str(error)
         else:
