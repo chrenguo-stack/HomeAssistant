@@ -1,3 +1,24 @@
+# P4 Fresh Manager 一次性部署执行器（2026-10-09 最新源码状态）
+
+本目录在原 R5 冷备份工具之外，已增加 `fresh_manager_operator.py`、`fresh_manager_deploy.py`、`fresh_manager_recovery.py` 和 `fresh_manager_systemd_unit.py`。旧版文档中“本工具不会操作容器”仅指 R5 的 **cold_snapshot.py**，不可用于解释这些新增的未来 live deployment 工具。
+
+```text
+CURRENT_GATE=CLOSED_PASS_SOURCE_ONLY
+EXACT_CODE_REVIEW_HEAD=e077f952a7b1ec124de7c6c2031f653dcb4e977c
+SYNTHETIC_TESTS=93_PASS
+CI_RUN=37936241579
+T1_LIVE_MANAGER_REPLACEMENT=false
+LIVE_REPLACEMENT_AUTHORIZATION=false
+BOARD_FIRST_BOOT=false
+SETUP_SECRET_IMPORT=false
+```
+
+完整复核与回退边界：`docs/development/N3W_P4_T1_FRESH_MANAGER_ONE_SHOT_SOURCE_REVIEW_AND_ROLLBACK_TEST_CLOSURE_20261009.md`。
+
+本目录新增执行器**并非本次可执行的生产指令**。其 `execute` 可停止、改名并恢复旧 Manager；未经下一道单独生产授权、正确的 T1 root-private stage 与当时最新 Docker inspect 六挂载核验，不得调用。严禁直接复用旧 R5 停机授权、历史三挂载 Compose 或旧五身份快照。首次配对与 Setup Secret 导入另行批准。下面保留的 R5 内容是历史来源，不应覆盖此处的新方向。
+
+---
+
 # N3-W P4 Manager 一致性冷备份与隔离恢复演练
 
 ## 状态与用途
