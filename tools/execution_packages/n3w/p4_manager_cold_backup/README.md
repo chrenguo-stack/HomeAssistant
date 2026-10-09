@@ -62,3 +62,36 @@ python3 cold_snapshot.py capture --private-root /root/n3w-p4-manager-rollback-pr
 5. 停写冷备份完成后，应明确何时恢复旧 Manager，以及在何时切换为候选新镜像，避免无意延长停机窗口。
 
 STOP 点：本 PR 只做到 **源码/模拟测试、可见 preflight**，正式生产数据冷拷贝和运行态部署均需后续独立明确控制。
+
+## 2026-10-09 冷备份源码 R2 与 T1 环境状态
+
+T1 操作者已经在旧 `6f0cc209...` 工具版本上执行 `preflight` 并输出：
+
+```text
+BACKUP_EXECUTOR_EXACT_SOURCE=PASS
+BACKUP_EXECUTOR_SYNTAX=PASS
+CURRENT_MANAGER_IDENTITY_AND_MOUNTS=PASS
+BROKER_RUNNING=PASS
+OTHER_RUNNING_CONTAINER_WRITERS=NONE_DETECTED
+COLD_BACKUP=NOT_STARTED
+```
+
+**该 PASS 只对上一次所执行的文件及当时 T1 状态有效。** 后续源码审查新增保护，使版本已改变，T1 原 `p4_cold_snapshot.py` 需要在真正采集之前重新校验 exact Git Blob 并更新；不得把旧版 `preflight` 冒充新版本的 `capture` 授权。
+
+新保护点：
+
+- 在复制前/后以及隔离恢复完成后，各自重新读取三个**真实源目录**的完整文件清单和 SHA256/UID/GID/mode，阻止备份窗口内数据发生变化却宣称 PASS。
+- 对三个 SQLite 主库及存在的 `-wal`、`-shm` sidecars 分别检查文件占用状态，任何 `fuser` 模糊退出或文件占用均 STOP。
+- 在复制前按源文件总字节数做保守空间判断（至少约三份数据再加 64MiB 余量）。
+- 在隔离恢复 SQLite `integrity_check` 后，再次比较恢复目录文件清单，确保检验本身没有偷偷修改恢复内容。
+- 保持旧镜像、旧容器不可删除不可重建；保留 Broker 双网络、8883 publication 与 T1 Manager 生产容器配置校验。
+
+**三段式生产工作流（必须按顺序）：**
+
+A. 只读部署前证据：host Python 版本及 SQLite 版本、`docker inspect` 精确旧容器 restart policy、host systemd 独立守护任务、根目录剩余空间、Docker CLI / `cp` / `fuser`，并再次比对新候选镜像和旧镜像的来源与私有归档；不得打印 secret 或 RW Source 路径。
+
+B. 单次旧 Manager 冷备份窗口（尚未授权）：先固定一次真实业务指标（旧五身份、凭据、replay 高水位），然后 **仅停止旧 Manager**、保持 broker 与双网络不变。证明确认所有写入者已停后，运行已固定、源码 CI PASS 的 `capture`，对私有冷副本及隔离恢复副本完成 SHA256 和三个库 `integrity_check`。**无论 capture 成功还是失败，都以不删除原 Manager 容器、使用原容器启动为首选恢复路径；只有旧 Manager 经运行态验证恢复之后才结束这一窗口。** 如果出现失败且启动不能成功，保留 T1 现场用于受控回退，不自动清库或重建 Broker。
+
+C. 独立的新 Manager 升级窗口（尚未授权）：先有可逆的 exact original container create spec 重建方案与演练、候选 P4 镜像的同一绑定、业务层历史身份/replay 高水位回归检测、Broker 连接与健康观察预算，才能替换生产 Manager。**绝不将 B 阶段成功视为 C 阶段已经授权或完成。**
+
+阶段 A 仍可继续只读执行；阶段 B/C 需要额外的外部脚本与批准，任何原 Manager 的 `docker stop`、`docker rm`、`docker rename`、`docker start` 都由受控执行包负责，不应依赖手动拼接命令。
