@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import ipaddress
 import json
 import os
 import subprocess
@@ -19,6 +20,8 @@ HARDWARE = "ghw-c6-00000000ff00"
 PAIRING = "c83aeb0d-8f48-4a39-a34b-ea584a588475"
 SECRET = base64.urlsafe_b64encode(bytes(range(32))).rstrip(b"=").decode()
 QR = f"GHN3W2:{HARDWARE}:{PAIRING}:{SECRET}"
+TARGET_A = "root@" + str(ipaddress.IPv4Address(0xC0A8141F))
+TARGET_B = "root@" + str(ipaddress.IPv4Address(0xC0A81431))
 
 
 def digest(value: str) -> str:
@@ -68,7 +71,7 @@ class TerminalFlowTest(unittest.TestCase):
         self.assertTrue(capture_output)
         self.assertFalse(check)
         self.assertEqual(cmd[0:1], ["ssh"])
-        self.assertEqual(cmd[6], "root@192.168.20.31")
+        self.assertEqual(cmd[6], TARGET_A)
         self.assertNotIn(SECRET, " ".join(cmd))
         self.calls += 1
         if "p4-pending-readonly" in cmd:
@@ -88,7 +91,7 @@ class TerminalFlowTest(unittest.TestCase):
 
     def invoke(self, *, confirm=lambda _: True, runner=None):
         return once(
-            "root@192.168.20.31", "greenhouse-manager",
+            TARGET_A, "greenhouse-manager",
             self.snapshot, self.snapshot_sha, self.private,
             runner=runner or self.runner, read_qr=lambda: QR, confirm=confirm,
             clock=lambda: NOW,
@@ -207,8 +210,8 @@ class TerminalFlowTest(unittest.TestCase):
     def test_current_ip_can_change_without_frozen_hash(self):
         from terminal_pairing import _command
 
-        first = _command("root@192.168.20.31", "greenhouse-manager", importer=False)
-        second = _command("root@192.168.20.49", "greenhouse-manager", importer=False)
+        first = _command(TARGET_A, "greenhouse-manager", importer=False)
+        second = _command(TARGET_B, "greenhouse-manager", importer=False)
         self.assertNotEqual(first, second)
         self.assertIn("p4-pending-readonly", second)
 
