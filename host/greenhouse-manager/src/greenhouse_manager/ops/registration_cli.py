@@ -16,9 +16,9 @@ from ..runtime.credential_lifecycle import (
     CredentialLifecycleStore,
 )
 from ..runtime.n3w_auto_node_id import AutomaticNodeIdApprover
-from .n3w_p4_pending_readonly import PendingReadonlyError, read_pending
 from ..runtime.registration import RegistrationConflict, RegistrationRecord, RegistrationRegistry
 from ..runtime.replay_registry import ReplayRegistry, ReplayRegistryUnavailable
+from .n3w_p4_pending_readonly import PendingReadonlyError, read_pending
 
 DEFAULT_DB_PATH = "/var/lib/greenhouse-manager/registration.sqlite3"
 DEFAULT_CREDENTIAL_DB_PATH = "/var/lib/greenhouse-manager/n3w/credential-lifecycle.sqlite3"
