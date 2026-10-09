@@ -53,6 +53,13 @@ class OneShotMockedExecutionTests(unittest.TestCase):
             with self.assertRaisesRegex(one.GateError, "ONE_SHOT_WAIT_LIMIT_REACHED"):
                 one.wait_for_completed_unit(now=lambda: next(times), sleep=lambda _: None)
 
+    def test_one_shot_unit_collision_refuses_even_if_run_dir_empty(self) -> None:
+        with patch.object(one, "UNIT_DEST", self.root / "not-present.service"):
+            with patch.object(one, "invoke") as runner:
+                runner.return_value.returncode = 0
+                runner.return_value.stdout = "loaded\n"
+                self.assertNotEqual(runner.return_value.stdout.strip(), "not-found")
+
     def test_reject_other_host_process_holding_sqlite(self) -> None:
         with patch.object(one, "manager_process_opener_owner", return_value=False):
             with patch.object(one, "invoke") as proc:
