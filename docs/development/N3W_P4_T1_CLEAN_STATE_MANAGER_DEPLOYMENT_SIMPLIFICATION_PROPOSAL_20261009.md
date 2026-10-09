@@ -1,0 +1,47 @@
+# N3-W P4 — 使用空白业务数据部署新版 Manager 的简化备选方案（2026-10-09）
+
+## 背景与状态
+
+用户提出：当前旧 Manager 数据可能已没有继续保留于新系统的价值，是否可以**全新部署**以尽快继续首次配对，而不做历史配对/凭据/replay 迁移。
+
+本文件为**方案建议，不是弃用历史身份的最终授权，也不是生产停止、清库或部署授权**。此前生产 R5 三来源冷备份、隔离恢复和原版 Manager 恢复仍然 CLOSED_PASS，不重复执行。所有 ESP32-C6 已长期断电且没有接入传感器；静默遥测检查不再阻断部署计划。
+
+## 核心结论
+
+在明确不要求旧节点保持原配对/凭据身份，并使用一块真正符合 clean-board 合同的板进行产品首次配对时，可以选择 **Manager-only 空白持久状态部署**。它在本项目目标上通常比“迁移 5 个历史身份、replay 高水位、credential generation、relay keys”更直接，也有利于测试首次登记路径。
+
+但“全新 Manager”不等于“全新 T1 整机”：维持 T1 主机、原 Broker TLS8883/双网络/防火墙/证书、当前用于新 Manager 连接 Broker 的服务凭据和稳定 system identity 不变。不得清空 Broker 动态权限数据库、HA 历史实体或系统证书以冒充 Manager-only 初始化成功。Broker 中旧设备 MQTT 账号/ACL、retained state 可能仍存在；它们的清理需独立核实和另行批准。未清除的旧 Broker 残留不应被误宣称是「完整零历史生态」；旧设备重新上电时不保证可用且不得自动视作已配对。
+
+## 最小改造流程（需另行授权才能在 T1 实施）
+
+1. **准备阶段**：确认旧配对状态不再需要**在新 Manager 中延续**。复用精确 P4 ARM64 候选镜像 `n3w-p4-manager:3d86d6bfaf361dc3a3d7295d046f541a544d552d` 的现场构建与已通过的隔离 CLI/source guard；绑定当前 image ID、原容器六个真实 bind mount 与原 Broker 运行参数。不再重做三库业务语义迁移或冷备份完整演练。
+2. **独立空目录**：为新 Manager 创建 3 个全新的互不嵌套、root 私有可持久化 RW 数据 Source（registration、n3w、relay-keys），与旧的全部真实 Source 完全隔离；保留相同容器 destination。三条 RO secret source 继续**原样只读**挂载。检查新 Manager 能够对空白 SQLite 注册、凭据生命周期、replay state 建表，relay key 机制按预期初始化；不得复制旧业务 SQLite 或旧 relay-keys。
+3. **一次实际切换**：只针对 Manager，自动原子记录预状态。停止原容器，改名保留、不删除（及其旧数据），以现场实际 Docker inspect 同等运行参数创建并启动新版；Broker、HA、TLS、证书、N3W 系统授权不变。设置受监督的失败恢复路径和单一终端 PASS/STOP 报告。
+4. **无节点阶段验收**：新版自身健康接口、pairing socket 和只读 P4 CLI 能力、空库 schema 与身份数初始化、到 Broker 的真实连接证据、Broker 本体未重启、原容器随时可恢复。ESP32 全部断电，所以不再要求无数据源情况下 replay 增长。
+5. **失败回退**：停止并隔离新容器及**只属于新版本**的数据目录，恢复旧的 parked 原容器及其始终未经新版触碰的三 RW 原数据源。不可用历史 Compose 3 挂载重建旧容器。绝不以空白新库覆盖原库。
+6. **首次配对阶段**：原 P4 preboot 五身份 SHA/计数是**旧 Manager 私有状态权威**，切为新空状态后不再是新的 baseline。必须在新 Manager 正常启动后从新空业务状态生成新的身份快照/绑定，更新 QR↔pending binder 的预期基线，保持 P4 setup-secret import 显式独立授权。不能拿旧 `5` 身份快照硬性要求新 Manager 有 5 个历史身份，也不能为求零身份清除旧 T1 备份。
+7. **上线和清理**：旧备份和 parked 容器至少保留到产品首次正常启动/配对与回退窗口结束；旧 Broker 帐号、Home Assistant retained/实体污染或物理旧设备归属的清理另立专门计划，严格做范围和身份映射核对，不允许 `docker volume prune`、`docker system prune` 或直接重置 Broker。
+
+## 相比原迁移方案省掉的工作
+
+- 不必把旧 5 个身份和相关 pairing/session/replay/credential 逐条迁入新产品运行数据库。
+- 不必检查新产品进程能否直接写旧数据库、如何兼容旧 schema 及原库回退写入。
+- 不必在新的部署窗口为了迁移再次暂停旧 Manager 复制三库并比对业务状态。
+- **仍必须保留**：旧容器/配置归档、候选 exact image 与 6 mount binding、独立数据目录、Broker 不变、自动 STOP/原版恢复、第一次新库初始化及新基线检查。
+
+## 尚需确认的唯一业务决策
+
+旧版已经配对的节点是否允许将来**重新作为新设备配对**，而不保留它们在旧 Manager 的 NODE_ID 和旧 MQTT credentials？若用户同意，Manager-only 空白状态方案可取代旧数据迁移方案。真实 T1 替换操作仍需要单独明确授权。
+
+```text
+PROPOSAL=CLEAN_MANAGER_STATE_FRESH_DEPLOY
+LEGACY_PAIRED_NODES_IN_NEW_MANAGER=DISCARDED_IF_USER_AGREES
+BROKER_AND_T1_INFRASTRUCTURE=KEEP
+OLD_MANAGER_AND_R5_BACKUP=KEEP_ROOT_PRIVATE
+OLD_IDENTITY_PREBOOT_BINDING=REBASE_AFTER_FRESH_MANAGER
+CANDIDATE_SOURCE=3d86d6bfaf361dc3a3d7295d046f541a544d552d
+PRODUCT_RUNTIME_CLEAN_DEPLOY_SOURCE_DESIGN=PENDING_CONFIRMATION
+LIVE_MANAGER_REPLACEMENT_AUTHORIZED=false
+BROKER_MUTATION=false
+ESP32_FIRST_BOOT=false
+```
