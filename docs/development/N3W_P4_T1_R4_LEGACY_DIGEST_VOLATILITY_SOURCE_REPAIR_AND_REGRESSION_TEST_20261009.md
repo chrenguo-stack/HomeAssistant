@@ -36,7 +36,11 @@ R4_EXACT_MAC_LAUNCHER_REBIND_COMMIT=8f7c5fdc5a7a3b91b4bc546ff6b3b1fa22d49033
 R4_EXACT_MAC_LAUNCHER_REBIND_BLOB_SHA1=bde632153e9f0223bf5675a1f6889505f18b215d
 R4_LAUNCHER_TEST_COMMIT=251126d94de737aa8ac0acaa81a98e1fa48948b1
 LATEST_LAUNCHER_TEST_CI_RUN=37949312185
-LATEST_LAUNCHER_TEST_CI_STATUS=PENDING_FINAL_CHECK
+LATEST_MANAGER_CI_RUN=37949312047
+LATEST_MANAGER_CI_STATUS=PASS
+LATEST_PUBLIC_SAFETY_CI_RUN=37949311925
+LATEST_PUBLIC_SAFETY_CI_STATUS=PASS
+LATEST_LAUNCHER_TEST_CI_STATUS=134_PASS
 R4_LIVE_T1_ACCESS_THIS_GATE=false
 R4_LIVE_REPLACEMENT_AUTHORIZATION=false
 R4_PRODUCTION_EXECUTION=false
@@ -48,7 +52,7 @@ The exact Mac launcher continues to pin eleven reviewed scripts from one immutab
 ## STOP and handoff
 
 ```text
-A1_STATUS=SOURCE_REPAIRED_PENDING_FINAL_CI
+A1_STATUS=SOURCE_REPAIR_CI_PASS_PENDING_INDEPENDENT_CLOSURE
 A2_R4_TRANSACTION_ISOLATION=UNCHANGED
 A3_IDENTITY_BOUND_SUPERVISED_ROLLBACK=UNCHANGED
 A4_SIX_MOUNTS_BROKER_LOGGING=UNCHANGED
@@ -64,4 +68,4 @@ BROKER_MUTATION=false
 MERGE=false
 ```
 
-Check final GitHub runs for the launcher-test code head before marking source gate PASS; a later independent review should confirm the A1 boolean cannot re-enter the durable authority through any alternate caller. An independent prelive decision, and then a **separate explicit R4 production authorization**, remain mandatory before any T1 cutover.
+Final protected-source and launcher test head CI completed with 134 PASS, Manager CI PASS and Public safety CI PASS. Source repair Gate now PASS, but a later independent review should confirm the A1 boolean cannot re-enter the durable authority through any alternate caller. An independent prelive decision, and then a **separate explicit R4 production authorization**, remain mandatory before any T1 cutover.
