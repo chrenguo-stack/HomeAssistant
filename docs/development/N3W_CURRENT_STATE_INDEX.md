@@ -1,3 +1,37 @@
+## 2026-10-09 R2 OOM kill default parity root cause — 111-pass source-only closure
+
+```text
+CURRENT_TASK=N3W_P4_T1_R2_OOM_KILL_DISABLE_PARITY_SOURCE_REPAIR
+SOURCE_REPAIR_STATUS=CLOSED_PASS_SOURCE_ONLY
+R2_REAL_FAIL_FIELD=HostConfig.OomKillDisable
+R2_OLD_VALUE=None
+R2_STOPPED_SHADOW_VALUE=False
+R2_OTHER_HOSTCONFIG_DIFFERENCES=0
+R2_TRANSACTION_PHASE=FRESH_SOURCES_PREPARED_EMPTY
+R2_TRANSACTION_COMMITTED=false
+R2_SHADOW_STILL_EXISTS_STOPPED=true
+R2_ROLLBACK_RESULT=PASS
+ORIGINAL_MANAGER_RUNNING_ORIGINAL_ID=true
+BROKER_ID_STARTED_AT_RESTART_COUNT_UNCHANGED=true
+R2_OLD_MANAGER_STOPPED=false
+R2_NEW_MANAGER_RUNNING=false
+SOURCE_REPAIR_COMMIT=016c9fda97285cf0c86ad3d66a0ddad93206caa9
+REGRESSION_TEST_COMMIT=9f7a382ec5f0afb794fd84d9052e09f98a84071d
+SYNTHETIC_TESTS=111_PASS
+CI_RUN=37942250182
+MANAGER_CI_RUN=37942249947
+PUBLIC_SAFETY_CI_RUN=37942249931
+LIVE_T1_MUTATION_THIS_GATE=false
+R2_REPLAY=FORBIDDEN
+R3_LIVE_DEPLOYMENT_AUTHORIZED=false
+NEXT_ONE_GATE=N3W_P4_T1_R2_FORENSIC_SEAL_AND_R3_RESUME_DESIGN_SOURCE_ONLY
+AUTHORITY_DOC=docs/development/N3W_P4_T1_R2_OOM_KILL_DEFAULT_PARITY_ROOT_CAUSE_AND_SOURCE_REPAIR_20261009.md
+```
+
+Only `OomKillDisable` unset/false representation is normalized; true and unexpected values are rejected. R2 journal, stopped shadow, fresh roots, old Manager data and R5 backup remain intact. Source success is not a live production deployment and cannot authorize R2 replay or a third cutover. Design a separate forensic-seal and R3 restart transaction procedure before seeking exact new live authorization.
+
+---
+
 ## 2026-10-09 P4 R2 real shadow HostConfig mismatch — old Manager safe, live attempt stopped
 
 ```text
