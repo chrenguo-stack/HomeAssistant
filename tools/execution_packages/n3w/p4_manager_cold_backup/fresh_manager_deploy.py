@@ -28,6 +28,8 @@ FAILED_NAME = "greenhouse-manager-p4-r4-failed"
 STOP_TIMEOUT_SECONDS = 30
 START_TIMEOUT_SECONDS = 45
 POSTFLIGHT_TIMEOUT_SECONDS = 60
+SYSTEMD_START_TIMEOUT_SECONDS = 420
+MAX_PRE_STOP_SECONDS = 160
 TCP_PORT = 8883
 TRUE_VALUES = {"1", "true", "yes", "on"}
 
@@ -630,6 +632,7 @@ class LiveOps:
 
 
 def execute_transaction(private: Path, ops: LiveOps) -> TransactionState:
+    started_at = time.monotonic()
     context = ops.preflight()
     state = TransactionState.create(private, context)
     phases: list[str] = []
@@ -644,6 +647,10 @@ def execute_transaction(private: Path, ops: LiveOps) -> TransactionState:
     advance("FRESH_SOURCES_PREPARED_EMPTY")
     ops.shadow_create_and_verify()
     advance("SHADOW_CREATE_AND_COMPARE_STOPPED")
+    require(
+        time.monotonic() - started_at <= MAX_PRE_STOP_SECONDS,
+        "CUTOVER_TIME_BUDGET_TOO_LOW_BEFORE_OLD_STOP",
+    )
     ops.stop_old()
     advance("OLD_MANAGER_STOP")
     ops.park_old()
