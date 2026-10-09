@@ -80,11 +80,26 @@ def resume_original_manager(origin: dict[str, Any], broker_origin: dict[str, Any
     if not current.get("State", {}).get("Running"):
         run_docker("start", MANAGER, timeout=START_TIMEOUT_SECONDS)
     deadline = time.monotonic() + 45
+    consecutive_running = 0
     while time.monotonic() < deadline:
         current = snapshot.inspect(MANAGER)
         if current.get("Id") == origin.get("Id") and current.get("State", {}).get("Running") is True:
-            snapshot.validate_runtime(origin, broker_origin, "preflight")
-            return
+            consecutive_running += 1
+            if consecutive_running >= 3:
+                snapshot.validate_runtime(origin, broker_origin, "preflight")
+                broker = snapshot.inspect(BROKER)
+                require(
+                    broker.get("State", {}).get("StartedAt")
+                    == broker_origin.get("State", {}).get("StartedAt"),
+                    "BROKER_STARTED_AT_CHANGED",
+                )
+                require(
+                    broker.get("RestartCount") == broker_origin.get("RestartCount"),
+                    "BROKER_RESTART_COUNT_CHANGED",
+                )
+                return
+        else:
+            consecutive_running = 0
         time.sleep(1)
     raise WindowStop("OLD_MANAGER_RESTART_NOT_STABLE")
 
