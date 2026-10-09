@@ -9,7 +9,7 @@ import sys
 import tarfile
 import urllib.request
 
-SOURCE_HEAD = "b476b7dd0acce292576825550a72b6db7372606e"
+SOURCE_HEAD = "9441a73658d21566f981e7986b0e0de9093d14da"
 REPO = "chrenguo-stack/HomeAssistant"
 DIRECTORY = "tools/execution_packages/n3w/p4_manager_cold_backup"
 EXPECTED = {
@@ -20,7 +20,7 @@ EXPECTED = {
     "fresh_state_contract.py": "f05e54644b954087544e99c15e030d3aefea7b8f",
     "fresh_manager_deploy.py": "79721bf24671469c551e7f169144d07d58b98bd4",
     "fresh_manager_recovery.py": "28426a313ed53d4a3fa6cc9f4bbd5fa618e08ab3",
-    "fresh_manager_operator.py": "63cc87fc367cd22c471a32f21c20b886e4bf8f90",
+    "fresh_manager_operator.py": "6d8339d5fa4d3b9004f60eea246593b1036d29cc",
     "fresh_manager_systemd_unit.py": "d5d77d3198f34a18abf997c19a12e6b556748f1e",
     "r3_forensic_seal.py": "97b6128dd79e9c66bd5fc51b08f7104d5702f6aa",
 }
