@@ -45,3 +45,29 @@ LIVE_MANAGER_REPLACEMENT_AUTHORIZED=false
 BROKER_MUTATION=false
 ESP32_FIRST_BOOT=false
 ```
+
+## 2026-10-09 用户正式决策：采用全新 Manager 空白业务状态
+
+**DECISION=APPROVED**：用户明确确认“同意放弃旧设备在 Manager 中的历史配对关系”。此确认专门授权**方案选择和对应 GitHub 源码/测试推进**，不等于授权清理旧 Broker 账号、擦除旧设备 NVS、删除旧库/旧容器、停止原 Manager、在生产 T1 安装新版或导入 Setup Secret。
+
+```text
+P4_DEPLOYMENT_DIRECTION=CLEAN_MANAGER_ONLY
+LEGACY_MANAGER_REGISTRATION_MIGRATION=SKIPPED
+LEGACY_MANAGER_CREDENTIAL_AND_REPLAY_MIGRATION=SKIPPED
+NEW_REGISTRATION_IDENTITIES=0_EXPECTED_PREBOOT
+NEW_CREDENTIAL_ASSIGNMENTS=0_EXPECTED_PREBOOT
+NEW_REPLAY_SEEN=0_EXPECTED_PREBOOT
+NEW_RELAY_KEY_DIR=EMPTY_EXPECTED_PREBOOT
+PREVIOUS_FIVE_IDENTITY_SNAPSHOT=HISTORICAL_NOT_NEW_PREBOOT_AUTHORITY
+OLD_MANAGER_AND_ALL_PRIVATE_BACKUPS=KEEP_UNMODIFIED
+BROKER_DYNSEC_AND_RETAINED_STATE=CURRENT_EXISTING_NOT_FACTORY_RESET
+SYSTEM_ID_AND_MANAGER_BROKER_TLS_IDENTITY=KEEP_UNCHANGED
+BOARD_FIRST_PAIR_AND_SECRET_IMPORT=SEPARATE_EXPLICIT_AUTHORIZATION
+LIVE_MANAGER_REPLACEMENT_AUTHORIZED=false
+```
+
+项目源码证据：PR #538 精确候选中 `RegistrationRegistry`、`CredentialLifecycleStore` 和 `ReplayRegistry` 在空白持久目录下均包含数据库建表流程。Node application-key 存储还要求新建私有目录由运行进程拥有，不能仅用 root 0700 随意创建再不经权限验证启动容器。新加 `fresh_state_contract.py` + `test_fresh_state_contract.py`（10 个合成场景）明确约束**三独立且没有任何文件的持久 RW 源**、旧库绝不被新版本使用、首次启动后注册/配对/credential/replay 关键表必须是新建的空表、relay key 目录为空，以及旧版 5 身份 baseline 不能被误当作新版 P4 的预启动身份基线。
+
+**注意**：新产品 Manager 即使空白，既有 Broker DynSec 账号/ACL/retained 消息仍然存在。若未来重新使用历史板，其设备侧的旧配对配置并不会自动失效；必须通过单独授权和真实清理/重新配对流程处理，不能默默复用旧身份。原有 clean-board eligibility 合同（不能重用曾被禁止的历史 P4 板冒充干净板）继续有效。
+
+下一实施门：编写精确候选镜像和原运行配置复制的**一次性 Manager-only 空白部署与旧容器原状态回退执行器**，完成 synthetic fail/recovery tests 后再唯一一次请求生产替换授权。不得将早期“三库历史迁移克隆”设计当作有效执行路线。
