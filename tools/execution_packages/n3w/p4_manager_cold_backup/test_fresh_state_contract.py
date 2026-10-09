@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import sqlite3
-import stat
 import tempfile
 import unittest
 from pathlib import Path
@@ -45,7 +44,12 @@ class FreshStateContractTests(unittest.TestCase):
         self._create_db(root / fresh.REPLAY_DB, fresh.REPLAY_TABLES)
 
     def test_fresh_source_isolation_passes_with_three_empty_roots(self):
-        mounts = fresh.validate_fresh_sources(self.old, self.paths)
+        mounts = fresh.validate_fresh_sources(
+            self.old,
+            self.paths,
+            expected_uid=os.getuid(),
+            expected_gid=os.getgid(),
+        )
         for dst in RW_TARGETS:
             self.assertEqual(mounts[dst]["Source"], self.paths[dst])
 
@@ -67,14 +71,40 @@ class FreshStateContractTests(unittest.TestCase):
         with self.assertRaisesRegex(CutoverStop, "FRESH_DIRECTORY_MODE_UNSAFE"):
             fresh.validate_fresh_sources(self.old, self.paths)
 
+    def test_wrong_uid_blocks(self):
+        with self.assertRaisesRegex(CutoverStop, "FRESH_DIRECTORY_UID_MISMATCH"):
+            fresh.validate_fresh_sources(
+                self.old,
+                self.paths,
+                expected_uid=os.getuid() + 10000,
+            )
+
+    def test_wrong_gid_blocks(self):
+        with self.assertRaisesRegex(CutoverStop, "FRESH_DIRECTORY_GID_MISMATCH"):
+            fresh.validate_fresh_sources(
+                self.old,
+                self.paths,
+                expected_gid=os.getgid() + 10000,
+            )
+
     def test_valid_new_databases_are_empty(self):
         self._initialize()
-        fresh.validate_initialized_fresh_state(self.paths)
-        self.assertEqual(fresh.accept_fresh_identity_baseline(0, 0, 0)["registrations"], 0)
+        fresh.validate_initialized_fresh_state(
+            self.paths,
+            expected_uid=os.getuid(),
+            expected_gid=os.getgid(),
+        )
+        self.assertEqual(
+            fresh.accept_fresh_identity_baseline(0, 0, 0)["registrations"],
+            0,
+        )
 
     def test_old_identity_row_blocks_initialization_claim(self):
         self._initialize()
-        p = Path(self.paths["/var/lib/greenhouse-manager-registration"]) / fresh.REGISTRATION_DB
+        p = (
+            Path(self.paths["/var/lib/greenhouse-manager-registration"])
+            / fresh.REGISTRATION_DB
+        )
         con = sqlite3.connect(p)
         con.execute("INSERT INTO registrations VALUES ('synthetic-legacy')")
         con.commit()
@@ -94,18 +124,26 @@ class FreshStateContractTests(unittest.TestCase):
 
     def test_old_relay_key_blocks_initialization_claim(self):
         self._initialize()
-        p = Path(self.paths["/var/lib/greenhouse-manager/n3w/relay-keys"]) / "legacy.key"
+        p = (
+            Path(self.paths["/var/lib/greenhouse-manager/n3w/relay-keys"])
+            / "legacy.key"
+        )
         p.write_bytes(b"synthetic")
         with self.assertRaisesRegex(CutoverStop, "FRESH_RELAY_KEYS_NOT_EMPTY"):
             fresh.validate_initialized_fresh_state(self.paths)
 
     def test_preboot_identity_count_five_cannot_be_reused(self):
-        with self.assertRaisesRegex(CutoverStop, "FRESH_PREBOOT_IDENTITY_BASELINE_MUST_BE_ZERO"):
+        with self.assertRaisesRegex(
+            CutoverStop, "FRESH_PREBOOT_IDENTITY_BASELINE_MUST_BE_ZERO"
+        ):
             fresh.accept_fresh_identity_baseline(5, 0, 0)
 
     def test_missing_replay_db_cannot_be_empty_pass(self):
         self._initialize()
-        (Path(self.paths["/var/lib/greenhouse-manager/n3w"]) / fresh.REPLAY_DB).unlink()
+        (
+            Path(self.paths["/var/lib/greenhouse-manager/n3w"])
+            / fresh.REPLAY_DB
+        ).unlink()
         with self.assertRaisesRegex(CutoverStop, "FRESH_DB_NOT_INITIALIZED"):
             fresh.validate_initialized_fresh_state(self.paths)
 
