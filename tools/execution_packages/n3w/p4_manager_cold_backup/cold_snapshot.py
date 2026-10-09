@@ -145,12 +145,16 @@ def no_open_db_files(sources: dict[str, Path]) -> None:
     for label, name in DATABASES:
         database = sources[RW[label]] / name
         require(database.is_file() and not database.is_symlink(), "DB_MAIN_MISSING_OR_SYMLINK")
-        probe = subprocess.run(
-            ("fuser", "-s", str(database)),
-            capture_output=True,
-            check=False,
-        )
-        require(probe.returncode == 1, "DB_FILE_BUSY_OR_PROBE_FAILED")
+        for candidate in (database, Path(str(database) + "-wal"), Path(str(database) + "-shm")):
+            if candidate != database and not candidate.exists():
+                continue
+            require(candidate.is_file() and not candidate.is_symlink(), "DB_SIDECAR_INVALID")
+            probe = subprocess.run(
+                ("fuser", "-s", str(candidate)),
+                capture_output=True,
+                check=False,
+            )
+            require(probe.returncode == 1, "DB_FILE_BUSY_OR_PROBE_FAILED")
 
 
 def file_hash(path: Path) -> str:
@@ -217,15 +221,38 @@ def restored_clone_and_verify(snapshot: Path, expected: list[dict[str, Any]], pr
         )
     require(inventory(isolated) == expected, "RESTORE_HASH_MODE_OWNER_MISMATCH")
     validate_sqlite(isolated)
+    require(inventory(isolated) == expected, "ISOLATED_RESTORE_MUTATED_DURING_SQLITE_CHECK")
 
 
 def capture(sources: dict[str, Path], private: Path) -> None:
     snapshot = private / "cold-snapshot"
     require(not snapshot.exists(), "SNAPSHOT_ALREADY_EXISTS")
     no_open_db_files(sources)
+    source_inventory = {
+        label: inventory(sources[mount]) for label, mount in RW.items()
+    }
+    total_bytes = sum(
+        entry["bytes"]
+        for entries in source_inventory.values()
+        for entry in entries
+        if entry["type"] == "file"
+    )
+    require(
+        shutil.disk_usage(private).free > 3 * total_bytes + 64 * 1024 * 1024,
+        "PRIVATE_BACKUP_FREE_SPACE_LOW",
+    )
     snapshot.mkdir(mode=0o700)
     copy_data(sources, snapshot)
     no_open_db_files(sources)
+    for label, mount in RW.items():
+        require(
+            inventory(sources[mount]) == source_inventory[label],
+            "SOURCE_CHANGED_DURING_COLD_COPY",
+        )
+        require(
+            inventory(snapshot / label) == source_inventory[label],
+            "COLD_COPY_SOURCE_CONTENT_MISMATCH",
+        )
     files = inventory(snapshot)
     require(len(files) > 0, "EMPTY_SNAPSHOT")
     manifest = private / "cold-snapshot-manifest-private.json"
@@ -234,7 +261,14 @@ def capture(sources: dict[str, Path], private: Path) -> None:
     manifest.chmod(0o600)
     restored_clone_and_verify(snapshot, files, private)
     require(inventory(snapshot) == files, "SNAPSHOT_CHANGED_DURING_RESTORATION")
+    no_open_db_files(sources)
+    for label, mount in RW.items():
+        require(
+            inventory(sources[mount]) == source_inventory[label],
+            "SOURCE_CHANGED_DURING_RESTORE_CHECK",
+        )
     print("THREE_RW_DATA_SOURCES_COLD_COPY=PASS")
+    print("SOURCE_BEFORE_AFTER_CONTENT_STABLE=PASS")
     print("ALL_SNAPSHOT_FILE_SHA256_MODE_OWNER=PASS")
     print("THREE_SQLITE_INTEGRITY=PASS")
     print("ISOLATED_RESTORE_FILE_AND_DB_PROOF=PASS")
