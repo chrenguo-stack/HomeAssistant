@@ -1198,3 +1198,82 @@ RECOVERY_UNIT_STARTED=false
 MANAGER_STOP=false
 COLD_BACKUP=false
 ```
+
+## 23. R4 systemd 文件静态校验 PASS；真实数据业务基线与写入者预检仍阻断（2026-10-09）
+
+操作者提供 T1 执行结果：
+
+```text
+PRIVATE_SYSTEMD_UNIT_HASH=PASS
+SYSTEMD_UNIT_FILE_VERIFICATION=PASS
+R4_MANAGER_BROKER_UNCHANGED=PASS
+UNIT_INSTALLED_BY_THIS_STEP=false
+UNIT_STARTED_BY_THIS_STEP=false
+MANAGER_STOP_NOT_EXECUTED=true
+CONSISTENT_DATA_BACKUP=NOT_STARTED
+```
+
+对应 root-private unit `n3w-p4-manager-cold-backup.service` 的 SHA256 为 `be7f6dea3991a24fcca51a9c32bb6abffc5f82dd8f1728b189dbbbcbce7de5b6`。已用 **T1 本机** `systemd-analyze verify` 完成解析检查；配置文件仅存在于 root 私有备份目录，没有复制到系统的 unit 目录，亦没有 `daemon-reload` / `enable` / `start`。不准把 systemd 静态 PASS 当作 runtime `ExecStopPost` 实际故障恢复的验收。
+
+### 23.1 下一只读动作：确认三个生产 SQLite 主库和 WAL/SHM 的当前状态
+
+在 Manager **仍正常运行**时，仅从 `docker inspect` 元数据查找 2 个真正的 SQLite RW Host Source（registration、n3w），使用 Python `Path.stat` 检查三个主 DB 和各自附属 `-wal` / `-shm` 文件是否存在、大小，以及 `fuser -s` 返回码；不会打开 SQLite、不会执行 SQL、不会修改数据库，不输出私有绝对 Host Source、任何身份记录或密码。重要：Manager 运行时数据库存在文件占用 `BUSY` 是正常现象，不应将其视为冷备份故障；此检查仅为受控停写前提供基线。不能靠当前 `fuser` 无占用就认定没有宿主机定时写入者。
+
+```bash
+printf 'T1 SSH 目标：'
+IFS= read -r T1_SSH
+ssh -T "$T1_SSH" 'python3 -B -' <<'PY'
+import json
+import subprocess
+from pathlib import Path
+raw = subprocess.run(
+    ["docker", "inspect", "--type", "container", "greenhouse-manager"],
+    check=True, capture_output=True, text=True,
+).stdout
+manager = json.loads(raw)[0]
+binds = {m["Destination"]: Path(m["Source"]) for m in manager["Mounts"]}
+database_specs = [
+    ("registration", "/var/lib/greenhouse-manager-registration", "registration.sqlite3"),
+    ("credential", "/var/lib/greenhouse-manager/n3w", "credential-lifecycle.sqlite3"),
+    ("replay", "/var/lib/greenhouse-manager/n3w", "replay.sqlite3"),
+]
+for label, parent, filename in database_specs:
+    main = binds[parent] / filename
+    if not main.is_file() or main.is_symlink():
+        raise SystemExit("DB_MAIN_MISSING_OR_UNEXPECTED_STOP=" + label)
+    print(f"DB_{label.upper()}_MAIN=PASS")
+    for kind, path in [
+        ("MAIN", main), ("WAL", Path(str(main) + "-wal")),
+        ("SHM", Path(str(main) + "-shm")),
+    ]:
+        if not path.exists():
+            print(f"DB_{label.upper()}_{kind}_PRESENT=false")
+            continue
+        if not path.is_file() or path.is_symlink():
+            raise SystemExit(f"DB_{label.upper()}_{kind}_TYPE_STOP=true")
+        p = subprocess.run(["fuser", "-s", str(path)], capture_output=True)
+        if p.returncode not in (0, 1):
+            raise SystemExit(f"DB_{label.upper()}_{kind}_FUSER_UNCERTAIN_STOP=true")
+        print(f"DB_{label.upper()}_{kind}_PRESENT=true")
+        print(f"DB_{label.upper()}_{kind}_OPEN_BY_PROCESS={str(p.returncode == 0).lower()}")
+        print(f"DB_{label.upper()}_{kind}_SIZE_KIB={(path.stat().st_size + 1023)//1024}")
+print("THREE_PRODUCTION_DB_METADATA_PREFLIGHT=PASS")
+print("BUSINESS_IDENTITY_COUNTS=NOT_READ")
+print("CONSISTENT_DATA_BACKUP=NOT_STARTED")
+PY
+```
+
+此命令刻意不直接连接任何 live SQLite，避免在线 `PRAGMA` 查询可能造成 WAL 读侧影响、也不把在线单独读到的状态错误地认作三库一致性基线。真正的历史身份、凭据版本、replay 高水位应先在后续停写的**同一冷快照和隔离恢复副本**上以明确表契约取证，再决定是否可进入旧 Manager 恢复与之后的升级阶段。
+
+```text
+SYSTEMD_UNIT_T1_STATIC_VERIFY=PASS
+SYSTEMD_UNIT_INSTALLED=false
+MANAGER_AND_BROKER_UNCHANGED=PASS
+DB_METADATA_AND_SIDECAR_PREFLIGHT=PENDING_OPERATOR
+HOST_NONCONTAINER_WRITER_ELIMINATION=INCOMPLETE
+FIVE_HISTORIC_IDENTITIES_SNAPSHOT_PROOF=PENDING
+CREDENTIAL_AND_REPLAY_BASELINE=PENDING
+LIVE_COLD_SNAPSHOT=false
+ISOLATED_RESTORE_REAL_DATA=false
+MANAGER_UPGRADE=false
+```
