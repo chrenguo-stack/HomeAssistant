@@ -59,7 +59,10 @@ def get_private_origin(directory: Path) -> tuple[dict[str, Any], dict[str, Any]]
             and stat.S_IMODE(file.stat().st_mode) == 0o600,
             "PRIVATE_INSPECT_INVALID",
         )
-    return tuple(json.loads(file.read_text())[0] for file in files)  # type: ignore[return-value]
+    manager = json.loads(files[0].read_text())[0]
+    broker = json.loads(files[1].read_text())[0]
+    require(isinstance(manager, dict) and isinstance(broker, dict), "PRIVATE_INSPECT_FORMAT_INVALID")
+    return manager, broker
 
 
 def check_old_running(origin: dict[str, Any], broker_origin: dict[str, Any]) -> None:
