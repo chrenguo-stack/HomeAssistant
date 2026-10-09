@@ -179,8 +179,16 @@ def _verify_candidate_matches_origin(
     old_host = old.get("HostConfig", {})
     new_host = new.get("HostConfig", {})
     for name in HOST_COMPARE:
-        require(new_host.get(name) == old_host.get(name),
-                "CANDIDATE_HOST_SECURITY_PARITY_FAILED")
+        original = old_host.get(name)
+        candidate = new_host.get(name)
+        if name == "OomKillDisable":
+            require(
+                (original is None or original is False)
+                and (candidate is None or candidate is False),
+                "CANDIDATE_HOST_SECURITY_PARITY_FAILED",
+            )
+            continue
+        require(candidate == original, "CANDIDATE_HOST_SECURITY_PARITY_FAILED")
     require(new_host.get("RestartPolicy", {}).get("Name") == restart_policy,
             "CANDIDATE_RESTART_POLICY_MISMATCH")
     require(new_host.get("RestartPolicy", {}).get("MaximumRetryCount", 0)
