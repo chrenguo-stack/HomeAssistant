@@ -11,7 +11,7 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import cold_snapshot as snapshot
 import controlled_window as window
@@ -438,7 +438,7 @@ class LiveOps:
         )
         return dict(self.fresh_sources)
 
-    def _create(self, name: str) -> dict[str, Any]:
+    def _create(self, name: str, record_candidate_id: Callable[[str], None] | None = None) -> dict[str, Any]:
         require(self.context is not None and self.fresh_sources, "CREATE_CONTEXT_MISSING")
         env_file = _write_env_file(
             self.private,
@@ -452,11 +452,16 @@ class LiveOps:
                 self.fresh_sources,
                 env_file,
             )
-            checked(command, "CANDIDATE_CREATE_FAILED", timeout=45)
+            container_id = checked(command, "CANDIDATE_CREATE_FAILED", timeout=45).strip()
+            require(re.fullmatch(r"[a-f0-9]{64}", container_id) is not None,
+                    "CANDIDATE_CREATE_ID_UNBOUND")
+            if record_candidate_id is not None:
+                record_candidate_id(container_id)
         finally:
             if env_file.exists():
                 env_file.unlink()
         created = docker_json("container", name)
+        require(created.get("Id") == container_id, "CANDIDATE_CREATE_ID_MISMATCH")
         contract.verify_stopped_shadow_matches_origin(
             self.context.old_manager,
             created,
@@ -498,9 +503,9 @@ class LiveOps:
         require(not container_exists(contract.MANAGER_NAME), "MANAGER_NAME_NOT_RELEASED")
         broker_unchanged(self.context.broker, docker_json("container", contract.BROKER_NAME))
 
-    def create_candidate(self) -> str:
+    def create_candidate(self, record_candidate_id: Callable[[str], None]) -> str:
         require(not container_exists(contract.MANAGER_NAME), "CANDIDATE_NAME_COLLISION")
-        created = self._create(contract.MANAGER_NAME)
+        created = self._create(contract.MANAGER_NAME, record_candidate_id)
         return str(created["Id"])
 
     def start_candidate(self, candidate_id: str) -> None:
@@ -616,8 +621,9 @@ def execute_transaction(private: Path, ops: LiveOps) -> TransactionState:
     advance("OLD_MANAGER_STOP")
     ops.park_old()
     advance("OLD_MANAGER_PARKED_NOT_DELETED")
-    candidate_id = ops.create_candidate()
-    state.update(candidate_id=candidate_id)
+    candidate_id = ops.create_candidate(lambda value: state.update(candidate_id=value))
+    require(state.document.get("candidate_id") == candidate_id,
+            "CANDIDATE_ID_NOT_DURABLY_BOUND")
     advance("NEW_MANAGER_CREATED_WITH_ONLY_FRESH_RW_STATE")
     ops.start_candidate(candidate_id)
     advance("NEW_MANAGER_STARTED")
