@@ -63,8 +63,6 @@ def render_unit(private: Path, stage: Path, python: Path) -> str:
         f"ExecStart={python} -B {stage / 'controlled_window.py'} execute --private-root {private} --permit-manager-stop\n"
         f"ExecStopPost={python} -B {stage / 'emergency_resume.py'} --private-root {private}\n"
         "\n"
-        "[Install]\n"
-        "WantedBy=multi-user.target\n"
     )
 
 
