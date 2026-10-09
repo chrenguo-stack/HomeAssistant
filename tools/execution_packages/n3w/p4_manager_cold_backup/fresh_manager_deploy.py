@@ -429,7 +429,10 @@ class LiveOps:
 
     def preflight(self) -> DeployContext:
         import r3_forensic_seal as r3_seal
-        r3_seal.require_r3_seal(self.private)
+        try:
+            r3_seal.require_r3_seal(self.private)
+        except r3_seal.SealStop as error:
+            raise DeployStop("R3_FORENSIC_SEAL_INVALID") from error
         verify_r5_rollback_authority(self.private)
         origin, broker_origin = window.get_private_origin(self.private)
         window.check_old_running(origin, broker_origin)
