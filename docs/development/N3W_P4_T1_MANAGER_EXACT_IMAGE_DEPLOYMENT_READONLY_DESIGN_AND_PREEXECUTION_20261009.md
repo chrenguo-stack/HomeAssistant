@@ -1487,3 +1487,51 @@ PRODUCTION_MANAGER_UPGRADE=false
 BROKER_RESTART=false
 NEXT=SOURCE_REVIEW_AND_CURRENT_CI_THEN_ONE_EXPLICIT_LIVE_STOP_APPROVAL
 ```
+
+## 27. R5 首次真实旧 Manager 一致性冷备份及原版恢复：现场 PASS（2026-10-09）
+
+### 27.1 授权与源版本
+
+用户在当前对话对唯一一次真实生产操作作出明确“批准”：允许在 Broker 保持运行的条件下，短暂停止 **现有旧版 greenhouse-manager**，一次完成三个独立 RW 宿主 Source（registration、n3w、relay keys）冷备份、隔离恢复、SQLite 与业务语义校验，最终恢复同一原容器。**并未批准**部署新版本 Manager、重启 Broker 或实板操作。
+
+执行源码：`ca75d6bbc672d9e1e96500c88827ec529855f2b9`（PR #540 的 R5 精确头，提交时 12/12 CI PASS）；由 Mac Terminal `ssh -T` 向 T1 投递 **单条**脚本完成原 T1 Git fetch、六份 R5 源码 Git blob hash 校验、一次 `one_shot_operator.py execute --permit-manager-stop`。
+
+### 27.2 一次完整真实执行证据
+
+操作者原样返回如下无秘密摘要：
+
+```text
+T1 SSH 目标：root@192.168.68.195
+R5_EXACT_EXECUTION_PACKAGE=PASS
+APPROVED_OLD_MANAGER_COLD_BACKUP=STARTING
+SINGLE_ENTRY_PRECHECKS=PASS
+SUPERVISED_COLD_BACKUP_JOB_SUBMITTED=true
+ONE_SHOT_THREE_DATABASE_COLD_BACKUP=PASS
+ONE_SHOT_ISOLATED_RESTORE_AND_BUSINESS_STATE=PASS
+ORIGINAL_MANAGER_RESTARTED=PASS
+BROKER_UNCHANGED=PASS
+P4_CANDIDATE_MANAGER_DEPLOYED=false
+ONE_SHOT_MANAGER_COLD_BACKUP_AND_OLD_RESTORE=PASS
+FINAL_COLD_BACKUP_RESULT=PASS
+```
+
+### 27.3 确切结论和证据边界
+
+- **PASS / CLOSED**：已从现场单次入口收到真实冷备份完成、三处独立持久来源目录复制、隔离恢复、源码要求的 3 SQLite 完整性/业务表指纹比对、历史身份数量下限、credential/replay 保存、原版 Manager 原容器恢复运行，以及 Broker 未重启的统一通过标志。源文件和私有 JSON/镜像 tar/完整 SHA256 文件明细**只保存在 T1 root 私有目录**，没有上传公开 GitHub。
+- 这份 transcript 不包含原始 private manifest、具体文件哈希值、确切旧五身份明细、数据库内容或恢复后 MQTT 数据流样本；不应补造这些事实。源语义校验 `>=5` 历史已知硬件身份是最低安全约束，不等于公开证明恰好五个当前活跃配对节点。
+- **尚未验收**：Manager 恢复后正常 MQTT 业务数据收发、与设备端真实通信连续性、新版 Manager 生产镜像部署及 P4 首次板级正常启动；这些应作为另一个受控阶段处理，不能由本次容器恢复 PASS 推定通过。
+- **本阶段严格 STOP**：不重复冷备份、不手工修改私有 DB/密钥、不启动第二套 Manager、不移除原容器、不重启 Broker、不开始实板配对。不要求用户继续输入 `fuser`、`stat`、`docker inspect` 等零散命令。
+- 单次 R5 执行包已在成功路径清理其由程序安装的临时 systemd service；但终端没有给出独立 `systemctl` unit 清理状态行，因此不能额外将“现场复查该 unit 已消失”宣称为独立实测证据。
+
+```text
+NEXT_ONE_GATE=N3W_P4_T1_OLD_MANAGER_POST_BACKUP_RUNTIME_ACCEPTANCE_AND_NEW_MANAGER_DEPLOYMENT_READINESS_DESIGN
+P4_OLD_MANAGER_ONE_SHOT_COLD_BACKUP=CLOSED_PASS
+P4_THREE_RW_SOURCE_SNAPSHOT_AND_ISOLATED_RESTORE=CLOSED_PASS
+P4_BUSINESS_SEMANTIC_RESTORE=CLOSED_PASS
+P4_OLD_MANAGER_RUNTIME_RESUMED=CLOSED_PASS
+P4_BROKER_UNCHANGED=CLOSED_PASS
+P4_POST_RESTART_MQTT_BUSINESS_ACCEPTANCE=NOT_YET_VALIDATED
+P4_NEW_MANAGER_DEPLOYMENT=NOT_STARTED
+P4_CLEAN_PRODUCT_BOARD_NORMAL_BOOT=NOT_STARTED
+T1_PRIVATE_BACKUP_CONTENT_PUBLICATION=false
+```
