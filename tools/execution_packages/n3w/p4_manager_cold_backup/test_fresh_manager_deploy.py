@@ -183,6 +183,35 @@ class FreshManagerDeployTests(unittest.TestCase):
                 joined,
             )
 
+    def test_existing_docker_log_options_must_be_preserved_verbatim(self) -> None:
+        old = old_manager()
+        old["HostConfig"]["LogConfig"] = {
+            "Type": "json-file",
+            "Config": {"max-file": "3", "max-size": "10m", "compress": "true"},
+        }
+        env = self.private / "synthetic-env"
+        env.write_text("SYNTHETIC=true\n")
+        command = deploy.create_command(
+            old, image()["Id"], "shadow", {
+                "/var/lib/greenhouse-manager-registration": "/fresh/registration",
+                "/var/lib/greenhouse-manager/n3w": "/fresh/n3w",
+                "/var/lib/greenhouse-manager/n3w/relay-keys": "/fresh/relay",
+            }, env,
+        )
+        self.assertIn("--log-driver", command)
+        self.assertEqual(command[command.index("--log-driver") + 1], "json-file")
+        pairs = [command[i + 1] for i, item in enumerate(command[:-1]) if item == "--log-opt"]
+        self.assertEqual(pairs, ["compress=true", "max-file=3", "max-size=10m"])
+
+    def test_invalid_log_options_block_before_container_create(self) -> None:
+        old = old_manager()
+        old["HostConfig"]["LogConfig"]["Config"] = {"max-size": "10m\n--privileged"}
+        with self.assertRaisesRegex(deploy.DeployStop, "LOG_OPTIONS_UNSUPPORTED"):
+            deploy.validate_create_contract(old)
+        old["HostConfig"]["LogConfig"]["Config"] = {"unsafe key": "x"}
+        with self.assertRaisesRegex(deploy.DeployStop, "LOG_OPTIONS_UNSUPPORTED"):
+            deploy.validate_create_contract(old)
+
     def test_tls_contract_rejects_non_tls_or_wrong_port(self) -> None:
         old = old_manager()
         deploy._tls_port_contract(old)
