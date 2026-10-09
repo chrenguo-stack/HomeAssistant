@@ -780,3 +780,75 @@ BROKER_RESTART=false
 FIRST_BOARD_NORMAL_BOOT=false
 STOP_AT_ARCHIVE_HASH_AND_SOURCE_LAYOUT_PREFLIGHT=true
 ```
+
+## 16. 挂载检查末尾空行误报修复（2026-10-09）
+
+T1 操作者执行 §15.1 后取得以下真实结果：
+
+```text
+PRIVATE_OLD_IMAGE_ARCHIVE_HASH=PASS
+PRIVATE_INSPECT_FILES_PROTECTED=PASS
+SIX_EXPECTED_MOUNT_DESTINATIONS_HOST_SOURCE_TYPE=PASS_EACH
+UNEXPECTED_MOUNT_LAYOUT_STOP=true
+PRIVATE_BACKUP_SOURCE_LAYOUT=NOT_PRINTED
+PRODUCTION_DATABASE_BACKUP=NOT_STARTED
+```
+
+六条有效挂载均已逐条输出 PASS，随后脚本报 `UNEXPECTED_MOUNT_LAYOUT_STOP=true`。高度怀疑是 Docker `docker inspect --format "{{range ...}}{{println}}{{end}}"` 输出中的**尾部空记录**，因为上一个解析循环对全空行也执行 `count++` 并进入 `case "$dest:$rw"`。这属于命令解析错误，不足以判定 T1 挂载异常；不需要修补或重启任何生产服务。**必须仍执行下面修正后的现场检查，不能只凭这一解释直接宣称安全门 PASS。**
+
+### 16.1 只重跑挂载检查，不重复旧镜像校验
+
+Mac Terminal：
+
+```bash
+printf 'T1 SSH 目标：'
+IFS= read -r T1_SSH
+ssh -T "$T1_SSH" 'set -eu
+test "$(docker inspect --type container --format "{{len .Mounts}}" greenhouse-manager)" = 6
+docker inspect --type container --format "{{range .Mounts}}{{.Destination}}|{{.Source}}|{{.RW}}{{println}}{{end}}" greenhouse-manager |
+{
+  count=0
+  seen="|"
+  while IFS="|" read -r dest src rw; do
+    if test -z "$dest" && test -z "$src" && test -z "$rw"; then
+      continue
+    fi
+    case "$seen" in *"|$dest|"*) echo DUPLICATE_MOUNT_DEST_STOP=true; exit 36;; esac
+    seen="$seen$dest|"
+    test ! -L "$src" || { echo SOURCE_SYMLINK_STOP=true; exit 31; }
+    case "$dest:$rw" in
+      /var/lib/greenhouse-manager-registration:true|/var/lib/greenhouse-manager/n3w:true|/var/lib/greenhouse-manager/n3w/relay-keys:true)
+        test -d "$src" || { echo RW_SOURCE_NOT_DIRECTORY_STOP=true; exit 32; }
+        ;;
+      /run/secrets/provisioning_password:false|/run/secrets/broker-ca.pem:false|/run/secrets/gh_manager_mqtt_password:false)
+        test -f "$src" || { echo RO_SECRET_SOURCE_NOT_FILE_STOP=true; exit 33; }
+        ;;
+      *)
+        echo UNEXPECTED_MOUNT_LAYOUT_STOP=true
+        exit 34
+        ;;
+    esac
+    count=$((count+1))
+    printf "MOUNT_DEST=%s RW=%s HOST_SOURCE_TYPE=PASS\n" "$dest" "$rw"
+  done
+  test "$count" -eq 6 || { echo MOUNT_COUNT_DRIFT_STOP=true; exit 35; }
+}
+echo PRIVATE_BACKUP_SOURCE_LAYOUT=PASS
+docker inspect --type container --format "MANAGER_RUNNING={{.State.Running}} MANAGER_RESTARTS={{.RestartCount}}" greenhouse-manager
+docker inspect --type container --format "BROKER_RUNNING={{.State.Running}} BROKER_RESTARTS={{.RestartCount}}" n3wfc4-broker-1
+echo DATABASE_BACKUP=NOT_STARTED'
+```
+
+**解释：**忽略的仅是 `dest/src/rw` 全为空的纯空行；任意非空异常行仍失败，仍验证六个唯一预期目的地、正确 RO/RW 以及真实宿主机源文件/目录类型，不输出宿主机 Source 或秘密。已通过的旧镜像 tar SHA256、私有权限检查无需重做。若任何安全门失败保持 STOP，不删除或更改原容器、备份归档或磁盘文件。
+
+```text
+OLD_IMAGE_PRIVATE_SHA256=PASS
+PRIVATE_INSPECT_PERMISSIONS=PASS
+ORIGINAL_MOUNT_CHECK=FALSE_POSITIVE_SUSPECTED
+CORRECTED_SIX_MOUNT_CHECK=AWAITING_OPERATOR
+THREE_DB_CONSISTENT_SNAPSHOT=false
+ISOLATED_RESTORE_DRILL=false
+MANAGER_DEPLOYMENT=false
+BROKER_RESTART=false
+FIRST_BOARD_NORMAL_BOOT=false
+```
