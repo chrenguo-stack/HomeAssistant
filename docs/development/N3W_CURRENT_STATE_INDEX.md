@@ -1,3 +1,46 @@
+## 2026-10-09 R4 independent protected forensic seal/transaction — source-only gate PASS
+
+```text
+MAIN=N3W_P4_T1_FIRST_PAIR_CLEAN_PRODUCT
+TASK=N3W_P4_T1_R3_LEGACY_SEAL_R4_INDEPENDENT_TRANSACTION_DESIGN_SOURCE_ONLY
+TASK_STATUS=CLOSED_PASS_SOURCE_ONLY
+USER_AUTHORIZATION=SOURCES_TESTS_DOCS_ONLY
+R3_LIVE_STOP=R3_FORENSIC_SEAL_INVALID
+R3_PRIVATE_TRANSACTION=ABSENT_READONLY_PROVEN
+R3_LEGACY_SEAL=KEEP_IMMUTABLE
+R3_SAVED_VS_LIVE_ONLY_DIFF=r2_shadow_inspect_sha256
+EXACT_CHANGED_NESTED_DOCKER_INSPECT_FIELD=UNKNOWN
+OLD_MANAGER_RUNNING_ORIGINAL_ID=LAST_READONLY_TRUE
+BROKER_RUNNING_ORIGINAL_ID_START_RESTART_UNCHANGED=LAST_READONLY_TRUE
+R4_NEW_PROTECTED_SEAL=fresh-manager-r4-protected-forensic-seal-private.json
+R4_NEW_TRANSACTION=fresh-manager-r4-deploy-state-private.json
+R4_NEW_STAGE=p4-fresh-manager-deploy-r4
+R4_NEW_FRESH_RW=fresh-manager-r4-runtime-state
+R4_NEW_SYSTEMD=n3w-p4-fresh-manager-r4-deploy.service
+R4_NEW_PRIVATE_SHADOW=greenhouse-manager-p4-r4-shadow
+R4_AUTHORIZATION_ID=N3W_P4_T1_FRESH_MANAGER_ONE_SHOT_LIVE_DEPLOY_R4
+R4_EXACT_11_SCRIPT_SOURCE_REF=2d9ee7999d525e0812774a106863e2e6bf55d5ec
+R4_MAC_LAUNCHER_CODE_COMMIT=f868b08c08e35606b2b1aca15549e83ffc23fb92
+R4_MAC_LAUNCHER_BLOB=508ec56425905cdbfff174daf1b82619a9e44edd
+SOURCE_SYNTHETIC_CI=37947791861
+SOURCE_TESTS=132_PASS
+MANAGER_CI=37947791855_PASS
+PUBLIC_SAFETY_CI=37947791972_PASS
+LIVE_R4_EXECUTION=false
+LIVE_R4_AUTHORIZATION=false
+T1_MUTATIONS_THIS_GATE=false
+NO_R2_R3_PRIVATE_EVIDENCE_CLEANUP=true
+NO_R5_OR_OLD_MANAGER_DATA_CLEANUP=true
+NO_BOARD_OR_SECRET_ACTION=true
+MERGE=false
+NEXT_ONE_GATE=N3W_P4_T1_R4_EXACT_SOURCE_INDEPENDENT_REVIEW_AND_PRELIVE_GATE
+AUTHORITY_DOC=docs/development/N3W_P4_T1_R3_LEGACY_SEAL_R4_INDEPENDENT_TRANSACTION_SOURCE_ONLY_CLOSURE_20261009.md
+```
+
+R4 source contract implements a separate one-shot SHA-protected record based on only the identity/config/mount/network/log/security attributes actually enforced by cutover, preserves all original R2/R3 private forensic evidence, and stops if R3 residue or old Manager/Broker drift is present. Source-only CI does **not** authorize production T1 replacement; the exact reviewed code remains separate from real deployment. Next: independent source review and prelive gate, then a distinct live authorization if warranted.
+
+---
+
 ## 2026-10-09 R3 forensic whole-inspect digest mismatch — 129-pass source-only stable contract
 
 ```text
