@@ -388,3 +388,54 @@ BOARD_FIRST_NORMAL_BOOT=false
 NEXT_ACTION=GIT_EXACT_HEAD_STAGING_ONLY
 STOP_AFTER_SOURCE_BINDING=true
 ```
+
+### 10.3 新镜像构建与隔离检查的现场命令
+
+**仅在 §10.1 精确源码绑定成功后执行。** 本步骤会写入 **新的、独立的 Docker 镜像及构建缓存**，可能占用 CPU、网络和磁盘，不是只读；但是不启动或替换生产 Manager/Broker，不装载真实数据库或秘密文件。要求 Docker 根目录执行前仍至少有 4 GiB 空闲（工程保护阈值，不是保证不会耗尽）。拒绝覆盖已有新标签，拒绝 source drift，绝不使用 `docker system prune`。
+
+```bash
+ssh -T "$T1_SSH" 'set -eu
+SHA=3d86d6bfaf361dc3a3d7295d046f541a544d552d
+DIR=/var/tmp/n3w-p4-manager-source-${SHA}
+TAG=n3w-p4-manager:3d86d6bfaf361dc3a3d7295d046f541a544d552d
+test -d "$DIR/.git"
+test "$(git -C "$DIR" rev-parse HEAD)" = "$SHA"
+if docker image inspect "$TAG" >/dev/null 2>&1; then echo CANDIDATE_TAG_ALREADY_EXISTS_STOP=true; exit 21; fi
+ROOT=$(docker info --format "{{.DockerRootDir}}")
+FREE=$(df -Pk "$ROOT" | awk "NR==2 {print \$4}")
+if test "$FREE" -lt 4194304; then echo INSUFFICIENT_DOCKER_DISK_STOP=true; exit 22; fi
+echo SOURCE_BINDING=PASS
+echo BUILD_FREE_DISK_KIB="$FREE"
+docker buildx build --load --label org.opencontainers.image.revision="$SHA" --tag "$TAG" --file "$DIR/host/greenhouse-manager/Dockerfile" "$DIR/host/greenhouse-manager"
+test "$(docker image inspect --format "{{index .Config.Labels \"org.opencontainers.image.revision\"}}" "$TAG")" = "$SHA"
+docker image inspect --format "CANDIDATE_IMAGE_ID={{.Id}} CANDIDATE_IMAGE_BYTES={{.Size}}" "$TAG"
+echo CANDIDATE_IMAGE_BUILT=true
+echo PRODUCTION_MANAGER_UNCHANGED=true'
+```
+
+这段构建命令的退出码非 0 就 **STOP**，保留现场输出，不删除正在运行的服务或旧镜像、不盲目重试。构建产物尚未授予生产部署资格。
+
+下面是隔离、无网络、无持久卷的功能检查。不发送任何 QR/秘密：
+
+```bash
+ssh -T "$T1_SSH" 'set -eu
+TAG=n3w-p4-manager:3d86d6bfaf361dc3a3d7295d046f541a544d552d
+docker run --rm --network none --read-only --entrypoint greenhouse-manager-registration "$TAG" p4-pending-readonly --help >/dev/null
+echo P4_READONLY_CLI_IN_IMAGE=PASS
+docker run --rm --network none --read-only --entrypoint greenhouse-manager-pairing "$TAG" import-payload --help >/dev/null
+echo QR_PAYLOAD_IMPORT_CLI_IN_IMAGE=PASS
+docker run --rm --network none --read-only --entrypoint python "$TAG" -c '"'"'import inspect; from greenhouse_manager.runtime.registration import RegistrationRegistry; from greenhouse_manager.runtime.n3w_simplified_pairing import SimplifiedPairingCoordinator; assert callable(getattr(RegistrationRegistry,"pending_import_guard",None)); assert "pending_import_guard" in inspect.getsource(SimplifiedPairingCoordinator.import_setup_secret); print("PENDING_EXPIRY_AT_USE_SOURCE_IN_IMAGE=PASS")'"'"'
+echo NO_LIVE_MANAGER_MUTATION=true'
+```
+
+该检查只证明候选镜像中存在相应 CLI 和源码保护入口，**不能替代**运行真实 pending/SQLite/IPC 的隔离集成测试，也不证明 T1 正在运行候选镜像。Dockerfile 的底层镜像 tag、依赖范围仍可漂移；必须保留本次构建产物的完整 image ID 与受控镜像快照，并补做备份恢复演练才能申请 Manager service-only 部署。
+
+```text
+BUILD_SCOPE=NEW_IMAGE_ONLY
+DEPLOY_SCOPE=NONE
+REAL_DATABASE_MOUNTS=NONE
+REAL_SECRET_MOUNTS=NONE
+REAL_BROKER_RECREATE=false
+P4_REAL_BOARD_FIRST_BOOT=false
+STOP_AFTER_SYNTHETIC_IMAGE_PROBE=true
+```
