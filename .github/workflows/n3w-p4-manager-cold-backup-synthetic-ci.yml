@@ -1,0 +1,30 @@
+name: N3W P4 Manager cold backup synthetic tests
+
+on:
+  push:
+    branches:
+      - tools/n3w-p4-manager-consistent-cold-backup-20261009
+    paths:
+      - .github/workflows/n3w-p4-manager-cold-backup-synthetic-ci.yml
+      - tools/execution_packages/n3w/p4_manager_cold_backup/**
+  pull_request:
+    paths:
+      - .github/workflows/n3w-p4-manager-cold-backup-synthetic-ci.yml
+      - tools/execution_packages/n3w/p4_manager_cold_backup/**
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Syntax and isolated backup/restore synthetic regression
+        run: |
+          python -m compileall -q tools/execution_packages/n3w/p4_manager_cold_backup
+          python -m unittest discover -s tools/execution_packages/n3w/p4_manager_cold_backup -p 'test_*.py' -v
