@@ -312,3 +312,79 @@ T1_MANAGER_MUTATION=false
 P4_BOARD_FIRST_NORMAL_BOOT=false
 STOP_AT_FRESH_INPUT=true
 ```
+
+## 10. P4 数据库附属文件闭环与独立候选镜像构建（2026-10-09）
+
+操作者 Mac Terminal 最新结果：
+
+```text
+REGISTRATION_SQLITE_MAIN_BYTES=675840
+CREDENTIAL_LIFECYCLE_SQLITE_MAIN_BYTES=28672
+REPLAY_SQLITE_MAIN_BYTES=8134656
+REGISTRATION_WAL_PRESENT=false
+REGISTRATION_SHM_PRESENT=false
+CREDENTIAL_WAL_PRESENT=false
+CREDENTIAL_SHM_PRESENT=false
+REPLAY_WAL_PRESENT=false
+REPLAY_SHM_PRESENT=false
+PYTHON_SQLITE_VERSION=3.46.1
+GIT_VERSION=2.53.0
+DOCKER_BUILDX_AVAILABLE=true
+DOCKER_DISK_AVAILABLE_KIB=6153948
+MANAGER_DB_SOURCE_FS_AVAILABLE_KIB=6153816
+MANAGER_REGISTRATION_FS_AVAILABLE_KIB=6153816
+PAIRING_SOCKET_PRESENT=true
+MANAGER_RUNNING_PREVIOUS=true
+BROKER_RUNNING_PREVIOUS=true
+MANAGER_IMAGE_UPGRADE=false
+```
+
+三库 `-wal/-shm` 当时不存在不能推出未来不会产生，也不能把运行中数据库复制当作共同一致备份。磁盘余量约 5.9 GiB，足以考虑候选镜像**独立准备**，但首次构建实际占用无法事先证明；构建一旦接近磁盘最低余量，必须中断，不能为了腾空间执行 `docker system prune` 或移除现有镜像/容器。
+
+### 10.1 下一步：仅将 #538 精确源码冻结到 T1 独立工作目录
+
+使用当前 T1 SSH 登录；来源固定公开 GitHub 分支 `fix/n3w-pr537-terminal-claim-write-ssh-target-minimal-20261009`，要求 checkout HEAD **精确匹配** `3d86d6bfaf361dc3a3d7295d046f541a544d552d`。这只创建 Git 工作目录，**不**启动、停止、重建 Docker 容器，不触碰现有 DB/secret/board。此时并不构建镜像。
+
+```bash
+printf 'T1 SSH 目标：'
+IFS= read -r T1_SSH
+ssh -T "$T1_SSH" 'set -eu
+SHA=3d86d6bfaf361dc3a3d7295d046f541a544d552d
+BRANCH=fix/n3w-pr537-terminal-claim-write-ssh-target-minimal-20261009
+DIR=/var/tmp/n3w-p4-manager-source-${SHA}
+umask 077
+if test -e "$DIR"; then echo SOURCE_WORKDIR_ALREADY_EXISTS_STOP=true; exit 11; fi
+mkdir -m 700 "$DIR"
+git -C "$DIR" init -q
+git -C "$DIR" remote add origin https://github.com/chrenguo-stack/HomeAssistant.git
+git -C "$DIR" fetch -q --depth 1 origin "$BRANCH"
+git -C "$DIR" checkout -q --detach FETCH_HEAD
+ACTUAL=$(git -C "$DIR" rev-parse HEAD)
+if test "$ACTUAL" != "$SHA"; then echo SOURCE_EXACT_HEAD_MISMATCH_STOP=true; exit 12; fi
+test -f "$DIR/host/greenhouse-manager/Dockerfile"
+test -f "$DIR/host/greenhouse-manager/pyproject.toml"
+echo SOURCE_EXACT_HEAD=PASS
+echo SOURCE_CONTAINER_BUILD_CONTEXT=READY
+echo EXISTING_MANAGER_NOT_TOUCHED=true'
+```
+
+失败即 STOP：不删除旧镜像、不清理 Git 目录、不自动降级到 main 或漂移的 branch HEAD。需要按确切失败原因诊断，不能进入镜像构建。
+
+### 10.2 后续镜像构建与合成无网验证的边界
+
+收到 `SOURCE_EXACT_HEAD=PASS` 后，下一阶段可使用该**独立目录**运行 `docker buildx build --load`，以从源码 sha 派生的**新标签**和 OCI `org.opencontainers.image.revision` 标签绑定新镜像；**禁止复用当前 Manager 镜像 ID 或覆盖旧镜像标签**。Dockerfile 的 `python:3.11-slim` 与 pip 依赖范围尚未锁定，构建结果并非天然逐位可重现：仍需记录最终镜像 ID、基础层与实际包版本并隔离检验 `p4-pending-readonly`、`import-payload` 和 #534 管理器锁内期限检查。独立镜像构建可能占用 T1 资源或拉取依赖；不应将此描述为“完全无风险的只读操作”。后续在明确磁盘容量门槛下单独执行，不自动触发运行中的 Manager 部署。
+
+正式生产部署仍要求重新核对全部秘密配置/绑定、带停止写入边界的多数据库一致备份、隔离恢复演练，以及 Broker 原双网络与 TLS 连续性。缺失任何条件均不允许替换运行中的 Manager，也不得启动已 P3 写入的干净板。
+
+```text
+WAL_SHM_CHECK=CURRENT_ALL_ABSENT
+GIT_AVAILABLE=true
+BUILDX_AVAILABLE=true
+SOURCE_ONLY_FETCH_READY=true
+CANDIDATE_IMAGE_BUILT=false
+MANAGER_IMAGE_DEPLOYED=false
+THREE_DB_SNAPSHOT_VALIDATED=false
+BOARD_FIRST_NORMAL_BOOT=false
+NEXT_ACTION=GIT_EXACT_HEAD_STAGING_ONLY
+STOP_AFTER_SOURCE_BINDING=true
+```
