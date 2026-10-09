@@ -1453,3 +1453,37 @@ FIRST_BOARD_NORMAL_BOOT=false
 **尚未实现/必须在单次真实执行前补齐**：业务身份、credential generation、replay high-water 在一致冷备份与恢复副本中的只读断言；独立 systemd 单次执行任务的部署/回收方式及仅执行一次保护；受监督服务停止超时配置和人工恢复预案；对宿主定时/其他写入者的尽力排除；真实业务读取的隐私保护。不得跳过这些要求直接执行现有 `controlled_window.py execute`。
 
 后续答复原则：无需继续索取重复的 `fuser`、`stat`、`git fetch`、`docker inspect` 手工结果；只有新的真实 blocker 才单独索取最低必要证据。以 GitHub 状态和单次任务证据为准，不依赖聊天记录完成验收。
+
+## 26. 单次执行包 R5 开发集成与合成故障验证（2026-10-09）
+
+按使用者明确同意的收敛方向，开发和测试统一放入 Draft #540，后续用户**不再需要重复输入 Mac Terminal 逐项检查命令**。前述六个挂载、三 SQLite 主库/WAL/SHM、唯一 Manager 进程打开者、Git 精确源码、systemd 静态校验、Broker 运行状态等现场只读检查，均已真实通过并留有前面的证据。本节不把这些静态证据冒充真实冷备份验收。
+
+### 26.1 R5 版本化单次受监督执行包
+
+- `one_shot_operator.py`：未来单次入口。自动校验旧 Manager docker image/config/mount，Broker 未重启、旧镜像 tar 私有 SHA、三个 SQLite DB 打开者属于当前原 Manager 的进程树、宿主存储余量、其它运行容器可写源、单次 systemd 名称无冲突及 unit 语法；若任何一项不通过，则在停止原 Manager 之前 STOP。
+- `business_snapshot.py`：在同一停写窗口冷复制/隔离恢复所得的**两份副本**上，用只读 SQLite 查询验证注册与历史身份、凭据历史和代际、重放 state/seen 和高水位，逐表计数及有类型的内容哈希必须一致；要求可证明至少 5 个历史身份、至少 1 条 credential 历史、replay state 非空。结果只存 private 0600，不在终端打印身份值、密码、Host Source 等私密内容。
+- `cold_snapshot.py`：三处互不嵌套宿主机 RW 源完整复制（registration、n3w、relay keys）、主 DB 和动态出现的 WAL/SHM 占用检查、前后真实源/冷副本与隔离恢复的 SHA256/UID/GID/mode，三数据库完整性测试，源变更立刻 fail closed。
+- `controlled_window.py`：在 Manager **已经通过单次明确批准**前绝不执行停止；停止后运行 snapshot+business semantic 并在 Python finally 尝试启动原 Manager，超时或失败停止新阶段操作。
+- `systemd_recovery_unit.py` 与 `emergency_resume.py`：使用 R5 staging `p4-reviewed-controlled-backup-r5`，一次性 systemd 服务 `ExecStart` 执行旧 Manager 控制窗口，`ExecStopPost` 独立救援，拒绝 service 名称被其它 systemd 单元占用；不 `enable` 开机自启，不 touch Broker；成功后自动清除本次 `/run/systemd/system` 临时 unit。失败时保留现场。
+- **唯一终端结果**：安全前置检查 PASS 后提交 systemd 单次任务，等待**真实启动时间戳**和服务成功退出，再检查 3 数据库/业务数据私有证据、原 Manager ID 与正常运行、Broker 原 startedAt/restartCount，不从模拟结果臆造真实通过。若超时/意外中断，保留 unit 和日志并报告 STOP。
+
+### 26.2 权限与状态
+
+- 当前本节所有变动仍为 Draft #540 GitHub 源码和模拟 CI；**未在 T1 运行 R5 入口**，旧 R4 私有 stage 保留且不应再作为正式执行的版本。
+- **本次用户对“单次验证方案”的同意，只构成继续整合源码/测试的授权，不等于允许现在停止生产 Manager**。在提供最终单次 Mac Terminal 执行命令之前，仍须独立明确确认 Manager 可短暂停止；Broker 必须维持运行，不能借此升级候选 P4 镜像或给实板导入任何配置。
+- systemd + Python 双救援可覆盖常见执行进程退出/SSH 断开，但不能承诺在宿主机断电、Docker/systemd 整体失效、磁盘故障时自动恢复。STOP 后应保留私有目录、unit/job 信息，不得继续升级。未来实机执行后仍需记录运行时业务 MQTT 观察，不把容器已运行等同数据链路已经验收。
+- 预期冷复制时间预算 `WINDOW_TIMEOUT_SECONDS=150`，`systemd TimeoutStartSec=240`，`TimeoutStopSec=90`，操作者等待上限约 390 秒；超时输出 STOP，不盲目循环。
+- 独立的源码模拟测试覆盖：冷备份/隔离恢复、漏失历史身份、凭据/高水位克隆不一致、数据库表缺失、源目录中途变化、WAL/SHM 占用、service unit 名称冲突、作业并未真正启动却返回 inactive、systemd 失败、其它宿主进程占用 DB、原容器恢复与救援阻断。
+
+```text
+PR540_R5_SINGLE_ENTRY_SOURCE=READY
+PR540_R5_SYNTHETIC_CI=REQUIRE_CURRENT_HEAD_ALL_GREEN
+T1_R5_EXECUTION=NOT_STARTED
+T1_REAL_MANAGER_STOP=false
+T1_COLD_COPY=false
+T1_BUSINESS_RESTORE_PROOF=false
+T1_REAL_OLD_MANAGER_RECOVERY=false
+PRODUCTION_MANAGER_UPGRADE=false
+BROKER_RESTART=false
+NEXT=SOURCE_REVIEW_AND_CURRENT_CI_THEN_ONE_EXPLICIT_LIVE_STOP_APPROVAL
+```
