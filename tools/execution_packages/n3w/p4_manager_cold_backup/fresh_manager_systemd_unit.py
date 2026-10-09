@@ -13,7 +13,7 @@ import fresh_manager_deploy as deploy
 
 UNIT_NAME = "n3w-p4-fresh-manager-deploy.service"
 UNIT_DEST = Path("/run/systemd/system") / UNIT_NAME
-STAGE_DIR = "p4-fresh-manager-deploy-r1"
+STAGE_DIR = "p4-fresh-manager-deploy-r2"
 PROTECTED_SCRIPTS = (
     "cold_snapshot.py",
     "business_snapshot.py",
