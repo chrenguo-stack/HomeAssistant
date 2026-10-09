@@ -890,8 +890,10 @@ done
 test "$REG" != "$N3W" && test "$REG" != "$KEYS" && test "$N3W" != "$KEYS" || { echo RW_HOST_SOURCE_DUPLICATE_STOP=true; exit 31; }
 echo THREE_RW_BIND_SOURCE_PATHS_PRESENT=PASS
 case "$KEYS/" in "$N3W/"*) echo RELAY_KEYS_SOURCE_NESTED_IN_N3W_SOURCE=true;; *) echo RELAY_KEYS_SOURCE_NESTED_IN_N3W_SOURCE=false;; esac
+IDS=$(docker ps -q --no-trunc) || { echo DOCKER_RUNNING_CONTAINER_LIST_ERROR_STOP=true; exit 34; }
+test "$(docker inspect --type container --format "{{.State.Running}}" greenhouse-manager)" = "true"
 COUNT=0
-for cid in $(docker ps -q --no-trunc); do
+for cid in $IDS; do
   if test "$cid" = "$MGR"; then continue; fi
   mounts=$(docker inspect --type container --format "{{range .Mounts}}{{if .RW}}{{.Source}}{{println}}{{end}}{{end}}" "$cid") || { echo OTHER_CONTAINER_INSPECT_ERROR_STOP=true; exit 32; }
   oldifs=$IFS
