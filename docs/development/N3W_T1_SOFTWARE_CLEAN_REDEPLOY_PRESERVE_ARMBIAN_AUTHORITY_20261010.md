@@ -106,3 +106,32 @@ R4_B1I1_ROLLBACK_DEVELOPMENT=false
 ```
 
 S1 只进行现场归属/依赖只读检查，执行命令直接在对话里提供；GitHub 仅归档脱敏决策、取证结果、源码和进展，不新增执行指令文档。
+
+
+## 6. 2026-10-10 用户确认专用 T1 和旧业务全部重置
+
+用户明确确认：**T1 专用于温室监测系统，并允许永久清除两套 Home Assistant、两个 Broker、旧 Manager 的全部业务数据和凭据**。这在授权的业务范围内覆盖先前「可能保留独立 HA / recipes Broker」的默认保守推断。最终系统必须为 1 套 HA + 1 套 Broker + 1 套 Manager。
+
+冻结执行边界：
+
+- `S2=PREDELETE_EXACT_DRY_RUN`：以新鲜 Docker 完整 ID、源挂载、Systemd/Compose 路径、主机基础服务状态核对清理对象；预检只读，得到可操作的 exact manifest 后 STOP；不再做「旧 HA 哪套更值得保留」的业务取舍分析。
+- `S4=SCOPED_OLD_GREENHOUSE_REMOVAL`：只允许移除清单中已经证实的六个旧容器及其业务专有挂载数据、凭据和专属部署服务；共用旧 Broker 的数据按同一业务资源处理一次。该阶段虽有用户的业务数据清理许可，仍需先通过具体清理执行门禁，严禁超范围删除。
+- 所有现存 Docker volumes 中，除已关联目标容器的卷外，未独立证明归属的卷暂不删除；`docker system prune`、`compose down -v`、`--remove-orphans` 和按名字/前缀扫删被禁止。
+- `Armbian`、系统盘与 /boot、内核、eth0、SSH、NetworkManager、Docker Engine、系统级防火墙不属于清理范围；Broker TCP/8883 的 fail-closed 安全保护不得在旧服务尚对外发布时被提前撤销。
+- 清理流程后必须从全新 CA/TLS/DynSec/Manager/HA 业务数据开始；板卡旧 NVS 与首次配对另门处理，不在主机清理阶段触碰。
+- 后续所有 Mac Terminal 命令只在用户对话中提供；仓库只存脱敏进度、决策和验收证据，不新增执行指令文件。
+
+```text
+T1_DEDICATED_GREENHOUSE_HOST=USER_CONFIRMED
+PERMANENT_ERASURE_OF_OLD_HA_BROKER_MANAGER_BUSINESS_STATE=USER_APPROVED
+OLD_HA_DATA_DELETE_AUTHORIZED_WITHIN_VERIFIED_MANIFEST=true
+FINAL_PRODUCTION_HA_COUNT=1
+FINAL_PRODUCTION_BROKER_COUNT=1
+FINAL_PRODUCTION_MANAGER_COUNT=1
+S2_PREDELETE_LIVE_MUTATION=false
+EXACT_S4_DELETION_GATE=NOT_YET_EXECUTED
+OS_REINSTALL=false
+SYSTEM_DISK_ERASE=false
+R4_B1I1_ROLLBACK_DEVELOPMENT=false
+BOARD_ACCESS=false
+```
