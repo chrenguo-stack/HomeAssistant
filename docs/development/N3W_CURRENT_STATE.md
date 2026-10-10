@@ -1,3 +1,34 @@
+> **2026-10-10 S20 production three-service credential handoff/deployment preflight R2 CLOSED_PASS**：PR #541 exact source、真实 production Compose/image-lock、ARM64 image binding、authenticated Broker readiness、HA bootstrap isolated runtime 与 fresh T1 host read-only guard 全部对齐。T1 当前无容器、45 volumes、两项目网络为空、guard active+enabled 且双 first-jump/terminal DROP、host 8883/18883 均无监听；生产 Broker config/DynSec/S18 backup SHA 均与冻结 authority 一致。三生产账号仍未创建，Broker/Manager/HA 均未启动，本 PASS 只表示已具备申请下一门明确 mutation 授权的条件。
+
+```text
+S20_PREFLIGHT_R2=CLOSED_PASS
+SOURCE_HEAD=a6eeddb51d0ace3310ec069832cc0abdf01a7cc3
+T1_FRESH_READONLY_REBIND=PASS
+DOCKER_CONTAINER_COUNT=0
+DOCKER_VOLUME_COUNT=45
+DOCKER_VOLUME_CURRENT_SORTED_SET_SHA256=20fc845741d31da34f1d1e563e5057c78ec5dc7c4cfd3a495a5f3a4f2bfd011b
+TWO_PROJECT_NETWORKS_EMPTY=PASS
+GUARD_FIRST_JUMPS_LAST_DROP=PASS
+HOST_TCP8883_LISTENER_COUNT=0
+HOST_TCP18883_LISTENER_COUNT=0
+BROKER_CONFIG_SHA_MATCH=PASS
+REAL_DYNSEC_SHA_MATCH=PASS
+S18_BACKUP_SHA_MATCH=PASS
+FINAL_PRODUCTION_COMPOSE_SOURCE=PASS
+REAL_REPOSITORY_COMPOSE_GATE=PASS
+ARM64_IMAGE_BINDING=PASS
+AUTHENTICATED_BROKER_READINESS_SOURCE=PASS
+HA_BOOTSTRAP_ISOLATED_RUNTIME=CLOSED_PASS
+PRODUCTION_CLIENT_CREATION=false
+PRODUCTION_BROKER_STARTED=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+READY_FOR_REAL_SERVICE_IDENTITY_AUTHORIZATION=true
+NEXT_ONE_GATE=N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_DESIGN_AND_EXPLICIT_AUTHORIZATION_20261010_01
+```
+
+Authority: `docs/development/N3W_T1_S20_PRODUCTION_THREE_SERVICE_CREDENTIAL_HANDOFF_AND_DEPLOYMENT_PREFLIGHT_R2_CLOSURE_20261010.md`. The current Docker-volume set SHA is a new baseline from this gate; no historical S19 set hash existed for exact name-set comparison.
+
 > **2026-10-10 S20 production three-service handoff/deployment preflight R2 FAIL_CLOSED / SOURCE_DEPLOYMENT_BINDING**：HA automatic bootstrap isolated runtime 已 CLOSED_PASS，但 fresh source rebind 发现仓库仍没有最终 clean-product production Compose/deployment authority。现有 `infra/compose/t1/docker-compose.manager.yml` 仍是历史 N1 lab 单 Manager 配置；clean deployment gate CI 当前只验证 synthetic rendered fixture，不能证明真实仓库生产 Compose 已绑定。因此按 first substantive mismatch STOP，未进入 T1 fresh read-only runtime rebind。
 
 ```text
