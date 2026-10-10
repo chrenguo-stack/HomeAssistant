@@ -338,7 +338,7 @@ def _require_manager_environment(
     environment = _environment(manager)
     required = {
         "GH_SYSTEM_ID": "greenhouse",
-        "GH_MQTT_HOST": "127.0.0.1",
+        "GH_MQTT_HOST": "armbian",
         "GH_MQTT_PORT": "8883",
         "GH_MQTT_USERNAME": "ghs_greenhouse_manager",
         "GH_MQTT_PASSWORD_FILE": MANAGER_PASSWORD_TARGET,
@@ -347,7 +347,7 @@ def _require_manager_environment(
         "GH_MQTT_CA_FILE": MANAGER_CA_TARGET,
         "GH_HA_DISCOVERY_ENABLED": "true",
         "GH_N3W_RUNTIME_ENABLED": "true",
-        "GH_N3W_PRODUCT_PAIRING_ENABLED": "true",
+        "GH_N3W_PRODUCT_PAIRING_ENABLED": "false",
         "GH_N3W_PAIRING_MANAGER_ID": "gh-manager-greenhouse",
         "GH_N3W_PAIRING_ADVERTISED_HOST": "auto",
         "GH_N3W_PROVISIONING_USERNAME": (
@@ -359,6 +359,9 @@ def _require_manager_environment(
         "GH_N3W_PROVISIONING_CLIENT_ID": (
             "gh-provisioning-greenhouse"
         ),
+        "GH_N3W_NODE_BROKER_HOST": "gate-f-unbound.invalid",
+        "GH_N3W_NODE_BROKER_PORT": "8883",
+        "GH_N3W_NODE_BROKER_TLS_SERVER_NAME": "armbian",
         "GH_N3W_NODE_BROKER_CA_FILE": MANAGER_CA_TARGET,
     }
     if any(environment.get(key) != value for key, value in required.items()):
@@ -618,6 +621,11 @@ def validate_compose_document(
         "application_profile": APPLICATION_PROFILE,
         "bare_compose_up_starts_application_services": False,
         "authenticated_readiness_external_gate_required": True,
+        "manager_tls_server_name": "armbian",
+        "manager_exact_namespace_tls_runtime_probe_required": True,
+        "product_pairing_enabled": False,
+        "node_broker_host_gate_f_unbound": True,
+        "node_broker_tls_server_name": "armbian",
         "secret_values_included": False,
     }
 
