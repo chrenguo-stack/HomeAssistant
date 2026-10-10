@@ -397,3 +397,69 @@ def test_prepare_rejects_unsafe_preexisting_secret_parent(
         module._prepare_transaction_material()
 
     assert not root.exists()
+
+
+class BrokerImageRunner:
+    def __init__(self, *, digest: str) -> None:
+        self.digest = digest
+        self.commands: list[tuple[str, ...]] = []
+
+    def run(
+        self,
+        command: tuple[str, ...],
+        *,
+        input_text: str | None = None,
+        timeout: float = 30.0,
+    ) -> tuple[int, str]:
+        assert input_text is None
+        assert timeout == 30.0
+        self.commands.append(command)
+        assert command[:4] == (
+            "docker",
+            "image",
+            "inspect",
+            "--format",
+        )
+        assert command[-1] == module.BROKER_SOURCE_TAG
+        repo_digest = (
+            "m.daocloud.io/docker.io/library/eclipse-mosquitto@"
+            f"{self.digest}"
+        )
+        return (
+            0,
+            "sha256:38c0da4f2ef84284d47b3b3eeea1cb3bdeabe81ee10caf0cd5c5ff61ee3ea408"
+            "|linux|arm64|"
+            + json.dumps([repo_digest])
+            + "\n",
+        )
+
+
+def test_accepts_local_broker_bound_by_frozen_oci_index_digest() -> None:
+    runner = BrokerImageRunner(
+        digest=module.EXPECTED_BROKER_INDEX_DIGEST,
+    )
+
+    report = module._verify_broker_source_tag(
+        runner,  # type: ignore[arg-type]
+    )
+
+    assert report == {
+        "image_id": (
+            "sha256:38c0da4f2ef84284d47b3b3eeea1cb3bdeabe81ee10caf0cd5c5ff61ee3ea408"
+        ),
+        "platform": "linux/arm64",
+        "index_digest": module.EXPECTED_BROKER_INDEX_DIGEST,
+        "arm64_manifest_digest": module.EXPECTED_BROKER_ARM64_MANIFEST_DIGEST,
+    }
+
+
+def test_rejects_local_broker_with_other_index_digest() -> None:
+    runner = BrokerImageRunner(digest="sha256:" + "0" * 64)
+
+    with pytest.raises(
+        module.S20ServiceHandoffError,
+        match="exact_broker_image_index_digest_drift",
+    ):
+        module._verify_broker_source_tag(
+            runner,  # type: ignore[arg-type]
+        )
