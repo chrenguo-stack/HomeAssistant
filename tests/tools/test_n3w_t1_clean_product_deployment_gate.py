@@ -319,3 +319,29 @@ def test_rejects_extra_8883_owner() -> None:
         match="broker_8883_publication_count_invalid",
     ):
         tool.validate_compose_document(document)
+
+
+def test_rejects_shared_manager_and_provisioning_secret_source() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    mounts = document["services"]["manager"]["volumes"]
+    mounts[1]["source"] = mounts[0]["source"]
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="manager_secret_sources_not_distinct",
+    ):
+        tool.validate_compose_document(document)
+
+
+def test_rejects_shared_homeassistant_mount_source() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    mounts = document["services"]["homeassistant"]["volumes"]
+    mounts[1]["source"] = mounts[0]["source"]
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="homeassistant_mount_sources_not_distinct",
+    ):
+        tool.validate_compose_document(document)
