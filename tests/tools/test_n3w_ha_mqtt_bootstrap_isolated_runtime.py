@@ -72,9 +72,16 @@ def _probe_host_network_tcp() -> None:
             HA_IMAGE,
             "-c",
             (
-                "import socket;"
-                "s=socket.create_connection(('127.0.0.1',1883),5);"
-                "s.close()"
+                "import socket,time;"
+                "deadline=time.monotonic()+30;"
+                "ok=False;"
+                "\nwhile time.monotonic()<deadline:"
+                "\n try:"
+                "\n  s=socket.create_connection(('127.0.0.1',1883),1);"
+                "\n  s.close();ok=True;break"
+                "\n except OSError:"
+                "\n  time.sleep(0.25)"
+                "\nraise SystemExit(0 if ok else 1)"
             ),
         ],
         check=False,
