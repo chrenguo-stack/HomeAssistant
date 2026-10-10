@@ -1,3 +1,29 @@
+> **2026-10-10 S20 R2 apply FAIL / rollback CLOSED_PASS / second startup root cause confirmed / R3 TLS bind repair prepared**：R2 authorization `N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_R2_20261010_01` 已 claim+consume，禁止 replay。R2 executor 内部 rollback postcheck 与独立 external forensic 均证明 exact baseline restored：0 containers、0 MQTT listeners、45-volume set unchanged、两项目网络为空、guard active/enabled、DynSec admin-only、三服务身份/roles 与 node 均 absent、secret/transaction material absent；R1/R2 snapshots 均 root:root 0600 且 exact baseline SHA。因此 R2 rollback=CLOSED_PASS。R2 Docker events 仍为 create→start→die(exitCode=1)→destroy，且无 docker exec。第二根因确认：executor 将整个 root:root 0700 的 host TLS 目录 bind 到 `/mosquitto/tls`；Mosquitto 以 root 启动后默认降权为 mosquitto 用户，导致 post-drop 无法 traverse 该目录。production Compose 本来就是逐个 TLS file bind，因此 R3 source 已改为 ca.pem/server.pem/server.key 独立只读挂载，并同时保留 R1/R2 snapshot 作为证据，R3 新建独立 rollback snapshot。
+
+```text
+S20_APPLY_R2=FAIL
+S20_APPLY_R2_ROLLBACK=CLOSED_PASS
+R2_AUTHORIZATION_CONSUMED=true
+R2_AUTHORIZATION_REPLAY=false
+R2_ROOT_CAUSE_STATUS=CONFIRMED
+R2_ROOT_CAUSE=ROOT_ONLY_TLS_DIRECTORY_BIND_BLOCKS_MOSQUITTO_POST_DROP_TRAVERSAL
+R3_TLS_DIRECTORY_BIND=false
+R3_TLS_FILE_BIND=true
+R1_RETAINED_SNAPSHOT_MUTATION=false
+R2_RETAINED_SNAPSHOT_MUTATION=false
+R3_ROLLBACK_SNAPSHOT=/etc/n3wfc4/private/dynsec-s20-r3-pre-three-service.json
+R3_AUTHORIZATION_ID=N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_R3_20261010_01
+R3_USER_APPROVAL=NOT_YET_GRANTED
+R3_AUTHORIZATION_CLAIMED=false
+R3_AUTHORIZATION_CONSUMED=false
+LIVE_T1_MUTATION=false
+PRODUCTION_BROKER_STARTED=false
+BOARD_ACCESS=false
+NEXT_ONE_GATE=N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_R3_SOURCE_CI_AND_PRECLAIM_20261010_01
+```
+
+Authority: `docs/development/N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_R2_FAILURE_AND_R3_TLS_BIND_REPAIR_20261010.md`.
+
 > **2026-10-10 S20 R2 source review / retained R1 snapshot policy frozen / new authorization pending**：R1 authorization 已永久消耗且不可 replay。R2 不删除、不覆盖、不复用 R1 snapshot；R1 retained evidence 必须在 preclaim 中以 root:root 0600 + exact baseline SHA 重新验证。R2 使用独立 create-new-only snapshot `/etc/n3wfc4/private/dynsec-s20-r2-pre-three-service.json`，只有 fresh preclaim PASS + 新明确授权后才能 claim，且该 snapshot 仍是 claim 后第一笔写入。rollback 只使用 R2 snapshot；cleanup 现在必须证明 secret/transaction material 实际消失，并增加完整 rollback postcheck。新的 authorization ID 已定义，但尚未获得用户 live mutation 批准。
 
 ```text
