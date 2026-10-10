@@ -29,7 +29,7 @@ from greenhouse_manager.runtime.service_identity_plan import (
     build_service_identity_plan,
 )
 
-AUTHORIZATION_ID = "N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_20261010_01"
+AUTHORIZATION_ID = "N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_R2_20261010_01"
 SCHEMA = "gh.n3w-t1-s20-real-three-service-secret-handoff/1"
 SYSTEM_ID = "greenhouse"
 GENERATION = 1
@@ -90,8 +90,11 @@ DYNSEC_DATA = Path("/var/lib/n3wfc4-broker")
 S18_BACKUP = Path("/etc/n3wfc4/private/dynsec-s18-pre-receive-deny.json")
 ADMIN_PASSWORD = Path("/etc/n3wfc4/private/dynsec-admin-password")
 TLS_DIR = Path("/etc/n3wfc4/tls")
-ROLLBACK_SNAPSHOT = Path(
+R1_EVIDENCE_SNAPSHOT = Path(
     "/etc/n3wfc4/private/dynsec-s20-pre-three-service.json"
+)
+ROLLBACK_SNAPSHOT = Path(
+    "/etc/n3wfc4/private/dynsec-s20-r2-pre-three-service.json"
 )
 SECRET_PARENT = Path("/opt/greenhouse-secrets")
 SECRET_ROOT = SECRET_PARENT / "mqtt"
@@ -483,6 +486,40 @@ def _verify_source_dependencies(
             raise S20ServiceHandoffError("source_dependency_sha256_mismatch")
 
 
+def _verify_retained_r1_snapshot() -> None:
+    if (
+        R1_EVIDENCE_SNAPSHOT.is_symlink()
+        or not R1_EVIDENCE_SNAPSHOT.is_file()
+    ):
+        raise S20ServiceHandoffError("r1_evidence_snapshot_missing_or_unsafe")
+    info = R1_EVIDENCE_SNAPSHOT.stat()
+    if (
+        info.st_uid != 0
+        or info.st_gid != 0
+        or stat.S_IMODE(info.st_mode) != 0o600
+    ):
+        raise S20ServiceHandoffError("r1_evidence_snapshot_owner_mode_drift")
+    if _sha256_path(R1_EVIDENCE_SNAPSHOT) != EXPECTED_DYNSEC_SHA256:
+        raise S20ServiceHandoffError("r1_evidence_snapshot_sha_drift")
+
+
+def _verify_r2_snapshot_if_present() -> str:
+    if not (ROLLBACK_SNAPSHOT.exists() or ROLLBACK_SNAPSHOT.is_symlink()):
+        return "absent"
+    if ROLLBACK_SNAPSHOT.is_symlink() or not ROLLBACK_SNAPSHOT.is_file():
+        raise S20ServiceHandoffError("r2_rollback_snapshot_unsafe")
+    info = ROLLBACK_SNAPSHOT.stat()
+    if (
+        info.st_uid != 0
+        or info.st_gid != 0
+        or stat.S_IMODE(info.st_mode) != 0o600
+    ):
+        raise S20ServiceHandoffError("r2_rollback_snapshot_owner_mode_drift")
+    if _sha256_path(ROLLBACK_SNAPSHOT) != EXPECTED_DYNSEC_SHA256:
+        raise S20ServiceHandoffError("r2_rollback_snapshot_sha_drift")
+    return "exact"
+
+
 def build_preclaim_report(
     runner: CommandRunner,
     *,
@@ -572,8 +609,9 @@ def build_preclaim_report(
         ):
             raise S20ServiceHandoffError("production_secret_parent_unsafe")
         secret_parent_state = "safe_existing"
+    _verify_retained_r1_snapshot()
     if ROLLBACK_SNAPSHOT.exists() or ROLLBACK_SNAPSHOT.is_symlink():
-        raise S20ServiceHandoffError("s20_rollback_snapshot_exists")
+        raise S20ServiceHandoffError("r2_rollback_snapshot_exists")
     if TRANSACTION_DIR.exists() or TRANSACTION_DIR.is_symlink():
         raise S20ServiceHandoffError("transaction_directory_exists")
     dynsec = validate_preclaim_dynsec(_load_dynsec(DYNSEC_PATH))
@@ -599,7 +637,9 @@ def build_preclaim_report(
         "dynsec_inventory": dynsec,
         "secret_destination_absent": True,
         "secret_parent_state": secret_parent_state,
+        "r1_retained_snapshot_verified": True,
         "rollback_snapshot_absent": True,
+        "r2_rollback_snapshot_absent": True,
         "exact_broker_image_local_arm64": True,
         "broker_image": broker_image,
         "live_mutation": False,
@@ -1037,10 +1077,25 @@ def _cleanup_transaction_material(*, remove_bundle: bool) -> None:
     ).is_file()
     if remove_bundle:
         shutil.rmtree(SECRET_ROOT, ignore_errors=True)
-        if parent_was_absent and SECRET_PARENT.is_dir():
-            with contextlib.suppress(OSError):
-                SECRET_PARENT.rmdir()
+        if SECRET_ROOT.exists() or SECRET_ROOT.is_symlink():
+            raise S20ServiceHandoffError(
+                "rollback_secret_destination_cleanup_failed"
+            )
+        if parent_was_absent:
+            if SECRET_PARENT.is_symlink():
+                raise S20ServiceHandoffError(
+                    "rollback_secret_parent_cleanup_failed"
+                )
+            if SECRET_PARENT.is_dir():
+                with contextlib.suppress(OSError):
+                    SECRET_PARENT.rmdir()
+            if SECRET_PARENT.exists() or SECRET_PARENT.is_symlink():
+                raise S20ServiceHandoffError(
+                    "rollback_secret_parent_cleanup_failed"
+                )
     shutil.rmtree(TRANSACTION_DIR, ignore_errors=True)
+    if TRANSACTION_DIR.exists() or TRANSACTION_DIR.is_symlink():
+        raise S20ServiceHandoffError("transaction_directory_cleanup_failed")
 
 
 def _bundle_owner_mode() -> dict[str, str]:
@@ -1076,7 +1131,103 @@ def _bundle_owner_mode() -> dict[str, str]:
     return result
 
 
+def _rollback_postcheck(runner: CommandRunner) -> dict[str, object]:
+    containers = [
+        line
+        for line in _run_required(
+            runner,
+            ("docker", "ps", "-aq"),
+            "rollback_postcheck_container_inventory_failed",
+        ).splitlines()
+        if line.strip()
+    ]
+    if containers:
+        raise S20ServiceHandoffError("rollback_postcheck_container_present")
+    volume_count, volume_sha = _volume_set(runner)
+    if (
+        volume_count != EXPECTED_VOLUME_COUNT
+        or volume_sha != EXPECTED_VOLUME_SET_SHA256
+    ):
+        raise S20ServiceHandoffError("rollback_postcheck_volume_set_drift")
+    network_counts = {name: _network_count(runner, name) for name in NETWORKS}
+    if any(network_counts.values()):
+        raise S20ServiceHandoffError("rollback_postcheck_network_not_empty")
+    guard = _guard_contract(runner)
+    listeners = _run_required(
+        runner,
+        ("ss", "-H", "-ltn"),
+        "rollback_postcheck_listener_inventory_failed",
+    )
+    counts = {
+        port: _listener_count(listeners, port)
+        for port in (1883, 8883, 18883)
+    }
+    if any(counts.values()):
+        raise S20ServiceHandoffError("rollback_postcheck_mqtt_listener_present")
+    if _sha256_path(BROKER_CONFIG) != EXPECTED_BROKER_CONFIG_SHA256:
+        raise S20ServiceHandoffError("rollback_postcheck_broker_config_sha_drift")
+    if _sha256_path(DYNSEC_PATH) != EXPECTED_DYNSEC_SHA256:
+        raise S20ServiceHandoffError("rollback_postcheck_dynsec_sha_drift")
+    if _sha256_path(S18_BACKUP) != EXPECTED_S18_BACKUP_SHA256:
+        raise S20ServiceHandoffError("rollback_postcheck_s18_backup_sha_drift")
+    info = DYNSEC_PATH.stat()
+    if (
+        info.st_uid != 1883
+        or info.st_gid != 1883
+        or stat.S_IMODE(info.st_mode) != 0o600
+    ):
+        raise S20ServiceHandoffError(
+            "rollback_postcheck_dynsec_owner_mode_invalid"
+        )
+    validate_preclaim_dynsec(_load_dynsec(DYNSEC_PATH))
+    if SECRET_ROOT.exists() or SECRET_ROOT.is_symlink():
+        raise S20ServiceHandoffError(
+            "rollback_postcheck_secret_destination_present"
+        )
+    if SECRET_PARENT.exists() or SECRET_PARENT.is_symlink():
+        if SECRET_PARENT.is_symlink() or not SECRET_PARENT.is_dir():
+            raise S20ServiceHandoffError(
+                "rollback_postcheck_secret_parent_unsafe"
+            )
+        parent_info = SECRET_PARENT.stat()
+        if (
+            parent_info.st_uid != 0
+            or parent_info.st_gid != 0
+            or stat.S_IMODE(parent_info.st_mode) != 0o700
+        ):
+            raise S20ServiceHandoffError(
+                "rollback_postcheck_secret_parent_unsafe"
+            )
+    if TRANSACTION_DIR.exists() or TRANSACTION_DIR.is_symlink():
+        raise S20ServiceHandoffError(
+            "rollback_postcheck_transaction_directory_present"
+        )
+    _verify_retained_r1_snapshot()
+    r2_snapshot_state = _verify_r2_snapshot_if_present()
+    return {
+        "docker_container_count": 0,
+        "docker_volume_count": volume_count,
+        "docker_volume_set_sha256": volume_sha,
+        "project_network_container_counts": network_counts,
+        "guard": guard,
+        "host_listener_counts": {
+            str(port): count for port, count in counts.items()
+        },
+        "dynsec_sha_match": True,
+        "target_service_clients_absent": True,
+        "target_service_roles_absent": True,
+        "node_clients_absent": True,
+        "r1_retained_snapshot_verified": True,
+        "r2_rollback_snapshot_state": r2_snapshot_state,
+    }
+
+
 def _postcheck(runner: CommandRunner) -> dict[str, object]:
+    _verify_retained_r1_snapshot()
+    if _verify_r2_snapshot_if_present() != "exact":
+        raise S20ServiceHandoffError("postcheck_r2_snapshot_missing")
+    if TRANSACTION_DIR.exists() or TRANSACTION_DIR.is_symlink():
+        raise S20ServiceHandoffError("postcheck_transaction_directory_present")
     containers = [
         line
         for line in _run_required(
@@ -1135,6 +1286,8 @@ def _postcheck(runner: CommandRunner) -> dict[str, object]:
         },
         "dynsec_sha256": dynsec_sha,
         "credential_owner_mode": _bundle_owner_mode(),
+        "r1_retained_snapshot_verified": True,
+        "r2_rollback_snapshot_verified": True,
     }
 
 
@@ -1190,6 +1343,7 @@ class LocalTransactionRuntime:
         _stop_broker(self.runner)
         _restore_snapshot_or_verify_baseline()
         _cleanup_transaction_material(remove_bundle=True)
+        _rollback_postcheck(self.runner)
 
 
 def execute_apply(
