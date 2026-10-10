@@ -118,10 +118,20 @@ class FakeConfigEntries:
         return list(self._entries)
 
 
+class FakeHass:
+    def __init__(self, entries=None) -> None:
+        self.config_entries = FakeConfigEntries(entries)
+
+    async def async_add_executor_job(
+        self,
+        func,
+        *args,
+    ):
+        return func(*args)
+
+
 def _hass(entries=None):
-    return SimpleNamespace(
-        config_entries=FakeConfigEntries(entries)
-    )
+    return FakeHass(entries)
 
 
 def test_first_boot_uses_mqtt_config_flow(
@@ -337,3 +347,48 @@ def test_configuration_snippet_uses_exact_metadata_target() -> None:
         "n3w_mqtt_bootstrap:\n"
         "  metadata_file: /run/n3w/ha-mqtt-bootstrap.json\n"
     )
+
+
+def test_flow_submit_failure_reports_safe_reason(
+    tmp_path,
+    caplog,
+) -> None:
+    module, metadata = _material(tmp_path)
+    hass = _hass()
+
+    async def fail_configure(flow_id, user_input):
+        assert flow_id == "flow-1"
+        assert user_input["password"] == "private-password"
+        return {
+            "type": "form",
+            "step_id": "broker",
+            "errors": {"base": "cannot_connect"},
+            "data": {"password": "private-password"},
+        }
+
+    hass.config_entries.flow.async_configure = fail_configure
+
+    result = asyncio.run(
+        module.async_setup(
+            hass,
+            {
+                module.DOMAIN: {
+                    "metadata_file": str(metadata),
+                }
+            },
+        )
+    )
+
+    assert result is False
+    messages = "\n".join(
+        record.getMessage()
+        for record in caplog.records
+    )
+    assert (
+        "flow_submit_mismatch;"
+        "type=form;"
+        "step=broker;"
+        "errors=base=cannot_connect"
+        in messages
+    )
+    assert "private-password" not in messages
