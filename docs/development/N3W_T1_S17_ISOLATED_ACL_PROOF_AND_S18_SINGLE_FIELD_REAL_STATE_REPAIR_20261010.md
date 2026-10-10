@@ -150,3 +150,58 @@ S18_R2_DOCKER_RUN=false
 S18_R2_BOARD_ACCESS=false
 PR541=OPEN_DRAFT
 ```
+
+
+## S18-R2 管理员 ACL 规范化等价取证：PASS
+
+用户实机 S18-R2 只读报告：
+
+```text
+S18_R2_PRECHECK=PASS
+OLD_ACL_COUNT=8
+CANDIDATE_ACL_COUNT=8
+ACL_MULTISET_EQUAL=True
+ACL_ORDER_CHANGED=True
+CANDIDATE_ACL_NONZERO_PRIORITY_COUNT=0
+CLIENT_TEXTNAME_VALUE_PRESERVED=True
+GROUPS_ADDED_EMPTY=True
+ROLE_WILDCARD_DEFAULT_TRUE=True
+CHANGEINDEX_ADDED_VALID=True
+CANDIDATE_DEFAULTS_CORRECT=True
+WHOLE_JSON_NORMALIZED_EQUAL=True
+SERIALIZATION_NORMALIZATION_CLASSIFICATION=COMPATIBLE
+REAL_STATE_UNCHANGED=True
+PASSWORD_CONTENT_READ=False
+JSON_SECRET_VALUES_PRINTED=False
+CANDIDATE_PRESERVED=True
+DOCKER_CONTAINER_CREATED=False
+T1_MUTATION=False
+BOARD_ACCESS=False
+S18_R2_READONLY_RESULT=PASS
+SSH_OR_REMOTE_EXIT_CODE=0
+```
+
+**结论分类：** ACL 完整 8 项多重集合不变（忽略排列并为旧项补默认 priority=0），管理员显示名称值不变；新增空组、默认 wildcard 标志、合法 `changeIndex` 与已知 JSON schema 归一化后，完整 JSON 对象仅有 `defaultACLAccess.publishClientReceive=true→false` 的目标权限语义变更。**不能说候选原始文件只有一个字段变化**，其序列化在 S18-R1 实际变化 19 项。生产原始数据库截至本次读取依旧 SHA256 `93c751a788200498869de39a3218a82de53e5cd3d29170360ea55959d0af85da`，未被晋升。
+
+## S18-R3 执行门：经重复等价确认的候选数据原子晋升
+
+不再运行候选 Broker 或读取业务账户。S18-R3 只做：
+1. 复核入口守护 active/enabled、宿主 8883/18883 未监听、容器集合空、45 volumes、两条空项目网络、image id、生产配置 SHA、原始 DynSec SHA/UID/mode、管理员密码根目录与文件 0600。
+2. 找到**唯一**保留的 `/var/lib/.n3wfc4-s18-candidate-*` staging，并要求目录为 UID1883 0700、只有经辨认的 `candidate.conf` 与 `dynamic-security.json` 两个文件；候选 DynSec UID1883 0600，不得为符号链接，且校验摘要与二次读取一致。不能再创建或执行 Docker 容器。
+3. 在 T1 进程内再次实施 S18-R2 的严格 canonical 对比；同时检测唯一管理员、两个 ACL 集合每条 type/topic/allow/priority 一致，新增 groups=[]、changeIndex 合法、textName 映射恒等、allowwildcardsubs True。
+4. 仅当所有精确约束成立且原始备份与暂存文件均不存在时，把**原始文件字节**以 root-only 0600 通过 O_EXCL|O_NOFOLLOW+fsync 写入 `/etc/n3wfc4/private/dynsec-s18-pre-receive-deny.json`。核对摘要并 fsync 备份目录。
+5. 将已验证候选字节写入原真实数据目录新的 UID1883 0600 隐藏暂存文件，fsync、比较摘要，重验真实文件旧 SHA、防护和管理员密码文件 SHA，最后 `os.replace` 到 `/var/lib/n3wfc4-broker/dynamic-security.json` 并 fsync 目录。
+6. 后置再次比较 JSON 目标默认 ACL、唯一管理员、完整 canonical 语义，校验备份/口令 SHA、不变的 volume/网络/guard/port；只有这些全部 PASS，才安全删除**精确**已验证的 stage 两文件和其临时目录。原始 root-only 备份继续保留，禁止自动回滚/覆盖或删除。
+7. 错误时 STOP，**不要重跑**；任何可能留下的 backup、new-state 或 sensitive staging 要按新实际状态只读取证，防止因重试覆盖身份。S18-R3 的结果不构成 Broker 正式启动或三个业务服务 ACL 已初始化。
+
+```text
+S18_R2_READONLY_RESULT=PASS
+S18_R2_NORMALIZATION_COMPATIBLE=true
+S18_R3_NEXT_ONE_GATE=N3W_T1_S18_R3_EXACT_CANDIDATE_ATOMIC_PROMOTION
+S18_R3_EXPECTED_SEMANTIC_DELTA=ONLY_DEFAULT_PUBLISH_CLIENT_RECEIVE_ALLOW_TO_DENY
+S18_R3_ORIGINAL_BACKUP=ROOT_ONLY
+S18_R3_PRODUCTION_BROKER_START=false
+S18_R3_PORT_PUBLICATION=false
+S18_R3_BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+```
