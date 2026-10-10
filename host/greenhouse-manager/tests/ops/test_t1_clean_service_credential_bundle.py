@@ -231,3 +231,49 @@ def test_verify_rejects_relaxed_secret_permissions(
         verify_clean_service_credential_bundle(
             root
         )
+
+
+def test_bundle_rejects_symlink_parent(
+    tmp_path,
+) -> None:
+    real = tmp_path / "real"
+    real.mkdir()
+    alias = tmp_path / "alias"
+    alias.symlink_to(real, target_is_directory=True)
+
+    with pytest.raises(
+        CleanServiceCredentialBundleError,
+        match="parent is unavailable",
+    ):
+        create_clean_service_credential_bundle(
+            alias / "credentials",
+            system_id="greenhouse",
+            random_bytes=_random_source(),
+        )
+
+
+def test_verify_rejects_manifest_file_binding_drift(
+    tmp_path,
+) -> None:
+    root = tmp_path / "credentials"
+
+    create_clean_service_credential_bundle(
+        root,
+        system_id="greenhouse",
+        random_bytes=_random_source(),
+    )
+
+    identity = root / "manager/identity.json"
+    identity.write_text(
+        "{}\n",
+        encoding="utf-8",
+    )
+    os.chmod(identity, 0o600)
+
+    with pytest.raises(
+        CleanServiceCredentialBundleError,
+        match="manifest file binding is invalid",
+    ):
+        verify_clean_service_credential_bundle(
+            root
+        )
