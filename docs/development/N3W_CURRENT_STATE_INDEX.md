@@ -1,3 +1,14 @@
+> **2026-10-11 current new-chat handoff frozen**：R4 failure / rollback volume drift / readiness transport failure 已完成正式新会话交接。下一会话必须从 handoff 的只读 volume attribution gate 开始，不得 replay R1-R4 authorization，不得删除未知 volume，不得启动 production services，不得进入 R5，不得访问板卡或 merge PR #541。
+
+```text
+CURRENT_NEW_CHAT_HANDOFF=docs/development/N3W_T1_S20_R4_ROLLBACK_VOLUME_DRIFT_AND_READINESS_FAILURE_NEW_CHAT_HANDOFF_V1.0_20261011.md
+HANDOFF_COMMIT=f0694ad96c778e21d33877002de9ef7aec8ab2de
+HANDOFF_READY_FOR_NEW_CHAT=true
+NEXT_ONE_GATE=N3W_T1_S20_R4_EXTRA_DOCKER_VOLUME_READONLY_ATTRIBUTION_20261011_01
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+```
+
 > **2026-10-11 S20 R4 apply FAIL / rollback product-state restored but Docker volume baseline drift / readiness root cause confirmed**：R4 authorization `N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_R4_20261010_01` 已 claim+consume，永久禁止 replay。R4 temporary Broker 已成功 create/start 并存活约 21 s，说明此前 TLS startup blocker 已关闭；失败点前移到 readiness/admin control：executor `admin.conf` 固定 `127.0.0.1:1883` plain MQTT，而 exact live Broker config 只有 TLS `listener 8883`，全部 `mosquitto_rr` readiness probe exitCode=1，未进入 createRole/createClient。rollback 外部取证证明 DynSec exact baseline、R1/R2/R3/R4 snapshots exact、secret/transaction material absent、0 containers、0 MQTT listeners、两项目网络为空、guard active+enabled；但 Docker volume 从 45 漂移为 46，set SHA 从 `20fc8457...` 变为 `918671f5...`。这正是 `_rollback_postcheck` 的 volume-set mismatch，因此 rollback 只能记为 CLOSED_PARTIAL / manual recovery required。当前先只读识别新增 volume，未授权删除，也未授权 R5。
 
 ```text
