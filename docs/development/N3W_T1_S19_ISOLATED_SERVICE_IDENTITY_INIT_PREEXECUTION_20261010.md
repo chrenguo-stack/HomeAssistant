@@ -175,3 +175,39 @@ BOARD_ACCESS=false
 Script 对 T1 做 fresh 守护规则、两空网络、45 Docker volumes 精确名称集合与生产三文件 SHA 复核；要求遗留 staging 唯一、所属 UID1883/0700、仅两个预定 regular 文件（`candidate.conf` 0644 与 `dynamic-security.json` 0600）、文件无额外硬链接、四客户端/四角色、三套服务身份绑定和 ACL 条目数符合先前取证；仅在全通过后删除本临时目录的两个**精确文件**及目录，随后复核生产 state、S18 root 0600 备份和原 45 volumes 无漂移。异常 STOP，不自动重试。**这不定位此前 S19-R2 哪个 MQTT 运行时步骤失败**。
 
 后续新的运行时测试必须以全新一次性凭据、隔离临时容器和安全阶段标记执行：只返回当前阶段与经白名单筛选的故障码，不在终端/仓库中显示完整 DynSec CONTROL 响应、用户名密码、哈希或其他凭据。不将账号持久化等价于 MQTT 正向投递 PASS。
+
+
+## S19-R2-R2 遗留临时数据清理：CLOSED_PASS
+
+2026-10-10 T1 执行：
+
+```text
+SCRIPT_SHA256=PASS
+S19_R2_R2_PRECHECK=PASS
+STAGE_EXACT_IDENTITY_SET=PASS
+PRODUCTION_STATE_AND_BACKUP_SHA=PASS
+EXACT_FAILED_STAGE_REMOVED=True
+PRODUCTION_DYNSEC_UNCHANGED=True
+PRODUCTION_BACKUP_UNCHANGED=True
+DOCKER_VOLUMES_PRESERVED=True
+BROKER_STARTED=False
+HOST_8883_PUBLICATION=False
+BOARD_ACCESS=False
+S19_R2_R2_RESULT=PASS
+STOP=True
+SSH_OR_REMOTE_EXIT_CODE=0
+```
+
+归档结论：S19-R2-R2 CLOSED_PASS，仅删除在 S19-R2-R1 已完成只读取证并确认精确归属的 throwaway stage 与其测试文件；真实生产 DynSec SHA、S18 root-only 备份、45 个 Docker volumes、入口防护和宿主无 TCP/8883 发布均保持。S19-R2 运行时失败根因仍为 UNKNOWN，不得误计 PASS。
+
+后续仅允许全新一次性隔离身份、独立最小 MQTT 运行时诊断。先聚焦首次控制命令、provisioning 认证和请求/响应，返回**阶段性成功标记和白名单失败类**而不打印 MQTT 控制响应、密码、用户名映射 JSON 或秘密。之后再分门 Manager/HA 正向路由与错误客户端 ID/匿名拒绝。失败后保留候选并 STOP，不重新执行旧脚本。
+
+```text
+S19_R2_R2_RESULT=CLOSED_PASS
+S19_R2_FAILURE_CLASS=UNKNOWN_RUNTIME_STEP
+NEXT_ONE_GATE=S19_R2_R3_ISOLATED_PROVISIONING_RUNTIME_PHASE_PROBE
+S19_R2_R3_DYNSEC_PRODUCTION_MUTATION=false
+S19_R2_R3_HOST_PORT_PUBLICATION=false
+S19_R2_R3_BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+```
