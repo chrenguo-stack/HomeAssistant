@@ -972,39 +972,33 @@ def test_start_broker_mounts_tls_files_individually(
 
 
 def test_verify_tls_material_accepts_production_metadata(
-    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    tls = tmp_path / "tls"
-    tls.mkdir(mode=0o700)
-    ca = tls / "ca.pem"
-    cert = tls / "server.pem"
-    key = tls / "server.key"
-    ca.write_text("ca\n", encoding="utf-8")
-    cert.write_text("cert\n", encoding="utf-8")
-    key.write_text("key\n", encoding="utf-8")
-    ca.chmod(0o644)
-    cert.chmod(0o644)
-    key.chmod(0o600)
-
-    monkeypatch.setattr(module, "TLS_CA", ca)
-    monkeypatch.setattr(module, "TLS_CERT", cert)
-    monkeypatch.setattr(module, "TLS_KEY", key)
-
-    real_stat = module.Path.stat
-
     class FakeStat:
-        def __init__(self, original: object, uid: int, gid: int) -> None:
-            self.st_mode = original.st_mode
+        def __init__(self, uid: int, gid: int, mode: int) -> None:
             self.st_uid = uid
             self.st_gid = gid
+            self.st_mode = mode
 
-    def fake_stat(path: Path) -> object:
-        original = real_stat(path)
-        if path == key:
-            return FakeStat(original, 1883, 1883)
-        return FakeStat(original, 0, 0)
+    class FakeTLSPath:
+        def __init__(self, uid: int, gid: int, mode: int) -> None:
+            self._stat = FakeStat(uid, gid, mode)
 
-    monkeypatch.setattr(module.Path, "stat", fake_stat)
+        def is_symlink(self) -> bool:
+            return False
+
+        def is_file(self) -> bool:
+            return True
+
+        def stat(self) -> FakeStat:
+            return self._stat
+
+    monkeypatch.setattr(module, "TLS_CA", FakeTLSPath(0, 0, 0o644))
+    monkeypatch.setattr(module, "TLS_CERT", FakeTLSPath(0, 0, 0o644))
+    monkeypatch.setattr(
+        module,
+        "TLS_KEY",
+        FakeTLSPath(1883, 1883, 0o600),
+    )
 
     module._verify_tls_material()
