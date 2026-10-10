@@ -1,0 +1,8 @@
+{
+  "domain": "n3w_mqtt_bootstrap",
+  "name": "N3-W MQTT Bootstrap",
+  "version": "0.1.0",
+  "documentation": "https://github.com/chrenguo-stack/HomeAssistant",
+  "iot_class": "local_push",
+  "requirements": []
+}
