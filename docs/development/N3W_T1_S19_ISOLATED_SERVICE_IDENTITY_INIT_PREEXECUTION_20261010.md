@@ -105,3 +105,52 @@ PR541=OPEN_DRAFT
 
 
 S19-R2-R1 只读取证脚本由本轮对话交付，`N3W_T1_S19_R2_R1_READONLY_FORENSIC.py`，SHA256 `3d2bb820ef94bcd5cc68a08010236ce9df17013bb2947c410305f79e3c15ed0c`，本地 Python 语法检查 PASS，T1 现场执行状态 PENDING。脚本仅用标准库读取候选 JSON 的非敏感结构、静态账号绑定与 ACL 项数，保留所有现存数据且不运行 Docker 容器。候选三服务身份若存在仅代表持久化，不能反推出是哪一个运行时测试步骤失败。
+
+
+## S19-R2-R1 失败现场只读恢复
+
+2026-10-10 实测结果：
+
+```text
+S19_R2_R1_PRECHECK=PASS
+PRODUCTION_DYNSEC_SHA_MATCH=True
+PRODUCTION_BACKUP_SHA_MATCH=True
+S19_R2_STAGE_DIRECTORY_COUNT=1
+STAGE_EXACT_EXPECTED_FILE_SET=True
+CANDIDATE_CLIENT_COUNT=4
+CANDIDATE_ROLE_COUNT=4
+CANDIDATE_DEFAULT_ACL_MATCH=True
+CANDIDATE_ADMIN_PRESENT=True
+CANDIDATE_PROVISIONING_BINDING=True
+CANDIDATE_PROVISIONING_ACL_COUNT_MATCH=True
+CANDIDATE_MANAGER_BINDING=True
+CANDIDATE_MANAGER_ACL_COUNT_MATCH=True
+CANDIDATE_HOMEASSISTANT_BINDING=True
+CANDIDATE_HOMEASSISTANT_ACL_COUNT_MATCH=True
+SERVICE_IDENTITIES_PERSISTED=True
+REAL_STATE_UNCHANGED=True
+PASSWORD_CONTENT_READ=False
+CANDIDATE_CONTENT_PRINTED=False
+CANDIDATE_PRESERVED=True
+DOCKER_RUN_THIS_GATE=False
+BOARD_ACCESS=False
+S19_R2_R1_READONLY_RESULT=PASS
+SSH_OR_REMOTE_EXIT_CODE=0
+```
+
+结论：临时 DynSec 候选确实持久化 admin + 三类服务的账号、角色、各自唯一 client ID、正确 ACL 计数和默认拒绝值；真实生产 DynSec SHA256 `94f3c0a3dbed90f3d2a3e96696dba8bed8093194903aeed106559090764d1ad5`、原始 root-only 备份 SHA256 `93c751a788200498869de39a3218a82de53e5cd3d29170360ea55959d0af85da` 均未变化。S19-R2 原执行脚本静态复核亦确认：隔离子进程返回非零时，host Python 只保留第一条 `STOP_` 或 `ISOLATED_PROBE_FAILED`；所有非秘密运行时阶段性 stdout 和 stderr 都没有转存，因此无法恢复失败位置。**尚不能将单项 MQTT runtime 正例/反例标记 PASS 或归因到具体产品缺陷。**
+
+唯一遗留资产：`/var/lib/.n3wfc4-s19r2-*` 的**一个**私有敏感 staging（仅 `candidate.conf` 和 `dynamic-security.json`），宿主无容器；下一门 `S19_R2_R2_SCOPED_STAGING_CLEANUP` 只允许 fresh revalidate 后精确删除这两个临时文件和 stage 本身，不修改生产 state/backup/管理员密码、45 Docker volumes、n3wfc4 网络、守护规则或宿主 8883/18883。对失败后临时账号不会进行认证重试，因为原始随机密码只存于已退出进程内存，不在候选数据库中以明文保存。
+
+后续新测试必须增加阶段标记和白名单错误码输出，**不能**打印 stdout 中的完整 `CONTROL_RESPONSE`、password/hash 或 broker stderr；在独立无网络临时 Broker 中使用新 throwaway 密码，区分：`ADMIN_CONTROL`、`PROVISIONING_CONTROL`、`MANAGER_INGRESS`、`MANAGER_TO_HA_STATE`、`MANAGER_TO_HA_DISCOVERY`、`HA_STATUS`、`WRONG_CLIENT_ID`、`ANONYMOUS`。必须实际验证消息投递，不把账号文件存在等价于连接成功。不重用 S19-R2 旧失败脚本。
+
+```text
+S19_R2_R1_READONLY_RESULT=PASS
+S19_R2_IDENTITIES_PERSISTED=true
+S19_R2_PRODUCTION_DYNSEC_UNCHANGED=true
+S19_R2_RUNTIME_FAILURE_STEP=UNKNOWN
+NEXT_ONE_GATE=S19_R2_R2_EXACT_SENSITIVE_STAGE_CLEANUP
+S19_R2_R2_T1_MUTATION=EXACT_FAILED_THROWAWAY_FILES_ONLY
+S19_R2_R2_BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+```
