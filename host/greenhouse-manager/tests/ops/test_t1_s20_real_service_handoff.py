@@ -532,10 +532,10 @@ def test_service_secret_client_runs_as_root_not_broker_uid() -> None:
     )
 
 
-def test_temp_broker_itself_remains_uid_1883() -> None:
+def test_temp_broker_preserves_image_entrypoint_user_flow() -> None:
     source = Path(module.__file__).read_text(encoding="utf-8")
 
-    assert '"--user",\n        "1883:1883"' in source
+    assert '"--user",\n        "1883:1883"' not in source
     assert '"--user",\n            "0:0"' in source
 
 
@@ -545,9 +545,11 @@ class BrokerLifecycleRunner:
         *,
         rm_code: int = 0,
         inspect_code: int = 1,
+        inspect_output: str = "",
     ) -> None:
         self.rm_code = rm_code
         self.inspect_code = inspect_code
+        self.inspect_output = inspect_output
         self.commands: list[tuple[str, ...]] = []
 
     def run(
@@ -564,7 +566,7 @@ class BrokerLifecycleRunner:
             return self.rm_code, ""
         if command[:2] == ("docker", "inspect"):
             assert timeout == 10
-            return self.inspect_code, ""
+            return self.inspect_code, self.inspect_output
         if command[:2] == ("docker", "run"):
             assert timeout == 60
             return 0, "container-id"
@@ -726,3 +728,70 @@ def test_streamed_dependency_binding_rejects_hash_drift() -> None:
         match="source_dependency_sha256_mismatch",
     ):
         module._verify_source_dependencies(streamed)
+
+
+def test_start_broker_rejects_early_container_exit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = BrokerLifecycleRunner(
+        inspect_code=0,
+        inspect_output="exited|1\n",
+    )
+    image_id = "sha256:" + "2" * 64
+
+    monkeypatch.setattr(
+        module,
+        "_verify_broker_source_tag",
+        lambda _runner: {
+            "image_id": image_id,
+            "platform": "linux/arm64",
+            "index_digest": module.EXPECTED_BROKER_INDEX_DIGEST,
+            "arm64_manifest_digest": (
+                module.EXPECTED_BROKER_ARM64_MANIFEST_DIGEST
+            ),
+        },
+    )
+
+    with pytest.raises(
+        module.S20ServiceHandoffError,
+        match="transaction_broker_exited_before_ready:1",
+    ):
+        module._start_broker(
+            runner,  # type: ignore[arg-type]
+        )
+
+
+def test_start_broker_command_has_no_forced_runtime_user(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = BrokerLifecycleRunner()
+    image_id = "sha256:" + "3" * 64
+
+    monkeypatch.setattr(
+        module,
+        "_verify_broker_source_tag",
+        lambda _runner: {
+            "image_id": image_id,
+            "platform": "linux/arm64",
+            "index_digest": module.EXPECTED_BROKER_INDEX_DIGEST,
+            "arm64_manifest_digest": (
+                module.EXPECTED_BROKER_ARM64_MANIFEST_DIGEST
+            ),
+        },
+    )
+    monkeypatch.setattr(
+        module,
+        "_rr",
+        lambda *_args, **_kwargs: ({"command": "listClients"},),
+    )
+
+    module._start_broker(
+        runner,  # type: ignore[arg-type]
+    )
+
+    run_command = next(
+        command
+        for command in runner.commands
+        if command[:2] == ("docker", "run")
+    )
+    assert "--user" not in run_command
