@@ -30,7 +30,7 @@ from greenhouse_manager.runtime.service_identity_plan import (
 )
 
 AUTHORIZATION_ID = (
-    "N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_R3_20261010_01"
+    "N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_R4_20261010_01"
 )
 SCHEMA = "gh.n3w-t1-s20-real-three-service-secret-handoff/1"
 SYSTEM_ID = "greenhouse"
@@ -101,8 +101,11 @@ R1_EVIDENCE_SNAPSHOT = Path(
 R2_EVIDENCE_SNAPSHOT = Path(
     "/etc/n3wfc4/private/dynsec-s20-r2-pre-three-service.json"
 )
-ROLLBACK_SNAPSHOT = Path(
+R3_EVIDENCE_SNAPSHOT = Path(
     "/etc/n3wfc4/private/dynsec-s20-r3-pre-three-service.json"
+)
+ROLLBACK_SNAPSHOT = Path(
+    "/etc/n3wfc4/private/dynsec-s20-r4-pre-three-service.json"
 )
 SECRET_PARENT = Path("/opt/greenhouse-secrets")
 SECRET_ROOT = SECRET_PARENT / "mqtt"
@@ -517,22 +520,23 @@ def _verify_evidence_snapshot(path: Path, label: str) -> None:
 def _verify_retained_attempt_snapshots() -> None:
     _verify_evidence_snapshot(R1_EVIDENCE_SNAPSHOT, "r1")
     _verify_evidence_snapshot(R2_EVIDENCE_SNAPSHOT, "r2")
+    _verify_evidence_snapshot(R3_EVIDENCE_SNAPSHOT, "r3")
 
 
-def _verify_r3_snapshot_if_present() -> str:
+def _verify_r4_snapshot_if_present() -> str:
     if not (ROLLBACK_SNAPSHOT.exists() or ROLLBACK_SNAPSHOT.is_symlink()):
         return "absent"
     if ROLLBACK_SNAPSHOT.is_symlink() or not ROLLBACK_SNAPSHOT.is_file():
-        raise S20ServiceHandoffError("r3_rollback_snapshot_unsafe")
+        raise S20ServiceHandoffError("r4_rollback_snapshot_unsafe")
     info = ROLLBACK_SNAPSHOT.stat()
     if (
         info.st_uid != 0
         or info.st_gid != 0
         or stat.S_IMODE(info.st_mode) != 0o600
     ):
-        raise S20ServiceHandoffError("r3_rollback_snapshot_owner_mode_drift")
+        raise S20ServiceHandoffError("r4_rollback_snapshot_owner_mode_drift")
     if _sha256_path(ROLLBACK_SNAPSHOT) != EXPECTED_DYNSEC_SHA256:
-        raise S20ServiceHandoffError("r3_rollback_snapshot_sha_drift")
+        raise S20ServiceHandoffError("r4_rollback_snapshot_sha_drift")
     return "exact"
 
 
@@ -646,7 +650,7 @@ def build_preclaim_report(
     _verify_retained_attempt_snapshots()
     _verify_tls_material()
     if ROLLBACK_SNAPSHOT.exists() or ROLLBACK_SNAPSHOT.is_symlink():
-        raise S20ServiceHandoffError("r3_rollback_snapshot_exists")
+        raise S20ServiceHandoffError("r4_rollback_snapshot_exists")
     if TRANSACTION_DIR.exists() or TRANSACTION_DIR.is_symlink():
         raise S20ServiceHandoffError("transaction_directory_exists")
     dynsec = validate_preclaim_dynsec(_load_dynsec(DYNSEC_PATH))
@@ -674,9 +678,10 @@ def build_preclaim_report(
         "secret_parent_state": secret_parent_state,
         "r1_retained_snapshot_verified": True,
         "r2_retained_snapshot_verified": True,
+        "r3_retained_snapshot_verified": True,
         "tls_file_bind_contract_verified": True,
         "rollback_snapshot_absent": True,
-        "r3_rollback_snapshot_absent": True,
+        "r4_rollback_snapshot_absent": True,
         "exact_broker_image_local_arm64": True,
         "broker_image": broker_image,
         "live_mutation": False,
@@ -712,13 +717,13 @@ def _create_snapshot() -> None:
             shutil.copyfileobj(source, target)
             target.flush()
             os.fsync(target.fileno())
+        os.chown(ROLLBACK_SNAPSHOT, 0, 0)
+        os.chmod(ROLLBACK_SNAPSHOT, 0o600)
+        if _sha256_path(ROLLBACK_SNAPSHOT) != EXPECTED_DYNSEC_SHA256:
+            raise S20ServiceHandoffError("rollback_snapshot_sha_mismatch")
     except Exception:
         ROLLBACK_SNAPSHOT.unlink(missing_ok=True)
         raise
-    os.chown(ROLLBACK_SNAPSHOT, 0, 0)
-    os.chmod(ROLLBACK_SNAPSHOT, 0o600)
-    if _sha256_path(ROLLBACK_SNAPSHOT) != EXPECTED_DYNSEC_SHA256:
-        raise S20ServiceHandoffError("rollback_snapshot_sha_mismatch")
 
 
 def _read_password(path: Path) -> str:
@@ -834,17 +839,21 @@ def _start_broker(runner: CommandRunner) -> None:
         "-v",
         _docker_mount(DYNSEC_DATA, "/mosquitto/data", read_only=False),
         "-v",
-        _docker_mount(TLS_CA, "/mosquitto/tls/ca.pem", read_only=True),
+        _docker_mount(
+            TLS_CA,
+            "/mosquitto/config/n3w-ca.pem",
+            read_only=True,
+        ),
         "-v",
         _docker_mount(
             TLS_CERT,
-            "/mosquitto/tls/server.pem",
+            "/mosquitto/config/n3w-server.pem",
             read_only=True,
         ),
         "-v",
         _docker_mount(
             TLS_KEY,
-            "/mosquitto/tls/server.key",
+            "/mosquitto/config/n3w-server.key",
             read_only=True,
         ),
         "-v",
@@ -1079,7 +1088,7 @@ def _apply_dynsec(
 
 
 def _restore_snapshot() -> None:
-    if not ROLLBACK_SNAPSHOT.is_file() or ROLLBACK_SNAPSHOT.is_symlink():
+    if _verify_r4_snapshot_if_present() != "exact":
         raise S20ServiceHandoffError("rollback_snapshot_unavailable")
     temporary = DYNSEC_PATH.with_name(".dynamic-security.s20-rollback.tmp")
     temporary.unlink(missing_ok=True)
@@ -1102,7 +1111,7 @@ def _restore_snapshot() -> None:
 
 
 def _restore_snapshot_or_verify_baseline() -> None:
-    if ROLLBACK_SNAPSHOT.is_file() and not ROLLBACK_SNAPSHOT.is_symlink():
+    if ROLLBACK_SNAPSHOT.exists() or ROLLBACK_SNAPSHOT.is_symlink():
         _restore_snapshot()
         return
     if _sha256_path(DYNSEC_PATH) != EXPECTED_DYNSEC_SHA256:
@@ -1120,10 +1129,15 @@ def _restore_snapshot_or_verify_baseline() -> None:
         )
 
 
-def _cleanup_transaction_material(*, remove_bundle: bool) -> None:
-    parent_was_absent = (
-        TRANSACTION_DIR / "parent-was-absent"
-    ).is_file()
+def _cleanup_transaction_material(
+    *,
+    remove_bundle: bool,
+    parent_was_absent: bool | None = None,
+) -> None:
+    if parent_was_absent is None:
+        parent_was_absent = (
+            TRANSACTION_DIR / "parent-was-absent"
+        ).is_file()
     if remove_bundle:
         shutil.rmtree(SECRET_ROOT, ignore_errors=True)
         if SECRET_ROOT.exists() or SECRET_ROOT.is_symlink():
@@ -1252,7 +1266,7 @@ def _rollback_postcheck(runner: CommandRunner) -> dict[str, object]:
             "rollback_postcheck_transaction_directory_present"
         )
     _verify_retained_attempt_snapshots()
-    r3_snapshot_state = _verify_r3_snapshot_if_present()
+    r4_snapshot_state = _verify_r4_snapshot_if_present()
     return {
         "docker_container_count": 0,
         "docker_volume_count": volume_count,
@@ -1268,14 +1282,15 @@ def _rollback_postcheck(runner: CommandRunner) -> dict[str, object]:
         "node_clients_absent": True,
         "r1_retained_snapshot_verified": True,
         "r2_retained_snapshot_verified": True,
-        "r3_rollback_snapshot_state": r3_snapshot_state,
+        "r3_retained_snapshot_verified": True,
+        "r4_rollback_snapshot_state": r4_snapshot_state,
     }
 
 
 def _postcheck(runner: CommandRunner) -> dict[str, object]:
     _verify_retained_attempt_snapshots()
-    if _verify_r3_snapshot_if_present() != "exact":
-        raise S20ServiceHandoffError("postcheck_r3_snapshot_missing")
+    if _verify_r4_snapshot_if_present() != "exact":
+        raise S20ServiceHandoffError("postcheck_r4_snapshot_missing")
     if TRANSACTION_DIR.exists() or TRANSACTION_DIR.is_symlink():
         raise S20ServiceHandoffError("postcheck_transaction_directory_present")
     containers = [
@@ -1338,7 +1353,8 @@ def _postcheck(runner: CommandRunner) -> dict[str, object]:
         "credential_owner_mode": _bundle_owner_mode(),
         "r1_retained_snapshot_verified": True,
         "r2_retained_snapshot_verified": True,
-        "r3_rollback_snapshot_verified": True,
+        "r3_retained_snapshot_verified": True,
+        "r4_rollback_snapshot_verified": True,
     }
 
 
@@ -1357,15 +1373,20 @@ class LocalTransactionRuntime:
         self.executor_source_sha256 = executor_source_sha256
         self.streamed_dependency_sha256 = streamed_dependency_sha256
         self.expected_executor_sha256 = expected_executor_sha256
+        self.secret_parent_was_absent: bool | None = None
 
     def preclaim(self) -> dict[str, object]:
-        return build_preclaim_report(
+        report = build_preclaim_report(
             self.runner,
             executor_path=self.executor_path,
             executor_source_sha256=self.executor_source_sha256,
             streamed_dependency_sha256=self.streamed_dependency_sha256,
             expected_executor_sha256=self.expected_executor_sha256,
         )
+        self.secret_parent_was_absent = (
+            report.get("secret_parent_state") == "absent"
+        )
+        return report
 
     def create_snapshot(self) -> None:
         _create_snapshot()
@@ -1387,13 +1408,19 @@ class LocalTransactionRuntime:
         _stop_broker(self.runner)
 
     def finish(self) -> dict[str, object]:
-        _cleanup_transaction_material(remove_bundle=False)
+        _cleanup_transaction_material(
+            remove_bundle=False,
+            parent_was_absent=self.secret_parent_was_absent,
+        )
         return _postcheck(self.runner)
 
     def rollback(self) -> None:
         _stop_broker(self.runner)
         _restore_snapshot_or_verify_baseline()
-        _cleanup_transaction_material(remove_bundle=True)
+        _cleanup_transaction_material(
+            remove_bundle=True,
+            parent_was_absent=self.secret_parent_was_absent,
+        )
         _rollback_postcheck(self.runner)
 
 
