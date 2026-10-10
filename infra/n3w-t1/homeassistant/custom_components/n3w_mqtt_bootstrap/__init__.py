@@ -17,7 +17,9 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class BootstrapError(RuntimeError):
-    pass
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
 
 
 @dataclass(frozen=True, slots=True)
@@ -124,6 +126,49 @@ def _read_password(raw_path: str) -> str:
     return value
 
 
+def _load_material(
+    metadata_file: str,
+) -> tuple[BootstrapSettings, str]:
+    settings = _load_settings(metadata_file)
+    password = _read_password(settings.password_file)
+    return settings, password
+
+
+def _safe_flow_token(value: object) -> str:
+    if not isinstance(value, str) or not value:
+        return "none"
+    return "".join(
+        character
+        if character.isalnum() or character in ("_", "-")
+        else "_"
+        for character in value[:80]
+    )
+
+
+def _flow_diagnostic(result: object) -> str:
+    if not isinstance(result, dict):
+        return "type=non_dict"
+    result_type = _safe_flow_token(result.get("type"))
+    step_id = _safe_flow_token(result.get("step_id"))
+    errors = result.get("errors")
+    safe_errors: list[str] = []
+    if isinstance(errors, dict):
+        for key, value in sorted(errors.items()):
+            safe_errors.append(
+                f"{_safe_flow_token(key)}={_safe_flow_token(value)}"
+            )
+    error_text = (
+        ",".join(safe_errors)
+        if safe_errors
+        else "none"
+    )
+    return (
+        f"type={result_type};"
+        f"step={step_id};"
+        f"errors={error_text}"
+    )
+
+
 def _flow_input(
     settings: BootstrapSettings,
     password: str,
@@ -177,13 +222,15 @@ async def _bootstrap(
 ) -> bool:
     entries = hass.config_entries.async_entries("mqtt")
     if len(entries) == 1:
-        return _entry_matches(
+        if _entry_matches(
             entries[0].data,
             settings,
             password,
-        )
+        ):
+            return True
+        raise BootstrapError("existing_entry_mismatch")
     if entries:
-        return False
+        raise BootstrapError("multiple_mqtt_entries")
 
     first = await hass.config_entries.flow.async_init(
         "mqtt",
@@ -194,15 +241,23 @@ async def _bootstrap(
         or first.get("step_id") != "broker"
         or not isinstance(first.get("flow_id"), str)
     ):
-        return False
+        raise BootstrapError(
+            "flow_init_mismatch;"
+            + _flow_diagnostic(first)
+        )
 
     result = await hass.config_entries.flow.async_configure(
         first["flow_id"],
         _flow_input(settings, password),
     )
-    return (
+    if (
         isinstance(result, dict)
         and result.get("type") == "create_entry"
+    ):
+        return True
+    raise BootstrapError(
+        "flow_submit_mismatch;"
+        + _flow_diagnostic(result)
     )
 
 
@@ -234,25 +289,25 @@ async def async_setup(
         return False
 
     try:
-        settings = _load_settings(metadata_file)
-        password = _read_password(
-            settings.password_file
+        settings, password = await hass.async_add_executor_job(
+            _load_material,
+            metadata_file,
         )
-        result = await _bootstrap(
+        await _bootstrap(
             hass,
             settings,
             password,
         )
+    except BootstrapError as error:
+        _LOGGER.error(
+            "N3-W MQTT bootstrap failed class=%s",
+            error.code,
+        )
+        return False
     except Exception as error:
         _LOGGER.error(
             "N3-W MQTT bootstrap failed class=%s",
             type(error).__name__,
-        )
-        return False
-
-    if not result:
-        _LOGGER.error(
-            "N3-W MQTT bootstrap failed class=flow_mismatch"
         )
         return False
 
