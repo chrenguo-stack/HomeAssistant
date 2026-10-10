@@ -38,11 +38,7 @@ def _path_contains_symlink(path: Path) -> bool:
     current = path
     while True:
         if current.is_symlink():
-            _LOGGER.info(
-        "N3-W MQTT bootstrap success class=%s",
-        outcome,
-    )
-    return True
+            return True
         if current == current.parent:
             return False
         current = current.parent
@@ -327,4 +323,8 @@ async def async_setup(
         )
         return False
 
+    _LOGGER.info(
+        "N3-W MQTT bootstrap success class=%s",
+        outcome,
+    )
     return True
