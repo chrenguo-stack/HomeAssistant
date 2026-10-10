@@ -133,7 +133,7 @@ def test_manager_and_provisioning_use_separate_readonly_mounts(
     )
 
 
-def test_homeassistant_handoff_stays_nonautomatic(
+def test_homeassistant_bootstrap_is_automatic_without_storage_edit(
     tmp_path,
 ) -> None:
     root = tmp_path / "credentials"
@@ -144,21 +144,37 @@ def test_homeassistant_handoff_stays_nonautomatic(
         random_bytes=_random_source(),
     )
 
-    handoff = json.loads(
+    bootstrap = json.loads(
         (
             root
-            / "homeassistant/mqtt-handoff.json"
+            / "homeassistant/mqtt-bootstrap.json"
         ).read_text(encoding="utf-8")
     )
+    compose = (
+        root
+        / "homeassistant/compose-secret-fragment.yaml"
+    ).read_text(encoding="utf-8")
 
-    assert handoff["official_config_flow_only"] is True
-    assert handoff["direct_storage_edit_forbidden"] is True
-    assert handoff["automatic_apply"] is False
-    assert handoff["operator_plaintext_copy_required"] is False
-    assert handoff["fresh_product_consumer_verified"] is False
-    assert "password" not in handoff
-    assert handoff["password_file"] == (
-        "homeassistant/password"
+    assert bootstrap["official_config_flow_only"] is True
+    assert bootstrap["direct_storage_edit_forbidden"] is True
+    assert bootstrap["automatic_apply"] is True
+    assert bootstrap["operator_plaintext_copy_required"] is False
+    assert bootstrap["runtime_verified"] is False
+    assert bootstrap["broker"] == "127.0.0.1"
+    assert bootstrap["port"] == 1883
+    assert bootstrap["protocol"] == "5"
+    assert "password" not in bootstrap
+    assert bootstrap["password_file"] == (
+        "/run/secrets/gh_homeassistant_mqtt_password"
+    )
+    assert compose.count("read_only: true") == 2
+    assert (
+        "/run/secrets/gh_homeassistant_mqtt_password"
+        in compose
+    )
+    assert (
+        "/run/n3w/ha-mqtt-bootstrap.json"
+        in compose
     )
 
 
