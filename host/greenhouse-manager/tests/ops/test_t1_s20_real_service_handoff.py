@@ -797,10 +797,10 @@ def test_start_broker_command_has_no_forced_runtime_user(
     assert "--user" not in run_command
 
 
-def test_r3_authorization_and_snapshot_paths_are_attempt_scoped() -> None:
+def test_r4_authorization_and_snapshot_paths_are_attempt_scoped() -> None:
     assert module.AUTHORIZATION_ID == (
         "N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_"
-        "APPLY_R3_20261010_01"
+        "APPLY_R4_20261010_01"
     )
     assert Path(
         "/etc/n3wfc4/private/dynsec-s20-pre-three-service.json"
@@ -810,14 +810,18 @@ def test_r3_authorization_and_snapshot_paths_are_attempt_scoped() -> None:
     ) == module.R2_EVIDENCE_SNAPSHOT
     assert Path(
         "/etc/n3wfc4/private/dynsec-s20-r3-pre-three-service.json"
+    ) == module.R3_EVIDENCE_SNAPSHOT
+    assert Path(
+        "/etc/n3wfc4/private/dynsec-s20-r4-pre-three-service.json"
     ) == module.ROLLBACK_SNAPSHOT
     assert len(
         {
             module.R1_EVIDENCE_SNAPSHOT,
             module.R2_EVIDENCE_SNAPSHOT,
+            module.R3_EVIDENCE_SNAPSHOT,
             module.ROLLBACK_SNAPSHOT,
         }
-    ) == 3
+    ) == 4
 
 
 def test_cleanup_transaction_material_verifies_removal(
@@ -893,8 +897,9 @@ def test_local_runtime_rollback_requires_readonly_postcheck(
     monkeypatch.setattr(
         module,
         "_cleanup_transaction_material",
-        lambda *, remove_bundle: events.append(
-            f"cleanup:{str(remove_bundle).lower()}"
+        lambda *, remove_bundle, parent_was_absent=None: events.append(
+            f"cleanup:{str(remove_bundle).lower()}:"
+            f"{str(parent_was_absent).lower()}"
         ),
     )
     monkeypatch.setattr(
@@ -916,7 +921,7 @@ def test_local_runtime_rollback_requires_readonly_postcheck(
     assert events == [
         "stop",
         "restore",
-        "cleanup:true",
+        "cleanup:true:none",
         "postcheck",
     ]
 
@@ -957,18 +962,19 @@ def test_start_broker_mounts_tls_files_individually(
     rendered = " ".join(run_command)
 
     assert (
-        f"{module.TLS_CA}:/mosquitto/tls/ca.pem:ro"
+        f"{module.TLS_CA}:/mosquitto/config/n3w-ca.pem:ro"
         in rendered
     )
     assert (
-        f"{module.TLS_CERT}:/mosquitto/tls/server.pem:ro"
+        f"{module.TLS_CERT}:/mosquitto/config/n3w-server.pem:ro"
         in rendered
     )
     assert (
-        f"{module.TLS_KEY}:/mosquitto/tls/server.key:ro"
+        f"{module.TLS_KEY}:/mosquitto/config/n3w-server.key:ro"
         in rendered
     )
     assert f"{module.TLS_DIR}:/mosquitto/tls:ro" not in rendered
+    assert f"{module.TLS_CA}:/mosquitto/tls/ca.pem:ro" not in rendered
 
 
 def test_verify_tls_material_accepts_production_metadata(
@@ -1002,3 +1008,97 @@ def test_verify_tls_material_accepts_production_metadata(
     )
 
     module._verify_tls_material()
+
+
+
+def test_create_snapshot_removes_partial_file_on_validation_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dynsec = tmp_path / "dynamic-security.json"
+    snapshot = tmp_path / "snapshot.json"
+    dynsec.write_text('{"clients": []}\n', encoding="utf-8")
+
+    monkeypatch.setattr(module, "DYNSEC_PATH", dynsec)
+    monkeypatch.setattr(module, "ROLLBACK_SNAPSHOT", snapshot)
+    monkeypatch.setattr(module, "EXPECTED_DYNSEC_SHA256", "0" * 64)
+    monkeypatch.setattr(module.os, "chown", lambda *_args: None)
+
+    with pytest.raises(
+        module.S20ServiceHandoffError,
+        match="rollback_snapshot_sha_mismatch",
+    ):
+        module._create_snapshot()
+
+    assert not snapshot.exists()
+
+
+def test_restore_snapshot_validates_before_replacing_live_dynsec(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+
+    def reject_snapshot() -> str:
+        events.append("verify")
+        raise module.S20ServiceHandoffError("r4_rollback_snapshot_sha_drift")
+
+    monkeypatch.setattr(
+        module,
+        "_verify_r4_snapshot_if_present",
+        reject_snapshot,
+    )
+    monkeypatch.setattr(
+        module.os,
+        "replace",
+        lambda *_args: events.append("replace"),
+    )
+
+    with pytest.raises(
+        module.S20ServiceHandoffError,
+        match="r4_rollback_snapshot_sha_drift",
+    ):
+        module._restore_snapshot()
+
+    assert events == ["verify"]
+
+
+def test_runtime_rollback_keeps_preclaim_parent_origin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+
+    monkeypatch.setattr(
+        module,
+        "build_preclaim_report",
+        lambda *_args, **_kwargs: {
+            "status": "PASS",
+            "secret_parent_state": "absent",
+        },
+    )
+    monkeypatch.setattr(module, "_stop_broker", lambda _runner: None)
+    monkeypatch.setattr(
+        module,
+        "_restore_snapshot_or_verify_baseline",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        module,
+        "_cleanup_transaction_material",
+        lambda *, remove_bundle, parent_was_absent=None: events.append(
+            f"{str(remove_bundle).lower()}:{str(parent_was_absent).lower()}"
+        ),
+    )
+    monkeypatch.setattr(module, "_rollback_postcheck", lambda _runner: None)
+
+    runtime = module.LocalTransactionRuntime(
+        object(),  # type: ignore[arg-type]
+        executor_path=None,
+        executor_source_sha256="a" * 64,
+        streamed_dependency_sha256={},
+        expected_executor_sha256="a" * 64,
+    )
+
+    runtime.preclaim()
+    runtime.rollback()
+
+    assert events == ["true:true"]
