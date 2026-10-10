@@ -6,7 +6,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from types import SimpleNamespace
+from types import MappingProxyType, SimpleNamespace
 
 
 SOURCE = (
@@ -187,14 +187,18 @@ def test_existing_exact_entry_is_noop(
 ) -> None:
     module, metadata = _material(tmp_path)
     entry = SimpleNamespace(
-        data={
-            "broker": "127.0.0.1",
-            "port": 1883,
-            "protocol": "5",
-            "username": "ghs_greenhouse_homeassistant",
-            "client_id": "gh-homeassistant-greenhouse",
-            "password": "private-password",
-        }
+        data=MappingProxyType(
+            {
+                "broker": "127.0.0.1",
+                "port": 1883,
+                "protocol": "5",
+                "username": "ghs_greenhouse_homeassistant",
+                "client_id": "gh-homeassistant-greenhouse",
+                "password": "private-password",
+                "transport": "tcp",
+            }
+        ),
+        disabled_by=None,
     )
     hass = _hass([entry])
 
@@ -219,14 +223,18 @@ def test_existing_mismatch_fails_closed(
 ) -> None:
     module, metadata = _material(tmp_path)
     entry = SimpleNamespace(
-        data={
-            "broker": "127.0.0.1",
-            "port": 1883,
-            "protocol": "5",
-            "username": "wrong-user",
-            "client_id": "gh-homeassistant-greenhouse",
-            "password": "private-password",
-        }
+        data=MappingProxyType(
+            {
+                "broker": "127.0.0.1",
+                "port": 1883,
+                "protocol": "5",
+                "username": "wrong-user",
+                "client_id": "gh-homeassistant-greenhouse",
+                "password": "private-password",
+                "transport": "tcp",
+            }
+        ),
+        disabled_by=None,
     )
     hass = _hass([entry])
 
@@ -245,6 +253,42 @@ def test_existing_mismatch_fails_closed(
     assert not hass.config_entries.flow.initialized
     assert not hass.config_entries.flow.configured
 
+
+
+def test_existing_disabled_entry_fails_closed(
+    tmp_path,
+) -> None:
+    module, metadata = _material(tmp_path)
+    entry = SimpleNamespace(
+        data=MappingProxyType(
+            {
+                "broker": "127.0.0.1",
+                "port": 1883,
+                "protocol": "5",
+                "username": "ghs_greenhouse_homeassistant",
+                "client_id": "gh-homeassistant-greenhouse",
+                "password": "private-password",
+                "transport": "tcp",
+            }
+        ),
+        disabled_by="user",
+    )
+    hass = _hass([entry])
+
+    result = asyncio.run(
+        module.async_setup(
+            hass,
+            {
+                module.DOMAIN: {
+                    "metadata_file": str(metadata),
+                }
+            },
+        )
+    )
+
+    assert result is False
+    assert not hass.config_entries.flow.initialized
+    assert not hass.config_entries.flow.configured
 
 def test_multiple_mqtt_entries_fail_closed(
     tmp_path,
