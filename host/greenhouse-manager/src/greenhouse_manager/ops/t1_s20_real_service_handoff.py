@@ -749,6 +749,8 @@ def _rr(
             "docker",
             "exec",
             "-i",
+            "--user",
+            "0:0",
             CONTAINER_NAME,
             "mosquitto_rr",
             "-o",
@@ -804,6 +806,8 @@ def _mqtt_action(
         (
             "docker",
             "exec",
+            "--user",
+            "0:0",
             CONTAINER_NAME,
             "mosquitto_pub",
             "-o",
