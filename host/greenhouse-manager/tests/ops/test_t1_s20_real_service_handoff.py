@@ -463,3 +463,77 @@ def test_rejects_local_broker_with_other_index_digest() -> None:
         module._verify_broker_source_tag(
             runner,  # type: ignore[arg-type]
         )
+
+
+class SecretClientRunner:
+    def __init__(self) -> None:
+        self.commands: list[tuple[str, ...]] = []
+
+    def run(
+        self,
+        command: tuple[str, ...],
+        *,
+        input_text: str | None = None,
+        timeout: float = 30.0,
+    ) -> tuple[int, str]:
+        self.commands.append(command)
+        if "mosquitto_rr" in command:
+            return (
+                0,
+                json.dumps(
+                    {
+                        "responses": [
+                            {
+                                "command": "listClients",
+                            }
+                        ]
+                    }
+                ),
+            )
+        return 0, ""
+
+
+def test_dynsec_secret_client_runs_as_root_not_broker_uid() -> None:
+    runner = SecretClientRunner()
+
+    module._rr(
+        runner,  # type: ignore[arg-type]
+        ({"command": "listClients"},),
+        "/run/n3w-s20/admin.conf",
+    )
+
+    command = runner.commands[-1]
+    assert command[:6] == (
+        "docker",
+        "exec",
+        "-i",
+        "--user",
+        "0:0",
+        module.CONTAINER_NAME,
+    )
+
+
+def test_service_secret_client_runs_as_root_not_broker_uid() -> None:
+    runner = SecretClientRunner()
+
+    assert module._mqtt_action(
+        runner,  # type: ignore[arg-type]
+        "manager",
+        "/run/n3w-s20/manager.conf",
+    )
+
+    command = runner.commands[-1]
+    assert command[:5] == (
+        "docker",
+        "exec",
+        "--user",
+        "0:0",
+        module.CONTAINER_NAME,
+    )
+
+
+def test_temp_broker_itself_remains_uid_1883() -> None:
+    source = Path(module.__file__).read_text(encoding="utf-8")
+
+    assert '"--user",\n        "1883:1883"' in source
+    assert '"--user",\n            "0:0"' in source
