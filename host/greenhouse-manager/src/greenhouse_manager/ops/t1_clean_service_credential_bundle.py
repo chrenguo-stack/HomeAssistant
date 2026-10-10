@@ -43,6 +43,16 @@ def _sha256_path(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _path_contains_symlink(path: Path) -> bool:
+    current = path
+    while True:
+        if current.is_symlink():
+            return True
+        if current == current.parent:
+            return False
+        current = current.parent
+
+
 def _make_private_directory(path: Path) -> None:
     path.mkdir(mode=0o700)
     os.chmod(path, 0o700)
@@ -176,15 +186,20 @@ def create_clean_service_credential_bundle(
     generation: int = 1,
     random_bytes: Callable[[int], bytes] | None = None,
 ) -> dict[str, object]:
-    root = Path(destination).expanduser().resolve(strict=False)
-    if root.exists() or root.is_symlink():
+    requested = Path(destination).expanduser()
+    if requested.exists() or requested.is_symlink():
         raise CleanServiceCredentialBundleError(
             "credential bundle destination already exists"
         )
-    if not root.parent.is_dir() or root.parent.is_symlink():
+    parent = requested.parent
+    if (
+        not parent.is_dir()
+        or _path_contains_symlink(parent)
+    ):
         raise CleanServiceCredentialBundleError(
             "credential bundle parent is unavailable"
         )
+    root = parent.resolve() / requested.name
 
     random_source = random_bytes
     plans: dict[str, ServiceIdentityPlan] = {}
@@ -308,10 +323,14 @@ def create_clean_service_credential_bundle(
 def verify_clean_service_credential_bundle(
     directory: str | Path,
 ) -> dict[str, object]:
-    root = Path(directory).expanduser().resolve()
+    requested = Path(directory).expanduser()
+    if _path_contains_symlink(requested):
+        raise CleanServiceCredentialBundleError(
+            "credential bundle root is unsafe"
+        )
+    root = requested.resolve()
     if (
         not root.is_dir()
-        or root.is_symlink()
         or root.stat().st_mode & 0o777 != 0o700
     ):
         raise CleanServiceCredentialBundleError(
@@ -384,6 +403,56 @@ def verify_clean_service_credential_bundle(
     ):
         raise CleanServiceCredentialBundleError(
             "credential bundle manifest contract is invalid"
+        )
+
+    records = manifest.get("files")
+    if not isinstance(records, list):
+        raise CleanServiceCredentialBundleError(
+            "credential bundle manifest inventory is invalid"
+        )
+    expected_records = expected - {"manifest.json"}
+    record_paths: set[str] = set()
+    for record in records:
+        if not isinstance(record, dict):
+            raise CleanServiceCredentialBundleError(
+                "credential bundle manifest inventory is invalid"
+            )
+        relative = record.get("path")
+        if (
+            not isinstance(relative, str)
+            or relative not in expected_records
+            or relative in record_paths
+        ):
+            raise CleanServiceCredentialBundleError(
+                "credential bundle manifest inventory is invalid"
+            )
+        target = root / relative
+        if (
+            record.get("mode") != 0o600
+            or record.get("size") != target.stat().st_size
+            or record.get("sha256") != _sha256_path(target)
+            or not isinstance(record.get("contains_secret"), bool)
+        ):
+            raise CleanServiceCredentialBundleError(
+                "credential bundle manifest file binding is invalid"
+            )
+        record_paths.add(relative)
+    if record_paths != expected_records:
+        raise CleanServiceCredentialBundleError(
+            "credential bundle manifest inventory is incomplete"
+        )
+    secret_paths = {
+        str(record["path"])
+        for record in records
+        if record.get("contains_secret") is True
+    }
+    if secret_paths != {
+        "manager/password",
+        "provisioning/password",
+        "homeassistant/password",
+    }:
+        raise CleanServiceCredentialBundleError(
+            "credential bundle secret inventory is invalid"
         )
 
     homeassistant = manifest.get("homeassistant")
