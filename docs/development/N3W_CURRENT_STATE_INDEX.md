@@ -1,3 +1,31 @@
+> **2026-10-11 S20 R4 apply FAIL / rollback product-state restored but Docker volume baseline drift / readiness root cause confirmed**：R4 authorization `N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_R4_20261010_01` 已 claim+consume，永久禁止 replay。R4 temporary Broker 已成功 create/start 并存活约 21 s，说明此前 TLS startup blocker 已关闭；失败点前移到 readiness/admin control：executor `admin.conf` 固定 `127.0.0.1:1883` plain MQTT，而 exact live Broker config 只有 TLS `listener 8883`，全部 `mosquitto_rr` readiness probe exitCode=1，未进入 createRole/createClient。rollback 外部取证证明 DynSec exact baseline、R1/R2/R3/R4 snapshots exact、secret/transaction material absent、0 containers、0 MQTT listeners、两项目网络为空、guard active+enabled；但 Docker volume 从 45 漂移为 46，set SHA 从 `20fc8457...` 变为 `918671f5...`。这正是 `_rollback_postcheck` 的 volume-set mismatch，因此 rollback 只能记为 CLOSED_PARTIAL / manual recovery required。当前先只读识别新增 volume，未授权删除，也未授权 R5。
+
+```text
+S20_APPLY_R4=FAIL
+S20_APPLY_R4_ROLLBACK=CLOSED_PARTIAL
+R4_AUTHORIZATION_CLAIMED=true
+R4_AUTHORIZATION_CONSUMED=true
+R4_AUTHORIZATION_REPLAY=false
+R4_TEMP_BROKER_STARTUP=PASS
+R4_READINESS_ROOT_CAUSE_STATUS=CONFIRMED
+R4_READINESS_ROOT_CAUSE=ADMIN_CLIENT_CONFIG_HARDCODES_PLAINTEXT_127_0_0_1_1883_WHILE_EXACT_TEMP_BROKER_CONFIG_EXPOSES_TLS_8883_ONLY
+SERVICE_DYNSEC_MUTATION_REACHED=false
+REAL_DYNSEC_BASELINE_EXACT=true
+PRODUCTION_SECRET_DESTINATION_PRESENT=false
+TRANSACTION_CONTAINER_PRESENT=false
+HOST_MQTT_LISTENERS=0
+DOCKER_VOLUME_COUNT=46
+DOCKER_VOLUME_SET_BASELINE_EXACT=false
+MANUAL_RECOVERY_REQUIRED=true
+KF_102=OPEN_GUARDED_BY_NEW_READONLY_ATTRIBUTION_GATE
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+NEXT_ONE_GATE=N3W_T1_S20_R4_EXTRA_DOCKER_VOLUME_READONLY_ATTRIBUTION_20261011_01
+```
+
+Authority: `docs/development/N3W_T1_S20_R4_READINESS_AND_ROLLBACK_VOLUME_DRIFT_PROGRESS_ALIGNMENT_20261011.md`.
+
 > **2026-10-10 S20 R3 apply FAIL / rollback CLOSED_PASS / persistent startup blocker corrected / R4 prepared**：R3 authorization `N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_R3_20261010_01` 已 claim+consume，禁止 replay。独立只读取证证明 R3 exact baseline restored：0 containers、0 MQTT listeners、45-volume set unchanged、两项目网络为空、guard active/enabled、DynSec admin-only、三服务身份/roles 与 node 均 absent、secret/transaction material absent；R1/R2/R3 snapshots 均 root:root 0600 且 exact baseline SHA。因此 R3 rollback=CLOSED_PASS。R3 Docker events 仍为 create→start→die(exitCode=1)→destroy，且无 docker exec。fresh live config 证据确认 `/etc/n3wfc4/mosquitto.conf` 的 TLS directives 指向 `/mosquitto/config/n3w-ca.pem`、`n3w-server.pem`、`n3w-server.key`，而 R3 executor 将文件挂载到 `/mosquitto/tls/*`，属于确定性的 Broker config→mount path mismatch。R4 已改为单一常量合同，preclaim 显式验证 config TLS path，并将 host TLS 文件挂到 exact config target；同时补强 snapshot create/restore 和 secret-parent rollback provenance。
 
 ```text
