@@ -553,6 +553,7 @@ def _verify_tls_material() -> None:
         ):
             raise S20ServiceHandoffError(f"{label}_owner_mode_drift")
 
+
 def build_preclaim_report(
     runner: CommandRunner,
     *,
