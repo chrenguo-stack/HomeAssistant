@@ -1,3 +1,34 @@
+## 2026-10-10 PR #541 S19 isolated permissions CLOSED_PASS; S20 source/runtime read-only next
+
+Latest **branch** authority (does not imply merged main): `docs/development/N3W_T1_S19_ISOLATED_SERVICE_IDENTITY_INIT_PREEXECUTION_20261010.md` and `docs/development/N3W_T1_S20_PRODUCTION_SERVICE_CREDENTIAL_HANDOFF_READONLY_PREFLIGHT_20261010.md`. Exact main `d423211b6196c2f2f0f01dff072c4f877fbe58ee`; PR #541 `OPEN_DRAFT`, software-only fresh T1 rebuild preserves Armbian/SSH/NetworkManager/Docker, 45 pre-existing Docker volumes, and the two currently empty `n3wfc4` networks. Early OS disk wipe plan is SUPERSEDED. Product shall have a single Home Assistant instance.
+
+```text
+CURRENT_ROUTE=T1_SOFTWARE_ONLY_CLEAN_REDEPLOY_PRESERVE_ARMBIAN
+S19_R1_STATIC_SERVICE_ACLS=PASS
+S19_R3_PROVISIONING_CONTROL_RUNTIME=PASS
+S19_R5_NODE_MANAGER_HA_POSITIVE_DELIVERY=PASS
+S19_R6A_CORRECT_WRONG_CLIENT_ID_ANONYMOUS=PASS
+S19_R6B_CROSS_TOPIC_AND_DEFAULT_RECEIVE_DENY=PASS
+S19_ISOLATED_IDENTITY_AND_ACL_ACCEPTANCE=CLOSED_PASS
+S19_R2_R4_HISTORICAL_FAILURES=RETAINED
+S19_R4_TEST_FIXTURE_ADMIN_UNAUTHORIZED_INGRESS_PUBLISH=PROVEN
+S19_R4_EXACT_RUNTIME_ACK_REASON=NOT_OBSERVED
+S20_PRODUCTION_HANDOFF=OPEN_PREFLIGHT
+S20_PRODUCTION_CLIENTS_CREATED=false
+T1_PRODUCTION_BROKER_STARTED=false
+T1_HOST_TCP8883_PUBLISHED=false
+T1_LAST_REPORTED_DYNSEC_SHA256=94f3c0a3dbed90f3d2a3e96696dba8bed8093194903aeed106559090764d1ad5
+T1_LAST_REPORTED_S18_BACKUP_SHA256=93c751a788200498869de39a3218a82de53e5cd3d29170360ea55959d0af85da
+NEXT_ONE_GATE=N3W_T1_S20_PRODUCTION_THREE_SERVICE_CREDENTIAL_HANDOFF_AND_DEPLOYMENT_PREFLIGHT
+S20_READONLY_SOURCE_RUNTIME_REBIND_REQUIRED=true
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+```
+
+S20 high-value blocker: verify **real Manager/Provisioning/HA consumers and their separate private password-file ownership/mounts** before provisioning any production accounts. Manager supports `GH_MQTT_PASSWORD_FILE`, Provisioning supports `GH_N3W_PROVISIONING_PASSWORD_FILE`; Home Assistant fresh runtime secret consumption is not yet exact-bound. Historical migration package auto-generates a node account and MUST NOT be used for first-pair clean-product production (node credentials created only per actual Gate F pairing). Host state is only the latest operator report from S19-R6B on 2026-10-10, not a new SSH runtime observation; S20 must refresh read-only host evidence.
+
+New chat authority to be generated using `NEW_CHAT_HANDOFF_STANDARD.md` + `templates/NEW_CHAT_HANDOFF_TEMPLATE.md`, frozen at `4300890dff0ce63d5a547df21426e287d084d9ee`. This top-of-file snapshot supersedes older same-file NEXT_ONE_GATE records. PR remains draft; no merge authorized.
+
 ## 2026-10-10 T1 S0 R1 real evidence classified; inspect failed 6/6, S0 R2 exact mounts next
 
 ```text
