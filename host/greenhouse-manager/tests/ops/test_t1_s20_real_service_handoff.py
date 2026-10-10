@@ -537,3 +537,94 @@ def test_temp_broker_itself_remains_uid_1883() -> None:
 
     assert '"--user",\n        "1883:1883"' in source
     assert '"--user",\n            "0:0"' in source
+
+
+class BrokerLifecycleRunner:
+    def __init__(
+        self,
+        *,
+        rm_code: int = 0,
+        inspect_code: int = 1,
+    ) -> None:
+        self.rm_code = rm_code
+        self.inspect_code = inspect_code
+        self.commands: list[tuple[str, ...]] = []
+
+    def run(
+        self,
+        command: tuple[str, ...],
+        *,
+        input_text: str | None = None,
+        timeout: float = 30.0,
+    ) -> tuple[int, str]:
+        assert input_text is None
+        self.commands.append(command)
+        if command[:3] == ("docker", "rm", "-f"):
+            assert timeout == 30
+            return self.rm_code, ""
+        if command[:2] == ("docker", "inspect"):
+            assert timeout == 10
+            return self.inspect_code, ""
+        if command[:2] == ("docker", "run"):
+            assert timeout == 60
+            return 0, "container-id"
+        raise AssertionError(command)
+
+
+def test_stop_broker_accepts_absent_only_after_inspect_proves_absence() -> None:
+    runner = BrokerLifecycleRunner(rm_code=1, inspect_code=1)
+
+    module._stop_broker(
+        runner,  # type: ignore[arg-type]
+    )
+
+    assert runner.commands[-1][:2] == ("docker", "inspect")
+
+
+def test_stop_broker_rejects_container_still_present() -> None:
+    runner = BrokerLifecycleRunner(rm_code=0, inspect_code=0)
+
+    with pytest.raises(
+        module.S20ServiceHandoffError,
+        match="transaction_broker_still_present",
+    ):
+        module._stop_broker(
+            runner,  # type: ignore[arg-type]
+        )
+
+
+def test_start_broker_uses_verified_local_image_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = BrokerLifecycleRunner()
+    image_id = "sha256:" + "1" * 64
+
+    monkeypatch.setattr(
+        module,
+        "_verify_broker_source_tag",
+        lambda _runner: {
+            "image_id": image_id,
+            "platform": "linux/arm64",
+            "index_digest": module.EXPECTED_BROKER_INDEX_DIGEST,
+            "arm64_manifest_digest": (
+                module.EXPECTED_BROKER_ARM64_MANIFEST_DIGEST
+            ),
+        },
+    )
+    monkeypatch.setattr(
+        module,
+        "_rr",
+        lambda *_args, **_kwargs: ({"command": "listClients"},),
+    )
+
+    module._start_broker(
+        runner,  # type: ignore[arg-type]
+    )
+
+    run_command = next(
+        command
+        for command in runner.commands
+        if command[:2] == ("docker", "run")
+    )
+    assert run_command[-1] == image_id
+    assert module.BROKER_SOURCE_TAG not in run_command
