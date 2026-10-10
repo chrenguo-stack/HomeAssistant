@@ -1,3 +1,23 @@
+> **2026-10-10 S20 R2 source review / retained R1 snapshot policy frozen / new authorization pending**：R1 authorization 已永久消耗且不可 replay。R2 不删除、不覆盖、不复用 R1 snapshot；R1 retained evidence 必须在 preclaim 中以 root:root 0600 + exact baseline SHA 重新验证。R2 使用独立 create-new-only snapshot `/etc/n3wfc4/private/dynsec-s20-r2-pre-three-service.json`，只有 fresh preclaim PASS + 新明确授权后才能 claim，且该 snapshot 仍是 claim 后第一笔写入。rollback 只使用 R2 snapshot；cleanup 现在必须证明 secret/transaction material 实际消失，并增加完整 rollback postcheck。新的 authorization ID 已定义，但尚未获得用户 live mutation 批准。
+
+```text
+S20_R2_SOURCE_REVIEW=PASS_PENDING_CI
+R1_AUTHORIZATION_CONSUMED=true
+R1_AUTHORIZATION_REPLAY=false
+R1_RETAINED_SNAPSHOT_MUTATION=false
+R2_ROLLBACK_SNAPSHOT=/etc/n3wfc4/private/dynsec-s20-r2-pre-three-service.json
+R2_AUTHORIZATION_ID=N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_R2_20261010_01
+R2_USER_APPROVAL=NOT_YET_GRANTED
+R2_AUTHORIZATION_CLAIMED=false
+R2_AUTHORIZATION_CONSUMED=false
+LIVE_T1_MUTATION=false
+PRODUCTION_BROKER_STARTED=false
+BOARD_ACCESS=false
+NEXT_ONE_GATE=N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_R2_SOURCE_CI_AND_PRECLAIM_20261010_01
+```
+
+Authority: `docs/development/N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_R2_SOURCE_REVIEW_AND_AUTHORIZATION_DESIGN_20261010.md`.
+
 > **2026-10-10 S20 real three-service handoff R1 FAIL / rollback CLOSED_PASS / root cause confirmed**：一次性授权 `N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_20261010_01` 已 claim 并永久消耗。R1 临时 Broker 使用 exact frozen image 成功 create/start，但约 1 秒后 exitCode=1；fresh forensic 证明 DynSec exact baseline restored、三服务 client/role 均不存在、secret/transaction material 已清理、0 containers、0 MQTT listeners、45 volumes 与原集合一致、两项目网络为空、guard active/enabled，因此 rollback=CLOSED_PASS。根因确认：executor 错误强制 Broker `--user 1883:1883`，而镜像默认 `User=""` 走 `/docker-entrypoint.sh`；生产 TLS 目录为 root:root 0700，UID1883 无法 traverse/read TLS material。source repair 已移除 Broker user override，保留 one-shot secret client `docker exec --user 0:0`，并增加 early-exit diagnosis。R1 snapshot 保留为证据；任何 R2 live apply 必须新 authorization ID + 新明确批准，旧授权不得 replay。
 
 ```text
