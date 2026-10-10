@@ -1,3 +1,23 @@
+> **2026-10-10 S20 real three-service secret handoff design PASS / explicit authorization pending**：已冻结真实三服务凭据写入事务：exact 三身份、三独立密码、Manager/Provisioning 数字 UID/GID 999:999、HA root-owned secret、network-none/no-port 临时 Broker、fresh S20 DynSec rollback snapshot、三服务正反认证、失败后 exact DynSec restore + transaction-created secret cleanup。当前没有执行任何 T1 mutation；下一门须先 source executor + CI + fresh preclaim，随后只有在用户明确批准一次性 authorization 后才能 claim/apply。
+
+```text
+S20_REAL_THREE_SERVICE_SECRET_HANDOFF_DESIGN=PASS
+DESIGN_COMMIT=c1a1121e91f54c75c2c07c9083c03e72b2b4d79e
+AUTHORIZATION_ID=N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_20261010_01
+EXPLICIT_AUTHORIZATION_STATUS=PENDING_USER_APPROVAL
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+PRODUCTION_CLIENT_CREATION=false
+PRODUCTION_BROKER_STARTED=false
+HOST_1883_PUBLICATION=false
+HOST_8883_PUBLICATION=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+NEXT_ONE_GATE_AFTER_APPROVAL=N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_SOURCE_PREPARATION_AND_APPLY_20261010_01
+```
+
+Authority: `docs/development/N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_DESIGN_AND_EXPLICIT_AUTHORIZATION_20261010.md`.
+
 > **2026-10-10 S20 production three-service credential handoff/deployment preflight R2 CLOSED_PASS**：PR #541 exact source、真实 production Compose/image-lock、ARM64 image binding、authenticated Broker readiness、HA bootstrap isolated runtime 与 fresh T1 host read-only guard 全部对齐。T1 当前无容器、45 volumes、两项目网络为空、guard active+enabled 且双 first-jump/terminal DROP、host 8883/18883 均无监听；生产 Broker config/DynSec/S18 backup SHA 均与冻结 authority 一致。三生产账号仍未创建，Broker/Manager/HA 均未启动，本 PASS 只表示已具备申请下一门明确 mutation 授权的条件。
 
 ```text
