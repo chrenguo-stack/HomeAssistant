@@ -38,3 +38,40 @@ PR541=OPEN_DRAFT
 ```
 
 本文件只保存脱敏状态与决策，不向 GitHub 提交执行脚本、私有主机地址、Docker auth token、私钥或终端原始日志。
+
+
+## S13-R1 现场追加：DNS 正常但 HTTPS unreachable
+
+用户于 S13-R1 提供真实 T1 只读取证：
+
+```text
+DNS_registry-1.docker.io=PASS
+DNS_auth.docker.io=PASS
+REGISTRY_V2=FAIL
+REGISTRY_V2_ERROR=Network is unreachable (errno 101)
+REGISTRY_AUTH=FAIL
+REGISTRY_AUTH_ERROR=Network is unreachable (errno 101)
+MANIFEST_READ=TIMEOUT
+DOCKER_CONTAINER_COUNT_ZERO=True
+S13_R1_READONLY_COMPLETE=true
+IMAGE_PULL_EXECUTED=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+SSH_OR_REMOTE_EXIT_CODE=0
+```
+
+此证据支持：域名查询可用，但 T1 运行环境无法成功通过 HTTPS 访问 Docker Hub registry/auth；镜像清单请求超时。**不能仅凭 errno 101 区分无 IPv4 默认路由、IPv6 unreachable、代理误配或出站阻断**。S13 首个 pull 的真实 stderr 仍未捕获，不回填猜测作为原始错误。
+
+下一门只做定向只读路由、IPv4/IPv6 分栈 TCP 到 registry/auth、已知公共 IPv4:443 TCP 与 Docker daemon/system proxy 是否启用的布尔检查；不吐出代理 URL/口令。诊断前不得修改 NetworkManager、默认路由、DNS、guard、防火墙、Docker daemon/proxy 或 SSH。
+
+```text
+S13_R1_DNS=PASS
+S13_R1_REGISTRY_HTTPS=FAIL
+S13_R1_MANIFEST=TIMEOUT
+S13_R1_ROOT_CAUSE=UNRESOLVED
+NEXT_ONE_GATE=S13_R2_IPV4_IPV6_ROUTE_AND_EGRESS_READONLY_FORENSIC
+S13_R2_T1_MUTATION=false
+S13_R2_IMAGE_PULL=false
+S13_R2_BOARD_ACCESS=false
+S13_BROKER_START=false
+```
