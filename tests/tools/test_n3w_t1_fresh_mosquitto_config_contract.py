@@ -42,13 +42,13 @@ def test_production_listener_and_global_dynsec_are_exact() -> None:
 def test_tls_uses_fixed_readonly_bind_targets() -> None:
     lines = _directives()
     assert [x for x in lines if x.startswith("cafile ")] == [
-        "cafile /mosquitto/config/n3w-ca.pem"
+        "cafile /mosquitto/tls/ca.pem"
     ]
     assert [x for x in lines if x.startswith("certfile ")] == [
-        "certfile /mosquitto/config/n3w-server.pem"
+        "certfile /mosquitto/tls/server.pem"
     ]
     assert [x for x in lines if x.startswith("keyfile ")] == [
-        "keyfile /mosquitto/config/n3w-server.key"
+        "keyfile /mosquitto/tls/server.key"
     ]
     assert [x for x in lines if x.startswith("tls_version ")] == [
         "tls_version tlsv1.2"
@@ -77,9 +77,9 @@ def test_homeassistant_plain_listener_has_no_tls_directives_before_tls_listener(
     plain_index = lines.index("listener 1883 0.0.0.0")
     tls_index = lines.index("listener 8883 0.0.0.0")
     tls_directives = {
-        "cafile /mosquitto/config/n3w-ca.pem",
-        "certfile /mosquitto/config/n3w-server.pem",
-        "keyfile /mosquitto/config/n3w-server.key",
+        "cafile /mosquitto/tls/ca.pem",
+        "certfile /mosquitto/tls/server.pem",
+        "keyfile /mosquitto/tls/server.key",
         "tls_version tlsv1.2",
     }
 
