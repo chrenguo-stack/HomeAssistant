@@ -16,10 +16,12 @@ from greenhouse_manager.runtime.service_identity_plan import (
 )
 
 SCHEMA = "gh.n3w.t1-clean-service-credential-bundle/1"
-HA_HANDOFF_SCHEMA = "gh.n3w.t1-clean-homeassistant-mqtt-handoff/1"
+HA_BOOTSTRAP_SCHEMA = "gh.n3w.t1-clean-homeassistant-mqtt-bootstrap/1"
 _SERVICES = ("manager", "provisioning", "homeassistant")
 _MANAGER_TARGET = "/run/secrets/gh_manager_mqtt_password"
 _PROVISIONING_TARGET = "/run/secrets/gh_n3w_provisioning_mqtt_password"
+_HA_PASSWORD_TARGET = "/run/secrets/gh_homeassistant_mqtt_password"
+_HA_BOOTSTRAP_TARGET = "/run/n3w/ha-mqtt-bootstrap.json"
 
 
 class CleanServiceCredentialBundleError(RuntimeError):
@@ -161,22 +163,49 @@ def _manager_compose_fragment(
     )
 
 
-def _homeassistant_handoff(
+def _homeassistant_bootstrap(
     plan: ServiceIdentityPlan,
 ) -> dict[str, object]:
     return {
-        "schema": HA_HANDOFF_SCHEMA,
+        "schema": HA_BOOTSTRAP_SCHEMA,
         "service": "homeassistant",
+        "broker": "127.0.0.1",
+        "port": 1883,
+        "protocol": "5",
         "username": plan.username,
         "client_id": plan.client_id,
         "generation": plan.generation,
-        "password_file": "homeassistant/password",
+        "password_file": _HA_PASSWORD_TARGET,
         "official_config_flow_only": True,
         "direct_storage_edit_forbidden": True,
-        "automatic_apply": False,
+        "automatic_apply": True,
         "operator_plaintext_copy_required": False,
-        "fresh_product_consumer_verified": False,
+        "runtime_verified": False,
     }
+
+
+def _homeassistant_compose_fragment(
+    root: Path,
+) -> str:
+    password_source = (
+        root / "homeassistant/password"
+    ).as_posix()
+    bootstrap_source = (
+        root / "homeassistant/mqtt-bootstrap.json"
+    ).as_posix()
+    return (
+        "services:\n"
+        "  homeassistant:\n"
+        "    volumes:\n"
+        "      - type: bind\n"
+        f"        source: {password_source}\n"
+        f"        target: {_HA_PASSWORD_TARGET}\n"
+        "        read_only: true\n"
+        "      - type: bind\n"
+        f"        source: {bootstrap_source}\n"
+        f"        target: {_HA_BOOTSTRAP_TARGET}\n"
+        "        read_only: true\n"
+    )
 
 
 def create_clean_service_credential_bundle(
@@ -259,12 +288,16 @@ def create_clean_service_credential_bundle(
             ),
         )
         _write_private(
-            root / "homeassistant/mqtt-handoff.json",
+            root / "homeassistant/mqtt-bootstrap.json",
             _json_text(
-                _homeassistant_handoff(
+                _homeassistant_bootstrap(
                     plans["homeassistant"],
                 )
             ),
+        )
+        _write_private(
+            root / "homeassistant/compose-secret-fragment.yaml",
+            _homeassistant_compose_fragment(root),
         )
 
         records: list[dict[str, object]] = []
@@ -300,11 +333,14 @@ def create_clean_service_credential_bundle(
                 "inline_password_environment_forbidden": True,
             },
             "homeassistant": {
-                "consumer": "homeassistant_mqtt_integration",
+                "consumer": "n3w_mqtt_bootstrap_to_homeassistant_mqtt",
                 "official_config_flow_only": True,
                 "direct_storage_edit_forbidden": True,
-                "automatic_apply": False,
-                "fresh_product_consumer_verified": False,
+                "automatic_apply": True,
+                "password_target": _HA_PASSWORD_TARGET,
+                "bootstrap_target": _HA_BOOTSTRAP_TARGET,
+                "fresh_product_consumer_source_defined": True,
+                "runtime_verified": False,
             },
             "files": records,
             "secret_values_included": False,
@@ -346,7 +382,8 @@ def verify_clean_service_credential_bundle(
         "provisioning/identity.json",
         "homeassistant/password",
         "homeassistant/identity.json",
-        "homeassistant/mqtt-handoff.json",
+        "homeassistant/mqtt-bootstrap.json",
+        "homeassistant/compose-secret-fragment.yaml",
         "manifest.json",
     }
     actual = {
@@ -460,11 +497,14 @@ def verify_clean_service_credential_bundle(
         not isinstance(homeassistant, dict)
         or homeassistant.get("official_config_flow_only") is not True
         or homeassistant.get("direct_storage_edit_forbidden") is not True
-        or homeassistant.get("automatic_apply") is not False
-        or homeassistant.get("fresh_product_consumer_verified") is not False
+        or homeassistant.get("automatic_apply") is not True
+        or homeassistant.get("fresh_product_consumer_source_defined") is not True
+        or homeassistant.get("runtime_verified") is not False
+        or homeassistant.get("password_target") != _HA_PASSWORD_TARGET
+        or homeassistant.get("bootstrap_target") != _HA_BOOTSTRAP_TARGET
     ):
         raise CleanServiceCredentialBundleError(
-            "Home Assistant handoff contract is invalid"
+            "Home Assistant bootstrap contract is invalid"
         )
 
     passwords = {
@@ -511,26 +551,42 @@ def verify_clean_service_credential_bundle(
         )
 
     try:
-        ha_handoff = json.loads(
+        ha_bootstrap = json.loads(
             (
                 root
-                / "homeassistant/mqtt-handoff.json"
+                / "homeassistant/mqtt-bootstrap.json"
             ).read_text(encoding="utf-8")
         )
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise CleanServiceCredentialBundleError(
-            "Home Assistant handoff is invalid"
+            "Home Assistant bootstrap metadata is invalid"
         ) from error
     if (
-        not isinstance(ha_handoff, dict)
-        or ha_handoff.get("schema") != HA_HANDOFF_SCHEMA
-        or ha_handoff.get("automatic_apply") is not False
-        or ha_handoff.get("direct_storage_edit_forbidden") is not True
-        or ha_handoff.get("fresh_product_consumer_verified") is not False
-        or "password" in ha_handoff
+        not isinstance(ha_bootstrap, dict)
+        or ha_bootstrap.get("schema") != HA_BOOTSTRAP_SCHEMA
+        or ha_bootstrap.get("broker") != "127.0.0.1"
+        or ha_bootstrap.get("port") != 1883
+        or ha_bootstrap.get("protocol") != "5"
+        or ha_bootstrap.get("password_file") != _HA_PASSWORD_TARGET
+        or ha_bootstrap.get("automatic_apply") is not True
+        or ha_bootstrap.get("direct_storage_edit_forbidden") is not True
+        or ha_bootstrap.get("runtime_verified") is not False
+        or "password" in ha_bootstrap
     ):
         raise CleanServiceCredentialBundleError(
-            "Home Assistant handoff is unsafe"
+            "Home Assistant bootstrap metadata is unsafe"
+        )
+
+    ha_compose = (
+        root / "homeassistant/compose-secret-fragment.yaml"
+    ).read_text(encoding="utf-8")
+    if (
+        ha_compose.count("read_only: true") != 2
+        or _HA_PASSWORD_TARGET not in ha_compose
+        or _HA_BOOTSTRAP_TARGET not in ha_compose
+    ):
+        raise CleanServiceCredentialBundleError(
+            "Home Assistant Compose secret contract is invalid"
         )
 
     return manifest
