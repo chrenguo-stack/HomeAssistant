@@ -1,0 +1,38 @@
+name: N3W T1 HA bootstrap isolated CI
+
+on:
+  pull_request:
+    paths:
+      - "infra/n3w-t1/homeassistant/**"
+      - "tests/tools/test_n3w_ha_mqtt_bootstrap_isolated_runtime.py"
+      - ".github/workflows/n3w-t1-ha-bootstrap-isolated-ci.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "infra/n3w-t1/homeassistant/**"
+      - "tests/tools/test_n3w_ha_mqtt_bootstrap_isolated_runtime.py"
+      - ".github/workflows/n3w-t1-ha-bootstrap-isolated-ci.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install "pytest>=8,<9"
+      - run: docker pull ghcr.io/home-assistant/home-assistant:2026.10.0
+      - run: docker pull eclipse-mosquitto:2.1.2-alpine
+      - run: >-
+          python -m pytest -q
+          tests/tools/test_n3w_ha_mqtt_bootstrap_isolated_runtime.py

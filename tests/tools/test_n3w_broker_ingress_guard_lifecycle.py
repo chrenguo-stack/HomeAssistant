@@ -6,6 +6,7 @@ ROOT = Path(__file__).resolve().parents[2]
 INFRA = ROOT / "infra/n3w-t1"
 GUARD_UNIT = INFRA / "systemd/n3wfc4-broker-ingress-guard.service"
 ACTIVATION_UNIT = INFRA / "systemd/n3wfc4-broker-activation.service"
+SERVICES_UNIT = INFRA / "systemd/n3wfc4-services-activation.service"
 DISPATCHER = (
     INFRA
     / "NetworkManager/dispatcher.d/90-n3wfc4-broker-ingress-guard"
@@ -65,6 +66,21 @@ def test_broker_activation_is_runtime_supervisor() -> None:
     assert "Restart=always" in unit
     assert "RestartSec=5" in unit
     assert "RemainAfterExit=yes" not in unit
+
+
+def test_services_activation_waits_for_authenticated_broker() -> None:
+    unit = read(SERVICES_UNIT)
+
+    assert "Requires=docker.service n3wfc4-broker-activation.service" in unit
+    assert "After=docker.service n3wfc4-broker-activation.service" in unit
+    assert "Type=simple" in unit
+    assert "/usr/local/sbin/n3w-t1-broker-authenticated-readiness" in unit
+    assert "--metadata-file /opt/greenhouse-secrets/mqtt/homeassistant/mqtt-bootstrap.json" in unit
+    assert "--password-file /opt/greenhouse-secrets/mqtt/homeassistant/password" in unit
+    assert "--profile application up --no-deps --no-log-prefix --abort-on-container-exit manager homeassistant" in unit
+    assert "stop homeassistant manager" in unit
+    assert "Restart=always" in unit
+    assert "WantedBy=docker.service" in unit
 
 
 def test_dispatcher_only_handles_eth0_and_bounded_network_events() -> None:
@@ -137,20 +153,24 @@ def test_dispatcher_does_not_accept_event_subnet_as_authority() -> None:
         assert value not in script
 
 
-def test_systemd_persistence_installer_enables_both_units_without_starting_them() -> None:
+def test_systemd_persistence_installer_enables_all_units_without_starting_them() -> None:
     script = read(PERSISTENCE_INSTALLER)
 
-    enable = '/usr/bin/systemctl enable "$GUARD" "$ACTIVATION"'
+    enable = '/usr/bin/systemctl enable "$GUARD" "$ACTIVATION" "$SERVICES" "$CERT_TIMER"'
     guard_check = '/usr/bin/systemctl is-enabled "$GUARD"'
     activation_check = '/usr/bin/systemctl is-enabled "$ACTIVATION"'
+    services_check = '/usr/bin/systemctl is-enabled "$SERVICES"'
 
     assert enable in script
     assert guard_check in script
     assert activation_check in script
     assert script.index(enable) < script.index(guard_check)
     assert script.index(enable) < script.index(activation_check)
+    assert script.index(enable) < script.index(services_check)
     assert '"$guard_state" = "enabled"' in script
     assert '"$activation_state" = "enabled"' in script
+    assert '"$services_state" = "enabled"' in script
+    assert "SERVICES_ACTIVATION_ENABLED=%s" in script
     assert "SYSTEMD_PERSISTENCE_INSTALL=PASS" in script
     assert "enable --now" not in script
     assert "restart " not in script

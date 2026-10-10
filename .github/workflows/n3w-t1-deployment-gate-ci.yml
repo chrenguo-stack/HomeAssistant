@@ -5,6 +5,19 @@ on:
     paths:
       - "tools/n3w_pairing_deployment_gate.py"
       - "tests/tools/test_n3w_pairing_deployment_gate.py"
+      - "tools/n3w_t1_clean_product_deployment_gate.py"
+      - "tests/tools/test_n3w_t1_clean_product_deployment_gate.py"
+      - "tools/n3w_t1_broker_authenticated_readiness.py"
+      - "tests/tools/test_n3w_t1_broker_authenticated_readiness.py"
+      - "infra/n3w-t1/production/**"
+      - "infra/n3w-t1/broker/mosquitto.conf"
+      - "tests/tools/test_n3w_t1_fresh_mosquitto_config_contract.py"
+      - "infra/n3w-t1/homeassistant/**"
+      - "tests/tools/test_n3w_ha_mqtt_bootstrap_component.py"
+      - "infra/n3w-t1/systemd/n3wfc4-services-activation.service"
+      - "infra/n3w-t1/install-systemd-persistence.sh"
+      - "host/greenhouse-manager/src/greenhouse_manager/ops/t1_clean_service_credential_bundle.py"
+      - "host/greenhouse-manager/tests/ops/test_t1_clean_service_credential_bundle.py"
       - ".github/workflows/n3w-t1-deployment-gate-ci.yml"
   push:
     branches:
@@ -12,6 +25,19 @@ on:
     paths:
       - "tools/n3w_pairing_deployment_gate.py"
       - "tests/tools/test_n3w_pairing_deployment_gate.py"
+      - "tools/n3w_t1_clean_product_deployment_gate.py"
+      - "tests/tools/test_n3w_t1_clean_product_deployment_gate.py"
+      - "tools/n3w_t1_broker_authenticated_readiness.py"
+      - "tests/tools/test_n3w_t1_broker_authenticated_readiness.py"
+      - "infra/n3w-t1/production/**"
+      - "infra/n3w-t1/broker/mosquitto.conf"
+      - "tests/tools/test_n3w_t1_fresh_mosquitto_config_contract.py"
+      - "infra/n3w-t1/homeassistant/**"
+      - "tests/tools/test_n3w_ha_mqtt_bootstrap_component.py"
+      - "infra/n3w-t1/systemd/n3wfc4-services-activation.service"
+      - "infra/n3w-t1/install-systemd-persistence.sh"
+      - "host/greenhouse-manager/src/greenhouse_manager/ops/t1_clean_service_credential_bundle.py"
+      - "host/greenhouse-manager/tests/ops/test_t1_clean_service_credential_bundle.py"
       - ".github/workflows/n3w-t1-deployment-gate-ci.yml"
 
 concurrency:
@@ -24,10 +50,30 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-24.04
+    env:
+      PYTHONPATH: host/greenhouse-manager/src
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       - run: python -m pip install "pytest>=8,<9"
-      - run: python -m pytest -q tests/tools/test_n3w_pairing_deployment_gate.py
+      - name: Render and validate repository production Compose
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose --profile "*" \
+            -f infra/n3w-t1/production/docker-compose.yml \
+            config --format json \
+            > "$RUNNER_TEMP/n3w-t1-production-compose.json"
+          python tools/n3w_t1_clean_product_deployment_gate.py \
+            --compose-json "$RUNNER_TEMP/n3w-t1-production-compose.json" \
+            --image-lock-json infra/n3w-t1/production/image-lock.json
+      - run: >-
+          python -m pytest -q
+          tests/tools/test_n3w_pairing_deployment_gate.py
+          tests/tools/test_n3w_t1_clean_product_deployment_gate.py
+          tests/tools/test_n3w_t1_broker_authenticated_readiness.py
+          tests/tools/test_n3w_t1_fresh_mosquitto_config_contract.py
+          tests/tools/test_n3w_ha_mqtt_bootstrap_component.py
+          host/greenhouse-manager/tests/ops/test_t1_clean_service_credential_bundle.py
