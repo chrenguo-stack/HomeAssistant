@@ -59,6 +59,70 @@ def _wait_tcp(
     raise RuntimeError("broker_tcp_timeout")
 
 
+def _probe_host_network_tcp() -> None:
+    result = _run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--network",
+            "host",
+            "--entrypoint",
+            "python",
+            HA_IMAGE,
+            "-c",
+            (
+                "import socket;"
+                "s=socket.create_connection(('127.0.0.1',1883),5);"
+                "s.close()"
+            ),
+        ],
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            "host_network_tcp_probe_failed "
+            f"returncode={result.returncode}"
+        )
+
+
+def _probe_host_network_mqtt_v5() -> None:
+    result = _run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--network",
+            "host",
+            "--entrypoint",
+            "mosquitto_pub",
+            BROKER_IMAGE,
+            "-h",
+            "127.0.0.1",
+            "-p",
+            "1883",
+            "-u",
+            USERNAME,
+            "-P",
+            PASSWORD,
+            "-i",
+            "n3w-ci-preflight-probe",
+            "-V",
+            "mqttv5",
+            "-t",
+            "n3w/ci/ha-bootstrap-probe",
+            "-m",
+            "ok",
+        ],
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            "host_network_mqtt_v5_probe_failed "
+            f"returncode={result.returncode}"
+        )
+
+
 def _container_running(name: str) -> bool:
     result = _run(
         [
@@ -332,6 +396,8 @@ def test_exact_homeassistant_image_bootstrap_and_recreate(
             ]
         )
         _wait_tcp("127.0.0.1", 1883, 30.0)
+        _probe_host_network_tcp()
+        _probe_host_network_mqtt_v5()
 
         custom_root = (
             ha_config
