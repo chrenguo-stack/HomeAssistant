@@ -173,7 +173,7 @@ def test_rejects_extra_1883_owner() -> None:
 
     with pytest.raises(
         tool.DeploymentContractError,
-        match="broker_1883_publication_count_invalid",
+        match="compose_service_set_invalid",
     ):
         tool.validate_compose_document(document)
 
@@ -316,7 +316,7 @@ def test_rejects_extra_8883_owner() -> None:
 
     with pytest.raises(
         tool.DeploymentContractError,
-        match="broker_8883_publication_count_invalid",
+        match="compose_service_set_invalid",
     ):
         tool.validate_compose_document(document)
 
@@ -343,5 +343,19 @@ def test_rejects_shared_homeassistant_mount_source() -> None:
     with pytest.raises(
         tool.DeploymentContractError,
         match="homeassistant_mount_sources_not_distinct",
+    ):
+        tool.validate_compose_document(document)
+
+
+def test_rejects_extra_compose_network() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["networks"]["unexpected"] = {
+        "name": "unexpected",
+    }
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="compose_network_set_invalid",
     ):
         tool.validate_compose_document(document)
