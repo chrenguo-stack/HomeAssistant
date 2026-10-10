@@ -95,6 +95,9 @@ TLS_DIR = Path("/etc/n3wfc4/tls")
 TLS_CA = TLS_DIR / "ca.pem"
 TLS_CERT = TLS_DIR / "server.pem"
 TLS_KEY = TLS_DIR / "server.key"
+BROKER_TLS_CA_TARGET = "/mosquitto/config/n3w-ca.pem"
+BROKER_TLS_CERT_TARGET = "/mosquitto/config/n3w-server.pem"
+BROKER_TLS_KEY_TARGET = "/mosquitto/config/n3w-server.key"
 R1_EVIDENCE_SNAPSHOT = Path(
     "/etc/n3wfc4/private/dynsec-s20-pre-three-service.json"
 )
@@ -558,6 +561,21 @@ def _verify_tls_material() -> None:
             raise S20ServiceHandoffError(f"{label}_owner_mode_drift")
 
 
+def _verify_broker_config_tls_contract() -> None:
+    directives = {
+        line.strip()
+        for line in BROKER_CONFIG.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    }
+    expected = {
+        f"cafile {BROKER_TLS_CA_TARGET}",
+        f"certfile {BROKER_TLS_CERT_TARGET}",
+        f"keyfile {BROKER_TLS_KEY_TARGET}",
+    }
+    if not expected.issubset(directives):
+        raise S20ServiceHandoffError("broker_tls_path_contract_drift")
+
+
 def build_preclaim_report(
     runner: CommandRunner,
     *,
@@ -620,6 +638,7 @@ def build_preclaim_report(
         raise S20ServiceHandoffError("mqtt_host_listener_present")
     if _sha256_path(BROKER_CONFIG) != EXPECTED_BROKER_CONFIG_SHA256:
         raise S20ServiceHandoffError("broker_config_sha_drift")
+    _verify_broker_config_tls_contract()
     if _sha256_path(DYNSEC_PATH) != EXPECTED_DYNSEC_SHA256:
         raise S20ServiceHandoffError("dynsec_sha_drift")
     if _sha256_path(S18_BACKUP) != EXPECTED_S18_BACKUP_SHA256:
@@ -671,6 +690,7 @@ def build_preclaim_report(
             str(port): count for port, count in listener_counts.items()
         },
         "broker_config_sha_match": True,
+        "broker_tls_path_contract_verified": True,
         "dynsec_sha_match": True,
         "s18_backup_sha_match": True,
         "dynsec_inventory": dynsec,
@@ -841,19 +861,19 @@ def _start_broker(runner: CommandRunner) -> None:
         "-v",
         _docker_mount(
             TLS_CA,
-            "/mosquitto/config/n3w-ca.pem",
+            BROKER_TLS_CA_TARGET,
             read_only=True,
         ),
         "-v",
         _docker_mount(
             TLS_CERT,
-            "/mosquitto/config/n3w-server.pem",
+            BROKER_TLS_CERT_TARGET,
             read_only=True,
         ),
         "-v",
         _docker_mount(
             TLS_KEY,
-            "/mosquitto/config/n3w-server.key",
+            BROKER_TLS_KEY_TARGET,
             read_only=True,
         ),
         "-v",
