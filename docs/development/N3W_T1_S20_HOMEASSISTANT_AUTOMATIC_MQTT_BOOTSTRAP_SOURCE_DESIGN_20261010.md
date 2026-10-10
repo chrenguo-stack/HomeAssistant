@@ -17,6 +17,16 @@ BOARD_ACCESS=false
 
 ## 2. 上游事实
 
+2026-10-10 Home Assistant stable authority 已 fresh 核对为 `2026.10.0`。本轮 source feasibility 绑定：
+
+```text
+HOMEASSISTANT_CANDIDATE_IMAGE_REF=ghcr.io/home-assistant/home-assistant:2026.10.0
+HOMEASSISTANT_UPSTREAM_SOURCE_TAG=2026.10.0
+MQTT_CONFIG_FLOW_BLOB=9181013edc6686b6ac482b4061b3f5e48ba4ff77
+HOMEASSISTANT_OCI_DIGEST=UNBOUND_PENDING_EXACT_IMAGE_PREFLIGHT
+```
+
+
 Home Assistant 当前 MQTT 官方文档仍把 Broker host/port/username/password/custom client ID 作为 MQTT integration 的 config-flow 配置。项目已有迁移协议也冻结：
 
 ```text
@@ -24,7 +34,7 @@ official_config_flow_only=true
 direct_storage_edit_forbidden=true
 ```
 
-对 2026-10-10 upstream `homeassistant/components/mqtt/config_flow.py` 的 source feasibility review 观察到：
+对 exact `2026.10.0` upstream `homeassistant/components/mqtt/config_flow.py` 的 source feasibility review 观察到：
 
 - MQTT `async_step_user()` 进入 broker setup；
 - broker step 能根据输入验证真实 MQTT 连接并创建 config entry；
