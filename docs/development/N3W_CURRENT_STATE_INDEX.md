@@ -1,3 +1,26 @@
+> **2026-10-10 S20 clean-product credential binding source repair progress**：source candidate 已实现，focused source CI 已 PASS；exact Home Assistant 2026.10.0 isolated runtime CI run `38028945518` 在三次 assistant poll 后仍运行，现按项目规则停止轮询。生产 mutation 仍全部禁止。
+
+```text
+S19_ISOLATED_IDENTITY_AND_ACL_ACCEPTANCE=CLOSED_PASS
+S20_SOURCE_REPAIR_CANDIDATE=IMPLEMENTED
+S20_THREE_SERVICE_CREDENTIAL_COUNT=3
+S20_NODE_CREDENTIAL_COUNT_BEFORE_GATE_F=0
+S20_MANAGER_PROVISIONING_SECRET_BINDING=PASS_SOURCE
+S20_HA_AUTOMATIC_FIRST_BOOT_CONFIG_FLOW=SOURCE_IMPLEMENTED_RUNTIME_PENDING
+S20_HA_LOOPBACK_1883=SOURCE_IMPLEMENTED_RUNTIME_PENDING
+S20_FOCUSED_SOURCE_CI=PASS
+HA_ISOLATED_RUNTIME_CI_RUN=38028945518
+HA_ISOLATED_RUNTIME_CI=PENDING_NO_MORE_POLLING
+READY_FOR_REAL_SERVICE_IDENTITY_AUTHORIZATION=false
+PRODUCTION_CLIENT_CREATION=false
+PRODUCTION_BROKER_STARTED=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+CURRENT_STOP_POINT=WAIT_HA_ISOLATED_RUNTIME_CI_RESULT
+```
+
+Authority: `docs/development/N3W_T1_S20_CLEAN_PRODUCT_CREDENTIAL_BINDING_SOURCE_REPAIR_PROGRESS_20261010.md`。以下 `S20 FAIL_CLOSED / SOURCE` 记录是本轮修补的上游历史状态，不再表示“尚未开始修补”，但其生产写入禁令继续有效。
+
 > **2026-10-10 S20 fresh source preflight closure**：`FAIL_CLOSED / SOURCE`。S19 隔离权限验收继续保持 `CLOSED_PASS`；生产三服务账号仍未创建，正式 Broker 仍未启动。本轮 source rebind 已证明 Manager/Provisioning 的源码消费接口，但 fresh production deployment 尚未绑定两份独立秘密文件的最终 runtime 路径，Home Assistant 也只有历史 `automatic_apply=false` 的官方 Reconfigure handoff，尚无 clean-product 自动持久化/消费闭环。按第一处实质缺口 STOP，T1 SSH fresh rebind 未执行。
 
 ```text
