@@ -748,8 +748,6 @@ def _start_broker(runner: CommandRunner) -> None:
         CONTAINER_NAME,
         "--network",
         "none",
-        "--user",
-        "1883:1883",
         "-v",
         _docker_mount(
             BROKER_CONFIG,
@@ -767,6 +765,22 @@ def _start_broker(runner: CommandRunner) -> None:
     _run_required(runner, command, "transaction_broker_start_failed", timeout=60)
     deadline = time.monotonic() + 20
     while time.monotonic() < deadline:
+        state_code, state_output = runner.run(
+            (
+                "docker",
+                "inspect",
+                "--format",
+                "{{.State.Status}}|{{.State.ExitCode}}",
+                CONTAINER_NAME,
+            ),
+            timeout=10,
+        )
+        if state_code == 0:
+            status, _separator, exit_code = state_output.strip().partition("|")
+            if status in {"exited", "dead"}:
+                raise S20ServiceHandoffError(
+                    f"transaction_broker_exited_before_ready:{exit_code or 'unknown'}"
+                )
         try:
             _rr(
                 runner,
