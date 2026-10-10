@@ -292,3 +292,37 @@ def test_metadata_contains_no_password_value(
         "/config/.storage/core.config_entries"
         not in SOURCE.read_text(encoding="utf-8")
     )
+
+
+def test_metadata_cannot_redirect_secret_path(
+    tmp_path,
+) -> None:
+    module, metadata = _material(tmp_path)
+    document = json.loads(
+        metadata.read_text(encoding="utf-8")
+    )
+    document["password_file"] = str(
+        tmp_path / "other-secret"
+    )
+    metadata.write_text(
+        json.dumps(
+            document,
+            separators=(",", ":"),
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    os.chmod(metadata, 0o600)
+
+    result = asyncio.run(
+        module.async_setup(
+            _hass(),
+            {
+                module.DOMAIN: {
+                    "metadata_file": str(metadata),
+                }
+            },
+        )
+    )
+
+    assert result is False
