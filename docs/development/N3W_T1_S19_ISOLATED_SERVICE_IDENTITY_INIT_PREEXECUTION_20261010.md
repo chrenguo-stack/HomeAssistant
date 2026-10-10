@@ -406,3 +406,49 @@ S19_R2_R4_R2_PRODUCTION_MUTATION=false
 S19_R2_R4_R2_BOARD_ACCESS=false
 PR541=OPEN_DRAFT
 ```
+
+
+## S19-R2-R4-R2 失败候选清理：CLOSED_PASS；S19-R2-R5 预执行
+
+2026-10-10 T1 实机返回：
+
+```text
+SCRIPT_SHA256=PASS
+S19_R2_R4_R2_PRECHECK=PASS
+S19_R2_R4_R1_EVIDENCE_COMPATIBLE=True
+STAGE_EXACT_IDENTITY_SET=PASS
+PRODUCTION_DYNSEC_AND_BACKUP_SHA=PASS
+EXACT_FAILED_STAGE_REMOVED=True
+PRODUCTION_DYNSEC_UNCHANGED=True
+PRODUCTION_BACKUP_UNCHANGED=True
+DOCKER_VOLUMES_PRESERVED=True
+GUARD_PRESERVED=True
+PRODUCTION_BROKER_STARTED=False
+HOST_8883_PUBLICATION=False
+BOARD_ACCESS=False
+S19_R2_R4_R2_RESULT=PASS
+STOP=True
+SSH_OR_REMOTE_EXIT_CODE=0
+```
+
+S19-R2-R4-R2 = CLOSED_PASS：此前失败 R4 的唯一临时敏感候选已精确清理，生产 Dynamic Security 数据库 SHA 为 `94f3c0a3dbed90f3d2a3e96696dba8bed8093194903aeed106559090764d1ad5`，S18 原始 root-only 备份 SHA 为 `93c751a788200498869de39a3218a82de53e5cd3d29170360ea55959d0af85da`，生产未运行，环境不变。这一门仅关闭清理，不表示 Manager 入口实际数据流 PASS。
+
+S19-R2-R5 为单独的隔离正向投递复验：纠正 R4 测试夹具的临时 admin→ingress 发布身份错误，依托 main 的 `dynsec_plan.py` （GitHub blob `380516ec03c68e055ef06375c36c11686f24a1bb`）给**唯一临时测试节点** `n3w_r5_probe` 构建 `ghn_n3w_r5_probe` / MQTT client id `n3w_r5_probe` / role `gh-node-greenhouse-n3w_r5_probe`，使用源码精确 11 条 ACL；main 的 `service_identity_plan.py`（blob `19d95cfe59c12ee0abeaddf8c777fb663a5bd399`）定义 Manager 17 条、HA 9 条 ACL。独立随机临时 admin/manager/homeassistant/node 共 4 client 与 4 role。节点仅向 `gh/v1/greenhouse/ingress/node/n3w_r5_probe/telemetry` 发送，Manager `+/telemetry` 订阅读取并严格匹配标记。其后依次验证 Manager canonical state→HA、两类 HA Discovery→HA、HA status→临时 admin 订阅读取；真实 MQTT 消息比对后才 PASS。
+
+全部仍在已固定 ARM64 Mosquitto 2.1.2 镜像 + `--network none` 的 UID1883 临时 Broker 中执行，不挂载生产证书/密钥/管理员密码/生产 DynSec，不将节点实板接入，不发布任何宿主 MQTT 端口。前后固定核对 T1 网络防护、无容器、45 Docker volumes 名称集合、两个专用空 Docker 网络、生产证书配置及真实 DynSec/备份 SHA。失败只输出阶段与允许的 `SAFE_DELIVERY_FAILURE` 类别，保留临时目录不自动重跑；PASS 删除该门专属敏感目录。
+
+该 gate 是**研发期最小化故障回归测试**，不是量产用户安装流程。真实账号初始化、TLS、正式 Broker 开放与 ESP32-C6 实机首次配对均未获授权。完成此门后仍需错误客户端 ID/匿名接入/跨 Topic 禁止的独立验收。
+
+```text
+S19_R2_R4_R2_RESULT=CLOSED_PASS
+S19_R2_R5_NEXT_ONE_GATE=ISOLATED_NODE_MANAGER_HA_POSITIVE_RUNTIME
+S19_R2_R5_EXECUTOR_FILENAME=N3W_T1_S19_R2_R5_NODE_MANAGER_HA_POSITIVE_RUNTIME.py
+S19_R2_R5_EXECUTOR_SHA256=ed00e520eef77feebbc11f63d1373ac5c07f060defa8c22abd5251dc5d19f0f1
+S19_R2_R5_PYTHON_SYNTAX=PASS
+S19_R2_R5_SHELL_PARSE=PASS
+S19_R2_R5_T1_RUNTIME=NOT_YET_EXECUTED
+S19_R2_R5_PRODUCTION_MUTATION=false
+S19_R2_R5_HOST_PORT_PUBLICATION=false
+S19_R2_R5_BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+```
