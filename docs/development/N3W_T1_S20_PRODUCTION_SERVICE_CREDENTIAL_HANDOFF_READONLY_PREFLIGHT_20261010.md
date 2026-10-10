@@ -94,3 +94,35 @@ STOP=true
 ```
 
 下一步仍返回高阶模型做缺口收敛设计；不得把本次 FAIL_CLOSED 自动转换为生产账号创建、Broker 启动或 T1 mutation 授权。
+
+
+## 2026-10-10 clean-product credential binding source repair progress
+
+原 S20 preflight 的 `FAIL_CLOSED / SOURCE` 后，已完成第一轮 source repair candidate：
+
+- 三服务 clean credential bundle：三密码独立、0600、Manager/Provisioning 两个不同 password-file、HA 独立 password + bootstrap metadata、Gate F 前 node credential 固定为 0；
+- Home Assistant fresh-first-boot 路径：新增 `n3w_mqtt_bootstrap` custom integration，仅在 MQTT entry 为 0 时调用 HA 自身 MQTT config-flow；已有 entry 精确匹配则 no-op，否则 fail closed；不直接编辑 `.storage`；
+- fresh Broker source 增加 authenticated 1883 listener；host deployment gate 只允许 `127.0.0.1:1883`，TLS/8883 继续 `0.0.0.0:8883` 与既有 KF-097 防护；
+- clean deployment source gate 冻结最终三个容器服务和两个项目网络，校验 Manager/Provisioning/HA secret read-only mount 与 1883/8883 publication ownership；
+- Home Assistant source candidate 绑定 stable `2026.10.0`，upstream MQTT config-flow blob `9181013edc6686b6ac482b4061b3f5e48ba4ff77`；OCI digest/ARM64 runtime 仍未绑定。
+
+focused source CI 在 `6dd2476e7be0b3f31253309c091a1576cf017303` 已 PASS：N3W T1 deployment gate run `38028806480`、Broker ingress guard run `38028806459`、public safety run `38028806482`。
+
+exact Home Assistant isolated runtime acceptance 已启动于 source head `af5cd031979bce091965468d587a361ee86ccf5f`，run `38028945518`；经过三次 assistant poll 仍为 IN_PROGRESS，因此按项目规则停止轮询。不得把 pending 写成 PASS。
+
+完整进度 authority：
+
+`docs/development/N3W_T1_S20_CLEAN_PRODUCT_CREDENTIAL_BINDING_SOURCE_REPAIR_PROGRESS_20261010.md`
+
+```text
+S19_ISOLATED_IDENTITY_AND_ACL_ACCEPTANCE=CLOSED_PASS
+S20_SOURCE_REPAIR_CANDIDATE=IMPLEMENTED
+S20_FOCUSED_SOURCE_CI=PASS
+HA_ISOLATED_RUNTIME_CI=PENDING_NO_MORE_POLLING
+READY_FOR_REAL_SERVICE_IDENTITY_AUTHORIZATION=false
+PRODUCTION_CLIENT_CREATION=false
+PRODUCTION_BROKER_STARTED=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+STOP=WAIT_FOR_HA_ISOLATED_CI_RESULT
+```
