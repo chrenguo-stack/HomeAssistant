@@ -583,7 +583,6 @@ def test_exact_homeassistant_image_bootstrap_and_recreate(
             BROKER_IMAGE,
             "mosquitto",
         )
-        _chown(broker_dir, broker_uid, broker_gid)
         _chown(
             broker_dir / "mosquitto.conf",
             broker_uid,
@@ -594,6 +593,7 @@ def test_exact_homeassistant_image_bootstrap_and_recreate(
             broker_uid,
             broker_gid,
         )
+        _chown(broker_dir, broker_uid, broker_gid)
         _assert_broker_material_readable(
             broker_dir,
             broker_uid,
