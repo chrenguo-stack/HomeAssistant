@@ -9,8 +9,6 @@ import time
 import uuid
 from pathlib import Path
 
-import pytest
-
 ROOT = Path(__file__).resolve().parents[2]
 COMPONENT = (
     ROOT
@@ -78,11 +76,66 @@ def _container_running(name: str) -> bool:
     )
 
 
+def _sanitize(value: str) -> str:
+    result = value
+    for secret in (
+        PASSWORD,
+        USERNAME,
+        CLIENT_ID,
+    ):
+        result = result.replace(
+            secret,
+            "<redacted>",
+        )
+    return result
+
+
+def _container_state(name: str) -> str:
+    result = _run(
+        [
+            "docker",
+            "inspect",
+            "--format",
+            (
+                "running={{.State.Running}} "
+                "exit={{.State.ExitCode}} "
+                "oom={{.State.OOMKilled}} "
+                "error={{json .State.Error}} "
+                "restarts={{.RestartCount}}"
+            ),
+            name,
+        ],
+        check=False,
+    )
+    if result.returncode != 0:
+        return "container_state_unavailable"
+    return _sanitize(result.stdout.strip())
+
+
+def _safe_logs(name: str, *, tail: int = 160) -> str:
+    result = _run(
+        [
+            "docker",
+            "logs",
+            "--tail",
+            str(tail),
+            name,
+        ],
+        check=False,
+    )
+    return _sanitize(
+        (result.stdout + result.stderr).strip()
+    )
+
+
 def _wait_config_entry(
     path: Path,
     timeout_s: float,
+    *,
+    ha_name: str,
 ) -> dict:
     deadline = time.monotonic() + timeout_s
+    last_log_probe = 0.0
     while time.monotonic() < deadline:
         if path.is_file():
             try:
@@ -112,8 +165,45 @@ def _wait_config_entry(
                 ]
                 if len(matches) == 1:
                     return matches[0]
+
+        now = time.monotonic()
+        if now - last_log_probe >= 2.0:
+            last_log_probe = now
+            if not _container_running(ha_name):
+                raise RuntimeError(
+                    "homeassistant_container_stopped "
+                    + _container_state(ha_name)
+                )
+            logs = _safe_logs(
+                ha_name,
+                tail=80,
+            )
+            marker = "N3-W MQTT bootstrap failed class="
+            if marker in logs:
+                matching = [
+                    line.strip()
+                    for line in logs.splitlines()
+                    if marker in line
+                ]
+                raise RuntimeError(
+                    "homeassistant_bootstrap_reported_failure "
+                    + matching[-1]
+                )
         time.sleep(0.5)
-    raise RuntimeError("mqtt_config_entry_timeout")
+
+    storage_state = (
+        f"storage_exists={path.exists()} "
+        f"storage_size={path.stat().st_size if path.exists() else 0}"
+    )
+    raise RuntimeError(
+        "mqtt_config_entry_timeout "
+        + _container_state(ha_name)
+        + " "
+        + storage_state
+        + "\nHOMEASSISTANT_LOG_TAIL_BEGIN\n"
+        + _safe_logs(ha_name)
+        + "\nHOMEASSISTANT_LOG_TAIL_END"
+    )
 
 
 def _image_uid_gid() -> tuple[int, int]:
@@ -175,7 +265,6 @@ def _assert_entry(entry: dict) -> None:
     assert data.get("certificate") is None
 
 
-@pytest.mark.integration
 def test_exact_homeassistant_image_bootstrap_and_recreate(
     tmp_path: Path,
 ) -> None:
@@ -331,6 +420,7 @@ def test_exact_homeassistant_image_bootstrap_and_recreate(
         first = _wait_config_entry(
             entry_path,
             120.0,
+            ha_name=ha_name,
         )
         _assert_entry(first)
         assert _container_running(ha_name)
@@ -348,6 +438,7 @@ def test_exact_homeassistant_image_bootstrap_and_recreate(
         second = _wait_config_entry(
             entry_path,
             120.0,
+            ha_name=ha_name,
         )
         _assert_entry(second)
         assert _container_running(ha_name)
