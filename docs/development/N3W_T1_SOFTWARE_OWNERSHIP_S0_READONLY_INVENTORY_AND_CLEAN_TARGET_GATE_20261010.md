@@ -27,7 +27,7 @@ S0_GITHUB_PRIVATE_SECRETS=false
 
 ```sh
 set -o pipefail
-printf '请输入 T1 SSH 目标（用户名@192.168.68.195）：'
+printf '请输入 T1 SSH 目标（用户名@T1地址或已配置SSH别名）：'
 IFS= read -r T1_SSH
 if [ -z "$T1_SSH" ]; then
   echo "STOP: T1 SSH 目标为空"
