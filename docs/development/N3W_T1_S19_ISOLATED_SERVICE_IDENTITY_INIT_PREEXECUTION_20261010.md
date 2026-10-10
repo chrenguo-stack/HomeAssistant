@@ -313,3 +313,49 @@ S19_R2_R4_PRODUCTION_MUTATION=false
 S19_R2_R4_BOARD_ACCESS=false
 PR541=OPEN_DRAFT
 ```
+
+
+## S19-R2-R4 现场失败：管理员误用为节点发送端
+
+T1 2026-10-10 现场：
+
+```text
+SCRIPT_SHA256=PASS
+S19_R2_R4_PRECHECK=PASS
+PRODUCTION_DYNSEC_SHA_MATCH=True
+S19_R2_R4_SCOPE=MANAGER_HOMEASSISTANT_POSITIVE_ONLY
+S19_R2_R4_ISOLATED_EXIT_CODE=1
+STEP_INIT_STATE=PASS
+STEP_ADMIN_AUTH=PASS
+STEP_CREATE_IDENTITIES=PASS
+SAFE_FAILURE_STEP=MANAGER_INGRESS
+STOP_S19R2_R4_ISOLATED_PROBE_FAILED_PARTIAL
+SSH_OR_REMOTE_EXIT_CODE=1
+```
+
+`S19_R2_R4_RESULT=FAILED_STOP`，禁止冒充 Manager/HA 投递 PASS。由于代码在 `MANAGER_INGRESS` 失败后抛出 `SystemExit`，不执行正式生产更改或候选清理；原有独立 throwaway staging 预期残留，需只读取证。
+
+对精确执行源 `N3W_T1_S19_R2_R4_MANAGER_HA_POSITIVE_RUNTIME.py`、SHA256 `5f509002f99fc770b6dac9882f32d1c0fb80c97ac5b2469753b4ea709dcaf7c5` 的源码审核发现首次投递使用：
+- SUBSCRIBER = manager，`gh/v1/greenhouse/ingress/node/+/telemetry`
+- PUBLISHER = throwaway **admin**，`gh/v1/greenhouse/ingress/node/r4_probe/telemetry`
+
+Mosquitto 官方的 `dynsec init` 创建的管理员角色仅提供对 `$CONTROL/dynamic-security/#` 的发送授权；虽然有对普通 `#` 的**接收/订阅**授权，**没有**对普通业务 Topic 的 `publishClientSend` 授权。官方原文链接：`https://mosquitto.org/documentation/dynamic-security/`。候选默认 publishClientSend=false，因此这套临时测试的发送端违反最小权限，是 **SOURCE_LEVEL_TEST_FIXTURE_DEFECT_STRONGLY_SUPPORTED**。但目前未得到 S19-R2-R4 实际客户端的 PUBACK/SUBACK 错误码，**不能宣称具体网络返回错误已取证**，不能将 Manager 无消息收取当作 Manager ACL 失效。
+
+正确修正（未来 gate）应使用新的隔离临时节点账号、节点 client id 与 `dynsec_plan.py` 生成的该节点 ingress publish ACL 来代替 admin 发送；管理员仍仅做动态权限配置，保留生产默认拒绝和角色 ACL。优先复用真产品节点准入规则，避免临时 admin 拓展业务权限；这不表示真实节点硬件已可访问。
+
+下门 `S19_R2_R4_R1_ADMIN_SEND_ACL_READONLY` 仅在 T1 本机读取精确失败候选的三客户端、三角色绑定和管理员 `publishClientSend` 规则，给出发送端普通应用 Topic 是否可写与 Manager subscribe/receive ACL 是否存在的布尔证据。还要检查真实生产 DynSec/旧备份/生产配置的 SHA256、既有 45 卷、空容器/两项目网络/入口安全链/宿主 MQTT 端口。**不启动容器、不读取密码、不删除敏感 stage、不输出 Topic ACL 原文，不修改 T1。**
+
+```text
+S19_R2_R4=FAILED_STOP
+S19_R2_R4_PHASE=MANAGER_INGRESS
+S19_R2_R4_SOURCE_DEFECT=ADMIN_USED_AS_APPLICATION_PUBLISHER
+S19_R2_R4_RUNTIME_ERROR_CODE=UNOBSERVED
+S19_R2_R4_R1_SCRIPT=N3W_T1_S19_R2_R4_R1_ADMIN_SEND_ACL_READONLY.py
+S19_R2_R4_R1_SHA256=03c77b480427ba8f064426f0fbb72dd9970084a7dc9f9f47a3d489c9e2ad1ea3
+S19_R2_R4_R1_PYTHON_SYNTAX=PASS
+S19_R2_R4_R1_T1_EXECUTION=PENDING
+NEXT_ONE_GATE=S19_R2_R4_R1_ADMIN_SEND_ACL_READONLY
+S19_R2_R4_R1_T1_MUTATION=false
+S19_R2_R4_R1_BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+```
