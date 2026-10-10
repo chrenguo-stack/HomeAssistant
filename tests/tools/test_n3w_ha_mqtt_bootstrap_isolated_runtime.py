@@ -365,7 +365,7 @@ def test_exact_homeassistant_image_bootstrap_and_recreate(
         )
         (broker_dir / "mosquitto.conf").write_text(
             (
-                "listener 1883 0.0.0.0\n"
+                "listener 1883 127.0.0.1\n"
                 "allow_anonymous false\n"
                 "password_file /mosquitto/config/passwords\n"
                 "persistence false\n"
@@ -385,8 +385,8 @@ def test_exact_homeassistant_image_bootstrap_and_recreate(
                 "-d",
                 "--name",
                 broker_name,
-                "-p",
-                "127.0.0.1:1883:1883",
+                "--network",
+                "host",
                 "-v",
                 f"{broker_dir}:/mosquitto/config:ro",
                 BROKER_IMAGE,
@@ -395,7 +395,6 @@ def test_exact_homeassistant_image_bootstrap_and_recreate(
                 "/mosquitto/config/mosquitto.conf",
             ]
         )
-        _wait_tcp("127.0.0.1", 1883, 30.0)
         _probe_host_network_tcp()
         _probe_host_network_mqtt_v5()
 
