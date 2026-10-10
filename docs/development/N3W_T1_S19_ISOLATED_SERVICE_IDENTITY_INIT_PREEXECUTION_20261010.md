@@ -613,3 +613,71 @@ S19_R2_R6B_HOST_PORT_PUBLICATION=false
 S19_R2_R6B_BOARD_ACCESS=false
 PR541=OPEN_DRAFT
 ```
+
+
+## S19-R2-R6B 实机负例验收与 S19 隔离总收口
+
+2026-10-10 T1 现场脱敏证据：
+
+```text
+SCRIPT_SHA256=PASS
+S19_R2_R6B_PRECHECK=PASS
+PRODUCTION_DYNSEC_SHA_MATCH=True
+S19_R2_R6B_SCOPE=CROSS_TOPIC_PUBLISH_SUBSCRIBE_AND_TEST_ONLY_RECEIVE_DENY
+S19_R2_R6B_ISOLATED_EXIT_CODE=0
+STEP_INIT_STATE=PASS
+STEP_ADMIN_AUTH=PASS
+STEP_CREATE_IDENTITIES=PASS
+STEP_VALID_CONTROLS=PASS
+STEP_PROVISIONING_DENIED_PUBLISH=PASS
+STEP_PROVISIONING_DENIED_SUBSCRIBE=PASS
+STEP_MANAGER_DENIED_PUBLISH=PASS
+STEP_MANAGER_DENIED_SUBSCRIBE=PASS
+STEP_HOMEASSISTANT_DENIED_PUBLISH=PASS
+STEP_HOMEASSISTANT_DENIED_SUBSCRIBE=PASS
+STEP_NODE_DENIED_PUBLISH=PASS
+STEP_NODE_DENIED_SUBSCRIBE=PASS
+STEP_NODE_OTHER_ID_DENIED_PUBLISH=PASS
+STEP_AUDIT_RECEIVE_SUBSCRIBE_ALLOWED=PASS
+STEP_AUDIT_RECEIVE_DENIED=PASS
+STEP_STOP_BROKER=PASS
+CROSS_TOPIC_PUBLISH_DENIED=PASS
+CROSS_TOPIC_SUBSCRIBE_DENIED=PASS
+TEST_ONLY_DEFAULT_RECEIVE_DENIED=PASS
+DEFAULT_DENY_POLICY_PRESERVED=True
+TEMPORARY_SENSITIVE_STATE_REMOVED=True
+PRODUCTION_DYNSEC_UNCHANGED=True
+PRODUCTION_BACKUP_UNCHANGED=True
+DOCKER_VOLUMES_PRESERVED=True
+PRODUCTION_BROKER_STARTED=False
+HOST_8883_PUBLICATION=False
+BOARD_ACCESS=False
+S19_R2_R6B_RESULT=PASS
+STOP=True
+SSH_OR_REMOTE_EXIT_CODE=0
+```
+
+**R6B 结论：CLOSED_PASS。** 4 类服务/节点候选的越权发布、订阅，以及临时 audit 客户端订阅可用但默认接收拒绝的对照试验通过。临时 admin 和 audit 仅测试环境内存在；没有生产账号、生产权限或生产 Broker 的写入/启动。没有访问真实 ESP32-C6 板卡。
+
+**S19 隔离验证总收口：PASS（范围仅隔离测试）。** R1 产品 ACL 及 identity 结构，R3 Provisioning 管理链路，R5 合法临时节点→Manager→HA 正向投递，R6A 正确/错误 client ID 与匿名连接拒绝，R6B 跨 Topic 发布/订阅/接收负例均 PASS。原 R2 与 R4 的失败保留为测试夹具/可观察性问题历史证据，已通过后续独立门进行修补和有针对性的重新验收，但不能声称原始运行记录被抹除或整个生产部署通过。
+
+生产状态仍旧：
+- `/var/lib/n3wfc4-broker/dynamic-security.json`：SHA256 `94f3c0a3dbed90f3d2a3e96696dba8bed8093194903aeed106559090764d1ad5`，仅 1 admin，4 项默认 ACL `false,false,false,true`。
+- `/etc/n3wfc4/private/dynsec-s18-pre-receive-deny.json`：旧 state 精确备份，SHA256 `93c751a788200498869de39a3218a82de53e5cd3d29170360ea55959d0af85da`。原管理员 root-only 口令不变。
+- 新增 production provisioning/manager/HA client **仍为零**；应用使用的三份密码尚未生成/交付，无 Manager/HA 真实连接；原始 45 Docker volumes 与 ingress guard 保持，生产 Broker 未启动、host 8883 无监听。
+- 固定产品 ACL 源：`host/greenhouse-manager/src/greenhouse_manager/runtime/service_identity_plan.py`，管理命令源：`host/greenhouse-manager/src/greenhouse_manager/runtime/dynsec_api.py`，Node ACL 源：`dynsec_plan.py`。
+- 不把研发阶段多步独立取证转换成量产手工安装教程。量产目标为可信一键/工厂自动初始化 + 自动验收 + 出错安全 STOP，仍需独立实施和验证。
+
+下一门**先只读**：`N3W_T1_S20_PRODUCTION_THREE_SERVICE_CREDENTIAL_HANDOFF_AND_DEPLOYMENT_PREFLIGHT`，核对 source 与 T1 三业务账号凭据存储、生产 MQTT client ID 和口令注入路径、Broker 单独启动/恢复路径、容器权限/卷/宿主端口/证书身份/host TLS 正确性，并定义原子晋升/失败恢复方案；**此门不得创建生产服务账号、不得读取/传播真实管理员明文、不得启动 Broker 或触碰板卡**。只有经三账号凭据保存及运行时消费路径确认，才进入 S20 的独立 production promotion gate。生产动态安全数据库修改前仍应保留 root-only 快照并精确验前验后。
+```text
+S19_R2_R6B_RESULT=CLOSED_PASS
+S19_ISOLATED_SERVICE_IDENTITY_AND_ACL_ACCEPTANCE=CLOSED_PASS
+S19_PRODUCTION_SERVICES_CREATED=false
+S19_PRODUCTION_BROKER_STARTED=false
+NEXT_ONE_GATE=N3W_T1_S20_PRODUCTION_THREE_SERVICE_CREDENTIAL_HANDOFF_AND_DEPLOYMENT_PREFLIGHT
+S20_INITIAL_MODE=READ_ONLY_SOURCE_AND_STATE
+S20_PRODUCTION_MUTATION=false
+S20_HOST_PORT_PUBLICATION=false
+S20_BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+```
