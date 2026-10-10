@@ -1102,3 +1102,50 @@ def test_runtime_rollback_keeps_preclaim_parent_origin(
     runtime.rollback()
 
     assert events == ["true:true"]
+
+
+
+def test_broker_config_tls_contract_accepts_exact_executor_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = tmp_path / "mosquitto.conf"
+    config.write_text(
+        "\n".join(
+            (
+                f"cafile {module.BROKER_TLS_CA_TARGET}",
+                f"certfile {module.BROKER_TLS_CERT_TARGET}",
+                f"keyfile {module.BROKER_TLS_KEY_TARGET}",
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(module, "BROKER_CONFIG", config)
+
+    module._verify_broker_config_tls_contract()
+
+
+def test_broker_config_tls_contract_rejects_mount_path_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = tmp_path / "mosquitto.conf"
+    config.write_text(
+        "\n".join(
+            (
+                "cafile /mosquitto/tls/ca.pem",
+                "certfile /mosquitto/tls/server.pem",
+                "keyfile /mosquitto/tls/server.key",
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(module, "BROKER_CONFIG", config)
+
+    with pytest.raises(
+        module.S20ServiceHandoffError,
+        match="broker_tls_path_contract_drift",
+    ):
+        module._verify_broker_config_tls_contract()
