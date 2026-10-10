@@ -1,3 +1,23 @@
+> **2026-10-10 S20 fresh source preflight closure**：`FAIL_CLOSED / SOURCE`。S19 隔离权限验收继续保持 `CLOSED_PASS`；生产三服务账号仍未创建，正式 Broker 仍未启动。本轮 source rebind 已证明 Manager/Provisioning 的源码消费接口，但 fresh production deployment 尚未绑定两份独立秘密文件的最终 runtime 路径，Home Assistant 也只有历史 `automatic_apply=false` 的官方 Reconfigure handoff，尚无 clean-product 自动持久化/消费闭环。按第一处实质缺口 STOP，T1 SSH fresh rebind 未执行。
+
+```text
+S20_PREFLIGHT_RESULT=FAIL_CLOSED
+S20_FAILURE_CLASS=SOURCE
+MAIN_EXACT=d423211b6196c2f2f0f01dff072c4f877fbe58ee
+PR541_SOURCE_REBIND_HEAD=9c55ee465668d822369a8e61a5d88d1ed37fe1fd
+S19_ISOLATED_IDENTITY_AND_ACL_ACCEPTANCE=CLOSED_PASS
+S20_PRODUCTION_CLIENTS_CREATED=false
+T1_PRODUCTION_BROKER_STARTED=false
+S20_T1_FRESH_RUNTIME_REBIND=NOT_EXECUTED_SOURCE_GAP_STOP
+READY_FOR_REAL_SERVICE_IDENTITY_AUTHORIZATION=false
+NEXT_ROUTE=S20_SCOPED_MISSING_CONSUMER_OR_DEPLOYMENT_BINDING_REVIEW
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+STOP=true
+```
+
+Authority: `docs/development/N3W_T1_S20_PRODUCTION_SERVICE_CREDENTIAL_HANDOFF_READONLY_PREFLIGHT_20261010.md`。以下旧的 `S20 READONLY PENDING` 快照保留为历史，不再代表当前 gate 状态。
+
 > **2026-10-10 最新新会话交接 authority**：`docs/development/N3W_T1_S20_PRODUCTION_SERVICE_CREDENTIAL_HANDOFF_READONLY_PREFLIGHT_NEW_CHAT_HANDOFF_V1.0_20261010.md`（PR #541 OPEN DRAFT）。**S19 isolated ACL = CLOSED_PASS；S20 production three-service secret handoff = READONLY PENDING。** 以下文件所含早期 S0/S14 或其他历史 NEXT_ONE_GATE 快照已被本条 supersede，不得作为当前下一执行门。只允许在新会话执行 `N3W_T1_S20_PRODUCTION_THREE_SERVICE_CREDENTIAL_HANDOFF_AND_DEPLOYMENT_PREFLIGHT`；生产 mutation、Broker 启动、端口开放与板卡访问均禁止。
 
 ## 2026-10-10 PR #541 S19 isolated permissions CLOSED_PASS; S20 source/runtime read-only next
