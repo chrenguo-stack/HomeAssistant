@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import stat
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -37,7 +38,11 @@ def _path_contains_symlink(path: Path) -> bool:
     current = path
     while True:
         if current.is_symlink():
-            return True
+            _LOGGER.info(
+        "N3-W MQTT bootstrap success class=%s",
+        outcome,
+    )
+    return True
         if current == current.parent:
             return False
         current = current.parent
@@ -193,7 +198,7 @@ def _entry_matches(
     settings: BootstrapSettings,
     password: str,
 ) -> bool:
-    if not isinstance(data, dict):
+    if not isinstance(data, Mapping):
         return False
     expected = {
         "broker": settings.broker,
@@ -205,6 +210,14 @@ def _entry_matches(
     for key, value in expected.items():
         if data.get(key) != value:
             return False
+    if data.get("transport", "tcp") != "tcp":
+        return False
+    if data.get("certificate") is not None:
+        return False
+    if data.get("client_cert") is not None:
+        return False
+    if data.get("client_key") is not None:
+        return False
     current_password = data.get("password")
     return (
         isinstance(current_password, str)
@@ -219,15 +232,18 @@ async def _bootstrap(
     hass: Any,
     settings: BootstrapSettings,
     password: str,
-) -> bool:
+) -> str:
     entries = hass.config_entries.async_entries("mqtt")
     if len(entries) == 1:
+        entry = entries[0]
+        if getattr(entry, "disabled_by", None) is not None:
+            raise BootstrapError("existing_entry_disabled")
         if _entry_matches(
-            entries[0].data,
+            entry.data,
             settings,
             password,
         ):
-            return True
+            return "existing_match"
         raise BootstrapError("existing_entry_mismatch")
     if entries:
         raise BootstrapError("multiple_mqtt_entries")
@@ -254,7 +270,7 @@ async def _bootstrap(
         isinstance(result, dict)
         and result.get("type") == "create_entry"
     ):
-        return True
+        return "created"
     raise BootstrapError(
         "flow_submit_mismatch;"
         + _flow_diagnostic(result)
@@ -293,7 +309,7 @@ async def async_setup(
             _load_material,
             metadata_file,
         )
-        await _bootstrap(
+        outcome = await _bootstrap(
             hass,
             settings,
             password,
