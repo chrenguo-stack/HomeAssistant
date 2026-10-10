@@ -102,3 +102,6 @@ S19_R2_R1_PRODUCTION_MUTATION=false
 S19_R2_R1_BOARD_ACCESS=false
 PR541=OPEN_DRAFT
 ```
+
+
+S19-R2-R1 只读取证脚本由本轮对话交付，`N3W_T1_S19_R2_R1_READONLY_FORENSIC.py`，SHA256 `3d2bb820ef94bcd5cc68a08010236ce9df17013bb2947c410305f79e3c15ed0c`，本地 Python 语法检查 PASS，T1 现场执行状态 PENDING。脚本仅用标准库读取候选 JSON 的非敏感结构、静态账号绑定与 ACL 项数，保留所有现存数据且不运行 Docker 容器。候选三服务身份若存在仅代表持久化，不能反推出是哪一个运行时测试步骤失败。
