@@ -5,6 +5,12 @@ on:
     paths:
       - "tools/n3w_pairing_deployment_gate.py"
       - "tests/tools/test_n3w_pairing_deployment_gate.py"
+      - "tools/n3w_t1_clean_product_deployment_gate.py"
+      - "tests/tools/test_n3w_t1_clean_product_deployment_gate.py"
+      - "infra/n3w-t1/broker/mosquitto.conf"
+      - "tests/tools/test_n3w_t1_fresh_mosquitto_config_contract.py"
+      - "infra/n3w-t1/homeassistant/**"
+      - "tests/tools/test_n3w_ha_mqtt_bootstrap_component.py"
       - ".github/workflows/n3w-t1-deployment-gate-ci.yml"
   push:
     branches:
@@ -12,6 +18,12 @@ on:
     paths:
       - "tools/n3w_pairing_deployment_gate.py"
       - "tests/tools/test_n3w_pairing_deployment_gate.py"
+      - "tools/n3w_t1_clean_product_deployment_gate.py"
+      - "tests/tools/test_n3w_t1_clean_product_deployment_gate.py"
+      - "infra/n3w-t1/broker/mosquitto.conf"
+      - "tests/tools/test_n3w_t1_fresh_mosquitto_config_contract.py"
+      - "infra/n3w-t1/homeassistant/**"
+      - "tests/tools/test_n3w_ha_mqtt_bootstrap_component.py"
       - ".github/workflows/n3w-t1-deployment-gate-ci.yml"
 
 concurrency:
@@ -30,4 +42,9 @@ jobs:
         with:
           python-version: "3.11"
       - run: python -m pip install "pytest>=8,<9"
-      - run: python -m pytest -q tests/tools/test_n3w_pairing_deployment_gate.py
+      - run: >-
+          python -m pytest -q
+          tests/tools/test_n3w_pairing_deployment_gate.py
+          tests/tools/test_n3w_t1_clean_product_deployment_gate.py
+          tests/tools/test_n3w_t1_fresh_mosquitto_config_contract.py
+          tests/tools/test_n3w_ha_mqtt_bootstrap_component.py
