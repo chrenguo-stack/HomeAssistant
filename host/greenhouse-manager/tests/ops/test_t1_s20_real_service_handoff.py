@@ -802,12 +802,12 @@ def test_r2_authorization_and_snapshot_paths_are_attempt_scoped() -> None:
         "N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_"
         "APPLY_R2_20261010_01"
     )
-    assert module.R1_EVIDENCE_SNAPSHOT == Path(
+    assert Path(
         "/etc/n3wfc4/private/dynsec-s20-pre-three-service.json"
-    )
-    assert module.ROLLBACK_SNAPSHOT == Path(
+    ) == module.R1_EVIDENCE_SNAPSHOT
+    assert Path(
         "/etc/n3wfc4/private/dynsec-s20-r2-pre-three-service.json"
-    )
+    ) == module.ROLLBACK_SNAPSHOT
     assert module.R1_EVIDENCE_SNAPSHOT != module.ROLLBACK_SNAPSHOT
 
 
