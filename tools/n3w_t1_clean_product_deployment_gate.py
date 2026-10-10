@@ -159,6 +159,8 @@ def _broker_networks(
     definitions = document.get("networks")
     if not isinstance(definitions, Mapping):
         raise DeploymentContractError("compose_networks_invalid")
+    if set(definitions) != EXPECTED_BROKER_NETWORKS:
+        raise DeploymentContractError("compose_network_set_invalid")
     for key in EXPECTED_BROKER_NETWORKS:
         definition = definitions.get(key)
         if (
@@ -232,6 +234,13 @@ def validate_compose_document(
         raise DeploymentContractError("compose_project_identity_invalid")
 
     services = _services(document)
+    expected_services = {
+        manager_service_name,
+        broker_service_name,
+        homeassistant_service_name,
+    }
+    if set(services) != expected_services:
+        raise DeploymentContractError("compose_service_set_invalid")
     manager = _service(services, manager_service_name)
     broker = _service(services, broker_service_name)
     homeassistant = _service(services, homeassistant_service_name)
