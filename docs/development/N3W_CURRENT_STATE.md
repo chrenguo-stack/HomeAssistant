@@ -1,3 +1,23 @@
+> **2026-10-10 S20 real three-service handoff R1 FAIL / rollback CLOSED_PASS / root cause confirmed**：一次性授权 `N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_20261010_01` 已 claim 并永久消耗。R1 临时 Broker 使用 exact frozen image 成功 create/start，但约 1 秒后 exitCode=1；fresh forensic 证明 DynSec exact baseline restored、三服务 client/role 均不存在、secret/transaction material 已清理、0 containers、0 MQTT listeners、45 volumes 与原集合一致、两项目网络为空、guard active/enabled，因此 rollback=CLOSED_PASS。根因确认：executor 错误强制 Broker `--user 1883:1883`，而镜像默认 `User=""` 走 `/docker-entrypoint.sh`；生产 TLS 目录为 root:root 0700，UID1883 无法 traverse/read TLS material。source repair 已移除 Broker user override，保留 one-shot secret client `docker exec --user 0:0`，并增加 early-exit diagnosis。R1 snapshot 保留为证据；任何 R2 live apply 必须新 authorization ID + 新明确批准，旧授权不得 replay。
+
+```text
+S20_APPLY_R1=FAIL
+S20_APPLY_R1_ROLLBACK=CLOSED_PASS
+R1_ROOT_CAUSE_STATUS=CONFIRMED
+R1_ROOT_CAUSE=FORCED_UID1883_BYPASSED_IMAGE_ENTRYPOINT_PRIVILEGE_FLOW
+R1_AUTHORIZATION_CLAIMED=true
+R1_AUTHORIZATION_CONSUMED=true
+R1_AUTHORIZATION_REPLAY=false
+SOURCE_FIX=67ad72411d8e90b2ac0e7d157528b9d4b2ff2beb
+REGRESSION_TESTS=cf9d4ca985bb7f150618651480ac9b738c636338
+LIVE_T1_MUTATION=false
+PRODUCTION_BROKER_STARTED=false
+BOARD_ACCESS=false
+NEXT_ONE_GATE=N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_R2_SOURCE_REVIEW_AND_AUTHORIZATION
+```
+
+Authority: `docs/development/N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_R1_FAILURE_FORENSIC_20261010.md`.
+
 > **2026-10-10 S20 real three-service secret handoff design PASS / explicit authorization pending**：已冻结真实三服务凭据写入事务：exact 三身份、三独立密码、Manager/Provisioning 数字 UID/GID 999:999、HA root-owned secret、network-none/no-port 临时 Broker、fresh S20 DynSec rollback snapshot、三服务正反认证、失败后 exact DynSec restore + transaction-created secret cleanup。当前没有执行任何 T1 mutation；下一门须先 source executor + CI + fresh preclaim，随后只有在用户明确批准一次性 authorization 后才能 claim/apply。
 
 ```text
