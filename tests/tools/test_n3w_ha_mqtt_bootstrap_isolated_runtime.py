@@ -641,6 +641,10 @@ def test_exact_homeassistant_image_bootstrap_and_recreate(
             (
                 "homeassistant:\n"
                 "  name: N3W CI\n"
+                "logger:\n"
+                "  default: warning\n"
+                "  logs:\n"
+                "    custom_components.n3w_mqtt_bootstrap: info\n"
                 "n3w_mqtt_bootstrap:\n"
                 "  metadata_file: /run/n3w/ha-mqtt-bootstrap.json\n"
             ),
