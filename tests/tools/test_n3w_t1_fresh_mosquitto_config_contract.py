@@ -20,11 +20,13 @@ def _directives() -> list[str]:
 def test_production_listener_and_global_dynsec_are_exact() -> None:
     lines = _directives()
     assert [x for x in lines if x.startswith("listener ")] == [
-        "listener 8883 0.0.0.0"
+        "listener 1883 0.0.0.0",
+        "listener 8883 0.0.0.0",
     ]
     assert [x for x in lines if x.startswith("allow_anonymous ")] == [
         "allow_anonymous false"
     ]
+    assert not any(x.startswith("per_listener_settings ") for x in lines)
     assert [x for x in lines if x.startswith("global_plugin ")] == [
         "global_plugin /usr/lib/mosquitto_dynamic_security.so"
     ]
@@ -32,7 +34,7 @@ def test_production_listener_and_global_dynsec_are_exact() -> None:
         "plugin_opt_config_file /mosquitto/data/dynamic-security.json"
     ]
     assert not any(
-        x.startswith(("per_listener_settings ", "plugin ", "auth_plugin "))
+        x.startswith(("plugin ", "auth_plugin "))
         for x in lines
     )
 
@@ -67,4 +69,21 @@ def test_persistence_and_logs_are_explicit() -> None:
     assert not any(
         "password " in x.lower() or "secret " in x.lower()
         for x in lines
+    )
+
+
+def test_homeassistant_plain_listener_has_no_tls_directives_before_tls_listener() -> None:
+    lines = _directives()
+    plain_index = lines.index("listener 1883 0.0.0.0")
+    tls_index = lines.index("listener 8883 0.0.0.0")
+    tls_directives = {
+        "cafile /mosquitto/config/n3w-ca.pem",
+        "certfile /mosquitto/config/n3w-server.pem",
+        "keyfile /mosquitto/config/n3w-server.key",
+        "tls_version tlsv1.2",
+    }
+
+    assert plain_index < tls_index
+    assert not tls_directives.intersection(
+        lines[plain_index + 1 : tls_index]
     )
