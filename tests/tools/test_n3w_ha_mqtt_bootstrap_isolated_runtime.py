@@ -539,6 +539,8 @@ def test_exact_homeassistant_image_bootstrap_and_recreate(
                 "docker",
                 "run",
                 "--rm",
+                "--user",
+                f"{os.getuid()}:{os.getgid()}",
                 "--entrypoint",
                 "mosquitto_passwd",
                 "-v",
@@ -551,6 +553,13 @@ def test_exact_homeassistant_image_bootstrap_and_recreate(
                 PASSWORD,
             ]
         )
+        if (
+            broker_dir.joinpath("passwords").stat().st_uid
+            != os.getuid()
+        ):
+            raise RuntimeError(
+                "broker_password_file_owner_generation_mismatch"
+            )
         (broker_dir / "mosquitto.conf").write_text(
             (
                 "listener 1883 127.0.0.1\n"
