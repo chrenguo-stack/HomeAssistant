@@ -43,7 +43,7 @@ jobs:
           set -euo pipefail
           git cat-file -e "$MANAGER_SOURCE_SHA^{commit}"
           test "$(git rev-parse "$MANAGER_SOURCE_SHA:host/greenhouse-manager/Dockerfile")" = "82ee1312905c2d289ef7d6e231333091030df212"
-          test "$(git rev-parse "$MANAGER_SOURCE_SHA:host/greenhouse-manager/pyproject.toml")" = "a8ca7315010208232ef3f15f3da71ccb34fa9261"
+          test "$(git rev-parse "$MANAGER_SOURCE_SHA:host/greenhouse-manager/pyproject.toml")" = "48c271cdeb7ba7a8b25f8fd2807d845f42c2c069"
 
       - name: Build exact ARM64 Manager image
         shell: bash
