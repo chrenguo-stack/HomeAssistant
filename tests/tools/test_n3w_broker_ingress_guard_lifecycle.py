@@ -152,7 +152,7 @@ def test_dispatcher_does_not_accept_event_subnet_as_authority() -> None:
         assert value not in script
 
 
-def test_systemd_persistence_installer_enables_both_units_without_starting_them() -> None:
+def test_systemd_persistence_installer_enables_all_units_without_starting_them() -> None:
     script = read(PERSISTENCE_INSTALLER)
 
     enable = '/usr/bin/systemctl enable "$GUARD" "$ACTIVATION" "$SERVICES" "$CERT_TIMER"'
