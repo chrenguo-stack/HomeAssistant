@@ -1,0 +1,130 @@
+name: n3wfc4
+
+services:
+  broker:
+    image: m.daocloud.io/docker.io/library/eclipse-mosquitto:2.1.2-alpine@sha256:3184566df484a083411a0e70e92c87a264b8f0648df632f10eb23d54d99f4549
+    restart: "no"
+    ports:
+      - mode: ingress
+        host_ip: 127.0.0.1
+        target: 1883
+        published: "1883"
+        protocol: tcp
+      - mode: ingress
+        host_ip: 0.0.0.0
+        target: 8883
+        published: "8883"
+        protocol: tcp
+    volumes:
+      - type: bind
+        source: /opt/HomeAssistant/infra/n3w-t1/broker/mosquitto.conf
+        target: /mosquitto/config/mosquitto.conf
+        read_only: true
+      - type: bind
+        source: /etc/n3wfc4/tls/ca.pem
+        target: /mosquitto/tls/ca.pem
+        read_only: true
+      - type: bind
+        source: /etc/n3wfc4/tls/server.pem
+        target: /mosquitto/tls/server.pem
+        read_only: true
+      - type: bind
+        source: /etc/n3wfc4/tls/server.key
+        target: /mosquitto/tls/server.key
+        read_only: true
+      - type: bind
+        source: /var/lib/n3wfc4-broker
+        target: /mosquitto/data
+    networks:
+      n3wfc4-private: null
+      n3wfc4-services: null
+
+  manager:
+    image: local/greenhouse-manager:s20-511db028
+    pull_policy: never
+    user: "999:999"
+    network_mode: host
+    restart: "no"
+    profiles:
+      - application
+    environment:
+      GH_SYSTEM_ID: greenhouse
+      GH_MQTT_HOST: 127.0.0.1
+      GH_MQTT_PORT: "8883"
+      GH_MQTT_USERNAME: ghs_greenhouse_manager
+      GH_MQTT_PASSWORD_FILE: /run/secrets/gh_manager_mqtt_password
+      GH_MQTT_CLIENT_ID: gh-manager-greenhouse
+      GH_MQTT_TLS: "true"
+      GH_MQTT_CA_FILE: /run/n3w/tls/ca.pem
+      GH_HA_DISCOVERY_ENABLED: "true"
+      GH_N3W_RUNTIME_ENABLED: "true"
+      GH_N3W_PRODUCT_PAIRING_ENABLED: "true"
+      GH_N3W_PAIRING_MANAGER_ID: gh-manager-greenhouse
+      GH_N3W_PAIRING_ADVERTISED_HOST: auto
+      GH_N3W_PROVISIONING_USERNAME: ghs_greenhouse_provisioning
+      GH_N3W_PROVISIONING_PASSWORD_FILE: /run/secrets/gh_n3w_provisioning_mqtt_password
+      GH_N3W_PROVISIONING_CLIENT_ID: gh-provisioning-greenhouse
+      GH_N3W_NODE_BROKER_CA_FILE: /run/n3w/tls/ca.pem
+    volumes:
+      - type: bind
+        source: /var/lib/greenhouse-manager
+        target: /var/lib/greenhouse-manager
+      - type: bind
+        source: /opt/greenhouse-secrets/mqtt/manager/password
+        target: /run/secrets/gh_manager_mqtt_password
+        read_only: true
+      - type: bind
+        source: /opt/greenhouse-secrets/mqtt/provisioning/password
+        target: /run/secrets/gh_n3w_provisioning_mqtt_password
+        read_only: true
+      - type: bind
+        source: /etc/n3wfc4/tls/ca.pem
+        target: /run/n3w/tls/ca.pem
+        read_only: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+      - /run/greenhouse-manager:size=4m,mode=0700,uid=999,gid=999
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      broker:
+        condition: service_started
+
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:2026.10.0@sha256:0c73235a9140a9b02e4bf618d06d8c496b12ae70656ecddb0e02ad31ad122be4
+    network_mode: host
+    restart: "no"
+    profiles:
+      - application
+    volumes:
+      - type: bind
+        source: /var/lib/n3wfc4-homeassistant
+        target: /config
+      - type: bind
+        source: /opt/HomeAssistant/infra/n3w-t1/production/homeassistant-configuration.yaml
+        target: /config/configuration.yaml
+        read_only: true
+      - type: bind
+        source: /opt/HomeAssistant/infra/n3w-t1/homeassistant/custom_components/n3w_mqtt_bootstrap
+        target: /config/custom_components/n3w_mqtt_bootstrap
+        read_only: true
+      - type: bind
+        source: /opt/greenhouse-secrets/mqtt/homeassistant/password
+        target: /run/secrets/gh_homeassistant_mqtt_password
+        read_only: true
+      - type: bind
+        source: /opt/greenhouse-secrets/mqtt/homeassistant/mqtt-bootstrap.json
+        target: /run/n3w/ha-mqtt-bootstrap.json
+        read_only: true
+    depends_on:
+      broker:
+        condition: service_started
+
+networks:
+  n3wfc4-private:
+    name: n3wfc4-private
+  n3wfc4-services:
+    name: n3wfc4-services
