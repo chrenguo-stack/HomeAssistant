@@ -1,3 +1,26 @@
+> **2026-10-10 S20 R3 apply FAIL / rollback CLOSED_PASS / persistent startup blocker corrected / R4 prepared**：R3 authorization `N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_R3_20261010_01` 已 claim+consume，禁止 replay。独立只读取证证明 R3 exact baseline restored：0 containers、0 MQTT listeners、45-volume set unchanged、两项目网络为空、guard active/enabled、DynSec admin-only、三服务身份/roles 与 node 均 absent、secret/transaction material absent；R1/R2/R3 snapshots 均 root:root 0600 且 exact baseline SHA。因此 R3 rollback=CLOSED_PASS。R3 Docker events 仍为 create→start→die(exitCode=1)→destroy，且无 docker exec。fresh live config 证据确认 `/etc/n3wfc4/mosquitto.conf` 的 TLS directives 指向 `/mosquitto/config/n3w-ca.pem`、`n3w-server.pem`、`n3w-server.key`，而 R3 executor 将文件挂载到 `/mosquitto/tls/*`，属于确定性的 Broker config→mount path mismatch。R4 已改为单一常量合同，preclaim 显式验证 config TLS path，并将 host TLS 文件挂到 exact config target；同时补强 snapshot create/restore 和 secret-parent rollback provenance。
+
+```text
+S20_APPLY_R3=FAIL
+S20_APPLY_R3_ROLLBACK=CLOSED_PASS
+R3_AUTHORIZATION_CONSUMED=true
+R3_AUTHORIZATION_REPLAY=false
+R3_ROOT_CAUSE_STATUS=CONFIRMED
+R3_ROOT_CAUSE=EXACT_BROKER_CONFIG_REFERENCES_MOSQUITTO_CONFIG_N3W_TLS_PATHS_BUT_EXECUTOR_MOUNTS_MOSQUITTO_TLS_PATHS
+R4_AUTHORIZATION_ID=N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_R4_20261010_01
+R4_USER_APPROVAL=NOT_YET_GRANTED
+R4_AUTHORIZATION_CLAIMED=false
+R4_AUTHORIZATION_CONSUMED=false
+R1_R2_R3_RETAINED_SNAPSHOT_MUTATION=false
+R4_ROLLBACK_SNAPSHOT=/etc/n3wfc4/private/dynsec-s20-r4-pre-three-service.json
+LIVE_T1_MUTATION=false
+PRODUCTION_BROKER_STARTED=false
+BOARD_ACCESS=false
+NEXT_ONE_GATE=N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_R4_SOURCE_CI_AND_PRECLAIM_20261010_01
+```
+
+Authority: `docs/development/N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_R3_FAILURE_AND_R4_TLS_PATH_CONTRACT_REPAIR_20261010.md`.
+
 > **2026-10-10 S20 R2 apply FAIL / rollback CLOSED_PASS / second startup root cause confirmed / R3 TLS bind repair prepared**：R2 authorization `N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_R2_20261010_01` 已 claim+consume，禁止 replay。R2 executor 内部 rollback postcheck 与独立 external forensic 均证明 exact baseline restored：0 containers、0 MQTT listeners、45-volume set unchanged、两项目网络为空、guard active/enabled、DynSec admin-only、三服务身份/roles 与 node 均 absent、secret/transaction material absent；R1/R2 snapshots 均 root:root 0600 且 exact baseline SHA。因此 R2 rollback=CLOSED_PASS。R2 Docker events 仍为 create→start→die(exitCode=1)→destroy，且无 docker exec。第二根因确认：executor 将整个 root:root 0700 的 host TLS 目录 bind 到 `/mosquitto/tls`；Mosquitto 以 root 启动后默认降权为 mosquitto 用户，导致 post-drop 无法 traverse 该目录。production Compose 本来就是逐个 TLS file bind，因此 R3 source 已改为 ca.pem/server.pem/server.key 独立只读挂载，并同时保留 R1/R2 snapshot 作为证据，R3 新建独立 rollback snapshot。
 
 ```text
