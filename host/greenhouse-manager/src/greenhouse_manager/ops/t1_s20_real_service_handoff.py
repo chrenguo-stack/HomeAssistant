@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import json
 import os
 import shutil
 import stat
 import subprocess
-import sys
 import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
@@ -385,9 +385,14 @@ def build_preclaim_report(
 ) -> dict[str, object]:
     if os.geteuid() != 0:
         raise S20ServiceHandoffError("root_required")
-    if expected_executor_sha256 is not None:
-        if executor_path is None or _sha256_path(executor_path) != expected_executor_sha256:
-            raise S20ServiceHandoffError("executor_sha256_mismatch")
+    if (
+        expected_executor_sha256 is not None
+        and (
+            executor_path is None
+            or _sha256_path(executor_path) != expected_executor_sha256
+        )
+    ):
+        raise S20ServiceHandoffError("executor_sha256_mismatch")
     if _run_required(runner, ("uname", "-m"), "uname_arch_failed").strip() != EXPECTED_ARCH:
         raise S20ServiceHandoffError("arch_drift")
     if _run_required(runner, ("uname", "-r"), "uname_kernel_failed").strip() != EXPECTED_KERNEL:
@@ -515,11 +520,12 @@ def _create_snapshot() -> None:
     flags |= getattr(os, "O_NOFOLLOW", 0)
     descriptor = os.open(ROLLBACK_SNAPSHOT, flags, 0o600)
     try:
-        with DYNSEC_PATH.open("rb") as source:
-            with os.fdopen(descriptor, "wb") as target:
-                shutil.copyfileobj(source, target)
-                target.flush()
-                os.fsync(target.fileno())
+        with DYNSEC_PATH.open("rb") as source, os.fdopen(
+            descriptor, "wb"
+        ) as target:
+            shutil.copyfileobj(source, target)
+            target.flush()
+            os.fsync(target.fileno())
     except Exception:
         ROLLBACK_SNAPSHOT.unlink(missing_ok=True)
         raise
@@ -837,11 +843,12 @@ def _restore_snapshot() -> None:
         raise S20ServiceHandoffError("rollback_snapshot_unavailable")
     temporary = DYNSEC_PATH.with_name(".dynamic-security.s20-rollback.tmp")
     temporary.unlink(missing_ok=True)
-    with ROLLBACK_SNAPSHOT.open("rb") as source:
-        with temporary.open("xb") as target:
-            shutil.copyfileobj(source, target)
-            target.flush()
-            os.fsync(target.fileno())
+    with ROLLBACK_SNAPSHOT.open("rb") as source, temporary.open(
+        "xb"
+    ) as target:
+        shutil.copyfileobj(source, target)
+        target.flush()
+        os.fsync(target.fileno())
     os.chown(temporary, 1883, 1883)
     os.chmod(temporary, 0o600)
     os.replace(temporary, DYNSEC_PATH)
@@ -859,10 +866,8 @@ def _cleanup_transaction_material(*, remove_bundle: bool) -> None:
     if remove_bundle:
         shutil.rmtree(SECRET_ROOT, ignore_errors=True)
         if SECRET_PARENT.is_dir():
-            try:
+            with contextlib.suppress(OSError):
                 SECRET_PARENT.rmdir()
-            except OSError:
-                pass
 
 
 def _bundle_owner_mode() -> dict[str, str]:
@@ -999,10 +1004,8 @@ class LocalTransactionRuntime:
         return _postcheck(self.runner)
 
     def rollback(self) -> None:
-        try:
+        with contextlib.suppress(S20ServiceHandoffError):
             _stop_broker(self.runner)
-        except S20ServiceHandoffError:
-            pass
         _restore_snapshot()
         _cleanup_transaction_material(remove_bundle=True)
 
