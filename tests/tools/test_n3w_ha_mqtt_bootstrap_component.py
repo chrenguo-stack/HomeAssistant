@@ -14,6 +14,10 @@ SOURCE = (
     / "infra/n3w-t1/homeassistant/custom_components"
     / "n3w_mqtt_bootstrap/__init__.py"
 )
+CONFIG_SNIPPET = (
+    Path(__file__).resolve().parents[2]
+    / "infra/n3w-t1/homeassistant/configuration-snippet.yaml"
+)
 
 
 def _load_module():
@@ -326,3 +330,10 @@ def test_metadata_cannot_redirect_secret_path(
     )
 
     assert result is False
+
+
+def test_configuration_snippet_uses_exact_metadata_target() -> None:
+    assert CONFIG_SNIPPET.read_text(encoding="utf-8") == (
+        "n3w_mqtt_bootstrap:\n"
+        "  metadata_file: /run/n3w/ha-mqtt-bootstrap.json\n"
+    )
