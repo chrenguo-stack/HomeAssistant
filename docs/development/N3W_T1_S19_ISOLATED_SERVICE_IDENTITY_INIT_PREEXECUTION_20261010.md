@@ -35,3 +35,19 @@ S19_R1_LIVE_SERVICE_START=false
 S19_R1_BOARD_ACCESS=false
 PR541=OPEN_DRAFT
 ```
+
+
+## S19-R1 对话下发执行脚本绑定
+
+本次提供给用户下载、然后通过 Mac Terminal 以 stdin 方式在 T1 执行的独立 Python 标准库脚本：
+
+```text
+SCRIPT_FILENAME=N3W_T1_S19_R1_ISOLATED_SERVICE_ACL_TEST.py
+SCRIPT_SHA256=16e5e130df6078d4106b3596e71c1526f310d9fc9dd889564fd63359253339ae
+PYTHON_SYNTAX_CHECK=PASS
+ISOLATED_SH_PARSE_CHECK=PASS
+T1_RUNTIME=NOT_YET_EXECUTED
+REPOSITORY_EXECUTOR_FILE=NOT_COMMITTED_TO_GITHUB
+```
+
+脚本程序由对话下载到用户 Mac，使用 `ssh root@T1 'python3 -' <script.py` 在 T1 运行；GitHub 文件只冻结 **哈希** 和安全约束，避免向仓库提交重复的终端执行脚本。不会下载依赖、安装 Python 包或修改 T1 系统软件。
