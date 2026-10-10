@@ -69,3 +69,36 @@ S19_R2_T1_RUN=NOT_EXECUTED
 S19_R2_PRODUCTION_MUTATION=false
 S19_R2_BOARD_ACCESS=false
 ```
+
+
+## S19-R2 现场失败与取证入口
+
+2026-10-10 T1 S19-R2 实测：
+
+```text
+S19_R2_PRECHECK=PASS
+PRODUCTION_DYNSEC_SHA_MATCH=True
+SERVICE_IDENTITY_PLAN_SOURCE=main/service_identity_plan.py
+S19_R2_ISOLATED_EXIT_CODE=1
+ISOLATED_FAILURE_CLASS=ISOLATED_PROBE_FAILED
+STOP_S19R2_RUNTIME_PROBE_FAILED_PARTIAL
+SSH_OR_REMOTE_EXIT_CODE=1
+```
+
+结论：S19-R2 **FAILED_STOP**，未取得任何可声明为成功的运行时 MQTT 正向或拒绝矩阵证据；不得沿用 S19-R1 的静态 ACL 成果冒充 S19-R2 通过。生产 JSON SHA 仅在 S19-R2 执行前确认，失败后必须 fresh readback，才可声明未变。
+
+读回精确聊天下发的执行脚本 SHA256 `a660e8bdb546d70218f6ff2033a70640679e4cfb80bb06afbc58a23aba06f16a`，发现遇到隔离子进程非零退出时，Python 仅打印满足 `STOP_` 前缀的首行或固定 `ISOLATED_PROBE_FAILED`，没有打印内部已通过的非秘密检查点；它在失败路径也不打印原始 stdout/stderr。Docker run 使用 `--rm`，候选独立目录 `/var/lib/.n3wfc4-s19r2-*` 通常保留敏感状态。此时不能推断确切失败属于 provisioning、Manager、Home Assistant、错误 client id、匿名连接或脚本原因。任何源问题/产品失败结论都须待新鲜现场证据。
+
+下一门仅执行 `S19_R2_R1_POSTFAIL_READONLY_FORENSIC`：核实无 Docker container、45 个原有 volume 集合及安全护栏、无 8883/18883 host listener、两项目网络空、生产配置/真实 DynSec/旧备份 SHA 未漂移；准确计数残留候选目录，检查属主权限、是否仅有 candidate.conf 与 dynamic-security.json；只输出 JSON 角色/客户端总数、三服务 client ID 是否正确绑定、默认 ACL 四元组、角色 ACL 项数。**绝不读取真实管理员密码、打印 JSON/哈希/密码、删除候选/修改 T1 或重跑 S19-R2。** 候选 ACL 已持久化成功最多只证明初始化阶段完成，不能推断之后哪一个通信操作失败。必要时基于源脚本独立修复故障可观察性，并在单独新门验证。
+
+```text
+S19_R1_RESULT=PASS
+S19_R2_RESULT=FAILED_STOP
+S19_R2_ROOT_CAUSE=UNKNOWN
+S19_R2_EXECUTOR_DIAGNOSTIC_GAP=CONFIRMED
+S19_R2_STAGING=READONLY_FORENSIC_REQUIRED
+NEXT_ONE_GATE=S19_R2_R1_POSTFAIL_READONLY_FORENSIC
+S19_R2_R1_PRODUCTION_MUTATION=false
+S19_R2_R1_BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+```
