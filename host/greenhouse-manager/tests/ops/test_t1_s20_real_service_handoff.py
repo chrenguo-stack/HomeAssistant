@@ -351,7 +351,7 @@ def test_rollback_preserves_safe_preexisting_secret_parent(
             self._value = value
             self.st_uid = 0
             self.st_gid = 0
-            self.st_mode = getattr(value, "st_mode")
+            self.st_mode = value.st_mode
 
         def __getattr__(self, name: str) -> object:
             return getattr(self._value, name)
