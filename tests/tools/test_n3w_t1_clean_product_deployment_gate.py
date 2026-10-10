@@ -69,7 +69,7 @@ def rendered_compose() -> dict:
                 },
                 "environment": {
                     "GH_SYSTEM_ID": "greenhouse",
-                    "GH_MQTT_HOST": "127.0.0.1",
+                    "GH_MQTT_HOST": "armbian",
                     "GH_MQTT_PORT": "8883",
                     "GH_MQTT_USERNAME": "ghs_greenhouse_manager",
                     "GH_MQTT_PASSWORD_FILE": (
@@ -80,7 +80,7 @@ def rendered_compose() -> dict:
                     "GH_MQTT_CA_FILE": "/run/n3w/tls/ca.pem",
                     "GH_HA_DISCOVERY_ENABLED": "true",
                     "GH_N3W_RUNTIME_ENABLED": "true",
-                    "GH_N3W_PRODUCT_PAIRING_ENABLED": "true",
+                    "GH_N3W_PRODUCT_PAIRING_ENABLED": "false",
                     "GH_N3W_PAIRING_MANAGER_ID": (
                         "gh-manager-greenhouse"
                     ),
@@ -95,6 +95,11 @@ def rendered_compose() -> dict:
                     "GH_N3W_PROVISIONING_CLIENT_ID": (
                         "gh-provisioning-greenhouse"
                     ),
+                    "GH_N3W_NODE_BROKER_HOST": (
+                        "gate-f-unbound.invalid"
+                    ),
+                    "GH_N3W_NODE_BROKER_PORT": "8883",
+                    "GH_N3W_NODE_BROKER_TLS_SERVER_NAME": "armbian",
                     "GH_N3W_NODE_BROKER_CA_FILE": (
                         "/run/n3w/tls/ca.pem"
                     ),
@@ -251,6 +256,10 @@ def test_accepts_clean_product_contract() -> None:
         "ipv4_loopback_1883"
     )
     assert report["bare_compose_up_starts_application_services"] is False
+    assert report["manager_tls_server_name"] == "armbian"
+    assert report["manager_exact_namespace_tls_runtime_probe_required"] is True
+    assert report["product_pairing_enabled"] is False
+    assert report["node_broker_host_gate_f_unbound"] is True
 
 
 def test_accepts_repository_image_lock() -> None:
@@ -436,3 +445,31 @@ def test_rejects_image_lock_drift() -> None:
         match="manager_image_lock_invalid",
     ):
         tool.validate_image_lock_document(document)
+
+
+def test_rejects_manager_raw_loopback_as_tls_host() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["services"]["manager"]["environment"]["GH_MQTT_HOST"] = (
+        "127.0.0.1"
+    )
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="manager_runtime_environment_invalid",
+    ):
+        tool.validate_compose_document(document)
+
+
+def test_rejects_product_pairing_before_gate_f() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["services"]["manager"]["environment"][
+        "GH_N3W_PRODUCT_PAIRING_ENABLED"
+    ] = "true"
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="manager_runtime_environment_invalid",
+    ):
+        tool.validate_compose_document(document)
