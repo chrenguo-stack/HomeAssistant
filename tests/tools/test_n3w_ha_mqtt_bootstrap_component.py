@@ -45,6 +45,7 @@ def _material(tmp_path: Path):
     module = _load_module()
     password = tmp_path / "password"
     metadata = tmp_path / "mqtt-bootstrap.json"
+    module._PASSWORD_FILE = str(password)
     _write_private(password, "private-password\n")
     _write_private(
         metadata,
