@@ -1,3 +1,31 @@
+> **2026-10-10 S20 Home Assistant automatic MQTT bootstrap isolated runtime CLOSED_PASS**：exact Home Assistant 2026.10.0 + Mosquitto 2.1.2-alpine isolated runtime acceptance 已通过。首次自动 config-flow 创建、真实 MQTT 连接、保留原 .storage 重建、existing_match、entry_id 不变、无重复 entry、重建后再次 MQTT 连接均由同一真实镜像测试覆盖。生产 T1 网络拓扑未改；本结果不等于生产部署授权。
+
+```text
+S20_HA_BOOTSTRAP_REPAIR_HEAD=0412d6009c963bf80eb7ce2e21e3fefac69e09a2
+S20_HA_ISOLATED_RUNTIME_CI=PASS:38039664411
+S20_HA_ISOLATED_RUNTIME_JOB=PASS:114177209128
+S20_HA_FIRST_BOOT_AUTOMATIC_CONFIG_FLOW=PASS
+S20_HA_FIRST_BOOT_MQTT_CONNECTION=PASS
+S20_HA_RECREATE_EXISTING_MATCH=PASS
+S20_HA_ENTRY_ID_STABLE=PASS
+S20_HA_DUPLICATE_ENTRY=NONE
+S20_HA_RECREATE_MQTT_RECONNECT=PASS
+S20_HA_DIRECT_STORAGE_EDIT=false
+S20_PRODUCTION_TOPOLOGY_CHANGE=false
+N3W_T1_DEPLOYMENT_GATE_CI=PASS:38039664397
+PUBLIC_REPOSITORY_SAFETY_CI=PASS:38039664398
+GREENHOUSE_MANAGER_CI=PASS:38039664426
+T1_FRESH_READONLY_REBIND=NOT_EXECUTED_AFTER_HA_CLOSURE
+READY_FOR_REAL_SERVICE_IDENTITY_AUTHORIZATION=false
+PRODUCTION_CLIENT_CREATION=false
+PRODUCTION_BROKER_STARTED=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+NEXT_ONE_GATE=N3W_T1_S20_PRODUCTION_THREE_SERVICE_CREDENTIAL_HANDOFF_AND_DEPLOYMENT_PREFLIGHT_R2_20261010_01
+```
+
+Authority: `docs/development/N3W_T1_S20_HA_BOOTSTRAP_PERMISSION_MAPPING_AND_RUNTIME_ORACLE_REPAIR_CLOSURE_20261010.md`. This supersedes the earlier pending/failed HA isolated-runtime snapshots at the top of this file; S19 remains `CLOSED_PASS`; PR #541 remains OPEN DRAFT and unmerged.
+
 > **2026-10-10 S20 clean-product credential binding source repair progress**：原 `FAIL_CLOSED / SOURCE` 已完成 source candidate 修补与 focused source CI；exact Home Assistant 2026.10.0 isolated runtime acceptance 已启动，但三次 assistant poll 后仍在运行，因此按项目规则停止轮询。S19 仍 `CLOSED_PASS`；T1、Broker、生产账号、板卡均未 mutation。
 
 ```text
