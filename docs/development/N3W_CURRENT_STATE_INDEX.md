@@ -1,3 +1,18 @@
+> **2026-10-10 S20 HA bootstrap isolated runtime CLOSED_PASS**：run `38039664411` / exact source `0412d6009c963bf80eb7ce2e21e3fefac69e09a2` 已通过首次自动创建、真实 MQTT 连接、保留 storage 重建、existing_match、entry_id 稳定、无重复 entry 与重建后重新连接。生产 T1 网络/身份尚未部署，PR #541 仍 OPEN DRAFT。
+
+```text
+S20_HA_ISOLATED_RUNTIME_CI=PASS:38039664411
+S20_HA_FIRST_BOOT_AUTOMATIC_CONFIG_FLOW=PASS
+S20_HA_RECREATE_EXISTING_MATCH=PASS
+S20_HA_ENTRY_ID_STABLE=PASS
+S20_HA_DUPLICATE_ENTRY=NONE
+S20_HA_RECREATE_MQTT_RECONNECT=PASS
+S20_PRODUCTION_TOPOLOGY_CHANGE=false
+READY_FOR_REAL_SERVICE_IDENTITY_AUTHORIZATION=false
+NEXT_ONE_GATE=N3W_T1_S20_PRODUCTION_THREE_SERVICE_CREDENTIAL_HANDOFF_AND_DEPLOYMENT_PREFLIGHT_R2_20261010_01
+AUTHORITY=docs/development/N3W_T1_S20_HA_BOOTSTRAP_PERMISSION_MAPPING_AND_RUNTIME_ORACLE_REPAIR_CLOSURE_20261010.md
+```
+
 > **2026-10-10 S20 clean-product credential binding source repair progress**：source candidate 已实现，focused source CI 已 PASS；exact Home Assistant 2026.10.0 isolated runtime CI run `38028945518` 在三次 assistant poll 后仍运行，现按项目规则停止轮询。生产 mutation 仍全部禁止。
 
 ```text
