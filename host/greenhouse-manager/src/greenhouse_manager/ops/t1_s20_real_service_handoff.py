@@ -61,10 +61,14 @@ EXPECTED_DYNSEC_SHA256 = (
 EXPECTED_S18_BACKUP_SHA256 = (
     "93c751a788200498869de39a3218a82de53e5cd3d29170360ea55959d0af85da"
 )
-BROKER_IMAGE = (
-    "m.daocloud.io/docker.io/library/eclipse-mosquitto:2.1.2-alpine"
-    "@sha256:3184566df484a083411a0e70e92c87a264b8f0648df632f10eb23d54d99f4549"
+BROKER_SOURCE_TAG = "m.daocloud.io/docker.io/library/eclipse-mosquitto:2.1.2-alpine"
+EXPECTED_BROKER_INDEX_DIGEST = (
+    "sha256:38c0da4f2ef84284d47b3b3eeea1cb3bdeabe81ee10caf0cd5c5ff61ee3ea408"
 )
+EXPECTED_BROKER_ARM64_MANIFEST_DIGEST = (
+    "sha256:3184566df484a083411a0e70e92c87a264b8f0648df632f10eb23d54d99f4549"
+)
+BROKER_IMAGE = BROKER_SOURCE_TAG
 BROKER_CONFIG = Path("/etc/n3wfc4/mosquitto.conf")
 DYNSEC_PATH = Path("/var/lib/n3wfc4-broker/dynamic-security.json")
 DYNSEC_DATA = Path("/var/lib/n3wfc4-broker")
@@ -477,13 +481,29 @@ def build_preclaim_report(
             "image",
             "inspect",
             "--format",
-            "{{.Os}}|{{.Architecture}}",
-            BROKER_IMAGE,
+            "{{.Os}}|{{.Architecture}}|{{json .RepoDigests}}",
+            BROKER_SOURCE_TAG,
         ),
         "exact_broker_image_unavailable",
     ).strip()
-    if image != "linux|arm64":
+    fields = image.split("|", 2)
+    if len(fields) != 3 or fields[0] != "linux" or fields[1] != "arm64":
         raise S20ServiceHandoffError("exact_broker_image_platform_drift")
+    try:
+        repo_digests = json.loads(fields[2])
+    except json.JSONDecodeError as error:
+        raise S20ServiceHandoffError(
+            "exact_broker_image_repo_digest_invalid"
+        ) from error
+    expected_repo_digest = (
+        "m.daocloud.io/docker.io/library/eclipse-mosquitto@"
+        f"{EXPECTED_BROKER_INDEX_DIGEST}"
+    )
+    if (
+        not isinstance(repo_digests, list)
+        or expected_repo_digest not in repo_digests
+    ):
+        raise S20ServiceHandoffError("exact_broker_image_index_digest_drift")
     return {
         "schema": SCHEMA,
         "phase": "preclaim",
@@ -506,6 +526,8 @@ def build_preclaim_report(
         "secret_parent_state": secret_parent_state,
         "rollback_snapshot_absent": True,
         "exact_broker_image_local_arm64": True,
+        "broker_index_digest": EXPECTED_BROKER_INDEX_DIGEST,
+        "broker_arm64_manifest_digest": EXPECTED_BROKER_ARM64_MANIFEST_DIGEST,
         "live_mutation": False,
         "authorization_claimed": False,
         "authorization_consumed": False,
@@ -640,6 +662,20 @@ def _docker_mount(source: Path, target: str, *, read_only: bool) -> str:
 
 
 def _start_broker(runner: CommandRunner) -> None:
+    verification = _run_required(
+        runner,
+        (
+            "docker",
+            "image",
+            "inspect",
+            "--format",
+            "{{.Os}}|{{.Architecture}}|{{json .RepoDigests}}",
+            BROKER_SOURCE_TAG,
+        ),
+        "exact_broker_image_unavailable",
+    ).strip()
+    if EXPECTED_BROKER_INDEX_DIGEST not in verification:
+        raise S20ServiceHandoffError("exact_broker_image_index_digest_drift")
     command = (
         "docker",
         "run",
