@@ -1,3 +1,14 @@
+> **2026-10-10 S20 real three-service secret handoff design PASS**：真实三服务凭据事务、claim 边界、fresh rollback、secret ownership、isolated Broker apply/verification 与 fail-closed rollback 已冻结；live authorization 尚未授予。
+
+```text
+S20_REAL_THREE_SERVICE_SECRET_HANDOFF_DESIGN=PASS
+AUTHORIZATION_ID=N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_20261010_01
+EXPLICIT_AUTHORIZATION_STATUS=PENDING_USER_APPROVAL
+LIVE_RUNTIME_MUTATION=false
+NEXT_ONE_GATE_AFTER_APPROVAL=N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_SOURCE_PREPARATION_AND_APPLY_20261010_01
+AUTHORITY=docs/development/N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_DESIGN_AND_EXPLICIT_AUTHORIZATION_20261010.md
+```
+
 > **2026-10-10 S20 preflight R2 CLOSED_PASS**：source + fresh T1 read-only rebind 均通过；真实 production Compose/image lock 与 ARM64 image binding 已闭环，T1 host guards/冻结 SHA/无监听状态匹配。生产三服务身份仍未创建；下一门仅进入 secret handoff design + explicit authorization。
 
 ```text
