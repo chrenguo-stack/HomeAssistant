@@ -211,3 +211,30 @@ S19_R2_R3_HOST_PORT_PUBLICATION=false
 S19_R2_R3_BOARD_ACCESS=false
 PR541=OPEN_DRAFT
 ```
+
+
+## S19-R2-R3 分段可观察性修复：独立 Provisioning 诊断
+
+S19-R2-R2 现场清理已以 `SCRIPT_SHA256=PASS`、`S19_R2_R2_PRECHECK=PASS`、`EXACT_FAILED_STAGE_REMOVED=True`、`PRODUCTION_DYNSEC_UNCHANGED=True`、`PRODUCTION_BACKUP_UNCHANGED=True`、`DOCKER_VOLUMES_PRESERVED=True`、`S19_R2_R2_RESULT=PASS`、`SSH_OR_REMOTE_EXIT_CODE=0` 关闭。不得将清理 PASS 当作 S19-R2 MQTT 运行时 PASS。
+
+S19-R2-R3 选择**最小可验证复现**：只运行全新 isolated admin + provisioning 两个临时客户端，不复用或上传已删除的旧失败候选。仍沿用 main 的 `service_identity_plan.py` 对 provisioning 的 10 条 ACL、两个互不共享的随机 256-bit 以上口令、按客户端 ID 绑定。`--network none` 容器内 `127.0.0.1:18883`，无宿主 port publication、无生产证书/密钥/DynSec 装载。
+
+安全阶段标记：`STEP_INIT_STATE`、`STEP_ADMIN_AUTH`、`STEP_CREATE_SERVICE_TRANSPORT`、`STEP_PROVISIONING_CONTROL`、`STEP_STOP_BROKER`。失败时经固定白名单仅输出 `SAFE_FAILURE_STEP`；完整 MQTT 控制响应仅作为 T1 进程内 JSON 解析输入，不写终端/本地日志/GitHub。因 S19-R2 原执行脚本捕获并吞掉了容器阶段性 stdout，前序失败位置仍 UNKNOWN，不能凭此推断功能根因。新执行仅针对这个可观察性问题增加阶段确证。
+
+对话下载执行文件：
+```text
+EXECUTION_FILE=N3W_T1_S19_R2_R3_PROVISIONING_RUNTIME_DIAGNOSTIC.py
+EXECUTION_SHA256=23eface37a8452f947cf7f37d5543c4b249a7e1870e7a53a1398666bb106c9bc
+PYTHON_SYNTAX=PASS
+SHELL_PARSE=PASS
+T1_RUNTIME=NOT_YET_EXECUTED
+SCOPE=ISOLATED_ADMIN_PLUS_PROVISIONING_ONLY
+PRODUCTION_DYNSEC_SHA256=94f3c0a3dbed90f3d2a3e96696dba8bed8093194903aeed106559090764d1ad5
+S18_BACKUP_SHA256=93c751a788200498869de39a3218a82de53e5cd3d29170360ea55959d0af85da
+S19_R2_R3_PRODUCTION_MUTATION=false
+S19_R2_R3_HOST_PORT_PUBLICATION=false
+S19_R2_R3_BOARD_ACCESS=false
+NEXT_ONE_GATE=S19_R2_R3_ISOLATED_PROVISIONING_RUNTIME_DIAGNOSTIC
+```
+
+若阶段 FAIL：原位保留唯一 `/var/lib/.n3wfc4-s19r2-r3-*`，先做新只读取证，不重新运行旧或新脚本。若 PASS：核实 1 个临时 service + 1 个临时 admin、独立角色、默认拒绝、原生产 JSON/原备份及 45 volumes 未变化并删除精准隔离 stage；该 PASS **仍不能替代** Manager/HA 正向投递、错误 client ID 和匿名接入拒绝矩阵。
