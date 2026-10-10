@@ -580,3 +580,36 @@ S19_R2_R6B_HOST_PORT_PUBLICATION=false
 S19_R2_R6B_BOARD_ACCESS=false
 PR541=OPEN_DRAFT
 ```
+
+
+## S19-R2-R6B 负向 MQTT 5 ACK 和默认接收拒绝验收门
+
+S19-R2-R6A 现场身份拒绝 = CLOSED_PASS；此次 R6B 不重复账号错 ID 及匿名拒绝测试，仅针对已正确认证账号的**应用权限边界**运行。
+
+从 main 精确复用 `service_identity_plan.py` 与 `dynsec_plan.py` 的 provisioning、manager、homeassistant、单一临时节点四类产品身份；保持 `publishClientSend=false`、`publishClientReceive=false`、`subscribe=false`、`unsubscribe=true` 默认权限。额外使用**隔离环境专属**临时 audit 账号，角色仅具备 `homeassistant/status` 的订阅与取消订阅 ACL，故意不赋予 `publishClientReceive`：专用于证实“允许订阅也不代表允许接收”，**不属于产品账号或产品 ACL**，成功后连同临时数据删除。
+
+测试内容：
+1. 先使用原身份在原有合法 Topic 做正向操作，确认 Broker 能工作、账号可以认证；然后以 MQTT v5 QoS 1 的明确拒绝响应做判定，而非仅仅因为 CLI 退出、超时或消息缺失就报 PASS。
+2. 四类服务的越权发布：Provisioning→canonical state、Manager→node ingress、HA→canonical state、node→HA status；另检查 node→别的 node ID 入口，共五项。必须取到原连接的 PUBACK（原因码 135，Not authorized）。
+3. 四类服务的越权订阅：Provisioning→canonical state、Manager→DynSec control response、HA→node ingress、node→HA discovery，共四项。必须取到 SUBACK 的 Not authorized 135。
+4. Default receive deny 的单独机制测试：临时 audit 账号先成功订阅 `homeassistant/status`（有 subscribePattern），然后 HA 通过自己的合法身份发布一个随机标记消息；admin 作为有权接收的对照实际收到完全相同 payload，audit 在限定窗口内不得收到任何 payload。该测试只证明插件的 default receive fail-close 机制，并不创建新的生产服务身份。
+5. 隔离候选 DynSec 状态需检查总客户端/角色数（admin+4类产品一次性身份+1类临时审计身份，共6/6）、所有服务绑定及 role ACL 的完整多重集合、四项默认权限，并在成功后精确删除 throwaway 私有目录；失败只输出安全阶段和白名单原因码，保留 staging 再取证。
+
+安全和范围：只使用本地 Mosquitto 2.1.2 ARM64 镜像，`--network none`、只读根文件系统、UID1883、无宿主 `-p`、隔离 `127.0.0.1:18883`；不装载真实动态权限库、证书/密钥、管理员密码；不得启动生产 Broker，不能访问实板。前后核对 T1 护栏、45 Docker volumes 集合与两个项目空网络，生产新 DynSec SHA256 `94f3c0a3dbed90f3d2a3e96696dba8bed8093194903aeed106559090764d1ad5`，S18 root-only 旧备份 `93c751a788200498869de39a3218a82de53e5cd3d29170360ea55959d0af85da`，配置 `3708c6cea415ae6c0a4f35d71a116fff8571921b5a3774dbb55d0a9cb42845a6`。
+
+参考：Mosquitto 2.1.2 上游测试 `test/broker/14-dynsec-acl.py` 与 `14-dynsec-default-access.py` 均以 MQTT 5 `NOT_AUTHORIZED` PUBACK/SUBACK（135）为拒绝凭据；CLI debug 输出属于内部捕获文本，不复制到 stdout/GitHub。如果具体 CLI 版本没有暴露可识别 ACK，则本 gate FAIL-CLOSED 并报告 `SAFE_NEGATIVE_REASON`，不能用“没有收到消息”替代授权凭据。
+
+```text
+S19_R2_R6A_RESULT=CLOSED_PASS
+NEXT_ONE_GATE=S19_R2_R6B_ISOLATED_CROSS_TOPIC_ACL_NEGATIVE_RUNTIME
+S19_R2_R6B_FILENAME=N3W_T1_S19_R2_R6B_CROSS_TOPIC_ACL_NEGATIVE_RUNTIME.py
+S19_R2_R6B_SHA256=88325b5542d39221d69da1be7777e80a604d797b07706a37c67ea69428d43e70
+S19_R2_R6B_PYTHON_SYNTAX=PASS
+S19_R2_R6B_SHELL_PARSE=PASS
+S19_R2_R6B_T1_RUNTIME=NOT_YET_EXECUTED
+S19_R2_R6B_PRODUCTION_DYNSEC_MUTATION=false
+S19_R2_R6B_PRODUCTION_BROKER_STARTED=false
+S19_R2_R6B_HOST_PORT_PUBLICATION=false
+S19_R2_R6B_BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+```
