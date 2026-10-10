@@ -688,3 +688,41 @@ def test_source_dependency_binding_rejects_drift(
         match="source_dependency_sha256_mismatch",
     ):
         module._verify_source_dependencies()
+
+
+def test_streamed_dependency_binding_accepts_exact_hashes() -> None:
+    streamed = {
+        str(path.relative_to(module.SOURCE_ROOT)): digest
+        for path, digest in module.EXPECTED_DEPENDENCY_SHA256.items()
+    }
+
+    module._verify_source_dependencies(streamed)
+
+
+def test_streamed_dependency_binding_rejects_missing_dependency() -> None:
+    streamed = {
+        str(path.relative_to(module.SOURCE_ROOT)): digest
+        for path, digest in module.EXPECTED_DEPENDENCY_SHA256.items()
+    }
+    streamed.pop(next(iter(streamed)))
+
+    with pytest.raises(
+        module.S20ServiceHandoffError,
+        match="source_dependency_set_mismatch",
+    ):
+        module._verify_source_dependencies(streamed)
+
+
+def test_streamed_dependency_binding_rejects_hash_drift() -> None:
+    streamed = {
+        str(path.relative_to(module.SOURCE_ROOT)): digest
+        for path, digest in module.EXPECTED_DEPENDENCY_SHA256.items()
+    }
+    first = next(iter(streamed))
+    streamed[first] = "0" * 64
+
+    with pytest.raises(
+        module.S20ServiceHandoffError,
+        match="source_dependency_sha256_mismatch",
+    ):
+        module._verify_source_dependencies(streamed)
