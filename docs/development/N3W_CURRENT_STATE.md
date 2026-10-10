@@ -1,3 +1,5 @@
+> **2026-10-10 最新新会话交接 authority**：`docs/development/N3W_T1_S20_PRODUCTION_SERVICE_CREDENTIAL_HANDOFF_READONLY_PREFLIGHT_NEW_CHAT_HANDOFF_V1.0_20261010.md`（PR #541 OPEN DRAFT）。**S19 isolated ACL = CLOSED_PASS；S20 production three-service secret handoff = READONLY PENDING。** 以下文件所含早期 S0/S14 或其他历史 NEXT_ONE_GATE 快照已被本条 supersede，不得作为当前下一执行门。只允许在新会话执行 `N3W_T1_S20_PRODUCTION_THREE_SERVICE_CREDENTIAL_HANDOFF_AND_DEPLOYMENT_PREFLIGHT`；生产 mutation、Broker 启动、端口开放与板卡访问均禁止。
+
 ## 2026-10-10 PR #541 S19 isolated permissions CLOSED_PASS; S20 source/runtime read-only next
 
 Latest **branch** authority (does not imply merged main): `docs/development/N3W_T1_S19_ISOLATED_SERVICE_IDENTITY_INIT_PREEXECUTION_20261010.md` and `docs/development/N3W_T1_S20_PRODUCTION_SERVICE_CREDENTIAL_HANDOFF_READONLY_PREFLIGHT_20261010.md`. Exact main `d423211b6196c2f2f0f01dff072c4f877fbe58ee`; PR #541 `OPEN_DRAFT`, software-only fresh T1 rebuild preserves Armbian/SSH/NetworkManager/Docker, 45 pre-existing Docker volumes, and the two currently empty `n3wfc4` networks. Early OS disk wipe plan is SUPERSEDED. Product shall have a single Home Assistant instance.
