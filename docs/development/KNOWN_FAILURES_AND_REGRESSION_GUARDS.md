@@ -1,3 +1,5 @@
+> **KF-102 — S20 临时 Broker readiness transport 与 Docker volume lifecycle guard（2026-10-11）**：R4 修复 TLS mount target 后，临时 Mosquitto 已成功 create/start 并存活约 21 s；但 executor 的 admin client config 固定连接 `127.0.0.1:1883`，而 exact live `/etc/n3wfc4/mosquitto.conf` 只提供 TLS `listener 8883`，导致全部 `mosquitto_rr` readiness probe exitCode=1，未进入 createRole/createClient。R4 rollback 已恢复 DynSec、secret、container、listener、network 等 transaction state，但 Docker volume inventory 从 frozen 45 / set SHA `20fc8457...` 漂移到 46 / set SHA `918671f5...`，因此 `_rollback_postcheck` 在 volume-set gate 处报 `rollback_incomplete_manual_recovery_required`。后续临时 Broker readiness 必须绑定 exact Broker listener/TLS/CA/server-name contract，禁止硬编码不存在的 plaintext listener；transaction 前后必须逐项核对所有 Docker artifact，包括 anonymous volumes；rollback volume mismatch 必须输出 exact unexpected volume identity；claimed authorization 永久禁止 replay；在 volume baseline 恢复并独立闭环前，禁止 production service start、下一次 live apply 或 PR merge。Authority: `docs/development/N3W_T1_S20_R4_READINESS_AND_ROLLBACK_VOLUME_DRIFT_PROGRESS_ALIGNMENT_20261011.md`。
+
 # KNOWN_FAILURES_AND_REGRESSION_GUARDS
 
 > 目的：快速定位并闪避本项目已经实际发生过的问题。  
