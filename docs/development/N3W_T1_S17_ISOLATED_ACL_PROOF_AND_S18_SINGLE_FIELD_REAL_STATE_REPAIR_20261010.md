@@ -90,3 +90,63 @@ S18_R1_T1_MUTATION=false
 S18_R1_BOARD_ACCESS=false
 PR541=OPEN_DRAFT
 ```
+
+
+## S18-R1 只读取证：19 项候选差异
+
+2026-10-10 用户提供真实 T1 S18-R1 只读结果：
+
+```text
+REAL_STATE_SHA_MATCH=True
+REAL_STATE_SHA256=93c751a788200498869de39a3218a82de53e5cd3d29170360ea55959d0af85da
+S18_BACKUP_EXISTS=False
+S18_NEW_STATE_STAGING_EXISTS=False
+S18_CANDIDATE_DIRECTORY_COUNT=1
+REAL_CLIENT_COUNT=1
+CANDIDATE_CLIENT_COUNT=1
+CANDIDATE_DEFAULT_publishClientSend=False
+CANDIDATE_DEFAULT_publishClientReceive=False
+CANDIDATE_DEFAULT_subscribe=False
+CANDIDATE_DEFAULT_unsubscribe=True
+ADDITIONAL_CHANGE_COUNT=19
+ADDITIONAL_CHANGE_OUTPUT_TRUNCATED=False
+EXACT_ONE_FIELD_COMPARE=FAIL
+REAL_STATE_UNCHANGED=True
+PASSWORD_CONTENT_READ=False
+CANDIDATE_CONTENT_PRINTED=False
+CANDIDATE_PRESERVED=True
+DOCKER_CONTAINER_CREATED=False
+T1_MUTATION=False
+BOARD_ACCESS=False
+S18_R1_READONLY_RESULT=PASS
+SSH_OR_REMOTE_EXIT_CODE=0
+```
+
+新增 19 处键位/取值差异类型归纳：
+
+- 顶层 `changeIndex` 新增 integer，`groups` 新增 array：2。
+- 唯一管理员客户端的 `textName`→`textname` 为旧键移除/新键新增：2。
+- 角色 ACL 8 项均新增 `priority`：8。
+- 角色 ACL 中相同**数组索引**的 `acltype` 改变：2；`topic` 改变：4。这不自动意味着权限真正改变，可能是插件保存时 ACL 重排序；但在完整 ACL 集合（type/topic/allow/priority）核对前**不得判断等价**。
+- 角色新增 `allowwildcardsubs` bool：1。
+- 总计 19。
+
+`S18_REAL_STATE=UNMODIFIED` 已由现场 SHA 再次确认；正式备份、新文件暂存路径均不存在。候选临时目录一个，属于包含真实管理员口令哈希的敏感副本，禁止输出、删除或上传 JSON 原始内容。源状态 admin_only 1、候选 admin_only 1。
+
+项目外上游参考：`https://github.com/eclipse-mosquitto/mosquitto/blob/master/plugins/dynamic-security/migrate_to_dynsec.py` 将 ACL 映射为 `acltype,priority,allow,topic`，role 含 `allowwildcardsubs`、`textname`，顶层含 `groups`；官方 README 定义六种 ACL 类型与默认权限。该来源可解释 schema 变化可能性，但不构成本机新旧 ACL 的等价证明。
+
+下一门限只读的 S18-R2：比较 ACL 多重集合（含 acltype、topic、allow 及默认优先级），排除数组重排的假差异；检查客户端 `textName`→`textname` 的值恒等、`groups` 新增是否为空、`allowwildcardsubs` 值、`changeIndex` 类型与范围；再将**严格受控**的格式归一化后整个 JSON 与唯一预期 default ACL 变化进行对比。除有限布尔/计数/哈希外，不得输出任何密码、密码哈希、salt、管理员凭据、私有 Topic 具体值。继续禁止 S18 重跑及真实数据库原地编辑/晋升。
+
+```text
+S18_R1_READONLY_RESULT=PASS
+S18_REAL_STATE_SHA_MATCH=true
+S18_PRODUCTION_BACKUP_EXISTS=false
+S18_REAL_STATE_PROMOTED=false
+S18_ADDITIONAL_CHANGES=19
+S18_ROOT_CAUSE=PROBABLE_SERIALIZATION_NORMALIZATION_UNCONFIRMED
+NEXT_ONE_GATE=S18_R2_ADMIN_ROLE_ACL_MULTISET_NORMALIZATION_READONLY_CLASSIFICATION
+S18_R2_T1_MUTATION=false
+S18_R2_DOCKER_RUN=false
+S18_R2_BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+```
