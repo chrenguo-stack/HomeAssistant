@@ -460,7 +460,22 @@ def _verify_executor_binding(
         raise S20ServiceHandoffError("executor_sha256_mismatch")
 
 
-def _verify_source_dependencies() -> None:
+def _verify_source_dependencies(
+    streamed_sha256: dict[str, str] | None = None,
+) -> None:
+    if streamed_sha256 is not None:
+        expected = {
+            str(path.relative_to(SOURCE_ROOT)): value
+            for path, value in EXPECTED_DEPENDENCY_SHA256.items()
+        }
+        if set(streamed_sha256) != set(expected):
+            raise S20ServiceHandoffError("source_dependency_set_mismatch")
+        for relative_path, expected_sha256 in expected.items():
+            if streamed_sha256.get(relative_path) != expected_sha256:
+                raise S20ServiceHandoffError(
+                    "source_dependency_sha256_mismatch"
+                )
+        return
     for path, expected_sha256 in EXPECTED_DEPENDENCY_SHA256.items():
         if not path.is_file() or path.is_symlink():
             raise S20ServiceHandoffError("source_dependency_missing")
@@ -473,6 +488,7 @@ def build_preclaim_report(
     *,
     executor_path: Path | None = None,
     executor_source_sha256: str | None = None,
+    streamed_dependency_sha256: dict[str, str] | None = None,
     expected_executor_sha256: str | None = None,
 ) -> dict[str, object]:
     if os.geteuid() != 0:
@@ -483,7 +499,7 @@ def build_preclaim_report(
             executor_source_sha256=executor_source_sha256,
             expected_executor_sha256=expected_executor_sha256,
         )
-    _verify_source_dependencies()
+    _verify_source_dependencies(streamed_dependency_sha256)
     if _run_required(runner, ("uname", "-m"), "uname_arch_failed").strip() != EXPECTED_ARCH:
         raise S20ServiceHandoffError("arch_drift")
     if _run_required(runner, ("uname", "-r"), "uname_kernel_failed").strip() != EXPECTED_KERNEL:
@@ -1115,11 +1131,13 @@ class LocalTransactionRuntime:
         *,
         executor_path: Path | None,
         executor_source_sha256: str | None,
+        streamed_dependency_sha256: dict[str, str] | None,
         expected_executor_sha256: str,
     ) -> None:
         self.runner = runner
         self.executor_path = executor_path
         self.executor_source_sha256 = executor_source_sha256
+        self.streamed_dependency_sha256 = streamed_dependency_sha256
         self.expected_executor_sha256 = expected_executor_sha256
 
     def preclaim(self) -> dict[str, object]:
@@ -1127,6 +1145,7 @@ class LocalTransactionRuntime:
             self.runner,
             executor_path=self.executor_path,
             executor_source_sha256=self.executor_source_sha256,
+            streamed_dependency_sha256=self.streamed_dependency_sha256,
             expected_executor_sha256=self.expected_executor_sha256,
         )
 
@@ -1227,12 +1246,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     stream_sha256 = globals().get("__n3w_stream_executor_sha256__")
     if stream_sha256 is not None and not isinstance(stream_sha256, str):
         stream_sha256 = None
+    stream_dependencies = globals().get(
+        "__n3w_stream_dependency_sha256__"
+    )
+    if stream_dependencies is not None and not isinstance(
+        stream_dependencies,
+        dict,
+    ):
+        stream_dependencies = None
     executor_path = None if stream_sha256 is not None else Path(__file__).resolve()
     try:
         runtime = LocalTransactionRuntime(
             runner,
             executor_path=executor_path,
             executor_source_sha256=stream_sha256,
+            streamed_dependency_sha256=stream_dependencies,
             expected_executor_sha256=args.expected_executor_sha256,
         )
         if args.phase == "preclaim":
