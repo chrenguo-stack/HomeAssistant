@@ -1,3 +1,26 @@
+> **2026-10-10 S20 production three-service handoff/deployment preflight R2 FAIL_CLOSED / SOURCE_DEPLOYMENT_BINDING**：HA automatic bootstrap isolated runtime 已 CLOSED_PASS，但 fresh source rebind 发现仓库仍没有最终 clean-product production Compose/deployment authority。现有 `infra/compose/t1/docker-compose.manager.yml` 仍是历史 N1 lab 单 Manager 配置；clean deployment gate CI 当前只验证 synthetic rendered fixture，不能证明真实仓库生产 Compose 已绑定。因此按 first substantive mismatch STOP，未进入 T1 fresh read-only runtime rebind。
+
+```text
+S19_ISOLATED_IDENTITY_AND_ACL_ACCEPTANCE=CLOSED_PASS
+S20_HA_AUTOMATIC_BOOTSTRAP_ISOLATED_RUNTIME=CLOSED_PASS
+S20_PREFLIGHT_R2_REVIEW_HEAD=5baa36cac8297d16205864bb2d2adf5eb0a4b5be
+FINAL_CLEAN_PRODUCT_PRODUCTION_COMPOSE=SOURCE_GAP
+DEPLOYMENT_GATE_REAL_REPOSITORY_COMPOSE_BINDING=UNPROVEN
+MANAGER_PRODUCTION_IMAGE=UNBOUND
+MANAGER_RUNTIME_UID_GID=UNBOUND
+HOMEASSISTANT_OCI_DIGEST=UNBOUND
+HOMEASSISTANT_ARM64_IMAGE_BINDING=UNPROVEN
+T1_FRESH_READONLY_REBIND=NOT_EXECUTED_SOURCE_GAP_STOP
+READY_FOR_REAL_SERVICE_IDENTITY_AUTHORIZATION=false
+PRODUCTION_CLIENT_CREATION=false
+PRODUCTION_BROKER_STARTED=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+NEXT_ONE_GATE=N3W_T1_S20_FINAL_PRODUCTION_COMPOSE_AND_IMAGE_BINDING_SOURCE_REPAIR_20261010_01
+```
+
+Authority: `docs/development/N3W_T1_S20_PRODUCTION_THREE_SERVICE_CREDENTIAL_HANDOFF_AND_DEPLOYMENT_PREFLIGHT_R2_20261010.md`. PR #541 remains OPEN DRAFT and unmerged.
+
 > **2026-10-10 S20 Home Assistant automatic MQTT bootstrap isolated runtime CLOSED_PASS**：exact Home Assistant 2026.10.0 + Mosquitto 2.1.2-alpine isolated runtime acceptance 已通过。首次自动 config-flow 创建、真实 MQTT 连接、保留原 .storage 重建、existing_match、entry_id 不变、无重复 entry、重建后再次 MQTT 连接均由同一真实镜像测试覆盖。生产 T1 网络拓扑未改；本结果不等于生产部署授权。
 
 ```text
