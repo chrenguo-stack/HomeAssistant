@@ -453,6 +453,18 @@ def build_preclaim_report(
         raise S20ServiceHandoffError("admin_password_file_unsafe")
     if SECRET_ROOT.exists() or SECRET_ROOT.is_symlink():
         raise S20ServiceHandoffError("production_secret_destination_exists")
+    secret_parent_state = "absent"
+    if SECRET_PARENT.exists() or SECRET_PARENT.is_symlink():
+        if SECRET_PARENT.is_symlink() or not SECRET_PARENT.is_dir():
+            raise S20ServiceHandoffError("production_secret_parent_unsafe")
+        parent_info = SECRET_PARENT.stat()
+        if (
+            parent_info.st_uid != 0
+            or parent_info.st_gid != 0
+            or stat.S_IMODE(parent_info.st_mode) != 0o700
+        ):
+            raise S20ServiceHandoffError("production_secret_parent_unsafe")
+        secret_parent_state = "safe_existing"
     if ROLLBACK_SNAPSHOT.exists() or ROLLBACK_SNAPSHOT.is_symlink():
         raise S20ServiceHandoffError("s20_rollback_snapshot_exists")
     if TRANSACTION_DIR.exists() or TRANSACTION_DIR.is_symlink():
@@ -491,6 +503,7 @@ def build_preclaim_report(
         "s18_backup_sha_match": True,
         "dynsec_inventory": dynsec,
         "secret_destination_absent": True,
+        "secret_parent_state": secret_parent_state,
         "rollback_snapshot_absent": True,
         "exact_broker_image_local_arm64": True,
         "live_mutation": False,
@@ -563,12 +576,25 @@ def _client_config(
 
 
 def _prepare_transaction_material() -> dict[str, ServiceIdentityPlan]:
-    parent_created = False
-    if not SECRET_PARENT.exists():
+    TRANSACTION_DIR.mkdir(mode=0o700)
+    os.chown(TRANSACTION_DIR, 0, 0)
+    os.chmod(TRANSACTION_DIR, 0o700)
+    if SECRET_PARENT.exists() or SECRET_PARENT.is_symlink():
+        if SECRET_PARENT.is_symlink() or not SECRET_PARENT.is_dir():
+            raise S20ServiceHandoffError("production_secret_parent_unsafe")
+        parent_info = SECRET_PARENT.stat()
+        if (
+            parent_info.st_uid != 0
+            or parent_info.st_gid != 0
+            or stat.S_IMODE(parent_info.st_mode) != 0o700
+        ):
+            raise S20ServiceHandoffError("production_secret_parent_unsafe")
+        _write_private(TRANSACTION_DIR / "parent-preexisting", "true\n")
+    else:
+        _write_private(TRANSACTION_DIR / "parent-was-absent", "true\n")
         SECRET_PARENT.mkdir(mode=0o700)
-        parent_created = True
-    os.chown(SECRET_PARENT, 0, 0)
-    os.chmod(SECRET_PARENT, 0o700)
+        os.chown(SECRET_PARENT, 0, 0)
+        os.chmod(SECRET_PARENT, 0o700)
     create_clean_service_credential_bundle(
         SECRET_ROOT,
         system_id=SYSTEM_ID,
@@ -577,9 +603,6 @@ def _prepare_transaction_material() -> dict[str, ServiceIdentityPlan]:
     verify_clean_service_credential_bundle(SECRET_ROOT)
     os.chown(SECRET_ROOT / "manager/password", 999, 999)
     os.chown(SECRET_ROOT / "provisioning/password", 999, 999)
-    TRANSACTION_DIR.mkdir(mode=0o700)
-    os.chown(TRANSACTION_DIR, 0, 0)
-    os.chmod(TRANSACTION_DIR, 0o700)
     admin_password = _read_password(ADMIN_PASSWORD)
     _write_private(
         TRANSACTION_DIR / "admin.conf",
@@ -608,9 +631,6 @@ def _prepare_transaction_material() -> dict[str, ServiceIdentityPlan]:
                 client_id=f"{plan.client_id}-wrong",
             ),
         )
-    marker = TRANSACTION_DIR / "parent-created"
-    if parent_created:
-        _write_private(marker, "true\n")
     return plans
 
 
@@ -862,12 +882,15 @@ def _restore_snapshot() -> None:
 
 
 def _cleanup_transaction_material(*, remove_bundle: bool) -> None:
-    shutil.rmtree(TRANSACTION_DIR, ignore_errors=True)
+    parent_was_absent = (
+        TRANSACTION_DIR / "parent-was-absent"
+    ).is_file()
     if remove_bundle:
         shutil.rmtree(SECRET_ROOT, ignore_errors=True)
-        if SECRET_PARENT.is_dir():
+        if parent_was_absent and SECRET_PARENT.is_dir():
             with contextlib.suppress(OSError):
                 SECRET_PARENT.rmdir()
+    shutil.rmtree(TRANSACTION_DIR, ignore_errors=True)
 
 
 def _bundle_owner_mode() -> dict[str, str]:
