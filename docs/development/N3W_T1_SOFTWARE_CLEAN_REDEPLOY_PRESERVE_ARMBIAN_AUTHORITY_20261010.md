@@ -81,3 +81,28 @@ NEXT_INPUT=N3W_T1_SOFTWARE_OWNERSHIP_*.txt
 NEXT_ONE_GATE=N3W_T1_SOFTWARE_OWNERSHIP_READONLY_EVIDENCE_AND_CLEAN_TARGET_DRY_RUN
 PRODUCTION_STOP=no deletion before exact owned target set
 ```
+
+
+## 5. 2026-10-10 新增产品决策：正式环境仅一套 Home Assistant
+
+用户确认：两套 Home Assistant 是历史原因产生的重复部署，最终生产 T1 **只应存在一套 Home Assistant**。这改变最终清洁部署的目标，但**不构成立即删除任何一套的授权**。
+
+当前 S0 R2 已证明：
+
+- `fc4-homeassistant` 与 `homeassistant` 各自属于不同 Compose project，`/config` 使用不同宿主数据目录；
+- `homeassistant` 使用 host network，`fc4-homeassistant` 使用 N3W private network；
+- 现有元数据尚不能证明哪套有必须保留的用户配置、外部使用者或 MQTT 依赖；
+- `recipes-broker-1` 与运行中的温室 Broker 共享全部六个挂载，不能凭项目名认定可独立清除。
+
+冻结要求：
+
+```text
+FINAL_PRODUCTION_HOME_ASSISTANT_INSTANCE_COUNT=1
+S1=READONLY_INSTANCE_OWNERSHIP_AND_DEPENDENCY_CHECK
+S2=EXACT_SINGLE_HA_KEEP_OR_FRESH_DECISION_AND_CLEAN_MANIFEST
+OLD_HA_DATA_DELETE_AUTHORIZED=false
+LIVE_RUNTIME_MUTATION=false
+R4_B1I1_ROLLBACK_DEVELOPMENT=false
+```
+
+S1 只进行现场归属/依赖只读检查，执行命令直接在对话里提供；GitHub 仅归档脱敏决策、取证结果、源码和进展，不新增执行指令文档。
