@@ -1,3 +1,5 @@
+> **2026-10-10 当前决策已覆盖本文件的整机擦盘建议。** 状态：`HISTORICAL_F0_OBSERVATION_VALID_BUT_OS_WIPE_GOAL_SUPERSEDED`。用户明确决定**保留现有 Armbian、网络、SSH 与 Docker**，仅重建核实属于温室系统的旧软件和数据。现行权威文档：`docs/development/N3W_T1_SOFTWARE_CLEAN_REDEPLOY_PRESERVE_ARMBIAN_AUTHORITY_20261010.md`。原记录保留供历史追溯，不得作为擦盘、清系统或删除无关 Home Assistant 的授权。
+
 # N3-W T1 full-fresh install — F0 actual read-only host/storage evidence (2026-10-10)
 
 ## Source and limits
