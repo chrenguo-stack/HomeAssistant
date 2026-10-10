@@ -1,3 +1,16 @@
+> **2026-10-10 S20 preflight R2 source stop**：HA bootstrap runtime 已 CLOSED_PASS；但最终 production Compose/deployment source authority 仍未生成。现有 `infra/compose/t1/docker-compose.manager.yml` 仍为历史 N1 lab 配置，deployment gate 只绑定 synthetic fixture，因此 T1 fresh read-only rebind 暂停。
+
+```text
+S20_PREFLIGHT_R2_RESULT=FAIL_CLOSED
+S20_FAILURE_CLASS=SOURCE_DEPLOYMENT_BINDING
+FINAL_CLEAN_PRODUCT_PRODUCTION_COMPOSE=SOURCE_GAP
+DEPLOYMENT_GATE_REAL_REPOSITORY_COMPOSE_BINDING=UNPROVEN
+T1_FRESH_READONLY_REBIND=NOT_EXECUTED_SOURCE_GAP_STOP
+READY_FOR_REAL_SERVICE_IDENTITY_AUTHORIZATION=false
+NEXT_ONE_GATE=N3W_T1_S20_FINAL_PRODUCTION_COMPOSE_AND_IMAGE_BINDING_SOURCE_REPAIR_20261010_01
+AUTHORITY=docs/development/N3W_T1_S20_PRODUCTION_THREE_SERVICE_CREDENTIAL_HANDOFF_AND_DEPLOYMENT_PREFLIGHT_R2_20261010.md
+```
+
 > **2026-10-10 S20 HA bootstrap isolated runtime CLOSED_PASS**：run `38039664411` / exact source `0412d6009c963bf80eb7ce2e21e3fefac69e09a2` 已通过首次自动创建、真实 MQTT 连接、保留 storage 重建、existing_match、entry_id 稳定、无重复 entry 与重建后重新连接。生产 T1 网络/身份尚未部署，PR #541 仍 OPEN DRAFT。
 
 ```text
