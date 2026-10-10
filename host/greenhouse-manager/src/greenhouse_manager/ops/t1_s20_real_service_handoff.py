@@ -30,7 +30,7 @@ from greenhouse_manager.runtime.service_identity_plan import (
 )
 
 AUTHORIZATION_ID = (
-    "N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_R2_20261010_01"
+    "N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_R3_20261010_01"
 )
 SCHEMA = "gh.n3w-t1-s20-real-three-service-secret-handoff/1"
 SYSTEM_ID = "greenhouse"
@@ -92,11 +92,17 @@ DYNSEC_DATA = Path("/var/lib/n3wfc4-broker")
 S18_BACKUP = Path("/etc/n3wfc4/private/dynsec-s18-pre-receive-deny.json")
 ADMIN_PASSWORD = Path("/etc/n3wfc4/private/dynsec-admin-password")
 TLS_DIR = Path("/etc/n3wfc4/tls")
+TLS_CA = TLS_DIR / "ca.pem"
+TLS_CERT = TLS_DIR / "server.pem"
+TLS_KEY = TLS_DIR / "server.key"
 R1_EVIDENCE_SNAPSHOT = Path(
     "/etc/n3wfc4/private/dynsec-s20-pre-three-service.json"
 )
-ROLLBACK_SNAPSHOT = Path(
+R2_EVIDENCE_SNAPSHOT = Path(
     "/etc/n3wfc4/private/dynsec-s20-r2-pre-three-service.json"
+)
+ROLLBACK_SNAPSHOT = Path(
+    "/etc/n3wfc4/private/dynsec-s20-r3-pre-three-service.json"
 )
 SECRET_PARENT = Path("/opt/greenhouse-secrets")
 SECRET_ROOT = SECRET_PARENT / "mqtt"
@@ -488,39 +494,64 @@ def _verify_source_dependencies(
             raise S20ServiceHandoffError("source_dependency_sha256_mismatch")
 
 
-def _verify_retained_r1_snapshot() -> None:
-    if (
-        R1_EVIDENCE_SNAPSHOT.is_symlink()
-        or not R1_EVIDENCE_SNAPSHOT.is_file()
-    ):
-        raise S20ServiceHandoffError("r1_evidence_snapshot_missing_or_unsafe")
-    info = R1_EVIDENCE_SNAPSHOT.stat()
+def _verify_evidence_snapshot(path: Path, label: str) -> None:
+    if path.is_symlink() or not path.is_file():
+        raise S20ServiceHandoffError(
+            f"{label}_evidence_snapshot_missing_or_unsafe"
+        )
+    info = path.stat()
     if (
         info.st_uid != 0
         or info.st_gid != 0
         or stat.S_IMODE(info.st_mode) != 0o600
     ):
-        raise S20ServiceHandoffError("r1_evidence_snapshot_owner_mode_drift")
-    if _sha256_path(R1_EVIDENCE_SNAPSHOT) != EXPECTED_DYNSEC_SHA256:
-        raise S20ServiceHandoffError("r1_evidence_snapshot_sha_drift")
+        raise S20ServiceHandoffError(
+            f"{label}_evidence_snapshot_owner_mode_drift"
+        )
+    if _sha256_path(path) != EXPECTED_DYNSEC_SHA256:
+        raise S20ServiceHandoffError(
+            f"{label}_evidence_snapshot_sha_drift"
+        )
 
 
-def _verify_r2_snapshot_if_present() -> str:
+def _verify_retained_attempt_snapshots() -> None:
+    _verify_evidence_snapshot(R1_EVIDENCE_SNAPSHOT, "r1")
+    _verify_evidence_snapshot(R2_EVIDENCE_SNAPSHOT, "r2")
+
+
+def _verify_r3_snapshot_if_present() -> str:
     if not (ROLLBACK_SNAPSHOT.exists() or ROLLBACK_SNAPSHOT.is_symlink()):
         return "absent"
     if ROLLBACK_SNAPSHOT.is_symlink() or not ROLLBACK_SNAPSHOT.is_file():
-        raise S20ServiceHandoffError("r2_rollback_snapshot_unsafe")
+        raise S20ServiceHandoffError("r3_rollback_snapshot_unsafe")
     info = ROLLBACK_SNAPSHOT.stat()
     if (
         info.st_uid != 0
         or info.st_gid != 0
         or stat.S_IMODE(info.st_mode) != 0o600
     ):
-        raise S20ServiceHandoffError("r2_rollback_snapshot_owner_mode_drift")
+        raise S20ServiceHandoffError("r3_rollback_snapshot_owner_mode_drift")
     if _sha256_path(ROLLBACK_SNAPSHOT) != EXPECTED_DYNSEC_SHA256:
-        raise S20ServiceHandoffError("r2_rollback_snapshot_sha_drift")
+        raise S20ServiceHandoffError("r3_rollback_snapshot_sha_drift")
     return "exact"
 
+
+def _verify_tls_material() -> None:
+    expected = (
+        (TLS_CA, 0, 0, 0o644, "tls_ca"),
+        (TLS_CERT, 0, 0, 0o644, "tls_cert"),
+        (TLS_KEY, 1883, 1883, 0o600, "tls_key"),
+    )
+    for path, uid, gid, mode, label in expected:
+        if path.is_symlink() or not path.is_file():
+            raise S20ServiceHandoffError(f"{label}_missing_or_unsafe")
+        info = path.stat()
+        if (
+            info.st_uid != uid
+            or info.st_gid != gid
+            or stat.S_IMODE(info.st_mode) != mode
+        ):
+            raise S20ServiceHandoffError(f"{label}_owner_mode_drift")
 
 def build_preclaim_report(
     runner: CommandRunner,
@@ -611,9 +642,10 @@ def build_preclaim_report(
         ):
             raise S20ServiceHandoffError("production_secret_parent_unsafe")
         secret_parent_state = "safe_existing"
-    _verify_retained_r1_snapshot()
+    _verify_retained_attempt_snapshots()
+    _verify_tls_material()
     if ROLLBACK_SNAPSHOT.exists() or ROLLBACK_SNAPSHOT.is_symlink():
-        raise S20ServiceHandoffError("r2_rollback_snapshot_exists")
+        raise S20ServiceHandoffError("r3_rollback_snapshot_exists")
     if TRANSACTION_DIR.exists() or TRANSACTION_DIR.is_symlink():
         raise S20ServiceHandoffError("transaction_directory_exists")
     dynsec = validate_preclaim_dynsec(_load_dynsec(DYNSEC_PATH))
@@ -640,8 +672,10 @@ def build_preclaim_report(
         "secret_destination_absent": True,
         "secret_parent_state": secret_parent_state,
         "r1_retained_snapshot_verified": True,
+        "r2_retained_snapshot_verified": True,
+        "tls_file_bind_contract_verified": True,
         "rollback_snapshot_absent": True,
-        "r2_rollback_snapshot_absent": True,
+        "r3_rollback_snapshot_absent": True,
         "exact_broker_image_local_arm64": True,
         "broker_image": broker_image,
         "live_mutation": False,
@@ -799,7 +833,19 @@ def _start_broker(runner: CommandRunner) -> None:
         "-v",
         _docker_mount(DYNSEC_DATA, "/mosquitto/data", read_only=False),
         "-v",
-        _docker_mount(TLS_DIR, "/mosquitto/tls", read_only=True),
+        _docker_mount(TLS_CA, "/mosquitto/tls/ca.pem", read_only=True),
+        "-v",
+        _docker_mount(
+            TLS_CERT,
+            "/mosquitto/tls/server.pem",
+            read_only=True,
+        ),
+        "-v",
+        _docker_mount(
+            TLS_KEY,
+            "/mosquitto/tls/server.key",
+            read_only=True,
+        ),
         "-v",
         _docker_mount(TRANSACTION_DIR, "/run/n3w-s20", read_only=True),
         broker_image["image_id"],
@@ -1204,8 +1250,8 @@ def _rollback_postcheck(runner: CommandRunner) -> dict[str, object]:
         raise S20ServiceHandoffError(
             "rollback_postcheck_transaction_directory_present"
         )
-    _verify_retained_r1_snapshot()
-    r2_snapshot_state = _verify_r2_snapshot_if_present()
+    _verify_retained_attempt_snapshots()
+    r3_snapshot_state = _verify_r3_snapshot_if_present()
     return {
         "docker_container_count": 0,
         "docker_volume_count": volume_count,
@@ -1220,14 +1266,15 @@ def _rollback_postcheck(runner: CommandRunner) -> dict[str, object]:
         "target_service_roles_absent": True,
         "node_clients_absent": True,
         "r1_retained_snapshot_verified": True,
-        "r2_rollback_snapshot_state": r2_snapshot_state,
+        "r2_retained_snapshot_verified": True,
+        "r3_rollback_snapshot_state": r3_snapshot_state,
     }
 
 
 def _postcheck(runner: CommandRunner) -> dict[str, object]:
-    _verify_retained_r1_snapshot()
-    if _verify_r2_snapshot_if_present() != "exact":
-        raise S20ServiceHandoffError("postcheck_r2_snapshot_missing")
+    _verify_retained_attempt_snapshots()
+    if _verify_r3_snapshot_if_present() != "exact":
+        raise S20ServiceHandoffError("postcheck_r3_snapshot_missing")
     if TRANSACTION_DIR.exists() or TRANSACTION_DIR.is_symlink():
         raise S20ServiceHandoffError("postcheck_transaction_directory_present")
     containers = [
@@ -1289,7 +1336,8 @@ def _postcheck(runner: CommandRunner) -> dict[str, object]:
         "dynsec_sha256": dynsec_sha,
         "credential_owner_mode": _bundle_owner_mode(),
         "r1_retained_snapshot_verified": True,
-        "r2_rollback_snapshot_verified": True,
+        "r2_retained_snapshot_verified": True,
+        "r3_rollback_snapshot_verified": True,
     }
 
 
