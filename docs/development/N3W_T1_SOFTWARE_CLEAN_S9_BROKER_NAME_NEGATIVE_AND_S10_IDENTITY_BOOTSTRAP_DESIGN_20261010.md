@@ -55,3 +55,36 @@ PR541=OPEN_DRAFT
 ```
 
 继续采用既有安全入口 guard、双网络和独立 Broker/Manager/HA；所有用户终端执行指令直接给出于对话，GitHub 仅归档设计、源码、测试与脱敏证据。
+
+
+## 2026-10-10 authority correction: PR #522 auto safe fallback already implemented
+
+**Corrections to the original S10 candidate paragraphs above:** The previous text treated T1-IP-change recovery as necessarily requiring manual reset/re-pair and presented the IP-address + fixed-TLS-name approach as a new optional implementation. That interpretation omitted verified pre-existing N3-W auto safe fallback work in PR #522. **The previous manual-reset-as-default statement is superseded by this section.**
+
+Authoritative evidence from PR #522, OPEN/DRAFT, not merged into main or PR #541:
+
+- `docs/development/N3W_AUTO_SAFE_FALLBACK_PRODUCTION_CORE_CONVERGENCE_SOURCE_CLOSURE_20261003.md`: production-core source and host CI already implement Manager broadcast rediscovery, filtered candidate selection, RAM-only Broker retarget, bounded MQTT reconnect, TLS identity and credential preservation, candidate promotion and rollback; not a second state machine.
+- `docs/development/N3W_AUTO_SAFE_FALLBACK_DIRECT_MQTT_BROKER_RELOCATION_TRIGGER_SOURCE_REPAIR_R2_CLOSURE_20261004.md`: Direct Wi-Fi connected but MQTT down triggers discovery independently of 60s business telemetry cadence, 10s persistent-failure threshold; fixes partial-retarget rollback and phased Direct-recovery exclusion.
+- `docs/development/N3W_AUTO_SAFE_FALLBACK_GATE_F_R2_MQTT_RECOVERY_SERIAL_CLOSURE_20261004.md`: Board B physically validated stale persisted Broker address -> Manager discovery -> new candidate -> MQTT connected -> runtime candidate promotion; no durable Broker address rewrite.
+- `docs/development/N3W_AUTO_SAFE_FALLBACK_GATE_F_R2_POST_MQTT_TELEMETRY_FORENSIC_20261004.md`: Broker-to-Manager Direct telemetry also physically observed, but Manager canonical advance was rejected solely by historical KF-050 boot-session high-water. **Do not call entire clean-product Gate F accepted.**
+- `docs/development/N3W_AUTO_SAFE_FALLBACK_GATE_F_CLEAN_PRODUCT_STATE_PROGRESS_ALIGNMENT_20261005.md`: final clean-board, genuinely healthy initial A then real T1 A→B address relocation, MQTT and canonical reception Gate F remains to be closed; P4 clean-product pairing later blocked by a separate Setup Secret handoff defect.
+- `GH_N3W_PAIRING_ADVERTISED_HOST=auto` is the Manager discovery address; it alone does not retarget a provisioned node's MQTT Broker. It is the separate **PR #522 auto safe fallback extension** that does this.
+- DHCP/IP change under unchanged T1 identity, CA/TLS server name, MQTT credentials and working LAN discovery should lead to automatic runtime recovery **without user re-pairing, credential rotation or permanent NVS rewrite**. Connection candidates stay RAM-only; after restart, an old saved address can be rediscovered again.
+- S9 still accurately proves `mqtt.greenhouse.local` unresolved on the current LAN. This is **not an obstacle to the existing fallback architecture** when the Manager initially provisions a live Broker IP locator and fixed verified TLS identity. Do not replace the frozen auto route with DNS/mDNS/B2, assume prior DNS failure means complete Broker outage, or design a new manual reset as normal recovery.
+- A concrete IP literal is not durable product identity; T1 Broker external 8883 publication must remain explicit IPv4 wildcard with the ingress guard intact. The production F1.0-RC2 artifact must contain the PR #522 recovery code; main's prior firmware is not a substitute.
+- Distinguish **runtime Broker IP relocation** from fresh-install T1: wiping old T1 identities/CA/credentials requires first-pair/reset on real boards later. Auto fallback is not a substitute for a new SYSTEM_ID/CA or mismatched/rotated credentials.
+
+```text
+S9_DNS_NAME_RESOLUTION=NOT_READY
+AUTO_MANAGER_DISCOVERY=IMPLEMENTED
+PR522_PRODUCTION_AUTO_BROKER_FALLBACK=SOURCE_AND_HOST_CI_PASS
+PR522_BOARD_B_STALE_TO_MQTT_RECOVERY=PHYSICAL_PASS
+PR522_BOARD_B_BROKER_TO_MANAGER_INGRESS=PHYSICAL_PASS
+PR522_FINAL_CLEAN_PRODUCT_GATE_F=PENDING
+PR522_MERGED=false
+PR541_DEPLOYMENT_MUST_BIND_PR522_EXACT_FIRMWARE=true
+T1_IP_CHANGE_DEFAULT_OPERATION=AUTOMATIC_RUNTIME_REDISCOVERY
+MANUAL_REPAIR_DEFAULT=false
+FRESH_T1_NEW_SYSTEM_IDENTITY=FRESH_PAIR_REQUIRED
+NEXT_STEP=INTEGRATE_AND_VALIDATE_EXISTING_AUTO_RECOVERY_WITH_FRESH_T1_DEPLOYMENT
+```
