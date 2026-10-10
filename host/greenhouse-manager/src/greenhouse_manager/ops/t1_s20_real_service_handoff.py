@@ -29,7 +29,7 @@ from greenhouse_manager.runtime.service_identity_plan import (
     build_service_identity_plan,
 )
 
-AUTHORIZATION_ID = "N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_R2_20261010_01"
+AUTHORIZATION_ID = (\n    "N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_R2_20261010_01"\n)
 SCHEMA = "gh.n3w-t1-s20-real-three-service-secret-handoff/1"
 SYSTEM_ID = "greenhouse"
 GENERATION = 1
