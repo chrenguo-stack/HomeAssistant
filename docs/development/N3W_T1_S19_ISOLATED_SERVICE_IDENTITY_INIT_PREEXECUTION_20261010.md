@@ -154,3 +154,24 @@ S19_R2_R2_T1_MUTATION=EXACT_FAILED_THROWAWAY_FILES_ONLY
 S19_R2_R2_BOARD_ACCESS=false
 PR541=OPEN_DRAFT
 ```
+
+
+## S19-R2-R2 精确临时数据清理执行文件
+
+基于 S19-R2-R1 已通过的只读现场取证，在对话中下发专用清理执行脚本，不重跑 S19-R2：
+
+```text
+SCRIPT_NAME=N3W_T1_S19_R2_R2_EXACT_STAGE_CLEANUP.py
+SCRIPT_SHA256=8ac6c40031b7553b24d924b2a65cd8f6b69b23e0049f82406dbb0925e90fb2d7
+PYTHON_SYNTAX=PASS
+T1_EXECUTION=NOT_YET_EXECUTED
+SCOPE=ONLY_ONE_EXACT_.n3wfc4-s19r2-STAGE
+PRODUCTION_DYNSEC_MUTATION=false
+PRODUCTION_CREDENTIAL_READ=false
+DOCKER_CONTAINER_RUN=false
+BOARD_ACCESS=false
+```
+
+Script 对 T1 做 fresh 守护规则、两空网络、45 Docker volumes 精确名称集合与生产三文件 SHA 复核；要求遗留 staging 唯一、所属 UID1883/0700、仅两个预定 regular 文件（`candidate.conf` 0644 与 `dynamic-security.json` 0600）、文件无额外硬链接、四客户端/四角色、三套服务身份绑定和 ACL 条目数符合先前取证；仅在全通过后删除本临时目录的两个**精确文件**及目录，随后复核生产 state、S18 root 0600 备份和原 45 volumes 无漂移。异常 STOP，不自动重试。**这不定位此前 S19-R2 哪个 MQTT 运行时步骤失败**。
+
+后续新的运行时测试必须以全新一次性凭据、隔离临时容器和安全阶段标记执行：只返回当前阶段与经白名单筛选的故障码，不在终端/仓库中显示完整 DynSec CONTROL 响应、用户名密码、哈希或其他凭据。不将账号持久化等价于 MQTT 正向投递 PASS。
