@@ -1,3 +1,5 @@
+> **2026-10-10 当前决策已覆盖本文件的整机擦盘建议。** 状态：`SUPERSEDED_DISK_ERASE_PREFLIGHT`。用户明确决定**保留现有 Armbian、网络、SSH 与 Docker**，仅重建核实属于温室系统的旧软件和数据。现行权威文档：`docs/development/N3W_T1_SOFTWARE_CLEAN_REDEPLOY_PRESERVE_ARMBIAN_AUTHORITY_20261010.md`。原记录保留供历史追溯，不得作为擦盘、清系统或删除无关 Home Assistant 的授权。
+
 # N3-W T1 全新部署 F0：整机目标、安装介质与清盘范围只读确认（2026-10-10）
 
 ## 本门定义
