@@ -6,6 +6,7 @@ ROOT = Path(__file__).resolve().parents[2]
 INFRA = ROOT / "infra/n3w-t1"
 GUARD_UNIT = INFRA / "systemd/n3wfc4-broker-ingress-guard.service"
 ACTIVATION_UNIT = INFRA / "systemd/n3wfc4-broker-activation.service"
+SERVICES_UNIT = INFRA / "systemd/n3wfc4-services-activation.service"
 DISPATCHER = (
     INFRA
     / "NetworkManager/dispatcher.d/90-n3wfc4-broker-ingress-guard"
