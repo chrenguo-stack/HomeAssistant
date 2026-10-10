@@ -73,3 +73,43 @@ S15_PORT_8883_PUBLICATION=false
 S15_MANAGER_HA_BOARD_ACCESS=false
 PR541=OPEN_DRAFT
 ```
+
+
+## S15 T1 现场验收（PASS）
+
+用户提供的 T1 Mac Terminal 原始报告（脱敏摘要）：
+
+```text
+S15_PRECHECK=PASS
+SOURCE_CONFIG_SHA256=3708c6cea415ae6c0a4f35d71a116fff8571921b5a3774dbb55d0a9cb42845a6
+DYNSEC_ADMIN_STATE=PRESERVED
+MOSQUITTO_TEST_CONFIG_EXIT_CODE=0
+MOSQUITTO_TEST_CONFIG=PASS
+PRODUCTION_CONFIG_CREATED=True
+PRODUCTION_CONFIG_SHA256=3708c6cea415ae6c0a4f35d71a116fff8571921b5a3774dbb55d0a9cb42845a6
+PRODUCTION_CONFIG_MODE=0644_ROOT
+DYNSEC_STATE_MUTATED=False
+BROKER_STARTED=False
+HOST_8883_PUBLICATION=False
+ISOLATED_CONTAINER_REMOVED=True
+DOCKER_VOLUMES_PRESERVED=True
+BOARD_ACCESS=False
+S15_RESULT=PASS
+STOP=True
+SSH_OR_REMOTE_EXIT_CODE=0
+```
+
+只关闭 S15 配置/静态检查门。不能宣称端到端 TLS/MQTT 连接通过、业务 ACL 生效或 Broker 已运行。S14 管理员保持不变，S15 新配置来源 SHA 与现场文件一致，测试容器已删除，网络/守护规则/45 个 Docker 卷未发生已观察到的漂移。
+
+下门 S16：对当前全新 Dynamic Security JSON 的 **只读权限基线与服务身份计划** 做精确预检。现有源码已有真正的服务 ACL 合同：`host/greenhouse-manager/src/greenhouse_manager/runtime/service_identity_plan.py`，3 类身份分别 provisioning、manager、Home Assistant，`system_id=greenhouse`；节点身份按首次配对逐个创建（`dynsec_plan.py`），不可复用管理员或预置通用节点密码。默认拒绝 publishClientSend、publishClientReceive、subscribe；unsubscribe 为允许。S16 只检验证据、审查源 ACL，不修改 JSON、秘密、证书、Broker/Manager/HA/Docker 网络，不监听 8883。
+
+```text
+S15_RESULT=PASS
+S15_SOURCE_SHA256=3708c6cea415ae6c0a4f35d71a116fff8571921b5a3774dbb55d0a9cb42845a6
+S15_BROKER_STARTED=false
+S15_HOST_8883_PUBLICATION=false
+S16_NEXT_ONE_GATE=N3W_T1_S16_FRESH_DYNSEC_DEFAULT_ACL_AND_SERVICE_IDENTITY_READONLY_PREFLIGHT
+S16_T1_MUTATION=false
+S16_BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+```
