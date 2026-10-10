@@ -11,6 +11,7 @@ from typing import Any
 
 DOMAIN = "n3w_mqtt_bootstrap"
 DEFAULT_METADATA_FILE = "/run/n3w/ha-mqtt-bootstrap.json"
+_PASSWORD_FILE = "/run/secrets/gh_homeassistant_mqtt_password"
 _METADATA_SCHEMA = "gh.n3w.t1-clean-homeassistant-mqtt-bootstrap/1"
 _LOGGER = logging.getLogger(__name__)
 
@@ -90,8 +91,7 @@ def _load_settings(path: str | Path) -> BootstrapSettings:
         or not client_id
         or not isinstance(generation, int)
         or not 1 <= generation <= 4294967295
-        or not isinstance(password_file, str)
-        or not password_file
+        or password_file != _PASSWORD_FILE
     ):
         raise BootstrapError("metadata_identity_invalid")
     return BootstrapSettings(
