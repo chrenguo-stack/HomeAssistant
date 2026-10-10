@@ -75,3 +75,26 @@ S13_R2_IMAGE_PULL=false
 S13_R2_BOARD_ACCESS=false
 S13_BROKER_START=false
 ```
+
+
+## S13 国内镜像代理入口实测（2026-10-10）
+
+在用户 Mac→T1 只读 HTTPS 探测中，`m.daocloud.io` 和 `docker.m.daocloud.io` 均完成 IPv4 DNS 查询并返回 HTTP `401`，且 curl 退出码为 0。这支持镜像 Registry 的 TLS/HTTP 入口已从 T1 成功到达，HTTP 401 是 registry 认证挑战；**尚不等于目标 Mosquitto tag、manifest、blob 下载或完整镜像供应链身份已验证**。
+
+DaoCloud 官方 `public-image-mirror` 使用文档说明推荐添加 `m.daocloud.io/docker.io/library/...` 前缀形式，可依据指定 tag 请求 Docker Hub 镜像代理，并注明白名单、限流、缓存时效及 SHA256 保持性。前述 T1 访问 Docker Hub 直连失败并未要求修改 NetworkManager/SSH/Docker daemon 或现存防火墙。
+
+下一门 S13-R3：仅重新确认无容器、现存 45 个 volumes、`n3wfc4-private` 和 `n3wfc4-services` 无连接、入口防护 active、8883 未监听、磁盘空间达到下限；允许 **一个 bounded** 的 `m.daocloud.io/docker.io/library/eclipse-mosquitto:2.1.2-alpine` / linux/arm64 镜像 pull，然后仅 Docker image metadata inspect，记录 `Image ID`、`RepoDigests`、`Architecture` 和 `Os`。要保留失败 stderr 的有限且脱敏摘录。此门不启动任何容器、不挂载 TLS 私钥、不创建 DynSec 数据或账号，不重试其它不受控站点。
+
+镜像来源绑定：通过镜像代理拉到的镜像保持为 `CANDIDATE`，只以镜像 tag 或自引用 mirror digest 不足以宣称独立上游供应链一致性；需在后续隔离测试及上游摘要比对后再晋升为生产 deployment authority。
+
+```text
+S13_DAOCLOUD_REGISTRY_ENTRY=PASS_HTTP_401
+S13_TARGET_IMAGE_AVAILABILITY=NOT_YET_PROVEN
+S13_R3_ALLOWED=ONE_MIRROR_IMAGE_PULL_PLUS_METADATA_INSPECT
+S13_R3_CONTAINER_CREATE=false
+S13_R3_PRODUCTION_BROKER_START=false
+S13_R3_HOST_8883_PUBLICATION=false
+S13_R3_TLS_PRIVATE_KEY_ACCESS=false
+S13_R3_BOARD_ACCESS=false
+NEXT_ONE_GATE=S13_R3_DAOCLOUD_MOSQUITTO_ARM64_IMAGE_PULL
+```
