@@ -58,3 +58,35 @@ PR541=OPEN_DRAFT
 ```
 
 S18 通过后另门进行三个业务账号/ACL 的隔离矩阵与生产初始化。官方 DynSec 命令在真实服务未启动时不能凭空执行，必须经候选 + 严格源目标校验进行安全提升。命令脚本仅经本地对话执行；GitHub 保存脱敏设计和审核证据。
+
+
+## S18 真实执行：候选超范围变更 STOP
+
+用户于 2026-10-10 在 T1 执行 S18 时，**候选差异门失败**：
+
+```text
+S18_PRECHECK=PASS
+OLD_DYNSEC_SHA_MATCH=True
+REAL_ADMIN_PASSWORD_PRINTED=False
+S18_ISOLATED_EXIT_CODE=0
+STOP_CANDIDATE_MODIFIED_MORE_THAN_ONE_FIELD
+SSH_OR_REMOTE_EXIT_CODE=1
+```
+
+上一版 S18 控制流已在候选`new_obj != expected_obj`时主动 `SystemExit`，该判定早于 `BACKUP` 新建、`NEW_STATE` 建立和 `os.replace`。因此**脚本已停止于生产写入前**，但仍需下一只读门核对真实 JSON SHA、备份/暂存路径确实未出现、临时无网络容器确实已删除。临时 `/var/lib/.n3wfc4-s18-candidate-*` 包含 production DynSec 的机密**复制品**，应以 sensitive artifact 看待，禁止重跑 S18、删除/上传/打印该目录或其全部 JSON、修改原数据库或创建业务账号。
+
+失败分类：`ISOLATED_CONTROL_RETURNED_SUCCESS`，但`EXACT_ONE_FIELD_SEMANTIC_DIFF=FAIL`。**不能推断具体额外变化**；Mosquitto 插件可能进行状态规范化/补充，需现场最小范围读取 JSON 的结构差异（只列经过过滤的 JSON 路径和数据类型，不输出任何密码、盐值、哈希或客户端凭据），比较真实 SHA 固定值`93c751a788200498869de39a3218a82de53e5cd3d29170360ea55959d0af85da`。目标 default ACL 仍为 `false,false,false,true`，但不能放宽其他字段变化准入直到安全分类清楚。
+
+```text
+S18_PRECHECK=PASS
+S18_ISOLATED_EXIT_CODE=0
+S18_EXACT_ONE_FIELD_COMPARE=FAIL
+S18_RESULT=STOP
+S18_PRODUCTION_STATE_PROMOTED=NO_SCRIPT_PATH
+S18_REAL_STATE_INTEGRITY=NEXT_READONLY_PROOF_REQUIRED
+S18_SENSITIVE_CANDIDATE_STAGING=LIKELY_PRESENT
+NEXT_ONE_GATE=S18_R1_CANDIDATE_STRUCTURAL_DIFF_READONLY_FORENSIC
+S18_R1_T1_MUTATION=false
+S18_R1_BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+```
