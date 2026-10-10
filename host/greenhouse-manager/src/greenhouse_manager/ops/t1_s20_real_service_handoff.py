@@ -678,7 +678,7 @@ def _docker_mount(source: Path, target: str, *, read_only: bool) -> str:
 
 
 def _start_broker(runner: CommandRunner) -> None:
-    _verify_broker_source_tag(runner)
+    broker_image = _verify_broker_source_tag(runner)
     command = (
         "docker",
         "run",
@@ -704,7 +704,7 @@ def _start_broker(runner: CommandRunner) -> None:
         _docker_mount(TLS_DIR, "/mosquitto/tls", read_only=True),
         "-v",
         _docker_mount(TRANSACTION_DIR, "/run/n3w-s20", read_only=True),
-        BROKER_IMAGE,
+        broker_image["image_id"],
     )
     _run_required(runner, command, "transaction_broker_start_failed", timeout=60)
     deadline = time.monotonic() + 20
@@ -729,6 +729,22 @@ def _stop_broker(runner: CommandRunner) -> None:
     )
     if return_code not in (0, 1):
         raise S20ServiceHandoffError("transaction_broker_remove_failed")
+    inspect_code, _inspect_output = runner.run(
+        (
+            "docker",
+            "inspect",
+            "--format",
+            "{{.Id}}",
+            CONTAINER_NAME,
+        ),
+        timeout=10,
+    )
+    if inspect_code == 0:
+        raise S20ServiceHandoffError("transaction_broker_still_present")
+    if inspect_code != 1:
+        raise S20ServiceHandoffError(
+            "transaction_broker_absence_unverified"
+        )
 
 
 def _rr(
@@ -924,6 +940,25 @@ def _restore_snapshot() -> None:
         raise S20ServiceHandoffError("rollback_dynsec_sha_mismatch")
 
 
+def _restore_snapshot_or_verify_baseline() -> None:
+    if ROLLBACK_SNAPSHOT.is_file() and not ROLLBACK_SNAPSHOT.is_symlink():
+        _restore_snapshot()
+        return
+    if _sha256_path(DYNSEC_PATH) != EXPECTED_DYNSEC_SHA256:
+        raise S20ServiceHandoffError(
+            "rollback_snapshot_unavailable_and_dynsec_changed"
+        )
+    info = DYNSEC_PATH.stat()
+    if (
+        info.st_uid != 1883
+        or info.st_gid != 1883
+        or stat.S_IMODE(info.st_mode) != 0o600
+    ):
+        raise S20ServiceHandoffError(
+            "rollback_snapshot_unavailable_and_dynsec_metadata_changed"
+        )
+
+
 def _cleanup_transaction_material(*, remove_bundle: bool) -> None:
     parent_was_absent = (
         TRANSACTION_DIR / "parent-was-absent"
@@ -1002,6 +1037,10 @@ def _postcheck(runner: CommandRunner) -> dict[str, object]:
     }
     if any(counts.values()):
         raise S20ServiceHandoffError("postcheck_mqtt_listener_present")
+    if _sha256_path(BROKER_CONFIG) != EXPECTED_BROKER_CONFIG_SHA256:
+        raise S20ServiceHandoffError("postcheck_broker_config_sha_drift")
+    if _sha256_path(S18_BACKUP) != EXPECTED_S18_BACKUP_SHA256:
+        raise S20ServiceHandoffError("postcheck_s18_backup_sha_drift")
     dynsec_sha = _sha256_path(DYNSEC_PATH)
     if dynsec_sha == EXPECTED_DYNSEC_SHA256:
         raise S20ServiceHandoffError("postcheck_dynsec_not_changed")
@@ -1070,9 +1109,8 @@ class LocalTransactionRuntime:
         return _postcheck(self.runner)
 
     def rollback(self) -> None:
-        with contextlib.suppress(S20ServiceHandoffError):
-            _stop_broker(self.runner)
-        _restore_snapshot()
+        _stop_broker(self.runner)
+        _restore_snapshot_or_verify_baseline()
         _cleanup_transaction_material(remove_bundle=True)
 
 
