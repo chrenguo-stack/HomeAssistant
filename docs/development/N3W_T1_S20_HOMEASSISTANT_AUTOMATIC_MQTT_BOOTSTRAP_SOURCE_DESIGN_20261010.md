@@ -44,6 +44,19 @@ direct_storage_edit_forbidden=true
 
 这只是 upstream feasibility evidence，不是本项目 exact production image binding。正式 runtime 仍须绑定 exact HA image/version 后重验。
 
+## 2.1 与历史迁移协议的边界
+
+旧 `gh-t1-homeassistant-mqtt-reconfigure-handoff-v1` 的“不得脚本调用 config-flow 写接口”继续对**已有 Home Assistant 配置的迁移/轮换**有效，不修改、不回退。
+
+本设计是 fresh clean-product 的**首次创建**专用路径，仅在 `MQTT entry count == 0` 时允许调用 Home Assistant 自己的 config-flow manager。发现任何既有 MQTT entry 后就退回保守规则：匹配则 no-op，不匹配则 STOP，绝不自动 reconfigure。因此：
+
+```text
+LEGACY_MIGRATION_PROTOCOL_SUPERSEDED=false
+FRESH_FIRST_BOOT_EXCEPTION=true
+AUTOMATIC_RECONFIGURE_EXISTING_ENTRY=false
+DIRECT_STORAGE_EDIT=false
+```
+
 ## 3. 选定的低复杂度路线
 
 不直接编辑 `.storage`，也不自动操纵浏览器 UI。新增一个很小的 T1 专用 Home Assistant custom integration：
