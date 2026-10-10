@@ -49,7 +49,7 @@ services:
       - application
     environment:
       GH_SYSTEM_ID: greenhouse
-      GH_MQTT_HOST: 127.0.0.1
+      GH_MQTT_HOST: armbian
       GH_MQTT_PORT: "8883"
       GH_MQTT_USERNAME: ghs_greenhouse_manager
       GH_MQTT_PASSWORD_FILE: /run/secrets/gh_manager_mqtt_password
@@ -58,12 +58,15 @@ services:
       GH_MQTT_CA_FILE: /run/n3w/tls/ca.pem
       GH_HA_DISCOVERY_ENABLED: "true"
       GH_N3W_RUNTIME_ENABLED: "true"
-      GH_N3W_PRODUCT_PAIRING_ENABLED: "true"
+      GH_N3W_PRODUCT_PAIRING_ENABLED: "false"
       GH_N3W_PAIRING_MANAGER_ID: gh-manager-greenhouse
       GH_N3W_PAIRING_ADVERTISED_HOST: auto
       GH_N3W_PROVISIONING_USERNAME: ghs_greenhouse_provisioning
       GH_N3W_PROVISIONING_PASSWORD_FILE: /run/secrets/gh_n3w_provisioning_mqtt_password
       GH_N3W_PROVISIONING_CLIENT_ID: gh-provisioning-greenhouse
+      GH_N3W_NODE_BROKER_HOST: gate-f-unbound.invalid
+      GH_N3W_NODE_BROKER_PORT: "8883"
+      GH_N3W_NODE_BROKER_TLS_SERVER_NAME: armbian
       GH_N3W_NODE_BROKER_CA_FILE: /run/n3w/tls/ca.pem
     volumes:
       - type: bind
