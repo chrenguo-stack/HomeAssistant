@@ -135,3 +135,41 @@ SYSTEM_DISK_ERASE=false
 R4_B1I1_ROLLBACK_DEVELOPMENT=false
 BOARD_ACCESS=false
 ```
+
+
+## 7. S2 精确预删除只读核对完成
+
+实际 T1 S2 文件：`N3W_T1_S2_PREDELETE_20261010_090013.txt`。私有全文保留在用户对话，GitHub 只归档脱敏结论。
+
+```text
+S2_PREDELETE_READONLY_PASS=true
+EXACT_CONTAINER_AND_MOUNT_BINDING=PASS
+EXACT_VOLUME_SET=PASS
+TARGET_OLD_CONTAINERS=6
+TARGET_OLD_BUSINESS_ROOTS=6
+SYSTEMD_TARGET_PATH_BINDING=PASS_6
+SSH_ACTIVE=true
+NETWORKMANAGER_ACTIVE=true
+DOCKER_ACTIVE=true
+REMOTE_MUTATION=false
+OLD_DATA_ERASURE_AUTHORITY=USER_CONFIRMED
+```
+
+确定：6 个旧容器及挂载 fingerprint 未变化；46 个 Docker volumes 名称集合未变化；6 个旧业务主目录是实际目录且未发现顶层符号链接；6 个 Broker/P4 systemd unit 路径未变化；Armbian 基础 SSH/NetworkManager/Docker 均 active。
+
+**重要新发现/执行约束**：仓库中的 NetworkManager dispatcher 针对 eth0 网络事件直接执行 `systemctl start n3wfc4-broker-activation.service`，即使 service 已被 disable，仍可能被事件主动启动。因此单独 `disable` 旧 Broker service **不足以防复活**。后续清理操作必须阻止该专用 dispatcher 重启旧 Broker，并停止证书生命周期定时器；保留 Broker 防火墙 ingress guard 直至 TCP/8883 不再对外发布的实际证据出现；不得停止 NetworkManager 或刷新全局防火墙。
+
+推荐下一个按小窗口单独验收的实际执行阶段：
+
+```text
+NEXT_ONE_GATE=N3W_T1_S3_EXACT_OLD_CONTAINER_QUIESCE_AND_REMOVE
+OLD_CONTAINERS=EXACT_SIX_IDS_ONLY
+S3_DELETE_OLD_BUSINESS_DATA=false
+S3_DELETE_DOCKER_VOLUMES=false
+S3_REMOVE_INGRESS_GUARD=false
+S3_TOUCH_ARMBIAN_SSH_NETWORK_DOCKER=false
+S3_BOARD_ACCESS=false
+S3_RESULT=PENDING
+```
+
+通过后再按 S2 已确认目录和业务专用凭据生成下一门 S4 定向数据删除，最终从零部署 HA/Broker/Manager 各一套。所有终端指令只在用户对话中提供。
