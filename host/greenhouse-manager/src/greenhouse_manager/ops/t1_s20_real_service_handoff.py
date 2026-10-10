@@ -381,6 +381,52 @@ def _guard_contract(runner: CommandRunner) -> dict[str, object]:
     }
 
 
+def _verify_broker_source_tag(
+    runner: CommandRunner,
+) -> dict[str, str]:
+    image = _run_required(
+        runner,
+        (
+            "docker",
+            "image",
+            "inspect",
+            "--format",
+            "{{.Id}}|{{.Os}}|{{.Architecture}}|{{json .RepoDigests}}",
+            BROKER_SOURCE_TAG,
+        ),
+        "exact_broker_image_unavailable",
+    ).strip()
+    fields = image.split("|", 3)
+    if len(fields) != 4:
+        raise S20ServiceHandoffError("exact_broker_image_inspect_invalid")
+    image_id, image_os, architecture, repo_digests_raw = fields
+    if image_os != "linux" or architecture != "arm64":
+        raise S20ServiceHandoffError("exact_broker_image_platform_drift")
+    try:
+        repo_digests = json.loads(repo_digests_raw)
+    except json.JSONDecodeError as error:
+        raise S20ServiceHandoffError(
+            "exact_broker_image_repo_digest_invalid"
+        ) from error
+    expected_repo_digest = (
+        "m.daocloud.io/docker.io/library/eclipse-mosquitto@"
+        f"{EXPECTED_BROKER_INDEX_DIGEST}"
+    )
+    if (
+        not isinstance(repo_digests, list)
+        or expected_repo_digest not in repo_digests
+    ):
+        raise S20ServiceHandoffError("exact_broker_image_index_digest_drift")
+    if not image_id.startswith("sha256:"):
+        raise S20ServiceHandoffError("exact_broker_image_id_invalid")
+    return {
+        "image_id": image_id,
+        "platform": "linux/arm64",
+        "index_digest": EXPECTED_BROKER_INDEX_DIGEST,
+        "arm64_manifest_digest": EXPECTED_BROKER_ARM64_MANIFEST_DIGEST,
+    }
+
+
 def build_preclaim_report(
     runner: CommandRunner,
     *,
@@ -474,36 +520,7 @@ def build_preclaim_report(
     if TRANSACTION_DIR.exists() or TRANSACTION_DIR.is_symlink():
         raise S20ServiceHandoffError("transaction_directory_exists")
     dynsec = validate_preclaim_dynsec(_load_dynsec(DYNSEC_PATH))
-    image = _run_required(
-        runner,
-        (
-            "docker",
-            "image",
-            "inspect",
-            "--format",
-            "{{.Os}}|{{.Architecture}}|{{json .RepoDigests}}",
-            BROKER_SOURCE_TAG,
-        ),
-        "exact_broker_image_unavailable",
-    ).strip()
-    fields = image.split("|", 2)
-    if len(fields) != 3 or fields[0] != "linux" or fields[1] != "arm64":
-        raise S20ServiceHandoffError("exact_broker_image_platform_drift")
-    try:
-        repo_digests = json.loads(fields[2])
-    except json.JSONDecodeError as error:
-        raise S20ServiceHandoffError(
-            "exact_broker_image_repo_digest_invalid"
-        ) from error
-    expected_repo_digest = (
-        "m.daocloud.io/docker.io/library/eclipse-mosquitto@"
-        f"{EXPECTED_BROKER_INDEX_DIGEST}"
-    )
-    if (
-        not isinstance(repo_digests, list)
-        or expected_repo_digest not in repo_digests
-    ):
-        raise S20ServiceHandoffError("exact_broker_image_index_digest_drift")
+    broker_image = _verify_broker_source_tag(runner)
     return {
         "schema": SCHEMA,
         "phase": "preclaim",
@@ -526,8 +543,7 @@ def build_preclaim_report(
         "secret_parent_state": secret_parent_state,
         "rollback_snapshot_absent": True,
         "exact_broker_image_local_arm64": True,
-        "broker_index_digest": EXPECTED_BROKER_INDEX_DIGEST,
-        "broker_arm64_manifest_digest": EXPECTED_BROKER_ARM64_MANIFEST_DIGEST,
+        "broker_image": broker_image,
         "live_mutation": False,
         "authorization_claimed": False,
         "authorization_consumed": False,
@@ -662,20 +678,7 @@ def _docker_mount(source: Path, target: str, *, read_only: bool) -> str:
 
 
 def _start_broker(runner: CommandRunner) -> None:
-    verification = _run_required(
-        runner,
-        (
-            "docker",
-            "image",
-            "inspect",
-            "--format",
-            "{{.Os}}|{{.Architecture}}|{{json .RepoDigests}}",
-            BROKER_SOURCE_TAG,
-        ),
-        "exact_broker_image_unavailable",
-    ).strip()
-    if EXPECTED_BROKER_INDEX_DIGEST not in verification:
-        raise S20ServiceHandoffError("exact_broker_image_index_digest_drift")
+    _verify_broker_source_tag(runner)
     command = (
         "docker",
         "run",
