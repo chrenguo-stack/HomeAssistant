@@ -285,3 +285,31 @@ S19_R2_R4_BOARD_ACCESS=false
 S19_R2_R4_HOST_PUBLICATION=false
 PR541=OPEN_DRAFT
 ```
+
+
+## S19-R2-R4 隔离 Manager/HA 正向链路门
+
+S19-R2-R3 实机 `CLOSED_PASS` 后的唯一下一门，保留正式 Broker 关闭、宿主 8883 不开放、真实 DynSec 与 root-only 备份精确 SHA 不变、45 Docker volumes、网络/防火墙护栏保护。使用新的**独立一次性 admin + manager + homeassistant**（三个候选 client，三个 role；无 provisioning/node）和 `service_identity_plan.py` 冻结的 manager 17 条、Home Assistant 9 条 ACL。
+
+仅在 `--network none`、`--read-only`、UID1883、临时 `/tmp`、无宿主端口映射的本地 image `sha256:38c0da4f2ef84284d47b3b3eeea1cb3bdeabe81ee10caf0cd5c5ff61ee3ea408` 容器中执行、取证阶段：
+- INIT_STATE、ADMIN_AUTH、CREATE_IDENTITIES；
+- `MANAGER_INGRESS`：候选 admin 向 node ingress 发布，manager 真正通过订阅读取带随机标记的消息；
+- `MANAGER_STATE_TO_HA`：manager 发布 canonical state，HA 真正收到；
+- `MANAGER_DEVICE_DISCOVERY`、`MANAGER_BINARY_DISCOVERY`：manager 发布当前 device 与 binary_sensor config，HA 真正收到；
+- `HOMEASSISTANT_STATUS`：HA 发布上线状态，候选 admin 真正收到；
+- STOP_BROKER：隔离进程退出。
+- 所有正向 PASS 都依靠客户端读取的带随机标记内容等价，不能凭 publish 命令或日志缺失判定。独立随机密码只经 stdin 输入测试容器，临时 0600 option-file；完整 CONTROL_RESPONSE 仅经宿主 Python 进程内解析，不打印。失败只打印固定白名单 `SAFE_FAILURE_STEP`，保留敏感 staging 并 STOP，不重跑。
+- 隔离 MQTT 真实投递通过后再检查三客户端、三角色、完整 26 条 ACL 精确内容、默认拒绝、无明文密码。PASS 则精确删除本门临时数据；FAIL 保留取证。正式生产 DynSec `94f3c0a3dbed90f3d2a3e96696dba8bed8093194903aeed106559090764d1ad5` 与 root-only 旧备份 `93c751a788200498869de39a3218a82de53e5cd3d29170360ea55959d0af85da` 保持不变。
+- 此门不重测 Provisioning，不测试错误客户端 ID/匿名连接或跨 Topic 禁止矩阵；那些是后续独立 gate，不能将 S19-R2-R4 PASS 冒充 S19-R2 全面验收。
+
+```text
+S19_R2_R3_RESULT=PASS
+S19_R2_R4_EXECUTOR_FILENAME=N3W_T1_S19_R2_R4_MANAGER_HA_POSITIVE_RUNTIME.py
+S19_R2_R4_EXECUTOR_SHA256=5f509002f99fc770b6dac9882f32d1c0fb80c97ac5b2469753b4ea709dcaf7c5
+S19_R2_R4_PYTHON_SYNTAX=PASS
+S19_R2_R4_SHELL_PARSE=PASS
+S19_R2_R4_T1_RUNTIME=NOT_YET_EXECUTED
+S19_R2_R4_PRODUCTION_MUTATION=false
+S19_R2_R4_BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+```
