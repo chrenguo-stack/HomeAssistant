@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import os
 import shutil
-import socket
 import subprocess
 import time
 import uuid
@@ -26,13 +25,20 @@ def _run(
     command: list[str],
     *,
     check: bool = True,
+    timeout_s: float = 60.0,
 ) -> subprocess.CompletedProcess[str]:
-    result = subprocess.run(
-        command,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            command,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=timeout_s,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise RuntimeError(
+            f"command_timeout executable={Path(command[0]).name}"
+        ) from error
     if check and result.returncode != 0:
         raise RuntimeError(
             f"command_failed executable={Path(command[0]).name} "
@@ -41,66 +47,114 @@ def _run(
     return result
 
 
-def _wait_tcp(
-    host: str,
-    port: int,
+def _broker_failure(
+    name: str,
+    failure_class: str,
+    probe_stderr: str = "",
+) -> RuntimeError:
+    detail = _sanitize(probe_stderr.strip())
+    return RuntimeError(
+        f"{failure_class} "
+        + _container_state(name)
+        + f" probe={detail or 'none'}"
+        + "\nBROKER_LOG_TAIL_BEGIN\n"
+        + _safe_logs(name, tail=100)
+        + "\nBROKER_LOG_TAIL_END"
+    )
+
+
+def _wait_broker_authenticated(
+    name: str,
     timeout_s: float,
 ) -> None:
     deadline = time.monotonic() + timeout_s
+    last_stderr = ""
     while time.monotonic() < deadline:
-        try:
-            with socket.create_connection(
-                (host, port),
-                timeout=1.0,
-            ):
-                return
-        except OSError:
-            time.sleep(0.5)
-    raise RuntimeError("broker_tcp_timeout")
+        if not _container_running(name):
+            raise _broker_failure(
+                name,
+                "broker_stopped_before_readiness",
+                last_stderr,
+            )
+        result = _run(
+            [
+                "docker",
+                "exec",
+                name,
+                "mosquitto_pub",
+                "-h",
+                "127.0.0.1",
+                "-p",
+                "1883",
+                "-u",
+                USERNAME,
+                "-P",
+                PASSWORD,
+                "-i",
+                "n3w-ci-broker-readiness",
+                "-V",
+                "mqttv5",
+                "-t",
+                "n3w/ci/broker-readiness",
+                "-m",
+                "ok",
+            ],
+            check=False,
+            timeout_s=5.0,
+        )
+        last_stderr = result.stderr
+        if result.returncode == 0:
+            return
+        time.sleep(0.5)
+    raise _broker_failure(
+        name,
+        "broker_authenticated_readiness_timeout",
+        last_stderr,
+    )
 
 
-def _probe_host_network_tcp() -> None:
+def _probe_container_network_tcp(name: str) -> None:
     result = _run(
         [
             "docker",
             "run",
             "--rm",
             "--network",
-            "host",
+            f"container:{name}",
             "--entrypoint",
             "python",
             HA_IMAGE,
             "-c",
             (
-                "import socket,time;"
-                "deadline=time.monotonic()+30;"
-                "ok=False;"
-                "\nwhile time.monotonic()<deadline:"
-                "\n try:"
-                "\n  s=socket.create_connection(('127.0.0.1',1883),1);"
-                "\n  s.close();ok=True;break"
-                "\n except OSError:"
-                "\n  time.sleep(0.25)"
-                "\nraise SystemExit(0 if ok else 1)"
+                "import socket;"
+                "s=socket.create_connection(('127.0.0.1',1883),5);"
+                "s.close()"
             ),
         ],
         check=False,
+        timeout_s=15.0,
     )
     if result.returncode != 0:
-        raise RuntimeError(
-            "host_network_tcp_probe_failed "
-            f"returncode={result.returncode}"
+        raise _broker_failure(
+            name,
+            "container_namespace_tcp_probe_failed",
+            result.stderr,
         )
 
 
-def _probe_host_network_mqtt_v5() -> None:
+def _probe_container_network_mqtt_v5(
+    name: str,
+    password: str,
+    *,
+    expect_success: bool,
+) -> None:
     result = _run(
         [
             "docker",
             "run",
             "--rm",
             "--network",
-            "host",
+            f"container:{name}",
             "--entrypoint",
             "mosquitto_pub",
             BROKER_IMAGE,
@@ -111,7 +165,7 @@ def _probe_host_network_mqtt_v5() -> None:
             "-u",
             USERNAME,
             "-P",
-            PASSWORD,
+            password,
             "-i",
             "n3w-ci-preflight-probe",
             "-V",
@@ -122,11 +176,18 @@ def _probe_host_network_mqtt_v5() -> None:
             "ok",
         ],
         check=False,
+        timeout_s=15.0,
     )
-    if result.returncode != 0:
-        raise RuntimeError(
-            "host_network_mqtt_v5_probe_failed "
-            f"returncode={result.returncode}"
+    passed = result.returncode == 0
+    if passed != expect_success:
+        raise _broker_failure(
+            name,
+            (
+                "container_namespace_mqtt_v5_expected_success_failed"
+                if expect_success
+                else "container_namespace_wrong_password_not_rejected"
+            ),
+            result.stderr,
         )
 
 
@@ -204,11 +265,13 @@ def _wait_config_entry(
     timeout_s: float,
     *,
     ha_name: str,
+    expected_bootstrap_class: str,
 ) -> dict:
     deadline = time.monotonic() + timeout_s
     last_log_probe = 0.0
+    success_seen = False
     while time.monotonic() < deadline:
-        if path.is_file():
+        if success_seen and path.is_file():
             try:
                 document = json.loads(
                     path.read_text(encoding="utf-8")
@@ -263,6 +326,12 @@ def _wait_config_entry(
                     + logs
                     + "\nHOMEASSISTANT_LOG_TAIL_END"
                 )
+            success_marker = (
+                "N3-W MQTT bootstrap success class="
+                + expected_bootstrap_class
+            )
+            if success_marker in logs:
+                success_seen = True
         time.sleep(0.5)
 
     storage_state = (
@@ -271,12 +340,124 @@ def _wait_config_entry(
     )
     raise RuntimeError(
         "mqtt_config_entry_timeout "
+        + f"expected_bootstrap_class={expected_bootstrap_class} "
         + _container_state(ha_name)
         + " "
         + storage_state
         + "\nHOMEASSISTANT_LOG_TAIL_BEGIN\n"
         + _safe_logs(ha_name)
         + "\nHOMEASSISTANT_LOG_TAIL_END"
+    )
+
+
+def _named_uid_gid(
+    image: str,
+    user: str,
+) -> tuple[int, int]:
+    result = _run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--entrypoint",
+            "sh",
+            image,
+            "-c",
+            f"id -u {user}; id -g {user}",
+        ]
+    )
+    values = result.stdout.splitlines()
+    if (
+        len(values) != 2
+        or not values[0].isdigit()
+        or not values[1].isdigit()
+    ):
+        raise RuntimeError("named_runtime_identity_invalid")
+    return int(values[0]), int(values[1])
+
+
+def _assert_broker_material_readable(
+    broker_dir: Path,
+    uid: int,
+    gid: int,
+) -> None:
+    result = _run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--user",
+            f"{uid}:{gid}",
+            "-v",
+            f"{broker_dir}:/work:ro",
+            "--entrypoint",
+            "sh",
+            BROKER_IMAGE,
+            "-c",
+            (
+                "test -x /work && "
+                "test -r /work/mosquitto.conf && "
+                "test -r /work/passwords"
+            ),
+        ],
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            "broker_material_not_readable_by_runtime_user"
+        )
+
+
+def _broker_client_event_count(name: str) -> int:
+    result = _run(
+        [
+            "docker",
+            "logs",
+            name,
+        ],
+        check=False,
+    )
+    return sum(
+        CLIENT_ID in line
+        for line in (result.stdout + result.stderr).splitlines()
+    )
+
+
+def _wait_broker_client_connected(
+    name: str,
+    *,
+    minimum_event_count: int,
+    timeout_s: float,
+) -> int:
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        if not _container_running(name):
+            raise _broker_failure(
+                name,
+                "broker_stopped_waiting_for_ha_client",
+            )
+        result = _run(
+            [
+                "docker",
+                "logs",
+                name,
+            ],
+            check=False,
+        )
+        events = [
+            line
+            for line in (result.stdout + result.stderr).splitlines()
+            if CLIENT_ID in line
+        ]
+        if (
+            len(events) >= minimum_event_count
+            and "New client connected" in events[-1]
+        ):
+            return len(events)
+        time.sleep(0.5)
+    raise _broker_failure(
+        name,
+        "homeassistant_mqtt_client_not_connected",
     )
 
 
@@ -377,12 +558,37 @@ def test_exact_homeassistant_image_bootstrap_and_recreate(
                 "password_file /mosquitto/config/passwords\n"
                 "persistence false\n"
                 "log_dest stdout\n"
+                "log_type all\n"
             ),
             encoding="utf-8",
         )
         os.chmod(
             broker_dir / "mosquitto.conf",
-            0o644,
+            0o600,
+        )
+        os.chmod(
+            broker_dir / "passwords",
+            0o600,
+        )
+        broker_uid, broker_gid = _named_uid_gid(
+            BROKER_IMAGE,
+            "mosquitto",
+        )
+        _chown(broker_dir, broker_uid, broker_gid)
+        _chown(
+            broker_dir / "mosquitto.conf",
+            broker_uid,
+            broker_gid,
+        )
+        _chown(
+            broker_dir / "passwords",
+            broker_uid,
+            broker_gid,
+        )
+        _assert_broker_material_readable(
+            broker_dir,
+            broker_uid,
+            broker_gid,
         )
 
         _run(
@@ -392,8 +598,6 @@ def test_exact_homeassistant_image_bootstrap_and_recreate(
                 "-d",
                 "--name",
                 broker_name,
-                "--network",
-                "host",
                 "-v",
                 f"{broker_dir}:/mosquitto/config:ro",
                 BROKER_IMAGE,
@@ -402,8 +606,21 @@ def test_exact_homeassistant_image_bootstrap_and_recreate(
                 "/mosquitto/config/mosquitto.conf",
             ]
         )
-        _probe_host_network_tcp()
-        _probe_host_network_mqtt_v5()
+        _wait_broker_authenticated(
+            broker_name,
+            30.0,
+        )
+        _probe_container_network_tcp(broker_name)
+        _probe_container_network_mqtt_v5(
+            broker_name,
+            PASSWORD,
+            expect_success=True,
+        )
+        _probe_container_network_mqtt_v5(
+            broker_name,
+            PASSWORD + "-wrong",
+            expect_success=False,
+        )
 
         custom_root = (
             ha_config
@@ -470,7 +687,7 @@ def test_exact_homeassistant_image_bootstrap_and_recreate(
             "--name",
             ha_name,
             "--network",
-            "host",
+            f"container:{broker_name}",
             "-v",
             f"{ha_config}:/config",
             "-v",
@@ -496,9 +713,15 @@ def test_exact_homeassistant_image_bootstrap_and_recreate(
             entry_path,
             120.0,
             ha_name=ha_name,
+            expected_bootstrap_class="created",
         )
         _assert_entry(first)
         assert _container_running(ha_name)
+        first_event_count = _wait_broker_client_connected(
+            broker_name,
+            minimum_event_count=1,
+            timeout_s=60.0,
+        )
 
         _run(
             [
@@ -508,15 +731,25 @@ def test_exact_homeassistant_image_bootstrap_and_recreate(
                 ha_name,
             ]
         )
+        recreate_event_baseline = max(
+            first_event_count,
+            _broker_client_event_count(broker_name),
+        )
         _run(common)
 
         second = _wait_config_entry(
             entry_path,
             120.0,
             ha_name=ha_name,
+            expected_bootstrap_class="existing_match",
         )
         _assert_entry(second)
         assert _container_running(ha_name)
+        _wait_broker_client_connected(
+            broker_name,
+            minimum_event_count=recreate_event_baseline + 1,
+            timeout_s=60.0,
+        )
         assert (
             second.get("entry_id")
             == first.get("entry_id")
