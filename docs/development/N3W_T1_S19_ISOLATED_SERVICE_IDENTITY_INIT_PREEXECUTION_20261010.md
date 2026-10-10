@@ -51,3 +51,21 @@ REPOSITORY_EXECUTOR_FILE=NOT_COMMITTED_TO_GITHUB
 ```
 
 脚本程序由对话下载到用户 Mac，使用 `ssh root@T1 'python3 -' <script.py` 在 T1 运行；GitHub 文件只冻结 **哈希** 和安全约束，避免向仓库提交重复的终端执行脚本。不会下载依赖、安装 Python 包或修改 T1 系统软件。
+
+
+## S19-R1 实测验收（2026-10-10）
+
+结果：`S19_R1_RESULT=PASS`，`S19_R1_ISOLATED_EXIT_CODE=0`。三类服务的临时账号与独立角色均被成功创建，ACL、客户端 ID 绑定和默认拒绝基线静态核查全部 PASS。原始生产 DynSec SHA 未变化，临时数据已删除，没有启动生产 Broker、发布 8883 端口或访问板卡。
+
+S19-R2 仅验证三类身份在无外部网络的独立临时 Broker 中进行真实 MQTT 正向投递、动态权限控制请求以及错误客户端 ID 和匿名连接的拒绝。跨 Topic 禁止矩阵属于后续 gate。新测试账号均为一次性凭据，不复用真实生产管理员与业务凭据。
+
+```text
+S19_R1_RESULT=PASS
+S19_R2_NEXT_ONE_GATE=ISOLATED_MQTT_POSITIVE_RUNTIME
+S19_R2_SCRIPT_SHA256=a660e8bdb546d70218f6ff2033a70640679e4cfb80bb06afbc58a23aba06f16a
+S19_R2_PYTHON_STATIC=PASS
+S19_R2_SHELL_PARSE=PASS
+S19_R2_T1_RUN=NOT_EXECUTED
+S19_R2_PRODUCTION_MUTATION=false
+S19_R2_BOARD_ACCESS=false
+```
