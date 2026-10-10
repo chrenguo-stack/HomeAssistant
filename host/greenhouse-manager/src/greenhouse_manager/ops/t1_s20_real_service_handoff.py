@@ -69,6 +69,21 @@ EXPECTED_BROKER_ARM64_MANIFEST_DIGEST = (
     "sha256:3184566df484a083411a0e70e92c87a264b8f0648df632f10eb23d54d99f4549"
 )
 BROKER_IMAGE = BROKER_SOURCE_TAG
+SOURCE_ROOT = Path("/opt/HomeAssistant/host/greenhouse-manager/src/greenhouse_manager")
+EXPECTED_DEPENDENCY_SHA256 = {
+    SOURCE_ROOT / "ops/t1_clean_service_credential_bundle.py": (
+        "b7e42dd8f4c4a08f107c262ff4b5cf9b50b6b5e166f3ab852d6b32d513b0bc48"
+    ),
+    SOURCE_ROOT / "runtime/dynsec_api.py": (
+        "a8e29c0d7c83eeaf2dbb1ad3c119c890ea3eaaed71ad6568d6be86180c9c39f5"
+    ),
+    SOURCE_ROOT / "runtime/service_identity_plan.py": (
+        "7c66fb20d50859322598ad9e08ba0436d602b9ef36586895993e980090c0bac5"
+    ),
+    SOURCE_ROOT / "runtime/dynsec_plan.py": (
+        "2671fa7d0e3e79816fd2f3d09fa7586c3dbbbe3f08f0db8b829a72ccb19688b9"
+    ),
+}
 BROKER_CONFIG = Path("/etc/n3wfc4/mosquitto.conf")
 DYNSEC_PATH = Path("/var/lib/n3wfc4-broker/dynamic-security.json")
 DYNSEC_DATA = Path("/var/lib/n3wfc4-broker")
@@ -427,22 +442,48 @@ def _verify_broker_source_tag(
     }
 
 
+def _verify_executor_binding(
+    *,
+    executor_path: Path | None,
+    executor_source_sha256: str | None,
+    expected_executor_sha256: str,
+) -> None:
+    if executor_source_sha256 is not None:
+        if executor_path is not None:
+            raise S20ServiceHandoffError("executor_binding_ambiguous")
+        actual_sha256 = executor_source_sha256
+    else:
+        if executor_path is None:
+            raise S20ServiceHandoffError("executor_binding_missing")
+        actual_sha256 = _sha256_path(executor_path)
+    if actual_sha256 != expected_executor_sha256:
+        raise S20ServiceHandoffError("executor_sha256_mismatch")
+
+
+def _verify_source_dependencies() -> None:
+    for path, expected_sha256 in EXPECTED_DEPENDENCY_SHA256.items():
+        if not path.is_file() or path.is_symlink():
+            raise S20ServiceHandoffError("source_dependency_missing")
+        if _sha256_path(path) != expected_sha256:
+            raise S20ServiceHandoffError("source_dependency_sha256_mismatch")
+
+
 def build_preclaim_report(
     runner: CommandRunner,
     *,
     executor_path: Path | None = None,
+    executor_source_sha256: str | None = None,
     expected_executor_sha256: str | None = None,
 ) -> dict[str, object]:
     if os.geteuid() != 0:
         raise S20ServiceHandoffError("root_required")
-    if (
-        expected_executor_sha256 is not None
-        and (
-            executor_path is None
-            or _sha256_path(executor_path) != expected_executor_sha256
+    if expected_executor_sha256 is not None:
+        _verify_executor_binding(
+            executor_path=executor_path,
+            executor_source_sha256=executor_source_sha256,
+            expected_executor_sha256=expected_executor_sha256,
         )
-    ):
-        raise S20ServiceHandoffError("executor_sha256_mismatch")
+    _verify_source_dependencies()
     if _run_required(runner, ("uname", "-m"), "uname_arch_failed").strip() != EXPECTED_ARCH:
         raise S20ServiceHandoffError("arch_drift")
     if _run_required(runner, ("uname", "-r"), "uname_kernel_failed").strip() != EXPECTED_KERNEL:
@@ -527,6 +568,7 @@ def build_preclaim_report(
         "status": "PASS",
         "authorization_id": AUTHORIZATION_ID,
         "executor_bound": expected_executor_sha256 is not None,
+        "source_dependencies_bound": True,
         "docker_container_count": 0,
         "docker_volume_count": volume_count,
         "docker_volume_set_sha256": volume_sha,
@@ -1071,17 +1113,20 @@ class LocalTransactionRuntime:
         self,
         runner: CommandRunner,
         *,
-        executor_path: Path,
+        executor_path: Path | None,
+        executor_source_sha256: str | None,
         expected_executor_sha256: str,
     ) -> None:
         self.runner = runner
         self.executor_path = executor_path
+        self.executor_source_sha256 = executor_source_sha256
         self.expected_executor_sha256 = expected_executor_sha256
 
     def preclaim(self) -> dict[str, object]:
         return build_preclaim_report(
             self.runner,
             executor_path=self.executor_path,
+            executor_source_sha256=self.executor_source_sha256,
             expected_executor_sha256=self.expected_executor_sha256,
         )
 
@@ -1179,11 +1224,15 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     runner = CommandRunner()
-    executor_path = Path(__file__).resolve()
+    stream_sha256 = globals().get("__n3w_stream_executor_sha256__")
+    if stream_sha256 is not None and not isinstance(stream_sha256, str):
+        stream_sha256 = None
+    executor_path = None if stream_sha256 is not None else Path(__file__).resolve()
     try:
         runtime = LocalTransactionRuntime(
             runner,
             executor_path=executor_path,
+            executor_source_sha256=stream_sha256,
             expected_executor_sha256=args.expected_executor_sha256,
         )
         if args.phase == "preclaim":
