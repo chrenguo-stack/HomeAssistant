@@ -188,6 +188,9 @@ def _wait_config_entry(
                 raise RuntimeError(
                     "homeassistant_bootstrap_reported_failure "
                     + matching[-1]
+                    + "\nHOMEASSISTANT_LOG_TAIL_BEGIN\n"
+                    + logs
+                    + "\nHOMEASSISTANT_LOG_TAIL_END"
                 )
         time.sleep(0.5)
 
