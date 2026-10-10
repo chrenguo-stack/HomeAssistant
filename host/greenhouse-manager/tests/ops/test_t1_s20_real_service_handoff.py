@@ -797,18 +797,27 @@ def test_start_broker_command_has_no_forced_runtime_user(
     assert "--user" not in run_command
 
 
-def test_r2_authorization_and_snapshot_paths_are_attempt_scoped() -> None:
+def test_r3_authorization_and_snapshot_paths_are_attempt_scoped() -> None:
     assert module.AUTHORIZATION_ID == (
         "N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_"
-        "APPLY_R2_20261010_01"
+        "APPLY_R3_20261010_01"
     )
     assert Path(
         "/etc/n3wfc4/private/dynsec-s20-pre-three-service.json"
     ) == module.R1_EVIDENCE_SNAPSHOT
     assert Path(
         "/etc/n3wfc4/private/dynsec-s20-r2-pre-three-service.json"
+    ) == module.R2_EVIDENCE_SNAPSHOT
+    assert Path(
+        "/etc/n3wfc4/private/dynsec-s20-r3-pre-three-service.json"
     ) == module.ROLLBACK_SNAPSHOT
-    assert module.R1_EVIDENCE_SNAPSHOT != module.ROLLBACK_SNAPSHOT
+    assert len(
+        {
+            module.R1_EVIDENCE_SNAPSHOT,
+            module.R2_EVIDENCE_SNAPSHOT,
+            module.ROLLBACK_SNAPSHOT,
+        }
+    ) == 3
 
 
 def test_cleanup_transaction_material_verifies_removal(
@@ -910,3 +919,92 @@ def test_local_runtime_rollback_requires_readonly_postcheck(
         "cleanup:true",
         "postcheck",
     ]
+
+
+def test_start_broker_mounts_tls_files_individually(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = BrokerLifecycleRunner()
+    image_id = "sha256:" + "4" * 64
+
+    monkeypatch.setattr(
+        module,
+        "_verify_broker_source_tag",
+        lambda _runner: {
+            "image_id": image_id,
+            "platform": "linux/arm64",
+            "index_digest": module.EXPECTED_BROKER_INDEX_DIGEST,
+            "arm64_manifest_digest": (
+                module.EXPECTED_BROKER_ARM64_MANIFEST_DIGEST
+            ),
+        },
+    )
+    monkeypatch.setattr(
+        module,
+        "_rr",
+        lambda *_args, **_kwargs: ({"command": "listClients"},),
+    )
+
+    module._start_broker(
+        runner,  # type: ignore[arg-type]
+    )
+
+    run_command = next(
+        command
+        for command in runner.commands
+        if command[:2] == ("docker", "run")
+    )
+    rendered = " ".join(run_command)
+
+    assert (
+        f"{module.TLS_CA}:/mosquitto/tls/ca.pem:ro"
+        in rendered
+    )
+    assert (
+        f"{module.TLS_CERT}:/mosquitto/tls/server.pem:ro"
+        in rendered
+    )
+    assert (
+        f"{module.TLS_KEY}:/mosquitto/tls/server.key:ro"
+        in rendered
+    )
+    assert f"{module.TLS_DIR}:/mosquitto/tls:ro" not in rendered
+
+
+def test_verify_tls_material_accepts_production_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tls = tmp_path / "tls"
+    tls.mkdir(mode=0o700)
+    ca = tls / "ca.pem"
+    cert = tls / "server.pem"
+    key = tls / "server.key"
+    ca.write_text("ca\n", encoding="utf-8")
+    cert.write_text("cert\n", encoding="utf-8")
+    key.write_text("key\n", encoding="utf-8")
+    ca.chmod(0o644)
+    cert.chmod(0o644)
+    key.chmod(0o600)
+
+    monkeypatch.setattr(module, "TLS_CA", ca)
+    monkeypatch.setattr(module, "TLS_CERT", cert)
+    monkeypatch.setattr(module, "TLS_KEY", key)
+
+    real_stat = module.Path.stat
+
+    class FakeStat:
+        def __init__(self, original: object, uid: int, gid: int) -> None:
+            self.st_mode = original.st_mode
+            self.st_uid = uid
+            self.st_gid = gid
+
+    def fake_stat(path: Path) -> object:
+        original = real_stat(path)
+        if path == key:
+            return FakeStat(original, 1883, 1883)
+        return FakeStat(original, 0, 0)
+
+    monkeypatch.setattr(module.Path, "stat", fake_stat)
+
+    module._verify_tls_material()
