@@ -1,0 +1,376 @@
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import socket
+import subprocess
+import time
+import uuid
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[2]
+COMPONENT = (
+    ROOT
+    / "infra/n3w-t1/homeassistant/custom_components"
+    / "n3w_mqtt_bootstrap"
+)
+HA_IMAGE = "ghcr.io/home-assistant/home-assistant:2026.10.0"
+BROKER_IMAGE = "eclipse-mosquitto:2.1.2-alpine"
+USERNAME = "ghs_greenhouse_homeassistant"
+CLIENT_ID = "gh-homeassistant-greenhouse"
+PASSWORD = "n3w-ci-homeassistant-password-20261010"
+
+
+def _run(
+    command: list[str],
+    *,
+    check: bool = True,
+) -> subprocess.CompletedProcess[str]:
+    result = subprocess.run(
+        command,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if check and result.returncode != 0:
+        raise RuntimeError(
+            f"command_failed executable={Path(command[0]).name} "
+            f"returncode={result.returncode}"
+        )
+    return result
+
+
+def _wait_tcp(
+    host: str,
+    port: int,
+    timeout_s: float,
+) -> None:
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        try:
+            with socket.create_connection(
+                (host, port),
+                timeout=1.0,
+            ):
+                return
+        except OSError:
+            time.sleep(0.5)
+    raise RuntimeError("broker_tcp_timeout")
+
+
+def _container_running(name: str) -> bool:
+    result = _run(
+        [
+            "docker",
+            "inspect",
+            "--format",
+            "{{.State.Running}}",
+            name,
+        ],
+        check=False,
+    )
+    return (
+        result.returncode == 0
+        and result.stdout.strip() == "true"
+    )
+
+
+def _wait_config_entry(
+    path: Path,
+    timeout_s: float,
+) -> dict:
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        if path.is_file():
+            try:
+                document = json.loads(
+                    path.read_text(encoding="utf-8")
+                )
+            except (
+                OSError,
+                UnicodeError,
+                json.JSONDecodeError,
+            ):
+                time.sleep(0.5)
+                continue
+            data = document.get("data")
+            entries = (
+                data.get("entries")
+                if isinstance(data, dict)
+                else None
+            )
+            if isinstance(entries, list):
+                matches = [
+                    entry
+                    for entry in entries
+                    if isinstance(entry, dict)
+                    and entry.get("domain") == "mqtt"
+                    and entry.get("disabled_by") is None
+                ]
+                if len(matches) == 1:
+                    return matches[0]
+        time.sleep(0.5)
+    raise RuntimeError("mqtt_config_entry_timeout")
+
+
+def _image_uid_gid() -> tuple[int, int]:
+    uid = _run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--entrypoint",
+            "id",
+            HA_IMAGE,
+            "-u",
+        ]
+    ).stdout.strip()
+    gid = _run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--entrypoint",
+            "id",
+            HA_IMAGE,
+            "-g",
+        ]
+    ).stdout.strip()
+    if not uid.isdigit() or not gid.isdigit():
+        raise RuntimeError("homeassistant_runtime_identity_invalid")
+    return int(uid), int(gid)
+
+
+def _chown(path: Path, uid: int, gid: int) -> None:
+    if (
+        path.stat().st_uid == uid
+        and path.stat().st_gid == gid
+    ):
+        return
+    result = _run(
+        [
+            "sudo",
+            "chown",
+            f"{uid}:{gid}",
+            str(path),
+        ],
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError("secret_ownership_bind_failed")
+
+
+def _assert_entry(entry: dict) -> None:
+    data = entry.get("data")
+    assert isinstance(data, dict)
+    assert data.get("broker") == "127.0.0.1"
+    assert data.get("port") == 1883
+    assert data.get("protocol") == "5"
+    assert data.get("username") == USERNAME
+    assert data.get("client_id") == CLIENT_ID
+    assert data.get("password") == PASSWORD
+    assert data.get("certificate") is None
+
+
+@pytest.mark.integration
+def test_exact_homeassistant_image_bootstrap_and_recreate(
+    tmp_path: Path,
+) -> None:
+    token = uuid.uuid4().hex[:12]
+    broker_name = f"n3w-ha-bootstrap-broker-{token}"
+    ha_name = f"n3w-ha-bootstrap-ha-{token}"
+    broker_dir = tmp_path / "broker"
+    ha_config = tmp_path / "ha-config"
+    secrets = tmp_path / "secrets"
+    broker_dir.mkdir(mode=0o700)
+    ha_config.mkdir(mode=0o755)
+    secrets.mkdir(mode=0o700)
+
+    try:
+        _run(
+            [
+                "docker",
+                "run",
+                "--rm",
+                "--entrypoint",
+                "mosquitto_passwd",
+                "-v",
+                f"{broker_dir}:/work",
+                BROKER_IMAGE,
+                "-b",
+                "-c",
+                "/work/passwords",
+                USERNAME,
+                PASSWORD,
+            ]
+        )
+        (broker_dir / "mosquitto.conf").write_text(
+            (
+                "listener 1883 0.0.0.0\n"
+                "allow_anonymous false\n"
+                "password_file /mosquitto/config/passwords\n"
+                "persistence false\n"
+                "log_dest stdout\n"
+            ),
+            encoding="utf-8",
+        )
+        os.chmod(
+            broker_dir / "mosquitto.conf",
+            0o644,
+        )
+
+        _run(
+            [
+                "docker",
+                "run",
+                "-d",
+                "--name",
+                broker_name,
+                "-p",
+                "127.0.0.1:1883:1883",
+                "-v",
+                f"{broker_dir}:/mosquitto/config:ro",
+                BROKER_IMAGE,
+                "mosquitto",
+                "-c",
+                "/mosquitto/config/mosquitto.conf",
+            ]
+        )
+        _wait_tcp("127.0.0.1", 1883, 30.0)
+
+        custom_root = (
+            ha_config
+            / "custom_components"
+            / "n3w_mqtt_bootstrap"
+        )
+        shutil.copytree(COMPONENT, custom_root)
+        (ha_config / "configuration.yaml").write_text(
+            (
+                "homeassistant:\n"
+                "  name: N3W CI\n"
+                "n3w_mqtt_bootstrap:\n"
+                "  metadata_file: /run/n3w/ha-mqtt-bootstrap.json\n"
+            ),
+            encoding="utf-8",
+        )
+
+        password_file = secrets / "password"
+        metadata_file = secrets / "mqtt-bootstrap.json"
+        password_file.write_text(
+            PASSWORD + "\n",
+            encoding="utf-8",
+        )
+        metadata_file.write_text(
+            json.dumps(
+                {
+                    "schema": (
+                        "gh.n3w.t1-clean-homeassistant-"
+                        "mqtt-bootstrap/1"
+                    ),
+                    "service": "homeassistant",
+                    "broker": "127.0.0.1",
+                    "port": 1883,
+                    "protocol": "5",
+                    "username": USERNAME,
+                    "client_id": CLIENT_ID,
+                    "generation": 1,
+                    "password_file": (
+                        "/run/secrets/"
+                        "gh_homeassistant_mqtt_password"
+                    ),
+                    "official_config_flow_only": True,
+                    "direct_storage_edit_forbidden": True,
+                    "automatic_apply": True,
+                    "operator_plaintext_copy_required": False,
+                    "runtime_verified": False,
+                },
+                separators=(",", ":"),
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        os.chmod(password_file, 0o600)
+        os.chmod(metadata_file, 0o600)
+
+        uid, gid = _image_uid_gid()
+        _chown(password_file, uid, gid)
+        _chown(metadata_file, uid, gid)
+
+        common = [
+            "docker",
+            "run",
+            "-d",
+            "--name",
+            ha_name,
+            "--network",
+            "host",
+            "-v",
+            f"{ha_config}:/config",
+            "-v",
+            (
+                f"{password_file}:"
+                "/run/secrets/gh_homeassistant_mqtt_password:ro"
+            ),
+            "-v",
+            (
+                f"{metadata_file}:"
+                "/run/n3w/ha-mqtt-bootstrap.json:ro"
+            ),
+            HA_IMAGE,
+        ]
+        _run(common)
+
+        entry_path = (
+            ha_config
+            / ".storage"
+            / "core.config_entries"
+        )
+        first = _wait_config_entry(
+            entry_path,
+            120.0,
+        )
+        _assert_entry(first)
+        assert _container_running(ha_name)
+
+        _run(
+            [
+                "docker",
+                "rm",
+                "-f",
+                ha_name,
+            ]
+        )
+        _run(common)
+
+        second = _wait_config_entry(
+            entry_path,
+            120.0,
+        )
+        _assert_entry(second)
+        assert _container_running(ha_name)
+        assert (
+            second.get("entry_id")
+            == first.get("entry_id")
+        )
+    finally:
+        _run(
+            [
+                "docker",
+                "rm",
+                "-f",
+                ha_name,
+            ],
+            check=False,
+        )
+        _run(
+            [
+                "docker",
+                "rm",
+                "-f",
+                broker_name,
+            ],
+            check=False,
+        )
