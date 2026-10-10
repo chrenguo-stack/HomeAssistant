@@ -628,3 +628,63 @@ def test_start_broker_uses_verified_local_image_id(
     )
     assert run_command[-1] == image_id
     assert module.BROKER_SOURCE_TAG not in run_command
+
+
+def test_stream_executor_binding_accepts_exact_sha256() -> None:
+    expected = "a" * 64
+
+    module._verify_executor_binding(
+        executor_path=None,
+        executor_source_sha256=expected,
+        expected_executor_sha256=expected,
+    )
+
+
+def test_stream_executor_binding_rejects_mismatch() -> None:
+    with pytest.raises(
+        module.S20ServiceHandoffError,
+        match="executor_sha256_mismatch",
+    ):
+        module._verify_executor_binding(
+            executor_path=None,
+            executor_source_sha256="a" * 64,
+            expected_executor_sha256="b" * 64,
+        )
+
+
+def test_source_dependency_binding_is_exact(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dependency = tmp_path / "dependency.py"
+    dependency.write_text("value = 1\n", encoding="utf-8")
+
+    import hashlib
+
+    expected = hashlib.sha256(dependency.read_bytes()).hexdigest()
+    monkeypatch.setattr(
+        module,
+        "EXPECTED_DEPENDENCY_SHA256",
+        {dependency: expected},
+    )
+
+    module._verify_source_dependencies()
+
+
+def test_source_dependency_binding_rejects_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dependency = tmp_path / "dependency.py"
+    dependency.write_text("value = 1\n", encoding="utf-8")
+    monkeypatch.setattr(
+        module,
+        "EXPECTED_DEPENDENCY_SHA256",
+        {dependency: "0" * 64},
+    )
+
+    with pytest.raises(
+        module.S20ServiceHandoffError,
+        match="source_dependency_sha256_mismatch",
+    ):
+        module._verify_source_dependencies()
