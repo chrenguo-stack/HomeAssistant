@@ -795,3 +795,118 @@ def test_start_broker_command_has_no_forced_runtime_user(
         if command[:2] == ("docker", "run")
     )
     assert "--user" not in run_command
+
+
+def test_r2_authorization_and_snapshot_paths_are_attempt_scoped() -> None:
+    assert module.AUTHORIZATION_ID == (
+        "N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_"
+        "APPLY_R2_20261010_01"
+    )
+    assert module.R1_EVIDENCE_SNAPSHOT == Path(
+        "/etc/n3wfc4/private/dynsec-s20-pre-three-service.json"
+    )
+    assert module.ROLLBACK_SNAPSHOT == Path(
+        "/etc/n3wfc4/private/dynsec-s20-r2-pre-three-service.json"
+    )
+    assert module.R1_EVIDENCE_SNAPSHOT != module.ROLLBACK_SNAPSHOT
+
+
+def test_cleanup_transaction_material_verifies_removal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    parent = tmp_path / "greenhouse-secrets"
+    root = parent / "mqtt"
+    transaction = tmp_path / "transaction"
+    root.mkdir(parents=True)
+    transaction.mkdir()
+    (transaction / "parent-was-absent").write_text(
+        "true\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(module, "SECRET_PARENT", parent)
+    monkeypatch.setattr(module, "SECRET_ROOT", root)
+    monkeypatch.setattr(module, "TRANSACTION_DIR", transaction)
+
+    module._cleanup_transaction_material(remove_bundle=True)
+
+    assert not root.exists()
+    assert not parent.exists()
+    assert not transaction.exists()
+
+
+def test_cleanup_transaction_material_rejects_silent_transaction_cleanup_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    parent = tmp_path / "greenhouse-secrets"
+    root = parent / "mqtt"
+    transaction = tmp_path / "transaction"
+    root.mkdir(parents=True)
+    transaction.mkdir()
+
+    monkeypatch.setattr(module, "SECRET_PARENT", parent)
+    monkeypatch.setattr(module, "SECRET_ROOT", root)
+    monkeypatch.setattr(module, "TRANSACTION_DIR", transaction)
+
+    real_rmtree = module.shutil.rmtree
+
+    def selective_rmtree(path: object, *args: object, **kwargs: object) -> None:
+        if Path(path) == transaction:
+            return
+        real_rmtree(path, *args, **kwargs)
+
+    monkeypatch.setattr(module.shutil, "rmtree", selective_rmtree)
+
+    with pytest.raises(
+        module.S20ServiceHandoffError,
+        match="transaction_directory_cleanup_failed",
+    ):
+        module._cleanup_transaction_material(remove_bundle=True)
+
+
+def test_local_runtime_rollback_requires_readonly_postcheck(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+
+    monkeypatch.setattr(
+        module,
+        "_stop_broker",
+        lambda _runner: events.append("stop"),
+    )
+    monkeypatch.setattr(
+        module,
+        "_restore_snapshot_or_verify_baseline",
+        lambda: events.append("restore"),
+    )
+    monkeypatch.setattr(
+        module,
+        "_cleanup_transaction_material",
+        lambda *, remove_bundle: events.append(
+            f"cleanup:{str(remove_bundle).lower()}"
+        ),
+    )
+    monkeypatch.setattr(
+        module,
+        "_rollback_postcheck",
+        lambda _runner: events.append("postcheck"),
+    )
+
+    runtime = module.LocalTransactionRuntime(
+        object(),  # type: ignore[arg-type]
+        executor_path=None,
+        executor_source_sha256="a" * 64,
+        streamed_dependency_sha256={},
+        expected_executor_sha256="a" * 64,
+    )
+
+    runtime.rollback()
+
+    assert events == [
+        "stop",
+        "restore",
+        "cleanup:true",
+        "postcheck",
+    ]
