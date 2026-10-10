@@ -240,3 +240,48 @@ NEXT_ONE_GATE=S19_R2_R3_ISOLATED_PROVISIONING_RUNTIME_DIAGNOSTIC
 ```
 
 若阶段 FAIL：原位保留唯一 `/var/lib/.n3wfc4-s19r2-r3-*`，先做新只读取证，不重新运行旧或新脚本。若 PASS：核实 1 个临时 service + 1 个临时 admin、独立角色、默认拒绝、原生产 JSON/原备份及 45 volumes 未变化并删除精准隔离 stage；该 PASS **仍不能替代** Manager/HA 正向投递、错误 client ID 和匿名接入拒绝矩阵。
+
+
+## S19-R2-R3 独立 Provisioning 控制链路：CLOSED_PASS
+
+2026-10-10 用户 T1 现场输出（敏感字段未记录）：
+
+```text
+SCRIPT_SHA256=PASS
+S19_R2_R3_PRECHECK=PASS
+PRODUCTION_DYNSEC_SHA_MATCH=True
+S19_R2_R3_SCOPE=ADMIN_AND_PROVISIONING_ONLY
+S19_R2_R3_ISOLATED_EXIT_CODE=0
+STEP_INIT_STATE=PASS
+STEP_ADMIN_AUTH=PASS
+STEP_CREATE_SERVICE_TRANSPORT=PASS
+STEP_PROVISIONING_CONTROL=PASS
+STEP_STOP_BROKER=PASS
+ADMIN_CONTROL_RESPONSE=PASS
+PROVISIONING_CONTROL_AUTH=PASS
+ISOLATED_SERVICE_CLIENT_COUNT=1
+ISOLATED_SERVICE_ROLE_COUNT=1
+TEMPORARY_SENSITIVE_STATE_REMOVED=True
+PRODUCTION_DYNSEC_UNCHANGED=True
+DOCKER_VOLUMES_PRESERVED=True
+PRODUCTION_BROKER_STARTED=False
+HOST_8883_PUBLICATION=False
+BOARD_ACCESS=False
+S19_R2_R3_RESULT=PASS
+STOP=True
+SSH_OR_REMOTE_EXIT_CODE=0
+```
+
+结论：在新建的无外部网络临时 Broker 中，管理员请求与 `ghs_greenhouse_provisioning` 的真实 `listClients` 动态权限管理控制链路均 PASS，独立服务身份与既有 `service_identity_plan.py` ACL 匹配；临时数据清除且真实生产 DynSec SHA `94f3c0a3dbed90f3d2a3e96696dba8bed8093194903aeed106559090764d1ad5` 未变。旧的 S19-R2 FAILED 不能由此定位到 provisioning 原始代码缺陷：旧脚本没有阶段日志而新脚本已修补，不能断言原故障点被实际重现。S19-R2 仍在分阶段验收中；不得宣布全部测试 PASS。
+
+下一门仅做 `S19_R2_R4_MANAGER_HOMEASSISTANT_RUNTIME_POSITIVE`：使用全新一次性 admin、manager、homeassistant 三个账号，无外部网络，验证 manager ingress receive、manager canonical state→HA、HA discovery 两类 topic 和 HA status publish→admin，真实消息体全程比对，具有安全阶段标记与失败分类。暂不扩展到错误客户端 ID、匿名连接拒绝或其他所有 ACL 负例；后续另 gate。
+
+```text
+S19_R2_R3=CLOSED_PASS
+S19_R2_ORIGINAL_FAILURE_ROOT_CAUSE=UNCONFIRMED
+NEXT_ONE_GATE=S19_R2_R4_MANAGER_HOMEASSISTANT_POSITIVE_MQTT_RUNTIME
+S19_R2_R4_PRODUCTION_DYNSEC_MUTATION=false
+S19_R2_R4_BOARD_ACCESS=false
+S19_R2_R4_HOST_PUBLICATION=false
+PR541=OPEN_DRAFT
+```
