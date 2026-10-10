@@ -5,7 +5,7 @@ GUARD=n3wfc4-broker-ingress-guard.service
 ACTIVATION=n3wfc4-broker-activation.service
 CERT_TIMER=n3wfc4-broker-certificate-lifecycle.timer
 
-/usr/bin/systemctl enable "$GUARD" "$ACTIVATION" "$CERT_TIMER"
+/usr/bin/systemctl enable "$GUARD" "$ACTIVATION" "$SERVICES" "$CERT_TIMER"
 
 guard_state="$(/usr/bin/systemctl is-enabled "$GUARD")"
 activation_state="$(/usr/bin/systemctl is-enabled "$ACTIVATION")"
