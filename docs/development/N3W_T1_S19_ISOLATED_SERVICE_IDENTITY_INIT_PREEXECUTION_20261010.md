@@ -507,3 +507,26 @@ S19_R2_R6A_HOST_8883_PUBLICATION=false
 S19_R2_R6A_BOARD_ACCESS=false
 PR541=OPEN_DRAFT
 ```
+
+
+## S19-R2-R6A 账号客户端 ID 与匿名拒绝隔离验收
+
+S19-R2-R5 的现场记录已归档 `CLOSED_PASS`：节点→Manager、Manager→HA 状态、两类设备发现与 HA status 真实消息投递全部 PASS。单独下一门 R6A 仅验证身份认证不被绕过，R6B 才验证跨 Topic ACL 禁止矩阵。
+
+本门使用 main `service_identity_plan.py`、`dynsec_plan.py` 的 4 类一次性产品身份：provisioning、manager、homeassistant、仅隔离节点 `n3w_r6a_probe`；每类独立随机口令与冻结的唯一 MQTT client ID。共 4 服务身份+1 临时管理员，角色 ACL 项数 10/17/9/11，角色对象和 clientid 持久化精确校验。正确 client ID 的 provisioning 运行时 `listClients`、manager/HA/node 有权限 Topic 的 QoS1 发布都须先 PASS，然后以**相同账号密码但错误 client ID** 测试四类身份分别被 MQTT CONNECT 拒绝；未认证匿名客户端必须在 CONNECT 阶段拒绝。仅把客户端命令非零返回视为发布失败不够，测试通过 Mosquitto CLI `-d` 解析 CONNACK 是否非 0，输出纯枚举标记而不输出 broker 调试正文/账号密码/控制响应原文。
+
+全程固定 `--network none`、UID1883、无宿主端口映射、本地 Mosquitto 2.1.2 精确镜像；容器仅加载当前 gate 全新随机测试状态。真实数据库 SHA `94f3c0a3dbed90f3d2a3e96696dba8bed8093194903aeed106559090764d1ad5`、S18 root-only 备份 SHA `93c751a788200498869de39a3218a82de53e5cd3d29170360ea55959d0af85da`、配置 SHA `3708c6cea415ae6c0a4f35d71a116fff8571921b5a3774dbb55d0a9cb42845a6` 均须固定。45 volumes、2 空项目网络、入口安全规则不变，宿主 8883/18883 无监听，板卡不可访问。失败仅阶段标记 `SAFE_FAILURE_STEP` 并保留敏感候选目录，禁止重新执行；全 PASS 后仅删除本 gate 的暂存文件。
+
+```text
+S19_R2_R5_RESULT=CLOSED_PASS
+S19_R2_R6A_NEXT_ONE_GATE=ISOLATED_CORRECT_AND_WRONG_CLIENT_ID_ANONYMOUS_AUTH
+S19_R2_R6A_SCRIPT=N3W_T1_S19_R2_R6A_AUTH_REJECTION_RUNTIME.py
+S19_R2_R6A_SHA256=09df0ac7e5207d041dce0c74453a7f11a6e7dc4d3a1b0318dd86fc9854b82b60
+S19_R2_R6A_PYTHON_SYNTAX=PASS
+S19_R2_R6A_SH_PARSE=PASS
+S19_R2_R6A_T1_EXECUTION=PENDING
+S19_R2_R6A_PRODUCTION_DYNSEC_MUTATION=false
+S19_R2_R6A_HOST_PORT_PUBLICATION=false
+S19_R2_R6A_BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+```
