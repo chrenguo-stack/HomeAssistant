@@ -1,0 +1,50 @@
+{
+  "schema": "gh.n3w-t1-s20-production-image-lock/1",
+  "source_head": "ac1dceff958ae0f4fa571f707b912aaec2bb9d9c",
+  "binding_run_id": 38040433177,
+  "binding_artifact": {
+    "id": 11665219740,
+    "digest": "sha256:90d72f6eadc85c7ff56156f2f65c149785cdcabc11082b3e8fa275e486b29615"
+  },
+  "manager": {
+    "source_sha": "511db028780988a7c07cb9342c8be507380bae0f",
+    "image": "local/greenhouse-manager:s20-511db028",
+    "image_id": "sha256:ef0f28c2fd339430a85acb6cb65158c71c61cd8fc3c6330c375da27d0f2440f1",
+    "tar_sha256": "2ef0421d483334f6ef81c92beb1b6784174f069a4bde179ba615ce0b70435081",
+    "platform": "linux/arm64",
+    "entrypoint": [
+      "greenhouse-manager"
+    ],
+    "user": "greenhouse",
+    "runtime_uid": 999,
+    "runtime_gid": 999,
+    "pull_policy": "never"
+  },
+  "homeassistant": {
+    "source_ref": "ghcr.io/home-assistant/home-assistant:2026.10.0",
+    "image": "ghcr.io/home-assistant/home-assistant:2026.10.0@sha256:0c73235a9140a9b02e4bf618d06d8c496b12ae70656ecddb0e02ad31ad122be4",
+    "manifest_digest": "sha256:0c73235a9140a9b02e4bf618d06d8c496b12ae70656ecddb0e02ad31ad122be4",
+    "image_id": "sha256:b0e1ee82adfb19fa1ff3049034535633b1c4f0df6606721c0e77383854b99879",
+    "platform": "linux/arm64",
+    "entrypoint": [
+      "/init"
+    ],
+    "config_user": "",
+    "effective_default_uid": 0,
+    "effective_default_gid": 0
+  },
+  "broker": {
+    "source_ref": "m.daocloud.io/docker.io/library/eclipse-mosquitto:2.1.2-alpine",
+    "image": "m.daocloud.io/docker.io/library/eclipse-mosquitto:2.1.2-alpine@sha256:3184566df484a083411a0e70e92c87a264b8f0648df632f10eb23d54d99f4549",
+    "manifest_digest": "sha256:3184566df484a083411a0e70e92c87a264b8f0648df632f10eb23d54d99f4549",
+    "image_id": "sha256:4c199d7c9d377d018313a2199f6839978f6fd2219c405ad664d0a830c14b9c7b",
+    "platform": "linux/arm64",
+    "entrypoint": [
+      "/docker-entrypoint.sh"
+    ],
+    "config_user": ""
+  },
+  "live_mutation": false,
+  "t1_access": false,
+  "board_access": false
+}
