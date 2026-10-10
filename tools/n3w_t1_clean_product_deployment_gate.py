@@ -106,7 +106,7 @@ def _mounts(service: Mapping[object, object]) -> list[Mapping[object, object]]:
 def _require_readonly_bind(
     service: Mapping[object, object],
     target: str,
-) -> None:
+) -> str:
     matches = [
         item
         for item in _mounts(service)
@@ -123,6 +123,7 @@ def _require_readonly_bind(
         or mount.get("read_only") is not True
     ):
         raise DeploymentContractError("secret_mount_contract_invalid")
+    return source
 
 
 def _require_host_network_no_ports(
@@ -247,12 +248,28 @@ def validate_compose_document(
         raise DeploymentContractError("manager_secret_environment_invalid")
     if MANAGER_PASSWORD_TARGET == PROVISIONING_PASSWORD_TARGET:
         raise DeploymentContractError("manager_secret_targets_not_distinct")
-    _require_readonly_bind(manager, MANAGER_PASSWORD_TARGET)
-    _require_readonly_bind(manager, PROVISIONING_PASSWORD_TARGET)
+    manager_secret_source = _require_readonly_bind(
+        manager,
+        MANAGER_PASSWORD_TARGET,
+    )
+    provisioning_secret_source = _require_readonly_bind(
+        manager,
+        PROVISIONING_PASSWORD_TARGET,
+    )
+    if manager_secret_source == provisioning_secret_source:
+        raise DeploymentContractError("manager_secret_sources_not_distinct")
 
     _require_host_network_no_ports(homeassistant, "homeassistant")
-    _require_readonly_bind(homeassistant, HA_PASSWORD_TARGET)
-    _require_readonly_bind(homeassistant, HA_BOOTSTRAP_TARGET)
+    ha_password_source = _require_readonly_bind(
+        homeassistant,
+        HA_PASSWORD_TARGET,
+    )
+    ha_bootstrap_source = _require_readonly_bind(
+        homeassistant,
+        HA_BOOTSTRAP_TARGET,
+    )
+    if ha_password_source == ha_bootstrap_source:
+        raise DeploymentContractError("homeassistant_mount_sources_not_distinct")
 
     if broker.get("restart") != "no":
         raise DeploymentContractError("broker_restart_policy_invalid")
