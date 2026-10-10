@@ -359,3 +359,50 @@ S19_R2_R4_R1_T1_MUTATION=false
 S19_R2_R4_R1_BOARD_ACCESS=false
 PR541=OPEN_DRAFT
 ```
+
+
+## S19-R2-R4-R1 只读管理员发布权限取证：CLOSED_PASS
+
+2026-10-10 用户 T1 现场脱敏证据：
+
+```text
+SCRIPT_SHA256=PASS
+S19_R2_R4_R1_PRECHECK=PASS
+PRODUCTION_DYNSEC_SHA_MATCH=True
+PRODUCTION_BACKUP_SHA_MATCH=True
+EXACT_FAILURE_STAGE_COUNT=1
+CANDIDATE_CLIENT_COUNT=3
+CANDIDATE_ROLE_COUNT=3
+ADMIN_CONTROL_PUBLISH_ALLOWED=True
+ADMIN_INGRESS_PUBLISH_ALLOWED=False
+MANAGER_INGRESS_SUBSCRIBE_ACL_PRESENT=True
+MANAGER_INGRESS_RECEIVE_ACL_PRESENT=True
+ORIGINAL_TEST_ADMIN_PUBLISHER_UNAUTHORIZED=True
+PRODUCTION_DYNSEC_UNCHANGED=True
+CANDIDATE_PRESERVED=True
+SECRET_CONTENT_PRINTED=False
+DOCKER_RUN_THIS_GATE=False
+T1_MUTATION=False
+BOARD_ACCESS=False
+S19_R2_R4_R1_READONLY_RESULT=PASS
+STOP=True
+SSH_OR_REMOTE_EXIT_CODE=0
+```
+
+结论：`S19-R2-R4` 的首次运行时 MANAGER_INGRESS 失败，对应脚本错误地用临时管理员向 `gh/v1/greenhouse/ingress/node/r4_probe/telemetry` 发送；原生动态安全 init 的管理员角色只有控制主题发布授权，不具备此节点入口发布授权，Manager 节点入口的 `subscribePattern` 和 `publishClientReceive` 则按源设计存在。**已确认测试夹具的发送端身份违规；实际 PUBACK/SUBACK 错误码没有被旧脚本取证，不能把此确定为全部可能失败的唯一原因**，更不应拓宽管理员或 Manager 生产 ACL。正确产品复验使用由 `dynsec_plan.py` 派生的隔离临时节点账号作为发送者，不能预先创建共用节点账号；仍禁止实板接入直到 Gate F。
+
+下一门仅 `S19_R2_R4_R2_EXACT_FAILED_STAGE_CLEANUP`：之前单个 `/var/lib/.n3wfc4-s19r2-r4-*` staging（UID1883/0700）中只存在 `candidate.conf` 与 `dynamic-security.json`，临时 3 客户端（admin+manager+homeassistant）、3 角色。使用前置宿主/volume/ingress guard/网络/端口/生产三文件 SHA 检查，并反复验证候选结构后才精确清理两个临时文件及目录。**不运行 Docker、不开端口、不修改真实数据库、S18 私有备份、管理员密码、45 volume 或系统服务。** 失败 STOP，不重跑旧 R4；本门清理 PASS 不等于 Manager 实际投递 PASS。
+
+```text
+S19_R2_R4_R1_RESULT=CLOSED_PASS
+S19_R2_R4_CAUSE=TEST_FIXTURE_ADMIN_UNAUTHORIZED_INGRESS_PUBLISH
+S19_R2_R4_RUNTIME_ERROR=NOT_OBSERVED
+S19_R2_R4_R2_SCRIPT=N3W_T1_S19_R2_R4_R2_EXACT_STAGE_CLEANUP.py
+S19_R2_R4_R2_SHA256=ae22295be8718182bfd500aa79c8902b6f7edbffe733167ae3836832ecba2325
+S19_R2_R4_R2_PYTHON_SYNTAX=PASS
+S19_R2_R4_R2_T1_RUNTIME=NOT_EXECUTED
+NEXT_ONE_GATE=S19_R2_R4_R2_EXACT_FAILED_STAGE_CLEANUP
+S19_R2_R4_R2_PRODUCTION_MUTATION=false
+S19_R2_R4_R2_BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+```
