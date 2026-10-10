@@ -26,6 +26,7 @@ S0_GITHUB_PRIVATE_SECRETS=false
 由用户在 Mac Terminal 运行，SSH 目标须为实际 T1；只读取 Docker 容器标识/标签/六挂载来源、网络和端口、Docker 卷名、具有温室关键字的 systemd unit，以及端口监听。禁止读取 `docker inspect` 的 `Config.Env`、密钥、证书内容、账号密码、业务数据库内容、完整日志。
 
 ```sh
+set -o pipefail
 printf '请输入 T1 SSH 目标（用户名@192.168.68.195）：'
 IFS= read -r T1_SSH
 if [ -z "$T1_SSH" ]; then
@@ -65,7 +66,7 @@ echo "T1_MUTATION=false"
 echo "CONTAINER_REMOVAL=false"
 echo "DATA_DELETION=false"
 T1_READONLY
-  CODE=${PIPESTATUS[0]}
+  CODE=$?
   echo "SSH_EXIT_CODE=$CODE"
   echo "REPORT=$LOG"
 fi
