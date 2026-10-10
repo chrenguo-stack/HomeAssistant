@@ -297,3 +297,103 @@ def test_client_config_secret_is_file_material_not_command_contract() -> None:
     assert '"-p",' in source
     assert '"--network",\n        "none"' in source
     assert '"--pull",\n        "never"' in source
+
+
+def test_rollback_removes_secret_parent_only_when_transaction_created_it(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    parent = tmp_path / "greenhouse-secrets"
+    root = parent / "mqtt"
+    transaction = tmp_path / "transaction"
+    admin_password = tmp_path / "admin-password"
+    admin_password.write_text("admin-private-value\n", encoding="utf-8")
+    admin_password.chmod(0o600)
+
+    monkeypatch.setattr(module, "SECRET_PARENT", parent)
+    monkeypatch.setattr(module, "SECRET_ROOT", root)
+    monkeypatch.setattr(module, "TRANSACTION_DIR", transaction)
+    monkeypatch.setattr(module, "ADMIN_PASSWORD", admin_password)
+    monkeypatch.setattr(module.os, "chown", lambda *_args: None)
+
+    module._prepare_transaction_material()
+    assert (transaction / "parent-was-absent").is_file()
+
+    module._cleanup_transaction_material(remove_bundle=True)
+
+    assert not root.exists()
+    assert not parent.exists()
+    assert not transaction.exists()
+
+
+def test_rollback_preserves_safe_preexisting_secret_parent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    parent = tmp_path / "greenhouse-secrets"
+    parent.mkdir(mode=0o700)
+    parent.chmod(0o700)
+    root = parent / "mqtt"
+    transaction = tmp_path / "transaction"
+    admin_password = tmp_path / "admin-password"
+    admin_password.write_text("admin-private-value\n", encoding="utf-8")
+    admin_password.chmod(0o600)
+
+    monkeypatch.setattr(module, "SECRET_PARENT", parent)
+    monkeypatch.setattr(module, "SECRET_ROOT", root)
+    monkeypatch.setattr(module, "TRANSACTION_DIR", transaction)
+    monkeypatch.setattr(module, "ADMIN_PASSWORD", admin_password)
+
+    real_stat = module.Path.stat
+
+    class RootOwnedStat:
+        def __init__(self, value: object) -> None:
+            self._value = value
+            self.st_uid = 0
+            self.st_gid = 0
+            self.st_mode = getattr(value, "st_mode")
+
+        def __getattr__(self, name: str) -> object:
+            return getattr(self._value, name)
+
+    def fake_stat(path: Path, *args: object, **kwargs: object) -> object:
+        value = real_stat(path, *args, **kwargs)
+        if path == parent:
+            return RootOwnedStat(value)
+        return value
+
+    monkeypatch.setattr(module.Path, "stat", fake_stat)
+    monkeypatch.setattr(module.os, "chown", lambda *_args: None)
+
+    module._prepare_transaction_material()
+    assert (transaction / "parent-preexisting").is_file()
+
+    module._cleanup_transaction_material(remove_bundle=True)
+
+    assert parent.is_dir()
+    assert not root.exists()
+    assert not transaction.exists()
+
+
+def test_prepare_rejects_unsafe_preexisting_secret_parent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    parent = tmp_path / "greenhouse-secrets"
+    parent.mkdir(mode=0o755)
+    parent.chmod(0o755)
+    root = parent / "mqtt"
+    transaction = tmp_path / "transaction"
+
+    monkeypatch.setattr(module, "SECRET_PARENT", parent)
+    monkeypatch.setattr(module, "SECRET_ROOT", root)
+    monkeypatch.setattr(module, "TRANSACTION_DIR", transaction)
+    monkeypatch.setattr(module.os, "chown", lambda *_args: None)
+
+    with pytest.raises(
+        module.S20ServiceHandoffError,
+        match="production_secret_parent_unsafe",
+    ):
+        module._prepare_transaction_material()
+
+    assert not root.exists()
