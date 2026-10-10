@@ -419,6 +419,7 @@ def _broker_client_event_count(name: str) -> int:
     )
     return sum(
         CLIENT_ID in line
+        and "New client connected" in line
         for line in (result.stdout + result.stderr).splitlines()
     )
 
@@ -448,11 +449,9 @@ def _wait_broker_client_connected(
             line
             for line in (result.stdout + result.stderr).splitlines()
             if CLIENT_ID in line
+            and "New client connected" in line
         ]
-        if (
-            len(events) >= minimum_event_count
-            and "New client connected" in events[-1]
-        ):
+        if len(events) >= minimum_event_count:
             return len(events)
         time.sleep(0.5)
     raise _broker_failure(
