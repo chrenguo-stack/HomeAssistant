@@ -267,3 +267,29 @@ Repair commit:
 ```
 
 A fresh CI run is required. No T1 mutation is involved.
+
+
+## 12. Corrected CI rerun status
+
+A fresh run was triggered by the fixture-only permission repair:
+
+```text
+RUN_ID=38102338780
+WORKFLOW=N3W T1 S20 real service handoff CI
+TRIGGER_HEAD=1ecc12ded60c7ea53e0af94722a05f3b4f0e4654
+SOURCE=QUEUED_AT_LAST_ALLOWED_POLL
+VOLUME_LIFECYCLE=QUEUED_AT_LAST_ALLOWED_POLL
+TLS_READINESS=QUEUED_AT_LAST_ALLOWED_POLL
+```
+
+Run URL:
+
+`https://github.com/chrenguo-stack/HomeAssistant/actions/runs/38102338780`
+
+The configured CI polling limit for this turn has been reached. No further polling is performed in this turn.
+
+```text
+R5_SOURCE_REPAIR_CI_REVIEW=PENDING
+R5_LIVE_APPLY=false
+AUTO_APPLY_AFTER_CI=false
+```
