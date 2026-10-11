@@ -1,0 +1,191 @@
+name: N3W T1 production stack staging payload CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/n3w-t1-production-stack-staging-payload-ci.yml"
+      - "tools/n3w_t1_production_stack_staging.py"
+      - "tools/n3w_t1_production_manager_state_prepare.py"
+      - "tools/n3w_t1_clean_product_deployment_gate.py"
+      - "tools/n3w_t1_broker_authenticated_readiness.py"
+      - "infra/n3w-t1/production/**"
+      - "infra/n3w-t1/broker/mosquitto.conf"
+      - "infra/n3w-t1/homeassistant/custom_components/n3w_mqtt_bootstrap/**"
+      - "infra/n3w-t1/broker-activation.env.example"
+      - "infra/n3w-t1/systemd/n3wfc4-broker-activation.service"
+      - "infra/n3w-t1/systemd/n3wfc4-services-activation.service"
+      - "tests/tools/test_n3w_t1_production_stack_staging.py"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/n3w-t1-production-stack-staging-payload-ci.yml"
+      - "tools/n3w_t1_production_stack_staging.py"
+      - "tools/n3w_t1_production_manager_state_prepare.py"
+      - "tools/n3w_t1_clean_product_deployment_gate.py"
+      - "tools/n3w_t1_broker_authenticated_readiness.py"
+      - "infra/n3w-t1/production/**"
+      - "infra/n3w-t1/broker/mosquitto.conf"
+      - "infra/n3w-t1/homeassistant/custom_components/n3w_mqtt_bootstrap/**"
+      - "infra/n3w-t1/broker-activation.env.example"
+      - "infra/n3w-t1/systemd/n3wfc4-broker-activation.service"
+      - "infra/n3w-t1/systemd/n3wfc4-services-activation.service"
+      - "tests/tools/test_n3w_t1_production_stack_staging.py"
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  payload:
+    runs-on: ubuntu-24.04
+    env:
+      AUTHORIZATION_ID: N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_01
+      MANAGER_ARTIFACT_RUN_ID: "38040433177"
+      MANAGER_ARTIFACT_ID: "11665219740"
+      MANAGER_TAR_SHA256: 2ef0421d483334f6ef81c92beb1b6784174f069a4bde179ba615ce0b70435081
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run staging executor focused tests
+        run: |
+          set -euo pipefail
+          python -m pip install pytest
+          python -m pytest -q tests/tools/test_n3w_t1_production_stack_staging.py
+
+      - name: Download exact frozen Manager artifact
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: 11665219740
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 38040433177
+          path: ${{ runner.temp }}/manager-artifact
+          merge-multiple: true
+
+      - name: Verify exact Manager artifact
+        run: |
+          set -euo pipefail
+          TAR="$RUNNER_TEMP/manager-artifact/greenhouse-manager-arm64.tar"
+          test -f "$TAR"
+          ACTUAL="$(sha256sum "$TAR" | awk '{print $1}')"
+          test "$ACTUAL" = "$MANAGER_TAR_SHA256"
+          printf 'MANAGER_TAR_SHA256=%s\n' "$ACTUAL"
+
+      - name: Build content-addressed staging payload
+        run: |
+          set -euo pipefail
+          PAYLOAD="$RUNNER_TEMP/payload"
+          mkdir -p             "$PAYLOAD/tools"             "$PAYLOAD/infra/n3w-t1/production"             "$PAYLOAD/infra/n3w-t1/broker"             "$PAYLOAD/infra/n3w-t1/homeassistant/custom_components/n3w_mqtt_bootstrap"             "$PAYLOAD/infra/n3w-t1/systemd"             "$PAYLOAD/artifact"
+
+          cp tools/n3w_t1_production_stack_staging.py "$PAYLOAD/tools/"
+          cp tools/n3w_t1_production_manager_state_prepare.py "$PAYLOAD/tools/"
+          cp tools/n3w_t1_clean_product_deployment_gate.py "$PAYLOAD/tools/"
+          cp tools/n3w_t1_broker_authenticated_readiness.py "$PAYLOAD/tools/"
+          cp infra/n3w-t1/production/docker-compose.yml "$PAYLOAD/infra/n3w-t1/production/"
+          cp infra/n3w-t1/production/image-lock.json "$PAYLOAD/infra/n3w-t1/production/"
+          cp infra/n3w-t1/production/homeassistant-configuration.yaml "$PAYLOAD/infra/n3w-t1/production/"
+          cp infra/n3w-t1/broker/mosquitto.conf "$PAYLOAD/infra/n3w-t1/broker/"
+          cp infra/n3w-t1/homeassistant/custom_components/n3w_mqtt_bootstrap/__init__.py             "$PAYLOAD/infra/n3w-t1/homeassistant/custom_components/n3w_mqtt_bootstrap/"
+          cp infra/n3w-t1/homeassistant/custom_components/n3w_mqtt_bootstrap/manifest.json             "$PAYLOAD/infra/n3w-t1/homeassistant/custom_components/n3w_mqtt_bootstrap/"
+          cp infra/n3w-t1/broker-activation.env.example "$PAYLOAD/infra/n3w-t1/"
+          cp infra/n3w-t1/systemd/n3wfc4-broker-activation.service "$PAYLOAD/infra/n3w-t1/systemd/"
+          cp infra/n3w-t1/systemd/n3wfc4-services-activation.service "$PAYLOAD/infra/n3w-t1/systemd/"
+          cp "$RUNNER_TEMP/manager-artifact/greenhouse-manager-arm64.tar" "$PAYLOAD/artifact/"
+
+          python - "$PAYLOAD" "$GITHUB_SHA" "$AUTHORIZATION_ID" <<'PY'
+          import hashlib
+          import json
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          head = sys.argv[2]
+          authorization_id = sys.argv[3]
+
+          records = []
+          for path in sorted(p for p in root.rglob("*") if p.is_file()):
+              relative = path.relative_to(root).as_posix()
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              records.append({
+                  "path": relative,
+                  "sha256": digest,
+                  "size": path.stat().st_size,
+              })
+
+          executor = root / "tools/n3w_t1_production_stack_staging.py"
+          manager_tar = root / "artifact/greenhouse-manager-arm64.tar"
+          manifest = {
+              "schema": "gh.n3w-t1-production-stack-staging-payload/1",
+              "source_head": head,
+              "authorization_id": authorization_id,
+              "authorization_claimed": False,
+              "authorization_consumed": False,
+              "executor_sha256": hashlib.sha256(executor.read_bytes()).hexdigest(),
+              "manager_tar_sha256": hashlib.sha256(manager_tar.read_bytes()).hexdigest(),
+              "files": records,
+              "secret_values_included": False,
+              "production_service_start": False,
+              "board_access": False,
+          }
+          (root / "payload-manifest.json").write_text(
+              json.dumps(manifest, sort_keys=True, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+          python - "$PAYLOAD" <<'PY'
+          import importlib.util
+          import json
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          tool_path = root / "tools/n3w_t1_production_stack_staging.py"
+          spec = importlib.util.spec_from_file_location("staging", tool_path)
+          module = importlib.util.module_from_spec(spec)
+          assert spec.loader is not None
+          sys.modules["staging"] = module
+          spec.loader.exec_module(module)
+          report = module._payload_report(root)
+          print(json.dumps(report, sort_keys=True, separators=(",", ":")))
+          PY
+
+          EXECUTOR_SHA="$(sha256sum "$PAYLOAD/tools/n3w_t1_production_stack_staging.py" | awk '{print $1}')"
+          MANIFEST_SHA="$(sha256sum "$PAYLOAD/payload-manifest.json" | awk '{print $1}')"
+          printf 'EXECUTOR_SHA256=%s\n' "$EXECUTOR_SHA"
+          printf 'PAYLOAD_MANIFEST_SHA256=%s\n' "$MANIFEST_SHA"
+
+          ARCHIVE="$RUNNER_TEMP/n3w-t1-production-stack-staging-payload-$GITHUB_SHA.tar.gz"
+          tar -C "$PAYLOAD" -czf "$ARCHIVE" .
+          ARCHIVE_SHA="$(sha256sum "$ARCHIVE" | awk '{print $1}')"
+          printf 'PAYLOAD_ARCHIVE_SHA256=%s\n' "$ARCHIVE_SHA"
+
+          cp "$ARCHIVE" "$RUNNER_TEMP/payload-archive.tar.gz"
+          printf '%s\n' "$ARCHIVE_SHA" > "$RUNNER_TEMP/payload-archive.sha256"
+          printf '%s\n' "$EXECUTOR_SHA" > "$RUNNER_TEMP/executor.sha256"
+          printf '%s\n' "$MANIFEST_SHA" > "$RUNNER_TEMP/payload-manifest.sha256"
+
+      - name: Upload exact staging payload
+        uses: actions/upload-artifact@v4
+        with:
+          name: n3w-t1-production-stack-staging-payload-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/payload-archive.tar.gz
+            ${{ runner.temp }}/payload-archive.sha256
+            ${{ runner.temp }}/executor.sha256
+            ${{ runner.temp }}/payload-manifest.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Final no-live assertion
+        run: |
+          printf 'PAYLOAD_BUILD=PASS\n'
+          printf 'AUTHORIZATION_CLAIMED=false\n'
+          printf 'AUTHORIZATION_CONSUMED=false\n'
+          printf 'T1_ACCESS=false\n'
+          printf 'PRODUCTION_SERVICE_START=false\n'
+          printf 'BOARD_ACCESS=false\n'
