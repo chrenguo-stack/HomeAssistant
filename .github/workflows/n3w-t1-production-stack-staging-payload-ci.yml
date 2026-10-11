@@ -376,7 +376,7 @@ jobs:
           source_head = sys.argv[2]
           authorization_id = sys.argv[3]
           artifact_id = sys.argv[4]
-          artifact_digest = sys.argv[5]
+          artifact_digest_input = sys.argv[5]
           historical_root_available = 6420955136
 
           def need(condition, reason):
@@ -408,7 +408,12 @@ jobs:
           }
           actual_outer = {path.name for path in root.iterdir()}
           need(actual_outer == expected_outer, "artifact_outer_file_set_mismatch")
-          need(re.fullmatch(r"sha256:[0-9a-f]{64}", artifact_digest) is not None, "artifact_digest_invalid")
+          digest_match = re.fullmatch(
+              r"(?:sha256:)?([0-9a-f]{64})",
+              artifact_digest_input,
+          )
+          need(digest_match is not None, "artifact_digest_invalid")
+          artifact_digest = "sha256:" + digest_match.group(1)
 
           archive = root / "payload-archive.tar.gz"
           archive_sha = sha256_file(archive)
