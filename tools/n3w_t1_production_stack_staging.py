@@ -111,12 +111,12 @@ SOURCE_FILES: dict[str, tuple[str, int, str]] = {
     "infra/n3w-t1/production/docker-compose.yml": (
         "/opt/HomeAssistant/infra/n3w-t1/production/docker-compose.yml",
         0o644,
-        "45ebfa800512cf54124a489a183eb59f8a2da6f332e2041f023f6f6932005e7d",
+        "b7d47b29dc0c2fd5a3d9b457157f256e1c1f8a117aabea73a88f0db95919352d",
     ),
     "infra/n3w-t1/production/image-lock.json": (
         "/opt/HomeAssistant/infra/n3w-t1/production/image-lock.json",
         0o644,
-        "31b4676598fc7861593f554e7ec62ed067fc366f7f87d5a9de57c8c788c9b334",
+        "899b10819dcaf908c8b53c882de02b29fe5b5ad1544328ad0b4d5f5d39b22e81",
     ),
     "infra/n3w-t1/production/homeassistant-configuration.yaml": (
         "/opt/HomeAssistant/infra/n3w-t1/production/homeassistant-configuration.yaml",
@@ -163,7 +163,7 @@ SOURCE_FILES: dict[str, tuple[str, int, str]] = {
     "tools/n3w_t1_clean_product_deployment_gate.py": (
         "/opt/HomeAssistant/tools/n3w_t1_clean_product_deployment_gate.py",
         0o755,
-        "d1c42fb2abbf8433a1c1f03562abca7994a301edf9f316ad33c9f4da7f6f8acb",
+        "41cf5f6da0230595437fc58f57c6cd70d70ba38fa3e443c5378f4aeb933dfc7f",
     ),
     "tools/n3w_t1_production_manager_state_prepare.py": (
         "/opt/HomeAssistant/tools/n3w_t1_production_manager_state_prepare.py",
