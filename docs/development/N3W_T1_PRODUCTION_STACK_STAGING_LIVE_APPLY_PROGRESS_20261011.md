@@ -102,3 +102,83 @@ UNTRACKED_CRITICAL_ARTIFACTS=0
 UNARCHIVED_CRITICAL_KNOWLEDGE=0
 NEXT_SAFE_ENTRY_POINT=exact-head CI then fresh T1 preflight and one-shot apply
 ```
+
+
+## 6. Independent review after Codex handoff
+
+The remote PR state was independently rebound before continuation.
+
+Verified remote starting point:
+
+```text
+PR541_HEAD=0fbcd9c544f8783faaacec174ad113f6025a23e7
+RUN20=38125209251
+RUN20_CONCLUSION=success
+RUN20_SCOPE=pre-hardening_executor
+```
+
+The reported local commit `f5b9f300...` was not present on GitHub and therefore
+could not be treated as repository authority.
+
+Independent source review of the archived executor confirmed both reported
+rollback gaps in the remote pre-hardening version:
+
+1. `mutated=True` was set only after both legacy-directory deletion and N3-W
+   root creation. A failure between those two operations could leave the first
+   mutation outside rollback.
+2. rollback used recursive deletion of `/opt/HomeAssistant` without first
+   proving that the tree contained only transaction-owned paths.
+
+The remote executor was hardened directly on PR #541:
+
+```text
+71e778a40d31706b2dd08227d15a6b53d37c8823
+fix(n3w): harden staging rollback boundaries
+
+b9305b5fff1d046ebbc86530d12521ea227681a6
+test(n3w): cover staging rollback hardening
+```
+
+The hardening additionally makes rollback re-prove:
+
+```text
+containers=0
+docker volume set=exact frozen baseline
+project network container counts=0
+production listeners=0
+guard contract=exact
+DynSec SHA=exact
+secret bundle aggregate=unchanged
+Manager DB SHA=unchanged
+legacy empty registration directory=restored
+N3-W state root=absent
+HA staging root=absent
+/opt/HomeAssistant staging root=absent unless unknown content is preserved
+activation units=not-found
+production image references=absent
+dispatcher=absent
+```
+
+Unknown content under `/opt/HomeAssistant` is now preserved and forces rollback
+FAIL instead of recursive deletion.
+
+The first destructive action, removal of the exact empty legacy registration
+directory, now marks the transaction mutated immediately so any subsequent
+failure enters rollback.
+
+A fresh exact-head CI was triggered:
+
+```text
+PR541_HEAD=b9305b5fff1d046ebbc86530d12521ea227681a6
+RUN_ID=38125884756
+RUN_NUMBER=22
+STATUS=in_progress
+LIVE_T1_MUTATION=false
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+```
+
+Run #20 remains useful only as evidence for the pre-hardening executor. It is
+not valid as exact-head authority for the hardened executor.
+
+No payload may be rebuilt and no T1 apply may begin until run #22 passes.
