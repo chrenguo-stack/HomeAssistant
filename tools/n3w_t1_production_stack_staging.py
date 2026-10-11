@@ -28,8 +28,11 @@ EXPECTED_SYSTEM_ID_SHA256 = (
 )
 EXPECTED_SYSTEM_ID_PROVENANCE_FINGERPRINT = EXPECTED_SYSTEM_ID_SHA256[:24]
 EXPECTED_MANAGER_IMAGE = "local/greenhouse-manager:s20-511db028"
-EXPECTED_MANAGER_IMAGE_ID = (
+EXPECTED_MANAGER_IMAGE_CONFIG_DIGEST = (
     "sha256:ef0f28c2fd339430a85acb6cb65158c71c61cd8fc3c6330c375da27d0f2440f1"
+)
+EXPECTED_MANAGER_IMAGE_TARGET_DIGEST = (
+    "sha256:abd9560c978b69429eea734df216664ea643ed762a77777dcb816f5d537afad6"
 )
 EXPECTED_MANAGER_TAR_SHA256 = (
     "2ef0421d483334f6ef81c92beb1b6784174f069a4bde179ba615ce0b70435081"
@@ -38,15 +41,21 @@ EXPECTED_HA_IMAGE = (
     "ghcr.io/home-assistant/home-assistant:2026.10.0@"
     "sha256:0c73235a9140a9b02e4bf618d06d8c496b12ae70656ecddb0e02ad31ad122be4"
 )
-EXPECTED_HA_IMAGE_ID = (
+EXPECTED_HA_IMAGE_CONFIG_DIGEST = (
     "sha256:b0e1ee82adfb19fa1ff3049034535633b1c4f0df6606721c0e77383854b99879"
+)
+EXPECTED_HA_IMAGE_TARGET_DIGEST = (
+    "sha256:0c73235a9140a9b02e4bf618d06d8c496b12ae70656ecddb0e02ad31ad122be4"
 )
 EXPECTED_BROKER_IMAGE = (
     "m.daocloud.io/docker.io/library/eclipse-mosquitto:2.1.2-alpine@"
     "sha256:3184566df484a083411a0e70e92c87a264b8f0648df632f10eb23d54d99f4549"
 )
-EXPECTED_BROKER_IMAGE_ID = (
+EXPECTED_BROKER_IMAGE_CONFIG_DIGEST = (
     "sha256:4c199d7c9d377d018313a2199f6839978f6fd2219c405ad664d0a830c14b9c7b"
+)
+EXPECTED_BROKER_IMAGE_TARGET_DIGEST = (
+    "sha256:3184566df484a083411a0e70e92c87a264b8f0648df632f10eb23d54d99f4549"
 )
 MIN_ROOT_AVAILABLE_BYTES = 5 * 1024 * 1024 * 1024
 
@@ -458,20 +467,61 @@ def _image_present(runner: Runner, image: str) -> bool:
     return completed.returncode == 0
 
 
-def _image_report(runner: Runner, image: str, expected_id: str) -> dict[str, str]:
+def _image_report(
+    runner: Runner,
+    image: str,
+    *,
+    expected_config_digest: str,
+    expected_target_digest: str,
+) -> dict[str, str]:
     output = runner.run(
         (
             "docker",
             "image",
             "inspect",
             "--format",
-            "{{.Id}}|{{.Os}}|{{.Architecture}}",
+            "{{json .}}",
             image,
         )
     ).strip()
-    if output != f"{expected_id}|linux|arm64":
+    try:
+        report = json.loads(output)
+    except json.JSONDecodeError as error:
+        raise StagingError(f"image_inspect_json_invalid:{image}") from error
+
+    if (
+        report.get("Os") != "linux"
+        or report.get("Architecture") != "arm64"
+    ):
+        raise StagingError(f"image_platform_drift:{image}")
+
+    image_id = report.get("Id")
+    descriptor = report.get("Descriptor")
+    descriptor_digest = (
+        descriptor.get("digest")
+        if isinstance(descriptor, dict)
+        else None
+    )
+    if (
+        descriptor_digest is not None
+        and descriptor_digest != expected_target_digest
+    ):
+        raise StagingError(f"image_target_digest_drift:{image}")
+
+    if image_id == expected_config_digest:
+        identity_mode = "classic_config_digest"
+    elif image_id == expected_target_digest:
+        identity_mode = "containerd_target_digest"
+    else:
         raise StagingError(f"image_binding_drift:{image}")
-    return {"id": expected_id, "platform": "linux/arm64"}
+
+    return {
+        "id": str(image_id),
+        "config_digest": expected_config_digest,
+        "target_digest": expected_target_digest,
+        "identity_mode": identity_mode,
+        "platform": "linux/arm64",
+    }
 
 
 def _unit_load_state(runner: Runner, unit: str) -> str:
@@ -758,11 +808,22 @@ def postcheck(
         raise StagingError("homeassistant_state_not_empty")
     images = {
         "manager": _image_report(
-            runner, EXPECTED_MANAGER_IMAGE, EXPECTED_MANAGER_IMAGE_ID
+            runner,
+            EXPECTED_MANAGER_IMAGE,
+            expected_config_digest=EXPECTED_MANAGER_IMAGE_CONFIG_DIGEST,
+            expected_target_digest=EXPECTED_MANAGER_IMAGE_TARGET_DIGEST,
         ),
-        "homeassistant": _image_report(runner, EXPECTED_HA_IMAGE, EXPECTED_HA_IMAGE_ID),
+        "homeassistant": _image_report(
+            runner,
+            EXPECTED_HA_IMAGE,
+            expected_config_digest=EXPECTED_HA_IMAGE_CONFIG_DIGEST,
+            expected_target_digest=EXPECTED_HA_IMAGE_TARGET_DIGEST,
+        ),
         "broker": _image_report(
-            runner, EXPECTED_BROKER_IMAGE, EXPECTED_BROKER_IMAGE_ID
+            runner,
+            EXPECTED_BROKER_IMAGE,
+            expected_config_digest=EXPECTED_BROKER_IMAGE_CONFIG_DIGEST,
+            expected_target_digest=EXPECTED_BROKER_IMAGE_TARGET_DIGEST,
         ),
     }
     _verify_staged_files()
@@ -1160,7 +1221,12 @@ def apply_staging(runner: Runner, payload_root: Path) -> dict[str, Any]:
             ),
             timeout=300,
         )
-        _image_report(runner, EXPECTED_MANAGER_IMAGE, EXPECTED_MANAGER_IMAGE_ID)
+        _image_report(
+            runner,
+            EXPECTED_MANAGER_IMAGE,
+            expected_config_digest=EXPECTED_MANAGER_IMAGE_CONFIG_DIGEST,
+            expected_target_digest=EXPECTED_MANAGER_IMAGE_TARGET_DIGEST,
+        )
         _event("manager_image_load", "PASS")
 
         _event("manager_state_prepare", "START")
@@ -1172,7 +1238,12 @@ def apply_staging(runner: Runner, payload_root: Path) -> dict[str, Any]:
             ("docker", "pull", "--platform", "linux/arm64", EXPECTED_HA_IMAGE),
             timeout=1200,
         )
-        _image_report(runner, EXPECTED_HA_IMAGE, EXPECTED_HA_IMAGE_ID)
+        _image_report(
+            runner,
+            EXPECTED_HA_IMAGE,
+            expected_config_digest=EXPECTED_HA_IMAGE_CONFIG_DIGEST,
+            expected_target_digest=EXPECTED_HA_IMAGE_TARGET_DIGEST,
+        )
         runner.run(
             ("docker", "pull", "--platform", "linux/arm64", EXPECTED_BROKER_IMAGE),
             timeout=600,
