@@ -1,3 +1,16 @@
+> **2026-10-11 fresh T1 preflight STOP / KF-105 provenance fingerprint mismatch**：exact staging payload 已到达 T1，但仅执行 read-only preflight；结果 `status=STOP` / `reason=manager_database_provenance_drift`。未传 `--authorization-id`，apply phase 未进入，因此 T1 production mutation=false、authorization claimed/consumed=false。源码复核确认 H0/H1 `system_id_fingerprint()` 是完整 SYSTEM_ID SHA-256 的前 24 个十六进制字符，而 staging executor / Manager-state preparer / synthetic CI fixture 错按完整 64 字符比较。source repair + tests 已提交，replacement CI/payload 尚待闭环；旧 payload 已 superseded，禁止继续用于 T1。
+
+```text
+KF105=OPEN_SOURCE_REPAIR_CI_PENDING
+T1_MUTATION=false
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
 > **2026-10-11 exact staging payload bound / fresh T1 preflight next**：payload workflow run `38126850777` PASS；exact PR-head source `ea6738551e583a14ad5685e181109b7e57f8fb1b`，artifact ID `11697172862`，artifact ZIP SHA256 `371b7aff...`，payload archive SHA256 `35e9b7e2...`，manifest SHA256 `3e73fbf6...`，executor SHA256 `3f82a52d...`，Manager tar SHA256 `2ef0421d...`。先前 run `38126385865` 使用 PR synthetic merge SHA `21727a26...`，其 payload 已 superseded，禁止用于 T1。下一步仅 fresh T1 preflight；authorization 仍未 claim/consume，production services 保持 stopped。
 
 ```text
