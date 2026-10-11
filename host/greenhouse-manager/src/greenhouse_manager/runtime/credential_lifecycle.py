@@ -465,12 +465,3 @@ class CredentialLifecycleStore:
             ),
         )
 
-    def close(self) -> None:
-        with self._lock:
-            self._connection.close()
-
-    def __enter__(self) -> "CredentialLifecycleStore":
-        return self
-
-    def __exit__(self, *_: object) -> None:
-        self.close()
