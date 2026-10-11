@@ -821,3 +821,29 @@ The next permitted mutation is a single staging-only apply under `..._02`.
 Starting that apply permanently claims and consumes the successor authorization,
 regardless of success, rollback, transport interruption, or operator terminal
 failure. It may never be replayed.
+
+
+## 16. Successor authorization explicitly granted
+
+After the exact successor payload binding and fresh T1 read-only preflight both
+passed, the operator explicitly approved:
+
+```text
+N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02
+```
+
+Current state before apply invocation:
+
+```text
+AUTHORIZATION_STATE=GRANTED_PENDING_CLAIM
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+LIVE_STAGING_APPLY=AUTHORIZED
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+PR_MERGE=false
+```
+
+Only the repository-owned host wrapper and exact successor artifact may be used.
+The predecessor authorization and all predecessor payloads remain permanently
+forbidden.
