@@ -1,3 +1,18 @@
+> **2026-10-11 R5 fresh T1 read-only preclaim CLOSED_PASS / live apply still unauthorized**：exact CI-bound R5 executor `a83303191d54ba7c4c1f065a2de6abcb69a55a2eb10831da5ecb9a6e47c13b75` 及 4 个 frozen dependencies 已通过 memory-only stream 在 clean T1 上执行，preclaim `status=PASS`。T1 baseline：0 containers、45 volumes、volume set SHA `20fc845741d31da34f1d1e563e5057c78ec5dc7c4cfd3a495a5f3a4f2bfd011b`、project networks empty、guard exact、MQTT host listeners 1883/8883/18883 全 0、DynSec baseline exact、target service identities absent、R1-R4 retained snapshots exact、R5 rollback snapshot absent、production secret destination absent、Broker/TLS/server-name contract exact、local arm64 Broker image exact。authorization 仍未 claim/consume，live mutation=false。下一步只可请求新的 one-shot R5 live apply authorization；preclaim PASS 本身不授权 mutation。Authority: `docs/development/N3W_T1_S20_R5_FRESH_T1_READONLY_PRECLAIM_CLOSURE_20261011.md`.
+
+```text
+R5_FRESH_T1_READONLY_PRECLAIM=PASS
+R5_PRECLAIM_STATUS=PASS
+R5_PROPOSED_LIVE_AUTHORIZATION=N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_R5_20261011_01
+R5_AUTHORIZATION_GRANTED=false
+R5_AUTHORIZATION_CLAIMED=false
+R5_AUTHORIZATION_CONSUMED=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
 > **2026-10-11 R5 fresh T1 read-only preclaim first transport attempt stopped before executor main**：remote identity preflight PASS（Linux/aarch64, kernel 6.18.26-ophub, Docker 29.7.1），exact CI-bound executor SHA256=`a83303191d54ba7c4c1f065a2de6abcb69a55a2eb10831da5ecb9a6e47c13b75`。bootstrap 失败于 import-time `ModuleNotFoundError: greenhouse_manager`，原因是 clean T1 不存在假定的 `/opt/HomeAssistant/host/greenhouse-manager/src` package tree；executor main 未进入，runtime preclaim 未读取，authorization 未 claim/consume，live mutation 未发生。当前 gate 不变，retry 改为从 exact CI head 同时 stream executor + 4 个 frozen dependencies，并在 T1 Python memory 中装载，不写 repository/source/bytecode 到 T1。
 
 > **2026-10-11 R5 admin-readiness TLS source repair CLOSED_PASS / fresh T1 read-only preclaim next**：corrected `N3W T1 S20 real service handoff CI` run `38102338780` 三个 job 全部 PASS：source `74 passed`、volume-lifecycle PASS、tls-readiness PASS。隔离 TLS 证据明确得到 `R5_ADMIN_READINESS_TLS_TRANSPORT=PASS`、`TLS_SERVER_NAME_VERIFICATION=PASS`、`TRANSACTION_BROKER_VOLUME_SET_UNCHANGED=true`；连接主机固定为 `armbian:8883` + exact mounted CA，transaction Broker 仍 `--network none` + `--add-host armbian:127.0.0.1`，未增加 plaintext 1883 listener，也未使用 `--insecure`。CI trigger head `1ecc12ded60c7ea53e0af94722a05f3b4f0e4654` 到 review head `321f2906749e873bf94cfd948ac9a2dd1d0ed474` 的 delta 仅 docs，无 source/workflow drift。R5 live apply 仍未授权；下一门只进入 fresh T1 read-only preclaim。Authority: `docs/development/N3W_T1_S20_R5_ADMIN_READINESS_TLS_TRANSPORT_SOURCE_REPAIR_CLOSURE_20261011.md`.
