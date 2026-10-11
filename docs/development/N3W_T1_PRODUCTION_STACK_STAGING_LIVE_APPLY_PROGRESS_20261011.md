@@ -629,3 +629,64 @@ STATUS=PENDING
 No new live authorization exists. The consumed authorization
 `N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_01` remains permanently
 non-replayable.
+
+
+## 13. KF-106 / host-wrapper CI closure and successor rotation
+
+The image-identity repair and repository-owned host transport both passed their
+dedicated exact-head CI at repository head
+`d92bdbb3a84bfe2403f42e69612ae1196824c743`.
+
+```text
+MANAGER_STATE_BINDING_RUN=38129756566
+MANAGER_STATE_BINDING_RUN_NUMBER=57
+MANAGER_STATE_BINDING_CONCLUSION=success
+
+STAGING_PAYLOAD_RUN=38129756547
+STAGING_PAYLOAD_RUN_NUMBER=34
+STAGING_PAYLOAD_CONCLUSION=success
+```
+
+Run #34 proved and published:
+
+```text
+SOURCE_HEAD=d92bdbb3a84bfe2403f42e69612ae1196824c743
+ARTIFACT_ID=11698238759
+ARTIFACT_ZIP_SHA256=7ff1cb440078dc9e1d64df442166b477109d46d2d2e4044a01c73883ef8ecfec
+PAYLOAD_ARCHIVE_SHA256=f487075537c63df9407e5b78aa9ff2c16f1066ce4b0ce5c861c99fe98d406f0f
+PAYLOAD_MANIFEST_SHA256=74a6a4562345bc358ad4c9a3ec14247bba0ab8cbc9b03aab8948ddc3fe65a823
+EXECUTOR_SHA256=7954915bb709123f55334eb5da3f504039b1ea81d3298aaf11c4eec84ad60c2c
+HOST_WRAPPER_SHA256=30ca74ec1a46f5de6252adf2663bcce4607ac2e7768f5e31fd5ca14ac0338a4b
+MANAGER_TAR_SHA256=2ef0421d483334f6ef81c92beb1b6784174f069a4bde179ba615ce0b70435081
+MANAGER_CONFIG_DIGEST=sha256:ef0f28c2fd339430a85acb6cb65158c71c61cd8fc3c6330c375da27d0f2440f1
+MANAGER_OCI_TARGET_DIGEST=sha256:abd9560c978b69429eea734df216664ea643ed762a77777dcb816f5d537afad6
+```
+
+That artifact is source-valid evidence for the repair, but it still embeds the
+already consumed predecessor authorization ID `..._01`. It is therefore
+**not eligible for a second live apply**.
+
+The live authorization identity has now been rotated in source and payload
+metadata to:
+
+```text
+N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02
+```
+
+The successor is currently **NOT_GRANTED**. The predecessor remains permanently
+consumed and non-replayable.
+
+Current boundary:
+
+```text
+KF106_SOURCE_CI=PASS
+KF078_HOST_WRAPPER_CI=PASS
+PREDECESSOR_AUTHORIZATION=CONSUMED_NO_REPLAY
+SUCCESSOR_AUTHORIZATION_ID=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02
+SUCCESSOR_AUTHORIZATION_STATE=NOT_GRANTED
+SUCCESSOR_PAYLOAD_CI=PENDING
+T1_MUTATION=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+PR_MERGE=false
+```
