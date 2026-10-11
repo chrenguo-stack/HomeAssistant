@@ -135,13 +135,15 @@ jobs:
           sys.modules["staging"] = module
           spec.loader.exec_module(module)
 
-          print(f"HA_IMAGE={module.EXPECTED_HA_IMAGE}")
-          print(f"BROKER_IMAGE={module.EXPECTED_BROKER_IMAGE}")
+          print(f"HA_SOURCE_IMAGE={module.EXPECTED_HA_SOURCE_IMAGE}")
+          print(f"HA_LOCAL_IMAGE={module.EXPECTED_HA_IMAGE}")
+          print(f"BROKER_SOURCE_IMAGE={module.EXPECTED_BROKER_SOURCE_IMAGE}")
+          print(f"BROKER_LOCAL_IMAGE={module.EXPECTED_BROKER_IMAGE}")
           PY
           . "$RUNNER_TEMP/external-image-refs.env"
 
-          docker pull --platform linux/arm64 "$HA_IMAGE"
-          docker pull --platform linux/arm64 "$BROKER_IMAGE"
+          docker pull --platform linux/arm64 "$HA_SOURCE_IMAGE"
+          docker pull --platform linux/arm64 "$BROKER_SOURCE_IMAGE"
 
           python - <<'PY'
           import importlib.util
@@ -160,13 +162,13 @@ jobs:
           reports = {
               "homeassistant": module._image_report(
                   runner,
-                  module.EXPECTED_HA_IMAGE,
+                  module.EXPECTED_HA_SOURCE_IMAGE,
                   expected_config_digest=module.EXPECTED_HA_IMAGE_CONFIG_DIGEST,
                   expected_target_digest=module.EXPECTED_HA_IMAGE_TARGET_DIGEST,
               ),
               "broker": module._image_report(
                   runner,
-                  module.EXPECTED_BROKER_IMAGE,
+                  module.EXPECTED_BROKER_SOURCE_IMAGE,
                   expected_config_digest=module.EXPECTED_BROKER_IMAGE_CONFIG_DIGEST,
                   expected_target_digest=module.EXPECTED_BROKER_IMAGE_TARGET_DIGEST,
               ),
@@ -174,15 +176,19 @@ jobs:
           print(json.dumps(reports, sort_keys=True))
           PY
 
-          docker save -o "$RUNNER_TEMP/homeassistant-arm64.tar" "$HA_IMAGE"
-          docker save -o "$RUNNER_TEMP/broker-arm64.tar" "$BROKER_IMAGE"
+          docker tag "$HA_SOURCE_IMAGE" "$HA_LOCAL_IMAGE"
+          docker tag "$BROKER_SOURCE_IMAGE" "$BROKER_LOCAL_IMAGE"
+
+          docker save -o "$RUNNER_TEMP/homeassistant-arm64.tar" "$HA_LOCAL_IMAGE"
+          docker save -o "$RUNNER_TEMP/broker-arm64.tar" "$BROKER_LOCAL_IMAGE"
 
           printf 'HOMEASSISTANT_TAR_SHA256=%s\n' "$(sha256sum "$RUNNER_TEMP/homeassistant-arm64.tar" | awk '{print $1}')"
           printf 'BROKER_TAR_SHA256=%s\n' "$(sha256sum "$RUNNER_TEMP/broker-arm64.tar" | awk '{print $1}')"
 
-          docker image rm "$HA_IMAGE" "$BROKER_IMAGE"
-          ! docker image inspect "$HA_IMAGE" >/dev/null 2>&1
-          ! docker image inspect "$BROKER_IMAGE" >/dev/null 2>&1
+          docker image rm "$HA_LOCAL_IMAGE" "$HA_SOURCE_IMAGE"
+          docker image rm "$BROKER_LOCAL_IMAGE" "$BROKER_SOURCE_IMAGE"
+          ! docker image inspect "$HA_LOCAL_IMAGE" >/dev/null 2>&1
+          ! docker image inspect "$BROKER_LOCAL_IMAGE" >/dev/null 2>&1
 
           docker load -i "$RUNNER_TEMP/homeassistant-arm64.tar"
           docker load -i "$RUNNER_TEMP/broker-arm64.tar"
