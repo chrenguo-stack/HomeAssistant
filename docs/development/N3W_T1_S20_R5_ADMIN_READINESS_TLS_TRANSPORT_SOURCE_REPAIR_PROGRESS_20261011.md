@@ -293,3 +293,19 @@ R5_SOURCE_REPAIR_CI_REVIEW=PENDING
 R5_LIVE_APPLY=false
 AUTO_APPLY_AFTER_CI=false
 ```
+
+
+## Fresh T1 read-only preclaim transport note
+
+The first read-only preclaim transport attempt stopped before executor main because the clean T1 did not provide the repository Python package at the assumed /opt/HomeAssistant path. Remote Linux/aarch64/kernel/Docker identity preflight passed. No transaction code, snapshot creation, service credential generation, Broker start, DynSec mutation, or authorization claim was reached.
+
+The retry remains the same read-only preclaim gate and will stream the exact executor plus its four frozen project dependencies into Python memory. No repository checkout or source-file write on T1 is required.
+
+```text
+PRECLAIM_FIRST_ATTEMPT=HARNESS_IMPORT_STOP
+PRODUCT_FAILURE_PROVEN=false
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+LIVE_RUNTIME_MUTATION=false
+NEXT_ONE_GATE=N3W_T1_S20_R5_FRESH_T1_READONLY_PRECLAIM_20261011_01
+```
