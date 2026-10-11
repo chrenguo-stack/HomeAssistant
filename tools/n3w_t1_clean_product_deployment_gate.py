@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -348,13 +349,20 @@ def _require_manager_environment(
     manager: Mapping[object, object],
 ) -> None:
     environment = _environment(manager)
+    system_id = environment.get("GH_SYSTEM_ID", "")
+    if re.fullmatch(r"[A-Za-z0-9_-]{3,64}", system_id) is None:
+        raise DeploymentContractError("manager_system_id_invalid")
+    manager_username = f"ghs_{system_id}_manager"
+    manager_client_id = f"gh-manager-{system_id}"
+    provisioning_username = f"ghs_{system_id}_provisioning"
+    provisioning_client_id = f"gh-provisioning-{system_id}"
     required = {
-        "GH_SYSTEM_ID": "greenhouse",
+        "GH_SYSTEM_ID": system_id,
         "GH_MQTT_HOST": "armbian",
         "GH_MQTT_PORT": "8883",
-        "GH_MQTT_USERNAME": "ghs_greenhouse_manager",
+        "GH_MQTT_USERNAME": manager_username,
         "GH_MQTT_PASSWORD_FILE": MANAGER_PASSWORD_TARGET,
-        "GH_MQTT_CLIENT_ID": "gh-manager-greenhouse",
+        "GH_MQTT_CLIENT_ID": manager_client_id,
         "GH_MQTT_TLS": "true",
         "GH_MQTT_CA_FILE": MANAGER_CA_TARGET,
         "GH_HA_DISCOVERY_ENABLED": "true",
@@ -367,17 +375,13 @@ def _require_manager_environment(
         ),
         "GH_N3W_RELAY_KEY_DIR": MANAGER_RELAY_KEY_DIR,
         "GH_N3W_PRODUCT_PAIRING_ENABLED": "false",
-        "GH_N3W_PAIRING_MANAGER_ID": "gh-manager-greenhouse",
+        "GH_N3W_PAIRING_MANAGER_ID": manager_client_id,
         "GH_N3W_PAIRING_ADVERTISED_HOST": "auto",
-        "GH_N3W_PROVISIONING_USERNAME": (
-            "ghs_greenhouse_provisioning"
-        ),
+        "GH_N3W_PROVISIONING_USERNAME": provisioning_username,
         "GH_N3W_PROVISIONING_PASSWORD_FILE": (
             PROVISIONING_PASSWORD_TARGET
         ),
-        "GH_N3W_PROVISIONING_CLIENT_ID": (
-            "gh-provisioning-greenhouse"
-        ),
+        "GH_N3W_PROVISIONING_CLIENT_ID": provisioning_client_id,
         "GH_N3W_NODE_BROKER_HOST": "gate-f-unbound.invalid",
         "GH_N3W_NODE_BROKER_PORT": "8883",
         "GH_N3W_NODE_BROKER_TLS_SERVER_NAME": "armbian",

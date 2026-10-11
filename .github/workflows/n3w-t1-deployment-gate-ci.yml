@@ -52,6 +52,12 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       PYTHONPATH: host/greenhouse-manager/src
+      GH_SYSTEM_ID: freshci01
+      GH_MQTT_USERNAME: ghs_freshci01_manager
+      GH_MQTT_CLIENT_ID: gh-manager-freshci01
+      GH_N3W_PAIRING_MANAGER_ID: gh-manager-freshci01
+      GH_N3W_PROVISIONING_USERNAME: ghs_freshci01_provisioning
+      GH_N3W_PROVISIONING_CLIENT_ID: gh-provisioning-freshci01
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

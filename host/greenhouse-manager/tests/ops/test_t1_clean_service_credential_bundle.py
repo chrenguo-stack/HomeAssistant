@@ -107,6 +107,8 @@ def test_manager_and_provisioning_use_separate_readonly_mounts(
         / "manager/compose-secret-fragment.yaml"
     ).read_text(encoding="utf-8")
 
+    assert "GH_SYSTEM_ID=greenhouse" in runtime_env
+    assert "GH_N3W_PAIRING_MANAGER_ID=gh-manager-greenhouse" in runtime_env
     assert (
         "GH_MQTT_PASSWORD_FILE="
         "/run/secrets/gh_manager_mqtt_password"

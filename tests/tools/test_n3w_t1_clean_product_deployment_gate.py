@@ -570,3 +570,32 @@ def test_rejects_external_service_pull_policy_drift(
 
     with pytest.raises(tool.DeploymentContractError, match=error):
         tool.validate_compose_document(document)
+
+
+def test_accepts_fresh_dynamic_system_identity() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    environment = document["services"]["manager"]["environment"]
+    environment.update(
+        {
+            "GH_SYSTEM_ID": "freshci01",
+            "GH_MQTT_USERNAME": "ghs_freshci01_manager",
+            "GH_MQTT_CLIENT_ID": "gh-manager-freshci01",
+            "GH_N3W_PAIRING_MANAGER_ID": "gh-manager-freshci01",
+            "GH_N3W_PROVISIONING_USERNAME": "ghs_freshci01_provisioning",
+            "GH_N3W_PROVISIONING_CLIENT_ID": "gh-provisioning-freshci01",
+        }
+    )
+    report = tool.validate_compose_document(document)
+    assert report["status"] == "PASS"
+
+
+def test_rejects_fresh_identity_cross_binding_drift() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["services"]["manager"]["environment"]["GH_SYSTEM_ID"] = "freshci01"
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="manager_runtime_environment_invalid",
+    ):
+        tool.validate_compose_document(document)

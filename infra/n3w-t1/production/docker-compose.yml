@@ -49,12 +49,12 @@ services:
     profiles:
       - application
     environment:
-      GH_SYSTEM_ID: greenhouse
+      GH_SYSTEM_ID: "${GH_SYSTEM_ID:?GH_SYSTEM_ID required}"
       GH_MQTT_HOST: armbian
       GH_MQTT_PORT: "8883"
-      GH_MQTT_USERNAME: ghs_greenhouse_manager
+      GH_MQTT_USERNAME: "${GH_MQTT_USERNAME:?GH_MQTT_USERNAME required}"
       GH_MQTT_PASSWORD_FILE: /run/secrets/gh_manager_mqtt_password
-      GH_MQTT_CLIENT_ID: gh-manager-greenhouse
+      GH_MQTT_CLIENT_ID: "${GH_MQTT_CLIENT_ID:?GH_MQTT_CLIENT_ID required}"
       GH_MQTT_TLS: "true"
       GH_MQTT_CA_FILE: /run/n3w/tls/ca.pem
       GH_HA_DISCOVERY_ENABLED: "true"
@@ -65,11 +65,11 @@ services:
       GH_N3W_RELAY_AUTHORIZATION_DB_PATH: /var/lib/greenhouse-manager/n3w/relay-authorization.sqlite3
       GH_N3W_RELAY_KEY_DIR: /var/lib/greenhouse-manager/n3w/relay-keys
       GH_N3W_PRODUCT_PAIRING_ENABLED: "false"
-      GH_N3W_PAIRING_MANAGER_ID: gh-manager-greenhouse
+      GH_N3W_PAIRING_MANAGER_ID: "${GH_N3W_PAIRING_MANAGER_ID:?GH_N3W_PAIRING_MANAGER_ID required}"
       GH_N3W_PAIRING_ADVERTISED_HOST: auto
-      GH_N3W_PROVISIONING_USERNAME: ghs_greenhouse_provisioning
+      GH_N3W_PROVISIONING_USERNAME: "${GH_N3W_PROVISIONING_USERNAME:?GH_N3W_PROVISIONING_USERNAME required}"
       GH_N3W_PROVISIONING_PASSWORD_FILE: /run/secrets/gh_n3w_provisioning_mqtt_password
-      GH_N3W_PROVISIONING_CLIENT_ID: gh-provisioning-greenhouse
+      GH_N3W_PROVISIONING_CLIENT_ID: "${GH_N3W_PROVISIONING_CLIENT_ID:?GH_N3W_PROVISIONING_CLIENT_ID required}"
       GH_N3W_NODE_BROKER_HOST: gate-f-unbound.invalid
       GH_N3W_NODE_BROKER_PORT: "8883"
       GH_N3W_NODE_BROKER_TLS_SERVER_NAME: armbian

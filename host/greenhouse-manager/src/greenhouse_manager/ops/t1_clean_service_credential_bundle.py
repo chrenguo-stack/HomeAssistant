@@ -125,9 +125,11 @@ def _manager_environment(
     provisioning: ServiceIdentityPlan,
 ) -> str:
     return (
+        f"GH_SYSTEM_ID={manager.system_id}\n"
         f"GH_MQTT_USERNAME={manager.username}\n"
         f"GH_MQTT_PASSWORD_FILE={_MANAGER_TARGET}\n"
         f"GH_MQTT_CLIENT_ID={manager.client_id}\n"
+        f"GH_N3W_PAIRING_MANAGER_ID={manager.client_id}\n"
         f"GH_N3W_PROVISIONING_USERNAME={provisioning.username}\n"
         f"GH_N3W_PROVISIONING_PASSWORD_FILE={_PROVISIONING_TARGET}\n"
         f"GH_N3W_PROVISIONING_CLIENT_ID={provisioning.client_id}\n"
