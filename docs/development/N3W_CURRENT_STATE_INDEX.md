@@ -1,3 +1,17 @@
+> **2026-10-11 staging executor hardened CI PASS / payload build entered**：hardened executor source head `b9305b5fff1d046ebbc86530d12521ea227681a6` dedicated CI run `38125884756` PASS；docs-only head `7f54561...` run `38125935452` 亦 PASS。Codex 旧 payload 明确 superseded，不得用于 T1。已新增 repository-owned content-addressed payload workflow `.github/workflows/n3w-t1-production-stack-staging-payload-ci.yml`（commit `96113b82...`），将重新下载并校验 frozen Manager artifact、生成 executor/manifest/archive SHA，并保持 authorization claimed/consumed=false。当前仍禁止 T1 mutation；fresh T1 preflight 只在新 payload CI PASS 并完成 artifact rebind 后进入。
+
+```text
+HARDENED_EXECUTOR_CI=PASS
+PAYLOAD_BUILD_CI=PENDING
+T1_MUTATION=false
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
 > **2026-10-11 KF-104 source repair CLOSED_PASS / production staging authorization prepared**：Dedicated CI run `38124163390` PASS，exact frozen ARM64 Manager artifact load、state prepare/audit、rendered production Compose 均通过；Manager DB 未改变、business rows=0、replay/relay/key state 为空、Docker volume set unchanged。下一阶段仅为“staging，不启动服务”：需新的一次性 live authorization `N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_01`。staging 明确禁止 Broker/Manager/HA start、unit enable、dispatcher install、reboot、board access、PR merge。Authority: `docs/development/N3W_T1_PRODUCTION_STACK_STAGING_LIVE_AUTHORIZATION_PREEXECUTION_20261011.md`.
 
 ```text
