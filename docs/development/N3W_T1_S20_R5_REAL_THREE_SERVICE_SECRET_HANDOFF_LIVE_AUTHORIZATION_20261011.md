@@ -2,7 +2,7 @@
 
 Date: 2026-10-11
 
-Status: GRANTED / NOT YET CLAIMED / NOT YET CONSUMED
+Status: CONSUMED / APPLY_PASS / REPLAY_FORBIDDEN
 
 PR: #541 OPEN DRAFT
 
@@ -11,8 +11,8 @@ PR: #541 OPEN DRAFT
 ```text
 AUTHORIZATION=N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_R5_20261011_01
 GRANTED=true
-CLAIMED=false
-CONSUMED=false
+CLAIMED=true
+CONSUMED=true
 REPLAY=false
 ```
 
@@ -100,3 +100,21 @@ PR merge=false
 ```
 
 If rollback is incomplete or postcheck fails after claim, stop for manual forensic/recovery; do not replay this authorization.
+
+
+## Final execution state
+
+The authorized R5 transaction completed successfully after the mandatory final read-only preclaim passed. The grant is permanently consumed and must not be replayed.
+
+```text
+R5_FINAL_PRECLAIM=PASS
+R5_APPLY_RESULT=PASS
+R5_EXECUTOR_POSTCHECK=PASS
+R5_INDEPENDENT_POSTAPPLY_AUDIT=PASS
+CLAIMED=true
+CONSUMED=true
+REPLAY=false
+SECOND_ATTEMPT_AUTHORIZED=false
+```
+
+Closure authority: `docs/development/N3W_T1_S20_R5_POSTAPPLY_INDEPENDENT_READONLY_CLOSURE_20261011.md`.
