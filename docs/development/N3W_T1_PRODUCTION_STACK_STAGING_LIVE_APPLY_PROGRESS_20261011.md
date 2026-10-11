@@ -322,3 +322,80 @@ PR_MERGE=false
 
 The fresh T1 preflight must use only artifact ID `11697172862` and executor
 SHA256 `3f82a52d...`. Any earlier payload is forbidden.
+
+
+## 9. Fresh T1 preflight STOP: H0/H1 provenance fingerprint width
+
+The exact payload reached T1 and executed only the read-only preflight phase.
+
+Observed result:
+
+```text
+phase=preflight
+status=STOP
+reason=manager_database_provenance_drift
+authorization_id=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_01
+production_service_start=false
+board_access=false
+```
+
+No `--authorization-id` was passed to the executor and the apply phase was not
+entered.
+
+```text
+T1_PRODUCTION_MUTATION=false
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+```
+
+Independent source review found a precise contract mismatch.
+
+The accepted H0/H1 authority defines:
+
+```python
+def system_id_fingerprint(system_id: str) -> str:
+    return hashlib.sha256(system_id.encode("utf-8")).hexdigest()[:24]
+```
+
+The production Manager database provenance therefore stores a 24-character
+SYSTEM_ID fingerprint. The staging executor and Manager-state preparer instead
+compared that column with the complete 64-character public-safe SYSTEM_ID
+SHA-256. The synthetic CI fixture also inserted 64 characters, so the incorrect
+assumption was self-consistent in CI and escaped detection.
+
+Root classification:
+
+```text
+KF=KF-105
+FAILURE_CLASS=PHYSICAL_HARNESS_SOURCE_CONTRACT_MISMATCH
+PRODUCT_RUNTIME_FAILURE_PROVEN=false
+H0H1_RESTORE_DRIFT_PROVEN=false
+LIVE_MUTATION=false
+```
+
+Source repair:
+
+```text
+6202f5409dfc0bbd04cac8143b38e2dbeafe1e39
+fix(n3w): honor H0H1 24-char system fingerprint
+
+63a98496e72db6530a3ced1a37c7c5277b0ff85f
+test(n3w): enforce H0H1 provenance fingerprint width
+
+06e1c155351efff34b9f82a9eabd6fe5853b4c99
+ci(n3w): model H0H1 provenance fingerprint correctly
+
+b4d8548e32604f2adc08e496f5d72af6e53dcc6e
+fix(n3w): align staging provenance with H0H1 fingerprint
+
+2cd22205675da00d8fc5a5078f392d7c1bd1c3a7
+test(n3w): guard staging provenance fingerprint semantics
+```
+
+The complete 64-character SYSTEM_ID SHA-256 remains the public-safe identity
+authority. Only the H0/H1 provenance column uses its defined 24-character
+fingerprint prefix.
+
+The replacement source CI and replacement payload must pass before another T1
+preflight. The prior payload artifact is now superseded and forbidden for
+further T1 use.
