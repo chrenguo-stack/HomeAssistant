@@ -214,3 +214,13 @@ def test_rollback_opt_root_preserves_unknown_content(
         item.startswith("opt_root_unexpected_or_unremoved:")
         for item in errors
     )
+
+
+def test_staging_uses_h0h1_24_char_provenance_fingerprint() -> None:
+    tool = load_tool()
+
+    assert (
+        tool.EXPECTED_SYSTEM_ID_PROVENANCE_FINGERPRINT
+        == tool.EXPECTED_SYSTEM_ID_SHA256[:24]
+    )
+    assert len(tool.EXPECTED_SYSTEM_ID_PROVENANCE_FINGERPRINT) == 24
