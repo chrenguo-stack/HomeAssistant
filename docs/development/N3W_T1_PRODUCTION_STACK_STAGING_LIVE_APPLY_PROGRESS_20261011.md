@@ -1075,3 +1075,78 @@ a11fa4d57c03d164cb3e9b7b697d40e3f677f55c
 
 `..._03` remains NOT_GRANTED. This CI failure consumed no live authorization
 and performed no T1 access.
+
+
+## 20. KF-107 offline-image source CI PASS / Run #78 artifact binding is next
+
+The corrected offline-image staging source is now green at the frozen product
+source head:
+
+```text
+REPOSITORY_MAIN=d423211b6196c2f2f0f01dff072c4f877fbe58ee
+PR541_PRODUCT_SOURCE_HEAD=cb4131e47727d0cf7421133000c3a421c860a99b
+PR541_STATE=OPEN_DRAFT
+PR541_MERGED=false
+
+DEPLOYMENT_GATE_RUN=38140472367
+DEPLOYMENT_GATE_RUN_NUMBER=361
+DEPLOYMENT_GATE_CONCLUSION=success
+
+STAGING_PAYLOAD_RUN=38140472427
+STAGING_PAYLOAD_RUN_NUMBER=78
+STAGING_PAYLOAD_CONCLUSION=success
+
+PRODUCTION_IMAGE_BINDING_RUN=38140472442
+PRODUCTION_IMAGE_BINDING_RUN_NUMBER=245
+PRODUCTION_IMAGE_BINDING_CONCLUSION=success
+
+MANAGER_STATE_BINDING_RUN=38140472373
+MANAGER_STATE_BINDING_RUN_NUMBER=101
+MANAGER_STATE_BINDING_CONCLUSION=success
+
+PUBLIC_REPOSITORY_SAFETY_RUN=38140472387
+PUBLIC_REPOSITORY_SAFETY_RUN_NUMBER=4083
+PUBLIC_REPOSITORY_SAFETY_CONCLUSION=success
+```
+
+This closes the source/CI part of the KF-107 repair. It does **not** yet bind the
+published Run #78 artifact for T1 use.
+
+The next gate is intentionally host-only and read-only:
+
+```text
+NEXT_ONE_GATE=
+N3W_T1_PRODUCTION_STACK_STAGING_RUN78_EXACT_ARTIFACT_THREE_IMAGE_PAYLOAD_BINDING_REVIEW_20261011_01
+
+RUN78_EXACT_ARTIFACT_BINDING=NOT_YET_PERFORMED
+T1_ACCESS=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+
+SUCCESSOR_AUTHORIZATION_ID=
+N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_03
+SUCCESSOR_AUTHORIZATION_STATE=NOT_GRANTED
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+```
+
+That gate must bind the exact GitHub artifact ID/name/digest, payload archive
+size/SHA256, manifest/executor/host-wrapper sidecars, and the three embedded
+image tar files (Manager/Home Assistant/Broker), including their sizes and
+SHA256 values. It must also verify that the payload manifest binds source head
+`cb4131e...` and successor authorization `..._03`, with claimed/consumed both
+false.
+
+The latest proven T1 free-root value remains historical evidence from the
+pre-`..._02` fresh read-only preflight:
+
+```text
+HISTORICAL_T1_ROOT_AVAILABLE_BYTES=6420955136
+```
+
+It is useful for payload-size risk review but is not current disk-space
+authority. A fresh T1 read-only preflight is still required after Run #78
+artifact binding PASS and before any future transport/apply.
+
+No Run #78 artifact ID, tar size, or tar SHA is frozen here yet; deriving those
+values is deliberately deferred to the next gate.
