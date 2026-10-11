@@ -1150,3 +1150,29 @@ artifact binding PASS and before any future transport/apply.
 
 No Run #78 artifact ID, tar size, or tar SHA is frozen here yet; deriving those
 values is deliberately deferred to the next gate.
+
+
+## 21. New-chat handoff process correction
+
+The Run #78 handoff V1.0 used the retired DSL/Codex execution model and is superseded.
+The current formal handoff is:
+
+```text
+docs/development/N3W_T1_PRODUCTION_STACK_STAGING_RUN78_EXACT_ARTIFACT_BINDING_NEW_CHAT_HANDOFF_V1.1_20261011.md
+```
+
+Current execution policy comes from `docs/development/N3W_PROJECT_WORKING_CONTEXT.md`:
+high-level analysis/orchestration/review, repository-versioned executors for bounded repeatable target operations, GitHub as durable shared state, read-only before mutation, and explicit authorization for live mutation.
+
+The technical stop point is unchanged:
+
+```text
+RUN78=38140472427
+RUN78_CONCLUSION=success
+RUN78_EXACT_ARTIFACT_BINDING=NOT_YET_PERFORMED
+SUCCESSOR_03=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_03
+SUCCESSOR_AUTHORIZATION_STATE=NOT_GRANTED
+T1_ACCESS=false
+LIVE_MUTATION=false
+BOARD_ACCESS=false
+```
