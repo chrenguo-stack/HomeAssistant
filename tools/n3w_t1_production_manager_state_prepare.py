@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import sqlite3
 import stat
 from pathlib import Path
@@ -42,6 +43,7 @@ BUSINESS_TABLES = (
 )
 
 PROVENANCE_SCHEMA = "gh.h0h1.legacy-adoption-provenance/1"
+SYSTEM_ID_FINGERPRINT_LENGTH = 24
 REPLAY_NAME = "replay.sqlite3"
 RELAY_AUTH_NAME = "relay-authorization.sqlite3"
 RELAY_KEY_DIR_NAME = "relay-keys"
@@ -95,6 +97,14 @@ def _require_private_file(path: Path, *, label: str) -> None:
         raise ManagerStatePrepareError(f"{label}_mode_invalid")
     if hasattr(os, "getuid") and info.st_uid != os.getuid():
         raise ManagerStatePrepareError(f"{label}_owner_invalid")
+
+
+def _expected_provenance_fingerprint(
+    expected_system_id_sha256: str,
+) -> str:
+    if not re.fullmatch(r"[0-9a-f]{64}", expected_system_id_sha256):
+        raise ManagerStatePrepareError("expected_system_id_sha256_invalid")
+    return expected_system_id_sha256[:SYSTEM_ID_FINGERPRINT_LENGTH]
 
 
 def _manager_db_report(
@@ -155,7 +165,10 @@ def _manager_db_report(
             raise ManagerStatePrepareError(
                 "manager_database_provenance_schema_invalid"
             )
-        if row[1] != expected_system_id_sha256:
+        expected_fingerprint = _expected_provenance_fingerprint(
+            expected_system_id_sha256
+        )
+        if row[1] != expected_fingerprint:
             raise ManagerStatePrepareError(
                 "manager_database_system_identity_binding_invalid"
             )
@@ -173,6 +186,7 @@ def _manager_db_report(
             ),
             "manager_database_provenance_count": 1,
             "manager_database_system_identity_bound": True,
+            "manager_database_system_id_fingerprint": expected_fingerprint,
         }
     finally:
         connection.close()
