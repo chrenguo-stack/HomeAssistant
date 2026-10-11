@@ -293,3 +293,51 @@ EXACT_ARM64_MANAGER_IMAGE_BUILD=in_progress
 ```
 
 No T1 operation is authorized while the fresh run is incomplete.
+
+
+## 11. Second CI failure: rebuild was not an exact frozen image
+
+Fresh run #11 advanced past the previous dependency-fixture failure:
+
+```text
+RUN_ID=38123370107
+RUN_NUMBER=11
+FOCUSED_SOURCE_TESTS=PASS
+RENDERED_PRODUCTION_COMPOSE=PASS
+FAIL_STEP=Build exact frozen ARM64 Manager image
+```
+
+The ARM64 build itself completed, but the workflow then exited on the exact image-ID assertion.
+
+The rebuilt image exported a new config digest instead of the frozen image ID recorded by S20. This proves that rebuilding source SHA `511db028780988a7c07cb9342c8be507380bae0f` today is not a valid way to recover the frozen production image: the Dockerfile uses mutable external build inputs such as the floating `python:3.11-slim` base and package resolution.
+
+Classification:
+
+```text
+FAILURE_CLASS=CI_EXACT_ARTIFACT_REPRODUCTION_ERROR
+PRODUCT_MANAGER_STATE_BINDING_FAILURE_PROVEN=false
+SOURCE_REPAIR_RUNTIME_TEST_REACHED=false
+FROZEN_IMAGE_LOCK_INVALIDATED=false
+```
+
+The original exact S20 image-binding artifact is still available and unexpired:
+
+```text
+BINDING_RUN_ID=38040433177
+ARTIFACT_ID=11665219740
+ARTIFACT_NAME=n3w-s20-production-image-binding-511db028
+ARTIFACT_DIGEST=sha256:90d72f6eadc85c7ff56156f2f65c149785cdcabc11082b3e8fa275e486b29615
+MANAGER_TAR_SHA256=2ef0421d483334f6ef81c92beb1b6784174f069a4bde179ba615ce0b70435081
+MANAGER_IMAGE_ID=sha256:ef0f28c2fd339430a85acb6cb65158c71c61cd8fc3c6330c375da27d0f2440f1
+```
+
+The dedicated workflow was repaired to download artifact ID `11665219740` from run `38040433177`, verify the frozen Manager tar SHA, load it, and verify the exact ARM64 image ID. It no longer rebuilds source and calls that rebuild the frozen production image.
+
+Repair commit:
+
+```text
+0716eea8e8cfa87184bf9538dbb704d10345b712
+ci(n3w): consume frozen Manager image artifact
+```
+
+No T1 mutation or production service start occurred.
