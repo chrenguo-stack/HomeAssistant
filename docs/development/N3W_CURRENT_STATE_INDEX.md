@@ -1,3 +1,5 @@
+> **2026-10-11 R3 source repair pending CI**：minimal-host fresh installer orchestration 已落地；R1 fresh-state core 已提升为 Manager package 正式模块，旧 tool 只保留 CLI wrapper。下一步 R4 处理 host wrapper 与 artifact transport；当前 T1 不变。
+
 > **2026-10-11 R2 source repair pending CI**：fresh Broker TLS + DynSec source bootstrap 已实现并接入独立 M2 Dynamic Security CI contract；node credentials 不预创建，Broker transport CA 与 System CA 分离。T1 不变，exact production-image fresh runtime matrix留给 R6。
 
 > **2026-10-11 R1 source repair pending CI**：minimal-host fresh bootstrap R1 已实现 fresh Manager/N3-W state constructor，删除 fresh path 对 legacy provenance 的依赖；CI pending。T1 不变，`..._03` 继续 superseded。
