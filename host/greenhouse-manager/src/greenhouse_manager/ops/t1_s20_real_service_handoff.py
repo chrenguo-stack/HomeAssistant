@@ -98,6 +98,7 @@ TLS_KEY = TLS_DIR / "server.key"
 BROKER_TLS_CA_TARGET = "/mosquitto/config/n3w-ca.pem"
 BROKER_TLS_CERT_TARGET = "/mosquitto/config/n3w-server.pem"
 BROKER_TLS_KEY_TARGET = "/mosquitto/config/n3w-server.key"
+BROKER_LOG_TARGET = "/mosquitto/log"
 R1_EVIDENCE_SNAPSHOT = Path(
     "/etc/n3wfc4/private/dynsec-s20-pre-three-service.json"
 )
@@ -850,6 +851,8 @@ def _start_broker(runner: CommandRunner) -> None:
         CONTAINER_NAME,
         "--network",
         "none",
+        "--tmpfs",
+        BROKER_LOG_TARGET,
         "-v",
         _docker_mount(
             BROKER_CONFIG,
