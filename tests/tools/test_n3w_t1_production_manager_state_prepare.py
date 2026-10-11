@@ -10,7 +10,8 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 HOST_SRC = ROOT / "host/greenhouse-manager/src"
 TOOL = ROOT / "tools/n3w_t1_production_manager_state_prepare.py"
-SYSTEM_FINGERPRINT = "a" * 64
+SYSTEM_ID_SHA256 = "a" * 64
+SYSTEM_FINGERPRINT = SYSTEM_ID_SHA256[:24]
 
 if str(HOST_SRC) not in sys.path:
     sys.path.insert(0, str(HOST_SRC))
@@ -90,7 +91,7 @@ def test_prepare_creates_exact_empty_runtime_state(
     report = tool.prepare(
         manager_db,
         runtime_root,
-        expected_system_id_sha256=SYSTEM_FINGERPRINT,
+        expected_system_id_sha256=SYSTEM_ID_SHA256,
     )
 
     assert report["n3w_state_prepared"] is True
@@ -108,7 +109,7 @@ def test_prepare_creates_exact_empty_runtime_state(
     audit = tool.audit(
         manager_db,
         runtime_root,
-        expected_system_id_sha256=SYSTEM_FINGERPRINT,
+        expected_system_id_sha256=SYSTEM_ID_SHA256,
     )
     assert audit["n3w_state_prepared"] is True
 
@@ -128,7 +129,7 @@ def test_preflight_rejects_legacy_registration_collision(
         tool.preflight(
             manager_db,
             runtime_root,
-            expected_system_id_sha256=SYSTEM_FINGERPRINT,
+            expected_system_id_sha256=SYSTEM_ID_SHA256,
         )
 
 
@@ -147,7 +148,7 @@ def test_prepare_rejects_nonempty_runtime_root(
         tool.prepare(
             manager_db,
             runtime_root,
-            expected_system_id_sha256=SYSTEM_FINGERPRINT,
+            expected_system_id_sha256=SYSTEM_ID_SHA256,
         )
 
 
@@ -175,7 +176,7 @@ def test_rejects_manager_business_rows(
         tool.preflight(
             manager_db,
             runtime_root,
-            expected_system_id_sha256=SYSTEM_FINGERPRINT,
+            expected_system_id_sha256=SYSTEM_ID_SHA256,
         )
 
 
@@ -195,3 +196,42 @@ def test_rejects_system_identity_binding_mismatch(
             runtime_root,
             expected_system_id_sha256="c" * 64,
         )
+
+
+def test_rejects_legacy_full_sha_in_provenance(
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    manager_db = manager_database(tmp_path)
+    runtime_root = n3w_root(tmp_path)
+
+    connection = sqlite3.connect(manager_db)
+    try:
+        connection.execute(
+            "UPDATE h0h1_legacy_adoption_provenance "
+            "SET system_id_fingerprint = ?",
+            (SYSTEM_ID_SHA256,),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+    manager_db.chmod(0o600)
+
+    with pytest.raises(
+        tool.ManagerStatePrepareError,
+        match="manager_database_system_identity_binding_invalid",
+    ):
+        tool.preflight(
+            manager_db,
+            runtime_root,
+            expected_system_id_sha256=SYSTEM_ID_SHA256,
+        )
+
+
+def test_expected_provenance_fingerprint_uses_h0h1_prefix() -> None:
+    tool = load_tool()
+
+    assert (
+        tool._expected_provenance_fingerprint(SYSTEM_ID_SHA256)
+        == SYSTEM_FINGERPRINT
+    )
