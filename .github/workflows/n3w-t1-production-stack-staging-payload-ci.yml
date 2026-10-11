@@ -6,6 +6,7 @@ on:
       - ".github/workflows/n3w-t1-production-stack-staging-payload-ci.yml"
       - "tools/n3w_t1_production_stack_staging.py"
       - "tools/n3w_t1_production_stack_staging_host.py"
+      - "tools/n3w_t1_fresh_product_staging_host.py"
       - "tools/n3w_t1_production_manager_state_prepare.py"
       - "tools/n3w_t1_clean_product_deployment_gate.py"
       - "tools/n3w_t1_broker_authenticated_readiness.py"
@@ -17,6 +18,7 @@ on:
       - "infra/n3w-t1/systemd/n3wfc4-services-activation.service"
       - "tests/tools/test_n3w_t1_production_stack_staging.py"
       - "tests/tools/test_n3w_t1_production_stack_staging_host.py"
+      - "tests/tools/test_n3w_t1_fresh_product_staging_host.py"
   push:
     branches:
       - main
@@ -24,6 +26,7 @@ on:
       - ".github/workflows/n3w-t1-production-stack-staging-payload-ci.yml"
       - "tools/n3w_t1_production_stack_staging.py"
       - "tools/n3w_t1_production_stack_staging_host.py"
+      - "tools/n3w_t1_fresh_product_staging_host.py"
       - "tools/n3w_t1_production_manager_state_prepare.py"
       - "tools/n3w_t1_clean_product_deployment_gate.py"
       - "tools/n3w_t1_broker_authenticated_readiness.py"
@@ -35,6 +38,7 @@ on:
       - "infra/n3w-t1/systemd/n3wfc4-services-activation.service"
       - "tests/tools/test_n3w_t1_production_stack_staging.py"
       - "tests/tools/test_n3w_t1_production_stack_staging_host.py"
+      - "tests/tools/test_n3w_t1_fresh_product_staging_host.py"
 
 permissions:
   actions: read
@@ -71,7 +75,8 @@ jobs:
           python -m pip install pytest
           python -m pytest -q \
             tests/tools/test_n3w_t1_production_stack_staging.py \
-            tests/tools/test_n3w_t1_production_stack_staging_host.py
+            tests/tools/test_n3w_t1_production_stack_staging_host.py \
+            tests/tools/test_n3w_t1_fresh_product_staging_host.py
 
       - name: Download exact frozen Manager artifact
         uses: actions/download-artifact@v4
@@ -249,9 +254,12 @@ jobs:
           cp "$RUNNER_TEMP/homeassistant-arm64.tar" "$PAYLOAD/artifact/"
           cp "$RUNNER_TEMP/broker-arm64.tar" "$PAYLOAD/artifact/"
 
+          docker load -i "$RUNNER_TEMP/manager-artifact/greenhouse-manager-arm64.tar"
+
           python - "$PAYLOAD" "$SOURCE_HEAD" "$AUTHORIZATION_ID" <<'PY'
           import hashlib
           import json
+          import subprocess
           import sys
           from pathlib import Path
 
@@ -273,6 +281,39 @@ jobs:
           manager_tar = root / "artifact/greenhouse-manager-arm64.tar"
           homeassistant_tar = root / "artifact/homeassistant-arm64.tar"
           broker_tar = root / "artifact/broker-arm64.tar"
+          image_refs = {
+              "manager": "local/greenhouse-manager:s20-511db028",
+              "homeassistant": "local/n3w-homeassistant:2026.10.0-0c73235a",
+              "broker": "local/n3w-mosquitto:2.1.2-3184566d",
+          }
+          image_paths = {
+              "manager": "artifact/greenhouse-manager-arm64.tar",
+              "homeassistant": "artifact/homeassistant-arm64.tar",
+              "broker": "artifact/broker-arm64.tar",
+          }
+          image_metadata = {}
+          for label, image_ref in image_refs.items():
+              loaded_size = int(
+                  subprocess.check_output(
+                      [
+                          "docker",
+                          "image",
+                          "inspect",
+                          "--format",
+                          "{{.Size}}",
+                          image_ref,
+                      ],
+                      text=True,
+                  ).strip()
+              )
+              image_path = root / image_paths[label]
+              image_metadata[label] = {
+                  "path": image_paths[label],
+                  "tar_size_bytes": image_path.stat().st_size,
+                  "loaded_size_bytes": loaded_size,
+                  "image_ref": image_ref,
+              }
+
           manifest = {
               "schema": "gh.n3w-t1-production-stack-staging-payload/1",
               "source_head": head,
@@ -284,6 +325,14 @@ jobs:
               "homeassistant_tar_sha256": hashlib.sha256(homeassistant_tar.read_bytes()).hexdigest(),
               "broker_tar_sha256": hashlib.sha256(broker_tar.read_bytes()).hexdigest(),
               "files": records,
+              "transport": {
+                  "schema": "gh.n3w-t1-fresh-transport/1",
+                  "remote_staging_root": "/var/tmp",
+                  "minimum_post_peak_free_bytes": 5 * 1024 * 1024 * 1024,
+                  "payload_uncompressed_bytes": sum(item["size"] for item in records),
+                  "image_load_order": ["homeassistant", "manager", "broker"],
+                  "images": image_metadata,
+              },
               "secret_values_included": False,
               "production_service_start": False,
               "board_access": False,
@@ -333,7 +382,7 @@ jobs:
           printf '%s\n' "$ARCHIVE_SHA" > "$RUNNER_TEMP/payload-archive.sha256"
           printf '%s\n' "$EXECUTOR_SHA" > "$RUNNER_TEMP/executor.sha256"
           printf '%s\n' "$MANIFEST_SHA" > "$RUNNER_TEMP/payload-manifest.sha256"
-          cp tools/n3w_t1_production_stack_staging_host.py "$RUNNER_TEMP/host-wrapper.py"
+          cp tools/n3w_t1_fresh_product_staging_host.py "$RUNNER_TEMP/host-wrapper.py"
           sha256sum "$RUNNER_TEMP/host-wrapper.py" | awk '{print $1}' > "$RUNNER_TEMP/host-wrapper.sha256"
 
       - name: Upload exact staging payload
@@ -505,10 +554,44 @@ jobs:
               "artifact/homeassistant-arm64.tar": "homeassistant_tar_sha256",
               "artifact/broker-arm64.tar": "broker_tar_sha256",
           }
+          transport = manifest.get("transport")
+          need(isinstance(transport, dict), "transport_contract_missing")
+          need(transport.get("schema") == "gh.n3w-t1-fresh-transport/1", "transport_schema_invalid")
+          need(transport.get("remote_staging_root") == "/var/tmp", "transport_staging_root_invalid")
+          need(transport.get("minimum_post_peak_free_bytes") == 5 * 1024 * 1024 * 1024, "transport_reserve_invalid")
+          need(transport.get("payload_uncompressed_bytes") == payload_uncompressed_bytes, "transport_payload_size_invalid")
+          need(transport.get("image_load_order") == ["homeassistant", "manager", "broker"], "transport_order_invalid")
+          transport_images = transport.get("images")
+          need(isinstance(transport_images, dict), "transport_images_invalid")
           actual_artifacts = {name for name in files if name.startswith("artifact/")}
           need(actual_artifacts == set(image_tars), "three_image_tar_set_mismatch")
           for name, manifest_key in image_tars.items():
               need(manifest.get(manifest_key) == files[name]["sha256"], f"{manifest_key}_mismatch")
+
+          labels = {
+              "manager": "artifact/greenhouse-manager-arm64.tar",
+              "homeassistant": "artifact/homeassistant-arm64.tar",
+              "broker": "artifact/broker-arm64.tar",
+          }
+          for label, path in labels.items():
+              item = transport_images.get(label)
+              need(isinstance(item, dict), f"transport_image_missing:{label}")
+              need(item.get("path") == path, f"transport_image_path_invalid:{label}")
+              need(item.get("tar_size_bytes") == files[path]["size"], f"transport_tar_size_invalid:{label}")
+              need(isinstance(item.get("loaded_size_bytes"), int) and item["loaded_size_bytes"] > 0, f"transport_loaded_size_invalid:{label}")
+              need(isinstance(item.get("image_ref"), str) and item["image_ref"], f"transport_image_ref_invalid:{label}")
+
+          current_payload = payload_uncompressed_bytes
+          loaded_bytes = 0
+          image_load_peak = current_payload
+          for label in transport["image_load_order"]:
+              item = transport_images[label]
+              image_load_peak = max(
+                  image_load_peak,
+                  current_payload + loaded_bytes + item["loaded_size_bytes"],
+              )
+              current_payload -= item["tar_size_bytes"]
+              loaded_bytes += item["loaded_size_bytes"]
 
           compose = files["infra/n3w-t1/production/docker-compose.yml"]["data"].decode("utf-8")
           image_lock = json.loads(files["infra/n3w-t1/production/image-lock.json"]["data"].decode("utf-8"))
@@ -528,6 +611,8 @@ jobs:
 
           archive_size = archive.stat().st_size
           extraction_peak = archive_size + payload_uncompressed_bytes
+          transport_peak = max(extraction_peak, image_load_peak)
+          required_free = transport_peak + transport["minimum_post_peak_free_bytes"]
           historical_peak_pass = extraction_peak < historical_root_available
           need(historical_peak_pass, "historical_extraction_peak_budget_failed")
 
@@ -555,6 +640,10 @@ jobs:
           print("OFFLINE_RUNTIME_CONTRACT_EXACT=PASS")
           print(f"PAYLOAD_UNCOMPRESSED_MEMBER_BYTES={payload_uncompressed_bytes}")
           print(f"EXTRACTION_PEAK_ESTIMATE_BYTES={extraction_peak}")
+          print(f"IMAGE_LOAD_PEAK_ESTIMATE_BYTES={image_load_peak}")
+          print(f"TRANSPORT_PEAK_ESTIMATE_BYTES={transport_peak}")
+          print(f"TRANSPORT_REQUIRED_FREE_BYTES={required_free}")
+          print("TRANSPORT_CAPACITY_REQUIRES_FRESH_T1_PREFLIGHT=true")
           print(f"HISTORICAL_T1_ROOT_AVAILABLE_BYTES={historical_root_available}")
           print("HISTORICAL_EXTRACTION_PEAK_CHECK=PASS")
           print("RUN_EXACT_ARTIFACT_BINDING=PASS")
