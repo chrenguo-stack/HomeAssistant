@@ -57,7 +57,12 @@ services:
       GH_MQTT_TLS: "true"
       GH_MQTT_CA_FILE: /run/n3w/tls/ca.pem
       GH_HA_DISCOVERY_ENABLED: "true"
+      GH_PAIRING_DB_PATH: /var/lib/greenhouse-manager/manager/manager-state.sqlite3
+      GH_HISTORY_DB_PATH: /var/lib/greenhouse-manager/manager/manager-state.sqlite3
       GH_N3W_RUNTIME_ENABLED: "true"
+      GH_N3W_REPLAY_DB_PATH: /var/lib/greenhouse-manager/n3w/replay.sqlite3
+      GH_N3W_RELAY_AUTHORIZATION_DB_PATH: /var/lib/greenhouse-manager/n3w/relay-authorization.sqlite3
+      GH_N3W_RELAY_KEY_DIR: /var/lib/greenhouse-manager/n3w/relay-keys
       GH_N3W_PRODUCT_PAIRING_ENABLED: "false"
       GH_N3W_PAIRING_MANAGER_ID: gh-manager-greenhouse
       GH_N3W_PAIRING_ADVERTISED_HOST: auto
@@ -70,8 +75,11 @@ services:
       GH_N3W_NODE_BROKER_CA_FILE: /run/n3w/tls/ca.pem
     volumes:
       - type: bind
-        source: /var/lib/greenhouse-manager
-        target: /var/lib/greenhouse-manager
+        source: /var/lib/greenhouse-manager/manager
+        target: /var/lib/greenhouse-manager/manager
+      - type: bind
+        source: /var/lib/greenhouse-manager/n3w
+        target: /var/lib/greenhouse-manager/n3w
       - type: bind
         source: /opt/greenhouse-secrets/mqtt/manager/password
         target: /run/secrets/gh_manager_mqtt_password
