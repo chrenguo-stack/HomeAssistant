@@ -805,7 +805,274 @@ def _remove_ref(runner: Runner, image: str) -> None:
     )
 
 
-def rollback(runner: Runner, payload_root: Path) -> dict[str, Any]:
+def _rollback_opt_root(errors: list[str]) -> None:
+    if OPT_ROOT.is_symlink():
+        errors.append("unsafe_opt_root_symlink")
+        return
+    if not OPT_ROOT.exists():
+        return
+    if not OPT_ROOT.is_dir():
+        errors.append("unsafe_opt_root_type")
+        return
+
+    expected_files = {
+        Path(target) for target, _mode, _sha in SOURCE_FILES.values()
+    }
+    allowed_dirs = {OPT_ROOT}
+    for target in expected_files:
+        if not target.is_relative_to(OPT_ROOT):
+            errors.append(f"opt_target_outside_root:{target}")
+            return
+        parent = target.parent
+        while parent != OPT_ROOT:
+            allowed_dirs.add(parent)
+            parent = parent.parent
+
+    for target in sorted(
+        expected_files,
+        key=lambda item: len(item.parts),
+        reverse=True,
+    ):
+        try:
+            if target.is_symlink():
+                errors.append(f"unsafe_rollback_target:{target}")
+            elif target.is_file():
+                target.unlink()
+            elif target.exists():
+                errors.append(f"unsafe_rollback_target_type:{target}")
+        except OSError as error:
+            errors.append(
+                f"remove_failed:{target}:{type(error).__name__}"
+            )
+
+    for directory in sorted(
+        allowed_dirs - {OPT_ROOT},
+        key=lambda item: len(item.parts),
+        reverse=True,
+    ):
+        try:
+            if directory.is_symlink():
+                errors.append(f"unsafe_rollback_directory:{directory}")
+            elif directory.is_dir():
+                if any(directory.iterdir()):
+                    continue
+                directory.rmdir()
+            elif directory.exists():
+                errors.append(
+                    f"unsafe_rollback_directory_type:{directory}"
+                )
+        except OSError as error:
+            errors.append(
+                f"remove_dir_failed:{directory}:{type(error).__name__}"
+            )
+
+    try:
+        remaining = sorted(
+            path.relative_to(OPT_ROOT).as_posix()
+            for path in OPT_ROOT.rglob("*")
+        )
+        if remaining:
+            errors.append(
+                "opt_root_unexpected_or_unremoved:"
+                + ",".join(remaining[:20])
+            )
+        else:
+            OPT_ROOT.rmdir()
+    except OSError as error:
+        errors.append(f"remove_opt_failed:{type(error).__name__}")
+
+
+def _rollback_n3w_root(
+    runner: Runner,
+    payload_root: Path,
+    errors: list[str],
+) -> None:
+    if N3W_ROOT.is_symlink():
+        errors.append("unsafe_n3w_root_symlink")
+        return
+    if not N3W_ROOT.exists():
+        return
+    if not N3W_ROOT.is_dir():
+        errors.append("unsafe_n3w_root_type")
+        return
+
+    try:
+        children = {path.name for path in N3W_ROOT.iterdir()}
+        expected = {
+            "replay.sqlite3",
+            "relay-authorization.sqlite3",
+            "relay-keys",
+        }
+        if children and children != expected:
+            errors.append("n3w_root_unexpected_children")
+            return
+        if children:
+            if not _image_present(runner, EXPECTED_MANAGER_IMAGE):
+                errors.append("manager_image_missing_for_n3w_rollback_audit")
+                return
+            state = _run_manager_state(runner, payload_root, "audit")
+            if (
+                state.get("replay_node_count") != 0
+                or state.get("replay_tuple_count") != 0
+                or state.get("relay_active_node_count") != 0
+                or state.get("relay_key_file_count") != 0
+            ):
+                errors.append("n3w_root_not_empty")
+                return
+
+            replay = N3W_ROOT / "replay.sqlite3"
+            relay_auth = N3W_ROOT / "relay-authorization.sqlite3"
+            relay_keys = N3W_ROOT / "relay-keys"
+            for database in (replay, relay_auth):
+                _require_regular(
+                    database,
+                    uid=999,
+                    gid=999,
+                    mode=0o600,
+                )
+                database.unlink()
+            _require_directory(
+                relay_keys,
+                uid=999,
+                gid=999,
+                mode=0o700,
+            )
+            if any(relay_keys.iterdir()):
+                errors.append("relay_key_directory_not_empty")
+                return
+            relay_keys.rmdir()
+        N3W_ROOT.rmdir()
+    except (
+        OSError,
+        StagingError,
+        json.JSONDecodeError,
+    ) as error:
+        errors.append(
+            f"n3w_root_remove_failed:{type(error).__name__}"
+        )
+
+
+def _rollback_postcheck(
+    runner: Runner,
+    *,
+    manager_sha_before: str,
+    secret_aggregate_before: str,
+    errors: list[str],
+) -> None:
+    try:
+        containers = [
+            line
+            for line in runner.run(("docker", "ps", "-aq")).splitlines()
+            if line
+        ]
+        if containers:
+            errors.append("rollback_container_present")
+    except StagingError as error:
+        errors.append(str(error))
+
+    try:
+        volume_count, volume_sha = _volume_set(runner)
+        if (
+            volume_count != EXPECTED_VOLUME_COUNT
+            or volume_sha != EXPECTED_VOLUME_SET_SHA256
+        ):
+            errors.append("rollback_volume_set_drift")
+    except StagingError as error:
+        errors.append(str(error))
+
+    try:
+        if any(_network_counts(runner).values()):
+            errors.append("rollback_project_network_not_empty")
+    except StagingError as error:
+        errors.append(str(error))
+
+    try:
+        if any(_listener_counts(runner).values()):
+            errors.append("rollback_listener_present")
+    except StagingError as error:
+        errors.append(str(error))
+
+    try:
+        _guard_contract(runner)
+    except StagingError as error:
+        errors.append(f"rollback_guard_drift:{error}")
+
+    try:
+        if (
+            DYNSEC_PATH.is_symlink()
+            or not DYNSEC_PATH.is_file()
+            or _sha256_file(DYNSEC_PATH) != EXPECTED_DYNSEC_SHA256
+        ):
+            errors.append("rollback_dynsec_drift")
+    except OSError as error:
+        errors.append(
+            f"rollback_dynsec_check_failed:{type(error).__name__}"
+        )
+
+    try:
+        secrets = _secret_bundle_report()
+        if secrets["aggregate_sha256"] != secret_aggregate_before:
+            errors.append("rollback_secret_bundle_drift")
+    except (OSError, StagingError) as error:
+        errors.append(
+            f"rollback_secret_bundle_check_failed:{type(error).__name__}"
+        )
+
+    try:
+        manager = _manager_database_report()
+        if manager["sha256"] != manager_sha_before:
+            errors.append("rollback_manager_database_mutated")
+    except (OSError, StagingError, sqlite3.Error) as error:
+        errors.append(
+            f"rollback_manager_database_check_failed:{type(error).__name__}"
+        )
+
+    try:
+        _verify_collision_directory()
+    except (OSError, StagingError) as error:
+        errors.append(
+            f"rollback_collision_check_failed:{type(error).__name__}"
+        )
+
+    if N3W_ROOT.exists() or N3W_ROOT.is_symlink():
+        errors.append("rollback_n3w_root_present")
+    if HA_ROOT.exists() or HA_ROOT.is_symlink():
+        errors.append("rollback_homeassistant_root_present")
+    if OPT_ROOT.exists() or OPT_ROOT.is_symlink():
+        errors.append("rollback_opt_root_present")
+    if EMPTY_ENV.exists() or EMPTY_ENV.is_symlink():
+        errors.append("rollback_compose_env_present")
+    if DISPATCHER.exists() or DISPATCHER.is_symlink():
+        errors.append("rollback_dispatcher_present")
+
+    for target, _mode, _sha in INSTALL_FILES.values():
+        path = Path(target)
+        if path.exists() or path.is_symlink():
+            errors.append(f"rollback_install_target_present:{path}")
+
+    for unit in ACTIVATION_UNITS:
+        try:
+            if _unit_load_state(runner, unit) != "not-found":
+                errors.append(f"rollback_activation_unit_loaded:{unit}")
+        except StagingError as error:
+            errors.append(str(error))
+
+    for image in (
+        EXPECTED_MANAGER_IMAGE,
+        EXPECTED_HA_IMAGE,
+        EXPECTED_BROKER_IMAGE,
+    ):
+        if _image_present(runner, image):
+            errors.append(f"rollback_image_present:{image}")
+
+
+def rollback(
+    runner: Runner,
+    payload_root: Path,
+    *,
+    manager_sha_before: str,
+    secret_aggregate_before: str,
+) -> dict[str, Any]:
     errors: list[str] = []
     for unit in ACTIVATION_UNITS:
         subprocess.run(
@@ -822,13 +1089,7 @@ def rollback(runner: Runner, payload_root: Path) -> dict[str, Any]:
                 target.unlink()
         except OSError as error:
             errors.append(f"remove_failed:{target}:{type(error).__name__}")
-    if OPT_ROOT.exists() and not OPT_ROOT.is_symlink():
-        try:
-            shutil.rmtree(OPT_ROOT)
-        except OSError as error:
-            errors.append(f"remove_opt_failed:{type(error).__name__}")
-    elif OPT_ROOT.is_symlink():
-        errors.append("unsafe_opt_root_symlink")
+    _rollback_opt_root(errors)
     if HA_ROOT.exists() and not HA_ROOT.is_symlink():
         try:
             if any(HA_ROOT.iterdir()):
@@ -839,23 +1100,7 @@ def rollback(runner: Runner, payload_root: Path) -> dict[str, Any]:
             errors.append(f"ha_root_remove_failed:{type(error).__name__}")
     elif HA_ROOT.is_symlink():
         errors.append("unsafe_ha_root_symlink")
-    if N3W_ROOT.exists() and not N3W_ROOT.is_symlink():
-        try:
-            children = {path.name for path in N3W_ROOT.iterdir()}
-            if children and children != {
-                "replay.sqlite3",
-                "relay-authorization.sqlite3",
-                "relay-keys",
-            }:
-                errors.append("n3w_root_unexpected_children")
-            else:
-                if children and _image_present(runner, EXPECTED_MANAGER_IMAGE):
-                    _run_manager_state(runner, payload_root, "audit")
-                shutil.rmtree(N3W_ROOT)
-        except (OSError, StagingError, json.JSONDecodeError) as error:
-            errors.append(f"n3w_root_remove_failed:{type(error).__name__}")
-    elif N3W_ROOT.is_symlink():
-        errors.append("unsafe_n3w_root_symlink")
+    _rollback_n3w_root(runner, payload_root, errors)
     if not (LEGACY_COLLISION.exists() or LEGACY_COLLISION.is_symlink()):
         try:
             LEGACY_COLLISION.mkdir(mode=0o755)
@@ -863,22 +1108,23 @@ def rollback(runner: Runner, payload_root: Path) -> dict[str, Any]:
             os.chmod(LEGACY_COLLISION, 0o755)
         except OSError as error:
             errors.append(f"collision_restore_failed:{type(error).__name__}")
-    for image in (EXPECTED_BROKER_IMAGE, EXPECTED_HA_IMAGE, EXPECTED_MANAGER_IMAGE):
+    for image in (
+        EXPECTED_BROKER_IMAGE,
+        EXPECTED_HA_IMAGE,
+        EXPECTED_MANAGER_IMAGE,
+    ):
         _remove_ref(runner, image)
     try:
         runner.run(("systemctl", "daemon-reload"))
     except StagingError as error:
         errors.append(str(error))
-    containers = subprocess.run(
-        ("docker", "ps", "-aq"), capture_output=True, text=True, check=False
-    ).stdout.strip()
-    if containers:
-        errors.append("rollback_container_present")
-    try:
-        if any(_listener_counts(runner).values()):
-            errors.append("rollback_listener_present")
-    except StagingError as error:
-        errors.append(str(error))
+
+    _rollback_postcheck(
+        runner,
+        manager_sha_before=manager_sha_before,
+        secret_aggregate_before=secret_aggregate_before,
+        errors=errors,
+    )
     return {
         "status": "PASS" if not errors else "FAIL",
         "errors": errors,
@@ -897,10 +1143,10 @@ def apply_staging(runner: Runner, payload_root: Path) -> dict[str, Any]:
         _event("state_root_prepare", "START")
         _verify_collision_directory()
         LEGACY_COLLISION.rmdir()
+        mutated = True
         N3W_ROOT.mkdir(mode=0o700)
         os.chown(N3W_ROOT, 999, 999)
         os.chmod(N3W_ROOT, 0o700)
-        mutated = True
         _event("state_root_prepare", "PASS")
 
         _event("manager_image_load", "START")
@@ -958,7 +1204,12 @@ def apply_staging(runner: Runner, payload_root: Path) -> dict[str, Any]:
         return result
     except BaseException as error:
         rollback_report = (
-            rollback(runner, payload_root)
+            rollback(
+                runner,
+                payload_root,
+                manager_sha_before=manager_sha,
+                secret_aggregate_before=secret_aggregate,
+            )
             if mutated
             else {
                 "status": "NOT_REQUIRED",
