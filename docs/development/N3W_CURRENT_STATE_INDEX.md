@@ -1,3 +1,25 @@
+> **2026-10-11 S20 transaction Broker anonymous-volume recurrence CLOSED_PASS**：R4 live orphan 已在 bounded authorization 下唯一删除并精确恢复 frozen 45-volume set；source 已改为 `--tmpfs /mosquitto/log`，corrected `N3W T1 S20 real service handoff CI` run `38101584262` 的 `source` 与 `volume-lifecycle` 两个 job 均 PASS，focused pytest `70 passed`，Docker-isolated proof 明确输出 `TRANSACTION_BROKER_VOLUME_SET_UNCHANGED=true`。CI tested head `47337faa8da0b359af5631d7f9d3cec6fdd47505` 到 review head 的 delta 仅 docs，无 source/workflow drift。已纠正 known-failure 编号冲突：原有 `KF-102` 保持 S19 isolated DynSec harness authority；S20 R4 temporary Broker readiness/rollback 归入 `KF-103`。其中 anonymous-log-volume 子问题已 GUARDED，但 admin-readiness TLS transport 子问题仍 OPEN。严格停止在 R5 之前。Authority: `docs/development/N3W_T1_S20_TRANSACTION_BROKER_LOG_VOLUME_LEAK_SOURCE_REPAIR_CLOSURE_20261011.md`.
+
+```text
+R4_VOLUME_DRIFT_RECOVERED=true
+DOCKER_VOLUME_COUNT=45
+DOCKER_VOLUME_SET_SHA256=20fc845741d31da34f1d1e563e5057c78ec5dc7c4cfd3a495a5f3a4f2bfd011b
+S20_TRANSACTION_BROKER_LOG_VOLUME_LEAK_SOURCE_REPAIR=PASS
+TRANSACTION_BROKER_LOG_BACKING=tmpfs
+DOCKER_VOLUME_LIFECYCLE_CI=PASS
+SOURCE_FOCUSED_TESTS=PASS_70
+KF102_AUTHORITY=S19_ISOLATED_DYNSEC_HARNESS
+KF103_AUTHORITY=S20_R4_TEMP_BROKER_READINESS_ROLLBACK
+KF103_VOLUME_SUBISSUE=GUARDED
+KF103_ADMIN_READINESS_TLS_TRANSPORT=OPEN
+R5_APPLY=false
+AUTO_ENTER_R5=false
+STOP_BEFORE_R5=true
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
 > **2026-10-11 S20 R4 volume drift recovery CLOSED_PASS / recurrence source repair implemented**：exact R4 orphan volume 已在 bounded authorization `N3W_T1_S20_R4_BOUNDED_EXTRA_VOLUME_RECOVERY_20261011_01` 下唯一删除，authorization 已 CLAIMED+CONSUMED，postcheck 恢复 frozen 45-volume set SHA `20fc845741d31da34f1d1e563e5057c78ec5dc7c4cfd3a495a5f3a4f2bfd011b`，其余 DynSec/Broker config/network/guard/listener 基线不变。为防复发，S20 transaction Broker 已显式加入 `--tmpfs /mosquitto/log`，不再让 image-declared `/mosquitto/log` 自动生成匿名 Docker volume；focused source test 已补强。Docker-isolated lifecycle proof 已并入既有 `N3W T1 S20 real service handoff CI`，首版 fixture 因错误从 `.Mounts` 查 tmpfs 而失败，已修正为读取 `.HostConfig.Tmpfs`；当前 corrected run `38101584262` 尚待完成。当前不得进入 R5。Authority: `docs/development/N3W_T1_S20_TRANSACTION_BROKER_LOG_VOLUME_LEAK_SOURCE_REPAIR_PROGRESS_20261011.md`.
 
 ```text
