@@ -1,3 +1,6 @@
+> Status: SUPERSEDED
+> Replacement: `docs/development/N3W_T1_PRODUCTION_STACK_STAGING_RUN78_EXACT_ARTIFACT_BINDING_NEW_CHAT_HANDOFF_V1.1_20261011.md`
+
 # N3-W T1 Production Stack Staging
 # Run #78 exact artifact / three-image payload binding
 # 新会话交接文档 V1.0 — 2026-10-11
