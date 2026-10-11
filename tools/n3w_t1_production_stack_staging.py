@@ -1248,7 +1248,12 @@ def apply_staging(runner: Runner, payload_root: Path) -> dict[str, Any]:
             ("docker", "pull", "--platform", "linux/arm64", EXPECTED_BROKER_IMAGE),
             timeout=600,
         )
-        _image_report(runner, EXPECTED_BROKER_IMAGE, EXPECTED_BROKER_IMAGE_ID)
+        _image_report(
+            runner,
+            EXPECTED_BROKER_IMAGE,
+            expected_config_digest=EXPECTED_BROKER_IMAGE_CONFIG_DIGEST,
+            expected_target_digest=EXPECTED_BROKER_IMAGE_TARGET_DIGEST,
+        )
         _event("production_image_pull", "PASS")
 
         _event("source_and_unit_stage", "START")
