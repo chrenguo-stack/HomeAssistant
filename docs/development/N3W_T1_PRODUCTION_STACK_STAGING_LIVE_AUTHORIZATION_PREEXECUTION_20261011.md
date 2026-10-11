@@ -2,7 +2,7 @@
 
 Date: 2026-10-11
 
-Status: PREEXECUTION_READY / AUTHORIZATION_NOT_GRANTED
+Status: SUCCESSOR_PREEXECUTION_PREPARED / AUTHORIZATION_NOT_GRANTED
 
 PR: #541 OPEN DRAFT
 
@@ -13,8 +13,13 @@ This gate stages the production T1 software without starting any production serv
 It consumes the closed KF-104 source contract and prepares the host for a later, separately authorized Broker/Manager/Home Assistant activation.
 
 ```text
-AUTHORIZATION_ID=
+PREDECESSOR_AUTHORIZATION_ID=
 N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_01
+PREDECESSOR_AUTHORIZATION_STATE=CONSUMED_FAILED_ROLLBACK_PASS
+PREDECESSOR_REPLAY_FORBIDDEN=true
+
+AUTHORIZATION_ID=
+N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02
 
 AUTHORIZATION_STATE=NOT_GRANTED
 ONE_SHOT=true
@@ -67,7 +72,8 @@ Only after explicit authorization, one transaction may:
    - artifact run `38040433177`;
    - artifact ID `11665219740`;
    - tar SHA256 `2ef0421d483334f6ef81c92beb1b6784174f069a4bde179ba615ce0b70435081`;
-   - image ID `sha256:ef0f28c2fd339430a85acb6cb65158c71c61cd8fc3c6330c375da27d0f2440f1`;
+   - classic-store config digest `sha256:ef0f28c2fd339430a85acb6cb65158c71c61cd8fc3c6330c375da27d0f2440f1`;
+   - containerd/OCI target digest `sha256:abd9560c978b69429eea734df216664ea643ed762a77777dcb816f5d537afad6`;
 4. run `tools/n3w_t1_production_manager_state_prepare.py` in the exact Manager image with `--network none`;
 5. pull only the exact locked ARM64 Home Assistant and Broker image references from `infra/n3w-t1/production/image-lock.json`;
 6. stage the exact production source/configuration material under `/opt/HomeAssistant`;
@@ -152,6 +158,37 @@ The Manager database must never be rolled back from an inferred copy. Its SHA mu
 ```text
 SOURCE_REPAIR_CI=PASS
 LIVE_STAGING_AUTHORIZATION_REQUIRED=true
-AUTHORIZATION_ID=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_01
+PREDECESSOR_AUTHORIZATION_ID=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_01
+PREDECESSOR_AUTHORIZATION_STATE=CONSUMED_FAILED_ROLLBACK_PASS
+PREDECESSOR_REPLAY_FORBIDDEN=true
+AUTHORIZATION_ID=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02
 AUTHORIZATION_STATE=NOT_GRANTED
 ```
+
+
+## 8. Successor authorization boundary
+
+The predecessor one-shot authorization was consumed by the first staging apply
+attempt. That attempt failed closed at the Manager image identity oracle and
+completed rollback with zero reported rollback errors.
+
+The successor authorization is intentionally a new identity:
+
+```text
+N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02
+```
+
+It is not granted by creation of this document, by CI PASS, by a fresh
+preflight, or by the user's prior approval of `..._01`.
+
+Before `..._02` can be claimed:
+
+1. the rotated exact-source payload CI must PASS;
+2. the content-addressed payload and repository-owned host wrapper must be
+   rebound by artifact ID and SHA256;
+3. a fresh T1 read-only preflight with that replacement payload must PASS;
+4. the user must explicitly approve `..._02`.
+
+The successor scope remains staging-only. It still does not permit production
+service start, unit enablement, dispatcher installation, reboot, board access,
+or PR merge.
