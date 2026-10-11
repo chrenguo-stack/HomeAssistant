@@ -1,3 +1,15 @@
+> **2026-10-11 KF-104 source repair CLOSED_PASS / production staging authorization prepared**：Dedicated CI run `38124163390` PASS，exact frozen ARM64 Manager artifact load、state prepare/audit、rendered production Compose 均通过；Manager DB 未改变、business rows=0、replay/relay/key state 为空、Docker volume set unchanged。下一阶段仅为“staging，不启动服务”：需新的一次性 live authorization `N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_01`。staging 明确禁止 Broker/Manager/HA start、unit enable、dispatcher install、reboot、board access、PR merge。Authority: `docs/development/N3W_T1_PRODUCTION_STACK_STAGING_LIVE_AUTHORIZATION_PREEXECUTION_20261011.md`.
+
+```text
+KF104=CLOSED_PASS
+SOURCE_REPAIR_CI_RUN=38124163390
+LIVE_STAGING_AUTHORIZATION=REQUIRED_NOT_GRANTED
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
 > **2026-10-11 KF-104 CI fixture repair / fresh rerun pending**：专用 run `38122599845` 在 focused source tests 的 import 阶段失败：`jsonschema` 未安装，25 passed / 5 failed；Compose render、exact frozen ARM64 Manager image build、state prepare/audit 均未执行，因此未证明 product source failure。根因是 workflow 仅安装 `pytest`，未安装 Manager 正式 runtime deps。已于 commit `925034dfb3bdb42c30a4db8bcf0c63a38340f12e` 改为安装 `host/greenhouse-manager[dev]`。当前仅 CI fixture 修复，T1 未变更、生产服务未启动、板卡未访问。Authority: `docs/development/N3W_T1_PRODUCTION_STACK_MANAGER_STATE_BINDING_SOURCE_REPAIR_PROGRESS_20261011.md`.
 
 > **2026-10-11 production Manager state binding source repair implemented / CI pending**：fresh read-only evidence confirmed one existing claim for preserved SYSTEM_ID, clean portable Manager DB (business rows 0, provenance 1), absent default pairing/N3-W runtime paths, and UID999 unable to create portable-root children. KF-104 opened. Source repair now explicitly binds `GH_PAIRING_DB_PATH` + history to `manager/manager-state.sqlite3`, freezes replay/relay-auth/key paths under `n3w/`, removes the whole portable-root RW mount from Manager, and requires only scoped `manager/` + `n3w/` writable mounts. Added exact-image Manager state preparer and dedicated CI using frozen ARM64 Manager source `511db028...`. Current T1 remains unmodified; production services remain stopped. Authority: `docs/development/N3W_T1_PRODUCTION_STACK_MANAGER_STATE_BINDING_SOURCE_REPAIR_PROGRESS_20261011.md`.
