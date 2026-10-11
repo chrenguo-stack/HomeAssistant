@@ -13,7 +13,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Sequence
 
-AUTHORIZATION_ID = "N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_01"
+AUTHORIZATION_ID = "N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02"
 SCHEMA = "gh.n3w-t1-production-stack-staging/1"
 EXPECTED_ARCH = "aarch64"
 EXPECTED_VOLUME_COUNT = 45
