@@ -22,7 +22,7 @@
   },
   "homeassistant": {
     "source_ref": "ghcr.io/home-assistant/home-assistant:2026.10.0",
-    "image": "ghcr.io/home-assistant/home-assistant:2026.10.0@sha256:0c73235a9140a9b02e4bf618d06d8c496b12ae70656ecddb0e02ad31ad122be4",
+    "image": "local/n3w-homeassistant:2026.10.0-0c73235a",
     "manifest_digest": "sha256:0c73235a9140a9b02e4bf618d06d8c496b12ae70656ecddb0e02ad31ad122be4",
     "image_id": "sha256:b0e1ee82adfb19fa1ff3049034535633b1c4f0df6606721c0e77383854b99879",
     "platform": "linux/arm64",
@@ -31,18 +31,20 @@
     ],
     "config_user": "",
     "effective_default_uid": 0,
-    "effective_default_gid": 0
+    "effective_default_gid": 0,
+    "pull_policy": "never"
   },
   "broker": {
     "source_ref": "m.daocloud.io/docker.io/library/eclipse-mosquitto:2.1.2-alpine",
-    "image": "m.daocloud.io/docker.io/library/eclipse-mosquitto:2.1.2-alpine@sha256:3184566df484a083411a0e70e92c87a264b8f0648df632f10eb23d54d99f4549",
+    "image": "local/n3w-mosquitto:2.1.2-3184566d",
     "manifest_digest": "sha256:3184566df484a083411a0e70e92c87a264b8f0648df632f10eb23d54d99f4549",
     "image_id": "sha256:4c199d7c9d377d018313a2199f6839978f6fd2219c405ad664d0a830c14b9c7b",
     "platform": "linux/arm64",
     "entrypoint": [
       "/docker-entrypoint.sh"
     ],
-    "config_user": ""
+    "config_user": "",
+    "pull_policy": "never"
   },
   "live_mutation": false,
   "t1_access": false,
