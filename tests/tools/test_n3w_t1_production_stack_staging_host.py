@@ -29,6 +29,34 @@ def test_host_transport_does_not_use_shell_pipeline_status() -> None:
     assert '("ssh", "-n"' in source
 
 
+def test_remote_temp_uses_root_backed_var_tmp(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    captured = {}
+
+    def fake_run(command, **kwargs):
+        captured["command"] = tuple(command)
+        captured["kwargs"] = kwargs
+
+        class Result:
+            returncode = 0
+            stdout = "/var/tmp/n3w-staging-preflight.ABC123\n"
+            stderr = ""
+
+        return Result()
+
+    monkeypatch.setattr(tool, "_run", fake_run)
+
+    path = tool._remote_mktemp("root@example", "n3w-staging-preflight")
+
+    assert path == "/var/tmp/n3w-staging-preflight.ABC123"
+    assert captured["command"][:3] == ("ssh", "-n", "root@example")
+    assert "mktemp -d /var/tmp/n3w-staging-preflight.XXXXXX" in captured["command"][3]
+    assert "/tmp/n3w-staging-preflight" not in captured["command"][3]
+    assert captured["kwargs"]["timeout"] == 60
+
+
 def test_verify_artifact_accepts_exact_sidecars(tmp_path: Path) -> None:
     tool = load_tool()
     archive = tmp_path / "payload-archive.tar.gz"

@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Sequence
 
 REPOSITORY = "chrenguo-stack/HomeAssistant"
+REMOTE_STAGING_ROOT = "/var/tmp"
 
 
 class HostTransportError(RuntimeError):
@@ -94,10 +95,12 @@ def _verify_artifact(
 
 
 def _remote_mktemp(t1: str, prefix: str) -> str:
-    command = _remote_command(("mktemp", "-d", f"/tmp/{prefix}.XXXXXX"))
+    command = _remote_command(
+        ("mktemp", "-d", f"{REMOTE_STAGING_ROOT}/{prefix}.XXXXXX")
+    )
     completed = _run(("ssh", "-n", t1, command), timeout=60)
     path = completed.stdout.strip()
-    if not path.startswith(f"/tmp/{prefix}."):
+    if not path.startswith(f"{REMOTE_STAGING_ROOT}/{prefix}."):
         raise HostTransportError("remote_temp_path_invalid")
     return path
 
