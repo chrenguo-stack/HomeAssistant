@@ -1,3 +1,14 @@
+> **2026-10-11 production activation preexecution PARTIAL_PASS / staging required / Manager state classification pending**：fresh T1 read-only probe 保持 S20 closed baseline：0 containers、45 volumes + exact set SHA、两个项目网络为空、1883/8883/18883/8123/47112/47111 均无监听、guard active/enabled、post-S20 DynSec SHA exact、R5 snapshot exact、secret root 0700、transaction dir absent。三个 production images 均 ABSENT，/opt/HomeAssistant 与 production Compose/image-lock/HA config/Broker config、activation env/readiness/persistence/dispatcher、Broker/Services activation unit、certificate timer 均 ABSENT/not-found，统一分类为 STAGING_REQUIRED 而非 product failure。唯一尚未分类的 live target 是 `/var/lib/greenhouse-manager`：root:root:0711、top-level 8 entries；production Manager 将以 999:999 RW bind 此路径，因此必须先 read-only 证明这 8 项是否为后续 clean-product identity/state authority，禁止猜测、删除或 chown。Authority: `docs/development/N3W_T1_PRODUCTION_STACK_ACTIVATION_READONLY_PREEXECUTION_PROGRESS_20261011.md`.
+
+```text
+NEXT_ONE_GATE=N3W_T1_PRODUCTION_STACK_MANAGER_STATE_READONLY_CLASSIFICATION_20261011_01
+LIVE_RUNTIME_MUTATION=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
 > **2026-10-11 production stack activation read-only preexecution entered**：S20 已 CLOSED_PASS，R5 authorization 已消费/禁止 replay。下一门冻结为 `N3W_T1_PRODUCTION_STACK_ACTIVATION_READONLY_PREEXECUTION_20261011_01`，只读核对 exact production images、source/install target collision、systemd/readiness/dispatcher material、Manager/HA state roots、guard/listeners、S20 DynSec/secret baseline 与磁盘余量。缺少待部署文件/镜像只记 `STAGING_REQUIRED`；unexpected runtime/container/listener/secret/DynSec drift fail closed。任何 Broker/Manager/HA start 仍需新的 explicit authorization。Authority: `docs/development/N3W_T1_PRODUCTION_STACK_ACTIVATION_READONLY_PREEXECUTION_20261011.md`.
 
 > **2026-10-11 S20 three-service secret handoff CLOSED_PASS**：R5 transaction apply PASS，executor postcheck PASS，事务退出后的独立 T1 read-only audit 也 PASS。当前 exact post-apply DynSec SHA=`95d99839ec9a6b8003e1375883a3f9263a92e0dbc49c8ca5478196027081a90a`，exact 3 service clients + 3 service roles 已落地，node client 仍为 0；credential bundle integrity/owner/mode verified，HA runtime 尚未启动因此 `homeassistant_runtime_verified=false` 属预期状态。Docker 仍 0 containers / frozen 45-volume set，两个项目网络为空，guard exact，host MQTT listeners 0，R1-R5 rollback evidence exact，transaction material absent。R5 one-shot authorization 已永久 claim+consume，禁止 replay。S20 正式结束；下一门仅 production stack activation read-only preexecution，任何 Broker/Manager/HA start 仍需新的 explicit authorization。Authority: `docs/development/N3W_T1_S20_R5_POSTAPPLY_INDEPENDENT_READONLY_CLOSURE_20261011.md`.
