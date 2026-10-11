@@ -1,0 +1,67 @@
+name: N3W S20 transaction Broker volume CI
+
+on:
+  pull_request:
+    paths:
+      - "host/greenhouse-manager/src/greenhouse_manager/ops/t1_s20_real_service_handoff.py"
+      - "host/greenhouse-manager/tests/ops/test_t1_s20_real_service_handoff.py"
+      - ".github/workflows/n3w-s20-transaction-broker-volume-ci.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "host/greenhouse-manager/src/greenhouse_manager/ops/t1_s20_real_service_handoff.py"
+      - "host/greenhouse-manager/tests/ops/test_t1_s20_real_service_handoff.py"
+      - ".github/workflows/n3w-s20-transaction-broker-volume-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  exact-image-log-tmpfs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify source command contract
+        working-directory: host/greenhouse-manager
+        run: |
+          set -euo pipefail
+          python -m pip install -e '.[dev]'
+          pytest -q tests/ops/test_t1_s20_real_service_handoff.py -k 'start_broker'
+          ruff check src/greenhouse_manager/ops/t1_s20_real_service_handoff.py tests/ops/test_t1_s20_real_service_handoff.py
+
+      - name: Prove exact Mosquitto image leaves volume set unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMAGE='m.daocloud.io/docker.io/library/eclipse-mosquitto:2.1.2-alpine'
+          INDEX='sha256:38c0da4f2ef84284d47b3b3eeea1cb3bdeabe81ee10caf0cd5c5ff61ee3ea408'
+          NAME='n3w-s20-volume-ci'
+          WORK="$RUNNER_TEMP/n3w-s20-volume-ci"
+          mkdir -p "$WORK/data"
+          docker pull "$IMAGE"
+          docker image inspect "$IMAGE" --format '{{json .RepoDigests}}' | grep -F "@$INDEX"
+          docker volume ls -q | LC_ALL=C sort > "$WORK/before.txt"
+          docker run -d --rm --name "$NAME" --network none --tmpfs /mosquitto/log -v "$WORK/data:/mosquitto/data" "$IMAGE" sh -c 'sleep 30'
+          mounts="$(docker inspect "$NAME" --format '{{range .Mounts}}{{println .Type .Destination}}{{end}}')"
+          printf '%s
+' "$mounts"
+          grep -Fx 'bind /mosquitto/data' <<<"$mounts"
+          grep -Fx 'tmpfs /mosquitto/log' <<<"$mounts"
+          docker rm -f "$NAME"
+          for _ in $(seq 1 20); do
+            if ! docker inspect "$NAME" >/dev/null 2>&1; then
+              break
+            fi
+            sleep 0.25
+          done
+          if docker inspect "$NAME" >/dev/null 2>&1; then
+            exit 21
+          fi
+          docker volume ls -q | LC_ALL=C sort > "$WORK/after.txt"
+          diff -u "$WORK/before.txt" "$WORK/after.txt"
+          printf 'TRANSACTION_BROKER_VOLUME_SET_UNCHANGED=true
+'
