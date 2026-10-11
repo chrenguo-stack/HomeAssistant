@@ -1,0 +1,151 @@
+name: N3W T1 production Manager state binding CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/n3w-t1-production-manager-state-binding-ci.yml"
+      - "infra/n3w-t1/production/**"
+      - "tools/n3w_t1_clean_product_deployment_gate.py"
+      - "tools/n3w_t1_production_manager_state_prepare.py"
+      - "tests/tools/test_n3w_t1_clean_product_deployment_gate.py"
+      - "tests/tools/test_n3w_t1_production_manager_state_prepare.py"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/n3w-t1-production-manager-state-binding-ci.yml"
+      - "infra/n3w-t1/production/**"
+      - "tools/n3w_t1_clean_product_deployment_gate.py"
+      - "tools/n3w_t1_production_manager_state_prepare.py"
+      - "tests/tools/test_n3w_t1_clean_product_deployment_gate.py"
+      - "tests/tools/test_n3w_t1_production_manager_state_prepare.py"
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    env:
+      MANAGER_SOURCE_SHA: 511db028780988a7c07cb9342c8be507380bae0f
+      MANAGER_IMAGE_TAG: local/greenhouse-manager:s20-511db028
+      SYSTEM_FINGERPRINT: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install focused test dependency
+        run: python -m pip install pytest
+
+      - name: Run focused source tests
+        env:
+          PYTHONPATH: host/greenhouse-manager/src
+        run: |
+          set -euo pipefail
+          python -m pytest -q             tests/tools/test_n3w_t1_clean_product_deployment_gate.py             tests/tools/test_n3w_t1_production_manager_state_prepare.py
+
+      - name: Render and validate production Compose
+        run: |
+          set -euo pipefail
+          docker compose             -f infra/n3w-t1/production/docker-compose.yml             --profile application             config --format json             > "$RUNNER_TEMP/compose.json"
+          python tools/n3w_t1_clean_product_deployment_gate.py             --compose-json "$RUNNER_TEMP/compose.json"             --image-lock-json infra/n3w-t1/production/image-lock.json             > "$RUNNER_TEMP/deployment-gate.json"
+          grep -F '"status":"PASS"' "$RUNNER_TEMP/deployment-gate.json"
+          grep -F '"manager_portable_root_mounted":false' "$RUNNER_TEMP/deployment-gate.json"
+          grep -F '"manager_pairing_database":"/var/lib/greenhouse-manager/manager/manager-state.sqlite3"' "$RUNNER_TEMP/deployment-gate.json"
+
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build exact frozen ARM64 Manager image
+        run: |
+          set -euo pipefail
+          WORK="$RUNNER_TEMP/manager-source"
+          mkdir -p "$WORK"
+          git archive "$MANAGER_SOURCE_SHA" host/greenhouse-manager | tar -x -C "$WORK"
+          docker buildx build             --platform linux/arm64             --file "$WORK/host/greenhouse-manager/Dockerfile"             --tag "$MANAGER_IMAGE_TAG"             --load             "$WORK/host/greenhouse-manager"
+          test "$(docker image inspect "$MANAGER_IMAGE_TAG" --format '{{.Id}}')" =             "sha256:ef0f28c2fd339430a85acb6cb65158c71c61cd8fc3c6330c375da27d0f2440f1"
+
+      - name: Prepare synthetic restored Manager baseline
+        run: |
+          set -euo pipefail
+          STATE="$RUNNER_TEMP/state"
+          mkdir -p "$STATE/manager" "$STATE/n3w"
+          chmod 700 "$STATE/manager" "$STATE/n3w"
+          python - "$STATE/manager/manager-state.sqlite3" "$SYSTEM_FINGERPRINT" <<'PY'
+          import sqlite3
+          import sys
+
+          path = sys.argv[1]
+          fingerprint = sys.argv[2]
+          connection = sqlite3.connect(path)
+          try:
+              connection.executescript(
+                  """
+                  CREATE TABLE registrations (id INTEGER);
+                  CREATE TABLE pairing_sessions (id INTEGER);
+                  CREATE TABLE registration_events (id INTEGER);
+                  CREATE TABLE registration_node_history (id INTEGER);
+                  CREATE TABLE node_id_leases (id INTEGER);
+                  CREATE TABLE retirement_outbox (id INTEGER);
+                  CREATE TABLE credential_assignments (id INTEGER);
+                  CREATE TABLE h0h1_legacy_adoption_provenance (
+                      schema TEXT NOT NULL,
+                      classification_result_sha256 TEXT NOT NULL,
+                      system_id_fingerprint TEXT NOT NULL,
+                      structured_legacy_manager_state_imported INTEGER NOT NULL,
+                      anonymous_nodes_reconstructed INTEGER NOT NULL
+                  );
+                  """
+              )
+              connection.execute(
+                  """
+                  INSERT INTO h0h1_legacy_adoption_provenance
+                  VALUES (?, ?, ?, 0, 0)
+                  """,
+                  (
+                      "gh.h0h1.legacy-adoption-provenance/1",
+                      "b" * 64,
+                      fingerprint,
+                  ),
+              )
+              connection.commit()
+          finally:
+              connection.close()
+          PY
+          chmod 600 "$STATE/manager/manager-state.sqlite3"
+          sudo chown -R 999:999 "$STATE/manager" "$STATE/n3w"
+
+      - name: Run exact-image Manager state prepare and audit
+        run: |
+          set -euo pipefail
+          STATE="$RUNNER_TEMP/state"
+          BEFORE="$(docker volume ls -q | LC_ALL=C sort | sha256sum | awk '{print $1}')"
+
+          cat tools/n3w_t1_production_manager_state_prepare.py |             docker run --rm -i               --platform linux/arm64               --network none               --user 999:999               --read-only               --tmpfs /tmp:size=16m,mode=1777               --mount "type=bind,src=$STATE/manager,dst=/var/lib/greenhouse-manager/manager"               --mount "type=bind,src=$STATE/n3w,dst=/var/lib/greenhouse-manager/n3w"               --entrypoint python               "$MANAGER_IMAGE_TAG"               -               --phase prepare               --manager-db /var/lib/greenhouse-manager/manager/manager-state.sqlite3               --n3w-root /var/lib/greenhouse-manager/n3w               --expected-system-id-sha256 "$SYSTEM_FINGERPRINT"               > "$RUNNER_TEMP/state-prepare.json"
+
+          cat tools/n3w_t1_production_manager_state_prepare.py |             docker run --rm -i               --platform linux/arm64               --network none               --user 999:999               --read-only               --tmpfs /tmp:size=16m,mode=1777               --mount "type=bind,src=$STATE/manager,dst=/var/lib/greenhouse-manager/manager"               --mount "type=bind,src=$STATE/n3w,dst=/var/lib/greenhouse-manager/n3w"               --entrypoint python               "$MANAGER_IMAGE_TAG"               -               --phase audit               --manager-db /var/lib/greenhouse-manager/manager/manager-state.sqlite3               --n3w-root /var/lib/greenhouse-manager/n3w               --expected-system-id-sha256 "$SYSTEM_FINGERPRINT"               > "$RUNNER_TEMP/state-audit.json"
+
+          grep -F '"status":"PASS"' "$RUNNER_TEMP/state-prepare.json"
+          grep -F '"n3w_state_prepared":true' "$RUNNER_TEMP/state-prepare.json"
+          grep -F '"manager_database_mutated":false' "$RUNNER_TEMP/state-prepare.json"
+          grep -F '"status":"PASS"' "$RUNNER_TEMP/state-audit.json"
+          grep -F '"replay_node_count":0' "$RUNNER_TEMP/state-audit.json"
+          grep -F '"relay_active_node_count":0' "$RUNNER_TEMP/state-audit.json"
+
+          AFTER="$(docker volume ls -q | LC_ALL=C sort | sha256sum | awk '{print $1}')"
+          test "$BEFORE" = "$AFTER"
+
+          printf 'MANAGER_STATE_BINDING_SOURCE_REPAIR=PASS\n'
+          printf 'EXACT_MANAGER_IMAGE_STATE_PREPARE=PASS\n'
+          printf 'MANAGER_DATABASE_MUTATED=false\n'
+          printf 'TRANSACTION_DOCKER_VOLUME_SET_UNCHANGED=true\n'
+          printf 'T1_ACCESS=false\n'
+          printf 'BOARD_ACCESS=false\n'
