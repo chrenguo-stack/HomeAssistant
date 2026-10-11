@@ -1,3 +1,18 @@
+> **2026-10-11 KF-106 source CI PASS / successor staging authorization rotated**：image identity repair + repository-owned Mac host wrapper 已通过 dedicated CI（Manager state run `38129756566`、payload run `38129756547`）。run #34 artifact 仍绑定已消费的 predecessor authorization `..._01`，因此只作为修复证据，禁止 live reuse。source/payload authorization 已旋转为 `N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02`；successor 尚未授权，需 fresh successor payload CI + artifact rebind + fresh T1 preflight + 用户明确批准后才可 claim。
+
+```text
+KF106=GUARDED_LIVE_REVALIDATION_PENDING
+KF078_HOST_WRAPPER_SOURCE_CI=PASS
+PREDECESSOR_AUTHORIZATION=CONSUMED_NO_REPLAY
+SUCCESSOR_AUTHORIZATION=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02
+SUCCESSOR_AUTHORIZATION_STATE=NOT_GRANTED
+T1_MUTATION=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
 > **2026-10-11 staging apply failed safely / rollback PASS / source repair pending**：one-shot staging apply 已正式 claim+consume，fresh preflight 与 state-root prepare PASS 后在 exact Manager `docker load` 的 image-ID oracle 停止；executor rollback `status=PASS/errors=[]`，未启动 Broker/Manager/HA。根因域为 Docker classic vs containerd image-store ID 语义不兼容；cross-store exact config/target digest repair 已实现。Mac 外层同时暴露 zsh 不支持 Bash-only `PIPESTATUS` 的 KF-078 recurrence；现已新增 repository-owned Python host transport，无 pipeline-status 依赖。新 source/payload CI pending；旧 authorization 永久 no-replay，尚无 successor live authorization。
 
 ```text
