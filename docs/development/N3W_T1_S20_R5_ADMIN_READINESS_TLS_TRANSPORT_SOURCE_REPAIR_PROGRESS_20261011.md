@@ -221,3 +221,49 @@ MERGE=false
 ```
 
 The next transition after CI is source/CI review only. A future R5 live apply requires a separate fresh T1 read-only preclaim and a new explicit one-shot live mutation authorization.
+
+
+## 11. First TLS-isolated CI fixture failure and repair
+
+The first `tls-readiness` job reached throwaway CA/server certificate generation and DynSec admin initialization successfully, but stopped before the Broker container was started:
+
+```text
+chmod: changing permissions of '.../tls/server.key': Operation not permitted
+```
+
+The fixture had first executed:
+
+```text
+sudo chown 1883:1883 server.key
+```
+
+and then attempted an unprivileged:
+
+```text
+chmod 600 server.key
+```
+
+so the GitHub runner user no longer owned the file. This is a CI-fixture permission-order defect, not evidence against the R5 TLS source repair.
+
+Classification:
+
+```text
+R5_TLS_CI_FIRST_FAILURE=FIXTURE_ONLY
+PRODUCT_SOURCE_FAILURE_PROVEN=false
+TRANSACTION_BROKER_STARTED_IN_FAILED_JOB=false
+TLS_READINESS_ATTEMPT_REACHED=false
+```
+
+The fixture was corrected to use:
+
+```text
+sudo chmod 600 server.key
+```
+
+Repair commit:
+
+```text
+1ecc12ded60c7ea53e0af94722a05f3b4f0e4654
+```
+
+A fresh CI run is required. No T1 mutation is involved.
