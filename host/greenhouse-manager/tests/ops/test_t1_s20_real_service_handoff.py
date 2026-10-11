@@ -630,6 +630,12 @@ def test_start_broker_uses_verified_local_image_id(
     )
     assert run_command[-1] == image_id
     assert module.BROKER_SOURCE_TAG not in run_command
+    tmpfs_index = run_command.index("--tmpfs")
+    assert run_command[tmpfs_index + 1] == module.BROKER_LOG_TARGET
+    assert not any(
+        token == "-v" and module.BROKER_LOG_TARGET in run_command[index + 1]
+        for index, token in enumerate(run_command[:-1])
+    )
 
 
 def test_stream_executor_binding_accepts_exact_sha256() -> None:
