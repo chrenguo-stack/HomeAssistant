@@ -1331,7 +1331,7 @@ def _rollback_postcheck(runner: CommandRunner) -> dict[str, object]:
             "rollback_postcheck_transaction_directory_present"
         )
     _verify_retained_attempt_snapshots()
-    r4_snapshot_state = _verify_r5_snapshot_if_present()
+    r5_snapshot_state = _verify_r5_snapshot_if_present()
     return {
         "docker_container_count": 0,
         "docker_volume_count": volume_count,
@@ -1349,7 +1349,7 @@ def _rollback_postcheck(runner: CommandRunner) -> dict[str, object]:
         "r2_retained_snapshot_verified": True,
         "r3_retained_snapshot_verified": True,
         "r4_retained_snapshot_verified": True,
-        "r5_rollback_snapshot_state": r4_snapshot_state,
+        "r5_rollback_snapshot_state": r5_snapshot_state,
     }
 
 
