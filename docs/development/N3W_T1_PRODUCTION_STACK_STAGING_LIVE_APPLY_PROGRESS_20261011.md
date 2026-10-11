@@ -182,3 +182,69 @@ Run #20 remains useful only as evidence for the pre-hardening executor. It is
 not valid as exact-head authority for the hardened executor.
 
 No payload may be rebuilt and no T1 apply may begin until run #22 passes.
+
+
+## 7. Exact hardened executor CI closure and payload build entry
+
+The hardened executor source/test boundary is now CI-closed.
+
+```text
+EXECUTOR_SOURCE_HEAD=b9305b5fff1d046ebbc86530d12521ea227681a6
+RUN_ID=38125884756
+RUN_NUMBER=22
+CONCLUSION=success
+
+FOCUSED_SOURCE_TESTS=PASS
+RENDER_AND_VALIDATE_PRODUCTION_COMPOSE=PASS
+DOWNLOAD_EXACT_FROZEN_MANAGER_ARTIFACT=PASS
+LOAD_EXACT_FROZEN_ARM64_MANAGER_IMAGE=PASS
+PREPARE_SYNTHETIC_RESTORED_MANAGER_BASELINE=PASS
+EXACT_IMAGE_MANAGER_STATE_PREPARE_AND_AUDIT=PASS
+```
+
+The following documentation-only head also passed the same dedicated workflow:
+
+```text
+DOCUMENTED_HEAD=7f54561cb74fface14660010b2c18fe34ba5f522
+RUN_ID=38125935452
+RUN_NUMBER=23
+CONCLUSION=success
+```
+
+The superseded local payload reported in the Codex handoff remains forbidden for
+T1 use.
+
+A repository-owned payload builder has now been added:
+
+```text
+.github/workflows/n3w-t1-production-stack-staging-payload-ci.yml
+COMMIT=96113b82e3b69cdc6d2f35293e67a2b7873e9bdc
+```
+
+It builds a new content-addressed staging payload only after:
+
+- running the staging executor focused tests;
+- downloading artifact `11665219740` from frozen binding run `38040433177`;
+- verifying Manager tar SHA256
+  `2ef0421d483334f6ef81c92beb1b6784174f069a4bde179ba615ce0b70435081`;
+- checking the executor's internal payload source hash contract;
+- generating a manifest containing source head, executor SHA256, file hashes and
+  the authorization ID with claimed/consumed both false;
+- uploading only public source/configuration plus the frozen Manager image tar;
+- including no secret values.
+
+Current boundary:
+
+```text
+HARDENED_EXECUTOR_CI=PASS
+PAYLOAD_BUILD_CI=PENDING
+T1_MUTATION=false
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+PR_MERGE=false
+```
+
+Fresh T1 preflight and staging apply remain blocked until the new payload build
+CI has passed and the resulting artifact hashes are rebound.
