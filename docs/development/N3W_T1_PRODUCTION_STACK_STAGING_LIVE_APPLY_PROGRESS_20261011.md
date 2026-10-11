@@ -399,3 +399,77 @@ fingerprint prefix.
 The replacement source CI and replacement payload must pass before another T1
 preflight. The prior payload artifact is now superseded and forbidden for
 further T1 use.
+
+
+## 10. Replacement fresh T1 preflight PASS
+
+The KF-105-repaired exact payload was transferred to T1 and executed in
+`preflight` mode only. No authorization ID was supplied to the executor.
+
+Observed exact result:
+
+```text
+status=PASS
+phase=preflight
+docker_container_count=0
+docker_volume_count=45
+docker_volume_set_sha256=20fc845741d31da34f1d1e563e5057c78ec5dc7c4cfd3a495a5f3a4f2bfd011b
+project_network_container_counts=n3wfc4-private:0,n3wfc4-services:0
+tcp_1883=0
+tcp_8883=0
+tcp_18883=0
+tcp_8123=0
+tcp_47112=0
+udp_47111=0
+guard_active=true
+guard_enabled=true
+guard_exact=true
+dynsec_sha256=95d99839ec9a6b8003e1375883a3f9263a92e0dbc49c8ca5478196027081a90a
+identity_claim_count=1
+legacy_collision=empty_root_root_0755_directory
+manager_database_quick_check=ok
+manager_database_business_rows=0
+manager_database_provenance_rows=1
+manager_database_sha256=6db7069f2134be3b178d3238da2dfc199463d812dd6be318531611eaddc4c971
+n3w_state_root=absent
+production_images=absent
+production_services=stopped
+secret_file_count=11
+root_available_bytes=6420983808
+manager_tar_sha256=2ef0421d483334f6ef81c92beb1b6784174f069a4bde179ba615ce0b70435081
+source_file_count=12
+production_service_start=false
+board_access=false
+live_mutation=false
+```
+
+The exact replacement payload authority remains:
+
+```text
+SOURCE_HEAD=8a7bd74cc1cc009e198faf715adae26696777107
+PAYLOAD_CI_RUN=38127849103
+ARTIFACT_ID=11698220067
+ARTIFACT_ZIP_SHA256=779d221da3f85b431a7a99601c44de070a818dc04273677aed9b0064feb8b9d2
+PAYLOAD_ARCHIVE_SHA256=6ab2816a02d3b2ce90ba94d57e41b347051881bc5c2c4a2fa8016aca8f7445f3
+PAYLOAD_MANIFEST_SHA256=145c22de3810046851b7414eb953fd1fc2098681084fcda5e213ac6f4ed6c2ce
+EXECUTOR_SHA256=3cfc30043bb6ad81e9a6ef4cad11a3bddc9155099f2d6f5a1024d3e2363070d1
+```
+
+Disposition:
+
+```text
+KF105=CLOSED_GUARDED
+FRESH_T1_PREFLIGHT=PASS
+AUTHORIZATION_ID=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_01
+AUTHORIZATION_STATE=GRANTED_PENDING_CLAIM
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+LIVE_STAGING_APPLY=READY
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+PR_MERGE=false
+```
+
+Starting the executor's `apply` phase with the exact authorization ID is the
+claim point. From that moment the authorization is one-shot and must never be
+replayed, even if transport is interrupted or the executor rolls back.
