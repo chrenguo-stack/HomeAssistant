@@ -190,3 +190,43 @@ CI_REVIEW=PENDING
 ```
 
 Other repository workflows were also triggered by the branch update; no result is promoted until each required job completes.
+
+
+## 10. CI fixture failure and repair
+
+Run `38122599845` failed before any Compose render or exact-image runtime exercise.
+
+```text
+FAILED_STEP=Run focused source tests
+RESULT=25 passed, 5 failed
+ROOT_CAUSE=ModuleNotFoundError: No module named 'jsonschema'
+FAILURE_CLASS=CI_FIXTURE_DEPENDENCY
+PRODUCT_SOURCE_FAILURE_PROVEN=false
+EXACT_IMAGE_RUNTIME_REACHED=false
+T1_ACCESS=false
+BOARD_ACCESS=false
+```
+
+The workflow had installed only `pytest`, while the new preparer imports Manager runtime modules whose formal package dependencies include `jsonschema`, `cryptography`, and `paho-mqtt`.
+
+Repair commit:
+
+```text
+925034dfb3bdb42c30a4db8bcf0c63a38340f12e
+```
+
+The workflow now installs the Manager package with its declared development environment:
+
+```text
+python -m pip install -e 'host/greenhouse-manager[dev]'
+```
+
+This is a CI fixture/dependency correction only. Product runtime semantics, T1 state, production services, and board state are unchanged.
+
+```text
+CI_FIXTURE_REPAIR=IMPLEMENTED
+CI_REVIEW=PENDING_FRESH_RUN
+T1_MUTATION=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+```
