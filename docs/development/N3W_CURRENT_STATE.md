@@ -1,3 +1,17 @@
+> **2026-10-11 production Manager state binding source repair implemented / CI pending**：fresh read-only evidence confirmed one existing claim for preserved SYSTEM_ID, clean portable Manager DB (business rows 0, provenance 1), absent default pairing/N3-W runtime paths, and UID999 unable to create portable-root children. KF-104 opened. Source repair now explicitly binds `GH_PAIRING_DB_PATH` + history to `manager/manager-state.sqlite3`, freezes replay/relay-auth/key paths under `n3w/`, removes the whole portable-root RW mount from Manager, and requires only scoped `manager/` + `n3w/` writable mounts. Added exact-image Manager state preparer and dedicated CI using frozen ARM64 Manager source `511db028...`. Current T1 remains unmodified; production services remain stopped. Authority: `docs/development/N3W_T1_PRODUCTION_STACK_MANAGER_STATE_BINDING_SOURCE_REPAIR_PROGRESS_20261011.md`.
+
+```text
+KF104=OPEN_SOURCE_REPAIR_CI_PENDING
+IDENTITY_CLAIM_PRESENT_FOR_PRESERVED_SYSTEM=true
+PORTABLE_MANAGER_DB_CLEAN=true
+PRODUCTION_MANAGER_STATE_BINDING_SOURCE_REPAIR=IMPLEMENTED
+PRODUCTION_MANAGER_START=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
 > **2026-10-11 production activation read-only blocker**：restore-root forensic 已完成，恢复身份绑定通过，但 marker 仍要求 activation 前完成 identity claim；Manager subtree 另有 1 个 unexpected empty directory。源码复核确认 current production Compose 启用 N3-W runtime，却未绑定该 runtime 启动所需的 existing state paths，故当前 Compose 不得直接启动 Manager。下一门：`N3W_T1_PRODUCTION_STACK_IDENTITY_CLAIM_AND_RUNTIME_STATE_READONLY_BINDING_20261011_01`。Authority: `docs/development/N3W_T1_PRODUCTION_STACK_RESTORE_ROOT_FORENSIC_STATUS_20261011.md`.
 
 > **2026-10-11 production Manager state root recognized but activation still blocked**：`/var/lib/greenhouse-manager` 已证明不是未知残留，而是与 H0/H1 portable-restore 角色布局高度一致的恢复根：含 RESTORE marker、system/manager identity、统一 `manager/manager-state.sqlite3`、broker snapshot；Manager SQLite `quick_check=ok`，无 symlink/special file。当前仍有三个未关闭边界：① root 实测 `root:root:0711`，而 accepted H0/H1 contract 冻结 root mode=0700，是否为后续 intentional access normalization 尚未证明；② `manager/registration.sqlite3` 实测为 root:root:0755 **目录**，不属于冻结 role layout，不能忽略/删除；③ portable restore marker 按 accepted source 必须 `activation_enabled=false` + `identity_claim_required_before_activation=true`，当前尚未读取 marker/identity-claim 状态。system identity/private-key members 为 999:999:0600，mode 合同一致但 ownership transition 尚需 authority。禁止 chmod/chown/delete/activation。Authority: `docs/development/N3W_T1_PRODUCTION_STACK_MANAGER_STATE_READONLY_CLASSIFICATION_PROGRESS_20261011.md`.
