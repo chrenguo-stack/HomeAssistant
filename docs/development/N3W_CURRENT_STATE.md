@@ -1,3 +1,5 @@
+> **2026-10-11 handoff process correction**：Run #78 新会话交接 V1.0 使用了已废弃的旧 DSL/Codex 执行模式，已由 V1.1 取代。current formal handoff 为 `docs/development/N3W_T1_PRODUCTION_STACK_STAGING_RUN78_EXACT_ARTIFACT_BINDING_NEW_CHAT_HANDOFF_V1.1_20261011.md`；当前执行方式以 `docs/development/N3W_PROJECT_WORKING_CONTEXT.md` 为准。技术停止点不变：Run #78 CI PASS，exact artifact / 三镜像 tar / payload size + SHA256 尚未绑定，`N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_03` 仍 NOT_GRANTED。
+
 > **2026-10-11 session close / Run #78 artifact binding deferred to new chat**：本轮已完成 KF-107 offline-image source repair，exact product-source head `cb4131e47727d0cf7421133000c3a421c860a99b` 对应五门关键 CI 全 PASS：deployment gate #361、staging payload #78、production image binding #245、Manager state binding #101、public safety #4083。本轮明确不继续下载/绑定 Run #78 artifact；下一会话只进入 exact artifact / 三镜像 tar / payload size + SHA256 binding review。authorization `N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_03` 仍 NOT_GRANTED；T1/live/board mutation 均不得进入。
 
 ```text
