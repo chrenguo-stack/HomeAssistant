@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sqlite3
 import sys
 from pathlib import Path
@@ -326,3 +327,101 @@ def test_staging_manager_database_rejects_full_sha_provenance(
 
     with pytest.raises(tool.StagingError, match="manager_database_provenance_drift"):
         tool._manager_database_report()
+
+
+def test_image_report_accepts_classic_config_digest() -> None:
+    tool = load_tool()
+
+    class FakeRunner:
+        def run(self, _command, **_kwargs):
+            return json.dumps(
+                {
+                    "Id": tool.EXPECTED_MANAGER_IMAGE_CONFIG_DIGEST,
+                    "Os": "linux",
+                    "Architecture": "arm64",
+                }
+            )
+
+    report = tool._image_report(
+        FakeRunner(),
+        tool.EXPECTED_MANAGER_IMAGE,
+        expected_config_digest=tool.EXPECTED_MANAGER_IMAGE_CONFIG_DIGEST,
+        expected_target_digest=tool.EXPECTED_MANAGER_IMAGE_TARGET_DIGEST,
+    )
+
+    assert report["identity_mode"] == "classic_config_digest"
+    assert report["platform"] == "linux/arm64"
+
+
+def test_image_report_accepts_containerd_target_digest() -> None:
+    tool = load_tool()
+
+    class FakeRunner:
+        def run(self, _command, **_kwargs):
+            return json.dumps(
+                {
+                    "Id": tool.EXPECTED_MANAGER_IMAGE_TARGET_DIGEST,
+                    "Os": "linux",
+                    "Architecture": "arm64",
+                    "Descriptor": {
+                        "digest": tool.EXPECTED_MANAGER_IMAGE_TARGET_DIGEST,
+                    },
+                }
+            )
+
+    report = tool._image_report(
+        FakeRunner(),
+        tool.EXPECTED_MANAGER_IMAGE,
+        expected_config_digest=tool.EXPECTED_MANAGER_IMAGE_CONFIG_DIGEST,
+        expected_target_digest=tool.EXPECTED_MANAGER_IMAGE_TARGET_DIGEST,
+    )
+
+    assert report["identity_mode"] == "containerd_target_digest"
+    assert report["target_digest"] == tool.EXPECTED_MANAGER_IMAGE_TARGET_DIGEST
+
+
+def test_image_report_rejects_unknown_identity() -> None:
+    tool = load_tool()
+
+    class FakeRunner:
+        def run(self, _command, **_kwargs):
+            return json.dumps(
+                {
+                    "Id": "sha256:" + ("c" * 64),
+                    "Os": "linux",
+                    "Architecture": "arm64",
+                }
+            )
+
+    with pytest.raises(tool.StagingError, match="image_binding_drift"):
+        tool._image_report(
+            FakeRunner(),
+            tool.EXPECTED_MANAGER_IMAGE,
+            expected_config_digest=tool.EXPECTED_MANAGER_IMAGE_CONFIG_DIGEST,
+            expected_target_digest=tool.EXPECTED_MANAGER_IMAGE_TARGET_DIGEST,
+        )
+
+
+def test_image_report_rejects_descriptor_drift() -> None:
+    tool = load_tool()
+
+    class FakeRunner:
+        def run(self, _command, **_kwargs):
+            return json.dumps(
+                {
+                    "Id": tool.EXPECTED_MANAGER_IMAGE_TARGET_DIGEST,
+                    "Os": "linux",
+                    "Architecture": "arm64",
+                    "Descriptor": {
+                        "digest": "sha256:" + ("d" * 64),
+                    },
+                }
+            )
+
+    with pytest.raises(tool.StagingError, match="image_target_digest_drift"):
+        tool._image_report(
+            FakeRunner(),
+            tool.EXPECTED_MANAGER_IMAGE,
+            expected_config_digest=tool.EXPECTED_MANAGER_IMAGE_CONFIG_DIGEST,
+            expected_target_digest=tool.EXPECTED_MANAGER_IMAGE_TARGET_DIGEST,
+        )
