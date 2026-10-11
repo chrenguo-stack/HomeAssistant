@@ -102,9 +102,9 @@ jobs:
           sudo cp "$WORK/candidate/broker/tls/ca.pem" "$TLS/ca.pem"
           sudo cp "$WORK/candidate/broker/tls/server.pem" "$TLS/server.pem"
           sudo cp "$WORK/candidate/broker/tls/server.key" "$TLS/server.key"
+          sudo chmod 600 "$TLS/ca.pem" "$TLS/server.pem" "$TLS/server.key"
           sudo chown -R 1883:1883 "$TLS"
           sudo chmod 700 "$TLS"
-          sudo chmod 600 "$TLS"/*
           docker run --rm --platform linux/arm64 --user 1883:1883 --network none             -v "$TLS:/tls:ro"             --entrypoint sh local/n3w-mosquitto:2.1.2-3184566d             -c 'test -r /tls/ca.pem && test -r /tls/server.pem && test -r /tls/server.key'
           printf 'BROKER_TLS_RUNTIME_UID_PATH=PASS\n'
 
