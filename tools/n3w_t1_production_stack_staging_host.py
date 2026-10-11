@@ -128,10 +128,17 @@ def _remote_prepare(
                 "from pathlib import Path;"
                 "root=Path(sys.argv[1]);"
                 "archive=root/'payload.tar.gz';"
-                "assert hashlib.sha256(archive.read_bytes()).hexdigest()==sys.argv[2];"
-                "tarfile.open(archive,'r:gz').extractall(root);"
-                "assert hashlib.sha256((root/'tools/n3w_t1_production_stack_staging.py').read_bytes()).hexdigest()==sys.argv[3];"
-                "assert hashlib.sha256((root/'payload-manifest.json').read_bytes()).hexdigest()==sys.argv[4]"
+                "def sha256_file(path):\n"
+                " h=hashlib.sha256()\n"
+                " with path.open('rb') as stream:\n"
+                "  for block in iter(lambda: stream.read(1024*1024),b''):\n"
+                "   h.update(block)\n"
+                " return h.hexdigest()\n"
+                "assert sha256_file(archive)==sys.argv[2];"
+                "with tarfile.open(archive,'r:gz') as bundle: bundle.extractall(root);"
+                "archive.unlink();"
+                "assert sha256_file(root/'tools/n3w_t1_production_stack_staging.py')==sys.argv[3];"
+                "assert sha256_file(root/'payload-manifest.json')==sys.argv[4]"
             ),
             remote_dir,
             archive_sha256,
