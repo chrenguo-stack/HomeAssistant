@@ -329,7 +329,7 @@ jobs:
                   "schema": "gh.n3w-t1-fresh-transport/1",
                   "remote_staging_root": "/var/tmp",
                   "minimum_post_peak_free_bytes": 5 * 1024 * 1024 * 1024,
-                  "payload_uncompressed_bytes": sum(item["size"] for item in records),
+                  "payload_uncompressed_bytes": 0,
                   "image_load_order": ["homeassistant", "manager", "broker"],
                   "images": image_metadata,
               },
@@ -337,10 +337,21 @@ jobs:
               "production_service_start": False,
               "board_access": False,
           }
-          (root / "payload-manifest.json").write_text(
-              json.dumps(manifest, sort_keys=True, indent=2) + "\n",
-              encoding="utf-8",
-          )
+
+          payload_data_bytes = sum(item["size"] for item in records)
+          for _ in range(8):
+              encoded = (json.dumps(manifest, sort_keys=True, indent=2) + "\n").encode()
+              exact_total = payload_data_bytes + len(encoded)
+              if manifest["transport"]["payload_uncompressed_bytes"] == exact_total:
+                  break
+              manifest["transport"]["payload_uncompressed_bytes"] = exact_total
+          else:
+              raise RuntimeError("payload_uncompressed_size_did_not_converge")
+
+          encoded = (json.dumps(manifest, sort_keys=True, indent=2) + "\n").encode()
+          if payload_data_bytes + len(encoded) != manifest["transport"]["payload_uncompressed_bytes"]:
+              raise RuntimeError("payload_uncompressed_size_not_exact")
+          (root / "payload-manifest.json").write_bytes(encoded)
           PY
 
           python - "$PAYLOAD" <<'PY'
