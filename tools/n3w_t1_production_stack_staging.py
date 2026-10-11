@@ -13,7 +13,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Sequence
 
-AUTHORIZATION_ID = "N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02"
+AUTHORIZATION_ID = "N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_03"
 SCHEMA = "gh.n3w-t1-production-stack-staging/1"
 EXPECTED_ARCH = "aarch64"
 EXPECTED_VOLUME_COUNT = 45
@@ -57,6 +57,9 @@ EXPECTED_BROKER_IMAGE_CONFIG_DIGEST = (
 EXPECTED_BROKER_IMAGE_TARGET_DIGEST = (
     "sha256:3184566df484a083411a0e70e92c87a264b8f0648df632f10eb23d54d99f4549"
 )
+MANAGER_TAR_NAME = "greenhouse-manager-arm64.tar"
+HA_TAR_NAME = "homeassistant-arm64.tar"
+BROKER_TAR_NAME = "broker-arm64.tar"
 MIN_ROOT_AVAILABLE_BYTES = 5 * 1024 * 1024 * 1024
 
 PORTS_TCP = (1883, 8883, 18883, 8123, 47112)
@@ -446,14 +449,28 @@ def _payload_report(payload_root: Path) -> dict[str, Any]:
             raise StagingError(f"payload_source_missing:{relative}")
         if _sha256_file(source) != expected_sha:
             raise StagingError(f"payload_source_sha_drift:{relative}")
-    manager_tar = payload_root / "artifact/greenhouse-manager-arm64.tar"
+    artifact_root = payload_root / "artifact"
+    manager_tar = artifact_root / MANAGER_TAR_NAME
     if manager_tar.is_symlink() or not manager_tar.is_file():
         raise StagingError("manager_artifact_missing")
     if _sha256_file(manager_tar) != EXPECTED_MANAGER_TAR_SHA256:
         raise StagingError("manager_artifact_sha_drift")
+
+    external_tars: dict[str, str] = {}
+    for label, name in (
+        ("homeassistant", HA_TAR_NAME),
+        ("broker", BROKER_TAR_NAME),
+    ):
+        path = artifact_root / name
+        if path.is_symlink() or not path.is_file():
+            raise StagingError(f"{label}_artifact_missing")
+        external_tars[label] = _sha256_file(path)
+
     return {
         "source_file_count": len(SOURCE_FILES),
         "manager_tar_sha256": EXPECTED_MANAGER_TAR_SHA256,
+        "homeassistant_tar_sha256": external_tars["homeassistant"],
+        "broker_tar_sha256": external_tars["broker"],
     }
 
 
@@ -1217,7 +1234,7 @@ def apply_staging(runner: Runner, payload_root: Path) -> dict[str, Any]:
                 "docker",
                 "load",
                 "--input",
-                str(payload_root / "artifact/greenhouse-manager-arm64.tar"),
+                str(payload_root / "artifact" / MANAGER_TAR_NAME),
             ),
             timeout=300,
         )
@@ -1233,9 +1250,14 @@ def apply_staging(runner: Runner, payload_root: Path) -> dict[str, Any]:
         _run_manager_state(runner, payload_root, "prepare")
         _event("manager_state_prepare", "PASS")
 
-        _event("production_image_pull", "START")
+        _event("production_image_load", "START")
         runner.run(
-            ("docker", "pull", "--platform", "linux/arm64", EXPECTED_HA_IMAGE),
+            (
+                "docker",
+                "load",
+                "--input",
+                str(payload_root / "artifact" / HA_TAR_NAME),
+            ),
             timeout=1200,
         )
         _image_report(
@@ -1245,7 +1267,12 @@ def apply_staging(runner: Runner, payload_root: Path) -> dict[str, Any]:
             expected_target_digest=EXPECTED_HA_IMAGE_TARGET_DIGEST,
         )
         runner.run(
-            ("docker", "pull", "--platform", "linux/arm64", EXPECTED_BROKER_IMAGE),
+            (
+                "docker",
+                "load",
+                "--input",
+                str(payload_root / "artifact" / BROKER_TAR_NAME),
+            ),
             timeout=600,
         )
         _image_report(
@@ -1254,7 +1281,7 @@ def apply_staging(runner: Runner, payload_root: Path) -> dict[str, Any]:
             expected_config_digest=EXPECTED_BROKER_IMAGE_CONFIG_DIGEST,
             expected_target_digest=EXPECTED_BROKER_IMAGE_TARGET_DIGEST,
         )
-        _event("production_image_pull", "PASS")
+        _event("production_image_load", "PASS")
 
         _event("source_and_unit_stage", "START")
         OPT_ROOT.mkdir(mode=0o755)
