@@ -582,3 +582,50 @@ PRODUCTION_SERVICE_START=false
 BOARD_ACCESS=false
 PR_MERGE=false
 ```
+
+
+## 12. Repository-owned host transport repair
+
+A repository-owned Mac-to-T1 transport wrapper now replaces the ad-hoc zsh
+pipeline used by the consumed failed apply:
+
+```text
+tools/n3w_t1_production_stack_staging_host.py
+01b7538cb0a5ee118368c49c31f0970f0f3af7cf
+feat(n3w): add repository-owned staging host transport
+
+tests/tools/test_n3w_t1_production_stack_staging_host.py
+b1889ef1dc26249265169eda08a961a504204370
+test(n3w): guard staging host transport semantics
+
+6c821a88d1291c10220f2efd7b0e218e10935e2b
+ci(n3w): test and publish staging host wrapper
+```
+
+The wrapper:
+
+- uses subprocess argument arrays instead of shell pipelines;
+- uses `ssh -n` for commands that do not own stdin;
+- verifies payload archive, executor and manifest hashes before transport;
+- verifies them again after transfer;
+- emits an explicit one-shot claim event immediately before remote apply;
+- captures SSH return codes directly, with no Bash/zsh pipeline-status variable;
+- retains local and remote evidence on failed/unknown apply transport;
+- cleans temporary material automatically after successful completion;
+- never silently converts an apply transport error into a replayable state.
+
+The payload workflow now runs the host-wrapper focused tests and publishes the
+exact wrapper plus its SHA256 alongside the content-addressed payload.
+
+Current replacement CI:
+
+```text
+PR541_HEAD=6c821a88d1291c10220f2efd7b0e218e10935e2b
+MANAGER_STATE_BINDING_RUN=38129717751
+STAGING_PAYLOAD_RUN=38129717780
+STATUS=PENDING
+```
+
+No new live authorization exists. The consumed authorization
+`N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_01` remains permanently
+non-replayable.
