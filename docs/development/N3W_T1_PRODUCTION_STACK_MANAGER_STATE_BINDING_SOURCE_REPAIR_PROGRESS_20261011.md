@@ -176,3 +176,17 @@ If CI passes, the next live stage is a separately authorized staging transaction
 6. stage exact source/config/systemd/image artifacts;
 7. remain stopped before production Broker/Manager/Home Assistant activation unless the authorization explicitly covers activation.
 
+
+
+## 9. CI run
+
+A fresh PR run was created for the source-repair head.
+
+```text
+RUN_ID=38122562085
+WORKFLOW=N3W T1 production Manager state binding CI
+STATUS=QUEUED
+CI_REVIEW=PENDING
+```
+
+Other repository workflows were also triggered by the branch update; no result is promoted until each required job completes.
