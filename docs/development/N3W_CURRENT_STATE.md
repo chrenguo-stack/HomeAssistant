@@ -1,3 +1,22 @@
+> **2026-10-11 production Manager state root recognized but activation still blocked**：`/var/lib/greenhouse-manager` 已证明不是未知残留，而是与 H0/H1 portable-restore 角色布局高度一致的恢复根：含 RESTORE marker、system/manager identity、统一 `manager/manager-state.sqlite3`、broker snapshot；Manager SQLite `quick_check=ok`，无 symlink/special file。当前仍有三个未关闭边界：① root 实测 `root:root:0711`，而 accepted H0/H1 contract 冻结 root mode=0700，是否为后续 intentional access normalization 尚未证明；② `manager/registration.sqlite3` 实测为 root:root:0755 **目录**，不属于冻结 role layout，不能忽略/删除；③ portable restore marker 按 accepted source 必须 `activation_enabled=false` + `identity_claim_required_before_activation=true`，当前尚未读取 marker/identity-claim 状态。system identity/private-key members 为 999:999:0600，mode 合同一致但 ownership transition 尚需 authority。禁止 chmod/chown/delete/activation。Authority: `docs/development/N3W_T1_PRODUCTION_STACK_MANAGER_STATE_READONLY_CLASSIFICATION_PROGRESS_20261011.md`.
+
+```text
+MANAGER_STATE_ROOT_RECOGNIZED=true
+MANAGER_STATE_DATABASE_QUICK_CHECK=PASS
+UNEXPECTED_MANAGER_REGISTRATION_DIRECTORY=PRESENT
+ROOT_MODE_CLASSIFICATION=PENDING
+SYSTEM_MEMBER_OWNER_CLASSIFICATION=PENDING
+RESTORE_MARKER_CONTRACT=PENDING_READONLY_CHECK
+IDENTITY_CLAIM_STATE=PENDING_READONLY_CHECK
+ACTIVATION_READY=false
+NEXT_ONE_GATE=N3W_T1_PRODUCTION_STACK_RESTORE_IDENTITY_AND_MANAGER_ROOT_READONLY_FORENSIC_20261011_01
+LIVE_RUNTIME_MUTATION=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
 > **2026-10-11 production activation preexecution PARTIAL_PASS / staging required / Manager state classification pending**：fresh T1 read-only probe 保持 S20 closed baseline：0 containers、45 volumes + exact set SHA、两个项目网络为空、1883/8883/18883/8123/47112/47111 均无监听、guard active/enabled、post-S20 DynSec SHA exact、R5 snapshot exact、secret root 0700、transaction dir absent。三个 production images 均 ABSENT，/opt/HomeAssistant 与 production Compose/image-lock/HA config/Broker config、activation env/readiness/persistence/dispatcher、Broker/Services activation unit、certificate timer 均 ABSENT/not-found，统一分类为 STAGING_REQUIRED 而非 product failure。唯一尚未分类的 live target 是 `/var/lib/greenhouse-manager`：root:root:0711、top-level 8 entries；production Manager 将以 999:999 RW bind 此路径，因此必须先 read-only 证明这 8 项是否为后续 clean-product identity/state authority，禁止猜测、删除或 chown。Authority: `docs/development/N3W_T1_PRODUCTION_STACK_ACTIVATION_READONLY_PREEXECUTION_PROGRESS_20261011.md`.
 
 ```text
