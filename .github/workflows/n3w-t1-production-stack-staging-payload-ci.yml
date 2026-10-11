@@ -44,6 +44,7 @@ jobs:
   payload:
     runs-on: ubuntu-24.04
     env:
+      PYTHONDONTWRITEBYTECODE: "1"
       SOURCE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
       AUTHORIZATION_ID: N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_03
       MANAGER_ARTIFACT_RUN_ID: "38040433177"
@@ -307,7 +308,15 @@ jobs:
           sys.modules["staging"] = module
           spec.loader.exec_module(module)
           report = module._payload_report(root)
-          print(json.dumps(report, sort_keys=True, separators=(",", ":")))
+          manifest_report = module._payload_manifest_report(root)
+          print(
+              json.dumps(
+                  {"payload": report, "payload_manifest": manifest_report},
+                  sort_keys=True,
+                  separators=(",", ":"),
+              )
+          )
+          print("PAYLOAD_MANIFEST_FILE_SET=PASS")
           PY
 
           EXECUTOR_SHA="$(sha256sum "$PAYLOAD/tools/n3w_t1_production_stack_staging.py" | awk '{print $1}')"

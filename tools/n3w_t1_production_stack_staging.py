@@ -476,6 +476,73 @@ def _payload_report(payload_root: Path) -> dict[str, Any]:
     }
 
 
+def _payload_manifest_report(payload_root: Path) -> dict[str, Any]:
+    manifest_path = payload_root / "payload-manifest.json"
+    if manifest_path.is_symlink() or not manifest_path.is_file():
+        raise StagingError("payload_manifest_missing_or_unsafe")
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise StagingError("payload_manifest_invalid") from error
+
+    records = manifest.get("files")
+    if not isinstance(records, list):
+        raise StagingError("payload_manifest_files_invalid")
+
+    expected: dict[str, tuple[str, int]] = {}
+    for record in records:
+        if not isinstance(record, dict):
+            raise StagingError("payload_manifest_record_invalid")
+        relative = record.get("path")
+        digest = record.get("sha256")
+        size = record.get("size")
+        if (
+            not isinstance(relative, str)
+            or not relative
+            or relative == "payload-manifest.json"
+        ):
+            raise StagingError("payload_manifest_path_invalid")
+        relative_path = Path(relative)
+        if relative_path.is_absolute() or ".." in relative_path.parts:
+            raise StagingError(f"payload_manifest_path_unsafe:{relative}")
+        if relative in expected:
+            raise StagingError(f"payload_manifest_path_duplicate:{relative}")
+        if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
+            raise StagingError(f"payload_manifest_sha_invalid:{relative}")
+        if not isinstance(size, int) or isinstance(size, bool) or size < 0:
+            raise StagingError(f"payload_manifest_size_invalid:{relative}")
+        expected[relative] = (digest, size)
+
+    actual: dict[str, tuple[str, int]] = {}
+    for path in sorted(payload_root.rglob("*")):
+        relative = path.relative_to(payload_root).as_posix()
+        if path.is_symlink():
+            raise StagingError(f"payload_symlink_present:{relative}")
+        if not path.is_file() or relative == "payload-manifest.json":
+            continue
+        actual[relative] = (_sha256_file(path), path.stat().st_size)
+
+    expected_names = set(expected)
+    actual_names = set(actual)
+    if expected_names != actual_names:
+        missing = ",".join(sorted(expected_names - actual_names)) or "-"
+        unexpected = ",".join(sorted(actual_names - expected_names)) or "-"
+        raise StagingError(
+            "payload_manifest_file_set_drift:"
+            f"missing={missing}:unexpected={unexpected}"
+        )
+
+    for relative in sorted(expected_names):
+        expected_sha, expected_size = expected[relative]
+        actual_sha, actual_size = actual[relative]
+        if actual_size != expected_size:
+            raise StagingError(f"payload_manifest_size_drift:{relative}")
+        if actual_sha != expected_sha:
+            raise StagingError(f"payload_manifest_sha_drift:{relative}")
+
+    return {"file_count": len(expected), "exact": True}
+
+
 def _image_present(runner: Runner, image: str) -> bool:
     completed = subprocess.run(
         ("docker", "image", "inspect", image),
@@ -617,6 +684,7 @@ def preflight(runner: Runner, payload_root: Path) -> dict[str, Any]:
     if free_bytes < MIN_ROOT_AVAILABLE_BYTES:
         raise StagingError("root_capacity_insufficient")
     payload = _payload_report(payload_root)
+    payload_manifest = _payload_manifest_report(payload_root)
     return {
         "status": "PASS",
         "authorization_id": AUTHORIZATION_ID,
@@ -636,6 +704,7 @@ def preflight(runner: Runner, payload_root: Path) -> dict[str, Any]:
         "production_services": "stopped",
         "root_available_bytes": free_bytes,
         "payload": payload,
+        "payload_manifest": payload_manifest,
         "live_mutation": False,
         "production_service_start": False,
         "board_access": False,

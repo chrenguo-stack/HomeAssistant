@@ -10,6 +10,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 TOOL = ROOT / "tools/n3w_t1_production_stack_staging.py"
+PAYLOAD_WORKFLOW = ROOT / ".github/workflows/n3w-t1-production-stack-staging-payload-ci.yml"
 
 
 def load_tool():
@@ -91,6 +92,74 @@ def test_payload_report_requires_exact_sources_and_artifact(
     with pytest.raises(tool.StagingError, match="payload_source_sha_drift"):
         tool._payload_report(tmp_path)
 
+
+
+def test_payload_manifest_report_accepts_exact_file_set(tmp_path: Path) -> None:
+    tool = load_tool()
+    source = tmp_path / "source.txt"
+    source.write_text("source\n", encoding="utf-8")
+    (tmp_path / "payload-manifest.json").write_text(
+        json.dumps(
+            {
+                "files": [
+                    {
+                        "path": "source.txt",
+                        "sha256": tool._sha256_file(source),
+                        "size": source.stat().st_size,
+                    }
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    assert tool._payload_manifest_report(tmp_path) == {
+        "file_count": 1,
+        "exact": True,
+    }
+
+
+def test_payload_manifest_report_rejects_unmanifested_bytecode(
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    source = tmp_path / "source.txt"
+    source.write_text("source\n", encoding="utf-8")
+    (tmp_path / "payload-manifest.json").write_text(
+        json.dumps(
+            {
+                "files": [
+                    {
+                        "path": "source.txt",
+                        "sha256": tool._sha256_file(source),
+                        "size": source.stat().st_size,
+                    }
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    pycache = tmp_path / "tools/__pycache__"
+    pycache.mkdir(parents=True)
+    (pycache / "n3w_t1_production_stack_staging.cpython-312.pyc").write_bytes(
+        b"unexpected-bytecode"
+    )
+
+    with pytest.raises(
+        tool.StagingError,
+        match="payload_manifest_file_set_drift:.*unexpected=tools/__pycache__",
+    ):
+        tool._payload_manifest_report(tmp_path)
+
+
+def test_payload_workflow_guards_exact_manifest_file_set() -> None:
+    source = PAYLOAD_WORKFLOW.read_text(encoding="utf-8")
+
+    assert 'PYTHONDONTWRITEBYTECODE: "1"' in source
+    assert "module._payload_manifest_report(root)" in source
+    assert 'print("PAYLOAD_MANIFEST_FILE_SET=PASS")' in source
 
 def test_write_new_file_refuses_overwrite(tmp_path: Path) -> None:
     tool = load_tool()
