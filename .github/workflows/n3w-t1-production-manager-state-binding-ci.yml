@@ -34,7 +34,7 @@ jobs:
     env:
       MANAGER_SOURCE_SHA: 511db028780988a7c07cb9342c8be507380bae0f
       MANAGER_IMAGE_TAG: local/greenhouse-manager:s20-511db028
-      SYSTEM_FINGERPRINT: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      SYSTEM_ID_SHA256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
     steps:
       - uses: actions/checkout@v4
         with:
@@ -92,12 +92,13 @@ jobs:
           STATE="$RUNNER_TEMP/state"
           mkdir -p "$STATE/manager" "$STATE/n3w"
           chmod 700 "$STATE/manager" "$STATE/n3w"
-          python - "$STATE/manager/manager-state.sqlite3" "$SYSTEM_FINGERPRINT" <<'PY'
+          python - "$STATE/manager/manager-state.sqlite3" "$SYSTEM_ID_SHA256" <<'PY'
           import sqlite3
           import sys
 
           path = sys.argv[1]
-          fingerprint = sys.argv[2]
+          system_id_sha256 = sys.argv[2]
+          fingerprint = system_id_sha256[:24]
           connection = sqlite3.connect(path)
           try:
               connection.executescript(
@@ -142,9 +143,9 @@ jobs:
           STATE="$RUNNER_TEMP/state"
           BEFORE="$(docker volume ls -q | LC_ALL=C sort | sha256sum | awk '{print $1}')"
 
-          cat tools/n3w_t1_production_manager_state_prepare.py |             docker run --rm -i               --platform linux/arm64               --network none               --user 999:999               --read-only               --tmpfs /tmp:size=16m,mode=1777               --mount "type=bind,src=$STATE/manager,dst=/var/lib/greenhouse-manager/manager"               --mount "type=bind,src=$STATE/n3w,dst=/var/lib/greenhouse-manager/n3w"               --entrypoint python               "$MANAGER_IMAGE_TAG"               -               --phase prepare               --manager-db /var/lib/greenhouse-manager/manager/manager-state.sqlite3               --n3w-root /var/lib/greenhouse-manager/n3w               --expected-system-id-sha256 "$SYSTEM_FINGERPRINT"               > "$RUNNER_TEMP/state-prepare.json"
+          cat tools/n3w_t1_production_manager_state_prepare.py |             docker run --rm -i               --platform linux/arm64               --network none               --user 999:999               --read-only               --tmpfs /tmp:size=16m,mode=1777               --mount "type=bind,src=$STATE/manager,dst=/var/lib/greenhouse-manager/manager"               --mount "type=bind,src=$STATE/n3w,dst=/var/lib/greenhouse-manager/n3w"               --entrypoint python               "$MANAGER_IMAGE_TAG"               -               --phase prepare               --manager-db /var/lib/greenhouse-manager/manager/manager-state.sqlite3               --n3w-root /var/lib/greenhouse-manager/n3w               --expected-system-id-sha256 "$SYSTEM_ID_SHA256"               > "$RUNNER_TEMP/state-prepare.json"
 
-          cat tools/n3w_t1_production_manager_state_prepare.py |             docker run --rm -i               --platform linux/arm64               --network none               --user 999:999               --read-only               --tmpfs /tmp:size=16m,mode=1777               --mount "type=bind,src=$STATE/manager,dst=/var/lib/greenhouse-manager/manager"               --mount "type=bind,src=$STATE/n3w,dst=/var/lib/greenhouse-manager/n3w"               --entrypoint python               "$MANAGER_IMAGE_TAG"               -               --phase audit               --manager-db /var/lib/greenhouse-manager/manager/manager-state.sqlite3               --n3w-root /var/lib/greenhouse-manager/n3w               --expected-system-id-sha256 "$SYSTEM_FINGERPRINT"               > "$RUNNER_TEMP/state-audit.json"
+          cat tools/n3w_t1_production_manager_state_prepare.py |             docker run --rm -i               --platform linux/arm64               --network none               --user 999:999               --read-only               --tmpfs /tmp:size=16m,mode=1777               --mount "type=bind,src=$STATE/manager,dst=/var/lib/greenhouse-manager/manager"               --mount "type=bind,src=$STATE/n3w,dst=/var/lib/greenhouse-manager/n3w"               --entrypoint python               "$MANAGER_IMAGE_TAG"               -               --phase audit               --manager-db /var/lib/greenhouse-manager/manager/manager-state.sqlite3               --n3w-root /var/lib/greenhouse-manager/n3w               --expected-system-id-sha256 "$SYSTEM_ID_SHA256"               > "$RUNNER_TEMP/state-audit.json"
 
           grep -F '"status":"PASS"' "$RUNNER_TEMP/state-prepare.json"
           grep -F '"n3w_state_prepared":true' "$RUNNER_TEMP/state-prepare.json"
