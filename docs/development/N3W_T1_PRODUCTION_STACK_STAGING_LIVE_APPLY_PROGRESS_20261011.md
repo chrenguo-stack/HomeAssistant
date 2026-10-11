@@ -473,3 +473,112 @@ PR_MERGE=false
 Starting the executor's `apply` phase with the exact authorization ID is the
 claim point. From that moment the authorization is one-shot and must never be
 replayed, even if transport is interrupted or the executor rolls back.
+
+
+## 11. One-shot staging apply consumed with rollback PASS
+
+The exact payload apply phase was started under the granted one-shot authorization.
+
+Observed execution:
+
+```text
+fresh_preflight=PASS
+state_root_prepare=PASS
+manager_image_load=START
+manager_image_load=STOP
+reason=image_binding_drift:local/greenhouse-manager:s20-511db028
+rollback_status=PASS
+rollback_errors=[]
+production_service_start=false
+board_access=false
+```
+
+By the frozen authorization contract, entering `--phase apply` permanently claims
+and consumes the authorization, regardless of rollback outcome.
+
+```text
+AUTHORIZATION_ID=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_01
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+AUTHORIZATION_RESULT=FAILED_ROLLBACK_PASS
+REPLAY_FORBIDDEN=true
+```
+
+The failure occurred after the exact empty legacy collision directory was
+removed and the empty N3-W root was created, then after `docker load`. The
+executor's rollback reported PASS with zero errors. Its rollback postcheck
+therefore re-proved the production baseline and removed the loaded Manager image
+reference before returning STOP.
+
+No Broker, Manager or Home Assistant production service was started.
+
+### Image identity oracle defect
+
+The frozen Manager tar itself is exact:
+
+```text
+MANAGER_TAR_SHA256=2ef0421d483334f6ef81c92beb1b6784174f069a4bde179ba615ce0b70435081
+MANAGER_CONFIG_DIGEST=sha256:ef0f28c2fd339430a85acb6cb65158c71c61cd8fc3c6330c375da27d0f2440f1
+MANAGER_OCI_TARGET_DIGEST=sha256:abd9560c978b69429eea734df216664ea643ed762a77777dcb816f5d537afad6
+```
+
+The staging executor incorrectly required Docker image inspect `.Id` to equal
+the config digest only. Docker's containerd image-store implementation instead
+uses the image target descriptor digest as the inspect ID. The same portability
+problem would also affect the digest-pinned Home Assistant and Broker images.
+
+Source repair now treats both storage models as exact, without weakening the
+content lock:
+
+- classic image store: image ID must equal the exact config digest;
+- containerd image store: image ID must equal the exact OCI target/manifest
+  digest;
+- if an OCI Descriptor is present, its digest must equal the exact expected
+  target digest;
+- OS/architecture must remain exactly `linux/arm64`;
+- any other ID or descriptor still fails closed.
+
+Source repair commits:
+
+```text
+bb0be92dbffcb86536c71ab59114cae7e63540c9
+fix(n3w): support Docker containerd image identity
+
+1b7a610499e4f6586536d3c2d968353f1a98ec52
+test(n3w): cover classic and containerd image identities
+
+d136bdbde8df9fcf38330ef8afa3957016c6eeb3
+fix(n3w): complete cross-store image identity wiring
+
+80ecf3048b1cf138b2a3d7412eed846777136b77
+ci(n3w): bind Manager config and OCI target digests
+```
+
+### Mac wrapper transport defect
+
+After the executor had already returned its STOP + rollback PASS result, the Mac
+wrapper itself failed at:
+
+```text
+zsh: PIPESTATUS[0]: parameter not set
+```
+
+That is a separate host-wrapper defect: `PIPESTATUS` is Bash-specific while the
+operator shell is zsh. It did not cause the executor failure and did not change
+the rollback result. Future live wrappers must capture the SSH return code
+without a shell-specific pipeline array; the next version must be repository
+owned and tested before another live authorization is requested.
+
+Current boundary:
+
+```text
+KF106=OPEN_SOURCE_REPAIR_CI_PENDING
+KF078=OPEN_HOST_WRAPPER_RECURRENCE
+PRODUCTION_ROLLBACK=PASS
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+REPLAY_FORBIDDEN=true
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+PR_MERGE=false
+```
