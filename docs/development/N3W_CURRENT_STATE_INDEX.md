@@ -1,4 +1,4 @@
-> **2026-10-11 R4 pending CI**：fresh host transport 已实现 payload-aware 容量计算和顺序 image-tar release 合同；read-only preflight 在任何大文件传输前完成。当前 CLI 不开放 apply。下一门 R5 为 host-only isolated full-fresh CI。
+> **2026-10-12 R4 CLOSED_PASS / R5 pending CI**：fresh transport exact artifact #11709005237 已通过上传后复核；host-only full-fresh install CI 已提交，真实 T1 不变。\n\n> **2026-10-11 R4 pending CI**：fresh host transport 已实现 payload-aware 容量计算和顺序 image-tar release 合同；read-only preflight 在任何大文件传输前完成。当前 CLI 不开放 apply。下一门 R5 为 host-only isolated full-fresh CI。
 
 > **2026-10-11 R3 source repair pending CI**：minimal-host fresh installer orchestration 已落地；R1 fresh-state core 已提升为 Manager package 正式模块，旧 tool 只保留 CLI wrapper。下一步 R4 处理 host wrapper 与 artifact transport；当前 T1 不变。
 
