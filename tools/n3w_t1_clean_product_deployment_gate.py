@@ -85,7 +85,21 @@ HA_COMPONENT_SOURCE = (
     "n3w_mqtt_bootstrap"
 )
 HA_STATE_SOURCE = "/var/lib/n3wfc4-homeassistant"
-MANAGER_STATE_SOURCE = "/var/lib/greenhouse-manager"
+MANAGER_PORTABLE_ROOT = "/var/lib/greenhouse-manager"
+MANAGER_STATE_SOURCE = "/var/lib/greenhouse-manager/manager"
+MANAGER_N3W_STATE_SOURCE = "/var/lib/greenhouse-manager/n3w"
+MANAGER_DATABASE = (
+    "/var/lib/greenhouse-manager/manager/manager-state.sqlite3"
+)
+MANAGER_REPLAY_DATABASE = (
+    "/var/lib/greenhouse-manager/n3w/replay.sqlite3"
+)
+MANAGER_RELAY_AUTH_DATABASE = (
+    "/var/lib/greenhouse-manager/n3w/relay-authorization.sqlite3"
+)
+MANAGER_RELAY_KEY_DIR = (
+    "/var/lib/greenhouse-manager/n3w/relay-keys"
+)
 
 
 class DeploymentContractError(ValueError):
@@ -346,7 +360,14 @@ def _require_manager_environment(
         "GH_MQTT_TLS": "true",
         "GH_MQTT_CA_FILE": MANAGER_CA_TARGET,
         "GH_HA_DISCOVERY_ENABLED": "true",
+        "GH_PAIRING_DB_PATH": MANAGER_DATABASE,
+        "GH_HISTORY_DB_PATH": MANAGER_DATABASE,
         "GH_N3W_RUNTIME_ENABLED": "true",
+        "GH_N3W_REPLAY_DB_PATH": MANAGER_REPLAY_DATABASE,
+        "GH_N3W_RELAY_AUTHORIZATION_DB_PATH": (
+            MANAGER_RELAY_AUTH_DATABASE
+        ),
+        "GH_N3W_RELAY_KEY_DIR": MANAGER_RELAY_KEY_DIR,
         "GH_N3W_PRODUCT_PAIRING_ENABLED": "false",
         "GH_N3W_PAIRING_MANAGER_ID": "gh-manager-greenhouse",
         "GH_N3W_PAIRING_ADVERTISED_HOST": "auto",
@@ -491,6 +512,19 @@ def validate_compose_document(
     )
     _require_bind(
         manager,
+        source=MANAGER_N3W_STATE_SOURCE,
+        target=MANAGER_N3W_STATE_SOURCE,
+        read_only=False,
+    )
+    if any(
+        mount.get("target") == MANAGER_PORTABLE_ROOT
+        for mount in _mounts(manager)
+    ):
+        raise DeploymentContractError(
+            "manager_portable_root_mount_forbidden"
+        )
+    _require_bind(
+        manager,
         source=MANAGER_SECRET_SOURCE,
         target=MANAGER_PASSWORD_TARGET,
         read_only=True,
@@ -605,6 +639,17 @@ def validate_compose_document(
         "manager_ports_absent": True,
         "manager_secret_file_count": 2,
         "manager_secret_targets_distinct": True,
+        "manager_portable_root_mounted": False,
+        "manager_runtime_state_mounts": [
+            MANAGER_STATE_SOURCE,
+            MANAGER_N3W_STATE_SOURCE,
+        ],
+        "manager_pairing_database": MANAGER_DATABASE,
+        "manager_replay_database": MANAGER_REPLAY_DATABASE,
+        "manager_relay_authorization_database": (
+            MANAGER_RELAY_AUTH_DATABASE
+        ),
+        "manager_relay_key_dir": MANAGER_RELAY_KEY_DIR,
         "homeassistant_image": EXPECTED_HA_IMAGE,
         "homeassistant_host_network": True,
         "homeassistant_ports_absent": True,
