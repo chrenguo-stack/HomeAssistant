@@ -49,6 +49,12 @@ jobs:
       MANAGER_SOURCE_SHA: 511db028780988a7c07cb9342c8be507380bae0f
       MANAGER_IMAGE_TAG: local/greenhouse-manager:s20-511db028
       SYSTEM_ID_SHA256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      GH_SYSTEM_ID: freshci01
+      GH_MQTT_USERNAME: ghs_freshci01_manager
+      GH_MQTT_CLIENT_ID: gh-manager-freshci01
+      GH_N3W_PAIRING_MANAGER_ID: gh-manager-freshci01
+      GH_N3W_PROVISIONING_USERNAME: ghs_freshci01_provisioning
+      GH_N3W_PROVISIONING_CLIENT_ID: gh-provisioning-freshci01
     steps:
       - uses: actions/checkout@v4
         with:
