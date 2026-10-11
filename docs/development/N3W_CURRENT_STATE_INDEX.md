@@ -1,3 +1,17 @@
+> **2026-10-11 successor staging apply CLAIMED / IN PROGRESS**：repository-owned host wrapper 已输出 `apply_transport_invoked`，因此 authorization `N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02` 已永久 claimed+consumed，禁止 replay。当前 host wrapper 尚未返回最终 executor 结果；其实现使用 `subprocess.run(..., capture_output=True)`，remote stdout/stderr 会在 SSH 子进程结束后才一次性回传，所以 image load/pull 等长步骤期间原 Terminal 可能长时间静默，这本身不是失败证据。原 Terminal 必须保持运行；并行只允许 read-only observation。
+
+```text
+AUTHORIZATION_STATE=CLAIMED_IN_PROGRESS
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+REPLAY_FORBIDDEN=true
+FINAL_TRANSACTION_RESULT=UNKNOWN
+PRODUCTION_SERVICE_START=NOT_YET_OBSERVED
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
 > **2026-10-11 successor staging authorization GRANTED_PENDING_CLAIM**：用户已明确批准 exact authorization `N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02`。successor payload binding 与 fresh T1 preflight 均已 PASS；当前尚未 claim/consume。只允许 repository-owned host wrapper + artifact `11697988392` 进入单次 staging-only apply。host wrapper 发出 `apply_transport_invoked` 即为 claim 点；此后无论 PASS、rollback、SSH 中断或 host error 都永久 no-replay。生产服务启动、unit enable、dispatcher install、reboot、board access、PR merge 仍禁止。
 
 ```text
