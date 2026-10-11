@@ -1,3 +1,5 @@
+> **2026-10-11 authority superseded by minimal-host-baseline decision**：本文件此前允许“保留 Armbian/SSH/网络/Docker，同时在正式 staging 前保留一批已预创建的温室产品状态”。用户现进一步冻结 `TARGET_T1_BASELINE=ARMBIAN + DOCKER + NETWORK ONLY`；所有温室产品 identity、secret、CA/TLS、DynSec、Manager DB、HA config、Docker volumes/networks、产品 systemd/dispatcher/guard 均必须由正式 bootstrap 从零创建，不再允许作为部署前提。新的 current authority：`docs/development/N3W_T1_MINIMAL_HOST_BASELINE_AND_FRESH_PRODUCT_BOOTSTRAP_DECISION_20261011.md`。本文件保留历史清理证据与 ownership 结论，不再定义正式安装起点。
+
 # N3-W T1 温室软件环境全新部署：保留 Armbian（2026-10-10）
 
 ## 0. 用户明确的新授权与覆盖关系

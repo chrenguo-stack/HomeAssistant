@@ -53,7 +53,7 @@ def test_remote_temp_uses_root_backed_var_tmp(
     assert path == "/var/tmp/n3w-staging-preflight.ABC123"
     assert captured["command"][:3] == ("ssh", "-n", "root@example")
     assert "mktemp -d /var/tmp/n3w-staging-preflight.XXXXXX" in captured["command"][3]
-    assert "/tmp/n3w-staging-preflight" not in captured["command"][3]
+    assert "mktemp -d /tmp/" not in captured["command"][3]
     assert captured["kwargs"]["timeout"] == 60
 
 
