@@ -70,6 +70,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: 38040433177
           path: ${{ runner.temp }}/n3w-s20-image-binding
+          merge-multiple: true
 
       - name: Load exact frozen ARM64 Manager image
         run: |
