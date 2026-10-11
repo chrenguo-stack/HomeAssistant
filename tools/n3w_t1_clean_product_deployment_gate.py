@@ -38,7 +38,7 @@ EXPECTED_HA_SOURCE_REF = "ghcr.io/home-assistant/home-assistant:2026.10.0"
 EXPECTED_HA_DIGEST = (
     "sha256:0c73235a9140a9b02e4bf618d06d8c496b12ae70656ecddb0e02ad31ad122be4"
 )
-EXPECTED_HA_IMAGE = f"{EXPECTED_HA_SOURCE_REF}@{EXPECTED_HA_DIGEST}"
+EXPECTED_HA_IMAGE = "local/n3w-homeassistant:2026.10.0-0c73235a"
 EXPECTED_HA_IMAGE_ID = (
     "sha256:b0e1ee82adfb19fa1ff3049034535633b1c4f0df6606721c0e77383854b99879"
 )
@@ -49,9 +49,7 @@ EXPECTED_BROKER_SOURCE_REF = (
 EXPECTED_BROKER_DIGEST = (
     "sha256:3184566df484a083411a0e70e92c87a264b8f0648df632f10eb23d54d99f4549"
 )
-EXPECTED_BROKER_IMAGE = (
-    f"{EXPECTED_BROKER_SOURCE_REF}@{EXPECTED_BROKER_DIGEST}"
-)
+EXPECTED_BROKER_IMAGE = "local/n3w-mosquitto:2.1.2-3184566d"
 EXPECTED_BROKER_IMAGE_ID = (
     "sha256:4c199d7c9d377d018313a2199f6839978f6fd2219c405ad664d0a830c14b9c7b"
 )
@@ -439,6 +437,7 @@ def validate_image_lock_document(document: object) -> dict[str, object]:
         or homeassistant.get("entrypoint") != ["/init"]
         or homeassistant.get("effective_default_uid") != 0
         or homeassistant.get("effective_default_gid") != 0
+        or homeassistant.get("pull_policy") != "never"
     ):
         raise DeploymentContractError("homeassistant_image_lock_invalid")
 
@@ -449,6 +448,7 @@ def validate_image_lock_document(document: object) -> dict[str, object]:
         or broker.get("image_id") != EXPECTED_BROKER_IMAGE_ID
         or broker.get("platform") != "linux/arm64"
         or broker.get("entrypoint") != ["/docker-entrypoint.sh"]
+        or broker.get("pull_policy") != "never"
     ):
         raise DeploymentContractError("broker_image_lock_invalid")
 
@@ -544,6 +544,8 @@ def validate_compose_document(
 
     if homeassistant.get("image") != EXPECTED_HA_IMAGE:
         raise DeploymentContractError("homeassistant_image_invalid")
+    if homeassistant.get("pull_policy") != "never":
+        raise DeploymentContractError("homeassistant_pull_policy_invalid")
     _require_restart_no(homeassistant, "homeassistant")
     _require_profile(homeassistant, "homeassistant")
     _require_host_network_no_ports(homeassistant, "homeassistant")
@@ -581,6 +583,8 @@ def validate_compose_document(
 
     if broker.get("image") != EXPECTED_BROKER_IMAGE:
         raise DeploymentContractError("broker_image_invalid")
+    if broker.get("pull_policy") != "never":
+        raise DeploymentContractError("broker_pull_policy_invalid")
     _require_restart_no(broker, "broker")
     broker_networks = _broker_networks(document, broker)
     _require_bind(
