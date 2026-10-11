@@ -30,7 +30,7 @@ from greenhouse_manager.runtime.service_identity_plan import (
 )
 
 AUTHORIZATION_ID = (
-    "N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_R4_20261010_01"
+    "N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_R5_20261011_01"
 )
 SCHEMA = "gh.n3w-t1-s20-real-three-service-secret-handoff/1"
 SYSTEM_ID = "greenhouse"
@@ -98,6 +98,9 @@ TLS_KEY = TLS_DIR / "server.key"
 BROKER_TLS_CA_TARGET = "/mosquitto/config/n3w-ca.pem"
 BROKER_TLS_CERT_TARGET = "/mosquitto/config/n3w-server.pem"
 BROKER_TLS_KEY_TARGET = "/mosquitto/config/n3w-server.key"
+BROKER_TLS_PORT = 8883
+BROKER_TLS_SERVER_NAME = "armbian"
+BROKER_LOOPBACK_IP = "127.0.0.1"
 BROKER_LOG_TARGET = "/mosquitto/log"
 R1_EVIDENCE_SNAPSHOT = Path(
     "/etc/n3wfc4/private/dynsec-s20-pre-three-service.json"
@@ -108,8 +111,11 @@ R2_EVIDENCE_SNAPSHOT = Path(
 R3_EVIDENCE_SNAPSHOT = Path(
     "/etc/n3wfc4/private/dynsec-s20-r3-pre-three-service.json"
 )
-ROLLBACK_SNAPSHOT = Path(
+R4_EVIDENCE_SNAPSHOT = Path(
     "/etc/n3wfc4/private/dynsec-s20-r4-pre-three-service.json"
+)
+ROLLBACK_SNAPSHOT = Path(
+    "/etc/n3wfc4/private/dynsec-s20-r5-pre-three-service.json"
 )
 SECRET_PARENT = Path("/opt/greenhouse-secrets")
 SECRET_ROOT = SECRET_PARENT / "mqtt"
@@ -525,22 +531,23 @@ def _verify_retained_attempt_snapshots() -> None:
     _verify_evidence_snapshot(R1_EVIDENCE_SNAPSHOT, "r1")
     _verify_evidence_snapshot(R2_EVIDENCE_SNAPSHOT, "r2")
     _verify_evidence_snapshot(R3_EVIDENCE_SNAPSHOT, "r3")
+    _verify_evidence_snapshot(R4_EVIDENCE_SNAPSHOT, "r4")
 
 
-def _verify_r4_snapshot_if_present() -> str:
+def _verify_r5_snapshot_if_present() -> str:
     if not (ROLLBACK_SNAPSHOT.exists() or ROLLBACK_SNAPSHOT.is_symlink()):
         return "absent"
     if ROLLBACK_SNAPSHOT.is_symlink() or not ROLLBACK_SNAPSHOT.is_file():
-        raise S20ServiceHandoffError("r4_rollback_snapshot_unsafe")
+        raise S20ServiceHandoffError("r5_rollback_snapshot_unsafe")
     info = ROLLBACK_SNAPSHOT.stat()
     if (
         info.st_uid != 0
         or info.st_gid != 0
         or stat.S_IMODE(info.st_mode) != 0o600
     ):
-        raise S20ServiceHandoffError("r4_rollback_snapshot_owner_mode_drift")
+        raise S20ServiceHandoffError("r5_rollback_snapshot_owner_mode_drift")
     if _sha256_path(ROLLBACK_SNAPSHOT) != EXPECTED_DYNSEC_SHA256:
-        raise S20ServiceHandoffError("r4_rollback_snapshot_sha_drift")
+        raise S20ServiceHandoffError("r5_rollback_snapshot_sha_drift")
     return "exact"
 
 
@@ -563,11 +570,12 @@ def _verify_tls_material() -> None:
 
 
 def _verify_broker_config_tls_contract() -> None:
-    directives = {
+    lines = [
         line.strip()
         for line in BROKER_CONFIG.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    }
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    directives = set(lines)
     expected = {
         f"cafile {BROKER_TLS_CA_TARGET}",
         f"certfile {BROKER_TLS_CERT_TARGET}",
@@ -575,6 +583,32 @@ def _verify_broker_config_tls_contract() -> None:
     }
     if not expected.issubset(directives):
         raise S20ServiceHandoffError("broker_tls_path_contract_drift")
+    listener_ports: list[int] = []
+    for line in lines:
+        fields = line.split()
+        if fields[0] != "listener":
+            continue
+        if len(fields) < 2 or not fields[1].isdigit():
+            raise S20ServiceHandoffError("broker_tls_listener_contract_drift")
+        listener_ports.append(int(fields[1]))
+    if listener_ports != [BROKER_TLS_PORT]:
+        raise S20ServiceHandoffError("broker_tls_listener_contract_drift")
+
+
+def _verify_tls_server_name_contract(runner: CommandRunner) -> None:
+    _run_required(
+        runner,
+        (
+            "openssl",
+            "x509",
+            "-in",
+            str(TLS_CERT),
+            "-noout",
+            "-checkhost",
+            BROKER_TLS_SERVER_NAME,
+        ),
+        "tls_server_name_contract_drift",
+    )
 
 
 def build_preclaim_report(
@@ -669,8 +703,9 @@ def build_preclaim_report(
         secret_parent_state = "safe_existing"
     _verify_retained_attempt_snapshots()
     _verify_tls_material()
+    _verify_tls_server_name_contract(runner)
     if ROLLBACK_SNAPSHOT.exists() or ROLLBACK_SNAPSHOT.is_symlink():
-        raise S20ServiceHandoffError("r4_rollback_snapshot_exists")
+        raise S20ServiceHandoffError("r5_rollback_snapshot_exists")
     if TRANSACTION_DIR.exists() or TRANSACTION_DIR.is_symlink():
         raise S20ServiceHandoffError("transaction_directory_exists")
     dynsec = validate_preclaim_dynsec(_load_dynsec(DYNSEC_PATH))
@@ -700,9 +735,11 @@ def build_preclaim_report(
         "r1_retained_snapshot_verified": True,
         "r2_retained_snapshot_verified": True,
         "r3_retained_snapshot_verified": True,
+        "r4_retained_snapshot_verified": True,
         "tls_file_bind_contract_verified": True,
+        "broker_tls_server_name_verified": True,
         "rollback_snapshot_absent": True,
-        "r4_rollback_snapshot_absent": True,
+        "r5_rollback_snapshot_absent": True,
         "exact_broker_image_local_arm64": True,
         "broker_image": broker_image,
         "live_mutation": False,
@@ -763,8 +800,9 @@ def _client_config(
     client_id: str | None,
 ) -> str:
     lines = [
-        "-h 127.0.0.1",
-        "-p 1883",
+        f"-h {BROKER_TLS_SERVER_NAME}",
+        f"-p {BROKER_TLS_PORT}",
+        f"--cafile {BROKER_TLS_CA_TARGET}",
         f"-u {username}",
         f"-P {password}",
         "-V 5",
@@ -851,6 +889,8 @@ def _start_broker(runner: CommandRunner) -> None:
         CONTAINER_NAME,
         "--network",
         "none",
+        "--add-host",
+        f"{BROKER_TLS_SERVER_NAME}:{BROKER_LOOPBACK_IP}",
         "--tmpfs",
         BROKER_LOG_TARGET,
         "-v",
@@ -1057,9 +1097,11 @@ def _verify_authentication(
             CONTAINER_NAME,
             "mosquitto_pub",
             "-h",
-            "127.0.0.1",
+            BROKER_TLS_SERVER_NAME,
             "-p",
-            "1883",
+            str(BROKER_TLS_PORT),
+            "--cafile",
+            BROKER_TLS_CA_TARGET,
             "-V",
             "5",
             "-q",
@@ -1111,7 +1153,7 @@ def _apply_dynsec(
 
 
 def _restore_snapshot() -> None:
-    if _verify_r4_snapshot_if_present() != "exact":
+    if _verify_r5_snapshot_if_present() != "exact":
         raise S20ServiceHandoffError("rollback_snapshot_unavailable")
     temporary = DYNSEC_PATH.with_name(".dynamic-security.s20-rollback.tmp")
     temporary.unlink(missing_ok=True)
@@ -1289,7 +1331,7 @@ def _rollback_postcheck(runner: CommandRunner) -> dict[str, object]:
             "rollback_postcheck_transaction_directory_present"
         )
     _verify_retained_attempt_snapshots()
-    r4_snapshot_state = _verify_r4_snapshot_if_present()
+    r4_snapshot_state = _verify_r5_snapshot_if_present()
     return {
         "docker_container_count": 0,
         "docker_volume_count": volume_count,
@@ -1306,14 +1348,15 @@ def _rollback_postcheck(runner: CommandRunner) -> dict[str, object]:
         "r1_retained_snapshot_verified": True,
         "r2_retained_snapshot_verified": True,
         "r3_retained_snapshot_verified": True,
-        "r4_rollback_snapshot_state": r4_snapshot_state,
+        "r4_retained_snapshot_verified": True,
+        "r5_rollback_snapshot_state": r4_snapshot_state,
     }
 
 
 def _postcheck(runner: CommandRunner) -> dict[str, object]:
     _verify_retained_attempt_snapshots()
-    if _verify_r4_snapshot_if_present() != "exact":
-        raise S20ServiceHandoffError("postcheck_r4_snapshot_missing")
+    if _verify_r5_snapshot_if_present() != "exact":
+        raise S20ServiceHandoffError("postcheck_r5_snapshot_missing")
     if TRANSACTION_DIR.exists() or TRANSACTION_DIR.is_symlink():
         raise S20ServiceHandoffError("postcheck_transaction_directory_present")
     containers = [
@@ -1377,7 +1420,8 @@ def _postcheck(runner: CommandRunner) -> dict[str, object]:
         "r1_retained_snapshot_verified": True,
         "r2_retained_snapshot_verified": True,
         "r3_retained_snapshot_verified": True,
-        "r4_rollback_snapshot_verified": True,
+        "r4_retained_snapshot_verified": True,
+        "r5_rollback_snapshot_verified": True,
     }
 
 
