@@ -888,3 +888,123 @@ PR_MERGE=false
 
 The correct operator action is to leave the original terminal/process running.
 Any parallel observation must be strictly read-only.
+
+
+## 18. Successor apply #02 consumed: external image pull timeout / rollback PASS
+
+The successor staging apply was invoked through the repository-owned host wrapper
+under authorization:
+
+```text
+N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02
+```
+
+Observed exact execution:
+
+```text
+HOST_WRAPPER_BINDING=PASS
+apply_transport_invoked=true
+authorization_claimed=true
+
+fresh_preflight=PASS
+state_root_prepare=PASS
+manager_image_load=PASS
+manager_state_prepare=PASS
+production_image_pull=START
+
+STOP:
+TimeoutExpired:
+docker pull --platform linux/arm64
+ghcr.io/home-assistant/home-assistant:2026.10.0@
+sha256:0c73235a9140a9b02e4bf618d06d8c496b12ae70656ecddb0e02ad31ad122be4
+timed out after 1200 seconds
+
+rollback_status=PASS
+rollback_errors=[]
+production_service_start=false
+board_access=false
+
+host_transport=FAILED_OR_UNKNOWN
+ssh_returncode=2
+HOST_WRAPPER_RC=2
+```
+
+The executor itself returned a structured STOP with rollback PASS, so the
+transaction result is known even though the host wrapper conservatively labels
+all nonzero SSH exits as `FAILED_OR_UNKNOWN`.
+
+Authorization disposition:
+
+```text
+AUTHORIZATION_ID=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02
+AUTHORIZATION_STATE=CONSUMED_FAILED_ROLLBACK_PASS
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+REPLAY_FORBIDDEN=true
+```
+
+No production service was started.
+
+### KF-107 classification
+
+The immediate failure is an external registry pull timeout. The lower-level
+network cause is not proven.
+
+A separate design defect is proven: the one-shot post-claim staging transaction
+contained required Internet registry pulls. Therefore a transient registry or
+network delay could consume the one-shot authorization after local staging
+mutation had already begun.
+
+```text
+KF107=OPEN_SOURCE_REPAIR
+DOMAIN=INFRASTRUCTURE
+NETWORK_ROOT_CAUSE=TBD
+PRODUCT_RUNTIME_FAILURE_PROVEN=false
+ROLLBACK=PASS
+```
+
+### Source repair direction
+
+The live staging transaction must no longer depend on external image registry
+access.
+
+The payload CI now materializes the exact digest-pinned ARM64 Home Assistant and
+Broker images before T1 execution, saves both as image tar files, removes their
+local refs, reloads the tars, and re-verifies the exact digest/platform contract.
+The content-addressed staging payload then carries:
+
+```text
+artifact/greenhouse-manager-arm64.tar
+artifact/homeassistant-arm64.tar
+artifact/broker-arm64.tar
+```
+
+The T1 executor replaces live `docker pull` with local `docker load` for all
+three images and verifies the same exact image identity contract after load.
+
+Source repair commits:
+
+```text
+6c7bedf7aa99f51a7c03a5dedc7fd6c1321dff36
+fix(n3w): remove live registry pulls from staging apply
+
+1e7c934d3b5a955fb23f551b95dfe1009048b495
+test(n3w): guard offline staging image payload
+
+07ad3a561997d5e0065770248ca4b4b606dd1d28
+ci(n3w): freeze external images into staging payload
+```
+
+The authorization identity is rotated again:
+
+```text
+PREDECESSOR=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02
+PREDECESSOR_STATE=CONSUMED_FAILED_ROLLBACK_PASS
+
+SUCCESSOR=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_03
+SUCCESSOR_STATE=NOT_GRANTED
+```
+
+No `..._03` live execution is allowed until the new large payload CI, exact
+artifact binding, fresh T1 read-only preflight, and explicit operator approval
+all pass.
