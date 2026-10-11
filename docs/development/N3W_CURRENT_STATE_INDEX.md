@@ -1,3 +1,22 @@
+> **2026-10-11 S20 R4 volume drift recovery CLOSED_PASS / recurrence source repair implemented**：exact R4 orphan volume 已在 bounded authorization `N3W_T1_S20_R4_BOUNDED_EXTRA_VOLUME_RECOVERY_20261011_01` 下唯一删除，authorization 已 CLAIMED+CONSUMED，postcheck 恢复 frozen 45-volume set SHA `20fc845741d31da34f1d1e563e5057c78ec5dc7c4cfd3a495a5f3a4f2bfd011b`，其余 DynSec/Broker config/network/guard/listener 基线不变。为防复发，S20 transaction Broker 已显式加入 `--tmpfs /mosquitto/log`，不再让 image-declared `/mosquitto/log` 自动生成匿名 Docker volume；focused source test 已补强。Docker-isolated lifecycle proof 已并入既有 `N3W T1 S20 real service handoff CI`，首版 fixture 因错误从 `.Mounts` 查 tmpfs 而失败，已修正为读取 `.HostConfig.Tmpfs`；当前 corrected run `38101584262` 尚待完成。当前不得进入 R5。Authority: `docs/development/N3W_T1_S20_TRANSACTION_BROKER_LOG_VOLUME_LEAK_SOURCE_REPAIR_PROGRESS_20261011.md`.
+
+```text
+R4_VOLUME_DRIFT_RECOVERED=true
+DOCKER_VOLUME_COUNT=45
+DOCKER_VOLUME_SET_SHA256=20fc845741d31da34f1d1e563e5057c78ec5dc7c4cfd3a495a5f3a4f2bfd011b
+R4_RECOVERY_AUTHORIZATION_CONSUMED=true
+TRANSACTION_BROKER_LOG_BACKING=tmpfs
+ANONYMOUS_LOG_VOLUME_RECURRENCE_SOURCE_REPAIR_IMPLEMENTED=true
+DOCKER_ISOLATED_PROOF_PENDING=true
+NEXT_ONE_GATE=N3W_T1_S20_TRANSACTION_BROKER_LOG_VOLUME_LEAK_SOURCE_REPAIR_CI_REVIEW
+LIVE_T1_MUTATION=false
+PRODUCTION_SERVICE_START=false
+R5_APPLY=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
 > **2026-10-11 R4 bounded extra-volume recovery authorization GRANTED**：用户已明确授权 `N3W_T1_S20_R4_BOUNDED_EXTRA_VOLUME_RECOVERY_20261011_01`。授权当前仅为 GRANTED，尚未 CLAIMED / CONSUMED。唯一允许删除的对象是已由 Docker events 直接证明属于 R4 transaction container `/mosquitto/log` 的匿名 volume `a16dba0851cd3fee17660cf65029622951c7b7d99cbe066b9d177605b62db2e7`。执行前必须重新证明 46-volume frozen set、candidate identity/refcount=0 及安全基线；任一 precheck 漂移则停止且不消费授权。授权一旦执行唯一 `docker volume rm` 即视为 consumed，无论成功失败均不允许第二次删除。目标 postcheck：45 volumes + frozen set SHA `20fc845741d31da34f1d1e563e5057c78ec5dc7c4cfd3a495a5f3a4f2bfd011b`，其余基线不变。禁止 production Broker/Manager/HA start、R5 apply、board access、PR merge。Authority: `docs/development/N3W_T1_S20_R4_BOUNDED_EXTRA_VOLUME_RECOVERY_AUTHORIZATION_20261011.md`.
 
 > **2026-10-11 S20 R4 extra Docker volume readonly attribution CLOSED_PASS**：fresh T1 baseline 仍为 0 containers / 46 volumes，volume set SHA `918671f5...`，DynSec/Broker config/guard/networks 均保持冻结状态。唯一新增匿名 volume 已被 Docker event 直接绑定到 R4 transaction container `0c8b4bb8...` 的 `/mosquitto/log`：同秒 create+mount，R4 container destroy 时 unmount；exact Mosquitto image 声明 `/mosquitto/data` 与 `/mosquitto/log`，R4 executor 只显式 bind `/mosquitto/data`，因此该 volume 的 R4 provenance 已从 inference 升级为 PROVEN。当前无任何 container 引用该 volume。只读 gate 已 PASS，但删除尚未授权；下一阶段只能设计并等待单一 volume bounded recovery authorization，禁止进入 R5 或启动 production services。
