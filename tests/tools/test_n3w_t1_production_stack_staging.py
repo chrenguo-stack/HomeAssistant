@@ -425,3 +425,12 @@ def test_image_report_rejects_descriptor_drift() -> None:
             expected_config_digest=tool.EXPECTED_MANAGER_IMAGE_CONFIG_DIGEST,
             expected_target_digest=tool.EXPECTED_MANAGER_IMAGE_TARGET_DIGEST,
         )
+
+
+def test_staging_authorization_id_rotated_after_consumed_attempt() -> None:
+    tool = load_tool()
+
+    assert (
+        tool.AUTHORIZATION_ID
+        == "N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02"
+    )
