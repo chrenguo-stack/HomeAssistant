@@ -2,7 +2,7 @@
 
 Date: 2026-10-11
 
-Status: SUCCESSOR_PREFLIGHT_PASS / AUTHORIZATION_NOT_GRANTED
+Status: SUCCESSOR_PREFLIGHT_PASS / AUTHORIZATION_GRANTED_PENDING_CLAIM
 
 PR: #541 OPEN DRAFT
 
@@ -21,7 +21,7 @@ PREDECESSOR_REPLAY_FORBIDDEN=true
 AUTHORIZATION_ID=
 N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02
 
-AUTHORIZATION_STATE=NOT_GRANTED
+AUTHORIZATION_STATE=GRANTED_PENDING_CLAIM
 ONE_SHOT=true
 REPLAY_FORBIDDEN=true
 PRODUCTION_SERVICE_START=false
@@ -162,7 +162,7 @@ PREDECESSOR_AUTHORIZATION_ID=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011
 PREDECESSOR_AUTHORIZATION_STATE=CONSUMED_FAILED_ROLLBACK_PASS
 PREDECESSOR_REPLAY_FORBIDDEN=true
 AUTHORIZATION_ID=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02
-AUTHORIZATION_STATE=NOT_GRANTED
+AUTHORIZATION_STATE=GRANTED_PENDING_CLAIM
 ```
 
 
@@ -212,10 +212,31 @@ TRANSPORT_COMPLETION=KNOWN_SUCCESS
 LIVE_MUTATION=false
 
 AUTHORIZATION_ID=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02
-AUTHORIZATION_STATE=NOT_GRANTED
+AUTHORIZATION_STATE=GRANTED_PENDING_CLAIM
 AUTHORIZATION_CLAIMED=false
 AUTHORIZATION_CONSUMED=false
 ```
 
 Explicit user approval of this exact authorization ID is now the only remaining
 gate before the one-shot staging-only apply.
+
+
+## 10. Explicit successor authorization grant
+
+The operator explicitly approved the exact successor authorization:
+
+```text
+AUTHORIZATION_ID=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02
+AUTHORIZATION_STATE=GRANTED_PENDING_CLAIM
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+```
+
+This grant is limited to the staging-only scope already frozen in this document.
+It does not authorize production service start, persistence enablement,
+dispatcher installation, reboot, board access, or PR merge.
+
+The claim point is the repository-owned host wrapper's emitted
+`apply_transport_invoked` event immediately before the remote executor is
+invoked with `--phase apply`. From that event onward the authorization is
+permanently one-shot and non-replayable regardless of outcome.
