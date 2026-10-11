@@ -83,6 +83,36 @@ jobs:
           ACTUAL="$(sha256sum "$TAR" | awk '{print $1}')"
           test "$ACTUAL" = "$MANAGER_TAR_SHA256"
           printf 'MANAGER_TAR_SHA256=%s\n' "$ACTUAL"
+          python - "$TAR" <<'PY'
+          import importlib.util
+          import json
+          import sys
+          import tarfile
+          from pathlib import Path
+
+          tar_path = Path(sys.argv[1])
+          tool_path = Path("tools/n3w_t1_production_stack_staging.py")
+          spec = importlib.util.spec_from_file_location("staging", tool_path)
+          module = importlib.util.module_from_spec(spec)
+          assert spec.loader is not None
+          sys.modules["staging"] = module
+          spec.loader.exec_module(module)
+
+          with tarfile.open(tar_path, "r") as archive:
+              index = json.load(archive.extractfile("index.json"))
+              docker_manifest = json.load(archive.extractfile("manifest.json"))
+
+          descriptors = index.get("manifests", [])
+          assert len(descriptors) == 1
+          assert descriptors[0]["digest"] == module.EXPECTED_MANAGER_IMAGE_TARGET_DIGEST
+          assert len(docker_manifest) == 1
+          config_path = docker_manifest[0]["Config"]
+          assert config_path.startswith("blobs/sha256/")
+          config_digest = "sha256:" + config_path.rsplit("/", 1)[1]
+          assert config_digest == module.EXPECTED_MANAGER_IMAGE_CONFIG_DIGEST
+          print("MANAGER_OCI_TARGET_DIGEST=" + descriptors[0]["digest"])
+          print("MANAGER_CONFIG_DIGEST=" + config_digest)
+          PY
 
       - name: Build content-addressed staging payload
         run: |
