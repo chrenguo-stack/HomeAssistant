@@ -1008,3 +1008,70 @@ SUCCESSOR_STATE=NOT_GRANTED
 No `..._03` live execution is allowed until the new large payload CI, exact
 artifact binding, fresh T1 read-only preflight, and explicit operator approval
 all pass.
+
+
+## 19. Offline-image payload CI R1 FAIL / local-runtime-ref repair
+
+The first KF-107 offline-image payload attempt reached the intended CI
+round-trip but failed after `docker save` / `docker load`:
+
+```text
+STAGING_PAYLOAD_RUN=38139358261
+RUN_NUMBER=65
+CONCLUSION=failure
+FAILED_STEP=Materialize exact external ARM64 images
+T1_ACCESS=false
+LIVE_MUTATION=false
+```
+
+The external image pulls themselves completed. The saved tar files also loaded
+successfully and returned the expected config IDs:
+
+```text
+HOMEASSISTANT_CONFIG_ID=sha256:b0e1ee82adfb19fa1ff3049034535633b1c4f0df6606721c0e77383854b99879
+BROKER_CONFIG_ID=sha256:4c199d7c9d377d018313a2199f6839978f6fd2219c405ad664d0a830c14b9c7b
+```
+
+The failure was that legacy Docker save/load does not preserve the original
+registry digest-qualified reference as a locally inspectable name. Re-checking
+the loaded image by the original `repository:tag@digest` therefore returned
+`No such image`, even though the exact image content had loaded.
+
+This does not invalidate the offline-payload design. The runtime contract is
+refined as follows:
+
+1. CI pulls only the exact digest-qualified upstream reference.
+2. CI verifies its exact digest/platform/config identity.
+3. CI adds a deterministic local runtime tag:
+   - `local/n3w-homeassistant:2026.10.0-0c73235a`
+   - `local/n3w-mosquitto:2.1.2-3184566d`
+4. CI saves that local tag into the image tar.
+5. CI removes both local and upstream refs, reloads the tar, and re-verifies the
+   local tag by exact config digest and platform.
+6. Production Compose uses only the deterministic local tag and
+   `pull_policy: never`.
+7. `image-lock.json` continues to retain the upstream source reference and
+   exact ARM64 manifest digest as provenance authority.
+8. T1 staging uses only local `docker load`; no registry access is permitted
+   inside the one-shot apply.
+
+The host transport was also hardened for the now-larger payload: remote archive
+SHA256 verification is streaming rather than `read_bytes()`, and the transferred
+outer archive is removed immediately after extraction.
+
+Repair commits after run #65:
+
+```text
+5913b92fec693ae17a56c472c9b206e637923e29
+ec256412c1fa4eb0494d7179c8c1f51eeaeb96aa
+2c2538c5258219816390a738635dec9e96af2220
+e3e4b582882b29f9a4ed0d5528013db4480a060a
+1c5223758f7ca912830311e735552b0831b54269
+6d19f8121d62743ac9ebc79efcd7d2973780a122
+74a68f05e269ee2c0ede0440a64cf00cbc719fef
+a11fa4d57c03d164cb3e9b7b697d40e3f677f55c
+7364f2b6fea51346f4c4b476a2ed54de3e96837a
+```
+
+`..._03` remains NOT_GRANTED. This CI failure consumed no live authorization
+and performed no T1 access.
