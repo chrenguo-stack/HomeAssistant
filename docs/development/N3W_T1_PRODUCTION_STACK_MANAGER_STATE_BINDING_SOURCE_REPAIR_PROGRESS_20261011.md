@@ -230,3 +230,66 @@ T1_MUTATION=false
 PRODUCTION_SERVICE_START=false
 BOARD_ACCESS=false
 ```
+
+
+## 10. First CI failure classification and fixture repair
+
+The first dedicated source-repair run failed before any product-path execution:
+
+```text
+RUN_ID=38122599845
+RUN_NUMBER=6
+STATUS=completed
+CONCLUSION=failure
+FAILED_STEP=Run focused source tests
+RESULT=25 passed / 5 failed
+ROOT_CAUSE=ModuleNotFoundError: jsonschema
+```
+
+All five failures shared the same import-time dependency error:
+
+```text
+n3w_t1_production_manager_state_prepare.py
+-> n3w_node_application_keys.py
+-> n3w_relay_ingress.py
+-> import jsonschema
+-> ModuleNotFoundError
+```
+
+The workflow had installed only `pytest`, not the Manager development/runtime dependency set.
+
+Classification:
+
+```text
+FAILURE_CLASS=CI_FIXTURE_DEPENDENCY
+PRODUCT_SOURCE_FAILURE_PROVEN=false
+MANAGER_STATE_BINDING_RUNTIME_TEST_REACHED=false
+T1_MUTATION=false
+```
+
+The workflow fixture was repaired to install:
+
+```text
+python -m pip install -e 'host/greenhouse-manager[dev]'
+```
+
+Repair commit:
+
+```text
+925034dfb3bdb42c30a4db8bcf0c63a38340f12e
+ci(n3w): install Manager runtime deps for state binding tests
+```
+
+Fresh run:
+
+```text
+RUN_ID=38123286087
+RUN_NUMBER=7
+STATUS=in_progress
+INSTALL_MANAGER_TEST_ENVIRONMENT=PASS
+FOCUSED_SOURCE_TESTS=PASS
+RENDER_AND_VALIDATE_PRODUCTION_COMPOSE=PASS
+EXACT_ARM64_MANAGER_IMAGE_BUILD=in_progress
+```
+
+No T1 operation is authorized while the fresh run is incomplete.
