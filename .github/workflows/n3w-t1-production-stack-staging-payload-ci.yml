@@ -45,7 +45,7 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       SOURCE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-      AUTHORIZATION_ID: N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02
+      AUTHORIZATION_ID: N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_03
       MANAGER_ARTIFACT_RUN_ID: "38040433177"
       MANAGER_ARTIFACT_ID: "11665219740"
       MANAGER_TAR_SHA256: 2ef0421d483334f6ef81c92beb1b6784174f069a4bde179ba615ce0b70435081
@@ -120,6 +120,105 @@ jobs:
           print("MANAGER_CONFIG_DIGEST=" + config_digest)
           PY
 
+      - name: Materialize exact external ARM64 images
+        run: |
+          set -euo pipefail
+          python - <<'PY' > "$RUNNER_TEMP/external-image-refs.env"
+          import importlib.util
+          import sys
+          from pathlib import Path
+
+          tool_path = Path("tools/n3w_t1_production_stack_staging.py")
+          spec = importlib.util.spec_from_file_location("staging", tool_path)
+          module = importlib.util.module_from_spec(spec)
+          assert spec.loader is not None
+          sys.modules["staging"] = module
+          spec.loader.exec_module(module)
+
+          print(f"HA_IMAGE={module.EXPECTED_HA_IMAGE}")
+          print(f"BROKER_IMAGE={module.EXPECTED_BROKER_IMAGE}")
+          PY
+          . "$RUNNER_TEMP/external-image-refs.env"
+
+          docker pull --platform linux/arm64 "$HA_IMAGE"
+          docker pull --platform linux/arm64 "$BROKER_IMAGE"
+
+          python - <<'PY'
+          import importlib.util
+          import json
+          import sys
+          from pathlib import Path
+
+          tool_path = Path("tools/n3w_t1_production_stack_staging.py")
+          spec = importlib.util.spec_from_file_location("staging", tool_path)
+          module = importlib.util.module_from_spec(spec)
+          assert spec.loader is not None
+          sys.modules["staging"] = module
+          spec.loader.exec_module(module)
+
+          runner = module.Runner()
+          reports = {
+              "homeassistant": module._image_report(
+                  runner,
+                  module.EXPECTED_HA_IMAGE,
+                  expected_config_digest=module.EXPECTED_HA_IMAGE_CONFIG_DIGEST,
+                  expected_target_digest=module.EXPECTED_HA_IMAGE_TARGET_DIGEST,
+              ),
+              "broker": module._image_report(
+                  runner,
+                  module.EXPECTED_BROKER_IMAGE,
+                  expected_config_digest=module.EXPECTED_BROKER_IMAGE_CONFIG_DIGEST,
+                  expected_target_digest=module.EXPECTED_BROKER_IMAGE_TARGET_DIGEST,
+              ),
+          }
+          print(json.dumps(reports, sort_keys=True))
+          PY
+
+          docker save -o "$RUNNER_TEMP/homeassistant-arm64.tar" "$HA_IMAGE"
+          docker save -o "$RUNNER_TEMP/broker-arm64.tar" "$BROKER_IMAGE"
+
+          printf 'HOMEASSISTANT_TAR_SHA256=%s\n' "$(sha256sum "$RUNNER_TEMP/homeassistant-arm64.tar" | awk '{print $1}')"
+          printf 'BROKER_TAR_SHA256=%s\n' "$(sha256sum "$RUNNER_TEMP/broker-arm64.tar" | awk '{print $1}')"
+
+          docker image rm "$HA_IMAGE" "$BROKER_IMAGE"
+          ! docker image inspect "$HA_IMAGE" >/dev/null 2>&1
+          ! docker image inspect "$BROKER_IMAGE" >/dev/null 2>&1
+
+          docker load -i "$RUNNER_TEMP/homeassistant-arm64.tar"
+          docker load -i "$RUNNER_TEMP/broker-arm64.tar"
+
+          python - <<'PY'
+          import importlib.util
+          import json
+          import sys
+          from pathlib import Path
+
+          tool_path = Path("tools/n3w_t1_production_stack_staging.py")
+          spec = importlib.util.spec_from_file_location("staging", tool_path)
+          module = importlib.util.module_from_spec(spec)
+          assert spec.loader is not None
+          sys.modules["staging"] = module
+          spec.loader.exec_module(module)
+
+          runner = module.Runner()
+          reports = {
+              "homeassistant": module._image_report(
+                  runner,
+                  module.EXPECTED_HA_IMAGE,
+                  expected_config_digest=module.EXPECTED_HA_IMAGE_CONFIG_DIGEST,
+                  expected_target_digest=module.EXPECTED_HA_IMAGE_TARGET_DIGEST,
+              ),
+              "broker": module._image_report(
+                  runner,
+                  module.EXPECTED_BROKER_IMAGE,
+                  expected_config_digest=module.EXPECTED_BROKER_IMAGE_CONFIG_DIGEST,
+                  expected_target_digest=module.EXPECTED_BROKER_IMAGE_TARGET_DIGEST,
+              ),
+          }
+          print("EXTERNAL_IMAGE_TAR_ROUNDTRIP=PASS")
+          print(json.dumps(reports, sort_keys=True))
+          PY
+
       - name: Build content-addressed staging payload
         run: |
           set -euo pipefail
@@ -140,6 +239,8 @@ jobs:
           cp infra/n3w-t1/systemd/n3wfc4-broker-activation.service "$PAYLOAD/infra/n3w-t1/systemd/"
           cp infra/n3w-t1/systemd/n3wfc4-services-activation.service "$PAYLOAD/infra/n3w-t1/systemd/"
           cp "$RUNNER_TEMP/manager-artifact/greenhouse-manager-arm64.tar" "$PAYLOAD/artifact/"
+          cp "$RUNNER_TEMP/homeassistant-arm64.tar" "$PAYLOAD/artifact/"
+          cp "$RUNNER_TEMP/broker-arm64.tar" "$PAYLOAD/artifact/"
 
           python - "$PAYLOAD" "$SOURCE_HEAD" "$AUTHORIZATION_ID" <<'PY'
           import hashlib
@@ -163,6 +264,8 @@ jobs:
 
           executor = root / "tools/n3w_t1_production_stack_staging.py"
           manager_tar = root / "artifact/greenhouse-manager-arm64.tar"
+          homeassistant_tar = root / "artifact/homeassistant-arm64.tar"
+          broker_tar = root / "artifact/broker-arm64.tar"
           manifest = {
               "schema": "gh.n3w-t1-production-stack-staging-payload/1",
               "source_head": head,
@@ -171,6 +274,8 @@ jobs:
               "authorization_consumed": False,
               "executor_sha256": hashlib.sha256(executor.read_bytes()).hexdigest(),
               "manager_tar_sha256": hashlib.sha256(manager_tar.read_bytes()).hexdigest(),
+              "homeassistant_tar_sha256": hashlib.sha256(homeassistant_tar.read_bytes()).hexdigest(),
+              "broker_tar_sha256": hashlib.sha256(broker_tar.read_bytes()).hexdigest(),
               "files": records,
               "secret_values_included": False,
               "production_service_start": False,
