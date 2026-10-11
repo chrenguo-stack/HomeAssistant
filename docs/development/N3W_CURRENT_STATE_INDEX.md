@@ -1,3 +1,16 @@
+> **2026-10-11 successor staging authorization GRANTED_PENDING_CLAIM**：用户已明确批准 exact authorization `N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02`。successor payload binding 与 fresh T1 preflight 均已 PASS；当前尚未 claim/consume。只允许 repository-owned host wrapper + artifact `11697988392` 进入单次 staging-only apply。host wrapper 发出 `apply_transport_invoked` 即为 claim 点；此后无论 PASS、rollback、SSH 中断或 host error 都永久 no-replay。生产服务启动、unit enable、dispatcher install、reboot、board access、PR merge 仍禁止。
+
+```text
+AUTHORIZATION_STATE=GRANTED_PENDING_CLAIM
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+LIVE_STAGING_APPLY=AUTHORIZED
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
 > **2026-10-11 successor fresh T1 preflight PASS / explicit authorization required**：repository-owned host wrapper + successor exact payload 已在 T1 read-only preflight PASS，`HOST_WRAPPER_RC=0` / `transport_completion=KNOWN_SUCCESS`。0 containers、45-volume frozen set、project networks empty、production listeners 0、guard exact、DynSec exact、identity claim 1、Manager DB clean、n3w root absent、production images absent、services stopped 全部重证。authorization `N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02` 仍 NOT_GRANTED / claimed=false / consumed=false。下一步只能在用户明确批准该 exact ID 后进入一次性 staging-only apply。
 
 ```text
