@@ -1,3 +1,5 @@
+> **2026-10-12 minimal-baseline normalization read-only gate authorized / executor CI pending**：用户已批准 T1 read-only inventory。repository-versioned executor 已提交，使用 ssh -n + in-memory remote Python，仅采集 host/Docker/systemd/product-path/listener/firewall inventory，不创建 T1 临时文件、不删除、不停启服务。CI pending；真实 T1 尚未执行。
+
 > **2026-10-12 R6 CLOSED_PASS / minimal-baseline normalization read-only preflight prepared**：PR #541 exact HEAD 的全部 CI 已 PASS。R6 run 38181721355 使用 current source 构建 exact ARM64 Manager，并绑定冻结的 HA/Broker ARM64；fresh constructors、Broker UID1883 TLS read、fresh runtime identity→Compose binding、HA MQTT config-flow、artifact upload+redownload SHA 均 PASS。artifact #11718067835，digest sha256:0367b941e5b96bb938042b617be14f9cb61099e07d2226f78827b0d7a0ec6fb9。下一门只准备 T1 minimal-baseline normalization 的 fresh read-only inventory；尚未授权 T1 访问，更未授权删除。
 
 > **2026-10-12 R5 CLOSED_PASS / R6 exact ARM64 entered**：R5 host-only full-fresh CI 4/4 PASS，staging run #102 artifact #11709396322 exact binding PASS。R6 已修复 fresh random system_id 与 production Compose 固定 greenhouse 的冲突，改为由 fresh runtime.env 注入并由 deployment gate 做同一 system_id 交叉绑定；新增 exact ARM64 三镜像 CI，当前等待运行。真实 T1、生产服务和板卡均未操作。

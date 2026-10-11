@@ -1,3 +1,5 @@
+> **2026-10-12 normalization read-only gate authorized**：versioned read-only inventory executor 已提交并等待 CI；live T1 inventory 尚未执行，destructive authorization 尚未请求。
+
 > **2026-10-12 R6 CLOSED_PASS / normalization preflight prepared**：exact ARM64 three-image artifact #11718067835 post-upload binding PASS；下一步只读盘点 T1，先生成 exact cleanup manifest，再单独申请 destructive authorization。
 
 > **2026-10-12 R5 CLOSED_PASS / R6 pending CI**：host-only 从零安装已闭环；exact ARM64 Manager/HA/Broker 三镜像 + fresh runtime identity binding CI 已提交。
