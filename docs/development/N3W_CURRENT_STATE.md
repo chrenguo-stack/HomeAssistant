@@ -1,3 +1,18 @@
+> **2026-10-11 staging apply failed safely / rollback PASS / source repair pending**：one-shot staging apply 已正式 claim+consume，fresh preflight 与 state-root prepare PASS 后在 exact Manager `docker load` 的 image-ID oracle 停止；executor rollback `status=PASS/errors=[]`，未启动 Broker/Manager/HA。根因域为 Docker classic vs containerd image-store ID 语义不兼容；cross-store exact config/target digest repair 已实现。Mac 外层同时暴露 zsh 不支持 Bash-only `PIPESTATUS` 的 KF-078 recurrence；现已新增 repository-owned Python host transport，无 pipeline-status 依赖。新 source/payload CI pending；旧 authorization 永久 no-replay，尚无 successor live authorization。
+
+```text
+KF106=OPEN_SOURCE_REPAIR_CI_PENDING
+KF078=OPEN_HOST_WRAPPER_CI_PENDING
+PRODUCTION_ROLLBACK=PASS
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+REPLAY_FORBIDDEN=true
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
 > **2026-10-11 fresh T1 staging preflight PASS / one-shot apply ready**：KF-105 repaired replacement payload 已在 T1 以 read-only preflight 模式 PASS。现场保持 0 containers / frozen 45-volume set / project networks empty / production listeners 0 / guard exact / DynSec exact / secret bundle 11 files / identity claim 1 / Manager DB quick_check ok + business rows 0 + provenance 1 / n3w root absent / production images absent / services stopped。authorization 尚未 claim/consume。下一步仅允许 exact payload + exact executor + exact authorization ID 进入一次性 staging apply；从 apply 启动瞬间起 authorization 即视为 claimed 且永久不可重放，即使 SSH 中断或 executor rollback。
 
 ```text
