@@ -248,3 +248,77 @@ PR_MERGE=false
 
 Fresh T1 preflight and staging apply remain blocked until the new payload build
 CI has passed and the resulting artifact hashes are rebound.
+
+
+## 8. Exact payload binding closure
+
+The first payload workflow run was successful as a build, but its manifest bound
+to GitHub's pull-request synthetic merge SHA rather than the PR branch head:
+
+```text
+SUPERSEDED_RUN_ID=38126385865
+SUPERSEDED_ARTIFACT_ID=11697706589
+SYNTHETIC_MERGE_SHA=21727a26b8d19f1014215112c00a159618e0c065
+MERGE_MESSAGE=Merge bf000858c64f5a4f4e6ff15cb1ebb5a8ab88c06e into d423211b6196c2f2f0f01dff072c4f877fbe58ee
+SUPERSEDED_FOR_T1_USE=true
+```
+
+The payload workflow was repaired to explicitly check out and bind
+`github.event.pull_request.head.sha` on pull-request runs.
+
+Repair commit:
+
+```text
+ea6738551e583a14ad5685e181109b7e57f8fb1b
+ci(n3w): bind staging payload to PR head
+```
+
+The replacement exact-head payload CI passed:
+
+```text
+RUN_ID=38126850777
+RUN_NUMBER=5
+CONCLUSION=success
+SOURCE_HEAD=ea6738551e583a14ad5685e181109b7e57f8fb1b
+ARTIFACT_ID=11697172862
+ARTIFACT_NAME=n3w-t1-production-stack-staging-payload-ea6738551e583a14ad5685e181109b7e57f8fb1b
+ARTIFACT_ZIP_SHA256=371b7affdf9503c93396762c278bee5bc749f25b55fdb5826d498ba06adb72ce
+PAYLOAD_ARCHIVE_SHA256=35e9b7e2594ff1b90b84a2d78a9f4dff885e68c67c597227ad48352ecd7cc3d7
+PAYLOAD_MANIFEST_SHA256=3e73fbf62482c660eac67de8db047a76ebd0c8f2897e6bbcff54f42a68e6241e
+EXECUTOR_SHA256=3f82a52db85290abf7a0ab0b9c407e74c40202598e0c41292ffe06ceeffdd2ef
+MANAGER_TAR_SHA256=2ef0421d483334f6ef81c92beb1b6784174f069a4bde179ba615ce0b70435081
+```
+
+The downloaded artifact was independently unpacked and rebound. Its manifest
+reports:
+
+```text
+schema=gh.n3w-t1-production-stack-staging-payload/1
+source_head=ea6738551e583a14ad5685e181109b7e57f8fb1b
+authorization_id=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_01
+authorization_claimed=false
+authorization_consumed=false
+secret_values_included=false
+production_service_start=false
+board_access=false
+file_count=14
+```
+
+The executor, manifest, payload archive, Manager tar and GitHub artifact ZIP all
+match their recorded SHA256 values.
+
+Current safe boundary:
+
+```text
+PAYLOAD_BINDING=PASS
+FRESH_T1_PREFLIGHT=NEXT
+T1_PRODUCTION_MUTATION=false
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+PR_MERGE=false
+```
+
+The fresh T1 preflight must use only artifact ID `11697172862` and executor
+SHA256 `3f82a52d...`. Any earlier payload is forbidden.
