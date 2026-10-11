@@ -1,3 +1,18 @@
+> **2026-10-11 KF-107 offline-image R1 CI FAIL / local-runtime-ref repair in CI**：staging payload run `38139358261` 的外部镜像 pull/save/load 已完成，但 Docker save/load 未恢复原 registry `repository:tag@digest` 可寻址引用，round-trip re-inspect 因 `No such image` FAIL；该失败仅发生在 host CI，无 T1 access/live mutation。repair 已改为 exact upstream digest pull+verify → deterministic local runtime tag → save/remove/load → local tag + exact config/platform reverify；production Compose 对 HA/Broker 使用 local immutable tag + `pull_policy: never`，image-lock 保留 upstream source ref + manifest digest provenance；T1 apply 仍只允许 local docker load。host wrapper 同步改为大 payload streaming SHA + extract 后删除 outer archive。authorization `..._03` 仍 NOT_GRANTED。
+
+```text
+KF107=OPEN_SOURCE_REPAIR_CI_PENDING
+R1_PAYLOAD_CI=FAIL_HOST_ONLY
+T1_ACCESS=false
+LIVE_MUTATION=false
+SUCCESSOR_03=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_03
+SUCCESSOR_AUTHORIZATION_STATE=NOT_GRANTED
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
 > **2026-10-11 staging apply #02 timeout / rollback PASS / successor #03 source repair**：authorization `..._02` 已 claim+consume。fresh preflight、state-root、Manager image load、Manager state prepare 均 PASS；随后 exact Home Assistant `docker pull` 在 1200 s 超时，executor structured STOP，rollback `status=PASS/errors=[]`，未启动生产服务。底层网络原因 TBD；已确认 KF-107：one-shot post-claim critical section 不应依赖外部 registry。source repair 已改为 payload CI 预先冻结 exact ARM64 HA/Broker tar，T1 apply 只做 local `docker load`。authorization 已旋转为 `N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_03`，当前 NOT_GRANTED，等待新 CI / artifact binding / fresh T1 preflight。
 
 ```text
