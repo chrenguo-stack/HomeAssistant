@@ -1,3 +1,31 @@
+> **2026-10-11 R5 admin-readiness TLS transport source repair entered / source implemented / corrected CI pending**：用户已明确允许进入 `N3W_T1_S20_R5_ADMIN_READINESS_TLS_TRANSPORT_SOURCE_REPAIR`。R5 source 已将 transaction clients 从 plaintext `127.0.0.1:1883` 改为 exact TLS `armbian:8883` + `--cafile /mosquitto/config/n3w-ca.pem`，transaction container 继续 `--network none` 并用 `--add-host armbian:127.0.0.1` 保持仅容器内 loopback；禁止 `--insecure`，不新增 plaintext listener。anonymous negative probe 也已改走同一 TLS transport，避免 transport failure 假冒 anonymous rejection。R1-R4 authorization 均保持 consumed/no-replay；R4 snapshot 转为 retained evidence，R5 future rollback snapshot 独立为 `dynsec-s20-r5-pre-three-service.json`，prospective R5 live authorization 仅在 source 中定义，尚未获得 live mutation 批准。首次 TLS-isolated CI 因 fixture 在 `sudo chown 1883:1883 server.key` 后用非 sudo chmod 而失败，未启动 Broker；已修为 `sudo chmod 600`，fresh run `38102338780` 在本轮最后允许的 poll 时仍 queued。Authority: `docs/development/N3W_T1_S20_R5_ADMIN_READINESS_TLS_TRANSPORT_SOURCE_REPAIR_PROGRESS_20261011.md`.
+
+```text
+CURRENT_GATE=N3W_T1_S20_R5_ADMIN_READINESS_TLS_TRANSPORT_SOURCE_REPAIR
+R5_SOURCE_REPAIR_AUTHORIZED=true
+R5_SOURCE_REPAIR_IMPLEMENTED=true
+R5_LIVE_APPLY_AUTHORIZED=false
+R5_PROSPECTIVE_AUTHORIZATION=N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_R5_20261011_01
+R5_AUTHORIZATION_CLAIMED=false
+R5_AUTHORIZATION_CONSUMED=false
+R5_CLIENT_HOST=armbian
+R5_CLIENT_PORT=8883
+R5_CLIENT_CA=/mosquitto/config/n3w-ca.pem
+R5_CONTAINER_NETWORK=none
+R5_CONTAINER_HOST_ALIAS=armbian:127.0.0.1
+R5_TLS_INSECURE=false
+R5_PLAINTEXT_LISTENER_ADDED=false
+R5_ROLLBACK_SNAPSHOT=/etc/n3wfc4/private/dynsec-s20-r5-pre-three-service.json
+R4_RETAINED_SNAPSHOT_MUTATION=false
+R5_CORRECTED_CI_RUN=38102338780
+R5_SOURCE_REPAIR_CI_REVIEW=PENDING
+LIVE_T1_MUTATION=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
 > **2026-10-11 S20 transaction Broker anonymous-volume recurrence CLOSED_PASS**：R4 live orphan 已在 bounded authorization 下唯一删除并精确恢复 frozen 45-volume set；source 已改为 `--tmpfs /mosquitto/log`，corrected `N3W T1 S20 real service handoff CI` run `38101584262` 的 `source` 与 `volume-lifecycle` 两个 job 均 PASS，focused pytest `70 passed`，Docker-isolated proof 明确输出 `TRANSACTION_BROKER_VOLUME_SET_UNCHANGED=true`。CI tested head `47337faa8da0b359af5631d7f9d3cec6fdd47505` 到 review head 的 delta 仅 docs，无 source/workflow drift。已纠正 known-failure 编号冲突：原有 `KF-102` 保持 S19 isolated DynSec harness authority；S20 R4 temporary Broker readiness/rollback 归入 `KF-103`。其中 anonymous-log-volume 子问题已 GUARDED，但 admin-readiness TLS transport 子问题仍 OPEN。严格停止在 R5 之前。Authority: `docs/development/N3W_T1_S20_TRANSACTION_BROKER_LOG_VOLUME_LEAK_SOURCE_REPAIR_CLOSURE_20261011.md`.
 
 ```text
