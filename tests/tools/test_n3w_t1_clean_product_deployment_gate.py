@@ -154,11 +154,8 @@ def rendered_compose() -> dict:
                 ],
             },
             "homeassistant": {
-                "image": (
-                    "ghcr.io/home-assistant/home-assistant:2026.10.0"
-                    "@sha256:0c73235a9140a9b02e4bf618d06d8c496b12ae"
-                    "70656ecddb0e02ad31ad122be4"
-                ),
+                "image": "local/n3w-homeassistant:2026.10.0-0c73235a",
+                "pull_policy": "never",
                 "network_mode": "host",
                 "restart": "no",
                 "profiles": ["application"],
@@ -208,12 +205,8 @@ def rendered_compose() -> dict:
                 ],
             },
             "broker": {
-                "image": (
-                    "m.daocloud.io/docker.io/library/"
-                    "eclipse-mosquitto:2.1.2-alpine"
-                    "@sha256:3184566df484a083411a0e70e92c87a264b8f064"
-                    "8df632f10eb23d54d99f4549"
-                ),
+                "image": "local/n3w-mosquitto:2.1.2-3184566d",
+                "pull_policy": "never",
                 "restart": "no",
                 "ports": [
                     _publication("0.0.0.0", 8883),
@@ -557,4 +550,23 @@ def test_rejects_manager_state_environment_drift(
         tool.DeploymentContractError,
         match="manager_runtime_environment_invalid",
     ):
+        tool.validate_compose_document(document)
+
+
+@pytest.mark.parametrize(
+    ("service", "error"),
+    [
+        ("homeassistant", "homeassistant_pull_policy_invalid"),
+        ("broker", "broker_pull_policy_invalid"),
+    ],
+)
+def test_rejects_external_service_pull_policy_drift(
+    service: str,
+    error: str,
+) -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["services"][service]["pull_policy"] = "missing"
+
+    with pytest.raises(tool.DeploymentContractError, match=error):
         tool.validate_compose_document(document)
