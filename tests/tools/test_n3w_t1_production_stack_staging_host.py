@@ -94,3 +94,11 @@ def test_remote_executor_apply_requires_authorization() -> None:
             executor_sha256="c" * 64,
             authorization_id=None,
         )
+
+
+def test_remote_payload_verification_streams_and_releases_archive() -> None:
+    source = TOOL.read_text(encoding="utf-8")
+
+    assert "archive.read_bytes()" not in source
+    assert "stream.read(1024*1024)" in source
+    assert "archive.unlink()" in source
