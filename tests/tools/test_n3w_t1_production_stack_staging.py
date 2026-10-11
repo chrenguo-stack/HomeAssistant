@@ -58,6 +58,8 @@ def test_payload_report_requires_exact_sources_and_artifact(
     artifact = tmp_path / "artifact/greenhouse-manager-arm64.tar"
     artifact.parent.mkdir()
     artifact.write_bytes(b"manager-tar")
+    (artifact.parent / "homeassistant-arm64.tar").write_bytes(b"ha-tar")
+    (artifact.parent / "broker-arm64.tar").write_bytes(b"broker-tar")
 
     monkeypatch.setattr(
         tool,
@@ -78,6 +80,12 @@ def test_payload_report_requires_exact_sources_and_artifact(
 
     report = tool._payload_report(tmp_path)
     assert report["source_file_count"] == 1
+    assert report["homeassistant_tar_sha256"] == tool._sha256_file(
+        artifact.parent / "homeassistant-arm64.tar"
+    )
+    assert report["broker_tar_sha256"] == tool._sha256_file(
+        artifact.parent / "broker-arm64.tar"
+    )
 
     source.write_text("drift\n", encoding="utf-8")
     with pytest.raises(tool.StagingError, match="payload_source_sha_drift"):
@@ -432,5 +440,47 @@ def test_staging_authorization_id_rotated_after_consumed_attempt() -> None:
 
     assert (
         tool.AUTHORIZATION_ID
-        == "N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02"
+        == "N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_03"
     )
+
+
+def test_payload_report_rejects_missing_external_image_tar(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    source = tmp_path / "source.txt"
+    source.write_text("source\n", encoding="utf-8")
+    artifact = tmp_path / "artifact/greenhouse-manager-arm64.tar"
+    artifact.parent.mkdir()
+    artifact.write_bytes(b"manager-tar")
+    (artifact.parent / "homeassistant-arm64.tar").write_bytes(b"ha-tar")
+
+    monkeypatch.setattr(
+        tool,
+        "SOURCE_FILES",
+        {
+            "source.txt": (
+                "/unused",
+                0o644,
+                tool._sha256_file(source),
+            )
+        },
+    )
+    monkeypatch.setattr(
+        tool,
+        "EXPECTED_MANAGER_TAR_SHA256",
+        tool._sha256_file(artifact),
+    )
+
+    with pytest.raises(tool.StagingError, match="broker_artifact_missing"):
+        tool._payload_report(tmp_path)
+
+
+def test_staging_apply_has_no_live_registry_pull() -> None:
+    source = TOOL.read_text(encoding="utf-8")
+
+    assert '("docker", "pull"' not in source
+    assert '"production_image_load"' in source
+    assert "homeassistant-arm64.tar" in source
+    assert "broker-arm64.tar" in source
