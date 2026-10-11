@@ -1,3 +1,5 @@
+> **2026-10-11 R1 source repair pending CI**：minimal-host fresh bootstrap R1 已实现 fresh Manager/N3-W state constructor，删除 fresh path 对 legacy provenance 的依赖；CI pending。T1 不变，`..._03` 继续 superseded。
+
 > **2026-10-11 source design closure**：minimal-host fresh product bootstrap design PASS。当前正式安装起点仅为 Armbian + Docker + Network；所有 greenhouse product state 均由 installer 从零创建。旧 staging executor 不继续兼容扩展；下一门 R1 只做 fresh Manager/N3-W state constructors 与 host CI，T1 mutation=false。
 
 > **2026-10-11 current baseline authority**：`TARGET_T1_BASELINE=ARMBIAN + DOCKER + NETWORK ONLY` 已冻结。正式 T1 installer 不再依赖预创建 identity/secret/DynSec/Manager DB/guard/45-volume frozen set；这些均改由 fresh product bootstrap 创建。Run #91 artifact exact binding 保留为证据但 deployment eligibility 已 superseded；`..._03` 未授权且不再使用。下一门：`N3W_T1_MINIMAL_HOST_BASELINE_BOOTSTRAP_SOURCE_DESIGN_20261011_01`，仅 host/GitHub，无 live mutation。
