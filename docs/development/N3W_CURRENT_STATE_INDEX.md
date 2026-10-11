@@ -1,3 +1,5 @@
+> **2026-10-11 new-chat handoff target**：当前正式切换点为 Run #78 exact artifact / 三镜像 tar / payload size + SHA256 binding review；product source authority=`cb4131e47727d0cf7421133000c3a421c860a99b`，run #78=`38140472427` PASS，artifact binding 尚未执行，`..._03` authorization 尚未授予。
+
 > **2026-10-11 KF-107 offline-image R1 CI FAIL / local-runtime-ref repair in CI**：staging payload run `38139358261` 的外部镜像 pull/save/load 已完成，但 Docker save/load 未恢复原 registry `repository:tag@digest` 可寻址引用，round-trip re-inspect 因 `No such image` FAIL；该失败仅发生在 host CI，无 T1 access/live mutation。repair 已改为 exact upstream digest pull+verify → deterministic local runtime tag → save/remove/load → local tag + exact config/platform reverify；production Compose 对 HA/Broker 使用 local immutable tag + `pull_policy: never`，image-lock 保留 upstream source ref + manifest digest provenance；T1 apply 仍只允许 local docker load。host wrapper 同步改为大 payload streaming SHA + extract 后删除 outer archive。authorization `..._03` 仍 NOT_GRANTED。
 
 ```text
@@ -777,8 +779,8 @@ User explicitly abandoned the old Manager rollback R4/B1I1 direction. All new en
 # N3-W Current State Index
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
-Current progress alignment: `docs/development/N3W_FC4_CA_ROLLOVER_PRODUCT_LIFECYCLE_DECISION_20260930.md`  
-Current new-chat handoff: `docs/development/N3W_PR475_PR478_POSTMERGE_MAIN_ALIGNMENT_NEW_CHAT_HANDOFF_V1.0_20260927.md`  
+Current progress alignment: `docs/development/N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_PROGRESS_20261011.md`  
+Current new-chat handoff: `docs/development/N3W_T1_PRODUCTION_STACK_STAGING_RUN78_EXACT_ARTIFACT_BINDING_NEW_CHAT_HANDOFF_V1.0_20261011.md`  
 Long-term working context: `docs/development/N3W_PROJECT_WORKING_CONTEXT.md`  
 Current handoff template: `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` v1.2  
 Latest merged product-source authority: PR #500 / merge `c578bcb2e31f50771b6b08c231704da6bf36b729` / exact physical artifact `10959875986`  
