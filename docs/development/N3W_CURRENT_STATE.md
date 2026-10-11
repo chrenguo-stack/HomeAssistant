@@ -1,3 +1,17 @@
+> **2026-10-11 fresh T1 staging preflight PASS / one-shot apply ready**：KF-105 repaired replacement payload 已在 T1 以 read-only preflight 模式 PASS。现场保持 0 containers / frozen 45-volume set / project networks empty / production listeners 0 / guard exact / DynSec exact / secret bundle 11 files / identity claim 1 / Manager DB quick_check ok + business rows 0 + provenance 1 / n3w root absent / production images absent / services stopped。authorization 尚未 claim/consume。下一步仅允许 exact payload + exact executor + exact authorization ID 进入一次性 staging apply；从 apply 启动瞬间起 authorization 即视为 claimed 且永久不可重放，即使 SSH 中断或 executor rollback。
+
+```text
+KF105=CLOSED_GUARDED
+FRESH_T1_PREFLIGHT=PASS
+LIVE_STAGING_APPLY=READY
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
 > **2026-10-11 fresh T1 preflight STOP / KF-105 provenance fingerprint mismatch**：exact staging payload 已到达 T1，但仅执行 read-only preflight；结果 `status=STOP` / `reason=manager_database_provenance_drift`。未传 `--authorization-id`，apply phase 未进入，因此 T1 production mutation=false、authorization claimed/consumed=false。源码复核确认 H0/H1 `system_id_fingerprint()` 是完整 SYSTEM_ID SHA-256 的前 24 个十六进制字符，而 staging executor / Manager-state preparer / synthetic CI fixture 错按完整 64 字符比较。source repair + tests 已提交，replacement CI/payload 尚待闭环；旧 payload 已 superseded，禁止继续用于 T1。
 
 ```text
