@@ -92,3 +92,106 @@ jobs:
           docker volume ls -q | LC_ALL=C sort > "$WORK/after.txt"
           diff -u "$WORK/before.txt" "$WORK/after.txt"
           printf 'TRANSACTION_BROKER_VOLUME_SET_UNCHANGED=true\n'
+
+
+  tls-readiness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prove R5 admin readiness over exact TLS transport shape
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMAGE='m.daocloud.io/docker.io/library/eclipse-mosquitto:2.1.2-alpine'
+          INDEX='sha256:38c0da4f2ef84284d47b3b3eeea1cb3bdeabe81ee10caf0cd5c5ff61ee3ea408'
+          NAME='n3w-s20-r5-tls-ci'
+          WORK="$RUNNER_TEMP/n3w-s20-r5-tls-ci"
+          ADMIN='ci-only-admin-password'
+          mkdir -p "$WORK/config" "$WORK/data" "$WORK/tls" "$WORK/run"
+
+          docker pull "$IMAGE"
+          docker image inspect "$IMAGE" --format '{{json .RepoDigests}}' | grep -F "@$INDEX"
+
+          openssl req -x509 -newkey rsa:2048 -nodes             -keyout "$WORK/tls/ca.key"             -out "$WORK/tls/ca.pem"             -days 1             -subj '/CN=N3W-S20-R5-CI-CA'
+
+          openssl req -newkey rsa:2048 -nodes             -keyout "$WORK/tls/server.key"             -out "$WORK/tls/server.csr"             -subj '/CN=armbian'
+
+          cat > "$WORK/tls/server-ext.cnf" <<'EXT'
+          subjectAltName=DNS:armbian
+          extendedKeyUsage=serverAuth
+          EXT
+
+          openssl x509 -req             -in "$WORK/tls/server.csr"             -CA "$WORK/tls/ca.pem"             -CAkey "$WORK/tls/ca.key"             -CAcreateserial             -out "$WORK/tls/server.pem"             -days 1             -sha256             -extfile "$WORK/tls/server-ext.cnf"
+
+          docker run --rm             --user 0:0             -e ADMIN="$ADMIN"             -v "$WORK/data:/mosquitto/data"             "$IMAGE"             sh -ec 'printf "%s\n%s\n" "$ADMIN" "$ADMIN" | mosquitto_ctrl dynsec init /mosquitto/data/dynamic-security.json admin; chown 1883:1883 /mosquitto/data/dynamic-security.json; chmod 600 /mosquitto/data/dynamic-security.json'
+
+          sudo chown 1883:1883 "$WORK/tls/server.key"
+          chmod 600 "$WORK/tls/server.key"
+
+          cat > "$WORK/config/mosquitto.conf" <<'CONF'
+          persistence false
+          log_dest stdout
+          listener 8883
+          allow_anonymous false
+          cafile /mosquitto/config/n3w-ca.pem
+          certfile /mosquitto/config/n3w-server.pem
+          keyfile /mosquitto/config/n3w-server.key
+          plugin /usr/lib/mosquitto_dynamic_security.so
+          plugin_opt_config_file /mosquitto/data/dynamic-security.json
+          CONF
+
+          cat > "$WORK/run/admin.conf" <<EOF
+          -h armbian
+          -p 8883
+          --cafile /mosquitto/config/n3w-ca.pem
+          -u admin
+          -P $ADMIN
+          -V 5
+          EOF
+
+          cat > "$WORK/run/bad-host.conf" <<EOF
+          -h 127.0.0.1
+          -p 8883
+          --cafile /mosquitto/config/n3w-ca.pem
+          -u admin
+          -P $ADMIN
+          -V 5
+          EOF
+
+          docker volume ls -q | LC_ALL=C sort > "$WORK/before.txt"
+
+          docker run -d --rm             --name "$NAME"             --network none             --add-host armbian:127.0.0.1             --tmpfs /mosquitto/log             -v "$WORK/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro"             -v "$WORK/data:/mosquitto/data"             -v "$WORK/tls/ca.pem:/mosquitto/config/n3w-ca.pem:ro"             -v "$WORK/tls/server.pem:/mosquitto/config/n3w-server.pem:ro"             -v "$WORK/tls/server.key:/mosquitto/config/n3w-server.key:ro"             -v "$WORK/run:/run/n3w-s20:ro"             "$IMAGE"
+
+          success=false
+          for _ in $(seq 1 30); do
+            if printf '%s' '{"commands":[{"command":"listClients"}]}' |
+              docker exec -i --user 0:0 "$NAME"                 mosquitto_rr                 -o /run/n3w-s20/admin.conf                 -q 1                 -W 2                 -t '$CONTROL/dynamic-security/v1'                 -e '$CONTROL/dynamic-security/v1/response'                 -s > "$WORK/response.json" 2> "$WORK/response.err"; then
+              success=true
+              break
+            fi
+            sleep 0.5
+          done
+
+          if [ "$success" != true ]; then
+            docker logs "$NAME"
+            cat "$WORK/response.err"
+            exit 31
+          fi
+
+          grep -F '"command":"listClients"' "$WORK/response.json"
+          grep -F '127.0.0.1' <(docker exec "$NAME" cat /etc/hosts) | grep -F 'armbian'
+
+          if printf '%s' '{"commands":[{"command":"listClients"}]}' |
+            docker exec -i --user 0:0 "$NAME"               mosquitto_rr               -o /run/n3w-s20/bad-host.conf               -q 1               -W 2               -t '$CONTROL/dynamic-security/v1'               -e '$CONTROL/dynamic-security/v1/response'               -s >/dev/null 2>&1; then
+            exit 32
+          fi
+
+          docker rm -f "$NAME"
+
+          docker volume ls -q | LC_ALL=C sort > "$WORK/after.txt"
+          diff -u "$WORK/before.txt" "$WORK/after.txt"
+
+          printf 'R5_ADMIN_READINESS_TLS_TRANSPORT=PASS\n'
+          printf 'TLS_SERVER_NAME_VERIFICATION=PASS\n'
+          printf 'TRANSACTION_BROKER_VOLUME_SET_UNCHANGED=true\n'
