@@ -341,3 +341,59 @@ ci(n3w): consume frozen Manager image artifact
 ```
 
 No T1 mutation or production service start occurred.
+
+
+## 12. Final source-repair CI closure
+
+The dedicated source-repair workflow passed on the exact frozen Manager artifact:
+
+```text
+RUN_ID=38124163390
+RUN_NUMBER=14
+STATUS=completed
+CONCLUSION=success
+
+INSTALL_MANAGER_TEST_ENVIRONMENT=PASS
+FOCUSED_SOURCE_TESTS=PASS
+RENDER_AND_VALIDATE_PRODUCTION_COMPOSE=PASS
+DOWNLOAD_EXACT_FROZEN_PRODUCTION_IMAGE_ARTIFACT=PASS
+LOAD_EXACT_FROZEN_ARM64_MANAGER_IMAGE=PASS
+PREPARE_SYNTHETIC_RESTORED_MANAGER_BASELINE=PASS
+EXACT_IMAGE_MANAGER_STATE_PREPARE_AND_AUDIT=PASS
+
+MANAGER_STATE_BINDING_SOURCE_REPAIR=PASS
+EXACT_MANAGER_IMAGE_STATE_PREPARE=PASS
+MANAGER_DATABASE_MUTATED=false
+TRANSACTION_DOCKER_VOLUME_SET_UNCHANGED=true
+T1_ACCESS=false
+BOARD_ACCESS=false
+```
+
+The exact-image audit proved:
+
+```text
+manager_database_quick_check=ok
+manager_database_business_row_count=0
+manager_database_provenance_count=1
+manager_database_system_identity_bound=true
+n3w_state_prepared=true
+replay_node_count=0
+replay_tuple_count=0
+relay_active_node_count=0
+relay_key_file_count=0
+```
+
+The two preceding failures are classified as CI-only fixture errors and are closed:
+
+1. missing Manager runtime dependencies in the host test environment;
+2. trying to reproduce a frozen Docker image by rebuilding mutable external inputs, followed by an artifact extraction-path error.
+
+Neither failure proved a product runtime defect.
+
+```text
+KF104_SOURCE_REPAIR=CLOSED_PASS
+LIVE_T1_STAGING=PENDING_NEW_AUTHORIZATION
+PRODUCTION_SERVICE_START=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
