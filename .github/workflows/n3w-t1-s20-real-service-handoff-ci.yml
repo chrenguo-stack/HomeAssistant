@@ -74,9 +74,11 @@ jobs:
           docker volume ls -q | LC_ALL=C sort > "$WORK/before.txt"
           docker run -d --rm --name "$NAME" --network none --tmpfs /mosquitto/log -v "$WORK/data:/mosquitto/data" "$IMAGE" sh -c 'sleep 30'
           mounts="$(docker inspect "$NAME" --format '{{range .Mounts}}{{println .Type .Destination}}{{end}}')"
+          tmpfs="$(docker inspect "$NAME" --format '{{json .HostConfig.Tmpfs}}')"
           printf '%s\n' "$mounts"
+          printf '%s\n' "$tmpfs"
           grep -Fx 'bind /mosquitto/data' <<<"$mounts"
-          grep -Fx 'tmpfs /mosquitto/log' <<<"$mounts"
+          grep -F '"/mosquitto/log"' <<<"$tmpfs"
           docker rm -f "$NAME"
           for _ in $(seq 1 20); do
             if ! docker inspect "$NAME" >/dev/null 2>&1; then
