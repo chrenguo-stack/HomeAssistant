@@ -26,6 +26,7 @@ EXPECTED_DYNSEC_SHA256 = (
 EXPECTED_SYSTEM_ID_SHA256 = (
     "f300f10844ecfc75f12a0deb789ce9ddb41209c38307e65436e81d43ad4658d9"
 )
+EXPECTED_SYSTEM_ID_PROVENANCE_FINGERPRINT = EXPECTED_SYSTEM_ID_SHA256[:24]
 EXPECTED_MANAGER_IMAGE = "local/greenhouse-manager:s20-511db028"
 EXPECTED_MANAGER_IMAGE_ID = (
     "sha256:ef0f28c2fd339430a85acb6cb65158c71c61cd8fc3c6330c375da27d0f2440f1"
@@ -153,7 +154,7 @@ SOURCE_FILES: dict[str, tuple[str, int, str]] = {
     "tools/n3w_t1_production_manager_state_prepare.py": (
         "/opt/HomeAssistant/tools/n3w_t1_production_manager_state_prepare.py",
         0o755,
-        "319f7c5bd884aa72184d667924e8a6233ca2ed6709325d11ad756f127531a074",
+        "a5811e28d93b85d5a11f7220cf4179ab4fd24846c8492aef1580fa7c62acd56f",
     ),
 }
 
@@ -353,7 +354,7 @@ def _manager_database_report() -> dict[str, Any]:
         row = provenance[0]
         if (
             row[0] != "gh.h0h1.legacy-adoption-provenance/1"
-            or row[1] != EXPECTED_SYSTEM_ID_SHA256
+            or row[1] != EXPECTED_SYSTEM_ID_PROVENANCE_FINGERPRINT
             or row[2] != 0
             or row[3] != 0
         ):
