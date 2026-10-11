@@ -1,3 +1,16 @@
+> **2026-10-11 staging apply #02 timeout / rollback PASS / successor #03 source repair**：authorization `..._02` 已 claim+consume。fresh preflight、state-root、Manager image load、Manager state prepare 均 PASS；随后 exact Home Assistant `docker pull` 在 1200 s 超时，executor structured STOP，rollback `status=PASS/errors=[]`，未启动生产服务。底层网络原因 TBD；已确认 KF-107：one-shot post-claim critical section 不应依赖外部 registry。source repair 已改为 payload CI 预先冻结 exact ARM64 HA/Broker tar，T1 apply 只做 local `docker load`。authorization 已旋转为 `N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_03`，当前 NOT_GRANTED，等待新 CI / artifact binding / fresh T1 preflight。
+
+```text
+KF107=OPEN_SOURCE_REPAIR_CI_PENDING
+PREDECESSOR_02=CONSUMED_FAILED_ROLLBACK_PASS
+SUCCESSOR_03=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_03
+SUCCESSOR_AUTHORIZATION_STATE=NOT_GRANTED
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
 > **2026-10-11 successor staging apply CLAIMED / IN PROGRESS**：repository-owned host wrapper 已输出 `apply_transport_invoked`，因此 authorization `N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02` 已永久 claimed+consumed，禁止 replay。当前 host wrapper 尚未返回最终 executor 结果；其实现使用 `subprocess.run(..., capture_output=True)`，remote stdout/stderr 会在 SSH 子进程结束后才一次性回传，所以 image load/pull 等长步骤期间原 Terminal 可能长时间静默，这本身不是失败证据。原 Terminal 必须保持运行；并行只允许 read-only observation。
 
 ```text
