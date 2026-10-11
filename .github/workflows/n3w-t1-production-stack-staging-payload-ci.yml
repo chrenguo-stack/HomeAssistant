@@ -337,6 +337,7 @@ jobs:
           sha256sum "$RUNNER_TEMP/host-wrapper.py" | awk '{print $1}' > "$RUNNER_TEMP/host-wrapper.sha256"
 
       - name: Upload exact staging payload
+        id: upload
         uses: actions/upload-artifact@v4
         with:
           name: n3w-t1-production-stack-staging-payload-${{ env.SOURCE_HEAD }}
@@ -349,6 +350,210 @@ jobs:
             ${{ runner.temp }}/host-wrapper.sha256
           if-no-files-found: error
           retention-days: 30
+
+      - name: Download uploaded staging artifact for exact binding
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ steps.upload.outputs.artifact-id }}
+          path: ${{ runner.temp }}/uploaded-staging-artifact
+          merge-multiple: true
+
+      - name: Verify uploaded staging artifact binding
+        env:
+          UPLOADED_ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          UPLOADED_ARTIFACT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          python - "$RUNNER_TEMP/uploaded-staging-artifact" "$SOURCE_HEAD" "$AUTHORIZATION_ID" "$UPLOADED_ARTIFACT_ID" "$UPLOADED_ARTIFACT_DIGEST" <<'PY'
+          import hashlib
+          import json
+          import re
+          import sys
+          import tarfile
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          source_head = sys.argv[2]
+          authorization_id = sys.argv[3]
+          artifact_id = sys.argv[4]
+          artifact_digest = sys.argv[5]
+          historical_root_available = 6420955136
+
+          def need(condition, reason):
+              if not condition:
+                  raise RuntimeError(reason)
+
+          def sha256_file(path):
+              digest = hashlib.sha256()
+              with path.open("rb") as stream:
+                  while True:
+                      block = stream.read(1024 * 1024)
+                      if not block:
+                          break
+                      digest.update(block)
+              return digest.hexdigest()
+
+          def read_sha_sidecar(name):
+              value = (root / name).read_text(encoding="utf-8").strip()
+              need(re.fullmatch(r"[0-9a-f]{64}", value) is not None, f"{name}_invalid")
+              return value
+
+          expected_outer = {
+              "executor.sha256",
+              "host-wrapper.py",
+              "host-wrapper.sha256",
+              "payload-archive.sha256",
+              "payload-archive.tar.gz",
+              "payload-manifest.sha256",
+          }
+          actual_outer = {path.name for path in root.iterdir()}
+          need(actual_outer == expected_outer, "artifact_outer_file_set_mismatch")
+          need(re.fullmatch(r"sha256:[0-9a-f]{64}", artifact_digest) is not None, "artifact_digest_invalid")
+
+          archive = root / "payload-archive.tar.gz"
+          archive_sha = sha256_file(archive)
+          executor_sidecar = read_sha_sidecar("executor.sha256")
+          manifest_sidecar = read_sha_sidecar("payload-manifest.sha256")
+          host_wrapper_sidecar = read_sha_sidecar("host-wrapper.sha256")
+          need(read_sha_sidecar("payload-archive.sha256") == archive_sha, "payload_archive_sidecar_mismatch")
+          host_wrapper_sha = sha256_file(root / "host-wrapper.py")
+          need(host_wrapper_sidecar == host_wrapper_sha, "host_wrapper_sidecar_mismatch")
+
+          retained = {
+              "payload-manifest.json",
+              "infra/n3w-t1/production/docker-compose.yml",
+              "infra/n3w-t1/production/image-lock.json",
+              "tools/n3w_t1_production_stack_staging.py",
+          }
+          files = {}
+          payload_uncompressed_bytes = 0
+          with tarfile.open(archive, "r:gz") as payload:
+              for member in payload:
+                  name = member.name
+                  while name.startswith("./"):
+                      name = name[2:]
+                  if not name:
+                      continue
+                  path = Path(name)
+                  need(not path.is_absolute() and ".." not in path.parts, f"payload_path_unsafe:{name}")
+                  if member.isdir():
+                      continue
+                  need(member.isfile(), f"payload_non_regular_member:{name}")
+                  need(name not in files, f"payload_duplicate_member:{name}")
+                  stream = payload.extractfile(member)
+                  need(stream is not None, f"payload_member_unreadable:{name}")
+                  digest = hashlib.sha256()
+                  keep = bytearray() if name in retained else None
+                  while True:
+                      block = stream.read(1024 * 1024)
+                      if not block:
+                          break
+                      digest.update(block)
+                      if keep is not None:
+                          keep.extend(block)
+                  files[name] = {
+                      "sha256": digest.hexdigest(),
+                      "size": member.size,
+                      "data": bytes(keep) if keep is not None else None,
+                  }
+                  payload_uncompressed_bytes += member.size
+
+          need("payload-manifest.json" in files, "payload_manifest_missing")
+          manifest = json.loads(files["payload-manifest.json"]["data"].decode("utf-8"))
+          records = manifest.get("files")
+          need(isinstance(records, list), "manifest_files_invalid")
+          expected = {}
+          for record in records:
+              need(isinstance(record, dict), "manifest_record_invalid")
+              name = record.get("path")
+              digest = record.get("sha256")
+              size = record.get("size")
+              need(isinstance(name, str) and name and name != "payload-manifest.json", "manifest_path_invalid")
+              need(name not in expected, f"manifest_duplicate_path:{name}")
+              need(re.fullmatch(r"[0-9a-f]{64}", digest or "") is not None, f"manifest_sha_invalid:{name}")
+              need(isinstance(size, int) and not isinstance(size, bool) and size >= 0, f"manifest_size_invalid:{name}")
+              expected[name] = {"sha256": digest, "size": size}
+
+          actual_payload_files = set(files) - {"payload-manifest.json"}
+          need(set(expected) == actual_payload_files, "manifest_file_set_mismatch")
+          for name, record in expected.items():
+              need(files[name]["sha256"] == record["sha256"], f"manifest_sha_mismatch:{name}")
+              need(files[name]["size"] == record["size"], f"manifest_size_mismatch:{name}")
+
+          manifest_sha = files["payload-manifest.json"]["sha256"]
+          need(manifest_sidecar == manifest_sha, "payload_manifest_sidecar_mismatch")
+          executor_name = "tools/n3w_t1_production_stack_staging.py"
+          need(executor_name in files, "executor_missing")
+          need(executor_sidecar == files[executor_name]["sha256"], "executor_sidecar_mismatch")
+          need(manifest.get("executor_sha256") == files[executor_name]["sha256"], "manifest_executor_mismatch")
+
+          need(manifest.get("source_head") == source_head, "manifest_source_head_mismatch")
+          need(manifest.get("authorization_id") == authorization_id, "manifest_authorization_id_mismatch")
+          need(manifest.get("authorization_claimed") is False, "manifest_authorization_claimed")
+          need(manifest.get("authorization_consumed") is False, "manifest_authorization_consumed")
+          need(manifest.get("secret_values_included") is False, "manifest_secret_values_included")
+          need(manifest.get("production_service_start") is False, "manifest_production_service_start")
+          need(manifest.get("board_access") is False, "manifest_board_access")
+
+          image_tars = {
+              "artifact/greenhouse-manager-arm64.tar": "manager_tar_sha256",
+              "artifact/homeassistant-arm64.tar": "homeassistant_tar_sha256",
+              "artifact/broker-arm64.tar": "broker_tar_sha256",
+          }
+          actual_artifacts = {name for name in files if name.startswith("artifact/")}
+          need(actual_artifacts == set(image_tars), "three_image_tar_set_mismatch")
+          for name, manifest_key in image_tars.items():
+              need(manifest.get(manifest_key) == files[name]["sha256"], f"{manifest_key}_mismatch")
+
+          compose = files["infra/n3w-t1/production/docker-compose.yml"]["data"].decode("utf-8")
+          image_lock = json.loads(files["infra/n3w-t1/production/image-lock.json"]["data"].decode("utf-8"))
+          executor = files[executor_name]["data"].decode("utf-8")
+          expected_images = {
+              "manager": "local/greenhouse-manager:s20-511db028",
+              "homeassistant": "local/n3w-homeassistant:2026.10.0-0c73235a",
+              "broker": "local/n3w-mosquitto:2.1.2-3184566d",
+          }
+          for label, image in expected_images.items():
+              need(image_lock[label]["image"] == image, f"image_lock_image_mismatch:{label}")
+              need(image_lock[label]["pull_policy"] == "never", f"image_lock_pull_policy_mismatch:{label}")
+              need(image in compose, f"compose_image_missing:{label}")
+          need(compose.count("pull_policy: never") == 3, "compose_pull_policy_count_mismatch")
+          need('("docker", "pull"' not in executor, "live_docker_pull_present")
+          need(executor.count('"docker",\n                "load"') >= 3, "docker_load_count_mismatch")
+
+          archive_size = archive.stat().st_size
+          extraction_peak = archive_size + payload_uncompressed_bytes
+          historical_peak_pass = extraction_peak < historical_root_available
+          need(historical_peak_pass, "historical_extraction_peak_budget_failed")
+
+          print(f"ARTIFACT_ID={artifact_id}")
+          print(f"ARTIFACT_DIGEST={artifact_digest}")
+          print(f"PAYLOAD_ARCHIVE_SIZE_BYTES={archive_size}")
+          print(f"PAYLOAD_ARCHIVE_SHA256={archive_sha}")
+          print(f"PAYLOAD_MANIFEST_SHA256={manifest_sha}")
+          print(f"EXECUTOR_SHA256={files[executor_name]['sha256']}")
+          print(f"HOST_WRAPPER_SHA256={host_wrapper_sha}")
+          print(f"MANAGER_TAR_SIZE_BYTES={files['artifact/greenhouse-manager-arm64.tar']['size']}")
+          print(f"MANAGER_TAR_SHA256={files['artifact/greenhouse-manager-arm64.tar']['sha256']}")
+          print(f"HOMEASSISTANT_TAR_SIZE_BYTES={files['artifact/homeassistant-arm64.tar']['size']}")
+          print(f"HOMEASSISTANT_TAR_SHA256={files['artifact/homeassistant-arm64.tar']['sha256']}")
+          print(f"BROKER_TAR_SIZE_BYTES={files['artifact/broker-arm64.tar']['size']}")
+          print(f"BROKER_TAR_SHA256={files['artifact/broker-arm64.tar']['sha256']}")
+          print(f"MANIFEST_SOURCE_HEAD={manifest['source_head']}")
+          print(f"MANIFEST_AUTHORIZATION_ID={manifest['authorization_id']}")
+          print("MANIFEST_AUTHORIZATION_CLAIMED=false")
+          print("MANIFEST_AUTHORIZATION_CONSUMED=false")
+          print(f"PAYLOAD_MANIFEST_FILE_COUNT={len(expected)}")
+          print("PAYLOAD_MANIFEST_FILE_SET=PASS")
+          print("THREE_IMAGE_TAR_SET_EXACT=true")
+          print("PAYLOAD_SIDECAR_BINDING=PASS")
+          print("OFFLINE_RUNTIME_CONTRACT_EXACT=PASS")
+          print(f"PAYLOAD_UNCOMPRESSED_MEMBER_BYTES={payload_uncompressed_bytes}")
+          print(f"EXTRACTION_PEAK_ESTIMATE_BYTES={extraction_peak}")
+          print(f"HISTORICAL_T1_ROOT_AVAILABLE_BYTES={historical_root_available}")
+          print("HISTORICAL_EXTRACTION_PEAK_CHECK=PASS")
+          print("RUN_EXACT_ARTIFACT_BINDING=PASS")
+          PY
 
       - name: Final no-live assertion
         run: |
