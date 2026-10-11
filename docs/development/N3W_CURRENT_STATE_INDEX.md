@@ -1,3 +1,5 @@
+> **2026-10-12 R6 CLOSED_PASS / normalization preflight prepared**：exact ARM64 three-image artifact #11718067835 post-upload binding PASS；下一步只读盘点 T1，先生成 exact cleanup manifest，再单独申请 destructive authorization。
+
 > **2026-10-12 R5 CLOSED_PASS / R6 pending CI**：host-only 从零安装已闭环；exact ARM64 Manager/HA/Broker 三镜像 + fresh runtime identity binding CI 已提交。
 
 > **2026-10-12 R4 CLOSED_PASS / R5 pending CI**：fresh transport exact artifact #11709005237 已通过上传后复核；host-only full-fresh install CI 已提交，真实 T1 不变。\n\n> **2026-10-11 R4 pending CI**：fresh host transport 已实现 payload-aware 容量计算和顺序 image-tar release 合同；read-only preflight 在任何大文件传输前完成。当前 CLI 不开放 apply。下一门 R5 为 host-only isolated full-fresh CI。
