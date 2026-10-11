@@ -2,7 +2,7 @@
 
 Date: 2026-10-11
 
-Status: SUCCESSOR_PREFLIGHT_PASS / AUTHORIZATION_GRANTED_PENDING_CLAIM
+Status: SUCCESSOR_SOURCE_REPAIR / AUTHORIZATION_NOT_GRANTED
 
 PR: #541 OPEN DRAFT
 
@@ -19,7 +19,7 @@ PREDECESSOR_AUTHORIZATION_STATE=CONSUMED_FAILED_ROLLBACK_PASS
 PREDECESSOR_REPLAY_FORBIDDEN=true
 
 AUTHORIZATION_ID=
-N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02
+N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_03
 
 AUTHORIZATION_STATE=GRANTED_PENDING_CLAIM
 ONE_SHOT=true
@@ -161,7 +161,7 @@ LIVE_STAGING_AUTHORIZATION_REQUIRED=true
 PREDECESSOR_AUTHORIZATION_ID=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_01
 PREDECESSOR_AUTHORIZATION_STATE=CONSUMED_FAILED_ROLLBACK_PASS
 PREDECESSOR_REPLAY_FORBIDDEN=true
-AUTHORIZATION_ID=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02
+AUTHORIZATION_ID=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_03
 AUTHORIZATION_STATE=GRANTED_PENDING_CLAIM
 ```
 
@@ -175,7 +175,7 @@ completed rollback with zero reported rollback errors.
 The successor authorization is intentionally a new identity:
 
 ```text
-N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02
+N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_03
 ```
 
 It is not granted by creation of this document, by CI PASS, by a fresh
@@ -211,7 +211,7 @@ HOST_WRAPPER_RC=0
 TRANSPORT_COMPLETION=KNOWN_SUCCESS
 LIVE_MUTATION=false
 
-AUTHORIZATION_ID=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02
+AUTHORIZATION_ID=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_03
 AUTHORIZATION_STATE=GRANTED_PENDING_CLAIM
 AUTHORIZATION_CLAIMED=false
 AUTHORIZATION_CONSUMED=false
@@ -226,7 +226,7 @@ gate before the one-shot staging-only apply.
 The operator explicitly approved the exact successor authorization:
 
 ```text
-AUTHORIZATION_ID=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02
+AUTHORIZATION_ID=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_03
 AUTHORIZATION_STATE=GRANTED_PENDING_CLAIM
 AUTHORIZATION_CLAIMED=false
 AUTHORIZATION_CONSUMED=false
@@ -240,3 +240,36 @@ The claim point is the repository-owned host wrapper's emitted
 `apply_transport_invoked` event immediately before the remote executor is
 invoked with `--phase apply`. From that event onward the authorization is
 permanently one-shot and non-replayable regardless of outcome.
+
+
+## 11. Predecessor #02 consumed and successor #03 reset
+
+The previously granted successor authorization `..._02` was claimed and
+consumed by a staging attempt that failed at a 1200-second Home Assistant image
+pull timeout. The executor completed rollback with zero rollback errors and did
+not start production services.
+
+The next authorization identity is:
+
+```text
+AUTHORIZATION_ID=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_03
+AUTHORIZATION_STATE=NOT_GRANTED
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+```
+
+The `..._03` scope remains staging-only, but its source contract is stricter:
+all three production images must be present in the exact content-addressed
+payload before T1 execution. The live apply must perform no external image
+registry pull.
+
+Before `..._03` can be granted:
+
+1. the new offline-image payload CI must PASS;
+2. the large replacement artifact, payload archive, manifest, executor and host
+   wrapper must be rebound by exact SHA256;
+3. a fresh T1 preflight using that artifact must PASS;
+4. the operator must explicitly approve `..._03`.
+
+The consumed `..._01` and `..._02` authorizations remain permanently
+non-replayable.
