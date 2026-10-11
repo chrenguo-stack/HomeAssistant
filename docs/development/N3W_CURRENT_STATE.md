@@ -1,3 +1,16 @@
+> **2026-10-11 exact staging payload bound / fresh T1 preflight next**：payload workflow run `38126850777` PASS；exact PR-head source `ea6738551e583a14ad5685e181109b7e57f8fb1b`，artifact ID `11697172862`，artifact ZIP SHA256 `371b7aff...`，payload archive SHA256 `35e9b7e2...`，manifest SHA256 `3e73fbf6...`，executor SHA256 `3f82a52d...`，Manager tar SHA256 `2ef0421d...`。先前 run `38126385865` 使用 PR synthetic merge SHA `21727a26...`，其 payload 已 superseded，禁止用于 T1。下一步仅 fresh T1 preflight；authorization 仍未 claim/consume，production services 保持 stopped。
+
+```text
+PAYLOAD_BINDING=PASS
+FRESH_T1_PREFLIGHT=NEXT
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
 > **2026-10-11 staging executor hardened CI PASS / payload build entered**：hardened executor source head `b9305b5fff1d046ebbc86530d12521ea227681a6` dedicated CI run `38125884756` PASS；docs-only head `7f54561...` run `38125935452` 亦 PASS。Codex 旧 payload 明确 superseded，不得用于 T1。已新增 repository-owned content-addressed payload workflow `.github/workflows/n3w-t1-production-stack-staging-payload-ci.yml`（commit `96113b82...`），将重新下载并校验 frozen Manager artifact、生成 executor/manifest/archive SHA，并保持 authorization claimed/consumed=false。当前仍禁止 T1 mutation；fresh T1 preflight 只在新 payload CI PASS 并完成 artifact rebind 后进入。
 
 ```text
