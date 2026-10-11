@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -224,3 +225,104 @@ def test_staging_uses_h0h1_24_char_provenance_fingerprint() -> None:
         == tool.EXPECTED_SYSTEM_ID_SHA256[:24]
     )
     assert len(tool.EXPECTED_SYSTEM_ID_PROVENANCE_FINGERPRINT) == 24
+
+
+def test_staging_manager_database_accepts_h0h1_fingerprint(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    manager_db = tmp_path / "manager-state.sqlite3"
+
+    connection = sqlite3.connect(manager_db)
+    try:
+        connection.executescript(
+            """
+            CREATE TABLE registrations (id INTEGER);
+            CREATE TABLE pairing_sessions (id INTEGER);
+            CREATE TABLE registration_events (id INTEGER);
+            CREATE TABLE registration_node_history (id INTEGER);
+            CREATE TABLE node_id_leases (id INTEGER);
+            CREATE TABLE retirement_outbox (id INTEGER);
+            CREATE TABLE credential_assignments (id INTEGER);
+            CREATE TABLE h0h1_legacy_adoption_provenance (
+                schema TEXT NOT NULL,
+                classification_result_sha256 TEXT NOT NULL,
+                system_id_fingerprint TEXT NOT NULL,
+                structured_legacy_manager_state_imported INTEGER NOT NULL,
+                anonymous_nodes_reconstructed INTEGER NOT NULL
+            );
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO h0h1_legacy_adoption_provenance
+            VALUES (?, ?, ?, 0, 0)
+            """,
+            (
+                "gh.h0h1.legacy-adoption-provenance/1",
+                "b" * 64,
+                tool.EXPECTED_SYSTEM_ID_PROVENANCE_FINGERPRINT,
+            ),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    monkeypatch.setattr(tool, "MANAGER_DB", manager_db)
+    monkeypatch.setattr(tool, "_require_regular", lambda *_args, **_kwargs: None)
+
+    report = tool._manager_database_report()
+
+    assert report["quick_check"] == "ok"
+    assert report["business_rows"] == 0
+    assert report["provenance_rows"] == 1
+
+
+def test_staging_manager_database_rejects_full_sha_provenance(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    manager_db = tmp_path / "manager-state.sqlite3"
+
+    connection = sqlite3.connect(manager_db)
+    try:
+        connection.executescript(
+            """
+            CREATE TABLE registrations (id INTEGER);
+            CREATE TABLE pairing_sessions (id INTEGER);
+            CREATE TABLE registration_events (id INTEGER);
+            CREATE TABLE registration_node_history (id INTEGER);
+            CREATE TABLE node_id_leases (id INTEGER);
+            CREATE TABLE retirement_outbox (id INTEGER);
+            CREATE TABLE credential_assignments (id INTEGER);
+            CREATE TABLE h0h1_legacy_adoption_provenance (
+                schema TEXT NOT NULL,
+                classification_result_sha256 TEXT NOT NULL,
+                system_id_fingerprint TEXT NOT NULL,
+                structured_legacy_manager_state_imported INTEGER NOT NULL,
+                anonymous_nodes_reconstructed INTEGER NOT NULL
+            );
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO h0h1_legacy_adoption_provenance
+            VALUES (?, ?, ?, 0, 0)
+            """,
+            (
+                "gh.h0h1.legacy-adoption-provenance/1",
+                "b" * 64,
+                tool.EXPECTED_SYSTEM_ID_SHA256,
+            ),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    monkeypatch.setattr(tool, "MANAGER_DB", manager_db)
+    monkeypatch.setattr(tool, "_require_regular", lambda *_args, **_kwargs: None)
+
+    with pytest.raises(tool.StagingError, match="manager_database_provenance_drift"):
+        tool._manager_database_report()
