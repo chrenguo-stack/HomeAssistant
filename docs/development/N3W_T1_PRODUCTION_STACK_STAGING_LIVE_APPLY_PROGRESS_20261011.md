@@ -847,3 +847,44 @@ PR_MERGE=false
 Only the repository-owned host wrapper and exact successor artifact may be used.
 The predecessor authorization and all predecessor payloads remain permanently
 forbidden.
+
+
+## 17. Successor apply claimed / live execution in progress
+
+The repository-owned host wrapper emitted the one-shot claim event:
+
+```text
+HOST_WRAPPER_BINDING=PASS
+AUTHORIZATION_ID=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02
+authorization_claimed=true
+do_not_replay=true
+event=apply_transport_invoked
+```
+
+Per the frozen contract, the successor authorization is now permanently claimed
+and consumed. It must never be replayed, regardless of the eventual transaction
+result or host transport outcome.
+
+At the time of this update the host wrapper had not yet returned a final
+executor result. This is not itself a failure signal: the repository-owned host
+wrapper invokes the remote executor with `subprocess.run(...,
+capture_output=True)` and only forwards the captured remote stdout/stderr after
+that SSH command exits. Long-running remote steps such as image pulls can
+therefore make the operator terminal appear silent while the transaction is
+still active.
+
+Current state:
+
+```text
+AUTHORIZATION_STATE=CLAIMED_IN_PROGRESS
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+REPLAY_FORBIDDEN=true
+FINAL_TRANSACTION_RESULT=UNKNOWN
+PRODUCTION_SERVICE_START=NOT_YET_OBSERVED
+BOARD_ACCESS=false
+PR_MERGE=false
+```
+
+The correct operator action is to leave the original terminal/process running.
+Any parallel observation must be strictly read-only.
