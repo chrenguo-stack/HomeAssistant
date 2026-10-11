@@ -2,7 +2,7 @@
 
 Date: 2026-10-11
 
-Status: SUCCESSOR_PREEXECUTION_PREPARED / AUTHORIZATION_NOT_GRANTED
+Status: SUCCESSOR_PREFLIGHT_PASS / AUTHORIZATION_NOT_GRANTED
 
 PR: #541 OPEN DRAFT
 
@@ -192,3 +192,30 @@ Before `..._02` can be claimed:
 The successor scope remains staging-only. It still does not permit production
 service start, unit enablement, dispatcher installation, reboot, board access,
 or PR merge.
+
+
+## 9. Successor fresh preflight evidence
+
+The successor content-addressed payload and repository-owned host transport have
+now completed a live read-only T1 preflight:
+
+```text
+SOURCE_HEAD=161253205a9b8d3af8aa345808f231add9bd5723
+PAYLOAD_RUN=38130333387
+ARTIFACT_ID=11697988392
+EXECUTOR_SHA256=5ff02f68ebca832c57698084a837233db3863c32301b26ec114c61eb51156918
+HOST_WRAPPER_SHA256=30ca74ec1a46f5de6252adf2663bcce4607ac2e7768f5e31fd5ca14ac0338a4b
+
+T1_PREFLIGHT=PASS
+HOST_WRAPPER_RC=0
+TRANSPORT_COMPLETION=KNOWN_SUCCESS
+LIVE_MUTATION=false
+
+AUTHORIZATION_ID=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02
+AUTHORIZATION_STATE=NOT_GRANTED
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+```
+
+Explicit user approval of this exact authorization ID is now the only remaining
+gate before the one-shot staging-only apply.
