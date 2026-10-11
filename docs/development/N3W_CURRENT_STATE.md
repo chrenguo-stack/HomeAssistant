@@ -1,3 +1,22 @@
+> **2026-10-11 R5 admin-readiness TLS source repair CLOSED_PASS / fresh T1 read-only preclaim next**：corrected `N3W T1 S20 real service handoff CI` run `38102338780` 三个 job 全部 PASS：source `74 passed`、volume-lifecycle PASS、tls-readiness PASS。隔离 TLS 证据明确得到 `R5_ADMIN_READINESS_TLS_TRANSPORT=PASS`、`TLS_SERVER_NAME_VERIFICATION=PASS`、`TRANSACTION_BROKER_VOLUME_SET_UNCHANGED=true`；连接主机固定为 `armbian:8883` + exact mounted CA，transaction Broker 仍 `--network none` + `--add-host armbian:127.0.0.1`，未增加 plaintext 1883 listener，也未使用 `--insecure`。CI trigger head `1ecc12ded60c7ea53e0af94722a05f3b4f0e4654` 到 review head `321f2906749e873bf94cfd948ac9a2dd1d0ed474` 的 delta 仅 docs，无 source/workflow drift。R5 live apply 仍未授权；下一门只进入 fresh T1 read-only preclaim。Authority: `docs/development/N3W_T1_S20_R5_ADMIN_READINESS_TLS_TRANSPORT_SOURCE_REPAIR_CLOSURE_20261011.md`.
+
+```text
+N3W_T1_S20_R5_ADMIN_READINESS_TLS_TRANSPORT_SOURCE_REPAIR=PASS
+R5_SOURCE_TESTS=PASS_74
+R5_VOLUME_LIFECYCLE=PASS
+R5_ADMIN_READINESS_TLS_TRANSPORT=PASS
+TLS_SERVER_NAME_VERIFICATION=PASS
+PLAINTEXT_1883_LISTENER_ADDED=false
+TLS_INSECURE=false
+R5_LIVE_APPLY=false
+R5_AUTHORIZATION_GRANTED=false
+NEXT_ONE_GATE=N3W_T1_S20_R5_FRESH_T1_READONLY_PRECLAIM_20261011_01
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
 > **2026-10-11 R5 admin-readiness TLS transport source repair entered / source implemented / corrected CI pending**：用户已明确允许进入 `N3W_T1_S20_R5_ADMIN_READINESS_TLS_TRANSPORT_SOURCE_REPAIR`。R5 source 已将 transaction clients 从 plaintext `127.0.0.1:1883` 改为 exact TLS `armbian:8883` + `--cafile /mosquitto/config/n3w-ca.pem`，transaction container 继续 `--network none` 并用 `--add-host armbian:127.0.0.1` 保持仅容器内 loopback；禁止 `--insecure`，不新增 plaintext listener。anonymous negative probe 也已改走同一 TLS transport，避免 transport failure 假冒 anonymous rejection。R1-R4 authorization 均保持 consumed/no-replay；R4 snapshot 转为 retained evidence，R5 future rollback snapshot 独立为 `dynsec-s20-r5-pre-three-service.json`，prospective R5 live authorization 仅在 source 中定义，尚未获得 live mutation 批准。首次 TLS-isolated CI 因 fixture 在 `sudo chown 1883:1883 server.key` 后用非 sudo chmod 而失败，未启动 Broker；已修为 `sudo chmod 600`，fresh run `38102338780` 在本轮最后允许的 poll 时仍 queued。Authority: `docs/development/N3W_T1_S20_R5_ADMIN_READINESS_TLS_TRANSPORT_SOURCE_REPAIR_PROGRESS_20261011.md`.
 
 ```text
