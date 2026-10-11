@@ -1,3 +1,23 @@
+> **2026-10-11 S20 R4 extra Docker volume readonly attribution CLOSED_PASS**：fresh T1 baseline 仍为 0 containers / 46 volumes，volume set SHA `918671f5...`，DynSec/Broker config/guard/networks 均保持冻结状态。唯一新增匿名 volume 已被 Docker event 直接绑定到 R4 transaction container `0c8b4bb8...` 的 `/mosquitto/log`：同秒 create+mount，R4 container destroy 时 unmount；exact Mosquitto image 声明 `/mosquitto/data` 与 `/mosquitto/log`，R4 executor 只显式 bind `/mosquitto/data`，因此该 volume 的 R4 provenance 已从 inference 升级为 PROVEN。当前无任何 container 引用该 volume。只读 gate 已 PASS，但删除尚未授权；下一阶段只能设计并等待单一 volume bounded recovery authorization，禁止进入 R5 或启动 production services。
+
+```text
+R4_EXTRA_DOCKER_VOLUME_ATTRIBUTION=PASS
+EXTRA_VOLUME_IDENTITY=a16dba0851cd3fee17660cf65029622951c7b7d99cbe066b9d177605b62db2e7
+EXTRA_VOLUME_DESTINATION=/mosquitto/log
+R4_TRANSACTION_PROVENANCE=true
+CURRENT_CONTAINER_REFERENCE_COUNT=0
+READY_FOR_BOUNDED_VOLUME_RECOVERY_AUTHORIZATION=true
+SAFE_DELETION_NOT_YET_AUTHORIZED=true
+PROPOSED_AUTHORIZATION=N3W_T1_S20_R4_BOUNDED_EXTRA_VOLUME_RECOVERY_20261011_01
+GRANTED=false
+NEXT_STAGE=N3W_T1_S20_R4_BOUNDED_EXTRA_VOLUME_RECOVERY_AUTHORIZATION_DESIGN
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+```
+
+Authority: `docs/development/N3W_T1_S20_R4_EXTRA_DOCKER_VOLUME_READONLY_ATTRIBUTION_CLOSURE_20261011.md`.
+
 > **2026-10-11 current new-chat handoff frozen**：R4 failure / rollback volume drift / readiness transport failure 已完成正式新会话交接。下一会话必须从 handoff 的只读 volume attribution gate 开始，不得 replay R1-R4 authorization，不得删除未知 volume，不得启动 production services，不得进入 R5，不得访问板卡或 merge PR #541。
 
 ```text
