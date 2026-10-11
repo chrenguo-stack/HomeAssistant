@@ -291,11 +291,18 @@ def test_client_config_secret_is_file_material_not_command_contract() -> None:
     assert "-P private-secret-value" in rendered
     assert "-u service" in rendered
     assert "-i service-client" in rendered
+    assert f"-h {module.BROKER_TLS_SERVER_NAME}" in rendered
+    assert f"-p {module.BROKER_TLS_PORT}" in rendered
+    assert f"--cafile {module.BROKER_TLS_CA_TARGET}" in rendered
+    assert "127.0.0.1" not in rendered
+    assert "-p 1883" not in rendered
+    assert "--insecure" not in rendered
 
     source = Path(module.__file__).read_text(encoding="utf-8")
     assert '"-P",' not in source
     assert '"-p",' in source
     assert '"--network",\n        "none"' in source
+    assert '"--add-host",' in source
     assert '"--pull",\n        "never"' in source
 
 
@@ -630,6 +637,10 @@ def test_start_broker_uses_verified_local_image_id(
     )
     assert run_command[-1] == image_id
     assert module.BROKER_SOURCE_TAG not in run_command
+    add_host_index = run_command.index("--add-host")
+    assert run_command[add_host_index + 1] == (
+        f"{module.BROKER_TLS_SERVER_NAME}:{module.BROKER_LOOPBACK_IP}"
+    )
     tmpfs_index = run_command.index("--tmpfs")
     assert run_command[tmpfs_index + 1] == module.BROKER_LOG_TARGET
     assert not any(
@@ -803,10 +814,10 @@ def test_start_broker_command_has_no_forced_runtime_user(
     assert "--user" not in run_command
 
 
-def test_r4_authorization_and_snapshot_paths_are_attempt_scoped() -> None:
+def test_r5_authorization_and_snapshot_paths_are_attempt_scoped() -> None:
     assert module.AUTHORIZATION_ID == (
         "N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_"
-        "APPLY_R4_20261010_01"
+        "APPLY_R5_20261011_01"
     )
     assert Path(
         "/etc/n3wfc4/private/dynsec-s20-pre-three-service.json"
@@ -819,15 +830,19 @@ def test_r4_authorization_and_snapshot_paths_are_attempt_scoped() -> None:
     ) == module.R3_EVIDENCE_SNAPSHOT
     assert Path(
         "/etc/n3wfc4/private/dynsec-s20-r4-pre-three-service.json"
+    ) == module.R4_EVIDENCE_SNAPSHOT
+    assert Path(
+        "/etc/n3wfc4/private/dynsec-s20-r5-pre-three-service.json"
     ) == module.ROLLBACK_SNAPSHOT
     assert len(
         {
             module.R1_EVIDENCE_SNAPSHOT,
             module.R2_EVIDENCE_SNAPSHOT,
             module.R3_EVIDENCE_SNAPSHOT,
+            module.R4_EVIDENCE_SNAPSHOT,
             module.ROLLBACK_SNAPSHOT,
         }
-    ) == 4
+    ) == 5
 
 
 def test_cleanup_transaction_material_verifies_removal(
@@ -1046,11 +1061,11 @@ def test_restore_snapshot_validates_before_replacing_live_dynsec(
 
     def reject_snapshot() -> str:
         events.append("verify")
-        raise module.S20ServiceHandoffError("r4_rollback_snapshot_sha_drift")
+        raise module.S20ServiceHandoffError("r5_rollback_snapshot_sha_drift")
 
     monkeypatch.setattr(
         module,
-        "_verify_r4_snapshot_if_present",
+        "_verify_r5_snapshot_if_present",
         reject_snapshot,
     )
     monkeypatch.setattr(
@@ -1061,7 +1076,7 @@ def test_restore_snapshot_validates_before_replacing_live_dynsec(
 
     with pytest.raises(
         module.S20ServiceHandoffError,
-        match="r4_rollback_snapshot_sha_drift",
+        match="r5_rollback_snapshot_sha_drift",
     ):
         module._restore_snapshot()
 
@@ -1119,6 +1134,7 @@ def test_broker_config_tls_contract_accepts_exact_executor_paths(
     config.write_text(
         "\n".join(
             (
+                f"listener {module.BROKER_TLS_PORT}",
                 f"cafile {module.BROKER_TLS_CA_TARGET}",
                 f"certfile {module.BROKER_TLS_CERT_TARGET}",
                 f"keyfile {module.BROKER_TLS_KEY_TARGET}",
@@ -1140,6 +1156,7 @@ def test_broker_config_tls_contract_rejects_mount_path_drift(
     config.write_text(
         "\n".join(
             (
+                f"listener {module.BROKER_TLS_PORT}",
                 "cafile /mosquitto/tls/ca.pem",
                 "certfile /mosquitto/tls/server.pem",
                 "keyfile /mosquitto/tls/server.key",
@@ -1155,3 +1172,119 @@ def test_broker_config_tls_contract_rejects_mount_path_drift(
         match="broker_tls_path_contract_drift",
     ):
         module._verify_broker_config_tls_contract()
+
+
+def test_broker_config_tls_contract_rejects_plaintext_listener(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = tmp_path / "mosquitto.conf"
+    config.write_text(
+        "\n".join(
+            (
+                "listener 1883",
+                f"listener {module.BROKER_TLS_PORT}",
+                f"cafile {module.BROKER_TLS_CA_TARGET}",
+                f"certfile {module.BROKER_TLS_CERT_TARGET}",
+                f"keyfile {module.BROKER_TLS_KEY_TARGET}",
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(module, "BROKER_CONFIG", config)
+
+    with pytest.raises(
+        module.S20ServiceHandoffError,
+        match="broker_tls_listener_contract_drift",
+    ):
+        module._verify_broker_config_tls_contract()
+
+
+class TLSServerNameRunner:
+    def __init__(self, *, return_code: int = 0) -> None:
+        self.return_code = return_code
+        self.commands: list[tuple[str, ...]] = []
+
+    def run(
+        self,
+        command: tuple[str, ...],
+        *,
+        input_text: str | None = None,
+        timeout: float = 30.0,
+    ) -> tuple[int, str]:
+        assert input_text is None
+        self.commands.append(command)
+        return self.return_code, ""
+
+
+def test_tls_server_name_contract_checks_exact_certificate_name() -> None:
+    runner = TLSServerNameRunner()
+
+    module._verify_tls_server_name_contract(
+        runner,  # type: ignore[arg-type]
+    )
+
+    assert runner.commands == [
+        (
+            "openssl",
+            "x509",
+            "-in",
+            str(module.TLS_CERT),
+            "-noout",
+            "-checkhost",
+            module.BROKER_TLS_SERVER_NAME,
+        )
+    ]
+
+
+def test_tls_server_name_contract_rejects_mismatch() -> None:
+    runner = TLSServerNameRunner(return_code=1)
+
+    with pytest.raises(
+        module.S20ServiceHandoffError,
+        match="tls_server_name_contract_drift",
+    ):
+        module._verify_tls_server_name_contract(
+            runner,  # type: ignore[arg-type]
+        )
+
+
+class AnonymousTLSRunner:
+    def __init__(self) -> None:
+        self.commands: list[tuple[str, ...]] = []
+
+    def run(
+        self,
+        command: tuple[str, ...],
+        *,
+        input_text: str | None = None,
+        timeout: float = 30.0,
+    ) -> tuple[int, str]:
+        assert input_text is None
+        self.commands.append(command)
+        return 1, ""
+
+
+def test_anonymous_negative_probe_uses_exact_tls_transport(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        module,
+        "_mqtt_action",
+        lambda _runner, _service, config_path: not config_path.endswith(
+            "-wrong.conf"
+        ),
+    )
+    runner = AnonymousTLSRunner()
+
+    module._verify_authentication(
+        runner,  # type: ignore[arg-type]
+        module._plans(),
+    )
+
+    command = runner.commands[-1]
+    assert command[command.index("-h") + 1] == module.BROKER_TLS_SERVER_NAME
+    assert command[command.index("-p") + 1] == str(module.BROKER_TLS_PORT)
+    assert command[command.index("--cafile") + 1] == module.BROKER_TLS_CA_TARGET
+    assert "--insecure" not in command
