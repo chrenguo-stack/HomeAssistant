@@ -21,7 +21,7 @@ PREDECESSOR_REPLAY_FORBIDDEN=true
 AUTHORIZATION_ID=
 N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_03
 
-AUTHORIZATION_STATE=GRANTED_PENDING_CLAIM
+AUTHORIZATION_STATE=NOT_GRANTED
 ONE_SHOT=true
 REPLAY_FORBIDDEN=true
 PRODUCTION_SERVICE_START=false
@@ -75,7 +75,7 @@ Only after explicit authorization, one transaction may:
    - classic-store config digest `sha256:ef0f28c2fd339430a85acb6cb65158c71c61cd8fc3c6330c375da27d0f2440f1`;
    - containerd/OCI target digest `sha256:abd9560c978b69429eea734df216664ea643ed762a77777dcb816f5d537afad6`;
 4. run `tools/n3w_t1_production_manager_state_prepare.py` in the exact Manager image with `--network none`;
-5. pull only the exact locked ARM64 Home Assistant and Broker image references from `infra/n3w-t1/production/image-lock.json`;
+5. load the exact ARM64 Home Assistant and Broker image tar files already frozen inside the content-addressed staging payload; no live external registry pull is permitted;
 6. stage the exact production source/configuration material under `/opt/HomeAssistant`;
 7. stage `/etc/n3wfc4/docker-compose.yml`, an empty private `docker-compose.env`, and private `broker-activation.env`;
 8. stage the authenticated Broker readiness helper and Broker/Services activation systemd unit files;
@@ -156,13 +156,15 @@ The Manager database must never be rolled back from an inferred copy. Its SHA mu
 ## 7. Current boundary
 
 ```text
-SOURCE_REPAIR_CI=PASS
+SOURCE_REPAIR_CI=PENDING
 LIVE_STAGING_AUTHORIZATION_REQUIRED=true
-PREDECESSOR_AUTHORIZATION_ID=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_01
-PREDECESSOR_AUTHORIZATION_STATE=CONSUMED_FAILED_ROLLBACK_PASS
+PREDECESSOR_AUTHORIZATION_ID_01=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_01
+PREDECESSOR_AUTHORIZATION_STATE_01=CONSUMED_FAILED_ROLLBACK_PASS
+PREDECESSOR_AUTHORIZATION_ID_02=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02
+PREDECESSOR_AUTHORIZATION_STATE_02=CONSUMED_FAILED_ROLLBACK_PASS
 PREDECESSOR_REPLAY_FORBIDDEN=true
 AUTHORIZATION_ID=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_03
-AUTHORIZATION_STATE=GRANTED_PENDING_CLAIM
+AUTHORIZATION_STATE=NOT_GRANTED
 ```
 
 
@@ -172,16 +174,16 @@ The predecessor one-shot authorization was consumed by the first staging apply
 attempt. That attempt failed closed at the Manager image identity oracle and
 completed rollback with zero reported rollback errors.
 
-The successor authorization is intentionally a new identity:
+The successor authorization was intentionally a new identity:
 
 ```text
-N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_03
+N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02
 ```
 
-It is not granted by creation of this document, by CI PASS, by a fresh
+It was not granted by creation of this document, by CI PASS, by a fresh
 preflight, or by the user's prior approval of `..._01`.
 
-Before `..._02` can be claimed:
+Before `..._02` could be claimed:
 
 1. the rotated exact-source payload CI must PASS;
 2. the content-addressed payload and repository-owned host wrapper must be
@@ -211,14 +213,14 @@ HOST_WRAPPER_RC=0
 TRANSPORT_COMPLETION=KNOWN_SUCCESS
 LIVE_MUTATION=false
 
-AUTHORIZATION_ID=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_03
-AUTHORIZATION_STATE=GRANTED_PENDING_CLAIM
+AUTHORIZATION_ID=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02
+AUTHORIZATION_STATE=NOT_GRANTED
 AUTHORIZATION_CLAIMED=false
 AUTHORIZATION_CONSUMED=false
 ```
 
-Explicit user approval of this exact authorization ID is now the only remaining
-gate before the one-shot staging-only apply.
+At this historical point explicit user approval of this exact authorization ID
+was the only remaining gate before the one-shot staging-only apply.
 
 
 ## 10. Explicit successor authorization grant
@@ -226,13 +228,13 @@ gate before the one-shot staging-only apply.
 The operator explicitly approved the exact successor authorization:
 
 ```text
-AUTHORIZATION_ID=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_03
+AUTHORIZATION_ID=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02
 AUTHORIZATION_STATE=GRANTED_PENDING_CLAIM
 AUTHORIZATION_CLAIMED=false
 AUTHORIZATION_CONSUMED=false
 ```
 
-This grant is limited to the staging-only scope already frozen in this document.
+This grant was limited to the staging-only scope already frozen in this document.
 It does not authorize production service start, persistence enablement,
 dispatcher installation, reboot, board access, or PR merge.
 
