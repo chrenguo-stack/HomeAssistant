@@ -749,3 +749,75 @@ PR_MERGE=false
 The next operation is read-only T1 preflight using the repository-owned
 host-wrapper from artifact ID `11697988392`. A PASS does not itself grant
 `..._02`; explicit user approval is still required before apply.
+
+
+## 15. Successor fresh T1 preflight PASS
+
+The repository-owned host wrapper executed the successor exact payload against T1
+in read-only preflight mode.
+
+Observed result:
+
+```text
+phase=preflight
+status=PASS
+transport_completion=KNOWN_SUCCESS
+HOST_WRAPPER_RC=0
+
+authorization_id=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02
+authorization_claimed=false
+authorization_consumed=false
+
+docker_container_count=0
+docker_volume_count=45
+docker_volume_set_sha256=20fc845741d31da34f1d1e563e5057c78ec5dc7c4cfd3a495a5f3a4f2bfd011b
+project_network_container_counts=n3wfc4-private:0,n3wfc4-services:0
+tcp_1883=0
+tcp_8883=0
+tcp_18883=0
+tcp_8123=0
+tcp_47112=0
+udp_47111=0
+guard_active=true
+guard_enabled=true
+guard_exact=true
+dynsec_sha256=95d99839ec9a6b8003e1375883a3f9263a92e0dbc49c8ca5478196027081a90a
+identity_claim_count=1
+legacy_collision=empty_root_root_0755_directory
+manager_database_quick_check=ok
+manager_database_business_rows=0
+manager_database_provenance_rows=1
+manager_database_sha256=6db7069f2134be3b178d3238da2dfc199463d812dd6be318531611eaddc4c971
+n3w_state_root=absent
+production_images=absent
+production_services=stopped
+secret_file_count=11
+secret_bundle_sha256=ce8700835c8b4e4aa86a6c0bacda4785122dd3971b858c9279200ff9399fb929
+root_available_bytes=6420955136
+live_mutation=false
+production_service_start=false
+board_access=false
+```
+
+The terminal's later shell-session-save warning occurred after the wrapper had
+already returned `HOST_WRAPPER_RC=0`. It is outside the staging executor and
+host-wrapper transaction and does not alter the preflight result.
+
+Current authorization boundary:
+
+```text
+SUCCESSOR_FRESH_T1_PREFLIGHT=PASS
+SUCCESSOR_AUTHORIZATION_ID=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02
+SUCCESSOR_AUTHORIZATION_STATE=NOT_GRANTED
+SUCCESSOR_AUTHORIZATION_CLAIMED=false
+SUCCESSOR_AUTHORIZATION_CONSUMED=false
+LIVE_STAGING_APPLY=READY_AFTER_EXPLICIT_USER_APPROVAL
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+PR_MERGE=false
+```
+
+The next permitted mutation is a single staging-only apply under `..._02`.
+Starting that apply permanently claims and consumes the successor authorization,
+regardless of success, rollback, transport interruption, or operator terminal
+failure. It may never be replayed.
