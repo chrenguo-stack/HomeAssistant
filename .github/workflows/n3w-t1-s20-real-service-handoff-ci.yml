@@ -127,7 +127,7 @@ jobs:
           docker run --rm             --user 0:0             -e ADMIN="$ADMIN"             -v "$WORK/data:/mosquitto/data"             "$IMAGE"             sh -ec 'printf "%s\n%s\n" "$ADMIN" "$ADMIN" | mosquitto_ctrl dynsec init /mosquitto/data/dynamic-security.json admin; chown 1883:1883 /mosquitto/data/dynamic-security.json; chmod 600 /mosquitto/data/dynamic-security.json'
 
           sudo chown 1883:1883 "$WORK/tls/server.key"
-          chmod 600 "$WORK/tls/server.key"
+          sudo chmod 600 "$WORK/tls/server.key"
 
           cat > "$WORK/config/mosquitto.conf" <<'CONF'
           persistence false
