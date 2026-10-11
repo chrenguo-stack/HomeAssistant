@@ -1,3 +1,5 @@
+> **2026-10-11 R2 source repair pending CI**：fresh Broker TLS + DynSec source bootstrap 已实现并接入独立 M2 Dynamic Security CI contract；node credentials 不预创建，Broker transport CA 与 System CA 分离。T1 不变，exact production-image fresh runtime matrix留给 R6。
+
 > **2026-10-11 R1 source repair pending CI**：minimal-host fresh bootstrap R1 已实现 fresh Manager/N3-W state constructor，删除 fresh path 对 legacy provenance 的依赖；CI pending。T1 不变，`..._03` 继续 superseded。
 
 > **2026-10-11 source design closure**：minimal-host fresh product bootstrap design PASS。当前正式安装起点仅为 Armbian + Docker + Network；所有 greenhouse product state 均由 installer 从零创建。旧 staging executor 不继续兼容扩展；下一门 R1 只做 fresh Manager/N3-W state constructors 与 host CI，T1 mutation=false。
