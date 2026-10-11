@@ -1,3 +1,17 @@
+> **2026-10-11 production Manager state binding source repair implemented / CI pending**：fresh read-only evidence confirmed one existing claim for preserved SYSTEM_ID, clean portable Manager DB (business rows 0, provenance 1), absent default pairing/N3-W runtime paths, and UID999 unable to create portable-root children. KF-104 opened. Source repair now explicitly binds `GH_PAIRING_DB_PATH` + history to `manager/manager-state.sqlite3`, freezes replay/relay-auth/key paths under `n3w/`, removes the whole portable-root RW mount from Manager, and requires only scoped `manager/` + `n3w/` writable mounts. Added exact-image Manager state preparer and dedicated CI using frozen ARM64 Manager source `511db028...`. Current T1 remains unmodified; production services remain stopped. Authority: `docs/development/N3W_T1_PRODUCTION_STACK_MANAGER_STATE_BINDING_SOURCE_REPAIR_PROGRESS_20261011.md`.
+
+```text
+KF104=OPEN_SOURCE_REPAIR_CI_PENDING
+IDENTITY_CLAIM_PRESENT_FOR_PRESERVED_SYSTEM=true
+PORTABLE_MANAGER_DB_CLEAN=true
+PRODUCTION_MANAGER_STATE_BINDING_SOURCE_REPAIR=IMPLEMENTED
+PRODUCTION_MANAGER_START=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
 > **2026-10-11 production activation read-only blocker**：restore-root forensic 已完成，恢复身份绑定通过，但 marker 仍要求 activation 前完成 identity claim；Manager subtree 另有 1 个 unexpected empty directory。源码复核确认 current production Compose 启用 N3-W runtime，却未绑定该 runtime 启动所需的 existing state paths，故当前 Compose 不得直接启动 Manager。下一门：`N3W_T1_PRODUCTION_STACK_IDENTITY_CLAIM_AND_RUNTIME_STATE_READONLY_BINDING_20261011_01`。Authority: `docs/development/N3W_T1_PRODUCTION_STACK_RESTORE_ROOT_FORENSIC_STATUS_20261011.md`.
 
 > **2026-10-11 Manager restore-root classification**：`/var/lib/greenhouse-manager` 已识别为 H0/H1 portable-restore 根，SQLite quick_check PASS，无 symlink/special file；但 root mode=0711 未与 accepted 0700 contract 对齐，且 `manager/registration.sqlite3` 为意外的 root:root:0755 目录；RESTORE marker 的 activation-disabled / identity-claim-required 状态与当前 identity claim 尚待只读取证。禁止 chmod/chown/delete/activation。Next: `N3W_T1_PRODUCTION_STACK_RESTORE_IDENTITY_AND_MANAGER_ROOT_READONLY_FORENSIC_20261011_01`. Authority: `docs/development/N3W_T1_PRODUCTION_STACK_MANAGER_STATE_READONLY_CLASSIFICATION_PROGRESS_20261011.md`.
