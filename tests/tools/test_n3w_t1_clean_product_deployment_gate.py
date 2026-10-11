@@ -79,7 +79,25 @@ def rendered_compose() -> dict:
                     "GH_MQTT_TLS": "true",
                     "GH_MQTT_CA_FILE": "/run/n3w/tls/ca.pem",
                     "GH_HA_DISCOVERY_ENABLED": "true",
+                    "GH_PAIRING_DB_PATH": (
+                        "/var/lib/greenhouse-manager/"
+                        "manager/manager-state.sqlite3"
+                    ),
+                    "GH_HISTORY_DB_PATH": (
+                        "/var/lib/greenhouse-manager/"
+                        "manager/manager-state.sqlite3"
+                    ),
                     "GH_N3W_RUNTIME_ENABLED": "true",
+                    "GH_N3W_REPLAY_DB_PATH": (
+                        "/var/lib/greenhouse-manager/n3w/replay.sqlite3"
+                    ),
+                    "GH_N3W_RELAY_AUTHORIZATION_DB_PATH": (
+                        "/var/lib/greenhouse-manager/n3w/"
+                        "relay-authorization.sqlite3"
+                    ),
+                    "GH_N3W_RELAY_KEY_DIR": (
+                        "/var/lib/greenhouse-manager/n3w/relay-keys"
+                    ),
                     "GH_N3W_PRODUCT_PAIRING_ENABLED": "false",
                     "GH_N3W_PAIRING_MANAGER_ID": (
                         "gh-manager-greenhouse"
@@ -106,8 +124,13 @@ def rendered_compose() -> dict:
                 },
                 "volumes": [
                     _bind(
-                        "/var/lib/greenhouse-manager",
-                        "/var/lib/greenhouse-manager",
+                        "/var/lib/greenhouse-manager/manager",
+                        "/var/lib/greenhouse-manager/manager",
+                        read_only=False,
+                    ),
+                    _bind(
+                        "/var/lib/greenhouse-manager/n3w",
+                        "/var/lib/greenhouse-manager/n3w",
                         read_only=False,
                     ),
                     _bind(
@@ -250,6 +273,14 @@ def test_accepts_clean_product_contract() -> None:
     assert report["compose_project_name"] == "n3wfc4"
     assert report["manager_runtime_uid_gid"] == "999:999"
     assert report["manager_secret_file_count"] == 2
+    assert report["manager_portable_root_mounted"] is False
+    assert report["manager_runtime_state_mounts"] == [
+        "/var/lib/greenhouse-manager/manager",
+        "/var/lib/greenhouse-manager/n3w",
+    ]
+    assert report["manager_pairing_database"].endswith(
+        "/manager/manager-state.sqlite3"
+    )
     assert report["homeassistant_password_mount_readonly"] is True
     assert report["broker_tls_publication"] == "ipv4_wildcard_8883"
     assert report["broker_homeassistant_publication"] == (
@@ -467,6 +498,60 @@ def test_rejects_product_pairing_before_gate_f() -> None:
     document["services"]["manager"]["environment"][
         "GH_N3W_PRODUCT_PAIRING_ENABLED"
     ] = "true"
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="manager_runtime_environment_invalid",
+    ):
+        tool.validate_compose_document(document)
+
+
+def test_rejects_manager_portable_root_mount() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["services"]["manager"]["volumes"].append(
+        _bind(
+            "/var/lib/greenhouse-manager",
+            "/var/lib/greenhouse-manager",
+            read_only=False,
+        )
+    )
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="manager_portable_root_mount_forbidden",
+    ):
+        tool.validate_compose_document(document)
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        (
+            "GH_PAIRING_DB_PATH",
+            "/var/lib/greenhouse-manager/registration.sqlite3",
+        ),
+        (
+            "GH_N3W_REPLAY_DB_PATH",
+            "/tmp/replay.sqlite3",
+        ),
+        (
+            "GH_N3W_RELAY_AUTHORIZATION_DB_PATH",
+            "/tmp/relay-authorization.sqlite3",
+        ),
+        (
+            "GH_N3W_RELAY_KEY_DIR",
+            "/tmp/relay-keys",
+        ),
+    ],
+)
+def test_rejects_manager_state_environment_drift(
+    name: str,
+    value: str,
+) -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["services"]["manager"]["environment"][name] = value
 
     with pytest.raises(
         tool.DeploymentContractError,
