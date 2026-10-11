@@ -139,7 +139,9 @@ class HostOnlyFreshInstall:
             "clients": clients,
             "roles": roles,
         }
-        path = candidate_root / "broker/dynamic-security.json"
+        broker_data = candidate_root / "broker-data"
+        broker_data.mkdir(mode=0o700)
+        path = broker_data / "dynamic-security.json"
         path.write_text(json.dumps(document, sort_keys=True) + "\n", encoding="utf-8")
         os.chmod(path, 0o600)
         report = audit_fresh_dynsec_document(path, system_id=system_id)
@@ -203,7 +205,7 @@ class HostOnlyFreshInstall:
         )
         broker = verify_fresh_broker_materials(self.final / "broker")
         dynsec = audit_fresh_dynsec_document(
-            self.final / "broker/dynamic-security.json",
+            self.final / "broker-data/dynamic-security.json",
             system_id=system_id,
         )
         services = json.loads(
