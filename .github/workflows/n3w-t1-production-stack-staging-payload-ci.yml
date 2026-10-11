@@ -40,12 +40,21 @@ jobs:
   payload:
     runs-on: ubuntu-24.04
     env:
+      SOURCE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
       AUTHORIZATION_ID: N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_01
       MANAGER_ARTIFACT_RUN_ID: "38040433177"
       MANAGER_ARTIFACT_ID: "11665219740"
       MANAGER_TAR_SHA256: 2ef0421d483334f6ef81c92beb1b6784174f069a4bde179ba615ce0b70435081
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_HEAD }}
+
+      - name: Verify exact checkout binding
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_HEAD"
+          printf 'SOURCE_HEAD=%s\n' "$SOURCE_HEAD"
 
       - uses: actions/setup-python@v5
         with:
@@ -96,7 +105,7 @@ jobs:
           cp infra/n3w-t1/systemd/n3wfc4-services-activation.service "$PAYLOAD/infra/n3w-t1/systemd/"
           cp "$RUNNER_TEMP/manager-artifact/greenhouse-manager-arm64.tar" "$PAYLOAD/artifact/"
 
-          python - "$PAYLOAD" "$GITHUB_SHA" "$AUTHORIZATION_ID" <<'PY'
+          python - "$PAYLOAD" "$SOURCE_HEAD" "$AUTHORIZATION_ID" <<'PY'
           import hashlib
           import json
           import sys
@@ -159,7 +168,7 @@ jobs:
           printf 'EXECUTOR_SHA256=%s\n' "$EXECUTOR_SHA"
           printf 'PAYLOAD_MANIFEST_SHA256=%s\n' "$MANIFEST_SHA"
 
-          ARCHIVE="$RUNNER_TEMP/n3w-t1-production-stack-staging-payload-$GITHUB_SHA.tar.gz"
+          ARCHIVE="$RUNNER_TEMP/n3w-t1-production-stack-staging-payload-$SOURCE_HEAD.tar.gz"
           tar -C "$PAYLOAD" -czf "$ARCHIVE" .
           ARCHIVE_SHA="$(sha256sum "$ARCHIVE" | awk '{print $1}')"
           printf 'PAYLOAD_ARCHIVE_SHA256=%s\n' "$ARCHIVE_SHA"
@@ -172,7 +181,7 @@ jobs:
       - name: Upload exact staging payload
         uses: actions/upload-artifact@v4
         with:
-          name: n3w-t1-production-stack-staging-payload-${{ github.sha }}
+          name: n3w-t1-production-stack-staging-payload-${{ env.SOURCE_HEAD }}
           path: |
             ${{ runner.temp }}/payload-archive.tar.gz
             ${{ runner.temp }}/payload-archive.sha256
