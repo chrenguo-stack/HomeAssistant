@@ -7,8 +7,10 @@ on:
       - "infra/n3w-t1/production/**"
       - "tools/n3w_t1_clean_product_deployment_gate.py"
       - "tools/n3w_t1_production_manager_state_prepare.py"
+      - "tools/n3w_t1_production_stack_staging.py"
       - "tests/tools/test_n3w_t1_clean_product_deployment_gate.py"
       - "tests/tools/test_n3w_t1_production_manager_state_prepare.py"
+      - "tests/tools/test_n3w_t1_production_stack_staging.py"
   push:
     branches:
       - main
@@ -17,8 +19,10 @@ on:
       - "infra/n3w-t1/production/**"
       - "tools/n3w_t1_clean_product_deployment_gate.py"
       - "tools/n3w_t1_production_manager_state_prepare.py"
+      - "tools/n3w_t1_production_stack_staging.py"
       - "tests/tools/test_n3w_t1_clean_product_deployment_gate.py"
       - "tests/tools/test_n3w_t1_production_manager_state_prepare.py"
+      - "tests/tools/test_n3w_t1_production_stack_staging.py"
 
 permissions:
   actions: read
@@ -48,7 +52,7 @@ jobs:
           PYTHONPATH: host/greenhouse-manager/src
         run: |
           set -euo pipefail
-          python -m pytest -q             tests/tools/test_n3w_t1_clean_product_deployment_gate.py             tests/tools/test_n3w_t1_production_manager_state_prepare.py
+          python -m pytest -q             tests/tools/test_n3w_t1_clean_product_deployment_gate.py             tests/tools/test_n3w_t1_production_manager_state_prepare.py             tests/tools/test_n3w_t1_production_stack_staging.py
 
       - name: Render and validate production Compose
         run: |
