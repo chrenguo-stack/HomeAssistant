@@ -121,3 +121,96 @@ def test_activation_unit_rejects_enabled_state() -> None:
 
     with pytest.raises(tool.StagingError, match="activation_unit_state_invalid"):
         tool._unit_stopped_disabled(FakeRunner(), "example.service")
+
+
+def test_apply_rolls_back_after_first_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    manager = tmp_path / "manager"
+    manager.mkdir()
+    collision = manager / "registration.sqlite3"
+    collision.mkdir()
+    blocked_parent = tmp_path / "blocked"
+    blocked_parent.write_text("not-a-directory", encoding="utf-8")
+
+    monkeypatch.setattr(tool, "LEGACY_COLLISION", collision)
+    monkeypatch.setattr(tool, "N3W_ROOT", blocked_parent / "n3w")
+    monkeypatch.setattr(tool, "_verify_collision_directory", lambda: None)
+    monkeypatch.setattr(tool, "_event", lambda *_args: None)
+    monkeypatch.setattr(
+        tool,
+        "preflight",
+        lambda _runner, _payload_root: {
+            "manager_database": {"sha256": "manager-sha"},
+            "secret_bundle": {"aggregate_sha256": "secret-sha"},
+        },
+    )
+
+    rollback_calls: list[dict[str, str]] = []
+
+    def fake_rollback(
+        _runner,
+        _payload_root,
+        *,
+        manager_sha_before: str,
+        secret_aggregate_before: str,
+    ):
+        rollback_calls.append(
+            {
+                "manager": manager_sha_before,
+                "secret": secret_aggregate_before,
+            }
+        )
+        return {"status": "PASS", "errors": []}
+
+    monkeypatch.setattr(tool, "rollback", fake_rollback)
+
+    with pytest.raises(tool.StagingError, match="rollback"):
+        tool.apply_staging(object(), tmp_path)
+
+    assert not collision.exists()
+    assert rollback_calls == [
+        {
+            "manager": "manager-sha",
+            "secret": "secret-sha",
+        }
+    ]
+
+
+def test_rollback_opt_root_preserves_unknown_content(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    opt_root = tmp_path / "HomeAssistant"
+    opt_root.mkdir()
+    known = opt_root / "known.txt"
+    unknown = opt_root / "unknown.txt"
+    known.write_text("known", encoding="utf-8")
+    unknown.write_text("unknown", encoding="utf-8")
+
+    monkeypatch.setattr(tool, "OPT_ROOT", opt_root)
+    monkeypatch.setattr(
+        tool,
+        "SOURCE_FILES",
+        {
+            "known-source": (
+                str(known),
+                0o644,
+                "unused",
+            )
+        },
+    )
+
+    errors: list[str] = []
+    tool._rollback_opt_root(errors)
+
+    assert not known.exists()
+    assert unknown.exists()
+    assert opt_root.exists()
+    assert any(
+        item.startswith("opt_root_unexpected_or_unremoved:")
+        for item in errors
+    )
