@@ -11,6 +11,7 @@ import secrets
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -21,6 +22,17 @@ DEFAULT_NETWORKS = frozenset(("bridge", "host", "none"))
 PRODUCT_NETWORKS = ("n3wfc4-private", "n3wfc4-services")
 TARGET_PORTS = frozenset((1883, 8883, 18883, 8123, 47110, 47111, 47112))
 MIN_ROOT_FREE_BYTES = 5 * 1024 * 1024 * 1024
+MANAGER_UID = 999
+MANAGER_GID = 999
+BROKER_UID = 1883
+BROKER_GID = 1883
+PRODUCT_UNITS = (
+    "n3wfc4-broker-ingress-guard.service",
+    "n3wfc4-broker-activation.service",
+    "n3wfc4-services-activation.service",
+    "n3wfc4-broker-certificate-lifecycle.service",
+    "n3wfc4-broker-certificate-lifecycle.timer",
+)
 
 FINAL_DIRS = {
     "/var/lib/greenhouse-manager": "stage/var-lib-greenhouse-manager",
@@ -181,6 +193,13 @@ def _listeners(runner: Runner) -> int:
     return count
 
 
+def _unit_load_state(runner: Runner, unit: str) -> str:
+    return runner.run(
+        ("systemctl", "show", "-p", "LoadState", "--value", unit),
+        allowed=frozenset({0, 1}),
+    ).strip()
+
+
 def _preflight(runner: Runner) -> dict[str, object]:
     architecture = runner.run(("uname", "-m")).strip()
     docker_active = _systemctl(runner, "is-active", "docker")
@@ -188,17 +207,42 @@ def _preflight(runner: Runner) -> dict[str, object]:
     nm_active = _systemctl(runner, "is-active", "NetworkManager")
     compose = runner.run(("docker", "compose", "version", "--short")).strip()
     route = runner.run(("ip", "-4", "route", "show", "default")).strip()
-    dns = runner.run(("sh", "-c", "grep -Ev '^[[:space:]]*(#|$)' /etc/resolv.conf | head -n 8")).strip()
-    ntp = runner.run(("timedatectl", "show", "-p", "NTPSynchronized", "--value")).strip()
-    containers = tuple(x for x in runner.run(("docker", "ps", "-aq")).splitlines() if x)
-    images = tuple(x for x in runner.run(("docker", "image", "ls", "-q")).splitlines() if x)
-    volumes = tuple(x for x in runner.run(("docker", "volume", "ls", "-q")).splitlines() if x)
+    dns = runner.run(
+        ("sh", "-c", "grep -Ev '^[[:space:]]*(#|$)' /etc/resolv.conf | head -n 8")
+    ).strip()
+    ntp = runner.run(
+        ("timedatectl", "show", "-p", "NTPSynchronized", "--value")
+    ).strip()
+    containers = tuple(
+        value
+        for value in runner.run(("docker", "ps", "-aq")).splitlines()
+        if value
+    )
+    images = tuple(
+        value
+        for value in runner.run(("docker", "image", "ls", "-q")).splitlines()
+        if value
+    )
+    volumes = tuple(
+        value
+        for value in runner.run(("docker", "volume", "ls", "-q")).splitlines()
+        if value
+    )
     networks = frozenset(
-        x for x in runner.run(("docker", "network", "ls", "--format", "{{.Name}}")).splitlines() if x
+        value
+        for value in runner.run(
+            ("docker", "network", "ls", "--format", "{{.Name}}")
+        ).splitlines()
+        if value
     )
     product_paths = tuple(
-        path for path in (*FINAL_DIRS.keys(), *FINAL_FILES.keys(), *EXTRA_ABSENT)
+        path
+        for path in (*FINAL_DIRS.keys(), *FINAL_FILES.keys(), *EXTRA_ABSENT)
         if Path(path).exists() or Path(path).is_symlink()
+    )
+    product_units_absent = all(
+        _unit_load_state(runner, unit) in {"", "not-found"}
+        for unit in PRODUCT_UNITS
     )
     firewall = runner.run(("iptables-save", "-t", "filter"))
     firewall_clean = (
@@ -206,6 +250,15 @@ def _preflight(runner: Runner) -> dict[str, object]:
         and "n3wfc4-broker-ingress-v1" not in firewall
         and ":DOCKER-USER " in firewall
         and "-A FORWARD -j DOCKER-USER" in firewall
+    )
+    staging_device = os.stat("/var/tmp").st_dev
+    target_parents = {
+        Path(path).parent
+        for path in (*FINAL_DIRS.keys(), *FINAL_FILES.keys())
+    }
+    same_filesystem_commit = all(
+        parent.is_dir() and os.stat(parent).st_dev == staging_device
+        for parent in target_parents
     )
     result = {
         "status": "PASS",
@@ -222,14 +275,15 @@ def _preflight(runner: Runner) -> dict[str, object]:
         "product_networks": len(networks - DEFAULT_NETWORKS),
         "product_listeners": _listeners(runner),
         "product_paths_absent": not product_paths,
-        "product_units_absent": True,
+        "product_units_absent": product_units_absent,
         "product_dispatcher_absent": not Path(EXTRA_ABSENT[0]).exists(),
         "product_firewall_absent": firewall_clean,
         "production_service_start": False,
         "ssh_preserved": ssh_active == "active",
         "default_networks_exact": networks == DEFAULT_NETWORKS,
+        "same_filesystem_commit": same_filesystem_commit,
     }
-    if not (
+    required = (
         result["arch"] == "aarch64"
         and result["docker_ready"] is True
         and result["compose_ready"] is True
@@ -243,14 +297,16 @@ def _preflight(runner: Runner) -> dict[str, object]:
         and result["product_networks"] == 0
         and result["product_listeners"] == 0
         and result["product_paths_absent"] is True
+        and result["product_units_absent"] is True
         and result["product_dispatcher_absent"] is True
         and result["product_firewall_absent"] is True
         and result["ssh_preserved"] is True
         and result["default_networks_exact"] is True
-    ):
+        and result["same_filesystem_commit"] is True
+    )
+    if not required:
         raise BootstrapError("minimal_host_preflight_drift")
     return result
-
 
 def _load_contract(payload_root: Path):
     path = payload_root / "contract/fresh_installer.py"
@@ -264,13 +320,27 @@ def _load_contract(payload_root: Path):
 
 
 class LiveFreshInstallerAdapters:
-    def __init__(self, payload_root: Path, manifest: dict[str, Any], runner: Runner) -> None:
+    def __init__(
+        self,
+        payload_root: Path,
+        manifest: dict[str, Any],
+        runner: Runner,
+    ) -> None:
         self.payload_root = payload_root
         self.manifest = manifest
         self.runner = runner
         self.created_images: list[str] = []
         self.created_networks: list[str] = []
         self.created_paths: list[Path] = []
+        self.candidate_containers: list[str] = []
+
+    @property
+    def manager_image(self) -> str:
+        return str(self.manifest["images"]["manager"]["image"])
+
+    @property
+    def broker_image(self) -> str:
+        return str(self.manifest["images"]["broker"]["image"])
 
     def preflight(self):
         return _preflight(self.runner)
@@ -278,14 +348,26 @@ class LiveFreshInstallerAdapters:
     def load_images(self):
         for label in ("homeassistant", "manager", "broker"):
             record = self.manifest["images"][label]
-            self.runner.run(
-                ("docker", "load", "--input", str(self.payload_root / record["path"])),
-                timeout=1800,
-            )
             image = str(record["image"])
             self.created_images.append(image)
+            self.runner.run(
+                (
+                    "docker",
+                    "load",
+                    "--input",
+                    str(self.payload_root / str(record["path"])),
+                ),
+                timeout=1800,
+            )
             observed = self.runner.run(
-                ("docker", "image", "inspect", image, "--format", "{{.Id}}|{{.Architecture}}/{{.Os}}")
+                (
+                    "docker",
+                    "image",
+                    "inspect",
+                    image,
+                    "--format",
+                    "{{.Id}}|{{.Architecture}}/{{.Os}}",
+                )
             ).strip()
             if observed != f'{record["image_id"]}|arm64/linux':
                 raise BootstrapError(f"image_binding_invalid:{label}")
@@ -298,19 +380,49 @@ class LiveFreshInstallerAdapters:
             "production_service_start": False,
         }
 
-    def _manager_json(self, candidate: Path, source: str) -> dict[str, Any]:
+    def _manager_json(
+        self,
+        candidate: Path,
+        source: str,
+        *,
+        timeout: float = 240.0,
+    ) -> dict[str, Any]:
         candidate.mkdir(mode=0o700, exist_ok=True)
-        output = self.runner.run(
-            (
-                "docker", "run", "--rm", "--network", "none", "--user", "0:0",
-                "--mount", f"type=bind,src={candidate},dst=/work",
-                "--entrypoint", "python",
-                str(self.manifest["images"]["manager"]["image"]),
-                "-c", source,
-            ),
-            timeout=240,
-        ).strip()
-        value = json.loads(output)
+        name = f"n3w-fresh-manager-{secrets.token_hex(6)}"
+        self.candidate_containers.append(name)
+        try:
+            output = self.runner.run(
+                (
+                    "docker",
+                    "run",
+                    "--rm",
+                    "--name",
+                    name,
+                    "--network",
+                    "none",
+                    "--user",
+                    "0:0",
+                    "--mount",
+                    f"type=bind,src={candidate},dst=/work",
+                    "--entrypoint",
+                    "python",
+                    self.manager_image,
+                    "-c",
+                    source,
+                ),
+                timeout=timeout,
+            ).strip()
+        finally:
+            self.runner.run(
+                ("docker", "rm", "-f", name),
+                allowed=frozenset({0, 1}),
+            )
+            if name in self.candidate_containers:
+                self.candidate_containers.remove(name)
+        try:
+            value = json.loads(output)
+        except (UnboundLocalError, json.JSONDecodeError) as error:
+            raise BootstrapError("manager_constructor_output_invalid") from error
         if not isinstance(value, dict):
             raise BootstrapError("manager_constructor_output_invalid")
         return value
@@ -332,7 +444,8 @@ class LiveFreshInstallerAdapters:
             candidate_root,
             "import json;from pathlib import Path;"
             "from greenhouse_manager.bootstrap.fresh_product_state import create_fresh_state;"
-            "m=Path('/work/manager');n=Path('/work/n3w');m.mkdir(mode=0o700);n.mkdir(mode=0o700);"
+            "m=Path('/work/manager');n=Path('/work/n3w');"
+            "m.mkdir(mode=0o700);n.mkdir(mode=0o700);"
             f"r=create_fresh_state(m,n,expected_system_id_sha256={system_id_sha256!r});"
             "print(json.dumps(r,sort_keys=True))",
         )
@@ -346,28 +459,311 @@ class LiveFreshInstallerAdapters:
             "print(json.dumps(r.to_dict(),sort_keys=True))",
         )
 
+    def _dynsec_request(
+        self,
+        container: str,
+        config_path: str,
+        command: dict[str, Any],
+    ) -> None:
+        payload = json.dumps(
+            {"commands": [command]},
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        output = self.runner.run(
+            (
+                "docker",
+                "exec",
+                "-i",
+                container,
+                "mosquitto_rr",
+                "-o",
+                config_path,
+                "-q",
+                "1",
+                "-W",
+                "8",
+                "-t",
+                "$CONTROL/dynamic-security/v1",
+                "-e",
+                "$CONTROL/dynamic-security/v1/response",
+                "-s",
+            ),
+            input_text=payload,
+            timeout=15,
+        )
+        try:
+            document = json.loads(output)
+        except json.JSONDecodeError as error:
+            raise BootstrapError("dynsec_response_invalid") from error
+        responses = document.get("responses") if isinstance(document, dict) else None
+        if not isinstance(responses, list) or len(responses) != 1:
+            raise BootstrapError("dynsec_response_invalid")
+        response = responses[0]
+        if (
+            not isinstance(response, dict)
+            or response.get("command") != command.get("command")
+            or response.get("error")
+        ):
+            raise BootstrapError(
+                f"dynsec_command_failed:{command.get('command','unknown')}"
+            )
+
     def initialize_dynsec(self, candidate_root: Path, system_id: str):
+        broker_data = candidate_root / "broker-data"
+        config = candidate_root / "dynsec-config"
+        broker_data.mkdir(mode=0o700)
+        config.mkdir(mode=0o700)
+        admin_password = (
+            candidate_root / "broker/private/dynsec-admin-password"
+        ).read_text(encoding="utf-8").strip()
+        if not admin_password:
+            raise BootstrapError("dynsec_admin_password_missing")
+
+        init_path = config / "dynsec-password-init"
+        init_path.write_text(admin_password + "\n", encoding="utf-8")
+        os.chmod(init_path, 0o600)
+        config_path = config / "mosquitto.conf"
+        config_path.write_text(
+            "listener 1883 127.0.0.1\n"
+            "allow_anonymous false\n"
+            "persistence false\n"
+            "global_plugin /usr/lib/mosquitto_dynamic_security.so\n"
+            "plugin_opt_config_file /mosquitto/data/dynamic-security.json\n"
+            "plugin_opt_password_init_file /mosquitto/config/dynsec-password-init\n"
+            "log_dest stdout\n",
+            encoding="utf-8",
+        )
+        os.chmod(config_path, 0o644)
+        os.chown(config, BROKER_UID, BROKER_GID)
+        os.chown(init_path, BROKER_UID, BROKER_GID)
+        os.chown(config_path, BROKER_UID, BROKER_GID)
+        os.chown(broker_data, BROKER_UID, BROKER_GID)
+
+        name = f"n3w-fresh-dynsec-{secrets.token_hex(6)}"
+        self.runner.run(
+            (
+                "docker",
+                "create",
+                "--network",
+                "none",
+                "--name",
+                name,
+                "--mount",
+                f"type=bind,src={config},dst=/mosquitto/config",
+                "--mount",
+                f"type=bind,src={broker_data},dst=/mosquitto/data",
+                self.broker_image,
+            )
+        )
+        self.candidate_containers.append(name)
+        try:
+            self.runner.run(("docker", "start", name))
+            dynsec = broker_data / "dynamic-security.json"
+            deadline = time.monotonic() + 12.0
+            while time.monotonic() < deadline and not dynsec.is_file():
+                time.sleep(0.2)
+            if not dynsec.is_file():
+                raise BootstrapError("dynsec_init_timeout")
+            init_path.unlink(missing_ok=True)
+
+            admin_host = candidate_root / "dynsec-admin.conf"
+            admin_host.write_text(
+                "-h 127.0.0.1\n"
+                "-u admin\n"
+                f"-P {admin_password}\n"
+                "-i n3w-fresh-bootstrap-admin\n"
+                "-V 5\n",
+                encoding="utf-8",
+            )
+            os.chmod(admin_host, 0o600)
+            admin_container = "/tmp/n3w-fresh-admin.conf"
+            self.runner.run(
+                (
+                    "docker",
+                    "cp",
+                    "--archive",
+                    str(admin_host),
+                    f"{name}:{admin_container}",
+                )
+            )
+
+            source = """
+import json
+from pathlib import Path
+from greenhouse_manager.bootstrap.fresh_broker import provision_fresh_service_identities
+
+class RecordingTransport:
+    def __init__(self):
+        self.commands = []
+    def execute(self, commands):
+        self.commands.extend(dict(command) for command in commands)
+        return tuple({"command": command["command"]} for command in commands)
+
+transport = RecordingTransport()
+provision_fresh_service_identities(
+    transport,
+    Path("/work/broker/service-credentials"),
+    system_id=%r,
+)
+Path("/work/dynsec-commands.json").write_text(
+    json.dumps({"commands": transport.commands}, separators=(",", ":")),
+    encoding="utf-8",
+)
+print(json.dumps({"status": "PASS"}))
+""" % system_id
+            self._manager_json(candidate_root, source)
+            command_document = json.loads(
+                (candidate_root / "dynsec-commands.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            commands = (
+                command_document.get("commands")
+                if isinstance(command_document, dict)
+                else None
+            )
+            if not isinstance(commands, list) or len(commands) != 7:
+                raise BootstrapError("dynsec_command_set_invalid")
+            for command in commands:
+                if not isinstance(command, dict):
+                    raise BootstrapError("dynsec_command_set_invalid")
+                self._dynsec_request(name, admin_container, command)
+        finally:
+            self.runner.run(
+                ("docker", "rm", "-f", name),
+                allowed=frozenset({0, 1}),
+            )
+            if name in self.candidate_containers:
+                self.candidate_containers.remove(name)
+
+        dynsec = broker_data / "dynamic-security.json"
+        if not dynsec.is_file() or dynsec.is_symlink():
+            raise BootstrapError("dynsec_state_missing")
+        os.chmod(dynsec, 0o600)
+        os.chown(dynsec, BROKER_UID, BROKER_GID)
+        audit = self._manager_json(
+            candidate_root,
+            "import json;from pathlib import Path;"
+            "from greenhouse_manager.bootstrap.fresh_broker import audit_fresh_dynsec_document;"
+            f"r=audit_fresh_dynsec_document(Path('/work/broker-data/dynamic-security.json'),system_id={system_id!r});"
+            "print(json.dumps(r,sort_keys=True))",
+        )
         return {
-            "status": "PASS",
-            "service_client_count": 3,
-            "service_role_count": 3,
-            "node_client_count": 0,
-            "node_role_count": 0,
-            "default_acl_exact": True,
-            "admin_runtime_use_forbidden": True,
-            "secret_values_included": False,
+            **audit,
             "production_service_start": False,
         }
 
+    @staticmethod
+    def _chown_tree(path: Path, uid: int, gid: int) -> None:
+        if path.is_symlink():
+            raise BootstrapError("staged_symlink_forbidden")
+        for child in path.rglob("*"):
+            if child.is_symlink():
+                raise BootstrapError("staged_symlink_forbidden")
+            os.chown(child, uid, gid)
+        os.chown(path, uid, gid)
+
     def stage_runtime(self, candidate_root: Path, system_id: str):
         stage = candidate_root / "stage"
+        if stage.exists() or stage.is_symlink():
+            raise BootstrapError("stage_root_already_exists")
         stage.mkdir(mode=0o700)
-        for relative in FINAL_DIRS.values():
-            (candidate_root / relative).mkdir(parents=True, mode=0o700)
-        for relative in FINAL_FILES.values():
-            target = candidate_root / relative
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text("staged\n", encoding="utf-8")
+
+        manager_root = stage / "var-lib-greenhouse-manager"
+        manager_root.mkdir(mode=0o700)
+        for name in ("identity", "manager", "n3w"):
+            shutil.copytree(candidate_root / name, manager_root / name)
+        self._chown_tree(manager_root / "manager", MANAGER_UID, MANAGER_GID)
+        self._chown_tree(manager_root / "n3w", MANAGER_UID, MANAGER_GID)
+
+        broker_data = stage / "var-lib-n3wfc4-broker"
+        broker_data.mkdir(mode=0o700)
+        shutil.copy2(
+            candidate_root / "broker-data/dynamic-security.json",
+            broker_data / "dynamic-security.json",
+        )
+        os.chmod(broker_data / "dynamic-security.json", 0o600)
+        self._chown_tree(broker_data, BROKER_UID, BROKER_GID)
+
+        ha_root = stage / "var-lib-n3wfc4-homeassistant"
+        ha_root.mkdir(mode=0o755)
+
+        secrets_root = stage / "opt-greenhouse-secrets"
+        secrets_root.mkdir(mode=0o700)
+        shutil.copytree(
+            candidate_root / "broker/service-credentials",
+            secrets_root / "mqtt",
+        )
+        for service in ("manager", "provisioning"):
+            self._chown_tree(
+                secrets_root / f"mqtt/{service}",
+                MANAGER_UID,
+                MANAGER_GID,
+            )
+        runtime_env = secrets_root / "mqtt/manager/runtime.env"
+        with runtime_env.open("a", encoding="utf-8") as stream:
+            stream.write(f"GH_MANAGER_IMAGE={self.manager_image}\n")
+        os.chmod(runtime_env, 0o600)
+
+        broker_secret = secrets_root / "broker"
+        broker_secret.mkdir(mode=0o700)
+        shutil.copy2(
+            candidate_root / "broker/private/dynsec-admin-password",
+            broker_secret / "dynsec-admin-password",
+        )
+        os.chmod(broker_secret / "dynsec-admin-password", 0o600)
+
+        ca_private = secrets_root / "broker-ca"
+        ca_private.mkdir(mode=0o700)
+        shutil.copy2(
+            candidate_root / "broker/tls/ca.key",
+            ca_private / "ca.key",
+        )
+        os.chmod(ca_private / "ca.key", 0o600)
+
+        etc = stage / "etc-n3wfc4"
+        tls = etc / "tls"
+        tls.mkdir(parents=True, mode=0o755)
+        for name in ("ca.pem", "server.pem", "server.key"):
+            shutil.copy2(candidate_root / f"broker/tls/{name}", tls / name)
+        os.chmod(tls / "ca.pem", 0o644)
+        os.chmod(tls / "server.pem", 0o644)
+        os.chmod(tls / "server.key", 0o600)
+        os.chown(tls / "server.key", BROKER_UID, BROKER_GID)
+
+        source_root = self.payload_root / "runtime-source/opt/HomeAssistant"
+        product_source = stage / "opt-HomeAssistant"
+        shutil.copytree(source_root, product_source)
+        production = product_source / "infra/n3w-t1/production"
+        fresh_compose = production / "docker-compose.fresh.yml"
+        canonical_compose = production / "docker-compose.yml"
+        fresh_compose.replace(canonical_compose)
+        (production / "image-lock.json").write_text(
+            json.dumps(
+                self.manifest["image_lock"],
+                sort_keys=True,
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        guard = stage / "n3w-broker-ingress-guard"
+        shutil.copy2(
+            self.payload_root
+            / "runtime-source/usr/local/sbin/n3w-broker-ingress-guard",
+            guard,
+        )
+        os.chmod(guard, 0o755)
+        unit = stage / "n3wfc4-broker-ingress-guard.service"
+        shutil.copy2(
+            self.payload_root
+            / "runtime-source/etc/systemd/system/n3wfc4-broker-ingress-guard.service",
+            unit,
+        )
+        os.chmod(unit, 0o644)
+
         return {
             "status": "PASS",
             "source_files_staged": True,
@@ -382,9 +778,27 @@ class LiveFreshInstallerAdapters:
             path = Path(target)
             if path.exists() or path.is_symlink():
                 raise BootstrapError(f"commit_target_exists:{target}")
+
+        for target, relative in FINAL_DIRS.items():
+            source = candidate_root / relative
+            if not source.is_dir() or source.is_symlink():
+                raise BootstrapError(f"commit_source_invalid:{relative}")
+            os.rename(source, target)
+            self.created_paths.append(Path(target))
+
+        for target, relative in FINAL_FILES.items():
+            source = candidate_root / relative
+            if not source.is_file() or source.is_symlink():
+                raise BootstrapError(f"commit_source_invalid:{relative}")
+            os.rename(source, target)
+            self.created_paths.append(Path(target))
+
         for network in PRODUCT_NETWORKS:
             self.runner.run(("docker", "network", "create", network))
             self.created_networks.append(network)
+
+        self.runner.run(("systemctl", "daemon-reload"))
+        shutil.rmtree(candidate_root, ignore_errors=True)
         return {
             "status": "PASS",
             "committed": True,
@@ -395,6 +809,166 @@ class LiveFreshInstallerAdapters:
     def stopped_postcheck(self, system_id: str):
         if self.runner.run(("docker", "ps", "-aq")).strip():
             raise BootstrapError("postcheck_container_present")
+        image_ids = {
+            value
+            for value in self.runner.run(("docker", "image", "ls", "-q")).splitlines()
+            if value
+        }
+        expected_image_ids = {
+            str(record["image_id"])
+            for record in self.manifest["images"].values()
+        }
+        normalized_expected = {
+            value.removeprefix("sha256:") for value in expected_image_ids
+        }
+        normalized_actual = {
+            value.removeprefix("sha256:") for value in image_ids
+        }
+        if normalized_actual != normalized_expected:
+            raise BootstrapError("postcheck_image_set_invalid")
+        if self.runner.run(("docker", "volume", "ls", "-q")).strip():
+            raise BootstrapError("postcheck_volume_present")
+
+        networks = frozenset(
+            value
+            for value in self.runner.run(
+                ("docker", "network", "ls", "--format", "{{.Name}}")
+            ).splitlines()
+            if value
+        )
+        if networks != DEFAULT_NETWORKS | frozenset(PRODUCT_NETWORKS):
+            raise BootstrapError("postcheck_network_set_invalid")
+        if _listeners(self.runner):
+            raise BootstrapError("postcheck_listener_present")
+
+        firewall = self.runner.run(("iptables-save", "-t", "filter"))
+        if (
+            "N3WFC4-BROKER-INGRESS" in firewall
+            or "n3wfc4-broker-ingress-v1" in firewall
+        ):
+            raise BootstrapError("postcheck_firewall_started")
+
+        unit = "n3wfc4-broker-ingress-guard.service"
+        if _unit_load_state(self.runner, unit) != "loaded":
+            raise BootstrapError("postcheck_guard_unit_missing")
+        if _systemctl(self.runner, "is-active", unit) not in {"inactive", "unknown"}:
+            raise BootstrapError("postcheck_guard_active")
+        if _systemctl(self.runner, "is-enabled", unit) not in {"disabled", "static", "indirect"}:
+            raise BootstrapError("postcheck_guard_enabled")
+
+        for target in (*FINAL_DIRS.keys(), *FINAL_FILES.keys()):
+            path = Path(target)
+            if not path.exists() or path.is_symlink():
+                raise BootstrapError(f"postcheck_product_path_missing:{target}")
+        if any(Path(path).exists() or Path(path).is_symlink() for path in EXTRA_ABSENT):
+            raise BootstrapError("postcheck_forbidden_product_path_present")
+
+        env_file = "/opt/greenhouse-secrets/mqtt/manager/runtime.env"
+        compose = "/opt/HomeAssistant/infra/n3w-t1/production/docker-compose.yml"
+        compose_json = self.runner.run(
+            (
+                "docker",
+                "compose",
+                "--env-file",
+                env_file,
+                "-f",
+                compose,
+                "--profile",
+                "*",
+                "config",
+                "--format",
+                "json",
+            )
+        )
+        gate = self.runner.run(
+            (
+                "python3",
+                "/opt/HomeAssistant/tools/n3w_t1_clean_product_deployment_gate.py",
+                "--compose-json",
+                "-",
+                "--image-lock-json",
+                "/opt/HomeAssistant/infra/n3w-t1/production/image-lock.json",
+            ),
+            input_text=compose_json,
+        )
+        if json.loads(gate).get("status") != "PASS":
+            raise BootstrapError("postcheck_deployment_gate_invalid")
+
+        audit_source = """
+import hashlib
+import json
+from pathlib import Path
+from greenhouse_manager.bootstrap.system_init import verify_initialization
+from greenhouse_manager.bootstrap.fresh_product_state import audit_fresh_state
+from greenhouse_manager.bootstrap.fresh_broker import audit_fresh_dynsec_document
+from greenhouse_manager.ops.t1_clean_service_credential_bundle import verify_clean_service_credential_bundle
+
+system_id = %r
+identity = verify_initialization(Path("/state/identity"))
+if identity.system_id != system_id:
+    raise RuntimeError("system_identity_drift")
+state = audit_fresh_state(
+    Path("/state/manager"),
+    Path("/state/n3w"),
+    expected_system_id_sha256=hashlib.sha256(system_id.encode()).hexdigest(),
+)
+dynsec = audit_fresh_dynsec_document(
+    Path("/broker/dynamic-security.json"),
+    system_id=system_id,
+)
+credentials = verify_clean_service_credential_bundle(Path("/secrets/mqtt"))
+print(json.dumps({
+    "state_node_count": state["node_credential_count"],
+    "dynsec_node_count": dynsec["node_client_count"],
+    "credential_node_count": credentials["node_credential_count"],
+}, sort_keys=True))
+""" % system_id
+        name = f"n3w-fresh-audit-{secrets.token_hex(6)}"
+        self.candidate_containers.append(name)
+        try:
+            output = self.runner.run(
+                (
+                    "docker",
+                    "run",
+                    "--rm",
+                    "--name",
+                    name,
+                    "--network",
+                    "none",
+                    "--user",
+                    "0:0",
+                    "--mount",
+                    "type=bind,src=/var/lib/greenhouse-manager,dst=/state,readonly",
+                    "--mount",
+                    "type=bind,src=/var/lib/n3wfc4-broker,dst=/broker,readonly",
+                    "--mount",
+                    "type=bind,src=/opt/greenhouse-secrets,dst=/secrets,readonly",
+                    "--entrypoint",
+                    "python",
+                    self.manager_image,
+                    "-c",
+                    audit_source,
+                ),
+                timeout=240,
+            )
+        finally:
+            self.runner.run(
+                ("docker", "rm", "-f", name),
+                allowed=frozenset({0, 1}),
+            )
+            if name in self.candidate_containers:
+                self.candidate_containers.remove(name)
+        audit = json.loads(output)
+        if any(
+            int(audit[key]) != 0
+            for key in (
+                "state_node_count",
+                "dynsec_node_count",
+                "credential_node_count",
+            )
+        ):
+            raise BootstrapError("postcheck_node_credential_present")
+
         return {
             "status": "PASS",
             "fresh_product_staged": True,
@@ -404,12 +978,23 @@ class LiveFreshInstallerAdapters:
         }
 
     def cleanup(self, candidate_root: Path):
-        errors = []
+        errors: list[str] = []
+        for name in tuple(self.candidate_containers):
+            try:
+                self.runner.run(
+                    ("docker", "rm", "-f", name),
+                    allowed=frozenset({0, 1}),
+                )
+            except Exception as error:
+                errors.append(type(error).__name__)
         for network in reversed(self.created_networks):
             try:
-                self.runner.run(("docker", "network", "rm", network), allowed=frozenset({0, 1}))
+                self.runner.run(
+                    ("docker", "network", "rm", network),
+                    allowed=frozenset({0, 1}),
+                )
             except Exception as error:
-                errors.append(str(error))
+                errors.append(type(error).__name__)
         for path in reversed(self.created_paths):
             try:
                 if path.is_dir() and not path.is_symlink():
@@ -417,21 +1002,28 @@ class LiveFreshInstallerAdapters:
                 else:
                     path.unlink(missing_ok=True)
             except Exception as error:
-                errors.append(str(error))
+                errors.append(type(error).__name__)
         for image in reversed(self.created_images):
             try:
-                self.runner.run(("docker", "image", "rm", image), allowed=frozenset({0, 1}))
+                self.runner.run(
+                    ("docker", "image", "rm", image),
+                    allowed=frozenset({0, 1}),
+                )
             except Exception as error:
-                errors.append(str(error))
+                errors.append(type(error).__name__)
         shutil.rmtree(candidate_root, ignore_errors=True)
+        try:
+            self.runner.run(("systemctl", "daemon-reload"))
+        except Exception as error:
+            errors.append(type(error).__name__)
         if errors:
             raise BootstrapError("cleanup_incomplete")
+        _preflight(self.runner)
         return {
             "status": "PASS",
             "transaction_owned_only": True,
             "production_service_start": False,
         }
-
 
 def execute_preflight(payload_root: Path, runner: Runner | None = None) -> dict[str, object]:
     manifest = _load_manifest(payload_root)
