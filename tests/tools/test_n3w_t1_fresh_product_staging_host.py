@@ -228,20 +228,23 @@ def _storage_probe_fixture(
     config_path = tmp_path / "containerd.toml"
     config_path.write_text(containerd_config, encoding="utf-8")
     socket_path = tmp_path / "containerd.sock"
+    process_stub = tmp_path / "process_stub.py"
+    process_stub.write_text(
+        "import time\ntime.sleep(60)\n",
+        encoding="utf-8",
+    )
 
     dockerd = tool.subprocess.Popen(
         (
             sys.executable,
-            "-c",
-            "import time;time.sleep(60)",
+            str(process_stub),
             f"--containerd={socket_path}",
         )
     )
     containerd = tool.subprocess.Popen(
         (
             sys.executable,
-            "-c",
-            "import time;time.sleep(60)",
+            str(process_stub),
             f"--config={config_path}",
             f"--address={socket_path}",
         )
