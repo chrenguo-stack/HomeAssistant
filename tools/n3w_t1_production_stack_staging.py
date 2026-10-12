@@ -163,7 +163,7 @@ SOURCE_FILES: dict[str, tuple[str, int, str]] = {
     "tools/n3w_t1_clean_product_deployment_gate.py": (
         "/opt/HomeAssistant/tools/n3w_t1_clean_product_deployment_gate.py",
         0o755,
-        "6ad56b391bc6733cf735c7952998028a7a7793afd56c72dafd55da1eaf84ce85",
+        "3dea4ae3ed1ada27cec967cb918e7c33396af92d1680bae9aef9855fb14dc313",
     ),
     "tools/n3w_t1_production_manager_state_prepare.py": (
         "/opt/HomeAssistant/tools/n3w_t1_production_manager_state_prepare.py",
