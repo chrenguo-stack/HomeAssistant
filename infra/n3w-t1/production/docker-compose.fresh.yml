@@ -36,6 +36,8 @@ services:
       - type: bind
         source: /var/lib/n3wfc4-broker
         target: /mosquitto/data
+    tmpfs:
+      - /mosquitto/log
     networks:
       n3wfc4-private: null
       n3wfc4-services: null

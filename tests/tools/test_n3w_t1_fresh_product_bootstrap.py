@@ -112,6 +112,82 @@ def test_runtime_image_binding_rejects_rootfs_drift() -> None:
         )
 
 
+def test_dynsec_uses_tmpfs_for_declared_log_volume() -> None:
+    source = TOOL.read_text(encoding="utf-8")
+    assert '"--tmpfs",\n                "/mosquitto/log",' in source
+    assert '("docker", "rm", "-f", "-v", name)' in source
+
+
+def test_stage_runtime_keeps_credential_bundle_immutable() -> None:
+    source = TOOL.read_text(encoding="utf-8")
+    assert 'env_file = "/etc/n3wfc4/docker-compose.env"' in source
+    assert 'compose_env = etc / "docker-compose.env"' in source
+    assert 'with runtime_env.open("a"' not in source
+
+
+def test_fresh_installer_exposes_safe_stage_diagnostics(tmp_path: Path) -> None:
+    contract_path = (
+        ROOT
+        / "host/greenhouse-manager/src/greenhouse_manager/bootstrap/fresh_installer.py"
+    )
+    specification = importlib.util.spec_from_file_location(
+        "n3w_fresh_installer_contract_test",
+        contract_path,
+    )
+    assert specification is not None
+    assert specification.loader is not None
+    contract = importlib.util.module_from_spec(specification)
+    sys.modules[specification.name] = contract
+    specification.loader.exec_module(contract)
+
+    class Adapter:
+        def preflight(self):
+            return {
+                "status": "PASS",
+                "arch": "aarch64",
+                "docker_ready": True,
+                "compose_ready": True,
+                "network_ready": True,
+                "default_route": True,
+                "time_sync": True,
+                "root_capacity": True,
+                "product_containers": 0,
+                "product_images": 0,
+                "product_volumes": 0,
+                "product_networks": 0,
+                "product_listeners": 0,
+                "product_paths_absent": True,
+                "product_units_absent": True,
+                "product_dispatcher_absent": True,
+                "product_firewall_absent": True,
+                "production_service_start": False,
+            }
+
+        def load_images(self):
+            raise RuntimeError("secret-like detail must not escape")
+
+        def cleanup(self, _candidate):
+            return {
+                "status": "PASS",
+                "transaction_owned_only": True,
+                "production_service_start": False,
+            }
+
+    candidate = tmp_path / "candidate"
+    with pytest.raises(contract.FreshInstallerStageError) as captured:
+        contract.run_fresh_staging(
+            Adapter(),
+            candidate,
+            before_mutation=lambda: None,
+        )
+
+    error = captured.value
+    assert error.failed_stage == "load_images"
+    assert error.failure_code == "adapter_failure"
+    assert error.cleanup_result == "PASS"
+    assert "secret-like" not in str(error)
+
+
 def test_final_targets_do_not_include_host_baseline() -> None:
     tool = load_tool()
     targets = set(tool.FINAL_DIRS) | set(tool.FINAL_FILES)

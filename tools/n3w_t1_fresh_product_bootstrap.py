@@ -480,7 +480,7 @@ class LiveFreshInstallerAdapters:
             ).strip()
         finally:
             self.runner.run(
-                ("docker", "rm", "-f", name),
+                ("docker", "rm", "-f", "-v", name),
                 allowed=frozenset({0, 1}),
             )
             if name in self.candidate_containers:
@@ -619,6 +619,8 @@ class LiveFreshInstallerAdapters:
                 f"type=bind,src={config},dst=/mosquitto/config",
                 "--mount",
                 f"type=bind,src={broker_data},dst=/mosquitto/data",
+                "--tmpfs",
+                "/mosquitto/log",
                 self.broker_image,
             )
         )
@@ -697,7 +699,7 @@ print(json.dumps({"status": "PASS"}))
                 self._dynsec_request(name, admin_container, command)
         finally:
             self.runner.run(
-                ("docker", "rm", "-f", name),
+                ("docker", "rm", "-f", "-v", name),
                 allowed=frozenset({0, 1}),
             )
             if name in self.candidate_containers:
@@ -768,8 +770,6 @@ print(json.dumps({"status": "PASS"}))
                 MANAGER_GID,
             )
         runtime_env = secrets_root / "mqtt/manager/runtime.env"
-        with runtime_env.open("a", encoding="utf-8") as stream:
-            stream.write(f"GH_MANAGER_IMAGE={self.manager_image}\n")
         os.chmod(runtime_env, 0o600)
 
         broker_secret = secrets_root / "broker"
@@ -791,6 +791,13 @@ print(json.dumps({"status": "PASS"}))
         etc = stage / "etc-n3wfc4"
         tls = etc / "tls"
         tls.mkdir(parents=True, mode=0o755)
+        compose_env = etc / "docker-compose.env"
+        compose_env.write_text(
+            runtime_env.read_text(encoding="utf-8")
+            + f"GH_MANAGER_IMAGE={self.manager_image}\n",
+            encoding="utf-8",
+        )
+        os.chmod(compose_env, 0o600)
         for name in ("ca.pem", "server.pem", "server.key"):
             shutil.copy2(candidate_root / f"broker/tls/{name}", tls / name)
         os.chmod(tls / "ca.pem", 0o644)
@@ -921,7 +928,7 @@ print(json.dumps({"status": "PASS"}))
         if any(Path(path).exists() or Path(path).is_symlink() for path in EXTRA_ABSENT):
             raise BootstrapError("postcheck_forbidden_product_path_present")
 
-        env_file = "/opt/greenhouse-secrets/mqtt/manager/runtime.env"
+        env_file = "/etc/n3wfc4/docker-compose.env"
         compose = "/opt/HomeAssistant/infra/n3w-t1/production/docker-compose.yml"
         compose_json = self.runner.run(
             (
@@ -1011,7 +1018,7 @@ print(json.dumps({
             )
         finally:
             self.runner.run(
-                ("docker", "rm", "-f", name),
+                ("docker", "rm", "-f", "-v", name),
                 allowed=frozenset({0, 1}),
             )
             if name in self.candidate_containers:
@@ -1040,7 +1047,7 @@ print(json.dumps({
         for name in tuple(self.candidate_containers):
             try:
                 self.runner.run(
-                    ("docker", "rm", "-f", name),
+                    ("docker", "rm", "-f", "-v", name),
                     allowed=frozenset({0, 1}),
                 )
             except Exception as error:

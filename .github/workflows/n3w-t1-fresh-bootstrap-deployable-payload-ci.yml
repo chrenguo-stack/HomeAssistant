@@ -355,6 +355,7 @@ jobs:
           import importlib.util
           import json
           import shutil
+          import subprocess
           import sys
           import tempfile
           from pathlib import Path
@@ -371,6 +372,12 @@ jobs:
           )
           candidate = Path(tempfile.mkdtemp(prefix="n3w-fresh-rehearsal-"))
           candidate.rmdir()
+          baseline_volumes = set(
+              subprocess.check_output(
+                  ["docker", "volume", "ls", "-q"],
+                  text=True,
+              ).split()
+          )
           adapter = module.LiveFreshInstallerAdapters(
               payload,
               manifest,
@@ -387,6 +394,12 @@ jobs:
               dynsec = adapter.initialize_dynsec(candidate, system_id)
               assert dynsec["status"] == "PASS"
               assert dynsec["node_client_count"] == 0
+              assert set(
+                  subprocess.check_output(
+                      ["docker", "volume", "ls", "-q"],
+                      text=True,
+                  ).split()
+              ) == baseline_volumes
               staged = adapter.stage_runtime(candidate, system_id)
               assert staged["status"] == "PASS"
               required = (
@@ -396,13 +409,39 @@ jobs:
                   / "stage/var-lib-n3wfc4-broker/dynamic-security.json",
                   candidate
                   / "stage/opt-greenhouse-secrets/mqtt/manager/runtime.env",
+                  candidate
+                  / "stage/etc-n3wfc4/docker-compose.env",
               )
               assert all(path.is_file() for path in required)
+              credential_audit = adapter._manager_json(
+                  candidate,
+                  "import json;from pathlib import Path;"
+                  "from greenhouse_manager.ops.t1_clean_service_credential_bundle "
+                  "import verify_clean_service_credential_bundle;"
+                  "r=verify_clean_service_credential_bundle("
+                  "Path('/work/stage/opt-greenhouse-secrets/mqtt'));"
+                  "print(json.dumps(r,sort_keys=True))",
+              )
+              assert credential_audit["node_credential_count"] == 0
+              credential_env = (
+                  candidate
+                  / "stage/opt-greenhouse-secrets/mqtt/manager/runtime.env"
+              ).read_text(encoding="utf-8")
+              compose_env = (
+                  candidate / "stage/etc-n3wfc4/docker-compose.env"
+              ).read_text(encoding="utf-8")
+              assert "GH_MANAGER_IMAGE=" not in credential_env
+              assert compose_env == (
+                  credential_env
+                  + f"GH_MANAGER_IMAGE={adapter.manager_image}\n"
+              )
+              print("FRESH_DYNSEC_VOLUME_LIFECYCLE=PASS")
+              print("FRESH_CREDENTIAL_BUNDLE_IMMUTABILITY=PASS")
               print("FRESH_LIVE_ADAPTER_PRECOMMIT_REHEARSAL=PASS")
           finally:
               for name in tuple(adapter.candidate_containers):
                   adapter.runner.run(
-                      ("docker", "rm", "-f", name),
+                      ("docker", "rm", "-f", "-v", name),
                       allowed=frozenset({0, 1}),
                   )
               shutil.rmtree(candidate, ignore_errors=True)

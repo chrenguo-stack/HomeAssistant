@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any, Protocol
@@ -12,7 +13,20 @@ class FreshInstallerError(RuntimeError):
     pass
 
 
-class FreshInstallerRecoveryRequired(FreshInstallerError):
+class FreshInstallerStageError(FreshInstallerError):
+    def __init__(
+        self,
+        failed_stage: str,
+        failure_code: str,
+        cleanup_result: str,
+    ) -> None:
+        self.failed_stage = failed_stage
+        self.failure_code = failure_code
+        self.cleanup_result = cleanup_result
+        super().__init__(f"{failed_stage}:{failure_code}")
+
+
+class FreshInstallerRecoveryRequired(FreshInstallerStageError):
     pass
 
 
@@ -47,6 +61,19 @@ class FreshInstallerAdapters(Protocol):
     ) -> Mapping[str, object]: ...
     def stopped_postcheck(self, system_id: str) -> Mapping[str, object]: ...
     def cleanup(self, candidate_root: Path) -> Mapping[str, object]: ...
+
+
+def _safe_failure_code(error: Exception) -> str:
+    raw = str(error)
+    if type(error).__name__ == "BootstrapError":
+        raw = raw.split(":", 1)[0]
+    if isinstance(error, FreshInstallerError):
+        candidate = raw
+    else:
+        candidate = raw.split(":", 1)[0]
+    if re.fullmatch(r"[a-z0-9_:-]{1,96}", candidate):
+        return candidate.replace(":", "_")
+    return "adapter_failure"
 
 
 def _require(report: Mapping[str, object], expected: Mapping[str, object], label: str) -> None:
@@ -104,6 +131,7 @@ def run_fresh_staging(
     steps: list[str] = []
     mutation_started = False
     system_id: str | None = None
+    current_stage = "preflight"
 
     try:
         preflight = adapters.preflight()
@@ -114,6 +142,7 @@ def run_fresh_staging(
             before_mutation()
 
         mutation_started = True
+        current_stage = "load_images"
         image_report = adapters.load_images()
         _require(
             image_report,
@@ -129,6 +158,7 @@ def run_fresh_staging(
         )
         steps.append("load_images")
 
+        current_stage = "identity"
         identity_report = adapters.create_identity(candidate)
         _require(
             identity_report,
@@ -143,6 +173,7 @@ def run_fresh_staging(
         system_id_sha256 = hashlib.sha256(system_id.encode()).hexdigest()
         steps.append("identity")
 
+        current_stage = "state"
         state_report = adapters.create_state(candidate, system_id_sha256)
         _require(
             state_report,
@@ -159,6 +190,7 @@ def run_fresh_staging(
             raise FreshInstallerError("state:system_identity_binding_invalid")
         steps.append("state")
 
+        current_stage = "broker"
         broker_report = adapters.create_broker(candidate, system_id)
         _require(
             broker_report,
@@ -176,6 +208,7 @@ def run_fresh_staging(
             raise FreshInstallerError("broker:system_identity_binding_invalid")
         steps.append("broker")
 
+        current_stage = "dynsec"
         dynsec_report = adapters.initialize_dynsec(candidate, system_id)
         _require(
             dynsec_report,
@@ -194,6 +227,7 @@ def run_fresh_staging(
         )
         steps.append("dynsec")
 
+        current_stage = "runtime"
         runtime_report = adapters.stage_runtime(candidate, system_id)
         _require(
             runtime_report,
@@ -209,6 +243,7 @@ def run_fresh_staging(
         )
         steps.append("runtime")
 
+        current_stage = "commit"
         commit_report = adapters.commit_candidate(candidate, system_id)
         _require(
             commit_report,
@@ -222,6 +257,7 @@ def run_fresh_staging(
         )
         steps.append("commit")
 
+        current_stage = "postcheck"
         postcheck = adapters.stopped_postcheck(system_id)
         _require(
             postcheck,
@@ -248,6 +284,7 @@ def run_fresh_staging(
             "board_access": False,
         }
     except Exception as error:
+        failure_code = _safe_failure_code(error)
         if mutation_started:
             try:
                 cleanup = adapters.cleanup(candidate)
@@ -262,8 +299,17 @@ def run_fresh_staging(
                 )
             except Exception as cleanup_error:
                 raise FreshInstallerRecoveryRequired(
-                    "fresh_install_failed_and_cleanup_not_proven"
+                    current_stage,
+                    failure_code,
+                    "NOT_PROVEN",
                 ) from cleanup_error
-        if isinstance(error, FreshInstallerError):
-            raise
-        raise FreshInstallerError("fresh_install_failed") from error
+            raise FreshInstallerStageError(
+                current_stage,
+                failure_code,
+                "PASS",
+            ) from error
+        raise FreshInstallerStageError(
+            current_stage,
+            failure_code,
+            "NOT_STARTED",
+        ) from error
