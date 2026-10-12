@@ -222,3 +222,34 @@ def test_firstboot_contract_has_no_r8_authorization_dependency() -> None:
     assert "_08" not in source
     assert "AUTHORIZATION_ID" not in source
     assert "docker" not in source.lower()
+
+
+def test_firstboot_complete_rejects_transaction_drift(tmp_path: Path) -> None:
+    transaction_root = tmp_path / "firstboot"
+    candidate_root = tmp_path / "candidate"
+    run_device_firstboot(
+        FakeAdapters(),
+        transaction_root,
+        candidate_root,
+        release_id="release-1",
+    )
+
+    transaction_path = transaction_root / TRANSACTION_NAME
+    transaction = json.loads(transaction_path.read_text(encoding="utf-8"))
+    transaction["stage"] = "STATE"
+    transaction_path.write_text(
+        json.dumps(transaction, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    transaction_path.chmod(0o600)
+
+    with pytest.raises(
+        DeviceFirstbootError,
+        match="complete_transaction_drift",
+    ):
+        run_device_firstboot(
+            FakeAdapters(),
+            transaction_root,
+            candidate_root,
+            release_id="release-1",
+        )
