@@ -404,6 +404,12 @@ def _parser() -> argparse.ArgumentParser:
 def main() -> int:
     args = _parser().parse_args()
     work = Path(tempfile.mkdtemp(prefix="n3w-fresh-host."))
+    authorization: str | None = None
+    remote_dir: str | None = None
+    remote_apply_started = False
+    claim_seen = False
+    payload_transfer_started = False
+    payload_transfer_complete = False
     try:
         _download_artifact(work, run_id=args.run_id, artifact_name=args.artifact_name)
         archive = _verify_outer_artifact(
@@ -441,15 +447,17 @@ def main() -> int:
             )
             return 0
 
-        authorization = manifest.get("authorization_id")
+        manifest_authorization = manifest.get("authorization_id")
         if (
-            not isinstance(authorization, str)
-            or not authorization
-            or args.authorization_id != authorization
+            not isinstance(manifest_authorization, str)
+            or not manifest_authorization
+            or args.authorization_id != manifest_authorization
         ):
             raise FreshHostTransportError("authorization_id_mismatch")
+        authorization = manifest_authorization
 
         remote_dir = _remote_mktemp(args.t1, "n3w-fresh-bootstrap")
+        payload_transfer_started = True
         _remote_prepare_payload(
             args.t1,
             remote_dir,
@@ -457,6 +465,7 @@ def main() -> int:
             archive_sha256=args.archive_sha256,
             manifest_sha256=args.manifest_sha256,
         )
+        payload_transfer_complete = True
         command = _remote_command(
             (
                 "python3",
@@ -476,7 +485,7 @@ def main() -> int:
             text=True,
             bufsize=1,
         )
-        claim_seen = False
+        remote_apply_started = True
         assert process.stdout is not None
         for line in process.stdout:
             sys.stdout.write(line)
@@ -488,28 +497,50 @@ def main() -> int:
                 claim_seen = True
         return_code = process.wait()
 
-        marker_probe = _run(
-            (
-                "ssh",
-                "-n",
-                args.t1,
-                _remote_command(
-                    (
-                        "test",
-                        "-f",
-                        f"{remote_dir}/.authorization-claimed",
-                    )
+        try:
+            marker_probe = _run(
+                (
+                    "ssh",
+                    "-n",
+                    args.t1,
+                    _remote_command(
+                        (
+                            "test",
+                            "-f",
+                            f"{remote_dir}/.authorization-claimed",
+                        )
+                    ),
                 ),
-            ),
-            timeout=30,
-            check=False,
-        )
+                timeout=30,
+                check=False,
+            )
+        except (
+            FreshHostTransportError,
+            OSError,
+            subprocess.TimeoutExpired,
+        ) as error:
+            _emit(
+                {
+                    "schema": "gh.n3w-t1-fresh-host-apply/1",
+                    "status": "STOP_PARTIAL" if claim_seen else "STOP_UNKNOWN",
+                    "reason": str(error),
+                    "authorization_id": authorization,
+                    "authorization_claimed": True if claim_seen else None,
+                    "authorization_consumed": True,
+                    "replay_allowed": False,
+                    "remote_payload_preserved": True,
+                    "production_service_start": False,
+                    "board_access": False,
+                }
+            )
+            return 2
+
         marker_known = marker_probe.returncode in {0, 1}
         marker_present = marker_probe.returncode == 0
 
         if return_code != 0:
             if marker_known and not marker_present and not claim_seen:
-                _run(
+                cleanup_probe = _run(
                     (
                         "ssh",
                         "-n",
@@ -519,6 +550,7 @@ def main() -> int:
                     timeout=120,
                     check=False,
                 )
+                removed = cleanup_probe.returncode == 0
                 _emit(
                     {
                         "schema": "gh.n3w-t1-fresh-host-apply/1",
@@ -526,7 +558,8 @@ def main() -> int:
                         "authorization_id": authorization,
                         "authorization_claimed": False,
                         "authorization_consumed": False,
-                        "remote_payload_removed": True,
+                        "remote_payload_removed": removed,
+                        "remote_payload_preserved": not removed,
                         "production_service_start": False,
                         "board_access": False,
                     }
@@ -558,6 +591,7 @@ def main() -> int:
                     "schema": "gh.n3w-t1-fresh-host-apply/1",
                     "status": "STOP_UNKNOWN",
                     "authorization_id": authorization,
+                    "authorization_claimed": True if marker_present else None,
                     "authorization_consumed": True,
                     "replay_allowed": False,
                     "remote_payload_preserved": True,
@@ -567,15 +601,59 @@ def main() -> int:
             )
             return 2
 
-        _run(
-            (
-                "ssh",
-                "-n",
-                args.t1,
-                _remote_command(("rm", "-rf", "--", remote_dir)),
-            ),
-            timeout=120,
-        )
+        try:
+            cleanup_probe = _run(
+                (
+                    "ssh",
+                    "-n",
+                    args.t1,
+                    _remote_command(("rm", "-rf", "--", remote_dir)),
+                ),
+                timeout=120,
+                check=False,
+            )
+        except (
+            FreshHostTransportError,
+            OSError,
+            subprocess.TimeoutExpired,
+        ) as error:
+            _emit(
+                {
+                    "schema": "gh.n3w-t1-fresh-host-apply/1",
+                    "status": "STOP_POSTSUCCESS_CLEANUP",
+                    "reason": str(error),
+                    "apply_result": "PASS",
+                    "authorization_id": authorization,
+                    "authorization_claimed": True,
+                    "authorization_consumed": True,
+                    "replay_allowed": False,
+                    "fresh_product_staged": True,
+                    "remote_payload_preserved": True,
+                    "production_service_start": False,
+                    "board_access": False,
+                }
+            )
+            return 2
+
+        if cleanup_probe.returncode != 0:
+            _emit(
+                {
+                    "schema": "gh.n3w-t1-fresh-host-apply/1",
+                    "status": "STOP_POSTSUCCESS_CLEANUP",
+                    "apply_result": "PASS",
+                    "authorization_id": authorization,
+                    "authorization_claimed": True,
+                    "authorization_consumed": True,
+                    "replay_allowed": False,
+                    "fresh_product_staged": True,
+                    "remote_payload_removed": False,
+                    "remote_payload_preserved": True,
+                    "production_service_start": False,
+                    "board_access": False,
+                }
+            )
+            return 2
+
         _emit(
             {
                 "schema": "gh.n3w-t1-fresh-host-apply/1",
@@ -591,6 +669,46 @@ def main() -> int:
         )
         return 0
     except (FreshHostTransportError, OSError, subprocess.TimeoutExpired) as error:
+        if remote_apply_started:
+            _emit(
+                {
+                    "schema": "gh.n3w-t1-fresh-host-apply/1",
+                    "status": "STOP_PARTIAL" if claim_seen else "STOP_UNKNOWN",
+                    "reason": str(error),
+                    "authorization_id": authorization or args.authorization_id,
+                    "authorization_claimed": True if claim_seen else None,
+                    "authorization_consumed": True,
+                    "replay_allowed": False,
+                    "remote_payload_preserved": remote_dir is not None,
+                    "production_service_start": False,
+                    "board_access": False,
+                }
+            )
+            return 2
+        if args.phase == "apply":
+            payload_transfer: bool | None
+            if payload_transfer_complete:
+                payload_transfer = True
+            elif payload_transfer_started:
+                payload_transfer = None
+            else:
+                payload_transfer = False
+            _emit(
+                {
+                    "schema": "gh.n3w-t1-fresh-host-apply/1",
+                    "status": "STOP_PRECLAIM",
+                    "reason": str(error),
+                    "authorization_id": authorization or args.authorization_id,
+                    "authorization_claimed": False,
+                    "authorization_consumed": False,
+                    "payload_transfer": payload_transfer,
+                    "docker_mutation": False,
+                    "remote_payload_preserved": remote_dir is not None,
+                    "production_service_start": False,
+                    "board_access": False,
+                }
+            )
+            return 2
         _emit(
             {
                 "schema": "gh.n3w-t1-fresh-host-preflight/1",
@@ -613,7 +731,6 @@ def main() -> int:
             elif path.is_dir():
                 path.rmdir()
         work.rmdir()
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

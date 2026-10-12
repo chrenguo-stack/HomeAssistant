@@ -235,3 +235,227 @@ def test_fresh_compose_requires_explicit_manager_image() -> None:
 
     assert "${GH_MANAGER_IMAGE:?GH_MANAGER_IMAGE required}" in compose
     assert "local/greenhouse-manager:s20-511db028" not in compose
+
+
+def _run_apply_main(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    *,
+    process_lines: list[str],
+    process_returncode: int,
+    run_results: list[object],
+) -> tuple[int, dict[str, object]]:
+    tool = load_tool()
+    work = tmp_path / "work"
+    work.mkdir()
+    archive = work / "payload.tar.gz"
+    archive.write_bytes(b"x")
+    authorization = "N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_LIVE_APPLY_20261012_01"
+
+    monkeypatch.setattr(tool.tempfile, "mkdtemp", lambda **_kwargs: str(work))
+    monkeypatch.setattr(tool, "_download_artifact", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(tool, "_verify_outer_artifact", lambda *_args, **_kwargs: archive)
+    monkeypatch.setattr(
+        tool,
+        "_read_payload_manifest",
+        lambda *_args, **_kwargs: {
+            "authorization_id": authorization,
+            **manifest(),
+        },
+    )
+    monkeypatch.setattr(
+        tool,
+        "_remote_storage_report",
+        lambda *_args, **_kwargs: {"staging_free_bytes": 8 * 1024 * 1024 * 1024},
+    )
+    monkeypatch.setattr(
+        tool,
+        "_plan_transport",
+        lambda *_args, **_kwargs: tool.TransportPlan(
+            archive_size_bytes=1,
+            payload_uncompressed_bytes=1,
+            extraction_peak_bytes=2,
+            image_load_peak_bytes=2,
+            required_peak_bytes=2,
+            minimum_post_peak_free_bytes=5 * 1024 * 1024 * 1024,
+            required_free_bytes=5 * 1024 * 1024 * 1024 + 2,
+            remote_free_bytes=8 * 1024 * 1024 * 1024,
+            free_after_estimated_peak_bytes=8 * 1024 * 1024 * 1024 - 2,
+            image_load_order=("homeassistant", "manager", "broker"),
+            capacity_pass=True,
+        ),
+    )
+    monkeypatch.setattr(
+        tool,
+        "_remote_mktemp",
+        lambda *_args, **_kwargs: "/var/tmp/n3w-fresh-bootstrap.test",
+    )
+    monkeypatch.setattr(
+        tool,
+        "_remote_prepare_payload",
+        lambda *_args, **_kwargs: None,
+    )
+
+    class FakeProcess:
+        stdout = iter(process_lines)
+
+        def wait(self):
+            return process_returncode
+
+    monkeypatch.setattr(tool.subprocess, "Popen", lambda *_args, **_kwargs: FakeProcess())
+
+    outcomes = iter(run_results)
+
+    def fake_run(*_args, **_kwargs):
+        value = next(outcomes)
+        if isinstance(value, Exception):
+            raise value
+        return value
+
+    monkeypatch.setattr(tool, "_run", fake_run)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            str(TOOL),
+            "--t1",
+            "root@example",
+            "--phase",
+            "apply",
+            "--run-id",
+            "1",
+            "--artifact-name",
+            "artifact",
+            "--archive-sha256",
+            "0" * 64,
+            "--manifest-sha256",
+            "1" * 64,
+            "--authorization-id",
+            authorization,
+        ],
+    )
+
+    output = io.StringIO()
+    monkeypatch.setattr(sys, "stdout", output)
+    rc = tool.main()
+    documents = [
+        json.loads(line)
+        for line in output.getvalue().splitlines()
+        if line.startswith("{")
+    ]
+    return rc, documents[-1]
+
+
+def test_marker_probe_failure_after_claim_is_consumed_no_replay(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    rc, report = _run_apply_main(
+        monkeypatch,
+        tmp_path,
+        process_lines=[
+            json.dumps(
+                {
+                    "event": "authorization_claimed",
+                    "authorization_id": tool.AUTHORIZATION_ID,
+                },
+                separators=(",", ":"),
+            )
+            + "\n"
+        ],
+        process_returncode=1,
+        run_results=[tool.FreshHostTransportError("marker_probe_unreachable")],
+    )
+
+    assert rc == 2
+    assert report["status"] == "STOP_PARTIAL"
+    assert report["authorization_claimed"] is True
+    assert report["authorization_consumed"] is True
+    assert report["replay_allowed"] is False
+
+
+def test_marker_probe_failure_without_claim_is_unknown_and_consumed(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    rc, report = _run_apply_main(
+        monkeypatch,
+        tmp_path,
+        process_lines=[],
+        process_returncode=255,
+        run_results=[tool.FreshHostTransportError("marker_probe_unreachable")],
+    )
+
+    assert rc == 2
+    assert report["status"] == "STOP_UNKNOWN"
+    assert report["authorization_claimed"] is None
+    assert report["authorization_consumed"] is True
+    assert report["replay_allowed"] is False
+
+
+def test_postsuccess_cleanup_failure_preserves_consumed_state(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+
+    class Result:
+        returncode = 0
+
+    rc, report = _run_apply_main(
+        monkeypatch,
+        tmp_path,
+        process_lines=[
+            json.dumps(
+                {
+                    "event": "authorization_claimed",
+                    "authorization_id": tool.AUTHORIZATION_ID,
+                },
+                separators=(",", ":"),
+            )
+            + "\n"
+        ],
+        process_returncode=0,
+        run_results=[
+            Result(),
+            tool.FreshHostTransportError("cleanup_unreachable"),
+        ],
+    )
+
+    assert rc == 2
+    assert report["status"] == "STOP_POSTSUCCESS_CLEANUP"
+    assert report["apply_result"] == "PASS"
+    assert report["authorization_claimed"] is True
+    assert report["authorization_consumed"] is True
+    assert report["replay_allowed"] is False
+    assert report["fresh_product_staged"] is True
+
+
+def test_preclaim_failure_does_not_claim_and_does_not_fake_cleanup_success(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+
+    class MarkerAbsent:
+        returncode = 1
+
+    class CleanupFailed:
+        returncode = 255
+
+    rc, report = _run_apply_main(
+        monkeypatch,
+        tmp_path,
+        process_lines=[],
+        process_returncode=1,
+        run_results=[MarkerAbsent(), CleanupFailed()],
+    )
+
+    assert rc == 1
+    assert report["status"] == "STOP_PRECLAIM"
+    assert report["authorization_claimed"] is False
+    assert report["authorization_consumed"] is False
+    assert report["remote_payload_removed"] is False
+    assert report["remote_payload_preserved"] is True
