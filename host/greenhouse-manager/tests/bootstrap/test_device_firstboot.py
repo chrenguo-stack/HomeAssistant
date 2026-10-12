@@ -51,8 +51,10 @@ class FakeAdapters:
             "production_service_start": False,
         }
 
-    def create_identity(self, _candidate_root: Path):
+    def create_identity(self, candidate_root: Path):
         self._call("identity")
+        candidate_root.mkdir(mode=0o700, exist_ok=True)
+        candidate_root.chmod(0o700)
         return {
             "created": True,
             "system_id": "ghs-1111111111111111",
@@ -251,5 +253,199 @@ def test_firstboot_complete_rejects_transaction_drift(tmp_path: Path) -> None:
             FakeAdapters(),
             transaction_root,
             candidate_root,
+            release_id="release-1",
+        )
+
+
+def test_firstboot_rejects_transaction_root_owner_drift(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from greenhouse_manager.bootstrap import device_firstboot
+
+    transaction_root = tmp_path / "firstboot"
+    transaction_root.mkdir(mode=0o700)
+    transaction_root.chmod(0o700)
+    actual_uid = device_firstboot.os.geteuid()
+    monkeypatch.setattr(
+        device_firstboot.os,
+        "geteuid",
+        lambda: actual_uid + 1,
+    )
+
+    with pytest.raises(
+        DeviceFirstbootError,
+        match="transaction_root_owner_invalid",
+    ):
+        run_device_firstboot(
+            FakeAdapters(),
+            transaction_root,
+            tmp_path / "candidate",
+            release_id="release-1",
+        )
+
+
+def test_firstboot_atomic_write_rejects_preexisting_temp_symlink(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from greenhouse_manager.bootstrap import device_firstboot
+
+    root = tmp_path / "firstboot"
+    root.mkdir(mode=0o700)
+    root.chmod(0o700)
+    victim = tmp_path / "victim"
+    victim.write_text("unchanged", encoding="utf-8")
+    temporary = root / ".transaction.json.fixed.tmp"
+    temporary.symlink_to(victim)
+    monkeypatch.setattr(
+        device_firstboot.secrets,
+        "token_hex",
+        lambda _length: "fixed",
+    )
+
+    with pytest.raises(
+        DeviceFirstbootError,
+        match="firstboot_record_temp_exists",
+    ):
+        device_firstboot._write_atomic(
+            root / TRANSACTION_NAME,
+            {"schema": "test"},
+        )
+
+    assert victim.read_text(encoding="utf-8") == "unchanged"
+
+
+def test_firstboot_rejects_candidate_symlink(tmp_path: Path) -> None:
+    candidate_target = tmp_path / "candidate-target"
+    candidate_target.mkdir(mode=0o700)
+    candidate = tmp_path / "candidate"
+    candidate.symlink_to(candidate_target, target_is_directory=True)
+
+    with pytest.raises(
+        DeviceFirstbootError,
+        match="candidate_root_symlink_forbidden",
+    ):
+        run_device_firstboot(
+            FakeAdapters(),
+            tmp_path / "firstboot",
+            candidate,
+            release_id="release-1",
+        )
+
+
+def test_firstboot_transaction_binds_candidate_root(tmp_path: Path) -> None:
+    transaction_root = tmp_path / "firstboot"
+    first_candidate = tmp_path / "candidate-a"
+    adapters = FakeAdapters(fail_stage="state")
+
+    with pytest.raises(RuntimeError, match="adapter_failure"):
+        run_device_firstboot(
+            adapters,
+            transaction_root,
+            first_candidate,
+            release_id="release-1",
+        )
+
+    with pytest.raises(
+        DeviceFirstbootError,
+        match="transaction_binding_invalid",
+    ):
+        run_device_firstboot(
+            FakeAdapters(),
+            transaction_root,
+            tmp_path / "candidate-b",
+            release_id="release-1",
+        )
+
+
+def test_firstboot_rejects_missing_persisted_host_binding(
+    tmp_path: Path,
+) -> None:
+    transaction_root = tmp_path / "firstboot"
+    candidate_root = tmp_path / "candidate"
+
+    with pytest.raises(RuntimeError, match="adapter_failure"):
+        run_device_firstboot(
+            FakeAdapters(fail_stage="identity"),
+            transaction_root,
+            candidate_root,
+            release_id="release-1",
+        )
+
+    transaction_path = transaction_root / TRANSACTION_NAME
+    transaction = json.loads(transaction_path.read_text(encoding="utf-8"))
+    transaction["host_instance_id"] = None
+    transaction_path.write_text(
+        json.dumps(transaction, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    transaction_path.chmod(0o600)
+
+    with pytest.raises(
+        DeviceFirstbootError,
+        match="firstboot_host_binding_missing",
+    ):
+        run_device_firstboot(
+            FakeAdapters(),
+            transaction_root,
+            candidate_root,
+            release_id="release-1",
+        )
+
+
+def test_firstboot_complete_rejects_system_hash_drift(
+    tmp_path: Path,
+) -> None:
+    transaction_root = tmp_path / "firstboot"
+    candidate_root = tmp_path / "candidate"
+    run_device_firstboot(
+        FakeAdapters(),
+        transaction_root,
+        candidate_root,
+        release_id="release-1",
+    )
+
+    transaction_path = transaction_root / TRANSACTION_NAME
+    transaction = json.loads(transaction_path.read_text(encoding="utf-8"))
+    transaction["system_id_sha256"] = "0" * 64
+    transaction_path.write_text(
+        json.dumps(transaction, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    transaction_path.chmod(0o600)
+
+    with pytest.raises(
+        DeviceFirstbootError,
+        match="complete_transaction_drift",
+    ):
+        run_device_firstboot(
+            FakeAdapters(),
+            transaction_root,
+            candidate_root,
+            release_id="release-1",
+        )
+
+
+def test_firstboot_complete_rejects_candidate_root_drift(
+    tmp_path: Path,
+) -> None:
+    transaction_root = tmp_path / "firstboot"
+    candidate_root = tmp_path / "candidate-a"
+    run_device_firstboot(
+        FakeAdapters(),
+        transaction_root,
+        candidate_root,
+        release_id="release-1",
+    )
+
+    with pytest.raises(
+        DeviceFirstbootError,
+        match="complete_transaction_drift",
+    ):
+        run_device_firstboot(
+            FakeAdapters(),
+            transaction_root,
+            tmp_path / "candidate-b",
             release_id="release-1",
         )
