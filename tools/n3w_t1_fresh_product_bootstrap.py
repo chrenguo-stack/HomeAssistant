@@ -61,6 +61,17 @@ FINAL_FILES = {
     "/usr/local/sbin/n3w-broker-ingress-guard": "stage/n3w-broker-ingress-guard",
     "/etc/systemd/system/n3wfc4-broker-ingress-guard.service": "stage/n3wfc4-broker-ingress-guard.service",
 }
+PUBLIC_FINAL_DIRS = {
+    "/opt/HomeAssistant": FINAL_DIRS["/opt/HomeAssistant"],
+}
+INSTANCE_FINAL_DIRS = {
+    target: relative
+    for target, relative in FINAL_DIRS.items()
+    if target not in PUBLIC_FINAL_DIRS
+}
+PUBLIC_FINAL_FILES = dict(FINAL_FILES)
+INSTANCE_FINAL_FILES: dict[str, str] = {}
+
 EXTRA_ABSENT = (
     "/etc/NetworkManager/dispatcher.d/90-n3wfc4-broker-ingress-guard",
     "/usr/local/sbin/n3w-t1-broker-authenticated-readiness",
@@ -795,11 +806,11 @@ print(json.dumps({"status": "PASS"}))
             os.chown(child, uid, gid)
         os.chown(path, uid, gid)
 
-    def stage_runtime(self, candidate_root: Path, system_id: str):
+    def stage_instance_runtime(self, candidate_root: Path, system_id: str):
         stage = candidate_root / "stage"
-        if stage.exists() or stage.is_symlink():
-            raise BootstrapError("stage_root_already_exists")
-        stage.mkdir(mode=0o700)
+        if stage.exists() and stage.is_symlink():
+            raise BootstrapError("stage_root_symlink_forbidden")
+        stage.mkdir(mode=0o700, exist_ok=True)
 
         manager_root = stage / "var-lib-greenhouse-manager"
         manager_root.mkdir(mode=0o700)
@@ -868,6 +879,20 @@ print(json.dumps({"status": "PASS"}))
         os.chmod(tls / "server.key", 0o600)
         os.chown(tls / "server.key", BROKER_UID, BROKER_GID)
 
+        return {
+            "status": "PASS",
+            "instance_only": True,
+            "public_material_modified": False,
+            "services_stopped": True,
+            "production_service_start": False,
+        }
+
+    def stage_public_runtime(self, candidate_root: Path):
+        stage = candidate_root / "stage"
+        if stage.exists() and stage.is_symlink():
+            raise BootstrapError("stage_root_symlink_forbidden")
+        stage.mkdir(mode=0o700, exist_ok=True)
+
         source_root = self.payload_root / "runtime-source/opt/HomeAssistant"
         product_source = stage / "opt-HomeAssistant"
         shutil.copytree(source_root, product_source)
@@ -902,6 +927,24 @@ print(json.dumps({"status": "PASS"}))
 
         return {
             "status": "PASS",
+            "public_only": True,
+            "instance_material_created": False,
+            "declared_network_count": 2,
+            "guard_ready": True,
+            "services_stopped": True,
+            "production_service_start": False,
+        }
+
+    def stage_runtime(self, candidate_root: Path, system_id: str):
+        instance_report = self.stage_instance_runtime(candidate_root, system_id)
+        public_report = self.stage_public_runtime(candidate_root)
+        if (
+            instance_report.get("status") != "PASS"
+            or public_report.get("status") != "PASS"
+        ):
+            raise BootstrapError("runtime_stage_split_invalid")
+        return {
+            "status": "PASS",
             "source_files_staged": True,
             "network_count": 2,
             "guard_ready": True,
@@ -909,27 +952,65 @@ print(json.dumps({"status": "PASS"}))
             "production_service_start": False,
         }
 
-    def commit_candidate(self, candidate_root: Path, system_id: str):
-        for target in (*FINAL_DIRS.keys(), *FINAL_FILES.keys()):
+    def _commit_owned_targets(
+        self,
+        candidate_root: Path,
+        directories: dict[str, str],
+        files: dict[str, str],
+    ) -> None:
+        for target in (*directories.keys(), *files.keys()):
             path = Path(target)
             if path.exists() or path.is_symlink():
                 raise BootstrapError(f"commit_target_exists:{target}")
 
-        for target, relative in FINAL_DIRS.items():
+        for target, relative in directories.items():
             source = candidate_root / relative
             if not source.is_dir() or source.is_symlink():
                 raise BootstrapError(f"commit_source_invalid:{relative}")
             os.rename(source, target)
             self.created_paths.append(Path(target))
 
-        for target, relative in FINAL_FILES.items():
+        for target, relative in files.items():
             source = candidate_root / relative
             if not source.is_file() or source.is_symlink():
                 raise BootstrapError(f"commit_source_invalid:{relative}")
             os.rename(source, target)
             self.created_paths.append(Path(target))
 
+    def commit_public_candidate(self, candidate_root: Path):
+        self._commit_owned_targets(
+            candidate_root,
+            PUBLIC_FINAL_DIRS,
+            PUBLIC_FINAL_FILES,
+        )
         self.runner.run(("systemctl", "daemon-reload"))
+        return {
+            "status": "PASS",
+            "public_committed": True,
+            "transaction_owned_only": True,
+            "instance_material_created": False,
+            "production_service_start": False,
+        }
+
+    def commit_instance_candidate(self, candidate_root: Path, system_id: str):
+        if not system_id:
+            raise BootstrapError("instance_system_id_missing")
+        self._commit_owned_targets(
+            candidate_root,
+            INSTANCE_FINAL_DIRS,
+            INSTANCE_FINAL_FILES,
+        )
+        return {
+            "status": "PASS",
+            "instance_committed": True,
+            "transaction_owned_only": True,
+            "public_material_modified": False,
+            "production_service_start": False,
+        }
+
+    def commit_candidate(self, candidate_root: Path, system_id: str):
+        self.commit_instance_candidate(candidate_root, system_id)
+        self.commit_public_candidate(candidate_root)
         shutil.rmtree(candidate_root, ignore_errors=True)
         return {
             "status": "PASS",
@@ -938,12 +1019,14 @@ print(json.dumps({"status": "PASS"}))
             "production_service_start": False,
         }
 
-    def stopped_postcheck(self, system_id: str):
+    def master_postcheck(self, *, require_instance_absent: bool = True):
         if self.runner.run(("docker", "ps", "-aq")).strip():
             raise BootstrapError("postcheck_container_present")
         image_ids = {
             value
-            for value in self.runner.run(("docker", "image", "ls", "--no-trunc", "-q")).splitlines()
+            for value in self.runner.run(
+                ("docker", "image", "ls", "--no-trunc", "-q")
+            ).splitlines()
             if value
         }
         if len(image_ids) != 3:
@@ -981,13 +1064,39 @@ print(json.dumps({"status": "PASS"}))
             raise BootstrapError("postcheck_guard_unit_missing")
         if _systemctl(self.runner, "is-active", unit) not in {"inactive", "unknown"}:
             raise BootstrapError("postcheck_guard_active")
-        if _systemctl(self.runner, "is-enabled", unit) not in {"disabled", "static", "indirect"}:
+        if _systemctl(self.runner, "is-enabled", unit) not in {
+            "disabled",
+            "static",
+            "indirect",
+        }:
             raise BootstrapError("postcheck_guard_enabled")
 
-        for target in (*FINAL_DIRS.keys(), *FINAL_FILES.keys()):
+        for target in (*PUBLIC_FINAL_DIRS.keys(), *PUBLIC_FINAL_FILES.keys()):
             path = Path(target)
             if not path.exists() or path.is_symlink():
-                raise BootstrapError(f"postcheck_product_path_missing:{target}")
+                raise BootstrapError(f"postcheck_public_path_missing:{target}")
+
+        if require_instance_absent:
+            for target in (*INSTANCE_FINAL_DIRS.keys(), *INSTANCE_FINAL_FILES.keys()):
+                path = Path(target)
+                if path.exists() or path.is_symlink():
+                    raise BootstrapError(
+                        f"postcheck_master_instance_material_present:{target}"
+                    )
+
+        return {
+            "status": "PASS",
+            "master_ready": True,
+            "instance_material_absent": require_instance_absent,
+            "product_listener_count": 0,
+            "production_service_start": False,
+        }
+
+    def instance_stopped_postcheck(self, system_id: str):
+        for target in (*INSTANCE_FINAL_DIRS.keys(), *INSTANCE_FINAL_FILES.keys()):
+            path = Path(target)
+            if not path.exists() or path.is_symlink():
+                raise BootstrapError(f"postcheck_instance_path_missing:{target}")
         if any(Path(path).exists() or Path(path).is_symlink() for path in EXTRA_ABSENT):
             raise BootstrapError("postcheck_forbidden_product_path_present")
 
@@ -1144,9 +1253,97 @@ print(json.dumps({
 
         return {
             "status": "PASS",
-            "fresh_product_staged": True,
+            "device_ready": True,
             "node_credential_count": 0,
             "product_listener_count": 0,
+            "production_service_start": False,
+        }
+
+    def stopped_postcheck(self, system_id: str):
+        self.master_postcheck(require_instance_absent=False)
+        instance = self.instance_stopped_postcheck(system_id)
+        return {
+            "status": "PASS",
+            "fresh_product_staged": True,
+            "node_credential_count": instance["node_credential_count"],
+            "product_listener_count": instance["product_listener_count"],
+            "production_service_start": False,
+        }
+
+    def _cleanup_candidate_containers(self, errors: list[str]) -> None:
+        for name in tuple(self.candidate_containers):
+            try:
+                self.runner.run(
+                    ("docker", "rm", "-f", "-v", name),
+                    allowed=frozenset({0, 1}),
+                )
+            except Exception as error:
+                errors.append(type(error).__name__)
+
+    def _cleanup_created_paths(
+        self,
+        allowed_targets: frozenset[str],
+        errors: list[str],
+    ) -> None:
+        for path in reversed(tuple(self.created_paths)):
+            if str(path) not in allowed_targets:
+                continue
+            try:
+                if path.is_dir() and not path.is_symlink():
+                    shutil.rmtree(path)
+                else:
+                    path.unlink(missing_ok=True)
+                self.created_paths.remove(path)
+            except Exception as error:
+                errors.append(type(error).__name__)
+
+    def cleanup_instance_candidate(self, candidate_root: Path):
+        errors: list[str] = []
+        self._cleanup_candidate_containers(errors)
+        instance_targets = frozenset(
+            (*INSTANCE_FINAL_DIRS.keys(), *INSTANCE_FINAL_FILES.keys())
+        )
+        self._cleanup_created_paths(instance_targets, errors)
+        shutil.rmtree(candidate_root, ignore_errors=True)
+        try:
+            self.runner.run(("systemctl", "daemon-reload"))
+        except Exception as error:
+            errors.append(type(error).__name__)
+        if errors:
+            raise BootstrapError("cleanup_incomplete")
+        return {
+            "status": "PASS",
+            "transaction_owned_only": True,
+            "public_material_modified": False,
+            "production_service_start": False,
+        }
+
+    def cleanup_master_candidate(self, candidate_root: Path):
+        errors: list[str] = []
+        self._cleanup_candidate_containers(errors)
+        public_targets = frozenset(
+            (*PUBLIC_FINAL_DIRS.keys(), *PUBLIC_FINAL_FILES.keys())
+        )
+        self._cleanup_created_paths(public_targets, errors)
+        for image in reversed(self.created_images):
+            try:
+                self.runner.run(
+                    ("docker", "image", "rm", image),
+                    allowed=frozenset({0, 1}),
+                )
+            except Exception as error:
+                errors.append(type(error).__name__)
+        shutil.rmtree(candidate_root, ignore_errors=True)
+        try:
+            self.runner.run(("systemctl", "daemon-reload"))
+        except Exception as error:
+            errors.append(type(error).__name__)
+        if errors:
+            raise BootstrapError("cleanup_incomplete")
+        return {
+            "status": "PASS",
+            "public_transaction_owned_only": True,
+            "instance_material_modified": False,
             "production_service_start": False,
         }
 
