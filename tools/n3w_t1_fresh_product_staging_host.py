@@ -536,6 +536,9 @@ else:
         config = tomllib.loads(config_path.read_text(encoding="utf-8"))
     if not isinstance(config, dict):
         raise RuntimeError("containerd_config_invalid")
+    config_imports = config.get("imports")
+    if config_imports not in (None, []):
+        raise RuntimeError("containerd_imports_unsupported")
 
     configured_root = config.get("root")
     if root_flag:

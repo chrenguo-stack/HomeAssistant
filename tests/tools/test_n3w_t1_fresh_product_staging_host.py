@@ -11,7 +11,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 TOOL = ROOT / "tools/n3w_t1_fresh_product_staging_host.py"
-AUTHORIZATION_ID = "N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_LIVE_APPLY_20261012_07"
+AUTHORIZATION_ID = "N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_LIVE_APPLY_20261012_08"
 
 
 def load_tool():
@@ -193,6 +193,14 @@ def test_remote_storage_rejects_unresolved_containerd_authority(
         tool._remote_storage_report("root@example")
 
 
+def test_storage_probe_rejects_containerd_imports_by_contract() -> None:
+    tool = load_tool()
+    script = tool._remote_storage_probe_script()
+
+    assert '"containerd_imports_unsupported"' in script
+    assert 'config.get("imports")' in script
+
+
 def test_storage_probe_requires_active_containerd_authority() -> None:
     tool = load_tool()
     script = tool._remote_storage_probe_script()
@@ -203,6 +211,163 @@ def test_storage_probe_requires_active_containerd_authority() -> None:
     assert '"containerd_address_mismatch"' in script
     assert '"image_store_root_unresolved"' in script
     assert "containerd_probe" not in script
+
+
+def _storage_probe_fixture(
+    tmp_path: Path,
+    *,
+    containerd_config: str,
+) -> tuple[dict[str, str], object, object]:
+    tool = load_tool()
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    docker_root = tmp_path / "docker-root"
+    image_root = tmp_path / "image-store"
+    docker_root.mkdir()
+    image_root.mkdir()
+    config_path = tmp_path / "containerd.toml"
+    config_path.write_text(containerd_config, encoding="utf-8")
+    socket_path = tmp_path / "containerd.sock"
+
+    dockerd = tool.subprocess.Popen(
+        (
+            sys.executable,
+            "-c",
+            "import time;time.sleep(60)",
+            f"--containerd={socket_path}",
+        )
+    )
+    containerd = tool.subprocess.Popen(
+        (
+            sys.executable,
+            "-c",
+            "import time;time.sleep(60)",
+            f"--config={config_path}",
+            f"--address={socket_path}",
+        )
+    )
+
+    def write_executable(name: str, body: str) -> None:
+        path = bin_dir / name
+        path.write_text(body, encoding="utf-8")
+        path.chmod(0o755)
+
+    docker_info = json.dumps(
+        {
+            "DockerRootDir": str(docker_root),
+            "DriverStatus": [
+                ["driver-type", "io.containerd.snapshotter.v1"],
+            ],
+        }
+    )
+    write_executable(
+        "docker",
+        "#!/bin/sh\n"
+        "if [ \"$1\" = info ]; then\n"
+        f"  printf '%s\\n' {json.dumps(docker_info)}\n"
+        "  exit 0\n"
+        "fi\n"
+        "exit 2\n",
+    )
+    write_executable(
+        "systemctl",
+        "#!/bin/sh\n"
+        "case \"$4\" in\n"
+        f"  docker) printf '%s\\n' {dockerd.pid} ;;\n"
+        f"  containerd) printf '%s\\n' {containerd.pid} ;;\n"
+        "  *) exit 2 ;;\n"
+        "esac\n",
+    )
+    write_executable(
+        "findmnt",
+        "#!/bin/sh\nprintf '%s\\n' ext4\n",
+    )
+
+    env = dict(__import__("os").environ)
+    env["PATH"] = str(bin_dir) + __import__("os").pathsep + env["PATH"]
+    return env, dockerd, containerd
+
+
+def _stop_probe_processes(*processes: object) -> None:
+    for process in processes:
+        process.terminate()
+    for process in processes:
+        try:
+            process.wait(timeout=5)
+        except Exception:
+            process.kill()
+            process.wait(timeout=5)
+
+
+def test_generated_storage_probe_uses_direct_containerd_root(
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    image_root = tmp_path / "image-store"
+    config = (
+        'version = 2\n'
+        f'root = "{image_root}"\n'
+        '[grpc]\n'
+        f'address = "{tmp_path / "containerd.sock"}"\n'
+    )
+    env, dockerd, containerd = _storage_probe_fixture(
+        tmp_path,
+        containerd_config=config,
+    )
+    try:
+        completed = tool.subprocess.run(
+            (sys.executable, "-c", tool._remote_storage_probe_script()),
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+    finally:
+        _stop_probe_processes(dockerd, containerd)
+
+    assert completed.returncode == 0, completed.stderr
+    report = json.loads(completed.stdout)
+    assert report["image_store_backend"] == "containerd"
+    assert report["image_store_root"] == str(image_root.resolve())
+    assert report["image_store_root_source"] == "containerd_config_root"
+
+
+def test_generated_storage_probe_rejects_containerd_imports(
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    base_root = tmp_path / "image-store"
+    override_root = tmp_path / "override-store"
+    imported = tmp_path / "override.toml"
+    override_root.mkdir()
+    imported.write_text(
+        f'root = "{override_root}"\n',
+        encoding="utf-8",
+    )
+    config = (
+        'version = 2\n'
+        f'root = "{base_root}"\n'
+        f'imports = ["{imported}"]\n'
+        '[grpc]\n'
+        f'address = "{tmp_path / "containerd.sock"}"\n'
+    )
+    env, dockerd, containerd = _storage_probe_fixture(
+        tmp_path,
+        containerd_config=config,
+    )
+    try:
+        completed = tool.subprocess.run(
+            (sys.executable, "-c", tool._remote_storage_probe_script()),
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+    finally:
+        _stop_probe_processes(dockerd, containerd)
+
+    assert completed.returncode != 0
+    assert "containerd_imports_unsupported" in completed.stderr
 
 
 def test_artifact_download_timeout_enters_integrity_checked_fallback(
