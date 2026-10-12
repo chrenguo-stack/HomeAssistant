@@ -114,6 +114,11 @@ jobs:
           cp infra/n3w-t1/homeassistant/custom_components/n3w_mqtt_bootstrap/__init__.py "$PAYLOAD/runtime-source/opt/HomeAssistant/infra/n3w-t1/homeassistant/custom_components/n3w_mqtt_bootstrap/"
           cp infra/n3w-t1/homeassistant/custom_components/n3w_mqtt_bootstrap/manifest.json "$PAYLOAD/runtime-source/opt/HomeAssistant/infra/n3w-t1/homeassistant/custom_components/n3w_mqtt_bootstrap/"
           cp tools/n3w_t1_clean_product_deployment_gate.py "$PAYLOAD/runtime-source/opt/HomeAssistant/tools/"
+          cp tools/n3w_t1_broker_authenticated_readiness.py "$PAYLOAD/runtime-source/opt/HomeAssistant/tools/"
+          cp infra/n3w-t1/broker-activation.env.example "$PAYLOAD/runtime-source/opt/HomeAssistant/infra/n3w-t1/"
+          cp infra/n3w-t1/systemd/n3wfc4-broker-activation.service "$PAYLOAD/runtime-source/opt/HomeAssistant/infra/n3w-t1/systemd/"
+          cp infra/n3w-t1/systemd/n3wfc4-services-activation.service "$PAYLOAD/runtime-source/opt/HomeAssistant/infra/n3w-t1/systemd/"
+          cp infra/n3w-t1/NetworkManager/dispatcher.d/90-n3wfc4-broker-ingress-guard "$PAYLOAD/runtime-source/opt/HomeAssistant/infra/n3w-t1/NetworkManager/dispatcher.d/"
           cp tools/n3w_broker_ingress_guard.py "$PAYLOAD/runtime-source/usr/local/sbin/n3w-broker-ingress-guard"
           cp infra/n3w-t1/systemd/n3wfc4-broker-ingress-guard.service "$PAYLOAD/runtime-source/etc/systemd/system/"
 
