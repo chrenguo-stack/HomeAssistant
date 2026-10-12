@@ -1,3 +1,5 @@
+> **2026-10-12 fresh bootstrap R3 STOP_PARTIAL**：`_03` 已 claim/consume，不可重放。fresh installer cleanup 后 minimal baseline PASS；remote payload 保留且三个 image tar 均仍存在，故失败锁定在第一个 Home Assistant image load/binding step。当前仅做只读取证；生产服务/board/merge 均未触及。
+
 > **2026-10-12 fresh bootstrap R3 local artifact download STOP_PRECLAIM x2**：已授权 `..._03` 连续两次在 Mac 端 `gh run download` 获取 replacement artifact #11729783144 时失败；两次均明确 `authorization_claimed=false`、`authorization_consumed=false`、`payload_transfer=false`、`docker_mutation=false`、`remote_payload_preserved=false`，因此真实 T1 未进入 staging，`_03` 仍可在 claim 前继续。GitHub artifact metadata 仍为 unexpired 且 exact source=`1f191b26...`。后续只替换本地 artifact 获取传输层：GitHub REST redirect + resumable curl；必须先验证 outer ZIP digest `03098b8c...`，再由 artifact 自带 exact host wrapper 继续原有 binding/apply 路径。产品源码、payload、authorization identity 不旋转。
 
 > **2026-10-12 fresh bootstrap live apply R3 authorization granted**：`N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_LIVE_APPLY_20261012_03` 已明确批准，当前 GRANTED_PENDING_CLAIM；exact source=`1f191b26...`，artifact #11729783144；尚未 claim/consume，生产服务启动/board/merge 均不在授权范围。
