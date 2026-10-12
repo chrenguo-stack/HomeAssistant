@@ -796,10 +796,6 @@ print(json.dumps({"status": "PASS"}))
             os.rename(source, target)
             self.created_paths.append(Path(target))
 
-        for network in PRODUCT_NETWORKS:
-            self.runner.run(("docker", "network", "create", network))
-            self.created_networks.append(network)
-
         self.runner.run(("systemctl", "daemon-reload"))
         shutil.rmtree(candidate_root, ignore_errors=True)
         return {
@@ -839,7 +835,7 @@ print(json.dumps({"status": "PASS"}))
             ).splitlines()
             if value
         )
-        if networks != DEFAULT_NETWORKS | frozenset(PRODUCT_NETWORKS):
+        if networks != DEFAULT_NETWORKS:
             raise BootstrapError("postcheck_network_set_invalid")
         if _listeners(self.runner):
             raise BootstrapError("postcheck_listener_present")

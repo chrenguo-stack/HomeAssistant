@@ -64,7 +64,7 @@ def test_source_contains_real_dynsec_candidate_and_stopped_postcheck() -> None:
     assert "mosquitto_rr" in source
     assert "$CONTROL/dynamic-security/v1" in source
     assert "audit_fresh_dynsec_document" in source
-    assert '("docker", "network", "create", network)' in source
+    assert '("docker", "network", "create", network)' not in source
     assert '"docker", "compose"' in source
     assert "postcheck_listener_present" in source
     assert "postcheck_guard_active" in source
@@ -80,3 +80,10 @@ def test_claimed_failure_is_structured_no_replay() -> None:
     assert '"status": "STOP_PARTIAL"' in source
     assert '"replay_allowed": False' in source
     assert '"automatic_retry": False' in source
+
+
+def test_staging_defers_product_network_creation_to_activation() -> None:
+    source = TOOL.read_text(encoding="utf-8")
+
+    assert 'if networks != DEFAULT_NETWORKS:' in source
+    assert '("docker", "network", "create", network)' not in source
