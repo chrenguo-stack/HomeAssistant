@@ -1174,7 +1174,7 @@ def _validate_authorization_ledger_root() -> None:
     metadata = root.stat()
     if (
         not root.is_dir()
-        or metadata.st_uid != 0
+        or metadata.st_uid != os.geteuid()
         or metadata.st_mode & 0o777 != 0o700
     ):
         raise BootstrapError("authorization_ledger_root_invalid")
@@ -1190,7 +1190,7 @@ def _authorization_record_present(
     if path.is_symlink() or not path.is_file():
         raise BootstrapError("authorization_record_invalid")
     metadata = path.stat()
-    if metadata.st_uid != 0 or metadata.st_mode & 0o777 != 0o600:
+    if metadata.st_uid != os.geteuid() or metadata.st_mode & 0o777 != 0o600:
         raise BootstrapError("authorization_record_invalid")
     try:
         document = json.loads(path.read_text(encoding="utf-8"))

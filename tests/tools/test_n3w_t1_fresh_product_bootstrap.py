@@ -256,8 +256,6 @@ def test_authorization_ledger_blocks_same_authorization_across_payload_dirs(
     tool = load_tool()
     ledger = tmp_path / "ledger"
     monkeypatch.setattr(tool, "AUTHORIZATION_LEDGER_ROOT", ledger)
-    monkeypatch.setattr(tool.os, "geteuid", lambda: 0)
-
     manifest = {"source_head": "a" * 40}
     first = tmp_path / "payload-a"
     second = tmp_path / "payload-b"

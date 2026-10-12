@@ -226,7 +226,6 @@ def _download_artifact(
                 "--http1.1",
                 "--retry",
                 "3",
-                "--retry-all-errors",
                 "--connect-timeout",
                 "20",
                 "--speed-time",
