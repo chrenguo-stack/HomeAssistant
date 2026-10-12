@@ -175,11 +175,12 @@ def test_sequential_load_releases_each_tar(
     assert all("docker pull" not in " ".join(call) for call in calls)
 
 
-def test_cli_only_exposes_read_only_preflight() -> None:
+def test_cli_exposes_preflight_and_apply_with_explicit_authorization() -> None:
     source = TOOL.read_text(encoding="utf-8")
 
-    assert 'choices=("preflight",)' in source
-    assert "authorization_claimed" in source
+    assert 'choices=("preflight", "apply")' in source
+    assert 'parser.add_argument("--authorization-id")' in source
+    assert "authorization_id_mismatch" in source
     assert '"docker_mutation": False' in source
 
 

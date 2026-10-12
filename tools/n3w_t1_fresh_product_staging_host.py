@@ -392,11 +392,12 @@ def _emit(value: dict[str, object]) -> None:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--t1", required=True)
-    parser.add_argument("--phase", choices=("preflight",), required=True)
+    parser.add_argument("--phase", choices=("preflight", "apply"), required=True)
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--artifact-name", required=True)
     parser.add_argument("--archive-sha256", required=True)
     parser.add_argument("--manifest-sha256", required=True)
+    parser.add_argument("--authorization-id")
     return parser
 
 
@@ -422,18 +423,88 @@ def main() -> int:
         )
         if not plan.capacity_pass:
             raise FreshHostTransportError("remote_capacity_insufficient")
+        if args.phase == "preflight":
+            _emit(
+                {
+                    "schema": "gh.n3w-t1-fresh-host-preflight/1",
+                    "status": "PASS",
+                    "phase": "preflight",
+                    "storage": storage,
+                    "transport": plan.to_dict(),
+                    "payload_transfer": False,
+                    "docker_mutation": False,
+                    "production_service_start": False,
+                    "authorization_claimed": False,
+                    "authorization_consumed": False,
+                    "board_access": False,
+                }
+            )
+            return 0
+
+        authorization = manifest.get("authorization_id")
+        if (
+            not isinstance(authorization, str)
+            or not authorization
+            or args.authorization_id != authorization
+        ):
+            raise FreshHostTransportError("authorization_id_mismatch")
+
+        remote_dir = _remote_mktemp(args.t1, "n3w-fresh-bootstrap")
+        _remote_prepare_payload(
+            args.t1,
+            remote_dir,
+            archive,
+            archive_sha256=args.archive_sha256,
+            manifest_sha256=args.manifest_sha256,
+        )
+        command = _remote_command(
+            (
+                "python3",
+                f"{remote_dir}/tools/n3w_t1_fresh_product_bootstrap.py",
+                "--payload-root",
+                remote_dir,
+                "--phase",
+                "apply",
+                "--authorization-id",
+                authorization,
+            )
+        )
+        completed = subprocess.run(
+            ("ssh", "-n", args.t1, command),
+            check=False,
+            text=True,
+        )
+        if completed.returncode != 0:
+            _emit(
+                {
+                    "schema": "gh.n3w-t1-fresh-host-apply/1",
+                    "status": "STOP",
+                    "remote_payload_preserved": True,
+                    "remote_payload_path_sha256": hashlib.sha256(
+                        remote_dir.encode()
+                    ).hexdigest(),
+                    "authorization_id": authorization,
+                    "production_service_start": False,
+                    "board_access": False,
+                }
+            )
+            return completed.returncode
+        _run(
+            (
+                "ssh",
+                "-n",
+                args.t1,
+                _remote_command(("rm", "-rf", "--", remote_dir)),
+            ),
+            timeout=120,
+        )
         _emit(
             {
-                "schema": "gh.n3w-t1-fresh-host-preflight/1",
+                "schema": "gh.n3w-t1-fresh-host-apply/1",
                 "status": "PASS",
-                "phase": "preflight",
-                "storage": storage,
-                "transport": plan.to_dict(),
-                "payload_transfer": False,
-                "docker_mutation": False,
+                "authorization_id": authorization,
+                "remote_payload_removed": True,
                 "production_service_start": False,
-                "authorization_claimed": False,
-                "authorization_consumed": False,
                 "board_access": False,
             }
         )
