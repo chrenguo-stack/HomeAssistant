@@ -23,7 +23,12 @@ class FreshInstallerStageError(FreshInstallerError):
         self.failed_stage = failed_stage
         self.failure_code = failure_code
         self.cleanup_result = cleanup_result
-        super().__init__(f"{failed_stage}:{failure_code}")
+        message = (
+            "fresh_install_failed_and_cleanup_not_proven"
+            if cleanup_result == "NOT_PROVEN"
+            else "fresh_install_failed"
+        )
+        super().__init__(message)
 
 
 class FreshInstallerRecoveryRequired(FreshInstallerStageError):
@@ -67,10 +72,11 @@ def _safe_failure_code(error: Exception) -> str:
     raw = str(error)
     if type(error).__name__ == "BootstrapError":
         raw = raw.split(":", 1)[0]
-    if isinstance(error, FreshInstallerError):
-        candidate = raw
-    else:
-        candidate = raw.split(":", 1)[0]
+    candidate = (
+        raw
+        if isinstance(error, FreshInstallerError)
+        else raw.split(":", 1)[0]
+    )
     if re.fullmatch(r"[a-z0-9_:-]{1,96}", candidate):
         return candidate.replace(":", "_")
     return "adapter_failure"
