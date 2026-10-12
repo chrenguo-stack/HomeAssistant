@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -30,6 +31,8 @@ def test_deployable_workflow_prevents_post_manifest_bytecode_contamination() -> 
     assert "PYTHONDONTWRITEBYTECODE=1 sudo -E python - \"$PAYLOAD\"" in workflow
     assert workflow.count("--phase self-check") >= 2
     assert "find \"$PAYLOAD\" -type f -path '*/__pycache__/*'" in workflow
+    assert "rootfs_layers_sha256" in workflow
+    assert "FRESH_CROSS_STORE_IMAGE_BINDING=PASS" in workflow
 
 
 def test_future_authorization_is_fresh_bootstrap_specific() -> None:
@@ -39,6 +42,74 @@ def test_future_authorization_is_fresh_bootstrap_specific() -> None:
         "LIVE_APPLY_20261012_03"
     )
     assert "PRODUCTION_STACK_STAGING" not in tool.AUTHORIZATION_ID
+
+
+def test_runtime_image_binding_accepts_containerd_runtime_id_when_rootfs_exact() -> None:
+    tool = load_tool()
+    layers = [
+        "sha256:" + "1" * 64,
+        "sha256:" + "2" * 64,
+    ]
+    runtime_id = "sha256:" + "c" * 64
+    record = {
+        "image": "local/test:exact",
+        "rootfs_layers_sha256": tool._normalized_hash(layers),
+    }
+
+    class FakeRunner:
+        def run(self, _argv):
+            return json.dumps(
+                [
+                    {
+                        "Id": runtime_id,
+                        "Architecture": "arm64",
+                        "Os": "linux",
+                        "RootFS": {"Layers": layers},
+                    }
+                ]
+            )
+
+    binding = tool._verify_runtime_image(
+        FakeRunner(),
+        "homeassistant",
+        record,
+    )
+
+    assert binding["runtime_id"] == runtime_id
+    assert binding["rootfs_layers_sha256"] == record["rootfs_layers_sha256"]
+
+
+def test_runtime_image_binding_rejects_rootfs_drift() -> None:
+    tool = load_tool()
+    expected_layers = ["sha256:" + "1" * 64]
+    observed_layers = ["sha256:" + "2" * 64]
+    record = {
+        "image": "local/test:exact",
+        "rootfs_layers_sha256": tool._normalized_hash(expected_layers),
+    }
+
+    class FakeRunner:
+        def run(self, _argv):
+            return json.dumps(
+                [
+                    {
+                        "Id": "sha256:" + "c" * 64,
+                        "Architecture": "arm64",
+                        "Os": "linux",
+                        "RootFS": {"Layers": observed_layers},
+                    }
+                ]
+            )
+
+    with pytest.raises(
+        tool.BootstrapError,
+        match="image_rootfs_binding_invalid:homeassistant",
+    ):
+        tool._verify_runtime_image(
+            FakeRunner(),
+            "homeassistant",
+            record,
+        )
 
 
 def test_final_targets_do_not_include_host_baseline() -> None:

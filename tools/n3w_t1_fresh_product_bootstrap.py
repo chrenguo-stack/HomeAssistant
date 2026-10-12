@@ -17,7 +17,7 @@ from typing import Any, Sequence
 
 SCHEMA = "gh.n3w-t1-fresh-product-bootstrap/1"
 PAYLOAD_SCHEMA = "gh.n3w-t1-fresh-bootstrap-payload/1"
-AUTHORIZATION_ID = "N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_LIVE_APPLY_20261012_03"
+AUTHORIZATION_ID = "N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_LIVE_APPLY_20261012_04"
 CLAIM_MARKER_NAME = ".authorization-claimed"
 DEFAULT_NETWORKS = frozenset(("bridge", "host", "none"))
 PRODUCT_NETWORKS = ("n3wfc4-private", "n3wfc4-services")
@@ -95,6 +95,15 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _normalized_hash(value: Any) -> str:
+    payload = json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    return hashlib.sha256(payload).hexdigest()
+
+
 def _load_manifest(root: Path) -> dict[str, Any]:
     path = root / "payload-manifest.json"
     if not path.is_file() or path.is_symlink():
@@ -154,6 +163,11 @@ def _load_manifest(root: Path) -> dict[str, Any]:
             not isinstance(record.get("image"), str)
             or re.fullmatch(r"sha256:[0-9a-f]{64}", str(record.get("image_id"))) is None
             or record.get("platform") != "linux/arm64"
+            or re.fullmatch(
+                r"[0-9a-f]{64}",
+                str(record.get("rootfs_layers_sha256")),
+            )
+            is None
             or not isinstance(record.get("path"), str)
             or re.fullmatch(r"[0-9a-f]{64}", str(record.get("tar_sha256"))) is None
         ):
@@ -320,6 +334,61 @@ def _load_contract(payload_root: Path):
     return module
 
 
+def _inspect_runtime_image(
+    runner: Runner,
+    image: str,
+    label: str,
+) -> dict[str, Any]:
+    raw = runner.run(("docker", "image", "inspect", image))
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError as error:
+        raise BootstrapError(f"image_inspect_invalid:{label}") from error
+    if (
+        not isinstance(value, list)
+        or len(value) != 1
+        or not isinstance(value[0], dict)
+    ):
+        raise BootstrapError(f"image_inspect_invalid:{label}")
+    return value[0]
+
+
+def _verify_runtime_image(
+    runner: Runner,
+    label: str,
+    record: dict[str, Any],
+) -> dict[str, str]:
+    image = str(record["image"])
+    item = _inspect_runtime_image(runner, image, label)
+    runtime_id = item.get("Id")
+    if (
+        not isinstance(runtime_id, str)
+        or re.fullmatch(r"sha256:[0-9a-f]{64}", runtime_id) is None
+    ):
+        raise BootstrapError(f"image_runtime_id_invalid:{label}")
+    if item.get("Architecture") != "arm64" or item.get("Os") != "linux":
+        raise BootstrapError(f"image_platform_invalid:{label}")
+    rootfs = item.get("RootFS")
+    layers = rootfs.get("Layers") if isinstance(rootfs, dict) else None
+    if (
+        not isinstance(layers, list)
+        or not layers
+        or not all(
+            isinstance(layer, str)
+            and re.fullmatch(r"sha256:[0-9a-f]{64}", layer) is not None
+            for layer in layers
+        )
+    ):
+        raise BootstrapError(f"image_rootfs_invalid:{label}")
+    rootfs_hash = _normalized_hash(layers)
+    if rootfs_hash != record["rootfs_layers_sha256"]:
+        raise BootstrapError(f"image_rootfs_binding_invalid:{label}")
+    return {
+        "runtime_id": runtime_id,
+        "rootfs_layers_sha256": rootfs_hash,
+    }
+
+
 class LiveFreshInstallerAdapters:
     def __init__(
         self,
@@ -334,6 +403,7 @@ class LiveFreshInstallerAdapters:
         self.created_networks: list[str] = []
         self.created_paths: list[Path] = []
         self.candidate_containers: list[str] = []
+        self.loaded_image_bindings: dict[str, dict[str, str]] = {}
 
     @property
     def manager_image(self) -> str:
@@ -360,18 +430,11 @@ class LiveFreshInstallerAdapters:
                 ),
                 timeout=1800,
             )
-            observed = self.runner.run(
-                (
-                    "docker",
-                    "image",
-                    "inspect",
-                    image,
-                    "--format",
-                    "{{.Id}}|{{.Architecture}}/{{.Os}}",
-                )
-            ).strip()
-            if observed != f'{record["image_id"]}|arm64/linux':
-                raise BootstrapError(f"image_binding_invalid:{label}")
+            self.loaded_image_bindings[label] = _verify_runtime_image(
+                self.runner,
+                label,
+                record,
+            )
             tar_path = self.payload_root / str(record["path"])
             tar_path.unlink()
         return {
@@ -813,18 +876,14 @@ print(json.dumps({"status": "PASS"}))
             for value in self.runner.run(("docker", "image", "ls", "--no-trunc", "-q")).splitlines()
             if value
         }
-        expected_image_ids = {
-            str(record["image_id"])
-            for record in self.manifest["images"].values()
-        }
-        normalized_expected = {
-            value.removeprefix("sha256:") for value in expected_image_ids
-        }
-        normalized_actual = {
-            value.removeprefix("sha256:") for value in image_ids
-        }
-        if normalized_actual != normalized_expected:
-            raise BootstrapError("postcheck_image_set_invalid")
+        if len(image_ids) != 3:
+            raise BootstrapError("postcheck_image_count_invalid")
+        for label in ("homeassistant", "manager", "broker"):
+            record = self.manifest["images"][label]
+            binding = _verify_runtime_image(self.runner, label, record)
+            loaded = self.loaded_image_bindings.get(label)
+            if loaded is None or binding != loaded:
+                raise BootstrapError(f"postcheck_image_binding_drift:{label}")
         if self.runner.run(("docker", "volume", "ls", "-q")).strip():
             raise BootstrapError("postcheck_volume_present")
 
