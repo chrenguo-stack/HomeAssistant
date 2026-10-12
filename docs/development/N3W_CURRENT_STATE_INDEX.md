@@ -1,3 +1,5 @@
+> **2026-10-12 R8 F5 final source-repair handoff**：exact review/source head=5ed613673ec1ead29a1153d0e3916bdd3539a3fb，CI=25/25 PASS；containerd non-empty imports now fail closed and generated storage-probe execution regressions pass. _08 NOT_GRANTED. 本轮在此 STOP；新对话只进入 N3W_T1_FRESH_BOOTSTRAP_R8_F5_FINAL_CLOSURE_REVIEW_20261012_01。
+
 > **2026-10-12 Astra R3 focused closure**：PRODUCT_SOURCE_HEAD=41d05b99813ae5ea3887b4f2b80b75164f35dda4；PR_HEAD=7ebceebe6f52310b60a0e1adf0e9486a8968f575；current CI=25/25 PASS。复核仅限 F5、D1、A8、DOWNSTREAM_SOURCE_BLOCKER；_07 NOT_GRANTED；不访问 T1、不清 R3 retained payload、不 merge。
 
 > **2026-10-12 Astra R2 blocker repair**：product head=41d05b99...；F5 actual image-store root + D1 UID-999 stopped audit + A8 timeout fallback committed；_06=SUPERSEDED_UNGRANTED；_07=NOT_GRANTED；CI pending；T1 unchanged。
