@@ -21,6 +21,17 @@ def load_tool():
     return module
 
 
+def test_deployable_workflow_prevents_post_manifest_bytecode_contamination() -> None:
+    workflow = (
+        ROOT
+        / ".github/workflows/n3w-t1-fresh-bootstrap-deployable-payload-ci.yml"
+    ).read_text(encoding="utf-8")
+
+    assert "PYTHONDONTWRITEBYTECODE=1 sudo -E python - \"$PAYLOAD\"" in workflow
+    assert workflow.count("--phase self-check") >= 2
+    assert "find \"$PAYLOAD\" -type f -path '*/__pycache__/*'" in workflow
+
+
 def test_future_authorization_is_fresh_bootstrap_specific() -> None:
     tool = load_tool()
     assert tool.AUTHORIZATION_ID == (
