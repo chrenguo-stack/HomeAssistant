@@ -235,9 +235,13 @@ def _advance(root: Path, transaction: dict[str, Any], stage: str, **values: obje
     _write_atomic(root / TRANSACTION_NAME, transaction)
 
 
-def _complete_report(root: Path, release_id: str) -> dict[str, Any] | None:
+def _complete_report(
+    root: Path,
+    release_id: str,
+    candidate_root: Path,
+) -> dict[str, Any] | None:
     path = root / COMPLETE_NAME
-    if not path.exists():
+    if not path.exists() and not path.is_symlink():
         return None
     document = _read_json(path)
     system_id = document.get("system_id")
@@ -257,6 +261,7 @@ def _complete_report(root: Path, release_id: str) -> dict[str, Any] | None:
     if (
         transaction.get("schema") != TRANSACTION_SCHEMA
         or transaction.get("release_id") != release_id
+        or transaction.get("candidate_root") != str(candidate_root)
         or transaction.get("stage") != "VERIFY"
         or transaction.get("host_instance_id") != document.get("host_instance_id")
         or transaction.get("system_id") != system_id
@@ -280,7 +285,7 @@ def run_device_firstboot(
     candidate = Path(candidate_root).expanduser()
     _validate_candidate_root(candidate, allow_absent=True)
 
-    complete = _complete_report(root, release_id)
+    complete = _complete_report(root, release_id, candidate)
     if complete is not None:
         return {
             "schema": SCHEMA,
