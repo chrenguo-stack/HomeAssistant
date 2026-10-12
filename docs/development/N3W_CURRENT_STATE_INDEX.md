@@ -1,3 +1,5 @@
+> **2026-10-12 normalization source CLOSED_PASS**：exact-head 全部 CI PASS；manifest/executor 已具备进入 live preexecution 的源码资格，但 destructive authorization 仍未授予，T1 mutation=false。
+
 > **2026-10-12 normalization exact source entered**：45-volume / 5-network / 8-path exact manifest 与 one-shot normalization executor 已提交；dedicated source CI pending，live destructive authorization NOT_GRANTED。
 
 > **2026-10-12 dialogue/GitHub alignment PASS**：read-only inventory 与 classifier repair 已全绿归档；public-safe live facts 已进入 GitHub，chat-only required artifact=0。下一门只做 exact normalization manifest/executor source + CI，live deletion 未授权。
