@@ -811,7 +811,7 @@ print(json.dumps({"status": "PASS"}))
             raise BootstrapError("postcheck_container_present")
         image_ids = {
             value
-            for value in self.runner.run(("docker", "image", "ls", "-q")).splitlines()
+            for value in self.runner.run(("docker", "image", "ls", "--no-trunc", "-q")).splitlines()
             if value
         }
         expected_image_ids = {
@@ -1075,11 +1075,40 @@ def execute_apply(payload_root: Path, authorization_id: str, runner: Runner | No
         )
 
     candidate = Path("/var/tmp") / f"n3w-fresh-bootstrap-{secrets.token_hex(8)}"
-    report = contract.run_fresh_staging(
-        adapters,
-        candidate,
-        before_mutation=claim,
-    )
+    claimed = False
+
+    def claim_once() -> None:
+        nonlocal claimed
+        claim()
+        claimed = True
+
+    try:
+        report = contract.run_fresh_staging(
+            adapters,
+            candidate,
+            before_mutation=claim_once,
+        )
+    except Exception as error:
+        if claimed:
+            print(
+                json.dumps(
+                    {
+                        "schema": SCHEMA,
+                        "status": "STOP_PARTIAL",
+                        "reason": str(error)[:400],
+                        "authorization_claimed": True,
+                        "authorization_consumed": True,
+                        "replay_allowed": False,
+                        "automatic_retry": False,
+                        "production_service_start": False,
+                        "board_access": False,
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
+                flush=True,
+            )
+        raise
     return {
         "schema": SCHEMA,
         "status": "PASS",
