@@ -1,3 +1,5 @@
+> **2026-10-12 Astra blockers repair in progress**：product head=3e88e41a...；F1-F6 source repairs plus repository-owned artifact download fallback committed. _04=SUPERSEDED_UNGRANTED；_05=NOT_GRANTED；CI pending；T1 unchanged。
+
 > **2026-10-12 KF-111 R4 Astra review brief**：exact product-source=c263b9df...；复核重点为 cross-store image identity、RootFS binding 强度、Docker29 coverage、failure observability、cleanup/no-replay、后续 staging blocker 与 artifact download fallback。_04 NOT_GRANTED，T1 暂不修改。
 
 > **2026-10-12 KF-111 root cause confirmed / source repair**：R3 HA image load 实际成功，但 Docker 29 containerd runtime ID=`c261fa53...` 与 CI Docker 28 build/config ID=`b0e1ee82...` 不同，触发 single-ID binding fail 后事务安全回滚。该差异与仓库既有 KF-098 cross-store contract 一致。修复改为 exact tar + platform + RootFS fingerprint；`_03` 已消费，successor `..._04` NOT_GRANTED；KF-110=LIVE_REVALIDATED，KF-111=OPEN_SOURCE_REPAIR_CI_PENDING。
