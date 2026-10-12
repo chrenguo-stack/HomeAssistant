@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import zipfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Sequence
@@ -18,6 +19,17 @@ REMOTE_STAGING_ROOT = "/var/tmp"
 TRANSPORT_SCHEMA = "gh.n3w-t1-fresh-transport/1"
 MIN_POST_PEAK_FREE_BYTES = 5 * 1024 * 1024 * 1024
 IMAGE_LABELS = ("homeassistant", "manager", "broker")
+AUTHORIZATION_LEDGER_ROOT = "/var/lib/n3w-fresh-bootstrap-authorizations"
+ARTIFACT_OUTER_FILES = frozenset(
+    (
+        "executor.sha256",
+        "host-wrapper.py",
+        "host-wrapper.sha256",
+        "payload-archive.sha256",
+        "payload-archive.tar.gz",
+        "payload-manifest.sha256",
+    )
+)
 
 
 class FreshHostTransportError(RuntimeError):
@@ -30,6 +42,9 @@ class TransportPlan:
     payload_uncompressed_bytes: int
     extraction_peak_bytes: int
     image_load_peak_bytes: int
+    content_store_estimate_bytes: int
+    snapshot_store_estimate_bytes: int
+    storage_model: str
     required_peak_bytes: int
     minimum_post_peak_free_bytes: int
     required_free_bytes: int
@@ -75,27 +90,161 @@ def _remote_command(parts: Sequence[str]) -> str:
     return " ".join(shlex.quote(part) for part in parts)
 
 
+def _artifact_metadata(
+    *,
+    run_id: str,
+    artifact_name: str,
+    artifact_id: int,
+    artifact_zip_sha256: str,
+) -> dict[str, object]:
+    completed = _run(
+        (
+            "gh",
+            "api",
+            f"repos/{REPOSITORY}/actions/artifacts/{artifact_id}",
+        ),
+        timeout=60,
+    )
+    try:
+        document = json.loads(completed.stdout)
+    except json.JSONDecodeError as error:
+        raise FreshHostTransportError("artifact_metadata_invalid") from error
+    workflow_run = document.get("workflow_run")
+    if (
+        document.get("id") != artifact_id
+        or document.get("name") != artifact_name
+        or document.get("expired") is not False
+        or document.get("digest") != f"sha256:{artifact_zip_sha256}"
+        or not isinstance(workflow_run, dict)
+        or str(workflow_run.get("id")) != str(run_id)
+    ):
+        raise FreshHostTransportError("artifact_metadata_binding_invalid")
+    return document
+
+
+def _safe_extract_artifact_zip(
+    archive: Path,
+    destination: Path,
+) -> None:
+    with zipfile.ZipFile(archive) as bundle:
+        infos = bundle.infolist()
+        names = {item.filename for item in infos}
+        if names != ARTIFACT_OUTER_FILES:
+            raise FreshHostTransportError("artifact_outer_file_set_invalid")
+        for item in infos:
+            path = Path(item.filename)
+            mode = (item.external_attr >> 16) & 0o170000
+            if (
+                path.is_absolute()
+                or len(path.parts) != 1
+                or item.is_dir()
+                or mode == 0o120000
+            ):
+                raise FreshHostTransportError("artifact_zip_member_unsafe")
+            with bundle.open(item) as source:
+                with (destination / item.filename).open("wb") as target:
+                    while True:
+                        block = source.read(1024 * 1024)
+                        if not block:
+                            break
+                        target.write(block)
+
+
 def _download_artifact(
     work: Path,
     *,
     run_id: str,
     artifact_name: str,
+    artifact_id: int,
+    artifact_zip_sha256: str,
 ) -> None:
-    _run(
-        (
-            "gh",
-            "run",
-            "download",
-            run_id,
-            "-R",
-            REPOSITORY,
-            "-n",
-            artifact_name,
-            "-D",
-            str(work),
-        ),
-        timeout=900,
+    _artifact_metadata(
+        run_id=run_id,
+        artifact_name=artifact_name,
+        artifact_id=artifact_id,
+        artifact_zip_sha256=artifact_zip_sha256,
     )
+    try:
+        _run(
+            (
+                "gh",
+                "run",
+                "download",
+                run_id,
+                "-R",
+                REPOSITORY,
+                "-n",
+                artifact_name,
+                "-D",
+                str(work),
+            ),
+            timeout=900,
+        )
+        return
+    except FreshHostTransportError:
+        pass
+
+    token = _run(("gh", "auth", "token"), timeout=30).stdout.strip()
+    if not token:
+        raise FreshHostTransportError("github_token_unavailable")
+    headers = work.parent / f"{work.name}.headers"
+    archive = work.parent / f"{work.name}.artifact.zip"
+    try:
+        _run(
+            (
+                "curl",
+                "-sS",
+                "-D",
+                str(headers),
+                "-o",
+                "/dev/null",
+                "-H",
+                f"Authorization: Bearer {token}",
+                "-H",
+                "Accept: application/vnd.github+json",
+                "-H",
+                "X-GitHub-Api-Version: 2022-11-28",
+                f"https://api.github.com/repos/{REPOSITORY}/actions/artifacts/{artifact_id}/zip",
+            ),
+            timeout=60,
+        )
+        location = ""
+        for line in headers.read_text(
+            encoding="utf-8",
+            errors="replace",
+        ).splitlines():
+            if line.lower().startswith("location:"):
+                location = line.split(":", 1)[1].strip()
+                break
+        if not location.startswith("https://"):
+            raise FreshHostTransportError("artifact_redirect_missing")
+        _run(
+            (
+                "curl",
+                "-4",
+                "-fL",
+                "--http1.1",
+                "--retry",
+                "3",
+                "--retry-all-errors",
+                "--connect-timeout",
+                "20",
+                "--speed-time",
+                "90",
+                "--speed-limit",
+                "1024",
+                "-o",
+                str(archive),
+                location,
+            ),
+            timeout=1800,
+        )
+        if _sha256_file(archive) != artifact_zip_sha256:
+            raise FreshHostTransportError("artifact_zip_sha256_mismatch")
+        _safe_extract_artifact_zip(archive, work)
+    finally:
+        headers.unlink(missing_ok=True)
+        archive.unlink(missing_ok=True)
 
 
 def _read_sidecar(path: Path) -> str:
@@ -111,16 +260,8 @@ def _verify_outer_artifact(
     archive_sha256: str,
     manifest_sha256: str,
 ) -> Path:
-    expected = {
-        "executor.sha256",
-        "host-wrapper.py",
-        "host-wrapper.sha256",
-        "payload-archive.sha256",
-        "payload-archive.tar.gz",
-        "payload-manifest.sha256",
-    }
     actual = {path.name for path in work.iterdir()}
-    if actual != expected:
+    if actual != ARTIFACT_OUTER_FILES:
         raise FreshHostTransportError("artifact_outer_file_set_invalid")
 
     archive = work / "payload-archive.tar.gz"
@@ -249,16 +390,21 @@ def _plan_transport(
     extraction_peak = archive_size_bytes + payload_bytes
 
     current_payload = payload_bytes
-    loaded_bytes = 0
+    content_bytes = 0
+    snapshot_bytes = 0
     image_peak = current_payload
     images = transport["images"]
     for label in IMAGE_LABELS:
         record = images[label]
         loaded_size = int(record["loaded_size_bytes"])
         tar_size = int(record["tar_size_bytes"])
-        image_peak = max(image_peak, current_payload + loaded_bytes + loaded_size)
+        content_bytes += tar_size
+        snapshot_bytes += loaded_size
+        image_peak = max(
+            image_peak,
+            current_payload + content_bytes + snapshot_bytes,
+        )
         current_payload -= tar_size
-        loaded_bytes += loaded_size
 
     required_peak = max(extraction_peak, image_peak)
     required_free = required_peak + MIN_POST_PEAK_FREE_BYTES
@@ -267,6 +413,9 @@ def _plan_transport(
         payload_uncompressed_bytes=payload_bytes,
         extraction_peak_bytes=extraction_peak,
         image_load_peak_bytes=image_peak,
+        content_store_estimate_bytes=content_bytes,
+        snapshot_store_estimate_bytes=snapshot_bytes,
+        storage_model="tar_plus_containerd_content_plus_snapshot",
         required_peak_bytes=required_peak,
         minimum_post_peak_free_bytes=MIN_POST_PEAK_FREE_BYTES,
         required_free_bytes=required_free,
@@ -283,14 +432,21 @@ def _remote_storage_report(t1: str) -> dict[str, object]:
         "stage='/var/tmp';"
         "docker_root=subprocess.check_output("
         "['docker','info','--format','{{.DockerRootDir}}'],text=True).strip();"
+        "containerd_root=os.path.join(docker_root,'containerd');"
+        "containerd_probe=containerd_root if os.path.exists(containerd_root) else docker_root;"
         "stage_stat=os.stat(stage);docker_stat=os.stat(docker_root);"
+        "containerd_stat=os.stat(containerd_probe);"
         "stage_fs=subprocess.check_output("
         "['findmnt','-n','-o','FSTYPE','--target',stage],text=True).strip();"
         "print(json.dumps({"
         "'staging_root':stage,'docker_root':docker_root,"
+        "'containerd_root':containerd_probe,"
+        "'containerd_root_present':os.path.exists(containerd_root),"
         "'staging_device':stage_stat.st_dev,'docker_device':docker_stat.st_dev,"
+        "'containerd_device':containerd_stat.st_dev,"
         "'staging_free_bytes':shutil.disk_usage(stage).free,"
         "'docker_free_bytes':shutil.disk_usage(docker_root).free,"
+        "'containerd_free_bytes':shutil.disk_usage(containerd_probe).free,"
         "'staging_fstype':stage_fs}))"
     )
     completed = _run(
@@ -307,8 +463,12 @@ def _remote_storage_report(t1: str) -> dict[str, object]:
         raise FreshHostTransportError("remote_staging_root_invalid")
     if report.get("staging_fstype") in {"tmpfs", "ramfs"}:
         raise FreshHostTransportError("remote_staging_root_is_memory_filesystem")
-    if report.get("staging_device") != report.get("docker_device"):
-        raise FreshHostTransportError("staging_and_docker_filesystems_differ")
+    if not (
+        report.get("staging_device")
+        == report.get("docker_device")
+        == report.get("containerd_device")
+    ):
+        raise FreshHostTransportError("staging_docker_containerd_filesystems_differ")
     free = report.get("staging_free_bytes")
     if not isinstance(free, int) or isinstance(free, bool) or free <= 0:
         raise FreshHostTransportError("remote_free_bytes_invalid")
@@ -402,6 +562,11 @@ def _remote_load_images_sequentially(
         )
 
 
+def _authorization_record_remote_path(authorization_id: str) -> str:
+    digest = hashlib.sha256(authorization_id.encode("utf-8")).hexdigest()
+    return f"{AUTHORIZATION_LEDGER_ROOT}/{digest}.json"
+
+
 def _emit(value: dict[str, object]) -> None:
     print(json.dumps(value, sort_keys=True, separators=(",", ":")), flush=True)
 
@@ -412,6 +577,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--phase", choices=("preflight", "apply"), required=True)
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--artifact-name", required=True)
+    parser.add_argument("--artifact-id", type=int, required=True)
+    parser.add_argument("--artifact-zip-sha256", required=True)
     parser.add_argument("--archive-sha256", required=True)
     parser.add_argument("--manifest-sha256", required=True)
     parser.add_argument("--authorization-id")
@@ -428,7 +595,13 @@ def main() -> int:
     payload_transfer_started = False
     payload_transfer_complete = False
     try:
-        _download_artifact(work, run_id=args.run_id, artifact_name=args.artifact_name)
+        _download_artifact(
+            work,
+            run_id=args.run_id,
+            artifact_name=args.artifact_name,
+            artifact_id=args.artifact_id,
+            artifact_zip_sha256=args.artifact_zip_sha256,
+        )
         archive = _verify_outer_artifact(
             work,
             archive_sha256=args.archive_sha256,
@@ -442,7 +615,11 @@ def main() -> int:
         plan = _plan_transport(
             manifest,
             archive_size_bytes=archive.stat().st_size,
-            remote_free_bytes=int(storage["staging_free_bytes"]),
+            remote_free_bytes=min(
+                int(storage["staging_free_bytes"]),
+                int(storage["docker_free_bytes"]),
+                int(storage["containerd_free_bytes"]),
+            ),
         )
         if not plan.capacity_pass:
             raise FreshHostTransportError("remote_capacity_insufficient")
@@ -524,7 +701,7 @@ def main() -> int:
                         (
                             "test",
                             "-f",
-                            f"{remote_dir}/.authorization-claimed",
+                            _authorization_record_remote_path(authorization),
                         )
                     ),
                 ),

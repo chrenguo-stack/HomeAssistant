@@ -51,9 +51,17 @@ def test_runtime_image_binding_accepts_containerd_runtime_id_when_rootfs_exact()
         "sha256:" + "2" * 64,
     ]
     runtime_id = "sha256:" + "c" * 64
+    config = {
+        "Entrypoint": ["/init"],
+        "Cmd": None,
+        "User": "",
+    }
     record = {
         "image": "local/test:exact",
         "rootfs_layers_sha256": tool._normalized_hash(layers),
+        "config_contract_sha256": tool._normalized_hash(
+            tool._image_config_contract(config)
+        ),
     }
 
     class FakeRunner:
@@ -65,6 +73,7 @@ def test_runtime_image_binding_accepts_containerd_runtime_id_when_rootfs_exact()
                         "Architecture": "arm64",
                         "Os": "linux",
                         "RootFS": {"Layers": layers},
+                        "Config": config,
                     }
                 ]
             )
@@ -83,9 +92,13 @@ def test_runtime_image_binding_rejects_rootfs_drift() -> None:
     tool = load_tool()
     expected_layers = ["sha256:" + "1" * 64]
     observed_layers = ["sha256:" + "2" * 64]
+    config = {"Entrypoint": ["/init"], "User": ""}
     record = {
         "image": "local/test:exact",
         "rootfs_layers_sha256": tool._normalized_hash(expected_layers),
+        "config_contract_sha256": tool._normalized_hash(
+            tool._image_config_contract(config)
+        ),
     }
 
     class FakeRunner:
@@ -97,6 +110,7 @@ def test_runtime_image_binding_rejects_rootfs_drift() -> None:
                         "Architecture": "arm64",
                         "Os": "linux",
                         "RootFS": {"Layers": observed_layers},
+                        "Config": config,
                     }
                 ]
             )
@@ -186,6 +200,96 @@ def test_fresh_installer_exposes_safe_stage_diagnostics(tmp_path: Path) -> None:
     assert error.failure_code == "adapter_failure"
     assert error.cleanup_result == "PASS"
     assert "secret-like" not in str(error)
+
+
+def test_runtime_image_binding_rejects_same_rootfs_with_config_drift() -> None:
+    tool = load_tool()
+    layers = ["sha256:" + "1" * 64]
+    expected_config = {
+        "Entrypoint": ["/init"],
+        "Cmd": ["python", "-m", "homeassistant"],
+        "User": "0",
+        "Volumes": {"/config": {}},
+    }
+    observed_config = {
+        **expected_config,
+        "Entrypoint": ["/bin/sh"],
+        "User": "999",
+    }
+    record = {
+        "image": "local/test:exact",
+        "rootfs_layers_sha256": tool._normalized_hash(layers),
+        "config_contract_sha256": tool._normalized_hash(
+            tool._image_config_contract(expected_config)
+        ),
+    }
+
+    class FakeRunner:
+        def run(self, _argv):
+            return json.dumps(
+                [
+                    {
+                        "Id": "sha256:" + "c" * 64,
+                        "Architecture": "arm64",
+                        "Os": "linux",
+                        "RootFS": {"Layers": layers},
+                        "Config": observed_config,
+                    }
+                ]
+            )
+
+    with pytest.raises(
+        tool.BootstrapError,
+        match="image_config_binding_invalid:homeassistant",
+    ):
+        tool._verify_runtime_image(
+            FakeRunner(),
+            "homeassistant",
+            record,
+        )
+
+
+def test_authorization_ledger_blocks_same_authorization_across_payload_dirs(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    ledger = tmp_path / "ledger"
+    monkeypatch.setattr(tool, "AUTHORIZATION_LEDGER_ROOT", ledger)
+    monkeypatch.setattr(tool.os, "geteuid", lambda: 0)
+
+    manifest = {"source_head": "a" * 40}
+    first = tmp_path / "payload-a"
+    second = tmp_path / "payload-b"
+    first.mkdir()
+    second.mkdir()
+    payload_manifest = json.dumps({"source_head": "a" * 40}) + "\n"
+    (first / "payload-manifest.json").write_text(
+        payload_manifest,
+        encoding="utf-8",
+    )
+    (second / "payload-manifest.json").write_text(
+        payload_manifest,
+        encoding="utf-8",
+    )
+
+    tool._claim_authorization(first, manifest)
+
+    assert tool._authorization_record_present() is True
+    record = json.loads(
+        tool._authorization_record_path().read_text(encoding="utf-8")
+    )
+    assert record["authorization_id"] == tool.AUTHORIZATION_ID
+    assert record["source_head"] == "a" * 40
+    assert record["payload_manifest_sha256"] == tool._sha256_file(
+        first / "payload-manifest.json"
+    )
+
+    with pytest.raises(
+        tool.BootstrapError,
+        match="authorization_already_consumed",
+    ):
+        tool._claim_authorization(second, manifest)
 
 
 def test_final_targets_do_not_include_host_baseline() -> None:

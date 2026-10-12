@@ -17,8 +17,22 @@ from typing import Any, Sequence
 
 SCHEMA = "gh.n3w-t1-fresh-product-bootstrap/1"
 PAYLOAD_SCHEMA = "gh.n3w-t1-fresh-bootstrap-payload/1"
-AUTHORIZATION_ID = "N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_LIVE_APPLY_20261012_04"
+AUTHORIZATION_ID = "N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_LIVE_APPLY_20261012_05"
 CLAIM_MARKER_NAME = ".authorization-claimed"
+AUTHORIZATION_LEDGER_SCHEMA = "gh.n3w-t1-fresh-authorization-ledger/1"
+AUTHORIZATION_LEDGER_ROOT = Path("/var/lib/n3w-fresh-bootstrap-authorizations")
+IMAGE_CONFIG_KEYS = (
+    "Entrypoint",
+    "Cmd",
+    "User",
+    "Env",
+    "WorkingDir",
+    "Labels",
+    "Healthcheck",
+    "StopSignal",
+    "Volumes",
+    "ExposedPorts",
+)
 DEFAULT_NETWORKS = frozenset(("bridge", "host", "none"))
 PRODUCT_NETWORKS = ("n3wfc4-private", "n3wfc4-services")
 TARGET_PORTS = frozenset((1883, 8883, 18883, 8123, 47110, 47111, 47112))
@@ -104,6 +118,11 @@ def _normalized_hash(value: Any) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
+def _image_config_contract(config: object) -> dict[str, object]:
+    value = config if isinstance(config, dict) else {}
+    return {key: value.get(key) for key in IMAGE_CONFIG_KEYS}
+
+
 def _load_manifest(root: Path) -> dict[str, Any]:
     path = root / "payload-manifest.json"
     if not path.is_file() or path.is_symlink():
@@ -166,6 +185,26 @@ def _load_manifest(root: Path) -> dict[str, Any]:
             or re.fullmatch(
                 r"[0-9a-f]{64}",
                 str(record.get("rootfs_layers_sha256")),
+            )
+            is None
+            or re.fullmatch(
+                r"sha256:[0-9a-f]{64}",
+                str(record.get("config_digest")),
+            )
+            is None
+            or re.fullmatch(
+                r"[0-9a-f]{64}",
+                str(record.get("config_contract_sha256")),
+            )
+            is None
+            or re.fullmatch(
+                r"[0-9a-f]{64}",
+                str(record.get("docker_archive_manifest_sha256")),
+            )
+            is None
+            or re.fullmatch(
+                r"[0-9a-f]{64}",
+                str(record.get("docker_archive_record_sha256")),
             )
             is None
             or not isinstance(record.get("path"), str)
@@ -383,9 +422,15 @@ def _verify_runtime_image(
     rootfs_hash = _normalized_hash(layers)
     if rootfs_hash != record["rootfs_layers_sha256"]:
         raise BootstrapError(f"image_rootfs_binding_invalid:{label}")
+    config_hash = _normalized_hash(
+        _image_config_contract(item.get("Config"))
+    )
+    if config_hash != record["config_contract_sha256"]:
+        raise BootstrapError(f"image_config_binding_invalid:{label}")
     return {
         "runtime_id": runtime_id,
         "rootfs_layers_sha256": rootfs_hash,
+        "config_contract_sha256": config_hash,
     }
 
 
@@ -1113,27 +1158,136 @@ def execute_preflight(payload_root: Path, runner: Runner | None = None) -> dict[
     }
 
 
+def _authorization_record_path(
+    authorization_id: str = AUTHORIZATION_ID,
+) -> Path:
+    digest = hashlib.sha256(authorization_id.encode("utf-8")).hexdigest()
+    return AUTHORIZATION_LEDGER_ROOT / f"{digest}.json"
+
+
+def _validate_authorization_ledger_root() -> None:
+    root = AUTHORIZATION_LEDGER_ROOT
+    if root.is_symlink():
+        raise BootstrapError("authorization_ledger_root_invalid")
+    if not root.exists():
+        return
+    metadata = root.stat()
+    if (
+        not root.is_dir()
+        or metadata.st_uid != 0
+        or metadata.st_mode & 0o777 != 0o700
+    ):
+        raise BootstrapError("authorization_ledger_root_invalid")
+
+
+def _authorization_record_present(
+    authorization_id: str = AUTHORIZATION_ID,
+) -> bool:
+    _validate_authorization_ledger_root()
+    path = _authorization_record_path(authorization_id)
+    if not path.exists():
+        return False
+    if path.is_symlink() or not path.is_file():
+        raise BootstrapError("authorization_record_invalid")
+    metadata = path.stat()
+    if metadata.st_uid != 0 or metadata.st_mode & 0o777 != 0o600:
+        raise BootstrapError("authorization_record_invalid")
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise BootstrapError("authorization_record_invalid") from error
+    if (
+        not isinstance(document, dict)
+        or document.get("schema") != AUTHORIZATION_LEDGER_SCHEMA
+        or document.get("authorization_id") != authorization_id
+        or re.fullmatch(
+            r"[0-9a-f]{40}",
+            str(document.get("source_head")),
+        )
+        is None
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(document.get("payload_manifest_sha256")),
+        )
+        is None
+    ):
+        raise BootstrapError("authorization_record_invalid")
+    return True
+
+
+def _claim_authorization(
+    payload_root: Path,
+    manifest: dict[str, Any],
+) -> None:
+    _validate_authorization_ledger_root()
+    AUTHORIZATION_LEDGER_ROOT.mkdir(mode=0o700, exist_ok=True)
+    os.chmod(AUTHORIZATION_LEDGER_ROOT, 0o700)
+    _validate_authorization_ledger_root()
+
+    manifest_sha = _sha256_file(payload_root / "payload-manifest.json")
+    record = {
+        "schema": AUTHORIZATION_LEDGER_SCHEMA,
+        "authorization_id": AUTHORIZATION_ID,
+        "source_head": manifest["source_head"],
+        "payload_manifest_sha256": manifest_sha,
+    }
+    payload = (
+        json.dumps(
+            record,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        + "\n"
+    ).encode("utf-8")
+    path = _authorization_record_path()
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(path, flags, 0o600)
+    except FileExistsError as error:
+        raise BootstrapError("authorization_already_consumed") from error
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(path, 0o600)
+        directory_fd = os.open(
+            AUTHORIZATION_LEDGER_ROOT,
+            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+        )
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    except Exception:
+        raise
+
+    marker = payload_root / CLAIM_MARKER_NAME
+    descriptor = os.open(
+        marker,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+        0o600,
+    )
+    with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+        stream.write(AUTHORIZATION_ID + "\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+
+
 def execute_apply(payload_root: Path, authorization_id: str, runner: Runner | None = None) -> dict[str, object]:
     if authorization_id != AUTHORIZATION_ID:
         raise BootstrapError("authorization_id_mismatch")
     if os.geteuid() != 0:
         raise BootstrapError("root_required")
     manifest = _load_manifest(payload_root)
+    if _authorization_record_present():
+        raise BootstrapError("authorization_already_consumed")
     active = runner or Runner()
     adapters = LiveFreshInstallerAdapters(payload_root, manifest, active)
     contract = _load_contract(payload_root)
 
     def claim() -> None:
-        marker = payload_root / CLAIM_MARKER_NAME
-        descriptor = os.open(
-            marker,
-            os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
-            0o600,
-        )
-        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-            stream.write(AUTHORIZATION_ID + "\n")
-            stream.flush()
-            os.fsync(stream.fileno())
+        _claim_authorization(payload_root, manifest)
         print(
             json.dumps(
                 {
@@ -1170,7 +1324,10 @@ def execute_apply(payload_root: Path, authorization_id: str, runner: Runner | No
                     {
                         "schema": SCHEMA,
                         "status": "STOP_PARTIAL",
-                        "reason": str(error)[:400],
+                        "reason": "fresh_install_failed",
+                        "failed_stage": getattr(error, "failed_stage", "unknown"),
+                        "failure_code": getattr(error, "failure_code", "unknown"),
+                        "cleanup_result": getattr(error, "cleanup_result", "UNKNOWN"),
                         "authorization_claimed": True,
                         "authorization_consumed": True,
                         "replay_allowed": False,
@@ -1248,7 +1405,11 @@ def main() -> int:
         return 0 if result.get("status") == "PASS" else 2
     except Exception as error:
         root = args.payload_root.resolve()
-        claimed = (root / CLAIM_MARKER_NAME).is_file()
+        try:
+            durable_claimed = _authorization_record_present()
+        except Exception:
+            durable_claimed = False
+        claimed = durable_claimed or (root / CLAIM_MARKER_NAME).is_file()
         print(
             json.dumps(
                 {

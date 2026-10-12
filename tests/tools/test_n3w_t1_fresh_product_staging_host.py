@@ -11,7 +11,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 TOOL = ROOT / "tools/n3w_t1_fresh_product_staging_host.py"
-AUTHORIZATION_ID = "N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_LIVE_APPLY_20261012_04"
+AUTHORIZATION_ID = "N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_LIVE_APPLY_20261012_05"
 
 
 def load_tool():
@@ -72,15 +72,17 @@ def test_transport_plan_keeps_five_gib_after_worst_peak() -> None:
     )
 
     assert plan.extraction_peak_bytes == 2000
-    assert plan.image_load_peak_bytes == 2900
-    assert plan.required_peak_bytes == 2900
-    assert plan.required_free_bytes == 2900 + 5 * 1024 * 1024 * 1024
+    assert plan.image_load_peak_bytes == 3900
+    assert plan.content_store_estimate_bytes == 1300
+    assert plan.snapshot_store_estimate_bytes == 1770
+    assert plan.required_peak_bytes == 3900
+    assert plan.required_free_bytes == 3900 + 5 * 1024 * 1024 * 1024
     assert plan.capacity_pass is True
 
 
 def test_transport_plan_fails_without_post_peak_reserve() -> None:
     tool = load_tool()
-    required = 2900 + 5 * 1024 * 1024 * 1024
+    required = 3900 + 5 * 1024 * 1024 * 1024
 
     plan = tool._plan_transport(
         manifest(),
@@ -102,8 +104,10 @@ def test_remote_storage_rejects_tmpfs(monkeypatch: pytest.MonkeyPatch) -> None:
                 "docker_root": "/var/lib/docker",
                 "staging_device": 1,
                 "docker_device": 1,
+                "containerd_device": 1,
                 "staging_free_bytes": 10_000_000_000,
                 "docker_free_bytes": 10_000_000_000,
+                "containerd_free_bytes": 10_000_000_000,
                 "staging_fstype": "tmpfs",
             }
         )
@@ -131,8 +135,10 @@ def test_remote_storage_rejects_different_docker_filesystem(
                 "docker_root": "/var/lib/docker",
                 "staging_device": 1,
                 "docker_device": 2,
+                "containerd_device": 2,
                 "staging_free_bytes": 10_000_000_000,
                 "docker_free_bytes": 10_000_000_000,
+                "containerd_free_bytes": 10_000_000_000,
                 "staging_fstype": "ext4",
             }
         )
@@ -142,7 +148,7 @@ def test_remote_storage_rejects_different_docker_filesystem(
 
     with pytest.raises(
         tool.FreshHostTransportError,
-        match="filesystems_differ",
+        match="staging_docker_containerd_filesystems_differ",
     ):
         tool._remote_storage_report("root@example")
 
@@ -181,6 +187,9 @@ def test_cli_exposes_preflight_and_apply_with_explicit_authorization() -> None:
 
     assert 'choices=("preflight", "apply")' in source
     assert 'parser.add_argument("--authorization-id")' in source
+    assert 'parser.add_argument("--artifact-id", type=int, required=True)' in source
+    assert 'parser.add_argument("--artifact-zip-sha256", required=True)' in source
+    assert "artifact_zip_sha256_mismatch" in source
     assert "authorization_id_mismatch" in source
     assert '"docker_mutation": False' in source
 
@@ -326,7 +335,11 @@ def _run_apply_main(
     monkeypatch.setattr(
         tool,
         "_remote_storage_report",
-        lambda *_args, **_kwargs: {"staging_free_bytes": 8 * 1024 * 1024 * 1024},
+        lambda *_args, **_kwargs: {
+            "staging_free_bytes": 8 * 1024 * 1024 * 1024,
+            "docker_free_bytes": 8 * 1024 * 1024 * 1024,
+            "containerd_free_bytes": 8 * 1024 * 1024 * 1024,
+        },
     )
     monkeypatch.setattr(
         tool,
@@ -336,6 +349,9 @@ def _run_apply_main(
             payload_uncompressed_bytes=1,
             extraction_peak_bytes=2,
             image_load_peak_bytes=2,
+            content_store_estimate_bytes=1,
+            snapshot_store_estimate_bytes=1,
+            storage_model="tar_plus_containerd_content_plus_snapshot",
             required_peak_bytes=2,
             minimum_post_peak_free_bytes=5 * 1024 * 1024 * 1024,
             required_free_bytes=5 * 1024 * 1024 * 1024 + 2,
@@ -386,6 +402,10 @@ def _run_apply_main(
             "1",
             "--artifact-name",
             "artifact",
+            "--artifact-id",
+            "123",
+            "--artifact-zip-sha256",
+            "2" * 64,
             "--archive-sha256",
             "0" * 64,
             "--manifest-sha256",
