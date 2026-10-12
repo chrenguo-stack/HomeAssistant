@@ -17,7 +17,7 @@ from typing import Any, Sequence
 
 SCHEMA = "gh.n3w-t1-fresh-product-bootstrap/1"
 PAYLOAD_SCHEMA = "gh.n3w-t1-fresh-bootstrap-payload/1"
-AUTHORIZATION_ID = "N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_LIVE_APPLY_20261012_05"
+AUTHORIZATION_ID = "N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_LIVE_APPLY_20261012_06"
 CLAIM_MARKER_NAME = ".authorization-claimed"
 AUTHORIZATION_LEDGER_SCHEMA = "gh.n3w-t1-fresh-authorization-ledger/1"
 AUTHORIZATION_LEDGER_ROOT = Path("/var/lib/n3w-fresh-bootstrap-authorizations")
@@ -120,7 +120,25 @@ def _normalized_hash(value: Any) -> str:
 
 def _image_config_contract(config: object) -> dict[str, object]:
     value = config if isinstance(config, dict) else {}
-    return {key: value.get(key) for key in IMAGE_CONFIG_KEYS}
+    result: dict[str, object] = {}
+    sequence_fields = {"Entrypoint", "Cmd", "Env"}
+    string_fields = {"User", "WorkingDir", "StopSignal"}
+    mapping_fields = {
+        "Labels",
+        "Healthcheck",
+        "Volumes",
+        "ExposedPorts",
+    }
+    for key in IMAGE_CONFIG_KEYS:
+        observed = value.get(key)
+        if key in sequence_fields and observed is None:
+            observed = []
+        elif key in string_fields and observed is None:
+            observed = ""
+        elif key in mapping_fields and observed is None:
+            observed = {}
+        result[key] = observed
+    return result
 
 
 def _load_manifest(root: Path) -> dict[str, Any]:

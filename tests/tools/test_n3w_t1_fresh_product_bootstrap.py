@@ -202,6 +202,62 @@ def test_fresh_installer_exposes_safe_stage_diagnostics(tmp_path: Path) -> None:
     assert "secret-like" not in str(error)
 
 
+def test_image_config_contract_normalizes_docker_null_empty_equivalence() -> None:
+    tool = load_tool()
+    archive_config = {
+        "Entrypoint": None,
+        "Cmd": None,
+        "User": None,
+        "Env": None,
+        "WorkingDir": None,
+        "Labels": None,
+        "Healthcheck": None,
+        "StopSignal": None,
+        "Volumes": None,
+        "ExposedPorts": None,
+    }
+    runtime_config = {
+        "Entrypoint": [],
+        "Cmd": [],
+        "User": "",
+        "Env": [],
+        "WorkingDir": "",
+        "Labels": {},
+        "Healthcheck": {},
+        "StopSignal": "",
+        "Volumes": {},
+        "ExposedPorts": {},
+    }
+
+    assert tool._image_config_contract(
+        archive_config
+    ) == tool._image_config_contract(runtime_config)
+
+
+def test_image_config_contract_preserves_behavioral_drift() -> None:
+    tool = load_tool()
+    first = {
+        "Entrypoint": ["/init"],
+        "Cmd": ["python", "-m", "homeassistant"],
+        "User": "0",
+        "Env": ["A=1"],
+        "WorkingDir": "/config",
+        "Labels": {"role": "ha"},
+        "Healthcheck": {"Test": ["CMD", "true"]},
+        "StopSignal": "SIGTERM",
+        "Volumes": {"/config": {}},
+        "ExposedPorts": {"8123/tcp": {}},
+    }
+    second = {
+        **first,
+        "Entrypoint": ["/bin/sh"],
+    }
+
+    assert tool._image_config_contract(
+        first
+    ) != tool._image_config_contract(second)
+
+
 def test_runtime_image_binding_rejects_same_rootfs_with_config_drift() -> None:
     tool = load_tool()
     layers = ["sha256:" + "1" * 64]
