@@ -11,6 +11,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 TOOL = ROOT / "tools/n3w_t1_fresh_product_staging_host.py"
+AUTHORIZATION_ID = "N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_LIVE_APPLY_20261012_01"
 
 
 def load_tool():
@@ -250,7 +251,7 @@ def _run_apply_main(
     work.mkdir()
     archive = work / "payload.tar.gz"
     archive.write_bytes(b"x")
-    authorization = "N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_LIVE_APPLY_20261012_01"
+    authorization = AUTHORIZATION_ID
 
     monkeypatch.setattr(tool.tempfile, "mkdtemp", lambda **_kwargs: str(work))
     monkeypatch.setattr(tool, "_download_artifact", lambda *_args, **_kwargs: None)
@@ -358,7 +359,7 @@ def test_marker_probe_failure_after_claim_is_consumed_no_replay(
             json.dumps(
                 {
                     "event": "authorization_claimed",
-                    "authorization_id": tool.AUTHORIZATION_ID,
+                    "authorization_id": AUTHORIZATION_ID,
                 },
                 separators=(",", ":"),
             )
@@ -411,7 +412,7 @@ def test_postsuccess_cleanup_failure_preserves_consumed_state(
             json.dumps(
                 {
                     "event": "authorization_claimed",
-                    "authorization_id": tool.AUTHORIZATION_ID,
+                    "authorization_id": AUTHORIZATION_ID,
                 },
                 separators=(",", ":"),
             )
