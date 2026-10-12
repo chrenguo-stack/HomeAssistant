@@ -964,9 +964,8 @@ print(json.dumps({"status": "PASS"}))
             "production_service_start": False,
         }
 
-    def _commit_owned_targets(
-        self,
-        candidate_root: Path,
+    @staticmethod
+    def _validate_commit_targets_absent(
         directories: dict[str, str],
         files: dict[str, str],
     ) -> None:
@@ -975,6 +974,12 @@ print(json.dumps({"status": "PASS"}))
             if path.exists() or path.is_symlink():
                 raise BootstrapError(f"commit_target_exists:{target}")
 
+    def _move_commit_targets(
+        self,
+        candidate_root: Path,
+        directories: dict[str, str],
+        files: dict[str, str],
+    ) -> None:
         for target, relative in directories.items():
             source = candidate_root / relative
             if not source.is_dir() or source.is_symlink():
@@ -988,6 +993,15 @@ print(json.dumps({"status": "PASS"}))
                 raise BootstrapError(f"commit_source_invalid:{relative}")
             os.rename(source, target)
             self.created_paths.append(Path(target))
+
+    def _commit_owned_targets(
+        self,
+        candidate_root: Path,
+        directories: dict[str, str],
+        files: dict[str, str],
+    ) -> None:
+        self._validate_commit_targets_absent(directories, files)
+        self._move_commit_targets(candidate_root, directories, files)
 
     def commit_public_candidate(self, candidate_root: Path):
         self._commit_owned_targets(
@@ -1021,8 +1035,9 @@ print(json.dumps({"status": "PASS"}))
         }
 
     def commit_candidate(self, candidate_root: Path, system_id: str):
-        self.commit_instance_candidate(candidate_root, system_id)
-        self.commit_public_candidate(candidate_root)
+        self._validate_commit_targets_absent(FINAL_DIRS, FINAL_FILES)
+        self._move_commit_targets(candidate_root, FINAL_DIRS, FINAL_FILES)
+        self.runner.run(("systemctl", "daemon-reload"))
         shutil.rmtree(candidate_root, ignore_errors=True)
         return {
             "status": "PASS",
