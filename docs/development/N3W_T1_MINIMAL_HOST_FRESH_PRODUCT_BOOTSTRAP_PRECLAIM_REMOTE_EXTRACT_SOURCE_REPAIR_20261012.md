@@ -48,3 +48,13 @@ SUCCESSOR_CONSUMED=false
 ```
 
 The successor may not be granted until corrected exact-head CI, a replacement deployable artifact binding, stale preclaim staging-residue handling, and a fresh real-T1 read-only preexecution all pass.
+
+
+## First corrected CI classification
+
+The first corrected exact-head CI exposed two non-product follow-up defects:
+
+1. the deployable focused test still asserted predecessor authorization `..._01` after source rotation to `..._02`; source/runtime behavior was already on `..._02`;
+2. public repository safety correctly rejected the previously archived literal private T1 IPv4 address in the read-only closure document.
+
+Both are corrected without T1 access or live mutation. The extractor source repair remains unchanged.

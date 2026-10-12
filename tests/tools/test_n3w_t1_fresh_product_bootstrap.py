@@ -25,7 +25,7 @@ def test_future_authorization_is_fresh_bootstrap_specific() -> None:
     tool = load_tool()
     assert tool.AUTHORIZATION_ID == (
         "N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_"
-        "LIVE_APPLY_20261012_01"
+        "LIVE_APPLY_20261012_02"
     )
     assert "PRODUCTION_STACK_STAGING" not in tool.AUTHORIZATION_ID
 

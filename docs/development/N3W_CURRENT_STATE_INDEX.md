@@ -1,3 +1,5 @@
+> **2026-10-12 remote-extract repair R2**：首轮 corrected CI 的 stale authorization test fixture 与 public-doc private-IP safety failure 已修；产品 extractor 修复保持不变，replacement CI/artifact 继续收敛，`..._02` 仍 NOT_GRANTED。
+
 > **2026-10-12 fresh bootstrap apply #01 STOP_PRECLAIM**：remote payload prepare 的生成 Python 因 compound statement 位于 semicolon 后触发 SyntaxError；claim=false/consumed=false，Docker/product mutation=false。source repair 已加入 multiline extractor + executable regression；旧 exact grant superseded，successor `N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_LIVE_APPLY_20261012_02` NOT_GRANTED，等待新 CI/artifact/preexecution。
 
 > **2026-10-12 fresh bootstrap live apply authorization granted**：`N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_LIVE_APPLY_20261012_01` 已由用户明确批准，当前 GRANTED_PENDING_CLAIM；尚未 claim/consume。下一步仅执行 exact artifact 的 one-shot live apply。

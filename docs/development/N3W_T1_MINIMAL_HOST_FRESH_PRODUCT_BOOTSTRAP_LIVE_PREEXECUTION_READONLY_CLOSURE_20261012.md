@@ -54,7 +54,7 @@ UNKNOWN_STOP=0
 DELETE_PRODUCT_STATE_CANDIDATE=0
 ```
 
-The wrong-address attempt to 192.168.68.81 stopped before reaching the real T1 and is not product evidence. The accepted inventory is the subsequent successful read-only run against the correct T1 endpoint.
+The wrong-address attempt to the mistyped private T1 endpoint stopped before reaching the real T1 and is not product evidence. The accepted inventory is the subsequent successful read-only run against the correct T1 endpoint.
 
 ## Exact artifact transport / capacity preflight
 
