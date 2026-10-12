@@ -70,3 +70,17 @@ then the authorization is permanently claimed and consumed. Any later partial fa
 - PR #541 merge.
 
 Raw T1 locator and customer LAN addressing remain outside the public repository.
+
+
+## 4. Final result
+
+```text
+AUTHORIZATION_STATE=CONSUMED_PASS
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+REPLAY_ALLOWED=false
+LIVE_APPLY_RC=0
+NORMALIZATION_STATUS=PASS
+```
+
+Postcheck proved the target minimal baseline with zero containers/images/volumes, only Docker default networks, no product paths/unit/firewall/listeners, and preserved Docker framework. This authorization is permanently closed and must not be replayed.

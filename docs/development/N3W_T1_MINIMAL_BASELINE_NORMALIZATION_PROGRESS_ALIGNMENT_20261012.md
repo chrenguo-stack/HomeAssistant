@@ -196,3 +196,30 @@ BOARD_ACCESS=false
 ```
 
 The exact claim point remains the executor's post-preflight `authorization_claimed` event. Preflight failure does not consume the authorization; any mutation-started failure does.
+
+
+## Live destructive normalization CLOSED_PASS
+
+The one-shot executor claimed and consumed authorization `N3W_T1_MINIMAL_BASELINE_NORMALIZATION_LIVE_APPLY_20261012_01`, then completed with `status=PASS` / `LIVE_APPLY_RC=0`.
+
+```text
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+REPLAY_ALLOWED=false
+HOST_BASELINE=PASS
+CONTAINERS=0
+IMAGES=0
+VOLUMES=0
+DOCKER_NETWORKS=bridge,host,none
+PRODUCT_PATHS_ABSENT=true
+PRODUCT_UNIT_ABSENT=true
+PRODUCT_FIREWALL_ABSENT=true
+PRODUCTION_LISTENERS=0
+DOCKER_USER_PRESERVED=true
+FORWARD_DOCKER_USER_JUMP_PRESERVED=true
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+MINIMAL_BASELINE_NORMALIZATION=CLOSED_PASS
+```
+
+The next gate is host/GitHub-only deployment-readiness review for the fresh bootstrap path. No production activation is authorized.
