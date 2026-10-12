@@ -1,3 +1,8 @@
+> **SUPERSEDED — 2026-10-12**  
+> 本文件误用了旧通用 process/DSL handoff 结构，不能作为新会话 current handoff authority。  
+> 正式替代文件：docs/development/N3W_T1_FRESH_BOOTSTRAP_R8_F5_FINAL_CLOSURE_REVIEW_NEW_CHAT_HANDOFF_V1.1_20261012.md。  
+> 保留本文件仅作历史记录，不得据此执行下一 gate。
+
 # 温室环境监测系统（ESP32-C6） / N3-W
 # T1 fresh bootstrap R8 F5 final closure review
 # 新会话交接文档 V1.0 — 2026-10-12

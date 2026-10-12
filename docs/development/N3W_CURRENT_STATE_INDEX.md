@@ -1,3 +1,5 @@
+> **2026-10-12 current handoff correction**：正式 current handoff 已切换到 docs/development/N3W_T1_FRESH_BOOTSTRAP_R8_F5_FINAL_CLOSURE_REVIEW_NEW_CHAT_HANDOFF_V1.1_20261012.md；V1.0 superseded。模板 authority=current NEW_CHAT_HANDOFF_TEMPLATE.md v1.2 + N3W_PROJECT_WORKING_CONTEXT.md v1.0。NEXT_ONE_GATE 仍为 N3W_T1_FRESH_BOOTSTRAP_R8_F5_FINAL_CLOSURE_REVIEW_20261012_01。
+
 > **2026-10-12 R8 F5 final source-repair handoff**：exact review/source head=5ed613673ec1ead29a1153d0e3916bdd3539a3fb，CI=25/25 PASS；containerd non-empty imports now fail closed and generated storage-probe execution regressions pass. _08 NOT_GRANTED. 本轮在此 STOP；新对话只进入 N3W_T1_FRESH_BOOTSTRAP_R8_F5_FINAL_CLOSURE_REVIEW_20261012_01。
 
 > **2026-10-12 Astra R3 focused closure**：PRODUCT_SOURCE_HEAD=41d05b99813ae5ea3887b4f2b80b75164f35dda4；PR_HEAD=7ebceebe6f52310b60a0e1adf0e9486a8968f575；current CI=25/25 PASS。复核仅限 F5、D1、A8、DOWNSTREAM_SOURCE_BLOCKER；_07 NOT_GRANTED；不访问 T1、不清 R3 retained payload、不 merge。
