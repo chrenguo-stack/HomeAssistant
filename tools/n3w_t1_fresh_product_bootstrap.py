@@ -18,6 +18,7 @@ from typing import Any, Sequence
 SCHEMA = "gh.n3w-t1-fresh-product-bootstrap/1"
 PAYLOAD_SCHEMA = "gh.n3w-t1-fresh-bootstrap-payload/1"
 AUTHORIZATION_ID = "N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_LIVE_APPLY_20261012_01"
+CLAIM_MARKER_NAME = ".authorization-claimed"
 DEFAULT_NETWORKS = frozenset(("bridge", "host", "none"))
 PRODUCT_NETWORKS = ("n3wfc4-private", "n3wfc4-services")
 TARGET_PORTS = frozenset((1883, 8883, 18883, 8123, 47110, 47111, 47112))
@@ -1059,6 +1060,16 @@ def execute_apply(payload_root: Path, authorization_id: str, runner: Runner | No
     contract = _load_contract(payload_root)
 
     def claim() -> None:
+        marker = payload_root / CLAIM_MARKER_NAME
+        descriptor = os.open(
+            marker,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
+        )
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            stream.write(AUTHORIZATION_ID + "\n")
+            stream.flush()
+            os.fsync(stream.fileno())
         print(
             json.dumps(
                 {
@@ -1172,12 +1183,17 @@ def main() -> int:
         print(json.dumps(result, sort_keys=True, separators=(",", ":")), flush=True)
         return 0 if result.get("status") == "PASS" else 2
     except Exception as error:
+        root = args.payload_root.resolve()
+        claimed = (root / CLAIM_MARKER_NAME).is_file()
         print(
             json.dumps(
                 {
                     "schema": SCHEMA,
-                    "status": "STOP",
+                    "status": "STOP_PARTIAL" if claimed else "STOP",
                     "reason": str(error)[:400],
+                    "authorization_claimed": claimed,
+                    "authorization_consumed": claimed,
+                    "replay_allowed": False if claimed else None,
                     "production_service_start": False,
                     "board_access": False,
                 },

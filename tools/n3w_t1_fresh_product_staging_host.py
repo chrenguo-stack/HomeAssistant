@@ -469,26 +469,104 @@ def main() -> int:
                 authorization,
             )
         )
-        completed = subprocess.run(
+        process = subprocess.Popen(
             ("ssh", "-n", args.t1, command),
-            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             text=True,
+            bufsize=1,
         )
-        if completed.returncode != 0:
+        claim_seen = False
+        assert process.stdout is not None
+        for line in process.stdout:
+            sys.stdout.write(line)
+            sys.stdout.flush()
+            if (
+                '"event":"authorization_claimed"' in line
+                and authorization in line
+            ):
+                claim_seen = True
+        return_code = process.wait()
+
+        marker_probe = _run(
+            (
+                "ssh",
+                "-n",
+                args.t1,
+                _remote_command(
+                    (
+                        "test",
+                        "-f",
+                        f"{remote_dir}/.authorization-claimed",
+                    )
+                ),
+            ),
+            timeout=30,
+            check=False,
+        )
+        marker_known = marker_probe.returncode in {0, 1}
+        marker_present = marker_probe.returncode == 0
+
+        if return_code != 0:
+            if marker_known and not marker_present and not claim_seen:
+                _run(
+                    (
+                        "ssh",
+                        "-n",
+                        args.t1,
+                        _remote_command(("rm", "-rf", "--", remote_dir)),
+                    ),
+                    timeout=120,
+                    check=False,
+                )
+                _emit(
+                    {
+                        "schema": "gh.n3w-t1-fresh-host-apply/1",
+                        "status": "STOP_PRECLAIM",
+                        "authorization_id": authorization,
+                        "authorization_claimed": False,
+                        "authorization_consumed": False,
+                        "remote_payload_removed": True,
+                        "production_service_start": False,
+                        "board_access": False,
+                    }
+                )
+                return return_code
+
             _emit(
                 {
                     "schema": "gh.n3w-t1-fresh-host-apply/1",
-                    "status": "STOP",
-                    "remote_payload_preserved": True,
-                    "remote_payload_path_sha256": hashlib.sha256(
-                        remote_dir.encode()
-                    ).hexdigest(),
+                    "status": "STOP_PARTIAL"
+                    if (claim_seen or marker_present)
+                    else "STOP_UNKNOWN",
                     "authorization_id": authorization,
+                    "authorization_claimed": (
+                        True if (claim_seen or marker_present) else None
+                    ),
+                    "authorization_consumed": True,
+                    "replay_allowed": False,
+                    "remote_payload_preserved": True,
                     "production_service_start": False,
                     "board_access": False,
                 }
             )
-            return completed.returncode
+            return return_code
+
+        if not (claim_seen and marker_present):
+            _emit(
+                {
+                    "schema": "gh.n3w-t1-fresh-host-apply/1",
+                    "status": "STOP_UNKNOWN",
+                    "authorization_id": authorization,
+                    "authorization_consumed": True,
+                    "replay_allowed": False,
+                    "remote_payload_preserved": True,
+                    "production_service_start": False,
+                    "board_access": False,
+                }
+            )
+            return 2
+
         _run(
             (
                 "ssh",
@@ -503,6 +581,9 @@ def main() -> int:
                 "schema": "gh.n3w-t1-fresh-host-apply/1",
                 "status": "PASS",
                 "authorization_id": authorization,
+                "authorization_claimed": True,
+                "authorization_consumed": True,
+                "replay_allowed": False,
                 "remote_payload_removed": True,
                 "production_service_start": False,
                 "board_access": False,
