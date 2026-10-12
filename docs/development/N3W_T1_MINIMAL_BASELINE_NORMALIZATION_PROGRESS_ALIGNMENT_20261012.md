@@ -66,3 +66,48 @@ LIVE_T1_MUTATION=false
 ```
 
 该 gate 生成逐项 exact delete manifest、preserve contract、pre/post oracles 和 repository-versioned normalization executor；完成 source/CI 后，才准备单独的 destructive live authorization。
+
+
+## Exact manifest / executor source entered
+
+对话 / GitHub alignment PASS 后，已进入：
+
+```text
+NEXT_ONE_GATE=
+N3W_T1_MINIMAL_BASELINE_NORMALIZATION_EXACT_MANIFEST_AND_EXECUTOR_SOURCE_20261012_01
+```
+
+新增：
+
+```text
+infra/n3w-t1/production/minimal-baseline-normalization-manifest.json
+tools/n3w_t1_minimal_baseline_normalize.py
+tests/tools/test_n3w_t1_minimal_baseline_normalize.py
+.github/workflows/n3w-t1-minimal-baseline-normalization-source-ci.yml
+```
+
+executor source 具备：
+
+- exact initial preflight；
+- explicit future authorization ID；
+- exact guard stop/disable；
+- exact N3W firewall anchor/chain removal，同时保留 Docker DOCKER-USER framework；
+- 5 个 exact network deletion；
+- 45 个逐名 exact volume deletion；
+- 8 个 exact product path deletion；
+- daemon-reload；
+- minimal-host postcheck；
+- partial mutation 后 no-replay / no automatic rollback。
+
+当前只提交 source / tests / CI，没有执行 T1 mutation。
+
+```text
+NORMALIZATION_MANIFEST=COMMITTED
+NORMALIZATION_EXECUTOR=COMMITTED
+NORMALIZATION_SOURCE_CI=PENDING
+DESTRUCTIVE_AUTHORIZATION=N3W_T1_MINIMAL_BASELINE_NORMALIZATION_LIVE_APPLY_20261012_01
+DESTRUCTIVE_AUTHORIZATION_STATE=NOT_GRANTED
+LIVE_T1_MUTATION=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+```

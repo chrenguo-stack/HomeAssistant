@@ -1,3 +1,5 @@
+> **2026-10-12 normalization exact source entered**：45-volume / 5-network / 8-path exact manifest 与 one-shot normalization executor 已提交；dedicated source CI pending，live destructive authorization NOT_GRANTED。
+
 > **2026-10-12 dialogue/GitHub alignment PASS**：read-only inventory 与 classifier repair 已全绿归档；public-safe live facts 已进入 GitHub，chat-only required artifact=0。下一门只做 exact normalization manifest/executor source + CI，live deletion 未授权。
 
 > **2026-10-12 live normalization inventory complete / classifier repair pending CI**：read-only inventory SHA `0ad246ee...`；45 volumes 精确匹配历史 frozen set，默认 Docker networks/firewall framework 从删除候选中剥离。

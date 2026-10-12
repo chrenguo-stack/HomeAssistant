@@ -1,0 +1,35 @@
+name: N3W T1 minimal baseline normalization source CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/n3w-t1-minimal-baseline-normalization-source-ci.yml"
+      - "infra/n3w-t1/production/minimal-baseline-normalization-manifest.json"
+      - "tools/n3w_t1_minimal_baseline_normalize.py"
+      - "tests/tools/test_n3w_t1_minimal_baseline_normalize.py"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/n3w-t1-minimal-baseline-normalization-source-ci.yml"
+      - "infra/n3w-t1/production/minimal-baseline-normalization-manifest.json"
+      - "tools/n3w_t1_minimal_baseline_normalize.py"
+      - "tests/tools/test_n3w_t1_minimal_baseline_normalize.py"
+
+permissions:
+  contents: read
+
+jobs:
+  source-contract:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run exact normalization source tests
+        run: |
+          set -euo pipefail
+          python -m pip install "pytest>=8,<9"
+          python -m pytest -q tests/tools/test_n3w_t1_minimal_baseline_normalize.py
+          python tools/n3w_t1_minimal_baseline_normalize.py             --manifest infra/n3w-t1/production/minimal-baseline-normalization-manifest.json             --phase self-check
