@@ -1,3 +1,5 @@
+> **2026-10-12 fresh bootstrap deployable source/artifact alignment PASS**：exact product-source `d5a1be83...` 25/25 workflow PASS；fresh deployable artifact #11723440338 exact binding PASS。source/CI gate CLOSED_PASS；下一门只读复核 exact HEAD / artifact 的最终源码与执行路径，不进入 T1 live apply。
+
 > **2026-10-12 fresh deployable path R1**：fresh-only Compose + dynamic exact Manager image-lock contract + hardened tar extraction 已提交；live adapter/payload workflow 为同 gate 下一提交。T1 mutation=false。
 
 > **2026-10-12 fresh bootstrap deployment readiness = NOT_READY**：exact fresh ARM64 三镜像 evidence PASS，但 deployable live path 尚缺；旧 staging payload 明确禁止用于已清空 T1。下一门为 fresh-bootstrap-specific deployable path source repair（GitHub/host only）。
