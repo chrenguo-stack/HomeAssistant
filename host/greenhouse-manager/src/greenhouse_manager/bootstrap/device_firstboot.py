@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import re
+import secrets
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Protocol
@@ -62,44 +63,114 @@ class DeviceFirstbootAdapters(Protocol):
     def instance_stopped_postcheck(self, system_id: str) -> Mapping[str, object]: ...
 
 
+def _validate_private_directory(path: Path, label: str) -> os.stat_result:
+    if path.is_symlink() or not path.is_dir():
+        raise DeviceFirstbootError(f"{label}_unsafe")
+    metadata = path.stat()
+    if metadata.st_uid != os.geteuid():
+        raise DeviceFirstbootError(f"{label}_owner_invalid")
+    if metadata.st_mode & 0o777 != 0o700:
+        raise DeviceFirstbootError(f"{label}_mode_invalid")
+    return metadata
+
+
 def _private_root(path: Path) -> Path:
     if not path.is_absolute():
         raise DeviceFirstbootError("transaction_root_not_absolute")
     if path.is_symlink():
         raise DeviceFirstbootError("transaction_root_symlink_forbidden")
-    path.mkdir(parents=True, exist_ok=True, mode=0o700)
-    path.chmod(0o700)
-    if path.stat().st_mode & 0o777 != 0o700:
-        raise DeviceFirstbootError("transaction_root_mode_invalid")
+    if not path.exists():
+        path.mkdir(parents=True, mode=0o700)
+        path.chmod(0o700)
+    _validate_private_directory(path, "transaction_root")
     return path
 
 
+def _validate_candidate_root(
+    path: Path,
+    *,
+    allow_absent: bool,
+) -> os.stat_result | None:
+    if not path.is_absolute():
+        raise DeviceFirstbootError("candidate_root_not_absolute")
+    if path.is_symlink():
+        raise DeviceFirstbootError("candidate_root_symlink_forbidden")
+    if not path.exists():
+        if allow_absent:
+            return None
+        raise DeviceFirstbootError("candidate_root_missing")
+    if not path.is_dir():
+        raise DeviceFirstbootError("candidate_root_unsafe")
+    metadata = path.stat()
+    if metadata.st_uid != os.geteuid():
+        raise DeviceFirstbootError("candidate_root_owner_invalid")
+    if metadata.st_mode & 0o777 != 0o700:
+        raise DeviceFirstbootError("candidate_root_mode_invalid")
+    return metadata
+
+
+def _validate_record_metadata(path: Path) -> os.stat_result:
+    if path.is_symlink() or not path.is_file():
+        raise DeviceFirstbootError("firstboot_record_unsafe")
+    metadata = path.stat()
+    if metadata.st_uid != os.geteuid():
+        raise DeviceFirstbootError("firstboot_record_owner_invalid")
+    if metadata.st_mode & 0o777 != 0o600:
+        raise DeviceFirstbootError("firstboot_record_mode_invalid")
+    return metadata
+
+
 def _write_atomic(path: Path, document: Mapping[str, object]) -> None:
+    _validate_private_directory(path.parent, "transaction_root")
+    if path.exists() or path.is_symlink():
+        _validate_record_metadata(path)
+
     payload = (
         json.dumps(document, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         + "\n"
     ).encode()
-    temporary = path.with_name(path.name + ".tmp")
-    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    temporary = path.with_name(
+        f".{path.name}.{secrets.token_hex(8)}.tmp"
+    )
+    flags = (
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_EXCL
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
     try:
+        descriptor = os.open(temporary, flags, 0o600)
+    except FileExistsError as error:
+        raise DeviceFirstbootError("firstboot_record_temp_exists") from error
+
+    try:
+        os.fchmod(descriptor, 0o600)
+        metadata = os.fstat(descriptor)
+        if metadata.st_uid != os.geteuid():
+            raise DeviceFirstbootError("firstboot_record_temp_owner_invalid")
         with os.fdopen(descriptor, "wb") as stream:
+            descriptor = -1
             stream.write(payload)
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temporary, path)
-        path.chmod(0o600)
-        parent_descriptor = os.open(path.parent, os.O_RDONLY)
+        _validate_record_metadata(path)
+        parent_descriptor = os.open(
+            path.parent,
+            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+        )
         try:
             os.fsync(parent_descriptor)
         finally:
             os.close(parent_descriptor)
     finally:
+        if descriptor >= 0:
+            os.close(descriptor)
         temporary.unlink(missing_ok=True)
 
 
 def _read_json(path: Path) -> dict[str, Any]:
-    if path.is_symlink() or not path.is_file() or path.stat().st_mode & 0o777 != 0o600:
-        raise DeviceFirstbootError("firstboot_record_unsafe")
+    _validate_record_metadata(path)
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
@@ -107,7 +178,6 @@ def _read_json(path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise DeviceFirstbootError("firstboot_record_invalid")
     return value
-
 
 def _require(report: Mapping[str, object], expected: Mapping[str, object], label: str) -> None:
     for key, value in expected.items():
@@ -122,12 +192,20 @@ def _system_id(report: Mapping[str, object]) -> str:
     return value
 
 
-def _load_transaction(root: Path, release_id: str) -> dict[str, Any]:
+def _load_transaction(
+    root: Path,
+    release_id: str,
+    candidate_root: Path,
+) -> dict[str, Any]:
     path = root / TRANSACTION_NAME
+    candidate_text = str(candidate_root)
     if not path.exists():
         document: dict[str, Any] = {
             "schema": TRANSACTION_SCHEMA,
             "release_id": release_id,
+            "candidate_root": candidate_text,
+            "candidate_dev": None,
+            "candidate_ino": None,
             "stage": "PRECHECK",
             "host_instance_id": None,
             "system_id": None,
@@ -139,6 +217,7 @@ def _load_transaction(root: Path, release_id: str) -> dict[str, Any]:
     if (
         document.get("schema") != TRANSACTION_SCHEMA
         or document.get("release_id") != release_id
+        or document.get("candidate_root") != candidate_text
         or document.get("stage") not in STAGES
     ):
         raise DeviceFirstbootError("firstboot_transaction_binding_invalid")
@@ -161,13 +240,18 @@ def _complete_report(root: Path, release_id: str) -> dict[str, Any] | None:
     if not path.exists():
         return None
     document = _read_json(path)
+    system_id = document.get("system_id")
     if (
         document.get("schema") != COMPLETE_SCHEMA
         or document.get("release_id") != release_id
         or document.get("status") != "PASS"
         or not isinstance(document.get("host_instance_id"), str)
-        or not isinstance(document.get("system_id"), str)
+        or not isinstance(system_id, str)
+        or not system_id
     ):
+        raise DeviceFirstbootError("firstboot_complete_binding_invalid")
+    system_id_sha256 = hashlib.sha256(system_id.encode()).hexdigest()
+    if document.get("system_id_sha256") != system_id_sha256:
         raise DeviceFirstbootError("firstboot_complete_binding_invalid")
     transaction = _read_json(root / TRANSACTION_NAME)
     if (
@@ -175,7 +259,8 @@ def _complete_report(root: Path, release_id: str) -> dict[str, Any] | None:
         or transaction.get("release_id") != release_id
         or transaction.get("stage") != "VERIFY"
         or transaction.get("host_instance_id") != document.get("host_instance_id")
-        or transaction.get("system_id") != document.get("system_id")
+        or transaction.get("system_id") != system_id
+        or transaction.get("system_id_sha256") != system_id_sha256
     ):
         raise DeviceFirstbootError("firstboot_complete_transaction_drift")
     return document
@@ -193,8 +278,7 @@ def run_device_firstboot(
 
     root = _private_root(Path(transaction_root).expanduser())
     candidate = Path(candidate_root).expanduser()
-    if not candidate.is_absolute():
-        raise DeviceFirstbootError("candidate_root_not_absolute")
+    _validate_candidate_root(candidate, allow_absent=True)
 
     complete = _complete_report(root, release_id)
     if complete is not None:
@@ -209,7 +293,7 @@ def run_device_firstboot(
             "board_access": False,
         }
 
-    transaction = _load_transaction(root, release_id)
+    transaction = _load_transaction(root, release_id, candidate)
     stage = str(transaction["stage"])
 
     preflight = adapters.preflight_clone()
@@ -239,9 +323,14 @@ def run_device_firstboot(
     if not isinstance(host_instance_id, str) or not host_instance_id:
         raise DeviceFirstbootError("os_identity:host_instance_id_invalid")
     bound_host = transaction.get("host_instance_id")
-    if bound_host is not None and bound_host != host_instance_id:
-        raise DeviceFirstbootError("firstboot_host_binding_drift")
-    if STAGES.index(stage) < STAGES.index("OS_IDENTITY"):
+    if STAGES.index(stage) >= STAGES.index("OS_IDENTITY"):
+        if not isinstance(bound_host, str) or not bound_host:
+            raise DeviceFirstbootError("firstboot_host_binding_missing")
+        if bound_host != host_instance_id:
+            raise DeviceFirstbootError("firstboot_host_binding_drift")
+    elif bound_host is not None:
+        raise DeviceFirstbootError("firstboot_host_binding_invalid")
+    else:
         _advance(
             root,
             transaction,
@@ -266,12 +355,19 @@ def run_device_firstboot(
         )
         system_id = _system_id(identity)
         system_id_sha256 = hashlib.sha256(system_id.encode()).hexdigest()
+        candidate_metadata = _validate_candidate_root(
+            candidate,
+            allow_absent=False,
+        )
+        assert candidate_metadata is not None
         _advance(
             root,
             transaction,
             "PRODUCT_IDENTITY",
             system_id=system_id,
             system_id_sha256=system_id_sha256,
+            candidate_dev=int(candidate_metadata.st_dev),
+            candidate_ino=int(candidate_metadata.st_ino),
         )
         stage = "PRODUCT_IDENTITY"
 
@@ -282,6 +378,17 @@ def run_device_firstboot(
         or system_id_sha256 != hashlib.sha256(system_id.encode()).hexdigest()
     ):
         raise DeviceFirstbootError("firstboot_system_id_binding_invalid")
+
+    candidate_metadata = _validate_candidate_root(
+        candidate,
+        allow_absent=False,
+    )
+    assert candidate_metadata is not None
+    if (
+        transaction.get("candidate_dev") != int(candidate_metadata.st_dev)
+        or transaction.get("candidate_ino") != int(candidate_metadata.st_ino)
+    ):
+        raise DeviceFirstbootError("firstboot_candidate_binding_drift")
 
     if STAGES.index(stage) < STAGES.index("STATE"):
         state = adapters.create_state(candidate, system_id_sha256)
@@ -393,6 +500,7 @@ def run_device_firstboot(
         "release_id": release_id,
         "host_instance_id": host_instance_id,
         "system_id": system_id,
+        "system_id_sha256": system_id_sha256,
         "production_service_start": False,
         "board_access": False,
     }
