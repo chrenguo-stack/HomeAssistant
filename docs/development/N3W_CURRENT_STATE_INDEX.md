@@ -1,3 +1,5 @@
+> **2026-10-12 normalization live authorization granted**：exact one-shot destructive authorization 已授予但尚未 claim；source authority=`43207da98...`，fresh preflight PASS，当前 T1 尚未修改。
+
 > **2026-10-12 normalization live preexecution PASS**：fresh real-T1 preflight 无 drift；45-volume exact set / 5 product networks / firewall ownership 全部匹配冻结 manifest。destructive authorization 仍 NOT_GRANTED。
 
 > **2026-10-12 normalization source CLOSED_PASS**：exact-head 全部 CI PASS；manifest/executor 已具备进入 live preexecution 的源码资格，但 destructive authorization 仍未授予，T1 mutation=false。

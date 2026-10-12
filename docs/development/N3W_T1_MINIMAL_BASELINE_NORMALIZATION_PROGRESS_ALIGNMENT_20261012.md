@@ -173,3 +173,26 @@ N3W_T1_MINIMAL_BASELINE_NORMALIZATION_LIVE_APPLY_20261012_01
 ```
 
 Until that exact authorization is granted, destructive apply remains forbidden.
+
+
+## Live destructive authorization granted
+
+User explicitly approved:
+
+```text
+N3W_T1_MINIMAL_BASELINE_NORMALIZATION_LIVE_APPLY_20261012_01
+```
+
+At the moment of approval:
+
+```text
+AUTHORIZATION_STATE=GRANTED_PENDING_CLAIM
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+LIVE_PREFLIGHT=PASS
+LIVE_MUTATION=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+```
+
+The exact claim point remains the executor's post-preflight `authorization_claimed` event. Preflight failure does not consume the authorization; any mutation-started failure does.
