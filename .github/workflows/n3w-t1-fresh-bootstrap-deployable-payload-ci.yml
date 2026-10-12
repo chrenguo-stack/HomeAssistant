@@ -420,6 +420,53 @@ jobs:
           set -euo pipefail
           test "$(sha256sum "$RUNNER_TEMP/redownload/payload-archive.tar.gz" | awk '{print $1}')" = "$(cat "$RUNNER_TEMP/redownload/payload-archive.sha256")"
           test "$(sha256sum "$RUNNER_TEMP/redownload/host-wrapper.py" | awk '{print $1}')" = "$(cat "$RUNNER_TEMP/redownload/host-wrapper.sha256")"
+          python - "$RUNNER_TEMP/redownload" <<'PY'
+          import hashlib
+          import tarfile
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          expected = {
+              "payload-archive.tar.gz",
+              "payload-archive.sha256",
+              "payload-manifest.sha256",
+              "executor.sha256",
+              "host-wrapper.py",
+              "host-wrapper.sha256",
+          }
+          assert {path.name for path in root.iterdir()} == expected
+
+          archive = root / "payload-archive.tar.gz"
+          with tarfile.open(archive, "r:gz") as bundle:
+              manifest_members = [
+                  member
+                  for member in bundle.getmembers()
+                  if member.name.lstrip("./") == "payload-manifest.json"
+              ]
+              executor_members = [
+                  member
+                  for member in bundle.getmembers()
+                  if member.name.lstrip("./")
+                  == "tools/n3w_t1_fresh_product_bootstrap.py"
+              ]
+              assert len(manifest_members) == 1
+              assert len(executor_members) == 1
+              manifest_stream = bundle.extractfile(manifest_members[0])
+              executor_stream = bundle.extractfile(executor_members[0])
+              assert manifest_stream is not None
+              assert executor_stream is not None
+              manifest_sha = hashlib.sha256(manifest_stream.read()).hexdigest()
+              executor_sha = hashlib.sha256(executor_stream.read()).hexdigest()
+
+          assert manifest_sha == (
+              root / "payload-manifest.sha256"
+          ).read_text(encoding="utf-8").strip()
+          assert executor_sha == (
+              root / "executor.sha256"
+          ).read_text(encoding="utf-8").strip()
+          print("FRESH_BOOTSTRAP_INNER_BINDING=PASS")
+          PY
           printf 'ARTIFACT_ID=%s\n' "$ARTIFACT_ID"
           printf 'ARTIFACT_DIGEST=%s\n' "$ARTIFACT_DIGEST"
           printf 'FRESH_BOOTSTRAP_DEPLOYABLE_POST_UPLOAD_BINDING=PASS\n'
