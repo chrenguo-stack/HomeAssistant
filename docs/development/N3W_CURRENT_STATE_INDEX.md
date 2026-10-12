@@ -1,3 +1,5 @@
+> **2026-10-12 live normalization inventory complete / classifier repair pending CI**：read-only inventory SHA `0ad246ee...`；45 volumes 精确匹配历史 frozen set，默认 Docker networks/firewall framework 从删除候选中剥离。
+
 > **2026-10-12 normalization read-only gate authorized**：versioned read-only inventory executor 已提交并等待 CI；live T1 inventory 尚未执行，destructive authorization 尚未请求。
 
 > **2026-10-12 R6 CLOSED_PASS / normalization preflight prepared**：exact ARM64 three-image artifact #11718067835 post-upload binding PASS；下一步只读盘点 T1，先生成 exact cleanup manifest，再单独申请 destructive authorization。

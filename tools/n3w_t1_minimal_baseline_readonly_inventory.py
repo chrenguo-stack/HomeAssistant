@@ -18,6 +18,14 @@ PRODUCT_TOKENS = (
     "home-assistant",
     "mosquitto",
 )
+DEFAULT_DOCKER_NETWORKS = frozenset(("bridge", "host", "none"))
+KNOWN_HISTORICAL_PRODUCT_NETWORKS = frozenset(
+    ("corrected-successor-mqtt-runtime-20260827-01_default",)
+)
+HISTORICAL_VOLUME_COUNT = 45
+HISTORICAL_VOLUME_SET_SHA256 = (
+    "20fc845741d31da34f1d1e563e5057c78ec5dc7c4cfd3a495a5f3a4f2bfd011b"
+)
 FORBIDDEN_MUTATION_MARKERS = (
     "docker rm",
     "docker rmi",
@@ -407,6 +415,11 @@ def _productish(value: str) -> bool:
     return any(token in lowered for token in PRODUCT_TOKENS)
 
 
+def _volume_set_sha256(names: Sequence[str]) -> str:
+    payload = "".join(f"{name}\n" for name in sorted(name for name in names if name)).encode()
+    return hashlib.sha256(payload).hexdigest()
+
+
 def _classify(report: dict[str, Any]) -> dict[str, Any]:
     preserve = []
     delete_candidates = []
@@ -455,7 +468,6 @@ def _classify(report: dict[str, Any]) -> dict[str, Any]:
         for collection, object_type in (
             ("containers", "docker_container"),
             ("images", "docker_image"),
-            ("networks", "docker_network"),
         ):
             for item in docker.get(collection, []):
                 if not isinstance(item, dict):
@@ -477,27 +489,79 @@ def _classify(report: dict[str, Any]) -> dict[str, Any]:
                     }
                 )
 
+        for item in docker.get("networks", []):
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("Name", ""))
+            rendered = json.dumps(item, sort_keys=True)
+            if name in DEFAULT_DOCKER_NETWORKS:
+                preserve.append(
+                    {
+                        "type": "docker_network",
+                        "name": name,
+                        "reason": "docker_engine_default_network",
+                    }
+                )
+            elif (
+                name in KNOWN_HISTORICAL_PRODUCT_NETWORKS
+                or _productish(rendered)
+            ):
+                delete_candidates.append(
+                    {
+                        "type": "docker_network",
+                        "name": name,
+                        "reason": "historical_or_current_product_network",
+                    }
+                )
+            else:
+                unknown.append(
+                    {
+                        "type": "docker_network",
+                        "name": name,
+                        "reason": "ownership_unproven",
+                    }
+                )
+
+        volume_records = [
+            item for item in docker.get("volumes", []) if isinstance(item, dict)
+        ]
+        volume_names = [str(item.get("Name", "")) for item in volume_records]
+        historical_volume_set = (
+            len(volume_names) == HISTORICAL_VOLUME_COUNT
+            and _volume_set_sha256(volume_names) == HISTORICAL_VOLUME_SET_SHA256
+        )
         inspected = {
             str(item.get("Name")): item
             for item in docker.get("volume_inspect", [])
             if isinstance(item, dict) and item.get("Name")
         }
-        for item in docker.get("volumes", []):
-            if not isinstance(item, dict):
-                continue
+        for item in volume_records:
             name = str(item.get("Name", ""))
             detail = inspected.get(name, {})
             rendered = json.dumps(detail or item, sort_keys=True)
             labels = detail.get("Labels") if isinstance(detail, dict) else None
-            compose_project = labels.get("com.docker.compose.project") if isinstance(labels, dict) else None
-            proven = compose_project == "n3wfc4" or _productish(name) or _productish(rendered)
+            compose_project = (
+                labels.get("com.docker.compose.project")
+                if isinstance(labels, dict)
+                else None
+            )
+            proven = (
+                historical_volume_set
+                or compose_project == "n3wfc4"
+                or _productish(name)
+                or _productish(rendered)
+            )
             target = delete_candidates if proven else unknown
             target.append(
                 {
                     "type": "docker_volume",
                     "name": name,
                     "reason": (
-                        "product_label_or_token_match" if proven else "ownership_unproven"
+                        "historical_frozen_volume_set_exact_match"
+                        if historical_volume_set
+                        else "product_label_or_token_match"
+                        if proven
+                        else "ownership_unproven"
                     ),
                 }
             )
@@ -516,12 +580,25 @@ def _classify(report: dict[str, Any]) -> dict[str, Any]:
                     }
                 )
             for line in item.get("relevant_lines", []):
-                if isinstance(line, str):
+                if not isinstance(line, str):
+                    continue
+                if (
+                    "N3WFC4-BROKER-INGRESS" in line
+                    or "n3wfc4-broker-ingress-v1" in line
+                ):
                     delete_candidates.append(
                         {
                             "type": "firewall_rule",
                             "name": line,
-                            "reason": "product_or_8883_rule",
+                            "reason": "n3w_product_firewall_rule",
+                        }
+                    )
+                elif "DOCKER-USER" in line:
+                    preserve.append(
+                        {
+                            "type": "firewall_rule",
+                            "name": line,
+                            "reason": "docker_engine_firewall_framework",
                         }
                     )
 

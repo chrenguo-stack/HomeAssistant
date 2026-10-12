@@ -44,3 +44,49 @@ BOARD_ACCESS=false
 PR541=OPEN_DRAFT
 MERGE=false
 ```
+
+
+## Fresh live inventory result
+
+真实 T1 read-only inventory 已执行。executor 未执行任何 mutation，未启动生产服务，board 未访问。
+
+```text
+INVENTORY_RC=2
+INVENTORY_STATUS=STOP
+INVENTORY_SHA256=0ad246ee33dcddf70555fcf23551c7b106f8b0edad8eb0523a24421d674f4814
+MUTATION_PERFORMED=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+```
+
+STOP 的直接原因不是宿主异常，而是首版 classifier 故意保守：
+
+- 45 个 anonymous volume 被标记为 ownership unknown；
+- Docker 默认 `bridge/host/none` 也被错误放入 unknown；
+- 历史 `corrected-successor-mqtt-runtime-20260827-01_default` 网络没有进入 product candidate；
+- firewall 过滤把 Docker 自身 `DOCKER-USER` framework 也混入 product candidate。
+
+进一步对照 current repository authority 后：
+
+1. 当前 45 个 volume 的排序名称集合 SHA256 精确等于旧 staging executor 冻结的
+   `20fc845741d31da34f1d1e563e5057c78ec5dc7c4cfd3a495a5f3a4f2bfd011b`；
+2. minimal-host baseline 决策已明确把这套 45-volume frozen set 列为被新架构 supersede 的旧 staging 前提，并要求后续 exact normalization；
+3. `bridge/host/none` 是 Docker Engine 默认网络，属于 host baseline，必须保留；
+4. `corrected-successor-mqtt-runtime-20260827-01_default` 带历史 Compose project identity，应归为历史产品网络；
+5. `DOCKER-USER` chain 与 `FORWARD -> DOCKER-USER` 属 Docker framework，必须保留；只允许删除 N3WFC4 专用 ingress chain/anchors。
+
+classifier 已按这些事实修补，新增 regression；等待 CI。无需读取 anonymous volume 内容，也不需要暴露其中可能存在的历史敏感数据。
+
+```text
+READONLY_LIVE_INVENTORY=EXECUTED
+HOST_BASELINE=HEALTHY
+CONTAINERS=0
+IMAGES=0
+VOLUMES=45_EXACT_HISTORICAL_SET
+PRODUCT_NETWORKS=5
+DEFAULT_DOCKER_NETWORKS=3_PRESERVE
+PRODUCTION_LISTENERS=0
+CLASSIFIER_REPAIR=COMMITTED
+CLASSIFIER_REPAIR_CI=PENDING
+DESTRUCTIVE_NORMALIZATION=false
+```

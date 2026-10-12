@@ -152,3 +152,84 @@ def test_collect_uses_ssh_n_and_hashes_target(
     assert result["target_sha256"] != "operator@t1.example"
     assert result["mutation_performed"] is False
     assert result["destructive_authorization_claimed"] is False
+
+
+def test_default_networks_are_host_baseline_and_known_successor_is_product() -> None:
+    tool = load_tool()
+    report = sample_report()
+    report["docker"]["networks"] = [
+        {"Name": "bridge"},
+        {"Name": "host"},
+        {"Name": "none"},
+        {"Name": "corrected-successor-mqtt-runtime-20260827-01_default"},
+    ]
+
+    classified = tool._classify(report)
+
+    preserve = classified["PRESERVE_HOST_BASELINE"]
+    candidates = classified["DELETE_PRODUCT_STATE_CANDIDATE"]
+    assert all(
+        any(
+            item["type"] == "docker_network" and item["name"] == name
+            for item in preserve
+        )
+        for name in ("bridge", "host", "none")
+    )
+    assert any(
+        item["type"] == "docker_network"
+        and item["name"] == "corrected-successor-mqtt-runtime-20260827-01_default"
+        for item in candidates
+    )
+
+
+def test_exact_historical_volume_set_closes_anonymous_ownership(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    report = sample_report()
+    report["docker"]["volumes"] = [{"Name": "alpha"}, {"Name": "beta"}]
+    report["docker"]["volume_inspect"] = [
+        {"Name": "alpha", "Labels": {"com.docker.volume.anonymous": ""}},
+        {"Name": "beta", "Labels": {"com.docker.volume.anonymous": ""}},
+    ]
+    monkeypatch.setattr(tool, "HISTORICAL_VOLUME_COUNT", 2)
+    monkeypatch.setattr(
+        tool,
+        "HISTORICAL_VOLUME_SET_SHA256",
+        tool._volume_set_sha256(("alpha", "beta")),
+    )
+
+    classified = tool._classify(report)
+
+    volume_candidates = [
+        item
+        for item in classified["DELETE_PRODUCT_STATE_CANDIDATE"]
+        if item["type"] == "docker_volume"
+    ]
+    assert {item["name"] for item in volume_candidates} == {"alpha", "beta"}
+    assert all(
+        item["reason"] == "historical_frozen_volume_set_exact_match"
+        for item in volume_candidates
+    )
+
+
+def test_docker_user_framework_is_preserved_not_deleted() -> None:
+    tool = load_tool()
+    report = sample_report()
+    report["firewall"][0]["relevant_lines"] = [
+        "-N DOCKER-USER",
+        "-A FORWARD -j DOCKER-USER",
+        "-N N3WFC4-BROKER-INGRESS",
+        "-A INPUT -p tcp --dport 8883 "
+        "-m comment --comment n3wfc4-broker-ingress-v1 "
+        "-j N3WFC4-BROKER-INGRESS",
+    ]
+
+    classified = tool._classify(report)
+
+    preserve = classified["PRESERVE_HOST_BASELINE"]
+    candidates = classified["DELETE_PRODUCT_STATE_CANDIDATE"]
+    assert any(item["name"] == "-N DOCKER-USER" for item in preserve)
+    assert any(item["name"] == "-A FORWARD -j DOCKER-USER" for item in preserve)
+    assert not any(item["name"] == "-N DOCKER-USER" for item in candidates)
+    assert any(item["name"] == "-N N3WFC4-BROKER-INGRESS" for item in candidates)
