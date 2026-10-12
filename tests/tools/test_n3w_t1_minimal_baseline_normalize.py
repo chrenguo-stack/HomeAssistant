@@ -111,7 +111,7 @@ def test_firewall_parser_accepts_owned_r5_shape() -> None:
 -A FORWARD -j DOCKER-USER
 -A DOCKER-USER -p tcp -m conntrack --ctdir ORIGINAL --ctorigdstport 8883 -m comment --comment n3wfc4-broker-ingress-v1 -j N3WFC4-BROKER-INGRESS
 -A N3WFC4-BROKER-INGRESS -s 127.0.0.0/8 -i lo -m comment --comment n3wfc4-broker-ingress-v1 -j RETURN
--A N3WFC4-BROKER-INGRESS -s 10.10.20.0/24 -i eth0 -m comment --comment n3wfc4-broker-ingress-v1 -j RETURN
+-A N3WFC4-BROKER-INGRESS -s 203.0.113.0/24 -i eth0 -m comment --comment n3wfc4-broker-ingress-v1 -j RETURN
 -A N3WFC4-BROKER-INGRESS -m comment --comment n3wfc4-broker-ingress-v1 -j DROP
 COMMIT
 """
@@ -130,7 +130,7 @@ COMMIT
     assert result["custom_rule_count"] == 3
     assert result["custom_rules_valid"] is True
     assert result["foreign_custom_chain_references"] == ()
-    assert result["trusted_subnet_sha256"] == tool._sha256_text("10.10.20.0/24")
+    assert result["trusted_subnet_sha256"] == tool._sha256_text("203.0.113.0/24")
 
 
 def test_firewall_parser_detects_foreign_reference() -> None:
@@ -148,7 +148,7 @@ def test_firewall_parser_detects_foreign_reference() -> None:
 -A DOCKER-USER -p tcp -m conntrack --ctdir ORIGINAL --ctorigdstport 8883 -m comment --comment n3wfc4-broker-ingress-v1 -j N3WFC4-BROKER-INGRESS
 -A OTHER -j N3WFC4-BROKER-INGRESS
 -A N3WFC4-BROKER-INGRESS -s 127.0.0.0/8 -i lo -m comment --comment n3wfc4-broker-ingress-v1 -j RETURN
--A N3WFC4-BROKER-INGRESS -s 10.10.20.0/24 -i eth0 -m comment --comment n3wfc4-broker-ingress-v1 -j RETURN
+-A N3WFC4-BROKER-INGRESS -s 203.0.113.0/24 -i eth0 -m comment --comment n3wfc4-broker-ingress-v1 -j RETURN
 -A N3WFC4-BROKER-INGRESS -m comment --comment n3wfc4-broker-ingress-v1 -j DROP
 COMMIT
 """

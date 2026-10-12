@@ -791,6 +791,9 @@ def execute_apply(
 def self_check(manifest: dict[str, Any]) -> dict[str, Any]:
     _validate_manifest(manifest)
     source = Path(__file__).read_text(encoding="utf-8")
+    before_self, remainder = source.split("\ndef self_check(", 1)
+    _self_body, after_self = remainder.split("\ndef _parser(", 1)
+    executable_source = before_self + "\ndef _parser(" + after_self
     forbidden = (
         "docker system prune",
         "docker volume prune",
@@ -799,7 +802,7 @@ def self_check(manifest: dict[str, Any]) -> dict[str, Any]:
         "iptables -X DOCKER-USER",
         "shutil.rmtree(Path('/var/lib/docker'))",
     )
-    found = [value for value in forbidden if value in source]
+    found = [value for value in forbidden if value in executable_source]
     return {
         "schema": SCHEMA,
         "status": "PASS" if not found else "STOP",
