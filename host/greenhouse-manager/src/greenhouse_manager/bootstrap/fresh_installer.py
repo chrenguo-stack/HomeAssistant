@@ -314,6 +314,8 @@ def run_fresh_staging(
                 failure_code,
                 "PASS",
             ) from error
+        if isinstance(error, FreshInstallerError):
+            raise
         raise FreshInstallerStageError(
             current_stage,
             failure_code,
