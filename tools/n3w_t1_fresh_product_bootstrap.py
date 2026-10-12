@@ -808,9 +808,9 @@ print(json.dumps({"status": "PASS"}))
 
     def stage_instance_runtime(self, candidate_root: Path, system_id: str):
         stage = candidate_root / "stage"
-        if stage.exists() and stage.is_symlink():
-            raise BootstrapError("stage_root_symlink_forbidden")
-        stage.mkdir(mode=0o700, exist_ok=True)
+        if stage.exists() or stage.is_symlink():
+            raise BootstrapError("stage_root_already_exists")
+        stage.mkdir(mode=0o700)
 
         manager_root = stage / "var-lib-greenhouse-manager"
         manager_root.mkdir(mode=0o700)
@@ -887,11 +887,20 @@ print(json.dumps({"status": "PASS"}))
             "production_service_start": False,
         }
 
-    def stage_public_runtime(self, candidate_root: Path):
+    def stage_public_runtime(
+        self,
+        candidate_root: Path,
+        *,
+        reuse_stage: bool = False,
+    ):
         stage = candidate_root / "stage"
-        if stage.exists() and stage.is_symlink():
+        if stage.is_symlink():
             raise BootstrapError("stage_root_symlink_forbidden")
-        stage.mkdir(mode=0o700, exist_ok=True)
+        if stage.exists():
+            if not reuse_stage or not stage.is_dir():
+                raise BootstrapError("stage_root_already_exists")
+        else:
+            stage.mkdir(mode=0o700)
 
         source_root = self.payload_root / "runtime-source/opt/HomeAssistant"
         product_source = stage / "opt-HomeAssistant"
@@ -937,7 +946,10 @@ print(json.dumps({"status": "PASS"}))
 
     def stage_runtime(self, candidate_root: Path, system_id: str):
         instance_report = self.stage_instance_runtime(candidate_root, system_id)
-        public_report = self.stage_public_runtime(candidate_root)
+        public_report = self.stage_public_runtime(
+            candidate_root,
+            reuse_stage=True,
+        )
         if (
             instance_report.get("status") != "PASS"
             or public_report.get("status") != "PASS"
@@ -1093,6 +1105,10 @@ print(json.dumps({"status": "PASS"}))
         }
 
     def instance_stopped_postcheck(self, system_id: str):
+        if self.runner.run(("docker", "ps", "-aq")).strip():
+            raise BootstrapError("postcheck_container_present")
+        if _listeners(self.runner):
+            raise BootstrapError("postcheck_listener_present")
         for target in (*INSTANCE_FINAL_DIRS.keys(), *INSTANCE_FINAL_FILES.keys()):
             path = Path(target)
             if not path.exists() or path.is_symlink():
