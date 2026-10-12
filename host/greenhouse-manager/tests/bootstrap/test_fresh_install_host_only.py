@@ -333,3 +333,55 @@ def test_fault_cleanup_preserves_unrelated_host_state(tmp_path: Path) -> None:
     assert not adapters.final.exists()
     assert not adapters.images.exists()
     assert adapters.calls[-1] == "cleanup"
+
+
+def test_before_mutation_runs_after_preflight_before_image_load(
+    tmp_path: Path,
+) -> None:
+    host = tmp_path / "host"
+    adapters = HostOnlyFreshInstall(host)
+    events: list[str] = []
+
+    original_preflight = adapters.preflight
+    original_load = adapters.load_images
+
+    def preflight():
+        events.append("preflight")
+        return original_preflight()
+
+    def load_images():
+        events.append("load_images")
+        return original_load()
+
+    adapters.preflight = preflight  # type: ignore[method-assign]
+    adapters.load_images = load_images  # type: ignore[method-assign]
+
+    def claim() -> None:
+        events.append("claim")
+
+    run_fresh_staging(
+        adapters,
+        host / "candidate",
+        before_mutation=claim,
+    )
+
+    assert events[:3] == ["preflight", "claim", "load_images"]
+
+
+def test_partial_image_load_failure_enters_cleanup(tmp_path: Path) -> None:
+    host = tmp_path / "host"
+    adapters = HostOnlyFreshInstall(host)
+
+    def partial_load():
+        adapters.calls.append("load_images")
+        adapters.images.mkdir(mode=0o700)
+        (adapters.images / "manager").write_text("partial\n", encoding="utf-8")
+        raise RuntimeError("partial-load")
+
+    adapters.load_images = partial_load  # type: ignore[method-assign]
+
+    with pytest.raises(FreshInstallerError, match="fresh_install_failed"):
+        run_fresh_staging(adapters, host / "candidate")
+
+    assert adapters.calls[-1] == "cleanup"
+    assert not adapters.images.exists()

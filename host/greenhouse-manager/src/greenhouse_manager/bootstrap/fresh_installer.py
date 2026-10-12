@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -92,6 +92,8 @@ def _validate_preflight(report: Mapping[str, object]) -> None:
 def run_fresh_staging(
     adapters: FreshInstallerAdapters,
     candidate_root: str | Path,
+    *,
+    before_mutation: Callable[[], None] | None = None,
 ) -> dict[str, Any]:
     candidate = Path(candidate_root).expanduser()
     if not candidate.is_absolute():
@@ -108,8 +110,11 @@ def run_fresh_staging(
         _validate_preflight(preflight)
         steps.append("preflight")
 
-        image_report = adapters.load_images()
+        if before_mutation is not None:
+            before_mutation()
+
         mutation_started = True
+        image_report = adapters.load_images()
         _require(
             image_report,
             {
