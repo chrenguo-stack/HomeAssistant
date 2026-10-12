@@ -50,12 +50,14 @@ def _publication(host_ip: str, port: int) -> dict:
     }
 
 
-def rendered_compose() -> dict:
+def rendered_compose(
+    manager_image: str = "local/greenhouse-manager:s20-511db028",
+) -> dict:
     return {
         "name": "n3wfc4",
         "services": {
             "manager": {
-                "image": "local/greenhouse-manager:s20-511db028",
+                "image": manager_image,
                 "pull_policy": "never",
                 "user": "999:999",
                 "network_mode": "host",
@@ -599,3 +601,73 @@ def test_rejects_fresh_identity_cross_binding_drift() -> None:
         match="manager_runtime_environment_invalid",
     ):
         tool.validate_compose_document(document)
+
+
+def fresh_image_lock() -> dict:
+    source_head = "0123456789abcdef0123456789abcdef01234567"
+    return {
+        "schema": "gh.n3w-t1-fresh-production-image-lock/1",
+        "source_head": source_head,
+        "manager": {
+            "source_sha": source_head,
+            "image": "local/greenhouse-manager:fresh-0123456789ab",
+            "image_id": "sha256:" + "1" * 64,
+            "tar_sha256": "2" * 64,
+            "platform": "linux/arm64",
+            "entrypoint": ["greenhouse-manager"],
+            "user": "greenhouse",
+            "runtime_uid": 999,
+            "runtime_gid": 999,
+            "pull_policy": "never",
+        },
+        "homeassistant": {
+            "source_ref": tool_value("EXPECTED_HA_SOURCE_REF"),
+            "image": tool_value("EXPECTED_HA_IMAGE"),
+            "manifest_digest": tool_value("EXPECTED_HA_DIGEST"),
+            "image_id": tool_value("EXPECTED_HA_IMAGE_ID"),
+            "platform": "linux/arm64",
+            "entrypoint": ["/init"],
+            "effective_default_uid": 0,
+            "effective_default_gid": 0,
+            "pull_policy": "never",
+        },
+        "broker": {
+            "source_ref": tool_value("EXPECTED_BROKER_SOURCE_REF"),
+            "image": tool_value("EXPECTED_BROKER_IMAGE"),
+            "manifest_digest": tool_value("EXPECTED_BROKER_DIGEST"),
+            "image_id": tool_value("EXPECTED_BROKER_IMAGE_ID"),
+            "platform": "linux/arm64",
+            "entrypoint": ["/docker-entrypoint.sh"],
+            "pull_policy": "never",
+        },
+    }
+
+
+def tool_value(name: str):
+    return getattr(load_tool(), name)
+
+
+def test_accepts_fresh_manager_image_lock_and_compose() -> None:
+    tool = load_tool()
+    lock = fresh_image_lock()
+    manager_image = lock["manager"]["image"]
+    document = rendered_compose(manager_image=manager_image)
+
+    report = tool.validate_deployment(document, lock)
+
+    assert report["status"] == "PASS"
+    assert report["image_lock_schema"] == tool.FRESH_IMAGE_LOCK_SCHEMA
+    assert report["manager_image"] == manager_image
+    assert report["manager_runtime_uid"] == 999
+
+
+def test_rejects_fresh_lock_source_image_mismatch() -> None:
+    tool = load_tool()
+    lock = fresh_image_lock()
+    lock["manager"]["image"] = "local/greenhouse-manager:fresh-wrong"
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="manager_image_lock_invalid",
+    ):
+        tool.validate_image_lock_document(lock)

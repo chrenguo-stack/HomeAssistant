@@ -11,6 +11,7 @@ from typing import TextIO
 
 SCHEMA = "gh.n3w-t1-clean-product-deployment-gate/2"
 IMAGE_LOCK_SCHEMA = "gh.n3w-t1-s20-production-image-lock/1"
+FRESH_IMAGE_LOCK_SCHEMA = "gh.n3w-t1-fresh-production-image-lock/1"
 EXPECTED_COMPOSE_PROJECT_NAME = "n3wfc4"
 EXPECTED_BROKER_NETWORKS = frozenset(
     {
@@ -393,10 +394,19 @@ def _require_manager_environment(
         raise DeploymentContractError("manager_inline_password_forbidden")
 
 
+def _sha256_value(value: object) -> bool:
+    return isinstance(value, str) and re.fullmatch(r"sha256:[0-9a-f]{64}", value) is not None
+
+
+def _hex_sha256_value(value: object) -> bool:
+    return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
+
+
 def validate_image_lock_document(document: object) -> dict[str, object]:
     if not isinstance(document, Mapping):
         raise DeploymentContractError("image_lock_invalid")
-    if document.get("schema") != IMAGE_LOCK_SCHEMA:
+    schema = document.get("schema")
+    if schema not in {IMAGE_LOCK_SCHEMA, FRESH_IMAGE_LOCK_SCHEMA}:
         raise DeploymentContractError("image_lock_schema_invalid")
 
     manager = document.get("manager")
@@ -412,21 +422,46 @@ def validate_image_lock_document(document: object) -> dict[str, object]:
     assert isinstance(homeassistant, Mapping)
     assert isinstance(broker, Mapping)
 
-    manager_required = {
-        "source_sha": EXPECTED_MANAGER_SOURCE,
-        "image": EXPECTED_MANAGER_IMAGE,
-        "image_id": EXPECTED_MANAGER_IMAGE_ID,
-        "tar_sha256": EXPECTED_MANAGER_TAR_SHA256,
-        "platform": "linux/arm64",
-        "runtime_uid": EXPECTED_MANAGER_UID,
-        "runtime_gid": EXPECTED_MANAGER_GID,
-        "pull_policy": "never",
-    }
-    if any(
-        manager.get(key) != value
-        for key, value in manager_required.items()
-    ):
-        raise DeploymentContractError("manager_image_lock_invalid")
+    if schema == IMAGE_LOCK_SCHEMA:
+        manager_required = {
+            "source_sha": EXPECTED_MANAGER_SOURCE,
+            "image": EXPECTED_MANAGER_IMAGE,
+            "image_id": EXPECTED_MANAGER_IMAGE_ID,
+            "tar_sha256": EXPECTED_MANAGER_TAR_SHA256,
+            "platform": "linux/arm64",
+            "runtime_uid": EXPECTED_MANAGER_UID,
+            "runtime_gid": EXPECTED_MANAGER_GID,
+            "pull_policy": "never",
+        }
+        if any(
+            manager.get(key) != value
+            for key, value in manager_required.items()
+        ):
+            raise DeploymentContractError("manager_image_lock_invalid")
+        manager_image = EXPECTED_MANAGER_IMAGE
+        manager_image_id = EXPECTED_MANAGER_IMAGE_ID
+    else:
+        source_head = document.get("source_head")
+        if (
+            not isinstance(source_head, str)
+            or re.fullmatch(r"[0-9a-f]{40}", source_head) is None
+        ):
+            raise DeploymentContractError("fresh_source_head_invalid")
+        expected_image = f"local/greenhouse-manager:fresh-{source_head[:12]}"
+        if (
+            manager.get("source_sha") != source_head
+            or manager.get("image") != expected_image
+            or not _sha256_value(manager.get("image_id"))
+            or not _hex_sha256_value(manager.get("tar_sha256"))
+            or manager.get("platform") != "linux/arm64"
+            or manager.get("runtime_uid") != EXPECTED_MANAGER_UID
+            or manager.get("runtime_gid") != EXPECTED_MANAGER_GID
+            or manager.get("pull_policy") != "never"
+        ):
+            raise DeploymentContractError("manager_image_lock_invalid")
+        manager_image = expected_image
+        manager_image_id = str(manager["image_id"])
+
     if manager.get("entrypoint") != ["greenhouse-manager"]:
         raise DeploymentContractError("manager_image_entrypoint_invalid")
     if manager.get("user") != "greenhouse":
@@ -457,19 +492,20 @@ def validate_image_lock_document(document: object) -> dict[str, object]:
         raise DeploymentContractError("broker_image_lock_invalid")
 
     return {
-        "image_lock_schema": IMAGE_LOCK_SCHEMA,
-        "manager_image_id": EXPECTED_MANAGER_IMAGE_ID,
+        "image_lock_schema": str(schema),
+        "manager_image": manager_image,
+        "manager_image_id": manager_image_id,
         "homeassistant_arm64_digest": EXPECTED_HA_DIGEST,
         "broker_arm64_digest": EXPECTED_BROKER_DIGEST,
         "manager_runtime_uid": EXPECTED_MANAGER_UID,
         "manager_runtime_gid": EXPECTED_MANAGER_GID,
     }
 
-
 def validate_compose_document(
     document: object,
     *,
     manager_service_name: str = "manager",
+    expected_manager_image: str = EXPECTED_MANAGER_IMAGE,
     broker_service_name: str = "broker",
     homeassistant_service_name: str = "homeassistant",
 ) -> dict[str, object]:
@@ -492,7 +528,7 @@ def validate_compose_document(
     broker = _service(services, broker_service_name)
     homeassistant = _service(services, homeassistant_service_name)
 
-    if manager.get("image") != EXPECTED_MANAGER_IMAGE:
+    if manager.get("image") != expected_manager_image:
         raise DeploymentContractError("manager_image_invalid")
     if manager.get("pull_policy") != "never":
         raise DeploymentContractError("manager_pull_policy_invalid")
@@ -639,7 +675,7 @@ def validate_compose_document(
         "status": "PASS",
         "compose_project_name": EXPECTED_COMPOSE_PROJECT_NAME,
         "service_set": sorted(expected_services),
-        "manager_image": EXPECTED_MANAGER_IMAGE,
+        "manager_image": expected_manager_image,
         "manager_runtime_uid_gid": (
             f"{EXPECTED_MANAGER_UID}:{EXPECTED_MANAGER_GID}"
         ),
@@ -687,8 +723,12 @@ def validate_deployment(
     compose_document: object,
     image_lock_document: object,
 ) -> dict[str, object]:
-    report = validate_compose_document(compose_document)
-    report.update(validate_image_lock_document(image_lock_document))
+    lock_report = validate_image_lock_document(image_lock_document)
+    report = validate_compose_document(
+        compose_document,
+        expected_manager_image=str(lock_report["manager_image"]),
+    )
+    report.update(lock_report)
     return report
 
 

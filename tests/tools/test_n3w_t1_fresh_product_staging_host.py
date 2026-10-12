@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import importlib.util
+import io
 import json
 import sys
+import tarfile
 from pathlib import Path
 
 import pytest
@@ -179,3 +181,56 @@ def test_cli_only_exposes_read_only_preflight() -> None:
     assert 'choices=("preflight",)' in source
     assert "authorization_claimed" in source
     assert '"docker_mutation": False' in source
+
+
+def _write_payload_archive(path: Path, *, link: bool) -> str:
+    manifest = json.dumps(
+        {
+            "transport": {
+                "schema": "gh.n3w-t1-fresh-transport/1",
+                "remote_staging_root": "/var/tmp",
+                "minimum_post_peak_free_bytes": 5 * 1024 * 1024 * 1024,
+                "payload_uncompressed_bytes": 1,
+                "image_load_order": ["homeassistant", "manager", "broker"],
+                "images": {},
+            },
+            "files": [],
+        },
+        sort_keys=True,
+    ).encode()
+    with tarfile.open(path, "w:gz") as bundle:
+        info = tarfile.TarInfo("payload-manifest.json")
+        info.size = len(manifest)
+        bundle.addfile(info, io.BytesIO(manifest))
+        if link:
+            symlink = tarfile.TarInfo("unsafe-link")
+            symlink.type = tarfile.SYMTYPE
+            symlink.linkname = "/etc/passwd"
+            bundle.addfile(symlink)
+    import hashlib
+    return hashlib.sha256(manifest).hexdigest()
+
+
+def test_payload_reader_rejects_symlink_member(tmp_path: Path) -> None:
+    tool = load_tool()
+    archive = tmp_path / "payload.tar.gz"
+    manifest_sha = _write_payload_archive(archive, link=True)
+
+    with pytest.raises(
+        tool.FreshHostTransportError,
+        match="payload_link_member_forbidden",
+    ):
+        tool._read_payload_manifest(
+            archive,
+            manifest_sha256=manifest_sha,
+        )
+
+
+def test_fresh_compose_requires_explicit_manager_image() -> None:
+    compose = (
+        ROOT
+        / "infra/n3w-t1/production/docker-compose.fresh.yml"
+    ).read_text(encoding="utf-8")
+
+    assert "${GH_MANAGER_IMAGE:?GH_MANAGER_IMAGE required}" in compose
+    assert "local/greenhouse-manager:s20-511db028" not in compose

@@ -162,6 +162,10 @@ def _read_payload_manifest(
             candidate = Path(name)
             if candidate.is_absolute() or ".." in candidate.parts:
                 raise FreshHostTransportError("payload_member_path_unsafe")
+            if member.issym() or member.islnk():
+                raise FreshHostTransportError("payload_link_member_forbidden")
+            if not (member.isfile() or member.isdir()):
+                raise FreshHostTransportError("payload_special_member_forbidden")
             if name == "payload-manifest.json":
                 if not member.isfile():
                     raise FreshHostTransportError("payload_manifest_not_regular")
@@ -345,6 +349,8 @@ def _remote_prepare_payload(
         " for member in members:\n"
         "  p=Path(member.name)\n"
         "  assert not p.is_absolute() and '..' not in p.parts\n"
+        "  assert not member.issym() and not member.islnk()\n"
+        "  assert member.isfile() or member.isdir()\n"
         " bundle.extractall(root,members=members)\n"
         "archive.unlink();"
         "assert sha(root/'payload-manifest.json')==sys.argv[3]"
