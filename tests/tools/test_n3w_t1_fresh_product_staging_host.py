@@ -11,7 +11,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 TOOL = ROOT / "tools/n3w_t1_fresh_product_staging_host.py"
-AUTHORIZATION_ID = "N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_LIVE_APPLY_20261012_01"
+AUTHORIZATION_ID = "N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_LIVE_APPLY_20261012_02"
 
 
 def load_tool():
@@ -211,6 +211,65 @@ def _write_payload_archive(path: Path, *, link: bool) -> str:
             bundle.addfile(symlink)
     import hashlib
     return hashlib.sha256(manifest).hexdigest()
+
+
+def test_remote_payload_extract_script_compiles_and_executes(tmp_path: Path) -> None:
+    tool = load_tool()
+    script = tool._remote_payload_extract_script()
+    compile(script, "<n3w-remote-payload>", "exec")
+
+    remote = tmp_path / "remote"
+    remote.mkdir()
+    archive = remote / "payload.tar.gz"
+    manifest_sha = _write_payload_archive(archive, link=False)
+    archive_sha = tool._sha256_file(archive)
+
+    completed = tool.subprocess.run(
+        (
+            sys.executable,
+            "-c",
+            script,
+            str(remote),
+            archive_sha,
+            manifest_sha,
+        ),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert not archive.exists()
+    assert (remote / "payload-manifest.json").is_file()
+
+
+def test_remote_payload_extract_script_rejects_symlink(tmp_path: Path) -> None:
+    tool = load_tool()
+    script = tool._remote_payload_extract_script()
+
+    remote = tmp_path / "remote"
+    remote.mkdir()
+    archive = remote / "payload.tar.gz"
+    manifest_sha = _write_payload_archive(archive, link=True)
+    archive_sha = tool._sha256_file(archive)
+
+    completed = tool.subprocess.run(
+        (
+            sys.executable,
+            "-c",
+            script,
+            str(remote),
+            archive_sha,
+            manifest_sha,
+        ),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    assert "payload_link_member_forbidden" in completed.stderr
+    assert not (remote / "payload-manifest.json").exists()
 
 
 def test_payload_reader_rejects_symlink_member(tmp_path: Path) -> None:

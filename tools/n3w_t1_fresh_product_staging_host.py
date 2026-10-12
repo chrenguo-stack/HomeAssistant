@@ -324,6 +324,44 @@ def _remote_mktemp(t1: str, prefix: str) -> str:
     return path
 
 
+def _remote_payload_extract_script() -> str:
+    return """\
+import hashlib
+import sys
+import tarfile
+from pathlib import Path
+
+root = Path(sys.argv[1])
+archive = root / "payload.tar.gz"
+
+def sha(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+if sha(archive) != sys.argv[2]:
+    raise RuntimeError("payload_archive_sha256_mismatch")
+
+with tarfile.open(archive, "r:gz") as bundle:
+    members = bundle.getmembers()
+    for member in members:
+        path = Path(member.name)
+        if path.is_absolute() or ".." in path.parts:
+            raise RuntimeError("payload_member_path_unsafe")
+        if member.issym() or member.islnk():
+            raise RuntimeError("payload_link_member_forbidden")
+        if not (member.isfile() or member.isdir()):
+            raise RuntimeError("payload_special_member_forbidden")
+    bundle.extractall(root, members=members)
+
+archive.unlink()
+if sha(root / "payload-manifest.json") != sys.argv[3]:
+    raise RuntimeError("payload_manifest_sha256_mismatch")
+"""
+
+
 def _remote_prepare_payload(
     t1: str,
     remote_dir: str,
@@ -333,28 +371,7 @@ def _remote_prepare_payload(
     manifest_sha256: str,
 ) -> None:
     _run(("scp", str(archive), f"{t1}:{remote_dir}/payload.tar.gz"), timeout=900)
-    script = (
-        "import hashlib,sys,tarfile;"
-        "from pathlib import Path;"
-        "root=Path(sys.argv[1]);archive=root/'payload.tar.gz';"
-        "def sha(path):\n"
-        " h=hashlib.sha256()\n"
-        " with path.open('rb') as stream:\n"
-        "  for block in iter(lambda:stream.read(1024*1024),b''):\n"
-        "   h.update(block)\n"
-        " return h.hexdigest()\n"
-        "assert sha(archive)==sys.argv[2];"
-        "with tarfile.open(archive,'r:gz') as bundle:\n"
-        " members=bundle.getmembers()\n"
-        " for member in members:\n"
-        "  p=Path(member.name)\n"
-        "  assert not p.is_absolute() and '..' not in p.parts\n"
-        "  assert not member.issym() and not member.islnk()\n"
-        "  assert member.isfile() or member.isdir()\n"
-        " bundle.extractall(root,members=members)\n"
-        "archive.unlink();"
-        "assert sha(root/'payload-manifest.json')==sys.argv[3]"
-    )
+    script = _remote_payload_extract_script()
     command = _remote_command(
         ("python3", "-c", script, remote_dir, archive_sha256, manifest_sha256)
     )

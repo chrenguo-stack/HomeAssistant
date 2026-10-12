@@ -1,3 +1,5 @@
+> **2026-10-12 fresh bootstrap apply #01 STOP_PRECLAIM**：remote payload prepare 的生成 Python 因 compound statement 位于 semicolon 后触发 SyntaxError；claim=false/consumed=false，Docker/product mutation=false。source repair 已加入 multiline extractor + executable regression；旧 exact grant superseded，successor `N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_LIVE_APPLY_20261012_02` NOT_GRANTED，等待新 CI/artifact/preexecution。
+
 > **2026-10-12 fresh bootstrap live apply authorization granted**：`N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_LIVE_APPLY_20261012_01` 已由用户明确批准，当前 GRANTED_PENDING_CLAIM；尚未 claim/consume。下一步仅执行 exact artifact 的 one-shot live apply。
 
 > **2026-10-12 fresh bootstrap live preexecution read-only CLOSED_PASS**：真实 T1 minimal-host inventory PASS；exact artifact #11725615364 transport/capacity preflight PASS，payload 未传输、Docker 未 mutation、authorization 未 claim/consume。下一边界为 explicit one-shot live apply authorization。
