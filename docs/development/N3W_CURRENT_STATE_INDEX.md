@@ -1,3 +1,5 @@
+> **2026-10-12 Astra R2 closure review**：PRODUCT_SOURCE_HEAD=dec88fdc...，CI=25/25 PASS；复核目标仅为关闭上一轮 F1-F6/A8 并确认是否可以进入 replacement artifact binding + real-T1 read-only preflight。_06 NOT_GRANTED；T1/board/runtime mutation=false。
+
 > **2026-10-12 Astra blockers repair in progress**：product head=3e88e41a...；F1-F6 source repairs plus repository-owned artifact download fallback committed. _04=SUPERSEDED_UNGRANTED；_05=NOT_GRANTED；CI pending；T1 unchanged。
 
 > **2026-10-12 KF-111 R4 Astra review brief**：exact product-source=c263b9df...；复核重点为 cross-store image identity、RootFS binding 强度、Docker29 coverage、failure observability、cleanup/no-replay、后续 staging blocker 与 artifact download fallback。_04 NOT_GRANTED，T1 暂不修改。
