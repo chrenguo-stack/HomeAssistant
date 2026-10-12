@@ -308,8 +308,8 @@ def _run_apply_main(
 
     def fake_run(*_args, **_kwargs):
         value = next(outcomes)
-        if isinstance(value, Exception):
-            raise value
+        if isinstance(value, str) and value.startswith("ERROR:"):
+            raise tool.FreshHostTransportError(value.removeprefix("ERROR:"))
         return value
 
     monkeypatch.setattr(tool, "_run", fake_run)
@@ -365,7 +365,7 @@ def test_marker_probe_failure_after_claim_is_consumed_no_replay(
             + "\n"
         ],
         process_returncode=1,
-        run_results=[tool.FreshHostTransportError("marker_probe_unreachable")],
+        run_results=["ERROR:marker_probe_unreachable"],
     )
 
     assert rc == 2
@@ -385,7 +385,7 @@ def test_marker_probe_failure_without_claim_is_unknown_and_consumed(
         tmp_path,
         process_lines=[],
         process_returncode=255,
-        run_results=[tool.FreshHostTransportError("marker_probe_unreachable")],
+        run_results=["ERROR:marker_probe_unreachable"],
     )
 
     assert rc == 2
@@ -420,7 +420,7 @@ def test_postsuccess_cleanup_failure_preserves_consumed_state(
         process_returncode=0,
         run_results=[
             Result(),
-            tool.FreshHostTransportError("cleanup_unreachable"),
+            "ERROR:cleanup_unreachable",
         ],
     )
 
