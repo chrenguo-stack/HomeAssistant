@@ -561,3 +561,58 @@ def test_staging_defers_product_network_creation_to_activation() -> None:
 
     assert 'if networks != DEFAULT_NETWORKS:' in source
     assert '("docker", "network", "create", network)' not in source
+
+
+def test_master_and_instance_target_ownership_is_disjoint_and_complete() -> None:
+    tool = load_tool()
+
+    public_dirs = set(tool.PUBLIC_FINAL_DIRS)
+    instance_dirs = set(tool.INSTANCE_FINAL_DIRS)
+    public_files = set(tool.PUBLIC_FINAL_FILES)
+    instance_files = set(tool.INSTANCE_FINAL_FILES)
+
+    assert public_dirs.isdisjoint(instance_dirs)
+    assert public_files.isdisjoint(instance_files)
+    assert public_dirs | instance_dirs == set(tool.FINAL_DIRS)
+    assert public_files | instance_files == set(tool.FINAL_FILES)
+    assert public_dirs == {"/opt/HomeAssistant"}
+    assert "/opt/greenhouse-secrets" in instance_dirs
+    assert "/var/lib/greenhouse-manager" in instance_dirs
+
+
+def test_legacy_runtime_wrapper_uses_split_stage_ownership() -> None:
+    source = TOOL.read_text(encoding="utf-8")
+
+    assert "def stage_public_runtime(" in source
+    assert "def stage_instance_runtime(" in source
+    assert "instance_report = self.stage_instance_runtime(" in source
+    assert "public_report = self.stage_public_runtime(" in source
+    assert "reuse_stage=True" in source
+
+
+def test_split_cleanup_ownership_does_not_cross_boundaries() -> None:
+    source = TOOL.read_text(encoding="utf-8")
+    instance_cleanup = source.split(
+        "    def cleanup_instance_candidate(", 1
+    )[1].split("    def cleanup_master_candidate(", 1)[0]
+    master_cleanup = source.split(
+        "    def cleanup_master_candidate(", 1
+    )[1].split("    def cleanup(", 1)[0]
+
+    assert "INSTANCE_FINAL_DIRS" in instance_cleanup
+    assert "PUBLIC_FINAL_DIRS" not in instance_cleanup
+    assert "created_images" not in instance_cleanup
+
+    assert "PUBLIC_FINAL_DIRS" in master_cleanup
+    assert "INSTANCE_FINAL_DIRS" not in master_cleanup
+    assert "created_images" in master_cleanup
+
+
+def test_postcheck_is_split_between_master_and_instance() -> None:
+    source = TOOL.read_text(encoding="utf-8")
+
+    assert "def master_postcheck(self, *, require_instance_absent: bool = True)" in source
+    assert "postcheck_master_instance_material_present" in source
+    assert "def instance_stopped_postcheck(self, system_id: str)" in source
+    assert "self.master_postcheck(require_instance_absent=False)" in source
+    assert "instance = self.instance_stopped_postcheck(system_id)" in source
