@@ -272,7 +272,7 @@ def _storage_probe_fixture(
     write_executable(
         "systemctl",
         "#!/bin/sh\n"
-        "case \"$4\" in\n"
+        "case \"$2\" in\n"
         f"  docker) printf '%s\\n' {dockerd.pid} ;;\n"
         f"  containerd) printf '%s\\n' {containerd.pid} ;;\n"
         "  *) exit 2 ;;\n"
