@@ -1,3 +1,5 @@
+> **2026-10-12 scope correction after ADR-0009**：本文件继续作为“单台 minimal Armbian+Docker T1 fresh install / 灾难重建工具”的历史与源码设计依据，但不再定义正常批量量产路径。正式量产采用黄金公共镜像 → Seal → disk image capture → clone → per-device firstboot。本文第 2 节中由 bootstrap 一次性安装软件并生成实例身份的组合流程不得直接作为可克隆母盘完成态。F5/source closure 保留，不重开。Current production-lifecycle authority: `docs/adr/0009-t1-golden-master-firstboot-production-lifecycle.md`.
+
 # N3-W T1 最小宿主基线与全新产品 Bootstrap 决策（2026-10-11）
 
 ## 0. 决策状态
