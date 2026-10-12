@@ -372,6 +372,8 @@ class LiveFreshInstallerAdapters:
             ).strip()
             if observed != f'{record["image_id"]}|arm64/linux':
                 raise BootstrapError(f"image_binding_invalid:{label}")
+            tar_path = self.payload_root / str(record["path"])
+            tar_path.unlink()
         return {
             "status": "PASS",
             "image_count": 3,
