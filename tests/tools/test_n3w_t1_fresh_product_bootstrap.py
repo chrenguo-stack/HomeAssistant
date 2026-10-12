@@ -616,3 +616,50 @@ def test_postcheck_is_split_between_master_and_instance() -> None:
     assert "def instance_stopped_postcheck(self, system_id: str)" in source
     assert "self.master_postcheck(require_instance_absent=False)" in source
     assert "instance = self.instance_stopped_postcheck(system_id)" in source
+
+
+def test_legacy_commit_preflights_all_targets_before_first_move(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    candidate = tmp_path / "candidate"
+    candidate.mkdir()
+    instance_source = candidate / "instance-source"
+    public_source = candidate / "public-source"
+    instance_source.mkdir()
+    public_source.mkdir()
+
+    instance_target = tmp_path / "instance-target"
+    public_target = tmp_path / "public-target"
+    public_target.mkdir()
+
+    monkeypatch.setattr(
+        tool,
+        "FINAL_DIRS",
+        {
+            str(instance_target): "instance-source",
+            str(public_target): "public-source",
+        },
+    )
+    monkeypatch.setattr(tool, "FINAL_FILES", {})
+
+    class Runner:
+        def run(self, _argv):
+            return ""
+
+    adapters = tool.LiveFreshInstallerAdapters(
+        tmp_path,
+        {"images": {"manager": {"image": "manager"}}},
+        Runner(),
+    )
+
+    with pytest.raises(
+        tool.BootstrapError,
+        match="commit_target_exists",
+    ):
+        adapters.commit_candidate(candidate, "system-id")
+
+    assert instance_source.is_dir()
+    assert not instance_target.exists()
+    assert public_target.is_dir()
