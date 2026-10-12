@@ -257,6 +257,125 @@ jobs:
 
           python tools/n3w_t1_fresh_product_bootstrap.py             --payload-root "$PAYLOAD"             --phase self-check
 
+          python - "$PAYLOAD" <<'PY'
+          import json
+          import os
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          payload = Path(sys.argv[1])
+          manifest = json.loads(
+              (payload / "payload-manifest.json").read_text(encoding="utf-8")
+          )
+          lock = payload / "fresh-image-lock.json"
+          lock.write_text(
+              json.dumps(manifest["image_lock"], sort_keys=True, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          env = {
+              **os.environ,
+              "GH_SYSTEM_ID": "freshci01",
+              "GH_MQTT_USERNAME": "ghs_freshci01_manager",
+              "GH_MQTT_CLIENT_ID": "gh-manager-freshci01",
+              "GH_N3W_PAIRING_MANAGER_ID": "gh-manager-freshci01",
+              "GH_N3W_PROVISIONING_USERNAME": "ghs_freshci01_provisioning",
+              "GH_N3W_PROVISIONING_CLIENT_ID": "gh-provisioning-freshci01",
+              "GH_MANAGER_IMAGE": manifest["images"]["manager"]["image"],
+          }
+          rendered = subprocess.check_output(
+              [
+                  "docker",
+                  "compose",
+                  "--profile",
+                  "*",
+                  "-f",
+                  "infra/n3w-t1/production/docker-compose.fresh.yml",
+                  "config",
+                  "--format",
+                  "json",
+              ],
+              text=True,
+              env=env,
+          )
+          compose_json = payload / "fresh-compose.json"
+          compose_json.write_text(rendered, encoding="utf-8")
+          subprocess.run(
+              [
+                  "python",
+                  "tools/n3w_t1_clean_product_deployment_gate.py",
+                  "--compose-json",
+                  str(compose_json),
+                  "--image-lock-json",
+                  str(lock),
+              ],
+              check=True,
+          )
+          lock.unlink()
+          compose_json.unlink()
+          print("FRESH_DEPLOYMENT_GATE=PASS")
+          PY
+
+          sudo -E python - "$PAYLOAD" <<'PY'
+          import hashlib
+          import importlib.util
+          import json
+          import shutil
+          import sys
+          import tempfile
+          from pathlib import Path
+
+          payload = Path(sys.argv[1]).resolve()
+          tool_path = payload / "tools/n3w_t1_fresh_product_bootstrap.py"
+          spec = importlib.util.spec_from_file_location("fresh_live", tool_path)
+          assert spec is not None and spec.loader is not None
+          module = importlib.util.module_from_spec(spec)
+          sys.modules[spec.name] = module
+          spec.loader.exec_module(module)
+          manifest = json.loads(
+              (payload / "payload-manifest.json").read_text(encoding="utf-8")
+          )
+          candidate = Path(tempfile.mkdtemp(prefix="n3w-fresh-rehearsal-"))
+          candidate.rmdir()
+          adapter = module.LiveFreshInstallerAdapters(
+              payload,
+              manifest,
+              module.Runner(),
+          )
+          try:
+              identity = adapter.create_identity(candidate)
+              system_id = identity["system_id"]
+              adapter.create_state(
+                  candidate,
+                  hashlib.sha256(system_id.encode()).hexdigest(),
+              )
+              adapter.create_broker(candidate, system_id)
+              dynsec = adapter.initialize_dynsec(candidate, system_id)
+              assert dynsec["status"] == "PASS"
+              assert dynsec["node_client_count"] == 0
+              staged = adapter.stage_runtime(candidate, system_id)
+              assert staged["status"] == "PASS"
+              required = (
+                  candidate
+                  / "stage/opt-HomeAssistant/infra/n3w-t1/production/docker-compose.yml",
+                  candidate
+                  / "stage/var-lib-n3wfc4-broker/dynamic-security.json",
+                  candidate
+                  / "stage/opt-greenhouse-secrets/mqtt/manager/runtime.env",
+              )
+              assert all(path.is_file() for path in required)
+              print("FRESH_LIVE_ADAPTER_PRECOMMIT_REHEARSAL=PASS")
+          finally:
+              for name in tuple(adapter.candidate_containers):
+                  adapter.runner.run(
+                      ("docker", "rm", "-f", name),
+                      allowed=frozenset({0, 1}),
+                  )
+              shutil.rmtree(candidate, ignore_errors=True)
+          PY
+
+          test -z "$(docker ps -aq --filter 'name=n3w-fresh-')"
+
           MANIFEST_SHA="$(sha256sum "$PAYLOAD/payload-manifest.json" | awk '{print $1}')"
           ARCHIVE="$RUNNER_TEMP/fresh-bootstrap-payload.tar.gz"
           tar -C "$PAYLOAD" -czf "$ARCHIVE" .
