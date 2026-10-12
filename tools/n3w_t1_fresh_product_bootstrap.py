@@ -17,7 +17,7 @@ from typing import Any, Sequence
 
 SCHEMA = "gh.n3w-t1-fresh-product-bootstrap/1"
 PAYLOAD_SCHEMA = "gh.n3w-t1-fresh-bootstrap-payload/1"
-AUTHORIZATION_ID = "N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_LIVE_APPLY_20261012_06"
+AUTHORIZATION_ID = "N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_LIVE_APPLY_20261012_07"
 CLAIM_MARKER_NAME = ".authorization-claimed"
 AUTHORIZATION_LEDGER_SCHEMA = "gh.n3w-t1-fresh-authorization-ledger/1"
 AUTHORIZATION_LEDGER_ROOT = Path("/var/lib/n3w-fresh-bootstrap-authorizations")
@@ -1022,51 +1022,93 @@ print(json.dumps({"status": "PASS"}))
         if json.loads(gate).get("status") != "PASS":
             raise BootstrapError("postcheck_deployment_gate_invalid")
 
-        audit_source = """
+        state_audit_source = """
 import hashlib
 import json
 from pathlib import Path
-from greenhouse_manager.bootstrap.system_init import verify_initialization
 from greenhouse_manager.bootstrap.fresh_product_state import audit_fresh_state
+
+system_id = %r
+state = audit_fresh_state(
+    Path("/manager"),
+    Path("/n3w"),
+    expected_system_id_sha256=hashlib.sha256(system_id.encode()).hexdigest(),
+)
+print(json.dumps({
+    "state_node_count": state["node_credential_count"],
+}, sort_keys=True))
+""" % system_id
+        state_name = f"n3w-fresh-state-audit-{secrets.token_hex(6)}"
+        self.candidate_containers.append(state_name)
+        try:
+            state_output = self.runner.run(
+                (
+                    "docker",
+                    "run",
+                    "--rm",
+                    "--name",
+                    state_name,
+                    "--network",
+                    "none",
+                    "--user",
+                    f"{MANAGER_UID}:{MANAGER_GID}",
+                    "--mount",
+                    "type=bind,src=/var/lib/greenhouse-manager/manager,dst=/manager,readonly",
+                    "--mount",
+                    "type=bind,src=/var/lib/greenhouse-manager/n3w,dst=/n3w,readonly",
+                    "--entrypoint",
+                    "python",
+                    self.manager_image,
+                    "-c",
+                    state_audit_source,
+                ),
+                timeout=240,
+            )
+        finally:
+            self.runner.run(
+                ("docker", "rm", "-f", "-v", state_name),
+                allowed=frozenset({0, 1}),
+            )
+            if state_name in self.candidate_containers:
+                self.candidate_containers.remove(state_name)
+
+        root_audit_source = """
+import json
+from pathlib import Path
+from greenhouse_manager.bootstrap.system_init import verify_initialization
 from greenhouse_manager.bootstrap.fresh_broker import audit_fresh_dynsec_document
 from greenhouse_manager.ops.t1_clean_service_credential_bundle import verify_clean_service_credential_bundle
 
 system_id = %r
-identity = verify_initialization(Path("/state/identity"))
+identity = verify_initialization(Path("/identity"))
 if identity.system_id != system_id:
     raise RuntimeError("system_identity_drift")
-state = audit_fresh_state(
-    Path("/state/manager"),
-    Path("/state/n3w"),
-    expected_system_id_sha256=hashlib.sha256(system_id.encode()).hexdigest(),
-)
 dynsec = audit_fresh_dynsec_document(
     Path("/broker/dynamic-security.json"),
     system_id=system_id,
 )
 credentials = verify_clean_service_credential_bundle(Path("/secrets/mqtt"))
 print(json.dumps({
-    "state_node_count": state["node_credential_count"],
     "dynsec_node_count": dynsec["node_client_count"],
     "credential_node_count": credentials["node_credential_count"],
 }, sort_keys=True))
 """ % system_id
-        name = f"n3w-fresh-audit-{secrets.token_hex(6)}"
-        self.candidate_containers.append(name)
+        root_name = f"n3w-fresh-root-audit-{secrets.token_hex(6)}"
+        self.candidate_containers.append(root_name)
         try:
-            output = self.runner.run(
+            root_output = self.runner.run(
                 (
                     "docker",
                     "run",
                     "--rm",
                     "--name",
-                    name,
+                    root_name,
                     "--network",
                     "none",
                     "--user",
                     "0:0",
                     "--mount",
-                    "type=bind,src=/var/lib/greenhouse-manager,dst=/state,readonly",
+                    "type=bind,src=/var/lib/greenhouse-manager/identity,dst=/identity,readonly",
                     "--mount",
                     "type=bind,src=/var/lib/n3wfc4-broker,dst=/broker,readonly",
                     "--mount",
@@ -1075,22 +1117,25 @@ print(json.dumps({
                     "python",
                     self.manager_image,
                     "-c",
-                    audit_source,
+                    root_audit_source,
                 ),
                 timeout=240,
             )
         finally:
             self.runner.run(
-                ("docker", "rm", "-f", "-v", name),
+                ("docker", "rm", "-f", "-v", root_name),
                 allowed=frozenset({0, 1}),
             )
-            if name in self.candidate_containers:
-                self.candidate_containers.remove(name)
-        audit = json.loads(output)
+            if root_name in self.candidate_containers:
+                self.candidate_containers.remove(root_name)
+
+        state_audit = json.loads(state_output)
+        root_audit = json.loads(root_output)
+        if int(state_audit["state_node_count"]) != 0:
+            raise BootstrapError("postcheck_state_node_credential_present")
         if any(
-            int(audit[key]) != 0
+            int(root_audit[key]) != 0
             for key in (
-                "state_node_count",
                 "dynsec_node_count",
                 "credential_node_count",
             )

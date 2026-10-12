@@ -39,7 +39,7 @@ def test_future_authorization_is_fresh_bootstrap_specific() -> None:
     tool = load_tool()
     assert tool.AUTHORIZATION_ID == (
         "N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_"
-        "LIVE_APPLY_20261012_06"
+        "LIVE_APPLY_20261012_07"
     )
     assert "PRODUCTION_STACK_STAGING" not in tool.AUTHORIZATION_ID
 
@@ -344,6 +344,164 @@ def test_authorization_ledger_blocks_same_authorization_across_payload_dirs(
         match="authorization_already_consumed",
     ):
         tool._claim_authorization(second, manifest)
+
+
+def test_stopped_postcheck_splits_state_owner_and_root_audits() -> None:
+    source = TOOL.read_text(encoding="utf-8")
+
+    assert 'f"{MANAGER_UID}:{MANAGER_GID}"' in source
+    assert (
+        "src=/var/lib/greenhouse-manager/manager,dst=/manager,readonly"
+        in source
+    )
+    assert (
+        "src=/var/lib/greenhouse-manager/n3w,dst=/n3w,readonly"
+        in source
+    )
+    assert (
+        "src=/var/lib/greenhouse-manager/identity,dst=/identity,readonly"
+        in source
+    )
+
+
+def test_postcheck_failure_runs_cleanup_and_reports_stage() -> None:
+    contract_path = (
+        ROOT
+        / "host/greenhouse-manager/src/greenhouse_manager/bootstrap/fresh_installer.py"
+    )
+    specification = importlib.util.spec_from_file_location(
+        "n3w_fresh_installer_postcheck_cleanup_test",
+        contract_path,
+    )
+    assert specification is not None
+    assert specification.loader is not None
+    contract = importlib.util.module_from_spec(specification)
+    sys.modules[specification.name] = contract
+    specification.loader.exec_module(contract)
+
+    system_id = "fresh-system"
+    system_hash = __import__("hashlib").sha256(system_id.encode()).hexdigest()
+
+    class Adapter:
+        cleanup_called = False
+
+        def preflight(self):
+            return {
+                "status": "PASS",
+                "arch": "aarch64",
+                "docker_ready": True,
+                "compose_ready": True,
+                "network_ready": True,
+                "default_route": True,
+                "time_sync": True,
+                "root_capacity": True,
+                "product_containers": 0,
+                "product_images": 0,
+                "product_volumes": 0,
+                "product_networks": 0,
+                "product_listeners": 0,
+                "product_paths_absent": True,
+                "product_units_absent": True,
+                "product_dispatcher_absent": True,
+                "product_firewall_absent": True,
+                "production_service_start": False,
+            }
+
+        def load_images(self):
+            return {
+                "status": "PASS",
+                "image_count": 3,
+                "offline": True,
+                "registry_pull": False,
+                "platform": "linux/arm64",
+                "production_service_start": False,
+            }
+
+        def create_identity(self, _candidate):
+            return {
+                "created": True,
+                "production_services_modified": False,
+                "network_operation": False,
+                "system_id": system_id,
+            }
+
+        def create_state(self, _candidate, _system_hash):
+            return {
+                "status": "PASS",
+                "fresh_product_state": True,
+                "legacy_state_imported": False,
+                "node_credential_count": 0,
+                "production_service_start": False,
+                "system_id_sha256": system_hash,
+            }
+
+        def create_broker(self, _candidate, _system_id):
+            return {
+                "service_count": 3,
+                "node_credential_count": 0,
+                "broker_transport_ca_separate_from_system_ca": True,
+                "secret_values_included": False,
+                "production_service_start": False,
+                "network_operation": False,
+                "system_id": system_id,
+            }
+
+        def initialize_dynsec(self, _candidate, _system_id):
+            return {
+                "status": "PASS",
+                "service_client_count": 3,
+                "service_role_count": 3,
+                "node_client_count": 0,
+                "node_role_count": 0,
+                "default_acl_exact": True,
+                "admin_runtime_use_forbidden": True,
+                "secret_values_included": False,
+                "production_service_start": False,
+            }
+
+        def stage_runtime(self, _candidate, _system_id):
+            return {
+                "status": "PASS",
+                "source_files_staged": True,
+                "network_count": 2,
+                "guard_ready": True,
+                "services_stopped": True,
+                "production_service_start": False,
+            }
+
+        def commit_candidate(self, _candidate, _system_id):
+            return {
+                "status": "PASS",
+                "committed": True,
+                "transaction_owned_only": True,
+                "production_service_start": False,
+            }
+
+        def stopped_postcheck(self, _system_id):
+            raise RuntimeError("manager_root_owner_invalid")
+
+        def cleanup(self, _candidate):
+            self.cleanup_called = True
+            return {
+                "status": "PASS",
+                "transaction_owned_only": True,
+                "production_service_start": False,
+            }
+
+    adapter = Adapter()
+    candidate = Path("/tmp/n3w-fresh-postcheck-cleanup-test-unused")
+    with pytest.raises(contract.FreshInstallerStageError) as captured:
+        contract.run_fresh_staging(
+            adapter,
+            candidate,
+            before_mutation=lambda: None,
+        )
+
+    error = captured.value
+    assert error.failed_stage == "postcheck"
+    assert error.cleanup_result == "PASS"
+    assert adapter.cleanup_called is True
+    assert str(error) == "fresh_install_failed"
 
 
 def test_final_targets_do_not_include_host_baseline() -> None:

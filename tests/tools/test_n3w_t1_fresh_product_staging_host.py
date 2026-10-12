@@ -11,7 +11,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 TOOL = ROOT / "tools/n3w_t1_fresh_product_staging_host.py"
-AUTHORIZATION_ID = "N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_LIVE_APPLY_20261012_06"
+AUTHORIZATION_ID = "N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_LIVE_APPLY_20261012_07"
 
 
 def load_tool():
@@ -102,12 +102,15 @@ def test_remote_storage_rejects_tmpfs(monkeypatch: pytest.MonkeyPatch) -> None:
             {
                 "staging_root": "/var/tmp",
                 "docker_root": "/var/lib/docker",
+                "image_store_backend": "containerd",
+                "image_store_root": "/var/lib/containerd",
+                "image_store_root_source": "containerd_default_root",
                 "staging_device": 1,
                 "docker_device": 1,
-                "containerd_device": 1,
+                "image_store_device": 1,
                 "staging_free_bytes": 10_000_000_000,
                 "docker_free_bytes": 10_000_000_000,
-                "containerd_free_bytes": 10_000_000_000,
+                "image_store_free_bytes": 10_000_000_000,
                 "staging_fstype": "tmpfs",
             }
         )
@@ -133,12 +136,15 @@ def test_remote_storage_rejects_different_docker_filesystem(
             {
                 "staging_root": "/var/tmp",
                 "docker_root": "/var/lib/docker",
+                "image_store_backend": "containerd",
+                "image_store_root": "/var/lib/containerd",
+                "image_store_root_source": "containerd_default_root",
                 "staging_device": 1,
                 "docker_device": 2,
-                "containerd_device": 2,
+                "image_store_device": 2,
                 "staging_free_bytes": 10_000_000_000,
                 "docker_free_bytes": 10_000_000_000,
-                "containerd_free_bytes": 10_000_000_000,
+                "image_store_free_bytes": 10_000_000_000,
                 "staging_fstype": "ext4",
             }
         )
@@ -148,9 +154,112 @@ def test_remote_storage_rejects_different_docker_filesystem(
 
     with pytest.raises(
         tool.FreshHostTransportError,
-        match="staging_docker_containerd_filesystems_differ",
+        match="staging_docker_image_store_filesystems_differ",
     ):
         tool._remote_storage_report("root@example")
+
+
+def test_remote_storage_rejects_unresolved_containerd_authority(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+
+    class Result:
+        returncode = 0
+        stdout = json.dumps(
+            {
+                "staging_root": "/var/tmp",
+                "docker_root": "/var/lib/docker",
+                "image_store_backend": "containerd",
+                "image_store_root": "/var/lib/containerd",
+                "image_store_root_source": "guessed_fallback",
+                "staging_device": 1,
+                "docker_device": 1,
+                "image_store_device": 1,
+                "staging_free_bytes": 10_000_000_000,
+                "docker_free_bytes": 10_000_000_000,
+                "image_store_free_bytes": 10_000_000_000,
+                "staging_fstype": "ext4",
+            }
+        )
+        stderr = ""
+
+    monkeypatch.setattr(tool, "_run", lambda *_args, **_kwargs: Result())
+
+    with pytest.raises(
+        tool.FreshHostTransportError,
+        match="containerd_root_authority_unresolved",
+    ):
+        tool._remote_storage_report("root@example")
+
+
+def test_storage_probe_requires_active_containerd_authority() -> None:
+    tool = load_tool()
+    script = tool._remote_storage_probe_script()
+
+    compile(script, "<n3w-storage-probe>", "exec")
+    assert '"/var/lib/containerd"' in script
+    assert '"containerd_service_not_running"' in script
+    assert '"containerd_address_mismatch"' in script
+    assert '"image_store_root_unresolved"' in script
+    assert "containerd_probe" not in script
+
+
+def test_artifact_download_timeout_enters_integrity_checked_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    work = tmp_path / "work"
+    work.mkdir()
+    source_zip = tmp_path / "source.zip"
+
+    import zipfile
+
+    with zipfile.ZipFile(source_zip, "w") as bundle:
+        for name in sorted(tool.ARTIFACT_OUTER_FILES):
+            bundle.writestr(name, name.encode())
+
+    artifact_sha = tool._sha256_file(source_zip)
+    monkeypatch.setattr(tool, "_artifact_metadata", lambda **_kwargs: {})
+
+    class Result:
+        def __init__(self, stdout=""):
+            self.returncode = 0
+            self.stdout = stdout
+            self.stderr = ""
+
+    def fake_run(command, **_kwargs):
+        command = tuple(command)
+        if command[:3] == ("gh", "run", "download"):
+            raise tool.subprocess.TimeoutExpired(command, 900)
+        if command == ("gh", "auth", "token"):
+            return Result("test-token\n")
+        if command and command[0] == "curl" and "-D" in command:
+            headers = Path(command[command.index("-D") + 1])
+            headers.write_text(
+                "HTTP/1.1 302 Found\n"
+                "Location: https://blob.example.invalid/artifact\n\n",
+                encoding="utf-8",
+            )
+            return Result()
+        if command and command[0] == "curl" and "-o" in command:
+            destination = Path(command[command.index("-o") + 1])
+            destination.write_bytes(source_zip.read_bytes())
+            return Result()
+        raise AssertionError(command)
+
+    monkeypatch.setattr(tool, "_run", fake_run)
+
+    tool._download_artifact(
+        work,
+        run_id="1",
+        artifact_name="artifact",
+        artifact_id=123,
+        artifact_zip_sha256=artifact_sha,
+    )
+
+    assert {path.name for path in work.iterdir()} == tool.ARTIFACT_OUTER_FILES
 
 
 def test_sequential_load_releases_each_tar(
@@ -338,7 +447,7 @@ def _run_apply_main(
         lambda *_args, **_kwargs: {
             "staging_free_bytes": 8 * 1024 * 1024 * 1024,
             "docker_free_bytes": 8 * 1024 * 1024 * 1024,
-            "containerd_free_bytes": 8 * 1024 * 1024 * 1024,
+            "image_store_free_bytes": 8 * 1024 * 1024 * 1024,
         },
     )
     monkeypatch.setattr(

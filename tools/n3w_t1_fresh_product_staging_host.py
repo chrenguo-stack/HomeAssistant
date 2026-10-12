@@ -181,7 +181,11 @@ def _download_artifact(
             timeout=900,
         )
         return
-    except FreshHostTransportError:
+    except (
+        FreshHostTransportError,
+        OSError,
+        subprocess.TimeoutExpired,
+    ):
         pass
 
     token = _run(("gh", "auth", "token"), timeout=30).stdout.strip()
@@ -425,31 +429,190 @@ def _plan_transport(
     )
 
 
-def _remote_storage_report(t1: str) -> dict[str, object]:
-    script = (
-        "import json,os,shutil,subprocess;"
-        "stage='/var/tmp';"
-        "docker_root=subprocess.check_output("
-        "['docker','info','--format','{{.DockerRootDir}}'],text=True).strip();"
-        "containerd_root=os.path.join(docker_root,'containerd');"
-        "containerd_probe=containerd_root if os.path.exists(containerd_root) else docker_root;"
-        "stage_stat=os.stat(stage);docker_stat=os.stat(docker_root);"
-        "containerd_stat=os.stat(containerd_probe);"
-        "stage_fs=subprocess.check_output("
-        "['findmnt','-n','-o','FSTYPE','--target',stage],text=True).strip();"
-        "print(json.dumps({"
-        "'staging_root':stage,'docker_root':docker_root,"
-        "'containerd_root':containerd_probe,"
-        "'containerd_root_present':os.path.exists(containerd_root),"
-        "'staging_device':stage_stat.st_dev,'docker_device':docker_stat.st_dev,"
-        "'containerd_device':containerd_stat.st_dev,"
-        "'staging_free_bytes':shutil.disk_usage(stage).free,"
-        "'docker_free_bytes':shutil.disk_usage(docker_root).free,"
-        "'containerd_free_bytes':shutil.disk_usage(containerd_probe).free,"
-        "'staging_fstype':stage_fs}))"
+def _remote_storage_probe_script() -> str:
+    return """\
+import json
+import os
+import shutil
+import subprocess
+import tomllib
+from pathlib import Path
+
+stage = "/var/tmp"
+
+def run_text(argv):
+    return subprocess.check_output(argv, text=True).strip()
+
+def process_argv(pid):
+    if pid <= 0:
+        raise RuntimeError("process_pid_invalid")
+    raw = Path(f"/proc/{pid}/cmdline").read_bytes()
+    return [part.decode() for part in raw.split(b"\\0") if part]
+
+def option_value(argv, names):
+    for index, token in enumerate(argv):
+        for name in names:
+            if token == name and index + 1 < len(argv):
+                return argv[index + 1]
+            prefix = name + "="
+            if token.startswith(prefix):
+                return token[len(prefix):]
+    return None
+
+def feature_value(argv, name):
+    values = []
+    for index, token in enumerate(argv):
+        if token == "--feature" and index + 1 < len(argv):
+            values.append(argv[index + 1])
+        elif token.startswith("--feature="):
+            values.append(token.split("=", 1)[1])
+    for value in values:
+        if value in {name, name + "=true"}:
+            return True
+        if value == name + "=false":
+            return False
+    return None
+
+info = json.loads(run_text(["docker", "info", "--format", "{{json .}}"]))
+docker_root = info.get("DockerRootDir")
+if not isinstance(docker_root, str) or not docker_root.startswith("/"):
+    raise RuntimeError("docker_root_invalid")
+
+driver_status = info.get("DriverStatus")
+containerd_store = False
+if isinstance(driver_status, list):
+    containerd_store = any(
+        isinstance(row, list)
+        and len(row) >= 2
+        and row[0] == "driver-type"
+        and row[1] == "io.containerd.snapshotter.v1"
+        for row in driver_status
     )
+
+dockerd_pid = int(run_text([
+    "systemctl", "show", "docker", "--property=MainPID", "--value"
+]))
+dockerd_argv = process_argv(dockerd_pid)
+daemon_path = Path("/etc/docker/daemon.json")
+daemon = {}
+if daemon_path.is_file():
+    daemon = json.loads(daemon_path.read_text(encoding="utf-8"))
+if not isinstance(daemon, dict):
+    raise RuntimeError("docker_daemon_config_invalid")
+
+features = daemon.get("features")
+embedded_config = (
+    isinstance(features, dict)
+    and features.get("embedded-containerd") is True
+)
+embedded_flag = feature_value(dockerd_argv, "embedded-containerd")
+embedded = embedded_flag if embedded_flag is not None else embedded_config
+
+containerd_address = None
+containerd_config_path = None
+
+if not containerd_store:
+    image_store_backend = "classic"
+    image_store_root = docker_root
+    image_store_root_source = "docker_root"
+elif embedded:
+    image_store_backend = "containerd"
+    image_store_root = os.path.join(docker_root, "containerd", "daemon")
+    image_store_root_source = "embedded_containerd"
+else:
+    image_store_backend = "containerd"
+    containerd_pid = int(run_text([
+        "systemctl", "show", "containerd", "--property=MainPID", "--value"
+    ]))
+    if containerd_pid <= 0:
+        raise RuntimeError("containerd_service_not_running")
+    containerd_argv = process_argv(containerd_pid)
+    root_flag = option_value(containerd_argv, ("--root", "-r"))
+    config_flag = option_value(containerd_argv, ("--config", "-c"))
+    containerd_config_path = config_flag or "/etc/containerd/config.toml"
+    config = {}
+    config_path = Path(containerd_config_path)
+    if config_path.is_file():
+        config = tomllib.loads(config_path.read_text(encoding="utf-8"))
+    if not isinstance(config, dict):
+        raise RuntimeError("containerd_config_invalid")
+
+    configured_root = config.get("root")
+    if root_flag:
+        image_store_root = root_flag
+        image_store_root_source = "containerd_cli_root"
+    elif isinstance(configured_root, str) and configured_root:
+        image_store_root = configured_root
+        image_store_root_source = "containerd_config_root"
+    else:
+        image_store_root = "/var/lib/containerd"
+        image_store_root_source = "containerd_default_root"
+
+    grpc = config.get("grpc")
+    configured_address = grpc.get("address") if isinstance(grpc, dict) else None
+    containerd_address = (
+        option_value(containerd_argv, ("--address", "-a"))
+        or configured_address
+        or "/run/containerd/containerd.sock"
+    )
+    docker_containerd_address = (
+        option_value(dockerd_argv, ("--containerd",))
+        or daemon.get("containerd")
+        or "/run/containerd/containerd.sock"
+    )
+    if not (
+        isinstance(containerd_address, str)
+        and isinstance(docker_containerd_address, str)
+        and os.path.realpath(containerd_address)
+        == os.path.realpath(docker_containerd_address)
+    ):
+        raise RuntimeError("containerd_address_mismatch")
+
+image_store_root = os.path.realpath(image_store_root)
+docker_root = os.path.realpath(docker_root)
+if not image_store_root.startswith("/") or not os.path.isdir(image_store_root):
+    raise RuntimeError("image_store_root_unresolved")
+if not os.path.isdir(docker_root):
+    raise RuntimeError("docker_root_unresolved")
+
+stage_stat = os.stat(stage)
+docker_stat = os.stat(docker_root)
+image_store_stat = os.stat(image_store_root)
+stage_fs = run_text(["findmnt", "-n", "-o", "FSTYPE", "--target", stage])
+image_store_fs = run_text([
+    "findmnt", "-n", "-o", "FSTYPE", "--target", image_store_root
+])
+
+print(json.dumps({
+    "staging_root": stage,
+    "docker_root": docker_root,
+    "image_store_backend": image_store_backend,
+    "image_store_root": image_store_root,
+    "image_store_root_source": image_store_root_source,
+    "containerd_address": containerd_address,
+    "containerd_config_path": containerd_config_path,
+    "staging_device": stage_stat.st_dev,
+    "docker_device": docker_stat.st_dev,
+    "image_store_device": image_store_stat.st_dev,
+    "staging_free_bytes": shutil.disk_usage(stage).free,
+    "docker_free_bytes": shutil.disk_usage(docker_root).free,
+    "image_store_free_bytes": shutil.disk_usage(image_store_root).free,
+    "staging_fstype": stage_fs,
+    "image_store_fstype": image_store_fs,
+}, sort_keys=True))
+"""
+
+
+def _remote_storage_report(t1: str) -> dict[str, object]:
     completed = _run(
-        ("ssh", "-n", t1, _remote_command(("python3", "-c", script))),
+        (
+            "ssh",
+            "-n",
+            t1,
+            _remote_command(
+                ("python3", "-c", _remote_storage_probe_script())
+            ),
+        ),
         timeout=60,
     )
     try:
@@ -462,15 +625,35 @@ def _remote_storage_report(t1: str) -> dict[str, object]:
         raise FreshHostTransportError("remote_staging_root_invalid")
     if report.get("staging_fstype") in {"tmpfs", "ramfs"}:
         raise FreshHostTransportError("remote_staging_root_is_memory_filesystem")
+    if report.get("image_store_backend") not in {"classic", "containerd"}:
+        raise FreshHostTransportError("image_store_backend_unresolved")
+    image_store_root = report.get("image_store_root")
+    if not isinstance(image_store_root, str) or not image_store_root.startswith("/"):
+        raise FreshHostTransportError("image_store_root_unresolved")
+    if report.get("image_store_backend") == "containerd":
+        if report.get("image_store_root_source") not in {
+            "embedded_containerd",
+            "containerd_cli_root",
+            "containerd_config_root",
+            "containerd_default_root",
+        }:
+            raise FreshHostTransportError("containerd_root_authority_unresolved")
     if not (
         report.get("staging_device")
         == report.get("docker_device")
-        == report.get("containerd_device")
+        == report.get("image_store_device")
     ):
-        raise FreshHostTransportError("staging_docker_containerd_filesystems_differ")
-    free = report.get("staging_free_bytes")
-    if not isinstance(free, int) or isinstance(free, bool) or free <= 0:
-        raise FreshHostTransportError("remote_free_bytes_invalid")
+        raise FreshHostTransportError(
+            "staging_docker_image_store_filesystems_differ"
+        )
+    for key in (
+        "staging_free_bytes",
+        "docker_free_bytes",
+        "image_store_free_bytes",
+    ):
+        free = report.get(key)
+        if not isinstance(free, int) or isinstance(free, bool) or free <= 0:
+            raise FreshHostTransportError("remote_free_bytes_invalid")
     return report
 
 
@@ -617,7 +800,7 @@ def main() -> int:
             remote_free_bytes=min(
                 int(storage["staging_free_bytes"]),
                 int(storage["docker_free_bytes"]),
-                int(storage["containerd_free_bytes"]),
+                int(storage["image_store_free_bytes"]),
             ),
         )
         if not plan.capacity_pass:
