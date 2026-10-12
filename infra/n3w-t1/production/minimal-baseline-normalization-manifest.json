@@ -1,0 +1,203 @@
+{
+  "schema": "gh.n3w-t1-minimal-baseline-normalization-manifest/1",
+  "target_baseline": "ARMBIAN + DOCKER + NETWORK ONLY",
+  "source_inventory": {
+    "sha256": "0ad246ee33dcddf70555fcf23551c7b106f8b0edad8eb0523a24421d674f4814",
+    "classifier_source_head": "a1629143b19281e30909ab38f8712bcaa23883d6",
+    "volume_count": 45,
+    "volume_set_sha256": "20fc845741d31da34f1d1e563e5057c78ec5dc7c4cfd3a495a5f3a4f2bfd011b",
+    "containers": 0,
+    "images": 0,
+    "production_listeners": 0
+  },
+  "authorization": {
+    "id": "N3W_T1_MINIMAL_BASELINE_NORMALIZATION_LIVE_APPLY_20261012_01",
+    "state": "NOT_GRANTED",
+    "replay_after_mutation": false
+  },
+  "preserve": {
+    "host_services": [
+      "ssh",
+      "NetworkManager",
+      "docker"
+    ],
+    "docker_networks": [
+      "bridge",
+      "host",
+      "none"
+    ],
+    "docker_firewall_framework": {
+      "chain": "DOCKER-USER",
+      "forward_jump_required": true
+    },
+    "armbian_os": true,
+    "network_configuration": true,
+    "ssh_host_identity": true,
+    "docker_engine_root": true
+  },
+  "delete": {
+    "docker_volumes": [
+      "0679dc1a2be3750c4dcec40fb79ac5ac9750bbcc75770b30a7eadc96ac631905",
+      "140332fa5ccca76dbb4f60ed606f05a0b38c2fa65c4200f6fc1471d5df561d71",
+      "1c985766fc16fdf3d8780c427dc19e88aa749dd718b7b2f2dc2d9bd8d641a97f",
+      "2296961b34ca34ba5dc5280f6fef0bfd2d7f6b84a798c2efc66caec784b62bad",
+      "28fa9bdf8eacc03ca84d14e48f93f0055ad6afc8f512694545dd48911569fbb2",
+      "32605b56448af1986525b4ea4e76a7646d82ffe38a654b7d3b58f5bcd5ed2994",
+      "35f715bdcdf9ef5fcd3b4199b83678994929ef25eadd8c5a9748f9f16aa64fe6",
+      "37b8aea127b49441d7a509663b384dea6119279f6e72ab0888d9fecb08551f8b",
+      "3d3a26f41556ff9883a98af7381e21adea455d207d6978dce18a3f2dca8835c0",
+      "4600ed212e3aa34d53a448f030a4f17d7458f69c20460b284d610b5af20b0105",
+      "4841cce1053b6a693e5e2c836ae7374a1c3e180bc2d4f377b85b0a2a571aca18",
+      "485efade99420228393549abb344f4d80dc600116b21b025432a83f26603669f",
+      "5110b6ef979eaf0ba8b9cd8a7e54ca9ebbe40c735eb792ee643cacc7b967738d",
+      "5a2a7066210a3c9c5172809a5372dbac0a435e0a38e85b54b31bb7caf6ff67a9",
+      "5b93559be3bf964a16293b99eb4e1d1345edb365f945739ef67e3f3b341b0f34",
+      "5c01c48d8f7b7dfccdd43b4b38fb116bfe067e03d3e75fc3dea5689a18d439fd",
+      "5dae617d4ac80087615a21222907c022b08d847ab37b399c40b5859ec5c05f6f",
+      "5f99da2c15a535358eaaa9c71208eaa72442eafc8724eed2b1e385692dbcd7f9",
+      "70488b852b974290a25113a40e8cdc9943059e8ad3f5f327dacdf8fde31bebfb",
+      "7348e3ee279c86967709c7872fcdfda3a04c727b681f48b9937f62695b337f89",
+      "78803e78538f0d9fba6abee70e87eee9824566042abe81590bd52fcbd73e534f",
+      "79f1b9773bad005c801dc379883fd3c06c3a0fd73d82ee67f2526219c10e8a64",
+      "7ec87462a8d14a6118f1ef11e2c17bd058dcd17c69229e42e3b8430e86af030a",
+      "8071af0f67ca1811234706b3e2cbd76d4465e808ee93d4bd1be656730fa893a6",
+      "83a46ab09eeaf34f3b5f88d4f3157e9517ecbd3653600adeb5fd3d029d9417c2",
+      "86d0f3adfc3391e8ac8b0a26a1845041cdaad27afd94a499f06977fa9767df85",
+      "9cf3d9896d5cf4bc2f534c3082bd8fc7bdb98013ddd61c413c313b6d0a1768c0",
+      "9f016df60523331a75ea1aa2e94a726e2e1347b4b7a2b3f11845e75b4aa057ee",
+      "9f66a50122322d7a51b3d5f65ae3fdcc517295625fcf8181c6f9bf40bb6d21e5",
+      "a38e028c14fa6ee72613c3937535113892fcd554f717ec8ac0d4d9ae7aa9c645",
+      "b5468c277fac22a8dcb38b8e48df854e63d065497975f1b7dcdf70b897225825",
+      "bc0f6e0e156e2bbfec94188c7756e389ba517a299d809627ce0c38470d6333c9",
+      "c91dc92aa7f728b79c7f1c8a3b51febf1432ffce02bb0cdd18fcf2052814518b",
+      "d75f130be7c1f7f3fd3d6e4d3f2c418cc5b17b22700aa38588ddf7bf0c588523",
+      "dc872ee3d0321893c6cab0ae1ad25c434090f2c6f13fa638f120e02cf2d134cd",
+      "dd6f25e05ae7d1699f3e948b4fd1f0e7f3f415949db4419d311754d4d80ad15b",
+      "df11021427ff7ee175062e206afde8de0288b4de2658058444735956ea94abc9",
+      "e012cf9e2a0e209f09f60d10c199cb78e9a91e573a4c60d89d8a04575de6bbc3",
+      "e47fb83302348151a07b26d5c9cc157c715950d074ea66c6aec67b84b718d002",
+      "e78354c25c6b99ec0bfe10bb947575344c28a0f2ac29bac52af8b3b6173bf79b",
+      "e8554ee9d48230bc8761da93f4bc95dafc9d0349cebaed277ff9a839e9892076",
+      "e98f9f7ddb3649227244af42bc1cd6b7a20db6b85ccb4d05cd6e7748ad8a8378",
+      "ebe2495b55f9472417f137a99a4191c254355e97632cc44f8841365a7642e3a8",
+      "ec70843a07dd6a73a7b5da988adf5633a396015a2d81697b365ad35b0ca91fd1",
+      "f298b31fc7333ab4bc9d324d0ae3d43ad45968b392909a89a095d4a2ca2d8172"
+    ],
+    "docker_networks": [
+      {
+        "name": "corrected-successor-mqtt-runtime-20260827-01_default",
+        "expected_id_prefix": "e2866292052c"
+      },
+      {
+        "name": "greenhouse-pr260-hostloopback-v13r4r2-20260806t015504z-f147d422",
+        "expected_id_prefix": "aafce25179a8"
+      },
+      {
+        "name": "greenhouse-pr260-private",
+        "expected_id_prefix": "c65076cf761f"
+      },
+      {
+        "name": "n3wfc4-private",
+        "expected_id_prefix": "faa822e50eb8"
+      },
+      {
+        "name": "n3wfc4-services",
+        "expected_id_prefix": "a427e798dd94"
+      }
+    ],
+    "systemd_units": [
+      {
+        "name": "n3wfc4-broker-ingress-guard.service",
+        "expected_active": "active",
+        "expected_enabled": "enabled",
+        "fragment_path": "/etc/systemd/system/n3wfc4-broker-ingress-guard.service"
+      }
+    ],
+    "product_paths": [
+      {
+        "path": "/var/lib/greenhouse-manager",
+        "kind": "directory"
+      },
+      {
+        "path": "/var/lib/n3wfc4-broker",
+        "kind": "directory"
+      },
+      {
+        "path": "/var/lib/n3wfc4-certificate-lifecycle",
+        "kind": "directory"
+      },
+      {
+        "path": "/opt/greenhouse-secrets",
+        "kind": "directory"
+      },
+      {
+        "path": "/etc/n3wfc4",
+        "kind": "directory"
+      },
+      {
+        "path": "/usr/local/sbin/n3w-broker-ingress-guard",
+        "kind": "file"
+      },
+      {
+        "path": "/usr/local/sbin/n3w-broker-certificate-lifecycle",
+        "kind": "file"
+      },
+      {
+        "path": "/etc/systemd/system/n3wfc4-broker-ingress-guard.service",
+        "kind": "file"
+      }
+    ],
+    "firewall": {
+      "custom_chain": "N3WFC4-BROKER-INGRESS",
+      "anchor_comment": "n3wfc4-broker-ingress-v1",
+      "broker_tls_port": 8883,
+      "expected_input_anchor_count": 1,
+      "expected_docker_user_anchor_count": 1,
+      "expected_custom_rule_count": 3,
+      "foreign_custom_chain_references_allowed": false
+    }
+  },
+  "expected_absent_before_apply": [
+    "/var/lib/n3wfc4-homeassistant",
+    "/opt/HomeAssistant",
+    "/usr/local/sbin/n3w-t1-broker-authenticated-readiness",
+    "/etc/NetworkManager/dispatcher.d/90-n3wfc4-broker-ingress-guard",
+    "/etc/systemd/system/n3wfc4-broker-activation.service",
+    "/etc/systemd/system/n3wfc4-services-activation.service",
+    "/etc/systemd/system/n3wfc4-broker-certificate-lifecycle.service",
+    "/etc/systemd/system/n3wfc4-broker-certificate-lifecycle.timer"
+  ],
+  "operation_order": [
+    "stop_and_disable_product_guard",
+    "remove_exact_n3w_firewall_anchors_and_chain",
+    "remove_exact_product_docker_networks",
+    "remove_exact_45_volume_set",
+    "remove_exact_product_paths",
+    "systemd_daemon_reload",
+    "minimal_baseline_postcheck"
+  ],
+  "postcheck": {
+    "containers": 0,
+    "images": 0,
+    "docker_volumes": 0,
+    "docker_networks": [
+      "bridge",
+      "host",
+      "none"
+    ],
+    "product_paths_absent": true,
+    "product_units_absent": true,
+    "product_firewall_chain_absent": true,
+    "product_listeners": 0,
+    "preserve_docker_user_chain": true,
+    "preserve_forward_docker_user_jump": true,
+    "host_services_active": [
+      "ssh",
+      "NetworkManager",
+      "docker"
+    ]
+  },
+  "live_mutation_authorized": false,
+  "production_service_start": false,
+  "board_access": false
+}
