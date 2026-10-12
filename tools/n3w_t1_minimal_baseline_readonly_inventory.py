@@ -7,6 +7,7 @@ import hashlib
 import json
 import shlex
 import subprocess
+from pathlib import Path
 from typing import Any, Sequence
 
 SCHEMA = "gh.n3w-t1-minimal-baseline-readonly-inventory/1"
