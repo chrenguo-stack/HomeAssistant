@@ -169,6 +169,15 @@ def _complete_report(root: Path, release_id: str) -> dict[str, Any] | None:
         or not isinstance(document.get("system_id"), str)
     ):
         raise DeviceFirstbootError("firstboot_complete_binding_invalid")
+    transaction = _read_json(root / TRANSACTION_NAME)
+    if (
+        transaction.get("schema") != TRANSACTION_SCHEMA
+        or transaction.get("release_id") != release_id
+        or transaction.get("stage") != "VERIFY"
+        or transaction.get("host_instance_id") != document.get("host_instance_id")
+        or transaction.get("system_id") != document.get("system_id")
+    ):
+        raise DeviceFirstbootError("firstboot_complete_transaction_drift")
     return document
 
 
