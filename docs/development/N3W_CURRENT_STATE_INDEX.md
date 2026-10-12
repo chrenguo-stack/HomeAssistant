@@ -1,3 +1,5 @@
+> **2026-10-12 Astra R3 focused closure**：PRODUCT_SOURCE_HEAD=41d05b99813ae5ea3887b4f2b80b75164f35dda4；PR_HEAD=7ebceebe6f52310b60a0e1adf0e9486a8968f575；current CI=25/25 PASS。复核仅限 F5、D1、A8、DOWNSTREAM_SOURCE_BLOCKER；_07 NOT_GRANTED；不访问 T1、不清 R3 retained payload、不 merge。
+
 > **2026-10-12 Astra R2 blocker repair**：product head=41d05b99...；F5 actual image-store root + D1 UID-999 stopped audit + A8 timeout fallback committed；_06=SUPERSEDED_UNGRANTED；_07=NOT_GRANTED；CI pending；T1 unchanged。
 
 > **2026-10-12 Astra R2 closure review**：PRODUCT_SOURCE_HEAD=dec88fdc...，CI=25/25 PASS；复核目标仅为关闭上一轮 F1-F6/A8 并确认是否可以进入 replacement artifact binding + real-T1 read-only preflight。_06 NOT_GRANTED；T1/board/runtime mutation=false。
