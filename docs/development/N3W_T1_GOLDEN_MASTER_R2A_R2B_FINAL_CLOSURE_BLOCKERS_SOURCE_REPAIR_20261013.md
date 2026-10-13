@@ -160,3 +160,31 @@ The final closure review found A10: target-identity contract continuity was chec
 A10 is repaired fail-closed before the Seal record can be written. public_audit_sha256 is not required to remain identical because the Seal authorization ledger may legitimately change after claim.
 
 The R2 source-design authority is aligned with the accepted ledger, external-manifest, schema/mode, audit-order and continuity contracts.
+
+
+## 10. Final closure
+
+Reviewed exact source head:
+
+`51ea220ac5510f4a55f0166bbab7f1cec5bed407`
+
+CI: `27/27 PASS`.
+
+Final focused review found no additional R2A/R2B source blocker after A10. A1-A10 are
+therefore closed at source level.
+
+```text
+R2A_SOURCE_REPAIR=CLOSED_SOURCE
+R2B_HOST_INDEPENDENT_SOURCE_REPAIR=CLOSED_SOURCE
+R2C_TARGET_ARMBIAN_SEAL_ADAPTER=NOT_ENTERED
+REAL_SEAL_MUTATION_EXECUTABLE=false
+DISK_CAPTURE_READY=false
+T1_ACCESS=false
+LIVE_RUNTIME_MUTATION=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+MERGE=false
+```
+
+The next bounded stage is R2C target-Armbian read-only evidence preparation. Actual T1
+evidence execution still requires a new explicit read-only authorization.

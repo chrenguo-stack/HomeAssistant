@@ -1,3 +1,17 @@
+## 2026-10-13 — KF-113 R2A/R2B source closure guard
+
+```text
+R2A_SOURCE_REPAIR=CLOSED_SOURCE
+R2B_HOST_INDEPENDENT_SOURCE_REPAIR=CLOSED_SOURCE
+R2C_TARGET_ARMBIAN_SEAL_ADAPTER=NOT_ENTERED
+OS_IDENTITY_SEMANTICS_PROVEN=false
+CONTROLLED_CLONE_BOOT_EVIDENCE_REQUIRED=true
+DISK_CAPTURE_READY=false
+```
+
+Guard: R2A/R2B source closure must never be promoted to target-Armbian Seal correctness,
+disk-capture readiness or clone uniqueness. Those claims require R2C/R4 evidence.
+
 ## 2026-10-13 — KF-113 pre/post Seal immutable-release continuity guard
 
 POST_SEAL_SOURCE_HEAD_CONTINUITY_REQUIRED=true

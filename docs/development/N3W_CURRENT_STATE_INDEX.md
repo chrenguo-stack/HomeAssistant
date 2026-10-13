@@ -1,3 +1,14 @@
+## 2026-10-13 — R2A/R2B CLOSED_SOURCE
+
+- Reviewed source authority: `51ea220ac5510f4a55f0166bbab7f1cec5bed407`.
+- Exact-head CI: 27/27 PASS.
+- A1-A10: CLOSED_SOURCE.
+- R2A build source and host-independent R2B Seal source: CLOSED_SOURCE.
+- R2C target-Armbian identity adapter: NOT_ENTERED.
+- OS identity semantics remain unproven; controlled clone-boot evidence remains required.
+- Next one gate: R2C target-Armbian read-only evidence preparation only; no T1 access in
+  the preparation gate.
+
 ## 2026-10-13 — R2A/R2B A10 pre/post immutable release continuity
 
 - ee4ff129... reached 27/27 CI PASS and was reviewed immediately.
