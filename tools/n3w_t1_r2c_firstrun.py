@@ -12,6 +12,7 @@ FIRSTRUN_RELATIVE = "usr/lib/armbian/armbian-firstrun"
 FIRSTRUN_CONFIG_RELATIVE = "etc/default/armbian-firstrun"
 MAX_HELPERS = 16
 MAX_HELPER_DEPTH = 4
+HELPER_ROOTS = ("usr/lib/armbian/",)
 IDENTITY_TOKENS = (
     "hostname",
     "machine-id",
@@ -114,13 +115,15 @@ def _analyze_text(relative: str, text: str) -> dict[str, Any]:
                 unresolved.add("DYNAMIC_SOURCE")
             elif normalized == FIRSTRUN_CONFIG_RELATIVE:
                 config_source_lines.append(line_number)
-            else:
+            elif any(normalized.startswith(root) for root in HELPER_ROOTS):
                 static_sources.append(
                     {
                         "line": line_number,
                         "relative": normalized,
                     }
                 )
+            else:
+                unresolved.add("STATIC_SOURCE_OUTSIDE_HELPER_ROOT")
 
         lowered = stripped.lower()
         if any(marker in stripped for marker in DYNAMIC_MARKERS):
