@@ -223,10 +223,10 @@ def test_collect_e4_captures_units_and_installed_machine_id_manual(
     manual = tmp_path / "usr" / "share" / "man" / "man5"
     manual.mkdir(parents=True)
     manual_text = (
-        "machine-id uses /etc/machine-id. "
-        "The uninitialized state is handled on first boot. "
-        "A fallback may use /run/machine-id."
-    ).encode()
+        b"machine-id uses /etc/machine-id. "
+        b"The uninitialized state is handled on first boot. "
+        b"A fallback may use /run/machine-id."
+    )
     (manual / "machine-id.5.gz").write_bytes(gzip.compress(manual_text))
 
     evidence = collect_e4(str(tmp_path), runner=_e4_complete_runner)
