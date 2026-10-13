@@ -1,3 +1,12 @@
+## 2026-10-13 — Current formal handoff: R2C probe source continuation
+
+- Formal handoff: `docs/development/N3W_T1_GOLDEN_MASTER_R2C_READONLY_PROBE_SOURCE_CONTINUATION_NEW_CHAT_HANDOFF_V1.0_20261013.md`.
+- Handoff commit: `da4074f753e0a4dab25d12918f0a7657f520383c`.
+- Correct template: candidate-branch `NEW_CHAT_HANDOFF_TEMPLATE.md` V1.3 / blob `b9ef40acdaa8fae37feb5ffe5662afd0e89462a0`.
+- R2C source authority remains `a626eb8827a584b7a84f3838beaf08f86766cd73`; docs-only handoff commits are not source authority.
+- Next one gate: `N3W_T1_GOLDEN_MASTER_R2C_READONLY_PROBE_E5_E9_SOURCE_CONTINUATION_20261013_01`.
+- T1/live/board/merge remain false; actual R2C target execution remains unauthorized.
+
 ## 2026-10-13 — R2C probe/executor source progress aligned to fresh PR #541
 
 - Local-dialogue last explicit source head: `b2b0a63292096fb624e733891466663d19abd86a`.
