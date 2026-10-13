@@ -152,3 +152,11 @@ OS identity`, so the post-neutralization audit follows the frozen final ordering
 
 R2C remains not entered. Real OS-identity mutation, disk capture, T1 access, board
 access, production service start and merge remain forbidden.
+
+## 9. Pre/post Seal public-release continuity
+
+The final closure review found A10: target-identity contract continuity was checked, but source HEAD, release-manifest SHA-256 and image-lock SHA-256 were not independently frozen across identity preparation.
+
+A10 is repaired fail-closed before the Seal record can be written. public_audit_sha256 is not required to remain identical because the Seal authorization ledger may legitimately change after claim.
+
+The R2 source-design authority is aligned with the accepted ledger, external-manifest, schema/mode, audit-order and continuity contracts.

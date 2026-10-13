@@ -405,3 +405,27 @@ N3W_T1_GOLDEN_MASTER_R2C_TARGET_ARMBIAN_SEAL_ADAPTER_READONLY_EVIDENCE
 T1_READONLY_AUTHORIZATION_REQUIRED=true
 OLD_P2B_AUTHORIZATION_REPLAY=false
 ```
+
+## 11. R2A/R2B closure hardening frozen by final source review
+
+The final source-review sequence freezes these additional host-independent requirements:
+
+AUTHORIZATION_LEDGER_POLICY=retained_nonsecret_no_replay_provenance
+AUTHORIZATION_RECORD_SCHEMA=EXACT_KEYS_ONLY
+CORRUPT_OCCUPIED_AUTHORIZATION_SLOT=NO_REPLAY_FAIL_CLOSED
+PUBLIC_RELEASE_MANIFEST_EXTERNAL_SHA256_REQUIRED=true
+PUBLIC_RELEASE_SCHEMA=EXACT_KEYS_ONLY
+PUBLIC_RELEASE_BOARD_ACCESS=false
+PUBLIC_EXTERNAL_GUARD_BINARY_MODE=0755
+PUBLIC_EXTERNAL_GUARD_UNIT_MODE=0644
+SEAL_RECORD_SOURCE_HEAD_REQUIRED=true
+FINAL_SEAL_AUDIT_ORDER=INSTANCE_ABSENCE→PUBLIC_RELEASE_BINDING→CAPTURE_QUIESCENCE→OS_IDENTITY
+POST_SEAL_SOURCE_HEAD_CONTINUITY_REQUIRED=true
+POST_SEAL_RELEASE_MANIFEST_SHA256_CONTINUITY_REQUIRED=true
+POST_SEAL_IMAGE_LOCK_SHA256_CONTINUITY_REQUIRED=true
+
+The retained authorization ledger is secret-free no-replay provenance and must reject unknown, corrupt, extra-field, or binding-mismatched records. The public release manifest cannot authenticate itself: Seal audit requires the external SHA-256 emitted by the Golden Master Build result.
+
+Identity preparation may change only target OS-identity state allowed by R2C. Source HEAD, release-manifest SHA-256 and image-lock SHA-256 must remain identical from pre-audit to post-audit. public_audit_sha256 is intentionally allowed to change because the Seal authorization ledger may legitimately change after claim.
+
+These rules do not define target-Armbian machine-id/SSH/NetworkManager/journal/random-seed mutation. That remains R2C.

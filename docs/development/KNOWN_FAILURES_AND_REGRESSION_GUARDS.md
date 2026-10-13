@@ -1,3 +1,13 @@
+## 2026-10-13 — KF-113 pre/post Seal immutable-release continuity guard
+
+POST_SEAL_SOURCE_HEAD_CONTINUITY_REQUIRED=true
+POST_SEAL_RELEASE_MANIFEST_SHA256_CONTINUITY_REQUIRED=true
+POST_SEAL_IMAGE_LOCK_SHA256_CONTINUITY_REQUIRED=true
+PUBLIC_AUDIT_SHA256_CONTINUITY_REQUIRED=false:SEAL_AUTH_LEDGER_CAN_CHANGE_AFTER_CLAIM
+SEAL_RECORD_WRITE_ON_RELEASE_DRIFT=false
+
+Guard: identity neutralization may change only target OS-identity state allowed by R2C. It must not silently move Seal to another source/release/image-lock.
+
 ## 2026-10-13 — KF-113 Seal record/source-order guard
 
 ```text

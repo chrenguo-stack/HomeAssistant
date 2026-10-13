@@ -1,3 +1,11 @@
+## 2026-10-13 — R2A/R2B A10 pre/post immutable release continuity
+
+- ee4ff129... reached 27/27 CI PASS and was reviewed immediately.
+- A10 repairs pre/post source HEAD, release-manifest SHA-256 and image-lock SHA-256 continuity across identity preparation.
+- R2 source design is aligned with the accepted ledger/release/schema/mode/order/continuity contracts.
+- Fresh exact-head CI + final focused review remain before CLOSED_SOURCE.
+- R2C/live/T1/board/service/disk-capture/merge remain untouched.
+
 ## 2026-10-13 — R2A/R2B A8-A9 final design-contract repair
 
 - `343112303...` reached exact-head 27/27 CI PASS and was reviewed immediately.
